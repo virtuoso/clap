@@ -1,0 +1,13 @@
+.*.*
+*.o
+*.wasm
+*.a
+core
+onehandclap
+onehandclap.js
+onehandclap.html
+test
+test.js
+test.html
+compile_commands.json
+.vscode
