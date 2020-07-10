@@ -369,12 +369,14 @@ static void entity3d_free(struct entity3d *e)
     free(e);
 }
 
-static int default_update(struct entity3d *e, struct scene *scene)
+static int default_update(struct entity3d *e, void *data)
 {
+    //struct scene *scene = data;
     mat4x4_identity(e->base_mx->m);
     mat4x4_translate_in_place(e->base_mx->m, e->dx, e->dy, e->dz);
     mat4x4_scale_aniso(e->base_mx->m, e->base_mx->m, e->scale, e->scale, e->scale);
     e->mx = e->base_mx;
+    return 0;
 }
 
 static void entity3d_drop(struct ref *ref)
