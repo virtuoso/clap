@@ -19,7 +19,6 @@ struct model3d {
     const char          *name;
     struct ref          ref;
     struct shader_prog  *prog;
-    GLuint              vao;
     GLuint              vertex_obj;
     GLuint              index_obj;
     GLuint              tex_obj;

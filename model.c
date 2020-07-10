@@ -111,9 +111,6 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     m->name = name;
     m->prog = ref_get(p);
 
-    m->vao = 0;
-    //glGenVertexArraysOES(1, &m->vao);
-    //glBindVertexArrayOES(m->vao);
     shader_prog_use(p);
     load_gl_buffer(m->prog->pos, vx, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
     load_gl_buffer(-1, idx, idxsz, &m->index_obj, 0, GL_ELEMENT_ARRAY_BUFFER);
@@ -124,11 +121,10 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     if (normsz)
         load_gl_buffer(m->prog->norm, norm, normsz, &m->norm_obj, 3, GL_ARRAY_BUFFER);
     shader_prog_done(p);
-    //glBindVertexArrayOES(0);
 
     m->nr_vertices = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
-    dbg("created model '%s' vao: %d vobj: %d iobj: %d nr_vertices: %d\n",
-        m->name, m->vao, m->vertex_obj, m->index_obj, m->nr_vertices);
+    dbg("created model '%s' vobj: %d iobj: %d nr_vertices: %d\n",
+        m->name, m->vertex_obj, m->index_obj, m->nr_vertices);
 
     return m;
 }
