@@ -5,6 +5,7 @@
 #include "ui.h"
 
 static struct model3d *ui_quad;
+static struct model3dtx *ui_quadtx;
 
 static void ui_element_position(struct ui_element *uie, struct ui *ui)
 {
@@ -62,12 +63,12 @@ static int ui_element_update(struct entity3d *e, void *data)
 
 void ui_update(struct ui *ui)
 {
-    struct model3d * model;
-    struct entity3d *ent;
+    struct model3dtx *txmodel;
+    struct entity3d  *ent;
     int              i;
 
-    for (model = ui->model; model; model = model->next) {
-        for (i = 0, ent = model->ent; ent; ent = ent->next, i++) {
+    for (txmodel = ui->txmodel; txmodel; txmodel = txmodel->next) {
+        for (i = 0, ent = txmodel->ent; ent; ent = ent->next, i++) {
             entity3d_update(ent, ui);
         }
     }
@@ -82,11 +83,11 @@ static void ui_element_drop(struct ref *ref)
     free(uie);
 }
 
-static int ui_element_init(struct ui *ui, struct model3d *model, unsigned long affinity, float x_off, float y_off,
+static int ui_element_init(struct ui *ui, struct model3dtx *txmodel, unsigned long affinity, float x_off, float y_off,
                            float w, float h)
 {
     struct ui_element *uie;
-    struct entity3d *  e = entity3d_new(model);
+    struct entity3d *  e = entity3d_new(txmodel);
 
     if (!e)
         return -1;
@@ -105,17 +106,17 @@ static int ui_element_init(struct ui *ui, struct model3d *model, unsigned long a
     e->update  = ui_element_update;
     e->priv    = uie;
     e->visible = 1;
-    e->next    = model->ent;
-    model->ent = e;
+    e->next    = txmodel->ent;
+    txmodel->ent = e;
     ui_element_position(uie, ui);
 
     return 0;
 }
 
-static void ui_add_model(struct ui *ui, struct model3d *model)
+static void ui_add_model(struct ui *ui, struct model3dtx *txmodel)
 {
-    model->next = ui->model;
-    ui->model   = model;
+    txmodel->next = ui->txmodel;
+    ui->txmodel   = txmodel;
 }
 
 static int ui_model_init(struct ui *ui)
@@ -135,8 +136,8 @@ static int ui_model_init(struct ui *ui)
                                      quad_idx, sizeof(quad_idx),
                                      quad_tx, sizeof(quad_tx), NULL, 0);
     /* XXX: maybe a "textured_model" as another interim object */
-    model3d_add_texture(ui_quad, "hello.png");
-    ui_add_model(ui, ui_quad);
+    ui_quadtx = model3dtx_new(ui_quad, "hello.png");
+    ui_add_model(ui, ui_quadtx);
     return 0;
 }
 
@@ -157,11 +158,11 @@ int ui_init(struct ui *ui, int width, int height)
     lib_request_shaders("ui", &ui->prog);
 
     ui_model_init(ui);
-    ui_element_init(ui, ui_quad, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
-    ui_element_init(ui, ui_quad, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 300, 100);
-    ui_element_init(ui, ui_quad, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
-    ui_element_init(ui, ui_quad, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 100, 100);
-    ui_element_init(ui, ui_quad, UI_AF_HCENTER| UI_AF_BOTTOM, 5, 5, 0.99, 30);
+    ui_element_init(ui, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
+    ui_element_init(ui, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 300, 100);
+    ui_element_init(ui, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
+    ui_element_init(ui, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 100, 100);
+    ui_element_init(ui, ui_quadtx, UI_AF_HCENTER| UI_AF_BOTTOM, 5, 5, 0.99, 30);
     //ui_element_init(ui, ui_quad, UI_AF_CENTER, 0.05, 0.05, 100, 100);
 
     subscribe(MT_INPUT, ui_handle_input, ui);

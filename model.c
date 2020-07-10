@@ -66,15 +66,37 @@ static int load_gl_texture(struct shader_prog *p, const char *name, GLuint *obj)
     return 0;
 }
 
-int model3d_add_texture(struct model3d *m, const char *name)
+static int model3d_add_texture(struct model3dtx *txm, const char *name)
 {
     int ret;
 
-    shader_prog_use(m->prog);
-    ret = load_gl_texture(m->prog, name, &m->texture_id);
-    shader_prog_done(m->prog);
+    shader_prog_use(txm->model->prog);
+    ret = load_gl_texture(txm->model->prog, name, &txm->texture_id);
+    shader_prog_done(txm->model->prog);
 
     return ret;
+}
+
+static void model3dtx_drop(struct ref *ref)
+{
+    struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
+
+    glDeleteTextures(1, txm->texture_id);
+    ref_put(txm->model);
+    free(txm);
+}
+
+struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
+{
+    struct model3dtx *txm = ref_new(struct model3dtx, ref, model3dtx_drop);
+
+    if (!txm)
+        return NULL;
+
+    txm->model = ref_get(model);
+    model3d_add_texture(txm, name);
+
+    return txm;
 }
 
 static void load_gl_buffer(GLint loc, void *data, size_t sz, GLuint *obj, GLint nr_coords, GLenum target)
@@ -148,10 +170,7 @@ model3d_new_from_model_data(const char *name, struct shader_prog *p, struct mode
     return m;
 }
 
-/* Cube and quad */
-#include "primitives.c"
-
-void model3d_prepare(struct model3d *m)
+static void model3d_prepare(struct model3d *m)
 {
     struct shader_prog *p = m->prog;
 
@@ -160,12 +179,6 @@ void model3d_prepare(struct model3d *m)
     glVertexAttribPointer(p->pos, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
     glEnableVertexAttribArray(p->pos);
 
-    if (m->tex_obj && m->texture_id) {
-        glBindBuffer(GL_ARRAY_BUFFER, m->tex_obj);
-        glVertexAttribPointer(p->tex, 2, GL_FLOAT, GL_FALSE, 0, (void *)0);
-        glEnableVertexAttribArray(p->tex);
-        glBindTexture(GL_TEXTURE_2D, m->texture_id);
-    }
     if (m->norm_obj && p->norm >= 0) {
         glBindBuffer(GL_ARRAY_BUFFER, m->norm_obj);
         glVertexAttribPointer(p->norm, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
@@ -173,39 +186,68 @@ void model3d_prepare(struct model3d *m)
     }
 }
 
-void model3d_draw(struct model3d *m)
+/* Cube and quad */
+#include "primitives.c"
+
+void model3dtx_prepare(struct model3dtx *txm)
 {
-    /* GL_UNSIGNED_SHORT == typeof *indices */
-    glDrawElements(GL_TRIANGLES, m->nr_vertices, GL_UNSIGNED_SHORT, 0);
+    struct shader_prog *p = txm->model->prog;
+    struct model3d *    m = txm->model;
+
+    model3d_prepare(txm->model);
+
+    if (m->tex_obj && txm->texture_id) {
+        glBindBuffer(GL_ARRAY_BUFFER, m->tex_obj);
+        glVertexAttribPointer(p->tex, 2, GL_FLOAT, GL_FALSE, 0, (void *)0);
+        glEnableVertexAttribArray(p->tex);
+        glBindTexture(GL_TEXTURE_2D, txm->texture_id);
+    }
 }
 
-void model3d_done(struct model3d *m)
+void model3dtx_draw(struct model3dtx *txm)
+{
+    /* GL_UNSIGNED_SHORT == typeof *indices */
+    glDrawElements(GL_TRIANGLES, txm->model->nr_vertices, GL_UNSIGNED_SHORT, 0);
+}
+
+static void model3d_done(struct model3d *m)
 {
     struct shader_prog *p = m->prog;
 
     glDisableVertexAttribArray(p->pos);
-    if (m->tex_obj && m->texture_id)
-        glDisableVertexAttribArray(p->tex);
     if (m->norm_obj)
         glDisableVertexAttribArray(p->norm);
-    glBindTexture(GL_TEXTURE_2D, 0);
 
     /* both need to be bound for glDrawElements() */
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void models_render(struct model3d *model, struct light *light, struct matrix4f *view_mx,
+void model3dtx_done(struct model3dtx *txm)
+{
+    struct shader_prog *p = txm->model->prog;
+
+    if (txm->model->tex_obj && txm->texture_id) {
+        glDisableVertexAttribArray(p->tex);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    model3d_done(txm->model);
+}
+
+void models_render(struct model3dtx *txmodel, struct light *light, struct matrix4f *view_mx,
                    struct matrix4f *inv_view_mx, struct matrix4f *proj_mx, struct entity3d *focus)
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
+    struct model3d *model;
     GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
     GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
     GLint highlight_loc;
     int i;
 
-    for (; model; model = model->next) {
+    for (; txmodel; txmodel = txmodel->next) {
+        model = txmodel->model;
         /* XXX: model-specific draw method */
         if (!strcmp(model->name, "terrain")) {
             glDisable(GL_CULL_FACE);
@@ -254,8 +296,8 @@ void models_render(struct model3d *model, struct light *light, struct matrix4f *
             if (proj_mx && projmx_loc >= 0)
                 glUniformMatrix4fv(projmx_loc, 1, GL_FALSE, proj_mx->cell);
         }
-        model3d_prepare(model);
-        for (i = 0, e = model->ent; e; e = e->next, i++) {
+        model3dtx_prepare(txmodel);
+        for (i = 0, e = txmodel->ent; e; e = e->next, i++) {
             float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
             if (!e->visible)
                 continue;
@@ -268,9 +310,9 @@ void models_render(struct model3d *model, struct light *light, struct matrix4f *
                 glUniformMatrix4fv(transmx_loc, 1, GL_FALSE, (GLfloat *)e->mx);
             }
 
-            model3d_draw(model);
+            model3dtx_draw(txmodel);
         }
-        model3d_done(model);
+        model3dtx_done(txmodel);
     }
 
     shader_prog_done(prog);
@@ -293,11 +335,10 @@ static void model_obj_loaded(struct lib_handle *h, void *data)
         return;
 
     m = model3d_new_from_model_data(h->name, prog, md);
-    //model3d_add_texture(m, "purple.png");
     ref_put(&h->ref);
 
-    scene_add_model(s, m);
-    //create_entities(m);
+    //scene_add_model(s, m);
+    s->_model = m;
 }
 
 static void model_bin_vec_loaded(struct lib_handle *h, void *data)
@@ -317,11 +358,10 @@ static void model_bin_vec_loaded(struct lib_handle *h, void *data)
     norm = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz;
     idx  = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz + hdr->vxsz;
     m = model3d_new_from_vectors(h->name, prog, vx, hdr->vxsz, idx, hdr->idxsz, tx, hdr->txsz, norm, hdr->vxsz);
-    //model3d_add_texture(m, "purple.png");
     ref_put(&h->ref);
 
-    scene_add_model(s, m);
-    //create_entities(m);
+    //scene_add_model(s, m);
+    s->_model = m;
 }
 
 struct lib_handle *lib_request_obj(const char *name, struct scene *scene)
@@ -385,7 +425,7 @@ static void entity3d_drop(struct ref *ref)
     entity3d_free(e);
 }
 
-struct entity3d *entity3d_new(struct model3d *m)
+struct entity3d *entity3d_new(struct model3dtx *txm)
 {
     struct entity3d *e;
 
@@ -394,7 +434,7 @@ struct entity3d *entity3d_new(struct model3d *m)
         return NULL;
 
     memset(e, 0, sizeof(*e));
-    e->model = m; /* XXX: ref_get */
+    e->txmodel = txm; /* XXX: ref_get */
     e->mx = mx_new();
     e->base_mx = mx_new();
     e->update  = default_update;
@@ -424,7 +464,7 @@ static int silly_update(struct entity3d *e, void *data)
     mat4x4_identity(m);
     //if ()
     //mat4x4_rotate_X(m, m, (float)(scene->frames_total)/20);
-    if (strcmp(e->model->name, "terrain"))
+    if (strcmp(e->txmodel->model->name, "terrain"))
         mat4x4_rotate_X(m, m, to_radians((float)(scene->frames_total * i) / 50.0));
     //mat4x4_rotate_Z(m, m, to_radians((float)(scene->frames_total)));
     //if (strncmp(model->name, "ui_", 3)) {
@@ -438,10 +478,11 @@ static int silly_update(struct entity3d *e, void *data)
     return 0;
 }
 
-void create_entities(struct model3d *model)
+void create_entities(struct model3dtx *txmodel)
 {
     int i, max = 16;
     bool static_coords = false;
+    struct model3d *model = txmodel->model;
 
     if (!strcmp(model->name, "terrain")) {
         max = 1;
@@ -454,7 +495,7 @@ void create_entities(struct model3d *model)
     }
 
     for (i = 0; i < max; i++) {
-        struct entity3d *e = entity3d_new(model);
+        struct entity3d *e = entity3d_new(txmodel);
         //mat4x4 m, p;
         float a = 0, b = 0, c = 0;
 
@@ -485,8 +526,8 @@ void create_entities(struct model3d *model)
         e->update  = silly_update;
         e->priv    = (void *)i;
         e->visible = 1;
-        e->next    = model->ent;
-        model->ent = e;
+        e->next    = txmodel->ent;
+        txmodel->ent = e;
     }
 }
 

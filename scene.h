@@ -19,7 +19,8 @@ struct scene {
     char                *name;
     int                 width;
     int                 height;
-    struct model3d      *model;
+    struct model3d      *_model; /* temporary */
+    struct model3dtx    *txmodel;
     struct entity3d     *focus;
     struct shader_prog  *prog;
     struct matrix4f     *proj_mx;
@@ -38,7 +39,7 @@ struct scene {
 };
 
 void scene_camera_calc(struct scene *s);
-int scene_add_model(struct scene *s, struct model3d *m);
+int scene_add_model(struct scene *s, struct model3dtx *txm);
 int scene_init(struct scene *scene);
 int  scene_load(struct scene *scene, const char *name);
 void scene_update(struct scene *scene);

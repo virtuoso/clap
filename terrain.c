@@ -7,6 +7,7 @@
 int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
 {
     struct model3d *model;
+    struct model3dtx *txm;
     struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
     unsigned long total = nr_v * nr_v, it;
     size_t vxsz, txsz, idxsz;
@@ -60,8 +61,8 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
     free(norm);
     free(idx);
 
-    model3d_add_texture(model, "grass20.png");
-    scene_add_model(s, model);
-    create_entities(model);
+    txm = model3dtx_new(model, "grass20.png");
+    scene_add_model(s, txm);
+    create_entities(txm);
     return 0;
 }

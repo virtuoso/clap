@@ -23,13 +23,13 @@ static void scene_focus_next(struct scene *s)
         return;
     }
 
-    if (s->focus->model->next) {
-        s->focus = s->focus->model->next->ent;
+    if (s->focus->txmodel->next) {
+        s->focus = s->focus->txmodel->next->ent;
         return;
     }
 
 first:
-    s->focus = s->model->ent;
+    s->focus = s->txmodel->ent;
 }
 
 static void scene_focus_cancel(struct scene *s)
@@ -85,7 +85,7 @@ static int scene_handle_input(struct message *m, void *data)
         s->autopilot ^= 1;
     if (m->input.focus_next) {
         scene_focus_next(s);
-        dbg("highlight on %s/%p\n", s->focus->model->name, s->focus->priv);
+        dbg("highlight on %s/%p\n", entity_name(s->focus), s->focus->priv);
     }
     if (m->input.focus_cancel)
         scene_focus_cancel(s);
@@ -153,10 +153,10 @@ static int scene_handle_input(struct message *m, void *data)
     return 0;
 }
 
-int scene_add_model(struct scene *s, struct model3d *m)
+int scene_add_model(struct scene *s, struct model3dtx *txm)
 {
-    m->next = s->model;
-    s->model = m;
+    txm->next = s->txmodel;
+    s->txmodel = txm;
     return 0;
 }
 
@@ -169,14 +169,14 @@ static void scene_light_update(struct scene *scene)
 
 void scene_update(struct scene *scene)
 {
-    struct model3d *model;
+    struct model3dtx *txm;
     struct entity3d *ent;
     int              i;
 
     scene_light_update(scene);
 
-    for (model = scene->model; model; model = model->next) {
-        for (i = 0, ent = model->ent; ent; ent = ent->next, i++) {
+    for (txm = scene->txmodel; txm; txm = txm->next) {
+        for (i = 0, ent = txm->ent; ent; ent = ent->next, i++) {
             entity3d_update(ent, scene);
         }
     }
@@ -205,6 +205,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
     char *name = NULL, *obj = NULL, *binvec = NULL, *tex = NULL;
     JsonNode *p, *ent = NULL;
+    struct model3dtx *txm;
 
     if (node->tag != JSON_OBJECT) {
         dbg("json: model is not an object\n");
@@ -235,15 +236,16 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     } else {
         lib_request_bin_vec(binvec, scene);
     }
-    model3d_add_texture(scene->model, tex);
-    scene->model->name = strdup(name);
+    scene->_model->name = strdup(name);
+    txm = model3dtx_new(scene->_model, tex);
+    scene_add_model(scene, txm);
 
     if (ent) {
         for (; ent; ent = ent->next) {
             struct entity3d *e;
             JsonNode *pos;
 
-            e = entity3d_new(scene->model);
+            e = entity3d_new(scene->txmodel);
             if (ent->tag != JSON_ARRAY)
                 continue; /* XXX: in fact, no */
 
@@ -268,12 +270,12 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             mat4x4_scale_aniso(e->base_mx->m, e->base_mx->m, e->scale, e->scale, e->scale);
             e->mx             = e->base_mx;
             e->visible        = 1;
-            e->next = scene->model->ent;
-            scene->model->ent = e;
+            e->next = scene->txmodel->ent;
+            scene->txmodel->ent = e;
             trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
         }
     } else {
-        create_entities(scene->model);
+        create_entities(scene->txmodel);
     }
     dbg("loaded model '%s'\n", name);
 

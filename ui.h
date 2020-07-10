@@ -23,7 +23,8 @@ struct ui_element {
 
 //int ui_element_init(struct scene *s, float x, float y, float w, float h);
 struct ui {
-    struct model3d *model;
+    struct model3d     *_model;
+    struct model3dtx   *txmodel;
     struct shader_prog *prog;
     int width, height;
 };
