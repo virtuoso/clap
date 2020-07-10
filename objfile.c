@@ -264,14 +264,14 @@ int model_data_to_vectors(struct model_data *md,
             vtidx = md->f[fidx+1];
             vnidx = md->f[fidx+2];
 
-            norm[vidx*3]   = md->vn[vnidx];
-            norm[vidx*3+1] = md->vn[vnidx+1];
-            norm[vidx*3+2] = md->vn[vnidx+2];
-
             if (tx) {
-                tx[vidx*2]   = md->vt[vtidx];
-                tx[vidx*2+1] = 1 - md->vt[vtidx+1];
+                tx[vidx * 2]     = md->vt[vtidx * 2];
+                tx[vidx * 2 + 1] = 1 - md->vt[vtidx * 2 + 1];
             }
+
+            norm[vidx * 3]     = md->vn[vnidx * 3];
+            norm[vidx * 3 + 1] = md->vn[vnidx * 3 + 1];
+            norm[vidx * 3 + 2] = md->vn[vnidx * 3 + 2];
 
             idx[i++] = vidx;
         }
