@@ -25,13 +25,17 @@ void log_init(unsigned int flags);
 void logg(int level, const char *mod, const char *func, char *fmt, ...);
 #define trace(args...) \
     logg(VDBG, MODNAME, __func__, ## args);
+#define trace_on(_c, args...) do { if ((_c)) trace("condition '" # _c "': " args); } while (0)
 #define dbg(args...) \
     logg(DBG, MODNAME, __func__, ## args);
+#define dbg_on(_c, args...) do { if ((_c)) dbg("condition '" # _c "': " args); } while (0)
 #define msg(args...) \
     logg(NORMAL, MODNAME, __func__, ## args);
 #define warn(args...) \
     logg(WARN, MODNAME, __func__, ## args);
+#define warn_on(_c, args...) do { if ((_c)) warn("condition '" # _c "': " args); } while (0)
 #define err(args...) \
     logg(ERR, MODNAME, __func__, ## args);
+#define err_on(_c, args...) do { if ((_c)) err("condition '" # _c "': " args); } while (0)
 
 #endif /* __CLAP_LOGGER_H__ */
