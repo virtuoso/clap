@@ -19,6 +19,8 @@ struct model3d {
     const char          *name;
     struct ref          ref;
     struct shader_prog  *prog;
+    bool                cull_face;
+    bool                alpha_blend;
     GLuint              vertex_obj;
     GLuint              index_obj;
     GLuint              tex_obj;

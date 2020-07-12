@@ -133,6 +133,8 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
 
     m->name = name;
     m->prog = ref_get(p);
+    m->cull_face = true;
+    m->alpha_blend = false;
 
     shader_prog_use(p);
     load_gl_buffer(m->prog->pos, vx, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
@@ -251,11 +253,18 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
     list_for_each_entry(txmodel, list, entry) {
         model = txmodel->model;
         /* XXX: model-specific draw method */
-        if (!strcmp(model->name, "terrain")) {
-            glDisable(GL_CULL_FACE);
-        } else {
+        if (model->cull_face) {
             glEnable(GL_CULL_FACE);
             glCullFace(GL_BACK);
+        } else {
+            glDisable(GL_CULL_FACE);
+        }
+        /* XXX: only for UIs */
+        if (model->alpha_blend) {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        } else {
+            glDisable(GL_BLEND);
         }
         //dbg("rendering model '%s'\n", model->name);
         if (model->prog != prog) {
