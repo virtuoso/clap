@@ -36,6 +36,28 @@ first_entry:
     s->focus = list_first_entry(&next_txm->entities, struct entity3d, entry);
 }
 
+static void scene_focus_prev(struct scene *s)
+{
+    struct model3dtx *next_txm;
+
+    if (!s->focus)
+        goto last_txm;
+
+    if (s->focus != list_first_entry(&s->focus->txmodel->entities, struct entity3d, entry)) {
+        s->focus = list_prev_entry(s->focus, entry);
+        return;
+    }
+
+    if (s->focus->txmodel != list_last_entry(&s->txmodels, struct model3dtx, entry)) {
+        next_txm = list_prev_entry(s->focus->txmodel, entry);
+        goto last_entry;
+    }
+
+last_txm:
+    next_txm = list_last_entry(&s->txmodels, struct model3dtx, entry);
+last_entry:
+    s->focus = list_last_entry(&next_txm->entities, struct entity3d, entry);
+}
 
 static void scene_focus_cancel(struct scene *s)
 {
@@ -90,6 +112,8 @@ static int scene_handle_input(struct message *m, void *data)
         s->autopilot ^= 1;
     if (m->input.focus_next)
         scene_focus_next(s);
+    if (m->input.focus_prev)
+        scene_focus_prev(s);
     if (m->input.focus_cancel)
         scene_focus_cancel(s);
     if (m->input.fullscreen) {
