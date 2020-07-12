@@ -461,21 +461,10 @@ static int silly_update(struct entity3d *e, void *data)
     mat4x4 m, p, mvp;
     int    i = (int)e->priv;
 
-    //dbg("  => entity %d\n", i);
     mat4x4_identity(m);
-    //if ()
-    //mat4x4_rotate_X(m, m, (float)(scene->frames_total)/20);
-    if (strcmp(e->txmodel->model->name, "terrain"))
-        mat4x4_rotate_X(m, m, to_radians((float)(scene->frames_total * i) / 50.0));
-    //mat4x4_rotate_Z(m, m, to_radians((float)(scene->frames_total)));
-    //if (strncmp(model->name, "ui_", 3)) {
     mat4x4_ortho(p, /*scene->aspect*/ 1.0, /*-scene->aspect*/ -1.0, -1.f, 1.f, 1.f, -1.f);
-    //} else {
-    //    mat4x4_identity(p);
-    //}
     mat4x4_mul(mvp, m, p);
     mat4x4_mul(e->mx->m, e->base_mx->m, mvp);
-    //mat4x4_mul(mvp, m, e->mx->m);
     return 0;
 }
 
@@ -497,16 +486,11 @@ void create_entities(struct model3dtx *txmodel)
 
     for (i = 0; i < max; i++) {
         struct entity3d *e = entity3d_new(txmodel);
-        //mat4x4 m, p;
         float a = 0, b = 0, c = 0;
 
         if (!e)
             return;
 
-        /*mat4x4_identity(m);
-        mat4x4_rotate_Z(m, m, (float)s->frames / 60);
-        mat4x4_ortho(p, s->aspect, -s->aspect, -1.f, 1.f, 1.f, -1.f);
-        mat4x4_mul(e->mx->m, p, m);*/
         if (!static_coords) {
             a = /*i ? */(float)rand()*20 / (float)RAND_MAX/* : 0.0*/;
             b = /*i ? */(float)rand()*20 / (float)RAND_MAX/* : 0.0*/;
@@ -520,9 +504,6 @@ void create_entities(struct model3dtx *txmodel)
         mat4x4_translate_in_place(e->base_mx->m, a, b, c);
         if (!static_coords)
             mat4x4_scale(e->base_mx->m, e->base_mx->m, 0.05);
-        /*entity3d_set_trans(e, a, b, c);*/
-        //a = i ? (float)rand()*10 / (float)RAND_MAX : 1.0;
-        //entity3d_set_scale(e, a);
 
         e->update  = silly_update;
         e->priv    = (void *)i;
