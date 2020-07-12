@@ -24,10 +24,13 @@ struct ui_element {
 //int ui_element_init(struct scene *s, float x, float y, float w, float h);
 struct ui {
     struct model3d     *_model;
-    struct model3dtx   *txmodel;
+    struct list        txmodels;
     struct shader_prog *prog;
     int width, height;
 };
+
+struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, struct model3dtx *txmodel,
+                                  unsigned long affinity, float x_off, float y_off, float w, float h);
 
 int ui_init(struct ui *ui, int width, int height);
 void ui_update(struct ui *ui);

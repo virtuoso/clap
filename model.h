@@ -30,8 +30,8 @@ struct model3dtx {
     struct model3d *model;
     GLuint          texture_id;
     struct ref      ref;
-    struct model3dtx    *next;
-    struct entity3d     *ent;
+    struct list     entry;              /* link to scene/ui->txmodels */
+    struct list     entities;           /* links entity3d->entry */
 };
 
 struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
@@ -44,8 +44,6 @@ struct model3d *model3d_new_quad(struct shader_prog *p);
 void model3dtx_prepare(struct model3dtx *m);
 void model3dtx_done(struct model3dtx *m);
 void model3dtx_draw(struct model3dtx *m);
-void models_render(struct model3dtx *txmodel, struct light *light, struct matrix4f *view_mx, struct matrix4f *inv_view_mx,
-                   struct matrix4f *proj_mx, struct entity3d *focus);
 struct lib_handle *lib_request_obj(const char *name, struct scene *scene);
 struct lib_handle *lib_request_bin_vec(const char *name, struct scene *scene);
 
@@ -59,7 +57,7 @@ struct entity3d {
     struct matrix4f  *mx;
     struct matrix4f  *base_mx;
     struct ref       ref;
-    struct entity3d  *next;
+    struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
     GLfloat dx, dy, dz;
     GLfloat rx, ry, rz;
@@ -67,6 +65,10 @@ struct entity3d {
     int (*update)(struct entity3d *e, void *data);
     void *priv;
 };
+
+void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
+void models_render(struct list *list, struct light *light, struct matrix4f *view_mx, struct matrix4f *inv_view_mx,
+                   struct matrix4f *proj_mx, struct entity3d *focus);
 
 static inline const char *entity_name(struct entity3d *e)
 {

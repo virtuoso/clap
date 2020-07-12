@@ -67,8 +67,8 @@ void ui_update(struct ui *ui)
     struct entity3d  *ent;
     int              i;
 
-    for (txmodel = ui->txmodel; txmodel; txmodel = txmodel->next) {
-        for (i = 0, ent = txmodel->ent; ent; ent = ent->next, i++) {
+    list_for_each_entry(txmodel, &ui->txmodels, entry) {
+        list_for_each_entry(ent, &txmodel->entities, entry) {
             entity3d_update(ent, ui);
         }
     }
@@ -106,8 +106,8 @@ static int ui_element_init(struct ui *ui, struct model3dtx *txmodel, unsigned lo
     e->update  = ui_element_update;
     e->priv    = uie;
     e->visible = 1;
-    e->next    = txmodel->ent;
-    txmodel->ent = e;
+
+    list_append(&txmodel->entities, &e->entry);
     ui_element_position(uie, ui);
 
     return 0;
@@ -115,8 +115,7 @@ static int ui_element_init(struct ui *ui, struct model3dtx *txmodel, unsigned lo
 
 static void ui_add_model(struct ui *ui, struct model3dtx *txmodel)
 {
-    txmodel->next = ui->txmodel;
-    ui->txmodel   = txmodel;
+    list_prepend(&ui->txmodels, &txmodel->entry);
 }
 
 static int ui_model_init(struct ui *ui)
@@ -155,6 +154,7 @@ static int ui_handle_input(struct message *m, void *data)
 
 int ui_init(struct ui *ui, int width, int height)
 {
+    list_init(&ui->txmodels);
     lib_request_shaders("ui", &ui->prog);
 
     ui_model_init(ui);

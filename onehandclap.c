@@ -46,9 +46,9 @@ EMSCRIPTEN_KEEPALIVE void renderFrame()
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    models_render(s->txmodel, &s->light, s->view_mx, s->inv_view_mx, s->proj_mx, s->focus);
+    models_render(&s->txmodels, &s->light, s->view_mx, s->inv_view_mx, s->proj_mx, s->focus);
     s->proj_updated = 0;
-    models_render(ui.txmodel, NULL, NULL, NULL, NULL, NULL);
+    models_render(&ui.txmodels, NULL, NULL, NULL, NULL, NULL);
 
     if (ts.tv_sec != s->ts.tv_sec) {
         if (s->frames) {

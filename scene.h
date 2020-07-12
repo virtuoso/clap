@@ -20,7 +20,7 @@ struct scene {
     int                 width;
     int                 height;
     struct model3d      *_model; /* temporary */
-    struct model3dtx    *txmodel;
+    struct list         txmodels;
     struct entity3d     *focus;
     struct shader_prog  *prog;
     struct matrix4f     *proj_mx;

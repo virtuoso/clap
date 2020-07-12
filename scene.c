@@ -15,22 +15,27 @@ static void scene_camera_autopilot(struct scene *s)
 
 static void scene_focus_next(struct scene *s)
 {
+    struct model3dtx *next_txm;
+
     if (!s->focus)
-        goto first;
+        goto first_txm;
 
-    if (s->focus->next) {
-        s->focus = s->focus->next;
+    if (s->focus != list_last_entry(&s->focus->txmodel->entities, struct entity3d, entry)) {
+        s->focus = list_next_entry(s->focus, entry);
         return;
     }
 
-    if (s->focus->txmodel->next) {
-        s->focus = s->focus->txmodel->next->ent;
-        return;
+    if (s->focus->txmodel != list_last_entry(&s->txmodels, struct model3dtx, entry)) {
+        next_txm = list_next_entry(s->focus->txmodel, entry);
+        goto first_entry;
     }
 
-first:
-    s->focus = s->txmodel->ent;
+first_txm:
+    next_txm = list_first_entry(&s->txmodels, struct model3dtx, entry);
+first_entry:
+    s->focus = list_first_entry(&next_txm->entities, struct entity3d, entry);
 }
+
 
 static void scene_focus_cancel(struct scene *s)
 {
@@ -83,10 +88,8 @@ static int scene_handle_input(struct message *m, void *data)
         gl_resize(m->input.x, m->input.y);
     if (m->input.autopilot)
         s->autopilot ^= 1;
-    if (m->input.focus_next) {
+    if (m->input.focus_next)
         scene_focus_next(s);
-        dbg("highlight on %s/%p\n", entity_name(s->focus), s->focus->priv);
-    }
     if (m->input.focus_cancel)
         scene_focus_cancel(s);
     if (m->input.fullscreen) {
@@ -155,8 +158,7 @@ static int scene_handle_input(struct message *m, void *data)
 
 int scene_add_model(struct scene *s, struct model3dtx *txm)
 {
-    txm->next = s->txmodel;
-    s->txmodel = txm;
+    list_append(&s->txmodels, &txm->entry);
     return 0;
 }
 
@@ -171,12 +173,11 @@ void scene_update(struct scene *scene)
 {
     struct model3dtx *txm;
     struct entity3d *ent;
-    int              i;
 
     scene_light_update(scene);
 
-    for (txm = scene->txmodel; txm; txm = txm->next) {
-        for (i = 0, ent = txm->ent; ent; ent = ent->next, i++) {
+    list_for_each_entry(txm, &scene->txmodels, entry) {
+        list_for_each_entry(ent, &txm->entities, entry) {
             entity3d_update(ent, scene);
         }
     }
@@ -189,6 +190,7 @@ int scene_init(struct scene *scene)
     scene->view_mx      = mx_new();
     scene->inv_view_mx  = mx_new();
     scene->exit_timeout = -1;
+    list_init(&scene->txmodels);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
 
@@ -245,7 +247,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             struct entity3d *e;
             JsonNode *pos;
 
-            e = entity3d_new(scene->txmodel);
+            e = entity3d_new(txm);
             if (ent->tag != JSON_ARRAY)
                 continue; /* XXX: in fact, no */
 
@@ -270,12 +272,11 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             mat4x4_scale_aniso(e->base_mx->m, e->base_mx->m, e->scale, e->scale, e->scale);
             e->mx             = e->base_mx;
             e->visible        = 1;
-            e->next = scene->txmodel->ent;
-            scene->txmodel->ent = e;
+            model3dtx_add_entity(txm, e);
             trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
         }
     } else {
-        create_entities(scene->txmodel);
+        create_entities(txm);
     }
     dbg("loaded model '%s'\n", name);
 

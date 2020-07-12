@@ -94,6 +94,7 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
         return NULL;
 
     txm->model = ref_get(model);
+    list_init(&txm->entities);
     model3d_add_texture(txm, name);
 
     return txm;
@@ -235,18 +236,19 @@ void model3dtx_done(struct model3dtx *txm)
     model3d_done(txm->model);
 }
 
-void models_render(struct model3dtx *txmodel, struct light *light, struct matrix4f *view_mx,
+void models_render(struct list *list, struct light *light, struct matrix4f *view_mx,
                    struct matrix4f *inv_view_mx, struct matrix4f *proj_mx, struct entity3d *focus)
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
     struct model3d *model;
+    struct model3dtx *txmodel;
     GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
     GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
     GLint highlight_loc;
     int i;
 
-    for (; txmodel; txmodel = txmodel->next) {
+    list_for_each_entry(txmodel, list, entry) {
         model = txmodel->model;
         /* XXX: model-specific draw method */
         if (!strcmp(model->name, "terrain")) {
@@ -297,7 +299,9 @@ void models_render(struct model3dtx *txmodel, struct light *light, struct matrix
                 glUniformMatrix4fv(projmx_loc, 1, GL_FALSE, proj_mx->cell);
         }
         model3dtx_prepare(txmodel);
-        for (i = 0, e = txmodel->ent; e; e = e->next, i++) {
+
+        i = 0;
+        list_for_each_entry(e, &txmodel->entities, entry) {
             float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
             if (!e->visible)
                 continue;
@@ -468,6 +472,11 @@ static int silly_update(struct entity3d *e, void *data)
     return 0;
 }
 
+void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
+{
+    list_append(&txm->entities, &e->entry);
+}
+
 void create_entities(struct model3dtx *txmodel)
 {
     int i, max = 16;
@@ -508,8 +517,7 @@ void create_entities(struct model3dtx *txmodel)
         e->update  = silly_update;
         e->priv    = (void *)i;
         e->visible = 1;
-        e->next    = txmodel->ent;
-        txmodel->ent = e;
+        model3dtx_add_entity(txmodel, e);
     }
 }
 
