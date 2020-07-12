@@ -32,6 +32,8 @@ void cleanup__charp(char **s);
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
+#define CHECK(_st) _st
+
 struct list {
     struct list *prev, *next;
 };
