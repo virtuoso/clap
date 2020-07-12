@@ -8,6 +8,7 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
 {
     struct model3d *model;
     struct model3dtx *txm;
+    struct entity3d *e;
     struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
     unsigned long total = nr_v * nr_v, it;
     size_t vxsz, txsz, idxsz;
@@ -63,6 +64,9 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
 
     txm = model3dtx_new(model, "grass20.png");
     scene_add_model(s, txm);
-    create_entities(txm);
+    e = entity3d_new(txm);
+    e->visible = 1;
+    e->update  = NULL;
+    model3dtx_add_entity(txm, e);
     return 0;
 }
