@@ -72,6 +72,7 @@
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
       var spinnerElement = document.getElementById('spinner');
+      var runtime_ready = false;
 
       var Module = {
         preRun: [],
@@ -142,6 +143,7 @@
         var height = Math.floor(html.clientHeight * 0.8);
         canvas.width = html.clientWidth;
         canvas.height = height;
+	if (runtime_ready)
         ccall("gl_resize", 'void', ['int', 'int'], [canvas.clientWidth, canvas.clientHeight]);
       }
       window.onerror = function() {

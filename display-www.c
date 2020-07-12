@@ -83,6 +83,7 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     emscripten_webgl_make_context_current(context);
     exts = glGetString(GL_EXTENSIONS);
     msg("GL context: %d Extensions: '%s'\n", context, exts);
+    EM_ASM(runtime_ready = true;);
     gl_get_sizes(NULL, NULL);
     //resize_fn(width, height);
 }
