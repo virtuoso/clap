@@ -422,6 +422,7 @@ static int default_update(struct entity3d *e, void *data)
 static void entity3d_drop(struct ref *ref)
 {
     struct entity3d *e = container_of(ref, struct entity3d, ref);
+    ref_put(&e->txmodel->ref);
     entity3d_free(e);
 }
 
@@ -434,7 +435,7 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
         return NULL;
 
     memset(e, 0, sizeof(*e));
-    e->txmodel = txm; /* XXX: ref_get */
+    e->txmodel = ref_get(txm);
     e->mx = mx_new();
     e->base_mx = mx_new();
     e->update  = default_update;
