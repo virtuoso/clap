@@ -1,0 +1,177 @@
+#include "common.h"
+#include "logger.h"
+#include "display.h"
+#include "librarian.h"
+#include "util.h"
+#include "font.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
+struct glyph {
+    GLuint  texture_id;
+    unsigned int width;
+    unsigned int height;
+    int     advance_x;
+    int     advance_y;
+    bool    loaded;
+};
+
+struct font {
+    char *       name;
+    FT_Face      face;
+    struct glyph g[256];
+    struct ref   ref;
+};
+
+static FT_Library ft;
+static struct font *default_font;
+
+static void font_load_glyph(struct font *font, unsigned char c)
+{
+    unsigned int x, y, comp;
+    FT_GlyphSlot glyph;
+    char color[4] = { 255, 255, 255, 255 };
+    LOCAL(char, buf);
+
+    if (FT_Load_Char(font->face, c, FT_LOAD_RENDER)) {
+        err("failed to load glyph %c\n", c);
+        return;
+    }
+
+    glyph = font->face->glyph;
+    font->g[c].width = glyph->bitmap.width;
+    font->g[c].height = glyph->bitmap.rows;
+    dbg("glyph '%c': %ux%u\n", c, glyph->bitmap.width, glyph->bitmap.rows);
+    //hexdump(glyph->bitmap.buffer, glyph->bitmap.width * glyph->bitmap.rows);
+    buf = calloc(1, glyph->bitmap.width * glyph->bitmap.rows * sizeof(color));
+    for (y = 0; y < glyph->bitmap.rows; y++) {
+        for (x = 0; x < glyph->bitmap.width; x++) {
+            unsigned char factor = glyph->bitmap.buffer[x + glyph->bitmap.width * y];
+            if (factor) {
+                for (comp = 0; comp < sizeof(color); comp++)
+                    buf[y * glyph->bitmap.width * sizeof(color) + x * sizeof(color) + comp] =
+                        /*comp < 3 ? */color[comp] * factor / 255/* : color[comp]*/;
+            }
+        }
+    }
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glGenTextures(1, &font->g[c].texture_id);
+    glBindTexture(GL_TEXTURE_2D, font->g[c].texture_id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, glyph->bitmap.width, glyph->bitmap.rows,
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    font->g[c].advance_x = glyph->advance.x;
+    font->g[c].advance_y = glyph->advance.y;
+    font->g[c].loaded    = true;
+}
+
+static void font_drop(struct ref *ref)
+{
+    struct font *font = container_of(ref, struct font, ref);
+    unsigned int i;
+
+    for (i = 0; i < sizeof(font->g); i++)
+        glDeleteTextures(1, &font->g[i].texture_id);
+    free(font);
+}
+
+struct font *font_get(struct font *font)
+{
+    return ref_get(font);
+}
+
+struct font *font_get_default(void)
+{
+    return font_get(default_font);
+}
+
+GLuint font_get_texture(struct font *font, unsigned char c)
+{
+    if (!font->g[c].loaded)
+        font_load_glyph(font, c);
+
+    return font->g[c].texture_id;
+}
+
+unsigned int font_get_advance_x(struct font *font, unsigned char c)
+{
+    if (!font->g[c].loaded)
+        font_load_glyph(font, c);
+
+    return font->g[c].advance_x >> 6;
+}
+
+unsigned int font_get_advance_y(struct font *font, unsigned char c)
+{
+    if (!font->g[c].loaded)
+        font_load_glyph(font, c);
+
+    return font->g[c].advance_y >> 6;
+}
+
+unsigned int font_get_width(struct font *font, unsigned char c)
+{
+    if (!font->g[c].loaded)
+        font_load_glyph(font, c);
+
+    return font->g[c].width;
+}
+
+unsigned int font_get_height(struct font *font, unsigned char c)
+{
+    if (!font->g[c].loaded)
+        font_load_glyph(font, c);
+
+    return font->g[c].height;
+}
+
+struct font *font_open(char *name)
+{
+    LOCAL(char, font_name);
+    struct font *font;
+    FT_Face      face;
+
+    font_name = lib_figure_uri(RES_ASSET, name);
+    if (FT_New_Face(ft, font_name, 0, &face)) {
+        err("failed to load font '%s'\n", font_name);
+        return NULL;
+    }
+
+    font = ref_new(struct font, ref, font_drop);
+    if (!font)
+        return NULL;
+
+    font->name = name;
+    font->face = face;
+    FT_Set_Pixel_Sizes(font->face, 0, 128);
+    //for (c = 32; c < 128; c++)
+    //    font_load_glyph(font, c);
+
+    return font;
+}
+
+void font_put(struct font *font)
+{
+    ref_put(&font->ref);
+}
+
+int font_init(void)
+{
+    int   ret;
+
+    // All functions return a value different than 0 whenever an error occurred
+    ret = FT_Init_FreeType(&ft);
+    default_font = font_open("LiberationSansBold.ttf");
+    if (!default_font) {
+        err("couldn't load default font\n");
+        return -1;
+    }
+
+    dbg("freetype initialized\n");
+    return 0;
+}

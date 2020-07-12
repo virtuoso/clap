@@ -16,9 +16,15 @@
 struct ui_element {
     struct ref       ref;
     struct entity3d *entity;
+    struct ui_element *parent;
     unsigned long    affinity;
+    bool             prescaled;
     float            x_off, y_off;
     float            width, height;
+    float            actual_x;
+    float            actual_y;
+    float            actual_w;
+    float            actual_h;
 };
 
 //int ui_element_init(struct scene *s, float x, float y, float w, float h);

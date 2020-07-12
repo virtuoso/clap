@@ -29,6 +29,9 @@ void cleanup__charp(char **s);
 
 #define __stringify(x) (# x)
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
+
 struct list {
     struct list *prev, *next;
 };

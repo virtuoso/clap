@@ -6,6 +6,7 @@
 #include "librarian.h"
 #include "display.h" /* XXX: OpenGL headers are included there */
 #include "objfile.h"
+#include "matrix.h"
 
 struct scene;
 struct shader_prog;
@@ -41,6 +42,7 @@ struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p
                                          size_t normsz);
 struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
 struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
+struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
 struct model3d *model3d_new_cube(struct shader_prog *p);
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float w, float h);
 void model3dtx_prepare(struct model3dtx *m);
@@ -61,6 +63,7 @@ struct entity3d {
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
+    GLfloat color[4];
     GLfloat dx, dy, dz;
     GLfloat rx, ry, rz;
     GLfloat scale;

@@ -100,6 +100,20 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
     return txm;
 }
 
+struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid)
+{
+    struct model3dtx *txm = ref_new(struct model3dtx, ref, model3dtx_drop);
+
+    if (!txm)
+        return NULL;
+
+    txm->model = ref_get(model);
+    txm->texture_id = txid;
+    list_init(&txm->entities);
+
+    return txm;
+}
+
 static void load_gl_buffer(GLint loc, void *data, size_t sz, GLuint *obj, GLint nr_coords, GLenum target)
 {
     glGenBuffers(1, obj);
@@ -247,7 +261,7 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
     struct model3dtx *txmodel;
     GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
     GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
-    GLint highlight_loc;
+    GLint highlight_loc, color_loc;
     int i;
 
     list_for_each_entry(txmodel, list, entry) {
@@ -285,6 +299,7 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
             shine_damper_loc = shader_prog_find_var(prog, "shine_damper");
             reflectivity_loc = shader_prog_find_var(prog, "reflectivity");
             highlight_loc    = shader_prog_find_var(prog, "highlight_color");
+            color_loc        = shader_prog_find_var(prog, "color");
 
             /* XXX: entity properties */
             if (shine_damper_loc >= 0 && reflectivity_loc >= 0) {
@@ -315,6 +330,8 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
             if (!e->visible)
                 continue;
 
+            if (color_loc >= 0)
+                glUniform4fv(color_loc, 1, e->color);
             if (focus && highlight_loc >= 0)
                 glUniform4fv(highlight_loc, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc);
 

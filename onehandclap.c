@@ -161,6 +161,7 @@ int main(int argc, char **argv)
     gl_init("One Hand Clap", 1280, 720, renderFrame, resize_cb);
     //font_init();
     clap_init(&cfg);
+    font_init();
 
     /* Before models are created */
     lib_request_shaders("model", &scene.prog);

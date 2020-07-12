@@ -2,6 +2,7 @@ CC := $(EMSDK)/upstream/emscripten/emcc
 LD := $(CC)
 CFLAGS := $(CFLAGS) -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s WASM=1 -s NO_EXIT_RUNTIME=1
 LDFLAGS := $(LDFLAGS) --shell-file ./shell_clap.html --preload-file ./asset --use-preload-plugins -g4
+LDFLAGS += -s USE_FREETYPE=1
 LDFLAGS += -s ALLOW_MEMORY_GROWTH=1 -s WASM=1 -s NO_EXIT_RUNTIME=1 -s USE_WEBGL2=1 -s FULL_ES3=1 --no-heap-copy
 ifneq ($(DEBUG),)
 CFLAGS += -ggdb
