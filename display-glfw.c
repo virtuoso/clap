@@ -166,6 +166,13 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
         else
             mi.up = 1;
         break;
+    case GLFW_KEY_SPACE:
+        if (mods & GLFW_MOD_SHIFT)
+            mi.focus_prev = 1;
+        else if (mods & GLFW_MOD_CONTROL)
+            mi.focus_cancel = 1;
+        else
+            mi.focus_next = 1;
     case GLFW_KEY_F1:
         mi.fullscreen = 1;
         break;
