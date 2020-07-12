@@ -51,11 +51,8 @@ static int ui_element_update(struct entity3d *e, void *data)
     mat4x4 p;
 
     ui_element_position(e->priv, ui);
-    //dbg("ui frame: %lu\n", ui->frames_total);
     mat4x4_identity(p);
-    //mat4x4_ortho(p, -ui->aspect, ui->aspect, -1.0, 1.f, 1.f, -1.f);
     mat4x4_ortho(p, 0, (float)ui->width, 0, (float)ui->height, 1.0, -1.0);
-    //mat4x4_rotate_Z(p, p, to_radians((float)(scene->frames_total) / 50.0));
     mat4x4_mul(e->mx->m, p, e->base_mx->m);
 
     return 0;
