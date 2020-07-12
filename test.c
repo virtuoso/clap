@@ -104,6 +104,44 @@ static int refcount_test3(void)
     return EXIT_SUCCESS;
 }
 
+struct list_entry {
+    struct list entry;
+    unsigned int i;
+};
+
+#define LIST_MAX 10
+static int list_test0(void)
+{
+    struct list_entry entries[LIST_MAX], *e;
+    struct list       list;
+    int               i;
+
+    list_init(&list);
+    for (i = 0; i < 10; i++) {
+        entries[i].i = i;
+        list_append(&list, &entries[i].entry);
+    }
+
+    i = 0;
+    list_for_each_entry(e, &list, entry) {
+        if (i != e->i)
+            return EXIT_FAILURE;
+        i++;
+    }
+    if (i != 10)
+        return EXIT_FAILURE;
+
+    e = list_first_entry(&list, struct list_entry, entry);
+    if (e->i != 0)
+        return EXIT_FAILURE;
+
+    e = list_last_entry(&list, struct list_entry, entry);
+    if (e->i != LIST_MAX - 1)
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -112,6 +150,7 @@ static struct test {
     { .name = "refcount get/put", .test = refcount_test1 },
     { .name = "refcount static", .test = refcount_test2 },
     { .name = "refcount cleanup", .test = refcount_test3 },
+    { .name = "list_for_each", .test = list_test0 },
 };
 
 int main()

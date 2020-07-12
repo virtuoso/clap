@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 void cleanup__fd(int *fd);
 void cleanup__FILEp(FILE **f);
@@ -27,6 +28,56 @@ void cleanup__charp(char **s);
 #define container_of(node, type, field) ((type *)((void *)(node)-offsetof(type, field)))
 
 #define __stringify(x) (# x)
+
+struct list {
+    struct list *prev, *next;
+};
+
+#define EMPTY_LIST(__list) { .next = &(__list), .prev = &(__list) }
+#define DECLARE_LIST(__list) struct list __list = EMPTY_LIST(__list)
+
+static inline bool list_empty(struct list *head)
+{
+    return head->next == head && head->prev == head;
+}
+
+static inline void list_init(struct list *head)
+{
+    head->next = head->prev = head;
+}
+
+static inline void list_prepend(struct list *head, struct list *el)
+{
+    el->next         = head->next;
+    el->prev         = head;
+    head->next->prev = el;
+    head->next       = el;
+}
+
+static inline void list_append(struct list *head, struct list *el)
+{
+    el->next         = head;
+    el->prev         = head->prev;
+    head->prev->next = el;
+    head->prev       = el;
+}
+
+static inline void list_del(struct list *el)
+{
+    el->prev->next = el->next;
+    el->next->prev = el->prev;
+    list_init(el);
+}
+
+#define list_entry(__el, __type, __link) ( (__type *)(((char *)__el) - offsetof(__type, __link)) )
+#define list_first_entry(__list, __type, __link) list_entry((__list)->next, __type, __link)
+#define list_last_entry(__list, __type, __link) list_entry((__list)->prev, __type, __link)
+#define list_next_entry(__ent, __link) list_entry(__ent->__link.next, typeof(*__ent), __link)
+#define list_prev_entry(__ent, __link) list_entry(__ent->__link.prev, typeof(*__ent), __link)
+#define list_for_each(__el, __list)      for (__el = (__list)->next; __el != (__list); __el = __el->next)
+#define list_for_each_entry(__ent, __list, __link)                                                                     \
+    for (__ent = list_first_entry((__list), typeof(*__ent), __link); &(__ent->__link) != (__list);                     \
+         __ent = list_next_entry(__ent, __link))
 
 void *memdup(const void *x, size_t size);
 
