@@ -1,16 +1,11 @@
-static GLfloat quad_vx[] = {
-    -1.0,    1.0,    0.0,
-    -1.0,    -1.0,    0.0,
-    1.0,    -1.0,    0.0,
-    1.0,    1.0,    0.0,
-};
+
 static GLushort quad_idx[] = {0, 1, 3, 3, 1, 2};
 
-static GLfloat quad_tx[] = {
+static GLfloat quad_tx[]  = {
     0.0, 0.0,
-    1.0, 0.0,
-    1.0, 1.0,
     0.0, 1.0,
+    1.0, 1.0,
+    1.0, 0.0,
 };
 
 static GLfloat cube_vx[] = {
@@ -93,8 +88,12 @@ struct model3d *model3d_new_cube(struct shader_prog *p)
                                     cube_tx, sizeof(cube_tx), NULL, 0);
 }
 
-struct model3d *model3d_new_quad(struct shader_prog *p)
+struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float w, float h)
 {
+    GLfloat quad_vx[] = {
+        x, y + h, 0.0, x, y, 0.0, x + w, y, 0.0, x + w, y + h, 0.0,
+    };
+
     return model3d_new_from_vectors("quad", p, quad_vx, sizeof(quad_vx), quad_idx, sizeof(quad_idx),
                                     quad_tx, sizeof(quad_tx), NULL, 0);
 }

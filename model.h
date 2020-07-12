@@ -40,7 +40,7 @@ struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p
 struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
 struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
 struct model3d *model3d_new_cube(struct shader_prog *p);
-struct model3d *model3d_new_quad(struct shader_prog *p);
+struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float w, float h);
 void model3dtx_prepare(struct model3dtx *m);
 void model3dtx_done(struct model3dtx *m);
 void model3dtx_draw(struct model3dtx *m);
