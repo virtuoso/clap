@@ -492,16 +492,6 @@ void create_entities(struct model3dtx *txmodel)
     bool static_coords = false;
     struct model3d *model = txmodel->model;
 
-    if (!strcmp(model->name, "terrain")) {
-        max = 1;
-        static_coords = true;
-    }
-    
-    if (!strncmp(model->name, "ui_", 3)) {
-        max = 1;
-        static_coords = true;
-    }
-
     for (i = 0; i < max; i++) {
         struct entity3d *e = entity3d_new(txmodel);
         float a = 0, b = 0, c = 0;
