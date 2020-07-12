@@ -81,8 +81,8 @@ static void model3dtx_drop(struct ref *ref)
 {
     struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
 
-    glDeleteTextures(1, txm->texture_id);
-    ref_put(txm->model);
+    glDeleteTextures(1, &txm->texture_id);
+    ref_put(&txm->model->ref);
     free(txm);
 }
 
