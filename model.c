@@ -30,7 +30,7 @@ static unsigned char *fetch_png(const char *name, int *width, int *height)
 {
     char path[PATH_MAX];
     snprintf(path, PATH_MAX, "/asset/%s", name);
-    return /*(unsigned char *)*/emscripten_get_preloaded_image_data(path, width, height);
+    return (unsigned char *)emscripten_get_preloaded_image_data(path, width, height);
 }
 #else
 unsigned char *fetch_png(const char *file_name, int *width, int *height);
