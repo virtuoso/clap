@@ -8,8 +8,6 @@
 #include <GLES2/gl2ext.h>
 #else
 #include <GL/glew.h>
-//#include <GL/glut.h>
-//#include <glad/gl.h>
 #endif
 
 typedef void (*display_update)(void);
