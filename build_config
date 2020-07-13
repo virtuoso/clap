@@ -1,0 +1,5 @@
+emsdk_env_path=${HOME}/work/emsdk/emsdk_env.sh
+
+base_url="http://ukko.local/clap/"
+www_dir="/var/www/html/clap"
+
