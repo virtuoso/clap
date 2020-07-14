@@ -30,6 +30,13 @@ static void error_cb(int error, const char *desc)
     err("glfw error %d: '%s'\n", error, desc);
 }
 
+static void resize_cb(GLFWwindow *window, int w, int h)
+{
+    width = w;
+    height = h;
+    resize_fn(w, h);
+}
+
 void gl_get_sizes(int *widthp, int *heightp)
 {
     glfwGetFramebufferSize(window, &width, &height);
@@ -39,13 +46,7 @@ void gl_get_sizes(int *widthp, int *heightp)
         *widthp = width;
     if (heightp)
         *heightp = height;
-}
-
-static void resize_cb(GLFWwindow *window, int w, int h)
-{
-    width = w;
-    height = h;
-    resize_fn(w, h);
+    resize_cb(window, width, height);
 }
 
 void gl_resize(int w, int h)
