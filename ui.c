@@ -187,9 +187,21 @@ static int ui_handle_input(struct message *m, void *data)
 
 struct ui_text {
     struct font         *font;
+    struct ui_element   *parent;
+    const char          *str;
     struct ui_element   **uies;
     struct model3dtx    **txms;
+    unsigned long       flags;
     unsigned int        nr_uies;
+    unsigned int        nr_lines;
+    /* total width of all glyphs in each line, not counting whitespace */
+    unsigned int        *line_w; /* array of int x nr_lines */
+    /* width of one whitespace for each line */
+    unsigned int        *line_ws; /* likewise */
+    /* number of words in each line */
+    unsigned int        *line_nrw; /* likewise */
+    int                 width, height, y_off;
+    int                 margin_x, margin_y;
     struct ref          ref;
 };
 
@@ -202,67 +214,183 @@ static void ui_text_drop(struct ref *ref)
         ref_put(&uit->uies[i]->ref);
         ref_put(&uit->txms[i]->ref);
     }
+    free(uit->line_nrw);
+    free(uit->line_ws);
+    free(uit->line_w);
+    font_put(uit->font);
     free(uit->uies);
     free(uit->txms);
     free(uit);
 }
-void ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent, char *str)
+
+//#define UIT_REFLOW  1
+
+/*
+ * TODO:
+ *  + optional reflow
+ */
+void ui_text_measure(struct ui_text *uit)
+{
+    unsigned int i, w = 0, h = 0, nr_words = 0, nonws_w = 0, ws_w = 15;
+    unsigned int h_top = 0, h_bottom = 0;
+    size_t len = strlen(uit->str);
+    struct glyph *glyph;
+
+    free(uit->line_nrw);
+    free(uit->line_ws);
+    free(uit->line_w);
+
+    for (i = 0; i <= len; i++) {
+        if (uit->str[i] == '\n' || !uit->str[i]) {
+            nr_words++;
+
+            CHECK(uit->line_w = realloc(uit->line_w, sizeof(*uit->line_w) * (uit->nr_lines + 1)));
+            CHECK(uit->line_ws = realloc(uit->line_ws, sizeof(*uit->line_ws) * (uit->nr_lines + 1)));
+            CHECK(uit->line_nrw = realloc(uit->line_nrw, sizeof(*uit->line_nrw) * (uit->nr_lines + 1)));
+            uit->line_w[uit->nr_lines] = nonws_w;// + ws_w * (nr_words - 1);
+            uit->line_nrw[uit->nr_lines] = nr_words - 1;
+            w = max(w, nonws_w + ws_w * (nr_words - 1));
+            uit->nr_lines++;
+            nonws_w = nr_words = 0;
+            continue;
+        }
+
+        if (isspace(uit->str[i])) {
+            nr_words++;
+            continue;
+        }
+
+        glyph = font_get_glyph(uit->font, uit->str[i]);
+        nonws_w += glyph->advance_x >> 6;
+        //h = max(h, glyph->height); /* XXX: glyph->advance_y >> 6 */
+        h_top = max(h_top, glyph->bearing_y);
+        h_bottom = max(h_bottom, glyph->height - glyph->bearing_y);
+        //uit->y_off = max(uit->y_off, glyph->height - glyph->bearing_y); /* XXX: assumes UI_AF_BOTTOM for now */
+    }
+
+    for (i = 0; i < uit->nr_lines; i++)
+        if ((uit->flags & UI_AF_VCENTER) == UI_AF_VCENTER)
+            uit->line_ws[i] = uit->line_nrw[i] ? (w - uit->line_w[i]) / uit->line_nrw[i] : 0;
+        else
+            uit->line_ws[i] = ws_w;
+
+    uit->width  = w;
+    uit->y_off = h_top;
+    uit->height = (h_top + h_bottom) * uit->nr_lines;
+}
+
+static inline int x_off(struct ui_text *uit, unsigned int line)
+{
+    int x = uit->margin_x;
+
+    if (uit->flags & UI_AF_RIGHT) {
+        if (uit->flags & UI_AF_LEFT) {
+            if (!uit->line_nrw[line])
+               x += (uit->width - uit->line_w[line]) / 2;
+        } else {
+            x = uit->width + uit->margin_x - uit->line_w[line] -
+                uit->line_ws[line] * uit->line_nrw[line];
+        }
+    }
+
+    return x;
+}
+
+void ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent, char *str, float *color, unsigned long flags)
 {
     size_t len = strlen(str);
     struct ui_text      *uit;
     struct shader_prog  *prog;
+    struct glyph        *glyph;
     struct model3d      *m;
-    unsigned int        i, txid;
-    float               x, y = 30, w, h;
+    unsigned int        i, line;
+    float               x, y;
+
+    if (!flags)
+        flags = UI_AF_VCENTER;
 
     CHECK(uit       = ref_new(struct ui_text, ref, ui_text_drop));
+    uit->flags      = flags;
+    uit->margin_x   = 10;
+    uit->margin_y   = 10;
+    uit->parent     = parent;
+    uit->str        = str;
+    uit->font       = font_get(font);
+    ui_text_measure(uit);
+    uit->parent->width = uit->width + uit->margin_x * 2;
+    uit->parent->height = uit->height + uit->margin_y * 2;
+    ui_element_position(uit->parent, ui);
+    y = uit->height - uit->y_off + uit->margin_y;
     CHECK(prog      = shader_prog_find(ui->prog, "glyph"));
     CHECK(uit->uies = calloc(len, sizeof(struct ui_element *)));
     CHECK(uit->txms = calloc(len, sizeof(struct model3dtx *)));
-    uit->font = font_get(font);
-    for (i = 0, x = 0.0; i < len; i++) {
-        w       = font_get_width(uit->font, str[i]);
-        h       = font_get_height(uit->font, str[i]);
-        txid    = font_get_texture(uit->font, str[i]);
-        m       = model3d_new_quad(prog, 0, 0, w, h);
+    for (line = 0, i = 0, x = x_off(uit, line); i < len; i++) {
+        if (str[i] == '\n') {
+            line++;
+            y -= (uit->height / uit->nr_lines);
+            x = x_off(uit, line);
+            continue;
+        }
+        if (isspace(str[i])) {
+            x += uit->line_ws[line];
+            continue;
+        }
+        glyph   = font_get_glyph(uit->font, str[i]);
+        m       = model3d_new_quad(prog, 0, 0, glyph->width, glyph->height);
         m->name = "glyph";
         m->cull_face = false;
         m->alpha_blend = true;
-        uit->txms[i] = model3dtx_new_txid(m, txid);
+        uit->txms[i] = model3dtx_new_txid(m, glyph->texture_id);
         /* txm holds the only reference */
         ref_put(&m->ref);
         ui_add_model(ui, uit->txms[i]);
-        uit->uies[i] = ui_element_new(ui, parent, uit->txms[i], UI_AF_TOP | UI_AF_LEFT,
-                                      x/* + font_get_advance_x(uit->font, str[i])*/,
-                                      y/* + font_get_advance_y(uit->font, str[i])*/, w, h);
+        if (y - (glyph->height - glyph->bearing_y) < 0)
+            dbg("[%c] y - (glyph->height - glyph->bearing_y): %f - (%d - %d) = %f\n", str[i],
+                y, glyph->height, glyph->bearing_y,
+                y - ((float)glyph->height - glyph->bearing_y));
+        uit->uies[i] = ui_element_new(ui, parent, uit->txms[i], UI_AF_BOTTOM | UI_AF_LEFT,
+                                      x + glyph->bearing_x,
+                                      y - (glyph->height - glyph->bearing_y),
+                                      glyph->width, glyph->height);
         //dbg("'%c' at %f//%f/%f\n", str[i], x, w, h);
-        uit->uies[i]->entity->color[0] = 0.0 + (float)i/5;
-        uit->uies[i]->entity->color[1] = 0.2 + (float)i/5;
-        uit->uies[i]->entity->color[2] = 0.4 + (float)i/5;
-        uit->uies[i]->entity->color[3] = 1.0;//   -(float)i / 5;
+        uit->uies[i]->entity->color[0] = color[0];
+        uit->uies[i]->entity->color[1] = color[1];
+        uit->uies[i]->entity->color[2] = color[2];
+        uit->uies[i]->entity->color[3] = color[3];
         uit->uies[i]->prescaled = true;
-        x += w;
+        x += glyph->advance_x >> 6;
     }
 }
 
+static const char text_str[] =
+    "On the chest of a barmaid in Sale\n"
+    "Were tattooed all the prices of ale;\n"
+    "And on her behind, for the sake of the blind,\n"
+    "Was the same information in Braille";
 int ui_init(struct ui *ui, int width, int height)
 {
     struct ui_element *uie;
-    struct font *font = font_get_default();
+    struct font *font;// = font_get_default();
+    float color[] = { 0.7, 0.7, 0.7, 1.0 };
+    int w, h;
 
     list_init(&ui->txmodels);
     lib_request_shaders("glyph", &ui->prog);
     lib_request_shaders("ui", &ui->prog);
 
-    //font = font_open("Pixellettersfull-BnJ5.ttf");
+    //font = font_open("Pixellettersfull-BnJ5.ttf", 96);
+    font = font_open("BeckyTahlia-MP6r.ttf", 96);
+    //font = font_open("ToThePointRegular-n9y4.ttf", 128);
+    //font = font_open("LiberationSansBold.ttf", 64);
     ui_model_init(ui);
     uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
-    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 300, 100);
-    ui_render_string(ui, font, uie, "POD pod");
+    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
+    ui_render_string(ui, font, uie, "Ppodq\nQq", color, UI_AF_RIGHT);
     uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
-    ui_render_string(ui, font, uie, "TEST");
+    ui_render_string(ui, font, uie, "TEST\npassed", color, 0);
     uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 100, 100);
-    uie = ui_element_new(ui, uie,  ui_quadtx, UI_AF_CENTER, 0.05, 0.05, /*100, 100*/0.2, 0.2);
+    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_CENTER, 0, 0, 10, 10);
+    ui_render_string(ui, font, uie, text_str, color, 0/*UI_AF_RIGHT*/);
     ui_element_new(ui, NULL, ui_quadtx, UI_AF_HCENTER| UI_AF_BOTTOM, 5, 5, 0.99, 30);
 
     font_put(font);
