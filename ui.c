@@ -92,7 +92,6 @@ void ui_update(struct ui *ui)
 {
     struct model3dtx *txmodel;
     struct entity3d  *ent;
-    int              i;
 
     list_for_each_entry(txmodel, &ui->txmodels, entry) {
         list_for_each_entry(ent, &txmodel->entities, entry) {
@@ -156,7 +155,6 @@ static void ui_add_model(struct ui *ui, struct model3dtx *txmodel)
 
 static int ui_model_init(struct ui *ui)
 {
-    struct font *font = font_get_default();
     float x = 0.f, y = 0.f, w = 1.f, h = 1.f;
     struct shader_prog *prog = shader_prog_find(ui->prog, "ui"); /* XXX */
 
@@ -175,7 +173,7 @@ static int ui_model_init(struct ui *ui)
 
 static int ui_handle_input(struct message *m, void *data)
 {
-    struct ui *ui = data;
+    unused struct ui *ui = data;
 
     if (m->input.resize) {
         //ui->width = m->input.x;
