@@ -41,7 +41,9 @@ struct message_command {
     unsigned int    menu_enter  : 1,
                     menu_exit   : 1,
                     global_exit : 1,
+                    status      : 1,
                     toggle_noise: 1;
+    unsigned int    fps, sys_seconds, world_seconds;
 };
 
 struct message_source {

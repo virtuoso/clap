@@ -51,6 +51,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame()
     models_render(&ui.txmodels, NULL, NULL, NULL, NULL, NULL);
 
     if (ts.tv_sec != s->ts.tv_sec) {
+        struct message m;
         if (s->frames) {
             trace("FPS: %d\n", s->frames);
             s->FPS = s->frames;
@@ -61,6 +62,13 @@ EMSCRIPTEN_KEEPALIVE void renderFrame()
             else
                 s->exit_timeout--;
         }
+
+        memset(&m, 0, sizeof(m));
+        m.type = MT_COMMAND;
+        m.cmd.status = 1;
+        m.cmd.fps = s->FPS;
+        m.cmd.sys_seconds = ts.tv_sec;
+        message_send(&m);
         s->frames = 0;
         s->ts.tv_sec = ts.tv_sec;
     }
