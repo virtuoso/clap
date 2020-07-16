@@ -111,7 +111,9 @@ static void ui_element_drop(struct ref *ref)
 {
     struct ui_element *uie = container_of(ref, struct ui_element, ref);
 
-    ref_put(&uie->parent->ref);
+    trace("dropping ui_element\n");
+    if (uie->parent)
+        ref_put(&uie->parent->ref);
     entity3d_put(uie->entity);
     free(uie);
 }
@@ -208,9 +210,12 @@ static void ui_text_drop(struct ref *ref)
     struct ui_text *uit = container_of(ref, struct ui_text, ref);
     unsigned int    i;
 
+    trace("dropping ui_text\n");
     for (i = 0; i < uit->nr_uies; i++) {
+        /* XXX: whitespaces etc don't have ui elements */
+        if (!uit->uies[i])
+            continue;
         ref_put(&uit->uies[i]->ref);
-        ref_put(&uit->txms[i]->ref);
     }
     free(uit->line_nrw);
     free(uit->line_ws);
@@ -322,6 +327,7 @@ void ui_render_string(struct ui *ui, struct font *font, struct ui_element *paren
     CHECK(prog      = shader_prog_find(ui->prog, "glyph"));
     CHECK(uit->uies = calloc(len, sizeof(struct ui_element *)));
     CHECK(uit->txms = calloc(len, sizeof(struct model3dtx *)));
+    uit->nr_uies = len;
     for (line = 0, i = 0, x = x_off(uit, line); i < len; i++) {
         if (str[i] == '\n') {
             line++;
@@ -350,6 +356,7 @@ void ui_render_string(struct ui *ui, struct font *font, struct ui_element *paren
                                       x + glyph->bearing_x,
                                       y - (glyph->height - glyph->bearing_y),
                                       glyph->width, glyph->height);
+        ref_put(&uit->txms[i]->ref);
         //dbg("'%c' at %f//%f/%f\n", str[i], x, w, h);
         uit->uies[i]->entity->color[0] = color[0];
         uit->uies[i]->entity->color[1] = color[1];
