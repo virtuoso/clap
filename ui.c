@@ -233,9 +233,9 @@ static void ui_text_drop(struct ref *ref)
  * TODO:
  *  + optional reflow
  */
-void ui_text_measure(struct ui_text *uit)
+static void ui_text_measure(struct ui_text *uit)
 {
-    unsigned int i, w = 0, h = 0, nr_words = 0, nonws_w = 0, ws_w = 15;
+    unsigned int i, w = 0, nr_words = 0, nonws_w = 0, ws_w = 15;
     unsigned int h_top = 0, h_bottom = 0;
     size_t len = strlen(uit->str);
     struct glyph *glyph;
@@ -380,7 +380,6 @@ int ui_init(struct ui *ui, int width, int height)
     struct ui_element *uie;
     struct font *font;// = font_get_default();
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
-    int w, h;
 
     list_init(&ui->txmodels);
     lib_request_shaders("glyph", &ui->prog);
