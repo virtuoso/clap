@@ -5,6 +5,8 @@
 #define MODNAME __BASE_FILE__
 #endif
 
+#include <sys/types.h>
+
 #define LOG_RB_MAX 512
 #define LOG_STDIO   1
 #define LOG_RB      2
