@@ -68,5 +68,6 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
     e->visible = 1;
     e->update  = NULL;
     model3dtx_add_entity(txm, e);
+    ref_put(&prog->ref);  /* matches shader_prog_find() above */
     return 0;
 }
