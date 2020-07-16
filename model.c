@@ -19,8 +19,15 @@ static void model3d_drop(struct ref *ref)
 {
     struct model3d *m = container_of(ref, struct model3d, ref);
 
+    glDeleteBuffers(1, &m->vertex_obj);
+    glDeleteBuffers(1, &m->index_obj);
+    if (m->norm_obj)
+        glDeleteBuffers(1, &m->norm_obj);
+    if (m->tex_obj)
+        glDeleteBuffers(1, &m->tex_obj);
     /* delete gl buffers */
-    dbg("dropping model '%s'\n", m->name);
+    ref_put(&m->prog->ref);
+    trace("dropping model '%s'\n", m->name);
     free(m);
 }
 
@@ -81,7 +88,10 @@ static void model3dtx_drop(struct ref *ref)
 {
     struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
 
-    glDeleteTextures(1, &txm->texture_id);
+    trace("dropping model3dtx [%s]\n", txm->model->name);
+    list_del(&txm->entry);
+    if (!txm->external_tex)
+        glDeleteTextures(1, &txm->texture_id);
     ref_put(&txm->model->ref);
     free(txm);
 }
@@ -453,6 +463,8 @@ static int default_update(struct entity3d *e, void *data)
 static void entity3d_drop(struct ref *ref)
 {
     struct entity3d *e = container_of(ref, struct entity3d, ref);
+    trace("dropping entity3d\n");
+    list_del(&e->entry);
     ref_put(&e->txmodel->ref);
     entity3d_free(e);
 }
@@ -465,7 +477,6 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
     if (!e)
         return NULL;
 
-    memset(e, 0, sizeof(*e));
     e->txmodel = ref_get(txm);
     e->mx = mx_new();
     e->base_mx = mx_new();
