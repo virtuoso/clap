@@ -223,7 +223,7 @@ static void ui_text_drop(struct ref *ref)
  */
 static void ui_text_measure(struct ui_text *uit)
 {
-    unsigned int i, w = 0, nr_words = 0, nonws_w = 0, ws_w = 15;
+    unsigned int i, w = 0, nr_words = 0, nonws_w = 0, ws_w;
     unsigned int h_top = 0, h_bottom = 0;
     size_t len = strlen(uit->str);
     struct glyph *glyph;
@@ -232,6 +232,8 @@ static void ui_text_measure(struct ui_text *uit)
     free(uit->line_ws);
     free(uit->line_w);
 
+    glyph = font_get_glyph(uit->font, '-');
+    ws_w = glyph->width;
     for (i = 0; i <= len; i++) {
         if (uit->str[i] == '\n' || !uit->str[i]) {
             nr_words++;
