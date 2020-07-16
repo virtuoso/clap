@@ -109,6 +109,7 @@ struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid)
 
     txm->model = ref_get(model);
     txm->texture_id = txid;
+    txm->external_tex = true;
     list_init(&txm->entities);
 
     return txm;

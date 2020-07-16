@@ -32,6 +32,7 @@ struct model3d {
 struct model3dtx {
     struct model3d *model;
     GLuint          texture_id;
+    bool            external_tex;
     struct ref      ref;
     struct list     entry;              /* link to scene/ui->txmodels */
     struct list     entities;           /* links entity3d->entry */
