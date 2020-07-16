@@ -170,6 +170,7 @@ static int ui_model_init(struct ui *ui)
     ui_quadtx = model3dtx_new(ui_quad, "green.png");
     //ui_quadtx->texture_id = font_get_texture(font, 'A');
     ui_add_model(ui, ui_quadtx);
+    ref_put(&prog->ref);  /* matches shader_prog_find() above */
     return 0;
 }
 
@@ -365,6 +366,8 @@ void ui_render_string(struct ui *ui, struct font *font, struct ui_element *paren
         uit->uies[i]->prescaled = true;
         x += glyph->advance_x >> 6;
     }
+
+    ref_put(&prog->ref); /* matches shader_prog_find() above */
 }
 
 static const char text_str[] =
