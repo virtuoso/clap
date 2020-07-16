@@ -1,3 +1,4 @@
+#include "logger.h"
 #include "object.h"
 
 void cleanup__ref(struct ref **ref)

@@ -14,6 +14,7 @@ typedef void (*drop_t)(struct ref *ref);
 struct ref {
     int		count;
     drop_t	drop;
+    const char *name;
 };
 
 static inline void ref_init(struct ref *ref, drop_t drop)
@@ -34,26 +35,39 @@ static inline bool __ref_get(struct ref *ref)
     return false;
 }
 
+//#define DEBUG_REF 1
+#ifdef DEBUG_REF
+#define ref_dbg(fmt, args...) dbg(fmt, ## args)
+#else
+#define ref_dbg(args...)
+#endif
 #define _ref_get(t, r) ({ \
     typeof(t)__o = NULL; \
     if (__ref_get(r)) \
         __o = (t); \
+    ref_dbg("ref_get(%s): %d\n", (r)->name, (r)->count); \
     __o; \
 })
 
 #define ref_get(t) _ref_get(t, &t->ref)
 
-static inline void ref_put(struct ref *ref)
+static inline void _ref_put(struct ref *ref)
 {
     if (!--ref->count)
         ref->drop(ref);
 }
+
+#define ref_put(r) do { \
+        ref_dbg("ref_put(%s): %d\n", (r)->name, (r)->count - 1); \
+        _ref_put(r); \
+    } while (0)
 
 #define ref_new(t, r, d) ({ \
     t *__v = malloc(sizeof(t)); \
     if (__v) { \
         memset(__v, 0, sizeof(t)); \
         ref_init(&__v->r, d); \
+        __v->r.name = # t; \
     } \
     __v; \
 })
