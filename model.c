@@ -376,6 +376,7 @@ static void model_obj_loaded(struct lib_handle *h, void *data)
         return;
 
     m = model3d_new_from_model_data(h->name, prog, md);
+    ref_put(&prog->ref); /* matches shader_prog_find() above */
     ref_put(&h->ref);
 
     //scene_add_model(s, m);
@@ -399,6 +400,7 @@ static void model_bin_vec_loaded(struct lib_handle *h, void *data)
     norm = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz;
     idx  = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz + hdr->vxsz;
     m = model3d_new_from_vectors(h->name, prog, vx, hdr->vxsz, idx, hdr->idxsz, tx, hdr->txsz, norm, hdr->vxsz);
+    ref_put(&prog->ref);  /* matches shader_prog_find() above */
     ref_put(&h->ref);
 
     //scene_add_model(s, m);
