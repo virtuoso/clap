@@ -173,8 +173,8 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     shader_prog_done(p);
 
     m->nr_vertices = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
-    dbg("created model '%s' vobj: %d iobj: %d nr_vertices: %d\n",
-        m->name, m->vertex_obj, m->index_obj, m->nr_vertices);
+    /*dbg("created model '%s' vobj: %d iobj: %d nr_vertices: %d\n",
+        m->name, m->vertex_obj, m->index_obj, m->nr_vertices);*/
 
     return m;
 }
