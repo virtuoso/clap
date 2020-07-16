@@ -174,18 +174,6 @@ static int ui_model_init(struct ui *ui)
     return 0;
 }
 
-static int ui_handle_input(struct message *m, void *data)
-{
-    unused struct ui *ui = data;
-
-    if (m->input.resize) {
-        //ui->width = m->input.x;
-        //ui->height = m->input.y;
-    }
-
-    return 0;
-}
-
 struct ui_text {
     struct font         *font;
     struct ui_element   *parent;
@@ -374,6 +362,32 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     return uit;
 }
 
+static struct ui_text *bottom_uit;
+static struct ui_element *bottom_element;
+
+static int ui_handle_command(struct message *m, void *data)
+{
+    struct font *font = font_get_default();
+    float color[] = { 0.7, 0.7, 0.7, 1.0 };
+    unused struct ui *ui = data;
+    char *str;
+    int ret;
+
+    if (m->type != MT_COMMAND)
+        return 0;
+
+    if (m->cmd.status) {
+        dbg("message\n");
+        ref_put(&bottom_uit->ref);
+        ret = asprintf(&str, "FPS: %d\nTime: %d:%02d", m->cmd.fps,
+                       m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60);
+        bottom_uit = ui_render_string(ui, font, bottom_element, str, color, UI_AF_RIGHT);
+    }
+    font_put(font);
+
+    return 0;
+}
+
 static const char text_str[] =
     "On the chest of a barmaid in Sale\n"
     "Were tattooed all the prices of ale;\n"
@@ -395,8 +409,8 @@ int ui_init(struct ui *ui, int width, int height)
     //font = font_open("LiberationSansBold.ttf", 64);
     ui_model_init(ui);
     uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
-    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
-    ui_render_string(ui, font, uie, "Ppodq\nQq", color, UI_AF_RIGHT);
+    bottom_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
+    bottom_uit = ui_render_string(ui, font, bottom_element, "Ppodq\nQq", color, UI_AF_RIGHT);
     uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     ui_render_string(ui, font, uie, "TEST\npassed", color, 0);
     uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 100, 100);
@@ -405,7 +419,7 @@ int ui_init(struct ui *ui, int width, int height)
     ui_element_new(ui, NULL, ui_quadtx, UI_AF_HCENTER| UI_AF_BOTTOM, 5, 5, 0.99, 30);
 
     font_put(font);
-    subscribe(MT_INPUT, ui_handle_input, ui);
+    subscribe(MT_COMMAND, ui_handle_command, ui);
     return 0;
 }
 
