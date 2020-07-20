@@ -13,6 +13,7 @@ static GLFWwindow *window;
 static int width, height;
 static display_update update_fn;
 static display_resize resize_fn;
+static void *update_fn_data;
 
 void gl_title(const char *fmt, ...)
 {
@@ -76,11 +77,12 @@ void gl_leave_fullscreen(void)
     gl_resize(saved_width, saved_height);
 }
 
-void gl_init(const char *title, int w, int h, display_update update, display_resize resize)
+void gl_init(const char *title, int w, int h, display_update update, void *update_data, display_resize resize)
 {
     width = w;
     height = h;
     update_fn = update;
+    update_fn_data = update_data;
     resize_fn = resize;
 
     if (!glfwInit()) {
@@ -116,7 +118,7 @@ void gl_request_exit(void)
 void gl_main_loop(void)
 {
     while (!glfwWindowShouldClose(window)) {
-        update_fn();
+        update_fn(update_fn_data);
     }
 }
 

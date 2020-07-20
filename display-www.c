@@ -61,7 +61,7 @@ void gl_leave_fullscreen(void)
     emscripten_exit_fullscreen();
 }
 
-void gl_init(const char *title, int width, int height, display_update update_fn, display_resize rfn)
+void gl_init(const char *title, int width, int height, display_update update_fn, void *data, display_resize rfn)
 {
     EmscriptenWebGLContextAttributes attr;
     const unsigned char *exts;
@@ -85,5 +85,6 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     msg("GL context: %d Extensions: '%s'\n", context, exts);
     EM_ASM(runtime_ready = true;);
     gl_get_sizes(NULL, NULL);
+    emscripten_set_main_loop_arg(update_fn, data, 0, 0);
     //resize_fn(width, height);
 }

@@ -27,9 +27,9 @@
 struct scene scene; /* XXX */
 struct ui ui;
 
-EMSCRIPTEN_KEEPALIVE void renderFrame()
+EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 {
-    struct scene *s = &scene; /* XXX */
+    struct scene *s = data; /* XXX */
     struct timespec     ts;
 
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
 #ifdef CONFIG_BROWSER
     scene.autopilot = 1;
 #endif
-    gl_init("One Hand Clap", 1280, 720, renderFrame, resize_cb);
+    gl_init("One Hand Clap", 1280, 720, renderFrame, &scene, resize_cb);
     //font_init();
     clap_init(&cfg);
     font_init();
@@ -196,14 +196,14 @@ int main(int argc, char **argv)
     scene.light.color[0] = 1.0;
     scene.light.color[1] = 1.0;
     scene.light.color[2] = 1.0;
-#ifdef CONFIG_BROWSER
-    EM_ASM(
-        function q() {ccall("renderFrame"); setTimeout(q, 16); }
-        q();
-    );
-#else
+// #ifdef CONFIG_BROWSER
+//     EM_ASM(
+//         function q() {ccall("renderFrame"); setTimeout(q, 16); }
+//         q();
+//     );
+// #else
     gl_main_loop();
-#endif
+// #endif
 
     dbg("exiting peacefully\n");
 
