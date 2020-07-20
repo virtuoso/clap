@@ -520,8 +520,6 @@ void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
 void create_entities(struct model3dtx *txmodel)
 {
     int i, max = 16;
-    bool static_coords = false;
-    struct model3d *model = txmodel->model;
 
     for (i = 0; i < max; i++) {
         struct entity3d *e = entity3d_new(txmodel);
@@ -530,19 +528,16 @@ void create_entities(struct model3dtx *txmodel)
         if (!e)
             return;
 
-        if (!static_coords) {
-            a = /*i ? */(float)rand()*20 / (float)RAND_MAX/* : 0.0*/;
-            b = /*i ? */(float)rand()*20 / (float)RAND_MAX/* : 0.0*/;
-            c = /*i ? */(float)rand()*20 / (float)RAND_MAX/* : 0.0*/;
-            a *= i & 1 ? 1 : -1;
-            b *= i & 2 ? 1 : -1;
-            c *= i & 4 ? 1 : -1;
-        }
+        a = (float)rand()*20 / (float)RAND_MAX;
+        b = (float)rand()*20 / (float)RAND_MAX;
+        c = (float)rand()*20 / (float)RAND_MAX;
+        a *= i & 1 ? 1 : -1;
+        b *= i & 2 ? 1 : -1;
+        c *= i & 4 ? 1 : -1;
         //msg("[%f,%f,%f]\n", a, b, c);
         mat4x4_identity(e->base_mx->m);
         mat4x4_translate_in_place(e->base_mx->m, a, b, c);
-        if (!static_coords)
-            mat4x4_scale(e->base_mx->m, e->base_mx->m, 0.05);
+        mat4x4_scale(e->base_mx->m, e->base_mx->m, 0.05);
 
         e->update  = silly_update;
         e->priv    = (void *)i;
