@@ -21,7 +21,6 @@ static void font_load_glyph(struct font *font, unsigned char c)
 {
     unsigned int x, y, comp;
     FT_GlyphSlot glyph;
-    char color[4] = { 255, 255, 255, 255 };
     LOCAL(char, buf);
 
     if (FT_Load_Char(font->face, c, FT_LOAD_RENDER)) {
@@ -29,22 +28,28 @@ static void font_load_glyph(struct font *font, unsigned char c)
         return;
     }
 
+#define RGBA_SZ (sizeof(unsigned char) * 4)
+#define _AT(_x, _y, _c) ((_y) * glyph->bitmap.width * RGBA_SZ + (_x) * RGBA_SZ + (_c))
+#define _GAT(_x, _y) ((_y) * glyph->bitmap.width + (_x))
     glyph = font->face->glyph;
     font->g[c].width = glyph->bitmap.width;
     font->g[c].height = glyph->bitmap.rows;
     //dbg("glyph '%c': %ux%u\n", c, glyph->bitmap.width, glyph->bitmap.rows);
     //hexdump(glyph->bitmap.buffer, glyph->bitmap.width * glyph->bitmap.rows);
-    buf = calloc(1, glyph->bitmap.width * glyph->bitmap.rows * sizeof(color));
+    buf = calloc(1, glyph->bitmap.width * glyph->bitmap.rows * RGBA_SZ);
     for (y = 0; y < glyph->bitmap.rows; y++) {
         for (x = 0; x < glyph->bitmap.width; x++) {
-            unsigned char factor = glyph->bitmap.buffer[x + glyph->bitmap.width * y];
+            unsigned int factor = glyph->bitmap.buffer[_GAT(x, y)];
             if (factor) {
-                for (comp = 0; comp < sizeof(color); comp++)
-                    buf[y * glyph->bitmap.width * sizeof(color) + x * sizeof(color) + comp] =
-                        /*comp < 3 ? */color[comp] * factor / 255/* : color[comp]*/;
+                buf[_AT(x, y, 0)] = 255;
+                buf[_AT(x, y, 1)] = 255;
+                buf[_AT(x, y, 2)] = 255;
+                buf[_AT(x, y, 3)] = factor;
             }
         }
     }
+#undef _AT
+#undef _GAT
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glGenTextures(1, &font->g[c].texture_id);
     glBindTexture(GL_TEXTURE_2D, font->g[c].texture_id);
