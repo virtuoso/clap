@@ -152,7 +152,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, stru
 
 static void ui_add_model(struct ui *ui, struct model3dtx *txmodel)
 {
-    list_prepend(&ui->txmodels, &txmodel->entry);
+    list_append(&ui->txmodels, &txmodel->entry);
 }
 
 static int ui_model_init(struct ui *ui)
@@ -165,7 +165,9 @@ static int ui_model_init(struct ui *ui)
         return -EINVAL;
     }
     
-    ui_quad = model3d_new_quad(prog, x, y, w, h);
+    ui_quad = model3d_new_quad(prog, x, y, 0.1, w, h);
+    ui_quad->cull_face = false;
+    ui_quad->alpha_blend = true;
     /* XXX: maybe a "textured_model" as another interim object */
     ui_quadtx = model3dtx_new(ui_quad, "green.png");
     //ui_quadtx->texture_id = font_get_texture(font, 'A');
@@ -333,7 +335,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
             continue;
         }
         glyph   = font_get_glyph(uit->font, str[i]);
-        m       = model3d_new_quad(prog, 0, 0, glyph->width, glyph->height);
+        m       = model3d_new_quad(prog, 0, 0, 0, glyph->width, glyph->height);
         m->name = "glyph";
         m->cull_face = false;
         m->alpha_blend = true;
@@ -397,7 +399,7 @@ static const char text_str[] =
     "Was the same information in Braille";
 int ui_init(struct ui *ui, int width, int height)
 {
-    struct ui_element *uie;
+    struct ui_element *uie0, *uie1, *uie2;
     struct font *font;// = font_get_default();
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
 
@@ -405,19 +407,19 @@ int ui_init(struct ui *ui, int width, int height)
     lib_request_shaders("glyph", &ui->prog);
     lib_request_shaders("ui", &ui->prog);
 
-    //font = font_open("Pixellettersfull-BnJ5.ttf", 96);
-    font = font_open("BeckyTahlia-MP6r.ttf", 96);
-    //font = font_open("ToThePointRegular-n9y4.ttf", 128);
+    font = font_open("Pixellettersfull-BnJ5.ttf", 32);
+    //font = font_open("BeckyTahlia-MP6r.ttf", 48);
+    //font = font_open("ToThePointRegular-n9y4.ttf", 48);
     //font = font_open("LiberationSansBold.ttf", 64);
     ui_model_init(ui);
-    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
+    uie0 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
     bottom_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
+    uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
+    uie2 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 100, 100);
+    ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
     bottom_uit = ui_render_string(ui, font, bottom_element, "Ppodq\nQq", color, UI_AF_RIGHT);
-    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
-    ui_render_string(ui, font, uie, "TEST\npassed", color, 0);
-    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 100, 100);
-    uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_CENTER, 0, 0, 10, 10);
-    ui_render_string(ui, font, uie, text_str, color, 0/*UI_AF_RIGHT*/);
+    ui_render_string(ui, font, uie1, "TEST\npassed", color, 0);
+    //uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_CENTER, 0, 0, 10, 10);
     ui_element_new(ui, NULL, ui_quadtx, UI_AF_HCENTER| UI_AF_BOTTOM, 5, 5, 0.99, 30);
 
     font_put(font);

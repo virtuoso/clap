@@ -88,10 +88,10 @@ struct model3d *model3d_new_cube(struct shader_prog *p)
                                     cube_tx, sizeof(cube_tx), NULL, 0);
 }
 
-struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float w, float h)
+struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)
 {
     GLfloat quad_vx[] = {
-        x, y + h, 0.0, x, y, 0.0, x + w, y, 0.0, x + w, y + h, 0.0,
+        x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
 
     return model3d_new_from_vectors("quad", p, quad_vx, sizeof(quad_vx), quad_idx, sizeof(quad_idx),
