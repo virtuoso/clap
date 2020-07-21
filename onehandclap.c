@@ -21,6 +21,7 @@
 #include "terrain.h"
 #include "ui.h"
 #include "scene.h"
+#include "sound.h"
 
 /* XXX just note for the future */
 
@@ -76,6 +77,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     s->frames++;
     s->frames_total++;
     gl_swap_buffers();
+    sound_play();
 }
 
 #define FOV to_radians(70.0)
@@ -170,6 +172,7 @@ int main(int argc, char **argv)
     //font_init();
     clap_init(&cfg);
     font_init();
+    sound_init();
 
     /* Before models are created */
     lib_request_shaders("model", &scene.prog);

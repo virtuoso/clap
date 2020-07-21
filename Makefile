@@ -48,7 +48,7 @@ CFLAGS := $(CFLAGS) -I$(OBJDIR)
 LDFLAGS := $(LDFLAGS) -lm
 OBJS := object.o ref.o util.o logger.o graphics.o input.o messagebus.o
 OBJS += matrix.o model.o shader.o objfile.o librarian.o json.o clap.o
-OBJS += terrain.o ui.o scene.o font.o $(PLAT_OBJS)
+OBJS += terrain.o ui.o scene.o font.o sound.o $(PLAT_OBJS)
 TEST_OBJS := $(OBJS) test.o
 LIB_OBJS := $(OBJS)
 BIN_OBJS := onehandclap.o $(OBJS)
@@ -57,7 +57,7 @@ BIN_OBJS := $(patsubst %,$(OBJDIR)/%,$(BIN_OBJS))
 TEST_OBJS := $(patsubst %,$(OBJDIR)/%,$(TEST_OBJS))
 HEADERS := object.h util.h logger.h common.h clap.h input.h messagebus.h
 HEADERS += librarian.h model.h shader.h objfile.h json.h matrix.h primitives.c
-HEADERS += terrain.h ui.h scene.h errors.h
+HEADERS += terrain.h ui.h scene.h errors.h font.h sound.h
 ASSETS := asset/*
 GENERATED := $(OBJDIR)/config.h
 

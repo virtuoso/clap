@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <string.h>
 
 typedef unsigned char uchar;
 
@@ -37,6 +38,21 @@ void cleanup__ucharp(uchar **s);
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 #define CHECK(_st) _st
+#define CHECK_VAL(_st, _val) _st
+
+static inline bool str_endswith(const char *str, const char *sfx)
+{
+    size_t sfxlen = strlen(sfx);
+    size_t len = strlen(str);
+
+    if (len < sfxlen)
+        return false;
+
+    if (!strncmp(str + len - sfxlen, sfx, sfxlen))
+        return true;
+
+    return false;
+}
 
 struct list {
     struct list *prev, *next;
