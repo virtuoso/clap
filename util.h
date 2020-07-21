@@ -83,6 +83,10 @@ static inline void list_del(struct list *el)
 #define list_for_each_entry(__ent, __list, __link)                                                                     \
     for (__ent = list_first_entry((__list), typeof(*__ent), __link); &(__ent->__link) != (__list);                     \
          __ent = list_next_entry(__ent, __link))
+#define list_for_each_entry_iter(__ent, __it, __list, __link)                                                                     \
+    for (__ent = list_first_entry((__list), typeof(*__ent), __link), __it = list_next_entry(__ent, __link); \
+         &(__ent->__link) != (__list);                     \
+         __ent = __it, __it = list_next_entry(__it, __link))
 
 void *memdup(const void *x, size_t size);
 
