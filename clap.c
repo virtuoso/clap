@@ -6,6 +6,19 @@
 #include "messagebus.h"
 #include "librarian.h"
 
+#if defined(__has_feature)
+# if __has_feature(address_sanitizer)
+const char *__asan_default_options() {
+    /*
+     * https://github.com/google/sanitizers/wiki/AddressSanitizerFlags
+     * https://github.com/google/sanitizers/wiki/SanitizerCommonFlags
+     * malloc_context_size=20
+     */
+    return "verbosity=1:check_initialization_order=true:detect_stack_use_after_return=true:"
+	   "alloc_dealloc_mismatch=true:strict_string_checks=true";
+}
+# endif /* __has_feature(address_sanitizer) */
+#endif /* __has_feature */
 static void clap_config_init(struct clap_config *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
