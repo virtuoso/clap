@@ -1,13 +1,13 @@
 CC := $(EMSDK)/upstream/emscripten/emcc
 LD := $(CC)
-CFLAGS := $(CFLAGS) -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s WASM=1 -s NO_EXIT_RUNTIME=1
+CFLAGS := $(CFLAGS) -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s WASM=1 -s NO_EXIT_RUNTIME=1 -s USE_FREETYPE=1
 LDFLAGS := $(LDFLAGS) --shell-file ./shell_clap.html --preload-file ./asset --use-preload-plugins -g4
-LDFLAGS += -s USE_FREETYPE=1
+LDFLAGS += -s USE_FREETYPE=1 -s USE_BULLET=1 -s SAFE_HEAP=1
 LDFLAGS += -s ALLOW_MEMORY_GROWTH=1 -s WASM=1 -s NO_EXIT_RUNTIME=1 -s USE_WEBGL2=1 -s FULL_ES3=1 --no-heap-copy
 ifneq ($(DEBUG),)
 CFLAGS += -ggdb
 CFLAGS := $(subst -ggdb,-g4,$(CFLAGS)) -fsanitize=undefined -fsanitize=null
-LDFLAGS += -s SAFE_HEAP=1 -fsanitize=undefined -fsanitize=null
+LDFLAGS += -fsanitize=undefined -fsanitize=null
 LDFLAGS += --source-map-base "http://ukko.local/clap/"
 endif
 ALL_TARGETS := $(subst run,,$(ALL_TARGETS))

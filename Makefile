@@ -3,6 +3,8 @@ BUILDDIR := $(BUILDROOT)/bin
 WWWDIR := $(BUILDROOT)/www
 OBJDIR := $(BUILDROOT)/obj
 TARGETS := bin www
+OS := $(shell uname)
+is_clang := $(shell :|$(CC) -dM -E -|grep -w __clang__)
 DEBUG := 1
 
 TEST := test
@@ -21,11 +23,24 @@ BUILD ?= default
 ALL_TARGETS := $(TEST) $(LIB) $(BIN) run
 include $(BUILD).make
 
-FREETYPE := -I/usr/include/freetype2
+ifneq ($(DEBUG),)
+CFLAGS += -fsanitize=address -fno-omit-frame-pointer
+LDFLAGS := -lasan $(LDFLAGS)
+endif
+
+ifeq ($(OS),Darwin)
+LDFLAGS := $(subst -lGL ,-framework OpenGL ,$(LDFLAGS))
+endif
+
+ifneq ($(call is_clang),)
+LDFLAGS := $(subst -lasan,-fsanitize=address,$(LDFLAGS))
+LDFLAGS := $(subst -s SAFE_HEAP=1,,$(LDFLAGS))
+endif
+
 ALL_TARGETS += $(OBJDIR)/compile_commands.json
 #ALL_TARGETS ?= $(TEST) $(LIB) $(BIN) run compile_commands.json
 
-CFLAGS := $(CFLAGS) -I$(OBJDIR) $(FREETYPE)
+CFLAGS := $(CFLAGS) -I$(OBJDIR)
 LDFLAGS := $(LDFLAGS) -lm
 OBJS := object.o ref.o util.o logger.o graphics.o input.o messagebus.o
 OBJS += matrix.o model.o shader.o objfile.o librarian.o json.o clap.o
