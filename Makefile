@@ -4,7 +4,6 @@ WWWDIR := $(BUILDROOT)/www
 OBJDIR := $(BUILDROOT)/obj
 TARGETS := bin www
 OS := $(shell uname)
-is_clang := $(shell :|$(CC) -dM -E -|grep -w __clang__)
 DEBUG := 1
 
 TEST := test
@@ -23,13 +22,18 @@ BUILD ?= default
 ALL_TARGETS := $(TEST) $(LIB) $(BIN) run
 include $(BUILD).make
 
+is_clang := $(shell :|$(CC) -dM -E -|grep -w __clang__)
+is_apple := $(shell :|$(CC) -dM -E -|grep -w __APPLE__)
+
 ifneq ($(DEBUG),)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS := -lasan $(LDFLAGS)
 endif
 
-ifeq ($(OS),Darwin)
+ifneq ($(call is_apple),)
+CFLAGS  += -Wno-deprecated-declarations
 LDFLAGS := $(subst -lGL ,-framework OpenGL ,$(LDFLAGS))
+LDFLAGS := $(subst -lopenal,-framework OpenAL,$(LDFLAGS))
 endif
 
 ifneq ($(call is_clang),)
