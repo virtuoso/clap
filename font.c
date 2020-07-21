@@ -19,9 +19,9 @@ static struct font *default_font;
 
 static void font_load_glyph(struct font *font, unsigned char c)
 {
-    unsigned int x, y, comp;
     FT_GlyphSlot glyph;
-    LOCAL(char, buf);
+    unsigned int x, y;
+    LOCAL(uchar, buf);
 
     if (FT_Load_Char(font->face, c, FT_LOAD_RENDER)) {
         err("failed to load glyph %c\n", c);
