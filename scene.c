@@ -264,6 +264,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     }
     scene->_model->name = strdup(name);
     txm = model3dtx_new(scene->_model, tex);
+    ref_put(&scene->_model->ref);
     scene_add_model(scene, txm);
 
     if (ent) {
@@ -302,6 +303,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     } else {
         create_entities(txm);
     }
+    ref_put(&txm->ref);
     dbg("loaded model '%s'\n", name);
 
     return 0;
