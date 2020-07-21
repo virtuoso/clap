@@ -5,14 +5,18 @@
 #include <ctype.h>
 #include <stdbool.h>
 
+typedef unsigned char uchar;
+
 void cleanup__fd(int *fd);
 void cleanup__FILEp(FILE **f);
 void cleanup__malloc(void **x);
 void cleanup__charp(char **s);
+void cleanup__ucharp(uchar **s);
 
 #define CU(x) __attribute__((cleanup(cleanup__ ## x)))
 #define CUX(x) CU(x) = NULL
-#define LOCAL(t, x) t *x CUX(t ## p)
+#define LOCAL_(t, ts, x) t *x CUX(ts ## p)
+#define LOCAL(t, x) LOCAL_(t, t, x)
 
 #define nonstring __attribute__((nonstring))
 #define unused __attribute__((unused))

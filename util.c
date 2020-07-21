@@ -27,6 +27,11 @@ void cleanup__charp(char **s)
     free(*s);
 }
 
+void cleanup__ucharp(uchar **s)
+{
+    free(*s);
+}
+
 void *memdup(const void *x, size_t size)
 {
     void *r = malloc(size);
