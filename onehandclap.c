@@ -208,6 +208,8 @@ int main(int argc, char **argv)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
+    ui_done(&ui);
+    scene_done(&scene);
     //gl_done();
     clap_done(0);
 #endif

@@ -360,3 +360,15 @@ int scene_load(struct scene *scene, const char *name)
 
     return 0;
 }
+
+void scene_done(struct scene *scene)
+{
+    struct model3dtx *txmodel, *ittxm;
+    struct entity3d *ent, *itent;
+
+    list_for_each_entry_iter(txmodel, ittxm, &scene->txmodels, entry) {
+        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
+            ref_put(&ent->ref);
+        }
+    }
+}

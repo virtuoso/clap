@@ -41,6 +41,7 @@ struct scene {
 void scene_camera_calc(struct scene *s);
 int scene_add_model(struct scene *s, struct model3dtx *txm);
 int scene_init(struct scene *scene);
+void scene_done(struct scene *scene);
 int  scene_load(struct scene *scene, const char *name);
 void scene_update(struct scene *scene);
 struct shader_prog *scene_find_prog(struct scene *s, const char *name);

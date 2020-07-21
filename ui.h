@@ -39,6 +39,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, stru
                                   unsigned long affinity, float x_off, float y_off, float w, float h);
 
 int ui_init(struct ui *ui, int width, int height);
+void ui_done(struct ui *ui);
 void ui_update(struct ui *ui);
 
 #endif /* __CLAP_UI_H__ */

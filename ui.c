@@ -429,6 +429,20 @@ int ui_init(struct ui *ui, int width, int height)
     return 0;
 }
 
+void ui_done(struct ui *ui)
+{
+    struct model3dtx *txmodel, *ittxm;
+    struct entity3d *ent, *itent;
+
+    list_for_each_entry_iter(txmodel, ittxm, &ui->txmodels, entry) {
+        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
+            struct ui_element *uie = ent->priv;
+
+            ref_put(&uie->ref);
+        }
+    }
+}
+
 void ui_show(struct ui *ui)
 {
 }
