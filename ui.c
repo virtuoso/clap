@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <stdlib.h>
 #include <errno.h>
 #include "model.h"
 #include "shader.h"
@@ -294,7 +296,7 @@ static inline int x_off(struct ui_text *uit, unsigned int line)
 
 struct ui_text *
 ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
-                 char *str, float *color, unsigned long flags)
+                 const char *str, float *color, unsigned long flags)
 {
     size_t len = strlen(str);
     struct ui_text      *uit;

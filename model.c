@@ -273,7 +273,6 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
     GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
     GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
     GLint highlight_loc, color_loc;
-    int i;
 
     list_for_each_entry(txmodel, list, entry) {
         model = txmodel->model;
@@ -335,7 +334,6 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
         }
         model3dtx_prepare(txmodel);
 
-        i = 0;
         list_for_each_entry(e, &txmodel->entities, entry) {
             float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
             if (!e->visible)
@@ -501,9 +499,8 @@ void entity3d_update(struct entity3d *e, void *data)
 
 static int silly_update(struct entity3d *e, void *data)
 {
-    struct scene *scene = data;
+    unused struct scene *scene = data;
     mat4x4 m, p, mvp;
-    int    i = (int)e->priv;
 
     mat4x4_identity(m);
     mat4x4_ortho(p, /*scene->aspect*/ 1.0, /*-scene->aspect*/ -1.0, -1.f, 1.f, 1.f, -1.f);
@@ -519,9 +516,9 @@ void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
 
 void create_entities(struct model3dtx *txmodel)
 {
-    int i, max = 16;
+    long i;
 
-    for (i = 0; i < max; i++) {
+    for (i = 0; i < 16; i++) {
         struct entity3d *e = entity3d_new(txmodel);
         float a = 0, b = 0, c = 0;
 
