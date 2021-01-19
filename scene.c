@@ -48,7 +48,7 @@ static void scene_focus_prev(struct scene *s)
         return;
     }
 
-    if (s->focus->txmodel != list_last_entry(&s->txmodels, struct model3dtx, entry)) {
+    if (s->focus->txmodel != list_first_entry(&s->txmodels, struct model3dtx, entry)) {
         next_txm = list_prev_entry(s->focus->txmodel, entry);
         goto last_entry;
     }
