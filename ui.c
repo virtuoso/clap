@@ -181,7 +181,7 @@ static int ui_model_init(struct ui *ui)
 struct ui_text {
     struct font         *font;
     struct ui_element   *parent;
-    const char          *str;
+    char                *str;
     struct ui_element   **uies;
     struct model3dtx    **txms;
     unsigned long       flags;
@@ -205,11 +205,15 @@ static void ui_text_drop(struct ref *ref)
 
     trace("dropping ui_text\n");
     for (i = 0; i < uit->nr_uies; i++) {
-        /* XXX: whitespaces etc don't have ui elements */
-        if (!uit->uies[i])
-            continue;
-        ref_put(&uit->uies[i]->ref);
+        /* XXX: whitespaces etc don't have ui elements or txms */
+        if (uit->uies[i])
+            ref_put_last(&uit->uies[i]->ref);
+        /* txms are reused, so not ref_put_last() */
+        if (uit->txms[i])
+            ref_put(&uit->txms[i]->ref);
     }
+
+    free(uit->str);
     free(uit->line_nrw);
     free(uit->line_ws);
     free(uit->line_w);
@@ -228,7 +232,7 @@ static void ui_text_drop(struct ref *ref)
 static void ui_text_measure(struct ui_text *uit)
 {
     unsigned int i, w = 0, nr_words = 0, nonws_w = 0, ws_w;
-    unsigned int h_top = 0, h_bottom = 0;
+    int h_top = 0, h_bottom = 0;
     size_t len = strlen(uit->str);
     struct glyph *glyph;
 
@@ -239,7 +243,7 @@ static void ui_text_measure(struct ui_text *uit)
     glyph = font_get_glyph(uit->font, '-');
     ws_w = glyph->width;
     for (i = 0; i <= len; i++) {
-        if (uit->str[i] == '\n' || !uit->str[i]) {
+        if (uit->str[i] == '\n' || !uit->str[i]) { /* end of line */
             nr_words++;
 
             CHECK(uit->line_w = realloc(uit->line_w, sizeof(*uit->line_w) * (uit->nr_lines + 1)));
@@ -260,10 +264,13 @@ static void ui_text_measure(struct ui_text *uit)
 
         glyph = font_get_glyph(uit->font, uit->str[i]);
         nonws_w += glyph->advance_x >> 6;
-        //h = max(h, glyph->height); /* XXX: glyph->advance_y >> 6 */
-        h_top = max(h_top, glyph->bearing_y);
-        h_bottom = max(h_bottom, glyph->height - glyph->bearing_y);
-        //uit->y_off = max(uit->y_off, glyph->height - glyph->bearing_y); /* XXX: assumes UI_AF_BOTTOM for now */
+        if (glyph->bearing_y < 0) {
+            h_top = max(h_top, (int)glyph->height + glyph->bearing_y);
+            h_bottom = max(h_bottom, -glyph->bearing_y);
+        } else {
+            h_top = max(h_top, glyph->bearing_y);
+            h_bottom = max(h_bottom, max((int)glyph->height - glyph->bearing_y, 0));
+        }
     }
 
     for (i = 0; i < uit->nr_lines; i++)
@@ -283,7 +290,7 @@ static inline int x_off(struct ui_text *uit, unsigned int line)
 
     if (uit->flags & UI_AF_RIGHT) {
         if (uit->flags & UI_AF_LEFT) {
-            if (!uit->line_nrw[line])
+            if (uit->line_w[line])
                x += (uit->width - uit->line_w[line]) / 2;
         } else {
             x = uit->width + uit->margin_x - uit->line_w[line] -
@@ -292,6 +299,19 @@ static inline int x_off(struct ui_text *uit, unsigned int line)
     }
 
     return x;
+}
+
+static struct model3dtx *ui_txm_find_by_texid(struct ui *ui, GLuint texid)
+{
+    struct model3dtx *txmodel;
+
+    /* XXX: need trees for better search, these lists are actually long */
+    list_for_each_entry(txmodel, &ui->txmodels, entry) {
+        if (txmodel->texture_id == texid)
+            return ref_get(txmodel);
+    }
+
+    return NULL;
 }
 
 struct ui_text *
@@ -314,13 +334,15 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     uit->margin_x   = 10;
     uit->margin_y   = 10;
     uit->parent     = parent;
-    uit->str        = str;
+    CHECK(uit->str  = strdup(str));
     uit->font       = font_get(font);
     ui_text_measure(uit);
     uit->parent->width = uit->width + uit->margin_x * 2;
     uit->parent->height = uit->height + uit->margin_y * 2;
     ui_element_position(uit->parent, ui);
-    y = uit->height - uit->y_off + uit->margin_y;
+    y = (float)uit->margin_y + uit->y_off;
+    dbg_on(y < 0, "y: %f, height: %d y_off: %d, margin_y: %d\n",
+           y, uit->height, uit->y_off, uit->margin_y);
     CHECK(prog      = shader_prog_find(ui->prog, "glyph"));
     CHECK(uit->uies = calloc(len, sizeof(struct ui_element *)));
     CHECK(uit->txms = calloc(len, sizeof(struct model3dtx *)));
@@ -328,7 +350,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     for (line = 0, i = 0, x = x_off(uit, line); i < len; i++) {
         if (str[i] == '\n') {
             line++;
-            y -= (uit->height / uit->nr_lines);
+            y += (uit->height / uit->nr_lines);
             x = x_off(uit, line);
             continue;
         }
@@ -337,24 +359,24 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
             continue;
         }
         glyph   = font_get_glyph(uit->font, str[i]);
-        m       = model3d_new_quad(prog, 0, 0, 0, glyph->width, glyph->height);
-        m->name = "glyph";
-        m->cull_face = false;
-        m->alpha_blend = true;
-        uit->txms[i] = model3dtx_new_txid(m, glyph->texture_id);
-        /* txm holds the only reference */
-        ref_put(&m->ref);
-        ui_add_model(ui, uit->txms[i]);
-        if (y - (glyph->height - glyph->bearing_y) < 0)
-            dbg("[%c] y - (glyph->height - glyph->bearing_y): %f - (%d - %d) = %f\n", str[i],
-                y, glyph->height, glyph->bearing_y,
-                y - ((float)glyph->height - glyph->bearing_y));
-        uit->uies[i] = ui_element_new(ui, parent, uit->txms[i], UI_AF_BOTTOM | UI_AF_LEFT,
+        uit->txms[i] = ui_txm_find_by_texid(ui, glyph->texture_id);
+        if (!uit->txms[i]) {
+            m       = model3d_new_quad(prog, 0, 0, 0, glyph->width, glyph->height);
+            //model3d_set_name(m, "glyph");
+            model3d_set_name(m, "glyph_%s_%c", font_name(uit->font), str[i]);
+            m->cull_face = false;
+            m->alpha_blend = true;
+            uit->txms[i] = model3dtx_new_txid(m, glyph->texture_id);
+            /* txm holds the only reference */
+            ref_put(&m->ref);
+            ui_add_model(ui, uit->txms[i]);
+        }
+        uit->uies[i] = ui_element_new(ui, parent, uit->txms[i], UI_AF_TOP | UI_AF_LEFT,
                                       x + glyph->bearing_x,
-                                      y - (glyph->height - glyph->bearing_y),
+                                      y - glyph->bearing_y,
                                       glyph->width, glyph->height);
-        ref_put(&uit->txms[i]->ref);
-        //dbg("'%c' at %f//%f/%f\n", str[i], x, w, h);
+        ref_only(&uit->uies[i]->entity->ref);
+        ref_only(&uit->uies[i]->ref);
         uit->uies[i]->entity->color[0] = color[0];
         uit->uies[i]->entity->color[1] = color[1];
         uit->uies[i]->entity->color[2] = color[2];
