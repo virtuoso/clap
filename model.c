@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -28,6 +29,7 @@ static void model3d_drop(struct ref *ref)
     /* delete gl buffers */
     ref_put(&m->prog->ref);
     trace("dropping model '%s'\n", m->name);
+    free(m->name);
     free(m);
 }
 
@@ -145,6 +147,16 @@ static void load_gl_buffer(GLint loc, void *data, size_t sz, GLuint *obj, GLint 
     glBindBuffer(target, 0);
 }
 
+void model3d_set_name(struct model3d *m, const char *fmt, ...)
+{
+    va_list ap;
+
+    free(m->name);
+    va_start(ap, fmt);
+    CHECK(vasprintf(&m->name, fmt, ap));
+    va_end(ap);
+}
+
 struct model3d *
 model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
                          GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz,
@@ -156,7 +168,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     if (!m)
         return NULL;
 
-    m->name = name;
+    CHECK(m->name = strdup(name));
     m->prog = ref_get(p);
     m->cull_face = true;
     m->alpha_blend = false;
