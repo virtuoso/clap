@@ -14,6 +14,7 @@ static char base_url[PATH_MAX] = "http://ukko.local/clap/";
 static char base_url[PATH_MAX] = "./";
 #endif
 
+#if defined(CONFIG_BROWSER) && 0
 struct fetch_callback_data {
     char *buf;
     int   size;
@@ -30,13 +31,11 @@ static void _fetch_config_onload(struct lib_handle *h, void *data)
 {
     fetch_config_onload(data, h->buf, h->size);
 }
-#ifdef CONFIG_BROWSER
+
 static void fetch_file(const char *name)
 {
     emscripten_async_wget_data(name, NULL, fetch_config_onload, NULL);
 }
-#else
-
 #endif
 
 static void handle_drop(struct ref *ref)
@@ -146,7 +145,7 @@ void lib_release(struct lib_handle *h)
  *  + first try the local FS, if unsuccessful,
  *  + fetch
  */
-int lib_read_file(enum res_type type, const char *name, void **bufp, size_t *szp)
+struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bufp, size_t *szp)
 {
     struct lib_handle *h;
     LOCAL(char, uri);
@@ -155,7 +154,7 @@ int lib_read_file(enum res_type type, const char *name, void **bufp, size_t *szp
 
     uri = lib_figure_uri(type, name);
     if (!uri)
-        return -1;
+        return NULL;
 
     h = ref_new(struct lib_handle, ref, handle_drop);
     h->name = name;
@@ -184,7 +183,7 @@ int lib_read_file(enum res_type type, const char *name, void **bufp, size_t *szp
     }
     ref_put(&h->ref);
 
-    return ret;
+    return ret ? NULL : h;
 }
 
 int librarian_init(void)

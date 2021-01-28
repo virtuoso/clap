@@ -1,9 +1,123 @@
 #include <errno.h>
 #include "model.h"
+#include "physics.h"
 #include "scene.h"
 #include "shader.h"
 
 #define SIZE 1000
+//#define FRAC 4.f
+static long seed;
+static float *map, *map0;
+static unsigned int side;
+
+static float get_rand_height(int x, int z)
+{
+    /*if (x < - SIZE/2 || x > SIZE/2)
+        return 0;
+    if (z < - SIZE/2 || z > SIZE/2)
+        return 0;*/
+
+    x += SIZE / 2;
+    z += SIZE / 2;
+    //srand48((x + z * 49152) + seed);
+    srand((x * 42 + z * 2345) + seed);
+    return sin(to_radians((float)rand()));
+    //return drand48() * 2 - 1; //sin(to_radians((float)rand()));
+}
+
+static float get_mapped_rand_height(int x, int z)
+{
+    /* Torus */
+    if (x < 0)
+        x = side - 1;
+    else if (x >= side)
+        x = 0;
+    if (z < 0)
+        z = side - 1;
+    else if (z >= side)
+        z = 0;
+    return map0[x * side + z];
+}
+
+static float get_avg_height(int x, int z)
+{
+    float corners, sides, self;
+
+    corners  = get_mapped_rand_height(x - 1, z - 1);
+    corners += get_mapped_rand_height(x + 1, z - 1);
+    corners += get_mapped_rand_height(x - 1, z + 1);
+    corners += get_mapped_rand_height(x + 1, z + 1);
+    corners /= 16.f;
+
+    sides  = get_mapped_rand_height(x - 1, z);
+    sides += get_mapped_rand_height(x + 1, z);
+    sides += get_mapped_rand_height(x, z - 1);
+    sides += get_mapped_rand_height(x, z + 1);
+    sides /= 8.f;
+
+    self = get_mapped_rand_height(x, z) / 4.f;
+
+    return corners + sides + self;
+}
+
+static float get_interp_height(float x, float z)
+{
+    int intx = floor(x);
+    int intz = floor(z);
+    float fracx = x - intx;
+    float fracz = z - intz;
+    float v1    = get_avg_height(intx, intz);
+    float v2    = get_avg_height(intx + 1, intz);
+    float v3    = get_avg_height(intx, intz + 1);
+    float v4    = get_avg_height(intx + 1, intz + 1);
+    float i1    = cos_interp(v1, v2, fracx);
+    float i2    = cos_interp(v3, v4, fracx);
+    //dbg("#### %f,%f => %f => %f; %f,%f => %f => %f\n", v1, v2, fracx, i1, v3, v4, fracx, i2);
+
+    return cos_interp(i1, i2, fracz);
+}
+
+#define OCTAVES 3
+#define ROUGHNESS 0.2f
+#define AMPLITUDE 20
+
+static float get_height(int x, int z)
+{
+    float total = 0;
+    float d = pow(2, OCTAVES - 1);
+    int i;
+
+    for (i = 0; i < OCTAVES; i++) {
+        float freq = pow(2, i) / d;
+        float amp  = pow(ROUGHNESS, i) * AMPLITUDE;
+
+        total += get_interp_height(x * freq, z * freq) * amp;
+    }
+
+    return total;
+}
+
+static void calc_normal(vec3 n, int x, int z)
+{
+    /* Torus */
+    int left = x == 0 ? side -1 : x - 1;
+    int right = x == side-1 ? 0 : x + 1;
+    int up = z == 0 ? side -1 : z - 1;
+    int down = z == side-1 ? 0 : z + 1;
+    float hl = map[left*side + z];//get_height(x - 1, z);
+    float hr = map[right*side + z];//get_height(x + 1, z);
+    float hd = map[x*side + up];//get_height(x, z - 1);
+    float hu = map[x*side + down];//get_height(x, z + 1);
+
+    n[0] = hl - hr;
+    n[1] = 2.f;
+    n[2] = hd - hu;
+
+    vec3_norm(n, n);
+    //if (vec3_len(n) != 1.000000)
+    //    dbg("### %f,%f,%f  -> %f\n", n[0], n[1], n[2], vec3_len(n));
+}
+
 int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
 {
     struct model3d *model;
@@ -14,7 +128,23 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
     size_t vxsz, txsz, idxsz;
     float *vx, *norm, *tx;
     unsigned short *idx;
+    struct timespec ts;
     int i, j;
+
+    dbg("TERRAIN\n");
+    clock_gettime(CLOCK_REALTIME, &ts);
+    seed  = ts.tv_nsec;
+
+    side = nr_v;
+    map0 = calloc(nr_v * nr_v, sizeof(float));
+    for (i = 0; i < nr_v; i++)
+        for (j = 0; j < nr_v; j++)
+            map0[i * nr_v + j] = get_rand_height(i, j);
+    map  = calloc(nr_v * nr_v, sizeof(float));
+    for (i = 0; i < nr_v; i++)
+        for (j = 0; j < nr_v; j++)
+            map[i * nr_v + j] = get_height(i, j);
+    free(map0);
 
     vxsz  = total * sizeof(*vx) * 3;
     txsz  = total * sizeof(*tx) * 2;
@@ -28,12 +158,18 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
 
     for (it = 0, i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++) {
+            //vec3 v0, v1, v2, a, b;
+            vec3 normal;
+
             vx[it * 3 + 0] = (float)j / ((float)nr_v - 1) * SIZE - SIZE/2;
-            vx[it * 3 + 1] = vpos + sin(to_radians((float)rand()));
+            vx[it * 3 + 1] = vpos + map[i * nr_v + j];
+            //vx[it * 3 + 1] = vpos + get_height(j, i);
+            //vx[it * 3 + 1] = vpos + get_avg_height(j, i) * AMPLITUDE;
             vx[it * 3 + 2] = (float)i / ((float)nr_v - 1) * SIZE - SIZE/2;
-            norm[it * 3 + 0] = 0;
-            norm[it * 3 + 1] = 1;
-            norm[it * 3 + 2] = 0;
+            calc_normal(normal, j, i);
+            norm[it * 3 + 0] = normal[0];
+            norm[it * 3 + 1] = normal[1];
+            norm[it * 3 + 2] = normal[2];
             tx[it * 2 + 0] = (float)j*32 / ((float)nr_v - 1);
             tx[it * 2 + 1] = (float)i*32 / ((float)nr_v - 1);
             it++;
@@ -54,6 +190,7 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
             idx[it++] = bottom_left;
             idx[it++] = bottom_right;
         }
+    free(map);
     //dbg("it %lu\n", it);
     model = model3d_new_from_vectors("terrain", prog, vx, vxsz, idx, idxsz,
                                      tx, txsz, norm, vxsz);
@@ -62,12 +199,17 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
     free(norm);
     free(idx);
 
+    //dbg("##### rand height(5,14): %f\n", get_avg_height(5, 14));
+    //dbg("##### rand height(5,14): %f\n", get_avg_height(5, 14));
+    //dbg("##### rand height(6,15): %f\n", get_avg_height(6, 15));
     txm = model3dtx_new(model, "grass20.png");
+    ref_put(&model->ref);
     scene_add_model(s, txm);
     e = entity3d_new(txm);
     e->visible = 1;
     e->update  = NULL;
     model3dtx_add_entity(txm, e);
-    ref_put(&prog->ref);  /* matches shader_prog_find() above */
+    phys->ground = phys_geom_new(phys, model->vx, vxsz, NULL/*model->norm*/, model->idx, idxsz);
+    ref_put(&prog->ref); /* matches shader_prog_find() above */
     return 0;
 }

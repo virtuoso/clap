@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" /> -->
     <title>One Hand Clap</title>
     <style>
       .emscripten { padding-right: 0; margin-left: 0px; margin-right: 0px; display: block; }
@@ -58,7 +59,7 @@
 
     </style>
   </head>
-  <body>
+  <body style="overflow:hidden">
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>emscripten</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
@@ -75,6 +76,7 @@
       var runtime_ready = false;
 
       var Module = {
+        noAudioDecoding: true,
         preRun: [],
         postRun: [],
         print: (function() {
@@ -136,15 +138,16 @@
           Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
         }
       };
+      Module.noAudioDecoding = true;
       Module.setStatus('Downloading...');
       window.onresize = function() {
         var canvas = document.getElementById('canvas');
         var html = document.getElementsByTagName('body')[0];
-        var height = Math.floor(html.clientHeight * 0.8);
+        var height = html.clientHeight;//Math.floor(html.clientHeight * 0.8);
         canvas.width = html.clientWidth;
         canvas.height = height;
-	if (runtime_ready)
-        ccall("gl_resize", 'void', ['int', 'int'], [canvas.clientWidth, canvas.clientHeight]);
+	      if (runtime_ready)
+          ccall("gl_resize", 'void', ['int', 'int'], [canvas.clientWidth, canvas.clientHeight]);
       }
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');

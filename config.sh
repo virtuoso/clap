@@ -3,6 +3,7 @@
 output="config.h"
 logfile="/tmp/clap.log"
 date="$(date +%Y%m%d_%H%M%S)"
+server_ip="$(. ./build_config && echo $server_ip)"
 if [ "$(basename $CC)" = "emcc" ]; then
     #echo "Building a browser version"
     do_browser=1
@@ -17,6 +18,7 @@ echo "#ifndef __CLAP_CONFIG_H__" >> $output
 echo "#define __CLAP_CONFIG_H__" >> $output
 echo "#define CONFIG_LOG_OUTPUT \"$logfile\"" >> $output
 echo "#define CONFIG_BUILDDATE \"$date\"" >> $output
+echo "#define CONFIG_SERVER_IP \"$server_ip\"" >> $output
 if [ -n "$do_browser" ]; then
     echo "#define CONFIG_BROWSER 1" >> $output
     echo "#define CONFIG_GLES 1" >> $output

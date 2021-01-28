@@ -177,6 +177,9 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
         else
             mi.focus_next = 1;
         break;
+    case GLFW_KEY_M:
+        mi.menu_toggle = 1;
+        break;
     case GLFW_KEY_F1:
         mi.fullscreen = 1;
         break;
@@ -308,7 +311,7 @@ static void joysticks_poll(void)
                         mi.yaw_left = 1;
                     break;
                 case 4:
-                    mi.delta_y = j->axes[t] - j->axes_init[t];
+                    mi.delta_y = (j->axes[t] - j->axes_init[t]) * 10;
 
                     break;
                 }
@@ -320,6 +323,8 @@ static void joysticks_poll(void)
                 trace("joystick%d button%d: %d\n", i, t, j->buttons[t]);
                 if (t == 7)
                     mi.zoom = 1;
+                else if (t == 9)
+                    mi.menu_toggle = 1;
                 count++;
             }
 

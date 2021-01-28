@@ -223,24 +223,26 @@ struct shader_prog *shader_prog_find(struct shader_prog *prog, const char *name)
 int lib_request_shaders(const char *name, struct shader_prog **progp)
 {
     //char *nvert CUX(string), *nfrag CUX(string), *vert CUX(string), *frag CUX(string);
+    struct lib_handle *hv, *hf;
     LOCAL(char, nvert);
     LOCAL(char, nfrag);
-    LOCAL(char, vert);
-    LOCAL(char, frag);
+    char *vert;
+    char *frag;
     struct shader_prog *p;
     size_t vsz, fsz;
-    int ret;
 
-    ret = asprintf(&nvert, "%s.vert", name);
-    ret = asprintf(&nfrag, "%s.frag", name);
-    ret = lib_read_file(RES_ASSET, nvert, (void **)&vert, &vsz);
-    ret = lib_read_file(RES_ASSET, nfrag, (void **)&frag, &fsz);
+    CHECK(asprintf(&nvert, "%s.vert", name));
+    CHECK(asprintf(&nfrag, "%s.frag", name));
+    hv = lib_read_file(RES_ASSET, nvert, (void **)&vert, &vsz);
+    hf = lib_read_file(RES_ASSET, nfrag, (void **)&frag, &fsz);
     shader_preprocess(vert, vsz);
     shader_preprocess(frag, fsz);
     //dbg("%s/%s vsz %zu fsz %zu\n", nvert, nfrag, vsz, fsz);
     p           = shader_prog_from_strings(name, vert, frag);
     p->next     = *progp;
     *progp = p;
+    ref_put_last(&hv->ref);
+    ref_put_last(&hf->ref);
 
     return 0;
 }

@@ -5,6 +5,7 @@
 #include "common.h"
 #include "matrix.h"
 #include "model.h"
+#include "physics.h"
 
 struct camera {
     GLfloat pos[3];
@@ -13,6 +14,7 @@ struct camera {
     GLfloat roll;   /* up/down */
     unsigned int moved;
     unsigned int zoom;
+    //struct phys_body *phys_body;
 };
 
 struct scene {
@@ -31,7 +33,9 @@ struct scene {
     /* FPS calculation -- very important! */
     unsigned long       frames, frames_total, FPS;
     struct timespec     ts;
+    float               limbo_height;
     float               aspect;
+    float               auto_yoffset;
     int                 autopilot;
     int                 exit_timeout;
     int                 fullscreen;

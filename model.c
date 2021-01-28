@@ -8,6 +8,7 @@
 #include "util.h"
 #include "object.h"
 #include "model.h"
+#include "physics.h"
 #include "shader.h"
 #include "scene.h"
 
@@ -30,15 +31,19 @@ static void model3d_drop(struct ref *ref)
     ref_put(&m->prog->ref);
     trace("dropping model '%s'\n", m->name);
     free(m->name);
+    free(m->vx);
+    free(m->idx);
+    free(m->norm);
     free(m);
 }
 
-#ifdef CONFIG_BROWSER
+#if defined(CONFIG_BROWSER) && defined(USE_PRELOAD_PLUGINS)
 #include <limits.h>
 static unsigned char *fetch_png(const char *name, int *width, int *height)
 {
     char path[PATH_MAX];
     snprintf(path, PATH_MAX, "/asset/%s", name);
+    //emscripten_run_preload_plugins(path, NULL, NULL);
     return (unsigned char *)emscripten_get_preloaded_image_data(path, width, height);
 }
 #else
@@ -89,8 +94,9 @@ static int model3d_add_texture(struct model3dtx *txm, const char *name)
 static void model3dtx_drop(struct ref *ref)
 {
     struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
+    const char *name = txm->model->name;
 
-    trace("dropping model3dtx [%s]\n", txm->model->name);
+    trace("dropping model3dtx [%s]\n", name);
     list_del(&txm->entry);
     if (!txm->external_tex)
         glDeleteTextures(1, &txm->texture_id);
@@ -172,6 +178,10 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     m->prog = ref_get(p);
     m->cull_face = true;
     m->alpha_blend = false;
+    m->vx          = memdup(vx, vxsz);
+    m->vxsz        = vxsz;
+    m->idx         = memdup(idx, idxsz);
+    m->idxsz       = idxsz;
 
     shader_prog_use(p);
     load_gl_buffer(m->prog->pos, vx, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
@@ -180,8 +190,10 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     if (txsz)
         load_gl_buffer(m->prog->tex, tx, txsz, &m->tex_obj, 2, GL_ARRAY_BUFFER);
 
-    if (normsz)
+    if (normsz) {
+        m->norm        = memdup(norm, normsz);
         load_gl_buffer(m->prog->norm, norm, normsz, &m->norm_obj, 3, GL_ARRAY_BUFFER);
+    }
     shader_prog_done(p);
 
     m->nr_vertices = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
@@ -232,7 +244,7 @@ static void model3d_prepare(struct model3d *m)
 void model3dtx_prepare(struct model3dtx *txm)
 {
     struct shader_prog *p = txm->model->prog;
-    struct model3d *    m = txm->model;
+    struct model3d *   m = txm->model;
 
     model3d_prepare(txm->model);
 
@@ -285,6 +297,7 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
     GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
     GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
     GLint highlight_loc, color_loc;
+    unsigned long nr_txms = 0, nr_ents = 0;
 
     list_for_each_entry(txmodel, list, entry) {
         model = txmodel->model;
@@ -325,7 +338,7 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
 
             /* XXX: entity properties */
             if (shine_damper_loc >= 0 && reflectivity_loc >= 0) {
-                glUniform1f(shine_damper_loc, 10.0);
+                glUniform1f(shine_damper_loc, 1.0);
                 glUniform1f(reflectivity_loc, 0.7);
             }
 
@@ -346,11 +359,22 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
         }
         model3dtx_prepare(txmodel);
 
-        list_for_each_entry(e, &txmodel->entities, entry) {
+        list_for_each_entry (e, &txmodel->entities, entry) {
             float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
-            if (!e->visible)
+            if (!e->visible) {
+                //dbg("skipping element of '%s'\n", entity_name(e));
                 continue;
+            }
 
+            dbg_on(!e->visible, "rendering an invisible entity!\n");
+
+#ifndef EGL_EGL_PROTOTYPES
+            if (focus == e) {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            } else {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            }
+#endif
             if (color_loc >= 0)
                 glUniform4fv(color_loc, 1, e->color);
             if (focus && highlight_loc >= 0)
@@ -362,10 +386,14 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
             }
 
             model3dtx_draw(txmodel);
+            nr_ents++;
         }
         model3dtx_done(txmodel);
+        nr_txms++;
+        //dbg("RENDERED model '%s': %lu\n", txmodel->model->name, nr_ents);
     }
 
+    //dbg("RENDERED: %lu/%lu\n", nr_txms, nr_ents);
     shader_prog_done(prog);
 }
 
@@ -464,11 +492,16 @@ static void entity3d_free(struct entity3d *e)
 
 static int default_update(struct entity3d *e, void *data)
 {
+    struct scene *scene = data;
+    phys_body_update(e);
+    if (e->dy <= scene->limbo_height && e->phys_body) {
+        phys_body_done(e->phys_body);
+        e->phys_body = NULL;
+    }
     //struct scene *scene = data;
-    mat4x4_identity(e->base_mx->m);
-    mat4x4_translate_in_place(e->base_mx->m, e->dx, e->dy, e->dz);
-    mat4x4_scale_aniso(e->base_mx->m, e->base_mx->m, e->scale, e->scale, e->scale);
-    e->mx = e->base_mx;
+    mat4x4_identity(e->mx->m);
+    mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
+    mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
     return 0;
 }
 
@@ -478,6 +511,10 @@ static void entity3d_drop(struct ref *ref)
     trace("dropping entity3d\n");
     list_del(&e->entry);
     ref_put(&e->txmodel->ref);
+    
+    if (e->phys_body)
+        phys_body_done(e->phys_body);
+    free(e->mx);
     entity3d_free(e);
 }
 
@@ -491,7 +528,6 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
 
     e->txmodel = ref_get(txm);
     e->mx = mx_new();
-    e->base_mx = mx_new();
     e->update  = default_update;
 
     return e;
@@ -509,16 +545,29 @@ void entity3d_update(struct entity3d *e, void *data)
         e->update(e, data);
 }
 
-static int silly_update(struct entity3d *e, void *data)
+void entity3d_add_physics(struct entity3d *e, double mass, enum geom_type geom_type, double geom_off, double geom_radius)
 {
-    unused struct scene *scene = data;
-    mat4x4 m, p, mvp;
+    struct model3d *m = e->txmodel->model;
 
-    mat4x4_identity(m);
-    mat4x4_ortho(p, /*scene->aspect*/ 1.0, /*-scene->aspect*/ -1.0, -1.f, 1.f, 1.f, -1.f);
-    mat4x4_mul(mvp, m, p);
-    mat4x4_mul(e->mx->m, e->base_mx->m, mvp);
-    return 0;
+    if (geom_type == GEOM_SPHERE) {
+        e->phys_geom = dCreateSphere(phys->space, geom_radius);
+    } else {
+        geom_off = 0.0;
+        geom_radius = 0.0;
+        e->phys_geom = phys_geom_new(phys, m->vx, m->vxsz, NULL, m->idx, m->idxsz);
+    }
+
+    e->phys_body = phys_body_new(phys, e, geom_type, mass, e->phys_geom, e->dx, e->dy + geom_off, e->dz);
+    if (geom_off)
+        e->phys_body->zoffset = geom_off;
+}
+
+void entity3d_move(struct entity3d *e, float dx, float dy, float dz)
+{
+    e->dx += dx;
+    e->dy += dy;
+    e->dz += dz;
+    dBodySetPosition(e->phys_body->body, e->dx, e->dz, e->dy + e->phys_body->zoffset);
 }
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
@@ -530,6 +579,7 @@ void create_entities(struct model3dtx *txmodel)
 {
     long i;
 
+    return;
     for (i = 0; i < 16; i++) {
         struct entity3d *e = entity3d_new(txmodel);
         float a = 0, b = 0, c = 0;
@@ -544,11 +594,18 @@ void create_entities(struct model3dtx *txmodel)
         b *= i & 2 ? 1 : -1;
         c *= i & 4 ? 1 : -1;
         //msg("[%f,%f,%f]\n", a, b, c);
-        mat4x4_identity(e->base_mx->m);
-        mat4x4_translate_in_place(e->base_mx->m, a, b, c);
-        mat4x4_scale(e->base_mx->m, e->base_mx->m, 0.05);
+        //mat4x4_identity(e->base_mx->m);
+        //mat4x4_translate_in_place(e->base_mx->m, a, b, c);
+        e->scale = 1.0;
+        //mat4x4_scale_aniso(e->base_mx->m, e->base_mx->m, e->scale, e->scale, e->scale);
+        /*mat4x4_scale(e->base_mx->m, e->base_mx->m, 0.05);*/
 
-        e->update  = silly_update;
+        e->dx      = a;
+        e->dy      = b;
+        e->dz      = c;
+        //e->mx      = e->base_mx;
+        default_update(e, NULL);
+        e->update  = default_update;
         e->priv    = (void *)i;
         e->visible = 1;
         model3dtx_add_entity(txmodel, e);

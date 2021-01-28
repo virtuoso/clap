@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <stdio.h>
 #include "common.h"
 #include "logger.h"
 #include "display.h"
@@ -16,6 +18,11 @@ struct font {
 
 static FT_Library ft;
 static struct font *default_font;
+
+const char *font_name(struct font *font)
+{
+    return font->name;
+}
 
 static void font_load_glyph(struct font *font, unsigned char c)
 {
@@ -73,8 +80,9 @@ static void font_drop(struct ref *ref)
     struct font *font = container_of(ref, struct font, ref);
     unsigned int i;
 
-    for (i = 0; i < sizeof(font->g); i++)
+    for (i = 0; i < array_size(font->g); i++)
         glDeleteTextures(1, &font->g[i].texture_id);
+    free(font->name);
     free(font);
 }
 
@@ -108,7 +116,7 @@ struct font *font_open(char *name, unsigned int size)
 {
     LOCAL(char, font_name);
     struct font *font;
-    FT_Face      face;
+    FT_Face     face;
 
     font_name = lib_figure_uri(RES_ASSET, name);
     if (FT_New_Face(ft, font_name, 0, &face)) {
@@ -120,7 +128,7 @@ struct font *font_open(char *name, unsigned int size)
     if (!font)
         return NULL;
 
-    font->name = name;
+    CHECK(asprintf(&font->name, "%s:%u", font_name, size));
     font->face = face;
     FT_Set_Pixel_Sizes(font->face, size, size);
     //for (c = 32; c < 128; c++)
@@ -136,11 +144,9 @@ void font_put(struct font *font)
 
 int font_init(void)
 {
-    int   ret;
+    CHECK0(FT_Init_FreeType(&ft));
 
-    // All functions return a value different than 0 whenever an error occurred
-    ret = FT_Init_FreeType(&ft);
-    default_font = font_open("LiberationSansBold.ttf", 128);
+    default_font = font_open("LiberationSansBold.ttf", 64);
     if (!default_font) {
         err("couldn't load default font\n");
         return -1;

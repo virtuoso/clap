@@ -1,15 +1,19 @@
 #include "messagebus.h"
+#include "physics.h"
 #include "shader.h"
 #include "model.h"
 #include "scene.h"
+#include "sound.h"
 #include "json.h"
+
+struct sound *click;
 
 static void scene_camera_autopilot(struct scene *s)
 {
-    s->camera.pos[0] = 12 * cos(to_radians(s->frames_total)/4);
-    s->camera.pos[1] = 2 * sin(to_radians(s->frames_total)/10) + 4;
-    s->camera.pos[2] = 12 * sin(to_radians(s->frames_total)/4) + 9.0;
-    s->camera.yaw    = -(float)((s->frames_total) % 1440)/4 + 90.0;
+    s->camera.pos[0] = 16 * sin(to_radians(s->frames_total)/4) + 7.0;
+    s->camera.pos[1] = 2 * sin(to_radians(s->frames_total)/10) + s->auto_yoffset;
+    s->camera.pos[2] = 16 * cos(to_radians(s->frames_total)/4) + 8.0;
+    s->camera.yaw    = -(float)((s->frames_total) % 1440)/4 + 0.0;
     s->camera.moved++;
 }
 
@@ -17,6 +21,7 @@ static void scene_focus_next(struct scene *s)
 {
     struct model3dtx *next_txm;
 
+    sound_play(click);
     if (!s->focus)
         goto first_txm;
 
@@ -40,6 +45,7 @@ static void scene_focus_prev(struct scene *s)
 {
     struct model3dtx *next_txm;
 
+    sound_play(click);
     if (!s->focus)
         goto last_txm;
 
@@ -137,25 +143,25 @@ static int scene_handle_input(struct message *m, void *data)
     }
     if (m->input.right) {
         if (s->focus)
-            s->focus->dx += 0.1;
+            entity3d_move(s->focus, 0.1, 0, 0);
         else
             s->camera.pos[0] += 0.1;
     }
     if (m->input.left) {
         if (s->focus)
-            s->focus->dx -= 0.1;
+            entity3d_move(s->focus, -0.1, 0, 0);
         else
             s->camera.pos[0] -= 0.1;
     }
     if (m->input.up) {
         if (s->focus)
-            s->focus->dz += 0.1;
+            entity3d_move(s->focus, 0, 0, 0.1);
         else
             s->camera.pos[2] += 0.1;
     }
     if (m->input.down) {
         if (s->focus)
-            s->focus->dz -= 0.1;
+            entity3d_move(s->focus, 0, 0, -0.1);
         else
             s->camera.pos[2] -= 0.1;
     }
@@ -188,9 +194,18 @@ int scene_add_model(struct scene *s, struct model3dtx *txm)
 
 static void scene_light_update(struct scene *scene)
 {
-    scene->light.pos[0] = 30.0 * cos(to_radians((float)scene->frames_total / 4.0));
-    scene->light.pos[1] = 30.0 * sin(to_radians((float)scene->frames_total / 4.0));
+    float day[3]        = { 1.0, 1.0, 1.0 };
+    float night[3]      = { 0.3, 0.3, 0.4 };
+
+    scene->light.pos[0] = 500.0 * cos(to_radians((float)scene->frames_total / 4.0));
+    scene->light.pos[1] = 500.0 * sin(to_radians((float)scene->frames_total / 4.0));
     scene->light.pos[2] = 0.0;
+    if (scene->light.pos[1] < 0.0) {
+        scene->light.pos[1] = -scene->light.pos[1];
+        memcpy(scene->light.color, night, sizeof(night));
+    } else {
+        memcpy(scene->light.color, day, sizeof(day));
+    }
 }
 
 void scene_update(struct scene *scene)
@@ -214,6 +229,7 @@ int scene_init(struct scene *scene)
     scene->view_mx      = mx_new();
     scene->inv_view_mx  = mx_new();
     scene->exit_timeout = -1;
+    scene->auto_yoffset = 4.0;
     list_init(&scene->txmodels);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
@@ -227,10 +243,21 @@ struct scene_config {
     unsigned long   nr_model;
 };
 
+struct scene_model_queue {
+    JsonNode          *entities;
+    unsigned int      loaded;
+    struct model3d    *model;
+    struct model3dtx  *txm;
+    struct scene      *scene;
+};
+
 static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
+    double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 1.0, geom_radius = 1.0;
     char *name = NULL, *obj = NULL, *binvec = NULL, *tex = NULL;
-    JsonNode *p, *ent = NULL;
+    JsonNode *p, *ent = NULL, *phys = NULL;
+    enum geom_type geom = GEOM_SPHERE;
+    struct lib_handle *libh;
     struct model3dtx *txm;
 
     if (node->tag != JSON_OBJECT) {
@@ -247,6 +274,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             binvec = p->string_;
         else if (p->tag == JSON_STRING && !strcmp(p->key, "texture"))
             tex = p->string_;
+        else if (p->tag == JSON_OBJECT && !strcmp(p->key, "physics"))
+            phys = p;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
             ent = p->children.head;
     }
@@ -258,24 +287,47 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     }
     
     if (obj) {
-        lib_request_obj(obj, scene);
+        libh = lib_request_obj(obj, scene);
     } else {
-        lib_request_bin_vec(binvec, scene);
+        libh = lib_request_bin_vec(binvec, scene);
     }
-    scene->_model->name = strdup(name);
+    ref_put_last(&libh->ref);
+
+    model3d_set_name(scene->_model, name);
     txm = model3dtx_new(scene->_model, tex);
     ref_put(&scene->_model->ref);
     scene_add_model(scene, txm);
+
+    if (phys) {
+        for (p = phys->children.head; p; p = p->next) {
+            if (p->tag == JSON_NUMBER && !strcmp(p->key, "bounce"))
+                bounce = p->number_;
+            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "bounce_vel"))
+                bounce_vel = p->number_;
+            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "mass"))
+                mass = p->number_;
+            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "zoffset"))
+                geom_off = p->number_;
+            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "radius"))
+                geom_radius = p->number_;
+            else if (p->tag == JSON_STRING && !strcmp(p->key, "geom")) {
+                if (!strcmp(p->string_, "trimesh"))
+                    geom = GEOM_TRIMESH;
+                else if (!strcmp(p->string_, "sphere"))
+                    geom = GEOM_SPHERE;
+            }
+        }
+    }
 
     if (ent) {
         for (; ent; ent = ent->next) {
             struct entity3d *e;
             JsonNode *pos;
 
-            e = entity3d_new(txm);
             if (ent->tag != JSON_ARRAY)
                 continue; /* XXX: in fact, no */
 
+            e = entity3d_new(txm);
             pos = ent->children.head;
             if (pos->tag != JSON_NUMBER)
                 continue; /* XXX */
@@ -293,17 +345,25 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 continue; /* XXX */
             e->scale = pos->number_;
 
-            mat4x4_translate_in_place(e->base_mx->m, e->dx, e->dy, e->dz);
-            mat4x4_scale_aniso(e->base_mx->m, e->base_mx->m, e->scale, e->scale, e->scale);
-            e->mx             = e->base_mx;
+            mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
+            mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
             e->visible        = 1;
             model3dtx_add_entity(txm, e);
+
+            /*
+             * XXX: This kinda requires that "physics" goes before "entity"
+             */
+            if (phys) {
+                entity3d_add_physics(e, mass, geom, geom_off, geom_radius);
+                e->phys_body->bounce = bounce;
+                e->phys_body->bounce_vel = bounce_vel;
+            }
             trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
         }
     } else {
         create_entities(txm);
     }
-    ref_put(&txm->ref);
+
     dbg("loaded model '%s'\n", name);
 
     return 0;
@@ -312,7 +372,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 static void scene_onload(struct lib_handle *h, void *buf)
 {
     struct scene *scene = buf;
-    char          msg[256];
+    char         msg[256];
     LOCAL(JsonNode, node);
     JsonNode *p, *m;
 
@@ -356,7 +416,11 @@ static void scene_onload(struct lib_handle *h, void *buf)
 
 int scene_load(struct scene *scene, const char *name)
 {
-    lib_request(RES_ASSET, name, scene_onload, scene);
+    struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
+
+    err_on(lh->state != RES_LOADED);
+    ref_put_last(&lh->ref);
+    click = sound_load("stapler.ogg");
 
     return 0;
 }
@@ -366,9 +430,20 @@ void scene_done(struct scene *scene)
     struct model3dtx *txmodel, *ittxm;
     struct entity3d *ent, *itent;
 
+    /*
+     * Question: do higher-level objects hold the last reference to the
+     * lower-level objects: txmodels on models, entities on txmodels.
+     * 
+     * As of this writing, it's true for the latter and false for the
+     * former, which is inconsistent and will yield bugs.
+     */
     list_for_each_entry_iter(txmodel, ittxm, &scene->txmodels, entry) {
+    //while (!list_empty(&scene->txmodels)) {
+        //txmodel = list_first_entry(&scene->txmodels, struct model3dtx, entry);
+        dbg("freeing entities of '%s'\n", txmodel->model->name);
         list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
             ref_put(&ent->ref);
         }
+        ref_put_last(&txmodel->ref);
     }
 }

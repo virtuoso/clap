@@ -70,8 +70,17 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
         else
             mi.focus_next = 1;
         break;
+    case 77: /* m */
+        mi.menu_toggle = 1;
+        break;
     case 112: /* F1 */
         mi.fullscreen = 1;
+        break;
+    case 113: /* F2 */
+        mi.volume_down = 1;
+        break;
+    case 114: /* F3 */
+        mi.volume_up = 1;
         break;
     case 121: /* F10 */
         mi.autopilot = 1;
@@ -103,6 +112,43 @@ static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent *e, void
     return true;
 }
 
+static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
+{
+    struct message_input mi;
+
+    memset(&mi, 0, sizeof(mi));
+    /*trace("%s, screen: (%ld,%ld), client: (%ld,%ld),%s%s%s%s button: %hu, buttons: %hu, canvas: (%ld,%ld), delta:(%g,%g,%g), deltaMode:%lu\n",
+          emscripten_event_type_to_string(eventType), e->mouse.screenX, e->mouse.screenY, e->mouse.clientX, e->mouse.clientY,
+          e->mouse.ctrlKey ? " CTRL" : "", e->mouse.shiftKey ? " SHIFT" : "", e->mouse.altKey ? " ALT" : "", e->mouse.metaKey ? " META" : "",
+          e->mouse.button, e->mouse.buttons, e->mouse.canvasX, e->mouse.canvasY,
+          (float)e->deltaX, (float)e->deltaY, (float)e->deltaZ, e->deltaMode);*/
+    //dbg("### click: %d,%d\n", e->clientX, e->clientY);
+    mi.mouse_click = 1;
+    mi.x = e->targetX;
+    mi.y = e->targetY;
+    message_input_send(&mi, &keyboard_source);
+
+    return true;
+}
+
+static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
+{
+    struct message_input mi;
+
+    memset(&mi, 0, sizeof(mi));
+    /*dbg("%s, screen: (%ld,%ld), client: (%ld,%ld),%s%s%s%s button: %hu, buttons: %hu, canvas: (%ld,%ld), delta:(%g,%g,%g), deltaMode:%lu\n",
+          emscripten_event_type_to_string(eventType), e->screenX, e->screenY, e->clientX, e->clientY,
+          e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
+          e->button, e->buttons, e->canvasX, e->canvasY);*/
+    //dbg("### mousemove: %d,%d\n", e->clientX, e->clientY);
+    mi.mouse_move = 1;
+    mi.x = e->targetX;
+    mi.y = e->targetY;
+    message_input_send(&mi, &keyboard_source);
+
+    return true;
+}
+
 static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e, void *userData)
 {
     struct message_input mi;
@@ -123,6 +169,8 @@ int platform_input_init(void)
     ret = emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback);
     ret = emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback);
     ret = emscripten_set_wheel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, wheel_callback);
+    ret = emscripten_set_click_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, click_callback);
+    ret = emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousemove_callback);
     ret = emscripten_set_resize_callback("#canvas", 0, 1, resize_callback);
     return ret;
 }

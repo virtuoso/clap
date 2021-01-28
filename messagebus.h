@@ -1,16 +1,22 @@
 #ifndef __CLAP_MESSAGEBUS_H__
 #define __CLAP_MESSAGEBUS_H__
 
+#include <time.h>
+#include "util.h"
+
 enum message_type {
     MT_RENDER   = 0,
     MT_INPUT,
     MT_COMMAND,
+    MT_LOG,
     /*---*/
     MT_MAX,
 };
 
 enum message_source_type {
     MST_KEYBOARD, /* XXX: not really */
+    MST_CLIENT,
+    MST_SERVER,
 };
 
 struct message_input {
@@ -30,6 +36,11 @@ struct message_input {
                     autopilot   : 1,
                     fullscreen  : 1,
                     resize      : 1,
+                    volume_up   : 1,
+                    volume_down : 1,
+                    menu_toggle : 1,
+                    mouse_move  : 1,
+                    mouse_click : 1,
                     exit        : 1;
     float           delta_x;
     float           delta_y;
@@ -42,8 +53,16 @@ struct message_command {
                     menu_exit   : 1,
                     global_exit : 1,
                     status      : 1,
+                    connect     : 1,
+                    restart     : 1,
                     toggle_noise: 1;
     unsigned int    fps, sys_seconds, world_seconds;
+    struct timespec64 time;
+};
+
+struct message_log {
+    struct timespec64 ts;
+    unsigned int length;
 };
 
 struct message_source {
@@ -59,6 +78,7 @@ struct message {
     union {
         struct message_input    input;
         struct message_command  cmd;
+        struct message_log      log;
     };
 };
 

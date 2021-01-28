@@ -26,13 +26,17 @@
  *  * allow 'parameters'/filtering on instances
  */
 
-struct log_entry {
-    struct timespec ts;     /* timestamp */
-    const char      *mod;   /* module */
-    const char      *func;  /* function */
-    char            *msg;   /* payload */
-    int             level;
-};
+unsigned int abort_on_error;
+
+#if defined(__has_feature)
+# if __has_feature(address_sanitizer)
+void __asan_error_report()
+{
+    if (abort_on_error)
+        abort();
+}
+# endif /* __has_feature(address_sanitizer) */
+#endif /* __has_feature */
 
 /*
  * Chain multiple log sinks together, so that we can have
@@ -44,11 +48,11 @@ struct log_entry {
 struct logger {
     const char  *name;
     int         (*init)(void);
-    int         (*log)(int level, const char *mod, const char *func, char *msg);
+    int         (*log)(int level, const char *mod, int line, const char *func, char *msg);
     struct logger *next;
 };
 
-static notrace int stdio_log(int level, const char *mod, const char *func, char *msg)
+static notrace int stdio_log(int level, const char *mod, int line, const char *func, char *msg)
 {
     FILE *output = stdout;
 
@@ -58,8 +62,8 @@ static notrace int stdio_log(int level, const char *mod, const char *func, char 
     if (level != NORMAL)
         output = stderr;
 
-    if (level < 0)
-        fprintf(output, "[%s @%s] ", mod, func);
+    if (level < 0 || level >= WARN)
+        fprintf(output, "[%s:%d @%s] ", mod, line, func);
     fputs(msg, output);
 
     return 0;
@@ -77,22 +81,92 @@ static struct logger logger_stdio = {
 static struct log_entry *log_rb;
 static int log_rb_wp;
 static int log_rb_sz;
-static FILE *log_rb_output;
+//static FILE *log_rb_output;
+static DECLARE_LIST(log_rb_sinks);
+
+struct rb_sink {
+    struct list entry;
+    void        (*flush)(struct log_entry *e);
+    int         fill;
+    int         rp;
+    int         filter;
+};
+
+static notrace void rb_flush_one(struct rb_sink *sink)
+{
+    int i;
+
+    for (i = (sink->rp + 1) % log_rb_sz; i != log_rb_wp; i = (i + 1) % log_rb_sz)
+        if (log_rb[i].msg) {
+            if (log_rb[i].level >= sink->filter) {
+                /*fprintf(log_rb_output, "[%08lu.%09lu] %s",
+                    log_rb[i].ts.tv_sec, log_rb[i].ts.tv_nsec,
+                    log_rb[i].msg);*/
+                sink->flush(&log_rb[i]);
+                sink->rp = i;
+            }
+        }
+}
+
+int rb_sink_add(void (*flush)(struct log_entry *e), int filter, int fill)
+{
+    struct rb_sink *s;
+
+    CHECK_NVAL(s = calloc(1, sizeof(*s)), !!, true);
+    s->flush  = flush;
+    s->filter = filter;
+    s->fill   = fill;
+    s->rp     = -1;
+    list_append(&log_rb_sinks, &s->entry);
+
+    return 0;
+}
+
+static notrace int rb_space(int readp)
+{
+    int writep = log_rb_wp;
+
+    if (readp > writep)
+        writep += log_rb_sz;
+
+    return writep - readp;
+}
+
+static notrace bool rb_needs_flush(struct rb_sink *s)
+{
+    if (s->rp == -1) {
+        s->rp = 0;
+        return true;
+    }
+
+    if (log_rb[log_rb_wp].msg)
+        return true;
+    
+    if (rb_space(s->rp) >= s->fill)
+        return true;
+
+    return false;
+}
 
 static notrace void rb_flush(void)
 {
-    int i, filter = VDBG;
+    struct rb_sink *sink;
+    int rp_min = __INT_MAX__, rp_max = __INT_MAX__, i;
 
-    for (i = (log_rb_wp + 1) % log_rb_sz; i != log_rb_wp; i = (i + 1) % log_rb_sz)
-        if (log_rb[i].msg) {
-            if (log_rb[i].level >= filter) {
-                fprintf(log_rb_output, "[%08lu.%09lu] %s",
-                        log_rb[i].ts.tv_sec, log_rb[i].ts.tv_nsec,
-                        log_rb[i].msg);
-            }
-            free(log_rb[i].msg);
-            log_rb[i].msg = NULL;
+    list_for_each_entry(sink, &log_rb_sinks, entry) {
+        if (rb_needs_flush(sink)) {
+            rp_min = min(rp_min, sink->rp);
+            rb_flush_one(sink);
+            rp_max = min(rp_max, sink->rp);
         }
+    }
+
+    if (rp_min == __INT_MAX__ || rp_max == __INT_MAX__)
+        return;
+    for (i = rp_min; i != rp_max; i = (i + 1) % log_rb_sz) {
+        free(log_rb[i].msg);
+        log_rb[i].msg = NULL;
+    }
 }
 
 static void rb_cleanup(int status)
@@ -106,14 +180,14 @@ static notrace int rb_init(void)
     if (!log_rb)
         return -ENOMEM;
 
-    log_rb_output = stdout;
+    //log_rb_output = stdout;
     log_rb_sz = LOG_RB_MAX;
     exit_cleanup(rb_cleanup);
 
     return 0;
 }
 
-static notrace int rb_log(int level, const char *mod, const char *func, char *msg)
+static notrace int rb_log(int level, const char *mod, int line, const char *func, char *msg)
 {
     struct timespec ts;
 
@@ -124,8 +198,7 @@ static notrace int rb_log(int level, const char *mod, const char *func, char *ms
     if (!msg)
         return -ENOMEM; /* XXX error codes */
 
-    if (log_rb[log_rb_wp].msg)
-        rb_flush();
+    rb_flush();
 
     log_rb[log_rb_wp].mod = mod;
     log_rb[log_rb_wp].func = func;
@@ -180,22 +253,25 @@ void notrace log_init(unsigned int flags)
     if (flags & LOG_RB)
         logger_append(&logger_rb);
 
+    if (flags & LOG_QUIET)
+        log_floor = NORMAL;
+
     subscribe(MT_COMMAND, log_command_handler, NULL);
     log_up++;
     dbg("logger initialized, build %s\n", CONFIG_BUILDDATE);
 }
 
-static notrace void log_submit(int level, const char *mod, const char *func, char *msg)
+static notrace void log_submit(int level, const char *mod, int line, const char *func, char *msg)
 {
     struct logger *lg;
 
     for (lg = logger; lg; lg = lg->next) {
         //fprintf(stderr, "# sending '%s' to '%s'\n", msg, lg->name);
-        lg->log(level, mod, func, msg);
+        lg->log(level, mod, line, func, msg);
     }
 }
 
-notrace void logg(int level, const char *mod, const char *func, char *fmt, ...)
+notrace void logg(int level, const char *mod, int line, const char *func, char *fmt, ...)
 {
     LOCAL(char, buf);
     va_list va;
@@ -215,7 +291,7 @@ notrace void logg(int level, const char *mod, const char *func, char *fmt, ...)
     if (ret < 0)
         return;
 
-    log_submit(level, mod, func, buf);
+    log_submit(level, mod, line, func, buf);
 }
 
 #define ROW_MAX 16
@@ -242,11 +318,11 @@ void hexdump(unsigned char *buf, size_t size)
 notrace void __cyg_profile_func_enter(void *this_fn,
                               void *call_site)
 {
-    logg(FTRACE, NULL, NULL, "%p <- %p\n", this_fn, call_site);
+    logg(FTRACE, NULL, 0, NULL, "%p <- %p\n", this_fn, call_site);
 }
 
 notrace void __cyg_profile_func_exit(void *this_fn,
                              void *call_site)
 {
-    logg(FTRACE, NULL, NULL, "%p <- %p\n", this_fn, call_site);
+    logg(FTRACE, NULL, 0, NULL, "%p <- %p\n", this_fn, call_site);
 }

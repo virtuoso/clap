@@ -1,11 +1,13 @@
 #ifndef __CLAP_MODEL_H__
 #define __CLAP_MODEL_H__
 
+//#include <ode/ode.h>
 #include "common.h"
 #include "object.h"
 #include "librarian.h"
 #include "display.h" /* XXX: OpenGL headers are included there */
 #include "objfile.h"
+#include "physics.h"
 #include "matrix.h"
 
 struct scene;
@@ -17,7 +19,7 @@ struct light {
 };
 
 struct model3d {
-    const char          *name;
+    char                *name;
     struct ref          ref;
     struct shader_prog  *prog;
     bool                cull_face;
@@ -27,15 +29,20 @@ struct model3d {
     GLuint              tex_obj;
     GLuint              norm_obj;
     GLuint              nr_vertices;
+    float               *vx;
+    float               *norm;
+    size_t              vxsz;
+    unsigned short      *idx;
+    size_t              idxsz;
 };
 
 struct model3dtx {
     struct model3d *model;
-    GLuint          texture_id;
-    bool            external_tex;
-    struct ref      ref;
-    struct list     entry;              /* link to scene/ui->txmodels */
-    struct list     entities;           /* links entity3d->entry */
+    GLuint         texture_id;
+    bool           external_tex;
+    struct ref     ref;
+    struct list    entry;              /* link to scene/ui->txmodels */
+    struct list    entities;           /* links entity3d->entry */
 };
 
 struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
@@ -58,13 +65,23 @@ static inline const char *txmodel_name(struct model3dtx *txm)
     return txm->model->name;
 }
 
+/* XXX: find a better place; util.h not good */
+static inline float cos_interp(float a, float b, float blend)
+{
+    double theta = blend * M_PI;
+    float  f = (1.f - cos(theta)) / 2.f;
+    return a * (1.f - f) + b * f;
+}
+
 struct entity3d {
     struct model3dtx *txmodel;
     struct matrix4f  *mx;
-    struct matrix4f  *base_mx;
+    //struct matrix4f  *base_mx;
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
+    void *phys_geom; /* XXX: probably don't need both of these */
+    struct phys_body *phys_body;
     GLfloat color[4];
     GLfloat dx, dy, dz;
     GLfloat rx, ry, rz;
@@ -85,6 +102,8 @@ static inline const char *entity_name(struct entity3d *e)
 struct entity3d *entity3d_new(struct model3dtx *txm);
 void entity3d_update(struct entity3d *e, void *data);
 void entity3d_put(struct entity3d *e);
+void entity3d_move(struct entity3d *e, float dx, float dy, float dz);
+void entity3d_add_physics(struct entity3d *e, double mass, enum geom_type geom_type, double geom_off, double geom_radius);
 void create_entities(struct model3dtx *txmodel);
 
 #endif /* __CLAP_MODEL_H__ */

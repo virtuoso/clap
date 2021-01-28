@@ -1,6 +1,8 @@
+#define _GNU_SOURCE
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <unistd.h>
 #include "common.h"
 #include "input.h"
 #include "messagebus.h"
@@ -29,7 +31,20 @@ static bool clap_config_is_valid(struct clap_config *cfg)
     return true;
 }
 
-int clap_init(struct clap_config *cfg)
+static int clap_argc;
+static char **clap_argv;
+static char **clap_envp;
+
+int clap_restart(void)
+{
+    if (!clap_argc || !clap_argv)
+        return -EINVAL;
+
+    clap_done(0);
+    return execve(program_invocation_name, clap_argv, clap_envp);
+}
+
+int clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
 {
     unsigned int log_flags = LOG_DEFAULT;
     struct clap_config config;
@@ -44,9 +59,14 @@ int clap_init(struct clap_config *cfg)
 
     if (config.debug)
         log_flags = LOG_FULL;
+    if (config.quiet)
+        log_flags |= LOG_QUIET;
+
+    clap_argc = argc;
+    clap_argv = argv;
+    clap_envp = envp;
 
     log_init(log_flags);
-    (void)input_init(); /* XXX: error handling */
     (void)librarian_init();
 
     return 0;

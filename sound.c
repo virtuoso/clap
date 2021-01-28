@@ -16,6 +16,9 @@
 #define NUM_SOURCES 1
 #define NUM_ENVIRONMENTS 1
 
+static ALCdevice * device;
+static ALCcontext *context;
+
 ALfloat listenerPos[]={0.0,0.0,0.0};
 ALfloat listenerVel[]={0.0,0.0,0.0};
 ALfloat listenerOri[]={0.0,0.0,1.0, 0.0,1.0,0.0};
@@ -30,6 +33,7 @@ static DECLARE_LIST(sounds);
 
 /* ffmpeg -i asset/morning.wav -codec:a libvorbis -ar 44100 asset/morning.ogg */
 
+/* Non-stdio load: https://xiph.org/vorbis/doc/vorbisfile/callbacks.html */
 #define BUFSZ (4096*1024)
 static int parse_ogg(struct sound *sound, const char *uri)
 {
@@ -53,8 +57,8 @@ static int parse_ogg(struct sound *sound, const char *uri)
         ++ptr;
     }
 
-    dbg("\nBitstream is %d channel, %ldHz\n", vi->channels, vi->rate);
-    dbg("Encoded by: %s\n\n", ov_comment(&vf,-1)->vendor);
+    dbg("bitstream is %d channel, %ldHz\n", vi->channels, vi->rate);
+    dbg("Encoded by: %s\n", ov_comment(&vf,-1)->vendor);
 
     sound->nr_channels = vi->channels;
     sound->freq = vi->rate;
@@ -75,6 +79,9 @@ static int parse_ogg(struct sound *sound, const char *uri)
     dbg("size: %zd\n", sound->size);
     alBufferData(sound->buffer_idx, sound->format, sound->buf,
                  sound->size, sound->freq);
+    free(sound->buf);
+    sound->buf = NULL;
+    ov_clear(&vf);
 
     return 0;
 }
@@ -138,22 +145,36 @@ static int parse_wav(struct sound *sound, const char *uri)
     return 0;
 }
 
+void sound_set_gain(struct sound *sound, float gain)
+{
+    sound->gain = gain;
+    alSourcef(sound->source_idx, AL_GAIN, sound->gain);
+}
+
+float sound_get_gain(struct sound *sound)
+{
+    return sound->gain;
+}
+
 static void sound_drop(struct ref *ref)
 {
     struct sound *sound = container_of(ref, struct sound, ref);
+    alDeleteBuffers(1, &sound->buffer_idx);
+    alDeleteSources(1, &sound->source_idx);
     free(sound->buf);
 }
 
-static struct sound *sound_load(const char *name)
+struct sound *sound_load(const char *name)
 {
     struct sound *sound;
     LOCAL(char, uri);
 
     CHECK(sound = ref_new(struct sound, ref, sound_drop));
     CHECK(uri = lib_figure_uri(RES_ASSET, name));
- 
-	alGenBuffers(1, &sound->buffer_idx);
-    CHECK_VAL(alGetError(), AL_NO_ERROR);
+
+    alcMakeContextCurrent(context);
+    alGenBuffers(1, &sound->buffer_idx);
+    //CHECK_VAL(alGetError(), AL_NO_ERROR);
 
     if (str_endswith(uri, ".wav"))
         CHECK_VAL(parse_wav(sound, uri), 0);
@@ -162,7 +183,7 @@ static struct sound *sound_load(const char *name)
 
     alGenSources(1, &sound->source_idx);
     alSourcei(sound->source_idx, AL_BUFFER, sound->buffer_idx);
-    alSourcei(sound->source_idx, AL_LOOPING, AL_TRUE);
+    alSourcei(sound->source_idx, AL_LOOPING, AL_FALSE);
     alSourceQueueBuffers(sound->source_idx, 1, &sound->buffer_idx);
 
     list_append(&sounds, &sound->entry);
@@ -170,24 +191,23 @@ static struct sound *sound_load(const char *name)
     return sound;
 }
 
-void sound_play(void)
+void sound_set_looping(struct sound *sound, bool looping)
 {
-    struct sound *sound;
-    int state;
-
-    list_for_each_entry(sound, &sounds, entry) {
-        alGetSourcei(sound->source_idx, AL_SOURCE_STATE, &state);
-        //dbg("source state: %d (%d)\n", state, AL_PLAYING);
-    }
+    alSourcei(sound->source_idx, AL_LOOPING, looping ? AL_TRUE : AL_FALSE);
 }
 
-static ALCdevice *device;
-static ALCcontext *context;
+void sound_play(struct sound *sound)
+{
+    int state;
+
+    alSourcePlay(sound->source_idx);
+    alGetSourcei(sound->source_idx, AL_SOURCE_STATE, &state);
+    dbg_on(state != AL_PLAYING, "source state: %d\n", state);
+}
 
 void sound_init(void)
 {
-    int major, minor, state;
-    struct sound *intro_sound;
+    int major, minor;
 
     alcGetIntegerv(NULL, ALC_MAJOR_VERSION, 1, &major);
     alcGetIntegerv(NULL, ALC_MINOR_VERSION, 1, &minor);
@@ -200,16 +220,23 @@ void sound_init(void)
 	alListenerfv(AL_POSITION,listenerPos);
 	alListenerfv(AL_VELOCITY,listenerVel);
 	alListenerfv(AL_ORIENTATION,listenerOri);
-    alGetError(); // clear any error messages
+    CHECK_VAL(alGetError(), AL_NO_ERROR); // clear any error messages
 
-    intro_sound = sound_load("morning.ogg");
     //intro_sound = sound_load("the_entertainer.ogg");
 
     //alSourcef(intro_sound->source_idx, AL_PITCH, 1.0f);
-	//alSourcef(intro_sound->source_idx, AL_GAIN, 1.0f);
 	//alSourcefv(intro_sound->source_idx, AL_POSITION, source0Pos);
 	//alSourcefv(intro_sound->source_idx, AL_VELOCITY, source0Vel);
-    alSourcePlay(intro_sound->source_idx);
-    alGetSourcei(intro_sound->source_idx, AL_SOURCE_STATE, &state);
-    dbg("source state: %d (%d)\n", state, AL_INITIAL);
+}
+
+void sound_done(void)
+{
+    struct sound *sound, *its;
+
+    list_for_each_entry_iter(sound, its, &sounds, entry) {
+        ref_put(&sound->ref);
+    }
+
+    alcDestroyContext(context);
+    alcCloseDevice(device);
 }
