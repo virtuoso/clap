@@ -102,6 +102,11 @@ int ui_init(struct ui *ui, int width, int height);
 void ui_done(struct ui *ui);
 void ui_update(struct ui *ui);
 
+void ui_element_animations_done(struct ui_element *uie);
+int ui_element_update(struct entity3d *e, void *data);
+void ui_element_set_visibility(struct ui_element *uie, int visible);
+void ui_element_set_alpha(struct ui_element *uie, float alpha);
+
 /* animations */
 void uia_skip_frames(struct ui_element *uie, unsigned long frames);
 void uia_action(struct ui_element *uie, void (*callback)(struct ui_animation *));
