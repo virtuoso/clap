@@ -462,6 +462,7 @@ static void ui_roll_init(struct ui *ui)
 
     ui_roll_text = ui_render_string(ui, font, ui_roll_element, buffer, color, UI_AF_HCENTER | UI_AF_TOP | UI_SZ_NORES);
     ref_put_last(&lh->ref);
+    buffer = NULL;
 
     font_put(font);
 }
