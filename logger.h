@@ -7,6 +7,7 @@
 
 #include <sys/types.h>
 #include <assert.h>
+#include <time.h>
 
 #define LOG_RB_MAX 512
 #define LOG_STDIO   1

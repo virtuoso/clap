@@ -41,7 +41,11 @@ int clap_restart(void)
         return -EINVAL;
 
     clap_done(0);
+#ifdef __APPLE__
+    return execve(clap_argv[0], clap_argv, clap_envp);
+#else
     return execve(program_invocation_name, clap_argv, clap_envp);
+#endif
 }
 
 int clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)

@@ -157,7 +157,7 @@ int cmp(void *object, void *other);
 int serialize(void *object, JsonNode *root);
 void *deserialize(void *object, JsonNode *root);
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__APPLE__)
 #define DECLARE_CLASS(c)
 #else
 #define DECLARE_CLASS(c)                                                     \

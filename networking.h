@@ -1,6 +1,10 @@
 #ifndef __CLAP_NETWORKING_H__
 #define __CLAP_NETWORKING_H__
 
+#ifdef __APPLE__
+#define MSG_NOSIGNAL 0
+#endif
+
 enum mode {
     CLIENT = 0,
     SERVER,
