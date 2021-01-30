@@ -716,7 +716,8 @@ static int ui_handle_input(struct message *m, void *data)
         // go back
     } else if (m->input.right || m->input.delta_x > 0) {
         // enter
-        ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
+        if (ui->menu->focus >= 0)
+            ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
     }
     return 0;
 }
