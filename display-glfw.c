@@ -208,8 +208,8 @@ static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
     trace("scrolling %g,%g\n", xoff, yoff);
 
     memset(&mi, 0, sizeof(mi));
-    mi.delta_x = xoff;
-    mi.delta_y = yoff;
+    mi.delta_lx = xoff;
+    mi.delta_ly = yoff;
     message_input_send(&mi, &keyboard_source);
 }
 
@@ -303,15 +303,21 @@ static void joysticks_poll(void)
                     }
                 }
                 switch (t) {
+                case 0:
+                    mi.delta_lx = j->axes[t] - j->axes_init[t];
+                    break;
+                case 1:
+                    mi.delta_ly = j->axes[t] - j->axes_init[t];
+                    break;
                 case 3:
-                    //mi.delta_x = j->axes[t] - j->axes_init[t];
+                    mi.delta_rx = j->axes[t] - j->axes_init[t];
                     if (j->axes[t] > j->axes_init[t])
                         mi.yaw_right = 1;
                     else if (j->axes[t] < j->axes_init[t])
                         mi.yaw_left = 1;
                     break;
                 case 4:
-                    mi.delta_y = (j->axes[t] - j->axes_init[t]) * 10;
+                    mi.delta_ry = j->axes[t] - j->axes_init[t];
 
                     break;
                 }

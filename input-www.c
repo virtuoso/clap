@@ -104,9 +104,13 @@ static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent *e, void
           e->mouse.ctrlKey ? " CTRL" : "", e->mouse.shiftKey ? " SHIFT" : "", e->mouse.altKey ? " ALT" : "", e->mouse.metaKey ? " META" : "",
           e->mouse.button, e->mouse.buttons, e->mouse.canvasX, e->mouse.canvasY,
           (float)e->deltaX, (float)e->deltaY, (float)e->deltaZ, e->deltaMode);*/
-    mi.delta_x = e->deltaX;
-    mi.delta_y = e->deltaY;
-    mi.delta_z = e->deltaZ;
+    if (e->mouse.shiftKey) {
+        mi.delta_rx = e->deltaX;
+        mi.delta_ry = e->deltaY;
+    } else {
+        mi.delta_lx = e->deltaX;
+        mi.delta_ly = e->deltaY;
+    }
     message_input_send(&mi, &keyboard_source);
 
     return true;

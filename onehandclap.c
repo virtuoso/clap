@@ -97,38 +97,8 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     models_render(&ui.txmodels, NULL, NULL, NULL, NULL, NULL);
     PROF_STEP(ui, models);
 
-    if (ts_start.tv_sec != s->ts.tv_sec) {
-        struct message m;
-        if (s->frames) {
-            trace("FPS: %d\n", s->frames);
-            s->FPS = s->frames;
+    clap_fps_calc(&s->fps);
 
-            //dbg("--------------------------------\n");
-            PROF_SHOW(phys);
-            PROF_SHOW(net);
-            PROF_SHOW(updates);
-            PROF_SHOW(models);
-            PROF_SHOW(ui);
-            PROF_SHOW(end);
-        }
-        if (s->exit_timeout >= 0) {
-            if (!s->exit_timeout)
-                gl_request_exit();
-            else
-                s->exit_timeout--;
-        }
-
-        memset(&m, 0, sizeof(m));
-        m.type = MT_COMMAND;
-        m.cmd.status = 1;
-        m.cmd.fps = s->FPS;
-        m.cmd.sys_seconds = ts_start.tv_sec;
-        message_send(&m);
-        s->frames = 0;
-        s->ts.tv_sec = ts_start.tv_sec;
-    }
-
-    s->frames++;
     s->frames_total++;
     ui.frames_total++;
     gl_swap_buffers();
@@ -197,6 +167,18 @@ static int handle_input(struct message *m, void *data)
         gain -= 0.05;
         sound_set_gain(intro_sound, gain);
     }
+    return 0;
+}
+
+static int handle_command(struct message *m, void *data)
+{
+    struct scene *scene = data;
+
+    if (m->cmd.status && scene->exit_timeout >= 0) {
+        if (!scene->exit_timeout--)
+            gl_request_exit();
+    }
+
     return 0;
 }
 
@@ -287,6 +269,7 @@ int main(int argc, char **argv, char **envp)
     //scene.camera.phys_body = phys_body_new(phys,);
 
     subscribe(MT_INPUT, handle_input, NULL);
+    subscribe(MT_COMMAND, handle_command, &scene);
     /*
      * Need to write vorbis callbacks for this
      * lib_request(RES_ASSET, "morning.ogg", opening_sound_load, &intro_sound);
@@ -310,9 +293,17 @@ int main(int argc, char **argv, char **envp)
     gl_get_sizes(&scene.width, &scene.height);
     ui_init(&ui, scene.width, scene.height);
 
+    scene.lin_speed = 2.0;
+    scene.ang_speed = 45.0;
+
+    scene.camera.motion[0] = scene.lin_speed;
+    scene.camera.motion[1] = 0;
+    scene.camera.motion[2] = 0;
+
     scene.camera.pos[0] = 0.0;
-    scene.camera.pos[1] = 1.0;
-    scene.camera.pos[2] = 0.0;
+    scene.camera.pos[1] = 3.0;
+    scene.camera.pos[2] = -4.0;
+    scene.camera.yaw    = 180;
     scene.camera.moved++;
     scene.limbo_height = -70.0;
     scene_camera_calc(&scene);

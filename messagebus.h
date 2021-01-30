@@ -42,9 +42,10 @@ struct message_input {
                     mouse_move  : 1,
                     mouse_click : 1,
                     exit        : 1;
-    float           delta_x;
-    float           delta_y;
-    float           delta_z;
+    float           delta_lx;
+    float           delta_ly;
+    float           delta_rx;
+    float           delta_ry;
     unsigned int    x, y;
 };
 

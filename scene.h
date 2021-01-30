@@ -14,6 +14,10 @@ struct camera {
     GLfloat roll;   /* up/down */
     unsigned int moved;
     unsigned int zoom;
+    vec3    motion;
+    vec3    angle;
+    float   yaw_turn;
+    float   pitch_turn;
     //struct phys_body *phys_body;
 };
 
@@ -31,8 +35,11 @@ struct scene {
     struct camera       camera;
     struct light        light;
     /* FPS calculation -- very important! */
-    unsigned long       frames, frames_total, FPS;
+    unsigned long       frames_total;
     struct timespec     ts;
+    struct fps_data     fps;
+    float               lin_speed;
+    float               ang_speed;
     float               limbo_height;
     float               aspect;
     float               auto_yoffset;

@@ -707,7 +707,7 @@ static int ui_handle_input(struct message *m, void *data)
         ui_widget_hover(ui->menu, m->input.x, (int)ui->height - m->input.y);
     
     /* UI owns the inputs */
-    ui->mod_y += m->input.delta_y;
+    ui->mod_y += m->input.delta_ly;
     if (m->input.up || ui->mod_y <= -100) {
         // select previous
         ui->mod_y = 0;
@@ -716,9 +716,9 @@ static int ui_handle_input(struct message *m, void *data)
         // select next
         ui->mod_y = 0;
         ui_widget_pick_rel(ui->menu, 1);
-    } else if (m->input.left || m->input.delta_x < 0) {
+    } else if (m->input.left || m->input.delta_lx < 0) {
         // go back
-    } else if (m->input.right || m->input.delta_x > 0) {
+    } else if (m->input.right || m->input.delta_lx > 0) {
         // enter
         if (ui->menu->focus >= 0)
             ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);

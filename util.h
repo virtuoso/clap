@@ -117,6 +117,24 @@ static inline void list_del(struct list *el)
 
 void *memdup(const void *x, size_t size);
 
+static inline int clamp(int x, int floor, int ceil)
+{
+    if (x > ceil)
+        return ceil;
+    else if (x < floor)
+        return floor;
+    return x;
+}
+
+static inline float clampf(float x, float floor, float ceil)
+{
+    if (x > ceil)
+        return ceil;
+    else if (x < floor)
+        return floor;
+    return x;
+}
+
 struct timespec64 {
 #if __SIZEOF_LONG__ == 4
     unsigned long long tv_sec;

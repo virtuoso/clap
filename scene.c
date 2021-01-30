@@ -10,10 +10,11 @@ struct sound *click;
 
 static void scene_camera_autopilot(struct scene *s)
 {
-    s->camera.pos[0] = 16 * sin(to_radians(s->frames_total)/4) + 7.0;
-    s->camera.pos[1] = 2 * sin(to_radians(s->frames_total)/10) + s->auto_yoffset;
-    s->camera.pos[2] = 16 * cos(to_radians(s->frames_total)/4) + 8.0;
-    s->camera.yaw    = -(float)((s->frames_total) % 1440)/4 + 0.0;
+    s->camera.pos[1] = s->auto_yoffset + 2.0;
+
+    s->camera.motion[2] = -s->lin_speed;
+    s->camera.motion[0] = 0;
+    s->camera.yaw_turn  = -s->ang_speed / 5;
     s->camera.moved++;
 }
 
@@ -72,9 +73,12 @@ static void scene_focus_cancel(struct scene *s)
 
 void scene_camera_calc(struct scene *s)
 {
-    float scalev[3];
+    float scalev[3], yawcos, yawsin;
+    vec3 inc;
     int i;
 
+    if (!s->fps.fps_fine)
+        return;
     if (s->autopilot)
         scene_camera_autopilot(s);
     if (!s->camera.moved)
@@ -82,6 +86,37 @@ void scene_camera_calc(struct scene *s)
 
     for (i = 0; i < 3; i++)
         scalev[i] = s->camera.zoom ? 3.0 : 1.0;
+
+    s->camera.pitch += s->camera.pitch_turn / (float)s->fps.fps_fine;
+    s->camera.pitch = clampf(s->camera.pitch, -90, 90);
+    s->camera.yaw += s->camera.yaw_turn / (float)s->fps.fps_fine;
+    if (s->camera.yaw > 180)
+        s->camera.yaw -= 360;
+    else if (s->camera.yaw <= -180)
+        s->camera.yaw += 360;
+    s->camera.pitch_turn = 0;
+    s->camera.yaw_turn = 0;
+
+    yawcos = cos(to_radians(s->camera.yaw));
+    yawsin = sin(to_radians(s->camera.yaw));
+    s->camera.angle[0] = yawsin;
+    s->camera.angle[2] = yawcos;
+
+    if (vec3_len(s->camera.motion) != 0) {
+        float x1, y1;
+
+        x1 = yawcos * s->camera.motion[0] - yawsin * s->camera.motion[2];
+        y1 = yawsin * s->camera.motion[0] + yawcos * s->camera.motion[2];
+        s->camera.motion[0] = x1 * s->lin_speed;
+        s->camera.motion[2] = y1 * s->lin_speed;
+    }
+
+    vec3_scale(inc, s->camera.motion, 1.f / (float)s->fps.fps_fine);
+    vec3_add(s->camera.pos, s->camera.pos, inc);
+
+    s->camera.motion[0] = 0;
+    s->camera.motion[1] = 0;
+    s->camera.motion[2] = 0;
 
     s->camera.moved = 0;
     trace("camera: %f/%f/%f zoom: %d\n", s->camera.pos[0], s->camera.pos[1], s->camera.pos[2], s->camera.zoom);
@@ -97,7 +132,7 @@ void scene_camera_calc(struct scene *s)
 
     mat4x4_invert(s->inv_view_mx->m, s->view_mx->m);
     if (!(s->frames_total & 0xf))
-        gl_title("One Hand Clap @%d FPS camera [%f,%f,%f] [%f/%f]", s->FPS,
+        gl_title("One Hand Clap @%d FPS camera [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
                  s->camera.pos[0], s->camera.pos[1], s->camera.pos[2],
                  s->camera.pitch, s->camera.yaw);
 }
@@ -105,6 +140,7 @@ void scene_camera_calc(struct scene *s)
 static int scene_handle_input(struct message *m, void *data)
 {
     struct scene *s = data;
+    float delta_x = 0, delta_z = 0;
 
     /*trace("input event %d/%d/%d/%d %f/%f/%f exit %d\n",
         m->input.left, m->input.right, m->input.up, m->input.down,
@@ -141,46 +177,58 @@ static int scene_handle_input(struct message *m, void *data)
         m.cmd.toggle_noise = 1;
         message_send(&m);
     }
-    if (m->input.right) {
-        if (s->focus)
-            entity3d_move(s->focus, 0.1, 0, 0);
-        else
-            s->camera.pos[0] += 0.1;
+
+    /* Use data from joystick sticks when available */
+    if (m->input.delta_lx || m->input.delta_ly) {
+        delta_x = m->input.delta_lx;
+        delta_z = m->input.delta_ly;
+    } else {
+        if (m->input.right) {
+            if (s->focus)
+                entity3d_move(s->focus, 0.1, 0, 0);
+            else
+                delta_x = s->lin_speed;
+        }
+        if (m->input.left) {
+            if (s->focus)
+                entity3d_move(s->focus, -0.1, 0, 0);
+            else
+                delta_x = -s->lin_speed;
+        }
+        if (m->input.up) {
+            if (s->focus)
+                entity3d_move(s->focus, 0, 0, 0.1);
+            else
+                delta_z = s->lin_speed;
+        }
+        if (m->input.down) {
+            if (s->focus)
+                entity3d_move(s->focus, 0, 0, -0.1);
+            else
+                delta_z = -s->lin_speed;
+        }
     }
-    if (m->input.left) {
-        if (s->focus)
-            entity3d_move(s->focus, -0.1, 0, 0);
-        else
-            s->camera.pos[0] -= 0.1;
-    }
-    if (m->input.up) {
-        if (s->focus)
-            entity3d_move(s->focus, 0, 0, 0.1);
-        else
-            s->camera.pos[2] += 0.1;
-    }
-    if (m->input.down) {
-        if (s->focus)
-            entity3d_move(s->focus, 0, 0, -0.1);
-        else
-            s->camera.pos[2] -= 0.1;
-    }
+
     if (m->input.pitch_up && s->camera.pitch < 90)
-        s->camera.pitch += 5;
+        s->camera.pitch_turn = s->ang_speed;
     if (m->input.pitch_down && s->camera.pitch > -90)
-        s->camera.pitch -= 5;
-    if (m->input.yaw_right) {
-        s->camera.yaw += 10;
-        if (s->camera.yaw > 180)
-            s->camera.yaw -= 360;
+        s->camera.pitch_turn = -s->ang_speed;
+
+    if (m->input.delta_rx) {
+        s->camera.yaw_turn = s->ang_speed * m->input.delta_rx;
+    } else {
+        if (m->input.yaw_right)
+            s->camera.yaw_turn = s->ang_speed;
+        if (m->input.yaw_left)
+            s->camera.yaw_turn = -s->ang_speed;
     }
-    if (m->input.yaw_left) {
-        s->camera.yaw -= 10;
-        if (s->camera.yaw <= -180)
-            s->camera.yaw += 360;
-    }
+
+    s->camera.motion[0] = delta_x;
+    s->camera.motion[1] = 0.0;
+    s->camera.motion[2] = delta_z;
+
     s->camera.zoom = !!(m->input.zoom);
-    s->camera.pos[1] += m->input.delta_y / 100.0;
+    s->camera.pos[1] -= m->input.delta_ry / 10.0;
     s->camera.moved++;
 
     return 0;
