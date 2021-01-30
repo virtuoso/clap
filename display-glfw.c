@@ -21,7 +21,7 @@ void gl_title(const char *fmt, ...)
     LOCAL(char, title);
 
     va_start(va, fmt);
-    vasprintf(&title, fmt, va);
+    CHECK(vasprintf(&title, fmt, va));
     va_end(va);
     glfwSetWindowTitle(window, title);
 }
@@ -246,7 +246,7 @@ static void joystick_init(void)
         j->hats = glfwGetJoystickHats(i, &j->nr_hats);
         j->name = glfwGetJoystickName(i);
         j->msg_src.type = -1;
-        asprintf(&j->msg_src.name, "joystick%d", joy);
+        CHECK(asprintf(&j->msg_src.name, "joystick%d", joy));
         j->msg_src.desc = j->name;
         msg("joystick '%s' (%d) found: axes: %d buttons: %d hats: %d\n",
             j->name, joy, j->nr_axes, j->nr_buttons, j->nr_hats);
