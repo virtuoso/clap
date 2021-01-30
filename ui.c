@@ -532,11 +532,11 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
 {
     float quad_color[] = { 0.0, 0.3, 0.1, 0.0 };
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
+    float off, width, height;
     struct ui_widget *menu;
     struct model3dtx *txm;
     struct model3d *model;
     struct font *font;
-    float off, width;
     int i;
 
     CHECK(menu        = ref_new(struct ui_widget, ref, ui_widget_drop));
@@ -551,7 +551,7 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
     ref_put(&model->ref);
     ui_add_model(ui, txm);
     font = font_open("Pixellettersfull-BnJ5.ttf", 48);
-    for (i = 0, off = 0.0, width = 0.0; i < nr_items; i++) {
+    for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
         menu->uies[i]           = ui_element_new(ui, menu->root, txm, UI_AF_TOP | UI_AF_RIGHT, 10, 10 + off, 300, 100);
         menu->uies[i]->on_click = menu_onclick;
         menu->uies[i]->priv     = (void *)(long)i;
@@ -564,11 +564,15 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
 
         CHECK(menu->texts[i] = ui_render_string(ui, font, menu->uies[i], items[i], color, 0));
         width = max(width, menu->uies[i]->width);
+        height = max(height, menu->uies[i]->height);
         off += menu->uies[i]->height + 4 /* XXX: margin */;
         ui_element_set_visibility(menu->uies[i], 0);
     }
     for (i = 0; i < nr_items; i++) {
         menu->uies[i]->width = width;
+        menu->uies[i]->height = height;
+        if (i > 0)
+            menu->uies[i]->y_off = 10 + (4 + height) * i;
     }
     //ref_put(&txm->ref);
     font_put(font);
