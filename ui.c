@@ -461,6 +461,7 @@ static void ui_roll_init(struct ui *ui)
     font_put(font);
 }
 
+static bool display_fps;
 static struct ui_text *bottom_uit;
 static struct ui_element *bottom_element;
 
@@ -498,7 +499,8 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
 static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 static void ui_menu_done(struct ui *ui);
 
-static const char *sub_items[] = { "...todo", "...help", "...credits" };
+static const char *help_items[] = { "...todo", "...help", "...credits" };
+static const char *hud_items[] = { "FPS", "Build", "Limeric" };
 static void menu_onclick(struct ui_element *uie, float x, float y)
 {
     int nr = (long)uie->priv;
@@ -506,10 +508,29 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
 
     if (!strcmp(ui->menu->texts[nr]->str, "Help")) {
         ref_put_last(&ui->menu->ref);
-        ui->menu = ui_menu_new(ui, sub_items, array_size(sub_items));
-    } else if (!strcmp(ui->menu->texts[nr]->str, "...todo")) {
+        ui->menu = ui_menu_new(ui, help_items, array_size(help_items));
+    } else if (!strcmp(ui->menu->texts[nr]->str, "HUD")) {
+        ref_put_last(&ui->menu->ref);
+        ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
+    } else if (!strcmp(ui->menu->texts[nr]->str, "FPS")) {
+        if (display_fps) {
+            display_fps = false;
+            ref_put_last(&bottom_uit->ref);
+            ref_put_last(&bottom_element->ref);
+            bottom_uit = NULL;
+        } else {
+            display_fps = true;
+        }
+    } else if (!strcmp(ui->menu->texts[nr]->str, "Autopilot")) {
+        struct message m;
+        memset(&m, 0, sizeof(m));
+        m.type = MT_COMMAND;
+        m.cmd.toggle_autopilot = 1;
+        message_send(&m);
         ui_menu_done(ui); /* cancels modality */
+    } else if (!strcmp(ui->menu->texts[nr]->str, "...todo")) {
         ui_roll_init(ui);
+        ui_menu_done(ui); /* cancels modality */
     }
 }
 
@@ -600,7 +621,7 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
     uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 1, 20, 10);
 }
 
-static const char *menu_items[] = { "Level", "Settings", "Network", "Devel", "Help" };
+static const char *menu_items[] = { "HUD", "Autopilot", "Settings", "Network", "Devel", "Help" };
 static void ui_menu_init(struct ui *ui)
 {
     ui->menu = ui_menu_new(ui, menu_items, array_size(menu_items));
@@ -669,8 +690,12 @@ static int ui_handle_command(struct message *m, void *data)
     if (m->type != MT_COMMAND)
         return 0;
 
-    if (m->cmd.status) {
-        ref_put_last(&bottom_uit->ref);
+    if (m->cmd.status && display_fps) {
+        if (bottom_uit) {
+            ref_put_last(&bottom_uit->ref);
+        } else {
+            bottom_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
+        }
         CHECK(asprintf(&str, "FPS: %d\nTime: %d:%02d", m->cmd.fps,
                        m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60));
         bottom_uit = ui_render_string(ui, font, bottom_element, str, color, UI_AF_RIGHT);
@@ -716,9 +741,10 @@ static int ui_handle_input(struct message *m, void *data)
         // select next
         ui->mod_y = 0;
         ui_widget_pick_rel(ui->menu, 1);
-    } else if (m->input.left || m->input.delta_lx < 0) {
+    } else if (m->input.left || m->input.delta_lx < 0 || m->input.back) {
         // go back
-    } else if (m->input.right || m->input.delta_lx > 0) {
+        ui_menu_done(ui);
+    } else if (m->input.right || m->input.delta_lx > 0 || m->input.enter) {
         // enter
         if (ui->menu->focus >= 0)
             ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
@@ -749,8 +775,6 @@ int ui_init(struct ui *ui, int width, int height)
     font = font_open("Pixellettersfull-BnJ5.ttf", 32);
     ui_model_init(ui);
     uie0 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
-    bottom_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
-    bottom_uit = ui_render_string(ui, font, bottom_element, "Ppodq\nQq", color, UI_AF_RIGHT);
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
     build_uit = ui_render_string(ui, font, uie1, BUILDDATE, color, 0);
@@ -772,8 +796,10 @@ void ui_done(struct ui *ui)
     ref_put(&uie0->ref);
     ref_put_last(&build_uit->ref);
     ref_put(&uie1->ref);
-    ref_put_last(&bottom_uit->ref);
-    ref_put_last(&bottom_element->ref);
+    if (display_fps) {
+        ref_put_last(&bottom_uit->ref);
+        ref_put_last(&bottom_element->ref);
+    }
     ref_put_last(&limeric_uit->ref);
     ui_roll_done();
 

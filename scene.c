@@ -137,6 +137,16 @@ void scene_camera_calc(struct scene *s)
                  s->camera.pitch, s->camera.yaw);
 }
 
+static int scene_handle_command(struct message *m, void *data)
+{
+    struct scene *s = data;
+
+    if (m->cmd.toggle_autopilot)
+        s->autopilot ^= 1;
+
+    return 0;
+}
+
 static int scene_handle_input(struct message *m, void *data)
 {
     struct scene *s = data;
@@ -281,6 +291,7 @@ int scene_init(struct scene *scene)
     list_init(&scene->txmodels);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
+    subscribe(MT_COMMAND, scene_handle_command, scene);
 
     return 0;
 }

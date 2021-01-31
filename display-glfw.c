@@ -213,11 +213,34 @@ static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
     message_input_send(&mi, &keyboard_source);
 }
 
+enum {
+    JB_PRESS = 0,
+    JB_RELEASE,
+    JB_HOLD,
+    JB_NONE
+};
+
+static inline bool jb_press(int state)
+{
+    return state == JB_PRESS;
+}
+
+static inline bool jb_hold(int state)
+{
+    return state == JB_HOLD;
+}
+
+static inline bool jb_press_hold(int state)
+{
+    return jb_press(state) || jb_hold(state);
+}
+
 struct joystick {
     int id;
     const char *name;
     const unsigned char *buttons;
     const unsigned char *hats;
+    unsigned long button_state;
     int nr_axes, nr_buttons, nr_hats;
     const float *axes, *axes_init;
     struct message_source msg_src;
@@ -320,19 +343,74 @@ static void joysticks_poll(void)
                     mi.delta_ry = j->axes[t] - j->axes_init[t];
 
                     break;
+                case 2:
+                    mi.trigger_l = j->axes[t] - j->axes_init[t];
+                    break;
+                case 5:
+                    mi.trigger_r = j->axes[t] - j->axes_init[t];
+                    break;
                 }
                 count++;
             }
 
-        for (t = 0; t < j->nr_buttons; t++)
+        for (t = 0; t < j->nr_buttons; t++) {
+            bool pressed = j->button_state & (1ul << t);
+            int state = JB_NONE;
+
             if (j->buttons[t]) {
+                state = pressed ? JB_HOLD : JB_PRESS;
+                j->button_state |= 1ul << t;
                 trace("joystick%d button%d: %d\n", i, t, j->buttons[t]);
-                if (t == 7)
-                    mi.zoom = 1;
-                else if (t == 9)
-                    mi.menu_toggle = 1;
-                count++;
+            } else {
+                j->button_state &= ~(1ul << t);
+                if (pressed)
+                    state = JB_RELEASE;
             }
+
+            if (t == 16 && jb_press(state))
+                mi.left = 1;
+            else if (t == 14 && jb_press(state))
+                mi.right = 1;
+            else if (t == 15 && jb_press(state))
+                mi.down = 1;
+            else if (t == 13 && jb_press(state))
+                mi.up = 1;
+            else if (t == 0 && jb_press_hold(state))
+                mi.pad_b = 1;
+            else if (t == 1 && jb_press_hold(state))
+                mi.pad_a = 1;
+            else if (t == 2 && jb_press_hold(state))
+                mi.pad_x = 1;
+            else if (t == 3 && jb_press_hold(state))
+                mi.pad_y = 1;
+            else if (t == 4 && jb_press_hold(state))
+                mi.pad_lb = 1;
+            else if (t == 5 && jb_press_hold(state))
+                mi.pad_rb = 1;
+            else if (t == 6 && jb_press_hold(state))
+                mi.pad_lt = 1;
+            else if (t == 7 && jb_press_hold(state))
+                mi.pad_rt = 1;
+            else if (t == 8 && jb_press_hold(state))
+                mi.pad_min = 1;
+            else if (t == 9 && jb_press_hold(state))
+                mi.pad_plus = 1;
+            else if (t == 10 && jb_press_hold(state))
+                mi.pad_home = 1;
+            else if (t == 11 && jb_press_hold(state))
+                mi.stick_l = 1;
+            else if (t == 12 && jb_press_hold(state))
+                mi.stick_r = 1;
+
+            if (mi.pad_plus && jb_press(state))
+                mi.menu_toggle = 1;
+            if (mi.pad_a && jb_press(state))
+                mi.enter = 1;
+            if (mi.pad_b && jb_press(state))
+                mi.back = 1;
+            if (state != JB_NONE)
+                count++;
+        }
 
         if (count)
             message_input_send(&mi, &j->msg_src);

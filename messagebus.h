@@ -24,6 +24,21 @@ struct message_input {
                     right       : 1,
                     down        : 1,
                     up          : 1,
+                    pad_a       : 1,
+                    pad_b       : 1,
+                    pad_x       : 1,
+                    pad_y       : 1,
+                    stick_l     : 1,
+                    stick_r     : 1,
+                    pad_lb      : 1,
+                    pad_rb      : 1,
+                    pad_lt      : 1,
+                    pad_rt      : 1,
+                    pad_min     : 1,
+                    pad_plus    : 1,
+                    pad_home    : 1,
+                    enter       : 1,
+                    back        : 1,
                     zoom        : 1,
                     pitch_up    : 1,
                     pitch_down  : 1,
@@ -46,6 +61,8 @@ struct message_input {
     float           delta_ly;
     float           delta_rx;
     float           delta_ry;
+    float           trigger_l;
+    float           trigger_r;
     unsigned int    x, y;
 };
 
@@ -56,6 +73,7 @@ struct message_command {
                     status      : 1,
                     connect     : 1,
                     restart     : 1,
+                    toggle_autopilot : 1,
                     toggle_noise: 1;
     unsigned int    fps, sys_seconds, world_seconds;
     struct timespec64 time;
