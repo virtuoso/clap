@@ -567,7 +567,8 @@ void entity3d_move(struct entity3d *e, float dx, float dy, float dz)
     e->dx += dx;
     e->dy += dy;
     e->dz += dz;
-    dBodySetPosition(e->phys_body->body, e->dx, e->dz, e->dy + e->phys_body->zoffset);
+    if (e->phys_body)
+        dBodySetPosition(e->phys_body->body, e->dx, e->dz, e->dy + e->phys_body->zoffset);
 }
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
