@@ -188,10 +188,11 @@ static struct option long_options[] = {
     { "exitafter",  required_argument,  0, 'e' },
     { "restart",    no_argument,        0, 'R' },
     { "aoe",        no_argument,        0, 'E' },
+    { "server",     required_argument,  0, 'S'},
     {}
 };
 
-static const char short_options[] = "Ae:REF";
+static const char short_options[] = "Ae:REFS:";
 
 int main(int argc, char **argv, char **envp)
 {
@@ -233,6 +234,9 @@ int main(int argc, char **argv, char **envp)
             break;
         case 'E':
             abort_on_error++;
+            break;
+        case 'S':
+            ncfg.server_ip = optarg;
             break;
         default:
             fprintf(stderr, "invalid option %x\n", c);
