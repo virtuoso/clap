@@ -19,5 +19,6 @@ int message_input_send(struct message_input *mi, struct message_source *src)
 
 int input_init(void)
 {
+    fuzzer_input_init();
     return platform_input_init();
 }

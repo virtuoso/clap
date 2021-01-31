@@ -521,6 +521,13 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
         } else {
             display_fps = true;
         }
+    } else if (!strcmp(ui->menu->texts[nr]->str, "Devel")) {
+        struct message m;
+        memset(&m, 0, sizeof(m));
+        m.type = MT_COMMAND;
+        m.cmd.toggle_fuzzer = 1;
+        message_send(&m);
+        ui_menu_done(ui); /* cancels modality */
     } else if (!strcmp(ui->menu->texts[nr]->str, "Autopilot")) {
         struct message m;
         memset(&m, 0, sizeof(m));

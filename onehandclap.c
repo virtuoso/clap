@@ -78,6 +78,8 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     networking_poll();
     PROF_STEP(net, phys);
 
+    fuzzer_input_step();
+
     scene_update(s);
     ui_update(&ui);
     PROF_STEP(updates, net);
@@ -289,6 +291,7 @@ int main(int argc, char **argv, char **envp)
     //lib_request_shaders("ui", &scene);
 
     terrain_init(&scene, 0.0, 128);
+    fuzzer_input_init();
 
     if (fullscreen)
         gl_enter_fullscreen();

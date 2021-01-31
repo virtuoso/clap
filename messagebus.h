@@ -17,10 +17,11 @@ enum message_source_type {
     MST_KEYBOARD, /* XXX: not really */
     MST_CLIENT,
     MST_SERVER,
+    MST_FUZZER,
 };
 
 struct message_input {
-    unsigned int    left        : 1,
+    unsigned long   left        : 1, /* 0 */
                     right       : 1,
                     down        : 1,
                     up          : 1,
@@ -30,7 +31,7 @@ struct message_input {
                     pad_y       : 1,
                     stick_l     : 1,
                     stick_r     : 1,
-                    pad_lb      : 1,
+                    pad_lb      : 1, /* 10 */
                     pad_rb      : 1,
                     pad_lt      : 1,
                     pad_rt      : 1,
@@ -39,7 +40,7 @@ struct message_input {
                     pad_home    : 1,
                     enter       : 1,
                     back        : 1,
-                    zoom        : 1,
+                    zoom        : 1, /* 20 */
                     pitch_up    : 1,
                     pitch_down  : 1,
                     yaw_left    : 1,
@@ -49,14 +50,14 @@ struct message_input {
                     focus_cancel: 1,
                     verboser    : 1,
                     autopilot   : 1,
-                    fullscreen  : 1,
+                    fullscreen  : 1, /* 30 */
                     resize      : 1,
                     volume_up   : 1,
                     volume_down : 1,
                     menu_toggle : 1,
                     mouse_move  : 1,
                     mouse_click : 1,
-                    exit        : 1;
+                    exit        : 1; /* 37 */
     float           delta_lx;
     float           delta_ly;
     float           delta_rx;
@@ -73,6 +74,7 @@ struct message_command {
                     status      : 1,
                     connect     : 1,
                     restart     : 1,
+                    toggle_fuzzer : 1,
                     toggle_autopilot : 1,
                     toggle_noise: 1;
     unsigned int    fps, sys_seconds, world_seconds;
