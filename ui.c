@@ -803,7 +803,7 @@ void ui_done(struct ui *ui)
     ref_put(&uie0->ref);
     ref_put_last(&build_uit->ref);
     ref_put(&uie1->ref);
-    if (display_fps) {
+    if (display_fps && bottom_uit) {
         ref_put_last(&bottom_uit->ref);
         ref_put_last(&bottom_element->ref);
     }
