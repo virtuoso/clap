@@ -18,26 +18,56 @@ static void scene_camera_autopilot(struct scene *s)
     s->camera.moved++;
 }
 
+static struct model3dtx *scene_nonempty_txm_next(struct scene *s, struct model3dtx *txm, bool fwd)
+{
+    struct model3dtx *first_txm = list_first_entry(&s->txmodels, struct model3dtx, entry);
+    struct model3dtx *last_txm = list_last_entry(&s->txmodels, struct model3dtx, entry);
+    struct model3dtx *next_txm;
+
+    if (list_empty(&s->txmodels))
+        return NULL;
+
+    if (!txm)
+        txm = fwd ? last_txm : first_txm;
+    next_txm = txm;
+
+    do {
+        if (next_txm == first_txm)
+            next_txm = last_txm;
+        else if (next_txm == last_txm)
+            next_txm = first_txm;
+        else
+            next_txm = fwd ?
+                list_next_entry(next_txm, entry) :
+                list_prev_entry(next_txm, entry);
+    } while (list_empty(&next_txm->entities) && next_txm != txm);
+
+    return list_empty(&next_txm->entities) ? NULL : next_txm;
+}
+
 static void scene_focus_next(struct scene *s)
 {
     struct model3dtx *next_txm;
 
     sound_play(click);
-    if (!s->focus)
-        goto first_txm;
+    if (!s->focus) {
+        next_txm = scene_nonempty_txm_next(s, NULL, true);
+        /* nothing to focus on */
+        if (!next_txm)
+            return;
+
+        goto first_entry;
+    }
 
     if (s->focus != list_last_entry(&s->focus->txmodel->entities, struct entity3d, entry)) {
         s->focus = list_next_entry(s->focus, entry);
         return;
     }
 
-    if (s->focus->txmodel != list_last_entry(&s->txmodels, struct model3dtx, entry)) {
-        next_txm = list_next_entry(s->focus->txmodel, entry);
-        goto first_entry;
-    }
+    next_txm = scene_nonempty_txm_next(s, s->focus->txmodel, true);
+    if (!next_txm)
+        return;
 
-first_txm:
-    next_txm = list_first_entry(&s->txmodels, struct model3dtx, entry);
 first_entry:
     s->focus = list_first_entry(&next_txm->entities, struct entity3d, entry);
 }
@@ -47,21 +77,21 @@ static void scene_focus_prev(struct scene *s)
     struct model3dtx *next_txm;
 
     sound_play(click);
-    if (!s->focus)
-        goto last_txm;
+    if (!s->focus) {
+        next_txm = scene_nonempty_txm_next(s, NULL, false);
+        if (!next_txm)
+            return;
+        goto last_entry;
+    }
 
     if (s->focus != list_first_entry(&s->focus->txmodel->entities, struct entity3d, entry)) {
         s->focus = list_prev_entry(s->focus, entry);
         return;
     }
 
-    if (s->focus->txmodel != list_first_entry(&s->txmodels, struct model3dtx, entry)) {
-        next_txm = list_prev_entry(s->focus->txmodel, entry);
-        goto last_entry;
-    }
-
-last_txm:
-    next_txm = list_last_entry(&s->txmodels, struct model3dtx, entry);
+    next_txm = scene_nonempty_txm_next(s, s->focus->txmodel, false);
+    if (!next_txm)
+        return;
 last_entry:
     s->focus = list_last_entry(&next_txm->entities, struct entity3d, entry);
 }
