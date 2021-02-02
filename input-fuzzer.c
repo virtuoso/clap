@@ -59,22 +59,22 @@ void fuzzer_input_step(void)
             mode = rand();
         switch (mode & 0x7) {
             case 0:
-                mi.delta_lx = drand48();
+                mi.delta_lx = drand48() * 2 - 1;
                 break;
             case 1:
-                mi.delta_ly = drand48();
+                mi.delta_ly = drand48() * 2 - 1;
                 break;
             case 2:
-                mi.delta_rx = drand48();
+                mi.delta_rx = drand48() * 2 - 1;
                 break;
             case 3:
-                mi.delta_rx = drand48();
+                mi.delta_rx = drand48() * 2 - 1;
                 break;
             case 4:
-                mi.trigger_l = drand48();
+                mi.trigger_l = drand48() * 2 - 1;
                 break;
             case 5:
-                mi.trigger_r = drand48();
+                mi.trigger_r = drand48() * 2 - 1;
                 break;
             case 6:
                 mi.x = rand();
