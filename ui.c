@@ -499,6 +499,31 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
 static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 static void ui_menu_done(struct ui *ui);
 
+/* XXX: basic font picker */
+static const char *menu_font = "RoughenCornerRegular-7RjV.ttf";
+static const char *font_names[] = {
+    "AovelSansRounded-rdDL.ttf", "ArianaVioleta-dz2K.ttf",     "BeckyTahlia-MP6r.ttf",
+    "BelieveIt-DvLE.ttf",        "CabalBold-78yP.ttf",         "Cabal-w5j3.ttf",
+    "Freedom-10eM.ttf",          "LiberationSansBold.ttf",     "MorganChalk-L3aJy.ttf",
+    "Pixellettersfull-BnJ5.ttf", "Pixelletters-RLm3.ttf",      "RoughenCornerRegular-7RjV.ttf",
+    "ShortBaby-Mg2w.ttf",        "ToThePointRegular-n9y4.ttf",
+};
+
+static void do_fonts(struct ui *ui, const char *font_name)
+{
+    int i;
+
+    for (i = 0; i < array_size(font_names); i++) {
+        if (!strcmp(font_name, font_names[i]))
+            goto found;
+    }
+
+    return;
+found:
+    menu_font = font_names[i];
+    ui_menu_done(ui);
+}
+
 static const char *help_items[] = { "...todo", "...help", "...credits" };
 static const char *hud_items[] = { "FPS", "Build", "Limeric" };
 static void menu_onclick(struct ui_element *uie, float x, float y)
@@ -512,6 +537,9 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
     } else if (!strcmp(ui->menu->texts[nr]->str, "HUD")) {
         ref_put_last(&ui->menu->ref);
         ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
+    } else if (!strcmp(ui->menu->texts[nr]->str, "Fonts")) {
+        ref_put_last(&ui->menu->ref);
+        ui->menu = ui_menu_new(ui, font_names, array_size(font_names));
     } else if (!strcmp(ui->menu->texts[nr]->str, "FPS")) {
         if (display_fps) {
             display_fps = false;
@@ -538,6 +566,8 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
     } else if (!strcmp(ui->menu->texts[nr]->str, "...todo")) {
         ui_roll_init(ui);
         ui_menu_done(ui); /* cancels modality */
+    } else {
+        do_fonts(ui, ui->menu->texts[nr]->str);
     }
 }
 
@@ -578,7 +608,7 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
     txm = model3dtx_new(model, "green.png");
     ref_put(&model->ref);
     ui_add_model(ui, txm);
-    font = font_open("Pixellettersfull-BnJ5.ttf", 48);
+    font = font_open(menu_font, 48);
     for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
         menu->uies[i]           = ui_element_new(ui, menu->root, txm, UI_AF_TOP | UI_AF_RIGHT, 10, 10 + off, 300, 100);
         menu->uies[i]->on_click = menu_onclick;
@@ -628,7 +658,7 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
     uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 1, 20, 10);
 }
 
-static const char *menu_items[] = { "HUD", "Autopilot", "Settings", "Network", "Devel", "Help" };
+static const char *menu_items[] = { "HUD", "Autopilot", "Fonts", "Settings", "Network", "Devel", "Help" };
 static void ui_menu_init(struct ui *ui)
 {
     ui->menu = ui_menu_new(ui, menu_items, array_size(menu_items));
