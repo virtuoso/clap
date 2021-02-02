@@ -512,8 +512,10 @@ static void entity3d_drop(struct ref *ref)
     list_del(&e->entry);
     ref_put(&e->txmodel->ref);
     
-    if (e->phys_body)
+    if (e->phys_body) {
         phys_body_done(e->phys_body);
+        e->phys_body = NULL;
+    }
     free(e->mx);
     entity3d_free(e);
 }
