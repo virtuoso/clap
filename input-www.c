@@ -105,7 +105,9 @@ static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent *e, void
           e->mouse.button, e->mouse.buttons, e->mouse.canvasX, e->mouse.canvasY,
           (float)e->deltaX, (float)e->deltaY, (float)e->deltaZ, e->deltaMode);*/
     if (e->mouse.shiftKey) {
-        mi.delta_rx = e->deltaX;
+        mi.delta_rx = e->deltaX / 10;
+        mi.delta_ry = e->deltaY;
+    } else if (e->mouse.altKey || e->mouse.metaKey) {
         mi.delta_ry = e->deltaY;
     } else {
         mi.delta_lx = e->deltaX;
