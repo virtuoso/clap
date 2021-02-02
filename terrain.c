@@ -81,15 +81,15 @@ static float get_interp_height(float x, float z)
 #define ROUGHNESS 0.2f
 #define AMPLITUDE 20
 
-static float get_height(int x, int z)
+static float get_height(int x, int z, float _amp, int _oct)
 {
     float total = 0;
-    float d = pow(2, OCTAVES - 1);
+    float d = pow(2, _oct - 1);
     int i;
 
-    for (i = 0; i < OCTAVES; i++) {
+    for (i = 0; i < _oct; i++) {
         float freq = pow(2, i) / d;
-        float amp  = pow(ROUGHNESS, i) * AMPLITUDE;
+        float amp  = pow(ROUGHNESS, i) * _amp;
 
         total += get_interp_height(x * freq, z * freq) * amp;
     }
@@ -118,6 +118,94 @@ static void calc_normal(vec3 n, int x, int z)
     //    dbg("### %f,%f,%f  -> %f\n", n[0], n[1], n[2], vec3_len(n));
 }
 
+struct bsp_part {
+    int x, y, w, h;
+    float amp;
+    int oct;
+    struct bsp_part *a, *b;
+};
+
+static void bsp_part_one(struct bsp_part *root, int level)
+{
+    bool vertical = !!(rand() & 1);
+    double frac = drand48();
+    struct bsp_part *a, *b;
+
+    if (!level) {
+        root->amp = max(drand48() * 70, 3);
+        root->oct = (rand() & 3) + 2;
+        dbg("### BSP [%d,%d,%d,%d]: %f, %d\n",
+            root->x, root->y, root->x + root->w, root->y + root->h, root->amp, root->oct);
+        return;
+    }
+
+    CHECK(a = calloc(1, sizeof(*a)));
+    CHECK(b = calloc(1, sizeof(*b)));
+    a->x = b->x = root->x;
+    a->y = b->y = root->y;
+    a->w = b->w = root->w;
+    a->h = b->h = root->h;
+
+    if (vertical) {
+        a->w = frac * a->w;
+        b->x += a->w;
+        b->w -= a->w;
+        err_on(a->w + b->w != root->w, "widths don't match %d+%d!=%d\n",
+               a->w, b->w, root->w);
+    } else {
+        a->h = frac * a->h;
+        b->y += a->h;
+        b->h -= a->h;
+        err_on(a->h + b->h != root->h, "heights don't match %d+%d!=%d\n",
+               a->h, b->h, root->h);
+    }
+
+    root->a = a;
+    root->b = b;
+    bsp_part_one(root->a, level - 1);
+    bsp_part_one(root->b, level - 1);
+}
+
+static struct bsp_part *bsp_process(int depth)
+{
+    struct bsp_part *root;
+
+    srand48(0xbebeabbad000d5);
+    CHECK(root = calloc(1, sizeof(*root)));
+    root->x = -SIZE / 2;
+    root->y = -SIZE / 2;
+    root->w = SIZE;
+    root->h = SIZE;
+
+    bsp_part_one(root, depth);
+    return root;
+}
+
+static void bsp_cleanup(struct bsp_part *root)
+{
+    if (root->a && root->b) {
+        bsp_cleanup(root->a);
+        bsp_cleanup(root->b);
+    }
+
+    free(root);
+}
+
+static bool bsp_within(struct bsp_part *bp, int x, int y)
+{
+    return x >= bp->x && x < bp->x + bp->w && y >= bp->y && y < bp->y + bp->h;
+}
+
+static struct bsp_part *bsp_find(struct bsp_part *root, int x, int y)
+{
+    struct bsp_part *it = root;
+
+    while (it->a && it->b)
+        it = bsp_within(it->a, x, y) ? it->a : it->b;
+
+    return it;
+}
+
 int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
 {
     struct model3d *model;
@@ -128,6 +216,7 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
     size_t vxsz, txsz, idxsz;
     float *vx, *norm, *tx;
     unsigned short *idx;
+    struct bsp_part *bsp_root = bsp_process(4);
     struct timespec ts;
     int i, j;
 
@@ -142,9 +231,13 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
             map0[i * nr_v + j] = get_rand_height(i, j);
     map  = calloc(nr_v * nr_v, sizeof(float));
     for (i = 0; i < nr_v; i++)
-        for (j = 0; j < nr_v; j++)
-            map[i * nr_v + j] = get_height(i, j);
+        for (j = 0; j < nr_v; j++) {
+            struct bsp_part *bp = bsp_find(bsp_root, i, j);
+
+            map[i * nr_v + j] = get_height(i, j, bp->amp, bp->oct);
+        }
     free(map0);
+    bsp_cleanup(bsp_root);
 
     vxsz  = total * sizeof(*vx) * 3;
     txsz  = total * sizeof(*tx) * 2;
