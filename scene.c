@@ -137,8 +137,8 @@ void scene_camera_calc(struct scene *s)
 
         x1 = yawcos * s->camera.motion[0] - yawsin * s->camera.motion[2];
         y1 = yawsin * s->camera.motion[0] + yawcos * s->camera.motion[2];
-        s->camera.motion[0] = x1 * s->lin_speed;
-        s->camera.motion[2] = y1 * s->lin_speed;
+        s->camera.motion[0] = x1;
+        s->camera.motion[2] = y1;
     }
 
     vec3_scale(inc, s->camera.motion, 1.f / (float)s->fps.fps_fine);
@@ -181,6 +181,7 @@ static int scene_handle_input(struct message *m, void *data)
 {
     struct scene *s = data;
     float delta_x = 0, delta_z = 0;
+    float lin_speed = s->lin_speed;
 
     /*trace("input event %d/%d/%d/%d %f/%f/%f exit %d\n",
         m->input.left, m->input.right, m->input.up, m->input.down,
@@ -218,34 +219,39 @@ static int scene_handle_input(struct message *m, void *data)
         message_send(&m);
     }
 
+    if (m->input.trigger_r)
+        lin_speed *= (m->input.trigger_r + 1) * 10;
+    else if (m->input.pad_rt)
+        lin_speed *= 10;
+
     /* Use data from joystick sticks when available */
     if (m->input.delta_lx || m->input.delta_ly) {
-        delta_x = m->input.delta_lx;
-        delta_z = m->input.delta_ly;
+        delta_x = m->input.delta_lx * lin_speed;
+        delta_z = m->input.delta_ly * lin_speed;
     } else {
         if (m->input.right) {
             if (s->focus)
                 entity3d_move(s->focus, 0.1, 0, 0);
             else
-                delta_x = s->lin_speed;
+                delta_x = lin_speed;
         }
         if (m->input.left) {
             if (s->focus)
                 entity3d_move(s->focus, -0.1, 0, 0);
             else
-                delta_x = -s->lin_speed;
+                delta_x = -lin_speed;
         }
         if (m->input.up) {
             if (s->focus)
                 entity3d_move(s->focus, 0, 0, 0.1);
             else
-                delta_z = s->lin_speed;
+                delta_z = lin_speed;
         }
         if (m->input.down) {
             if (s->focus)
                 entity3d_move(s->focus, 0, 0, -0.1);
             else
-                delta_z = -s->lin_speed;
+                delta_z = -lin_speed;
         }
     }
 
@@ -268,7 +274,7 @@ static int scene_handle_input(struct message *m, void *data)
     s->camera.motion[2] = delta_z;
 
     s->camera.zoom = !!(m->input.zoom);
-    s->camera.pos[1] -= m->input.delta_ry / 10.0;
+    s->camera.pos[1] -= (m->input.delta_ry / 10.0) * lin_speed;
     s->camera.moved++;
 
     return 0;
