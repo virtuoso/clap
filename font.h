@@ -14,7 +14,7 @@ struct glyph {
 
 struct font;
 const char *font_name(struct font *font);
-struct font *font_open(char *name, unsigned int size);
+struct font *font_open(const char *name, unsigned int size);
 void         font_put(struct font *font);
 struct font *font_get(struct font *font);
 struct font *font_get_default(void);

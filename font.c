@@ -112,7 +112,7 @@ struct glyph *font_get_glyph(struct font *font, unsigned char c)
     return &font->g[c];
 }
 
-struct font *font_open(char *name, unsigned int size)
+struct font *font_open(const char *name, unsigned int size)
 {
     LOCAL(char, font_name);
     struct font *font;
