@@ -3,73 +3,62 @@
 #include "physics.h"
 #include "scene.h"
 #include "shader.h"
+#include "terrain.h"
 
-#define SIZE 1000
-//#define FRAC 4.f
-static long seed;
-static float *map, *map0;
-static unsigned int side;
 
-static float get_rand_height(int x, int z)
+static float get_rand_height(struct terrain *t, int x, int z)
 {
-    /*if (x < - SIZE/2 || x > SIZE/2)
-        return 0;
-    if (z < - SIZE/2 || z > SIZE/2)
-        return 0;*/
-
-    x += SIZE / 2;
-    z += SIZE / 2;
     //srand48((x + z * 49152) + seed);
-    srand((x * 42 + z * 2345) + seed);
+    srand((x * 42 + z * 2345) + t->seed);
     return sin(to_radians((float)rand()));
     //return drand48() * 2 - 1; //sin(to_radians((float)rand()));
 }
 
-static float get_mapped_rand_height(int x, int z)
+static float get_mapped_rand_height(struct terrain *t, int x, int z)
 {
     /* Torus */
     if (x < 0)
-        x = side - 1;
-    else if (x >= side)
+        x = t->nr_vert - 1;
+    else if (x >= t->nr_vert)
         x = 0;
     if (z < 0)
-        z = side - 1;
-    else if (z >= side)
+        z = t->nr_vert - 1;
+    else if (z >= t->nr_vert)
         z = 0;
-    return map0[x * side + z];
+    return t->map0[x * t->nr_vert + z];
 }
 
-static float get_avg_height(int x, int z)
+static float get_avg_height(struct terrain *t, int x, int z)
 {
     float corners, sides, self;
 
-    corners  = get_mapped_rand_height(x - 1, z - 1);
-    corners += get_mapped_rand_height(x + 1, z - 1);
-    corners += get_mapped_rand_height(x - 1, z + 1);
-    corners += get_mapped_rand_height(x + 1, z + 1);
+    corners  = get_mapped_rand_height(t, x - 1, z - 1);
+    corners += get_mapped_rand_height(t, x + 1, z - 1);
+    corners += get_mapped_rand_height(t, x - 1, z + 1);
+    corners += get_mapped_rand_height(t, x + 1, z + 1);
     corners /= 16.f;
 
-    sides  = get_mapped_rand_height(x - 1, z);
-    sides += get_mapped_rand_height(x + 1, z);
-    sides += get_mapped_rand_height(x, z - 1);
-    sides += get_mapped_rand_height(x, z + 1);
+    sides  = get_mapped_rand_height(t, x - 1, z);
+    sides += get_mapped_rand_height(t, x + 1, z);
+    sides += get_mapped_rand_height(t, x, z - 1);
+    sides += get_mapped_rand_height(t, x, z + 1);
     sides /= 8.f;
 
-    self = get_mapped_rand_height(x, z) / 4.f;
+    self = get_mapped_rand_height(t, x, z) / 4.f;
 
     return corners + sides + self;
 }
 
-static float get_interp_height(float x, float z)
+static float get_interp_height(struct terrain *t, float x, float z)
 {
     int intx = floor(x);
     int intz = floor(z);
     float fracx = x - intx;
     float fracz = z - intz;
-    float v1    = get_avg_height(intx, intz);
-    float v2    = get_avg_height(intx + 1, intz);
-    float v3    = get_avg_height(intx, intz + 1);
-    float v4    = get_avg_height(intx + 1, intz + 1);
+    float v1    = get_avg_height(t, intx, intz);
+    float v2    = get_avg_height(t, intx + 1, intz);
+    float v3    = get_avg_height(t, intx, intz + 1);
+    float v4    = get_avg_height(t, intx + 1, intz + 1);
     float i1    = cos_interp(v1, v2, fracx);
     float i2    = cos_interp(v3, v4, fracx);
     //dbg("#### %f,%f => %f => %f; %f,%f => %f => %f\n", v1, v2, fracx, i1, v3, v4, fracx, i2);
@@ -81,7 +70,7 @@ static float get_interp_height(float x, float z)
 #define ROUGHNESS 0.2f
 #define AMPLITUDE 20
 
-static float get_height(int x, int z, float _amp, int _oct)
+static float get_height(struct terrain *t, int x, int z, float _amp, int _oct)
 {
     float total = 0;
     float d = pow(2, _oct - 1);
@@ -91,31 +80,29 @@ static float get_height(int x, int z, float _amp, int _oct)
         float freq = pow(2, i) / d;
         float amp  = pow(ROUGHNESS, i) * _amp;
 
-        total += get_interp_height(x * freq, z * freq) * amp;
+        total += get_interp_height(t, x * freq, z * freq) * amp;
     }
 
     return total;
 }
 
-static void calc_normal(vec3 n, int x, int z)
+static void calc_normal(struct terrain *t, vec3 n, int x, int z)
 {
     /* Torus */
-    int left = x == 0 ? side -1 : x - 1;
-    int right = x == side-1 ? 0 : x + 1;
-    int up = z == 0 ? side -1 : z - 1;
-    int down = z == side-1 ? 0 : z + 1;
-    float hl = map[left*side + z];//get_height(x - 1, z);
-    float hr = map[right*side + z];//get_height(x + 1, z);
-    float hd = map[x*side + up];//get_height(x, z - 1);
-    float hu = map[x*side + down];//get_height(x, z + 1);
+    int left = x == 0 ? t->nr_vert -1 : x - 1;
+    int right = x == t->nr_vert-1 ? 0 : x + 1;
+    int up = z == 0 ? t->nr_vert -1 : z - 1;
+    int down = z == t->nr_vert-1 ? 0 : z + 1;
+    float hl = t->map[left*t->nr_vert + z];
+    float hr = t->map[right*t->nr_vert + z];
+    float hd = t->map[x*t->nr_vert + up];
+    float hu = t->map[x*t->nr_vert + down];
 
     n[0] = hl - hr;
     n[1] = 2.f;
     n[2] = hd - hu;
 
     vec3_norm(n, n);
-    //if (vec3_len(n) != 1.000000)
-    //    dbg("### %f,%f,%f  -> %f\n", n[0], n[1], n[2], vec3_len(n));
 }
 
 struct bsp_part {
@@ -166,16 +153,16 @@ static void bsp_part_one(struct bsp_part *root, int level)
     bsp_part_one(root->b, level - 1);
 }
 
-static struct bsp_part *bsp_process(int depth)
+static struct bsp_part *bsp_process(int depth, float x, float y, float w, float h)
 {
     struct bsp_part *root;
 
-    srand48(0xbebeabbad000d5);
+    srand48(0xbebeabba);
     CHECK(root = calloc(1, sizeof(*root)));
-    root->x = -SIZE / 2;
-    root->y = -SIZE / 2;
-    root->w = SIZE;
-    root->h = SIZE;
+    root->x = x;
+    root->y = y;
+    root->w = w;
+    root->h = h;
 
     bsp_part_one(root, depth);
     return root;
@@ -206,60 +193,107 @@ static struct bsp_part *bsp_find(struct bsp_part *root, int x, int y)
     return it;
 }
 
-int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
+float terrain_height(struct terrain *t, float x, float z)
 {
+    float square = (float)t->side / (t->nr_vert - 1);
+    float tx = x + t->side / 2;
+    float tz = z + t->side / 2;
+    int gridx = floorf(tx / square);
+    int gridz = floorf(tz / square);
+    float xoff = (tx - square * gridx) / square;
+    float zoff = (tz - square * gridz) / square;
+    vec3 p1, p2, p3;
+    vec2 pos = { xoff, zoff };
+    float height;
+
+    if (xoff <= 1 - zoff) {
+        p1[0] = 0;
+        p1[1] = t->map[gridx * t->nr_vert + gridz];
+        p1[2] = 0;
+        p2[0] = 1;
+        p2[1] = t->map[(gridx + 1) * t->nr_vert + gridz];
+        p2[2] = 0;
+        p3[0] = 0;
+        p3[1] = t->map[gridx * t->nr_vert + gridz + 1];
+        p3[2] = 1;
+        height = barrycentric(p1, p2, p3, pos);
+    } else {
+        p1[0] = 1;
+        p1[1] = t->map[(gridx + 1) * t->nr_vert + gridz];
+        p1[2] = 0;
+        p2[0] = 1;
+        p2[1] = t->map[(gridx + 1) * t->nr_vert + gridz + 1];
+        p2[2] = 1;
+        p3[0] = 0;
+        p3[1] = t->map[gridx * t->nr_vert + gridz + 1];
+        p3[2] = 1;
+        height = barrycentric(p1, p2, p3, pos);
+    }
+
+    return height;
+}
+
+static void terrain_drop(struct ref *ref)
+{
+    struct terrain *terrain = container_of(ref, struct terrain, ref);
+
+    free(terrain->map);
+    free(terrain);
+}
+struct terrain *terrain_init(struct scene *s, float x, float y, float z, float side, unsigned int nr_v)
+{
+    struct terrain *t;
     struct model3d *model;
     struct model3dtx *txm;
-    struct entity3d *e;
     struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
     unsigned long total = nr_v * nr_v, it;
     size_t vxsz, txsz, idxsz;
     float *vx, *norm, *tx;
     unsigned short *idx;
-    struct bsp_part *bsp_root = bsp_process(4);
+    struct bsp_part *bsp_root = bsp_process(4, x, z, side, side);
     struct timespec ts;
     int i, j;
 
-    dbg("TERRAIN\n");
+    CHECK(t = ref_new(struct terrain, ref, terrain_drop));
     clock_gettime(CLOCK_REALTIME, &ts);
-    seed  = ts.tv_nsec;
+    t->seed  = ts.tv_nsec;
 
-    side = nr_v;
-    map0 = calloc(nr_v * nr_v, sizeof(float));
+    t->nr_vert = nr_v;
+    t->side = side;
+    CHECK(t->map0 = calloc(nr_v * nr_v, sizeof(float)));
     for (i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++)
-            map0[i * nr_v + j] = get_rand_height(i, j);
-    map  = calloc(nr_v * nr_v, sizeof(float));
+            t->map0[i * nr_v + j] = get_rand_height(t, i, j);
+    t->map  = calloc(nr_v * nr_v, sizeof(float));
     for (i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++) {
             struct bsp_part *bp = bsp_find(bsp_root, i, j);
 
-            map[i * nr_v + j] = get_height(i, j, bp->amp, bp->oct);
+            t->map[i * nr_v + j] = get_height(t, i, j, bp->amp, bp->oct);
         }
-    free(map0);
+    free(t->map0);
+    t->map0 = NULL;
     bsp_cleanup(bsp_root);
 
     vxsz  = total * sizeof(*vx) * 3;
     txsz  = total * sizeof(*tx) * 2;
     idxsz = 6 * (nr_v - 1) * (nr_v - 1) * sizeof(*idx);
-    vx    = malloc(vxsz);
-    norm  = malloc(vxsz);
-    tx    = malloc(txsz);
-    idx   = malloc(idxsz);
+    CHECK(vx    = malloc(vxsz));
+    CHECK(norm  = malloc(vxsz));
+    CHECK(tx    = malloc(txsz));
+    CHECK(idx   = malloc(idxsz));
     if (!vx || !norm || !tx || !idx)
-        return -ENOMEM;
+        return NULL;
 
     for (it = 0, i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++) {
             //vec3 v0, v1, v2, a, b;
             vec3 normal;
 
-            vx[it * 3 + 0] = (float)j / ((float)nr_v - 1) * SIZE - SIZE/2;
-            vx[it * 3 + 1] = vpos + map[i * nr_v + j];
-            //vx[it * 3 + 1] = vpos + get_height(j, i);
-            //vx[it * 3 + 1] = vpos + get_avg_height(j, i) * AMPLITUDE;
-            vx[it * 3 + 2] = (float)i / ((float)nr_v - 1) * SIZE - SIZE/2;
-            calc_normal(normal, j, i);
+            vx[it * 3 + 0] = x + (float)j / ((float)nr_v - 1) * side;
+            vx[it * 3 + 1] = y + t->map[j * nr_v + i];
+            vx[it * 3 + 2] = z + (float)i / ((float)nr_v - 1) * side;
+            calc_normal(t, normal, j, i);
             norm[it * 3 + 0] = normal[0];
             norm[it * 3 + 1] = normal[1];
             norm[it * 3 + 2] = normal[2];
@@ -283,8 +317,6 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
             idx[it++] = bottom_left;
             idx[it++] = bottom_right;
         }
-    free(map);
-    //dbg("it %lu\n", it);
     model = model3d_new_from_vectors("terrain", prog, vx, vxsz, idx, idxsz,
                                      tx, txsz, norm, vxsz);
     free(vx);
@@ -298,11 +330,16 @@ int terrain_init(struct scene *s, float vpos, unsigned int nr_v)
     txm = model3dtx_new(model, "grass20.png");
     ref_put(&model->ref);
     scene_add_model(s, txm);
-    e = entity3d_new(txm);
-    e->visible = 1;
-    e->update  = NULL;
-    model3dtx_add_entity(txm, e);
+    t->entity = entity3d_new(txm);
+    t->entity->visible = 1;
+    t->entity->update  = NULL;
+    model3dtx_add_entity(txm, t->entity);
     phys->ground = phys_geom_new(phys, model->vx, vxsz, NULL/*model->norm*/, model->idx, idxsz);
     ref_put(&prog->ref); /* matches shader_prog_find() above */
-    return 0;
+    return t;
+}
+
+void terrain_done(struct terrain *t)
+{
+    ref_put_last(&t->ref);
 }

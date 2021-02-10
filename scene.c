@@ -1,6 +1,7 @@
 #include "messagebus.h"
 #include "physics.h"
 #include "shader.h"
+#include "terrain.h"
 #include "model.h"
 #include "scene.h"
 #include "sound.h"
@@ -524,6 +525,8 @@ void scene_done(struct scene *scene)
 {
     struct model3dtx *txmodel, *ittxm;
     struct entity3d *ent, *itent;
+
+    terrain_done(scene->terrain);
 
     /*
      * Question: do higher-level objects hold the last reference to the

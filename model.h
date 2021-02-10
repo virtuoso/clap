@@ -73,6 +73,15 @@ static inline float cos_interp(float a, float b, float blend)
     return a * (1.f - f) + b * f;
 }
 
+static inline float barrycentric(vec3 p1, vec3 p2, vec3 p3, vec2 pos)
+{
+    float det = (p2[2] - p3[2]) * (p1[0] - p3[0]) + (p3[0] - p2[0]) * (p1[2] - p3[2]);
+    float l1  = ((p2[2] - p3[2]) * (pos[0] - p3[0]) + (p3[0] - p2[0]) * (pos[1] - p3[2])) / det;
+    float l2  = ((p3[2] - p1[2]) * (pos[0] - p3[0]) + (p1[0] - p3[0]) * (pos[1] - p3[2])) / det;
+    float l3  = 1.0f - l1 - l2;
+    return l1 * p1[1] + l2 * p2[1] + l3 * p3[1];
+}
+
 struct entity3d {
     struct model3dtx *txmodel;
     struct matrix4f  *mx;

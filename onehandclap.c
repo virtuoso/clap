@@ -289,7 +289,11 @@ int main(int argc, char **argv, char **envp)
     //lib_request_shaders("terrain", &scene);
     //lib_request_shaders("ui", &scene);
 
-    terrain_init(&scene, 0.0, 128);
+    /*
+     * XXX: needs to be in the scene code, but can't be called before
+     * GL is initialized
+     */
+    scene.terrain = terrain_init(&scene, -500.0, 0.0, -500.0, 1000, 128);
     fuzzer_input_init();
 
     if (fullscreen)
