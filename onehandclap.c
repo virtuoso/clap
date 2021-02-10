@@ -70,6 +70,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     struct scene *s = data; /* XXX */
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    clap_fps_calc(&s->fps);
     PROF_FIRST(start);
     phys_step();
 
@@ -98,8 +99,6 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     s->proj_updated = 0;
     models_render(&ui.txmodels, NULL, NULL, NULL, NULL, NULL);
     PROF_STEP(ui, models);
-
-    clap_fps_calc(&s->fps);
 
     s->frames_total++;
     ui.frames_total++;
