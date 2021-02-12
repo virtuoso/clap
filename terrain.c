@@ -83,7 +83,7 @@ static float get_height(struct terrain *t, int x, int z, float _amp, int _oct)
         total += get_interp_height(t, x * freq, z * freq) * amp;
     }
 
-    return total;
+    return t->y + total;
 }
 
 static void calc_normal(struct terrain *t, vec3 n, int x, int z)
@@ -120,7 +120,7 @@ static void bsp_part_one(struct bsp_part *root, int level)
 
     if (!level) {
         root->amp = max(drand48() * 70, 3);
-        root->oct = (rand() & 3) + 2;
+        root->oct = (rand() & 3) + 3;
         dbg("### BSP [%d,%d,%d,%d]: %f, %d\n",
             root->x, root->y, root->x + root->w, root->y + root->h, root->amp, root->oct);
         return;
@@ -153,11 +153,11 @@ static void bsp_part_one(struct bsp_part *root, int level)
     bsp_part_one(root->b, level - 1);
 }
 
-static struct bsp_part *bsp_process(int depth, float x, float y, float w, float h)
+static struct bsp_part *bsp_process(unsigned long seed, int depth, float x, float y, float w, float h)
 {
     struct bsp_part *root;
 
-    srand48(0xbebeabba);
+    srand48(seed);
     CHECK(root = calloc(1, sizeof(*root)));
     root->x = x;
     root->y = y;
@@ -196,8 +196,8 @@ static struct bsp_part *bsp_find(struct bsp_part *root, int x, int y)
 float terrain_height(struct terrain *t, float x, float z)
 {
     float square = (float)t->side / (t->nr_vert - 1);
-    float tx = x + t->side / 2;
-    float tz = z + t->side / 2;
+    float tx = x - t->x;
+    float tz = z - t->z;
     int gridx = floorf(tx / square);
     int gridz = floorf(tz / square);
     float xoff = (tx - square * gridx) / square;
@@ -205,6 +205,9 @@ float terrain_height(struct terrain *t, float x, float z)
     vec3 p1, p2, p3;
     vec2 pos = { xoff, zoff };
     float height;
+
+    if (x < t->x || x > t->x + t->side || z < t->z || z > t->z + t->side)
+        return 0;
 
     if (xoff <= 1 - zoff) {
         p1[0] = 0;
@@ -250,7 +253,7 @@ struct terrain *terrain_init(struct scene *s, float x, float y, float z, float s
     size_t vxsz, txsz, idxsz;
     float *vx, *norm, *tx;
     unsigned short *idx;
-    struct bsp_part *bsp_root = bsp_process(4, x, z, side, side);
+    struct bsp_part *bsp_root;
     struct timespec ts;
     int i, j;
 
@@ -258,8 +261,13 @@ struct terrain *terrain_init(struct scene *s, float x, float y, float z, float s
     clock_gettime(CLOCK_REALTIME, &ts);
     t->seed  = ts.tv_nsec;
 
+    bsp_root = bsp_process(t->seed, 4, x, z, side, side);
+
     t->nr_vert = nr_v;
     t->side = side;
+    t->x       = x;
+    t->y       = y;
+    t->z       = z;
     CHECK(t->map0 = calloc(nr_v * nr_v, sizeof(float)));
     for (i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++)

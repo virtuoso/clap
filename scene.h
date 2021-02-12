@@ -32,6 +32,7 @@ struct scene {
     struct matrix4f     *proj_mx;
     struct matrix4f     *view_mx;
     struct matrix4f     *inv_view_mx;
+    struct terrain      *terrain;
     struct camera       camera;
     struct light        light;
     /* FPS calculation -- very important! */

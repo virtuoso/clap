@@ -8,6 +8,7 @@ struct terrain {
     struct entity3d *entity;
     long           seed;
     float          *map, *map0;
+    float x, y, z;
     unsigned int   side;
     unsigned int   nr_vert;
 };
