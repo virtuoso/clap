@@ -3,22 +3,19 @@
 
 #include <time.h>
 #include "common.h"
+#include "character.h"
 #include "matrix.h"
 #include "model.h"
 #include "physics.h"
 
 struct camera {
-    GLfloat pos[3];
+    struct character *ch;
     GLfloat pitch;  /* left/right */
     GLfloat yaw;    /* sideways */
     GLfloat roll;   /* up/down */
-    unsigned int moved;
     unsigned int zoom;
-    vec3    motion;
-    vec3    angle;
     float   yaw_turn;
     float   pitch_turn;
-    //struct phys_body *phys_body;
 };
 
 struct scene {
@@ -27,7 +24,9 @@ struct scene {
     int                 height;
     struct model3d      *_model; /* temporary */
     struct list         txmodels;
+    struct list         characters;
     struct entity3d     *focus;
+    struct character    *control;
     struct shader_prog  *prog;
     struct matrix4f     *proj_mx;
     struct matrix4f     *view_mx;
@@ -56,6 +55,7 @@ int scene_init(struct scene *scene);
 void scene_done(struct scene *scene);
 int  scene_load(struct scene *scene, const char *name);
 void scene_update(struct scene *scene);
+bool scene_camera_follows(struct scene *s, struct character *ch);
 struct shader_prog *scene_find_prog(struct scene *s, const char *name);
 
 #endif /* __CLAP_SCENE_H__ */

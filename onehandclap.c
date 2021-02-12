@@ -183,6 +183,27 @@ static int handle_command(struct message *m, void *data)
     return 0;
 }
 
+static void scene_camera_init(struct scene *s)
+{
+    struct model3d *m = model3d_new_cube(s->prog);
+    struct model3dtx *txm = model3dtx_new(m, "transparent.png");
+    struct entity3d *entity;
+
+    ref_put(&m->ref);
+    scene.camera.ch = character_new(txm, s);
+    entity = character_entity(scene.camera.ch);
+    scene.control   = scene.camera.ch;
+    model3d_set_name(m, "camera");
+    model3dtx_add_entity(txm, entity);
+    scene_add_model(s, entity->txmodel);
+
+    scene.camera.ch->pos[0] = 0.0;
+    scene.camera.ch->pos[1] = 3.0;
+    scene.camera.ch->pos[2] = -4.0;
+    scene.camera.yaw        = 180;
+    scene.camera.ch->moved++;
+}
+
 static struct option long_options[] = {
     { "autopilot",  no_argument,        0, 'A' },
     { "fullscreen", no_argument,        0, 'F' },
@@ -306,15 +327,8 @@ int main(int argc, char **argv, char **envp)
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
 
-    scene.camera.motion[0] = scene.lin_speed;
-    scene.camera.motion[1] = 0;
-    scene.camera.motion[2] = 0;
+    scene_camera_init(&scene);
 
-    scene.camera.pos[0] = 0.0;
-    scene.camera.pos[1] = 3.0;
-    scene.camera.pos[2] = -4.0;
-    scene.camera.yaw    = 180;
-    scene.camera.moved++;
     scene.limbo_height = -70.0;
     scene_camera_calc(&scene);
 

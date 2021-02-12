@@ -493,14 +493,16 @@ static void entity3d_free(struct entity3d *e)
 static int default_update(struct entity3d *e, void *data)
 {
     struct scene *scene = data;
+
+    mat4x4_identity(e->mx->m);
     phys_body_update(e);
     if (e->dy <= scene->limbo_height && e->phys_body) {
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
     }
     //struct scene *scene = data;
-    mat4x4_identity(e->mx->m);
     mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
+    mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
     mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
     return 0;
 }

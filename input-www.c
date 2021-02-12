@@ -38,6 +38,9 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
         return true;
 
     switch (e->keyCode) {
+    case 9: /* Tab */
+        mi.tab = 1;
+        break;
     case 39: /* ArrowRight */
         if (e->shiftKey)
             mi.yaw_right = 1;

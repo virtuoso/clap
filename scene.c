@@ -1,4 +1,5 @@
 #include "messagebus.h"
+#include "character.h"
 #include "physics.h"
 #include "shader.h"
 #include "terrain.h"
@@ -11,12 +12,31 @@ struct sound *click;
 
 static void scene_camera_autopilot(struct scene *s)
 {
-    s->camera.pos[1] = s->auto_yoffset + 2.0;
+    s->camera.ch->pos[1] = s->auto_yoffset + 2.0;
 
-    s->camera.motion[2] = -s->lin_speed;
-    s->camera.motion[0] = 0;
+    s->camera.ch->motion[2] = -s->lin_speed;
+    s->camera.ch->motion[0] = 0;
     s->camera.yaw_turn  = -s->ang_speed / 5;
-    s->camera.moved++;
+    s->camera.ch->moved++;
+}
+
+static void scene_control_next(struct scene *s)
+{
+    struct character *first, *last;
+
+    if (list_empty(&s->characters))
+        return;
+
+    first = list_first_entry(&s->characters, struct character, entry);
+    last = list_last_entry(&s->characters, struct character, entry);
+    if (s->control == last)
+        s->control = first;
+    else
+        s->control = list_next_entry(s->control, entry);
+
+    s->camera.ch->moved++;
+
+    trace("scene control at: '%s'\n", entity_name(s->control->entity));
 }
 
 static struct model3dtx *scene_nonempty_txm_next(struct scene *s, struct model3dtx *txm, bool fwd)
@@ -102,17 +122,21 @@ static void scene_focus_cancel(struct scene *s)
     s->focus = NULL;
 }
 
+bool scene_camera_follows(struct scene *s, struct character *ch)
+{
+    return s->control == ch && ch != s->camera.ch;
+}
+
 void scene_camera_calc(struct scene *s)
 {
-    float scalev[3], yawcos, yawsin;
-    vec3 inc;
+    float scalev[3];
     int i;
 
     if (!s->fps.fps_fine)
         return;
     if (s->autopilot)
         scene_camera_autopilot(s);
-    if (!s->camera.moved)
+    if (!s->camera.ch->moved)
         return;
 
     for (i = 0; i < 3; i++)
@@ -121,36 +145,29 @@ void scene_camera_calc(struct scene *s)
     s->camera.pitch += s->camera.pitch_turn / (float)s->fps.fps_fine;
     s->camera.pitch = clampf(s->camera.pitch, -90, 90);
     s->camera.yaw += s->camera.yaw_turn / (float)s->fps.fps_fine;
-    if (s->camera.yaw > 180)
-        s->camera.yaw -= 360;
-    else if (s->camera.yaw <= -180)
-        s->camera.yaw += 360;
+        if (s->camera.yaw > 180)
+            s->camera.yaw -= 360;
+        else if (s->camera.yaw <= -180)
+            s->camera.yaw += 360;
+
+    /* circle the character s->control */
+    if (s->control != s->camera.ch &&
+        (s->camera.yaw_turn || s->camera.pitch_turn || s->control->moved || s->camera.ch->moved)) {
+        float dist           = s->camera.zoom ? 3 : 6;
+        float x              = s->control->pos[0];
+        float y              = s->control->pos[1] + dist / 2;
+        float z              = s->control->pos[2];
+        s->camera.ch->pos[0] = x + dist * sin(to_radians(-s->camera.yaw));
+        s->camera.ch->pos[1] = y + dist/2 * sin(to_radians(s->camera.pitch));
+        s->camera.ch->pos[2] = z + dist * cos(to_radians(-s->camera.yaw));
+        s->control->moved    = 0; /* XXX */
+    }
+
     s->camera.pitch_turn = 0;
     s->camera.yaw_turn = 0;
 
-    yawcos = cos(to_radians(s->camera.yaw));
-    yawsin = sin(to_radians(s->camera.yaw));
-    s->camera.angle[0] = yawsin;
-    s->camera.angle[2] = yawcos;
-
-    if (vec3_len(s->camera.motion) != 0) {
-        float x1, y1;
-
-        x1 = yawcos * s->camera.motion[0] - yawsin * s->camera.motion[2];
-        y1 = yawsin * s->camera.motion[0] + yawcos * s->camera.motion[2];
-        s->camera.motion[0] = x1;
-        s->camera.motion[2] = y1;
-    }
-
-    vec3_scale(inc, s->camera.motion, 1.f / (float)s->fps.fps_fine);
-    vec3_add(s->camera.pos, s->camera.pos, inc);
-
-    s->camera.motion[0] = 0;
-    s->camera.motion[1] = 0;
-    s->camera.motion[2] = 0;
-
-    s->camera.moved = 0;
-    trace("camera: %f/%f/%f zoom: %d\n", s->camera.pos[0], s->camera.pos[1], s->camera.pos[2], s->camera.zoom);
+    s->camera.ch->moved = 0;
+    trace("camera: %f/%f/%f zoom: %d\n", s->camera.ch->pos[0], s->camera.ch->pos[1], s->camera.ch->pos[2], s->camera.zoom);
 
     //free(s->view_mx);
     //s->view_mx = transmx_new(negpos, 0.0, 0.0, 0.0, 1.0);
@@ -159,12 +176,12 @@ void scene_camera_calc(struct scene *s)
     mat4x4_rotate_Y(s->view_mx->m, s->view_mx->m, to_radians(s->camera.yaw));
     mat4x4_scale_aniso(s->view_mx->m, s->view_mx->m, scalev[0], scalev[1], scalev[2]);
     //mat4x4_scale(s->view_mx->m, scalev, 1.0);
-    mat4x4_translate_in_place(s->view_mx->m, -s->camera.pos[0], -s->camera.pos[1], -s->camera.pos[2]);
+    mat4x4_translate_in_place(s->view_mx->m, -s->camera.ch->pos[0], -s->camera.ch->pos[1], -s->camera.ch->pos[2]);
 
     mat4x4_invert(s->inv_view_mx->m, s->view_mx->m);
     if (!(s->frames_total & 0xf))
         gl_title("One Hand Clap @%d FPS camera [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
-                 s->camera.pos[0], s->camera.pos[1], s->camera.pos[2],
+                 s->camera.ch->pos[0], s->camera.ch->pos[1], s->camera.ch->pos[2],
                  s->camera.pitch, s->camera.yaw);
 }
 
@@ -183,6 +200,7 @@ static int scene_handle_input(struct message *m, void *data)
     struct scene *s = data;
     float delta_x = 0, delta_z = 0;
     float lin_speed = s->lin_speed;
+    float yawsin, yawcos;
 
     /*trace("input event %d/%d/%d/%d %f/%f/%f exit %d\n",
         m->input.left, m->input.right, m->input.up, m->input.down,
@@ -190,6 +208,8 @@ static int scene_handle_input(struct message *m, void *data)
         m->input.exit);*/
     if (m->input.exit)
         gl_request_exit();
+    if (m->input.tab || m->input.stick_r)
+        scene_control_next(s);
     if (m->input.resize)
         gl_resize(m->input.x, m->input.y);
     if (m->input.autopilot)
@@ -246,19 +266,19 @@ static int scene_handle_input(struct message *m, void *data)
             if (s->focus)
                 entity3d_move(s->focus, 0, 0, 0.1);
             else
-                delta_z = lin_speed;
+                delta_z = -lin_speed;
         }
         if (m->input.down) {
             if (s->focus)
                 entity3d_move(s->focus, 0, 0, -0.1);
             else
-                delta_z = -lin_speed;
+                delta_z = lin_speed;
         }
     }
 
-    if (m->input.pitch_up && s->camera.pitch < 90)
+    if (m->input.pitch_up)
         s->camera.pitch_turn = s->ang_speed;
-    if (m->input.pitch_down && s->camera.pitch > -90)
+    if (m->input.pitch_down)
         s->camera.pitch_turn = -s->ang_speed;
 
     if (m->input.delta_rx) {
@@ -270,13 +290,20 @@ static int scene_handle_input(struct message *m, void *data)
             s->camera.yaw_turn = -s->ang_speed;
     }
 
-    s->camera.motion[0] = delta_x;
-    s->camera.motion[1] = 0.0;
-    s->camera.motion[2] = delta_z;
+    yawcos = cos(to_radians(s->camera.yaw));
+    yawsin = sin(to_radians(s->camera.yaw));
+    s->control->motion[0] = delta_x * yawcos - delta_z * yawsin;
+    s->control->motion[1] = 0.0;
+    s->control->motion[2] = delta_x * yawsin + delta_z * yawcos;
 
     s->camera.zoom = !!(m->input.zoom);
-    s->camera.pos[1] -= (m->input.delta_ry / 10.0) * lin_speed;
-    s->camera.moved++;
+    if (m->input.delta_ry) {
+        if (s->control == s->camera.ch && m->input.trigger_l)
+            s->camera.ch->motion[1] -= m->input.delta_ry * lin_speed;
+        else
+            s->camera.pitch_turn = m->input.delta_ry * s->ang_speed;
+    }
+    s->camera.ch->moved++;
 
     return 0;
 }
@@ -326,6 +353,7 @@ int scene_init(struct scene *scene)
     scene->exit_timeout = -1;
     scene->auto_yoffset = 4.0;
     list_init(&scene->txmodels);
+    list_init(&scene->characters);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
     subscribe(MT_COMMAND, scene_handle_command, scene);
@@ -351,7 +379,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 1.0, geom_radius = 1.0;
     char *name = NULL, *obj = NULL, *binvec = NULL, *tex = NULL;
-    JsonNode *p, *ent = NULL, *phys = NULL;
+    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL;
     enum geom_type geom = GEOM_SPHERE;
     struct lib_handle *libh;
     struct model3dtx *txm;
@@ -374,6 +402,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             phys = p;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
             ent = p->children.head;
+        else if (p->tag == JSON_ARRAY && !strcmp(p->key, "character"))
+            ch = p->children.head;
     }
 
     if (!name || (!!obj == !!binvec) || !tex) {
@@ -415,16 +445,23 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
         }
     }
 
-    if (ent) {
-        for (; ent; ent = ent->next) {
-            struct entity3d *e;
+    if (ent || ch) {
+        JsonNode *it = ent ? ent : ch;
+        for (; it; it = it->next) {
+            struct character *c = NULL;
+            struct entity3d  *e;
             JsonNode *pos;
 
-            if (ent->tag != JSON_ARRAY)
+            if (it->tag != JSON_ARRAY)
                 continue; /* XXX: in fact, no */
 
-            e = entity3d_new(txm);
-            pos = ent->children.head;
+            if (ch) {
+                c = character_new(txm, scene);
+                e = c->entity;
+            } else {
+                e = entity3d_new(txm);
+            }
+            pos = it->children.head;
             if (pos->tag != JSON_NUMBER)
                 continue; /* XXX */
             e->dx = pos->number_;
@@ -440,6 +477,12 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
             e->scale = pos->number_;
+
+            if (c) {
+                c->pos[0] = e->dx;
+                c->pos[1] = e->dy;
+                c->pos[2] = e->dz;
+            }
 
             mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
             mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
@@ -527,6 +570,7 @@ void scene_done(struct scene *scene)
     struct entity3d *ent, *itent;
 
     terrain_done(scene->terrain);
+    ref_put_last(&scene->camera.ch->ref);
 
     /*
      * Question: do higher-level objects hold the last reference to the

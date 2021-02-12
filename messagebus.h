@@ -38,6 +38,7 @@ struct message_input {
                     pad_min     : 1,
                     pad_plus    : 1,
                     pad_home    : 1,
+                    tab         : 1,
                     enter       : 1,
                     back        : 1,
                     zoom        : 1, /* 20 */

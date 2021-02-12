@@ -177,6 +177,9 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
         else
             mi.focus_next = 1;
         break;
+    case GLFW_KEY_TAB:
+        mi.tab = 1;
+        break;
     case GLFW_KEY_M:
         mi.menu_toggle = 1;
         break;

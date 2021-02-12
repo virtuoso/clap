@@ -1,5 +1,6 @@
 #include <ode/ode.h>
 #include "common.h"
+#include "character.h"
 #include "model.h"
 #include "physics.h"
 
@@ -69,7 +70,11 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
                 //entity3d_move(e, 0, -0.2, 0);
                 dBodyDisable(b);
                 //dbg("ground collision of '%s' at %f,%f (+ %f),%f\n", name, e->dx, e->dy, e->phys_body->zoffset, e->dz);
-                phys->ground_contact(NULL, e->dx, e->dy + 2.0, e->dz);
+                phys->ground_contact(e, e->dx, e->dy + e->phys_body->zoffset, e->dz);
+            } else if (!strcmp(name, "puppy")) {
+                struct character *ch = e->priv;
+                dBodyAddRelForce(b, 0, 0, 10.0);
+                ch->moved++;
             }
         }
     }
