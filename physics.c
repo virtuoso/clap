@@ -97,7 +97,7 @@ dGeomID phys_geom_new(struct phys *phys, float *vx, size_t vxsz, float *norm, un
 {
     dGeomID trimesh = NULL;
     dTriMeshDataID meshdata = dGeomTriMeshDataCreate();
-    float *tvx = NULL;
+    dReal *tvx = NULL;
     float *tnorm = NULL;
     dTriIndex *tidx;
     int i;
@@ -138,11 +138,11 @@ dGeomID phys_geom_new(struct phys *phys, float *vx, size_t vxsz, float *norm, un
             tnorm[i + 2] = norm[i + 1];
         }
     }
-//#ifdef dDOUBLE
-//    dGeomTriMeshDataBuildDouble1(meshdata, tvx, 3 * sizeof(float), vxsz, tidx, idxsz, 3 * sizeof(dTriIndex), norm);
-//#else
+#ifdef dDOUBLE
+    dGeomTriMeshDataBuildDouble1(meshdata, tvx, 3 * sizeof(dReal), vxsz, tidx, idxsz, 3 * sizeof(dTriIndex), norm);
+#else
     dGeomTriMeshDataBuildSingle1(meshdata, tvx, 3 * sizeof(float), vxsz, tidx, idxsz, 3 * sizeof(dTriIndex), tnorm);
-//#endif
+#endif
     //dGeomTriMeshDataBuildSimple(meshdata, tvx, vxsz, tidx, idxsz);
     dGeomTriMeshDataPreprocess2(meshdata, (1U << dTRIDATAPREPROCESS_BUILD_FACE_ANGLES), NULL);
     //dGeomTriMeshDataPreprocess2(meshdata, (1U << dTRIDATAPREPROCESS_BUILD_CONCAVE_EDGES), NULL);
