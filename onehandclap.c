@@ -25,9 +25,10 @@
 #include "sound.h"
 #include "physics.h"
 #include "networking.h"
+#include "settings.h"
 
 /* XXX just note for the future */
-
+struct settings *settings;
 struct sound *intro_sound;
 struct scene scene; /* XXX */
 struct ui ui;
@@ -157,17 +158,34 @@ static void ohc_ground_contact(void *priv, float x, float y, float z)
 }
 
 int font_init(void);
+
+static void settings_onload(struct settings *rs, void *data)
+{
+    float gain = settings_get_num(rs, "music_volume");
+
+    sound_set_gain(intro_sound, gain);
+}
+
 static int handle_input(struct message *m, void *data)
 {
     float gain = sound_get_gain(intro_sound);
+    bool  store = false;
+
+    if (!intro_sound)
+        return 0;
 
     if (m->input.volume_up) {
         gain += 0.05;
         sound_set_gain(intro_sound, gain);
+        store = true;
     } else if (m->input.volume_down) {
         gain -= 0.05;
         sound_set_gain(intro_sound, gain);
+        store = true;
     }
+
+    if (store)
+        settings_set_num(settings, "music_volume", gain);
     return 0;
 }
 
@@ -302,7 +320,7 @@ int main(int argc, char **argv, char **envp)
      */
     intro_sound = sound_load("morning.ogg");
     sound_set_looping(intro_sound, true);
-    sound_set_gain(intro_sound, 0.1);
+    sound_set_gain(intro_sound, 0);
     sound_play(intro_sound);
 
     /* Before models are created */
@@ -323,6 +341,8 @@ int main(int argc, char **argv, char **envp)
     scene_load(&scene, "scene.json");
     gl_get_sizes(&scene.width, &scene.height);
     ui_init(&ui, scene.width, scene.height);
+
+    settings = settings_init(settings_onload, NULL);
 
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
@@ -350,6 +370,7 @@ int main(int argc, char **argv, char **envp)
     phys_done();
     ui_done(&ui);
     scene_done(&scene);
+    settings_done(settings);
     sound_done();
     //gl_done();
     clap_done(0);
