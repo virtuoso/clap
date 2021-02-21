@@ -51,6 +51,7 @@ struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p
 struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
 void model3d_set_name(struct model3d *m, const char *fmt, ...);
 struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
+struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length);
 struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
 struct model3d *model3d_new_cube(struct shader_prog *p);
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);

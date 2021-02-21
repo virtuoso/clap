@@ -1,5 +1,6 @@
 #include "messagebus.h"
 #include "character.h"
+#include "gltf.h"
 #include "physics.h"
 #include "shader.h"
 #include "terrain.h"
@@ -378,7 +379,7 @@ struct scene_model_queue {
 static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 1.0, geom_radius = 1.0;
-    char *name = NULL, *obj = NULL, *binvec = NULL, *tex = NULL;
+    char *name = NULL, *obj = NULL, *binvec = NULL, *gltf = NULL, *tex = NULL;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL;
     enum geom_type geom = GEOM_SPHERE;
     struct lib_handle *libh;
@@ -396,33 +397,48 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             obj = p->string_;
         else if (p->tag == JSON_STRING && !strcmp(p->key, "binvec"))
             binvec = p->string_;
+        else if (p->tag == JSON_STRING && !strcmp(p->key, "gltf"))
+            gltf = p->string_;
         else if (p->tag == JSON_STRING && !strcmp(p->key, "texture"))
             tex = p->string_;
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "physics"))
             phys = p;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "terrain_clamp"))
+            terrain_clamp = true;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
             ent = p->children.head;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "character"))
             ch = p->children.head;
     }
 
-    if (!name || (!!obj == !!binvec) || !tex) {
+    if (!name || (!obj && !binvec && !gltf)) {
         dbg("json: name '%s' obj '%s' binvec '%s' tex '%s'\n",
             name, obj, binvec, tex);
         return -1;
     }
+    if (!gltf && !tex)
+        return -1;
     
     if (obj) {
         libh = lib_request_obj(obj, scene);
-    } else {
+        txm = model3dtx_new(scene->_model, tex);
+        ref_put(&scene->_model->ref);
+        scene_add_model(scene, txm);
+        ref_put_last(&libh->ref);
+    } else if (binvec) {
         libh = lib_request_bin_vec(binvec, scene);
+        txm = model3dtx_new(scene->_model, tex);
+        ref_put(&scene->_model->ref);
+        scene_add_model(scene, txm);
+        ref_put_last(&libh->ref);
+    } else if (gltf) {
+        struct gltf_data *gd = gltf_load(scene, gltf);
+        gltf_instantiate_one(gd, 0);
+        gltf_free(gd);
+        txm = list_last_entry(&scene->txmodels, struct model3dtx, entry);
     }
-    ref_put_last(&libh->ref);
 
     model3d_set_name(scene->_model, name);
-    txm = model3dtx_new(scene->_model, tex);
-    ref_put(&scene->_model->ref);
-    scene_add_model(scene, txm);
 
     if (phys) {
         for (p = phys->children.head; p; p = p->next) {

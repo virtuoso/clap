@@ -8,6 +8,7 @@
 #include "util.h"
 #include "object.h"
 #include "model.h"
+#include "pngloader.h"
 #include "physics.h"
 #include "shader.h"
 #include "scene.h"
@@ -37,23 +38,8 @@ static void model3d_drop(struct ref *ref)
     free(m);
 }
 
-#if defined(CONFIG_BROWSER) && defined(USE_PRELOAD_PLUGINS)
-#include <limits.h>
-static unsigned char *fetch_png(const char *name, int *width, int *height)
+static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height, GLuint *obj)
 {
-    char path[PATH_MAX];
-    snprintf(path, PATH_MAX, "/asset/%s", name);
-    //emscripten_run_preload_plugins(path, NULL, NULL);
-    return (unsigned char *)emscripten_get_preloaded_image_data(path, width, height);
-}
-#else
-unsigned char *fetch_png(const char *file_name, int *width, int *height);
-#endif
-
-static int load_gl_texture(struct shader_prog *p, const char *name, GLuint *obj)
-{
-    int width = 0, height = 0;
-    unsigned char *buffer = fetch_png(name, &width, &height);
     GLuint textureLoc = shader_prog_find_var(p, "tex");
 
     if (!buffer)
@@ -74,19 +60,35 @@ static int load_gl_texture(struct shader_prog *p, const char *name, GLuint *obj)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
-    free(buffer);
-    dbg("loaded texture %d %s %dx%d\n", *obj, name, width, height);
 
     return 0;
 }
 
 static int model3d_add_texture(struct model3dtx *txm, const char *name)
 {
-    int ret;
+    int width = 0, height = 0, ret;
+    unsigned char *buffer = fetch_png(name, &width, &height);
 
     shader_prog_use(txm->model->prog);
-    ret = load_gl_texture(txm->model->prog, name, &txm->texture_id);
+    ret = load_gl_texture_buffer(txm->model->prog, buffer, width, height, &txm->texture_id);
     shader_prog_done(txm->model->prog);
+    free(buffer);
+
+    dbg("loaded texture %d %s %dx%d\n", txm->texture_id, name, width, height);
+
+    return ret;
+}
+
+static int model3d_add_texture_from_buffer(struct model3dtx *txm, void *input, size_t length)
+{
+    int width = 0, height = 0, ret;
+    unsigned char *buffer = decode_png(input, length, &width, &height);
+
+    shader_prog_use(txm->model->prog);
+    ret = load_gl_texture_buffer(txm->model->prog, buffer, width, height, &txm->texture_id);
+    shader_prog_done(txm->model->prog);
+    free(buffer);
+    dbg("loaded texture %d %dx%d\n", txm->texture_id, width, height);
 
     return ret;
 }
@@ -114,6 +116,20 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
     txm->model = ref_get(model);
     list_init(&txm->entities);
     model3d_add_texture(txm, name);
+
+    return txm;
+}
+
+struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
+{
+    struct model3dtx *txm = ref_new(struct model3dtx, ref, model3dtx_drop);
+
+    if (!txm)
+        return NULL;
+
+    txm->model = ref_get(model);
+    list_init(&txm->entities);
+    model3d_add_texture_from_buffer(txm, buffer, length);
 
     return txm;
 }

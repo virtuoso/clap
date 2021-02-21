@@ -56,6 +56,5 @@ void scene_done(struct scene *scene);
 int  scene_load(struct scene *scene, const char *name);
 void scene_update(struct scene *scene);
 bool scene_camera_follows(struct scene *s, struct character *ch);
-struct shader_prog *scene_find_prog(struct scene *s, const char *name);
 
 #endif /* __CLAP_SCENE_H__ */
