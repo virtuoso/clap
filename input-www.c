@@ -3,6 +3,7 @@
 #include "common.h"
 #include "messagebus.h"
 #include "input.h"
+#include "input-joystick.h"
 
 static struct message_source keyboard_source = {
     .name   = "keyboard",
@@ -97,6 +98,51 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     return true;
 }
 
+static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void *data)
+{
+    dbg("### GAMEPAD event: connected: %d index: %d nr_axes: %d nr_buttons: %d id: '%s' mapping: '%s'\n",
+        e->connected, e->index, e->numAxes, e->numButtons, e->id, e->mapping);
+
+    joystick_name_update(e->index, e->connected ? e->id : NULL);
+    if (e->connected) {
+        EmscriptenGamepadEvent ge;
+        int ret;
+
+        ret = emscripten_get_gamepad_status(e->index, &ge);
+        if (!ret)
+            joystick_axes_update(e->index, ge.axis, ge.numAxes);
+    }
+}
+
+void www_joysticks_poll(void)
+{
+    struct message_input mi;
+    int i, nr_joys, ret;
+
+    ret = emscripten_sample_gamepad_data();
+    if (ret)
+        return;
+
+    nr_joys = min(emscripten_get_num_gamepads(), NR_JOYS);
+
+    for (i = 0; i < nr_joys; i++) {
+        EmscriptenGamepadEvent ge;
+        char btn[64];
+        int b;
+
+        ret = emscripten_get_gamepad_status(i, &ge);
+        if (ret)
+            continue;
+
+        for (b = 0; b < ge.numButtons; b++)
+            btn[b] = !!ge.digitalButton[b];
+        joystick_axes_update(i, ge.axis, ge.numAxes);
+        joystick_buttons_update(i, btn, ge.numButtons);
+        joystick_abuttons_update(i, ge.analogButton, ge.numButtons);
+    }
+}
+
+
 static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent *e, void *userData)
 {
     struct message_input mi;
@@ -173,13 +219,13 @@ static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e, void *
 
 int platform_input_init(void)
 {
-    int ret;
-
-    ret = emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback);
-    ret = emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback);
-    ret = emscripten_set_wheel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, wheel_callback);
-    ret = emscripten_set_click_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, click_callback);
-    ret = emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousemove_callback);
-    ret = emscripten_set_resize_callback("#canvas", 0, 1, resize_callback);
-    return ret;
+    CHECK0(emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback));
+    CHECK0(emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback));
+    CHECK0(emscripten_set_gamepadconnected_callback(NULL, 1, gamepad_callback));
+    CHECK0(emscripten_set_gamepaddisconnected_callback(NULL, 1, gamepad_callback));
+    CHECK0(emscripten_set_wheel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, wheel_callback));
+    CHECK0(emscripten_set_click_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, click_callback));
+    CHECK0(emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousemove_callback));
+    CHECK0(emscripten_set_resize_callback("#canvas", 0, 1, resize_callback));
+    return 0;
 }

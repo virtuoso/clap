@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 #include "common.h"
 #include "input.h"
+#include "input-joystick.h"
 
 static GLFWwindow *window;
 static int width, height;
@@ -216,207 +217,27 @@ static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
     message_input_send(&mi, &keyboard_source);
 }
 
-enum {
-    JB_PRESS = 0,
-    JB_RELEASE,
-    JB_HOLD,
-    JB_NONE
-};
-
-static inline bool jb_press(int state)
-{
-    return state == JB_PRESS;
-}
-
-static inline bool jb_hold(int state)
-{
-    return state == JB_HOLD;
-}
-
-static inline bool jb_press_hold(int state)
-{
-    return jb_press(state) || jb_hold(state);
-}
-
-struct joystick {
-    int id;
-    const char *name;
-    const unsigned char *buttons;
-    const unsigned char *hats;
-    unsigned long button_state;
-    int nr_axes, nr_buttons, nr_hats;
-    const float *axes, *axes_init;
-    struct message_source msg_src;
-};
-
-static struct joystick *joys[16];
-static void joystick_init(void)
-{
-    int i, joy, count = 0;
-    struct joystick *j;
-
-    for (i = GLFW_JOYSTICK_1; i < GLFW_JOYSTICK_16; i++) {
-        joy = glfwJoystickPresent(i);
-
-        if (!joy)
-            continue;
-
-        j = malloc(sizeof(*j));
-        if (!j)
-            return;
-
-        j->id = joy;
-        j->axes = glfwGetJoystickAxes(i, &j->nr_axes);
-        j->axes_init = memdup(j->axes, j->nr_axes * sizeof(*j->axes));
-        j->buttons = glfwGetJoystickButtons(i, &j->nr_buttons);
-        j->hats = glfwGetJoystickHats(i, &j->nr_hats);
-        j->name = glfwGetJoystickName(i);
-        j->msg_src.type = -1;
-        CHECK(asprintf(&j->msg_src.name, "joystick%d", joy));
-        j->msg_src.desc = j->name;
-        msg("joystick '%s' (%d) found: axes: %d buttons: %d hats: %d\n",
-            j->name, joy, j->nr_axes, j->nr_buttons, j->nr_hats);
-        joys[i] = j;
-        count++;
-    }
-
-    msg("fount %d joysticks\n", count);
-}
-
-static void joysticks_poll(void)
+static void glfw_joysticks_poll(void)
 {
     struct message_input mi;
-    int i, t;
+    int i;
 
     for (i = GLFW_JOYSTICK_1; i < GLFW_JOYSTICK_16; i++) {
-        struct joystick *j = joys[i];
-        int count = 0;
+        const char *name = glfwGetJoystickName(i);
+        int nr_axes, nr_buttons;
+        const char *buttons;
+        const float *axes;
 
-        if (!j)
+        joystick_name_update(i - GLFW_JOYSTICK_1, name);
+
+        if (!name)
             continue;
 
-        j->axes = glfwGetJoystickAxes(i, &j->nr_axes);
-        j->buttons = glfwGetJoystickButtons(i, &j->nr_buttons);
-        j->hats = glfwGetJoystickHats(i, &j->nr_hats);
+        axes = glfwGetJoystickAxes(i, &nr_axes);
+        joystick_faxes_update(i - GLFW_JOYSTICK_1, axes, nr_axes);
 
-        memset(&mi, 0, sizeof(mi));
-        for (t = 0; t < j->nr_axes; t++)
-            if (j->axes[t] != j->axes_init[t]) {
-                trace("joystick%d axis%d: %f\n", i, t, j->axes[t]);
-                /* axis have better resolution, but hats are faster */
-                if (j->axes[t] > j->axes_init[t]) {
-                    switch (t) {
-                    case 1:
-                        mi.down = 1;
-                        break;
-                    case 0:
-                        mi.right = 1;
-                        break;
-                    default:
-                        break;
-                    }
-                }
-                if (j->axes[t] < j->axes_init[t]) {
-                    switch (t) {
-                    case 1:
-                        mi.up = 1;
-                        break;
-                    case 0:
-                        mi.left = 1;
-                        break;
-                    default:
-                        break;
-                    }
-                }
-                switch (t) {
-                case 0:
-                    mi.delta_lx = j->axes[t] - j->axes_init[t];
-                    break;
-                case 1:
-                    mi.delta_ly = j->axes[t] - j->axes_init[t];
-                    break;
-                case 3:
-                    mi.delta_rx = j->axes[t] - j->axes_init[t];
-                    if (j->axes[t] > j->axes_init[t])
-                        mi.yaw_right = 1;
-                    else if (j->axes[t] < j->axes_init[t])
-                        mi.yaw_left = 1;
-                    break;
-                case 4:
-                    mi.delta_ry = j->axes[t] - j->axes_init[t];
-
-                    break;
-                case 2:
-                    mi.trigger_l = j->axes[t] - j->axes_init[t];
-                    break;
-                case 5:
-                    mi.trigger_r = j->axes[t] - j->axes_init[t];
-                    break;
-                }
-                count++;
-            }
-
-        for (t = 0; t < j->nr_buttons; t++) {
-            bool pressed = j->button_state & (1ul << t);
-            int state = JB_NONE;
-
-            if (j->buttons[t]) {
-                state = pressed ? JB_HOLD : JB_PRESS;
-                j->button_state |= 1ul << t;
-                trace("joystick%d button%d: %d\n", i, t, j->buttons[t]);
-            } else {
-                j->button_state &= ~(1ul << t);
-                if (pressed)
-                    state = JB_RELEASE;
-            }
-
-            if (t == 16 && jb_press(state))
-                mi.left = 1;
-            else if (t == 14 && jb_press(state))
-                mi.right = 1;
-            else if (t == 15 && jb_press(state))
-                mi.down = 1;
-            else if (t == 13 && jb_press(state))
-                mi.up = 1;
-            else if (t == 0 && jb_press_hold(state))
-                mi.pad_b = 1;
-            else if (t == 1 && jb_press_hold(state))
-                mi.pad_a = 1;
-            else if (t == 2 && jb_press_hold(state))
-                mi.pad_x = 1;
-            else if (t == 3 && jb_press_hold(state))
-                mi.pad_y = 1;
-            else if (t == 4 && jb_press_hold(state))
-                mi.pad_lb = 1;
-            else if (t == 5 && jb_press_hold(state))
-                mi.pad_rb = 1;
-            else if (t == 6 && jb_press_hold(state))
-                mi.pad_lt = 1;
-            else if (t == 7 && jb_press_hold(state))
-                mi.pad_rt = 1;
-            else if (t == 8 && jb_press_hold(state))
-                mi.pad_min = 1;
-            else if (t == 9 && jb_press_hold(state))
-                mi.pad_plus = 1;
-            else if (t == 10 && jb_press_hold(state))
-                mi.pad_home = 1;
-            else if (t == 11 && jb_press_hold(state))
-                mi.stick_l = 1;
-            else if (t == 12 && jb_press_hold(state))
-                mi.stick_r = 1;
-
-            if (mi.pad_plus && jb_press(state))
-                mi.menu_toggle = 1;
-            if (mi.pad_a && jb_press(state))
-                mi.enter = 1;
-            if (mi.pad_b && jb_press(state))
-                mi.back = 1;
-            if (state != JB_NONE)
-                count++;
-        }
-
-        if (count)
-            message_input_send(&mi, &j->msg_src);
+        buttons = glfwGetJoystickButtons(i, &nr_buttons);
+        joystick_buttons_update(i - GLFW_JOYSTICK_1, buttons, nr_buttons);
     }
 }
 
@@ -429,7 +250,6 @@ int platform_input_init(void)
     glfwSetCursorPosCallback(window, pointer_cb);
     glfwSetScrollCallback(window, scroll_cb);
 
-    joystick_init();
     msg("input initialized\n");
 
     return 0;
@@ -439,5 +259,7 @@ void gl_swap_buffers(void)
 {
     glfwSwapBuffers(window);
     glfwPollEvents();
+    /* XXX: move to the start of frame code? */
+    glfw_joysticks_poll();
     joysticks_poll();
 }

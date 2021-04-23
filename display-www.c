@@ -5,6 +5,7 @@
 #include <EGL/egl.h>
 #include "common.h"
 #include "display.h"
+#include "input-joystick.h"
 
 static int width, height;
 
@@ -46,9 +47,12 @@ EMSCRIPTEN_KEEPALIVE void gl_resize(int w, int h)
     height = h;
 }
 
+extern void www_joysticks_poll(void);
 void gl_swap_buffers(void)
 {
     emscripten_webgl_commit_frame();
+    www_joysticks_poll();
+    joysticks_poll();
 }
 
 void gl_enter_fullscreen(void)
