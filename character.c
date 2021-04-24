@@ -60,16 +60,19 @@ void character_move(struct character *ch, struct scene *s)
         dScaleVector3(newx, ch->angle[0]);
         dScaleVector3(newy, ch->angle[2]);
         dAddScaledVectors3(res, newx, newy, ch->angle[0], ch->angle[2]);
-        if (scene_camera_follows(s, ch)) {
-            ui_debug_printf("[ %f, %f, %f ] -> [ %f, %f, %f ]", ch->angle[0], ch->angle[1], ch->angle[2], res[0], res[1], res[2]);
-        }
+        // if (scene_camera_follows(s, ch)) {
+        //     ui_debug_printf("[ %f, %f, %f ] -> [ %f, %f, %f ]", ch->angle[0], ch->angle[1], ch->angle[2], res[0], res[1], res[2]);
+        // }
 
         if (body) {
             //dBodySetLinearVel(body->body, ch->angle[0], ch->angle[1], ch->angle[2]);
             //dBodyAddForce(body->body, ch->angle[0], ch->angle[1], ch->angle[2]);
-            dJointSetLMotorParam(body->lmotor, dParamVel1, res[0]);
-            dJointSetLMotorParam(body->lmotor, dParamVel2, res[1]);
-            dJointSetLMotorParam(body->lmotor, dParamVel3, res[2]);
+            // dJointSetLMotorParam(body->lmotor, dParamVel1, res[0]);
+            // dJointSetLMotorParam(body->lmotor, dParamVel2, res[1]);
+            // dJointSetLMotorParam(body->lmotor, dParamVel3, res[2]);
+            dJointSetLMotorParam(body->lmotor, dParamVel1, ch->angle[0]);
+            dJointSetLMotorParam(body->lmotor, dParamVel2, ch->angle[1]);
+            dJointSetLMotorParam(body->lmotor, dParamVel3, ch->angle[2]);
         } else {
             vec3_add(ch->pos, ch->pos, ch->angle);
             ch->entity->dx = ch->pos[0];
