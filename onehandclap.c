@@ -365,7 +365,7 @@ int main(int argc, char **argv, char **envp)
      * XXX: needs to be in the scene code, but can't be called before
      * GL is initialized
      */
-    scene.terrain = terrain_init(&scene, -100.0, 0.0, -100.0, 200, 128);
+    scene.terrain = terrain_init_circular_maze(&scene, 0.0, 0.0, 0.0, 300, 32, 8);
     fuzzer_input_init();
 
     if (fullscreen)

@@ -357,6 +357,8 @@ float terrain_height(struct terrain *t, float x, float z)
     vec2 pos = { xoff, zoff };
     float height;
 
+    if (!t->map)
+        return 0;
     if (x < t->x || x > t->x + t->side || z < t->z || z > t->z + t->side)
         return 0;
 
@@ -394,7 +396,7 @@ static void terrain_drop(struct ref *ref)
     free(terrain->map);
     free(terrain);
 }
-struct terrain *terrain_init(struct scene *s, float x, float y, float z, float side, unsigned int nr_v)
+struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y, float z, float side, unsigned int nr_v)
 {
     struct terrain *t;
     struct model3d *model;
@@ -605,6 +607,246 @@ struct terrain *terrain_init(struct scene *s, float x, float y, float z, float s
     //dGeomSetPosition(phys->ground, t->x, t->y, t->z);
     //mat4x4_identity(idm);
     //dGeomSetRotation(phys->ground, idm);
+    ref_put(&prog->ref); /* matches shader_prog_find() above */
+    return t;
+}
+
+#define LEVEL_MAX 16
+struct maze_vecs {
+    unsigned int    nr_inner_vx;
+    unsigned int    nr_inner_idx;
+    unsigned int    floor_level[LEVEL_MAX];
+};
+
+static void build_wall_idx(struct terrain *t, unsigned short *idx, unsigned long *pit, bool winding, unsigned long top_row, unsigned long bottom_row)
+{
+    int i;
+
+    for (i = 0; i < t->nr_vert; i++) {
+        int top_left     = top_row + i;
+        int top_right    = i == t->nr_vert - 1 ? top_row : top_left + 1;
+        int bottom_left  = bottom_row + i;
+        int bottom_right = i == t->nr_vert - 1 ? bottom_row : bottom_left + 1;
+
+        if (winding) {
+            idx[(*pit)++] = top_left;
+            idx[(*pit)++] = top_right;
+            idx[(*pit)++] = bottom_left;
+            idx[(*pit)++] = top_right;
+            idx[(*pit)++] = bottom_right;
+            idx[(*pit)++] = bottom_left;
+        } else {
+            idx[(*pit)++] = top_left;
+            idx[(*pit)++] = bottom_left;
+            idx[(*pit)++] = top_right;
+            idx[(*pit)++] = top_right;
+            idx[(*pit)++] = bottom_left;
+            idx[(*pit)++] = bottom_right;
+        }
+        dbg("IDX %d, %d, %d / %d, %d, %d\n", idx[*pit-6], idx[*pit-5], idx[*pit-4], idx[*pit-3], idx[*pit-2], idx[*pit-1]);
+    }
+}
+
+struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, float z, float radius, unsigned int nr_v, unsigned int nr_levels)
+{
+    struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
+    float room_side = radius / nr_levels, height = 20, wall;
+    struct bsp_part *bsp_root;
+    size_t vxsz, txsz, idxsz;
+    unsigned long total, it;
+    struct model3d *model;
+    struct model3dtx *txm;
+    float *vx, *norm, *tx;
+    struct maze_vecs mv;
+    unsigned short *idx;
+    struct timespec ts;
+    struct terrain *t;
+    int i, j, level;
+
+    wall = min(0.1, sqrt(room_side));
+    CHECK(t = ref_new(struct terrain, ref, terrain_drop));
+    clock_gettime(CLOCK_REALTIME, &ts);
+    t->seed  = ts.tv_nsec;
+
+    //bsp_root = bsp_process(t->seed, 5, 0, 0, nr_v, nr_v, terrain_bsp_cb, NULL);
+
+    t->nr_vert = nr_v;
+    t->side    = radius;
+    t->x       = x;
+    t->y       = y;
+    t->z       = z;
+    // bsp_cleanup(bsp_root);
+
+    /*
+     * inner circle:
+     * nr_v triangles;
+     * vertices: nr_v + 1 (center);
+     * indices:  nr_v * 3;
+     * ------------------------
+     * second, wall around inner circle
+     *   using vertices from inner circle
+     * vertices: nr_v
+     * indices:  6 * nr_v
+     * //second, we'll do nr_v quads in a circle
+     * //total -> quads
+     */
+    total = 1 + nr_v * (2 + 4 * (nr_levels - 1));
+    vxsz  = total * sizeof(*vx) * 3;
+    txsz  = total * sizeof(*tx) * 2;
+    idxsz = (nr_v  + 2 * nr_v + 6 * nr_v * (nr_levels - 1)) * sizeof(*idx) * 3;
+
+    CHECK(vx    = malloc(vxsz));
+    CHECK(norm  = malloc(vxsz));
+    CHECK(tx    = malloc(txsz));
+    CHECK(idx   = malloc(idxsz));
+    if (!vx || !norm || !tx || !idx)
+        return NULL;
+
+    /* center */
+    it = 0;
+    vx[it * 3 + 0] = x;
+    vx[it * 3 + 1] = y;
+    vx[it * 3 + 2] = z;
+
+    norm[it * 3 + 0] = 0;
+    norm[it * 3 + 1] = 1;
+    norm[it * 3 + 2] = 0;
+
+    tx[it * 2 + 0] = 0;
+    tx[it * 2 + 1] = 1;
+    mv.nr_inner_vx = it + 1;
+
+    dbg("[%d] VX [%f,%f,%f] TX [%f,%f]\n", it, vx[it*3], vx[it*3+1], vx[it*3+2],
+        tx[it*2], tx[it*2+1]);
+
+    /* level's vertices: [1 + 2 * nr_v * level..2 * nr_v * (level + 1)] */
+    mv.floor_level[0] = it;
+    for (i = 0; i < nr_v; i++, it++) {
+        for (level = 0; level < nr_levels; level++) {
+            /*
+             * 2 rows of nr_v in level 0;
+             * 4 rows starting from level 1.
+             */
+            int pos = 1 + 2 * nr_v * level + i;
+            if (level) {
+                pos += 2 * nr_v * (level - 1);
+                /* inner wall bottom */
+                vx[pos * 3 + 0] = x + (room_side + wall) * cos(it * M_PI * 2 / nr_v) * level;
+                vx[pos * 3 + 1] = y; /* no height variation yet */
+                vx[pos * 3 + 2] = z + (room_side + wall) * sin(it * M_PI * 2 / nr_v) * level;
+                /* inner wall top */
+                vx[(pos + nr_v) * 3 + 0] = vx[pos * 3 + 0];
+                vx[(pos + nr_v) * 3 + 1] = y + height;
+                vx[(pos + nr_v) * 3 + 2] = vx[pos * 3 + 2];
+
+                /* outer wall */
+                norm[pos * 3 + 0] = 0;
+                norm[pos * 3 + 1] = 1;
+                norm[pos * 3 + 2] = 0;
+                /* XXX wall normal XXX */
+                norm[(pos + nr_v) * 3 + 0] = 0;
+                norm[(pos + nr_v) * 3 + 1] = -1;
+                norm[(pos + nr_v) * 3 + 2] = 0;
+
+                tx[pos * 2 + 0] = i & 1 ? 1 : 0;
+                tx[pos * 2 + 1] = level & 1;
+                /* wall texture */
+                tx[(pos + nr_v) * 2 + 0] = i & 1 ? 1 : 0;
+                tx[(pos + nr_v) * 2 + 1] = !(level & 1);
+                dbg("[%d] VX [%f,%f,%f] TX [%f,%f]\n", pos, vx[pos*3], vx[pos*3+1], vx[pos*3+2],
+                    tx[pos*2], tx[pos*2+1]);
+                dbg("[%d] VX [%f,%f,%f] TX [%f,%f]\n", pos + nr_v, vx[(pos+nr_v)*3], vx[(pos+nr_v)*3+1], vx[(pos+nr_v)*3+2],
+                    tx[(pos+nr_v)*2], tx[(pos+nr_v)*2+1]);
+                pos += nr_v * 2;
+            }
+            /* outer wall bottom */
+            vx[pos * 3 + 0] = x + (room_side/* - wall*/) * cos(it * M_PI * 2 / nr_v) * (level + 1);
+            vx[pos * 3 + 1] = y; /* no height variation yet */
+            vx[pos * 3 + 2] = z + (room_side/* - wall*/) * sin(it * M_PI * 2 / nr_v) * (level + 1);
+            /* outer wall top */
+            vx[(pos + nr_v) * 3 + 0] = vx[pos * 3 + 0];
+            vx[(pos + nr_v) * 3 + 1] = y + height;
+            vx[(pos + nr_v) * 3 + 2] = vx[pos * 3 + 2];
+
+            /* outer wall */
+            norm[pos * 3 + 0] = 0;
+            norm[pos * 3 + 1] = 1;
+            norm[pos * 3 + 2] = 0;
+            /* XXX wall normal XXX */
+            norm[(pos + nr_v) * 3 + 0] = 0;
+            norm[(pos + nr_v) * 3 + 1] = -1;
+            norm[(pos + nr_v) * 3 + 2] = 0;
+
+            tx[pos * 2 + 0] = i & 1 ? 1 : 0;
+            tx[pos * 2 + 1] = level & 1;
+            /* wall texture */
+            tx[(pos + nr_v) * 2 + 0] = i & 1 ? 1 : 0;
+            tx[(pos + nr_v) * 2 + 1] = !(level & 1);
+            dbg("[%d] VX [%f,%f,%f] TX [%f,%f]\n", pos, vx[pos*3], vx[pos*3+1], vx[pos*3+2],
+                tx[pos*2], tx[pos*2+1]);
+            dbg("[%d] VX [%f,%f,%f] TX [%f,%f]\n", pos + nr_v, vx[(pos+nr_v)*3], vx[(pos+nr_v)*3+1], vx[(pos+nr_v)*3+2],
+                tx[(pos+nr_v)*2], tx[(pos+nr_v)*2+1]);
+        }
+    }
+
+    for (it = 0, i = 0; i < nr_v; i++) {
+        idx[it++] = i + 1;     /* top left */
+        idx[it++] = 0; /* bottom */
+        idx[it++] = i == nr_v - 1 ? 1 : i + 2; /* top right */
+        dbg("IDX %d, %d, %d\n", idx[it-3], idx[it-2], idx[it-1]);
+    }
+
+    for (level = 0; level < nr_levels; level++) {
+        int outer_wall_bottom  = 1 + 2 * nr_v * level;
+        int outer_wall_top     = 1 + nr_v + 2 * nr_v * level;
+        // int outer_wall_bottom  = 1 + nr_v * (2 + 4 * level);
+        // int outer_wall_top     = 1 + nr_v + nr_v * (2 + 4 * level);
+
+        /* outer floor */
+        if (level) {
+            int floor_top;
+            int floor_bottom;
+            int inner_wall_top = outer_wall_top;
+            int inner_wall_bottom = outer_wall_bottom;
+
+            outer_wall_top += 2 * nr_v;
+            outer_wall_bottom += 2 * nr_v;
+            floor_top = outer_wall_bottom;
+            floor_bottom = 1 + 2 * nr_v * (level - 1);
+
+            dbg("## inner wall %d\n", level);
+            build_wall_idx(t, idx, &it, true, inner_wall_top, inner_wall_bottom);
+
+            dbg("## floor level %d\n", level);
+            build_wall_idx(t, idx, &it, false, floor_top, floor_bottom);
+        }
+
+        /* wall */
+        dbg("## wall level %d\n", level);
+        build_wall_idx(t, idx, &it, false, outer_wall_top, outer_wall_bottom);
+    }
+
+    mv.nr_inner_idx = it;
+
+    model = model3d_new_from_vectors("terrain", prog, vx, vxsz, idx, idxsz,
+                                     tx, txsz, norm, vxsz);
+    free(tx);
+    free(norm);
+
+    txm = model3dtx_new(model, "grass20.png");
+    ref_put(&model->ref);
+    scene_add_model(s, txm);
+    t->entity = entity3d_new(txm);
+    t->entity->collision_vx = vx;
+    t->entity->collision_vxsz = vxsz;
+    t->entity->collision_idx = idx;
+    t->entity->collision_idxsz = idxsz;
+    t->entity->visible = 1;
+    t->entity->update  = NULL;
+    model3dtx_add_entity(txm, t->entity);
+    entity3d_add_physics(t->entity, 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
+    phys->ground = t->entity->phys_body->geom;//phys_geom_trimesh_new(phys, NULL, t->entity, dInfinity);
+    dGeomSetData(phys->ground, t->entity);
     ref_put(&prog->ref); /* matches shader_prog_find() above */
     return t;
 }
