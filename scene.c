@@ -11,6 +11,11 @@
 
 struct sound *click;
 
+static bool is_camera(struct scene *s, struct character *ch)
+{
+    return s->camera.ch == ch;
+}
+
 static void scene_camera_autopilot(struct scene *s)
 {
     s->camera.ch->pos[1] = s->auto_yoffset + 2.0;
@@ -137,7 +142,7 @@ void scene_camera_calc(struct scene *s)
         return;
     if (s->autopilot)
         scene_camera_autopilot(s);
-    if (!s->camera.ch->moved)
+    if (!s->camera.ch->moved && s->control == s->camera.ch)
         return;
 
     for (i = 0; i < 3; i++)
@@ -154,14 +159,14 @@ void scene_camera_calc(struct scene *s)
     /* circle the character s->control */
     if (s->control != s->camera.ch &&
         (s->camera.yaw_turn || s->camera.pitch_turn || s->control->moved || s->camera.ch->moved)) {
-        float dist           = s->camera.zoom ? 3 : 6;
+        float dist           = s->camera.zoom ? 3 : 8;
         float x              = s->control->pos[0];
         float y              = s->control->pos[1] + dist / 2;
         float z              = s->control->pos[2];
         s->camera.ch->pos[0] = x + dist * sin(to_radians(-s->camera.yaw));
         s->camera.ch->pos[1] = y + dist/2 * sin(to_radians(s->camera.pitch));
         s->camera.ch->pos[2] = z + dist * cos(to_radians(-s->camera.yaw));
-        s->control->moved    = 0; /* XXX */
+        //s->control->moved    = 0; /* XXX */
     }
 
     s->camera.pitch_turn = 0;
@@ -184,6 +189,15 @@ void scene_camera_calc(struct scene *s)
         gl_title("One Hand Clap @%d FPS camera [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
                  s->camera.ch->pos[0], s->camera.ch->pos[1], s->camera.ch->pos[2],
                  s->camera.pitch, s->camera.yaw);
+}
+
+void scene_characters_move(struct scene *s)
+{
+    struct character *ch;
+
+    list_for_each_entry(ch, &s->characters, entry) {
+        character_move(ch, s);
+    }
 }
 
 static int scene_handle_command(struct message *m, void *data)
@@ -241,6 +255,9 @@ static int scene_handle_input(struct message *m, void *data)
         message_send(&m);
     }
 
+    /*
+     * TODO: all the below needs to go to character.c
+     */
     if (m->input.trigger_r)
         lin_speed *= (m->input.trigger_r + 1) * 10;
     else if (m->input.pad_rt)
@@ -291,11 +308,21 @@ static int scene_handle_input(struct message *m, void *data)
             s->camera.yaw_turn = -s->ang_speed;
     }
 
-    yawcos = cos(to_radians(s->camera.yaw));
-    yawsin = sin(to_radians(s->camera.yaw));
-    s->control->motion[0] = delta_x * yawcos - delta_z * yawsin;
-    s->control->motion[1] = 0.0;
-    s->control->motion[2] = delta_x * yawsin + delta_z * yawcos;
+    /* XXX: only allow motion control when on the ground */
+    //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));
+    if (character_is_grounded(s->control, s) || is_camera(s, s->control)) {
+        yawcos = cos(to_radians(s->camera.yaw));
+        yawsin = sin(to_radians(s->camera.yaw));
+        s->control->motion[0] = delta_x * yawcos - delta_z * yawsin;
+        s->control->motion[1] = 0.0;
+        s->control->motion[2] = delta_x * yawsin + delta_z * yawcos;
+
+        if (m->input.space || m->input.pad_x) {
+            vec3 jump = { s->control->motion[0], 5.0, s->control->motion[2] };
+            dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
+            dBodySetLinearVel(s->control->entity->phys_body->body, jump[0], jump[1], jump[2]);
+        }
+    }
 
     s->camera.zoom = !!(m->input.zoom);
     if (m->input.delta_ry) {
@@ -334,7 +361,7 @@ static void scene_light_update(struct scene *scene)
 void scene_update(struct scene *scene)
 {
     struct model3dtx *txm;
-    struct entity3d *ent;
+    struct entity3d  *ent;
 
     scene_light_update(scene);
 
@@ -378,12 +405,14 @@ struct scene_model_queue {
 
 static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
-    double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 1.0, geom_radius = 1.0;
+    double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0;
     char *name = NULL, *obj = NULL, *binvec = NULL, *gltf = NULL, *tex = NULL;
+    bool terrain_clamp = false, cull_face = true, alpha_blend = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL;
-    enum geom_type geom = GEOM_SPHERE;
+    int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
+    struct gltf_data *gd = NULL;
     struct lib_handle *libh;
-    struct model3dtx *txm;
+    struct model3dtx  *txm;
 
     if (node->tag != JSON_OBJECT) {
         dbg("json: model is not an object\n");
@@ -404,7 +433,11 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "physics"))
             phys = p;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "terrain_clamp"))
-            terrain_clamp = true;
+            terrain_clamp = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "cull_face"))
+            cull_face = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "alpha_blend"))
+            alpha_blend = p->bool_;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
             ent = p->children.head;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "character"))
@@ -419,6 +452,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     if (!gltf && !tex)
         return -1;
     
+    /* XXX: obj and binvec will bitrot pretty quickly */
     if (obj) {
         libh = lib_request_obj(obj, scene);
         txm = model3dtx_new(scene->_model, tex);
@@ -432,10 +466,26 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
         scene_add_model(scene, txm);
         ref_put_last(&libh->ref);
     } else if (gltf) {
-        struct gltf_data *gd = gltf_load(scene, gltf);
-        gltf_instantiate_one(gd, 0);
-        gltf_free(gd);
+        gd = gltf_load(scene, gltf);
+        if (gltf_get_meshes(gd) > 1) {
+            int i;
+
+            collision = gltf_mesh(gd, "collision");
+            for (i = 0; i < gltf_get_meshes(gd); i++)
+                if (i != collision) {
+                    gltf_instantiate_one(gd, i);
+                    break;
+                }
+            /* In the absence of a dedicated collision mesh, use the main one */
+            if (collision < 0)
+                collision = 0;
+        } else {
+            gltf_instantiate_one(gd, 0);
+            collision = 0;
+        }
         txm = list_last_entry(&scene->txmodels, struct model3dtx, entry);
+        txm->model->cull_face = cull_face;
+        txm->model->alpha_blend = alpha_blend;
     }
 
     model3d_set_name(scene->_model, name);
@@ -452,11 +502,20 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 geom_off = p->number_;
             else if (p->tag == JSON_NUMBER && !strcmp(p->key, "radius"))
                 geom_radius = p->number_;
+            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "length"))
+                geom_length = p->number_;
             else if (p->tag == JSON_STRING && !strcmp(p->key, "geom")) {
                 if (!strcmp(p->string_, "trimesh"))
-                    geom = GEOM_TRIMESH;
+                    class = dTriMeshClass;
                 else if (!strcmp(p->string_, "sphere"))
-                    geom = GEOM_SPHERE;
+                    class = dSphereClass;
+                else if (!strcmp(p->string_, "capsule"))
+                    class = dCapsuleClass;
+            } else if (p->tag == JSON_STRING && !strcmp(p->key, "type")) {
+                if (!strcmp(p->string_, "body"))
+                    ptype = PHYS_BODY;
+                else if (!strcmp(p->string_, "geom"))
+                    ptype = PHYS_GEOM;
             }
         }
     }
@@ -494,10 +553,21 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 continue; /* XXX */
             e->scale = pos->number_;
 
+            if (terrain_clamp) {
+                e->dy = terrain_height(scene->terrain, e->dx, e->dz);
+                // trace("clamped '%s' to %f,%f,%f\n", entity_name(e), e->dx, e->dy, e->dz);
+            }
+
             if (c) {
                 c->pos[0] = e->dx;
                 c->pos[1] = e->dy;
                 c->pos[2] = e->dz;
+            }
+
+            /* XXX: if it's not a gltf, we won't have TriMesh collision data any more */
+            if (gd && class == dTriMeshClass) {
+                gltf_mesh_data(gd, collision, &e->collision_vx, &e->collision_vxsz,
+                               &e->collision_idx, &e->collision_idxsz, NULL, NULL, NULL, NULL);
             }
 
             mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
@@ -509,7 +579,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
              * XXX: This kinda requires that "physics" goes before "entity"
              */
             if (phys) {
-                entity3d_add_physics(e, mass, geom, geom_off, geom_radius);
+                entity3d_add_physics(e, mass, class, ptype, geom_off, geom_radius, geom_length);
                 e->phys_body->bounce = bounce;
                 e->phys_body->bounce_vel = bounce_vel;
             }
@@ -518,6 +588,9 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     } else {
         create_entities(txm);
     }
+
+    if (gd)
+        gltf_free(gd);
 
     dbg("loaded model '%s'\n", name);
 
@@ -529,7 +602,7 @@ static void scene_onload(struct lib_handle *h, void *buf)
     struct scene *scene = buf;
     char         msg[256];
     LOCAL(JsonNode, node);
-    JsonNode *p, *m;
+    JsonNode     *p, *m;
 
     node = json_decode(h->buf);
     if (!node) {
@@ -582,8 +655,8 @@ int scene_load(struct scene *scene, const char *name)
 
 void scene_done(struct scene *scene)
 {
-    struct model3dtx *txmodel, *ittxm;
-    struct entity3d *ent, *itent;
+    struct model3dtx                                                                                                     *txmodel, *ittxm;
+    struct entity3d                                                                                                      *ent, *itent;
 
     terrain_done(scene->terrain);
     ref_put_last(&scene->camera.ch->ref);

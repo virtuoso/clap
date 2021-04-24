@@ -116,7 +116,7 @@ int gltf_mesh(struct gltf_data *gd, const char *name)
     int i;
 
     for (i = 0; i < gd->nr_meshes; i++)
-        if (!strcmp(name, gd->meshes[i].name))
+        if (!strcasecmp(name, gd->meshes[i].name))
             return i;
 
     return -1;
@@ -273,6 +273,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
         return;
     }
 
+    /* Nodes */
     for (n = nodes->children.head; n; n = n->next) {
         JsonNode *jname, *jmesh;//, *jskin, *jchildren, *jrot, *jtrans;
 
@@ -289,6 +290,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
             continue;
     }
     
+    /* Buffers */
     for (n = bufs->children.head; n; n = n->next) {
         JsonNode *jlen, *juri;
         size_t   len, dlen, slen;
@@ -313,13 +315,14 @@ static void gltf_onload(struct lib_handle *h, void *data)
         CHECK(gd->buffers = realloc(gd->buffers, (gd->nr_buffers + 1) * sizeof(void *)));
         CHECK(gd->buffers[gd->nr_buffers] = malloc(len));
         dlen = base64_decode(gd->buffers[gd->nr_buffers], len, juri->string_ + sizeof(DATA_URI) - 1, slen);
-        dbg("buffer %d: byteLength=%d uri length=%d dlen=%d/%d slen=%d '%.10s' errno=%d\n",
-            gd->nr_buffers, (int)jlen->number_,
-            strlen(juri->string_), dlen, len,
-            slen, juri->string_ + sizeof(DATA_URI) - 1, errno);
+        // dbg("buffer %d: byteLength=%d uri length=%d dlen=%d/%d slen=%d '%.10s' errno=%d\n",
+        //     gd->nr_buffers, (int)jlen->number_,
+        //     strlen(juri->string_), dlen, len,
+        //     slen, juri->string_ + sizeof(DATA_URI) - 1, errno);
         gd->nr_buffers++;
     }
 
+    /* BufferViews */
     for (n = bufvws->children.head; n; n = n->next) {
         JsonNode *jbuf, *jlen, *joff;
 
@@ -336,11 +339,12 @@ static void gltf_onload(struct lib_handle *h, void *data)
         gd->bufvws[gd->nr_bufvws].buffer = jbuf->number_;
         gd->bufvws[gd->nr_bufvws].offset = joff->number_;
         gd->bufvws[gd->nr_bufvws].length = jlen->number_;
-        dbg("buffer view %d: buf %d offset %zu size %zu\n", gd->nr_bufvws, gd->bufvws[gd->nr_bufvws].buffer,
-            gd->bufvws[gd->nr_bufvws].offset, gd->bufvws[gd->nr_bufvws].length);
+        // dbg("buffer view %d: buf %d offset %zu size %zu\n", gd->nr_bufvws, gd->bufvws[gd->nr_bufvws].buffer,
+        //     gd->bufvws[gd->nr_bufvws].offset, gd->bufvws[gd->nr_bufvws].length);
         gd->nr_bufvws++;
     }
 
+    /* Accessors */
     for (n = accrs->children.head; n; n = n->next) {
         JsonNode *jbufvw, *jcount, *jtype, *jcomptype;
         int i;
@@ -367,12 +371,13 @@ static void gltf_onload(struct lib_handle *h, void *data)
         gd->accrs[gd->nr_accrs].comptype = jcomptype->number_;
         gd->accrs[gd->nr_accrs].count = jcount->number_;
         gd->accrs[gd->nr_accrs].type = i;
-        dbg("accessor %d: bufferView: %d count: %d componentType: %d type: %s\n", gd->nr_accrs,
-            gd->accrs[gd->nr_accrs].bufview, gd->accrs[gd->nr_accrs].count, gd->accrs[gd->nr_accrs].comptype,
-            types[i]);
+        // dbg("accessor %d: bufferView: %d count: %d componentType: %d type: %s\n", gd->nr_accrs,
+        //     gd->accrs[gd->nr_accrs].bufview, gd->accrs[gd->nr_accrs].count, gd->accrs[gd->nr_accrs].comptype,
+        //     types[i]);
         gd->nr_accrs++;
     }
 
+    /* Images */
     for (n = imgs->children.head; n; n = n->next) {
         JsonNode *jbufvw, *jmime, *jname;
 
@@ -390,10 +395,11 @@ static void gltf_onload(struct lib_handle *h, void *data)
         
         CHECK(gd->imgs = realloc(gd->imgs, (gd->nr_imgs + 1) * sizeof(unsigned int)));
         gd->imgs[gd->nr_imgs] = jbufvw->number_;
-        dbg("image %d: bufferView: %d\n", gd->nr_imgs, gd->imgs[gd->nr_imgs]);
+        // dbg("image %d: bufferView: %d\n", gd->nr_imgs, gd->imgs[gd->nr_imgs]);
         gd->nr_imgs++;
     }
 
+    /* Textures */
     for (n = texs->children.head; n; n = n->next) {
         JsonNode *jsrc; // mipmapping: *jsampler
 
@@ -406,10 +412,11 @@ static void gltf_onload(struct lib_handle *h, void *data)
 
         CHECK(gd->texs = realloc(gd->texs, (gd->nr_texs + 1) * sizeof(unsigned int)));
         gd->texs[gd->nr_texs] = jsrc->number_;
-        dbg("texture %d: source: %d\n", gd->nr_texs, gd->texs[gd->nr_texs]);
+        // dbg("texture %d: source: %d\n", gd->nr_texs, gd->texs[gd->nr_texs]);
         gd->nr_texs++;
     }
 
+    /* Materials */
     for (n = mats->children.head; n; n = n->next) {
         JsonNode *jwut;
 
@@ -429,7 +436,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
 
         CHECK(gd->mats = realloc(gd->mats, (gd->nr_mats + 1) * sizeof(unsigned int)));
         gd->mats[gd->nr_mats] = jwut->number_;
-        dbg("material %d: texture: %d\n", gd->nr_mats, gd->mats[gd->nr_mats]);
+        // dbg("material %d: texture: %d\n", gd->nr_mats, gd->mats[gd->nr_mats]);
         gd->nr_mats++;
     }
 
@@ -471,7 +478,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
             else if (!strcmp(p->key, "WEIGHTS_0") && p->tag == JSON_NUMBER)
                 gd->meshes[gd->nr_meshes].WEIGHTS_0 = p->number_;
         }
-        dbg("mesh %d: '%s' POSITION: %d\n", gd->nr_meshes, jname->string_, gd->meshes[gd->nr_meshes].POSITION);
+        // dbg("mesh %d: '%s' POSITION: %d\n", gd->nr_meshes, jname->string_, gd->meshes[gd->nr_meshes].POSITION);
         gd->nr_meshes++;
     }
 
@@ -479,6 +486,30 @@ static void gltf_onload(struct lib_handle *h, void *data)
     ref_put(&h->ref);
 
     return;
+}
+
+void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,
+                    float **tx, size_t *txsz, float **norm, size_t *normsz)
+{
+    if (mesh < 0 || mesh >= gd->nr_meshes)
+        return;
+
+    if (vx) {
+        *vx = gltf_vx(gd, mesh);
+        *vxsz = gltf_vxsz(gd, mesh);
+    }
+    if (idx) {
+        *idx = gltf_idx(gd, mesh);
+        *idxsz = gltf_idxsz(gd, mesh);
+    }
+    if (tx) {
+        *tx = gltf_tx(gd, mesh);
+        *txsz = gltf_txsz(gd, mesh);
+    }
+    if (norm) {
+        *norm = gltf_norm(gd, mesh);
+        *normsz = gltf_normsz(gd, mesh);
+    }
 }
 
 void gltf_instantiate_one(struct gltf_data *gd, int mesh)

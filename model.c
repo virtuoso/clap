@@ -32,9 +32,6 @@ static void model3d_drop(struct ref *ref)
     ref_put(&m->prog->ref);
     trace("dropping model '%s'\n", m->name);
     free(m->name);
-    free(m->vx);
-    free(m->idx);
-    free(m->norm);
     free(m);
 }
 
@@ -79,6 +76,7 @@ static int model3d_add_texture(struct model3dtx *txm, const char *name)
     return ret;
 }
 
+/* XXX: actually, make it take the decoded texture, not the png */
 static int model3d_add_texture_from_buffer(struct model3dtx *txm, void *input, size_t length)
 {
     int width = 0, height = 0, ret;
@@ -179,6 +177,40 @@ void model3d_set_name(struct model3d *m, const char *fmt, ...)
     va_end(ap);
 }
 
+static void model3d_calc_aabb(struct model3d *m, float *vx, size_t vxsz)
+{
+    int i;
+
+    vxsz /= sizeof(float);
+    vxsz /= 3;
+    for (i = 0; i < vxsz; i += 3) {
+        m->aabb[0] = min(vx[i + 0], m->aabb[0]);
+        m->aabb[1] = max(vx[i + 0], m->aabb[1]);
+        m->aabb[2] = min(vx[i + 1], m->aabb[2]);
+        m->aabb[3] = max(vx[i + 1], m->aabb[3]);
+        m->aabb[4] = min(vx[i + 2], m->aabb[4]);
+        m->aabb[5] = max(vx[i + 2], m->aabb[5]);
+    }
+
+    // dbg("bounding box for '%s': %f..%f,%f..%f,%f..%f\n", m->name,
+    //     m->aabb[0], m->aabb[1], m->aabb[2], m->aabb[3], m->aabb[4], m->aabb[5]);
+}
+
+float model3d_aabb_X(struct model3d *m)
+{
+    return fabs(m->aabb[1] - m->aabb[0]);
+}
+
+float model3d_aabb_Y(struct model3d *m)
+{
+    return fabs(m->aabb[3] - m->aabb[2]);
+}
+
+float model3d_aabb_Z(struct model3d *m)
+{
+    return fabs(m->aabb[5] - m->aabb[4]);
+}
+
 struct model3d *
 model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
                          GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz,
@@ -194,10 +226,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     m->prog = ref_get(p);
     m->cull_face = true;
     m->alpha_blend = false;
-    m->vx          = memdup(vx, vxsz);
-    m->vxsz        = vxsz;
-    m->idx         = memdup(idx, idxsz);
-    m->idxsz       = idxsz;
+    model3d_calc_aabb(m, vx, vxsz);
 
     shader_prog_use(p);
     load_gl_buffer(m->prog->pos, vx, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
@@ -206,10 +235,8 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     if (txsz)
         load_gl_buffer(m->prog->tex, tx, txsz, &m->tex_obj, 2, GL_ARRAY_BUFFER);
 
-    if (normsz) {
-        m->norm        = memdup(norm, normsz);
+    if (normsz)
         load_gl_buffer(m->prog->norm, norm, normsz, &m->norm_obj, 3, GL_ARRAY_BUFFER);
-    }
     shader_prog_done(p);
 
     m->nr_vertices = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
@@ -312,7 +339,7 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
     struct model3dtx *txmodel;
     GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
     GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
-    GLint highlight_loc, color_loc;
+    GLint highlight_loc, color_loc, ray_loc;
     unsigned long nr_txms = 0, nr_ents = 0;
 
     list_for_each_entry(txmodel, list, entry) {
@@ -350,6 +377,7 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
             shine_damper_loc = shader_prog_find_var(prog, "shine_damper");
             reflectivity_loc = shader_prog_find_var(prog, "reflectivity");
             highlight_loc    = shader_prog_find_var(prog, "highlight_color");
+            ray_loc          = shader_prog_find_var(prog, "ray");
             color_loc        = shader_prog_find_var(prog, "color");
 
             /* XXX: entity properties */
@@ -396,6 +424,15 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
             if (focus && highlight_loc >= 0)
                 glUniform4fv(highlight_loc, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc);
 
+            if (ray_loc >= 0) {
+                vec3 ray = { 0, 0, 0 };
+                if (focus) {
+                    ray[0] = focus->dx;
+                    ray[1] = focus->dz;
+                    ray[2] = 1.0;
+                }
+                glUniform3fv(ray_loc, 1, ray);
+            }
             if (transmx_loc >= 0) {
                 /* Transformation matrix is different for each entity */
                 glUniformMatrix4fv(transmx_loc, 1, GL_FALSE, (GLfloat *)e->mx);
@@ -506,19 +543,44 @@ static void entity3d_free(struct entity3d *e)
     free(e);
 }
 
+float entity3d_aabb_X(struct entity3d *e)
+{
+    return model3d_aabb_X(e->txmodel->model) * e->scale;
+}
+
+float entity3d_aabb_Y(struct entity3d *e)
+{
+    return model3d_aabb_Y(e->txmodel->model) * e->scale;
+}
+
+float entity3d_aabb_Z(struct entity3d *e)
+{
+    return model3d_aabb_Z(e->txmodel->model) * e->scale;
+}
+
+void entity3d_aabb_center(struct entity3d *e, vec3 center)
+{
+    center[0] = entity3d_aabb_X(e) + e->dx;
+    center[1] = entity3d_aabb_Y(e) + e->dy;
+    center[2] = entity3d_aabb_Z(e) + e->dz;
+}
+
 static int default_update(struct entity3d *e, void *data)
 {
     struct scene *scene = data;
 
     mat4x4_identity(e->mx->m);
-    phys_body_update(e);
-    if (e->dy <= scene->limbo_height && e->phys_body) {
-        phys_body_done(e->phys_body);
-        e->phys_body = NULL;
-    }
+    // phys_body_update(e);
+    // if (e->dy <= scene->limbo_height && e->phys_body) {
+    //     phys_body_done(e->phys_body);
+    //     e->phys_body = NULL;
+    //     dbg("entity '%s' lost its physics\n", entity_name(e));
+    // }
     //struct scene *scene = data;
     mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
+    mat4x4_rotate_X(e->mx->m, e->mx->m, e->rx);
     mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
+    mat4x4_rotate_Z(e->mx->m, e->mx->m, e->rz);
     mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
     return 0;
 }
@@ -534,6 +596,8 @@ static void entity3d_drop(struct ref *ref)
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
     }
+    free(e->collision_vx);
+    free(e->collision_idx);
     free(e->mx);
     entity3d_free(e);
 }
@@ -565,30 +629,40 @@ void entity3d_update(struct entity3d *e, void *data)
         e->update(e, data);
 }
 
-void entity3d_add_physics(struct entity3d *e, double mass, enum geom_type geom_type, double geom_off, double geom_radius)
+void entity3d_add_physics(struct entity3d *e, double mass, int class, int type, double geom_off, double geom_radius, double geom_length)
 {
     struct model3d *m = e->txmodel->model;
 
-    if (geom_type == GEOM_SPHERE) {
-        e->phys_geom = dCreateSphere(phys->space, geom_radius);
-    } else {
-        geom_off = 0.0;
-        geom_radius = 0.0;
-        e->phys_geom = phys_geom_new(phys, m->vx, m->vxsz, NULL, m->idx, m->idxsz);
+    e->phys_body = phys_body_new(phys, e, class, type, mass);
+    /* we calculate geom_off instead */
+    geom_off = e->phys_body->yoffset;
+    if (geom_off) {
+        dVector3 org = { e->dx, e->dx, e->dy + geom_off, e->dz }, dir = { 0, -1.0, 0 };
+        e->phys_body->yoffset = geom_off;
+        // e->phys_body->ray = dCreateRay(phys->space, geom_off);
+        // dGeomRaySet(e->phys_body->ray, org[0], org[1], org[2], dir[0], dir[1], dir[2]);
+        // dGeomSetData(e->phys_body->ray, e);
+        // dbg("RAY('%s') (%f,%f,%f) -> (%f,%f,%f)\n", entity_name(e),
+        //     org[0], org[1], org[2], dir[0], dir[1], dir[2]);
     }
+}
 
-    e->phys_body = phys_body_new(phys, e, geom_type, mass, e->phys_geom, e->dx, e->dy + geom_off, e->dz);
-    if (geom_off)
-        e->phys_body->zoffset = geom_off;
+void entity3d_position(struct entity3d *e, float x, float y, float z)
+{
+    e->dx = x;
+    e->dy = y;
+    e->dz = z;
+    if (e->phys_body) {
+        dBodySetPosition(e->phys_body->body, e->dx, e->dy + e->phys_body->yoffset, e->dz);
+        // dBodySetLinearVel(e->phys_body->body, 0, 0, 0);
+        // dBodySetAngularVel(e->phys_body->body, 0, 0, 0);
+        //dBodyDisable(e->phys_body->body);
+    }
 }
 
 void entity3d_move(struct entity3d *e, float dx, float dy, float dz)
 {
-    e->dx += dx;
-    e->dy += dy;
-    e->dz += dz;
-    if (e->phys_body)
-        dBodySetPosition(e->phys_body->body, e->dx, e->dz, e->dy + e->phys_body->zoffset);
+    entity3d_position(e, e->dx + dx, e->dy + dy, e->dz + dz);
 }
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)

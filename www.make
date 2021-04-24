@@ -2,17 +2,18 @@ CC := $(EMSDK)/upstream/emscripten/emcc
 LD := $(CC)
 CFLAGS := $(CFLAGS) -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s WASM=1
 CFLAGS += -s NO_EXIT_RUNTIME=1 -s USE_FREETYPE=1 -s USE_VORBIS=1 -s USE_LIBPNG=1
-LDFLAGS := $(LDFLAGS) --shell-file ./shell_clap.html --preload-file ./asset -g4
-LDFLAGS += -s USE_FREETYPE=1 -s SAFE_HEAP=1 -s USE_LIBPNG=1
+LDFLAGS := $(LDFLAGS) --shell-file ./shell_clap.html --preload-file ./asset -gsource-map
+LDFLAGS += -s USE_FREETYPE=1 -s SAFE_HEAP=1 -s USE_LIBPNG=1 -lidbfs.js
 LDFLAGS += -s ALLOW_MEMORY_GROWTH=1 -s WASM=1 -s EXIT_RUNTIME=1 -s USE_WEBGL2=1 -s FULL_ES3=1
-LDFLAGS += --no-heap-copy -lopenal -lvorbis -s USE_VORBIS=1 -s ASAN_SHADOW_SIZE=134217728
+LDFLAGS += --no-heap-copy -lopenal -lvorbis -s USE_VORBIS=1 -s INITIAL_MEMORY=536870912
+# -s ASAN_SHADOW_SIZE=134217728
 
 CFLAGS += -I../ode/include -I../ode/build/include
 LDFLAGS += ../ode/build/libode.a
 
 ifneq ($(DEBUG),)
 CFLAGS += -ggdb
-CFLAGS := $(subst -ggdb,-g4,$(CFLAGS))
+CFLAGS := $(subst -ggdb,-gsource-map,$(CFLAGS))
 #LDFLAGS += -fsanitize=null
 LDFLAGS += --source-map-base "http://ukko.local/clap/"
 endif

@@ -48,6 +48,7 @@ void logg(int level, const char *mod, int line, const char *func, char *fmt, ...
     logg(DBG, MODNAME, __LINE__, __func__, ## args);
 
 #define dbg_on(_c, args...) do { if ((_c)) dbg("condition '" # _c "': " args); } while (0)
+#define dbg_once(args...) do { static int __printed = 0; if (!__printed++) dbg(args) } while (0)
 #define msg(args...) \
     logg(NORMAL, MODNAME, __LINE__, __func__, ## args);
 #define warn(args...) \

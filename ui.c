@@ -111,11 +111,13 @@ int ui_element_update(struct entity3d *e, void *data)
     return 0;
 }
 
+static void ui_debug_update(struct ui *ui);
 void ui_update(struct ui *ui)
 {
     struct model3dtx *txmodel;
     struct entity3d  *ent, *itent;
 
+    ui_debug_update(ui);
     list_for_each_entry(txmodel, &ui->txmodels, entry) {
         list_for_each_entry(ent, &txmodel->entities, entry) {
             struct ui_element *uie = ent->priv;
@@ -464,6 +466,40 @@ static void ui_roll_init(struct ui *ui)
 static bool display_fps;
 static struct ui_text *bottom_uit;
 static struct ui_element *bottom_element;
+static char *ui_debug_str;
+static struct ui_text *debug_uit;
+static struct ui_element *debug_element;
+static struct font *debug_font;
+
+static void ui_debug_update(struct ui *ui)
+{
+    struct font *font = font_get(debug_font);
+    float color[] = { 0.9, 0.9, 0.9, 1.0 };
+
+    if (debug_uit) {
+        ref_put_last(&debug_uit->ref);
+    } else {
+        debug_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 400, 150);
+    }
+    debug_uit = ui_render_string(ui, font, debug_element, ui_debug_str, color, UI_AF_LEFT);
+    font_put(font);
+}
+
+void ui_debug_printf(const char *fmt, ...)
+{
+    char *old = ui_debug_str;
+    va_list va;
+    int ret;
+
+    va_start(va, fmt);
+    ret = vasprintf(&ui_debug_str, fmt, va);
+    va_end(va);
+
+    if (ret < 0)
+        ui_debug_str = NULL;
+    else
+        free(old);
+}
 
 static void ui_element_for_each_child(struct ui_element *uie, void (*cb)(struct ui_element *x, void *data), void *data)
 {
@@ -809,6 +845,7 @@ int ui_init(struct ui *ui, int width, int height)
 
     ui->click = sound_load("stapler.ogg");
     sound_set_gain(ui->click, 0.2);
+    debug_font = font_open("Pixellettersfull-BnJ5.ttf", 40);
     font = font_open("Pixellettersfull-BnJ5.ttf", 32);
     ui_model_init(ui);
     uie0 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
@@ -830,6 +867,7 @@ void ui_done(struct ui *ui)
     if (ui->menu)
         ui_menu_done(ui);
 
+    font_put(debug_font);
     ref_put(&uie0->ref);
     ref_put_last(&build_uit->ref);
     ref_put(&uie1->ref);
@@ -838,6 +876,8 @@ void ui_done(struct ui *ui)
         ref_put_last(&bottom_element->ref);
     }
     ref_put_last(&limeric_uit->ref);
+    ref_put(&debug_element->ref);
+    ref_put_last(&debug_uit->ref);
     ui_roll_done();
 
     /*

@@ -9,6 +9,7 @@
 #include "input.h"
 #include "messagebus.h"
 #include "librarian.h"
+#include "settings.h"
 #include "util.h"
 
 #if defined(__has_feature)
@@ -110,6 +111,7 @@ int clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
 
     log_init(log_flags);
     (void)librarian_init();
+    //clap_settings = settings_init();
 
     return 0;
 }

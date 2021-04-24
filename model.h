@@ -24,16 +24,12 @@ struct model3d {
     struct shader_prog  *prog;
     bool                cull_face;
     bool                alpha_blend;
+    float               aabb[6];
     GLuint              vertex_obj;
     GLuint              index_obj;
     GLuint              tex_obj;
     GLuint              norm_obj;
     GLuint              nr_vertices;
-    float               *vx;
-    float               *norm;
-    size_t              vxsz;
-    unsigned short      *idx;
-    size_t              idxsz;
 };
 
 struct model3dtx {
@@ -50,6 +46,9 @@ struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p
                                          size_t normsz);
 struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
 void model3d_set_name(struct model3d *m, const char *fmt, ...);
+float model3d_aabb_X(struct model3d *m);
+float model3d_aabb_Y(struct model3d *m);
+float model3d_aabb_Z(struct model3d *m);
 struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length);
 struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
@@ -69,8 +68,8 @@ static inline const char *txmodel_name(struct model3dtx *txm)
 /* XXX: find a better place; util.h not good */
 static inline float cos_interp(float a, float b, float blend)
 {
-    double theta = blend * M_PI;
-    float  f = (1.f - cos(theta)) / 2.f;
+    float theta = blend * M_PI;
+    float  f = (1.f - cosf(theta)) / 2.f;
     return a * (1.f - f) + b * f;
 }
 
@@ -90,13 +89,19 @@ struct entity3d {
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
-    void *phys_geom; /* XXX: probably don't need both of these */
+    /* Collision mesh, if needed */
+    float               *collision_vx;
+    size_t              collision_vxsz;
+    unsigned short      *collision_idx;
+    size_t              collision_idxsz;
+
     struct phys_body *phys_body;
     GLfloat color[4];
     GLfloat dx, dy, dz;
     GLfloat rx, ry, rz;
     GLfloat scale;
     int (*update)(struct entity3d *e, void *data);
+    int (*contact)(struct entity3d *e1, struct entity3d *e2);
     void *priv;
 };
 
@@ -110,10 +115,14 @@ static inline const char *entity_name(struct entity3d *e)
 }
 
 struct entity3d *entity3d_new(struct model3dtx *txm);
+float entity3d_aabb_X(struct entity3d *e);
+float entity3d_aabb_Y(struct entity3d *e);
+float entity3d_aabb_Z(struct entity3d *e);
 void entity3d_update(struct entity3d *e, void *data);
 void entity3d_put(struct entity3d *e);
 void entity3d_move(struct entity3d *e, float dx, float dy, float dz);
-void entity3d_add_physics(struct entity3d *e, double mass, enum geom_type geom_type, double geom_off, double geom_radius);
+void entity3d_position(struct entity3d *e, float x, float y, float z);
+void entity3d_add_physics(struct entity3d *e, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 void create_entities(struct model3dtx *txmodel);
 
 #endif /* __CLAP_MODEL_H__ */

@@ -36,7 +36,23 @@ void cleanup__ucharp(uchar **s);
 #define __stringify(x) (# x)
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
+#define xmin(a, b) (min((a), (b)) == (a) ? 0 : 1)
+#define min3(a, b, c) (min(a, min(b, c)))
+#define xmin3(a, b, c) ({ \
+    typeof(a) __x = min3((a), (b), (c)); \
+    int __w = 0; \
+    if (__x == (b)) __w = 1; else if (__x == (c)) __w = 2; \
+    __w; \
+})
 #define max(a, b) ((a) > (b) ? (a) : (b))
+#define xmax(a, b) (max((a), (b)) == (a) ? 0 : 1)
+#define max3(a, b, c) (max(a, max(b, c)))
+#define xmax3(a, b, c) ({ \
+    typeof(a) __x = max3((a), (b), (c)); \
+    int __w = 0; \
+    if (__x == (b)) __w = 1; else if (__x == (c)) __w = 2; \
+    __w; \
+})
 
 #define CHECK_NVAL(_st, _q, _val) ({ \
     typeof(_val) __x = _q (_st); \
@@ -127,6 +143,15 @@ static inline int clamp(int x, int floor, int ceil)
 }
 
 static inline float clampf(float x, float floor, float ceil)
+{
+    if (x > ceil)
+        return ceil;
+    else if (x < floor)
+        return floor;
+    return x;
+}
+
+static inline double clampd(double x, double floor, double ceil)
 {
     if (x > ceil)
         return ceil;

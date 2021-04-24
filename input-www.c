@@ -67,12 +67,13 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
             mi.up = 1;
         break;
     case 32:
-        if (e->ctrlKey)
+        /*if (e->ctrlKey)
             mi.focus_cancel = 1;
         if (e->shiftKey)
             mi.focus_prev = 1;
         else
-            mi.focus_next = 1;
+            mi.focus_next = 1;*/
+        mi.space = 1;
         break;
     case 77: /* m */
         mi.menu_toggle = 1;
@@ -92,6 +93,9 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     case 123: /* F12 */
         mi.verboser = 1;
         break;
+    default:
+        /* don't send empty messages */
+        return true;
     };
     message_input_send(&mi, &keyboard_source);
 
@@ -177,8 +181,11 @@ static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void
           e->mouse.ctrlKey ? " CTRL" : "", e->mouse.shiftKey ? " SHIFT" : "", e->mouse.altKey ? " ALT" : "", e->mouse.metaKey ? " META" : "",
           e->mouse.button, e->mouse.buttons, e->mouse.canvasX, e->mouse.canvasY,
           (float)e->deltaX, (float)e->deltaY, (float)e->deltaZ, e->deltaMode);*/
-    //dbg("### click: %d,%d\n", e->clientX, e->clientY);
-    mi.mouse_click = 1;
+    //dbg("### button: %hu buttons: %hu click: %d,%d\n", e->button, e->buttons, e->clientX, e->clientY);
+    if (e->button == 0)
+        mi.mouse_click = 1;
+    else if (e->button == 1)
+        mi.zoom = 1;
     mi.x = e->targetX;
     mi.y = e->targetY;
     message_input_send(&mi, &keyboard_source);

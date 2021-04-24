@@ -18,6 +18,7 @@ struct camera {
     float   pitch_turn;
 };
 
+struct ui;
 struct scene {
     char                *name;
     int                 width;
@@ -47,6 +48,7 @@ struct scene {
     int                 exit_timeout;
     int                 fullscreen;
     int                 proj_updated;
+    struct ui           *ui;
 };
 
 void scene_camera_calc(struct scene *s);
@@ -56,5 +58,6 @@ void scene_done(struct scene *scene);
 int  scene_load(struct scene *scene, const char *name);
 void scene_update(struct scene *scene);
 bool scene_camera_follows(struct scene *s, struct character *ch);
+void scene_characters_move(struct scene *s);
 
 #endif /* __CLAP_SCENE_H__ */

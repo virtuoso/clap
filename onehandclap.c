@@ -65,14 +65,33 @@ DECLARE_PROF(end);
 #define PROF_SHOW(x)
 #endif
 
+/* XXX */
+void ui_debug_printf(const char *fmt, ...);
+
 EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 {
     struct timespec ts_start;
     struct scene *s = data; /* XXX */
+    float y0, y1, y2;
+    dReal by;
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
     clap_fps_calc(&s->fps);
     PROF_FIRST(start);
+
+    fuzzer_input_step();
+
+    /*
+     * calls into character_move(): handle inputs, adjust velocities etc
+     * for the physics step
+     */
+    y0 = s->control->entity->dy;
+    scene_characters_move(s);
+
+    /*
+     * Collisions, dynamics
+     */
+    y1 = s->control->entity->dy;
     phys_step();
 
     PROF_STEP(phys, start);
@@ -80,9 +99,24 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     networking_poll();
     PROF_STEP(net, phys);
 
-    fuzzer_input_step();
-
+    /*
+     * calls entity3d_update() -> character_update()
+     */
+    y2 = s->control->entity->dy;
     scene_update(s);
+    if (s->control->entity->phys_body) {
+        dReal *pos = phys_body_position(s->control->entity->phys_body);
+        by = pos[1];
+    } else {
+        by = y2;
+    }
+
+    // ui_debug_printf("'%s': (%f,%f,%f)\nyoff: %f ray_off: %f\n%f+ %f +%f +%f || %f\n%s%s",
+    //                 s->control->entity ? entity_name(s->control->entity) : "", s->control->entity->dx, s->control->entity->dy,
+    //                 s->control->entity->dz, s->control->entity->phys_body ? s->control->entity->phys_body->yoffset : 0,
+    //                 s->control->entity->phys_body ? s->control->entity->phys_body->ray_off : 0,
+    //                 y0, y1-y0, y2-y1, s->control->entity->dy - y2, by,
+    //                 s->control->ragdoll ? "ragdoll " : "", s->control->stuck ? "stuck" : "");
     ui_update(&ui);
     PROF_STEP(updates, net);
 
@@ -98,6 +132,8 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
+    //glDisable(GL_DEPTH_TEST);
+    //glClear(GL_DEPTH_BUFFER_BIT);
     models_render(&ui.txmodels, NULL, NULL, NULL, NULL, NULL);
     PROF_STEP(ui, models);
 
@@ -286,9 +322,6 @@ int main(int argc, char **argv, char **envp)
 
     if (do_restart)
         cfg.quiet = 1;
-#ifdef CONFIG_BROWSER
-    scene.autopilot = 1;
-#endif
     clap_init(&cfg, argc, argv, envp);
 
     networking_init(&ncfg, CLIENT);
@@ -332,7 +365,7 @@ int main(int argc, char **argv, char **envp)
      * XXX: needs to be in the scene code, but can't be called before
      * GL is initialized
      */
-    scene.terrain = terrain_init(&scene, -500.0, 0.0, -500.0, 1000, 128);
+    scene.terrain = terrain_init(&scene, -100.0, 0.0, -100.0, 200, 128);
     fuzzer_input_init();
 
     if (fullscreen)

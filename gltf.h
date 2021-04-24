@@ -9,6 +9,8 @@ void gltf_instantiate_all(struct gltf_data *gd);
 int gltf_get_meshes(struct gltf_data *gd);
 int gltf_mesh(struct gltf_data *gd, const char *name);
 const char *gltf_mesh_name(struct gltf_data *gd, int mesh);
+void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,
+                    float **tx, size_t *txsz, float **norm, size_t *normsz);
 void *gltf_accessor_buf(struct gltf_data *gd, int accr);
 void *gltf_accessor_sz(struct gltf_data *gd, int accr);
 float *gltf_vx(struct gltf_data *gd, int mesh);

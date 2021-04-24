@@ -14,6 +14,7 @@ struct terrain {
 };
 
 float terrain_height(struct terrain *t, float x, float z);
+void terrain_normal(struct terrain *t, float x, float z, vec3 n);
 struct terrain *terrain_init(struct scene *s, float x, float y, float z, float side, unsigned int nr_v);
 void terrain_done(struct terrain *terrain);
 
