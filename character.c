@@ -38,28 +38,28 @@ void character_move(struct character *ch, struct scene *s)
      */
     //dRFromZAxis();
     if (vec3_len(ch->motion)) {
-        dVector3 newz = { ch->normal[0], ch->normal[1], ch->normal[2] };
-        dVector3 oldx = { 1, 0, 0 };
-        dVector3 newx, newy, res;
+        // dVector3 newz = { ch->normal[0], ch->normal[1], ch->normal[2] };
+        // dVector3 oldx = { 1, 0, 0 };
+        // dVector3 newx, newy, res;
         dMatrix3 R;
 
-        if ((ch->angle[0] < 0) != (ch->angle[2] < 0)) {
-            dCalcVectorCross3(newy, newz, oldx);
-            dCalcVectorCross3(newx, newy, newz);
-        } else {
-            dCalcVectorCross3(newy, oldx, newz);
-            dCalcVectorCross3(newx, newz, newy);
-        }
-        dNormalize3(newx);
-        dNormalize3(newy);
+        // if ((ch->angle[0] < 0) != (ch->angle[2] < 0)) {
+        //     dCalcVectorCross3(newy, newz, oldx);
+        //     dCalcVectorCross3(newx, newy, newz);
+        // } else {
+        //     dCalcVectorCross3(newy, oldx, newz);
+        //     dCalcVectorCross3(newx, newz, newy);
+        // }
+        // dNormalize3(newx);
+        // dNormalize3(newy);
 
         /* XXX: the numerator has to do with movement speed */
         vec3_scale(ch->angle, ch->motion, 60.f / (float)s->fps.fps_fine);
 
         /* watch out for Y and Z swapping places */
-        dScaleVector3(newx, ch->angle[0]);
-        dScaleVector3(newy, ch->angle[2]);
-        dAddScaledVectors3(res, newx, newy, ch->angle[0], ch->angle[2]);
+        // dScaleVector3(newx, ch->angle[0]);
+        // dScaleVector3(newy, ch->angle[2]);
+        // dAddScaledVectors3(res, newx, newy, ch->angle[0], ch->angle[2]);
         // if (scene_camera_follows(s, ch)) {
         //     ui_debug_printf("[ %f, %f, %f ] -> [ %f, %f, %f ]", ch->angle[0], ch->angle[1], ch->angle[2], res[0], res[1], res[2]);
         // }
