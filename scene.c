@@ -259,9 +259,9 @@ static int scene_handle_input(struct message *m, void *data)
      * TODO: all the below needs to go to character.c
      */
     if (m->input.trigger_r)
-        lin_speed *= (m->input.trigger_r + 1) * 10;
+        lin_speed *= (m->input.trigger_r + 1) * 3;
     else if (m->input.pad_rt)
-        lin_speed *= 10;
+        lin_speed *= 3;
 
     /* Use data from joystick sticks when available */
     if (m->input.delta_lx || m->input.delta_ly) {
@@ -319,6 +319,9 @@ static int scene_handle_input(struct message *m, void *data)
 
         if (m->input.space || m->input.pad_x) {
             vec3 jump = { s->control->motion[0], 5.0, s->control->motion[2] };
+            if (s->control->entity &&
+                s->control->entity->phys_body &&
+                phys_body_has_body(s->control->entity->phys_body))
             dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
             dBodySetLinearVel(s->control->entity->phys_body->body, jump[0], jump[1], jump[2]);
         }
@@ -347,8 +350,11 @@ static void scene_light_update(struct scene *scene)
     float day[3]        = { 1.0, 1.0, 1.0 };
     float night[3]      = { 0.3, 0.3, 0.4 };
 
-    scene->light.pos[0] = 500.0 * cos(to_radians((float)scene->frames_total / 4.0));
-    scene->light.pos[1] = 500.0 * sin(to_radians((float)scene->frames_total / 4.0));
+    /* we'll have to get rid of this */
+    // scene->light.pos[0] = 500.0 * cos(to_radians((float)scene->frames_total / 10.0));
+    // scene->light.pos[1] = 500.0 * sin(to_radians((float)scene->frames_total / 10.0));
+    scene->light.pos[0] = 0.0;
+    scene->light.pos[1] = 500.0;
     scene->light.pos[2] = 0.0;
     if (scene->light.pos[1] < 0.0) {
         scene->light.pos[1] = -scene->light.pos[1];
@@ -655,8 +661,8 @@ int scene_load(struct scene *scene, const char *name)
 
 void scene_done(struct scene *scene)
 {
-    struct model3dtx                                                                                                     *txmodel, *ittxm;
-    struct entity3d                                                                                                      *ent, *itent;
+    struct model3dtx *txmodel, *ittxm;
+    struct entity3d  *ent, *itent;
 
     terrain_done(scene->terrain);
     ref_put_last(&scene->camera.ch->ref);
