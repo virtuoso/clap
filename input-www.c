@@ -104,8 +104,8 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
 
 static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void *data)
 {
-    dbg("### GAMEPAD event: connected: %d index: %d nr_axes: %d nr_buttons: %d id: '%s' mapping: '%s'\n",
-        e->connected, e->index, e->numAxes, e->numButtons, e->id, e->mapping);
+    //dbg("### GAMEPAD event: connected: %d index: %d nr_axes: %d nr_buttons: %d id: '%s' mapping: '%s'\n",
+    //    e->connected, e->index, e->numAxes, e->numButtons, e->id, e->mapping);
 
     joystick_name_update(e->index, e->connected ? e->id : NULL);
     if (e->connected) {
@@ -115,6 +115,8 @@ static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void 
         ret = emscripten_get_gamepad_status(e->index, &ge);
         if (!ret)
             joystick_axes_update(e->index, ge.axis, ge.numAxes);
+        else
+            joystick_axes_update(e->index, e->axis, e->numAxes);
     }
 }
 
