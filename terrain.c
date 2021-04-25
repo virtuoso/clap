@@ -611,13 +611,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     return t;
 }
 
-#define LEVEL_MAX 16
-struct maze_vecs {
-    unsigned int    nr_inner_vx;
-    unsigned int    nr_inner_idx;
-    unsigned int    floor_level[LEVEL_MAX];
-};
-
 static void build_wall_idx(struct terrain *t, unsigned short *idx, unsigned long *pit, bool winding, unsigned long top_row, unsigned long bottom_row)
 {
     int i;
@@ -672,7 +665,6 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
     struct model3d *model;
     struct model3dtx *txm;
     float *vx, *norm, *tx;
-    struct maze_vecs mv;
     unsigned short *idx;
     struct timespec ts;
     struct terrain *t;
@@ -739,13 +731,11 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
 
     tx[it * 2 + 0] = 0;
     tx[it * 2 + 1] = 1;
-    mv.nr_inner_vx = it + 1;
 
     // dbg("[%d] VX [%f,%f,%f] TX [%f,%f]\n", it, vx[it*3], vx[it*3+1], vx[it*3+2],
     //     tx[it*2], tx[it*2+1]);
 
     /* level's vertices: [1 + 2 * nr_v * level..2 * nr_v * (level + 1)] */
-    mv.floor_level[0] = it;
     for (i = 0; i < nr_v; i++, it++) {
         for (level = 0; level < nr_levels; level++) {
             int pos;
@@ -836,8 +826,6 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
         // dbg("## outer wall level %d\n", level);
         build_wall_idx(t, idx, &it, false, outer_wall_top, outer_wall_bottom);
     }
-
-    mv.nr_inner_idx = it;
 
     model = model3d_new_from_vectors("terrain", prog, vx, vxsz, idx, idxsz,
                                      tx, txsz, norm, vxsz);
