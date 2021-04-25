@@ -466,7 +466,7 @@ static void ui_roll_init(struct ui *ui)
 static bool display_fps;
 static struct ui_text *bottom_uit;
 static struct ui_element *bottom_element;
-static char *ui_debug_str;
+static char *ui_debug_str = "";
 static struct ui_text *debug_uit;
 static struct ui_element *debug_element;
 static struct font *debug_font;
