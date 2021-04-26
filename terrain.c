@@ -628,44 +628,44 @@ static int tile_index(int nr_v, int level, int which, int tile)
     return base + 18 * nr_v * (level - 1) + 6 * nr_v * which + tile * 6;
 }
 
-static void tile_sides(int nr_v, int level, int which, int tile, bool winding,
-                       unsigned short *idx, int *tl, int *tr, int *bl, int *br)
+static void tile_sides(struct terrain *t, int level, int which, int tile, bool winding,
+                       int *tl, int *tr, int *bl, int *br)
 {
-    int t = tile_index(nr_v, level, which, tile);
+    int x = tile_index(t->nr_vert, level, which, tile);
 
     if (winding) {
-        *tl = idx[t + 0];
-        *tr = idx[t + 1];
-        *bl = idx[t + 2];
-        *br = idx[t + 4];
+        *tl = t->idx[x + 0];
+        *tr = t->idx[x + 1];
+        *bl = t->idx[x + 2];
+        *br = t->idx[x + 4];
     } else {
-        *tl = idx[t + 0];
-        *tr = idx[t + 2];
-        *bl = idx[t + 1];
-        *br = idx[t + 5];
+        *tl = t->idx[x + 0];
+        *tr = t->idx[x + 2];
+        *bl = t->idx[x + 1];
+        *br = t->idx[x + 5];
     }
 }
 
-static void build_one_quad(unsigned short *idx, int pos, bool winding, int top_left, int top_right, int bottom_left, int bottom_right)
+static void build_one_quad(struct terrain *t, int pos, bool winding, int top_left, int top_right, int bottom_left, int bottom_right)
 {
     if (winding) {
-        idx[pos++] = top_left;
-        idx[pos++] = top_right;
-        idx[pos++] = bottom_left;
-        idx[pos++] = top_right;
-        idx[pos++] = bottom_right;
-        idx[pos++] = bottom_left;
+        t->idx[pos++] = top_left;
+        t->idx[pos++] = top_right;
+        t->idx[pos++] = bottom_left;
+        t->idx[pos++] = top_right;
+        t->idx[pos++] = bottom_right;
+        t->idx[pos++] = bottom_left;
     } else {
-        idx[pos++] = top_left;
-        idx[pos++] = bottom_left;
-        idx[pos++] = top_right;
-        idx[pos++] = top_right;
-        idx[pos++] = bottom_left;
-        idx[pos++] = bottom_right;
+        t->idx[pos++] = top_left;
+        t->idx[pos++] = bottom_left;
+        t->idx[pos++] = top_right;
+        t->idx[pos++] = top_right;
+        t->idx[pos++] = bottom_left;
+        t->idx[pos++] = bottom_right;
     }
 }
 
-static void build_wall_idx(struct terrain *t, unsigned short *idx, int level, int which, bool winding, unsigned long top_row, unsigned long bottom_row)
+static void build_wall_idx(struct terrain *t, int level, int which, bool winding, unsigned long top_row, unsigned long bottom_row)
 {
     int i;
 
@@ -676,7 +676,7 @@ static void build_wall_idx(struct terrain *t, unsigned short *idx, int level, in
         int bottom_right = i == t->nr_vert - 1 ? bottom_row : bottom_left + 1;
         int x = tile_index(t->nr_vert, level, which, i);
 
-        build_one_quad(idx, x, winding, top_left, top_right, bottom_left, bottom_right);
+        build_one_quad(t, x, winding, top_left, top_right, bottom_left, bottom_right);
         // dbg("IDX[%d] %d, %d, %d / %d, %d, %d\n", x, idx[x-6], idx[x-5], idx[x-4], idx[x-3], idx[x-2], idx[x-1]);
     }
 }
@@ -696,24 +696,24 @@ static int first_vertex(int nr_v, int level, int outer, int top)
     return base + nr_v * (outer * 2 + top);
 }
 
-static void punch_hole(unsigned short *idx, int nr_v, int level, int tile)
+static void punch_hole(struct terrain *t, int level, int tile)
 {
-    int top_left     = first_vertex(nr_v, level,     0, 1) + tile;
-    int top_right    = first_vertex(nr_v, level - 1, 1, 1) + tile;
-    int bottom_left  = first_vertex(nr_v, level,     0, 0) + tile;
-    int bottom_right = first_vertex(nr_v, level - 1, 1, 0) + tile;
-    int pos = tile_index(nr_v, level, TILE_INNER, tile);
+    int top_left     = first_vertex(t->nr_vert, level,     0, 1) + tile;
+    int top_right    = first_vertex(t->nr_vert, level - 1, 1, 1) + tile;
+    int bottom_left  = first_vertex(t->nr_vert, level,     0, 0) + tile;
+    int bottom_right = first_vertex(t->nr_vert, level - 1, 1, 0) + tile;
+    int pos = tile_index(t->nr_vert, level, TILE_INNER, tile);
     int x, xx, xy;
 
-    build_one_quad(idx, pos, false, top_right, top_left, bottom_right, bottom_left);
-    pos = tile_index(nr_v, level - 1, TILE_OUTER, tile);
-    build_one_quad(idx, pos, false, top_left + 1, top_right + 1, bottom_left + 1, bottom_right + 1);
+    build_one_quad(t, pos, false, top_right, top_left, bottom_right, bottom_left);
+    pos = tile_index(t->nr_vert, level - 1, TILE_OUTER, tile);
+    build_one_quad(t, pos, false, top_left + 1, top_right + 1, bottom_left + 1, bottom_right + 1);
 
     if (level > 1) {
-        pos = tile_index(nr_v, level, TILE_FLOOR, tile);
-        tile_sides(nr_v, level, TILE_FLOOR, tile, false, idx, &top_left, &top_right, &xx, &xy);
-        tile_sides(nr_v, level - 1, TILE_FLOOR, tile, false, idx, &bottom_left, &bottom_right, &x, &x);
-        build_one_quad(idx, pos, false, top_left, top_right, bottom_left, bottom_right);
+        pos = tile_index(t->nr_vert, level, TILE_FLOOR, tile);
+        tile_sides(t, level, TILE_FLOOR, tile, false, &top_left, &top_right, &xx, &xy);
+        tile_sides(t, level - 1, TILE_FLOOR, tile, false, &bottom_left, &bottom_right, &x, &x);
+        build_one_quad(t, pos, false, top_left, top_right, bottom_left, bottom_right);
     }
 }
 
@@ -727,9 +727,9 @@ static void erect_wall(struct terrain *t, int level, int tile)
 
     t->nr_idx += 12;
     CHECK(t->idx = realloc(t->idx, terrain_idxsz(t)));
-    build_one_quad(t->idx, pos, false, top_left, top_right, bottom_left, bottom_right);
+    build_one_quad(t, pos, false, top_left, top_right, bottom_left, bottom_right);
     pos += 6;
-    build_one_quad(t->idx, pos, false, top_right, top_left, bottom_right, bottom_left);
+    build_one_quad(t, pos, false, top_right, top_left, bottom_right, bottom_left);
 }
 
 enum {
@@ -866,13 +866,6 @@ static struct maze_cell *maze_get_cell(struct circ_maze *m, unsigned int level, 
     return &m->cells[1 + (level - 1) * m->cells_per_level + cell];
 }
 
-static void maze_print(struct circ_maze *m)
-{
-    // struct maze_cell *mc = m->root;
-
-    // for 
-}
-
 static struct circ_maze *maze_build(unsigned int levels, unsigned int cells)
 {
     unsigned int i, level, cell;
@@ -899,7 +892,6 @@ static struct circ_maze *maze_build(unsigned int levels, unsigned int cells)
         }
     }
     m->cells = &mc[0];
-    maze_print(m);
 
     return m;
 }
@@ -1082,20 +1074,20 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
             int inner_wall_bottom = first_vertex(nr_v, level, 0, 0);
 
             // dbg("## inner wall %d\n", level);
-            build_wall_idx(t, t->idx, level, TILE_INNER, true, inner_wall_top, inner_wall_bottom);
+            build_wall_idx(t, level, TILE_INNER, true, inner_wall_top, inner_wall_bottom);
 
             // dbg("## floor level %d\n", level);
-            build_wall_idx(t, t->idx, level, TILE_FLOOR, false, floor_top, floor_bottom);
+            build_wall_idx(t, level, TILE_FLOOR, false, floor_top, floor_bottom);
         }
 
         /* wall */
         // dbg("## outer wall level %d\n", level);
-        build_wall_idx(t, t->idx, level, TILE_OUTER, false, outer_wall_top, outer_wall_bottom);
+        build_wall_idx(t, level, TILE_OUTER, false, outer_wall_top, outer_wall_bottom);
     }
 
     /* punch holes through the maze */
     for (level = 1; level < nr_levels; level++) {
-        punch_hole(t->idx, nr_v, level, level);
+        punch_hole(t, level, level);
         erect_wall(t, level, level);
     }
 
