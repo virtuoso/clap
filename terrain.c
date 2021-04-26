@@ -696,14 +696,56 @@ static int first_vertex(int nr_v, int level, int outer, int top)
     return base + nr_v * (outer * 2 + top);
 }
 
-#define MC_LINKS_MAX 4
+static void punch_hole(unsigned short *idx, int nr_v, int level, int tile)
+{
+    int top_left     = first_vertex(nr_v, level,     0, 1) + tile;
+    int top_right    = first_vertex(nr_v, level - 1, 1, 1) + tile;
+    int bottom_left  = first_vertex(nr_v, level,     0, 0) + tile;
+    int bottom_right = first_vertex(nr_v, level - 1, 1, 0) + tile;
+    int pos = tile_index(nr_v, level, TILE_INNER, tile);
+    int x, xx, xy;
+
+    build_one_quad(idx, pos, false, top_right, top_left, bottom_right, bottom_left);
+    pos = tile_index(nr_v, level - 1, TILE_OUTER, tile);
+    build_one_quad(idx, pos, false, top_left + 1, top_right + 1, bottom_left + 1, bottom_right + 1);
+
+    if (level > 1) {
+        pos = tile_index(nr_v, level, TILE_FLOOR, tile);
+        tile_sides(nr_v, level, TILE_FLOOR, tile, false, idx, &top_left, &top_right, &xx, &xy);
+        tile_sides(nr_v, level - 1, TILE_FLOOR, tile, false, idx, &bottom_left, &bottom_right, &x, &x);
+        build_one_quad(idx, pos, false, top_left, top_right, bottom_left, bottom_right);
+    }
+}
+
+static void erect_wall(struct terrain *t, int level, int tile)
+{
+    int top_left     = first_vertex(t->nr_vert, level, 1, 1) + tile;
+    int top_right    = first_vertex(t->nr_vert, level - 1, 1, 1) + tile;
+    int bottom_left  = first_vertex(t->nr_vert, level, 1, 0) + tile;
+    int bottom_right = first_vertex(t->nr_vert, level - 1, 1, 0) + tile;
+    int pos = t->nr_idx;
+
+    t->nr_idx += 12;
+    CHECK(t->idx = realloc(t->idx, terrain_idxsz(t)));
+    build_one_quad(t->idx, pos, false, top_left, top_right, bottom_left, bottom_right);
+    pos += 6;
+    build_one_quad(t->idx, pos, false, top_right, top_left, bottom_right, bottom_left);
+}
+
+enum {
+    MCL_UP = 0,
+    MCL_DOWN,
+    MCL_LEFT,
+    MCL_RIGHT,
+    MC_LINKS_MAX,
+};
+
 struct maze_cell {
     /* address */
     unsigned int         level;
     unsigned int         cell;
     /* cell can have up to 4 links (root could have nr_cells, but doesn't) */
     struct maze_cell     *links[MC_LINKS_MAX];
-    unsigned int         nr_links;
 };
 
 static bool cell_is_root(struct maze_cell *mc)
@@ -722,15 +764,52 @@ static bool cells_do_link(struct maze_cell *mc, struct maze_cell *to)
     return false;
 }
 
+static int cells_vdist(struct maze_cell *a, struct maze_cell *b)
+{
+    return a->level - b->level;
+}
+
+static int cells_hdist(struct maze_cell *a, struct maze_cell *b)
+{
+    return a->cell - b->cell;
+}
+
+static int cells_dir(struct maze_cell *a, struct maze_cell *b)
+{
+    int vdist = cells_vdist(a, b);
+    int hdist = cells_hdist(a, b);
+
+    if (vdist && hdist)
+        return MC_LINKS_MAX;
+
+    switch (vdist) {
+    case 1:
+        return MCL_DOWN;
+    case -1:
+        return MCL_UP;
+    default:
+        break;
+    }
+    switch (hdist) {
+    case 1:
+        return MCL_LEFT;
+    case -1:
+        return MCL_RIGHT;
+    default:
+        break;
+    }
+    return MC_LINKS_MAX;
+}
+
 static bool cells_can_link(struct maze_cell *mc, struct maze_cell *to)
 {
-    if (mc->nr_links == MC_LINKS_MAX || to->nr_links == MC_LINKS_MAX)
-        return false;
-
     if (cells_do_link(mc, to))
         return false;
 
-    return true;
+    if (cells_dir(mc, to) != MC_LINKS_MAX)
+        return true;
+
+    return false;
 }
 
 static int cell_link(struct maze_cell *mc, struct maze_cell *to)
@@ -738,25 +817,10 @@ static int cell_link(struct maze_cell *mc, struct maze_cell *to)
     if (cells_can_link(mc, to))
         return -1;
     
-    mc->links[mc->nr_links++] = to;
-    to->links[to->nr_links++] = mc;
+    mc->links[cells_dir(mc, to)] = to;
+    to->links[cells_dir(to, mc)] = mc;
 
     return 0;
-}
-
-static void __cell_unlink(struct maze_cell *mc, struct maze_cell *from)
-{
-    int i, j;
-
-    for (i = 0; i < MC_LINKS_MAX; i++)
-        if (mc->links[i] == from) {
-            mc->links[i] = NULL;
-            for (j = i; j < mc->nr_links - 1; j++)
-                mc->links[j] = mc->links[j + 1];
-            if (j < MC_LINKS_MAX)
-                mc->links[j] = NULL;
-            mc->nr_links--;
-        }
 }
 
 static int cell_unlink(struct maze_cell *mc, struct maze_cell *from)
@@ -764,8 +828,8 @@ static int cell_unlink(struct maze_cell *mc, struct maze_cell *from)
     if (!cells_do_link(mc, from))
         return -1;
 
-    __cell_unlink(mc, from);
-    __cell_unlink(from, mc);
+    mc->links[cells_dir(mc, from)] = NULL;
+    from->links[cells_dir(from, mc)] = NULL;
 
     return 0;
 }
@@ -776,6 +840,26 @@ struct circ_maze {
     unsigned int     cells_total;
     struct maze_cell *cells;
 };
+
+/* XXX: root is a silly idea, better to mark entry/exit cells */
+static int maze_root_link(struct circ_maze *m, struct maze_cell *mc)
+{
+    int i;
+
+    if (mc->links[MCL_DOWN])
+        return -1;
+
+    for (i = 0; i < MC_LINKS_MAX; i++)
+        if (!m->cells->links[i])
+            goto found;
+    return -1;
+
+found:
+    m->cells->links[i] = mc;
+    mc->links[MCL_DOWN] = m->cells;
+
+    return 0;
+}
 
 static struct maze_cell *maze_get_cell(struct circ_maze *m, unsigned int level, unsigned int cell)
 {
@@ -820,23 +904,19 @@ static struct circ_maze *maze_build(unsigned int levels, unsigned int cells)
     return m;
 }
 
-//static void wall_cut(struct terrain *t,)
 struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, float z, float radius, unsigned int nr_v, unsigned int nr_levels)
 {
     float room_side = radius / nr_levels, height = 20, wall, texmag = 1.0;
     struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
     struct bsp_part *bsp_root;
-    size_t vxsz, txsz, idxsz;
     struct model3d *model;
     struct model3dtx *txm;
-    float *vx, *norm, *tx;
     unsigned long total;
-    unsigned short *idx;
     struct timespec ts;
     struct terrain *t;
     int i, j, level;
 
-    wall = 1;//min(0.1, sqrt(room_side));
+    wall = min(0.1, sqrt(room_side));
     CHECK(t = ref_new(struct terrain, ref, terrain_drop));
     clock_gettime(CLOCK_REALTIME, &ts);
     t->seed  = ts.tv_nsec;
@@ -866,34 +946,41 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
     /*
      * vertices:
      * level 0: center + 2 * nr_v outer wall edges = 1 + 2 * nr_v
-     * level 1+: outer wall edges (bottom,top) + inner wall edges (bottom,top) = 4 * nr_v
+     * level 1+: outer wall edges (bottom,top) + inner wall edges (bottom,top) + floor = 6 * nr_v
      */
-    total = 1 + nr_v * (2 + 4 * (nr_levels - 1));
-    vxsz  = total * sizeof(*vx) * 3;
-    txsz  = total * sizeof(*tx) * 2;
+    t->nr_vx = 1 + nr_v * (2 + 4 * (nr_levels - 1));
+
     /*
      * indices:
      * level 0: nr_v triangles + 2 * nr_v wall in quads = 3 * nr_v;
      * level 1+: 3 quads (outer wall, floor, inner wall) = 6 * nr_v
      */
-    idxsz = (3 * nr_v + 6 * nr_v * (nr_levels - 1)) * sizeof(*idx) * 3;
+    t->nr_idx = (3 * nr_v + 6 * nr_v * (nr_levels - 1)) * 3;
 
-    CHECK(vx    = malloc(vxsz));
-    CHECK(norm  = malloc(vxsz));
-    CHECK(tx    = malloc(txsz));
-    CHECK(idx   = malloc(idxsz));
-    if (!vx || !norm || !tx || !idx)
+    /*
+     * now, we add walls using indices of existing vertices, so
+     * we need more space in the idx array;
+     * a new wall is 2 quads
+     * idxsz += 6 * nr_v * (nr_levels - 1)
+     * or we can just realloc
+     */
+
+    CHECK(t->vx    = malloc(terrain_vxsz(t)));
+    CHECK(t->norm  = malloc(terrain_vxsz(t)));
+    CHECK(t->tx    = malloc(terrain_txsz(t)));
+    CHECK(t->idx   = malloc(terrain_idxsz(t)));
+    if (!t->vx || !t->norm || !t->tx || !t->idx)
         return NULL;
 
     /* center */
-    vx[0] = x;
-    vx[1] = y;
-    vx[2] = z;
-    norm[0] = 0;
-    norm[1] = 1;
-    norm[2] = 0;
-    tx[0] = 0;
-    tx[1] = 1;
+    t->vx[0] = x;
+    t->vx[1] = y;
+    t->vx[2] = z;
+    t->norm[0] = 0;
+    t->norm[1] = 1;
+    t->norm[2] = 0;
+    t->tx[0] = 0;
+    t->tx[1] = 1;
 
     // dbg("[%d] VX [%f,%f,%f] TX [%f,%f]\n", it, vx[it*3], vx[it*3+1], vx[it*3+2],
     //     tx[it*2], tx[it*2+1]);
@@ -908,63 +995,79 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
                 //pos += 2 * nr_v * (level - 1);
                 /* inner wall bottom */
                 pos = first_vertex(nr_v, level, 0, 0) + i;
-                vx[pos * 3 + 0] = x + room_side * cos(i * M_PI * 2 / nr_v) * level + wall;
-                vx[pos * 3 + 1] = y; /* no height variation yet */
-                vx[pos * 3 + 2] = z + room_side * sin(i * M_PI * 2 / nr_v) * level + wall;
-                norm[pos * 3 + 0] = 0;
-                norm[pos * 3 + 1] = 1;
-                norm[pos * 3 + 2] = 0;
-                tx[pos * 2 + 0] = i & 1 ? texmag : 0;
-                tx[pos * 2 + 1] = level & 1 ? 0 : texmag;
+                t->vx[pos * 3 + 0] = x + (room_side + wall / level) * cos(i * M_PI * 2 / nr_v) * level;
+                t->vx[pos * 3 + 1] = y; /* no height variation yet */
+                t->vx[pos * 3 + 2] = z + (room_side + wall / level) * sin(i * M_PI * 2 / nr_v) * level;
+                t->norm[pos * 3 + 0] = 0;
+                t->norm[pos * 3 + 1] = 1;
+                t->norm[pos * 3 + 2] = 0;
+                if (level & 1) {
+                    t->tx[pos * 2 + 0] = i & 1 ? texmag : 0;
+                } else {
+                    t->tx[pos * 2 + 0] = i & 1 ? 0 : texmag;
+                }
+                t->tx[pos * 2 + 1] = level & 1 ? 0 : texmag;
                 // dbg("[%d:%d] VX [%f,%f,%f] TX [%f,%f]\n", level, pos, vx[pos*3], vx[pos*3+1], vx[pos*3+2],
                 //     tx[pos*2], tx[pos*2+1]);
 
                 /* inner wall top */
                 pos = first_vertex(nr_v, level, 0, 1) + i;
-                vx[pos * 3 + 0] = vx[(pos-nr_v) * 3 + 0];
-                vx[pos * 3 + 1] = y + height;
-                vx[pos * 3 + 2] = vx[(pos-nr_v) * 3 + 2];
-                norm[pos * 3 + 0] = 0;
-                norm[pos * 3 + 1] = -1;
-                norm[pos * 3 + 2] = 0;
-                tx[pos * 2 + 0] = i & 1 ? texmag : 0;
-                tx[pos * 2 + 1] = level & 1 ? texmag : 0;
+                t->vx[pos * 3 + 0] = t->vx[(pos-nr_v) * 3 + 0];
+                t->vx[pos * 3 + 1] = y + height;
+                t->vx[pos * 3 + 2] = t->vx[(pos-nr_v) * 3 + 2];
+                t->norm[pos * 3 + 0] = 0;
+                t->norm[pos * 3 + 1] = -1;
+                t->norm[pos * 3 + 2] = 0;
+                if (level & 1) {
+                    t->tx[pos * 2 + 0] = i & 1 ? texmag : 0;
+                } else {
+                    t->tx[pos * 2 + 0] = i & 1 ? 0 : texmag;
+                }
+                t->tx[pos * 2 + 1] = level & 1 ? texmag : 0;
                 // dbg("[%d:%d] VX [%f,%f,%f] TX [%f,%f]\n", level, pos, vx[pos*3], vx[pos*3+1], vx[pos*3+2],
                 //     tx[pos*2], tx[pos*2+1]);
             }
             /* outer wall bottom */
             pos = first_vertex(nr_v, level, 1, 0) + i;
-            vx[pos * 3 + 0] = x + room_side * cos(i * M_PI * 2 / nr_v) * (level + 1);
-            vx[pos * 3 + 1] = y; /* no height variation yet */
-            vx[pos * 3 + 2] = z + room_side * sin(i * M_PI * 2 / nr_v) * (level + 1);
-            norm[pos * 3 + 0] = 0;
-            norm[pos * 3 + 1] = 1;
-            norm[pos * 3 + 2] = 0;
-            tx[pos * 2 + 0] = i & 1 ? texmag : 0;
-            tx[pos * 2 + 1] = level & 1 ? texmag : 0;
+            t->vx[pos * 3 + 0] = x + room_side * cos(i * M_PI * 2 / nr_v) * (level + 1);
+            t->vx[pos * 3 + 1] = y; /* no height variation yet */
+            t->vx[pos * 3 + 2] = z + room_side * sin(i * M_PI * 2 / nr_v) * (level + 1);
+            t->norm[pos * 3 + 0] = 0;
+            t->norm[pos * 3 + 1] = 1;
+            t->norm[pos * 3 + 2] = 0;
+            if (level & 1) {
+                t->tx[pos * 2 + 0] = i & 1 ? texmag : 0;
+            } else {
+                t->tx[pos * 2 + 0] = i & 1 ? 0 : texmag;
+            }
+            t->tx[pos * 2 + 1] = level & 1 ? texmag : 0;
             // dbg("[%d:%d] VX [%f,%f,%f] TX [%f,%f]\n", level, pos, vx[pos*3], vx[pos*3+1], vx[pos*3+2],
             //     tx[pos*2], tx[pos*2+1]);
 
             /* outer wall top */
             pos = first_vertex(nr_v, level, 1, 1) + i;
-            vx[pos * 3 + 0] = vx[(pos-nr_v) * 3 + 0];
-            vx[pos * 3 + 1] = y + height;
-            vx[pos * 3 + 2] = vx[(pos-nr_v) * 3 + 2];
-            norm[pos * 3 + 0] = 0;
-            norm[pos * 3 + 1] = -1;
-            norm[pos * 3 + 2] = 0;
-            tx[pos * 2 + 0] = i & 1 ? texmag : 0;
-            tx[pos * 2 + 1] = level & 1 ? 0 : texmag;
+            t->vx[pos * 3 + 0] = t->vx[(pos-nr_v) * 3 + 0];
+            t->vx[pos * 3 + 1] = y + height;
+            t->vx[pos * 3 + 2] = t->vx[(pos-nr_v) * 3 + 2];
+            t->norm[pos * 3 + 0] = 0;
+            t->norm[pos * 3 + 1] = -1;
+            t->norm[pos * 3 + 2] = 0;
+            if (level & 1) {
+                t->tx[pos * 2 + 0] = i & 1 ? texmag : 0;
+            } else {
+                t->tx[pos * 2 + 0] = i & 1 ? 0 : texmag;
+            }
+            t->tx[pos * 2 + 1] = level & 1 ? 0 : texmag;
             // dbg("[%d:%d] VX [%f,%f,%f] TX [%f,%f]\n", level, pos, vx[pos*3], vx[pos*3+1], vx[pos*3+2],
             //     tx[pos*2], tx[pos*2+1]);
         }
     }
 
     for (i = 0; i < nr_v; i++) {
-        idx[i * 3 + 0] = i + 1;     /* top left */
-        idx[i * 3 + 1] = 0; /* bottom */
-        idx[i * 3 + 2] = i == nr_v - 1 ? 1 : i + 2; /* top right */
-        // dbg("IDX %d, %d, %d\n", idx[it-3], idx[it-2], idx[it-1]);
+        t->idx[i * 3 + 0] = i + 1;     /* top left */
+        t->idx[i * 3 + 1] = 0; /* bottom */
+        t->idx[i * 3 + 2] = i == nr_v - 1 ? 1 : i + 2; /* top right */
+        // dbg("IDX %d, %d, %d\n", t->idx[it-3], idx[it-2], idx[it-1]);
     }
 
     for (level = 0; level < nr_levels; level++) {
@@ -979,42 +1082,27 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
             int inner_wall_bottom = first_vertex(nr_v, level, 0, 0);
 
             // dbg("## inner wall %d\n", level);
-            build_wall_idx(t, idx, level, TILE_INNER, true, inner_wall_top, inner_wall_bottom);
+            build_wall_idx(t, t->idx, level, TILE_INNER, true, inner_wall_top, inner_wall_bottom);
 
             // dbg("## floor level %d\n", level);
-            build_wall_idx(t, idx, level, TILE_FLOOR, false, floor_top, floor_bottom);
+            build_wall_idx(t, t->idx, level, TILE_FLOOR, false, floor_top, floor_bottom);
         }
 
         /* wall */
         // dbg("## outer wall level %d\n", level);
-        build_wall_idx(t, idx, level, TILE_OUTER, false, outer_wall_top, outer_wall_bottom);
+        build_wall_idx(t, t->idx, level, TILE_OUTER, false, outer_wall_top, outer_wall_bottom);
     }
 
     /* punch holes through the maze */
     for (level = 1; level < nr_levels; level++) {
-        int top_left     = first_vertex(nr_v, level,     0, 1);
-        int top_right    = first_vertex(nr_v, level - 1, 1, 1);
-        int bottom_left  = first_vertex(nr_v, level,     0, 0);
-        int bottom_right = first_vertex(nr_v, level - 1, 1, 0);
-        int pos = tile_index(nr_v, level, TILE_INNER, 0);
-        int x;
-
-        build_one_quad(idx, pos, false, top_right, top_left, bottom_right, bottom_left);
-        pos = tile_index(nr_v, level - 1, TILE_OUTER, 0);
-        build_one_quad(idx, pos, false, top_left + 1, top_right + 1, bottom_left + 1, bottom_right + 1);
-
-        if (level > 1) {
-            pos = tile_index(nr_v, level, TILE_FLOOR, 0);
-            tile_sides(nr_v, level, TILE_FLOOR, 0, false, idx, &top_left, &top_right, &x, &x);
-            tile_sides(nr_v, level - 1, TILE_FLOOR, 0, false, idx, &bottom_left, &bottom_right, &x, &x);
-            build_one_quad(idx, pos, false, top_left, top_right, bottom_left, bottom_right);
-        }
+        punch_hole(t->idx, nr_v, level, level);
+        erect_wall(t, level, level);
     }
 
-    model = model3d_new_from_vectors("terrain", prog, vx, vxsz, idx, idxsz,
-                                     tx, txsz, norm, vxsz);
-    free(tx);
-    free(norm);
+    model = model3d_new_from_vectors("terrain", prog, t->vx, terrain_vxsz(t), t->idx, terrain_idxsz(t),
+                                     t->tx, terrain_txsz(t), t->norm, terrain_vxsz(t));
+    free(t->tx);
+    free(t->norm);
 
     // txm = model3dtx_new(model, "grass20.png");
     // txm = model3dtx_new(model, "stonewall.png");
@@ -1022,10 +1110,10 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
     ref_put(&model->ref);
     scene_add_model(s, txm);
     t->entity = entity3d_new(txm);
-    t->entity->collision_vx = vx;
-    t->entity->collision_vxsz = vxsz;
-    t->entity->collision_idx = idx;
-    t->entity->collision_idxsz = idxsz;
+    t->entity->collision_vx = t->vx;
+    t->entity->collision_vxsz = terrain_vxsz(t);
+    t->entity->collision_idx = t->idx;
+    t->entity->collision_idxsz = terrain_idxsz(t);
     t->entity->visible = 1;
     t->entity->update  = NULL;
     model3dtx_add_entity(txm, t->entity);
