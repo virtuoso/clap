@@ -232,7 +232,7 @@ static bool bsp_within_rect(struct bsp_part *bp, int x, int y)
 static void bsp_larger_smaller(struct bsp_part **a, struct bsp_part **b)
 {
     if (bsp_area(*a) < bsp_area(*b)) {
-        struct bsp_area *x = *b;
+        struct bsp_part *x = *b;
         *b = *a;
         *a = x;
     }
@@ -408,7 +408,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     unsigned short *idx;
     struct bsp_part *bsp_root;
     struct timespec ts;
-    mat4x4 idm;
     int i, j;
 
     CHECK(t = ref_new(struct terrain, ref, terrain_drop));
@@ -733,185 +732,302 @@ static void erect_wall(struct terrain *t, int level, int tile)
 }
 
 enum {
-    MCL_UP = 0,
-    MCL_DOWN,
+    MCL_DOWN = 0,
+    MCL_UP,
     MCL_LEFT,
     MCL_RIGHT,
     MC_LINKS_MAX,
 };
 
-struct maze_cell {
-    /* address */
-    unsigned int         level;
-    unsigned int         cell;
-    /* cell can have up to 4 links (root could have nr_cells, but doesn't) */
-    struct maze_cell     *links[MC_LINKS_MAX];
-};
-
-static bool cell_is_root(struct maze_cell *mc)
-{
-    return !mc->level && !mc->cell;
-}
-
-static bool cells_do_link(struct maze_cell *mc, struct maze_cell *to)
-{
-    int i;
-
-    for (i = 0; i < MC_LINKS_MAX; i++)
-        if (mc->links[i] == to || to->links[i] == mc)
-            return true;
-
-    return false;
-}
-
-static int cells_vdist(struct maze_cell *a, struct maze_cell *b)
-{
-    return a->level - b->level;
-}
-
-static int cells_hdist(struct maze_cell *a, struct maze_cell *b)
-{
-    return a->cell - b->cell;
-}
-
-static int cells_dir(struct maze_cell *a, struct maze_cell *b)
-{
-    int vdist = cells_vdist(a, b);
-    int hdist = cells_hdist(a, b);
-
-    if (vdist && hdist)
-        return MC_LINKS_MAX;
-
-    switch (vdist) {
-    case 1:
-        return MCL_DOWN;
-    case -1:
-        return MCL_UP;
-    default:
-        break;
-    }
-    switch (hdist) {
-    case 1:
-        return MCL_LEFT;
-    case -1:
-        return MCL_RIGHT;
-    default:
-        break;
-    }
-    return MC_LINKS_MAX;
-}
-
-static bool cells_can_link(struct maze_cell *mc, struct maze_cell *to)
-{
-    if (cells_do_link(mc, to))
-        return false;
-
-    if (cells_dir(mc, to) != MC_LINKS_MAX)
-        return true;
-
-    return false;
-}
-
-static int cell_link(struct maze_cell *mc, struct maze_cell *to)
-{
-    if (cells_can_link(mc, to))
-        return -1;
-    
-    mc->links[cells_dir(mc, to)] = to;
-    to->links[cells_dir(to, mc)] = mc;
-
-    return 0;
-}
-
-static int cell_unlink(struct maze_cell *mc, struct maze_cell *from)
-{
-    if (!cells_do_link(mc, from))
-        return -1;
-
-    mc->links[cells_dir(mc, from)] = NULL;
-    from->links[cells_dir(from, mc)] = NULL;
-
-    return 0;
-}
-
 struct circ_maze {
     unsigned int     nr_levels;
-    unsigned int     cells_per_level;
+    unsigned int     cpl;
     unsigned int     cells_total;
-    struct maze_cell *cells;
+    unsigned char    *layout;
 };
 
-/* XXX: root is a silly idea, better to mark entry/exit cells */
-static int maze_root_link(struct circ_maze *m, struct maze_cell *mc)
+static unsigned char xyarray_get(unsigned char *arr, int width, int x, int y)
 {
-    int i;
+    if (x < 0)
+        x = width - 1;
+    else if (x >= width)
+        x = 0;
+    return arr[y * width + x];
+}
 
-    if (mc->links[MCL_DOWN])
+static void xyarray_set(unsigned char *arr, int width, int x, int y, unsigned char v)
+{
+    if (x < 0)
+        x = width - 1;
+    else if (x >= width)
+        x = 0;
+    arr[y * width + x] = v;
+}
+
+static void xyarray_print(unsigned char *arr, int width, int height)
+{
+    char str[512];
+    int i, j, p;
+
+    for (j = 0; j < height; j++) {
+        for (i = 0, p = 0; i < width; i++)
+            p += sprintf(str + p, "%.01x ", xyarray_get(arr, width, i, j));
+        dbg("arr[%d]: %s\n", j, str);
+    }
+}
+
+static inline unused void dir_clear_down(unsigned char *v)
+{
+    *v &= ~(1 << MCL_DOWN);
+}
+
+static inline unused void dir_clear_up(unsigned char *v)
+{
+    *v &= ~(1 << MCL_UP);
+}
+
+static inline unused void dir_clear_left(unsigned char *v)
+{
+    *v &= ~(1 << MCL_LEFT);
+}
+
+static inline unused void dir_clear_right(unsigned char *v)
+{
+    *v &= ~(1 << MCL_RIGHT);
+}
+
+static inline unused void dir_set_down(unsigned char *v)
+{
+    *v |= 1 << MCL_DOWN;
+}
+
+static inline unused void dir_set_up(unsigned char *v)
+{
+    *v |= 1 << MCL_UP;
+}
+
+static inline unused void dir_set_left(unsigned char *v)
+{
+    *v |= 1 << MCL_LEFT;
+}
+
+static inline unused void dir_set_right(unsigned char *v)
+{
+    *v |= 1 << MCL_RIGHT;
+}
+
+static inline unused bool dir_is_down(unsigned char v)
+{
+    return v & (1 << MCL_DOWN);
+}
+
+static inline unused bool dir_is_up(unsigned char v)
+{
+    return v & (1 << MCL_UP);
+}
+
+static inline unused bool dir_is_left(unsigned char v)
+{
+    return v & (1 << MCL_LEFT);
+}
+
+static inline unused bool dir_is_right(unsigned char v)
+{
+    return v & (1 << MCL_RIGHT);
+}
+
+static unsigned char maze_get(struct circ_maze *m, int cell, int level)
+{
+    return xyarray_get(m->layout, m->cpl, cell, level);
+}
+
+static int opposite_dir(int dir)
+{
+    switch (dir) {
+        case MCL_UP:
+            return MCL_DOWN;
+        case MCL_DOWN:
+            return MCL_UP;
+        case MCL_LEFT:
+            return MCL_RIGHT;
+        case MCL_RIGHT:
+            return MCL_LEFT;
+        default:
+            break;
+    }
+    return -1;
+}
+
+static int maze_get_cell_from_dir(struct circ_maze *m, int *cell, int *level, int dir)
+{
+    int ncell = *cell, nlevel = *level;
+
+    switch (dir) {
+        case MCL_UP:
+            nlevel++;
+            break;
+        case MCL_DOWN:
+            nlevel--;
+            break;
+        case MCL_LEFT:
+            ncell = ncell ? ncell - 1 : m->cpl - 1;
+            break;
+        case MCL_RIGHT:
+            ncell = ncell < m->cpl - 1 ? ncell + 1 : 0;
+            break;
+        default:
+            return -1;
+    }
+    if (nlevel < 0 || nlevel >= m->nr_levels)
         return -1;
 
-    for (i = 0; i < MC_LINKS_MAX; i++)
-        if (!m->cells->links[i])
-            goto found;
-    return -1;
-
-found:
-    m->cells->links[i] = mc;
-    mc->links[MCL_DOWN] = m->cells;
-
+    *cell = ncell;
+    *level = nlevel;
     return 0;
 }
 
-static struct maze_cell *maze_get_cell(struct circ_maze *m, unsigned int level, unsigned int cell)
+static int maze_get_neighbor(struct circ_maze *m, int cell, int level, int dir)
 {
-    return &m->cells[1 + (level - 1) * m->cells_per_level + cell];
+    int ret;
+
+    ret = maze_get_cell_from_dir(m, &cell, &level, dir);
+    if (ret < 0)
+        return ret;
+
+    return maze_get(m, cell, level);
+}
+
+static void maze_set(struct circ_maze *m, int cell, int level, unsigned char v)
+{
+    int i, ncell, nlevel;
+    int nv;
+
+    for (i = 0; i < MC_LINKS_MAX; i++) {
+        if (!(v & (1 << i)))
+            continue;
+
+        ncell = cell; nlevel = level;
+        nv = maze_get_cell_from_dir(m, &ncell, &nlevel, i);
+        if (nv < 0)
+            continue;
+        nv = maze_get(m, ncell, nlevel);
+        nv |= 1 << opposite_dir(i);
+        xyarray_set(m->layout, m->cpl, ncell, nlevel, nv);
+    }
+    xyarray_set(m->layout, m->cpl, cell, level, v);
+}
+
+/* pick the next empty neighbor */
+static int maze_rand_dir(struct circ_maze *m, int cell, int level, int prev_dir)
+{
+    int dir, possible = 0xf;
+
+    possible &= ~(1 << opposite_dir(prev_dir));
+    if (!level)
+        possible &= ~(1 << MCL_DOWN);
+    else if (level == m->nr_levels - 1)
+        possible &= ~(1 << MCL_UP);
+    for (dir = 0; dir < MC_LINKS_MAX; dir++)
+        if (possible & (1 << dir) && maze_get_neighbor(m, cell, level, dir) > 0)
+            possible &= ~(1 << dir);
+    /* no options left */
+    if (!possible)
+        return -1;
+    /* one option left */
+    if (!(possible & (possible - 1)))
+        return ffs(possible) - 1;
+
+    /* more than one option -- roll the dice */
+    for (dir = lrand48()&3; !(possible & (1 << dir)); dir = lrand48()&3)
+        ;
+    // dbg("### rand dir: %d/%x from %x\n", dir, 1 << dir, possible);
+    return dir;
+}
+
+static void maze_maker(struct circ_maze *m)
+{
+    /* fixed start and finish for starters */
+    unsigned int slevel = 0, scell = 0, flevel = m->nr_levels - 1, fcell = m->cpl - 1;
+    int level, cell, dir = MCL_UP, new_dir;
+    unsigned char *map, v;
+
+    CHECK(map = calloc(m->cells_total, 1));
+    memset(map, 0xff, m->cells_total);
+
+    xyarray_set(map, m->cpl, scell, slevel, 0);
+    for (level = slevel, cell = scell; level != flevel || cell != fcell;) {
+        v = maze_get(m, cell, level);
+        new_dir = maze_rand_dir(m, cell, level, dir);
+        dbg("##  rand_dir(%d,%d) -> %d (%d)\n", level, cell, new_dir, dir);
+        if (new_dir < 0) {
+backtrack:
+            /* nowhere to go that's unoccupied, backtrack */
+            if (maze_get_cell_from_dir(m, &cell, &level, opposite_dir(dir)) < 0)
+                break;
+            dir = xyarray_get(map, m->cpl, cell, level);
+            dbg("## backtracked to %d,%d (%d)\n", level, cell, dir);
+            continue;
+        }
+
+        v |= 1 << new_dir;
+        maze_set(m, cell, level, v);
+        xyarray_set(map, m->cpl, cell, level, dir);
+
+        dbg("## going from %d,%d to %d\n", level, cell, new_dir);
+        /* shouldn't happen: maze_rand_dir() already checked this */
+        if (maze_get_cell_from_dir(m, &cell, &level, new_dir) < 0)
+            goto backtrack;
+        dir = new_dir;
+        dbg("## going to %d,%d\n", level, cell);
+        // xyarray_print(m->layout, m->cpl, m->nr_levels);
+    }
+    v = maze_get(m, scell, slevel);
+    v |= 1 << MCL_DOWN;
+    maze_set(m, scell, slevel, v);
 }
 
 static struct circ_maze *maze_build(unsigned int levels, unsigned int cells)
 {
-    unsigned int i, level, cell;
-    struct maze_cell *mc, *prev;
     struct circ_maze *m;
 
     CHECK(m = calloc(1, sizeof(*m)));
     m->nr_levels = levels - 1; /* level 0 has one cell */
-    m->cells_per_level = cells;
-    m->cells_total = m->nr_levels * cells + 1;
-    CHECK(mc = calloc(m->cells_total, sizeof(*mc)));
-    /* leave mc[0] with all zeroes -- it's root */
-    for (i = 1, level = 1, cell = 0, prev = &mc[0]; i < m->cells_total; i++) {
-        mc[i].level = level;
-        mc[i].cell  = cell++;
-        cell_link(&mc[i], prev);
-        prev = &mc[i];
-        if (cell == cells) {
-            /* loop */
-            prev = &mc[i - cells + 1]; /* first cell for this level */
-            cell_link(&mc[i], prev);
-            cell = 0;
-            level++;
-        }
-    }
-    m->cells = &mc[0];
+    m->cpl = cells;
+    m->cells_total = m->nr_levels * cells;
+
+    CHECK(m->layout = calloc(m->cells_total, 1));
+
+    // dbg("## maze %d x %d, power: %d/%d\n", m->nr_levels, m->cpl, maze_power(m),
+    //     m->cells_total * 4);
+    maze_maker(m);
+    xyarray_print(m->layout, m->cpl, m->nr_levels);
 
     return m;
+}
+
+static void maze_destroy(struct circ_maze *m)
+{
+    free(m->layout);
+    free(m);
 }
 
 struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, float z, float radius, unsigned int nr_v, unsigned int nr_levels)
 {
     float room_side = radius / nr_levels, height = 20, wall, texmag = 1.0;
     struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
-    struct bsp_part *bsp_root;
     struct model3d *model;
     struct model3dtx *txm;
-    unsigned long total;
+    struct circ_maze *m;
     struct timespec ts;
     struct terrain *t;
-    int i, j, level;
+    int i, level;
 
+    m = maze_build(nr_levels, nr_v);
     wall = min(0.1, sqrt(room_side));
     CHECK(t = ref_new(struct terrain, ref, terrain_drop));
     clock_gettime(CLOCK_REALTIME, &ts);
     t->seed  = ts.tv_nsec;
+    srand48(t->seed);
 
     //bsp_root = bsp_process(t->seed, 5, 0, 0, nr_v, nr_v, terrain_bsp_cb, NULL);
 
@@ -1087,14 +1203,24 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
 
     /* punch holes through the maze */
     for (level = 1; level < nr_levels; level++) {
-        punch_hole(t, level, level);
-        erect_wall(t, level, level);
+        for (i = 0; i < nr_v; i++) {
+            unsigned char v = maze_get(m, i, level - 1);
+            if (dir_is_down(v))
+                punch_hole(t, level, i);
+            if (dir_is_up(v))
+                punch_hole(t, level + 1, i);
+            // if (!dir_is_left(v))
+            //     erect_wall(t, level, i ? i - 1 : nr_v - 1);
+            if (!dir_is_right(v))
+                erect_wall(t, level, i < nr_v - 1 ? i + 1 : 0);
+        }
     }
 
     model = model3d_new_from_vectors("terrain", prog, t->vx, terrain_vxsz(t), t->idx, terrain_idxsz(t),
                                      t->tx, terrain_txsz(t), t->norm, terrain_vxsz(t));
     free(t->tx);
     free(t->norm);
+    maze_destroy(m);
 
     // txm = model3dtx_new(model, "grass20.png");
     // txm = model3dtx_new(model, "stonewall.png");
