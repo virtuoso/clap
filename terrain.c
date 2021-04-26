@@ -743,6 +743,10 @@ struct circ_maze {
     unsigned int     nr_levels;
     unsigned int     cpl;
     unsigned int     cells_total;
+    unsigned int     scell;
+    unsigned int     slevel;
+    unsigned int     fcell;
+    unsigned int     flevel;
     unsigned char    *layout;
 };
 
@@ -858,7 +862,7 @@ static int opposite_dir(int dir)
     return -1;
 }
 
-static int maze_get_cell_from_dir(struct circ_maze *m, int *cell, int *level, int dir)
+static int maze_get_cell_from_dir(struct circ_maze *m, unsigned int *cell, unsigned int *level, int dir)
 {
     int ncell = *cell, nlevel = *level;
 
@@ -886,7 +890,7 @@ static int maze_get_cell_from_dir(struct circ_maze *m, int *cell, int *level, in
     return 0;
 }
 
-static int maze_get_neighbor(struct circ_maze *m, int cell, int level, int dir)
+static int maze_get_neighbor(struct circ_maze *m, unsigned int cell, unsigned int level, int dir)
 {
     int ret;
 
@@ -897,10 +901,10 @@ static int maze_get_neighbor(struct circ_maze *m, int cell, int level, int dir)
     return maze_get(m, cell, level);
 }
 
-static void maze_set(struct circ_maze *m, int cell, int level, unsigned char v)
+static void maze_set(struct circ_maze *m, unsigned int cell, unsigned int level, unsigned char v)
 {
-    int i, ncell, nlevel;
-    int nv;
+    unsigned int ncell, nlevel;
+    int i, nv;
 
     for (i = 0; i < MC_LINKS_MAX; i++) {
         if (!(v & (1 << i)))
@@ -944,46 +948,105 @@ static int maze_rand_dir(struct circ_maze *m, int cell, int level, int prev_dir)
     return dir;
 }
 
+static bool maze_has_holes(struct circ_maze *m, unsigned int *pcell, unsigned int *plevel)
+{
+    int level, cell;
+
+    for (level = 0; level < m->nr_levels; level++)
+        for (cell = 0; cell < m->cpl; cell++)
+            if (!maze_get(m, cell, level)) {
+                *pcell = cell;
+                *plevel = level;
+                return true;
+            }
+    return false;
+}
+
+struct maze_walker {
+    unsigned int    level, cell;
+    int             dir, new_dir;
+};
+
+static void maze_walker_init(struct maze_walker *w, unsigned int cell, unsigned int level)
+{
+    w->level = level;
+    w->dir = MCL_UP;
+    w->cell = cell;
+}
+
+static void maze_walkers_init(struct circ_maze *m, struct maze_walker *w, int nr)
+{
+    int i;
+
+    for (i = 0; i < nr; i++)
+        maze_walker_init(&w[i], m->scell + m->cpl / nr * i, m->slevel);
+}
+
+static bool walkers_finished(struct circ_maze *m, struct maze_walker *w, int nr)
+{
+    int i;
+
+    for (i = 0; i < nr; i++)
+        if (w[i].level != m->flevel || w[i].cell != m->fcell)
+            return false;
+    return true;
+}
+
 static void maze_maker(struct circ_maze *m)
 {
-    /* fixed start and finish for starters */
-    unsigned int slevel = 0, scell = 0, flevel = m->nr_levels - 1, fcell = m->cpl - 1;
-    int level, cell, dir = MCL_UP, new_dir;
+    //int level, cell, dir = MCL_UP, new_dir;
+    struct maze_walker walker[2];
+    int nw = 2;
     unsigned char *map, v;
 
     CHECK(map = calloc(m->cells_total, 1));
     memset(map, 0xff, m->cells_total);
 
-    xyarray_set(map, m->cpl, scell, slevel, 0);
-    for (level = slevel, cell = scell; level != flevel || cell != fcell;) {
-        v = maze_get(m, cell, level);
-        new_dir = maze_rand_dir(m, cell, level, dir);
-        dbg("##  rand_dir(%d,%d) -> %d (%d)\n", level, cell, new_dir, dir);
-        if (new_dir < 0) {
+    // xyarray_set(map, m->cpl, m->scell, m->slevel, 0);
+    /*
+     * 2 passes:
+     * 1st to find the path from start to finish;
+     * 2nd to build blind paths;
+     */
+    maze_walkers_init(m, walker, nw);
+repeat:
+    while (!walkers_finished(m, walker, nw)) {
+        v = maze_get(m, walker[0].cell, walker[0].level);
+        walker[0].new_dir = maze_rand_dir(m, walker[0].cell, walker[0].level, walker[0].dir);
+        // dbg("##  rand_dir(%d,%d) -> %d (%d)\n", level, cell, new_dir, dir);
+        if (walker[0].new_dir < 0) {
 backtrack:
             /* nowhere to go that's unoccupied, backtrack */
-            if (maze_get_cell_from_dir(m, &cell, &level, opposite_dir(dir)) < 0)
+            if (maze_get_cell_from_dir(m, &walker[0].cell, &walker[0].level, opposite_dir(walker[0].dir)) < 0)
                 break;
-            dir = xyarray_get(map, m->cpl, cell, level);
-            dbg("## backtracked to %d,%d (%d)\n", level, cell, dir);
+            walker[0].dir = xyarray_get(map, m->cpl, walker[0].cell, walker[0].level);
+            // dbg("## backtracked to %d,%d (%d)\n", level, cell, dir);
             continue;
         }
 
-        v |= 1 << new_dir;
-        maze_set(m, cell, level, v);
-        xyarray_set(map, m->cpl, cell, level, dir);
+        v |= 1 << walker[0].new_dir;
+        maze_set(m, walker[0].cell, walker[0].level, v);
+        xyarray_set(map, m->cpl, walker[0].cell, walker[0].level, walker[0].dir);
 
-        dbg("## going from %d,%d to %d\n", level, cell, new_dir);
+        // dbg("## going from %d,%d to %d\n", level, cell, new_dir);
         /* shouldn't happen: maze_rand_dir() already checked this */
-        if (maze_get_cell_from_dir(m, &cell, &level, new_dir) < 0)
+        if (maze_get_cell_from_dir(m, &walker[0].cell, &walker[0].level, walker[0].new_dir) < 0)
             goto backtrack;
-        dir = new_dir;
-        dbg("## going to %d,%d\n", level, cell);
+        walker[0].dir = walker[0].new_dir;
+        // dbg("## going to %d,%d\n", level, cell);
         // xyarray_print(m->layout, m->cpl, m->nr_levels);
     }
-    v = maze_get(m, scell, slevel);
+
+    if (maze_has_holes(m, &walker[0].cell, &walker[0].level)) {
+        dbg("## hole at %d,%d\n", walker[0].level, walker[0].cell);
+        nw = 1;
+        goto repeat;
+    }
+
+    free(map);
+    v = maze_get(m, m->scell, m->slevel);
     v |= 1 << MCL_DOWN;
-    maze_set(m, scell, slevel, v);
+    maze_set(m, m->scell, m->slevel, v);
 }
 
 static struct circ_maze *maze_build(unsigned int levels, unsigned int cells)
@@ -994,6 +1057,10 @@ static struct circ_maze *maze_build(unsigned int levels, unsigned int cells)
     m->nr_levels = levels - 1; /* level 0 has one cell */
     m->cpl = cells;
     m->cells_total = m->nr_levels * cells;
+    m->scell  = 0;
+    m->slevel = 0;
+    m->fcell  = m->cpl / 2;
+    m->flevel = m->nr_levels - 1;
 
     CHECK(m->layout = calloc(m->cells_total, 1));
 
