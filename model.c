@@ -330,6 +330,108 @@ void model3dtx_done(struct model3dtx *txm)
     model3d_done(txm->model);
 }
 
+static int fbo_create(void)
+{
+    int fbo;
+
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    return fbo;
+}
+
+static int fbo_texture(struct fbo *fbo)
+{
+    int tex;
+
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fbo->width, fbo->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return tex;
+}
+
+static int fbo_depth_texture(struct fbo *fbo)
+{
+    int tex;
+
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    // glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, fbo->width, fbo->height, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, fbo->width, fbo->height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex, 0);
+    // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, tex, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return tex;
+}
+
+static int fbo_depth_buffer(struct fbo *fbo)
+{
+    int buf;
+
+    glGenRenderbuffers(1, &buf);
+    glBindRenderbuffer(GL_RENDERBUFFER, buf);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buf);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    return buf;
+}
+
+void fbo_prepare(struct fbo *fbo)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo);
+    glViewport(0, 0, fbo->width, fbo->height);
+}
+
+void fbo_done(struct fbo *fbo, int width, int height)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, width, height);
+}
+
+static void fbo_drop(struct ref *ref)
+{
+    struct fbo *fbo = container_of(ref, struct fbo, ref);
+
+    glDeleteTextures(1, &fbo->tex);
+    if (fbo->depth_tex)
+        glDeleteTextures(1, &fbo->depth_tex);
+    if (fbo->depth_buf)
+        glDeleteRenderbuffers(1, &fbo->depth_buf);
+    glDeleteFramebuffers(1, &fbo->fbo);
+}
+
+struct fbo *fbo_new(int width, int height)
+{
+    struct fbo *fbo;
+    int ret;
+
+    CHECK(fbo = ref_new(struct fbo, ref, fbo_drop));
+    fbo->width = width;
+    fbo->height = height;
+    fbo->fbo = fbo_create();
+    fbo->tex = fbo_texture(fbo);
+    //fbo->depth_tex = fbo_depth_texture(fbo);
+    fbo->depth_buf = fbo_depth_buffer(fbo);
+    ret = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (ret != GL_FRAMEBUFFER_COMPLETE)
+        dbg("## framebuffer status: %d\n", ret);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return fbo;
+}
+
 void models_render(struct list *list, struct light *light, struct matrix4f *view_mx,
                    struct matrix4f *inv_view_mx, struct matrix4f *proj_mx, struct entity3d *focus)
 {

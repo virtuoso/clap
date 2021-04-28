@@ -32,6 +32,7 @@ struct settings *settings;
 struct sound *intro_sound;
 struct scene scene; /* XXX */
 struct ui ui;
+struct fbo *fbo;
 
 #ifdef PROFILER
 struct profile {
@@ -123,7 +124,15 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     /* XXX: this actually goes to ->update() */
     scene_camera_calc(s);
 
+    fbo_prepare(fbo);
     /* Can't touch this */
+    glEnable(GL_DEPTH_TEST);
+    glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+
+    models_render(&s->txmodels, &s->light, s->view_mx, s->inv_view_mx, s->proj_mx, s->focus);
+    fbo_done(fbo, s->width, s->height);
+
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -163,14 +172,38 @@ static void projmx_update(struct scene *s)
     s->proj_updated++;
 }
 
+static void fbo_update(int width, int height)
+{
+    if (fbo)
+        ref_put(&fbo->ref);
+
+    if (!ui.prog)
+        return;
+    if (width > height) {
+        width /= 2;
+    } else {
+        height /= 2;
+    }
+    fbo = fbo_new(width, height);
+    ui_pip_update(&ui, fbo);
+}
+
 void resize_cb(int width, int height)
 {
-    ui.width = scene.width = width;
-    ui.height = scene.height = height;
+    ui.width  = width;
+    ui.height = height;
+    // if (width > height) {
+    //     width /= 2;
+    // } else {
+    //     height /= 2;
+    // }
+    scene.width  = width;
+    scene.height = height;
     scene.aspect = (float)width / (float)height;
     trace("resizing to %dx%d\n", width, height);
-    glViewport(0, 0, scene.width, scene.height);
+    glViewport(0, 0, ui.width, ui.height);
     projmx_update(&scene);
+    fbo_update(width, height);
 }
 
 /*struct model_config {
@@ -374,6 +407,7 @@ int main(int argc, char **argv, char **envp)
     scene_load(&scene, "scene.json");
     gl_get_sizes(&scene.width, &scene.height);
     ui_init(&ui, scene.width, scene.height);
+    fbo_update(scene.width, scene.height);
 
     settings = settings_init(settings_onload, NULL);
 

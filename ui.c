@@ -828,6 +828,38 @@ static int ui_handle_input(struct message *m, void *data)
 static struct ui_text *limeric_uit;
 static struct ui_text *build_uit;
 struct ui_element *uie0, *uie1;
+static int ui_fbo_tex; /* XXX */
+static int ui_fbo_width, ui_fbo_height;
+static struct model3dtx *ui_pip;
+
+void ui_pip_update(struct ui *ui, struct fbo *fbo)
+{
+    struct model3d *m;
+    struct shader_prog *prog;
+
+    ui_fbo_tex = fbo->tex;
+    ui_fbo_width = fbo->width;
+    ui_fbo_height = fbo->height;
+
+    if (ui_pip)
+        ref_put(&ui_pip->ref);
+    if (uie0)
+        ref_put(&uie0->ref);
+
+    prog = shader_prog_find(ui->prog, "ui");
+    m = model3d_new_quad(prog, 0, 1, 0.1, 1, -1);
+    m->cull_face = false;
+    m->alpha_blend = false;
+    ui_pip = model3dtx_new_txid(m, ui_fbo_tex);
+    ref_put(&m->ref);
+    ui_add_model_tail(ui, ui_pip);
+    ref_put(&prog->ref);
+    dbg("### ui_pip tex: %d width: %d height: %d\n", ui_fbo_tex, ui_fbo_width, ui_fbo_height);
+    if (ui_fbo_width < ui_fbo_height)
+        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_VCENTER | UI_AF_LEFT, 0, 0, ui_fbo_width, ui_fbo_height);
+    else
+        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, ui_fbo_width, ui_fbo_height);
+}
 
 static const char text_str[] =
     "On the chest of a barmaid in Sale\n"
@@ -848,9 +880,8 @@ int ui_init(struct ui *ui, int width, int height)
     debug_font = font_open("Pixellettersfull-BnJ5.ttf", 40);
     font = font_open("Pixellettersfull-BnJ5.ttf", 32);
     ui_model_init(ui);
-    uie0 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_RIGHT, 10, 10, 300, 100);
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
-    limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
+    //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
     build_uit = ui_render_string(ui, font, uie1, BUILDDATE, color, 0);
 
     font_put(font);
@@ -875,7 +906,7 @@ void ui_done(struct ui *ui)
         ref_put_last(&bottom_uit->ref);
         ref_put_last(&bottom_element->ref);
     }
-    ref_put_last(&limeric_uit->ref);
+    //ref_put_last(&limeric_uit->ref);
     ref_put(&debug_element->ref);
     ref_put_last(&debug_uit->ref);
     ui_roll_done();

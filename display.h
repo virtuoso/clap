@@ -2,7 +2,7 @@
 #define __CLAP_DISPLAY_H__
 
 #ifdef CONFIG_BROWSER
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <EGL/egl.h>
 #define GL_GLEXT_PROTOTYPES
 #include <GLES2/gl2ext.h>

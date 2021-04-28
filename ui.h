@@ -95,6 +95,7 @@ struct ui {
     float mod_x, mod_y;
 };
 
+void ui_pip_update(struct ui *ui, struct fbo *fbo);
 struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, struct model3dtx *txmodel,
                                   unsigned long affinity, float x_off, float y_off, float w, float h);
 

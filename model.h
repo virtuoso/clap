@@ -82,6 +82,15 @@ static inline float barrycentric(vec3 p1, vec3 p2, vec3 p3, vec2 pos)
     return l1 * p1[1] + l2 * p2[1] + l3 * p3[1];
 }
 
+struct fbo {
+    struct ref  ref;
+    int width, height;
+    int fbo, tex, depth_tex, depth_buf;
+};
+struct fbo *fbo_new(int width, int height);
+void fbo_prepare(struct fbo *fbo);
+void fbo_done(struct fbo *fbo, int width, int height);
+
 struct entity3d {
     struct model3dtx *txmodel;
     struct matrix4f  *mx;
