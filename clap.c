@@ -21,7 +21,7 @@ const char *__asan_default_options() {
      * malloc_context_size=20
      */
     return "verbosity=1:check_initialization_order=true:detect_stack_use_after_return=true:"
-	   "alloc_dealloc_mismatch=true:strict_string_checks=true";
+	   "alloc_dealloc_mismatch=true:strict_string_checks=true:abort_on_error=true";
 }
 # endif /* __has_feature(address_sanitizer) */
 #endif /* __has_feature */
