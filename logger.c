@@ -310,7 +310,7 @@ notrace void logg(int level, const char *mod, int line, const char *func, char *
 }
 
 #define ROW_MAX 16
-#define ROW_LEN (ROW_MAX * 3 + 1)
+#define ROW_LEN (ROW_MAX * 3 + 1 + 3 + ROW_MAX)
 void hexdump(unsigned char *buf, size_t size)
 {
     char row[ROW_LEN];
@@ -320,12 +320,17 @@ void hexdump(unsigned char *buf, size_t size)
     for (done = 0; done < size; done++) {
         i = done % ROW_MAX;
         if (!i) {
+            // s += sprintf(row + s, "  |");
+            // s += sprintf(row + s, "|");
+            row[ROW_MAX * 3] = ' ';
             s = 0;
             if (done)
                 dbg("XD: %s\n", row);
         }
         s += snprintf(row + s, ROW_LEN - s, "%02x ", buf[done]);
+        row[ROW_LEN - ROW_MAX - 3 + i] = isalnum(buf[done]) ? buf[done] : '.';
     }
+
     if (s)
         dbg("XD: %s\n", row);
 }
