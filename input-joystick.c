@@ -277,6 +277,14 @@ void joysticks_poll(void)
                     state = JB_RELEASE;
             }
 
+            /*
+             * TODO: so the idea is to communicate press/hold/release
+             * directly to the subscribers, instead of decoding it here;
+             * also, the subscribers are already pretty much dealing with
+             * xbox-style mapping; the user-level input mapping should
+             * only apply to some subscribers (like, "player") and not
+             * the others (like, "ui"). Here's another todo.
+             */
             if (t == BTN_LEFT && jb_press(state))
                 mi.left = 1;
             else if (t == BTN_RIGHT && jb_press(state))
@@ -307,9 +315,9 @@ void joysticks_poll(void)
                 mi.pad_plus = 1;
             else if (t == BTN_HOME && jb_press_hold(state))
                 mi.pad_home = 1;
-            else if (t == BTN_STICKL && jb_press_hold(state))
+            else if (t == BTN_STICKL && jb_press(state))
                 mi.stick_l = 1;
-            else if (t == BTN_STICKR && jb_press_hold(state))
+            else if (t == BTN_STICKR && jb_press(state))
                 mi.stick_r = 1;
 
             if (mi.pad_lt && j->abuttons[BTN_PADLT])
