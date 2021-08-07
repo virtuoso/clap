@@ -4,11 +4,13 @@
 #include "matrix.h"
 #include "model.h"
 #include "physics.h"
+#include "scene.h"
 
 struct character {
     struct ref  ref;
     struct entity3d *entity;
     int (*orig_update)(struct entity3d *, void *);
+    struct camera *camera;
     /* XXX: the below double entity's: dx,dy,dz,rx,ry,rz */
     GLfloat pos[3];
     GLfloat pitch;  /* left/right */

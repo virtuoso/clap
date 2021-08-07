@@ -23,7 +23,7 @@ void ui_debug_printf(const char *fmt, ...);
 void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
-    struct character *cam = s->camera.ch;
+    struct character *cam = s->camera->ch;
     float height;
 
     /*
@@ -150,7 +150,7 @@ static int character_update(struct entity3d *e, void *data)
         if (phys_body_update(e)) {
             c->moved++;
             if (scene_camera_follows(s, c))
-                s->camera.ch->moved++;
+                s->camera->ch->moved++;
         }
         c->pos[0] = e->dx;
         c->pos[1] = e->dy;

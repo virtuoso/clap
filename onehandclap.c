@@ -122,22 +122,24 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     PROF_STEP(updates, net);
 
     /* XXX: this actually goes to ->update() */
-    scene_camera_calc(s);
+    scene_cameras_calc(s);
 
-    fbo_prepare(fbo);
-    /* Can't touch this */
+    if (fbo) {
+        fbo_prepare(fbo);
+        /* Can't touch this */
+        glEnable(GL_DEPTH_TEST);
+        glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
+        glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+
+        models_render(&s->txmodels, &s->light, s->camera[1].view_mx, s->camera[1].inv_view_mx, s->proj_mx, s->focus);
+        fbo_done(fbo, s->width, s->height);
+    }
+
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    models_render(&s->txmodels, &s->light, s->view_mx, s->inv_view_mx, s->proj_mx, s->focus);
-    fbo_done(fbo, s->width, s->height);
-
-    glEnable(GL_DEPTH_TEST);
-    glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
-    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-
-    models_render(&s->txmodels, &s->light, s->view_mx, s->inv_view_mx, s->proj_mx, s->focus);
+    models_render(&s->txmodels, &s->light, s->camera->view_mx, s->camera->inv_view_mx, s->proj_mx, s->focus);
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
@@ -283,27 +285,6 @@ static int handle_command(struct message *m, void *data)
     return 0;
 }
 
-static void scene_camera_init(struct scene *s)
-{
-    struct model3d *m = model3d_new_cube(s->prog);
-    struct model3dtx *txm = model3dtx_new(m, "transparent.png");
-    struct entity3d *entity;
-
-    ref_put(&m->ref);
-    scene.camera.ch = character_new(txm, s);
-    entity = character_entity(scene.camera.ch);
-    scene.control   = scene.camera.ch;
-    model3d_set_name(m, "camera");
-    model3dtx_add_entity(txm, entity);
-    scene_add_model(s, entity->txmodel);
-
-    scene.camera.ch->pos[0] = 0.0;
-    scene.camera.ch->pos[1] = 3.0;
-    scene.camera.ch->pos[2] = -4.0;
-    scene.camera.yaw        = 180;
-    scene.camera.ch->moved++;
-}
-
 static struct option long_options[] = {
     { "autopilot",  no_argument,        0, 'A' },
     { "fullscreen", no_argument,        0, 'F' },
@@ -389,7 +370,6 @@ int main(int argc, char **argv, char **envp)
     sound_init();
     phys_init();
     phys->ground_contact = ohc_ground_contact;
-    //scene.camera.phys_body = phys_body_new(phys,);
 
     subscribe(MT_INPUT, handle_input, NULL);
     subscribe(MT_COMMAND, handle_command, &scene);
@@ -419,18 +399,20 @@ int main(int argc, char **argv, char **envp)
 
     scene_load(&scene, "scene.json");
     gl_get_sizes(&scene.width, &scene.height);
+
     ui_init(&ui, scene.width, scene.height);
+
+    scene_camera_add(&scene);
+    scene_camera_add(&scene);
+    scene.camera = &scene.cameras[1];
+
     fbo_update(scene.width, scene.height);
 
-    settings = settings_init(settings_onload, NULL);
-
-    scene.lin_speed = 2.0;
+    scene.lin_speed = 1.0;
     scene.ang_speed = 45.0;
 
-    scene_camera_init(&scene);
-
     scene.limbo_height = -70.0;
-    scene_camera_calc(&scene);
+    scene_cameras_calc(&scene);
 
     scene.light.pos[0] = 50.0;
     scene.light.pos[1] = 50.0;

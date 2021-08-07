@@ -8,6 +8,7 @@
 #include "model.h"
 #include "physics.h"
 
+#define NR_CAMERAS_MAX 4
 struct camera {
     struct character *ch;
     GLfloat pitch;  /* left/right */
@@ -16,9 +17,10 @@ struct camera {
     unsigned int zoom;
     float   yaw_turn;
     float   pitch_turn;
+    struct matrix4f     *view_mx;
+    struct matrix4f     *inv_view_mx;
 };
 
-struct ui;
 struct scene {
     char                *name;
     int                 width;
@@ -30,10 +32,9 @@ struct scene {
     struct character    *control;
     struct shader_prog  *prog;
     struct matrix4f     *proj_mx;
-    struct matrix4f     *view_mx;
-    struct matrix4f     *inv_view_mx;
     struct terrain      *terrain;
-    struct camera       camera;
+    struct camera       *camera;
+    struct camera       cameras[NR_CAMERAS_MAX];
     struct light        light;
     /* FPS calculation -- very important! */
     unsigned long       frames_total;
@@ -44,14 +45,15 @@ struct scene {
     float               limbo_height;
     float               aspect;
     float               auto_yoffset;
+    int                 nr_cameras;
     int                 autopilot;
     int                 exit_timeout;
     int                 fullscreen;
     int                 proj_updated;
-    struct ui           *ui;
 };
 
-void scene_camera_calc(struct scene *s);
+int scene_camera_add(struct scene *s);
+void scene_cameras_calc(struct scene *s);
 int scene_add_model(struct scene *s, struct model3dtx *txm);
 int scene_init(struct scene *scene);
 void scene_done(struct scene *scene);

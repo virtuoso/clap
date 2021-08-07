@@ -13,17 +13,17 @@ struct sound *click;
 
 static bool is_camera(struct scene *s, struct character *ch)
 {
-    return s->camera.ch == ch;
+    return s->camera->ch == ch;
 }
 
 static void scene_camera_autopilot(struct scene *s)
 {
-    s->camera.ch->pos[1] = s->auto_yoffset + 2.0;
+    s->camera->ch->pos[1] = s->auto_yoffset + 2.0;
 
-    s->camera.ch->motion[2] = -s->lin_speed;
-    s->camera.ch->motion[0] = 0;
-    s->camera.yaw_turn  = -s->ang_speed / 5;
-    s->camera.ch->moved++;
+    s->camera->ch->motion[2] = -s->lin_speed;
+    s->camera->ch->motion[0] = 0;
+    s->camera->yaw_turn  = -s->ang_speed / 5;
+    s->camera->ch->moved++;
 }
 
 static void scene_control_next(struct scene *s)
@@ -40,7 +40,7 @@ static void scene_control_next(struct scene *s)
     else
         s->control = list_next_entry(s->control, entry);
 
-    s->camera.ch->moved++;
+    s->camera->ch->moved++;
 
     trace("scene control at: '%s'\n", entity_name(s->control->entity));
 }
@@ -130,10 +130,38 @@ static void scene_focus_cancel(struct scene *s)
 
 bool scene_camera_follows(struct scene *s, struct character *ch)
 {
-    return s->control == ch && ch != s->camera.ch;
+    return s->control == ch && ch != s->camera->ch;
 }
 
-void scene_camera_calc(struct scene *s)
+int scene_camera_add(struct scene *s)
+{
+    struct model3d *m = model3d_new_cube(s->prog);
+    struct model3dtx *txm = model3dtx_new(m, "transparent.png");
+    struct entity3d *entity;
+
+    ref_put(&m->ref);
+    s->camera = &s->cameras[s->nr_cameras];
+    s->camera->ch = character_new(txm, s);
+    entity = character_entity(s->camera->ch);
+    s->control   = s->camera->ch;
+    model3d_set_name(m, "camera");
+    model3dtx_add_entity(txm, entity);
+    scene_add_model(s, entity->txmodel);
+
+    s->camera->view_mx      = mx_new();
+    s->camera->inv_view_mx  = mx_new();
+
+
+    s->camera->ch->pos[0] = 0.0;
+    s->camera->ch->pos[1] = 3.0;
+    s->camera->ch->pos[2] = -4.0 + s->nr_cameras * 2;
+    s->camera->yaw        = 180;
+    s->camera->ch->moved++;
+
+    return s->nr_cameras++;
+}
+
+static void scene_camera_calc(struct scene *s, int camera)
 {
     float scalev[3];
     int i;
@@ -142,53 +170,61 @@ void scene_camera_calc(struct scene *s)
         return;
     if (s->autopilot)
         scene_camera_autopilot(s);
-    if (!s->camera.ch->moved && s->control == s->camera.ch)
+    if (!s->cameras[camera].ch->moved && s->control == s->cameras[camera].ch)
         return;
 
     for (i = 0; i < 3; i++)
-        scalev[i] = s->camera.zoom ? 3.0 : 1.0;
+        scalev[i] = s->cameras[camera].zoom ? 3.0 : 1.0;
 
-    s->camera.pitch += s->camera.pitch_turn / (float)s->fps.fps_fine;
-    s->camera.pitch = clampf(s->camera.pitch, -90, 90);
-    s->camera.yaw += s->camera.yaw_turn / (float)s->fps.fps_fine;
-        if (s->camera.yaw > 180)
-            s->camera.yaw -= 360;
-        else if (s->camera.yaw <= -180)
-            s->camera.yaw += 360;
+    s->cameras[camera].pitch += s->cameras[camera].pitch_turn / (float)s->fps.fps_fine;
+    s->cameras[camera].pitch = clampf(s->cameras[camera].pitch, -90, 90);
+    s->cameras[camera].yaw += s->cameras[camera].yaw_turn / (float)s->fps.fps_fine;
+        if (s->cameras[camera].yaw > 180)
+            s->cameras[camera].yaw -= 360;
+        else if (s->cameras[camera].yaw <= -180)
+            s->cameras[camera].yaw += 360;
 
     /* circle the character s->control */
-    if (s->control != s->camera.ch &&
-        (s->camera.yaw_turn || s->camera.pitch_turn || s->control->moved || s->camera.ch->moved)) {
-        float dist           = s->camera.zoom ? 3 : 8;
+    if (s->control != s->cameras[camera].ch &&
+        (s->cameras[camera].yaw_turn || s->cameras[camera].pitch_turn || s->control->moved || s->cameras[camera].ch->moved)) {
+        float dist           = s->cameras[camera].zoom ? 3 : 8;
         float x              = s->control->pos[0];
         float y              = s->control->pos[1] + dist / 2;
         float z              = s->control->pos[2];
-        s->camera.ch->pos[0] = x + dist * sin(to_radians(-s->camera.yaw));
-        s->camera.ch->pos[1] = y + dist/2 * sin(to_radians(s->camera.pitch));
-        s->camera.ch->pos[2] = z + dist * cos(to_radians(-s->camera.yaw));
+        s->cameras[camera].ch->pos[0] = x + dist * sin(to_radians(-s->cameras[camera].yaw));
+        s->cameras[camera].ch->pos[1] = y + dist/2 * sin(to_radians(s->cameras[camera].pitch));
+        s->cameras[camera].ch->pos[2] = z + dist * cos(to_radians(-s->cameras[camera].yaw));
         //s->control->moved    = 0; /* XXX */
     }
 
-    s->camera.pitch_turn = 0;
-    s->camera.yaw_turn = 0;
+    s->cameras[camera].pitch_turn = 0;
+    s->cameras[camera].yaw_turn = 0;
 
-    s->camera.ch->moved = 0;
-    trace("camera: %f/%f/%f zoom: %d\n", s->camera.ch->pos[0], s->camera.ch->pos[1], s->camera.ch->pos[2], s->camera.zoom);
+    s->cameras[camera].ch->moved = 0;
+    trace("camera: %f/%f/%f zoom: %d\n", s->cameras[camera].ch->pos[0], s->cameras[camera].ch->pos[1], s->cameras[camera].ch->pos[2], s->cameras[camera].zoom);
 
     //free(s->view_mx);
     //s->view_mx = transmx_new(negpos, 0.0, 0.0, 0.0, 1.0);
-    mat4x4_identity(s->view_mx->m);
-    mat4x4_rotate_X(s->view_mx->m, s->view_mx->m, to_radians(s->camera.pitch));
-    mat4x4_rotate_Y(s->view_mx->m, s->view_mx->m, to_radians(s->camera.yaw));
-    mat4x4_scale_aniso(s->view_mx->m, s->view_mx->m, scalev[0], scalev[1], scalev[2]);
-    //mat4x4_scale(s->view_mx->m, scalev, 1.0);
-    mat4x4_translate_in_place(s->view_mx->m, -s->camera.ch->pos[0], -s->camera.ch->pos[1], -s->camera.ch->pos[2]);
+    mat4x4_identity(s->cameras[camera].view_mx->m);
+    mat4x4_rotate_X(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].pitch));
+    mat4x4_rotate_Y(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].yaw));
+    mat4x4_scale_aniso(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, scalev[0], scalev[1], scalev[2]);
+    //mat4x4_scale(s->cameras[camera].view_mx->m, scalev, 1.0);
+    mat4x4_translate_in_place(s->cameras[camera].view_mx->m, -s->cameras[camera].ch->pos[0], -s->cameras[camera].ch->pos[1], -s->cameras[camera].ch->pos[2]);
 
-    mat4x4_invert(s->inv_view_mx->m, s->view_mx->m);
-    if (!(s->frames_total & 0xf))
-        gl_title("One Hand Clap @%d FPS camera [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
-                 s->camera.ch->pos[0], s->camera.ch->pos[1], s->camera.ch->pos[2],
-                 s->camera.pitch, s->camera.yaw);
+    mat4x4_invert(s->cameras[camera].inv_view_mx->m, s->cameras[camera].view_mx->m);
+    if (!(s->frames_total & 0xf) && camera == 0)
+        gl_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
+                 s->cameras[camera].ch->pos[0], s->cameras[camera].ch->pos[1], s->cameras[camera].ch->pos[2],
+                 s->cameras[camera].pitch, s->cameras[camera].yaw);
+}
+
+void scene_cameras_calc(struct scene *s)
+{
+    int i;
+
+    for (i = 0; i < s->nr_cameras; i++)
+        scene_camera_calc(s, i);
 }
 
 void scene_characters_move(struct scene *s)
@@ -295,24 +331,24 @@ static int scene_handle_input(struct message *m, void *data)
     }
 
     if (m->input.pitch_up)
-        s->camera.pitch_turn = s->ang_speed;
+        s->camera->pitch_turn = s->ang_speed;
     if (m->input.pitch_down)
-        s->camera.pitch_turn = -s->ang_speed;
+        s->camera->pitch_turn = -s->ang_speed;
 
     if (m->input.delta_rx) {
-        s->camera.yaw_turn = s->ang_speed * m->input.delta_rx;
+        s->camera->yaw_turn = s->ang_speed * m->input.delta_rx;
     } else {
         if (m->input.yaw_right)
-            s->camera.yaw_turn = s->ang_speed;
+            s->camera->yaw_turn = s->ang_speed;
         if (m->input.yaw_left)
-            s->camera.yaw_turn = -s->ang_speed;
+            s->camera->yaw_turn = -s->ang_speed;
     }
 
     /* XXX: only allow motion control when on the ground */
     //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));
     if (character_is_grounded(s->control, s) || is_camera(s, s->control)) {
-        yawcos = cos(to_radians(s->camera.yaw));
-        yawsin = sin(to_radians(s->camera.yaw));
+        yawcos = cos(to_radians(s->camera->yaw));
+        yawsin = sin(to_radians(s->camera->yaw));
         s->control->motion[0] = delta_x * yawcos - delta_z * yawsin;
         s->control->motion[1] = 0.0;
         s->control->motion[2] = delta_x * yawsin + delta_z * yawcos;
@@ -327,14 +363,14 @@ static int scene_handle_input(struct message *m, void *data)
         }
     }
 
-    s->camera.zoom = !!(m->input.zoom);
+    s->camera->zoom = !!(m->input.zoom);
     if (m->input.delta_ry) {
-        if (s->control == s->camera.ch && m->input.trigger_l)
-            s->camera.ch->motion[1] -= m->input.delta_ry * lin_speed;
+        if (s->control == s->camera->ch && m->input.trigger_l)
+            s->camera->ch->motion[1] -= m->input.delta_ry * lin_speed;
         else
-            s->camera.pitch_turn = m->input.delta_ry * s->ang_speed;
+            s->camera->pitch_turn = m->input.delta_ry * s->ang_speed;
     }
-    s->camera.ch->moved++;
+    s->camera->ch->moved++;
 
     return 0;
 }
@@ -382,8 +418,6 @@ int scene_init(struct scene *scene)
 {
     memset(scene, 0, sizeof(*scene));
     scene->proj_mx      = mx_new();
-    scene->view_mx      = mx_new();
-    scene->inv_view_mx  = mx_new();
     scene->exit_timeout = -1;
     scene->auto_yoffset = 4.0;
     list_init(&scene->txmodels);
@@ -665,7 +699,7 @@ void scene_done(struct scene *scene)
     struct entity3d  *ent, *itent;
 
     terrain_done(scene->terrain);
-    ref_put_last(&scene->camera.ch->ref);
+    ref_put_last(&scene->camera->ch->ref);
 
     /*
      * Question: do higher-level objects hold the last reference to the
