@@ -36,7 +36,8 @@ struct log_entry {
     int             level;
 };
 
-int rb_sink_add(void (*flush)(struct log_entry *e), int filter, int fill);
+int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill);
+void rb_sink_del(void *data);
 
 void hexdump(unsigned char *buf, size_t size);
 void log_init(unsigned int flags);

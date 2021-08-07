@@ -76,6 +76,7 @@ struct message_command {
                     status      : 1,
                     connect     : 1,
                     restart     : 1,
+                    log_follows : 1,
                     toggle_fuzzer : 1,
                     toggle_autopilot : 1,
                     toggle_noise: 1;
@@ -84,8 +85,9 @@ struct message_command {
 };
 
 struct message_log {
-    struct timespec64 ts;
-    unsigned int length;
+    struct timespec64   ts;
+    unsigned int        length;
+    char                msg[0];
 };
 
 struct message_source {

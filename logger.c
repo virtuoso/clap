@@ -86,7 +86,8 @@ static DECLARE_LIST(log_rb_sinks);
 
 struct rb_sink {
     struct list entry;
-    void        (*flush)(struct log_entry *e);
+    void        (*flush)(struct log_entry *e, void *data);
+    void        *data;
     int         fill;
     int         rp;
     int         filter;
@@ -102,13 +103,13 @@ static notrace void rb_flush_one(struct rb_sink *sink)
                 /*fprintf(log_rb_output, "[%08lu.%09lu] %s",
                     log_rb[i].ts.tv_sec, log_rb[i].ts.tv_nsec,
                     log_rb[i].msg);*/
-                sink->flush(&log_rb[i]);
+                sink->flush(&log_rb[i], sink->data);
                 sink->rp = i;
             }
         }
 }
 
-int rb_sink_add(void (*flush)(struct log_entry *e), int filter, int fill)
+int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill)
 {
     struct rb_sink *s;
 
@@ -116,10 +117,24 @@ int rb_sink_add(void (*flush)(struct log_entry *e), int filter, int fill)
     s->flush  = flush;
     s->filter = filter;
     s->fill   = fill;
+    s->data   = data;
     s->rp     = -1;
     list_append(&log_rb_sinks, &s->entry);
 
     return 0;
+}
+
+void rb_sink_del(void *data)
+{
+    struct rb_sink *s;
+
+    list_for_each_entry(s, &log_rb_sinks, entry) {
+        if (s->data == data) {
+            list_del(&s->entry);
+            free(s);
+            return;
+        }
+    }
 }
 
 static notrace int rb_space(int readp)
