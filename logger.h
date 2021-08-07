@@ -41,7 +41,7 @@ void rb_sink_del(void *data);
 
 void hexdump(unsigned char *buf, size_t size);
 void log_init(unsigned int flags);
-void logg(int level, const char *mod, int line, const char *func, char *fmt, ...);
+void logg(int level, const char *mod, int line, const char *func, char *fmt, ...) __attribute__((format(printf, 5, 6)));
 #define trace(args...) \
     logg(VDBG, MODNAME, __LINE__, __func__, ## args);
 #define trace_on(_c, args...) do { if ((_c)) trace("condition '" # _c "': " args); } while (0)
@@ -57,7 +57,14 @@ void logg(int level, const char *mod, int line, const char *func, char *fmt, ...
 #define warn_on(_c, args...) do { if ((_c)) warn("condition '" # _c "': " args); } while (0)
 #define err(args...) \
     logg(ERR, MODNAME, __LINE__, __func__, ## args);
-#define err_on_cond(_c, _cc, args...) do { if ((_c)) { err("condition '" # _cc "': " args); assert(!abort_on_error); } } while (0)
+/*
+ * err_on_cond() ignores @_cc, because sometimes format strings end up there,
+ * which subsequently get pasted with the actuall error format string. I'm too
+ * lazy to untangle this right now; source line information is already plenty
+ * to go on
+ */
+#define err_on_cond(_c, _cc, args...) do { if ((_c)) { err("error: " args); assert(!abort_on_error); } } while (0)
+//void err_on_cond(bool cond, const char *condstr, const char *fmt, ...);
 #define err_on(_c, args...) err_on_cond(_c, __stringify(_c), ## args)
 
 #endif /* __CLAP_LOGGER_H__ */
