@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include "common.h"
 #include "messagebus.h"
@@ -102,6 +103,125 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     return true;
 }
 
+struct touchpoint {
+    struct list entry;
+    long    x, y;
+    long    id;
+};
+
+struct touch {
+    struct list     head;
+    long            w, h;
+    unsigned int    nr_pts;
+};
+
+static struct touchpoint *touch_find(struct touch *touch, long id)
+{
+    struct touchpoint *pt;
+
+    list_for_each_entry(pt, &touch->head, entry)
+        if (id == pt->id)
+            return pt;
+
+    return NULL;
+}
+
+static void touch_push(struct touch *touch, long id, long x, long y)
+{
+    struct touchpoint *pt;
+
+    CHECK(pt = calloc(1, sizeof(*pt)));
+    pt->id = id;
+    pt->x = x;
+    pt->y = y;
+    list_append(&touch->head, &pt->entry);
+}
+
+static void touch_pop(struct touch *touch, long id)
+{
+    struct touchpoint *pt, *it;
+
+    list_for_each_entry_iter(pt, it, &touch->head, entry)
+        if (id == pt->id) {
+            list_del(&pt->entry);
+            free(pt);
+        }
+}
+
+static EM_BOOL touchstart_callback(int type, const EmscriptenTouchEvent *e, void *userData)
+{
+    struct touch *touch = userData;
+    int i;
+
+    /*
+     * TODO: process input here VS in UI code
+     *
+     * Some quick touches can translate to mouse events;
+     * touchstart+touchmove... -> delta_{l,r}{x,y}
+     */
+    dbg("touchstart_callback: %d: '%s' num_touches: %d\n", type, emscripten_event_type_to_string(type), e->numTouches);
+    for (i = 0; i < e->numTouches; ++i) {
+        const EmscriptenTouchPoint *t = &e->touches[i];
+        dbg("  %ld: screen: (%ld,%ld), client: (%ld,%ld), page: (%ld,%ld), isChanged: %d, onTarget: %d, canvas: (%ld, %ld)\n",
+            t->identifier, t->screenX, t->screenY, t->clientX, t->clientY, t->pageX, t->pageY, t->isChanged, t->onTarget, t->canvasX, t->canvasY);
+        touch_push(touch, t->identifier, t->pageX, t->pageY);
+    }
+
+    return true;
+}
+
+static EM_BOOL touchend_callback(int type, const EmscriptenTouchEvent *e, void *userData)
+{
+    struct touch *touch = userData;
+    int i;
+
+    /*
+     * TODO: process input here VS in UI code
+     *
+     * Some quick touches can translate to mouse events;
+     * touchstart+touchmove... -> delta_{l,r}{x,y}
+     */
+    dbg("touchend_callback: %d: '%s' num_touches: %d\n", type, emscripten_event_type_to_string(type), e->numTouches);
+    for (i = 0; i < e->numTouches; ++i) {
+        const EmscriptenTouchPoint *t = &e->touches[i];
+        dbg("  %ld: screen: (%ld,%ld), client: (%ld,%ld), page: (%ld,%ld), isChanged: %d, onTarget: %d, canvas: (%ld, %ld)\n",
+            t->identifier, t->screenX, t->screenY, t->clientX, t->clientY, t->pageX, t->pageY, t->isChanged, t->onTarget, t->canvasX, t->canvasY);
+        touch_pop(touch, t->identifier);
+    }
+
+    return true;
+}
+
+static EM_BOOL touch_callback(int type, const EmscriptenTouchEvent *e, void *userData)
+{
+    struct touch *touch = userData;
+    int i;
+
+    /*
+     * TODO: process input here VS in UI code
+     *
+     * Some quick touches can translate to mouse events;
+     * touchstart+touchmove... -> delta_{l,r}{x,y}
+     */
+    dbg("touch_callback2: %d: '%s' num_touches: %d\n", type, emscripten_event_type_to_string(type), e->numTouches);
+    for (i = 0; i < e->numTouches; ++i) {
+        const EmscriptenTouchPoint *t = &e->touches[i];
+        struct touchpoint *pt = touch_find(touch, t->identifier);
+        struct message_input mi;
+
+        dbg("  %ld: screen: (%ld,%ld), client: (%ld,%ld), page: (%ld,%ld), isChanged: %d, onTarget: %d, canvas: (%ld, %ld)\n",
+            t->identifier, t->screenX, t->screenY, t->clientX, t->clientY, t->pageX, t->pageY, t->isChanged, t->onTarget, t->canvasX, t->canvasY);
+        if (!pt)
+            continue;
+        memset(&mi, 0, sizeof(mi));
+        mi.delta_lx = (float)(pt->x - t->pageX) / touch->w;
+        mi.delta_ly = (float)(pt->y - t->pageY) / touch->h;
+        message_input_send(&mi, &keyboard_source);
+    }
+
+    return true;
+}
+
 static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void *data)
 {
     //dbg("### GAMEPAD event: connected: %d index: %d nr_axes: %d nr_buttons: %d id: '%s' mapping: '%s'\n",
@@ -118,11 +238,12 @@ static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void 
         else
             joystick_axes_update(e->index, e->axis, e->numAxes);
     }
+
+    return true;
 }
 
 void www_joysticks_poll(void)
 {
-    struct message_input mi;
     int i, nr_joys, ret;
 
     ret = emscripten_sample_gamepad_data();
@@ -226,10 +347,22 @@ static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e, void *
     return 0;
 }
 
+static struct touch touch;
+void touch_set_size(int width, int height)
+{
+    touch.w = width;
+    touch.h = height;
+}
+
 int platform_input_init(void)
 {
+    list_init(&touch.head);
     CHECK0(emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback));
     CHECK0(emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback));
+    CHECK0(emscripten_set_touchstart_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, &touch, 1, touchstart_callback));
+    CHECK0(emscripten_set_touchend_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, &touch, 1, touchend_callback));
+    CHECK0(emscripten_set_touchmove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, &touch, 1, touch_callback));
+    CHECK0(emscripten_set_touchcancel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, &touch, 1, touchend_callback));
     CHECK0(emscripten_set_gamepadconnected_callback(NULL, 1, gamepad_callback));
     CHECK0(emscripten_set_gamepaddisconnected_callback(NULL, 1, gamepad_callback));
     CHECK0(emscripten_set_wheel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, wheel_callback));

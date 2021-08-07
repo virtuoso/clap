@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" /> -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" /> 
     <title>One Hand Clap</title>
     <style>
       .emscripten { padding-right: 0; margin-left: 0px; margin-right: 0px; display: block; }
@@ -59,7 +59,7 @@
 
     </style>
   </head>
-  <body style="overflow:hidden">
+  <body style="overflow:hidden;position:fixed;touch-action:none;">
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>emscripten</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
@@ -157,6 +157,9 @@
           if (text) Module.printErr('[post-exception status] ' + text);
         };
       };
+      document.addEventListener('touchmove', function (event) {
+	      if (event.scale !== 1) {event.preventDefault(); }
+      }, false);
     </script>
     {{{ SCRIPT }}}
   </body>

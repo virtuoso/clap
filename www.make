@@ -11,6 +11,8 @@ LDFLAGS += --no-heap-copy -lopenal -lvorbis -s USE_VORBIS=1 -s INITIAL_MEMORY=53
 CFLAGS += -I../ode/include -I../ode/build/include
 LDFLAGS += ../ode/build/libode.a
 
+POST := sed -e 's,\(assert(!touch\..*);\),//\1,' -i
+
 ifneq ($(DEBUG),)
 CFLAGS += -ggdb
 CFLAGS := $(subst -ggdb,-gsource-map,$(CFLAGS))

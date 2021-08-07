@@ -174,8 +174,10 @@ static void projmx_update(struct scene *s)
 
 static void fbo_update(int width, int height)
 {
-    if (fbo)
+    if (fbo) {
         ref_put(&fbo->ref);
+        fbo = NULL;
+    }
 
     if (!ui.prog)
         return;
@@ -184,10 +186,20 @@ static void fbo_update(int width, int height)
     } else {
         height /= 2;
     }
-    fbo = fbo_new(width, height);
+    if (fbo)
+        fbo_resize(fbo, width, height);
+    else
+        fbo = fbo_new(width, height);
     ui_pip_update(&ui, fbo);
 }
 
+#ifdef CONFIG_BROWSER
+extern void touch_set_size(int, int);
+#else
+static void touch_set_size(int w, int h) {}
+#endif
+
+/* XXX: this should be a message */
 void resize_cb(int width, int height)
 {
     ui.width  = width;
@@ -199,6 +211,7 @@ void resize_cb(int width, int height)
     // }
     scene.width  = width;
     scene.height = height;
+    touch_set_size(width, height);
     scene.aspect = (float)width / (float)height;
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);

@@ -22,6 +22,7 @@ CFLAGS := $(CFLAGS) -O2 -Wall -DBUILDDATE="\"$(shell date +%Y%m%d_%H%M%S)$(DBGST
 CFLAGS_SERVER := $(CFLAGS) -DSERVER_STANDALONE=1
 # See comments about ftrace -finstrument-functions
 
+POST := :
 # ifneq ($(EMSDK),)
 # BUILD := www
 # endif
@@ -97,6 +98,7 @@ $(BIN): $(BIN_OBJS) $(ASSETS)
 	@test -d $(BUILDDIR) || mkdir -p $(BUILDDIR)
 	@echo "  LD $@"
 	@$(LD) $(BIN_OBJS) -o $@ $(LDFLAGS)
+	$(POST) $(subst .html,.js,$@)
 
 $(SERVER): $(SERVER_OBJS)
 	@echo "  LD $@"
