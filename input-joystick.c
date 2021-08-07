@@ -1,3 +1,4 @@
+#include <math.h>
 #include "common.h"
 #include "logger.h"
 #include "messagebus.h"
@@ -97,9 +98,10 @@ void joystick_faxes_update(int joy, const float *axes, int nr_axes)
     for (i = 0; i < nr_axes; i++)
         joys[joy].axes[i] = axes[i];
     
-    if (!joys[joy].nr_axes)
+    if (!joys[joy].nr_axes) {
         memcpy(joys[joy].axes_init, joys[joy].axes, nr_axes * sizeof(*axes));
-    joys[joy].nr_axes = nr_axes;
+        joys[joy].nr_axes = nr_axes;
+    }
 }
 
 void joystick_buttons_update(int joy, const char *buttons, int nr_buttons)
@@ -206,6 +208,9 @@ void joysticks_poll(void)
         for (t = 0; t < j->nr_axes; t++)
             if (j->axes[t] != j->axes_init[t]) {
                 trace("joystick%d axis%d: %f\n", i, t, j->axes[t]);
+                if (fabs(j->axes[t] - j->axes_init[t]) < 0.2)
+                    continue;
+
                 /* axis have better resolution, but hats are faster */
                 /*if (j->axes[t] > j->axes_init[t]) {
                     switch (t) {
