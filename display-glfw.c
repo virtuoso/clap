@@ -80,6 +80,8 @@ void gl_leave_fullscreen(void)
 
 void gl_init(const char *title, int w, int h, display_update update, void *update_data, display_resize resize)
 {
+    const unsigned char *exts;
+
     width = w;
     height = h;
     update_fn = update;
@@ -108,7 +110,10 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
         err("failed to initialize GLEW\n");
         return;
     }
-    msg("GL initialized\n");
+
+    exts = glGetString(GL_EXTENSIONS);
+
+    msg("GL initialized extensions: %s\n", exts);
 }
 
 void gl_request_exit(void)
