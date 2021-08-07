@@ -192,8 +192,6 @@ static inline void timespec_diff(struct timespec *a, struct timespec *b, struct 
         diff->tv_sec  = b->tv_sec - a->tv_sec;
         diff->tv_nsec = b->tv_nsec - a->tv_nsec;
     }
-
-    return;
 }
 
 static inline const char  *skip_nonspace(const char *pos)
