@@ -424,7 +424,7 @@ int phys_body_update(struct entity3d *e)
 
 dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e, double mass)
 {
-    float r, length, off, X, Y, Z;
+    float r = 0.0, length = 0.0, off = 0.0, X, Y, Z;
     int direction;
     dGeomID g;
     dMass m;
