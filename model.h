@@ -86,10 +86,12 @@ struct fbo {
     struct ref  ref;
     int width, height;
     int fbo, tex, depth_tex, depth_buf;
+    int retain_tex;
 };
 struct fbo *fbo_new(int width, int height);
 void fbo_prepare(struct fbo *fbo);
 void fbo_done(struct fbo *fbo, int width, int height);
+void fbo_resize(struct fbo *fbo, int width, int height);
 
 struct entity3d {
     struct model3dtx *txmodel;

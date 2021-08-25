@@ -388,6 +388,30 @@ static int fbo_depth_buffer(struct fbo *fbo)
     return buf;
 }
 
+void fbo_resize(struct fbo *fbo, int width, int height)
+{
+    if (!fbo)
+        return;
+    fbo->width = width;
+    fbo->height = height;
+    glFinish();
+    glBindTexture(GL_TEXTURE_2D, fbo->tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fbo->width, fbo->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (fbo->depth_tex) {
+        glBindTexture(GL_TEXTURE_2D, fbo->depth_tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, fbo->width, fbo->height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    if (fbo->depth_buf) {
+        glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height);
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    }
+}
+
 void fbo_prepare(struct fbo *fbo)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo);
@@ -404,12 +428,15 @@ static void fbo_drop(struct ref *ref)
 {
     struct fbo *fbo = container_of(ref, struct fbo, ref);
 
-    glDeleteTextures(1, &fbo->tex);
+    dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
+    glDeleteFramebuffers(1, &fbo->fbo);
+    if (!fbo->retain_tex)
+        glDeleteTextures(1, &fbo->tex);
     if (fbo->depth_tex)
         glDeleteTextures(1, &fbo->depth_tex);
     if (fbo->depth_buf)
         glDeleteRenderbuffers(1, &fbo->depth_buf);
-    glDeleteFramebuffers(1, &fbo->fbo);
+    free(fbo);
 }
 
 struct fbo *fbo_new(int width, int height)
