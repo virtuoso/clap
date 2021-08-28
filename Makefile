@@ -49,6 +49,8 @@ endif
 ifneq ($(call is_clang),)
 LDFLAGS := $(subst -lasan,-fsanitize=address,$(LDFLAGS))
 LDFLAGS := $(subst -s SAFE_HEAP=1,,$(LDFLAGS))
+LDFLAGS_SERVER := $(subst -lasan,-fsanitize=address,$(LDFLAGS))
+LDFLAGS_SERVER := $(subst -s SAFE_HEAP=1,,$(LDFLAGS))
 endif
 
 ALL_TARGETS += $(OBJDIR)/compile_commands.json
