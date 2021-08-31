@@ -2,7 +2,6 @@
 *.o
 *.wasm
 *.a
-core
 onehandclap
 onehandclap.js
 onehandclap.html
