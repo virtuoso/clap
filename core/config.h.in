@@ -1,0 +1,8 @@
+#ifndef __CLAP_CONFIG_H__
+#define __CLAP_CONFIG_H__
+#define CONFIG_LOG_OUTPUT "/tmp/clap.log"
+#cmakedefine CONFIG_BUILDDATE "@CONFIG_BUILDDATE@"
+#cmakedefine CONFIG_BROWSER "@CONFIG_BROWSER@"
+#cmakedefine CONFIG_GLES "@CONFIG_GLES@"
+#define CONFIG_SERVER_IP "192.168.1.115"
+#endif /* __CLAP_CONFIG_H__ */
