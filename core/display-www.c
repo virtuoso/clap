@@ -9,6 +9,11 @@
 
 static int width, height;
 
+bool gl_does_vao(void)
+{
+    return false;
+}
+
 void gl_request_exit(void)
 {
 }

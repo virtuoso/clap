@@ -228,6 +228,11 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     m->alpha_blend = false;
     model3d_calc_aabb(m, vx, vxsz);
 
+    if (gl_does_vao()) {
+        glGenVertexArrays(1, &m->vao);
+        glBindVertexArray(m->vao);
+    }
+
     shader_prog_use(p);
     load_gl_buffer(m->prog->pos, vx, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
     load_gl_buffer(-1, idx, idxsz, &m->index_obj, 0, GL_ELEMENT_ARRAY_BUFFER);
@@ -269,6 +274,8 @@ static void model3d_prepare(struct model3d *m)
 {
     struct shader_prog *p = m->prog;
 
+    if (gl_does_vao())
+        glBindVertexArray(m->vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj);
     glBindBuffer(GL_ARRAY_BUFFER, m->vertex_obj);
     glVertexAttribPointer(p->pos, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
@@ -316,6 +323,8 @@ static void model3d_done(struct model3d *m)
     /* both need to be bound for glDrawElements() */
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+    if (gl_does_vao())
+        glBindVertexArray(0);
 }
 
 void model3dtx_done(struct model3dtx *txm)

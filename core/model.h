@@ -25,6 +25,7 @@ struct model3d {
     bool                cull_face;
     bool                alpha_blend;
     float               aabb[6];
+    GLuint              vao;
     GLuint              vertex_obj;
     GLuint              index_obj;
     GLuint              tex_obj;

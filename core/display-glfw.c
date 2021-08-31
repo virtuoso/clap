@@ -16,6 +16,11 @@ static display_update update_fn;
 static display_resize resize_fn;
 static void *update_fn_data;
 
+bool gl_does_vao(void)
+{
+    return true;
+}
+
 void gl_title(const char *fmt, ...)
 {
     va_list va;
