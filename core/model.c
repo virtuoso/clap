@@ -437,7 +437,7 @@ static void fbo_drop(struct ref *ref)
 {
     struct fbo *fbo = container_of(ref, struct fbo, ref);
 
-    dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
+    // dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
     glDeleteFramebuffers(1, &fbo->fbo);
     if (!fbo->retain_tex)
         glDeleteTextures(1, &fbo->tex);
