@@ -86,6 +86,7 @@ void gl_leave_fullscreen(void)
 void gl_init(const char *title, int w, int h, display_update update, void *update_data, display_resize resize)
 {
     const unsigned char *exts;
+    GLenum ret;
 
     width = w;
     height = h;
@@ -101,8 +102,11 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
     primary_monitor_mode = glfwGetVideoMode(primary_monitor);
 
     glfwSetErrorCallback(error_cb);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     window = glfwCreateWindow(width, height, title, NULL, NULL);
     if (!window) {
         err("failed to create GLFW window\n");
@@ -111,10 +115,13 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
 
     glfwSetFramebufferSizeCallback(window, resize_cb);
     glfwMakeContextCurrent(window);
-    if (glewInit() != GLEW_OK) {
-        err("failed to initialize GLEW\n");
+    glewExperimental = GL_TRUE;
+    ret = glewInit();
+    if (ret != GLEW_OK) {
+        err("failed to initialize GLEW: %s\n", glewGetErrorString(ret));
         return;
     }
+    glfwSwapInterval(1);
 
     exts = glGetString(GL_EXTENSIONS);
 
