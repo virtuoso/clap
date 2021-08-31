@@ -971,7 +971,7 @@ int ui_init(struct ui *ui, int width, int height)
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     uie1->on_click = build_onclick;
     //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
-    build_uit = ui_render_string(ui, font, uie1, BUILDDATE, color, 0);
+    build_uit = ui_render_string(ui, font, uie1, CONFIG_BUILDDATE, color, 0);
 
     font_put(font);
     subscribe(MT_COMMAND, ui_handle_command, ui);
