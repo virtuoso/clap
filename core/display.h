@@ -10,6 +10,8 @@
 #include <GL/glew.h>
 #endif
 
+#include <stdbool.h>
+
 typedef void (*display_update)(void *data);
 typedef void (*display_resize)(int w, int h);
 void gl_init(const char *title, int width, int height, display_update update_fn, void *update_fn_data, display_resize resize_fn);
