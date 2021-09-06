@@ -250,22 +250,41 @@ static void glfw_joysticks_poll(void)
         if (!name)
             continue;
 
-        axes = glfwGetJoystickAxes(i, &nr_axes);
-        joystick_faxes_update(i - GLFW_JOYSTICK_1, axes, nr_axes);
+        if (glfwJoystickIsGamepad(i)) {
+            GLFWgamepadstate state;
 
-        buttons = glfwGetJoystickButtons(i, &nr_buttons);
-        joystick_buttons_update(i - GLFW_JOYSTICK_1, buttons, nr_buttons);
+            glfwGetGamepadState(i, &state);
+            state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER] = (state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER] + 1) / 2;
+            state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER] = (state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER] + 1) / 2;
+            joystick_faxes_update(i - GLFW_JOYSTICK_1, state.axes, array_size(state.axes));
+            joystick_buttons_update(i - GLFW_JOYSTICK_1, state.buttons, array_size(state.buttons));
+        } else {
+            axes = glfwGetJoystickAxes(i, &nr_axes);
+            joystick_faxes_update(i - GLFW_JOYSTICK_1, axes, nr_axes);
+
+            buttons = glfwGetJoystickButtons(i, &nr_buttons);
+            joystick_buttons_update(i - GLFW_JOYSTICK_1, buttons, nr_buttons);
+        }
     }
 }
 
+#include "librarian.h"
 int platform_input_init(void)
 {
+    struct lib_handle *lh;
+    char *cdb;
+    size_t sz;
+
     glfwSetKeyCallback(window, key_cb);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
     if (glfwRawMouseMotionSupported())
         glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     glfwSetCursorPosCallback(window, pointer_cb);
     glfwSetScrollCallback(window, scroll_cb);
+
+    lh = lib_read_file(RES_ASSET, "gamecontrollerdb.txt", &cdb, &sz);
+    glfwUpdateGamepadMappings(cdb);
+    ref_put_last(&lh->ref);
 
     msg("input initialized\n");
 
