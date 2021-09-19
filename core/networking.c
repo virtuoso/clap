@@ -186,11 +186,13 @@ static void network_node_drop(struct ref *ref)
     need_polling_alloc++;
 }
 
+DECLARE_REFCLASS(network_node);
+
 static struct network_node *network_node_new(int mode)
 {
     struct network_node *n;
 
-    CHECK(n = ref_new(struct network_node, ref, network_node_drop));
+    CHECK(n = ref_new(network_node));
     n->mode = mode;
     n->events = POLLIN | POLLHUP | POLLNVAL | POLLOUT;
     n->state  = ST_INIT;

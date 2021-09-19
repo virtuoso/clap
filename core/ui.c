@@ -153,6 +153,8 @@ static void ui_element_drop(struct ref *ref)
     free(uie);
 }
 
+DECLARE_REFCLASS(ui_element);
+
 struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, struct model3dtx *txmodel,
                                   unsigned long affinity, float x_off, float y_off, float w, float h)
 {
@@ -162,7 +164,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, stru
     if (!e)
         return NULL;
 
-    uie = ref_new(struct ui_element, ref, ui_element_drop);
+    uie = ref_new(ui_element);
     uie->entity = e;
     uie->ui     = ui;
     if (parent) {
@@ -255,6 +257,7 @@ static void ui_text_drop(struct ref *ref)
     free(uit);
 }
 
+DECLARE_REFCLASS(ui_text);
 //#define UIT_REFLOW  1
 
 /*
@@ -365,7 +368,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     if (!flags)
         flags = UI_AF_VCENTER;
 
-    CHECK(uit       = ref_new(struct ui_text, ref, ui_text_drop));
+    CHECK(uit       = ref_new(ui_text));
     uit->flags      = flags;
     uit->margin_x   = 10;
     uit->margin_y   = 10;
@@ -693,13 +696,15 @@ static void ui_widget_drop(struct ref *ref)
     free(uiw);
 }
 
+DECLARE_REFCLASS(ui_widget);
+
 static struct ui_widget *
 ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
               float x_off, float y_off, float w, float h)
 {
     struct ui_widget *uiw;
 
-    CHECK(uiw        = ref_new(struct ui_widget, ref, ui_widget_drop));
+    CHECK(uiw        = ref_new(ui_widget));
     CHECK(uiw->uies  = calloc(nr_items, sizeof(struct ui_element *)));
     /* XXX: render texts to FBOs to textures */
     CHECK(uiw->texts = calloc(nr_items, sizeof(struct ui_text *)));

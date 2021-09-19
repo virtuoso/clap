@@ -35,6 +35,8 @@ static void model3d_drop(struct ref *ref)
     free(m);
 }
 
+DECLARE_REFCLASS(model3d);
+
 static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height, GLuint *obj)
 {
     GLuint textureLoc = shader_prog_find_var(p, "tex");
@@ -104,9 +106,11 @@ static void model3dtx_drop(struct ref *ref)
     free(txm);
 }
 
+DECLARE_REFCLASS(model3dtx);
+
 struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
 {
-    struct model3dtx *txm = ref_new(struct model3dtx, ref, model3dtx_drop);
+    struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
         return NULL;
@@ -120,7 +124,7 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
 
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
 {
-    struct model3dtx *txm = ref_new(struct model3dtx, ref, model3dtx_drop);
+    struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
         return NULL;
@@ -134,7 +138,7 @@ struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer,
 
 struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid)
 {
-    struct model3dtx *txm = ref_new(struct model3dtx, ref, model3dtx_drop);
+    struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
         return NULL;
@@ -218,7 +222,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
 {
     struct model3d *m;
 
-    m = ref_new(struct model3d, ref, model3d_drop);
+    m = ref_new(model3d);
     if (!m)
         return NULL;
 
@@ -448,12 +452,14 @@ static void fbo_drop(struct ref *ref)
     free(fbo);
 }
 
+DECLARE_REFCLASS(fbo);
+
 struct fbo *fbo_new(int width, int height)
 {
     struct fbo *fbo;
     int ret;
 
-    CHECK(fbo = ref_new(struct fbo, ref, fbo_drop));
+    CHECK(fbo = ref_new(fbo));
     fbo->width = width;
     fbo->height = height;
     fbo->fbo = fbo_create();
@@ -740,11 +746,13 @@ static void entity3d_drop(struct ref *ref)
     entity3d_free(e);
 }
 
+DECLARE_REFCLASS(entity3d);
+
 struct entity3d *entity3d_new(struct model3dtx *txm)
 {
     struct entity3d *e;
 
-    e = ref_new(struct entity3d, ref, entity3d_drop);
+    e = ref_new(entity3d);
     if (!e)
         return NULL;
 

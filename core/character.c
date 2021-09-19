@@ -133,6 +133,8 @@ static void character_drop(struct ref *ref)
     free(c);
 }
 
+DECLARE_REFCLASS(character);
+
 /* data is struct scene */
 static int character_update(struct entity3d *e, void *data)
 {
@@ -202,7 +204,7 @@ struct character *character_new(struct model3dtx *txm, struct scene *s)
 {
     struct character *c;
 
-    CHECK(c = ref_new(struct character, ref, character_drop));
+    CHECK(c = ref_new(character));
     CHECK(c->entity = entity3d_new(txm));
     c->entity->priv = c;
     c->orig_update = c->entity->update;

@@ -164,12 +164,14 @@ static void sound_drop(struct ref *ref)
     free(sound->buf);
 }
 
+DECLARE_REFCLASS(sound);
+
 struct sound *sound_load(const char *name)
 {
     struct sound *sound;
     LOCAL(char, uri);
 
-    CHECK(sound = ref_new(struct sound, ref, sound_drop));
+    CHECK(sound = ref_new(sound));
     CHECK(uri = lib_figure_uri(RES_ASSET, name));
 
     alcMakeContextCurrent(context);

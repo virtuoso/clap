@@ -149,12 +149,14 @@ static void shader_prog_drop(struct ref *ref)
     free(p);
 }
 
+DECLARE_REFCLASS(shader_prog);
+
 struct shader_prog *
 shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
 {
     struct shader_prog *p;
 
-    p = ref_new(struct shader_prog, ref, shader_prog_drop);
+    p = ref_new(shader_prog);
     if (!p)
         return NULL;
 

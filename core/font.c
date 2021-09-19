@@ -86,6 +86,8 @@ static void font_drop(struct ref *ref)
     free(font);
 }
 
+DECLARE_REFCLASS(font);
+
 struct font *font_get(struct font *font)
 {
     return ref_get(font);
@@ -124,7 +126,7 @@ struct font *font_open(const char *name, unsigned int size)
         return NULL;
     }
 
-    font = ref_new(struct font, ref, font_drop);
+    font = ref_new(font);
     if (!font)
         return NULL;
 

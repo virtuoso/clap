@@ -13,17 +13,41 @@ struct ref;
 typedef void (*drop_t)(struct ref *ref);
 
 #define _REF_STATIC	(-1)
+
+struct ref_class {
+    struct list     entry;
+    const char      *name;
+    drop_t          drop;
+    size_t          size;
+    unsigned long   nr_active;
+};
+
+#define REFCLASS_NAME(struct_name) ref_class_ ## struct_name
+#define DECLARE_REFCLASS_DROP(struct_name, dropfn) \
+struct ref_class ref_class_ ## struct_name = { \
+    .name   = __stringify(struct struct_name), \
+    .drop   = dropfn, \
+    .size   = sizeof(struct struct_name), \
+    .entry  = EMPTY_LIST(REFCLASS_NAME(struct_name).entry), \
+}
+#define DECLARE_REFCLASS(struct_name)   DECLARE_REFCLASS_DROP(struct_name, struct_name ## _drop)
+
 struct ref {
     const char *name;
+    struct ref_class    *refclass;
     drop_t	drop;
     int		count;
     size_t  size;
 };
 
+void ref_class_add(struct ref *ref);
+const char *ref_classes_get_string(void);
+
 static inline void ref_init(struct ref *ref, drop_t drop)
 {
     ref->count = 1;
     ref->drop = drop;
+    ref_class_add(ref);
 }
 
 #define REF_STATIC { .count = _REF_STATIC, .drop = NULL }
@@ -54,10 +78,12 @@ static inline bool __ref_get(struct ref *ref)
 
 #define ref_get(t) _ref_get(t, &t->ref)
 
+void _ref_drop(struct ref *ref);
+
 static inline void _ref_put(struct ref *ref)
 {
     if (!--ref->count)
-        ref->drop(ref);
+        _ref_drop(ref);
 }
 
 #define ref_put(r) do { \
@@ -68,7 +94,7 @@ static inline void _ref_put(struct ref *ref)
 #define ref_put_last(r) do { \
         ref_dbg("ref_put_last(%s): %d\n", (r)->name, (r)->count - 1); \
         err_on(!!--(r)->count, "'%s': %d\n", (r)->name, (r)->count); \
-        (r)->drop((r)); \
+        _ref_drop((r)); \
     } while (0)
 
 #define ref_assert(r, c) do { \
@@ -78,14 +104,15 @@ static inline void _ref_put(struct ref *ref)
 
 #define ref_only(r) ref_assert(r, 1)
 
-#define ref_new(t, r, d) ({ \
-    size_t _tsz = sizeof(t); \
-    t *__v = malloc(_tsz); \
+#define ref_new(struct_name) ({ \
+    struct ref_class *__rc = &ref_class_ ## struct_name; \
+    struct struct_name *__v = malloc(__rc->size); \
     if (__v) { \
-        memset(__v, 0, _tsz); \
-        ref_init(&__v->r, d); \
-        __v->r.name = # t; \
-        __v->r.size = _tsz; \
+        memset(__v, 0, __rc->size); \
+        __v->ref.name = __rc->name; \
+        __v->ref.size = __rc->size; \
+        __v->ref.refclass = __rc; \
+        ref_init(&__v->ref, __rc->drop); \
     } \
     __v; \
 })

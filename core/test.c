@@ -37,9 +37,10 @@ static void test_drop(struct ref *ref)
     free(x0);
 }
 
+DECLARE_REFCLASS_DROP(x0, test_drop);
 static int refcount_test0(void)
 {
-    struct x0 *x0 = ref_new(struct x0, ref, test_drop);
+    struct x0 *x0 = ref_new(x0);
 
     reset_counters();
     x0->magic = TEST_MAGIC0;
@@ -52,7 +53,7 @@ static int refcount_test0(void)
 
 static int refcount_test1(void)
 {
-    struct x0 *x0 = ref_new(struct x0, ref, test_drop);
+    struct x0 *x0 = ref_new(x0);
 
     reset_counters();
     x0->magic = TEST_MAGIC0;
@@ -82,7 +83,7 @@ static int refcount_test2(void)
 
 static int __refcount_test3(void)
 {
-    struct x0 *x0 = ref_new(struct x0, ref, test_drop);
+    struct x0 *x0 = ref_new(x0);
     CU(ref) unused struct ref *ref = &x0->ref;
 
     x0->magic = TEST_MAGIC0;

@@ -396,6 +396,9 @@ static void terrain_drop(struct ref *ref)
     free(terrain->map);
     free(terrain);
 }
+
+DECLARE_REFCLASS(terrain);
+
 struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y, float z, float side, unsigned int nr_v)
 {
     struct terrain *t;
@@ -410,7 +413,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     struct timespec ts;
     int i, j;
 
-    CHECK(t = ref_new(struct terrain, ref, terrain_drop));
+    CHECK(t = ref_new(terrain));
     clock_gettime(CLOCK_REALTIME, &ts);
     t->seed  = ts.tv_nsec;
 
@@ -1091,7 +1094,7 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
 
     m = maze_build(nr_levels, nr_v);
     wall = min(0.1, sqrt(room_side));
-    CHECK(t = ref_new(struct terrain, ref, terrain_drop));
+    CHECK(t = ref_new(terrain));
     clock_gettime(CLOCK_REALTIME, &ts);
     t->seed  = ts.tv_nsec;
     srand48(t->seed);

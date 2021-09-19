@@ -47,6 +47,8 @@ static void handle_drop(struct ref *ref)
     free(h);
 }
 
+DECLARE_REFCLASS_DROP(lib_handle, handle_drop);
+
 char *lib_figure_uri(enum res_type type, const char *name)
 {
     const char *pfx[] = {
@@ -81,7 +83,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
     uri = lib_figure_uri(type, name);
     if (!uri)
         return NULL;
-    h = ref_new(struct lib_handle, ref, handle_drop);
+    h = ref_new(lib_handle);
     h->name = name;
     h->type = type;
     h->data = data;
@@ -104,7 +106,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
     if (!uri)
         return NULL;
 
-    h        = ref_new(struct lib_handle, ref, handle_drop);
+    h        = ref_new(lib_handle);
     h->name  = name;
     h->type  = type;
     h->data  = data;
@@ -156,7 +158,7 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     if (!uri)
         return NULL;
 
-    h = ref_new(struct lib_handle, ref, handle_drop);
+    h = ref_new(lib_handle);
     h->name = name;
     h->type = type;
     //h->data = data;
