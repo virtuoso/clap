@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "model.h"
+#include "render.h"
 #include "shader.h"
 #include "messagebus.h"
 #include "ui.h"
@@ -15,6 +16,8 @@ static struct model3dtx *ui_pip;
 
 static bool __ui_element_is_visible(struct ui_element *uie, struct ui *ui)
 {
+    if (uie->affinity & UI_SZ_NORES)
+        return true;
     if (uie->actual_x + uie->actual_w < 0)
         return false;
     if (uie->actual_x > ui->width)
@@ -51,11 +54,11 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
         parent_height = uie->parent->actual_h;
     }
 
-    x_off = uie->x_off < 1.0 ? uie->x_off * parent_width : uie->x_off;
-    y_off = uie->y_off < 1.0 ? uie->y_off * parent_height : uie->y_off;
+    x_off = uie->x_off < 1.0 && uie->x_off > 0 ? uie->x_off * parent_width : uie->x_off;
+    y_off = uie->y_off < 1.0 && uie->y_off > 0 ? uie->y_off * parent_height : uie->y_off;
     uie->actual_w = uie->width < 1.0 ? uie->width * parent_width : uie->width;
     uie->actual_h = uie->height < 1.0 ? uie->height * parent_height : uie->height;
-    if (uie->parent) {
+    if (uie->parent && !(uie->affinity & UI_SZ_NORES)) {
         /* clamp child's w/h to parent's */
         uie->actual_w = min(uie->actual_w, parent_width - x_off);
         uie->actual_h = min(uie->actual_h, parent_height - y_off);
@@ -88,6 +91,7 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
         uie->actual_y += uie->parent->actual_y;
     }
 
+compute_mx:
     /* We might want force_invisible also */
     e->visible = __ui_element_is_visible(uie, ui) ? 1 : 0;
     /*trace("VIEWPORT %fx%f; xywh: %f %f %f %f\n", parent_width, parent_height,
@@ -101,10 +105,11 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
 
 int ui_element_update(struct entity3d *e, void *data)
 {
-    struct ui *ui = data;
+    struct ui_element *uie = e->priv;
+    struct ui *ui = uie->ui;
     mat4x4 p;
 
-    ui_element_position(e->priv, ui);
+    ui_element_position(uie, ui);
     if (!e->visible)
         return 0;
 
@@ -116,25 +121,32 @@ int ui_element_update(struct entity3d *e, void *data)
 }
 
 static void ui_debug_update(struct ui *ui);
+static void ui_reset_positioning(struct entity3d *e, void *data)
+{
+    struct ui_element *uie = e->priv;
+    /* XXX */
+    uie->actual_x = uie->actual_y = uie->actual_w = uie->actual_h = -1.0;
+}
+
+static void ui_roll_done(void);
+static bool ui_roll_finished;
+
 void ui_update(struct ui *ui)
 {
-    struct model3dtx *txmodel;
-    struct entity3d  *ent, *itent;
-
     ui_debug_update(ui);
-    list_for_each_entry(txmodel, &ui->txmodels, entry) {
-        list_for_each_entry(ent, &txmodel->entities, entry) {
-            struct ui_element *uie = ent->priv;
-            /* XXX */
-            uie->actual_x = uie->actual_y = uie->actual_w = uie->actual_h = -1.0;
-        }
-    }
 
-    list_for_each_entry(txmodel, &ui->txmodels, entry) {
-        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
-            entity3d_update(ent, ui);
-        }
-    }
+    /* XXX: this is double for_each, make better */
+    mq_for_each(&ui->mq, ui_reset_positioning, NULL);
+    mq_update(&ui->mq);
+    if (ui_roll_finished)
+        ui_roll_done();
+}
+
+static void ui_element_destroy(struct entity3d *e)
+{
+    struct ui_element *uie = e->priv;
+
+    ref_put(uie);
 }
 
 static void ui_element_drop(struct ref *ref)
@@ -144,12 +156,12 @@ static void ui_element_drop(struct ref *ref)
     trace("dropping ui_element\n");
     if (uie->parent) {
         list_del(&uie->child_entry);
-        ref_put(&uie->parent->ref);
+        ref_put(uie->parent);
     }
 
     ui_element_animations_done(uie);
     err_on(!list_empty(&uie->children), "ui_element still has children\n");
-    ref_put_last(&uie->entity->ref);
+    ref_put_last(uie->entity);
     free(uie);
 }
 
@@ -166,7 +178,8 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, stru
 
     uie = ref_new(ui_element);
     uie->entity = e;
-    uie->ui     = ui;
+    uie->entity->destroy = ui_element_destroy;
+    uie->ui = ui;
     if (parent) {
         uie->parent = ref_get(parent);
         list_append(&parent->children, &uie->child_entry);
@@ -194,12 +207,12 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, stru
 
 static void ui_add_model(struct ui *ui, struct model3dtx *txmodel)
 {
-    list_append(&ui->txmodels, &txmodel->entry);
+    mq_add_model(&ui->mq, txmodel);
 }
 
 static void ui_add_model_tail(struct ui *ui, struct model3dtx *txmodel)
 {
-    list_prepend(&ui->txmodels, &txmodel->entry);
+    mq_add_model_tail(&ui->mq, txmodel);
 }
 
 static int ui_model_init(struct ui *ui)
@@ -217,9 +230,9 @@ static int ui_model_init(struct ui *ui)
     ui_quad->alpha_blend = true;
     /* XXX: maybe a "textured_model" as another interim object */
     ui_quadtx = model3dtx_new(ui_quad, "transparent.png");
-    ref_put(&ui_quad->ref);
+    ref_put(ui_quad);
     ui_add_model_tail(ui, ui_quadtx);
-    ref_put(&prog->ref);  /* matches shader_prog_find() above */
+    ref_put(prog);  /* matches shader_prog_find() above */
     return 0;
 }
 
@@ -228,7 +241,6 @@ struct ui_text {
     struct ui_element   *parent;
     char                *str;
     struct ui_element   *uietex;
-    struct model3dtx    *txmtex;
     unsigned long       flags;
     unsigned int        nr_uies;
     unsigned int        nr_lines;
@@ -249,10 +261,8 @@ static void ui_text_drop(struct ref *ref)
     unsigned int    i;
 
     trace("dropping ui_text\n");
-    // dbg("dropping ui_text (tex %d)\n", uit->txmtex->texture_id);
-    glDeleteTextures(1, &uit->txmtex->texture_id);
-    ref_put_last(&uit->uietex->ref);
-    ref_put_last(&uit->txmtex->ref);
+    texture_del(uit->uietex->entity->txmodel->texture_id);
+    ref_put_last(uit->uietex);
     free(uit->str);
     free(uit);
 }
@@ -341,7 +351,8 @@ static struct model3dtx *ui_txm_find_by_texid(struct ui *ui, GLuint texid)
     struct model3dtx *txmodel;
 
     /* XXX: need trees for better search, these lists are actually long */
-    list_for_each_entry(txmodel, &ui->txmodels, entry) {
+    /* XXX^2: struct mq */
+    list_for_each_entry(txmodel, &ui->mq.txmodels, entry) {
         if (txmodel->texture_id == texid)
             return ref_get(txmodel);
     }
@@ -356,7 +367,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     size_t len = strlen(str);
     struct ui           fbo_ui;
     struct ui_element   **uies;
-    struct model3dtx    **txms;
+    struct model3dtx    *txm, *txmtex;
     struct fbo          *fbo;
     struct ui_text      *uit;
     struct shader_prog  *prog;
@@ -374,26 +385,27 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     uit->margin_y   = 10;
     uit->parent     = parent;
     CHECK(uit->str  = strdup(str));
-    uit->font       = font_get(font);
+    uit->font       = font;
 
     ui_text_measure(uit);
 
     fbo_ui.width = uit->width + uit->margin_x * 2;
     fbo_ui.height = uit->height + uit->margin_y * 2;
     fbo_ui.prog = ui->prog;
-    list_init(&fbo_ui.txmodels);
+    mq_init(&fbo_ui.mq, &fbo_ui);
     fbo = fbo_new(fbo_ui.width, fbo_ui.height);
     fbo->retain_tex = 1;
 
-    uit->parent->width = uit->width + uit->margin_x * 2;
-    uit->parent->height = uit->height + uit->margin_y * 2;
-    ui_element_position(uit->parent, ui);
+    if (uit->parent) {
+        uit->parent->width = uit->width + uit->margin_x * 2;
+        uit->parent->height = uit->height + uit->margin_y * 2;
+        ui_element_position(uit->parent, ui);
+    }
     y = (float)uit->margin_y + uit->y_off;
     dbg_on(y < 0, "y: %f, height: %d y_off: %d, margin_y: %d\n",
            y, uit->height, uit->y_off, uit->margin_y);
     CHECK(prog      = shader_prog_find(ui->prog, "glyph"));
     CHECK(uies = calloc(len, sizeof(struct ui_element *)));
-    CHECK(txms = calloc(len, sizeof(struct model3dtx *)));
     uit->nr_uies = len;
     for (line = 0, i = 0, x = x_off(uit, line); i < len; i++) {
         if (str[i] == '\n') {
@@ -407,23 +419,22 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
             continue;
         }
         glyph   = font_get_glyph(uit->font, str[i]);
-        txms[i] = ui_txm_find_by_texid(ui, glyph->texture_id);
-        if (!txms[i]) {
+        txm = ui_txm_find_by_texid(ui, glyph->texture_id);
+        if (!txm) {
             m       = model3d_new_quad(prog, 0, 0, 0, glyph->width, glyph->height);
             //model3d_set_name(m, "glyph");
             model3d_set_name(m, "glyph_%s_%c", font_name(uit->font), str[i]);
             m->cull_face = false;
             m->alpha_blend = true;
-            txms[i] = model3dtx_new_txid(m, glyph->texture_id);
-            /* txm holds the only reference */
-            ref_put(&m->ref);
-            ui_add_model(&fbo_ui, txms[i]);
+            txm = model3dtx_new_txid(ref_pass(m), glyph->texture_id);
+            ui_add_model(&fbo_ui, txm);
         }
-        // parent = NULL; /* XXX: for FBO rendering */
-        uies[i] = ui_element_new(ui, NULL, txms[i], UI_AF_TOP | UI_AF_LEFT,
+        /* uies[i] consumes (holds the only reference to) txm */
+        uies[i] = ui_element_new(&fbo_ui, NULL, ref_pass(txm), UI_AF_TOP | UI_AF_LEFT,
                                       x + glyph->bearing_x,
                                       y - glyph->bearing_y,
                                       glyph->width, glyph->height);
+        ref_only(&uies[i]->entity->txmodel->ref);
         ref_only(&uies[i]->entity->ref);
         ref_only(&uies[i]->ref);
         uies[i]->entity->color[0] = color[0];
@@ -446,67 +457,73 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit->width, uit->height,
     //     fbo->fbo, fbo->width, fbo->height);
-    models_render(&fbo_ui.txmodels, NULL, NULL, NULL, NULL, NULL);
+    models_render(&fbo_ui.mq, NULL, NULL, NULL, NULL, NULL);
     fbo_done(fbo, ui->width, ui->height);
 
-    ref_put(&prog->ref);
+    ref_put(prog);
 
     for (i = 0; i < uit->nr_uies; i++) {
         /* XXX: whitespaces etc don't have ui elements or txms */
         if (uies[i])
-            ref_put_last(&uies[i]->ref);
-        /* txms are reused, so not ref_put_last() */
-        if (txms[i])
-            ref_put(&txms[i]->ref);
+            ref_put_last(uies[i]);
     }
 
     free(uies);
-    free(txms);
     free(uit->line_nrw);
     free(uit->line_ws);
     free(uit->line_w);
-    font_put(uit->font);
+    // free(uit->str);
 
     prog = shader_prog_find(ui->prog, "ui");
     m = model3d_new_quad(prog, 0, 1, 0, 1, -1);
     m->cull_face = false;
     m->alpha_blend = true;
-    uit->txmtex = model3dtx_new_txid(m, fbo->tex);
-    ref_put_last(&fbo->ref);
-    ref_put(&m->ref);
-    ui_add_model(ui, uit->txmtex);
-    ref_put(&prog->ref);
+    txmtex = model3dtx_new_txid(ref_pass(m), fbo->tex);
+    ref_put_last(fbo);
+    ui_add_model(ui, txmtex);
+    ref_put(prog);
 
-    uit->uietex = ui_element_new(ui, parent, uit->txmtex, UI_AF_CENTER,
+    uit->uietex = ui_element_new(ui, parent, ref_pass(txmtex), parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
                                  0, 0, fbo_ui.width, fbo_ui.height);
     ref_only(&uit->uietex->entity->ref);
     ref_only(&uit->uietex->ref);
 
-    // uit->uietex->entity->color[0] = color[0];
-    // uit->uietex->entity->color[1] = color[1];
-    // uit->uietex->entity->color[2] = color[2];
-    // uit->uietex->entity->color[3] = color[3];
-    // uit->uietex->prescaled = true;
-    /* can also probably free all the line_ws stuff */
-
-    // ref_put(&prog->ref); /* matches shader_prog_find() above */
-
     return uit;
 }
 
-struct ui_element *ui_roll_element;
-struct ui_text *ui_roll_text;
+static const char *menu_font = "MorganChalk-L3aJy.ttf";
+static struct ui_element *ui_roll_element;
+static struct ui_text *ui_roll_text;
 
 static void ui_roll_done(void)
 {
     if (!ui_roll_element || !ui_roll_text)
         return;
 
-    ref_put_last(&ui_roll_text->ref);
-    ref_put_last(&ui_roll_element->ref);
+    ref_put_last(ui_roll_text);
+    // ref_put_last(ui_roll_element);
 
     ui_roll_text    = NULL;
     ui_roll_element = NULL;
+}
+
+static int ui_roll_update(struct entity3d *e, void *data)
+{
+    struct ui_element *uie = e->priv;
+    struct ui *ui = uie->ui;
+    mat4x4 p;
+
+
+    if (uie->y_off == ui->height + uie->height) {
+        dbg("credit roll done at %f\n", uie->y_off);
+        ui_roll_finished = true;
+        return 0;
+    }
+    uie->y_off++;
+    // uie->entity->dy = uie->actual_y = uie->y_off;
+    ui_element_update(e, data);
+
+    return 0;
 }
 
 static void ui_roll_init(struct ui *ui)
@@ -518,12 +535,17 @@ static void ui_roll_init(struct ui *ui)
     size_t       size;
 
     lh = lib_read_file(RES_ASSET, "TODO.txt", (void **)&buffer, &size);
-    font            = font_open("Pixellettersfull-BnJ5.ttf", 36);
-    ui_roll_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 300, 100);
-    ui_roll_element->entity->update = ui_element_update;
+    font            = font_open("CabalBold-78yP.ttf", 24);
+    // ui_roll_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER/* | UI_SZ_NORES*/, 0, ui->height, 300, 100);
+    // ui_roll_element->entity->update = ui_roll_update;
 
-    ui_roll_text = ui_render_string(ui, font, ui_roll_element, buffer, color, UI_AF_HCENTER | UI_AF_TOP | UI_SZ_NORES);
-    ref_put_last(&lh->ref);
+    ui_roll_text = ui_render_string(ui, font, NULL, buffer, color, UI_AF_HCENTER | UI_AF_BOTTOM | UI_SZ_NORES);
+    ui_roll_element = ui_roll_text->uietex;
+    // ui_roll_element->affinity |= UI_SZ_NORES;
+    ui_roll_element->entity->update = ui_roll_update;
+    ui_roll_element->y_off = -ui_roll_element->height;
+    ui_element_position(ui_roll_text->uietex, ui);
+    ref_put_last(lh);
     buffer = NULL;
 
     font_put(font);
@@ -541,9 +563,14 @@ static void ui_debug_update(struct ui *ui)
 {
     struct font *font;
     float color[] = { 0.9, 0.9, 0.9, 1.0 };
+    char *x = ref_classes_get_string();
+    if (ui_debug_str && !strcmp(x, ui_debug_str))
+        return;
 
+    free(ui_debug_str);
+    ui_debug_str = strdup(ref_classes_get_string());
     if (debug_uit) {
-        ref_put_last(&debug_uit->ref);
+        ref_put_last(debug_uit);
         debug_uit = NULL;
     } else if (ui_debug_str) {
         debug_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 400, 150);
@@ -597,6 +624,11 @@ static void __set_alpha(struct ui_element *uie, void *data)
     uie->entity->color[3] = *(float *)data;
 }
 
+void ui_element_set_alpha_one(struct ui_element *uie, float alpha)
+{
+    __set_alpha(uie, &alpha);
+}
+
 void ui_element_set_alpha(struct ui_element *uie, float alpha)
 {
     ui_element_for_each_child(uie, __set_alpha, &alpha);
@@ -606,7 +638,6 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
 static void ui_menu_done(struct ui *ui);
 
 /* XXX: basic font picker */
-static const char *menu_font = "RoughenCornerRegular-7RjV.ttf";
 static const char *font_names[] = {
     "AovelSansRounded-rdDL.ttf", "ArianaVioleta-dz2K.ttf",     "BeckyTahlia-MP6r.ttf",
     "BelieveIt-DvLE.ttf",        "CabalBold-78yP.ttf",         "Cabal-w5j3.ttf",
@@ -639,22 +670,22 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
     struct ui *ui = uie->ui;
 
     if (!strcmp(ui->menu->texts[nr]->str, "Help")) {
-        ref_put_last(&ui->menu->ref);
+        ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, help_items, array_size(help_items));
     } else if (!strcmp(ui->menu->texts[nr]->str, "HUD")) {
-        ref_put_last(&ui->menu->ref);
+        ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
     } else if (!strcmp(ui->menu->texts[nr]->str, "PIP")) {
-        ref_put_last(&ui->menu->ref);
+        ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, pip_items, array_size(pip_items));
     } else if (!strcmp(ui->menu->texts[nr]->str, "Fonts")) {
-        ref_put_last(&ui->menu->ref);
+        ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, font_names, array_size(font_names));
     } else if (!strcmp(ui->menu->texts[nr]->str, "FPS")) {
         if (display_fps) {
             display_fps = false;
-            ref_put_last(&bottom_uit->ref);
-            ref_put_last(&bottom_element->ref);
+            ref_put_last(bottom_uit);
+            ref_put_last(bottom_element);
             bottom_uit = NULL;
         } else {
             display_fps = true;
@@ -687,10 +718,10 @@ static void ui_widget_drop(struct ref *ref)
     int i;
 
     for (i = 0; i < uiw->nr_uies; i++) {
-        ref_put(&uiw->texts[i]->ref);
-        ref_put(&uiw->uies[i]->ref);
+        ref_put(uiw->texts[i]);
+        ref_put(uiw->uies[i]);
     }
-    ref_put_last(&uiw->root->ref);
+    ref_put_last(uiw->root);
     free(uiw->texts);
     free(uiw->uies);
     free(uiw);
@@ -714,14 +745,76 @@ ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
     return uiw;
 }
 
-static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items)
+/*
+ * XXX
+ * also, 4 items
+ * 
+ * + parent uie
+ */
+static struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 {
     float quad_color[] = { 0.0, 0.3, 0.1, 1.0 };
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
+    unsigned long affs[] = {
+        UI_AF_TOP     | UI_AF_HCENTER,
+        UI_AF_VCENTER | UI_AF_RIGHT,
+        UI_AF_BOTTOM  | UI_AF_HCENTER,
+        UI_AF_VCENTER | UI_AF_LEFT,
+    };
+    enum uie_mv motions[] = {
+        UIE_MV_Y_OFF,
+        UIE_MV_X_OFF,
+        UIE_MV_X_OFF,
+        UIE_MV_Y_OFF,
+    };
+    float width, height;
+    struct ui_widget *wheel;
+    struct font *font;
+    int i;
+
+    /* XXX^0: affinity and placement hardcoded */
+    CHECK(wheel = ui_widget_new(ui, 4, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 0.3, 0.3));
+    wheel->focus   = -1;
+
+    /* XXX^2: font global/hardcoded */
+    font = font_open("Pixellettersfull-BnJ5.ttf", 48);
+    for (i = 0, width = 0.0, height = 0.0; i < 4; i++) {
+        /* XXX^3: element placement hardcoded */
+        wheel->uies[i]           = ui_element_new(ui, wheel->root, ui_quadtx, affs[i], 0, 0, 300, 100);
+        wheel->uies[i]->on_click = menu_onclick;
+        wheel->uies[i]->priv     = (void *)(long)i;
+
+        memcpy(&wheel->uies[i]->entity->color, quad_color, sizeof(quad_color));
+        wheel->uies[i]->entity->color_pt = COLOR_PT_ALL;
+        /* XXX^5: animations hardcoded */
+        // uia_skip_frames(wheel->uies[i], i * 7);
+        uia_set_visible(wheel->uies[i], 1);
+        uia_lin_float(wheel->uies[i], ui_element_set_alpha_one, 0, 1.0, 100);
+        uia_cos_move(wheel->uies[i], motions[i], i < 2 ? 200 : 1, i < 2 ? 1 : 200, 30, 1.0, 0.0);
+
+        CHECK(wheel->texts[i] = ui_render_string(ui, font, wheel->uies[i], items[i], color, 0));
+        width = max(width, wheel->uies[i]->width);
+        height = max(height, wheel->uies[i]->height);
+        ui_element_set_visibility(wheel->uies[i], 0);
+    }
+    for (i = 0; i < 4; i++) {
+        wheel->uies[i]->width = width;
+        wheel->uies[i]->height = height;
+        // if (i > 0)
+        //     wheel->uies[i]->y_off = 10 + (4 + height) * i;
+    }
+    font_put(font);
+
+    return wheel;
+}
+static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items)
+{
+    float quad_color[] = { 0.0, 0.3, 0.1, 0.0 };
+    float color[] = { 0.0, 0.1, 0.0, 1.0 };
     float off, width, height;
     struct ui_widget *menu;
-    struct model3dtx *txm;
-    struct model3d *model;
+    // struct model3dtx *txm;
+    // struct model3d *model;
     struct font *font;
     int i;
 
@@ -729,24 +822,25 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
     CHECK(menu = ui_widget_new(ui, nr_items, UI_AF_VCENTER | UI_AF_RIGHT, 10, 10, 500, 0.8));
     menu->focus   = -1;
 
-    model = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
-    /* XXX^1: texture model(s) hardcoded */
-    txm = model3dtx_new(model, "green.png");
-    ref_put(&model->ref);
-    ui_add_model(ui, txm);
+    // model = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
+    // /* XXX^1: texture model(s) hardcoded */
+    // txm = model3dtx_new(ref_pass(model), "green.png");
+    // ui_add_model(ui, txm);
     /* XXX^2: font global/hardcoded */
     font = font_open(menu_font, 48);
     for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
         /* XXX^3: element placement hardcoded */
-        menu->uies[i]           = ui_element_new(ui, menu->root, txm, UI_AF_TOP | UI_AF_RIGHT, 10, 10 + off, 300, 100);
+        menu->uies[i]           = ui_element_new(ui, menu->root, ui_quadtx, UI_AF_TOP | UI_AF_RIGHT, 10, 10 + off, 300, 100);
         menu->uies[i]->on_click = menu_onclick;
         menu->uies[i]->priv     = (void *)(long)i;
 
         memcpy(&menu->uies[i]->entity->color, quad_color, sizeof(quad_color));
+        menu->uies[i]->entity->color_pt = COLOR_PT_ALL;
+
         /* XXX^5: animations hardcoded */
         uia_skip_frames(menu->uies[i], i * 7);
         uia_set_visible(menu->uies[i], 1);
-        uia_lin_float(menu->uies[i], ui_element_set_alpha, 0, 1.0, 25);
+        uia_lin_float(menu->uies[i], ui_element_set_alpha_one, 0, 1.0, 100);
         uia_cos_move(menu->uies[i], UIE_MV_X_OFF, 200, 1, 30, 1.0, 0.0);
 
         CHECK(menu->texts[i] = ui_render_string(ui, font, menu->uies[i], items[i], color, 0));
@@ -755,13 +849,14 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
         off += menu->uies[i]->height + 4 /* XXX: margin */;
         ui_element_set_visibility(menu->uies[i], 0);
     }
+    /* menu item uies hold the only references to this txm */
+    // ref_put(txm);
     for (i = 0; i < nr_items; i++) {
         menu->uies[i]->width = width;
         menu->uies[i]->height = height;
         if (i > 0)
             menu->uies[i]->y_off = 10 + (4 + height) * i;
     }
-    //ref_put(&txm->ref);
     font_put(font);
 
     return menu;
@@ -797,7 +892,7 @@ static void ui_menu_init(struct ui *ui)
 
 static void ui_menu_done(struct ui *ui)
 {
-    ref_put(&ui->menu->ref);
+    ref_put(ui->menu);
     ui->menu = NULL;
     ui->modal = false;
 }
@@ -858,7 +953,7 @@ static int ui_handle_command(struct message *m, void *data)
 
     if (m->cmd.status && display_fps) {
         if (bottom_uit) {
-            ref_put_last(&bottom_uit->ref);
+            ref_put_last(bottom_uit);
         } else {
             bottom_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
         }
@@ -930,23 +1025,23 @@ void ui_pip_update(struct ui *ui, struct fbo *fbo)
     ui_fbo_tex = fbo->tex;
 
     if (ui_pip)
-        ref_put(&ui_pip->ref);
+        ref_put(ui_pip);
     if (uie0)
-        ref_put(&uie0->ref);
+        ref_put(uie0);
 
     prog = shader_prog_find(ui->prog, "ui");
     m = model3d_new_quad(prog, 0, 1, 0.1, 1, -1);
     m->cull_face = false;
     m->alpha_blend = false;
-    ui_pip = model3dtx_new_txid(m, ui_fbo_tex);
-    ref_put(&m->ref);
+    ui_pip = model3dtx_new_txid(ref_pass(m), ui_fbo_tex);
     ui_add_model_tail(ui, ui_pip);
-    ref_put(&prog->ref);
+    ref_put(prog);
     dbg("### ui_pip tex: %d width: %d height: %d\n", ui_fbo_tex, fbo->width, fbo->height);
     if (fbo->width < fbo->height)
         uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_VCENTER | UI_AF_LEFT, 0, 0, fbo->width, fbo->height);
     else
         uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, fbo->width, fbo->height);
+    uie0->entity->color_pt = COLOR_PT_NONE;
 }
 
 static void build_onclick(struct ui_element *uie, float x, float y)
@@ -959,12 +1054,15 @@ static const char text_str[] =
     "Were tattooed all the prices of ale;\n"
     "And on her behind, for the sake of the blind,\n"
     "Was the same information in Braille";
+
+static struct ui_widget *wheel;
+static const char *wheel_items[] = { "^", ">", "v", "<" };
 int ui_init(struct ui *ui, int width, int height)
 {
     struct font *font;
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
 
-    list_init(&ui->txmodels);
+    mq_init(&ui->mq, ui);
     lib_request_shaders("glyph", &ui->prog);
     lib_request_shaders("ui", &ui->prog);
 
@@ -978,6 +1076,7 @@ int ui_init(struct ui *ui, int width, int height)
     //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
     build_uit = ui_render_string(ui, font, uie1, CONFIG_BUILDDATE, color, 0);
 
+    wheel = ui_wheel_new(ui, wheel_items);
     font_put(font);
     subscribe(MT_COMMAND, ui_handle_command, ui);
     subscribe(MT_INPUT, ui_handle_input, ui);
@@ -993,33 +1092,22 @@ void ui_done(struct ui *ui)
         ui_menu_done(ui);
 
     font_put(debug_font);
-    ref_put(&uie0->ref);
-    ref_put_last(&build_uit->ref);
-    ref_put(&uie1->ref);
+    ref_put(uie0);
+    ref_put_last(build_uit);
+    ref_put(uie1);
     if (display_fps && bottom_uit) {
-        ref_put_last(&bottom_uit->ref);
-        ref_put_last(&bottom_element->ref);
+        ref_put_last(bottom_uit);
+        ref_put_last(bottom_element);
     }
-    //ref_put_last(&limeric_uit->ref);
+    //ref_put_last(limeric_uit);
     /* XXX */
     if (ui_debug_str) {
-        ref_put(&debug_element->ref);
-        ref_put_last(&debug_uit->ref);
+        ref_put(debug_element);
+        ref_put_last(debug_uit);
     }
     ui_roll_done();
 
-    /*
-     * Iterate the flat list of txmodels; these are parent and children ui
-     * elements.
-     */
-    list_for_each_entry_iter(txmodel, ittxm, &ui->txmodels, entry) {
-        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
-            struct ui_element *uie = ent->priv;
-
-            ref_put(&uie->ref);
-        }
-        ref_put_last(&txmodel->ref);
-    }
+    mq_release(&ui->mq);
 }
 
 void ui_show(struct ui *ui)

@@ -3,6 +3,7 @@
 #include "common.h"
 #include "logger.h"
 #include "display.h"
+#include "render.h"
 #include "librarian.h"
 #include "util.h"
 #include "font.h"
@@ -58,7 +59,7 @@ static void font_load_glyph(struct font *font, unsigned char c)
 #undef _AT
 #undef _GAT
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glGenTextures(1, &font->g[c].texture_id);
+    font->g[c].texture_id = texture_gen();
     glBindTexture(GL_TEXTURE_2D, font->g[c].texture_id);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, glyph->bitmap.width, glyph->bitmap.rows,
                  0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
@@ -81,7 +82,7 @@ static void font_drop(struct ref *ref)
     unsigned int i;
 
     for (i = 0; i < array_size(font->g); i++)
-        glDeleteTextures(1, &font->g[i].texture_id);
+        texture_del(font->g[i].texture_id);
     free(font->name);
     free(font);
 }
@@ -141,7 +142,7 @@ struct font *font_open(const char *name, unsigned int size)
 
 void font_put(struct font *font)
 {
-    ref_put(&font->ref);
+    ref_put(font);
 }
 
 int font_init(void)

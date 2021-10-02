@@ -84,7 +84,7 @@ struct ui_widget {
 
 //int ui_element_init(struct scene *s, float x, float y, float w, float h);
 struct ui {
-    struct list        txmodels;
+    struct mq          mq;
     struct shader_prog *prog;
     struct sound       *click;
     struct ui_widget   *menu;

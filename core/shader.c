@@ -187,7 +187,7 @@ void shader_prog_use(struct shader_prog *p)
 void shader_prog_done(struct shader_prog *p)
 {
     glUseProgram(0);
-    ref_put(&p->ref);
+    ref_put(p);
 }
 
 /* XXX: or do this at build time? */
@@ -243,8 +243,8 @@ int lib_request_shaders(const char *name, struct shader_prog **progp)
     p           = shader_prog_from_strings(name, vert, frag);
     p->next     = *progp;
     *progp = p;
-    ref_put_last(&hv->ref);
-    ref_put_last(&hf->ref);
+    ref_put_last(hv);
+    ref_put_last(hf);
 
     return 0;
 }

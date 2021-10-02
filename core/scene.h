@@ -26,7 +26,7 @@ struct scene {
     int                 width;
     int                 height;
     struct model3d      *_model; /* temporary */
-    struct list         txmodels;
+    struct mq           mq;
     struct list         characters;
     struct entity3d     *focus;
     struct character    *control;

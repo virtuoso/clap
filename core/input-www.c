@@ -204,6 +204,16 @@ static EM_BOOL touch_callback(int type, const EmscriptenTouchEvent *e, void *use
      * touchstart+touchmove... -> delta_{l,r}{x,y}
      */
     dbg("touch_callback2: %d: '%s' num_touches: %d\n", type, emscripten_event_type_to_string(type), e->numTouches);
+    if (e->numTouches == 3) {
+        struct message m;
+
+        memset(&m, 0, sizeof(m));
+        m.type = MT_COMMAND;
+        m.cmd.menu_enter = 1;
+        message_send(&m);
+        return true;
+    }
+
     for (i = 0; i < e->numTouches; ++i) {
         const EmscriptenTouchPoint *t = &e->touches[i];
         struct touchpoint *pt = touch_find(touch, t->identifier);

@@ -284,7 +284,7 @@ int platform_input_init(void)
 
     lh = lib_read_file(RES_ASSET, "gamecontrollerdb.txt", &cdb, &sz);
     glfwUpdateGamepadMappings(cdb);
-    ref_put_last(&lh->ref);
+    ref_put_last_ref(&lh->ref);
 
     msg("input initialized\n");
 

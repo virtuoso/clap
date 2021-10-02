@@ -44,7 +44,7 @@ static int refcount_test0(void)
 
     reset_counters();
     x0->magic = TEST_MAGIC0;
-    ref_put(&x0->ref);
+    ref_put(x0);
     if (!ok_counters())
         return EXIT_FAILURE;
 
@@ -61,8 +61,8 @@ static int refcount_test1(void)
     if (x0->magic != TEST_MAGIC0)
         return EXIT_FAILURE;
 
-    ref_put(&x0->ref);
-    ref_put(&x0->ref);
+    ref_put(x0);
+    ref_put(x0);
     if (!ok_counters())
         return EXIT_FAILURE;
 
@@ -74,7 +74,7 @@ static int refcount_test2(void)
     static struct x0 xS = { .ref = REF_STATIC, .magic = TEST_MAGIC0 };
 
     reset_counters();
-    ref_put(&xS.ref);
+    ref_put(&xS);
     if (dropcount || failcount)
         return EXIT_FAILURE;
 

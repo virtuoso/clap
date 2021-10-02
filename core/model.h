@@ -66,6 +66,21 @@ static inline const char *txmodel_name(struct model3dtx *txm)
     return txm->model->name;
 }
 
+struct mq {
+    struct list     txmodels;
+    void            *priv;
+};
+
+void mq_init(struct mq *mq, void *priv);
+void mq_release(struct mq *mq);
+void mq_update(struct mq *mq);
+void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data);
+struct model3dtx *mq_model_first(struct mq *mq);
+struct model3dtx *mq_model_last(struct mq *mq);
+void mq_add_model(struct mq *mq, struct model3dtx *txmodel);
+void mq_add_model_tail(struct mq *mq, struct model3dtx *txmodel);
+struct model3dtx *mq_nonempty_txm_next(struct mq *mq, struct model3dtx *txm, bool fwd);
+
 /* XXX: find a better place; util.h not good */
 static inline float cos_interp(float a, float b, float blend)
 {
@@ -94,6 +109,12 @@ void fbo_prepare(struct fbo *fbo);
 void fbo_done(struct fbo *fbo, int width, int height);
 void fbo_resize(struct fbo *fbo, int width, int height);
 
+enum color_pt {
+    COLOR_PT_NONE = 0,
+    COLOR_PT_ALPHA,
+    COLOR_PT_ALL,
+};
+
 struct entity3d {
     struct model3dtx *txmodel;
     struct matrix4f  *mx;
@@ -109,16 +130,18 @@ struct entity3d {
 
     struct phys_body *phys_body;
     GLfloat color[4];
+    enum color_pt color_pt;
     GLfloat dx, dy, dz;
     GLfloat rx, ry, rz;
     GLfloat scale;
     int (*update)(struct entity3d *e, void *data);
     int (*contact)(struct entity3d *e1, struct entity3d *e2);
+    void (*destroy)(struct entity3d *e);
     void *priv;
 };
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
-void models_render(struct list *list, struct light *light, struct matrix4f *view_mx, struct matrix4f *inv_view_mx,
+void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx, struct matrix4f *inv_view_mx,
                    struct matrix4f *proj_mx, struct entity3d *focus);
 
 static inline const char *entity_name(struct entity3d *e)

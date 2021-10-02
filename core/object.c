@@ -11,18 +11,21 @@ static void ref_classes_update(void)
 {
     size_t size, total = 0;
     struct ref_class *rc;
-    char *newline = "";
     char buf[256];
+    unsigned long counter = 0;
 
-    // list_for_each_entry(rc, &ref_classes, entry) {
-    //     size = snprintf(buf, sizeof(buf), "%s -> '%s': %lu", newline, rc->name, rc->nr_active);
-    //     if (total + size >= sizeof(ref_classes_string))
-    //         break;
-    //     strncpy(ref_classes_string + total, buf, size);
-    //     newline = "\n";
-    //     total += size;
-    // }
-    ref_classes_string[total] = 0;
+    list_for_each_entry(rc, &ref_classes, entry) {
+        size = snprintf(&ref_classes_string[total], sizeof(ref_classes_string) - total,
+                        " -> '%s': %lu\n", rc->name, rc->nr_active);
+        if (total + size >= sizeof(ref_classes_string))
+            break;
+        total += size;
+        counter++;
+    }
+
+    size = snprintf(&ref_classes_string[total], sizeof(ref_classes_string) - total,
+                    " total: %lu", counter);
+    ref_classes_string[total+size] = 0;
     ref_classes_updated = false;
 }
 

@@ -102,10 +102,18 @@ static void log_flush(struct log_entry *e, void *data)
     struct message_command *mcmd;
     struct message_log *mlog;
     struct timespec ts;
+    char *modfile;
     size_t size;
     void *buf;
 
+    modfile = strrchr(e->mod, '/');
+    if (!modfile)
+        modfile = e->mod;
+    else
+        modfile++;
+
     size = sizeof(*mcmd) + sizeof(*mlog) + strlen(e->msg) + 1;
+    size += strlen(modfile) + strlen(e->func) + 7 + 5;
     CHECK(buf = calloc(1, size));
     mcmd = buf;
     mlog = buf + sizeof(*mcmd);
@@ -119,8 +127,9 @@ static void log_flush(struct log_entry *e, void *data)
     }
     mlog->ts.tv_sec = e->ts.tv_sec;
     mlog->ts.tv_nsec = e->ts.tv_nsec;
-    mlog->length = strlen(e->msg) + 1;
-    memcpy(mlog->msg, e->msg, mlog->length);
+    mlog->length = snprintf(mlog->msg, size - sizeof(*mcmd) - sizeof(*mlog),
+                            "[%s:%d @%s] %s", modfile, e->line, e->func, e->msg) + 1;
+    size = mlog->length + sizeof(*mcmd) + sizeof(*mlog);
     clock_gettime(CLOCK_REALTIME, &ts);
     timespec_to_64(&ts, &mcmd->time);
     queue_outmsg(n, buf, size);
@@ -806,7 +815,7 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
                 break;
             }
             if (n->state == ST_ERROR) {
-                ref_put(&n->ref);
+                ref_put(n);
                 return 0;
             }
             handled += xhandled;
@@ -834,10 +843,8 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
 
 out_short:
     if (n->websocket) {
-        free(x);
-
         if (op == WSOP_FIN) {
-            ref_put(&n->ref);
+            ref_put(n);
         }
     }
 
@@ -900,7 +907,7 @@ void networking_poll(void)
             ret = recvfrom(n->fd, buf, sizeof(buf), 0, (struct sockaddr *)&n->sa, &n->addrlen);
             if (!ret) {
                 dbg("pollfd[%d]: shutting down\n", i);
-                ref_put(&n->ref);
+                ref_put(n);
                 continue;
             }
             if (ret > 0) {
@@ -914,7 +921,7 @@ void networking_poll(void)
         }
         /* Third, hangups */
         if (events & POLLHUP) {
-            ref_put(&n->ref);
+            ref_put(n);
             continue;
         }
         /* Fourth, send out queued data */
@@ -1008,7 +1015,7 @@ not_empty:
     list_for_each_entry_iter(n, it, &nodes, entry) {
         if (!list_empty(&n->out_queue))
             goto not_empty;
-        ref_put(&n->ref);
+        ref_put(n);
     }
     free(_ncfg);
 }

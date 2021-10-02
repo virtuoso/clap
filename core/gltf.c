@@ -483,7 +483,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
     }
 
     json_free(root);
-    ref_put(&h->ref);
+    ref_put(h);
 
     return;
 }
@@ -526,8 +526,7 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
                                  gltf_tx(gd, mesh), gltf_txsz(gd, mesh),
                                  gltf_norm(gd, mesh), gltf_normsz(gd, mesh));
     gd->scene->_model = m;
-    txm = model3dtx_new_from_buffer(gd->scene->_model, gltf_tex(gd, mesh), gltf_texsz(gd, mesh));
-    ref_put(&m->ref);
+    txm = model3dtx_new_from_buffer(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh));
     scene_add_model(gd->scene, txm);
 }
 
@@ -547,7 +546,7 @@ struct gltf_data *gltf_load(struct scene *scene, const char *name)
     CHECK(gd = calloc(1, sizeof(*gd)));
     gd->scene = scene;
     lh = lib_request(RES_ASSET, name, gltf_onload, gd);
-    ref_put(&lh->ref);
+    ref_put(lh);
 
     return gd;
 }

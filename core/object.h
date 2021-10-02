@@ -37,6 +37,7 @@ struct ref {
     struct ref_class    *refclass;
     drop_t	drop;
     int		count;
+    bool    consume;
     size_t  size;
 };
 
@@ -55,7 +56,10 @@ static inline void ref_init(struct ref *ref, drop_t drop)
 static inline bool __ref_get(struct ref *ref)
 {
     if (ref->count) {
-        ref->count++;
+        if (ref->consume)
+            ref->consume = false;
+        else
+            ref->count++;
         return true;
     }
 
@@ -86,16 +90,20 @@ static inline void _ref_put(struct ref *ref)
         _ref_drop(ref);
 }
 
-#define ref_put(r) do { \
-        ref_dbg("ref_put(%s): %d\n", (r)->name, (r)->count - 1); \
+#define ref_put_ref(r) do { \
+        ref_dbg("ref_put_ref(%s): %d\n", (r)->name, (r)->count - 1); \
         _ref_put(r); \
     } while (0)
 
-#define ref_put_last(r) do { \
-        ref_dbg("ref_put_last(%s): %d\n", (r)->name, (r)->count - 1); \
+#define ref_put(obj) ref_put_ref(&(obj)->ref)
+
+#define ref_put_last_ref(r) do { \
+        ref_dbg("ref_put_last_ref(%s): %d\n", (r)->name, (r)->count - 1); \
         err_on(!!--(r)->count, "'%s': %d\n", (r)->name, (r)->count); \
         _ref_drop((r)); \
     } while (0)
+
+#define ref_put_last(obj) ref_put_last_ref(&(obj)->ref)
 
 #define ref_assert(r, c) do { \
         err_on((r)->count != (c), "'%s' expected %d, got %d\n", \
@@ -115,6 +123,13 @@ static inline void _ref_put(struct ref *ref)
         ref_init(&__v->ref, __rc->drop); \
     } \
     __v; \
+})
+
+#define ref_pass(obj) ({ \
+    typeof (obj) __obj = (obj); \
+    obj = NULL; \
+    __obj->ref.consume = true; \
+    __obj; \
 })
 
 void cleanup__ref(struct ref **ref);

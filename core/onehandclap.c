@@ -131,7 +131,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
         glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-        models_render(&s->txmodels, &s->light, s->camera[1].view_mx, s->camera[1].inv_view_mx, s->proj_mx, s->focus);
+        models_render(&s->mq, &s->light, s->camera[1].view_mx, s->camera[1].inv_view_mx, s->proj_mx, s->focus);
         fbo_done(fbo, s->width, s->height);
     }
 
@@ -139,13 +139,13 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    models_render(&s->txmodels, &s->light, s->camera->view_mx, s->camera->inv_view_mx, s->proj_mx, s->focus);
+    models_render(&s->mq, &s->light, s->camera->view_mx, s->camera->inv_view_mx, s->proj_mx, s->focus);
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
     //glDisable(GL_DEPTH_TEST);
     //glClear(GL_DEPTH_BUFFER_BIT);
-    models_render(&ui.txmodels, NULL, NULL, NULL, NULL, NULL);
+    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL);
     PROF_STEP(ui, models);
 
     s->frames_total++;
@@ -177,7 +177,7 @@ static void projmx_update(struct scene *s)
 static void fbo_update(int width, int height)
 {
     if (fbo) {
-        ref_put(&fbo->ref);
+        ref_put(fbo);
         fbo = NULL;
     }
 
@@ -378,8 +378,9 @@ int main(int argc, char **argv, char **envp)
      * lib_request(RES_ASSET, "morning.ogg", opening_sound_load, &intro_sound);
      */
     intro_sound = sound_load("morning.ogg");
-    sound_set_looping(intro_sound, true);
+    settings = settings_init(settings_onload, NULL);
     sound_set_gain(intro_sound, 0);
+    sound_set_looping(intro_sound, true);
     sound_play(intro_sound);
 
     /* Before models are created */
@@ -429,9 +430,9 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
-    phys_done();
     ui_done(&ui);
     scene_done(&scene);
+    phys_done();
     settings_done(settings);
     sound_done();
     //gl_done();

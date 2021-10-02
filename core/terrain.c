@@ -591,8 +591,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     //dbg("##### rand height(5,14): %f\n", get_avg_height(5, 14));
     //dbg("##### rand height(5,14): %f\n", get_avg_height(5, 14));
     //dbg("##### rand height(6,15): %f\n", get_avg_height(6, 15));
-    txm = model3dtx_new(model, "grass20.png");
-    ref_put(&model->ref);
+    txm = model3dtx_new(ref_pass(model), "grass20.png");
     scene_add_model(s, txm);
     t->entity = entity3d_new(txm);
     t->entity->collision_vx = vx;
@@ -609,7 +608,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     //dGeomSetPosition(phys->ground, t->x, t->y, t->z);
     //mat4x4_identity(idm);
     //dGeomSetRotation(phys->ground, idm);
-    ref_put(&prog->ref); /* matches shader_prog_find() above */
+    ref_put(prog); /* matches shader_prog_find() above */
     return t;
 }
 
@@ -1294,8 +1293,7 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
 
     // txm = model3dtx_new(model, "grass20.png");
     // txm = model3dtx_new(model, "stonewall.png");
-    txm = model3dtx_new(model, "wall12.png");
-    ref_put(&model->ref);
+    txm = model3dtx_new(ref_pass(model), "wall12.png");
     scene_add_model(s, txm);
     t->entity = entity3d_new(txm);
     t->entity->collision_vx = t->vx;
@@ -1308,11 +1306,11 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
     entity3d_add_physics(t->entity, 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
     phys->ground = t->entity->phys_body->geom;//phys_geom_trimesh_new(phys, NULL, t->entity, dInfinity);
     dGeomSetData(phys->ground, t->entity);
-    ref_put(&prog->ref); /* matches shader_prog_find() above */
+    ref_put(prog); /* matches shader_prog_find() above */
     return t;
 }
 
 void terrain_done(struct terrain *t)
 {
-    ref_put_last(&t->ref);
+    ref_put_last(t);
 }

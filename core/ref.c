@@ -3,6 +3,6 @@
 
 void cleanup__ref(struct ref **ref)
 {
-    ref_put(*ref);
+    ref_put_ref(*ref);
 }
 

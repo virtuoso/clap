@@ -4,6 +4,7 @@
 #include <errno.h>
 #include "librarian.h"
 #include "common.h"
+#include "render.h"
 #include "matrix.h"
 #include "util.h"
 #include "object.h"
@@ -28,8 +29,10 @@ static void model3d_drop(struct ref *ref)
         glDeleteBuffers(1, &m->norm_obj);
     if (m->tex_obj)
         glDeleteBuffers(1, &m->tex_obj);
+    if (gl_does_vao())
+        glDeleteVertexArrays(1, &m->vao);
     /* delete gl buffers */
-    ref_put(&m->prog->ref);
+    ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
     free(m->name);
     free(m);
@@ -47,7 +50,7 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
     //hexdump(buffer, 16);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    glGenTextures(1, obj);
+    *obj = texture_gen();
     glUniform1i(textureLoc, 0);
 
     // Bind it
@@ -101,8 +104,8 @@ static void model3dtx_drop(struct ref *ref)
     trace("dropping model3dtx [%s]\n", name);
     list_del(&txm->entry);
     if (!txm->external_tex)
-        glDeleteTextures(1, &txm->texture_id);
-    ref_put(&txm->model->ref);
+        texture_del(txm->texture_id);
+    ref_put(txm->model);
     free(txm);
 }
 
@@ -356,7 +359,7 @@ static int fbo_texture(struct fbo *fbo)
 {
     int tex;
 
-    glGenTextures(1, &tex);
+    tex = texture_gen();
     glBindTexture(GL_TEXTURE_2D, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -373,7 +376,7 @@ static int fbo_depth_texture(struct fbo *fbo)
 {
     int tex;
 
-    glGenTextures(1, &tex);
+    tex = texture_gen();
     glBindTexture(GL_TEXTURE_2D, tex);
     // glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, fbo->width, fbo->height, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -444,9 +447,9 @@ static void fbo_drop(struct ref *ref)
     // dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
     glDeleteFramebuffers(1, &fbo->fbo);
     if (!fbo->retain_tex)
-        glDeleteTextures(1, &fbo->tex);
+        texture_del(fbo->tex);
     if (fbo->depth_tex)
-        glDeleteTextures(1, &fbo->depth_tex);
+        texture_del(fbo->depth_tex);
     if (fbo->depth_buf)
         glDeleteRenderbuffers(1, &fbo->depth_buf);
     free(fbo);
@@ -474,7 +477,7 @@ struct fbo *fbo_new(int width, int height)
     return fbo;
 }
 
-void models_render(struct list *list, struct light *light, struct matrix4f *view_mx,
+void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
                    struct matrix4f *inv_view_mx, struct matrix4f *proj_mx, struct entity3d *focus)
 {
     struct entity3d *e;
@@ -483,10 +486,10 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
     struct model3dtx *txmodel;
     GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
     GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
-    GLint highlight_loc, color_loc, ray_loc;
+    GLint highlight_loc, color_loc, ray_loc, colorpt_loc;
     unsigned long nr_txms = 0, nr_ents = 0;
 
-    list_for_each_entry(txmodel, list, entry) {
+    list_for_each_entry(txmodel, &mq->txmodels, entry) {
         model = txmodel->model;
         /* XXX: model-specific draw method */
         if (model->cull_face) {
@@ -523,6 +526,7 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
             highlight_loc    = shader_prog_find_var(prog, "highlight_color");
             ray_loc          = shader_prog_find_var(prog, "ray");
             color_loc        = shader_prog_find_var(prog, "color");
+            colorpt_loc      = shader_prog_find_var(prog, "color_passthrough");
 
             /* XXX: entity properties */
             if (shine_damper_loc >= 0 && reflectivity_loc >= 0) {
@@ -565,6 +569,8 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
 #endif
             if (color_loc >= 0)
                 glUniform4fv(color_loc, 1, e->color);
+            if (colorpt_loc >= 0)
+                glUniform1f(colorpt_loc, 0.5 * e->color_pt);
             if (focus && highlight_loc >= 0)
                 glUniform4fv(highlight_loc, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc);
 
@@ -591,7 +597,8 @@ void models_render(struct list *list, struct light *light, struct matrix4f *view
     }
 
     //dbg("RENDERED: %lu/%lu\n", nr_txms, nr_ents);
-    shader_prog_done(prog);
+    if (prog)
+        shader_prog_done(prog);
 }
 
 static void model_obj_loaded(struct lib_handle *h, void *data)
@@ -611,8 +618,8 @@ static void model_obj_loaded(struct lib_handle *h, void *data)
         return;
 
     m = model3d_new_from_model_data(h->name, prog, md);
-    ref_put(&prog->ref); /* matches shader_prog_find() above */
-    ref_put(&h->ref);
+    ref_put(prog); /* matches shader_prog_find() above */
+    ref_put(h);
 
     //scene_add_model(s, m);
     s->_model = m;
@@ -635,8 +642,8 @@ static void model_bin_vec_loaded(struct lib_handle *h, void *data)
     norm = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz;
     idx  = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz + hdr->vxsz;
     m = model3d_new_from_vectors(h->name, prog, vx, hdr->vxsz, idx, hdr->idxsz, tx, hdr->txsz, norm, hdr->vxsz);
-    ref_put(&prog->ref);  /* matches shader_prog_find() above */
-    ref_put(&h->ref);
+    ref_put(prog);  /* matches shader_prog_find() above */
+    ref_put(h);
 
     //scene_add_model(s, m);
     s->_model = m;
@@ -734,7 +741,7 @@ static void entity3d_drop(struct ref *ref)
     struct entity3d *e = container_of(ref, struct entity3d, ref);
     trace("dropping entity3d\n");
     list_del(&e->entry);
-    ref_put(&e->txmodel->ref);
+    ref_put(e->txmodel);
     
     if (e->phys_body) {
         phys_body_done(e->phys_body);
@@ -766,7 +773,7 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
 /* XXX: static inline? via macro? */
 void entity3d_put(struct entity3d *e)
 {
-    ref_put(&e->ref);
+    ref_put(e);
 }
 
 void entity3d_update(struct entity3d *e, void *data)
@@ -853,3 +860,88 @@ void create_entities(struct model3dtx *txmodel)
     }
 }
 
+void mq_init(struct mq *mq, void *priv)
+{
+    list_init(&mq->txmodels);
+    mq->priv = priv;
+}
+
+void mq_release(struct mq *mq)
+{
+    struct model3dtx *txmodel, *ittxm;
+    struct entity3d *ent, *itent;
+
+    list_for_each_entry_iter(txmodel, ittxm, &mq->txmodels, entry) {
+        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
+            if (ent->destroy)
+                ent->destroy(ent);
+            else
+                ref_put(ent);
+        }
+        ref_put_last(txmodel);
+    }
+}
+
+void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data)
+{
+    struct model3dtx *txmodel, *ittxm;
+    struct entity3d *ent, *itent;
+
+    list_for_each_entry(txmodel, &mq->txmodels, entry) {
+        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
+            cb(ent, data);
+        }
+    }
+}
+
+void mq_update(struct mq *mq)
+{
+    mq_for_each(mq, entity3d_update, mq->priv);
+}
+
+struct model3dtx *mq_model_first(struct mq *mq)
+{
+    return list_first_entry(&mq->txmodels, struct model3dtx, entry);
+}
+
+struct model3dtx *mq_model_last(struct mq *mq)
+{
+    return list_last_entry(&mq->txmodels, struct model3dtx, entry);
+}
+
+void mq_add_model(struct mq *mq, struct model3dtx *txmodel)
+{
+    list_append(&mq->txmodels, &txmodel->entry);
+}
+
+void mq_add_model_tail(struct mq *mq, struct model3dtx *txmodel)
+{
+    list_prepend(&mq->txmodels, &txmodel->entry);
+}
+
+struct model3dtx *mq_nonempty_txm_next(struct mq *mq, struct model3dtx *txm, bool fwd)
+{
+    struct model3dtx *first_txm = mq_model_first(mq);
+    struct model3dtx *last_txm = mq_model_last(mq);
+    struct model3dtx *next_txm;
+
+    if (list_empty(&mq->txmodels))
+        return NULL;
+
+    if (!txm)
+        txm = fwd ? last_txm : first_txm;
+    next_txm = txm;
+
+    do {
+        if (next_txm == first_txm)
+            next_txm = last_txm;
+        else if (next_txm == last_txm)
+            next_txm = first_txm;
+        else
+            next_txm = fwd ?
+                list_next_entry(next_txm, entry) :
+                list_prev_entry(next_txm, entry);
+    } while (list_empty(&next_txm->entities) && next_txm != txm);
+
+    return list_empty(&next_txm->entities) ? NULL : next_txm;
+}

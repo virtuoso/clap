@@ -71,7 +71,7 @@ static void lib_onload(void *arg, void *buf, int size)
     h->buf = buf;
     h->size = size;
     h->state = RES_LOADED;
-    ref_put(&h->ref);
+    ref_put(h);
     h->func(h, h->data);
 }
 
@@ -139,7 +139,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
 void lib_release(struct lib_handle *h)
 {
     free(h->data);
-    ref_put(&h->ref);
+    ref_put(h);
 }
 
 /*
@@ -183,7 +183,7 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
         *szp = h->size;
         h->state = RES_LOADED;
     }
-    ref_put(&h->ref);
+    ref_put(h);
 
     return ret ? NULL : h;
 }

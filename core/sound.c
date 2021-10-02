@@ -236,7 +236,7 @@ void sound_done(void)
     struct sound *sound, *its;
 
     list_for_each_entry_iter(sound, its, &sounds, entry) {
-        ref_put(&sound->ref);
+        ref_put(sound);
     }
 
     alcDestroyContext(context);

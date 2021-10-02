@@ -43,33 +43,7 @@ static void scene_control_next(struct scene *s)
     s->camera->ch->moved++;
 
     trace("scene control at: '%s'\n", entity_name(s->control->entity));
-}
-
-static struct model3dtx *scene_nonempty_txm_next(struct scene *s, struct model3dtx *txm, bool fwd)
-{
-    struct model3dtx *first_txm = list_first_entry(&s->txmodels, struct model3dtx, entry);
-    struct model3dtx *last_txm = list_last_entry(&s->txmodels, struct model3dtx, entry);
-    struct model3dtx *next_txm;
-
-    if (list_empty(&s->txmodels))
-        return NULL;
-
-    if (!txm)
-        txm = fwd ? last_txm : first_txm;
-    next_txm = txm;
-
-    do {
-        if (next_txm == first_txm)
-            next_txm = last_txm;
-        else if (next_txm == last_txm)
-            next_txm = first_txm;
-        else
-            next_txm = fwd ?
-                list_next_entry(next_txm, entry) :
-                list_prev_entry(next_txm, entry);
-    } while (list_empty(&next_txm->entities) && next_txm != txm);
-
-    return list_empty(&next_txm->entities) ? NULL : next_txm;
+    dbg("scene control at: '%s'\n", entity_name(s->control->entity));
 }
 
 static void scene_focus_next(struct scene *s)
@@ -78,7 +52,7 @@ static void scene_focus_next(struct scene *s)
 
     sound_play(click);
     if (!s->focus) {
-        next_txm = scene_nonempty_txm_next(s, NULL, true);
+        next_txm = mq_nonempty_txm_next(&s->mq, NULL, true);
         /* nothing to focus on */
         if (!next_txm)
             return;
@@ -91,7 +65,7 @@ static void scene_focus_next(struct scene *s)
         return;
     }
 
-    next_txm = scene_nonempty_txm_next(s, s->focus->txmodel, true);
+    next_txm = mq_nonempty_txm_next(&s->mq, s->focus->txmodel, true);
     if (!next_txm)
         return;
 
@@ -105,7 +79,7 @@ static void scene_focus_prev(struct scene *s)
 
     sound_play(click);
     if (!s->focus) {
-        next_txm = scene_nonempty_txm_next(s, NULL, false);
+        next_txm = mq_nonempty_txm_next(&s->mq, NULL, false);
         if (!next_txm)
             return;
         goto last_entry;
@@ -116,7 +90,7 @@ static void scene_focus_prev(struct scene *s)
         return;
     }
 
-    next_txm = scene_nonempty_txm_next(s, s->focus->txmodel, false);
+    next_txm = mq_nonempty_txm_next(&s->mq, s->focus->txmodel, false);
     if (!next_txm)
         return;
 last_entry:
@@ -139,7 +113,7 @@ int scene_camera_add(struct scene *s)
     struct model3dtx *txm = model3dtx_new(m, "transparent.png");
     struct entity3d *entity;
 
-    ref_put(&m->ref);
+    ref_put(m);
     s->camera = &s->cameras[s->nr_cameras];
     s->camera->ch = character_new(txm, s);
     entity = character_entity(s->camera->ch);
@@ -377,7 +351,7 @@ static int scene_handle_input(struct message *m, void *data)
 
 int scene_add_model(struct scene *s, struct model3dtx *txm)
 {
-    list_append(&s->txmodels, &txm->entry);
+    mq_add_model(&s->mq, txm);
     return 0;
 }
 
@@ -407,11 +381,7 @@ void scene_update(struct scene *scene)
 
     scene_light_update(scene);
 
-    list_for_each_entry(txm, &scene->txmodels, entry) {
-        list_for_each_entry(ent, &txm->entities, entry) {
-            entity3d_update(ent, scene);
-        }
-    }
+    mq_update(&scene->mq);
 }
 
 int scene_init(struct scene *scene)
@@ -420,7 +390,7 @@ int scene_init(struct scene *scene)
     scene->proj_mx      = mx_new();
     scene->exit_timeout = -1;
     scene->auto_yoffset = 4.0;
-    list_init(&scene->txmodels);
+    mq_init(&scene->mq, scene);
     list_init(&scene->characters);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
@@ -496,15 +466,15 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     if (obj) {
         libh = lib_request_obj(obj, scene);
         txm = model3dtx_new(scene->_model, tex);
-        ref_put(&scene->_model->ref);
+        ref_put(scene->_model);
         scene_add_model(scene, txm);
-        ref_put_last(&libh->ref);
+        ref_put_last(libh);
     } else if (binvec) {
         libh = lib_request_bin_vec(binvec, scene);
         txm = model3dtx_new(scene->_model, tex);
-        ref_put(&scene->_model->ref);
+        ref_put(scene->_model);
         scene_add_model(scene, txm);
-        ref_put_last(&libh->ref);
+        ref_put_last(libh);
     } else if (gltf) {
         gd = gltf_load(scene, gltf);
         if (gltf_get_meshes(gd) > 1) {
@@ -523,11 +493,12 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             gltf_instantiate_one(gd, 0);
             collision = 0;
         }
-        txm = list_last_entry(&scene->txmodels, struct model3dtx, entry);
+        txm = mq_model_last(&scene->mq);
         txm->model->cull_face = cull_face;
         txm->model->alpha_blend = alpha_blend;
     }
 
+    /* XXX: get rid of scene->_model, we don't have a reference to it */
     model3d_set_name(scene->_model, name);
 
     if (phys) {
@@ -679,7 +650,7 @@ static void scene_onload(struct lib_handle *h, void *buf)
         }
     }
     dbg("loaded scene: '%s'\n", scene->name);
-    ref_put(&h->ref);
+    ref_put(h);
 }
 
 int scene_load(struct scene *scene, const char *name)
@@ -687,7 +658,7 @@ int scene_load(struct scene *scene, const char *name)
     struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
 
     err_on(lh->state != RES_LOADED);
-    ref_put_last(&lh->ref);
+    ref_put_last(lh);
     click = sound_load("stapler.ogg");
 
     return 0;
@@ -699,22 +670,7 @@ void scene_done(struct scene *scene)
     struct entity3d  *ent, *itent;
 
     terrain_done(scene->terrain);
-    ref_put_last(&scene->camera->ch->ref);
+    ref_put_last(scene->camera->ch);
 
-    /*
-     * Question: do higher-level objects hold the last reference to the
-     * lower-level objects: txmodels on models, entities on txmodels.
-     * 
-     * As of this writing, it's true for the latter and false for the
-     * former, which is inconsistent and will yield bugs.
-     */
-    list_for_each_entry_iter(txmodel, ittxm, &scene->txmodels, entry) {
-    //while (!list_empty(&scene->txmodels)) {
-        //txmodel = list_first_entry(&scene->txmodels, struct model3dtx, entry);
-        dbg("freeing entities of '%s'\n", txmodel->model->name);
-        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
-            ref_put(&ent->ref);
-        }
-        ref_put_last(&txmodel->ref);
-    }
+    mq_release(&scene->mq);
 }

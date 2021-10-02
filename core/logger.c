@@ -217,6 +217,7 @@ static notrace int rb_log(int level, const char *mod, int line, const char *func
 
     log_rb[log_rb_wp].mod = mod;
     log_rb[log_rb_wp].func = func;
+    log_rb[log_rb_wp].line = line;
     log_rb[log_rb_wp].level = level;
     log_rb[log_rb_wp].ts.tv_sec = ts.tv_sec;
     log_rb[log_rb_wp].ts.tv_nsec = ts.tv_nsec;
