@@ -394,7 +394,6 @@ static void terrain_drop(struct ref *ref)
     struct terrain *terrain = container_of(ref, struct terrain, ref);
 
     free(terrain->map);
-    free(terrain);
 }
 
 DECLARE_REFCLASS(terrain);

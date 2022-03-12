@@ -146,7 +146,6 @@ static void shader_prog_drop(struct ref *ref)
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
 
     dbg("dropping shader '%s'\n", p->name);
-    free(p);
 }
 
 DECLARE_REFCLASS(shader_prog);

@@ -130,7 +130,6 @@ static void character_drop(struct ref *ref)
     struct character *c = container_of(ref, struct character, ref);
 
     ref_put_last_ref(&c->entity->ref);
-    free(c);
 }
 
 DECLARE_REFCLASS(character);

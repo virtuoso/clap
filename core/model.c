@@ -35,7 +35,6 @@ static void model3d_drop(struct ref *ref)
     ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
     free(m->name);
-    free(m);
 }
 
 DECLARE_REFCLASS(model3d);
@@ -106,7 +105,6 @@ static void model3dtx_drop(struct ref *ref)
     if (!txm->external_tex)
         texture_del(txm->texture_id);
     ref_put(txm->model);
-    free(txm);
 }
 
 DECLARE_REFCLASS(model3dtx);
@@ -452,7 +450,6 @@ static void fbo_drop(struct ref *ref)
         texture_del(fbo->depth_tex);
     if (fbo->depth_buf)
         glDeleteRenderbuffers(1, &fbo->depth_buf);
-    free(fbo);
 }
 
 DECLARE_REFCLASS(fbo);

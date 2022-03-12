@@ -84,7 +84,6 @@ static void font_drop(struct ref *ref)
     for (i = 0; i < array_size(font->g); i++)
         texture_del(font->g[i].texture_id);
     free(font->name);
-    free(font);
 }
 
 DECLARE_REFCLASS(font);

@@ -34,7 +34,6 @@ static void test_drop(struct ref *ref)
     }
 
     dropcount++;
-    free(x0);
 }
 
 DECLARE_REFCLASS_DROP(x0, test_drop);

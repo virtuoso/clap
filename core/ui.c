@@ -162,7 +162,6 @@ static void ui_element_drop(struct ref *ref)
     ui_element_animations_done(uie);
     err_on(!list_empty(&uie->children), "ui_element still has children\n");
     ref_put_last(uie->entity);
-    free(uie);
 }
 
 DECLARE_REFCLASS(ui_element);
@@ -264,7 +263,6 @@ static void ui_text_drop(struct ref *ref)
     texture_del(uit->uietex->entity->txmodel->texture_id);
     ref_put_last(uit->uietex);
     free(uit->str);
-    free(uit);
 }
 
 DECLARE_REFCLASS(ui_text);
@@ -724,7 +722,6 @@ static void ui_widget_drop(struct ref *ref)
     ref_put_last(uiw->root);
     free(uiw->texts);
     free(uiw->uies);
-    free(uiw);
 }
 
 DECLARE_REFCLASS(ui_widget);

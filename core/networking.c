@@ -191,7 +191,6 @@ static void network_node_drop(struct ref *ref)
     list_del(&n->entry);
     close(n->fd);
     shutdown(n->fd, SHUT_RDWR);
-    free(n);
     need_polling_alloc++;
 }
 

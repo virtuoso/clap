@@ -55,7 +55,8 @@ void ref_class_add(struct ref *ref)
     if (ref_class_needs_init(rc))
         ref_class_init_lazy(rc);
 
-    rc->nr_active++;
+    if (!ref_is_static(ref))
+        rc->nr_active++;
     ref_classes_updated = true;
 }
 
