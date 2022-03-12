@@ -101,8 +101,8 @@ static void log_flush(struct log_entry *e, void *data)
     struct network_node *n = data;
     struct message_command *mcmd;
     struct message_log *mlog;
+    const char *modfile;
     struct timespec ts;
-    char *modfile;
     size_t size;
     void *buf;
 
