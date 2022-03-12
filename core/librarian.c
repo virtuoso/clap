@@ -44,7 +44,6 @@ static void handle_drop(struct ref *ref)
 
     dbg("dropping handle %s\n", h->name);
     free(h->buf);
-    free(h);
 }
 
 DECLARE_REFCLASS_DROP(lib_handle, handle_drop);

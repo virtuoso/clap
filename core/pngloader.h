@@ -12,8 +12,8 @@ static inline unsigned char *fetch_png(const char *name, int *width, int *height
     return (unsigned char *)emscripten_get_preloaded_image_data(path, width, height);
 }
 #else
-unsigned char *fetch_png(const char *file_name, int *width, int *height);
-unsigned char *decode_png(void *buf, size_t length, int *width, int *height);
+unsigned char *fetch_png(const char *file_name, int *width, int *height, int *has_alpha);
+unsigned char *decode_png(void *buf, size_t length, int *width, int *height, int *has_alpha);
 #endif
 
 #endif /* __CLAP_PNGLOADER_H__ */

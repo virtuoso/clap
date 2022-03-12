@@ -14,6 +14,15 @@ bool gl_does_vao(void)
     return false;
 }
 
+int gl_refresh_rate(void)
+{
+    /*
+     * XXX: Ugh, I know.
+     * But this is not much worse than dynamic calculation.
+     */
+    return 60;
+}
+
 void gl_request_exit(void)
 {
 }
@@ -53,16 +62,18 @@ EMSCRIPTEN_KEEPALIVE void gl_resize(int w, int h)
 }
 
 extern void www_joysticks_poll(void);
+extern void www_touch_poll(void);
 void gl_swap_buffers(void)
 {
     emscripten_webgl_commit_frame();
     www_joysticks_poll();
+    www_touch_poll();
     joysticks_poll();
 }
 
 void gl_enter_fullscreen(void)
 {
-    emscripten_request_fullscreen(EMSCRIPTEN_EVENT_TARGET_WINDOW, 1);
+    emscripten_request_fullscreen("#canvas", 1);
 }
 
 void gl_leave_fullscreen(void)
@@ -95,5 +106,6 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     EM_ASM(runtime_ready = true;);
     gl_get_sizes(NULL, NULL);
     emscripten_set_main_loop_arg(update_fn, data, 0, 0);
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
     //resize_fn(width, height);
 }

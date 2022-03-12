@@ -9,7 +9,8 @@
 #include "librarian.h"
 #include "logger.h"
 
-static unsigned char *parse_png(png_structp png, png_infop info, int *width, int *height)
+static unsigned char *parse_png(png_structp png, png_infop info, int *width, int *height,
+                                int *has_alpha)
 {
     png_bytep *row_pointers;
     png_byte  *buffer = NULL;
@@ -23,6 +24,7 @@ static unsigned char *parse_png(png_structp png, png_infop info, int *width, int
     *width  = png_get_image_width(png, info);
     *height = png_get_image_height(png, info);
     color_type = png_get_color_type(png, info);
+    *has_alpha = color_type & PNG_COLOR_MASK_ALPHA ? 1 : 0;
     bit_depth = png_get_bit_depth(png, info);
     rowsz = png_get_rowbytes(png, info);
     dbg("image %dx%u color_type %d bit_depth %d rowbytes %d\n", *width, *height, color_type, bit_depth, rowsz);
@@ -50,7 +52,7 @@ out:
     return buffer;
 }
 
-unsigned char *fetch_png(const char *file_name, int *width, int *height)
+unsigned char *fetch_png(const char *file_name, int *width, int *height, int *has_alpha)
 {
     LOCAL(FILE, fp);
     LOCAL(char, uri);
@@ -85,7 +87,7 @@ unsigned char *fetch_png(const char *file_name, int *width, int *height)
 
     png_init_io(png, fp);
 
-    return parse_png(png, info, width, height);
+    return parse_png(png, info, width, height, has_alpha);
 }
 
 struct png_cursor {
@@ -105,7 +107,7 @@ static void png_read_mem(png_structp png, png_bytep data, png_size_t length)
     c->offset += length;
 }
 
-unsigned char *decode_png(void *buf, size_t length, int *width, int *height)
+unsigned char *decode_png(void *buf, size_t length, int *width, int *height, int *has_alpha)
 {
     struct png_cursor cursor = { .buf = buf, .offset = 8, .length = length - 8 };
     unsigned char *header = buf;
@@ -128,5 +130,5 @@ unsigned char *decode_png(void *buf, size_t length, int *width, int *height)
 
     png_set_read_fn(png, &cursor, png_read_mem);
 
-    return parse_png(png, info, width, height);
+    return parse_png(png, info, width, height, has_alpha);
 }

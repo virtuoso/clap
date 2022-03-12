@@ -26,6 +26,7 @@
 #include "physics.h"
 #include "networking.h"
 #include "settings.h"
+#include "ui-debug.h"
 
 /* XXX just note for the future */
 struct settings *settings;
@@ -34,6 +35,7 @@ struct scene scene; /* XXX */
 struct ui ui;
 struct fbo *fbo;
 
+#define PROFILER
 #ifdef PROFILER
 struct profile {
     struct timespec ts, diff;
@@ -66,18 +68,17 @@ DECLARE_PROF(end);
 #define PROF_SHOW(x)
 #endif
 
-/* XXX */
-void ui_debug_printf(const char *fmt, ...);
-
 EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 {
     struct timespec ts_start;
     struct scene *s = data; /* XXX */
+    unsigned long count, frame_count;
     float y0, y1, y2;
     dReal by;
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
     clap_fps_calc(&s->fps);
+    frame_count = max((unsigned long)gl_refresh_rate() / s->fps.fps_fine, 1);
     PROF_FIRST(start);
 
     fuzzer_input_step();
@@ -93,7 +94,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
      * Collisions, dynamics
      */
     y1 = s->control->entity->dy;
-    phys_step();
+    phys_step(frame_count);
 
     PROF_STEP(phys, start);
 
@@ -106,7 +107,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     y2 = s->control->entity->dy;
     scene_update(s);
     if (s->control->entity->phys_body) {
-        dReal *pos = phys_body_position(s->control->entity->phys_body);
+        const dReal *pos = phys_body_position(s->control->entity->phys_body);
         by = pos[1];
     } else {
         by = y2;
@@ -131,7 +132,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
         glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-        models_render(&s->mq, &s->light, s->camera[1].view_mx, s->camera[1].inv_view_mx, s->proj_mx, s->focus);
+        models_render(&s->mq, &s->light, s->camera[1].view_mx, s->camera[1].inv_view_mx, s->proj_mx, s->focus, NULL);
         fbo_done(fbo, s->width, s->height);
     }
 
@@ -139,19 +140,35 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    models_render(&s->mq, &s->light, s->camera->view_mx, s->camera->inv_view_mx, s->proj_mx, s->focus);
+    models_render(&s->mq, &s->light, s->camera->view_mx, s->camera->inv_view_mx, s->proj_mx, s->focus, NULL);
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
     //glDisable(GL_DEPTH_TEST);
     //glClear(GL_DEPTH_BUFFER_BIT);
-    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL);
+    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, &count);
     PROF_STEP(ui, models);
 
-    s->frames_total++;
-    ui.frames_total++;
+    s->frames_total += frame_count;
+    ui.frames_total += frame_count;
     gl_swap_buffers();
     PROF_STEP(end, ui);
+    ui_debug_printf(
+        "phys:    %lu.%09lu\n"
+        "net:     %lu.%09lu\n"
+        "updates: %lu.%09lu\n"
+        "models:  %lu.%09lu\n"
+        "ui:      %lu.%09lu\n"
+        "end:     %lu.%09lu\n"
+        "ui_entities: %lu\n%s",
+        prof_phys.diff.tv_sec, prof_phys.diff.tv_nsec,
+        prof_net.diff.tv_sec, prof_net.diff.tv_nsec,
+        prof_updates.diff.tv_sec, prof_updates.diff.tv_nsec,
+        prof_models.diff.tv_sec, prof_models.diff.tv_nsec,
+        prof_ui.diff.tv_sec, prof_ui.diff.tv_nsec,
+        prof_end.diff.tv_sec, prof_end.diff.tv_nsec,
+        count, ref_classes_get_string()
+    );
 }
 
 #define FOV to_radians(70.0)
@@ -218,7 +235,7 @@ void resize_cb(int width, int height)
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);
     projmx_update(&scene);
-    fbo_update(width, height);
+    // fbo_update(width, height);
 }
 
 /*struct model_config {
@@ -392,22 +409,23 @@ int main(int argc, char **argv, char **envp)
      * XXX: needs to be in the scene code, but can't be called before
      * GL is initialized
      */
-    scene.terrain = terrain_init_circular_maze(&scene, 0.0, 0.0, 0.0, 300, 32, 8);
+    // scene.terrain = terrain_init_circular_maze(&scene, 0.0, 0.0, 0.0, 300, 32, 8);
+    scene.terrain = terrain_init_square_landscape(&scene, -100.0, 0.0, -100.0, 200, 256);
     fuzzer_input_init();
 
     if (fullscreen)
         gl_enter_fullscreen();
+
+    scene_camera_add(&scene);
+    scene.camera = &scene.cameras[0];
+    // scene_camera_add(&scene);
 
     scene_load(&scene, "scene.json");
     gl_get_sizes(&scene.width, &scene.height);
 
     ui_init(&ui, scene.width, scene.height);
 
-    scene_camera_add(&scene);
-    scene_camera_add(&scene);
-    scene.camera = &scene.cameras[1];
-
-    fbo_update(scene.width, scene.height);
+    // fbo_update(scene.width, scene.height);
 
     scene.lin_speed = 1.0;
     scene.ang_speed = 45.0;

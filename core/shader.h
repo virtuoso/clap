@@ -5,6 +5,13 @@
 #include "object.h"
 #include "scene.h"
 
+struct shader_data {
+    GLint viewmx, transmx, lightp, lightc, projmx;
+    GLint inv_viewmx, shine_damper, reflectivity;
+    GLint highlight, color, ray, colorpt, use_normals;
+    GLint use_skinning, joint_transforms;
+};
+
 struct shader_var;
 struct shader_prog {
     const char  *name;
@@ -12,9 +19,15 @@ struct shader_prog {
     /* XXX: we can now look these up */
     GLuint      pos;
     GLuint      norm;
+    GLint       tangent;
+    GLint       texture_map;
+    GLint       normal_map;
+    GLint       joints;
+    GLint       weights;
     GLuint      tex;
     struct ref  ref;
     struct shader_var *var;
+    struct shader_data data;
     struct shader_prog *next;
 };
 

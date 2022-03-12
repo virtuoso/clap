@@ -35,11 +35,14 @@ static void scene_control_next(struct scene *s)
 
     first = list_first_entry(&s->characters, struct character, entry);
     last = list_last_entry(&s->characters, struct character, entry);
-    if (s->control == last)
+    if (!s->control || s->control == last)
         s->control = first;
     else
         s->control = list_next_entry(s->control, entry);
 
+    s->control->camera = s->camera;
+    s->control->moved++;
+    s->camera->dist = 10;
     s->camera->ch->moved++;
 
     trace("scene control at: '%s'\n", entity_name(s->control->entity));
@@ -121,6 +124,7 @@ int scene_camera_add(struct scene *s)
     model3d_set_name(m, "camera");
     model3dtx_add_entity(txm, entity);
     scene_add_model(s, entity->txmodel);
+    ref_put(entity->txmodel);
 
     s->camera->view_mx      = mx_new();
     s->camera->inv_view_mx  = mx_new();
@@ -131,6 +135,7 @@ int scene_camera_add(struct scene *s)
     s->camera->ch->pos[2] = -4.0 + s->nr_cameras * 2;
     s->camera->yaw        = 180;
     s->camera->ch->moved++;
+    s->camera->dist = 10;
 
     return s->nr_cameras++;
 }
@@ -161,13 +166,15 @@ static void scene_camera_calc(struct scene *s, int camera)
     /* circle the character s->control */
     if (s->control != s->cameras[camera].ch &&
         (s->cameras[camera].yaw_turn || s->cameras[camera].pitch_turn || s->control->moved || s->cameras[camera].ch->moved)) {
-        float dist           = s->cameras[camera].zoom ? 3 : 8;
+        struct camera *cam = &s->cameras[camera];
+
+        // float dist           = s->cameras[camera].zoom ? 1 : 10;
         float x              = s->control->pos[0];
-        float y              = s->control->pos[1] + dist / 2;
+        float y              = s->control->pos[1] + entity3d_aabb_Y(s->control->entity) / 4 * 3;
         float z              = s->control->pos[2];
-        s->cameras[camera].ch->pos[0] = x + dist * sin(to_radians(-s->cameras[camera].yaw));
-        s->cameras[camera].ch->pos[1] = y + dist/2 * sin(to_radians(s->cameras[camera].pitch));
-        s->cameras[camera].ch->pos[2] = z + dist * cos(to_radians(-s->cameras[camera].yaw));
+        cam->ch->pos[0] = x + cam->dist * sin(to_radians(-s->cameras[camera].yaw)) * cos(to_radians(s->cameras[camera].pitch));
+        cam->ch->pos[1] = y + cam->dist * sin(to_radians(s->cameras[camera].pitch));
+        cam->ch->pos[2] = z + cam->dist * cos(to_radians(-s->cameras[camera].yaw)) * cos(to_radians(s->cameras[camera].pitch));
         //s->control->moved    = 0; /* XXX */
     }
 
@@ -321,19 +328,22 @@ static int scene_handle_input(struct message *m, void *data)
     /* XXX: only allow motion control when on the ground */
     //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));
     if (character_is_grounded(s->control, s) || is_camera(s, s->control)) {
+
         yawcos = cos(to_radians(s->camera->yaw));
         yawsin = sin(to_radians(s->camera->yaw));
         s->control->motion[0] = delta_x * yawcos - delta_z * yawsin;
         s->control->motion[1] = 0.0;
         s->control->motion[2] = delta_x * yawsin + delta_z * yawcos;
 
-        if (m->input.space || m->input.pad_x) {
-            vec3 jump = { s->control->motion[0], 5.0, s->control->motion[2] };
-            if (s->control->entity &&
-                s->control->entity->phys_body &&
-                phys_body_has_body(s->control->entity->phys_body))
-            dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
-            dBodySetLinearVel(s->control->entity->phys_body->body, jump[0], jump[1], jump[2]);
+        if (s->control->entity && (m->input.space || m->input.pad_x)) {
+            struct phys_body *body = s->control->entity->phys_body;
+            vec3 jump = { s->control->motion[0] * 1.3, 5.0, s->control->motion[2] * 1.3 };
+
+            if (body && phys_body_has_body(body)) {
+                dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
+                dJointAttach(body->lmotor, NULL, NULL);
+                dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
+            }
         }
     }
 
@@ -478,14 +488,15 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     } else if (gltf) {
         gd = gltf_load(scene, gltf);
         if (gltf_get_meshes(gd) > 1) {
-            int i;
+            int i, root = gltf_root_mesh(gd);
 
-            collision = gltf_mesh(gd, "collision");
-            for (i = 0; i < gltf_get_meshes(gd); i++)
-                if (i != collision) {
-                    gltf_instantiate_one(gd, i);
-                    break;
-                }
+            collision = gltf_mesh_by_name(gd, "collision");
+            if (root < 0)
+                for (i = 0; i < gltf_get_meshes(gd); i++)
+                    if (i != collision) {
+                        gltf_instantiate_one(gd, i);
+                        break; /* XXX: why? */
+                    }
             /* In the absence of a dedicated collision mesh, use the main one */
             if (collision < 0)
                 collision = 0;
@@ -543,6 +554,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 
             if (ch) {
                 c = character_new(txm, scene);
+                // if (!scene->control)
+                //     scene->control = c;
                 e = c->entity;
             } else {
                 e = entity3d_new(txm);
@@ -651,6 +664,7 @@ static void scene_onload(struct lib_handle *h, void *buf)
     }
     dbg("loaded scene: '%s'\n", scene->name);
     ref_put(h);
+    scene_control_next(scene);
 }
 
 int scene_load(struct scene *scene, const char *name)

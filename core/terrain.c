@@ -9,7 +9,7 @@
 static float get_rand_height(struct terrain *t, int x, int z)
 {
     //return 0;   
-    srand48(t->seed ^ (x + z * 49152));
+    srand48(t->seed ^ (x + z * 43210));
     //srand((x * 42 + z * 2345) + t->seed);
     //return sin(to_radians((float)rand()));
     return drand48() * 2 - 1; //sin(to_radians((float)rand()));
@@ -67,9 +67,9 @@ static float get_interp_height(struct terrain *t, float x, float z)
     return cos_interp(i1, i2, fracz);
 }
 
-#define OCTAVES 3
+#define OCTAVES 4
 #define ROUGHNESS 0.2f
-#define AMPLITUDE 40
+#define AMPLITUDE 20
 
 static float get_height(struct terrain *t, int x, int z, float _amp, int _oct)
 {
@@ -393,6 +393,7 @@ static void terrain_drop(struct ref *ref)
 {
     struct terrain *terrain = container_of(ref, struct terrain, ref);
 
+    // ref_put_last(terrain->entity);
     free(terrain->map);
 }
 
@@ -419,7 +420,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     bsp_root = bsp_process(t->seed, 5, 0, 0, nr_v, nr_v, terrain_bsp_cb, NULL);
 
     t->nr_vert = nr_v;
-    t->side = side;
+    t->side    = side;
     t->x       = x;
     t->y       = y;
     t->z       = z;
@@ -446,7 +447,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             // if (i == bp->x || j == bp->y)
             //     t->map[i * nr_v + j] = -20;
             // else
-            t->map[i * nr_v + j] = get_height(t, i, j, amp, bp->oct);
+            t->map[i * nr_v + j] = get_height(t, i, j, amp, bp->oct) + i * 0.2;
         }
     free(t->map0);
     t->map0 = NULL;
@@ -599,6 +600,8 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     t->entity->collision_idxsz = idxsz;
     t->entity->visible = 1;
     t->entity->update  = NULL;
+    t->entity->scale = 1;
+    entity3d_reset(t->entity);
     model3dtx_add_entity(txm, t->entity);
     entity3d_add_physics(t->entity, 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
     phys->ground = t->entity->phys_body->geom;//phys_geom_trimesh_new(phys, NULL, t->entity, dInfinity);

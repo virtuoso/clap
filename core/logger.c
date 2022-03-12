@@ -48,11 +48,11 @@ void __asan_error_report()
 struct logger {
     const char  *name;
     int         (*init)(void);
-    int         (*log)(int level, const char *mod, int line, const char *func, char *msg);
+    int         (*log)(int level, const char *mod, int line, const char *func, const char *msg);
     struct logger *next;
 };
 
-static notrace int stdio_log(int level, const char *mod, int line, const char *func, char *msg)
+static notrace int stdio_log(int level, const char *mod, int line, const char *func, const char *msg)
 {
     FILE *output = stdout;
 
@@ -179,7 +179,7 @@ static notrace void rb_flush(void)
     if (rp_min == __INT_MAX__ || rp_max == __INT_MAX__)
         return;
     for (i = rp_min; i != rp_max; i = (i + 1) % log_rb_sz) {
-        free(log_rb[i].msg);
+        free((void *)log_rb[i].msg);
         log_rb[i].msg = NULL;
     }
 }
@@ -202,7 +202,7 @@ static notrace int rb_init(void)
     return 0;
 }
 
-static notrace int rb_log(int level, const char *mod, int line, const char *func, char *msg)
+static notrace int rb_log(int level, const char *mod, int line, const char *func, const char *msg)
 {
     struct timespec ts;
 
@@ -277,7 +277,7 @@ void notrace log_init(unsigned int flags)
     dbg("logger initialized, build %s\n", CONFIG_BUILDDATE);
 }
 
-static notrace void log_submit(int level, const char *mod, int line, const char *func, char *msg)
+static notrace void log_submit(int level, const char *mod, int line, const char *func, const char *msg)
 {
     struct logger *lg;
 
@@ -287,10 +287,9 @@ static notrace void log_submit(int level, const char *mod, int line, const char 
     }
 }
 
-notrace void logg(int level, const char *mod, int line, const char *func, char *fmt, ...)
+notrace void vlogg(int level, const char *mod, int line, const char *func, const char *fmt, va_list va)
 {
     LOCAL(char, buf);
-    va_list va;
     int ret;
 
     if (unlikely(!log_up))
@@ -300,14 +299,21 @@ notrace void logg(int level, const char *mod, int line, const char *func, char *
     if (level < log_floor)
         return;
 
-    va_start(va, fmt);
     ret = vasprintf(&buf, fmt, va);
-    va_end(va);
 
     if (ret < 0)
         return;
 
     log_submit(level, mod, line, func, buf);
+}
+
+notrace void logg(int level, const char *mod, int line, const char *func, const char *fmt, ...)
+{
+    va_list va;
+
+    va_start(va, fmt);
+    vlogg(level, mod, line, func, fmt, va);
+    va_end(va);
 }
 
 #define ROW_MAX 16

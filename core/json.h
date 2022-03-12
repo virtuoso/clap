@@ -106,6 +106,14 @@ void json_remove_from_parent(JsonNode *node);
 void json_free(JsonNode *root);
 void cleanup__JsonNodep(JsonNode **p);
 
+int json_arraysz(JsonNode *node);
+int json_float_array(JsonNode *node, float *array, unsigned int nr_el);
+float *json_float_array_alloc(JsonNode *node, unsigned int *psz);
+int json_double_array(JsonNode *node, double *array, unsigned int nr_el);
+double *json_double_array_alloc(JsonNode *node, unsigned int *psz);
+int json_int_array(JsonNode *node, int *array, unsigned int nr_el);
+int *json_int_array_alloc(JsonNode *node, unsigned int *psz);
+
 /*** Debugging ***/
 
 /*

@@ -36,6 +36,7 @@ struct ui_animation {
     void *setter;
     void (*iter)(struct ui_animation *uia);
     unsigned long start_frame;
+    unsigned long nr_frames;
     unsigned long sound_frame;
     int           int0;
     int           int1;
@@ -71,6 +72,11 @@ struct ui_element {
     float            actual_y;
     float            actual_w;
     float            actual_h;
+};
+
+struct ui_widget_builder {
+    unsigned long   affinity;
+    float           x_off, y_off, w, h;
 };
 
 struct ui_widget {

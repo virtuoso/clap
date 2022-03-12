@@ -59,9 +59,10 @@ extern struct phys *phys;
 
 struct entity3d;
 
-void phys_step(void);
+void phys_step(unsigned long frame_count);
 int  phys_init(void);
 void phys_done(void);
+struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist);
 static inline bool phys_body_has_body(struct phys_body *body) { return !!body->body; }
 struct entity3d *phys_body_entity(struct phys_body *body);
 const dReal *phys_body_position(struct phys_body *body);

@@ -5,6 +5,15 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
 set(ASSET_DIR "${PARENT_DIR}/asset")
 message("### asset dir ${ASSET_DIR}")
+set(ASSETS  "${ASSET_DIR}/ui.vert"
+            "${ASSET_DIR}/ui.frag"
+            "${ASSET_DIR}/glyph.vert"
+            "${ASSET_DIR}/glyph.frag"
+            "${ASSET_DIR}/model.vert"
+            "${ASSET_DIR}/model.frag"
+            "${ASSET_DIR}/scene.json"
+)
+message("### assets ${ASSETS}")
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(FREETYPE_LIBRARIES  "-s USE_FREETYPE=1")
@@ -15,12 +24,17 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
                             "-s WASM=1"
                             "-s EXIT_RUNTIME=1"
                             "-s ALLOW_MEMORY_GROWTH"
-                            "-s INITIAL_MEMORY=536870912"
+                            "-s INITIAL_MEMORY=134217728"
+                            # "-s INITIAL_MEMORY=536870912"
+                            "-s MAX_WEBGL_VERSION=2"
+                            "-s ASSERTIONS=1"
+                            "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307"
+                            # "-flto"
                             "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
                             "--preload-file=${ASSET_DIR}@/asset"
                             "--use-preload-cache"
     )
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FREETYPE_LIBRARIES} ${PNG_LIBRARY} ${VORBISFILE_LIBRARY}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FREETYPE_LIBRARIES} ${PNG_LIBRARY} ${VORBISFILE_LIBRARY} -O3") # -flto
     set(CONFIG_BROWSER 1)
     set(CONFIG_GLES 1)
     set(PLATFORM_SRC display-www.c input-www.c)
@@ -47,6 +61,7 @@ else ()
     set(EXTRA_LIBRARIES m pthread stdc++)
     set(PLATFORM_SRC display-glfw.c)
 endif ()
+message("### GLEW: ${GLEW_LIBRARIES}")
 
 string(TIMESTAMP CONFIG_BUILDDATE "%Y%m%d_%H%M%S")
 configure_file(config.h.in config.h)
@@ -61,12 +76,12 @@ endif ()
 
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC ${SERVER_SRC} )
-set(ENGINE_SRC 
+set(ENGINE_SRC
     object.c ref.c util.c logger.c graphics.c input.c messagebus.c
     matrix.c model.c shader.c objfile.c librarian.c json.c clap.c
     terrain.c ui.c scene.c font.c sound.c networking.c pngloader.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c
-    gltf.c input-joystick.c ${PLATFORM_SRC})
+    gltf.c input-joystick.c render-gl.c ${PLATFORM_SRC})
 add_library(${ENGINE_LIB} ${ENGINE_SRC})
 add_dependencies(${ENGINE_LIB} ode)
 target_link_libraries(${ENGINE_LIB} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
@@ -76,11 +91,24 @@ target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
 target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})
 
-set(ENGINE_BIN onehandclap)
-set(ENGINE_MAIN onehandclap.c)
+if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    set(ENGINE_BIN index) # because index.html
+else ()
+    set(ENGINE_BIN onehandclap)
+endif ()
+
+set(ENGINE_MAIN onehandclap.c builddate.c)
+
+add_custom_command(
+    OUTPUT builddate.c
+    DEPENDS ${ENGINE_SRC}
+    COMMAND date +'const char *build_date = \"%Y%m%d_%H%M%S\"\;' > builddate.c
+)
+
 add_executable(${ENGINE_BIN} ${ENGINE_MAIN})
 add_dependencies(${ENGINE_BIN} ${ENGINE_LIB})
 target_include_directories(${ENGINE_BIN} PRIVATE ${ODE_INCLUDE})
+set_target_properties(${ENGINE_BIN} PROPERTIES LINK_DEPENDS "${ASSETS}")
 #if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     target_link_libraries(${ENGINE_BIN} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
     target_link_libraries(${ENGINE_BIN} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
@@ -90,7 +118,17 @@ target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES})
 target_link_libraries(${ENGINE_BIN} ${ENGINE_LIB})
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
-    install(TARGETS ${ENGINE_BIN} DESTINATION www)
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        install(TARGETS ${ENGINE_BIN} DESTINATION clapdbg)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.wasm DESTINATION clapdbg)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.data DESTINATION clapdbg)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.js DESTINATION clapdbg)
+    else ()
+        install(TARGETS ${ENGINE_BIN} DESTINATION clap)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.wasm DESTINATION clap)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.data DESTINATION clap)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.js DESTINATION clap)
+    endif ()
 else ()
     install(TARGETS ${ENGINE_BIN} DESTINATION bin)
 endif ()

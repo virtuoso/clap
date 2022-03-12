@@ -16,7 +16,8 @@ void ui_element_animations_done(struct ui_element *uie)
 
 static int ui_animation_update(struct entity3d *e, void *data)
 {
-    struct ui_element    *uie = e->priv;
+    struct ui_element   *uie = e->priv;
+    struct ui           *ui = data;
     struct ui_animation *ua;
 
     if (list_empty(&uie->animation)) {
@@ -115,24 +116,39 @@ void uia_set_visible(struct ui_element *uie, int visible)
     uia->trans = __uia_set_visible;
 }
 
+static unsigned long ua_frames(struct ui_animation *ua)
+{
+    struct ui *ui = ua->uie->ui;
+    return ui->frames_total - ua->start_frame;
+}
+
+static bool ua_frames_done(struct ui_animation *ua)
+{
+    return ua_frames(ua) > ua->nr_frames;
+}
+
 /*
  * Updaters
  */
 static void __uia_lin_float(struct ui_animation *ua)
 {
-    ua->float0 += ua->float_delta;
+    ua->float0 += ua->float_delta * ua_frames(ua);
 }
 
 static void __uia_quad_float(struct ui_animation *ua)
 {
-    ua->float0 += ua->float_delta;
-    ua->float_delta += ua->float_delta;
+    unsigned long frame;
+
+    for (frame = 0; frame < ua_frames(ua); frame++) {
+        ua->float0 += ua->float_delta;
+        ua->float_delta += ua->float_delta;
+    }
 }
 
 static void __uia_float(struct ui_animation *ua)
 {
     void (*float_setter)(struct ui_element *, float) = ua->setter;
-    bool done                                     = false;
+    bool done = false;
 
     if (!ua->int0) {
         ua->float0 = ua->float_start;
@@ -142,7 +158,8 @@ static void __uia_float(struct ui_animation *ua)
     }
 
     if ((ua->float_start < ua->float_end && ua->float0 >= ua->float_end) ||
-        (ua->float_start > ua->float_end && ua->float0 <= ua->float_end)) {
+        (ua->float_start > ua->float_end && ua->float0 <= ua->float_end) ||
+        ua_frames_done(ua)) {
         done = true;
         /* clamp, in case we overshoot */
         ua->float0 = ua->float_end;
@@ -200,7 +217,8 @@ static void __uia_float_move(struct ui_animation *ua)
     }
 
     if ((ua->float_start < ua->float_end && ua->float0 >= ua->float_end) ||
-        (ua->float_start > ua->float_end && ua->float0 <= ua->float_end)) {
+        (ua->float_start > ua->float_end && ua->float0 <= ua->float_end) ||
+        ua_frames_done(ua)) {
         done       = true;
         ua->float0 = ua->float_end;
     }
@@ -218,6 +236,7 @@ void uia_lin_move(struct ui_element *uie, enum uie_mv mv, float start, float end
     float               len = end - start;
 
     CHECK(uia = ui_animation(uie));
+    uia->nr_frames   = frames;
     uia->float_start = start;
     uia->float_end   = end;
     uia->float_delta = len / frames;
@@ -231,7 +250,7 @@ static void __uia_cos_float(struct ui_animation *ua)
     struct ui *ui = ua->uie->ui;
 
     ua->float0 = cos_interp(ua->float_start, ua->float_end,
-                            ua->float_shift + ua->float_delta * (ui->frames_total - ua->start_frame));
+                            ua->float_shift + ua->float_delta * ua_frames(ua));
 }
 
 void uia_cos_move(struct ui_element *uie, enum uie_mv mv, float start, float end, unsigned long frames, float phase,
@@ -242,6 +261,7 @@ void uia_cos_move(struct ui_element *uie, enum uie_mv mv, float start, float end
     float               delta = len / frames;
 
     CHECK(uia = ui_animation(uie));
+    uia->nr_frames   = frames;
     uia->float_start = start;
     uia->float_end   = end;
     uia->float_delta = (delta / len) * phase;

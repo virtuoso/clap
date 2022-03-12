@@ -9,6 +9,7 @@
 #include "objfile.h"
 #include "physics.h"
 #include "matrix.h"
+#include "render.h"
 
 struct scene;
 struct shader_prog;
@@ -18,24 +19,69 @@ struct light {
     GLfloat color[3];
 };
 
+struct joint {
+    vec3    translation;
+    quat    rotation;
+    vec3    scale;
+    mat4x4  global;
+    int     id;
+    darray(int, children);
+};
+
+struct pose {
+    float   frame;
+    darray(struct joint, joints);
+};
+
+struct animation {
+    struct ref      ref;
+    const char      *name;
+    struct model3d  *model;
+    darray(struct pose, poses);
+    unsigned int    nr_joints;
+};
+
+struct animation *animation_new(struct model3d *model, const char *name);
+struct pose *animation_pose_add(struct animation *an);
+
+struct skeleton {
+    int joint_id;
+    darray(struct skeleton, children);
+};
+
 struct model3d {
     char                *name;
     struct ref          ref;
     struct shader_prog  *prog;
     bool                cull_face;
     bool                alpha_blend;
+    unsigned int        nr_joints;
     float               aabb[6];
+    darray(struct animation, anis);
+    struct skeleton     skeleton;
     GLuint              vao;
     GLuint              vertex_obj;
     GLuint              index_obj;
     GLuint              tex_obj;
     GLuint              norm_obj;
+    GLuint              tangent_obj;
+    GLuint              joints_obj;
+    GLuint              weights_obj;
     GLuint              nr_vertices;
+    GLuint              nr_faces;
+    mat4x4              *invmxs;
 };
 
 struct model3dtx {
     struct model3d *model;
-    GLuint         texture_id;
+    // GLuint         texture_id;
+    texture_t      _texture;
+    texture_t      _normals;
+    texture_t      *texture;
+    texture_t      *normals;
+    // GLuint         normals_id;
+    float          metallic;
+    float          roughness;
     bool           external_tex;
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
@@ -46,13 +92,17 @@ struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p
                                          GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz, GLfloat *norm,
                                          size_t normsz);
 struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
+void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz);
+void model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jsz, float *weights, size_t wsz);
 void model3d_set_name(struct model3d *m, const char *fmt, ...);
 float model3d_aabb_X(struct model3d *m);
 float model3d_aabb_Y(struct model3d *m);
 float model3d_aabb_Z(struct model3d *m);
 struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length);
+struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz);
 struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
+struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
 struct model3d *model3d_new_cube(struct shader_prog *p);
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
 void model3dtx_prepare(struct model3dtx *m);
@@ -101,7 +151,10 @@ static inline float barrycentric(vec3 p1, vec3 p2, vec3 p3, vec2 pos)
 struct fbo {
     struct ref  ref;
     int width, height;
-    int fbo, tex, depth_tex, depth_buf;
+    unsigned int fbo;
+    int depth_buf;
+    texture_t tex;
+    texture_t depth;
     int retain_tex;
 };
 struct fbo *fbo_new(int width, int height);
@@ -122,6 +175,8 @@ struct entity3d {
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
+    unsigned int     ani_frame;
+    mat4x4           *joint_transforms;
     /* Collision mesh, if needed */
     float               *collision_vx;
     size_t              collision_vxsz;
@@ -142,14 +197,20 @@ struct entity3d {
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
 void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx, struct matrix4f *inv_view_mx,
-                   struct matrix4f *proj_mx, struct entity3d *focus);
+                   struct matrix4f *proj_mx, struct entity3d *focus, unsigned long *count);
 
 static inline const char *entity_name(struct entity3d *e)
 {
-    return txmodel_name(e->txmodel);
+    return e ? txmodel_name(e->txmodel) : "<none>";
+}
+
+static inline bool entity_animated(struct entity3d *e)
+{
+    return e->txmodel->model->anis.da.nr_el;
 }
 
 struct entity3d *entity3d_new(struct model3dtx *txm);
+void entity3d_reset(struct entity3d *e);
 float entity3d_aabb_X(struct entity3d *e);
 float entity3d_aabb_Y(struct entity3d *e);
 float entity3d_aabb_Z(struct entity3d *e);

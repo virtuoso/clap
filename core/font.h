@@ -2,7 +2,8 @@
 #define __CLAP_FONT_H__
 
 struct glyph {
-    GLuint  texture_id;
+    // GLuint  texture_id;
+    texture_t       tex;
     unsigned int width;
     unsigned int height;
     int     bearing_x;

@@ -4,6 +4,7 @@
 #include "messagebus.h"
 #include "input.h"
 #include "input-joystick.h"
+#include "ui-debug.h"
 
 #define JOY_NAME_MAX 64
 #define JOY_THINGS_MAX 64
@@ -95,8 +96,10 @@ void joystick_faxes_update(int joy, const float *axes, int nr_axes)
     if (nr_axes > JOY_THINGS_MAX)
         nr_axes = JOY_THINGS_MAX;
 
-    for (i = 0; i < nr_axes; i++)
+    for (i = 0; i < nr_axes; i++) {
         joys[joy].axes[i] = axes[i];
+        // dbg("### axis[%d]: %f\n", i, joys[joy].axes[i]);
+    }
     
     if (!joys[joy].nr_axes) {
         memcpy(joys[joy].axes_init, joys[joy].axes, nr_axes * sizeof(*axes));
@@ -188,8 +191,6 @@ struct joy_map {
 #define BTN_STICKL GLFW_GAMEPAD_BUTTON_LEFT_THUMB
 #define BTN_STICKR GLFW_GAMEPAD_BUTTON_RIGHT_THUMB
 #endif
-
-void ui_debug_printf(const char *fmt, ...);
 
 void joysticks_poll(void)
 {
@@ -336,7 +337,12 @@ void joysticks_poll(void)
                 count++;
         }
 
-        if (count)
+        if (count) {
+            // ui_debug_printf("lx: %f ly: %f rx: %f ry: %f lt: %f rt: %f\nbuttons: %016lx",
+            //                 mi.delta_lx, mi.delta_ly, mi.delta_rx, mi.delta_ry,
+            //                 mi.trigger_l, mi.trigger_r,
+            //                 j->button_state);
             message_input_send(&mi, &j->msg_src);
+        }
     }
 }

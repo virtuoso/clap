@@ -58,16 +58,8 @@ static void font_load_glyph(struct font *font, unsigned char c)
     }
 #undef _AT
 #undef _GAT
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    font->g[c].texture_id = texture_gen();
-    glBindTexture(GL_TEXTURE_2D, font->g[c].texture_id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, glyph->bitmap.width, glyph->bitmap.rows,
-                 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    texture_init(&font->g[c].tex);
+    texture_load(&font->g[c].tex, GL_RGBA, glyph->bitmap.width, glyph->bitmap.rows, buf);
 
     font->g[c].advance_x = glyph->advance.x;
     font->g[c].advance_y = glyph->advance.y;
@@ -82,7 +74,7 @@ static void font_drop(struct ref *ref)
     unsigned int i;
 
     for (i = 0; i < array_size(font->g); i++)
-        texture_del(font->g[i].texture_id);
+        texture_deinit(&font->g[i].tex);
     free(font->name);
 }
 
@@ -103,7 +95,7 @@ GLuint font_get_texture(struct font *font, unsigned char c)
     if (!font->g[c].loaded)
         font_load_glyph(font, c);
 
-    return font->g[c].texture_id;
+    return texture_id(&font->g[c].tex);
 }
 
 struct glyph *font_get_glyph(struct font *font, unsigned char c)

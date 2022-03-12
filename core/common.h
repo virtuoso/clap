@@ -17,6 +17,16 @@
 #define enter_debugger() abort()
 #endif /* CONFIG_BROWSER */
 
+#if defined(__has_feature)
+# if __has_feature(address_sanitizer)
+#define HAVE_ASAN 1
+# endif /* __has_feature(address_sanitizer) */
+#endif /* __has_feature */
+
+#ifdef __SANITIZE_ADDRESS__
+#define HAVE_ASAN 1
+#endif /* __SANITIZE_ADDRESS__ */
+
 #include "util.h"
 #include "logger.h"
 #include "clap.h"

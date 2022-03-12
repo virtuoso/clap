@@ -15,6 +15,7 @@ struct camera {
     GLfloat yaw;    /* sideways */
     GLfloat roll;   /* up/down */
     unsigned int zoom;
+    float   dist;
     float   yaw_turn;
     float   pitch_turn;
     struct matrix4f     *view_mx;

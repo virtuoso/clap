@@ -41,6 +41,41 @@ void *memdup(const void *x, size_t size)
     return r;
 }
 
+void *darray_resize(struct darray *da, unsigned int nr_el)
+{
+    void *new = realloc(da->array, nr_el * da->elsz);
+
+    if (!new)
+        return NULL;
+
+    da->array = new;
+    if (nr_el > da->nr_el)
+        memset(new + da->nr_el * da->elsz, 0, (nr_el - da->nr_el) * da->elsz);
+    da->nr_el = nr_el;
+
+    return da->array;
+}
+
+void *darray_add(struct darray *da)
+{
+    void *new = darray_resize(da, da->nr_el + 1);
+
+    if (!new)
+        return NULL;
+
+    new = darray_get(da, da->nr_el - 1);
+    memset(new, 0, da->elsz);
+
+    return new;
+}
+
+void darray_clearout(struct darray *da)
+{
+    free(da->array);
+    da->array = NULL;
+    da->nr_el = 0;
+}
+
 struct chain_link {
     struct chain_link   *next;
 };

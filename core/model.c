@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
+#define DEBUG
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <errno.h>
 #include "librarian.h"
 #include "common.h"
@@ -13,6 +15,7 @@
 #include "physics.h"
 #include "shader.h"
 #include "scene.h"
+#include "ui-debug.h"
 
 /****************************************************************************
  * model3d
@@ -22,6 +25,9 @@
 static void model3d_drop(struct ref *ref)
 {
     struct model3d *m = container_of(ref, struct model3d, ref);
+    struct animation *an;
+    struct joint *joint;
+    struct pose *pose;
 
     glDeleteBuffers(1, &m->vertex_obj);
     glDeleteBuffers(1, &m->index_obj);
@@ -29,70 +35,99 @@ static void model3d_drop(struct ref *ref)
         glDeleteBuffers(1, &m->norm_obj);
     if (m->tex_obj)
         glDeleteBuffers(1, &m->tex_obj);
+    if (m->nr_joints) {
+        GL(glDeleteBuffers(1, &m->joints_obj));
+        GL(glDeleteBuffers(1, &m->weights_obj));
+    }
     if (gl_does_vao())
         glDeleteVertexArrays(1, &m->vao);
     /* delete gl buffers */
     ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
+    darray_for_each(an, &m->anis) {
+        darray_for_each(pose, &an->poses) {
+            darray_for_each(joint, &pose->joints) {
+                darray_clearout(&joint->children.da);
+            }
+            darray_clearout(&pose->joints.da);
+        }
+        darray_clearout(&an->poses.da);
+    }
+    darray_clearout(&m->anis.da);
+    free(m->invmxs);
     free(m->name);
 }
 
 DECLARE_REFCLASS(model3d);
 
-static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height, GLuint *obj)
+static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
+                                  int has_alpha, GLuint target, GLint loc, texture_t *tex)
 {
-    GLuint textureLoc = shader_prog_find_var(p, "tex");
-
+    GLuint color_type = has_alpha ? GL_RGBA : GL_RGB;
     if (!buffer)
         return -EINVAL;
 
     //hexdump(buffer, 16);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    *obj = texture_gen();
-    glUniform1i(textureLoc, 0);
+    texture_init_target(tex, target);
+    texture_filters(tex, GL_REPEAT, GL_NEAREST);
+    GL(glUniform1i(loc, target - GL_TEXTURE0));
 
     // Bind it
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, *obj);
-
-    // Load the texture from the image buffer
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    texture_load(tex, color_type, width, height, buffer);
 
     return 0;
 }
 
 static int model3d_add_texture(struct model3dtx *txm, const char *name)
 {
-    int width = 0, height = 0, ret;
-    unsigned char *buffer = fetch_png(name, &width, &height);
+    int width = 0, height = 0, has_alpha = 0, ret;
+    unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
 
     shader_prog_use(txm->model->prog);
-    ret = load_gl_texture_buffer(txm->model->prog, buffer, width, height, &txm->texture_id);
+    ret = load_gl_texture_buffer(txm->model->prog, buffer, width, height, has_alpha, GL_TEXTURE0,
+                                 txm->model->prog->texture_map, txm->texture);
     shader_prog_done(txm->model->prog);
     free(buffer);
 
-    dbg("loaded texture %d %s %dx%d\n", txm->texture_id, name, width, height);
+    dbg("loaded texture %d %s %dx%d\n", texture_id(txm->texture), name, width, height);
 
     return ret;
 }
 
 /* XXX: actually, make it take the decoded texture, not the png */
-static int model3d_add_texture_from_buffer(struct model3dtx *txm, void *input, size_t length)
+static int model3d_add_texture_from_buffer(struct model3dtx *txm, GLuint target, void *input, size_t length)
 {
-    int width = 0, height = 0, ret;
-    unsigned char *buffer = decode_png(input, length, &width, &height);
+    struct shader_prog *prog = txm->model->prog;
+    texture_t *targets[] = { txm->texture, txm->normals };
+    GLint locs[] = { prog->texture_map, prog->normal_map };
+    int width, height, has_alpha, ret;
+    unsigned char *buffer;
 
-    shader_prog_use(txm->model->prog);
-    ret = load_gl_texture_buffer(txm->model->prog, buffer, width, height, &txm->texture_id);
-    shader_prog_done(txm->model->prog);
+    // dbg("## shader '%s' texture_map: %d normal_map: %d\n", prog->name, prog->texture_map, prog->normal_map);
+    buffer = decode_png(input, length, &width, &height, &has_alpha);
+    shader_prog_use(prog);
+    ret = load_gl_texture_buffer(prog, buffer, width, height, has_alpha, target,
+                                 locs[target - GL_TEXTURE0],
+                                 targets[target - GL_TEXTURE0]);
+    shader_prog_done(prog);
     free(buffer);
-    dbg("loaded texture %d %dx%d\n", txm->texture_id, width, height);
+    dbg("loaded texture%d %d %dx%d\n", target - GL_TEXTURE0, texture_id(txm->texture), width, height);
 
     return ret;
+}
+
+static int model3dtx_make(struct ref *ref)
+{
+    struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
+    txm->texture = &txm->_texture;
+    txm->normals = &txm->_normals;
+    list_init(&txm->entities);
+    return 0;
+}
+
+static bool model3dtx_tex_is_ext(struct model3dtx *txm)
+{
+    return txm->texture != &txm->_texture;
 }
 
 static void model3dtx_drop(struct ref *ref)
@@ -102,12 +137,17 @@ static void model3dtx_drop(struct ref *ref)
 
     trace("dropping model3dtx [%s]\n", name);
     list_del(&txm->entry);
-    if (!txm->external_tex)
-        texture_del(txm->texture_id);
+    /* XXX this is a bit XXX */
+    if (model3dtx_tex_is_ext(txm))
+        texture_done(txm->texture);
+    else
+        texture_deinit(txm->texture);
+    if (txm->normals)
+        texture_deinit(txm->normals);
     ref_put(txm->model);
 }
 
-DECLARE_REFCLASS(model3dtx);
+DECLARE_REFCLASS2(model3dtx);
 
 struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
 {
@@ -117,8 +157,9 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
         return NULL;
 
     txm->model = ref_get(model);
-    list_init(&txm->entities);
     model3d_add_texture(txm, name);
+    txm->roughness = 0.65;
+    txm->metallic = 0.45;
 
     return txm;
 }
@@ -131,13 +172,12 @@ struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer,
         return NULL;
 
     txm->model = ref_get(model);
-    list_init(&txm->entities);
-    model3d_add_texture_from_buffer(txm, buffer, length);
+    model3d_add_texture_from_buffer(txm, GL_TEXTURE0, buffer, length);
 
     return txm;
 }
 
-struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid)
+struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz)
 {
     struct model3dtx *txm = ref_new(model3dtx);
 
@@ -145,18 +185,32 @@ struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid)
         return NULL;
 
     txm->model = ref_get(model);
-    txm->texture_id = txid;
-    txm->external_tex = true;
-    list_init(&txm->entities);
+    model3d_add_texture_from_buffer(txm, GL_TEXTURE0, tex, texsz);
+    model3d_add_texture_from_buffer(txm, GL_TEXTURE1, norm, normsz);
 
     return txm;
 }
 
-static void load_gl_buffer(GLint loc, void *data, size_t sz, GLuint *obj, GLint nr_coords, GLenum target)
+struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex)
 {
-    glGenBuffers(1, obj);
-    glBindBuffer(target, *obj);
-    glBufferData(target, sz, data, GL_STATIC_DRAW);
+    struct model3dtx *txm = ref_new(model3dtx);
+
+    if (!txm)
+        return NULL;
+
+    txm->model = ref_get(model);
+    txm->texture = tex;
+    txm->external_tex = true;
+
+    return txm;
+}
+
+static void load_gl_buffer(GLint loc, void *data, GLuint type, size_t sz, GLuint *obj,
+                           GLint nr_coords, GLenum target)
+{
+    GL(glGenBuffers(1, obj));
+    GL(glBindBuffer(target, *obj));
+    GL(glBufferData(target, sz, data, GL_STATIC_DRAW));
     
     /*
      *   <attr number>
@@ -166,10 +220,12 @@ static void load_gl_buffer(GLint loc, void *data, size_t sz, GLuint *obj, GLint 
      *   <stride> for interleaving
      *   <offset>
      */
-    if (loc >= 0)
-        glVertexAttribPointer(loc, nr_coords, GL_FLOAT, GL_FALSE, 0, (void *)0);
+    if (loc >= 0) {
+        // glEnableVertexAttribArray(loc);
+        GL(glVertexAttribPointer(loc, nr_coords, type, GL_FALSE, 0, (void *)0));
+    }
     
-    glBindBuffer(target, 0);
+    GL(glBindBuffer(target, 0));
 }
 
 void model3d_set_name(struct model3d *m, const char *fmt, ...)
@@ -216,6 +272,53 @@ float model3d_aabb_Z(struct model3d *m)
     return fabs(m->aabb[5] - m->aabb[4]);
 }
 
+static void model3d_prepare(struct model3d *m);
+static void model3d_done(struct model3d *m);
+
+void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz)
+{
+    if (m->prog->tangent == -1) {
+        dbg("no tangent input in program '%s'\n", m->prog->name);
+        return;
+    }
+
+    shader_prog_use(m->prog);
+    model3d_prepare(m);
+    load_gl_buffer(m->prog->tangent, tg, GL_FLOAT, tgsz, &m->tangent_obj, 4, GL_ARRAY_BUFFER);
+    model3d_done(m);
+    shader_prog_done(m->prog);
+}
+
+void model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz, float *weights, size_t weightssz)
+{
+    int v, j, jmax = 0;
+
+    if (jointssz != m->nr_vertices * 4 ||
+        weightssz != m->nr_vertices * 4 * sizeof(float)) {
+        err("wrong amount of joints or weights: %zu <> %d, %zu <> %lu\n",
+            jointssz, m->nr_vertices * 4, weightssz, m->nr_vertices * 4 * sizeof(float));
+        return;
+    }
+
+    /* incoming ivec4 joints and vec4 weights */
+    for (v = 0; v < m->nr_vertices * 4; v++) {
+        jmax = max(jmax, joints[v]);
+        assert(jmax < 50);
+    }
+    dbg("## max joints: %d\n", jmax);
+
+    shader_prog_use(m->prog);
+    if (gl_does_vao())
+        glBindVertexArray(m->vao);
+    load_gl_buffer(m->prog->joints, joints, GL_UNSIGNED_BYTE, m->nr_vertices * 4, &m->joints_obj, 4, GL_ARRAY_BUFFER);
+    load_gl_buffer(m->prog->weights, weights, GL_FLOAT, m->nr_vertices * 4 * sizeof(float), &m->weights_obj, 4, GL_ARRAY_BUFFER);
+    if (gl_does_vao())
+        glBindVertexArray(0);
+    shader_prog_done(m->prog);
+
+    m->nr_joints = jmax + 1;
+}
+
 struct model3d *
 model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
                          GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz,
@@ -232,24 +335,26 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     m->cull_face = true;
     m->alpha_blend = false;
     model3d_calc_aabb(m, vx, vxsz);
+    darray_init(&m->anis);
 
     if (gl_does_vao()) {
-        glGenVertexArrays(1, &m->vao);
-        glBindVertexArray(m->vao);
+        GL(glGenVertexArrays(1, &m->vao));
+        GL(glBindVertexArray(m->vao));
     }
 
     shader_prog_use(p);
-    load_gl_buffer(m->prog->pos, vx, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
-    load_gl_buffer(-1, idx, idxsz, &m->index_obj, 0, GL_ELEMENT_ARRAY_BUFFER);
+    load_gl_buffer(m->prog->pos, vx, GL_FLOAT, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
+    load_gl_buffer(-1, idx, GL_UNSIGNED_SHORT, idxsz, &m->index_obj, 0, GL_ELEMENT_ARRAY_BUFFER);
 
     if (txsz)
-        load_gl_buffer(m->prog->tex, tx, txsz, &m->tex_obj, 2, GL_ARRAY_BUFFER);
+        load_gl_buffer(m->prog->tex, tx, GL_FLOAT, txsz, &m->tex_obj, 2, GL_ARRAY_BUFFER);
 
     if (normsz)
-        load_gl_buffer(m->prog->norm, norm, normsz, &m->norm_obj, 3, GL_ARRAY_BUFFER);
+        load_gl_buffer(m->prog->norm, norm, GL_FLOAT, normsz, &m->norm_obj, 3, GL_ARRAY_BUFFER);
     shader_prog_done(p);
 
-    m->nr_vertices = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
+    m->nr_vertices = vxsz / sizeof(*vx) / 3; /* XXX: could be GLuint? */
+    m->nr_faces = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
     /*dbg("created model '%s' vobj: %d iobj: %d nr_vertices: %d\n",
         m->name, m->vertex_obj, m->index_obj, m->nr_vertices);*/
 
@@ -280,16 +385,31 @@ static void model3d_prepare(struct model3d *m)
     struct shader_prog *p = m->prog;
 
     if (gl_does_vao())
-        glBindVertexArray(m->vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj);
-    glBindBuffer(GL_ARRAY_BUFFER, m->vertex_obj);
-    glVertexAttribPointer(p->pos, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
-    glEnableVertexAttribArray(p->pos);
+        GL(glBindVertexArray(m->vao));
+    GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj));
+    GL(glBindBuffer(GL_ARRAY_BUFFER, m->vertex_obj));
+    GL(glVertexAttribPointer(p->pos, 3, GL_FLOAT, GL_FALSE, 0, (void *)0));
+    GL(glEnableVertexAttribArray(p->pos));
 
     if (m->norm_obj && p->norm >= 0) {
-        glBindBuffer(GL_ARRAY_BUFFER, m->norm_obj);
-        glVertexAttribPointer(p->norm, 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
-        glEnableVertexAttribArray(p->norm);
+        GL(glBindBuffer(GL_ARRAY_BUFFER, m->norm_obj));
+        GL(glVertexAttribPointer(p->norm, 3, GL_FLOAT, GL_FALSE, 0, (void *)0));
+        GL(glEnableVertexAttribArray(p->norm));
+    }
+    if (m->tangent_obj && p->tangent >= 0) {
+        GL(glBindBuffer(GL_ARRAY_BUFFER, m->tangent_obj));
+        GL(glVertexAttribPointer(p->tangent, 4, GL_FLOAT, GL_FALSE, 0, (void *)0));
+        GL(glEnableVertexAttribArray(p->tangent));
+    }
+    if (p->joints >= 0 && m->nr_joints && m->joints_obj >= 0) {
+        GL(glBindBuffer(GL_ARRAY_BUFFER, m->joints_obj));
+        GL(glVertexAttribPointer(p->joints, 4, GL_BYTE, GL_FALSE, 0, (void *)0));
+        GL(glEnableVertexAttribArray(p->joints));
+    }
+    if (p->weights >= 0 && m->nr_joints && m->weights_obj >= 0) {
+        GL(glBindBuffer(GL_ARRAY_BUFFER, m->weights_obj));
+        GL(glVertexAttribPointer(p->weights, 4, GL_FLOAT, GL_FALSE, 0, (void *)0));
+        GL(glEnableVertexAttribArray(p->weights));
     }
 }
 
@@ -303,18 +423,26 @@ void model3dtx_prepare(struct model3dtx *txm)
 
     model3d_prepare(txm->model);
 
-    if (m->tex_obj && txm->texture_id) {
-        glBindBuffer(GL_ARRAY_BUFFER, m->tex_obj);
-        glVertexAttribPointer(p->tex, 2, GL_FLOAT, GL_FALSE, 0, (void *)0);
-        glEnableVertexAttribArray(p->tex);
-        glBindTexture(GL_TEXTURE_2D, txm->texture_id);
+    if (m->tex_obj && texture_loaded(txm->texture)) {
+        GL(glBindBuffer(GL_ARRAY_BUFFER, m->tex_obj));
+        GL(glVertexAttribPointer(p->tex, 2, GL_FLOAT, GL_FALSE, 0, (void *)0));
+        GL(glEnableVertexAttribArray(p->tex));
+        GL(glActiveTexture(GL_TEXTURE0));
+        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->texture)));
+        GL(glUniform1i(p->texture_map, 0));
+    }
+
+    if (txm->normals && texture_loaded(txm->normals)) {
+        GL(glActiveTexture(GL_TEXTURE1));
+        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->normals)));
+        GL(glUniform1i(p->normal_map, 1));
     }
 }
 
 void model3dtx_draw(struct model3dtx *txm)
 {
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    glDrawElements(GL_TRIANGLES, txm->model->nr_vertices, GL_UNSIGNED_SHORT, 0);
+    GL(glDrawElements(GL_TRIANGLES, txm->model->nr_faces, GL_UNSIGNED_SHORT, 0));
 }
 
 static void model3d_done(struct model3d *m)
@@ -324,21 +452,32 @@ static void model3d_done(struct model3d *m)
     glDisableVertexAttribArray(p->pos);
     if (m->norm_obj)
         glDisableVertexAttribArray(p->norm);
+    if (m->tangent_obj)
+        glDisableVertexAttribArray(p->tangent);
+    if (m->nr_joints) {
+        glDisableVertexAttribArray(p->joints);
+        glDisableVertexAttribArray(p->weights);
+    }
 
     /* both need to be bound for glDrawElements() */
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     if (gl_does_vao())
-        glBindVertexArray(0);
+        GL(glBindVertexArray(0));
 }
 
 void model3dtx_done(struct model3dtx *txm)
 {
     struct shader_prog *p = txm->model->prog;
 
-    if (txm->model->tex_obj && txm->texture_id) {
-        glDisableVertexAttribArray(p->tex);
-        glBindTexture(GL_TEXTURE_2D, 0);
+    if (txm->model->tex_obj/* && txm->texture_id*/) {
+        GL(glDisableVertexAttribArray(p->tex));
+        GL(glActiveTexture(GL_TEXTURE0));
+        GL(glBindTexture(GL_TEXTURE_2D, 0));
+    }
+    if (txm->normals) {
+        GL(glActiveTexture(GL_TEXTURE1));
+        GL(glBindTexture(GL_TEXTURE_2D, 0));
     }
 
     model3d_done(txm->model);
@@ -346,52 +485,34 @@ void model3dtx_done(struct model3dtx *txm)
 
 static int fbo_create(void)
 {
-    int fbo;
+    unsigned int fbo;
 
     glGenFramebuffers(1, &fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     return fbo;
 }
 
-static int fbo_texture(struct fbo *fbo)
+static void fbo_texture_init(struct fbo *fbo)
 {
-    int tex;
-
-    tex = texture_gen();
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fbo->width, fbo->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    return tex;
+    texture_init(&fbo->tex);
+    texture_filters(&fbo->tex, GL_CLAMP_TO_EDGE, GL_LINEAR);
+    texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
 }
 
 static int fbo_depth_texture(struct fbo *fbo)
 {
     int tex;
 
-    tex = texture_gen();
-    glBindTexture(GL_TEXTURE_2D, tex);
-    // glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, fbo->width, fbo->height, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, fbo->width, fbo->height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex, 0);
-    // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, tex, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    texture_init(&fbo->depth);
+    texture_filters(&fbo->tex, GL_CLAMP_TO_EDGE, GL_LINEAR);
+    texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
 
     return tex;
 }
 
 static int fbo_depth_buffer(struct fbo *fbo)
 {
-    int buf;
+    unsigned int buf;
 
     glGenRenderbuffers(1, &buf);
     glBindRenderbuffer(GL_RENDERBUFFER, buf);
@@ -409,15 +530,8 @@ void fbo_resize(struct fbo *fbo, int width, int height)
     fbo->width = width;
     fbo->height = height;
     glFinish();
-    glBindTexture(GL_TEXTURE_2D, fbo->tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fbo->width, fbo->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    if (fbo->depth_tex) {
-        glBindTexture(GL_TEXTURE_2D, fbo->depth_tex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, fbo->width, fbo->height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
+    texture_resize(&fbo->tex, width, height);
+    texture_resize(&fbo->depth, width, height);
 
     if (fbo->depth_buf) {
         glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf);
@@ -445,11 +559,11 @@ static void fbo_drop(struct ref *ref)
     // dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
     glDeleteFramebuffers(1, &fbo->fbo);
     if (!fbo->retain_tex)
-        texture_del(fbo->tex);
-    if (fbo->depth_tex)
-        texture_del(fbo->depth_tex);
-    if (fbo->depth_buf)
-        glDeleteRenderbuffers(1, &fbo->depth_buf);
+        texture_deinit(&fbo->tex);
+    texture_done(&fbo->depth);
+    if (fbo->depth_buf >= 0)
+        GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
+    // ref_free(fbo);
 }
 
 DECLARE_REFCLASS(fbo);
@@ -460,10 +574,11 @@ struct fbo *fbo_new(int width, int height)
     int ret;
 
     CHECK(fbo = ref_new(fbo));
+    fbo->depth_buf = -1;
     fbo->width = width;
     fbo->height = height;
     fbo->fbo = fbo_create();
-    fbo->tex = fbo_texture(fbo);
+    fbo_texture_init(fbo);
     //fbo->depth_tex = fbo_depth_texture(fbo);
     fbo->depth_buf = fbo_depth_buffer(fbo);
     ret = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -474,19 +589,64 @@ struct fbo *fbo_new(int width, int height)
     return fbo;
 }
 
+static void animation_destroy(struct animation *an)
+{
+    struct pose *pose;
+
+    darray_for_each(pose, &an->poses) {
+        struct joint *joint;
+
+        darray_for_each(joint, &pose->joints)
+            darray_clearout(&joint->children.da);
+        darray_clearout(&pose->joints.da);
+    }
+    darray_clearout(&an->poses.da);
+    ref_put(an->model);
+}
+
+struct animation *animation_new(struct model3d *model, const char *name)
+{
+    struct animation *an;
+
+    CHECK(an = darray_add(&model->anis.da));
+    an->name = name;
+    an->model = model;
+    darray_init(&an->poses);
+    an->nr_joints = an->model->nr_joints;
+
+    return an;
+}
+
+struct pose *animation_pose_add(struct animation *an)
+{
+    struct pose *pose;
+    int i;
+
+    CHECK(pose = darray_add(&an->poses.da));
+    darray_init(&pose->joints);
+    CHECK(darray_resize(&pose->joints.da, an->nr_joints));
+    for (i = 0; i < an->nr_joints; i++) {
+        struct joint *joint = &pose->joints.x[i];
+        joint->id = i;
+        darray_init(&joint->children);
+    }
+
+    return pose;
+}
+
 void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
-                   struct matrix4f *inv_view_mx, struct matrix4f *proj_mx, struct entity3d *focus)
+                   struct matrix4f *inv_view_mx, struct matrix4f *proj_mx, struct entity3d *focus,
+                   unsigned long *count)
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
     struct model3d *model;
     struct model3dtx *txmodel;
-    GLint viewmx_loc, transmx_loc, lightp_loc, lightc_loc, projmx_loc;
-    GLint inv_viewmx_loc, shine_damper_loc, reflectivity_loc;
-    GLint highlight_loc, color_loc, ray_loc, colorpt_loc;
     unsigned long nr_txms = 0, nr_ents = 0;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
+        err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
+               txmodel_name(txmodel));
         model = txmodel->model;
         /* XXX: model-specific draw method */
         if (model->cull_face) {
@@ -511,42 +671,30 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
             shader_prog_use(prog);
             trace("rendering model '%s' using '%s'\n", model->name, prog->name);
 
-            /* XXX: factor out */
-            projmx_loc       = shader_prog_find_var(prog, "proj");
-            viewmx_loc       = shader_prog_find_var(prog, "view");
-            transmx_loc      = shader_prog_find_var(prog, "trans");
-            inv_viewmx_loc   = shader_prog_find_var(prog, "inverse_view");
-            lightp_loc       = shader_prog_find_var(prog, "light_pos");
-            lightc_loc       = shader_prog_find_var(prog, "light_color");
-            shine_damper_loc = shader_prog_find_var(prog, "shine_damper");
-            reflectivity_loc = shader_prog_find_var(prog, "reflectivity");
-            highlight_loc    = shader_prog_find_var(prog, "highlight_color");
-            ray_loc          = shader_prog_find_var(prog, "ray");
-            color_loc        = shader_prog_find_var(prog, "color");
-            colorpt_loc      = shader_prog_find_var(prog, "color_passthrough");
-
-            /* XXX: entity properties */
-            if (shine_damper_loc >= 0 && reflectivity_loc >= 0) {
-                glUniform1f(shine_damper_loc, 1.0);
-                glUniform1f(reflectivity_loc, 0.7);
+            if (light && prog->data.lightp >= 0 && prog->data.lightc >= 0) {
+                glUniform3fv(prog->data.lightp, 1, light->pos);
+                glUniform3fv(prog->data.lightc, 1, light->color);
             }
 
-            if (light && lightp_loc >= 0 && lightc_loc >= 0) {
-                glUniform3fv(lightp_loc, 1, light->pos);
-                glUniform3fv(lightc_loc, 1, light->color);
-            }
-
-            if (view_mx && viewmx_loc >= 0)
+            if (view_mx && prog->data.viewmx >= 0)
                 /* View matrix is the same for all entities and models */
-                glUniformMatrix4fv(viewmx_loc, 1, GL_FALSE, view_mx->cell);
-            if (inv_view_mx && inv_viewmx_loc >= 0)
-                 glUniformMatrix4fv(inv_viewmx_loc, 1, GL_FALSE, inv_view_mx->cell);
+                glUniformMatrix4fv(prog->data.viewmx, 1, GL_FALSE, view_mx->cell);
+            if (inv_view_mx && prog->data.inv_viewmx >= 0)
+                 glUniformMatrix4fv(prog->data.inv_viewmx, 1, GL_FALSE, inv_view_mx->cell);
 
             /* Projection matrix is the same for everything, but changes on resize */
-            if (proj_mx && projmx_loc >= 0)
-                glUniformMatrix4fv(projmx_loc, 1, GL_FALSE, proj_mx->cell);
+            if (proj_mx && prog->data.projmx >= 0)
+                glUniformMatrix4fv(prog->data.projmx, 1, GL_FALSE, proj_mx->cell);
         }
+
         model3dtx_prepare(txmodel);
+        if (prog->data.use_normals >= 0 && txmodel->normals)
+            glUniform1f(prog->data.use_normals, texture_id(txmodel->normals) ? 1.0 : 0.0);
+
+        if (prog->data.shine_damper >= 0 && prog->data.reflectivity >= 0) {
+            glUniform1f(prog->data.shine_damper, txmodel->roughness);
+            glUniform1f(prog->data.reflectivity, txmodel->metallic);
+        }
 
         list_for_each_entry (e, &txmodel->entities, entry) {
             float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
@@ -564,25 +712,32 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
                 glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
             }
 #endif
-            if (color_loc >= 0)
-                glUniform4fv(color_loc, 1, e->color);
-            if (colorpt_loc >= 0)
-                glUniform1f(colorpt_loc, 0.5 * e->color_pt);
-            if (focus && highlight_loc >= 0)
-                glUniform4fv(highlight_loc, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc);
+            if (prog->data.color >= 0)
+                glUniform4fv(prog->data.color, 1, e->color);
+            if (prog->data.colorpt >= 0)
+                glUniform1f(prog->data.colorpt, 0.5 * e->color_pt);
+            if (focus && prog->data.highlight >= 0)
+                glUniform4fv(prog->data.highlight, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc);
 
-            if (ray_loc >= 0) {
+            if (model->nr_joints && model->anis.da.nr_el && prog->data.joint_transforms >= 0) {
+                glUniform1f(prog->data.use_skinning, 1.0);
+                glUniformMatrix4fv(prog->data.joint_transforms, model->nr_joints,
+                                   GL_FALSE, (GLfloat *)e->joint_transforms);
+            } else {
+                glUniform1f(prog->data.use_skinning, 0.0);
+            }
+            if (prog->data.ray >= 0) {
                 vec3 ray = { 0, 0, 0 };
                 if (focus) {
                     ray[0] = focus->dx;
                     ray[1] = focus->dz;
                     ray[2] = 1.0;
                 }
-                glUniform3fv(ray_loc, 1, ray);
+                glUniform3fv(prog->data.ray, 1, ray);
             }
-            if (transmx_loc >= 0) {
+            if (prog->data.transmx >= 0) {
                 /* Transformation matrix is different for each entity */
-                glUniformMatrix4fv(transmx_loc, 1, GL_FALSE, (GLfloat *)e->mx);
+                glUniformMatrix4fv(prog->data.transmx, 1, GL_FALSE, (GLfloat *)e->mx);
             }
 
             model3dtx_draw(txmodel);
@@ -594,6 +749,8 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
     }
 
     //dbg("RENDERED: %lu/%lu\n", nr_txms, nr_ents);
+    if (count)
+        *count = nr_txms;
     if (prog)
         shader_prog_done(prog);
 }
@@ -633,7 +790,7 @@ static void model_bin_vec_loaded(struct lib_handle *h, void *data)
 
     prog = shader_prog_find(s->prog, "model");
 
-    dbg("loaded '%s' nr_vertices: %lu\n", h->name, hdr->nr_vertices);
+    dbg("loaded '%s' nr_vertices: %" PRIu64 "\n", h->name, hdr->nr_vertices);
     vx   = h->buf + sizeof(*hdr);
     tx   = h->buf + sizeof(*hdr) + hdr->vxsz;
     norm = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz;
@@ -678,19 +835,6 @@ struct lib_handle *lib_request_bin_vec(const char *name, struct scene *scene)
  * instance of the model3d
  ****************************************************************************/
 
-static void entity3d_free(struct entity3d *e)
-{
-    // TODO: linked list?
-    /*struct model3d *m = e->model;
-    struct entity3d *iter;
-
-    for (iter = m->ent; iter; iter = iter->next)
-        if (iter == e) {
-
-        }*/
-    free(e);
-}
-
 float entity3d_aabb_X(struct entity3d *e)
 {
     return model3d_aabb_X(e->txmodel->model) * e->scale;
@@ -713,6 +857,64 @@ void entity3d_aabb_center(struct entity3d *e, vec3 center)
     center[2] = entity3d_aabb_Z(e) + e->dz;
 }
 
+void model3d_skeleton_add(struct model3d *model, int joint, int parent)
+{}
+
+static void one_joint_transform(struct entity3d *e, struct pose *pose, int joint, int parent)
+{
+    struct model3d *model = e->txmodel->model;
+    mat4x4 *parentjt = NULL, R, invglobal;
+    mat4x4 *jt;
+    int *child;
+
+    if (!pose->joints.da.nr_el)
+        return;
+
+    jt = &pose->joints.x[joint].global;
+    // mat4x4_invert(invglobal, e->mx->m);
+    mat4x4_identity(invglobal);
+    if (parent >= 0)
+        parentjt = &pose->joints.x[parent].global;
+    mat4x4_identity(*jt);
+
+    mat4x4_translate_in_place(*jt,
+                     pose->joints.x[joint].translation[0],
+                     pose->joints.x[joint].translation[1],
+                     pose->joints.x[joint].translation[2]);
+    mat4x4_from_quat(R, pose->joints.x[joint].rotation);
+    mat4x4_mul(*jt, *jt, R);
+    mat4x4_scale_aniso(*jt, *jt,
+                       pose->joints.x[joint].scale[0],
+                       pose->joints.x[joint].scale[1],
+                       pose->joints.x[joint].scale[2]);
+    if (parentjt)
+        // mat4x4_mul(*jt, *jt, *parentjt);
+        mat4x4_mul(*jt, *parentjt, *jt);
+
+    mat4x4_identity(e->joint_transforms[joint]);
+    // mat4x4_mul(e->joint_transforms[joint], invglobal, *jt);
+    // mat4x4_mul(e->joint_transforms[joint], e->joint_transforms[joint], model->invmxs[joint]);
+    darray_for_each(child, &pose->joints.x[joint].children) {
+        one_joint_transform(e, pose, *child, joint);
+    }
+}
+
+static void animated_update(struct entity3d *e)
+{
+    struct model3d *model = e->txmodel->model;
+    struct pose *pose;
+    int i;
+
+    // e->ani_frame = 60;
+    pose = &model->anis.x[0].poses.x[e->ani_frame/10];
+    ui_debug_printf("frame %d", e->ani_frame/10);
+    // memcpy(e->joint_transforms, model->invmxs, model->nr_joints * sizeof(mat4x4));
+    one_joint_transform(e, pose, 0, -1);
+
+    // if (++e->ani_frame/10 == model->anis.x[0].poses.da.nr_el)
+    //     e->ani_frame = 0;
+}
+
 static int default_update(struct entity3d *e, void *data)
 {
     struct scene *scene = data;
@@ -730,7 +932,15 @@ static int default_update(struct entity3d *e, void *data)
     mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
     mat4x4_rotate_Z(e->mx->m, e->mx->m, e->rz);
     mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
+    if (entity_animated(e))
+        animated_update(e);
+
     return 0;
+}
+
+void entity3d_reset(struct entity3d *e)
+{
+    default_update(e, NULL);
 }
 
 static void entity3d_drop(struct ref *ref)
@@ -744,18 +954,26 @@ static void entity3d_drop(struct ref *ref)
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
     }
+    free(e->joint_transforms);
     free(e->collision_vx);
     free(e->collision_idx);
     free(e->mx);
-    entity3d_free(e);
 }
 
 DECLARE_REFCLASS(entity3d);
 
 struct entity3d *entity3d_new(struct model3dtx *txm)
 {
+    struct model3d *model = txm->model;
     struct entity3d *e;
 
+    /*
+     * XXX this is ef'ed up
+     * The reason is that mq_release() iterates txms' entities list
+     * and when the last entity drops, the txm would disappear,
+     * making it impossible to continue. Fixing that.
+     */
+    // ref_shared(txm);
     e = ref_new(entity3d);
     if (!e)
         return NULL;
@@ -763,6 +981,8 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
     e->txmodel = ref_get(txm);
     e->mx = mx_new();
     e->update  = default_update;
+    if (model->anis.da.nr_el)
+        CHECK(e->joint_transforms = calloc(model->nr_joints, sizeof(mat4x4)));
 
     return e;
 }
@@ -865,18 +1085,30 @@ void mq_init(struct mq *mq, void *priv)
 
 void mq_release(struct mq *mq)
 {
-    struct model3dtx *txmodel, *ittxm;
-    struct entity3d *ent, *itent;
+    struct model3dtx *txmodel;
+    struct entity3d *ent;
 
-    list_for_each_entry_iter(txmodel, ittxm, &mq->txmodels, entry) {
-        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
+    do {
+        bool done = false;
+
+        txmodel = list_first_entry(&mq->txmodels, struct model3dtx, entry);
+
+        do {
+            if (list_empty(&txmodel->entities))
+                break;
+
+            ent = list_first_entry(&txmodel->entities, struct entity3d, entry);
+            if (ent == list_last_entry(&txmodel->entities, struct entity3d, entry)) {
+                done = true;
+                ref_only(txmodel);
+            }
+
             if (ent->destroy)
                 ent->destroy(ent);
             else
                 ref_put(ent);
-        }
-        ref_put_last(txmodel);
-    }
+        } while (!done);
+    } while (!list_empty(&mq->txmodels));
 }
 
 void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data)
@@ -908,11 +1140,13 @@ struct model3dtx *mq_model_last(struct mq *mq)
 
 void mq_add_model(struct mq *mq, struct model3dtx *txmodel)
 {
+    txmodel = ref_pass(txmodel);
     list_append(&mq->txmodels, &txmodel->entry);
 }
 
 void mq_add_model_tail(struct mq *mq, struct model3dtx *txmodel)
 {
+    txmodel = ref_pass(txmodel);
     list_prepend(&mq->txmodels, &txmodel->entry);
 }
 

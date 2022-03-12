@@ -76,7 +76,7 @@ static int parse_ogg(struct sound *sound, const char *uri)
         if (ret == 0)
             eof = 1;
     }
-    dbg("size: %zd\n", sound->size);
+    dbg("size: %d\n", sound->size);
     alBufferData(sound->buffer_idx, sound->format, sound->buf,
                  sound->size, sound->freq);
     free(sound->buf);

@@ -117,7 +117,7 @@ static int shader_prog_scan(struct shader_prog *p, const char *txt)
             /* whitespace */
             pos = skip_space(pos);
             /* the actual variable */
-            for (pend = pos; *pend && !isspace(*pend) && *pend != ';'; pend++)
+            for (pend = pos; *pend && !isspace(*pend) && *pend != ';' && *pend != '['; pend++)
                 ;
             v = malloc(sizeof(*v));
             if (!v)
@@ -150,6 +150,25 @@ static void shader_prog_drop(struct ref *ref)
 
 DECLARE_REFCLASS(shader_prog);
 
+static void shader_prog_link(struct shader_prog *p)
+{
+    p->data.projmx       = shader_prog_find_var(p, "proj");
+    p->data.viewmx       = shader_prog_find_var(p, "view");
+    p->data.transmx      = shader_prog_find_var(p, "trans");
+    p->data.inv_viewmx   = shader_prog_find_var(p, "inverse_view");
+    p->data.lightp       = shader_prog_find_var(p, "light_pos");
+    p->data.lightc       = shader_prog_find_var(p, "light_color");
+    p->data.shine_damper = shader_prog_find_var(p, "shine_damper");
+    p->data.reflectivity = shader_prog_find_var(p, "reflectivity");
+    p->data.highlight    = shader_prog_find_var(p, "highlight_color");
+    p->data.ray          = shader_prog_find_var(p, "ray");
+    p->data.color        = shader_prog_find_var(p, "in_color");
+    p->data.colorpt      = shader_prog_find_var(p, "color_passthrough");
+    p->data.use_normals  = shader_prog_find_var(p, "use_normals");
+    p->data.use_skinning  = shader_prog_find_var(p, "use_skinning");
+    p->data.joint_transforms = shader_prog_find_var(p, "joint_transforms");
+}
+
 struct shader_prog *
 shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
 {
@@ -171,9 +190,18 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
     shader_prog_scan(p, vsh);
     shader_prog_scan(p, fsh);
     shader_prog_done(p);
-    p->pos = shader_prog_find_var(p, "position");
-    p->norm = shader_prog_find_var(p, "normal");
-    p->tex = shader_prog_find_var(p, "tex");
+    p->pos         = shader_prog_find_var(p, "position");
+    p->norm        = shader_prog_find_var(p, "normal");
+    p->tex         = shader_prog_find_var(p, "tex");
+    p->tangent     = shader_prog_find_var(p, "tangent");
+    p->texture_map = shader_prog_find_var(p, "model_tex");
+    p->normal_map  = shader_prog_find_var(p, "normal_map");
+    p->joints      = shader_prog_find_var(p, "joints");
+    p->weights     = shader_prog_find_var(p, "weights");
+    dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d\n",
+        p->name, p->pos, p->norm, p->tex, p->tangent,
+        p->texture_map, p->normal_map, p->joints, p->weights);
+    shader_prog_link(p);
     return p;
 }
 

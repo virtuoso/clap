@@ -9,6 +9,7 @@
 #include "common.h"
 #include "input.h"
 #include "input-joystick.h"
+#include "render.h"
 
 static GLFWwindow *window;
 static int width, height;
@@ -19,6 +20,18 @@ static void *update_fn_data;
 bool gl_does_vao(void)
 {
     return true;
+}
+
+int gl_refresh_rate(void)
+{
+    GLFWmonitor *monitor = glfwGetWindowMonitor(window);
+
+    if (!monitor)
+        monitor = glfwGetPrimaryMonitor();
+    if (!monitor)
+        return 60;
+
+    return glfwGetVideoMode(monitor)->refreshRate;
 }
 
 void gl_title(const char *fmt, ...)
@@ -35,6 +48,7 @@ void gl_title(const char *fmt, ...)
 static void error_cb(int error, const char *desc)
 {
     err("glfw error %d: '%s'\n", error, desc);
+    abort();
 }
 
 static void resize_cb(GLFWwindow *window, int w, int h)
@@ -85,8 +99,10 @@ void gl_leave_fullscreen(void)
 
 void gl_init(const char *title, int w, int h, display_update update, void *update_data, display_resize resize)
 {
-    const unsigned char *exts;
+    const unsigned char *ext, *vendor, *renderer, *glver, *shlangver;
+    GLint nr_exts;
     GLenum ret;
+    int i;
 
     width = w;
     height = h;
@@ -121,11 +137,24 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
         err("failed to initialize GLEW: %s\n", glewGetErrorString(ret));
         return;
     }
-    glfwSwapInterval(1);
+    if (glfwExtensionSupported("WGL_EXT_swap_control_tear") ||
+        glfwExtensionSupported("GLX_EXT_swap_control_tear"))
+        glfwSwapInterval(-1);
+    else
+        glfwSwapInterval(1);
 
-    exts = glGetString(GL_EXTENSIONS);
-
-    msg("GL initialized extensions: %s\n", exts);
+    vendor    = glGetString(GL_VENDOR);
+    renderer  = glGetString(GL_RENDERER);
+    glver     = glGetString(GL_VERSION);
+    shlangver = glGetString(GL_SHADING_LANGUAGE_VERSION);
+    msg("GL vendor '%s' renderer '%s' GL version %s GLSL version %s\n",
+        vendor, renderer, glver, shlangver);
+    glGetIntegerv(GL_NUM_EXTENSIONS, &nr_exts);
+    for (i = 0; i < nr_exts; i++) {
+        ext = glGetStringi(GL_EXTENSIONS, i);
+        msg("GL extension: '%s'\n", ext);
+    }
+    // msg("GL initialized extensions: %s\n", exts);
 }
 
 void gl_request_exit(void)
@@ -282,7 +311,7 @@ int platform_input_init(void)
     glfwSetCursorPosCallback(window, pointer_cb);
     glfwSetScrollCallback(window, scroll_cb);
 
-    lh = lib_read_file(RES_ASSET, "gamecontrollerdb.txt", &cdb, &sz);
+    lh = lib_read_file(RES_ASSET, "gamecontrollerdb.txt", (void **)&cdb, &sz);
     glfwUpdateGamepadMappings(cdb);
     ref_put_last_ref(&lh->ref);
 

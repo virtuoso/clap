@@ -12,19 +12,26 @@
 #include "settings.h"
 #include "util.h"
 
-#if defined(__has_feature)
-# if __has_feature(address_sanitizer)
+#ifdef HAVE_ASAN
 const char *__asan_default_options() {
     /*
      * https://github.com/google/sanitizers/wiki/AddressSanitizerFlags
      * https://github.com/google/sanitizers/wiki/SanitizerCommonFlags
      * malloc_context_size=20
      */
-    return "verbosity=1:check_initialization_order=true:detect_stack_use_after_return=true:"
-	   "alloc_dealloc_mismatch=true:strict_string_checks=true:abort_on_error=true";
+    return
+        "verbosity=1"
+        ":check_initialization_order=true"
+        ":detect_stack_use_after_return=true"
+	    ":alloc_dealloc_mismatch=false"
+        ":strict_string_checks=true"
+        ":abort_on_error=true"
+#ifndef CONFIG_BROWSER
+        ":suppressions=clap.supp"
+#endif /* CONFIG_BROWSER */
+    ;
 }
-# endif /* __has_feature(address_sanitizer) */
-#endif /* __has_feature */
+#endif /* HAVE_ASAN */
 
 void clap_fps_calc(struct fps_data *f)
 {
@@ -42,7 +49,7 @@ void clap_fps_calc(struct fps_data *f)
         f->seconds    = ts.tv_sec;
         status        = true;
     }
-    f->count++;
+    f->count += 1;//f->ts_delta.tv_nsec / (1000000000/60);
 
     if (f->ts_delta.tv_sec) {
         f->fps_fine = 1;
@@ -54,7 +61,7 @@ void clap_fps_calc(struct fps_data *f)
         memset(&m, 0, sizeof(m));
         m.type            = MT_COMMAND;
         m.cmd.status      = 1;
-        m.cmd.fps         = f->fps_coarse;
+        m.cmd.fps         = f->fps_fine;//f->fps_coarse;
         m.cmd.sys_seconds = f->ts_prev.tv_sec;
         message_send(&m);
     }

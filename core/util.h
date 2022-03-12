@@ -77,6 +77,43 @@ static inline bool str_endswith(const char *str, const char *sfx)
     return false;
 }
 
+static inline const char *str_basename(const char *str)
+{
+    const char *p = strrchr(str, '/');
+
+    if (p)
+        return p + 1;
+
+    return str;
+}
+
+struct darray {
+    void            *array;
+    size_t          elsz;
+    unsigned int    nr_el;
+};
+
+#define darray(_type, _name) \
+union { \
+    _type           *x; \
+    struct darray   da; \
+} _name;
+
+#define darray_init(_da) { (_da)->da.elsz = sizeof(*(_da)->x); (_da)->da.nr_el = 0; }
+static inline void *darray_get(struct darray *da, unsigned int el)
+{
+    if (el >= da->nr_el)
+        return NULL;
+    return da->array + da->elsz * el;
+}
+
+void *darray_resize(struct darray *da, unsigned int nr_el);
+void *darray_add(struct darray *da);
+void darray_clearout(struct darray *da);
+#define DA(_da, _type, _idx) ((_type *)darray_get((_da), _idx))
+#define darray_for_each(_el, _da) \
+    for (_el = &(_da)->x[0]; _el != &(_da)->x[(_da)->da.nr_el]; _el++)
+
 struct list {
     struct list *prev, *next;
 };

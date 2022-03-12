@@ -70,7 +70,8 @@ static void ref_class_unuse(struct ref *ref)
 void _ref_drop(struct ref *ref)
 {
     ref_class_unuse(ref);
-    ref->drop(ref);
+    ref->refclass->drop(ref);
+    ref_free(ref);
 }
 
 /*

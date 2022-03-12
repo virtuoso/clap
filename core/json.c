@@ -1380,15 +1380,83 @@ bool json_check(const JsonNode *node, char errmsg[256])
 	#undef problem
 }
 
+int json_arraysz(JsonNode *node)
+{
+    JsonNode *p, *n;
+	int i;
+
+	if (node->tag != JSON_ARRAY)
+		return -1;
+
+    for (i = 0, p = node->children.head, n = p ? p->next : NULL;
+		 p;
+		 p = n, n = n ? n->next : NULL, i++)
+		;
+
+	return i;
+}
+
+#define JSON_ARRAY_DECL(_type) \
+int json_ ## _type ## _array(JsonNode *node,  _type *array, unsigned int nr_el) \
+{ \
+    JsonNode *p, *n; \
+	int i; \
+ \
+	if (node->tag != JSON_ARRAY) \
+		return -1; \
+ \
+    for (i = 0, p = node->children.head, n = p ? p->next : NULL; \
+		 p; \
+		 p = n, n = n ? n->next : NULL, i++) { \
+		if (p->tag != JSON_NUMBER) \
+			return -1; \
+		 \
+		array[i] = p->number_; \
+	} \
+ \
+	return 0; \
+} \
+ \
+_type *json_ ## _type ##_array_alloc(JsonNode *node, unsigned int *psz) \
+{ \
+	int size = json_arraysz(node), ret; \
+	_type *array; \
+ \
+	if (size <= 0) \
+		return NULL; \
+	 \
+	array = calloc(size, sizeof(_type)); \
+	if (!array) \
+		return NULL; \
+	 \
+	ret = json_ ## _type ## _array(node, array, size); \
+	if (ret) { \
+		free(array); \
+		return NULL; \
+	} \
+ \
+	if (psz) \
+		*psz = size; \
+ \
+	return array; \
+}
+
+JSON_ARRAY_DECL(float)
+JSON_ARRAY_DECL(double)
+JSON_ARRAY_DECL(int)
+
 void json_free(JsonNode *root)
 {
     JsonNode *p, *n;
+
+	if (!root)
+		return;
 
     free(root->key);
 	switch (root->tag) {
 		case JSON_OBJECT:
         case JSON_ARRAY:
-            for (p = root->children.head, n = p->next; p; p = n, n = n ? n->next : NULL)
+            for (p = root->children.head, n = p ? p->next : NULL; p; p = n, n = n ? n->next : NULL)
                 json_free(p);
             break;
 		case JSON_STRING:

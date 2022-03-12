@@ -4,6 +4,7 @@
 #include "linmath.h"
 #include "model.h"
 #include "physics.h"
+#include "ui-debug.h"
 
 static struct phys _phys;
 struct phys *phys = &_phys; /* XXX */
@@ -105,6 +106,7 @@ static void phys_contact_surface(struct entity3d *e1, struct entity3d *e2, dCont
     int i;
 
     for (i = 0; i < nc; i++) {
+        memset(&contact[i], 0, sizeof(dContact));
         contact[i].surface.mode = dContactBounce | dContactSoftCFM | dContactSoftERP;
         contact[i].surface.mu = /*bounce != 0 ? dInfinity : */50;
         contact[i].surface.mu2 = 0;
@@ -184,10 +186,10 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             struct entity3d *e2 = dGeomGetData(g2);
             struct entity3d *e_ground, *e_ray, *e_other;
 
-            if (entity_and_other_by_class(g1, g2, dRayClass, &e_ray, &e_other)) {
-                dbg_once("RAY collision of '%s'/'%s' at depth %f\n",
-                         entity_name(e1), entity_name(e2), contact[i].geom.depth);
-            }
+            // if (entity_and_other_by_class(g1, g2, dRayClass, &e_ray, &e_other)) {
+            //     dbg_once("RAY collision of '%s'/'%s' at depth %f\n",
+            //              entity_name(e1), entity_name(e2), contact[i].geom.depth);
+            // }
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
             phys_body_update(e1);
@@ -246,17 +248,58 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
     }
 }
 
+struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
+{
+    struct entity3d *target = NULL;
+    dGeomID ray = NULL;
+    dContact contact;
+    int nc, try = 0;
+
+    ray = dCreateRay(phys->space, *pdist);
+retry:
+    // if (ray)
+    //     dGeomDestroy(ray);
+    dGeomRaySetClosestHit(ray, 1);
+    // dGeomRaySetParams(ray, 0, 0); <-- these are defaults anyway
+    phys_contact_surface(NULL, NULL, &contact, 1);
+    dGeomRaySet(ray, start[0], start[1], start[2], dir[0], dir[1], dir[2]);
+    nc = dCollide(ray, (dGeomID)phys->space, 1, &contact.geom, sizeof(dContact));
+    if (nc) {
+        target = dGeomGetData(dGeomGetClass(contact.geom.g1) == dRayClass ? contact.geom.g2 : contact.geom.g1);
+        if (target) {
+            if (e == target && try++ < 3 ) {
+                start[0] = contact.geom.pos[0];
+                start[1] = contact.geom.pos[1];
+                start[2] = contact.geom.pos[2];
+                vec3_add(start, start, dir);
+                goto retry;
+            }
+        }
+
+        *pdist = contact.geom.depth;
+    }
+    dGeomDestroy(ray);
+
+    ui_debug_printf("[%f,%f,%f]->[%f,%f,%f] %s@%f [%f,%f,%f]", start[0], start[1], start[2],
+                    dir[0], dir[1], dir[2], entity_name(target), nc ? contact.geom.depth : 10,
+                    contact.geom.pos[0], contact.geom.pos[1], contact.geom.pos[2]);
+    return target;
+}
+
 bool phys_body_is_grounded(struct phys_body *body)
 {
     struct entity3d *e = phys_body_entity(body);
     dVector3 dir = { 0, -1, 0 };
     dContact contact;
     dGeomID ray;
-    dReal *pos;
+    const dReal *pos, epsilon = 1e-3;
     int nc;
 
     if (!phys_body_has_body(body))
         return true;
+
+    if (!dJointGetBody(body->lmotor, 0))
+        return false;
 
     phys_contact_surface(e, dGeomGetData(phys->ground), &contact, 1);
     nc = dCollide(body->geom, phys->ground, 1, &contact.geom, sizeof(dContact));
@@ -264,7 +307,7 @@ bool phys_body_is_grounded(struct phys_body *body)
         return true;
 
     pos = phys_body_position(body);
-    ray = dCreateRay(phys->space, body->yoffset - body->ray_off);
+    ray = dCreateRay(phys->space, body->yoffset - body->ray_off + epsilon);
     dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
     //dGeomSetBody(ray, body->body);
     phys_contact_surface(e, dGeomGetData(phys->ground), &contact, 1);
@@ -277,12 +320,13 @@ bool phys_body_is_grounded(struct phys_body *body)
 bool phys_body_ground_collide(struct phys_body *body)
 {
     struct entity3d *e = phys_body_entity(body);
-    dReal ray_len = body->yoffset - body->ray_off;
+    dReal epsilon = 1e-3;
+    dReal ray_len = body->yoffset - body->ray_off + epsilon;
     dVector3 dir = { 0, -1, 0 };
     //struct character *ch = e->priv;
     dContact contact;
     dGeomID ray;
-    dReal *pos;
+    const dReal *pos;
     int nc;
 
     if (!phys_body_has_body(body))
@@ -320,7 +364,7 @@ bool phys_body_ground_collide(struct phys_body *body)
         return false;
 
     
-    if (ray_len - contact.geom.depth > 1e-5) {
+    if (ray_len - contact.geom.depth > epsilon) {
         // dbg("RAY '%s' collides with %s at %f/%f normal %f,%f,%f\n", entity_name(e), class_str(dGeomGetClass(contact.geom.g2)),
         //     contact.geom.depth, ray_len,
         //     contact.geom.normal[0], contact.geom.normal[1], contact.geom.normal[2]);
@@ -331,7 +375,7 @@ bool phys_body_ground_collide(struct phys_body *body)
     return true;
 }
 
-void phys_step(void)
+void phys_step(unsigned long frame_count)
 {
     struct phys_body *pb, *itpb;
     DECLARE_LIST(pen);
@@ -380,7 +424,7 @@ void phys_step(void)
         pb->pen_norm[0] = pb->pen_norm[1] = pb->pen_norm[2] = 0.0;
     }
 
-    dWorldQuickStep(phys->world, 0.01);
+    dWorldQuickStep(phys->world, 0.01 * frame_count);
     dJointGroupEmpty(phys->contact);
 }
 
@@ -419,7 +463,7 @@ int phys_body_update(struct entity3d *e)
     e->dz = pos[2];
     vel = dBodyGetLinearVel(e->phys_body->body);
 
-    return dCalcVectorLength3(vel) > 0.02 ? 1 : 0;
+    return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;
 }
 
 dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e, double mass)
@@ -439,7 +483,9 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
     direction = xmax3(X, Y, Z) + 1;
     switch (direction) {
         case 1:
-            break;
+            // direction = 2; /* XXX */
+            // abort();
+            // break;
         case 2:
             /*
              * Upright
@@ -502,9 +548,9 @@ dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct 
     int i;
 
 #ifdef dSINGLE
-    dbg("dSINGLE; dReal: %d dTriIndex: %d\n", sizeof(dReal), sizeof(dTriIndex));
+    dbg("dSINGLE; dReal: %zu dTriIndex: %zu\n", sizeof(dReal), sizeof(dTriIndex));
 #else
-    dbg("dDOUBLE; dReal: %d dTriIndex: %d\n", sizeof(dReal), sizeof(dTriIndex));
+    dbg("dDOUBLE; dReal: %zu dTriIndex: %zu\n", sizeof(dReal), sizeof(dTriIndex));
 #endif
     idxsz /= sizeof(unsigned short);
     CHECK(tidx = calloc(idxsz, sizeof(*tidx))); /* XXX: refcounting, or tied to model? */
@@ -622,9 +668,28 @@ void phys_body_done(struct phys_body *body)
     free(body);
 }
 
+static void ode_error(int errnum, const char *msg, va_list ap)
+{
+    vlogg(ERR, "ODE", -1, "", msg, ap);
+}
+
+static void ode_debug(int errnum, const char *msg, va_list ap)
+{
+    vlogg(DBG, "ODE", -1, "", msg, ap);
+    abort();
+}
+
+static void ode_message(int errnum, const char *msg, va_list ap)
+{
+    vlogg(NORMAL, "ODE", -1, "", msg, ap);
+}
+
 int phys_init(void)
 {
     dInitODE2(0);
+    // dSetErrorHandler(ode_error);
+    dSetDebugHandler(ode_debug);
+    dSetMessageHandler(ode_message);
     phys->world = dWorldCreate();
     phys->space = dHashSpaceCreate(0);
     phys->collision = dHashSpaceCreate(phys->space);

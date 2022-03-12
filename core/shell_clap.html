@@ -19,11 +19,13 @@
       body {
         margin: 0px;
         height: 100vh;
+        overscroll-behavior-x: none;
       }
       html {
         height: 100vh;
         width: 100vw;
         margin: 0px;
+        overscroll-behavior-x: none;
       }
       .spinner {
         height: 50px;
@@ -159,6 +161,10 @@
       };
       document.addEventListener('touchmove', function (event) {
 	      if (event.scale !== 1) {event.preventDefault(); }
+      }, false);
+      document.addEventListener('mousewheel', function (event) {
+	      // if (event.originalEvent.wheelDeltaX !== 0) {event.preventDefault(); }
+        event.preventDefault();
       }, false);
     </script>
     {{{ SCRIPT }}}
