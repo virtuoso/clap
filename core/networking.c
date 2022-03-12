@@ -302,6 +302,9 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
         }
         p = c;
     }
+    if (!wsh->key)
+        return -1;
+
     CHECK(key = calloc(1, wslen + strlen(wsguid) + 1));
     strcpy(key, wsh->key);
     strcpy(key + wslen, wsguid);
