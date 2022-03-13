@@ -58,6 +58,7 @@ else ()
         PATH_SUFFIXES
             lib
     )
+    set(GLEW_LIBRARIES GLEW::GLEW)
     set(EXTRA_LIBRARIES m pthread stdc++)
     set(PLATFORM_SRC display-glfw.c)
 endif ()
