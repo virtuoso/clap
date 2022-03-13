@@ -449,19 +449,19 @@ static void model3d_done(struct model3d *m)
 {
     struct shader_prog *p = m->prog;
 
-    glDisableVertexAttribArray(p->pos);
+    GL(glDisableVertexAttribArray(p->pos));
     if (m->norm_obj)
-        glDisableVertexAttribArray(p->norm);
+        GL(glDisableVertexAttribArray(p->norm));
     if (m->tangent_obj)
-        glDisableVertexAttribArray(p->tangent);
+        GL(glDisableVertexAttribArray(p->tangent));
     if (m->nr_joints) {
-        glDisableVertexAttribArray(p->joints);
-        glDisableVertexAttribArray(p->weights);
+        GL(glDisableVertexAttribArray(p->joints));
+        GL(glDisableVertexAttribArray(p->weights));
     }
 
     /* both need to be bound for glDrawElements() */
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+    GL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     if (gl_does_vao())
         GL(glBindVertexArray(0));
 }
@@ -487,8 +487,8 @@ static int fbo_create(void)
 {
     unsigned int fbo;
 
-    glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    GL(glGenFramebuffers(1, &fbo));
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
     return fbo;
 }
 
@@ -514,11 +514,11 @@ static int fbo_depth_buffer(struct fbo *fbo)
 {
     unsigned int buf;
 
-    glGenRenderbuffers(1, &buf);
-    glBindRenderbuffer(GL_RENDERBUFFER, buf);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buf);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    GL(glGenRenderbuffers(1, &buf));
+    GL(glBindRenderbuffer(GL_RENDERBUFFER, buf));
+    GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
+    GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buf));
+    GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
 
     return buf;
 }
@@ -529,27 +529,27 @@ void fbo_resize(struct fbo *fbo, int width, int height)
         return;
     fbo->width = width;
     fbo->height = height;
-    glFinish();
+    GL(glFinish());
     texture_resize(&fbo->tex, width, height);
     texture_resize(&fbo->depth, width, height);
 
     if (fbo->depth_buf) {
-        glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf));
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
+        GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
 }
 
 void fbo_prepare(struct fbo *fbo)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo);
-    glViewport(0, 0, fbo->width, fbo->height);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
+    GL(glViewport(0, 0, fbo->width, fbo->height));
 }
 
 void fbo_done(struct fbo *fbo, int width, int height)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, width, height);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+    GL(glViewport(0, 0, width, height));
 }
 
 static void fbo_drop(struct ref *ref)
@@ -557,7 +557,7 @@ static void fbo_drop(struct ref *ref)
     struct fbo *fbo = container_of(ref, struct fbo, ref);
 
     // dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
-    glDeleteFramebuffers(1, &fbo->fbo);
+    GL(glDeleteFramebuffers(1, &fbo->fbo));
     if (!fbo->retain_tex)
         texture_deinit(&fbo->tex);
     texture_done(&fbo->depth);
@@ -584,7 +584,7 @@ struct fbo *fbo_new(int width, int height)
     ret = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (ret != GL_FRAMEBUFFER_COMPLETE)
         dbg("## framebuffer status: %d\n", ret);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 
     return fbo;
 }
@@ -650,17 +650,17 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
         model = txmodel->model;
         /* XXX: model-specific draw method */
         if (model->cull_face) {
-            glEnable(GL_CULL_FACE);
-            glCullFace(GL_BACK);
+            GL(glEnable(GL_CULL_FACE));
+            GL(glCullFace(GL_BACK));
         } else {
-            glDisable(GL_CULL_FACE);
+            GL(glDisable(GL_CULL_FACE));
         }
         /* XXX: only for UIs */
         if (model->alpha_blend) {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            GL(glEnable(GL_BLEND));
+            GL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
         } else {
-            glDisable(GL_BLEND);
+            GL(glDisable(GL_BLEND));
         }
         //dbg("rendering model '%s'\n", model->name);
         if (model->prog != prog) {
@@ -672,28 +672,28 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
             trace("rendering model '%s' using '%s'\n", model->name, prog->name);
 
             if (light && prog->data.lightp >= 0 && prog->data.lightc >= 0) {
-                glUniform3fv(prog->data.lightp, 1, light->pos);
-                glUniform3fv(prog->data.lightc, 1, light->color);
+                GL(glUniform3fv(prog->data.lightp, 1, light->pos));
+                GL(glUniform3fv(prog->data.lightc, 1, light->color));
             }
 
             if (view_mx && prog->data.viewmx >= 0)
                 /* View matrix is the same for all entities and models */
-                glUniformMatrix4fv(prog->data.viewmx, 1, GL_FALSE, view_mx->cell);
+                GL(glUniformMatrix4fv(prog->data.viewmx, 1, GL_FALSE, view_mx->cell));
             if (inv_view_mx && prog->data.inv_viewmx >= 0)
-                 glUniformMatrix4fv(prog->data.inv_viewmx, 1, GL_FALSE, inv_view_mx->cell);
+                GL(glUniformMatrix4fv(prog->data.inv_viewmx, 1, GL_FALSE, inv_view_mx->cell));
 
             /* Projection matrix is the same for everything, but changes on resize */
             if (proj_mx && prog->data.projmx >= 0)
-                glUniformMatrix4fv(prog->data.projmx, 1, GL_FALSE, proj_mx->cell);
+                GL(glUniformMatrix4fv(prog->data.projmx, 1, GL_FALSE, proj_mx->cell));
         }
 
         model3dtx_prepare(txmodel);
         if (prog->data.use_normals >= 0 && txmodel->normals)
-            glUniform1f(prog->data.use_normals, texture_id(txmodel->normals) ? 1.0 : 0.0);
+            GL(glUniform1f(prog->data.use_normals, texture_id(txmodel->normals) ? 1.0 : 0.0));
 
         if (prog->data.shine_damper >= 0 && prog->data.reflectivity >= 0) {
-            glUniform1f(prog->data.shine_damper, txmodel->roughness);
-            glUniform1f(prog->data.reflectivity, txmodel->metallic);
+            GL(glUniform1f(prog->data.shine_damper, txmodel->roughness));
+            GL(glUniform1f(prog->data.reflectivity, txmodel->metallic));
         }
 
         list_for_each_entry (e, &txmodel->entities, entry) {
@@ -707,24 +707,24 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
 
 #ifndef EGL_EGL_PROTOTYPES
             if (focus == e) {
-                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                GL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
             } else {
-                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
             }
 #endif
             if (prog->data.color >= 0)
-                glUniform4fv(prog->data.color, 1, e->color);
+                GL(glUniform4fv(prog->data.color, 1, e->color));
             if (prog->data.colorpt >= 0)
-                glUniform1f(prog->data.colorpt, 0.5 * e->color_pt);
+                GL(glUniform1f(prog->data.colorpt, 0.5 * e->color_pt));
             if (focus && prog->data.highlight >= 0)
-                glUniform4fv(prog->data.highlight, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc);
+                GL(glUniform4fv(prog->data.highlight, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc));
 
             if (model->nr_joints && model->anis.da.nr_el && prog->data.joint_transforms >= 0) {
-                glUniform1f(prog->data.use_skinning, 1.0);
-                glUniformMatrix4fv(prog->data.joint_transforms, model->nr_joints,
-                                   GL_FALSE, (GLfloat *)e->joint_transforms);
+                GL(glUniform1f(prog->data.use_skinning, 1.0));
+                GL(glUniformMatrix4fv(prog->data.joint_transforms, model->nr_joints,
+                                      GL_FALSE, (GLfloat *)e->joint_transforms));
             } else {
-                glUniform1f(prog->data.use_skinning, 0.0);
+                GL(glUniform1f(prog->data.use_skinning, 0.0));
             }
             if (prog->data.ray >= 0) {
                 vec3 ray = { 0, 0, 0 };
@@ -733,11 +733,11 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
                     ray[1] = focus->dz;
                     ray[2] = 1.0;
                 }
-                glUniform3fv(prog->data.ray, 1, ray);
+                GL(glUniform3fv(prog->data.ray, 1, ray));
             }
             if (prog->data.transmx >= 0) {
                 /* Transformation matrix is different for each entity */
-                glUniformMatrix4fv(prog->data.transmx, 1, GL_FALSE, (GLfloat *)e->mx);
+                GL(glUniformMatrix4fv(prog->data.transmx, 1, GL_FALSE, (GLfloat *)e->mx));
             }
 
             model3dtx_draw(txmodel);
