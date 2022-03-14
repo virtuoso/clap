@@ -97,7 +97,7 @@ GLint shader_prog_find_var(struct shader_prog *p, const char *var)
 
 static int shader_prog_scan(struct shader_prog *p, const char *txt)
 {
-    static const char *vars[] = {"uniform", "attribute"};/* "varying"? */
+    static const char *vars[] = {"in", "uniform", "attribute"};/* "varying"? */
     const char *pos, *pend;
     struct shader_var *v;
     int i;
@@ -107,6 +107,10 @@ static int shader_prog_scan(struct shader_prog *p, const char *txt)
             pos = strstr(pos, vars[i]);
             if (!pos)
                 break;
+
+            pos += strlen(vars[i]);
+            if (!isspace(*pos))
+                continue;
 
             /* skip the variable qualifier */
             pos = skip_nonspace(pos);
@@ -124,10 +128,11 @@ static int shader_prog_scan(struct shader_prog *p, const char *txt)
                 return -ENOMEM;
             v->name = strndup(pos, pend - pos);
             switch (i) {
-                case 1:
+                case 0:
+                case 2:
                     v->loc = glGetAttribLocation(p->prog, v->name);
                     break;
-                case 0:
+                case 1:
                     v->loc = glGetUniformLocation(p->prog, v->name);
                     break;
             }
@@ -201,6 +206,10 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
     dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d\n",
         p->name, p->pos, p->norm, p->tex, p->tangent,
         p->texture_map, p->normal_map, p->joints, p->weights);
+    if (p->pos < 0) {
+        shader_prog_done(p);
+	return NULL;
+    }
     shader_prog_link(p);
     return p;
 }
