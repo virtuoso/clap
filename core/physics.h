@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __CLAP_PHYSICS_H__
 #define __CLAP_PHYSICS_H__
 

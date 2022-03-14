@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 
 static GLushort quad_idx[] = {0, 1, 3, 3, 1, 2};
 

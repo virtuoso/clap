@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef LINMATH_H
 #define LINMATH_H
 

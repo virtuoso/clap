@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef __CLAP_CLAP_H__
 #define __CLAP_CLAP_H__
 

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * "Private" struct data: only IMPLEMENTOR can access struct data
  */
