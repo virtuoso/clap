@@ -222,8 +222,10 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
             mi.focus_prev = 1;
         else if (mods & GLFW_MOD_CONTROL)
             mi.focus_cancel = 1;
-        else
+        else if (mods & GLFW_MOD_ALT)
             mi.focus_next = 1;
+        else
+            mi.space = 1;
         break;
     case GLFW_KEY_TAB:
         mi.tab = 1;
