@@ -3,5 +3,5 @@
 	url = https://bitbucket.org/odedevs/ode.git
 [submodule "asset"]
 	path = asset
-	url = git@github.com:virtuoso/clap-assets.git
+	url = https://github.com/virtuoso/clap-assets.git
 	branch = main
