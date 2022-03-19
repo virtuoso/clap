@@ -1166,6 +1166,7 @@ int ui_init(struct ui *ui, int width, int height)
     struct font *font;
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
 
+    ui_debug_mod_str("off");
     mq_init(&ui->mq, ui);
     lib_request_shaders("glyph", &ui->prog);
     lib_request_shaders("ui", &ui->prog);
