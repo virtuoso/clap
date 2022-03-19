@@ -3,6 +3,8 @@ project(clap)
 
 option(CLAP_BUILD_WITH_GLES BOOL OFF)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CARGO_RELEASE_FLAG "" CACHE INTERNAL "")
     set(TARGET_DIR "debug" CACHE INTERNAL "")
@@ -12,6 +14,23 @@ else ()
     set(TARGET_DIR "release" CACHE INTERNAL "")
 endif ()
 
+if(WIN32)
+        set(PYTHON_EXECUTABLE "python")
+else()
+        set(PYTHON_EXECUTABLE "python3")
+endif()
+
+if((NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/.bootstrap.json") OR ("${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" IS_NEWER_THAN "${CMAKE_CURRENT_SOURCE_DIR}/deps/.bootstrap.json"))
+        execute_process(
+                COMMAND ${PYTHON_EXECUTABLE} "bootstrap.py"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                RESULT_VARIABLE bootstrap_result
+        )
+        if (NOT (${bootstrap_result} EQUAL 0))
+                message(FATAL_ERROR "bootstrap.py failed")
+        endif()
+endif()
+
 include(scripts/rust-wasm.cmake)
 
 enable_testing()
@@ -19,6 +38,14 @@ enable_testing()
 
 message("### configuration types: ${CMAKE_CONFIGURATION_TYPES}")
 message("### build type: ${CMAKE_BUILD_TYPE}")
+
+set(MESHOPT_BUILD_DEMO OFF CACHE BOOL "")
+set(MESHOPT_BUILD_TOOLS OFF CACHE BOOL "")
+set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "")
+add_subdirectory(deps/src/meshoptimizer)
+
+set_property(TARGET meshoptimizer PROPERTY FOLDER "ThirdPartyLibraries")
+
 include(ExternalProject)
 ExternalProject_Add(ode
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/ode

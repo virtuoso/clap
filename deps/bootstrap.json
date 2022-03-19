@@ -1,0 +1,10 @@
+[
+{
+    "name": "meshoptimizer",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/zeux/meshoptimizer",
+        "revision": "v0.17"
+    }
+}
+]
