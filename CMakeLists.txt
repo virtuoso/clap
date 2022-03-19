@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.7)
 project(clap)
 
+option(CLAP_BUILD_WITH_GLES BOOL OFF)
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CARGO_RELEASE_FLAG "" CACHE INTERNAL "")
     set(TARGET_DIR "debug" CACHE INTERNAL "")

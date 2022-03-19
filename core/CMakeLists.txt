@@ -64,6 +64,10 @@ else ()
 endif ()
 message("### GLEW: ${GLEW_LIBRARIES}")
 
+if (CLAP_BUILD_WITH_GLES)
+    set(CONFIG_GLES 1)
+endif ()
+
 string(TIMESTAMP CONFIG_BUILDDATE "%Y%m%d_%H%M%S")
 configure_file(config.h.in config.h)
 
