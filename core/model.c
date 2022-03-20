@@ -11,6 +11,7 @@
 #include "matrix.h"
 #include "util.h"
 #include "object.h"
+#include "mesh.h"
 #include "model.h"
 #include "pngloader.h"
 #include "physics.h"
@@ -360,6 +361,16 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
         m->name, m->vertex_obj, m->index_obj, m->nr_vertices);*/
 
     return m;
+}
+
+struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh)
+{
+    return model3d_new_from_vectors(name, p,
+                                    mesh_vx(mesh), mesh_vx_sz(mesh),
+                                    mesh_idx(mesh), mesh_idx_sz(mesh),
+                                    mesh_tx(mesh), mesh_tx_sz(mesh),
+                                    mesh_norm(mesh), mesh_norm_sz(mesh));
+
 }
 
 struct model3d *

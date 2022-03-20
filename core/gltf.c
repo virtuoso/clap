@@ -57,6 +57,7 @@ enum {
     COMP_DOUBLE         = 0x140A,
 };
 
+/* XXX: this is wasteful for a lookup table, use a switch instead */
 static const size_t comp_sizes[] = {
     [COMP_BYTE]           = 1,
     [COMP_UNSIGNED_BYTE]  = 1,
@@ -296,6 +297,20 @@ struct gltf_accessor *gltf_accessor(struct gltf_data *gd, int accr)
     return ga;
 }
 
+size_t gltf_accessor_stride(struct gltf_data *gd, int accr)
+{
+    struct gltf_accessor *ga = gltf_accessor(gd, accr);
+
+    return typesz[ga->type] * comp_sizes[ga->comptype];
+}
+
+size_t gltf_accessor_nr(struct gltf_data *gd, int accr)
+{
+    struct gltf_accessor *ga = gltf_accessor(gd, accr);
+
+    return ga->count;
+}
+
 struct gltf_bufview *gltf_bufview_accr(struct gltf_data *gd, int accr)
 {
     struct gltf_accessor *ga = &gd->accrs.x[accr];
@@ -366,6 +381,20 @@ bool gltf_has_ ## _name(struct gltf_data *gd, int mesh) \
 { \
     struct gltf_mesh *m = gltf_mesh(gd, mesh); \
     return m ? (m->_attr != -1) : false; \
+} \
+size_t gltf_ ## _name ## _stride(struct gltf_data *gd, int mesh) \
+{ \
+    struct gltf_mesh *m = gltf_mesh(gd, mesh); \
+    struct gltf_accessor *ga; \
+    if (!m) return 0; \
+    return gltf_accessor_stride(gd, m->_attr); \
+} \
+size_t gltf_nr_ ## _name(struct gltf_data *gd, int mesh) \
+{ \
+    struct gltf_mesh *m = gltf_mesh(gd, mesh); \
+    struct gltf_accessor *ga; \
+    if (!m) return 0; \
+    return gltf_accessor_nr(gd, m->_attr); \
 }
 
 GLTF_MESH_ATTR(POSITION,   vx,      float)
@@ -987,16 +1016,23 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
     struct model3dtx *txm;
     struct model3d   *m;
+    struct mesh *me;
     int skin;
 
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
         return;
 
-    m = model3d_new_from_vectors(gltf_mesh_name(gd, mesh), gd->scene->prog,
-                                 gltf_vx(gd, mesh), gltf_vxsz(gd, mesh),
-                                 gltf_idx(gd, mesh), gltf_idxsz(gd, mesh),
-                                 gltf_tx(gd, mesh), gltf_txsz(gd, mesh),
-                                 gltf_norm(gd, mesh), gltf_normsz(gd, mesh));
+    me = mesh_new(gltf_mesh_name(gd, mesh));
+    mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh));
+    mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh));
+    mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh));
+    if (gltf_has_norm(gd, mesh))
+        mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh));
+    if (gltf_has_weights(gd, mesh))
+        mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh), gltf_nr_weights(gd, mesh));
+    mesh_optimize(me);
+
+    m = model3d_new_from_mesh(gltf_mesh_name(gd, mesh), gd->scene->prog, me);
     if (gltf_has_tangent(gd, mesh)) {
         model3d_add_tangents(m, gltf_tangent(gd, mesh), gltf_tangentsz(gd, mesh));
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
@@ -1019,7 +1055,7 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
         model3d_add_skinning(gd->scene->_model,
                              gltf_joints(gd, mesh), gltf_jointssz(gd, mesh),
-                             gltf_weights(gd, mesh), gltf_weightssz(gd, mesh));
+                             mesh_weights(me), mesh_weights_sz(me));
         gd->scene->_model->invmxs = memdup(gltf_accessor_buf(gd, mxaccr),
                                            gltf_accessor_sz(gd, mxaccr));
         darray_for_each(ga, &gd->anis) {
@@ -1082,6 +1118,7 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
             }
         }
     }
+    ref_put(me);
     txm->metallic = clampf(gltf_material(gd, mesh)->metallic, 0.1, 1.0);
     txm->roughness = clampf(gltf_material(gd, mesh)->roughness, 0.2, 1.0);
 

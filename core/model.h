@@ -10,6 +10,7 @@
 #include "objfile.h"
 #include "physics.h"
 #include "matrix.h"
+#include "mesh.h"
 #include "render.h"
 
 struct scene;
@@ -92,6 +93,7 @@ struct model3dtx {
 struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
                                          GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz, GLfloat *norm,
                                          size_t normsz);
+struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
 struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
 void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz);
 void model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jsz, float *weights, size_t wsz);
