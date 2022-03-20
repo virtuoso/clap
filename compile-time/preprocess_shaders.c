@@ -34,7 +34,7 @@ static inline const char *skip_to_new_line(const char *pos)
 
 static inline int id_char(char c)
 {
-    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_');
+    return (isalnum(c) || c == '_');
 }
 
 static inline int non_id_char(char c)
@@ -45,8 +45,7 @@ static inline int non_id_char(char c)
 void preprocess_vert_shader(char *input_name, char *output_name, enum shader_language target)
 {
     FILE* f = fopen(input_name, "r");
-    if (!f)
-    {
+    if (!f) {
         fprintf(stderr, "Cannot open '%s'.\n", input_name);
         exit(EXIT_FAILURE);            
     }
@@ -58,23 +57,17 @@ void preprocess_vert_shader(char *input_name, char *output_name, enum shader_lan
     fclose(f);
 
     FILE* fout = fopen(output_name, "w+");
-    if (!fout)
-    {
+    if (!fout) {
         fprintf(stderr, "Cannot create '%s'.\n", output_name);
         exit(EXIT_FAILURE);            
     }
-    if (target == LANGUAGE_GLSL)
-    {
+    if (target == LANGUAGE_GLSL) {
         fwrite(buf, 1, st.st_size, fout);        
-    }
-    else if (target == LANGUAGE_GLSL_ES)
-    {
+    } else if (target == LANGUAGE_GLSL_ES) {
         const char *next_line;
-        for (const char* pos = buf;;)
-        {
+        for (const char* pos = buf;;) {
             next_line = skip_to_new_line(pos);
-            if (next_line == pos)
-            {
+            if (next_line == pos) {
                 break;
             }
 
@@ -103,8 +96,7 @@ void preprocess_vert_shader(char *input_name, char *output_name, enum shader_lan
 void preprocess_frag_shader(char *input_name, char *output_name, enum shader_language target)
 {
     FILE* f = fopen(input_name, "r");
-    if (!f)
-    {
+    if (!f) {
         fprintf(stderr, "Cannot open '%s'.\n", input_name);
         exit(EXIT_FAILURE);
     }
@@ -116,31 +108,24 @@ void preprocess_frag_shader(char *input_name, char *output_name, enum shader_lan
     fclose(f);
 
     FILE* fout = fopen(output_name, "w+");
-    if (!fout)
-    {
+    if (!fout) {
         fprintf(stderr, "Cannot create '%s'.\n", output_name);
         exit(EXIT_FAILURE);            
     }
 
-    if (target == LANGUAGE_GLSL)
-    {
+    if (target == LANGUAGE_GLSL) {
         fwrite(buf, 1, st.st_size, fout);        
-    }
-    else if (target == LANGUAGE_GLSL_ES)
-    {
+    } else if (target == LANGUAGE_GLSL_ES) {
         fwrite("precision mediump float;\n", 1, 25, fout);
         
         const char *next_line;
-        for (const char* pos = buf;;)
-        {
+        for (const char* pos = buf;;) {
             next_line = skip_to_new_line(pos);
-            if (next_line == pos)
-            {
+            if (next_line == pos) {
                 break;
             }
 
-            if (strncmp(pos, "//", 2) == 0)
-            {
+            if (strncmp(pos, "//", 2) == 0) {
                 // copy as-is
             } else if (strncmp(pos, "#version ", 9) == 0) {
                 // delete line
@@ -156,14 +141,11 @@ void preprocess_frag_shader(char *input_name, char *output_name, enum shader_lan
                 // delete line
                 pos = next_line;
             } else {
-                while (next_line - pos > 0)
-                {
+                while (next_line - pos > 0) {
                     const char *start = pos;
-                    for (; start != next_line; start++)
-                    {
+                    for (; start != next_line; start++) {
                         if (strncmp(start, "FragColor", 9) == 0
-                            && non_id_char(start[-1]) && non_id_char(start[9]))
-                        {
+                            && non_id_char(start[-1]) && non_id_char(start[9])) {
                             fwrite(pos, 1, start - pos, fout);
                             fwrite("gl_", 1, 3, fout);
                             pos = start;
@@ -171,8 +153,7 @@ void preprocess_frag_shader(char *input_name, char *output_name, enum shader_lan
                             break;
                         }
                         if (strncmp(start, "texture", 7) == 0
-                            && non_id_char(start[-1]) && non_id_char(start[7]))
-                        {
+                            && non_id_char(start[-1]) && non_id_char(start[7])) {
                             fwrite(pos, 1, start - pos, fout);
                             fwrite("texture2D", 1, 9, fout);
                             pos = start + 7;
@@ -184,8 +165,7 @@ void preprocess_frag_shader(char *input_name, char *output_name, enum shader_lan
                     pos = start;
                 }
             }
-            if (pos != next_line)
-            {
+            if (pos != next_line) {
                 fwrite(pos, 1, next_line - pos, fout);
                 pos = next_line;
             }
@@ -241,11 +221,9 @@ int main(int argc, char **argv, char **envp)
 
         switch (c) {
         case 't':
-            if (!strcmp(optarg, "glsl-es"))
-            {
+            if (!strcmp(optarg, "glsl-es")) {
                 target = LANGUAGE_GLSL_ES;
-            } else if (!strcmp(optarg, "glsl"))
-            {
+            } else if (!strcmp(optarg, "glsl")) {
                 target = LANGUAGE_GLSL;
             } else {
                 fprintf(stderr, "invalid value for -t option. Valid values are: glsl, glsl-es.\n");
@@ -261,8 +239,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    switch (target)
-    {
+    switch (target) {
     case LANGUAGE_GLSL:
         printf("Target language: GLSL\n");
         break;
@@ -273,8 +250,7 @@ int main(int argc, char **argv, char **envp)
         fprintf(stderr, "Missing required option -t (valid values are: glsl, glsl-es).\n");
         exit(EXIT_FAILURE);
     }
-    for (int i = optind; i < argc; i++)
-    {
+    for (int i = optind; i < argc; i++) {
         printf("Preprocessing %s\n", argv[i]);
         preprocess_shader(argv[i], output_path, target);
     }
