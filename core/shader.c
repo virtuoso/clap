@@ -227,29 +227,6 @@ void shader_prog_done(struct shader_prog *p)
     ref_put(p);
 }
 
-/* XXX: or do this at build time? */
-static void shader_preprocess(char *text, size_t size)
-{
-#ifndef CONFIG_GLES
-    const char *strip[] = { "precision" };
-    char *      p       = text;
-    char *      end     = text + size;
-    int         i;
-
-    for (p = text; p < text + size;) {
-        for (i = 0; i < array_size(strip); i++) {
-            int l = strlen(strip[i]);
-            if (p + l < end && !strncmp(p, strip[i], l)) {
-                *p++ = '/';
-                *p++ = '/';
-            }
-        }
-        p = (char *)skip_nonspace(p);
-        p = (char *)skip_space(p);
-    }
-#endif /* CONFIG_GLES */
-}
-
 struct shader_prog *shader_prog_find(struct shader_prog *prog, const char *name)
 {
     for (; prog; prog = prog->next)
@@ -272,10 +249,8 @@ int lib_request_shaders(const char *name, struct shader_prog **progp)
 
     CHECK(asprintf(&nvert, "%s.vert", name));
     CHECK(asprintf(&nfrag, "%s.frag", name));
-    hv = lib_read_file(RES_ASSET, nvert, (void **)&vert, &vsz);
-    hf = lib_read_file(RES_ASSET, nfrag, (void **)&frag, &fsz);
-    shader_preprocess(vert, vsz);
-    shader_preprocess(frag, fsz);
+    hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
+    hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
     //dbg("%s/%s vsz %zu fsz %zu\n", nvert, nfrag, vsz, fsz);
     p           = shader_prog_from_strings(name, vert, frag);
     p->next     = *progp;
