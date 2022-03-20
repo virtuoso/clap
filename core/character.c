@@ -43,7 +43,7 @@ void character_move(struct character *ch, struct scene *s)
         dVector3 newx, newz, res;
         dMatrix3 R;
 
-        if (!vec3_len(ch->normal)) {
+        if (!vec3_len(ch->normal) && ch != cam) {
             err("no normal vector: is there collision?\n");
             return;
         }
