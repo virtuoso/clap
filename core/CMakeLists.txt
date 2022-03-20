@@ -5,14 +5,18 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
 set(ASSET_DIR "${PARENT_DIR}/asset")
 message("### asset dir ${ASSET_DIR}")
-set(ASSETS  "${ASSET_DIR}/ui.vert"
-            "${ASSET_DIR}/ui.frag"
-            "${ASSET_DIR}/glyph.vert"
-            "${ASSET_DIR}/glyph.frag"
-            "${ASSET_DIR}/model.vert"
-            "${ASSET_DIR}/model.frag"
-            "${ASSET_DIR}/scene.json"
-)
+if (CONFIG_GLES)
+    set(SHADER_DIR "${ASSET_DIR}/glsl-es")
+else ()
+    set(SHADER_DIR "${ASSET_DIR}/glsl")
+endif ()
+set(ASSETS  "${SHADER_DIR}/ui.vert"
+            "${SHADER_DIR}/ui.frag"
+            "${SHADER_DIR}/glyph.vert"
+            "${SHADER_DIR}/glyph.frag"
+            "${SHADER_DIR}/model.vert"
+            "${SHADER_DIR}/model.frag"
+            "${ASSET_DIR}/scene.json")
 message("### assets ${ASSETS}")
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))

@@ -8,6 +8,7 @@ enum res_type {
     RES_CONFIG = 0,
     RES_ASSET,
     RES_STATE,
+    RES_SHADER,
 };
 
 enum res_state {

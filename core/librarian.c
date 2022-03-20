@@ -54,6 +54,11 @@ char *lib_figure_uri(enum res_type type, const char *name)
     const char *pfx[] = {
         [RES_CONFIG]    = "config",
         [RES_ASSET]     = "asset",
+#if defined(CONFIG_GLES)
+        [RES_SHADER]     = "asset/glsl-es",
+#else
+        [RES_SHADER]     = "asset/glsl",
+#endif
         [RES_STATE]     = "state",
     };
     char *uri;
