@@ -30,9 +30,11 @@ static void model3d_drop(struct ref *ref)
     struct animation *an;
     struct joint *joint;
     struct pose *pose;
+    int i;
 
     glDeleteBuffers(1, &m->vertex_obj);
-    glDeleteBuffers(1, &m->index_obj);
+    for (i = 0; i < m->nr_lods; i++)
+        glDeleteBuffers(1, &m->index_obj[i]);
     if (m->norm_obj)
         glDeleteBuffers(1, &m->norm_obj);
     if (m->tex_obj)
@@ -346,7 +348,8 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
 
     shader_prog_use(p);
     load_gl_buffer(m->prog->pos, vx, GL_FLOAT, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
-    load_gl_buffer(-1, idx, GL_UNSIGNED_SHORT, idxsz, &m->index_obj, 0, GL_ELEMENT_ARRAY_BUFFER);
+    load_gl_buffer(-1, idx, GL_UNSIGNED_SHORT, idxsz, &m->index_obj[0], 0, GL_ELEMENT_ARRAY_BUFFER);
+    m->nr_lods++;
 
     if (txsz)
         load_gl_buffer(m->prog->tex, tx, GL_FLOAT, txsz, &m->tex_obj, 2, GL_ARRAY_BUFFER);
@@ -355,8 +358,9 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
         load_gl_buffer(m->prog->norm, norm, GL_FLOAT, normsz, &m->norm_obj, 3, GL_ARRAY_BUFFER);
     shader_prog_done(p);
 
+    m->cur_lod = -1;
     m->nr_vertices = vxsz / sizeof(*vx) / 3; /* XXX: could be GLuint? */
-    m->nr_faces = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
+    m->nr_faces[0] = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
     /*dbg("created model '%s' vobj: %d iobj: %d nr_vertices: %d\n",
         m->name, m->vertex_obj, m->index_obj, m->nr_vertices);*/
 
@@ -365,12 +369,37 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
 
 struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh)
 {
-    return model3d_new_from_vectors(name, p,
-                                    mesh_vx(mesh), mesh_vx_sz(mesh),
-                                    mesh_idx(mesh), mesh_idx_sz(mesh),
-                                    mesh_tx(mesh), mesh_tx_sz(mesh),
-                                    mesh_norm(mesh), mesh_norm_sz(mesh));
+    unsigned short *lod = NULL;
+    struct model3d *m;
+    ssize_t nr_idx;
+    int level;
 
+    m = model3d_new_from_vectors(name, p,
+                                 mesh_vx(mesh), mesh_vx_sz(mesh),
+                                 mesh_idx(mesh), mesh_idx_sz(mesh),
+                                 mesh_tx(mesh), mesh_tx_sz(mesh),
+                                 mesh_norm(mesh), mesh_norm_sz(mesh));
+
+    if (gl_does_vao())
+        GL(glBindVertexArray(m->vao));
+    shader_prog_use(m->prog);
+
+    for (level = 0, nr_idx = mesh_nr_idx(mesh); level < LOD_MAX - 1; level++) {
+        nr_idx = mesh_idx_to_lod(mesh, level, &lod, nr_idx);
+        if (nr_idx < 0)
+            break;
+        dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
+        load_gl_buffer(-1, lod, GL_UNSIGNED_SHORT, nr_idx * mesh_idx_stride(mesh),
+                       &m->index_obj[m->nr_lods], 0, GL_ELEMENT_ARRAY_BUFFER);
+        m->nr_faces[m->nr_lods] = nr_idx;
+        m->nr_lods++;
+    }
+
+    shader_prog_done(m->prog);
+    if (gl_does_vao())
+        GL(glBindVertexArray(0));
+
+    return m;
 }
 
 struct model3d *
@@ -392,13 +421,28 @@ model3d_new_from_model_data(const char *name, struct shader_prog *p, struct mode
     return m;
 }
 
+static void model3d_set_lod(struct model3d *m, unsigned int lod)
+{
+    if (lod >= m->nr_lods)
+        lod = max(0, m->nr_lods - 1);
+
+    if (lod == m->cur_lod)
+        return;
+
+    if (m->cur_lod < 0)
+        GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+    GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj[lod]));
+    m->cur_lod = lod;
+}
+
 static void model3d_prepare(struct model3d *m)
 {
     struct shader_prog *p = m->prog;
 
     if (gl_does_vao())
         GL(glBindVertexArray(m->vao));
-    GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj));
+    if (m->cur_lod >= 0)
+        GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj[m->cur_lod]));
     GL(glBindBuffer(GL_ARRAY_BUFFER, m->vertex_obj));
     GL(glVertexAttribPointer(p->pos, 3, GL_FLOAT, GL_FALSE, 0, (void *)0));
     GL(glEnableVertexAttribArray(p->pos));
@@ -453,8 +497,10 @@ void model3dtx_prepare(struct model3dtx *txm)
 
 void model3dtx_draw(struct model3dtx *txm)
 {
+    struct model3d *m = txm->model;
+
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    GL(glDrawElements(GL_TRIANGLES, txm->model->nr_faces, GL_UNSIGNED_SHORT, 0));
+    GL(glDrawElements(GL_TRIANGLES, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0));
 }
 
 static void model3d_done(struct model3d *m)
@@ -476,6 +522,7 @@ static void model3d_done(struct model3d *m)
     GL(glBindBuffer(GL_ARRAY_BUFFER, 0));
     if (gl_does_vao())
         GL(glBindVertexArray(0));
+    m->cur_lod = -1;
 }
 
 void model3dtx_done(struct model3dtx *txm)
@@ -646,20 +693,27 @@ struct pose *animation_pose_add(struct animation *an)
     return pose;
 }
 
-void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
-                   struct matrix4f *inv_view_mx, struct matrix4f *proj_mx, struct entity3d *focus,
+void models_render(struct mq *mq, struct light *light, struct camera *camera,
+                   struct matrix4f *proj_mx, struct entity3d *focus,
                    unsigned long *count)
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
     struct model3d *model;
     struct model3dtx *txmodel;
+    struct matrix4f *view_mx, *inv_view_mx;
     unsigned long nr_txms = 0, nr_ents = 0;
+
+    if (camera) {
+        view_mx = camera->view_mx;
+        inv_view_mx = camera->inv_view_mx;
+    }
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
                txmodel_name(txmodel));
         model = txmodel->model;
+        model->cur_lod = 0;
         /* XXX: model-specific draw method */
         if (model->cull_face) {
             GL(glEnable(GL_CULL_FACE));
@@ -717,6 +771,14 @@ void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx,
 
             dbg_on(!e->visible, "rendering an invisible entity!\n");
 
+            if (camera) {
+                vec3 dist = { e->dx, e->dy, e->dz };
+                unsigned int lod;
+
+                vec3_sub(dist, dist, camera->ch->pos);
+                lod = vec3_len(dist) / 80;
+                model3d_set_lod(model, lod);
+            }
 #ifndef EGL_EGL_PROTOTYPES
             if (focus == e) {
                 GL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));

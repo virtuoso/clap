@@ -67,10 +67,10 @@ int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t strid
     return 0;
 }
 
-unsigned int *mesh_idx_to_idx32(struct mesh *mesh)
+static unsigned int *idx_to_idx32(unsigned short *idx, size_t nr_idx)
 {
-    unsigned int *idx32, i, nr_idx = mesh_nr_idx(mesh);
-    unsigned short *idx = mesh_idx(mesh);
+    unsigned int *idx32;
+    int i;
 
     CHECK(idx32 = malloc(nr_idx * sizeof(*idx32)));
     for (i = 0; i < nr_idx; i++)
@@ -79,14 +79,40 @@ unsigned int *mesh_idx_to_idx32(struct mesh *mesh)
     return idx32;
 }
 
+static unsigned short *idx32_to_idx(unsigned int *idx32, size_t nr_idx)
+{
+    unsigned short *idx;
+    int i;
+
+    CHECK(idx = malloc(nr_idx * sizeof(*idx)));
+    for (i = 0; i < nr_idx; i++)
+        idx[i] = idx32[i];
+
+    return idx;
+}
+
+unsigned int *mesh_idx_to_idx32(struct mesh *mesh)
+{
+    return idx_to_idx32(mesh_idx(mesh), mesh_nr_idx(mesh));
+}
+
 void mesh_idx_from_idx32(struct mesh *mesh, unsigned int *idx32)
 {
-    unsigned int i, nr_idx = mesh_nr_idx(mesh);
-    unsigned short *idx = mesh_idx(mesh);
+    mesh->attr[MESH_IDX].data = idx32_to_idx(idx32, mesh_nr_idx(mesh));
+    free(idx32);
+}
 
+unsigned short *mesh_lod_from_idx32(struct mesh *mesh, unsigned int *idx32)
+{
+    unsigned int i, nr_idx = mesh_nr_idx(mesh);
+    unsigned short *idx;
+
+    CHECK(idx = calloc(nr_idx, sizeof(*idx)));
     for (i = 0; i < nr_idx; i++)
         idx[i] = idx32[i];
     free(idx32);
+
+    return idx;
 }
 
 #define test_bit(mask, bit) (!!((mask) & (1 << (bit))))
@@ -149,10 +175,11 @@ void mesh_optimize(struct mesh *mesh)
     struct meshopt_Stream streams[MESH_MAX];
     size_t nr_idx = mesh_nr_idx(mesh);
     unsigned int *remap, *idx32;
+    struct mesh_attr *ma;
     int attr, nr_streams;
 
     for (attr = 0, nr_streams = 0; attr < MESH_MAX; attr++) {
-        struct mesh_attr *ma = mesh_attr(mesh, attr);
+        ma = mesh_attr(mesh, attr);
 
         if (!test_bit(MESH_VX_ATTRS, attr) || !ma->nr)
             continue;
@@ -171,7 +198,7 @@ void mesh_optimize(struct mesh *mesh)
 
     meshopt_remapIndexBuffer(idx32, idx32, nr_idx, remap);
     for (attr = 0; attr < MESH_MAX; attr++) {
-        struct mesh_attr *ma = mesh_attr(mesh, attr);
+        ma = mesh_attr(mesh, attr);
 
         if (!test_bit(MESH_VX_ATTRS, attr) || !ma->nr)
             continue;
@@ -192,7 +219,7 @@ void mesh_optimize(struct mesh *mesh)
     meshopt_remapIndexBuffer(idx32, idx32, nr_idx, remap);
 
     for (attr = 0; attr < MESH_MAX; attr++) {
-        struct mesh_attr *ma = mesh_attr(mesh, attr);
+        ma = mesh_attr(mesh, attr);
 
         if (!test_bit(MESH_VX_ATTRS, attr) || !ma->nr)
             continue;
@@ -206,4 +233,33 @@ void mesh_optimize(struct mesh *mesh)
     free(remap);
 
     mesh_idx_from_idx32(mesh, idx32);
+}
+
+ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t orig_idx)
+{
+    struct mesh_attr *vxa = mesh_attr(mesh, MESH_VX);
+    struct mesh_attr *ia = mesh_attr(mesh, MESH_IDX);
+    int nr_idx, target = orig_idx / (1 << (lod + 1)), i;
+    float target_error = 1e-2;
+    unsigned int *idx32;
+
+    idx32 = mesh_idx_to_idx32(mesh);
+    nr_idx = meshopt_simplify(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
+                              target, 0.02f, &target_error);
+
+#define goodenough(_new, _orig) ((_new) * 11 / 10 < (_orig))
+    if (!goodenough(nr_idx, ia->nr) || nr_idx < 0) {
+        nr_idx = meshopt_simplifySloppy(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
+                                        target, 0.02f, &target_error);
+        if (!goodenough(nr_idx, orig_idx)) {
+            nr_idx = -1;
+            goto out;
+        }
+    }
+
+    *idx = idx32_to_idx(idx32, nr_idx);
+out:
+    free(idx32);
+
+    return nr_idx;
 }

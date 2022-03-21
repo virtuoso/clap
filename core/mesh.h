@@ -56,6 +56,12 @@ static inline size_t mesh_nr(struct mesh *mesh, unsigned int attr)
     return mesh->attr[attr].nr;
 }
 
+static inline size_t mesh_stride(struct mesh *mesh, unsigned int attr)
+{
+    err_on(attr >= MESH_MAX);
+    return mesh->attr[attr].stride;
+}
+
 static inline size_t mesh_sz(struct mesh *mesh, int attr)
 {
     err_on(attr >= MESH_MAX);
@@ -70,6 +76,10 @@ static inline _t *mesh_ ## _n(struct mesh *mesh) \
 static inline size_t mesh_nr_ ## _n(struct mesh *mesh) \
 { \
     return mesh_nr(mesh, MESH_ ## _N); \
+} \
+static inline size_t mesh_ ## _n ## _stride(struct mesh *mesh) \
+{ \
+    return mesh_stride(mesh, MESH_ ## _N); \
 } \
 static inline size_t mesh_ ## _n ## _sz(struct mesh *mesh) \
 { \
@@ -99,5 +109,6 @@ void mesh_optimize0(float *vx, float *tx, float *norm, unsigned short *idx,
                    float **_new_vx, unsigned short **_new_idx, float **_new_tx,
                    float **_new_norm, size_t *_nr_new_vx);
 void mesh_optimize(struct mesh *mesh);
+ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t orig_idx);
 
 #endif /* __CLAP_MESH_H__ */

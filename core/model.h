@@ -14,6 +14,7 @@
 #include "render.h"
 
 struct scene;
+struct camera;
 struct shader_prog;
 
 struct light {
@@ -51,6 +52,7 @@ struct skeleton {
     darray(struct skeleton, children);
 };
 
+#define LOD_MAX 4
 struct model3d {
     char                *name;
     struct ref          ref;
@@ -58,19 +60,21 @@ struct model3d {
     bool                cull_face;
     bool                alpha_blend;
     unsigned int        nr_joints;
+    unsigned int        nr_lods;
+    int                 cur_lod;
     float               aabb[6];
     darray(struct animation, anis);
     struct skeleton     skeleton;
     GLuint              vao;
     GLuint              vertex_obj;
-    GLuint              index_obj;
+    GLuint              index_obj[LOD_MAX];
     GLuint              tex_obj;
     GLuint              norm_obj;
     GLuint              tangent_obj;
     GLuint              joints_obj;
     GLuint              weights_obj;
     GLuint              nr_vertices;
-    GLuint              nr_faces;
+    GLuint              nr_faces[LOD_MAX];
     mat4x4              *invmxs;
 };
 
@@ -199,7 +203,7 @@ struct entity3d {
 };
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
-void models_render(struct mq *mq, struct light *light, struct matrix4f *view_mx, struct matrix4f *inv_view_mx,
+void models_render(struct mq *mq, struct light *light, struct camera *camera,
                    struct matrix4f *proj_mx, struct entity3d *focus, unsigned long *count);
 
 static inline const char *entity_name(struct entity3d *e)

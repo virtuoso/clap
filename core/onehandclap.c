@@ -133,7 +133,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
         glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-        models_render(&s->mq, &s->light, s->camera[1].view_mx, s->camera[1].inv_view_mx, s->proj_mx, s->focus, NULL);
+        models_render(&s->mq, &s->light, &s->camera[1], s->proj_mx, s->focus, NULL);
         fbo_done(fbo, s->width, s->height);
     }
 
@@ -141,13 +141,13 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    models_render(&s->mq, &s->light, s->camera->view_mx, s->camera->inv_view_mx, s->proj_mx, s->focus, NULL);
+    models_render(&s->mq, &s->light, s->camera, s->proj_mx, s->focus, NULL);
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
     //glDisable(GL_DEPTH_TEST);
     //glClear(GL_DEPTH_BUFFER_BIT);
-    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, &count);
+    models_render(&ui.mq, NULL, NULL, NULL, NULL, &count);
     PROF_STEP(ui, models);
 
     s->frames_total += frame_count;
