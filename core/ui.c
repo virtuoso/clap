@@ -1203,8 +1203,7 @@ void ui_done(struct ui *ui)
         ref_put_last(bottom_element);
     }
     //ref_put_last(limeric_uit);
-    /* XXX */
-    if (nr_ui_debug_mods) {
+    if (debug_uit) {
         ref_put(debug_element);
         ref_put_last(debug_uit);
     }
