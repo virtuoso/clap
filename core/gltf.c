@@ -108,11 +108,12 @@ struct gltf_node {
 };
 
 struct gltf_skin {
-    int         invmxs;
+    mat4x4      *invmxs;
     const char  *name;
     int         *joints;
     int         *nodes;
     unsigned int nr_joints;
+    unsigned int nr_invmxs;
 };
 
 struct gltf_mesh {
@@ -161,13 +162,6 @@ struct gltf_sampler {
     int    input;
     int    output;
     int    interp;
-};
-
-enum chan_path {
-    PATH_TRANSLATION = 0,
-    PATH_ROTATION,
-    PATH_SCALE,
-    PATH_NONE,
 };
 
 static const char *paths[] = {
@@ -597,11 +591,15 @@ static void gltf_load_skins(struct gltf_data *gd, JsonNode *skins)
         struct gltf_skin *skin;
 
         CHECK(skin = darray_add(&gd->skins.da));
-        skin->invmxs = -1;
 
         jmat = json_find_member(n, "inverseBindMatrices");
-        if (jmat && jmat->tag == JSON_NUMBER)
-            skin->invmxs = jmat->number_;
+        if (jmat && jmat->tag == JSON_NUMBER) {
+            struct gltf_accessor *ga = &gd->accrs.x[(int)jmat->number_];
+            struct gltf_bufview *bv = &gd->bufvws.x[ga->bufview];
+
+            skin->invmxs = gltf_accessor_buf(gd, jmat->number_);
+            skin->nr_invmxs = ga->count;
+        }
 
         jname = json_find_member(n, "name");
         if (jname && jname->tag == JSON_STRING)
@@ -744,7 +742,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
         free(nodes);
     }
 
-    // nodes_print(gd, &gd->nodes.x[gd->root_node], 0);
+    nodes_print(gd, &gd->nodes.x[gd->root_node], 0);
 
     /* Buffers */
     for (n = bufs->children.head; n; n = n->next) {
@@ -1028,6 +1026,8 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
     mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh));
     if (gltf_has_norm(gd, mesh))
         mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh));
+    if (gltf_has_joints(gd, mesh))
+        mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh), gltf_nr_joints(gd, mesh));
     if (gltf_has_weights(gd, mesh))
         mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh), gltf_nr_weights(gd, mesh));
     mesh_optimize(me);
@@ -1049,75 +1049,64 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     skin = gltf_mesh_skin(gd, mesh);
     if (skin >= 0) {
-        int mxaccr = gd->skins.x[skin].invmxs, i;
+        struct gltf_skin *s = &gd->skins.x[skin];
+        mat4x4 *invmxs = s->invmxs;
         struct gltf_animation *ga;
         struct animation *an;
+        int err, i;
 
-        model3d_add_skinning(gd->scene->_model,
-                             gltf_joints(gd, mesh), gltf_jointssz(gd, mesh),
-                             mesh_weights(me), mesh_weights_sz(me));
-        gd->scene->_model->invmxs = memdup(gltf_accessor_buf(gd, mxaccr),
-                                           gltf_accessor_sz(gd, mxaccr));
+        err = model3d_add_skinning(gd->scene->_model,
+                                   mesh_joints(me), mesh_joints_sz(me),
+                                   mesh_weights(me), mesh_weights_sz(me), s->nr_joints, s->invmxs);
+        if (err)
+            goto no_skinning;
+
+        /* XXX: -> model.c */
+        for (i = 0; i < s->nr_joints; i++) {
+            struct gltf_node *node = &gd->nodes.x[s->joints[i]];
+            int ch;
+
+            gd->scene->_model->joints[i].name = strdup(gd->nodes.x[s->joints[i]].name);
+
+            for (ch = 0; ch < node->nr_children; ch++) {
+                int *pchild = darray_add(&gd->scene->_model->joints[i].children.da);
+                *pchild = gltf_skin_node_to_joint(gd, skin, node->ch_arr[ch]);//node->ch_arr[ch];
+            }
+        }
+
         darray_for_each(ga, &gd->anis) {
-            struct gltf_accessor *accr;
-            int frame;
+            struct gltf_channel *chan;
 
-            CHECK(an = animation_new(gd->scene->_model, gd->anis.x[0].name));
+            /*
+             * There are no keyframes as such, that span all properties of all
+             * joints. Instead each transformation channel has a timeline, some
+             * share timelines and some don't.
+             * Interpolation is done for each channel separately, based on the
+             * timeline that it uses, in the renderer.
+             * If we were to stuff all this into poses, assuming that all timelines
+             * are reducible to one linear timeline, we'd have to interpolate here
+             * for the channels that are sparser.
+             * OTOH, the 'pose' / 'frame' based data will fit into channel based
+             * model trivially, where all channels move at the same time increments.
+             */
+            CHECK(an = animation_new(gd->scene->_model, gd->anis.x[0].name,
+                                     ga->channels.da.nr_el));
             dbg("## animation '%s'\n", an->name);
-            /* number of keyframes */
-            accr = gltf_accessor(gd, ga->samplers.x[0].input);
-            for (frame = 0; frame < accr->count; frame++) {
-                float *time = gltf_accessor_element(gd, ga->samplers.x[0].input, frame);
-                struct gltf_channel *chan;
-                struct pose *pose;
-                int joint;
+            darray_for_each(chan, &ga->channels) {
+                int accr_in = ga->samplers.x[chan->sampler].input;
+                int accr_out = ga->samplers.x[chan->sampler].output;
+                size_t frames = gltf_accessor_nr(gd, accr_in);
+                float *time = gltf_accessor_buf(gd, accr_in);
+                float *data = gltf_accessor_buf(gd, accr_out);
 
-                // dbg("## frame %d: time: %f\n", frame, *time);
-                pose = animation_pose_add(an);
-                pose->frame = *time;
+                size_t data_stride = gltf_accessor_stride(gd, accr_out);
 
-                darray_for_each(chan, &ga->channels) {
-                    int joint = gltf_skin_node_to_joint(gd, skin, chan->node);
-                    int sampler = ga->samplers.x[chan->sampler].output;
-                    float *x = gltf_accessor_element(gd, sampler, frame);
-                    struct gltf_node *node = &gd->nodes.x[chan->node];
-                    int i;
-
-                    for (i = 0; i < node->nr_children; i++) {
-                        int *child = darray_add(&pose->joints.x[joint].children.da);
-                        *child = gltf_skin_node_to_joint(gd, skin, node->ch_arr[i]);
-                        // dbg("#### joint %d child of %d\n", *child, joint);
-                    }
-                    switch (chan->path) {
-                        case PATH_TRANSLATION:
-                            memcpy(pose->joints.x[joint].translation, x, sizeof(vec3));
-                            break;
-                        case PATH_ROTATION:
-                            memcpy(pose->joints.x[joint].rotation, x, sizeof(quad_t));
-                            break;
-                        case PATH_SCALE:
-                            memcpy(pose->joints.x[joint].scale, x, sizeof(vec3));
-                            break;
-                        default:
-                            continue;
-                    }
-                    // dbg("## joint: %d node: %d tr [%f,%f,%f] R [%f,%f,%f,%f] S [%f,%f,%f]\n",
-                    //     joint, chan->node,
-                    //     pose->joints.x[joint].translation[0],
-                    //     pose->joints.x[joint].translation[1],
-                    //     pose->joints.x[joint].translation[2],
-                    //     pose->joints.x[joint].rotation[0],
-                    //     pose->joints.x[joint].rotation[1],
-                    //     pose->joints.x[joint].rotation[2],
-                    //     pose->joints.x[joint].rotation[3],
-                    //     pose->joints.x[joint].scale[0],
-                    //     pose->joints.x[joint].scale[1],
-                    //     pose->joints.x[joint].scale[2]
-                    // );
-                }
+                animation_add_channel(an, frames, time, data, data_stride,
+                                      gltf_skin_node_to_joint(gd, skin, chan->node), chan->path);
             }
         }
     }
+no_skinning:
     ref_put(me);
     txm->metallic = clampf(gltf_material(gd, mesh)->metallic, 0.1, 1.0);
     txm->roughness = clampf(gltf_material(gd, mesh)->roughness, 0.2, 1.0);

@@ -33,25 +33,21 @@ void main()
             color_override = 1.0;
     }
 
-    vec3 our_normal = normal;
+    vec4 our_normal = vec4(normal, 0);
     vec4 total_local_pos = vec4(0, 0, 0, 0);
     vec4 total_normal = vec4(0, 0, 0, 0);
     if (use_skinning > 0.5) {
         for (int i = 0; i < 4; i++) {
             mat4 joint_transform = joint_transforms[int(joints[i])];
-            // joint_transform = mat4(1.0);
             vec4 local_pos = joint_transform * vec4(position, 1.0);
             total_local_pos += local_pos * weights[i];
-            // total_local_pos += vec4(position, 1.0) * weights[i];
 
             vec4 world_normal = joint_transform * vec4(normal, 0.0);
             total_normal += world_normal * weights[i];
         }
-        // total_local_pos += vec4(position, 1.0) * 0.6;
-        // total_normal += vec4(normal, 0.0) * 0.6;
 
-        gl_Position = proj * /*view * trans * */total_local_pos;
-        our_normal = total_normal.xyz;
+        gl_Position = proj * view * trans * total_local_pos;
+        our_normal = trans * total_normal;
     } else {
         gl_Position = proj * view * trans * vec4(position, 1.0);
     }
@@ -60,7 +56,7 @@ void main()
     // this is still needed in frag
     if (use_normals > 0.5) {
         do_use_normals = use_normals;
-        surface_normal = (view * vec4(our_normal, 0.0)).xyz;
+        surface_normal = (view * vec4(our_normal.xyz, 0.0)).xyz;
 
         vec3 N = normalize(surface_normal);
         vec3 T = normalize(view * vec4(tangent.xyz, 0)).xyz;
@@ -74,7 +70,7 @@ void main()
         to_light_vector = to_tangent_space * (light_pos - world_pos.xyz);
         to_camera_vector = to_tangent_space * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
-        surface_normal = (trans * vec4(our_normal, 0.0)).xyz;
+        surface_normal = (trans * vec4(our_normal.xyz, 0.0)).xyz;
 
         to_light_vector = light_pos - world_pos.xyz;
         to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;

@@ -26,7 +26,8 @@ enum {
     MESH_VX_BIT | \
     MESH_TX_BIT | \
     MESH_NORM_BIT | \
-    MESH_WEIGHTS_BIT \
+    MESH_WEIGHTS_BIT |\
+    MESH_JOINTS_BIT \
 )
 
 struct mesh_attr {
@@ -89,6 +90,7 @@ static inline size_t mesh_ ## _n ## _sz(struct mesh *mesh) \
 ATTR_ACCESSORS(vx, VX, float);
 ATTR_ACCESSORS(tx, TX, float);
 ATTR_ACCESSORS(norm, NORM, float);
+ATTR_ACCESSORS(joints, JOINTS, unsigned char);
 ATTR_ACCESSORS(weights, WEIGHTS, float);
 ATTR_ACCESSORS(idx, IDX, unsigned short);
 

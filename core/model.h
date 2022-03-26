@@ -22,13 +22,26 @@ struct light {
     GLfloat color[3];
 };
 
+struct model_joint {
+    darray(int, children);
+    const char  *name;
+    mat4x4      invmx;
+    int         id;
+};
+
+enum chan_path {
+    PATH_TRANSLATION = 0,
+    PATH_ROTATION,
+    PATH_SCALE,
+    PATH_NONE,
+};
+
 struct joint {
     vec3    translation;
     quat    rotation;
     vec3    scale;
     mat4x4  global;
-    int     id;
-    darray(int, children);
+    int     off[PATH_NONE];
 };
 
 struct pose {
@@ -36,21 +49,28 @@ struct pose {
     darray(struct joint, joints);
 };
 
+struct channel {
+    float           *time;
+    float           *data;
+    unsigned int    nr;
+    unsigned int    stride;
+    unsigned int    target;
+    unsigned int    path;
+};
+
 struct animation {
     struct ref      ref;
     const char      *name;
     struct model3d  *model;
-    darray(struct pose, poses);
-    unsigned int    nr_joints;
+    struct channel  *channels;
+    unsigned int    nr_channels;
+    unsigned int    cur_channel;
+    float           time_end;
 };
 
-struct animation *animation_new(struct model3d *model, const char *name);
-struct pose *animation_pose_add(struct animation *an);
-
-struct skeleton {
-    int joint_id;
-    darray(struct skeleton, children);
-};
+struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels);
+void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
+                           size_t data_stride, unsigned int target, unsigned int path);
 
 #define LOD_MAX 4
 struct model3d {
@@ -60,11 +80,11 @@ struct model3d {
     bool                cull_face;
     bool                alpha_blend;
     unsigned int        nr_joints;
+    unsigned int        root_joint;
     unsigned int        nr_lods;
     int                 cur_lod;
     float               aabb[6];
     darray(struct animation, anis);
-    struct skeleton     skeleton;
     GLuint              vao;
     GLuint              vertex_obj;
     GLuint              index_obj[LOD_MAX];
@@ -75,7 +95,7 @@ struct model3d {
     GLuint              weights_obj;
     GLuint              nr_vertices;
     GLuint              nr_faces[LOD_MAX];
-    mat4x4              *invmxs;
+    struct model_joint  *joints;
 };
 
 struct model3dtx {
@@ -100,7 +120,8 @@ struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p
 struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
 struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
 void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz);
-void model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jsz, float *weights, size_t wsz);
+int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz,
+                         float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs);
 void model3d_set_name(struct model3d *m, const char *fmt, ...);
 float model3d_aabb_X(struct model3d *m);
 float model3d_aabb_Y(struct model3d *m);
@@ -183,6 +204,9 @@ struct entity3d {
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
     unsigned int     ani_frame;
+    unsigned int     animation;
+    /* these both have model->nr_joints elements */
+    struct joint     *joints;
     mat4x4           *joint_transforms;
     /* Collision mesh, if needed */
     float               *collision_vx;

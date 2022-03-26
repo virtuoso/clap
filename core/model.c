@@ -48,17 +48,12 @@ static void model3d_drop(struct ref *ref)
     /* delete gl buffers */
     ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
-    darray_for_each(an, &m->anis) {
-        darray_for_each(pose, &an->poses) {
-            darray_for_each(joint, &pose->joints) {
-                darray_clearout(&joint->children.da);
-            }
-            darray_clearout(&pose->joints.da);
-        }
-        darray_clearout(&an->poses.da);
-    }
+    darray_for_each(an, &m->anis)
+        free(an->channels);
     darray_clearout(&m->anis.da);
-    free(m->invmxs);
+    for (i = 0; i < m->nr_joints; i++)
+        darray_clearout(&m->joints[i].children.da);
+    free(m->joints);
     free(m->name);
 }
 
@@ -293,34 +288,56 @@ void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz)
     shader_prog_done(m->prog);
 }
 
-void model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz, float *weights, size_t weightssz)
+int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz,
+                         float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs)
 {
     int v, j, jmax = 0;
+    int *fjoints;
 
     if (jointssz != m->nr_vertices * 4 ||
         weightssz != m->nr_vertices * 4 * sizeof(float)) {
         err("wrong amount of joints or weights: %zu <> %d, %zu <> %lu\n",
             jointssz, m->nr_vertices * 4, weightssz, m->nr_vertices * 4 * sizeof(float));
-        return;
+        return -1;
     }
+
+    CHECK(fjoints = calloc(m->nr_vertices * 4, sizeof(*fjoints)));
 
     /* incoming ivec4 joints and vec4 weights */
     for (v = 0; v < m->nr_vertices * 4; v++) {
         jmax = max(jmax, joints[v]);
-        assert(jmax < 50);
+        if (jmax >= 50)
+            goto out_err;
+        fjoints[v] = joints[v];
     }
+    assert(jmax == nr_joints - 1);
     dbg("## max joints: %d\n", jmax);
+
+    CHECK(m->joints = calloc(nr_joints, sizeof(struct model_joint)));
+    for (j = 0; j < nr_joints; j++) {
+        memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
+        darray_init(&m->joints[j].children);
+    }
 
     shader_prog_use(m->prog);
     if (gl_does_vao())
         glBindVertexArray(m->vao);
-    load_gl_buffer(m->prog->joints, joints, GL_UNSIGNED_BYTE, m->nr_vertices * 4, &m->joints_obj, 4, GL_ARRAY_BUFFER);
-    load_gl_buffer(m->prog->weights, weights, GL_FLOAT, m->nr_vertices * 4 * sizeof(float), &m->weights_obj, 4, GL_ARRAY_BUFFER);
+    load_gl_buffer(m->prog->joints, joints, GL_FLOAT, m->nr_vertices * 4 * sizeof(float),
+                   &m->joints_obj, 4, GL_ARRAY_BUFFER);
+    // load_gl_buffer(m->prog->joints, joints, GL_UNSIGNED_BYTE, m->nr_vertices * 4, &m->joints_obj, 4, GL_ARRAY_BUFFER);
+    load_gl_buffer(m->prog->weights, weights, GL_FLOAT, m->nr_vertices * 4 * sizeof(float),
+                   &m->weights_obj, 4, GL_ARRAY_BUFFER);
     if (gl_does_vao())
         glBindVertexArray(0);
     shader_prog_done(m->prog);
+    free(fjoints);
 
-    m->nr_joints = jmax + 1;
+    m->nr_joints = nr_joints;
+    return 0;
+
+out_err:
+    free(fjoints);
+    return -1;
 }
 
 struct model3d *
@@ -650,47 +667,39 @@ struct fbo *fbo_new(int width, int height)
 
 static void animation_destroy(struct animation *an)
 {
-    struct pose *pose;
-
-    darray_for_each(pose, &an->poses) {
-        struct joint *joint;
-
-        darray_for_each(joint, &pose->joints)
-            darray_clearout(&joint->children.da);
-        darray_clearout(&pose->joints.da);
-    }
-    darray_clearout(&an->poses.da);
+    free(an->channels);
     ref_put(an->model);
 }
 
-struct animation *animation_new(struct model3d *model, const char *name)
+struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels)
 {
     struct animation *an;
 
     CHECK(an = darray_add(&model->anis.da));
     an->name = name;
     an->model = model;
-    darray_init(&an->poses);
-    an->nr_joints = an->model->nr_joints;
+    an->nr_channels = nr_channels;
+    an->cur_channel = 0;
+    CHECK(an->channels = calloc(an->nr_channels, sizeof(struct channel)));
 
     return an;
 }
 
-struct pose *animation_pose_add(struct animation *an)
+void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
+                           size_t data_stride, unsigned int target, unsigned int path)
 {
-    struct pose *pose;
-    int i;
+    if (an->cur_channel == an->nr_channels)
+        return;
 
-    CHECK(pose = darray_add(&an->poses.da));
-    darray_init(&pose->joints);
-    CHECK(darray_resize(&pose->joints.da, an->nr_joints));
-    for (i = 0; i < an->nr_joints; i++) {
-        struct joint *joint = &pose->joints.x[i];
-        joint->id = i;
-        darray_init(&joint->children);
-    }
+    an->channels[an->cur_channel].time = memdup(time, sizeof(float) * frames);
+    an->channels[an->cur_channel].data = memdup(data, data_stride * frames);
+    an->channels[an->cur_channel].nr = frames;
+    an->channels[an->cur_channel].stride = data_stride;
+    an->channels[an->cur_channel].target = target;
+    an->channels[an->cur_channel].path = path;
+    an->cur_channel++;
 
-    return pose;
+    an->time_end = max(an->time_end, time[frames - 1]/* + time[1] - time[0]*/);
 }
 
 void models_render(struct mq *mq, struct light *light, struct camera *camera,
@@ -934,59 +943,191 @@ void entity3d_aabb_center(struct entity3d *e, vec3 center)
 void model3d_skeleton_add(struct model3d *model, int joint, int parent)
 {}
 
-static void one_joint_transform(struct entity3d *e, struct pose *pose, int joint, int parent)
+static void channel_time_to_idx(struct channel *chan, float time, int start, int *prev, int *next)
 {
-    struct model3d *model = e->txmodel->model;
-    mat4x4 *parentjt = NULL, R, invglobal;
-    mat4x4 *jt;
-    int *child;
+    int i;
 
-    if (!pose->joints.da.nr_el)
-        return;
+    if (time < chan->time[0])
+        goto tail;
 
-    jt = &pose->joints.x[joint].global;
-    // mat4x4_invert(invglobal, e->mx->m);
-    mat4x4_identity(invglobal);
-    if (parent >= 0)
-        parentjt = &pose->joints.x[parent].global;
-    mat4x4_identity(*jt);
+    for (i = start; i < chan->nr && time > chan->time[i]; i++)
+        ;
+    if (i == chan->nr)
+        goto tail;
 
-    mat4x4_translate_in_place(*jt,
-                     pose->joints.x[joint].translation[0],
-                     pose->joints.x[joint].translation[1],
-                     pose->joints.x[joint].translation[2]);
-    mat4x4_from_quat(R, pose->joints.x[joint].rotation);
-    mat4x4_mul(*jt, *jt, R);
-    mat4x4_scale_aniso(*jt, *jt,
-                       pose->joints.x[joint].scale[0],
-                       pose->joints.x[joint].scale[1],
-                       pose->joints.x[joint].scale[2]);
-    if (parentjt)
-        // mat4x4_mul(*jt, *jt, *parentjt);
-        mat4x4_mul(*jt, *parentjt, *jt);
+    *prev = max(i - 1, 0);
+    *next = *prev + 1;
+    return;
 
-    mat4x4_identity(e->joint_transforms[joint]);
-    // mat4x4_mul(e->joint_transforms[joint], invglobal, *jt);
-    // mat4x4_mul(e->joint_transforms[joint], e->joint_transforms[joint], model->invmxs[joint]);
-    darray_for_each(child, &pose->joints.x[joint].children) {
-        one_joint_transform(e, pose, *child, joint);
+tail:
+    *prev = chan->nr - 1;
+    *next = 0;
+}
+
+static float quat_dot(quat a, quat b)
+{
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+}
+
+static void vec3_interp(vec3 res, vec3 a, vec3 b, float fac)
+{
+    float rfac = 1.f - fac;
+
+    res[0] = fac * a[0] + rfac * b[0];
+    res[1] = fac * a[1] + rfac * b[1];
+    res[2] = fac * a[2] + rfac * b[2];
+}
+
+static void quat_interp(quat res, quat a, quat b, float fac)
+{
+    float dot = quat_dot(a, b);
+    float rfac = 1.f - fac;
+
+    if (dot < 0) {
+        res[3] = rfac * a[3] - fac * b[3];
+        res[0] = rfac * a[0] - fac * b[0];
+        res[1] = rfac * a[1] - fac * b[1];
+        res[2] = rfac * a[2] - fac * b[2];
+    } else {
+        res[3] = rfac * a[3] + fac * b[3];
+        res[0] = rfac * a[0] + fac * b[0];
+        res[1] = rfac * a[1] + fac * b[1];
+        res[2] = rfac * a[2] + fac * b[2];
     }
 }
 
+static void channel_transform(struct entity3d *e, struct channel *chan, float time)
+{
+    struct model3d *model = e->txmodel->model;
+    void *p_data, *n_data;
+    struct joint *joint = &e->joints[chan->target];
+    float p_time, n_time, delta, fac;
+    int prev, next;
+    mat4x4 rot;
+
+    channel_time_to_idx(chan, time, joint->off[chan->path], &prev, &next);
+    joint->off[chan->path] = min(prev, next);
+
+    p_time = chan->time[prev];
+    n_time = chan->time[next];
+    delta = fabs(n_time - p_time);
+    if (p_time > n_time)
+        fac = (delta - fmodf(n_time - time, delta)) / (p_time - n_time);
+    else
+        fac = (time - p_time) / (n_time - p_time);
+
+    p_data = (void *)chan->data + prev * chan->stride;
+    n_data = (void *)chan->data + next * chan->stride;
+
+    switch (chan->path) {
+    case PATH_TRANSLATION: {
+        vec3 *p_pos = p_data, *n_pos = n_data, interp;
+
+        vec3_interp(interp, *p_pos, *n_pos, fac);
+        memcpy(joint->translation, interp, chan->stride);
+        break;
+    }
+    case PATH_ROTATION: {
+        quat *n_rot = n_data, *p_rot = p_data, interp;
+
+        quat_interp(interp, *p_rot, *n_rot, fac);
+        memcpy(joint->rotation, interp, chan->stride);
+        break;
+    }
+    case PATH_SCALE:
+        memcpy(joint->scale, p_data, chan->stride);
+        break;
+    }
+}
+
+static void channels_transform(struct entity3d *e, struct animation *an, float time)
+{
+    int ch;
+
+    for (ch = 0; ch < an->nr_channels; ch++)
+        channel_transform(e, &an->channels[ch], time);
+}
+
+static void one_joint_transform(struct entity3d *e, int joint, int parent)
+{
+    struct model3d *model = e->txmodel->model;
+    mat4x4 *parentjt = NULL, R, *invglobal;
+    struct joint *j = &e->joints[joint];
+    mat4x4 *jt, T;
+    int *child;
+
+    /* inverse bind matrix */
+    invglobal = &model->joints[joint].invmx;
+
+    jt = &j->global;
+    mat4x4_identity(*jt);
+
+    if (parent >= 0)
+        parentjt = &e->joints[parent].global;
+    if (parentjt)
+        mat4x4_mul(*jt, *parentjt, *jt);
+
+    mat4x4_translate(T,
+                     j->translation[0],
+                     j->translation[1],
+                     j->translation[2]);
+    mat4x4_mul(*jt, *jt, T);
+    mat4x4_from_quat(R, j->rotation);
+    mat4x4_mul(*jt, *jt, R);
+    mat4x4_scale_aniso(*jt, *jt,
+                       j->scale[0],
+                       j->scale[1],
+                       j->scale[2]);
+
+    /*
+     * jt = parentjt * T * R * S
+     * joint_transform = invglobal * jt
+     */
+    mat4x4_mul(e->joint_transforms[joint], *jt, *invglobal);
+
+    darray_for_each(child, &model->joints[joint].children)
+        one_joint_transform(e, *child, joint);
+}
+
+static void animation_start(struct entity3d *e, int ani)
+{
+    struct model3d *model = e->txmodel->model;
+    struct animation *an;
+    struct channel *chan;
+    int j, ch;
+
+    if (ani >= model->anis.da.nr_el)
+        ani %= model->anis.da.nr_el;
+    an = &model->anis.x[ani];
+    for (ch = 0; ch < an->nr_channels; ch++) {
+        chan = &an->channels[ch];
+        e->joints[chan->target].off[chan->path] = 0;
+    }
+    e->ani_frame = 0;
+}
+
+#define FRAMERATE 48
 static void animated_update(struct entity3d *e)
 {
     struct model3d *model = e->txmodel->model;
-    struct pose *pose;
+    struct animation *an = &model->anis.x[e->animation];
     int i;
 
-    // e->ani_frame = 60;
-    pose = &model->anis.x[0].poses.x[e->ani_frame/10];
-    ui_debug_printf("frame %d", e->ani_frame/10);
-    // memcpy(e->joint_transforms, model->invmxs, model->nr_joints * sizeof(mat4x4));
-    one_joint_transform(e, pose, 0, -1);
+    for (i = 0; i < model->nr_joints; i++) {
+        memset(e->joints[i].translation, 0, sizeof(vec3));
+        e->joints[i].rotation[0] = 0;
+        e->joints[i].rotation[1] = 0;
+        e->joints[i].rotation[2] = 0;
+        e->joints[i].rotation[3] = 1;
+        e->joints[i].scale[0] = 1;
+        e->joints[i].scale[1] = 1;
+        e->joints[i].scale[2] = 1;
+    }
+    channels_transform(e, an, (float)e->ani_frame / (float)FRAMERATE);
+    one_joint_transform(e, 0, -1);
 
-    // if (++e->ani_frame/10 == model->anis.x[0].poses.da.nr_el)
-    //     e->ani_frame = 0;
+    if (++e->ani_frame >= an->time_end * FRAMERATE)
+        animation_start(e, e->animation + 1);
 }
 
 static int default_update(struct entity3d *e, void *data)
@@ -1028,6 +1169,7 @@ static void entity3d_drop(struct ref *ref)
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
     }
+    free(e->joints);
     free(e->joint_transforms);
     free(e->collision_vx);
     free(e->collision_idx);
@@ -1055,8 +1197,10 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
     e->txmodel = ref_get(txm);
     e->mx = mx_new();
     e->update  = default_update;
-    if (model->anis.da.nr_el)
+    if (model->anis.da.nr_el) {
+        CHECK(e->joints = calloc(model->nr_joints, sizeof(*e->joints)));
         CHECK(e->joint_transforms = calloc(model->nr_joints, sizeof(mat4x4)));
+    }
 
     return e;
 }
