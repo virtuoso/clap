@@ -29,10 +29,13 @@ int subscribe(enum message_type type, subscriber_fn fn, void *data)
 int message_send(struct message *m)
 {
     struct subscriber *s;
-    int ret = 0;
+    int ret = 0, res;
 
     for (s = subscriber[m->type]; s; s = s->next) {
-        ret |= s->handle(m, s->data);
+        res = s->handle(m, s->data);
+        if (res == MSG_STOP)
+            break;
+        ret |= res;
     }
 
     return ret;

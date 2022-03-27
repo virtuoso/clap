@@ -290,37 +290,37 @@ void joysticks_poll(void)
              */
             if (t == BTN_LEFT && jb_press(state))
                 mi.left = 1;
-            else if (t == BTN_RIGHT && jb_press(state))
+            if (t == BTN_RIGHT && jb_press(state))
                 mi.right = 1;
-            else if (t == BTN_DOWN && jb_press(state))
+            if (t == BTN_DOWN && jb_press(state))
                 mi.down = 1;
-            else if (t == BTN_UP && jb_press(state))
+            if (t == BTN_UP && jb_press(state))
                 mi.up = 1;
-            else if (t == BTN_PADB && jb_press_hold(state))
+            if (t == BTN_PADB && jb_press_hold(state))
                 mi.pad_b = 1;
-            else if (t == BTN_PADA && jb_press_hold(state))
+            if (t == BTN_PADA && jb_press_hold(state))
                 mi.pad_a = 1;
-            else if (t == BTN_PADX && jb_press_hold(state))
+            if (t == BTN_PADX && jb_press_hold(state))
                 mi.pad_x = 1;
-            else if (t == BTN_PADY && jb_press_hold(state))
+            if (t == BTN_PADY && jb_press_hold(state))
                 mi.pad_y = 1;
-            else if (t == BTN_PADLB && jb_press_hold(state))
+            if (t == BTN_PADLB && jb_press_hold(state))
                 mi.pad_lb = 1;
-            else if (t == BTN_PADRB && jb_press_hold(state))
+            if (t == BTN_PADRB && jb_press_hold(state))
                 mi.pad_rb = 1;
-            else if (t == BTN_PADLT && jb_press_hold(state))
+            if (t == BTN_PADLT && jb_press_hold(state))
                 mi.pad_lt = 1;
-            else if (t == BTN_PADRT && jb_press_hold(state))
+            if (t == BTN_PADRT && jb_press_hold(state))
                 mi.pad_rt = 1;
-            else if (t == BTN_MINUS && jb_press_hold(state))
+            if (t == BTN_MINUS && jb_press_hold(state))
                 mi.pad_min = 1;
-            else if (t == BTN_PLUS && jb_press_hold(state))
+            if (t == BTN_PLUS && jb_press_hold(state))
                 mi.pad_plus = 1;
-            else if (t == BTN_HOME && jb_press_hold(state))
+            if (t == BTN_HOME && jb_press_hold(state))
                 mi.pad_home = 1;
-            else if (t == BTN_STICKL && jb_press(state))
+            if (t == BTN_STICKL && jb_press(state))
                 mi.stick_l = 1;
-            else if (t == BTN_STICKR && jb_press(state))
+            if (t == BTN_STICKR && jb_press(state))
                 mi.stick_r = 1;
 
             if (mi.pad_lt && j->abuttons[BTN_PADLT])

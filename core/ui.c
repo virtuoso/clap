@@ -1113,7 +1113,7 @@ static int ui_handle_input(struct message *m, void *data)
         if (ui->menu->focus >= 0)
             ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
     }
-    return 0;
+    return MSG_HANDLED;
 }
 
 static struct ui_text *limeric_uit;

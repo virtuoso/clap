@@ -5,6 +5,11 @@
 #include <time.h>
 #include "util.h"
 
+enum message_result {
+    MSG_HANDLED = 0,
+    MSG_STOP = -1,
+};
+
 enum message_type {
     MT_RENDER   = 0,
     MT_INPUT,
