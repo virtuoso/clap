@@ -23,6 +23,15 @@ struct camera {
     struct matrix4f     *inv_view_mx;
 };
 
+struct arrows_state {
+    int left_pressed;
+    int right_pressed;
+    int up_pressed;
+    int down_pressed;
+};
+
+extern struct arrows_state global_arrows_state;
+
 struct scene {
     char                *name;
     int                 width;

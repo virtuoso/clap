@@ -197,66 +197,76 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
 {
     struct message_input mi;
 
-    if (action == GLFW_RELEASE)
-        return;
-
-    memset(&mi, 0, sizeof(mi));
     trace("key %d scancode %d action %d mods %d\n",
          key, scancode, action, mods);
-    switch (key) {
-    case GLFW_KEY_RIGHT: /* ArrowRight */
-        if (mods & GLFW_MOD_SHIFT)
-            mi.yaw_right = 1;
-        else
-            mi.right = 1;
-        break;
-    case GLFW_KEY_LEFT: /* ArrowLeft */
-        if (mods & GLFW_MOD_SHIFT)
-            mi.yaw_left = 1;
-        else
-            mi.left = 1;
-        break;
-    case GLFW_KEY_DOWN: /* ArrowDown */
-        if (mods & GLFW_MOD_SHIFT)
-            mi.pitch_down = 1;
-        else
-            mi.down = 1;
-        break;
-    case GLFW_KEY_UP: /* ArrowUp */
-        if (mods & GLFW_MOD_SHIFT)
-            mi.pitch_up = 1;
-        else
-            mi.up = 1;
-        break;
-    case GLFW_KEY_SPACE:
-        if (mods & GLFW_MOD_SHIFT)
-            mi.focus_prev = 1;
-        else if (mods & GLFW_MOD_CONTROL)
-            mi.focus_cancel = 1;
-        else if (mods & GLFW_MOD_ALT)
-            mi.focus_next = 1;
-        else
-            mi.space = 1;
-        break;
-    case GLFW_KEY_TAB:
-        mi.tab = 1;
-        break;
-    case GLFW_KEY_M:
-        mi.menu_toggle = 1;
-        break;
-    case GLFW_KEY_F1:
-        mi.fullscreen = 1;
-        break;
-    case GLFW_KEY_F10:
-        mi.autopilot = 1;
-        break;
-    case GLFW_KEY_F12:
-        mi.verboser = 1;
-        break;
-    case GLFW_KEY_ESCAPE:
-        mi.exit = 1;
-        break;
-    };
+
+    memset(&mi, 0, sizeof(mi));
+    if (action == GLFW_RELEASE) {
+        if (key == GLFW_KEY_RIGHT)
+            mi.right = 2;
+        if (key == GLFW_KEY_LEFT)
+            mi.left = 2;
+        if (key == GLFW_KEY_UP)
+            mi.up = 2;
+        if (key == GLFW_KEY_DOWN)
+            mi.down = 2;
+    }
+    else {
+        switch (key) {
+        case GLFW_KEY_RIGHT: /* ArrowRight */
+            if (mods & GLFW_MOD_SHIFT)
+                mi.yaw_right = 1;
+            else
+                mi.right = 1;
+            break;
+        case GLFW_KEY_LEFT: /* ArrowLeft */
+            if (mods & GLFW_MOD_SHIFT)
+                mi.yaw_left = 1;
+            else
+                mi.left = 1;
+            break;
+        case GLFW_KEY_DOWN: /* ArrowDown */
+            if (mods & GLFW_MOD_SHIFT)
+                mi.pitch_down = 1;
+            else
+                mi.down = 1;
+            break;
+        case GLFW_KEY_UP: /* ArrowUp */
+            if (mods & GLFW_MOD_SHIFT)
+                mi.pitch_up = 1;
+            else
+                mi.up = 1;
+            break;
+        case GLFW_KEY_SPACE:
+            if (mods & GLFW_MOD_SHIFT)
+                mi.focus_prev = 1;
+            else if (mods & GLFW_MOD_CONTROL)
+                mi.focus_cancel = 1;
+            else if (mods & GLFW_MOD_ALT)
+                mi.focus_next = 1;
+            else
+                mi.space = 1;
+            break;
+        case GLFW_KEY_TAB:
+            mi.tab = 1;
+            break;
+        case GLFW_KEY_M:
+            mi.menu_toggle = 1;
+            break;
+        case GLFW_KEY_F1:
+            mi.fullscreen = 1;
+            break;
+        case GLFW_KEY_F10:
+            mi.autopilot = 1;
+            break;
+        case GLFW_KEY_F12:
+            mi.verboser = 1;
+            break;
+        case GLFW_KEY_ESCAPE:
+            mi.exit = 1;
+            break;
+        };
+    }
     message_input_send(&mi, &keyboard_source);
 }
 
