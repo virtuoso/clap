@@ -27,45 +27,45 @@ enum message_source_type {
 };
 
 struct message_input {
-    unsigned long   left        : 1, /* 0 */
-                    right       : 1,
-                    down        : 1,
-                    up          : 1,
+    unsigned long   left        : 2, /* 0 */
+                    right       : 2,
+                    down        : 2,
+                    up          : 2, // for the arrow keys, 1 means "press", 2 means "release".
                     pad_a       : 1,
                     pad_b       : 1,
-                    pad_x       : 1,
+                    pad_x       : 1, /* 10 */
                     pad_y       : 1,
                     stick_l     : 1,
                     stick_r     : 1,
-                    pad_lb      : 1, /* 10 */
+                    pad_lb      : 1,
                     pad_rb      : 1,
                     pad_lt      : 1,
                     pad_rt      : 1,
                     pad_min     : 1,
                     pad_plus    : 1,
                     pad_home    : 1,
-                    tab         : 1,
+                    tab         : 1, /* 20 */
                     enter       : 1,
                     space       : 1,
                     back        : 1,
-                    zoom        : 1, /* 20 */
+                    zoom        : 1,
                     pitch_up    : 1,
                     pitch_down  : 1,
                     yaw_left    : 1,
                     yaw_right   : 1,
                     focus_next  : 1,
-                    focus_prev  : 1,
+                    focus_prev  : 1, /* 30 */
                     focus_cancel: 1,
                     verboser    : 1,
                     autopilot   : 1,
-                    fullscreen  : 1, /* 30 */
+                    fullscreen  : 1,
                     resize      : 1,
                     volume_up   : 1,
                     volume_down : 1,
                     menu_toggle : 1,
                     mouse_move  : 1,
-                    mouse_click : 1,
-                    exit        : 1; /* 37 */
+                    mouse_click : 1, /* 40 */
+                    exit        : 1; /* 41 */
     float           delta_lx;
     float           delta_ly;
     float           delta_rx;

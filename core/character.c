@@ -37,6 +37,27 @@ void character_move(struct character *ch, struct scene *s)
      * https://stackoverflow.com/questions/1023948/rotate-normal-vector-onto-axis-plane
      */
     //dRFromZAxis();
+
+    if (s->control == ch) {
+        float delta_x = 0;
+        float delta_z = 0;
+        float speed = 3 * s->lin_speed; // XXX: a hack to increase speed for keyboard input.
+        if (global_arrows_state.right_pressed)
+            delta_x += speed;
+        if (global_arrows_state.left_pressed)
+            delta_x -= speed;
+        if (global_arrows_state.up_pressed)
+            delta_z -= speed;
+        if (global_arrows_state.down_pressed)
+            delta_z += speed;
+        
+        float yawcos = cos(to_radians(s->camera->yaw));
+        float yawsin = sin(to_radians(s->camera->yaw));
+        ch->motion[0] = delta_x * yawcos - delta_z * yawsin;
+        ch->motion[1] = 0.0;
+        ch->motion[2] = delta_x * yawsin + delta_z * yawcos;
+    }
+
     if (vec3_len(ch->motion)) {
         dVector3 newy = { ch->normal[0], ch->normal[1], ch->normal[2] };
         dVector3 oldx = { 1, 0, 0 };
@@ -89,7 +110,30 @@ void character_move(struct character *ch, struct scene *s)
         }
 
         vec3_norm(ch->angle, ch->angle);
-        ch->entity->ry = atan2f(ch->angle[0], ch->angle[2]);
+
+        if (ch->entity->phys_body->body) {
+            // To determine the orientation of the body,
+            // we calculate an average of our motion requested by input and actual velocity.
+            const dReal *vel;
+            vel = dBodyGetLinearVel(ch->entity->phys_body->body);
+
+            // Only change orientation if the velocity is non-zero
+            // (to avoid flickering when the body is stopped).
+            if (vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2] > 0.01)
+            {
+                vec3 velocity = { vel[0], vel[1], vel[2] };
+                vec3_norm(velocity, velocity);
+
+                // ch->angle is already normalized, so we can just add those two.
+                vec3_add(velocity, velocity, ch->angle);
+                ch->entity->ry = atan2f(vel[0], vel[2]);
+            }
+        }
+        else
+        {
+            ch->entity->ry = atan2f(ch->angle[0], ch->angle[2]);
+        }
+
         // ch->entity->rz = atan2f(ch->angle[1], res[1]);
         if (body) {
             dRFromEulerAngles(R, ch->entity->rx, ch->entity->ry, ch->entity->rz);

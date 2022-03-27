@@ -12,6 +12,8 @@
 
 struct sound *click;
 
+struct arrows_state global_arrows_state;
+
 static bool is_camera(struct scene *s, struct character *ch)
 {
     return s->camera->ch == ch;
@@ -280,6 +282,26 @@ static int scene_handle_input(struct message *m, void *data)
         lin_speed *= (m->input.trigger_r + 1) * 3;
     else if (m->input.pad_rt)
         lin_speed *= 3;
+
+    if (m->input.right == 1)
+        global_arrows_state.right_pressed = 1;
+    else if (m->input.right == 2)
+        global_arrows_state.right_pressed = 0;
+
+    if (m->input.left == 1)
+        global_arrows_state.left_pressed = 1;
+    else if (m->input.left == 2)
+        global_arrows_state.left_pressed = 0;
+
+    if (m->input.up == 1)
+        global_arrows_state.up_pressed = 1;
+    else if (m->input.up == 2)
+        global_arrows_state.up_pressed = 0;
+
+    if (m->input.down == 1)
+        global_arrows_state.down_pressed = 1;
+    else if (m->input.down == 2)
+        global_arrows_state.down_pressed = 0;
 
     /* Use data from joystick sticks when available */
     if (m->input.delta_lx || m->input.delta_ly) {
