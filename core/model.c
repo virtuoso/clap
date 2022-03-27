@@ -292,7 +292,6 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs)
 {
     int v, j, jmax = 0;
-    int *fjoints;
 
     if (jointssz != m->nr_vertices * 4 ||
         weightssz != m->nr_vertices * 4 * sizeof(float)) {
@@ -301,14 +300,11 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
         return -1;
     }
 
-    CHECK(fjoints = calloc(m->nr_vertices * 4, sizeof(*fjoints)));
-
     /* incoming ivec4 joints and vec4 weights */
     for (v = 0; v < m->nr_vertices * 4; v++) {
         jmax = max(jmax, joints[v]);
         if (jmax >= 50)
-            goto out_err;
-        fjoints[v] = joints[v];
+            return -1;
     }
     assert(jmax == nr_joints - 1);
     dbg("## max joints: %d\n", jmax);
@@ -322,22 +318,16 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     shader_prog_use(m->prog);
     if (gl_does_vao())
         glBindVertexArray(m->vao);
-    load_gl_buffer(m->prog->joints, joints, GL_FLOAT, m->nr_vertices * 4 * sizeof(float),
+    load_gl_buffer(m->prog->joints, joints, GL_UNSIGNED_BYTE, m->nr_vertices * 4,
                    &m->joints_obj, 4, GL_ARRAY_BUFFER);
-    // load_gl_buffer(m->prog->joints, joints, GL_UNSIGNED_BYTE, m->nr_vertices * 4, &m->joints_obj, 4, GL_ARRAY_BUFFER);
     load_gl_buffer(m->prog->weights, weights, GL_FLOAT, m->nr_vertices * 4 * sizeof(float),
                    &m->weights_obj, 4, GL_ARRAY_BUFFER);
     if (gl_does_vao())
         glBindVertexArray(0);
     shader_prog_done(m->prog);
-    free(fjoints);
 
     m->nr_joints = nr_joints;
     return 0;
-
-out_err:
-    free(fjoints);
-    return -1;
 }
 
 struct model3d *
