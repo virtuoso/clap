@@ -38,8 +38,35 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
           emscripten_event_type_to_string(eventType), e->key, e->code, e->location,
           e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
           e->repeat, e->locale, e->charValue, e->charCode, e->keyCode, e->which);
-    if (eventType == EMSCRIPTEN_EVENT_KEYUP)
-        return true;
+    if (eventType == EMSCRIPTEN_EVENT_KEYUP) {
+        switch (e->keyCode) {
+            case 39: /* ArrowRight */
+                if (e->shiftKey)
+                    mi.yaw_right = 2;
+                else
+                    mi.right = 2;
+                break;
+            case 37: /* ArrowLeft */
+                if (e->shiftKey)
+                    mi.yaw_left = 2;
+                else
+                    mi.left = 2;
+                break;
+            case 40: /* ArrowDown */
+                if (e->shiftKey)
+                    mi.pitch_down = 2;
+                else
+                    mi.down = 2;
+                break;
+            case 38: /* ArrowUp */
+                if (e->shiftKey)
+                    mi.pitch_up = 2;
+                else
+                    mi.up = 2;
+                break;
+        }
+        goto out;
+    }
 
     switch (e->keyCode) {
     case 9: /* Tab */
@@ -100,6 +127,7 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
         /* don't send empty messages */
         return true;
     };
+out:
     message_input_send(&mi, &keyboard_source);
 
     return true;

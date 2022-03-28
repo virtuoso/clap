@@ -4,11 +4,128 @@
 #include "scene.h"
 #include "terrain.h"
 #include "character.h"
+#include "messagebus.h"
 #include "ui.h"
 #include "ui-debug.h"
 
-void character_handle_input(struct character *ch, struct scene *s)
+static void motion_parse_input(struct motionctl *mctl, struct message *m)
 {
+    if (m->input.trigger_r)
+        mctl->lin_speed *= (m->input.trigger_r + 1) * 3;
+    else if (m->input.pad_rt)
+        mctl->lin_speed *= 3;
+
+    /* left stick right/left/up/down */
+    if (m->input.right == 1)
+        mctl->ls_right = mctl->lin_speed;
+    else if (m->input.right == 2)
+        mctl->ls_right = 0;
+
+    if (m->input.left == 1)
+        mctl->ls_left = mctl->lin_speed;
+    else if (m->input.left == 2)
+        mctl->ls_left = 0;
+
+    if (m->input.delta_lx)
+        mctl->ls_dx = mctl->lin_speed * m->input.delta_lx;
+
+    if (m->input.up == 1)
+        mctl->ls_up = mctl->lin_speed;
+    else if (m->input.up == 2)
+        mctl->ls_up = 0;
+
+    if (m->input.down == 1)
+        mctl->ls_down = mctl->lin_speed;
+    else if (m->input.down == 2)
+        mctl->ls_down = 0;
+
+    if (m->input.delta_ly)
+        mctl->ls_dy = mctl->lin_speed * m->input.delta_ly;
+
+    /* right strick */
+    if (m->input.pitch_up == 1)
+        mctl->rs_up = mctl->ang_speed;
+    else if (m->input.pitch_up == 2)
+        mctl->rs_up = 0;
+
+    if (m->input.pitch_down == 1)
+        mctl->rs_down = mctl->ang_speed;
+    else if (m->input.pitch_down == 2)
+        mctl->rs_down = 0;
+
+    if (m->input.delta_ry)
+        mctl->rs_dy = mctl->ang_speed * m->input.delta_ry;
+
+    if (m->input.yaw_right == 1)
+        mctl->rs_right = mctl->ang_speed;
+    else if (m->input.yaw_right == 2)
+        mctl->rs_right = 0;
+
+    if (m->input.yaw_left == 1)
+        mctl->rs_left = mctl->ang_speed;
+    else if (m->input.yaw_left == 2)
+        mctl->rs_left = 0;
+
+    if (m->input.delta_rx)
+        mctl->rs_dx = mctl->ang_speed * m->input.delta_rx;
+}
+
+static void motion_compute_ls(struct motionctl *mctl)
+{
+    if (mctl->ls_left || mctl->ls_right)
+        mctl->ls_dx = mctl->ls_right - mctl->ls_left;
+    if (mctl->ls_up || mctl->ls_down)
+        mctl->ls_dy = mctl->ls_down - mctl->ls_up;
+}
+
+static void motion_compute_rs(struct motionctl *mctl)
+{
+    if (mctl->rs_left || mctl->rs_right)
+        mctl->rs_dx = mctl->rs_right - mctl->rs_left;
+    if (mctl->rs_up || mctl->rs_down)
+        mctl->rs_dy = mctl->rs_down - mctl->rs_up;
+}
+
+static void motion_reset(struct motionctl *mctl, struct scene *s)
+{
+    mctl->lin_speed = s->lin_speed;
+    mctl->ang_speed = s->ang_speed;
+    mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
+}
+
+void character_handle_input(struct character *ch, struct scene *s, struct message *m)
+{
+    motion_parse_input(&ch->mctl, m);
+
+    /*
+     * Only allow motion control when on the ground OR disembodied camera
+     */
+    if (character_is_grounded(s->control, s) || scene_character_is_camera(s, s->control)) {
+        if (s->control->entity && (m->input.space || m->input.pad_x)) {
+            struct phys_body *body = s->control->entity->phys_body;
+            vec3 jump = { s->control->motion[0] * 1.3, 5.0, s->control->motion[2] * 1.3 };
+
+            if (body && phys_body_has_body(body)) {
+                dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
+                dJointAttach(body->lmotor, NULL, NULL);
+                dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
+            }
+        }
+    }
+
+    s->camera->zoom = !!(m->input.zoom);
+    motion_compute_rs(&ch->mctl);
+    if (ch->mctl.rs_dy) {
+        float delta = ch->mctl.rs_dy;
+
+        if (s->control == s->camera->ch && m->input.trigger_l)
+            s->camera->ch->motion[1] += delta;
+        else
+            s->camera->pitch_turn = delta;
+    }
+    if (ch->mctl.rs_dx)
+        s->camera->yaw_turn = ch->mctl.rs_dx;
+    s->camera->ch->moved++;
 }
 
 bool character_is_grounded(struct character *ch, struct scene *s)
@@ -29,6 +146,7 @@ void character_move(struct character *ch, struct scene *s)
     /*
      * ch->motion: motion resulting from inputs
      */
+    motion_compute_ls(&ch->mctl);
 
     /*
      * 1. Ray cast downwards
@@ -39,17 +157,8 @@ void character_move(struct character *ch, struct scene *s)
     //dRFromZAxis();
 
     if (s->control == ch) {
-        float delta_x = 0;
-        float delta_z = 0;
-        float speed = 3 * s->lin_speed; // XXX: a hack to increase speed for keyboard input.
-        if (global_arrows_state.right_pressed)
-            delta_x += speed;
-        if (global_arrows_state.left_pressed)
-            delta_x -= speed;
-        if (global_arrows_state.up_pressed)
-            delta_z -= speed;
-        if (global_arrows_state.down_pressed)
-            delta_z += speed;
+        float delta_x = ch->mctl.ls_dx;
+        float delta_z = ch->mctl.ls_dy;
         
         float yawcos = cos(to_radians(s->camera->yaw));
         float yawsin = sin(to_radians(s->camera->yaw));
@@ -58,6 +167,7 @@ void character_move(struct character *ch, struct scene *s)
         ch->motion[2] = delta_x * yawsin + delta_z * yawcos;
     }
 
+    motion_reset(&ch->mctl, s);
     if (vec3_len(ch->motion)) {
         dVector3 newy = { ch->normal[0], ch->normal[1], ch->normal[2] };
         dVector3 oldx = { 1, 0, 0 };
@@ -128,9 +238,7 @@ void character_move(struct character *ch, struct scene *s)
                 vec3_add(velocity, velocity, ch->angle);
                 ch->entity->ry = atan2f(vel[0], vel[2]);
             }
-        }
-        else
-        {
+        } else {
             ch->entity->ry = atan2f(ch->angle[0], ch->angle[2]);
         }
 
@@ -322,6 +430,7 @@ struct character *character_new(struct model3dtx *txm, struct scene *s)
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
     list_append(&s->characters, &c->entry);
+    motion_reset(&c->mctl, s);
 
     return c;
 }

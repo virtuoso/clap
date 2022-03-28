@@ -43,9 +43,19 @@ static inline bool jb_hold(int state)
     return state == JB_HOLD;
 }
 
+static inline bool jb_release(int state)
+{
+    return state == JB_RELEASE;
+}
+
 static inline bool jb_press_hold(int state)
 {
     return jb_press(state) || jb_hold(state);
+}
+
+static inline bool jb_press_release(int state)
+{
+    return jb_press(state) || jb_release(state);
 }
 
 static inline bool joystick_present(int joy)
@@ -288,14 +298,14 @@ void joysticks_poll(void)
              * only apply to some subscribers (like, "player") and not
              * the others (like, "ui"). Here's another todo.
              */
-            if (t == BTN_LEFT && jb_press(state))
-                mi.left = 1;
-            if (t == BTN_RIGHT && jb_press(state))
-                mi.right = 1;
-            if (t == BTN_DOWN && jb_press(state))
-                mi.down = 1;
-            if (t == BTN_UP && jb_press(state))
-                mi.up = 1;
+            if (t == BTN_LEFT && jb_press_release(state))
+                mi.left = jb_press(state) ? 1 : 2;
+            if (t == BTN_RIGHT && jb_press_release(state))
+                mi.right = jb_press(state) ? 1 : 2;
+            if (t == BTN_DOWN && jb_press_release(state))
+                mi.down = jb_press(state) ? 1 : 2;
+            if (t == BTN_UP && jb_press_release(state))
+                mi.up = jb_press(state) ? 1 : 2;
             if (t == BTN_PADB && jb_press_hold(state))
                 mi.pad_b = 1;
             if (t == BTN_PADA && jb_press_hold(state))

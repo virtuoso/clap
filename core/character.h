@@ -3,15 +3,34 @@
 #define __CLAP_CHARACTER_H__
 
 #include "matrix.h"
+#include "messagebus.h"
 #include "model.h"
 #include "physics.h"
 #include "scene.h"
+
+struct motionctl {
+    float   lin_speed;
+    float   ang_speed;
+    float   ls_left;
+    float   ls_right;
+    float   ls_up;
+    float   ls_down;
+    float   ls_dx;
+    float   ls_dy;
+    float   rs_left;
+    float   rs_right;
+    float   rs_up;
+    float   rs_down;
+    float   rs_dx;
+    float   rs_dy;
+};
 
 struct character {
     struct ref  ref;
     struct entity3d *entity;
     int (*orig_update)(struct entity3d *, void *);
     struct camera *camera;
+    struct motionctl mctl;
     /* XXX: the below double entity's: dx,dy,dz,rx,ry,rz */
     GLfloat pos[3];
     GLfloat pitch;  /* left/right */
@@ -39,7 +58,7 @@ static inline const char *character_name(struct character *c)
 }
 
 struct character *character_new(struct model3dtx *txm, struct scene *s);
-void character_handle_input(struct character *ch, struct scene *s);
+void character_handle_input(struct character *ch, struct scene *s, struct message *m);
 bool character_is_grounded(struct character *ch, struct scene *s);
 void character_move(struct character *ch, struct scene *s);
 

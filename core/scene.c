@@ -12,13 +12,6 @@
 
 struct sound *click;
 
-struct arrows_state global_arrows_state;
-
-static bool is_camera(struct scene *s, struct character *ch)
-{
-    return s->camera->ch == ch;
-}
-
 static void scene_camera_autopilot(struct scene *s)
 {
     s->camera->ch->pos[1] = s->auto_yoffset + 2.0;
@@ -235,7 +228,6 @@ static int scene_handle_input(struct message *m, void *data)
     struct scene *s = data;
     float delta_x = 0, delta_z = 0;
     float lin_speed = s->lin_speed;
-    float yawsin, yawcos;
 
     /*trace("input event %d/%d/%d/%d %f/%f/%f exit %d\n",
         m->input.left, m->input.right, m->input.up, m->input.down,
@@ -275,109 +267,8 @@ static int scene_handle_input(struct message *m, void *data)
         message_send(&m);
     }
 
-    /*
-     * TODO: all the below needs to go to character.c
-     */
-    if (m->input.trigger_r)
-        lin_speed *= (m->input.trigger_r + 1) * 3;
-    else if (m->input.pad_rt)
-        lin_speed *= 3;
-
-    if (m->input.right == 1)
-        global_arrows_state.right_pressed = 1;
-    else if (m->input.right == 2)
-        global_arrows_state.right_pressed = 0;
-
-    if (m->input.left == 1)
-        global_arrows_state.left_pressed = 1;
-    else if (m->input.left == 2)
-        global_arrows_state.left_pressed = 0;
-
-    if (m->input.up == 1)
-        global_arrows_state.up_pressed = 1;
-    else if (m->input.up == 2)
-        global_arrows_state.up_pressed = 0;
-
-    if (m->input.down == 1)
-        global_arrows_state.down_pressed = 1;
-    else if (m->input.down == 2)
-        global_arrows_state.down_pressed = 0;
-
-    /* Use data from joystick sticks when available */
-    if (m->input.delta_lx || m->input.delta_ly) {
-        delta_x = m->input.delta_lx * lin_speed;
-        delta_z = m->input.delta_ly * lin_speed;
-    } else {
-        if (m->input.right) {
-            if (s->focus)
-                entity3d_move(s->focus, 0.1, 0, 0);
-            else
-                delta_x = lin_speed;
-        }
-        if (m->input.left) {
-            if (s->focus)
-                entity3d_move(s->focus, -0.1, 0, 0);
-            else
-                delta_x = -lin_speed;
-        }
-        if (m->input.up) {
-            if (s->focus)
-                entity3d_move(s->focus, 0, 0, 0.1);
-            else
-                delta_z = -lin_speed;
-        }
-        if (m->input.down) {
-            if (s->focus)
-                entity3d_move(s->focus, 0, 0, -0.1);
-            else
-                delta_z = lin_speed;
-        }
-    }
-
-    if (m->input.pitch_up)
-        s->camera->pitch_turn = s->ang_speed;
-    if (m->input.pitch_down)
-        s->camera->pitch_turn = -s->ang_speed;
-
-    if (m->input.delta_rx) {
-        s->camera->yaw_turn = s->ang_speed * m->input.delta_rx;
-    } else {
-        if (m->input.yaw_right)
-            s->camera->yaw_turn = s->ang_speed;
-        if (m->input.yaw_left)
-            s->camera->yaw_turn = -s->ang_speed;
-    }
-
-    /* XXX: only allow motion control when on the ground */
+    character_handle_input(s->control, s, m);
     //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));
-    if (character_is_grounded(s->control, s) || is_camera(s, s->control)) {
-
-        yawcos = cos(to_radians(s->camera->yaw));
-        yawsin = sin(to_radians(s->camera->yaw));
-        s->control->motion[0] = delta_x * yawcos - delta_z * yawsin;
-        s->control->motion[1] = 0.0;
-        s->control->motion[2] = delta_x * yawsin + delta_z * yawcos;
-
-        if (s->control->entity && (m->input.space || m->input.pad_x)) {
-            struct phys_body *body = s->control->entity->phys_body;
-            vec3 jump = { s->control->motion[0] * 1.3, 5.0, s->control->motion[2] * 1.3 };
-
-            if (body && phys_body_has_body(body)) {
-                dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
-                dJointAttach(body->lmotor, NULL, NULL);
-                dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
-            }
-        }
-    }
-
-    s->camera->zoom = !!(m->input.zoom);
-    if (m->input.delta_ry) {
-        if (s->control == s->camera->ch && m->input.trigger_l)
-            s->camera->ch->motion[1] -= m->input.delta_ry * lin_speed;
-        else
-            s->camera->pitch_turn = m->input.delta_ry * s->ang_speed;
-    }
-    s->camera->ch->moved++;
 
     return 0;
 }
