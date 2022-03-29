@@ -71,6 +71,8 @@ struct animation {
 struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels);
 void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
                            size_t data_stride, unsigned int target, unsigned int path);
+void animation_start(struct entity3d *e, int ani);
+void animation_start_by_name(struct entity3d *e, const char *name);
 
 #define LOD_MAX 4
 struct model3d {
@@ -204,7 +206,7 @@ struct entity3d {
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
     unsigned int     ani_frame;
-    unsigned int     animation;
+    int              animation;
     /* these both have model->nr_joints elements */
     struct joint     *joints;
     mat4x4           *joint_transforms;

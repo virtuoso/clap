@@ -1089,7 +1089,7 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
              * OTOH, the 'pose' / 'frame' based data will fit into channel based
              * model trivially, where all channels move at the same time increments.
              */
-            CHECK(an = animation_new(gd->scene->_model, gd->anis.x[0].name,
+            CHECK(an = animation_new(gd->scene->_model, ga->name,
                                      ga->channels.da.nr_el));
             dbg("## animation '%s'\n", an->name);
             darray_for_each(chan, &ga->channels) {

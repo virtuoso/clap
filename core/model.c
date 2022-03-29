@@ -658,6 +658,7 @@ struct fbo *fbo_new(int width, int height)
 static void animation_destroy(struct animation *an)
 {
     free(an->channels);
+    free((void *)an->name);
     ref_put(an->model);
 }
 
@@ -666,7 +667,7 @@ struct animation *animation_new(struct model3d *model, const char *name, unsigne
     struct animation *an;
 
     CHECK(an = darray_add(&model->anis.da));
-    an->name = name;
+    an->name = strdup(name);
     an->model = model;
     an->nr_channels = nr_channels;
     an->cur_channel = 0;
@@ -1084,12 +1085,15 @@ static void one_joint_transform(struct entity3d *e, int joint, int parent)
         one_joint_transform(e, *child, joint);
 }
 
-static void animation_start(struct entity3d *e, int ani)
+void animation_start(struct entity3d *e, int ani)
 {
     struct model3d *model = e->txmodel->model;
     struct animation *an;
     struct channel *chan;
     int j, ch;
+
+    if (!model->anis.da.nr_el)
+        return;
 
     if (ani >= model->anis.da.nr_el)
         ani %= model->anis.da.nr_el;
@@ -1099,15 +1103,39 @@ static void animation_start(struct entity3d *e, int ani)
         e->joints[chan->target].off[chan->path] = 0;
     }
     e->ani_frame = 0;
+    e->animation = ani;
 }
 
-#define FRAMERATE 48
+int animation_by_name(struct model3d *m, const char *name)
+{
+    int i;
+
+    for (i = 0; i < m->anis.da.nr_el; i++)
+        if (!strcmp(name, m->anis.x[i].name))
+            return i;
+    return -1;
+}
+
+void animation_start_by_name(struct entity3d *e, const char *name)
+{
+    int id = animation_by_name(e->txmodel->model, name);
+    if (id < 0)
+        id = 0;
+    if (e->animation == id)
+        return;
+    animation_start(e, id);
+}
+
+#define FRAMERATE 24
 static void animated_update(struct entity3d *e)
 {
     struct model3d *model = e->txmodel->model;
-    struct animation *an = &model->anis.x[e->animation];
+    struct animation *an;
     int i;
 
+    if (e->animation < 0)
+        animation_start_by_name(e, "boink shrugged");
+    an = &model->anis.x[e->animation];
     for (i = 0; i < model->nr_joints; i++) {
         memset(e->joints[i].translation, 0, sizeof(vec3));
         e->joints[i].rotation[0] = 0;
@@ -1122,7 +1150,7 @@ static void animated_update(struct entity3d *e)
     one_joint_transform(e, 0, -1);
 
     if (++e->ani_frame >= an->time_end * FRAMERATE)
-        animation_start(e, e->animation + 1);
+        e->ani_frame = 0;
 }
 
 static int default_update(struct entity3d *e, void *data)
@@ -1196,6 +1224,7 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
         CHECK(e->joints = calloc(model->nr_joints, sizeof(*e->joints)));
         CHECK(e->joint_transforms = calloc(model->nr_joints, sizeof(mat4x4)));
     }
+    e->animation = -1;
 
     return e;
 }
