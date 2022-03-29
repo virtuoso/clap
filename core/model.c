@@ -776,7 +776,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
 
             dbg_on(!e->visible, "rendering an invisible entity!\n");
 
-            if (camera) {
+            if (camera && camera->ch) {
                 vec3 dist = { e->dx, e->dy, e->dz };
                 unsigned int lod;
 
