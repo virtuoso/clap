@@ -515,11 +515,11 @@ static void model3d_done(struct model3d *m)
     struct shader_prog *p = m->prog;
 
     GL(glDisableVertexAttribArray(p->pos));
-    if (m->norm_obj)
+    if (m->norm_obj && p->norm >= 0)
         GL(glDisableVertexAttribArray(p->norm));
-    if (m->tangent_obj)
+    if (m->tangent_obj && p->tangent >= 0)
         GL(glDisableVertexAttribArray(p->tangent));
-    if (m->nr_joints) {
+    if (m->nr_joints && p->joints >= 0) {
         GL(glDisableVertexAttribArray(p->joints));
         GL(glDisableVertexAttribArray(p->weights));
     }
@@ -693,7 +693,7 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
 }
 
 void models_render(struct mq *mq, struct light *light, struct camera *camera,
-                   struct matrix4f *proj_mx, struct entity3d *focus,
+                   struct matrix4f *proj_mx, struct entity3d *focus, int width, int height,
                    unsigned long *count)
 {
     struct entity3d *e;
@@ -735,6 +735,11 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
             prog = model->prog;
             shader_prog_use(prog);
             trace("rendering model '%s' using '%s'\n", model->name, prog->name);
+
+            if (prog->data.width >= 0)
+                GL(glUniform1f(prog->data.width, width));
+            if (prog->data.height >= 0)
+                GL(glUniform1f(prog->data.height, height));
 
             if (light && prog->data.lightp >= 0 && prog->data.lightc >= 0) {
                 GL(glUniform3fv(prog->data.lightp, 1, light->pos));

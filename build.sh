@@ -13,10 +13,16 @@ mkdir -p asset/glsl
 compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/model
 compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/ui
 compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/glyph
+compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/contrast
+compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/hblur
+compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/vblur
 mkdir -p asset/glsl-es
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/model
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/ui
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/glyph
+compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/contrast
+compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/hblur
+compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/vblur
 
 cmake --build build/rel $VERBOSE
 cmake --build build/debug $VERBOSE

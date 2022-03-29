@@ -228,7 +228,8 @@ struct entity3d {
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
 void models_render(struct mq *mq, struct light *light, struct camera *camera,
-                   struct matrix4f *proj_mx, struct entity3d *focus, unsigned long *count);
+                   struct matrix4f *proj_mx, struct entity3d *focus, int width, int height,
+                   unsigned long *count);
 
 static inline const char *entity_name(struct entity3d *e)
 {

@@ -158,6 +158,8 @@ DECLARE_REFCLASS(shader_prog);
 
 static void shader_prog_link(struct shader_prog *p)
 {
+    p->data.width        = shader_prog_find_var(p, "width");
+    p->data.height       = shader_prog_find_var(p, "height");
     p->data.projmx       = shader_prog_find_var(p, "proj");
     p->data.viewmx       = shader_prog_find_var(p, "view");
     p->data.transmx      = shader_prog_find_var(p, "trans");

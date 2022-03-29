@@ -10,7 +10,7 @@ struct shader_data {
     GLint viewmx, transmx, lightp, lightc, projmx;
     GLint inv_viewmx, shine_damper, reflectivity;
     GLint highlight, color, ray, colorpt, use_normals;
-    GLint use_skinning, joint_transforms;
+    GLint use_skinning, joint_transforms, width, height;
 };
 
 struct shader_var;
@@ -19,7 +19,7 @@ struct shader_prog {
     GLuint      prog;
     /* XXX: we can now look these up */
     GLuint      pos;
-    GLuint      norm;
+    GLint       norm;
     GLint       tangent;
     GLint       texture_map;
     GLint       normal_map;

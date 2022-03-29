@@ -24,6 +24,7 @@
 #include "ui.h"
 #include "scene.h"
 #include "sound.h"
+#include "pipeline.h"
 #include "physics.h"
 #include "networking.h"
 #include "settings.h"
@@ -68,6 +69,8 @@ DECLARE_PROF(end);
 #define PROF_STEP(x,y)
 #define PROF_SHOW(x)
 #endif
+
+struct pipeline *main_pl, *blur_pl;
 
 EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 {
@@ -126,28 +129,21 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     /* XXX: this actually goes to ->update() */
     scene_cameras_calc(s);
 
-    if (fbo) {
-        fbo_prepare(fbo);
-        /* Can't touch this */
-        glEnable(GL_DEPTH_TEST);
-        glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
-        glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-
-        models_render(&s->mq, &s->light, &s->camera[1], s->proj_mx, s->focus, NULL);
-        fbo_done(fbo, s->width, s->height);
-    }
-
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    models_render(&s->mq, &s->light, s->camera, s->proj_mx, s->focus, NULL);
+    if (ui.modal)
+        pipeline_render(blur_pl);
+    else
+        pipeline_render(main_pl);
+
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
     //glDisable(GL_DEPTH_TEST);
     //glClear(GL_DEPTH_BUFFER_BIT);
-    models_render(&ui.mq, NULL, NULL, NULL, NULL, &count);
+    models_render(&ui.mq, NULL, NULL, NULL, NULL, 0, 0, &count);
     PROF_STEP(ui, models);
 
     s->frames_total += frame_count;
@@ -402,6 +398,9 @@ int main(int argc, char **argv, char **envp)
     sound_play(intro_sound);
 
     /* Before models are created */
+    lib_request_shaders("contrast", &scene.prog);
+    lib_request_shaders("hblur", &scene.prog);
+    lib_request_shaders("vblur", &scene.prog);
     lib_request_shaders("model", &scene.prog);
     //lib_request_shaders("terrain", &scene);
     //lib_request_shaders("ui", &scene);
@@ -426,6 +425,13 @@ int main(int argc, char **argv, char **envp)
 
     ui_init(&ui, scene.width, scene.height);
 
+    blur_pl = pipeline_new(&scene);
+    pipeline_add_pass(blur_pl, "vblur");
+    pipeline_add_pass(blur_pl, "hblur");
+    pipeline_add_pass(blur_pl, "contrast");
+    main_pl = pipeline_new(&scene);
+    pipeline_add_pass(main_pl, "contrast");
+    pipeline_add_pass(main_pl, "contrast");
     // fbo_update(scene.width, scene.height);
 
     scene.lin_speed = 1.0;
@@ -449,6 +455,8 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
+    ref_put(blur_pl);
+    ref_put(main_pl);
     ui_done(&ui);
     scene_done(&scene);
     phys_done();
