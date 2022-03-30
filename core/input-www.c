@@ -6,6 +6,7 @@
 #include "messagebus.h"
 #include "input.h"
 #include "input-joystick.h"
+#include "input-keyboard.h"
 #include "ui-debug.h"
 
 static struct message_source keyboard_source = {
@@ -32,69 +33,30 @@ static inline const char *emscripten_event_type_to_string(int eventType)
 static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, void *userData)
 {
     struct message_input mi;
+    int press, mods = 0;
+
+    switch (eventType) {
+        case EMSCRIPTEN_EVENT_KEYUP:
+            press = 2;
+            break;
+        case EMSCRIPTEN_EVENT_KEYPRESS:
+        case EMSCRIPTEN_EVENT_KEYDOWN:
+            press = 1;
+            break;
+    }
 
     memset(&mi, 0, sizeof(mi));
-    trace("%s, key: \"%s\", code: \"%s\", location: %lu,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %lu, keyCode: %lu, which: %lu\n",
+    dbg("%s, key: \"%s\", code: \"%s\", location: %lu,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %lu, keyCode: %lu, which: %lu\n",
           emscripten_event_type_to_string(eventType), e->key, e->code, e->location,
           e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
           e->repeat, e->locale, e->charValue, e->charCode, e->keyCode, e->which);
-    if (eventType == EMSCRIPTEN_EVENT_KEYUP) {
-        switch (e->keyCode) {
-            case 39: /* ArrowRight */
-                if (e->shiftKey)
-                    mi.yaw_right = 2;
-                else
-                    mi.right = 2;
-                break;
-            case 37: /* ArrowLeft */
-                if (e->shiftKey)
-                    mi.yaw_left = 2;
-                else
-                    mi.left = 2;
-                break;
-            case 40: /* ArrowDown */
-                if (e->shiftKey)
-                    mi.pitch_down = 2;
-                else
-                    mi.down = 2;
-                break;
-            case 38: /* ArrowUp */
-                if (e->shiftKey)
-                    mi.pitch_up = 2;
-                else
-                    mi.up = 2;
-                break;
-        }
-        goto out;
-    }
+    mods |= (!!e->shiftKey) << 0;
+    mods |= (!!e->ctrlKey)  << 1;
+    mods |= (!!e->altKey)   << 2;
 
     switch (e->keyCode) {
     case 9: /* Tab */
         mi.tab = 1;
-        break;
-    case 39: /* ArrowRight */
-        if (e->shiftKey)
-            mi.yaw_right = 1;
-        else
-            mi.right = 1;
-        break;
-    case 37: /* ArrowLeft */
-        if (e->shiftKey)
-            mi.yaw_left = 1;
-        else
-            mi.left = 1;
-        break;
-    case 40: /* ArrowDown */
-        if (e->shiftKey)
-            mi.pitch_down = 1;
-        else
-            mi.down = 1;
-        break;
-    case 38: /* ArrowUp */
-        if (e->shiftKey)
-            mi.pitch_up = 1;
-        else
-            mi.up = 1;
         break;
     case 32:
         /*if (e->ctrlKey)
@@ -124,6 +86,7 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
         mi.verboser = 1;
         break;
     default:
+        key_event(&keyboard_source, e->keyCode, e->code, mods, press);
         /* don't send empty messages */
         return true;
     };
