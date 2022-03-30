@@ -334,7 +334,7 @@ static void character_camera_update(struct character *c)
 retry:
     dir[0] = sin(-to_radians(c->camera->yaw)) * cos(to_radians(c->camera->pitch));
     dir[1] = sin(to_radians(c->camera->pitch));
-    dir[2] = cos(-to_radians(c->camera->yaw)) * sin(to_radians(c->camera->pitch));
+    dir[2] = cos(-to_radians(c->camera->yaw)) * cos(to_radians(c->camera->pitch));
 
     hit = phys_ray_cast(c->entity, start, dir, &dist);
     if (!hit) {
