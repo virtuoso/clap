@@ -27,11 +27,14 @@ compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/h
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/vblur
 
 cmake --build build/rel $VERBOSE
+cmake --build build/test $VERBOSE
 cmake --build build/debug $VERBOSE
 if [ -n "$www_dir" ]; then
 	cmake --build build/emrel $VERBOSE
+	cmake --build build/emtest $VERBOSE
 	cmake --build build/emdebug $VERBOSE
 	cmake --install build/emrel $VERBOSE
+	cmake --install build/emtest $VERBOSE
 	cmake --install build/emdebug $VERBOSE
 fi
 

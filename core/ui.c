@@ -952,7 +952,21 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
     uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 1, 20, 10);
 }
 
-static const char *menu_items[] = { "HUD", "Monitor", "Fullscreen", "PIP", "Autopilot", "Fonts", "Settings", "Network", "Devel", "Help", "Exit" };
+static const char *menu_items[] = {
+    "HUD",
+    "Fullscreen",
+    "PIP",
+#ifndef CONFIG_FINAL
+    "Monitor",
+    "Autopilot",
+    "Fonts",
+    "Network",
+    "Devel",
+#endif
+    "Settings",
+    "Help",
+    "Exit"
+};
 static void ui_menu_init(struct ui *ui)
 {
     ui->menu = ui_menu_new(ui, menu_items, array_size(menu_items));

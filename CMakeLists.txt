@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.7)
 project(clap)
 
 option(CLAP_BUILD_WITH_GLES BOOL OFF)
+option(CLAP_BUILD_FINAL BOOL OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
