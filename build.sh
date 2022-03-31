@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+[ -f $PWD/build_config ] && . $PWD/build_config
+
 VERBOSE=""
 if [ -n "$1" ]; then
 	VERBOSE="--verbose"
@@ -26,10 +28,12 @@ compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/v
 
 cmake --build build/rel $VERBOSE
 cmake --build build/debug $VERBOSE
-cmake --build build/emrel $VERBOSE
-cmake --build build/emdebug $VERBOSE
-cmake --install build/emrel $VERBOSE
-cmake --install build/emdebug $VERBOSE
+if [ -n "$www_dir" ]; then
+	cmake --build build/emrel $VERBOSE
+	cmake --build build/emdebug $VERBOSE
+	cmake --install build/emrel $VERBOSE
+	cmake --install build/emdebug $VERBOSE
+fi
 
 #cp build/emrel/core/onehandclap.{data,html,js,wasm} /var/www/html/cclap
 build/rel/core/onehandclap --restart
