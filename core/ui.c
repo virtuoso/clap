@@ -1097,18 +1097,18 @@ static int ui_handle_input(struct message *m, void *data)
     
     /* UI owns the inputs */
     ui->mod_y += m->input.delta_ly;
-    if (m->input.up || ui->mod_y <= -100) {
+    if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -100) {
         // select previous
         ui->mod_y = 0;
         ui_widget_pick_rel(ui->menu, -1);
-    } else if (m->input.down || ui->mod_y >= 100) {
+    } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 100) {
         // select next
         ui->mod_y = 0;
         ui_widget_pick_rel(ui->menu, 1);
-    } else if (m->input.left || m->input.delta_lx < 0 || m->input.back) {
+    } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < 0 || m->input.back) {
         // go back
         ui_menu_done(ui);
-    } else if (m->input.right || m->input.delta_lx > 0 || m->input.enter) {
+    } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0 || m->input.enter) {
         // enter
         if (ui->menu->focus >= 0)
             ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
