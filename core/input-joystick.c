@@ -258,10 +258,6 @@ void joysticks_poll(void)
                     break;
                 case AXIS_RX:
                     mi.delta_rx = j->axes[t] - j->axes_init[t];
-                    if (j->axes[t] > j->axes_init[t])
-                        mi.yaw_right = 1;
-                    else if (j->axes[t] < j->axes_init[t])
-                        mi.yaw_left = 1;
                     break;
                 case AXIS_RY:
                     mi.delta_ry = j->axes[t] - j->axes_init[t];
