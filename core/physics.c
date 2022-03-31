@@ -534,6 +534,10 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
         dBodySetMass(body->body, &m);
     }
 
+    // Initial placement put center of mass on the ground,
+    // now we need to move it to its proper place above the ground.
+    e->dy += r + length / 2.0;
+
     return g;
 }
 
@@ -638,6 +642,15 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dBodySetRotation(body->body, rot);
         dGeomSetBody(body->geom, body->body);
         dBodySetData(body->body, entity);
+        if (class == dCapsuleClass) {
+            // Capsule geometry assumes that Z goes upwards,
+            // so cylinder's axis is parallel to Z axis.
+            // We need to rotate the local geometry so that
+            // cylinder's axis is parallel to Y axis.
+            dMatrix3 R;
+            dRFromAxisAndAngle(R, 1.0, 1.0, 1.0, -M_PI * 2.0 / 3.0);
+            dGeomSetOffsetRotation(body->geom, R);
+        }
     } else {
         dGeomSetPosition(body->geom, entity->dx, entity->dy, entity->dz);
         dGeomSetRotation(body->geom, rot);
