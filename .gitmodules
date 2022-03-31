@@ -1,6 +1,6 @@
 [submodule "ode"]
 	path = ode
-	url = https://bitbucket.org/odedevs/ode.git
+	url = https://github.com/virtuoso/ode.git
 [submodule "asset"]
 	path = asset
 	url = https://github.com/virtuoso/clap-assets.git
