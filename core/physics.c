@@ -534,9 +534,10 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
         dBodySetMass(body->body, &m);
     }
 
-    // Initial placement put center of mass on the ground,
+    // For capsules: initial placement put center of mass on the ground,
     // now we need to move it to its proper place above the ground.
-    e->dy += r + length / 2.0;
+    if (length)
+        e->dy += r + length / 2.0;
 
     return g;
 }
