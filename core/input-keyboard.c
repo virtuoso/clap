@@ -14,6 +14,7 @@ enum {
     YAW_LEFT,
     YAW_RIGHT,
     INVENTORY,
+    USE,
 };
 
 struct key_map {
@@ -33,6 +34,7 @@ static struct key_map key_map_wasd[] = {
     { .name = "ArrowLeft",  .map_to = YAW_LEFT },
     { .name = "ArrowRight", .map_to = YAW_RIGHT },
     { .name = "KeyQ",       .map_to = INVENTORY },
+    { .name = "KeyE",       .map_to = USE },
 };
 #else
 static struct key_map key_map_wasd[] = {
@@ -45,6 +47,7 @@ static struct key_map key_map_wasd[] = {
     { .key = GLFW_KEY_LEFT,  .map_to = YAW_LEFT },
     { .key = GLFW_KEY_RIGHT, .map_to = YAW_RIGHT },
     { .key = GLFW_KEY_Q, .map_to = INVENTORY },
+    { .key = GLFW_KEY_E, .map_to = USE },
 };
 #endif
 
@@ -96,6 +99,10 @@ found:
     case INVENTORY:
         if (press == 1)
             mi.inv_toggle = 1;
+        break;
+    case USE:
+        if (press == 1)
+            mi.pad_y = 1;
         break;
     default:
         return;

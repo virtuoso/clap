@@ -15,6 +15,11 @@ struct game_options {
     float gathering_distance_squared;
     float poisson_rate_parameter;
     float min_spawn_time_ms;
+
+    float initial_health;
+    float max_health;
+    float health_loss_per_s;
+    float raw_apple_value;
 };
 
 struct game_state {
@@ -23,12 +28,14 @@ struct game_state {
     
     struct timespec last_update_time;
     float next_spawn_time;
+
+    float health;
+    bool apple_is_carried;
     
     struct list free_trees;
     int number_of_free_trees;
     struct model3dtx *apple_txmodel;
     struct game_options options;
-    bool apple_is_carried;
 };
 
 enum game_item_kind {
@@ -47,5 +54,6 @@ struct game_item {
 
 void game_init(struct scene *scene);
 void game_update(struct game_state *g, struct timespec ts);
+int handle_game_input(struct message *m, void *data);
 
 #endif

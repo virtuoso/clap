@@ -10,7 +10,32 @@ struct game_options game_options_init() {
     options.gathering_distance_squared = 2.0 * 2.0;
     options.poisson_rate_parameter = 0.01;
     options.min_spawn_time_ms = 7000.0;
+
+    options.initial_health = 100.0;
+    options.max_health = 120.0;
+    options.health_loss_per_s = 1.0;
+    options.raw_apple_value = 10.0;
     return options;
+}
+
+void add_health(struct game_state *g, float health) {
+    g->health = fmax(0.0, fmin(g->options.max_health, g->health + health));
+}
+
+void eat_apple(struct game_state *g) {
+    if (g->apple_is_carried) {
+        g->apple_is_carried = false;
+        add_health(g, g->options.raw_apple_value);
+    } else {
+        printf("No apple to eat.\n");
+    }
+}
+
+int handle_game_input(struct message *m, void *data) {
+    if (m->input.pad_y)
+        eat_apple(&game_state);
+
+    return 0;
 }
 
 float get_next_spawn_time(struct game_options *options) {
@@ -78,6 +103,15 @@ void game_update(struct game_state *g, struct timespec ts) {
     memcpy(&g->last_update_time, &ts, sizeof(ts));
     float delta_t_ms = delta_t.tv_nsec / 1000000;
 
+    // update health
+    float health_loss = g->options.health_loss_per_s * delta_t_ms / 1000.0;
+    add_health(g, -health_loss);
+    if (g->health == 0.0) {
+        printf("DIE.\n");
+    }
+
+    //printf("health: %f\n", g->health);
+
     int idx = 0;
     struct entity3d *gatherer = g->scene->control->entity;
     struct game_item *item;
@@ -139,6 +173,7 @@ void game_init(struct scene *scene)
     game_state.scene = scene;
     game_state.options = game_options_init();
     game_state.apple_is_carried = false;
+    game_state.health = game_state.options.initial_health;
     darray_init(&game_state.items);
     list_init(&game_state.free_trees);
     mq_for_each(&scene->mq, find_trees, &game_state);
