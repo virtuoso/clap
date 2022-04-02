@@ -981,6 +981,12 @@ static void ui_menu_done(struct ui *ui)
     ui->modal = false;
 }
 
+static bool ui_element_within(struct ui_element *e, int x, int y)
+{
+    return x >= e->actual_x && x < e->actual_x + e->actual_w &&
+           y >= e->actual_y && y < e->actual_y + e->actual_h;
+}
+
 static int ui_widget_within(struct ui_widget *uiw, int x, int y)
 {
     struct ui_element *child;
@@ -989,8 +995,7 @@ static int ui_widget_within(struct ui_widget *uiw, int x, int y)
     for (i = 0; i < uiw->nr_uies; i++) {
         child = uiw->uies[i];
 
-        if (x >= child->actual_x && x < child->actual_x + child->actual_w && y >= child->actual_y &&
-            y < child->actual_y + child->actual_h)
+        if (ui_element_within(child, x, y))
             return i;
     }
 
@@ -1062,11 +1067,12 @@ struct ui_element_match_struct {
 static void ui_element_match(struct entity3d *e, void *data)
 {
     struct ui_element_match_struct *sd = data;
+    struct ui_element *uie = e->priv;
 
     if (sd->match)
         return;
 
-    if (sd->x >= e->dx && sd->x < e->dx && sd->y >= e->dy && sd->y < e->dy)
+    if (ui_element_within(uie, sd->x, sd->y))
         sd->match = e->priv;
 }
 
@@ -1074,7 +1080,7 @@ static bool ui_element_click(struct ui *ui, int x, int y)
 {
     struct ui_element_match_struct sd = {
         .x = x,
-        .y = y,
+        .y = (int)ui->height - y,
     };
 
     mq_for_each(&ui->mq, ui_element_match, &sd);
