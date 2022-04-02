@@ -29,6 +29,7 @@
 #include "networking.h"
 #include "settings.h"
 #include "ui-debug.h"
+#include "game.h"
 
 /* XXX just note for the future */
 struct settings *settings;
@@ -36,6 +37,7 @@ struct sound *intro_sound;
 struct scene scene; /* XXX */
 struct ui ui;
 struct fbo *fbo;
+struct game_state game_state;
 
 #define PROFILER
 #ifdef PROFILER
@@ -86,6 +88,8 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     PROF_FIRST(start);
 
     fuzzer_input_step();
+
+    game_update(&game_state, ts_start);
 
     /*
      * calls into character_move(): handle inputs, adjust velocities etc
@@ -421,6 +425,9 @@ int main(int argc, char **argv, char **envp)
     // scene_camera_add(&scene);
 
     scene_load(&scene, "scene.json");
+
+    game_init(&scene); // this must happen after scene_load, because we need the trees.
+
     gl_get_sizes(&scene.width, &scene.height);
 
     ui_init(&ui, scene.width, scene.height);
