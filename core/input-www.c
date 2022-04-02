@@ -46,7 +46,7 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     }
 
     memset(&mi, 0, sizeof(mi));
-    dbg("%s, key: \"%s\", code: \"%s\", location: %lu,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %lu, keyCode: %lu, which: %lu\n",
+    trace("%s, key: \"%s\", code: \"%s\", location: %lu,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %lu, keyCode: %lu, which: %lu\n",
           emscripten_event_type_to_string(eventType), e->key, e->code, e->location,
           e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
           e->repeat, e->locale, e->charValue, e->charCode, e->keyCode, e->which);
