@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "game.h"
 #include "model.h"
+#include "terrain.h"
 
 extern struct game_state game_state;
 
@@ -50,11 +51,11 @@ struct free_tree *get_free_tree(struct list *trees, int index) {
     return tree;
 }
 
-void place_apple(struct entity3d *tree, struct entity3d *apple) {
+void place_apple(struct scene *s, struct entity3d *tree, struct entity3d *apple) {
     float angle = (float)drand48() * 2.0 * M_PI;
     apple->dx = tree->dx + 1.0 * cos(angle);
-    apple->dy = tree->dy;
     apple->dz = tree->dz + 1.0 * sin(angle);
+    apple->dy = terrain_height(s->terrain, apple->dx, apple->dz);
 }
 
 void apple_init(struct game_state *g, struct game_item *apple)
@@ -80,7 +81,7 @@ void spawn_new_apple(struct game_state *g) {
     CHECK(apple = darray_add(&g->items.da));
     apple_init(g, apple);
     apple->apple_parent = tree;
-    place_apple(tree->entity, apple->entity);
+    place_apple(g->scene, tree->entity, apple->entity);
 }
 
 float calculate_squared_distance(struct entity3d *a, struct entity3d *b) {
