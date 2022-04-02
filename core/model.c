@@ -1418,9 +1418,9 @@ struct model3dtx *mq_nonempty_txm_next(struct mq *mq, struct model3dtx *txm, boo
     next_txm = txm;
 
     do {
-        if (next_txm == first_txm)
+        if (!fwd && next_txm == first_txm)
             next_txm = last_txm;
-        else if (next_txm == last_txm)
+        else if (fwd && next_txm == last_txm)
             next_txm = first_txm;
         else
             next_txm = fwd ?
