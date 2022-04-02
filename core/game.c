@@ -2,6 +2,7 @@
 #include "game.h"
 #include "model.h"
 #include "terrain.h"
+#include "ui-debug.h"
 
 extern struct game_state game_state;
 
@@ -21,6 +22,7 @@ struct game_options game_options_init() {
 
 void add_health(struct game_state *g, float health) {
     g->health = fmax(0.0, fmin(g->options.max_health, g->health + health));
+    ui_debug_printf("health: %f", g->health);
 }
 
 void eat_apple(struct game_state *g) {
@@ -28,7 +30,7 @@ void eat_apple(struct game_state *g) {
         g->apple_is_carried = false;
         add_health(g, g->options.raw_apple_value);
     } else {
-        printf("No apple to eat.\n");
+        dbg("No apple to eat.\n");
     }
 }
 
@@ -108,10 +110,10 @@ void game_update(struct game_state *g, struct timespec ts) {
     float health_loss = g->options.health_loss_per_s * delta_t_ms / 1000.0;
     add_health(g, -health_loss);
     if (g->health == 0.0) {
-        printf("DIE.\n");
+        dbg("DIE.\n");
     }
 
-    //printf("health: %f\n", g->health);
+    //dbg("health: %f\n", g->health);
 
     int idx = 0;
     struct entity3d *gatherer = g->scene->control->entity;
@@ -126,7 +128,7 @@ void game_update(struct game_state *g, struct timespec ts) {
         bool gathered = false;
         if (!g->apple_is_carried && squared_distance < g->options.gathering_distance_squared) {
             // gather the apple
-            printf("GATHERING APPLE\n");
+            dbg("GATHERING APPLE\n");
             gathered = true;
             g->apple_is_carried = true;
         }
