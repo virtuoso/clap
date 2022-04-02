@@ -103,7 +103,14 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     if (character_is_grounded(s->control, s) || scene_character_is_camera(s, s->control)) {
         if (s->control->entity && (m->input.space || m->input.pad_x)) {
             struct phys_body *body = s->control->entity->phys_body;
-            vec3 jump = { s->control->motion[0] * 1.3, 5.0, s->control->motion[2] * 1.3 };
+            motion_compute_ls(&ch->mctl);
+            float delta_x = ch->mctl.ls_dx;
+            float delta_z = ch->mctl.ls_dy;            
+            float yawcos = cos(to_radians(s->camera->yaw));
+            float yawsin = sin(to_radians(s->camera->yaw));
+            float dx = delta_x * yawcos - delta_z * yawsin;
+            float dz = delta_x * yawsin + delta_z * yawcos;
+            vec3 jump = { dx * 1.3, 5.0, dz * 1.3 };
 
             if (body && phys_body_has_body(body)) {
                 dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
