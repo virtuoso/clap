@@ -238,12 +238,14 @@ void character_move(struct character *ch, struct scene *s)
             // (to avoid flickering when the body is stopped).
             if (vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2] > 0.01)
             {
+                float velocity_vs_direction_coefficient = 0.2; // direction from input is more important.
                 vec3 velocity = { vel[0], vel[1], vel[2] };
                 vec3_norm(velocity, velocity);
+                vec3_scale(velocity, velocity, velocity_vs_direction_coefficient);
 
                 // ch->angle is already normalized, so we can just add those two.
                 vec3_add(velocity, velocity, ch->angle);
-                ch->entity->ry = atan2f(vel[0], vel[2]);
+                ch->entity->ry = atan2f(velocity[0], velocity[2]);
             }
         } else {
             ch->entity->ry = atan2f(ch->angle[0], ch->angle[2]);
