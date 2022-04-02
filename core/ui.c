@@ -981,6 +981,73 @@ static void ui_menu_done(struct ui *ui)
     ui->modal = false;
 }
 
+static void inv_onclick(struct ui_element *uie, float x, float y)
+{
+    dbg("click on '%s'\n", entity_name(uie->entity));
+}
+
+static void ui_inventory_init(struct ui *ui)
+{
+    unsigned int rows = 3, cols = 3, nr_items = rows * cols, i;
+    float quad_color[] = { 0.0, 0.1, 0.5, 0.4 };
+    float color[] = { 0.5, 0.5, 0.4, 1.0 };
+    struct ui_widget *inv;
+    struct model3dtx *txm;
+    struct model3d *model;
+    struct font *font = font_get_default();
+    float xoff = 0, yoff = 0, width = 0;
+    unsigned int vaff[] = { UI_AF_LEFT, UI_AF_HCENTER, UI_AF_RIGHT };
+
+    dbg("hai\n");
+
+    CHECK(inv = ui_widget_new(ui, nr_items, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 0.3, 0.3));
+    inv->focus = -1;
+
+    model = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
+    model3d_set_name(model, "ui_inv_element");
+    txm = model3dtx_new(ref_pass(model), "apple.png");
+    ui_add_model(ui, txm);
+    for (i = 0, xoff = 0, yoff = 0; i < nr_items; i++) {
+        // xoff = (i % cols) * 110;
+        // yoff = (i / cols) * 110;
+        inv->uies[i] = ui_element_new(ui, inv->root, txm, UI_AF_TOP | vaff[i % cols],
+                                      10 + xoff, 10 + yoff, 100, 100);
+        inv->uies[i]->on_click = inv_onclick;
+        inv->uies[i]->priv = (void *)(long)i;
+
+        // memcpy(&inv->uies[i]->entity->color, quad_color, sizeof(quad_color));
+        // inv->uies[i]->entity->color_pt = COLOR_PT_ALL;
+
+        /* XXX^5: animations hardcoded */
+        uia_skip_frames(inv->uies[i], i * 2);
+        uia_set_visible(inv->uies[i], 1);
+        uia_lin_float(inv->uies[i], ui_element_set_alpha, 0, 0.4, 20);
+        uia_cos_move(inv->uies[i], UIE_MV_X_OFF, 40, 1, 30, 1.0, 0.0);
+
+        CHECK(inv->texts[i] = ui_render_string(ui, font, inv->uies[i], "apple", color, 0));
+        inv->texts[i]->uietex->entity->color_pt = COLOR_PT_NONE;
+
+        ui_element_set_visibility(inv->uies[i], 0);
+        width = inv->uies[i]->height = inv->uies[i]->width;
+        width += 10;
+        xoff = width * ((i+1) % cols);
+        yoff = width * ((i+1) / cols);
+    }
+    inv->root->width = width * cols;
+    inv->root->height = width * rows;
+    font_put(font);
+    ui->inventory = inv;
+    ui->modal = true;
+}
+
+static void ui_inventory_done(struct ui *ui)
+{
+    dbg("bai\n");
+    ref_put(ui->inventory);
+    ui->inventory = NULL;
+    ui->modal = false;
+}
+
 static bool ui_element_within(struct ui_element *e, int x, int y)
 {
     return x >= e->actual_x && x < e->actual_x + e->actual_w &&
@@ -1101,6 +1168,11 @@ static int ui_handle_input(struct message *m, void *data)
             ui_menu_done(ui);
         else
             ui_menu_init(ui);
+    } else if (m->input.inv_toggle) {
+        if (ui->inventory)
+            ui_inventory_done(ui);
+        else
+            ui_inventory_init(ui);
     } else if (m->input.mouse_click) {
         if (!ui->menu) {
             if (!ui_element_click(ui, m->input.x, m->input.y))
@@ -1201,7 +1273,7 @@ int ui_init(struct ui *ui, int width, int height)
     //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
     build_uit = ui_render_string(ui, font, uie1, build_date, color, 0);
 
-    wheel = ui_wheel_new(ui, wheel_items);
+    // wheel = ui_wheel_new(ui, wheel_items);
     font_put(font);
     subscribe(MT_COMMAND, ui_handle_command, ui);
     subscribe(MT_INPUT, ui_handle_input, ui);

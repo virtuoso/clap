@@ -63,6 +63,7 @@ struct message_input {
                     volume_up   : 1,
                     volume_down : 1,
                     menu_toggle : 1,
+                    inv_toggle  : 1,
                     mouse_move  : 1,
                     mouse_click : 1, /* 45 */
                     exit        : 1; /* 46 */

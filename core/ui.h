@@ -95,6 +95,7 @@ struct ui {
     struct shader_prog *prog;
     struct sound       *click;
     struct ui_widget   *menu;
+    struct ui_widget   *inventory;
     unsigned long      frames_total;
     int width, height;
     bool modal;

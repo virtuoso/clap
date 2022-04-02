@@ -13,6 +13,7 @@ enum {
     PITCH_DOWN,
     YAW_LEFT,
     YAW_RIGHT,
+    INVENTORY,
 };
 
 struct key_map {
@@ -31,6 +32,7 @@ static struct key_map key_map_wasd[] = {
     { .name = "ArrowDown",  .map_to = PITCH_DOWN },
     { .name = "ArrowLeft",  .map_to = YAW_LEFT },
     { .name = "ArrowRight", .map_to = YAW_RIGHT },
+    { .name = "KeyQ",       .map_to = INVENTORY },
 };
 #else
 static struct key_map key_map_wasd[] = {
@@ -42,6 +44,7 @@ static struct key_map key_map_wasd[] = {
     { .key = GLFW_KEY_DOWN,  .map_to = PITCH_DOWN },
     { .key = GLFW_KEY_LEFT,  .map_to = YAW_LEFT },
     { .key = GLFW_KEY_RIGHT, .map_to = YAW_RIGHT },
+    { .key = GLFW_KEY_Q, .map_to = INVENTORY },
 };
 #endif
 
@@ -89,6 +92,10 @@ found:
         break;
     case PITCH_UP:
         mi.pitch_up = press;
+        break;
+    case INVENTORY:
+        if (press == 1)
+            mi.inv_toggle = 1;
         break;
     default:
         return;

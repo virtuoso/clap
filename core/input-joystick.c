@@ -336,6 +336,8 @@ void joysticks_poll(void)
 
             if (mi.pad_plus && jb_press(state))
                 mi.menu_toggle = 1;
+            if (mi.pad_min && jb_press(state))
+                mi.inv_toggle = 1;
             if (mi.pad_a && jb_press(state))
                 mi.enter = 1;
             if (mi.pad_b && jb_press(state))
