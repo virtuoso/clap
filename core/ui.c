@@ -1104,7 +1104,7 @@ static int ui_handle_input(struct message *m, void *data)
     }
 
     if (!ui->modal)
-        return 0;
+        return MSG_HANDLED;
     
     if (m->input.mouse_move)
         ui_widget_hover(ui->menu, m->input.x, (int)ui->height - m->input.y);
@@ -1127,7 +1127,7 @@ static int ui_handle_input(struct message *m, void *data)
         if (ui->menu->focus >= 0)
             ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
     }
-    return MSG_HANDLED;
+    return MSG_STOP;
 }
 
 static struct ui_text *limeric_uit;
