@@ -10,6 +10,7 @@ struct game_options game_options_init() {
     struct game_options options;
     options.max_apple_age_ms = 20000.0;
     options.gathering_distance_squared = 2.0 * 2.0;
+    options.burrow_distance_squared = 3.0 * 3.0;
     options.poisson_rate_parameter = 0.01;
     options.min_spawn_time_ms = 7000.0;
 
@@ -99,6 +100,11 @@ void kill_apple(struct game_state *g, struct game_item *item) {
     ref_put(item->entity);
 }
 
+void put_apple_to_burrow(struct game_state *g) {
+    g->apple_is_carried = false;
+    g->burrow.number_of_apples++;
+}
+
 void game_update(struct game_state *g, struct timespec ts) {
     // calculate time delta
     struct timespec delta_t;
@@ -113,10 +119,17 @@ void game_update(struct game_state *g, struct timespec ts) {
         dbg("DIE.\n");
     }
 
-    //dbg("health: %f\n", g->health);
+    ui_debug_printf("apples: %d, health: %f, apples in the burrow: %d\n",
+                    g->apple_is_carried ? 1 : 0,
+                    g->health,
+                    g->burrow.number_of_apples);
 
     int idx = 0;
     struct entity3d *gatherer = g->scene->control->entity;
+    struct entity3d *burrow = g->burrow.entity;
+    float squared_distance_to_burrow = calculate_squared_distance(gatherer, burrow);
+    if (squared_distance_to_burrow < g->options.burrow_distance_squared && g->apple_is_carried)
+        put_apple_to_burrow(g);
     struct game_item *item;
     while (true) {
         // loop throw apples
@@ -171,20 +184,30 @@ void find_trees(struct entity3d *e, void *data)
     }
 }
 
+struct burrow burrow_init() {
+    struct burrow b;
+    b.number_of_apples = 0;
+    return b;
+}
+
 void game_init(struct scene *scene)
 {
     game_state.scene = scene;
     game_state.options = game_options_init();
     game_state.apple_is_carried = false;
     game_state.health = game_state.options.initial_health;
+    game_state.burrow = burrow_init();
     darray_init(&game_state.items);
     list_init(&game_state.free_trees);
     mq_for_each(&scene->mq, find_trees, &game_state);
     struct model3dtx *txmodel;
 
-    // find barrel
+    // find apple
     list_for_each_entry(txmodel, &scene->mq.txmodels, entry) {
         if (!strcmp(txmodel->model->name, "apple"))
             game_state.apple_txmodel = txmodel;
+        if (!strcmp(txmodel->model->name, "fantasy well")) {
+            game_state.burrow.entity = list_first_entry(&txmodel->entities, struct entity3d, entry);
+        }
     }
 }

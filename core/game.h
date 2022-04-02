@@ -13,6 +13,7 @@ struct free_tree {
 struct game_options {
     float max_apple_age_ms;
     float gathering_distance_squared;
+    float burrow_distance_squared;
     float poisson_rate_parameter;
     float min_spawn_time_ms;
 
@@ -20,6 +21,11 @@ struct game_options {
     float max_health;
     float health_loss_per_s;
     float raw_apple_value;
+};
+
+struct burrow {
+    struct entity3d *entity;
+    int number_of_apples;
 };
 
 struct game_state {
@@ -36,6 +42,7 @@ struct game_state {
     int number_of_free_trees;
     struct model3dtx *apple_txmodel;
     struct game_options options;
+    struct burrow burrow;
 };
 
 enum game_item_kind {
