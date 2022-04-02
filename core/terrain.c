@@ -605,8 +605,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     entity3d_reset(t->entity);
     model3dtx_add_entity(txm, t->entity);
     entity3d_add_physics(t->entity, 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
-    phys->ground = t->entity->phys_body->geom;//phys_geom_trimesh_new(phys, NULL, t->entity, dInfinity);
-    dGeomSetData(phys->ground, t->entity);
+    phys_ground_add(t->entity);
     /* xyz are already baked into the mesh */
     //dGeomSetPosition(phys->ground, t->x, t->y, t->z);
     //mat4x4_identity(idm);
@@ -1307,8 +1306,7 @@ struct terrain *terrain_init_circular_maze(struct scene *s, float x, float y, fl
     t->entity->update  = NULL;
     model3dtx_add_entity(txm, t->entity);
     entity3d_add_physics(t->entity, 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
-    phys->ground = t->entity->phys_body->geom;//phys_geom_trimesh_new(phys, NULL, t->entity, dInfinity);
-    dGeomSetData(phys->ground, t->entity);
+    phys_ground_add(t->entity);
     ref_put(prog); /* matches shader_prog_find() above */
     return t;
 }

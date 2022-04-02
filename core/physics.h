@@ -51,7 +51,7 @@ struct phys {
     dWorldID    world;
     dSpaceID    space;
     dSpaceID    collision;
-    dGeomID     ground;
+    darray(dGeomID, ground);
     dJointGroupID contact;
     void        (*ground_contact)(void *priv, float x, float y, float z);
 };
@@ -63,6 +63,7 @@ struct entity3d;
 void phys_step(unsigned long frame_count);
 int  phys_init(void);
 void phys_done(void);
+void phys_ground_add(struct entity3d *e);
 struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist);
 static inline bool phys_body_has_body(struct phys_body *body) { return !!body->body; }
 struct entity3d *phys_body_entity(struct phys_body *body);

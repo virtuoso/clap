@@ -142,9 +142,60 @@ static const char *class_str(int class)
     return "<unknown>";
 }
 
+void phys_ground_add(struct entity3d *e)
+{
+    dGeomID *geom;
+    CHECK(geom = darray_add(&phys->ground.da));
+    *geom = e->phys_body->geom;
+    /* phys_body_new() does dGeomSetData() */
+}
+
+static dGeomID nearest_ground(float x, float y, float z)
+{
+    vec3 dist, pos = { x, y, z};
+    dGeomID *geom, nearest;
+    float min_dist = 99999;
+
+    darray_for_each(geom, &phys->ground) {
+        struct entity3d *e = dGeomGetData(*geom);
+        vec3 center;
+
+        entity3d_aabb_center(e, center);
+        vec3_sub(dist, pos, center);
+        if (min_dist > vec3_len(dist)) {
+            min_dist = vec3_len(dist);
+            nearest = *geom;
+        }
+    }
+
+    return nearest;
+}
+
+static bool geom_is_ground(dGeomID g)
+{
+    dGeomID *geom;
+
+    darray_for_each(geom, &phys->ground)
+        if (g == *geom)
+            return true;
+
+    return false;
+}
+
+static bool entity3d_is_ground(struct entity3d *e)
+{
+    dGeomID *geom;
+
+    darray_for_each(geom, &phys->ground)
+        if (e == dGeomGetData(*geom))
+            return true;
+
+    return false;
+}
+
 static void near_callback(void *data, dGeomID o1, dGeomID o2)
 {
-    bool ground = o1 == phys->ground || o2 == phys->ground;
+    bool ground = geom_is_ground(o1) || geom_is_ground(o2);
     dContact contact[MAX_CONTACTS];
     dBodyID b1 = dGeomGetBody(o1);
     dBodyID b2 = dGeomGetBody(o2);
@@ -292,7 +343,7 @@ bool phys_body_is_grounded(struct phys_body *body)
     struct entity3d *e = phys_body_entity(body);
     dVector3 dir = { 0, -1, 0 };
     dContact contact;
-    dGeomID ray;
+    dGeomID ray, *ground;
     const dReal *pos, epsilon = 1e-3;
     int nc;
 
@@ -302,17 +353,23 @@ bool phys_body_is_grounded(struct phys_body *body)
     if (!dJointGetBody(body->lmotor, 0))
         return false;
 
-    phys_contact_surface(e, dGeomGetData(phys->ground), &contact, 1);
-    nc = dCollide(body->geom, phys->ground, 1, &contact.geom, sizeof(dContact));
-    if (nc)
-        return true;
+    darray_for_each(ground, &phys->ground) {
+        phys_contact_surface(e, dGeomGetData(*ground), &contact, 1);
+        nc = dCollide(body->geom, *ground, 1, &contact.geom, sizeof(dContact));
+        if (nc)
+            return true;
+    }
 
     pos = phys_body_position(body);
     ray = dCreateRay(phys->space, body->yoffset - body->ray_off + epsilon);
     dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
+    darray_for_each(ground, &phys->ground) {
     //dGeomSetBody(ray, body->body);
-    phys_contact_surface(e, dGeomGetData(phys->ground), &contact, 1);
-    nc = dCollide(ray, phys->ground, 1, &contact.geom, sizeof(dContact));
+    phys_contact_surface(e, dGeomGetData(*ground), &contact, 1);
+        nc = dCollide(ray, *ground, 1, &contact.geom, sizeof(dContact));
+        if (nc)
+            break;
+    }
     dGeomDestroy(ray);
 
     return !!nc;
@@ -326,7 +383,7 @@ bool phys_body_ground_collide(struct phys_body *body)
     dVector3 dir = { 0, -1, 0 };
     //struct character *ch = e->priv;
     dContact contact;
-    dGeomID ray;
+    dGeomID ray, *ground;
     const dReal *pos;
     int nc;
 
@@ -347,24 +404,28 @@ bool phys_body_ground_collide(struct phys_body *body)
      *   1: maybe phys->ground should be a space instead? phys->collisions?
      *      then, we can use dSpaceCollide()
      */
-    nc = dCollide(body->geom, phys->ground, 1, &contact.geom, sizeof(dContact));
-    if (nc) {
-        //dbg("body '%s' penetrates ground\n", entity_name(e));
-        entity3d_move(e, 0, /*body->yoffset + */contact.geom.depth, 0);
-        phys_body_stick(body, &contact);
-        //return true;
+    darray_for_each(ground, &phys->ground) {
+        nc = dCollide(body->geom, *ground, 1, &contact.geom, sizeof(dContact));
+        if (nc) {
+            //dbg("body '%s' penetrates ground\n", entity_name(e));
+            entity3d_move(e, 0, /*body->yoffset + */contact.geom.depth, 0);
+            phys_body_stick(body, &contact);
+            //return true;
+        }
+
+        pos = phys_body_position(body);
+        ray = dCreateRay(phys->space, ray_len);
+        dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
+        //dGeomSetBody(ray, body->body);
+        nc = dCollide(ray, *ground, 1, &contact.geom, sizeof(dContact));
+        dGeomDestroy(ray);
+        if (nc)
+            goto got_it;
     }
 
-    pos = phys_body_position(body);
-    ray = dCreateRay(phys->space, ray_len);
-    dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
-    //dGeomSetBody(ray, body->body);
-    nc = dCollide(ray, phys->ground, 1, &contact.geom, sizeof(dContact));
-    dGeomDestroy(ray);
-    if (!nc)
-        return false;
+    return false;
 
-    
+got_it:
     if (ray_len - contact.geom.depth > epsilon) {
         // dbg("RAY '%s' collides with %s at %f/%f normal %f,%f,%f\n", entity_name(e), class_str(dGeomGetClass(contact.geom.g2)),
         //     contact.geom.depth, ray_len,
@@ -703,6 +764,7 @@ static void ode_message(int errnum, const char *msg, va_list ap)
 
 int phys_init(void)
 {
+    darray_init(&phys->ground);
     dInitODE2(0);
     // dSetErrorHandler(ode_error);
     dSetDebugHandler(ode_debug);
@@ -723,6 +785,7 @@ int phys_init(void)
 
 void phys_done(void)
 {
+    darray_clearout(&phys->ground.da);
     dSpaceDestroy(phys->collision);
     dSpaceDestroy(phys->space);
     dWorldDestroy(phys->world);
