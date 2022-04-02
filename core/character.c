@@ -126,7 +126,7 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
         float delta = ch->mctl.rs_dy;
 
         if (s->control == s->camera->ch && m->input.trigger_l)
-            s->camera->ch->motion[1] += delta;
+            s->camera->ch->motion[1] -= delta / s->ang_speed * s->lin_speed;
         else
             s->camera->pitch_turn = delta;
     }
@@ -170,7 +170,8 @@ void character_move(struct character *ch, struct scene *s)
         float yawcos = cos(to_radians(s->camera->yaw));
         float yawsin = sin(to_radians(s->camera->yaw));
         ch->motion[0] = delta_x * yawcos - delta_z * yawsin;
-        ch->motion[1] = 0.0;
+        if (!scene_character_is_camera(s, ch))
+            ch->motion[1] = 0.0;
         ch->motion[2] = delta_x * yawsin + delta_z * yawcos;
     }
 
@@ -195,9 +196,9 @@ void character_move(struct character *ch, struct scene *s)
         else
             dCalcVectorCross3(newx, newy, newz);
 
-        dNormalize3(newx);
-        dNormalize3(newy);
-        dNormalize3(newz);
+        dSafeNormalize3(newx);
+        dSafeNormalize3(newy);
+        dSafeNormalize3(newz);
 
         /* XXX: the numerator has to do with movement speed */
         vec3_scale(ch->angle, ch->motion, /*(float)gl_refresh_rate()*/60. / (float)s->fps.fps_fine);
@@ -228,11 +229,11 @@ void character_move(struct character *ch, struct scene *s)
 
         vec3_norm(ch->angle, ch->angle);
 
-        if (ch->entity->phys_body->body) {
+        if (body && body->body) {
             // To determine the orientation of the body,
             // we calculate an average of our motion requested by input and actual velocity.
             const dReal *vel;
-            vel = dBodyGetLinearVel(ch->entity->phys_body->body);
+            vel = dBodyGetLinearVel(body->body);
 
             // Only change orientation if the velocity is non-zero
             // (to avoid flickering when the body is stopped).
