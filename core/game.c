@@ -146,7 +146,7 @@ void game_init(struct scene *scene)
 
     // find barrel
     list_for_each_entry(txmodel, &scene->mq.txmodels, entry) {
-        if (!strcmp(txmodel->model->name, "barrel"))
+        if (!strcmp(txmodel->model->name, "apple"))
             game_state.apple_txmodel = txmodel;
     }
 }
