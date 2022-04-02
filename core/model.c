@@ -271,6 +271,15 @@ float model3d_aabb_Z(struct model3d *m)
     return fabs(m->aabb[5] - m->aabb[4]);
 }
 
+void model3d_aabb_center(struct model3d *m, vec3 center)
+{
+    vec3 minv = { m->aabb[0], m->aabb[2], m->aabb[4] };
+    vec3 maxv = { m->aabb[1], m->aabb[3], m->aabb[5] };
+
+    vec3_sub(center, maxv, minv);
+    vec3_scale(center, center, 0.5);
+}
+
 static void model3d_prepare(struct model3d *m);
 static void model3d_done(struct model3d *m);
 
@@ -931,9 +940,12 @@ float entity3d_aabb_Z(struct entity3d *e)
 
 void entity3d_aabb_center(struct entity3d *e, vec3 center)
 {
-    center[0] = entity3d_aabb_X(e) + e->dx;
-    center[1] = entity3d_aabb_Y(e) + e->dy;
-    center[2] = entity3d_aabb_Z(e) + e->dz;
+    vec3 minv = { e->txmodel->model->aabb[0], e->txmodel->model->aabb[2], e->txmodel->model->aabb[4] };
+    // center[0] = entity3d_aabb_X(e) + e->dx;
+    // center[1] = entity3d_aabb_Y(e) + e->dy;
+    // center[2] = entity3d_aabb_Z(e) + e->dz;
+    model3d_aabb_center(e->txmodel->model, center);
+    vec3_add(center, center, minv);
 }
 
 void model3d_skeleton_add(struct model3d *model, int joint, int parent)
