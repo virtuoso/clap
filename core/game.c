@@ -9,8 +9,11 @@ extern struct game_state game_state;
 struct game_options game_options_init() {
     struct game_options options;
     options.max_apple_age_ms = 20000.0;
+    options.apple_maturity_age_ms = 10000.0;
+    
     options.gathering_distance_squared = 2.0 * 2.0;
     options.burrow_distance_squared = 3.0 * 3.0;
+    
     options.poisson_rate_parameter = 0.01;
     options.min_spawn_time_ms = 7000.0;
 
@@ -18,20 +21,59 @@ struct game_options game_options_init() {
     options.max_health = 120.0;
     options.health_loss_per_s = 1.0;
     options.raw_apple_value = 10.0;
+    options.mature_apple_value = 60.0;
     return options;
 }
 
 void add_health(struct game_state *g, float health) {
     g->health = fmax(0.0, fmin(g->options.max_health, g->health + health));
-    ui_debug_printf("health: %f", g->health);
+}
+
+float calculate_squared_distance(struct entity3d *a, struct entity3d *b) {
+    float dx = a->dx - b->dx;
+    float dy = a->dy - b->dy;
+    float dz = a->dz - b->dz;
+    return dx * dx + dy * dy + dz * dz;
 }
 
 void eat_apple(struct game_state *g) {
+    if (g->health > g->options.max_health)
+        return;
+    struct entity3d *gatherer = g->scene->control->entity;
+    struct entity3d *burrow = g->burrow.entity;
+    float squared_distance_to_burrow = calculate_squared_distance(gatherer, burrow);
+    if (squared_distance_to_burrow < g->options.burrow_distance_squared) {
+        // Try to eat a mature apple from the burrow.
+        struct game_item *item;
+        int idx = 0;
+        struct burrow *b = &g->burrow;
+        while (true) {
+            // loop throw apples
+            if (idx >= b->items.da.nr_el)
+                break;
+            item = &b->items.x[idx];
+            if (item->is_mature) {
+                add_health(g, g->options.mature_apple_value);
+                b->number_of_mature_apples--;
+                
+                // swap with last.
+                b->items.da.nr_el--;
+                int last = b->items.da.nr_el;
+                if (idx != last)
+                    b->items.x[idx] = b->items.x[last];
+                dbg("Ate a mature apple from the burrow.");
+                return;
+            }
+            
+            idx++;
+        }
+    }    
+
+    // Otherwise, try to eat a raw apple.
     if (g->apple_is_carried) {
         g->apple_is_carried = false;
         add_health(g, g->options.raw_apple_value);
-    } else {
-        dbg("No apple to eat.\n");
+        dbg("Ate a raw apple from hand.");
     }
 }
 
@@ -71,6 +113,15 @@ void apple_init(struct game_state *g, struct game_item *apple)
     apple->entity = e;
 }
 
+void apple_in_burrow_init(struct game_state *g, struct game_item *apple)
+{
+    apple->kind = GAME_ITEM_APPLE_IN_BURROW;
+    apple->entity = NULL;
+    apple->age = 0.0;
+    apple->apple_parent = NULL;
+    apple->is_mature = false;
+}
+
 void spawn_new_apple(struct game_state *g) {
     int number_of_free_trees = g->number_of_free_trees;
     if (number_of_free_trees == 0)
@@ -87,13 +138,6 @@ void spawn_new_apple(struct game_state *g) {
     place_apple(g->scene, tree->entity, apple->entity);
 }
 
-float calculate_squared_distance(struct entity3d *a, struct entity3d *b) {
-    float dx = a->dx - b->dx;
-    float dy = a->dy - b->dy;
-    float dz = a->dz - b->dz;
-    return dx * dx + dy * dy + dz * dz;
-}
-
 void kill_apple(struct game_state *g, struct game_item *item) {
     list_append(&g->free_trees, &item->apple_parent->entry);
     g->number_of_free_trees++;
@@ -102,7 +146,29 @@ void kill_apple(struct game_state *g, struct game_item *item) {
 
 void put_apple_to_burrow(struct game_state *g) {
     g->apple_is_carried = false;
-    g->burrow.number_of_apples++;
+    struct game_item *apple;
+    CHECK(apple = darray_add(&g->burrow.items.da));
+    apple_in_burrow_init(g, apple);
+}
+
+void burrow_update(struct burrow *b, float delta_t_ms, struct game_options *options) {
+    struct game_item *item;
+    int idx = 0;
+    while (true) {
+        // loop throw apples
+        if (idx >= b->items.da.nr_el)
+            break;
+        item = &b->items.x[idx];
+        if (!item->is_mature) {
+            item->age += delta_t_ms;
+            if (item->age > options->apple_maturity_age_ms) {
+                item->is_mature = true;
+                b->number_of_mature_apples++;
+            }
+        }
+
+        idx++;
+    }    
 }
 
 void game_update(struct game_state *g, struct timespec ts) {
@@ -119,10 +185,11 @@ void game_update(struct game_state *g, struct timespec ts) {
         dbg("DIE.\n");
     }
 
-    ui_debug_printf("apples: %d, health: %f, apples in the burrow: %d\n",
+    ui_debug_printf("apple in hand: %d, health: %f, apples in the burrow: %d (%d mature)\n",
                     g->apple_is_carried ? 1 : 0,
                     g->health,
-                    g->burrow.number_of_apples);
+                    g->burrow.items.da.nr_el,
+                    g->burrow.number_of_mature_apples);
 
     int idx = 0;
     struct entity3d *gatherer = g->scene->control->entity;
@@ -160,6 +227,8 @@ void game_update(struct game_state *g, struct timespec ts) {
         }
         idx++;
     }
+
+    burrow_update(&g->burrow, delta_t_ms, &g->options);
     
     float updated_next_spawn_time = g->next_spawn_time - delta_t_ms;
     if (updated_next_spawn_time < 0.0) {
@@ -186,7 +255,8 @@ void find_trees(struct entity3d *e, void *data)
 
 struct burrow burrow_init() {
     struct burrow b;
-    b.number_of_apples = 0;
+    darray_init(&b.items);
+    b.number_of_mature_apples = 0;
     return b;
 }
 

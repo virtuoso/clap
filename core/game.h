@@ -12,8 +12,11 @@ struct free_tree {
 
 struct game_options {
     float max_apple_age_ms;
+    float apple_maturity_age_ms;
+    
     float gathering_distance_squared;
     float burrow_distance_squared;
+    
     float poisson_rate_parameter;
     float min_spawn_time_ms;
 
@@ -21,11 +24,13 @@ struct game_options {
     float max_health;
     float health_loss_per_s;
     float raw_apple_value;
+    float mature_apple_value;
 };
 
 struct burrow {
     struct entity3d *entity;
-    int number_of_apples;
+    darray(struct game_item, items);
+    int number_of_mature_apples;
 };
 
 struct game_state {
@@ -48,6 +53,7 @@ struct game_state {
 enum game_item_kind {
     GAME_ITEM_UNDEFINED = 0,
     GAME_ITEM_APPLE,
+    GAME_ITEM_APPLE_IN_BURROW,
 };
 
 struct game_item {
@@ -56,7 +62,7 @@ struct game_item {
     float distance_to_character;
     float age;
     struct free_tree *apple_parent;
-    struct list entry;
+    bool is_mature;
 };
 
 void game_init(struct scene *scene);
