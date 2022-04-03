@@ -1400,7 +1400,7 @@ void mq_release(struct mq *mq)
     struct model3dtx *txmodel;
     struct entity3d *ent;
 
-    do {
+    while (!list_empty(&mq->txmodels)) {
         bool done = false;
 
         txmodel = list_first_entry(&mq->txmodels, struct model3dtx, entry);
@@ -1420,7 +1420,7 @@ void mq_release(struct mq *mq)
             else
                 ref_put(ent);
         } while (!done);
-    } while (!list_empty(&mq->txmodels));
+    }
 }
 
 void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data)
