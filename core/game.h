@@ -13,6 +13,7 @@ struct free_tree {
 struct game_options {
     float max_apple_age_ms;
     float apple_maturity_age_ms;
+    int   burrow_capacity;
     
     float gathering_distance_squared;
     float burrow_distance_squared;

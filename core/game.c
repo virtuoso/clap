@@ -10,6 +10,7 @@ struct game_options game_options_init() {
     struct game_options options;
     options.max_apple_age_ms = 20000.0;
     options.apple_maturity_age_ms = 10000.0;
+    options.burrow_capacity = 9;
     
     options.gathering_distance_squared = 2.0 * 2.0;
     options.burrow_distance_squared = 3.0 * 3.0;
@@ -145,6 +146,8 @@ void kill_apple(struct game_state *g, struct game_item *item) {
 }
 
 void put_apple_to_burrow(struct game_state *g) {
+    if (g->burrow.items.da.nr_el >= g->options.burrow_capacity)
+        return;
     g->apple_is_carried = false;
     struct game_item *apple;
     CHECK(apple = darray_add(&g->burrow.items.da));
