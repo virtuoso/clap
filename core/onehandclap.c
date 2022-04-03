@@ -104,7 +104,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 
     fuzzer_input_step();
 
-    game_update(&game_state, ts_start);
+    game_update(&game_state, ts_start, ui.modal);
 
     /*
      * calls into character_move(): handle inputs, adjust velocities etc

@@ -39,6 +39,7 @@ struct game_state {
     darray(struct game_item, items);
     
     struct timespec last_update_time;
+    struct timespec paused_time;
     float next_spawn_time;
 
     float health;
@@ -67,7 +68,7 @@ struct game_item {
 };
 
 void game_init(struct scene *scene);
-void game_update(struct game_state *g, struct timespec ts);
+void game_update(struct game_state *g, struct timespec ts, bool paused);
 int handle_game_input(struct message *m, void *data);
 
 /* from ui.c, but doesn't really fit in ui.h */

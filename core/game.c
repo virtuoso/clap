@@ -175,15 +175,27 @@ void burrow_update(struct burrow *b, float delta_t_ms, struct game_options *opti
     }    
 }
 
-void game_update(struct game_state *g, struct timespec ts) {
-    // calculate time delta
+void game_update(struct game_state *g, struct timespec ts, bool paused)
+{
+    float delta_t_ms, health_loss;
     struct timespec delta_t;
-    timespec_diff(&g->last_update_time, &ts, &delta_t);
-    memcpy(&g->last_update_time, &ts, sizeof(ts));
-    float delta_t_ms = delta_t.tv_nsec / 1000000;
+
+    if (!paused) {
+        // calculate time delta
+        if (timespec_nonzero(&g->paused_time)) {
+            memcpy(&g->last_update_time, &g->paused_time, sizeof(g->last_update_time));
+            g->paused_time.tv_sec = g->paused_time.tv_nsec = 0;
+        }
+        timespec_diff(&g->last_update_time, &ts, &delta_t);
+        memcpy(&g->last_update_time, &ts, sizeof(ts));
+    } else {
+        memcpy(&g->paused_time, &ts, sizeof(ts));
+        return;
+    }
+    delta_t_ms = delta_t.tv_nsec / 1000000;
 
     // update health
-    float health_loss = g->options.health_loss_per_s * delta_t_ms / 1000.0;
+    health_loss = g->options.health_loss_per_s * delta_t_ms / 1000.0;
     add_health(g, -health_loss);
     if (g->health == 0.0) {
         // dbg("DIE.\n");

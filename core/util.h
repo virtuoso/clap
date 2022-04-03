@@ -232,6 +232,11 @@ static inline void timespec_diff(struct timespec *a, struct timespec *b, struct 
     }
 }
 
+static inline bool timespec_nonzero(struct timespec *ts)
+{
+    return !!ts->tv_sec || !!ts->tv_nsec;
+}
+
 static inline const char  *skip_nonspace(const char *pos)
 {
     for (; *pos && !isspace(*pos); pos++)
