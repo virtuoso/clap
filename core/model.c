@@ -354,6 +354,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     m->prog = ref_get(p);
     m->cull_face = true;
     m->alpha_blend = false;
+    m->draw_type = GL_TRIANGLES;
     model3d_calc_aabb(m, vx, vxsz);
     darray_init(&m->anis);
 
@@ -516,7 +517,7 @@ void model3dtx_draw(struct model3dtx *txm)
     struct model3d *m = txm->model;
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    GL(glDrawElements(GL_TRIANGLES, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0));
+    GL(glDrawElements(m->draw_type, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0));
 }
 
 static void model3d_done(struct model3d *m)
@@ -545,7 +546,7 @@ void model3dtx_done(struct model3dtx *txm)
 {
     struct shader_prog *p = txm->model->prog;
 
-    if (txm->model->tex_obj/* && txm->texture_id*/) {
+    if (p->tex >= 0 && txm->model->tex_obj) {
         GL(glDisableVertexAttribArray(p->tex));
         GL(glActiveTexture(GL_TEXTURE0));
         GL(glBindTexture(GL_TEXTURE_2D, 0));
@@ -737,6 +738,11 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
         } else {
             GL(glDisable(GL_BLEND));
         }
+        if (model->debug)
+            GL(glDisable(GL_DEPTH_TEST));
+        else
+            GL(glEnable(GL_DEPTH_TEST));
+
         //dbg("rendering model '%s'\n", model->name);
         if (model->prog != prog) {
             if (prog)
@@ -1184,6 +1190,8 @@ static int default_update(struct entity3d *e, void *data)
     mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
     if (entity_animated(e))
         animated_update(e);
+    //if (e->phys_body)
+    //    phys_debug_draw(e->phys_body);
 
     return 0;
 }
@@ -1329,6 +1337,56 @@ void create_entities(struct model3dtx *txmodel)
         e->visible = 1;
         model3dtx_add_entity(txmodel, e);
     }
+}
+
+static void debug_draw_drop(struct ref *ref)
+{
+    struct debug_draw *dd = container_of(ref, struct debug_draw, ref);
+
+    ref_put(dd->entity);
+}
+DECLARE_REFCLASS(debug_draw);
+
+struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
+                                    unsigned short *idx, size_t idxsz, float *tx, mat4x4 *rot)
+{
+    struct shader_prog *p;
+    struct debug_draw *dd;
+    struct model3dtx *txm;
+    struct model3d *m;
+
+    p = shader_prog_find(scene->prog, "debug");
+    CHECK(dd = ref_new(debug_draw));
+    CHECK(m = model3d_new_from_vectors("debug", p, vx, vxsz, idx, idxsz, tx, vxsz / 3 * 2, NULL, 0));
+    m->debug = true;
+    m->draw_type = GL_LINES;
+    ref_put(p);
+
+    CHECK(txm = ref_new(model3dtx));
+    txm->model = m;
+    list_init(&txm->entities);
+    mq_add_model(&scene->mq, txm);
+    CHECK(dd->entity = entity3d_new(txm));
+    model3dtx_add_entity(txm, dd->entity);
+    dd->entity->visible = 1;
+    dd->entity->update = NULL;
+    dd->entity->color_pt = COLOR_PT_ALL;
+    dd->entity->color[0] = 1.0;
+    dd->entity->color[3] = 1.0;
+    if (rot)
+        memcpy(dd->entity->mx->m, rot, sizeof(mat4x4));
+    else
+        mat4x4_identity(dd->entity->mx->m);
+    list_append(&scene->debug_draws, &dd->entry);
+
+    return dd;
+}
+
+struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot)
+{
+    float vx[] = { a[0], a[1], a[2], b[0], b[1], b[2] };
+    unsigned short idx[] = { 0, 1 };
+    return __debug_draw_new(scene, vx, sizeof(vx), idx, sizeof(idx), NULL, rot);
 }
 
 void mq_init(struct mq *mq, void *priv)

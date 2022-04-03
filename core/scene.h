@@ -30,6 +30,7 @@ struct scene {
     struct model3d      *_model; /* temporary */
     struct mq           mq;
     struct list         characters;
+    struct list         debug_draws;
     struct entity3d     *focus;
     struct character    *control;
     struct shader_prog  *prog;

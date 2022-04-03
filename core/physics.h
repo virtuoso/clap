@@ -77,4 +77,6 @@ void phys_body_done(struct phys_body *body);
 bool phys_body_ground_collide(struct phys_body *body);
 bool phys_body_is_grounded(struct phys_body *body);
 
+void phys_debug_draw(struct phys_body *body);
+
 #endif /* __CLAP_PHYSICS_H__ */

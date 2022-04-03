@@ -81,6 +81,8 @@ struct model3d {
     struct shader_prog  *prog;
     bool                cull_face;
     bool                alpha_blend;
+    bool                debug;
+    unsigned int        draw_type;
     unsigned int        nr_joints;
     unsigned int        root_joint;
     unsigned int        nr_lods;
@@ -255,5 +257,14 @@ void entity3d_move(struct entity3d *e, float dx, float dy, float dz);
 void entity3d_position(struct entity3d *e, float x, float y, float z);
 void entity3d_add_physics(struct entity3d *e, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 void create_entities(struct model3dtx *txmodel);
+
+struct debug_draw {
+    struct ref      ref;
+    struct entity3d *entity;
+    struct list     entry;
+};
+
+struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot);
+void debug_draw_line(vec3 a, vec3 b, mat4x4 *rot);
 
 #endif /* __CLAP_MODEL_H__ */

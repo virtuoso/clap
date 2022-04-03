@@ -791,3 +791,66 @@ void phys_done(void)
     dWorldDestroy(phys->world);
     dCloseODE();
 }
+
+void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)
+{
+    float *mx = (float *)*m;
+    mx[0] = rot[0];
+    mx[1] = rot[1];
+    mx[2] = rot[2];
+    mx[3] = 0;
+    mx[4] = rot[4];
+    mx[5] = rot[5];
+    mx[6] = rot[6];
+    mx[7] = 0;
+    mx[8] = rot[8];
+    mx[9] = rot[9];
+    mx[10] = rot[10];
+    mx[11] = 0;
+    mx[12] = pos ? pos[0] : 0;
+    mx[13] = pos ? pos[1] : 0;
+    mx[14] = pos ? pos[2] : 0;
+    mx[15] = 1;
+}
+
+void phys_debug_draw(struct phys_body *body)
+{
+    vec3 start, end;
+    const dReal *pos = dGeomGetPosition(body->geom);
+    dReal r, len = 0;
+    const dReal *rot;
+    mat4x4 _rot;
+    int class = dGeomGetClass(body->geom);
+
+    if (class == dCapsuleClass)
+        dGeomCapsuleGetParams(body->geom, &r, &len);
+    else if (class == dSphereClass)
+        r = dGeomSphereGetRadius(body->geom);
+    else
+        return;
+
+    rot = dGeomGetRotation(body->geom);
+    phys_rotation_to_mat4x4(rot, pos, &_rot);
+    start[0] = -r / 2;
+    start[1] = -len / 2 - r / 2;
+    start[2] = -r / 2;
+    end[0] = r / 2;
+    end[1] = len / 2 + r / 2;
+    end[2] = r / 2;
+    debug_draw_line(start, end, &_rot);
+    start[0] = r / 2;
+    start[2] = r / 2;
+    end[0] = -r / 2;
+    end[2] = -r / 2;
+    debug_draw_line(start, end, &_rot);
+    start[0] = -r / 2;
+    start[2] = r / 2;
+    end[0] = r / 2;
+    end[2] = -r / 2;
+    debug_draw_line(start, end, &_rot);
+    start[0] = r / 2;
+    start[2] = -r / 2;
+    end[0] = -r / 2;
+    end[2] = r / 2;
+    debug_draw_line(start, end, &_rot);
+}

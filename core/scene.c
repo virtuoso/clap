@@ -316,6 +316,7 @@ int scene_init(struct scene *scene)
     scene->auto_yoffset = 4.0;
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);
+    list_init(&scene->debug_draws);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
     subscribe(MT_COMMAND, scene_handle_command, scene);

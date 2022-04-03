@@ -17,7 +17,6 @@ struct shader_var;
 struct shader_prog {
     const char  *name;
     GLuint      prog;
-    /* XXX: we can now look these up */
     GLuint      pos;
     GLint       norm;
     GLint       tangent;
@@ -25,7 +24,7 @@ struct shader_prog {
     GLint       normal_map;
     GLint       joints;
     GLint       weights;
-    GLuint      tex;
+    GLint       tex;
     struct ref  ref;
     struct shader_var *var;
     struct shader_data data;
