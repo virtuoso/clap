@@ -715,6 +715,14 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         }
     } else {
         dGeomSetPosition(body->geom, entity->dx, entity->dy, entity->dz);
+        if (class == dCapsuleClass) {
+            // A similar orientation fix is needed for geometries
+            // that don't have a body; in this case,
+            // we can just set its rotation, since it is not
+            // going to change.
+            dRFromAxisAndAngle(rot, 1.0, 1.0, 1.0, -M_PI * 2.0 / 3.0);
+        }
+        
         dGeomSetRotation(body->geom, rot);
     }
     dGeomSetData(body->geom, entity);
