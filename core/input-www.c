@@ -159,10 +159,10 @@ static void touch_pop(struct touch *touch, long id)
         struct message_input mi;
 
         memset(&mi, 0, sizeof(mi));
-        mi.mouse_click = 1;
+        /* send a dash on a short tap */
+        mi.pad_rb = 1;
         mi.x = pt->x;
         mi.y = pt->y;
-        // dbg("sending click event on %u,%u\n", mi.x, mi.y);
         message_input_send(&mi, &keyboard_source);
     }
     pt->grace = 300;
