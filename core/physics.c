@@ -556,7 +556,7 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
              */
             r      = min3(X, Y, Z) / 2;
             length = max(Y / 2 - r * 2, 0);
-            off    = (Y - length) / 2;
+            off    = Y / 2;
             body->ray_off = r + length / 2;
             break;
         case 3:
@@ -594,11 +594,6 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
             dMassSetSphereTotal(&m, mass, r);
         dBodySetMass(body->body, &m);
     }
-
-    // For capsules: initial placement put center of mass on the ground,
-    // now we need to move it to its proper place above the ground.
-    if (length && phys_body_has_body(body))
-        e->dy += r + length / 2.0;
 
     return g;
 }
@@ -700,7 +695,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
 
     dRSetIdentity(rot);
     if (has_body) {
-        dBodySetPosition(body->body, entity->dx, entity->dy, entity->dz);
+        dBodySetPosition(body->body, entity->dx, entity->dy + body->yoffset, entity->dz);
         dBodySetRotation(body->body, rot);
         dGeomSetBody(body->geom, body->body);
         dBodySetData(body->body, entity);
@@ -714,7 +709,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
             dGeomSetOffsetRotation(body->geom, R);
         }
     } else {
-        dGeomSetPosition(body->geom, entity->dx, entity->dy, entity->dz);
+        dGeomSetPosition(body->geom, entity->dx, entity->dy + body->yoffset, entity->dz);
         if (class == dCapsuleClass) {
             // A similar orientation fix is needed for geometries
             // that don't have a body; in this case,
