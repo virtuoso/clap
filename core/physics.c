@@ -819,7 +819,7 @@ void phys_debug_draw(struct phys_body *body)
     const dReal *pos = dGeomGetPosition(body->geom);
     dReal r, len = 0;
     const dReal *rot;
-    mat4x4 _rot;
+    mat4x4 _rot, _rot_tmp;
     int class = dGeomGetClass(body->geom);
 
     if (class == dCapsuleClass)
@@ -830,27 +830,37 @@ void phys_debug_draw(struct phys_body *body)
         return;
 
     rot = dGeomGetRotation(body->geom);
-    phys_rotation_to_mat4x4(rot, pos, &_rot);
-    start[0] = -r / 2;
-    start[1] = -len / 2 - r / 2;
-    start[2] = -r / 2;
-    end[0] = r / 2;
-    end[1] = len / 2 + r / 2;
-    end[2] = r / 2;
+    phys_rotation_to_mat4x4(rot, NULL, &_rot_tmp);
+    mat4x4_invert(_rot, _rot_tmp);
+    _rot[3][0] = pos[0];
+    _rot[3][1] = pos[1];
+    _rot[3][2] = pos[2];
+    
+    start[0] = -r;
+    start[1] = -r;
+    start[2] = -len / 2 - r;
+    end[0] = r;
+    end[1] = r;
+    end[2] = len / 2 + r;
     debug_draw_line(start, end, &_rot);
-    start[0] = r / 2;
-    start[2] = r / 2;
-    end[0] = -r / 2;
-    end[2] = -r / 2;
+    start[0] = r;
+    start[1] = r;
+    end[0] = -r;
+    end[1] = -r;
     debug_draw_line(start, end, &_rot);
-    start[0] = -r / 2;
-    start[2] = r / 2;
-    end[0] = r / 2;
-    end[2] = -r / 2;
+    start[0] = -r;
+    start[1] = r;
+    end[0] = r;
+    end[1] = -r;
     debug_draw_line(start, end, &_rot);
-    start[0] = r / 2;
-    start[2] = -r / 2;
-    end[0] = -r / 2;
-    end[2] = r / 2;
+    start[0] = r;
+    start[1] = -r;
+    end[0] = -r;
+    end[1] = r;
+    debug_draw_line(start, end, &_rot);
+    start[0] = r;
+    start[1] = -r;
+    end[0] = -r;
+    end[1] = r;
     debug_draw_line(start, end, &_rot);
 }
