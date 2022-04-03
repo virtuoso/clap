@@ -3,6 +3,7 @@
 #include "model.h"
 #include "terrain.h"
 #include "ui-debug.h"
+#include "ui.h"
 
 extern struct game_state game_state;
 
@@ -185,9 +186,10 @@ void game_update(struct game_state *g, struct timespec ts) {
     float health_loss = g->options.health_loss_per_s * delta_t_ms / 1000.0;
     add_health(g, -health_loss);
     if (g->health == 0.0) {
-        dbg("DIE.\n");
+        // dbg("DIE.\n");
     }
 
+    health_set(g->health / g->options.max_health);
     ui_debug_printf("apple in hand: %d, health: %f, apples in the burrow: %d (%d mature)\n",
                     g->apple_is_carried ? 1 : 0,
                     g->health,

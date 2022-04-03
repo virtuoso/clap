@@ -1210,7 +1210,7 @@ static int ui_handle_input(struct message *m, void *data)
 
 static struct ui_text *limeric_uit;
 static struct ui_text *build_uit;
-struct ui_element *uie0, *uie1;
+struct ui_element *uie0, *uie1, *health;
 
 void ui_pip_update(struct ui *ui, struct fbo *fbo)
 {
@@ -1237,6 +1237,43 @@ void ui_pip_update(struct ui *ui, struct fbo *fbo)
     else
         uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, fbo->width, fbo->height);
     uie0->entity->color_pt = COLOR_PT_NONE;
+}
+
+struct ui_element *ui_progress_new(struct ui *ui)
+{
+    float color[] = { 1, 1, 1, 1 };
+    struct shader_prog *prog;
+    struct ui_element *uie, *bar;
+    struct model3dtx *txm;
+    struct model3d *m;
+    struct ui_text *uit;
+
+    prog = shader_prog_find(ui->prog, "ui");
+    m = model3d_new_quad(prog, 0, 0, 0.01, 1, 1);
+    m->cull_face = false;
+    m->alpha_blend = false;
+    txm = model3dtx_new(ref_pass(m), "green.png");
+    ui_add_model(ui, txm);
+    ref_put(prog);
+    CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, 10, 200, 20));
+    CHECK(bar = ui_element_new(ui, uie, txm, UI_AF_TOP | UI_AF_LEFT, 0, 0, 200, 20));
+    bar->entity->color_pt = COLOR_PT_ALL;
+    bar->entity->color[1] = 1;
+    bar->entity->color[3] = 1;
+    return bar;
+}
+
+void health_set(float perc)
+{
+    health->width = 200 * perc;
+    if (perc < 0.2) {
+        health->entity->color[0] = 1;
+        health->entity->color[1] = 0;
+    } else {
+        health->entity->color[0] = 0;
+        health->entity->color[1] = 1;
+    }
+    ui_element_update(health->entity, NULL);
 }
 
 static void build_onclick(struct ui_element *uie, float x, float y)
@@ -1273,6 +1310,7 @@ int ui_init(struct ui *ui, int width, int height)
     //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
     build_uit = ui_render_string(ui, font, uie1, build_date, color, 0);
 
+    health = ui_progress_new(ui);
     // wheel = ui_wheel_new(ui, wheel_items);
     font_put(font);
     subscribe(MT_COMMAND, ui_handle_command, ui);

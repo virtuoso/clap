@@ -70,4 +70,7 @@ void game_init(struct scene *scene);
 void game_update(struct game_state *g, struct timespec ts);
 int handle_game_input(struct message *m, void *data);
 
+/* from ui.c, but doesn't really fit in ui.h */
+void health_set(float perc);
+
 #endif
