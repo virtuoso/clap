@@ -1105,7 +1105,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
                 inv->uies[i]->entity->color[3] = 0.3;
             } else {
                 // mature apple
-                inv->uies[i]->entity->color_pt = COLOR_PT_ALL;
+                inv->uies[i]->entity->color_pt = COLOR_PT_NONE;
                 inv->uies[i]->entity->color[0] = 0.9;
                 inv->uies[i]->entity->color[1] = 0.9;
                 inv->uies[i]->entity->color[2] = 0.9;
