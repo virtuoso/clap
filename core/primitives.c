@@ -144,3 +144,31 @@ struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float 
     return model3d_new_from_vectors("quad", p, quad_vx, sizeof(quad_vx), quad_idx, sizeof(quad_idx),
                                     quad_tx, sizeof(quad_tx), NULL, 0);
 }
+
+static GLushort frame_idx[] = {
+    4, 0, 5, 0, 1, 5,
+    5, 1, 2, 5, 2, 6,
+    6, 2, 3, 6, 3, 7,
+    7, 3, 0, 7, 0, 4, };
+
+static GLfloat frame_tx[]  = {
+    0.0, 0.0,
+    0.0, 1.0,
+    1.0, 1.0,
+    1.0, 0.0,
+    0.5, 0.5,
+    0.5, 0.5,
+    0.5, 0.5,
+    0.5, 0.5,
+};
+
+struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t)
+{
+    GLfloat frame_vx[] = {
+        x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
+        x + t, y + h - t, z, x + t, y + t, z, x + w - t, y + t, z, x + w - t, y + h - t, z,
+    };
+
+    return model3d_new_from_vectors("frame", p, frame_vx, sizeof(frame_vx), frame_idx, sizeof(frame_idx),
+                                    frame_tx, sizeof(frame_tx), NULL, 0);    
+}

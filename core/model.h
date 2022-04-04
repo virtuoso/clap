@@ -137,6 +137,7 @@ struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
 struct model3d *model3d_new_cube(struct shader_prog *p);
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
+struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);
 void model3dtx_prepare(struct model3dtx *m);
 void model3dtx_done(struct model3dtx *m);
 void model3dtx_draw(struct model3dtx *m);

@@ -1211,6 +1211,7 @@ static int ui_handle_input(struct message *m, void *data)
 static struct ui_text *limeric_uit;
 static struct ui_text *build_uit;
 struct ui_element *uie0, *uie1, *health;
+static float health_bar_width;
 
 void ui_pip_update(struct ui *ui, struct fbo *fbo)
 {
@@ -1241,31 +1242,55 @@ void ui_pip_update(struct ui *ui, struct fbo *fbo)
 
 struct ui_element *ui_progress_new(struct ui *ui)
 {
+    float width = ui->width / 3;
+    float height = 20.0;
+    float thickness = 1.0;
+    float total_width = width + 2 * thickness;
+    float total_height = height + 2 * thickness;
+    
     float color[] = { 1, 1, 1, 1 };
     struct shader_prog *prog;
-    struct ui_element *uie, *bar;
-    struct model3dtx *txm;
-    struct model3d *m;
+    struct ui_element *uie, *bar, *frame;
+    struct model3dtx *txm, *f_txm;
+    struct model3d *m, *f;
     struct ui_text *uit;
 
+    health_bar_width = width;
+    
     prog = shader_prog_find(ui->prog, "ui");
+
+    f = model3d_new_frame(prog, 0, 0, 0.01, total_width, total_height, 1);
+    f->cull_face = false;
+    f->alpha_blend = false;
+    f_txm = model3dtx_new(ref_pass(f), "green.png");
+    ui_add_model(ui, f_txm);
+    
     m = model3d_new_quad(prog, 0, 0, 0.01, 1, 1);
     m->cull_face = false;
     m->alpha_blend = false;
     txm = model3dtx_new(ref_pass(m), "green.png");
     ui_add_model(ui, txm);
     ref_put(prog);
-    CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, 10, 200, 20));
-    CHECK(bar = ui_element_new(ui, uie, txm, UI_AF_TOP | UI_AF_LEFT, 0, 0, 200, 20));
+    CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, height / 2, total_width, total_height));
+    CHECK(bar = ui_element_new(ui, uie, txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));
     bar->entity->color_pt = COLOR_PT_ALL;
     bar->entity->color[1] = 1;
     bar->entity->color[3] = 1;
+
+    CHECK(frame = ui_element_new(ui, uie, f_txm, UI_AF_BOTTOM | UI_AF_LEFT, 0, 0, total_width, total_height));
+    frame->width = 1;
+    frame->height = 1;
+    frame->entity->color_pt = COLOR_PT_ALL;
+    frame->entity->color[0] = 1;
+    frame->entity->color[1] = 1;
+    frame->entity->color[2] = 1;
+    frame->entity->color[3] = 1;
     return bar;
 }
 
 void health_set(float perc)
 {
-    health->width = 200 * perc;
+    health->width = health_bar_width * perc;
     if (perc < 0.2) {
         health->entity->color[0] = 1;
         health->entity->color[1] = 0;
