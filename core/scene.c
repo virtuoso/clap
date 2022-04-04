@@ -316,6 +316,7 @@ int scene_init(struct scene *scene)
     scene->auto_yoffset = 4.0;
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);
+    list_init(&scene->instor);
     list_init(&scene->debug_draws);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
@@ -525,7 +526,15 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
         }
     } else {
-        create_entities(txm);
+        struct instantiator *instor, *iter;
+
+        list_for_each_entry_iter(instor, iter, &scene->instor, entry) {
+            if (!strcmp(txmodel_name(txm), instor->name)) {
+                instantiate_entity(txm, instor, true, 0.5);
+                list_del(&instor->entry);
+                free(instor);
+            }
+        }
     }
 
     if (gd)
@@ -597,6 +606,13 @@ void scene_done(struct scene *scene)
 {
     struct model3dtx *txmodel, *ittxm;
     struct entity3d  *ent, *itent;
+    struct instantiator *instor;
+
+    while (!list_empty(&scene->instor)) {
+        instor = list_first_entry(&scene->instor, struct instantiator, entry);
+        list_del(&instor->entry);
+        free(instor);
+    }
 
     terrain_done(scene->terrain);
     ref_put_last(scene->camera->ch);

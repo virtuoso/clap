@@ -28,7 +28,7 @@ static void xyarray_set(unsigned char *arr, int width, int x, int y, unsigned ch
 
 static void xyarray_print(unsigned char *arr, int width, int height)
 {
-    static const char ch[] = " .+oO####";
+    static const char ch[] = " .+oO############_^tTF";
     char str[2048];
     int i, j, p;
 
@@ -64,11 +64,38 @@ static int neigh_m1(unsigned char *arr, int side, int x, int y)
     return n;
 }
 
+static int neigh_vnv(unsigned char *arr, int side, int x, int y)
+{
+    int n = 0;
+    int v = xyarray_get(arr, side, x, y);
+
+    n += xyarray_get(arr, side, x + 1, y) > v;
+    n += xyarray_get(arr, side, x - 1, y) > v;
+    n += xyarray_get(arr, side, x, y + 1) > v;
+    n += xyarray_get(arr, side, x, y - 1) > v;
+
+    return n;
+}
+
+static int neigh_mv(unsigned char *arr, int side, int x, int y)
+{
+    int n = neigh_vnv(arr, side, x, y);
+    int v = xyarray_get(arr, side, x, y);
+
+    n += xyarray_get(arr, side, x + 1, y + 1) > v;
+    n += xyarray_get(arr, side, x - 1, y + 1) > v;
+    n += xyarray_get(arr, side, x + 1, y - 1) > v;
+    n += xyarray_get(arr, side, x - 1, y - 1) > v;
+
+    return n;
+}
+
 struct cell_automaton {
     const char      *name;
     unsigned int    born;
     unsigned int    surv;
     unsigned int    nr_states;
+    bool            decay;
     int             (*neigh)(unsigned char *arr, int side, int x, int y);
 };
 
@@ -85,7 +112,7 @@ static void cell_aut_step(const struct cell_automaton *ca, unsigned char *arr, i
                 xyarray_set(arr, side, i, j, ca->nr_states);
             else if (v && (ca->surv & (1 << n)))
                 ;
-            else if (v)
+            else if (v && ca->decay)
                 xyarray_set(arr, side, i, j, v - 1);
         }
 }
@@ -516,10 +543,28 @@ const struct cell_automaton ca_test = {
     .born = 3 << 2,
     .surv = 3 << 7,
     .nr_states = 4,
+    .decay = true,
     .neigh = neigh_m1,
 };
 
-#define MAZE_FAC 16
+const struct cell_automaton ca_instors[] = {
+    {
+        .name = "cool tree",
+        .born = 0x3f,
+        .surv = 0xff,
+        .nr_states = 20,
+        .neigh = neigh_mv,
+    },
+    {
+        .name = "ash pinus",
+        .born = 0xff,
+        .surv = 0xff,
+        .nr_states = 21,
+        .neigh = neigh_mv,
+    },
+};
+
+#define MAZE_FAC 8
 struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y, float z, float side, unsigned int nr_v)
 {
     struct terrain *t;
@@ -534,7 +579,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     struct timespec ts;
     struct circ_maze *m;
     unsigned char *maze;
-    int i, j;
+    int i, j, mside = nr_v / MAZE_FAC;
 
     maze = ca_gen_maze(&ca_test, nr_v / MAZE_FAC, 3);
 
@@ -566,10 +611,10 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             float amp   = cos_interp(xamp, yamp, fabs(xfrac - yfrac));
             xfrac = fmodf(i, MAZE_FAC) / MAZE_FAC;
             yfrac = fmodf(j, MAZE_FAC) / MAZE_FAC;
-            int xpos = i / MAZE_FAC, ypos = j / MAZE_FAC, side = nr_v / MAZE_FAC;
-            unsigned char cn = xyarray_get(maze, side, xpos, ypos);
-            unsigned char xn = xyarray_get(maze, side, xfrac >= 0.5 ? xpos + 1 : xpos - 1, ypos);
-            unsigned char yn = xyarray_get(maze, side, xpos, yfrac >= 0.5 ? ypos + 1 : ypos - 1);
+            int xpos = i / MAZE_FAC, ypos = j / MAZE_FAC;
+            unsigned char cn = xyarray_get(maze, mside, xpos, ypos);
+            unsigned char xn = xyarray_get(maze, mside, xfrac >= 0.5 ? xpos + 1 : xpos - 1, ypos);
+            unsigned char yn = xyarray_get(maze, mside, xpos, yfrac >= 0.5 ? ypos + 1 : ypos - 1);
             float xavg  = cn > xn ? cn : cos_interp(cn, xn, 2 * xfrac - 1);
             float yavg  = cn > yn ? cn : cos_interp(cn, yn, 2 * yfrac - 1);
             float avg   = cos_interp(xavg, yavg, fabsf(xfrac - yfrac));
@@ -579,11 +624,18 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             // if (i == bp->x || j == bp->y)
             //     t->map[i * nr_v + j] = -20;
             // else
-            t->map[i * nr_v + j] = get_height(t, i, j, powf(2, avg), OCTAVES) + avg;
+            t->map[i * nr_v + j] = get_height(t, i, j, powf(1.5, avg), OCTAVES) + avg;
         }
     free(t->map0);
     t->map0 = NULL;
     bsp_cleanup(bsp_root);
+
+    /* place instantiators */
+    for (i = 0; i < array_size(ca_instors); i++) {
+        cell_aut_step(&ca_instors[i], maze, mside);
+        // dbg("trees (%s):\n", ca_instors[i].name);
+        // xyarray_print(maze, mside, mside);
+    }
 
     vxsz  = total * sizeof(*vx) * 3;
     txsz  = total * sizeof(*tx) * 2;
@@ -652,6 +704,25 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     entity3d_add_physics(t->entity, 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
     phys_ground_add(t->entity);
     ref_put(prog); /* matches shader_prog_find() above */
+
+    for (i = 0; i < mside; i++)
+        for (j = 0; j < mside; j++) {
+            int ca;
+
+            for (ca = 0; ca < array_size(ca_instors); ca++)
+                if (xyarray_get(maze, mside, i, j) == ca_instors[ca].nr_states) {
+                    struct instantiator *instor;
+
+                    CHECK(instor = calloc(1, sizeof(*instor)));
+                    instor->name = ca_instors[ca].name;
+                    instor->dx = x + (float)(i + 0.5) * MAZE_FAC * side / (nr_v - 1);
+                    instor->dz = z + (float)(j + 0.5) * MAZE_FAC * side / (nr_v - 1);
+                    instor->dy = terrain_height(t, instor->dx, instor->dz);
+                    list_append(&s->instor, &instor->entry);
+                }
+        }
+
+
     return t;
 }
 

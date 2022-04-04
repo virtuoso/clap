@@ -720,8 +720,8 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
     }
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
-        err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
-               txmodel_name(txmodel));
+        // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
+        //        txmodel_name(txmodel));
         model = txmodel->model;
         model->cur_lod = 0;
         /* XXX: model-specific draw method */
@@ -1300,6 +1300,24 @@ void entity3d_move(struct entity3d *e, float dx, float dy, float dz)
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
 {
     list_append(&txm->entities, &e->entry);
+}
+
+void instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
+                        bool randomize_yrot, float randomize_scale)
+{
+    struct entity3d *e = entity3d_new(txm);
+    e->scale = 1.0;
+    e->dx = instor->dx;
+    e->dy = instor->dy;
+    e->dz = instor->dz;
+    if (randomize_yrot)
+        e->ry = drand48() * 360;
+    if (randomize_scale)
+        e->scale = 1 + randomize_scale * (1 - drand48() * 2);
+    default_update(e, NULL);
+    e->update = default_update;
+    e->visible = 1;
+    model3dtx_add_entity(txm, e);
 }
 
 void create_entities(struct model3dtx *txmodel)

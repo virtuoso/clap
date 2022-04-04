@@ -23,6 +23,12 @@ struct camera {
     struct matrix4f     *inv_view_mx;
 };
 
+struct instantiator {
+    const char      *name;
+    struct list     entry;
+    float           dx, dy, dz;
+};
+
 struct scene {
     char                *name;
     int                 width;
@@ -30,6 +36,7 @@ struct scene {
     struct model3d      *_model; /* temporary */
     struct mq           mq;
     struct list         characters;
+    struct list         instor;
     struct list         debug_draws;
     struct entity3d     *focus;
     struct character    *control;
