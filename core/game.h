@@ -36,6 +36,7 @@ struct burrow {
 
 struct game_state {
     struct scene *scene;
+    struct ui *ui;
     darray(struct game_item, items);
     
     struct timespec last_update_time;
@@ -67,11 +68,15 @@ struct game_item {
     bool is_mature;
 };
 
-void game_init(struct scene *scene);
+void game_init(struct scene *scene, struct ui *ui);
 void game_update(struct game_state *g, struct timespec ts, bool paused);
 int handle_game_input(struct message *m, void *data);
 
 /* from ui.c, but doesn't really fit in ui.h */
 void health_set(float perc);
+void show_apple_in_pocket();
+void show_empty_pocket();
+void ui_inventory_done(struct ui *ui);
+void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[]);
 
 #endif

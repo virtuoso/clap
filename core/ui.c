@@ -986,7 +986,7 @@ static void inv_onclick(struct ui_element *uie, float x, float y)
     dbg("click on '%s'\n", entity_name(uie->entity));
 }
 
-static void ui_inventory_init(struct ui *ui)
+void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[])
 {
     unsigned int rows = 3, cols = 3, nr_items = rows * cols, i;
     float quad_color[] = { 0.0, 0.1, 0.5, 0.4 };
@@ -1020,7 +1020,10 @@ static void ui_inventory_init(struct ui *ui)
 
         /* XXX^5: animations hardcoded */
         uia_skip_frames(inv->uies[i], i * 2);
-        uia_set_visible(inv->uies[i], 1);
+        if (apple_ages[i] >= 0.0)
+            uia_set_visible(inv->uies[i], 1);
+        else
+            uia_set_visible(inv->uies[i], 0);
         uia_lin_float(inv->uies[i], ui_element_set_alpha, 0, 0.4, 20);
         uia_cos_move(inv->uies[i], UIE_MV_X_OFF, 40, 1, 30, 1.0, 0.0);
 
@@ -1040,7 +1043,7 @@ static void ui_inventory_init(struct ui *ui)
     ui->modal = true;
 }
 
-static void ui_inventory_done(struct ui *ui)
+void ui_inventory_done(struct ui *ui)
 {
     dbg("bai\n");
     ref_put(ui->inventory);
@@ -1168,11 +1171,6 @@ static int ui_handle_input(struct message *m, void *data)
             ui_menu_done(ui);
         else
             ui_menu_init(ui);
-    } else if (m->input.inv_toggle) {
-        if (ui->inventory)
-            ui_inventory_done(ui);
-        else
-            ui_inventory_init(ui);
     } else if (m->input.mouse_click) {
         if (!ui->menu) {
             if (!ui_element_click(ui, m->input.x, m->input.y))
@@ -1210,7 +1208,7 @@ static int ui_handle_input(struct message *m, void *data)
 
 static struct ui_text *limeric_uit;
 static struct ui_text *build_uit;
-struct ui_element *uie0, *uie1, *health;
+struct ui_element *uie0, *uie1, *health, *pocket;
 static float health_bar_width;
 
 void ui_pip_update(struct ui *ui, struct fbo *fbo)
@@ -1238,6 +1236,31 @@ void ui_pip_update(struct ui *ui, struct fbo *fbo)
     else
         uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, fbo->width, fbo->height);
     uie0->entity->color_pt = COLOR_PT_NONE;
+}
+
+struct ui_element *ui_pocket_new(struct ui *ui)
+{
+    struct model3d *model;
+    struct model3dtx *txm;
+    struct ui_element *p;
+    model = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
+    model3d_set_name(model, "ui_pocket_element");
+    txm = model3dtx_new(ref_pass(model), "apple.png");
+    ui_add_model(ui, txm);
+    p = ui_element_new(ui, NULL, txm, UI_AF_TOP | UI_AF_RIGHT,
+                       10, 10, 100, 100);
+    ui_element_set_visibility(p, 0);
+    return p;
+}
+
+void show_apple_in_pocket()
+{
+    ui_element_set_visibility(pocket, 1);
+}
+
+void show_empty_pocket()
+{
+    ui_element_set_visibility(pocket, 0);
 }
 
 struct ui_element *ui_progress_new(struct ui *ui)
@@ -1336,6 +1359,7 @@ int ui_init(struct ui *ui, int width, int height)
     build_uit = ui_render_string(ui, font, uie1, build_date, color, 0);
 
     health = ui_progress_new(ui);
+    pocket = ui_pocket_new(ui); 
     // wheel = ui_wheel_new(ui, wheel_items);
     font_put(font);
     subscribe(MT_COMMAND, ui_handle_command, ui);

@@ -38,13 +38,27 @@ float calculate_squared_distance(struct entity3d *a, struct entity3d *b) {
     return dx * dx + dy * dy + dz * dz;
 }
 
-void eat_apple(struct game_state *g) {
-    if (g->health > g->options.max_health)
-        return;
+void put_apple_into_pocket(struct game_state *g) {
+    g->apple_is_carried = true;
+    show_apple_in_pocket();
+}
+
+void get_apple_out_of_pocket(struct game_state *g) {
+    g->apple_is_carried = false;
+    show_empty_pocket();
+}
+
+bool is_near_burrow(struct game_state *g) {
     struct entity3d *gatherer = g->scene->control->entity;
     struct entity3d *burrow = g->burrow.entity;
     float squared_distance_to_burrow = calculate_squared_distance(gatherer, burrow);
-    if (squared_distance_to_burrow < g->options.burrow_distance_squared) {
+    return squared_distance_to_burrow < g->options.burrow_distance_squared;
+}
+
+void eat_apple(struct game_state *g) {
+    if (g->health > g->options.max_health)
+        return;
+    if (is_near_burrow(g)) {
         // Try to eat a mature apple from the burrow.
         struct game_item *item;
         int idx = 0;
@@ -73,16 +87,47 @@ void eat_apple(struct game_state *g) {
 
     // Otherwise, try to eat a raw apple.
     if (g->apple_is_carried) {
-        g->apple_is_carried = false;
+        get_apple_out_of_pocket(g);
         add_health(g, g->options.raw_apple_value);
         dbg("Ate a raw apple from hand.");
     }
 }
 
-int handle_game_input(struct message *m, void *data) {
-    if (m->input.pad_y)
-        eat_apple(&game_state);
+void show_inventory(struct game_state *g)
+{
+    int idx;
+    struct game_item *item;
+    struct burrow *b = &g->burrow;
+    float apple_ages[g->options.burrow_capacity];
+    
+    for (idx = 0; idx < g->options.burrow_capacity; idx++)
+        apple_ages[idx] = -1.0;
+    while (true) {
+        // loop throw apples
+        if (idx >= b->items.da.nr_el)
+            break;
+        item = &b->items.x[idx];
+        if (item->is_mature)
+            apple_ages[idx] = 1.0;
+        else
+            apple_ages[idx] = item->age / g->options.apple_maturity_age_ms;
+        
+        idx++;
+    }
 
+    ui_inventory_init(g->ui, g->options.burrow_capacity, apple_ages);
+}
+
+int handle_game_input(struct message *m, void *data) {
+    if (m->input.pad_y) {
+        eat_apple(&game_state);
+    } else if (m->input.inv_toggle) {
+        if (game_state.ui->inventory)
+            ui_inventory_done(game_state.ui);
+        else if (is_near_burrow(&game_state))
+            show_inventory(&game_state);
+    }
+    
     return 0;
 }
 
@@ -149,7 +194,7 @@ void kill_apple(struct game_state *g, struct game_item *item) {
 void put_apple_to_burrow(struct game_state *g) {
     if (g->burrow.items.da.nr_el >= g->options.burrow_capacity)
         return;
-    g->apple_is_carried = false;
+    get_apple_out_of_pocket(g);
     struct game_item *apple;
     CHECK(apple = darray_add(&g->burrow.items.da));
     apple_in_burrow_init(g, apple);
@@ -210,9 +255,7 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
 
     int idx = 0;
     struct entity3d *gatherer = g->scene->control->entity;
-    struct entity3d *burrow = g->burrow.entity;
-    float squared_distance_to_burrow = calculate_squared_distance(gatherer, burrow);
-    if (squared_distance_to_burrow < g->options.burrow_distance_squared && g->apple_is_carried)
+    if (is_near_burrow(g) && g->apple_is_carried)
         put_apple_to_burrow(g);
     struct game_item *item;
     while (true) {
@@ -227,7 +270,7 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
             // gather the apple
             dbg("GATHERING APPLE\n");
             gathered = true;
-            g->apple_is_carried = true;
+            put_apple_into_pocket(g);
         }
         item->age += delta_t_ms;
         if (gathered || (item->age > g->options.max_apple_age_ms)) {
@@ -277,9 +320,10 @@ struct burrow burrow_init() {
     return b;
 }
 
-void game_init(struct scene *scene)
+void game_init(struct scene *scene, struct ui *ui)
 {
     game_state.scene = scene;
+    game_state.ui = ui;
     game_state.options = game_options_init();
     game_state.apple_is_carried = false;
     game_state.health = game_state.options.initial_health;

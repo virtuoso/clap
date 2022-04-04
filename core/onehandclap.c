@@ -445,7 +445,7 @@ int main(int argc, char **argv, char **envp)
 
     scene_load(&scene, "scene.json");
 
-    game_init(&scene); // this must happen after scene_load, because we need the trees.
+    game_init(&scene, &ui); // this must happen after scene_load, because we need the trees.
     subscribe(MT_INPUT, handle_game_input, NULL);
 
     gl_get_sizes(&scene.width, &scene.height);
