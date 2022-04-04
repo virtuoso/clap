@@ -424,8 +424,8 @@ int main(int argc, char **argv, char **envp)
     lib_request_shaders("hblur", &scene.prog);
     lib_request_shaders("vblur", &scene.prog);
     lib_request_shaders("debug", &scene.prog);
+    lib_request_shaders("terrain", &scene.prog);
     lib_request_shaders("model", &scene.prog);
-    //lib_request_shaders("terrain", &scene);
     //lib_request_shaders("ui", &scene);
 
     /*
@@ -433,7 +433,7 @@ int main(int argc, char **argv, char **envp)
      * GL is initialized
      */
     // scene.terrain = terrain_init_circular_maze(&scene, 0.0, 0.0, 0.0, 300, 32, 8);
-    scene.terrain = terrain_init_square_landscape(&scene, -100.0, 0.0, -100.0, 200, 256);
+    scene.terrain = terrain_init_square_landscape(&scene, -40.0, 0.0, -40.0, 80, 256);
     fuzzer_input_init();
 
     if (fullscreen)

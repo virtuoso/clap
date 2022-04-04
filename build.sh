@@ -19,6 +19,7 @@ compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/contras
 compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/hblur
 compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/vblur
 compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/debug
+compile-time/build/rel/preprocess_shaders -t glsl -o asset/glsl/ shaders/terrain
 mkdir -p asset/glsl-es
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/model
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/ui
@@ -27,6 +28,7 @@ compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/c
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/hblur
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/vblur
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/debug
+compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/terrain
 
 cmake --build build/rel $VERBOSE
 cmake --build build/test $VERBOSE
