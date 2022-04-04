@@ -65,17 +65,17 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
         mctl->rs_dy = mctl->ang_speed * m->input.delta_ry;
 
     if (m->input.yaw_right == 1)
-        mctl->rs_right = mctl->ang_speed;
+        mctl->rs_right = mctl->h_ang_speed;
     else if (m->input.yaw_right == 2)
         mctl->rs_right = 0;
 
     if (m->input.yaw_left == 1)
-        mctl->rs_left = mctl->ang_speed;
+        mctl->rs_left = mctl->h_ang_speed;
     else if (m->input.yaw_left == 2)
         mctl->rs_left = 0;
 
     if (m->input.delta_rx)
-        mctl->rs_dx = mctl->ang_speed * m->input.delta_rx;
+        mctl->rs_dx = mctl->h_ang_speed * m->input.delta_rx;
 }
 
 static void motion_compute_ls(struct motionctl *mctl)
@@ -110,6 +110,7 @@ static void motion_reset(struct motionctl *mctl, struct scene *s)
         mctl->lin_speed = s->lin_speed;
     }
     mctl->ang_speed = s->ang_speed;
+    mctl->h_ang_speed = s->ang_speed * 1.5;
     mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
 }
 

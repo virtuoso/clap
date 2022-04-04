@@ -13,6 +13,7 @@ struct motionctl {
     struct timespec dash_started;
     float   lin_speed;
     float   ang_speed;
+    float   h_ang_speed;
     float   ls_left;
     float   ls_right;
     float   ls_up;
