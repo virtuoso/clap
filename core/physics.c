@@ -100,6 +100,8 @@ void phys_body_stick(struct phys_body *body, dContact *contact)
     dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
     dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
     dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
+    dBodySetMaxAngularSpeed(body->body, 0);
+    dBodySetLinearDampingThreshold(body->body, 0.001);
 }
 
 static void phys_contact_surface(struct entity3d *e1, struct entity3d *e2, dContact *contact, int nc)

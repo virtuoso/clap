@@ -106,6 +106,8 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 
     game_update(&game_state, ts_start, ui.modal);
 
+    scene.ts = ts_start;
+
     /*
      * calls into character_move(): handle inputs, adjust velocities etc
      * for the physics step
@@ -459,7 +461,7 @@ int main(int argc, char **argv, char **envp)
     pipeline_add_pass(main_pl, "contrast");
     // fbo_update(scene.width, scene.height);
 
-    scene.lin_speed = 1.0;
+    scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
 
     scene.limbo_height = -70.0;

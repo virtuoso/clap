@@ -9,6 +9,7 @@ enum {
     RIGHT,
     UP,
     DOWN,
+    DASH,
     PITCH_UP,
     PITCH_DOWN,
     YAW_LEFT,
@@ -29,6 +30,7 @@ static struct key_map key_map_wasd[] = {
     { .name = "KeyD",       .map_to = RIGHT },
     { .name = "KeyW",       .map_to = UP },
     { .name = "KeyS",       .map_to = DOWN },
+    { .name = "ShiftLeft",  .map_to = DASH },
     { .name = "ArrowUp",    .map_to = PITCH_UP },
     { .name = "ArrowDown",  .map_to = PITCH_DOWN },
     { .name = "ArrowLeft",  .map_to = YAW_LEFT },
@@ -42,6 +44,7 @@ static struct key_map key_map_wasd[] = {
     { .key = GLFW_KEY_D, .map_to = RIGHT },
     { .key = GLFW_KEY_W, .map_to = UP },
     { .key = GLFW_KEY_S, .map_to = DOWN },
+    { .key = GLFW_KEY_LEFT_SHIFT, .map_to = DASH },
     { .key = GLFW_KEY_UP,    .map_to = PITCH_UP },
     { .key = GLFW_KEY_DOWN,  .map_to = PITCH_DOWN },
     { .key = GLFW_KEY_LEFT,  .map_to = YAW_LEFT },
@@ -83,6 +86,9 @@ found:
         break;
     case UP:
         mi.up = press;
+        break;
+    case DASH:
+        mi.dash = press == 1;
         break;
     case YAW_RIGHT:
         mi.yaw_right = press;

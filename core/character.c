@@ -15,6 +15,14 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
     else if (m->input.pad_rt)
         mctl->lin_speed *= 3;
 
+    if (m->input.dash || m->input.pad_rb) {
+        /* if not already dashing or in dashing cooldown, dash */
+        if (!timespec_nonzero(&mctl->dash_started)) {
+            memcpy(&mctl->dash_started, &mctl->ts, sizeof(mctl->dash_started));
+            mctl->lin_speed *= 2;
+        }
+    }
+
     /* left stick right/left/up/down */
     if (m->input.right == 1)
         mctl->ls_right = mctl->lin_speed;
@@ -88,34 +96,49 @@ static void motion_compute_rs(struct motionctl *mctl)
 
 static void motion_reset(struct motionctl *mctl, struct scene *s)
 {
-    mctl->lin_speed = s->lin_speed;
+    if (timespec_nonzero(&mctl->dash_started)) {
+        struct timespec diff;
+
+        timespec_diff(&mctl->dash_started, &s->ts, &diff);
+        /* dashing end, in cooldown */
+        if (diff.tv_sec >= 1)
+            mctl->lin_speed = s->lin_speed;
+        /* dashing cooldown end */
+        if (diff.tv_sec >= 2)
+            mctl->dash_started.tv_sec = mctl->dash_started.tv_nsec = 0;
+    } else {
+        mctl->lin_speed = s->lin_speed;
+    }
     mctl->ang_speed = s->ang_speed;
     mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
 {
+    memcpy(&ch->mctl.ts, &s->ts, sizeof(ch->mctl.ts));
     motion_parse_input(&ch->mctl, m);
 
     /*
      * Only allow motion control when on the ground OR disembodied camera
      */
     if (character_is_grounded(s->control, s) || scene_character_is_camera(s, s->control)) {
-        if (s->control->entity && (m->input.space || m->input.pad_x)) {
-            struct phys_body *body = s->control->entity->phys_body;
-            motion_compute_ls(&ch->mctl);
-            float delta_x = ch->mctl.ls_dx;
-            float delta_z = ch->mctl.ls_dy;            
-            float yawcos = cos(to_radians(s->camera->yaw));
-            float yawsin = sin(to_radians(s->camera->yaw));
-            float dx = delta_x * yawcos - delta_z * yawsin;
-            float dz = delta_x * yawsin + delta_z * yawcos;
-            vec3 jump = { dx * 1.3, 5.0, dz * 1.3 };
+        if (s->control->entity) {
+            if (m->input.space || m->input.pad_x) {
+                struct phys_body *body = s->control->entity->phys_body;
+                motion_compute_ls(&ch->mctl);
+                float delta_x = ch->mctl.ls_dx;
+                float delta_z = ch->mctl.ls_dy;
+                float yawcos = cos(to_radians(s->camera->yaw));
+                float yawsin = sin(to_radians(s->camera->yaw));
+                float dx = delta_x * yawcos - delta_z * yawsin;
+                float dz = delta_x * yawsin + delta_z * yawcos;
+                vec3 jump = { dx * 1.3, 2.0, dz * 1.3 };
 
-            if (body && phys_body_has_body(body)) {
-                dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
-                dJointAttach(body->lmotor, NULL, NULL);
-                dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
+                if (body && phys_body_has_body(body)) {
+                    dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
+                    dJointAttach(body->lmotor, NULL, NULL);
+                    dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
+                }
             }
         }
     }
@@ -215,6 +238,9 @@ void character_move(struct character *ch, struct scene *s)
         // }
 
         if (body) {
+            dJointSetLMotorParam(body->lmotor, dParamFMax1, 50);
+            dJointSetLMotorParam(body->lmotor, dParamFMax2, 5);
+            dJointSetLMotorParam(body->lmotor, dParamFMax3, 50);
             dJointSetLMotorParam(body->lmotor, dParamVel1, res[0]);
             dJointSetLMotorParam(body->lmotor, dParamVel2, res[1]);
             dJointSetLMotorParam(body->lmotor, dParamVel3, res[2]);

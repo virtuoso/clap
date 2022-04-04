@@ -9,6 +9,8 @@
 #include "scene.h"
 
 struct motionctl {
+    struct timespec ts;
+    struct timespec dash_started;
     float   lin_speed;
     float   ang_speed;
     float   ls_left;

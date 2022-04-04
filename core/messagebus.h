@@ -66,7 +66,8 @@ struct message_input {
                     inv_toggle  : 1,
                     mouse_move  : 1,
                     mouse_click : 1, /* 45 */
-                    exit        : 1; /* 46 */
+                    exit        : 1,
+                    dash        : 1; /* 47 */
     float           delta_lx;
     float           delta_ly;
     float           delta_rx;
