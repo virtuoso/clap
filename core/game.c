@@ -55,37 +55,27 @@ bool is_near_burrow(struct game_state *g) {
     return squared_distance_to_burrow < g->options.burrow_distance_squared;
 }
 
+void eat_apple_from_inventory(struct game_state *g, int apple_index) {
+    // Try to eat a mature apple from the burrow.
+    struct game_item *item;
+    int idx = 0;
+    struct burrow *b = &g->burrow;
+    item = &b->items.x[apple_index];
+    if (item->is_mature) {
+        add_health(g, g->options.mature_apple_value);
+        b->number_of_mature_apples--;
+        item->is_deleted = true;
+        dbg("Ate a mature apple from the burrow.");
+    } else {
+        dbg("Can only eat mature apples.");
+    }
+}
+
 void eat_apple(struct game_state *g) {
     if (g->health > g->options.max_health)
         return;
-    if (is_near_burrow(g)) {
-        // Try to eat a mature apple from the burrow.
-        struct game_item *item;
-        int idx = 0;
-        struct burrow *b = &g->burrow;
-        while (true) {
-            // loop throw apples
-            if (idx >= b->items.da.nr_el)
-                break;
-            item = &b->items.x[idx];
-            if (item->is_mature) {
-                add_health(g, g->options.mature_apple_value);
-                b->number_of_mature_apples--;
-                
-                // swap with last.
-                b->items.da.nr_el--;
-                int last = b->items.da.nr_el;
-                if (idx != last)
-                    b->items.x[idx] = b->items.x[last];
-                dbg("Ate a mature apple from the burrow.");
-                return;
-            }
-            
-            idx++;
-        }
-    }    
 
-    // Otherwise, try to eat a raw apple.
+    // Try to eat a raw apple.
     if (g->apple_is_carried) {
         get_apple_out_of_pocket(g);
         add_health(g, g->options.raw_apple_value);
@@ -93,15 +83,20 @@ void eat_apple(struct game_state *g) {
     }
 }
 
+
+void handle_inventory_click(struct ui_element *uie, float x, float y) {
+    int apple_index = (long)uie->priv;
+    eat_apple_from_inventory(&game_state, apple_index);
+}
+
 void show_inventory(struct game_state *g)
 {
     int idx;
     struct game_item *item;
     struct burrow *b = &g->burrow;
-    float apple_ages[g->options.burrow_capacity];
-    
-    for (idx = 0; idx < g->options.burrow_capacity; idx++)
-        apple_ages[idx] = -1.0;
+    float apple_ages[b->items.da.nr_el];
+
+    idx = 0;
     while (true) {
         // loop throw apples
         if (idx >= b->items.da.nr_el)
@@ -115,7 +110,7 @@ void show_inventory(struct game_state *g)
         idx++;
     }
 
-    ui_inventory_init(g->ui, g->options.burrow_capacity, apple_ages);
+    ui_inventory_init(g->ui, b->items.da.nr_el, apple_ages, handle_inventory_click);
 }
 
 int handle_game_input(struct message *m, void *data) {
@@ -167,6 +162,7 @@ void apple_in_burrow_init(struct game_state *g, struct game_item *apple)
     apple->age = 0.0;
     apple->apple_parent = NULL;
     apple->is_mature = false;
+    apple->is_deleted = false;
 }
 
 void spawn_new_apple(struct game_state *g) {
@@ -208,6 +204,13 @@ void burrow_update(struct burrow *b, float delta_t_ms, struct game_options *opti
         if (idx >= b->items.da.nr_el)
             break;
         item = &b->items.x[idx];
+        if (item->is_deleted) {
+            b->items.da.nr_el--;
+            int last = b->items.da.nr_el;
+            if (idx != last)
+                b->items.x[idx] = b->items.x[last];
+            continue;
+        }
         if (!item->is_mature) {
             item->age += delta_t_ms;
             if (item->age > options->apple_maturity_age_ms) {

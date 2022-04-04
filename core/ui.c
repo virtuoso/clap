@@ -781,6 +781,39 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
     }
 }
 
+static void menu_onfocus(struct ui_element *uie, bool focus)
+{
+    if (focus)
+        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, 10);
+    else
+        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, 10);
+}
+
+static void inv_onfocus(struct ui_element *uie, bool focus)
+{
+    int j;
+    struct ui_element *current_item, *x;
+    struct ui_widget *inv = uie->ui->inventory;
+    long focused = (long)uie->priv;
+    float focus_color[] = { 1.0, 0.0, 0.0, 1.0 };
+    float non_focus_color[] = { 1.0, 1.0, 1.0, 1.0 };
+    float *color;
+    
+    for (int i = 0; i < inv->nr_uies; i++) {
+        current_item = inv->uies[i];
+        if (i == focused)
+            color = focus_color;
+        else
+            color = non_focus_color;
+        j = 0;
+        list_for_each_entry(x, &current_item->children, child_entry) {
+            if (j == 0) // hack: frame is the first child.
+                memcpy(x->entity->color, color, sizeof(focus_color));
+            j++;
+        }
+    }
+}
+
 static void ui_widget_drop(struct ref *ref)
 {
     struct ui_widget *uiw = container_of(ref, struct ui_widget, ref);
@@ -850,6 +883,7 @@ static struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
         /* XXX^3: element placement hardcoded */
         wheel->uies[i]           = ui_element_new(ui, wheel->root, ui_quadtx, affs[i], 0, 0, 300, 100);
         wheel->uies[i]->on_click = menu_onclick;
+        wheel->uies[i]->on_focus = menu_onfocus;
         wheel->uies[i]->priv     = (void *)(long)i;
 
         memcpy(&wheel->uies[i]->entity->color, quad_color, sizeof(quad_color));
@@ -901,6 +935,7 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
         /* XXX^3: element placement hardcoded */
         menu->uies[i]           = ui_element_new(ui, menu->root, txm, UI_AF_TOP | UI_AF_RIGHT, 10, 10 + off, 300, 100);
         menu->uies[i]->on_click = menu_onclick;
+        menu->uies[i]->on_focus = menu_onfocus;
         menu->uies[i]->priv     = (void *)(long)i;
 
         memcpy(&menu->uies[i]->entity->color, quad_color, sizeof(quad_color));
@@ -934,22 +969,28 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
 
 static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
 {
+    struct ui_element *uie;
+    int new_focus;
     if (!dpos)
         return;
 
     /* out-of-focus animation */
-    if (uiw->focus >= 0)
-        uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 20, 1, 10);
-
-    if (dpos + (int)uiw->focus < 0)
-        uiw->focus = uiw->nr_uies - 1;
-    else if (dpos + uiw->focus >= uiw->nr_uies)
-        uiw->focus = 0;
-    else
-        uiw->focus += dpos;
+    if (uiw->focus >= 0) {
+        uie = uiw->uies[uiw->focus];
+        if (uie->on_focus)
+            uie->on_focus(uie, false);
+    }
+    new_focus = dpos + uiw->focus;
+    if (new_focus < 0)
+        new_focus += uiw->nr_uies ;
+    else if (new_focus >= uiw->nr_uies)
+        new_focus -= uiw->nr_uies;
+    uiw->focus = new_focus;
 
     /* in-focus-animation */
-    uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 1, 20, 10);
+    uie = uiw->uies[uiw->focus];
+    if (uie->on_focus)
+        uie->on_focus(uie, true);
 }
 
 static const char *menu_items[] = {
@@ -978,22 +1019,25 @@ static void ui_menu_done(struct ui *ui)
 {
     ref_put(ui->menu);
     ui->menu = NULL;
-    ui->modal = false;
+    if (!ui->inventory)
+        ui->modal = false;
 }
 
 static void inv_onclick(struct ui_element *uie, float x, float y)
 {
-    dbg("click on '%s'\n", entity_name(uie->entity));
+    dbg("ignoring click on '%s'\n", entity_name(uie->entity));
 }
 
-void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[])
+void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
+                       void (*on_click)(struct ui_element *uie, float x, float y))
 {
     unsigned int rows = 3, cols = 3, nr_items = rows * cols, i;
     float quad_color[] = { 0.0, 0.1, 0.5, 0.4 };
     float color[] = { 0.5, 0.5, 0.4, 1.0 };
     struct ui_widget *inv;
-    struct model3dtx *txm;
-    struct model3d *model;
+    struct model3dtx *apple_txm, *frame_txm, *bar_txm;
+    struct model3d *apple_m, *frame_m, *bar_m;
+    struct ui_element *frame, *bar;
     struct font *font = font_get_default();
     float xoff = 0, yoff = 0, width = 0;
     unsigned int vaff[] = { UI_AF_LEFT, UI_AF_HCENTER, UI_AF_RIGHT };
@@ -1003,41 +1047,113 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[])
     CHECK(inv = ui_widget_new(ui, nr_items, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 0.3, 0.3));
     inv->focus = -1;
 
-    model = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
-    model3d_set_name(model, "ui_inv_element");
-    txm = model3dtx_new(ref_pass(model), "apple.png");
-    ui_add_model(ui, txm);
-    for (i = 0, xoff = 0, yoff = 0; i < nr_items; i++) {
-        // xoff = (i % cols) * 110;
-        // yoff = (i / cols) * 110;
-        inv->uies[i] = ui_element_new(ui, inv->root, txm, UI_AF_TOP | vaff[i % cols],
-                                      10 + xoff, 10 + yoff, 100, 100);
-        inv->uies[i]->on_click = inv_onclick;
-        inv->uies[i]->priv = (void *)(long)i;
+    int number_of_immature_apples = 0;
+    for (i = 0; i < number_of_apples; i++) {
+        if (apple_ages[i] < 1.0)
+            number_of_immature_apples++;
+    }
+    if (number_of_apples > 0) {
+        apple_m = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
+        model3d_set_name(apple_m, "inventory apple");
+        apple_m->alpha_blend = true;
+        apple_txm = model3dtx_new(ref_pass(apple_m), "apple.png");
+        ui_add_model(ui, apple_txm);
+    }
+    if (number_of_immature_apples > 0) {
+        bar_m = model3d_new_quad(ui->prog, 0, 0, 0.03, 1, 1);
+        model3d_set_name(bar_m, "inventory bar on immature apple");
+        bar_m->cull_face = false;
+        bar_m->alpha_blend = false;
+        bar_txm = model3dtx_new(ref_pass(bar_m), "green.png");
+        ui_add_model(ui, bar_txm);
+    }
+    frame_m = model3d_new_frame(ui->prog, 0, 0, 0.01, 1, 1, 0.02);
+    model3d_set_name(frame_m, "inventory item frame");
+    frame_m->cull_face = false;
+    frame_m->alpha_blend = false;
+    frame_txm = model3dtx_new(ref_pass(frame_m), "green.png");
+    ui_add_model(ui, frame_txm);
 
+    width = 200;
+    for (i = 0, xoff = 0, yoff = 0; i < nr_items; i++) {
+        xoff = (i % cols) * (width + 10);
+        yoff = (i / cols) * (width + 10);
+        if (i < number_of_apples) {
+            // drawing "apple"
+            inv->uies[i] = ui_element_new(ui, inv->root, apple_txm, UI_AF_TOP | UI_AF_LEFT,
+                                          xoff, yoff, 100, 100);
+        } else {
+            // drawing "empty"
+            inv->uies[i] = ui_element_new(ui, inv->root, ui_quadtx, UI_AF_TOP | UI_AF_LEFT,
+                                          xoff, yoff, 100, 100);
+        }
+
+        // frame must be the first child.
+        CHECK(frame = ui_element_new(ui, inv->uies[i], frame_txm, UI_AF_BOTTOM | UI_AF_LEFT, 0, 0, 1, 1));
+
+        if (i < number_of_apples) {
+            // "apple"
+            inv->uies[i]->on_click = on_click;
+            inv->uies[i]->on_focus = inv_onfocus;
+            inv->uies[i]->priv = (void *)(long)i;
+            if (apple_ages[i] < 1.0) {
+                // immature apple
+                inv->uies[i]->entity->color_pt = COLOR_PT_ALPHA;
+                inv->uies[i]->entity->color[0] = 0.1;
+                inv->uies[i]->entity->color[1] = 0.5;
+                inv->uies[i]->entity->color[2] = 0.9;
+                inv->uies[i]->entity->color[3] = 0.3;
+            } else {
+                // mature apple
+                inv->uies[i]->entity->color_pt = COLOR_PT_ALL;
+                inv->uies[i]->entity->color[0] = 0.9;
+                inv->uies[i]->entity->color[1] = 0.9;
+                inv->uies[i]->entity->color[2] = 0.9;
+                inv->uies[i]->entity->color[3] = 0.7;
+            }
+            CHECK(inv->texts[i] = ui_render_string(ui, font, inv->uies[i], "apple", color, 0));
+        } else {
+            inv->uies[i]->on_click = inv_onclick;
+            inv->uies[i]->on_focus = inv_onfocus;
+            inv->uies[i]->priv = (void *)(long)i;
+            CHECK(inv->texts[i] = ui_render_string(ui, font, inv->uies[i], "empty", color, 0));
+        }
+        if (i < number_of_apples) {
+            if (apple_ages[i] < 1.0) {
+                // immature apple
+                CHECK(bar = ui_element_new(ui, frame, bar_txm, UI_AF_TOP | UI_AF_LEFT, 0, 10, width * apple_ages[i], 5));
+                bar->entity->color_pt = COLOR_PT_ALL;
+                bar->entity->color[1] = 1;
+                bar->entity->color[3] = 1;
+            }
+        }
+        frame->entity->color_pt = COLOR_PT_ALL;
+        frame->entity->color[0] = 1.0;
+        frame->entity->color[1] = 1.0;
+        frame->entity->color[2] = 1.0;
+        frame->entity->color[3] = 1.0;
+        
         // memcpy(&inv->uies[i]->entity->color, quad_color, sizeof(quad_color));
         // inv->uies[i]->entity->color_pt = COLOR_PT_ALL;
 
         /* XXX^5: animations hardcoded */
-        uia_skip_frames(inv->uies[i], i * 2);
-        if (apple_ages[i] >= 0.0)
-            uia_set_visible(inv->uies[i], 1);
-        else
-            uia_set_visible(inv->uies[i], 0);
-        uia_lin_float(inv->uies[i], ui_element_set_alpha, 0, 0.4, 20);
-        uia_cos_move(inv->uies[i], UIE_MV_X_OFF, 40, 1, 30, 1.0, 0.0);
+        inv->uies[i]->width = width;
+        inv->uies[i]->height = width;
+        frame->width = width;
+        frame->height = width;
 
-        CHECK(inv->texts[i] = ui_render_string(ui, font, inv->uies[i], "apple", color, 0));
+        //uia_skip_frames(inv->uies[i], i * 2);
+        //uia_set_visible(inv->uies[i], 1);
+        //uia_lin_float(inv->uies[i], ui_element_set_alpha, 0, 0.4, 20);
+        //uia_cos_move(inv->uies[i], UIE_MV_X_OFF, 40, 1, 30, 1.0, 0.0);
+
         inv->texts[i]->uietex->entity->color_pt = COLOR_PT_NONE;
 
-        ui_element_set_visibility(inv->uies[i], 0);
-        width = inv->uies[i]->height = inv->uies[i]->width;
-        width += 10;
-        xoff = width * ((i+1) % cols);
-        yoff = width * ((i+1) / cols);
+        //ui_element_set_visibility(inv->uies[i], 0);
+        //ui_element_set_visibility(frame, 0);
     }
-    inv->root->width = width * cols;
-    inv->root->height = width * rows;
+    inv->root->width = width * cols + 10 * (cols - 1);
+    inv->root->height = width * rows + 10 * (cols - 1);
     font_put(font);
     ui->inventory = inv;
     ui->modal = true;
@@ -1048,7 +1164,8 @@ void ui_inventory_done(struct ui *ui)
     dbg("bai\n");
     ref_put(ui->inventory);
     ui->inventory = NULL;
-    ui->modal = false;
+    if (!ui->menu)
+        ui->modal = false;
 }
 
 static bool ui_element_within(struct ui_element *e, int x, int y)
@@ -1181,27 +1298,54 @@ static int ui_handle_input(struct message *m, void *data)
 
     if (!ui->modal)
         return MSG_HANDLED;
-    
-    if (m->input.mouse_move)
-        ui_widget_hover(ui->menu, m->input.x, (int)ui->height - m->input.y);
-    
-    /* UI owns the inputs */
-    ui->mod_y += m->input.delta_ly;
-    if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -100) {
-        // select previous
-        ui->mod_y = 0;
-        ui_widget_pick_rel(ui->menu, -1);
-    } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 100) {
-        // select next
-        ui->mod_y = 0;
-        ui_widget_pick_rel(ui->menu, 1);
-    } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < 0 || m->input.back) {
-        // go back
-        ui_menu_done(ui);
-    } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0 || m->input.enter) {
-        // enter
-        if (ui->menu->focus >= 0)
-            ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
+
+    if (ui->menu) {
+        if (m->input.mouse_move)
+            ui_widget_hover(ui->menu, m->input.x, (int)ui->height - m->input.y);
+        
+        /* UI owns the inputs */
+        ui->mod_y += m->input.delta_ly;
+        if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -100) {
+            // select previous
+            ui->mod_y = 0;
+            ui_widget_pick_rel(ui->menu, -1);
+        } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 100) {
+            // select next
+            ui->mod_y = 0;
+            ui_widget_pick_rel(ui->menu, 1);
+        } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < 0 || m->input.back) {
+            // go back
+            ui_menu_done(ui);
+        } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0 || m->input.enter) {
+            // enter
+            if (ui->menu->focus >= 0)
+                ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
+        }
+    } else if (ui->inventory) {
+        /* UI owns the inputs */
+        ui->mod_y += m->input.delta_ly;
+        ui->mod_x += m->input.delta_lx;
+        if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -100) {
+            // up
+            ui->mod_y = 0;
+            ui_widget_pick_rel(ui->inventory, -3);
+        } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 100) {
+            // down
+            ui->mod_y = 0;
+            ui_widget_pick_rel(ui->inventory, 3);
+        } else if (m->input.left == 1 || m->input.yaw_left == 1 || ui->mod_x < 0) {
+            // left
+            ui->mod_x = 0;
+            ui_widget_pick_rel(ui->inventory, -1);
+        } else if (m->input.right == 1 || m->input.yaw_right == 1 || ui->mod_x > 0) {
+            // right
+            ui->mod_x = 0;
+            ui_widget_pick_rel(ui->inventory, 1);            
+        } else if (m->input.pad_y) {
+            if (ui->inventory->focus >= 0)
+                ui->inventory->uies[ui->inventory->focus]->on_click(ui->inventory->uies[ui->inventory->focus], 0, 0);
+            ui_inventory_done(ui);
+        }            
     }
     return MSG_STOP;
 }
@@ -1274,33 +1418,31 @@ struct ui_element *ui_progress_new(struct ui *ui)
     float color[] = { 1, 1, 1, 1 };
     struct shader_prog *prog;
     struct ui_element *uie, *bar, *frame;
-    struct model3dtx *txm, *f_txm;
-    struct model3d *m, *f;
+    struct model3dtx *bar_txm, *frame_txm;
+    struct model3d *bar_m, *frame_m;
     struct ui_text *uit;
 
     health_bar_width = width;
     
     prog = shader_prog_find(ui->prog, "ui");
 
-    f = model3d_new_frame(prog, 0, 0, 0.01, total_width, total_height, 1);
-    f->cull_face = false;
-    f->alpha_blend = false;
-    f_txm = model3dtx_new(ref_pass(f), "green.png");
-    ui_add_model(ui, f_txm);
+    frame_m = model3d_new_frame(prog, 0, 0, 0.01, total_width, total_height, 1);
+    frame_txm = model3dtx_new(ref_pass(frame_m), "green.png");
+    ui_add_model(ui, frame_txm);
     
-    m = model3d_new_quad(prog, 0, 0, 0.01, 1, 1);
-    m->cull_face = false;
-    m->alpha_blend = false;
-    txm = model3dtx_new(ref_pass(m), "green.png");
-    ui_add_model(ui, txm);
+    bar_m = model3d_new_quad(prog, 0, 0, 0.01, 1, 1);
+    bar_m->cull_face = false;
+    bar_m->alpha_blend = false;
+    bar_txm = model3dtx_new(ref_pass(bar_m), "green.png");
+    ui_add_model(ui, bar_txm);
     ref_put(prog);
     CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, height / 2, total_width, total_height));
-    CHECK(bar = ui_element_new(ui, uie, txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));
+    CHECK(bar = ui_element_new(ui, uie, bar_txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));
     bar->entity->color_pt = COLOR_PT_ALL;
     bar->entity->color[1] = 1;
     bar->entity->color[3] = 1;
 
-    CHECK(frame = ui_element_new(ui, uie, f_txm, UI_AF_BOTTOM | UI_AF_LEFT, 0, 0, total_width, total_height));
+    CHECK(frame = ui_element_new(ui, uie, frame_txm, UI_AF_BOTTOM | UI_AF_LEFT, 0, 0, total_width, total_height));
     frame->width = 1;
     frame->height = 1;
     frame->entity->color_pt = COLOR_PT_ALL;
@@ -1371,6 +1513,8 @@ void ui_done(struct ui *ui)
 {
     if (ui->menu)
         ui_menu_done(ui);
+    if (ui->inventory)
+        ui_inventory_done(ui);
 
     font_put(debug_font);
     if (uie0)

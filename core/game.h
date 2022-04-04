@@ -4,6 +4,7 @@
 
 #include "scene.h"
 #include "util.h"
+#include "ui.h"
 
 struct free_tree {
     struct entity3d *entity;
@@ -66,6 +67,7 @@ struct game_item {
     float age;
     struct free_tree *apple_parent;
     bool is_mature;
+    bool is_deleted;
 };
 
 void game_init(struct scene *scene, struct ui *ui);
@@ -77,6 +79,7 @@ void health_set(float perc);
 void show_apple_in_pocket();
 void show_empty_pocket();
 void ui_inventory_done(struct ui *ui);
-void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[]);
+void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
+                       void (*on_click)(struct ui_element *uie, float x, float y));
 
 #endif
