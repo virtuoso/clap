@@ -69,9 +69,11 @@ static inline bool phys_body_has_body(struct phys_body *body) { return !!body->b
 struct entity3d *phys_body_entity(struct phys_body *body);
 const dReal *phys_body_position(struct phys_body *body);
 const dReal *phys_body_rotation(struct phys_body *body);
-dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e, double mass);
+dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e,
+                              double mass, double geom_radius, double geom_offset);
 dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct entity3d *e, double mass);
-struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int class, int type, double mass);
+struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int class,
+                                double geom_radius, double geom_offset, int type, double mass);
 int phys_body_update(struct entity3d *e);
 void phys_body_done(struct phys_body *body);
 bool phys_body_ground_collide(struct phys_body *body);

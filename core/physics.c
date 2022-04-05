@@ -532,7 +532,8 @@ int phys_body_update(struct entity3d *e)
     return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;
 }
 
-dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e, double mass)
+dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e,
+                              double mass, double geom_radius, double geom_offset)
 {
     float r = 0.0, length = 0.0, off = 0.0, X, Y, Z;
     int direction;
@@ -556,9 +557,9 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
             /*
              * Upright
              */
-            r      = min3(X, Y, Z) / 2;
+            r      = geom_radius ? geom_radius : min3(X, Y, Z) / 2;
             length = max(Y / 2 - r * 2, 0);
-            off    = Y / 2;
+            off    = geom_offset ? geom_offset : Y / 2;
             body->ray_off = r + length / 2;
             break;
         case 3:
@@ -567,9 +568,9 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
             /*
              * Puppy
              */
-            r      = X / 2;
+            r      = geom_radius ? geom_radius : X / 2;
             length = Z - r * 2;
-            off    = (Y - r * 2) / 2;
+            off    = geom_offset ? geom_offset : (Y - r * 2) / 2;
             body->ray_off = r;
             break;
     }
@@ -672,7 +673,8 @@ dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct 
     return trimesh;
 }
 
-struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int class, int type, double mass)
+struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int class,
+                                double geom_radius, double geom_offset, int type, double mass)
 {
     bool has_body = type == PHYS_BODY;
     struct phys_body *body;
@@ -692,7 +694,8 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dMassSetZero(&m);
         dMassSetSphereTotal(&m, mass, 0.1);
     } else if (class == dCapsuleClass) {
-        phys_geom_capsule_new(phys, body, entity, mass);
+        phys_geom_capsule_new(phys, body, entity, mass, geom_radius * entity->scale,
+                              geom_offset * entity->scale);
     }
 
     dRSetIdentity(rot);

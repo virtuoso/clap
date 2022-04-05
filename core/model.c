@@ -1265,18 +1265,7 @@ void entity3d_add_physics(struct entity3d *e, double mass, int class, int type, 
 {
     struct model3d *m = e->txmodel->model;
 
-    e->phys_body = phys_body_new(phys, e, class, type, mass);
-    /* we calculate geom_off instead */
-    geom_off = e->phys_body->yoffset;
-    if (geom_off) {
-        dVector3 org = { e->dx, e->dx, e->dy + geom_off, e->dz }, dir = { 0, -1.0, 0 };
-        e->phys_body->yoffset = geom_off;
-        // e->phys_body->ray = dCreateRay(phys->space, geom_off);
-        // dGeomRaySet(e->phys_body->ray, org[0], org[1], org[2], dir[0], dir[1], dir[2]);
-        // dGeomSetData(e->phys_body->ray, e);
-        // dbg("RAY('%s') (%f,%f,%f) -> (%f,%f,%f)\n", entity_name(e),
-        //     org[0], org[1], org[2], dir[0], dir[1], dir[2]);
-    }
+    e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
 }
 
 void entity3d_position(struct entity3d *e, float x, float y, float z)
@@ -1302,8 +1291,8 @@ void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
     list_append(&txm->entities, &e->entry);
 }
 
-void instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
-                        bool randomize_yrot, float randomize_scale)
+struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
+                                    bool randomize_yrot, float randomize_scale)
 {
     struct entity3d *e = entity3d_new(txm);
     e->scale = 1.0;
@@ -1318,6 +1307,7 @@ void instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
     e->update = default_update;
     e->visible = 1;
     model3dtx_add_entity(txm, e);
+    return e;
 }
 
 void create_entities(struct model3dtx *txmodel)

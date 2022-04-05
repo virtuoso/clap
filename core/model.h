@@ -260,8 +260,8 @@ void entity3d_add_physics(struct entity3d *e, double mass, int class, int type, 
 void create_entities(struct model3dtx *txmodel);
 
 struct instantiator;
-void instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
-                        bool randomize_yrot, float randomize_scale);
+struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
+                                    bool randomize_yrot, float randomize_scale);
 
 struct debug_draw {
     struct ref      ref;

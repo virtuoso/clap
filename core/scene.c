@@ -436,7 +436,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 bounce_vel = p->number_;
             else if (p->tag == JSON_NUMBER && !strcmp(p->key, "mass"))
                 mass = p->number_;
-            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "zoffset"))
+            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "yoffset"))
                 geom_off = p->number_;
             else if (p->tag == JSON_NUMBER && !strcmp(p->key, "radius"))
                 geom_radius = p->number_;
@@ -527,12 +527,19 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
         }
     } else {
         struct instantiator *instor, *iter;
+        struct entity3d *e;
 
         list_for_each_entry_iter(instor, iter, &scene->instor, entry) {
             if (!strcmp(txmodel_name(txm), instor->name)) {
-                instantiate_entity(txm, instor, true, 0.5);
+                e = instantiate_entity(txm, instor, true, 0.5);
                 list_del(&instor->entry);
                 free(instor);
+
+                if (phys) {
+                    entity3d_add_physics(e, mass, class, ptype, geom_off, geom_radius, geom_length);
+                    e->phys_body->bounce = bounce;
+                    e->phys_body->bounce_vel = bounce_vel;
+                }
             }
         }
     }
