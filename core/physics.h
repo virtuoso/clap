@@ -50,6 +50,8 @@ struct phys_body {
 struct phys {
     dWorldID    world;
     dSpaceID    space;
+    dSpaceID    character_space;
+    dSpaceID    ground_space;
     dSpaceID    collision;
     darray(dGeomID, ground);
     dJointGroupID contact;

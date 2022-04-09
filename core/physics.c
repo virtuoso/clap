@@ -340,14 +340,27 @@ retry:
     return target;
 }
 
+struct contact {
+    dContact *contact;
+    int nc;
+};
+
+static void got_contact(void *data, dGeomID o1, dGeomID o2)
+{
+    struct contact *c = data;
+    dContact contact;
+
+    phys_contact_surface(dGeomGetData(o1), dGeomGetData(o2), c->contact ? c->contact : &contact, 1);
+    c->nc = dCollide(o1, o2, 1, c->contact ? &c->contact->geom : &contact.geom, sizeof(dContact));
+}
+
 bool phys_body_is_grounded(struct phys_body *body)
 {
     struct entity3d *e = phys_body_entity(body);
     dVector3 dir = { 0, -1, 0 };
-    dContact contact;
     dGeomID ray, *ground;
     const dReal *pos, epsilon = 1e-3;
-    int nc;
+    struct contact contact = {};
 
     if (!phys_body_has_body(body))
         return true;
@@ -355,26 +368,17 @@ bool phys_body_is_grounded(struct phys_body *body)
     if (!dJointGetBody(body->lmotor, 0))
         return false;
 
-    darray_for_each(ground, &phys->ground) {
-        phys_contact_surface(e, dGeomGetData(*ground), &contact, 1);
-        nc = dCollide(body->geom, *ground, 1, &contact.geom, sizeof(dContact));
-        if (nc)
-            return true;
-    }
+    dSpaceCollide2(body->geom, (dGeomID)phys->ground_space, &contact, &got_contact);
+    if (contact.nc)
+        return true;
 
     pos = phys_body_position(body);
     ray = dCreateRay(phys->space, body->yoffset - body->ray_off + epsilon);
     dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
-    darray_for_each(ground, &phys->ground) {
-    //dGeomSetBody(ray, body->body);
-    phys_contact_surface(e, dGeomGetData(*ground), &contact, 1);
-        nc = dCollide(ray, *ground, 1, &contact.geom, sizeof(dContact));
-        if (nc)
-            break;
-    }
+    dSpaceCollide2(ray, (dGeomID)phys->ground_space, &contact, got_contact);
     dGeomDestroy(ray);
 
-    return !!nc;
+    return !!contact.nc;
 }
 
 bool phys_body_ground_collide(struct phys_body *body)
@@ -385,9 +389,9 @@ bool phys_body_ground_collide(struct phys_body *body)
     dVector3 dir = { 0, -1, 0 };
     //struct character *ch = e->priv;
     dContact contact;
+    struct contact c = { .contact = &contact };
     dGeomID ray, *ground;
     const dReal *pos;
-    int nc;
 
     if (!phys_body_has_body(body))
         return true;
@@ -406,33 +410,32 @@ bool phys_body_ground_collide(struct phys_body *body)
      *   1: maybe phys->ground should be a space instead? phys->collisions?
      *      then, we can use dSpaceCollide()
      */
-    darray_for_each(ground, &phys->ground) {
-        nc = dCollide(body->geom, *ground, 1, &contact.geom, sizeof(dContact));
-        if (nc) {
-            //dbg("body '%s' penetrates ground\n", entity_name(e));
-            entity3d_move(e, 0, /*body->yoffset + */contact.geom.depth, 0);
-            phys_body_stick(body, &contact);
-            //return true;
-        }
-
-        pos = phys_body_position(body);
-        ray = dCreateRay(phys->space, ray_len);
-        dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
-        //dGeomSetBody(ray, body->body);
-        nc = dCollide(ray, *ground, 1, &contact.geom, sizeof(dContact));
-        dGeomDestroy(ray);
-        if (nc)
-            goto got_it;
+    dSpaceCollide2(body->geom, (dGeomID)phys->ground_space, &c, got_contact);
+    if (c.nc) {
+        //dbg("body '%s' penetrates ground\n", entity_name(e));
+        entity3d_move(e, 0, /*body->yoffset + */c.contact->geom.depth, 0);
+        phys_body_stick(body, c.contact);
+        //return true;
     }
+
+    pos = phys_body_position(body);
+    ray = dCreateRay(phys->space, ray_len);
+    dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
+    //dGeomSetBody(ray, body->body);
+    // nc = dCollide(ray, *ground, 1, &contact.geom, sizeof(dContact));
+    dSpaceCollide2(ray, (dGeomID)phys->ground_space, &c, got_contact);
+    dGeomDestroy(ray);
+    if (c.nc)
+        goto got_it;
 
     return false;
 
 got_it:
-    if (ray_len - contact.geom.depth > epsilon) {
+    if (ray_len - c.contact->geom.depth > epsilon) {
         // dbg("RAY '%s' collides with %s at %f/%f normal %f,%f,%f\n", entity_name(e), class_str(dGeomGetClass(contact.geom.g2)),
         //     contact.geom.depth, ray_len,
         //     contact.geom.normal[0], contact.geom.normal[1], contact.geom.normal[2]);
-        entity3d_move(e, 0, ray_len - contact.geom.depth, 0);
+        entity3d_move(e, 0, ray_len - c.contact->geom.depth, 0);
     }
     phys_body_stick(e->phys_body, &contact);
 
@@ -450,7 +453,8 @@ void phys_step(unsigned long frame_count)
     //     }
     // }
 
-    dSpaceCollide(phys->space, &pen, near_callback);
+    dSpaceCollide2((dGeomID)phys->ground_space, (dGeomID)phys->character_space,
+                   &pen, near_callback);
 
     list_for_each_entry_iter(pb, itpb, &pen, pen_entry) {
         const dReal     *pos = phys_body_position(pb);
@@ -489,8 +493,7 @@ void phys_step(unsigned long frame_count)
     }
 
     /* XXX: quick step fails in quickstep.cpp:3267 */
-    // dWorldQuickStep(phys->world, 0.01 * frame_count);
-    dWorldStep(phys->world, 0.01 * frame_count);
+    dWorldQuickStep(phys->world, 0.01 * frame_count);
     dJointGroupEmpty(phys->contact);
 }
 
@@ -713,6 +716,8 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
             dRFromAxisAndAngle(R, 1.0, 1.0, 1.0, -M_PI * 2.0 / 3.0);
             dGeomSetOffsetRotation(body->geom, R);
         }
+        dSpaceRemove(phys->space, body->geom);
+        dSpaceAdd(phys->character_space, body->geom);
     } else {
         dGeomSetPosition(body->geom, entity->dx, entity->dy + body->yoffset, entity->dz);
         if (class == dCapsuleClass) {
@@ -724,6 +729,8 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         }
         
         dGeomSetRotation(body->geom, rot);
+        dSpaceRemove(phys->space, body->geom);
+        dSpaceAdd(phys->ground_space, body->geom);
     }
     dGeomSetData(body->geom, entity);
     list_append(&phys_bodies, &body->entry);
@@ -757,17 +764,19 @@ void phys_body_done(struct phys_body *body)
 static void ode_error(int errnum, const char *msg, va_list ap)
 {
     vlogg(ERR, "ODE", -1, "", msg, ap);
+    vlogg(ERR, "ODE", -1, "\n", msg, ap);
 }
 
 static void ode_debug(int errnum, const char *msg, va_list ap)
 {
     vlogg(DBG, "ODE", -1, "", msg, ap);
+    vlogg(DBG, "ODE", -1, "\n", msg, ap);
     abort();
 }
 
 static void ode_message(int errnum, const char *msg, va_list ap)
 {
-    vlogg(NORMAL, "ODE", -1, "", msg, ap);
+    vlogg(NORMAL, "ODE", -1, "\n", msg, ap);
 }
 
 int phys_init(void)
@@ -780,6 +789,8 @@ int phys_init(void)
     phys->world = dWorldCreate();
     phys->space = dHashSpaceCreate(0);
     phys->collision = dHashSpaceCreate(phys->space);
+    phys->character_space = dHashSpaceCreate(phys->space);
+    phys->ground_space = dHashSpaceCreate(phys->space);
     phys->contact = dJointGroupCreate(0);
     dWorldSetGravity(phys->world, 0, -9.8, 0);
     // dWorldSetCFM(phys->world, 1e-5);
@@ -794,6 +805,8 @@ int phys_init(void)
 void phys_done(void)
 {
     darray_clearout(&phys->ground.da);
+    dSpaceDestroy(phys->ground_space);
+    dSpaceDestroy(phys->character_space);
     dSpaceDestroy(phys->collision);
     dSpaceDestroy(phys->space);
     dWorldDestroy(phys->world);
