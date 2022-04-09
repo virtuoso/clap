@@ -1171,23 +1171,43 @@ static void animated_update(struct entity3d *e)
         e->ani_frame = 0;
 }
 
+static bool needs_update(struct entity3d *e)
+{
+    /*
+     * Cache TRS data, this should cut out a lot of matrix multiplications
+     * especially on stationaly entities.
+     */
+    if (e->dx != e->_dx ||
+        e->dy != e->_dy ||
+        e->dz != e->_dz ||
+        e->rx != e->_rx ||
+        e->ry != e->_ry ||
+        e->rz != e->_rz ||
+        e->scale != e->_scale) {
+        e->_dx = e->dx;
+        e->_dy = e->dy;
+        e->_dz = e->dz;
+        e->_rx = e->rx;
+        e->_ry = e->ry;
+        e->_rz = e->rz;
+        e->_scale = e->scale;
+        return true;
+    }
+    return false;
+}
+
 static int default_update(struct entity3d *e, void *data)
 {
     struct scene *scene = data;
 
-    mat4x4_identity(e->mx->m);
-    // phys_body_update(e);
-    // if (e->dy <= scene->limbo_height && e->phys_body) {
-    //     phys_body_done(e->phys_body);
-    //     e->phys_body = NULL;
-    //     dbg("entity '%s' lost its physics\n", entity_name(e));
-    // }
-    //struct scene *scene = data;
-    mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
-    mat4x4_rotate_X(e->mx->m, e->mx->m, e->rx);
-    mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
-    mat4x4_rotate_Z(e->mx->m, e->mx->m, e->rz);
-    mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
+    if (needs_update(e)) {
+        mat4x4_identity(e->mx->m);
+        mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
+        mat4x4_rotate_X(e->mx->m, e->mx->m, e->rx);
+        mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
+        mat4x4_rotate_Z(e->mx->m, e->mx->m, e->rz);
+        mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
+    }
     if (entity_animated(e))
         animated_update(e);
     //if (e->phys_body)
