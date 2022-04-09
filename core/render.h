@@ -35,10 +35,14 @@ static inline bool __gl_check_error(const char *str)
     return false;
 }
 
+#ifdef CLAP_DEBUG
 #define GL(__x) do {                    \
     __x;                                \
     __gl_check_error(__stringify(__x)); \
 } while (0)
+#else
+#define GL(__x) __x
+#endif
 
 int texture_init(texture_t *tex);
 int texture_init_target(texture_t *tex, GLuint target);
