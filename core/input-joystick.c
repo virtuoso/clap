@@ -33,29 +33,38 @@ enum {
     JB_NONE
 };
 
-static inline bool jb_press(int state)
+static inline unsigned int to_press(int state)
 {
     return state == JB_PRESS;
 }
 
-static inline bool jb_hold(int state)
+static inline unsigned int to_hold(int state)
 {
     return state == JB_HOLD;
 }
 
-static inline bool jb_release(int state)
+static inline unsigned int to_release(int state)
 {
     return state == JB_RELEASE;
 }
 
-static inline bool jb_press_hold(int state)
+static inline unsigned int to_press_hold(int state)
 {
-    return jb_press(state) || jb_hold(state);
+    return to_press(state) || to_hold(state);
 }
 
 static inline bool jb_press_release(int state)
 {
-    return jb_press(state) || jb_release(state);
+    return to_press(state) || to_release(state);
+}
+
+static inline unsigned int to_press_release(int state)
+{
+    if (state == JB_RELEASE)
+        return 2;
+    if (state == JB_PRESS)
+        return  1;
+    return 0;
 }
 
 static inline bool joystick_present(int joy)
@@ -147,10 +156,6 @@ void joystick_name_update(int joy, const char *name)
     joys[joy].msg_src.name = joys[joy].name;
 }
 
-struct joy_map {
-
-};
-
 /* XXX big fat XXX */
 #ifdef CONFIG_BROWSER
 #define AXIS_LX 0
@@ -203,6 +208,32 @@ struct joy_map {
 #define BTN_STICKR GLFW_GAMEPAD_BUTTON_RIGHT_THUMB
 #endif
 
+struct joy_map {
+    int         offset;
+    unsigned int (*setter)(int state);
+};
+
+#define JOY_MAP(_setter, _field) \
+    { .setter = _setter, .offset = offsetof(struct message_input, _field) }
+
+struct joy_map joy_map[] = {
+    [BTN_LEFT]  = JOY_MAP(to_press_release, left),
+    [BTN_RIGHT] = JOY_MAP(to_press_release, right),
+    [BTN_UP]    = JOY_MAP(to_press_release, up),
+    [BTN_DOWN]  = JOY_MAP(to_press_release, down),
+    [BTN_PADB]  = JOY_MAP(to_press,         pad_b),
+    [BTN_PADA]  = JOY_MAP(to_press,         pad_a),
+    [BTN_PADX]  = JOY_MAP(to_press,         pad_x),
+    [BTN_PADY]  = JOY_MAP(to_press,         pad_y),
+    [BTN_PADLB] = JOY_MAP(to_press,         pad_lb),
+    [BTN_PADRB] = JOY_MAP(to_press,         pad_rb),
+    [BTN_PADLT] = JOY_MAP(to_press_hold,    pad_lt),
+    [BTN_PADRT] = JOY_MAP(to_press_hold,    pad_rt),
+    [BTN_MINUS] = JOY_MAP(to_press_hold,    pad_min),
+    [BTN_PLUS]  = JOY_MAP(to_press_hold,    pad_plus),
+    [BTN_HOME]  = JOY_MAP(to_press_hold,    pad_home),
+};
+
 void joysticks_poll(void)
 {
     struct message_input mi;
@@ -224,31 +255,6 @@ void joysticks_poll(void)
                 if (fabs(j->axes[t] - j->axes_init[t]) < 0.2)
                     continue;
 
-                /* axis have better resolution, but hats are faster */
-                /*if (j->axes[t] > j->axes_init[t]) {
-                    switch (t) {
-                    case 1:
-                        mi.down = 1;
-                        break;
-                    case 0:
-                        mi.right = 1;
-                        break;
-                    default:
-                        break;
-                    }
-                }
-                if (j->axes[t] < j->axes_init[t]) {
-                    switch (t) {
-                    case 1:
-                        mi.up = 1;
-                        break;
-                    case 0:
-                        mi.left = 1;
-                        break;
-                    default:
-                        break;
-                    }
-                }*/
                 switch (t) {
                 case AXIS_LX:
                     mi.delta_lx = j->axes[t] - j->axes_init[t];
@@ -294,53 +300,23 @@ void joysticks_poll(void)
              * only apply to some subscribers (like, "player") and not
              * the others (like, "ui"). Here's another todo.
              */
-            if (t == BTN_LEFT && jb_press_release(state))
-                mi.left = jb_press(state) ? 1 : 2;
-            if (t == BTN_RIGHT && jb_press_release(state))
-                mi.right = jb_press(state) ? 1 : 2;
-            if (t == BTN_DOWN && jb_press_release(state))
-                mi.down = jb_press(state) ? 1 : 2;
-            if (t == BTN_UP && jb_press_release(state))
-                mi.up = jb_press(state) ? 1 : 2;
-            if (t == BTN_PADB && jb_press_hold(state))
-                mi.pad_b = 1;
-            if (t == BTN_PADA && jb_press_hold(state))
-                mi.pad_a = 1;
-            if (t == BTN_PADX && jb_press_hold(state))
-                mi.pad_x = 1;
-            if (t == BTN_PADY && jb_press_hold(state))
-                mi.pad_y = 1;
-            if (t == BTN_PADLB && jb_press_hold(state))
-                mi.pad_lb = 1;
-            if (t == BTN_PADRB && jb_press_hold(state))
-                mi.pad_rb = 1;
-            if (t == BTN_PADLT && jb_press_hold(state))
-                mi.pad_lt = 1;
-            if (t == BTN_PADRT && jb_press_hold(state))
-                mi.pad_rt = 1;
-            if (t == BTN_MINUS && jb_press_hold(state))
-                mi.pad_min = 1;
-            if (t == BTN_PLUS && jb_press_hold(state))
-                mi.pad_plus = 1;
-            if (t == BTN_HOME && jb_press_hold(state))
-                mi.pad_home = 1;
-            if (t == BTN_STICKL && jb_press(state))
-                mi.stick_l = 1;
-            if (t == BTN_STICKR && jb_press(state))
-                mi.stick_r = 1;
+            if (t < array_size(joy_map) && joy_map[t].setter && state != JB_NONE) {
+                unsigned char *val = (void *)&mi + joy_map[t].offset;
+                *val = joy_map[t].setter(state);
+            }
 
             if (mi.pad_lt && j->abuttons[BTN_PADLT])
                 mi.trigger_l = j->abuttons[BTN_PADLT];
             if (mi.pad_rt && j->abuttons[BTN_PADRT])
                 mi.trigger_r = j->abuttons[BTN_PADRT];
 
-            if (mi.pad_plus && jb_press(state))
+            if (mi.pad_plus && to_press(state))
                 mi.menu_toggle = 1;
-            if (mi.pad_min && jb_press(state))
+            if (mi.pad_min && to_press(state))
                 mi.inv_toggle = 1;
-            if (mi.pad_a && jb_press(state))
+            if (mi.pad_a && to_press(state))
                 mi.enter = 1;
-            if (mi.pad_b && jb_press(state))
+            if (mi.pad_b && to_press(state))
                 mi.back = 1;
             if (state != JB_NONE)
                 count++;
