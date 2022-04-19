@@ -987,9 +987,9 @@ static void vec3_interp(vec3 res, vec3 a, vec3 b, float fac)
 {
     float rfac = 1.f - fac;
 
-    res[0] = fac * a[0] + rfac * b[0];
-    res[1] = fac * a[1] + rfac * b[1];
-    res[2] = fac * a[2] + rfac * b[2];
+    res[0] = rfac * a[0] + fac * b[0];
+    res[1] = rfac * a[1] + fac * b[1];
+    res[2] = rfac * a[2] + fac * b[2];
 }
 
 static void quat_interp(quat res, quat a, quat b, float fac)
