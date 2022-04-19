@@ -1037,22 +1037,22 @@ static void channel_transform(struct entity3d *e, struct channel *chan, float ti
 
     switch (chan->path) {
     case PATH_TRANSLATION: {
-        vec3 *p_pos = p_data, *n_pos = n_data, interp;
+        vec3 *p_pos = p_data, *n_pos = n_data;
 
-        vec3_interp(interp, *p_pos, *n_pos, fac);
-        memcpy(joint->translation, interp, chan->stride);
+        vec3_interp(joint->translation, *p_pos, *n_pos, fac);
         break;
     }
     case PATH_ROTATION: {
-        quat *n_rot = n_data, *p_rot = p_data, interp;
+        quat *n_rot = n_data, *p_rot = p_data;
 
-        quat_interp(interp, *p_rot, *n_rot, fac);
-        memcpy(joint->rotation, interp, chan->stride);
+        quat_interp(joint->rotation, *p_rot, *n_rot, fac);
         break;
     }
-    case PATH_SCALE:
-        memcpy(joint->scale, p_data, chan->stride);
+    case PATH_SCALE: {
+        vec3 *n_scale = n_data, *p_scale = p_data;
+        vec3_interp(joint->scale, *p_scale, *n_scale, fac);
         break;
+    }
     }
 }
 
