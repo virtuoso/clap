@@ -1011,6 +1011,40 @@ static void quat_interp(quat res, quat a, quat b, float fac)
         res[1] = rfac * a[1] + fac * b[1];
         res[2] = rfac * a[2] + fac * b[2];
     }
+    quat_norm(res, res);
+}
+
+/*
+ * Lifted verbatim from
+ * https://nicedoc.io/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_007_Animations.md#linear
+ */
+static void quat_slerp(quat res, quat a, quat b, float fac)
+{
+    float dot = quat_dot(a, b);
+    quat _b;
+
+    memcpy(_b, b, sizeof(_b));
+    if (dot < 0.0) {
+        int i;
+        dot = -dot;
+        for (i = 0; i < 4; i++) _b[i] = -b[i];
+    }
+    if (dot > 0.9995) {
+        quat_interp(res, a, _b, fac);
+        return;
+    }
+
+    float theta_0 = acos(dot);
+    float theta = fac * theta_0;
+    float sin_theta = sin(theta);
+    float sin_theta_0 = sin(theta_0);
+
+    float _rfac = cos(theta) - dot * sin_theta / sin_theta_0;
+    float _fac = sin_theta / sin_theta_0;
+    quat scaled_a, scaled_b;
+    quat_scale(scaled_a, a, _rfac);
+    quat_scale(scaled_b, _b, _fac);
+    quat_add(res, scaled_a, scaled_b);
 }
 
 static void channel_transform(struct entity3d *e, struct channel *chan, float time)
@@ -1045,7 +1079,7 @@ static void channel_transform(struct entity3d *e, struct channel *chan, float ti
     case PATH_ROTATION: {
         quat *n_rot = n_data, *p_rot = p_data;
 
-        quat_interp(joint->rotation, *p_rot, *n_rot, fac);
+        quat_slerp(joint->rotation, *p_rot, *n_rot, fac);
         break;
     }
     case PATH_SCALE: {
