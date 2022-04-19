@@ -66,8 +66,9 @@ struct animation {
 struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels);
 void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
                            size_t data_stride, unsigned int target, unsigned int path);
-void animation_start(struct entity3d *e, int ani);
-void animation_start_by_name(struct entity3d *e, const char *name);
+void animation_start(struct entity3d *e, unsigned long start_frame, int ani);
+void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
+                            bool clear, bool repeat);
 
 #define LOD_MAX 4
 struct model3d {
@@ -196,6 +197,12 @@ enum color_pt {
     COLOR_PT_ALL,
 };
 
+struct queued_animation {
+    int             animation;
+    bool            repeat;
+    unsigned long   delay;
+};
+
 struct entity3d {
     struct model3dtx *txmodel;
     struct matrix4f  *mx;
@@ -205,6 +212,7 @@ struct entity3d {
     unsigned int     visible;
     unsigned int     ani_frame;
     int              animation;
+    darray(struct queued_animation, aniq);
     /* these both have model->nr_joints elements */
     struct joint     *joints;
     mat4x4           *joint_transforms;
@@ -259,7 +267,7 @@ void create_entities(struct model3dtx *txmodel);
 
 struct instantiator;
 struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
-                                    bool randomize_yrot, float randomize_scale);
+                                    bool randomize_yrot, float randomize_scale, struct scene *scene);
 
 struct debug_draw {
     struct ref      ref;

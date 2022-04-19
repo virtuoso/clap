@@ -1138,7 +1138,7 @@ static void one_joint_transform(struct entity3d *e, int joint, int parent)
         one_joint_transform(e, *child, joint);
 }
 
-void animation_start(struct entity3d *e, int ani)
+void animation_start(struct entity3d *e, unsigned long start_frame, int ani)
 {
     struct model3d *model = e->txmodel->model;
     struct animation *an;
@@ -1155,8 +1155,7 @@ void animation_start(struct entity3d *e, int ani)
         chan = &an->channels[ch];
         e->joints[chan->target].off[chan->path] = 0;
     }
-    e->ani_frame = 0;
-    e->animation = ani;
+    e->ani_frame = start_frame;
 }
 
 int animation_by_name(struct model3d *m, const char *name)
@@ -1169,41 +1168,66 @@ int animation_by_name(struct model3d *m, const char *name)
     return -1;
 }
 
-void animation_start_by_name(struct entity3d *e, const char *name)
+static struct queued_animation *ani_current(struct entity3d *e)
 {
-    int id = animation_by_name(e->txmodel->model, name);
-    if (id < 0)
-        id = 0;
-    if (e->animation == id)
-        return;
-    animation_start(e, id);
+    if (e->animation >= e->aniq.da.nr_el)
+        return NULL;
+    return &e->aniq.x[e->animation];
 }
 
-#define FRAMERATE 24
-static void animated_update(struct entity3d *e)
+static void animation_next(struct entity3d *e, struct scene *s)
+{
+    struct queued_animation *qa;
+
+    if (!e->aniq.da.nr_el || e->animation < 0) {
+        animation_push_by_name(e, s, "boink shrugged", true, true);
+        return;
+    }
+    qa = ani_current(e);
+    if (!qa->repeat) {
+        e->animation = (e->animation + 1) % e->aniq.da.nr_el;
+        qa = ani_current(e);
+    }
+    animation_start(e, s->frames_total, qa->animation);
+}
+
+void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
+                            bool clear, bool repeat)
+{
+    struct queued_animation *qa;
+    int id = animation_by_name(e->txmodel->model, name);
+
+    if (id < 0)
+        id = 0;
+
+    if (clear)
+        darray_clearout(&e->aniq.da);
+    qa = darray_add(&e->aniq.da);
+    qa->animation = id;
+    qa->repeat = repeat;
+    if (clear) {
+        animation_start(e, s->frames_total, id);
+        e->animation = 0;
+    }
+}
+
+static void animated_update(struct entity3d *e, struct scene *s)
 {
     struct model3d *model = e->txmodel->model;
+    struct queued_animation *qa;
     struct animation *an;
+    unsigned long framerate = gl_refresh_rate();
     int i;
 
     if (e->animation < 0)
-        animation_start_by_name(e, "boink shrugged");
-    an = &model->anis.x[e->animation];
-    for (i = 0; i < model->nr_joints; i++) {
-        memset(e->joints[i].translation, 0, sizeof(vec3));
-        e->joints[i].rotation[0] = 0;
-        e->joints[i].rotation[1] = 0;
-        e->joints[i].rotation[2] = 0;
-        e->joints[i].rotation[3] = 1;
-        e->joints[i].scale[0] = 1;
-        e->joints[i].scale[1] = 1;
-        e->joints[i].scale[2] = 1;
-    }
-    channels_transform(e, an, (float)e->ani_frame / (float)FRAMERATE);
+        animation_next(e, s);
+    qa = ani_current(e);
+    an = &model->anis.x[qa->animation];
+    channels_transform(e, an, (float)(s->frames_total - e->ani_frame) / framerate);
     one_joint_transform(e, 0, -1);
 
-    if (++e->ani_frame >= an->time_end * FRAMERATE)
-        e->ani_frame = 0;
+    if (s->frames_total - e->ani_frame >= an->time_end * framerate)
+        animation_next(e, s);
 }
 
 static bool needs_update(struct entity3d *e)
@@ -1244,7 +1268,7 @@ static int default_update(struct entity3d *e, void *data)
         mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
     }
     if (entity_animated(e))
-        animated_update(e);
+        animated_update(e, scene);
     //if (e->phys_body)
     //    phys_debug_draw(e->phys_body);
 
@@ -1262,7 +1286,8 @@ static void entity3d_drop(struct ref *ref)
     trace("dropping entity3d\n");
     list_del(&e->entry);
     ref_put(e->txmodel);
-    
+
+    darray_clearout(&e->aniq.da);
     if (e->phys_body) {
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
@@ -1299,6 +1324,7 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
         CHECK(e->joints = calloc(model->nr_joints, sizeof(*e->joints)));
         CHECK(e->joint_transforms = calloc(model->nr_joints, sizeof(mat4x4)));
     }
+    darray_init(&e->aniq);
     e->animation = -1;
 
     return e;
@@ -1347,7 +1373,7 @@ void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
 }
 
 struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
-                                    bool randomize_yrot, float randomize_scale)
+                                    bool randomize_yrot, float randomize_scale, struct scene *scene)
 {
     struct entity3d *e = entity3d_new(txm);
     e->scale = 1.0;
@@ -1358,7 +1384,7 @@ struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *
         e->ry = drand48() * 360;
     if (randomize_scale)
         e->scale = 1 + randomize_scale * (1 - drand48() * 2);
-    default_update(e, NULL);
+    default_update(e, scene);
     e->update = default_update;
     e->visible = 1;
     model3dtx_add_entity(txm, e);

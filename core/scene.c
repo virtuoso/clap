@@ -531,7 +531,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 
         list_for_each_entry_iter(instor, iter, &scene->instor, entry) {
             if (!strcmp(txmodel_name(txm), instor->name)) {
-                e = instantiate_entity(txm, instor, true, 0.5);
+                e = instantiate_entity(txm, instor, true, 0.5, scene);
                 list_del(&instor->entry);
                 free(instor);
 

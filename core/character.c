@@ -304,7 +304,10 @@ void character_move(struct character *ch, struct scene *s)
 
         }
         ch->moved++;
-        animation_start_by_name(ch->entity, "boink skate");
+        if (anictl_set_state(&ch->anictl, 1)) {
+            animation_push_by_name(ch->entity, s, "boink skate start", true, false);
+            animation_push_by_name(ch->entity, s, "boink skate", false, true);
+        }
     } else if (body) {
         // vec3_scale(ch->angle, ch->angle, 0.5);
         ch->angle[0] = 0;
@@ -313,7 +316,10 @@ void character_move(struct character *ch, struct scene *s)
         dJointSetLMotorParam(body->lmotor, dParamVel1, ch->angle[0]);
         dJointSetLMotorParam(body->lmotor, dParamVel2, ch->angle[1]);
         dJointSetLMotorParam(body->lmotor, dParamVel3, ch->angle[2]);
-        animation_start_by_name(ch->entity, "boink shrugged");
+        if (anictl_set_state(&ch->anictl, 0)) {
+            animation_push_by_name(ch->entity, s, "boink skate end", true, false);
+            animation_push_by_name(ch->entity, s, "boink shrugged", false, true);
+        }
     }
 
     if (body)

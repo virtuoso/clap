@@ -2,6 +2,7 @@
 #ifndef __CLAP_CHARACTER_H__
 #define __CLAP_CHARACTER_H__
 
+#include "anictl.h"
 #include "matrix.h"
 #include "messagebus.h"
 #include "model.h"
@@ -45,6 +46,7 @@ struct character {
     float   yaw_turn;
     float   pitch_turn;
     struct list entry;
+    struct anictl anictl;
     int     moved;
     int     ragdoll;
     int     stuck;
