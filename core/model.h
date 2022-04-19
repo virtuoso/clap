@@ -44,11 +44,6 @@ struct joint {
     int     off[PATH_NONE];
 };
 
-struct pose {
-    float   frame;
-    darray(struct joint, joints);
-};
-
 struct channel {
     float           *time;
     float           *data;

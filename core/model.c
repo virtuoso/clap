@@ -29,7 +29,6 @@ static void model3d_drop(struct ref *ref)
     struct model3d *m = container_of(ref, struct model3d, ref);
     struct animation *an;
     struct joint *joint;
-    struct pose *pose;
     int i;
 
     glDeleteBuffers(1, &m->vertex_obj);
