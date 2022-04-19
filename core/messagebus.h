@@ -27,47 +27,47 @@ enum message_source_type {
 };
 
 struct message_input {
-    unsigned long   left        : 2, /* 0 */
-                    right       : 2,
-                    down        : 2,
-                    up          : 2, // for the arrow keys, 1 means "press", 2 means "release".
-                    pad_a       : 1,
-                    pad_b       : 1,
-                    pad_x       : 1, /* 10 */
-                    pad_y       : 1,
-                    stick_l     : 1,
-                    stick_r     : 1,
-                    pad_lb      : 1,
-                    pad_rb      : 1,
-                    pad_lt      : 1,
-                    pad_rt      : 1,
-                    pad_min     : 1,
-                    pad_plus    : 1,
-                    pad_home    : 1,
-                    tab         : 1, /* 20 */
-                    enter       : 1,
-                    space       : 1,
-                    back        : 1,
-                    zoom        : 1,
-                    pitch_up    : 2,
-                    pitch_down  : 2,
-                    yaw_left    : 2, /* 30 */
-                    yaw_right   : 2,
-                    focus_next  : 1,
-                    focus_prev  : 1,
-                    focus_cancel: 1,
-                    verboser    : 1,
-                    autopilot   : 1,
-                    fullscreen  : 1,
-                    resize      : 1, /* 40 */
-                    volume_up   : 1,
-                    volume_down : 1,
-                    menu_toggle : 1,
-                    inv_toggle  : 1,
-                    mouse_move  : 1,
-                    mouse_click : 1, /* 45 */
-                    exit        : 1,
-                    dash        : 1; /* 47 */
+    unsigned char   left;
+    unsigned char   right;
+    unsigned char   down;
+    unsigned char   up;
+    unsigned char   pad_a;
+    unsigned char   pad_b;
+    unsigned char   pad_x;
+    unsigned char   pad_y;
+    unsigned char   stick_l;
+    unsigned char   stick_r;
+    unsigned char   pad_lb;
+    unsigned char   pad_rb;
+    unsigned char   pad_lt;
+    unsigned char   pad_rt;
+    unsigned char   pad_min;
+    unsigned char   pad_plus;
+    unsigned char   pad_home;
+    unsigned char   tab;
+    unsigned char   enter;
+    unsigned char   space;
+    unsigned char   back;
+    unsigned char   zoom;
+    unsigned char   pitch_up;
+    unsigned char   pitch_down;
+    unsigned char   yaw_left;
+    unsigned char   yaw_right;
+    unsigned char   focus_next;
+    unsigned char   focus_prev;
+    unsigned char   focus_cancel;
+    unsigned char   verboser;
+    unsigned char   autopilot;
+    unsigned char   fullscreen;
+    unsigned char   resize;
+    unsigned char   volume_up;
+    unsigned char   volume_down;
+    unsigned char   menu_toggle;
+    unsigned char   inv_toggle;
+    unsigned char   mouse_move;
+    unsigned char   mouse_click;
+    unsigned char   exit;
+    unsigned char   dash;
     float           delta_lx;
     float           delta_ly;
     float           delta_rx;

@@ -2,55 +2,72 @@
 #include <GLFW/glfw3.h>
 #include "messagebus.h"
 #include "input.h"
+#include "input-keyboard.h"
 #include "logger.h"
-
-enum {
-    LEFT = 0,
-    RIGHT,
-    UP,
-    DOWN,
-    DASH,
-    PITCH_UP,
-    PITCH_DOWN,
-    YAW_LEFT,
-    YAW_RIGHT,
-    INVENTORY,
-    USE,
-};
 
 struct key_map {
     const char  *name;
     int         key;
-    int         map_to;
+    int         offset;
+    unsigned int (*setter)(unsigned int press);
 };
+
+static inline unsigned int is_release(unsigned int press)
+{
+    return press == KEY_RELEASE;
+}
+
+static inline unsigned int is_press(unsigned int press)
+{
+    return press == KEY_PRESS;
+}
+
+static inline unsigned int is_press_hold(unsigned int press)
+{
+    return press == KEY_PRESS || press == KEY_HOLD;
+}
+
+static inline unsigned int to_press_release(unsigned int press)
+{
+    if (is_press_hold(press))
+        return 1;
+    if (is_release(press))
+        return 2;
+    return 0;
+}
+
+#define KEY_NAME(_name, _setter, _field) \
+    { .name = _name, .setter = _setter, .offset = offsetof(struct message_input, _field) }
+#define KEY_VAL(_key, _setter, _field) \
+    { .key = _key, .setter = _setter, .offset = offsetof(struct message_input, _field) }
 
 #ifdef CONFIG_BROWSER
 static struct key_map key_map_wasd[] = {
-    { .name = "KeyA",       .map_to = LEFT },
-    { .name = "KeyD",       .map_to = RIGHT },
-    { .name = "KeyW",       .map_to = UP },
-    { .name = "KeyS",       .map_to = DOWN },
-    { .name = "ShiftLeft",  .map_to = DASH },
-    { .name = "ArrowUp",    .map_to = PITCH_UP },
-    { .name = "ArrowDown",  .map_to = PITCH_DOWN },
-    { .name = "ArrowLeft",  .map_to = YAW_LEFT },
-    { .name = "ArrowRight", .map_to = YAW_RIGHT },
-    { .name = "KeyQ",       .map_to = INVENTORY },
-    { .name = "KeyE",       .map_to = USE },
+    KEY_NAME("KeyA",       to_press_release, left),
+    KEY_NAME("KeyD",       to_press_release, right),
+    KEY_NAME("KeyW",       to_press_release, up),
+    KEY_NAME("KeyS",       to_press_release, down),
+    KEY_NAME("ShiftLeft",  is_press,         dash),
+    KEY_NAME("ArrowUp",    to_press_release, pitch_up),
+    KEY_NAME("ArrowDown",  to_press_release, pitch_down),
+    KEY_NAME("ArrowLeft",  to_press_release, yaw_left),
+    KEY_NAME("ArrowRight", to_press_release, yaw_right),
+    KEY_NAME("KeyQ",       is_press,         inv_toggle),
+    KEY_NAME("KeyE",       is_press,         pad_y),
 };
 #else
 static struct key_map key_map_wasd[] = {
-    { .key = GLFW_KEY_A, .map_to = LEFT },
-    { .key = GLFW_KEY_D, .map_to = RIGHT },
-    { .key = GLFW_KEY_W, .map_to = UP },
-    { .key = GLFW_KEY_S, .map_to = DOWN },
-    { .key = GLFW_KEY_LEFT_SHIFT, .map_to = DASH },
-    { .key = GLFW_KEY_UP,    .map_to = PITCH_UP },
-    { .key = GLFW_KEY_DOWN,  .map_to = PITCH_DOWN },
-    { .key = GLFW_KEY_LEFT,  .map_to = YAW_LEFT },
-    { .key = GLFW_KEY_RIGHT, .map_to = YAW_RIGHT },
-    { .key = GLFW_KEY_Q, .map_to = INVENTORY },
-    { .key = GLFW_KEY_E, .map_to = USE },
+    KEY_VAL(GLFW_KEY_A, to_press_release, left),
+    KEY_VAL(GLFW_KEY_D, to_press_release, right),
+    KEY_VAL(GLFW_KEY_W, to_press_release, up),
+    KEY_VAL(GLFW_KEY_S, to_press_release, down),
+    KEY_VAL(GLFW_KEY_LEFT_SHIFT, is_press,         dash),
+    KEY_VAL(GLFW_KEY_UP,    to_press_release, pitch_up),
+    KEY_VAL(GLFW_KEY_DOWN,  to_press_release, pitch_down),
+    KEY_VAL(GLFW_KEY_LEFT,  to_press_release, yaw_left),
+    KEY_VAL(GLFW_KEY_RIGHT, to_press_release, yaw_right),
+    KEY_VAL(GLFW_KEY_Q,     is_press,         inv_toggle),
+    KEY_VAL(GLFW_KEY_E,     is_press,         pad_y),
 };
 #endif
 
@@ -74,45 +91,8 @@ void key_event(struct message_source *src, unsigned int key_code, const char *ke
 found:
     memset(&mi, 0, sizeof(mi));
 
-    switch (key_map[i].map_to) {
-    case RIGHT:
-        mi.right = press;
-        break;
-    case LEFT:
-        mi.left = press;
-        break;
-    case DOWN:
-        mi.down = press;
-        break;
-    case UP:
-        mi.up = press;
-        break;
-    case DASH:
-        mi.dash = press == 1;
-        break;
-    case YAW_RIGHT:
-        mi.yaw_right = press;
-        break;
-    case YAW_LEFT:
-        mi.yaw_left = press;
-        break;
-    case PITCH_DOWN:
-        mi.pitch_down = press;
-        break;
-    case PITCH_UP:
-        mi.pitch_up = press;
-        break;
-    case INVENTORY:
-        if (press == 1)
-            mi.inv_toggle = 1;
-        break;
-    case USE:
-        if (press == 1)
-            mi.pad_y = 1;
-        break;
-    default:
-        return;
-    }
+    unsigned char *val = (void *)&mi + key_map[i].offset;
+    *val = key_map[i].setter(press);
     message_input_send(&mi, src);
 }
 

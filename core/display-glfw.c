@@ -204,11 +204,13 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
 
     switch (action) {
         case GLFW_REPEAT:
+            press = KEY_HOLD;
+            break;
         case GLFW_PRESS:
-            press = 1;
+            press = KEY_PRESS;
             break;
         case GLFW_RELEASE:
-            press = 2;
+            press = KEY_RELEASE;
             break;
     }
     memset(&mi, 0, sizeof(mi));

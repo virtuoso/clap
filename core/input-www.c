@@ -37,11 +37,13 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
 
     switch (eventType) {
         case EMSCRIPTEN_EVENT_KEYUP:
-            press = 2;
+            press = KEY_RELEASE;
             break;
         case EMSCRIPTEN_EVENT_KEYPRESS:
+            press = KEY_HOLD;
+            break;
         case EMSCRIPTEN_EVENT_KEYDOWN:
-            press = 1;
+            press = KEY_PRESS;
             break;
     }
 
