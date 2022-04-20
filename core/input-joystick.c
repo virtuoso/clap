@@ -232,6 +232,8 @@ struct joy_map joy_map[] = {
     [BTN_MINUS] = JOY_MAP(to_press_hold,    pad_min),
     [BTN_PLUS]  = JOY_MAP(to_press_hold,    pad_plus),
     [BTN_HOME]  = JOY_MAP(to_press_hold,    pad_home),
+    [BTN_STICKL] = JOY_MAP(to_press_hold,   stick_l),
+    [BTN_STICKR] = JOY_MAP(to_press_hold,   stick_r),
 };
 
 void joysticks_poll(void)
