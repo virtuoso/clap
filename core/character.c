@@ -25,12 +25,12 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
 
     /* left stick right/left/up/down */
     if (m->input.right == 1)
-        mctl->ls_right = mctl->lin_speed;
+        mctl->ls_right = 1;
     else if (m->input.right == 2)
         mctl->ls_right = 0;
 
     if (m->input.left == 1)
-        mctl->ls_left = mctl->lin_speed;
+        mctl->ls_left = 1;
     else if (m->input.left == 2)
         mctl->ls_left = 0;
 
@@ -38,12 +38,12 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
         mctl->ls_dx = mctl->lin_speed * m->input.delta_lx;
 
     if (m->input.up == 1)
-        mctl->ls_up = mctl->lin_speed;
+        mctl->ls_up = 1;
     else if (m->input.up == 2)
         mctl->ls_up = 0;
 
     if (m->input.down == 1)
-        mctl->ls_down = mctl->lin_speed;
+        mctl->ls_down = 1;
     else if (m->input.down == 2)
         mctl->ls_down = 0;
 
@@ -81,9 +81,9 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
 static void motion_compute_ls(struct motionctl *mctl)
 {
     if (mctl->ls_left || mctl->ls_right)
-        mctl->ls_dx = mctl->ls_right - mctl->ls_left;
+        mctl->ls_dx = (mctl->ls_right - mctl->ls_left) * mctl->lin_speed;
     if (mctl->ls_up || mctl->ls_down)
-        mctl->ls_dy = mctl->ls_down - mctl->ls_up;
+        mctl->ls_dy = (mctl->ls_down - mctl->ls_up) * mctl->lin_speed;
 }
 
 static void motion_compute_rs(struct motionctl *mctl)
