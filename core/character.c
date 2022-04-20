@@ -112,6 +112,7 @@ static void motion_reset(struct motionctl *mctl, struct scene *s)
     mctl->ang_speed = s->ang_speed;
     mctl->h_ang_speed = s->ang_speed * 1.5;
     mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
+    mctl->jump = mctl->rs_height = false;
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
@@ -119,44 +120,13 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     memcpy(&ch->mctl.ts, &s->ts, sizeof(ch->mctl.ts));
     motion_parse_input(&ch->mctl, m);
 
-    /*
-     * Only allow motion control when on the ground OR disembodied camera
-     */
-    if (character_is_grounded(s->control, s) || scene_character_is_camera(s, s->control)) {
-        if (s->control->entity) {
-            if (m->input.space || m->input.pad_x) {
-                struct phys_body *body = s->control->entity->phys_body;
-                motion_compute_ls(&ch->mctl);
-                float delta_x = ch->mctl.ls_dx;
-                float delta_z = ch->mctl.ls_dy;
-                float yawcos = cos(to_radians(s->camera->yaw));
-                float yawsin = sin(to_radians(s->camera->yaw));
-                float dx = delta_x * yawcos - delta_z * yawsin;
-                float dz = delta_x * yawsin + delta_z * yawcos;
-                vec3 jump = { dx * 1.3, 2.0, dz * 1.3 };
+    if (scene_character_is_camera(s, s->control) && m->input.trigger_l)
+        ch->mctl.rs_height = true;
 
-                if (body && phys_body_has_body(body)) {
-                    dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
-                    dJointAttach(body->lmotor, NULL, NULL);
-                    dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
-                }
-            }
-        }
-    }
+    if (!scene_character_is_camera(s, s->control) && (m->input.space || m->input.pad_x))
+        ch->mctl.jump = true;
 
     s->camera->zoom = !!(m->input.zoom);
-    motion_compute_rs(&ch->mctl);
-    if (ch->mctl.rs_dy) {
-        float delta = ch->mctl.rs_dy;
-
-        if (s->control == s->camera->ch && m->input.trigger_l)
-            s->camera->ch->motion[1] -= delta / s->ang_speed * s->lin_speed;
-        else
-            s->camera->pitch_turn = delta;
-    }
-    if (ch->mctl.rs_dx)
-        s->camera->yaw_turn = ch->mctl.rs_dx;
-    s->camera->ch->moved++;
 }
 
 bool character_is_grounded(struct character *ch, struct scene *s)
@@ -179,27 +149,39 @@ void character_move(struct character *ch, struct scene *s)
      */
     motion_compute_ls(&ch->mctl);
 
-    /*
-     * 1. Ray cast downwards
-     * 2. Find normal with terrain
-     * 3. Recalculate ch->motion in that space
-     * https://stackoverflow.com/questions/1023948/rotate-normal-vector-onto-axis-plane
-     */
-    //dRFromZAxis();
+    float delta_x = ch->mctl.ls_dx;
+    float delta_z = ch->mctl.ls_dy;
+    float yawcos = cos(to_radians(s->camera->yaw));
+    float yawsin = sin(to_radians(s->camera->yaw));
+
+    ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
 
     if (s->control == ch) {
-        float delta_x = ch->mctl.ls_dx;
-        float delta_z = ch->mctl.ls_dy;
-        
-        float yawcos = cos(to_radians(s->camera->yaw));
-        float yawsin = sin(to_radians(s->camera->yaw));
-        ch->motion[0] = delta_x * yawcos - delta_z * yawsin;
-        if (!scene_character_is_camera(s, ch))
-            ch->motion[1] = 0.0;
-        ch->motion[2] = delta_x * yawsin + delta_z * yawcos;
+        if (!ch->ragdoll && ch->mctl.jump) {
+            float dx = delta_x * yawcos - delta_z * yawsin;
+            float dz = delta_x * yawsin + delta_z * yawcos;
+            vec3 jump = { dx * 1.3, 2.0, dz * 1.3 };
+
+            if (body && phys_body_has_body(body)) {
+                dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
+                dJointAttach(body->lmotor, NULL, NULL);
+                dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
+            }
+        } else {
+            /*
+             * XXX: this allows motion controls while in the air,
+             * but without it (phys_body_ground_collide()==true), motion
+             * becomes much more restricted and less fun. The alternative
+             * is to set a higher epsilon in phys_body_ground_collide(),
+             * but that will have other side effects. For future cleanup.
+             */
+            ch->motion[0] = delta_x * yawcos - delta_z * yawsin;
+            if (!scene_character_is_camera(s, ch))
+                ch->motion[1] = 0.0;
+            ch->motion[2] = delta_x * yawsin + delta_z * yawcos;
+        }
     }
 
-    motion_reset(&ch->mctl, s);
     if (vec3_len(ch->motion)) {
         dVector3 newy = { ch->normal[0], ch->normal[1], ch->normal[2] };
         dVector3 oldx = { 1, 0, 0 };
@@ -343,7 +325,6 @@ void character_move(struct character *ch, struct scene *s)
 
     }
 
-    ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
     ch->entity->dy = ch->pos[1];
 
     ch->motion[0] = 0;
@@ -399,6 +380,21 @@ static int character_update(struct entity3d *e, void *data)
     struct scene     *s = data;
     int              ret;
 
+    motion_compute_rs(&c->mctl);
+    if (c->mctl.rs_dy) {
+        float delta = c->mctl.rs_dy;
+
+        if (c->mctl.rs_height)
+            s->camera->ch->motion[1] -= delta / s->ang_speed * s->lin_speed;
+        else
+            s->camera->pitch_turn = delta;
+        s->camera->ch->moved++;
+    }
+    if (c->mctl.rs_dx) {
+        s->camera->yaw_turn = c->mctl.rs_dx;
+        s->camera->ch->moved++;
+    }
+
     /* XXX "wow out" */
     if (e->dy <= s->limbo_height) {
         entity3d_position(e, e->dx, -e->dy, e->dz);
@@ -419,7 +415,7 @@ static int character_update(struct entity3d *e, void *data)
     character_camera_update(c);
 
     if (e->phys_body) {
-        if (!phys_body_is_grounded(e->phys_body)) {
+        if (c->ragdoll) {
             // dReal *rot = phys_body_rotation(e->phys_body);
             dMatrix3 rot;
 
@@ -441,14 +437,8 @@ static int character_update(struct entity3d *e, void *data)
             e->mx->cell[14] = c->pos[2];
             e->mx->cell[15] = 1;
             mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
-            c->ragdoll = 1;
         } else {
-            // dMatrix3 rot;
-            // vec3 n;
-
-            c->ragdoll = 0;
             entity3d_position(e, c->pos[0], c->pos[1], c->pos[2]);
-            // terrain_normal(s->terrain, c->pos[0], c->pos[2], n);
         }
     }
 
@@ -458,6 +448,8 @@ static int character_update(struct entity3d *e, void *data)
         /* update body position */
         //entity3d_position(e, e->dx, e->dy, e->dz);
     }
+
+    motion_reset(&c->mctl, s);
 
     // return 0;
     return c->ragdoll ? 0 : c->orig_update(e, data);

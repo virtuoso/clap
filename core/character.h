@@ -27,6 +27,8 @@ struct motionctl {
     float   rs_down;
     float   rs_dx;
     float   rs_dy;
+    bool    rs_height;
+    bool    jump;
 };
 
 struct character {
