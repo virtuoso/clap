@@ -103,6 +103,7 @@ struct gltf_node {
     struct list entry;
     int         mesh;
     int         skin;
+    unsigned int id;
     unsigned int nr_children;
     int         *ch_arr;
 };
@@ -480,7 +481,7 @@ static void nodes_print(struct gltf_data *gd, struct gltf_node *node, int level)
     int child;
 
     list_init(&node->children);
-    dbg("%.*s-> node '%s'\n", level, "----------", node->name);
+    dbg("%.*s-> node %d '%s'\n", level, "----------", node->id, node->name);
     for (child = 0; child < node->nr_children; child++) {
         nodes_print(gd, &gd->nodes.x[node->ch_arr[child]], level + 1);
         list_append(&node->children, &gd->nodes.x[node->ch_arr[child]].entry);
@@ -623,6 +624,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
     JsonNode *scenes, *scene, *skins, *anis;
     JsonNode *root = json_decode(h->buf);
     struct gltf_data *gd = data;
+    unsigned int nid;
     JsonNode *n;
 
     dbg("loading '%s'\n", h->name);
@@ -673,7 +675,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
     }
 
     /* Nodes */
-    for (n = nodes->children.head; n; n = n->next) {
+    for (n = nodes->children.head, nid = 0; n; n = n->next, nid++) {
         JsonNode *jname, *jmesh, *jskin, *jchildren, *jrot, *jtrans, *jscale;
         struct gltf_node *node;
 
@@ -692,6 +694,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
 
         CHECK(node = darray_add(&gd->nodes.da));
         node->name = strdup(jname->string_);
+        node->id = nid;
         if (jmesh && jmesh->tag == JSON_NUMBER)
             node->mesh = jmesh->number_;
         if (jskin && jskin->tag == JSON_NUMBER)
