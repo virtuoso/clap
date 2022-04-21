@@ -1052,7 +1052,9 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
         struct gltf_skin *s = &gd->skins.x[skin];
         mat4x4 *invmxs = s->invmxs;
         struct gltf_animation *ga;
+        struct gltf_node *node;
         struct animation *an;
+        mat4x4 root_pose;
         int err, i;
 
         err = model3d_add_skinning(gd->scene->_model,
@@ -1061,12 +1063,28 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
         if (err)
             goto no_skinning;
 
+        mat4x4_identity(root_pose);
+        darray_for_each(node, &gd->nodes) {
+            if (!strcmp(node->name, s->name)) {
+                if (vec4_len(node->rotation)) {
+                    mat4x4_from_quat(root_pose, node->rotation);
+                    root_pose[3][0] = node->translation[0];
+                    root_pose[3][1] = node->translation[1];
+                    root_pose[3][2] = node->translation[2];
+                    root_pose[3][3] = 1;
+                }
+                break;
+            }
+        }
+
         /* XXX: -> model.c */
+        memcpy(gd->scene->_model->root_pose, root_pose, sizeof(mat4x4));
+
         for (i = 0; i < s->nr_joints; i++) {
-            struct gltf_node *node = &gd->nodes.x[s->joints[i]];
             int ch;
 
-            gd->scene->_model->joints[i].name = strdup(gd->nodes.x[s->joints[i]].name);
+            node = &gd->nodes.x[s->joints[i]];
+            gd->scene->_model->joints[i].name = strdup(node->name);
 
             for (ch = 0; ch < node->nr_children; ch++) {
                 int *pchild = darray_add(&gd->scene->_model->joints[i].children.da);

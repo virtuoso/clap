@@ -85,6 +85,7 @@ struct model3d {
     int                 cur_lod;
     float               aabb[6];
     darray(struct animation, anis);
+    mat4x4              root_pose;
     GLuint              vao;
     GLuint              vertex_obj;
     GLuint              index_obj[LOD_MAX];

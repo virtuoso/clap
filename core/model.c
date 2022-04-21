@@ -1113,6 +1113,8 @@ static void one_joint_transform(struct entity3d *e, int joint, int parent)
 
     if (parent >= 0)
         parentjt = &e->joints[parent].global;
+    else
+        parentjt = &model->root_pose;
     if (parentjt)
         mat4x4_mul(*jt, *parentjt, *jt);
 
