@@ -249,7 +249,13 @@ static notrace void logger_append(struct logger *lg)
         lg->init();
 }
 
-static int log_floor = DBG;
+static int log_floor =
+#ifdef CONFIG_FINAL
+    WARN
+#else
+    DBG
+#endif
+;
 
 static int log_command_handler(struct message *m, void *data)
 {

@@ -39,7 +39,10 @@ struct ui ui;
 struct fbo *fbo;
 struct game_state game_state;
 
+#ifndef CONFIG_FINAL
 #define PROFILER
+#endif
+
 #ifdef PROFILER
 struct profile {
     struct timespec ts, diff;
@@ -123,7 +126,9 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 
     PROF_STEP(phys, start);
 
+#ifndef CONFIG_FINAL
     networking_poll();
+#endif
     PROF_STEP(net, phys);
 
     /*
@@ -171,6 +176,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     ui.frames_total += frame_count;
     gl_swap_buffers();
     PROF_STEP(end, ui);
+#ifndef CONFIG_FINAL
     ui_debug_printf(
         "phys:    %lu.%09lu\n"
         "net:     %lu.%09lu\n"
@@ -187,6 +193,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
         prof_end.diff.tv_sec, prof_end.diff.tv_nsec,
         count, ref_classes_get_string()
     );
+#endif
     debug_draw_clearout();
 }
 
@@ -359,6 +366,10 @@ int main(int argc, char **argv, char **envp)
             break;
 
         switch (c) {
+        case 'F':
+            fullscreen++;
+            break;
+#ifndef CONFIG_FINAL
         case 'A':
             scene.autopilot = 1;
             break;
@@ -368,15 +379,13 @@ int main(int argc, char **argv, char **envp)
         case 'R':
             do_restart++;
             break;
-        case 'F':
-            fullscreen++;
-            break;
         case 'E':
             abort_on_error++;
             break;
         case 'S':
             ncfg.server_ip = optarg;
             break;
+#endif /* CONFIG_FINAL */
         default:
             fprintf(stderr, "invalid option %x\n", c);
             exit(EXIT_FAILURE);
@@ -387,6 +396,7 @@ int main(int argc, char **argv, char **envp)
         cfg.quiet = 1;
     clap_init(&cfg, argc, argv, envp);
 
+#ifndef CONFIG_FINAL
     networking_init(&ncfg, CLIENT);
     if (do_restart) {
         networking_poll();
@@ -397,6 +407,7 @@ int main(int argc, char **argv, char **envp)
         clap_done(0);
         return EXIT_SUCCESS;
     }
+#endif
 
     print_each_class();
     gl_init("One Hand Clap", 1280, 720, renderFrame, &scene, resize_cb);

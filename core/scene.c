@@ -190,10 +190,12 @@ static void scene_camera_calc(struct scene *s, int camera)
     mat4x4_translate_in_place(s->cameras[camera].view_mx->m, -s->cameras[camera].ch->pos[0], -s->cameras[camera].ch->pos[1], -s->cameras[camera].ch->pos[2]);
 
     mat4x4_invert(s->cameras[camera].inv_view_mx->m, s->cameras[camera].view_mx->m);
+#ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
         gl_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
                  s->cameras[camera].ch->pos[0], s->cameras[camera].ch->pos[1], s->cameras[camera].ch->pos[2],
                  s->cameras[camera].pitch, s->cameras[camera].yaw);
+#endif
 }
 
 void scene_cameras_calc(struct scene *s)
@@ -235,10 +237,9 @@ static int scene_handle_input(struct message *m, void *data)
         m->input.exit);*/
     if (m->input.exit)
         gl_request_exit();
+#ifndef CONFIG_FINAL
     if (m->input.tab || m->input.stick_r)
         scene_control_next(s);
-    if (m->input.resize)
-        gl_resize(m->input.x, m->input.y);
     if (m->input.autopilot)
         s->autopilot ^= 1;
     if (m->input.focus_next)
@@ -247,6 +248,9 @@ static int scene_handle_input(struct message *m, void *data)
         scene_focus_prev(s);
     if (m->input.focus_cancel)
         scene_focus_cancel(s);
+#endif
+    if (m->input.resize)
+        gl_resize(m->input.x, m->input.y);
     if (m->input.fullscreen) {
         if (s->fullscreen)
             gl_leave_fullscreen();
@@ -256,6 +260,7 @@ static int scene_handle_input(struct message *m, void *data)
         trace("fullscreen: %d\n", s->fullscreen);
     }
 
+#ifndef CONFIG_FINAL
     if (m->input.verboser) {
         struct message m;
 
@@ -266,6 +271,7 @@ static int scene_handle_input(struct message *m, void *data)
         m.cmd.toggle_noise = 1;
         message_send(&m);
     }
+#endif
 
     character_handle_input(s->control, s, m);
     //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));

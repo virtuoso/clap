@@ -995,18 +995,20 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
 
 static const char *menu_items[] = {
     "HUD",
+#ifndef CONFIG_FINAL
     "Fullscreen",
     "PIP",
-#ifndef CONFIG_FINAL
     "Monitor",
     "Autopilot",
     "Fonts",
     "Network",
     "Devel",
-#endif
     "Settings",
+#endif
     "Help",
+#ifndef CONFIG_BROWSER
     "Exit"
+#endif
 };
 static void ui_menu_init(struct ui *ui)
 {
@@ -1498,7 +1500,9 @@ int ui_init(struct ui *ui, int width, int height)
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     uie1->on_click = build_onclick;
     //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
+#ifndef CONFIG_FINAL
     build_uit = ui_render_string(ui, font, uie1, build_date, color, 0);
+#endif
 
     health = ui_progress_new(ui);
     pocket = ui_pocket_new(ui); 
@@ -1519,7 +1523,9 @@ void ui_done(struct ui *ui)
     font_put(debug_font);
     if (uie0)
         ref_put(uie0);
+#ifndef CONFIG_FINAL
     ref_put_last(build_uit);
+#endif
     ref_put_last(uie1);
     if (display_fps && bottom_uit) {
         ref_put_last(bottom_uit);
