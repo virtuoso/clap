@@ -1182,7 +1182,14 @@ static void animation_next(struct entity3d *e, struct scene *s)
     struct queued_animation *qa;
 
     if (!e->aniq.da.nr_el || e->animation < 0) {
+        struct model3d *model = e->txmodel->model;
+        struct animation *an;
+
         animation_push_by_name(e, s, "boink shrugged", true, true);
+        /* randomize phase, should probably be in instantiate instead */
+        qa = ani_current(e);
+        an = &model->anis.x[qa->animation];
+        e->ani_frame = (long)s->frames_total - an->time_end * gl_refresh_rate() * drand48();
         return;
     }
     qa = ani_current(e);

@@ -211,8 +211,8 @@ struct entity3d {
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
-    unsigned int     ani_frame;
     int              animation;
+    long             ani_frame;
     darray(struct queued_animation, aniq);
     /* these both have model->nr_joints elements */
     struct joint     *joints;
