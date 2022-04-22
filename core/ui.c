@@ -814,14 +814,29 @@ static void inv_onfocus(struct ui_element *uie, bool focus)
     }
 }
 
+static void ui_element_children(struct ui_element *uie, struct list *list)
+{
+    struct ui_element *child, *iter;
+
+    list_for_each_entry_iter(child, iter, &uie->children, child_entry)
+        ui_element_children(child, list);
+    list_del(&uie->child_entry);
+    list_append(list, &uie->child_entry);
+}
+
 static void ui_widget_drop(struct ref *ref)
 {
     struct ui_widget *uiw = container_of(ref, struct ui_widget, ref);
     int i;
 
     for (i = 0; i < uiw->nr_uies; i++) {
+        struct ui_element *uie, *iter;
+        DECLARE_LIST(free_list);
+
         ref_put(uiw->texts[i]);
-        ref_put(uiw->uies[i]);
+        ui_element_children(uiw->uies[i], &free_list);
+        list_for_each_entry_iter(uie, iter, &free_list, child_entry)
+            ref_put(uie);
     }
     ref_put_last(uiw->root);
     free(uiw->texts);
