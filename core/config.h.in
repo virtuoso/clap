@@ -5,5 +5,5 @@
 #cmakedefine CONFIG_BROWSER "@CONFIG_BROWSER@"
 #cmakedefine CONFIG_GLES "@CONFIG_GLES@"
 #cmakedefine CONFIG_FINAL "@CONFIG_FINAL@"
-#define CONFIG_SERVER_IP "192.168.1.115"
+#cmakedefine CONFIG_SERVER_IP "@CONFIG_SERVER_IP@"
 #endif /* __CLAP_CONFIG_H__ */

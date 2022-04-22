@@ -3,6 +3,7 @@ project(clap)
 
 option(CLAP_BUILD_WITH_GLES BOOL OFF)
 option(CLAP_BUILD_FINAL BOOL OFF)
+set(CLAP_SERVER_IP "127.0.0.1" CACHE STRING "Server IP address")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
