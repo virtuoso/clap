@@ -737,7 +737,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
         } else {
             GL(glDisable(GL_BLEND));
         }
-        if (model->debug)
+        if (model->debug || !model->cull_face)
             GL(glDisable(GL_DEPTH_TEST));
         else
             GL(glEnable(GL_DEPTH_TEST));
