@@ -251,8 +251,7 @@ static int ui_model_init(struct ui *ui)
 
 struct ui_text {
     struct font         *font;
-    struct ui_element   *parent;
-    char                *str;
+    const char          *str;
     struct ui_element   *uietex;
     unsigned long       flags;
     unsigned int        nr_uies;
@@ -265,22 +264,7 @@ struct ui_text {
     unsigned int        *line_nrw; /* likewise */
     int                 width, height, y_off;
     int                 margin_x, margin_y;
-    struct ref          ref;
 };
-
-static void ui_text_drop(struct ref *ref)
-{
-    struct ui_text *uit = container_of(ref, struct ui_text, ref);
-    unsigned int    i;
-
-    trace("dropping ui_text\n");
-    texture_deinit(uit->uietex->entity->txmodel->texture);
-    ref_put_last(uit->uietex);
-    free(uit->str);
-}
-
-DECLARE_REFCLASS(ui_text);
-//#define UIT_REFLOW  1
 
 /*
  * TODO:
@@ -377,7 +361,7 @@ static struct model3dtx *ui_txm_find_by_texture(struct ui *ui, texture_t *tex)
     return NULL;
 }
 
-struct ui_text *
+struct ui_element *
 ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
                  const char *str, float *color, unsigned long flags)
 {
@@ -386,7 +370,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     struct ui_element   **uies;
     struct model3dtx    *txm, *txmtex;
     struct fbo          *fbo;
-    struct ui_text      *uit;
+    struct ui_text      uit = {};
     struct shader_prog  *prog;
     struct glyph        *glyph;
     struct model3d      *m;
@@ -396,51 +380,52 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     if (!flags)
         flags = UI_AF_VCENTER;
 
-    CHECK(uit       = ref_new(ui_text));
-    uit->flags      = flags;
-    uit->margin_x   = 10;
-    uit->margin_y   = 10;
-    uit->parent     = parent;
-    CHECK(uit->str  = strdup(str));
-    uit->font       = font;
+    // CHECK(uit       = ref_new(ui_text));
+    uit.flags      = flags;
+    uit.margin_x   = 10;
+    uit.margin_y   = 10;
+    // uit.parent     = parent;
+    // CHECK(uit.str  = strdup(str));
+    uit.str = str;
+    uit.font       = font;
 
-    ui_text_measure(uit);
+    ui_text_measure(&uit);
 
-    fbo_ui.width = uit->width + uit->margin_x * 2;
-    fbo_ui.height = uit->height + uit->margin_y * 2;
+    fbo_ui.width = uit.width + uit.margin_x * 2;
+    fbo_ui.height = uit.height + uit.margin_y * 2;
     fbo_ui.prog = ui->prog;
     mq_init(&fbo_ui.mq, &fbo_ui);
     fbo = fbo_new(fbo_ui.width, fbo_ui.height);
     // fbo->retain_tex = 1;
 
-    if (uit->parent) {
-        uit->parent->width = uit->width + uit->margin_x * 2;
-        uit->parent->height = uit->height + uit->margin_y * 2;
-        ui_element_position(uit->parent, ui);
+    if (parent) {
+        parent->width = uit.width + uit.margin_x * 2;
+        parent->height = uit.height + uit.margin_y * 2;
+        ui_element_position(parent, ui);
     }
-    y = (float)uit->margin_y + uit->y_off;
+    y = (float)uit.margin_y + uit.y_off;
     dbg_on(y < 0, "y: %f, height: %d y_off: %d, margin_y: %d\n",
-           y, uit->height, uit->y_off, uit->margin_y);
+           y, uit.height, uit.y_off, uit.margin_y);
     CHECK(prog      = shader_prog_find(ui->prog, "glyph"));
     CHECK(uies = calloc(len, sizeof(struct ui_element *)));
-    uit->nr_uies = len;
-    for (line = 0, i = 0, x = x_off(uit, line); i < len; i++) {
+    uit.nr_uies = len;
+    for (line = 0, i = 0, x = x_off(&uit, line); i < len; i++) {
         if (str[i] == '\n') {
             line++;
-            y += (uit->height / uit->nr_lines);
-            x = x_off(uit, line);
+            y += (uit.height / uit.nr_lines);
+            x = x_off(&uit, line);
             continue;
         }
         if (isspace(str[i])) {
-            x += uit->line_ws[line];
+            x += uit.line_ws[line];
             continue;
         }
-        glyph   = font_get_glyph(uit->font, str[i]);
+        glyph   = font_get_glyph(uit.font, str[i]);
         txm = ui_txm_find_by_texture(&fbo_ui, &glyph->tex);
         if (!txm) {
             m       = model3d_new_quad(prog, 0, 0, 0, glyph->width, glyph->height);
             //model3d_set_name(m, "glyph");
-            model3d_set_name(m, "glyph_%s_%c", font_name(uit->font), str[i]);
+            model3d_set_name(m, "glyph_%s_%c", font_name(uit.font), str[i]);
             m->cull_face = false;
             m->alpha_blend = true;
             txm = model3dtx_new_texture(ref_pass(m), &glyph->tex);
@@ -473,7 +458,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     glDisable(GL_DEPTH_TEST);
     glClearColor(0.f, 0.f, 0.f, 0.f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-    // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit->width, uit->height,
+    // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit.width, uit.height,
     //     fbo->fbo, fbo->width, fbo->height);
     models_render(&fbo_ui.mq, NULL, NULL, NULL, NULL, 0, 0, NULL);
     mq_release(&fbo_ui.mq);
@@ -482,9 +467,9 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     ref_put(prog);
 
     free(uies);
-    free(uit->line_nrw);
-    free(uit->line_ws);
-    free(uit->line_w);
+    free(uit.line_nrw);
+    free(uit.line_ws);
+    free(uit.line_w);
 
     prog = shader_prog_find(ui->prog, "ui");
     m = model3d_new_quad(prog, 0, 1, 0, 1, -1);
@@ -496,28 +481,25 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     ui_add_model(ui, txmtex);
     ref_put(prog);
 
-    uit->uietex = ui_element_new(ui, parent, ref_pass(txmtex),
-                                 parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
-                                 0, 0, fbo_ui.width, fbo_ui.height);
-    ref_only(uit->uietex->entity);
-    ref_only(uit->uietex);
+    uit.uietex = ui_element_new(ui, parent, ref_pass(txmtex),
+                                parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
+                                0, 0, fbo_ui.width, fbo_ui.height);
+    ref_only(uit.uietex->entity);
+    ref_only(uit.uietex);
 
-    return uit;
+    return uit.uietex;
 }
 
 static const char *menu_font = "MorganChalk-L3aJy.ttf";
 static struct ui_element *ui_roll_element;
-static struct ui_text *ui_roll_text;
 
 static void ui_roll_done(void)
 {
-    if (!ui_roll_element || !ui_roll_text)
+    if (!ui_roll_element)
         return;
 
-    ref_put_last(ui_roll_text);
-    // ref_put_last(ui_roll_element);
+    ref_put_last(ui_roll_element);
 
-    ui_roll_text    = NULL;
     ui_roll_element = NULL;
 }
 
@@ -553,12 +535,11 @@ static void ui_roll_init(struct ui *ui)
     // ui_roll_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER/* | UI_SZ_NORES*/, 0, ui->height, 300, 100);
     // ui_roll_element->entity->update = ui_roll_update;
 
-    ui_roll_text = ui_render_string(ui, font, NULL, buffer, color, UI_AF_HCENTER | UI_AF_BOTTOM | UI_SZ_NORES);
-    ui_roll_element = ui_roll_text->uietex;
+    ui_roll_element = ui_render_string(ui, font, NULL, buffer, color, UI_AF_HCENTER | UI_AF_BOTTOM | UI_SZ_NORES);
     // ui_roll_element->affinity |= UI_SZ_NORES;
     ui_roll_element->entity->update = ui_roll_update;
     ui_roll_element->y_off = -ui_roll_element->height;
-    ui_element_position(ui_roll_text->uietex, ui);
+    ui_element_position(ui_roll_element, ui);
     ref_put_last(lh);
     buffer = NULL;
 
@@ -566,13 +547,13 @@ static void ui_roll_init(struct ui *ui)
 }
 
 static bool display_fps;
-static struct ui_text *bottom_uit;
+static struct ui_element *bottom_uit;
 static struct ui_element *bottom_element;
 static const char **ui_debug_mods = NULL;
 static unsigned int nr_ui_debug_mods;
 static unsigned int ui_debug_current;
 static char **ui_debug_strs;
-static struct ui_text *debug_uit;
+static struct ui_element *debug_uit;
 static struct ui_element *debug_element;
 static struct font *debug_font;
 
@@ -833,7 +814,6 @@ static void ui_widget_drop(struct ref *ref)
         struct ui_element *uie, *iter;
         DECLARE_LIST(free_list);
 
-        ref_put(uiw->texts[i]);
         ui_element_children(uiw->uies[i], &free_list);
         list_for_each_entry_iter(uie, iter, &free_list, child_entry)
             ref_put(uie);
@@ -885,6 +865,7 @@ static struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     };
     float width, height;
     struct ui_widget *wheel;
+    struct ui_element *tui;
     struct font *font;
     int i;
 
@@ -909,7 +890,7 @@ static struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
         uia_lin_float(wheel->uies[i], ui_element_set_alpha_one, 0, 1.0, 100);
         uia_cos_move(wheel->uies[i], motions[i], i < 2 ? 200 : 1, i < 2 ? 1 : 200, 30, 1.0, 0.0);
 
-        CHECK(wheel->texts[i] = ui_render_string(ui, font, wheel->uies[i], items[i], color, 0));
+        CHECK(tui = ui_render_string(ui, font, wheel->uies[i], items[i], color, 0));
         width = max(width, wheel->uies[i]->width);
         height = max(height, wheel->uies[i]->height);
         ui_element_set_visibility(wheel->uies[i], 0);
@@ -929,6 +910,7 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
     float quad_color[] = { 0.0, 0.1, 0.5, 1.0 };
     float color[] = { 0.5, 0.3, 0.4, 1.0 };
     float off, width, height;
+    struct ui_element *tui;
     struct ui_widget *menu;
     struct model3dtx *txm;
     struct model3d *model;
@@ -962,8 +944,8 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
         uia_lin_float(menu->uies[i], ui_element_set_alpha, 0, 1.0, 100);
         uia_cos_move(menu->uies[i], UIE_MV_X_OFF, 200, 1, 30, 1.0, 0.0);
 
-        CHECK(menu->texts[i] = ui_render_string(ui, font, menu->uies[i], items[i], color, 0));
-        menu->texts[i]->uietex->entity->color_pt = COLOR_PT_NONE;
+        CHECK(tui = ui_render_string(ui, font, menu->uies[i], items[i], color, 0));
+        tui->entity->color_pt = COLOR_PT_NONE;
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
         off += menu->uies[i]->height + 4 /* XXX: margin */;
@@ -1054,7 +1036,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     struct ui_widget *inv;
     struct model3dtx *apple_txm, *frame_txm, *bar_txm;
     struct model3d *apple_m, *frame_m, *bar_m;
-    struct ui_element *frame, *bar;
+    struct ui_element *frame, *bar, *tui;
     struct font *font = font_get_default();
     float xoff = 0, yoff = 0, width = 0;
     unsigned int vaff[] = { UI_AF_LEFT, UI_AF_HCENTER, UI_AF_RIGHT };
@@ -1128,12 +1110,12 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
                 inv->uies[i]->entity->color[2] = 0.9;
                 inv->uies[i]->entity->color[3] = 0.7;
             }
-            CHECK(inv->texts[i] = ui_render_string(ui, font, inv->uies[i], "apple", color, 0));
+            CHECK(tui = ui_render_string(ui, font, inv->uies[i], "apple", color, 0));
         } else {
             inv->uies[i]->on_click = inv_onclick;
             inv->uies[i]->on_focus = inv_onfocus;
             inv->uies[i]->priv = (void *)(long)i;
-            CHECK(inv->texts[i] = ui_render_string(ui, font, inv->uies[i], "empty", color, 0));
+            CHECK(tui = ui_render_string(ui, font, inv->uies[i], "empty", color, 0));
         }
         if (i < number_of_apples) {
             if (apple_ages[i] < 1.0) {
@@ -1367,8 +1349,8 @@ static int ui_handle_input(struct message *m, void *data)
     return MSG_STOP;
 }
 
-static struct ui_text *limeric_uit;
-static struct ui_text *build_uit;
+static struct ui_element *limeric_uit;
+static struct ui_element *build_uit;
 struct ui_element *uie0, *uie1, *health, *pocket;
 static float health_bar_width;
 
