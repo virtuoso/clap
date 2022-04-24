@@ -723,33 +723,33 @@ static const char *hud_items[] = { "FPS", "Build", "Limeric" };
 static const char *pip_items[] = { "+float TL", "+float TR", "+left half", "+right half" };
 static void menu_onclick(struct ui_element *uie, float x, float y)
 {
-    int nr = (long)uie->priv;
+    const char *str = uie->priv;
     struct ui *ui = uie->ui;
 
-    if (!strcmp(ui->menu->texts[nr]->str, "Help")) {
+    if (!strcmp(str, "Help")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, help_items, array_size(help_items));
-    } else if (!strcmp(ui->menu->texts[nr]->str, "Exit")) {
+    } else if (!strcmp(str, "Exit")) {
         ui_menu_done(ui);
         gl_request_exit();
-    } else if (!strcmp(ui->menu->texts[nr]->str, "HUD")) {
+    } else if (!strcmp(str, "HUD")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
-    } else if (!strcmp(ui->menu->texts[nr]->str, "PIP")) {
+    } else if (!strcmp(str, "PIP")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, pip_items, array_size(pip_items));
-    } else if (!strcmp(ui->menu->texts[nr]->str, "Fonts")) {
+    } else if (!strcmp(str, "Fonts")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, font_names, array_size(font_names));
-    } else if (!strcmp(ui->menu->texts[nr]->str, "Monitor")) {
+    } else if (!strcmp(str, "Monitor")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, ui_debug_mods, nr_ui_debug_mods);
-    } else if (!strcmp(ui->menu->texts[nr]->str, "Fullscreen")) {
+    } else if (!strcmp(str, "Fullscreen")) {
         struct message_input mi;
         memset(&mi, 0, sizeof(mi));
         mi.fullscreen = 1;
         message_input_send(&mi, NULL);
-    } else if (!strcmp(ui->menu->texts[nr]->str, "FPS")) {
+    } else if (!strcmp(str, "FPS")) {
         if (display_fps) {
             display_fps = false;
             ref_put_last(bottom_uit);
@@ -758,26 +758,26 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
         } else {
             display_fps = true;
         }
-    } else if (!strcmp(ui->menu->texts[nr]->str, "Devel")) {
+    } else if (!strcmp(str, "Devel")) {
         struct message m;
         memset(&m, 0, sizeof(m));
         m.type = MT_COMMAND;
         m.cmd.toggle_fuzzer = 1;
         message_send(&m);
         ui_menu_done(ui); /* cancels modality */
-    } else if (!strcmp(ui->menu->texts[nr]->str, "Autopilot")) {
+    } else if (!strcmp(str, "Autopilot")) {
         struct message m;
         memset(&m, 0, sizeof(m));
         m.type = MT_COMMAND;
         m.cmd.toggle_autopilot = 1;
         message_send(&m);
         ui_menu_done(ui); /* cancels modality */
-    } else if (!strcmp(ui->menu->texts[nr]->str, "...todo")) {
+    } else if (!strcmp(str, "...todo")) {
         ui_roll_init(ui);
         ui_menu_done(ui); /* cancels modality */
     } else {
-        do_fonts(ui, ui->menu->texts[nr]->str);
-        do_debugs(ui, ui->menu->texts[nr]->str);
+        do_fonts(ui, str);
+        do_debugs(ui, str);
     }
 }
 
@@ -951,7 +951,7 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
         menu->uies[i]           = ui_element_new(ui, menu->root, txm, UI_AF_TOP | UI_AF_RIGHT, 10, 10 + off, 300, 100);
         menu->uies[i]->on_click = menu_onclick;
         menu->uies[i]->on_focus = menu_onfocus;
-        menu->uies[i]->priv     = (void *)(long)i;
+        menu->uies[i]->priv     = (void *)items[i];
 
         memcpy(&menu->uies[i]->entity->color, quad_color, sizeof(quad_color));
         menu->uies[i]->entity->color_pt = COLOR_PT_ALL;
