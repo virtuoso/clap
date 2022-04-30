@@ -79,11 +79,16 @@ struct ui_element {
 struct ui_widget_builder {
     unsigned long   affinity;
     float           x_off, y_off, w, h;
+    unsigned long   el_affinity;
+    float           el_x_off, el_y_off, el_w, el_h, el_margin;
+    struct font     *font;
+    float           el_color[4];
+    float           text_color[4];
+    void            (*el_cb)(struct ui_element *uie, unsigned int i);
 };
 
 struct ui_widget {
     struct ui_element  *root;
-    struct ui_text     **texts;
     struct ui_element  **uies;
     struct ref         ref;
     unsigned int       nr_uies;

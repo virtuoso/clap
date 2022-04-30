@@ -819,7 +819,6 @@ static void ui_widget_drop(struct ref *ref)
             ref_put(uie);
     }
     ref_put_last(uiw->root);
-    free(uiw->texts);
     free(uiw->uies);
 }
 
@@ -834,7 +833,6 @@ ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
     CHECK(uiw        = ref_new(ui_widget));
     CHECK(uiw->uies  = calloc(nr_items, sizeof(struct ui_element *)));
     /* XXX: render texts to FBOs to textures */
-    CHECK(uiw->texts = calloc(nr_items, sizeof(struct ui_text *)));
     CHECK(uiw->root  = ui_element_new(ui, NULL, ui_quadtx, affinity, x_off, y_off, w, h));
     uiw->nr_uies = nr_items;
 
@@ -1117,6 +1115,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
             inv->uies[i]->priv = (void *)(long)i;
             CHECK(tui = ui_render_string(ui, font, inv->uies[i], "empty", color, 0));
         }
+        tui->entity->color_pt = COLOR_PT_NONE;
         if (i < number_of_apples) {
             if (apple_ages[i] < 1.0) {
                 // immature apple
@@ -1145,8 +1144,6 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
         //uia_set_visible(inv->uies[i], 1);
         //uia_lin_float(inv->uies[i], ui_element_set_alpha, 0, 0.4, 20);
         //uia_cos_move(inv->uies[i], UIE_MV_X_OFF, 40, 1, 30, 1.0, 0.0);
-
-        inv->texts[i]->uietex->entity->color_pt = COLOR_PT_NONE;
 
         //ui_element_set_visibility(inv->uies[i], 0);
         //ui_element_set_visibility(frame, 0);
