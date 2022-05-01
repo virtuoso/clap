@@ -148,11 +148,17 @@ void character_move(struct character *ch, struct scene *s)
      * ch->motion: motion resulting from inputs
      */
     motion_compute_ls(&ch->mctl);
+    motion_compute_rs(&ch->mctl);
 
     float delta_x = ch->mctl.ls_dx;
     float delta_z = ch->mctl.ls_dy;
-    float yawcos = cos(to_radians(s->camera->current_yaw));
-    float yawsin = sin(to_radians(s->camera->current_yaw));
+    float yawcos = cos(to_radians(s->camera->target_yaw));
+    float yawsin = sin(to_radians(s->camera->target_yaw));
+
+    if (s->control == ch && !(ch->mctl.ls_dx || ch->mctl.ls_dy || ch->mctl.rs_dx || ch->mctl.rs_dy))
+    {
+        camera_set_target_to_current(s->camera);
+    }
 
     ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
 

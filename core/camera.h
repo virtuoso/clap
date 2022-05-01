@@ -36,5 +36,6 @@ void camera_add_pitch(struct camera *c, float delta);
 void camera_add_yaw(struct camera *c, float delta);
 void camera_update(struct camera *c, struct entity3d *entity, vec3 start);
 bool camera_has_moved(struct camera *c);
+void camera_set_target_to_current(struct camera *c);
 
 #endif
