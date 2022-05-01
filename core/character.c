@@ -151,8 +151,8 @@ void character_move(struct character *ch, struct scene *s)
 
     float delta_x = ch->mctl.ls_dx;
     float delta_z = ch->mctl.ls_dy;
-    float yawcos = cos(to_radians(s->camera->yaw));
-    float yawsin = sin(to_radians(s->camera->yaw));
+    float yawcos = cos(to_radians(s->camera->current_yaw));
+    float yawsin = sin(to_radians(s->camera->current_yaw));
 
     ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
 
@@ -344,33 +344,11 @@ DECLARE_REFCLASS(character);
 static void character_camera_update(struct character *c)
 {
     vec3 start = { c->pos[0], c->pos[1], c->pos[2] };
-    double dist, maxdist, height;
-    struct entity3d *hit;
-    vec3 dir;
 
     if (!c->camera)
         return;
 
-    height = entity3d_aabb_Y(c->entity) * 3 / 4;
-    dist = height * 3;
-    maxdist = max(c->camera->dist + 1, dist);
-    start[1] += height;
-retry:
-    dir[0] = sin(-to_radians(c->camera->yaw)) * cos(to_radians(c->camera->pitch));
-    dir[1] = sin(to_radians(c->camera->pitch));
-    dir[2] = cos(-to_radians(c->camera->yaw)) * cos(to_radians(c->camera->pitch));
-
-    hit = phys_ray_cast(c->entity, start, dir, &dist);
-    if (!hit) {
-        dist = height * 3;
-    } else if (dist < 1 && c->camera->pitch < 90) {
-        c->camera->pitch = min(c->camera->pitch + 5, 90);
-        goto retry;
-    }
-
-    ui_debug_printf("hit: '%s' c->dist: %f dist: %f maxdist: %f",
-                    entity_name(hit), c->camera->dist, dist, maxdist);
-    c->camera->dist = clampf(dist - 0.1, 1, maxdist);
+    camera_update(c->camera, c->entity, start);
 }
 
 /* data is struct scene */
@@ -387,11 +365,11 @@ static int character_update(struct entity3d *e, void *data)
         if (c->mctl.rs_height)
             s->camera->ch->motion[1] -= delta / s->ang_speed * s->lin_speed;
         else
-            s->camera->pitch_turn = delta;
+            camera_add_pitch(s->camera, delta);
         s->camera->ch->moved++;
     }
     if (c->mctl.rs_dx) {
-        s->camera->yaw_turn = c->mctl.rs_dx;
+        camera_add_yaw(s->camera, c->mctl.rs_dx);
         s->camera->ch->moved++;
     }
 

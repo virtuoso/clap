@@ -8,20 +8,10 @@
 #include "matrix.h"
 #include "model.h"
 #include "physics.h"
+#include "camera.h"
+
 
 #define NR_CAMERAS_MAX 4
-struct camera {
-    struct character *ch;
-    GLfloat pitch;  /* left/right */
-    GLfloat yaw;    /* sideways */
-    GLfloat roll;   /* up/down */
-    unsigned int zoom;
-    float   dist;
-    float   yaw_turn;
-    float   pitch_turn;
-    struct matrix4f     *view_mx;
-    struct matrix4f     *inv_view_mx;
-};
 
 struct instantiator {
     const char      *name;

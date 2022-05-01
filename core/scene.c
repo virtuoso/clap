@@ -18,7 +18,7 @@ static void scene_camera_autopilot(struct scene *s)
 
     s->camera->ch->motion[2] = -s->lin_speed;
     s->camera->ch->motion[0] = 0;
-    s->camera->yaw_turn  = -s->ang_speed / 5;
+    camera_add_yaw(s->camera, -s->ang_speed / 5);
     s->camera->ch->moved++;
 }
 
@@ -129,7 +129,7 @@ int scene_camera_add(struct scene *s)
     s->camera->ch->pos[0] = 0.0;
     s->camera->ch->pos[1] = 3.0;
     s->camera->ch->pos[2] = -4.0 + s->nr_cameras * 2;
-    s->camera->yaw        = 180;
+    camera_setup(s->camera);
     s->camera->ch->moved++;
     s->camera->dist = 10;
 
@@ -151,40 +151,30 @@ static void scene_camera_calc(struct scene *s, int camera)
     for (i = 0; i < 3; i++)
         scalev[i] = s->cameras[camera].zoom ? 3.0 : 1.0;
 
-    s->cameras[camera].pitch += s->cameras[camera].pitch_turn / (float)s->fps.fps_fine;
-    s->cameras[camera].pitch = clampf(s->cameras[camera].pitch, -90, 90);
-    s->cameras[camera].yaw += s->cameras[camera].yaw_turn / (float)s->fps.fps_fine;
-        if (s->cameras[camera].yaw > 180)
-            s->cameras[camera].yaw -= 360;
-        else if (s->cameras[camera].yaw <= -180)
-            s->cameras[camera].yaw += 360;
+    struct camera *cam = &s->cameras[camera];
+    camera_move(cam, s->fps.fps_fine);
 
     /* circle the character s->control */
     if (s->control != s->cameras[camera].ch &&
-        (s->cameras[camera].yaw_turn || s->cameras[camera].pitch_turn || s->control->moved || s->cameras[camera].ch->moved)) {
-        struct camera *cam = &s->cameras[camera];
+        (camera_has_moved(cam) || s->control->moved)) {
 
         // float dist           = s->cameras[camera].zoom ? 1 : 10;
         float x              = s->control->pos[0];
         float y              = s->control->pos[1] + entity3d_aabb_Y(s->control->entity) / 4 * 3;
         float z              = s->control->pos[2];
-        cam->ch->pos[0] = x + cam->dist * sin(to_radians(-s->cameras[camera].yaw)) * cos(to_radians(s->cameras[camera].pitch));
-        cam->ch->pos[1] = y + cam->dist * sin(to_radians(s->cameras[camera].pitch));
-        cam->ch->pos[2] = z + cam->dist * cos(to_radians(-s->cameras[camera].yaw)) * cos(to_radians(s->cameras[camera].pitch));
+        camera_position(cam, x, y, z, s->cameras[camera].ch->pos);
         //s->control->moved    = 0; /* XXX */
     }
 
-    s->cameras[camera].pitch_turn = 0;
-    s->cameras[camera].yaw_turn = 0;
-
+    camera_reset_movement(cam);
     s->cameras[camera].ch->moved = 0;
     trace("camera: %f/%f/%f zoom: %d\n", s->cameras[camera].ch->pos[0], s->cameras[camera].ch->pos[1], s->cameras[camera].ch->pos[2], s->cameras[camera].zoom);
 
     //free(s->view_mx);
     //s->view_mx = transmx_new(negpos, 0.0, 0.0, 0.0, 1.0);
     mat4x4_identity(s->cameras[camera].view_mx->m);
-    mat4x4_rotate_X(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].pitch));
-    mat4x4_rotate_Y(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].yaw));
+    mat4x4_rotate_X(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].current_pitch));
+    mat4x4_rotate_Y(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].current_yaw));
     mat4x4_scale_aniso(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, scalev[0], scalev[1], scalev[2]);
     //mat4x4_scale(s->cameras[camera].view_mx->m, scalev, 1.0);
     mat4x4_translate_in_place(s->cameras[camera].view_mx->m, -s->cameras[camera].ch->pos[0], -s->cameras[camera].ch->pos[1], -s->cameras[camera].ch->pos[2]);
@@ -194,7 +184,7 @@ static void scene_camera_calc(struct scene *s, int camera)
     if (!(s->frames_total & 0xf) && camera == 0)
         gl_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
                  s->cameras[camera].ch->pos[0], s->cameras[camera].ch->pos[1], s->cameras[camera].ch->pos[2],
-                 s->cameras[camera].pitch, s->cameras[camera].yaw);
+                 s->cameras[camera].current_pitch, s->cameras[camera].current_yaw);
 #endif
 }
 
