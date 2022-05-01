@@ -148,7 +148,7 @@ void character_move(struct character *ch, struct scene *s)
      * ch->motion: motion resulting from inputs
      */
     motion_compute_ls(&ch->mctl);
-    motion_compute_rs(&ch->mctl);
+    motion_compute_rs(&ch->mctl); // We need to compute this to determine if the user moved the camera.
 
     float delta_x = ch->mctl.ls_dx;
     float delta_z = ch->mctl.ls_dy;
@@ -157,6 +157,9 @@ void character_move(struct character *ch, struct scene *s)
 
     if (s->control == ch && !(ch->mctl.ls_dx || ch->mctl.ls_dy || ch->mctl.rs_dx || ch->mctl.rs_dy))
     {
+        // We got no input regarding character position or camera,
+        // so we reset the "target" camera position to the "current"
+        // (however, we don't allow the pitch to be too extreme).
         camera_set_target_to_current(s->camera);
     }
 
