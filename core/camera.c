@@ -61,7 +61,7 @@ void camera_add_yaw(struct camera *c, float delta)
 
 void camera_set_target_to_current(struct camera *c)
 {
-    c->target_pitch = c->current_pitch;
+    c->target_pitch = clampf(c->current_pitch, -60, 60);
     c->target_yaw = c->current_yaw;
 }
 
