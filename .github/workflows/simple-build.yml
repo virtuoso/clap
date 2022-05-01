@@ -8,7 +8,7 @@ jobs:
         uses: actions/checkout@v2
       - name: submodules
         run: |
-          git config --global url."https://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:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://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:x-oauth-basic@github.com/".insteadOf "https://github.com/"
           git submodule update --init --recursive
       - name: install-deps
         run: |
