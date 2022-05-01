@@ -62,19 +62,44 @@ void camera_update(struct camera *c, struct entity3d *entity, vec3 start)
     dist = height * 3;
     maxdist = max(c->dist + 1, dist);
     start[1] += height;
-retry:
-    dir[0] = sin(-to_radians(c->current_yaw)) * cos(to_radians(c->current_pitch));
-    dir[1] = sin(to_radians(c->current_pitch));
-    dir[2] = cos(-to_radians(c->current_yaw)) * cos(to_radians(c->current_pitch));
 
-    dist = height * 3;
-    hit = phys_ray_cast(entity, start, dir, &dist);
-    if (!hit) {
-        dist = height * 3;
-    } else if (dist < 1 && c->current_pitch < 90) {
-        c->current_pitch = min(c->current_pitch + 5, 90);
-        goto retry;
+    float pitch = c->target_pitch;
+    float yaw = c->target_yaw;
+    bool done = false;
+    while (pitch < 90) {
+        for (float yaw_delta = 0.0f; yaw_delta < 30.0f; yaw_delta += 2.0f) {
+            for (int yaw_direction = -1; yaw_direction <= 1; yaw_direction += 2) {
+                yaw = c->target_yaw + yaw_direction * yaw_delta;
+                dir[0] = sin(-to_radians(yaw)) * cos(to_radians(pitch));
+                dir[1] = sin(to_radians(pitch));
+                dir[2] = cos(-to_radians(yaw)) * cos(to_radians(pitch));
+
+                dist = height * 3;
+                hit = phys_ray_cast(entity, start, dir, &dist);
+                if (!hit) {
+                    dist = height * 3;
+                    done = true;
+                } else if (dist < 1) {
+                    continue;
+                } else {
+                    done = true;
+                }
+
+                if (done)
+                    break;
+            }
+
+            if (done)
+                break;
+        }
+        
+        if (done)
+            break;
+        pitch += 5;
     }
+
+    c->current_pitch = pitch;
+    c->current_yaw = yaw;
 
     ui_debug_printf("hit: '%s' c->dist: %f dist: %f maxdist: %f",
                     entity_name(hit), c->dist, dist, maxdist);
