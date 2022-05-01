@@ -152,7 +152,6 @@ static void scene_camera_calc(struct scene *s, int camera)
         scalev[i] = s->cameras[camera].zoom ? 3.0 : 1.0;
 
     struct camera *cam = &s->cameras[camera];
-    camera_move(cam, s->fps.fps_fine);
 
     /* circle the character s->control */
     if (s->control != s->cameras[camera].ch &&

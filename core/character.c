@@ -341,16 +341,6 @@ static void character_drop(struct ref *ref)
 
 DECLARE_REFCLASS(character);
 
-static void character_camera_update(struct character *c)
-{
-    vec3 start = { c->pos[0], c->pos[1], c->pos[2] };
-
-    if (!c->camera)
-        return;
-
-    camera_update(c->camera, c->entity, start);
-}
-
 /* data is struct scene */
 static int character_update(struct entity3d *e, void *data)
 {
@@ -390,7 +380,12 @@ static int character_update(struct entity3d *e, void *data)
         c->pos[2] = e->dz;
     }
 
-    character_camera_update(c);
+
+    if (c->camera) {
+        camera_move(c->camera, s->fps.fps_fine);
+        vec3 start = { c->pos[0], c->pos[1], c->pos[2] };
+        camera_update(c->camera, c->entity, start);
+    }
 
     if (e->phys_body) {
         if (c->ragdoll) {
