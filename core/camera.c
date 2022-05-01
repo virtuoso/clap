@@ -9,7 +9,7 @@ void camera_setup(struct camera *c)
     c->current_yaw = 180;
 }
 
-void camera_move_target(struct camera *c, unsigned long fps)
+void camera_move(struct camera *c, unsigned long fps)
 {
     c->target_pitch += c->pitch_delta / (float)fps;
     c->target_pitch = clampf(c->target_pitch, -90, 90);
@@ -18,22 +18,6 @@ void camera_move_target(struct camera *c, unsigned long fps)
         c->target_yaw -= 360;
     else if (c->target_yaw <= -180)
         c->target_yaw += 360;
-}
-
-void camera_move_current(struct camera *c, unsigned long fps)
-{
-    c->current_pitch += c->pitch_delta / (float)fps;
-    c->current_pitch = clampf(c->current_pitch, -90, 90);
-    c->current_yaw += c->yaw_delta / (float)fps;
-    if (c->current_yaw > 180)
-        c->current_yaw -= 360;
-    else if (c->current_yaw <= -180)
-        c->current_yaw += 360;
-}
-
-void camera_move(struct camera *c, unsigned long fps)
-{
-    camera_move_target(c, fps);
 }
 
 void camera_position(struct camera *c, float x, float y, float z, GLfloat *pos)
