@@ -2,6 +2,8 @@
 #ifndef __CLAP_PIPELINE_H__
 #define __CLAP_PIPELINE_H__
 
+struct render_pass;
+
 struct pipeline {
     // darray(struct render_pass, pass);
     struct scene        *scene;
@@ -10,7 +12,7 @@ struct pipeline {
 };
 
 struct pipeline *pipeline_new(struct scene *s);
-void pipeline_add_pass(struct pipeline *pl, const char *prog_name);
+struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *prog_name, bool ms);
 void pipeline_render(struct pipeline *pl);
 
 #endif /* __CLAP_PIPELINE_H__ */

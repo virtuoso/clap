@@ -156,6 +156,9 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     scene_cameras_calc(s);
 
     glEnable(GL_DEPTH_TEST);
+#ifndef CONFIG_GLES
+    glEnable(GL_MULTISAMPLE);
+#endif
     glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
@@ -350,6 +353,7 @@ int main(int argc, char **argv, char **envp)
     };
     int c, option_index;
     unsigned int do_restart = 0, fullscreen = 0;
+    struct render_pass *pass;
     //struct lib_handle *lh;
 
     /*
@@ -462,12 +466,13 @@ int main(int argc, char **argv, char **envp)
     ui_init(&ui, scene.width, scene.height);
 
     blur_pl = pipeline_new(&scene);
-    pipeline_add_pass(blur_pl, "vblur");
-    pipeline_add_pass(blur_pl, "hblur");
-    pipeline_add_pass(blur_pl, "contrast");
+    pass = pipeline_add_pass(blur_pl, NULL, NULL, true);
+    pass = pipeline_add_pass(blur_pl, pass, "vblur", false);
+    pass = pipeline_add_pass(blur_pl, pass, "hblur", false);
     main_pl = pipeline_new(&scene);
-    pipeline_add_pass(main_pl, "contrast");
-    pipeline_add_pass(main_pl, "contrast");
+    pass = pipeline_add_pass(main_pl, NULL, NULL, true);
+    pass = pipeline_add_pass(main_pl, pass, "contrast", false);
+    pass = pipeline_add_pass(main_pl, pass, "contrast", false);
     // fbo_update(scene.width, scene.height);
 
     scene.lin_speed = 2.0;

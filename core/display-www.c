@@ -95,7 +95,7 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     attr.depth                     = 1;
     attr.stencil                   = 1;
     attr.antialias                 = 1;
-    attr.majorVersion              = 1; /* Safari doesn't do WebGL 2 */
+    attr.majorVersion              = 2;
     attr.minorVersion              = 0;
     attr.enableExtensionsByDefault = 1;
     
