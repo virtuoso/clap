@@ -183,11 +183,14 @@ struct fbo {
     int width, height;
     unsigned int fbo;
     int depth_buf;
+    int color_buf;
     texture_t tex;
     texture_t depth;
+    bool ms;
     int retain_tex;
 };
 struct fbo *fbo_new(int width, int height);
+struct fbo *fbo_new_ms(int width, int height, bool ms);
 void fbo_prepare(struct fbo *fbo);
 void fbo_done(struct fbo *fbo, int width, int height);
 void fbo_resize(struct fbo *fbo, int width, int height);

@@ -585,13 +585,32 @@ static int fbo_depth_texture(struct fbo *fbo)
     return tex;
 }
 
+static int fbo_color_buffer(struct fbo *fbo)
+{
+    unsigned int buf;
+
+    GL(glGenRenderbuffers(1, &buf));
+    GL(glBindRenderbuffer(GL_RENDERBUFFER, buf));
+    if (fbo->ms)
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, fbo->width, fbo->height));
+    else
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
+    GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, buf));
+    GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
+
+    return buf;
+}
+
 static int fbo_depth_buffer(struct fbo *fbo)
 {
     unsigned int buf;
 
     GL(glGenRenderbuffers(1, &buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, buf));
-    GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
+    if (fbo->ms)
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
+    else
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
     GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
 
@@ -619,6 +638,10 @@ void fbo_prepare(struct fbo *fbo)
 {
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
+    if (fbo->ms) {
+        GLenum buffers[] = { GL_COLOR_ATTACHMENT0 };
+        GL(glDrawBuffers(1, buffers));
+    }
 }
 
 void fbo_done(struct fbo *fbo, int width, int height)
@@ -627,41 +650,67 @@ void fbo_done(struct fbo *fbo, int width, int height)
     GL(glViewport(0, 0, width, height));
 }
 
+static int fbo_make(struct ref *ref)
+{
+    struct fbo *fbo = container_of(ref, struct fbo, ref);
+
+    fbo->color_buf = -1;
+    fbo->depth_buf = -1;
+    fbo->ms        = false;
+
+    return 0;
+}
+
 static void fbo_drop(struct ref *ref)
 {
     struct fbo *fbo = container_of(ref, struct fbo, ref);
 
     // dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
     GL(glDeleteFramebuffers(1, &fbo->fbo));
-    if (!fbo->retain_tex)
-        texture_deinit(&fbo->tex);
-    texture_done(&fbo->depth);
+    /* if the texture was cloned, its ->loaded==false making this a nop */
+    texture_deinit(&fbo->tex);
+    // texture_done(&fbo->depth);
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
     // ref_free(fbo);
 }
+DECLARE_REFCLASS2(fbo);
 
-DECLARE_REFCLASS(fbo);
+static void fbo_init(struct fbo *fbo)
+{
+    int err;
 
-struct fbo *fbo_new(int width, int height)
+    fbo->fbo = fbo_create();
+    if (fbo->ms) {
+        fbo->color_buf = fbo_color_buffer(fbo);
+    } else {
+        fbo_texture_init(fbo);
+    }
+    //fbo->depth_tex = fbo_depth_texture(fbo);
+    fbo->depth_buf = fbo_depth_buffer(fbo);
+    err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (err != GL_FRAMEBUFFER_COMPLETE)
+        dbg("## framebuffer status: %d\n", err);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+}
+
+struct fbo *fbo_new_ms(int width, int height, bool ms)
 {
     struct fbo *fbo;
     int ret;
 
     CHECK(fbo = ref_new(fbo));
-    fbo->depth_buf = -1;
     fbo->width = width;
     fbo->height = height;
-    fbo->fbo = fbo_create();
-    fbo_texture_init(fbo);
-    //fbo->depth_tex = fbo_depth_texture(fbo);
-    fbo->depth_buf = fbo_depth_buffer(fbo);
-    ret = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (ret != GL_FRAMEBUFFER_COMPLETE)
-        dbg("## framebuffer status: %d\n", ret);
-    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+    fbo->ms = ms;
+    fbo_init(fbo);
 
     return fbo;
+}
+
+struct fbo *fbo_new(int width, int height)
+{
+    return fbo_new_ms(width, height, false);
 }
 
 static void animation_destroy(struct animation *an)
