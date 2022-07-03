@@ -68,6 +68,7 @@ static struct key_map key_map_wasd[] = {
     KEY_VAL(GLFW_KEY_RIGHT, to_press_release, yaw_right),
     KEY_VAL(GLFW_KEY_Q,     is_press,         inv_toggle),
     KEY_VAL(GLFW_KEY_E,     is_press,         pad_y),
+    KEY_VAL(GLFW_KEY_P,     is_press,         debug_action),
 };
 #endif
 

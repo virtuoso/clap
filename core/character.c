@@ -393,7 +393,7 @@ static int character_update(struct entity3d *e, void *data)
     if (c->camera) {
         camera_move(c->camera, s->fps.fps_fine);
         vec3 start = { c->pos[0], c->pos[1], c->pos[2] };
-        camera_update(c->camera, c->entity, start);
+        camera_update(c->camera, s, c->entity, start);
     }
 
     if (e->phys_body) {
