@@ -68,6 +68,7 @@ struct message_input {
     unsigned char   mouse_click;
     unsigned char   exit;
     unsigned char   dash;
+    unsigned char   debug_action;
     float           delta_lx;
     float           delta_ly;
     float           delta_rx;

@@ -224,6 +224,9 @@ static int scene_handle_input(struct message *m, void *data)
         m->input.left, m->input.right, m->input.up, m->input.down,
         m->input.delta_x, m->input.delta_y, m->input.delta_z,
         m->input.exit);*/
+    if (m->input.debug_action) {
+        debug_camera_action(s->camera);
+    }
     if (m->input.exit)
         gl_request_exit();
 #ifndef CONFIG_FINAL
