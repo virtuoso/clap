@@ -839,6 +839,12 @@ ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
     return uiw;
 }
 
+static struct ui_widget *
+ui_widget_build(struct ui *ui, struct ui_widget_builder *uwb, unsigned int nr_items)
+{
+    return ui_widget_new(ui, nr_items, uwb->affinity, uwb->x_off, uwb->y_off, uwb->w, uwb->h);
+}
+
 /*
  * XXX
  * also, 4 items
@@ -903,61 +909,87 @@ static struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 
     return wheel;
 }
-static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items)
+
+static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
 {
-    float quad_color[] = { 0.0, 0.1, 0.5, 1.0 };
-    float color[] = { 0.5, 0.3, 0.4, 1.0 };
-    float off, width, height;
+    /* XXX^5: animations hardcoded */
+    uia_skip_frames(uie, i * 7);
+    uia_set_visible(uie, 1);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, 100);
+    uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, 30, 1.0, 0.0);
+}
+
+static struct ui_widget *
+ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, unsigned int nr_items)
+{
+    struct ui_widget *menu = ui_widget_build(ui, uwb, nr_items);
     struct ui_element *tui;
-    struct ui_widget *menu;
+    float off, width, height;
     struct model3dtx *txm;
     struct model3d *model;
-    struct font *font;
     int i;
 
-    /* XXX^0: affinity and placement hardcoded */
-    CHECK(menu = ui_widget_new(ui, nr_items, UI_AF_VCENTER | UI_AF_RIGHT, 10, 10, 500, 0.8));
-    menu->focus   = -1;
-
+    menu->focus = -1;
     model = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
     model3d_set_name(model, "ui_menu");
     // /* XXX^1: texture model(s) hardcoded */
     txm = model3dtx_new(ref_pass(model), "green.png");
     ui_add_model(ui, txm);
-    /* XXX^2: font global/hardcoded */
-    font = font_open(menu_font, 48);
+
     for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
-        /* XXX^3: element placement hardcoded */
-        menu->uies[i]           = ui_element_new(ui, menu->root, txm, UI_AF_TOP | UI_AF_RIGHT, 10, 10 + off, 300, 100);
+        menu->uies[i]           = ui_element_new(ui, menu->root, txm, uwb->el_affinity,
+                                                 uwb->el_x_off, uwb->el_y_off + off, uwb->el_w, uwb->el_h);
         menu->uies[i]->on_click = menu_onclick;
         menu->uies[i]->on_focus = menu_onfocus;
         menu->uies[i]->priv     = (void *)items[i];
 
-        memcpy(&menu->uies[i]->entity->color, quad_color, sizeof(quad_color));
+        memcpy(&menu->uies[i]->entity->color, uwb->el_color, sizeof(uwb->el_color));
         menu->uies[i]->entity->color_pt = COLOR_PT_ALL;
 
-        /* XXX^5: animations hardcoded */
-        uia_skip_frames(menu->uies[i], i * 7);
-        uia_set_visible(menu->uies[i], 1);
-        uia_lin_float(menu->uies[i], ui_element_set_alpha, 0, 1.0, 100);
-        uia_cos_move(menu->uies[i], UIE_MV_X_OFF, 200, 1, 30, 1.0, 0.0);
+        if (uwb->el_cb)
+            uwb->el_cb(menu->uies[i], i);
 
-        CHECK(tui = ui_render_string(ui, font, menu->uies[i], items[i], color, 0));
+        CHECK(tui = ui_render_string(ui, uwb->font, menu->uies[i], items[i], uwb->text_color, 0));
         tui->entity->color_pt = COLOR_PT_NONE;
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
-        off += menu->uies[i]->height + 4 /* XXX: margin */;
+        off += menu->uies[i]->height + uwb->el_margin;
         ui_element_set_visibility(menu->uies[i], 0);
     }
-    /* menu item uies hold the only references to this txm */
-    // ref_put(txm);
+
     for (i = 0; i < nr_items; i++) {
         menu->uies[i]->width = width;
         menu->uies[i]->height = height;
         if (i > 0)
-            menu->uies[i]->y_off = 10 + (4 + height) * i;
+            menu->uies[i]->y_off = uwb->el_y_off + (uwb->el_margin + height) * i;
     }
-    font_put(font);
+
+    return menu;
+}
+
+static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items)
+{
+    struct ui_widget *menu;
+    struct ui_widget_builder uwb = {
+        .el_affinity  = UI_AF_TOP | UI_AF_RIGHT,
+        .affinity   = UI_AF_VCENTER | UI_AF_RIGHT,
+        .el_x_off   = 10,
+        .el_y_off   = 10,
+        .el_w       = 300,
+        .el_h       = 100,
+        .el_margin  = 4,
+        .x_off      = 10,
+        .y_off      = 10,
+        .w          = 500,
+        .h          = 0.8,
+        .el_cb      = ui_menu_element_cb,
+        .el_color   = { 0.0, 0.1, 0.5, 1.0 },
+        .text_color = { 0.5, 0.3, 0.4, 1.0 },
+    };
+
+    uwb.font = font_open(menu_font, 48);
+    menu = ui_menu_build(ui, &uwb, items, nr_items);
+    font_put(uwb.font);
 
     return menu;
 }
