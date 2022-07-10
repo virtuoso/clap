@@ -3,8 +3,6 @@
 #include "character.h"
 #include "ui-debug.h"
 
-#define NEAR_PLANE 0.1
-
 void camera_setup(struct camera *c)
 {
     // starting yaw values
@@ -83,8 +81,8 @@ bool camera_position_is_good(struct camera *c, struct entity3d *entity, vec3 sta
     double scale_sw;
     double scale_se;
     double min_scale;
-    float w = NEAR_PLANE;
-    float h = NEAR_PLANE / s->aspect;
+    float w = s->near_plane;
+    float h = s->near_plane / s->aspect;
     vec4 r = { 0.0, 0.0, 0.0, 1.0 };
     vec4 nw, ne, sw, se;
     
@@ -130,8 +128,8 @@ bool debug_draw_camera(struct camera *c, vec3 start, float pitch, float yaw, flo
     mat4x4 m;
     GLfloat c_position[3];
     mat4x4 m_inverse;
-    float w = NEAR_PLANE;
-    float h = NEAR_PLANE / s->aspect;
+    float w = s->near_plane;
+    float h = s->near_plane / s->aspect;
     vec4 r = { 0.0, 0.0, 0.0, 1.0 };
     vec4 nw, ne, sw, se;
     
