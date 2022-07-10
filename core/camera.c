@@ -59,7 +59,7 @@ bool test_if_ray_intersects_scene(struct entity3d *entity, vec3 start, vec3 end,
     struct entity3d *hit;
     vec3 dir;
     double distance, distance_to_hit;
-    
+
     vec3_sub(dir, end, start);
     distance = vec3_len(dir);
     distance_to_hit = distance;
@@ -68,7 +68,7 @@ bool test_if_ray_intersects_scene(struct entity3d *entity, vec3 start, vec3 end,
         *scale = distance_to_hit / distance;
         return true;
     }
-    
+
     return false;
 }
 
@@ -85,7 +85,7 @@ bool camera_position_is_good(struct camera *c, struct entity3d *entity, vec3 sta
     float h = s->near_plane / s->aspect;
     vec4 r = { 0.0, 0.0, 0.0, 1.0 };
     vec4 nw, ne, sw, se;
-    
+
     mat4x4_identity(m);
     mat4x4_rotate_X(m, m, to_radians(pitch));
     mat4x4_rotate_Y(m, m, to_radians(yaw));
@@ -119,7 +119,7 @@ bool camera_position_is_good(struct camera *c, struct entity3d *entity, vec3 sta
         *next_distance = dist * min_scale;
         return false;
     }
-    
+
     return true;
 }
 
@@ -132,7 +132,7 @@ bool debug_draw_camera(struct camera *c, vec3 start, float pitch, float yaw, flo
     float h = s->near_plane / s->aspect;
     vec4 r = { 0.0, 0.0, 0.0, 1.0 };
     vec4 nw, ne, sw, se;
-    
+
     mat4x4_identity(m);
     mat4x4_rotate_X(m, m, to_radians(pitch));
     mat4x4_rotate_Y(m, m, to_radians(yaw));
@@ -182,7 +182,7 @@ void camera_update(struct camera *c, struct scene *scene, struct entity3d *entit
     // We start with target pitch.
     c->current_pitch = c->target_pitch;
     c->current_yaw = c->target_yaw;
-    
+
     height = entity3d_aabb_Y(entity) * 3 / 4;
     dist = height * 3;
     start[1] += height;
