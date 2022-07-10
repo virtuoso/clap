@@ -50,6 +50,8 @@ struct scene {
     int                 exit_timeout;
     int                 fullscreen;
     int                 proj_updated;
+    float               near_plane;
+    float               far_plane;
 };
 
 int scene_camera_add(struct scene *s);

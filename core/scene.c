@@ -312,6 +312,8 @@ int scene_init(struct scene *scene)
     scene->proj_mx      = mx_new();
     scene->exit_timeout = -1;
     scene->auto_yoffset = 4.0;
+    scene->near_plane   = 0.1;
+    scene->far_plane    = 1000.0;
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);
     list_init(&scene->instor);
