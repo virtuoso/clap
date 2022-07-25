@@ -7,7 +7,7 @@
 #define TYPE(__type, __def) \
     typedef struct __type { __def } __type ## _t;
 #else
-# ifdef DEBUG
+# ifdef CLAP_DEBUG
 #define TYPE(__type, __def) \
     typedef struct __type ## _impl { __def } __type ## _t;
 # else
