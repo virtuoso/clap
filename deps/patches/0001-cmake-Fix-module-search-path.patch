@@ -1,0 +1,42 @@
+From 50b716cefaef595e20a362cedf46fe25cfc9e539 Mon Sep 17 00:00:00 2001
+From: Alexander Shishkin <alex@ash.works>
+Date: Mon, 25 Nov 2024 01:47:51 +0200
+Subject: [PATCH] cmake: Fix module search path
+
+Currently, the "cmake" directory at the top of source tree is made the
+only element in the module search list, which breaks compilation as a
+subdirectory of another project. Instead, add the current source
+directory's "cmake" to the list of module search paths.
+
+While at it, disable all compilation warnings.
+
+Signed-off-by: Alexander Shishkin <alex@ash.works>
+---
+ CMakeLists.txt | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index cb6030a..9dc9be8 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -18,7 +18,7 @@ add_compile_definitions(UNICODE _UNICODE
+ 
+ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+ 	add_compile_options(-fcolor-diagnostics -fansi-escape-codes
+-						-Wall -Wextra
++						-w
+ 						-std=c11)
+ endif()
+ 
+@@ -30,7 +30,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+ 						/std:c11)
+ endif()
+ 
+-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
++list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+ include_directories(include)
+ 
+ option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
+-- 
+2.32.0.windows.2
+

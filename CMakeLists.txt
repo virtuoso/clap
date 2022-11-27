@@ -17,22 +17,11 @@ else ()
     set(TARGET_DIR "release" CACHE INTERNAL "")
 endif ()
 
-if(WIN32)
-        set(PYTHON_EXECUTABLE "python")
-else()
-        set(PYTHON_EXECUTABLE "python3")
-endif()
-
-if((NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/.bootstrap.json") OR ("${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" IS_NEWER_THAN "${CMAKE_CURRENT_SOURCE_DIR}/deps/.bootstrap.json"))
-        execute_process(
-                COMMAND ${PYTHON_EXECUTABLE} "bootstrap.py"
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                RESULT_VARIABLE bootstrap_result
-        )
-        if (NOT (${bootstrap_result} EQUAL 0))
-                message(FATAL_ERROR "bootstrap.py failed")
-        endif()
-endif()
+include(scripts/bootstrap.cmake)
+bootstrap_deps("bootstrap.json")
+if (WIN32)
+    bootstrap_deps("bootstrap-win32.json")
+endif ()
 
 include(scripts/rust-wasm.cmake)
 
@@ -46,6 +35,12 @@ set(MESHOPT_BUILD_DEMO OFF CACHE BOOL "")
 set(MESHOPT_BUILD_TOOLS OFF CACHE BOOL "")
 set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "")
 add_subdirectory(deps/src/meshoptimizer)
+
+if (WIN32)
+    set(BUILD_TESTING OFF)
+    add_subdirectory(deps/src/windows-libc)
+    set_property(TARGET wlibc PROPERTY FOLDER "ThirdPartyLibraries")
+endif ()
 
 set_property(TARGET meshoptimizer PROPERTY FOLDER "ThirdPartyLibraries")
 
@@ -61,8 +56,6 @@ ExternalProject_Add(ode
         -DODE_WITH_LIBCCD=ON -DODE_WITH_OPCODE=ON -DBUILD_SHARED_LIBS=OFF
     INSTALL_COMMAND
         cmake --build . --target install)
-# ExternalProject_Get_Property(ode install_dir)
-# message("### ode directory = ${install_dir}")
 set(ODE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ode")
 set(ODE_LIBRARY "${ODE_ROOT}/lib/libode.a")
 set(ODE_INCLUDE "${ODE_ROOT}/include")
