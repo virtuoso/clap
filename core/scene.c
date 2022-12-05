@@ -456,6 +456,12 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                     ptype = PHYS_GEOM;
             }
         }
+
+        /* XXX: if it's not a gltf, we won't have TriMesh collision data any more */
+        if (gd && class == dTriMeshClass) {
+            gltf_mesh_data(gd, collision, &scene->_model->collision_vx, &scene->_model->collision_vxsz,
+                           &scene->_model->collision_idx, &scene->_model->collision_idxsz, NULL, NULL, NULL, NULL);
+        }
     }
 
     if (ent || ch) {
@@ -502,12 +508,6 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 c->pos[0] = e->dx;
                 c->pos[1] = e->dy;
                 c->pos[2] = e->dz;
-            }
-
-            /* XXX: if it's not a gltf, we won't have TriMesh collision data any more */
-            if (gd && class == dTriMeshClass) {
-                gltf_mesh_data(gd, collision, &e->collision_vx, &e->collision_vxsz,
-                               &e->collision_idx, &e->collision_idxsz, NULL, NULL, NULL, NULL);
             }
 
             mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);

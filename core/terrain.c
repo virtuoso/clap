@@ -692,10 +692,10 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     txm = model3dtx_new(ref_pass(model), "terrain.png");
     scene_add_model(s, txm);
     t->entity = entity3d_new(txm);
-    t->entity->collision_vx = vx;
-    t->entity->collision_vxsz = vxsz;
-    t->entity->collision_idx = idx;
-    t->entity->collision_idxsz = idxsz;
+    t->entity->txmodel->model->collision_vx = vx;
+    t->entity->txmodel->model->collision_vxsz = vxsz;
+    t->entity->txmodel->model->collision_idx = idx;
+    t->entity->txmodel->model->collision_idxsz = idxsz;
     t->entity->visible = 1;
     t->entity->update  = NULL;
     t->entity->scale = 1;

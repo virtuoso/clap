@@ -607,10 +607,11 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
 dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct entity3d *e, double mass)
 {
     dTriMeshDataID meshdata = dGeomTriMeshDataCreate();
-    unsigned short *idx = e->collision_idx;
-    size_t idxsz = e->collision_idxsz;
-    size_t vxsz = e->collision_vxsz;
-    float *vx = e->collision_vx;
+    struct model3d *m = e->txmodel->model;
+    unsigned short *idx = m->collision_idx;
+    size_t idxsz = m->collision_idxsz;
+    size_t vxsz = m->collision_vxsz;
+    float *vx = m->collision_vx;
     dGeomID trimesh = NULL;
     dReal *tnorm = NULL;
     dReal *tvx = NULL;
@@ -634,9 +635,19 @@ dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct 
     vxsz /= sizeof(GLfloat);
     CHECK(tvx = calloc(vxsz, sizeof(*tvx)));
     for (i = 0; i < vxsz; i += 3) {
-        tvx[i + 0] = vx[i + 0];
-        tvx[i + 1] = vx[i + 1];
-        tvx[i + 2] = vx[i + 2];
+        /* apply rotation and scale */
+        mat4x4 trans;
+        vec4 pos = { vx[i + 0], vx[i + 1], vx[i + 2], 1 };
+        vec4 res;
+        mat4x4_identity(trans);
+        mat4x4_rotate_X(trans, trans, e->rx);
+        mat4x4_rotate_Y(trans, trans, e->ry);
+        mat4x4_rotate_Z(trans, trans, e->rz);
+        mat4x4_scale_aniso(trans, trans, e->scale, e->scale, e->scale);
+        mat4x4_mul_vec4(res, trans, pos);
+        tvx[i + 0] = res[0];
+        tvx[i + 1] = res[1];
+        tvx[i + 2] = res[2];
     }
     /*if (m->norm) {
         CHECK(tnorm = calloc(vxsz, sizeof(*tnorm)));

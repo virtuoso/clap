@@ -97,6 +97,11 @@ struct model3d {
     GLuint              nr_vertices;
     GLuint              nr_faces[LOD_MAX];
     struct model_joint  *joints;
+    /* Collision mesh, if needed */
+    float               *collision_vx;
+    size_t              collision_vxsz;
+    unsigned short      *collision_idx;
+    size_t              collision_idxsz;
 };
 
 struct model3dtx {
@@ -220,11 +225,6 @@ struct entity3d {
     /* these both have model->nr_joints elements */
     struct joint     *joints;
     mat4x4           *joint_transforms;
-    /* Collision mesh, if needed */
-    float               *collision_vx;
-    size_t              collision_vxsz;
-    unsigned short      *collision_idx;
-    size_t              collision_idxsz;
 
     struct phys_body *phys_body;
     GLfloat color[4];

@@ -53,6 +53,8 @@ static void model3d_drop(struct ref *ref)
     for (i = 0; i < m->nr_joints; i++)
         darray_clearout(&m->joints[i].children.da);
     free(m->joints);
+    free(m->collision_vx);
+    free(m->collision_idx);
     free(m->name);
 }
 
@@ -1352,8 +1354,6 @@ static void entity3d_drop(struct ref *ref)
     }
     free(e->joints);
     free(e->joint_transforms);
-    free(e->collision_vx);
-    free(e->collision_idx);
     free(e->mx);
 }
 
