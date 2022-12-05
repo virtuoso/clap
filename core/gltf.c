@@ -987,23 +987,23 @@ void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, un
 {
     struct gltf_mesh *m = &gd->meshes.x[mesh];
 
-    if (m)
+    if (mesh >= gd->meshes.da.nr_el)
         return;
 
     if (vx) {
-        *vx = gltf_vx(gd, mesh);
+        *vx = memdup(gltf_vx(gd, mesh), gltf_vxsz(gd, mesh));
         *vxsz = gltf_vxsz(gd, mesh);
     }
     if (idx) {
-        *idx = gltf_idx(gd, mesh);
+        *idx = memdup(gltf_idx(gd, mesh), gltf_idxsz(gd, mesh));
         *idxsz = gltf_idxsz(gd, mesh);
     }
     if (tx) {
-        *tx = gltf_tx(gd, mesh);
+        *tx = memdup(gltf_tx(gd, mesh), gltf_txsz(gd, mesh));
         *txsz = gltf_txsz(gd, mesh);
     }
     if (norm) {
-        *norm = gltf_norm(gd, mesh);
+        *norm = memdup(gltf_norm(gd, mesh), gltf_normsz(gd, mesh));
         *normsz = gltf_normsz(gd, mesh);
     }
 }
