@@ -54,6 +54,12 @@ static struct key_map key_map_wasd[] = {
     KEY_NAME("ArrowRight", to_press_release, yaw_right),
     KEY_NAME("KeyQ",       is_press,         inv_toggle),
     KEY_NAME("KeyE",       is_press,         pad_y),
+    KEY_NAME("F1",         is_press,         fullscreen),
+    KEY_NAME("F2",         is_press,         volume_down),
+    KEY_NAME("F3",         is_press,         volume_up),
+    KEY_NAME("F10",        is_press,         autopilot),
+    KEY_NAME("F12",        is_press,         verboser),
+    KEY_NAME("Tab",        is_press,         tab),
 };
 #else
 static struct key_map key_map_wasd[] = {
@@ -69,6 +75,12 @@ static struct key_map key_map_wasd[] = {
     KEY_VAL(GLFW_KEY_Q,     is_press,         inv_toggle),
     KEY_VAL(GLFW_KEY_E,     is_press,         pad_y),
     KEY_VAL(GLFW_KEY_P,     is_press,         debug_action),
+    KEY_VAL(GLFW_KEY_F1,    is_press,         fullscreen),
+    KEY_VAL(GLFW_KEY_F2,    is_press,         volume_down),
+    KEY_VAL(GLFW_KEY_F3,    is_press,         volume_up),
+    KEY_VAL(GLFW_KEY_F10,   is_press,         autopilot),
+    KEY_VAL(GLFW_KEY_F12,   is_press,         verboser),
+    KEY_VAL(GLFW_KEY_TAB,   is_press,         tab),
 };
 #endif
 

@@ -57,9 +57,6 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     mods |= (!!e->altKey)   << 2;
 
     switch (e->keyCode) {
-    case 9: /* Tab */
-        mi.tab = 1;
-        break;
     case 32:
         /*if (e->ctrlKey)
             mi.focus_cancel = 1;
@@ -72,24 +69,6 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     case 77: /* m */
         if (press == 1)
             mi.menu_toggle = 1;
-        break;
-    case 112: /* F1 */
-        if (press == 1)
-            mi.fullscreen = 1;
-        break;
-    case 113: /* F2 */
-        mi.volume_down = 1;
-        break;
-    case 114: /* F3 */
-        mi.volume_up = 1;
-        break;
-    case 121: /* F10 */
-        if (press == 1)
-            mi.autopilot = 1;
-        break;
-    case 123: /* F12 */
-        if (press == 1)
-            mi.verboser = 1;
         break;
     default:
         key_event(&keyboard_source, e->keyCode, e->code, mods, press);

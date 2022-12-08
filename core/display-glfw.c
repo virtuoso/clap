@@ -225,18 +225,6 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
         else
             mi.space = 1;
         break;
-    case GLFW_KEY_TAB:
-        mi.tab = press == 1;
-        break;
-    case GLFW_KEY_F1:
-        mi.fullscreen = press == 1;
-        break;
-    case GLFW_KEY_F10:
-        mi.autopilot = press == 1;
-        break;
-    case GLFW_KEY_F12:
-        mi.verboser = press == 1;
-        break;
     case GLFW_KEY_ESCAPE:
         mi.menu_toggle = press == 1;
         break;
