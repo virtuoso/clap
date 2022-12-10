@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include "logger.h"
 
 typedef unsigned char uchar;
 
