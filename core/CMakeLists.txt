@@ -104,7 +104,7 @@ set(ENGINE_SRC
     terrain.c ui.c scene.c font.c sound.c networking.c pngloader.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c
     gltf.c input-joystick.c render-gl.c mesh.c pipeline.c input-keyboard.c
-    game.c camera.c xyarray.c ca2d.c
+    game.c camera.c xyarray.c ca2d.c ca3d.c
     ${PLATFORM_SRC})
 add_library(${ENGINE_LIB} ${ENGINE_SRC})
 add_dependencies(${ENGINE_LIB} ode)
