@@ -265,20 +265,6 @@ void resize_cb(int width, int height)
     // fbo_update(width, height);
 }
 
-/*struct model_config {
-    const char  *name;
-    const char  *texture;
-};
-
-struct scene_config {
-    struct model_config model[];
-} = {
-    model   = [
-        { .name = "f-16.obj", .texture = "purple.png" },
-        { .name = "f-16.obj", .texture = "purple.png" },
-    ],
-};*/
-
 static void ohc_ground_contact(void *priv, float x, float y, float z)
 {
     if (scene.auto_yoffset < y)
