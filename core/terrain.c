@@ -1,149 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <errno.h>
+#include "ca2d.h"
 #include "model.h"
 #include "physics.h"
 #include "scene.h"
 #include "shader.h"
 #include "terrain.h"
-
-static unsigned char xyarray_get(unsigned char *arr, int width, int x, int y)
-{
-    if (x < 0 || y < 0 || x >= width || y >= width)
-        return 0;
-    if (x < 0)
-        x = width - 1;
-    else if (x >= width)
-        x = 0;
-    return arr[y * width + x];
-}
-
-static void xyarray_set(unsigned char *arr, int width, int x, int y, unsigned char v)
-{
-    if (x < 0)
-        x = width - 1;
-    else if (x >= width)
-        x = 0;
-    arr[y * width + x] = v;
-}
-
-static void xyarray_print(unsigned char *arr, int width, int height)
-{
-    static const char ch[] = " .+oO############_^tTF";
-    char str[2048];
-    int i, j, p;
-
-    for (j = 0; j < height; j++) {
-        for (i = 0, p = 0; i < width; i++)
-            // p += sprintf(str + p, "%.01x ", xyarray_get(arr, width, i, j));
-            p += sprintf(str + p, "%c ", ch[xyarray_get(arr, width, i, j)]);
-        dbg("arr[%02d]: %s\n", j, str);
-    }
-}
-
-static int neigh_vn1(unsigned char *arr, int side, int x, int y)
-{
-    int n = 0;
-
-    n += !!xyarray_get(arr, side, x + 1, y);
-    n += !!xyarray_get(arr, side, x - 1, y);
-    n += !!xyarray_get(arr, side, x, y + 1);
-    n += !!xyarray_get(arr, side, x, y - 1);
-
-    return n;
-}
-
-static int neigh_m1(unsigned char *arr, int side, int x, int y)
-{
-    int n = neigh_vn1(arr, side, x, y);
-
-    n += !!xyarray_get(arr, side, x + 1, y + 1);
-    n += !!xyarray_get(arr, side, x - 1, y + 1);
-    n += !!xyarray_get(arr, side, x + 1, y - 1);
-    n += !!xyarray_get(arr, side, x - 1, y - 1);
-
-    return n;
-}
-
-static int neigh_vnv(unsigned char *arr, int side, int x, int y)
-{
-    int n = 0;
-    int v = xyarray_get(arr, side, x, y);
-
-    n += xyarray_get(arr, side, x + 1, y) > v;
-    n += xyarray_get(arr, side, x - 1, y) > v;
-    n += xyarray_get(arr, side, x, y + 1) > v;
-    n += xyarray_get(arr, side, x, y - 1) > v;
-
-    return n;
-}
-
-static int neigh_mv(unsigned char *arr, int side, int x, int y)
-{
-    int n = neigh_vnv(arr, side, x, y);
-    int v = xyarray_get(arr, side, x, y);
-
-    n += xyarray_get(arr, side, x + 1, y + 1) > v;
-    n += xyarray_get(arr, side, x - 1, y + 1) > v;
-    n += xyarray_get(arr, side, x + 1, y - 1) > v;
-    n += xyarray_get(arr, side, x - 1, y - 1) > v;
-
-    return n;
-}
-
-struct cell_automaton {
-    const char      *name;
-    unsigned int    born;
-    unsigned int    surv;
-    unsigned int    nr_states;
-    bool            decay;
-    int             (*neigh)(unsigned char *arr, int side, int x, int y);
-};
-
-static void cell_aut_step(const struct cell_automaton *ca, unsigned char *arr, int side)
-{
-    int i, j;
-
-    for (i = 0; i < side; i++)
-        for (j = 0; j < side; j++) {
-            int n = ca->neigh(arr, side, i, j);
-            int v = xyarray_get(arr, side, i, j);
-
-            if (!v && (ca->born & (1 << n)))
-                xyarray_set(arr, side, i, j, ca->nr_states);
-            else if (v && (ca->surv & (1 << n)))
-                ;
-            else if (v && ca->decay)
-                xyarray_set(arr, side, i, j, v - 1);
-        }
-}
-
-static unsigned char *ca_gen_maze(const struct cell_automaton *ca, int side, int steps)
-{
-    unsigned char *arr;
-    int i, j, step;
-
-    CHECK(arr = calloc(side * side, 1));
-    /* seed */
-    // for (i = -1; i < 2; i++)
-    //     for (j = -1; j < 2; j++)
-    //         xyarray_set(arr, side, side / 2 + i, side / 2 + j, ca->nr_states);
-    for (i = 0; i < side; i++)
-        for (j = 0; j < side; j++) {
-            int v = lrand48() % 8;
-            xyarray_set(arr, side, i, j, v <= ca->nr_states ? ca->nr_states : 0);
-        }
-
-    // dbg("seeding:\n");
-    // xyarray_print(arr, side, side);
-    for (step = 0; step < steps; step++) {
-        cell_aut_step(ca, arr, side);
-        // dbg("step %d:\n", step);
-        // xyarray_print(arr, side, side);
-    }
-    xyarray_print(arr, side, side);
-
-    return arr;
-}
+#include "xyarray.h"
 
 static float get_rand_height(struct terrain *t, int x, int z)
 {
@@ -544,7 +407,7 @@ const struct cell_automaton ca_test = {
     .surv = 3 << 7,
     .nr_states = 4,
     .decay = true,
-    .neigh = neigh_m1,
+    .neigh = ca2d_neigh_m1,
 };
 
 const struct cell_automaton ca_instors[] = {
@@ -553,14 +416,14 @@ const struct cell_automaton ca_instors[] = {
         .born = 0x3f,
         .surv = 0xff,
         .nr_states = 20,
-        .neigh = neigh_mv,
+        .neigh = ca2d_neigh_mv,
     },
     {
         .name = "ash pinus",
         .born = 0xff,
         .surv = 0xff,
         .nr_states = 21,
-        .neigh = neigh_mv,
+        .neigh = ca2d_neigh_mv,
     },
 };
 
@@ -581,7 +444,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     unsigned char *maze;
     int i, j, mside = nr_v / MAZE_FAC;
 
-    maze = ca_gen_maze(&ca_test, nr_v / MAZE_FAC, 3);
+    maze = ca2d_generate(&ca_test, mside, 4);
 
     CHECK(t = ref_new(terrain));
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -632,7 +495,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
 
     /* place instantiators */
     for (i = 0; i < array_size(ca_instors); i++) {
-        cell_aut_step(&ca_instors[i], maze, mside);
+        ca2d_step(&ca_instors[i], maze, mside);
         // dbg("trees (%s):\n", ca_instors[i].name);
         // xyarray_print(maze, mside, mside);
     }
