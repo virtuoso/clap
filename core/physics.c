@@ -413,7 +413,7 @@ bool phys_body_ground_collide(struct phys_body *body)
     dSpaceCollide2(body->geom, (dGeomID)phys->ground_space, &c, got_contact);
     if (c.nc) {
         //dbg("body '%s' penetrates ground\n", entity_name(e));
-        entity3d_move(e, 0, /*body->yoffset + */c.contact->geom.depth, 0);
+        entity3d_move(e, 0, body->yoffset + c.contact->geom.depth, 0);
         phys_body_stick(body, c.contact);
         //return true;
     }
