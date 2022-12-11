@@ -12,6 +12,7 @@
 #include <math.h>
 #include <unistd.h>
 #include "object.h"
+#include "ca3d.h"
 #include "common.h"
 #include "display.h"
 #include "input.h"
@@ -26,6 +27,7 @@
 #include "sound.h"
 #include "pipeline.h"
 #include "physics.h"
+#include "primitives.h"
 #include "networking.h"
 #include "settings.h"
 #include "ui-debug.h"
@@ -265,6 +267,172 @@ void resize_cb(int width, int height)
     // fbo_update(width, height);
 }
 
+static void cube_remove(struct entity3d *e, void *data)
+{
+    struct list *list = data;
+    if (!strcmp(entity_name(e), "cubity")) {
+        list_del(&e->entry);
+        list_append(list, &e->entry);
+    }
+}
+
+struct cube_data {
+    struct scene *s;
+    struct xyzarray *xyz;
+    int ca;
+    int steps;
+    float side;
+    bool inv;
+    bool make;
+    bool prune;
+} cube_data;
+
+#define CUBE_SIDE 16
+static void cube_geom(struct scene *s, struct cube_data *cd, float x, float y, float z, float side)
+{
+    struct mesh **mesh;
+    struct model3d *model;
+    struct model3dtx **txm;
+    struct entity3d **entity, *e, *iter;
+    struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
+    float *vx, *norm, *tx;
+    unsigned short *idx;
+    int nr_cubes, nr_vx, nr_meshes, cubes_per_mesh;
+    int cx, cy, cz, cc, cm;
+    DECLARE_LIST(list);
+
+    mq_for_each(&s->mq, cube_remove, &list);
+    list_for_each_entry_iter(e, iter, &list, entry)
+        ref_put(e);
+
+    if (cd->make || !cd->xyz) {
+        free(cd->xyz);
+        cd->xyz = ca3d_make(CUBE_SIDE, CUBE_SIDE, 5);
+        nr_cubes = xyzarray_count(cd->xyz);
+        cd->make = false;
+        ca3d_run(cd->xyz, cd->ca, cd->steps);
+    } else {
+        ca3d_run(cd->xyz, cd->ca, 1);
+    }
+    if (cd->prune)
+        ca3d_prune(cd->xyz);
+    nr_cubes = xyzarray_count(cd->xyz);
+    if (!nr_cubes)
+        return;
+
+    if (cd->inv)
+        nr_cubes = cd->xyz->dim[0] * cd->xyz->dim[1] * cd->xyz->dim[2] - nr_cubes;
+    nr_vx = nr_cubes * mesh_nr_vx(&cube_mesh);
+    ui_debug_printf("ca: %d steps: %d inv: %d prune: %d nr_cubes: %d nr_vx: %d",
+                    cd->ca, cd->steps, cd->inv, cd->prune, nr_cubes, nr_vx);
+    /* we're limited by unsigned short for index elements */
+    nr_meshes = nr_vx / 65536;
+    nr_meshes += !!(nr_vx % 65536);
+    cubes_per_mesh = nr_cubes / nr_meshes;
+    nr_meshes += !!(nr_cubes % cubes_per_mesh);
+    dbg("nr_meshes: %d\n", nr_meshes);
+
+    CHECK(mesh = calloc(nr_meshes, sizeof(*mesh)));
+    CHECK(txm = calloc(nr_meshes, sizeof(*txm)));
+    CHECK(entity = calloc(nr_meshes, sizeof(*entity)));
+    for (cm = 0; cm < nr_meshes; cm++) {
+        mesh[cm] = mesh_new("cubity");
+
+        mesh_attr_alloc(mesh[cm], MESH_VX, cube_mesh.attr[MESH_VX].stride, cubes_per_mesh * mesh_nr_vx(&cube_mesh));
+        mesh_attr_alloc(mesh[cm], MESH_NORM, cube_mesh.attr[MESH_NORM].stride, cubes_per_mesh * mesh_nr_norm(&cube_mesh));
+        mesh_attr_alloc(mesh[cm], MESH_TX, cube_mesh.attr[MESH_TX].stride, cubes_per_mesh * mesh_nr_tx(&cube_mesh));
+        mesh_attr_alloc(mesh[cm], MESH_IDX, cube_mesh.attr[MESH_IDX].stride, cubes_per_mesh * mesh_nr_idx(&cube_mesh));
+    }
+
+    for (cc = 0, cm = 0, cz = 0; cz < cd->xyz->dim[2]; cz++)
+        for (cy = 0; cy < cd->xyz->dim[1]; cy++)
+            for (cx = 0; cx < cd->xyz->dim[0]; cx++)
+                if (!!xyzarray_getat(cd->xyz, cx, cy, cz) == !cd->inv) {
+                    mesh_push_mesh(mesh[cm], &cube_mesh,
+                                   side * cx + x, side * cz + y, side * cy + z, side);
+                    cc++;
+                    if (cc == cubes_per_mesh) {
+                        cm++;
+                        cc = 0;
+                    }
+                }
+    for (cm = 0; cm < nr_meshes; cm++) {
+        mesh_optimize(mesh[cm]);
+        model = model3d_new_from_mesh("cubity", prog, mesh[cm]);
+        model->collision_vx = mesh_vx(mesh[cm]);
+        model->collision_vxsz = mesh_vx_sz(mesh[cm]);
+        model->collision_idx = mesh_idx(mesh[cm]);
+        model->collision_idxsz = mesh_idx_sz(mesh[cm]);
+
+        txm[cm] = model3dtx_new(ref_pass(model), "rock.png");
+        scene_add_model(s, txm[cm]);
+        entity[cm] = entity3d_new(txm[cm]);
+        entity[cm]->visible = 1;
+        entity[cm]->update  = NULL;
+        entity[cm]->scale = 1;
+        entity3d_reset(entity[cm]);
+        model3dtx_add_entity(txm[cm], entity[cm]);
+        entity3d_add_physics(entity[cm], 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
+        phys_ground_add(entity[cm]);
+    }
+    free(mesh);
+    free(txm);
+    free(entity);
+    ref_put(prog); /* matches shader_prog_find() above */
+    /* drop the character on top of the structure */
+    s->control->entity->dx = x + cd->xyz->dim[0] * cd->side / 2;
+    s->control->entity->dy = y + cd->xyz->dim[1] * cd->side + 4;
+    s->control->entity->dz = z + cd->xyz->dim[2] * cd->side / 2;
+}
+
+static int cube_input(struct message *m, void *data)
+{
+    struct message_input *mi = &m->input;
+    struct cube_data *cd = data;
+    struct scene *s = cd->s;
+    bool gen = false;
+
+    if (!mi->pad_lb)
+        return 0;
+
+    cd->side = 2;
+    if (mi->up == 1) {
+        /* LB + Up: next automaton */
+        cd->ca++;
+        cd->make = true;
+        gen = true;
+    } else if (mi->down == 1) {
+        /* LB + Down: previous automaton */
+        cd->ca--;
+        cd->make = true;
+        gen = true;
+    } else if (mi->right == 1) {
+        /* LB + Right: more steps */
+        cd->steps++;
+        cd->make = false;
+        gen = true;
+    } else if (mi->left == 1) {
+        /* LB + Left: fewer steps */
+        cd->steps--;
+        cd->make = true;
+        gen = true;
+    } else if (mi->pad_x == 1) {
+        /* LB + X: invert cubes */
+        cd->inv = !cd->inv;
+        cd->make = true;
+        gen = true;
+    } else if (mi->pad_y == 1) {
+        /* LB + X: prune cubes */
+        cd->prune = !cd->prune;
+        cd->make = false;
+        gen = true;
+    }
+
+    if (gen)
+        cube_geom(s, cd, 10, CUBE_SIDE * cd->side / 2, 10, cd->side);
+    return gen ? MSG_STOP : MSG_HANDLED;
+}
+
 static void ohc_ground_contact(void *priv, float x, float y, float z)
 {
     if (scene.auto_yoffset < y)
@@ -406,8 +574,13 @@ int main(int argc, char **argv, char **envp)
     phys_init();
     phys->ground_contact = ohc_ground_contact;
 
+    cube_data.s = &scene;
+    cube_data.make = true;
+    subscribe(MT_INPUT, cube_input, &cube_data);
+
     subscribe(MT_INPUT, handle_input, NULL);
     subscribe(MT_COMMAND, handle_command, &scene);
+
     /*
      * Need to write vorbis callbacks for this
      * lib_request(RES_ASSET, "morning.ogg", opening_sound_load, &intro_sound);
