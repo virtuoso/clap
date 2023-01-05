@@ -207,11 +207,23 @@ void scene_characters_move(struct scene *s)
 static int scene_handle_command(struct message *m, void *data)
 {
     struct scene *s = data;
+    int ret = 0;
 
-    if (m->cmd.toggle_autopilot)
+    if (m->cmd.toggle_modality) {
+        s->ui_is_on = !s->ui_is_on;
+        ret = MSG_HANDLED;
+    }
+
+    if (s->ui_is_on)
+        goto out;
+
+    if (m->cmd.toggle_autopilot) {
         s->autopilot ^= 1;
+        ret = MSG_HANDLED;
+    }
 
-    return 0;
+out:
+    return ret;
 }
 
 static int scene_handle_input(struct message *m, void *data)
@@ -264,6 +276,9 @@ static int scene_handle_input(struct message *m, void *data)
         message_send(&m);
     }
 #endif
+
+    if (s->ui_is_on)
+        return 0;
 
     character_handle_input(s->control, s, m);
     //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));

@@ -1020,6 +1020,16 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
         uie->on_focus(uie, true);
 }
 
+static void ui_modality_send(void)
+{
+    struct message m;
+
+    memset(&m, 0, sizeof(m));
+    m.type = MT_COMMAND;
+    m.cmd.toggle_modality = 1;
+    message_send(&m);
+}
+
 static const char *menu_items[] = {
     "HUD",
 #ifndef CONFIG_FINAL
@@ -1039,6 +1049,7 @@ static const char *menu_items[] = {
 };
 static void ui_menu_init(struct ui *ui)
 {
+    ui_modality_send();
     ui->menu = ui_menu_new(ui, menu_items, array_size(menu_items));
     /* XXX: should send a message to others that the UI owns inputs now */
     ui->modal = true;
@@ -1046,6 +1057,7 @@ static void ui_menu_init(struct ui *ui)
 
 static void ui_menu_done(struct ui *ui)
 {
+    ui_modality_send();
     ref_put(ui->menu);
     ui->menu = NULL;
     if (!ui->inventory)
@@ -1072,6 +1084,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     unsigned int vaff[] = { UI_AF_LEFT, UI_AF_HCENTER, UI_AF_RIGHT };
 
     dbg("hai\n");
+    ui_modality_send();
 
     CHECK(inv = ui_widget_new(ui, nr_items, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 0.3, 0.3));
     inv->focus = -1;
@@ -1190,6 +1203,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
 void ui_inventory_done(struct ui *ui)
 {
     dbg("bai\n");
+    ui_modality_send();
     ref_put(ui->inventory);
     ui->inventory = NULL;
     if (!ui->menu)
