@@ -582,8 +582,8 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
     /*
      * XXX: The above logic is busted: ray length ends up zero.
      */
-    dbg("CAPSULE('%s') dir=%d r=%f length=%f yoff=%f ray_off=%f ray_len=%f\n", entity_name(e), direction, r, length,
-        off, body->ray_off, off - body->ray_off);
+    // dbg("CAPSULE('%s') dir=%d r=%f length=%f yoff=%f ray_off=%f ray_len=%f\n", entity_name(e), direction, r, length,
+    //     off, body->ray_off, off - body->ray_off);
 
     if (length)
         CHECK(g = dCreateCapsule(phys->space, r, length));
@@ -619,11 +619,6 @@ dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct 
     dTriIndex *tidx;
     int i;
 
-#ifdef dSINGLE
-    dbg("dSINGLE; dReal: %zu dTriIndex: %zu\n", sizeof(dReal), sizeof(dTriIndex));
-#else
-    dbg("dDOUBLE; dReal: %zu dTriIndex: %zu\n", sizeof(dReal), sizeof(dTriIndex));
-#endif
     idxsz /= sizeof(unsigned short);
     CHECK(tidx = calloc(idxsz, sizeof(*tidx))); /* XXX: refcounting, or tied to model? */
     for (i = 0; i < idxsz; i += 3) {
