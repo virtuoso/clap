@@ -307,37 +307,38 @@ struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double 
     struct entity3d *target = NULL;
     dGeomID ray = NULL;
     dContact contact;
+    vec3 _start = { start[0], start[1], start[2] };
+    vec3 comp;
     int nc, try = 0;
 
     ray = dCreateRay(phys->space, *pdist);
 retry:
-    // if (ray)
-    //     dGeomDestroy(ray);
     dGeomRaySetClosestHit(ray, 1);
-    // dGeomRaySetParams(ray, 0, 0); <-- these are defaults anyway
+    /* avoid self-intersections as much as possible */
+    dGeomRaySetBackfaceCull(ray, 1);
     phys_contact_surface(NULL, NULL, &contact, 1);
-    dGeomRaySet(ray, start[0], start[1], start[2], dir[0], dir[1], dir[2]);
+    dGeomRaySet(ray, _start[0], _start[1], _start[2], dir[0], dir[1], dir[2]);
     nc = dCollide(ray, (dGeomID)phys->space, 1, &contact.geom, sizeof(dContact));
     if (nc) {
         target = dGeomGetData(dGeomGetClass(contact.geom.g1) == dRayClass ? contact.geom.g2 : contact.geom.g1);
         if (target) {
-            if (e == target && try++ < 3 ) {
-                start[0] = contact.geom.pos[0];
-                start[1] = contact.geom.pos[1];
-                start[2] = contact.geom.pos[2];
-                vec3_add(start, start, dir);
+            if (e == target && try++ < 10) {
+                vec3_scale(comp, dir, contact.geom.depth + 1e-3);
+                vec3_add(_start, _start, comp);
                 goto retry;
             }
         }
 
-        *pdist = contact.geom.depth;
+        vec3_sub(comp, _start, start);
+        *pdist = contact.geom.depth + vec3_len(comp);
     }
     dGeomDestroy(ray);
 
-    ui_debug_printf("[%f,%f,%f]->[%f,%f,%f] %s@%f [%f,%f,%f]", start[0], start[1], start[2],
-                    dir[0], dir[1], dir[2], entity_name(target), nc ? contact.geom.depth : 10,
-                    contact.geom.pos[0], contact.geom.pos[1], contact.geom.pos[2]);
-    return target;
+    // if (nc)
+    //     ui_debug_printf("[%f,%f,%f]->[%f,%f,%f] %s@%f(-%f)(%d) [%f,%f,%f] try %d", _start[0], _start[1], _start[2],
+    //                     dir[0], dir[1], dir[2], entity_name(target), *pdist, vec3_len(comp), nc,
+    //                     contact.geom.pos[0], contact.geom.pos[1], contact.geom.pos[2], try);
+    return nc ? target : NULL;
 }
 
 struct contact {
