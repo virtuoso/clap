@@ -28,9 +28,9 @@ struct camera {
     float   pitch_delta;
     struct matrix4f     *view_mx;
     struct matrix4f     *inv_view_mx;
-    float   tmp_debug_line_start[3 * NUMBER_OF_DEBUG_LINES];
+    float   tmp_debug_line_start[3];
     float   tmp_debug_line_end[3 * NUMBER_OF_DEBUG_LINES];
-    float   debug_line_start[3 * NUMBER_OF_DEBUG_LINES];
+    float   debug_line_start[3];
     float   debug_line_end[3 * NUMBER_OF_DEBUG_LINES];
 };
 
