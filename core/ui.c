@@ -1009,7 +1009,7 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
     }
     new_focus = dpos + uiw->focus;
     if (new_focus < 0)
-        new_focus += uiw->nr_uies ;
+        new_focus = uiw->nr_uies - 1;
     else if (new_focus >= uiw->nr_uies)
         new_focus -= uiw->nr_uies;
     uiw->focus = new_focus;
@@ -1347,18 +1347,18 @@ static int ui_handle_input(struct message *m, void *data)
         
         /* UI owns the inputs */
         ui->mod_y += m->input.delta_ly;
-        if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -100) {
+        if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -10) {
             // select previous
             ui->mod_y = 0;
             ui_widget_pick_rel(ui->menu, -1);
-        } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 100) {
+        } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 10) {
             // select next
             ui->mod_y = 0;
             ui_widget_pick_rel(ui->menu, 1);
-        } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < 0 || m->input.back) {
+        } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
             // go back
             ui_menu_done(ui);
-        } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0 || m->input.enter) {
+        } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
             // enter
             if (ui->menu->focus >= 0)
                 ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
