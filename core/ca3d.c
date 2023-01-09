@@ -170,6 +170,8 @@ static int ca3d_walk(struct xyzarray *xyz, int steps, int val)
         // dbg(" <= rolling back to [%d, %d, %d]\n", cur[0], cur[1], cur[2]);
         continue;
 got_it:
+        if (histp == HIST_SIZE)
+            continue;
         memcpy(history[histp++], next, sizeof(next));
         memcpy(cur, next, sizeof(next));
     }
