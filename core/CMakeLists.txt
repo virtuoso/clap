@@ -32,6 +32,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
                             # "-s INITIAL_MEMORY=536870912"
                             "-s MAX_WEBGL_VERSION=2"
                             "-s ASSERTIONS=1"
+                            "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
                             "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307"
                             # "-flto"
                             "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
