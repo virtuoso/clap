@@ -68,7 +68,7 @@ void xyzarray_setat(struct xyzarray *xyz, int x, int y, int z, int val)
 }
 
 /* Von Neumann, Manhattan distance 1 */
-static int ca3d_neighbors_vn1(struct xyzarray *xyz, int x, int y, int z)
+int ca3d_neighbors_vn1(struct xyzarray *xyz, int x, int y, int z)
 {
     int neigh = 0;
 

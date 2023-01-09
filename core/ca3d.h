@@ -68,6 +68,7 @@ enum {
     ca_crystal_1,
 };
 
+int ca3d_neighbors_vn1(struct xyzarray *xyz, int x, int y, int z);
 void ca3d_prune(struct xyzarray *xyz);
 int ca3d_run(struct xyzarray *xyz, int nca, int steps);
 struct xyzarray *ca3d_make(int d0, int d1, int d2);
