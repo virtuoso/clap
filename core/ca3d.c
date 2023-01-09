@@ -229,7 +229,23 @@ struct xyzarray *ca3d_make(int d0, int d1, int d2)
     ivec3 dim = { d0, d1, d2 };
     struct xyzarray *xyz = xyzarray_new(dim);
     int steps = min3(d0 * d1, d1 * d2, d0 * d2);
+    int x, y, z;
 
+    for (x = 0; x < d0; x++)
+        for (y = 0; y < d1; y++) {
+            xyzarray_setat(xyz, x, y, 0, 5);
+            xyzarray_setat(xyz, x, y, d2 - 1, 5);
+        }
+    for (x = 0; x < d0; x++)
+        for (z = 0; z < d2; z++) {
+            xyzarray_setat(xyz, x, 0, z, 5);
+            xyzarray_setat(xyz, x, d1 - 1, z, 5);
+        }
+    for (y = 0; y < d1; y++)
+        for (z = 0; z < d2; z++) {
+            xyzarray_setat(xyz, 0, y, z, 5);
+            xyzarray_setat(xyz, d0 - 1, y, z, 5);
+        }
     ca3d_walk(xyz, steps, 5);
 
     return xyz;
