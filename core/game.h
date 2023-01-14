@@ -11,8 +11,16 @@ struct free_tree {
     struct list entry;
 };
 
+enum game_item_kind {
+    GAME_ITEM_UNDEFINED = 0,
+    GAME_ITEM_APPLE,
+    GAME_ITEM_APPLE_IN_BURROW,
+    GAME_ITEM_MUSHROOM,
+    GAME_ITEM_MAX,
+};
+
 struct game_options {
-    float max_apple_age_ms;
+    float max_age_ms[GAME_ITEM_MAX];
     float apple_maturity_age_ms;
     int   burrow_capacity;
     
@@ -46,29 +54,35 @@ struct game_state {
 
     float health;
     bool apple_is_carried;
+    int carried[GAME_ITEM_MAX];
     
     struct list free_trees;
     int number_of_free_trees;
-    struct model3dtx *apple_txmodel;
+    struct model3dtx *txmodel[GAME_ITEM_MAX];
     struct game_options options;
     struct burrow burrow;
-};
-
-enum game_item_kind {
-    GAME_ITEM_UNDEFINED = 0,
-    GAME_ITEM_APPLE,
-    GAME_ITEM_APPLE_IN_BURROW,
 };
 
 struct game_item {
     enum game_item_kind kind;
     struct entity3d *entity;
-    float distance_to_character;
     float age;
+    float age_limit;
     struct free_tree *apple_parent;
     bool is_mature;
     bool is_deleted;
+    void (*interact)(struct game_state *g, struct game_item *item, struct entity3d *actor);
+    void (*kill)(struct game_state *g, struct game_item *item);
+    void *priv;
 };
+
+struct game_item *game_item_new(struct game_state *g, enum game_item_kind kind,
+                                struct model3dtx *txm);
+void game_item_delete(struct game_state *g, struct game_item *item);
+int game_item_find_idx(struct game_state *g, struct game_item *item);
+void game_item_delete_idx(struct game_state *g, int idx);
+void game_item_collect(struct game_state *g, struct game_item *item, struct entity3d *actor);
+struct game_item *game_item_spawn(struct game_state *g, enum game_item_kind kind);
 
 void game_init(struct scene *scene, struct ui *ui);
 void game_update(struct game_state *g, struct timespec ts, bool paused);

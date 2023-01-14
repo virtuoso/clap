@@ -9,11 +9,11 @@ extern struct game_state game_state;
 
 struct game_options game_options_init() {
     struct game_options options;
-    options.max_apple_age_ms = 20000.0;
+    options.max_age_ms[GAME_ITEM_APPLE] = 20000.0;
     options.apple_maturity_age_ms = 10000.0;
     options.burrow_capacity = 9;
     
-    options.gathering_distance_squared = 2.0 * 2.0;
+    options.gathering_distance_squared = 2.0;
     options.burrow_distance_squared = 3.0 * 3.0;
     
     options.poisson_rate_parameter = 0.01;
@@ -145,14 +145,88 @@ void place_apple(struct scene *s, struct entity3d *tree, struct entity3d *apple)
     apple->dy = terrain_height(s->terrain, apple->dx, apple->dz);
 }
 
-void apple_init(struct game_state *g, struct game_item *apple)
+static const char *game_item_str(struct game_item *item)
 {
-    apple->kind = GAME_ITEM_APPLE;
-    struct entity3d *e =entity3d_new(g->apple_txmodel);
-    model3dtx_add_entity(g->apple_txmodel, e);
+    static const char *kind_str[] = {
+        [GAME_ITEM_APPLE]           = "apple",
+        [GAME_ITEM_APPLE_IN_BURROW] = "apple-in-burrow",
+        [GAME_ITEM_MUSHROOM]        = "mushroom",
+    };
+
+    if (item->kind >= GAME_ITEM_MAX)
+        return "<undefined>";
+
+    return kind_str[item->kind];
+}
+
+void game_item_init(struct game_item *item, struct game_state *g,
+                    enum game_item_kind kind, struct model3dtx *txm)
+{
+    struct entity3d *e = entity3d_new(txm);
+
+    item->kind = kind;
+    model3dtx_add_entity(txm, e);
     e->scale = 1;
     e->visible = 1;
-    apple->entity = e;
+    item->entity = e;
+}
+
+struct game_item *game_item_new(struct game_state *g, enum game_item_kind kind,
+                                struct model3dtx *txm)
+{
+    struct game_item *item;
+
+    CHECK(item = darray_add(&g->items.da));
+    game_item_init(item, g, kind, txm);
+
+    return item;
+}
+
+int game_item_find_idx(struct game_state *g, struct game_item *item)
+{
+    int i;
+
+    for (i = 0; i < g->items.da.nr_el; i++)
+        if (&g->items.x[i] == item)
+            return i;
+
+    return -1;
+}
+
+void game_item_delete_idx(struct game_state *g, int idx)
+{
+    struct game_item *item = &g->items.x[idx];
+    int last = g->items.da.nr_el - 1;
+
+    if (item->kill)
+        item->kill(g, item);
+
+    /* swap with the last, then pop */
+    if (idx != last)
+        g->items.x[idx] = g->items.x[last];
+
+    darray_resize(&g->items.da, g->items.da.nr_el - 1);
+}
+
+void game_item_delete(struct game_state *g, struct game_item *item)
+{
+    int idx = game_item_find_idx(g, item);
+
+    if (idx < 0)
+        return;
+
+    game_item_delete_idx(g, idx);
+}
+
+void game_item_collect(struct game_state *g, struct game_item *item, struct entity3d *actor)
+{
+    dbg("%s collects %s\n", entity_name(actor), game_item_str(item));
+    g->carried[item->kind]++;
+    put_apple_into_pocket(g);
+    pocket_count_set(g->ui, item->kind == GAME_ITEM_APPLE ? 0 : 1, g->carried[item->kind]);
+
+    game_item_delete(g, item);
+    item->interact = NULL;
 }
 
 void apple_in_burrow_init(struct game_state *g, struct game_item *apple)
@@ -165,26 +239,31 @@ void apple_in_burrow_init(struct game_state *g, struct game_item *apple)
     apple->is_deleted = false;
 }
 
-void spawn_new_apple(struct game_state *g) {
+static void kill_apple(struct game_state *g, struct game_item *item)
+{
+    list_append(&g->free_trees, &item->apple_parent->entry);
+    g->number_of_free_trees++;
+    ref_put(item->entity);
+}
+
+struct game_item *game_item_spawn(struct game_state *g, enum game_item_kind kind)
+{
     int number_of_free_trees = g->number_of_free_trees;
     if (number_of_free_trees == 0)
-        return;
+        return NULL;
     int r = lrand48() % number_of_free_trees;
     struct free_tree *tree = get_free_tree(&g->free_trees, r);
     list_del(&tree->entry);
     g->number_of_free_trees--;
     
-    struct game_item *apple;
-    CHECK(apple = darray_add(&g->items.da));
-    apple_init(g, apple);
-    apple->apple_parent = tree;
-    place_apple(g->scene, tree->entity, apple->entity);
-}
+    struct game_item *item = game_item_new(g, kind, g->txmodel[kind]);
+    item->apple_parent = tree;
+    item->age_limit = g->options.max_age_ms[kind];
+    item->kill = kill_apple;
+    item->interact = game_item_collect;
+    place_apple(g->scene, tree->entity, item->entity);
 
-void kill_apple(struct game_state *g, struct game_item *item) {
-    list_append(&g->free_trees, &item->apple_parent->entry);
-    g->number_of_free_trees++;
-    ref_put(item->entity);
+    return item;
 }
 
 void put_apple_to_burrow(struct game_state *g) {
@@ -262,31 +341,22 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
         put_apple_to_burrow(g);
     struct game_item *item;
     while (true) {
-        // loop throw apples
+        // loop through apples
         if (idx >= g->items.da.nr_el)
             break;
         item = &g->items.x[idx];
 
+        item->age += delta_t_ms;
+        if (item->age > item->age_limit) {
+            game_item_delete_idx(g, idx);
+            continue;
+        }
+
         float squared_distance = calculate_squared_distance(item->entity, gatherer);
         bool gathered = false;
-        if (!g->apple_is_carried && squared_distance < g->options.gathering_distance_squared) {
-            // gather the apple
-            dbg("GATHERING APPLE\n");
-            gathered = true;
-            put_apple_into_pocket(g);
-        }
-        item->age += delta_t_ms;
-        if (gathered || (item->age > g->options.max_apple_age_ms)) {
-            // kill apple and delete it from the item list
-            kill_apple(g, item);
-            
-            // swap with last.
-            g->items.da.nr_el--;
-            int last = g->items.da.nr_el;
-            if (idx != last) {
-                g->items.x[idx] = g->items.x[last];
-                continue;
-            }
+        if (squared_distance < g->options.gathering_distance_squared) {
+            if (item->interact)
+                item->interact(g, item, gatherer);
         }
         idx++;
     }
