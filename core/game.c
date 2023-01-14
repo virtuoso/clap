@@ -65,9 +65,9 @@ void eat_apple_from_inventory(struct game_state *g, int apple_index) {
         add_health(g, g->options.mature_apple_value);
         b->number_of_mature_apples--;
         item->is_deleted = true;
-        dbg("Ate a mature apple from the burrow.");
+        dbg("Ate a mature apple from the burrow.\n");
     } else {
-        dbg("Can only eat mature apples.");
+        dbg("Can only eat mature apples.\n");
     }
 }
 
@@ -79,7 +79,7 @@ void eat_apple(struct game_state *g) {
     if (g->apple_is_carried) {
         get_apple_out_of_pocket(g);
         add_health(g, g->options.raw_apple_value);
-        dbg("Ate a raw apple from hand.");
+        dbg("Ate a raw apple from hand.\n");
     }
 }
 
