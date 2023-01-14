@@ -365,8 +365,11 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
     
     float updated_next_spawn_time = g->next_spawn_time - delta_t_ms;
     if (updated_next_spawn_time < 0.0) {
-        // time to spawn a new apple.
-        spawn_new_apple(g);
+        int i, nr_items = lrand48() % 30;
+
+        // time to spawn a new item
+        for (i = 0; i < nr_items; i++)
+            game_item_spawn(g, GAME_ITEM_APPLE);
         g->next_spawn_time = get_next_spawn_time(&g->options);
     } else {
         g->next_spawn_time = updated_next_spawn_time;
