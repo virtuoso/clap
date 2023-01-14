@@ -78,6 +78,8 @@ int handle_game_input(struct message *m, void *data);
 void health_set(float perc);
 void show_apple_in_pocket();
 void show_empty_pocket();
+void pocket_count_set(struct ui *ui, int kind, int count);
+void pocket_total_set(struct ui *ui, int kind, int count);
 void ui_inventory_done(struct ui *ui);
 void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
                        void (*on_click)(struct ui_element *uie, float x, float y));

@@ -1394,7 +1394,8 @@ static int ui_handle_input(struct message *m, void *data)
 
 static struct ui_element *limeric_uit;
 static struct ui_element *build_uit;
-struct ui_element *uie0, *uie1, *health, *pocket;
+struct ui_element *uie0, *uie1, *health, *pocket, **pocket_text;
+static int pocket_buckets, *pocket_count, *pocket_total;
 static float health_bar_width;
 
 void ui_pip_update(struct ui *ui, struct fbo *fbo)
@@ -1424,18 +1425,35 @@ void ui_pip_update(struct ui *ui, struct fbo *fbo)
     uie0->entity->color_pt = COLOR_PT_NONE;
 }
 
-struct ui_element *ui_pocket_new(struct ui *ui)
+struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
 {
     struct model3d *model;
     struct model3dtx *txm;
-    struct ui_element *p;
-    model = model3d_new_quad(ui->prog, 0, 0, 0.05, 1, 1);
-    model3d_set_name(model, "ui_pocket_element");
-    txm = model3dtx_new(ref_pass(model), "apple.png");
-    ui_add_model(ui, txm);
-    p = ui_element_new(ui, NULL, txm, UI_AF_TOP | UI_AF_RIGHT,
-                       10, 10, 100, 100);
+    struct ui_element *p, *pic, *t;
+    float color[4] = { 1, 1, 1, 1 };
+    struct font *font = font_open("Pixellettersfull-BnJ5.ttf", 48);
+    int i;
+
+    CHECK(pocket_text = calloc(nr, sizeof(struct ui_element *)));
+    CHECK(pocket_count = calloc(nr, sizeof(int)));
+    CHECK(pocket_total = calloc(nr, sizeof(int)));
+
+    p = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_RIGHT,
+                       10, 10, 200, 100 * nr);
+    for (i = 0; i < nr; i++) {
+        model = model3d_new_quad(ui->prog, 0, 0, 0.0, 1, 1);
+        model3d_set_name(model, "ui_pocket_element");
+        txm = model3dtx_new(ref_pass(model), tex[i]);
+        ui_add_model(ui, txm);
+
+        pic = ui_element_new(ui, p, txm, UI_AF_LEFT | UI_AF_TOP, 0, 100 * i, 100, 100);
+        t = ui_element_new(ui, p, ui_quadtx, UI_AF_LEFT | UI_AF_TOP, 100, 100 * i, 100, 100);
+        pocket_text[i] = ui_render_string(ui, font, t, "", color, UI_AF_LEFT | UI_AF_VCENTER);
+    }
     ui_element_set_visibility(p, 0);
+    font_put(font);
+    pocket_buckets = nr;
+
     return p;
 }
 
@@ -1447,6 +1465,36 @@ void show_apple_in_pocket()
 void show_empty_pocket()
 {
     ui_element_set_visibility(pocket, 0);
+}
+
+void pocket_update(struct ui *ui)
+{
+    struct ui_element *parent;
+    float color[4] = { 1, 1, 1, 1 };
+    char buf[10];
+    struct font *font = font_open("Pixellettersfull-BnJ5.ttf", 48);
+    int i;
+
+    for (i = 0; i < pocket_buckets; i++) {
+        parent = pocket_text[i]->parent;
+        ref_put_last(pocket_text[i]);
+
+        sprintf(buf, "x %d/%d", pocket_count[i], pocket_total[i]);
+        pocket_text[i] = ui_render_string(ui, font, parent, buf, color, UI_AF_LEFT | UI_AF_VCENTER);
+    }
+    font_put(font);
+}
+
+void pocket_count_set(struct ui *ui, int kind, int count)
+{
+    pocket_count[kind] = count;
+    pocket_update(ui);
+}
+
+void pocket_total_set(struct ui *ui, int kind, int total)
+{
+    pocket_total[kind] = total;
+    pocket_update(ui);
 }
 
 struct ui_element *ui_progress_new(struct ui *ui)
@@ -1545,7 +1593,9 @@ int ui_init(struct ui *ui, int width, int height)
 #endif
 
     health = ui_progress_new(ui);
-    pocket = ui_pocket_new(ui); 
+
+    const char *pocket_textures[] = { "apple.png", "mushroom thumb.png" };
+    pocket = ui_pocket_new(ui, pocket_textures, array_size(pocket_textures));
     // wheel = ui_wheel_new(ui, wheel_items);
     font_put(font);
     subscribe(MT_COMMAND, ui_handle_command, ui);
