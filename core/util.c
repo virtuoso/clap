@@ -44,7 +44,17 @@ void *memdup(const void *x, size_t size)
 
 void *darray_resize(struct darray *da, unsigned int nr_el)
 {
-    void *new = realloc(da->array, nr_el * da->elsz);
+    void *new;
+
+    /*
+     * XXX: be smarter. For now, just avoid realloc() on deletion:
+     *  - the array is likely to get repopulated (game.c)
+     *  - or, filled in once and then cleared out (gltf.c)
+     */
+    if (nr_el < da->nr_el)
+        goto out;
+
+    new = realloc(da->array, nr_el * da->elsz);
 
     if (!new)
         return NULL;
@@ -52,6 +62,8 @@ void *darray_resize(struct darray *da, unsigned int nr_el)
     da->array = new;
     if (nr_el > da->nr_el)
         memset(new + da->nr_el * da->elsz, 0, (nr_el - da->nr_el) * da->elsz);
+
+out:
     da->nr_el = nr_el;
 
     return da->array;
