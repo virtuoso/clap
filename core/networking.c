@@ -818,7 +818,7 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
                 break;
             }
             if (n->state == ST_ERROR) {
-                ref_put(n);
+                // ref_put(n);
                 return 0;
             }
             handled += xhandled;
@@ -900,7 +900,11 @@ void networking_poll(void)
                 child->handshake(child, buf);
             else
                 process_input(child, buf, ret);
-            child->events |= POLLOUT;
+
+            if (child->state == ST_ERROR)
+                ref_put(child);
+            else
+                child->events |= POLLOUT;
 
             continue;
         }
@@ -918,6 +922,11 @@ void networking_poll(void)
 
                 if (process_input(n, buf, ret))
                     goto next;
+
+                if (n->state == ST_ERROR) {
+                    ref_put(n);
+                    continue;
+                }
             } else if (ret < 0) {
                 err("recvfrom[%d] returned %zd: %m // %x\n", i, ret, events);
             }
