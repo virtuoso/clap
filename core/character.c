@@ -171,10 +171,9 @@ void character_move(struct character *ch, struct scene *s)
         if (!ch->ragdoll && ch->mctl.jump) {
             float dx = delta_x * yawcos - delta_z * yawsin;
             float dz = delta_x * yawsin + delta_z * yawcos;
-            vec3 jump = { dx * 1.3, 2.0, dz * 1.3 };
+            vec3 jump = { dx * 1.3, 3.0, dz * 1.3 };
 
             if (body && phys_body_has_body(body)) {
-                dbg("jump: %f,%f,%f\n", jump[0], jump[1], jump[2]);
                 dJointAttach(body->lmotor, NULL, NULL);
                 dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
             }
