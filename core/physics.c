@@ -266,14 +266,29 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
     }
 }
 
+struct contact {
+    dContact *contact;
+    int nc;
+};
+
+static void got_contact(void *data, dGeomID o1, dGeomID o2)
+{
+    struct contact *c = data;
+    dContact contact;
+
+    phys_contact_surface(dGeomGetData(o1), dGeomGetData(o2), c->contact ? c->contact : &contact, 1);
+    c->nc = dCollide(o1, o2, 1, c->contact ? &c->contact->geom : &contact.geom, sizeof(dContact));
+}
+
 struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
 {
     struct entity3d *target = NULL;
     dGeomID ray = NULL;
     dContact contact;
+    struct contact c = { .contact = &contact };
     vec3 _start = { start[0], start[1], start[2] };
     vec3 comp;
-    int nc, try = 0;
+    int try = 0;
 
     ray = dCreateRay(phys->space, *pdist);
 retry:
@@ -282,8 +297,8 @@ retry:
     dGeomRaySetBackfaceCull(ray, 1);
     phys_contact_surface(NULL, NULL, &contact, 1);
     dGeomRaySet(ray, _start[0], _start[1], _start[2], dir[0], dir[1], dir[2]);
-    nc = dCollide(ray, (dGeomID)phys->space, 1, &contact.geom, sizeof(dContact));
-    if (nc) {
+    dSpaceCollide2(ray, (dGeomID)phys->space, &c, &got_contact);
+    if (c.nc) {
         target = dGeomGetData(dGeomGetClass(contact.geom.g1) == dRayClass ? contact.geom.g2 : contact.geom.g1);
         if (target) {
             if (e == target && try++ < 10) {
@@ -302,21 +317,7 @@ retry:
     //     ui_debug_printf("[%f,%f,%f]->[%f,%f,%f] %s@%f(-%f)(%d) [%f,%f,%f] try %d", _start[0], _start[1], _start[2],
     //                     dir[0], dir[1], dir[2], entity_name(target), *pdist, vec3_len(comp), nc,
     //                     contact.geom.pos[0], contact.geom.pos[1], contact.geom.pos[2], try);
-    return nc ? target : NULL;
-}
-
-struct contact {
-    dContact *contact;
-    int nc;
-};
-
-static void got_contact(void *data, dGeomID o1, dGeomID o2)
-{
-    struct contact *c = data;
-    dContact contact;
-
-    phys_contact_surface(dGeomGetData(o1), dGeomGetData(o2), c->contact ? c->contact : &contact, 1);
-    c->nc = dCollide(o1, o2, 1, c->contact ? &c->contact->geom : &contact.geom, sizeof(dContact));
+    return c.nc ? target : NULL;
 }
 
 bool phys_body_is_grounded(struct phys_body *body)
