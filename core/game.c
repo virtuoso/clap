@@ -412,7 +412,9 @@ void game_init(struct scene *scene, struct ui *ui)
     // find apple
     list_for_each_entry(txmodel, &scene->mq.txmodels, entry) {
         if (!strcmp(txmodel->model->name, "apple"))
-            game_state.apple_txmodel = txmodel;
+            game_state.txmodel[GAME_ITEM_APPLE] = txmodel;
+        if (!strcmp(txmodel->model->name, "mushroom"))
+            game_state.txmodel[GAME_ITEM_MUSHROOM] = txmodel;
         if (!strcmp(txmodel->model->name, "fantasy well")) {
             game_state.burrow.entity = list_first_entry(&txmodel->entities, struct entity3d, entry);
         }
