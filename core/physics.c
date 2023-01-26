@@ -83,19 +83,13 @@ void phys_body_stick(struct phys_body *body, dContact *contact)
         c->normal[1] = contact->geom.normal[1];
         c->normal[2] = contact->geom.normal[2];
     }
-    /* XXX: can't set rotation here if called from near_callback */
-    // dRSetIdentity(R);
-    // dRFromEulerAngles(R, e->rx, e->ry, e->rz);
-    // dBodySetRotation(e->phys_body->body, R);
 
     j = dJointCreateContact(phys->world, phys->contact, contact);
     dJointAttach(j, body->body, NULL);
 
     if (dJointGetBody(body->lmotor, 0))
         return;
-    // if (body->lmotor)
-    //     dJointDestroy(body->lmotor);
-    // body->lmotor = dJointCreateContact(phys->world, phys->contact, contact);
+
     dJointAttach(body->lmotor, body->body, NULL);
     dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
     dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
@@ -206,30 +200,7 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
     dJointID j;
     int i, nc;
 
-    //if (b1 && b2 && dAreConnectedExcluding(b1, b2, dJointTypeContact))
-    //    return;
-
-    /*if (e1 && e1->phys_body && e1->phys_body->bounce) {
-        bounce = e1->phys_body->bounce;
-        bounce_vel = e1->phys_body->bounce_vel;
-    }
-
-    if (e2 && e2->phys_body && e2->phys_body->bounce) {
-        bounce = e2->phys_body->bounce;
-        bounce_vel = e2->phys_body->bounce_vel;
-    }*/
-    //bounce = 0, bounce_vel = 0;
-
     phys_contact_surface(NULL, NULL, contact, MAX_CONTACTS);
-    // for (i = 0; i < MAX_CONTACTS; i++) {
-    //     contact[i].surface.mode = dContactBounce | dContactSoftCFM | dContactSoftERP;
-    //     contact[i].surface.mu = /*bounce != 0 ? dInfinity : */50;
-    //     contact[i].surface.mu2 = 0;
-    //     contact[i].surface.bounce = 0.01;
-    //     contact[i].surface.bounce_vel = 10.0;
-    //     contact[i].surface.soft_cfm = 0.01;
-    //     contact[i].surface.soft_erp = 1e-3;
-    // }
 
     nc = dCollide(o1, o2, MAX_CONTACTS, &contact[0].geom, sizeof(dContact));
     if (nc) {
@@ -240,17 +211,10 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             struct entity3d *e2 = dGeomGetData(g2);
             struct entity3d *e_ground, *e_ray, *e_other;
 
-            // if (entity_and_other_by_class(g1, g2, dRayClass, &e_ray, &e_other)) {
-            //     dbg_once("RAY collision of '%s'/'%s' at depth %f\n",
-            //              entity_name(e1), entity_name(e2), contact[i].geom.depth);
-            // }
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
             phys_body_update(e1);
             phys_body_update(e2);
-            dbg_once("collision %s '%s', %s '%s' at %f,%f,%f\n", class_str(dGeomGetClass(g1)), e1 ? entity_name(e1) : "",
-                class_str(dGeomGetClass(g2)), e2 ? entity_name(e2) : "",
-                contact[i].geom.pos[0], contact[i].geom.pos[1], contact[i].geom.pos[2]);
             j = dJointCreateContact(phys->world, phys->contact, &contact[i]);
             dJointAttach(j, b1, b2);
             if (!phys_body_has_body(e1->phys_body)) {
