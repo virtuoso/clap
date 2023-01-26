@@ -19,7 +19,7 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
         /* if not already dashing or in dashing cooldown, dash */
         if (!timespec_nonzero(&mctl->dash_started)) {
             memcpy(&mctl->dash_started, &mctl->ts, sizeof(mctl->dash_started));
-            mctl->lin_speed *= 2;
+            mctl->lin_speed *= 1.5;
         }
     }
 
