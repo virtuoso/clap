@@ -104,13 +104,13 @@ static void phys_contact_surface(struct entity3d *e1, struct entity3d *e2, dCont
 
     for (i = 0; i < nc; i++) {
         memset(&contact[i], 0, sizeof(dContact));
-        contact[i].surface.mode = dContactBounce | dContactSoftCFM | dContactSoftERP;
-        contact[i].surface.mu = /*bounce != 0 ? dInfinity : */50;
+        contact[i].surface.mode = /*dContactBounce | */dContactSoftCFM | dContactSoftERP;
+        contact[i].surface.mu = /*bounce != 0 ? dInfinity : */0;
         contact[i].surface.mu2 = 0;
         contact[i].surface.bounce = 0.01;
         contact[i].surface.bounce_vel = 10.0;
         contact[i].surface.soft_cfm = 0.01;
-        contact[i].surface.soft_erp = 1e-3;
+        contact[i].surface.soft_erp = 0;
     }
 }
 
