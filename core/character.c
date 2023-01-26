@@ -96,18 +96,20 @@ static void motion_compute_rs(struct motionctl *mctl)
 
 static void motion_reset(struct motionctl *mctl, struct scene *s)
 {
+    struct character *ch = container_of(mctl, struct character, mctl);
+
     if (timespec_nonzero(&mctl->dash_started)) {
         struct timespec diff;
 
         timespec_diff(&mctl->dash_started, &s->ts, &diff);
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1)
-            mctl->lin_speed = s->lin_speed;
+            mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : s->lin_speed;
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
             mctl->dash_started.tv_sec = mctl->dash_started.tv_nsec = 0;
     } else {
-        mctl->lin_speed = s->lin_speed;
+        mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : s->lin_speed;
     }
     mctl->ang_speed = s->ang_speed;
     mctl->h_ang_speed = s->ang_speed * 1.5;
@@ -362,7 +364,7 @@ static int character_update(struct entity3d *e, void *data)
         float delta = c->mctl.rs_dy;
 
         if (c->mctl.rs_height)
-            s->camera->ch->motion[1] -= delta / s->ang_speed * s->lin_speed;
+            s->camera->ch->motion[1] -= delta / s->ang_speed * 0.1/*s->lin_speed*/;
         else
             camera_add_pitch(s->camera, delta);
         s->camera->ch->moved++;
