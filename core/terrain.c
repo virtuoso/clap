@@ -565,7 +565,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     entity3d_reset(t->entity);
     model3dtx_add_entity(txm, t->entity);
     entity3d_add_physics(t->entity, 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
-    phys_ground_add(t->entity);
     ref_put(prog); /* matches shader_prog_find() above */
 
     for (i = 0; i < mside; i++)

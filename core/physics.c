@@ -138,60 +138,9 @@ static const char *class_str(int class)
     return "<unknown>";
 }
 
-void phys_ground_add(struct entity3d *e)
-{
-    dGeomID *geom;
-    CHECK(geom = darray_add(&phys->ground.da));
-    *geom = e->phys_body->geom;
-    /* phys_body_new() does dGeomSetData() */
-}
-
-static dGeomID nearest_ground(float x, float y, float z)
-{
-    vec3 dist, pos = { x, y, z};
-    dGeomID *geom, nearest;
-    float min_dist = 99999;
-
-    darray_for_each(geom, &phys->ground) {
-        struct entity3d *e = dGeomGetData(*geom);
-        vec3 center;
-
-        entity3d_aabb_center(e, center);
-        vec3_sub(dist, pos, center);
-        if (min_dist > vec3_len(dist)) {
-            min_dist = vec3_len(dist);
-            nearest = *geom;
-        }
-    }
-
-    return nearest;
-}
-
-static bool geom_is_ground(dGeomID g)
-{
-    dGeomID *geom;
-
-    darray_for_each(geom, &phys->ground)
-        if (g == *geom)
-            return true;
-
-    return false;
-}
-
-static bool entity3d_is_ground(struct entity3d *e)
-{
-    dGeomID *geom;
-
-    darray_for_each(geom, &phys->ground)
-        if (e == dGeomGetData(*geom))
-            return true;
-
-    return false;
-}
-
 static void near_callback(void *data, dGeomID o1, dGeomID o2)
 {
-    bool ground = geom_is_ground(o1) || geom_is_ground(o2);
+    bool ground;
     dContact contact[MAX_CONTACTS];
     dBodyID b1 = dGeomGetBody(o1);
     dBodyID b2 = dGeomGetBody(o2);
@@ -759,7 +708,6 @@ static void ode_message(int errnum, const char *msg, va_list ap)
 
 int phys_init(void)
 {
-    darray_init(&phys->ground);
     dInitODE2(0);
     // dSetErrorHandler(ode_error);
     dSetDebugHandler(ode_debug);
@@ -775,14 +723,12 @@ int phys_init(void)
     // dWorldSetERP(phys->world, 0.8);
     //dWorldSetContactSurfaceLayer(phys->world, 0.001);
     dWorldSetLinearDamping(phys->world, 0.001);
-    //phys->ground = dCreatePlane(phys->space, 0, 0, 1, 0);
 
     return 0;
 }
 
 void phys_done(void)
 {
-    darray_clearout(&phys->ground.da);
     dSpaceDestroy(phys->ground_space);
     dSpaceDestroy(phys->character_space);
     dSpaceDestroy(phys->collision);

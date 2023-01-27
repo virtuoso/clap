@@ -53,7 +53,6 @@ struct phys {
     dSpaceID    character_space;
     dSpaceID    ground_space;
     dSpaceID    collision;
-    darray(dGeomID, ground);
     dJointGroupID contact;
     void        (*ground_contact)(void *priv, float x, float y, float z);
 };

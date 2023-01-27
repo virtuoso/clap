@@ -524,7 +524,6 @@ static void cube_geom(struct scene *s, struct cube_data *cd, float x, float y, f
         entity3d_reset(entity[cm]);
         model3dtx_add_entity(txm[cm], entity[cm]);
         entity3d_add_physics(entity[cm], 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
-        phys_ground_add(entity[cm]);
     }
     free(mesh);
     free(txm);
