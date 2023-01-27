@@ -352,7 +352,7 @@ bool phys_body_ground_collide(struct phys_body *body)
     struct entity3d *e = phys_body_entity(body);
     dReal epsilon = 1e-3;
     dReal ray_len = body->yoffset - body->ray_off + epsilon;
-    dVector3 dir = { 0, -1, 0 };
+    dVector3 dir = { 0, -ray_len, 0 };
     //struct character *ch = e->priv;
     dContact contact;
     struct contact c = { .contact = &contact };
@@ -362,26 +362,23 @@ bool phys_body_ground_collide(struct phys_body *body)
     if (!phys_body_has_body(body))
         return true;
 
-    /* XXX */
-    contact.surface.mode = dContactBounce | dContactSoftCFM | dContactSoftERP;
-    contact.surface.mu = /*bounce != 0 ? dInfinity : */dInfinity;
-    contact.surface.mu2 = 0;
-    contact.surface.bounce = 0.01;
-    contact.surface.bounce_vel = 10.0;
-    contact.surface.soft_cfm = 0.01;
-    contact.surface.soft_erp = 1e-3;
+    phys_contact_surface(NULL, NULL, &contact, 1);
 
     /*
-     * XXX: phys->ground, actually, is one mesh, but we may have multiple geoms
-     *   1: maybe phys->ground should be a space instead? phys->collisions?
-     *      then, we can use dSpaceCollide()
+     * Check if our capsule intersects with anything
      */
     dSpaceCollide2(body->geom, (dGeomID)phys->ground_space, &c, got_contact);
     if (c.nc) {
-        //dbg("body '%s' penetrates ground\n", entity_name(e));
-        entity3d_move(e, 0, body->yoffset + c.contact->geom.depth, 0);
-        phys_body_stick(body, c.contact);
-        //return true;
+        dVector3 up = { 0, 1, 0 };
+        dReal upness = dDot(c.contact->geom.normal, up, 3);
+
+        if (upness > 0.95) {
+            entity3d_move(e, 0, ray_len + c.contact->geom.depth, 0);
+        } else if (upness > 0.3) {
+            entity3d_move(e, 0, c.contact->geom.depth, 0);
+        } else {
+            dJointAttach(body->lmotor, NULL, NULL);
+        }
     }
 
     pos = phys_body_position(body);
@@ -398,10 +395,10 @@ bool phys_body_ground_collide(struct phys_body *body)
 
 got_it:
     if (ray_len - c.contact->geom.depth > epsilon) {
-        // dbg("RAY '%s' collides with %s at %f/%f normal %f,%f,%f\n", entity_name(e), class_str(dGeomGetClass(contact.geom.g2)),
-        //     contact.geom.depth, ray_len,
-        //     contact.geom.normal[0], contact.geom.normal[1], contact.geom.normal[2]);
         entity3d_move(e, 0, ray_len - c.contact->geom.depth, 0);
+        ui_debug_printf("RAY '%s' collides with %s at %f/%f (%f,%f,%f) normal %f,%f,%f\n", entity_name(e), class_str(dGeomGetClass(contact.geom.g2)),
+            contact.geom.depth, ray_len, e->dx, e->dy, e->dz,
+            contact.geom.normal[0], contact.geom.normal[1], contact.geom.normal[2]);
     }
     phys_body_stick(e->phys_body, &contact);
 
