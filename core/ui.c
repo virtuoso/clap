@@ -1033,9 +1033,9 @@ static void ui_modality_send(void)
 static const char *menu_items[] = {
     "HUD",
 #ifndef CONFIG_FINAL
+    "Monitor",
     "Fullscreen",
     "PIP",
-    "Monitor",
     "Autopilot",
     "Fonts",
     "Network",
