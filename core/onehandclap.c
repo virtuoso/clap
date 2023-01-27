@@ -96,13 +96,16 @@ struct pipeline *main_pl, *blur_pl;
 
 EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 {
-    struct timespec ts_start;
+    struct timespec ts_start, ts_delta;
     struct scene *s = data; /* XXX */
     unsigned long count, frame_count;
     float y0, y1, y2;
     dReal by;
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    timespec_diff(&ts_start, &s->fps.ts_prev, &ts_delta);
+    if (ts_delta.tv_nsec < 1000000000 / gl_refresh_rate())
+        return;
     clap_fps_calc(&s->fps);
     frame_count = max((unsigned long)gl_refresh_rate() / s->fps.fps_fine, 1);
     PROF_FIRST(start);
@@ -124,7 +127,8 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
      * Collisions, dynamics
      */
     y1 = s->control->entity->dy;
-    phys_step(frame_count);
+    for (count = 0; count < frame_count; count++)
+        phys_step(1);
 
     PROF_STEP(phys, start);
 
@@ -247,7 +251,10 @@ extern void touch_set_size(int, int);
 static void touch_set_size(int w, int h) {}
 #endif
 
-/* XXX: this should be a message */
+/*
+ * XXX: this should be a message
+ * cmd.resize
+ */
 void resize_cb(int width, int height)
 {
     ui.width  = width;
@@ -270,15 +277,21 @@ void resize_cb(int width, int height)
 static void cube_remove(struct entity3d *e, void *data)
 {
     struct list *list = data;
-    if (!strcmp(entity_name(e), "cubity")) {
+    if (!strncmp(entity_name(e), "cubity.", 7)) {
         list_del(&e->entry);
         list_append(list, &e->entry);
     }
 }
 
+struct entity {
+    int item;
+    struct entity3d *entity;
+};
+
 struct cube_data {
     struct scene *s;
     struct xyzarray *xyz;
+    darray(struct entity, entities);
     int ca;
     int steps;
     float side;
@@ -287,33 +300,120 @@ struct cube_data {
     bool prune;
 } cube_data;
 
+static void cd_kill_entities(struct cube_data *cd)
+{
+    struct entity *ent;
+    int i;
+
+    darray_for_each(ent, &cd->entities)
+        if (ent->item >= 0)
+            game_item_delete_idx(&game_state, ent->item);
+        else if (ent->entity)
+            ref_put(ent->entity);
+
+    darray_clearout(&cd->entities.da);
+}
+
+static struct entity3d *cd_add_entity(struct cube_data *cd, struct model3dtx *txm, float x, float y, float z, float ry)
+{
+    struct entity3d *e = entity3d_new(txm);
+    struct entity *ent;
+
+    CHECK(ent = darray_add(&cd->entities.da));
+    e->dx = x;
+    e->dy = y;
+    e->dz = z;
+    e->ry = ry;
+    e->scale = 1;
+    e->visible = 1;
+    model3dtx_add_entity(txm, e);
+    ent->entity = e;
+    ent->item = -1;
+
+    return e;
+}
+
+static void cd_item_kill(struct game_state *g, struct game_item *item)
+{
+    int idx = (long)item->priv;
+    struct entity *ent = &cube_data.entities.x[idx];
+
+    ent->item = -1;
+    ref_put(item->entity);
+}
+
+static struct entity3d *cd_add_item(struct cube_data *cd, struct model3dtx *txm, float x, float y, float z, float ry)
+{
+    struct entity *ent;
+    struct game_item *item;
+
+    item = game_item_new(&game_state, GAME_ITEM_APPLE, txm);
+    item->entity->dx = x;
+    item->entity->dy = y;
+    item->entity->dz = z;
+    item->entity->ry = ry;
+    item->entity->scale = 1;
+    item->entity->visible = 1;
+    item->age_limit = INFINITY;
+    item->interact = game_item_collect;
+    item->kill = cd_item_kill;
+    CHECK(ent = darray_add(&cd->entities.da));
+    item->priv = (void *)((long)cd->entities.da.nr_el - 1);
+    ent->item = game_item_find_idx(&game_state, item);
+
+    return item->entity;
+}
+
 #define CUBE_SIDE 16
 static void cube_geom(struct scene *s, struct cube_data *cd, float x, float y, float z, float side)
 {
     struct mesh **mesh;
     struct model3d *model;
-    struct model3dtx **txm;
+    struct model3dtx **txm, *objtxm, *ramptxm, *tentacletxm;
     struct entity3d **entity, *e, *iter;
     struct shader_prog *prog = shader_prog_find(s->prog, "model"); /* XXX */
     float *vx, *norm, *tx;
     unsigned short *idx;
     int nr_cubes, nr_vx, nr_meshes, cubes_per_mesh;
     int cx, cy, cz, cc, cm;
+    int entities = 0;
     DECLARE_LIST(list);
 
     mq_for_each(&s->mq, cube_remove, &list);
+
+    /* XXX: find apple model */
+    list_for_each_entry(objtxm, &s->mq.txmodels, entry)
+        if (!strcmp(objtxm->model->name, "apple"))
+            break;
+
+    list_for_each_entry(ramptxm, &s->mq.txmodels, entry)
+        if (!strcmp(ramptxm->model->name, "ramp"))
+            break;
+
+    list_for_each_entry(tentacletxm, &s->mq.txmodels, entry)
+        if (!strcmp(tentacletxm->model->name, "tentacle"))
+            break;
+
     list_for_each_entry_iter(e, iter, &list, entry)
         ref_put(e);
 
+    cd_kill_entities(cd);
+
     if (cd->make || !cd->xyz) {
         free(cd->xyz);
-        cd->xyz = ca3d_make(CUBE_SIDE, CUBE_SIDE, 5);
+        cd->xyz = ca3d_make(CUBE_SIDE, CUBE_SIDE, 8);
         nr_cubes = xyzarray_count(cd->xyz);
         cd->make = false;
         ca3d_run(cd->xyz, cd->ca, cd->steps);
     } else {
         ca3d_run(cd->xyz, cd->ca, 1);
     }
+
+    /* a hole at the top */
+    for (cx = -1; cx < 2; cx++)
+        for (cy = -1; cy < 2; cy++)
+            xyzarray_setat(cd->xyz, cd->xyz->dim[0] / 2 + cx, cd->xyz->dim[1] / 2 + cy, cd->xyz->dim[2] - 1, !!cd->inv);
+
     if (cd->prune)
         ca3d_prune(cd->xyz);
     nr_cubes = xyzarray_count(cd->xyz);
@@ -323,8 +423,8 @@ static void cube_geom(struct scene *s, struct cube_data *cd, float x, float y, f
     if (cd->inv)
         nr_cubes = cd->xyz->dim[0] * cd->xyz->dim[1] * cd->xyz->dim[2] - nr_cubes;
     nr_vx = nr_cubes * mesh_nr_vx(&cube_mesh);
-    ui_debug_printf("ca: %d steps: %d inv: %d prune: %d nr_cubes: %d nr_vx: %d",
-                    cd->ca, cd->steps, cd->inv, cd->prune, nr_cubes, nr_vx);
+    // ui_debug_printf("ca: %d steps: %d inv: %d prune: %d nr_cubes: %d nr_vx: %d",
+    //                 cd->ca, cd->steps, cd->inv, cd->prune, nr_cubes, nr_vx);
     /* we're limited by unsigned short for index elements */
     nr_meshes = nr_vx / 65536;
     nr_meshes += !!(nr_vx % 65536);
@@ -355,16 +455,67 @@ static void cube_geom(struct scene *s, struct cube_data *cd, float x, float y, f
                         cm++;
                         cc = 0;
                     }
+                } else {
+                    struct entity3d *e;
+                    bool skip = false;
+
+                    if (ca3d_neighbors_vn1(cd->xyz, cx, cy, cz) == 5 &&
+                        !!xyzarray_getat(cd->xyz, cx, cy, cz - 1) == !cd->inv) {
+                        cd_add_item(cd, objtxm,
+                                    side * cx + x + side / 2,
+                                    side * cz + y + side / 4 - drand48() / 2,
+                                    side * cy + z + side / 2, 0);
+                        skip = true;
+                    }
+                    if (!!xyzarray_getat(cd->xyz, cx, cy, cz + 1) != !cd->inv &&
+                        !!xyzarray_getat(cd->xyz, cx, cy, cz - 1) == !cd->inv) {
+                        if (!!xyzarray_getat(cd->xyz, cx + 1, cy, cz + 1) != !cd->inv &&
+                            !!xyzarray_getat(cd->xyz, cx + 1, cy, cz) == !cd->inv) {
+                            e = cd_add_entity(cd, ramptxm,
+                                              side * cx + x + side / 2,
+                                              side * cz + y,
+                                              side * cy + z + side / 2, to_radians(-90));
+                            entity3d_add_physics(e, dInfinity, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
+                            entities++;
+                        } else if (!!xyzarray_getat(cd->xyz, cx - 1, cy, cz + 1) != !cd->inv &&
+                            !!xyzarray_getat(cd->xyz, cx - 1, cy, cz) == !cd->inv) {
+                            e = cd_add_entity(cd, ramptxm,
+                                              side * cx + x + side / 2,
+                                              side * cz + y,
+                                              side * cy + z + side / 2, to_radians(90));
+                            entity3d_add_physics(e, dInfinity, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
+                        } else if (!!xyzarray_getat(cd->xyz, cx, cy - 1, cz + 1) != !cd->inv &&
+                            !!xyzarray_getat(cd->xyz, cx, cy - 1, cz) == !cd->inv) {
+                            e = cd_add_entity(cd, ramptxm,
+                                              side * cx + x + side / 2,
+                                              side * cz + y,
+                                              side * cy + z + side / 2, 0);
+                            entity3d_add_physics(e, dInfinity, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
+                        } else if (!!xyzarray_getat(cd->xyz, cx, cy + 1, cz + 1) != !cd->inv &&
+                            !!xyzarray_getat(cd->xyz, cx, cy + 1, cz) == !cd->inv) {
+                            e = cd_add_entity(cd, ramptxm,
+                                              side * cx + x + side / 2,
+                                              side * cz + y,
+                                              side * cy + z + side / 2, to_radians(180));
+                            entity3d_add_physics(e, dInfinity, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
+                        } else if (!skip && drand48() > 0.9) {
+                            e = cd_add_entity(cd, tentacletxm,
+                                              side * cx + x + side / 2,
+                                              side * cz + y,
+                                              side * cy + z + side / 2, drand48() * 2 * M_PI);
+                        }
+                    }
                 }
     for (cm = 0; cm < nr_meshes; cm++) {
-        mesh_optimize(mesh[cm]);
+        // mesh_optimize(mesh[cm]);
         model = model3d_new_from_mesh("cubity", prog, mesh[cm]);
+        model3d_set_name(model, "cubity.%d", cm);
         model->collision_vx = mesh_vx(mesh[cm]);
         model->collision_vxsz = mesh_vx_sz(mesh[cm]);
         model->collision_idx = mesh_idx(mesh[cm]);
         model->collision_idxsz = mesh_idx_sz(mesh[cm]);
 
-        txm[cm] = model3dtx_new(ref_pass(model), "rock.png");
+        txm[cm] = model3dtx_new(ref_pass(model), "purple wall seamless.png");
         scene_add_model(s, txm[cm]);
         entity[cm] = entity3d_new(txm[cm]);
         entity[cm]->visible = 1;
@@ -380,9 +531,11 @@ static void cube_geom(struct scene *s, struct cube_data *cd, float x, float y, f
     free(entity);
     ref_put(prog); /* matches shader_prog_find() above */
     /* drop the character on top of the structure */
-    s->control->entity->dx = x + cd->xyz->dim[0] * cd->side / 2;
-    s->control->entity->dy = y + cd->xyz->dim[1] * cd->side + 4;
-    s->control->entity->dz = z + cd->xyz->dim[2] * cd->side / 2;
+    entity3d_position(s->control->entity,
+                      x + cd->xyz->dim[0] * cd->side / 2,
+                      y + cd->xyz->dim[2] * cd->side + 4,
+                      z + cd->xyz->dim[1] * cd->side / 2);
+    pocket_total_set(game_state.ui, 0, entities);
 }
 
 static int cube_input(struct message *m, void *data)
@@ -396,7 +549,17 @@ static int cube_input(struct message *m, void *data)
         return 0;
 
     cd->side = 2;
-    if (mi->up == 1) {
+    if (mi->trigger_l > 0.5) {
+        cd->ca = 4;
+        cd->steps = 4;
+        cd->make = true;
+        gen = true;
+    } else if (mi->trigger_r > 0.5) {
+        cd->ca = 7;
+        cd->steps = 4;
+        cd->make = true;
+        gen = true;
+    } else if (mi->up == 1) {
         /* LB + Up: next automaton */
         cd->ca++;
         cd->make = true;
@@ -431,6 +594,31 @@ static int cube_input(struct message *m, void *data)
     if (gen)
         cube_geom(s, cd, 10, CUBE_SIDE * cd->side / 2, 10, cd->side);
     return gen ? MSG_STOP : MSG_HANDLED;
+}
+
+static void mushroom_interact(struct game_state *g, struct game_item *item, struct entity3d *actor)
+{
+    struct cube_data *cd = &cube_data;
+
+    game_item_collect(g, item, actor);
+    dbg("start a dungeon\n");
+    cd->side  = 2;
+    cd->ca    = 7;
+    cd->steps = 4;
+    cd->make  = true;
+    cube_geom(&scene, cd, 10, CUBE_SIDE * cd->side / 2, 10, cd->side);
+}
+
+static void spawn_mushrooms(struct game_state *g)
+{
+    struct game_item *item;
+    int nr_items = 30, i;
+
+    for (i = 0; i < nr_items; i++) {
+        item = game_item_spawn(g, GAME_ITEM_MUSHROOM);
+        item->interact = mushroom_interact;
+        item->age_limit = INFINITY;
+    }
 }
 
 static void ohc_ground_contact(void *priv, float x, float y, float z)
@@ -576,6 +764,7 @@ int main(int argc, char **argv, char **envp)
 
     cube_data.s = &scene;
     cube_data.make = true;
+    darray_init(&cube_data.entities);
     subscribe(MT_INPUT, cube_input, &cube_data);
 
     subscribe(MT_INPUT, handle_input, NULL);
@@ -618,6 +807,7 @@ int main(int argc, char **argv, char **envp)
     scene_load(&scene, "scene.json");
 
     game_init(&scene, &ui); // this must happen after scene_load, because we need the trees.
+    spawn_mushrooms(&game_state);
     subscribe(MT_INPUT, handle_game_input, NULL);
 
     gl_get_sizes(&scene.width, &scene.height);
@@ -631,12 +821,10 @@ int main(int argc, char **argv, char **envp)
     main_pl = pipeline_new(&scene);
     pass = pipeline_add_pass(main_pl, NULL, NULL, true);
     pass = pipeline_add_pass(main_pl, pass, "contrast", false);
-    pass = pipeline_add_pass(main_pl, pass, "contrast", false);
-    // fbo_update(scene.width, scene.height);
+    // pass = pipeline_add_pass(main_pl, pass, "contrast", false);
 
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
-
     scene.limbo_height = -70.0;
     scene_cameras_calc(&scene);
 
