@@ -413,15 +413,15 @@ const struct cell_automaton ca_test = {
 const struct cell_automaton ca_instors[] = {
     {
         .name = "cool tree",
-        .born = 0x3f,
+        .born = 0x1e,
         .surv = 0xff,
         .nr_states = 20,
         .neigh = ca2d_neigh_mv,
     },
     {
         .name = "ash pinus",
-        .born = 0xff,
-        .surv = 0xff,
+        .born = 0xffffff,
+        .surv = 0xffffff,
         .nr_states = 21,
         .neigh = ca2d_neigh_mv,
     },
