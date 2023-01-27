@@ -448,7 +448,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
 
     CHECK(t = ref_new(terrain));
     clock_gettime(CLOCK_REALTIME, &ts);
-    t->seed  = ts.tv_nsec;
+    t->seed  = ts.tv_nsec ^ ts.tv_sec;
 
     bsp_root = bsp_process(t->seed, 3, 0, 0, nr_v, nr_v, terrain_bsp_cb, NULL);
 
