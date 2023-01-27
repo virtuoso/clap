@@ -123,7 +123,7 @@ void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int 
 void texture_done(struct texture *tex)
 {
     if (!ref_is_static(&tex->ref))
-        ref_put(tex);
+        ref_put_last(tex);
 }
 
 GLuint texture_id(struct texture *tex)
