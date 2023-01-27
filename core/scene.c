@@ -236,7 +236,7 @@ static int scene_handle_input(struct message *m, void *data)
         m->input.left, m->input.right, m->input.up, m->input.down,
         m->input.delta_x, m->input.delta_y, m->input.delta_z,
         m->input.exit);*/
-    if (m->input.debug_action) {
+    if (m->input.debug_action || (m->input.pad_lb && m->input.pad_rb)) {
         debug_camera_action(s->camera);
     }
     if (m->input.exit)
