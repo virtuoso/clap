@@ -445,11 +445,11 @@ void phys_step(unsigned long frame_count)
         else
             dGeomSetRotation(pb->geom, R);
         // dBodyDisable(pb->body);
-        /*if (pb->pen_depth > 0.5 && vec3_len(pb->pen_norm) > 0) {
-            //dbg("moving '%s' by %f,%f,%f\n", entity_name(e), pb->pen_norm[0], pb->pen_norm[1], pb->pen_norm[2]);
+        if (pb->pen_depth > 0 && vec3_len(pb->pen_norm) > 0) {
             vec3_sub(off, off, pb->pen_norm);
             dBodySetPosition(pb->body, off[0], off[1], off[2]);
-        }*/
+            phys_body_ground_collide(pb);
+        }
         list_del(&pb->pen_entry);
         pb->pen_depth = 0;
         pb->pen_norm[0] = pb->pen_norm[1] = pb->pen_norm[2] = 0.0;
