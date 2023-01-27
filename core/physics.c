@@ -226,6 +226,15 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
                 e_other = e1;
                 ground  = true;
             } else {
+                if (e1->priv) {
+                    e_other = e1;
+                    e_ground = e2;
+                    ground = true;
+                } else if (e2->priv) {
+                    e_other = e2;
+                    e_ground = e1;
+                    ground = true;
+                }
                 ground   = false;
             }
 
