@@ -710,9 +710,9 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dJointSetLMotorAxis(body->lmotor, 0, 0, 1, 0, 0);
         dJointSetLMotorAxis(body->lmotor, 1, 0, 0, 1, 0);
         dJointSetLMotorAxis(body->lmotor, 2, 0, 0, 0, 1);
-        dJointSetLMotorParam(body->lmotor, dParamFMax1, 10.0);
-        dJointSetLMotorParam(body->lmotor, dParamFMax2, 10.0);
-        dJointSetLMotorParam(body->lmotor, dParamFMax3, 10.0);
+        dJointSetLMotorParam(body->lmotor, dParamFMax1, 50);
+        dJointSetLMotorParam(body->lmotor, dParamFMax2, 5);
+        dJointSetLMotorParam(body->lmotor, dParamFMax3, 50);
     }
 
     return body;
