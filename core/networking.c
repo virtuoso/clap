@@ -585,7 +585,7 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
     timespec_diff(&n->local_time, &n->remote_time, &n->remote_delta);
     n->state = ST_RUNNING;
     log_f_open(n);
-    dbg("local time: %" "ld" ".%09" "ld" " client time: %" "ld" ".%09" "ld" " delta: %" "ld" ".%09" "ld" "\n",
+    dbg("local time: %" PRItime ".%09" "ld" " client time: %" PRItime ".%09" "ld" " delta: %" PRItime ".%09" "ld" "\n",
         n->local_time.tv_sec, n->local_time.tv_nsec,
         n->remote_time.tv_sec, n->remote_time.tv_nsec,
         n->remote_delta.tv_sec, n->remote_delta.tv_nsec);
