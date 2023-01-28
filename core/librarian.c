@@ -129,8 +129,12 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
 
         fstat(fileno(f), &st);
         h->buf = malloc(st.st_size + 1);
-        /* XXX error handling */
-        fread(h->buf, st.st_size, 1, f);
+
+        if (fread(h->buf, st.st_size, 1, f) != 1) {
+            ref_put(h);
+            return NULL;
+        }
+
         *((char *)h->buf + st.st_size) = 0;
         h->size = st.st_size;
         h->state = RES_LOADED;
@@ -182,8 +186,12 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
         fstat(fileno(f), &st);
         h->buf = calloc(1, st.st_size + 1);
         *bufp = h->buf;
-        /* XXX error handling */
-        fread(h->buf, st.st_size, 1, f);
+
+        if (fread(h->buf, st.st_size, 1, f) != 1) {
+            ref_put(h);
+            return NULL;
+        }
+
         h->size = st.st_size;
         *szp = h->size;
         h->state = RES_LOADED;
