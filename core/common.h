@@ -14,10 +14,12 @@
 #ifdef CONFIG_BROWSER
 #define enter_debugger() emscripten_debugger()
 #define PRItime "lld"
+#define PRItvsec "lld"
 #else
 #include <stdlib.h>
 #define enter_debugger() abort()
 #define PRItime "ld"
+#define PRItvsec "ld"
 #endif /* CONFIG_BROWSER */
 
 #if defined(__has_feature)

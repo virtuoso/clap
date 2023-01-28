@@ -605,7 +605,7 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
             return -1;
 
         if (n->log_f && ml->length) {
-            fprintf(n->log_f, "[%" PRIu64 ".%09" PRIu64 "] %-*s", ml->ts.tv_sec, ml->ts.tv_nsec, ml->length, ml->msg);
+            fprintf(n->log_f, "[%" PRItvsec ".%09" PRItvsec "] %-*s", ml->ts.tv_sec, ml->ts.tv_nsec, ml->length, ml->msg);
         }
         return ret;
     }
@@ -646,7 +646,7 @@ static ssize_t handle_server_command(struct network_node *n, uint8_t *buf, size_
             return -1;
 
         if (n->log_f && ml->length) {
-            fprintf(n->log_f, "[%" PRIu64 ".%09" PRIu64 "] %-*s", ml->ts.tv_sec, ml->ts.tv_nsec, ml->length, ml->msg);
+            fprintf(n->log_f, "[%" PRItvsec ".%09" PRItvsec "] %-*s", ml->ts.tv_sec, ml->ts.tv_nsec, ml->length, ml->msg);
         }
     }
 
