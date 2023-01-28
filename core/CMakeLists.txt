@@ -88,6 +88,9 @@ set(ENGINE_SRC
     game.c camera.c xyarray.c ca2d.c ca3d.c
     ${PLATFORM_SRC})
 
+# Mac OS X has deprecated OpenAL and is very vocal about it
+set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
+
 add_custom_command(
     OUTPUT builddate.c
     DEPENDS ${ENGINE_SRC}
