@@ -310,7 +310,7 @@ void www_joysticks_poll(void)
 
     for (i = 0; i < nr_joys; i++) {
         EmscriptenGamepadEvent ge;
-        char btn[64];
+        unsigned char btn[64];
         int b;
 
         ret = emscripten_get_gamepad_status(i, &ge);

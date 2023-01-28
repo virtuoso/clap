@@ -260,7 +260,7 @@ static void glfw_joysticks_poll(void)
     for (i = GLFW_JOYSTICK_1; i < GLFW_JOYSTICK_16; i++) {
         const char *name = glfwGetJoystickName(i);
         int nr_axes, nr_buttons;
-        const char *buttons;
+        const unsigned char *buttons;
         const float *axes;
 
         joystick_name_update(i - GLFW_JOYSTICK_1, name);
