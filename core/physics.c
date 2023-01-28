@@ -158,7 +158,7 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             dGeomID g2 = contact[i].geom.g2;
             struct entity3d *e1 = dGeomGetData(g1);
             struct entity3d *e2 = dGeomGetData(g2);
-            struct entity3d *e_ground, *e_ray, *e_other;
+            struct entity3d *e_ground, *e_other;
 
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
@@ -194,29 +194,10 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
                 if (!e_other->phys_body)
                     return;
 
-                //dbg("ground collision: %s\n", name);
-
-                // dbg("ground collision of '%s' at %f,%f (+ %f),%f\n", name,
-                //     e_other->dx, e_other->dy, e_other->phys_body->yoffset, e_other->dz);
-                // if (strstr(name, "tree") && dBodyIsEnabled(b)) {
-                //     phys_body_update(e_other);
-                //     //entity3d_move(e_other, 0, -0.2, 0);
-                //     dBodyDisable(b);
-                //     phys->ground_contact(e_other, e_other->dx, e_other->dy + e_other->phys_body->yoffset, e_other->dz);
-                // } else if (!strcmp(name, "puppy")) {
-                //     struct character *ch = e_other->priv;
-                //     //dBodyAddRelForce(b, 0, 0, 10.0);
-                //     ch->moved++;
-                // }
-                //dBodyDisable(b);
                 phys_body_stick(e_other->phys_body, &contact[i]);
-                //entity3d_stick(e_other, &contact[i]);
                 e_other->phys_body->pen_depth += contact[i].geom.depth;
                 vec3_scale(norm, norm, contact[i].geom.depth);
                 vec3_add(e_other->phys_body->pen_norm, e_other->phys_body->pen_norm, norm);
-                // e_other->phys_body->pen_norm[0] = contact[i].geom.normal[0];
-                // e_other->phys_body->pen_norm[1] = contact[i].geom.normal[1];
-                // e_other->phys_body->pen_norm[2] = contact[i].geom.normal[2];
                 list_del(&e_other->phys_body->pen_entry);
                 list_append(pen, &e_other->phys_body->pen_entry);
             }
