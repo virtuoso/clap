@@ -549,7 +549,7 @@ static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t 
 static void log_f_open(struct network_node *n)
 {
     char log_name[PATH_MAX];
-    char buf[BUFSIZ];
+    char buf[128];
     struct tm t;
 
     localtime_r(&n->remote_time.tv_sec, &t);
