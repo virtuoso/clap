@@ -2,23 +2,6 @@ set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
-set(ASSET_DIR "${PARENT_DIR}/asset")
-message("### asset dir ${ASSET_DIR}")
-if (CONFIG_GLES)
-    set(SHADER_DIR "${ASSET_DIR}/glsl-es")
-else ()
-    set(SHADER_DIR "${ASSET_DIR}/glsl")
-endif ()
-set(ASSETS  "${SHADER_DIR}/ui.vert"
-            "${SHADER_DIR}/ui.frag"
-            "${SHADER_DIR}/glyph.vert"
-            "${SHADER_DIR}/glyph.frag"
-            "${SHADER_DIR}/model.vert"
-            "${SHADER_DIR}/model.frag"
-            "${ASSET_DIR}/scene.json")
-message("### assets ${ASSETS}")
-
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(FREETYPE_LIBRARIES  "-s USE_FREETYPE=1")
     set(PNG_LIBRARY         "-s USE_LIBPNG=1")
@@ -35,9 +18,6 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
                             "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
                             "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307"
                             # "-flto"
-                            "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
-                            "--preload-file=${ASSET_DIR}@/asset"
-                            "--use-preload-cache"
     )
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FREETYPE_LIBRARIES} ${PNG_LIBRARY} ${VORBISFILE_LIBRARY} -O3") # -flto
     set(CONFIG_BROWSER 1)
@@ -107,22 +87,6 @@ set(ENGINE_SRC
     gltf.c input-joystick.c render-gl.c mesh.c pipeline.c input-keyboard.c
     game.c camera.c xyarray.c ca2d.c ca3d.c
     ${PLATFORM_SRC})
-add_library(${ENGINE_LIB} ${ENGINE_SRC})
-add_dependencies(${ENGINE_LIB} ode)
-target_link_libraries(${ENGINE_LIB} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
-target_link_libraries(${ENGINE_LIB} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
-target_link_libraries(${ENGINE_LIB} ${ODE_LIBRARY} meshoptimizer)
-target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
-target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
-target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})
-
-if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
-    set(ENGINE_BIN index) # because index.html
-else ()
-    set(ENGINE_BIN onehandclap)
-endif ()
-
-set(ENGINE_MAIN onehandclap.c builddate.c)
 
 add_custom_command(
     OUTPUT builddate.c
@@ -130,35 +94,13 @@ add_custom_command(
     COMMAND date +'const char *build_date = \"%Y%m%d_%H%M%S\"\;' > builddate.c
 )
 
-add_executable(${ENGINE_BIN} ${ENGINE_MAIN})
-add_dependencies(${ENGINE_BIN} ${ENGINE_LIB} meshoptimizer)
-target_include_directories(${ENGINE_BIN} PRIVATE ${ODE_INCLUDE})
-set_target_properties(${ENGINE_BIN} PROPERTIES LINK_DEPENDS "${ASSETS}")
-target_link_libraries(${ENGINE_BIN} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
-target_link_libraries(${ENGINE_BIN} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
-target_link_libraries(${ENGINE_BIN} ${ODE_LIBRARY} meshoptimizer)
+add_library(${ENGINE_LIB} ${ENGINE_SRC} builddate.c)
+add_dependencies(${ENGINE_LIB} ode)
+set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
+target_link_libraries(${ENGINE_LIB} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
+target_link_libraries(${ENGINE_LIB} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
+target_link_libraries(${ENGINE_LIB} ${ODE_LIBRARY} meshoptimizer)
 target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
-target_link_libraries(${ENGINE_BIN} ${ENGINE_LIB})
-
-if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        install(TARGETS ${ENGINE_BIN} DESTINATION clapdbg)
-        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.wasm DESTINATION clapdbg)
-        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.data DESTINATION clapdbg)
-        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.js DESTINATION clapdbg)
-    else ()
-        if (CLAP_BUILD_FINAL)
-            install(TARGETS ${ENGINE_BIN} DESTINATION clap)
-            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.wasm DESTINATION clap)
-            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.data DESTINATION clap)
-            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.js DESTINATION clap)
-        else ()
-            install(TARGETS ${ENGINE_BIN} DESTINATION claptest)
-            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.wasm DESTINATION claptest)
-            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.data DESTINATION claptest)
-            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.js DESTINATION claptest)
-        endif ()
-    endif ()
-else ()
-    install(TARGETS ${ENGINE_BIN} DESTINATION bin)
-endif ()
+target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
+target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})
+target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})

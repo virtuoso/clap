@@ -68,5 +68,6 @@ set(ODE_INCLUDE "${ODE_ROOT}/include")
 
 # add_subdirectory(ode)
 add_subdirectory(core)
+add_subdirectory(demo/ldjam52)
 # find_package(PkgConfig REQUIRED)
 # pkg_check_modules(ode NAMES "ode/")
