@@ -103,7 +103,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     dReal by;
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    timespec_diff(&ts_start, &s->fps.ts_prev, &ts_delta);
+    timespec_diff(&s->fps.ts_prev, &ts_start, &ts_delta);
     if (ts_delta.tv_nsec < 1000000000 / gl_refresh_rate())
         return;
     clap_fps_calc(&s->fps);
