@@ -271,7 +271,7 @@ static struct network_node *network_node_accept(struct network_node *n)
     CHECK(child->fd = accept(n->fd, (struct sockaddr *)&n->sa, &n->addrlen));
     CHECK(child->src = calloc(1, sizeof(*child->src)));
     child->src->type = MST_CLIENT;
-    asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr));
+    CHECK(asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr)));
     dbg("new client '%s'\n", child->src->name);
     child->src->desc = "remote client";
     child->state     = ST_HANDSHAKE;
