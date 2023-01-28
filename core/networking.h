@@ -2,7 +2,7 @@
 #ifndef __CLAP_NETWORKING_H__
 #define __CLAP_NETWORKING_H__
 
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
 #endif
 
