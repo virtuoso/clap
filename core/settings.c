@@ -231,7 +231,7 @@ struct settings *settings_init(void *cb, void *data)
     );
 #else
     home = getenv("HOME");
-    asprintf(&settings_file, "%s/" SETTINGS_FILE, home);
+    CHECK(asprintf(&settings_file, "%s/" SETTINGS_FILE, home));
     settings_load(&_settings);
     _settings.on_ready(&_settings, data);
 #endif /* !__EMSCRIPTEN__ */
