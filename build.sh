@@ -43,5 +43,5 @@ if [ -n "$www_dir" ]; then
 fi
 
 #cp build/emrel/core/onehandclap.{data,html,js,wasm} /var/www/html/cclap
-build/debug/core/onehandclap --restart
+build/debug/core/server --restart
 

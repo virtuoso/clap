@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <time.h>
 #include <unistd.h>
+#include <getopt.h>
 #include "common.h" /* XXX: for EM_ASM(): factor out */
 #include "clap.h"
 #include "util.h"
@@ -1067,6 +1068,14 @@ static int handle_command(struct message *m, void *data)
     return 0;
 }
 
+static struct option long_options[] = {
+    { "restart",    no_argument,        0, 'R' },
+    { "server",     required_argument,  0, 'S'},
+    {}
+};
+
+static const char short_options[] = "RS:";
+
 int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
@@ -1077,9 +1086,40 @@ int main(int argc, char **argv, char **envp)
         .server_port   = 21044,
         .server_wsport = 21045,
     };
+    int c, option_index, do_restart = 0;
+
+    for (;;) {
+        c = getopt_long(argc, argv, short_options, long_options, &option_index);
+        if (c == -1)
+            break;
+
+        switch (c) {
+        case 'R':
+            do_restart++;
+            break;
+        case 'S':
+            ncfg.server_ip = optarg;
+            break;
+        default:
+            fprintf(stderr, "invalid option %x\n", c);
+            exit(EXIT_FAILURE);
+        }
+    }
 
     signal(SIGINT, sigint_handler);
     clap_init(&cfg, argc, argv, envp);
+
+    if (do_restart) {
+        networking_init(&ncfg, CLIENT);
+        networking_poll();
+        networking_poll();
+        networking_broadcast_restart();
+        networking_poll();
+        networking_done();
+        clap_done(0);
+        return EXIT_SUCCESS;
+    }
+
     networking_init(&ncfg, SERVER);
     subscribe(MT_COMMAND, handle_command, NULL);
     server_run();

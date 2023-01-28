@@ -674,13 +674,12 @@ static struct option long_options[] = {
     { "autopilot",  no_argument,        0, 'A' },
     { "fullscreen", no_argument,        0, 'F' },
     { "exitafter",  required_argument,  0, 'e' },
-    { "restart",    no_argument,        0, 'R' },
     { "aoe",        no_argument,        0, 'E' },
     { "server",     required_argument,  0, 'S'},
     {}
 };
 
-static const char short_options[] = "Ae:REFS:";
+static const char short_options[] = "Ae:EFS:";
 
 int main(int argc, char **argv, char **envp)
 {
@@ -693,7 +692,7 @@ int main(int argc, char **argv, char **envp)
         .server_wsport = 21045,
     };
     int c, option_index;
-    unsigned int do_restart = 0, fullscreen = 0;
+    unsigned int fullscreen = 0;
     struct render_pass *pass;
     //struct lib_handle *lh;
 
@@ -719,9 +718,6 @@ int main(int argc, char **argv, char **envp)
         case 'e':
             scene.exit_timeout = atoi(optarg);
             break;
-        case 'R':
-            do_restart++;
-            break;
         case 'E':
             abort_on_error++;
             break;
@@ -735,21 +731,10 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    if (do_restart)
-        cfg.quiet = 1;
     clap_init(&cfg, argc, argv, envp);
 
 #ifndef CONFIG_FINAL
     networking_init(&ncfg, CLIENT);
-    if (do_restart) {
-        networking_poll();
-        networking_poll();
-        networking_broadcast_restart();
-        networking_poll();
-        networking_done();
-        clap_done(0);
-        return EXIT_SUCCESS;
-    }
 #endif
 
     print_each_class();
