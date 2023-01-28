@@ -71,9 +71,14 @@ unsigned char *fetch_png(const char *file_name, int *width, int *height, int *ha
         return NULL;
     }
 
-    fread(header, 1, 8, fp);
+    if (fread(header, 1, 8, fp) != 8) {
+        fclose(fp);
+        return NULL;
+    }
+
     if (png_sig_cmp(header, 0, 8)) {
         err("file %s is not recognized as a PNG file", file_name);
+        fclose(fp);
         return NULL;
     }
 
