@@ -58,7 +58,7 @@ void cleanup__ucharp(uchar **s);
 
 #define CHECK_NVAL(_st, _q, _val) ({ \
     typeof(_val) __x = _q (_st); \
-    err_on_cond(__x != (_val), _st != _val, "failed: %d\n", __x); \
+    err_on_cond(__x != (_val), _st != _val, "failed: %ld\n", (long)__x); \
     __x; \
 })
 #define CHECK_VAL(_st, _val) CHECK_NVAL(_st,, _val)

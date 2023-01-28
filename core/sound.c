@@ -99,7 +99,7 @@ static int parse_wav(struct sound *sound, const char *uri)
     sound->size = st.st_size;
 
     CHECK(sound->buf = malloc(st.st_size));
-    fread(sound->buf, st.st_size, 1, f);
+    CHECK_VAL(fread(sound->buf, st.st_size, 1, f), st.st_size);
 
     offset = 12; // ignore the RIFF header
     offset += 8; // ignore the fmt header
