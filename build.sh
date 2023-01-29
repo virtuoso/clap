@@ -34,6 +34,7 @@ compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/t
 cmake --build build/rel $VERBOSE $OPTS
 cmake --build build/test $VERBOSE $OPTS
 cmake --build build/debug $VERBOSE $OPTS
+make test -C build/debug
 if [ -n "$www_dir" ]; then
 	cmake --build build/emrel $VERBOSE $OPTS
 	cmake --build build/emtest $VERBOSE $OPTS

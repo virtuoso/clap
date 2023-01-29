@@ -77,6 +77,15 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     target_compile_definitions(${SERVER_BIN} PUBLIC -DSERVER_STANDALONE)
 endif ()
 
+if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    set(TEST_BIN tests)
+    set(TEST_SRC test.c object.c ref.c util.c logger.c json.c messagebus.c)
+    add_executable(${TEST_BIN} ${TEST_SRC})
+    target_compile_definitions(${TEST_BIN} PUBLIC)
+
+    add_test(${TEST_BIN} ${TEST_BIN})
+endif ()
+
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC ${SERVER_SRC} )
 set(ENGINE_SRC
