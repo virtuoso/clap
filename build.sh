@@ -2,6 +2,7 @@
 
 [ -f $PWD/build_config ] && . $PWD/build_config
 
+OPTS="$(echo $opts)"
 VERBOSE=""
 if [ -n "$1" ]; then
 	VERBOSE="--verbose"
@@ -30,13 +31,13 @@ compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/v
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/debug
 compile-time/build/rel/preprocess_shaders -t glsl-es -o asset/glsl-es/ shaders/terrain
 
-cmake --build build/rel $VERBOSE
-cmake --build build/test $VERBOSE
-cmake --build build/debug $VERBOSE
+cmake --build build/rel $VERBOSE $OPTS
+cmake --build build/test $VERBOSE $OPTS
+cmake --build build/debug $VERBOSE $OPTS
 if [ -n "$www_dir" ]; then
-	cmake --build build/emrel $VERBOSE
-	cmake --build build/emtest $VERBOSE
-	cmake --build build/emdebug $VERBOSE
+	cmake --build build/emrel $VERBOSE $OPTS
+	cmake --build build/emtest $VERBOSE $OPTS
+	cmake --build build/emdebug $VERBOSE $OPTS
 	cmake --install build/emrel $VERBOSE
 	cmake --install build/emtest $VERBOSE
 	cmake --install build/emdebug $VERBOSE
