@@ -106,7 +106,7 @@ static inline bool ref_is_static(struct ref *ref)
     } \
 } while (0)
 
-#define REF_STATIC { .count = _REF_STATIC }
+#define REF_STATIC(_name) { .count = _REF_STATIC, .refclass = &REFCLASS_NAME(_name) }
 
 static inline bool __ref_get(struct ref *ref)
 {

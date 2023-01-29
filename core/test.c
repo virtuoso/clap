@@ -71,7 +71,7 @@ static int refcount_test1(void)
 
 static int refcount_test2(void)
 {
-    static struct x0 xS = { .ref = REF_STATIC, .magic = TEST_MAGIC0 };
+    static struct x0 xS = { .ref = REF_STATIC(x0), .magic = TEST_MAGIC0 };
 
     reset_counters();
     ref_put(&xS);

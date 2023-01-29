@@ -118,8 +118,10 @@ static GLfloat cube_tx[] = {
     1.0f, 0.0f
 };
 
+extern struct ref_class ref_class_mesh;
+
 struct mesh cube_mesh = {
-    .ref    = REF_STATIC,
+    .ref    = REF_STATIC(mesh),
     .name   = "cube",
     .attr   = {
         [MESH_VX] = { .data = cube_vx, .nr = array_size(cube_vx) / 3, .stride = sizeof(float) * 3 },
