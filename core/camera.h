@@ -28,6 +28,8 @@ struct camera {
     float   pitch_delta;
     struct matrix4f     *view_mx;
     struct matrix4f     *inv_view_mx;
+    vec4    frustum_planes[6];
+    vec4    frustum_corners[8];
     float   tmp_debug_line_start[3];
     float   tmp_debug_line_end[3 * NUMBER_OF_DEBUG_LINES];
     float   debug_line_start[3];
@@ -35,6 +37,8 @@ struct camera {
 };
 
 void camera_setup(struct camera *c);
+void camera_calc_frustum(struct camera *c, mat4x4 projmx);
+bool camera_entity_in_frustum(struct camera *c, struct entity3d *e);
 void camera_move(struct camera *c, unsigned long fps);
 void camera_position(struct camera *c, float x, float y, float z, GLfloat *pos);
 void camera_reset_movement(struct camera *c);

@@ -261,6 +261,8 @@ void entity3d_reset(struct entity3d *e);
 float entity3d_aabb_X(struct entity3d *e);
 float entity3d_aabb_Y(struct entity3d *e);
 float entity3d_aabb_Z(struct entity3d *e);
+void entity3d_aabb_min(struct entity3d *e, vec3 min);
+void entity3d_aabb_max(struct entity3d *e, vec3 max);
 void entity3d_aabb_center(struct entity3d *e, vec3 center);
 void entity3d_update(struct entity3d *e, void *data);
 void entity3d_put(struct entity3d *e);

@@ -64,6 +64,14 @@ LINMATH_H_DEFINE_VEC(2)
 LINMATH_H_DEFINE_VEC(3)
 LINMATH_H_DEFINE_VEC(4)
 
+LINMATH_H_FUNC void vec4_setup(vec4 v, float x, float y, float z, float w)
+{
+	v[0] = x;
+	v[1] = y;
+	v[2] = z;
+	v[3] = w;
+}
+
 LINMATH_H_FUNC void vec3_mul_cross(vec3 r, vec3 const a, vec3 const b)
 {
 	r[0] = a[1]*b[2] - a[2]*b[1];

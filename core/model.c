@@ -762,7 +762,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
     struct model3d *model;
     struct model3dtx *txmodel;
     struct matrix4f *view_mx, *inv_view_mx;
-    unsigned long nr_txms = 0, nr_ents = 0;
+    unsigned long nr_txms = 0, nr_ents = 0, culled = 0;
 
     if (camera) {
         view_mx = camera->view_mx;
@@ -841,6 +841,11 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
 
             dbg_on(!e->visible, "rendering an invisible entity!\n");
 
+            if (camera && !camera_entity_in_frustum(camera, e)) {
+                culled++;
+                continue;
+            }
+
             if (camera && camera->ch) {
                 vec3 dist = { e->dx, e->dy, e->dz };
                 unsigned int lod;
@@ -897,6 +902,8 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
         *count = nr_txms;
     if (prog)
         shader_prog_done(prog);
+    if (camera && culled)
+        ui_debug_printf("culled entities: %lu", culled);
 }
 
 static void model_obj_loaded(struct lib_handle *h, void *data)
@@ -979,6 +986,20 @@ float entity3d_aabb_Y(struct entity3d *e)
 float entity3d_aabb_Z(struct entity3d *e)
 {
     return model3d_aabb_Z(e->txmodel->model) * e->scale;
+}
+
+void entity3d_aabb_min(struct entity3d *e, vec3 min)
+{
+    min[0] = e->dx + e->txmodel->model->aabb[0];
+    min[1] = e->dy + e->txmodel->model->aabb[2];
+    min[2] = e->dz + e->txmodel->model->aabb[4];
+}
+
+void entity3d_aabb_max(struct entity3d *e, vec3 max)
+{
+    max[0] = e->dx + e->txmodel->model->aabb[1];
+    max[1] = e->dy + e->txmodel->model->aabb[3];
+    max[2] = e->dz + e->txmodel->model->aabb[5];
 }
 
 void entity3d_aabb_center(struct entity3d *e, vec3 center)
