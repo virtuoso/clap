@@ -244,6 +244,8 @@ static void model3d_calc_aabb(struct model3d *m, float *vx, size_t vxsz)
 
     vxsz /= sizeof(float);
     vxsz /= 3;
+    m->aabb[0] = m->aabb[2] = m->aabb[4] = INFINITY;
+    m->aabb[1] = m->aabb[3] = m->aabb[5] = -INFINITY;
     for (i = 0; i < vxsz; i += 3) {
         m->aabb[0] = min(vx[i + 0], m->aabb[0]);
         m->aabb[1] = max(vx[i + 0], m->aabb[1]);
