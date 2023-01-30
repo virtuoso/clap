@@ -235,6 +235,7 @@ struct entity3d {
     GLfloat _dx, _dy, _dz;
     GLfloat _rx, _ry, _rz;
     GLfloat _scale;
+    float   aabb[6];
     int (*update)(struct entity3d *e, void *data);
     int (*contact)(struct entity3d *e1, struct entity3d *e2);
     void (*destroy)(struct entity3d *e);

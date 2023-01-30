@@ -990,18 +990,47 @@ float entity3d_aabb_Z(struct entity3d *e)
     return model3d_aabb_Z(e->txmodel->model) * e->scale;
 }
 
+void entity3d_aabb_update(struct entity3d *e)
+{
+    struct model3d *m = e->txmodel->model;
+    vec4 corners[] = {
+        { m->aabb[0], m->aabb[2], m->aabb[4], 1.0 },
+        { m->aabb[0], m->aabb[3], m->aabb[4], 1.0 },
+        { m->aabb[0], m->aabb[2], m->aabb[5], 1.0 },
+        { m->aabb[0], m->aabb[3], m->aabb[5], 1.0 },
+        { m->aabb[1], m->aabb[2], m->aabb[4], 1.0 },
+        { m->aabb[1], m->aabb[3], m->aabb[4], 1.0 },
+        { m->aabb[1], m->aabb[2], m->aabb[5], 1.0 },
+        { m->aabb[1], m->aabb[3], m->aabb[5], 1.0 },
+    };
+    vec4 v;
+    int i;
+
+    e->aabb[0] = e->aabb[2] = e->aabb[3] = INFINITY;
+    e->aabb[1] = e->aabb[3] = e->aabb[5] = -INFINITY;
+    for (i = 0; i < array_size(corners); i++) {
+        mat4x4_mul_vec4(v, e->mx->m, corners[i]);
+        e->aabb[0] = min(v[0], e->aabb[0]);
+        e->aabb[1] = max(v[0], e->aabb[1]);
+        e->aabb[2] = min(v[1], e->aabb[2]);
+        e->aabb[3] = max(v[1], e->aabb[3]);
+        e->aabb[4] = min(v[2], e->aabb[4]);
+        e->aabb[5] = max(v[2], e->aabb[5]);
+    }
+}
+
 void entity3d_aabb_min(struct entity3d *e, vec3 min)
 {
-    min[0] = e->dx + e->txmodel->model->aabb[0];
-    min[1] = e->dy + e->txmodel->model->aabb[2];
-    min[2] = e->dz + e->txmodel->model->aabb[4];
+    min[0] = e->aabb[0];
+    min[1] = e->aabb[2];
+    min[2] = e->aabb[4];
 }
 
 void entity3d_aabb_max(struct entity3d *e, vec3 max)
 {
-    max[0] = e->dx + e->txmodel->model->aabb[1];
-    max[1] = e->dy + e->txmodel->model->aabb[3];
-    max[2] = e->dz + e->txmodel->model->aabb[5];
+    max[0] = e->aabb[1];
+    max[1] = e->aabb[3];
+    max[2] = e->aabb[5];
 }
 
 void entity3d_aabb_center(struct entity3d *e, vec3 center)
@@ -1336,6 +1365,8 @@ static int default_update(struct entity3d *e, void *data)
         mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
         mat4x4_rotate_Z(e->mx->m, e->mx->m, e->rz);
         mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
+
+        entity3d_aabb_update(e);
     }
     if (entity_animated(e))
         animated_update(e, scene);
@@ -1388,6 +1419,7 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
     e->txmodel = ref_get(txm);
     e->mx = mx_new();
     e->update  = default_update;
+    entity3d_aabb_update(e);
     if (model->anis.da.nr_el) {
         CHECK(e->joints = calloc(model->nr_joints, sizeof(*e->joints)));
         CHECK(e->joint_transforms = calloc(model->nr_joints, sizeof(mat4x4)));
