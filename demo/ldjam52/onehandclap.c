@@ -104,8 +104,10 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
     timespec_diff(&s->fps.ts_prev, &ts_start, &ts_delta);
+#ifndef CONFIG_BROWSER
     if (ts_delta.tv_nsec < 1000000000 / gl_refresh_rate())
         return;
+#endif
     clap_fps_calc(&s->fps);
     frame_count = max((unsigned long)gl_refresh_rate() / s->fps.fps_fine, 1);
     PROF_FIRST(start);
