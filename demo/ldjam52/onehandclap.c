@@ -523,6 +523,7 @@ static void cube_geom(struct scene *s, struct cube_data *cd, float x, float y, f
         entity[cm]->visible = 1;
         entity[cm]->update  = NULL;
         entity[cm]->scale = 1;
+        entity[cm]->skip_culling = true;
         entity3d_reset(entity[cm]);
         model3dtx_add_entity(txm[cm], entity[cm]);
         entity3d_add_physics(entity[cm], 0, dTriMeshClass, PHYS_GEOM, 0, 0, 0);
