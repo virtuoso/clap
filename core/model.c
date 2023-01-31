@@ -843,7 +843,8 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
 
             dbg_on(!e->visible, "rendering an invisible entity!\n");
 
-            if (camera && !camera_entity_in_frustum(camera, e)) {
+            if (!e->skip_culling &&
+                camera && !camera_entity_in_frustum(camera, e)) {
                 culled++;
                 continue;
             }
