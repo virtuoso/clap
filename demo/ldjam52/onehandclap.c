@@ -187,12 +187,12 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     PROF_STEP(end, ui);
 #ifndef CONFIG_FINAL
     ui_debug_printf(
-        "phys:    %lu.%09lu\n"
-        "net:     %lu.%09lu\n"
-        "updates: %lu.%09lu\n"
-        "models:  %lu.%09lu\n"
-        "ui:      %lu.%09lu\n"
-        "end:     %lu.%09lu\n"
+        "phys:    %" PRItvsec ".%09lu\n"
+        "net:     %" PRItvsec ".%09lu\n"
+        "updates: %" PRItvsec ".%09lu\n"
+        "models:  %" PRItvsec ".%09lu\n"
+        "ui:      %" PRItvsec ".%09lu\n"
+        "end:     %" PRItvsec ".%09lu\n"
         "ui_entities: %lu\n%s",
         prof_phys.diff.tv_sec, prof_phys.diff.tv_nsec,
         prof_net.diff.tv_sec, prof_net.diff.tv_nsec,
