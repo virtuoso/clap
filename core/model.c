@@ -961,19 +961,6 @@ struct lib_handle *lib_request_bin_vec(const char *name, struct scene *scene)
     return lh;
 }
 
-/*int model3d_new(const char *name)
-{
-    size_t size;
-    char *buf;
-    int ret;
-
-    ret = lib_read_file(RES_ASSET, name, &buf, &size);
-    if (ret)
-        return ret;
-
-    return 0;
-}*/
-
 /****************************************************************************
  * entity3d
  * instance of the model3d
