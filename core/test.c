@@ -186,62 +186,6 @@ static int list_test1(void)
     return EXIT_SUCCESS;
 }
 
-#define TRY_TYPE_COND(x, type, cond, label)             \
-    ({                                              \
-        type __ret = (x);                           \
-        if (__ret cond) goto CATCH_ ## label; \
-        __ret;                                      \
-    })
-
-#define TRY_TYPE(x, type, error, label) TRY_TYPE_COND(x, type, == error, label)
-#define TRY_COND(x, cond, label) TRY_TYPE_COND(x, typeof(x), cond, label)
-#define TRY_ERR(x, error, label) TRY_TYPE(x, typeof(x), error, label)
-#define CATCH(label, x) { CATCH_ ## label: x; }
-
-#if 1
-#define TRY(x, label) \
-    ({ \
-        _Generic((x), \
-            int:        TRY_COND((long)(x), < 0, label), \
-            void *:     TRY_COND((void *)(x), == NULL, label), \
-            default:    TRY_COND((long)(x), == 0, label) \
-        ); \
-    })
-#else
-#define TRY(x, label) \
-    TRY_COND((x), _Generic((x), int:        < 0, void *:     == NULL, default:    == 0), label)
-#endif
-
-static int trycatch_test0(void)
-{
-    int success = 0, tests = 0;
-    void *x = NULL;
-
-    tests++;
-    TRY_TYPE(1, int, 0, first);
-    CATCH(first, success++);
-
-    tests++;
-    TRY_ERR(1, 0, second);
-    CATCH(second, success++);
-
-    tests++;
-    TRY_COND(1, == 0, third);
-    CATCH(third, success++);
-
-    tests++;
-    TRY(1, fourth);
-    CATCH(fourth, success++);
-
-    tests++;
-    TRY(x, fifth);
-    CATCH(fifth, success++);
-
-    fprintf(stderr, "%d/%d\n", success, tests);
-
-    return EXIT_SUCCESS;
-}
-
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -252,7 +196,6 @@ static struct test {
     { .name = "refcount cleanup", .test = refcount_test3 },
     { .name = "list_for_each", .test = list_test0 },
     { .name = "list_for_each_iter", .test = list_test1 },
-    { .name = "try/catch basic", .test = trycatch_test0 },
 };
 
 int main()
