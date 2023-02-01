@@ -53,7 +53,10 @@ void preprocess_vert_shader(char *input_name, char *output_name, enum shader_lan
     struct stat st;
     fstat(fileno(f), &st);
     char* buf = (char *)calloc(st.st_size + 1, 1);
-    fread(buf, 1, st.st_size, f);
+    if (fread(buf, 1, st.st_size, f) != st.st_size) {
+        fprintf(stderr, "Can't read %s: %m\n", input_name);
+        exit(EXIT_FAILURE);
+    }
     fclose(f);
 
     FILE* fout = fopen(output_name, "w+");
@@ -104,7 +107,10 @@ void preprocess_frag_shader(char *input_name, char *output_name, enum shader_lan
     struct stat st;
     fstat(fileno(f), &st);
     char* buf = (char *)calloc(st.st_size + 1, 1);
-    fread(buf, 1, st.st_size, f);
+    if (fread(buf, 1, st.st_size, f) != st.st_size) {
+        fprintf(stderr, "Can't read %s: %m\n", input_name);
+        exit(EXIT_FAILURE);
+    }
     fclose(f);
 
     FILE* fout = fopen(output_name, "w+");
