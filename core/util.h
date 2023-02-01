@@ -265,41 +265,7 @@ static inline const char *skip_to_new_line(const char *pos)
     return *pos ? skip_space(pos) : pos;
 }
 
-/*
- * A chain is something that has ->next pointer to the same
- * type as self.
- */
-#define __is_chain(__c) \
-    do { typeof(__c) _x; _x->next = (__c); } while (0)
-
-#define chain_append(__c, __o)                              \
-    ({                                                      \
-        typeof(*(__c)) _x, **_lastp;                        \
-        __is_chain((__c));                \
-        for (lastp = &(__c); *_lastp; _lastp = &((*_lastp)->next));   \
-        _x = malloc(sizeof(_x));                   \
-        if (_x) {                                  \
-            *_lastp = &_x;                         \
-        }                                          \
-        _x                                         \
-    })
-
-#define chain_prepend(__c, __o)                             \
-    ({                                                      \
-        typeof(*(__c)) _x;                                  \
-        __is_chain((__c));                                  \
-        _x = malloc(sizeof(_x));                            \
-        if (_x) {                                           \
-            _x->link = (__c);                               \
-            *(&(__c)) = &(_x->link);                        \
-        }                                          \
-        _x                                         \
-    })
-
-#define chain_for_each(__c, __o) \
-    for (__o = (__c); __o; __o = (__o)->next)
-
-        typedef void (*exit_handler_fn)(int);
+typedef void (*exit_handler_fn)(int);
 int exit_cleanup(exit_handler_fn);
 void exit_cleanup_run(int status);
 

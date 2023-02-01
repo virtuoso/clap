@@ -89,29 +89,6 @@ void darray_clearout(struct darray *da)
     da->nr_el = 0;
 }
 
-struct chain_link {
-    struct chain_link   *next;
-};
-
-/*static struct chain_link **chain_last(struct chain_link **linkp)
-{
-    struct chain_link **lastp;
-
-    for (lastp = linkp; *lastp; lastp = &((*lastp)->next))
-        ;
-    
-    return lastp;
-}*/
-
-
-/*int chain_for_each(struct chain_link *link, int (*fn)(struct chain_link *))
-{
-    int ret;
-
-    for (; link; link = link->next)
-        ret |= fn(link)
-}*/
-
 struct exit_handler {
     exit_handler_fn     fn;
     struct exit_handler *next;
