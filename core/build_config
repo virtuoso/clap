@@ -1,7 +1,0 @@
-emsdk_env_path=${HOME}/work/emsdk/emsdk_env.sh
-
-server_ip="192.168.1.115"
-base_url="http://ukko.local/clap/"
-www_dir="/var/www/html/clap"
-wwwdbg_dir="/var/www/html/clapdbg/"
-
