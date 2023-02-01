@@ -740,7 +740,6 @@ int main(int argc, char **argv, char **envp)
     networking_init(&ncfg, CLIENT);
 #endif
 
-    print_each_class();
     gl_init("One Hand Clap", 1280, 720, renderFrame, &scene, resize_cb);
     (void)input_init(); /* XXX: error handling */
     //font_init();

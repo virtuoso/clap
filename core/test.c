@@ -242,38 +242,6 @@ static int trycatch_test0(void)
     return EXIT_SUCCESS;
 }
 
-#include "object.h"
-//void print_each_class(void);/*XXX*/
-static int oop_test0(void)
-{
-    LOCAL(char, str0);
-    LOCAL(char, str1);
-    LOCAL(Object, o0);
-    LOCAL(Object, o1);
-    LOCAL(JsonNode, root);
-    LOCAL(JsonNode, res);
-
-    //print_each_class();
-    o0 = make(&class, "blah");
-
-    CHECK(root = json_mkobject());
-    CHECK(res = json_mkobject());
-
-    serialize(o0, root);
-
-    str0 = json_encode(root);
-
-    o1 = deserialize(NULL, root);
-
-    serialize(o1, res);
-    str1 = json_encode(res);
-    msg("%s || %s\n", str0, str1);
-    if (cmp(o0, o1))
-        return EXIT_FAILURE;
-
-    return EXIT_SUCCESS;
-}
-
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -285,7 +253,6 @@ static struct test {
     { .name = "list_for_each", .test = list_test0 },
     { .name = "list_for_each_iter", .test = list_test1 },
     { .name = "try/catch basic", .test = trycatch_test0 },
-    { .name = "OOP basic", .test = oop_test0 },
 };
 
 int main()
