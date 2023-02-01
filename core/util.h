@@ -101,7 +101,7 @@ union { \
     struct darray   da; \
 } _name;
 
-#define darray_init(_da) { (_da)->da.elsz = sizeof(*(_da)->x); (_da)->da.nr_el = 0; }
+#define darray_init(_da) { (_da)->da.elsz = sizeof(*(_da)->x); (_da)->da.nr_el = 0; (_da)->x = NULL; }
 static inline void *darray_get(struct darray *da, unsigned int el)
 {
     if (el >= da->nr_el)
