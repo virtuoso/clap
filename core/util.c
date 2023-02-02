@@ -82,6 +82,29 @@ void *darray_add(struct darray *da)
     return new;
 }
 
+void *darray_insert(struct darray *da, int idx)
+{
+    void *new = darray_resize(da, da->nr_el + 1);
+
+    if (!new)
+        return NULL;
+
+    memmove(new + (idx + 1) * da->elsz, new + idx * da->elsz,
+            (da->nr_el - idx - 1) * da->elsz);
+    new = darray_get(da, idx);
+    memset(new, 0, da->elsz);
+
+    return new;
+}
+
+void darray_delete(struct darray *da, int idx)
+{
+    memmove(da->array + idx * da->elsz, da->array + (idx + 1) * da->elsz,
+            (da->nr_el - idx - 1) * da->elsz);
+
+    (void)darray_resize(da, da->nr_el - 1);
+}
+
 void darray_clearout(struct darray *da)
 {
     free(da->array);

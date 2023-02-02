@@ -211,6 +211,64 @@ static int darray_test0(void)
     return EXIT_SUCCESS;
 }
 
+static int darray_test1(void)
+{
+    darray(int, da);
+    int i;
+
+    darray_init(&da);
+    for (i = 0; i < 10; i++) {
+        int *x = darray_add(&da.da);
+        *x = i;
+    }
+
+    int *x = darray_insert(&da.da, 3);
+    *x = -1;
+
+    if (da.da.nr_el != 11)
+        return EXIT_FAILURE;
+
+    if (da.x[3] != -1)
+        return EXIT_FAILURE;
+
+    if (da.x[10] != 9)
+        return EXIT_FAILURE;
+
+    darray_clearout(&da.da);
+
+    if (da.da.nr_el)
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int darray_test2(void)
+{
+    darray(int, da);
+    int i;
+
+    darray_init(&da);
+    for (i = 0; i < 10; i++) {
+        int *x = darray_add(&da.da);
+        *x = i;
+    }
+
+    darray_delete(&da.da, 3);
+
+    if (da.x[3] != 4)
+        return EXIT_FAILURE;
+
+    if (da.da.nr_el != 9)
+        return EXIT_FAILURE;
+
+    darray_clearout(&da.da);
+
+    if (da.da.nr_el)
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -222,6 +280,8 @@ static struct test {
     { .name = "list_for_each", .test = list_test0 },
     { .name = "list_for_each_iter", .test = list_test1 },
     { .name = "darray basic", .test = darray_test0 },
+    { .name = "darray insert", .test = darray_test1 },
+    { .name = "darray delete", .test = darray_test2 },
 };
 
 int main()

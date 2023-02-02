@@ -111,6 +111,8 @@ static inline void *darray_get(struct darray *da, unsigned int el)
 
 void *darray_resize(struct darray *da, unsigned int nr_el);
 void *darray_add(struct darray *da);
+void *darray_insert(struct darray *da, int idx);
+void darray_delete(struct darray *da, int idx);
 void darray_clearout(struct darray *da);
 #define DA(_da, _type, _idx) ((_type *)darray_get((_da), _idx))
 #define darray_for_each(_el, _da) \
