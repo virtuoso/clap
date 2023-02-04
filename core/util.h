@@ -172,6 +172,27 @@ static inline void list_del(struct list *el)
          &(__ent->__link) != (__list);             \
          __ent = __it, __it = list_next_entry(__it, __link))
 
+struct hashmap {
+    struct list *buckets;
+    struct list list;
+    size_t      nr_buckets;
+    unsigned long (*hash)(struct hashmap *hm, unsigned int key);
+};
+
+struct hashmap_entry {
+    struct list     entry;
+    struct list     list_entry;
+    void            *value;
+    unsigned int    key;
+};
+
+int hashmap_init(struct hashmap *hm, size_t nr_buckets);
+void *hashmap_find(struct hashmap *hm, unsigned int key);
+void hashmap_delete(struct hashmap *hm, unsigned int key);
+int hashmap_insert(struct hashmap *hm, unsigned int key, void *value);
+void hashmap_done(struct hashmap *hm);
+void hashmap_for_each(struct hashmap *hm, void (*cb)(void *value, void *data), void *data);
+
 void *memdup(const void *x, size_t size);
 
 static inline int clamp(int x, int floor, int ceil)

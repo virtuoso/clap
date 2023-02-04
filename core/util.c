@@ -112,6 +112,106 @@ void darray_clearout(struct darray *da)
     da->nr_el = 0;
 }
 
+static unsigned long hash_simple(struct hashmap *hm, unsigned int key)
+{
+    return key & (hm->nr_buckets - 1);
+}
+
+int hashmap_init(struct hashmap *hm, size_t nr_buckets)
+{
+    int i;
+
+    if (nr_buckets & (nr_buckets - 1))
+        return -1;
+
+    hm->buckets = calloc(nr_buckets, sizeof(struct list));
+    hm->nr_buckets = nr_buckets;
+    hm->hash = hash_simple;
+    list_init(&hm->list);
+
+    for (i = 0; i < nr_buckets; i++)
+        list_init(&hm->buckets[i]);
+
+    return 0;
+}
+
+void hashmap_done(struct hashmap *hm)
+{
+    struct hashmap_entry *e, *it;
+
+    list_for_each_entry_iter(e, it, &hm->list, list_entry) {
+        list_del(&e->list_entry);
+        free(e);
+    }
+    free(hm->buckets);
+    hm->nr_buckets = 0;
+}
+
+static struct hashmap_entry *
+_hashmap_find(struct hashmap *hm, unsigned int key, unsigned long *phash)
+{
+    struct hashmap_entry *e;
+
+    *phash = hm->hash(hm, key);
+    list_for_each_entry(e, &hm->buckets[*phash], entry) {
+        if (e->key == key)
+            return e;
+    }
+
+    return NULL;
+}
+
+void *hashmap_find(struct hashmap *hm, unsigned int key)
+{
+    unsigned long hash;
+    struct hashmap_entry *e = _hashmap_find(hm, key, &hash);
+
+    return e ? e->value : NULL;
+}
+
+void hashmap_delete(struct hashmap *hm, unsigned int key)
+{
+    unsigned long hash;
+    struct hashmap_entry *e = _hashmap_find(hm, key, &hash);
+
+    if (!e)
+        return;
+
+    list_del(&e->entry);
+    list_del(&e->list_entry);
+    free(e);
+}
+
+int hashmap_insert(struct hashmap *hm, unsigned int key, void *value)
+{
+    unsigned long hash;
+    struct hashmap_entry *e;
+    void *v;
+
+    if (_hashmap_find(hm, key, &hash))
+        return -EBUSY;
+
+    e = calloc(1, sizeof(*e));
+    if (!e)
+        return -ENOMEM;
+
+    e->value = value;
+    e->key = key;
+    list_append(&hm->buckets[hash], &e->entry);
+    list_append(&hm->list, &e->list_entry);
+
+    return 0;
+}
+
+void hashmap_for_each(struct hashmap *hm, void (*cb)(void *value, void *data), void *data)
+{
+    struct hashmap_entry *e;
+
+    list_for_each_entry(e, &hm->list, list_entry) {
+        cb(e->value, data);
+    }
+}
+
 struct exit_handler {
     exit_handler_fn     fn;
     struct exit_handler *next;

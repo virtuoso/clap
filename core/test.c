@@ -269,6 +269,66 @@ static int darray_test2(void)
     return EXIT_SUCCESS;
 }
 
+static int hashmap_test0(void)
+{
+    struct hashmap hm;
+    char *value;
+
+    hashmap_init(&hm, 256);
+    hashmap_insert(&hm, 0, "zero");
+    hashmap_insert(&hm, 256, "one");
+
+    value = hashmap_find(&hm, 0);
+    if (strcmp(value, "zero"))
+        return EXIT_FAILURE;
+
+    value = hashmap_find(&hm, 256);
+    if (strcmp(value, "one"))
+        return EXIT_FAILURE;
+
+    hashmap_done(&hm);
+
+    if (!list_empty(&hm.list) || hm.nr_buckets)
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+struct hashmap_test_data {
+    unsigned long   value;
+    bool            broken;
+};
+
+static void hashmap_cb(void *item, void *data)
+{
+    struct hashmap_test_data *pctx = data;
+    unsigned long value = (unsigned long)item;
+
+    if (pctx->value + 1 != value)
+        pctx->broken = true;
+    pctx->value = value;
+}
+
+static int hashmap_test1(void)
+{
+    struct hashmap_test_data ctx = {};
+    struct hashmap hm;
+    long i;
+
+    hashmap_init(&hm, 256);
+
+    for (i = 1; i < 1024; i++)
+        hashmap_insert(&hm, i, (void *)i);
+    hashmap_for_each(&hm, hashmap_cb, &ctx);
+
+    hashmap_done(&hm);
+
+    if (ctx.broken)
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -282,6 +342,8 @@ static struct test {
     { .name = "darray basic", .test = darray_test0 },
     { .name = "darray insert", .test = darray_test1 },
     { .name = "darray delete", .test = darray_test2 },
+    { .name = "hashmap basic", .test = hashmap_test0 },
+    { .name = "hashmap for each", .test = hashmap_test1 },
 };
 
 int main()
