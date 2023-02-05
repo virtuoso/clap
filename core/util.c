@@ -212,6 +212,52 @@ void hashmap_for_each(struct hashmap *hm, void (*cb)(void *value, void *data), v
     }
 }
 
+void bitmap_init(struct bitmap *b, size_t bits)
+{
+    size_t size = bits / BITS_PER_LONG;
+
+    size += !!(bits % BITS_PER_LONG);
+    b->mask = calloc(1, size * sizeof(unsigned long));
+    if (!b->mask)
+        return;
+
+    b->size = size;
+}
+
+void bitmap_done(struct bitmap *b)
+{
+    free(b->mask);
+    b->size = 0;
+}
+
+void bitmap_set(struct bitmap *b, unsigned int bit)
+{
+    unsigned int idx = bit / BITS_PER_LONG;
+    b->mask[idx] |= 1ul << (bit % BITS_PER_LONG);
+}
+
+bool bitmap_is_set(struct bitmap *b, unsigned int bit)
+{
+    unsigned int idx = bit / BITS_PER_LONG;
+    return !!(b->mask[idx] & (1ul << (bit % BITS_PER_LONG)));
+}
+
+bool bitmap_includes(struct bitmap *b, struct bitmap *subset)
+{
+    int i;
+
+    if (subset->size > b->size)
+        for (i = b->size; i < subset->size; i++)
+            if (subset->mask[i])
+                return false;
+
+    for (i = 0; i < b->size; i++)
+        if ((b->mask[i] & subset->mask[i]) != subset->mask[i])
+            return false;
+
+    return true;
+}
+
 struct exit_handler {
     exit_handler_fn     fn;
     struct exit_handler *next;

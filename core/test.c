@@ -329,6 +329,39 @@ static int hashmap_test1(void)
     return EXIT_SUCCESS;
 }
 
+static int bitmap_test0(void)
+{
+    struct bitmap b0, b1;
+
+    bitmap_init(&b0, 64);
+    if (b0.size != 1)
+        return EXIT_FAILURE;
+
+    bitmap_init(&b1, 128);
+    if (b1.size != 2)
+        return EXIT_FAILURE;
+
+    bitmap_set(&b0, 0);
+    bitmap_set(&b0, 1);
+    bitmap_set(&b0, 2);
+    if (!bitmap_is_set(&b0, 0) ||
+        !bitmap_is_set(&b0, 1) ||
+        !bitmap_is_set(&b0, 2))
+        return EXIT_FAILURE;
+
+    bitmap_set(&b1, 0);
+    bitmap_set(&b1, 2);
+    if (!bitmap_includes(&b0, &b1))
+        return EXIT_FAILURE;
+
+    if (bitmap_includes(&b1, &b0))
+        return EXIT_FAILURE;
+
+    bitmap_done(&b0);
+    bitmap_done(&b1);
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -344,6 +377,7 @@ static struct test {
     { .name = "darray delete", .test = darray_test2 },
     { .name = "hashmap basic", .test = hashmap_test0 },
     { .name = "hashmap for each", .test = hashmap_test1 },
+    { .name = "bitmap basic", .test = bitmap_test0 },
 };
 
 int main()

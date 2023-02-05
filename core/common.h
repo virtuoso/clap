@@ -22,6 +22,8 @@
 #define PRItvsec "ld"
 #endif /* CONFIG_BROWSER */
 
+#define BITS_PER_LONG   (8 * sizeof(long))
+
 #if defined(__has_feature)
 # if __has_feature(address_sanitizer)
 #define HAVE_ASAN 1

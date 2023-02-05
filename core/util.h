@@ -193,6 +193,17 @@ int hashmap_insert(struct hashmap *hm, unsigned int key, void *value);
 void hashmap_done(struct hashmap *hm);
 void hashmap_for_each(struct hashmap *hm, void (*cb)(void *value, void *data), void *data);
 
+struct bitmap {
+    unsigned long   *mask;
+    size_t          size;
+};
+
+void bitmap_init(struct bitmap *b, size_t bits);
+void bitmap_done(struct bitmap *b);
+void bitmap_set(struct bitmap *b, unsigned int bit);
+bool bitmap_is_set(struct bitmap *b, unsigned int bit);
+bool bitmap_includes(struct bitmap *b, struct bitmap *subset);
+
 void *memdup(const void *x, size_t size);
 
 static inline int clamp(int x, int floor, int ceil)
