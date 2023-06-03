@@ -1033,11 +1033,12 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
         mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh), gltf_nr_joints(gd, mesh));
     if (gltf_has_weights(gd, mesh))
         mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh), gltf_nr_weights(gd, mesh));
+    if (gltf_has_tangent(gd, mesh))
+        mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh), gltf_nr_tangent(gd, mesh));
     mesh_optimize(me);
 
     m = model3d_new_from_mesh(gltf_mesh_name(gd, mesh), gd->scene->prog, me);
     if (gltf_has_tangent(gd, mesh)) {
-        model3d_add_tangents(m, gltf_tangent(gd, mesh), gltf_tangentsz(gd, mesh));
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }
 

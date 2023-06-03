@@ -9,6 +9,7 @@ enum {
     MESH_VX = 0,
     MESH_TX,
     MESH_NORM,
+    MESH_TANGENTS,
     MESH_WEIGHTS,
     MESH_IDX,
     MESH_JOINTS,
@@ -18,6 +19,7 @@ enum {
 #define MESH_VX_BIT         (1 << MESH_VX)
 #define MESH_TX_BIT         (1 << MESH_TX)
 #define MESH_NORM_BIT       (1 << MESH_NORM)
+#define MESH_TANGENTS_BIT   (1 << MESH_TANGENTS)
 #define MESH_WEIGHTS_BIT    (1 << MESH_WEIGHTS)
 #define MESH_IDX_BIT        (1 << MESH_IDX)
 #define MESH_JOINTS_BIT     (1 << MESH_JOINTS)
@@ -26,6 +28,7 @@ enum {
     MESH_VX_BIT | \
     MESH_TX_BIT | \
     MESH_NORM_BIT | \
+    MESH_TANGENTS_BIT | \
     MESH_WEIGHTS_BIT |\
     MESH_JOINTS_BIT \
 )
@@ -90,6 +93,7 @@ static inline size_t mesh_ ## _n ## _sz(struct mesh *mesh) \
 ATTR_ACCESSORS(vx, VX, float);
 ATTR_ACCESSORS(tx, TX, float);
 ATTR_ACCESSORS(norm, NORM, float);
+ATTR_ACCESSORS(tangent, TANGENTS, float);
 ATTR_ACCESSORS(joints, JOINTS, unsigned char);
 ATTR_ACCESSORS(weights, WEIGHTS, float);
 ATTR_ACCESSORS(idx, IDX, unsigned short);

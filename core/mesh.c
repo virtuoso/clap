@@ -117,7 +117,7 @@ unsigned short *mesh_lod_from_idx32(struct mesh *mesh, unsigned int *idx32)
 
 #define test_bit(mask, bit) (!!((mask) & (1 << (bit))))
 
-#define MESH_1to1_ATTRS (MESH_TX_BIT | MESH_NORM_BIT | MESH_WEIGHTS_BIT)
+#define MESH_1to1_ATTRS (MESH_TX_BIT | MESH_NORM_BIT | MESH_TANGENTS_BIT | MESH_WEIGHTS_BIT)
 
 void mesh_push_mesh(struct mesh *mesh, struct mesh *src,
                     float x, float y, float z, float scale)
