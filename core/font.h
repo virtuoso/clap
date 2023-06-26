@@ -2,6 +2,8 @@
 #ifndef __CLAP_FONT_H__
 #define __CLAP_FONT_H__
 
+#include "render.h"
+
 struct glyph {
     // GLuint  texture_id;
     texture_t       tex;
