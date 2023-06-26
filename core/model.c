@@ -78,22 +78,6 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
     return 0;
 }
 
-static int model3d_add_texture(struct model3dtx *txm, const char *name)
-{
-    int width = 0, height = 0, has_alpha = 0, ret;
-    unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
-
-    shader_prog_use(txm->model->prog);
-    ret = load_gl_texture_buffer(txm->model->prog, buffer, width, height, has_alpha, GL_TEXTURE0,
-                                 txm->model->prog->texture_map, txm->texture);
-    shader_prog_done(txm->model->prog);
-    free(buffer);
-
-    dbg("loaded texture %d %s %dx%d\n", texture_id(txm->texture), name, width, height);
-
-    return ret;
-}
-
 /* XXX: actually, make it take the decoded texture, not the png */
 static int model3d_add_texture_from_buffer(struct model3dtx *txm, GLuint target, void *input, size_t length)
 {
@@ -114,6 +98,31 @@ static int model3d_add_texture_from_buffer(struct model3dtx *txm, GLuint target,
     dbg("loaded texture%d %d %dx%d\n", target - GL_TEXTURE0, texture_id(txm->texture), width, height);
 
     return ret;
+}
+
+static int model3d_add_texture_at(struct model3dtx *txm, GLuint target, const char *name)
+{
+    int width = 0, height = 0, has_alpha = 0, ret;
+    unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
+    struct shader_prog *prog = txm->model->prog;
+    texture_t *targets[] = { txm->texture, txm->normals };
+    GLint locs[] = { prog->texture_map, prog->normal_map };
+
+    shader_prog_use(prog);
+    ret = load_gl_texture_buffer(prog, buffer, width, height, has_alpha, target,
+                                 locs[target - GL_TEXTURE0],
+                                 targets[target - GL_TEXTURE0]);
+    shader_prog_done(prog);
+    free(buffer);
+
+    dbg("loaded texture%d %d %dx%d\n", target - GL_TEXTURE0, texture_id(txm->texture), width, height);
+
+    return ret;
+}
+
+static int model3d_add_texture(struct model3dtx *txm, const char *name)
+{
+    return model3d_add_texture_at(txm, GL_TEXTURE0, name);
 }
 
 static int model3dtx_make(struct ref *ref)
@@ -149,7 +158,7 @@ static void model3dtx_drop(struct ref *ref)
 
 DECLARE_REFCLASS2(model3dtx);
 
-struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
+struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const char *norm)
 {
     struct model3dtx *txm = ref_new(model3dtx);
 
@@ -157,11 +166,18 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
         return NULL;
 
     txm->model = ref_get(model);
-    model3d_add_texture(txm, name);
+    model3d_add_texture(txm, tex);
+    if (norm)
+        model3d_add_texture_at(txm, GL_TEXTURE1, norm);
     txm->roughness = 0.65;
     txm->metallic = 0.45;
 
     return txm;
+}
+
+struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
+{
+    return model3dtx_new2(model, name, NULL);
 }
 
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
