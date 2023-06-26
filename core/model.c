@@ -517,7 +517,7 @@ void model3dtx_prepare(struct model3dtx *txm)
 
     model3d_prepare(txm->model);
 
-    if (m->tex_obj && texture_loaded(txm->texture)) {
+    if (p->tex >= 0 && m->tex_obj && texture_loaded(txm->texture)) {
         GL(glBindBuffer(GL_ARRAY_BUFFER, m->tex_obj));
         GL(glVertexAttribPointer(p->tex, 2, GL_FLOAT, GL_FALSE, 0, (void *)0));
         GL(glEnableVertexAttribArray(p->tex));
@@ -526,7 +526,7 @@ void model3dtx_prepare(struct model3dtx *txm)
         GL(glUniform1i(p->texture_map, 0));
     }
 
-    if (txm->normals && texture_loaded(txm->normals)) {
+    if (p->normal_map >= 0 && txm->normals && texture_loaded(txm->normals)) {
         GL(glActiveTexture(GL_TEXTURE1));
         GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->normals)));
         GL(glUniform1i(p->normal_map, 1));
