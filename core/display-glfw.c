@@ -61,7 +61,7 @@ static void resize_cb(GLFWwindow *window, int w, int h)
 {
     width = w;
     height = h;
-    resize_fn(w, h);
+    resize_fn(update_fn_data, w, h);
 }
 
 void gl_get_sizes(int *widthp, int *heightp)

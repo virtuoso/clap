@@ -54,10 +54,11 @@ void gl_main_loop(void)
 }
 
 static display_resize resize_fn;
+static void *callback_data;
 
 EMSCRIPTEN_KEEPALIVE void gl_resize(int w, int h)
 {
-    resize_fn(w, h);
+    resize_fn(callback_data, w, h);
     width = w;
     height = h;
 }
@@ -89,6 +90,7 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     int context;
 
     resize_fn = rfn;
+    callback_data = data;
     emscripten_webgl_init_context_attributes(&attr);
     attr.explicitSwapControl       = 0;
     attr.alpha                     = 1;

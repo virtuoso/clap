@@ -85,6 +85,9 @@ static void clap_config_init(struct clap_config *cfg)
 
 static bool clap_config_is_valid(struct clap_config *cfg)
 {
+    if (cfg->graphics && (!cfg->frame_cb || !cfg->resize_cb || !cfg->title))
+        return false;
+
     return true;
 }
 
@@ -137,7 +140,9 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
         sound_init();
     if (ctx->cfg.phys)
         phys_init();
-
+    if (ctx->cfg.graphics)
+        gl_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
+                ctx->cfg.frame_cb, ctx->cfg.callback_data, ctx->cfg.resize_cb);
     //clap_settings = settings_init();
 
     return ctx;
@@ -149,5 +154,7 @@ void clap_done(struct clap_context *ctx, int status)
         sound_done();
     if (ctx->cfg.phys)
         phys_done();
+    if (ctx->cfg.graphics)
+        gl_done();
     exit_cleanup_run(status);
 }

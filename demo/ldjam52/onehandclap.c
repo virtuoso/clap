@@ -242,8 +242,9 @@ static void touch_set_size(int w, int h) {}
  * XXX: this should be a message
  * cmd.resize
  */
-void resize_cb(int width, int height)
+void resize_cb(void *data, int width, int height)
 {
+    struct scene *scene = data;
     ui.width  = width;
     ui.height = height;
     // if (width > height) {
@@ -251,13 +252,13 @@ void resize_cb(int width, int height)
     // } else {
     //     height /= 2;
     // }
-    scene.width  = width;
-    scene.height = height;
+    scene->width  = width;
+    scene->height = height;
     touch_set_size(width, height);
-    scene.aspect = (float)width / (float)height;
+    scene->aspect = (float)width / (float)height;
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);
-    projmx_update(&scene);
+    projmx_update(scene);
     // fbo_update(width, height);
 }
 
@@ -670,11 +671,18 @@ static const char short_options[] = "Ae:EFS:";
 int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
-        .debug  = 1,
-        .input  = 1,
-        .font   = 1,
-        .sound  = 1,
-        .phys   = 1,
+        .debug          = 1,
+        .input          = 1,
+        .font           = 1,
+        .sound          = 1,
+        .phys           = 1,
+        .graphics       = 1,
+        .title          = "One Hand Clap",
+        .width          = 1280,
+        .height         = 720,
+        .frame_cb       = renderFrame,
+        .resize_cb      = resize_cb,
+        .callback_data  = &scene,
     };
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
@@ -729,7 +737,6 @@ int main(int argc, char **argv, char **envp)
     networking_init(&ncfg, CLIENT);
 #endif
 
-    gl_init("One Hand Clap", 1280, 720, renderFrame, &scene, resize_cb);
     phys->ground_contact = ohc_ground_contact;
 
     cube_data.s = &scene;

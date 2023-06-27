@@ -10,12 +10,19 @@ struct fps_data {
 void clap_fps_calc(struct fps_data *f);
 
 struct clap_config {
-    unsigned long   debug   : 1,
-                    quiet   : 1,
-                    input   : 1,
-                    font    : 1,
-                    sound   : 1,
-                    phys    : 1;
+    unsigned long   debug       : 1,
+                    quiet       : 1,
+                    input       : 1,
+                    font        : 1,
+                    sound       : 1,
+                    phys        : 1,
+                    graphics    : 1;
+    const char      *title;
+    unsigned int    width;
+    unsigned int    height;
+    void            (*frame_cb)(void *data);
+    void            (*resize_cb)(void *data, int width, int height);
+    void            *callback_data;
 };
 
 struct clap_context;
