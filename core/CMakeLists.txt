@@ -70,14 +70,6 @@ string(TIMESTAMP CONFIG_BUILDDATE "%Y%m%d_%H%M%S")
 configure_file(config.h.in config.h)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
-    set(SERVER_BIN server)
-    set(SERVER_SRC networking.c clap.c input.c util.c logger.c ref.c object.c
-        librarian.c messagebus.c json.c input-fuzzer.c)
-    add_executable(${SERVER_BIN} ${SERVER_SRC})
-    target_compile_definitions(${SERVER_BIN} PUBLIC -DSERVER_STANDALONE)
-endif ()
-
-if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(TEST_BIN tests)
     set(TEST_SRC test.c object.c ref.c util.c logger.c json.c messagebus.c)
     add_executable(${TEST_BIN} ${TEST_SRC})

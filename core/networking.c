@@ -97,7 +97,6 @@ static unsigned int  need_polling_alloc;
 
 static void queue_outmsg(struct network_node *n, void *data, size_t size);
 
-#ifndef SERVER_STANDALONE
 static void log_flush(struct log_entry *e, void *data)
 {
     struct network_node *n = data;
@@ -137,7 +136,6 @@ static void log_flush(struct log_entry *e, void *data)
     queue_outmsg(n, buf, size);
     //fprintf(stderr, "===> %s <===\n", e->msg);
 }
-#endif
 
 static void polling_alloc()
 {
@@ -458,15 +456,14 @@ static struct network_node *server_setup(const char *server_ip, unsigned int por
     return n;
 }
 
-static struct network_node *_client_setup(const char *server_ip, unsigned int port)
+static struct network_node *_client_setup(struct networking_config *cfg, unsigned int port)
 {
     struct network_node *n;
 
-    CHECK(n = network_node_new_socket(server_ip, port, CLIENT));
+    CHECK(n = network_node_new_socket(cfg->server_ip, port, CLIENT));
     network_node_connect(n);
-#ifndef SERVER_STANDALONE
-    rb_sink_add(log_flush, n, VDBG, 1);
-#endif
+    if (cfg->logger)
+        rb_sink_add(log_flush, n, VDBG, 1);
     need_polling_alloc++;
 
     return n;
@@ -475,9 +472,9 @@ static struct network_node *_client_setup(const char *server_ip, unsigned int po
 static struct network_node *client_setup(struct networking_config *cfg)
 {
 #ifdef __EMSCRIPTEN__
-    return _client_setup(cfg->server_ip, cfg->server_wsport);
+    return _client_setup(cfg, cfg->server_wsport);
 #else
-    return _client_setup(cfg->server_ip, cfg->server_port);
+    return _client_setup(cfg, cfg->server_port);
 #endif
 }
 
@@ -541,7 +538,7 @@ static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t 
         networking_done();
         EM_ASM({ location.reload(); });
 #else
-        clap_restart();
+        clap_restart(_ncfg->clap);
 #endif
     }
     return sizeof(*mcmd);
@@ -689,12 +686,6 @@ static ssize_t handle_input(struct network_node *n, uint8_t *buf, size_t size)
 }
 
 struct wsheader _wsh;
-
-#ifdef SERVER_STANDALONE
-#define TIMEOUT 100
-#else
-#define TIMEOUT 0
-#endif
 
 static void queue_outmsg(struct network_node *n, void *data, size_t size)
 {
@@ -869,7 +860,7 @@ void networking_poll(void)
         n = client_setup(_ncfg);
     }
 
-    ret = poll(pollfds, nr_nodes, TIMEOUT);
+    ret = poll(pollfds, nr_nodes, _ncfg->timeout);
     if (ret <= 0)
         goto state;
 
@@ -1021,104 +1012,3 @@ not_empty:
     }
     free(_ncfg);
 }
-
-#ifdef SERVER_STANDALONE
-int platform_input_init(void)
-{
-    return 0;
-}
-
-static void sigint_handler(int sig)
-{
-    fprintf(stderr, "## SIGINT\n");
-    networking_done();
-    clap_done(0);
-    exit(0);
-}
-
-static bool exit_server_loop = false;
-static bool restart_server   = false;
-
-void server_run(void)
-{
-    while (!exit_server_loop)
-        networking_poll();
-}
-
-static int handle_command(struct message *m, void *data)
-{
-    if (m->cmd.restart) {
-        exit_server_loop = true;
-        restart_server   = true;
-    }
-    if (m->cmd.status) {
-        all_queue_outmsg(&m->cmd, sizeof(m->cmd));
-    }
-    return 0;
-}
-
-static struct option long_options[] = {
-    { "restart",    no_argument,        0, 'R' },
-    { "server",     required_argument,  0, 'S'},
-    {}
-};
-
-static const char short_options[] = "RS:";
-
-int main(int argc, char **argv, char **envp)
-{
-    struct clap_config cfg = {
-        .debug = 1,
-    };
-    struct networking_config ncfg = {
-        .server_ip     = CONFIG_SERVER_IP,
-        .server_port   = 21044,
-        .server_wsport = 21045,
-    };
-    int c, option_index, do_restart = 0;
-
-    for (;;) {
-        c = getopt_long(argc, argv, short_options, long_options, &option_index);
-        if (c == -1)
-            break;
-
-        switch (c) {
-        case 'R':
-            do_restart++;
-            break;
-        case 'S':
-            ncfg.server_ip = optarg;
-            break;
-        default:
-            fprintf(stderr, "invalid option %x\n", c);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    signal(SIGINT, sigint_handler);
-    clap_init(&cfg, argc, argv, envp);
-
-    if (do_restart) {
-        networking_init(&ncfg, CLIENT);
-        networking_poll();
-        networking_poll();
-        networking_broadcast_restart();
-        networking_poll();
-        networking_done();
-        clap_done(0);
-        return EXIT_SUCCESS;
-    }
-
-    networking_init(&ncfg, SERVER);
-    subscribe(MT_COMMAND, handle_command, NULL);
-    server_run();
-    networking_done();
-    clap_done(0);
-    if (restart_server) {
-        dbg("### restarting server ###\n");
-        return clap_restart();
-    }
-
-    return EXIT_SUCCESS;
-}
-#endif /* SERVER_STANDALONE */

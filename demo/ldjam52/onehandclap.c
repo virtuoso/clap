@@ -77,21 +77,6 @@ DECLARE_PROF(end);
 #define PROF_SHOW(x)
 #endif
 
-void debug_draw_line(vec3 a, vec3 b, mat4x4 *rot)
-{
-    (void)__debug_draw_line(&scene, a, b, rot);
-}
-
-static void debug_draw_clearout(void)
-{
-    while (!list_empty(&scene.debug_draws)) {
-        struct debug_draw *dd = list_first_entry(&scene.debug_draws, struct debug_draw, entry);
-
-        list_del(&dd->entry);
-        ref_put(dd);
-    }
-}
-
 struct pipeline *main_pl, *blur_pl;
 
 EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
@@ -695,6 +680,7 @@ int main(int argc, char **argv, char **envp)
         .server_ip     = CONFIG_SERVER_IP,
         .server_port   = 21044,
         .server_wsport = 21045,
+        .logger        = 1,
     };
     int c, option_index;
     unsigned int fullscreen = 0;
@@ -739,6 +725,7 @@ int main(int argc, char **argv, char **envp)
     struct clap_context *clap = clap_init(&cfg, argc, argv, envp);
 
 #ifndef CONFIG_FINAL
+    ncfg.clap = clap;
     networking_init(&ncfg, CLIENT);
 #endif
 

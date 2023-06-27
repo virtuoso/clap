@@ -1597,6 +1597,21 @@ struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4
     return __debug_draw_new(scene, vx, sizeof(vx), idx, sizeof(idx), NULL, rot);
 }
 
+void debug_draw_line(vec3 a, vec3 b, mat4x4 *rot)
+{
+    // (void)__debug_draw_line(&scene, a, b, rot);
+}
+
+void debug_draw_clearout(void)
+{
+    // while (!list_empty(&scene.debug_draws)) {
+    //     struct debug_draw *dd = list_first_entry(&scene.debug_draws, struct debug_draw, entry);
+
+    //     list_del(&dd->entry);
+    //     ref_put(dd);
+    // }
+}
+
 void mq_init(struct mq *mq, void *priv)
 {
     list_init(&mq->txmodels);
