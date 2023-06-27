@@ -498,18 +498,18 @@ static const char *node_name(struct network_node *n)
     return "<unknown>";
 }
 
-static void broadcast_command(struct message_command *mcmd)
+void networking_broadcast(int mode, void *data, size_t size)
 {
     struct network_node *n;
 
-    dbg("sending restart\n");
-    list_for_each_entry (n, &nodes, entry) {
+    dbg("sending broadcast\n");
+    list_for_each_entry(n, &nodes, entry) {
         void *out;
 
-        if (n->mode != LISTEN && n->state == ST_RUNNING) {
-            dbg("sending to client '%s'\n", node_name(n));
-            out = memdup(mcmd, sizeof(*mcmd));
-            queue_outmsg(n, out, sizeof(*mcmd));
+        if (n->mode == mode && n->state == ST_RUNNING) {
+            dbg("sending to node '%s'\n", node_name(n));
+            out = memdup(data, size);
+            queue_outmsg(n, out, size);
             n->events |= POLLOUT;
         }
     }
@@ -521,7 +521,8 @@ void networking_broadcast_restart(void)
 
     memset(&mcmd, 0, sizeof(mcmd));
     mcmd.restart = 1;
-    broadcast_command(&mcmd);
+    networking_broadcast(SERVER, &mcmd, sizeof(mcmd));
+    networking_broadcast(CLIENT, &mcmd, sizeof(mcmd));
 }
 
 static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t size)
@@ -854,18 +855,6 @@ out_short:
 
     return 1;
 }
-
-#ifdef SERVER_STANDALONE
-static void all_queue_outmsg(void *data, size_t size)
-{
-    struct network_node *n;
-
-    list_for_each_entry(n, &nodes, entry) {
-        if (n->mode == CLIENT && n->state == ST_RUNNING)
-            queue_outmsg(n, data, size);
-    }
-}
-#endif /* SERVER_STANDALONE */
 
 void networking_poll(void)
 {
