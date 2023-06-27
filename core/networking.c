@@ -24,8 +24,6 @@
 #include "base64.c"
 #include "base64.h"
 
-/*static const char server_ip[] = "192.168.1.114"; //"ukko.local";
-static const unsigned int server_port = 21044;*/
 static DECLARE_LIST(nodes);
 
 enum {
