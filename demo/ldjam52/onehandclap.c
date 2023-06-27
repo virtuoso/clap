@@ -629,8 +629,6 @@ static void ohc_ground_contact(void *priv, float x, float y, float z)
         scene.auto_yoffset = y;
 }
 
-int font_init(void);
-
 static void settings_onload(struct settings *rs, void *data)
 {
     float gain = settings_get_num(rs, "music_volume");
@@ -688,6 +686,10 @@ int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
         .debug  = 1,
+        .input  = 1,
+        .font   = 1,
+        .sound  = 1,
+        .phys   = 1,
     };
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
@@ -734,18 +736,13 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    clap_init(&cfg, argc, argv, envp);
+    struct clap_context *clap = clap_init(&cfg, argc, argv, envp);
 
 #ifndef CONFIG_FINAL
     networking_init(&ncfg, CLIENT);
 #endif
 
     gl_init("One Hand Clap", 1280, 720, renderFrame, &scene, resize_cb);
-    (void)input_init(); /* XXX: error handling */
-    //font_init();
-    font_init();
-    sound_init();
-    phys_init();
     phys->ground_contact = ohc_ground_contact;
 
     cube_data.s = &scene;
@@ -833,11 +830,9 @@ int main(int argc, char **argv, char **envp)
     ref_put(main_pl);
     ui_done(&ui);
     scene_done(&scene);
-    phys_done();
     settings_done(settings);
-    sound_done();
     //gl_done();
-    clap_done(0);
+    clap_done(clap, 0);
 #endif
 
     return EXIT_SUCCESS;

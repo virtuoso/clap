@@ -8,8 +8,11 @@
 #include "clap.h"
 #include "common.h"
 #include "input.h"
+#include "font.h"
+#include "sound.h"
 #include "messagebus.h"
 #include "librarian.h"
+#include "physics.h"
 #include "settings.h"
 #include "util.h"
 
@@ -33,6 +36,13 @@ const char *__asan_default_options() {
     ;
 }
 #endif /* HAVE_ASAN */
+
+struct clap_context {
+    struct clap_config  cfg;
+    char                **argv;
+    char                **envp;
+    int                 argc;
+};
 
 void clap_fps_calc(struct fps_data *f)
 {
@@ -78,53 +88,66 @@ static bool clap_config_is_valid(struct clap_config *cfg)
     return true;
 }
 
-static int clap_argc;
-static char **clap_argv;
-static char **clap_envp;
-
-int clap_restart(void)
+int clap_restart(struct clap_context *ctx)
 {
-    if (!clap_argc || !clap_argv)
+    if (!ctx->argc || !ctx->argv)
         return -EINVAL;
 
-    clap_done(0);
+    clap_done(ctx, 0);
 #ifdef __APPLE__
-    return execve(clap_argv[0], clap_argv, clap_envp);
+    return execve(ctx->argv[0], ctx->argv, ctx->envp);
 #else
-    return execve(program_invocation_name, clap_argv, clap_envp);
+    return execve(program_invocation_name, ctx->argv, ctx->envp);
 #endif
 }
 
-int clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
+struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
 {
     unsigned int log_flags = LOG_DEFAULT;
-    struct clap_config config;
+    struct clap_context *ctx;
 
-    if (cfg) {
-        if (!clap_config_is_valid(cfg))
-            return -EINVAL;
-        memcpy(&config, cfg, sizeof(config));
-    } else {
-        clap_config_init(&config);
-    }
+    if (cfg && !clap_config_is_valid(cfg))
+        return NULL;
 
-    if (config.debug)
+    ctx = malloc(sizeof(*ctx));
+    if (!ctx)
+        return NULL;
+
+    if (cfg)
+        memcpy(&ctx->cfg, cfg, sizeof(ctx->cfg));
+    else
+        clap_config_init(&ctx->cfg);
+
+    if (ctx->cfg.debug)
         log_flags = LOG_FULL;
-    if (config.quiet)
+    if (ctx->cfg.quiet)
         log_flags |= LOG_QUIET;
 
-    clap_argc = argc;
-    clap_argv = argv;
-    clap_envp = envp;
+    ctx->argc = argc;
+    ctx->argv = argv;
+    ctx->envp = envp;
 
     log_init(log_flags);
     (void)librarian_init();
+    if (ctx->cfg.input)
+        (void)input_init(); /* XXX: error handling */
+    if (ctx->cfg.font)
+        font_init();
+    if (ctx->cfg.sound)
+        sound_init();
+    if (ctx->cfg.phys)
+        phys_init();
+
     //clap_settings = settings_init();
 
-    return 0;
+    return ctx;
 }
 
-void clap_done(int status)
+void clap_done(struct clap_context *ctx, int status)
 {
+    if (ctx->cfg.sound)
+        sound_done();
+    if (ctx->cfg.phys)
+        phys_done();
     exit_cleanup_run(status);
 }

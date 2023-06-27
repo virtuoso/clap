@@ -11,11 +11,17 @@ void clap_fps_calc(struct fps_data *f);
 
 struct clap_config {
     unsigned long   debug   : 1,
-                    quiet   : 1;
+                    quiet   : 1,
+                    input   : 1,
+                    font    : 1,
+                    sound   : 1,
+                    phys    : 1;
 };
 
-int clap_init(struct clap_config *cfg, int argc, char **argv, char **envp);
-void clap_done(int status);
-int clap_restart(void);
+struct clap_context;
+
+struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, char **envp);
+void clap_done(struct clap_context *ctx, int status);
+int clap_restart(struct clap_context *ctx);
 
 #endif /* __CLAP_CLAP_H__ */
