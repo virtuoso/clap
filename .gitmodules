@@ -1,7 +1,7 @@
 [submodule "ode"]
 	path = ode
-	url = https://github.com/virtuoso/ode.git
+	url = git@github.com:virtuoso/ode.git
 [submodule "asset"]
 	path = asset
-	url = https://github.com/virtuoso/clap-assets.git
+	url = git@github.com:virtuoso/clap-assets.git
 	branch = main
