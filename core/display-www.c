@@ -15,13 +15,60 @@ bool gl_does_vao(void)
     return false;
 }
 
+static int refresh_rate = 0;
+
 int gl_refresh_rate(void)
 {
-    /*
-     * XXX: Ugh, I know.
-     * But this is not much worse than dynamic calculation.
-     */
-    return 60;
+    return refresh_rate;
+}
+
+struct calc_refresh_rate_priv {
+    display_update  update_fn;
+    void            *update_data;
+};
+
+#define AVG_FRAMES 20
+#define SKIP_FRAMES 2
+EMSCRIPTEN_KEEPALIVE void __calc_refresh_rate(void *data)
+{
+    static struct timespec ts_start, ts_end, ts_delta;
+    struct calc_refresh_rate_priv *priv = data;
+    static long total = 0;
+    static int frame = 0;
+
+    if (frame < SKIP_FRAMES) {
+        frame++;
+        return;
+    } else if (frame == SKIP_FRAMES) {
+        clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        frame++;
+        return;
+    } else if (frame < AVG_FRAMES + SKIP_FRAMES) {
+        clock_gettime(CLOCK_MONOTONIC, &ts_end);
+        timespec_diff(&ts_start, &ts_end, &ts_delta);
+        ts_start = ts_end;
+        total += ts_delta.tv_nsec;
+        frame++;
+        return;
+    }
+
+    total /= AVG_FRAMES - 1;
+    refresh_rate = 1000000000L / total;
+    dbg("Estimated RAF refresh rate: %d\n", refresh_rate);
+    emscripten_cancel_main_loop();
+    emscripten_set_main_loop_arg(priv->update_fn, priv->update_data, 0, false);
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
+}
+
+static void calc_refresh_rate(display_update update_fn, void *data)
+{
+    static struct calc_refresh_rate_priv priv;
+
+    priv.update_fn = update_fn;
+    priv.update_data = data;
+
+    emscripten_set_main_loop_arg(__calc_refresh_rate, &priv, 0, false);
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
 }
 
 void gl_request_exit(void)
@@ -108,7 +155,6 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     msg("GL context: %d Extensions: '%s'\n", context, exts);
     EM_ASM(runtime_ready = true;);
     gl_get_sizes(NULL, NULL);
-    emscripten_set_main_loop_arg(update_fn, data, 0, 0);
-    emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
+    calc_refresh_rate(update_fn, data);
     //resize_fn(width, height);
 }
