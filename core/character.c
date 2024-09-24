@@ -217,7 +217,8 @@ void character_move(struct character *ch, struct scene *s)
         dSafeNormalize3(newz);
 
         /* XXX: the numerator has to do with movement speed */
-        vec3_scale(ch->angle, ch->motion, /*(float)gl_refresh_rate()*/60. / (float)s->fps.fps_fine);
+        vec3_scale(ch->angle, ch->motion, 60. / (float)gl_refresh_rate());
+        vec3_scale(ch->angle, ch->angle, (float)gl_refresh_rate() / (float)s->fps.fps_fine);
 
         /* watch out for Y and Z swapping places */
         dScaleVector3(newx, ch->angle[0]);
