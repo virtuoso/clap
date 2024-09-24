@@ -132,8 +132,6 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
 
     log_init(log_flags);
     (void)librarian_init();
-    if (ctx->cfg.input)
-        (void)input_init(); /* XXX: error handling */
     if (ctx->cfg.font)
         font_init();
     if (ctx->cfg.sound)
@@ -143,6 +141,8 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (ctx->cfg.graphics)
         gl_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
                 ctx->cfg.frame_cb, ctx->cfg.callback_data, ctx->cfg.resize_cb);
+    if (ctx->cfg.input)
+        (void)input_init(); /* XXX: error handling */
     //clap_settings = settings_init();
 
     return ctx;
