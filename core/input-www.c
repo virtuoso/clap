@@ -48,7 +48,7 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     }
 
     memset(&mi, 0, sizeof(mi));
-    trace("%s, key: \"%s\", code: \"%s\", location: %lu,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %lu, keyCode: %lu, which: %lu\n",
+    trace("%s, key: \"%s\", code: \"%s\", location: %u,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %u, keyCode: %u, which: %u\n",
           emscripten_event_type_to_string(eventType), e->key, e->code, e->location,
           e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
           e->repeat, e->locale, e->charValue, e->charCode, e->keyCode, e->which);
@@ -250,7 +250,7 @@ static EM_BOOL touch_callback(int type, const EmscriptenTouchEvent *e, void *use
 
 static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void *data)
 {
-    dbg("### GAMEPAD event: connected: %d index: %ld nr_axes: %d nr_buttons: %d id: '%s' mapping: '%s'\n",
+    dbg("### GAMEPAD event: connected: %d index: %d nr_axes: %d nr_buttons: %d id: '%s' mapping: '%s'\n",
        e->connected, e->index, e->numAxes, e->numButtons, e->id, e->mapping);
 
     joystick_name_update(e->index, e->connected ? e->id : NULL);
