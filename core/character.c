@@ -317,24 +317,6 @@ void character_move(struct character *ch, struct scene *s)
     if (body)
         dBodyEnable(body->body);
 
-    height = terrain_height(s->terrain, ch->pos[0], ch->pos[2]);
-    if (fabs(height - ch->pos[1]) > 0.001) {
-        if (ch->pos[1] < height) {
-            if (ch->entity->phys_body) {
-                dbg_once("character '%s' NOT correcting height by %f\n", character_name(ch), height - ch->pos[1]);
-            } else {
-                ch->pos[1] = height;
-                ch->moved++;
-            }
-        } else {
-            if (!ch->entity->phys_body && ch != cam) {
-                ch->pos[1] = height;
-                ch->moved++;
-            }
-        }
-
-    }
-
     ch->entity->dy = ch->pos[1];
 
     ch->motion[0] = 0;
