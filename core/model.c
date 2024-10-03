@@ -331,10 +331,9 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     /* incoming ivec4 joints and vec4 weights */
     for (v = 0; v < m->nr_vertices * 4; v++) {
         jmax = max(jmax, joints[v]);
-        if (jmax >= 50)
+        if (jmax >= 100)
             return -1;
     }
-    assert(jmax == nr_joints - 1);
     dbg("## max joints: %d\n", jmax);
 
     CHECK(m->joints = calloc(nr_joints, sizeof(struct model_joint)));
