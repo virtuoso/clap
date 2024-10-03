@@ -24,11 +24,12 @@ static void scene_camera_autopilot(struct scene *s)
 
 static void scene_control_next(struct scene *s)
 {
-    struct character *first, *last;
+    struct character *first, *last, *prev;
 
     if (list_empty(&s->characters))
         return;
 
+    prev = s->control;
     first = list_first_entry(&s->characters, struct character, entry);
     last = list_last_entry(&s->characters, struct character, entry);
     if (!s->control || s->control == last)
@@ -36,6 +37,10 @@ static void scene_control_next(struct scene *s)
     else
         s->control = list_next_entry(s->control, entry);
 
+    if (s->control == prev)
+        return;
+
+    prev->camera = NULL;
     s->control->camera = s->camera;
     s->control->moved++;
     s->camera->dist = 10;
