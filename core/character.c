@@ -96,7 +96,7 @@ static void motion_compute_rs(struct motionctl *mctl)
 
 static float character_lin_speed(struct character *ch)
 {
-    return entity3d_aabb_Z(ch->entity) * 3 / 4;
+    return entity3d_aabb_Y(ch->entity) * ch->speed;
 }
 
 static void motion_reset(struct motionctl *mctl, struct scene *s)

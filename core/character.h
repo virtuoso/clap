@@ -45,6 +45,7 @@ struct character {
     vec3    motion;
     vec3    angle;
     vec3    normal;
+    double  speed;
     float   yaw_turn;
     float   pitch_turn;
     struct list entry;

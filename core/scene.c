@@ -362,7 +362,7 @@ struct scene_model_queue {
 
 static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
-    double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0;
+    double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *obj = NULL, *binvec = NULL, *gltf = NULL, *tex = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
@@ -401,6 +401,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             ch = p->children.head;
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "animations"))
             anis = p;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "speed"))
+            speed = p->number_;
     }
 
     if (!name || (!obj && !binvec && !gltf)) {
@@ -534,6 +536,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 c->pos[0] = e->dx;
                 c->pos[1] = e->dy;
                 c->pos[2] = e->dz;
+                c->speed  = speed;
             }
 
             mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
