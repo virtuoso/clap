@@ -79,6 +79,7 @@ int phys_body_update(struct entity3d *e);
 void phys_body_done(struct phys_body *body);
 bool phys_body_ground_collide(struct phys_body *body);
 bool phys_body_is_grounded(struct phys_body *body);
+void phys_ground_entity(struct entity3d *e);
 
 void phys_debug_draw(struct phys_body *body);
 

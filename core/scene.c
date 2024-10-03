@@ -515,10 +515,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 continue; /* XXX */
             e->scale = pos->number_;
 
-            if (terrain_clamp) {
-                e->dy = terrain_height(scene->terrain, e->dx, e->dz);
-                // trace("clamped '%s' to %f,%f,%f\n", entity_name(e), e->dx, e->dy, e->dz);
-            }
+            if (terrain_clamp)
+                phys_ground_entity(e);
 
             if (c) {
                 c->pos[0] = e->dx;

@@ -259,6 +259,21 @@ retry:
     return c.nc ? target : NULL;
 }
 
+void phys_ground_entity(struct entity3d *e)
+{
+    struct entity3d *collision;
+    vec3 start = { e->dx, e->dy, e->dz };
+    vec3 dir = { 0, -1, 0 };
+    double dist = 1e6;
+
+    collision = phys_ray_cast(e, start, dir, &dist);
+    /* floating in space? */
+    if (!collision)
+        return;
+
+    e->dy -= dist;
+}
+
 bool phys_body_is_grounded(struct phys_body *body)
 {
     struct entity3d *e = phys_body_entity(body);
