@@ -94,6 +94,11 @@ static void motion_compute_rs(struct motionctl *mctl)
         mctl->rs_dy = mctl->rs_down - mctl->rs_up;
 }
 
+static float character_lin_speed(struct character *ch)
+{
+    return entity3d_aabb_Z(ch->entity) * 3 / 4;
+}
+
 static void motion_reset(struct motionctl *mctl, struct scene *s)
 {
     struct character *ch = container_of(mctl, struct character, mctl);
@@ -104,12 +109,12 @@ static void motion_reset(struct motionctl *mctl, struct scene *s)
         timespec_diff(&mctl->dash_started, &s->ts, &diff);
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1)
-            mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : s->lin_speed;
+            mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
             mctl->dash_started.tv_sec = mctl->dash_started.tv_nsec = 0;
     } else {
-        mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : s->lin_speed;
+        mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
     }
     mctl->ang_speed = s->ang_speed;
     mctl->h_ang_speed = s->ang_speed * 1.5;
