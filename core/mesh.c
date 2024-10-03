@@ -1,5 +1,6 @@
 #include <meshoptimizer.h>
 #include <stdlib.h>
+#include <limits.h>
 #include "common.h"
 #include "mesh.h"
 
@@ -85,21 +86,33 @@ static unsigned short *idx32_to_idx(unsigned int *idx32, size_t nr_idx)
     int i;
 
     CHECK(idx = malloc(nr_idx * sizeof(*idx)));
-    for (i = 0; i < nr_idx; i++)
+    for (i = 0; i < nr_idx; i++) {
+        /* XXX: CU() */
+        if (idx32[i] > USHRT_MAX) {
+            free(idx);
+            return NULL;
+        }
         idx[i] = idx32[i];
+    }
 
     return idx;
 }
 
 unsigned int *mesh_idx_to_idx32(struct mesh *mesh)
 {
+    if (mesh_idx_stride(mesh) == sizeof(unsigned int))
+        return mesh->attr[MESH_IDX].data;
+
     return idx_to_idx32(mesh_idx(mesh), mesh_nr_idx(mesh));
 }
 
 void mesh_idx_from_idx32(struct mesh *mesh, unsigned int *idx32)
 {
     mesh->attr[MESH_IDX].data = idx32_to_idx(idx32, mesh_nr_idx(mesh));
+    mesh->attr[MESH_IDX].stride = sizeof(unsigned short); /* because GLES/WebGL */
     free(idx32);
+    /* XXX: propagate the error up the stack */
+    assert(mesh_idx(mesh));
 }
 
 unsigned short *mesh_lod_from_idx32(struct mesh *mesh, unsigned int *idx32)
