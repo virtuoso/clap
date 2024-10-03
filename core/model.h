@@ -55,7 +55,7 @@ struct channel {
 
 struct animation {
     struct ref      ref;
-    const char      *name;
+    char            *name;
     struct model3d  *model;
     struct channel  *channels;
     unsigned int    nr_channels;
@@ -69,6 +69,7 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
 void animation_start(struct entity3d *e, unsigned long start_frame, int ani);
 void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat);
+int animation_by_name(struct model3d *m, const char *name);
 
 #define LOD_MAX 4
 struct model3d {

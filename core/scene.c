@@ -365,7 +365,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0;
     char *name = NULL, *obj = NULL, *binvec = NULL, *gltf = NULL, *tex = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false;
-    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL;
+    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
     int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
     struct gltf_data *gd = NULL;
     struct lib_handle *libh;
@@ -399,6 +399,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             ent = p->children.head;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "character"))
             ch = p->children.head;
+        else if (p->tag == JSON_OBJECT && !strcmp(p->key, "animations"))
+            anis = p;
     }
 
     if (!name || (!obj && !binvec && !gltf)) {
@@ -543,6 +545,22 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 e->phys_body->bounce_vel = bounce_vel;
             }
             trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
+
+            if (entity_animated(e) && anis) {
+                for (p = anis->children.head; p; p = p->next) {
+                    if (p->tag != JSON_STRING)
+                        continue;
+
+                    struct model3d *m = e->txmodel->model;
+                    int idx = animation_by_name(m, p->string_);
+
+                    if (idx < 0)
+                        continue;
+                    dbg("action '%s': animation '%s'\n", p->key, p->string_);
+                    free(m->anis.x[idx].name);
+                    m->anis.x[idx].name = strdup(p->key);
+                }
+            }
         }
     } else {
         struct instantiator *instor, *iter;
