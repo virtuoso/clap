@@ -622,14 +622,21 @@ static void gltf_onload(struct lib_handle *h, void *data)
 {
     JsonNode *nodes, *mats, *meshes, *texs, *imgs, *accrs, *bufvws, *bufs;
     JsonNode *scenes, *scene, *skins, *anis;
-    JsonNode *root = json_decode(h->buf);
+    JsonNode *root;
     struct gltf_data *gd = data;
     unsigned int nid;
     JsonNode *n;
 
+    if (h->state == RES_ERROR) {
+        warn("couldn't load '%s'\n", h->name);
+        return;
+    }
+
+    root = json_decode(h->buf);
     dbg("loading '%s'\n", h->name);
     if (!root) {
         warn("couldn't parse '%s'\n", h->name);
+        h->state = RES_ERROR;
         return;
     }
 
@@ -671,6 +678,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
             meshes->tag, texs->tag, imgs->tag, accrs->tag,
             bufvws->tag, bufs->tag, anis->tag
         );
+        h->state = RES_ERROR;
         return;
     }
 
@@ -1148,11 +1156,17 @@ struct gltf_data *gltf_load(struct scene *scene, const char *name)
 {
     struct gltf_data  *gd;
     struct lib_handle *lh;
+    enum res_state state;
 
     CHECK(gd = calloc(1, sizeof(*gd)));
     gd->scene = scene;
     lh = lib_request(RES_ASSET, name, gltf_onload, gd);
+    state = lh->state;
     ref_put(lh);
 
+    if (state == RES_ERROR) {
+        gltf_free(gd);
+        return NULL;
+    }
     return gd;
 }

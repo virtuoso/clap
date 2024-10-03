@@ -426,6 +426,11 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
         ref_put_last(libh);
     } else if (gltf) {
         gd = gltf_load(scene, gltf);
+        if (!gd) {
+            warn("Error loading GLTF '%s'\n", gltf);
+            return -1;
+        }
+
         if (gltf_get_meshes(gd) > 1) {
             int i, root = gltf_root_mesh(gd);
 
