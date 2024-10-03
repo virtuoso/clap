@@ -455,8 +455,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
         txm->model->alpha_blend = alpha_blend;
     }
 
-    /* XXX: get rid of scene->_model, we don't have a reference to it */
-    model3d_set_name(scene->_model, name);
+    model3d_set_name(txm->model, name);
 
     if (phys) {
         for (p = phys->children.head; p; p = p->next) {
@@ -489,8 +488,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 
         /* XXX: if it's not a gltf, we won't have TriMesh collision data any more */
         if (gd && class == dTriMeshClass) {
-            gltf_mesh_data(gd, collision, &scene->_model->collision_vx, &scene->_model->collision_vxsz,
-                           &scene->_model->collision_idx, &scene->_model->collision_idxsz, NULL, NULL, NULL, NULL);
+            gltf_mesh_data(gd, collision, &txm->model->collision_vx, &txm->model->collision_vxsz,
+                           &txm->model->collision_idx, &txm->model->collision_idxsz, NULL, NULL, NULL, NULL);
         }
     }
 
