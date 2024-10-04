@@ -5,10 +5,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: submodules
         run: |
-          git config --global url."https://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:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
           git submodule update --init --recursive
       - name: install-deps
         run: |
