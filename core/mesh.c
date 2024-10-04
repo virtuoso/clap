@@ -108,6 +108,7 @@ unsigned int *mesh_idx_to_idx32(struct mesh *mesh)
 
 void mesh_idx_from_idx32(struct mesh *mesh, unsigned int *idx32)
 {
+    free(mesh->attr[MESH_IDX].data);
     mesh->attr[MESH_IDX].data = idx32_to_idx(idx32, mesh_nr_idx(mesh));
     mesh->attr[MESH_IDX].stride = sizeof(unsigned short); /* because GLES/WebGL */
     free(idx32);
