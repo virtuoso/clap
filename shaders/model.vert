@@ -15,7 +15,7 @@ uniform mat4 inverse_view;
 uniform mat4 trans;
 uniform float use_normals;
 uniform float use_skinning;
-uniform mat4 joint_transforms[50];
+uniform mat4 joint_transforms[100];
 
 out float do_use_normals;
 out vec2 pass_tex;
