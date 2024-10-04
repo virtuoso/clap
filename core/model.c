@@ -1388,8 +1388,8 @@ static int default_update(struct entity3d *e, void *data)
     }
     if (entity_animated(e))
         animated_update(e, scene);
-    //if (e->phys_body)
-    //    phys_debug_draw(e->phys_body);
+    // if (e->phys_body)
+    //    phys_debug_draw(scene, e->phys_body);
 
     return 0;
 }
@@ -1596,18 +1596,18 @@ struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4
     return __debug_draw_new(scene, vx, sizeof(vx), idx, sizeof(idx), NULL, rot);
 }
 
-void debug_draw_line(vec3 a, vec3 b, mat4x4 *rot)
+void debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot)
 {
-    // (void)__debug_draw_line(&scene, a, b, rot);
+    // (void)__debug_draw_line(scene, a, b, rot);
 }
 
-void debug_draw_clearout(void)
+void debug_draw_clearout(struct scene *scene)
 {
-    // while (!list_empty(&scene.debug_draws)) {
-    //     struct debug_draw *dd = list_first_entry(&scene.debug_draws, struct debug_draw, entry);
+    // while (!list_empty(&scene->debug_draws)) {
+    //    struct debug_draw *dd = list_first_entry(&scene->debug_draws, struct debug_draw, entry);
 
-    //     list_del(&dd->entry);
-    //     ref_put(dd);
+    //    list_del(&dd->entry);
+    //    ref_put(dd);
     // }
 }
 

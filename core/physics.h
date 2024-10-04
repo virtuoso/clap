@@ -81,6 +81,7 @@ bool phys_body_ground_collide(struct phys_body *body);
 bool phys_body_is_grounded(struct phys_body *body);
 void phys_ground_entity(struct entity3d *e);
 
-void phys_debug_draw(struct phys_body *body);
+struct scene;
+void phys_debug_draw(struct scene *scene, struct phys_body *body);
 
 #endif /* __CLAP_PHYSICS_H__ */

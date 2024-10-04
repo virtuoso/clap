@@ -286,7 +286,7 @@ struct debug_draw {
 };
 
 struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot);
-void debug_draw_line(vec3 a, vec3 b, mat4x4 *rot);
-void debug_draw_clearout(void);
+void debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot);
+void debug_draw_clearout(struct scene *scene);
 
 #endif /* __CLAP_MODEL_H__ */

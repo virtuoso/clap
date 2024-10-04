@@ -190,7 +190,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
         count, ref_classes_get_string()
     );
 #endif
-    debug_draw_clearout();
+    debug_draw_clearout(s);
 }
 
 #define FOV to_radians(70.0)

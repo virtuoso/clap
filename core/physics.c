@@ -754,7 +754,7 @@ void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)
     mx[15] = 1;
 }
 
-void phys_debug_draw(struct phys_body *body)
+void phys_debug_draw(struct scene *scene, struct phys_body *body)
 {
     vec3 start, end;
     const dReal *pos = dGeomGetPosition(body->geom);
@@ -783,25 +783,25 @@ void phys_debug_draw(struct phys_body *body)
     end[0] = r;
     end[1] = r;
     end[2] = len / 2 + r;
-    debug_draw_line(start, end, &_rot);
+    debug_draw_line(scene, start, end, &_rot);
     start[0] = r;
     start[1] = r;
     end[0] = -r;
     end[1] = -r;
-    debug_draw_line(start, end, &_rot);
+    debug_draw_line(scene, start, end, &_rot);
     start[0] = -r;
     start[1] = r;
     end[0] = r;
     end[1] = -r;
-    debug_draw_line(start, end, &_rot);
+    debug_draw_line(scene, start, end, &_rot);
     start[0] = r;
     start[1] = -r;
     end[0] = -r;
     end[1] = r;
-    debug_draw_line(start, end, &_rot);
+    debug_draw_line(scene, start, end, &_rot);
     start[0] = r;
     start[1] = -r;
     end[0] = -r;
     end[1] = r;
-    debug_draw_line(start, end, &_rot);
+    debug_draw_line(scene, start, end, &_rot);
 }

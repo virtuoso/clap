@@ -215,7 +215,7 @@ bool camera_position_is_good(struct camera *c, struct entity3d *entity,
 }
 
 
-bool debug_draw_camera(struct camera *c, vec3 start, float dist, struct scene *s)
+bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start, float dist, struct scene *s)
 {
     vec4 nw, ne, sw, se;
 
@@ -229,7 +229,7 @@ bool debug_draw_camera(struct camera *c, vec3 start, float dist, struct scene *s
     memcpy(9 + c->tmp_debug_line_end, se, sizeof(float) * 3);
 
     for (int i = 0; i < NUMBER_OF_DEBUG_LINES; i++)
-        debug_draw_line(c->debug_line_start, c->debug_line_end + 3 * i, NULL);
+        debug_draw_line(scene, c->debug_line_start, c->debug_line_end + 3 * i, NULL);
 
     return true;
 }
@@ -255,7 +255,7 @@ void camera_update(struct camera *c, struct scene *scene, struct entity3d *entit
     }
 
     c->dist = dist;
-    debug_draw_camera(c, start, dist, scene);
+    debug_draw_camera(scene, c, start, dist, scene);
 }
 
 void debug_camera_action(struct camera *c) {
