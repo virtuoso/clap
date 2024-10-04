@@ -88,6 +88,9 @@ struct font *font_get(struct font *font)
 
 struct font *font_get_default(void)
 {
+    if (!default_font)
+        return NULL;
+
     return font_get(default_font);
 }
 

@@ -531,7 +531,15 @@ static void ui_roll_init(struct ui *ui)
     size_t       size;
 
     lh = lib_read_file(RES_ASSET, "TODO.txt", (void **)&buffer, &size);
-    font            = font_open("Cabal-w5j3.ttf", 24);
+    if (!lh)
+        return;
+
+    font = font_open("MountainsofChristmas-Regular.ttf", 24);
+    if (!font || lh->state == RES_ERROR) {
+        ref_put_last(lh);
+        return;
+    }
+
     // ui_roll_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER/* | UI_SZ_NORES*/, 0, ui->height, 300, 100);
     // ui_roll_element->entity->update = ui_roll_update;
 
@@ -878,7 +886,12 @@ static struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     wheel->focus   = -1;
 
     /* XXX^2: font global/hardcoded */
-    font = font_open("Pixellettersfull-BnJ5.ttf", 48);
+    font = font_open("ProggyTiny.ttf", 48);
+    if (!font) {
+        ref_put_last(wheel);
+        return NULL;
+    }
+
     for (i = 0, width = 0.0, height = 0.0; i < 4; i++) {
         /* XXX^3: element placement hardcoded */
         wheel->uies[i]           = ui_element_new(ui, wheel->root, ui_quadtx, affs[i], 0, 0, 300, 100);
@@ -987,7 +1000,10 @@ static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned
         .text_color = { 0.5, 0.3, 0.4, 1.0 },
     };
 
-    uwb.font = font_open(menu_font, 48);
+    uwb.font = font_open(menu_font, 32);
+    if (!uwb.font)
+        return NULL;
+
     menu = ui_menu_build(ui, &uwb, items, nr_items);
     font_put(uwb.font);
 
@@ -1266,6 +1282,9 @@ static int ui_handle_command(struct message *m, void *data)
     struct ui *ui = data;
     LOCAL(char, str);
 
+    if (!font)
+        return -1;
+
     if (m->type != MT_COMMAND)
         return 0;
 
@@ -1431,8 +1450,11 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     struct model3dtx *txm;
     struct ui_element *p, *pic, *t;
     float color[4] = { 1, 1, 1, 1 };
-    struct font *font = font_open("Pixellettersfull-BnJ5.ttf", 48);
+    struct font *font = font_open("ProggyTiny.ttf", 48);
     int i;
+
+    if (!font)
+        return NULL;
 
     CHECK(pocket_text = calloc(nr, sizeof(struct ui_element *)));
     CHECK(pocket_count = calloc(nr, sizeof(int)));
@@ -1472,8 +1494,11 @@ void pocket_update(struct ui *ui)
     struct ui_element *parent;
     float color[4] = { 1, 1, 1, 1 };
     char buf[10];
-    struct font *font = font_open("Pixellettersfull-BnJ5.ttf", 48);
+    struct font *font = font_open("ProggyTiny.ttf", 48);
     int i;
+
+    if (!font)
+        return;
 
     for (i = 0; i < pocket_buckets; i++) {
         parent = pocket_text[i]->parent;
@@ -1582,8 +1607,11 @@ int ui_init(struct ui *ui, int width, int height)
 
     ui->click = sound_load("stapler.ogg");
     sound_set_gain(ui->click, 0.2);
-    debug_font = font_open("Pixellettersfull-BnJ5.ttf", 40);
-    font = font_open("Pixellettersfull-BnJ5.ttf", 32);
+    debug_font = font_open("ProggyTiny.ttf", 28);
+    font = font_open("ProggyTiny.ttf", 16);
+    if (!debug_font || !font)
+        return -1;
+
     ui_model_init(ui);
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     uie1->on_click = build_onclick;
