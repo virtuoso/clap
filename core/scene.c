@@ -666,7 +666,8 @@ void scene_done(struct scene *scene)
         free(instor);
     }
 
-    terrain_done(scene->terrain);
+    if (scene->terrain)
+        terrain_done(scene->terrain);
     ref_put_last(scene->camera->ch);
 
     mq_release(&scene->mq);
