@@ -301,8 +301,10 @@ int platform_input_init(void)
     glfwSetScrollCallback(window, scroll_cb);
 
     lh = lib_read_file(RES_ASSET, "gamecontrollerdb.txt", (void **)&cdb, &sz);
-    glfwUpdateGamepadMappings(cdb);
-    ref_put_last_ref(&lh->ref);
+    if (lh && lh->state != RES_ERROR) {
+        glfwUpdateGamepadMappings(cdb);
+        ref_put_last_ref(&lh->ref);
+    }
 
     msg("input initialized\n");
 
