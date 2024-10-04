@@ -142,7 +142,7 @@ bool character_is_grounded(struct character *ch, struct scene *s)
 
     if (body)
         return phys_body_is_grounded(body);
-    return ch->pos[1] > terrain_height(s->terrain, ch->pos[0], ch->pos[2]);
+    return false;
 }
 
 void character_move(struct character *ch, struct scene *s)
