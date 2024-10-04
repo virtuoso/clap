@@ -508,6 +508,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 // if (!scene->control)
                 //     scene->control = c;
                 e = c->entity;
+                e->skip_culling = true;
             } else {
                 e = entity3d_new(txm);
             }
