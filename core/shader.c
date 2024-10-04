@@ -253,9 +253,15 @@ int lib_request_shaders(const char *name, struct shader_prog **progp)
     CHECK(asprintf(&nfrag, "%s.frag", name));
     hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
     hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
-    //dbg("%s/%s vsz %zu fsz %zu\n", nvert, nfrag, vsz, fsz);
-    p           = shader_prog_from_strings(name, vert, frag);
-    p->next     = *progp;
+    /* XXX: if handle(s) exist, but in error state, this leaks them */
+    if (!hv || !hf || hv->state == RES_ERROR || hf->state == RES_ERROR)
+        return -1;
+
+    p = shader_prog_from_strings(name, vert, frag);
+    if (!p)
+        return -1;
+
+    p->next = *progp;
     *progp = p;
     ref_put_last(hv);
     ref_put_last(hf);
