@@ -53,6 +53,7 @@ static void model3d_drop(struct ref *ref)
             free(an->channels[i].data);
         }
         free(an->channels);
+        free(an->name);
     }
     darray_clearout(&m->anis.da);
     for (i = 0; i < m->nr_joints; i++)
