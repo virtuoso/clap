@@ -56,8 +56,10 @@ static void model3d_drop(struct ref *ref)
         free(an->name);
     }
     darray_clearout(&m->anis.da);
-    for (i = 0; i < m->nr_joints; i++)
+    for (i = 0; i < m->nr_joints; i++) {
         darray_clearout(&m->joints[i].children.da);
+        free(m->joints[i].name);
+    }
     free(m->joints);
     free(m->collision_vx);
     free(m->collision_idx);

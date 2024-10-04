@@ -24,7 +24,7 @@ struct light {
 
 struct model_joint {
     darray(int, children);
-    const char  *name;
+    char        *name;
     mat4x4      invmx;
     int         id;
 };
