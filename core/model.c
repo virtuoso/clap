@@ -47,8 +47,13 @@ static void model3d_drop(struct ref *ref)
     /* delete gl buffers */
     ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
-    darray_for_each(an, &m->anis)
+    darray_for_each(an, &m->anis) {
+        for (i = 0; i < an->nr_channels; i++) {
+            free(an->channels[i].time);
+            free(an->channels[i].data);
+        }
         free(an->channels);
+    }
     darray_clearout(&m->anis.da);
     for (i = 0; i < m->nr_joints; i++)
         darray_clearout(&m->joints[i].children.da);
