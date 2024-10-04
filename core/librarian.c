@@ -201,8 +201,10 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     return ret ? NULL : h;
 }
 
-int librarian_init(void)
+int librarian_init(const char *dir)
 {
+    if (dir && strlen(dir))
+        strncpy(base_url, dir, PATH_MAX);
     //fetch_file("librarian.json");
     //lib_request(RES_ASSET, "scene.json", _fetch_config_onload, NULL);
 

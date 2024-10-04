@@ -18,6 +18,7 @@ struct clap_config {
                     phys        : 1,
                     graphics    : 1;
     const char      *title;
+    const char      *base_url;
     unsigned int    width;
     unsigned int    height;
     void            (*frame_cb)(void *data);

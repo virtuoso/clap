@@ -31,7 +31,7 @@ struct lib_handle {
     lib_complete_fn func;
 };
 
-int librarian_init(void);
+int librarian_init(const char *dir);
 struct lib_handle *
 lib_request(enum res_type type, const char *name, lib_complete_fn cb, void *data);
 char *lib_figure_uri(enum res_type type, const char *name);

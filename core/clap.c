@@ -131,7 +131,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     ctx->envp = envp;
 
     log_init(log_flags);
-    (void)librarian_init();
+    (void)librarian_init(ctx->cfg.base_url);
     if (ctx->cfg.font)
         font_init();
     if (ctx->cfg.sound)
