@@ -418,7 +418,7 @@ static int character_update(struct entity3d *e, void *data)
     motion_reset(&c->mctl, s);
 
     // return 0;
-    return c->ragdoll ? 0 : c->orig_update(e, data);
+    return c->orig_update(e, data);
 }
 
 struct character *character_new(struct model3dtx *txm, struct scene *s)
