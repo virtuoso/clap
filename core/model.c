@@ -1598,17 +1598,18 @@ struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4
 
 void debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot)
 {
-    // (void)__debug_draw_line(scene, a, b, rot);
+    if (scene->debug_draws_enabled)
+        (void)__debug_draw_line(scene, a, b, rot);
 }
 
 void debug_draw_clearout(struct scene *scene)
 {
-    // while (!list_empty(&scene->debug_draws)) {
-    //    struct debug_draw *dd = list_first_entry(&scene->debug_draws, struct debug_draw, entry);
+    while (!list_empty(&scene->debug_draws)) {
+        struct debug_draw *dd = list_first_entry(&scene->debug_draws, struct debug_draw, entry);
 
-    //    list_del(&dd->entry);
-    //    ref_put(dd);
-    // }
+        list_del(&dd->entry);
+        ref_put(dd);
+    }
 }
 
 void mq_init(struct mq *mq, void *priv)

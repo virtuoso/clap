@@ -53,6 +53,7 @@ struct scene {
     float               near_plane;
     float               far_plane;
     bool                ui_is_on;
+    bool                debug_draws_enabled;
 };
 
 int scene_camera_add(struct scene *s);
