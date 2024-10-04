@@ -12,7 +12,6 @@
 #include <math.h>
 #include <unistd.h>
 #include "object.h"
-#include "ca3d.h"
 #include "common.h"
 #include "input.h"
 #include "messagebus.h"
@@ -37,8 +36,7 @@ struct settings *settings;
 struct sound *intro_sound;
 struct scene scene; /* XXX */
 struct ui ui;
-struct fbo *fbo;
-struct game_state game_state;
+// struct game_state game_state;
 
 #ifndef CONFIG_FINAL
 #define PROFILER
@@ -163,8 +161,6 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
-    //glDisable(GL_DEPTH_TEST);
-    //glClear(GL_DEPTH_BUFFER_BIT);
     models_render(&ui.mq, NULL, NULL, NULL, NULL, 0, 0, &count);
     PROF_STEP(ui, models);
 
@@ -211,27 +207,6 @@ static void projmx_update(struct scene *s)
     s->proj_updated++;
 }
 
-static void fbo_update(int width, int height)
-{
-    if (fbo) {
-        ref_put(fbo);
-        fbo = NULL;
-    }
-
-    if (!ui.prog)
-        return;
-    if (width > height) {
-        width /= 2;
-    } else {
-        height /= 2;
-    }
-    if (fbo)
-        fbo_resize(fbo, width, height);
-    else
-        fbo = fbo_new(width, height);
-    ui_pip_update(&ui, fbo);
-}
-
 #ifdef CONFIG_BROWSER
 extern void touch_set_size(int, int);
 #else
@@ -247,11 +222,6 @@ void resize_cb(void *data, int width, int height)
     struct scene *scene = data;
     ui.width  = width;
     ui.height = height;
-    // if (width > height) {
-    //     width /= 2;
-    // } else {
-    //     height /= 2;
-    // }
     scene->width  = width;
     scene->height = height;
     touch_set_size(width, height);
@@ -259,7 +229,6 @@ void resize_cb(void *data, int width, int height)
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);
     projmx_update(scene);
-    // fbo_update(width, height);
 }
 
 static void ohc_ground_contact(void *priv, float x, float y, float z)
