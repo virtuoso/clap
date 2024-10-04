@@ -1,7 +1,6 @@
 [submodule "ode"]
 	path = ode
 	url = git@github.com/virtuoso/ode.git
-[submodule "asset"]
-	path = asset
-	url = git@github.com/virtuoso/clap-assets.git
-	branch = main
+[submodule "demo/ldjam56/asset"]
+	path = demo/ldjam56/asset
+	url = git@github.com:virtuoso/ldjam56-asset.git

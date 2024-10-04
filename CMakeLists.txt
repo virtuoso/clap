@@ -68,7 +68,8 @@ set(ODE_INCLUDE "${ODE_ROOT}/include")
 
 # add_subdirectory(ode)
 add_subdirectory(core)
-add_subdirectory(demo/ldjam52)
+# add_subdirectory(demo/ldjam52)
+add_subdirectory(demo/ldjam56)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     add_subdirectory(tools/server)
