@@ -433,6 +433,7 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
         dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
         load_gl_buffer(-1, lod, GL_UNSIGNED_SHORT, nr_idx * mesh_idx_stride(mesh),
                        &m->index_obj[m->nr_lods], 0, GL_ELEMENT_ARRAY_BUFFER);
+        free(lod);
         m->nr_faces[m->nr_lods] = nr_idx;
         m->nr_lods++;
     }
