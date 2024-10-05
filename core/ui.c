@@ -1668,6 +1668,14 @@ void ui_done(struct ui *ui)
      */
     list_for_each_entry_iter(prog, iter, &ui->shaders, entry)
         ref_put(prog);
+
+    int i;
+
+    for (i = 0; i < nr_ui_debug_mods; i++)
+        free(ui_debug_strs[i]);
+
+    free(ui_debug_mods);
+    free(ui_debug_strs);
 }
 
 void ui_show(struct ui *ui)
