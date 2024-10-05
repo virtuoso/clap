@@ -260,10 +260,10 @@ bool bitmap_includes(struct bitmap *b, struct bitmap *subset)
 
 struct exit_handler {
     exit_handler_fn     fn;
-    struct exit_handler *next;
+    struct list         entry;
 };
 
-static struct exit_handler *ehs;
+static DECLARE_LIST(ehs_list);
 
 notrace int exit_cleanup(exit_handler_fn fn)
 {
@@ -276,21 +276,18 @@ notrace int exit_cleanup(exit_handler_fn fn)
     memset(eh, 0, sizeof(*eh));
     eh->fn = fn;
 
-    for (lastp = &ehs; *lastp; lastp = &((*lastp)->next))
-        ;
-
-    *lastp = eh;
-
+    list_append(&ehs_list, &eh->entry);
     return 0;
 }
 
 void exit_cleanup_run(int status)
 {
-    struct exit_handler *eh;
+    struct exit_handler *eh, *iter;
 
-    /* XXX: free all the ehs too */
-    for (eh = ehs; eh; eh = eh->next) {
+    list_for_each_entry_iter(eh, iter, &ehs_list, entry) {
         eh->fn(status);
+        list_del(&eh->entry);
+        free(eh);
     }
     fflush(stdout);
 }
