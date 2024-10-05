@@ -81,8 +81,8 @@ bool camera_entity_in_frustum(struct camera *c, struct entity3d *e)
 void camera_setup(struct camera *c)
 {
     // starting yaw values
-    c->target_yaw = 180;
-    c->current_yaw = 180;
+    c->target_yaw = 0;
+    c->current_yaw = 0;
 }
 
 void camera_move(struct camera *c, unsigned long fps)
