@@ -529,11 +529,11 @@ static void ui_roll_init(struct ui *ui)
     struct font *font;
     size_t       size;
 
-    lh = lib_read_file(RES_ASSET, "TODO.txt", (void **)&buffer, &size);
+    lh = lib_read_file(RES_ASSET, "LICENSE", (void **)&buffer, &size);
     if (!lh)
         return;
 
-    font = font_open("MountainsofChristmas-Regular.ttf", 24);
+    font = font_get_default();
     if (!font || lh->state == RES_ERROR) {
         ref_put_last(lh);
         return;
@@ -667,30 +667,6 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
 static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 static void ui_menu_done(struct ui *ui);
 
-/* XXX: basic font picker */
-static const char *font_names[] = {
-    "AovelSansRounded-rdDL.ttf", "BeckyTahlia-MP6r.ttf",
-    "Cabal-w5j3.ttf",
-    "LiberationSansBold.ttf",    "MorganChalk-L3aJy.ttf",
-    "Pixellettersfull-BnJ5.ttf", "RoughenCornerRegular-7RjV.ttf",
-    "ShortBaby-Mg2w.ttf",        "ToThePointRegular-n9y4.ttf",
-};
-
-static void do_fonts(struct ui *ui, const char *font_name)
-{
-    int i;
-
-    for (i = 0; i < array_size(font_names); i++) {
-        if (!strcmp(font_name, font_names[i]))
-            goto found;
-    }
-
-    return;
-found:
-    menu_font = font_names[i];
-    ui_menu_done(ui);
-}
-
 static void do_debugs(struct ui *ui, const char *debug_name)
 {
     int i;
@@ -706,9 +682,8 @@ found:
     ui_menu_done(ui);
 }
 
-static const char *help_items[] = { "...todo", "...help", "...credits" };
-static const char *hud_items[] = { "FPS", "Build", "Limeric" };
-static const char *pip_items[] = { "+float TL", "+float TR", "+left half", "+right half" };
+static const char *help_items[] = { "...license", "...help", "...credits" };
+static const char *hud_items[] = { "FPS", };
 static void menu_onclick(struct ui_element *uie, float x, float y)
 {
     const char *str = uie->priv;
@@ -723,12 +698,6 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
     } else if (!strcmp(str, "HUD")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
-    } else if (!strcmp(str, "PIP")) {
-        ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, pip_items, array_size(pip_items));
-    } else if (!strcmp(str, "Fonts")) {
-        ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, font_names, array_size(font_names));
     } else if (!strcmp(str, "Monitor")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, ui_debug_mods, nr_ui_debug_mods);
@@ -753,18 +722,10 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
         m.cmd.toggle_fuzzer = 1;
         message_send(&m);
         ui_menu_done(ui); /* cancels modality */
-    } else if (!strcmp(str, "Autopilot")) {
-        struct message m;
-        memset(&m, 0, sizeof(m));
-        m.type = MT_COMMAND;
-        m.cmd.toggle_autopilot = 1;
-        message_send(&m);
-        ui_menu_done(ui); /* cancels modality */
-    } else if (!strcmp(str, "...todo")) {
+    } else if (!strcmp(str, "...license")) {
         ui_roll_init(ui);
         ui_menu_done(ui); /* cancels modality */
     } else {
-        do_fonts(ui, str);
         do_debugs(ui, str);
     }
 }
@@ -1050,12 +1011,7 @@ static const char *menu_items[] = {
 #ifndef CONFIG_FINAL
     "Monitor",
     "Fullscreen",
-    "PIP",
-    "Autopilot",
-    "Fonts",
-    "Network",
     "Devel",
-    "Settings",
 #endif
     "Help",
 #ifndef CONFIG_BROWSER
