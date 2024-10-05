@@ -536,6 +536,11 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
             e->scale = pos->number_;
+            /* rotation: optional */
+            if (pos && pos->tag == JSON_NUMBER)
+                e->ry = to_radians(pos->number_);
+            else
+                e->ry = 0;
 
             if (terrain_clamp)
                 phys_ground_entity(e);
