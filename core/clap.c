@@ -157,6 +157,8 @@ void clap_done(struct clap_context *ctx, int status)
         phys_done();
     if (ctx->cfg.graphics)
         gl_done();
+    if (ctx->cfg.font)
+        font_done();
     messagebus_done();
     exit_cleanup_run(status);
 }

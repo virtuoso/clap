@@ -77,6 +77,7 @@ static void font_drop(struct ref *ref)
     for (i = 0; i < array_size(font->g); i++)
         texture_deinit(&font->g[i].tex);
     free(font->name);
+    FT_Done_Face(font->face);
 }
 
 DECLARE_REFCLASS(font);
@@ -152,4 +153,11 @@ int font_init(void)
 
     dbg("freetype initialized\n");
     return 0;
+}
+
+void font_done(void)
+{
+    if (default_font)
+        font_put(default_font);
+    FT_Done_FreeType(ft);
 }
