@@ -440,14 +440,20 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             if (root < 0)
                 for (i = 0; i < gltf_get_meshes(gd); i++)
                     if (i != collision) {
-                        gltf_instantiate_one(gd, i);
+                        if (gltf_instantiate_one(gd, i)) {
+                            gltf_free(gd);
+                            return -1;
+                        }
                         break; /* XXX: why? */
                     }
             /* In the absence of a dedicated collision mesh, use the main one */
             if (collision < 0)
                 collision = 0;
         } else {
-            gltf_instantiate_one(gd, 0);
+            if (gltf_instantiate_one(gd, 0)) {
+                gltf_free(gd);
+                return -1;
+            }
             collision = 0;
         }
         txm = mq_model_last(&scene->mq);

@@ -202,10 +202,9 @@ struct gltf_data {
     darray(struct gltf_animation, anis);
     darray(struct gltf_skin,      skins);
     // struct darray        texs;
-    unsigned int         *imgs;
+    darray(int,                   imgs);
     unsigned int         *texs;
     int                  root_node;
-    unsigned int nr_imgs;
     unsigned int nr_texs;
     unsigned int texid;
 };
@@ -246,7 +245,7 @@ void gltf_free(struct gltf_data *gd)
     darray_clearout(&gd->mats.da);
     darray_clearout(&gd->anis.da);
     darray_clearout(&gd->skins.da);
-    free(gd->imgs);
+    darray_clearout(&gd->imgs.da);
     free(gd->texs);
     free(gd);
 }
@@ -318,7 +317,18 @@ struct gltf_bufview *gltf_bufview_accr(struct gltf_data *gd, int accr)
 
 struct gltf_bufview *gltf_bufview_tex(struct gltf_data *gd, int tex)
 {
-    return &gd->bufvws.x[gd->imgs[gd->texs[tex]]];
+    if (tex >= gd->nr_texs || tex < 0)
+        return NULL;
+
+    unsigned int img = gd->texs[tex];
+    if (img >= darray_count(gd->imgs))
+        return NULL;
+
+    int bv = gd->imgs.x[img];
+    if (bv >= darray_count(gd->bufvws) || bv < 0)
+        return NULL;
+
+    return &gd->bufvws.x[bv];
 }
 
 void *gltf_accessor_buf(struct gltf_data *gd, int accr)
@@ -428,6 +438,9 @@ void *gltf_ ## _name(struct gltf_data *gd, int mesh) \
     int tex = mat->_attr ## _tex; \
     struct gltf_bufview *bv = gltf_bufview_tex(gd, tex); \
  \
+    if (!bv) \
+        return NULL; \
+ \
     return gd->buffers.x[bv->buffer] + bv->offset; \
 } \
 unsigned int gltf_ ## _name ## sz(struct gltf_data *gd, int mesh) \
@@ -435,6 +448,9 @@ unsigned int gltf_ ## _name ## sz(struct gltf_data *gd, int mesh) \
     struct gltf_material *mat = gltf_material(gd, mesh); \
     int tex = mat->_attr ## _tex; \
     struct gltf_bufview *bv = gltf_bufview_tex(gd, tex); \
+ \
+    if (!bv) \
+        return 0; \
  \
     return bv->length; \
 }
@@ -649,6 +665,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
     darray_init(&gd->buffers);
     darray_init(&gd->anis);
     darray_init(&gd->skins);
+    darray_init(&gd->imgs);
 
     scenes = json_find_member(root, "scenes");
     scene = json_find_member(root, "scene");
@@ -852,6 +869,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
     /* Images */
     for (n = imgs->children.head; n; n = n->next) {
         JsonNode *jbufvw, *jmime, *jname;
+        bool supported = true;
 
         jbufvw = json_find_member(n, "bufferView");
         jmime = json_find_member(n, "mimeType");
@@ -859,16 +877,17 @@ static void gltf_onload(struct lib_handle *h, void *data)
         if (!jbufvw || !jmime || !jname)
             continue;
         
-        if (strcmp(jmime->string_, "image/png"))
-            continue;
+        if (strcmp(jmime->string_, "image/png")) {
+            warn("image '%s' as it's '%s' and not image/png\n", jname->string_, jmime->string_);
+            supported = false;
+        }
 
         if (jbufvw->number_ >= gd->bufvws.da.nr_el)
             continue;
 
-        CHECK(gd->imgs = realloc(gd->imgs, (gd->nr_imgs + 1) * sizeof(unsigned int)));
-        gd->imgs[gd->nr_imgs] = jbufvw->number_;
-        dbg("image %d: bufferView: %d\n", gd->nr_imgs, gd->imgs[gd->nr_imgs]);
-        gd->nr_imgs++;
+        int *img = darray_add(&gd->imgs.da);
+        *img = supported ? jbufvw->number_ : -1;
+        dbg("image %d: bufferView: %d\n", darray_count(gd->imgs), *img);
     }
 
     /* Textures */
@@ -879,7 +898,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
         jsrc = json_find_member(n, "source");
         if (!jsrc)
             continue;
-        if (jsrc->number_ >= gd->nr_imgs)
+        if (jsrc->number_ >= darray_count(gd->imgs))
             continue;
 
         CHECK(gd->texs = realloc(gd->texs, (gd->nr_texs + 1) * sizeof(unsigned int)));
@@ -1021,7 +1040,7 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
     return gd->skins.x[skin].nodes[node];
 }
 
-void gltf_instantiate_one(struct gltf_data *gd, int mesh)
+int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
     struct model3dtx *txm;
     struct model3d   *m;
@@ -1029,7 +1048,7 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
     int skin;
 
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
-        return;
+        return -1;
 
     me = mesh_new(gltf_mesh_name(gd, mesh));
     mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh));
@@ -1054,9 +1073,15 @@ void gltf_instantiate_one(struct gltf_data *gd, int mesh)
     if (gltf_has_nmap(gd, mesh)) {
         txm = model3dtx_new_from_buffers(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
                                         gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh));
-        dbg("added textures %d, %d for mesh '%s'\n", texture_id(txm->texture), texture_id(txm->normals), gltf_mesh_name(gd, mesh));
     } else {
         txm = model3dtx_new_from_buffer(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh));
+    }
+
+    if (!txm) {
+        warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));
+        ref_put_last(me);
+        ref_put_last(gd->scene->_model);
+        return -1;
     }
 
     skin = gltf_mesh_skin(gd, mesh);
@@ -1142,6 +1167,8 @@ no_skinning:
     txm->roughness = clampf(gltf_material(gd, mesh)->roughness, 0.2, 1.0);
 
     scene_add_model(gd->scene, txm);
+
+    return 0;
 }
 
 void gltf_instantiate_all(struct gltf_data *gd)

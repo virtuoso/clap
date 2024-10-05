@@ -190,6 +190,9 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
 
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
 {
+    if (!buffer || !length)
+        return NULL;
+
     struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
@@ -203,6 +206,9 @@ struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer,
 
 struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz)
 {
+    if (!tex || !texsz || !norm || !normsz)
+        return NULL;
+
     struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
