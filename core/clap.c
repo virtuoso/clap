@@ -130,6 +130,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     ctx->argv = argv;
     ctx->envp = envp;
 
+    messagebus_init();
     log_init(log_flags);
     (void)librarian_init(ctx->cfg.base_url);
     if (ctx->cfg.font)
@@ -156,5 +157,6 @@ void clap_done(struct clap_context *ctx, int status)
         phys_done();
     if (ctx->cfg.graphics)
         gl_done();
+    messagebus_done();
     exit_cleanup_run(status);
 }

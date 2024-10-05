@@ -122,11 +122,12 @@ typedef int (*subscriber_fn)(struct message *m, void *data);
 struct subscriber {
     subscriber_fn       handle;
     void                *data;
-    struct subscriber   *next;
+    struct list         entry;
 };
 
 int subscribe(enum message_type type, subscriber_fn fn, void *data);
 int message_send(struct message *m);
 int messagebus_init(void);
+void messagebus_done(void);
 
 #endif /* __CLAP_MESSAGEBUS_H__ */

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "object.h"
 #include "common.h"
+#include "messagebus.h"
 #include "util.h"
 
 #define TEST_MAGIC0 0xdeadbeef
@@ -384,6 +385,8 @@ int main()
 {
     int ret, i;
 
+    messagebus_init();
+
     for (i = 0; i < array_size(tests); i++) {
         failcount = 0;
         ret = tests[i].test();
@@ -392,6 +395,7 @@ int main()
             break;
     }
 
+    messagebus_done();
 #ifdef CONFIG_BROWSER
     exit_cleanup_run(ret);
 #endif
