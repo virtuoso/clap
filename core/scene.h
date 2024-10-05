@@ -47,11 +47,11 @@ struct scene {
     float               auto_yoffset;
     int                 nr_cameras;
     int                 autopilot;
-    int                 exit_timeout;
     int                 fullscreen;
     int                 proj_updated;
     float               near_plane;
     float               far_plane;
+    bool                initialized;
     bool                ui_is_on;
     bool                debug_draws_enabled;
 };

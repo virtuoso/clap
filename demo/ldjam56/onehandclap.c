@@ -34,6 +34,7 @@
 /* XXX just note for the future */
 struct settings *settings;
 struct sound *intro_sound;
+static int exit_timeout = -1;
 struct scene scene; /* XXX */
 struct ui ui;
 // struct game_state game_state;
@@ -220,6 +221,10 @@ static void touch_set_size(int w, int h) {}
 void resize_cb(void *data, int width, int height)
 {
     struct scene *scene = data;
+
+    if (!scene->initialized)
+        return;
+
     ui.width  = width;
     ui.height = height;
     scene->width  = width;
@@ -271,8 +276,8 @@ static int handle_command(struct message *m, void *data)
 {
     struct scene *scene = data;
 
-    if (m->cmd.status && scene->exit_timeout >= 0) {
-        if (!scene->exit_timeout--)
+    if (m->cmd.status && exit_timeout >= 0) {
+        if (!exit_timeout--)
             gl_request_exit();
     }
 
@@ -320,12 +325,6 @@ int main(int argc, char **argv, char **envp)
     struct render_pass *pass;
     //struct lib_handle *lh;
 
-    /*
-     * Resize callback will call into projmx_update(), which depends
-     * on projection matrix being allocated.
-     */
-    scene_init(&scene);
-
     for (;;) {
         c = getopt_long(argc, argv, short_options, long_options, &option_index);
         if (c == -1)
@@ -340,7 +339,7 @@ int main(int argc, char **argv, char **envp)
             scene.autopilot = 1;
             break;
         case 'e':
-            scene.exit_timeout = atoi(optarg);
+            exit_timeout = atoi(optarg);
             break;
         case 'E':
             abort_on_error++;
@@ -356,6 +355,12 @@ int main(int argc, char **argv, char **envp)
     }
 
     struct clap_context *clap = clap_init(&cfg, argc, argv, envp);
+
+    /*
+     * Resize callback will call into projmx_update(), which depends
+     * on projection matrix being allocated.
+     */
+    scene_init(&scene);
 
 #ifndef CONFIG_FINAL
     ncfg.clap = clap;

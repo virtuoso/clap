@@ -331,7 +331,6 @@ int scene_init(struct scene *scene)
 {
     memset(scene, 0, sizeof(*scene));
     scene->proj_mx      = mx_new();
-    scene->exit_timeout = -1;
     scene->auto_yoffset = 4.0;
     scene->near_plane   = 0.1;
     scene->far_plane    = 1000.0;
@@ -342,6 +341,8 @@ int scene_init(struct scene *scene)
 
     subscribe(MT_INPUT, scene_handle_input, scene);
     subscribe(MT_COMMAND, scene_handle_command, scene);
+
+    scene->initialized = true;
 
     return 0;
 }
