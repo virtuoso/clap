@@ -667,6 +667,10 @@ void scene_done(struct scene *scene)
     struct model3dtx *txmodel, *ittxm;
     struct entity3d  *ent, *itent;
     struct instantiator *instor;
+    struct character *iter, *ch;
+
+    list_for_each_entry_iter(ch, iter, &scene->characters, entry)
+        ref_put_last(ch);
 
     while (!list_empty(&scene->instor)) {
         instor = list_first_entry(&scene->instor, struct instantiator, entry);
