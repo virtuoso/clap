@@ -102,6 +102,14 @@ union { \
 } _name;
 
 #define darray_init(_da) { (_da)->da.elsz = sizeof(*(_da)->x); (_da)->da.nr_el = 0; (_da)->x = NULL; }
+
+static inline unsigned int _darray_count(struct darray *da)
+{
+    return da->nr_el;
+}
+
+#define darray_count(_x) _darray_count(&((_x).da))
+
 static inline void *darray_get(struct darray *da, unsigned int el)
 {
     if (el >= da->nr_el)
