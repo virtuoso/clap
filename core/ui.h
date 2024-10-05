@@ -98,7 +98,7 @@ struct ui_widget {
 //int ui_element_init(struct scene *s, float x, float y, float w, float h);
 struct ui {
     struct mq          mq;
-    struct shader_prog *prog;
+    struct list        shaders;
     struct sound       *click;
     struct ui_widget   *menu;
     struct ui_widget   *inventory;

@@ -383,12 +383,12 @@ int main(int argc, char **argv, char **envp)
     sound_play(intro_sound);
 
     /* Before models are created */
-    lib_request_shaders("contrast", &scene.prog);
-    lib_request_shaders("hblur", &scene.prog);
-    lib_request_shaders("vblur", &scene.prog);
-    lib_request_shaders("debug", &scene.prog);
-    lib_request_shaders("terrain", &scene.prog);
-    lib_request_shaders("model", &scene.prog);
+    lib_request_shaders("contrast", &scene.shaders);
+    lib_request_shaders("hblur", &scene.shaders);
+    lib_request_shaders("vblur", &scene.shaders);
+    lib_request_shaders("debug", &scene.shaders);
+    // lib_request_shaders("terrain", &scene.shaders);
+    lib_request_shaders("model", &scene.shaders);
     //lib_request_shaders("ui", &scene);
 
     fuzzer_input_init();

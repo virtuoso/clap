@@ -113,7 +113,7 @@ bool scene_camera_follows(struct scene *s, struct character *ch)
 
 int scene_camera_add(struct scene *s)
 {
-    struct model3d *m = model3d_new_cube(s->prog);
+    struct model3d *m = model3d_new_cube(list_first_entry(&s->shaders, struct shader_prog, entry));
     struct model3dtx *txm = model3dtx_new(m, "transparent.png");
     struct entity3d *entity;
 
@@ -337,6 +337,7 @@ int scene_init(struct scene *scene)
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);
     list_init(&scene->instor);
+    list_init(&scene->shaders);
     list_init(&scene->debug_draws);
 
     subscribe(MT_INPUT, scene_handle_input, scene);
@@ -675,7 +676,15 @@ void scene_done(struct scene *scene)
 
     if (scene->terrain)
         terrain_done(scene->terrain);
-    ref_put_last(scene->camera->ch);
 
     mq_release(&scene->mq);
+
+    struct shader_prog *prog, *it;
+
+    /*
+     * clean up the shaders that weren't freed by model3d_drop()
+     * via mq_release()
+     */
+    list_for_each_entry_iter(prog, it, &scene->shaders, entry)
+        ref_put(prog);
 }

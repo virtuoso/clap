@@ -55,7 +55,7 @@ struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *s
     if (!prog_name)
         return pass;
 
-    p = shader_prog_find(pl->scene->prog, prog_name);
+    p = shader_prog_find(&pl->scene->shaders, prog_name);
     m = model3d_new_quad(p, -1, 1, 0.1, 2, -2);
     m->cull_face = false;
     m->alpha_blend = false;

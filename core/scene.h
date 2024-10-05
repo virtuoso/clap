@@ -30,7 +30,7 @@ struct scene {
     struct list         debug_draws;
     struct entity3d     *focus;
     struct character    *control;
-    struct shader_prog  *prog;
+    struct list         shaders;
     struct matrix4f     *proj_mx;
     struct terrain      *terrain;
     struct camera       *camera;

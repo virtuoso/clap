@@ -1064,7 +1064,9 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
         mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh), gltf_nr_tangent(gd, mesh));
     mesh_optimize(me);
 
-    m = model3d_new_from_mesh(gltf_mesh_name(gd, mesh), gd->scene->prog, me);
+    struct shader_prog *prog = shader_prog_find(&gd->scene->shaders, "model");
+
+    m = model3d_new_from_mesh(gltf_mesh_name(gd, mesh), prog, me);
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }

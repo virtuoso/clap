@@ -972,7 +972,7 @@ static void model_obj_loaded(struct lib_handle *h, void *data)
     struct model_data * md;
     struct model3d *m;
 
-    prog = shader_prog_find(s->prog, "model");
+    prog = shader_prog_find(&s->shaders, "model");
     dbg("loaded '%s' %p %zu %d\n", h->name, h->buf, h->size, h->state);
     if (!h->buf)
         return;
@@ -998,7 +998,7 @@ static void model_bin_vec_loaded(struct lib_handle *h, void *data)
     float *vx, *tx, *norm;
     unsigned short *idx;
 
-    prog = shader_prog_find(s->prog, "model");
+    prog = shader_prog_find(&s->shaders, "model");
 
     dbg("loaded '%s' nr_vertices: %" PRIu64 "\n", h->name, hdr->nr_vertices);
     vx   = h->buf + sizeof(*hdr);
@@ -1601,7 +1601,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     struct model3dtx *txm;
     struct model3d *m;
 
-    p = shader_prog_find(scene->prog, "debug");
+    p = shader_prog_find(&scene->shaders, "debug");
     CHECK(dd = ref_new(debug_draw));
     CHECK(m = model3d_new_from_vectors("debug", p, vx, vxsz, idx, idxsz, tx, vxsz / 3 * 2, NULL, 0));
     m->debug = true;

@@ -82,7 +82,7 @@ static GLuint createProgram(const char* vertexSource, const char * fragmentSourc
 struct shader_var {
     char *name;
     GLint loc;
-    struct shader_var *next;
+    struct list entry;
 };
 
 /* XXX use a hashlist */
@@ -90,7 +90,7 @@ GLint shader_prog_find_var(struct shader_prog *p, const char *var)
 {
     struct shader_var *v;
 
-    for (v = p->var; v; v = v->next)
+    list_for_each_entry(v, &p->vars, entry)
         if (!strcmp(v->name, var))
             return v->loc;
     return -1;
@@ -138,8 +138,7 @@ static int shader_prog_scan(struct shader_prog *p, const char *txt)
                     break;
             }
             //dbg("# found var '%s' @%d\n", v->name, v->loc);
-            v->next = p->var;
-            p->var = v;
+            list_append(&p->vars, &v->entry);
             pos = pend;
         }
     }
@@ -150,7 +149,14 @@ static int shader_prog_scan(struct shader_prog *p, const char *txt)
 static void shader_prog_drop(struct ref *ref)
 {
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
+    struct shader_var *var, *iter;
 
+    list_for_each_entry_iter(var, iter, &p->vars, entry) {
+        free(var->name);
+        free(var);
+    }
+
+    list_del(&p->entry);
     dbg("dropping shader '%s'\n", p->name);
 }
 
@@ -186,6 +192,7 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
     if (!p)
         return NULL;
 
+    list_init(&p->vars);
     p->name = name;
     p->prog = createProgram(vsh, fsh);
     if (!p->prog) {
@@ -229,16 +236,18 @@ void shader_prog_done(struct shader_prog *p)
     ref_put(p);
 }
 
-struct shader_prog *shader_prog_find(struct shader_prog *prog, const char *name)
+struct shader_prog *shader_prog_find(struct list *shaders, const char *name)
 {
-    for (; prog; prog = prog->next)
+    struct shader_prog *prog;
+
+    list_for_each_entry(prog, shaders, entry)
         if (!strcmp(prog->name, name))
             return ref_get(prog);
 
     return NULL;
 }
 
-int lib_request_shaders(const char *name, struct shader_prog **progp)
+int lib_request_shaders(const char *name, struct list *shaders)
 {
     //char *nvert CUX(string), *nfrag CUX(string), *vert CUX(string), *frag CUX(string);
     struct lib_handle *hv, *hf;
@@ -261,8 +270,7 @@ int lib_request_shaders(const char *name, struct shader_prog **progp)
     if (!p)
         return -1;
 
-    p->next = *progp;
-    *progp = p;
+    list_append(shaders, &p->entry);
     ref_put_last(hv);
     ref_put_last(hf);
 
