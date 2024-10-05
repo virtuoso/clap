@@ -691,4 +691,6 @@ void scene_done(struct scene *scene)
      */
     list_for_each_entry_iter(prog, it, &scene->shaders, entry)
         ref_put(prog);
+
+    free(scene->name);
 }
