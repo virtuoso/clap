@@ -240,6 +240,9 @@ struct settings *settings_init(void *cb, void *data)
 
 void settings_done(struct settings *settings)
 {
+#ifndef __EMSCRIPTEN__
+    free(settings_file);
+#endif /* !__EMSCRIPTEN__ */
     settings_store(settings);
     json_free(settings->root);
     settings->ready = false;
