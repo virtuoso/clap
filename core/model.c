@@ -139,6 +139,7 @@ static int model3dtx_make(struct ref *ref)
     txm->texture = &txm->_texture;
     txm->normals = &txm->_normals;
     list_init(&txm->entities);
+    list_init(&txm->entry);
     return 0;
 }
 
@@ -171,16 +172,24 @@ struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const c
     struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
-        return NULL;
+        goto err;
 
     txm->model = ref_get(model);
-    model3d_add_texture(txm, tex);
+    if (model3d_add_texture(txm, tex)) {
+        ref_put_last(txm);
+        return NULL;
+    }
+
     if (norm)
         model3d_add_texture_at(txm, GL_TEXTURE1, norm);
     txm->roughness = 0.65;
     txm->metallic = 0.45;
 
     return txm;
+
+err:
+    ref_put_passed(model);
+    return NULL;
 }
 
 struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
@@ -191,48 +200,63 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
 {
     if (!buffer || !length)
-        return NULL;
+        goto err;
 
     struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
-        return NULL;
+        goto err;
 
     txm->model = ref_get(model);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE0, buffer, length);
 
     return txm;
+
+err:
+    ref_put_passed(model);
+    return NULL;
 }
 
 struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz)
 {
     if (!tex || !texsz || !norm || !normsz)
-        return NULL;
+        goto err;
 
     struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
-        return NULL;
+        goto err;
 
     txm->model = ref_get(model);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE0, tex, texsz);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE1, norm, normsz);
 
     return txm;
+
+err:
+    ref_put_passed(model);
+    return NULL;
 }
 
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex)
 {
+    if (!tex)
+        goto err;
+
     struct model3dtx *txm = ref_new(model3dtx);
 
     if (!txm)
-        return NULL;
+        goto err;
 
     txm->model = ref_get(model);
     txm->texture = tex;
     txm->external_tex = true;
 
     return txm;
+
+err:
+    ref_put_passed(model);
+    return NULL;
 }
 
 static void load_gl_buffer(GLint loc, void *data, GLuint type, size_t sz, GLuint *obj,

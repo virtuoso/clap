@@ -1466,6 +1466,8 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
         model = model3d_new_quad(ui->prog, 0, 0, 0.0, 1, 1);
         model3d_set_name(model, "ui_pocket_element");
         txm = model3dtx_new(ref_pass(model), tex[i]);
+        if (!txm)
+            continue;
         ui_add_model(ui, txm);
 
         pic = ui_element_new(ui, p, txm, UI_AF_LEFT | UI_AF_TOP, 0, 100 * i, 100, 100);

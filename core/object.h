@@ -162,6 +162,16 @@ static inline void _ref_put(struct ref *ref)
 
 #define ref_put(obj) ref_put_ref(&(obj)->ref)
 
+#define ref_put_passed_ref(r) do { \
+        if ((r)->consume) { \
+            (r)->consume = false; \
+            ref_dbg("ref_put_passed_ref(%s): %d\n", _ref_name(r), (r)->count - 1); \
+            _ref_put(r); \
+        } \
+    } while (0)
+
+#define ref_put_passed(obj) ref_put_passed_ref(&(obj)->ref)
+
 #define ref_put_last_ref(r) do { \
         ref_dbg("ref_put_last_ref(%s): %d\n", _ref_name(r), (r)->count - 1); \
         err_on(!!--(r)->count, "'%s': %d\n", _ref_name(r), (r)->count); \
