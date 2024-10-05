@@ -19,6 +19,7 @@ struct clap_config {
                     graphics    : 1;
     const char      *title;
     const char      *base_url;
+    const char      *default_font_name;
     unsigned int    width;
     unsigned int    height;
     void            (*frame_cb)(void *data);

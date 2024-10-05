@@ -141,11 +141,15 @@ void font_put(struct font *font)
     ref_put(font);
 }
 
-int font_init(void)
+#define DEFAULT_FONT_NAME "ofl/Unbounded-Regular.ttf"
+int font_init(const char *default_font_name)
 {
     CHECK0(FT_Init_FreeType(&ft));
 
-    default_font = font_open("LiberationSansBold.ttf", 64);
+    if (!default_font_name)
+        default_font_name = DEFAULT_FONT_NAME;
+
+    default_font = font_open(default_font_name, 32);
     if (!default_font) {
         err("couldn't load default font\n");
         return -1;

@@ -489,7 +489,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     return uit.uietex;
 }
 
-static const char *menu_font = "Rancho-Regular.ttf";
+static const char *menu_font = "ofl/Unbounded-Regular.ttf";
 static struct ui_element *ui_roll_element;
 
 static void ui_roll_done(void)
