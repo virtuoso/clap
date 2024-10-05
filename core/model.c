@@ -819,7 +819,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
     struct shader_prog *prog = NULL;
     struct model3d *model;
     struct model3dtx *txmodel;
-    struct matrix4f *view_mx, *inv_view_mx;
+    struct matrix4f *view_mx = NULL, *inv_view_mx = NULL;
     unsigned long nr_txms = 0, nr_ents = 0, culled = 0;
 
     if (camera) {
