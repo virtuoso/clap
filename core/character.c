@@ -34,9 +34,6 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
     else if (m->input.left == 2)
         mctl->ls_left = 0;
 
-    if (m->input.delta_lx)
-        mctl->ls_dx = mctl->lin_speed * m->input.delta_lx;
-
     if (m->input.up == 1)
         mctl->ls_up = 1;
     else if (m->input.up == 2)
@@ -47,8 +44,11 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
     else if (m->input.down == 2)
         mctl->ls_down = 0;
 
-    if (m->input.delta_ly)
-        mctl->ls_dy = mctl->lin_speed * m->input.delta_ly;
+    if (m->input.delta_lx || m->input.delta_ly) {
+        float angle = atan2f(m->input.delta_ly, m->input.delta_lx);
+        mctl->ls_dx = mctl->lin_speed * cos(angle);
+        mctl->ls_dy = mctl->lin_speed * sin(angle);
+    }
 
     /* right stick */
     if (m->input.pitch_up == 1)
