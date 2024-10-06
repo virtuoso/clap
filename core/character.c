@@ -50,7 +50,7 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
     if (m->input.delta_ly)
         mctl->ls_dy = mctl->lin_speed * m->input.delta_ly;
 
-    /* right strick */
+    /* right stick */
     if (m->input.pitch_up == 1)
         mctl->rs_up = mctl->ang_speed;
     else if (m->input.pitch_up == 2)
