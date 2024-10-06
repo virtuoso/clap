@@ -10,12 +10,16 @@
 
 static void motion_parse_input(struct motionctl *mctl, struct message *m)
 {
+    struct character *ch = container_of(mctl, struct character, mctl);
+
+#ifndef CONFIG_FINAL
     if (m->input.trigger_r)
         mctl->lin_speed *= (m->input.trigger_r + 1) * 3;
     else if (m->input.pad_rt)
         mctl->lin_speed *= 3;
+#endif
 
-    if (m->input.dash || m->input.pad_rb) {
+    if (ch->dashing && (m->input.dash || m->input.pad_rb)) {
         /* if not already dashing or in dashing cooldown, dash */
         if (!timespec_nonzero(&mctl->dash_started)) {
             memcpy(&mctl->dash_started, &mctl->ts, sizeof(mctl->dash_started));
