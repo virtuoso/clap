@@ -80,10 +80,20 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
 
 static void motion_compute_ls(struct motionctl *mctl)
 {
-    if (mctl->ls_left || mctl->ls_right)
+    int dir = 0;
+
+    if (mctl->ls_left || mctl->ls_right) {
         mctl->ls_dx = (mctl->ls_right - mctl->ls_left) * mctl->lin_speed;
-    if (mctl->ls_up || mctl->ls_down)
+        dir++;
+    }
+    if (mctl->ls_up || mctl->ls_down) {
         mctl->ls_dy = (mctl->ls_down - mctl->ls_up) * mctl->lin_speed;
+        dir++;
+    }
+    if (dir == 2) {
+        mctl->ls_dx *= cos(M_PI_4);
+        mctl->ls_dy *= sin(M_PI_4);
+    }
 }
 
 static void motion_compute_rs(struct motionctl *mctl)
