@@ -217,15 +217,9 @@ void character_move(struct character *ch, struct scene *s)
             err("no normal vector: is there collision?\n");
             return;
         }
-        if (ch->angle[2] < 0)
-            dCalcVectorCross3(newz, newy, oldx);
-        else
-            dCalcVectorCross3(newz, oldx, newy);
 
-        if ((ch->angle[0] < 0) != (ch->angle[2] < 0))
-            dCalcVectorCross3(newx, newz, newy);
-        else
-            dCalcVectorCross3(newx, newy, newz);
+        dCalcVectorCross3(newz, oldx, newy);
+        dCalcVectorCross3(newx, newy, newz);
 
         dSafeNormalize3(newx);
         dSafeNormalize3(newy);
@@ -236,8 +230,6 @@ void character_move(struct character *ch, struct scene *s)
         vec3_scale(ch->angle, ch->angle, (float)gl_refresh_rate() / (float)s->fps.fps_fine);
 
         /* watch out for Y and Z swapping places */
-        dScaleVector3(newx, ch->angle[0]);
-        dScaleVector3(newz, ch->angle[2]);
         dAddScaledVectors3(res, newx, newz, ch->angle[0], ch->angle[2]);
 
         // if (scene_camera_follows(s, ch)) {
