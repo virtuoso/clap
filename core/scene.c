@@ -587,6 +587,14 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                     free(m->anis.x[idx].name);
                     m->anis.x[idx].name = strdup(p->key);
                 }
+
+                if (c &&
+                    animation_by_name(e->txmodel->model, "start") >= 0 &&
+                    animation_by_name(e->txmodel->model, "start_to_idle") >= 0) {
+                        c->anictl.state = UINT_MAX;
+                        c->state = CS_START;
+                        animation_push_by_name(e, scene, "start", true, true);
+                }
             }
         }
     } else {

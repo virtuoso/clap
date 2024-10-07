@@ -31,6 +31,12 @@ struct motionctl {
     bool    jump;
 };
 
+enum character_state {
+    CS_START = 0,
+    CS_WAKING,
+    CS_AWAKE
+};
+
 struct character {
     struct ref  ref;
     struct entity3d *entity;
@@ -55,6 +61,7 @@ struct character {
     int     stuck;
     bool    dashing;
     bool    jumping;
+    enum character_state state;
 };
 
 static inline struct entity3d *character_entity(struct character *c)

@@ -159,6 +159,15 @@ bool character_is_grounded(struct character *ch, struct scene *s)
     return false;
 }
 
+static void character_idle(struct scene *s, void *priv)
+{
+    struct character *c = priv;
+
+    c->state = CS_AWAKE;
+    anictl_set_state(&c->anictl, 0);
+    animation_push_by_name(c->entity, s, "idle", true, true);
+}
+
 void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
@@ -185,6 +194,18 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
+
+    if (ch->state == CS_START) {
+        if (ch->mctl.ls_dx || ch->mctl.ls_dy) {
+            ch->state = CS_WAKING;
+            animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
+            animation_set_end_callback(ch->entity, character_idle, ch);
+        }
+        return;
+    } else if (ch->state < CS_AWAKE) {
+        return;
+    }
+
     if (ch->ragdoll) {
         dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
         dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
@@ -453,6 +474,7 @@ struct character *character_new(struct model3dtx *txm, struct scene *s)
     c->entity->priv = c;
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
+    c->state = CS_AWAKE;
     list_append(&s->characters, &c->entry);
     motion_reset(&c->mctl, s);
 
