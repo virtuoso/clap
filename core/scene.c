@@ -314,6 +314,14 @@ void light_set_color(struct light *light, int idx, float color[3])
         light->color[idx * 3 + i] = color[i];
 }
 
+void light_set_attenuation(struct light *light, int idx, float attenuation[3])
+{
+    int i;
+
+    for (i = 0; i < 3; i++)
+        light->attenuation[idx * 3 + i] = attenuation[i];
+}
+
 int scene_get_light(struct scene *scene)
 {
     if (scene->nr_lights == LIGHTS_MAX)
@@ -342,6 +350,12 @@ int scene_init(struct scene *scene)
     list_init(&scene->instor);
     list_init(&scene->shaders);
     list_init(&scene->debug_draws);
+
+    int i;
+    for (i = 0; i < LIGHTS_MAX; i++) {
+        float attenuation[3] = { 1, 0, 0 };
+        light_set_attenuation(&scene->light, i, attenuation);
+    }
 
     subscribe(MT_INPUT, scene_handle_input, scene);
     subscribe(MT_COMMAND, scene_handle_command, scene);
@@ -580,6 +594,15 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 e->light_off[0] = _light_offset[0];
                 e->light_off[1] = _light_offset[1];
                 e->light_off[2] = _light_offset[2];
+            }
+
+            double _light_attenuation[3];
+            jpos = json_find_member(it, "light_attenuation");
+            if (jpos && jpos->tag == JSON_ARRAY && e->light_idx >= 0) {
+                if (!json_double_array(jpos, _light_attenuation, 3)) {
+                    float light_attenuation[3] = { _light_attenuation[0], _light_attenuation[1], _light_attenuation[2] };
+                    light_set_attenuation(&scene->light, e->light_idx, light_attenuation);
+                }
             }
 
 light_done:

@@ -11,6 +11,7 @@ struct shader_data {
     GLint inv_viewmx, shine_damper, reflectivity;
     GLint highlight, color, ray, colorpt, use_normals;
     GLint use_skinning, joint_transforms, width, height;
+    GLint attenuation;
 };
 
 struct shader_var;

@@ -22,6 +22,7 @@ struct shader_prog;
 struct light {
     GLfloat pos[3 * LIGHTS_MAX];
     GLfloat color[3 * LIGHTS_MAX];
+    GLfloat attenuation[3 * LIGHTS_MAX];
 };
 
 struct model_joint {

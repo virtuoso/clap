@@ -870,6 +870,9 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
                 GL(glUniform3fv(prog->data.lightc, LIGHTS_MAX, light->color));
             }
 
+            if (light && prog->data.attenuation >= 0)
+                GL(glUniform3fv(prog->data.attenuation, LIGHTS_MAX, light->attenuation));
+
             if (view_mx && prog->data.viewmx >= 0)
                 /* View matrix is the same for all entities and models */
                 GL(glUniformMatrix4fv(prog->data.viewmx, 1, GL_FALSE, view_mx->cell));

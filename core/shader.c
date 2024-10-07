@@ -172,6 +172,7 @@ static void shader_prog_link(struct shader_prog *p)
     p->data.inv_viewmx   = shader_prog_find_var(p, "inverse_view");
     p->data.lightp       = shader_prog_find_var(p, "light_pos");
     p->data.lightc       = shader_prog_find_var(p, "light_color");
+    p->data.attenuation  = shader_prog_find_var(p, "attenuation");
     p->data.shine_damper = shader_prog_find_var(p, "shine_damper");
     p->data.reflectivity = shader_prog_find_var(p, "reflectivity");
     p->data.highlight    = shader_prog_find_var(p, "highlight_color");

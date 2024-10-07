@@ -11,6 +11,7 @@ in vec4 pass_tangent;
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform vec3 light_color[4];
+uniform vec3 attenuation[4];
 uniform float shine_damper;
 uniform float reflectivity;
 uniform vec4 highlight_color;
@@ -47,6 +48,8 @@ void main()
     vec3 total_specular = vec3(0.0);
 
     for (int i = 0; i < 4; i++) {
+        float distance = length(to_light_vector[i]);
+        float att_fac = attenuation[i].x + (attenuation[i].y * distance) + (attenuation[i].z * distance * distance);
         vec3 unit_to_light_vector = normalize(to_light_vector[i]);
         float n_dot1 = dot(unit_normal, unit_to_light_vector);
         float brightness = max(n_dot1, 0.0);
@@ -55,8 +58,8 @@ void main()
         float specular_factor = dot(reflected_light_direction, unit_to_camera_vector);
         specular_factor = max(specular_factor, 0.2);
         float damped_factor = pow(specular_factor, shine_damper);
-        total_specular = total_specular + damped_factor * reflectivity * light_color[i];
-        total_diffuse = total_diffuse + brightness * light_color[i];
+        total_specular = total_specular + damped_factor * reflectivity * light_color[i] / att_fac;
+        total_diffuse = total_diffuse + brightness * light_color[i] / att_fac;
     }
 
     total_diffuse = max(total_diffuse, 0.2);
