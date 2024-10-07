@@ -427,10 +427,6 @@ int main(int argc, char **argv, char **envp)
     scene.limbo_height = -70.0;
     scene_cameras_calc(&scene);
 
-    scene.light.pos[0] = 0.0;
-    scene.light.pos[1] = 100.0;
-    scene.light.pos[2] = 0.0;
-
     gl_main_loop();
 
     dbg("exiting peacefully\n");

@@ -8,7 +8,7 @@ in vec4 joints;
 in vec4 weights;
 
 uniform vec3 ray;
-uniform vec3 light_pos;
+uniform vec3 light_pos[4];
 uniform mat4 proj;
 uniform mat4 view;
 uniform mat4 inverse_view;
@@ -20,7 +20,7 @@ uniform mat4 joint_transforms[100];
 out float do_use_normals;
 out vec2 pass_tex;
 out vec3 surface_normal;
-out vec3 to_light_vector;
+out vec3 to_light_vector[4];
 out vec3 to_camera_vector;
 out float color_override;
 
@@ -67,12 +67,16 @@ void main()
             T.z, B.z, N.z
         );
 
-        to_light_vector = to_tangent_space * (light_pos - world_pos.xyz);
+        for (int i = 0; i < 4; i++) {
+            to_light_vector[i] = to_tangent_space * (light_pos[i] - world_pos.xyz);
+        }
         to_camera_vector = to_tangent_space * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
         surface_normal = (trans * vec4(our_normal.xyz, 0.0)).xyz;
 
-        to_light_vector = light_pos - world_pos.xyz;
+        for (int i = 0; i < 4; i++) {
+            to_light_vector[i] = light_pos[i] - world_pos.xyz;
+        }
         to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     }
 }

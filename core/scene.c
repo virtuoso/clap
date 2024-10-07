@@ -298,31 +298,34 @@ int scene_add_model(struct scene *s, struct model3dtx *txm)
     return 0;
 }
 
-static void scene_light_update(struct scene *scene)
+void light_set_pos(struct light *light, int idx, float pos[3])
 {
-    float day[3]        = { 1.0, 1.0, 1.0 };
-    float night[3]      = { 0.3, 0.3, 0.4 };
+    int i;
 
-    /* we'll have to get rid of this */
-    // scene->light.pos[0] = 500.0 * cos(to_radians((float)scene->frames_total / 10.0));
-    // scene->light.pos[1] = 500.0 * sin(to_radians((float)scene->frames_total / 10.0));
-    scene->light.pos[0] = 0.0;
-    scene->light.pos[1] = 500.0;
-    scene->light.pos[2] = 0.0;
-    if (scene->light.pos[1] < 0.0) {
-        scene->light.pos[1] = -scene->light.pos[1];
-        memcpy(scene->light.color, night, sizeof(night));
-    } else {
-        memcpy(scene->light.color, day, sizeof(day));
-    }
+    for (i = 0; i < 3; i++)
+        light->pos[idx * 3 + i] = pos[i];
+}
+
+void light_set_color(struct light *light, int idx, float color[3])
+{
+    int i;
+
+    for (i = 0; i < 3; i++)
+        light->color[idx * 3 + i] = color[i];
+}
+
+int scene_get_light(struct scene *scene)
+{
+    if (scene->nr_lights == LIGHTS_MAX)
+        return -1;
+
+    return scene->nr_lights++;
 }
 
 void scene_update(struct scene *scene)
 {
     struct model3dtx *txm;
     struct entity3d  *ent;
-
-    scene_light_update(scene);
 
     mq_update(&scene->mq);
 }
@@ -367,7 +370,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *obj = NULL, *binvec = NULL, *gltf = NULL, *tex = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, dash = false;
-    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
+    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *light = NULL;
     int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
     struct gltf_data *gd = NULL;
     struct lib_handle *libh;
@@ -409,6 +412,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             anis = p;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "speed"))
             speed = p->number_;
+        else if (p->tag == JSON_OBJECT && !strcmp(p->key, "light"))
+            light = p;
     }
 
     if (!name || (!obj && !binvec && !gltf)) {
@@ -510,9 +515,9 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
         for (; it; it = it->next) {
             struct character *c = NULL;
             struct entity3d  *e;
-            JsonNode *pos;
+            JsonNode *pos, *jpos;
 
-            if (it->tag != JSON_ARRAY)
+            if (it->tag != JSON_OBJECT)
                 continue; /* XXX: in fact, no */
 
             if (ch) {
@@ -526,7 +531,11 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             } else {
                 e = entity3d_new(txm);
             }
-            pos = it->children.head;
+            jpos = json_find_member(it, "position");
+            if (jpos->tag != JSON_ARRAY)
+                continue;
+
+            pos = jpos->children.head;
             if (pos->tag != JSON_NUMBER)
                 continue; /* XXX */
             e->dx = pos->number_;
@@ -548,6 +557,32 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             else
                 e->ry = 0;
 
+            double _light_color[3];
+            jpos = json_find_member(it, "light_color");
+            if (jpos && jpos->tag == JSON_ARRAY) {
+                e->light_idx = scene_get_light(scene);
+                if (e->light_idx < 0)
+                    goto light_done;
+
+                if (json_double_array(jpos, _light_color, 3))
+                    goto light_done;
+
+                float light_color[3] = { _light_color[0], _light_color[1], _light_color[2] };
+                light_set_color(&scene->light, e->light_idx, light_color);
+            }
+
+            double _light_offset[3];
+            jpos = json_find_member(it, "light_offset");
+            if (jpos && jpos->tag == JSON_ARRAY && e->light_idx >= 0) {
+                if (json_double_array(jpos, _light_offset, 3))
+                    goto light_done;
+
+                e->light_off[0] = _light_offset[0];
+                e->light_off[1] = _light_offset[1];
+                e->light_off[2] = _light_offset[2];
+            }
+
+light_done:
             if (terrain_clamp)
                 phys_ground_entity(e);
 
@@ -624,6 +659,33 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     return 0;
 }
 
+static int scene_add_light_from_json(struct scene *s, JsonNode *light)
+{
+    if (light->tag != JSON_OBJECT)
+        return -1;
+
+    JsonNode *jpos = json_find_member(light, "position");
+    JsonNode *jcolor = json_find_member(light, "color");
+    if (!jpos || jpos->tag != JSON_ARRAY || !jcolor || jcolor->tag != JSON_ARRAY)
+        return -1;
+
+    double pos[3], color[3];
+    if (json_double_array(jpos, pos, 3) ||
+        json_double_array(jcolor, color, 3))
+        return -1;
+
+    int idx = scene_get_light(s);
+    if (idx < 0)
+        return -1;
+
+    float fpos[3] = { pos[0], pos[1], pos[2] };
+    float fcolor[3] = { color[0], color[1], color[2] };
+    light_set_pos(&s->light, idx, fpos);
+    light_set_color(&s->light, idx, fcolor);
+
+    return 0;
+}
+
 static void scene_onload(struct lib_handle *h, void *buf)
 {
     struct scene *scene = buf;
@@ -663,6 +725,11 @@ static void scene_onload(struct lib_handle *h, void *buf)
             for (m = p->children.head; m; m = m->next) {
                 model_new_from_json(scene, m);
             }
+        } else if (!strcmp(p->key, "light") && p->tag == JSON_ARRAY) {
+            JsonNode *light;
+
+            for (light = p->children.head; light; light = light->next)
+                scene_add_light_from_json(scene, light);
         }
     }
     dbg("loaded scene: '%s'\n", scene->name);

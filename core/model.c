@@ -866,8 +866,8 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
                 GL(glUniform1f(prog->data.height, height));
 
             if (light && prog->data.lightp >= 0 && prog->data.lightc >= 0) {
-                GL(glUniform3fv(prog->data.lightp, 1, light->pos));
-                GL(glUniform3fv(prog->data.lightc, 1, light->color));
+                GL(glUniform3fv(prog->data.lightp, LIGHTS_MAX, light->pos));
+                GL(glUniform3fv(prog->data.lightc, LIGHTS_MAX, light->color));
             }
 
             if (view_mx && prog->data.viewmx >= 0)
@@ -1462,6 +1462,11 @@ static int default_update(struct entity3d *e, void *data)
         mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
 
         entity3d_aabb_update(e);
+
+        if (e->light_idx >= 0) {
+            float pos[3] = { e->dx + e->light_off[0], e->dy + e->light_off[1], e->dz + e->light_off[2] };
+            light_set_pos(&scene->light, e->light_idx, pos);
+        }
     }
     if (entity_animated(e))
         animated_update(e, scene);
@@ -1521,6 +1526,7 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
     }
     darray_init(&e->aniq);
     e->animation = -1;
+    e->light_idx = -1;
 
     return e;
 }

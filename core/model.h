@@ -17,9 +17,11 @@ struct scene;
 struct camera;
 struct shader_prog;
 
+#define LIGHTS_MAX 4
+
 struct light {
-    GLfloat pos[3];
-    GLfloat color[3];
+    GLfloat pos[3 * LIGHTS_MAX];
+    GLfloat color[3 * LIGHTS_MAX];
 };
 
 struct model_joint {
@@ -240,8 +242,10 @@ struct entity3d {
     GLfloat _dx, _dy, _dz;
     GLfloat _rx, _ry, _rz;
     GLfloat _scale;
+    int     light_idx;
     bool    skip_culling;
     float   aabb[6];
+    float   light_off[3];
     int (*update)(struct entity3d *e, void *data);
     int (*contact)(struct entity3d *e1, struct entity3d *e2);
     void (*destroy)(struct entity3d *e);

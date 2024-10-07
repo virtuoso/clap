@@ -45,6 +45,7 @@ struct scene {
     float               limbo_height;
     float               aspect;
     float               auto_yoffset;
+    int                 nr_lights;
     int                 nr_cameras;
     int                 autopilot;
     int                 fullscreen;
@@ -56,6 +57,10 @@ struct scene {
     bool                debug_draws_enabled;
 };
 
+void light_set_pos(struct light *light, int idx, float pos[3]);
+void light_set_color(struct light *light, int idx, float color[3]);
+
+int scene_get_light(struct scene *scene);
 int scene_camera_add(struct scene *s);
 void scene_cameras_calc(struct scene *s);
 int scene_add_model(struct scene *s, struct model3dtx *txm);
