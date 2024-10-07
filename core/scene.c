@@ -566,6 +566,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 continue; /* XXX */
             e->scale = pos->number_;
             /* rotation: optional */
+            pos = pos->next;
             if (pos && pos->tag == JSON_NUMBER)
                 e->ry = to_radians(pos->number_);
             else
