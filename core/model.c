@@ -1324,6 +1324,17 @@ static struct queued_animation *ani_current(struct entity3d *e)
     return &e->aniq.x[e->animation];
 }
 
+static void animation_end(struct queued_animation *qa, struct scene *s)
+{
+    void (*end)(struct scene *, void *) = qa->end;
+
+    if (!end)
+        return;
+
+    qa->end = NULL;
+    end(s, qa->end_priv);
+}
+
 static void animation_next(struct entity3d *e, struct scene *s)
 {
     struct queued_animation *qa;
@@ -1341,10 +1352,26 @@ static void animation_next(struct entity3d *e, struct scene *s)
     }
     qa = ani_current(e);
     if (!qa->repeat) {
+        animation_end(qa, s);
+        if (e->ani_cleared) {
+            e->ani_cleared = false;
+            return;
+        }
         e->animation = (e->animation + 1) % e->aniq.da.nr_el;
         qa = ani_current(e);
     }
     animation_start(e, s->frames_total, qa->animation);
+}
+
+void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv)
+{
+    int nr_qas = darray_count(e->aniq);
+
+    if (!nr_qas)
+        return;
+
+    e->aniq.x[nr_qas - 1].end = end;
+    e->aniq.x[nr_qas - 1].end_priv = priv;
 }
 
 void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
@@ -1356,14 +1383,25 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
     if (id < 0)
         id = 0;
 
-    if (clear)
+    if (clear) {
+        struct queued_animation _qa;
+
+        qa = ani_current(e);
+        if (qa)
+            memcpy(&_qa, qa, sizeof(_qa));
+
         darray_clearout(&e->aniq.da);
+
+        if (qa)
+            animation_end(&_qa, s);
+    }
     qa = darray_add(&e->aniq.da);
     qa->animation = id;
     qa->repeat = repeat;
     if (clear) {
         animation_start(e, s->frames_total, id);
         e->animation = 0;
+        e->ani_cleared = true;
     }
 }
 

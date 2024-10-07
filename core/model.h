@@ -70,6 +70,7 @@ void animation_start(struct entity3d *e, unsigned long start_frame, int ani);
 void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat);
 int animation_by_name(struct model3d *m, const char *name);
+void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv);
 
 #define LOD_MAX 4
 struct model3d {
@@ -212,6 +213,8 @@ struct queued_animation {
     int             animation;
     bool            repeat;
     unsigned long   delay;
+    void            (*end)(struct scene *s, void *end_priv);
+    void            *end_priv;
 };
 
 struct entity3d {
@@ -243,6 +246,7 @@ struct entity3d {
     int (*contact)(struct entity3d *e1, struct entity3d *e2);
     void (*destroy)(struct entity3d *e);
     void *priv;
+    bool ani_cleared;
 };
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
