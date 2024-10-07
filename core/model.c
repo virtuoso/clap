@@ -668,9 +668,9 @@ static int fbo_depth_buffer(struct fbo *fbo)
     GL(glGenRenderbuffers(1, &buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, buf));
     if (fbo->ms)
-        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
     else
-        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
     GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
 
