@@ -172,6 +172,7 @@ void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
     struct character *cam = s->camera->ch;
+    dVector3 old_motion = { ch->motion[0], ch->motion[1], ch->motion[2] };
     float height;
 
     /*
@@ -285,6 +286,15 @@ void character_move(struct character *ch, struct scene *s)
         // }
 
         if (body) {
+            dVector3 res_norm;
+            memcpy(res_norm, res, sizeof(res_norm));
+            dSafeNormalize3(res_norm);
+            dSafeNormalize3(old_motion);
+
+            /* Get rid of the drift */
+            if (fabs(dDot(res, old_motion, 3) - 1) >= 1e-3)
+                dBodySetLinearVel(body->body, res[0], res[1], res[2]);
+
             dJointSetLMotorParam(body->lmotor, dParamVel1, res[0]);
             dJointSetLMotorParam(body->lmotor, dParamVel2, res[1]);
             dJointSetLMotorParam(body->lmotor, dParamVel3, res[2]);
