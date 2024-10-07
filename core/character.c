@@ -185,16 +185,33 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
+    if (ch->ragdoll)
+        return;
 
     if (s->control == ch) {
-        if (!ch->ragdoll && ch->mctl.jump) {
+        if (ch->jumping && !ch->ragdoll && ch->mctl.jump) {
             float dx = delta_x * yawcos - delta_z * yawsin;
             float dz = delta_x * yawsin + delta_z * yawcos;
-            vec3 jump = { dx * 1.3, 3.0, dz * 1.3 };
+            vec3 jump = { dx * 0.8, 3.0, dz * 0.8 };
 
             if (body && phys_body_has_body(body)) {
+                bool was_in_motion = !!vec3_len(ch->motion);
+
                 dJointAttach(body->lmotor, NULL, NULL);
+                dBodyEnable(body->body);
                 dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
+
+                if (anictl_set_state(&ch->anictl, 2)) {
+                    if (!animation_by_name(ch->entity->txmodel->model, "jump"))
+                        animation_push_by_name(ch->entity, s, "jump", true, false);
+                    else
+                        animation_push_by_name(ch->entity, s, "motion", true, was_in_motion);
+                    if (!was_in_motion) {
+                        animation_push_by_name(ch->entity, s, "motion_stop", false, false);
+                        animation_push_by_name(ch->entity, s, "idle", false, false);
+                    }
+                }
+                return; /* XXX */
             }
         } else {
             /*
@@ -325,10 +342,6 @@ void character_move(struct character *ch, struct scene *s)
         dBodyEnable(body->body);
 
     ch->entity->dy = ch->pos[1];
-
-    ch->motion[0] = 0;
-    ch->motion[1] = 0;
-    ch->motion[2] = 0;
 }
 
 static void character_drop(struct ref *ref)

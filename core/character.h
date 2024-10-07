@@ -53,6 +53,8 @@ struct character {
     int     moved;
     int     ragdoll;
     int     stuck;
+    bool    dashing;
+    bool    jumping;
 };
 
 static inline struct entity3d *character_entity(struct character *c)
