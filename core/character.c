@@ -185,8 +185,12 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
-    if (ch->ragdoll)
+    if (ch->ragdoll) {
+        dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
+        dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
+        dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
         return;
+    }
 
     if (s->control == ch) {
         if (ch->jumping && !ch->ragdoll && ch->mctl.jump) {
