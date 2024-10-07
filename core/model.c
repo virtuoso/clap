@@ -1119,7 +1119,7 @@ static void channel_time_to_idx(struct channel *chan, float time, int start, int
         goto tail;
 
     *prev = max(i - 1, 0);
-    *next = *prev + 1;
+    *next = min(*prev + 1, chan->nr - 1);
     return;
 
 tail:
@@ -1198,7 +1198,7 @@ static void channel_transform(struct entity3d *e, struct channel *chan, float ti
     struct model3d *model = e->txmodel->model;
     void *p_data, *n_data;
     struct joint *joint = &e->joints[chan->target];
-    float p_time, n_time, fac;
+    float p_time, n_time, fac = 0;
     int prev, next;
     mat4x4 rot;
 
@@ -1209,7 +1209,7 @@ static void channel_transform(struct entity3d *e, struct channel *chan, float ti
     n_time = chan->time[next];
     if (p_time > n_time)
         fac = time < n_time ? 1 : 0;
-    else
+    else if (p_time < n_time)
         fac = (time - p_time) / (n_time - p_time);
 
     p_data = (void *)chan->data + prev * chan->stride;
