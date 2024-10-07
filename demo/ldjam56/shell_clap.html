@@ -3,12 +3,24 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" /> 
-    <title>One Hand Clap</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@200..900&display=swap" rel="stylesheet">
+    <title>When the Mountain Wakes</title>
     <style>
       .emscripten { padding-right: 0; margin-left: 0px; margin-right: 0px; display: block; }
       textarea.emscripten { font-family: monospace; width: 100vw; height: 20vh; background-color: darkolivegreen; }
-      div.emscripten { text-align: center; }
+      div.emscripten { text-align: center; color: wheat;}
+      div.container_screen {
+        background-image: url("background.jpg");
+        height: 100%;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        position: relative;
+        text-align: center;
+      }
       div.emscripten_border { border: 0px solid black; }
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
       canvas.emscripten { border: 0px none; background-color: black; width: 100vw; }
@@ -26,59 +38,45 @@
         width: 100vw;
         margin: 0px;
         overscroll-behavior-x: none;
+        font-family: "Unbounded", sans-serif;
+        font-optical-sizing: auto;
+        font-weight: 400;
+        font-style: normal;
       }
-      .spinner {
-        height: 50px;
-        width: 50px;
-        margin: 0px auto;
-        -webkit-animation: rotation .8s linear infinite;
-        -moz-animation: rotation .8s linear infinite;
-        -o-animation: rotation .8s linear infinite;
-        animation: rotation 0.8s linear infinite;
-        /*border-left: 10px solid rgb(0,150,240);
-        border-right: 10px solid rgb(0,150,240);
-        border-bottom: 10px solid rgb(0,150,240);
-        border-top: 10px solid rgb(100,0,200);
-        border-radius: 100%;*/
-        background-color: rgb(200,100,250);
+      .game_title {
+        position: absolute;
+        top: 20%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: xx-large;
+        color: wheat;
       }
-      @-webkit-keyframes rotation {
-        from {-webkit-transform: rotate(0deg);}
-        to {-webkit-transform: rotate(360deg);}
-      }
-      @-moz-keyframes rotation {
-        from {-moz-transform: rotate(0deg);}
-        to {-moz-transform: rotate(360deg);}
-      }
-      @-o-keyframes rotation {
-        from {-o-transform: rotate(0deg);}
-        to {-o-transform: rotate(360deg);}
-      }
-      @keyframes rotation {
-        from {transform: rotate(0deg);}
-        to {transform: rotate(360deg);}
-      }
-
     </style>
   </head>
   <body style="overflow:hidden;position:fixed;touch-action:none;">
-    <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>emscripten</strong></center></figure>
+    <div class="container_screen">
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
-      <progress value="0" max="100" id="progress" hidden=1></progress>  
+      <progress value="0" max="100" id="progress" hidden=1></progress>
     </div>
+    <div class="game_title">When the Mountain Wakes</div>
     <div class="emscripten_border">
-      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1  style="display: none;"></canvas>
+    </div>
     </div>
     <textarea class="emscripten" id="output"></textarea>
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
-      var spinnerElement = document.getElementById('spinner');
       var runtime_ready = false;
 
       var Module = {
         noAudioDecoding: true,
+        onRuntimeInitialized: function() {
+          document.getElementsByClassName('game_title')[0].hidden = true;
+          var canvas = document.getElementById('canvas');
+          canvas.style.display = 'block';
+        },
         preRun: [],
         postRun: [],
         print: (function() {
@@ -104,7 +102,6 @@
         },
         canvas: (function() {
           var canvas = document.getElementById('canvas');
-
           // As a default initial behavior, pop up an alert when webgl context is lost. To make your
           // application robust, you may want to override this behavior before shipping!
           // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
@@ -125,19 +122,21 @@
             progressElement.value = parseInt(m[2])*100;
             progressElement.max = parseInt(m[4])*100;
             progressElement.hidden = false;
-            spinnerElement.hidden = false;
           } else {
             progressElement.value = null;
             progressElement.max = null;
             progressElement.hidden = true;
-            if (!text) spinnerElement.hidden = true;
           }
           statusElement.innerHTML = text;
         },
         totalDependencies: 0,
         monitorRunDependencies: function(left) {
           this.totalDependencies = Math.max(this.totalDependencies, left);
-          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+          if (left) {
+             Module.setStatus('Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')');
+          } else {
+            Module.setStatus('All downloads complete.');
+          }
         }
       };
       Module.noAudioDecoding = true;
@@ -154,7 +153,6 @@
       }
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');
-        spinnerElement.style.display = 'none';
         Module.setStatus = function(text) {
           if (text) Module.printErr('[post-exception status] ' + text);
         };
@@ -168,5 +166,6 @@
       }, false);
     </script>
     {{{ SCRIPT }}}
+
   </body>
 </html>
