@@ -59,7 +59,7 @@ struct character {
     int     moved;
     int     ragdoll;
     int     stuck;
-    bool    dashing;
+    bool    can_sprint;
     bool    jumping;
     enum character_state state;
 };

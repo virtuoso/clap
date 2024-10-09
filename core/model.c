@@ -1377,6 +1377,16 @@ void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, 
     e->aniq.x[nr_qas - 1].end_priv = priv;
 }
 
+void animation_set_speed(struct entity3d *e, float speed)
+{
+    struct queued_animation *qa = ani_current(e);
+
+    if (!qa)
+        return;
+
+    qa->speed = speed;
+}
+
 void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat)
 {
@@ -1401,6 +1411,7 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
     qa = darray_add(&e->aniq.da);
     qa->animation = id;
     qa->repeat = repeat;
+    qa->speed = 1.0;
     if (clear) {
         animation_start(e, s->frames_total, id);
         e->animation = 0;
@@ -1420,10 +1431,10 @@ static void animated_update(struct entity3d *e, struct scene *s)
         animation_next(e, s);
     qa = ani_current(e);
     an = &model->anis.x[qa->animation];
-    channels_transform(e, an, (float)(s->frames_total - e->ani_frame) / framerate);
+    channels_transform(e, an, (float)(s->frames_total - e->ani_frame) / framerate * qa->speed);
     one_joint_transform(e, 0, -1);
 
-    if (s->frames_total - e->ani_frame >= an->time_end * framerate)
+    if ((float)(s->frames_total - e->ani_frame) * qa->speed >= an->time_end * framerate)
         animation_next(e, s);
 }
 

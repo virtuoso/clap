@@ -19,11 +19,12 @@ static void motion_parse_input(struct motionctl *mctl, struct message *m)
         mctl->lin_speed *= 3;
 #endif
 
-    if (ch->dashing && (m->input.dash || m->input.pad_rb)) {
+    if (ch->can_sprint && (m->input.dash || m->input.pad_rb)) {
         /* if not already dashing or in dashing cooldown, dash */
         if (!timespec_nonzero(&mctl->dash_started)) {
             memcpy(&mctl->dash_started, &mctl->ts, sizeof(mctl->dash_started));
             mctl->lin_speed *= 1.5;
+            animation_set_speed(ch->entity, 1.5);
         }
     }
 
@@ -122,8 +123,10 @@ static void motion_reset(struct motionctl *mctl, struct scene *s)
 
         timespec_diff(&mctl->dash_started, &s->ts, &diff);
         /* dashing end, in cooldown */
-        if (diff.tv_sec >= 1)
+        if (diff.tv_sec >= 1) {
             mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+            animation_set_speed(ch->entity, 1.0);
+        }
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
             mctl->dash_started.tv_sec = mctl->dash_started.tv_nsec = 0;

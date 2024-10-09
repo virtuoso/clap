@@ -74,6 +74,7 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
                             bool clear, bool repeat);
 int animation_by_name(struct model3d *m, const char *name);
 void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv);
+void animation_set_speed(struct entity3d *e, float speed);
 
 #define LOD_MAX 4
 struct model3d {
@@ -218,6 +219,7 @@ struct queued_animation {
     unsigned long   delay;
     void            (*end)(struct scene *s, void *end_priv);
     void            *end_priv;
+    float           speed;
 };
 
 struct entity3d {

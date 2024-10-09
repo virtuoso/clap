@@ -383,7 +383,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *obj = NULL, *binvec = NULL, *gltf = NULL, *tex = NULL;
-    bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, dash = false;
+    bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, can_sprint = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *light = NULL;
     int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
     struct gltf_data *gd = NULL;
@@ -414,8 +414,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             cull_face = p->bool_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "alpha_blend"))
             alpha_blend = p->bool_;
-        else if (p->tag == JSON_BOOL && !strcmp(p->key, "dash"))
-            dash = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "can_sprint"))
+            can_sprint = p->bool_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "jump"))
             jump = p->bool_;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
@@ -540,7 +540,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 //     scene->control = c;
                 e = c->entity;
                 e->skip_culling = true;
-                c->dashing = dash;
+                c->can_sprint = can_sprint;
                 c->jumping = jump;
             } else {
                 e = entity3d_new(txm);
