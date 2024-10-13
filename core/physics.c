@@ -507,7 +507,6 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
         CHECK(g = dCreateSphere(phys->space, r));
     //dGeomSetData(g, e);
 
-    body->geom = g;
     body->yoffset = off;
     if (phys_body_has_body(body)) {
         dMassSetZero(&body->mass);
@@ -579,8 +578,16 @@ dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct 
     //dGeomTriMeshDataBuildSimple(meshdata, tvx, vxsz, tidx, idxsz);
     dGeomTriMeshDataPreprocess2(meshdata, (1U << dTRIDATAPREPROCESS_BUILD_FACE_ANGLES), NULL);
     //dGeomTriMeshDataPreprocess2(meshdata, (1U << dTRIDATAPREPROCESS_BUILD_CONCAVE_EDGES), NULL);
-    CHECK(trimesh = dCreateTriMesh(phys->space, meshdata, NULL, NULL, NULL));
-    //dGeomSetData(trimesh, e);
+    trimesh = dCreateTriMesh(phys->space, meshdata, NULL, NULL, NULL);
+    if (!trimesh) {
+        dGeomTriMeshDataDestroy(meshdata);
+        free(tvx);
+        free(tidx);
+        return NULL;
+    }
+
+    body->trimesh_vx = tvx;
+    body->trimesh_idx = tidx;
 
     /*
      * XXX: terrain.c corner case, calls here directly with body==NULL
@@ -615,14 +622,24 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         body->body = dBodyCreate(phys->world);
 
     if (class == dTriMeshClass) {
-        phys_geom_trimesh_new(phys, body, entity, mass);
+        body->geom = phys_geom_trimesh_new(phys, body, entity, mass);
     } else if (class == dSphereClass) {
         dMassSetZero(&m);
         dMassSetSphereTotal(&m, mass, 0.1);
     } else if (class == dCapsuleClass) {
-        phys_geom_capsule_new(phys, body, entity, mass, geom_radius * entity->scale,
-                              geom_offset * entity->scale);
+        body->geom = phys_geom_capsule_new(phys, body, entity, mass, geom_radius * entity->scale,
+                                           geom_offset * entity->scale);
     }
+
+    if (!body->geom) {
+        if (has_body)
+            dBodyDestroy(body->body);
+        free(body);
+
+        return NULL;
+    }
+
+    body->class = class;
 
     dRSetIdentity(rot);
     if (has_body) {
@@ -675,8 +692,17 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
 void phys_body_done(struct phys_body *body)
 {
     list_del(&body->entry);
+
+    dTriMeshDataID meshdata = NULL;
+    if (body->class == dTriMeshClass) {
+        meshdata = dGeomTriMeshGetTriMeshDataID(body->geom);
+        free(body->trimesh_vx);
+        free(body->trimesh_idx);
+    }
     if (body->geom)
         dGeomDestroy(body->geom);
+    if (meshdata)
+        dGeomTriMeshDataDestroy(meshdata);
     if (body->body)
         dBodyDestroy(body->body);
     body->geom = NULL;

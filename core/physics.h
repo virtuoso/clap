@@ -45,6 +45,9 @@ struct phys_body {
     struct list pen_entry;
     vec3        pen_norm;
     dReal       pen_depth;
+    dReal       *trimesh_vx;
+    dTriIndex   *trimesh_idx;
+    int         class;
 };
 
 struct phys {
