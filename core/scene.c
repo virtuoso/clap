@@ -382,7 +382,7 @@ struct scene_model_queue {
 static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
-    char *name = NULL, *obj = NULL, *binvec = NULL, *gltf = NULL, *tex = NULL;
+    char *name = NULL, *gltf = NULL, *tex = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, can_sprint = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *light = NULL;
     int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
@@ -398,10 +398,6 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     for (p = node->children.head; p; p = p->next) {
         if (p->tag == JSON_STRING && !strcmp(p->key, "name"))
             name = p->string_;
-        else if (p->tag == JSON_STRING && !strcmp(p->key, "obj"))
-            obj = p->string_;
-        else if (p->tag == JSON_STRING && !strcmp(p->key, "binvec"))
-            binvec = p->string_;
         else if (p->tag == JSON_STRING && !strcmp(p->key, "gltf"))
             gltf = p->string_;
         else if (p->tag == JSON_STRING && !strcmp(p->key, "texture"))
@@ -430,61 +426,43 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             light = p;
     }
 
-    if (!name || (!obj && !binvec && !gltf)) {
-        dbg("json: name '%s' obj '%s' binvec '%s' tex '%s'\n",
-            name, obj, binvec, tex);
+    if (!name || !gltf) {
+        dbg("json: name '%s' or gltf '%s' missing\n", name, gltf);
         return -1;
     }
-    if (!gltf && !tex)
-        return -1;
     
-    /* XXX: obj and binvec will bitrot pretty quickly */
-    if (obj) {
-        libh = lib_request_obj(obj, scene);
-        txm = model3dtx_new(scene->_model, tex);
-        ref_put(scene->_model);
-        scene_add_model(scene, txm);
-        ref_put_last(libh);
-    } else if (binvec) {
-        libh = lib_request_bin_vec(binvec, scene);
-        txm = model3dtx_new(scene->_model, tex);
-        ref_put(scene->_model);
-        scene_add_model(scene, txm);
-        ref_put_last(libh);
-    } else if (gltf) {
-        gd = gltf_load(scene, gltf);
-        if (!gd) {
-            warn("Error loading GLTF '%s'\n", gltf);
+    gd = gltf_load(scene, gltf);
+    if (!gd) {
+        warn("Error loading GLTF '%s'\n", gltf);
+        return -1;
+    }
+
+    if (gltf_get_meshes(gd) > 1) {
+        int i, root = gltf_root_mesh(gd);
+
+        collision = gltf_mesh_by_name(gd, "collision");
+        if (root < 0)
+            for (i = 0; i < gltf_get_meshes(gd); i++)
+                if (i != collision) {
+                    if (gltf_instantiate_one(gd, i)) {
+                        gltf_free(gd);
+                        return -1;
+                    }
+                    break; /* XXX: why? */
+                }
+        /* In the absence of a dedicated collision mesh, use the main one */
+        if (collision < 0)
+            collision = 0;
+    } else {
+        if (gltf_instantiate_one(gd, 0)) {
+            gltf_free(gd);
             return -1;
         }
-
-        if (gltf_get_meshes(gd) > 1) {
-            int i, root = gltf_root_mesh(gd);
-
-            collision = gltf_mesh_by_name(gd, "collision");
-            if (root < 0)
-                for (i = 0; i < gltf_get_meshes(gd); i++)
-                    if (i != collision) {
-                        if (gltf_instantiate_one(gd, i)) {
-                            gltf_free(gd);
-                            return -1;
-                        }
-                        break; /* XXX: why? */
-                    }
-            /* In the absence of a dedicated collision mesh, use the main one */
-            if (collision < 0)
-                collision = 0;
-        } else {
-            if (gltf_instantiate_one(gd, 0)) {
-                gltf_free(gd);
-                return -1;
-            }
-            collision = 0;
-        }
-        txm = mq_model_last(&scene->mq);
-        txm->model->cull_face = cull_face;
-        txm->model->alpha_blend = alpha_blend;
+        collision = 0;
     }
+    txm = mq_model_last(&scene->mq);
+    txm->model->cull_face = cull_face;
+    txm->model->alpha_blend = alpha_blend;
 
     model3d_set_name(txm->model, name);
 

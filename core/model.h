@@ -7,7 +7,6 @@
 #include "object.h"
 #include "librarian.h"
 #include "display.h" /* XXX: OpenGL headers are included there */
-#include "objfile.h"
 #include "physics.h"
 #include "matrix.h"
 #include "mesh.h"
@@ -132,7 +131,6 @@ struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p
                                          GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz, GLfloat *norm,
                                          size_t normsz);
 struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
-struct model3d *model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md);
 void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz);
 int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz,
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs);
@@ -156,8 +154,6 @@ struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float
 void model3dtx_prepare(struct model3dtx *m);
 void model3dtx_done(struct model3dtx *m);
 void model3dtx_draw(struct model3dtx *m);
-struct lib_handle *lib_request_obj(const char *name, struct scene *scene);
-struct lib_handle *lib_request_bin_vec(const char *name, struct scene *scene);
 
 static inline const char *txmodel_name(struct model3dtx *txm)
 {

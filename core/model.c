@@ -545,25 +545,6 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
     return m;
 }
 
-struct model3d *
-model3d_new_from_model_data(const char *name, struct shader_prog *p, struct model_data *md)
-{
-    struct model3d *m;
-    size_t vxsz, idxsz, txsz;
-    GLfloat *tx, *norm;
-    GLushort *idx;
-
-    model_data_to_vectors(md, &tx, &txsz, &norm, &vxsz, &idx, &idxsz);
-    /* now the easy part */
-    m = model3d_new_from_vectors(name, p, md->v, vxsz, idx, idxsz, tx, txsz, norm, vxsz);
-    model_data_free(md);
-    free(tx);
-    free(norm);
-    free(idx);
-
-    return m;
-}
-
 static void model3d_set_lod(struct model3d *m, unsigned int lod)
 {
     if (lod >= m->nr_lods)
@@ -1055,68 +1036,6 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
         shader_prog_done(prog);
     if (camera && culled)
         ui_debug_printf("culled entities: %lu", culled);
-}
-
-static void model_obj_loaded(struct lib_handle *h, void *data)
-{
-    struct shader_prog *prog;
-    struct scene *s = data;
-    struct model_data * md;
-    struct model3d *m;
-
-    prog = shader_prog_find(&s->shaders, "model");
-    dbg("loaded '%s' %p %zu %d\n", h->name, h->buf, h->size, h->state);
-    if (!h->buf)
-        return;
-
-    md = model_data_new_from_obj(h->buf, h->size);
-    if (!md)
-        return;
-
-    m = model3d_new_from_model_data(h->name, prog, md);
-    ref_put(prog); /* matches shader_prog_find() above */
-    ref_put(h);
-
-    //scene_add_model(s, m);
-    s->_model = m;
-}
-
-static void model_bin_vec_loaded(struct lib_handle *h, void *data)
-{
-    struct shader_prog *prog;
-    struct scene *s = data;
-    struct model3d *m;
-    struct bin_vec_header *hdr = h->buf;
-    float *vx, *tx, *norm;
-    unsigned short *idx;
-
-    prog = shader_prog_find(&s->shaders, "model");
-
-    dbg("loaded '%s' nr_vertices: %" PRIu64 "\n", h->name, hdr->nr_vertices);
-    vx   = h->buf + sizeof(*hdr);
-    tx   = h->buf + sizeof(*hdr) + hdr->vxsz;
-    norm = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz;
-    idx  = h->buf + sizeof(*hdr) + hdr->vxsz + hdr->txsz + hdr->vxsz;
-    m = model3d_new_from_vectors(h->name, prog, vx, hdr->vxsz, idx, hdr->idxsz, tx, hdr->txsz, norm, hdr->vxsz);
-    ref_put(prog);  /* matches shader_prog_find() above */
-    ref_put(h);
-
-    //scene_add_model(s, m);
-    s->_model = m;
-}
-
-struct lib_handle *lib_request_obj(const char *name, struct scene *scene)
-{
-    struct lib_handle *lh;
-    lh = lib_request(RES_ASSET, name, model_obj_loaded, scene);
-    return lh;
-}
-
-struct lib_handle *lib_request_bin_vec(const char *name, struct scene *scene)
-{
-    struct lib_handle *lh;
-    lh = lib_request(RES_ASSET, name, model_bin_vec_loaded, scene);
-    return lh;
 }
 
 /****************************************************************************
