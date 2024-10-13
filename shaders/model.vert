@@ -72,7 +72,7 @@ void main()
         }
         to_camera_vector = to_tangent_space * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
-        surface_normal = (trans * vec4(our_normal.xyz, 0.0)).xyz;
+        surface_normal = our_normal.xyz;
 
         for (int i = 0; i < 4; i++) {
             to_light_vector[i] = light_pos[i] - world_pos.xyz;
