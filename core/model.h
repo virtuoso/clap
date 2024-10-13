@@ -148,6 +148,8 @@ struct model3dtx *model3dtx_new_from_buffers2(struct model3d *model, void *tex, 
                                               void *em, size_t emsz);
 struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
+void model3dtx_set_texture(struct model3dtx *txm, int target, texture_t *tex);
+void model3dtx_set_texture_from(struct model3dtx *txm, int to, struct model3dtx *src, int from);
 struct model3d *model3d_new_cube(struct shader_prog *p);
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
 struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);
@@ -199,14 +201,14 @@ struct fbo {
     int width, height;
     unsigned int fbo;
     int depth_buf;
-    int color_buf;
+    darray(int, color_buf);
     texture_t tex;
     texture_t depth;
     bool ms;
     int retain_tex;
 };
 struct fbo *fbo_new(int width, int height);
-struct fbo *fbo_new_ms(int width, int height, bool ms);
+struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_targets);
 void fbo_prepare(struct fbo *fbo);
 void fbo_done(struct fbo *fbo, int width, int height);
 void fbo_resize(struct fbo *fbo, int width, int height);

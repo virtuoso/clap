@@ -302,6 +302,30 @@ err:
     return NULL;
 }
 
+void model3dtx_set_texture(struct model3dtx *txm, int target, texture_t *tex)
+{
+    struct shader_prog *prog = txm->model->prog;
+    texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission };
+    GLint locs[] = { prog->texture_map, prog->normal_map, prog->emission_map };
+
+    if (target >= array_size(targets))
+        return;
+
+    if (locs[target] < 0) {
+        dbg("program '%s' doesn't have loc %d\n", prog->name, target);
+        return;
+    }
+
+   *targets[target] = tex;
+}
+
+void model3dtx_set_texture_from(struct model3dtx *txm, int to, struct model3dtx *src, int from)
+{
+    texture_t *targets[] = { src->texture, src->normals, src->emission };
+
+    model3dtx_set_texture(txm, to, targets[from]);
+}
+
 static void load_gl_buffer(GLint loc, void *data, GLuint type, size_t sz, GLuint *obj,
                            GLint nr_coords, GLenum target)
 {
@@ -694,7 +718,7 @@ static int fbo_depth_texture(struct fbo *fbo)
     return tex;
 }
 
-static int fbo_color_buffer(struct fbo *fbo)
+static int fbo_color_buffer(struct fbo *fbo, int output)
 {
     unsigned int buf;
 
@@ -704,7 +728,7 @@ static int fbo_color_buffer(struct fbo *fbo)
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, fbo->width, fbo->height));
     else
         GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
-    GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, buf));
+    GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + output, GL_RENDERBUFFER, buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
 
     return buf;
@@ -743,13 +767,18 @@ void fbo_resize(struct fbo *fbo, int width, int height)
     }
 }
 
+#define NR_TARGETS 4
 void fbo_prepare(struct fbo *fbo)
 {
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
     if (fbo->ms) {
-        GLenum buffers[] = { GL_COLOR_ATTACHMENT0 };
-        GL(glDrawBuffers(1, buffers));
+        GLenum buffers[NR_TARGETS];
+        int target;
+
+        for (target = 0; target < darray_count(fbo->color_buf); target++)
+            buffers[target] = GL_COLOR_ATTACHMENT0 + target;
+        GL(glDrawBuffers(darray_count(fbo->color_buf), buffers));
     }
 }
 
@@ -763,7 +792,7 @@ static int fbo_make(struct ref *ref)
 {
     struct fbo *fbo = container_of(ref, struct fbo, ref);
 
-    fbo->color_buf = -1;
+    darray_init(&fbo->color_buf);
     fbo->depth_buf = -1;
     fbo->ms        = false;
 
@@ -778,6 +807,12 @@ static void fbo_drop(struct ref *ref)
     GL(glDeleteFramebuffers(1, &fbo->fbo));
     /* if the texture was cloned, its ->loaded==false making this a nop */
     texture_deinit(&fbo->tex);
+
+    int *color_buf;
+    darray_for_each(color_buf, &fbo->color_buf)
+        glDeleteRenderbuffers(1, (const GLuint *)color_buf);
+    darray_clearout(&fbo->color_buf.da);
+
     // texture_done(&fbo->depth);
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
@@ -785,13 +820,18 @@ static void fbo_drop(struct ref *ref)
 }
 DECLARE_REFCLASS2(fbo);
 
-static void fbo_init(struct fbo *fbo)
+static void fbo_init(struct fbo *fbo, int nr_targets)
 {
     int err;
 
     fbo->fbo = fbo_create();
     if (fbo->ms) {
-        fbo->color_buf = fbo_color_buffer(fbo);
+        int target;
+
+        for (target = 0; target < nr_targets; target++) {
+            int *color_buf = darray_add(&fbo->color_buf.da);
+            *color_buf = fbo_color_buffer(fbo, target);
+        }
     } else {
         fbo_texture_init(fbo);
     }
@@ -803,7 +843,7 @@ static void fbo_init(struct fbo *fbo)
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 }
 
-struct fbo *fbo_new_ms(int width, int height, bool ms)
+struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_targets)
 {
     struct fbo *fbo;
     int ret;
@@ -812,14 +852,14 @@ struct fbo *fbo_new_ms(int width, int height, bool ms)
     fbo->width = width;
     fbo->height = height;
     fbo->ms = ms;
-    fbo_init(fbo);
+    fbo_init(fbo, nr_targets);
 
     return fbo;
 }
 
 struct fbo *fbo_new(int width, int height)
 {
-    return fbo_new_ms(width, height, false);
+    return fbo_new_ms(width, height, false, 1);
 }
 
 static void animation_destroy(struct animation *an)

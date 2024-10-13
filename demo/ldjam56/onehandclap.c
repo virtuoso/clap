@@ -386,6 +386,7 @@ int main(int argc, char **argv, char **envp)
     lib_request_shaders("contrast", &scene.shaders);
     lib_request_shaders("hblur", &scene.shaders);
     lib_request_shaders("vblur", &scene.shaders);
+    lib_request_shaders("combine", &scene.shaders);
     lib_request_shaders("debug", &scene.shaders);
     // lib_request_shaders("terrain", &scene.shaders);
     lib_request_shaders("model", &scene.shaders);
@@ -414,13 +415,22 @@ int main(int argc, char **argv, char **envp)
         goto exit_ui;
 
     blur_pl = pipeline_new(&scene);
-    pass = pipeline_add_pass(blur_pl, NULL, NULL, true);
-    pass = pipeline_add_pass(blur_pl, pass, "vblur", false);
-    pass = pipeline_add_pass(blur_pl, pass, "hblur", false);
+    struct render_pass *model_pass = pipeline_add_pass(blur_pl, NULL, NULL, true, 2, 0);
+    pass = pipeline_add_pass(blur_pl, model_pass, "contrast", false, 0, 0);
+    struct render_pass *rep_pass = pipeline_add_pass(blur_pl, pass, "vblur", false, 0, 0);
+    pass = pipeline_add_pass(blur_pl, rep_pass, "hblur", false, 0, 0);
+    pipeline_pass_repeat(pass, rep_pass, 5);
+
     main_pl = pipeline_new(&scene);
-    pass = pipeline_add_pass(main_pl, NULL, NULL, true);
-    pass = pipeline_add_pass(main_pl, pass, "contrast", false);
-    // pass = pipeline_add_pass(main_pl, pass, "contrast", false);
+    model_pass = pipeline_add_pass(main_pl, NULL, NULL, true, 2, 0);
+    pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 1);
+    pass = pipeline_add_pass(main_pl, pass, "vblur", false, 0, 0);
+    struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", false, 0, 0);
+    pipeline_pass_repeat(bloom_pass, pass, 5);
+
+    //struct render_pass *contrast_pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 0);
+    pass = pipeline_add_pass(main_pl, model_pass, "combine", false, 0, 0);
+    pipeline_pass_add_source(pass, 2, bloom_pass);
 
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;

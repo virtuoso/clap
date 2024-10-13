@@ -18,7 +18,7 @@ uniform float reflectivity;
 uniform vec4 highlight_color;
 
 layout (location=0) out vec4 FragColor;
-// out vec4 FragColor;
+layout (location=1) out vec4 EmissiveColor;
 
 void main()
 {
@@ -44,6 +44,7 @@ void main()
 
     vec3 unit_to_camera_vector = normalize(to_camera_vector);
     vec4 texture_sample = texture(model_tex, pass_tex);
+    EmissiveColor = texture(emission_map, pass_tex);
 
     vec3 total_diffuse = vec3(0.0);
     vec3 total_specular = vec3(0.0);
