@@ -717,33 +717,43 @@ static void scene_onload(struct lib_handle *h, void *buf)
     LOCAL(JsonNode, node);
     JsonNode     *p, *m;
 
+    if (h->state == RES_ERROR) {
+        err("couldn't load scene %s\n", h->name);
+        goto out;
+    }
+
     node = json_decode(h->buf);
     if (!node) {
         err("couldn't parse '%s'\n", h->name);
-        return;
+        h->state = RES_ERROR;
+        goto out;
     }
 
     if (!json_check(node, msg)) {
         err("error parsing '%s': '%s'\n", h->name, msg);
-        return;
+        h->state = RES_ERROR;
+        goto out;
     }
 
     if (node->tag != JSON_OBJECT) {
         err("parse error in '%s'\n", h->name);
-        return;
+        h->state = RES_ERROR;
+        goto out;
     }
 
     for (p = node->children.head; p; p = p->next) {
         if (!strcmp(p->key, "name")) {
             if (p->tag != JSON_STRING) {
                 err("parse error in '%s'\n", h->name);
-                return;
+                h->state = RES_ERROR;
+                goto out;
             }
             scene->name = strdup(p->string_);
         } else if (!strcmp(p->key, "model")) {
             if (p->tag != JSON_ARRAY) {
                 err("parse error in '%s'\n", h->name);
-                return;
+                h->state = RES_ERROR;
+                goto out;
             }
 
             for (m = p->children.head; m; m = m->next) {
@@ -757,8 +767,11 @@ static void scene_onload(struct lib_handle *h, void *buf)
         }
     }
     dbg("loaded scene: '%s'\n", scene->name);
+out:
     ref_put(h);
-    scene_control_next(scene);
+
+    if (h->state == RES_LOADED)
+        scene_control_next(scene);
 }
 
 int scene_load(struct scene *scene, const char *name)

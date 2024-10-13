@@ -118,7 +118,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
     h->func  = cb;
     h->state = RES_REQUESTED;
 
-    h = ref_get(h); /* matches ref_put() in lib_onload() */
+    h = ref_get(h); /* matches ref_put() in the callback, which is mandatory */
     f = fopen(uri, "r");
     dbg("opened '%s': %p\n", uri, f);
     if (!f) {

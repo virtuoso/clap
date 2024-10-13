@@ -647,6 +647,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
 
     if (h->state == RES_ERROR) {
         warn("couldn't load '%s'\n", h->name);
+        ref_put(h);
         return;
     }
 
@@ -655,6 +656,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
     if (!root) {
         warn("couldn't parse '%s'\n", h->name);
         h->state = RES_ERROR;
+        ref_put(h);
         return;
     }
 
