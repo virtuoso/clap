@@ -75,6 +75,9 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
     if (!buffer)
         return -EINVAL;
 
+    if (p->emission_map < 0 && loc == GL_TEXTURE2)
+        return -EINVAL;
+
     //hexdump(buffer, 16);
     texture_init_target(tex, target);
     texture_filters(tex, GL_REPEAT, GL_NEAREST);
@@ -90,8 +93,8 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
 static int model3d_add_texture_from_buffer(struct model3dtx *txm, GLuint target, void *input, size_t length)
 {
     struct shader_prog *prog = txm->model->prog;
-    texture_t *targets[] = { txm->texture, txm->normals };
-    GLint locs[] = { prog->texture_map, prog->normal_map };
+    texture_t *targets[] = { txm->texture, txm->normals, txm->emission };
+    GLint locs[] = { prog->texture_map, prog->normal_map, prog->emission_map };
     int width, height, has_alpha, ret;
     unsigned char *buffer;
 
@@ -138,6 +141,7 @@ static int model3dtx_make(struct ref *ref)
     struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
     txm->texture = &txm->_texture;
     txm->normals = &txm->_normals;
+    txm->emission = &txm->_emission;
     list_init(&txm->entities);
     list_init(&txm->entry);
     return 0;
@@ -162,6 +166,8 @@ static void model3dtx_drop(struct ref *ref)
         texture_deinit(txm->texture);
     if (txm->normals)
         texture_deinit(txm->normals);
+    if (txm->emission)
+        texture_deinit(txm->emission);
     ref_put(txm->model);
 }
 
@@ -197,6 +203,17 @@ struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
     return model3dtx_new2(model, name, NULL);
 }
 
+static void model3dtx_add_fake_emission(struct model3dtx *txm)
+{
+    struct model3d *model = txm->model;
+    float fake_emission[4] = { 0, 0, 0, 1.0 };
+
+    shader_prog_use(model->prog);
+    load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, GL_TEXTURE2, model->prog->emission_map,
+                           txm->emission);
+    shader_prog_done(model->prog);
+}
+
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
 {
     if (!buffer || !length)
@@ -209,6 +226,7 @@ struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer,
 
     txm->model = ref_get(model);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE0, buffer, length);
+    model3dtx_add_fake_emission(txm);
 
     return txm;
 
@@ -230,6 +248,31 @@ struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, s
     txm->model = ref_get(model);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE0, tex, texsz);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE1, norm, normsz);
+    model3dtx_add_fake_emission(txm);
+
+    return txm;
+
+err:
+    ref_put_passed(model);
+    return NULL;
+}
+
+struct model3dtx *model3dtx_new_from_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
+                                              void *em, size_t emsz)
+{
+    if (!tex || !texsz /*|| !norm || !normsz*/ || !em || !emsz)
+        goto err;
+
+    struct model3dtx *txm = ref_new(model3dtx);
+
+    if (!txm)
+        goto err;
+
+    txm->model = ref_get(model);
+    model3d_add_texture_from_buffer(txm, GL_TEXTURE0, tex, texsz);
+    if (norm && normsz)
+        model3d_add_texture_from_buffer(txm, GL_TEXTURE1, norm, normsz);
+    model3d_add_texture_from_buffer(txm, GL_TEXTURE2, em, emsz);
 
     return txm;
 
@@ -568,6 +611,12 @@ void model3dtx_prepare(struct model3dtx *txm)
         GL(glActiveTexture(GL_TEXTURE1));
         GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->normals)));
         GL(glUniform1i(p->normal_map, 1));
+    }
+
+    if (p->emission_map >= 0 && texture_loaded(txm->emission)) {
+        GL(glActiveTexture(GL_TEXTURE2));
+        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->emission)));
+        GL(glUniform1i(p->emission_map, 2));
     }
 }
 

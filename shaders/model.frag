@@ -10,6 +10,7 @@ in vec4 pass_tangent;
 
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
+uniform sampler2D emission_map;
 uniform vec3 light_color[4];
 uniform vec3 attenuation[4];
 uniform float shine_damper;

@@ -187,6 +187,7 @@ struct gltf_animation {
 struct gltf_material {
     int    base_tex;
     int    normal_tex;
+    int    emission_tex;
     double metallic;
     double roughness;
 };
@@ -457,6 +458,7 @@ unsigned int gltf_ ## _name ## sz(struct gltf_data *gd, int mesh) \
 
 GLTF_MAT_TEX(base, tex)
 GLTF_MAT_TEX(normal, nmap)
+GLTF_MAT_TEX(emission, em)
 
 int gltf_root_mesh(struct gltf_data *gd)
 {
@@ -910,21 +912,16 @@ static void gltf_onload(struct lib_handle *h, void *data)
     /* Materials */
     for (n = mats->children.head; n; n = n->next) {
         struct gltf_material *mat;
-        JsonNode *jwut, *jpbr;
+        JsonNode *jwut, *jpbr, *jem;
 
         jpbr = json_find_member(n, "pbrMetallicRoughness");
         if (!jpbr || jpbr->tag != JSON_OBJECT)
             continue;
 
         jwut = json_find_member(jpbr, "baseColorTexture");
-        /*
-         * this means the model was exported from blender with "emission" shader
-         * instead of principal BSDF; we'll still handle it, but print a warning
-         */
-        if (!jwut) {
-            jwut = json_find_member(n, "emissiveTexture");
-            warn("found emissiveTexture; this is probably not what you want\n");
-        }
+        if (!jwut || jwut->tag != JSON_OBJECT)
+            continue;
+
         if (!jwut || jwut->tag != JSON_OBJECT)
             continue;
         jwut = json_find_member(jwut, "index");
@@ -934,6 +931,14 @@ static void gltf_onload(struct lib_handle *h, void *data)
         CHECK(mat = darray_add(&gd->mats.da));
         mat->base_tex = jwut->number_;
         mat->normal_tex = -1;
+        mat->emission_tex = -1;
+
+        jem = json_find_member(n, "emissiveTexture");
+        if (jem && jem->tag == JSON_OBJECT) {
+            JsonNode *jemidx = json_find_member(jem, "index");
+            if (jemidx && jemidx->tag == JSON_NUMBER)
+                mat->emission_tex = jemidx->number_;
+        }
 
         if (jpbr) {
             jwut = json_find_member(jpbr, "metallicFactor");
@@ -952,9 +957,10 @@ static void gltf_onload(struct lib_handle *h, void *data)
             }
         }
 
-        dbg("material %d: tex: %d nmap: %d met: %f rough: %f\n",
+        dbg("material %d: tex: %d nmap: %d emission: %d met: %f rough: %f\n",
             gd->mats.da.nr_el - 1, mat->base_tex,
             mat->normal_tex,
+            mat->emission_tex,
             mat->metallic,
             mat->roughness
         );
@@ -1072,7 +1078,11 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
     }
 
     gd->scene->_model = m;
-    if (gltf_has_nmap(gd, mesh)) {
+    if (gltf_has_em(gd, mesh)) {
+        txm = model3dtx_new_from_buffers2(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
+                                          gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh),
+                                          gltf_em(gd, mesh), gltf_emsz(gd, mesh));
+    } else if (gltf_has_nmap(gd, mesh)) {
         txm = model3dtx_new_from_buffers(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
                                         gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh));
     } else {

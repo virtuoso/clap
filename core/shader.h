@@ -23,6 +23,7 @@ struct shader_prog {
     GLint       tangent;
     GLint       texture_map;
     GLint       normal_map;
+    GLint       emission_map;
     GLint       joints;
     GLint       weights;
     GLint       tex;

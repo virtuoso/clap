@@ -115,8 +115,10 @@ struct model3dtx {
     // GLuint         texture_id;
     texture_t      _texture;
     texture_t      _normals;
+    texture_t      _emission;
     texture_t      *texture;
     texture_t      *normals;
+    texture_t      *emission;
     // GLuint         normals_id;
     float          metallic;
     float          roughness;
@@ -142,6 +144,8 @@ struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
 struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const char *norm);
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length);
 struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz);
+struct model3dtx *model3dtx_new_from_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
+                                              void *em, size_t emsz);
 struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
 struct model3d *model3d_new_cube(struct shader_prog *p);

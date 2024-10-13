@@ -214,9 +214,10 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
     p->normal_map  = shader_prog_find_var(p, "normal_map");
     p->joints      = shader_prog_find_var(p, "joints");
     p->weights     = shader_prog_find_var(p, "weights");
-    dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d\n",
+    p->emission_map = shader_prog_find_var(p, "emission_map");
+    dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d/%d\n",
         p->name, p->pos, p->norm, p->tex, p->tangent,
-        p->texture_map, p->normal_map, p->joints, p->weights);
+        p->texture_map, p->normal_map, p->emission_map, p->joints, p->weights);
     if (p->pos < 0) {
         shader_prog_done(p);
 	return NULL;
