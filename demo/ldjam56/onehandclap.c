@@ -386,6 +386,7 @@ int main(int argc, char **argv, char **envp)
     lib_request_shaders("contrast", &scene.shaders);
     lib_request_shaders("hblur", &scene.shaders);
     lib_request_shaders("vblur", &scene.shaders);
+    lib_request_shaders("sobel", &scene.shaders);
     lib_request_shaders("combine", &scene.shaders);
     lib_request_shaders("debug", &scene.shaders);
     // lib_request_shaders("terrain", &scene.shaders);
@@ -429,7 +430,8 @@ int main(int argc, char **argv, char **envp)
     pipeline_pass_repeat(bloom_pass, pass, 5);
 
     //struct render_pass *contrast_pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 0);
-    pass = pipeline_add_pass(main_pl, model_pass, "combine", false, 0, 0);
+    pass = pipeline_add_pass(main_pl, model_pass, "sobel", false, 0, 0);
+    pass = pipeline_add_pass(main_pl, pass, "combine", false, 0, 0);
     pipeline_pass_add_source(pass, 2, bloom_pass);
 
     scene.lin_speed = 2.0;
