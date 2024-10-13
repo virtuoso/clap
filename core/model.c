@@ -738,7 +738,7 @@ void fbo_resize(struct fbo *fbo, int width, int height)
 
     if (fbo->depth_buf) {
         GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf));
-        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fbo->width, fbo->height));
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
 }
