@@ -8,11 +8,6 @@ if [ -n "$1" ]; then
 	VERBOSE="--verbose"
 fi
 
-cd compile-time
-cmake -B build/rel -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build build/rel
-cd ..
-
 cmake --build build/rel $VERBOSE $OPTS
 cmake --build build/test $VERBOSE $OPTS
 cmake --build build/debug $VERBOSE $OPTS

@@ -18,7 +18,7 @@ endif ()
 
 set(SHADER_DIR "${ASSET_DIR}/${SHADER_TYPE}")
 set(SHADER_SOURCE_DIR "${PARENT_DIR}/clap/shaders")
-set(SHADER_PREPROCESSOR "${PARENT_DIR}/clap/compile-time/build/rel/preprocess_shaders")
+set(SHADER_PREPROCESSOR "${PARENT_DIR}/clap/scripts/preprocess_shaders.sh")
 set(SHADERS "ui"
             "glyph"
             "model"
@@ -40,7 +40,7 @@ FOREACH(s ${SHADERS})
     LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${s}.vert" "${SHADER_DIR}/${s}.frag")
     add_custom_command(
         OUTPUT "${SHADER_DIR}/${s}.vert" "${SHADER_DIR}/${s}.frag"
-        DEPENDS make-shader-output-dir "${SHADER_SOURCE_DIR}/${s}.vert" "${SHADER_SOURCE_DIR}/${s}.frag"
+        DEPENDS make-shader-output-dir "${SHADER_PREPROCESSOR}" "${SHADER_SOURCE_DIR}/${s}.vert" "${SHADER_SOURCE_DIR}/${s}.frag"
         COMMAND "${SHADER_PREPROCESSOR}"
         ARGS -t ${SHADER_TYPE} -o ${SHADER_DIR}/ ${SHADER_SOURCE_DIR}/${s}
     )
