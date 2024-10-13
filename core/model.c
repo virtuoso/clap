@@ -688,8 +688,8 @@ static int fbo_depth_texture(struct fbo *fbo)
     int tex;
 
     texture_init(&fbo->depth);
-    texture_filters(&fbo->tex, GL_CLAMP_TO_EDGE, GL_LINEAR);
-    texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
+    texture_filters(&fbo->depth, GL_CLAMP_TO_EDGE, GL_LINEAR);
+    texture_fbo(&fbo->depth, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
 
     return tex;
 }
