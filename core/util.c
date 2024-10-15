@@ -99,8 +99,15 @@ void *darray_insert(struct darray *da, int idx)
 
 void darray_delete(struct darray *da, int idx)
 {
-    memmove(da->array + idx * da->elsz, da->array + (idx + 1) * da->elsz,
-            (da->nr_el - idx - 1) * da->elsz);
+    if (!da->nr_el)
+        return;
+
+    if (idx < 0)
+        idx = da->nr_el - 1;
+
+    if (idx < da->nr_el - 1)
+        memmove(da->array + idx * da->elsz, da->array + (idx + 1) * da->elsz,
+                (da->nr_el - idx - 1) * da->elsz);
 
     (void)darray_resize(da, da->nr_el - 1);
 }
