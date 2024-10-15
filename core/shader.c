@@ -212,12 +212,13 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
     p->tangent     = shader_prog_find_var(p, "tangent");
     p->texture_map = shader_prog_find_var(p, "model_tex");
     p->normal_map  = shader_prog_find_var(p, "normal_map");
+    p->sobel_tex   = shader_prog_find_var(p, "sobel_tex");
     p->joints      = shader_prog_find_var(p, "joints");
     p->weights     = shader_prog_find_var(p, "weights");
     p->emission_map = shader_prog_find_var(p, "emission_map");
-    dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d/%d\n",
+    dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d/%d/%d\n",
         p->name, p->pos, p->norm, p->tex, p->tangent,
-        p->texture_map, p->normal_map, p->emission_map, p->joints, p->weights);
+        p->texture_map, p->normal_map, p->emission_map, p->sobel_tex, p->joints, p->weights);
     if (p->pos < 0) {
         shader_prog_done(p);
 	return NULL;

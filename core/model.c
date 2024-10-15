@@ -75,7 +75,7 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
     if (!buffer)
         return -EINVAL;
 
-    if (p->emission_map < 0 && loc == GL_TEXTURE2)
+    if (loc < 0)
         return -EINVAL;
 
     //hexdump(buffer, 16);
@@ -142,6 +142,7 @@ static int model3dtx_make(struct ref *ref)
     txm->texture = &txm->_texture;
     txm->normals = &txm->_normals;
     txm->emission = &txm->_emission;
+    txm->sobel = &txm->_sobel;
     list_init(&txm->entities);
     list_init(&txm->entry);
     return 0;
@@ -168,6 +169,8 @@ static void model3dtx_drop(struct ref *ref)
         texture_deinit(txm->normals);
     if (txm->emission)
         texture_deinit(txm->emission);
+    if (txm->sobel)
+        texture_deinit(txm->sobel);
     ref_put(txm->model);
 }
 
@@ -214,6 +217,17 @@ static void model3dtx_add_fake_emission(struct model3dtx *txm)
     shader_prog_done(model->prog);
 }
 
+static void model3dtx_add_fake_sobel(struct model3dtx *txm)
+{
+    struct model3d *model = txm->model;
+    float fake_sobel[4] = { 1.0, 1.0, 1.0, 1.0 };
+
+    shader_prog_use(model->prog);
+    load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, GL_TEXTURE3, model->prog->sobel_tex,
+                           txm->sobel);
+    shader_prog_done(model->prog);
+}
+
 struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
 {
     if (!buffer || !length)
@@ -227,6 +241,7 @@ struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer,
     txm->model = ref_get(model);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE0, buffer, length);
     model3dtx_add_fake_emission(txm);
+    model3dtx_add_fake_sobel(txm);
 
     return txm;
 
@@ -249,6 +264,7 @@ struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, s
     model3d_add_texture_from_buffer(txm, GL_TEXTURE0, tex, texsz);
     model3d_add_texture_from_buffer(txm, GL_TEXTURE1, norm, normsz);
     model3dtx_add_fake_emission(txm);
+    model3dtx_add_fake_sobel(txm);
 
     return txm;
 
@@ -305,8 +321,8 @@ err:
 void model3dtx_set_texture(struct model3dtx *txm, int target, texture_t *tex)
 {
     struct shader_prog *prog = txm->model->prog;
-    texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission };
-    GLint locs[] = { prog->texture_map, prog->normal_map, prog->emission_map };
+    texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission, &txm->sobel };
+    GLint locs[] = { prog->texture_map, prog->normal_map, prog->emission_map, prog->sobel_tex };
 
     if (target >= array_size(targets))
         return;
@@ -316,12 +332,12 @@ void model3dtx_set_texture(struct model3dtx *txm, int target, texture_t *tex)
         return;
     }
 
-   *targets[target] = tex;
+    *targets[target] = tex;
 }
 
 void model3dtx_set_texture_from(struct model3dtx *txm, int to, struct model3dtx *src, int from)
 {
-    texture_t *targets[] = { src->texture, src->normals, src->emission };
+    texture_t *targets[] = { src->texture, src->normals, src->emission, src->sobel };
 
     model3dtx_set_texture(txm, to, targets[from]);
 }
@@ -622,6 +638,12 @@ void model3dtx_prepare(struct model3dtx *txm)
         GL(glActiveTexture(GL_TEXTURE2));
         GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->emission)));
         GL(glUniform1i(p->emission_map, 2));
+    }
+
+    if (p->sobel_tex >= 0 && texture_loaded(txm->sobel)) {
+        GL(glActiveTexture(GL_TEXTURE3));
+        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->sobel)));
+        GL(glUniform1i(p->sobel_tex, 3));
     }
 }
 
