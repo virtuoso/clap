@@ -195,7 +195,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 static void projmx_update(struct scene *s)
 {
     struct matrix4f *m = s->proj_mx;
-    float y_scale = (1 / tan(FOV / 2)) * s->aspect;
+    float y_scale = (1 / tan(FOV / 2));
     float x_scale = y_scale / s->aspect;
     float frustum_length = s->far_plane - s->near_plane;
 
