@@ -18,6 +18,7 @@ static int width, height;
 static display_update update_fn;
 static display_resize resize_fn;
 static void *update_fn_data;
+static int refresh_rate;
 
 bool gl_does_vao(void)
 {
@@ -30,6 +31,9 @@ bool gl_does_vao(void)
 
 int gl_refresh_rate(void)
 {
+    if (refresh_rate)
+        return refresh_rate;
+
     GLFWmonitor *monitor = glfwGetWindowMonitor(window);
 
     if (!monitor)
@@ -37,7 +41,8 @@ int gl_refresh_rate(void)
     if (!monitor)
         return 60;
 
-    return glfwGetVideoMode(monitor)->refreshRate;
+    refresh_rate = glfwGetVideoMode(monitor)->refreshRate;
+    return refresh_rate;
 }
 
 void gl_title(const char *fmt, ...)
@@ -61,6 +66,8 @@ static void resize_cb(GLFWwindow *window, int w, int h)
 {
     width = w;
     height = h;
+    refresh_rate = 0;
+    gl_refresh_rate();
     resize_fn(update_fn_data, w, h);
 }
 
