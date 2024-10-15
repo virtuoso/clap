@@ -180,6 +180,8 @@ static inline void list_del(struct list *el)
          &(__ent->__link) != (__list);             \
          __ent = __it, __it = list_next_entry(__it, __link))
 
+unsigned int fletcher32(const unsigned short *data, size_t len);
+
 struct hashmap {
     struct list *buckets;
     struct list list;

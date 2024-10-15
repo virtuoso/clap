@@ -119,6 +119,29 @@ void darray_clearout(struct darray *da)
     da->nr_el = 0;
 }
 
+unsigned int fletcher32(const unsigned short *data, size_t len)
+{
+	unsigned int c0, c1;
+	len = (len + 1) & ~1;      /* Round up len to words */
+
+	/* We similarly solve for n > 0 and n * (n+1) / 2 * (2^16-1) < (2^32-1) here. */
+	/* On modern computers, using a 64-bit c0/c1 could allow a group size of 23726746. */
+	for (c0 = c1 = 0; len > 0; ) {
+		size_t blocklen = len;
+		if (blocklen > 360*2) {
+			blocklen = 360*2;
+		}
+		len -= blocklen;
+		do {
+			c0 = c0 + *data++;
+			c1 = c1 + c0;
+		} while ((blocklen -= 2));
+		c0 = c0 % 65535;
+		c1 = c1 % 65535;
+	}
+	return (c1 << 16 | c0);
+}
+
 static unsigned long hash_simple(struct hashmap *hm, unsigned int key)
 {
     return key & (hm->nr_buckets - 1);

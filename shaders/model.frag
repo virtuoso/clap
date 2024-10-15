@@ -2,6 +2,7 @@
 
 in vec2 pass_tex;
 in vec3 surface_normal;
+in vec3 orig_normal;
 in vec3 to_light_vector[4];
 in vec3 to_camera_vector;
 in float color_override;
@@ -15,10 +16,13 @@ uniform vec3 light_color[4];
 uniform vec3 attenuation[4];
 uniform float shine_damper;
 uniform float reflectivity;
+uniform bool albedo_texture;
+uniform int entity_hash;
 uniform vec4 highlight_color;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
+layout (location=2) out vec4 Albedo;
 
 void main()
 {
@@ -64,10 +68,16 @@ void main()
         total_diffuse = total_diffuse + brightness * light_color[i] / att_fac;
     }
 
-    total_diffuse = max(total_diffuse, 0.2);
+    FragColor = vec4(max(total_diffuse, 0.2), 1.0) * texture_sample + vec4(total_specular, 1.0);
 
-    FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
-    //gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2));
-    // gl_FragColor = vec4(pass_tangent.xyz, 1);
-    // gl_FragColor = pass_tangent;
+    if (albedo_texture) {
+        Albedo = vec4((normalize(cross(texture_sample.rgb, vec3(
+            abs(fract(cos(mod(float(entity_hash), 3.1415926)))),
+            abs(fract(sin(mod(float(entity_hash), 3.1415926)))),
+            abs(fract(log(float(entity_hash))))
+        ))) + vec3(1.0, 1.0, 1.0) / 2.0), 1.0);
+    } else {
+        vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
+        Albedo = vec4(pos_normal, 1.0);
+    }
 }

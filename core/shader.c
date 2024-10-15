@@ -179,8 +179,10 @@ static void shader_prog_link(struct shader_prog *p)
     p->data.ray          = shader_prog_find_var(p, "ray");
     p->data.color        = shader_prog_find_var(p, "in_color");
     p->data.colorpt      = shader_prog_find_var(p, "color_passthrough");
+    p->data.entity_hash  = shader_prog_find_var(p, "entity_hash");
     p->data.use_normals  = shader_prog_find_var(p, "use_normals");
     p->data.use_skinning  = shader_prog_find_var(p, "use_skinning");
+    p->data.albedo_texture  = shader_prog_find_var(p, "albedo_texture");
     p->data.joint_transforms = shader_prog_find_var(p, "joint_transforms");
 }
 

@@ -37,7 +37,5 @@ void main(void)
   	vec4 sobel_edge_v = n[0] + (2.0*n[1]) + n[2] - (n[6] + (2.0*n[7]) + n[8]);
 	vec4 sobel = sqrt((sobel_edge_h * sobel_edge_h) + (sobel_edge_v * sobel_edge_v));
 
-	FragColor = n[4];
-	if (length(sobel.rgb) > 0.35)
-		FragColor = vec4(0.0, 0.0, 0.0, 1.0);//vec4( 1.0 - sobel.rgb, 1.0 );
+	FragColor = vec4( 1.0 - sobel.rgb, 1.0 );
 }

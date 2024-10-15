@@ -1015,6 +1015,10 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
                 GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
             }
 #endif
+            if (prog->data.albedo_texture >= 0)
+                GL(glUniform1i(prog->data.albedo_texture, !!e->priv)); /* e->priv now points to character */
+            if (prog->data.entity_hash >= 0)
+                GL(glUniform1i(prog->data.entity_hash, fletcher32((void *)&e, sizeof(e) / 2)));
             if (prog->data.color >= 0)
                 GL(glUniform4fv(prog->data.color, 1, e->color));
             if (prog->data.colorpt >= 0)

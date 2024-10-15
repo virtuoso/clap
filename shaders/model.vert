@@ -20,6 +20,7 @@ uniform mat4 joint_transforms[100];
 out float do_use_normals;
 out vec2 pass_tex;
 out vec3 surface_normal;
+out vec3 orig_normal;
 out vec3 to_light_vector[4];
 out vec3 to_camera_vector;
 out float color_override;
@@ -34,6 +35,8 @@ void main()
     }
 
     vec4 our_normal = vec4(normal, 0);
+    orig_normal = our_normal.xyz;
+
     vec4 total_local_pos = vec4(0, 0, 0, 0);
     vec4 total_normal = vec4(0, 0, 0, 0);
     if (use_skinning > 0.5) {
