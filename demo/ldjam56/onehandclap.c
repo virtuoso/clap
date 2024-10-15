@@ -423,16 +423,16 @@ int main(int argc, char **argv, char **envp)
     pipeline_pass_repeat(pass, rep_pass, 5);
 
     main_pl = pipeline_new(&scene);
-    model_pass = pipeline_add_pass(main_pl, NULL, NULL, true, 2, 0);
+    model_pass = pipeline_add_pass(main_pl, NULL, NULL, true, 2, -1);
     pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 1);
-    pass = pipeline_add_pass(main_pl, pass, "vblur", false, 0, 0);
-    struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", false, 0, 0);
+    pass = pipeline_add_pass(main_pl, pass, "vblur", false, 0, -1);
+    struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", false, 0, -1);
     pipeline_pass_repeat(bloom_pass, pass, 5);
 
     //struct render_pass *contrast_pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 0);
     pass = pipeline_add_pass(main_pl, model_pass, "sobel", false, 0, 0);
-    pass = pipeline_add_pass(main_pl, pass, "combine", false, 0, 0);
-    pipeline_pass_add_source(pass, 2, bloom_pass);
+    pass = pipeline_add_pass(main_pl, model_pass, "combine", false, 0, 0);
+    pipeline_pass_add_source(main_pl, pass, 2, bloom_pass, -1);
 
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
