@@ -14,6 +14,7 @@
 #include "librarian.h"
 #include "physics.h"
 #include "settings.h"
+#include "ui-debug.h"
 #include "util.h"
 
 #ifdef HAVE_ASAN
@@ -144,6 +145,8 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
                 ctx->cfg.frame_cb, ctx->cfg.callback_data, ctx->cfg.resize_cb);
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
+    if (ctx->cfg.graphics && ctx->cfg.input)
+        gl_debug_ui_init();
     //clap_settings = settings_init();
 
     return ctx;

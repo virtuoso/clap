@@ -7,6 +7,7 @@
 #include "common.h"
 #include "display.h"
 #include "input-joystick.h"
+#include "ui-debug.h"
 
 static int width, height;
 
@@ -157,4 +158,9 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     gl_get_sizes(NULL, NULL);
     calc_refresh_rate(update_fn, data);
     //resize_fn(width, height);
+}
+
+void gl_debug_ui_init(void)
+{
+    imgui_init(NULL, width, height);
 }

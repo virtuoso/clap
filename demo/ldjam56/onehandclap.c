@@ -95,6 +95,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     frame_count = max((unsigned long)gl_refresh_rate() / s->fps.fps_fine, 1);
     PROF_FIRST(start);
 
+    imgui_render_begin(s->width, s->height);
     fuzzer_input_step();
 
     /* XXX: fix game_init() */
@@ -163,6 +164,7 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
 
     s->proj_updated = 0;
     models_render(&ui.mq, NULL, NULL, NULL, NULL, 0, 0, &count);
+    imgui_render();
     PROF_STEP(ui, models);
 
     s->frames_total += frame_count;
@@ -360,6 +362,7 @@ int main(int argc, char **argv, char **envp)
      * Resize callback will call into projmx_update(), which depends
      * on projection matrix being allocated.
      */
+    imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
 
 #ifndef CONFIG_FINAL
@@ -440,6 +443,7 @@ int main(int argc, char **argv, char **envp)
     scene.limbo_height = -70.0;
     scene_cameras_calc(&scene);
 
+    imgui_render();
     gl_main_loop();
 
     dbg("exiting peacefully\n");

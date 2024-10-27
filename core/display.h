@@ -16,6 +16,7 @@
 typedef void (*display_update)(void *data);
 typedef void (*display_resize)(void *data, int w, int h);
 void gl_init(const char *title, int width, int height, display_update update_fn, void *update_fn_data, display_resize resize_fn);
+void gl_debug_ui_init(void);
 int gl_refresh_rate(void);
 void gl_main_loop(void);
 void gl_done(void);

@@ -7,6 +7,7 @@
 //#include <GL/glew.h>
 #include "display.h"
 #include <GLFW/glfw3.h>
+#include "ui-debug.h"
 #include "common.h"
 #include "input.h"
 #include "input-joystick.h"
@@ -174,7 +175,13 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
         ext = glGetStringi(GL_EXTENSIONS, i);
         msg("GL extension: '%s'\n", ext);
     }
+
     // msg("GL initialized extensions: %s\n", exts);
+}
+
+void gl_debug_ui_init(void)
+{
+    imgui_init(window, width, height);
 }
 
 void gl_request_exit(void)
@@ -191,6 +198,7 @@ void gl_main_loop(void)
 
 void gl_done(void)
 {
+    imgui_done();
     glfwDestroyWindow(window);
     glfwTerminate();
 }

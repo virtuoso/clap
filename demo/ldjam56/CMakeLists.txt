@@ -10,6 +10,9 @@ message("### asset dir ${ASSET_DIR} include dir ${ENGINE_INCLUDE}")
 get_directory_property(CONFIG_GLES
     DIRECTORY "${CMAKE_SOURCE_DIR}/core"
     DEFINITION CONFIG_GLES)
+get_directory_property(CIMGUI_DIR
+    DIRECTORY "${CMAKE_SOURCE_DIR}/core"
+    DEFINITION CIMGUI_DIR)
 if (CONFIG_GLES)
     set(SHADER_TYPE "glsl-es")
 else ()
@@ -122,7 +125,7 @@ set(ENGINE_LIB libonehandclap)
 
 add_executable(${ENGINE_BIN} ${ENGINE_MAIN})
 add_dependencies(${ENGINE_BIN} ${ENGINE_LIB} meshoptimizer preprocess_shaders)
-target_include_directories(${ENGINE_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE})
+target_include_directories(${ENGINE_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
 set_target_properties(${ENGINE_BIN} PROPERTIES LINK_DEPENDS "${ASSETS}")
 target_link_libraries(${ENGINE_BIN} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
 target_link_libraries(${ENGINE_BIN} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
