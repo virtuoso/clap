@@ -259,7 +259,7 @@ ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t
 
     idx32 = mesh_idx_to_idx32(mesh);
     nr_idx = meshopt_simplify(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
-                              target, 0.02f, &target_error);
+                              target, 0.02f, 0, &target_error);
 
 #define goodenough(_new, _orig) ((_new) * 11 / 10 < (_orig))
     if (!goodenough(nr_idx, orig_idx) || nr_idx < 0) {
