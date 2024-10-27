@@ -98,13 +98,56 @@ add_custom_command(
     COMMAND date +'const char *build_date = \"%Y%m%d_%H%M%S\"\;' > builddate.c
 )
 
-add_library(${ENGINE_LIB} ${ENGINE_SRC} builddate.c)
-add_dependencies(${ENGINE_LIB} ode)
+get_filename_component(PARENT_DIR ${clap_SOURCE_DIR} DIRECTORY)
+
+# Build in ImGui via cimgui bindings
+set(CIMGUI_DIR ${PARENT_DIR}/clap/deps/src/cimgui)
+set(CIMGUI_BACKENDS_DIR ${CIMGUI_DIR}/imgui/backends)
+
+set(CIMGUI_BACKEND_HEADERS
+    "imgui_impl_glfw.h"
+    "imgui_impl_opengl3.h"
+)
+
+# ImGui's backend headers require a bit of hackery to work with C
+FOREACH(backend ${CIMGUI_BACKEND_HEADERS})
+    FILE(READ "${CIMGUI_BACKENDS_DIR}/${backend}" backend_src)
+    STRING(REPLACE "#include \"imgui.h\"" "" backend_src "${backend_src}")
+    STRING(REPLACE "glsl_version = nullptr" "glsl_version" backend_src "${backend_src}")
+    FILE(WRITE "${CMAKE_BINARY_DIR}/${backend}" "${backend_src}")
+ENDFOREACH ()
+
+file(GLOB
+    CIMGUI_SRC
+    "${CIMGUI_DIR}/*.cpp"
+    "${CIMGUI_DIR}/imgui/*.cpp"
+    "${CIMGUI_DIR}/imgui/backends/imgui_impl_glfw.cpp"
+    "${CIMGUI_DIR}/imgui/backends/imgui_impl_opengl3.cpp"
+)
+
+# cimgui specific compilation defines to disable C++ mangling: this only needs
+# to happen for the cimgui's compilation units, since it's C++
+FOREACH(src ${CIMGUI_SRC})
+    set_source_files_properties(${src} PROPERTIES
+        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\";IMGUI_IMPL_OPENGL_LOADER_GL3W"
+    )
+ENDFOREACH ()
+
+# the regular C sources don't need any special cimgui API prefixes
+FOREACH(src ${ENGINE_SRC})
+    set_source_files_properties(${src} PROPERTIES COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ ")
+ENDFOREACH ()
+
+add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
+set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
 target_link_libraries(${ENGINE_LIB} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
 target_link_libraries(${ENGINE_LIB} ${ODE_LIBRARY} meshoptimizer)
 target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
 target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})
+target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR}/imgui)
+target_include_directories(${ENGINE_LIB} PRIVATE ${GLFW_INCLUDES})
+target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR} ${CMAKE_BINARY_DIR})
 target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
