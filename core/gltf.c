@@ -774,7 +774,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
         free(nodes);
     }
 
-    nodes_print(gd, &gd->nodes.x[gd->root_node], 0);
+    // nodes_print(gd, &gd->nodes.x[gd->root_node], 0);
 
     /* Buffers */
     for (n = bufs->children.head; n; n = n->next) {
@@ -1159,7 +1159,6 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
              */
             CHECK(an = animation_new(gd->scene->_model, ga->name,
                                      ga->channels.da.nr_el));
-            dbg("## animation '%s'\n", an->name);
             darray_for_each(chan, &ga->channels) {
                 int accr_in = ga->samplers.x[chan->sampler].input;
                 int accr_out = ga->samplers.x[chan->sampler].output;

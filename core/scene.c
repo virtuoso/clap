@@ -620,7 +620,6 @@ light_done:
 
                     if (idx < 0)
                         continue;
-                    dbg("action '%s': animation '%s'\n", p->key, p->string_);
                     free(m->anis.x[idx].name);
                     m->anis.x[idx].name = strdup(p->key);
                 }

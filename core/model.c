@@ -455,7 +455,6 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
         if (jmax >= 100)
             return -1;
     }
-    dbg("## max joints: %d\n", jmax);
 
     CHECK(m->joints = calloc(nr_joints, sizeof(struct model_joint)));
     for (j = 0; j < nr_joints; j++) {

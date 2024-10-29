@@ -43,7 +43,6 @@ static void handle_drop(struct ref *ref)
 {
     struct lib_handle *h = container_of(ref, struct lib_handle, ref);
 
-    dbg("dropping handle %s\n", h->name);
     free(h->buf);
 }
 
