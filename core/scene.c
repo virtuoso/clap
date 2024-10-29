@@ -495,7 +495,6 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             }
         }
 
-        /* XXX: if it's not a gltf, we won't have TriMesh collision data any more */
         if (gd && class == dTriMeshClass) {
             gltf_mesh_data(gd, collision, &txm->model->collision_vx, &txm->model->collision_vxsz,
                            &txm->model->collision_idx, &txm->model->collision_idxsz, NULL, NULL, NULL, NULL);
