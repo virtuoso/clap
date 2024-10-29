@@ -667,7 +667,7 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
 static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 static void ui_menu_done(struct ui *ui);
 
-static void do_debugs(struct ui *ui, const char *debug_name)
+void ui_show_debug(const char *debug_name)
 {
     int i;
 
@@ -679,6 +679,11 @@ static void do_debugs(struct ui *ui, const char *debug_name)
     return;
 found:
     ui_debug_current = i;
+}
+
+static void do_debugs(struct ui *ui, const char *debug_name)
+{
+    ui_show_debug(debug_name);
     ui_menu_done(ui);
 }
 
