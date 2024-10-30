@@ -62,3 +62,36 @@ void imgui_done(void)
 #endif
     igDestroyContext(ctx);
 }
+
+bool ui_igVec3TableHeader(const char *str_id)
+{
+    if (!igBeginTable(str_id, 4, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0))
+        return false;
+
+    igTableSetupColumn("vector", ImGuiTableColumnFlags_WidthStretch, 0, 0);
+    igTableSetupColumn("X", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("Y", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("Z", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+
+    return true;
+}
+
+void ui_igVec3Row(float v[3], const char *fmt, ...)
+{
+    char buf[128];
+    va_list va;
+
+    va_start(va, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, va);
+    va_end(va);
+
+    igTableNextRow(0, 0);
+    igTableNextColumn();
+    igText(buf);
+    igTableNextColumn();
+    igText("%f", v[0]);
+    igTableNextColumn();
+    igText("%f", v[1]);
+    igTableNextColumn();
+    igText("%f", v[2]);
+}

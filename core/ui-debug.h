@@ -24,4 +24,7 @@ void imgui_done(void);
 void imgui_render_begin(int width, int height);
 void imgui_render(void);
 
+bool ui_igVec3TableHeader(const char *str_id);
+void ui_igVec3Row(float v[3], const char *fmt, ...);
+
 #endif /* __CLAP_UI_DEBUG_H__ */
