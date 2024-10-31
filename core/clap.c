@@ -161,7 +161,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
     if (ctx->cfg.graphics && ctx->cfg.input)
-        gl_debug_ui_init();
+        gl_debug_ui_init(ctx);
     //clap_settings = settings_init();
 
     return ctx;

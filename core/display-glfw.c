@@ -179,9 +179,9 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
     // msg("GL initialized extensions: %s\n", exts);
 }
 
-void gl_debug_ui_init(void)
+void gl_debug_ui_init(struct clap_context *ctx)
 {
-    imgui_init(window, width, height);
+    imgui_init(ctx, window, width, height);
 }
 
 void gl_request_exit(void)

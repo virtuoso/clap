@@ -160,7 +160,7 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     //resize_fn(width, height);
 }
 
-void gl_debug_ui_init(void)
+void gl_debug_ui_init(struct clap_context *ctx)
 {
-    imgui_init(NULL, width, height);
+    imgui_init(ctx, NULL, width, height);
 }

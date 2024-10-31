@@ -33,7 +33,7 @@ void imgui_render(void)
     ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
 }
 
-void imgui_init(void *data, int width, int height)
+void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
 {
     ctx = igCreateContext(NULL);
     io = igGetIO();
