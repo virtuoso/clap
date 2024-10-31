@@ -140,7 +140,7 @@ double settings_get_num(struct settings *settings, const char *key)
         return 0.0;
 
     node = settings_get(settings, key);
-    if (node->tag != JSON_NUMBER)
+    if (!node || node->tag != JSON_NUMBER)
         return 0.0;
 
     return node->number_;
@@ -154,7 +154,7 @@ const char *settings_get_str(struct settings *settings, const char *key)
         return NULL;
 
     node = settings_get(settings, key);
-    if (node->tag != JSON_STRING)
+    if (!node || node->tag != JSON_STRING)
         return NULL;
 
     return node->string_;
