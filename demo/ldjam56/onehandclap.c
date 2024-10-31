@@ -245,6 +245,8 @@ static void settings_onload(struct settings *rs, void *data)
     float gain = settings_get_num(rs, "music_volume");
 
     sound_set_gain(intro_sound, gain);
+
+    imgui_set_settings(rs);
 }
 
 static int handle_input(struct message *m, void *data)

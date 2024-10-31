@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "common.h"
+#include "settings.h"
 #include "ui-debug.h"
 
 #ifdef __EMSCRIPTEN__
@@ -11,8 +12,20 @@
 
 #include "imgui_impl_opengl3.h"
 
+static struct settings *settings;
 static struct ImGuiContext *ctx;
 static struct ImGuiIO *io;
+
+void imgui_set_settings(struct settings *rs)
+{
+    settings = rs;
+
+    const char *ini = settings_get_str(settings, "imgui_config");
+    if (!ini)
+        return;
+
+    igLoadIniSettingsFromMemory(ini, strlen(ini));
+}
 
 void imgui_render_begin(int width, int height)
 {
@@ -35,6 +48,11 @@ void imgui_render(void)
 {
     igRender();
     ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
+
+    if (io->WantSaveIniSettings && settings) {
+        settings_set_string(settings, "imgui_config", igSaveIniSettingsToMemory(NULL));
+        io->WantSaveIniSettings = false;
+    }
 }
 
 void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
@@ -42,6 +60,8 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
     ctx = igCreateContext(NULL);
     io = igGetIO();
 
+    io->IniFilename = NULL;
+    io->LogFilename = NULL;
     io->DisplaySize.x = width;
     io->DisplaySize.y = height;
 

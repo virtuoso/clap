@@ -19,7 +19,9 @@ static inline void ui_show_debug_once(const char *debug_name)
         ui_show_debug(str_basename(debug_name));
 }
 
+struct settings;
 void imgui_init(struct clap_context *ctx, void *data, int width, int height);
+void imgui_set_settings(struct settings *rs);
 void imgui_done(void);
 void imgui_render_begin(int width, int height);
 void imgui_render(void);
