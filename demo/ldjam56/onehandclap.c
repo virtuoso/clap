@@ -148,11 +148,9 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     /* XXX: this actually goes to ->update() */
     scene_cameras_calc(s);
 
-    glEnable(GL_DEPTH_TEST);
 #ifndef CONFIG_GLES
     glEnable(GL_MULTISAMPLE);
 #endif
-    glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
     if (ui.modal)
