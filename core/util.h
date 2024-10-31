@@ -243,6 +243,8 @@ static inline double clampd(double x, double floor, double ceil)
     return x;
 }
 
+#define NSEC_PER_SEC 1000000000l
+
 struct timespec64 {
 #if __SIZEOF_LONG__ == 4
     unsigned long long tv_sec;

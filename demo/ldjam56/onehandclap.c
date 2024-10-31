@@ -75,9 +75,10 @@ DECLARE_PROF(end);
 #define PROF_SHOW(x)
 #endif
 
+struct clap_context *clap_ctx;
 struct pipeline *main_pl, *blur_pl;
 
-EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
+EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
     struct timespec ts_start, ts_delta;
     struct scene *s = data; /* XXX */
@@ -85,13 +86,10 @@ EMSCRIPTEN_KEEPALIVE void renderFrame(void *data)
     float y0, y1, y2;
     dReal by;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    timespec_diff(&s->fps.ts_prev, &ts_start, &ts_delta);
-#ifndef CONFIG_BROWSER
-    if (ts_delta.tv_nsec < 1000000000 / gl_refresh_rate())
-        return;
-#endif
-    clap_fps_calc(&s->fps);
+    clap_fps_calc(clap_ctx, &s->fps);
+    ts_start = clap_get_current_timespec(clap_ctx);
+    ts_delta = s->fps.ts_delta;
+
     frame_count = max((unsigned long)gl_refresh_rate() / s->fps.fps_fine, 1);
     PROF_FIRST(start);
 
@@ -310,7 +308,7 @@ int main(int argc, char **argv, char **envp)
 #endif
         .width          = 1280,
         .height         = 720,
-        .frame_cb       = renderFrame,
+        .frame_cb       = render_frame,
         .resize_cb      = resize_cb,
         .callback_data  = &scene,
     };
@@ -354,7 +352,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    struct clap_context *clap = clap_init(&cfg, argc, argv, envp);
+    clap_ctx = clap_init(&cfg, argc, argv, envp);
 
     /*
      * Resize callback will call into projmx_update(), which depends
@@ -364,7 +362,7 @@ int main(int argc, char **argv, char **envp)
     scene_init(&scene);
 
 #ifndef CONFIG_FINAL
-    ncfg.clap = clap;
+    ncfg.clap = clap_ctx;
     networking_init(&ncfg, CLIENT);
 #endif
 
@@ -454,7 +452,7 @@ exit_ui:
     scene_done(&scene);
     settings_done(settings);
     //gl_done();
-    clap_done(clap, 0);
+    clap_done(clap_ctx, 0);
 #else
 exit_ui:
 #endif

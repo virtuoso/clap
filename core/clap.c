@@ -42,23 +42,38 @@ struct clap_context {
     struct clap_config  cfg;
     char                **argv;
     char                **envp;
+    struct timespec     current_time;
     int                 argc;
 };
 
-void clap_fps_calc(struct fps_data *f)
+struct timespec clap_get_current_timespec(struct clap_context *ctx)
+{
+    return ctx->current_time;
+}
+
+double clap_get_current_time(struct clap_context *ctx)
+{
+    return (double)ctx->current_time.tv_sec + (double)ctx->current_time.tv_nsec / NSEC_PER_SEC;
+}
+
+void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
 {
     bool status = false;
-    struct timespec ts;
     struct message m;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    timespec_diff(&f->ts_prev, &ts, &f->ts_delta);
-    memcpy(&f->ts_prev, &ts, sizeof(ts));
+    clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
+    if (!f->ts_prev.tv_sec && !f->ts_prev.tv_nsec) {
+        f->ts_delta.tv_nsec = NSEC_PER_SEC / gl_refresh_rate();
+        f->ts_delta.tv_sec = 0;
+    } else {
+        timespec_diff(&f->ts_prev, &ctx->current_time, &f->ts_delta);
+    }
+    f->ts_prev = ctx->current_time;
 
-    if (f->seconds != ts.tv_sec) {
+    if (f->seconds != ctx->current_time.tv_sec) {
         f->fps_coarse = f->count;
         f->count      = 0;
-        f->seconds    = ts.tv_sec;
+        f->seconds    = ctx->current_time.tv_sec;
         status        = true;
     }
     f->count += 1;//f->ts_delta.tv_nsec / (1000000000/60);
@@ -66,7 +81,7 @@ void clap_fps_calc(struct fps_data *f)
     if (f->ts_delta.tv_sec) {
         f->fps_fine = 1;
     } else {
-        f->fps_fine = 1000000000 / f->ts_delta.tv_nsec;
+        f->fps_fine = NSEC_PER_SEC / f->ts_delta.tv_nsec;
     }
 
     if (status) {

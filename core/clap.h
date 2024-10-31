@@ -7,7 +7,11 @@ struct fps_data {
     unsigned long   fps_fine, fps_coarse, seconds, count;
 };
 
-void clap_fps_calc(struct fps_data *f);
+struct clap_context;
+
+void clap_fps_calc(struct clap_context *ctx, struct fps_data *f);
+struct timespec clap_get_current_timespec(struct clap_context *ctx);
+double clap_get_current_time(struct clap_context *ctx);
 
 struct clap_config {
     unsigned long   debug       : 1,
@@ -26,8 +30,6 @@ struct clap_config {
     void            (*resize_cb)(void *data, int width, int height);
     void            *callback_data;
 };
-
-struct clap_context;
 
 struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, char **envp);
 void clap_done(struct clap_context *ctx, int status);
