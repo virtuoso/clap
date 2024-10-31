@@ -8,6 +8,7 @@
 #include "input-joystick.h"
 #include "input-keyboard.h"
 #include "ui-debug.h"
+#include "ui-imgui-www.h"
 
 static struct message_source keyboard_source = {
     .name   = "keyboard",
@@ -355,8 +356,23 @@ static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent *e, void
     return true;
 }
 
+static EM_BOOL mouseup_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
+{
+    __ui_set_mouse_click(e->button, false);
+    return true;
+}
+
+static EM_BOOL mousedown_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
+{
+    __ui_set_mouse_click(e->button, true);
+    return true;
+}
+
 static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
 {
+    if (__ui_mouse_event_propagate())
+        return true;
+
     struct message_input mi;
 
     memset(&mi, 0, sizeof(mi));
@@ -379,6 +395,9 @@ static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void
 
 static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
 {
+    if (__ui_set_mouse_position(e->targetX, e->targetY))
+        return true;
+
     struct message_input mi;
 
     memset(&mi, 0, sizeof(mi));
@@ -428,6 +447,8 @@ int platform_input_init(void)
     CHECK0(emscripten_set_wheel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, wheel_callback));
     // CHECK0(emscripten_set_scroll_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, scroll_callback));
     CHECK0(emscripten_set_click_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, click_callback));
+    CHECK0(emscripten_set_mouseup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mouseup_callback));
+    CHECK0(emscripten_set_mousedown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousedown_callback));
     CHECK0(emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousemove_callback));
     CHECK0(emscripten_set_resize_callback("#canvas", 0, 1, resize_callback));
     return 0;

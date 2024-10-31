@@ -2,7 +2,9 @@
 #include "common.h"
 #include "ui-debug.h"
 
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+#include "ui-imgui-www.h"
+#else
 #include <GLFW/glfw3.h>
 #include "imgui_impl_glfw.h"
 #endif
@@ -18,7 +20,9 @@ void imgui_render_begin(int width, int height)
     io->DisplaySize.y = height;
 
     ImGui_ImplOpenGL3_NewFrame();
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+    ui_ig_new_frame();
+#else
     ImGui_ImplGlfw_NewFrame();
 #endif
     igNewFrame();
@@ -46,6 +50,7 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
     ImGui_ImplGlfw_InitForOpenGL(win, true);
     const char *glsl_version = "#version 410";
 #else
+    ui_ig_init_for_emscripten(clap_ctx);
     const char *glsl_version = "#version 300 es";
 #endif
 

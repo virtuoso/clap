@@ -22,7 +22,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FREETYPE_LIBRARIES} ${PNG_LIBRARY} ${VORBISFILE_LIBRARY} -O3") # -flto
     set(CONFIG_BROWSER 1)
     set(CONFIG_GLES 1)
-    set(PLATFORM_SRC display-www.c input-www.c)
+    set(PLATFORM_SRC display-www.c input-www.c ui-imgui-www.c)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 else ()
     set(OpenGL_GL_PREFERENCE "LEGACY")
