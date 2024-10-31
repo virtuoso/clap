@@ -119,6 +119,7 @@ static int settings_load(struct settings *settings)
         settings_default(settings);
     }
     trace("read '%s' from settings\n", buf);
+    settings->ready = true;
 
     return 0;
 }
