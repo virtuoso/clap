@@ -101,17 +101,20 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     scene.ts = ts_start;
 
-    /*
-     * calls into character_move(): handle inputs, adjust velocities etc
-     * for the physics step
-     */
-    y0 = s->control->entity->dy;
-    scene_characters_move(s);
+    if (s->control) {
+        /*
+        * calls into character_move(): handle inputs, adjust velocities etc
+        * for the physics step
+        */
+        y0 = s->control->entity->dy;
+        scene_characters_move(s);
 
-    /*
-     * Collisions, dynamics
-     */
-    y1 = s->control->entity->dy;
+        /*
+        * Collisions, dynamics
+        */
+        y1 = s->control->entity->dy;
+    }
+
     for (count = 0; count < frame_count; count++)
         phys_step(1);
 
@@ -122,16 +125,18 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 #endif
     PROF_STEP(net, phys);
 
-    /*
-     * calls entity3d_update() -> character_update()
-     */
-    y2 = s->control->entity->dy;
-    scene_update(s);
-    if (s->control->entity->phys_body) {
-        const dReal *pos = phys_body_position(s->control->entity->phys_body);
-        by = pos[1];
-    } else {
-        by = y2;
+    if (s->control) {
+        /*
+        * calls entity3d_update() -> character_update()
+        */
+        y2 = s->control->entity->dy;
+        scene_update(s);
+        if (s->control->entity->phys_body) {
+            const dReal *pos = phys_body_position(s->control->entity->phys_body);
+            by = pos[1];
+        } else {
+            by = y2;
+        }
     }
 
     // ui_debug_printf("'%s': (%f,%f,%f)\nyoff: %f ray_off: %f\n%f+ %f +%f +%f || %f\n%s%s",
