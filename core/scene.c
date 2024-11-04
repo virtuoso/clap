@@ -26,7 +26,7 @@ static void scene_control_next(struct scene *s)
 {
     struct character *first, *last, *prev;
 
-    if (list_empty(&s->characters))
+    if (list_empty(&s->characters) || !s->control)
         return;
 
     prev = s->control;
@@ -286,7 +286,8 @@ static int scene_handle_input(struct message *m, void *data)
     if (s->ui_is_on)
         return 0;
 
-    character_handle_input(s->control, s, m);
+    if (s->control)
+        character_handle_input(s->control, s, m);
     //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));
 
     return 0;
