@@ -189,8 +189,11 @@ struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const c
         return NULL;
     }
 
-    if (norm)
-        model3d_add_texture_at(txm, GL_TEXTURE1, norm);
+    if (norm && model3d_add_texture_at(txm, GL_TEXTURE1, norm)) {
+        ref_put_last(txm);
+        return NULL;
+    }
+
     txm->roughness = 0.65;
     txm->metallic = 0.45;
 
