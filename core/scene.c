@@ -114,15 +114,18 @@ bool scene_camera_follows(struct scene *s, struct character *ch)
 int scene_camera_add(struct scene *s)
 {
     struct model3d *m = model3d_new_cube(list_first_entry(&s->shaders, struct shader_prog, entry));
-    struct model3dtx *txm = model3dtx_new(m, "transparent.png");
+    model3d_set_name(m, "camera");
+
+    struct model3dtx *txm = model3dtx_new(ref_pass(m), "transparent.png");
     struct entity3d *entity;
 
-    ref_put(m);
+    if (!txm)
+        return -1;
+
     s->camera = &s->cameras[s->nr_cameras];
     s->camera->ch = character_new(txm, s);
     entity = character_entity(s->camera->ch);
     s->control   = s->camera->ch;
-    model3d_set_name(m, "camera");
     model3dtx_add_entity(txm, entity);
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
