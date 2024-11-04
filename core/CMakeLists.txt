@@ -139,6 +139,7 @@ FOREACH(src ${ENGINE_SRC})
 ENDFOREACH ()
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c)
+add_dependencies(${ENGINE_LIB} ode)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
