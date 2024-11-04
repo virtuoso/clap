@@ -462,6 +462,8 @@ exit_ui:
     clap_done(clap_ctx, 0);
 #else
 exit_ui:
+    if (err)
+        imgui_render();
 #endif
 
     return EXIT_SUCCESS;
