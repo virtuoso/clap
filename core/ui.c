@@ -11,7 +11,6 @@
 #include "font.h"
 #include "render.h"
 
-static struct model3d *ui_quad;
 static struct model3dtx *ui_quadtx;
 
 static texture_t *ui_fbo_tex; /* XXX */
@@ -237,13 +236,17 @@ static int ui_model_init(struct ui *ui)
         return -EINVAL;
     }
 
-    ui_quad = model3d_new_quad(prog, x, y, 0.1, w, h);
+    struct model3d *ui_quad = model3d_new_quad(prog, x, y, 0.1, w, h);
     ui_quad->cull_face = false;
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
     /* XXX: maybe a "textured_model" as another interim object */
-    ui_quadtx = model3dtx_new(ui_quad, "transparent.png");
-    ref_put(ui_quad);
+    ui_quadtx = model3dtx_new(ref_pass(ui_quad), "transparent.png");
+    if (!ui_quadtx) {
+        ref_put(prog);
+        return -EINVAL;
+    }
+
     ui_add_model_tail(ui, ui_quadtx);
     ref_put(prog);  /* matches shader_prog_find() above */
     return 0;
@@ -1575,7 +1578,12 @@ int ui_init(struct ui *ui, int width, int height)
     if (!debug_font || !font)
         return -1;
 
-    ui_model_init(ui);
+    if (ui_model_init(ui)) {
+        font_put(debug_font);
+        font_put(font);
+        return -1;
+    }
+
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     uie1->on_click = build_onclick;
     //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
