@@ -417,10 +417,6 @@ int main(int argc, char **argv, char **envp)
 
     gl_get_sizes(&scene.width, &scene.height);
 
-    err = ui_init(&ui, scene.width, scene.height);
-    if (err)
-        goto exit_ui;
-
     blur_pl = pipeline_new(&scene);
     struct render_pass *model_pass = pipeline_add_pass(blur_pl, NULL, NULL, true, 3, 0);
     pass = pipeline_add_pass(blur_pl, model_pass, "contrast", false, 0, 0);
@@ -440,6 +436,10 @@ int main(int argc, char **argv, char **envp)
     pass = pipeline_add_pass(main_pl, model_pass, "combine", false, 0, 0);
     pipeline_pass_add_source(main_pl, pass, 2, bloom_pass, -1);
     pipeline_pass_add_source(main_pl, pass, 3, sobel_pass, -1);
+
+    err = ui_init(&ui, scene.width, scene.height);
+    if (err)
+        goto exit_ui;
 
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
