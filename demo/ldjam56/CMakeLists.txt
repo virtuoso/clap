@@ -15,13 +15,19 @@ get_directory_property(CIMGUI_DIR
     DEFINITION CIMGUI_DIR)
 if (CONFIG_GLES)
     set(SHADER_TYPE "glsl-es")
+    set(SPIRV_CROSS_ARGS --es --version 300)
 else ()
     set(SHADER_TYPE "glsl")
+    if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(SPIRV_CROSS_ARGS --no-es --no-420pack-extension --version 410)
+    else ()
+        set(SPIRV_CROSS_ARGS --no-es --version 410)
+    endif ()
 endif ()
 
 set(SHADER_DIR "${ASSET_DIR}/${SHADER_TYPE}")
 set(SHADER_SOURCE_DIR "${PARENT_DIR}/clap/shaders")
-set(SHADER_PREPROCESSOR "${PARENT_DIR}/clap/scripts/preprocess_shaders.sh")
+set(SPIRV_DIR "${clap_BINARY_DIR}/spirv")
 set(SHADERS "ui"
             "glyph"
             "model"
@@ -34,21 +40,34 @@ set(SHADERS "ui"
             "terrain"
 )
 
+add_custom_target(make-shader-ir-dir
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIRV_DIR}"
+)
 add_custom_target(make-shader-output-dir
     COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_DIR}"
 )
 
+find_program(GLSLC glslc)
+find_program(SPIRV_CROSS spirv-cross)
 SET(SHADER_SRCS "")
 SET(SHADER_OUTS "")
 FOREACH(s ${SHADERS})
-    LIST(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${s}.vert" "${SHADER_SOURCE_DIR}/${s}.frag")
-    LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${s}.vert" "${SHADER_DIR}/${s}.frag")
-    add_custom_command(
-        OUTPUT "${SHADER_DIR}/${s}.vert" "${SHADER_DIR}/${s}.frag"
-        DEPENDS make-shader-output-dir "${SHADER_PREPROCESSOR}" "${SHADER_SOURCE_DIR}/${s}.vert" "${SHADER_SOURCE_DIR}/${s}.frag"
-        COMMAND "${SHADER_PREPROCESSOR}"
-        ARGS -t ${SHADER_TYPE} -o ${SHADER_DIR}/ ${SHADER_SOURCE_DIR}/${s}
-    )
+    FOREACH(stage vert frag)
+        LIST(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${s}.${stage}")
+        LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${s}.${stage}")
+        add_custom_command(
+            OUTPUT "${SPIRV_DIR}/${s}.${stage}.spv"
+            DEPENDS make-shader-ir-dir "${SHADER_SOURCE_DIR}/${s}.${stage}"
+            COMMAND "${GLSLC}"
+            ARGS -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -o ${SPIRV_DIR}/${s}.${stage}.spv -c ${SHADER_SOURCE_DIR}/${s}.${stage}
+        )
+        add_custom_command(
+            OUTPUT "${SHADER_DIR}/${s}.${stage}"
+            DEPENDS make-shader-output-dir "${SPIRV_DIR}/${s}.${stage}.spv"
+            COMMAND "${SPIRV_CROSS}"
+            ARGS ${SPIRV_CROSS_ARGS} ${SPIRV_DIR}/${s}.${stage}.spv --output ${SHADER_DIR}/${s}.${stage}
+        )
+    ENDFOREACH ()
 ENDFOREACH()
 
 add_custom_target(preprocess_shaders
