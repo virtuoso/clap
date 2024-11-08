@@ -67,7 +67,7 @@ unsigned char *fetch_png(const char *file_name, int *width, int *height, int *ha
 
     fp = fopen(uri, "rb");
     if (!fp) {
-        err("file '%s' could not be opened for reading", file_name);
+        err("file '%s' could not be opened for reading\n", file_name);
         return NULL;
     }
 
