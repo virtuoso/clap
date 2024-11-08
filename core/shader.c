@@ -79,83 +79,11 @@ static GLuint createProgram(const char* vertexSource, const char * fragmentSourc
     return program;
 }
 
-struct shader_var {
-    char *name;
-    GLint loc;
-    struct list entry;
-};
-
-/* XXX use a hashlist */
-GLint shader_prog_find_var(struct shader_prog *p, const char *var)
-{
-    struct shader_var *v;
-
-    list_for_each_entry(v, &p->vars, entry)
-        if (!strcmp(v->name, var))
-            return v->loc;
-    return -1;
-}
-
-static int shader_prog_scan(struct shader_prog *p, const char *txt)
-{
-    static const char *vars[] = {"in", "uniform", "attribute"};/* "varying"? */
-    const char *pos, *pend;
-    struct shader_var *v;
-    int i;
-
-    for (i = 0; i < array_size(vars); i++) {
-        for (pos = txt;;) {
-            pos = strstr(pos, vars[i]);
-            if (!pos)
-                break;
-
-            pos += strlen(vars[i]);
-            if (!isspace(*pos))
-                continue;
-
-            /* skip the variable qualifier */
-            pos = skip_nonspace(pos);
-            /* whitespace */
-            pos = skip_space(pos);
-            /* skip the type */
-            pos = skip_nonspace(pos);
-            /* whitespace */
-            pos = skip_space(pos);
-            /* the actual variable */
-            for (pend = pos; *pend && !isspace(*pend) && *pend != ';' && *pend != '['; pend++)
-                ;
-            v = malloc(sizeof(*v));
-            if (!v)
-                return -ENOMEM;
-            v->name = strndup(pos, pend - pos);
-            switch (i) {
-                case 0:
-                case 2:
-                    v->loc = glGetAttribLocation(p->prog, v->name);
-                    break;
-                case 1:
-                    v->loc = glGetUniformLocation(p->prog, v->name);
-                    break;
-            }
-            //dbg("# found var '%s' @%d\n", v->name, v->loc);
-            list_append(&p->vars, &v->entry);
-            pos = pend;
-        }
-    }
-
-    return 0;
-}
-
 static void shader_prog_drop(struct ref *ref)
 {
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
-    struct shader_var *var, *iter;
 
-    list_for_each_entry_iter(var, iter, &p->vars, entry) {
-        free(var->name);
-        free(var);
-    }
-
+    GL(glDeleteProgram(p->prog));
     list_del(&p->entry);
     dbg("dropping shader '%s'\n", p->name);
 }
@@ -164,26 +92,26 @@ DECLARE_REFCLASS(shader_prog);
 
 static void shader_prog_link(struct shader_prog *p)
 {
-    p->data.width        = shader_prog_find_var(p, "width");
-    p->data.height       = shader_prog_find_var(p, "height");
-    p->data.projmx       = shader_prog_find_var(p, "proj");
-    p->data.viewmx       = shader_prog_find_var(p, "view");
-    p->data.transmx      = shader_prog_find_var(p, "trans");
-    p->data.inv_viewmx   = shader_prog_find_var(p, "inverse_view");
-    p->data.lightp       = shader_prog_find_var(p, "light_pos");
-    p->data.lightc       = shader_prog_find_var(p, "light_color");
-    p->data.attenuation  = shader_prog_find_var(p, "attenuation");
-    p->data.shine_damper = shader_prog_find_var(p, "shine_damper");
-    p->data.reflectivity = shader_prog_find_var(p, "reflectivity");
-    p->data.highlight    = shader_prog_find_var(p, "highlight_color");
-    p->data.ray          = shader_prog_find_var(p, "ray");
-    p->data.color        = shader_prog_find_var(p, "in_color");
-    p->data.colorpt      = shader_prog_find_var(p, "color_passthrough");
-    p->data.entity_hash  = shader_prog_find_var(p, "entity_hash");
-    p->data.use_normals  = shader_prog_find_var(p, "use_normals");
-    p->data.use_skinning  = shader_prog_find_var(p, "use_skinning");
-    p->data.albedo_texture  = shader_prog_find_var(p, "albedo_texture");
-    p->data.joint_transforms = shader_prog_find_var(p, "joint_transforms");
+    p->data.width        = glGetUniformLocation(p->prog, "width");
+    p->data.height       = glGetUniformLocation(p->prog, "height");
+    p->data.projmx       = glGetUniformLocation(p->prog, "proj");
+    p->data.viewmx       = glGetUniformLocation(p->prog, "view");
+    p->data.transmx      = glGetUniformLocation(p->prog, "trans");
+    p->data.inv_viewmx   = glGetUniformLocation(p->prog, "inverse_view");
+    p->data.lightp       = glGetUniformLocation(p->prog, "light_pos");
+    p->data.lightc       = glGetUniformLocation(p->prog, "light_color");
+    p->data.attenuation  = glGetUniformLocation(p->prog, "attenuation");
+    p->data.shine_damper = glGetUniformLocation(p->prog, "shine_damper");
+    p->data.reflectivity = glGetUniformLocation(p->prog, "reflectivity");
+    p->data.highlight    = glGetUniformLocation(p->prog, "highlight_color");
+    p->data.ray          = glGetUniformLocation(p->prog, "ray");
+    p->data.color        = glGetUniformLocation(p->prog, "in_color");
+    p->data.colorpt      = glGetUniformLocation(p->prog, "color_passthrough");
+    p->data.entity_hash  = glGetUniformLocation(p->prog, "entity_hash");
+    p->data.use_normals  = glGetUniformLocation(p->prog, "use_normals");
+    p->data.use_skinning  = glGetUniformLocation(p->prog, "use_skinning");
+    p->data.albedo_texture  = glGetUniformLocation(p->prog, "albedo_texture");
+    p->data.joint_transforms = glGetUniformLocation(p->prog, "joint_transforms");
 }
 
 struct shader_prog *
@@ -195,37 +123,36 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
     if (!p)
         return NULL;
 
-    list_init(&p->vars);
+    list_init(&p->entry);
     p->name = name;
     p->prog = createProgram(vsh, fsh);
     if (!p->prog) {
         err("couldn't create program '%s'\n", name);
-        free(p);
+        ref_put(p);
         return NULL;
     }
 
     shader_prog_use(p);
-    shader_prog_scan(p, vsh);
-    shader_prog_scan(p, fsh);
+    p->pos         = glGetAttribLocation(p->prog, "position");
+    p->norm        = glGetAttribLocation(p->prog, "normal");
+    p->tex         = glGetAttribLocation(p->prog, "tex");
+    p->tangent     = glGetAttribLocation(p->prog, "tangent");
+    p->joints      = glGetAttribLocation(p->prog, "joints");
+    p->weights     = glGetAttribLocation(p->prog, "weights");
+    p->texture_map = glGetUniformLocation(p->prog, "model_tex");
+    p->normal_map  = glGetUniformLocation(p->prog, "normal_map");
+    p->sobel_tex   = glGetUniformLocation(p->prog, "sobel_tex");
+    p->emission_map = glGetUniformLocation(p->prog, "emission_map");
+    shader_prog_link(p);
     shader_prog_done(p);
-    p->pos         = shader_prog_find_var(p, "position");
-    p->norm        = shader_prog_find_var(p, "normal");
-    p->tex         = shader_prog_find_var(p, "tex");
-    p->tangent     = shader_prog_find_var(p, "tangent");
-    p->texture_map = shader_prog_find_var(p, "model_tex");
-    p->normal_map  = shader_prog_find_var(p, "normal_map");
-    p->sobel_tex   = shader_prog_find_var(p, "sobel_tex");
-    p->joints      = shader_prog_find_var(p, "joints");
-    p->weights     = shader_prog_find_var(p, "weights");
-    p->emission_map = shader_prog_find_var(p, "emission_map");
     dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d/%d/%d\n",
         p->name, p->pos, p->norm, p->tex, p->tangent,
         p->texture_map, p->normal_map, p->emission_map, p->sobel_tex, p->joints, p->weights);
     if (p->pos < 0) {
-        shader_prog_done(p);
-	return NULL;
+        err("program '%s' doesn't have position attribute\n", p->name);
+        ref_put_last(p);
+        return NULL;
     }
-    shader_prog_link(p);
     return p;
 }
 
