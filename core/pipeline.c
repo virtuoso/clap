@@ -27,7 +27,7 @@ static void pipeline_drop(struct ref *ref)
      * element to not be freed
      */
     list_for_each_entry(pass, &pl->passes, entry) {
-        struct model3dtx *txm = list_first_entry(&pass->mq.txmodels, struct model3dtx, entry);
+        struct model3dtx *txm = mq_model_first(&pass->mq);
         int i;
 
         for (i = 0; i < darray_count(pass->fbo); i++) {
@@ -155,8 +155,8 @@ void pipeline_pass_repeat(struct render_pass *pass, struct render_pass *repeat, 
 
 void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src)
 {
-    struct model3dtx *txmsrc = list_first_entry(&src->mq.txmodels, struct model3dtx, entry);
-    struct model3dtx *txm = list_first_entry(&pass->mq.txmodels, struct model3dtx, entry);
+    struct model3dtx *txmsrc = mq_model_first(&src->mq);
+    struct model3dtx *txm = mq_model_first(&pass->mq);
     struct render_pass **psrc = darray_add(&pass->src.da);
 
     if (!psrc)
