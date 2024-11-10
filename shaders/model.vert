@@ -7,17 +7,16 @@ in vec4 tangent;
 in vec4 joints;
 in vec4 weights;
 
-uniform vec3 ray;
 uniform vec3 light_pos[4];
 uniform mat4 proj;
 uniform mat4 view;
 uniform mat4 inverse_view;
 uniform mat4 trans;
-uniform float use_normals;
-uniform float use_skinning;
+uniform int use_normals;
+uniform int use_skinning;
 uniform mat4 joint_transforms[100];
 
-out float do_use_normals;
+flat out int do_use_normals;
 out vec2 pass_tex;
 out vec3 surface_normal;
 out vec3 orig_normal;
@@ -28,18 +27,13 @@ out float color_override;
 void main()
 {
     vec4 world_pos = trans * vec4(position, 1.0);
-    color_override = 0.0;
-    if (ray.z > 0.5) {
-        if (pow(world_pos.x - ray.x, 2.0) + pow(world_pos.z - ray.y, 2.0) <= 64.0)
-            color_override = 1.0;
-    }
 
     vec4 our_normal = vec4(normal, 0);
     orig_normal = our_normal.xyz;
 
     vec4 total_local_pos = vec4(0, 0, 0, 0);
     vec4 total_normal = vec4(0, 0, 0, 0);
-    if (use_skinning > 0.5) {
+    if (use_skinning != 0) {
         for (int i = 0; i < 4; i++) {
             mat4 joint_transform = joint_transforms[int(joints[i])];
             vec4 local_pos = joint_transform * vec4(position, 1.0);
@@ -57,7 +51,7 @@ void main()
     pass_tex = tex;
 
     // this is still needed in frag
-    if (use_normals > 0.5) {
+    if (use_normals != 0) {
         do_use_normals = use_normals;
         surface_normal = (view * vec4(our_normal.xyz, 0.0)).xyz;
 

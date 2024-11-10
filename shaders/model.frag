@@ -5,8 +5,7 @@ in vec3 surface_normal;
 in vec3 orig_normal;
 in vec3 to_light_vector[4];
 in vec3 to_camera_vector;
-in float color_override;
-in float do_use_normals;
+flat in int do_use_normals;
 in vec4 pass_tangent;
 
 uniform sampler2D model_tex;
@@ -28,10 +27,6 @@ void main()
 {
     if (highlight_color.w != 0.0) {
         FragColor = highlight_color;
-        return;
-    }
-    if (color_override == 1.0) {
-        FragColor = vec4(0.5, 1.0, 1.0, 1.0);
         return;
     }
 

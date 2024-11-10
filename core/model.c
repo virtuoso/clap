@@ -69,19 +69,19 @@ static void model3d_drop(struct ref *ref)
 DECLARE_REFCLASS(model3d);
 
 static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
-                                  int has_alpha, GLuint target, GLint loc, texture_t *tex)
+                                  int has_alpha, enum shader_vars var, texture_t *tex)
 {
     GLuint color_type = has_alpha ? GL_RGBA : GL_RGB;
     if (!buffer)
         return -EINVAL;
 
-    if (loc < 0)
+    if (!shader_has_var(p, var))
         return -EINVAL;
 
     //hexdump(buffer, 16);
-    texture_init_target(tex, target);
+    texture_init_target(tex, GL_TEXTURE0 + shader_get_texture_slot(p, var));
     texture_filters(tex, GL_REPEAT, GL_NEAREST);
-    GL(glUniform1i(loc, target - GL_TEXTURE0));
+    shader_set_texture(p, var);
 
     // Bind it
     texture_load(tex, color_type, width, height, buffer);
@@ -89,51 +89,55 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
     return 0;
 }
 
-/* XXX: actually, make it take the decoded texture, not the png */
-static int model3d_add_texture_from_buffer(struct model3dtx *txm, GLuint target, void *input, size_t length)
+static int model3dtx_add_texture_from_buffer(struct model3dtx *txm, enum shader_vars var, void *input,
+                                             int width, int height, int has_alpha)
+{
+    texture_t *targets[] = { txm->texture, txm->normals, txm->emission, txm->sobel };
+    struct shader_prog *prog = txm->model->prog;
+    int ret, slot;
+
+    slot = shader_get_texture_slot(prog, var);
+    if (slot < 0)
+        return -EINVAL;
+
+    shader_prog_use(prog);
+    ret = load_gl_texture_buffer(prog, input, width, height, has_alpha, var,
+                                 targets[slot]);
+    shader_prog_done(prog);
+    dbg("loaded texture%d %d %dx%d\n", slot, texture_id(txm->texture), width, height);
+
+    return ret;
+}
+
+static int model3dtx_add_texture_from_png_buffer(struct model3dtx *txm, enum shader_vars var, void *input, size_t length)
 {
     struct shader_prog *prog = txm->model->prog;
-    texture_t *targets[] = { txm->texture, txm->normals, txm->emission };
-    GLint locs[] = { prog->texture_map, prog->normal_map, prog->emission_map };
     int width, height, has_alpha, ret;
     unsigned char *buffer;
 
     // dbg("## shader '%s' texture_map: %d normal_map: %d\n", prog->name, prog->texture_map, prog->normal_map);
     buffer = decode_png(input, length, &width, &height, &has_alpha);
-    shader_prog_use(prog);
-    ret = load_gl_texture_buffer(prog, buffer, width, height, has_alpha, target,
-                                 locs[target - GL_TEXTURE0],
-                                 targets[target - GL_TEXTURE0]);
-    shader_prog_done(prog);
+    ret = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
     free(buffer);
-    dbg("loaded texture%d %d %dx%d\n", target - GL_TEXTURE0, texture_id(txm->texture), width, height);
 
     return ret;
 }
 
-static int model3d_add_texture_at(struct model3dtx *txm, GLuint target, const char *name)
+static int model3dtx_add_texture_at(struct model3dtx *txm, enum shader_vars var, const char *name)
 {
     int width = 0, height = 0, has_alpha = 0, ret;
     unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
     struct shader_prog *prog = txm->model->prog;
-    texture_t *targets[] = { txm->texture, txm->normals };
-    GLint locs[] = { prog->texture_map, prog->normal_map };
 
-    shader_prog_use(prog);
-    ret = load_gl_texture_buffer(prog, buffer, width, height, has_alpha, target,
-                                 locs[target - GL_TEXTURE0],
-                                 targets[target - GL_TEXTURE0]);
-    shader_prog_done(prog);
+    ret = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
     free(buffer);
-
-    dbg("loaded texture%d %d %dx%d\n", target - GL_TEXTURE0, texture_id(txm->texture), width, height);
 
     return ret;
 }
 
-static int model3d_add_texture(struct model3dtx *txm, const char *name)
+static int model3dtx_add_texture(struct model3dtx *txm, const char *name)
 {
-    return model3d_add_texture_at(txm, GL_TEXTURE0, name);
+    return model3dtx_add_texture_at(txm, UNIFORM_MODEL_TEX, name);
 }
 
 static int model3dtx_make(struct ref *ref)
@@ -184,12 +188,12 @@ struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const c
         goto err;
 
     txm->model = ref_get(model);
-    if (model3d_add_texture(txm, tex)) {
+    if (model3dtx_add_texture(txm, tex)) {
         ref_put_last(txm);
         return NULL;
     }
 
-    if (norm && model3d_add_texture_at(txm, GL_TEXTURE1, norm)) {
+    if (norm && model3dtx_add_texture_at(txm, UNIFORM_NORMAL_MAP, norm)) {
         ref_put_last(txm);
         return NULL;
     }
@@ -215,7 +219,7 @@ static void model3dtx_add_fake_emission(struct model3dtx *txm)
     float fake_emission[4] = { 0, 0, 0, 1.0 };
 
     shader_prog_use(model->prog);
-    load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, GL_TEXTURE2, model->prog->emission_map,
+    load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, UNIFORM_EMISSION_MAP,
                            txm->emission);
     shader_prog_done(model->prog);
 }
@@ -226,7 +230,7 @@ static void model3dtx_add_fake_sobel(struct model3dtx *txm)
     float fake_sobel[4] = { 1.0, 1.0, 1.0, 1.0 };
 
     shader_prog_use(model->prog);
-    load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, GL_TEXTURE3, model->prog->sobel_tex,
+    load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, UNIFORM_SOBEL_TEX,
                            txm->sobel);
     shader_prog_done(model->prog);
 }
@@ -242,7 +246,7 @@ struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer,
         goto err;
 
     txm->model = ref_get(model);
-    model3d_add_texture_from_buffer(txm, GL_TEXTURE0, buffer, length);
+    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, buffer, length);
     model3dtx_add_fake_emission(txm);
     model3dtx_add_fake_sobel(txm);
 
@@ -264,8 +268,8 @@ struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, s
         goto err;
 
     txm->model = ref_get(model);
-    model3d_add_texture_from_buffer(txm, GL_TEXTURE0, tex, texsz);
-    model3d_add_texture_from_buffer(txm, GL_TEXTURE1, norm, normsz);
+    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
+    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
     model3dtx_add_fake_emission(txm);
     model3dtx_add_fake_sobel(txm);
 
@@ -288,10 +292,10 @@ struct model3dtx *model3dtx_new_from_buffers2(struct model3d *model, void *tex, 
         goto err;
 
     txm->model = ref_get(model);
-    model3d_add_texture_from_buffer(txm, GL_TEXTURE0, tex, texsz);
+    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
     if (norm && normsz)
-        model3d_add_texture_from_buffer(txm, GL_TEXTURE1, norm, normsz);
-    model3d_add_texture_from_buffer(txm, GL_TEXTURE2, em, emsz);
+        model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
+    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
 
     return txm;
 
@@ -321,49 +325,45 @@ err:
     return NULL;
 }
 
-void model3dtx_set_texture(struct model3dtx *txm, int target, texture_t *tex)
+void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex)
 {
     struct shader_prog *prog = txm->model->prog;
     texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission, &txm->sobel };
-    GLint locs[] = { prog->texture_map, prog->normal_map, prog->emission_map, prog->sobel_tex };
+    int slot = shader_get_texture_slot(prog, var);
 
-    if (target >= array_size(targets))
-        return;
-
-    if (locs[target] < 0) {
-        dbg("program '%s' doesn't have loc %d\n", prog->name, target);
+    if (slot < 0) {
+        dbg("program '%s' doesn't have texture %s or it's not a texture\n", prog->name,
+            shader_get_var_name(var));
         return;
     }
 
-    *targets[target] = tex;
+    if (slot >= array_size(targets))
+        return;
+
+    *targets[slot] = tex;
 }
 
-void model3dtx_set_texture_from(struct model3dtx *txm, int to, struct model3dtx *src, int from)
+void model3dtx_set_texture_from(struct model3dtx *txm, enum shader_vars to,
+                                struct model3dtx *src, enum shader_vars from)
 {
     texture_t *targets[] = { src->texture, src->normals, src->emission, src->sobel };
+    int slot = shader_get_texture_slot(txm->model->prog, from);
 
-    model3dtx_set_texture(txm, to, targets[from]);
+    if (slot < 0)
+        return;
+
+    model3dtx_set_texture(txm, to, targets[slot]);
 }
 
-static void load_gl_buffer(GLint loc, void *data, GLuint type, size_t sz, GLuint *obj,
-                           GLint nr_coords, GLenum target)
+static void load_gl_buffer(struct shader_prog *p, int loc, void *data,
+                           size_t sz, GLuint *obj, GLenum target)
 {
     GL(glGenBuffers(1, obj));
     GL(glBindBuffer(target, *obj));
     GL(glBufferData(target, sz, data, GL_STATIC_DRAW));
     
-    /*
-     *   <attr number>
-     *   <number of elements in a vector>
-     *   <type>
-     *   <is normalized?>
-     *   <stride> for interleaving
-     *   <offset>
-     */
-    if (loc >= 0) {
-        // glEnableVertexAttribArray(loc);
-        GL(glVertexAttribPointer(loc, nr_coords, type, GL_FALSE, 0, (void *)0));
-    }
+    if (loc >= 0)
+        shader_setup_attribute(p, loc);
     
     GL(glBindBuffer(target, 0));
 }
@@ -423,20 +423,19 @@ void model3d_aabb_center(struct model3d *m, vec3 center)
     vec3_scale(center, center, 0.5);
 }
 
-static void model3d_prepare(struct model3d *m);
-static void model3d_done(struct model3d *m);
-
 void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz)
 {
-    if (m->prog->tangent == -1) {
+    if (!shader_has_var(m->prog, ATTR_TANGENT)) {
         dbg("no tangent input in program '%s'\n", m->prog->name);
         return;
     }
 
     shader_prog_use(m->prog);
-    model3d_prepare(m);
-    load_gl_buffer(m->prog->tangent, tg, GL_FLOAT, tgsz, &m->tangent_obj, 4, GL_ARRAY_BUFFER);
-    model3d_done(m);
+    if (gl_does_vao())
+        glBindVertexArray(m->vao);
+    load_gl_buffer(m->prog, ATTR_TANGENT, tg, tgsz, &m->tangent_obj, GL_ARRAY_BUFFER);
+    if (gl_does_vao())
+        glBindVertexArray(0);
     shader_prog_done(m->prog);
 }
 
@@ -468,10 +467,9 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     shader_prog_use(m->prog);
     if (gl_does_vao())
         glBindVertexArray(m->vao);
-    load_gl_buffer(m->prog->joints, joints, GL_UNSIGNED_BYTE, m->nr_vertices * 4,
-                   &m->joints_obj, 4, GL_ARRAY_BUFFER);
-    load_gl_buffer(m->prog->weights, weights, GL_FLOAT, m->nr_vertices * 4 * sizeof(float),
-                   &m->weights_obj, 4, GL_ARRAY_BUFFER);
+    load_gl_buffer(m->prog, ATTR_JOINTS, joints, m->nr_vertices * 4, &m->joints_obj, GL_ARRAY_BUFFER);
+    load_gl_buffer(m->prog, ATTR_WEIGHTS, weights, m->nr_vertices * 4 * sizeof(float),
+                   &m->weights_obj, GL_ARRAY_BUFFER);
     if (gl_does_vao())
         glBindVertexArray(0);
     shader_prog_done(m->prog);
@@ -505,15 +503,18 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     }
 
     shader_prog_use(p);
-    load_gl_buffer(m->prog->pos, vx, GL_FLOAT, vxsz, &m->vertex_obj, 3, GL_ARRAY_BUFFER);
-    load_gl_buffer(-1, idx, GL_UNSIGNED_SHORT, idxsz, &m->index_obj[0], 0, GL_ELEMENT_ARRAY_BUFFER);
+    load_gl_buffer(m->prog, ATTR_POSITION, vx, vxsz, &m->vertex_obj, GL_ARRAY_BUFFER);
+    load_gl_buffer(m->prog, -1, idx, idxsz, &m->index_obj[0], GL_ELEMENT_ARRAY_BUFFER);
     m->nr_lods++;
 
     if (txsz)
-        load_gl_buffer(m->prog->tex, tx, GL_FLOAT, txsz, &m->tex_obj, 2, GL_ARRAY_BUFFER);
+        load_gl_buffer(m->prog, ATTR_TEX, tx, txsz, &m->tex_obj, GL_ARRAY_BUFFER);
 
     if (normsz)
-        load_gl_buffer(m->prog->norm, norm, GL_FLOAT, normsz, &m->norm_obj, 3, GL_ARRAY_BUFFER);
+        load_gl_buffer(m->prog, ATTR_NORMAL, norm, normsz, &m->norm_obj, GL_ARRAY_BUFFER);
+
+    if (gl_does_vao())
+        GL(glBindVertexArray(0));
     shader_prog_done(p);
 
     m->cur_lod = -1;
@@ -549,8 +550,8 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
         if (nr_idx < 0)
             break;
         dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
-        load_gl_buffer(-1, lod, GL_UNSIGNED_SHORT, nr_idx * mesh_idx_stride(mesh),
-                       &m->index_obj[m->nr_lods], 0, GL_ELEMENT_ARRAY_BUFFER);
+        load_gl_buffer(m->prog, -1, lod, nr_idx * mesh_idx_stride(mesh),
+                       &m->index_obj[m->nr_lods], GL_ELEMENT_ARRAY_BUFFER);
         free(lod);
         m->nr_faces[m->nr_lods] = nr_idx;
         m->nr_lods++;
@@ -585,29 +586,13 @@ static void model3d_prepare(struct model3d *m)
         GL(glBindVertexArray(m->vao));
     if (m->cur_lod >= 0)
         GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj[m->cur_lod]));
-    GL(glBindBuffer(GL_ARRAY_BUFFER, m->vertex_obj));
-    GL(glVertexAttribPointer(p->pos, 3, GL_FLOAT, GL_FALSE, 0, (void *)0));
-    GL(glEnableVertexAttribArray(p->pos));
+    shader_plug_attribute(p, ATTR_POSITION, m->vertex_obj);
+    shader_plug_attribute(p, ATTR_NORMAL, m->norm_obj);
+    shader_plug_attribute(p, ATTR_TANGENT, m->tangent_obj);
 
-    if (m->norm_obj && p->norm >= 0) {
-        GL(glBindBuffer(GL_ARRAY_BUFFER, m->norm_obj));
-        GL(glVertexAttribPointer(p->norm, 3, GL_FLOAT, GL_FALSE, 0, (void *)0));
-        GL(glEnableVertexAttribArray(p->norm));
-    }
-    if (m->tangent_obj && p->tangent >= 0) {
-        GL(glBindBuffer(GL_ARRAY_BUFFER, m->tangent_obj));
-        GL(glVertexAttribPointer(p->tangent, 4, GL_FLOAT, GL_FALSE, 0, (void *)0));
-        GL(glEnableVertexAttribArray(p->tangent));
-    }
-    if (p->joints >= 0 && m->nr_joints && m->joints_obj >= 0) {
-        GL(glBindBuffer(GL_ARRAY_BUFFER, m->joints_obj));
-        GL(glVertexAttribPointer(p->joints, 4, GL_BYTE, GL_FALSE, 0, (void *)0));
-        GL(glEnableVertexAttribArray(p->joints));
-    }
-    if (p->weights >= 0 && m->nr_joints && m->weights_obj >= 0) {
-        GL(glBindBuffer(GL_ARRAY_BUFFER, m->weights_obj));
-        GL(glVertexAttribPointer(p->weights, 4, GL_FLOAT, GL_FALSE, 0, (void *)0));
-        GL(glEnableVertexAttribArray(p->weights));
+    if (m->nr_joints) {
+        shader_plug_attribute(p, ATTR_JOINTS, m->joints_obj);
+        shader_plug_attribute(p, ATTR_WEIGHTS, m->weights_obj);
     }
 }
 
@@ -621,32 +606,16 @@ void model3dtx_prepare(struct model3dtx *txm)
 
     model3d_prepare(txm->model);
 
-    if (p->tex >= 0 && m->tex_obj && texture_loaded(txm->texture)) {
-        GL(glBindBuffer(GL_ARRAY_BUFFER, m->tex_obj));
-        GL(glVertexAttribPointer(p->tex, 2, GL_FLOAT, GL_FALSE, 0, (void *)0));
-        GL(glEnableVertexAttribArray(p->tex));
-        GL(glActiveTexture(GL_TEXTURE0));
-        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->texture)));
-        GL(glUniform1i(p->texture_map, 0));
+    if (shader_has_var(p, ATTR_TEX) && m->tex_obj && texture_loaded(txm->texture)) {
+        shader_plug_attribute(p, ATTR_TEX, m->tex_obj);
+        shader_plug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
     }
 
-    if (p->normal_map >= 0 && txm->normals && texture_loaded(txm->normals)) {
-        GL(glActiveTexture(GL_TEXTURE1));
-        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->normals)));
-        GL(glUniform1i(p->normal_map, 1));
-    }
+    if (txm->normals)
+        shader_plug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
 
-    if (p->emission_map >= 0 && texture_loaded(txm->emission)) {
-        GL(glActiveTexture(GL_TEXTURE2));
-        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->emission)));
-        GL(glUniform1i(p->emission_map, 2));
-    }
-
-    if (p->sobel_tex >= 0 && texture_loaded(txm->sobel)) {
-        GL(glActiveTexture(GL_TEXTURE3));
-        GL(glBindTexture(GL_TEXTURE_2D, texture_id(txm->sobel)));
-        GL(glUniform1i(p->sobel_tex, 3));
-    }
+    shader_plug_texture(p, UNIFORM_EMISSION_MAP, txm->emission);
+    shader_plug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
 }
 
 void model3dtx_draw(struct model3dtx *txm)
@@ -654,21 +623,21 @@ void model3dtx_draw(struct model3dtx *txm)
     struct model3d *m = txm->model;
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    GL(glDrawElements(m->draw_type, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0));
+    glDrawElements(m->draw_type, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0);
 }
 
 static void model3d_done(struct model3d *m)
 {
     struct shader_prog *p = m->prog;
 
-    GL(glDisableVertexAttribArray(p->pos));
-    if (m->norm_obj && p->norm >= 0)
-        GL(glDisableVertexAttribArray(p->norm));
-    if (m->tangent_obj && p->tangent >= 0)
-        GL(glDisableVertexAttribArray(p->tangent));
-    if (m->nr_joints && p->joints >= 0) {
-        GL(glDisableVertexAttribArray(p->joints));
-        GL(glDisableVertexAttribArray(p->weights));
+    shader_unplug_attribute(p, ATTR_POSITION);
+    if (m->norm_obj)
+        shader_unplug_attribute(p, ATTR_NORMAL);
+    if (m->tangent_obj)
+        shader_unplug_attribute(p, ATTR_TANGENT);
+    if (m->nr_joints) {
+        shader_unplug_attribute(p, ATTR_JOINTS);
+        shader_unplug_attribute(p, ATTR_WEIGHTS);
     }
 
     /* both need to be bound for glDrawElements() */
@@ -683,8 +652,8 @@ void model3dtx_done(struct model3dtx *txm)
 {
     struct shader_prog *p = txm->model->prog;
 
-    if (p->tex >= 0 && txm->model->tex_obj) {
-        GL(glDisableVertexAttribArray(p->tex));
+    if (txm->model->tex_obj) {
+        shader_unplug_attribute(p, ATTR_TEX);
         GL(glActiveTexture(GL_TEXTURE0));
         GL(glBindTexture(GL_TEXTURE_2D, 0));
     }
@@ -971,38 +940,31 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
             shader_prog_use(prog);
             trace("rendering model '%s' using '%s'\n", model->name, prog->name);
 
-            if (prog->data.width >= 0)
-                GL(glUniform1f(prog->data.width, width));
-            if (prog->data.height >= 0)
-                GL(glUniform1f(prog->data.height, height));
+            shader_set_var_float(prog, UNIFORM_WIDTH, width);
+            shader_set_var_float(prog, UNIFORM_HEIGHT, height);
 
-            if (light && prog->data.lightp >= 0 && prog->data.lightc >= 0) {
-                GL(glUniform3fv(prog->data.lightp, LIGHTS_MAX, light->pos));
-                GL(glUniform3fv(prog->data.lightc, LIGHTS_MAX, light->color));
+            if (light) {
+                shader_set_var_ptr(prog, UNIFORM_LIGHT_POS, LIGHTS_MAX, light->pos);
+                shader_set_var_ptr(prog, UNIFORM_LIGHT_COLOR, LIGHTS_MAX, light->color);
+                shader_set_var_ptr(prog, UNIFORM_ATTENUATION, LIGHTS_MAX, light->attenuation);
             }
 
-            if (light && prog->data.attenuation >= 0)
-                GL(glUniform3fv(prog->data.attenuation, LIGHTS_MAX, light->attenuation));
+            if (view_mx && inv_view_mx) {
+                shader_set_var_ptr(prog, UNIFORM_VIEW, 1, view_mx->cell);
+                shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, inv_view_mx->cell);
+            }
 
-            if (view_mx && prog->data.viewmx >= 0)
-                /* View matrix is the same for all entities and models */
-                GL(glUniformMatrix4fv(prog->data.viewmx, 1, GL_FALSE, view_mx->cell));
-            if (inv_view_mx && prog->data.inv_viewmx >= 0)
-                GL(glUniformMatrix4fv(prog->data.inv_viewmx, 1, GL_FALSE, inv_view_mx->cell));
-
-            /* Projection matrix is the same for everything, but changes on resize */
-            if (proj_mx && prog->data.projmx >= 0)
-                GL(glUniformMatrix4fv(prog->data.projmx, 1, GL_FALSE, proj_mx->cell));
+            if (proj_mx)
+                shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj_mx->cell);
         }
 
         model3dtx_prepare(txmodel);
-        if (prog->data.use_normals >= 0 && txmodel->normals)
-            GL(glUniform1f(prog->data.use_normals, texture_id(txmodel->normals) ? 1.0 : 0.0));
 
-        if (prog->data.shine_damper >= 0 && prog->data.reflectivity >= 0) {
-            GL(glUniform1f(prog->data.shine_damper, txmodel->roughness));
-            GL(glUniform1f(prog->data.reflectivity, txmodel->metallic));
-        }
+        if (txmodel->normals)
+            shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
+
+        shader_set_var_float(prog, UNIFORM_SHINE_DAMPER, txmodel->roughness);
+        shader_set_var_float(prog, UNIFORM_REFLECTIVITY, txmodel->metallic);
 
         list_for_each_entry (e, &txmodel->entities, entry) {
             float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
@@ -1034,37 +996,22 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
                 GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
             }
 #endif
-            if (prog->data.albedo_texture >= 0)
-                GL(glUniform1i(prog->data.albedo_texture, !!e->priv)); /* e->priv now points to character */
-            if (prog->data.entity_hash >= 0)
-                GL(glUniform1i(prog->data.entity_hash, fletcher32((void *)&e, sizeof(e) / 2)));
-            if (prog->data.color >= 0)
-                GL(glUniform4fv(prog->data.color, 1, e->color));
-            if (prog->data.colorpt >= 0)
-                GL(glUniform1f(prog->data.colorpt, 0.5 * e->color_pt));
-            if (focus && prog->data.highlight >= 0)
-                GL(glUniform4fv(prog->data.highlight, 1, focus == e ? (GLfloat *)hc : (GLfloat *)nohc));
+            shader_set_var_int(prog, UNIFORM_ALBEDO_TEXTURE, !!e->priv);  /* e->priv now points to character */
+            shader_set_var_int(prog, UNIFORM_ENTITY_HASH, fletcher32((void *)&e, sizeof(e) / 2));
+            shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);
+            shader_set_var_float(prog, UNIFORM_COLOR_PASSTHROUGH, 0.5 * e->color_pt);
 
-            if (model->nr_joints && model->anis.da.nr_el && prog->data.joint_transforms >= 0) {
-                GL(glUniform1f(prog->data.use_skinning, 1.0));
-                GL(glUniformMatrix4fv(prog->data.joint_transforms, model->nr_joints,
-                                      GL_FALSE, (GLfloat *)e->joint_transforms));
+            if (focus)
+                shader_set_var_ptr(prog, UNIFORM_HIGHLIGHT_COLOR, 1, focus == e ? hc : nohc);
+
+            if (model->nr_joints && model->anis.da.nr_el) {
+                shader_set_var_int(prog, UNIFORM_USE_SKINNING, 1);
+                shader_set_var_ptr(prog, UNIFORM_JOINT_TRANSFORMS, model->nr_joints, e->joint_transforms);
             } else {
-                GL(glUniform1f(prog->data.use_skinning, 0.0));
+                shader_set_var_int(prog, UNIFORM_USE_SKINNING, 0);
             }
-            if (prog->data.ray >= 0) {
-                vec3 ray = { 0, 0, 0 };
-                if (focus) {
-                    ray[0] = focus->dx;
-                    ray[1] = focus->dz;
-                    ray[2] = 1.0;
-                }
-                GL(glUniform3fv(prog->data.ray, 1, ray));
-            }
-            if (prog->data.transmx >= 0) {
-                /* Transformation matrix is different for each entity */
-                GL(glUniformMatrix4fv(prog->data.transmx, 1, GL_FALSE, (GLfloat *)e->mx));
-            }
+
+            shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx->cell);
 
             model3dtx_draw(txmodel);
             nr_ents++;

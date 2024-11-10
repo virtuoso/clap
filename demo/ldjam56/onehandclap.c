@@ -440,8 +440,8 @@ int main(int argc, char **argv, char **envp)
     // struct render_pass *contrast_pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 2);
     struct render_pass *sobel_pass = pipeline_add_pass(main_pl, model_pass, "sobel", false, 0, 2);
     pass = pipeline_add_pass(main_pl, model_pass, "combine", false, 0, 0);
-    pipeline_pass_add_source(main_pl, pass, 2, bloom_pass, -1);
-    pipeline_pass_add_source(main_pl, pass, 3, sobel_pass, -1);
+    pipeline_pass_add_source(main_pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1);
+    pipeline_pass_add_source(main_pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
 
     err = ui_init(&ui, scene.width, scene.height);
     if (err)

@@ -9,7 +9,6 @@
 #include "util.h"
 #include "object.h"
 #include "shader.h"
-#include "common.h"
 #include "librarian.h"
 #include "scene.h"
 
@@ -90,28 +89,198 @@ static void shader_prog_drop(struct ref *ref)
 
 DECLARE_REFCLASS(shader_prog);
 
+struct shader_var_desc {
+    const char              *name;
+    enum shader_var_type    type;
+    int                     texture_slot;
+    unsigned int            attr_count;
+};
+
+#define SHADER_VAR(_c, _n, _t) \
+    [_c] = { .name = (_n), .type = (_t), .texture_slot = -1 }
+#define SHADER_TEX(_c, _n, _slot) \
+    [_c] = { .name = (_n), .type = ST_INT, .texture_slot = (_slot) }
+#define SHADER_ATTR(_c, _n, _t, _count) \
+    [_c] = { .name = (_n), .type = (_t), .attr_count = (_count), .texture_slot = -1 }
+
+static const struct shader_var_desc shader_var_desc[] = {
+    SHADER_ATTR(ATTR_POSITION,              "position",             ST_FLOAT, 3),
+    SHADER_ATTR(ATTR_NORMAL,                "normal",               ST_FLOAT, 3),
+    SHADER_ATTR(ATTR_TEX,                   "tex",                  ST_FLOAT, 2),
+    SHADER_ATTR(ATTR_TANGENT,               "tangent",              ST_FLOAT, 4),
+    SHADER_ATTR(ATTR_JOINTS,                "joints",               ST_BYTE,  4),
+    SHADER_ATTR(ATTR_WEIGHTS,               "weights",              ST_FLOAT, 4),
+    SHADER_TEX(UNIFORM_MODEL_TEX,           "model_tex",            0),
+    SHADER_TEX(UNIFORM_NORMAL_MAP,          "normal_map",           1),
+    SHADER_TEX(UNIFORM_SOBEL_TEX,           "sobel_tex",            3),
+    SHADER_TEX(UNIFORM_EMISSION_MAP,        "emission_map",         2),
+    SHADER_VAR(UNIFORM_WIDTH,               "width",                ST_FLOAT),
+    SHADER_VAR(UNIFORM_HEIGHT,              "height",               ST_FLOAT),
+    SHADER_VAR(UNIFORM_PROJ,                "proj",                 ST_MAT4),
+    SHADER_VAR(UNIFORM_VIEW,                "view",                 ST_MAT4),
+    SHADER_VAR(UNIFORM_TRANS,               "trans",                ST_MAT4),
+    SHADER_VAR(UNIFORM_INVERSE_VIEW,        "inverse_view",         ST_MAT4),
+    SHADER_VAR(UNIFORM_LIGHT_POS,           "light_pos",            ST_VEC3),
+    SHADER_VAR(UNIFORM_LIGHT_COLOR,         "light_color",          ST_VEC3),
+    SHADER_VAR(UNIFORM_ATTENUATION,         "attenuation",          ST_VEC3),
+    SHADER_VAR(UNIFORM_SHINE_DAMPER,        "shine_damper",         ST_FLOAT),
+    SHADER_VAR(UNIFORM_REFLECTIVITY,        "reflectivity",         ST_FLOAT),
+    SHADER_VAR(UNIFORM_HIGHLIGHT_COLOR,     "highlight_color",      ST_VEC4),
+    SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             ST_VEC4),
+    SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    ST_FLOAT),
+    SHADER_VAR(UNIFORM_ENTITY_HASH,         "entity_hash",          ST_INT),
+    SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          ST_INT),
+    SHADER_VAR(UNIFORM_USE_SKINNING,        "use_skinning",         ST_INT),
+    SHADER_VAR(UNIFORM_ALBEDO_TEXTURE,      "albedo_texture",       ST_INT),
+    SHADER_VAR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     ST_MAT4),
+};
+
+static GLuint var_type[] = {
+    [ST_FLOAT]  = GL_FLOAT,
+    [ST_INT]    = GL_INT,
+    [ST_BYTE]   = GL_UNSIGNED_BYTE,
+    [ST_VEC3]   = GL_FLOAT,
+    [ST_VEC4]   = GL_FLOAT,
+    [ST_MAT4]   = GL_FLOAT,
+};
+
+const char *shader_get_var_name(enum shader_vars var)
+{
+    if (var >= SHADER_VAR_MAX)
+        return "<none>";
+
+    return shader_var_desc[var].name;
+}
+
 static void shader_prog_link(struct shader_prog *p)
 {
-    p->data.width        = glGetUniformLocation(p->prog, "width");
-    p->data.height       = glGetUniformLocation(p->prog, "height");
-    p->data.projmx       = glGetUniformLocation(p->prog, "proj");
-    p->data.viewmx       = glGetUniformLocation(p->prog, "view");
-    p->data.transmx      = glGetUniformLocation(p->prog, "trans");
-    p->data.inv_viewmx   = glGetUniformLocation(p->prog, "inverse_view");
-    p->data.lightp       = glGetUniformLocation(p->prog, "light_pos");
-    p->data.lightc       = glGetUniformLocation(p->prog, "light_color");
-    p->data.attenuation  = glGetUniformLocation(p->prog, "attenuation");
-    p->data.shine_damper = glGetUniformLocation(p->prog, "shine_damper");
-    p->data.reflectivity = glGetUniformLocation(p->prog, "reflectivity");
-    p->data.highlight    = glGetUniformLocation(p->prog, "highlight_color");
-    p->data.ray          = glGetUniformLocation(p->prog, "ray");
-    p->data.color        = glGetUniformLocation(p->prog, "in_color");
-    p->data.colorpt      = glGetUniformLocation(p->prog, "color_passthrough");
-    p->data.entity_hash  = glGetUniformLocation(p->prog, "entity_hash");
-    p->data.use_normals  = glGetUniformLocation(p->prog, "use_normals");
-    p->data.use_skinning  = glGetUniformLocation(p->prog, "use_skinning");
-    p->data.albedo_texture  = glGetUniformLocation(p->prog, "albedo_texture");
-    p->data.joint_transforms = glGetUniformLocation(p->prog, "joint_transforms");
+    int i;
+
+    dbg("program '%s' attrs/uniforms\n", p->name);
+    for (i = 0; i < SHADER_VAR_MAX; i++) {
+        const struct shader_var_desc *desc = &shader_var_desc[i];
+
+        if (i < ATTR_MAX)
+            p->vars[i] = glGetAttribLocation(p->prog, desc->name);
+        else
+            p->vars[i] = glGetUniformLocation(p->prog, desc->name);
+        if (p->vars[i] >= 0)
+            dbg(" -> %s %s: %d\n", i < ATTR_MAX ? "attribute" : "uniform", desc->name, p->vars[i]);
+    }
+}
+
+bool shader_has_var(struct shader_prog *p, enum shader_vars var)
+{
+    if (var >= SHADER_VAR_MAX)
+        return false;
+
+    return p->vars[var] >= 0;
+}
+
+void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
+                        unsigned int count, void *value)
+{
+    if (!shader_has_var(p, var))
+        return;
+
+    const struct shader_var_desc *desc = &shader_var_desc[var];
+    switch (desc->type) {
+        case ST_FLOAT: {
+            float _value = *(float *)value;
+            GL(glUniform1f(p->vars[var], _value));
+            break;
+        }
+        case ST_INT: {
+            int _value = *(int *)value;
+            GL(glUniform1i(p->vars[var], _value));
+            break;
+        }
+        case ST_VEC3: {
+            float *_value = value;
+            GL(glUniform3fv(p->vars[var], count, _value));
+            break;
+        }
+        case ST_VEC4: {
+            float *_value = value;
+            GL(glUniform4fv(p->vars[var], count, _value));
+            break;
+        }
+        case ST_MAT4: {
+            float *_value = value;
+            GL(glUniformMatrix4fv(p->vars[var], count, GL_FALSE, _value));
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void shader_set_var_float(struct shader_prog *p, enum shader_vars var, float value)
+{
+    shader_set_var_ptr(p, var, 1, &value);
+}
+
+void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value)
+{
+    shader_set_var_ptr(p, var, 1, &value);
+}
+
+void shader_setup_attribute(struct shader_prog *p, enum shader_vars var)
+{
+    if (!shader_has_var(p, var))
+        return;
+
+    const struct shader_var_desc *desc = &shader_var_desc[var];
+
+    GL(glVertexAttribPointer(p->vars[var], desc->attr_count, var_type[desc->type], GL_FALSE, 0, (void *)0));
+}
+
+void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, unsigned int buffer)
+{
+    if (!shader_has_var(p, var) || !buffer)
+        return;
+
+    GL(glBindBuffer(GL_ARRAY_BUFFER, buffer));
+    shader_setup_attribute(p, var);
+    GL(glEnableVertexAttribArray(p->vars[var]));
+}
+
+void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var)
+{
+    if (!shader_has_var(p, var))
+        return;
+
+    GL(glDisableVertexAttribArray(p->vars[var]));
+}
+
+int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)
+{
+    if (!shader_has_var(p, var))
+        return -1;
+
+    return shader_var_desc[var].texture_slot;
+}
+
+void shader_set_texture(struct shader_prog *p, enum shader_vars var)
+{
+    const struct shader_var_desc *desc = &shader_var_desc[var];
+
+    if (!shader_has_var(p, var))
+        return;
+
+    GL(glUniform1i(p->vars[var], desc->texture_slot));
+}
+
+void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
+{
+    if (!shader_has_var(p, var) || !texture_loaded(tex))
+        return;
+
+    const struct shader_var_desc *desc = &shader_var_desc[var];
+
+    GL(glActiveTexture(GL_TEXTURE0 + desc->texture_slot));
+    GL(glBindTexture(GL_TEXTURE_2D, texture_id(tex)));
+    shader_set_texture(p, var);
 }
 
 struct shader_prog *
@@ -133,22 +302,9 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
     }
 
     shader_prog_use(p);
-    p->pos         = glGetAttribLocation(p->prog, "position");
-    p->norm        = glGetAttribLocation(p->prog, "normal");
-    p->tex         = glGetAttribLocation(p->prog, "tex");
-    p->tangent     = glGetAttribLocation(p->prog, "tangent");
-    p->joints      = glGetAttribLocation(p->prog, "joints");
-    p->weights     = glGetAttribLocation(p->prog, "weights");
-    p->texture_map = glGetUniformLocation(p->prog, "model_tex");
-    p->normal_map  = glGetUniformLocation(p->prog, "normal_map");
-    p->sobel_tex   = glGetUniformLocation(p->prog, "sobel_tex");
-    p->emission_map = glGetUniformLocation(p->prog, "emission_map");
     shader_prog_link(p);
     shader_prog_done(p);
-    dbg("model '%s' %d/%d/%d/%d/%d/%d/%d/%d/%d/%d\n",
-        p->name, p->pos, p->norm, p->tex, p->tangent,
-        p->texture_map, p->normal_map, p->emission_map, p->sobel_tex, p->joints, p->weights);
-    if (p->pos < 0) {
+    if (!shader_has_var(p, ATTR_POSITION)) {
         err("program '%s' doesn't have position attribute\n", p->name);
         ref_put_last(p);
         return NULL;
