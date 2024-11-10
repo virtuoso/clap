@@ -232,6 +232,10 @@ void resize_cb(void *data, int width, int height)
     ui.height = height;
     scene->width  = width;
     scene->height = height;
+    if (blur_pl)
+        pipeline_resize(blur_pl);
+    if (main_pl)
+        pipeline_resize(main_pl);
     touch_set_size(width, height);
     scene->aspect = (float)width / (float)height;
     trace("resizing to %dx%d\n", width, height);
