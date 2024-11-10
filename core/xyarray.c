@@ -31,7 +31,8 @@ void xyarray_print(unsigned char *arr, int width, int height)
     for (j = 0; j < height; j++) {
         for (i = 0, p = 0; i < width; i++)
             // p += sprintf(str + p, "%.01x ", xyarray_get(arr, width, i, j));
-            p += sprintf(str + p, "%c ", ch[xyarray_get(arr, width, i, j)]);
+            p += snprintf(str + p, sizeof(str) - p, "%c ",
+                          ch[xyarray_get(arr, width, i, j)]);
         dbg("arr[%02d]: %s\n", j, str);
     }
 }

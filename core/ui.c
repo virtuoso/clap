@@ -1469,7 +1469,7 @@ void pocket_update(struct ui *ui)
         parent = pocket_text[i]->parent;
         ref_put_last(pocket_text[i]);
 
-        sprintf(buf, "x %d/%d", pocket_count[i], pocket_total[i]);
+        snprintf(buf, sizeof(buf), "x %d/%d", pocket_count[i], pocket_total[i]);
         pocket_text[i] = ui_render_string(ui, font, parent, buf, color, UI_AF_LEFT | UI_AF_VCENTER);
     }
     font_put(font);
