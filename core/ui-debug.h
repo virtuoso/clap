@@ -5,7 +5,9 @@
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
 
+#include <stdbool.h>
 #include "util.h"
+#include "linmath.h"
 
 void __ui_debug_printf(const char *mod, const char *fmt, ...);
 #define ui_debug_printf(args...) __ui_debug_printf(MODNAME, ## args)
@@ -28,5 +30,6 @@ void imgui_render(void);
 
 bool ui_igVec3TableHeader(const char *str_id);
 void ui_igVec3Row(float v[3], const char *fmt, ...);
+bool ui_igMat4x4(mat4x4 m, const char *name);
 
 #endif /* __CLAP_UI_DEBUG_H__ */

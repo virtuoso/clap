@@ -120,3 +120,25 @@ void ui_igVec3Row(float v[3], const char *fmt, ...)
     igTableNextColumn();
     igText("%f", v[2]);
 }
+
+bool ui_igMat4x4(mat4x4 m, const char *name)
+{
+    if (!igBeginTable(name, 4, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0))
+        return false;
+
+    igTableSetupColumn("X", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("Y", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("Z", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("W", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+
+    int i, j;
+    for (i = 0; i < 4; i++) {
+        igTableNextRow(0, 0);
+        for (j = 0; j < 4; j++) {
+            igTableNextColumn();
+            igText("%f", m[i][j]);
+        }
+    }
+    igEndTable();
+    return true;
+}
