@@ -15,7 +15,7 @@ git submodule update --init --recursive
 ### Install dependencies
 
 ```sh
-brew install cmake glew zlib libpng libogg libvorbis freetype glfw
+brew install cmake glew zlib libpng libogg libvorbis freetype glfw shaderc spirv-cross
 ```
 
 ### Build
@@ -34,7 +34,7 @@ build/debug/tools/server/server
 And run the demo
 
 ```sh
-build/test/demo/ldjam52/ldjam52
+build/test/demo/ldjam56/ldjam56
 ```
 
 ## Wasm build
