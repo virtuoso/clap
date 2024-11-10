@@ -13,6 +13,7 @@ struct pipeline {
 };
 
 struct pipeline *pipeline_new(struct scene *s, const char *name);
+void pipeline_resize(struct pipeline *pl);
 struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *prog_name,
                                       bool ms, int nr_targets, int target);
 void pipeline_pass_set_name(struct render_pass *pass, const char *name);

@@ -70,6 +70,17 @@ struct pipeline *pipeline_new(struct scene *s, const char *name)
     return pl;
 }
 
+void pipeline_resize(struct pipeline *pl)
+{
+    struct render_pass *pass;
+
+    list_for_each_entry(pass, &pl->passes, entry) {
+        struct fbo **pfbo;
+        darray_for_each(pfbo, &pass->fbo)
+            fbo_resize(*pfbo, pl->scene->width, pl->scene->height);
+    }
+}
+
 struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *prog_name,
                                       bool ms, int nr_targets, int target)
 {
