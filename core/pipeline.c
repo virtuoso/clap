@@ -11,6 +11,7 @@ struct render_pass {
     struct mq           mq;
     struct list         entry;
     struct render_pass  *repeat;
+    const char          *name;
     int                 rep_total;
     int                 rep_count;
     bool                blit;
@@ -57,13 +58,14 @@ static void pipeline_drop(struct ref *ref)
 }
 DECLARE_REFCLASS(pipeline);
 
-struct pipeline *pipeline_new(struct scene *s)
+struct pipeline *pipeline_new(struct scene *s, const char *name)
 {
     struct pipeline *pl;
 
     CHECK(pl = ref_new(pipeline));
     list_init(&pl->passes);
     pl->scene = s;
+    pl->name = name;
 
     return pl;
 }
@@ -82,6 +84,7 @@ struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *s
     darray_init(&pass->src);
     darray_init(&pass->fbo);
     darray_init(&pass->blit_src);
+    pass->name = prog_name;
 
     /*
      * FBOs and srcs are a 1:1 mapping *except* the ms passes, which don't have
@@ -151,6 +154,11 @@ void pipeline_pass_repeat(struct render_pass *pass, struct render_pass *repeat, 
 {
     pass->repeat = repeat;
     pass->rep_total = count;
+}
+
+void pipeline_pass_set_name(struct render_pass *pass, const char *name)
+{
+    pass->name = name;
 }
 
 void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src)

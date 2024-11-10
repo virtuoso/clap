@@ -417,15 +417,17 @@ int main(int argc, char **argv, char **envp)
 
     gl_get_sizes(&scene.width, &scene.height);
 
-    blur_pl = pipeline_new(&scene);
+    blur_pl = pipeline_new(&scene, "menu");
     struct render_pass *model_pass = pipeline_add_pass(blur_pl, NULL, NULL, true, 3, 0);
+    pipeline_pass_set_name(model_pass, "model");
     pass = pipeline_add_pass(blur_pl, model_pass, "contrast", false, 0, 0);
     struct render_pass *rep_pass = pipeline_add_pass(blur_pl, pass, "vblur", false, 0, 0);
     pass = pipeline_add_pass(blur_pl, rep_pass, "hblur", false, 0, 0);
     pipeline_pass_repeat(pass, rep_pass, 5);
 
-    main_pl = pipeline_new(&scene);
+    main_pl = pipeline_new(&scene, "main");
     model_pass = pipeline_add_pass(main_pl, NULL, NULL, true, 3, -1);
+    pipeline_pass_set_name(model_pass, "model");
     pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 1);
     pass = pipeline_add_pass(main_pl, pass, "vblur", false, 0, -1);
     struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", false, 0, -1);
