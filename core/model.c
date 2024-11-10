@@ -723,20 +723,33 @@ static int fbo_depth_texture(struct fbo *fbo)
     return tex;
 }
 
+static void __fbo_color_buffer_setup(struct fbo *fbo)
+{
+    if (fbo->ms)
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, fbo->width, fbo->height));
+    else
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
+}
+
 static int fbo_color_buffer(struct fbo *fbo, int output)
 {
     unsigned int buf;
 
     GL(glGenRenderbuffers(1, &buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, buf));
-    if (fbo->ms)
-        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, fbo->width, fbo->height));
-    else
-        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
+    __fbo_color_buffer_setup(fbo);
     GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + output, GL_RENDERBUFFER, buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
 
     return buf;
+}
+
+static void __fbo_depth_buffer_setup(struct fbo *fbo)
+{
+    if (fbo->ms)
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
+    else
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
 }
 
 static int fbo_depth_buffer(struct fbo *fbo)
@@ -745,10 +758,7 @@ static int fbo_depth_buffer(struct fbo *fbo)
 
     GL(glGenRenderbuffers(1, &buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, buf));
-    if (fbo->ms)
-        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
-    else
-        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
+    __fbo_depth_buffer_setup(fbo);
     GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
 
@@ -765,9 +775,16 @@ void fbo_resize(struct fbo *fbo, int width, int height)
     texture_resize(&fbo->tex, width, height);
     texture_resize(&fbo->depth, width, height);
 
+    int *color_buf;
+    darray_for_each(color_buf, &fbo->color_buf) {
+        GL(glBindRenderbuffer(GL_RENDERBUFFER, *color_buf));
+        __fbo_color_buffer_setup(fbo);
+        GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
+    }
+
     if (fbo->depth_buf) {
         GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf));
-        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
+        __fbo_depth_buffer_setup(fbo);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
 }
