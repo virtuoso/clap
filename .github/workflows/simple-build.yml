@@ -2,7 +2,7 @@ name: simple-build
 on: [push]
 jobs:
   build-ubuntu:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -13,7 +13,7 @@ jobs:
       - name: install-deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev
+          sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross
       - name: configure
         run: |
           cd ${{ github.workspace }}
