@@ -960,8 +960,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
 
         model3dtx_prepare(txmodel);
 
-        if (txmodel->normals)
-            shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
+        shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
 
         shader_set_var_float(prog, UNIFORM_SHINE_DAMPER, txmodel->roughness);
         shader_set_var_float(prog, UNIFORM_REFLECTIVITY, txmodel->metallic);
