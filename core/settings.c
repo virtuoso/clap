@@ -173,9 +173,8 @@ void settings_set(struct settings *settings, const char *key, JsonNode *node)
 
     err_on(!settings->root);
     old = json_find_member(settings->root, key);
-    if (old) {
-        json_remove_from_parent(old);
-    }
+    if (old)
+        json_delete(old);
 
     json_append_member(settings->root, key, node);
     settings->dirty = true;
@@ -245,6 +244,6 @@ void settings_done(struct settings *settings)
 #ifndef __EMSCRIPTEN__
     free(settings_file);
 #endif /* !__EMSCRIPTEN__ */
-    json_free(settings->root);
+    json_delete(settings->root);
     settings->ready = false;
 }
