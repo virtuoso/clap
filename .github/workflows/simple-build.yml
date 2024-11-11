@@ -10,6 +10,8 @@ jobs:
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git submodule update --init --recursive
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk && ./emsdk install latest && ./emsdk activate latest
       - name: install-deps
         run: |
           sudo apt-get update
@@ -17,8 +19,30 @@ jobs:
       - name: configure
         run: |
           cd ${{ github.workspace }}
+          touch build_config
+          echo emsdk_env_path=\"${{ github.workspace }}/emsdk/emsdk_env.sh\" >> build_config
+          echo opts=\"--parallel 4\" >> build_config
+          echo www_dir=\"${{ github.workspace }}/www\" >> build_config
           ./configure.sh
       - name: build
         run: |
           cd ${{ github.workspace }}
           ./build.sh
+      - name: upload-clap
+        uses: actions/upload-artifact@v4
+        with:
+          name: clap
+          retention-days: 30
+          path: ${{ github.workspace }}/www/clap
+      - name: upload-claptest
+        uses: actions/upload-artifact@v4
+        with:
+          name: claptest
+          retention-days: 30
+          path: ${{ github.workspace }}/www/claptest
+      - name: upload-clapdbg
+        uses: actions/upload-artifact@v4
+        with:
+          name: clapdbg
+          retention-days: 30
+          path: ${{ github.workspace }}/www/clapdbg
