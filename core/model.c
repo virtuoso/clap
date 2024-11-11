@@ -999,7 +999,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
             shader_set_var_int(prog, UNIFORM_ALBEDO_TEXTURE, !!e->priv);  /* e->priv now points to character */
             shader_set_var_int(prog, UNIFORM_ENTITY_HASH, fletcher32((void *)&e, sizeof(e) / 2));
             shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);
-            shader_set_var_float(prog, UNIFORM_COLOR_PASSTHROUGH, 0.5 * e->color_pt);
+            shader_set_var_int(prog, UNIFORM_COLOR_PASSTHROUGH, e->color_pt);
 
             if (focus)
                 shader_set_var_ptr(prog, UNIFORM_HIGHLIGHT_COLOR, 1, focus == e ? hc : nohc);
