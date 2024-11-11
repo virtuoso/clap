@@ -103,7 +103,6 @@ void json_append_member(JsonNode *object, const char *key, JsonNode *value);
 void json_prepend_member(JsonNode *object, const char *key, JsonNode *value);
 
 void json_remove_from_parent(JsonNode *node);
-void json_free(JsonNode *root);
 void cleanup__JsonNodep(JsonNode **p);
 
 int json_arraysz(JsonNode *node);

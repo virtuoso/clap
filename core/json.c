@@ -1445,32 +1445,7 @@ JSON_ARRAY_DECL(float)
 JSON_ARRAY_DECL(double)
 JSON_ARRAY_DECL(int)
 
-void json_free(JsonNode *root)
-{
-    JsonNode *p, *n;
-
-	if (!root)
-		return;
-
-    free(root->key);
-	switch (root->tag) {
-		case JSON_OBJECT:
-        case JSON_ARRAY:
-            for (p = root->children.head, n = p ? p->next : NULL; p; p = n, n = n ? n->next : NULL)
-                json_free(p);
-            break;
-		case JSON_STRING:
-            free(root->string_);
-            break;
-        case JSON_NUMBER:
-        case JSON_BOOL:
-		default:
-            break;
-    }
-    free(root);
-}
-
 void cleanup__JsonNodep(JsonNode **p)
 {
-    json_free(*p);
+    json_delete(*p);
 }
