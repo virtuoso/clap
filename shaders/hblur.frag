@@ -1,8 +1,8 @@
-#version 330
+#version 460 core
 
 layout (location=0) out vec4 FragColor;
-in vec2 pass_tex;
-in vec2 blur_coords[11];
+layout (location=0) in vec2 pass_tex;
+layout (location=1) in vec2 blur_coords[11];
 
 uniform sampler2D model_tex;
 

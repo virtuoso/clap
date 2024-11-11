@@ -1,12 +1,11 @@
-#version 330
+#version 460 core
 
-in vec2 pass_tex;
-in vec3 surface_normal;
-in vec3 orig_normal;
-in vec3 to_light_vector[4];
-in vec3 to_camera_vector;
-flat in int do_use_normals;
-in vec4 pass_tangent;
+layout (location=0) flat in int do_use_normals;
+layout (location=1) in vec2 pass_tex;
+layout (location=2) in vec3 surface_normal;
+layout (location=3) in vec3 orig_normal;
+layout (location=4) in vec3 to_light_vector[4];
+layout (location=8) in vec3 to_camera_vector;
 
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;

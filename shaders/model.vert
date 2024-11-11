@@ -1,11 +1,11 @@
-#version 330
+#version 460 core
 
-in vec3 position;
-in vec2 tex;
-in vec3 normal;
-in vec4 tangent;
-in vec4 joints;
-in vec4 weights;
+layout (location=0) in vec3 position;
+layout (location=1) in vec2 tex;
+layout (location=2) in vec3 normal;
+layout (location=3) in vec4 tangent;
+layout (location=4) in vec4 joints;
+layout (location=5) in vec4 weights;
 
 uniform vec3 light_pos[4];
 uniform mat4 proj;
@@ -16,13 +16,12 @@ uniform int use_normals;
 uniform int use_skinning;
 uniform mat4 joint_transforms[100];
 
-flat out int do_use_normals;
-out vec2 pass_tex;
-out vec3 surface_normal;
-out vec3 orig_normal;
-out vec3 to_light_vector[4];
-out vec3 to_camera_vector;
-out float color_override;
+layout (location=0) flat out int do_use_normals;
+layout (location=1) out vec2 pass_tex;
+layout (location=2) out vec3 surface_normal;
+layout (location=3) out vec3 orig_normal;
+layout (location=4) out vec3 to_light_vector[4];
+layout (location=8) out vec3 to_camera_vector;
 
 void main()
 {

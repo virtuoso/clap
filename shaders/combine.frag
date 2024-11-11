@@ -1,7 +1,7 @@
-#version 330
+#version 460 core
 
 layout (location=0) out vec4 FragColor;
-in vec2 pass_tex;
+layout (location=0) in vec2 pass_tex;
 
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;

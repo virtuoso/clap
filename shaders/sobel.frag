@@ -1,11 +1,11 @@
-#version 330
+#version 460 core
 
 // Sobel Edge Detection Filter
 // GLSL Fragment Shader
 // Implementation by Patrick Hebron
 // Lifted from https://gist.github.com/Hebali/6ebfc66106459aacee6a9fac029d0115
 
-in vec2 pass_tex;
+layout (location=0) in vec2 pass_tex;
 uniform sampler2D	model_tex;
 uniform float 		width;
 uniform float 		height;

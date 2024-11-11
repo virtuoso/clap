@@ -1,9 +1,9 @@
-#version 330
+#version 460 core
 
-in vec3 position;
-in vec2 tex;
-in vec3 normal;
-in vec4 tangent;
+layout (location=0) in vec3 position;
+layout (location=1) in vec2 tex;
+layout (location=2) in vec3 normal;
+layout (location=3) in vec4 tangent;
 
 uniform vec3 light_pos;
 uniform mat4 proj;
@@ -11,11 +11,10 @@ uniform mat4 view;
 uniform mat4 inverse_view;
 uniform mat4 trans;
 
-out vec2 pass_tex;
-out vec3 surface_normal;
-out vec3 to_light_vector;
-out vec3 to_camera_vector;
-out float color_override;
+layout (location=0) out vec2 pass_tex;
+layout (location=1) out vec3 surface_normal;
+layout (location=2) out vec3 to_light_vector;
+layout (location=3) out vec3 to_camera_vector;
 
 void main()
 {

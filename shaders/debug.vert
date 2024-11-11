@@ -1,13 +1,13 @@
-#version 330
+#version 460 core
 
-in vec3 position;
-in vec2 tex;
+layout (location=0) in vec3 position;
+layout (location=1) in vec2 tex;
 
 uniform mat4 proj;
 uniform mat4 view;
-// uniform mat4 inverse_view;
 uniform mat4 trans;
-out vec2 pass_tex;
+
+layout (location=0) out vec2 pass_tex;
 
 void main()
 {

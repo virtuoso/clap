@@ -1,11 +1,9 @@
-#version 330
+#version 460 core
 
-in vec2 pass_tex;
-in vec3 surface_normal;
-in vec3 to_light_vector;
-in vec3 to_camera_vector;
-in float do_use_normals;
-in vec4 pass_tangent;
+layout (location=0) in vec2 pass_tex;
+layout (location=1) in vec3 surface_normal;
+layout (location=2) in vec3 to_light_vector;
+layout (location=3) in vec3 to_camera_vector;
 
 uniform sampler2D model_tex;
 uniform vec3 light_color;
@@ -13,7 +11,7 @@ uniform float shine_damper;
 uniform float reflectivity;
 
 layout (location=0) out vec4 FragColor;
-// out vec4 FragColor;
+
 #define PI 3.1415926538
 
 void main()
@@ -43,7 +41,4 @@ void main()
     vec4 mix = grass_sample * fac + rock_sample * (1.0 - fac);
 
     FragColor = vec4(diffuse, 1.0) * mix + vec4(final_specular, 1.0);
-    //gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2));
-    // gl_FragColor = vec4(pass_tangent.xyz, 1);
-    // gl_FragColor = pass_tangent;
 }

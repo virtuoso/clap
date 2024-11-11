@@ -1,21 +1,14 @@
-#version 330
+#version 460 core
 
-in vec3 position;
-in vec2 tex;
+layout (location=0) in vec3 position;
+layout (location=1) in vec2 tex;
 
 uniform mat4 trans;
-// uniform mat4 proj;
-// uniform vec4 color;
-// uniform float color_passthrough;
 
-out vec2 pass_tex;
-// varying vec4 color_override;
-// varying float color_pt;
+layout (location=0) out vec2 pass_tex;
 
 void main()
 {
     gl_Position = /*proj * */trans * vec4(position, 1.0);
     pass_tex = tex;
-    // color_override = color;
-    // color_pt = color_passthrough;
 }
