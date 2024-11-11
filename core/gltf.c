@@ -640,7 +640,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
 {
     JsonNode *nodes, *mats, *meshes, *texs, *imgs, *accrs, *bufvws, *bufs;
     JsonNode *scenes, *scene, *skins, *anis;
-    JsonNode *root;
+    LOCAL(JsonNode, root);
     struct gltf_data *gd = data;
     unsigned int nid;
     JsonNode *n;
@@ -1011,7 +1011,6 @@ static void gltf_onload(struct lib_handle *h, void *data)
         // dbg("mesh %d: '%s' POSITION: %d\n", gd->nr_meshes, jname->string_, mesh->POSITION);
     }
 
-    json_free(root);
     ref_put(h);
 
     return;
