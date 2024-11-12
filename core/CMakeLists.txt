@@ -96,6 +96,10 @@ set(ENGINE_SRC
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
 set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
+# sha1.c is obviously buggy, someone should do something about it
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(networking.c PROPERTIES COMPILE_FLAGS -Wno-stringop-overread)
+endif ()
 
 add_custom_command(
     OUTPUT builddate.c
