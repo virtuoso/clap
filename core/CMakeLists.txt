@@ -136,9 +136,15 @@ file(GLOB
 
 # cimgui specific compilation defines to disable C++ mangling: this only needs
 # to happen for the cimgui's compilation units, since it's C++
+# Also, clang 20.0.0 detects naughtiness all over the imgui code related to
+# memcpy()ing into non-trivial objects; the upstream solution seems to be to
+# silence the warning:
+# https://github.com/ocornut/imgui/commit/419a9ada16eb9b6d84ead4911b9c2a32820cfffb
+# so, do it here, but in a less intrusive way
 FOREACH(src ${CIMGUI_SRC})
     set_source_files_properties(${src} PROPERTIES
         COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\";IMGUI_IMPL_OPENGL_LOADER_GL3W"
+        COMPILE_FLAGS "-Wno-nontrivial-memaccess"
     )
 ENDFOREACH ()
 
