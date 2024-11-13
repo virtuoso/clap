@@ -22,27 +22,49 @@ jobs:
           touch build_config
           echo emsdk_env_path=\"${{ github.workspace }}/emsdk/emsdk_env.sh\" >> build_config
           echo opts=\"--parallel 4\" >> build_config
-          echo www_dir=\"${{ github.workspace }}/www\" >> build_config
+          echo www_dir=\"${{ github.workspace }}/www/${GITHUB_REF##*/}\" >> build_config
           ./configure.sh
       - name: build
         run: |
           cd ${{ github.workspace }}
           ./build.sh
+          git config --global --unset url."https://github.com/".insteadOf
+          export branch=""
       - name: upload-clap
         uses: actions/upload-artifact@v4
         with:
           name: clap
           retention-days: 30
-          path: ${{ github.workspace }}/www/clap
+          path: ${{ github.workspace }}/www/${GITHUB_REF##*/}/clap
       - name: upload-claptest
         uses: actions/upload-artifact@v4
         with:
           name: claptest
           retention-days: 30
-          path: ${{ github.workspace }}/www/claptest
+          path: ${{ github.workspace }}/www/${GITHUB_REF##*/}/claptest
       - name: upload-clapdbg
         uses: actions/upload-artifact@v4
         with:
           name: clapdbg
           retention-days: 30
-          path: ${{ github.workspace }}/www/clapdbg
+          path: ${{ github.workspace }}/www/${GITHUB_REF##*/}/clapdbg
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@main
+        with:
+            SSH_PRIVATE_KEY: ${{ secrets.REMOTE_DEPLOY_KEY }}
+            ARGS: "-rlgoDzvc -i --delete"
+            SOURCE: "www/"
+            REMOTE_HOST: ${{ secrets.REMOTE_DEPLOY_HOST }}
+            REMOTE_USER: ${{ secrets.REMOTE_DEPLOY_USER }}
+            TARGET: ${{ secrets.REMOTE_DEPLOY_TARGET }}
+      # - name: deploy
+      #   uses: JamesIves/github-pages-deploy-action@v4
+      #   with:
+      #     folder: www
+      #     ssh-key: ${{ secrets.DEPLOY_KEY }}
+      #     branch: main
+      #     git-config-name: Deployer
+      #     git-config-email: alex@ash.works
+      #     repository-name: virtuoso/virtuoso.github.io
+      #     target-folder: clap
+      #     clean: false
