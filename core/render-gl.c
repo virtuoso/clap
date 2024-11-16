@@ -70,6 +70,8 @@ void texture_resize(texture_t *tex, unsigned int width, unsigned int height)
     GL(glTexImage2D(GL_TEXTURE_2D, 0, tex->format, width, height,
                  0, tex->format, tex->type, NULL));
     GL(glBindTexture(GL_TEXTURE_2D, 0));
+    tex->width = width;
+    tex->height = height;
 }
 
 void texture_filters(texture_t *tex, GLint wrap, GLint filter)
