@@ -741,8 +741,10 @@ void fbo_resize(struct fbo *fbo, int width, int height)
     fbo->width = width;
     fbo->height = height;
     GL(glFinish());
-    texture_resize(&fbo->tex, width, height);
-    texture_resize(&fbo->depth, width, height);
+    if (texture_loaded(&fbo->tex))
+        texture_resize(&fbo->tex, width, height);
+    if (texture_loaded(&fbo->depth))
+        texture_resize(&fbo->depth, width, height);
 
     int *color_buf;
     darray_for_each(color_buf, &fbo->color_buf) {
@@ -751,7 +753,7 @@ void fbo_resize(struct fbo *fbo, int width, int height)
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
 
-    if (fbo->depth_buf) {
+    if (fbo->depth_buf >= 0) {
         GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf));
         __fbo_depth_buffer_setup(fbo);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
