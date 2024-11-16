@@ -52,7 +52,7 @@ jobs:
         uses: easingthemes/ssh-deploy@main
         with:
             SSH_PRIVATE_KEY: ${{ secrets.REMOTE_DEPLOY_KEY }}
-            ARGS: "-rlgoDzvc -i --delete"
+            ARGS: "-rlgoDzvc -i"
             SOURCE: "www/"
             REMOTE_HOST: ${{ secrets.REMOTE_DEPLOY_HOST }}
             REMOTE_USER: ${{ secrets.REMOTE_DEPLOY_USER }}
