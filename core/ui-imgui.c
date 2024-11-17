@@ -88,23 +88,31 @@ void imgui_done(void)
     igDestroyContext(ctx);
 }
 
-bool ui_igVec3TableHeader(const char *str_id)
+bool ui_igVecTableHeader(const char *str_id, int n)
 {
-    if (!igBeginTable(str_id, 4, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0))
+    if (n > 4)
         return false;
 
+    if (!igBeginTable(str_id, n + 1, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0))
+        return false;
+
+    const char *labels[] = { "X", "Y", "Z", "W" };
     igTableSetupColumn("vector", ImGuiTableColumnFlags_WidthStretch, 0, 0);
-    igTableSetupColumn("X", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-    igTableSetupColumn("Y", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-    igTableSetupColumn("Z", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+
+    int i;
+    for (i = 0; i < n; i++)
+        igTableSetupColumn(labels[i], ImGuiTableColumnFlags_WidthFixed, 0, 0);
 
     return true;
 }
 
-void ui_igVec3Row(float v[3], const char *fmt, ...)
+void ui_igVecRow(float *v, int n, const char *fmt, ...)
 {
     char buf[128];
     va_list va;
+
+    if (n > 4)
+        return;
 
     va_start(va, fmt);
     vsnprintf(buf, sizeof(buf), fmt, va);
@@ -113,12 +121,12 @@ void ui_igVec3Row(float v[3], const char *fmt, ...)
     igTableNextRow(0, 0);
     igTableNextColumn();
     igText(buf);
-    igTableNextColumn();
-    igText("%f", v[0]);
-    igTableNextColumn();
-    igText("%f", v[1]);
-    igTableNextColumn();
-    igText("%f", v[2]);
+
+    int i;
+    for (i = 0; i < n; i++) {
+        igTableNextColumn();
+        igText("%f", v[i]);
+    }
 }
 
 bool ui_igMat4x4(mat4x4 m, const char *name)
