@@ -143,10 +143,10 @@ float model3d_aabb_Y(struct model3d *m);
 float model3d_aabb_Z(struct model3d *m);
 struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
 struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const char *norm);
-struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length);
-struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz);
-struct model3dtx *model3dtx_new_from_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
-                                              void *em, size_t emsz);
+struct model3dtx *model3dtx_new_from_png_buffer(struct model3d *model, void *buffer, size_t length);
+struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz);
+struct model3dtx *model3dtx_new_from_png_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
+                                                  void *em, size_t emsz);
 struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
 void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex);

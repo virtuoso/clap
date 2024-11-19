@@ -235,7 +235,7 @@ static void model3dtx_add_fake_sobel(struct model3dtx *txm)
     shader_prog_done(model->prog);
 }
 
-struct model3dtx *model3dtx_new_from_buffer(struct model3d *model, void *buffer, size_t length)
+struct model3dtx *model3dtx_new_from_png_buffer(struct model3d *model, void *buffer, size_t length)
 {
     if (!buffer || !length)
         goto err;
@@ -257,7 +257,7 @@ err:
     return NULL;
 }
 
-struct model3dtx *model3dtx_new_from_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz)
+struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz)
 {
     if (!tex || !texsz || !norm || !normsz)
         goto err;
@@ -280,8 +280,8 @@ err:
     return NULL;
 }
 
-struct model3dtx *model3dtx_new_from_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
-                                              void *em, size_t emsz)
+struct model3dtx *model3dtx_new_from_png_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
+                                                  void *em, size_t emsz)
 {
     if (!tex || !texsz /*|| !norm || !normsz*/ || !em || !emsz)
         goto err;
