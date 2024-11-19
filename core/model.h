@@ -147,7 +147,6 @@ struct model3dtx *model3dtx_new_from_png_buffer(struct model3d *model, void *buf
 struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz);
 struct model3dtx *model3dtx_new_from_png_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
                                                   void *em, size_t emsz);
-struct model3dtx *model3dtx_new_txid(struct model3d *model, unsigned int txid);
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
 void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex);
 void model3dtx_set_texture_from(struct model3dtx *txm, enum shader_vars to,
