@@ -1,4 +1,23 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
+
+#
+# https://github.com/corporateshark/bootstrapping.git
+# sk@linderdaum.com
+#
+# The MIT License (MIT)
+# Copyright (c) 2016-2024, Sergey Kosarevsky
+#
+# ---
+# Based on https://bitbucket.org/blippar/bootstrapping-external-libs
+#
+# The MIT License (MIT)
+# Copyright (c) 2016 Blippar.com Ltd
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import print_function
 import platform
@@ -15,19 +34,16 @@ import getopt
 import traceback
 import urllib
 import ssl
-#import progressbar
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
 try:
     from urllib.request import urlparse
     from urllib.request import urlunparse
-    from urllib.request import urlretrieve
     from urllib.request import quote
 except ImportError:
     from urlparse import urlparse
     from urlparse import urlunparse
-    from urllib import urlretrieve
     from urllib import URLopener
     from urllib import quote
 
@@ -67,7 +83,7 @@ FALLBACK_URL = ""
 USE_TAR = False
 USE_UNZIP = False
 
-TOOL_COMMAND_PYTHON = "python"
+TOOL_COMMAND_PYTHON = sys.executable if not " " in sys.executable else '"{}"'.format(sys.executable)
 TOOL_COMMAND_GIT = "git"
 TOOL_COMMAND_HG = "hg"
 TOOL_COMMAND_SVN = "svn"
@@ -78,8 +94,8 @@ TOOL_COMMAND_UNZIP = "unzip"
 if platform.system() == "Windows":
     os.environ['CYGWIN'] = "nodosfilewarning"
 
-if platform.system() == "Linux":
-    TOOL_COMMAND_PYTHON = "python3"
+if not sys.version_info[0] >= 3:
+    raise ValueError("I require Python 3.0 or a later version")
 
 def log(string):
     print("--- " + string)
@@ -119,7 +135,7 @@ def escapifyPath(path):
         return "\"" + path + "\""
     return path.replace("\\ ", " ")
 
-def cloneRepository(type, url, target_name, revision = None, try_only_local_operations = False):
+def cloneRepository(type, url, target_name, revision, try_only_local_operations = False, recursive = True):
     target_dir = escapifyPath(os.path.join(SRC_DIR, target_name))
     target_dir_exists = os.path.exists(target_dir)
     log("Cloning " + url + " to " + target_dir)
@@ -152,10 +168,16 @@ def cloneRepository(type, url, target_name, revision = None, try_only_local_oper
             if target_dir_exists:
                 dlog("Removing directory " + target_dir + " before cloning")
                 shutil.rmtree(target_dir)
-            dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " clone --recursive " + url + " " + target_dir))
+            if recursive:
+                dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " clone --recursive " + url + " " + target_dir))
+            else:
+                dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " clone " + url + " " + target_dir))
         elif not try_only_local_operations:
             log("Repository " + target_dir + " already exists; fetching instead of cloning")
-            dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " -C " + target_dir + " fetch --recurse-submodules"))
+            if recursive:
+                dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " -C " + target_dir + " fetch --recurse-submodules"))
+            else:
+                dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " -C " + target_dir + " fetch"))
 
         if revision is None:
             revision = "HEAD"
@@ -305,14 +327,15 @@ def downloadSCP(hostname, username, path, target_dir):
     scpc = scp.SCPClient(ssh.get_transport())
     scpc.get(path, local_path = target_dir);
 
-
-# def downloadProgress(count, block_size, total_size):
-#     global pbar
-#     if count == 0:
-#         pbar = progressbar.ProgressBar(maxval = total_size / block_size)
-#     else:
-#         pbar.update(count - 1)
-
+def downloadProgress(cur_size, total_size):
+    percent = int((cur_size / total_size)*100)
+    print("[", end = "")
+    for i in range(int(percent/2)):
+        print("*", end = "")
+    for i in range(int(percent/2), 50):
+        print(".", end = "")
+    print("] " + str(percent) + "% --- ", end = "")
+    print("%.2f" % (cur_size / (1024*1024)), "Mb", end = "\r")
 
 def computeFileHash(filename):
     blocksize = 65536
@@ -347,14 +370,28 @@ def downloadFile(url, download_dir, target_dir_name, sha1_hash = None, force_dow
         if p.scheme == "ssh":
             downloadSCP(p.hostname, p.username, p.path, download_dir)
         else:
+            opener = urllib.request.build_opener()
             if user_agent is not None:
-                opener = urllib.request.build_opener()
                 opener.addheaders = [('User-agent', user_agent)]
-                f = open(target_filename, 'wb')
-                f.write(opener.open(url).read())
-                f.close()
-            else:
-                urlretrieve(url, target_filename)
+            f = open(target_filename, 'wb')
+            with opener.open(url) as response:
+                Length = response.getheader('content-length')
+                BlockSize = 128*1024 # default value
+                if Length:
+                    Length = int(Length)
+                    BlockSize = max(BlockSize, Length // 1000)
+                    Size = 0
+                    while True:
+                        Buffer = response.read(BlockSize)
+                        if not Buffer:
+                            break
+                        f.write(Buffer)
+                        Size += len(Buffer)
+                        downloadProgress(Size, Length)
+                    print();
+                else:
+                    f.write(response.read())
+            f.close()
     else:
         log("Skipping download of " + url + "; already downloaded")
 
@@ -362,7 +399,9 @@ def downloadFile(url, download_dir, target_dir_name, sha1_hash = None, force_dow
     if sha1_hash is not None and sha1_hash != "":
         hash_file = computeFileHash(target_filename)
         if hash_file != sha1_hash:
-            raise RuntimeError("Hash of " + target_filename + " (" + hash_file + ") differs from expected hash (" + sha1_hash + ")")
+            errorStr = "Hash of " + target_filename + " (" + hash_file + ") differs from expected hash (" + sha1_hash + ")"
+            log(errorStr)
+            raise RuntimeError(errorStr)
 
     return target_filename
 
@@ -396,7 +435,7 @@ def runPythonScript(script_name):
     log("Running Python script " + script_name)
     patch_dir = os.path.join(BASE_DIR, "patches")
     filename = os.path.join(patch_dir, script_name)
-    dieIfNonZero(executeCommand(TOOL_COMMAND_PYTHON + " " + filename, False));
+    dieIfNonZero(executeCommand(TOOL_COMMAND_PYTHON + " " + escapifyPath(filename), False));
 
 
 def findToolCommand(command, paths_to_search, required = False):
@@ -421,13 +460,16 @@ def readJSONData(filename):
     try:
         json_data = open(filename).read()
     except:
-        log("ERROR: Could not read JSON file " + filename)
+        log("ERROR: Could not read JSON file: " + filename)
         return None
 
     try:
         data = json.loads(json_data)
+    except json.JSONDecodeError as e:
+        log("ERROR: Could not parse JSON document: {}\n    {} (line {}:{})\n".format(filename, e.msg, e.lineno, e.colno))
+        return None
     except:
-        log("ERROR: Could not parse JSON document")
+        log("ERROR: Could not parse JSON document: " + filename)
         return None
 
     return data
@@ -761,6 +803,7 @@ def main(argv):
 
                 else:
                     revision = source.get('revision', None)
+                    recursive = source.get('recursive', True)
 
                     archive_name = name + ".tar.gz" # for reading or writing of snapshot archives
                     if revision is not None:
@@ -769,7 +812,7 @@ def main(argv):
                     try:
                         if force_fallback:
                             raise RuntimeError
-                        cloneRepository(src_type, src_url, name, revision)
+                        cloneRepository(src_type, src_url, name, revision, False, recursive)
 
                         if create_repo_snapshots:
                             log("Creating snapshot of library repository " + name)
@@ -793,7 +836,7 @@ def main(argv):
                             downloadAndExtractFile(fallback_src_url, SNAPSHOT_DIR, name, force_download = True)
 
                             # reset repository state to particular revision (only using local operations inside the function)
-                            cloneRepository(src_type, src_url, name, revision, True)
+                            cloneRepository(src_type, src_url, name, revision, True, True)
                         else:
                             raise
             else:
@@ -846,6 +889,9 @@ def main(argv):
         return -1
 
     log("Finished")
+
+    # touch the state cache file
+    os.utime(state_filename, None);
 
     return 0
 
