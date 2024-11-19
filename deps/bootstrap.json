@@ -12,7 +12,7 @@
     "source": {
         "type": "git",
         "url": "https://github.com/cimgui/cimgui",
-        "revision": "1.91.4dock"
+        "revision": "origin/master"
     }
 }
 ]
