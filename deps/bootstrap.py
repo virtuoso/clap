@@ -183,6 +183,8 @@ def cloneRepository(type, url, target_name, revision, try_only_local_operations 
             revision = "HEAD"
         dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " -C " + target_dir + " reset --hard " + revision))
         dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " -C " + target_dir + " clean -fxd"))
+        if recursive:
+            dieIfNonZero(executeCommand(TOOL_COMMAND_GIT + " -C " + target_dir + " submodule update --init --recursive"))
 
     elif type == "svn":
         if not try_only_local_operations: # we can't do much without a server connection when dealing with SVN
