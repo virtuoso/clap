@@ -5,7 +5,6 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 get_filename_component(PARENT_DIR ${clap_SOURCE_DIR} DIRECTORY)
 set(ENGINE_INCLUDE "${PARENT_DIR}/clap/core" "${clap_BINARY_DIR}/core")
 set(ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/asset")
-message("### asset dir ${ASSET_DIR} include dir ${ENGINE_INCLUDE}")
 
 get_directory_property(CONFIG_GLES
     DIRECTORY "${CMAKE_SOURCE_DIR}/core"
@@ -78,8 +77,6 @@ add_custom_target(preprocess_shaders
 set(ASSETS  "${SHADER_OUTS}"
             "${ASSET_DIR}/scene.json")
 
-message("### assets ${ASSETS}")
-
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(FREETYPE_LIBRARIES  "-s USE_FREETYPE=1")
     set(PNG_LIBRARY         "-s USE_LIBPNG=1")
@@ -137,8 +134,6 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 else ()
     set(DEBUG_LIBRARIES "")
 endif ()
-
-message("### GLEW: ${GLEW_LIBRARIES}")
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(ENGINE_BIN index) # because index.html

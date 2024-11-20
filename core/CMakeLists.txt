@@ -59,8 +59,6 @@ else ()
     set(DEBUG_LIBRARIES "")
 endif ()
 
-message("### GLEW: ${GLEW_LIBRARIES}")
-
 if (CLAP_BUILD_WITH_GLES)
     set(CONFIG_GLES 1)
 endif ()
