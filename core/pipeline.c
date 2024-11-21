@@ -136,8 +136,9 @@ struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *s
     if (!p)
         goto err_blit_src;
 
-    m = model3d_new_quad(p, -1, 1, 0.1, 2, -2);
-    m->cull_face = false;
+    m = model3d_new_quad(p, -1, 1, 0, 2, -2);
+    m->cull_face = true;
+    m->debug = true;
     m->alpha_blend = false;
     txm = model3dtx_new_texture(ref_pass(m), &(*pfbo)->tex);
     mq_add_model(&pass->mq, txm);
