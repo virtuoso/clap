@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "mesh.h"
 
-static GLushort quad_idx[] = {0, 1, 3, 3, 1, 2};
+static GLushort quad_idx[] = {0, 3, 1, 3, 2, 1};
 
 static GLfloat quad_tx[]  = {
     0.0, 0.0,
