@@ -335,6 +335,14 @@ struct shader_prog *shader_prog_find(struct list *shaders, const char *name)
     return NULL;
 }
 
+void shaders_free(struct list *shaders)
+{
+    struct shader_prog *prog, *iter;
+
+    list_for_each_entry_iter(prog, iter, shaders, entry)
+        ref_put(prog);
+}
+
 int lib_request_shaders(const char *name, struct list *shaders)
 {
     //char *nvert CUX(string), *nfrag CUX(string), *vert CUX(string), *frag CUX(string);

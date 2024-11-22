@@ -792,8 +792,7 @@ void scene_done(struct scene *scene)
      * clean up the shaders that weren't freed by model3d_drop()
      * via mq_release()
      */
-    list_for_each_entry_iter(prog, it, &scene->shaders, entry)
-        ref_put(prog);
+    shaders_free(&scene->shaders);
 
     free(scene->name);
 }

@@ -1636,8 +1636,7 @@ void ui_done(struct ui *ui)
      * clean up the shaders that weren't freed by model3d_drop()
      * via mq_release()
      */
-    list_for_each_entry_iter(prog, iter, &ui->shaders, entry)
-        ref_put(prog);
+    shaders_free(&ui->shaders);
 
     int i;
 

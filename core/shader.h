@@ -76,6 +76,7 @@ int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var);
 void shader_set_texture(struct shader_prog *p, enum shader_vars var);
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex);
 struct shader_prog *shader_prog_find(struct list *shaders, const char *name);
+void shaders_free(struct list *shaders);
 int lib_request_shaders(const char *name, struct list *shaders);
 
 #endif /* __CLAP_SHADER_H__ */
