@@ -99,6 +99,8 @@ struct ui_widget {
 struct ui {
     struct mq          mq;
     struct list        shaders;
+    struct shader_prog *ui_prog;
+    struct shader_prog *glyph_prog;
     struct sound       *click;
     struct ui_widget   *menu;
     struct ui_widget   *inventory;

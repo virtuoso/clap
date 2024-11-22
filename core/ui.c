@@ -237,26 +237,16 @@ static void ui_add_model_tail(struct ui *ui, struct model3dtx *txmodel)
 static int ui_model_init(struct ui *ui)
 {
     float x = 0.f, y = 0.f, w = 1.f, h = 1.f;
-    struct shader_prog *prog = shader_prog_find(&ui->shaders, "ui"); /* XXX */
-
-    if (!prog) {
-        err("couldn't load 'ui' shaders\n");
-        return -EINVAL;
-    }
-
-    struct model3d *ui_quad = model3d_new_quad(prog, x, y, 0, w, h);
+    struct model3d *ui_quad = model3d_new_quad(ui->ui_prog, x, y, 0, w, h);
     ui_quad->cull_face = false;
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
     /* XXX: maybe a "textured_model" as another interim object */
     ui_quadtx = model3dtx_new(ref_pass(ui_quad), "transparent.png");
-    if (!ui_quadtx) {
-        ref_put(prog);
+    if (!ui_quadtx)
         return -EINVAL;
-    }
 
     ui_add_model_tail(ui, ui_quadtx);
-    ref_put(prog);  /* matches shader_prog_find() above */
     return 0;
 }
 
@@ -382,7 +372,6 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     struct model3dtx    *txm, *txmtex;
     struct fbo          *fbo;
     struct ui_text      uit = {};
-    struct shader_prog  *prog;
     struct glyph        *glyph;
     struct model3d      *m;
     unsigned int        i, line;
@@ -416,7 +405,6 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     y = (float)uit.margin_y + uit.y_off;
     dbg_on(y < 0, "y: %f, height: %d y_off: %d, margin_y: %d\n",
            y, uit.height, uit.y_off, uit.margin_y);
-    CHECK(prog      = shader_prog_find(&ui->shaders, "glyph"));
     CHECK(uies = calloc(len, sizeof(struct ui_element *)));
     uit.nr_uies = len;
     for (line = 0, i = 0, x = x_off(&uit, line); i < len; i++) {
@@ -433,7 +421,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
         glyph   = font_get_glyph(uit.font, str[i]);
         txm = ui_txm_find_by_texture(&fbo_ui, &glyph->tex);
         if (!txm) {
-            m       = ui_quad_new(prog, 0, 0, glyph->width, glyph->height);
+            m       = ui_quad_new(ui->glyph_prog, 0, 0, glyph->width, glyph->height);
             model3d_set_name(m, "glyph_%s_%c", font_name(uit.font), str[i]);
             m->alpha_blend = true;
             txm = model3dtx_new_texture(ref_pass(m), &glyph->tex);
@@ -472,22 +460,18 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);
 
-    ref_put(prog);
-
     free(uies);
     free(uit.line_nrw);
     free(uit.line_ws);
     free(uit.line_w);
 
-    prog = shader_prog_find(&ui->shaders, "ui");
-    m = model3d_new_quad(prog, 0, 1, 0, 1, -1);
+    m = model3d_new_quad(ui->ui_prog, 0, 1, 0, 1, -1);
     model3d_set_name(m, "ui_text: '%s'", str);
     m->alpha_blend = true;
     m->debug = true;
     txmtex = model3dtx_new_texture(ref_pass(m), texture_clone(&fbo->tex));
     ref_put_last(fbo);
     ui_add_model(ui, txmtex);
-    ref_put(prog);
 
     uit.uietex = ui_element_new(ui, parent, ref_pass(txmtex),
                                 parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
@@ -917,7 +901,7 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     int i;
 
     menu->focus = -1;
-    model = ui_quad_new(list_first_entry(&ui->shaders, struct shader_prog, entry), 0, 0, 1, 1);
+    model = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     model3d_set_name(model, "ui_menu");
     // /* XXX^1: texture model(s) hardcoded */
     txm = model3dtx_new(ref_pass(model), "green.png");
@@ -1080,20 +1064,20 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
             number_of_immature_apples++;
     }
     if (number_of_apples > 0) {
-        apple_m = ui_quad_new(list_first_entry(&ui->shaders, struct shader_prog, entry), 0, 0, 1, 1);
+        apple_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(apple_m, "inventory apple");
         apple_m->alpha_blend = true;
         apple_txm = model3dtx_new(ref_pass(apple_m), "apple.png");
         ui_add_model(ui, apple_txm);
     }
     if (number_of_immature_apples > 0) {
-        bar_m = ui_quad_new(list_first_entry(&ui->shaders, struct shader_prog, entry), 0, 0, 1, 1);
+        bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(bar_m, "inventory bar on immature apple");
         bar_m->alpha_blend = false;
         bar_txm = model3dtx_new(ref_pass(bar_m), "green.png");
         ui_add_model(ui, bar_txm);
     }
-    frame_m = model3d_new_frame(list_first_entry(&ui->shaders, struct shader_prog, entry), 0, 0, 0.01, 1, 1, 0.02);
+    frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0.01, 1, 1, 0.02);
     model3d_set_name(frame_m, "inventory item frame");
     frame_m->cull_face = false;
     frame_m->alpha_blend = false;
@@ -1388,7 +1372,6 @@ static float health_bar_width;
 void ui_pip_update(struct ui *ui, struct fbo *fbo)
 {
     struct model3d *m;
-    struct shader_prog *prog;
 
     ui_fbo_tex = &fbo->tex;
 
@@ -1397,11 +1380,9 @@ void ui_pip_update(struct ui *ui, struct fbo *fbo)
     if (uie0)
         ref_put(uie0);
 
-    prog = shader_prog_find(&ui->shaders, "ui");
-    m = ui_quad_new(prog, 0, 1, 1, -1);
+    m = ui_quad_new(ui->ui_prog, 0, 1, 1, -1);
     ui_pip = model3dtx_new_texture(ref_pass(m), ui_fbo_tex);
     ui_add_model_tail(ui, ui_pip);
-    ref_put(prog);
     dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo->width, fbo->height);
     if (fbo->width < fbo->height)
         uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_VCENTER | UI_AF_LEFT, 0, 0, fbo->width, fbo->height);
@@ -1429,7 +1410,7 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     p = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_RIGHT,
                        10, 10, 200, 100 * nr);
     for (i = 0; i < nr; i++) {
-        model = ui_quad_new(list_first_entry(&ui->shaders, struct shader_prog, entry), 0, 0, 1, 1);
+        model = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(model, "ui_pocket_element");
         txm = model3dtx_new(ref_pass(model), tex[i]);
         if (!txm)
@@ -1499,7 +1480,6 @@ struct ui_element *ui_progress_new(struct ui *ui)
     float total_height = height + 2 * thickness;
     
     float color[] = { 1, 1, 1, 1 };
-    struct shader_prog *prog;
     struct ui_element *uie, *bar, *frame;
     struct model3dtx *bar_txm, *frame_txm;
     struct model3d *bar_m, *frame_m;
@@ -1507,16 +1487,13 @@ struct ui_element *ui_progress_new(struct ui *ui)
 
     health_bar_width = width;
     
-    prog = shader_prog_find(&ui->shaders, "ui");
-
-    frame_m = model3d_new_frame(prog, 0, 0, 0, total_width, total_height, 1);
+    frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0, total_width, total_height, 1);
     frame_txm = model3dtx_new(ref_pass(frame_m), "green.png");
     ui_add_model(ui, frame_txm);
     
-    bar_m = ui_quad_new(prog, 0, 0, 1, 1);
+    bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     bar_txm = model3dtx_new(ref_pass(bar_m), "green.png");
     ui_add_model(ui, bar_txm);
-    ref_put(prog);
     CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, height / 2, total_width, total_height));
     CHECK(bar = ui_element_new(ui, uie, bar_txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));
     bar->entity->color_pt = COLOR_PT_ALL;
@@ -1572,17 +1549,22 @@ int ui_init(struct ui *ui, int width, int height)
     lib_request_shaders("glyph", &ui->shaders);
     lib_request_shaders("ui", &ui->shaders);
 
+    ui->ui_prog = shader_prog_find(&ui->shaders, "ui");
+    ui->glyph_prog = shader_prog_find(&ui->shaders, "glyph");
+    if (!ui->ui_prog || !ui->glyph_prog)
+        goto err;
+
     ui->click = sound_load("stapler.ogg");
     sound_set_gain(ui->click, 0.2);
     debug_font = font_open("ProggyTiny.ttf", 28);
     font = font_open("ProggyTiny.ttf", 16);
     if (!debug_font || !font)
-        return -1;
+        goto err;
 
     if (ui_model_init(ui)) {
         font_put(debug_font);
         font_put(font);
-        return -1;
+        goto err;
     }
 
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
@@ -1601,6 +1583,10 @@ int ui_init(struct ui *ui, int width, int height)
     subscribe(MT_COMMAND, ui_handle_command, ui);
     subscribe(MT_INPUT, ui_handle_input, ui);
     return 0;
+
+err:
+    shaders_free(&ui->shaders);
+    return -1;
 }
 
 void ui_done(struct ui *ui)
