@@ -1,0 +1,26 @@
+name: macos-build
+on: [push]
+jobs:
+  build-macos:
+    runs-on: macos-15
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive
+      - name: install-deps
+        run: |
+          brew install cmake glew zlib libpng libogg libvorbis freetype glfw shaderc spirv-cross
+      - name: configure
+        run: |
+          cd ${{ github.workspace }}
+          touch build_config
+          echo opts=\"--parallel 4\" >> build_config
+          ./configure.sh
+      - name: build
+        run: |
+          cd ${{ github.workspace }}
+          ./build.sh
+          git config --global --unset url."https://github.com/".insteadOf
