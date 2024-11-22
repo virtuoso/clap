@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "mesh.h"
 
-static GLushort quad_idx[] = {0, 3, 1, 3, 2, 1};
-
 static GLfloat quad_tx[]  = {
     0.0, 0.0,
     0.0, 1.0,
@@ -139,6 +137,18 @@ struct model3d *model3d_new_cube(struct shader_prog *p)
 
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)
 {
+    static GLushort quad_idx[] = {0, 3, 1, 3, 2, 1};
+    GLfloat quad_vx[] = {
+        x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
+    };
+
+    return model3d_new_from_vectors("quad", p, quad_vx, sizeof(quad_vx), quad_idx, sizeof(quad_idx),
+                                    quad_tx, sizeof(quad_tx), NULL, 0);
+}
+
+struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h)
+{
+    static GLushort quad_idx[] = {0, 1, 3, 3, 1, 2};
     GLfloat quad_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
