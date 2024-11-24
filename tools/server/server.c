@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <sys/time.h>
 
 #include "clap.h"
 #include "config.h"
