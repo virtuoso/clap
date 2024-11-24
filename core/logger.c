@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <sys/time.h>
 #include <time.h>
 #include "config.h"
 #include "messagebus.h"
