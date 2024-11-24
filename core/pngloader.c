@@ -9,6 +9,7 @@
 #include "util.h"
 #include "librarian.h"
 #include "logger.h"
+#include "pngloader.h"
 
 static unsigned char *parse_png(png_structp png, png_infop info, int *width, int *height,
                                 int *has_alpha)
@@ -55,45 +56,24 @@ out:
 
 unsigned char *fetch_png(const char *file_name, int *width, int *height, int *has_alpha)
 {
-    LOCAL(FILE, fp);
-    LOCAL(char, uri);
-    unsigned char header[8];
-    png_structp png;
-    png_infop info;
+    unsigned char *ret = NULL;
+    struct lib_handle *lh;
+    size_t size;
+    void *buf;
 
-    uri = lib_figure_uri(RES_ASSET, file_name);
-    if (!uri)
+    lh = lib_read_file(RES_ASSET, file_name, &buf, &size);
+    if (!lh)
         return NULL;
 
-    fp = fopen(uri, "rb");
-    if (!fp) {
-        err("file '%s' could not be opened for reading\n", file_name);
-        return NULL;
-    }
+    if (lh->state == RES_ERROR)
+        goto out;
 
-    if (fread(header, 1, 8, fp) != 8) {
-        fclose(fp);
-        return NULL;
-    }
+    ret = decode_png(buf, size, width, height, has_alpha);
 
-    if (png_sig_cmp(header, 0, 8)) {
-        err("file %s is not recognized as a PNG file", file_name);
-        fclose(fp);
-        return NULL;
-    }
+out:
+    ref_put(lh);
 
-    /* initialize stuff */
-    CHECK(png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL));
-    CHECK(info = png_create_info_struct(png));
-
-    if (setjmp(png_jmpbuf(png))) {
-        err("error during init_io\n");
-        return NULL;
-    }
-
-    png_init_io(png, fp);
-
-    return parse_png(png, info, width, height, has_alpha);
+    return ret;
 }
 
 struct png_cursor {
