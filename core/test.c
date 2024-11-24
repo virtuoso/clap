@@ -396,9 +396,7 @@ int main()
     }
 
     messagebus_done();
-#ifdef CONFIG_BROWSER
-    exit_cleanup_run(ret);
-#endif
+
     return ret;
 }
 
