@@ -319,7 +319,6 @@ void exit_cleanup_run(int status)
         list_del(&eh->entry);
         free(eh);
     }
-    fflush(stdout);
 }
 
 static void __attribute__((destructor)) do_exit(void)
