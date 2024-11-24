@@ -31,7 +31,7 @@ if executeCommandSilent("git --version") != 0:
 
 # run Tools/Bootstrap
 
-runPythonScript( os.path.join("deps", "bootstrap.py"), "-b deps" )
+runPythonScript( os.path.join("deps", "bootstrap.py"), "-b deps " + " ".join('"{0}"'.format(arg) for arg in sys.argv[1:]) )
 
 print( "" )
 print( "Bootstrapping done." )
