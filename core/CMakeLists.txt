@@ -1,4 +1,4 @@
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 23)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -30,26 +30,6 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(PLATFORM_SRC display-www.c input-www.c ui-imgui-www.c)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 else ()
-    set(OpenGL_GL_PREFERENCE "LEGACY")
-    find_package(glfw3)
-    find_package(GLEW)
-    find_package(OpenGL)
-    find_package(PNG)
-    find_package(Freetype)
-    find_package(OpenAL)
-    find_library(VORBISFILE_LIBRARY
-        NAMES vorbisfile VorbisFile VORBISFILE
-        PATHS
-            ENV VORBISDIR
-            ENV OGGDIR
-            ENV SDLSOUNDDIR
-            ENV SDLDIR
-            /opt
-        PATH_SUFFIXES
-            lib
-    )
-    set(GLEW_LIBRARIES GLEW::GLEW)
-    set(EXTRA_LIBRARIES m pthread stdc++)
     set(PLATFORM_SRC display-glfw.c)
 endif ()
 
@@ -79,13 +59,12 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(TEST_BIN tests)
     set(TEST_SRC test.c object.c ref.c util.c logger.c json.c messagebus.c)
     add_executable(${TEST_BIN} ${TEST_SRC})
-    target_compile_definitions(${TEST_BIN} PUBLIC)
+    win32_executable(${TEST_BIN})
 
     add_test(${TEST_BIN} ${TEST_BIN})
 endif ()
 
 set(ENGINE_LIB libonehandclap)
-set(ENGINE_SRC ${SERVER_SRC} )
 set(ENGINE_SRC
     object.c ref.c util.c logger.c graphics.c input.c messagebus.c
     matrix.c model.c shader.c librarian.c json.c clap.c
@@ -98,7 +77,7 @@ set(ENGINE_SRC
 # Mac OS X has deprecated OpenAL and is very vocal about it
 set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
 
-if (CLAP_BUILD_NETWORKING)
+if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
     list(APPEND ENGINE_SRC networking.c)
 
     # sha1.c is obviously buggy, someone should do something about it
@@ -106,12 +85,6 @@ if (CLAP_BUILD_NETWORKING)
         set_source_files_properties(networking.c PROPERTIES COMPILE_FLAGS -Wno-stringop-overread)
     endif ()
 endif ()
-
-add_custom_command(
-    OUTPUT builddate.c
-    DEPENDS ${ENGINE_SRC}
-    COMMAND date +'const char *build_date = \"%Y%m%d_%H%M%S\"\;' > builddate.c
-)
 
 get_filename_component(PARENT_DIR ${clap_SOURCE_DIR} DIRECTORY)
 
@@ -156,20 +129,27 @@ ENDFOREACH ()
 
 # the regular C sources don't need any special cimgui API prefixes
 FOREACH(src ${ENGINE_SRC})
-    set_source_files_properties(${src} PROPERTIES COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ ")
+    set_source_files_properties(${src} PROPERTIES
+                                COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ "
+                                INCLUDE_DIRECTORIES "${WLIBC_INCLUDE_DIR}"
+    )
 ENDFOREACH ()
+
+FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/builddate.c "const char *build_date = \"${CONFIG_BUILDDATE}\";")
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c)
 add_dependencies(${ENGINE_LIB} ode)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
-target_link_libraries(${ENGINE_LIB} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
-target_link_libraries(${ENGINE_LIB} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
-target_link_libraries(${ENGINE_LIB} ${ODE_LIBRARY} meshoptimizer)
-target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
+target_link_libraries(${ENGINE_LIB} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
+target_link_libraries(${ENGINE_LIB} PRIVATE ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
+target_link_libraries(${ENGINE_LIB} PRIVATE libode meshoptimizer)
+target_link_libraries(${ENGINE_LIB} PRIVATE ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
 target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})
+target_include_directories(${ENGINE_LIB} PRIVATE ${OPENAL_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR}/imgui)
 target_include_directories(${ENGINE_LIB} PRIVATE ${GLFW_INCLUDES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR} ${CMAKE_BINARY_DIR})
-target_link_libraries(${ENGINE_LIB} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
+target_link_libraries(${ENGINE_LIB} PRIVATE ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
+win32_library(${ENGINE_LIB} FALSE)

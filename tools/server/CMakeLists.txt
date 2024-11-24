@@ -18,7 +18,7 @@ set(ENGINE_LIB libonehandclap)
 
 add_executable(${SERVER_BIN} ${ENGINE_MAIN})
 target_include_directories(${SERVER_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE})
-target_link_libraries(${SERVER_BIN} ${EXTRA_LIBRARIES})
-target_link_libraries(${SERVER_BIN} ${ENGINE_LIB})
+target_link_libraries(${SERVER_BIN} PRIVATE ${ENGINE_LIB})
+win32_executable(${SERVER_BIN})
 
 install(TARGETS ${SERVER_BIN} DESTINATION bin)

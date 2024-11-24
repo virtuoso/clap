@@ -103,27 +103,6 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3") # -flto
     endif ()
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
-else ()
-    set(OpenGL_GL_PREFERENCE "LEGACY")
-    find_package(glfw3)
-    find_package(GLEW)
-    find_package(OpenGL)
-    find_package(PNG)
-    find_package(Freetype)
-    find_package(OpenAL)
-    find_library(VORBISFILE_LIBRARY
-        NAMES vorbisfile VorbisFile VORBISFILE
-        PATHS
-            ENV VORBISDIR
-            ENV OGGDIR
-            ENV SDLSOUNDDIR
-            ENV SDLDIR
-            /opt
-        PATH_SUFFIXES
-            lib
-    )
-    set(GLEW_LIBRARIES GLEW::GLEW)
-    # set(EXTRA_LIBRARIES m pthread stdc++)
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -148,11 +127,12 @@ add_executable(${ENGINE_BIN} ${ENGINE_MAIN})
 add_dependencies(${ENGINE_BIN} ${ENGINE_LIB} meshoptimizer preprocess_shaders)
 target_include_directories(${ENGINE_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
 set_target_properties(${ENGINE_BIN} PROPERTIES LINK_DEPENDS "${ASSETS}")
-target_link_libraries(${ENGINE_BIN} ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
-target_link_libraries(${ENGINE_BIN} ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
-target_link_libraries(${ENGINE_BIN} ${ODE_LIBRARY} meshoptimizer)
-target_link_libraries(${ENGINE_BIN} ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
-target_link_libraries(${ENGINE_BIN} ${ENGINE_LIB})
+target_link_libraries(${ENGINE_BIN} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
+target_link_libraries(${ENGINE_BIN} PRIVATE ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
+target_link_libraries(${ENGINE_BIN} PRIVATE libode meshoptimizer)
+target_link_libraries(${ENGINE_BIN} PRIVATE ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
+target_link_libraries(${ENGINE_BIN} PRIVATE ${ENGINE_LIB})
+win32_executable(${ENGINE_BIN})
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
