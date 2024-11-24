@@ -64,6 +64,12 @@ char *lib_figure_uri(enum res_type type, const char *name)
     int ret;
 
     ret = asprintf(&uri, "%s%s/%s", base_url, pfx[type], name);
+#ifdef _WIN32
+    int i;
+    for (i = 0; i < ret; i++)
+        if (uri[i] == '/')
+            uri[i] = '\\';
+#endif /* _WIN32 */
     return ret == -1 ? NULL : uri;
 }
 
