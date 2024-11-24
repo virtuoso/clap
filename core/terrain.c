@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <sys/time.h>
 #include <errno.h>
 #include "ca2d.h"
 #include "model.h"
@@ -7,6 +8,7 @@
 #include "shader.h"
 #include "terrain.h"
 #include "xyarray.h"
+#include "util.h"
 
 static float get_rand_height(struct terrain *t, int x, int z)
 {
