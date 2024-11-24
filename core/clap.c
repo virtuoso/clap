@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include <time.h>
 #include "clap.h"
 #include "common.h"
