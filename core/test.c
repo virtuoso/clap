@@ -335,11 +335,11 @@ static int bitmap_test0(void)
     struct bitmap b0, b1;
 
     bitmap_init(&b0, 64);
-    if (b0.size != 1)
+    if (b0.size != 64 / BITS_PER_LONG)
         return EXIT_FAILURE;
 
     bitmap_init(&b1, 128);
-    if (b1.size != 2)
+    if (b1.size != 128 / BITS_PER_LONG)
         return EXIT_FAILURE;
 
     bitmap_set(&b0, 0);
