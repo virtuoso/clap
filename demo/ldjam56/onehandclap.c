@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/time.h>
 #include <time.h>
 //#include <linux/time.h> /* XXX: for intellisense */
 #include <math.h>
