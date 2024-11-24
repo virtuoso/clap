@@ -2,6 +2,7 @@
 #ifndef __CLAP_UTIL_H__
 #define __CLAP_UTIL_H__
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -37,7 +38,30 @@ void cleanup__ucharp(uchar **s);
 
 #define __stringify(x) (# x)
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338327950288
+#endif
+#ifndef M_PI_2
+#define M_PI_2 1.57079632679489661923132169163975144
+#endif
+#ifndef M_PI_4
+#define M_PI_4 0.785398163397448309615660845819875721
+#endif
+
+#ifdef _WIN32
+#define srand48 srand
+#define lrand rand
+#define lrand48 rand
+static inline double drand48()
+{
+    return (double)rand() / RAND_MAX;
+}
+#define PATH_MAX 4096
+#endif /* _WIN32 */
+
+#ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
+#endif
 #define xmin(a, b) (min((a), (b)) == (a) ? 0 : 1)
 #define min3(a, b, c) (min(a, min(b, c)))
 #define xmin3(a, b, c) ({ \
@@ -46,7 +70,9 @@ void cleanup__ucharp(uchar **s);
     if (__x == (b)) __w = 1; else if (__x == (c)) __w = 2; \
     __w; \
 })
+#ifndef max
 #define max(a, b) ((a) > (b) ? (a) : (b))
+#endif
 #define xmax(a, b) (max((a), (b)) == (a) ? 0 : 1)
 #define max3(a, b, c) (max(a, max(b, c)))
 #define xmax3(a, b, c) ({ \
