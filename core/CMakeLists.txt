@@ -65,6 +65,9 @@ endif ()
 if (CLAP_BUILD_FINAL)
     set(CONFIG_FINAL 1)
 endif ()
+if (CLAP_BUILD_NETWORKING)
+    set(CONFIG_NETWORKING 1)
+endif ()
 if (CLAP_SERVER_IP)
     set(CONFIG_SERVER_IP ${CLAP_SERVER_IP})
 endif ()
@@ -86,7 +89,7 @@ set(ENGINE_SRC ${SERVER_SRC} )
 set(ENGINE_SRC
     object.c ref.c util.c logger.c graphics.c input.c messagebus.c
     matrix.c model.c shader.c librarian.c json.c clap.c
-    terrain.c ui.c scene.c font.c sound.c networking.c pngloader.c
+    terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c
     gltf.c input-joystick.c render-gl.c mesh.c pipeline.c input-keyboard.c
     game.c camera.c xyarray.c ca2d.c ca3d.c ui-imgui.c
@@ -94,9 +97,14 @@ set(ENGINE_SRC
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
 set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
-# sha1.c is obviously buggy, someone should do something about it
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set_source_files_properties(networking.c PROPERTIES COMPILE_FLAGS -Wno-stringop-overread)
+
+if (CLAP_BUILD_NETWORKING)
+    list(APPEND ENGINE_SRC networking.c)
+
+    # sha1.c is obviously buggy, someone should do something about it
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set_source_files_properties(networking.c PROPERTIES COMPILE_FLAGS -Wno-stringop-overread)
+    endif ()
 endif ()
 
 add_custom_command(

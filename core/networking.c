@@ -21,7 +21,6 @@
 #include "networking.h"
 #include "messagebus.h"
 #include "sha1.c" /* XXX */
-#include "base64.c"
 #include "base64.h"
 
 static DECLARE_LIST(nodes);

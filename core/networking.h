@@ -2,6 +2,7 @@
 #ifndef __CLAP_NETWORKING_H__
 #define __CLAP_NETWORKING_H__
 
+#include <errno.h>
 #include "clap.h"
 
 #if defined(__APPLE__) && !defined(MSG_NOSIGNAL)
@@ -23,10 +24,18 @@ struct networking_config {
     int             timeout;
 };
 
+#ifdef CONFIG_NETWORKING
 int networking_init(struct networking_config *cfg, enum mode mode);
 void networking_poll(void);
 void networking_done(void);
 void networking_broadcast_restart(void);
 void networking_broadcast(int mode, void *data, size_t size);
+#else
+static inline int networking_init(struct networking_config *cfg, enum mode mode) { return -EINVAL; }
+static inline void networking_poll(void) {}
+static inline void networking_done(void) {}
+static inline void networking_broadcast_restart(void) {}
+static inline void networking_broadcast(int mode, void *data, size_t size) {}
+#endif /* CONFIG_NETWORKING */
 
 #endif /* __CLAP_NETWORKING_H__ */
