@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #define _GNU_SOURCE
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -127,7 +128,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
     f = fopen(uri, "r");
     dbg("opened '%s': %p\n", uri, f);
     if (!f) {
-        err("couldn't open '%s': %m\n", uri);
+        err("couldn't open '%s': %s\n", uri, strerror(errno));
         h->state = RES_ERROR;
     } else {
         struct stat st;
@@ -182,7 +183,7 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     h = ref_get(h); /* matches ref_put() in lib_onload() */
     f = fopen(uri, "r");
     if (!f) {
-        err("couldn't open '%s': %m\n", uri);
+        err("couldn't open '%s': %s\n", uri, strerror(errno));
         h->state = RES_ERROR;
         ret = -1;
     } else {
