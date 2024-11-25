@@ -28,7 +28,6 @@ static void model3d_drop(struct ref *ref)
 {
     struct model3d *m = container_of(ref, struct model3d, ref);
     struct animation *an;
-    struct joint *joint;
     int i;
 
     glDeleteBuffers(1, &m->vertex_obj);
@@ -111,7 +110,6 @@ static int model3dtx_add_texture_from_buffer(struct model3dtx *txm, enum shader_
 
 static int model3dtx_add_texture_from_png_buffer(struct model3dtx *txm, enum shader_vars var, void *input, size_t length)
 {
-    struct shader_prog *prog = txm->model->prog;
     int width, height, has_alpha, ret;
     unsigned char *buffer;
 
@@ -127,7 +125,6 @@ static int model3dtx_add_texture_at(struct model3dtx *txm, enum shader_vars var,
 {
     int width = 0, height = 0, has_alpha = 0, ret;
     unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
-    struct shader_prog *prog = txm->model->prog;
 
     ret = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
     free(buffer);
@@ -837,7 +834,6 @@ static void fbo_init(struct fbo *fbo, int nr_targets)
 struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_targets)
 {
     struct fbo *fbo;
-    int ret;
 
     CHECK(fbo = ref_new(fbo));
     fbo->width = width;
@@ -1197,12 +1193,10 @@ static void quat_slerp(quat res, quat a, quat b, float fac)
 
 static void channel_transform(struct entity3d *e, struct channel *chan, float time)
 {
-    struct model3d *model = e->txmodel->model;
     void *p_data, *n_data;
     struct joint *joint = &e->joints[chan->target];
     float p_time, n_time, fac = 0;
     int prev, next;
-    mat4x4 rot;
 
     channel_time_to_idx(chan, time, joint->off[chan->path], &prev, &next);
     joint->off[chan->path] = min(prev, next);
@@ -1294,7 +1288,7 @@ void animation_start(struct entity3d *e, unsigned long start_frame, int ani)
     struct model3d *model = e->txmodel->model;
     struct animation *an;
     struct channel *chan;
-    int j, ch;
+    int ch;
 
     if (!model->anis.da.nr_el)
         return;
@@ -1424,7 +1418,6 @@ static void animated_update(struct entity3d *e, struct scene *s)
     struct queued_animation *qa;
     struct animation *an;
     unsigned long framerate = gl_refresh_rate();
-    int i;
 
     if (e->animation < 0)
         animation_next(e, s);
@@ -1558,8 +1551,6 @@ void entity3d_update(struct entity3d *e, void *data)
 
 void entity3d_add_physics(struct entity3d *e, double mass, int class, int type, double geom_off, double geom_radius, double geom_length)
 {
-    struct model3d *m = e->txmodel->model;
-
     e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
 }
 
@@ -1744,7 +1735,7 @@ void mq_release(struct mq *mq)
 
 void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data)
 {
-    struct model3dtx *txmodel, *ittxm;
+    struct model3dtx *txmodel;
     struct entity3d *ent, *itent;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
