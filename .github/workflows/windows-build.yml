@@ -1,0 +1,29 @@
+name: windows-build
+on: [push]
+jobs:
+  build-windows:
+    runs-on: windows-2019
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive
+      - name: install-deps
+        run: |
+          pwd
+          echo "${{ github.workspace }}"
+          git clone https://github.com/MarkSchofield/WindowsToolchain.git ../WindowsToolchain
+          vcpkg install libpng:x64-windows-static glfw3:x64-windows-static glew:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
+      - name: configure
+        run: |
+          cmake --preset w32test -B build/test "${{ github.workspace }}"
+          cmake --preset w32debug -B build/debug "${{ github.workspace }}"
+      - name: build
+        run: |
+          cmake --build build/test --parallel 4
+          cmake --build build/debug --parallel 4
