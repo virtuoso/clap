@@ -18,7 +18,6 @@ void ui_element_animations_done(struct ui_element *uie)
 static int ui_animation_update(struct entity3d *e, void *data)
 {
     struct ui_element   *uie = e->priv;
-    struct ui           *ui = data;
     struct ui_animation *ua;
 
     if (list_empty(&uie->animation)) {
@@ -248,8 +247,6 @@ void uia_lin_move(struct ui_element *uie, enum uie_mv mv, float start, float end
 
 static void __uia_cos_float(struct ui_animation *ua)
 {
-    struct ui *ui = ua->uie->ui;
-
     ua->float0 = cos_interp(ua->float_start, ua->float_end,
                             ua->float_shift + ua->float_delta * ua_frames(ua));
 }
