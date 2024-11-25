@@ -46,8 +46,8 @@ add_custom_target(make-shader-output-dir
     COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_DIR}"
 )
 
-find_program(GLSLC glslc)
-find_program(SPIRV_CROSS spirv-cross)
+find_program(GLSLC glslc HINTS "${GLSLC_HINT}")
+find_program(SPIRV_CROSS spirv-cross HINTS "${SPIRV_CROSS_HINT}")
 SET(SHADER_SRCS "")
 SET(SHADER_OUTS "")
 FOREACH(s ${SHADERS})
