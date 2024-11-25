@@ -8,7 +8,7 @@ static struct list subscriber[MT_MAX];
 
 int subscribe(enum message_type type, subscriber_fn fn, void *data)
 {
-    struct subscriber *s, **lastp;
+    struct subscriber *s;
 
     s = malloc(sizeof(*s));
     if (!s)
