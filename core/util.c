@@ -216,7 +216,6 @@ int hashmap_insert(struct hashmap *hm, unsigned int key, void *value)
 {
     unsigned long hash;
     struct hashmap_entry *e;
-    void *v;
 
     if (_hashmap_find(hm, key, &hash))
         return -EBUSY;
@@ -297,7 +296,7 @@ static DECLARE_LIST(ehs_list);
 
 notrace int exit_cleanup(exit_handler_fn fn)
 {
-    struct exit_handler *eh, **lastp;
+    struct exit_handler *eh;
 
     eh = malloc(sizeof(*eh));
     if (!eh)
