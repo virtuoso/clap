@@ -683,13 +683,11 @@ static void fbo_texture_init(struct fbo *fbo)
 
 static int fbo_depth_texture(struct fbo *fbo)
 {
-    int tex;
-
     texture_init(&fbo->depth);
     texture_filters(&fbo->depth, GL_CLAMP_TO_EDGE, GL_LINEAR);
     texture_fbo(&fbo->depth, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
 
-    return tex;
+    return texture_id(&fbo->depth);
 }
 
 static void __fbo_color_buffer_setup(struct fbo *fbo)
