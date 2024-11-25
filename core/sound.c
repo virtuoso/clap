@@ -34,6 +34,16 @@ static DECLARE_LIST(sounds);
 
 /* ffmpeg -i asset/morning.wav -codec:a libvorbis -ar 44100 asset/morning.ogg */
 
+static size_t ogg_read(void *ptr, size_t size, size_t nmemb, void *datasource)
+{
+    return fread(ptr, size, nmemb, datasource);
+}
+
+/* OV_CALLBACKS_NOCLOSE have the wrong fread() */
+static const ov_callbacks ogg_callbacks = {
+    .read_func  = ogg_read,
+};
+
 /* Non-stdio load: https://xiph.org/vorbis/doc/vorbisfile/callbacks.html */
 #define BUFSZ (4096*1024)
 static int parse_ogg(struct sound *sound, const char *uri)
@@ -46,7 +56,7 @@ static int parse_ogg(struct sound *sound, const char *uri)
     char **ptr;
 
     CHECK(f = fopen(uri, "r"));
-    if (ov_open_callbacks(f, &vf, NULL, 0, OV_CALLBACKS_NOCLOSE) < 0) {
+    if (ov_open_callbacks(f, &vf, NULL, 0, ogg_callbacks) < 0) {
         err("can't open '%s'\n", uri);
         return -1;
     }

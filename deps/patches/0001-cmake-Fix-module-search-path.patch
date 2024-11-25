@@ -1,6 +1,6 @@
-From 50b716cefaef595e20a362cedf46fe25cfc9e539 Mon Sep 17 00:00:00 2001
+From ad2bccc1f93810810523c64d2476605882b3d1f0 Mon Sep 17 00:00:00 2001
 From: Alexander Shishkin <alex@ash.works>
-Date: Mon, 25 Nov 2024 01:47:51 +0200
+Date: Mon, 25 Nov 2024 20:53:53 +0200
 Subject: [PATCH] cmake: Fix module search path
 
 Currently, the "cmake" directory at the top of source tree is made the
@@ -10,10 +10,13 @@ directory's "cmake" to the list of module search paths.
 
 While at it, disable all compilation warnings.
 
+Also, fix clock_gettime() tv_nsec calculation.
+
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
- CMakeLists.txt | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ CMakeLists.txt       | 4 ++--
+ src/sys/time/clock.c | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index cb6030a..9dc9be8 100644
@@ -37,6 +40,19 @@ index cb6030a..9dc9be8 100644
  include_directories(include)
  
  option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
+diff --git a/src/sys/time/clock.c b/src/sys/time/clock.c
+index 6698e04..3d11b5e 100644
+--- a/src/sys/time/clock.c
++++ b/src/sys/time/clock.c
+@@ -53,7 +53,7 @@ int wlibc_clock_gettime(clockid_t id, struct timespec *ts)
+ 
+ 	// The values reported here should be from January 1st 1601 UTC.
+ 	ts->tv_sec = epoch.QuadPart / 10000000;
+-	ts->tv_nsec = (epoch.QuadPart % 10) * 100;
++	ts->tv_nsec = (epoch.QuadPart % 10000000) * 100;
+ 
+ 	return 0;
+ }
 -- 
 2.32.0.windows.2
 
