@@ -1,0 +1,60 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "w32debug",
+            "displayName": "win32 debug",
+            "binaryDir": "build/debug",
+            "generator": "Ninja",
+            "toolchainFile": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Debug",
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/../WindowsToolchain/Windows.Clang.toolchain.cmake",
+                "CMAKE_SYSTEM_PROCESSOR": "AMD64",
+                "CMAKE_C_COMPILER_FRONTEND_VARIANT": "MSVC",
+                "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "MSVC",
+                "VCPKG_LOAD_VCVARS_ENV": true,
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+                "CLAP_BUILD_NETWORKING": false,
+                "GLSLC_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/shaderc",
+                "SPIRV_CROSS_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/spirv-cross"
+            }
+        },
+        {
+            "name": "w32test",
+            "displayName": "win32 test",
+            "binaryDir": "build/test",
+            "generator": "Ninja",
+            "toolchainFile": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Release",
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/../WindowsToolchain/Windows.Clang.toolchain.cmake",
+                "CMAKE_SYSTEM_PROCESSOR": "AMD64",
+                "CMAKE_C_COMPILER_FRONTEND_VARIANT": "MSVC",
+                "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "MSVC",
+                "VCPKG_LOAD_VCVARS_ENV": true,
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+                "CLAP_BUILD_NETWORKING": false,
+                "GLSLC_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/shaderc",
+                "SPIRV_CROSS_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/spirv-cross"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "W32Debug",
+            "configurePreset": "w32debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "W32Test",
+            "configurePreset": "w32test",
+            "configuration": "Debug"
+        }
+    ]
+}
