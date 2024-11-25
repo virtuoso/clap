@@ -12,7 +12,6 @@ static void ref_classes_update(void)
 {
     size_t size, total = 0;
     struct ref_class *rc;
-    char buf[256];
     unsigned long counter = 0;
 
     list_for_each_entry(rc, &ref_classes, entry) {
