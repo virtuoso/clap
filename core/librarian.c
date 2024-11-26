@@ -51,7 +51,7 @@ DECLARE_REFCLASS_DROP(lib_handle, handle_drop);
 
 char *lib_figure_uri(enum res_type type, const char *name)
 {
-    const char *pfx[] = {
+    char *pfx[] = {
         [RES_CONFIG]    = "config",
         [RES_ASSET]     = "asset",
 #if defined(CONFIG_GLES)
@@ -59,12 +59,25 @@ char *lib_figure_uri(enum res_type type, const char *name)
 #else
         [RES_SHADER]     = "asset/glsl",
 #endif
-        [RES_STATE]     = "state",
+#ifdef CONFIG_BROWSER
+        [RES_STATE]     = "/settings",
+#elif defined(_WIN32)
+        [RES_STATE]     = getenv("LOCALAPPDATA"),
+#else
+        [RES_STATE]     = getenv("HOME"),
+#endif
     };
     char *uri;
     int ret;
 
-    ret = asprintf(&uri, "%s%s/%s", base_url, pfx[type], name);
+    const char *dot = "";
+#if !defined(CONFIG_BROWSER) && !defined(_WIN32)
+    if (type == RES_STATE)
+        dot = ".";
+#endif
+
+    ret = asprintf(&uri, "%s%s/%s%s", type == RES_STATE ? "" : base_url, pfx[type],
+                   dot, name);
 #ifdef _WIN32
     int i;
     for (i = 0; i < ret; i++)
