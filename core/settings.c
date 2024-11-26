@@ -9,6 +9,7 @@
 #include <errno.h>
 #include "common.h"
 #include "json.h"
+#include "librarian.h"
 
 #define SETTINGS_DEFAULT \
     "{"                  \
@@ -17,12 +18,7 @@
 
 static char *settings_file;
 
-#ifdef CONFIG_BROWSER
-#define SETTINGS_PATH "/settings"
-#define SETTINGS_FILE SETTINGS_PATH "/clap.json"
-#else
-#define SETTINGS_FILE "/.clap.json"
-#endif /* CONFIG_BROWSER */
+#define SETTINGS_FILE "clap.json"
 
 struct settings {
     JsonNode *root;
@@ -218,8 +214,11 @@ struct settings *settings_init(void *cb, void *data)
 
     _settings.on_ready      = cb;
     _settings.on_ready_data = data;
+    settings_file = lib_figure_uri(RES_STATE, SETTINGS_FILE);
+    if (!settings_file)
+        return NULL;
+
 #ifdef __EMSCRIPTEN__
-    settings_file = SETTINGS_FILE;
     EM_ASM(
         FS.mkdir("/settings");
         FS.mount(IDBFS, {}, "/settings");
@@ -230,8 +229,6 @@ struct settings *settings_init(void *cb, void *data)
         console.log("requested settings\n");
     );
 #else
-    home = getenv("HOME");
-    CHECK(asprintf(&settings_file, "%s/" SETTINGS_FILE, home));
     settings_load(&_settings);
     _settings.on_ready(&_settings, data);
 #endif /* !__EMSCRIPTEN__ */
