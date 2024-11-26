@@ -89,7 +89,14 @@ static int settings_load(struct settings *settings)
         if (errno != ENOENT)
             return -1;
 
-        settings_default(settings);
+        settings->dirty = true;
+
+        int ret = settings_store(settings);
+        if (ret)
+            return ret;
+
+        settings->ready = true;
+
         return 0;
     }
 
