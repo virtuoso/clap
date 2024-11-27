@@ -281,7 +281,6 @@ repeat:
     }
 
     /* render the last pass to the screen */
-    GL(glEnable(GL_DEPTH_TEST));
     GL(glClearColor(0.2f, 0.2f, 0.6f, 1.0f));
     GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
     models_render(&last_pass->mq, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
