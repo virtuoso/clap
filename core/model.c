@@ -862,7 +862,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
         /* XXX: model-specific draw method */
         if (model->cull_face) {
             GL(glEnable(GL_CULL_FACE));
-            GL(glCullFace(GL_BACK));
+            GL(glCullFace(shader_override ? GL_FRONT : GL_BACK));
         } else {
             GL(glDisable(GL_CULL_FACE));
         }
