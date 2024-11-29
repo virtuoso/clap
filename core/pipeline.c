@@ -3,6 +3,7 @@
 #include "pipeline.h"
 #include "scene.h"
 #include "shader.h"
+#include "ui-debug.h"
 
 struct render_pass {
     darray(struct render_pass *, src);
@@ -284,4 +285,36 @@ repeat:
     GL(glClearColor(0.2f, 0.2f, 0.6f, 1.0f));
     GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
     models_render(&last_pass->mq, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
+}
+
+void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex)
+{
+    struct render_pass *pass;
+    int i = 0;
+
+    list_for_each_entry(pass, &pl->passes, entry) {
+        if (*item == i) {
+            *tex = &pass->fbo.x[0]->tex;
+            goto found;
+        }
+        i++;
+    }
+
+    pass = list_first_entry(&pl->passes, struct render_pass, entry);
+    *item = 0;
+
+found:
+    if (igBeginCombo("passes", pass->name, ImGuiComboFlags_HeightRegular)) {
+        i = 0;
+        list_for_each_entry(pass, &pl->passes, entry) {
+            bool selected = *item == i;
+            if (igSelectable_Bool(pass->name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
+                igSetItemDefaultFocus();
+                *item = i;
+                *tex = &pass->fbo.x[0]->tex;
+            }
+            i++;
+        }
+        igEndCombo();
+    }
 }

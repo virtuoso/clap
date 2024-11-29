@@ -20,5 +20,6 @@ void pipeline_pass_set_name(struct render_pass *pass, const char *name);
 void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src);
 void pipeline_pass_repeat(struct render_pass *pass, struct render_pass *repeat, int count);
 void pipeline_render(struct pipeline *pl);
+void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex);
 
 #endif /* __CLAP_PIPELINE_H__ */
