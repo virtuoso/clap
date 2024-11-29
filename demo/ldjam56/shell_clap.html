@@ -66,6 +66,7 @@
     </div>
     <textarea class="emscripten" id="output"></textarea>
     <script type='text/javascript'>
+      Error.stackTraceLimit = Infinity;
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
       var runtime_ready = false;
