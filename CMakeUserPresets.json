@@ -7,6 +7,70 @@
     },
     "configurePresets": [
         {
+            "name": "emdebug",
+            "displayName": "Emscripten Debug",
+            "generator": "Unix Makefiles",
+            "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+            "binaryDir": "${sourceDir}/build/emdebug",
+            "installDir": "$env{WWW_INSTALL_DIR}/clapdbg",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS":true
+            }
+        },
+        {
+            "name": "emtest",
+            "displayName": "Emscripten Test",
+            "inherits": [ "emdebug" ],
+            "binaryDir": "${sourceDir}/build/emtest",
+            "installDir": "$env{WWW_INSTALL_DIR}/claptest",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Release"
+            }
+        },
+        {
+            "name": "emrel",
+            "displayName": "Emscripten Release",
+            "inherits": [ "emdebug" ],
+            "binaryDir": "${sourceDir}/build/emrel",
+            "installDir": "$env{WWW_INSTALL_DIR}/clap",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Release",
+                "CLAP_BUILD_FINAL": true
+            }
+        },
+        {
+            "name": "debug",
+            "displayName": "Native Debug",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS":true
+            }
+        },
+        {
+            "name": "test",
+            "displayName": "Native Test",
+            "inherits":["debug"],
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/test",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"RelWithDebInfo"
+            }
+        },
+        {
+            "name": "rel",
+            "displayName": "Native Release",
+            "inherits":["debug"],
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/rel",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Release",
+                "CLAP_BUILD_FINAL": true
+            }
+        },
+        {
             "name": "w32debug",
             "displayName": "win32 debug",
             "binaryDir": "build/debug",
@@ -46,6 +110,36 @@
         }
     ],
     "buildPresets": [
+        {
+            "name": "EMDebug",
+            "configurePreset": "emdebug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "EMTest",
+            "configurePreset": "emtest",
+            "configuration": "Release"
+        },
+        {
+            "name": "EMRel",
+            "configurePreset": "emrel",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug",
+            "configurePreset": "debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Test",
+            "configurePreset": "test",
+            "configuration": "Release"
+        },
+        {
+            "name": "Rel",
+            "configurePreset": "rel",
+            "configuration": "Release"
+        },
         {
             "name": "W32Debug",
             "configurePreset": "w32debug",
