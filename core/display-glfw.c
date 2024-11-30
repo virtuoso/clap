@@ -72,6 +72,12 @@ static void resize_cb(GLFWwindow *window, int w, int h)
     resize_fn(update_fn_data, w, h);
 }
 
+static void move_cb(GLFWwindow *window, int x, int y)
+{
+    /* store new window position in settings */
+    gl_get_sizes(NULL, NULL);
+}
+
 void gl_get_sizes(int *widthp, int *heightp)
 {
     glfwGetFramebufferSize(window, &width, &height);
@@ -109,6 +115,18 @@ void gl_leave_fullscreen(void)
 {
     glfwSetWindowMonitor(window, NULL, 0, 0, saved_width, saved_height, 0);
     gl_resize(saved_width, saved_height);
+}
+
+void gl_set_window_pos_size(int x, int y, int w, int h)
+{
+    glfwSetWindowPos(window, x, y);
+    glfwSetWindowSize(window, w, h);
+}
+
+void gl_get_window_pos_size(int *x, int *y, int *w, int *h)
+{
+    glfwGetWindowPos(window, x, y);
+    glfwGetWindowSize(window, w, h);
 }
 
 void gl_init(const char *title, int w, int h, display_update update, void *update_data, display_resize resize)
@@ -150,6 +168,7 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
         return;
     }
 
+    glfwSetWindowPosCallback(window, move_cb);
     glfwSetFramebufferSizeCallback(window, resize_cb);
     glfwMakeContextCurrent(window);
     glewExperimental = GL_TRUE;

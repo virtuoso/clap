@@ -28,6 +28,8 @@ void gl_request_exit(void);
 void gl_resize(int w, int h);
 void gl_enter_fullscreen(void);
 void gl_leave_fullscreen(void);
+void gl_set_window_pos_size(int x, int y, int w, int h);
+void gl_get_window_pos_size(int *x, int *y, int *w, int *h);
 bool gl_does_vao(void);
 
 #endif /* __CLAP_DISPLAY_H__ */

@@ -97,6 +97,15 @@ void gl_get_sizes(int *widthp, int *heightp)
         *heightp = height;
 }
 
+void gl_set_window_pos_size(int x, int y, int w, int h)
+{
+}
+
+void gl_get_window_pos_size(int *x, int *y, int *w, int *h)
+{
+    *x = *y = *w = *h = -1;
+}
+
 void gl_main_loop(void)
 {
 }
