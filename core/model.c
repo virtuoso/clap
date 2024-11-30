@@ -678,13 +678,15 @@ static void fbo_texture_init(struct fbo *fbo)
     texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
 }
 
-static int fbo_depth_texture(struct fbo *fbo)
+static void fbo_depth_texture_init(struct fbo *fbo)
 {
-    texture_init(&fbo->depth);
-    texture_filters(&fbo->depth, GL_CLAMP_TO_EDGE, GL_LINEAR);
-    texture_fbo(&fbo->depth, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
+    texture_init(&fbo->tex);
+    texture_filters(&fbo->tex, GL_REPEAT, GL_NEAREST);
+    texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
 
-    return texture_id(&fbo->depth);
+    GLenum buffers[1] = { GL_NONE };
+    GL(glDrawBuffers(1, buffers));
+    GL(glReadBuffer(GL_NONE));
 }
 
 static void __fbo_color_buffer_setup(struct fbo *fbo)
@@ -738,8 +740,6 @@ void fbo_resize(struct fbo *fbo, int width, int height)
     GL(glFinish());
     if (texture_loaded(&fbo->tex))
         texture_resize(&fbo->tex, width, height);
-    if (texture_loaded(&fbo->depth))
-        texture_resize(&fbo->depth, width, height);
 
     int *color_buf;
     darray_for_each(color_buf, &fbo->color_buf) {
@@ -801,7 +801,6 @@ static void fbo_drop(struct ref *ref)
         glDeleteRenderbuffers(1, (const GLuint *)color_buf);
     darray_clearout(&fbo->color_buf.da);
 
-    // texture_done(&fbo->depth);
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
     // ref_free(fbo);
@@ -810,7 +809,13 @@ DECLARE_REFCLASS2(fbo);
 
 static void fbo_init(struct fbo *fbo, int nr_targets)
 {
+    bool depth_texture = false;
     int err;
+
+    if (nr_targets < 0) {
+        nr_targets = 0;
+        depth_texture = true;
+    }
 
     fbo->fbo = fbo_create();
     if (fbo->ms) {
@@ -823,11 +828,14 @@ static void fbo_init(struct fbo *fbo, int nr_targets)
     } else {
         fbo_texture_init(fbo);
     }
-    //fbo->depth_tex = fbo_depth_texture(fbo);
-    fbo->depth_buf = fbo_depth_buffer(fbo);
+
+    if (depth_texture)
+        fbo_depth_texture_init(fbo);
+    else
+        fbo->depth_buf = fbo_depth_buffer(fbo);
     err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (err != GL_FRAMEBUFFER_COMPLETE)
-        dbg("## framebuffer status: %d\n", err);
+        warn("## framebuffer status: %d\n", err);
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 }
 

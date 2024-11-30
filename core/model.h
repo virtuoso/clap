@@ -196,7 +196,6 @@ struct fbo {
     int depth_buf;
     darray(int, color_buf);
     texture_t tex;
-    texture_t depth;
     bool ms;
     int retain_tex;
 };
