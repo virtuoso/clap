@@ -14,16 +14,9 @@
 #include "shader.h"
 
 struct scene;
+struct light;
 struct camera;
 struct shader_prog;
-
-#define LIGHTS_MAX 4
-
-struct light {
-    GLfloat pos[3 * LIGHTS_MAX];
-    GLfloat color[3 * LIGHTS_MAX];
-    GLfloat attenuation[3 * LIGHTS_MAX];
-};
 
 struct model_joint {
     darray(int, children);

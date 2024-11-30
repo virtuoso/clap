@@ -7,6 +7,7 @@
 #include "character.h"
 #include "matrix.h"
 #include "model.h"
+#include "light.h"
 #include "physics.h"
 #include "camera.h"
 
@@ -56,10 +57,6 @@ struct scene {
     bool                ui_is_on;
     bool                debug_draws_enabled;
 };
-
-void light_set_pos(struct light *light, int idx, float pos[3]);
-void light_set_color(struct light *light, int idx, float color[3]);
-void light_set_attenuation(struct light *light, int idx, float attenuation[3]);
 
 int scene_get_light(struct scene *scene);
 int scene_camera_add(struct scene *s);
