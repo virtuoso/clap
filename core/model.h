@@ -105,7 +105,6 @@ struct model3d {
 
 struct model3dtx {
     struct model3d *model;
-    // GLuint         texture_id;
     texture_t      _texture;
     texture_t      _normals;
     texture_t      _emission;
@@ -114,7 +113,6 @@ struct model3dtx {
     texture_t      *normals;
     texture_t      *emission;
     texture_t      *sobel;
-    // GLuint         normals_id;
     float          metallic;
     float          roughness;
     bool           external_tex;
