@@ -458,7 +458,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit.width, uit.height,
     //     fbo->fbo, fbo->width, fbo->height);
-    models_render(&fbo_ui.mq, NULL, NULL, NULL, NULL, 0, 0, NULL);
+    models_render(&fbo_ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, NULL);
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);
 

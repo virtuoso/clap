@@ -165,7 +165,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     PROF_STEP(models, updates);
 
     s->proj_updated = 0;
-    models_render(&ui.mq, NULL, NULL, NULL, NULL, 0, 0, &count);
+    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, &count);
     imgui_render();
     PROF_STEP(ui, models);
 
@@ -438,24 +438,24 @@ int main(int argc, char **argv, char **envp)
     gl_get_sizes(&scene.width, &scene.height);
 
     blur_pl = pipeline_new(&scene, "menu");
-    struct render_pass *model_pass = pipeline_add_pass(blur_pl, NULL, NULL, true, 3, 0);
+    struct render_pass *model_pass = pipeline_add_pass(blur_pl, NULL, NULL, NULL, true, 3, 0);
     pipeline_pass_set_name(model_pass, "model");
-    pass = pipeline_add_pass(blur_pl, model_pass, "contrast", false, 0, 0);
-    struct render_pass *rep_pass = pipeline_add_pass(blur_pl, pass, "vblur", false, 0, 0);
-    pass = pipeline_add_pass(blur_pl, rep_pass, "hblur", false, 0, 0);
+    pass = pipeline_add_pass(blur_pl, model_pass, "contrast", NULL, false, 0, 0);
+    struct render_pass *rep_pass = pipeline_add_pass(blur_pl, pass, "vblur", NULL, false, 0, 0);
+    pass = pipeline_add_pass(blur_pl, rep_pass, "hblur", NULL, false, 0, 0);
     pipeline_pass_repeat(pass, rep_pass, 5);
 
     main_pl = pipeline_new(&scene, "main");
-    model_pass = pipeline_add_pass(main_pl, NULL, NULL, true, 3, -1);
+    model_pass = pipeline_add_pass(main_pl, NULL, NULL, NULL, true, 3, -1);
     pipeline_pass_set_name(model_pass, "model");
-    pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 1);
-    pass = pipeline_add_pass(main_pl, pass, "vblur", false, 0, -1);
-    struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", false, 0, -1);
+    pass = pipeline_add_pass(main_pl, model_pass, "contrast", NULL, false, 0, 1);
+    pass = pipeline_add_pass(main_pl, pass, "vblur", NULL, false, 0, -1);
+    struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", NULL, false, 0, -1);
     pipeline_pass_repeat(bloom_pass, pass, 5);
 
     // struct render_pass *contrast_pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 2);
-    struct render_pass *sobel_pass = pipeline_add_pass(main_pl, model_pass, "sobel", false, 0, 2);
-    pass = pipeline_add_pass(main_pl, model_pass, "combine", false, 0, 0);
+    struct render_pass *sobel_pass = pipeline_add_pass(main_pl, model_pass, "sobel", NULL, false, 0, 2);
+    pass = pipeline_add_pass(main_pl, model_pass, "combine", NULL, false, 0, 0);
     pipeline_pass_add_source(main_pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1);
     pipeline_pass_add_source(main_pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
 

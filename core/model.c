@@ -521,10 +521,8 @@ static void model3d_set_lod(struct model3d *m, unsigned int lod)
     m->cur_lod = lod;
 }
 
-static void model3d_prepare(struct model3d *m)
+static void model3d_prepare(struct model3d *m, struct shader_prog *p)
 {
-    struct shader_prog *p = m->prog;
-
     if (gl_does_vao())
         GL(glBindVertexArray(m->vao));
     if (m->cur_lod >= 0)
@@ -542,12 +540,11 @@ static void model3d_prepare(struct model3d *m)
 /* Cube and quad */
 #include "primitives.c"
 
-void model3dtx_prepare(struct model3dtx *txm)
+void model3dtx_prepare(struct model3dtx *txm, struct shader_prog *p)
 {
-    struct shader_prog *p = txm->model->prog;
-    struct model3d *   m = txm->model;
+    struct model3d *m = txm->model;
 
-    model3d_prepare(txm->model);
+    model3d_prepare(txm->model, p);
 
     if (shader_has_var(p, ATTR_TEX) && m->tex_obj && texture_loaded(txm->texture)) {
         shader_plug_attribute(p, ATTR_TEX, m->tex_obj);
@@ -569,10 +566,8 @@ void model3dtx_draw(struct model3dtx *txm)
     glDrawElements(m->draw_type, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0);
 }
 
-static void model3d_done(struct model3d *m)
+static void model3d_done(struct model3d *m, struct shader_prog *p)
 {
-    struct shader_prog *p = m->prog;
-
     shader_unplug_attribute(p, ATTR_POSITION);
     if (m->norm_obj)
         shader_unplug_attribute(p, ATTR_NORMAL);
@@ -591,10 +586,8 @@ static void model3d_done(struct model3d *m)
     m->cur_lod = -1;
 }
 
-void model3dtx_done(struct model3dtx *txm)
+void model3dtx_done(struct model3dtx *txm, struct shader_prog *p)
 {
-    struct shader_prog *p = txm->model->prog;
-
     if (txm->model->tex_obj) {
         shader_unplug_attribute(p, ATTR_TEX);
         GL(glActiveTexture(GL_TEXTURE0));
@@ -605,7 +598,7 @@ void model3dtx_done(struct model3dtx *txm)
         GL(glBindTexture(GL_TEXTURE_2D, 0));
     }
 
-    model3d_done(txm->model);
+    model3d_done(txm->model, p);
 }
 
 static int fbo_create(void)
@@ -841,9 +834,9 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
     an->time_end = max(an->time_end, time[frames - 1]/* + time[1] - time[0]*/);
 }
 
-void models_render(struct mq *mq, struct light *light, struct camera *camera,
-                   struct matrix4f *proj_mx, struct entity3d *focus, int width, int height,
-                   unsigned long *count)
+void models_render(struct mq *mq, struct shader_prog *shader_override, struct light *light,
+                   struct camera *camera, struct matrix4f *proj_mx, struct entity3d *focus,
+                   int width, int height, unsigned long *count)
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
@@ -859,6 +852,8 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
         // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
         //        txmodel_name(txmodel));
         model = txmodel->model;
+        struct shader_prog *model_prog = shader_override ? shader_override : model->prog;
+
         model->cur_lod = 0;
         /* XXX: model-specific draw method */
         if (model->cull_face) {
@@ -880,11 +875,11 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
             GL(glEnable(GL_DEPTH_TEST));
 
         //dbg("rendering model '%s'\n", model->name);
-        if (model->prog != prog) {
+        if (model_prog != prog) {
             if (prog)
                 shader_prog_done(prog);
 
-            prog = model->prog;
+            prog = model_prog;
             shader_prog_use(prog);
             trace("rendering model '%s' using '%s'\n", model->name, prog->name);
 
@@ -906,7 +901,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
                 shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj_mx->cell);
         }
 
-        model3dtx_prepare(txmodel);
+        model3dtx_prepare(txmodel, prog);
 
         shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
 
@@ -963,7 +958,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
             model3dtx_draw(txmodel);
             nr_ents++;
         }
-        model3dtx_done(txmodel);
+        model3dtx_done(txmodel, prog);
         nr_txms++;
         //dbg("RENDERED model '%s': %lu\n", txmodel->model->name, nr_ents);
     }

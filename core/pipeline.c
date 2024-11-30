@@ -19,6 +19,7 @@ struct render_pass {
     struct mq           mq;
     struct list         entry;
     struct render_pass  *repeat;
+    struct shader_prog  *prog_override;
     const char          *name;
     int                 rep_total;
     int                 rep_count;
@@ -61,6 +62,9 @@ static void pipeline_drop(struct ref *ref)
             ref_put(*pfbo);
         darray_clearout(&pass->fbo.da);
 
+        if (pass->prog_override)
+            ref_put(pass->prog_override);
+
         free(pass);
     }
 }
@@ -69,6 +73,18 @@ DECLARE_REFCLASS(pipeline);
 void pipeline_put(struct pipeline *pl)
 {
     ref_put(pl);
+}
+
+#define DEFAULT_FBO_SIZE 1024
+static inline int shadow_map_size(int width, int height)
+{
+    int side = max(width, height);
+    int order = fls(side);
+
+    if (!order)
+        return DEFAULT_FBO_SIZE;
+
+    return 1 << order;
 }
 
 struct pipeline *pipeline_new(struct scene *s, const char *name)
@@ -88,14 +104,17 @@ void pipeline_resize(struct pipeline *pl)
     struct render_pass *pass;
 
     list_for_each_entry(pass, &pl->passes, entry) {
+        if (pass->prog_override)
+            continue;
+
         struct fbo **pfbo;
         darray_for_each(pfbo, &pass->fbo)
             fbo_resize(*pfbo, pl->scene->width, pl->scene->height);
     }
 }
 
-struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *prog_name,
-                                      bool ms, int nr_targets, int target)
+struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
+                                      const char *shader_override, bool ms, int nr_targets, int target)
 {
     struct render_pass *pass;
     struct shader_prog *p;
@@ -108,7 +127,7 @@ struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *s
     darray_init(&pass->src);
     darray_init(&pass->fbo);
     darray_init(&pass->blit_src);
-    pass->name = prog_name;
+    pass->name = shader;
 
     /*
      * FBOs and srcs are a 1:1 mapping *except* the ms passes, which don't have
@@ -119,7 +138,20 @@ struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *s
     if (!pfbo)
         return NULL;
 
-    *pfbo = fbo_new_ms(pl->scene->width, pl->scene->height, ms, nr_targets);
+    int width = pl->scene->width, height = pl->scene->height;
+
+    /*
+     * XXX: better way of determining shadow pass
+     */
+    if (shader_override) {
+        width = height = shadow_map_size(width, height);
+        pass->name = shader_override;
+    } else if (src && !src->prog_override) {
+        width = src->fbo.x[0]->width;
+        height = src->fbo.x[0]->height;
+    }
+
+    *pfbo = fbo_new_ms(width, height, ms, nr_targets);
     if (!*pfbo)
         goto err_fbo_array;
 
@@ -129,23 +161,29 @@ struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *s
 
     *psrc = src;
 
-    pass->blit = ms;
+    pass->blit = ms && nr_targets >= 0;
     mq_init(&pass->mq, NULL);
 
+    if (shader_override) {
+        pass->prog_override = shader_prog_find(&pl->scene->shaders, shader_override);
+        if (!pass->prog_override)
+            goto err_src;
+    }
+
     /*
-     * XXX: any number of things mean the same thing: !prog_name, ms, nr_targets,
+     * XXX: any number of things mean the same thing: !shader, ms, nr_targets,
      * !src. Streamline the parameters of this function, it's a mess.
      */
-    if (!prog_name)
+    if (!shader)
         return pass;
 
     int *pblit_src = darray_add(&pass->blit_src.da);
     if (!pblit_src)
-        goto err_src;
+        goto err_override;
 
     *pblit_src = target;
 
-    p = shader_prog_find(&pl->scene->shaders, prog_name);
+    p = shader_prog_find(&pl->scene->shaders, shader);
     if (!p)
         goto err_blit_src;
 
@@ -165,12 +203,16 @@ struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *s
 
 err_blit_src:
     darray_clearout(&pass->blit_src.da);
+err_override:
+    if (shader_override)
+        ref_put(pass->prog_override);
 err_src:
     darray_clearout(&pass->src.da);
 err_fbo:
     ref_put_last(*pfbo);
 err_fbo_array:
     darray_clearout(&pass->fbo.da);
+    list_del(&pass->entry);
     free(pass);
     return NULL;
 }
@@ -262,13 +304,16 @@ repeat:
                 fbo_done(fbo, s->width, s->height);
             } else {
                 fbo_prepare(fbo);
-                GL(glDisable(GL_DEPTH_TEST));
+                bool shadow = !darray_count(fbo->color_buf);
                 GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));
                 GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
+
                 if (!src)
-                    models_render(&s->mq, &s->light, &s->cameras[0], s->proj_mx, s->focus, s->width, s->height, NULL);
+                    models_render(&s->mq, pass->prog_override, &s->light,
+                                  shadow ? NULL : &s->cameras[0],
+                                  s->proj_mx, s->focus, fbo->width, fbo->height, NULL);
                 else
-                    models_render(&src->mq, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
+                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo->width, fbo->height, NULL);
 
                 fbo_done(fbo, s->width, s->height);
             }
@@ -296,7 +341,7 @@ repeat:
     /* render the last pass to the screen */
     GL(glClearColor(0.2f, 0.2f, 0.6f, 1.0f));
     GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
-    models_render(&last_pass->mq, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
+    models_render(&last_pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
 }
 
 void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex)

@@ -141,8 +141,8 @@ struct model3d *model3d_new_cube(struct shader_prog *p);
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
 struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h);
 struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);
-void model3dtx_prepare(struct model3dtx *m);
-void model3dtx_done(struct model3dtx *m);
+void model3dtx_prepare(struct model3dtx *m, struct shader_prog *p);
+void model3dtx_done(struct model3dtx *m, struct shader_prog *p);
 void model3dtx_draw(struct model3dtx *m);
 
 static inline const char *txmodel_name(struct model3dtx *txm)
@@ -248,9 +248,9 @@ struct entity3d {
 };
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
-void models_render(struct mq *mq, struct light *light, struct camera *camera,
-                   struct matrix4f *proj_mx, struct entity3d *focus, int width, int height,
-                   unsigned long *count);
+void models_render(struct mq *mq, struct shader_prog *shader_override, struct light *light,
+                   struct camera *camera, struct matrix4f *proj_mx, struct entity3d *focus,
+                   int width, int height, unsigned long *count);
 
 static inline const char *entity_name(struct entity3d *e)
 {
