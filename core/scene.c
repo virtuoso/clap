@@ -178,6 +178,10 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     view_update_from_angles(&cam->view, cam->ch->pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
     view_calc_frustum(&cam->view);
+
+    /* only the first light source get to cast shadows for now */
+    view_update_from_frustum(&s->light.view[0], &s->light.dir[0 * 3], &cam->view);
+    view_calc_frustum(&s->light.view[0]);
 #ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
         gl_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
@@ -652,6 +656,10 @@ static int scene_add_light_from_json(struct scene *s, JsonNode *light)
     float fcolor[3] = { color[0], color[1], color[2] };
     light_set_pos(&s->light, idx, fpos);
     light_set_color(&s->light, idx, fcolor);
+
+    vec3 center = {};
+    vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
+    view_update_from_frustum(&s->light.view[idx], &s->light.dir[idx * 3], &s->camera[0].view);
 
     return 0;
 }

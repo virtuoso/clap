@@ -13,6 +13,8 @@ struct light {
     GLfloat pos[3 * LIGHTS_MAX];
     GLfloat color[3 * LIGHTS_MAX];
     GLfloat attenuation[3 * LIGHTS_MAX];
+    GLfloat dir[3 * LIGHTS_MAX];
+    struct view view[LIGHTS_MAX];
 };
 
 void light_set_pos(struct light *light, int idx, float pos[3]);

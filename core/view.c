@@ -1,6 +1,60 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "model.h"
 #include "view.h"
+#include "shader.h"
+
+static float near_factor = 0.0, far_factor = 1.0, frustum_extra = 10.0;
+
+static void view_projection_update(struct view *view, struct view *src)
+{
+    vec4 _aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, _aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
+    int i, j;
+
+    for (i = 0; i < 8; i++) {
+        vec4 corner;
+        mat4x4_mul_vec4(corner, view->view_mx.m, src->frustum_corners[i]);
+
+        for (j = 0; j < 3; j++) {
+            _aabb_min[j] = fminf(_aabb_min[j], corner[j]);
+            _aabb_max[j] = fmaxf(_aabb_max[j], corner[j]);
+        }
+    }
+
+    if (_aabb_min[2] < 0)
+        _aabb_min[2] *= frustum_extra;
+    else
+        _aabb_min[2] /= frustum_extra;
+
+    vec3 near_bottom_left = { _aabb_min[0], _aabb_min[1], _aabb_min[2] };
+    vec3 near_top_right = { _aabb_max[0], _aabb_max[1], _aabb_min[2] };
+    vec4 light_pos = { 0, 0, 0, 1 };
+    vec3_add(light_pos, near_bottom_left, near_top_right);
+    vec3_scale(light_pos, light_pos, 0.5);
+    vec4 light_pos_world;
+    mat4x4_mul_vec4(light_pos_world, view->inv_view_mx.m, light_pos);
+    /* this is the same as translate_in_place by light_pos_world, but quicker */
+    view->view_mx.m[3][0] = -light_pos[0];
+    view->view_mx.m[3][1] = -light_pos[1];
+    view->view_mx.m[3][2] = -light_pos[2];
+    mat4x4_invert(view->inv_view_mx.m, view->view_mx.m);
+
+    vec4 aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
+
+    for (i = 0; i < 8; i++) {
+        vec4 corner;
+        mat4x4_mul_vec4(corner, view->view_mx.m, src->frustum_corners[i]);
+
+        for (j = 0; j < 3; j++) {
+            aabb_min[j] = fminf(aabb_min[j], corner[j]);
+            aabb_max[j] = fmaxf(aabb_max[j], corner[j]);
+        }
+    }
+
+    view->proj_mx = &view->_proj_mx;
+    mat4x4_ortho(view->proj_mx->m, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
+                 aabb_min[2] * near_factor, aabb_max[2] * far_factor);
+    view_calc_frustum(view);
+}
 
 void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll)
 {
@@ -11,6 +65,24 @@ void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw
     mat4x4_translate_in_place(view->view_mx.m, -eye[0], -eye[1], -eye[2]);
 
     mat4x4_invert(view->inv_view_mx.m, view->view_mx.m);
+}
+
+void view_update_from_target(struct view *view, vec3 eye, vec3 target)
+{
+    vec3 up = { 0.0, 1.0, 0.0 };
+
+    mat4x4_look_at(view->view_mx.m, eye, target, up);
+    mat4x4_invert(view->inv_view_mx.m, view->view_mx.m);
+}
+
+void view_update_from_frustum(struct view *view, vec3 dir, struct view *src)
+{
+    vec3 up = { 0.0, 1.0, 0.0 }, center = { -dir[0], -dir[1], -dir[2] };
+    int i;
+
+    vec3 eye = {};
+    view_update_from_target(view, eye, center);
+    view_projection_update(view, src);
 }
 
 void view_calc_frustum(struct view *view)
