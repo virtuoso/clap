@@ -340,18 +340,6 @@ void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_
     *targets[slot] = tex;
 }
 
-void model3dtx_set_texture_from(struct model3dtx *txm, enum shader_vars to,
-                                struct model3dtx *src, enum shader_vars from)
-{
-    texture_t *targets[] = { src->texture, src->normals, src->emission, src->sobel };
-    int slot = shader_get_texture_slot(txm->model->prog, from);
-
-    if (slot < 0)
-        return;
-
-    model3dtx_set_texture(txm, to, targets[slot]);
-}
-
 static void load_gl_buffer(struct shader_prog *p, int loc, void *data,
                            size_t sz, GLuint *obj, GLenum target)
 {

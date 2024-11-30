@@ -142,8 +142,6 @@ struct model3dtx *model3dtx_new_from_png_buffers2(struct model3d *model, void *t
                                                   void *em, size_t emsz);
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
 void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex);
-void model3dtx_set_texture_from(struct model3dtx *txm, enum shader_vars to,
-                                struct model3dtx *src, enum shader_vars from);
 struct model3d *model3d_new_cube(struct shader_prog *p);
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
 struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h);
