@@ -272,7 +272,6 @@ struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex)
 
     txm->model = ref_get(model);
     txm->texture = tex;
-    txm->external_tex = true;
 
     return txm;
 

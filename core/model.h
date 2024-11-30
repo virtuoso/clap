@@ -115,7 +115,6 @@ struct model3dtx {
     texture_t      *sobel;
     float          metallic;
     float          roughness;
-    bool           external_tex;
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
     struct list    entities;           /* links entity3d->entry */
