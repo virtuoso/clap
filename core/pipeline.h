@@ -3,16 +3,10 @@
 #define __CLAP_PIPELINE_H__
 
 struct render_pass;
-
-struct pipeline {
-    // darray(struct render_pass, pass);
-    struct scene        *scene;
-    struct ref          ref;
-    struct list         passes; 
-    const char          *name;
-};
+struct pipeline;
 
 struct pipeline *pipeline_new(struct scene *s, const char *name);
+void pipeline_put(struct pipeline *pl);
 void pipeline_resize(struct pipeline *pl);
 struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *prog_name,
                                       bool ms, int nr_targets, int target);

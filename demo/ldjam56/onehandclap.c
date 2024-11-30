@@ -474,8 +474,8 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
-    ref_put(blur_pl);
-    ref_put(main_pl);
+    pipeline_put(blur_pl);
+    pipeline_put(main_pl);
     ui_done(&ui);
 exit_ui:
     scene_done(&scene);

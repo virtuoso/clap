@@ -5,6 +5,13 @@
 #include "shader.h"
 #include "ui-debug.h"
 
+struct pipeline {
+    struct scene        *scene;
+    struct ref          ref;
+    struct list         passes;
+    const char          *name;
+};
+
 struct render_pass {
     darray(struct render_pass *, src);
     darray(struct fbo *, fbo);
@@ -58,6 +65,11 @@ static void pipeline_drop(struct ref *ref)
     }
 }
 DECLARE_REFCLASS(pipeline);
+
+void pipeline_put(struct pipeline *pl)
+{
+    ref_put(pl);
+}
 
 struct pipeline *pipeline_new(struct scene *s, const char *name)
 {
