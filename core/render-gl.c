@@ -82,15 +82,13 @@ void texture_filters(texture_t *tex, GLint wrap, GLint filter)
 
 static void texture_setup_begin(texture_t *tex, void *buf)
 {
-    if (tex->format == GL_DEPTH_COMPONENT)
-        tex->type = GL_FLOAT;
     GL(glActiveTexture(tex->target));
     GL(glBindTexture(GL_TEXTURE_2D, tex->id));
     GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, tex->wrap));
     GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, tex->wrap));
     GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, tex->filter));
     GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, tex->filter));
-    GL(glTexImage2D(GL_TEXTURE_2D, 0, tex->format, tex->width, tex->height,
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, tex->internal_format, tex->width, tex->height,
                  0, tex->format, tex->type, buf));
 }
 
@@ -103,6 +101,7 @@ void texture_load(texture_t *tex, GLenum format, unsigned int width, unsigned in
                   void *buf)
 {
     tex->format = format;
+    tex->internal_format = format;
     tex->width  = width;
     tex->height = height;
     texture_setup_begin(tex, buf);
@@ -114,8 +113,13 @@ void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int 
                  unsigned int height)
 {
     tex->format = format;
+    tex->internal_format = format;
     tex->width  = width;
     tex->height = height;
+    if (attachment == GL_DEPTH_ATTACHMENT) {
+        tex->type = GL_UNSIGNED_SHORT;
+        tex->internal_format = GL_DEPTH_COMPONENT16;
+    }
     texture_setup_begin(tex, NULL);
     GL(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D, tex->id, 0));
     texture_setup_end(tex);

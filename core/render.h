@@ -12,6 +12,7 @@ TYPE(texture,
     struct ref      ref;
     GLuint          id;
     GLenum          format;
+    GLenum          internal_format;
     GLenum          type;
     GLint           wrap;
     GLint           filter;
