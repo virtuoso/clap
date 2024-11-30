@@ -436,6 +436,10 @@ bool gltf_has_ ## _name(struct gltf_data *gd, int mesh) \
 void *gltf_ ## _name(struct gltf_data *gd, int mesh) \
 { \
     struct gltf_material *mat = gltf_material(gd, mesh); \
+ \
+    if (!mat) \
+        return NULL; \
+ \
     int tex = mat->_attr ## _tex; \
     struct gltf_bufview *bv = gltf_bufview_tex(gd, tex); \
  \
@@ -447,6 +451,10 @@ void *gltf_ ## _name(struct gltf_data *gd, int mesh) \
 unsigned int gltf_ ## _name ## sz(struct gltf_data *gd, int mesh) \
 { \
     struct gltf_material *mat = gltf_material(gd, mesh); \
+ \
+    if (!mat) \
+        return 0; \
+ \
     int tex = mat->_attr ## _tex; \
     struct gltf_bufview *bv = gltf_bufview_tex(gd, tex); \
  \
@@ -1079,16 +1087,9 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
     }
 
     gd->scene->_model = m;
-    if (gltf_has_em(gd, mesh)) {
-        txm = model3dtx_new_from_png_buffers2(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
-                                              gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh),
-                                              gltf_em(gd, mesh), gltf_emsz(gd, mesh));
-    } else if (gltf_has_nmap(gd, mesh)) {
-        txm = model3dtx_new_from_png_buffers(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
-                                             gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh));
-    } else {
-        txm = model3dtx_new_from_png_buffer(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh));
-    }
+    txm = model3dtx_new_from_png_buffers(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
+                                         gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh),
+                                         gltf_em(gd, mesh), gltf_emsz(gd, mesh));
 
     if (!txm) {
         warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));

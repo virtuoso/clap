@@ -232,55 +232,10 @@ static void model3dtx_add_fake_sobel(struct model3dtx *txm)
     shader_prog_done(model->prog);
 }
 
-struct model3dtx *model3dtx_new_from_png_buffer(struct model3d *model, void *buffer, size_t length)
+struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
+                                                 void *em, size_t emsz)
 {
-    if (!buffer || !length)
-        goto err;
-
-    struct model3dtx *txm = ref_new(model3dtx);
-
-    if (!txm)
-        goto err;
-
-    txm->model = ref_get(model);
-    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, buffer, length);
-    model3dtx_add_fake_emission(txm);
-    model3dtx_add_fake_sobel(txm);
-
-    return txm;
-
-err:
-    ref_put_passed(model);
-    return NULL;
-}
-
-struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz)
-{
-    if (!tex || !texsz || !norm || !normsz)
-        goto err;
-
-    struct model3dtx *txm = ref_new(model3dtx);
-
-    if (!txm)
-        goto err;
-
-    txm->model = ref_get(model);
-    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
-    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
-    model3dtx_add_fake_emission(txm);
-    model3dtx_add_fake_sobel(txm);
-
-    return txm;
-
-err:
-    ref_put_passed(model);
-    return NULL;
-}
-
-struct model3dtx *model3dtx_new_from_png_buffers2(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
-                                                  void *em, size_t emsz)
-{
-    if (!tex || !texsz /*|| !norm || !normsz*/ || !em || !emsz)
+    if (!tex || !texsz)
         goto err;
 
     struct model3dtx *txm = ref_new(model3dtx);
@@ -292,7 +247,11 @@ struct model3dtx *model3dtx_new_from_png_buffers2(struct model3d *model, void *t
     model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
     if (norm && normsz)
         model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
-    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
+    if (em && emsz)
+        model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
+    else
+        model3dtx_add_fake_emission(txm);
+    model3dtx_add_fake_sobel(txm);
 
     return txm;
 
