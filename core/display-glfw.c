@@ -30,11 +30,8 @@ bool gl_does_vao(void)
 #endif
 }
 
-int gl_refresh_rate(void)
+static int __gl_refresh_rate(void)
 {
-    if (refresh_rate)
-        return refresh_rate;
-
     GLFWmonitor *monitor = glfwGetWindowMonitor(window);
 
     if (!monitor)
@@ -43,6 +40,14 @@ int gl_refresh_rate(void)
         return 60;
 
     refresh_rate = glfwGetVideoMode(monitor)->refreshRate;
+    return refresh_rate;
+}
+
+int gl_refresh_rate(void)
+{
+    if (!refresh_rate)
+        refresh_rate = __gl_refresh_rate();
+
     return refresh_rate;
 }
 
@@ -67,13 +72,17 @@ static void resize_cb(GLFWwindow *window, int w, int h)
 {
     width = w;
     height = h;
-    refresh_rate = 0;
-    gl_refresh_rate();
+    refresh_rate = __gl_refresh_rate();
     resize_fn(update_fn_data, w, h);
 }
 
 static void move_cb(GLFWwindow *window, int x, int y)
 {
+    /*
+     * force refresh rate update, in case we moved to a different
+     * monitor
+     */
+    refresh_rate = __gl_refresh_rate();
     /* store new window position in settings */
     gl_get_sizes(NULL, NULL);
 }
