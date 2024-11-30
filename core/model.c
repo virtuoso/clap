@@ -895,13 +895,11 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
     struct shader_prog *prog = NULL;
     struct model3d *model;
     struct model3dtx *txmodel;
-    struct matrix4f *view_mx = NULL, *inv_view_mx = NULL;
+    struct view *view = NULL;
     unsigned long nr_txms = 0, nr_ents = 0, culled = 0;
 
-    if (camera) {
-        view_mx = camera->view_mx;
-        inv_view_mx = camera->inv_view_mx;
-    }
+    if (camera)
+        view = &camera->view;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
@@ -945,9 +943,9 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
                 shader_set_var_ptr(prog, UNIFORM_ATTENUATION, LIGHTS_MAX, light->attenuation);
             }
 
-            if (view_mx && inv_view_mx) {
-                shader_set_var_ptr(prog, UNIFORM_VIEW, 1, view_mx->cell);
-                shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, inv_view_mx->cell);
+            if (view) {
+                shader_set_var_ptr(prog, UNIFORM_VIEW, 1, view->view_mx.cell);
+                shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, view->inv_view_mx.cell);
             }
 
             if (proj_mx)
@@ -971,7 +969,7 @@ void models_render(struct mq *mq, struct light *light, struct camera *camera,
             dbg_on(!e->visible, "rendering an invisible entity!\n");
 
             if (!e->skip_culling &&
-                camera && !camera_entity_in_frustum(camera, e)) {
+                view && !view_entity_in_frustum(view, e)) {
                 culled++;
                 continue;
             }

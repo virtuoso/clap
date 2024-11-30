@@ -130,8 +130,9 @@ int scene_camera_add(struct scene *s)
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
 
-    s->camera->view_mx      = mx_new();
-    s->camera->inv_view_mx  = mx_new();
+    mx_set_identity(&s->camera->view.view_mx);
+    mx_set_identity(&s->camera->view.inv_view_mx);
+    s->camera->view.proj_mx      = s->proj_mx;
 
 
     s->camera->ch->pos[0] = 0.0;
@@ -146,6 +147,7 @@ int scene_camera_add(struct scene *s)
 
 static void scene_camera_calc(struct scene *s, int camera)
 {
+    struct camera *cam = &s->cameras[camera];
     float scalev[3];
     int i;
 
@@ -153,46 +155,34 @@ static void scene_camera_calc(struct scene *s, int camera)
         return;
     if (s->autopilot)
         scene_camera_autopilot(s);
-    if (!s->cameras[camera].ch->moved && s->control == s->cameras[camera].ch)
+    if (!cam->ch->moved && s->control == cam->ch)
         return;
 
     for (i = 0; i < 3; i++)
-        scalev[i] = s->cameras[camera].zoom ? 3.0 : 1.0;
-
-    struct camera *cam = &s->cameras[camera];
+        scalev[i] = cam->zoom ? 3.0 : 1.0;
 
     /* circle the character s->control */
-    if (s->control != s->cameras[camera].ch &&
+    if (s->control != cam->ch &&
         (camera_has_moved(cam) || s->control->moved)) {
 
-        // float dist           = s->cameras[camera].zoom ? 1 : 10;
         float x              = s->control->pos[0];
         float y              = s->control->pos[1] + entity3d_aabb_Y(s->control->entity) / 4 * 3;
         float z              = s->control->pos[2];
-        camera_position(cam, x, y, z, s->cameras[camera].ch->pos);
+        camera_position(cam, x, y, z, cam->ch->pos);
         //s->control->moved    = 0; /* XXX */
     }
 
     camera_reset_movement(cam);
-    s->cameras[camera].ch->moved = 0;
-    trace("camera: %f/%f/%f zoom: %d\n", s->cameras[camera].ch->pos[0], s->cameras[camera].ch->pos[1], s->cameras[camera].ch->pos[2], s->cameras[camera].zoom);
+    cam->ch->moved = 0;
+    trace("camera: %f/%f/%f zoom: %d\n", cam->ch->pos[0], cam->ch->pos[1], cam->ch->pos[2], cam->zoom);
 
-    //free(s->view_mx);
-    //s->view_mx = transmx_new(negpos, 0.0, 0.0, 0.0, 1.0);
-    mat4x4_identity(s->cameras[camera].view_mx->m);
-    mat4x4_rotate_X(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].current_pitch));
-    mat4x4_rotate_Y(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, to_radians(s->cameras[camera].current_yaw));
-    mat4x4_scale_aniso(s->cameras[camera].view_mx->m, s->cameras[camera].view_mx->m, scalev[0], scalev[1], scalev[2]);
-    //mat4x4_scale(s->cameras[camera].view_mx->m, scalev, 1.0);
-    mat4x4_translate_in_place(s->cameras[camera].view_mx->m, -s->cameras[camera].ch->pos[0], -s->cameras[camera].ch->pos[1], -s->cameras[camera].ch->pos[2]);
-
-    mat4x4_invert(s->cameras[camera].inv_view_mx->m, s->cameras[camera].view_mx->m);
-    camera_calc_frustum(cam, s->proj_mx->m);
+    view_update_from_angles(&cam->view, cam->ch->pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
+    view_calc_frustum(&cam->view);
 #ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
         gl_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
-                 s->cameras[camera].ch->pos[0], s->cameras[camera].ch->pos[1], s->cameras[camera].ch->pos[2],
-                 s->cameras[camera].current_pitch, s->cameras[camera].current_yaw);
+                 cam->ch->pos[0], cam->ch->pos[1], cam->ch->pos[2],
+                 cam->current_pitch, cam->current_yaw);
 #endif
 }
 
