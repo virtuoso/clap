@@ -198,17 +198,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
 static void projmx_update(struct scene *s)
 {
-    struct matrix4f *m = s->proj_mx;
-    float y_scale = (1 / tan(FOV / 2));
-    float x_scale = y_scale / s->aspect;
-    float frustum_length = s->far_plane - s->near_plane;
-
-    m->cell[0] = x_scale;
-    m->cell[5] = y_scale;
-    m->cell[10] = -((s->far_plane + s->near_plane) / frustum_length);
-    m->cell[11] = -1;
-    m->cell[14] = -((2 * s->near_plane * s->far_plane) / frustum_length);
-    m->cell[15] = 0;
+    mat4x4_perspective(s->proj_mx->m, FOV, s->aspect, s->near_plane, s->far_plane);
     s->proj_updated++;
 }
 
