@@ -269,6 +269,17 @@ static inline double clampd(double x, double floor, double ceil)
     return x;
 }
 
+/* matching ffs*(), count bit positions from 1; 0 means no bits are set */
+#ifndef HAVE_FLS
+static inline int fls(int x)
+{
+    if (!x)
+        return 0;
+
+    return sizeof(x) * 8 - __builtin_clz(x);
+}
+#endif /* HAVE_FLS */
+
 #define NSEC_PER_SEC 1000000000l
 
 struct timespec64 {

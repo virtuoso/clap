@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.7)
 project(clap)
 
 include (FindPkgConfig)
+include(CheckSymbolExists)
+
 option(CLAP_BUILD_WITH_GLES BOOL OFF)
 option(CLAP_BUILD_FINAL BOOL OFF)
 option(CLAP_BUILD_NETWORKING BOOL OFF)
@@ -35,6 +37,7 @@ endif ()
 include(scripts/rust-wasm.cmake)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    check_symbol_exists(fls "strings.h" HAVE_FLS)
     set(OpenGL_GL_PREFERENCE "LEGACY")
     set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
     find_package(glfw3 REQUIRED)
