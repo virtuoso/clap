@@ -126,6 +126,12 @@ void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int 
     tex->loaded = true;
 }
 
+void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
+{
+    *pwidth = tex->width;
+    *pheight = tex->height;
+}
+
 void texture_done(struct texture *tex)
 {
     if (!ref_is_static(&tex->ref))
