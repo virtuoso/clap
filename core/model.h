@@ -182,27 +182,6 @@ static inline float barrycentric(vec3 p1, vec3 p2, vec3 p3, vec2 pos)
     return l1 * p1[1] + l2 * p2[1] + l3 * p3[1];
 }
 
-/* Special constants for nr_attachments */
-#define FBO_DEPTH_TEXTURE (-1)
-#define FBO_COLOR_TEXTURE (0)
-
-struct fbo {
-    struct ref  ref;
-    int width, height;
-    unsigned int fbo;
-    int depth_buf;
-    darray(int, color_buf);
-    texture_t tex;
-    bool ms;
-    int retain_tex;
-};
-struct fbo *fbo_new(int width, int height);
-struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_attachments);
-void fbo_prepare(struct fbo *fbo);
-void fbo_done(struct fbo *fbo, int width, int height);
-void fbo_blit_from_fbo(struct fbo *fbo, struct fbo *src_fbo, int attachment);
-void fbo_resize(struct fbo *fbo, int width, int height);
-
 enum color_pt {
     COLOR_PT_NONE = 0,
     COLOR_PT_ALPHA,

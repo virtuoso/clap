@@ -60,4 +60,25 @@ void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *
 bool texture_loaded(texture_t *tex);
 texture_t *texture_clone(texture_t *tex);
 
+/* Special constants for nr_attachments */
+#define FBO_DEPTH_TEXTURE (-1)
+#define FBO_COLOR_TEXTURE (0)
+
+struct fbo {
+    struct ref  ref;
+    int width, height;
+    unsigned int fbo;
+    int depth_buf;
+    darray(int, color_buf);
+    texture_t tex;
+    bool ms;
+    int retain_tex;
+};
+struct fbo *fbo_new(int width, int height);
+struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_attachments);
+void fbo_prepare(struct fbo *fbo);
+void fbo_done(struct fbo *fbo, int width, int height);
+void fbo_blit_from_fbo(struct fbo *fbo, struct fbo *src_fbo, int attachment);
+void fbo_resize(struct fbo *fbo, int width, int height);
+
 #endif /* __CLAP_RENDER_H__ */
