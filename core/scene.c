@@ -9,6 +9,7 @@
 #include "scene.h"
 #include "sound.h"
 #include "json.h"
+#include "ui-debug.h"
 
 struct sound *click;
 
@@ -304,8 +305,22 @@ int scene_get_light(struct scene *scene)
     return scene->nr_lights++;
 }
 
+static bool scene_ui;
+
 void scene_update(struct scene *scene)
 {
+#ifndef CONFIG_FINAL
+    if (igBegin("scene parameters", &scene_ui, ImGuiWindowFlags_AlwaysAutoResize)) {
+        igSliderFloat("near plane", &scene->near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("far plane", &scene->far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igCheckbox("shadow outline", &scene->light.shadow_outline);
+        scene->proj_update++;
+        igEnd();
+    } else {
+        igEnd();
+    }
+#endif /* CONFIG_FINAL */
+
     if (scene->proj_update) {
         mat4x4_perspective(scene->proj_mx->m, scene->fov, scene->aspect, scene->near_plane, scene->far_plane);
         scene->proj_update = 0;
