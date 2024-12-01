@@ -781,7 +781,7 @@ static void fbo_init(struct fbo *fbo, int nr_attachments)
         }
     }
 
-    if (nr_attachments >= 0)
+    if (nr_attachments > 0)
         fbo->depth_buf = fbo_depth_buffer(fbo);
 
     err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
