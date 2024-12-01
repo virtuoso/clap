@@ -2,7 +2,9 @@
 #include "model.h"
 #include "view.h"
 #include "shader.h"
+#include "ui-debug.h"
 
+static bool frustum_ui, light_ui;
 static float near_factor = 0.0, far_factor = 1.0, frustum_extra = 10.0;
 
 static void view_projection_update(struct view *view, struct view *src)
@@ -24,6 +26,10 @@ static void view_projection_update(struct view *view, struct view *src)
         _aabb_min[2] *= frustum_extra;
     else
         _aabb_min[2] /= frustum_extra;
+    // if (aabb_max[2] < 0)
+    //     aabb_max[2] /= FRUSTUM_EXTRA;
+    // else
+    //     aabb_max[2] *= FRUSTUM_EXTRA;
 
     vec3 near_bottom_left = { _aabb_min[0], _aabb_min[1], _aabb_min[2] };
     vec3 near_top_right = { _aabb_max[0], _aabb_max[1], _aabb_min[2] };
@@ -54,6 +60,34 @@ static void view_projection_update(struct view *view, struct view *src)
     mat4x4_ortho(view->proj_mx->m, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
                  aabb_min[2] * near_factor, aabb_max[2] * far_factor);
     view_calc_frustum(view);
+
+    if (igBegin("Camera frustum", &frustum_ui, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ui_igVecTableHeader("in light space", 4);
+        for (i = 0; i < 8; i++)
+            ui_igVecRow(view->frustum_corners[i], 4, "light corner %d", i);
+        for (i = 0; i < 8; i++)
+            ui_igVecRow(src->frustum_corners[i], 4, "camera corner %d", i);
+        igEndTable();
+        igSliderFloat("frustum extra", &frustum_extra, 1.0, 50.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("near plane", &near_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("far plane", &far_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+        igText("projection matrix");
+        ui_igMat4x4(view->proj_mx->m, "projection");
+        igText("view matrix");
+        ui_igMat4x4(view->view_mx.m, "view");
+        // igText("_aabb_min[2]: %f dir: %f", _aabb_min[2], vec3_len(dir));
+        ui_igVecTableHeader("AABB", 4);
+        ui_igVecRow(light_pos, 4, "light pos");
+        ui_igVecRow(light_pos_world, 4, "light pos world");
+        ui_igVecRow(_aabb_min, 4, "_aabb_min");
+        ui_igVecRow(_aabb_max, 4, "_aabb_max");
+        ui_igVecRow(aabb_min, 4, "aabb_min");
+        ui_igVecRow(aabb_max, 4, "aabb_max");
+        igEndTable();
+        igEnd();
+    } else {
+        igEnd();
+    }
 }
 
 void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll)
@@ -83,6 +117,21 @@ void view_update_from_frustum(struct view *view, vec3 dir, struct view *src)
     vec3 eye = {};
     view_update_from_target(view, eye, center);
     view_projection_update(view, src);
+
+    if (igBegin("Light position", &light_ui, ImGuiWindowFlags_AlwaysAutoResize)) {
+        igSetNextItemWidth(400);
+        igSliderFloat3("light", dir, -500, 50, "%f", 0);
+        if (ui_igVecTableHeader("view positions", 3)) {
+            ui_igVecRow(eye, 3, "eye");
+            ui_igVecRow(dir, 3, "direction");
+            ui_igVecRow(center, 3, "center");
+            igEndTable();
+        }
+        ui_igMat4x4(view->view_mx.m, "view matrix");
+        igEnd();
+    } else {
+        igEnd();
+    }
 }
 
 void view_calc_frustum(struct view *view)
