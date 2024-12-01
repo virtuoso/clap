@@ -306,8 +306,10 @@ int scene_get_light(struct scene *scene)
 
 void scene_update(struct scene *scene)
 {
-    struct model3dtx *txm;
-    struct entity3d  *ent;
+    if (scene->proj_update) {
+        mat4x4_perspective(scene->proj_mx->m, scene->fov, scene->aspect, scene->near_plane, scene->far_plane);
+        scene->proj_update = 0;
+    }
 
     mq_update(&scene->mq);
 }

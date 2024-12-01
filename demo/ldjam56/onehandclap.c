@@ -126,12 +126,13 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 #endif
     PROF_STEP(net, phys);
 
+    scene_update(s);
+
     if (s->control) {
         /*
         * calls entity3d_update() -> character_update()
         */
         y2 = s->control->entity->dy;
-        scene_update(s);
         if (s->control->entity->phys_body) {
             const dReal *pos = phys_body_position(s->control->entity->phys_body);
             by = pos[1];
@@ -164,7 +165,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     PROF_STEP(models, updates);
 
-    s->proj_updated = 0;
     models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, &count);
 
     pipeline_debug(main_pl);
@@ -196,14 +196,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     debug_draw_clearout(s);
 }
 
-#define FOV to_radians(70.0)
-
-static void projmx_update(struct scene *s)
-{
-    mat4x4_perspective(s->proj_mx->m, FOV, s->aspect, s->near_plane, s->far_plane);
-    s->proj_updated++;
-}
-
 #ifdef CONFIG_BROWSER
 extern void touch_set_size(int, int);
 #else
@@ -233,7 +225,7 @@ void resize_cb(void *data, int width, int height)
     scene->aspect = (float)width / (float)height;
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);
-    projmx_update(scene);
+    scene->proj_update++;
     if (settings) {
         int window_x, window_y, window_width, window_height;
         gl_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
@@ -459,6 +451,7 @@ int main(int argc, char **argv, char **envp)
     if (err)
         goto exit_ui;
 
+    scene.fov = to_radians(70);
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = -70.0;
