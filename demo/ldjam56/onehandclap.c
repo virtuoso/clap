@@ -443,6 +443,7 @@ int main(int argc, char **argv, char **envp)
 
     model_pass = pipeline_add_pass(main_pl, NULL, NULL, NULL, true, 3, -1);
     pipeline_pass_set_name(model_pass, "model");
+    scene.light.shadow[0] = pipeline_pass_get_texture(shadow_pass, 0);
     pass = pipeline_add_pass(main_pl, model_pass, "contrast", NULL, false, 0, 1);
     pass = pipeline_add_pass(main_pl, pass, "vblur", NULL, false, 0, -1);
     struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", NULL, false, 0, -1);

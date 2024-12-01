@@ -5,6 +5,7 @@
 struct render_pass;
 struct pipeline;
 
+
 struct pipeline *pipeline_new(struct scene *s, const char *name);
 void pipeline_put(struct pipeline *pl);
 void pipeline_resize(struct pipeline *pl);

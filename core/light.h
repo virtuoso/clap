@@ -15,6 +15,7 @@ struct light {
     GLfloat attenuation[3 * LIGHTS_MAX];
     GLfloat dir[3 * LIGHTS_MAX];
     struct view view[LIGHTS_MAX];
+    texture_t *shadow[LIGHTS_MAX];
 };
 
 void light_set_pos(struct light *light, int idx, float pos[3]);
