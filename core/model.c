@@ -983,7 +983,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
 
     //dbg("RENDERED: %lu/%lu\n", nr_txms, nr_ents);
     if (count)
-        *count = nr_txms;
+        *count = nr_ents;
     if (prog)
         shader_prog_done(prog);
     if (camera && culled)
