@@ -9,6 +9,7 @@ struct pipeline {
     struct scene        *scene;
     struct ref          ref;
     struct list         passes;
+    void                (*resize)(struct fbo *fbo, bool shadow_map, int w, int h);
     const char          *name;
 };
 
@@ -25,6 +26,13 @@ struct render_pass {
     int                 rep_count;
     bool                blit;
 };
+
+texture_t *pipeline_pass_get_texture(struct render_pass *pass, unsigned int idx)
+{
+    if (idx >= darray_count(pass->fbo))
+        return NULL;
+    return &pass->fbo.x[idx]->tex;
+}
 
 static void pipeline_drop(struct ref *ref)
 {
@@ -87,6 +95,23 @@ static inline int shadow_map_size(int width, int height)
     return 1 << order;
 }
 
+static void pipeline_default_resize(struct fbo *fbo, bool shadow_map, int width, int height)
+{
+    int side = max(width, height);
+
+    if (side <= 0)
+        width = height = DEFAULT_FBO_SIZE;
+    else if (shadow_map)
+        width = height = shadow_map_size(width, height);
+
+    fbo_resize(fbo, width, height);
+}
+
+void pipeline_set_resize_cb(struct pipeline *pl, void (*cb)(struct fbo *, bool, int, int))
+{
+    pl->resize = cb ? cb : pipeline_default_resize;
+}
+
 struct pipeline *pipeline_new(struct scene *s, const char *name)
 {
     struct pipeline *pl;
@@ -95,6 +120,7 @@ struct pipeline *pipeline_new(struct scene *s, const char *name)
     list_init(&pl->passes);
     pl->scene = s;
     pl->name = name;
+    pl->resize = pipeline_default_resize;
 
     return pl;
 }
@@ -109,8 +135,23 @@ void pipeline_resize(struct pipeline *pl)
 
         struct fbo **pfbo;
         darray_for_each(pfbo, &pass->fbo)
-            fbo_resize(*pfbo, pl->scene->width, pl->scene->height);
+            pl->resize(*pfbo, false, pl->scene->width, pl->scene->height);
     }
+}
+
+void pipeline_shadow_resize(struct pipeline *pl, int width)
+{
+    struct render_pass *pass;
+
+    list_for_each_entry(pass, &pl->passes, entry) {
+        if (pass->prog_override)
+            goto found;
+    }
+
+    return;
+
+found:
+    pl->resize(pass->fbo.x[0], true, width, width);
 }
 
 struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
