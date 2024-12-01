@@ -477,30 +477,44 @@ repeat:
 static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex)
 {
     struct render_pass *pass;
+    char name[128];
     int i = 0;
 
     list_for_each_entry(pass, &pl->passes, entry) {
-        if (*item == i) {
-            *tex = &pass->fbo.x[0]->tex;
-            goto found;
+        struct fbo **pfbo;
+        int j = 0;
+
+        darray_for_each(pfbo, &pass->fbo) {
+            if (*item == i) {
+                snprintf(name, sizeof(name), "%s/%d", pass->name, j);
+                *tex = &(*pfbo)->tex;
+                goto found;
+            }
+            i++, j++;
         }
-        i++;
     }
 
     pass = list_first_entry(&pl->passes, struct render_pass, entry);
     *item = 0;
 
 found:
-    if (igBeginCombo("passes", pass->name, ImGuiComboFlags_HeightRegular)) {
+    if (igBeginCombo("passes", name, ImGuiComboFlags_HeightRegular)) {
         i = 0;
         list_for_each_entry(pass, &pl->passes, entry) {
-            bool selected = *item == i;
-            if (igSelectable_Bool(pass->name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
-                igSetItemDefaultFocus();
-                *item = i;
-                *tex = &pass->fbo.x[0]->tex;
+            struct fbo **pfbo;
+            int j = 0;
+
+            darray_for_each(pfbo, &pass->fbo) {
+                bool selected = *item == i;
+
+                snprintf(name, sizeof(name), "%s/%d", pass->name, j);
+                if (igSelectable_Bool(name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
+                    igSetItemDefaultFocus();
+                    *item = i;
+                    *tex = &(*pfbo)->tex;
+                }
+                i++, j++;
             }
-            i++;
         }
         igEndCombo();
     }
