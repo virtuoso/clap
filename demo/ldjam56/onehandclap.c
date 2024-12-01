@@ -77,7 +77,45 @@ DECLARE_PROF(end);
 #endif
 
 struct clap_context *clap_ctx;
-struct pipeline *main_pl, *blur_pl;
+struct pipeline *main_pl;
+
+static void build_main_pl(struct pipeline **pl)
+{
+    *pl = pipeline_new(&scene, "main");
+
+    struct render_pass *shadow_pass = pipeline_add_pass(*pl,
+                                                        .nr_attachments  = FBO_DEPTH_TEXTURE,
+                                                        .shader_override = "shadow");
+    scene.light.shadow[0] = pipeline_pass_get_texture(shadow_pass, 0);
+
+    struct render_pass *model_pass = pipeline_add_pass(*pl,
+                                                       .multisampled   = true,
+                                                       .nr_attachments = 3,
+                                                       .name           = "model");
+    struct render_pass *pass;
+    pass = pipeline_add_pass(*pl, .source = model_pass, .shader = "vblur", .blit_from = 1);
+    struct render_pass *bloom_pass = pipeline_add_pass(*pl,
+                                                       .source     = pass,
+                                                       .shader     = "hblur",
+                                                       .pingpong   = 5);
+    struct render_pass *sobel_pass = pipeline_add_pass(*pl,
+                                                       .source     = model_pass,
+                                                       .shader     = "sobel",
+                                                       .blit_from  = 2);
+    pass = pipeline_add_pass(*pl,
+                             .source = model_pass,
+                             .shader = "combine",
+                             .stop   = true);
+    pipeline_pass_add_source(*pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1);
+    pipeline_pass_add_source(*pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
+
+    pass = pipeline_add_pass(*pl, .source = pass, .shader = "vblur", .name = "menu vblur");
+    struct render_pass *blur_pass = pipeline_add_pass(*pl,
+                                                      .source   = pass,
+                                                      .shader   = "hblur",
+                                                      .name     = "menu hblur",
+                                                      .pingpong = 5);
+}
 
 EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
@@ -158,10 +196,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 #endif
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    if (ui.modal)
-        pipeline_render(blur_pl);
-    else
-        pipeline_render(main_pl);
+    pipeline_render2(main_pl, !ui.modal);
 
     PROF_STEP(models, updates);
 
@@ -217,8 +252,6 @@ void resize_cb(void *data, int width, int height)
     ui.height = height;
     scene->width  = width;
     scene->height = height;
-    if (blur_pl)
-        pipeline_resize(blur_pl);
     if (main_pl)
         pipeline_resize(main_pl);
     touch_set_size(width, height);
@@ -422,45 +455,7 @@ int main(int argc, char **argv, char **envp)
 
     gl_get_sizes(&scene.width, &scene.height);
 
-    blur_pl = pipeline_new(&scene, "menu");
-    struct render_pass *model_pass = pipeline_add_pass(blur_pl,
-                                                       .name           = "model",
-                                                       .multisampled   = true,
-                                                       .nr_attachments = 3);
-    pass = pipeline_add_pass(blur_pl,
-                             .source   = model_pass,
-                             .shader   = "contrast");
-    struct render_pass *rep_pass = pipeline_add_pass(blur_pl,
-                                                     .source   = pass,
-                                                     .shader   = "vblur");
-    pass = pipeline_add_pass(blur_pl,
-                             .source    = rep_pass,
-                             .shader    = "hblur",
-                             .pingpong  = 5);
-
-    main_pl = pipeline_new(&scene, "main");
-    struct render_pass *shadow_pass = pipeline_add_pass(main_pl,
-                                                        .nr_attachments  = FBO_DEPTH_TEXTURE,
-                                                        .shader_override = "shadow");
-    scene.light.shadow[0] = pipeline_pass_get_texture(shadow_pass, 0);
-
-    model_pass = pipeline_add_pass(main_pl, .multisampled = true, .nr_attachments = 3, .name = "model");
-    pass = pipeline_add_pass(main_pl,
-                             .source       = model_pass,
-                             .shader       = "contrast",
-                             .blit_from    = 1);
-    pass = pipeline_add_pass(main_pl, .source = pass, .shader = "vblur");
-    struct render_pass *bloom_pass = pipeline_add_pass(main_pl,
-                                                       .source     = pass,
-                                                       .shader     = "hblur",
-                                                       .pingpong   = 5);
-    struct render_pass *sobel_pass = pipeline_add_pass(main_pl,
-                                                       .source     = model_pass,
-                                                       .shader     = "sobel",
-                                                       .blit_from  = 2);
-    pass = pipeline_add_pass(main_pl, .source = model_pass, .shader = "combine");
-    pipeline_pass_add_source(main_pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1);
-    pipeline_pass_add_source(main_pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
+    build_main_pl(&main_pl);
 
     err = ui_init(&ui, scene.width, scene.height);
     if (err)
@@ -478,7 +473,6 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
-    pipeline_put(blur_pl);
     pipeline_put(main_pl);
     ui_done(&ui);
 exit_ui:
