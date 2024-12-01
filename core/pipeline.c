@@ -11,6 +11,7 @@ struct pipeline {
     struct list         passes;
     void                (*resize)(struct fbo *fbo, bool shadow_map, int w, int h);
     const char          *name;
+    bool                ui_open;
 };
 
 struct render_pass {
@@ -306,12 +307,77 @@ err_src:
     darray_delete(&pass->src.da, -1);
 }
 
+#ifndef CONFIG_FINAL
+static void pipeline_debug_begin(struct pipeline *pl)
+{
+    char dbg_name[128];
+    snprintf(dbg_name, sizeof(dbg_name), "Pipeline '%s' rendering", pl->name);
+    pl->ui_open = igBegin(dbg_name, &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize);
+    if (pl->ui_open) {
+        struct render_pass *pass;
+
+        list_for_each_entry(pass, &pl->passes, entry)
+            if (pass->rep_total) {
+                snprintf(dbg_name, sizeof(dbg_name), "%s reps", pass->name);
+                igSliderInt(dbg_name, &pass->rep_total, 1, 20, "%d", ImGuiSliderFlags_AlwaysClamp);
+            }
+
+        igBeginTable("pipeline passes", 4, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
+        igTableSetupColumn("pass", ImGuiTableColumnFlags_WidthStretch, 0, 0);
+        igTableSetupColumn("src", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+        igTableSetupColumn("dim", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+        igTableSetupColumn("count", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    }
+}
+
+static void pipeline_debug_end(struct pipeline *pl)
+{
+    if (pl->ui_open)
+        igEndTable();
+    igEnd();
+}
+
+static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx,
+                                      struct render_pass *src)
+{
+    struct fbo *fbo = pass->fbo.x[srcidx];
+
+    if (!pl->ui_open)
+        return;
+    igTableNextRow(0, 0);
+    igTableNextColumn();
+
+    igText("%s:%d", pass->name, srcidx);
+    igTableNextColumn();
+    igText("%s", src ? src->name : "<none>");
+    igTableNextColumn();
+    igText("%u x %u", fbo->width, fbo->height);
+}
+
+static void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count)
+{
+    if (!pl->ui_open)
+        return;
+
+    igTableNextColumn();
+    igText("%lu", count);
+}
+#else
+static inline void pipeline_debug_begin(struct pipeline *pl) {}
+static inline void pipeline_debug_end(struct pipeline *pl) {}
+static inline void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx,
+                                             struct render_pass *src) {}
+static inline void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count) {}
+#endif /* CONFIG_FINAL */
+
 void pipeline_render(struct pipeline *pl)
 {
     struct scene *s = pl->scene;
     struct render_pass *last_pass = list_last_entry(&pl->passes, struct render_pass, entry);
     struct render_pass *pass, *ppass = NULL;
     bool repeating = false;
+
+    pipeline_debug_begin(pl);
 
     list_for_each_entry(pass, &pl->passes, entry) {
         if (!ppass || !repeating || ppass->rep_count)
@@ -332,6 +398,9 @@ repeat:
         for (i = 0; i < darray_count(pass->src); i++, ppass = NULL) {
             struct render_pass *src = ppass ? ppass : pass->src.x[i];
             struct fbo *fbo = pass->fbo.x[i];
+            unsigned long count = 0;
+
+            pipeline_pass_debug_begin(pl, pass, i, src);
 
             if (src && src->blit) {
                 struct fbo *src_fbo = src->fbo.x[0];
@@ -352,12 +421,14 @@ repeat:
                 if (!src)
                     models_render(&s->mq, pass->prog_override, &s->light,
                                   shadow ? NULL : &s->cameras[0],
-                                  s->proj_mx, s->focus, fbo->width, fbo->height, NULL);
+                                  s->proj_mx, s->focus, fbo->width, fbo->height, &count);
                 else
-                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo->width, fbo->height, NULL);
+                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo->width, fbo->height, &count);
 
                 fbo_done(fbo, s->width, s->height);
             }
+
+            pipeline_pass_debug_end(pl, count);
         }
 
         if (pass->rep_count && pass->rep_count--) {
@@ -379,13 +450,16 @@ repeat:
         }
     }
 
+    pipeline_debug_end(pl);
+
     /* render the last pass to the screen */
     GL(glClearColor(0.2f, 0.2f, 0.6f, 1.0f));
     GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
     models_render(&last_pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
 }
 
-void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex)
+#ifndef CONFIG_FINAL
+static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex)
 {
     struct render_pass *pass;
     int i = 0;
@@ -416,3 +490,49 @@ found:
         igEndCombo();
     }
 }
+
+static void debug_shadow_resize(struct fbo *fbo, bool shadow, int width, int height)
+{
+    fbo_resize(fbo, width, height);
+}
+
+void pipeline_debug(struct pipeline *pl)
+{
+    static int pass_preview;
+    unsigned int width, height;
+    texture_t *pass_tex = NULL;
+    int depth_log2;
+
+    if (igBegin("Depth map resolution", &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize)) {
+        pipeline_passes_dropdown(pl, &pass_preview, &pass_tex);
+        texture_get_dimesnions(pass_tex, &width, &height);
+        if (!pass_preview) {
+            int prev_depth_log2 = depth_log2 = ffs(width) - 1;
+            igSliderInt("dim log2", &depth_log2, 8, 16, "%d", 0);
+            if (depth_log2 != prev_depth_log2) {
+                pipeline_set_resize_cb(pl, debug_shadow_resize);
+                pipeline_shadow_resize(pl, 1 << depth_log2);
+                pipeline_set_resize_cb(pl, NULL);
+            }
+            igText("shadow map resolution: %d x %d", 1 << depth_log2, 1 << depth_log2);
+        } else {
+            igText("texture resolution: %d x %d", width, height);
+        }
+        igEnd();
+    } else {
+        igEnd();
+    }
+
+    if (pass_tex) {
+        if (igBegin("Depth map", &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize)) {
+            igPushItemWidth(512);
+            double aspect = (double)height / width;
+            igImage((ImTextureID)texture_id(pass_tex), (ImVec2){512, 512 * aspect},
+                    (ImVec2){1,1}, (ImVec2){0,0}, (ImVec4){1,1,1,1}, (ImVec4){1,1,1,1});
+            igEnd();
+        } else {
+            igEnd();
+        }
+    }
+}
+#endif /* CONFIG_FINAL */

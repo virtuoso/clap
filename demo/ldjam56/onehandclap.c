@@ -166,6 +166,8 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     s->proj_updated = 0;
     models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, &count);
+
+    pipeline_debug(main_pl);
     imgui_render();
     PROF_STEP(ui, models);
 
