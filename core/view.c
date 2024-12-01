@@ -2,6 +2,7 @@
 #include "model.h"
 #include "view.h"
 #include "shader.h"
+#include "ui-debug.h"
 
 static float near_factor = 0.0, far_factor = 1.0, frustum_extra = 10.0;
 
@@ -35,6 +36,89 @@ static void view_update_perspective_subviews(struct view *view)
     }
 }
 
+#ifndef CONFIG_FINAL
+static void view_debug_begin(void)
+{
+   debug_module *dbgm = ui_debug_module(DEBUG_FRUSTUM_VIEW);
+
+    if (!dbgm->display)
+        return;
+
+    dbgm->open = true;
+    dbgm->unfolded = igBegin("Camera frustum", &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+    if (!dbgm->unfolded)
+        return;
+
+    igSliderFloat("frustum extra", &frustum_extra, 1.0, 50.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+    igSliderFloat("near plane", &near_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+    igSliderFloat("far plane", &far_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+}
+
+static void subview_debug(struct subview *dst, float *light_pos,
+                          float *_aabb_min, float *_aabb_max,
+                          float *aabb_min, float *aabb_max)
+{
+    debug_module *dbgm = ui_debug_module(DEBUG_FRUSTUM_VIEW);
+
+    if (!dbgm->display || !dbgm->unfolded)
+        return;
+
+    vec4 light_pos_world;
+    mat4x4_mul_vec4(light_pos_world, dst->inv_view_mx.m, light_pos);
+
+    igText("projection matrix");
+    ui_igMat4x4(dst->proj_mx.m, "projection");
+    igText("view matrix");
+    ui_igMat4x4(dst->view_mx.m, "view");
+    // igText("_aabb_min[2]: %f dir: %f", _aabb_min[2], vec3_len(dir));
+    ui_igVecTableHeader("AABB", 4);
+    ui_igVecRow(light_pos, 4, "light pos");
+    ui_igVecRow(light_pos_world, 4, "light pos world");
+    ui_igVecRow(_aabb_min, 4, "_aabb_min");
+    ui_igVecRow(_aabb_max, 4, "_aabb_max");
+    ui_igVecRow(aabb_min, 4, "aabb_min");
+    ui_igVecRow(aabb_max, 4, "aabb_max");
+    igEndTable();
+}
+
+static void view_frustum_debug(struct view *src, int idx)
+{
+    debug_module *dbgm = ui_debug_module(DEBUG_FRUSTUM_VIEW);
+
+    if (!dbgm->display || !dbgm->unfolded)
+        return;
+
+    igSeparator();
+    igText("subview %d near/far_plane: %f .. %f", idx,
+           src->subview[idx].near_plane, src->subview[idx].far_plane);
+    // ui_igVecTableHeader("in light space", 4);
+    // int i;
+    // for (i = 0; i < 8; i++)
+    //     ui_igVecRow(view->subview[v].frustum_corners[i], 4, "%d: light corner %d", v, i);
+    // for (i = 0; i < 8; i++)
+    //     ui_igVecRow(src->subview[v].frustum_corners[i], 4, "%d: camera corner %d", v, i);
+    // igEndTable();
+}
+
+static void view_debug_end(void)
+{
+    debug_module *dbgm = ui_debug_module(DEBUG_FRUSTUM_VIEW);
+
+    if (!dbgm->display)
+        return;
+
+    igEnd();
+    dbgm->display = dbgm->open;
+}
+#else
+static inline void view_debug_begin(void) {}
+static inline  void subview_debug(struct subview *dst, float *light_pos,
+                                  float *_aabb_min, float *_aabb_max,
+                                  float *aabb_min, float *aabb_max) {}
+static inline void view_frustum_debug(struct view *src, int idx) {}
+static inline void view_debug_end(void) {}
+#endif /* CONFIG_FINAL */
+
 static void subview_projection_update(struct subview *dst, struct subview *src)
 {
     vec4 _aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, _aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
@@ -54,14 +138,16 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
         _aabb_min[2] *= frustum_extra;
     else
         _aabb_min[2] /= frustum_extra;
+    // if (aabb_max[2] < 0)
+    //     aabb_max[2] /= FRUSTUM_EXTRA;
+    // else
+    //     aabb_max[2] *= FRUSTUM_EXTRA;
 
     vec3 near_bottom_left = { _aabb_min[0], _aabb_min[1], _aabb_min[2] };
     vec3 near_top_right = { _aabb_max[0], _aabb_max[1], _aabb_min[2] };
     vec4 light_pos = { 0, 0, 0, 1 };
     vec3_add(light_pos, near_bottom_left, near_top_right);
     vec3_scale(light_pos, light_pos, 0.5);
-    vec4 light_pos_world;
-    mat4x4_mul_vec4(light_pos_world, dst->inv_view_mx.m, light_pos);
     /* this is the same as translate_in_place by light_pos_world, but quicker */
     dst->view_mx.m[3][0] = -light_pos[0];
     dst->view_mx.m[3][1] = -light_pos[1];
@@ -83,17 +169,20 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
     mat4x4_ortho(dst->proj_mx.m, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
                  aabb_min[2] * near_factor, aabb_max[2] * far_factor);
     subview_calc_frustum(dst);
+    subview_debug(dst, light_pos, _aabb_min, _aabb_max, aabb_min, aabb_max);
 }
 
 static void view_projection_update(struct view *view, struct view *src)
 {
     int v;
 
+    view_debug_begin();
     for (v = 0; v < array_size(view->subview); v++) {
+        view_frustum_debug(src, v);
         subview_projection_update(&view->subview[v], &src->subview[v]);
     }
-    /* XXX: compatibility: remove this*/
-    subview_projection_update(&view->main, &src->main);
+
+    view_debug_end();
 
     view_calc_frustum(view);
 }
