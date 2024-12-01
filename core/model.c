@@ -756,54 +756,60 @@ static void fbo_drop(struct ref *ref)
 }
 DECLARE_REFCLASS2(fbo);
 
-static void fbo_init(struct fbo *fbo, int nr_targets)
+/*
+ * nr_attachments:
+ *  < 0: depth texture
+ *  = 0: color texture
+ *  > 0: number of color buffer attachments
+ */
+static void fbo_init(struct fbo *fbo, int nr_attachments)
 {
-    bool depth_texture = false;
     int err;
 
-    if (nr_targets < 0) {
-        nr_targets = 0;
-        depth_texture = true;
-    }
-
     fbo->fbo = fbo_create();
-    if (fbo->ms) {
+
+    if (nr_attachments < 0) {
+        fbo_depth_texture_init(fbo);
+    } else if (!nr_attachments) {
+        fbo_texture_init(fbo);
+    } else {
         int target;
 
-        for (target = 0; target < nr_targets; target++) {
+        for (target = 0; target < nr_attachments; target++) {
             int *color_buf = darray_add(&fbo->color_buf.da);
             *color_buf = fbo_color_buffer(fbo, target);
         }
-    } else {
-        fbo_texture_init(fbo);
     }
 
-    if (depth_texture)
-        fbo_depth_texture_init(fbo);
-    else
+    if (nr_attachments >= 0)
         fbo->depth_buf = fbo_depth_buffer(fbo);
+
     err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (err != GL_FRAMEBUFFER_COMPLETE)
         warn("## framebuffer status: %d\n", err);
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 }
 
-struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_targets)
+struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_attachments)
 {
     struct fbo *fbo;
+
+    /* multisampled buffer requires color attachment buffers */
+    if (ms && nr_attachments <= 0)
+        return NULL;
 
     CHECK(fbo = ref_new(fbo));
     fbo->width = width;
     fbo->height = height;
     fbo->ms = ms;
-    fbo_init(fbo, nr_targets);
+    fbo_init(fbo, nr_attachments);
 
     return fbo;
 }
 
 struct fbo *fbo_new(int width, int height)
 {
-    return fbo_new_ms(width, height, false, 1);
+    return fbo_new_ms(width, height, false, FBO_COLOR_TEXTURE);
 }
 
 static void animation_destroy(struct animation *an)
