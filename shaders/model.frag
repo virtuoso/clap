@@ -20,6 +20,7 @@ uniform bool albedo_texture;
 uniform int entity_hash;
 uniform vec4 highlight_color;
 uniform vec3 light_dir[4];
+uniform bool shadow_outline;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
@@ -94,6 +95,6 @@ void main()
         ))) + vec3(1.0, 1.0, 1.0) / 2.0), 1.0);
     } else {
         vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
-        Albedo = vec4(pos_normal, 1.0);
+        Albedo = vec4(pos_normal * (shadow_outline ? shadow_factor : 1.0), 1.0);
     }
 }

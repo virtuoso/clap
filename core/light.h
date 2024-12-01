@@ -16,6 +16,7 @@ struct light {
     GLfloat dir[3 * LIGHTS_MAX];
     struct view view[LIGHTS_MAX];
     texture_t *shadow[LIGHTS_MAX];
+    bool shadow_outline;
 };
 
 void light_set_pos(struct light *light, int idx, float pos[3]);
