@@ -403,14 +403,8 @@ repeat:
             pipeline_pass_debug_begin(pl, pass, i, src);
 
             if (src && src->blit) {
-                struct fbo *src_fbo = src->fbo.x[0];
                 fbo_prepare(fbo);
-                GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo->fbo));
-                GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo->fbo));
-                GL(glReadBuffer(GL_COLOR_ATTACHMENT0 + pass->blit_src.x[i]));
-                GL(glBlitFramebuffer(0, 0, src_fbo->width, src_fbo->height,
-                                     0, 0, fbo->width, fbo->height,
-                                     GL_COLOR_BUFFER_BIT, GL_LINEAR));
+                fbo_blit_from_fbo(fbo, src->fbo.x[0], pass->blit_src.x[i]);
                 fbo_done(fbo, s->width, s->height);
             } else {
                 fbo_prepare(fbo);

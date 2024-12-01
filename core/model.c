@@ -715,6 +715,16 @@ void fbo_done(struct fbo *fbo, int width, int height)
     GL(glViewport(0, 0, width, height));
 }
 
+void fbo_blit_from_fbo(struct fbo *fbo, struct fbo *src_fbo, int attachment)
+{
+    GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo->fbo));
+    GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo->fbo));
+    GL(glReadBuffer(GL_COLOR_ATTACHMENT0 + attachment));
+    GL(glBlitFramebuffer(0, 0, src_fbo->width, src_fbo->height,
+                         0, 0, fbo->width, fbo->height,
+                         GL_COLOR_BUFFER_BIT, GL_LINEAR));
+}
+
 static int fbo_make(struct ref *ref)
 {
     struct fbo *fbo = container_of(ref, struct fbo, ref);
