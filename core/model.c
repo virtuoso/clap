@@ -697,16 +697,18 @@ void fbo_resize(struct fbo *fbo, int width, int height)
 #define NR_TARGETS 4
 void fbo_prepare(struct fbo *fbo)
 {
+    GLenum buffers[NR_TARGETS];
+    int target;
+
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
-    if (fbo->ms) {
-        GLenum buffers[NR_TARGETS];
-        int target;
 
-        for (target = 0; target < darray_count(fbo->color_buf); target++)
-            buffers[target] = GL_COLOR_ATTACHMENT0 + target;
-        GL(glDrawBuffers(darray_count(fbo->color_buf), buffers));
-    }
+    if (!darray_count(fbo->color_buf))
+        return;
+
+    for (target = 0; target < darray_count(fbo->color_buf); target++)
+        buffers[target] = GL_COLOR_ATTACHMENT0 + target;
+    GL(glDrawBuffers(darray_count(fbo->color_buf), buffers));
 }
 
 void fbo_done(struct fbo *fbo, int width, int height)
