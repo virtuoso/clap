@@ -26,6 +26,7 @@ struct render_pass {
     int                 rep_total;
     int                 rep_count;
     bool                blit;
+    bool                stop;
 };
 
 texture_t *pipeline_pass_get_texture(struct render_pass *pass, unsigned int idx)
@@ -279,6 +280,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
             pipeline_pass_set_name(pass, _cfg.name);
         if (_cfg.pingpong)
             pipeline_pass_repeat(pass, _cfg.source, _cfg.pingpong);
+        pass->stop = _cfg.stop;
     }
 
     return pass;
@@ -395,7 +397,7 @@ static inline void pipeline_pass_debug_begin(struct pipeline *pl, struct render_
 static inline void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count) {}
 #endif /* CONFIG_FINAL */
 
-void pipeline_render(struct pipeline *pl)
+void pipeline_render2(struct pipeline *pl, bool stop)
 {
     struct scene *s = pl->scene;
     struct render_pass *last_pass = list_last_entry(&pl->passes, struct render_pass, entry);
@@ -467,14 +469,20 @@ repeat:
             pass = pass->repeat;
             goto repeat;
         }
+
+        if (stop && pass->stop)
+            break;
     }
 
     pipeline_debug_end(pl);
 
+    if (!stop)
+        pass = last_pass;
+
     /* render the last pass to the screen */
     GL(glClearColor(0.2f, 0.2f, 0.6f, 1.0f));
     GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
-    models_render(&last_pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
+    models_render(&pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
 }
 
 #ifndef CONFIG_FINAL
