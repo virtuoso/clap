@@ -406,6 +406,7 @@ int main(int argc, char **argv, char **envp)
     lib_request_shaders("vblur", &scene.shaders);
     lib_request_shaders("sobel", &scene.shaders);
     lib_request_shaders("combine", &scene.shaders);
+    lib_request_shaders("shadow", &scene.shaders);
     lib_request_shaders("debug", &scene.shaders);
     // lib_request_shaders("terrain", &scene.shaders);
     lib_request_shaders("model", &scene.shaders);
@@ -438,6 +439,8 @@ int main(int argc, char **argv, char **envp)
     pipeline_pass_repeat(pass, rep_pass, 5);
 
     main_pl = pipeline_new(&scene, "main");
+    struct render_pass *shadow_pass = pipeline_add_pass(main_pl, NULL, NULL, "shadow", true, -1, -1);
+
     model_pass = pipeline_add_pass(main_pl, NULL, NULL, NULL, true, 3, -1);
     pipeline_pass_set_name(model_pass, "model");
     pass = pipeline_add_pass(main_pl, model_pass, "contrast", NULL, false, 0, 1);

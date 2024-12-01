@@ -847,6 +847,10 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
 
     if (camera)
         view = &camera->view;
+    else if (light) {
+        view = &light->view[0];
+        proj_mx = light->view[0].proj_mx;
+    }
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
