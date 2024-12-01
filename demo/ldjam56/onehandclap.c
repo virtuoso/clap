@@ -78,6 +78,7 @@ DECLARE_PROF(end);
 
 struct clap_context *clap_ctx;
 struct pipeline *main_pl;
+static struct entity3d *cube_ent;
 
 static void build_main_pl(struct pipeline **pl)
 {
@@ -229,6 +230,18 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     );
 #endif
     debug_draw_clearout(s);
+}
+
+static int cube_update(struct entity3d *e, void *data)
+{
+    struct scene *scene = data;
+    // struct view *view = &scene->light.view[0];
+    struct view *view = &scene->camera[0].view;
+    mat4x4 mvp, invmvp;
+    mat4x4_mul(mvp, view->proj_mx->m, view->view_mx.m);
+    mat4x4_invert(invmvp, mvp);
+    memcpy(e->mx->cell, invmvp, sizeof(e->mx->cell));
+    return 0;
 }
 
 #ifdef CONFIG_BROWSER
@@ -447,6 +460,29 @@ int main(int argc, char **argv, char **envp)
     // scene_camera_add(&scene);
 
     scene_load(&scene, "scene.json");
+
+    if (1) {
+        float pixel[] = { 1.0, 0.0, 0.0, 1.0 };
+        static texture_t tex;
+        texture_init(&tex);
+        texture_load(&tex, TEX_FMT_RGBA, 1, 1, pixel);
+        texture_filters(&tex, GL_REPEAT, GL_NEAREST);
+        struct shader_prog *cube_prog = shader_prog_find(&scene.shaders, "model");
+        struct model3d *cube = model3d_new_cube(cube_prog);
+        // cube->debug = true;
+        struct model3dtx *cubetxm = model3dtx_new_texture(ref_pass(cube), &tex);
+        scene_add_model(&scene, cubetxm);
+        // cubetxm->texture = &cubetxm->_texture;
+        // cubetxm->external_tex = false;
+        texture_load(cubetxm->texture, TEX_FMT_RGBA, 1, 1, pixel);
+        cube_ent = entity3d_new(cubetxm);
+        cube_ent->visible = 0;
+        cube_ent->update = cube_update;
+        memcpy(cube_ent->color, pixel, sizeof(cube_ent->color));
+        cube_ent->color_pt = COLOR_PT_ALL;
+        cube_ent->skip_culling = true;
+        model3dtx_add_entity(cubetxm, cube_ent);
+    }
 
     /* XXX: fix game_init() */
     //game_init(&scene, &ui); // this must happen after scene_load, because we need the trees.
