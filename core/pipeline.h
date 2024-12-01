@@ -5,14 +5,25 @@
 struct render_pass;
 struct pipeline;
 
+typedef struct pipeline_pass_config {
+    struct render_pass  *source;
+    const char          *shader;
+    const char          *shader_override;
+    const char          *name;
+    bool                multisampled;
+    int                 nr_attachments;
+    int                 blit_from;
+    int                 pingpong;
+} pipeline_pass_config;
 
 struct pipeline *pipeline_new(struct scene *s, const char *name);
 void pipeline_put(struct pipeline *pl);
 void pipeline_resize(struct pipeline *pl);
 void pipeline_shadow_resize(struct pipeline *pl, int width);
 void pipeline_set_resize_cb(struct pipeline *pl, void (*cb)(struct fbo *, bool, int, int));
-struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
-                                      const char *shader_override, bool ms, int nr_targets, int target);
+struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
+#define pipeline_add_pass(_pl, args...) \
+    _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })
 void pipeline_pass_set_name(struct render_pass *pass, const char *name);
 void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src);
 void pipeline_pass_repeat(struct render_pass *pass, struct render_pass *repeat, int count);

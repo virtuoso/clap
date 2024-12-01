@@ -155,8 +155,9 @@ found:
     pl->resize(pass->fbo.x[0], true, width, width);
 }
 
-struct render_pass *pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
-                                      const char *shader_override, bool ms, int nr_targets, int target)
+static struct render_pass *
+__pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
+                    const char *shader_override, bool ms, int nr_targets, int target)
 {
     struct render_pass *pass;
     struct shader_prog *p;
@@ -257,6 +258,26 @@ err_fbo_array:
     list_del(&pass->entry);
     free(pass);
     return NULL;
+}
+
+struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg)
+{
+    pipeline_pass_config _cfg = *cfg;
+    struct render_pass *pass;
+
+    if (_cfg.multisampled && _cfg.nr_attachments <= 0)
+        return NULL;
+
+    pass = __pipeline_add_pass(pl, _cfg.source, _cfg.shader, _cfg.shader_override, _cfg.multisampled,
+                               _cfg.nr_attachments, _cfg.blit_from);
+    if (pass) {
+        if (_cfg.name)
+            pipeline_pass_set_name(pass, _cfg.name);
+        if (_cfg.pingpong)
+            pipeline_pass_repeat(pass, _cfg.source, _cfg.pingpong);
+    }
+
+    return pass;
 }
 
 void pipeline_pass_repeat(struct render_pass *pass, struct render_pass *repeat, int count)

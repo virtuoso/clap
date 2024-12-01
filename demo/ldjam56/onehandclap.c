@@ -423,27 +423,42 @@ int main(int argc, char **argv, char **envp)
     gl_get_sizes(&scene.width, &scene.height);
 
     blur_pl = pipeline_new(&scene, "menu");
-    struct render_pass *model_pass = pipeline_add_pass(blur_pl, NULL, NULL, NULL, true, 3, 0);
-    pipeline_pass_set_name(model_pass, "model");
-    pass = pipeline_add_pass(blur_pl, model_pass, "contrast", NULL, false, 0, 0);
-    struct render_pass *rep_pass = pipeline_add_pass(blur_pl, pass, "vblur", NULL, false, 0, 0);
-    pass = pipeline_add_pass(blur_pl, rep_pass, "hblur", NULL, false, 0, 0);
-    pipeline_pass_repeat(pass, rep_pass, 5);
+    struct render_pass *model_pass = pipeline_add_pass(blur_pl,
+                                                       .name           = "model",
+                                                       .multisampled   = true,
+                                                       .nr_attachments = 3);
+    pass = pipeline_add_pass(blur_pl,
+                             .source   = model_pass,
+                             .shader   = "contrast");
+    struct render_pass *rep_pass = pipeline_add_pass(blur_pl,
+                                                     .source   = pass,
+                                                     .shader   = "vblur");
+    pass = pipeline_add_pass(blur_pl,
+                             .source    = rep_pass,
+                             .shader    = "hblur",
+                             .pingpong  = 5);
 
     main_pl = pipeline_new(&scene, "main");
-    struct render_pass *shadow_pass = pipeline_add_pass(main_pl, NULL, NULL, "shadow", false, -1, -1);
-
-    model_pass = pipeline_add_pass(main_pl, NULL, NULL, NULL, true, 3, -1);
-    pipeline_pass_set_name(model_pass, "model");
+    struct render_pass *shadow_pass = pipeline_add_pass(main_pl,
+                                                        .nr_attachments  = FBO_DEPTH_TEXTURE,
+                                                        .shader_override = "shadow");
     scene.light.shadow[0] = pipeline_pass_get_texture(shadow_pass, 0);
-    pass = pipeline_add_pass(main_pl, model_pass, "contrast", NULL, false, 0, 1);
-    pass = pipeline_add_pass(main_pl, pass, "vblur", NULL, false, 0, -1);
-    struct render_pass *bloom_pass = pipeline_add_pass(main_pl, pass, "hblur", NULL, false, 0, -1);
-    pipeline_pass_repeat(bloom_pass, pass, 5);
 
-    // struct render_pass *contrast_pass = pipeline_add_pass(main_pl, model_pass, "contrast", false, 0, 2);
-    struct render_pass *sobel_pass = pipeline_add_pass(main_pl, model_pass, "sobel", NULL, false, 0, 2);
-    pass = pipeline_add_pass(main_pl, model_pass, "combine", NULL, false, 0, 0);
+    model_pass = pipeline_add_pass(main_pl, .multisampled = true, .nr_attachments = 3, .name = "model");
+    pass = pipeline_add_pass(main_pl,
+                             .source       = model_pass,
+                             .shader       = "contrast",
+                             .blit_from    = 1);
+    pass = pipeline_add_pass(main_pl, .source = pass, .shader = "vblur");
+    struct render_pass *bloom_pass = pipeline_add_pass(main_pl,
+                                                       .source     = pass,
+                                                       .shader     = "hblur",
+                                                       .pingpong   = 5);
+    struct render_pass *sobel_pass = pipeline_add_pass(main_pl,
+                                                       .source     = model_pass,
+                                                       .shader     = "sobel",
+                                                       .blit_from  = 2);
+    pass = pipeline_add_pass(main_pl, .source = model_pass, .shader = "combine");
     pipeline_pass_add_source(main_pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1);
     pipeline_pass_add_source(main_pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
 
