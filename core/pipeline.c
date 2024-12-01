@@ -376,7 +376,14 @@ static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *p
 
     igText("%s:%d", pass->name, srcidx);
     igTableNextColumn();
-    igText("%s", src ? src->name : "<none>");
+    if (src) {
+        if (src->blit)
+            igText("%s:%d", src->name, pass->blit_src.x[srcidx]);
+        else
+            igText("%s", src->name);
+    } else {
+        igText("<none>");
+    }
     igTableNextColumn();
     igText("%u x %u", fbo->width, fbo->height);
 }
