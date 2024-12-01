@@ -204,7 +204,11 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
 
     *psrc = src;
 
-    pass->blit = ms && nr_targets >= 0;
+    /*
+     * nr_targets > 0 means color buffers instead of a texture in the FBO, so
+     * the next pass will have to blit from this one instead of rendering it
+     */
+    pass->blit = nr_targets > 0;
     mq_init(&pass->mq, NULL);
 
     if (shader_override) {
@@ -214,10 +218,10 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     }
 
     /*
-     * XXX: any number of things mean the same thing: !shader, ms, nr_targets,
-     * !src. Streamline the parameters of this function, it's a mess.
+     * nr_targets > 0: ignore @shader, because it means that we'll be blitting
+     * from this fbo instead of rendering its quad using a shader
      */
-    if (!shader)
+    if (!shader || pass->blit)
         return pass;
 
     int *pblit_src = darray_add(&pass->blit_src.da);
