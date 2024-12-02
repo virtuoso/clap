@@ -432,8 +432,8 @@ static void fbo_init(fbo_t *fbo, int nr_attachments)
         fbo->depth_buf = fbo_depth_buffer(fbo);
 
     err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (err != GL_FRAMEBUFFER_COMPLETE)
-        warn("## framebuffer status: %d\n", err);
+    err_on(err != GL_FRAMEBUFFER_COMPLETE, "framebuffer status: 0x%04X: %s\n",
+           err, gluErrorString(err));
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 }
 
