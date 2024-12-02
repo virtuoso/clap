@@ -371,7 +371,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     struct ui           fbo_ui;
     struct ui_element   **uies;
     struct model3dtx    *txm, *txmtex;
-    struct fbo          *fbo;
+    fbo_t               *fbo;
     struct ui_text      uit = {};
     struct glyph        *glyph;
     struct model3d      *m;
@@ -472,8 +472,8 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     m->debug = true;
     m->alpha_blend = true;
     m->debug = true;
-    txmtex = model3dtx_new_texture(ref_pass(m), texture_clone(&fbo->tex));
-    ref_put_last(fbo);
+    txmtex = model3dtx_new_texture(ref_pass(m), texture_clone(fbo_texture(fbo)));
+    fbo_put_last(fbo);
     ui_add_model(ui, txmtex);
 
     uit.uietex = ui_element_new(ui, parent, ref_pass(txmtex),
@@ -1372,11 +1372,11 @@ struct ui_element *uie0, *uie1, *health, *pocket, **pocket_text;
 static int pocket_buckets, *pocket_count, *pocket_total;
 static float health_bar_width;
 
-void ui_pip_update(struct ui *ui, struct fbo *fbo)
+void ui_pip_update(struct ui *ui, fbo_t *fbo)
 {
     struct model3d *m;
 
-    ui_fbo_tex = &fbo->tex;
+    ui_fbo_tex = fbo_texture(fbo);
 
     if (ui_pip)
         ref_put(ui_pip);
@@ -1387,11 +1387,11 @@ void ui_pip_update(struct ui *ui, struct fbo *fbo)
     m->debug = true;
     ui_pip = model3dtx_new_texture(ref_pass(m), ui_fbo_tex);
     ui_add_model_tail(ui, ui_pip);
-    dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo->width, fbo->height);
-    if (fbo->width < fbo->height)
-        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_VCENTER | UI_AF_LEFT, 0, 0, fbo->width, fbo->height);
+    dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo_width(fbo), fbo_height(fbo));
+    if (fbo_width(fbo) < fbo_height(fbo))
+        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_VCENTER | UI_AF_LEFT, 0, 0, fbo_width(fbo), fbo_height(fbo));
     else
-        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, fbo->width, fbo->height);
+        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, fbo_width(fbo), fbo_height(fbo));
     uie0->entity->color_pt = COLOR_PT_NONE;
 }
 

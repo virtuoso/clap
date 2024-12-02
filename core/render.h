@@ -64,21 +64,29 @@ texture_t *texture_clone(texture_t *tex);
 #define FBO_DEPTH_TEXTURE (-1)
 #define FBO_COLOR_TEXTURE (0)
 
-struct fbo {
-    struct ref  ref;
-    int width, height;
-    unsigned int fbo;
-    int depth_buf;
+TYPE(fbo,
+    struct ref      ref;
+    int             width;
+    int             height;
+    unsigned int    fbo;
+    int             depth_buf;
     darray(int, color_buf);
-    texture_t tex;
-    bool ms;
-    int retain_tex;
-};
-struct fbo *fbo_new(int width, int height);
-struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_attachments);
-void fbo_prepare(struct fbo *fbo);
-void fbo_done(struct fbo *fbo, int width, int height);
-void fbo_blit_from_fbo(struct fbo *fbo, struct fbo *src_fbo, int attachment);
-void fbo_resize(struct fbo *fbo, int width, int height);
+    texture_t       tex;
+    bool            ms;
+    int             retain_tex;
+);
+
+fbo_t *fbo_new(int width, int height);
+fbo_t *fbo_new_ms(int width, int height, bool ms, int nr_attachments);
+void fbo_put(fbo_t *fbo);
+void fbo_put_last(fbo_t *fbo);
+void fbo_prepare(fbo_t *fbo);
+void fbo_done(fbo_t *fbo, int width, int height);
+void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment);
+void fbo_resize(fbo_t *fbo, int width, int height);
+texture_t *fbo_texture(fbo_t *fbo);
+int fbo_width(fbo_t *fbo);
+int fbo_height(fbo_t *fbo);
+int fbo_nr_attachments(fbo_t *fbo);
 
 #endif /* __CLAP_RENDER_H__ */

@@ -9,14 +9,14 @@ struct pipeline {
     struct scene        *scene;
     struct ref          ref;
     struct list         passes;
-    void                (*resize)(struct fbo *fbo, bool shadow_map, int w, int h);
+    void                (*resize)(fbo_t *fbo, bool shadow_map, int w, int h);
     const char          *name;
     bool                ui_open;
 };
 
 struct render_pass {
     darray(struct render_pass *, src);
-    darray(struct fbo *, fbo);
+    darray(fbo_t *, fbo);
     darray(int, blit_src);
     struct mq           mq;
     struct list         entry;
@@ -33,7 +33,7 @@ texture_t *pipeline_pass_get_texture(struct render_pass *pass, unsigned int idx)
 {
     if (idx >= darray_count(pass->fbo))
         return NULL;
-    return &pass->fbo.x[idx]->tex;
+    return fbo_texture(pass->fbo.x[idx]);
 }
 
 static void pipeline_drop(struct ref *ref)
@@ -51,12 +51,12 @@ static void pipeline_drop(struct ref *ref)
         int i;
 
         for (i = 0; i < darray_count(pass->fbo); i++) {
-            struct fbo **pfbo = &pass->fbo.x[i];
+            fbo_t **pfbo = &pass->fbo.x[i];
             struct render_pass **psrc = &pass->src.x[i];
 
-            if (txm->emission == &(*pfbo)->tex)
+            if (txm->emission == fbo_texture(*pfbo))
                 txm->emission = &txm->_emission;
-            if (txm->sobel == &(*pfbo)->tex)
+            if (txm->sobel == fbo_texture(*pfbo))
                 txm->sobel = &txm->_sobel;
         }
 
@@ -67,9 +67,9 @@ static void pipeline_drop(struct ref *ref)
     list_for_each_entry_iter(pass, iter, &pl->passes, entry) {
         mq_release(&pass->mq);
 
-        struct fbo **pfbo;
+        fbo_t **pfbo;
         darray_for_each(pfbo, &pass->fbo)
-            ref_put(*pfbo);
+            fbo_put(*pfbo);
         darray_clearout(&pass->fbo.da);
 
         if (pass->prog_override)
@@ -97,7 +97,7 @@ static inline int shadow_map_size(int width, int height)
     return 1 << order;
 }
 
-static void pipeline_default_resize(struct fbo *fbo, bool shadow_map, int width, int height)
+static void pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int height)
 {
     int side = max(width, height);
 
@@ -109,7 +109,7 @@ static void pipeline_default_resize(struct fbo *fbo, bool shadow_map, int width,
     fbo_resize(fbo, width, height);
 }
 
-void pipeline_set_resize_cb(struct pipeline *pl, void (*cb)(struct fbo *, bool, int, int))
+void pipeline_set_resize_cb(struct pipeline *pl, void (*cb)(fbo_t *, bool, int, int))
 {
     pl->resize = cb ? cb : pipeline_default_resize;
 }
@@ -135,7 +135,7 @@ void pipeline_resize(struct pipeline *pl)
         if (pass->prog_override)
             continue;
 
-        struct fbo **pfbo;
+        fbo_t **pfbo;
         darray_for_each(pfbo, &pass->fbo)
             pl->resize(*pfbo, false, pl->scene->width, pl->scene->height);
     }
@@ -178,7 +178,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
      * sources, and the data is copied out to following passes' textures instead
      * of by rendering a quad
      */
-    struct fbo **pfbo = darray_add(&pass->fbo.da);
+    fbo_t **pfbo = darray_add(&pass->fbo.da);
     if (!pfbo)
         return NULL;
 
@@ -191,8 +191,8 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
         width = height = shadow_map_size(width, height);
         pass->name = shader_override;
     } else if (src && !src->prog_override) {
-        width = src->fbo.x[0]->width;
-        height = src->fbo.x[0]->height;
+        width = fbo_width(src->fbo.x[0]);
+        height = fbo_height(src->fbo.x[0]);
     }
 
     *pfbo = fbo_new_ms(width, height, ms, nr_targets);
@@ -239,7 +239,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     m->cull_face = true;
     m->debug = true;
     m->alpha_blend = false;
-    txm = model3dtx_new_texture(ref_pass(m), &(*pfbo)->tex);
+    txm = model3dtx_new_texture(ref_pass(m), fbo_texture(*pfbo));
     mq_add_model(&pass->mq, txm);
     e = entity3d_new(txm);
     list_append(&txm->entities, &e->entry);
@@ -257,7 +257,7 @@ err_override:
 err_src:
     darray_clearout(&pass->src.da);
 err_fbo:
-    ref_put_last(*pfbo);
+    fbo_put_last(*pfbo);
 err_fbo_array:
     darray_clearout(&pass->fbo.da);
     list_del(&pass->entry);
@@ -306,7 +306,7 @@ void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int
     if (!psrc)
         return;
 
-    struct fbo **pfbo = darray_add(&pass->fbo.da);
+    fbo_t **pfbo = darray_add(&pass->fbo.da);
     if (!pfbo)
         goto err_src;
 
@@ -323,11 +323,11 @@ void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int
         *pblit_src = blit_src;
 
     *psrc = src;
-    model3dtx_set_texture(txm, to, &(*pfbo)->tex);
+    model3dtx_set_texture(txm, to, fbo_texture(*pfbo));
     return;
 
 err_fbo:
-    ref_put(*pfbo);
+    fbo_put(*pfbo);
 err_fbo_array:
     darray_delete(&pass->fbo.da, -1);
 err_src:
@@ -367,7 +367,7 @@ static void pipeline_debug_end(struct pipeline *pl)
 static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx,
                                       struct render_pass *src)
 {
-    struct fbo *fbo = pass->fbo.x[srcidx];
+    fbo_t *fbo = pass->fbo.x[srcidx];
 
     if (!pl->ui_open)
         return;
@@ -385,7 +385,7 @@ static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *p
         igText("<none>");
     }
     igTableNextColumn();
-    igText("%u x %u", fbo->width, fbo->height);
+    igText("%u x %u", fbo_width(fbo), fbo_height(fbo));
 }
 
 static void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count)
@@ -431,7 +431,7 @@ repeat:
          */
         for (i = 0; i < darray_count(pass->src); i++, ppass = NULL) {
             struct render_pass *src = ppass ? ppass : pass->src.x[i];
-            struct fbo *fbo = pass->fbo.x[i];
+            fbo_t *fbo = pass->fbo.x[i];
             unsigned long count = 0;
 
             pipeline_pass_debug_begin(pl, pass, i, src);
@@ -442,16 +442,16 @@ repeat:
                 fbo_done(fbo, s->width, s->height);
             } else {
                 fbo_prepare(fbo);
-                bool shadow = !darray_count(fbo->color_buf);
+                bool shadow = !fbo_nr_attachments(fbo);
                 GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));
                 GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
 
                 if (!src)
                     models_render(&s->mq, pass->prog_override, &s->light,
                                   shadow ? NULL : &s->cameras[0],
-                                  s->proj_mx, s->focus, fbo->width, fbo->height, &count);
+                                  s->proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo), &count);
                 else
-                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo->width, fbo->height, &count);
+                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo_width(fbo), fbo_height(fbo), &count);
 
                 fbo_done(fbo, s->width, s->height);
             }
@@ -500,13 +500,13 @@ static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t *
     int i = 0;
 
     list_for_each_entry(pass, &pl->passes, entry) {
-        struct fbo **pfbo;
+        fbo_t **pfbo;
         int j = 0;
 
         darray_for_each(pfbo, &pass->fbo) {
             if (*item == i) {
                 snprintf(name, sizeof(name), "%s/%d", pass->name, j);
-                *tex = &(*pfbo)->tex;
+                *tex = fbo_texture(*pfbo);
                 goto found;
             }
             i++, j++;
@@ -520,7 +520,7 @@ found:
     if (igBeginCombo("passes", name, ImGuiComboFlags_HeightRegular)) {
         i = 0;
         list_for_each_entry(pass, &pl->passes, entry) {
-            struct fbo **pfbo;
+            fbo_t **pfbo;
             int j = 0;
 
             darray_for_each(pfbo, &pass->fbo) {
@@ -530,7 +530,7 @@ found:
                 if (igSelectable_Bool(name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
                     igSetItemDefaultFocus();
                     *item = i;
-                    *tex = &(*pfbo)->tex;
+                    *tex = fbo_texture(*pfbo);
                 }
                 i++, j++;
             }
@@ -539,7 +539,7 @@ found:
     }
 }
 
-static void debug_shadow_resize(struct fbo *fbo, bool shadow, int width, int height)
+static void debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
 {
     fbo_resize(fbo, width, height);
 }
@@ -553,18 +553,20 @@ void pipeline_debug(struct pipeline *pl)
 
     if (igBegin("Depth map resolution", &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize)) {
         pipeline_passes_dropdown(pl, &pass_preview, &pass_tex);
-        texture_get_dimesnions(pass_tex, &width, &height);
-        if (!pass_preview) {
-            int prev_depth_log2 = depth_log2 = ffs(width) - 1;
-            igSliderInt("dim log2", &depth_log2, 8, 16, "%d", 0);
-            if (depth_log2 != prev_depth_log2) {
-                pipeline_set_resize_cb(pl, debug_shadow_resize);
-                pipeline_shadow_resize(pl, 1 << depth_log2);
-                pipeline_set_resize_cb(pl, NULL);
+        if (pass_tex) {
+            texture_get_dimesnions(pass_tex, &width, &height);
+            if (!pass_preview) {
+                int prev_depth_log2 = depth_log2 = ffs(width) - 1;
+                igSliderInt("dim log2", &depth_log2, 8, 16, "%d", 0);
+                if (depth_log2 != prev_depth_log2) {
+                    pipeline_set_resize_cb(pl, debug_shadow_resize);
+                    pipeline_shadow_resize(pl, 1 << depth_log2);
+                    pipeline_set_resize_cb(pl, NULL);
+                }
+                igText("shadow map resolution: %d x %d", 1 << depth_log2, 1 << depth_log2);
+            } else {
+                igText("texture resolution: %d x %d", width, height);
             }
-            igText("shadow map resolution: %d x %d", 1 << depth_log2, 1 << depth_log2);
-        } else {
-            igText("texture resolution: %d x %d", width, height);
         }
         igEnd();
     } else {

@@ -167,14 +167,14 @@ static int fbo_create(void)
     return fbo;
 }
 
-static void fbo_texture_init(struct fbo *fbo)
+static void fbo_texture_init(fbo_t *fbo)
 {
     texture_init(&fbo->tex);
     texture_filters(&fbo->tex, GL_CLAMP_TO_EDGE, GL_LINEAR);
     texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
 }
 
-static void fbo_depth_texture_init(struct fbo *fbo)
+static void fbo_depth_texture_init(fbo_t *fbo)
 {
     texture_init(&fbo->tex);
     texture_filters(&fbo->tex, GL_REPEAT, GL_NEAREST);
@@ -185,7 +185,30 @@ static void fbo_depth_texture_init(struct fbo *fbo)
     GL(glReadBuffer(GL_NONE));
 }
 
-static void __fbo_color_buffer_setup(struct fbo *fbo)
+texture_t *fbo_texture(fbo_t *fbo)
+{
+    if (fbo_nr_attachments(fbo))
+        return NULL;
+
+    return &fbo->tex;
+}
+
+int fbo_width(fbo_t *fbo)
+{
+    return fbo->width;
+}
+
+int fbo_height(fbo_t *fbo)
+{
+    return fbo->height;
+}
+
+int fbo_nr_attachments(fbo_t *fbo)
+{
+    return darray_count(fbo->color_buf);
+}
+
+static void __fbo_color_buffer_setup(fbo_t *fbo)
 {
     if (fbo->ms)
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, fbo->width, fbo->height));
@@ -193,7 +216,7 @@ static void __fbo_color_buffer_setup(struct fbo *fbo)
         GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
 }
 
-static int fbo_color_buffer(struct fbo *fbo, int output)
+static int fbo_color_buffer(fbo_t *fbo, int output)
 {
     unsigned int buf;
 
@@ -206,7 +229,7 @@ static int fbo_color_buffer(struct fbo *fbo, int output)
     return buf;
 }
 
-static void __fbo_depth_buffer_setup(struct fbo *fbo)
+static void __fbo_depth_buffer_setup(fbo_t *fbo)
 {
     if (fbo->ms)
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
@@ -214,7 +237,7 @@ static void __fbo_depth_buffer_setup(struct fbo *fbo)
         GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
 }
 
-static int fbo_depth_buffer(struct fbo *fbo)
+static int fbo_depth_buffer(fbo_t *fbo)
 {
     unsigned int buf;
 
@@ -227,7 +250,7 @@ static int fbo_depth_buffer(struct fbo *fbo)
     return buf;
 }
 
-void fbo_resize(struct fbo *fbo, int width, int height)
+void fbo_resize(fbo_t *fbo, int width, int height)
 {
     if (!fbo)
         return;
@@ -252,7 +275,7 @@ void fbo_resize(struct fbo *fbo, int width, int height)
 }
 
 #define NR_TARGETS 4
-void fbo_prepare(struct fbo *fbo)
+void fbo_prepare(fbo_t *fbo)
 {
     GLenum buffers[NR_TARGETS];
     int target;
@@ -268,13 +291,13 @@ void fbo_prepare(struct fbo *fbo)
     GL(glDrawBuffers(darray_count(fbo->color_buf), buffers));
 }
 
-void fbo_done(struct fbo *fbo, int width, int height)
+void fbo_done(fbo_t *fbo, int width, int height)
 {
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, width, height));
 }
 
-void fbo_blit_from_fbo(struct fbo *fbo, struct fbo *src_fbo, int attachment)
+void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment)
 {
     GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo->fbo));
     GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo->fbo));
@@ -286,7 +309,7 @@ void fbo_blit_from_fbo(struct fbo *fbo, struct fbo *src_fbo, int attachment)
 
 static int fbo_make(struct ref *ref)
 {
-    struct fbo *fbo = container_of(ref, struct fbo, ref);
+    fbo_t *fbo = container_of(ref, fbo_t, ref);
 
     darray_init(&fbo->color_buf);
     fbo->depth_buf = -1;
@@ -297,7 +320,7 @@ static int fbo_make(struct ref *ref)
 
 static void fbo_drop(struct ref *ref)
 {
-    struct fbo *fbo = container_of(ref, struct fbo, ref);
+    fbo_t *fbo = container_of(ref, fbo_t, ref);
 
     // dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
     GL(glDeleteFramebuffers(1, &fbo->fbo));
@@ -321,7 +344,7 @@ DECLARE_REFCLASS2(fbo);
  *  = 0: color texture
  *  > 0: number of color buffer attachments
  */
-static void fbo_init(struct fbo *fbo, int nr_attachments)
+static void fbo_init(fbo_t *fbo, int nr_attachments)
 {
     int err;
 
@@ -349,9 +372,9 @@ static void fbo_init(struct fbo *fbo, int nr_attachments)
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 }
 
-struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_attachments)
+fbo_t *fbo_new_ms(int width, int height, bool ms, int nr_attachments)
 {
-    struct fbo *fbo;
+    fbo_t *fbo;
 
     /* multisampled buffer requires color attachment buffers */
     if (ms && nr_attachments <= 0)
@@ -366,7 +389,17 @@ struct fbo *fbo_new_ms(int width, int height, bool ms, int nr_attachments)
     return fbo;
 }
 
-struct fbo *fbo_new(int width, int height)
+fbo_t *fbo_new(int width, int height)
 {
     return fbo_new_ms(width, height, false, FBO_COLOR_TEXTURE);
+}
+
+void fbo_put(fbo_t *fbo)
+{
+    ref_put(fbo);
+}
+
+void fbo_put_last(fbo_t *fbo)
+{
+    ref_put_last(fbo);
 }
