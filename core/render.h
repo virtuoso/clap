@@ -8,14 +8,40 @@
 #include "object.h"
 #include "typedef.h"
 
+enum texture_type {
+    TEX_2D,
+    TEX_2D_ARRAY,
+    TEX_3D,
+};
+
+enum texture_wrap {
+    TEX_CLAMP_TO_EDGE,
+    TEX_CLAMP_TO_BORDER,
+    TEX_WRAP_REPEAT,
+    TEX_WRAP_MIRRORED_REPEAT,
+};
+
+enum texture_filter {
+    TEX_FLT_LINEAR,
+    TEX_FLT_NEAREST,
+    /* TODO {LINEAR,NEAREST}_MIPMAP_{NEAREST,LINEAR} */
+};
+
+enum texture_format {
+    TEX_FMT_RGBA,
+    TEX_FMT_RGB
+};
+
 TYPE(texture,
     struct ref      ref;
     GLuint          id;
     GLenum          format;
     GLenum          internal_format;
+    GLenum          component_type;
     GLenum          type;
     GLint           wrap;
-    GLint           filter;
+    GLint           min_filter;
+    GLint           mag_filter;
     GLint           target;
     bool            loaded;
     unsigned int    width;
@@ -45,8 +71,17 @@ static inline bool __gl_check_error(const char *str)
 #define GL(__x) __x
 #endif
 
-int texture_init(texture_t *tex);
-int texture_init_target(texture_t *tex, GLuint target);
+typedef struct texture_init_options {
+    unsigned int        target;
+    enum texture_type   type;
+    enum texture_wrap   wrap;
+    enum texture_filter min_filter;
+    enum texture_filter mag_filter;
+} texture_init_options;
+
+int _texture_init(texture_t *tex, const texture_init_options *opts);
+#define texture_init(_t, args...) \
+    _texture_init((_t), &(texture_init_options){ args })
 void texture_deinit(texture_t *tex);
 void texture_filters(texture_t *tex, GLint wrap, GLint filter);
 void texture_done(texture_t *tex);

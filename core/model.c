@@ -78,8 +78,11 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
         return -EINVAL;
 
     //hexdump(buffer, 16);
-    texture_init_target(tex, GL_TEXTURE0 + shader_get_texture_slot(p, var));
-    texture_filters(tex, GL_REPEAT, GL_NEAREST);
+    texture_init(tex,
+                 .target       = shader_get_texture_slot(p, var),
+                 .wrap         = TEX_WRAP_REPEAT,
+                 .min_filter   = TEX_FLT_NEAREST,
+                 .mag_filter   = TEX_FLT_NEAREST);
     shader_set_texture(p, var);
 
     // Bind it
