@@ -443,8 +443,15 @@ repeat:
             } else {
                 fbo_prepare(fbo);
                 bool shadow = !fbo_nr_attachments(fbo);
-                GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));
-                GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
+                GLbitfield flags = GL_COLOR_BUFFER_BIT;
+                if (shadow) {
+                    GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));
+                    flags = 0;
+                }
+
+                if (!src)
+                    flags |= GL_DEPTH_BUFFER_BIT;
+                GL(glClear(flags));
 
                 if (!src)
                     models_render(&s->mq, pass->prog_override, &s->light,
