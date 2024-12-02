@@ -7,6 +7,11 @@
 #include "logger.h"
 #include "object.h"
 #include "typedef.h"
+#include "config.h"
+
+#ifdef CONFIG_BROWSER
+#define GL_CLAMP_TO_BORDER GL_CLAMP_TO_EDGE
+#endif /* CONFIG_BROWSER */
 
 enum texture_type {
     TEX_2D,
@@ -54,7 +59,7 @@ static inline bool __gl_check_error(const char *str)
 
     err = glGetError();
     if (err != GL_NO_ERROR) {
-        err("%s: GL error: %d\n", str ? str : "<>", err);
+        err("%s: GL error: 0x%04X: %s\n", str ? str : "<>", err, gluErrorString(err));
         abort();
         return true;
     }
