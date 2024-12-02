@@ -71,7 +71,7 @@ void texture_resize(texture_t *tex, unsigned int width, unsigned int height)
         return;
 
     GL(glBindTexture(GL_TEXTURE_2D, tex->id));
-    GL(glTexImage2D(GL_TEXTURE_2D, 0, tex->format, width, height,
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, tex->internal_format, width, height,
                  0, tex->format, tex->type, NULL));
     GL(glBindTexture(GL_TEXTURE_2D, 0));
     tex->width = width;
