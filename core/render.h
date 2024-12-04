@@ -49,6 +49,7 @@ TYPE(texture,
     GLint           min_filter;
     GLint           mag_filter;
     GLint           target;
+    GLsizei         layers;
     bool            loaded;
     unsigned int    width;
     unsigned int    height;
@@ -77,12 +78,19 @@ static inline bool __gl_check_error(const char *str)
 #define GL(__x) __x
 #endif
 
+enum fbo_attachment {
+    FBO_ATTACHMENT_DEPTH,
+    FBO_ATTACHMENT_STENCIL,
+    FBO_ATTACHMENT_COLOR0,
+};
+
 typedef struct texture_init_options {
     unsigned int        target;
     enum texture_type   type;
     enum texture_wrap   wrap;
     enum texture_filter min_filter;
     enum texture_filter mag_filter;
+    unsigned int        layers;
 } texture_init_options;
 
 int _texture_init(texture_t *tex, const texture_init_options *opts);
