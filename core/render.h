@@ -93,8 +93,6 @@ void texture_filters(texture_t *tex, GLint wrap, GLint filter);
 void texture_done(texture_t *tex);
 void texture_load(texture_t *tex, GLenum format, unsigned int width, unsigned int height,
                   void *buf);
-void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
-                 unsigned int height);
 void texture_resize(texture_t *tex, unsigned int width, unsigned int height);
 GLuint texture_id(texture_t *tex);
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight);

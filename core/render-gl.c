@@ -171,8 +171,8 @@ void texture_load(texture_t *tex, GLenum format, unsigned int width, unsigned in
     tex->loaded = true;
 }
 
-void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
-                 unsigned int height)
+static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
+                        unsigned int height)
 {
     tex->format = format;
     tex->internal_format = format;
