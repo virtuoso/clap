@@ -34,7 +34,8 @@ enum texture_filter {
 
 enum texture_format {
     TEX_FMT_RGBA,
-    TEX_FMT_RGB
+    TEX_FMT_RGB,
+    TEX_FMT_DEPTH,
 };
 
 TYPE(texture,

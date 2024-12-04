@@ -65,6 +65,7 @@ static GLenum gl_texture_format(enum texture_format format)
     switch (format) {
         case TEX_FMT_RGBA:  return GL_RGBA;
         case TEX_FMT_RGB:   return GL_RGB;
+        case TEX_FMT_DEPTH: return GL_DEPTH_COMPONENT;
         default:            break;
     }
 
