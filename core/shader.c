@@ -282,8 +282,7 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
 
-    GL(glActiveTexture(GL_TEXTURE0 + desc->texture_slot));
-    GL(glBindTexture(GL_TEXTURE_2D, texture_id(tex)));
+    texture_bind(tex, desc->texture_slot);
     shader_set_texture(p, var);
 }
 

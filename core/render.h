@@ -95,6 +95,7 @@ void texture_load(texture_t *tex, GLenum format, unsigned int width, unsigned in
                   void *buf);
 void texture_resize(texture_t *tex, unsigned int width, unsigned int height);
 GLuint texture_id(texture_t *tex);
+void texture_bind(texture_t *tex, unsigned int target);
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight);
 bool texture_loaded(texture_t *tex);
 texture_t *texture_clone(texture_t *tex);

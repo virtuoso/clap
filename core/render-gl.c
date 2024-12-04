@@ -188,6 +188,13 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
     tex->loaded = true;
 }
 
+/* XXX: FBOs' textures don't know their target slot yet */
+void texture_bind(texture_t *tex, unsigned int target)
+{
+    GL(glActiveTexture(GL_TEXTURE0 + target));
+    GL(glBindTexture(tex->type, tex->id));
+}
+
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
 {
     *pwidth = tex->width;
