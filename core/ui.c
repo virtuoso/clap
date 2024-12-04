@@ -1558,8 +1558,6 @@ int ui_init(struct ui *ui, int width, int height)
     if (!ui->ui_prog || !ui->glyph_prog)
         goto err;
 
-    ui->click = sound_load("stapler.ogg");
-    sound_set_gain(ui->click, 0.2);
     debug_font = font_open("ProggyTiny.ttf", 28);
     font = font_open("ProggyTiny.ttf", 16);
     if (!debug_font || !font)

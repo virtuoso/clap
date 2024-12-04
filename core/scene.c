@@ -11,8 +11,6 @@
 #include "json.h"
 #include "ui-debug.h"
 
-struct sound *click;
-
 static void scene_camera_autopilot(struct scene *s)
 {
     s->camera->ch->pos[1] = s->auto_yoffset + 2.0;
@@ -55,7 +53,6 @@ static void scene_focus_next(struct scene *s)
 {
     struct model3dtx *next_txm;
 
-    sound_play(click);
     if (!s->focus) {
         next_txm = mq_nonempty_txm_next(&s->mq, NULL, true);
         /* nothing to focus on */
@@ -82,7 +79,6 @@ static void scene_focus_prev(struct scene *s)
 {
     struct model3dtx *next_txm;
 
-    sound_play(click);
     if (!s->focus) {
         next_txm = mq_nonempty_txm_next(&s->mq, NULL, false);
         if (!next_txm)
@@ -751,7 +747,6 @@ int scene_load(struct scene *scene, const char *name)
 
     err_on(lh->state != RES_LOADED);
     ref_put_last(lh);
-    click = sound_load("stapler.ogg");
 
     return 0;
 }
