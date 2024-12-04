@@ -179,8 +179,13 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
     tex->width  = width;
     tex->height = height;
     if (attachment == GL_DEPTH_ATTACHMENT) {
+#ifdef CONFIG_GLES
         tex->component_type = GL_UNSIGNED_SHORT;
         tex->internal_format = GL_DEPTH_COMPONENT16;
+#else
+        tex->component_type = GL_FLOAT;
+        tex->internal_format = GL_DEPTH_COMPONENT32F;
+#endif /* CONFIG_GLES */
     }
     texture_setup_begin(tex, NULL);
     GL(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0));
@@ -188,7 +193,6 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
     tex->loaded = true;
 }
 
-/* XXX: FBOs' textures don't know their target slot yet */
 void texture_bind(texture_t *tex, unsigned int target)
 {
     GL(glActiveTexture(GL_TEXTURE0 + target));
