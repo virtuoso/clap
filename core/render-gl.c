@@ -243,6 +243,7 @@ static void fbo_texture_init(fbo_t *fbo)
                  .min_filter    = TEX_FLT_LINEAR,
                  .mag_filter    = TEX_FLT_LINEAR);
     texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
+    fbo->attachment = GL_COLOR_ATTACHMENT0;
 }
 
 static void fbo_depth_texture_init(fbo_t *fbo)
@@ -253,9 +254,7 @@ static void fbo_depth_texture_init(fbo_t *fbo)
                  .mag_filter    = TEX_FLT_NEAREST);
     texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
 
-    GLenum buffers[1] = { GL_NONE };
-    GL(glDrawBuffers(1, buffers));
-    GL(glReadBuffer(GL_NONE));
+    fbo->attachment = GL_DEPTH_ATTACHMENT;
 }
 
 texture_t *fbo_texture(fbo_t *fbo)
@@ -351,13 +350,23 @@ void fbo_resize(fbo_t *fbo, int width, int height)
 void fbo_prepare(fbo_t *fbo)
 {
     GLenum buffers[NR_TARGETS];
+    texture_t *tex = &fbo->tex;
     int target;
 
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
 
-    if (!darray_count(fbo->color_buf))
+    if (!darray_count(fbo->color_buf)) {
+        GL(glFramebufferTexture2D(GL_FRAMEBUFFER, fbo->attachment, tex->type, tex->id, 0));
+
+        if (fbo->attachment == GL_DEPTH_ATTACHMENT) {
+            buffers[0] = GL_NONE;
+            GL(glDrawBuffers(1, buffers));
+            GL(glReadBuffer(GL_NONE));
+        }
+
         return;
+    }
 
     for (target = 0; target < darray_count(fbo->color_buf); target++)
         buffers[target] = GL_COLOR_ATTACHMENT0 + target;

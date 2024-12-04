@@ -110,6 +110,7 @@ TYPE(fbo,
     int             height;
     unsigned int    fbo;
     int             depth_buf;
+    GLuint          attachment;
     darray(int, color_buf);
     texture_t       tex;
     bool            ms;
