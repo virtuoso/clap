@@ -91,6 +91,15 @@ static inline double drand48()
 #define CHECK(_st) CHECK_NVAL(_st, !!, true)
 #define CHECK0(_st) CHECK_VAL(_st, 0)
 
+#ifndef unreachable
+#define unreachable __builtin_unreachable
+#endif /* unreachable */
+
+static inline void __attribute__((noreturn)) clap_unreachable(void)
+{
+    unreachable();
+}
+
 static inline bool str_endswith(const char *str, const char *sfx)
 {
     size_t sfxlen = strlen(sfx);

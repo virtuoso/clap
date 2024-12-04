@@ -27,8 +27,7 @@ static GLenum gl_texture_type(enum texture_type type)
         default:            break;
     }
 
-    /* XXX: bug in the callers, ok to abort */
-    CHECK(0);
+    clap_unreachable();
 
     return GL_NONE;
 }
@@ -43,8 +42,7 @@ static GLenum gl_texture_wrap(enum texture_wrap wrap)
         default:                        break;
     }
 
-    /* XXX: bug in the callers, ok to abort */
-    CHECK(0);
+    clap_unreachable();
 
     return GL_NONE;
 }
@@ -57,8 +55,7 @@ static GLenum gl_texture_filter(enum texture_filter filter)
         default:                        break;
     }
 
-    /* XXX: bug in the callers, ok to abort */
-    CHECK(0);
+    clap_unreachable();
 
     return GL_NONE;
 }
@@ -71,8 +68,7 @@ static GLenum gl_texture_format(enum texture_format format)
         default:            break;
     }
 
-    /* XXX: bug in the callers, ok to abort */
-    CHECK(0);
+    clap_unreachable();
 
     return GL_NONE;
 }
