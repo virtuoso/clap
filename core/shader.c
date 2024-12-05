@@ -368,8 +368,9 @@ void shaders_free(struct list *shaders)
 
 int lib_request_shaders(const char *name, struct list *shaders)
 {
-    //char *nvert CUX(string), *nfrag CUX(string), *vert CUX(string), *frag CUX(string);
-    struct lib_handle *hv, *hf, *hg;
+    LOCAL(lib_handle, hv);
+    LOCAL(lib_handle, hf);
+    LOCAL(lib_handle, hg);
     LOCAL(char, nvert);
     LOCAL(char, nfrag);
     LOCAL(char, ngeom);
@@ -385,10 +386,8 @@ int lib_request_shaders(const char *name, struct list *shaders)
     hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
     hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
     hg = lib_read_file(RES_SHADER, ngeom, (void **)&geom, &gsz);
-    /* XXX: if handle(s) exist, but in error state, this leaks them */
-    if (!hv || !hf || hv->state == RES_ERROR || hf->state == RES_ERROR)
-        return -1;
-    if (hg && hg->state == RES_ERROR)
+
+    if (!hv || !hf)
         return -1;
 
     p = shader_prog_from_strings(name, vert, hg ? geom : NULL, frag);
@@ -396,8 +395,6 @@ int lib_request_shaders(const char *name, struct list *shaders)
         return -1;
 
     list_append(shaders, &p->entry);
-    ref_put_last(hv);
-    ref_put_last(hf);
 
     return 0;
 }
