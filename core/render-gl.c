@@ -156,12 +156,11 @@ void texture_resize(texture_t *tex, unsigned int width, unsigned int height)
     if (!tex->loaded || (tex->width == width && tex->height == height))
         return;
 
-    GL(glBindTexture(tex->type, tex->id));
-    GL(glTexImage2D(tex->type, 0, tex->internal_format, width, height,
-                 0, tex->format, tex->component_type, NULL));
-    GL(glBindTexture(tex->type, 0));
     tex->width = width;
     tex->height = height;
+    GL(glBindTexture(tex->type, tex->id));
+    texture_storage(tex, NULL);
+    GL(glBindTexture(tex->type, 0));
 }
 
 void texture_filters(texture_t *tex, GLint wrap, GLint filter)
@@ -204,6 +203,16 @@ void texture_load(texture_t *tex, enum texture_format format,
     tex->loaded = true;
 }
 
+static GLuint gl_fbo_attachment(enum fbo_attachment attachment)
+{
+    if (attachment == FBO_ATTACHMENT_DEPTH)
+        return GL_DEPTH_ATTACHMENT;
+    else if (attachment == FBO_ATTACHMENT_STENCIL)
+        return GL_STENCIL_ATTACHMENT;
+    else
+        return GL_COLOR_ATTACHMENT0 + attachment - FBO_ATTACHMENT_COLOR0;
+}
+
 static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
                         unsigned int height)
 {
@@ -212,13 +221,8 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
     tex->width  = width;
     tex->height = height;
     if (attachment == GL_DEPTH_ATTACHMENT) {
-#ifdef CONFIG_GLES
         tex->component_type = GL_UNSIGNED_SHORT;
         tex->internal_format = GL_DEPTH_COMPONENT16;
-#else
-        tex->component_type = GL_FLOAT;
-        tex->internal_format = GL_DEPTH_COMPONENT32F;
-#endif /* CONFIG_GLES */
     }
     texture_setup_begin(tex, NULL);
     if (tex->type == GL_TEXTURE_2D ||
@@ -433,6 +437,33 @@ void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment)
     GL(glBlitFramebuffer(0, 0, src_fbo->width, src_fbo->height,
                          0, 0, fbo->width, fbo->height,
                          GL_COLOR_BUFFER_BIT, GL_LINEAR));
+}
+
+void fbo_set_depth_quality(fbo_t *fbo, enum depth_quality q)
+{
+    if (fbo->attachment != GL_DEPTH_ATTACHMENT)
+        return;
+
+    switch (q) {
+        case FBO_DEPTH_LOW:
+            fbo->tex.component_type = GL_UNSIGNED_SHORT;
+            fbo->tex.internal_format = GL_DEPTH_COMPONENT16;
+            break;
+        case FBO_DEPTH_HIGH:
+            fbo->tex.component_type = GL_FLOAT;
+            fbo->tex.internal_format = GL_DEPTH_COMPONENT32F;
+            break;
+        default:
+        case FBO_DEPTH_MID:
+            fbo->tex.component_type = GL_FLOAT;
+            fbo->tex.internal_format = GL_DEPTH_COMPONENT24;
+            break;
+    }
+
+    GL(glActiveTexture(fbo->tex.target));
+    GL(glBindTexture(fbo->tex.type, fbo->tex.id));
+    texture_storage(&fbo->tex, NULL);
+    GL(glBindTexture(fbo->tex.type, 0));
 }
 
 static int fbo_make(struct ref *ref)

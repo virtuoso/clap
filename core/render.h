@@ -110,6 +110,12 @@ bool texture_loaded(texture_t *tex);
 bool texture_is_array(texture_t *tex);
 texture_t *texture_clone(texture_t *tex);
 
+enum depth_quality {
+    FBO_DEPTH_LOW,
+    FBO_DEPTH_MID,
+    FBO_DEPTH_HIGH
+};
+
 /* Special constants for nr_attachments */
 #define FBO_DEPTH_TEXTURE (-1)
 #define FBO_COLOR_TEXTURE (0)
@@ -134,6 +140,7 @@ void fbo_put_last(fbo_t *fbo);
 void fbo_prepare(fbo_t *fbo);
 void fbo_done(fbo_t *fbo, int width, int height);
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment);
+void fbo_set_depth_quality(fbo_t *fbo, enum depth_quality q);
 void fbo_resize(fbo_t *fbo, int width, int height);
 texture_t *fbo_texture(fbo_t *fbo);
 int fbo_width(fbo_t *fbo);

@@ -156,6 +156,16 @@ found:
     pl->resize(pass->fbo.x[0], true, width, width);
 }
 
+void pipeline_shadow_quality(struct pipeline *pl, enum depth_quality q)
+{
+    struct render_pass *pass;
+
+    list_for_each_entry(pass, &pl->passes, entry) {
+        if (pass->prog_override)
+            fbo_set_depth_quality(pass->fbo.x[0], q);
+    }
+}
+
 static struct render_pass *
 __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
                     const char *shader_override, bool ms, int nr_targets, int target)
@@ -553,6 +563,7 @@ static void debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
 
 void pipeline_debug(struct pipeline *pl)
 {
+    static enum depth_quality q = FBO_DEPTH_MID, oldq = FBO_DEPTH_MID;
     static int pass_preview;
     unsigned int width, height;
     texture_t *pass_tex = NULL;
@@ -560,6 +571,11 @@ void pipeline_debug(struct pipeline *pl)
 
     if (igBegin("Depth map resolution", &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize)) {
         pipeline_passes_dropdown(pl, &pass_preview, &pass_tex);
+        igSliderInt("shadow quality", (int *)&q, 0, 2, "%d", ImGuiSliderFlags_AlwaysClamp);
+        if (q != oldq) {
+            pipeline_shadow_quality(pl, q);
+            oldq = q;
+        }
         if (pass_tex) {
             texture_get_dimesnions(pass_tex, &width, &height);
             if (!pass_preview) {
