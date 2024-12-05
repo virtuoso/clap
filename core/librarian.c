@@ -170,6 +170,12 @@ void lib_release(struct lib_handle *h)
     ref_put(h);
 }
 
+void cleanup__lib_handlep(lib_handle **h)
+{
+    if (*h)
+        ref_put_last(*h);
+}
+
 /*
  * How about:
  *  + first try the local FS, if unsuccessful,

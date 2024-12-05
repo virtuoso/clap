@@ -20,7 +20,7 @@ enum res_state {
 struct lib_handle;
 typedef void (*lib_complete_fn)(struct lib_handle *, void *);
 
-struct lib_handle {
+typedef struct lib_handle {
     const char      *name;
     void            *buf;
     size_t          size;
@@ -29,7 +29,9 @@ struct lib_handle {
     enum res_type   type;
     enum res_state  state;
     lib_complete_fn func;
-};
+} lib_handle;
+
+void cleanup__lib_handlep(lib_handle **h);
 
 int librarian_init(const char *dir);
 struct lib_handle *
