@@ -197,8 +197,8 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     f = fopen(uri, "r");
     if (!f) {
         err("couldn't open '%s': %s\n", uri, strerror(errno));
-        h->state = RES_ERROR;
         ret = -1;
+        ref_put(h);
     } else {
         struct stat st;
 
