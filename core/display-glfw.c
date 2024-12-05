@@ -332,7 +332,7 @@ static void glfw_joysticks_poll(void)
 #include "librarian.h"
 int platform_input_init(void)
 {
-    struct lib_handle *lh;
+    LOCAL(lib_handle, lh);
     char *cdb;
     size_t sz;
 
@@ -344,10 +344,8 @@ int platform_input_init(void)
     glfwSetScrollCallback(window, scroll_cb);
 
     lh = lib_read_file(RES_ASSET, "gamecontrollerdb.txt", (void **)&cdb, &sz);
-    if (lh && lh->state != RES_ERROR) {
+    if (lh)
         glfwUpdateGamepadMappings(cdb);
-        ref_put_last_ref(&lh->ref);
-    }
 
     msg("input initialized\n");
 
