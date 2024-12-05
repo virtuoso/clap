@@ -520,7 +520,7 @@ static int ui_roll_update(struct entity3d *e, void *data)
 static void ui_roll_init(struct ui *ui)
 {
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
-    struct lib_handle *lh;
+    LOCAL(lib_handle, lh);
     LOCAL(char, buffer);
     struct font *font;
     size_t       size;
@@ -530,7 +530,7 @@ static void ui_roll_init(struct ui *ui)
         return;
 
     font = font_get_default();
-    if (!font || lh->state == RES_ERROR) {
+    if (!font) {
         ref_put_last(lh);
         return;
     }
@@ -543,7 +543,6 @@ static void ui_roll_init(struct ui *ui)
     ui_roll_element->entity->update = ui_roll_update;
     ui_roll_element->y_off = -ui_roll_element->height;
     ui_element_position(ui_roll_element, ui);
-    ref_put_last(lh);
     buffer = NULL;
 
     font_put(font);
