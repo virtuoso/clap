@@ -224,13 +224,6 @@ int librarian_init(const char *dir)
 {
     if (dir && strlen(dir))
         strncpy(base_url, dir, PATH_MAX);
-    //fetch_file("librarian.json");
-    //lib_request(RES_ASSET, "scene.json", _fetch_config_onload, NULL);
-
-    /*f = fopen("librarian.json", "r");
-    dbg("How the fuck did we open that? %p\n", f);
-    if (f == NULL)
-        dbg("can't open librarian.json: %m\n");*/
 
     return 0;
 }
