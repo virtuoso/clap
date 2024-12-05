@@ -42,22 +42,30 @@ static GLuint load_shader(GLenum type, const char *source)
 }
 
 static int shader_prog_init(struct shader_prog *p, const char *vertex,
-                            const char *fragment)
+                            const char *geometry, const char *fragment)
 {
     p->vert = load_shader(GL_VERTEX_SHADER, vertex);
+    p->geom =
+#ifndef CONFIG_BROWSER
+        geometry ? load_shader(GL_GEOMETRY_SHADER, geometry) : 0;
+#else
+        0;
+#endif
     p->frag = load_shader(GL_FRAGMENT_SHADER, fragment);
     p->prog = glCreateProgram();
     GLint linkStatus = GL_FALSE;
     int ret = -1;
 
-    if (!p->vert || !p->frag || !p->prog) {
-        err("vshader: %d fshader: %d program: %d\n",
-            p->vert, p->frag, p->prog);
+    if (!p->vert || (geometry && !p->geom) || !p->frag || !p->prog) {
+        err("vshader: %d gshader: %d fshader: %d program: %d\n",
+            p->vert, p->geom, p->frag, p->prog);
         return ret;
     }
 
     glAttachShader(p->prog, p->vert);
     glAttachShader(p->prog, p->frag);
+    if (p->geom)
+        glAttachShader(p->prog, p->geom);
     glLinkProgram(p->prog);
     glGetProgramiv(p->prog, GL_LINK_STATUS, &linkStatus);
     if (linkStatus != GL_TRUE) {
@@ -71,6 +79,8 @@ static int shader_prog_init(struct shader_prog *p, const char *vertex,
                 free(buf);
                 glDeleteShader(p->vert);
                 glDeleteShader(p->frag);
+                if (p->geom)
+                    glDeleteShader(p->geom);
             }
         }
         glDeleteProgram(p->prog);
@@ -78,8 +88,8 @@ static int shader_prog_init(struct shader_prog *p, const char *vertex,
     } else {
         ret = 0;
     }
-    dbg("vshader: %d fshader: %d program: %d link: %d\n",
-        p->vert, p->frag, p->prog, linkStatus);
+    dbg("vshader: %d gshader: %d fshader: %d program: %d link: %d\n",
+        p->vert, p->geom, p->frag, p->prog, linkStatus);
 
     return ret;
 }
@@ -91,6 +101,8 @@ static void shader_prog_drop(struct ref *ref)
     GL(glDeleteProgram(p->prog));
     GL(glDeleteShader(p->vert));
     GL(glDeleteShader(p->frag));
+    if (p->geom)
+        GL(glDeleteShader(p->geom));
     list_del(&p->entry);
     dbg("dropping shader '%s'\n", p->name);
 }
@@ -295,7 +307,7 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
 }
 
 struct shader_prog *
-shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
+shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, const char *fsh)
 {
     struct shader_prog *p;
 
@@ -305,7 +317,7 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
 
     list_init(&p->entry);
     p->name = name;
-    int err = shader_prog_init(p, vsh, fsh);
+    int err = shader_prog_init(p, vsh, gsh, fsh);
     if (err) {
         err("couldn't create program '%s'\n", name);
         ref_put(p);
@@ -357,23 +369,29 @@ void shaders_free(struct list *shaders)
 int lib_request_shaders(const char *name, struct list *shaders)
 {
     //char *nvert CUX(string), *nfrag CUX(string), *vert CUX(string), *frag CUX(string);
-    struct lib_handle *hv, *hf;
+    struct lib_handle *hv, *hf, *hg;
     LOCAL(char, nvert);
     LOCAL(char, nfrag);
+    LOCAL(char, ngeom);
     char *vert;
     char *frag;
+    char *geom;
     struct shader_prog *p;
-    size_t vsz, fsz;
+    size_t vsz, fsz, gsz;
 
     CHECK(asprintf(&nvert, "%s.vert", name));
     CHECK(asprintf(&nfrag, "%s.frag", name));
+    CHECK(asprintf(&ngeom, "%s.geom", name));
     hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
     hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
+    hg = lib_read_file(RES_SHADER, ngeom, (void **)&geom, &gsz);
     /* XXX: if handle(s) exist, but in error state, this leaks them */
     if (!hv || !hf || hv->state == RES_ERROR || hf->state == RES_ERROR)
         return -1;
+    if (hg && hg->state == RES_ERROR)
+        return -1;
 
-    p = shader_prog_from_strings(name, vert, frag);
+    p = shader_prog_from_strings(name, vert, hg ? geom : NULL, frag);
     if (!p)
         return -1;
 
