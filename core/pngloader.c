@@ -56,8 +56,7 @@ out:
 
 unsigned char *fetch_png(const char *file_name, int *width, int *height, int *has_alpha)
 {
-    unsigned char *ret = NULL;
-    struct lib_handle *lh;
+    LOCAL(lib_handle, lh);
     size_t size;
     void *buf;
 
@@ -65,15 +64,7 @@ unsigned char *fetch_png(const char *file_name, int *width, int *height, int *ha
     if (!lh)
         return NULL;
 
-    if (lh->state == RES_ERROR)
-        goto out;
-
-    ret = decode_png(buf, size, width, height, has_alpha);
-
-out:
-    ref_put(lh);
-
-    return ret;
+    return decode_png(buf, size, width, height, has_alpha);
 }
 
 struct png_cursor {
