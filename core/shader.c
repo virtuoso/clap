@@ -12,14 +12,14 @@
 #include "librarian.h"
 #include "scene.h"
 
-static GLuint loadShader(GLenum shaderType, const char *shaderSource)
+static GLuint load_shader(GLenum type, const char *source)
 {
-    GLuint shader = glCreateShader(shaderType);
+    GLuint shader = glCreateShader(type);
     if (!shader) {
         err("couldn't create shader\n");
         return -1;
     }
-    glShaderSource(shader, 1, &shaderSource, NULL);
+    glShaderSource(shader, 1, &source, NULL);
     glCompileShader(shader);
     GLint compiled = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
@@ -30,9 +30,9 @@ static GLuint loadShader(GLenum shaderType, const char *shaderSource)
             char *buf = malloc(infoLen);
             if (buf) {
                 glGetShaderInfoLog(shader, infoLen, NULL, buf);
-                err("Could not Compile Shader %d:\n%s\n", shaderType, buf);
+                err("Could not Compile Shader %d:\n%s\n", type, buf);
                 free(buf);
-                err("--> %s <--\n", shaderSource);
+                err("--> %s <--\n", source);
             }
             glDeleteShader(shader);
             shader = 0;
@@ -41,41 +41,47 @@ static GLuint loadShader(GLenum shaderType, const char *shaderSource)
     return shader;
 }
 
-static GLuint createProgram(const char* vertexSource, const char * fragmentSource)
+static int shader_prog_init(struct shader_prog *p, const char *vertex,
+                            const char *fragment)
 {
-    GLuint vertexShader = loadShader(GL_VERTEX_SHADER, vertexSource);
-    GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, fragmentSource);
-    GLuint program = glCreateProgram();
+    p->vert = load_shader(GL_VERTEX_SHADER, vertex);
+    p->frag = load_shader(GL_FRAGMENT_SHADER, fragment);
+    p->prog = glCreateProgram();
     GLint linkStatus = GL_FALSE;
+    int ret = -1;
 
-    if (!vertexShader || !fragmentShader || !program) {
+    if (!p->vert || !p->frag || !p->prog) {
         err("vshader: %d fshader: %d program: %d\n",
-            vertexShader, fragmentShader, program);
-        return 0;
+            p->vert, p->frag, p->prog);
+        return ret;
     }
 
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
-    glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
+    glAttachShader(p->prog, p->vert);
+    glAttachShader(p->prog, p->frag);
+    glLinkProgram(p->prog);
+    glGetProgramiv(p->prog, GL_LINK_STATUS, &linkStatus);
     if (linkStatus != GL_TRUE) {
         GLint bufLength = 0;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength);
+        glGetProgramiv(p->prog, GL_INFO_LOG_LENGTH, &bufLength);
         if (bufLength) {
             char *buf = malloc(bufLength);
             if (buf) {
-                glGetProgramInfoLog(program, bufLength, NULL, buf);
+                glGetProgramInfoLog(p->prog, bufLength, NULL, buf);
                 err("Could not link program:\n%s\n", buf);
                 free(buf);
+                glDeleteShader(p->vert);
+                glDeleteShader(p->frag);
             }
         }
-        glDeleteProgram(program);
-        program = 0;
+        glDeleteProgram(p->prog);
+        p->prog = 0;
+    } else {
+        ret = 0;
     }
     dbg("vshader: %d fshader: %d program: %d link: %d\n",
-        vertexShader, fragmentShader, program, linkStatus);
+        p->vert, p->frag, p->prog, linkStatus);
 
-    return program;
+    return ret;
 }
 
 static void shader_prog_drop(struct ref *ref)
@@ -83,6 +89,8 @@ static void shader_prog_drop(struct ref *ref)
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
 
     GL(glDeleteProgram(p->prog));
+    GL(glDeleteShader(p->vert));
+    GL(glDeleteShader(p->frag));
     list_del(&p->entry);
     dbg("dropping shader '%s'\n", p->name);
 }
@@ -297,8 +305,8 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *fsh)
 
     list_init(&p->entry);
     p->name = name;
-    p->prog = createProgram(vsh, fsh);
-    if (!p->prog) {
+    int err = shader_prog_init(p, vsh, fsh);
+    if (err) {
         err("couldn't create program '%s'\n", name);
         ref_put(p);
         return NULL;

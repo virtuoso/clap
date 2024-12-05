@@ -59,6 +59,8 @@ struct shader_prog {
     GLuint      prog;
     GLint       vars[SHADER_VAR_MAX];
     GLint       attr_count;
+    GLuint      vert;
+    GLuint      frag;
     struct ref  ref;
     struct list entry;
 };
