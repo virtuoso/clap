@@ -18,11 +18,16 @@ static void texture_drop(struct ref *ref)
 }
 DECLARE_REFCLASS(texture);
 
-static GLenum gl_texture_type(enum texture_type type)
+static GLenum gl_texture_type(enum texture_type type, bool msaa)
 {
     switch (type) {
+#ifdef CONFIG_GLES
         case TEX_2D:        return GL_TEXTURE_2D;
         case TEX_2D_ARRAY:  return GL_TEXTURE_2D_ARRAY;
+#else
+        case TEX_2D:        return msaa ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+        case TEX_2D_ARRAY:  return msaa ? GL_TEXTURE_2D_MULTISAMPLE_ARRAY : GL_TEXTURE_2D_MULTISAMPLE;
+#endif
         case TEX_3D:        return GL_TEXTURE_3D;
         default:            break;
     }
@@ -82,7 +87,7 @@ int _texture_init(texture_t *tex, const texture_init_options *opts)
     tex->min_filter     = gl_texture_filter(opts->min_filter);
     tex->mag_filter     = gl_texture_filter(opts->mag_filter);
     tex->target         = GL_TEXTURE0 + opts->target;
-    tex->type           = gl_texture_type(opts->type);
+    tex->type           = gl_texture_type(opts->type, opts->msaa);
     tex->layers         = opts->layers;
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     GL(glActiveTexture(tex->target));
@@ -122,6 +127,24 @@ void texture_deinit(texture_t *tex)
     tex->loaded = false;
 }
 
+static void texture_storage(texture_t *tex, void *buf)
+{
+    if (tex->type == GL_TEXTURE_2D)
+        GL(glTexImage2D(tex->type, 0, tex->internal_format, tex->width, tex->height,
+                        0, tex->format, tex->component_type, buf));
+#ifndef CONFIG_GLES
+    else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE)
+        GL(glTexImage2DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
+                                   GL_TRUE));
+    else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+        GL(glTexImage3DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
+           tex->layers, GL_TRUE));
+#endif /* CONFIG_GLES */
+    else if (tex->type == GL_TEXTURE_3D)
+        GL(glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
+                        0, tex->format, tex->component_type, buf));
+}
+
 void texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
     if (!tex->loaded || (tex->width == width && tex->height == height))
@@ -146,18 +169,16 @@ static void texture_setup_begin(texture_t *tex, void *buf)
 {
     GL(glActiveTexture(tex->target));
     GL(glBindTexture(tex->type, tex->id));
-    GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_S, tex->wrap));
-    GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_T, tex->wrap));
-    if (tex->type == TEX_3D)
-        GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_R, tex->wrap));
-    GL(glTexParameteri(tex->type, GL_TEXTURE_MIN_FILTER, tex->min_filter));
-    GL(glTexParameteri(tex->type, GL_TEXTURE_MAG_FILTER, tex->mag_filter));
-    if (tex->type == GL_TEXTURE_2D)
-        GL(glTexImage2D(tex->type, 0, tex->internal_format, tex->width, tex->height,
-                        0, tex->format, tex->component_type, buf));
-    else
-        GL(glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
-                        0, tex->format, tex->component_type, buf));
+    if (tex->type != GL_TEXTURE_2D_MULTISAMPLE &&
+        tex->type != GL_TEXTURE_2D_MULTISAMPLE_ARRAY) {
+        GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_S, tex->wrap));
+        GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_T, tex->wrap));
+        if (tex->type == TEX_3D)
+            GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_R, tex->wrap));
+        GL(glTexParameteri(tex->type, GL_TEXTURE_MIN_FILTER, tex->min_filter));
+        GL(glTexParameteri(tex->type, GL_TEXTURE_MAG_FILTER, tex->mag_filter));
+    }
+    texture_storage(tex, buf);
 }
 
 static void texture_setup_end(texture_t *tex)
@@ -194,8 +215,12 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
 #endif /* CONFIG_GLES */
     }
     texture_setup_begin(tex, NULL);
-    if (tex->type == GL_TEXTURE_2D || tex->type == GL_TEXTURE_2D_ARRAY)
+    if (tex->type == GL_TEXTURE_2D ||
+        tex->type == GL_TEXTURE_2D_MULTISAMPLE)
         GL(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0));
+    else if (tex->type == GL_TEXTURE_2D_ARRAY ||
+             tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+        GL(glFramebufferTextureLayer(GL_FRAMEBUFFER, attachment, tex->id, 0, 0));
 #ifndef CONFIG_GLES
     else
         GL(glFramebufferTexture3D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0, 0));
@@ -368,10 +393,6 @@ void fbo_prepare(fbo_t *fbo)
     GL(glViewport(0, 0, fbo->width, fbo->height));
 
     if (!darray_count(fbo->color_buf)) {
-        if (tex->type == GL_TEXTURE_2D_ARRAY || tex->type == GL_TEXTURE_3D)
-            GL(glFramebufferTextureLayer(GL_FRAMEBUFFER, fbo->attachment, tex->id, 0, 0));
-        else
-            GL(glFramebufferTexture2D(GL_FRAMEBUFFER, fbo->attachment, tex->type, tex->id, 0));
 
         if (fbo->attachment == GL_DEPTH_ATTACHMENT) {
             buffers[0] = GL_NONE;

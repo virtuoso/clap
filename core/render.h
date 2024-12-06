@@ -91,6 +91,7 @@ typedef struct texture_init_options {
     enum texture_filter min_filter;
     enum texture_filter mag_filter;
     unsigned int        layers;
+    bool                msaa;
 } texture_init_options;
 
 int _texture_init(texture_t *tex, const texture_init_options *opts);
