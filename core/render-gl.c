@@ -79,6 +79,12 @@ static GLenum gl_texture_format(enum texture_format format)
     return GL_NONE;
 }
 
+bool texture_is_array(texture_t *tex)
+{
+    return tex->type == GL_TEXTURE_2D_ARRAY ||
+           tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
+}
+
 int _texture_init(texture_t *tex, const texture_init_options *opts)
 {
     ref_embed(texture, tex);
