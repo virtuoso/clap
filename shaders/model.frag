@@ -1,5 +1,7 @@
 #version 460 core
 
+#include "config.h"
+
 layout (location=0) flat in int do_use_normals;
 layout (location=1) in vec2 pass_tex;
 layout (location=2) in vec3 surface_normal;
@@ -11,7 +13,11 @@ layout (location=9) in vec4 shadow_pos;
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform sampler2D emission_map;
+#ifdef CONFIG_GLES
 uniform sampler2D shadow_map;
+#else
+uniform sampler2DMSArray shadow_map;
+#endif /* CONFIG_GLES */
 uniform vec3 light_color[4];
 uniform vec3 attenuation[4];
 uniform float shine_damper;
@@ -26,8 +32,61 @@ layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 Albedo;
 
-const int pcf_count = 2;
-const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
+float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in float bias)
+{
+    const int pcf_count = 2;
+    const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
+    float texel_size = 1.0 / float(textureSize(map, 0).x);
+    float shadow_distance = 0;
+    float total = 0.0;
+
+    for (int x = -pcf_count; x < pcf_count; x++)
+        for (int y = -pcf_count; y < pcf_count; y++) {
+            float shadow_distance = texture(map, vec3(pos.xy + vec2(float(x), float(y)) * texel_size, 0.0)).r;
+            if (pos.z - bias > shadow_distance)
+                total += 1.0;
+        }
+
+    return 1.0 - total / pcf_total_texels * pos.w;
+}
+
+float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
+{
+    const int pcf_count = 2;
+    const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
+    float texel_size = 1.0 / float(textureSize(map, 0).x);
+    float shadow_distance = 0;
+    float total = 0.0;
+
+    for (int x = -pcf_count; x < pcf_count; x++)
+        for (int y = -pcf_count; y < pcf_count; y++) {
+            float shadow_distance = texture(map, pos.xy + vec2(float(x), float(y)) * texel_size).r;
+            if (pos.z - bias > shadow_distance)
+                total += 1.0;
+        }
+
+    return 1.0 - total / pcf_total_texels * pos.w;
+}
+
+#ifndef CONFIG_GLES
+float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in float bias)
+{
+    float shadow_distance = 0;
+    float total = 0.0;
+
+    for (int i = 0; i < 4; i++)
+        shadow_distance += texelFetch(map,
+                                      ivec3(pos.xy * textureSize(map).x, 0), i).r;
+
+    shadow_distance /= 4;
+    if (pos.z - bias > shadow_distance)
+        total += 1.0;
+
+    total /= 4;
+
+    return 1.0 - total * pos.w;
+}
+#endif /* CONFIG_GLES */
 
 void main()
 {
@@ -53,17 +112,12 @@ void main()
 
     float light_dot = dot(unit_normal, normalize(-light_dir[0]));
     if (light_dot > 0.0) {
-        float texel_size = 1.0 / float(textureSize(shadow_map, 0).x);
-        float total = 0.0;
-
         float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
-        for (int x = -pcf_count; x < pcf_count; x++)
-            for (int y = -pcf_count; y < pcf_count; y++) {
-                float shadow_distance = texture(shadow_map, shadow_pos.xy + vec2(float(x), float(y)) * texel_size).r;
-                if (shadow_pos.z - bias > shadow_distance)
-                    total += 1.0;
-            }
-        shadow_factor = 1.0 - (total / pcf_total_texels * shadow_pos.w);
+#ifdef CONFIG_GLES
+        shadow_factor = shadow_factor_pcf(shadow_map, shadow_pos, bias);
+#else
+        shadow_factor = shadow_factor_msaa(shadow_map, shadow_pos, bias);
+#endif /* CONFIG_GLES */
     }
 
     vec3 total_diffuse = vec3(0.0);
