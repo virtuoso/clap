@@ -99,8 +99,8 @@ int _texture_init(texture_t *tex, const texture_init_options *opts);
 void texture_deinit(texture_t *tex);
 void texture_filters(texture_t *tex, GLint wrap, GLint filter);
 void texture_done(texture_t *tex);
-void texture_load(texture_t *tex, GLenum format, unsigned int width, unsigned int height,
-                  void *buf);
+void texture_load(texture_t *tex, enum texture_format format,
+                  unsigned int width, unsigned int height, void *buf);
 void texture_resize(texture_t *tex, unsigned int width, unsigned int height);
 GLuint texture_id(texture_t *tex);
 void texture_bind(texture_t *tex, unsigned int target);

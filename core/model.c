@@ -70,7 +70,7 @@ DECLARE_REFCLASS(model3d);
 static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
                                   int has_alpha, enum shader_vars var, texture_t *tex)
 {
-    GLuint color_type = has_alpha ? GL_RGBA : GL_RGB;
+    GLuint color_type = has_alpha ? TEX_FMT_RGBA : TEX_FMT_RGB;
     if (!buffer)
         return -EINVAL;
 

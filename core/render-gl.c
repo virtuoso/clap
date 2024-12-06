@@ -165,11 +165,11 @@ static void texture_setup_end(texture_t *tex)
     GL(glBindTexture(tex->type, 0));
 }
 
-void texture_load(texture_t *tex, GLenum format, unsigned int width, unsigned int height,
-                  void *buf)
+void texture_load(texture_t *tex, enum texture_format format,
+                  unsigned int width, unsigned int height, void *buf)
 {
-    tex->format = format;
-    tex->internal_format = format;
+    tex->format = gl_texture_format(format);
+    tex->internal_format = tex->format;
     tex->width  = width;
     tex->height = height;
     texture_setup_begin(tex, buf);

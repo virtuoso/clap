@@ -60,7 +60,7 @@ static void font_load_glyph(struct font *font, unsigned char c)
 #undef _AT
 #undef _GAT
     texture_init(&font->g[c].tex);
-    texture_load(&font->g[c].tex, GL_RGBA, glyph->bitmap.width, glyph->bitmap.rows, buf);
+    texture_load(&font->g[c].tex, TEX_FMT_RGBA, glyph->bitmap.width, glyph->bitmap.rows, buf);
 
     font->g[c].advance_x = glyph->advance.x;
     font->g[c].advance_y = glyph->advance.y;
