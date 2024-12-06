@@ -65,7 +65,7 @@ FOREACH(s ${SHADERS})
             OUTPUT "${SPIRV_DIR}/${s}.${stage}.spv"
             DEPENDS make-shader-ir-dir "${SHADER_SOURCE_DIR}/${s}.${stage}"
             COMMAND "${GLSLC}"
-            ARGS -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -o ${SPIRV_DIR}/${s}.${stage}.spv -c ${SHADER_SOURCE_DIR}/${s}.${stage}
+            ARGS -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -o ${SPIRV_DIR}/${s}.${stage}.spv -c ${SHADER_SOURCE_DIR}/${s}.${stage}
         )
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${s}.${stage}"
