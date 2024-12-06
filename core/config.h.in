@@ -1,5 +1,5 @@
-#ifndef __CLAP_CONFIG_H__
-#define __CLAP_CONFIG_H__
+#ifndef CLAP_CONFIG_H
+#define CLAP_CONFIG_H
 #define CONFIG_LOG_OUTPUT "/tmp/clap.log"
 #cmakedefine CONFIG_BUILDDATE "@CONFIG_BUILDDATE@"
 #cmakedefine CONFIG_BROWSER "@CONFIG_BROWSER@"
@@ -8,4 +8,4 @@
 #cmakedefine CONFIG_NETWORKING "@CONFIG_NETWORKING@"
 #cmakedefine CONFIG_SERVER_IP "@CONFIG_SERVER_IP@"
 #cmakedefine HAVE_FLS @HAVE_FLS@
-#endif /* __CLAP_CONFIG_H__ */
+#endif /* CLAP_CONFIG_H */
