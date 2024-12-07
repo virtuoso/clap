@@ -26,7 +26,7 @@ static GLenum gl_texture_type(enum texture_type type, bool multisampled)
         case TEX_2D_ARRAY:  return GL_TEXTURE_2D_ARRAY;
 #else
         case TEX_2D:        return multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
-        case TEX_2D_ARRAY:  return multisampled ? GL_TEXTURE_2D_MULTISAMPLE_ARRAY : GL_TEXTURE_2D_MULTISAMPLE;
+        case TEX_2D_ARRAY:  return multisampled ? GL_TEXTURE_2D_MULTISAMPLE_ARRAY : GL_TEXTURE_2D_ARRAY;
 #endif
         case TEX_3D:        return GL_TEXTURE_3D;
         default:            break;
