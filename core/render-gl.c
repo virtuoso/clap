@@ -156,12 +156,11 @@ void texture_resize(texture_t *tex, unsigned int width, unsigned int height)
     if (!tex->loaded || (tex->width == width && tex->height == height))
         return;
 
-    GL(glBindTexture(tex->type, tex->id));
-    GL(glTexImage2D(tex->type, 0, tex->internal_format, width, height,
-                 0, tex->format, tex->component_type, NULL));
-    GL(glBindTexture(tex->type, 0));
     tex->width = width;
     tex->height = height;
+    GL(glBindTexture(tex->type, tex->id));
+    texture_storage(tex, NULL);
+    GL(glBindTexture(tex->type, 0));
 }
 
 void texture_filters(texture_t *tex, GLint wrap, GLint filter)
