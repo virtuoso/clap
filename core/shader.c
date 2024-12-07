@@ -134,6 +134,8 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_TEX(UNIFORM_NORMAL_MAP,          "normal_map",           1),
     SHADER_TEX(UNIFORM_SOBEL_TEX,           "sobel_tex",            3),
     SHADER_TEX(UNIFORM_SHADOW_MAP,          "shadow_map",           4),
+    SHADER_TEX(UNIFORM_SHADOW_MAP1,         "shadow_map1",          5),
+    SHADER_TEX(UNIFORM_SHADOW_MAP_MS,       "shadow_map_ms",        5),
     SHADER_TEX(UNIFORM_EMISSION_MAP,        "emission_map",         2),
     SHADER_VAR(UNIFORM_WIDTH,               "width",                ST_FLOAT),
     SHADER_VAR(UNIFORM_HEIGHT,              "height",               ST_FLOAT),
@@ -155,6 +157,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_ENTITY_HASH,         "entity_hash",          ST_INT),
     SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          ST_INT),
     SHADER_VAR(UNIFORM_USE_SKINNING,        "use_skinning",         ST_INT),
+    SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             ST_INT),
     SHADER_VAR(UNIFORM_ALBEDO_TEXTURE,      "albedo_texture",       ST_INT),
     SHADER_VAR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     ST_MAT4),
 };
