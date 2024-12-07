@@ -310,6 +310,7 @@ void scene_update(struct scene *scene)
         igSliderFloat("near plane", &scene->near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("far plane", &scene->far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
         igCheckbox("shadow outline", &scene->light.shadow_outline);
+        igCheckbox("shadow msaa", &scene->light.shadow_msaa);
         scene->proj_update++;
         igEnd();
     } else {
