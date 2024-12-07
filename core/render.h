@@ -91,7 +91,7 @@ typedef struct texture_init_options {
     enum texture_filter min_filter;
     enum texture_filter mag_filter;
     unsigned int        layers;
-    bool                msaa;
+    bool                multisampled;
 } texture_init_options;
 
 int _texture_init(texture_t *tex, const texture_init_options *opts);
@@ -123,7 +123,7 @@ TYPE(fbo,
     GLuint          attachment;
     darray(int, color_buf);
     texture_t       tex;
-    bool            ms;
+    bool            multisampled;
     int             retain_tex;
 );
 

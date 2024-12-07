@@ -18,15 +18,15 @@ static void texture_drop(struct ref *ref)
 }
 DECLARE_REFCLASS(texture);
 
-static GLenum gl_texture_type(enum texture_type type, bool msaa)
+static GLenum gl_texture_type(enum texture_type type, bool multisampled)
 {
     switch (type) {
 #ifdef CONFIG_GLES
         case TEX_2D:        return GL_TEXTURE_2D;
         case TEX_2D_ARRAY:  return GL_TEXTURE_2D_ARRAY;
 #else
-        case TEX_2D:        return msaa ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
-        case TEX_2D_ARRAY:  return msaa ? GL_TEXTURE_2D_MULTISAMPLE_ARRAY : GL_TEXTURE_2D_MULTISAMPLE;
+        case TEX_2D:        return multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+        case TEX_2D_ARRAY:  return multisampled ? GL_TEXTURE_2D_MULTISAMPLE_ARRAY : GL_TEXTURE_2D_MULTISAMPLE;
 #endif
         case TEX_3D:        return GL_TEXTURE_3D;
         default:            break;
@@ -93,7 +93,7 @@ int _texture_init(texture_t *tex, const texture_init_options *opts)
     tex->min_filter     = gl_texture_filter(opts->min_filter);
     tex->mag_filter     = gl_texture_filter(opts->mag_filter);
     tex->target         = GL_TEXTURE0 + opts->target;
-    tex->type           = gl_texture_type(opts->type, opts->msaa);
+    tex->type           = gl_texture_type(opts->type, opts->multisampled);
     tex->layers         = opts->layers;
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     GL(glActiveTexture(tex->target));
@@ -293,9 +293,9 @@ static void fbo_depth_texture_init(fbo_t *fbo)
     texture_init(&fbo->tex,
 #ifndef CONFIG_GLES
                  .type          = TEX_2D_ARRAY,
-                 .msaa          = true,
                  .layers        = 3,
  #endif /* CONFIG_GLES */
+                 .multisampled  = true,
                  .wrap          = TEX_WRAP_REPEAT,
                  .min_filter    = TEX_FLT_NEAREST,
                  .mag_filter    = TEX_FLT_NEAREST);
@@ -329,7 +329,7 @@ int fbo_nr_attachments(fbo_t *fbo)
 
 static void __fbo_color_buffer_setup(fbo_t *fbo)
 {
-    if (fbo->ms)
+    if (fbo->multisampled)
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, fbo->width, fbo->height));
     else
         GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
@@ -350,7 +350,7 @@ static int fbo_color_buffer(fbo_t *fbo, int output)
 
 static void __fbo_depth_buffer_setup(fbo_t *fbo)
 {
-    if (fbo->ms)
+    if (fbo->multisampled)
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
     else
         GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
@@ -441,7 +441,7 @@ static int fbo_make(struct ref *ref)
 
     darray_init(&fbo->color_buf);
     fbo->depth_buf = -1;
-    fbo->ms        = false;
+    fbo->multisampled = false;
 
     return 0;
 }
@@ -500,18 +500,18 @@ static void fbo_init(fbo_t *fbo, int nr_attachments)
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 }
 
-fbo_t *fbo_new_ms(int width, int height, bool ms, int nr_attachments)
+fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
 {
     fbo_t *fbo;
 
     /* multisampled buffer requires color attachment buffers */
-    if (ms && nr_attachments <= 0)
+    if (multisampled && nr_attachments <= 0)
         return NULL;
 
     CHECK(fbo = ref_new(fbo));
     fbo->width = width;
     fbo->height = height;
-    fbo->ms = ms;
+    fbo->multisampled = multisampled;
     fbo_init(fbo, nr_attachments);
 
     return fbo;
