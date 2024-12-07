@@ -504,10 +504,6 @@ fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
 {
     fbo_t *fbo;
 
-    /* multisampled buffer requires color attachment buffers */
-    if (multisampled && nr_attachments <= 0)
-        return NULL;
-
     CHECK(fbo = ref_new(fbo));
     fbo->width = width;
     fbo->height = height;
