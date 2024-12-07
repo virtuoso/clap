@@ -146,7 +146,7 @@ static void texture_storage(texture_t *tex, void *buf)
         GL(glTexImage3DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
            tex->layers, GL_TRUE));
 #endif /* CONFIG_GLES */
-    else if (tex->type == GL_TEXTURE_3D)
+    else if (tex->type == GL_TEXTURE_2D_ARRAY || tex->type == GL_TEXTURE_3D)
         GL(glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
                         0, tex->format, tex->component_type, buf));
 }
