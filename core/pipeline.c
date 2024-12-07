@@ -270,9 +270,6 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
     pipeline_pass_config _cfg = *cfg;
     struct render_pass *pass;
 
-    if (_cfg.multisampled && _cfg.nr_attachments <= 0)
-        return NULL;
-
     pass = __pipeline_add_pass(pl, _cfg.source, _cfg.shader, _cfg.shader_override, _cfg.multisampled,
                                _cfg.nr_attachments, _cfg.blit_from);
     if (pass) {
