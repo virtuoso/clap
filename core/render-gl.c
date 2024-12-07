@@ -295,7 +295,7 @@ static void fbo_depth_texture_init(fbo_t *fbo)
                  .type          = TEX_2D_ARRAY,
                  .layers        = 3,
  #endif /* CONFIG_GLES */
-                 .multisampled  = true,
+                 .multisampled  = fbo->multisampled,
                  .wrap          = TEX_WRAP_REPEAT,
                  .min_filter    = TEX_FLT_NEAREST,
                  .mag_filter    = TEX_FLT_NEAREST);
