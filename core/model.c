@@ -704,8 +704,11 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 shader_set_var_ptr(prog, UNIFORM_ATTENUATION, LIGHTS_MAX, light->attenuation);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIR, LIGHTS_MAX, light->dir);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, light->shadow_outline);
-                if (light->shadow[0])
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[0]);
+                if (light->shadow[0]) {
+                    shader_set_var_int(prog, UNIFORM_USE_MSAA, light->shadow_msaa);
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[SHADOW_PCF][0]);
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP_MS, light->shadow[SHADOW_MSAA][0]);
+                }
             }
 
             if (view) {

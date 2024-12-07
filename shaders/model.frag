@@ -1,6 +1,7 @@
 #version 460 core
 
 #include "config.h"
+#include "texel_fetch.inc"
 
 layout (location=0) flat in int do_use_normals;
 layout (location=1) in vec2 pass_tex;
@@ -15,8 +16,10 @@ uniform sampler2D normal_map;
 uniform sampler2D emission_map;
 #ifdef CONFIG_GLES
 uniform sampler2D shadow_map;
+uniform sampler2D shadow_map1;
 #else
-uniform sampler2DMSArray shadow_map;
+uniform sampler2DArray shadow_map;
+uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
 uniform vec3 light_color[4];
 uniform vec3 attenuation[4];
@@ -27,6 +30,7 @@ uniform int entity_hash;
 uniform vec4 highlight_color;
 uniform vec3 light_dir[4];
 uniform bool shadow_outline;
+uniform bool use_msaa;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
@@ -36,13 +40,11 @@ float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in float bias)
 {
     const int pcf_count = 2;
     const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
-    float texel_size = 1.0 / float(textureSize(map, 0).x);
-    float shadow_distance = 0;
     float total = 0.0;
 
     for (int x = -pcf_count; x < pcf_count; x++)
         for (int y = -pcf_count; y < pcf_count; y++) {
-            float shadow_distance = texture(map, vec3(pos.xy + vec2(float(x), float(y)) * texel_size, 0.0)).r;
+            float shadow_distance = texel_fetch_2darray(map, vec3(pos.xy, 0.0), ivec2(x, y)).r;
             if (pos.z - bias > shadow_distance)
                 total += 1.0;
         }
@@ -54,13 +56,11 @@ float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
 {
     const int pcf_count = 2;
     const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
-    float texel_size = 1.0 / float(textureSize(map, 0).x);
-    float shadow_distance = 0;
     float total = 0.0;
 
     for (int x = -pcf_count; x < pcf_count; x++)
         for (int y = -pcf_count; y < pcf_count; y++) {
-            float shadow_distance = texture(map, pos.xy + vec2(float(x), float(y)) * texel_size).r;
+            float shadow_distance = texel_fetch_2d(map, pos.xy, ivec2(x, y)).r;
             if (pos.z - bias > shadow_distance)
                 total += 1.0;
         }
@@ -75,8 +75,7 @@ float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in float bias)
     float total = 0.0;
 
     for (int i = 0; i < 4; i++)
-        shadow_distance += texelFetch(map,
-                                      ivec3(pos.xy * textureSize(map).x, 0), i).r;
+        shadow_distance += texel_fetch_2dmsarray(map, vec3(pos.xy, 0.0)).r;
 
     shadow_distance /= 4;
     if (pos.z - bias > shadow_distance)
@@ -116,7 +115,10 @@ void main()
 #ifdef CONFIG_GLES
         shadow_factor = shadow_factor_pcf(shadow_map, shadow_pos, bias);
 #else
-        shadow_factor = shadow_factor_msaa(shadow_map, shadow_pos, bias);
+        if (use_msaa)
+            shadow_factor = shadow_factor_msaa(shadow_map_ms, shadow_pos, bias);
+        else
+            shadow_factor = shadow_factor_pcf(shadow_map, shadow_pos, bias);
 #endif /* CONFIG_GLES */
     }
 

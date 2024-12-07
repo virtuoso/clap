@@ -9,14 +9,21 @@
 
 #define LIGHTS_MAX 4
 
+enum shadow_type {
+    SHADOW_PCF,
+    SHADOW_MSAA,
+    SHADOW_MAX,
+};
+
 struct light {
     GLfloat pos[3 * LIGHTS_MAX];
     GLfloat color[3 * LIGHTS_MAX];
     GLfloat attenuation[3 * LIGHTS_MAX];
     GLfloat dir[3 * LIGHTS_MAX];
     struct view view[LIGHTS_MAX];
-    texture_t *shadow[LIGHTS_MAX];
+    texture_t *shadow[SHADOW_MAX][LIGHTS_MAX];
     bool shadow_outline;
+    bool shadow_msaa;
 };
 
 void light_set_pos(struct light *light, int idx, float pos[3]);

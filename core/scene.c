@@ -344,6 +344,8 @@ int scene_init(struct scene *scene)
         light_set_attenuation(&scene->light, i, attenuation);
     }
 
+    scene->light.shadow_msaa = false;
+
     subscribe(MT_INPUT, scene_handle_input, scene);
     subscribe(MT_COMMAND, scene_handle_command, scene);
 
