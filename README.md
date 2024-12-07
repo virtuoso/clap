@@ -4,6 +4,10 @@
 ![macos-build](https://github.com/virtuoso/clap/actions/workflows/macos-build.yml/badge.svg?branch=main)
 ![windows-build](https://github.com/virtuoso/clap/actions/workflows/windows-build.yml/badge.svg?branch=main)
 
+## Live demos
+[Live demo: main](http://ash.works/clap/main/clap/)
+[Live demo: testing](http://ash.works/clap/main/claptest/)
+
 ## Source code and submodules
 
 Checkout repository and modules
