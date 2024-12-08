@@ -85,16 +85,27 @@ bool texture_is_array(texture_t *tex)
            tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
 }
 
+bool texture_is_multisampled(texture_t *tex)
+{
+    return tex->multisampled;
+}
+
 int _texture_init(texture_t *tex, const texture_init_options *opts)
 {
+    bool multisampled   = opts->multisampled;
+#ifdef CONFIG_GLES
+    multisampled  = false;
+#endif /* CONFIG_GLES */
+
     ref_embed(texture, tex);
     tex->component_type = GL_UNSIGNED_BYTE;
     tex->wrap           = gl_texture_wrap(opts->wrap);
     tex->min_filter     = gl_texture_filter(opts->min_filter);
     tex->mag_filter     = gl_texture_filter(opts->mag_filter);
     tex->target         = GL_TEXTURE0 + opts->target;
-    tex->type           = gl_texture_type(opts->type, opts->multisampled);
+    tex->type           = gl_texture_type(opts->type, multisampled);
     tex->layers         = opts->layers;
+    tex->multisampled   = multisampled;
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     GL(glActiveTexture(tex->target));
     GL(glGenTextures(1, &tex->id));

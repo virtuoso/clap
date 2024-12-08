@@ -51,6 +51,7 @@ TYPE(texture,
     GLint           target;
     GLsizei         layers;
     bool            loaded;
+    bool            multisampled;
     unsigned int    width;
     unsigned int    height;
 );
@@ -108,6 +109,7 @@ void texture_bind(texture_t *tex, unsigned int target);
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight);
 bool texture_loaded(texture_t *tex);
 bool texture_is_array(texture_t *tex);
+bool texture_is_multisampled(texture_t *tex);
 texture_t *texture_clone(texture_t *tex);
 
 /* Special constants for nr_attachments */
