@@ -243,7 +243,7 @@ static int ui_model_init(struct ui *ui)
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
     /* XXX: maybe a "textured_model" as another interim object */
-    ui_quadtx = model3dtx_new(ref_pass(ui_quad), "transparent.png");
+    ui_quadtx = model3dtx_new_texture(ref_pass(ui_quad), &transparent_pixel);
     if (!ui_quadtx)
         return -EINVAL;
 
@@ -906,7 +906,7 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     model = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     model3d_set_name(model, "ui_menu");
     // /* XXX^1: texture model(s) hardcoded */
-    txm = model3dtx_new(ref_pass(model), "green.png");
+    txm = model3dtx_new_texture(ref_pass(model), &white_pixel);
     ui_add_model(ui, txm);
 
     for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
@@ -1076,14 +1076,14 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
         bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(bar_m, "inventory bar on immature apple");
         bar_m->alpha_blend = false;
-        bar_txm = model3dtx_new(ref_pass(bar_m), "green.png");
+        bar_txm = model3dtx_new_texture(ref_pass(bar_m), &white_pixel);
         ui_add_model(ui, bar_txm);
     }
     frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0.01, 1, 1, 0.02);
     model3d_set_name(frame_m, "inventory item frame");
     frame_m->cull_face = false;
     frame_m->alpha_blend = false;
-    frame_txm = model3dtx_new(ref_pass(frame_m), "green.png");
+    frame_txm = model3dtx_new_texture(ref_pass(frame_m), &white_pixel);
     ui_add_model(ui, frame_txm);
 
     width = 200;
@@ -1491,11 +1491,11 @@ struct ui_element *ui_progress_new(struct ui *ui)
     health_bar_width = width;
     
     frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0, total_width, total_height, 1);
-    frame_txm = model3dtx_new(ref_pass(frame_m), "green.png");
+    frame_txm = model3dtx_new_texture(ref_pass(frame_m), &white_pixel);
     ui_add_model(ui, frame_txm);
     
     bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
-    bar_txm = model3dtx_new(ref_pass(bar_m), "green.png");
+    bar_txm = model3dtx_new_texture(ref_pass(bar_m), &white_pixel);
     ui_add_model(ui, bar_txm);
     CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, height / 2, total_width, total_height));
     CHECK(bar = ui_element_new(ui, uie, bar_txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));
