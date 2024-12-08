@@ -309,6 +309,19 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
     shader_set_texture(p, var);
 }
 
+void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
+                                      enum shader_vars tex_var, enum shader_vars ms_var,
+                                      texture_t *ms_tex)
+{
+    if (multisample) {
+        shader_plug_texture(p, ms_var, ms_tex);
+        shader_plug_texture(p, tex_var, &white_pixel);
+    } else {
+        shader_plug_texture(p, ms_var, &white_pixel);
+        shader_plug_texture(p, tex_var, ms_tex);
+    }
+}
+
 struct shader_prog *
 shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, const char *fsh)
 {

@@ -85,6 +85,9 @@ void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var);
 int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var);
 void shader_set_texture(struct shader_prog *p, enum shader_vars var);
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex);
+void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
+                                      enum shader_vars tex_var, enum shader_vars ms_var,
+                                      texture_t *ms_tex);
 struct shader_prog *shader_prog_find(struct list *shaders, const char *name);
 void shaders_free(struct list *shaders);
 int lib_request_shaders(const char *name, struct list *shaders);
