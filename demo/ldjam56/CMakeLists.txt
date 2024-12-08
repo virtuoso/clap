@@ -63,7 +63,7 @@ FOREACH(s ${SHADERS})
         LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${s}.${stage}")
         add_custom_command(
             OUTPUT "${SPIRV_DIR}/${s}.${stage}.spv"
-            DEPENDS make-shader-ir-dir "${SHADER_SOURCE_DIR}/${s}.${stage}"
+            DEPENDS make-shader-ir-dir "${SHADER_SOURCE_DIR}/${s}.${stage}" "${SHADER_SOURCE_DIR}/texel_fetch.inc"
             COMMAND "${GLSLC}"
             ARGS -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -o ${SPIRV_DIR}/${s}.${stage}.spv -c ${SHADER_SOURCE_DIR}/${s}.${stage}
         )
