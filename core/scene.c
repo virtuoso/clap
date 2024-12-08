@@ -120,6 +120,9 @@ int scene_camera_add(struct scene *s)
         return -1;
 
     s->camera = &s->cameras[s->nr_cameras];
+    s->camera->view.near_plane  = 0.1;
+    s->camera->view.far_plane   = 1000.0;
+    s->camera->view.fov         = to_radians(70);
     s->camera->ch = character_new(txm, s);
     entity = character_entity(s->camera->ch);
     s->control   = s->camera->ch;
@@ -305,10 +308,16 @@ static bool scene_ui;
 
 void scene_update(struct scene *scene)
 {
+    struct camera *cam = &scene->camera[0];
 #ifndef CONFIG_FINAL
     if (igBegin("scene parameters", &scene_ui, ImGuiWindowFlags_AlwaysAutoResize)) {
-        igSliderFloat("near plane", &scene->near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("far plane", &scene->far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("near plane", &cam->view.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("far plane", &cam->view.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+
+        float fov = to_degrees(cam->view.fov);
+        igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        cam->view.fov = to_radians(fov);
+
         igCheckbox("shadow outline", &scene->light.shadow_outline);
         igCheckbox("shadow msaa", &scene->light.shadow_msaa);
         scene->proj_update++;
@@ -319,7 +328,9 @@ void scene_update(struct scene *scene)
 #endif /* CONFIG_FINAL */
 
     if (scene->proj_update) {
-        mat4x4_perspective(scene->proj_mx->m, scene->fov, scene->aspect, scene->near_plane, scene->far_plane);
+        cam->view.aspect = (float)scene->width / (float)scene->height;
+        mat4x4_perspective(scene->proj_mx->m, cam->view.fov, cam->view.aspect,
+                           cam->view.near_plane, cam->view.far_plane);
         scene->proj_update = 0;
     }
 
@@ -331,8 +342,6 @@ int scene_init(struct scene *scene)
     memset(scene, 0, sizeof(*scene));
     scene->proj_mx      = mx_new();
     scene->auto_yoffset = 4.0;
-    scene->near_plane   = 0.1;
-    scene->far_plane    = 1000.0;
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);
     list_init(&scene->instor);

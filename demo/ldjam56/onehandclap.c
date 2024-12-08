@@ -268,7 +268,6 @@ void resize_cb(void *data, int width, int height)
     if (main_pl)
         pipeline_resize(main_pl);
     touch_set_size(width, height);
-    scene->aspect = (float)width / (float)height;
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);
     scene->proj_update++;
@@ -475,7 +474,6 @@ int main(int argc, char **argv, char **envp)
     if (err)
         goto exit_ui;
 
-    scene.fov = to_radians(70);
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = -70.0;

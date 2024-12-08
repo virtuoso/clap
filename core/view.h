@@ -11,6 +11,10 @@ struct view {
     struct matrix4f     *proj_mx;
     vec4                frustum_planes[6];
     vec4                frustum_corners[8];
+    float               near_plane;
+    float               far_plane;
+    float               fov;
+    float               aspect;
 };
 
 struct entity3d;

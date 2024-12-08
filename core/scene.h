@@ -44,16 +44,12 @@ struct scene {
     float               lin_speed;
     float               ang_speed;
     float               limbo_height;
-    float               aspect;
     float               auto_yoffset;
     int                 nr_lights;
     int                 nr_cameras;
     int                 autopilot;
     int                 fullscreen;
     int                 proj_update;
-    float               near_plane;
-    float               far_plane;
-    float               fov;
     bool                initialized;
     bool                ui_is_on;
     bool                debug_draws_enabled;

@@ -80,8 +80,8 @@ static void camera_calc_rays(struct camera *c, struct scene *s, vec3 start, floa
     mat4x4 m;
     mat4x4 m_inverse;
     GLfloat c_position[3];
-    float w = s->near_plane;
-    float h = s->near_plane / s->aspect;
+    float w = c->view.near_plane;
+    float h = c->view.near_plane / c->view.aspect;
     vec4 r = { 0.0, 0.0, 0.0, 1.0 };
 
     mat4x4_identity(m);
