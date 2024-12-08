@@ -16,14 +16,26 @@ vec4 texel_fetch_2darray(in sampler2DArray map, in vec3 pos, in ivec2 tex_off)
 
 #ifndef CONFIG_GLES
 
-vec4 texel_fetch_2dms(in sampler2DMS map, in vec2 pos)
+vec4 texel_fetch_2dms_sample(in sampler2DMS map, in vec2 pos, in int idx)
 {
     float texel_size_x = textureSize(map).x;
     float texel_size_y = textureSize(map).y;
+    return texelFetch(map, ivec2(pos.x * texel_size_x, pos.y * texel_size_y), idx);
+}
+
+vec4 texel_fetch_2dms_array_sample(in sampler2DMSArray map, in vec3 pos, in int idx)
+{
+    float texel_size_x = textureSize(map).x;
+    float texel_size_y = textureSize(map).y;
+    return texelFetch(map, ivec3(pos.x * texel_size_x, pos.y * texel_size_y, pos.z), idx);
+}
+
+vec4 texel_fetch_2dms(in sampler2DMS map, in vec2 pos)
+{
     vec4 pixel = vec4(0.0);
 
     for (int i = 0; i < 4; i++)
-        pixel += texelFetch(map, ivec2(pos.x * texel_size_x, pos.y * texel_size_y), i);
+        pixel += texel_fetch_2dms_sample(map, pos, i);
     pixel /= 4;
 
     return pixel;
@@ -31,12 +43,10 @@ vec4 texel_fetch_2dms(in sampler2DMS map, in vec2 pos)
 
 vec4 texel_fetch_2dmsarray(in sampler2DMSArray map, in vec3 pos)
 {
-    float texel_size_x = textureSize(map).x;
-    float texel_size_y = textureSize(map).y;
     vec4 pixel = vec4(0.0);
 
     for (int i = 0; i < 4; i++)
-        pixel += texelFetch(map, ivec3(pos.x * texel_size_x, pos.y * texel_size_y, pos.z), i);
+        pixel += texel_fetch_2dms_array_sample(map, pos, i);
     pixel /= 4;
 
     return pixel;
