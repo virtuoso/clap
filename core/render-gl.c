@@ -275,6 +275,33 @@ bool texture_loaded(struct texture *tex)
     return tex->loaded;
 }
 
+void texture_pixel_init(texture_t *tex, float color[4])
+{
+    texture_init(tex);
+    texture_load(tex, TEX_FMT_RGBA, 1, 1, color);
+}
+
+texture_t white_pixel;
+texture_t black_pixel;
+texture_t transparent_pixel;
+
+void textures_init(void)
+{
+    float white[] = { 1, 1, 1, 1 };
+    texture_pixel_init(&white_pixel, white);
+    float black[] = { 0, 0, 0, 1 };
+    texture_pixel_init(&black_pixel, black);
+    float transparent[] = { 0, 0, 0, 0 };
+    texture_pixel_init(&transparent_pixel, transparent);
+}
+
+void textures_done(void)
+{
+    texture_done(&white_pixel);
+    texture_done(&black_pixel);
+    texture_done(&transparent_pixel);
+}
+
 /****************************************************************************
  * Framebuffer
  ****************************************************************************/

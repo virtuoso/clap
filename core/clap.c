@@ -156,9 +156,11 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
         sound_init();
     if (ctx->cfg.phys)
         phys_init();
-    if (ctx->cfg.graphics)
+    if (ctx->cfg.graphics) {
         gl_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
                 ctx->cfg.frame_cb, ctx->cfg.callback_data, ctx->cfg.resize_cb);
+        textures_init();
+    }
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
     if (ctx->cfg.graphics && ctx->cfg.input)
@@ -174,8 +176,10 @@ void clap_done(struct clap_context *ctx, int status)
         sound_done();
     if (ctx->cfg.phys)
         phys_done();
-    if (ctx->cfg.graphics)
+    if (ctx->cfg.graphics) {
+        textures_done();
         gl_done();
+    }
     if (ctx->cfg.font)
         font_done();
     messagebus_done();

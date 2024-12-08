@@ -111,6 +111,13 @@ bool texture_loaded(texture_t *tex);
 bool texture_is_array(texture_t *tex);
 bool texture_is_multisampled(texture_t *tex);
 texture_t *texture_clone(texture_t *tex);
+void texture_pixel_init(texture_t *tex, float color[4]);
+void textures_init(void);
+void textures_done(void);
+extern texture_t white_pixel;
+extern texture_t black_pixel;
+extern texture_t transparent_pixel;
+
 
 /* Special constants for nr_attachments */
 #define FBO_DEPTH_TEXTURE (-1)
