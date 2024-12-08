@@ -22,4 +22,9 @@ static inline float to_radians(float degrees)
     return degrees * M_PI / 180.0;
 }
 
+static inline float to_degrees(float radians)
+{
+    return radians / M_PI * 180.0;
+}
+
 #endif /* __CLAP_MATRIX_H__ */
