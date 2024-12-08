@@ -89,11 +89,7 @@ static void build_main_pl(struct pipeline **pl)
                                                         .multisampled    = scene.light.shadow_msaa,
                                                         .nr_attachments  = FBO_DEPTH_TEXTURE,
                                                         .shader_override = "shadow");
-    float pixel[] = { 1, 1, 1, 1 };
-    texture_init(&tex, .type = TEX_2D_ARRAY, .layers = 3);
-    texture_load(&tex, TEX_FMT_RGBA, 1, 1, &pixel);
-    scene.light.shadow[scene.light.shadow_msaa][0] = pipeline_pass_get_texture(shadow_pass, 0);
-    scene.light.shadow[!scene.light.shadow_msaa][0] = &tex;
+    scene.light.shadow[0] = pipeline_pass_get_texture(shadow_pass, 0);
 
     struct render_pass *model_pass = pipeline_add_pass(*pl,
                                                        .multisampled   = true,
@@ -211,7 +207,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     if (prev_msaa != s->light.shadow_msaa) {
         prev_msaa = s->light.shadow_msaa;
-        texture_done(&tex);
         pipeline_put(main_pl);
         build_main_pl(&main_pl);
     }

@@ -8,12 +8,7 @@
 #include "view.h"
 
 #define LIGHTS_MAX 4
-
-enum shadow_type {
-    SHADOW_PCF,
-    SHADOW_MSAA,
-    SHADOW_MAX,
-};
+#define CASCADES_MAX 3
 
 struct light {
     GLfloat pos[3 * LIGHTS_MAX];
@@ -21,7 +16,7 @@ struct light {
     GLfloat attenuation[3 * LIGHTS_MAX];
     GLfloat dir[3 * LIGHTS_MAX];
     struct view view[LIGHTS_MAX];
-    texture_t *shadow[SHADOW_MAX][LIGHTS_MAX];
+    texture_t *shadow[LIGHTS_MAX];
     bool shadow_outline;
     bool shadow_msaa;
 };

@@ -705,9 +705,20 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIR, LIGHTS_MAX, light->dir);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, light->shadow_outline);
                 if (light->shadow[0]) {
-                    shader_set_var_int(prog, UNIFORM_USE_MSAA, light->shadow_msaa);
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[SHADOW_PCF][0]);
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP_MS, light->shadow[SHADOW_MSAA][0]);
+#ifndef CONFIG_GLES
+                    if (shader_has_var(prog, UNIFORM_SHADOW_MAP_MS)) {
+                        shader_set_var_int(prog, UNIFORM_USE_MSAA, light->shadow_msaa);
+                        shader_plug_textures_multisample(prog, light->shadow_msaa,
+                                                         UNIFORM_SHADOW_MAP, UNIFORM_SHADOW_MAP_MS,
+                                                         light->shadow[0]);
+                    } else {
+                        shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
+                    }
+#else
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[0]);
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP1, &white_pixel);
+                    shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
+#endif /* CONFIG_GLES */
                 }
             }
 
