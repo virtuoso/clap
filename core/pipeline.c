@@ -577,7 +577,7 @@ void pipeline_debug(struct pipeline *pl)
         igEnd();
     }
 
-    if (pass_tex && !texture_is_array(pass_tex)) {
+    if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
         if (igBegin("Depth map", &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize)) {
             igPushItemWidth(512);
             double aspect = (double)height / width;
