@@ -658,7 +658,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
         view = &camera->view;
     else if (light) {
         view = &light->view[0];
-        proj_mx = light->view[0].proj_mx;
+        proj_mx = &light->view[0].proj_mx;
     }
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
@@ -736,7 +736,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 mat4x4_identity(off);
                 mat4x4_translate(bias, 0.5, 0.5, 0.5);
                 mat4x4_scale_aniso(off, bias, 0.5, 0.5, 0.5);
-                mat4x4_mul(mvp, light->view[0].proj_mx->m, light->view[0].view_mx.m);
+                mat4x4_mul(mvp, light->view[0].proj_mx.m, light->view[0].view_mx.m);
                 mat4x4_mul(mvp, off, mvp);
                 shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, 1, mvp);
             }

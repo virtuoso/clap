@@ -7,8 +7,7 @@
 struct view {
     struct matrix4f     view_mx;
     struct matrix4f     inv_view_mx;
-    struct matrix4f     _proj_mx;
-    struct matrix4f     *proj_mx;
+    struct matrix4f     proj_mx;
     vec4                frustum_planes[6];
     vec4                frustum_corners[8];
     float               near_plane;
@@ -18,6 +17,7 @@ struct view {
 };
 
 struct entity3d;
+void view_update_perspective_projection(struct view *view, int width, int height);
 void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll);
 void view_update_from_target(struct view *view, vec3 eye, vec3 target);
 void view_update_from_frustum(struct view *view, vec3 dir, struct view *src);

@@ -32,7 +32,6 @@ struct scene {
     struct entity3d     *focus;
     struct character    *control;
     struct list         shaders;
-    struct matrix4f     *proj_mx;
     struct terrain      *terrain;
     struct camera       *camera;
     struct camera       cameras[NR_CAMERAS_MAX];

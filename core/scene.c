@@ -132,8 +132,6 @@ int scene_camera_add(struct scene *s)
 
     mx_set_identity(&s->camera->view.view_mx);
     mx_set_identity(&s->camera->view.inv_view_mx);
-    s->camera->view.proj_mx      = s->proj_mx;
-
 
     s->camera->ch->pos[0] = 0.0;
     s->camera->ch->pos[1] = 3.0;
@@ -328,9 +326,7 @@ void scene_update(struct scene *scene)
 #endif /* CONFIG_FINAL */
 
     if (scene->proj_update) {
-        cam->view.aspect = (float)scene->width / (float)scene->height;
-        mat4x4_perspective(scene->proj_mx->m, cam->view.fov, cam->view.aspect,
-                           cam->view.near_plane, cam->view.far_plane);
+        view_update_perspective_projection(&cam->view, scene->width, scene->height);
         scene->proj_update = 0;
     }
 
@@ -340,7 +336,6 @@ void scene_update(struct scene *scene)
 int scene_init(struct scene *scene)
 {
     memset(scene, 0, sizeof(*scene));
-    scene->proj_mx      = mx_new();
     scene->auto_yoffset = 4.0;
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);

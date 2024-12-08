@@ -50,8 +50,7 @@ static void view_projection_update(struct view *view, struct view *src)
         }
     }
 
-    view->proj_mx = &view->_proj_mx;
-    mat4x4_ortho(view->proj_mx->m, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
+    mat4x4_ortho(view->proj_mx.m, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
                  aabb_min[2] * near_factor, aabb_max[2] * far_factor);
     view_calc_frustum(view);
 }
@@ -65,6 +64,13 @@ void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw
     mat4x4_translate_in_place(view->view_mx.m, -eye[0], -eye[1], -eye[2]);
 
     mat4x4_invert(view->inv_view_mx.m, view->view_mx.m);
+}
+
+void view_update_perspective_projection(struct view *view, int width, int height)
+{
+    view->aspect = (float)width / (float)height;
+    mat4x4_perspective(view->proj_mx.m, view->fov, view->aspect,
+                       view->near_plane, view->far_plane);
 }
 
 void view_update_from_target(struct view *view, vec3 eye, vec3 target)
@@ -97,7 +103,7 @@ void view_calc_frustum(struct view *view)
     };
     int i = 0;
 
-    mat4x4_mul(mvp, view->proj_mx->m, view->view_mx.m);
+    mat4x4_mul(mvp, view->proj_mx.m, view->view_mx.m);
     mat4x4_transpose(trans, mvp);
     mat4x4_invert(invmvp, mvp);
 
