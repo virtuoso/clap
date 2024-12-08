@@ -291,6 +291,7 @@ static int fbo_create(void)
 static void fbo_texture_init(fbo_t *fbo)
 {
     texture_init(&fbo->tex,
+                 .multisampled  = fbo->multisampled,
                  .wrap          = TEX_CLAMP_TO_EDGE,
                  .min_filter    = TEX_FLT_LINEAR,
                  .mag_filter    = TEX_FLT_LINEAR);
