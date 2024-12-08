@@ -5,6 +5,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <errno.h>
+#include "shader_constants.h"
 #include "librarian.h"
 #include "common.h"
 #include "render.h"
@@ -400,7 +401,7 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     /* incoming ivec4 joints and vec4 weights */
     for (v = 0; v < m->nr_vertices * 4; v++) {
         jmax = max(jmax, joints[v]);
-        if (jmax >= 100)
+        if (jmax >= JOINTS_MAX)
             return -1;
     }
 

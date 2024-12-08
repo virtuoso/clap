@@ -1,5 +1,7 @@
 #version 460 core
 
+#include "shader_constants.h"
+
 layout (location=0) in vec3 position;
 layout (location=1) in vec2 tex;
 layout (location=2) in vec3 normal;
@@ -15,13 +17,13 @@ uniform mat4 trans;
 uniform int use_normals;
 uniform int use_skinning;
 uniform mat4 shadow_mvp;
-uniform mat4 joint_transforms[100];
+uniform mat4 joint_transforms[JOINTS_MAX];
 
 layout (location=0) flat out int do_use_normals;
 layout (location=1) out vec2 pass_tex;
 layout (location=2) out vec3 surface_normal;
 layout (location=3) out vec3 orig_normal;
-layout (location=4) out vec3 to_light_vector[4];
+layout (location=4) out vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) out vec3 to_camera_vector;
 layout (location=9) out vec4 shadow_pos;
 
@@ -67,14 +69,14 @@ void main()
             T.z, B.z, N.z
         );
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < LIGHTS_MAX; i++) {
             to_light_vector[i] = to_tangent_space * (light_pos[i] - world_pos.xyz);
         }
         to_camera_vector = to_tangent_space * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
         surface_normal = our_normal.xyz;
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < LIGHTS_MAX; i++) {
             to_light_vector[i] = light_pos[i] - world_pos.xyz;
         }
         to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;

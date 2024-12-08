@@ -8,7 +8,6 @@
 #include "view.h"
 
 #define LIGHTS_MAX 4
-#define CASCADES_MAX 3
 
 struct light {
     GLfloat pos[3 * LIGHTS_MAX];

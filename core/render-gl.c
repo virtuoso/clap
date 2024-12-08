@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "shader_constants.h"
 #include "display.h"
 #include "logger.h"
 #include "object.h"
@@ -331,7 +332,7 @@ static void fbo_depth_texture_init(fbo_t *fbo)
     texture_init(&fbo->tex,
 #ifndef CONFIG_GLES
                  .type          = TEX_2D_ARRAY,
-                 .layers        = 3,
+                 .layers        = CASCADES_MAX,
  #endif /* CONFIG_GLES */
                  .multisampled  = fbo->multisampled,
                  .wrap          = TEX_WRAP_REPEAT,

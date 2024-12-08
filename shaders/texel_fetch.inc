@@ -34,9 +34,9 @@ vec4 texel_fetch_2dms(in sampler2DMS map, in vec2 pos)
 {
     vec4 pixel = vec4(0.0);
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < MSAA_SAMPLES; i++)
         pixel += texel_fetch_2dms_sample(map, pos, i);
-    pixel /= 4;
+    pixel /= MSAA_SAMPLES;
 
     return pixel;
 }
@@ -45,9 +45,9 @@ vec4 texel_fetch_2dmsarray(in sampler2DMSArray map, in vec3 pos)
 {
     vec4 pixel = vec4(0.0);
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < MSAA_SAMPLES; i++)
         pixel += texel_fetch_2dms_array_sample(map, pos, i);
-    pixel /= 4;
+    pixel /= MSAA_SAMPLES;
 
     return pixel;
 }

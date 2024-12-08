@@ -1,13 +1,14 @@
 #version 460 core
 
 #include "config.h"
+#include "shader_constants.h"
 #include "texel_fetch.inc"
 
 layout (location=0) flat in int do_use_normals;
 layout (location=1) in vec2 pass_tex;
 layout (location=2) in vec3 surface_normal;
 layout (location=3) in vec3 orig_normal;
-layout (location=4) in vec3 to_light_vector[4];
+layout (location=4) in vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) in vec3 to_camera_vector;
 layout (location=9) in vec4 shadow_pos;
 
@@ -71,17 +72,15 @@ float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
 #ifndef CONFIG_GLES
 float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in float bias)
 {
-    float shadow_distance = 0;
     float total = 0.0;
 
-    for (int i = 0; i < 4; i++)
-        shadow_distance += texel_fetch_2dmsarray(map, vec3(pos.xy, 0.0)).r;
+    for (int i = 0; i < MSAA_SAMPLES; i++) {
+        float shadow_distance = texel_fetch_2dms_array_sample(map, vec3(pos.xy, 0.0), i).r;
 
-    shadow_distance /= 4;
-    if (pos.z - bias > shadow_distance)
-        total += 1.0;
-
-    total /= 4;
+        if (pos.z - bias > shadow_distance)
+            total += 1.0;
+    }
+    total /= MSAA_SAMPLES;
 
     return 1.0 - total * pos.w;
 }
@@ -125,7 +124,7 @@ void main()
     vec3 total_diffuse = vec3(0.0);
     vec3 total_specular = vec3(0.0);
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < LIGHTS_MAX; i++) {
         float distance = length(to_light_vector[i]);
         float att_fac = attenuation[i].x + (attenuation[i].y * distance) + (attenuation[i].z * distance * distance);
         vec3 unit_to_light_vector = normalize(to_light_vector[i]);
