@@ -213,13 +213,11 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
     const struct shader_var_desc *desc = &shader_var_desc[var];
     switch (desc->type) {
         case ST_FLOAT: {
-            float _value = *(float *)value;
-            GL(glUniform1f(p->vars[var], _value));
+            GL(glUniform1fv(p->vars[var], count, value));
             break;
         }
         case ST_INT: {
-            int _value = *(int *)value;
-            GL(glUniform1i(p->vars[var], _value));
+            GL(glUniform1iv(p->vars[var], count, value));
             break;
         }
         case ST_VEC3: {
