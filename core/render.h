@@ -54,6 +54,7 @@ TYPE(texture,
     bool            multisampled;
     unsigned int    width;
     unsigned int    height;
+    float           border[4];
 );
 
 static inline bool __gl_check_error(const char *str)
@@ -93,6 +94,7 @@ typedef struct texture_init_options {
     enum texture_filter mag_filter;
     unsigned int        layers;
     bool                multisampled;
+    float               *border;
 } texture_init_options;
 
 int _texture_init(texture_t *tex, const texture_init_options *opts);

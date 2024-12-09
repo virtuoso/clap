@@ -107,6 +107,8 @@ int _texture_init(texture_t *tex, const texture_init_options *opts)
     tex->type           = gl_texture_type(opts->type, multisampled);
     tex->layers         = opts->layers;
     tex->multisampled   = multisampled;
+    if (opts->border)
+        memcpy(tex->border, opts->border, sizeof(tex->border));
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     GL(glActiveTexture(tex->target));
     GL(glGenTextures(1, &tex->id));
@@ -194,6 +196,10 @@ static void texture_setup_begin(texture_t *tex, void *buf)
             GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_R, tex->wrap));
         GL(glTexParameteri(tex->type, GL_TEXTURE_MIN_FILTER, tex->min_filter));
         GL(glTexParameteri(tex->type, GL_TEXTURE_MAG_FILTER, tex->mag_filter));
+#ifndef CONFIG_GLES
+        if (tex->wrap == GL_CLAMP_TO_BORDER)
+            GL(glTexParameterfv(tex->type, GL_TEXTURE_BORDER_COLOR, tex->border));
+#endif /* CONFIG_GLES */
     }
     texture_storage(tex, buf);
 }
