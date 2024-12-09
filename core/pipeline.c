@@ -439,7 +439,7 @@ repeat:
                 fbo_done(fbo, s->width, s->height);
             } else {
                 fbo_prepare(fbo);
-                bool shadow = !fbo_nr_attachments(fbo);
+                bool shadow = fbo_attachment(fbo) == FBO_ATTACHMENT_DEPTH;
                 GLbitfield flags = GL_COLOR_BUFFER_BIT;
                 if (shadow) {
                     GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));
