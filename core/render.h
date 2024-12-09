@@ -150,5 +150,6 @@ texture_t *fbo_texture(fbo_t *fbo);
 int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
 int fbo_nr_attachments(fbo_t *fbo);
+enum fbo_attachment fbo_attachment(fbo_t *fbo);
 
 #endif /* __CLAP_RENDER_H__ */

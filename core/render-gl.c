@@ -374,6 +374,27 @@ int fbo_nr_attachments(fbo_t *fbo)
     return darray_count(fbo->color_buf);
 }
 
+enum fbo_attachment fbo_attachment(fbo_t *fbo)
+{
+    if (fbo_nr_attachments(fbo))
+        return FBO_ATTACHMENT_COLOR0;
+
+    switch (fbo->attachment) {
+        case GL_DEPTH_ATTACHMENT:
+            return FBO_ATTACHMENT_DEPTH;
+        case GL_COLOR_ATTACHMENT0:
+            return FBO_ATTACHMENT_COLOR0;
+        case GL_STENCIL_ATTACHMENT:
+            return FBO_ATTACHMENT_STENCIL;
+        default:
+            break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
 static void __fbo_color_buffer_setup(fbo_t *fbo)
 {
     if (fbo->multisampled)
