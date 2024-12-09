@@ -22,14 +22,14 @@ uniform sampler2D shadow_map1;
 uniform sampler2DArray shadow_map;
 uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
-uniform vec3 light_color[4];
-uniform vec3 attenuation[4];
+uniform vec3 light_color[LIGHTS_MAX];
+uniform vec3 attenuation[LIGHTS_MAX];
 uniform float shine_damper;
 uniform float reflectivity;
 uniform bool albedo_texture;
 uniform int entity_hash;
 uniform vec4 highlight_color;
-uniform vec3 light_dir[4];
+uniform vec3 light_dir[LIGHTS_MAX];
 uniform bool shadow_outline;
 uniform bool use_msaa;
 

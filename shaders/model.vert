@@ -9,7 +9,7 @@ layout (location=3) in vec4 tangent;
 layout (location=4) in vec4 joints;
 layout (location=5) in vec4 weights;
 
-uniform vec3 light_pos[4];
+uniform vec3 light_pos[LIGHTS_MAX];
 uniform mat4 proj;
 uniform mat4 view;
 uniform mat4 inverse_view;
