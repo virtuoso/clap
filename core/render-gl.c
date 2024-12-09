@@ -335,13 +335,15 @@ static void fbo_texture_init(fbo_t *fbo)
 
 static void fbo_depth_texture_init(fbo_t *fbo)
 {
+    float border[] = { 1, 1, 1, 1 };
     texture_init(&fbo->tex,
 #ifndef CONFIG_GLES
                  .type          = TEX_2D_ARRAY,
                  .layers        = CASCADES_MAX,
  #endif /* CONFIG_GLES */
                  .multisampled  = fbo->multisampled,
-                 .wrap          = TEX_WRAP_REPEAT,
+                 .wrap          = TEX_CLAMP_TO_BORDER,
+                 .border        = border,
                  .min_filter    = TEX_FLT_NEAREST,
                  .mag_filter    = TEX_FLT_NEAREST);
     texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
