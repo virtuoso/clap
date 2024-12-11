@@ -7,6 +7,34 @@ static float near_factor = 0.0, far_factor = 1.0, frustum_extra = 10.0;
 
 static void subview_calc_frustum(struct subview *subview);
 
+static void view_update_perspective_subviews(struct view *view)
+{
+    static const float dividers[CASCADES_MAX - 1] = { 25, 70, 150 };
+    float partition = (view->main.far_plane - view->main.near_plane) / CASCADES_MAX;
+    int max = array_size(view->subview);
+    int i;
+
+    view->subview[0].near_plane = view->main.near_plane;
+    for (i = 0; i < max - 1; i++) {
+        struct subview *sv = &view->subview[i];
+
+        view->divider[i] = dividers[i];
+        sv->far_plane    = view->divider[i];
+        view->subview[i + 1].near_plane = sv->far_plane;
+    }
+    view->divider[i]           = view->main.far_plane;
+    view->subview[i].far_plane = view->main.far_plane;
+
+    for (i = 0; i < max; i++) {
+        struct subview *sv = &view->subview[i];
+
+        mat4x4_dup(sv->view_mx.m, view->main.view_mx.m);
+        mat4x4_dup(sv->inv_view_mx.m, view->main.inv_view_mx.m);
+        mat4x4_perspective(sv->proj_mx.m, view->fov, view->aspect, sv->near_plane, sv->far_plane);
+        subview_calc_frustum(sv);
+    }
+}
+
 static void subview_projection_update(struct subview *dst, struct subview *src)
 {
     vec4 _aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, _aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
@@ -85,6 +113,7 @@ void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw
 {
     /* XXX: do the main subview first and just mat4x4_dup() them into subviews */
     subview_update_from_angles(&view->main, eye, pitch, yaw, roll);
+    view_update_perspective_subviews(view);
 }
 
 void view_update_perspective_projection(struct view *view, int width, int height)
@@ -92,6 +121,7 @@ void view_update_perspective_projection(struct view *view, int width, int height
     view->aspect = (float)width / (float)height;
     mat4x4_perspective(view->main.proj_mx.m, view->fov, view->aspect,
                        view->main.near_plane, view->main.far_plane);
+    view_update_perspective_subviews(view);
 }
 
 static void subview_update_from_target(struct subview *subview, vec3 eye, vec3 target)
