@@ -346,10 +346,11 @@ static void pipeline_debug_begin(struct pipeline *pl)
                 igSliderInt(dbg_name, &pass->rep_total, 1, 20, "%d", ImGuiSliderFlags_AlwaysClamp);
             }
 
-        igBeginTable("pipeline passes", 4, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
+        igBeginTable("pipeline passes", 5, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
         igTableSetupColumn("pass", ImGuiTableColumnFlags_WidthStretch, 0, 0);
         igTableSetupColumn("src", ImGuiTableColumnFlags_WidthFixed, 0, 0);
         igTableSetupColumn("dim", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+        igTableSetupColumn("attachment", ImGuiTableColumnFlags_WidthFixed, 0, 0);
         igTableSetupColumn("count", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     }
 }
@@ -383,6 +384,13 @@ static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *p
     }
     igTableNextColumn();
     igText("%u x %u", fbo_width(fbo), fbo_height(fbo));
+    igTableNextColumn();
+    const char *att[] = {
+        [FBO_ATTACHMENT_COLOR0]  = "color",
+        [FBO_ATTACHMENT_DEPTH]   = "depth",
+        [FBO_ATTACHMENT_STENCIL] = "stencil",
+    };
+    igText("%s", att[fbo_attachment(fbo)]);
 }
 
 static void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count)
