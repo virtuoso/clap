@@ -461,7 +461,7 @@ repeat:
                 if (!src)
                     models_render(&s->mq, pass->prog_override, &s->light,
                                   shadow ? NULL : &s->cameras[0],
-                                  &s->cameras[0].view.proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo), &count);
+                                  &s->cameras[0].view.main.proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo), &count);
                 else
                     models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo_width(fbo), fbo_height(fbo), &count);
 

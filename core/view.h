@@ -2,18 +2,23 @@
 #ifndef __CLAP_VIEW_H__
 #define __CLAP_VIEW_H__
 
+#include "shader_constants.h"
 #include "matrix.h"
 
 struct view {
-    struct matrix4f     view_mx;
-    struct matrix4f     inv_view_mx;
-    struct matrix4f     proj_mx;
-    vec4                frustum_planes[6];
-    vec4                frustum_corners[8];
-    float               near_plane;
-    float               far_plane;
-    float               fov;
-    float               aspect;
+    struct subview {
+        struct matrix4f     view_mx;
+        struct matrix4f     inv_view_mx;
+        struct matrix4f     proj_mx;
+        vec4                frustum_planes[6];
+        vec4                frustum_corners[8];
+        float               near_plane;
+        float               far_plane;
+    } main;
+    struct subview          subview[CASCADES_MAX];
+    float                   divider[CASCADES_MAX];
+    float                   fov;
+    float                   aspect;
 };
 
 struct entity3d;

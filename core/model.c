@@ -652,14 +652,18 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
     struct model3d *model;
     struct model3dtx *txmodel;
     struct view *view = NULL;
+    struct subview *subview = NULL;
     unsigned long nr_txms = 0, nr_ents = 0, culled = 0;
 
     if (camera)
         view = &camera->view;
     else if (light) {
         view = &light->view[0];
-        proj_mx = &light->view[0].proj_mx;
+        proj_mx = &light->view[0].main.proj_mx;
     }
+
+    if (view)
+        subview = &view->main;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
@@ -723,9 +727,9 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 }
             }
 
-            if (view) {
-                shader_set_var_ptr(prog, UNIFORM_VIEW, 1, view->view_mx.cell);
-                shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, view->inv_view_mx.cell);
+            if (subview) {
+                shader_set_var_ptr(prog, UNIFORM_VIEW, 1, subview->view_mx.cell);
+                shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, subview->inv_view_mx.cell);
             }
 
             if (proj_mx)
@@ -736,7 +740,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 mat4x4_identity(off);
                 mat4x4_translate(bias, 0.5, 0.5, 0.5);
                 mat4x4_scale_aniso(off, bias, 0.5, 0.5, 0.5);
-                mat4x4_mul(mvp, light->view[0].proj_mx.m, light->view[0].view_mx.m);
+                mat4x4_mul(mvp, light->view[0].main.proj_mx.m, light->view[0].main.view_mx.m);
                 mat4x4_mul(mvp, off, mvp);
                 shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, 1, mvp);
             }

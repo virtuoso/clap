@@ -120,18 +120,15 @@ int scene_camera_add(struct scene *s)
         return -1;
 
     s->camera = &s->cameras[s->nr_cameras];
-    s->camera->view.near_plane  = 0.1;
-    s->camera->view.far_plane   = 1000.0;
-    s->camera->view.fov         = to_radians(70);
+    s->camera->view.main.near_plane  = 0.1;
+    s->camera->view.main.far_plane   = 500.0;
+    s->camera->view.fov              = to_radians(70);
     s->camera->ch = character_new(txm, s);
     entity = character_entity(s->camera->ch);
     s->control   = s->camera->ch;
     model3dtx_add_entity(txm, entity);
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
-
-    mx_set_identity(&s->camera->view.view_mx);
-    mx_set_identity(&s->camera->view.inv_view_mx);
 
     s->camera->ch->pos[0] = 0.0;
     s->camera->ch->pos[1] = 3.0;
@@ -309,8 +306,8 @@ void scene_update(struct scene *scene)
     struct camera *cam = &scene->camera[0];
 #ifndef CONFIG_FINAL
     if (igBegin("scene parameters", &scene_ui, ImGuiWindowFlags_AlwaysAutoResize)) {
-        igSliderFloat("near plane", &cam->view.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("far plane", &cam->view.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
 
         float fov = to_degrees(cam->view.fov);
         igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
