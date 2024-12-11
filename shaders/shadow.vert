@@ -1,5 +1,7 @@
 #version 460 core
 
+#include "shader_constants.h"
+
 layout (location=0) in vec3 position;
 layout (location=1) in vec2 tex;
 layout (location=2) in vec4 joints;
@@ -9,7 +11,7 @@ uniform mat4 trans;
 uniform mat4 view;
 uniform mat4 proj;
 uniform int use_skinning;
-uniform mat4 joint_transforms[100];
+uniform mat4 joint_transforms[JOINTS_MAX];
 
 void main()
 {
