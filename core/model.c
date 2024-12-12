@@ -645,7 +645,7 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
 
 void models_render(struct mq *mq, struct shader_prog *shader_override, struct light *light,
                    struct camera *camera, struct matrix4f *proj_mx, struct entity3d *focus,
-                   int width, int height, unsigned long *count)
+                   int width, int height, int cascade, unsigned long *count)
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
@@ -662,8 +662,14 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
         proj_mx = &light->view[0].main.proj_mx;
     }
 
-    if (view)
-        subview = &view->main;
+    if (view) {
+        if (cascade >= 0 && cascade < CASCADES_MAX) {
+            subview = &view->subview[cascade];
+            proj_mx = &subview->proj_mx;
+        } else {
+            subview = &view->main;
+        }
+    }
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",

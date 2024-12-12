@@ -203,7 +203,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     PROF_STEP(models, updates);
 
-    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, &count);
+    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
 
     if (prev_msaa != s->light.shadow_msaa) {
         prev_msaa = s->light.shadow_msaa;

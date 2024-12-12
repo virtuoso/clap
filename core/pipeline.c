@@ -461,9 +461,10 @@ repeat:
                 if (!src)
                     models_render(&s->mq, pass->prog_override, &s->light,
                                   shadow ? NULL : &s->cameras[0],
-                                  &s->cameras[0].view.main.proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo), &count);
+                                  &s->cameras[0].view.main.proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo),
+                                  -1, &count);
                 else
-                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo_width(fbo), fbo_height(fbo), &count);
+                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo_width(fbo), fbo_height(fbo), -1, &count);
 
                 fbo_done(fbo, s->width, s->height);
             }
@@ -501,7 +502,7 @@ repeat:
     /* render the last pass to the screen */
     GL(glClearColor(0.2f, 0.2f, 0.6f, 1.0f));
     GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
-    models_render(&pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, NULL);
+    models_render(&pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, -1, NULL);
 }
 
 #ifndef CONFIG_FINAL
