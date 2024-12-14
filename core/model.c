@@ -716,10 +716,14 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIR, LIGHTS_MAX, light->dir);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, light->shadow_outline);
                 if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
-                    mat4x4 mvp;
-                    struct subview *light_sv = &light->view[0].main;
-                    mat4x4_mul(mvp, light_sv->proj_mx.m, light_sv->view_mx.m);
-                    shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, 1, mvp);
+                    mat4x4 mvp[CASCADES_MAX];
+                    int i;
+
+                    for (i = 0; i < CASCADES_MAX; i++) {
+                        struct subview *light_sv = &light->view[0].subview[i];
+                        mat4x4_mul(mvp[i], light_sv->proj_mx.m, light_sv->view_mx.m);
+                    }
+                    shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
                 }
                 if (light->shadow[0]) {
 #ifndef CONFIG_GLES
