@@ -28,6 +28,23 @@ void imgui_done(void);
 void imgui_render_begin(int width, int height);
 void imgui_render(void);
 
+enum debug_modules {
+    DEBUG_PIPELINE_PASSES,
+    DEBUG_PIPELINE_SELECTOR,
+    DEBUG_MODULES_MAX,
+};
+
+typedef struct debug_module {
+    const char  *name;
+    bool        display;    /* display debug UI */
+    bool        unfolded;   /* UI collapsed */
+    bool        open;       /* should UI stay open*/
+} debug_module;
+
+void ui_toggle_debug_selector(void);
+void ui_debug_selector(void);
+debug_module *ui_debug_module(enum debug_modules mod);
+
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(float *v, int n, const char *fmt, ...);
 bool ui_igMat4x4(mat4x4 m, const char *name);

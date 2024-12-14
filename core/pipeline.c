@@ -11,7 +11,6 @@ struct pipeline {
     struct list         passes;
     void                (*resize)(fbo_t *fbo, bool shadow_map, int w, int h);
     const char          *name;
-    bool                ui_open;
 };
 
 struct render_pass {
@@ -348,9 +347,16 @@ err_src:
 static void pipeline_debug_begin(struct pipeline *pl)
 {
     char dbg_name[128];
-    snprintf(dbg_name, sizeof(dbg_name), "Pipeline '%s' rendering", pl->name);
-    pl->ui_open = igBegin(dbg_name, &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize);
-    if (pl->ui_open) {
+
+    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
+
+    if (!dbgm->display)
+        return;
+
+    dbgm->open = true;
+    snprintf(dbg_name, sizeof(dbg_name), "%s '%s'", dbgm->name, pl->name);
+    dbgm->unfolded = igBegin(dbg_name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+    if (dbgm->unfolded) {
         struct render_pass *pass;
 
         list_for_each_entry(pass, &pl->passes, entry)
@@ -370,17 +376,24 @@ static void pipeline_debug_begin(struct pipeline *pl)
 
 static void pipeline_debug_end(struct pipeline *pl)
 {
-    if (pl->ui_open)
+    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
+    // err_on(old_ui_open != *ui_open, "%d != %d\n", old_ui_open, *ui_open);
+    if (!dbgm->display)
+        return;
+    if (dbgm->unfolded)
         igEndTable();
+
     igEnd();
+    dbgm->display = dbgm->open;
 }
 
 static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx,
                                       struct render_pass *src)
 {
+    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
     fbo_t *fbo = pass->fbo.x[srcidx];
 
-    if (!pl->ui_open)
+    if (!dbgm->display || !dbgm->unfolded)
         return;
     igTableNextRow(0, 0);
     igTableNextColumn();
@@ -408,7 +421,8 @@ static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *p
 
 static void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count)
 {
-    if (!pl->ui_open)
+    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
+    if (!dbgm->display || !dbgm->unfolded)
         return;
 
     igTableNextColumn();
@@ -572,14 +586,22 @@ static void debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
     fbo_resize(fbo, width, height);
 }
 
+static bool pipeline_selector_ui_open;
+
 void pipeline_debug(struct pipeline *pl)
 {
+    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_SELECTOR);
     static int pass_preview;
     unsigned int width, height;
     texture_t *pass_tex = NULL;
     int depth_log2;
 
-    if (igBegin("Depth map resolution", &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!dbgm->display)
+        return;
+
+    dbgm->open = true;
+    dbgm->unfolded = igBegin(dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+    if (dbgm->unfolded) {
         pipeline_passes_dropdown(pl, &pass_preview, &pass_tex);
         if (pass_tex) {
             texture_get_dimesnions(pass_tex, &width, &height);
@@ -602,7 +624,7 @@ void pipeline_debug(struct pipeline *pl)
     }
 
     if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
-        if (igBegin("Depth map", &pl->ui_open, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (igBegin("Render pass preview", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
             igPushItemWidth(512);
             double aspect = (double)height / width;
             igImage((ImTextureID)texture_id(pass_tex), (ImVec2){512, 512 * aspect},

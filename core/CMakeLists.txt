@@ -71,7 +71,7 @@ set(ENGINE_SRC
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c
     gltf.c input-joystick.c render-gl.c mesh.c pipeline.c input-keyboard.c
-    game.c camera.c xyarray.c ca2d.c ca3d.c ui-imgui.c
+    game.c camera.c xyarray.c ca2d.c ca3d.c ui-imgui.c ui-debug.c
     ${PLATFORM_SRC})
 
 # Mac OS X has deprecated OpenAL and is very vocal about it

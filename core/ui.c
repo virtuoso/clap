@@ -10,6 +10,7 @@
 #include "ui.h"
 #include "font.h"
 #include "render.h"
+#include "ui-debug.h"
 
 static struct model3dtx *ui_quadtx;
 
@@ -136,6 +137,7 @@ static bool ui_roll_finished;
 void ui_update(struct ui *ui)
 {
     ui_debug_update(ui);
+    ui_debug_selector();
 
     /* XXX: this is double for_each, make better */
     mq_for_each(&ui->mq, ui_reset_positioning, NULL);
@@ -716,11 +718,7 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
             display_fps = true;
         }
     } else if (!strcmp(str, "Devel")) {
-        struct message m;
-        memset(&m, 0, sizeof(m));
-        m.type = MT_COMMAND;
-        m.cmd.toggle_fuzzer = 1;
-        message_send(&m);
+        ui_toggle_debug_selector();
         ui_menu_done(ui); /* cancels modality */
     } else if (!strcmp(str, "...license")) {
         ui_roll_init(ui);
@@ -1009,9 +1007,9 @@ static void ui_modality_send(void)
 static const char *menu_items[] = {
     "HUD",
 #ifndef CONFIG_FINAL
+    "Devel",
     "Monitor",
     "Fullscreen",
-    "Devel",
 #endif
     "Help",
 #ifndef CONFIG_BROWSER
