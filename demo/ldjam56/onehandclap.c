@@ -12,6 +12,7 @@
 //#include <linux/time.h> /* XXX: for intellisense */
 #include <math.h>
 #include <unistd.h>
+#include "shader_constants.h"
 #include "object.h"
 #include "common.h"
 #include "input.h"
@@ -85,11 +86,24 @@ static void build_main_pl(struct pipeline **pl)
 {
     *pl = pipeline_new(&scene, "main");
 
-    struct render_pass *shadow_pass = pipeline_add_pass(*pl,
-                                                        .multisampled    = scene.light.shadow_msaa,
-                                                        .nr_attachments  = FBO_DEPTH_TEXTURE,
-                                                        .shader_override = "shadow");
-    scene.light.shadow[0][0] = pipeline_pass_get_texture(shadow_pass, 0);
+    struct render_pass *shadow_pass[CASCADES_MAX];
+    int i;
+
+#ifdef CONFIG_GLES
+    for (i = 0; i < CASCADES_MAX; i++) {
+        shadow_pass[i] = pipeline_add_pass(*pl,
+                                           .cascade         = i,
+                                           .nr_attachments  = FBO_DEPTH_TEXTURE,
+                                           .shader_override = "shadow");
+        scene.light.shadow[0][i] = pipeline_pass_get_texture(shadow_pass[i], 0);
+    }
+#else
+    shadow_pass[0] = pipeline_add_pass(*pl,
+                                       .multisampled    = scene.light.shadow_msaa,
+                                       .nr_attachments  = FBO_DEPTH_TEXTURE,
+                                       .shader_override = "shadow");
+    scene.light.shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], 0);
+#endif /* CONFIG_GLES */
 
     struct render_pass *model_pass = pipeline_add_pass(*pl,
                                                        .multisampled   = true,
