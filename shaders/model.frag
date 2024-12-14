@@ -26,6 +26,7 @@ uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
 uniform mat4 shadow_mvp[CASCADES_MAX];
 uniform float cascade_distances[CASCADES_MAX];
+uniform mat4 view;
 uniform vec3 light_color[LIGHTS_MAX];
 uniform vec3 attenuation[LIGHTS_MAX];
 uniform float shine_damper;
@@ -41,7 +42,7 @@ layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 Albedo;
 
-float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in float bias)
+float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
 {
     const int pcf_count = 2;
     const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
@@ -49,7 +50,7 @@ float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in float bias)
 
     for (int x = -pcf_count; x < pcf_count; x++)
         for (int y = -pcf_count; y < pcf_count; y++) {
-            float shadow_distance = texel_fetch_2darray(map, vec3(pos.xy, 0.0), ivec2(x, y)).r;
+            float shadow_distance = texel_fetch_2darray(map, vec3(pos.xy, float(layer)), ivec2(x, y)).r;
             if (pos.z - bias > shadow_distance)
                 total += 1.0;
         }
@@ -74,12 +75,12 @@ float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
 }
 
 #ifndef CONFIG_GLES
-float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in float bias)
+float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in int layer, in float bias)
 {
     float total = 0.0;
 
     for (int i = 0; i < MSAA_SAMPLES; i++) {
-        float shadow_distance = texel_fetch_2dms_array_sample(map, vec3(pos.xy, 0.0), i).r;
+        float shadow_distance = texel_fetch_2dms_array_sample(map, vec3(pos.xy, float(layer)), i).r;
 
         if (pos.z - bias > shadow_distance)
             total += 1.0;
@@ -89,6 +90,55 @@ float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in float bias)
     return 1.0 - total * pos.w;
 }
 #endif /* CONFIG_GLES */
+
+float shadow_factor_calc(in vec3 unit_normal)
+{
+    float shadow_factor = 1.0;
+
+    float light_dot = dot(unit_normal, normalize(-light_dir[0]));
+    vec4 view_pos = view * world_pos;
+    int layer = -1;
+
+    for (int i = 0; i < CASCADES_MAX; i++) {
+        if (-view_pos.z < cascade_distances[i]) {
+            layer = i;
+            break;
+        }
+    }
+
+    if (layer < 0)
+        layer = CASCADES_MAX - 1;
+
+    vec4 shadow_pos = shadow_mvp[layer] * world_pos;
+    vec4 proj_coords = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
+    proj_coords = proj_coords * 0.5 + 0.5;
+
+    float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
+#ifdef CONFIG_GLES
+    switch (layer) {
+        case 0:
+            shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, bias);
+            break;
+        case 1:
+            shadow_factor = shadow_factor_pcf(shadow_map1, proj_coords, bias);
+            break;
+        case 2:
+            shadow_factor = shadow_factor_pcf(shadow_map2, proj_coords, bias);
+            break;
+        default:
+        case 3:
+            shadow_factor = shadow_factor_pcf(shadow_map3, proj_coords, bias);
+            break;
+    }
+#else
+    if (use_msaa)
+        shadow_factor = shadow_factor_msaa(shadow_map_ms, proj_coords, layer, bias);
+    else
+        shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
+#endif /* CONFIG_GLES */
+
+    return shadow_factor;
+}
 
 void main()
 {
@@ -110,22 +160,7 @@ void main()
     vec4 texture_sample = texture(model_tex, pass_tex);
     EmissiveColor = texture(emission_map, pass_tex);
 
-    float shadow_factor = 1.0;
-
-    float light_dot = dot(unit_normal, normalize(-light_dir[0]));
-    if (light_dot > 0.0) {
-        float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
-        vec4 shadow_pos = shadow_mvp[0] * world_pos;
-        shadow_pos = shadow_pos * 0.5 + 0.5;
-#ifdef CONFIG_GLES
-        shadow_factor = shadow_factor_pcf(shadow_map, shadow_pos, bias);
-#else
-        if (use_msaa)
-            shadow_factor = shadow_factor_msaa(shadow_map_ms, shadow_pos, bias);
-        else
-            shadow_factor = shadow_factor_pcf(shadow_map, shadow_pos, bias);
-#endif /* CONFIG_GLES */
-    }
+    float shadow_factor = shadow_factor_calc(unit_normal);
 
     vec3 total_diffuse = vec3(0.0);
     vec3 total_specular = vec3(0.0);
