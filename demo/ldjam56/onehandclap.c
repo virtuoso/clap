@@ -89,7 +89,7 @@ static void build_main_pl(struct pipeline **pl)
                                                         .multisampled    = scene.light.shadow_msaa,
                                                         .nr_attachments  = FBO_DEPTH_TEXTURE,
                                                         .shader_override = "shadow");
-    scene.light.shadow[0] = pipeline_pass_get_texture(shadow_pass, 0);
+    scene.light.shadow[0][0] = pipeline_pass_get_texture(shadow_pass, 0);
 
     struct render_pass *model_pass = pipeline_add_pass(*pl,
                                                        .multisampled   = true,

@@ -725,20 +725,22 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                     }
                     shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
                 }
-                if (light->shadow[0]) {
-#ifndef CONFIG_GLES
+                if (light->shadow[0][0]) {
+#ifdef CONFIG_GLES
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[0][0]);
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP1, light->shadow[0][1] ? light->shadow[0][1] : &white_pixel);
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP2, light->shadow[0][2] ? light->shadow[0][2] : &white_pixel);
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP3, light->shadow[0][3] ? light->shadow[0][2] : &white_pixel);
+                    shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
+#else
                     if (shader_has_var(prog, UNIFORM_SHADOW_MAP_MS)) {
                         shader_set_var_int(prog, UNIFORM_USE_MSAA, light->shadow_msaa);
                         shader_plug_textures_multisample(prog, light->shadow_msaa,
                                                          UNIFORM_SHADOW_MAP, UNIFORM_SHADOW_MAP_MS,
-                                                         light->shadow[0]);
+                                                         light->shadow[0][0]);
                     } else {
                         shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
                     }
-#else
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[0]);
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP1, &white_pixel);
-                    shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
 #endif /* CONFIG_GLES */
                 }
             }

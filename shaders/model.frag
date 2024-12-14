@@ -18,6 +18,8 @@ uniform sampler2D emission_map;
 #ifdef CONFIG_GLES
 uniform sampler2D shadow_map;
 uniform sampler2D shadow_map1;
+uniform sampler2D shadow_map2;
+uniform sampler2D shadow_map3;
 #else
 uniform sampler2DArray shadow_map;
 uniform sampler2DMSArray shadow_map_ms;
