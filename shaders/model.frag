@@ -10,7 +10,7 @@ layout (location=2) in vec3 surface_normal;
 layout (location=3) in vec3 orig_normal;
 layout (location=4) in vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) in vec3 to_camera_vector;
-layout (location=9) in vec4 shadow_pos;
+layout (location=9) in vec4 world_pos;
 
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
@@ -22,6 +22,7 @@ uniform sampler2D shadow_map1;
 uniform sampler2DArray shadow_map;
 uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
+uniform mat4 shadow_mvp;
 uniform vec3 light_color[LIGHTS_MAX];
 uniform vec3 attenuation[LIGHTS_MAX];
 uniform float shine_damper;
@@ -111,6 +112,8 @@ void main()
     float light_dot = dot(unit_normal, normalize(-light_dir[0]));
     if (light_dot > 0.0) {
         float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
+        vec4 shadow_pos = shadow_mvp * world_pos;
+        shadow_pos = shadow_pos * 0.5 + 0.5;
 #ifdef CONFIG_GLES
         shadow_factor = shadow_factor_pcf(shadow_map, shadow_pos, bias);
 #else

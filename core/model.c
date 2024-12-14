@@ -715,6 +715,12 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 shader_set_var_ptr(prog, UNIFORM_ATTENUATION, LIGHTS_MAX, light->attenuation);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIR, LIGHTS_MAX, light->dir);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, light->shadow_outline);
+                if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
+                    mat4x4 mvp;
+                    struct subview *light_sv = &light->view[0].main;
+                    mat4x4_mul(mvp, light_sv->proj_mx.m, light_sv->view_mx.m);
+                    shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, 1, mvp);
+                }
                 if (light->shadow[0]) {
 #ifndef CONFIG_GLES
                     if (shader_has_var(prog, UNIFORM_SHADOW_MAP_MS)) {
@@ -740,16 +746,6 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
 
             if (proj_mx)
                 shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj_mx->cell);
-
-            if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
-                mat4x4 mvp, off, bias;
-                mat4x4_identity(off);
-                mat4x4_translate(bias, 0.5, 0.5, 0.5);
-                mat4x4_scale_aniso(off, bias, 0.5, 0.5, 0.5);
-                mat4x4_mul(mvp, light->view[0].main.proj_mx.m, light->view[0].main.view_mx.m);
-                mat4x4_mul(mvp, off, mvp);
-                shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, 1, mvp);
-            }
         }
 
         model3dtx_prepare(txmodel, prog);

@@ -16,7 +16,6 @@ uniform mat4 inverse_view;
 uniform mat4 trans;
 uniform int use_normals;
 uniform int use_skinning;
-uniform mat4 shadow_mvp;
 uniform mat4 joint_transforms[JOINTS_MAX];
 
 layout (location=0) flat out int do_use_normals;
@@ -25,13 +24,11 @@ layout (location=2) out vec3 surface_normal;
 layout (location=3) out vec3 orig_normal;
 layout (location=4) out vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) out vec3 to_camera_vector;
-layout (location=9) out vec4 shadow_pos;
+layout (location=9) out vec4 world_pos;
 
 void main()
 {
-    vec4 world_pos = trans * vec4(position, 1.0);
-
-    shadow_pos = shadow_mvp * world_pos;
+    world_pos = trans * vec4(position, 1.0);
 
     vec4 our_normal = vec4(normal, 0);
     orig_normal = our_normal.xyz;
