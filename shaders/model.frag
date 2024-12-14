@@ -23,6 +23,7 @@ uniform sampler2DArray shadow_map;
 uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
 uniform mat4 shadow_mvp[CASCADES_MAX];
+uniform float cascade_distances[CASCADES_MAX];
 uniform vec3 light_color[LIGHTS_MAX];
 uniform vec3 attenuation[LIGHTS_MAX];
 uniform float shine_damper;

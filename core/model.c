@@ -743,6 +743,9 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 }
             }
 
+            if (view)
+                shader_set_var_ptr(prog, UNIFORM_CASCADE_DISTANCES, CASCADES_MAX, view->divider);
+
             if (subview) {
                 shader_set_var_ptr(prog, UNIFORM_VIEW, 1, subview->view_mx.cell);
                 shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, subview->inv_view_mx.cell);
