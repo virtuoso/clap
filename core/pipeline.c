@@ -526,12 +526,13 @@ static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t *
     int i = 0;
 
     list_for_each_entry(pass, &pl->passes, entry) {
+        int cascade = pass->cascade < 0 ? 0 : (pass->cascade + 1);
         fbo_t **pfbo;
         int j = 0;
 
         darray_for_each(pfbo, &pass->fbo) {
             if (*item == i) {
-                snprintf(name, sizeof(name), "%s/%d", pass->name, j);
+                snprintf(name, sizeof(name), "%s/%d", pass->name, j + 100 * cascade);
                 *tex = fbo_texture(*pfbo);
                 goto found;
             }
@@ -546,13 +547,14 @@ found:
     if (igBeginCombo("passes", name, ImGuiComboFlags_HeightRegular)) {
         i = 0;
         list_for_each_entry(pass, &pl->passes, entry) {
+            int cascade = pass->cascade < 0 ? 0 : (pass->cascade + 1);
             fbo_t **pfbo;
             int j = 0;
 
             darray_for_each(pfbo, &pass->fbo) {
                 bool selected = *item == i;
 
-                snprintf(name, sizeof(name), "%s/%d", pass->name, j);
+                snprintf(name, sizeof(name), "%s/%d", pass->name, j + 100 * cascade);
                 if (igSelectable_Bool(name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
                     igSetItemDefaultFocus();
                     *item = i;
