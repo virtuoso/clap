@@ -25,6 +25,7 @@ struct render_pass {
     const char          *name;
     int                 rep_total;
     int                 rep_count;
+    int                 cascade;
     bool                blit;
     bool                stop;
 };
@@ -158,7 +159,7 @@ found:
 
 static struct render_pass *
 __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
-                    const char *shader_override, bool ms, int nr_targets, int target)
+                    const char *shader_override, bool ms, int nr_targets, int target, int cascade)
 {
     struct render_pass *pass;
     struct shader_prog *p;
@@ -194,6 +195,18 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
         width = fbo_width(src->fbo.x[0]);
         height = fbo_height(src->fbo.x[0]);
     }
+
+#ifdef CONFIG_GLES
+    if (nr_targets == FBO_DEPTH_TEXTURE) {
+        /* in GL ES, we render one depth cascade at a time */
+        pass->cascade = clamp(cascade, 0, CASCADES_MAX - 1);
+    } else {
+        /* otherwise, render all at once into a texture array */
+        pass->cascade = -1;
+    }
+#else
+    pass->cascade = -1;
+#endif /* CONFIG_GLES */
 
     *pfbo = fbo_new_ms(width, height, ms, nr_targets);
     if (!*pfbo)
@@ -271,7 +284,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
     struct render_pass *pass;
 
     pass = __pipeline_add_pass(pl, _cfg.source, _cfg.shader, _cfg.shader_override, _cfg.multisampled,
-                               _cfg.nr_attachments, _cfg.blit_from);
+                               _cfg.nr_attachments, _cfg.blit_from, _cfg.cascade);
     if (pass) {
         if (_cfg.name)
             pipeline_pass_set_name(pass, _cfg.name);
@@ -462,7 +475,7 @@ repeat:
                     models_render(&s->mq, pass->prog_override, &s->light,
                                   shadow ? NULL : &s->cameras[0],
                                   &s->cameras[0].view.main.proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo),
-                                  -1, &count);
+                                  pass->cascade, &count);
                 else
                     models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo_width(fbo), fbo_height(fbo), -1, &count);
 

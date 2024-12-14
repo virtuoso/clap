@@ -14,6 +14,7 @@ typedef struct pipeline_pass_config {
     int                 nr_attachments;
     int                 blit_from;
     int                 pingpong;
+    int                 cascade;
     bool                stop;
 } pipeline_pass_config;
 
