@@ -139,9 +139,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
 
     h = ref_get(h); /* matches ref_put() in the callback, which is mandatory */
     f = fopen(uri, "r");
-    dbg("opened '%s': %p\n", uri, f);
     if (!f) {
-        err("couldn't open '%s': %s\n", uri, strerror(errno));
         h->state = RES_ERROR;
     } else {
         struct stat st;
@@ -195,14 +193,11 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     h = ref_new(lib_handle);
     h->name = name;
     h->type = type;
-    //h->data = data;
-    //h->func = cb;
     h->state = RES_REQUESTED;
 
     h = ref_get(h); /* matches ref_put() in lib_onload() */
     f = fopen(uri, "r");
     if (!f) {
-        err("couldn't open '%s': %s\n", uri, strerror(errno));
         ret = -1;
         ref_put(h);
     } else {
