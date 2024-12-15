@@ -622,6 +622,7 @@ void pipeline_debug(struct pipeline *pl)
     } else {
         igEnd();
     }
+    dbgm->display = dbgm->open;
 
     if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
         if (igBegin("Render pass preview", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
