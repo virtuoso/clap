@@ -140,6 +140,38 @@ int scene_camera_add(struct scene *s)
     return s->nr_cameras++;
 }
 
+#ifndef CONFIG_FINAL
+static void light_debug(struct light *light, int idx)
+{
+    debug_module *dbgm = ui_debug_module(DEBUG_LIGHT);
+
+    if (!dbgm->display)
+        return;
+
+    struct view *view = &light->view[idx];
+    float *dir = &light->dir[3 * idx];
+
+    dbgm->open = true;
+    dbgm->unfolded = igBegin(dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+    if (dbgm->unfolded) {
+        igSetNextItemWidth(400);
+        igSliderFloat3("light", dir, -500, 500, "%f", 0);
+        igColorPicker3("color", &light->color[3 * idx], ImGuiColorEditFlags_DisplayRGB);
+        if (ui_igVecTableHeader("view positions", 3)) {
+            ui_igVecRow(dir, 3, "direction");
+            igEndTable();
+        }
+        ui_igMat4x4(view->main.view_mx.m, "view matrix");
+        igEnd();
+    } else {
+        igEnd();
+    }
+    dbgm->display = dbgm->open;
+}
+#else
+static inline void light_debug(struct light *light, int idx) {}
+#endif /* CONFIG_FINAL */
+
 static void scene_camera_calc(struct scene *s, int camera)
 {
     struct camera *cam = &s->cameras[camera];
@@ -173,6 +205,8 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     view_update_from_angles(&cam->view, cam->ch->pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
     view_calc_frustum(&cam->view);
+
+    light_debug(&s->light, 0);
 
     /* only the first light source get to cast shadows for now */
     view_update_from_frustum(&s->light.view[0], &s->light.dir[0 * 3], &cam->view);
