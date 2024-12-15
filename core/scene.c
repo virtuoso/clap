@@ -299,26 +299,31 @@ int scene_get_light(struct scene *scene)
     return scene->nr_lights++;
 }
 
-static bool scene_ui;
-
 void scene_update(struct scene *scene)
 {
     struct camera *cam = &scene->camera[0];
 #ifndef CONFIG_FINAL
-    if (igBegin("scene parameters", &scene_ui, ImGuiWindowFlags_AlwaysAutoResize)) {
-        igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+    debug_module *dbgm = ui_debug_module(DEBUG_SCENE_PARAMETERS);
 
-        float fov = to_degrees(cam->view.fov);
-        igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
-        cam->view.fov = to_radians(fov);
+    if (dbgm->display) {
+        dbgm->open = true;
+        dbgm->unfolded = igBegin("scene parameters", &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+        if (dbgm->unfolded) {
+            igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
 
-        igCheckbox("shadow outline", &scene->light.shadow_outline);
-        igCheckbox("shadow msaa", &scene->light.shadow_msaa);
-        scene->proj_update++;
-        igEnd();
-    } else {
-        igEnd();
+            float fov = to_degrees(cam->view.fov);
+            igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
+            cam->view.fov = to_radians(fov);
+
+            igCheckbox("shadow outline", &scene->light.shadow_outline);
+            igCheckbox("shadow msaa", &scene->light.shadow_msaa);
+            scene->proj_update++;
+            igEnd();
+        } else {
+            igEnd();
+        }
+        dbgm->display = dbgm->open;
     }
 #endif /* CONFIG_FINAL */
 

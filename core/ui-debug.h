@@ -31,6 +31,7 @@ void imgui_render(void);
 enum debug_modules {
     DEBUG_PIPELINE_PASSES,
     DEBUG_PIPELINE_SELECTOR,
+    DEBUG_SCENE_PARAMETERS,
     DEBUG_MODULES_MAX,
 };
 
