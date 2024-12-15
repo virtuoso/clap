@@ -141,6 +141,33 @@ int scene_camera_add(struct scene *s)
 }
 
 #ifndef CONFIG_FINAL
+static void scene_parameters_debug(struct scene *scene, int cam_idx)
+{
+    debug_module *dbgm = ui_debug_module(DEBUG_SCENE_PARAMETERS);
+    struct camera *cam = &scene->camera[cam_idx];
+
+    if (dbgm->display) {
+        dbgm->open = true;
+        dbgm->unfolded = igBegin("scene parameters", &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+        if (dbgm->unfolded) {
+            igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+
+            float fov = to_degrees(cam->view.fov);
+            igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
+            cam->view.fov = to_radians(fov);
+
+            igCheckbox("shadow outline", &scene->light.shadow_outline);
+            igCheckbox("shadow msaa", &scene->light.shadow_msaa);
+            scene->proj_update++;
+            igEnd();
+        } else {
+            igEnd();
+        }
+        dbgm->display = dbgm->open;
+    }
+}
+
 static void light_debug(struct light *light, int idx)
 {
     debug_module *dbgm = ui_debug_module(DEBUG_LIGHT);
@@ -201,6 +228,7 @@ static void scene_characters_debug(struct scene *scene)
     dbgm->display = dbgm->open;
 }
 #else
+static void scene_parameters_debug(struct scene *scene, int cam_idx) {}
 static inline void light_debug(struct light *light, int idx) {}
 static inline void scene_characters_debug(struct scene *scene) {}
 #endif /* CONFIG_FINAL */
@@ -369,30 +397,8 @@ int scene_get_light(struct scene *scene)
 void scene_update(struct scene *scene)
 {
     struct camera *cam = &scene->camera[0];
-#ifndef CONFIG_FINAL
-    debug_module *dbgm = ui_debug_module(DEBUG_SCENE_PARAMETERS);
 
-    if (dbgm->display) {
-        dbgm->open = true;
-        dbgm->unfolded = igBegin("scene parameters", &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
-        if (dbgm->unfolded) {
-            igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
-            igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
-
-            float fov = to_degrees(cam->view.fov);
-            igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
-            cam->view.fov = to_radians(fov);
-
-            igCheckbox("shadow outline", &scene->light.shadow_outline);
-            igCheckbox("shadow msaa", &scene->light.shadow_msaa);
-            scene->proj_update++;
-            igEnd();
-        } else {
-            igEnd();
-        }
-        dbgm->display = dbgm->open;
-    }
-#endif /* CONFIG_FINAL */
+    scene_parameters_debug(scene, 0);
     scene_characters_debug(scene);
 
     if (scene->proj_update) {
