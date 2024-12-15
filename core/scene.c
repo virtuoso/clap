@@ -168,8 +168,41 @@ static void light_debug(struct light *light, int idx)
     }
     dbgm->display = dbgm->open;
 }
+
+static void scene_characters_debug(struct scene *scene)
+{
+    debug_module *dbgm = ui_debug_module(DEBUG_CHARACTERS);
+    struct character *c;
+
+    if (!dbgm->display)
+        return;
+
+    dbgm->open = true;
+    dbgm->unfolded = igBegin(dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+    if (dbgm->unfolded) {
+        list_for_each_entry(c, &scene->characters, entry) {
+            const char *name = entity_name(c->entity);
+            char label[128];
+
+            igText("character '%s'", name);
+            snprintf(label, sizeof(label), "%s speed", name);
+            igSliderFloat(label, &c->speed, 0.1, 10, "%f", ImGuiSliderFlags_AlwaysClamp);
+            snprintf(label, sizeof(label), "%s can jump", name);
+            igCheckbox(label, &c->jumping);
+            snprintf(label, sizeof(label), "%s can sprint", name);
+            igCheckbox(label, &c->can_sprint);
+            igSeparator();
+        }
+        igEnd();
+    } else {
+        igEnd();
+    }
+
+    dbgm->display = dbgm->open;
+}
 #else
 static inline void light_debug(struct light *light, int idx) {}
+static inline void scene_characters_debug(struct scene *scene) {}
 #endif /* CONFIG_FINAL */
 
 static void scene_camera_calc(struct scene *s, int camera)
@@ -360,6 +393,7 @@ void scene_update(struct scene *scene)
         dbgm->display = dbgm->open;
     }
 #endif /* CONFIG_FINAL */
+    scene_characters_debug(scene);
 
     if (scene->proj_update) {
         view_update_perspective_projection(&cam->view, scene->width, scene->height);

@@ -7,6 +7,7 @@ static struct debug_module debug_enabled[DEBUG_MODULES_MAX] = {
     [DEBUG_SCENE_PARAMETERS]    = { .name = "scene parameters" },
     [DEBUG_FRUSTUM_VIEW]        = { .name = "frustum view" },
     [DEBUG_LIGHT]               = { .name = "light position" },
+    [DEBUG_CHARACTERS]          = { .name = "characters" },
 };
 
 debug_module *ui_debug_module(enum debug_modules mod)

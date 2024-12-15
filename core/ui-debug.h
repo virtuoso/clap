@@ -34,6 +34,7 @@ enum debug_modules {
     DEBUG_SCENE_PARAMETERS,
     DEBUG_FRUSTUM_VIEW,
     DEBUG_LIGHT,
+    DEBUG_CHARACTERS,
     DEBUG_MODULES_MAX,
 };
 
