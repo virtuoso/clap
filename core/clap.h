@@ -5,6 +5,7 @@
 struct fps_data {
     struct timespec ts_prev, ts_delta;
     unsigned long   fps_fine, fps_coarse, seconds, count;
+    double          time;
 };
 
 struct clap_context;

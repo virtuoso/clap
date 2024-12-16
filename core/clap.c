@@ -63,6 +63,7 @@ void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
     struct message m;
 
     clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
+    f->time = clap_get_current_time(ctx);
     if (!f->ts_prev.tv_sec && !f->ts_prev.tv_nsec) {
         f->ts_delta.tv_nsec = NSEC_PER_SEC / gl_refresh_rate();
         f->ts_delta.tv_sec = 0;

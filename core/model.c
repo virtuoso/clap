@@ -1086,7 +1086,7 @@ static void one_joint_transform(struct entity3d *e, int joint, int parent)
         one_joint_transform(e, *child, joint);
 }
 
-void animation_start(struct entity3d *e, unsigned long start_frame, int ani)
+void animation_start(struct entity3d *e, struct scene *scene, int ani)
 {
     struct model3d *model = e->txmodel->model;
     struct animation *an;
@@ -1103,7 +1103,7 @@ void animation_start(struct entity3d *e, unsigned long start_frame, int ani)
         chan = &an->channels[ch];
         e->joints[chan->target].off[chan->path] = 0;
     }
-    e->ani_frame = start_frame;
+    e->ani_time = scene->fps.time;
 }
 
 int animation_by_name(struct model3d *m, const char *name)
@@ -1146,7 +1146,7 @@ static void animation_next(struct entity3d *e, struct scene *s)
         /* randomize phase, should probably be in instantiate instead */
         qa = ani_current(e);
         an = &model->anis.x[qa->animation];
-        e->ani_frame = (long)s->frames_total - an->time_end * gl_refresh_rate() * drand48();
+        e->ani_time = (long)s->frames_total - an->time_end * drand48();
         return;
     }
     qa = ani_current(e);
@@ -1159,7 +1159,7 @@ static void animation_next(struct entity3d *e, struct scene *s)
         e->animation = (e->animation + 1) % e->aniq.da.nr_el;
         qa = ani_current(e);
     }
-    animation_start(e, s->frames_total, qa->animation);
+    animation_start(e, s, qa->animation);
 }
 
 void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv)
@@ -1209,7 +1209,7 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
     qa->repeat = repeat;
     qa->speed = 1.0;
     if (clear) {
-        animation_start(e, s->frames_total, id);
+        animation_start(e, s, id);
         e->animation = 0;
         e->ani_cleared = true;
     }
@@ -1226,10 +1226,10 @@ static void animated_update(struct entity3d *e, struct scene *s)
         animation_next(e, s);
     qa = ani_current(e);
     an = &model->anis.x[qa->animation];
-    channels_transform(e, an, (float)(s->frames_total - e->ani_frame) / framerate * qa->speed);
+    channels_transform(e, an, (s->fps.time - e->ani_time) * qa->speed);
     one_joint_transform(e, 0, -1);
 
-    if ((float)(s->frames_total - e->ani_frame) * qa->speed >= an->time_end * framerate)
+    if ((s->fps.time - e->ani_time) * qa->speed >= an->time_end)
         animation_next(e, s);
 }
 

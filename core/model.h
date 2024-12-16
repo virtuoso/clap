@@ -62,7 +62,7 @@ struct animation {
 struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels);
 void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
                            size_t data_stride, unsigned int target, unsigned int path);
-void animation_start(struct entity3d *e, unsigned long start_frame, int ani);
+void animation_start(struct entity3d *e, struct scene *scene, int ani);
 void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat);
 int animation_by_name(struct model3d *m, const char *name);
@@ -205,7 +205,7 @@ struct entity3d {
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
     int              animation;
-    long             ani_frame;
+    double           ani_time;
     darray(struct queued_animation, aniq);
     /* these both have model->nr_joints elements */
     struct joint     *joints;
