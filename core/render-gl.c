@@ -8,6 +8,15 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+static struct gl_limits {
+    GLint gl_max_texture_size;
+    GLint gl_max_texture_units;
+    GLint gl_max_texture_layers;
+    GLint gl_max_color_attachments;
+    GLint gl_max_color_texture_samples;
+    GLint gl_max_depth_texture_samples;
+} gl_limits;
+
 /****************************************************************************
  * Texture
  ****************************************************************************/
@@ -165,9 +174,18 @@ static void texture_storage(texture_t *tex, void *buf)
                         0, tex->format, tex->component_type, buf));
 }
 
+static bool texture_size_valid(unsigned int width, unsigned int height)
+{
+    return width < gl_limits.gl_max_texture_size &&
+           height < gl_limits.gl_max_texture_size;
+}
+
 void texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
     if (!tex->loaded || (tex->width == width && tex->height == height))
+        return;
+
+    if (!texture_size_valid(width, height))
         return;
 
     tex->width = width;
@@ -212,6 +230,9 @@ static void texture_setup_end(texture_t *tex)
 void texture_load(texture_t *tex, enum texture_format format,
                   unsigned int width, unsigned int height, void *buf)
 {
+    if (!texture_size_valid(width, height))
+        return;
+
     tex->format = gl_texture_format(format);
     tex->internal_format = tex->format;
     tex->width  = width;
@@ -224,6 +245,9 @@ void texture_load(texture_t *tex, enum texture_format format,
 static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
                         unsigned int height)
 {
+    if (!texture_size_valid(width, height))
+        return;
+
     tex->format = format;
     tex->internal_format = format;
     tex->width  = width;
@@ -294,6 +318,14 @@ texture_t transparent_pixel;
 
 void textures_init(void)
 {
+    GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits.gl_max_texture_size));
+    GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
+    GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));
+    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits.gl_max_color_attachments));
+#ifndef CONFIG_GLES
+    GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits.gl_max_color_texture_samples));
+    GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
+#endif /* CONFIG_GLES */
     float white[] = { 1, 1, 1, 1 };
     texture_pixel_init(&white_pixel, white);
     float black[] = { 0, 0, 0, 1 };
