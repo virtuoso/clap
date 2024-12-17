@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "shader_constants.h"
 #include "display.h"
+#include "error.h"
 #include "logger.h"
 #include "object.h"
 
@@ -122,7 +123,7 @@ int _texture_init(texture_t *tex, const texture_init_options *opts)
     GL(glActiveTexture(tex->target));
     GL(glGenTextures(1, &tex->id));
 
-    return 0;
+    return CERR_OK;
 }
 
 texture_t *texture_clone(texture_t *tex)
@@ -156,12 +157,19 @@ void texture_deinit(texture_t *tex)
     tex->loaded = false;
 }
 
-static void texture_storage(texture_t *tex, void *buf)
+static cerr texture_storage(texture_t *tex, void *buf)
 {
     if (tex->type == GL_TEXTURE_2D)
         GL(glTexImage2D(tex->type, 0, tex->internal_format, tex->width, tex->height,
                         0, tex->format, tex->component_type, buf));
-#ifndef CONFIG_GLES
+    else if (tex->type == GL_TEXTURE_2D_ARRAY || tex->type == GL_TEXTURE_3D)
+        GL(glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
+                        0, tex->format, tex->component_type, buf));
+#ifdef CONFIG_GLES
+    else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE ||
+             tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+         return CERR_NOT_SUPPORTED;
+#else
     else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE)
         GL(glTexImage2DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
                                    GL_TRUE));
@@ -169,9 +177,8 @@ static void texture_storage(texture_t *tex, void *buf)
         GL(glTexImage3DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
            tex->layers, GL_TRUE));
 #endif /* CONFIG_GLES */
-    else if (tex->type == GL_TEXTURE_2D_ARRAY || tex->type == GL_TEXTURE_3D)
-        GL(glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
-                        0, tex->format, tex->component_type, buf));
+
+    return CERR_OK;
 }
 
 static bool texture_size_valid(unsigned int width, unsigned int height)
@@ -180,19 +187,24 @@ static bool texture_size_valid(unsigned int width, unsigned int height)
            height < gl_limits.gl_max_texture_size;
 }
 
-void texture_resize(texture_t *tex, unsigned int width, unsigned int height)
+cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
-    if (!tex->loaded || (tex->width == width && tex->height == height))
-        return;
+    if (!tex->loaded)
+        return CERR_TEXTURE_NOT_LOADED;
+
+    if (tex->width == width && tex->height == height)
+        return CERR_OK;
 
     if (!texture_size_valid(width, height))
-        return;
+        return CERR_INVALID_TEXTURE_SIZE;
 
     tex->width = width;
     tex->height = height;
     GL(glBindTexture(tex->type, tex->id));
-    texture_storage(tex, NULL);
+    cerr err = texture_storage(tex, NULL);
     GL(glBindTexture(tex->type, 0));
+
+    return err;
 }
 
 void texture_filters(texture_t *tex, GLint wrap, GLint filter)
@@ -202,7 +214,7 @@ void texture_filters(texture_t *tex, GLint wrap, GLint filter)
     tex->mag_filter = filter;
 }
 
-static void texture_setup_begin(texture_t *tex, void *buf)
+static cerr texture_setup_begin(texture_t *tex, void *buf)
 {
     GL(glActiveTexture(tex->target));
     GL(glBindTexture(tex->type, tex->id));
@@ -219,7 +231,7 @@ static void texture_setup_begin(texture_t *tex, void *buf)
             GL(glTexParameterfv(tex->type, GL_TEXTURE_BORDER_COLOR, tex->border));
 #endif /* CONFIG_GLES */
     }
-    texture_storage(tex, buf);
+    return texture_storage(tex, buf);
 }
 
 static void texture_setup_end(texture_t *tex)
@@ -227,26 +239,32 @@ static void texture_setup_end(texture_t *tex)
     GL(glBindTexture(tex->type, 0));
 }
 
-void texture_load(texture_t *tex, enum texture_format format,
+cerr texture_load(texture_t *tex, enum texture_format format,
                   unsigned int width, unsigned int height, void *buf)
 {
     if (!texture_size_valid(width, height))
-        return;
+        return CERR_INVALID_TEXTURE_SIZE;
 
     tex->format = gl_texture_format(format);
     tex->internal_format = tex->format;
     tex->width  = width;
     tex->height = height;
-    texture_setup_begin(tex, buf);
+
+    cerr err = texture_setup_begin(tex, buf);
+    if (err)
+        return err;
+
     texture_setup_end(tex);
     tex->loaded = true;
+
+    return CERR_OK;
 }
 
-static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
-                        unsigned int height)
+static cerr texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
+                       unsigned int height)
 {
     if (!texture_size_valid(width, height))
-        return;
+        return CERR_INVALID_TEXTURE_SIZE;
 
     tex->format = format;
     tex->internal_format = format;
@@ -261,15 +279,17 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
         tex->internal_format = GL_DEPTH_COMPONENT32F;
 #endif /* CONFIG_GLES */
     }
-    texture_setup_begin(tex, NULL);
+    cerr err = texture_setup_begin(tex, NULL);
+    if (err)
+        return err;
+
     if (tex->type == GL_TEXTURE_2D ||
         tex->type == GL_TEXTURE_2D_MULTISAMPLE)
         GL(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0));
-#ifndef CONFIG_GLES
-    /*
-     * XXX: handle these for the GLES case: apparently, there's no way to
-     * attach a texture array to a framebuffer in WebGL
-     */
+#ifdef CONFIG_GLES
+    else
+        return CERR_NOT_SUPPORTED;
+#else
     else if (tex->type == GL_TEXTURE_2D_ARRAY ||
              tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
         GL(glFramebufferTexture(GL_FRAMEBUFFER, attachment, tex->id, 0));
@@ -278,6 +298,8 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
 #endif
     texture_setup_end(tex);
     tex->loaded = true;
+
+    return CERR_OK;
 }
 
 void texture_bind(texture_t *tex, unsigned int target)
@@ -310,10 +332,10 @@ bool texture_loaded(struct texture *tex)
     return tex->loaded;
 }
 
-void texture_pixel_init(texture_t *tex, float color[4])
+cerr texture_pixel_init(texture_t *tex, float color[4])
 {
     texture_init(tex);
-    texture_load(tex, TEX_FMT_RGBA, 1, 1, color);
+    return texture_load(tex, TEX_FMT_RGBA, 1, 1, color);
 }
 
 texture_t white_pixel;
@@ -331,11 +353,11 @@ void textures_init(void)
     GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
 #endif /* CONFIG_GLES */
     float white[] = { 1, 1, 1, 1 };
-    texture_pixel_init(&white_pixel, white);
+    CHECK0(texture_pixel_init(&white_pixel, white));
     float black[] = { 0, 0, 0, 1 };
-    texture_pixel_init(&black_pixel, black);
+    CHECK0(texture_pixel_init(&black_pixel, black));
     float transparent[] = { 0, 0, 0, 0 };
-    texture_pixel_init(&transparent_pixel, transparent);
+    CHECK0(texture_pixel_init(&transparent_pixel, transparent));
 }
 
 void textures_done(void)
@@ -358,18 +380,23 @@ static int fbo_create(void)
     return fbo;
 }
 
-static void fbo_texture_init(fbo_t *fbo)
+static cerr fbo_texture_init(fbo_t *fbo)
 {
     texture_init(&fbo->tex,
                  .multisampled  = fbo->multisampled,
                  .wrap          = TEX_CLAMP_TO_EDGE,
                  .min_filter    = TEX_FLT_LINEAR,
                  .mag_filter    = TEX_FLT_LINEAR);
-    texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
+    cerr err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
+    if (err)
+        return err;
+
     fbo->attachment = GL_COLOR_ATTACHMENT0;
+
+    return CERR_OK;
 }
 
-static void fbo_depth_texture_init(fbo_t *fbo)
+static cerr fbo_depth_texture_init(fbo_t *fbo)
 {
     float border[] = { 1, 1, 1, 1 };
     texture_init(&fbo->tex,
@@ -382,9 +409,14 @@ static void fbo_depth_texture_init(fbo_t *fbo)
                  .border        = border,
                  .min_filter    = TEX_FLT_NEAREST,
                  .mag_filter    = TEX_FLT_NEAREST);
-    texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT, fbo->width, fbo->height);
+    cerr err = texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT,
+                           fbo->width, fbo->height);
+    if (err)
+        return err;
 
     fbo->attachment = GL_DEPTH_ATTACHMENT;
+
+    return CERR_OK;
 }
 
 texture_t *fbo_texture(fbo_t *fbo)
@@ -473,15 +505,20 @@ static int fbo_depth_buffer(fbo_t *fbo)
     return buf;
 }
 
-void fbo_resize(fbo_t *fbo, int width, int height)
+cerr fbo_resize(fbo_t *fbo, int width, int height)
 {
     if (!fbo)
-        return;
+        return CERR_INVALID_ARGUMENTS;
+
     fbo->width = width;
     fbo->height = height;
     GL(glFinish());
+
+    cerr err = CERR_OK;
     if (texture_loaded(&fbo->tex))
-        texture_resize(&fbo->tex, width, height);
+        err = texture_resize(&fbo->tex, width, height);
+    if (err)
+        return err;
 
     int *color_buf;
     darray_for_each(color_buf, &fbo->color_buf) {
@@ -495,6 +532,8 @@ void fbo_resize(fbo_t *fbo, int width, int height)
         __fbo_depth_buffer_setup(fbo);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
+
+    return CERR_OK;
 }
 
 #define NR_TARGETS 4
@@ -576,32 +615,49 @@ DECLARE_REFCLASS2(fbo);
  *  = 0: color texture
  *  > 0: number of color buffer attachments
  */
-static void fbo_init(fbo_t *fbo, int nr_attachments)
+static cerr fbo_init(fbo_t *fbo, int nr_attachments)
 {
-    int err;
+    cerr err = CERR_OK;
 
     fbo->fbo = fbo_create();
 
     if (nr_attachments < 0) {
-        fbo_depth_texture_init(fbo);
+        err = fbo_depth_texture_init(fbo);
     } else if (!nr_attachments) {
-        fbo_texture_init(fbo);
+        err = fbo_texture_init(fbo);
     } else {
         int target;
 
         for (target = 0; target < nr_attachments; target++) {
             int *color_buf = darray_add(&fbo->color_buf.da);
+            if (!color_buf)
+                err = CERR_NOMEM;
+
             *color_buf = fbo_color_buffer(fbo, target);
         }
     }
 
+    if (err)
+        goto err;
+
     if (nr_attachments > 0)
         fbo->depth_buf = fbo_depth_buffer(fbo);
 
-    err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    err_on(err != GL_FRAMEBUFFER_COMPLETE, "framebuffer status: 0x%04X: %s\n",
-           err, gluErrorString(err));
+    int fb_err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (fb_err != GL_FRAMEBUFFER_COMPLETE) {
+        err("framebuffer status: 0x%04X: %s\n", fb_err, gluErrorString(fb_err));
+        err = CERR_FRAMEBUFFER_INCOMPLETE;
+    }
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+
+    return err;
+
+err:
+    darray_clearout(&fbo->color_buf.da);
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+    GL(glDeleteFramebuffers(1, &fbo->fbo));
+
+    return err;
 }
 
 fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
@@ -612,7 +668,9 @@ fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
     fbo->width = width;
     fbo->height = height;
     fbo->multisampled = multisampled;
-    fbo_init(fbo, nr_attachments);
+    cerr err = fbo_init(fbo, nr_attachments);
+    if (err)
+        return NULL;
 
     return fbo;
 }

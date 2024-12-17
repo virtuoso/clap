@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include "display.h"
+#include "error.h"
 #include "logger.h"
 #include "object.h"
 #include "typedef.h"
@@ -103,9 +104,9 @@ int _texture_init(texture_t *tex, const texture_init_options *opts);
 void texture_deinit(texture_t *tex);
 void texture_filters(texture_t *tex, GLint wrap, GLint filter);
 void texture_done(texture_t *tex);
-void texture_load(texture_t *tex, enum texture_format format,
+cerr texture_load(texture_t *tex, enum texture_format format,
                   unsigned int width, unsigned int height, void *buf);
-void texture_resize(texture_t *tex, unsigned int width, unsigned int height);
+cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height);
 GLuint texture_id(texture_t *tex);
 void texture_bind(texture_t *tex, unsigned int target);
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight);
@@ -113,7 +114,7 @@ bool texture_loaded(texture_t *tex);
 bool texture_is_array(texture_t *tex);
 bool texture_is_multisampled(texture_t *tex);
 texture_t *texture_clone(texture_t *tex);
-void texture_pixel_init(texture_t *tex, float color[4]);
+cerr texture_pixel_init(texture_t *tex, float color[4]);
 void textures_init(void);
 void textures_done(void);
 extern texture_t white_pixel;
@@ -145,7 +146,7 @@ void fbo_put_last(fbo_t *fbo);
 void fbo_prepare(fbo_t *fbo);
 void fbo_done(fbo_t *fbo, int width, int height);
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment);
-void fbo_resize(fbo_t *fbo, int width, int height);
+cerr fbo_resize(fbo_t *fbo, int width, int height);
 texture_t *fbo_texture(fbo_t *fbo);
 int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
