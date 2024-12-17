@@ -9,7 +9,7 @@ struct pipeline {
     struct scene        *scene;
     struct ref          ref;
     struct list         passes;
-    void                (*resize)(fbo_t *fbo, bool shadow_map, int w, int h);
+    bool                (*resize)(fbo_t *fbo, bool shadow_map, int w, int h);
     const char          *name;
 };
 
@@ -97,7 +97,7 @@ static inline int shadow_map_size(int width, int height)
     return 1 << order;
 }
 
-static void pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int height)
+static bool pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int height)
 {
     int side = max(width, height);
 
@@ -106,10 +106,11 @@ static void pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int 
     else if (shadow_map)
         width = height = shadow_map_size(width, height);
 
-    fbo_resize(fbo, width, height);
+    cerr err = fbo_resize(fbo, width, height);
+    return !err;
 }
 
-void pipeline_set_resize_cb(struct pipeline *pl, void (*cb)(fbo_t *, bool, int, int))
+void pipeline_set_resize_cb(struct pipeline *pl, bool (*cb)(fbo_t *, bool, int, int))
 {
     pl->resize = cb ? cb : pipeline_default_resize;
 }
@@ -137,7 +138,8 @@ void pipeline_resize(struct pipeline *pl)
 
         fbo_t **pfbo;
         darray_for_each(pfbo, &pass->fbo)
-            pl->resize(*pfbo, false, pl->scene->width, pl->scene->height);
+            if (!pl->resize(*pfbo, false, pl->scene->width, pl->scene->height))
+                return;
     }
 }
 
@@ -153,7 +155,7 @@ void pipeline_shadow_resize(struct pipeline *pl, int width)
     return;
 
 found:
-    pl->resize(pass->fbo.x[0], true, width, width);
+    (void)pl->resize(pass->fbo.x[0], true, width, width);
 }
 
 static struct render_pass *
@@ -581,9 +583,9 @@ found:
     }
 }
 
-static void debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
+static bool debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
 {
-    fbo_resize(fbo, width, height);
+    return !fbo_resize(fbo, width, height);
 }
 
 static bool pipeline_selector_ui_open;

@@ -22,7 +22,7 @@ struct pipeline *pipeline_new(struct scene *s, const char *name);
 void pipeline_put(struct pipeline *pl);
 void pipeline_resize(struct pipeline *pl);
 void pipeline_shadow_resize(struct pipeline *pl, int width);
-void pipeline_set_resize_cb(struct pipeline *pl, void (*cb)(fbo_t *, bool, int, int));
+void pipeline_set_resize_cb(struct pipeline *pl, bool (*cb)(fbo_t *, bool, int, int));
 struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
 #define pipeline_add_pass(_pl, args...) \
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })
