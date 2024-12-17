@@ -265,10 +265,14 @@ static void texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsign
     if (tex->type == GL_TEXTURE_2D ||
         tex->type == GL_TEXTURE_2D_MULTISAMPLE)
         GL(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0));
+#ifndef CONFIG_GLES
+    /*
+     * XXX: handle these for the GLES case: apparently, there's no way to
+     * attach a texture array to a framebuffer in WebGL
+     */
     else if (tex->type == GL_TEXTURE_2D_ARRAY ||
              tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
-        GL(glFramebufferTextureLayer(GL_FRAMEBUFFER, attachment, tex->id, 0, 0));
-#ifndef CONFIG_GLES
+        GL(glFramebufferTexture(GL_FRAMEBUFFER, attachment, tex->id, 0));
     else
         GL(glFramebufferTexture3D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0, 0));
 #endif
