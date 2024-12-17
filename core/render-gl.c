@@ -323,7 +323,7 @@ void texture_done(struct texture *tex)
 GLuint texture_id(struct texture *tex)
 {
     if (!tex)
-        return -1;
+        return 0;
     return tex->id;
 }
 
