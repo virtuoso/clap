@@ -98,7 +98,7 @@ typedef struct texture_init_options {
     float               *border;
 } texture_init_options;
 
-int _texture_init(texture_t *tex, const texture_init_options *opts);
+void _texture_init(texture_t *tex, const texture_init_options *opts);
 #define texture_init(_t, args...) \
     _texture_init((_t), &(texture_init_options){ args })
 void texture_deinit(texture_t *tex);

@@ -101,7 +101,7 @@ bool texture_is_multisampled(texture_t *tex)
     return tex->multisampled;
 }
 
-int _texture_init(texture_t *tex, const texture_init_options *opts)
+void _texture_init(texture_t *tex, const texture_init_options *opts)
 {
     bool multisampled   = opts->multisampled;
 #ifdef CONFIG_GLES
@@ -122,8 +122,6 @@ int _texture_init(texture_t *tex, const texture_init_options *opts)
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     GL(glActiveTexture(tex->target));
     GL(glGenTextures(1, &tex->id));
-
-    return CERR_OK;
 }
 
 texture_t *texture_clone(texture_t *tex)
