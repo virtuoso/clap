@@ -135,12 +135,25 @@ TYPE(fbo,
     GLuint          attachment;
     darray(int, color_buf);
     texture_t       tex;
-    bool            multisampled;
+    unsigned int    nr_samples;
     int             retain_tex;
 );
 
-must_check fbo_t *fbo_new(int width, int height);
-must_check fbo_t *fbo_new_ms(int width, int height, bool ms, int nr_attachments);
+/*
+ * width and height correspond to the old fbo_new()'s parameters,
+ * so the old users won't need to be converted.
+ */
+typedef struct fbo_init_options {
+    unsigned int    width;
+    unsigned int    height;
+    int             nr_attachments;
+    unsigned int    nr_samples;
+    bool            multisampled;
+} fbo_init_options;
+
+must_check fbo_t *_fbo_new(const fbo_init_options *opts);
+#define fbo_new(args...) \
+    _fbo_new(&(fbo_init_options){ args })
 void fbo_put(fbo_t *fbo);
 void fbo_put_last(fbo_t *fbo);
 void fbo_prepare(fbo_t *fbo);
@@ -151,6 +164,7 @@ texture_t *fbo_texture(fbo_t *fbo);
 int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
 int fbo_nr_attachments(fbo_t *fbo);
+bool fbo_is_multisampled(fbo_t *fbo);
 enum fbo_attachment fbo_attachment(fbo_t *fbo);
 
 #endif /* __CLAP_RENDER_H__ */

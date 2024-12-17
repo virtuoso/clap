@@ -381,7 +381,7 @@ static int fbo_create(void)
 static cerr_check fbo_texture_init(fbo_t *fbo)
 {
     texture_init(&fbo->tex,
-                 .multisampled  = fbo->multisampled,
+                 .multisampled  = fbo_is_multisampled(fbo),
                  .wrap          = TEX_CLAMP_TO_EDGE,
                  .min_filter    = TEX_FLT_LINEAR,
                  .mag_filter    = TEX_FLT_LINEAR);
@@ -402,7 +402,7 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
                  .type          = TEX_2D_ARRAY,
                  .layers        = CASCADES_MAX,
  #endif /* CONFIG_GLES */
-                 .multisampled  = fbo->multisampled,
+                 .multisampled  = fbo_is_multisampled(fbo),
                  .wrap          = TEX_CLAMP_TO_BORDER,
                  .border        = border,
                  .min_filter    = TEX_FLT_NEAREST,
@@ -463,8 +463,9 @@ enum fbo_attachment fbo_attachment(fbo_t *fbo)
 
 static void __fbo_color_buffer_setup(fbo_t *fbo)
 {
-    if (fbo->multisampled)
-        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8, fbo->width, fbo->height));
+    if (fbo_is_multisampled(fbo))
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples, GL_RGBA8,
+                                            fbo->width, fbo->height));
     else
         GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
 }
@@ -484,8 +485,9 @@ static int fbo_color_buffer(fbo_t *fbo, int output)
 
 static void __fbo_depth_buffer_setup(fbo_t *fbo)
 {
-    if (fbo->multisampled)
-        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
+    if (fbo_is_multisampled(fbo))
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples,
+                                            GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
     else
         GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
 }
@@ -582,7 +584,6 @@ static int fbo_make(struct ref *ref)
 
     darray_init(&fbo->color_buf);
     fbo->depth_buf = -1;
-    fbo->multisampled = false;
 
     return 0;
 }
@@ -658,24 +659,34 @@ err:
     return err;
 }
 
-must_check fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
+bool fbo_is_multisampled(fbo_t *fbo)
+{
+    return !!fbo->nr_samples;
+}
+
+must_check fbo_t *_fbo_new(const fbo_init_options *opts)
 {
     fbo_t *fbo;
 
-    CHECK(fbo = ref_new(fbo));
-    fbo->width = width;
-    fbo->height = height;
-    fbo->multisampled = multisampled;
-    cerr err = fbo_init(fbo, nr_attachments);
-    if (err)
+    fbo = ref_new(fbo);
+    if (!fbo)
+        return fbo;
+
+    fbo->width        = opts->width;
+    fbo->height       = opts->height;
+
+    if (opts->nr_samples)
+        fbo->nr_samples = opts->nr_samples;
+    else if (opts->multisampled)
+        fbo->nr_samples = MSAA_SAMPLES;
+
+    cerr err = fbo_init(fbo, opts->nr_attachments);
+    if (err) {
+        ref_put_last(fbo);
         return NULL;
+    }
 
     return fbo;
-}
-
-must_check fbo_t *fbo_new(int width, int height)
-{
-    return fbo_new_ms(width, height, false, FBO_COLOR_TEXTURE);
 }
 
 void fbo_put(fbo_t *fbo)

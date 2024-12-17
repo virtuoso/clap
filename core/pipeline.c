@@ -209,7 +209,10 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     pass->cascade = -1;
 #endif /* CONFIG_GLES */
 
-    *pfbo = fbo_new_ms(width, height, ms, nr_targets);
+    *pfbo = fbo_new(.width          = width,
+                    .height         = height,
+                    .multisampled   = ms,
+                    .nr_attachments = nr_targets);
     if (!*pfbo)
         goto err_fbo_array;
 
@@ -322,7 +325,7 @@ void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int
         goto err_src;
 
     /* this is where src's txmodel will be rendered */
-    *pfbo = fbo_new_ms(pl->scene->width, pl->scene->height, false, 0);
+    *pfbo = fbo_new(pl->scene->width, pl->scene->height);
     if (!*pfbo)
         goto err_fbo_array;
 
