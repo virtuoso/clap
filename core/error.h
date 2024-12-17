@@ -11,4 +11,7 @@ typedef enum cerr {
     CERR_FRAMEBUFFER_INCOMPLETE = -6,
 } cerr;
 
+#define must_check __attribute__((warn_unused_result))
+#define cerr_check cerr must_check
+
 #endif /* __CLAP_ERROR_H__ */

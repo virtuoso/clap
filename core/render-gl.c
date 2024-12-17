@@ -239,8 +239,8 @@ static void texture_setup_end(texture_t *tex)
     GL(glBindTexture(tex->type, 0));
 }
 
-cerr texture_load(texture_t *tex, enum texture_format format,
-                  unsigned int width, unsigned int height, void *buf)
+cerr_check texture_load(texture_t *tex, enum texture_format format,
+                        unsigned int width, unsigned int height, void *buf)
 {
     if (!texture_size_valid(width, height))
         return CERR_INVALID_TEXTURE_SIZE;
@@ -260,8 +260,8 @@ cerr texture_load(texture_t *tex, enum texture_format format,
     return CERR_OK;
 }
 
-static cerr texture_fbo(texture_t *tex, GLuint attachment, GLenum format, unsigned int width,
-                       unsigned int height)
+static cerr_check texture_fbo(texture_t *tex, GLuint attachment, GLenum format,
+                              unsigned int width, unsigned int height)
 {
     if (!texture_size_valid(width, height))
         return CERR_INVALID_TEXTURE_SIZE;
@@ -332,7 +332,7 @@ bool texture_loaded(struct texture *tex)
     return tex->loaded;
 }
 
-cerr texture_pixel_init(texture_t *tex, float color[4])
+cerr_check texture_pixel_init(texture_t *tex, float color[4])
 {
     texture_init(tex);
     return texture_load(tex, TEX_FMT_RGBA, 1, 1, color);
@@ -380,7 +380,7 @@ static int fbo_create(void)
     return fbo;
 }
 
-static cerr fbo_texture_init(fbo_t *fbo)
+static cerr_check fbo_texture_init(fbo_t *fbo)
 {
     texture_init(&fbo->tex,
                  .multisampled  = fbo->multisampled,
@@ -396,7 +396,7 @@ static cerr fbo_texture_init(fbo_t *fbo)
     return CERR_OK;
 }
 
-static cerr fbo_depth_texture_init(fbo_t *fbo)
+static cerr_check fbo_depth_texture_init(fbo_t *fbo)
 {
     float border[] = { 1, 1, 1, 1 };
     texture_init(&fbo->tex,
@@ -505,7 +505,7 @@ static int fbo_depth_buffer(fbo_t *fbo)
     return buf;
 }
 
-cerr fbo_resize(fbo_t *fbo, int width, int height)
+cerr_check fbo_resize(fbo_t *fbo, int width, int height)
 {
     if (!fbo)
         return CERR_INVALID_ARGUMENTS;
@@ -615,7 +615,7 @@ DECLARE_REFCLASS2(fbo);
  *  = 0: color texture
  *  > 0: number of color buffer attachments
  */
-static cerr fbo_init(fbo_t *fbo, int nr_attachments)
+static cerr_check fbo_init(fbo_t *fbo, int nr_attachments)
 {
     cerr err = CERR_OK;
 
@@ -660,7 +660,7 @@ err:
     return err;
 }
 
-fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
+must_check fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
 {
     fbo_t *fbo;
 
@@ -675,7 +675,7 @@ fbo_t *fbo_new_ms(int width, int height, bool multisampled, int nr_attachments)
     return fbo;
 }
 
-fbo_t *fbo_new(int width, int height)
+must_check fbo_t *fbo_new(int width, int height)
 {
     return fbo_new_ms(width, height, false, FBO_COLOR_TEXTURE);
 }
