@@ -13,7 +13,13 @@
 
 static int width, height;
 
-static int refresh_rate = 0;
+static int refresh_rate;
+
+static inline int __refresh_rate(long total, int frames)
+{
+    total /= frames;
+    return (int)(NSEC_PER_SEC / total);
+}
 
 int display_refresh_rate(void)
 {
@@ -25,14 +31,14 @@ struct calc_refresh_rate_priv {
     void                *update_data;
 };
 
-#define AVG_FRAMES 20
+#define AVG_FRAMES 5
 #define SKIP_FRAMES 2
 EMSCRIPTEN_KEEPALIVE void __calc_refresh_rate(void *data)
 {
+    static int frame = 0, diff = 360, avg_frames = AVG_FRAMES;
     static struct timespec ts_start, ts_end, ts_delta;
     struct calc_refresh_rate_priv *priv = data;
     static long total = 0;
-    static int frame = 0;
 
     if (frame < SKIP_FRAMES) {
         frame++;
@@ -41,17 +47,37 @@ EMSCRIPTEN_KEEPALIVE void __calc_refresh_rate(void *data)
         clock_gettime(CLOCK_MONOTONIC, &ts_start);
         frame++;
         return;
-    } else if (frame < AVG_FRAMES + SKIP_FRAMES) {
+    } else if (frame < avg_frames + SKIP_FRAMES) {
         clock_gettime(CLOCK_MONOTONIC, &ts_end);
         timespec_diff(&ts_start, &ts_end, &ts_delta);
         ts_start = ts_end;
-        total += ts_delta.tv_nsec;
+        if (!total) {
+            total = ts_delta.tv_nsec;
+            return;
+        }
+
         frame++;
+        int ndiff = abs(__refresh_rate(total, frame - SKIP_FRAMES - 1) -
+                        __refresh_rate(total + ts_delta.tv_nsec, frame - SKIP_FRAMES));
+        dbg("ndiff: %d frame: %d || %d - %d\n", ndiff, frame,
+            __refresh_rate(total, frame - SKIP_FRAMES - 1),
+            __refresh_rate(total + ts_delta.tv_nsec, frame - SKIP_FRAMES)
+        );
+        if (ndiff < diff) {
+            diff = ndiff;
+            dbg("diff: %d\n", diff);
+            total += ts_delta.tv_nsec;
+            if (!diff)
+                goto out;
+        } else {
+            frame--;
+            avg_frames++;
+        }
         return;
     }
 
-    total /= AVG_FRAMES - 1;
-    refresh_rate = 1000000000L / total;
+out:
+    refresh_rate = __refresh_rate(total, frame - SKIP_FRAMES);
     dbg("Estimated RAF refresh rate: %d\n", refresh_rate);
     emscripten_cancel_main_loop();
     emscripten_set_main_loop_arg(priv->update_fn, priv->update_data, 0, false);
