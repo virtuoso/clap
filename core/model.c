@@ -68,8 +68,8 @@ static void model3d_drop(struct ref *ref)
 
 DECLARE_REFCLASS(model3d);
 
-static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
-                                  int has_alpha, enum shader_vars var, texture_t *tex)
+static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
+                                   int has_alpha, enum shader_vars var, texture_t *tex)
 {
     GLuint color_type = has_alpha ? TEX_FMT_RGBA : TEX_FMT_RGB;
     if (!buffer)
@@ -78,68 +78,66 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
     if (!shader_has_var(p, var))
         return -EINVAL;
 
-    //hexdump(buffer, 16);
     texture_init(tex,
                  .target       = shader_get_texture_slot(p, var),
                  .wrap         = TEX_WRAP_REPEAT,
                  .min_filter   = TEX_FLT_NEAREST,
                  .mag_filter   = TEX_FLT_NEAREST);
 
-    // Bind it
     cerr err = texture_load(tex, color_type, width, height, buffer);
     if (err)
         return err;
 
     shader_set_texture(p, var);
 
-    return 0;
+    return CERR_OK;
 }
 
-static int model3dtx_add_texture_from_buffer(struct model3dtx *txm, enum shader_vars var, void *input,
-                                             int width, int height, int has_alpha)
+static cerr model3dtx_add_texture_from_buffer(struct model3dtx *txm, enum shader_vars var, void *input,
+                                              int width, int height, int has_alpha)
 {
     texture_t *targets[] = { txm->texture, txm->normals, txm->emission, txm->sobel };
     struct shader_prog *prog = txm->model->prog;
-    int ret, slot;
+    int slot;
+    cerr err;
 
     slot = shader_get_texture_slot(prog, var);
     if (slot < 0)
         return -EINVAL;
 
     shader_prog_use(prog);
-    ret = load_gl_texture_buffer(prog, input, width, height, has_alpha, var,
+    err = load_gl_texture_buffer(prog, input, width, height, has_alpha, var,
                                  targets[slot]);
     shader_prog_done(prog);
     dbg("loaded texture%d %d %dx%d\n", slot, texture_id(txm->texture), width, height);
 
-    return ret;
+    return err;
 }
 
-static int model3dtx_add_texture_from_png_buffer(struct model3dtx *txm, enum shader_vars var, void *input, size_t length)
+static cerr_check model3dtx_add_texture_from_png_buffer(struct model3dtx *txm, enum shader_vars var, void *input, size_t length)
 {
-    int width, height, has_alpha, ret;
+    int width, height, has_alpha;
     unsigned char *buffer;
 
-    // dbg("## shader '%s' texture_map: %d normal_map: %d\n", prog->name, prog->texture_map, prog->normal_map);
     buffer = decode_png(input, length, &width, &height, &has_alpha);
-    ret = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
+    cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
     free(buffer);
 
-    return ret;
+    return err;
 }
 
-static int model3dtx_add_texture_at(struct model3dtx *txm, enum shader_vars var, const char *name)
+static cerr model3dtx_add_texture_at(struct model3dtx *txm, enum shader_vars var, const char *name)
 {
-    int width = 0, height = 0, has_alpha = 0, ret;
+    int width = 0, height = 0, has_alpha = 0;
     unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
 
-    ret = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
+    cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
     free(buffer);
 
-    return ret;
+    return err;
 }
 
-static int model3dtx_add_texture(struct model3dtx *txm, const char *name)
+static cerr model3dtx_add_texture(struct model3dtx *txm, const char *name)
 {
     return model3dtx_add_texture_at(txm, UNIFORM_MODEL_TEX, name);
 }
@@ -223,9 +221,11 @@ static void model3dtx_add_fake_emission(struct model3dtx *txm)
     float fake_emission[4] = { 0, 0, 0, 1.0 };
 
     shader_prog_use(model->prog);
-    load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, UNIFORM_EMISSION_MAP,
-                           txm->emission);
+    cerr err = load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, UNIFORM_EMISSION_MAP,
+                                      txm->emission);
     shader_prog_done(model->prog);
+
+    warn_on(err != CERR_OK, "%s failed: %d\n", __func__, err);
 }
 
 static void model3dtx_add_fake_sobel(struct model3dtx *txm)
@@ -234,9 +234,11 @@ static void model3dtx_add_fake_sobel(struct model3dtx *txm)
     float fake_sobel[4] = { 1.0, 1.0, 1.0, 1.0 };
 
     shader_prog_use(model->prog);
-    load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, UNIFORM_SOBEL_TEX,
-                           txm->sobel);
+    cerr err = load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, UNIFORM_SOBEL_TEX,
+                                      txm->sobel);
     shader_prog_done(model->prog);
+
+    warn_on(err != CERR_OK, "%s failed: %d\n", __func__, err);
 }
 
 struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
@@ -251,17 +253,33 @@ struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *te
         goto err;
 
     txm->model = ref_get(model);
-    model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
-    if (norm && normsz)
-        model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
-    if (em && emsz)
-        model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
-    else
+
+    cerr err;
+    err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
+    if (err)
+        goto err_3dtx;
+
+    if (norm && normsz) {
+        err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
+        if (err)
+            goto err_3dtx;
+    }
+
+    if (em && emsz) {
+        err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
+        if (err)
+            goto err_3dtx;
+    } else {
         model3dtx_add_fake_emission(txm);
+    }
+
     model3dtx_add_fake_sobel(txm);
 
     return txm;
 
+err_3dtx:
+    ref_put_last(txm);
+    return NULL;
 err:
     ref_put_passed(model);
     return NULL;
