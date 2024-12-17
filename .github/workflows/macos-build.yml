@@ -9,7 +9,7 @@ jobs:
       - name: submodules
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule update --init --recursive
+          git submodule update --init --recursive --depth 1
       - name: install-deps
         run: |
           brew install cmake glew zlib libpng libogg libvorbis freetype glfw shaderc spirv-cross
