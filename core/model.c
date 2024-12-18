@@ -84,10 +84,13 @@ static int load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width
                  .wrap         = TEX_WRAP_REPEAT,
                  .min_filter   = TEX_FLT_NEAREST,
                  .mag_filter   = TEX_FLT_NEAREST);
-    shader_set_texture(p, var);
 
     // Bind it
-    texture_load(tex, color_type, width, height, buffer);
+    cerr err = texture_load(tex, color_type, width, height, buffer);
+    if (err)
+        return err;
+
+    shader_set_texture(p, var);
 
     return 0;
 }
