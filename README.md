@@ -1,6 +1,7 @@
 # CLAP game engine
 
-![simple-build](https://github.com/virtuoso/clap/actions/workflows/simple-build.yml/badge.svg?branch=main)
+![linux-build](https://github.com/virtuoso/clap/actions/workflows/linux-build.yml/badge.svg?branch=main)
+![www-build](https://github.com/virtuoso/clap/actions/workflows/www-build.yml/badge.svg?branch=main)
 ![macos-build](https://github.com/virtuoso/clap/actions/workflows/macos-build.yml/badge.svg?branch=main)
 ![windows-build](https://github.com/virtuoso/clap/actions/workflows/windows-build.yml/badge.svg?branch=main)
 
