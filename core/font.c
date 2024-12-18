@@ -60,7 +60,10 @@ static void font_load_glyph(struct font *font, unsigned char c)
 #undef _AT
 #undef _GAT
     texture_init(&font->g[c].tex);
-    texture_load(&font->g[c].tex, TEX_FMT_RGBA, glyph->bitmap.width, glyph->bitmap.rows, buf);
+    cerr err = texture_load(&font->g[c].tex, TEX_FMT_RGBA, glyph->bitmap.width,
+                            glyph->bitmap.rows, buf);
+    if (err)
+        return;
 
     font->g[c].advance_x = glyph->advance.x;
     font->g[c].advance_y = glyph->advance.y;
@@ -99,6 +102,8 @@ GLuint font_get_texture(struct font *font, unsigned char c)
 {
     if (!font->g[c].loaded)
         font_load_glyph(font, c);
+    if (!font->g[c].loaded)
+        return 0;
 
     return texture_id(&font->g[c].tex);
 }
@@ -107,6 +112,8 @@ struct glyph *font_get_glyph(struct font *font, unsigned char c)
 {
     if (!font->g[c].loaded)
         font_load_glyph(font, c);
+    if (!font->g[c].loaded)
+        return NULL;
 
     return &font->g[c];
 }
