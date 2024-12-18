@@ -73,10 +73,10 @@ static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int widt
 {
     GLuint color_type = has_alpha ? TEX_FMT_RGBA : TEX_FMT_RGB;
     if (!buffer)
-        return -EINVAL;
+        return CERR_INVALID_ARGUMENTS;
 
     if (!shader_has_var(p, var))
-        return -EINVAL;
+        return CERR_OK;
 
     texture_init(tex,
                  .target       = shader_get_texture_slot(p, var),
