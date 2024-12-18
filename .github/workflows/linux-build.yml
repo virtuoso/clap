@@ -1,0 +1,26 @@
+name: linux-build
+on: [push]
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive --depth 1
+      - name: install-deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross
+      - name: configure
+        run: |
+          cd ${{ github.workspace }}
+          touch build_config
+          echo opts=\"--parallel 4\" >> build_config
+          ./configure.sh
+      - name: build
+        run: |
+          cd ${{ github.workspace }}
+          ./build.sh

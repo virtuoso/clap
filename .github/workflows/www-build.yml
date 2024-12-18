@@ -1,0 +1,44 @@
+name: www-build
+on: [push]
+jobs:
+  build-www:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive --depth 1
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
+          cd emsdk && ./emsdk install latest && ./emsdk activate latest
+      - name: install-deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y glslc spirv-cross
+      - name: configure
+        run: |
+          cd ${{ github.workspace }}
+          . ./emsdk/emsdk_env.sh
+          export WWW_INSTALL_DIR="${{ github.workspace }}/www/${GITHUB_REF##*/}"
+          cmake --preset emrel -B build/emrel
+          cmake --preset emtest -B build/emtest
+          cmake --preset emdebug -B build/emdebug
+      - name: build
+        run: |
+          cd ${{ github.workspace }}
+          cmake --build build/emrel --parallel 4
+          cmake --build build/emtest --parallel 4
+          cmake --build build/emdebug --parallel 4
+          cmake --install build/emrel
+          cmake --install build/emtest
+          cmake --install build/emdebug
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@main
+        with:
+            SSH_PRIVATE_KEY: ${{ secrets.REMOTE_DEPLOY_KEY }}
+            ARGS: "-rlgoDzvc -i"
+            SOURCE: "www/"
+            REMOTE_HOST: ${{ secrets.REMOTE_DEPLOY_HOST }}
+            REMOTE_USER: ${{ secrets.REMOTE_DEPLOY_USER }}
+            TARGET: ${{ secrets.REMOTE_DEPLOY_TARGET }}
