@@ -111,7 +111,7 @@ DECLARE_REFCLASS(shader_prog);
 
 struct shader_var_desc {
     const char              *name;
-    enum shader_var_type    type;
+    enum data_type          type;
     int                     texture_slot;
     unsigned int            attr_count;
 };
@@ -119,17 +119,17 @@ struct shader_var_desc {
 #define SHADER_VAR(_c, _n, _t) \
     [_c] = { .name = (_n), .type = (_t), .texture_slot = -1 }
 #define SHADER_TEX(_c, _n, _slot) \
-    [_c] = { .name = (_n), .type = ST_INT, .texture_slot = (_slot) }
+    [_c] = { .name = (_n), .type = DT_INT, .texture_slot = (_slot) }
 #define SHADER_ATTR(_c, _n, _t, _count) \
     [_c] = { .name = (_n), .type = (_t), .attr_count = (_count), .texture_slot = -1 }
 
 static const struct shader_var_desc shader_var_desc[] = {
-    SHADER_ATTR(ATTR_POSITION,              "position",             ST_FLOAT, 3),
-    SHADER_ATTR(ATTR_NORMAL,                "normal",               ST_FLOAT, 3),
-    SHADER_ATTR(ATTR_TEX,                   "tex",                  ST_FLOAT, 2),
-    SHADER_ATTR(ATTR_TANGENT,               "tangent",              ST_FLOAT, 4),
-    SHADER_ATTR(ATTR_JOINTS,                "joints",               ST_BYTE,  4),
-    SHADER_ATTR(ATTR_WEIGHTS,               "weights",              ST_FLOAT, 4),
+    SHADER_ATTR(ATTR_POSITION,              "position",             DT_FLOAT, 3),
+    SHADER_ATTR(ATTR_NORMAL,                "normal",               DT_FLOAT, 3),
+    SHADER_ATTR(ATTR_TEX,                   "tex",                  DT_FLOAT, 2),
+    SHADER_ATTR(ATTR_TANGENT,               "tangent",              DT_FLOAT, 4),
+    SHADER_ATTR(ATTR_JOINTS,                "joints",               DT_BYTE,  4),
+    SHADER_ATTR(ATTR_WEIGHTS,               "weights",              DT_FLOAT, 4),
     SHADER_TEX(UNIFORM_MODEL_TEX,           "model_tex",            0),
     SHADER_TEX(UNIFORM_NORMAL_MAP,          "normal_map",           1),
     SHADER_TEX(UNIFORM_EMISSION_MAP,        "emission_map",         2),
@@ -139,39 +139,39 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_TEX(UNIFORM_SHADOW_MAP1,         "shadow_map1",          5),
     SHADER_TEX(UNIFORM_SHADOW_MAP2,         "shadow_map2",          6),
     SHADER_TEX(UNIFORM_SHADOW_MAP3,         "shadow_map3",          7),
-    SHADER_VAR(UNIFORM_WIDTH,               "width",                ST_FLOAT),
-    SHADER_VAR(UNIFORM_HEIGHT,              "height",               ST_FLOAT),
-    SHADER_VAR(UNIFORM_PROJ,                "proj",                 ST_MAT4),
-    SHADER_VAR(UNIFORM_VIEW,                "view",                 ST_MAT4),
-    SHADER_VAR(UNIFORM_TRANS,               "trans",                ST_MAT4),
-    SHADER_VAR(UNIFORM_INVERSE_VIEW,        "inverse_view",         ST_MAT4),
-    SHADER_VAR(UNIFORM_LIGHT_POS,           "light_pos",            ST_VEC3),
-    SHADER_VAR(UNIFORM_LIGHT_COLOR,         "light_color",          ST_VEC3),
-    SHADER_VAR(UNIFORM_LIGHT_DIR,           "light_dir",            ST_VEC3),
-    SHADER_VAR(UNIFORM_ATTENUATION,         "attenuation",          ST_VEC3),
-    SHADER_VAR(UNIFORM_SHINE_DAMPER,        "shine_damper",         ST_FLOAT),
-    SHADER_VAR(UNIFORM_REFLECTIVITY,        "reflectivity",         ST_FLOAT),
-    SHADER_VAR(UNIFORM_HIGHLIGHT_COLOR,     "highlight_color",      ST_VEC4),
-    SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             ST_VEC4),
-    SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    ST_INT),
-    SHADER_VAR(UNIFORM_SHADOW_MVP,          "shadow_mvp",           ST_MAT4),
-    SHADER_VAR(UNIFORM_CASCADE_DISTANCES,   "cascade_distances",    ST_FLOAT),
-    SHADER_VAR(UNIFORM_SHADOW_OUTLINE,      "shadow_outline",       ST_INT),
-    SHADER_VAR(UNIFORM_ENTITY_HASH,         "entity_hash",          ST_INT),
-    SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          ST_INT),
-    SHADER_VAR(UNIFORM_USE_SKINNING,        "use_skinning",         ST_INT),
-    SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             ST_INT),
-    SHADER_VAR(UNIFORM_ALBEDO_TEXTURE,      "albedo_texture",       ST_INT),
-    SHADER_VAR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     ST_MAT4),
+    SHADER_VAR(UNIFORM_WIDTH,               "width",                DT_FLOAT),
+    SHADER_VAR(UNIFORM_HEIGHT,              "height",               DT_FLOAT),
+    SHADER_VAR(UNIFORM_PROJ,                "proj",                 DT_MAT4),
+    SHADER_VAR(UNIFORM_VIEW,                "view",                 DT_MAT4),
+    SHADER_VAR(UNIFORM_TRANS,               "trans",                DT_MAT4),
+    SHADER_VAR(UNIFORM_INVERSE_VIEW,        "inverse_view",         DT_MAT4),
+    SHADER_VAR(UNIFORM_LIGHT_POS,           "light_pos",            DT_VEC3),
+    SHADER_VAR(UNIFORM_LIGHT_COLOR,         "light_color",          DT_VEC3),
+    SHADER_VAR(UNIFORM_LIGHT_DIR,           "light_dir",            DT_VEC3),
+    SHADER_VAR(UNIFORM_ATTENUATION,         "attenuation",          DT_VEC3),
+    SHADER_VAR(UNIFORM_SHINE_DAMPER,        "shine_damper",         DT_FLOAT),
+    SHADER_VAR(UNIFORM_REFLECTIVITY,        "reflectivity",         DT_FLOAT),
+    SHADER_VAR(UNIFORM_HIGHLIGHT_COLOR,     "highlight_color",      DT_VEC4),
+    SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             DT_VEC4),
+    SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    DT_INT),
+    SHADER_VAR(UNIFORM_SHADOW_MVP,          "shadow_mvp",           DT_MAT4),
+    SHADER_VAR(UNIFORM_CASCADE_DISTANCES,   "cascade_distances",    DT_FLOAT),
+    SHADER_VAR(UNIFORM_SHADOW_OUTLINE,      "shadow_outline",       DT_INT),
+    SHADER_VAR(UNIFORM_ENTITY_HASH,         "entity_hash",          DT_INT),
+    SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          DT_INT),
+    SHADER_VAR(UNIFORM_USE_SKINNING,        "use_skinning",         DT_INT),
+    SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),
+    SHADER_VAR(UNIFORM_ALBEDO_TEXTURE,      "albedo_texture",       DT_INT),
+    SHADER_VAR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4),
 };
 
 static GLuint var_type[] = {
-    [ST_FLOAT]  = GL_FLOAT,
-    [ST_INT]    = GL_INT,
-    [ST_BYTE]   = GL_UNSIGNED_BYTE,
-    [ST_VEC3]   = GL_FLOAT,
-    [ST_VEC4]   = GL_FLOAT,
-    [ST_MAT4]   = GL_FLOAT,
+    [DT_FLOAT]  = GL_FLOAT,
+    [DT_INT]    = GL_INT,
+    [DT_BYTE]   = GL_UNSIGNED_BYTE,
+    [DT_VEC3]   = GL_FLOAT,
+    [DT_VEC4]   = GL_FLOAT,
+    [DT_MAT4]   = GL_FLOAT,
 };
 
 const char *shader_get_var_name(enum shader_vars var)
@@ -215,25 +215,25 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
     switch (desc->type) {
-        case ST_FLOAT: {
+        case DT_FLOAT: {
             GL(glUniform1fv(p->vars[var], count, value));
             break;
         }
-        case ST_INT: {
+        case DT_INT: {
             GL(glUniform1iv(p->vars[var], count, value));
             break;
         }
-        case ST_VEC3: {
+        case DT_VEC3: {
             float *_value = value;
             GL(glUniform3fv(p->vars[var], count, _value));
             break;
         }
-        case ST_VEC4: {
+        case DT_VEC4: {
             float *_value = value;
             GL(glUniform4fv(p->vars[var], count, _value));
             break;
         }
-        case ST_MAT4: {
+        case DT_MAT4: {
             float *_value = value;
             GL(glUniformMatrix4fv(p->vars[var], count, GL_FALSE, _value));
             break;

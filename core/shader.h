@@ -50,16 +50,6 @@ enum shader_vars {
     SHADER_VAR_MAX
 };
 
-enum shader_var_type {
-    ST_NONE = 0,
-    ST_BYTE,
-    ST_INT,
-    ST_FLOAT,
-    ST_VEC3,
-    ST_VEC4,
-    ST_MAT4,
-};
-
 struct shader_prog {
     const char  *name;
     GLuint      prog;

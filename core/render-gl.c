@@ -18,6 +18,136 @@ static struct gl_limits {
     GLint gl_max_depth_texture_samples;
 } gl_limits;
 
+static const GLuint gl_comp_type[] = {
+    [DT_FLOAT]  = GL_FLOAT,
+    [DT_INT]    = GL_INT,
+    [DT_BYTE]   = GL_UNSIGNED_BYTE,
+    [DT_VEC3]   = GL_FLOAT,
+    [DT_VEC4]   = GL_FLOAT,
+    [DT_MAT4]   = GL_FLOAT,
+};
+
+static const unsigned int gl_comp_count[] = {
+    [DT_FLOAT]  = 1,
+    [DT_INT]    = 1,
+    [DT_SHORT]  = 1,
+    [DT_BYTE]   = 1,
+    [DT_VEC3]   = 3,
+    [DT_VEC4]   = 4,
+    [DT_MAT4]   = 16,
+};
+
+/****************************************************************************
+ * Buffer
+ ****************************************************************************/
+
+static void buffer_drop(struct ref *ref)
+{
+    buffer_t *buf = container_of(ref, struct buffer, ref);
+    buffer_deinit(buf);
+}
+DECLARE_REFCLASS(buffer);
+
+static GLenum gl_buffer_type(enum buffer_type type)
+{
+    switch (type) {
+        case BUF_ARRAY:             return GL_ARRAY_BUFFER;
+        case BUF_ELEMENT_ARRAY:     return GL_ELEMENT_ARRAY_BUFFER;
+        default:                    break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+static GLenum gl_buffer_usage(enum buffer_usage usage)
+{
+    switch (usage) {
+        case BUF_STATIC:            return GL_STATIC_DRAW;
+        case BUF_DYNAMIC:           return GL_DYNAMIC_DRAW;
+        default:                    break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+bool buffer_loaded(buffer_t *buf)
+{
+    return buf->loaded;
+}
+
+void _buffer_init(buffer_t *buf, const buffer_init_options *opts)
+{
+    ref_embed(buffer, buf);
+
+    enum data_type comp_type = opts->comp_type;
+    if (comp_type == DT_NONE)
+        comp_type = DT_FLOAT;
+
+    unsigned int comp_count = opts->comp_count;
+    if (!comp_count)
+        comp_count = gl_comp_count[comp_type];
+
+    buf->type = gl_buffer_type(opts->type);
+    buf->usage = gl_buffer_usage(opts->usage);
+    buf->comp_type = gl_comp_type[opts->comp_type];
+    buf->comp_count = comp_count;
+
+    if (opts->data && opts->size)
+        buffer_load(buf, opts->data, opts->size,
+                    buf->type == GL_ELEMENT_ARRAY_BUFFER ? -1 : 0);
+}
+
+void buffer_deinit(buffer_t *buf)
+{
+    if (!buf->loaded)
+        return;
+    GL(glDeleteBuffers(1, &buf->id));
+    buf->loaded = false;
+}
+
+static inline void _buffer_bind(buffer_t *buf, int loc)
+{
+    GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE, 0, (void *)0));
+}
+
+void buffer_bind(buffer_t *buf, int loc)
+{
+    if (!buf->loaded)
+        return;
+
+    GL(glBindBuffer(buf->type, buf->id));
+    if (loc < 0)
+        return;
+
+    _buffer_bind(buf, loc);
+    GL(glEnableVertexAttribArray(loc));
+}
+
+void buffer_unbind(buffer_t *buf, int loc)
+{
+    if (!buf->loaded || loc < 0)
+        return;
+
+    GL(glDisableVertexAttribArray(loc));
+}
+
+void buffer_load(buffer_t *buf, void *data, size_t sz, int loc)
+{
+    GL(glGenBuffers(1, &buf->id));
+    GL(glBindBuffer(buf->type, buf->id));
+    GL(glBufferData(buf->type, sz, data, buf->usage));
+
+    if (loc >= 0)
+        _buffer_bind(buf, loc);
+
+    GL(glBindBuffer(buf->type, 0));
+    buf->loaded = true;
+}
+
 /****************************************************************************
  * Texture
  ****************************************************************************/

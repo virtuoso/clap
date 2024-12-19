@@ -14,6 +14,55 @@
 #define GL_CLAMP_TO_BORDER GL_CLAMP_TO_EDGE
 #endif /* CONFIG_BROWSER */
 
+enum data_type {
+    DT_NONE = 0,
+    DT_BYTE,
+    DT_SHORT,
+    DT_INT,
+    DT_FLOAT,
+    DT_VEC3,
+    DT_VEC4,
+    DT_MAT4,
+};
+
+enum buffer_type {
+    BUF_ARRAY,
+    BUF_ELEMENT_ARRAY,
+};
+
+enum buffer_usage {
+    BUF_STATIC,
+    BUF_DYNAMIC
+};
+
+TYPE(buffer,
+    struct ref  ref;
+    GLenum      type;
+    GLenum      usage;
+    GLuint      id;
+    GLuint      comp_type;
+    GLuint      comp_count;
+    bool        loaded;
+);
+
+typedef struct buffer_init_options {
+    enum buffer_type    type;
+    enum buffer_usage   usage;
+    enum data_type      comp_type;
+    unsigned int        comp_count;
+    void                *data;
+    size_t              size;
+} buffer_init_options;
+
+#define buffer_init(_b, args...) \
+    _buffer_init((_b), &(buffer_init_options){ args })
+void _buffer_init(buffer_t *buf, const buffer_init_options *opts);
+void buffer_deinit(buffer_t *buf);
+void buffer_bind(buffer_t *buf, int loc);
+void buffer_unbind(buffer_t *buf, int loc);
+void buffer_load(buffer_t *buf, void *data, size_t sz, int loc);
+bool buffer_loaded(buffer_t *buf);
+
 enum texture_type {
     TEX_2D,
     TEX_2D_ARRAY,
