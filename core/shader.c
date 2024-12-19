@@ -224,18 +224,15 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
             break;
         }
         case DT_VEC3: {
-            float *_value = value;
-            GL(glUniform3fv(p->vars[var], count, _value));
+            GL(glUniform3fv(p->vars[var], count, value));
             break;
         }
         case DT_VEC4: {
-            float *_value = value;
-            GL(glUniform4fv(p->vars[var], count, _value));
+            GL(glUniform4fv(p->vars[var], count, value));
             break;
         }
         case DT_MAT4: {
-            float *_value = value;
-            GL(glUniformMatrix4fv(p->vars[var], count, GL_FALSE, _value));
+            GL(glUniformMatrix4fv(p->vars[var], count, GL_FALSE, value));
             break;
         }
         default:
