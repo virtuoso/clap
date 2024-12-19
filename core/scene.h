@@ -24,7 +24,6 @@ struct scene {
     char                *name;
     int                 width;
     int                 height;
-    struct model3d      *_model; /* temporary */
     struct mq           mq;
     struct list         characters;
     struct list         instor;

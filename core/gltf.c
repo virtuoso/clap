@@ -1086,7 +1086,6 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }
 
-    gd->scene->_model = m;
     txm = model3dtx_new_from_png_buffers(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
                                          gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh),
                                          gltf_em(gd, mesh), gltf_emsz(gd, mesh));
@@ -1107,7 +1106,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
         mat4x4 root_pose;
         int err, i;
 
-        err = model3d_add_skinning(gd->scene->_model,
+        err = model3d_add_skinning(txm->model,
                                    mesh_joints(me), mesh_joints_sz(me),
                                    mesh_weights(me), mesh_weights_sz(me), s->nr_joints, s->invmxs);
         if (err)
@@ -1128,16 +1127,16 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
         }
 
         /* XXX: -> model.c */
-        memcpy(gd->scene->_model->root_pose, root_pose, sizeof(mat4x4));
+        memcpy(txm->model->root_pose, root_pose, sizeof(mat4x4));
 
         for (i = 0; i < s->nr_joints; i++) {
             int ch;
 
             node = &gd->nodes.x[s->joints[i]];
-            gd->scene->_model->joints[i].name = strdup(node->name);
+            txm->model->joints[i].name = strdup(node->name);
 
             for (ch = 0; ch < node->nr_children; ch++) {
-                int *pchild = darray_add(&gd->scene->_model->joints[i].children.da);
+                int *pchild = darray_add(&txm->model->joints[i].children.da);
                 *pchild = gltf_skin_node_to_joint(gd, skin, node->ch_arr[ch]);//node->ch_arr[ch];
             }
         }
@@ -1157,7 +1156,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
              * OTOH, the 'pose' / 'frame' based data will fit into channel based
              * model trivially, where all channels move at the same time increments.
              */
-            CHECK(an = animation_new(gd->scene->_model, ga->name,
+            CHECK(an = animation_new(txm->model, ga->name,
                                      ga->channels.da.nr_el));
             darray_for_each(chan, &ga->channels) {
                 int accr_in = ga->samplers.x[chan->sampler].input;
