@@ -250,32 +250,31 @@ void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value)
     shader_set_var_ptr(p, var, 1, &value);
 }
 
-void shader_setup_attribute(struct shader_prog *p, enum shader_vars var)
+void _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf,
+                             const buffer_init_options *opts)
 {
     if (!shader_has_var(p, var))
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
 
-    GL(glVertexAttribPointer(p->vars[var], desc->attr_count, var_type[desc->type], GL_FALSE, 0, (void *)0));
+    _buffer_init(buf, opts);
 }
 
-void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, unsigned int buffer)
+void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
-    if (!shader_has_var(p, var) || !buffer)
+    if (!shader_has_var(p, var) || !buf)
         return;
 
-    GL(glBindBuffer(GL_ARRAY_BUFFER, buffer));
-    shader_setup_attribute(p, var);
-    GL(glEnableVertexAttribArray(p->vars[var]));
+    buffer_bind(buf, p->vars[var]);
 }
 
-void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var)
+void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
     if (!shader_has_var(p, var))
         return;
 
-    GL(glDisableVertexAttribArray(p->vars[var]));
+    buffer_unbind(buf, p->vars[var]);
 }
 
 int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)

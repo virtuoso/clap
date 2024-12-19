@@ -31,16 +31,14 @@ static void model3d_drop(struct ref *ref)
     struct animation *an;
     int i;
 
-    glDeleteBuffers(1, &m->vertex_obj);
+    buffer_deinit(&m->vertex);
     for (i = 0; i < m->nr_lods; i++)
-        glDeleteBuffers(1, &m->index_obj[i]);
-    if (m->norm_obj)
-        glDeleteBuffers(1, &m->norm_obj);
-    if (m->tex_obj)
-        glDeleteBuffers(1, &m->tex_obj);
+        buffer_deinit(&m->index[i]);
+    buffer_deinit(&m->norm);
+    buffer_deinit(&m->tex);
     if (m->nr_joints) {
-        GL(glDeleteBuffers(1, &m->joints_obj));
-        GL(glDeleteBuffers(1, &m->weights_obj));
+        buffer_deinit(&m->vjoints);
+        buffer_deinit(&m->weights);
     }
     if (gl_does_vao())
         glDeleteVertexArrays(1, &m->vao);
@@ -323,19 +321,6 @@ void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_
     *targets[slot] = tex;
 }
 
-static void load_gl_buffer(struct shader_prog *p, int loc, void *data,
-                           size_t sz, GLuint *obj, GLenum target)
-{
-    GL(glGenBuffers(1, obj));
-    GL(glBindBuffer(target, *obj));
-    GL(glBufferData(target, sz, data, GL_STATIC_DRAW));
-    
-    if (loc >= 0)
-        shader_setup_attribute(p, loc);
-    
-    GL(glBindBuffer(target, 0));
-}
-
 void model3d_set_name(struct model3d *m, const char *fmt, ...)
 {
     va_list ap;
@@ -401,7 +386,12 @@ void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz)
     shader_prog_use(m->prog);
     if (gl_does_vao())
         glBindVertexArray(m->vao);
-    load_gl_buffer(m->prog, ATTR_TANGENT, tg, tgsz, &m->tangent_obj, GL_ARRAY_BUFFER);
+    shader_setup_attribute(m->prog, ATTR_TANGENT, &m->tangent,
+                           .type       = BUF_ARRAY,
+                           .usage      = BUF_STATIC,
+                           .comp_type  = DT_FLOAT,
+                           .data       = tg,
+                           .size       = tgsz);
     if (gl_does_vao())
         glBindVertexArray(0);
     shader_prog_done(m->prog);
@@ -435,9 +425,20 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     shader_prog_use(m->prog);
     if (gl_does_vao())
         glBindVertexArray(m->vao);
-    load_gl_buffer(m->prog, ATTR_JOINTS, joints, m->nr_vertices * 4, &m->joints_obj, GL_ARRAY_BUFFER);
-    load_gl_buffer(m->prog, ATTR_WEIGHTS, weights, m->nr_vertices * 4 * sizeof(float),
-                   &m->weights_obj, GL_ARRAY_BUFFER);
+    shader_setup_attribute(m->prog, ATTR_JOINTS, &m->vjoints,
+                           .type       = BUF_ARRAY,
+                           .usage      = BUF_STATIC,
+                           .comp_type  = DT_BYTE,
+                           .comp_count = 4,
+                           .data       = joints,
+                           .size       = jointssz);
+    shader_setup_attribute(m->prog, ATTR_WEIGHTS, &m->weights,
+                           .type       = BUF_ARRAY,
+                           .usage      = BUF_STATIC,
+                           .comp_type  = DT_FLOAT,
+                           .comp_count = 4,
+                           .data       = weights,
+                           .size       = weightssz);
     if (gl_does_vao())
         glBindVertexArray(0);
     shader_prog_done(m->prog);
@@ -471,25 +472,45 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     }
 
     shader_prog_use(p);
-    load_gl_buffer(m->prog, ATTR_POSITION, vx, vxsz, &m->vertex_obj, GL_ARRAY_BUFFER);
-    load_gl_buffer(m->prog, -1, idx, idxsz, &m->index_obj[0], GL_ELEMENT_ARRAY_BUFFER);
+    shader_setup_attribute(p, ATTR_POSITION, &m->vertex,
+                           .type           = BUF_ARRAY,
+                           .usage          = BUF_STATIC,
+                           .comp_type      = DT_FLOAT,
+                           .comp_count     = 3,
+                           .data           = vx,
+                           .size           = vxsz);
+    buffer_init(&m->index[0],
+                .type       = BUF_ELEMENT_ARRAY,
+                .usage      = BUF_STATIC,
+                .comp_type  = DT_SHORT,
+                .data       = idx,
+                .size       = idxsz);
     m->nr_lods++;
 
-    if (txsz)
-        load_gl_buffer(m->prog, ATTR_TEX, tx, txsz, &m->tex_obj, GL_ARRAY_BUFFER);
+    shader_setup_attribute(p, ATTR_TEX, &m->tex,
+                           .type           = BUF_ARRAY,
+                           .usage          = BUF_STATIC,
+                           .comp_type      = DT_FLOAT,
+                           .comp_count     = 2,
+                           .data           = tx,
+                           .size           = txsz);
 
     if (normsz)
-        load_gl_buffer(m->prog, ATTR_NORMAL, norm, normsz, &m->norm_obj, GL_ARRAY_BUFFER);
+        shader_setup_attribute(p, ATTR_NORMAL, &m->norm,
+                               .type           = BUF_ARRAY,
+                               .usage          = BUF_STATIC,
+                               .comp_type      = DT_FLOAT,
+                               .comp_count     = 3,
+                               .data           = norm,
+                               .size           = normsz);
 
     if (gl_does_vao())
         GL(glBindVertexArray(0));
     shader_prog_done(p);
 
     m->cur_lod = -1;
-    m->nr_vertices = vxsz / sizeof(*vx) / 3; /* XXX: could be GLuint? */
-    m->nr_faces[0] = idxsz / sizeof(*idx); /* XXX: could be GLuint? */
-    /*dbg("created model '%s' vobj: %d iobj: %d nr_vertices: %d\n",
-        m->name, m->vertex_obj, m->index_obj, m->nr_vertices);*/
+    m->nr_vertices = vxsz / sizeof(*vx) / 3;
+    m->nr_faces[0] = idxsz / sizeof(*idx);
 
     return m;
 }
@@ -518,8 +539,12 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
         if (nr_idx < 0)
             break;
         dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
-        load_gl_buffer(m->prog, -1, lod, nr_idx * mesh_idx_stride(mesh),
-                       &m->index_obj[m->nr_lods], GL_ELEMENT_ARRAY_BUFFER);
+        buffer_init(&m->index[m->nr_lods],
+                    .type       = BUF_ELEMENT_ARRAY,
+                    .usage      = BUF_STATIC,
+                    .comp_type  = DT_SHORT,
+                    .data       = lod,
+                    .size       = nr_idx * mesh_idx_stride(mesh));
         free(lod);
         m->nr_faces[m->nr_lods] = nr_idx;
         m->nr_lods++;
@@ -540,9 +565,7 @@ static void model3d_set_lod(struct model3d *m, unsigned int lod)
     if (lod == m->cur_lod)
         return;
 
-    if (m->cur_lod < 0)
-        GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
-    GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj[lod]));
+    buffer_bind(&m->index[lod], -1);
     m->cur_lod = lod;
 }
 
@@ -551,14 +574,14 @@ static void model3d_prepare(struct model3d *m, struct shader_prog *p)
     if (gl_does_vao())
         GL(glBindVertexArray(m->vao));
     if (m->cur_lod >= 0)
-        GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m->index_obj[m->cur_lod]));
-    shader_plug_attribute(p, ATTR_POSITION, m->vertex_obj);
-    shader_plug_attribute(p, ATTR_NORMAL, m->norm_obj);
-    shader_plug_attribute(p, ATTR_TANGENT, m->tangent_obj);
+        buffer_bind(&m->index[m->cur_lod], -1);
+    shader_plug_attribute(p, ATTR_POSITION, &m->vertex);
+    shader_plug_attribute(p, ATTR_NORMAL, &m->norm);
+    shader_plug_attribute(p, ATTR_TANGENT, &m->tangent);
 
     if (m->nr_joints) {
-        shader_plug_attribute(p, ATTR_JOINTS, m->joints_obj);
-        shader_plug_attribute(p, ATTR_WEIGHTS, m->weights_obj);
+        shader_plug_attribute(p, ATTR_JOINTS, &m->vjoints);
+        shader_plug_attribute(p, ATTR_WEIGHTS, &m->weights);
     }
 }
 
@@ -571,8 +594,8 @@ void model3dtx_prepare(struct model3dtx *txm, struct shader_prog *p)
 
     model3d_prepare(txm->model, p);
 
-    if (shader_has_var(p, ATTR_TEX) && m->tex_obj && texture_loaded(txm->texture)) {
-        shader_plug_attribute(p, ATTR_TEX, m->tex_obj);
+    if (shader_has_var(p, ATTR_TEX) && texture_loaded(txm->texture)) {
+        shader_plug_attribute(p, ATTR_TEX, &m->tex);
         shader_plug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
     }
 
@@ -593,14 +616,13 @@ void model3dtx_draw(struct model3dtx *txm)
 
 static void model3d_done(struct model3d *m, struct shader_prog *p)
 {
-    shader_unplug_attribute(p, ATTR_POSITION);
-    if (m->norm_obj)
-        shader_unplug_attribute(p, ATTR_NORMAL);
-    if (m->tangent_obj)
-        shader_unplug_attribute(p, ATTR_TANGENT);
+    shader_unplug_attribute(p, ATTR_POSITION, &m->vertex);
+    shader_unplug_attribute(p, ATTR_NORMAL, &m->norm);
+    shader_unplug_attribute(p, ATTR_TANGENT, &m->tangent);
+
     if (m->nr_joints) {
-        shader_unplug_attribute(p, ATTR_JOINTS);
-        shader_unplug_attribute(p, ATTR_WEIGHTS);
+        shader_unplug_attribute(p, ATTR_JOINTS, &m->vjoints);
+        shader_unplug_attribute(p, ATTR_WEIGHTS, &m->weights);
     }
 
     /* both need to be bound for glDrawElements() */
@@ -613,8 +635,8 @@ static void model3d_done(struct model3d *m, struct shader_prog *p)
 
 void model3dtx_done(struct model3dtx *txm, struct shader_prog *p)
 {
-    if (txm->model->tex_obj) {
-        shader_unplug_attribute(p, ATTR_TEX);
+    if (buffer_loaded(&txm->model->tex)) {
+        shader_unplug_attribute(p, ATTR_TEX, &txm->model->tex);
         GL(glActiveTexture(GL_TEXTURE0));
         GL(glBindTexture(GL_TEXTURE_2D, 0));
     }
