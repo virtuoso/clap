@@ -12,11 +12,8 @@
 
 static float get_rand_height(struct terrain *t, int x, int z)
 {
-    //return 0;   
     srand48(t->seed ^ (x + z * 43210));
-    //srand((x * 42 + z * 2345) + t->seed);
-    //return sin(to_radians((float)rand()));
-    return drand48() * 2 - 1; //sin(to_radians((float)rand()));
+    return drand48() * 2 - 1;
 }
 
 static float get_mapped_rand_height(struct terrain *t, int x, int z)
@@ -108,8 +105,6 @@ static void calc_normal(struct terrain *t, vec3 n, int x, int z)
     n[2] = hd - hu;
 
     vec3_norm(n, n);
-    // if (vec3_len(n) != 1.000000)
-    //     dbg("### normal not normal: %f,%f,%f == %f\n", n[0], n[1], n[2], vec3_len(n));
 }
 
 struct bsp_part {
@@ -131,8 +126,6 @@ static bool bsp_needs_split(struct bsp_part *node, struct bsp_part *parent, int 
 {
     if (node->w == BSP_MIN_WIDTH * 2 || node->h == BSP_MIN_WIDTH * 2)
         return false;
-    // if (bsp_area(node) < 16)
-    //     return false;
     if (level > 16)
         return false;
     if (node->w / node->h > 4 || node->h / node->w > 4)
@@ -142,7 +135,6 @@ static bool bsp_needs_split(struct bsp_part *node, struct bsp_part *parent, int 
     if (level < 3)
         return true;
     return false;
-    //return bsp_area(node) > bsp_area(parent) * 5 / 6;
 }
 
 static void bsp_part_one(struct bsp_part *root, int level, bsp_cb cb, void *data)
@@ -152,11 +144,6 @@ static void bsp_part_one(struct bsp_part *root, int level, bsp_cb cb, void *data
     struct bsp_part *a, *b;
 
     frac = clampd(frac, 0.2, 0.8);
-    // if (cb)
-    //     cb(root, level, data);
-
-    // if (!level)
-    //     return;
 
     if (root->w / root->h > 4)
         vertical = true;
@@ -328,10 +315,6 @@ static struct bsp_part *bsp_yneigh(struct bsp_part *node, int x, int y)
 
 static void terrain_bsp_cb(struct bsp_part *node, int level, void *data)
 {
-    // if (level)
-    //     return;
-
-    //node->amp = max(drand48() * AMPLITUDE, 3);
     node->amp = min(drand48() * AMPLITUDE, (16 - level) * 3.f);
     node->oct = (rand() & 3) + 3;
     dbg("### BSP [%d,%d,%d,%d] level %d area %d: %f, %d\n", node->x, node->y, node->x + node->w, node->y + node->h,
@@ -442,7 +425,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     unsigned short *idx;
     struct bsp_part *bsp_root;
     struct timespec ts;
-    struct circ_maze *m;
     unsigned char *maze;
     int i, j, mside = nr_v / MAZE_FAC;
 
@@ -473,7 +455,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             float yfrac = bsp_yfrac(bp, j);
             float xamp  = cos_interp(bp->amp, bpx->amp, fabsf(xfrac));
             float yamp  = cos_interp(bp->amp, bpy->amp, fabsf(yfrac));
-            float amp   = cos_interp(xamp, yamp, fabs(xfrac - yfrac));
             xfrac = fmodf(i, MAZE_FAC) / MAZE_FAC;
             yfrac = fmodf(j, MAZE_FAC) / MAZE_FAC;
             int xpos = i / MAZE_FAC, ypos = j / MAZE_FAC;
@@ -483,12 +464,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             float xavg  = cn > xn ? cn : cos_interp(cn, xn, 2 * xfrac - 1);
             float yavg  = cn > yn ? cn : cos_interp(cn, yn, 2 * yfrac - 1);
             float avg   = cos_interp(xavg, yavg, fabsf(xfrac - yfrac));
-            // dbg("### (%d,%d)/(%f,%f) amp: %f bpx amp: %f bpy amp: %f xamp: %f yamp: %f\n",
-            //     i, j, xfrac, yfrac, amp, bpx->amp, bpy->amp, xamp, yamp);
-            //if (fabsf(xfrac) > 0.985 || fabsf(yfrac) > 0.985)
-            // if (i == bp->x || j == bp->y)
-            //     t->map[i * nr_v + j] = -20;
-            // else
             t->map[i * nr_v + j] = get_height(t, i, j, powf(1.5, avg), OCTAVES) + avg;
         }
     free(t->map0);
@@ -551,9 +526,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     free(tx);
     free(norm);
 
-    //dbg("##### rand height(5,14): %f\n", get_avg_height(5, 14));
-    //dbg("##### rand height(5,14): %f\n", get_avg_height(5, 14));
-    //dbg("##### rand height(6,15): %f\n", get_avg_height(6, 15));
     txm = model3dtx_new(ref_pass(model), "terrain.png");
     scene_add_model(s, txm);
     t->entity = entity3d_new(txm);
