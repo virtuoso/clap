@@ -648,13 +648,6 @@ void model3dtx_done(struct model3dtx *txm, struct shader_prog *p)
     model3d_done(txm->model, p);
 }
 
-static void animation_destroy(struct animation *an)
-{
-    free(an->channels);
-    free((void *)an->name);
-    ref_put(an->model);
-}
-
 struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels)
 {
     struct animation *an;
