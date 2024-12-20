@@ -165,15 +165,6 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4),
 };
 
-static GLuint var_type[] = {
-    [DT_FLOAT]  = GL_FLOAT,
-    [DT_INT]    = GL_INT,
-    [DT_BYTE]   = GL_UNSIGNED_BYTE,
-    [DT_VEC3]   = GL_FLOAT,
-    [DT_VEC4]   = GL_FLOAT,
-    [DT_MAT4]   = GL_FLOAT,
-};
-
 const char *shader_get_var_name(enum shader_vars var)
 {
     if (var >= SHADER_VAR_MAX)
@@ -255,8 +246,6 @@ void _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer
 {
     if (!shader_has_var(p, var))
         return;
-
-    const struct shader_var_desc *desc = &shader_var_desc[var];
 
     _buffer_init(buf, opts);
 }
