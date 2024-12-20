@@ -127,11 +127,11 @@ static void build_main_pl(struct pipeline **pl)
     pipeline_pass_add_source(*pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
 
     pass = pipeline_add_pass(*pl, .source = pass, .shader = "vblur", .name = "menu vblur");
-    struct render_pass *blur_pass = pipeline_add_pass(*pl,
-                                                      .source   = pass,
-                                                      .shader   = "hblur",
-                                                      .name     = "menu hblur",
-                                                      .pingpong = 5);
+    pass = pipeline_add_pass(*pl,
+                             .source   = pass,
+                             .shader   = "hblur",
+                             .name     = "menu hblur",
+                             .pingpong = 5);
 }
 
 EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
