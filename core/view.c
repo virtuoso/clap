@@ -11,7 +11,6 @@ static void subview_calc_frustum(struct subview *subview);
 static void view_update_perspective_subviews(struct view *view)
 {
     static const float dividers[CASCADES_MAX - 1] = { 25, 70, 150 };
-    float partition = (view->main.far_plane - view->main.near_plane) / CASCADES_MAX;
     int max = array_size(view->subview);
     int i;
 
@@ -233,7 +232,7 @@ void view_update_from_target(struct view *view, vec3 eye, vec3 target)
 
 void view_update_from_frustum(struct view *view, vec3 dir, struct view *src)
 {
-    vec3 up = { 0.0, 1.0, 0.0 }, center = { -dir[0], -dir[1], -dir[2] };
+    vec3 center = { -dir[0], -dir[1], -dir[2] };
     vec3 eye = {};
 
     view_update_from_target(view, eye, center);
