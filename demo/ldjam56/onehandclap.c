@@ -80,7 +80,6 @@ DECLARE_PROF(end);
 struct clap_context *clap_ctx;
 struct pipeline *main_pl;
 static bool prev_msaa;
-static texture_t tex;
 
 static void build_main_pl(struct pipeline **pl)
 {
@@ -337,8 +336,6 @@ static int handle_input(struct message *m, void *data)
 
 static int handle_command(struct message *m, void *data)
 {
-    struct scene *scene = data;
-
     if (m->cmd.status && exit_timeout >= 0) {
         if (!exit_timeout--)
             gl_request_exit();
