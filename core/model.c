@@ -1263,7 +1263,6 @@ static void animated_update(struct entity3d *e, struct scene *s)
     struct model3d *model = e->txmodel->model;
     struct queued_animation *qa;
     struct animation *an;
-    unsigned long framerate = gl_refresh_rate();
 
     if (e->animation < 0)
         animation_next(e, s);
