@@ -87,9 +87,9 @@ static void build_main_pl(struct pipeline **pl)
     *pl = pipeline_new(&scene, "main");
 
     struct render_pass *shadow_pass[CASCADES_MAX];
-    int i;
 
 #ifdef CONFIG_GLES
+    int i;
     for (i = 0; i < CASCADES_MAX; i++) {
         shadow_pass[i] = pipeline_add_pass(*pl,
                                            .cascade         = i,
