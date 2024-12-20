@@ -391,14 +391,12 @@ bool gltf_has_ ## _name(struct gltf_data *gd, int mesh) \
 size_t gltf_ ## _name ## _stride(struct gltf_data *gd, int mesh) \
 { \
     struct gltf_mesh *m = gltf_mesh(gd, mesh); \
-    struct gltf_accessor *ga; \
     if (!m) return 0; \
     return gltf_accessor_stride(gd, m->_attr); \
 } \
 size_t gltf_nr_ ## _name(struct gltf_data *gd, int mesh) \
 { \
     struct gltf_mesh *m = gltf_mesh(gd, mesh); \
-    struct gltf_accessor *ga; \
     if (!m) return 0; \
     return gltf_accessor_nr(gd, m->_attr); \
 }
