@@ -670,14 +670,12 @@ cerr_check fbo_resize(fbo_t *fbo, int width, int height)
 void fbo_prepare(fbo_t *fbo)
 {
     GLenum buffers[NR_TARGETS];
-    texture_t *tex = &fbo->tex;
     int target;
 
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
 
     if (!darray_count(fbo->color_buf)) {
-
         if (fbo->attachment == GL_DEPTH_ATTACHMENT) {
             buffers[0] = GL_NONE;
             GL(glDrawBuffers(1, buffers));
