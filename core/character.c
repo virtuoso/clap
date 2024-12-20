@@ -176,7 +176,6 @@ void character_move(struct character *ch, struct scene *s)
     struct phys_body *body = ch->entity->phys_body;
     struct character *cam = s->camera->ch;
     dVector3 old_motion = { ch->motion[0], ch->motion[1], ch->motion[2] };
-    float height;
 
     /*
      * ch->motion: motion resulting from inputs
@@ -396,7 +395,6 @@ static int character_update(struct entity3d *e, void *data)
 {
     struct character *c = e->priv;
     struct scene     *s = data;
-    int              ret;
 
     motion_compute_rs(&c->mctl);
     if (c->mctl.rs_dy) {
