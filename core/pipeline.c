@@ -52,7 +52,6 @@ static void pipeline_drop(struct ref *ref)
 
         for (i = 0; i < darray_count(pass->fbo); i++) {
             fbo_t **pfbo = &pass->fbo.x[i];
-            struct render_pass **psrc = &pass->src.x[i];
 
             if (txm->emission == fbo_texture(*pfbo))
                 txm->emission = &txm->_emission;
@@ -313,7 +312,6 @@ void pipeline_pass_set_name(struct render_pass *pass, const char *name)
 
 void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src)
 {
-    struct model3dtx *txmsrc = mq_model_first(&src->mq);
     struct model3dtx *txm = mq_model_first(&pass->mq);
     struct render_pass **psrc = darray_add(&pass->src.da);
 
@@ -590,8 +588,6 @@ static bool debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
 {
     return !fbo_resize(fbo, width, height);
 }
-
-static bool pipeline_selector_ui_open;
 
 void pipeline_debug(struct pipeline *pl)
 {
