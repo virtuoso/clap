@@ -282,10 +282,13 @@ void resize_cb(void *data, int width, int height)
     if (settings) {
         int window_x, window_y, window_width, window_height;
         gl_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
-        settings_set_num(settings, NULL, "window_x", window_x);
-        settings_set_num(settings, NULL, "window_y", window_y);
-        settings_set_num(settings, NULL, "window_width", window_width);
-        settings_set_num(settings, NULL, "window_height", window_height);
+        JsonNode *win_group = settings_find_get(settings, NULL, "window", JSON_OBJECT);
+        if (win_group) {
+            settings_set_num(settings, win_group, "x", window_x);
+            settings_set_num(settings, win_group, "y", window_y);
+            settings_set_num(settings, win_group, "width", window_width);
+            settings_set_num(settings, win_group, "height", window_height);
+        }
     }
 }
 
@@ -301,12 +304,16 @@ static void settings_onload(struct settings *rs, void *data)
     int window_x, window_y,  window_width, window_height;
 
     sound_set_gain(intro_sound, gain);
-    window_x = (int)settings_get_num(rs, NULL, "window_x");
-    window_y = (int)settings_get_num(rs, NULL, "window_y");
-    window_width = (int)settings_get_num(rs, NULL, "window_width");
-    window_height = (int)settings_get_num(rs, NULL, "window_height");
-    if (window_width && window_height)
-        gl_set_window_pos_size(window_x, window_y, window_width, window_height);
+
+    JsonNode *win_group = settings_find_get(rs, NULL, "window", JSON_OBJECT);
+    if (win_group) {
+        window_x = (int)settings_get_num(rs, win_group, "x");
+        window_y = (int)settings_get_num(rs, win_group, "y");
+        window_width = (int)settings_get_num(rs, win_group, "width");
+        window_height = (int)settings_get_num(rs, win_group, "height");
+        if (window_width && window_height)
+            gl_set_window_pos_size(window_x, window_y, window_width, window_height);
+    }
 
     imgui_set_settings(rs);
 }
