@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "ui-debug.h"
+#include "settings.h"
 
 static struct debug_module debug_enabled[DEBUG_MODULES_MAX] = {
     [DEBUG_PIPELINE_PASSES]     = { .name = "pipeline passes" },
@@ -20,10 +21,15 @@ debug_module *ui_debug_module(enum debug_modules mod)
 
 static bool debug_selector;
 static bool debug_selector_ui_open;
+static JsonNode *debug_group;
+static struct settings *settings;
 
 void ui_toggle_debug_selector(void)
 {
     debug_selector = !debug_selector;
+
+    if (debug_group)
+        settings_set_bool(settings, debug_group, "debug_selector", debug_selector);
 }
 
 void ui_debug_selector(void)
@@ -41,6 +47,33 @@ void ui_debug_selector(void)
     for (i = 0; i < DEBUG_MODULES_MAX; i++)
         igCheckbox(debug_enabled[i].name, &debug_enabled[i].display);
     igEnd();
+}
+
+void ui_debug_set_settings(struct settings *rs)
+{
+    imgui_set_settings(rs);
+
+    settings = rs;
+
+    debug_group = settings_find_get(rs, NULL, "debug", JSON_OBJECT);
+    if (!debug_group)
+        return;
+
+    debug_selector = settings_get_bool(settings, debug_group, "debug_selector");
+
+    int i;
+    for (i = 0; i < DEBUG_MODULES_MAX; i++)
+        debug_enabled[i].display = settings_get_bool(settings, debug_group, debug_enabled[i].name);
+}
+
+void ui_debug_set_one(enum debug_modules mod)
+{
+    debug_module *dbgm = ui_debug_module(mod);
+
+    if (!debug_group)
+        return;
+
+    settings_set_bool(settings, debug_group, dbgm->name, dbgm->open);
 }
 
 debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
@@ -74,5 +107,6 @@ void ui_igEnd(enum debug_modules mod)
         return;
 
     igEnd();
+    ui_debug_set_one(mod);
     dbgm->display = dbgm->open;
 }

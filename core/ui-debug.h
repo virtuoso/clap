@@ -47,6 +47,7 @@ typedef struct debug_module {
 
 void ui_toggle_debug_selector(void);
 void ui_debug_selector(void);
+void ui_debug_set_settings(struct settings *rs);
 debug_module *ui_debug_module(enum debug_modules mod);
 debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
                               const char *fmt, ...);
