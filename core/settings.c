@@ -71,7 +71,7 @@ static int settings_store(struct settings *settings)
     if (!f)
         return -1;
 
-    fwrite(buf, strlen(buf) + 1, 1, f);
+    fwrite(buf, strlen(buf), 1, f);
     trace("wrote '%s' settings\n", buf);
     fclose(f);
     settings_sync();
