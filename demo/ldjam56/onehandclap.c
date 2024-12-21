@@ -315,7 +315,7 @@ static void settings_onload(struct settings *rs, void *data)
             gl_set_window_pos_size(window_x, window_y, window_width, window_height);
     }
 
-    imgui_set_settings(rs);
+    ui_debug_set_settings(rs);
 }
 
 static int handle_input(struct message *m, void *data)
