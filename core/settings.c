@@ -181,6 +181,20 @@ double settings_get_num(struct settings *settings, JsonNode *parent, const char 
     return node->number_;
 }
 
+bool settings_get_bool(struct settings *settings, JsonNode *parent, const char *key)
+{
+    JsonNode *node;
+
+    if (!settings->ready)
+        return false;
+
+    node = settings_get(settings, parent, key);
+    if (!node || node->tag != JSON_BOOL)
+        return false;
+
+    return node->bool_;
+}
+
 const char *settings_get_str(struct settings *settings, JsonNode *parent, const char *key)
 {
     JsonNode *node;
@@ -227,6 +241,17 @@ void settings_set_num(struct settings *settings, JsonNode *parent, const char *k
         return;
 
     CHECK(new = json_mknumber(num));
+    settings_set(settings, parent, key, new);
+}
+
+void settings_set_bool(struct settings *settings, JsonNode *parent, const char *key, bool val)
+{
+    JsonNode *new;
+
+    if (!settings->ready)
+        return;
+
+    CHECK(new = json_mkbool(val));
     settings_set(settings, parent, key, new);
 }
 
