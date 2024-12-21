@@ -135,6 +135,38 @@ JsonNode *settings_get(struct settings *settings, JsonNode *parent, const char *
     return json_find_member(parent, key);
 }
 
+JsonNode *settings_find_get(struct settings *settings, JsonNode *parent,
+                            const char *key, JsonTag tag)
+{
+    JsonNode *node;
+
+    if (!settings->ready)
+        return NULL;
+
+    if (!parent)
+        parent = settings->root;
+
+    node = settings_get(settings, parent, key);
+    if (node) {
+        if (node->tag == tag)
+            return node;
+
+        json_delete(node);
+    }
+
+    node = json_mkobject();
+    if (!node)
+        return NULL;
+
+    node->tag = tag;
+    if (parent->tag == JSON_ARRAY)
+        json_append_element(parent, node);
+    else if (parent->tag == JSON_OBJECT)
+        json_append_member(parent, key, node);
+
+    return node;
+}
+
 double settings_get_num(struct settings *settings, JsonNode *parent, const char *key)
 {
     JsonNode *node;
