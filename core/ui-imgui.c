@@ -20,7 +20,7 @@ void imgui_set_settings(struct settings *rs)
 {
     settings = rs;
 
-    const char *ini = settings_get_str(settings, "imgui_config");
+    const char *ini = settings_get_str(settings, NULL, "imgui_config");
     if (!ini)
         return;
 
@@ -50,7 +50,7 @@ void imgui_render(void)
     ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
 
     if (io->WantSaveIniSettings && settings) {
-        settings_set_string(settings, "imgui_config", igSaveIniSettingsToMemory(NULL));
+        settings_set_string(settings, NULL, "imgui_config", igSaveIniSettingsToMemory(NULL));
         io->WantSaveIniSettings = false;
     }
 }

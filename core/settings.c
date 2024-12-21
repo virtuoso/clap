@@ -124,43 +124,46 @@ static int settings_load(struct settings *settings)
     return 0;
 }
 
-JsonNode *settings_get(struct settings *settings, const char *key)
+JsonNode *settings_get(struct settings *settings, JsonNode *parent, const char *key)
 {
     if (!settings->ready)
         return NULL;
 
-    return json_find_member(settings->root, key);
+    if (!parent)
+        parent = settings->root;
+
+    return json_find_member(parent, key);
 }
 
-double settings_get_num(struct settings *settings, const char *key)
+double settings_get_num(struct settings *settings, JsonNode *parent, const char *key)
 {
     JsonNode *node;
 
     if (!settings->ready)
         return 0.0;
 
-    node = settings_get(settings, key);
+    node = settings_get(settings, parent, key);
     if (!node || node->tag != JSON_NUMBER)
         return 0.0;
 
     return node->number_;
 }
 
-const char *settings_get_str(struct settings *settings, const char *key)
+const char *settings_get_str(struct settings *settings, JsonNode *parent, const char *key)
 {
     JsonNode *node;
 
     if (!settings->ready)
         return NULL;
 
-    node = settings_get(settings, key);
+    node = settings_get(settings, parent, key);
     if (!node || node->tag != JSON_STRING)
         return NULL;
 
     return node->string_;
 }
 
-void settings_set(struct settings *settings, const char *key, JsonNode *node)
+void settings_set(struct settings *settings, JsonNode *parent, const char *key, JsonNode *node)
 {
     JsonNode *old;
 
@@ -172,16 +175,19 @@ void settings_set(struct settings *settings, const char *key, JsonNode *node)
         return;
 
     err_on(!settings->root);
-    old = json_find_member(settings->root, key);
+    if (!parent)
+        parent = settings->root;
+
+    old = json_find_member(parent, key);
     if (old)
         json_delete(old);
 
-    json_append_member(settings->root, key, node);
+    json_append_member(parent, key, node);
     settings->dirty = true;
     settings_store(settings);
 }
 
-void settings_set_num(struct settings *settings, const char *key, double num)
+void settings_set_num(struct settings *settings, JsonNode *parent, const char *key, double num)
 {
     JsonNode *new;
    
@@ -189,10 +195,10 @@ void settings_set_num(struct settings *settings, const char *key, double num)
         return;
 
     CHECK(new = json_mknumber(num));
-    settings_set(settings, key, new);
+    settings_set(settings, parent, key, new);
 }
 
-void settings_set_string(struct settings *settings, const char *key, const char *str)
+void settings_set_string(struct settings *settings, JsonNode *parent, const char *key, const char *str)
 {
     JsonNode *new;
 
@@ -200,7 +206,7 @@ void settings_set_string(struct settings *settings, const char *key, const char 
         return;
 
     CHECK(new = json_mkstring(str));
-    settings_set(settings, key, new);
+    settings_set(settings, parent, key, new);
 }
 
 #ifdef __EMSCRIPTEN__

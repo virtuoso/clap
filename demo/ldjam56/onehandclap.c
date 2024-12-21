@@ -282,10 +282,10 @@ void resize_cb(void *data, int width, int height)
     if (settings) {
         int window_x, window_y, window_width, window_height;
         gl_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
-        settings_set_num(settings, "window_x", window_x);
-        settings_set_num(settings, "window_y", window_y);
-        settings_set_num(settings, "window_width", window_width);
-        settings_set_num(settings, "window_height", window_height);
+        settings_set_num(settings, NULL, "window_x", window_x);
+        settings_set_num(settings, NULL, "window_y", window_y);
+        settings_set_num(settings, NULL, "window_width", window_width);
+        settings_set_num(settings, NULL, "window_height", window_height);
     }
 }
 
@@ -297,14 +297,14 @@ static void ohc_ground_contact(void *priv, float x, float y, float z)
 
 static void settings_onload(struct settings *rs, void *data)
 {
-    float gain = settings_get_num(rs, "music_volume");
+    float gain = settings_get_num(rs, NULL, "music_volume");
     int window_x, window_y,  window_width, window_height;
 
     sound_set_gain(intro_sound, gain);
-    window_x = (int)settings_get_num(rs, "window_x");
-    window_y = (int)settings_get_num(rs, "window_y");
-    window_width = (int)settings_get_num(rs, "window_width");
-    window_height = (int)settings_get_num(rs, "window_height");
+    window_x = (int)settings_get_num(rs, NULL, "window_x");
+    window_y = (int)settings_get_num(rs, NULL, "window_y");
+    window_width = (int)settings_get_num(rs, NULL, "window_width");
+    window_height = (int)settings_get_num(rs, NULL, "window_height");
     if (window_width && window_height)
         gl_set_window_pos_size(window_x, window_y, window_width, window_height);
 
@@ -330,7 +330,7 @@ static int handle_input(struct message *m, void *data)
     }
 
     if (store)
-        settings_set_num(settings, "music_volume", gain);
+        settings_set_num(settings, NULL, "music_volume", gain);
     return 0;
 }
 
