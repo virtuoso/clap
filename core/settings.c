@@ -111,10 +111,9 @@ static int settings_load(struct settings *settings)
     }
 
     CHECK(buf = calloc(1, st.st_size + 1));
-    if (fread(buf, st.st_size, 1, f) != 1)
-        return -1;
+    if (fread(buf, st.st_size, 1, f) == 1)
+        settings->root = json_decode(buf);
 
-    settings->root = json_decode(buf);
     if (!settings->root) {
         warn("couldn't parse %s, restoring defaults\n", settings_file);
         settings_default(settings);
