@@ -43,9 +43,6 @@ void imgui_render_begin(int width, int height)
     ImGui_ImplGlfw_NewFrame();
 #endif
     igNewFrame();
-
-    // igSetNextWindowPos((struct ImVec2){0,0}, ImGuiCond_FirstUseEver,(struct ImVec2){0,0} );
-    // igShowDemoWindow(NULL);
 }
 
 void imgui_render(void)
