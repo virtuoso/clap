@@ -42,3 +42,37 @@ void ui_debug_selector(void)
         igCheckbox(debug_enabled[i].name, &debug_enabled[i].display);
     igEnd();
 }
+
+debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
+                              const char *fmt, ...)
+{
+    debug_module *dbgm = ui_debug_module(mod);
+
+    if (!dbgm || !dbgm->display)
+        return dbgm;
+
+    char name[128];
+    if (fmt) {
+        va_list va;
+
+        va_start(va, fmt);
+        vsnprintf(name, sizeof(name), fmt, va);
+        va_end(va);
+    }
+
+    dbgm->open = true;
+    dbgm->unfolded = igBegin(fmt ? name : dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+
+    return dbgm;
+}
+
+void ui_igEnd(enum debug_modules mod)
+{
+    debug_module *dbgm = ui_debug_module(mod);
+
+    if (!dbgm || !dbgm->display)
+        return;
+
+    igEnd();
+    dbgm->display = dbgm->open;
+}

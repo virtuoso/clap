@@ -349,45 +349,39 @@ err_src:
 #ifndef CONFIG_FINAL
 static void pipeline_debug_begin(struct pipeline *pl)
 {
-    char dbg_name[128];
+    debug_module *dbgm = ui_igBegin_name(DEBUG_PIPELINE_PASSES, ImGuiWindowFlags_AlwaysAutoResize,
+                                         "pipeline %s", pl->name);
 
-    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
-
-    if (!dbgm->display)
+    if (!dbgm->display || !dbgm->unfolded)
         return;
 
-    dbgm->open = true;
-    snprintf(dbg_name, sizeof(dbg_name), "%s '%s'", dbgm->name, pl->name);
-    dbgm->unfolded = igBegin(dbg_name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
-    if (dbgm->unfolded) {
-        struct render_pass *pass;
+    struct render_pass *pass;
+    char dbg_name[128];
 
-        list_for_each_entry(pass, &pl->passes, entry)
-            if (pass->rep_total) {
-                snprintf(dbg_name, sizeof(dbg_name), "%s reps", pass->name);
-                igSliderInt(dbg_name, &pass->rep_total, 1, 20, "%d", ImGuiSliderFlags_AlwaysClamp);
-            }
+    list_for_each_entry(pass, &pl->passes, entry)
+        if (pass->rep_total) {
+            snprintf(dbg_name, sizeof(dbg_name), "%s reps", pass->name);
+            igSliderInt(dbg_name, &pass->rep_total, 1, 20, "%d", ImGuiSliderFlags_AlwaysClamp);
+        }
 
-        igBeginTable("pipeline passes", 5, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
-        igTableSetupColumn("pass", ImGuiTableColumnFlags_WidthStretch, 0, 0);
-        igTableSetupColumn("src", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-        igTableSetupColumn("dim", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-        igTableSetupColumn("attachment", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-        igTableSetupColumn("count", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-    }
+    igBeginTable("pipeline passes", 5, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
+    igTableSetupColumn("pass", ImGuiTableColumnFlags_WidthStretch, 0, 0);
+    igTableSetupColumn("src", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("dim", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("attachment", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("count", ImGuiTableColumnFlags_WidthFixed, 0, 0);
 }
 
 static void pipeline_debug_end(struct pipeline *pl)
 {
     debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
-    // err_on(old_ui_open != *ui_open, "%d != %d\n", old_ui_open, *ui_open);
+
     if (!dbgm->display)
         return;
     if (dbgm->unfolded)
         igEndTable();
 
-    igEnd();
-    dbgm->display = dbgm->open;
+    ui_igEnd(DEBUG_PIPELINE_PASSES);
 }
 
 static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx,
@@ -591,39 +585,36 @@ static bool debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
 
 void pipeline_debug(struct pipeline *pl)
 {
-    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_SELECTOR);
+    debug_module *dbgm = ui_igBegin(DEBUG_PIPELINE_SELECTOR, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if (!dbgm->display)
+        return;
+
     static int pass_preview;
     unsigned int width, height;
     texture_t *pass_tex = NULL;
     int depth_log2;
 
-    if (!dbgm->display)
+    if (!dbgm->unfolded)
         return;
 
-    dbgm->open = true;
-    dbgm->unfolded = igBegin(dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
-    if (dbgm->unfolded) {
-        pipeline_passes_dropdown(pl, &pass_preview, &pass_tex);
-        if (pass_tex) {
-            texture_get_dimesnions(pass_tex, &width, &height);
-            if (!pass_preview) {
-                int prev_depth_log2 = depth_log2 = ffs(width) - 1;
-                igSliderInt("dim log2", &depth_log2, 8, 16, "%d", 0);
-                if (depth_log2 != prev_depth_log2) {
-                    pipeline_set_resize_cb(pl, debug_shadow_resize);
-                    pipeline_shadow_resize(pl, 1 << depth_log2);
-                    pipeline_set_resize_cb(pl, NULL);
-                }
-                igText("shadow map resolution: %d x %d", 1 << depth_log2, 1 << depth_log2);
-            } else {
-                igText("texture resolution: %d x %d", width, height);
+    pipeline_passes_dropdown(pl, &pass_preview, &pass_tex);
+    if (pass_tex) {
+        texture_get_dimesnions(pass_tex, &width, &height);
+        if (!pass_preview) {
+            int prev_depth_log2 = depth_log2 = ffs(width) - 1;
+            igSliderInt("dim log2", &depth_log2, 8, 16, "%d", 0);
+            if (depth_log2 != prev_depth_log2) {
+                pipeline_set_resize_cb(pl, debug_shadow_resize);
+                pipeline_shadow_resize(pl, 1 << depth_log2);
+                pipeline_set_resize_cb(pl, NULL);
             }
+            igText("shadow map resolution: %d x %d", 1 << depth_log2, 1 << depth_log2);
+        } else {
+            igText("texture resolution: %d x %d", width, height);
         }
-        igEnd();
-    } else {
-        igEnd();
     }
-    dbgm->display = dbgm->open;
+    ui_igEnd(DEBUG_PIPELINE_SELECTOR);
 
     if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
         if (igBegin("Render pass preview", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {

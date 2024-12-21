@@ -38,14 +38,9 @@ static void view_update_perspective_subviews(struct view *view)
 #ifndef CONFIG_FINAL
 static void view_debug_begin(void)
 {
-   debug_module *dbgm = ui_debug_module(DEBUG_FRUSTUM_VIEW);
+   debug_module *dbgm = ui_igBegin(DEBUG_FRUSTUM_VIEW, ImGuiWindowFlags_AlwaysAutoResize);
 
-    if (!dbgm->display)
-        return;
-
-    dbgm->open = true;
-    dbgm->unfolded = igBegin("Camera frustum", &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
-    if (!dbgm->unfolded)
+    if (!dbgm->display || !dbgm->unfolded)
         return;
 
     igSliderFloat("frustum extra", &frustum_extra, 1.0, 50.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
@@ -101,13 +96,7 @@ static void view_frustum_debug(struct view *src, int idx)
 
 static void view_debug_end(void)
 {
-    debug_module *dbgm = ui_debug_module(DEBUG_FRUSTUM_VIEW);
-
-    if (!dbgm->display)
-        return;
-
-    igEnd();
-    dbgm->display = dbgm->open;
+    ui_igEnd(DEBUG_FRUSTUM_VIEW);
 }
 #else
 static inline void view_debug_begin(void) {}

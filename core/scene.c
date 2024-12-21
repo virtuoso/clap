@@ -143,34 +143,31 @@ int scene_camera_add(struct scene *s)
 #ifndef CONFIG_FINAL
 static void scene_parameters_debug(struct scene *scene, int cam_idx)
 {
-    debug_module *dbgm = ui_debug_module(DEBUG_SCENE_PARAMETERS);
+    debug_module *dbgm = ui_igBegin(DEBUG_SCENE_PARAMETERS, ImGuiWindowFlags_AlwaysAutoResize);
     struct camera *cam = &scene->camera[cam_idx];
 
-    if (dbgm->display) {
-        dbgm->open = true;
-        dbgm->unfolded = igBegin("scene parameters", &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
-        if (dbgm->unfolded) {
-            igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
-            igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+    if (!dbgm->display)
+        return;
 
-            float fov = to_degrees(cam->view.fov);
-            igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
-            cam->view.fov = to_radians(fov);
+    if (dbgm->unfolded) {
+        igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
 
-            igCheckbox("shadow outline", &scene->light.shadow_outline);
-            igCheckbox("shadow msaa", &scene->light.shadow_msaa);
-            scene->proj_update++;
-            igEnd();
-        } else {
-            igEnd();
-        }
-        dbgm->display = dbgm->open;
+        float fov = to_degrees(cam->view.fov);
+        igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        cam->view.fov = to_radians(fov);
+
+        igCheckbox("shadow outline", &scene->light.shadow_outline);
+        igCheckbox("shadow msaa", &scene->light.shadow_msaa);
+        scene->proj_update++;
     }
+
+    ui_igEnd(DEBUG_SCENE_PARAMETERS);
 }
 
 static void light_debug(struct light *light, int idx)
 {
-    debug_module *dbgm = ui_debug_module(DEBUG_LIGHT);
+    debug_module *dbgm = ui_igBegin(DEBUG_LIGHT, ImGuiWindowFlags_AlwaysAutoResize);
 
     if (!dbgm->display)
         return;
@@ -178,8 +175,6 @@ static void light_debug(struct light *light, int idx)
     struct view *view = &light->view[idx];
     float *dir = &light->dir[3 * idx];
 
-    dbgm->open = true;
-    dbgm->unfolded = igBegin(dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
     if (dbgm->unfolded) {
         igSetNextItemWidth(400);
         igSliderFloat3("light", dir, -500, 500, "%f", 0);
@@ -189,23 +184,19 @@ static void light_debug(struct light *light, int idx)
             igEndTable();
         }
         ui_igMat4x4(view->main.view_mx.m, "view matrix");
-        igEnd();
-    } else {
-        igEnd();
     }
-    dbgm->display = dbgm->open;
+
+    ui_igEnd(DEBUG_LIGHT);
 }
 
 static void scene_characters_debug(struct scene *scene)
 {
-    debug_module *dbgm = ui_debug_module(DEBUG_CHARACTERS);
+    debug_module *dbgm = ui_igBegin(DEBUG_CHARACTERS, ImGuiWindowFlags_AlwaysAutoResize);
     struct character *c;
 
     if (!dbgm->display)
         return;
 
-    dbgm->open = true;
-    dbgm->unfolded = igBegin(dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
     if (dbgm->unfolded) {
         list_for_each_entry(c, &scene->characters, entry) {
             const char *name = entity_name(c->entity);
@@ -220,12 +211,9 @@ static void scene_characters_debug(struct scene *scene)
             igCheckbox(label, &c->can_sprint);
             igSeparator();
         }
-        igEnd();
-    } else {
-        igEnd();
     }
 
-    dbgm->display = dbgm->open;
+    ui_igEnd(DEBUG_CHARACTERS);
 }
 #else
 static void scene_parameters_debug(struct scene *scene, int cam_idx) {}

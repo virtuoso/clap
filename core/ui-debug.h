@@ -48,6 +48,15 @@ typedef struct debug_module {
 void ui_toggle_debug_selector(void);
 void ui_debug_selector(void);
 debug_module *ui_debug_module(enum debug_modules mod);
+debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
+                              const char *fmt, ...);
+
+static inline debug_module *ui_igBegin(enum debug_modules mod, ImGuiWindowFlags flags)
+{
+    return ui_igBegin_name(mod, flags, NULL);
+}
+
+void ui_igEnd(enum debug_modules mod);
 
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(float *v, int n, const char *fmt, ...);
