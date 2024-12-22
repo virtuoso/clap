@@ -280,7 +280,30 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
 
 static void pointer_cb(struct GLFWwindow *window, double x, double y)
 {
-    trace("pointer at %g,%g\n", x, y);
+    struct message_input mi;
+
+    memset(&mi, 0, sizeof(mi));
+    mi.mouse_move = 1;
+    mi.x = x;
+    mi.y = y;
+    message_input_send(&mi, &keyboard_source);
+}
+
+void click_cb(GLFWwindow *window, int button, int action, int mods)
+{
+    struct message_input mi;
+    double x, y;
+
+    if (action != GLFW_PRESS)
+        return;
+
+    glfwGetCursorPos(window, &x, &y);
+
+    memset(&mi, 0, sizeof(mi));
+    mi.mouse_click = 1;
+    mi.x = x;
+    mi.y = y;
+    message_input_send(&mi, &keyboard_source);
 }
 
 static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
@@ -341,6 +364,7 @@ int platform_input_init(void)
     if (glfwRawMouseMotionSupported())
         glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     glfwSetCursorPosCallback(window, pointer_cb);
+    glfwSetMouseButtonCallback(window, click_cb);
     glfwSetScrollCallback(window, scroll_cb);
 
     lh = lib_read_file(RES_ASSET, "gamecontrollerdb.txt", (void **)&cdb, &sz);
