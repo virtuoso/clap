@@ -22,6 +22,7 @@ static inline void ui_show_debug_once(const char *debug_name)
 }
 
 struct settings;
+bool __ui_mouse_event_propagate(void);
 void imgui_init(struct clap_context *ctx, void *data, int width, int height);
 void imgui_set_settings(struct settings *rs);
 void imgui_done(void);

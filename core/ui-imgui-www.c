@@ -7,12 +7,6 @@ static struct backend_data {
     double time;
 } bd;
 
-bool __ui_mouse_event_propagate(void)
-{
-    struct ImGuiIO *io = igGetIO();
-    return io->WantCaptureMouse;
-}
-
 bool __ui_set_mouse_position(unsigned int x, unsigned int y)
 {
     struct ImGuiIO *io = igGetIO();

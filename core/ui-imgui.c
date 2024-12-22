@@ -16,6 +16,12 @@ static struct settings *settings;
 static struct ImGuiContext *ctx;
 static struct ImGuiIO *io;
 
+bool __ui_mouse_event_propagate(void)
+{
+    struct ImGuiIO *io = igGetIO();
+    return io->WantCaptureMouse;
+}
+
 void imgui_set_settings(struct settings *rs)
 {
     settings = rs;

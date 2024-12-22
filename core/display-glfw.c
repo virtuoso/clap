@@ -282,6 +282,9 @@ static void pointer_cb(struct GLFWwindow *window, double x, double y)
 {
     struct message_input mi;
 
+    if (__ui_mouse_event_propagate())
+        return;
+
     memset(&mi, 0, sizeof(mi));
     mi.mouse_move = 1;
     mi.x = x;
@@ -293,6 +296,9 @@ void click_cb(GLFWwindow *window, int button, int action, int mods)
 {
     struct message_input mi;
     double x, y;
+
+    if (__ui_mouse_event_propagate())
+        return;
 
     if (action != GLFW_PRESS)
         return;
@@ -309,6 +315,9 @@ void click_cb(GLFWwindow *window, int button, int action, int mods)
 static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
 {
     struct message_input mi;
+
+    if (__ui_mouse_event_propagate())
+        return;
 
     trace("scrolling %g,%g\n", xoff, yoff);
 
