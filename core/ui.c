@@ -94,7 +94,6 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
         uie->actual_y += uie->parent->actual_y;
     }
 
-compute_mx:
     /* We might want force_invisible also */
     e->visible = __ui_element_is_visible(uie, ui) ? 1 : 0;
     /*trace("VIEWPORT %fx%f; xywh: %f %f %f %f\n", parent_width, parent_height,
@@ -504,8 +503,6 @@ static int ui_roll_update(struct entity3d *e, void *data)
 {
     struct ui_element *uie = e->priv;
     struct ui *ui = uie->ui;
-    mat4x4 p;
-
 
     if (uie->y_off == ui->height + uie->height) {
         dbg("credit roll done at %f\n", uie->y_off);
@@ -513,7 +510,6 @@ static int ui_roll_update(struct entity3d *e, void *data)
         return 0;
     }
     uie->y_off++;
-    // uie->entity->dy = uie->actual_y = uie->y_off;
     ui_element_update(e, data);
 
     return 0;
@@ -1042,7 +1038,6 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
                        void (*on_click)(struct ui_element *uie, float x, float y))
 {
     unsigned int rows = 3, cols = 3, nr_items = rows * cols, i;
-    float quad_color[] = { 0.0, 0.1, 0.5, 0.4 };
     float color[] = { 0.5, 0.5, 0.4, 1.0 };
     struct ui_widget *inv;
     struct model3dtx *apple_txm, *frame_txm, *bar_txm;
@@ -1050,9 +1045,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     struct ui_element *frame, *bar, *tui;
     struct font *font = font_get_default();
     float xoff = 0, yoff = 0, width = 0;
-    unsigned int vaff[] = { UI_AF_LEFT, UI_AF_HCENTER, UI_AF_RIGHT };
 
-    dbg("hai\n");
     ui_modality_send();
 
     CHECK(inv = ui_widget_new(ui, nr_items, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 0.3, 0.3));
@@ -1363,7 +1356,6 @@ static int ui_handle_input(struct message *m, void *data)
     return MSG_STOP;
 }
 
-static struct ui_element *limeric_uit;
 static struct ui_element *build_uit;
 struct ui_element *uie0, *uie1, *health, *pocket, **pocket_text;
 static int pocket_buckets, *pocket_count, *pocket_total;
@@ -1396,7 +1388,7 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
 {
     struct model3d *model;
     struct model3dtx *txm;
-    struct ui_element *p, *pic, *t;
+    struct ui_element *p, *t;
     float color[4] = { 1, 1, 1, 1 };
     struct font *font = font_open("ProggyTiny.ttf", 48);
     int i;
@@ -1418,7 +1410,7 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
             continue;
         ui_add_model(ui, txm);
 
-        pic = ui_element_new(ui, p, txm, UI_AF_LEFT | UI_AF_TOP, 0, 100 * i, 100, 100);
+        (void *)ui_element_new(ui, p, txm, UI_AF_LEFT | UI_AF_TOP, 0, 100 * i, 100, 100);
         t = ui_element_new(ui, p, ui_quadtx, UI_AF_LEFT | UI_AF_TOP, 100, 100 * i, 100, 100);
         pocket_text[i] = ui_render_string(ui, font, t, "", color, UI_AF_LEFT | UI_AF_VCENTER);
     }
@@ -1480,11 +1472,9 @@ struct ui_element *ui_progress_new(struct ui *ui)
     float total_width = width + 2 * thickness;
     float total_height = height + 2 * thickness;
     
-    float color[] = { 1, 1, 1, 1 };
     struct ui_element *uie, *bar, *frame;
     struct model3dtx *bar_txm, *frame_txm;
     struct model3d *bar_m, *frame_m;
-    struct ui_text *uit;
 
     health_bar_width = width;
     
@@ -1530,13 +1520,6 @@ static void build_onclick(struct ui_element *uie, float x, float y)
     dbg("build onclick\n");
 }
 
-static const char text_str[] =
-    "On the chest of a barmaid in Sale\n"
-    "Were tattooed all the prices of ale;\n"
-    "And on her behind, for the sake of the blind,\n"
-    "Was the same information in Braille";
-
-static struct ui_widget *wheel;
 static const char *wheel_items[] = { "^", ">", "v", "<" };
 extern const char *build_date;
 int ui_init(struct ui *ui, int width, int height)
@@ -1568,7 +1551,6 @@ int ui_init(struct ui *ui, int width, int height)
 
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     uie1->on_click = build_onclick;
-    //limeric_uit = ui_render_string(ui, font, uie0, text_str, color, 0/*UI_AF_RIGHT*/);
 #ifndef CONFIG_FINAL
     build_uit = ui_render_string(ui, font, uie1, build_date, color, 0);
 #endif
@@ -1577,7 +1559,6 @@ int ui_init(struct ui *ui, int width, int height)
 
     const char *pocket_textures[] = { "apple.png", "mushroom thumb.png" };
     pocket = ui_pocket_new(ui, pocket_textures, array_size(pocket_textures));
-    // wheel = ui_wheel_new(ui, wheel_items);
     font_put(font);
     subscribe(MT_COMMAND, ui_handle_command, ui);
     subscribe(MT_INPUT, ui_handle_input, ui);
@@ -1606,7 +1587,6 @@ void ui_done(struct ui *ui)
         ref_put_last(bottom_uit);
         ref_put_last(bottom_element);
     }
-    //ref_put_last(limeric_uit);
     if (debug_uit) {
         ref_put(debug_element);
         ref_put_last(debug_uit);
@@ -1614,8 +1594,6 @@ void ui_done(struct ui *ui)
     ui_roll_done();
 
     mq_release(&ui->mq);
-
-    struct shader_prog *prog, *iter;
 
     /*
      * clean up the shaders that weren't freed by model3d_drop()
