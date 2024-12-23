@@ -42,9 +42,8 @@ layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 Albedo;
 
-float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
+float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias, in int pcf_count)
 {
-    const int pcf_count = 2;
     const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
     float total = 0.0;
 
@@ -58,9 +57,8 @@ float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in flo
     return 1.0 - total / pcf_total_texels * pos.w;
 }
 
-float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
+float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias, in int pcf_count)
 {
-    const int pcf_count = 2;
     const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
     float total = 0.0;
 
@@ -108,33 +106,40 @@ float shadow_factor_calc(in vec3 unit_normal)
 
     if (layer < 0)
         layer = CASCADES_MAX - 1;
+    // layer = 0;
 
     vec4 shadow_pos = shadow_mvp[layer] * world_pos;
     vec4 proj_coords = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
     proj_coords = proj_coords * 0.5 + 0.5;
 
+    // float bias = max(0.05 * (1.0 - light_dot), 0.005);
     float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
+    // float bias = max(0.005 * (1.0 - light_dot), 0.008);
+    // bias *= 1 / cascade_distances[layer];
 #ifdef CONFIG_GLES
     switch (layer) {
         case 0:
-            shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, bias);
+            shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, bias, 2);
             break;
         case 1:
-            shadow_factor = shadow_factor_pcf(shadow_map1, proj_coords, bias);
+            // EmissiveColor += vec4(0, 0, 0.25, 1);
+            shadow_factor = shadow_factor_pcf(shadow_map1, proj_coords, bias, 2);
             break;
         case 2:
-            shadow_factor = shadow_factor_pcf(shadow_map2, proj_coords, bias);
+            // EmissiveColor += vec4(0, 0.25, 0, 1);
+            shadow_factor = shadow_factor_pcf(shadow_map2, proj_coords, bias, 2);
             break;
         default:
         case 3:
-            shadow_factor = shadow_factor_pcf(shadow_map3, proj_coords, bias);
+            // EmissiveColor += vec4(0.25, 0, 0, 1);
+            shadow_factor = shadow_factor_pcf(shadow_map3, proj_coords, bias, 2);
             break;
     }
 #else
     if (use_msaa)
         shadow_factor = shadow_factor_msaa(shadow_map_ms, proj_coords, layer, bias);
     else
-        shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
+        shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, layer, bias, 2);
 #endif /* CONFIG_GLES */
 
     return shadow_factor;
