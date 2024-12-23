@@ -1431,12 +1431,21 @@ void health_set(float perc)
     ui_element_update(health->entity, NULL);
 }
 
+static const char *wheel_items[] = { "^", ">", "v", "<" };
+
 static void build_onclick(struct ui_element *uie, float x, float y)
 {
+    static struct ui_widget *wheel = NULL;
     dbg("build onclick\n");
+
+    if (wheel) {
+        ref_put(wheel);
+        wheel = NULL;
+    } else {
+        wheel = ui_wheel_new(uie->ui, wheel_items);
+    }
 }
 
-static unused const char *wheel_items[] = { "^", ">", "v", "<" };
 extern const char *build_date;
 int ui_init(struct ui *ui, int width, int height)
 {
