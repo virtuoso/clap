@@ -454,13 +454,13 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, GLenum format,
     tex->width  = width;
     tex->height = height;
     if (attachment == GL_DEPTH_ATTACHMENT) {
-#ifdef CONFIG_GLES
+// #ifdef CONFIG_GLES
         tex->component_type = GL_UNSIGNED_SHORT;
         tex->internal_format = GL_DEPTH_COMPONENT16;
-#else
-        tex->component_type = GL_FLOAT;
-        tex->internal_format = GL_DEPTH_COMPONENT32F;
-#endif /* CONFIG_GLES */
+// #else
+//         tex->component_type = GL_FLOAT;
+//         tex->internal_format = GL_DEPTH_COMPONENT32F;
+// #endif /* CONFIG_GLES */
     }
     cerr err = texture_setup_begin(tex, NULL);
     if (err)
