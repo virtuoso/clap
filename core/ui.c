@@ -1410,7 +1410,7 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
             continue;
         ui_add_model(ui, txm);
 
-        (void *)ui_element_new(ui, p, txm, UI_AF_LEFT | UI_AF_TOP, 0, 100 * i, 100, 100);
+        (void)ui_element_new(ui, p, txm, UI_AF_LEFT | UI_AF_TOP, 0, 100 * i, 100, 100);
         t = ui_element_new(ui, p, ui_quadtx, UI_AF_LEFT | UI_AF_TOP, 100, 100 * i, 100, 100);
         pocket_text[i] = ui_render_string(ui, font, t, "", color, UI_AF_LEFT | UI_AF_VCENTER);
     }
