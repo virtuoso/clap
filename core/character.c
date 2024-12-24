@@ -153,15 +153,6 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     s->camera->zoom = !!(m->input.zoom);
 }
 
-bool character_is_grounded(struct character *ch, struct scene *s)
-{
-    struct phys_body *body = ch->entity->phys_body;
-
-    if (body)
-        return phys_body_is_grounded(body);
-    return false;
-}
-
 static void character_idle(struct scene *s, void *priv)
 {
     struct character *c = priv;

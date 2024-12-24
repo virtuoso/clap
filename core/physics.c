@@ -274,33 +274,6 @@ void phys_ground_entity(struct entity3d *e)
     e->dy -= dist;
 }
 
-bool phys_body_is_grounded(struct phys_body *body)
-{
-    struct entity3d *e = phys_body_entity(body);
-    dVector3 dir = { 0, -1, 0 };
-    dGeomID ray, *ground;
-    const dReal *pos, epsilon = 1e-3;
-    struct contact contact = {};
-
-    if (!phys_body_has_body(body))
-        return true;
-
-    if (!dJointGetBody(body->lmotor, 0))
-        return false;
-
-    dSpaceCollide2(body->geom, (dGeomID)phys->ground_space, &contact, &got_contact);
-    if (contact.nc)
-        return true;
-
-    pos = phys_body_position(body);
-    ray = dCreateRay(phys->space, body->yoffset - body->ray_off + epsilon);
-    dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
-    dSpaceCollide2(ray, (dGeomID)phys->ground_space, &contact, got_contact);
-    dGeomDestroy(ray);
-
-    return !!contact.nc;
-}
-
 bool phys_body_ground_collide(struct phys_body *body)
 {
     struct entity3d *e = phys_body_entity(body);

@@ -76,7 +76,6 @@ static inline const char *character_name(struct character *c)
 
 struct character *character_new(struct model3dtx *txm, struct scene *s);
 void character_handle_input(struct character *ch, struct scene *s, struct message *m);
-bool character_is_grounded(struct character *ch, struct scene *s);
 void character_move(struct character *ch, struct scene *s);
 
 #endif /* __CLAP_CHARACTER_H__ */
