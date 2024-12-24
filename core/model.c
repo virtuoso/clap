@@ -640,7 +640,7 @@ void model3dtx_done(struct model3dtx *txm, struct shader_prog *p)
         GL(glActiveTexture(GL_TEXTURE0));
         GL(glBindTexture(GL_TEXTURE_2D, 0));
     }
-    if (txm->normals) {
+    if (texture_loaded(txm->normals)) {
         GL(glActiveTexture(GL_TEXTURE1));
         GL(glBindTexture(GL_TEXTURE_2D, 0));
     }
