@@ -159,6 +159,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
 
         igCheckbox("shadow outline", &scene->light.shadow_outline);
         igCheckbox("shadow msaa", &scene->light.shadow_msaa);
+        igCheckbox("debug draws", &scene->debug_draws_enabled);
         scene->proj_update++;
     }
 
