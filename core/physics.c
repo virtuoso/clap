@@ -387,25 +387,6 @@ void phys_step(unsigned long frame_count)
     dJointGroupEmpty(phys->contact);
 }
 
-static void dGetEulerAngleFromRot(const dMatrix3 mRot, dReal *rX, dReal *rY, dReal *rZ)
-{
-    *rY = asin(mRot[0 * 4 + 2]);
-    if (*rY < M_PI / 2) {
-        if (*rY > -M_PI / 2) {
-            *rX = atan2(-mRot[1 * 4 + 2], mRot[2 * 4 + 2]);
-            *rZ = atan2(-mRot[0 * 4 + 1], mRot[0 * 4 + 0]);
-        } else {
-            // not unique
-            *rX = -atan2(mRot[1 * 4 + 0], mRot[1 * 4 + 1]);
-            *rZ = REAL(0.0);
-        }
-    } else {
-        // not unique
-        *rX = atan2(mRot[1 * 4 + 0], mRot[1 * 4 + 1]);
-        *rZ = REAL(0.0);
-    }
-}
-
 int phys_body_update(struct entity3d *e)
 {
     const dReal *pos;
