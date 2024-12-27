@@ -711,6 +711,9 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
         // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
         //        txmodel_name(txmodel));
         model = txmodel->model;
+        if (model->debug && shader_override)
+            continue;
+
         struct shader_prog *model_prog = shader_override ? shader_override : model->prog;
 
         model->cur_lod = 0;
