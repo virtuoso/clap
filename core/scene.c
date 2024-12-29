@@ -226,8 +226,6 @@ static inline void scene_characters_debug(struct scene *scene) {}
 static void scene_camera_calc(struct scene *s, int camera)
 {
     struct camera *cam = &s->cameras[camera];
-    float scalev[3];
-    int i;
 
     if (!s->fps.fps_fine)
         return;
@@ -235,9 +233,6 @@ static void scene_camera_calc(struct scene *s, int camera)
         scene_camera_autopilot(s);
     if (!cam->ch->moved && s->control == cam->ch)
         return;
-
-    for (i = 0; i < 3; i++)
-        scalev[i] = cam->zoom ? 3.0 : 1.0;
 
     /* circle the character s->control */
     if (s->control != cam->ch &&
@@ -312,13 +307,7 @@ out:
 static int scene_handle_input(struct message *m, void *data)
 {
     struct scene *s = data;
-    float delta_x = 0, delta_z = 0;
-    float lin_speed = s->lin_speed;
 
-    /*trace("input event %d/%d/%d/%d %f/%f/%f exit %d\n",
-        m->input.left, m->input.right, m->input.up, m->input.down,
-        m->input.delta_x, m->input.delta_y, m->input.delta_z,
-        m->input.exit);*/
     if (m->input.debug_action || (m->input.pad_lb && m->input.pad_rb)) {
         debug_camera_action(s->camera);
     }
@@ -442,12 +431,11 @@ struct scene_model_queue {
 static int model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
-    char *name = NULL, *gltf = NULL, *tex = NULL;
+    char *name = NULL, *gltf = NULL;// *tex = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, can_sprint = false;
-    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *light = NULL;
+    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
     int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
     struct gltf_data *gd = NULL;
-    struct lib_handle *libh;
     struct model3dtx  *txm;
 
     if (node->tag != JSON_OBJECT) {
@@ -460,8 +448,8 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             name = p->string_;
         else if (p->tag == JSON_STRING && !strcmp(p->key, "gltf"))
             gltf = p->string_;
-        else if (p->tag == JSON_STRING && !strcmp(p->key, "texture"))
-            tex = p->string_;
+        // else if (p->tag == JSON_STRING && !strcmp(p->key, "texture"))
+        //     tex = p->string_;
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "physics"))
             phys = p;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "terrain_clamp"))
@@ -482,8 +470,6 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             anis = p;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "speed"))
             speed = p->number_;
-        else if (p->tag == JSON_OBJECT && !strcmp(p->key, "light"))
-            light = p;
     }
 
     if (!name || !gltf) {
@@ -826,8 +812,6 @@ int scene_load(struct scene *scene, const char *name)
 
 void scene_done(struct scene *scene)
 {
-    struct model3dtx *txmodel, *ittxm;
-    struct entity3d  *ent, *itent;
     struct instantiator *instor;
     struct character *iter, *ch;
 
@@ -844,8 +828,6 @@ void scene_done(struct scene *scene)
         terrain_done(scene->terrain);
 
     mq_release(&scene->mq);
-
-    struct shader_prog *prog, *it;
 
     /*
      * clean up the shaders that weren't freed by model3d_drop()
