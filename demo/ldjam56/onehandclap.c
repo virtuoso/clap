@@ -423,10 +423,6 @@ int main(int argc, char **argv, char **envp)
 
     clap_ctx = clap_init(&cfg, argc, argv, envp);
 
-    /*
-     * Resize callback will call into projmx_update(), which depends
-     * on projection matrix being allocated.
-     */
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
     prev_msaa = scene.light.shadow_msaa;
