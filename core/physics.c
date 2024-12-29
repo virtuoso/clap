@@ -170,6 +170,11 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
 
     phys_contact_surface(NULL, NULL, contact, MAX_CONTACTS);
 
+    /*
+     * There might be a reason to handle subspaces here, like got_contact does,
+     * except for currently there are only 2 subspaces of phys->space, and only
+     * phys->characters can have (useful) collisions between themselves.
+     */
     nc = dCollide(o1, o2, MAX_CONTACTS, &contact[0].geom, sizeof(dContact));
     if (nc) {
         for (i = 0; i < nc; i++) {
@@ -380,6 +385,7 @@ void phys_step(unsigned long frame_count)
 
     dSpaceCollide2((dGeomID)phys->ground_space, (dGeomID)phys->character_space,
                    &pen, near_callback);
+    dSpaceCollide(phys->character_space, &pen, near_callback);
 
     list_for_each_entry_iter(pb, itpb, &pen, pen_entry) {
         const dReal     *pos = phys_body_position(pb);
