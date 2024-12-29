@@ -211,7 +211,7 @@ void character_move(struct character *ch, struct scene *s)
         if (ch->jumping && !ch->ragdoll && ch->mctl.jump) {
             float dx = delta_x * yawcos - delta_z * yawsin;
             float dz = delta_x * yawsin + delta_z * yawcos;
-            vec3 jump = { dx * 0.8, 3.0, dz * 0.8 };
+            vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
 
             if (body && phys_body_has_body(body)) {
                 bool was_in_motion = !!vec3_len(ch->motion);
@@ -477,6 +477,8 @@ struct character *character_new(struct model3dtx *txm, struct scene *s)
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
     c->state = CS_AWAKE;
+    c->jump_forward = 2.0;
+    c->jump_upward = 3.0;
     list_append(&s->characters, &c->entry);
     motion_reset(&c->mctl, s);
 

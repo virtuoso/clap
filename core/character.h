@@ -52,6 +52,8 @@ struct character {
     vec3    angle;
     vec3    normal;
     float   speed;
+    float   jump_forward;
+    float   jump_upward;
     float   yaw_turn;
     float   pitch_turn;
     struct list entry;
