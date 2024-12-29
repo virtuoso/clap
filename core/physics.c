@@ -88,6 +88,11 @@ void phys_body_stop(struct phys_body *body)
     if (dJointGetBody(body->lmotor, 0))
         return;
 
+    struct entity3d *e = phys_body_entity(body);
+    if (e && e->priv) {
+        struct character *c = e->priv;
+        c->stopped = true;
+    }
     dJointAttach(body->lmotor, body->body, NULL);
     dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
     dJointSetLMotorParam(body->lmotor, dParamVel2, 0);

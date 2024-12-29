@@ -204,6 +204,7 @@ void character_move(struct character *ch, struct scene *s)
         dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
         dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
         dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
+        ch->stopped = true;
         return;
     }
 
@@ -291,6 +292,7 @@ void character_move(struct character *ch, struct scene *s)
             dJointSetLMotorParam(body->lmotor, dParamVel1, res[0]);
             dJointSetLMotorParam(body->lmotor, dParamVel2, res[1]);
             dJointSetLMotorParam(body->lmotor, dParamVel3, res[2]);
+            ch->stopped = false;
         } else {
             vec3_add(ch->pos, ch->pos, ch->angle);
             ch->entity->dx = ch->pos[0];
