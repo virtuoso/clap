@@ -35,32 +35,45 @@ const dReal *phys_body_rotation(struct phys_body *body)
  */
 #define MAX_CONTACTS 16
 
-static bool geom_and_other_by_class(dGeomID o1, dGeomID o2, int class, dGeomID *match, dGeomID *other)
+static bool geom_and_other_by_class(dContactGeom *geom, int class, dGeomID *match, dGeomID *other)
 {
-    *match = *other = NULL;
+    if (match)
+        *match = NULL;
+    if (other)
+        *other = NULL;
 
-    if (dGeomGetClass(o1) == class) {
-        *match = o1;
-        *other = o2;
+    if (geom->g1 && dGeomGetClass(geom->g1) == class) {
+        if (match)
+            *match = geom->g1;
+        if (other)
+            *other = geom->g2;
         return true;
-    } else if (dGeomGetClass(o2) == class) {
-        *match = o2;
-        *other = o1;
+    } else if (geom->g2 && dGeomGetClass(geom->g2) == class) {
+        if (match)
+            *match = geom->g2;
+        if (other)
+            *other = geom->g1;
         return true;
     }
 
     return false;
 }
 
-static bool entity_and_other_by_class(dGeomID o1, dGeomID o2, int class, struct entity3d **match,
+static bool entity_and_other_by_class(dContactGeom *geom, int class, struct entity3d **match,
                                       struct entity3d **other)
 {
     dGeomID _match, _other;
 
-    *match = *other = NULL;
-    if (geom_and_other_by_class(o1, o2, class, &_match, &_other)) {
-        *match = dGeomGetData(_match);
-        *other = dGeomGetData(_other);
+    if (match)
+        *match = NULL;
+    if (other)
+        *other = NULL;
+
+    if (geom_and_other_by_class(geom, class, &_match, &_other)) {
+        if (match)
+            *match = dGeomGetData(_match);
+        if (other)
+            *other = dGeomGetData(_other);
         return true;
     }
 
@@ -206,49 +219,58 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
 }
 
 struct contact {
-    dContact *contact;
+    dContact contact[MAX_CONTACTS];
     int nc;
 };
 
 static void got_contact(void *data, dGeomID o1, dGeomID o2)
 {
     struct contact *c = data;
-    dContact contact;
 
-    phys_contact_surface(dGeomGetData(o1), dGeomGetData(o2), c->contact ? c->contact : &contact, 1);
-    c->nc = dCollide(o1, o2, 1, c->contact ? &c->contact->geom : &contact.geom, sizeof(dContact));
+    if (c->nc >= array_size(c->contact))
+        return;
+
+    if (o1 == o2)
+        return;
+
+    if (dGeomIsSpace(o1) || dGeomIsSpace(o2))
+        dSpaceCollide2(o1, o2, c, got_contact);
+    else
+        c->nc += dCollide(o1, o2, 1, &c->contact[c->nc].geom, sizeof(dContact));
 }
 
 struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
 {
     struct entity3d *target = NULL;
     dGeomID ray = NULL;
-    dContact contact;
-    struct contact c = { .contact = &contact };
+    struct contact c = {};
     vec3 _start = { start[0], start[1], start[2] };
     vec3 comp;
     int try = 0;
 
     ray = dCreateRay(phys->space, *pdist);
-retry:
     dGeomRaySetClosestHit(ray, 1);
     /* avoid self-intersections as much as possible */
     dGeomRaySetBackfaceCull(ray, 1);
-    phys_contact_surface(NULL, NULL, &contact, 1);
+retry:
     dGeomRaySet(ray, _start[0], _start[1], _start[2], dir[0], dir[1], dir[2]);
+    phys_contact_surface(NULL, NULL, c.contact, array_size(c.contact));
     dSpaceCollide2(ray, (dGeomID)phys->space, &c, &got_contact);
-    if (c.nc) {
-        target = dGeomGetData(dGeomGetClass(contact.geom.g1) == dRayClass ? contact.geom.g2 : contact.geom.g1);
-        if (target) {
+
+    int i;
+    for (i = 0; i < c.nc; i++) {
+        if (entity_and_other_by_class(&c.contact[i].geom, dRayClass, NULL, &target)) {
             if (e == target && try++ < 10) {
-                vec3_scale(comp, dir, contact.geom.depth + 1e-3);
+                vec3_scale(comp, dir, c.contact[i].geom.depth + 1e-3);
                 vec3_add(_start, _start, comp);
+                c.nc = 0;
                 goto retry;
             }
         }
 
         vec3_sub(comp, _start, start);
-        *pdist = contact.geom.depth + vec3_len(comp);
+        *pdist = c.contact[i].geom.depth + vec3_len(comp);
+        break;
     }
     dGeomDestroy(ray);
 
@@ -276,25 +298,29 @@ bool phys_body_ground_collide(struct phys_body *body)
     dReal epsilon = 1e-3;
     dReal ray_len = body->yoffset - body->ray_off + epsilon;
     dVector3 dir = { 0, -ray_len, 0 };
-    //struct character *ch = e->priv;
-    dContact contact;
-    struct contact c = { .contact = &contact };
+    struct character *ch = e->priv;
+    struct contact c = {};
     dGeomID ray, *ground;
     const dReal *pos;
+    bool ret = false;
 
     if (!phys_body_has_body(body))
         return true;
 
-    phys_contact_surface(NULL, NULL, &contact, 1);
+    phys_contact_surface(NULL, NULL, c.contact, array_size(c.contact));
+    ch->collision = NULL;
 
     /*
      * Check if our capsule intersects with anything
      */
     dSpaceCollide2(body->geom, (dGeomID)phys->ground_space, &c, got_contact);
-    if (c.nc) {
+    int i;
+    for (i = 0; i < c.nc; i++) {
         dVector3 up = { 0, 1, 0 };
-        dReal upness = dDot(c.contact->geom.normal, up, 3);
+        dReal upness = dDot(c.contact[i].geom.normal, up, 3);
 
+        entity_and_other_by_class(&c.contact[i].geom, dCapsuleClass,
+                                  NULL, &ch->collision);
         if (upness > 0.95) {
             entity3d_move(e, 0, ray_len + c.contact->geom.depth, 0);
         } else if (upness > 0.3) {
@@ -302,28 +328,38 @@ bool phys_body_ground_collide(struct phys_body *body)
         } else {
             dJointAttach(body->lmotor, NULL, NULL);
         }
+
+        ret = true;
+        break;
     }
 
     pos = phys_body_position(body);
     ray = dCreateRay(phys->space, ray_len);
     dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
-    //dGeomSetBody(ray, body->body);
-    // nc = dCollide(ray, *ground, 1, &contact.geom, sizeof(dContact));
+    phys_contact_surface(NULL, NULL, c.contact, array_size(c.contact));
+    c.nc = 0;
     dSpaceCollide2(ray, (dGeomID)phys->ground_space, &c, got_contact);
+    if (c.nc && !ch->collision)
+        entity_and_other_by_class(&c.contact[0].geom, dRayClass, NULL, &ch->collision);
+
     dGeomDestroy(ray);
     if (c.nc)
         goto got_it;
 
-    return false;
+    if (!ret)
+        ch->stuck = false;
+
+    return ret;
 
 got_it:
-    if (ray_len - c.contact->geom.depth > epsilon) {
-        entity3d_move(e, 0, ray_len - c.contact->geom.depth, 0);
-        ui_debug_printf("RAY '%s' collides with %s at %f/%f (%f,%f,%f) normal %f,%f,%f\n", entity_name(e), class_str(dGeomGetClass(contact.geom.g2)),
-            contact.geom.depth, ray_len, e->dx, e->dy, e->dz,
-            contact.geom.normal[0], contact.geom.normal[1], contact.geom.normal[2]);
+    if (ray_len - c.contact[0].geom.depth > epsilon) {
+        entity3d_move(e, 0, ray_len - c.contact[0].geom.depth, 0);
+        ui_debug_printf("RAY '%s' collides with %s at %f/%f (%f,%f,%f) normal %f,%f,%f\n", entity_name(e),
+            class_str(dGeomGetClass(c.contact[i].geom.g2)),
+            c.contact[i].geom.depth, ray_len, e->dx, e->dy, e->dz,
+            c.contact[i].geom.normal[0], c.contact[i].geom.normal[1], c.contact[i].geom.normal[2]);
     }
-    phys_body_stick(e->phys_body, &contact);
+    phys_body_stick(e->phys_body, &c.contact[0]);
 
     return true;
 }

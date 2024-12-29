@@ -58,9 +58,10 @@ struct character {
     float   pitch_turn;
     struct list entry;
     struct anictl anictl;
+    struct entity3d *collision;
     int     moved;
-    int     ragdoll;
-    int     stuck;
+    bool    ragdoll;
+    bool    stuck;
     bool    can_sprint;
     bool    jumping;
     enum character_state state;
