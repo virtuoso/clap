@@ -60,6 +60,10 @@ static inline debug_module *ui_igBegin(enum debug_modules mod, ImGuiWindowFlags 
 
 void ui_igEnd(enum debug_modules mod);
 
+void ui_igCheckbox(bool *v, const char *label, ...);
+void ui_igSliderFloat(float *v, float min, float max, const char *fmt, ImGuiSliderFlags flags,
+                      const char *label, ...);
+
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(float *v, int n, const char *fmt, ...);
 bool ui_igMat4x4(mat4x4 m, const char *name);

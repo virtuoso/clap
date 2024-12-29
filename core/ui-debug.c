@@ -110,3 +110,28 @@ void ui_igEnd(enum debug_modules mod)
     ui_debug_set_one(mod);
     dbgm->display = dbgm->open;
 }
+
+void ui_igCheckbox(bool *v, const char *label, ...)
+{
+    char buf[128];
+    va_list va;
+
+    va_start(va, label);
+    vsnprintf(buf, sizeof(buf), label, va);
+    va_end(va);
+
+    igCheckbox(buf, v);
+}
+
+void ui_igSliderFloat(float *v, float min, float max, const char *fmt, ImGuiSliderFlags flags,
+                      const char *label, ...)
+{
+    char buf[128];
+    va_list va;
+
+    va_start(va, label);
+    vsnprintf(buf, sizeof(buf), label, va);
+    va_end(va);
+
+    igSliderFloat(buf, v, min, max, fmt, flags);
+}
