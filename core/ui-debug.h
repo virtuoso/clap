@@ -9,7 +9,7 @@
 #include "util.h"
 #include "linmath.h"
 
-void __ui_debug_printf(const char *mod, const char *fmt, ...);
+void __ui_debug_printf(const char *mod, const char *fmt, ...) __printf(2, 3);
 #define ui_debug_printf(args...) __ui_debug_printf(MODNAME, ## args)
 void ui_show_debug(const char *debug_name);
 
