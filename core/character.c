@@ -162,6 +162,40 @@ static void character_idle(struct scene *s, void *priv)
     animation_push_by_name(c->entity, s, "idle", true, true);
 }
 
+#ifndef CONFIG_FINAL
+static void character_debug(struct character *ch)
+{
+    const char *name = entity_name(ch->entity);
+    debug_module *dbgm = ui_igBegin_name(DEBUG_CHARACTER_MOTION, ImGuiWindowFlags_AlwaysAutoResize,
+                                         "character %s", name);
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        ui_igVecTableHeader("vectors", 3);
+        ui_igVecRow(ch->pos, 3, "position");
+        ui_igVecRow(ch->angle, 3, "angle");
+        ui_igVecRow(ch->motion, 3, "motion");
+        ui_igVecRow(ch->normal, 3, "normal");
+        igEndTable();
+        vec3 up = { 0, 1, 0 };
+        float dot = vec3_mul_inner(ch->normal, up);
+        igText("upness %f", dot);
+
+        igText("collision %s", entity_name(ch->collision));
+        igCheckbox("ragdoll", &ch->ragdoll);
+        igCheckbox("stuck", &ch->stuck);
+        igCheckbox("stopped", &ch->stopped);
+        igCheckbox("moved", (bool *)&ch->moved);
+    }
+
+    ui_igEnd(DEBUG_CHARACTER_MOTION);
+}
+#else
+static inline void character_debug(struct character *ch) {}
+#endif /* CONFIG_FINAL */
+
 void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
@@ -195,9 +229,9 @@ void character_move(struct character *ch, struct scene *s)
             animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
             animation_set_end_callback(ch->entity, character_idle, ch);
         }
-        return;
+        goto out;
     } else if (ch->state < CS_AWAKE) {
-        return;
+        goto out;
     }
 
     if (ch->ragdoll) {
@@ -205,7 +239,7 @@ void character_move(struct character *ch, struct scene *s)
         dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
         dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
         ch->stopped = true;
-        return;
+        goto out;
     }
 
     if (s->control == ch) {
@@ -231,7 +265,7 @@ void character_move(struct character *ch, struct scene *s)
                         animation_push_by_name(ch->entity, s, "idle", false, false);
                     }
                 }
-                return; /* XXX */
+                goto out; /* XXX */
             }
         } else {
             /*
@@ -256,7 +290,7 @@ void character_move(struct character *ch, struct scene *s)
 
         if (!vec3_len(ch->normal) && ch != cam) {
             err("no normal vector: is there collision?\n");
-            return;
+            goto out;
         }
 
         dCalcVectorCross3(newz, oldx, newy);
@@ -372,6 +406,10 @@ void character_move(struct character *ch, struct scene *s)
         dBodyEnable(body->body);
 
     ch->entity->dy = ch->pos[1];
+
+out:
+    if (scene_camera_follows(s, ch))
+        character_debug(ch);
 }
 
 static void character_drop(struct ref *ref)
