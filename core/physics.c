@@ -252,10 +252,6 @@ retry:
     }
     dGeomDestroy(ray);
 
-    // if (nc)
-    //     ui_debug_printf("[%f,%f,%f]->[%f,%f,%f] %s@%f(-%f)(%d) [%f,%f,%f] try %d", _start[0], _start[1], _start[2],
-    //                     dir[0], dir[1], dir[2], entity_name(target), *pdist, vec3_len(comp), nc,
-    //                     contact.geom.pos[0], contact.geom.pos[1], contact.geom.pos[2], try);
     return c.nc ? target : NULL;
 }
 
@@ -337,12 +333,6 @@ void phys_step(unsigned long frame_count)
     struct phys_body *pb, *itpb;
     DECLARE_LIST(pen);
 
-    /* this is instead called in character update */
-    // list_for_each_entry(pb, &phys_bodies, entry) {
-    //     if (phys_body_ground_collide(pb)) {
-    //     }
-    // }
-
     dSpaceCollide2((dGeomID)phys->ground_space, (dGeomID)phys->character_space,
                    &pen, near_callback);
 
@@ -351,27 +341,7 @@ void phys_step(unsigned long frame_count)
         struct entity3d *e = phys_body_entity(pb);
         struct character *c  = e->priv;
         vec3             off = { pos[0], pos[1], pos[2] };
-        dMatrix3 R;
 
-        /*if (pb->lmotor) {
-            dJointDestroy(pb->lmotor);
-            pb->lmotor = NULL;
-        }*/
-
-        /* XXX */
-        if (c) {
-            c->ragdoll = 0;
-        }
-        //dbg("clearing velocities from '%s'\n", entity_name(e));
-        // dBodySetLinearVel(pb->body, 0, 0, 0);
-        // dBodySetAngularVel(pb->body, 0, 0, 0);
-        dRSetIdentity(R);
-        dRFromEulerAngles(R, e->rx, e->ry, e->rz);
-        if (phys_body_has_body(pb))
-            dBodySetRotation(pb->body, R);
-        else
-            dGeomSetRotation(pb->geom, R);
-        // dBodyDisable(pb->body);
         if (pb->pen_depth > 0 && vec3_len(pb->pen_norm) > 0) {
             vec3_sub(off, off, pb->pen_norm);
             dBodySetPosition(pb->body, off[0], off[1], off[2]);
@@ -448,7 +418,7 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
             body->ray_off = r;
             break;
     }
-    
+
     /*
      * XXX: The above logic is busted: ray length ends up zero.
      */
@@ -571,7 +541,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
     CHECK(body = calloc(1, sizeof(*body)));
     list_init(&body->pen_entry);
     body->phys = phys;
-    
+
     if (has_body)
         body->body = dBodyCreate(phys->world);
 
@@ -621,7 +591,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
             // going to change.
             dRFromAxisAndAngle(rot, 1.0, 1.0, 1.0, -M_PI * 2.0 / 3.0);
         }
-        
+
         dGeomSetRotation(body->geom, rot);
         dSpaceRemove(phys->space, body->geom);
         dSpaceAdd(phys->ground_space, body->geom);
@@ -756,7 +726,7 @@ void phys_debug_draw(struct scene *scene, struct phys_body *body)
     _rot[3][0] = pos[0];
     _rot[3][1] = pos[1];
     _rot[3][2] = pos[2];
-    
+
     start[0] = -r;
     start[1] = -r;
     start[2] = -len / 2 - r;
