@@ -80,25 +80,10 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, struct enti
     return false;
 }
 
-void phys_body_stick(struct phys_body *body, dContact *contact)
+void phys_body_stop(struct phys_body *body)
 {
-    struct entity3d *e = phys_body_entity(body);
-    struct character *c = e->priv;
-    dMatrix3 R;
-    dJointID j;
-
-    /* should also warn */
     if (!phys_body_has_body(body))
         return;
-
-    if (c) {
-        c->normal[0] = contact->geom.normal[0];
-        c->normal[1] = contact->geom.normal[1];
-        c->normal[2] = contact->geom.normal[2];
-    }
-
-    j = dJointCreateContact(phys->world, phys->contact, contact);
-    dJointAttach(j, body->body, NULL);
 
     if (dJointGetBody(body->lmotor, 0))
         return;
@@ -109,6 +94,27 @@ void phys_body_stick(struct phys_body *body, dContact *contact)
     dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
     dBodySetMaxAngularSpeed(body->body, 0);
     dBodySetLinearDampingThreshold(body->body, 0.001);
+}
+
+void phys_body_stick(struct phys_body *body, dContact *contact)
+{
+    struct entity3d *e = phys_body_entity(body);
+    struct character *c = e->priv;
+    dJointID j;
+
+    /* should also warn */
+    if (!phys_body_has_body(body))
+        return;
+
+    if (c) {
+        c->stuck = true;
+        c->normal[0] = contact->geom.normal[0];
+        c->normal[1] = contact->geom.normal[1];
+        c->normal[2] = contact->geom.normal[2];
+    }
+
+    j = dJointCreateContact(phys->world, phys->contact, contact);
+    dJointAttach(j, body->body, NULL);
 }
 
 static void phys_contact_surface(struct entity3d *e1, struct entity3d *e2, dContact *contact, int nc)
@@ -207,12 +213,16 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
                 if (!e_other->phys_body)
                     return;
 
-                phys_body_stick(e_other->phys_body, &contact[i]);
                 e_other->phys_body->pen_depth += contact[i].geom.depth;
                 vec3_scale(norm, norm, contact[i].geom.depth);
                 vec3_add(e_other->phys_body->pen_norm, e_other->phys_body->pen_norm, norm);
                 list_del(&e_other->phys_body->pen_entry);
                 list_append(pen, &e_other->phys_body->pen_entry);
+            } else {
+                if (e1->priv)
+                    phys_body_stop(e1->phys_body);
+                if (e2->priv)
+                    phys_body_stop(e2->phys_body);
             }
         }
     }
@@ -325,10 +335,9 @@ bool phys_body_ground_collide(struct phys_body *body)
             entity3d_move(e, 0, ray_len + c.contact->geom.depth, 0);
         } else if (upness > 0.3) {
             entity3d_move(e, 0, c.contact->geom.depth, 0);
-        } else {
-            dJointAttach(body->lmotor, NULL, NULL);
         }
 
+        phys_body_stop(e->phys_body);
         ret = true;
         break;
     }
