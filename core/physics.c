@@ -168,7 +168,6 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
     dContact contact[MAX_CONTACTS];
     dBodyID b1 = dGeomGetBody(o1);
     dBodyID b2 = dGeomGetBody(o2);
-    dReal bounce = 0.0, bounce_vel = 0.0;
     struct list *pen = data;
     dJointID j;
     int i, nc;
@@ -187,7 +186,7 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             dGeomID g2 = contact[i].geom.g2;
             struct entity3d *e1 = dGeomGetData(g1);
             struct entity3d *e2 = dGeomGetData(g2);
-            struct entity3d *e_ground, *e_other;
+            struct entity3d *e_other;
 
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
@@ -196,28 +195,23 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             j = dJointCreateContact(phys->world, phys->contact, &contact[i]);
             dJointAttach(j, b1, b2);
             if (!phys_body_has_body(e1->phys_body)) {
-                e_ground = e1;
                 e_other = e2;
                 ground = true;
             } else if (!phys_body_has_body(e2->phys_body)) {
-                e_ground = e2;
                 e_other = e1;
                 ground  = true;
             } else {
                 if (e1->priv) {
                     e_other = e1;
-                    e_ground = e2;
                     ground = true;
                 } else if (e2->priv) {
                     e_other = e2;
-                    e_ground = e1;
                     ground = true;
                 }
                 ground   = false;
             }
 
             if (ground) {
-                const char *name = entity_name(e_other);
                 vec3 norm = { contact[i].geom.normal[0], contact[i].geom.normal[1], contact[i].geom.normal[2] };
 
                 if (!e_other->phys_body)
@@ -320,7 +314,7 @@ bool phys_body_ground_collide(struct phys_body *body)
     dVector3 dir = { 0, -ray_len, 0 };
     struct character *ch = e->priv;
     struct contact c = {};
-    dGeomID ray, *ground;
+    dGeomID ray;
     const dReal *pos;
     bool ret = false;
 
@@ -394,9 +388,7 @@ void phys_step(unsigned long frame_count)
 
     list_for_each_entry_iter(pb, itpb, &pen, pen_entry) {
         const dReal     *pos = phys_body_position(pb);
-        struct entity3d *e = phys_body_entity(pb);
-        struct character *c  = e->priv;
-        vec3             off = { pos[0], pos[1], pos[2] };
+        vec3            off = { pos[0], pos[1], pos[2] };
 
         if (pb->pen_depth > 0 && vec3_len(pb->pen_norm) > 0) {
             vec3_sub(off, off, pb->pen_norm);
@@ -416,9 +408,7 @@ void phys_step(unsigned long frame_count)
 int phys_body_update(struct entity3d *e)
 {
     const dReal *pos;
-    const dReal *rot;
     const dReal *vel;
-    dReal       rx, ry, rz;
 
     if (!e->phys_body || !phys_body_has_body(e->phys_body))
         return 0;
@@ -509,7 +499,6 @@ dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct 
     size_t vxsz = m->collision_vxsz;
     float *vx = m->collision_vx;
     dGeomID trimesh = NULL;
-    dReal *tnorm = NULL;
     dReal *tvx = NULL;
     dTriIndex *tidx;
     int i;
@@ -540,16 +529,7 @@ dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct 
         tvx[i + 1] = res[1];
         tvx[i + 2] = res[2];
     }
-    /*if (m->norm) {
-        CHECK(tnorm = calloc(vxsz, sizeof(*tnorm)));
-        for (i = 0; i < vxsz; i += 3) {
-            //vec3_norm(&norm[i], &norm[i]);
-            tnorm[i + 0] = m->norm[i + 0];
-            tnorm[i + 1] = m->norm[i + 1];
-            tnorm[i + 2] = m->norm[i + 2];
-            dNormalize3(&tnorm[i]);
-        }
-    }*/
+
 #ifdef dDOUBLE
     dGeomTriMeshDataBuildDouble(meshdata, tvx, 3 * sizeof(dReal), vxsz / 3, tidx, idxsz, 3 * sizeof(dTriIndex));
 #else
@@ -711,7 +691,7 @@ static void ode_message(int errnum, const char *msg, va_list ap)
 int phys_init(void)
 {
     dInitODE2(0);
-    // dSetErrorHandler(ode_error);
+    dSetErrorHandler(ode_error);
     dSetDebugHandler(ode_debug);
     dSetMessageHandler(ode_message);
     phys->world = dWorldCreate();
