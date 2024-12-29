@@ -454,13 +454,6 @@ static int character_update(struct entity3d *e, void *data)
         }
     }
 
-    if (e->phys_body)
-        c->stuck = dJointGetBody(e->phys_body->lmotor, 0) ? 1 : 0;
-    if (c->moved) {
-        /* update body position */
-        //entity3d_position(e, e->dx, e->dy, e->dz);
-    }
-
     motion_reset(&c->mctl, s);
 
     // return 0;
