@@ -26,6 +26,7 @@ void cleanup__ucharp(uchar **s);
 #define nonstring __attribute__((nonstring))
 #define unused __attribute__((unused))
 #define notrace __attribute__((no_instrument_function))
+#define __printf(x, y) __attribute__((__format__(__printf__, (x), (y))))
 
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)

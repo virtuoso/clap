@@ -51,7 +51,7 @@ void ui_debug_selector(void);
 void ui_debug_set_settings(struct settings *rs);
 debug_module *ui_debug_module(enum debug_modules mod);
 debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
-                              const char *fmt, ...);
+                              const char *fmt, ...) __printf(3, 4);
 
 static inline debug_module *ui_igBegin(enum debug_modules mod, ImGuiWindowFlags flags)
 {
@@ -60,9 +60,9 @@ static inline debug_module *ui_igBegin(enum debug_modules mod, ImGuiWindowFlags 
 
 void ui_igEnd(enum debug_modules mod);
 
-void ui_igCheckbox(bool *v, const char *label, ...);
+void ui_igCheckbox(bool *v, const char *label, ...) __printf(2, 3);
 void ui_igSliderFloat(float *v, float min, float max, const char *fmt, ImGuiSliderFlags flags,
-                      const char *label, ...);
+                      const char *label, ...) __printf(6, 7);
 
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(float *v, int n, const char *fmt, ...);
