@@ -19,7 +19,7 @@
 #include <stdbool.h>
 
 #ifdef CONFIG_BROWSER
-static const char *gluErrorString(int err) { return "not implemented"; }
+static inline const char *gluErrorString(int err) { return "not implemented"; }
 #endif
 
 struct clap_context;
