@@ -252,8 +252,7 @@ void mesh_optimize(struct mesh *mesh)
 ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t orig_idx)
 {
     struct mesh_attr *vxa = mesh_attr(mesh, MESH_VX);
-    struct mesh_attr *ia = mesh_attr(mesh, MESH_IDX);
-    int nr_idx, target = orig_idx / (1 << (lod + 1)), i;
+    int nr_idx, target = orig_idx / (1 << (lod + 1));
     float target_error = 1e-2;
     unsigned int *idx32;
 
