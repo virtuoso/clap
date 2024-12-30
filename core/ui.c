@@ -1356,7 +1356,10 @@ static int ui_handle_input(struct message *m, void *data)
     return MSG_STOP;
 }
 
+#ifndef CONFIG_FINAL
 static struct ui_element *build_uit;
+#endif /* CONFIG_FINAL */
+
 struct ui_element *uie0, *uie1, *health, *pocket, **pocket_text;
 static int pocket_buckets, *pocket_count, *pocket_total;
 static float health_bar_width;
@@ -1525,7 +1528,6 @@ extern const char *build_date;
 int ui_init(struct ui *ui, int width, int height)
 {
     struct font *font;
-    float color[] = { 0.7, 0.7, 0.7, 1.0 };
 
     ui_debug_mod_str("off");
     mq_init(&ui->mq, ui);
@@ -1551,7 +1553,9 @@ int ui_init(struct ui *ui, int width, int height)
 
     uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
     uie1->on_click = build_onclick;
+
 #ifndef CONFIG_FINAL
+    float color[] = { 0.7, 0.7, 0.7, 1.0 };
     build_uit = ui_render_string(ui, font, uie1, build_date, color, 0);
 #endif
 
