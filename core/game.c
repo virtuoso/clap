@@ -58,7 +58,6 @@ bool is_near_burrow(struct game_state *g) {
 void eat_apple_from_inventory(struct game_state *g, int apple_index) {
     // Try to eat a mature apple from the burrow.
     struct game_item *item;
-    int idx = 0;
     struct burrow *b = &g->burrow;
     item = &b->items.x[apple_index];
     if (item->is_mature) {
@@ -353,7 +352,6 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
         }
 
         float squared_distance = calculate_squared_distance(item->entity, gatherer);
-        bool gathered = false;
         if (squared_distance < g->options.gathering_distance_squared) {
             if (item->interact)
                 item->interact(g, item, gatherer);
