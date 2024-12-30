@@ -12,7 +12,7 @@
             "generator": "Unix Makefiles",
             "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
             "binaryDir": "${sourceDir}/build/emdebug",
-            "installDir": "$env{WWW_INSTALL_DIR}/clapdbg",
+            "installDir": "$env{WWW_INSTALL_DIR}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS":true
@@ -23,7 +23,6 @@
             "displayName": "Emscripten Test",
             "inherits": [ "emdebug" ],
             "binaryDir": "${sourceDir}/build/emtest",
-            "installDir": "$env{WWW_INSTALL_DIR}/claptest",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"RelWithDebInfo"
             }
@@ -33,7 +32,6 @@
             "displayName": "Emscripten Release",
             "inherits": [ "emdebug" ],
             "binaryDir": "${sourceDir}/build/emrel",
-            "installDir": "$env{WWW_INSTALL_DIR}/clap",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Release",
                 "CLAP_BUILD_FINAL": true
