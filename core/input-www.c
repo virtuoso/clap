@@ -76,7 +76,7 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
         /* don't send empty messages */
         return true;
     };
-out:
+
     message_input_send(&mi, &keyboard_source);
 
     return true;
@@ -274,7 +274,6 @@ void www_touch_poll(void)
 {
     struct message_input mi;
     struct touchpoint *pt;
-    int count = 0;
 
     touch_gc(&touch);
 
@@ -292,7 +291,6 @@ void www_touch_poll(void)
             mi.delta_rx = (float)(pt->x - pt->orig_x) / touch.w * 4;
             mi.delta_ry = (float)(pt->y - pt->orig_y) / touch.h * 4;
         }
-        count++;
     }
     // ui_debug_printf("lx: %f ly: %f // rx: %f ry: %f",
     //                 mi.delta_lx, mi.delta_ly, mi.delta_rx, mi.delta_ry);
@@ -327,7 +325,7 @@ void www_joysticks_poll(void)
 }
 
 
-static EM_BOOL scroll_callback(int eventType, const EmscriptenUiEvent *e, void *userData)
+static unused EM_BOOL scroll_callback(int eventType, const EmscriptenUiEvent *e, void *userData)
 {
     return true;
 }
