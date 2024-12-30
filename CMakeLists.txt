@@ -69,9 +69,6 @@ endif ()
 enable_testing()
 #add_subdirectory(rust)
 
-message("### configuration types: ${CMAKE_CONFIGURATION_TYPES}")
-message("### build type: ${CMAKE_BUILD_TYPE}")
-
 include(scripts/win32-helpers.cmake)
 
 win32_fixup_flags()
