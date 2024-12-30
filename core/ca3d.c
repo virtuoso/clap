@@ -175,7 +175,7 @@ got_it:
         memcpy(history[histp++], next, sizeof(next));
         memcpy(cur, next, sizeof(next));
     }
-out:
+
     ca3d_prune(xyz);
     return xyzarray_count(xyz);
 }
