@@ -72,20 +72,6 @@ static const size_t comp_sizes[] = {
     [COMP_DOUBLE]         = 8,
 };
 
-static const char *comp_types[] = {
-    [COMP_BYTE]           = "BYTE",
-    [COMP_UNSIGNED_BYTE]  = "UNSIGNED_BYTE",
-    [COMP_SHORT]          = "SHORT",
-    [COMP_UNSIGNED_SHORT] = "UNSIGNED_SHORT",
-    [COMP_INT]            = "INT",
-    [COMP_UNSIGNED_INT]   = "UNSIGNED_INT",
-    [COMP_FLOAT]          = "FLOAT",
-    [COMP_2_BYTES]        = "2_BYTES",
-    [COMP_3_BYTES]        = "3_BYTES",
-    [COMP_4_BYTES]        = "4_BYTES",
-    [COMP_DOUBLE]         = "DOUBLE",
-};
-
 struct gltf_accessor {
     unsigned int bufview;
     unsigned int comptype;
@@ -214,7 +200,7 @@ void gltf_free(struct gltf_data *gd)
 {
     struct gltf_skin *skin;
     struct gltf_node *node;
-    int i, j;
+    int i;
 
     for (i = 0; i < gd->anis.da.nr_el; i++) {
         struct gltf_animation *ani = &gd->anis.x[i];
@@ -364,7 +350,6 @@ void *gltf_accessor_element(struct gltf_data *gd, int accr, size_t el)
 unsigned int gltf_accessor_sz(struct gltf_data *gd, int accr)
 {
     struct gltf_bufview *bv = gltf_bufview_accr(gd, accr);
-    int buf;
 
     if (!bv)
         return 0;
@@ -413,7 +398,6 @@ GLTF_MESH_ATTR(WEIGHTS_0,  weights, float)
 struct gltf_material *gltf_material(struct gltf_data *gd, int mesh)
 {
     struct gltf_mesh *m = gltf_mesh(gd, mesh);
-    int mat;
 
     if (!m)
         return NULL;
@@ -500,7 +484,7 @@ bool gltf_mesh_is_skinned(struct gltf_data *gd, int mesh)
     return false;
 }
 
-static void nodes_print(struct gltf_data *gd, struct gltf_node *node, int level)
+static void unused nodes_print(struct gltf_data *gd, struct gltf_node *node, int level)
 {
     int child;
 
@@ -612,7 +596,7 @@ static void gltf_load_skins(struct gltf_data *gd, JsonNode *skins)
         return;
 
     for (n = skins->children.head; n; n = n->next) {
-        JsonNode *jmat, *jname, *jjoints, *jj;
+        JsonNode *jmat, *jname, *jjoints;
         struct gltf_skin *skin;
 
         CHECK(skin = darray_add(&gd->skins.da));
@@ -620,7 +604,6 @@ static void gltf_load_skins(struct gltf_data *gd, JsonNode *skins)
         jmat = json_find_member(n, "inverseBindMatrices");
         if (jmat && jmat->tag == JSON_NUMBER) {
             struct gltf_accessor *ga = &gd->accrs.x[(int)jmat->number_];
-            struct gltf_bufview *bv = &gd->bufvws.x[ga->bufview];
 
             skin->invmxs = gltf_accessor_buf(gd, jmat->number_);
             skin->nr_invmxs = ga->count;
@@ -785,7 +768,8 @@ static void gltf_onload(struct lib_handle *h, void *data)
     /* Buffers */
     for (n = bufs->children.head; n; n = n->next) {
         JsonNode *jlen, *juri;
-        size_t   len, dlen, slen;
+        size_t   len, slen;
+        ssize_t  dlen;
         void **buf;
 
         if (n->tag != JSON_OBJECT)
@@ -808,10 +792,15 @@ static void gltf_onload(struct lib_handle *h, void *data)
         CHECK(buf = darray_add(&gd->buffers.da));
         CHECK(*buf = malloc(len));
         dlen = base64_decode(*buf, len, juri->string_ + sizeof(DATA_URI) - 1, slen);
-        // dbg("buffer %d: byteLength=%d uri length=%d dlen=%d/%d slen=%d '%.10s' errno=%d\n",
-        //     gd->nr_buffers, (int)jlen->number_,
-        //     strlen(juri->string_), dlen, len,
-        //     slen, juri->string_ + sizeof(DATA_URI) - 1, errno);
+        if (dlen < 0) {
+            err("error decoding base64 buffer %d\n", darray_count(gd->buffers) - 1);
+            free(*buf);
+            /*
+             * leave a NULL hole in the buffers array to keep the GLTF buffer
+             * indices
+             */
+            *buf = NULL;
+        }
     }
 
     /* BufferViews */
@@ -1025,8 +1014,6 @@ static void gltf_onload(struct lib_handle *h, void *data)
 void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,
                     float **tx, size_t *txsz, float **norm, size_t *normsz)
 {
-    struct gltf_mesh *m = &gd->meshes.x[mesh];
-
     if (mesh >= gd->meshes.da.nr_el)
         return;
 
@@ -1097,7 +1084,6 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
     skin = gltf_mesh_skin(gd, mesh);
     if (skin >= 0) {
         struct gltf_skin *s = &gd->skins.x[skin];
-        mat4x4 *invmxs = s->invmxs;
         struct gltf_animation *ga;
         struct gltf_node *node;
         struct animation *an;
