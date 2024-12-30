@@ -159,10 +159,9 @@ bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start, float 
     return true;
 }
 
-void camera_update(struct camera *c, struct scene *scene, struct entity3d *entity, vec3 start) {
+void camera_update(struct camera *c, struct scene *scene, struct entity3d *entity, vec3 start)
+{
     double dist, height, next_distance;
-    struct entity3d *hit;
-    vec3 dir;
 
     // We start with target pitch.
     c->current_pitch = c->target_pitch;
