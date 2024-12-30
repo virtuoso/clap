@@ -49,6 +49,7 @@ static void scene_control_next(struct scene *s)
     dbg("scene control at: '%s'\n", entity_name(s->control->entity));
 }
 
+#ifndef CONFIG_FINAL
 static void scene_focus_next(struct scene *s)
 {
     struct model3dtx *next_txm;
@@ -102,6 +103,7 @@ static void scene_focus_cancel(struct scene *s)
 {
     s->focus = NULL;
 }
+#endif /* CONFIG_FINAL */
 
 bool scene_camera_follows(struct scene *s, struct character *ch)
 {
