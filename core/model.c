@@ -689,7 +689,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
     struct model3dtx *txmodel;
     struct view *view = NULL;
     struct subview *subview = NULL;
-    unsigned long nr_txms = 0, nr_ents = 0, culled = 0;
+    unsigned long nr_ents = 0, culled = 0;
 
     if (camera)
         view = &camera->view;
@@ -851,11 +851,8 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
             nr_ents++;
         }
         model3dtx_done(txmodel, prog);
-        nr_txms++;
-        //dbg("RENDERED model '%s': %lu\n", txmodel->model->name, nr_ents);
     }
 
-    //dbg("RENDERED: %lu/%lu\n", nr_txms, nr_ents);
     if (count)
         *count = nr_ents;
     if (prog)
