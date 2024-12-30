@@ -43,19 +43,9 @@ static inline unsigned int to_hold(int state)
     return state == JB_HOLD;
 }
 
-static inline unsigned int to_release(int state)
-{
-    return state == JB_RELEASE;
-}
-
 static inline unsigned int to_press_hold(int state)
 {
     return to_press(state) || to_hold(state);
-}
-
-static inline bool jb_press_release(int state)
-{
-    return to_press(state) || to_release(state);
 }
 
 static inline unsigned int to_press_release(int state)
