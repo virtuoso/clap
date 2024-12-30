@@ -25,7 +25,7 @@
             "binaryDir": "${sourceDir}/build/emtest",
             "installDir": "$env{WWW_INSTALL_DIR}/claptest",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":"Release"
+                "CMAKE_BUILD_TYPE":"RelWithDebInfo"
             }
         },
         {
@@ -35,7 +35,7 @@
             "binaryDir": "${sourceDir}/build/emrel",
             "installDir": "$env{WWW_INSTALL_DIR}/clap",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":"RelWithDebInfo",
+                "CMAKE_BUILD_TYPE":"Release",
                 "CLAP_BUILD_FINAL": true
             }
         },
