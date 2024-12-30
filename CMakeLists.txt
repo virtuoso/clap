@@ -79,7 +79,7 @@ win32_fixup_flags()
 set(MESHOPT_BUILD_DEMO OFF CACHE BOOL "")
 set(MESHOPT_BUILD_TOOLS OFF CACHE BOOL "")
 set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "")
-add_subdirectory(deps/src/meshoptimizer)
+add_subdirectory(deps/src/meshoptimizer EXCLUDE_FROM_ALL)
 set_property(TARGET meshoptimizer PROPERTY FOLDER "ThirdPartyLibraries")
 
 wlibc_setup(deps/src/windows-libc)
