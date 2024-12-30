@@ -283,7 +283,7 @@ static float bsp_yfrac(struct bsp_part *node, int y)
     return ((float)(y - node->y - node->h/2)) / ((float)node->h / 2);
 }
 
-static struct bsp_part *bsp_xneigh(struct bsp_part *node, int x, int y)
+static unused struct bsp_part *bsp_xneigh(struct bsp_part *node, int x, int y)
 {
     int dir = bsp_xfrac(node, x) >= 0 ? 1 : -1;
 
@@ -298,7 +298,7 @@ static struct bsp_part *bsp_xneigh(struct bsp_part *node, int x, int y)
     return bsp_find(node->root, node->x - 1, y);
 }
 
-static struct bsp_part *bsp_yneigh(struct bsp_part *node, int x, int y)
+static unused struct bsp_part *bsp_yneigh(struct bsp_part *node, int x, int y)
 {
     int dir = bsp_yfrac(node, y) >= 0 ? 1 : -1;
 
@@ -419,7 +419,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     struct model3d *model;
     struct model3dtx *txm;
     struct shader_prog *prog = shader_prog_find(&s->shaders, "terrain"); /* XXX */
-    unsigned long total = nr_v * nr_v, it, bottom;
+    unsigned long total = nr_v * nr_v, it;
     size_t vxsz, txsz, idxsz;
     float *vx, *norm, *tx;
     unsigned short *idx;
@@ -449,12 +449,8 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     for (i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++) {
             struct bsp_part *bp = bsp_find(bsp_root, i, j);
-            struct bsp_part *bpx = bsp_xneigh(bsp_root, i, j);
-            struct bsp_part *bpy = bsp_yneigh(bsp_root, i, j);
             float xfrac = bsp_xfrac(bp, i);
             float yfrac = bsp_yfrac(bp, j);
-            float xamp  = cos_interp(bp->amp, bpx->amp, fabsf(xfrac));
-            float yamp  = cos_interp(bp->amp, bpy->amp, fabsf(yfrac));
             xfrac = fmodf(i, MAZE_FAC) / MAZE_FAC;
             yfrac = fmodf(j, MAZE_FAC) / MAZE_FAC;
             int xpos = i / MAZE_FAC, ypos = j / MAZE_FAC;
@@ -504,8 +500,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             tx[it * 2 + 1] = (float)i*32 / ((float)nr_v - 1);
             it++;
         }
-
-    bottom = it;
 
     for (it = 0, i = 0; i < nr_v - 1; i++)
         for (j = 0; j < nr_v - 1; j++) {
