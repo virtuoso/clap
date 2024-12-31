@@ -808,12 +808,9 @@ ui_widget_build(struct ui *ui, struct ui_widget_builder *uwb, unsigned int nr_it
 }
 
 /*
- * XXX
- * also, 4 items
- * 
- * + parent uie
+ * TODO: move widgets into a separate compilation unit
  */
-static struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
+struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 {
     float quad_color[] = { 0.0, 0.3, 0.1, 1.0 };
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
@@ -1523,7 +1520,7 @@ static void build_onclick(struct ui_element *uie, float x, float y)
     dbg("build onclick\n");
 }
 
-static const char *wheel_items[] = { "^", ">", "v", "<" };
+static unused const char *wheel_items[] = { "^", ">", "v", "<" };
 extern const char *build_date;
 int ui_init(struct ui *ui, int width, int height)
 {

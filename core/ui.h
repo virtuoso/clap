@@ -113,6 +113,7 @@ struct ui {
 void ui_pip_update(struct ui *ui, fbo_t *fbo);
 struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, struct model3dtx *txmodel,
                                   unsigned long affinity, float x_off, float y_off, float w, float h);
+struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
 
 int ui_init(struct ui *ui, int width, int height);
 void ui_done(struct ui *ui);
