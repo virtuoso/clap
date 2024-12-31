@@ -140,10 +140,17 @@ ENDFOREACH ()
 
 # the regular C sources don't need any special cimgui API prefixes
 FOREACH(src ${ENGINE_SRC})
+    get_source_file_property(CFLAGS ${src} COMPILE_FLAGS)
+    string(REPLACE "NOTFOUND" "" CFLAGS ${CFLAGS})
     set_source_files_properties(${src} PROPERTIES
                                 COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ "
                                 INCLUDE_DIRECTORIES "${WLIBC_INCLUDE_DIR}"
     )
+    if (NOT WIN32)
+        set_source_files_properties(${src} PROPERTIES
+                                    COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Werror ${CFLAGS}"
+        )
+    endif ()
 ENDFOREACH ()
 
 FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/builddate.c "const char *build_date = \"${CONFIG_BUILDDATE}\";")
