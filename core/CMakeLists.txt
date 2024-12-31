@@ -58,6 +58,17 @@ configure_file(config.h.in config.h)
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(TEST_BIN tests)
     set(TEST_SRC test.c object.c ref.c util.c logger.c json.c messagebus.c)
+
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
+        # because it can't reason that sb_finish(sb) is called under the same condition as
+        # sb_init(sb), so it is, in fact, always initialized at that point. The dumb fix
+        # would be to set sb.start = sb.cur = throwaway_buffer and sb.end accordingly, but
+        # the code is actually correct and clang is fine with it. So, shut the warning here
+        # instead.
+        set_source_files_properties(json.c PROPERTIES COMPILE_FLAGS -Wno-maybe-uninitialized)
+    endif ()
+
     add_executable(${TEST_BIN} ${TEST_SRC})
     win32_executable(${TEST_BIN})
 
@@ -80,8 +91,8 @@ set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-dec
 if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
     list(APPEND ENGINE_SRC networking.c)
 
-    # sha1.c is obviously buggy, someone should do something about it
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # sha1.c is obviously buggy, someone should do something about it
         set_source_files_properties(networking.c PROPERTIES COMPILE_FLAGS -Wno-stringop-overread)
     endif ()
 endif ()
