@@ -1040,7 +1040,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     unsigned int rows = 3, cols = 3, nr_items = rows * cols, i;
     float color[] = { 0.5, 0.5, 0.4, 1.0 };
     struct ui_widget *inv;
-    struct model3dtx *apple_txm, *frame_txm, *bar_txm;
+    struct model3dtx *apple_txm = NULL, *frame_txm, *bar_txm = NULL;
     struct model3d *apple_m, *frame_m, *bar_m;
     struct ui_element *frame, *bar, *tui;
     struct font *font = font_get_default();
