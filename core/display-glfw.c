@@ -330,7 +330,6 @@ static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
 
 static void glfw_joysticks_poll(void)
 {
-    struct message_input mi;
     int i;
 
     for (i = GLFW_JOYSTICK_1; i < GLFW_JOYSTICK_16; i++) {
