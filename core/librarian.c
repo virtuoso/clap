@@ -224,7 +224,7 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
 int librarian_init(const char *dir)
 {
     if (dir && strlen(dir))
-        strncpy(base_url, dir, PATH_MAX);
+        strncpy(base_url, dir, sizeof(base_url) - 1);
 
     return 0;
 }
