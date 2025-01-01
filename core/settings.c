@@ -66,7 +66,7 @@ static int settings_store(struct settings *settings)
     if (!settings->root)
         settings_default(settings);
 
-    CHECK(buf = json_encode(settings->root));
+    CHECK(buf = json_stringify(settings->root, "    "));
     f   = fopen(settings_file, "w+");
     if (!f)
         return -1;
