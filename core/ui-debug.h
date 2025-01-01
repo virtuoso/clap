@@ -45,6 +45,7 @@ typedef struct debug_module {
     bool        display;    /* display debug UI */
     bool        unfolded;   /* UI collapsed */
     bool        open;       /* should UI stay open*/
+    bool        prev;       /* previous display value */
 } debug_module;
 
 void ui_toggle_debug_selector(void);

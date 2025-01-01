@@ -63,27 +63,32 @@ void ui_debug_set_settings(struct settings *rs)
     debug_selector = settings_get_bool(settings, debug_group, "debug_selector");
 
     int i;
-    for (i = 0; i < DEBUG_MODULES_MAX; i++)
+    for (i = 0; i < DEBUG_MODULES_MAX; i++) {
         debug_enabled[i].display = settings_get_bool(settings, debug_group, debug_enabled[i].name);
+        debug_enabled[i].prev = debug_enabled[i].display;
+    }
 }
 
 void ui_debug_set_one(enum debug_modules mod)
 {
     debug_module *dbgm = ui_debug_module(mod);
 
-    if (!debug_group)
+    if (!dbgm || !debug_group)
         return;
 
-    if (dbgm->display == dbgm->open)
+    if (!dbgm->prev != dbgm->display)
         return;
 
-    settings_set_bool(settings, debug_group, dbgm->name, dbgm->open);
+    dbgm->prev = dbgm->display;
+    settings_set_bool(settings, debug_group, dbgm->name, dbgm->display);
 }
 
 debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
                               const char *fmt, ...)
 {
     debug_module *dbgm = ui_debug_module(mod);
+
+    ui_debug_set_one(mod);
 
     if (!dbgm || !dbgm->display)
         return dbgm;
@@ -111,7 +116,6 @@ void ui_igEnd(enum debug_modules mod)
         return;
 
     igEnd();
-    ui_debug_set_one(mod);
     dbgm->display = dbgm->open;
 }
 
