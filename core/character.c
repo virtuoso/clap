@@ -320,7 +320,7 @@ void character_move(struct character *ch, struct scene *s)
             dSafeNormalize3(old_motion);
 
             /* Get rid of the drift */
-            if (fabs(dDot(res, old_motion, 3) - 1) >= 1e-3)
+            if (fabs(dDot(res_norm, old_motion, 3) - 1) >= 1e-3)
                 dBodySetLinearVel(body->body, res[0], res[1], res[2]);
 
             dJointSetLMotorParam(body->lmotor, dParamVel1, res[0]);
