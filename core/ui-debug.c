@@ -74,6 +74,9 @@ void ui_debug_set_one(enum debug_modules mod)
     if (!debug_group)
         return;
 
+    if (dbgm->display == dbgm->open)
+        return;
+
     settings_set_bool(settings, debug_group, dbgm->name, dbgm->open);
 }
 
