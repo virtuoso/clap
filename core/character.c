@@ -177,6 +177,7 @@ static void character_debug(struct character *ch)
         ui_igVecRow(ch->pos, 3, "position");
         ui_igVecRow(ch->angle, 3, "angle");
         ui_igVecRow(ch->motion, 3, "motion");
+        ui_igVecRow(ch->velocity, 3, "velocity");
         ui_igVecRow(ch->normal, 3, "normal");
         igEndTable();
         vec3 up = { 0, 1, 0 };
