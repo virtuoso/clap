@@ -42,10 +42,23 @@ LINMATH_H_FUNC float vec##n##_len(vec##n const v) \
 { \
 	return sqrtf(vec##n##_mul_inner(v,v)); \
 } \
+LINMATH_H_FUNC void vec##n##_dup(vec##n r, vec##n const v) \
+{ \
+	int i; \
+	for(i=0; i<n; ++i) \
+		r[i] = v[i]; \
+} \
 LINMATH_H_FUNC void vec##n##_norm(vec##n r, vec##n const v) \
 { \
 	float k = 1.0 / vec##n##_len(v); \
 	vec##n##_scale(r, v, k); \
+} \
+LINMATH_H_FUNC void vec##n##_norm_safe(vec##n r, vec##n const v) \
+{ \
+	if (vec##n##_len(v)) \
+		vec##n##_norm(r, v); \
+	else \
+		vec##n##_dup(r, v); \
 } \
 LINMATH_H_FUNC void vec##n##_min(vec##n r, vec##n const a, vec##n const b) \
 { \
@@ -58,6 +71,12 @@ LINMATH_H_FUNC void vec##n##_max(vec##n r, vec##n const a, vec##n const b) \
 	int i; \
 	for(i=0; i<n; ++i) \
 		r[i] = a[i]>b[i] ? a[i] : b[i]; \
+} \
+LINMATH_H_FUNC void vec##n##_add_scaled(vec##n r, vec##n const a, vec##n const b, float const sa, float const sb) \
+{ \
+	int i; \
+	for(i=0; i<n; ++i) \
+		r[i] = a[i] * sa + b[i] * sb; \
 }
 
 LINMATH_H_DEFINE_VEC(2)
