@@ -50,6 +50,7 @@ struct character {
     GLfloat roll;   /* up/down */
     vec3    motion;
     vec3    angle;
+    vec3    velocity;
     vec3    normal;
     float   speed;
     float   jump_forward;

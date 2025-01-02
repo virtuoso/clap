@@ -200,7 +200,8 @@ void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
     struct character *cam = s->camera->ch;
-    dVector3 old_motion = { ch->motion[0], ch->motion[1], ch->motion[2] };
+    vec3 old_motion;
+    vec3_dup(old_motion, ch->motion);
 
     /*
      * ch->motion: motion resulting from inputs
@@ -283,49 +284,43 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (vec3_len(ch->motion)) {
-        dVector3 newy = { ch->normal[0], ch->normal[1], ch->normal[2] };
-        dVector3 oldx = { 1, 0, 0 };
-        dVector3 newx, newz, res;
         dMatrix3 R;
+        vec3 newx, newy, newz;
+        vec3 oldx = { 1, 0, 0 };
+
+        vec3_dup(newy, ch->normal);
 
         if (!vec3_len(ch->normal) && ch != cam) {
             err("no normal vector: is there collision?\n");
             goto out;
         }
 
-        dCalcVectorCross3(newz, oldx, newy);
-        dCalcVectorCross3(newx, newy, newz);
+        vec3_mul_cross(newz, oldx, newy);
+        vec3_mul_cross(newx, newy, newz);
 
-        dSafeNormalize3(newx);
-        dSafeNormalize3(newy);
-        dSafeNormalize3(newz);
+        vec3_norm(newx, newx);
+        vec3_norm(newy, newy);
+        vec3_norm(newz, newz);
 
         /* XXX: the numerator has to do with movement speed */
         vec3_scale(ch->angle, ch->motion, 60. / (float)gl_refresh_rate());
         vec3_scale(ch->angle, ch->angle, (float)gl_refresh_rate() / (float)s->fps.fps_fine);
 
         /* watch out for Y and Z swapping places */
-        dAddScaledVectors3(res, newx, newz, ch->angle[0], ch->angle[2]);
-
-        // if (scene_camera_follows(s, ch)) {
-        //     ui_debug_printf("[ %f, %f, %f ] (%f) -> [ %f, %f, %f ] (%f)",
-        //                     ch->angle[0], ch->angle[1], ch->angle[2], atan2(ch->angle[0], ch->angle[2]),
-        //                     res[0], res[1], res[2], atan2(res[0], res[2]));
-        // }
+        vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
 
         if (body) {
-            dVector3 res_norm;
-            memcpy(res_norm, res, sizeof(res_norm));
-            dSafeNormalize3(res_norm);
-            dSafeNormalize3(old_motion);
+            vec3 res_norm;
+            vec3_norm(res_norm, ch->velocity);
+            vec3_norm_safe(old_motion, old_motion);
 
             /* Get rid of the drift */
-            if (fabs(dDot(res_norm, old_motion, 3) - 1) >= 1e-3)
-                dBodySetLinearVel(body->body, res[0], res[1], res[2]);
+            if (fabsf(vec3_mul_inner(res_norm, old_motion) - 1) >= 1e-3)
+                dBodySetLinearVel(body->body, ch->velocity[0], ch->velocity[1], ch->velocity[2]);
 
-            dJointSetLMotorParam(body->lmotor, dParamVel1, res[0]);
-            dJointSetLMotorParam(body->lmotor, dParamVel2, res[1]);
-            dJointSetLMotorParam(body->lmotor, dParamVel3, res[2]);
+            dJointSetLMotorParam(body->lmotor, dParamVel1, ch->velocity[0]);
+            dJointSetLMotorParam(body->lmotor, dParamVel2, ch->velocity[1]);
+            dJointSetLMotorParam(body->lmotor, dParamVel3, ch->velocity[2]);
             ch->stopped = false;
         } else {
             vec3_add(ch->pos, ch->pos, ch->angle);
