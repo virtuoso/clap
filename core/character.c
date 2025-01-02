@@ -285,7 +285,6 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (vec3_len(ch->motion)) {
-        dMatrix3 R;
         vec3 newx, newy, newz;
         vec3 oldx = { 1, 0, 0 };
 
@@ -355,29 +354,6 @@ void character_move(struct character *ch, struct scene *s)
         }
 
         // ch->entity->rz = atan2f(ch->angle[1], res[1]);
-        if (body) {
-            dRFromEulerAngles(R, ch->entity->rx, ch->entity->ry, ch->entity->rz);
-            // dRFrom2Axes(R, 0, 1, 0, newy[0], newy[1], newy[2]);
-            dBodySetRotation(body->body, R);
-            // ch->entity->mx->cell[0] = R[0];
-            // ch->entity->mx->cell[1] = R[1];
-            // ch->entity->mx->cell[2] = R[2];
-            // ch->entity->mx->cell[3] = 0;
-            // ch->entity->mx->cell[4] = R[4];
-            // ch->entity->mx->cell[5] = R[5];
-            // ch->entity->mx->cell[6] = R[6];
-            // ch->entity->mx->cell[7] = 0;
-            // ch->entity->mx->cell[8] = R[8];
-            // ch->entity->mx->cell[9] = R[9];
-            // ch->entity->mx->cell[10] = R[10];
-            // ch->entity->mx->cell[11] = 0;
-            // ch->entity->mx->cell[12] = ch->pos[0];
-            // ch->entity->mx->cell[13] = ch->pos[1];
-            // ch->entity->mx->cell[14] = ch->pos[2];
-            // ch->entity->mx->cell[15] = 1;
-            // mat4x4_scale_aniso(ch->entity->mx->m, ch->entity->mx->m, ch->entity->scale, ch->entity->scale, ch->entity->scale);
-
-        }
         ch->moved++;
         if (anictl_set_state(&ch->anictl, 1)) {
             animation_push_by_name(ch->entity, s, "motion_start", true, false);
