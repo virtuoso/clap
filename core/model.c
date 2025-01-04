@@ -764,9 +764,9 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 if (light->shadow[0][0]) {
 #ifdef CONFIG_GLES
                     shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[0][0]);
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP1, light->shadow[0][1] ? light->shadow[0][1] : &white_pixel);
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP2, light->shadow[0][2] ? light->shadow[0][2] : &white_pixel);
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP3, light->shadow[0][3] ? light->shadow[0][2] : &white_pixel);
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP1, light->shadow[0][1] ? light->shadow[0][1] : white_pixel());
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP2, light->shadow[0][2] ? light->shadow[0][2] : white_pixel());
+                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP3, light->shadow[0][3] ? light->shadow[0][2] : white_pixel());
                     shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
 #else
                     if (shader_has_var(prog, UNIFORM_SHADOW_MAP_MS)) {

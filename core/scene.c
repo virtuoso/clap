@@ -115,7 +115,7 @@ int scene_camera_add(struct scene *s)
     struct model3d *m = model3d_new_cube(list_first_entry(&s->shaders, struct shader_prog, entry));
     model3d_set_name(m, "camera");
 
-    struct model3dtx *txm = model3dtx_new_texture(ref_pass(m), &transparent_pixel);
+    struct model3dtx *txm = model3dtx_new_texture(ref_pass(m), transparent_pixel());
     struct entity3d *entity;
 
     if (!txm)

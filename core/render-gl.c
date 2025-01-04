@@ -466,9 +466,13 @@ cerr_check texture_pixel_init(texture_t *tex, float color[4])
     return texture_load(tex, TEX_FMT_RGBA, 1, 1, color);
 }
 
-texture_t white_pixel;
-texture_t black_pixel;
-texture_t transparent_pixel;
+static texture_t _white_pixel;
+static texture_t _black_pixel;
+static texture_t _transparent_pixel;
+
+texture_t *white_pixel(void) { return &_white_pixel; }
+texture_t *black_pixel(void) { return &_black_pixel; }
+texture_t *transparent_pixel(void) { return &_transparent_pixel; }
 
 void textures_init(void)
 {
@@ -481,18 +485,18 @@ void textures_init(void)
     GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
 #endif /* CONFIG_GLES */
     float white[] = { 1, 1, 1, 1 };
-    CHECK0(texture_pixel_init(&white_pixel, white));
+    CHECK0(texture_pixel_init(&_white_pixel, white));
     float black[] = { 0, 0, 0, 1 };
-    CHECK0(texture_pixel_init(&black_pixel, black));
+    CHECK0(texture_pixel_init(&_black_pixel, black));
     float transparent[] = { 0, 0, 0, 0 };
-    CHECK0(texture_pixel_init(&transparent_pixel, transparent));
+    CHECK0(texture_pixel_init(&_transparent_pixel, transparent));
 }
 
 void textures_done(void)
 {
-    texture_done(&white_pixel);
-    texture_done(&black_pixel);
-    texture_done(&transparent_pixel);
+    texture_done(&_white_pixel);
+    texture_done(&_black_pixel);
+    texture_done(&_transparent_pixel);
 }
 
 /****************************************************************************

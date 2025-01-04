@@ -301,9 +301,9 @@ void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
 {
     if (multisample) {
         shader_plug_texture(p, ms_var, ms_tex);
-        shader_plug_texture(p, tex_var, &white_pixel);
+        shader_plug_texture(p, tex_var, white_pixel());
     } else {
-        shader_plug_texture(p, ms_var, &white_pixel);
+        shader_plug_texture(p, ms_var, white_pixel());
         shader_plug_texture(p, tex_var, ms_tex);
     }
 }
