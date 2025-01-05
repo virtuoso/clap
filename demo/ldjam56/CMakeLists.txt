@@ -85,29 +85,13 @@ set(ASSETS  "${SHADER_OUTS}"
             "${ASSET_DIR}/scene.json")
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
-    set(FREETYPE_LIBRARIES  "-s USE_FREETYPE=1")
-    set(PNG_LIBRARY         "-s USE_LIBPNG=1")
-    set(VORBISFILE_LIBRARY  "-s USE_VORBIS=1")
-    set(OPENGL_LIBRARIES    "-s USE_WEBGL2=1 -s FULL_ES3=1")
-    set(EXTRA_LIBRARIES     "-lidbfs.js"
-                            "-s WASM=1"
-                            "-s EXIT_RUNTIME=1"
-                            "-s ALLOW_MEMORY_GROWTH"
-                            "-s INITIAL_MEMORY=134217728"
-                            # "-s INITIAL_MEMORY=536870912"
-                            "-s MAX_WEBGL_VERSION=2"
-                            "-s ASSERTIONS=1"
-                            "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
-                            "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307"
-                            # "-flto"
-                            "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
-                            "--preload-file=${ASSET_DIR}@/asset"
-                            # "--use-preload-cache"
-    )
+    set(EXTRA_LIBRARIES     "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
+                            "--preload-file=${ASSET_DIR}@/asset")
+
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
     else ()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3") # -flto
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
     endif ()
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 endif ()

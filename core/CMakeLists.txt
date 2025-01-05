@@ -9,21 +9,23 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(OPENGL_LIBRARIES    "-s USE_WEBGL2=1 -s FULL_ES3=1")
     set(EXTRA_LIBRARIES     "-lidbfs.js"
                             "-s WASM=1"
-                            "-s EXIT_RUNTIME=1"
                             "-s ALLOW_MEMORY_GROWTH"
-                            "-s INITIAL_MEMORY=134217728"
-                            # "-s INITIAL_MEMORY=536870912"
                             "-s MAX_WEBGL_VERSION=2"
-                            "-s ASSERTIONS=1"
                             "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
-                            "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307"
-                            # "-flto"
     )
+    if (CLAP_BUILD_FINAL)
+        list(APPEND EXTRA_LIBRARIES "-flto"
+                                    "-s ASSERTIONS=0"
+                                    "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307")
+    else ()
+        list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=1"
+                                    "-s EXCEPTION_DEBUG=1")
+    endif ()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FREETYPE_LIBRARIES} ${PNG_LIBRARY} ${VORBISFILE_LIBRARY}")
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
     else ()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3") # -flto
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
     endif ()
     set(CONFIG_BROWSER 1)
     set(CONFIG_GLES 1)
