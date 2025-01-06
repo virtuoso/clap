@@ -14,8 +14,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
                             "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
     )
     if (CLAP_BUILD_FINAL)
-        list(APPEND EXTRA_LIBRARIES "-flto"
-                                    "-s ASSERTIONS=0"
+        list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=0"
                                     "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307")
     else ()
         list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=1"
