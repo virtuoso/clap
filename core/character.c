@@ -364,10 +364,7 @@ void character_move(struct character *ch, struct scene *s)
         ch->angle[0] = 0;
         ch->angle[1] = 0;
         ch->angle[2] = 0;
-        dJointSetLMotorParam(body->lmotor, dParamVel1, ch->angle[0]);
-        dJointSetLMotorParam(body->lmotor, dParamVel2, ch->angle[1]);
-        dJointSetLMotorParam(body->lmotor, dParamVel3, ch->angle[2]);
-        dBodySetLinearVel(body->body, 0, 0, 0);
+        phys_body_stop(body);
         if (anictl_set_state(&ch->anictl, 0)) {
             animation_push_by_name(ch->entity, s, "motion_stop", true, false);
             animation_push_by_name(ch->entity, s, "idle", false, true);
