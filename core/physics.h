@@ -80,7 +80,8 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
                                 double geom_radius, double geom_offset, int type, double mass);
 int phys_body_update(struct entity3d *e);
 void phys_body_done(struct phys_body *body);
-bool phys_body_ground_collide(struct phys_body *body);
+void phys_body_stop(struct phys_body *body);
+bool phys_body_ground_collide(struct phys_body *body, bool grounded);
 void phys_ground_entity(struct entity3d *e);
 
 struct scene;

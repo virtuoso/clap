@@ -223,7 +223,7 @@ void character_move(struct character *ch, struct scene *s)
         camera_set_target_to_current(s->camera);
     }
 
-    ch->airborne = body ? !phys_body_ground_collide(body) : 0;
+    ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
 
     if (ch->state == CS_START) {
         if (ch->mctl.ls_dx || ch->mctl.ls_dy) {

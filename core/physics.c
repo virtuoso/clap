@@ -138,7 +138,8 @@ static void phys_contact_surface(struct entity3d *e1, struct entity3d *e2, dCont
     }
 }
 
-static const char *class_str(int class)
+#ifndef CONFIG_FINAL
+static unused const char *class_str(int class)
 {
     static const char *classes[] = {
         [dSphereClass]             = "sphere",
@@ -161,6 +162,7 @@ static const char *class_str(int class)
         return classes[class];
     return "<unknown>";
 }
+#endif /* CONFIG_FINAL */
 
 static void near_callback(void *data, dGeomID o1, dGeomID o2)
 {
@@ -306,7 +308,7 @@ void phys_ground_entity(struct entity3d *e)
     e->dy -= dist;
 }
 
-bool phys_body_ground_collide(struct phys_body *body)
+bool phys_body_ground_collide(struct phys_body *body, bool grounded)
 {
     struct entity3d *e = phys_body_entity(body);
     dReal epsilon = 1e-3;
@@ -335,19 +337,34 @@ bool phys_body_ground_collide(struct phys_body *body)
 
         entity_and_other_by_class(&c.contact[i].geom, dCapsuleClass,
                                   NULL, &ch->collision);
-        if (upness > 0.95) {
+        /*
+         * if the bottom of the capsule collides (almost) vertically,
+         * our legs are under the ground, shouldn't happen, but if it
+         * does, correct the height; if the angle with the normal is
+         * greater than that, we ran into an obstacle, either way,
+         * stop the body
+         */
+        if (upness > 0.95)
             entity3d_move(e, 0, ray_len + c.contact->geom.depth, 0);
-        } else if (upness > 0.3) {
-            entity3d_move(e, 0, c.contact->geom.depth, 0);
-        }
 
-        phys_body_stop(e->phys_body);
+        phys_body_stop(body);
         ret = true;
         break;
     }
 
     pos = phys_body_position(body);
-    ray = dCreateRay(phys->space, ray_len);
+    /*
+     * Cast a longer ray than the capsule offset to correct for the motion
+     * resulting in character leaving the ground, which is the side effect
+     * of the velocity vector pointing in the correct direction, but the
+     * terrain being uneven and the character ending up airborne.
+     *
+     * ray_len * 2 might not be enough, but works well for the moment.
+     */
+    ray = dCreateRay(phys->space, ray_len * 2);
+    dGeomRaySetBackfaceCull(ray, 1);
+    dGeomRaySetClosestHit(ray, 1);
+    dGeomRaySetFirstContact(ray, 0);
     dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
     phys_contact_surface(NULL, NULL, c.contact, array_size(c.contact));
     c.nc = 0;
@@ -365,14 +382,11 @@ bool phys_body_ground_collide(struct phys_body *body)
     return ret;
 
 got_it:
-    if (ray_len - c.contact[0].geom.depth > epsilon) {
+    if (grounded && (c.contact[0].geom.depth > ray_len))
         entity3d_move(e, 0, ray_len - c.contact[0].geom.depth, 0);
-        ui_debug_printf("RAY '%s' collides with %s at %f/%f (%f,%f,%f) normal %f,%f,%f\n", entity_name(e),
-            class_str(dGeomGetClass(c.contact[i].geom.g2)),
-            c.contact[i].geom.depth, ray_len, e->dx, e->dy, e->dz,
-            c.contact[i].geom.normal[0], c.contact[i].geom.normal[1], c.contact[i].geom.normal[2]);
-    }
-    phys_body_stick(e->phys_body, &c.contact[0]);
+    else if (ray_len - c.contact[0].geom.depth > epsilon)
+        entity3d_move(e, 0, ray_len - c.contact[0].geom.depth, 0);
+    phys_body_stick(body, &c.contact[0]);
 
     return true;
 }
@@ -393,7 +407,6 @@ void phys_step(unsigned long frame_count)
         if (pb->pen_depth > 0 && vec3_len(pb->pen_norm) > 0) {
             vec3_sub(off, off, pb->pen_norm);
             dBodySetPosition(pb->body, off[0], off[1], off[2]);
-            phys_body_ground_collide(pb);
         }
         list_del(&pb->pen_entry);
         pb->pen_depth = 0;
