@@ -85,18 +85,18 @@ void phys_body_stop(struct phys_body *body)
     if (!phys_body_has_body(body))
         return;
 
-    if (dJointGetBody(body->lmotor, 0))
-        return;
+    if (!dJointGetBody(body->lmotor, 0))
+        dJointAttach(body->lmotor, body->body, NULL);
 
     struct entity3d *e = phys_body_entity(body);
     if (e && e->priv) {
         struct character *c = e->priv;
         c->stopped = true;
     }
-    dJointAttach(body->lmotor, body->body, NULL);
     dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
     dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
     dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
+    dBodySetLinearVel(body->body, 0, 0, 0);
     dBodySetMaxAngularSpeed(body->body, 0);
     dBodySetLinearDampingThreshold(body->body, 0.001);
 }
