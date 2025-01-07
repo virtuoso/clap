@@ -185,7 +185,7 @@ static void character_debug(struct character *ch)
         igText("upness %f", dot);
 
         igText("collision %s", entity_name(ch->collision));
-        igCheckbox("ragdoll", &ch->ragdoll);
+        igCheckbox("airborne", &ch->airborne);
         igCheckbox("stuck", &ch->stuck);
         igCheckbox("stopped", &ch->stopped);
         igCheckbox("moved", (bool *)&ch->moved);
@@ -223,7 +223,7 @@ void character_move(struct character *ch, struct scene *s)
         camera_set_target_to_current(s->camera);
     }
 
-    ch->ragdoll = body ? !phys_body_ground_collide(body) : 0;
+    ch->airborne = body ? !phys_body_ground_collide(body) : 0;
 
     if (ch->state == CS_START) {
         if (ch->mctl.ls_dx || ch->mctl.ls_dy) {
@@ -236,7 +236,7 @@ void character_move(struct character *ch, struct scene *s)
         goto out;
     }
 
-    if (ch->ragdoll) {
+    if (ch->airborne) {
         dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
         dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
         dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
@@ -245,7 +245,7 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (s->control == ch) {
-        if (ch->jumping && !ch->ragdoll && ch->mctl.jump) {
+        if (ch->jumping && !ch->airborne && ch->mctl.jump) {
             float dx = delta_x * yawcos - delta_z * yawsin;
             float dz = delta_x * yawsin + delta_z * yawcos;
             vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
@@ -439,7 +439,7 @@ static int character_update(struct entity3d *e, void *data)
     }
 
     if (e->phys_body) {
-        if (c->ragdoll) {
+        if (c->airborne) {
             // dReal *rot = phys_body_rotation(e->phys_body);
             dMatrix3 rot;
 

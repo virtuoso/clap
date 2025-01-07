@@ -61,7 +61,7 @@ struct character {
     struct anictl anictl;
     struct entity3d *collision;
     int     moved;
-    bool    ragdoll;
+    bool    airborne;
     bool    stuck;
     bool    stopped;
     bool    can_sprint;
