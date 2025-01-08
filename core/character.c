@@ -265,16 +265,9 @@ void character_move(struct character *ch, struct scene *s)
                         animation_push_by_name(ch->entity, s, "idle", false, false);
                     }
                 }
-                goto out; /* XXX */
+                goto out;
             }
         } else {
-            /*
-             * XXX: this allows motion controls while in the air,
-             * but without it (phys_body_ground_collide()==true), motion
-             * becomes much more restricted and less fun. The alternative
-             * is to set a higher epsilon in phys_body_ground_collide(),
-             * but that will have other side effects. For future cleanup.
-             */
             ch->motion[0] = delta_x * yawcos - delta_z * yawsin;
             if (!scene_character_is_camera(s, ch))
                 ch->motion[1] = 0.0;
