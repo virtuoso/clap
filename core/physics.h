@@ -80,6 +80,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
                                 double geom_radius, double geom_offset, int type, double mass);
 int phys_body_update(struct entity3d *e);
 void phys_body_done(struct phys_body *body);
+void phys_body_set_velocity_vec(struct phys_body *body, vec3 vel);
 void phys_body_set_motor_velocity_vec(struct phys_body *body, bool body_also, vec3 vel);
 static inline void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, float x, float y, float z)
 {

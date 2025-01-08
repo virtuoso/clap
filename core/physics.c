@@ -80,6 +80,14 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, struct enti
     return false;
 }
 
+void phys_body_set_velocity_vec(struct phys_body *body, vec3 vel)
+{
+    if (!phys_body_has_body(body))
+        return;
+
+    dBodySetLinearVel(body->body, vel[0], vel[1], vel[2]);
+}
+
 void phys_body_set_motor_velocity_vec(struct phys_body *body, bool body_also, vec3 vel)
 {
     if (!phys_body_has_body(body))
@@ -92,7 +100,7 @@ void phys_body_set_motor_velocity_vec(struct phys_body *body, bool body_also, ve
     dJointSetLMotorParam(body->lmotor, dParamVel2, vel[1]);
     dJointSetLMotorParam(body->lmotor, dParamVel3, vel[2]);
     if (body_also)
-        dBodySetLinearVel(body->body, vel[0], vel[1], vel[2]);
+        phys_body_set_velocity_vec(body, vel);
 
     struct entity3d *e = phys_body_entity(body);
     if (e && e->priv) {

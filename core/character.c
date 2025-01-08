@@ -253,8 +253,7 @@ void character_move(struct character *ch, struct scene *s)
                 bool was_in_motion = !!vec3_len(ch->motion);
 
                 dJointAttach(body->lmotor, NULL, NULL);
-                dBodyEnable(body->body);
-                dBodySetLinearVel(body->body, jump[0], jump[1], jump[2]);
+                phys_body_set_velocity_vec(body, jump);
 
                 if (anictl_set_state(&ch->anictl, 2)) {
                     if (!animation_by_name(ch->entity->txmodel->model, "jump"))
