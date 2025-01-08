@@ -80,7 +80,7 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, struct enti
     return false;
 }
 
-void phys_body_stop(struct phys_body *body)
+void phys_body_set_motor_velocity_vec(struct phys_body *body, bool body_also, vec3 vel)
 {
     if (!phys_body_has_body(body))
         return;
@@ -88,15 +88,28 @@ void phys_body_stop(struct phys_body *body)
     if (!dJointGetBody(body->lmotor, 0))
         dJointAttach(body->lmotor, body->body, NULL);
 
+    dJointSetLMotorParam(body->lmotor, dParamVel1, vel[0]);
+    dJointSetLMotorParam(body->lmotor, dParamVel2, vel[1]);
+    dJointSetLMotorParam(body->lmotor, dParamVel3, vel[2]);
+    if (body_also)
+        dBodySetLinearVel(body->body, vel[0], vel[1], vel[2]);
+
     struct entity3d *e = phys_body_entity(body);
     if (e && e->priv) {
         struct character *c = e->priv;
-        c->stopped = true;
+        if (!vec3_len(vel))
+            c->stopped = true;
+        else
+            c->stopped = false;
     }
-    dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
-    dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
-    dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
-    dBodySetLinearVel(body->body, 0, 0, 0);
+}
+
+void phys_body_stop(struct phys_body *body)
+{
+    if (!phys_body_has_body(body))
+        return;
+
+    phys_body_set_motor_velocity(body, true, 0, 0, 0);
     dBodySetMaxAngularSpeed(body->body, 0);
     dBodySetLinearDampingThreshold(body->body, 0.001);
 }

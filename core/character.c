@@ -237,10 +237,7 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (ch->airborne) {
-        dJointSetLMotorParam(body->lmotor, dParamVel1, 0);
-        dJointSetLMotorParam(body->lmotor, dParamVel2, 0);
-        dJointSetLMotorParam(body->lmotor, dParamVel3, 0);
-        ch->stopped = true;
+        phys_body_set_motor_velocity(body, false, 0, 0, 0);
         goto out;
     }
 
@@ -317,13 +314,11 @@ void character_move(struct character *ch, struct scene *s)
             vec3_norm_safe(old_motion, old_motion);
 
             /* Get rid of the drift */
+            bool body_also = false;
             if (fabsf(vec3_mul_inner(res_norm, old_motion) - 1) >= 1e-3)
-                dBodySetLinearVel(body->body, ch->velocity[0], ch->velocity[1], ch->velocity[2]);
+                body_also = true;
 
-            dJointSetLMotorParam(body->lmotor, dParamVel1, ch->velocity[0]);
-            dJointSetLMotorParam(body->lmotor, dParamVel2, ch->velocity[1]);
-            dJointSetLMotorParam(body->lmotor, dParamVel3, ch->velocity[2]);
-            ch->stopped = false;
+            phys_body_set_motor_velocity_vec(body, body_also, ch->velocity);
         } else {
             vec3_add(ch->pos, ch->pos, ch->angle);
             ch->entity->dx = ch->pos[0];
