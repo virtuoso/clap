@@ -252,7 +252,7 @@ void character_move(struct character *ch, struct scene *s)
             if (body && phys_body_has_body(body)) {
                 bool was_in_motion = !!vec3_len(ch->motion);
 
-                dJointAttach(body->lmotor, NULL, NULL);
+                phys_body_attach_motor(body, false);
                 phys_body_set_velocity_vec(body, jump);
 
                 if (anictl_set_state(&ch->anictl, 2)) {

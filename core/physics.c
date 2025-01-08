@@ -88,13 +88,18 @@ void phys_body_set_velocity_vec(struct phys_body *body, vec3 vel)
     dBodySetLinearVel(body->body, vel[0], vel[1], vel[2]);
 }
 
+void phys_body_attach_motor(struct phys_body *body, bool attach)
+{
+    dJointAttach(body->lmotor, attach ? body->body : NULL, NULL);
+}
+
 void phys_body_set_motor_velocity_vec(struct phys_body *body, bool body_also, vec3 vel)
 {
     if (!phys_body_has_body(body))
         return;
 
     if (!dJointGetBody(body->lmotor, 0))
-        dJointAttach(body->lmotor, body->body, NULL);
+        phys_body_attach_motor(body, true);
 
     dJointSetLMotorParam(body->lmotor, dParamVel1, vel[0]);
     dJointSetLMotorParam(body->lmotor, dParamVel2, vel[1]);
