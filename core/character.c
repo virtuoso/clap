@@ -250,6 +250,8 @@ void character_move(struct character *ch, struct scene *s)
             float dz = delta_x * yawsin + delta_z * yawcos;
             vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
 
+            ch->airborne = true;
+
             if (body && phys_body_has_body(body)) {
                 bool was_in_motion = !!vec3_len(ch->motion);
 

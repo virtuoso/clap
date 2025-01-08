@@ -383,9 +383,14 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
 
 got_it:
     if (grounded && (c.contact[0].geom.depth > ray_len))
-        entity3d_move(e, 0, ray_len - c.contact[0].geom.depth, 0);
+        goto stick;
     else if (ray_len - c.contact[0].geom.depth > epsilon)
-        entity3d_move(e, 0, ray_len - c.contact[0].geom.depth, 0);
+        goto stick;
+    else if (ray_len < c.contact[0].geom.depth)
+        return false;
+
+stick:
+    entity3d_move(e, 0, ray_len - c.contact[0].geom.depth, 0);
     phys_body_stick(body, &c.contact[0]);
 
     return true;
