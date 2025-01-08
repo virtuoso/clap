@@ -5,6 +5,22 @@
 ![macos-build](https://github.com/virtuoso/clap/actions/workflows/macos-build.yml/badge.svg?branch=main)
 ![windows-build](https://github.com/virtuoso/clap/actions/workflows/windows-build.yml/badge.svg?branch=main)
 
+# Index
+
+- [Live demos](#live-demos)
+- [Source code and submodules](#source-code-and-submodules)
+- [Local build (Macos)](#local-build-macos)
+  - [Install dependencies](#install-dependencies)
+  - [Build](#build)
+  - [Run](#run)
+- [Linux build](#linux-build)
+- [Wasm build](#wasm-build)
+  - [Emscripten](#emscripten)
+  - [Create build_config file](#create-build_config-file)
+  - [Run local web server](#run-local-web-server)
+- [Windows build](#windows-build)
+- [Build using cmake presets](#build-using-cmake-presets)
+
 ## Live demos
 [Live demo: main](http://ash.works/clap/main/clap/)
 [Live demo: testing](http://ash.works/clap/main/claptest/)
@@ -46,9 +62,20 @@ And run the demo
 build/test/demo/ldjam56/ldjam56
 ```
 
+## Linux build
+
+Install dependencies (see also the simple-build.yml in case this goes out of date):
+```sh
+sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross
+```
+
+The rest is the same as the [Mac OS build instructions](#local-build-macos)
+
 ## Wasm build
 
-Install all dependencies needed for native build
+Install some of the dependencies needed for native build: cmake, shaderc/glslc, spirv-cross.
+See [Mac OS build](#local-build-macos) or [Linux build](#linux-build), depending on your host
+operating system for details. The rest of the dependencies will be brought in by emsdk.
 
 ### Emscripten
 
@@ -76,15 +103,6 @@ For example, using python3 embedded httpd server:
 ```sh
 python3 -m http.server -d ${HOME}/src/game/www
 ```
-
-## Linux build
-
-Install dependencies (see also the simple-build.yml in case this goes out of date):
-```sh
-sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross
-```
-
-The rest is the same as the [Mac OS build instructions](#local-build-macos)
 
 ## Windows build
 
@@ -123,4 +141,16 @@ cmake --build build/debug
 Then, run the result:
 ```sh
 .\build\test\demo\ldjam56\ldjam56.exe
+```
+
+## Build using cmake presets
+
+[Windows build](#windows-build) is an example of how to build using cmake presets (w32test, w32debug). These two require VCPKG_INSTALLATION_ROOT environment variable to point to vcpkg
+root.
+
+Wasm build can be done similarly, setting EMSDK to point to the Emscripten installation root.
+Having done that, you can do one or several of the cmake presets:
+```sh
+cmake --preset emtest -B build/emtest
+cmake --build build/emtest
 ```
