@@ -361,7 +361,7 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (body)
-        dBodyEnable(body->body);
+        phys_body_enable(body, true);
 
     ch->entity->dy = ch->pos[1];
 

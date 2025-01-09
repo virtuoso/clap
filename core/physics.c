@@ -80,6 +80,17 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, struct enti
     return false;
 }
 
+void phys_body_enable(struct phys_body *body, bool enable)
+{
+    if (!phys_body_has_body(body))
+        return;
+
+    if (enable)
+        dBodyEnable(body->body);
+    else
+        dBodyDisable(body->body);
+}
+
 void phys_body_get_velocity(struct phys_body *body, vec3 vel)
 {
     if (!phys_body_has_body(body))
