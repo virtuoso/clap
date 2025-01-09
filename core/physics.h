@@ -81,13 +81,8 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
 int phys_body_update(struct entity3d *e);
 void phys_body_done(struct phys_body *body);
 void phys_body_attach_motor(struct phys_body *body, bool attach);
-void phys_body_set_velocity_vec(struct phys_body *body, vec3 vel);
-void phys_body_set_motor_velocity_vec(struct phys_body *body, bool body_also, vec3 vel);
-static inline void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, float x, float y, float z)
-{
-    vec3 vel = { x, y, z };
-    phys_body_set_motor_velocity_vec(body, body_also, vel);
-}
+void phys_body_set_velocity(struct phys_body *body, vec3 vel);
+void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, vec3 vel);
 void phys_body_stop(struct phys_body *body);
 bool phys_body_ground_collide(struct phys_body *body, bool grounded);
 void phys_ground_entity(struct entity3d *e);

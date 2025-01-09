@@ -237,7 +237,7 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (ch->airborne) {
-        phys_body_set_motor_velocity(body, false, 0, 0, 0);
+        phys_body_set_motor_velocity(body, false, (vec3){ 0, 0, 0 });
         goto out;
     }
 
@@ -253,7 +253,7 @@ void character_move(struct character *ch, struct scene *s)
                 bool was_in_motion = !!vec3_len(ch->motion);
 
                 phys_body_attach_motor(body, false);
-                phys_body_set_velocity_vec(body, jump);
+                phys_body_set_velocity(body, jump);
 
                 if (anictl_set_state(&ch->anictl, 2)) {
                     if (!animation_by_name(ch->entity->txmodel->model, "jump"))
@@ -310,7 +310,7 @@ void character_move(struct character *ch, struct scene *s)
             if (fabsf(vec3_mul_inner(res_norm, old_motion) - 1) >= 1e-3)
                 body_also = true;
 
-            phys_body_set_motor_velocity_vec(body, body_also, ch->velocity);
+            phys_body_set_motor_velocity(body, body_also, ch->velocity);
         } else {
             vec3_add(ch->pos, ch->pos, ch->angle);
             ch->entity->dx = ch->pos[0];
