@@ -16,6 +16,12 @@ bool phys_body_has_body(struct phys_body *body)
     return !!body->body;
 }
 
+void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_params *params)
+{
+    body->bounce = params->bounce;
+    body->bounce_vel = params->bounce_vel;
+}
+
 struct entity3d *phys_body_entity(struct phys_body *body)
 {
     return dGeomGetData(body->geom);

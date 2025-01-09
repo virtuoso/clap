@@ -651,8 +651,9 @@ light_done:
              */
             if (phys) {
                 entity3d_add_physics(e, mass, class, ptype, geom_off, geom_radius, geom_length);
-                e->phys_body->bounce = bounce;
-                e->phys_body->bounce_vel = bounce_vel;
+                phys_body_set_contact_params(e->phys_body,
+                                             .bounce = bounce,
+                                             .bounce_vel = bounce_vel);
             }
             trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
 
@@ -691,8 +692,9 @@ light_done:
 
                 if (phys) {
                     entity3d_add_physics(e, mass, class, ptype, geom_off, geom_radius, geom_length);
-                    e->phys_body->bounce = bounce;
-                    e->phys_body->bounce_vel = bounce_vel;
+                    phys_body_set_contact_params(e->phys_body,
+                                                 .bounce = bounce,
+                                                 .bounce_vel = bounce_vel);
                 }
             }
         }

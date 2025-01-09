@@ -64,6 +64,16 @@ extern struct phys *phys;
 
 struct entity3d;
 
+typedef struct phys_contact_params {
+    float   bounce;
+    float   bounce_vel;
+} phys_contact_params;
+
+/* Set body's contact parameters */
+#define phys_body_set_contact_params(_b, args...) \
+    _phys_body_set_contact_params((_b), &(phys_contact_params){ args })
+void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_params *params);
+
 void phys_step(unsigned long frame_count);
 int  phys_init(void);
 void phys_done(void);
