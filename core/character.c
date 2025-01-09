@@ -319,7 +319,7 @@ void character_move(struct character *ch, struct scene *s)
 
         vec3_norm(ch->angle, ch->angle);
 
-        if (body && body->body) {
+        if (body && phys_body_has_body(body)) {
             // To determine the orientation of the body,
             // we calculate an average of our motion requested by input and actual velocity.
             const dReal *vel;
