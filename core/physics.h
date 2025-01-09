@@ -17,6 +17,7 @@ enum {
 
 struct phys_body;
 
+typedef void (*ground_contact_fn)(void *priv, float x, float y, float z);
 struct phys {
     dWorldID    world;
     dSpaceID    space;
@@ -24,7 +25,7 @@ struct phys {
     dSpaceID    ground_space;
     dSpaceID    collision;
     dJointGroupID contact;
-    void        (*ground_contact)(void *priv, float x, float y, float z);
+    ground_contact_fn ground_contact;
 };
 
 extern struct phys *phys;
@@ -44,6 +45,8 @@ void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_pa
 void phys_step(unsigned long frame_count);
 int  phys_init(void);
 void phys_done(void);
+/* Set the global ground_contact callback */
+void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact);
 void phys_ground_add(struct entity3d *e);
 struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist);
 /* Check if phys_body has a body (true) or just a geometry (false) */

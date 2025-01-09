@@ -811,6 +811,11 @@ static void ode_message(int errnum, const char *msg, va_list ap)
     vlogg(NORMAL, "ODE", -1, "\n", msg, ap);
 }
 
+void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact)
+{
+    phys->ground_contact = ground_contact;
+}
+
 int phys_init(void)
 {
     dInitODE2(0);
