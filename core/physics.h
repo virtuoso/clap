@@ -15,40 +15,7 @@ enum {
     PHYS_GEOM,
 };
 
-struct phys_body {
-    struct phys *phys;
-    /* geom is always set */
-    dGeomID     geom;
-    /* body may not be, in case of collision geom */
-    dBodyID     body;
-
-    /*
-     * capsule specific:
-     * @yoffset: vertical offset of the center of mass
-     *           relative to entity->dy
-     * @ray_off: vertical offset for the beginning of
-     *           ray cast downwards (capsule cap)
-     */
-    dReal       yoffset;
-    dReal       ray_off;
-    /* motor that fixes us in space and moves us around */
-    dJointID    lmotor;
-
-    /* contact.surface parameters */
-    dReal       bounce;
-    dReal       bounce_vel;
-    /* not sure we even need to store the mass */
-    dMass       mass;
-    struct list entry;
-
-    /* stuff communicated from near_callback() */
-    struct list pen_entry;
-    vec3        pen_norm;
-    dReal       pen_depth;
-    dReal       *trimesh_vx;
-    dTriIndex   *trimesh_idx;
-    int         class;
-};
+struct phys_body;
 
 struct phys {
     dWorldID    world;
