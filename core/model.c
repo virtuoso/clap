@@ -1394,12 +1394,8 @@ void entity3d_position(struct entity3d *e, float x, float y, float z)
     e->dx = x;
     e->dy = y;
     e->dz = z;
-    if (e->phys_body) {
-        dBodySetPosition(e->phys_body->body, e->dx, e->dy + e->phys_body->yoffset, e->dz);
-        // dBodySetLinearVel(e->phys_body->body, 0, 0, 0);
-        // dBodySetAngularVel(e->phys_body->body, 0, 0, 0);
-        //dBodyDisable(e->phys_body->body);
-    }
+    if (e->phys_body)
+        phys_body_set_position(e->phys_body, (vec3){ e->dx, e->dy, e->dz });
 }
 
 void entity3d_move(struct entity3d *e, float dx, float dy, float dz)

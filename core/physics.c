@@ -80,6 +80,14 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, struct enti
     return false;
 }
 
+void phys_body_set_position(struct phys_body *body, vec3 pos)
+{
+    if (phys_body_has_body(body))
+        dBodySetPosition(body->body, pos[0], pos[1] + body->yoffset, pos[2]);
+    else
+        dGeomSetPosition(body->geom, pos[0], pos[1] + body->yoffset, pos[2]);
+}
+
 void phys_body_enable(struct phys_body *body, bool enable)
 {
     if (!phys_body_has_body(body))
@@ -668,8 +676,8 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
     body->class = class;
 
     dRSetIdentity(rot);
+    phys_body_set_position(body, (vec3){ entity->dx, entity->dy, entity->dz });
     if (has_body) {
-        dBodySetPosition(body->body, entity->dx, entity->dy + body->yoffset, entity->dz);
         dBodySetRotation(body->body, rot);
         dGeomSetBody(body->geom, body->body);
         dBodySetData(body->body, entity);
@@ -685,7 +693,6 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dSpaceRemove(phys->space, body->geom);
         dSpaceAdd(phys->character_space, body->geom);
     } else {
-        dGeomSetPosition(body->geom, entity->dx, entity->dy + body->yoffset, entity->dz);
         if (class == dCapsuleClass) {
             // A similar orientation fix is needed for geometries
             // that don't have a body; in this case,

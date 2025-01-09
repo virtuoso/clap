@@ -81,6 +81,8 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
 int phys_body_update(struct entity3d *e);
 void phys_body_done(struct phys_body *body);
 void phys_body_attach_motor(struct phys_body *body, bool attach);
+/* Set body's body or geometry's position, taking into account body::yoffset */
+void phys_body_set_position(struct phys_body *body, vec3 pos);
 /* Enable/disable a body */
 void phys_body_enable(struct phys_body *body, bool enable);
 /* Get the physical body's linear velocity */
