@@ -322,8 +322,8 @@ void character_move(struct character *ch, struct scene *s)
         if (body && phys_body_has_body(body)) {
             // To determine the orientation of the body,
             // we calculate an average of our motion requested by input and actual velocity.
-            const dReal *vel;
-            vel = dBodyGetLinearVel(body->body);
+            vec3 vel;
+            phys_body_get_velocity(body, vel);
 
             // Only change orientation if the velocity is non-zero
             // (to avoid flickering when the body is stopped).

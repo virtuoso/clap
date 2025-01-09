@@ -80,6 +80,17 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, struct enti
     return false;
 }
 
+void phys_body_get_velocity(struct phys_body *body, vec3 vel)
+{
+    if (!phys_body_has_body(body))
+        return;
+
+    const dReal *_vel = dBodyGetLinearVel(body->body);
+    vel[0] = _vel[0];
+    vel[1] = _vel[1];
+    vel[2] = _vel[2];
+}
+
 void phys_body_set_velocity(struct phys_body *body, vec3 vel)
 {
     if (!phys_body_has_body(body))
