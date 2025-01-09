@@ -8,6 +8,19 @@
 #include "ui-debug.h"
 
 /*
+ * Global physics state
+ */
+struct phys {
+    dWorldID    world;
+    dSpaceID    space;
+    dSpaceID    character_space;
+    dSpaceID    ground_space;
+    dSpaceID    collision;
+    dJointGroupID contact;
+    ground_contact_fn ground_contact;
+};
+
+/*
  * An internal representation of a physical object that participates
  * in collision detection and, if if has a "body", in dynamics simulation
  */

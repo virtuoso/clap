@@ -18,16 +18,8 @@ enum {
 struct phys_body;
 
 typedef void (*ground_contact_fn)(void *priv, float x, float y, float z);
-struct phys {
-    dWorldID    world;
-    dSpaceID    space;
-    dSpaceID    character_space;
-    dSpaceID    ground_space;
-    dSpaceID    collision;
-    dJointGroupID contact;
-    ground_contact_fn ground_contact;
-};
 
+struct phys;
 extern struct phys *phys;
 
 struct entity3d;
