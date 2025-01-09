@@ -11,6 +11,11 @@ static struct phys _phys;
 struct phys *phys = &_phys; /* XXX */
 static DECLARE_LIST(phys_bodies);
 
+bool phys_body_has_body(struct phys_body *body)
+{
+    return !!body->body;
+}
+
 struct entity3d *phys_body_entity(struct phys_body *body)
 {
     return dGeomGetData(body->geom);
