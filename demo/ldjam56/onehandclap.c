@@ -432,7 +432,7 @@ int main(int argc, char **argv, char **envp)
     networking_init(&ncfg, CLIENT);
 #endif
 
-    phys->ground_contact = ohc_ground_contact;
+    phys_set_ground_contact(phys, ohc_ground_contact);
 
     subscribe(MT_INPUT, handle_input, NULL);
     subscribe(MT_COMMAND, handle_command, &scene);
