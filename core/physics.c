@@ -190,9 +190,31 @@ static unused const char *class_str(int class)
 }
 #endif /* CONFIG_FINAL */
 
+/*
+ * It's not possible to move bodies inside collider call paths, so they are put
+ * on a list that is then handled in phys_step() after the collider functions
+ * are done.
+ */
+static void entity_pen_push(struct entity3d *e, dContact *contact, struct list *pen)
+{
+    vec3 norm = { contact->geom.normal[0], contact->geom.normal[1], contact->geom.normal[2] };
+
+    if (!e->phys_body)
+        return;
+
+    e->phys_body->pen_depth += contact->geom.depth;
+    vec3_scale(norm, norm, contact->geom.depth);
+    vec3_add(e->phys_body->pen_norm, e->phys_body->pen_norm, norm);
+    list_del(&e->phys_body->pen_entry);
+    list_append(pen, &e->phys_body->pen_entry);
+}
+
+/*
+ * Get contact points between two potentially colliding geometries and if they
+ * do, put them on the collision list, where they later get resolved in phys_step().
+ */
 static void near_callback(void *data, dGeomID o1, dGeomID o2)
 {
-    bool ground;
     dContact contact[MAX_CONTACTS];
     dBodyID b1 = dGeomGetBody(o1);
     dBodyID b2 = dGeomGetBody(o2);
@@ -214,7 +236,6 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             dGeomID g2 = contact[i].geom.g2;
             struct entity3d *e1 = dGeomGetData(g1);
             struct entity3d *e2 = dGeomGetData(g2);
-            struct entity3d *e_other;
 
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
@@ -222,39 +243,18 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             phys_body_update(e2);
             j = dJointCreateContact(phys->world, phys->contact, &contact[i]);
             dJointAttach(j, b1, b2);
-            if (!phys_body_has_body(e1->phys_body)) {
-                e_other = e2;
-                ground = true;
+            if (phys_body_has_body(e1->phys_body) && phys_body_has_body(e2->phys_body)) {
+                entity_pen_push(e1, &contact[i], pen);
+                entity_pen_push(e2, &contact[i], pen);
+            } else if (!phys_body_has_body(e1->phys_body)) {
+                entity_pen_push(e2, &contact[i], pen);
             } else if (!phys_body_has_body(e2->phys_body)) {
-                e_other = e1;
-                ground  = true;
-            } else {
-                if (e1->priv) {
-                    e_other = e1;
-                    ground = true;
-                } else if (e2->priv) {
-                    e_other = e2;
-                    ground = true;
-                }
-                ground   = false;
-            }
-
-            if (ground) {
-                vec3 norm = { contact[i].geom.normal[0], contact[i].geom.normal[1], contact[i].geom.normal[2] };
-
-                if (!e_other->phys_body)
-                    return;
-
-                e_other->phys_body->pen_depth += contact[i].geom.depth;
-                vec3_scale(norm, norm, contact[i].geom.depth);
-                vec3_add(e_other->phys_body->pen_norm, e_other->phys_body->pen_norm, norm);
-                list_del(&e_other->phys_body->pen_entry);
-                list_append(pen, &e_other->phys_body->pen_entry);
+                entity_pen_push(e1, &contact[i], pen);
             } else {
                 if (e1->priv)
-                    phys_body_stop(e1->phys_body);
-                if (e2->priv)
-                    phys_body_stop(e2->phys_body);
+                    entity_pen_push(e1, &contact[i], pen);
+                else if (e2->priv)
+                    entity_pen_push(e2, &contact[i], pen);
             }
         }
     }
