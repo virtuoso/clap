@@ -59,8 +59,6 @@ struct phys_body {
     int         class;
 };
 
-static struct phys _phys;
-struct phys *phys = &_phys; /* XXX */
 static DECLARE_LIST(phys_bodies);
 
 bool phys_body_has_body(struct phys_body *body)
@@ -223,6 +221,7 @@ void phys_body_stop(struct phys_body *body)
 void phys_body_stick(struct phys_body *body, dContact *contact)
 {
     struct entity3d *e = phys_body_entity(body);
+    struct phys *phys = body->phys;
     struct character *c = e->priv;
     dJointID j;
 
@@ -329,6 +328,7 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             dGeomID g2 = contact[i].geom.g2;
             struct entity3d *e1 = dGeomGetData(g1);
             struct entity3d *e2 = dGeomGetData(g2);
+            struct phys *phys = e1->phys_body->phys;
 
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
@@ -380,8 +380,25 @@ struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double 
     dGeomID ray = NULL;
     struct contact c = {};
     vec3 _start = { start[0], start[1], start[2] };
+    struct phys *phys;
     vec3 comp;
     int try = 0;
+
+    if (!e->phys_body) {
+        if (list_empty(&phys_bodies))
+            return NULL;
+
+        /*
+         * HACK: if there was at least one entity with phys_body before this one,
+         * use its ->phys object. Otherwise, entities with no physics can't be
+         * clamped to terrain, which is annoying. But the phys_bodies list
+         * serves no (other) purpose and, being the last global state in this
+         * module, should go away.
+         */
+        phys = list_first_entry(&phys_bodies, struct phys_body, entry)->phys;
+    } else {
+        phys = e->phys_body->phys;
+    }
 
     ray = dCreateRay(phys->space, *pdist);
     dGeomRaySetClosestHit(ray, 1);
@@ -430,6 +447,7 @@ void phys_ground_entity(struct entity3d *e)
 bool phys_body_ground_collide(struct phys_body *body, bool grounded)
 {
     struct entity3d *e = phys_body_entity(body);
+    struct phys *phys = body->phys;
     dReal epsilon = 1e-3;
     dReal ray_len = body->yoffset - body->ray_off + epsilon;
     dVector3 dir = { 0, -ray_len, 0 };
@@ -515,7 +533,7 @@ stick:
     return true;
 }
 
-void phys_step(unsigned long frame_count)
+void phys_step(struct phys *phys, unsigned long frame_count)
 {
     struct phys_body *pb, *itpb;
     DECLARE_LIST(pen);
@@ -830,8 +848,14 @@ void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact
     phys->ground_contact = ground_contact;
 }
 
-int phys_init(void)
+struct phys *phys_init(void)
 {
+    struct phys *phys;
+
+    phys = calloc(1, sizeof(*phys));
+    if (!phys)
+        return NULL;
+
     dInitODE2(0);
     dSetErrorHandler(ode_error);
     dSetDebugHandler(ode_debug);
@@ -848,10 +872,10 @@ int phys_init(void)
     //dWorldSetContactSurfaceLayer(phys->world, 0.001);
     dWorldSetLinearDamping(phys->world, 0.001);
 
-    return 0;
+    return phys;
 }
 
-void phys_done(void)
+void phys_done(struct phys *phys)
 {
     dSpaceDestroy(phys->ground_space);
     dSpaceDestroy(phys->character_space);

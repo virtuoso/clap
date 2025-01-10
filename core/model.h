@@ -258,7 +258,7 @@ void entity3d_update(struct entity3d *e, void *data);
 void entity3d_put(struct entity3d *e);
 void entity3d_move(struct entity3d *e, float dx, float dy, float dz);
 void entity3d_position(struct entity3d *e, float x, float y, float z);
-void entity3d_add_physics(struct entity3d *e, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
+void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 void create_entities(struct model3dtx *txmodel);
 
 struct instantiator;

@@ -39,6 +39,7 @@ struct scene {
     unsigned long       frames_total;
     struct timespec     ts;
     struct fps_data     fps;
+    struct clap_context *clap_ctx;
     float               lin_speed;
     float               ang_speed;
     float               limbo_height;

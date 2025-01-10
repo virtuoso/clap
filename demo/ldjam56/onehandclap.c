@@ -171,7 +171,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     }
 
     for (count = 0; count < frame_count; count++)
-        phys_step(1);
+        phys_step(clap_get_phys(s->clap_ctx), 1);
 
     PROF_STEP(phys, start);
 
@@ -425,6 +425,7 @@ int main(int argc, char **argv, char **envp)
 
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
+    scene.clap_ctx = clap_ctx;
     prev_msaa = scene.light.shadow_msaa;
 
 #ifndef CONFIG_FINAL
@@ -432,7 +433,7 @@ int main(int argc, char **argv, char **envp)
     networking_init(&ncfg, CLIENT);
 #endif
 
-    phys_set_ground_contact(phys, ohc_ground_contact);
+    phys_set_ground_contact(clap_get_phys(clap_ctx), ohc_ground_contact);
 
     subscribe(MT_INPUT, handle_input, NULL);
     subscribe(MT_COMMAND, handle_command, &scene);

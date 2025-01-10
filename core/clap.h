@@ -9,7 +9,10 @@ struct fps_data {
 };
 
 struct clap_context;
+struct phys;
 
+/* Get the clap's physics handle */
+struct phys *clap_get_phys(struct clap_context *ctx);
 void clap_fps_calc(struct clap_context *ctx, struct fps_data *f);
 struct timespec clap_get_current_timespec(struct clap_context *ctx);
 double clap_get_current_time(struct clap_context *ctx);

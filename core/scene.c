@@ -631,6 +631,18 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
             }
 
 light_done:
+            /*
+             * XXX: This kinda requires that "physics" goes before "entity"
+             */
+            if (phys) {
+                entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
+                                     ptype, geom_off, geom_radius, geom_length);
+                phys_body_set_contact_params(e->phys_body,
+                                             .bounce = bounce,
+                                             .bounce_vel = bounce_vel);
+            }
+            trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
+
             if (terrain_clamp)
                 phys_ground_entity(e);
 
@@ -645,17 +657,6 @@ light_done:
             mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
             e->visible        = 1;
             model3dtx_add_entity(txm, e);
-
-            /*
-             * XXX: This kinda requires that "physics" goes before "entity"
-             */
-            if (phys) {
-                entity3d_add_physics(e, mass, class, ptype, geom_off, geom_radius, geom_length);
-                phys_body_set_contact_params(e->phys_body,
-                                             .bounce = bounce,
-                                             .bounce_vel = bounce_vel);
-            }
-            trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
 
             if (entity_animated(e) && anis) {
                 for (p = anis->children.head; p; p = p->next) {
@@ -691,7 +692,8 @@ light_done:
                 free(instor);
 
                 if (phys) {
-                    entity3d_add_physics(e, mass, class, ptype, geom_off, geom_radius, geom_length);
+                    entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
+                                         ptype, geom_off, geom_radius, geom_length);
                     phys_body_set_contact_params(e->phys_body,
                                                  .bounce = bounce,
                                                  .bounce_vel = bounce_vel);

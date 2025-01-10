@@ -20,8 +20,6 @@ struct phys_body;
 typedef void (*ground_contact_fn)(void *priv, float x, float y, float z);
 
 struct phys;
-extern struct phys *phys;
-
 struct entity3d;
 
 typedef struct phys_contact_params {
@@ -34,9 +32,9 @@ typedef struct phys_contact_params {
     _phys_body_set_contact_params((_b), &(phys_contact_params){ args })
 void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_params *params);
 
-void phys_step(unsigned long frame_count);
-int  phys_init(void);
-void phys_done(void);
+void phys_step(struct phys *phys, unsigned long frame_count);
+struct phys *phys_init(void);
+void phys_done(struct phys *phys);
 /* Set the global ground_contact callback */
 void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact);
 void phys_ground_add(struct entity3d *e);
