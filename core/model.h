@@ -200,7 +200,6 @@ struct queued_animation {
 struct entity3d {
     struct model3dtx *txmodel;
     struct matrix4f  *mx;
-    //struct matrix4f  *base_mx;
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;
@@ -222,13 +221,14 @@ struct entity3d {
     GLfloat _scale;
     int     light_idx;
     bool    skip_culling;
+    bool    ani_cleared;
+    /* 2 byte hole */
     float   aabb[6];
     float   light_off[3];
     int (*update)(struct entity3d *e, void *data);
     int (*contact)(struct entity3d *e1, struct entity3d *e2);
     void (*destroy)(struct entity3d *e);
     void *priv;
-    bool ani_cleared;
 };
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
