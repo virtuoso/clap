@@ -625,29 +625,17 @@ static void gltf_load_skins(struct gltf_data *gd, JsonNode *skins)
     }
 }
 
-static void gltf_onload(struct lib_handle *h, void *data)
+static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
 {
     JsonNode *nodes, *mats, *meshes, *texs, *imgs, *accrs, *bufvws, *bufs;
     JsonNode *scenes, *scene, *skins, *anis;
     LOCAL(JsonNode, root);
-    struct gltf_data *gd = data;
     unsigned int nid;
     JsonNode *n;
 
-    if (h->state == RES_ERROR) {
-        warn("couldn't load '%s'\n", h->name);
-        ref_put(h);
-        return;
-    }
-
-    root = json_decode(h->buf);
-    dbg("loading '%s'\n", h->name);
-    if (!root) {
-        warn("couldn't parse '%s'\n", h->name);
-        h->state = RES_ERROR;
-        ref_put(h);
-        return;
-    }
+    root = json_decode(buf);
+    if (!root)
+        return CERR_PARSE_FAILED;
 
     gd->root_node = -1;
     darray_init(&gd->nodes);
@@ -688,8 +676,7 @@ static void gltf_onload(struct lib_handle *h, void *data)
             meshes->tag, texs->tag, imgs->tag, accrs->tag,
             bufvws->tag, bufs->tag, anis->tag
         );
-        h->state = RES_ERROR;
-        return;
+        return CERR_PARSE_FAILED;
     }
 
     /* Nodes */
@@ -1006,9 +993,26 @@ static void gltf_onload(struct lib_handle *h, void *data)
         // dbg("mesh %d: '%s' POSITION: %d\n", gd->nr_meshes, jname->string_, mesh->POSITION);
     }
 
-    ref_put(h);
+    return CERR_OK;
+}
 
-    return;
+static void gltf_onload(struct lib_handle *h, void *data)
+{
+    dbg("loading '%s'\n", h->name);
+
+    if (h->state == RES_ERROR) {
+        warn("couldn't load '%s'\n", h->name);
+        goto err;
+    }
+
+    cerr err = gltf_json_parse(h->buf, data);
+    if (err != CERR_OK) {
+        warn("couldn't parse '%s'\n", h->name);
+        h->state = RES_ERROR;
+    }
+
+err:
+    ref_put(h);
 }
 
 void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,
