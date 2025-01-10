@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <errno.h>
+#include <inttypes.h>
 #include "base64.h"
 #include "common.h"
 #include "json.h"
@@ -191,6 +192,7 @@ struct gltf_data {
     // struct darray        texs;
     darray(int,                   imgs);
     unsigned int         *texs;
+    void                 *bin;
     int                  root_node;
     unsigned int nr_texs;
     unsigned int texid;
@@ -764,29 +766,42 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
 
         jlen = json_find_member(n, "byteLength");
         juri = json_find_member(n, "uri");
-        if (!jlen && !juri)
+        if (!jlen)
+            continue;
+        /* GLB bin buffer can't have uri, otherwise it must */
+        if (!darray_count(gd->buffers) && gd->bin && juri)
+            continue;
+        else if ((darray_count(gd->buffers) || !gd->bin) && !juri)
             continue;
 
         len = jlen->number_;
-        if (juri->tag != JSON_STRING ||
-            strlen(juri->string_) < sizeof(DATA_URI) - 1 ||
-            strncmp(juri->string_, DATA_URI, sizeof(DATA_URI) - 1))
-            continue;
+        if (juri) {
+            if (juri->tag != JSON_STRING ||
+                strlen(juri->string_) < sizeof(DATA_URI) - 1 ||
+                strncmp(juri->string_, DATA_URI, sizeof(DATA_URI) - 1))
+                continue;
 
-        slen = strlen(juri->string_) - sizeof(DATA_URI) + 1;
-        len = max(len, base64_decoded_length(slen));
+            slen = strlen(juri->string_) - sizeof(DATA_URI) + 1;
+            len = max(len, base64_decoded_length(slen));
+        }
 
         CHECK(buf = darray_add(&gd->buffers.da));
-        CHECK(*buf = malloc(len));
-        dlen = base64_decode(*buf, len, juri->string_ + sizeof(DATA_URI) - 1, slen);
-        if (dlen < 0) {
-            err("error decoding base64 buffer %d\n", darray_count(gd->buffers) - 1);
-            free(*buf);
-            /*
-             * leave a NULL hole in the buffers array to keep the GLTF buffer
-             * indices
-             */
-            *buf = NULL;
+        if (juri) {
+            CHECK(*buf = malloc(len));
+            dlen = base64_decode(*buf, len, juri->string_ + sizeof(DATA_URI) - 1, slen);
+            if (dlen < 0) {
+                err("error decoding base64 buffer %d\n", darray_count(gd->buffers) - 1);
+                free(*buf);
+                /*
+                * leave a NULL hole in the buffers array to keep the GLTF buffer
+                * indices
+                */
+                *buf = NULL;
+            }
+        } else if (gd->bin) {
+            CHECK(*buf = memdup(gd->bin, len));
+        } else {
+            err("no uri and not a GLB bin buffer\n");
         }
     }
 
@@ -996,22 +1011,78 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     return CERR_OK;
 }
 
+/* https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#binary-gltf-layout */
+struct glb_header {
+    uint32_t    magic;
+    uint32_t    version;
+    uint32_t    length;
+};
+
+struct glb_chunk {
+    uint32_t    length;
+    uint32_t    type;
+    uint8_t     data[0];
+};
+
+#define GLB_MAGIC       0x46546C67
+#define GLB_TYPE_JSON   0x4E4F534A
+#define GLB_TYPE_BIN    0x004E4942
+
+static cerr gltf_bin_parse(void *buf, size_t size, struct gltf_data *gd)
+{
+    struct glb_header *hdr;
+
+    if (size < sizeof(*hdr))
+        return CERR_PARSE_FAILED;
+
+    hdr = buf;
+    if (hdr->magic != GLB_MAGIC ||
+        hdr->version < 2        ||
+        hdr->length != size) {
+        return CERR_PARSE_FAILED;
+    }
+
+    struct glb_chunk *json_chunk = buf + sizeof(*hdr);
+    if (json_chunk->type != GLB_TYPE_JSON)
+        return CERR_PARSE_FAILED;
+
+    struct glb_chunk *bin_chunk = buf + sizeof(*hdr) +
+                                  offsetof(struct glb_chunk, data[json_chunk->length]);
+    if (bin_chunk->type != GLB_TYPE_BIN)
+        return CERR_PARSE_FAILED;
+    if (json_chunk->length + bin_chunk->length + sizeof(*hdr) + sizeof(struct glb_chunk) * 2 != size)
+        return CERR_PARSE_FAILED;
+
+    gd->bin = bin_chunk->data;
+    char *json_buf = strndup((const char *)json_chunk->data, json_chunk->length);
+    cerr err = gltf_json_parse(json_buf, gd);
+    free(json_buf);
+
+    return err;
+}
+
 static void gltf_onload(struct lib_handle *h, void *data)
 {
     dbg("loading '%s'\n", h->name);
 
     if (h->state == RES_ERROR) {
         warn("couldn't load '%s'\n", h->name);
-        goto err;
+        goto out;
     }
 
-    cerr err = gltf_json_parse(h->buf, data);
+    /* try GLB first, if it's not GLB, it fails quickly */
+    cerr err = gltf_bin_parse(h->buf, h->size, data);
+    if (err == CERR_OK)
+        goto out;
+
+    /* if GLTF embedded fails, nothing more to do */
+    err = gltf_json_parse(h->buf, data);
     if (err != CERR_OK) {
         warn("couldn't parse '%s'\n", h->name);
         h->state = RES_ERROR;
     }
 
-err:
+out:
     ref_put(h);
 }
 
