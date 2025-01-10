@@ -559,8 +559,8 @@ int phys_body_update(struct entity3d *e)
     return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;
 }
 
-dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e,
-                              double mass, double geom_radius, double geom_offset)
+static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e,
+                                     double mass, double geom_radius, double geom_offset)
 {
     float r = 0.0, length = 0.0, off = 0.0, X, Y, Z;
     int direction;
@@ -627,7 +627,8 @@ dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct 
     return g;
 }
 
-dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body, struct entity3d *e, double mass)
+static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
+                                     struct entity3d *e, double mass)
 {
     dTriMeshDataID meshdata = dGeomTriMeshDataCreate();
     struct model3d *m = e->txmodel->model;
