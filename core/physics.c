@@ -218,7 +218,7 @@ void phys_body_stop(struct phys_body *body)
     dBodySetLinearDampingThreshold(body->body, 0.001);
 }
 
-void phys_body_stick(struct phys_body *body, dContact *contact)
+static void phys_body_stick(struct phys_body *body, dContact *contact)
 {
     struct entity3d *e = phys_body_entity(body);
     struct phys *phys = body->phys;
