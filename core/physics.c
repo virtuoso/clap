@@ -59,8 +59,6 @@ struct phys_body {
     int         class;
 };
 
-static DECLARE_LIST(phys_bodies);
-
 bool phys_body_has_body(struct phys_body *body)
 {
     return !!body->body;
@@ -374,31 +372,16 @@ static void got_contact(void *data, dGeomID o1, dGeomID o2)
         c->nc += dCollide(o1, o2, 1, &c->contact[c->nc].geom, sizeof(dContact));
 }
 
-struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
+struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 start,
+                                vec3 dir, double *pdist)
 {
     struct entity3d *target = NULL;
     dGeomID ray = NULL;
     struct contact c = {};
     vec3 _start = { start[0], start[1], start[2] };
-    struct phys *phys;
+    bool check_self = !!e->phys_body;
     vec3 comp;
     int try = 0;
-
-    if (!e->phys_body) {
-        if (list_empty(&phys_bodies))
-            return NULL;
-
-        /*
-         * HACK: if there was at least one entity with phys_body before this one,
-         * use its ->phys object. Otherwise, entities with no physics can't be
-         * clamped to terrain, which is annoying. But the phys_bodies list
-         * serves no (other) purpose and, being the last global state in this
-         * module, should go away.
-         */
-        phys = list_first_entry(&phys_bodies, struct phys_body, entry)->phys;
-    } else {
-        phys = e->phys_body->phys;
-    }
 
     ray = dCreateRay(phys->space, *pdist);
     dGeomRaySetClosestHit(ray, 1);
@@ -412,7 +395,7 @@ retry:
     int i;
     for (i = 0; i < c.nc; i++) {
         if (entity_and_other_by_class(&c.contact[i].geom, dRayClass, NULL, &target)) {
-            if (e == target && try++ < 10) {
+            if (check_self && e == target && try++ < 10) {
                 vec3_scale(comp, dir, c.contact[i].geom.depth + 1e-3);
                 vec3_add(_start, _start, comp);
                 c.nc = 0;
@@ -429,15 +412,24 @@ retry:
     return c.nc ? target : NULL;
 }
 
-void phys_ground_entity(struct entity3d *e)
+struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
+{
+    if (!e->phys_body)
+        return NULL;
+
+    return phys_ray_cast2(e->phys_body->phys, e, start, dir, pdist);
+}
+
+void phys_ground_entity(struct phys *phys, struct entity3d *e)
 {
     struct entity3d *collision;
     vec3 start = { e->dx, e->dy, e->dz };
     vec3 dir = { 0, -1, 0 };
     double dist = 1e6;
 
-    collision = phys_ray_cast(e, start, dir, &dist);
-    /* floating in space? */
+    if (e->phys_body)
+        phys = e->phys_body->phys;
+    collision = phys_ray_cast2(phys, e, start, dir, &dist);
     if (!collision)
         return;
 
@@ -788,7 +780,6 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dSpaceAdd(phys->ground_space, body->geom);
     }
     dGeomSetData(body->geom, entity);
-    list_append(&phys_bodies, &body->entry);
 
     if (has_body) {
         body->lmotor = dJointCreateLMotor(phys->world, 0);
@@ -806,8 +797,6 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
 
 void phys_body_done(struct phys_body *body)
 {
-    list_del(&body->entry);
-
     dTriMeshDataID meshdata = NULL;
     if (body->class == dTriMeshClass) {
         meshdata = dGeomTriMeshGetTriMeshDataID(body->geom);

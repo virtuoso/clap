@@ -38,7 +38,19 @@ void phys_done(struct phys *phys);
 /* Set the global ground_contact callback */
 void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact);
 void phys_ground_add(struct entity3d *e);
+/*
+ * Find the nearest intersecting geometry with the ray at @start in the
+ * direction @dir and length *pdist. If there is an intersection, the distance
+ * will be written to *pdist. Entity @e must have a phys_body. If it doesn't,
+ * use phys_ray_cast2(), which instead requires a struct phys pointer.
+ */
 struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist);
+/*
+ * Same as phys_ray_cast() for the entities that don't have a phys_body, so it
+ * requires a pointer to the physics state (struct phys).
+ */
+struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 start, vec3 dir,
+                                double *pdist);
 /* Check if phys_body has a body (true) or just a geometry (false) */
 bool phys_body_has_body(struct phys_body *body);
 struct entity3d *phys_body_entity(struct phys_body *body);
@@ -60,7 +72,7 @@ void phys_body_set_velocity(struct phys_body *body, vec3 vel);
 void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, vec3 vel);
 void phys_body_stop(struct phys_body *body);
 bool phys_body_ground_collide(struct phys_body *body, bool grounded);
-void phys_ground_entity(struct entity3d *e);
+void phys_ground_entity(struct phys *phys, struct entity3d *e);
 
 struct scene;
 void phys_debug_draw(struct scene *scene, struct phys_body *body);
