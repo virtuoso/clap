@@ -661,23 +661,32 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     skins = json_find_member(root, "skins");
     accrs = json_find_member(root, "accessors");
     bufvws = json_find_member(root, "bufferViews");
-    bufs = json_find_member(root, "buffers"); 
-    if (scenes->tag != JSON_ARRAY ||
-        scene->tag != JSON_NUMBER ||
-        nodes->tag != JSON_ARRAY ||
-        mats->tag != JSON_ARRAY ||
-        meshes->tag != JSON_ARRAY ||
-        (anis && anis->tag != JSON_ARRAY) ||
-        texs->tag != JSON_ARRAY ||
-        imgs->tag != JSON_ARRAY ||
-        accrs->tag != JSON_ARRAY ||
-        bufvws->tag != JSON_ARRAY ||
-        bufs->tag != JSON_ARRAY) {
-        dbg("type error %d/%d/%d/%d/%d/%d/%d/%d/%d/%d/%d\n",
-            scenes->tag, scene->tag, nodes->tag, mats->tag,
-            meshes->tag, texs->tag, imgs->tag, accrs->tag,
-            bufvws->tag, bufs->tag, anis->tag
-        );
+    bufs = json_find_member(root, "buffers");
+
+#define GLTF_CHECK_PROP(_node, _name, _tag) \
+    if (!(_node)) { \
+        warn("GLTF doesn't have '" _name "' property\n"); \
+        return CERR_PARSE_FAILED; \
+    } \
+    if ((_node)->tag != (_tag)) { \
+        warn("GLTF has '" _name "' property that's not " # _tag "\n"); \
+        return CERR_PARSE_FAILED; \
+    }
+
+    GLTF_CHECK_PROP(scenes, "scenes",       JSON_ARRAY);
+    GLTF_CHECK_PROP(scene,  "scene",        JSON_NUMBER);
+    GLTF_CHECK_PROP(nodes,  "nodes",        JSON_ARRAY);
+    GLTF_CHECK_PROP(mats,   "materials",    JSON_ARRAY);
+    GLTF_CHECK_PROP(meshes, "meshes",       JSON_ARRAY);
+    GLTF_CHECK_PROP(texs,   "textures",     JSON_ARRAY);
+    GLTF_CHECK_PROP(imgs,   "images",       JSON_ARRAY);
+    GLTF_CHECK_PROP(accrs,  "accessors",    JSON_ARRAY);
+    GLTF_CHECK_PROP(bufvws, "bufferViews",  JSON_ARRAY);
+    GLTF_CHECK_PROP(bufs,   "buffers",      JSON_ARRAY);
+#undef GLTF_CHECK_PROP
+
+    if (anis && anis->tag != JSON_ARRAY) {
+        warn("GLTF has animations node that's not an array\n")
         return CERR_PARSE_FAILED;
     }
 
