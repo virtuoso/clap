@@ -60,6 +60,11 @@ struct animation {
 };
 
 struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels);
+/*
+ * Delete an animation from the @model's animation array and free all its
+ * contents
+ */
+void animation_delete(struct animation *an);
 void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
                            size_t data_stride, unsigned int target, unsigned int path);
 void animation_start(struct entity3d *e, struct scene *scene, int ani);

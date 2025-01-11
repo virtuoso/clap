@@ -28,7 +28,6 @@
 static void model3d_drop(struct ref *ref)
 {
     struct model3d *m = container_of(ref, struct model3d, ref);
-    struct animation *an;
     int i;
 
     buffer_deinit(&m->vertex);
@@ -45,15 +44,9 @@ static void model3d_drop(struct ref *ref)
     /* delete gl buffers */
     ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
-    darray_for_each(an, &m->anis) {
-        for (i = 0; i < an->nr_channels; i++) {
-            free(an->channels[i].time);
-            free(an->channels[i].data);
-        }
-        free(an->channels);
-        free(an->name);
-    }
-    darray_clearout(&m->anis.da);
+
+    while (darray_count(m->anis))
+        animation_delete(&m->anis.x[0]);
     for (i = 0; i < m->nr_joints; i++) {
         darray_clearout(&m->joints[i].children.da);
         free(m->joints[i].name);
@@ -660,6 +653,30 @@ struct animation *animation_new(struct model3d *model, const char *name, unsigne
     CHECK(an->channels = calloc(an->nr_channels, sizeof(struct channel)));
 
     return an;
+}
+
+void animation_delete(struct animation *an)
+{
+    struct animation *_an;
+    int i, idx = 0;
+
+    darray_for_each(_an, &an->model->anis) {
+        if (_an == an)
+            goto found;
+        idx++;
+    }
+
+    err("trying to delete an non-existent animation '%s'\n", an->name);
+    return;
+
+found:
+    for (i = 0; i < an->nr_channels; i++) {
+        free(an->channels[i].time);
+        free(an->channels[i].data);
+    }
+    free(an->channels);
+    free(an->name);
+    darray_delete(&an->model->anis.da, idx);
 }
 
 void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
