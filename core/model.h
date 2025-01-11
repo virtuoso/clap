@@ -50,7 +50,6 @@ struct channel {
 };
 
 struct animation {
-    struct ref      ref;
     char            *name;
     struct model3d  *model;
     struct channel  *channels;
