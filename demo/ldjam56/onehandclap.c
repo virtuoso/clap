@@ -138,7 +138,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     struct timespec ts_start, ts_delta;
     struct scene *s = data; /* XXX */
     unsigned long count, frame_count;
-    float y0, y1, y2;
     dReal by;
 
     clap_fps_calc(clap_ctx, &s->fps);
@@ -161,13 +160,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         * calls into character_move(): handle inputs, adjust velocities etc
         * for the physics step
         */
-        y0 = s->control->entity->dy;
         scene_characters_move(s);
-
-        /*
-        * Collisions, dynamics
-        */
-        y1 = s->control->entity->dy;
     }
 
     for (count = 0; count < frame_count; count++)
@@ -182,25 +175,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     scene_update(s);
 
-    if (s->control) {
-        /*
-        * calls entity3d_update() -> character_update()
-        */
-        y2 = s->control->entity->dy;
-        if (s->control->entity->phys_body) {
-            const dReal *pos = phys_body_position(s->control->entity->phys_body);
-            by = pos[1];
-        } else {
-            by = y2;
-        }
-    }
-
-    // ui_debug_printf("'%s': (%f,%f,%f)\nyoff: %f ray_off: %f\n%f+ %f +%f +%f || %f\n%s%s",
-    //                 s->control->entity ? entity_name(s->control->entity) : "", s->control->entity->dx, s->control->entity->dy,
-    //                 s->control->entity->dz, s->control->entity->phys_body ? s->control->entity->phys_body->yoffset : 0,
-    //                 s->control->entity->phys_body ? s->control->entity->phys_body->ray_off : 0,
-    //                 y0, y1-y0, y2-y1, s->control->entity->dy - y2, by,
-    //                 s->control->ragdoll ? "ragdoll " : "", s->control->stuck ? "stuck" : "");
     ui_update(&ui);
     PROF_STEP(updates, net);
 
