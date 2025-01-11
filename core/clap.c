@@ -26,7 +26,7 @@ const char *__asan_default_options() {
      * malloc_context_size=20
      */
     return
-        "verbosity=1"
+        "verbosity=0"
         ":check_initialization_order=true"
         ":detect_stack_use_after_return=true"
 	    ":alloc_dealloc_mismatch=false"
