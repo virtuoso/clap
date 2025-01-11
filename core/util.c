@@ -47,9 +47,14 @@ void *darray_resize(struct darray *da, unsigned int nr_el)
     void *new;
 
     /*
-     * XXX: be smarter. For now, just avoid realloc() on deletion:
+     * XXX: be smarter. For now, just avoid realloc() on deletion, unless it's
+     *      the last element (see below)
      *  - the array is likely to get repopulated (game.c)
      *  - or, filled in once and then cleared out (gltf.c)
+     *
+     * Possible reasons to shrink an array:
+     *  - the element size is large
+     *  - the ration off additions to deletions is higher than a certain threshold
      */
     if (nr_el < da->nr_el)
         goto out;
@@ -65,6 +70,13 @@ void *darray_resize(struct darray *da, unsigned int nr_el)
 
 out:
     da->nr_el = nr_el;
+
+    /*
+     * XXX: See above about being smarter, but at the bare minimum, we need to
+     * free the array when the last element is gone
+     */
+    if (!da->nr_el)
+        darray_clearout(da);
 
     return da->array;
 }
