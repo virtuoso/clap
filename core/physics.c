@@ -94,6 +94,11 @@ const dReal *phys_body_rotation(struct phys_body *body)
  */
 #define MAX_CONTACTS 16
 
+/*
+ * Given the contact information, return the geometry with the class @class in
+ * *match and the other one in *other. Both pointers can be NULL. Note that
+ * dGeomID is already a pointer.
+ */
 static bool geom_and_other_by_class(dContactGeom *geom, int class, dGeomID *match, dGeomID *other)
 {
     if (match)
@@ -118,6 +123,12 @@ static bool geom_and_other_by_class(dContactGeom *geom, int class, dGeomID *matc
     return false;
 }
 
+/*
+ * Given the contact information, return the entity with the geometry matching
+ * @class in *match and the other one in *other. Both pointers can be NULL.
+ * Useful to get the entity that a ray (dRayClass) hits or the character
+ * (dCapsuleClass) that collides with the ground.
+ */
 static bool entity_and_other_by_class(dContactGeom *geom, int class, struct entity3d **match,
                                       struct entity3d **other)
 {
