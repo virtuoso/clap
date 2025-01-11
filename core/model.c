@@ -1328,8 +1328,8 @@ static int default_update(struct entity3d *e, void *data)
     }
     if (entity_animated(e))
         animated_update(e, scene);
-    // if (e->phys_body)
-    //    phys_debug_draw(scene, e->phys_body);
+    if (scene->debug_draws_enabled && e->phys_body)
+        phys_debug_draw(scene, e->phys_body);
 
     return 0;
 }
@@ -1502,13 +1502,14 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     CHECK(dd = ref_new(debug_draw));
     CHECK(m = model3d_new_from_vectors("debug", p, vx, vxsz, idx, idxsz, tx, vxsz / 3 * 2, NULL, 0));
     m->debug = true;
+    m->cull_face = false;
     m->draw_type = GL_LINES;
     ref_put(p);
 
     CHECK(txm = ref_new(model3dtx));
     txm->model = m;
     list_init(&txm->entities);
-    mq_add_model(&scene->mq, txm);
+    mq_add_model(&scene->debug_mq, txm);
     CHECK(dd->entity = entity3d_new(txm));
     model3dtx_add_entity(txm, dd->entity);
     dd->entity->visible = 1;

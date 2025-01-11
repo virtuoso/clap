@@ -187,6 +187,9 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
     pipeline_render2(main_pl, !ui.modal);
+    if (scene.debug_draws_enabled)
+        models_render(&scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
+                      NULL, scene.width, scene.height, -1, NULL);
 
     PROF_STEP(models, updates);
 

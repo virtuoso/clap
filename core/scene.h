@@ -27,7 +27,6 @@ struct scene {
     struct mq           mq;
     struct list         characters;
     struct list         instor;
-    struct list         debug_draws;
     struct entity3d     *focus;
     struct character    *control;
     struct list         shaders;
@@ -40,6 +39,8 @@ struct scene {
     struct timespec     ts;
     struct fps_data     fps;
     struct clap_context *clap_ctx;
+    struct mq           debug_mq;
+    struct list         debug_draws;
     float               lin_speed;
     float               ang_speed;
     float               limbo_height;
