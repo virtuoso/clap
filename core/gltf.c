@@ -1112,6 +1112,9 @@ void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, un
 
 int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
 {
+    if (node >= gd->skins.x[skin].nr_joints)
+        return -1;
+
     return gd->skins.x[skin].nodes[node];
 }
 
@@ -1226,9 +1229,24 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
                 size_t data_stride = gltf_accessor_stride(gd, accr_out);
 
-                animation_add_channel(an, frames, time, data, data_stride,
-                                      gltf_skin_node_to_joint(gd, skin, chan->node), chan->path);
+                int joint = gltf_skin_node_to_joint(gd, skin, chan->node);
+                if (joint < 0) {
+                    warn("animation '%s' channel %d references a non-existent joint %d in skin '%s'\n",
+                         an->name, an->cur_channel, chan->node, gd->skins.x[skin].name);
+                    continue;
+                }
+
+                animation_add_channel(an, frames, time, data, data_stride, joint, chan->path);
             }
+
+            /*
+             * An animation with no channels has no reason to exist. This may
+             * be a result of bezier curves getting accidentally exported to
+             * the gltf, their animations don't touch the skeleton's joints,
+             * so it's safe to skip them. See the warn() above.
+             */
+            if (!an->cur_channel)
+                animation_delete(an);
         }
     }
 no_skinning:
