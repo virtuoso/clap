@@ -29,7 +29,7 @@ struct scene {
     struct list         characters;
     struct list         instor;
     struct entity3d     *focus;
-    struct character    *control;
+    struct entity3d     *control;
     struct list         shaders;
     struct terrain      *terrain;
     struct camera       *camera;
@@ -73,6 +73,11 @@ void scene_characters_move(struct scene *s);
 static inline bool scene_character_is_camera(struct scene *s, struct character *ch)
 {
     return s->camera->ch == ch;
+}
+
+static inline struct character *scene_control_character(struct scene *s)
+{
+    return s->control ? s->control->priv : NULL;
 }
 
 #endif /* __CLAP_SCENE_H__ */

@@ -23,30 +23,32 @@ static void scene_camera_autopilot(struct scene *s)
 
 static void scene_control_next(struct scene *s)
 {
-    struct character *first, *last, *prev;
+    struct character *first, *last, *prev, *current;
 
-    if (list_empty(&s->characters) || !s->control)
+    current = scene_control_character(s);
+    if (list_empty(&s->characters) || !current)
         return;
 
-    prev = s->control;
+    prev = current;
     first = list_first_entry(&s->characters, struct character, entry);
     last = list_last_entry(&s->characters, struct character, entry);
-    if (!s->control || s->control == last)
-        s->control = first;
+    if (current == last)
+        s->control = first->entity;
     else
-        s->control = list_next_entry(s->control, entry);
+        s->control = list_next_entry(current, entry)->entity;
 
-    if (s->control == prev)
+    current = s->control->priv;
+    if (current == prev)
         return;
 
     prev->camera = NULL;
-    s->control->camera = s->camera;
-    s->control->moved++;
+    current->camera = s->camera;
+    current->moved++;
     s->camera->dist = 10;
     s->camera->ch->moved++;
 
-    trace("scene control at: '%s'\n", entity_name(s->control->entity));
-    dbg("scene control at: '%s'\n", entity_name(s->control->entity));
+    trace("scene control at: '%s'\n", entity_name(s->control));
+    dbg("scene control at: '%s'\n", entity_name(s->control));
 }
 
 #ifndef CONFIG_FINAL
@@ -107,7 +109,7 @@ static void scene_focus_cancel(struct scene *s)
 
 bool scene_camera_follows(struct scene *s, struct character *ch)
 {
-    return s->control == ch && ch != s->camera->ch;
+    return scene_control_character(s) == ch && ch != s->camera->ch;
 }
 
 int scene_camera_add(struct scene *s)
@@ -127,7 +129,7 @@ int scene_camera_add(struct scene *s)
     s->camera->view.fov              = to_radians(70);
     s->camera->ch = character_new(txm, s);
     entity = character_entity(s->camera->ch);
-    s->control   = s->camera->ch;
+    s->control = entity;
     model3dtx_add_entity(txm, entity);
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
@@ -235,24 +237,24 @@ static inline void scene_characters_debug(struct scene *scene) {}
 
 static void scene_camera_calc(struct scene *s, int camera)
 {
+    struct character *current = scene_control_character(s);
     struct camera *cam = &s->cameras[camera];
 
     if (!s->fps.fps_fine)
         return;
     if (s->autopilot)
         scene_camera_autopilot(s);
-    if (!cam->ch->moved && s->control == cam->ch)
+    if (!cam->ch->moved && current == cam->ch)
         return;
 
-    /* circle the character s->control */
-    if (s->control != cam->ch &&
-        (camera_has_moved(cam) || s->control->moved)) {
+    /* circle the entity s->control, unless it's camera */
+    if (s->control != cam->ch->entity &&
+        (camera_has_moved(cam) || current->moved)) {
 
-        float x              = s->control->pos[0];
-        float y              = s->control->pos[1] + entity3d_aabb_Y(s->control->entity) / 4 * 3;
-        float z              = s->control->pos[2];
+        float x              = current->pos[0];
+        float y              = current->pos[1] + entity3d_aabb_Y(current->entity) / 4 * 3;
+        float z              = current->pos[2];
         camera_position(cam, x, y, z, cam->ch->pos);
-        //s->control->moved    = 0; /* XXX */
     }
 
     camera_reset_movement(cam);
@@ -362,9 +364,9 @@ static int scene_handle_input(struct message *m, void *data)
     if (s->ui_is_on)
         return 0;
 
-    if (s->control)
-        character_handle_input(s->control, s, m);
-    //trace("## control is grounded: %d\n", character_is_grounded(s->control, s));
+    struct character *current = scene_control_character(s);
+    if (current)
+        character_handle_input(current, s, m);
 
     return 0;
 }

@@ -49,7 +49,7 @@ void get_apple_out_of_pocket(struct game_state *g) {
 }
 
 bool is_near_burrow(struct game_state *g) {
-    struct entity3d *gatherer = g->scene->control->entity;
+    struct entity3d *gatherer = g->scene->control;
     struct entity3d *burrow = g->burrow.entity;
     float squared_distance_to_burrow = calculate_squared_distance(gatherer, burrow);
     return squared_distance_to_burrow < g->options.burrow_distance_squared;
@@ -335,7 +335,7 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
                     g->burrow.number_of_mature_apples);
 
     int idx = 0;
-    struct entity3d *gatherer = g->scene->control->entity;
+    struct entity3d *gatherer = g->scene->control;
     if (is_near_burrow(g) && g->apple_is_carried)
         put_apple_to_burrow(g);
     struct game_item *item;

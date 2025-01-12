@@ -141,13 +141,15 @@ static void motion_reset(struct motionctl *mctl, struct scene *s)
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
 {
+    struct character *control = scene_control_character(s);
+
     memcpy(&ch->mctl.ts, &s->ts, sizeof(ch->mctl.ts));
     motion_parse_input(&ch->mctl, m);
 
-    if (scene_character_is_camera(s, s->control) && m->input.trigger_l)
+    if (scene_character_is_camera(s, control) && m->input.trigger_l)
         ch->mctl.rs_height = true;
 
-    if (!scene_character_is_camera(s, s->control) && (m->input.space || m->input.pad_x))
+    if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x))
         ch->mctl.jump = true;
 
     s->camera->zoom = !!(m->input.zoom);
@@ -200,6 +202,7 @@ static inline void character_debug(struct character *ch) {}
 void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
+    struct character *control = scene_control_character(s);
     struct character *cam = s->camera->ch;
     vec3 old_motion;
     vec3_dup(old_motion, ch->motion);
@@ -215,7 +218,7 @@ void character_move(struct character *ch, struct scene *s)
     float yawcos = cos(to_radians(s->camera->target_yaw));
     float yawsin = sin(to_radians(s->camera->target_yaw));
 
-    if (s->control == ch && !(ch->mctl.ls_dx || ch->mctl.ls_dy || ch->mctl.rs_dx || ch->mctl.rs_dy))
+    if (control == ch && !(ch->mctl.ls_dx || ch->mctl.ls_dy || ch->mctl.rs_dx || ch->mctl.rs_dy))
     {
         // We got no input regarding character position or camera,
         // so we reset the "target" camera position to the "current"
@@ -241,7 +244,7 @@ void character_move(struct character *ch, struct scene *s)
         goto out;
     }
 
-    if (s->control == ch) {
+    if (control == ch) {
         if (ch->jumping && !ch->airborne && ch->mctl.jump) {
             float dx = delta_x * yawcos - delta_z * yawsin;
             float dz = delta_x * yawsin + delta_z * yawcos;
