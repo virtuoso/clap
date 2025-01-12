@@ -801,6 +801,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dJointSetLMotorParam(body->lmotor, dParamFMax1, 50);
         dJointSetLMotorParam(body->lmotor, dParamFMax2, 5);
         dJointSetLMotorParam(body->lmotor, dParamFMax3, 50);
+        phys_body_attach_motor(body, true);
     }
 
     return body;
