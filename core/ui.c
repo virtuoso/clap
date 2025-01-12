@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "model.h"
+#include "primitives.h"
 #include "render.h"
 #include "shader.h"
 #include "messagebus.h"

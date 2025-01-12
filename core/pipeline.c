@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "model.h"
 #include "pipeline.h"
+#include "primitives.h"
 #include "scene.h"
 #include "shader.h"
 #include "ui-debug.h"

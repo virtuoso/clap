@@ -3,6 +3,7 @@
 #include "character.h"
 #include "gltf.h"
 #include "physics.h"
+#include "primitives.h"
 #include "shader.h"
 #include "terrain.h"
 #include "model.h"
