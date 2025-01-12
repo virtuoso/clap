@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "common.h"
+#include "linmath.h"
 #include "mesh.h"
+#include "model.h"
+#include "primitives.h"
 
-static GLfloat quad_tx[]  = {
+static float quad_tx[]  = {
     0.0, 0.0,
     0.0, 1.0,
     1.0, 1.0,
     1.0, 0.0,
 };
 
-static GLfloat cube_vx[] = {
+static float cube_vx[] = {
     // back
     0.0f, 1.0f, 0.0f,
     0.0f, 0.0f, 0.0f,
@@ -41,7 +45,7 @@ static GLfloat cube_vx[] = {
     1.0f, 0.0f, 1.0f
 };
 
-static GLfloat cube_norm[] = {
+static float cube_norm[] = {
     // back
     0, 0, -1,
     0, 0, -1,
@@ -74,7 +78,7 @@ static GLfloat cube_norm[] = {
     0, -1, 0
 };
 
-static GLushort cube_idx[] = {
+static unsigned short cube_idx[] = {
     0, 3, 1,
     1, 3, 2,
     4, 5, 7,
@@ -89,7 +93,7 @@ static GLushort cube_idx[] = {
     23, 21, 22
 };
 
-static GLfloat cube_tx[] = {
+static float cube_tx[] = {
     1.0f, 1.0f, /* Back. */
     0.0f, 1.0f,
     1.0f, 0.0f,
@@ -137,8 +141,8 @@ struct model3d *model3d_new_cube(struct shader_prog *p)
 
 struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)
 {
-    static GLushort quad_idx[] = {0, 3, 1, 3, 2, 1};
-    GLfloat quad_vx[] = {
+    static unsigned short quad_idx[] = {0, 3, 1, 3, 2, 1};
+    float quad_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
 
@@ -148,8 +152,8 @@ struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float 
 
 struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h)
 {
-    static GLushort quad_idx[] = {0, 1, 3, 3, 1, 2};
-    GLfloat quad_vx[] = {
+    static unsigned short quad_idx[] = {0, 1, 3, 3, 1, 2};
+    float quad_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
 
@@ -157,13 +161,13 @@ struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, flo
                                     quad_tx, sizeof(quad_tx), NULL, 0);
 }
 
-static GLushort frame_idx[] = {
+static unsigned short frame_idx[] = {
     4, 0, 5, 0, 1, 5,
     5, 1, 2, 5, 2, 6,
     6, 2, 3, 6, 3, 7,
     7, 3, 0, 7, 0, 4, };
 
-static GLfloat frame_tx[]  = {
+static float frame_tx[]  = {
     0.0, 0.0,
     0.0, 1.0,
     1.0, 1.0,
@@ -176,7 +180,7 @@ static GLfloat frame_tx[]  = {
 
 struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t)
 {
-    GLfloat frame_vx[] = {
+    float frame_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
         x + t, y + h - t, z, x + t, y + t, z, x + w - t, y + t, z, x + w - t, y + h - t, z,
     };

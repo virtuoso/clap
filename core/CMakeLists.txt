@@ -80,7 +80,7 @@ endif ()
 
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
-    object.c ref.c util.c logger.c input.c messagebus.c
+    object.c ref.c util.c logger.c input.c messagebus.c primitives.c
     matrix.c model.c shader.c librarian.c json.c clap.c view.c light.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c

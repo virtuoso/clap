@@ -577,9 +577,6 @@ static void model3d_prepare(struct model3d *m, struct shader_prog *p)
     }
 }
 
-/* Cube and quad */
-#include "primitives.c"
-
 void model3dtx_prepare(struct model3dtx *txm, struct shader_prog *p)
 {
     struct model3d *m = txm->model;
