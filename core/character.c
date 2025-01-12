@@ -424,33 +424,8 @@ static int character_update(struct entity3d *e, void *data)
         camera_update(c->camera, s, c->entity, start);
     }
 
-    if (e->phys_body) {
-        if (c->airborne) {
-            // dReal *rot = phys_body_rotation(e->phys_body);
-            dMatrix3 rot;
-
-            dRFromEulerAngles(rot, e->rx, e->ry, e->rz);
-            e->mx->cell[0] = rot[0];
-            e->mx->cell[1] = rot[1];
-            e->mx->cell[2] = rot[2];
-            e->mx->cell[3] = 0;
-            e->mx->cell[4] = rot[4];
-            e->mx->cell[5] = rot[5];
-            e->mx->cell[6] = rot[6];
-            e->mx->cell[7] = 0;
-            e->mx->cell[8] = rot[8];
-            e->mx->cell[9] = rot[9];
-            e->mx->cell[10] = rot[10];
-            e->mx->cell[11] = 0;
-            e->mx->cell[12] = c->pos[0];
-            e->mx->cell[13] = c->pos[1];
-            e->mx->cell[14] = c->pos[2];
-            e->mx->cell[15] = 1;
-            mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
-        } else {
-            entity3d_position(e, c->pos[0], c->pos[1], c->pos[2]);
-        }
-    }
+    if (e->phys_body && !c->airborne)
+        entity3d_position(e, c->pos[0], c->pos[1], c->pos[2]);
 
     motion_reset(&c->mctl, s);
 
