@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 #define _GNU_SOURCE
-#define DEBUG
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
