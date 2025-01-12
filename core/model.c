@@ -1521,6 +1521,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
         memcpy(dd->entity->mx->m, rot, sizeof(mat4x4));
     else
         mat4x4_identity(dd->entity->mx->m);
+    entity3d_aabb_update(dd->entity);
     list_append(&scene->debug_draws, &dd->entry);
 
     return dd;
