@@ -143,6 +143,11 @@ int scene_camera_add(struct scene *s)
 }
 
 #ifndef CONFIG_FINAL
+static int input_text_callback(ImGuiInputTextCallbackData *data)
+{
+    return 0;
+}
+
 static void scene_parameters_debug(struct scene *scene, int cam_idx)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_SCENE_PARAMETERS, ImGuiWindowFlags_AlwaysAutoResize);
@@ -162,6 +167,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("shadow outline", &scene->light.shadow_outline);
         igCheckbox("shadow msaa", &scene->light.shadow_msaa);
         igCheckbox("debug draws", &scene->debug_draws_enabled);
+        igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
+                    input_text_callback, NULL);
         if (igButton("save level", (ImVec2){}))
             scene_save(scene, NULL);
         scene->proj_update++;
@@ -770,7 +777,7 @@ static void scene_onload(struct lib_handle *h, void *buf)
                 err("parse error in '%s'\n", h->name);
                 goto err;
             }
-            scene->name = strdup(p->string_);
+            strncpy(scene->name, p->string_, sizeof(scene->name));
         } else if (!strcmp(p->key, "model")) {
             if (p->tag != JSON_ARRAY) {
                 err("parse error in '%s'\n", h->name);
@@ -811,6 +818,13 @@ void scene_save(struct scene *scene, const char *name)
 
     if (!scene->json_root || (!scene->file_name && !name))
         return;
+
+    JsonNode *scene_name = json_find_member(scene->json_root, "name");
+    if (!scene_name)
+        json_prepend_member(scene->json_root, "name",
+                            json_mkstring(scene->name));
+    else
+        scene_name->string_ = strdup(scene->name);
 
     buf = json_stringify(scene->json_root, "    ");
     if (!buf)
@@ -873,6 +887,4 @@ void scene_done(struct scene *scene)
      * via mq_release()
      */
     shaders_free(&scene->shaders);
-
-    free(scene->name);
 }

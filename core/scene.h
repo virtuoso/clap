@@ -20,8 +20,9 @@ struct instantiator {
     float           dx, dy, dz;
 };
 
+#define SCENE_NAME_MAX 128
 struct scene {
-    char                *name;
+    char                name[SCENE_NAME_MAX];
     int                 width;
     int                 height;
     struct mq           mq;
