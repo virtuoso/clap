@@ -391,36 +391,38 @@ struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 star
     struct contact c = {};
     vec3 _start = { start[0], start[1], start[2] };
     bool check_self = !!e->phys_body;
-    vec3 comp;
-    int try = 0;
 
     ray = dCreateRay(phys->space, *pdist);
+    dGeomRaySetFirstContact(ray, 0);
     dGeomRaySetClosestHit(ray, 1);
-    /* avoid self-intersections as much as possible */
     dGeomRaySetBackfaceCull(ray, 1);
-retry:
     dGeomRaySet(ray, _start[0], _start[1], _start[2], dir[0], dir[1], dir[2]);
     phys_contact_surface(NULL, NULL, c.contact, array_size(c.contact));
     dSpaceCollide2(ray, (dGeomID)phys->space, &c, &got_contact);
 
-    int i;
+    /* find the closest hit that's not self */
+    int i, min_i = -1;
+    dReal depth = dInfinity;
     for (i = 0; i < c.nc; i++) {
         if (entity_and_other_by_class(&c.contact[i].geom, dRayClass, NULL, &target)) {
-            if (check_self && e == target && try++ < 10) {
-                vec3_scale(comp, dir, c.contact[i].geom.depth + 1e-3);
-                vec3_add(_start, _start, comp);
-                c.nc = 0;
-                goto retry;
+            /* skip self intersections */
+            if (check_self && e == target)
+                continue;
+
+            if (depth > c.contact[i].geom.depth) {
+                depth = c.contact[i].geom.depth;
+                min_i = i;
             }
         }
-
-        vec3_sub(comp, _start, start);
-        *pdist = c.contact[i].geom.depth + vec3_len(comp);
-        break;
     }
+
+    if (min_i < 0)
+        return NULL;
+
+    *pdist = c.contact[min_i].geom.depth;
     dGeomDestroy(ray);
 
-    return c.nc ? target : NULL;
+    return target;
 }
 
 struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
