@@ -867,6 +867,7 @@ struct phys *phys_init(void)
     phys->ground_space = dHashSpaceCreate(phys->space);
     phys->contact = dJointGroupCreate(0);
     dWorldSetGravity(phys->world, 0, -9.8, 0);
+    dWorldSetMaxAngularSpeed(phys->world, 0);
     // dWorldSetCFM(phys->world, 1e-5);
     // dWorldSetERP(phys->world, 0.8);
     //dWorldSetContactSurfaceLayer(phys->world, 0.001);
