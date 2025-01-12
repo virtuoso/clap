@@ -1482,6 +1482,12 @@ void create_entities(struct model3dtx *txmodel)
     }
 }
 
+struct debug_draw {
+    struct ref      ref;
+    struct entity3d *entity;
+    struct list     entry;
+};
+
 static void debug_draw_drop(struct ref *ref)
 {
     struct debug_draw *dd = container_of(ref, struct debug_draw, ref);
@@ -1527,7 +1533,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     return dd;
 }
 
-struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot)
+static struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot)
 {
     float vx[] = { a[0], a[1], a[2], b[0], b[1], b[2] };
     unsigned short idx[] = { 0, 1 };
