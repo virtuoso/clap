@@ -283,6 +283,10 @@ void scene_cameras_calc(struct scene *s)
 
     for (i = 0; i < s->nr_cameras; i++)
         scene_camera_calc(s, i);
+
+    struct character *c;
+    list_for_each_entry(c, &s->characters, entry)
+        c->moved = 0;
 }
 
 void scene_characters_move(struct scene *s)
