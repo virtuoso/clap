@@ -432,7 +432,7 @@ struct scene_model_queue {
     struct scene      *scene;
 };
 
-static int model_new_from_json(struct scene *scene, JsonNode *node)
+static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *gltf = NULL;// *tex = NULL;
@@ -444,7 +444,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 
     if (node->tag != JSON_OBJECT) {
         dbg("json: model is not an object\n");
-        return -1;
+        return CERR_PARSE_FAILED;
     }
 
     for (p = node->children.head; p; p = p->next) {
@@ -478,13 +478,13 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
 
     if (!name || !gltf) {
         dbg("json: name '%s' or gltf '%s' missing\n", name, gltf);
-        return -1;
+        return CERR_PARSE_FAILED;
     }
     
     gd = gltf_load(scene, gltf);
     if (!gd) {
         warn("Error loading GLTF '%s'\n", gltf);
-        return -1;
+        return CERR_PARSE_FAILED;
     }
 
     if (gltf_get_meshes(gd) > 1) {
@@ -496,7 +496,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
                 if (i != collision) {
                     if (gltf_instantiate_one(gd, i)) {
                         gltf_free(gd);
-                        return -1;
+                        return CERR_PARSE_FAILED;
                     }
                     break; /* XXX: why? */
                 }
@@ -506,7 +506,7 @@ static int model_new_from_json(struct scene *scene, JsonNode *node)
     } else {
         if (gltf_instantiate_one(gd, 0)) {
             gltf_free(gd);
-            return -1;
+            return CERR_PARSE_FAILED;
         }
         collision = 0;
     }
@@ -710,7 +710,7 @@ light_done:
 
     dbg("loaded model '%s'\n", name);
 
-    return 0;
+    return CERR_OK;
 }
 
 static int scene_add_light_from_json(struct scene *s, JsonNode *light)
