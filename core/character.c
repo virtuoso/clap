@@ -424,12 +424,8 @@ static int character_update(struct entity3d *e, void *data)
         camera_update(c->camera, s, c->entity, start);
     }
 
-    if (e->phys_body && !c->airborne)
-        entity3d_position(e, c->pos[0], c->pos[1], c->pos[2]);
-
     motion_reset(&c->mctl, s);
 
-    // return 0;
     return c->orig_update(e, data);
 }
 
