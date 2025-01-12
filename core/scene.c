@@ -435,7 +435,7 @@ struct scene_model_queue {
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
-    char *name = NULL, *gltf = NULL;// *tex = NULL;
+    char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, can_sprint = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
     int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
@@ -452,8 +452,6 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             name = p->string_;
         else if (p->tag == JSON_STRING && !strcmp(p->key, "gltf"))
             gltf = p->string_;
-        // else if (p->tag == JSON_STRING && !strcmp(p->key, "texture"))
-        //     tex = p->string_;
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "physics"))
             phys = p;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "terrain_clamp"))
@@ -563,8 +561,6 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 
             if (ch) {
                 c = character_new(txm, scene);
-                // if (!scene->control)
-                //     scene->control = c;
                 e = c->entity;
                 e->skip_culling = true;
                 c->can_sprint = can_sprint;
@@ -649,9 +645,6 @@ light_done:
             e->visible        = 1;
             model3dtx_add_entity(txm, e);
 
-            /*
-             * XXX: This kinda requires that "physics" goes before "entity"
-             */
             if (phys) {
                 entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
                                      ptype, geom_off, geom_radius, geom_length);
