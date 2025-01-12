@@ -165,6 +165,21 @@
 	      // if (event.originalEvent.wheelDeltaX !== 0) {event.preventDefault(); }
         event.preventDefault();
       }, false);
+      function offerFileAsDownload(filename, mime) {
+        mime = mime || "application/octet-stream";
+
+        let content = Module.FS.readFile(filename);
+
+        var a = document.createElement('a');
+        a.download = filename.replace(/^.*[\\\/]/, '');
+        a.href = URL.createObjectURL(new Blob([content], {type: mime}));
+        a.style.display = 'none';
+
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+        }, 2000);
+      }
     </script>
     {{{ SCRIPT }}}
 

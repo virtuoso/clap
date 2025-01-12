@@ -12,6 +12,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
                             "-s ALLOW_MEMORY_GROWTH"
                             "-s MAX_WEBGL_VERSION=2"
                             "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
+                            "-s EXPORTED_RUNTIME_METHODS=FS"
     )
     if (CLAP_BUILD_FINAL)
         list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=0"

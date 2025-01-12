@@ -807,7 +807,7 @@ err:
 void scene_save(struct scene *scene, const char *name)
 {
     LOCAL(char, buf);
-    LOCAL(FILE, f);
+    FILE *f;
 
     if (!scene->json_root || (!scene->file_name && !name))
         return;
@@ -816,11 +816,18 @@ void scene_save(struct scene *scene, const char *name)
     if (!buf)
         return;
 
-    f = fopen(name ? name : scene->file_name, "w+");
+    if (!name)
+        name = scene->file_name;
+
+    f = fopen(name, "w+");
     if (!f)
         return;
 
     fwrite(buf, strlen(buf), 1, f);
+    fclose(f);
+#ifdef CONFIG_BROWSER
+    EM_ASM(offerFileAsDownload(UTF8ToString($0), 'text/json');, name);
+#endif /* CONFIG_BROWSER */
 }
 
 cerr scene_load(struct scene *scene, const char *name)
