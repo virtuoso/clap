@@ -41,6 +41,8 @@ struct scene {
     struct clap_context *clap_ctx;
     struct mq           debug_mq;
     struct list         debug_draws;
+    JsonNode            *json_root;
+    char                *file_name;
     float               lin_speed;
     float               ang_speed;
     float               limbo_height;
@@ -61,7 +63,8 @@ void scene_cameras_calc(struct scene *s);
 int scene_add_model(struct scene *s, struct model3dtx *txm);
 int scene_init(struct scene *scene);
 void scene_done(struct scene *scene);
-int  scene_load(struct scene *scene, const char *name);
+void scene_save(struct scene *scene, const char *name);
+cerr scene_load(struct scene *scene, const char *name);
 void scene_update(struct scene *scene);
 bool scene_camera_follows(struct scene *s, struct character *ch);
 void scene_characters_move(struct scene *s);

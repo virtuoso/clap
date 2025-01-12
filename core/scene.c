@@ -162,6 +162,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("shadow outline", &scene->light.shadow_outline);
         igCheckbox("shadow msaa", &scene->light.shadow_msaa);
         igCheckbox("debug draws", &scene->debug_draws_enabled);
+        if (igButton("save level", (ImVec2){}))
+            scene_save(scene, NULL);
         scene->proj_update++;
     }
 
@@ -746,7 +748,6 @@ static void scene_onload(struct lib_handle *h, void *buf)
 {
     struct scene *scene = buf;
     char         msg[256];
-    LOCAL(JsonNode, node);
     JsonNode     *p, *m;
 
     if (h->state == RES_ERROR) {
@@ -754,38 +755,33 @@ static void scene_onload(struct lib_handle *h, void *buf)
         goto out;
     }
 
-    node = json_decode(h->buf);
-    if (!node) {
+    scene->json_root = json_decode(h->buf);
+    if (!scene->json_root) {
         err("couldn't parse '%s'\n", h->name);
-        h->state = RES_ERROR;
         goto out;
     }
 
-    if (!json_check(node, msg)) {
+    if (!json_check(scene->json_root, msg)) {
         err("error parsing '%s': '%s'\n", h->name, msg);
-        h->state = RES_ERROR;
-        goto out;
+        goto err;
     }
 
-    if (node->tag != JSON_OBJECT) {
+    if (scene->json_root->tag != JSON_OBJECT) {
         err("parse error in '%s'\n", h->name);
-        h->state = RES_ERROR;
-        goto out;
+        goto err;
     }
 
-    for (p = node->children.head; p; p = p->next) {
+    for (p = scene->json_root->children.head; p; p = p->next) {
         if (!strcmp(p->key, "name")) {
             if (p->tag != JSON_STRING) {
                 err("parse error in '%s'\n", h->name);
-                h->state = RES_ERROR;
-                goto out;
+                goto err;
             }
             scene->name = strdup(p->string_);
         } else if (!strcmp(p->key, "model")) {
             if (p->tag != JSON_ARRAY) {
                 err("parse error in '%s'\n", h->name);
-                h->state = RES_ERROR;
-                goto out;
+                goto err;
             }
 
             for (m = p->children.head; m; m = m->next) {
@@ -800,14 +796,45 @@ static void scene_onload(struct lib_handle *h, void *buf)
     }
     dbg("loaded scene: '%s'\n", scene->name);
 out:
+    scene->file_name = lib_figure_uri(h->type, h->name);
     ref_put(h);
 
     if (h->state == RES_LOADED)
         scene_control_next(scene);
+
+    return;
+
+err:
+    h->state = RES_ERROR;
+    ref_put(h);
+    json_delete(scene->json_root);
+    scene->json_root = NULL;
 }
 
-int scene_load(struct scene *scene, const char *name)
+void scene_save(struct scene *scene, const char *name)
 {
+    LOCAL(char, buf);
+    LOCAL(FILE, f);
+
+    if (!scene->json_root || (!scene->file_name && !name))
+        return;
+
+    buf = json_stringify(scene->json_root, "    ");
+    if (!buf)
+        return;
+
+    f = fopen(name ? name : scene->file_name, "w+");
+    if (!f)
+        return;
+
+    fwrite(buf, strlen(buf), 1, f);
+}
+
+cerr scene_load(struct scene *scene, const char *name)
+{
+    if (scene->json_root)
+        return CERR_ALREADY_LOADED;
+
     struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
 
     err_on(lh->state != RES_LOADED);
@@ -820,6 +847,12 @@ void scene_done(struct scene *scene)
 {
     struct instantiator *instor;
     struct character *iter, *ch;
+
+    json_delete(scene->json_root);
+    scene->json_root = NULL;
+
+    free(scene->file_name);
+    scene->file_name = NULL;
 
     list_for_each_entry_iter(ch, iter, &scene->characters, entry)
         ref_put_last(ch);

@@ -10,6 +10,7 @@ typedef enum cerr {
     CERR_TEXTURE_NOT_LOADED     = -5,
     CERR_FRAMEBUFFER_INCOMPLETE = -6,
     CERR_PARSE_FAILED           = -7,
+    CERR_ALREADY_LOADED         = -8,
 } cerr;
 
 #define must_check __attribute__((warn_unused_result))
