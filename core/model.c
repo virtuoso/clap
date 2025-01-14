@@ -1317,11 +1317,15 @@ static int default_update(struct entity3d *e, void *data)
 
         entity3d_aabb_update(e);
 
-        if (e->light_idx >= 0) {
+        if (scene && e->light_idx >= 0) {
             float pos[3] = { e->dx + e->light_off[0], e->dy + e->light_off[1], e->dz + e->light_off[2] };
             light_set_pos(&scene->light, e->light_idx, pos);
         }
     }
+
+    if (!scene)
+        return 0;
+
     if (entity_animated(e))
         animated_update(e, scene);
     if (scene->debug_draws_enabled && e->phys_body)
