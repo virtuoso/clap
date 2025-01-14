@@ -110,10 +110,6 @@ void mesh_push(float *vx, float *tx, float *norm, unsigned short *idx,
                float *src_vx, float *src_tx, float *src_norm, unsigned short *src_idx,
                size_t nr_src_vx, size_t nr_src_idx,
                float x, float y, float z, float scale);
-void mesh_optimize0(float *vx, float *tx, float *norm, unsigned short *idx,
-                   size_t nr_vx, size_t nr_idx,
-                   float **_new_vx, unsigned short **_new_idx, float **_new_tx,
-                   float **_new_norm, size_t *_nr_new_vx);
 void mesh_optimize(struct mesh *mesh);
 ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t orig_idx);
 
