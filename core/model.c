@@ -721,39 +721,41 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
     }
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
-        // err_on(list_empty(&txmodel->entities), "txm '%s' has no entities\n",
-        //        txmodel_name(txmodel));
         model = txmodel->model;
         struct shader_prog *model_prog = shader_override ? shader_override : model->prog;
 
         model->cur_lod = 0;
-        /* XXX: model-specific draw method */
+
+        /*
+         * TODO: cache cull face/blend/depth test settings to avoid extra GL calls.
+         * Also, move these to render-gl.c.
+         */
         if (model->cull_face) {
             GL(glEnable(GL_CULL_FACE));
             GL(glCullFace(shader_override ? GL_FRONT : GL_BACK));
         } else {
             GL(glDisable(GL_CULL_FACE));
         }
-        /* XXX: only for UIs */
+
         if (model->alpha_blend) {
             GL(glEnable(GL_BLEND));
             GL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
         } else {
             GL(glDisable(GL_BLEND));
         }
+
+        /* TODO: add a separate property for depth test control */
         if (model->debug || !model->cull_face)
             GL(glDisable(GL_DEPTH_TEST));
         else
             GL(glEnable(GL_DEPTH_TEST));
 
-        //dbg("rendering model '%s'\n", model->name);
         if (model_prog != prog) {
             if (prog)
                 shader_prog_done(prog);
 
             prog = model_prog;
             shader_prog_use(prog);
-            trace("rendering model '%s' using '%s'\n", model->name, prog->name);
 
             shader_set_var_float(prog, UNIFORM_WIDTH, width);
             shader_set_var_float(prog, UNIFORM_HEIGHT, height);
@@ -815,12 +817,8 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
 
         list_for_each_entry (e, &txmodel->entities, entry) {
             float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
-            if (!e->visible) {
-                //dbg("skipping element of '%s'\n", entity_name(e));
+            if (!e->visible)
                 continue;
-            }
-
-            dbg_on(!e->visible, "rendering an invisible entity!\n");
 
             if (!e->skip_culling &&
                 view && !view_entity_in_frustum(view, e)) {
