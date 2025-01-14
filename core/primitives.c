@@ -80,6 +80,85 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
     _prim_emit_triangle(triangle2, opts);
 }
 
+struct model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
+{
+    /*
+     * a triangle per each segment at the top and bottom, plus 2 triangles (quad)
+     * for each side: 4 triangles (12 vertices) per segment
+     */
+    int nr_vert = nr_serments * 12;
+    struct mesh *cylinder_mesh = mesh_new("cylinder");
+
+    if (!cylinder_mesh)
+        return NULL;
+
+    mesh_attr_alloc(cylinder_mesh, MESH_VX, sizeof(float) * 3, nr_vert);
+    mesh_attr_alloc(cylinder_mesh, MESH_TX, sizeof(float) * 2, nr_vert);
+    mesh_attr_alloc(cylinder_mesh, MESH_NORM, sizeof(float) * 3, nr_vert);
+    mesh_attr_alloc(cylinder_mesh, MESH_IDX, sizeof(unsigned short), nr_vert);
+
+    int seg;
+    for (seg = 0; seg < nr_serments; seg++) {
+        err_on(mesh_nr_vx(cylinder_mesh) >= nr_vert,
+               "last_vert: %zu nr_vert: %d\n", mesh_nr_vx(cylinder_mesh), nr_vert);
+        vec3 triangle[3];
+
+        vec2 seg_vert1, seg_vert2;
+        seg_vert1[0] = org[0] + radius * cos(M_PI * 2 * seg / nr_serments);
+        seg_vert1[1] = org[2] + radius * sin(M_PI * 2 * seg / nr_serments);
+        seg_vert2[0] = org[0] + radius * cos(M_PI * 2 * (seg + 1) / nr_serments);
+        seg_vert2[1] = org[2] + radius * sin(M_PI * 2 * (seg + 1) / nr_serments);
+
+        /* bottom */
+        vec3_dup(triangle[0], org);
+        triangle[1][0] = seg_vert1[0];
+        triangle[1][1] = org[1];
+        triangle[1][2] = seg_vert1[1];
+        triangle[2][0] = seg_vert2[0];
+        triangle[2][1] = org[1];
+        triangle[2][2] = seg_vert2[1];
+        prim_emit_triangle(triangle, .mesh = cylinder_mesh);
+
+        /* side quad */
+        vec3 quad[4];
+        quad[0][0] = seg_vert1[0];
+        quad[0][1] = org[1];
+        quad[0][2] = seg_vert1[1];
+        quad[1][0] = seg_vert2[0];
+        quad[1][1] = org[1];
+        quad[1][2] = seg_vert2[1];
+        quad[2][0] = seg_vert2[0];
+        quad[2][1] = org[1] + height;
+        quad[2][2] = seg_vert2[1];
+        quad[3][0] = seg_vert1[0];
+        quad[3][1] = org[1] + height;
+        quad[3][2] = seg_vert1[1];
+        prim_emit_quad(quad, .mesh = cylinder_mesh);
+
+        /* top */
+        vec3_dup(triangle[0], org);
+        triangle[0][1] = org[1] + height;
+        triangle[1][0] = seg_vert2[0];
+        triangle[1][1] = org[1] + height;
+        triangle[1][2] = seg_vert2[1];
+        triangle[2][0] = seg_vert1[0];
+        triangle[2][1] = org[1] + height;
+        triangle[2][2] = seg_vert1[1];
+        prim_emit_triangle(triangle, .mesh = cylinder_mesh);
+    }
+
+    mesh_optimize(cylinder_mesh);
+
+    struct model3d *cylinder = model3d_new_from_mesh("cylinder", p, cylinder_mesh);
+    cylinder->collision_vx = memdup(mesh_vx(cylinder_mesh), mesh_vx_sz(cylinder_mesh));
+    cylinder->collision_vxsz = mesh_vx_sz(cylinder_mesh);
+    cylinder->collision_idx = memdup(mesh_idx(cylinder_mesh), mesh_idx_sz(cylinder_mesh));
+    cylinder->collision_idxsz = mesh_idx_sz(cylinder_mesh);
+    ref_put_last(cylinder_mesh);
+
+    return cylinder;
+}
+
 static float quad_tx[]  = {
     0.0, 0.0,
     0.0, 1.0,

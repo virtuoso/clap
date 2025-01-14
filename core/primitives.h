@@ -28,4 +28,14 @@ struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float 
 struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h);
 struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);
 
+/*
+ * Generate a cylinder model
+ * @org: origin point (center of the bottom face), may be a good idea to leave this as
+ *       (vec3){} and position the cylinder with entity3d coordinates
+ * @height: cylinder height
+ * @radius: cylinder radius
+ * @nr_segments: number of the segments of horizontal faces' circumference
+ */
+struct model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments);
+
 #endif /* __CLAP_PRIMITIVES_H__ */
