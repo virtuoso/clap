@@ -83,6 +83,13 @@ LINMATH_H_DEFINE_VEC(2)
 LINMATH_H_DEFINE_VEC(3)
 LINMATH_H_DEFINE_VEC(4)
 
+LINMATH_H_FUNC void vec3_setup(vec3 v, float x, float y, float z)
+{
+	v[0] = x;
+	v[1] = y;
+	v[2] = z;
+}
+
 LINMATH_H_FUNC void vec4_setup(vec4 v, float x, float y, float z, float w)
 {
 	v[0] = x;
