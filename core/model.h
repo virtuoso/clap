@@ -2,7 +2,6 @@
 #ifndef __CLAP_MODEL_H__
 #define __CLAP_MODEL_H__
 
-//#include <ode/ode.h>
 #include "common.h"
 #include "object.h"
 #include "librarian.h"
