@@ -159,6 +159,10 @@ struct model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float heig
     return cylinder;
 }
 
+/*
+ * The following don't use prim_emit_*(), because static arrays are faster, which
+ * is a bonus, because quads, for example, are used in UI, at render time.
+ */
 static float quad_tx[]  = {
     0.0, 0.0,
     0.0, 1.0,
@@ -276,6 +280,7 @@ static float cube_tx[] = {
 
 extern struct ref_class ref_class_mesh;
 
+/* For mesh_push_mesh() */
 struct mesh cube_mesh = {
     .ref    = REF_STATIC(mesh),
     .name   = "cube",
