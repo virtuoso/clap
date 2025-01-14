@@ -247,6 +247,12 @@ static inline bool entity_animated(struct entity3d *e)
 }
 
 struct entity3d *entity3d_new(struct model3dtx *txm);
+
+/*
+ * Set up entity's model matrix from entity's coordinates and euler rotations.
+ * Not necessary if the entity::update points to default_update(), which is the
+ * default, or the new update callback calls the original callback.
+ */
 void entity3d_reset(struct entity3d *e);
 float entity3d_aabb_X(struct entity3d *e);
 float entity3d_aabb_Y(struct entity3d *e);
