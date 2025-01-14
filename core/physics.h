@@ -7,13 +7,40 @@
 #else
 #define dDOUBLE
 #endif
-#include <ode/ode.h>
 #include "linmath.h"
 
-enum {
+/*
+ * Type of struct phys_body:
+ * * PHYS_GEOM: just a geometry, doesn't directly participate in dynamics
+ *              simulation, only via collisions
+ * * PHYS_BODY: has a dBodyID in addition to dGeomID, moves around and
+ *              callides with other bodies and geometries
+ */
+typedef enum phys_type {
     PHYS_BODY = 0,
     PHYS_GEOM,
-};
+} phys_type;
+
+/*
+ * Geometry classes: these directly map onto ODE's classes, at least for
+ * now. In practice, we only use sphere, capsule and trimesh.
+ */
+typedef enum geom_class {
+    GEOM_SPHERE = 0,
+    GEOM_BOX,
+    GEOM_CAPSULE,
+    GEOM_CYLINDER,
+    GEOM_PLANE,
+    GEOM_RAY,
+    GEOM_CONVEX,
+    GEOM_TRANSFORM,
+    GEOM_TRIMESH,
+    GEOM_HEIGHTFIELD,
+    GEOM_SIMPLE_SPACE,
+    GEOM_HASH_SPACE,
+    GEOM_SWEEP_AND_PRUNE_SPACE,
+    GEOM_TREE_SPACE
+} geom_class;
 
 struct phys_body;
 
@@ -54,10 +81,14 @@ struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 star
 /* Check if phys_body has a body (true) or just a geometry (false) */
 bool phys_body_has_body(struct phys_body *body);
 struct entity3d *phys_body_entity(struct phys_body *body);
-const dReal *phys_body_position(struct phys_body *body);
-const dReal *phys_body_rotation(struct phys_body *body);
-struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int class,
-                                double geom_radius, double geom_offset, int type, double mass);
+/* Get phys_body's position */
+void phys_body_position(struct phys_body *body, vec3 pos);
+/* Get phys_body's rotation quaternion */
+void phys_body_rotation(struct phys_body *body, quat rot);
+/* Create a new phys_body for entity */
+struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, geom_class class,
+                                double geom_radius, double geom_offset, phys_type type,
+                                double mass);
 int phys_body_update(struct entity3d *e);
 void phys_body_done(struct phys_body *body);
 void phys_body_attach_motor(struct phys_body *body, bool attach);

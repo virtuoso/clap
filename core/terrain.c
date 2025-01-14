@@ -533,7 +533,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     t->entity->skip_culling = true;
     entity3d_reset(t->entity);
     model3dtx_add_entity(txm, t->entity);
-    entity3d_add_physics(t->entity, clap_get_phys(s->clap_ctx), 0, dTriMeshClass,
+    entity3d_add_physics(t->entity, clap_get_phys(s->clap_ctx), 0, GEOM_TRIMESH,
                          PHYS_GEOM, 0, 0, 0);
     ref_put(prog); /* matches shader_prog_find() above */
 

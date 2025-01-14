@@ -138,7 +138,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     struct timespec ts_start, ts_delta;
     struct scene *s = data; /* XXX */
     unsigned long count, frame_count;
-    dReal by;
 
     clap_fps_calc(clap_ctx, &s->fps);
     ts_start = clap_get_current_timespec(clap_ctx);

@@ -56,7 +56,7 @@ struct phys_body {
     dReal       pen_depth;
     dReal       *trimesh_vx;
     dTriIndex   *trimesh_idx;
-    int         class;
+    geom_class  class;
 };
 
 bool phys_body_has_body(struct phys_body *body)
@@ -75,18 +75,23 @@ struct entity3d *phys_body_entity(struct phys_body *body)
     return dGeomGetData(body->geom);
 }
 
-const dReal *phys_body_position(struct phys_body *body)
+void phys_body_position(struct phys_body *body, vec3 pos)
 {
-    if (phys_body_has_body(body))
-        return dBodyGetPosition(body->body);
-    return dGeomGetPosition(body->geom);
+    const dReal *_pos = dGeomGetPosition(body->geom);
+
+    vec3_setup(pos, _pos[0], _pos[1], _pos[2]);
 }
 
-const dReal *phys_body_rotation(struct phys_body *body)
+void phys_body_rotation(struct phys_body *body, quat rot)
 {
-    if (phys_body_has_body(body))
-        return dBodyGetRotation(body->body);
-    return dGeomGetRotation(body->geom);
+    dQuaternion _rot;
+
+    dGeomGetQuaternion(body->geom, _rot);
+
+    rot[0] = _rot[0];
+    rot[1] = _rot[1];
+    rot[2] = _rot[2];
+    rot[3] = _rot[3];
 }
 
 /*
@@ -494,7 +499,8 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
         break;
     }
 
-    pos = phys_body_position(body);
+    pos = dGeomGetPosition(body->geom);
+
     /*
      * Cast a longer ray than the capsule offset to correct for the motion
      * resulting in character leaving the ground, which is the side effect
@@ -548,7 +554,7 @@ void phys_step(struct phys *phys, unsigned long frame_count)
     dSpaceCollide(phys->character_space, &pen, near_callback);
 
     list_for_each_entry_iter(pb, itpb, &pen, pen_entry) {
-        const dReal     *pos = phys_body_position(pb);
+        const dReal     *pos = dBodyGetPosition(pb->body);
         vec3            off = { pos[0], pos[1], pos[2] };
 
         if (pb->pen_depth > 0 && vec3_len(pb->pen_norm) > 0) {
@@ -573,7 +579,7 @@ int phys_body_update(struct entity3d *e)
     if (!e->phys_body || !phys_body_has_body(e->phys_body))
         return 0;
 
-    pos = phys_body_position(e->phys_body);
+    pos = dGeomGetPosition(e->phys_body->geom);
     e->dx = pos[0];
     e->dy = pos[1] - e->phys_body->yoffset;
     e->dz = pos[2];
@@ -727,8 +733,8 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     return trimesh;
 }
 
-struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int class,
-                                double geom_radius, double geom_offset, int type, double mass)
+struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, geom_class class,
+                                double geom_radius, double geom_offset, phys_type type, double mass)
 {
     bool has_body = type == PHYS_BODY;
     struct phys_body *body;
@@ -742,12 +748,12 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
     if (has_body)
         body->body = dBodyCreate(phys->world);
 
-    if (class == dTriMeshClass) {
+    if (class == GEOM_TRIMESH) {
         body->geom = phys_geom_trimesh_new(phys, body, entity, mass);
-    } else if (class == dSphereClass) {
+    } else if (class == GEOM_SPHERE) {
         dMassSetZero(&m);
         dMassSetSphereTotal(&m, mass, 0.1);
-    } else if (class == dCapsuleClass) {
+    } else if (class == GEOM_CAPSULE) {
         body->geom = phys_geom_capsule_new(phys, body, entity, mass, geom_radius * entity->scale,
                                            geom_offset * entity->scale);
     }
@@ -768,7 +774,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dBodySetRotation(body->body, rot);
         dGeomSetBody(body->geom, body->body);
         dBodySetData(body->body, entity);
-        if (class == dCapsuleClass) {
+        if (class == GEOM_CAPSULE) {
             // Capsule geometry assumes that Z goes upwards,
             // so cylinder's axis is parallel to Z axis.
             // We need to rotate the local geometry so that
@@ -780,7 +786,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
         dSpaceRemove(phys->space, body->geom);
         dSpaceAdd(phys->character_space, body->geom);
     } else {
-        if (class == dCapsuleClass) {
+        if (class == GEOM_CAPSULE) {
             // A similar orientation fix is needed for geometries
             // that don't have a body; in this case,
             // we can just set its rotation, since it is not
@@ -812,7 +818,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, int 
 void phys_body_done(struct phys_body *body)
 {
     dTriMeshDataID meshdata = NULL;
-    if (body->class == dTriMeshClass) {
+    if (body->class == GEOM_TRIMESH) {
         meshdata = dGeomTriMeshGetTriMeshDataID(body->geom);
         free(body->trimesh_vx);
         free(body->trimesh_idx);

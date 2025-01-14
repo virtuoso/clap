@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <limits.h>
 #include "messagebus.h"
 #include "character.h"
 #include "gltf.h"
@@ -448,11 +449,13 @@ struct scene_model_queue {
 
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
-    double mass = 1.0, bounce = 0.0, bounce_vel = dInfinity, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
+    double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, can_sprint = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
-    int class = dSphereClass, collision = -1, ptype = PHYS_BODY;
+    geom_class class = GEOM_SPHERE;
+    int collision = -1;
+    phys_type ptype = PHYS_BODY;
     struct gltf_data *gd = NULL;
     struct model3dtx  *txm;
 
@@ -544,11 +547,11 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 geom_length = p->number_;
             else if (p->tag == JSON_STRING && !strcmp(p->key, "geom")) {
                 if (!strcmp(p->string_, "trimesh"))
-                    class = dTriMeshClass;
+                    class = GEOM_TRIMESH;
                 else if (!strcmp(p->string_, "sphere"))
-                    class = dSphereClass;
+                    class = GEOM_SPHERE;
                 else if (!strcmp(p->string_, "capsule"))
-                    class = dCapsuleClass;
+                    class = GEOM_CAPSULE;
             } else if (p->tag == JSON_STRING && !strcmp(p->key, "type")) {
                 if (!strcmp(p->string_, "body"))
                     ptype = PHYS_BODY;
@@ -557,7 +560,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             }
         }
 
-        if (gd && class == dTriMeshClass) {
+        if (gd && class == GEOM_TRIMESH) {
             gltf_mesh_data(gd, collision, &txm->model->collision_vx, &txm->model->collision_vxsz,
                            &txm->model->collision_idx, &txm->model->collision_idxsz, NULL, NULL, NULL, NULL);
         }
