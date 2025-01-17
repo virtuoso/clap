@@ -626,13 +626,11 @@ void model3dtx_done(struct model3dtx *txm, struct shader_prog *p)
 {
     if (buffer_loaded(&txm->model->tex)) {
         shader_unplug_attribute(p, ATTR_TEX, &txm->model->tex);
-        GL(glActiveTexture(GL_TEXTURE0));
-        GL(glBindTexture(GL_TEXTURE_2D, 0));
+        shader_unplug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
     }
-    if (texture_loaded(txm->normals)) {
-        GL(glActiveTexture(GL_TEXTURE1));
-        GL(glBindTexture(GL_TEXTURE_2D, 0));
-    }
+    shader_unplug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
+    shader_unplug_texture(p, UNIFORM_EMISSION_MAP, txm->emission);
+    shader_unplug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
 
     model3d_done(txm->model, p);
 }
