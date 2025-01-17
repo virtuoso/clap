@@ -295,6 +295,16 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
     shader_set_texture(p, var);
 }
 
+void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
+{
+    if (!shader_has_var(p, var) || !texture_loaded(tex))
+        return;
+
+    const struct shader_var_desc *desc = &shader_var_desc[var];
+
+    texture_unbind(tex, desc->texture_slot);
+}
+
 void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
                                       enum shader_vars tex_var, enum shader_vars ms_var,
                                       texture_t *ms_tex)
