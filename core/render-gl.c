@@ -432,8 +432,16 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, GLenum format,
 
 void texture_bind(texture_t *tex, unsigned int target)
 {
+    /* XXX: make tex->target useful for this instead */
     GL(glActiveTexture(GL_TEXTURE0 + target));
     GL(glBindTexture(tex->type, tex->id));
+}
+
+void texture_unbind(texture_t *tex, unsigned int target)
+{
+    /* XXX: make tex->target useful for this instead */
+    GL(glActiveTexture(GL_TEXTURE0 + target));
+    GL(glBindTexture(tex->type, 0));
 }
 
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
