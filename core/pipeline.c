@@ -414,7 +414,7 @@ static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *p
         [FBO_ATTACHMENT_DEPTH]   = "depth",
         [FBO_ATTACHMENT_STENCIL] = "stencil",
     };
-    igText("%s", att[fbo_attachment(fbo)]);
+    igText("%s", att[fbo_get_attachment(fbo)]);
 }
 
 static void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count)
@@ -472,7 +472,7 @@ repeat:
                 fbo_done(fbo, s->width, s->height);
             } else {
                 fbo_prepare(fbo);
-                bool shadow = fbo_attachment(fbo) == FBO_ATTACHMENT_DEPTH;
+                bool shadow = fbo_get_attachment(fbo) == FBO_ATTACHMENT_DEPTH;
                 GLbitfield flags = GL_COLOR_BUFFER_BIT;
                 if (shadow) {
                     GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));

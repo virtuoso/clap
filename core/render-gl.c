@@ -48,7 +48,7 @@ static void buffer_drop(struct ref *ref)
 }
 DECLARE_REFCLASS(buffer);
 
-static GLenum gl_buffer_type(enum buffer_type type)
+static GLenum gl_buffer_type(buffer_type type)
 {
     switch (type) {
         case BUF_ARRAY:             return GL_ARRAY_BUFFER;
@@ -61,7 +61,7 @@ static GLenum gl_buffer_type(enum buffer_type type)
     return GL_NONE;
 }
 
-static GLenum gl_buffer_usage(enum buffer_usage usage)
+static GLenum gl_buffer_usage(buffer_usage usage)
 {
     switch (usage) {
         case BUF_STATIC:            return GL_STATIC_DRAW;
@@ -83,7 +83,7 @@ void _buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
     ref_embed(buffer, buf);
 
-    enum data_type comp_type = opts->comp_type;
+    data_type comp_type = opts->comp_type;
     if (comp_type == DT_NONE)
         comp_type = DT_FLOAT;
 
@@ -159,7 +159,7 @@ static void texture_drop(struct ref *ref)
 }
 DECLARE_REFCLASS(texture);
 
-static GLenum gl_texture_type(enum texture_type type, bool multisampled)
+static GLenum gl_texture_type(texture_type type, bool multisampled)
 {
     switch (type) {
 #ifdef CONFIG_GLES
@@ -178,7 +178,7 @@ static GLenum gl_texture_type(enum texture_type type, bool multisampled)
     return GL_NONE;
 }
 
-static GLenum gl_texture_wrap(enum texture_wrap wrap)
+static GLenum gl_texture_wrap(texture_wrap wrap)
 {
     switch (wrap) {
         case TEX_WRAP_REPEAT:           return GL_REPEAT;
@@ -193,7 +193,7 @@ static GLenum gl_texture_wrap(enum texture_wrap wrap)
     return GL_NONE;
 }
 
-static GLenum gl_texture_filter(enum texture_filter filter)
+static GLenum gl_texture_filter(texture_filter filter)
 {
     switch (filter) {
         case TEX_FLT_LINEAR:            return GL_LINEAR;
@@ -206,7 +206,7 @@ static GLenum gl_texture_filter(enum texture_filter filter)
     return GL_NONE;
 }
 
-static GLenum gl_texture_format(enum texture_format format)
+static GLenum gl_texture_format(texture_format format)
 {
     switch (format) {
         case TEX_FMT_RGBA:  return GL_RGBA;
@@ -367,7 +367,7 @@ static void texture_setup_end(texture_t *tex)
     GL(glBindTexture(tex->type, 0));
 }
 
-cerr_check texture_load(texture_t *tex, enum texture_format format,
+cerr_check texture_load(texture_t *tex, texture_format format,
                         unsigned int width, unsigned int height, void *buf)
 {
     if (!texture_size_valid(width, height))
@@ -574,7 +574,7 @@ int fbo_nr_attachments(fbo_t *fbo)
     return darray_count(fbo->color_buf);
 }
 
-enum fbo_attachment fbo_attachment(fbo_t *fbo)
+fbo_attachment fbo_get_attachment(fbo_t *fbo)
 {
     if (fbo_nr_attachments(fbo))
         return FBO_ATTACHMENT_COLOR0;

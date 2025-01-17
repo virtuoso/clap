@@ -14,7 +14,7 @@
 #define GL_CLAMP_TO_BORDER GL_CLAMP_TO_EDGE
 #endif /* CONFIG_BROWSER */
 
-enum data_type {
+typedef enum data_type {
     DT_NONE = 0,
     DT_BYTE,
     DT_SHORT,
@@ -23,17 +23,17 @@ enum data_type {
     DT_VEC3,
     DT_VEC4,
     DT_MAT4,
-};
+} data_type;
 
-enum buffer_type {
+typedef enum buffer_type {
     BUF_ARRAY,
     BUF_ELEMENT_ARRAY,
-};
+} buffer_type;
 
-enum buffer_usage {
+typedef enum buffer_usage {
     BUF_STATIC,
     BUF_DYNAMIC
-};
+} buffer_usage;
 
 TYPE(buffer,
     struct ref  ref;
@@ -46,9 +46,9 @@ TYPE(buffer,
 );
 
 typedef struct buffer_init_options {
-    enum buffer_type    type;
-    enum buffer_usage   usage;
-    enum data_type      comp_type;
+    buffer_type         type;
+    buffer_usage        usage;
+    data_type           comp_type;
     unsigned int        comp_count;
     void                *data;
     size_t              size;
@@ -63,30 +63,30 @@ void buffer_unbind(buffer_t *buf, int loc);
 void buffer_load(buffer_t *buf, void *data, size_t sz, int loc);
 bool buffer_loaded(buffer_t *buf);
 
-enum texture_type {
+typedef enum texture_type {
     TEX_2D,
     TEX_2D_ARRAY,
     TEX_3D,
-};
+} texture_type;
 
-enum texture_wrap {
+typedef enum texture_wrap {
     TEX_CLAMP_TO_EDGE,
     TEX_CLAMP_TO_BORDER,
     TEX_WRAP_REPEAT,
     TEX_WRAP_MIRRORED_REPEAT,
-};
+} texture_wrap;
 
-enum texture_filter {
+typedef enum texture_filter {
     TEX_FLT_LINEAR,
     TEX_FLT_NEAREST,
     /* TODO {LINEAR,NEAREST}_MIPMAP_{NEAREST,LINEAR} */
-};
+} texture_filter;
 
-enum texture_format {
+typedef enum texture_format {
     TEX_FMT_RGBA,
     TEX_FMT_RGB,
     TEX_FMT_DEPTH,
-};
+} texture_format;
 
 TYPE(texture,
     struct ref      ref;
@@ -130,18 +130,18 @@ static inline bool __gl_check_error(const char *str)
 #define GL(__x) __x
 #endif
 
-enum fbo_attachment {
+typedef enum fbo_attachment {
     FBO_ATTACHMENT_DEPTH,
     FBO_ATTACHMENT_STENCIL,
     FBO_ATTACHMENT_COLOR0,
-};
+} fbo_attachment;
 
 typedef struct texture_init_options {
     unsigned int        target;
-    enum texture_type   type;
-    enum texture_wrap   wrap;
-    enum texture_filter min_filter;
-    enum texture_filter mag_filter;
+    texture_type        type;
+    texture_wrap        wrap;
+    texture_filter      min_filter;
+    texture_filter      mag_filter;
     unsigned int        layers;
     bool                multisampled;
     float               *border;
@@ -153,7 +153,7 @@ void _texture_init(texture_t *tex, const texture_init_options *opts);
 void texture_deinit(texture_t *tex);
 void texture_filters(texture_t *tex, GLint wrap, GLint filter);
 void texture_done(texture_t *tex);
-cerr_check texture_load(texture_t *tex, enum texture_format format,
+cerr_check texture_load(texture_t *tex, texture_format format,
                         unsigned int width, unsigned int height, void *buf);
 cerr_check texture_resize(texture_t *tex, unsigned int width, unsigned int height);
 GLuint texture_id(texture_t *tex);
@@ -213,6 +213,6 @@ int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
 int fbo_nr_attachments(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
-enum fbo_attachment fbo_attachment(fbo_t *fbo);
+fbo_attachment fbo_get_attachment(fbo_t *fbo);
 
 #endif /* __CLAP_RENDER_H__ */
