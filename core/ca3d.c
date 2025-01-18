@@ -185,11 +185,11 @@ got_it:
         .surv_mask = (_surv), \
         .born_mask = (_born), \
         .nr_states = (_nrst), \
-        .neigh_fn  = (ca3d_neighbors_ ## _neigh), \
+        .neigh_3d  = (ca3d_neighbors_ ## _neigh), \
         .name      = __stringify(_name), \
     }
 
-static struct cell_automn cas[] = {
+static struct cell_automaton cas[] = {
     CA_DEF(ca_445m, CA_4, CA_4, 5, m1),
     CA_DEF(ca_678_678_3m, CA_6|CA_7|CA_8, CA_6|CA_7|CA_8, 3, m1),
     CA_DEF(ca_pyroclastic, CA_4|CA_5|CA_6|CA_7, CA_6|CA_7|CA_8, 10, m1),
@@ -205,7 +205,7 @@ static struct cell_automn cas[] = {
 
 int ca3d_run(struct xyzarray *xyz, int nca, int steps)
 {
-    struct cell_automn *ca = &cas[nca % array_size(cas)];
+    struct cell_automaton *ca = &cas[nca % array_size(cas)];
     int x, y, z, neigh, state;
 
     for (; steps; steps--)

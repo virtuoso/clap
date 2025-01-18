@@ -388,27 +388,27 @@ DECLARE_REFCLASS(terrain);
 
 const struct cell_automaton ca_test = {
     .name = "test",
-    .born = 3 << 2,
-    .surv = 3 << 7,
+    .born_mask = 3 << 2,
+    .surv_mask = 3 << 7,
     .nr_states = 4,
     .decay = true,
-    .neigh = ca2d_neigh_m1,
+    .neigh_2d = ca2d_neigh_m1,
 };
 
 const struct cell_automaton ca_instors[] = {
     {
         .name = "cool tree",
-        .born = 0x1e,
-        .surv = 0xff,
+        .born_mask = 0x1e,
+        .surv_mask = 0xff,
         .nr_states = 20,
-        .neigh = ca2d_neigh_mv,
+        .neigh_2d = ca2d_neigh_mv,
     },
     {
         .name = "ash pinus",
-        .born = 0xffffff,
-        .surv = 0xffffff,
+        .born_mask = 0xffffff,
+        .surv_mask = 0xffffff,
         .nr_states = 21,
-        .neigh = ca2d_neigh_mv,
+        .neigh_2d = ca2d_neigh_mv,
     },
 };
 

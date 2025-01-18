@@ -64,12 +64,12 @@ void ca2d_step(const struct cell_automaton *ca, unsigned char *arr, int side)
 
     for (i = 0; i < side; i++)
         for (j = 0; j < side; j++) {
-            int n = ca->neigh(arr, side, i, j);
+            int n = ca->neigh_2d(arr, side, i, j);
             int v = xyarray_get(arr, side, i, j);
 
-            if (!v && (ca->born & (1 << n)))
+            if (!v && (ca->born_mask & (1 << n)))
                 xyarray_set(arr, side, i, j, ca->nr_states);
-            else if (v && (ca->surv & (1 << n)))
+            else if (v && (ca->surv_mask & (1 << n)))
                 ;
             else if (v && ca->decay)
                 xyarray_set(arr, side, i, j, v - 1);

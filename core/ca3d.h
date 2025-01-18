@@ -2,6 +2,8 @@
 #ifndef __CLAP_CA3D_H__
 #define __CLAP_CA3D_H__
 
+#include "ca-common.h"
+
 #define CA_0  (1 << 0)
 #define CA_1  (1 << 1)
 #define CA_2  (1 << 2)
@@ -47,14 +49,6 @@ void xyzarray_set(struct xyzarray *xyz, ivec3 pos, int val);
 void xyzarray_setat(struct xyzarray *xyz, int x, int y, int z, int val);
 void xyzarray_print(struct xyzarray *xyz);
 int xyzarray_count(struct xyzarray *xyz);
-
-struct cell_automn {
-    unsigned int    nr_states;
-    unsigned long   surv_mask;
-    unsigned long   born_mask;
-    int             (*neigh_fn)(struct xyzarray *, int, int, int);
-    const char      *name;
-};
 
 enum {
     ca_445m = 0,
