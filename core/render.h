@@ -63,6 +63,16 @@ void buffer_unbind(buffer_t *buf, int loc);
 void buffer_load(buffer_t *buf, void *data, size_t sz, int loc);
 bool buffer_loaded(buffer_t *buf);
 
+TYPE(vertex_array,
+    struct ref  ref;
+    GLuint      vao;
+);
+
+void vertex_array_init(vertex_array_t *va);
+void vertex_array_done(vertex_array_t *va);
+void vertex_array_bind(vertex_array_t *va);
+void vertex_array_unbind(vertex_array_t *va);
+
 typedef enum texture_type {
     TEX_2D,
     TEX_2D_ARRAY,

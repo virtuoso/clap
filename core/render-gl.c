@@ -153,6 +153,46 @@ void buffer_load(buffer_t *buf, void *data, size_t sz, int loc)
 }
 
 /****************************************************************************
+ * Vertex Array Object
+ ****************************************************************************/
+
+static void vertex_array_drop(struct ref *ref)
+{
+    vertex_array_t *va = container_of(ref, vertex_array_t, ref);
+    vertex_array_done(va);
+}
+
+DECLARE_REFCLASS(vertex_array);
+
+void vertex_array_init(vertex_array_t *va)
+{
+    ref_embed(vertex_array, va);
+    if (!gl_does_vao())
+        return;
+
+    GL(glGenVertexArrays(1, &va->vao));
+    GL(glBindVertexArray(va->vao));
+}
+
+void vertex_array_done(vertex_array_t *va)
+{
+    if (gl_does_vao())
+        GL(glDeleteVertexArrays(1, &va->vao));
+}
+
+void vertex_array_bind(vertex_array_t *va)
+{
+    if (gl_does_vao())
+        GL(glBindVertexArray(va->vao));
+}
+
+void vertex_array_unbind(vertex_array_t *va)
+{
+    if (gl_does_vao())
+        GL(glBindVertexArray(0));
+}
+
+/****************************************************************************
  * Texture
  ****************************************************************************/
 
