@@ -615,8 +615,8 @@ static void model3d_done(struct model3d *m, struct shader_prog *p)
     }
 
     /* both need to be bound for glDrawElements() */
-    GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
-    GL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+    if (m->cur_lod >= 0)
+        buffer_unbind(&m->index[m->cur_lod], -1);
     if (gl_does_vao())
         GL(glBindVertexArray(0));
     m->cur_lod = -1;
