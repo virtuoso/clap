@@ -66,6 +66,7 @@ enum {
     ca_spiky_growth,
     ca_coral,
     ca_crystal_1,
+    CA3D_MAX
 };
 
 int ca3d_neighbors_vn1(struct xyzarray *xyz, int x, int y, int z);
