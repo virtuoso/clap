@@ -256,10 +256,18 @@ static int darray_test2(void)
 
     darray_delete(&da.da, 3);
 
-    if (da.x[3] != 4)
+    if (da.x[3] != 4 || da.x[8] != 9)
         return EXIT_FAILURE;
 
     if (da.da.nr_el != 9)
+        return EXIT_FAILURE;
+
+    darray_delete(&da.da, -1);
+
+    if (da.da.nr_el != 8)
+        return EXIT_FAILURE;
+
+    if (da.x[7] != 8)
         return EXIT_FAILURE;
 
     darray_clearout(&da.da);
