@@ -44,9 +44,7 @@ struct xyzarray *xyzarray_new(ivec3 dim);
 bool xyzarray_valid(struct xyzarray *xyz, ivec3 pos);
 bool xyzarray_edgemost(struct xyzarray *xyz, ivec3 pos);
 int xyzarray_get(struct xyzarray *xyz, ivec3 pos);
-int xyzarray_getat(struct xyzarray *xyz, int x, int y, int z);
 void xyzarray_set(struct xyzarray *xyz, ivec3 pos, int val);
-void xyzarray_setat(struct xyzarray *xyz, int x, int y, int z, int val);
 void xyzarray_print(struct xyzarray *xyz);
 int xyzarray_count(struct xyzarray *xyz);
 

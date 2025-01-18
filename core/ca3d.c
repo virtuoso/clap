@@ -47,12 +47,6 @@ int xyzarray_get(struct xyzarray *xyz, ivec3 pos)
     return xyz->arr[pos[2] * xyz->dim[0] * xyz->dim[1] + pos[1] * xyz->dim[0] + pos[0]];
 }
 
-int xyzarray_getat(struct xyzarray *xyz, int x, int y, int z)
-{
-    ivec3 pos = { x, y, z };
-    return xyzarray_get(xyz, pos);
-}
-
 void xyzarray_set(struct xyzarray *xyz, ivec3 pos, int val)
 {
     if (!xyzarray_valid(xyz, pos))
@@ -60,23 +54,17 @@ void xyzarray_set(struct xyzarray *xyz, ivec3 pos, int val)
     xyz->arr[pos[2] * xyz->dim[0] * xyz->dim[1] + pos[1] * xyz->dim[0] + pos[0]] = val;
 }
 
-void xyzarray_setat(struct xyzarray *xyz, int x, int y, int z, int val)
-{
-    ivec3 pos = { x, y, z };
-    xyzarray_set(xyz, pos, val);
-}
-
 /* Von Neumann, Manhattan distance 1 */
 int ca3d_neighbors_vn1(struct xyzarray *xyz, int x, int y, int z)
 {
     int neigh = 0;
 
-    neigh += !!xyzarray_getat(xyz, x - 1, y, z);
-    neigh += !!xyzarray_getat(xyz, x + 1, y, z);
-    neigh += !!xyzarray_getat(xyz, x, y - 1, z);
-    neigh += !!xyzarray_getat(xyz, x, y + 1, z);
-    neigh += !!xyzarray_getat(xyz, x, y, z - 1);
-    neigh += !!xyzarray_getat(xyz, x, y, z + 1);
+    neigh += !!xyzarray_get(xyz, (ivec3){ x - 1, y, z });
+    neigh += !!xyzarray_get(xyz, (ivec3){ x + 1, y, z });
+    neigh += !!xyzarray_get(xyz, (ivec3){ x, y - 1, z });
+    neigh += !!xyzarray_get(xyz, (ivec3){ x, y + 1, z });
+    neigh += !!xyzarray_get(xyz, (ivec3){ x, y, z - 1 });
+    neigh += !!xyzarray_get(xyz, (ivec3){ x, y, z + 1 });
 
     return neigh;
 }
@@ -88,8 +76,8 @@ static int ca3d_neighbors_m1(struct xyzarray *xyz, int x, int y, int z)
     for (cz = z - 1; cz < z + 2; cz++)
         for (cy = y - 1; cy < y + 2; cy++)
             for (cx = x - 1; cx < x + 2; cx++)
-                neigh += !!xyzarray_getat(xyz, cx, cy, cz);
-    neigh -= !!xyzarray_getat(xyz, x, y, z);
+                neigh += !!xyzarray_get(xyz, (ivec3){ cx, cy, cz });
+    neigh -= !!xyzarray_get(xyz, (ivec3){ x, y, z });
     return neigh;
 }
 
@@ -102,7 +90,7 @@ void xyzarray_print(struct xyzarray *xyz)
     for (z = 0; z < xyz->dim[2]; z++)
         for (y = 0; y < xyz->dim[1]; y++) {
             for (x = 0; x < xyz->dim[0]; x++)
-                line[x] = xyzarray_getat(xyz, x, y, z) ? '#' : ' ';
+                line[x] = xyzarray_get(xyz, (ivec3){ x, y, z }) ? '#' : ' ';
             dbg(" #%d# |%s|\n", z, line);
         }
     free(line);
@@ -115,7 +103,7 @@ int xyzarray_count(struct xyzarray *xyz)
     for (z = 0; z < xyz->dim[2]; z++)
         for (y = 0; y < xyz->dim[1]; y++)
             for (x = 0; x < xyz->dim[0]; x++)
-                if (xyzarray_getat(xyz, x, y, z))
+                if (xyzarray_get(xyz, (ivec3){ x, y, z}))
                     count++;
     return count;
 }
@@ -128,12 +116,12 @@ int ca3d_prune(struct xyzarray *xyz)
         for (y = 0; y < xyz->dim[1]; y++)
             for (x = 0; x < xyz->dim[0]; x++)
                 if (ca3d_neighbors_vn1(xyz, x, y, z) == 6)
-                    xyzarray_setat(xyz, x, y, z, -1);
+                    xyzarray_set(xyz, (ivec3){ x, y, z}, -1);
     for (z = 0; z < xyz->dim[2]; z++)
         for (y = 0; y < xyz->dim[1]; y++)
             for (x = 0; x < xyz->dim[0]; x++)
-                if (xyzarray_getat(xyz, x, y, z) == -1) {
-                    xyzarray_setat(xyz, x, y, z, 0);
+                if (xyzarray_get(xyz, (ivec3){ x, y, z }) == -1) {
+                    xyzarray_set(xyz, (ivec3){ x, y, z }, 0);
                     cnt++;
                 }
 
@@ -213,12 +201,12 @@ int ca3d_run(struct xyzarray *xyz, int nca, int steps)
             for (y = 0; y < xyz->dim[1]; y++)
                 for (x = 0; x < xyz->dim[0]; x++) {
                     neigh = ca3d_neighbors_m1(xyz, x, y, z);
-                    state = xyzarray_getat(xyz, x, y, z);
+                    state = xyzarray_get(xyz, (ivec3){ x, y, z });
 
                     if (state && !(ca->surv_mask & (1 << neigh)))
-                        xyzarray_setat(xyz, x, y, z, state - 1);
+                        xyzarray_set(xyz, (ivec3) { x, y, z }, state - 1);
                     else if (!state && (ca->born_mask & (1 << neigh)))
-                        xyzarray_setat(xyz, x, y, z, ca->nr_states - 1);
+                        xyzarray_set(xyz, (ivec3) { x, y, z }, ca->nr_states - 1);
                 }
     return xyzarray_count(xyz);
 }
@@ -232,18 +220,18 @@ struct xyzarray *ca3d_make(int d0, int d1, int d2)
 
     for (x = 0; x < d0; x++)
         for (y = 0; y < d1; y++) {
-            xyzarray_setat(xyz, x, y, 0, 5);
-            xyzarray_setat(xyz, x, y, d2 - 1, 5);
+            xyzarray_set(xyz, (ivec3){ x, y, 0 }, 5 );
+            xyzarray_set(xyz, (ivec3){ x, y, d2 - 1 }, 5);
         }
     for (x = 0; x < d0; x++)
         for (z = 0; z < d2; z++) {
-            xyzarray_setat(xyz, x, 0, z, 5);
-            xyzarray_setat(xyz, x, d1 - 1, z, 5);
+            xyzarray_set(xyz, (ivec3){ x, 0, z }, 5);
+            xyzarray_set(xyz, (ivec3){ x, d1 - 1, z}, 5);
         }
     for (y = 0; y < d1; y++)
         for (z = 0; z < d2; z++) {
-            xyzarray_setat(xyz, 0, y, z, 5);
-            xyzarray_setat(xyz, d0 - 1, y, z, 5);
+            xyzarray_set(xyz, (ivec3){ 0, y, z }, 5);
+            xyzarray_set(xyz, (ivec3){ d0 - 1, y, z }, 5);
         }
     ca3d_walk(xyz, steps, 5);
 
