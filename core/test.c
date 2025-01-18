@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/time.h>
+#include "ca3d.h"
 #include "object.h"
 #include "common.h"
 #include "messagebus.h"
@@ -371,6 +373,30 @@ static int bitmap_test0(void)
     return EXIT_SUCCESS;
 }
 
+static int ca3d_test0(void)
+{
+    static_assert(CA_RANGE(2, 4) == 12, "CA_RANGE() macro is broken");
+
+    int ret = EXIT_SUCCESS;
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    srand48(ts.tv_nsec);
+
+    int i;
+    for (i = 0; i < CA3D_MAX && ret == EXIT_SUCCESS; i++) {
+        struct xyzarray *xyz = ca3d_make(16, 8, 4);
+        ca3d_run(xyz, ca_coral, 4);
+
+        if (!xyzarray_count(xyz))
+            ret = EXIT_FAILURE;
+
+        free(xyz);
+    }
+
+    return ret;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -387,6 +413,7 @@ static struct test {
     { .name = "hashmap basic", .test = hashmap_test0 },
     { .name = "hashmap for each", .test = hashmap_test1 },
     { .name = "bitmap basic", .test = bitmap_test0 },
+    { .name = "ca3d basic", .test = ca3d_test0 },
 };
 
 int main()

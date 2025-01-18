@@ -60,7 +60,7 @@ configure_file(config.h.in config.h)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(TEST_BIN tests)
-    set(TEST_SRC test.c object.c ref.c util.c logger.c json.c messagebus.c)
+    set(TEST_SRC test.c object.c ref.c util.c logger.c json.c messagebus.c ca3d.c)
 
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
