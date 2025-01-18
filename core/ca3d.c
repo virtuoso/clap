@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <limits.h>
 #include "logger.h"
-#include "ui-debug.h"
 #include "ca3d.h"
 
 /*
@@ -208,7 +207,6 @@ int ca3d_run(struct xyzarray *xyz, int nca, int steps)
     struct cell_automn *ca = &cas[nca % array_size(cas)];
     int x, y, z, neigh, state;
 
-    ui_debug_printf("ca: %s\n", ca->name);
     for (; steps; steps--)
         for (z = 0; z < xyz->dim[2]; z++)
             for (y = 0; y < xyz->dim[1]; y++)
