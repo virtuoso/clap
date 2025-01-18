@@ -29,6 +29,7 @@ static void model3d_drop(struct ref *ref)
     struct model3d *m = container_of(ref, struct model3d, ref);
     int i;
 
+    /* delete gl buffers */
     buffer_deinit(&m->vertex);
     for (i = 0; i < m->nr_lods; i++)
         buffer_deinit(&m->index[i]);
@@ -38,9 +39,7 @@ static void model3d_drop(struct ref *ref)
         buffer_deinit(&m->vjoints);
         buffer_deinit(&m->weights);
     }
-    if (gl_does_vao())
-        glDeleteVertexArrays(1, &m->vao);
-    /* delete gl buffers */
+    vertex_array_done(&m->vao);
     ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
 
@@ -376,16 +375,14 @@ void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz)
     }
 
     shader_prog_use(m->prog);
-    if (gl_does_vao())
-        glBindVertexArray(m->vao);
+    vertex_array_bind(&m->vao);
     shader_setup_attribute(m->prog, ATTR_TANGENT, &m->tangent,
                            .type       = BUF_ARRAY,
                            .usage      = BUF_STATIC,
                            .comp_type  = DT_FLOAT,
                            .data       = tg,
                            .size       = tgsz);
-    if (gl_does_vao())
-        glBindVertexArray(0);
+    vertex_array_unbind(&m->vao);
     shader_prog_done(m->prog);
 }
 
@@ -415,8 +412,7 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     }
 
     shader_prog_use(m->prog);
-    if (gl_does_vao())
-        glBindVertexArray(m->vao);
+    vertex_array_bind(&m->vao);
     shader_setup_attribute(m->prog, ATTR_JOINTS, &m->vjoints,
                            .type       = BUF_ARRAY,
                            .usage      = BUF_STATIC,
@@ -431,8 +427,7 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
                            .comp_count = 4,
                            .data       = weights,
                            .size       = weightssz);
-    if (gl_does_vao())
-        glBindVertexArray(0);
+    vertex_array_unbind(&m->vao);
     shader_prog_done(m->prog);
 
     m->nr_joints = nr_joints;
@@ -458,10 +453,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     model3d_calc_aabb(m, vx, vxsz);
     darray_init(&m->anis);
 
-    if (gl_does_vao()) {
-        GL(glGenVertexArrays(1, &m->vao));
-        GL(glBindVertexArray(m->vao));
-    }
+    vertex_array_init(&m->vao);
 
     shader_prog_use(p);
     shader_setup_attribute(p, ATTR_POSITION, &m->vertex,
@@ -496,8 +488,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
                                .data           = norm,
                                .size           = normsz);
 
-    if (gl_does_vao())
-        GL(glBindVertexArray(0));
+    vertex_array_unbind(&m->vao);
     shader_prog_done(p);
 
     m->cur_lod = -1;
@@ -522,8 +513,7 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
     if (mesh_nr_tangent(mesh))
         model3d_add_tangents(m, mesh_tangent(mesh), mesh_tangent_sz(mesh));
 
-    if (gl_does_vao())
-        GL(glBindVertexArray(m->vao));
+    vertex_array_bind(&m->vao);
     shader_prog_use(m->prog);
 
     for (level = 0, nr_idx = mesh_nr_idx(mesh); level < LOD_MAX - 1; level++) {
@@ -543,8 +533,7 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
     }
 
     shader_prog_done(m->prog);
-    if (gl_does_vao())
-        GL(glBindVertexArray(0));
+    vertex_array_unbind(&m->vao);
 
     return m;
 }
@@ -563,8 +552,7 @@ static void model3d_set_lod(struct model3d *m, unsigned int lod)
 
 static void model3d_prepare(struct model3d *m, struct shader_prog *p)
 {
-    if (gl_does_vao())
-        GL(glBindVertexArray(m->vao));
+    vertex_array_bind(&m->vao);
     if (m->cur_lod >= 0)
         buffer_bind(&m->index[m->cur_lod], -1);
     shader_plug_attribute(p, ATTR_POSITION, &m->vertex);
@@ -614,11 +602,9 @@ static void model3d_done(struct model3d *m, struct shader_prog *p)
         shader_unplug_attribute(p, ATTR_WEIGHTS, &m->weights);
     }
 
-    /* both need to be bound for glDrawElements() */
     if (m->cur_lod >= 0)
         buffer_unbind(&m->index[m->cur_lod], -1);
-    if (gl_does_vao())
-        GL(glBindVertexArray(0));
+    vertex_array_unbind(&m->vao);
     m->cur_lod = -1;
 }
 

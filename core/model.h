@@ -88,7 +88,7 @@ struct model3d {
     float               aabb[6];
     darray(struct animation, anis);
     mat4x4              root_pose;
-    GLuint              vao;
+    vertex_array_t      vao;
     buffer_t            vertex;
     buffer_t            index[LOD_MAX];
     buffer_t            tex;
