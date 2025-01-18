@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <getopt.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/time.h>
@@ -11,6 +12,8 @@
 #include "xyarray.h"
 
 #define TEST_MAGIC0 0xdeadbeef
+
+static unsigned int verbose;
 
 struct x0 {
     struct ref	ref;
@@ -389,6 +392,8 @@ static int ca3d_test0(void)
     for (i = 0; i < CA3D_MAX && ret == EXIT_SUCCESS; i++) {
         struct xyzarray *xyz = ca3d_make(16, 8, 4);
         ca3d_run(xyz, ca_coral, 4);
+        if (verbose)
+            xyzarray_print(xyz);
 
         if (!xyzarray_count(xyz))
             ret = EXIT_FAILURE;
@@ -414,6 +419,8 @@ static int ca2d_test0(void)
     unsigned char *map;
 
     map = ca2d_generate(&ca_test, CA2D_SIDE, 5);
+    if (verbose)
+        xyarray_print(map);
     int x, y, count;
     for (y = 0, count = 0; y < CA2D_SIDE; y++)
         for (x = 0; x < CA2D_SIDE; x++)
@@ -447,11 +454,34 @@ static struct test {
     { .name = "ca3d basic", .test = ca3d_test0 },
 };
 
-int main()
+static struct option long_options[] = {
+    { "verbose",    no_argument,        0, 'v' },
+    {}
+};
+
+static const char short_options[] = "v";
+
+int main(int argc, char **argv, char **envp)
 {
-    int ret, i;
+    int ret, i, c, option_index;
 
     messagebus_init();
+
+    for (;;) {
+        c = getopt_long(argc, argv, short_options, long_options, &option_index);
+        if (c == -1)
+            break;
+
+        switch (c) {
+        case 'v':
+            verbose++;
+            break;
+        default:
+            err("invalid command line option %x\n", c);
+            ret = EXIT_FAILURE;
+            goto out;
+        }
+    }
 
     for (i = 0; i < array_size(tests); i++) {
         failcount = 0;
@@ -461,6 +491,7 @@ int main()
             break;
     }
 
+out:
     messagebus_done();
 
     return ret;
