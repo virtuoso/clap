@@ -454,9 +454,9 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             xfrac = fmodf(i, MAZE_FAC) / MAZE_FAC;
             yfrac = fmodf(j, MAZE_FAC) / MAZE_FAC;
             int xpos = i / MAZE_FAC, ypos = j / MAZE_FAC;
-            unsigned char cn = xyarray_get(maze, mside, xpos, ypos);
-            unsigned char xn = xyarray_get(maze, mside, xfrac >= 0.5 ? xpos + 1 : xpos - 1, ypos);
-            unsigned char yn = xyarray_get(maze, mside, xpos, yfrac >= 0.5 ? ypos + 1 : ypos - 1);
+            unsigned char cn = xyarray_get(maze, xpos, ypos);
+            unsigned char xn = xyarray_get(maze, xfrac >= 0.5 ? xpos + 1 : xpos - 1, ypos);
+            unsigned char yn = xyarray_get(maze, xpos, yfrac >= 0.5 ? ypos + 1 : ypos - 1);
             float xavg  = cn > xn ? cn : cos_interp(cn, xn, 2 * xfrac - 1);
             float yavg  = cn > yn ? cn : cos_interp(cn, yn, 2 * yfrac - 1);
             float avg   = cos_interp(xavg, yavg, fabsf(xfrac - yfrac));
@@ -542,7 +542,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             int ca;
 
             for (ca = 0; ca < array_size(ca_instors); ca++)
-                if (xyarray_get(maze, mside, i, j) == ca_instors[ca].nr_states) {
+                if (xyarray_get(maze, i, j) == ca_instors[ca].nr_states) {
                     struct instantiator *instor;
 
                     CHECK(instor = calloc(1, sizeof(*instor)));
@@ -553,7 +553,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
                     list_append(&s->instor, &instor->entry);
                 }
         }
-
+    xyarray_free(maze);
 
     return t;
 }

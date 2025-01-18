@@ -25,7 +25,8 @@ struct cell_automaton {
     bool            decay;
     /* 3-byte hole */
     union {
-        int         (*neigh_2d)(unsigned char *arr, int side, int x, int y);
+        /* XXX: @arr is an xyzarray under the hood */
+        int         (*neigh_2d)(unsigned char *arr, int x, int y);
         int         (*neigh_3d)(struct xyzarray *xyz, int x, int y, int z);
     };
 };

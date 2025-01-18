@@ -417,12 +417,12 @@ static int ca2d_test0(void)
     int x, y, count;
     for (y = 0, count = 0; y < CA2D_SIDE; y++)
         for (x = 0; x < CA2D_SIDE; x++)
-            count += xyarray_get(map, CA2D_SIDE, x, y);
+            count += xyarray_get(map, x, y);
 
     if (!count)
         ret = EXIT_FAILURE;
 
-    free(map);
+    xyarray_free(map);
 
     return ret;
 }

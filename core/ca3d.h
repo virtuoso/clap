@@ -33,21 +33,6 @@
 #define CA_26 (1 << 26)
 #define CA_RANGE(_start, _end) (((1 << ((_end) - (_start))) - 1) << (_start))
 
-typedef int ivec3[3];
-
-struct xyzarray {
-    ivec3   dim;
-    int     arr[0];
-};
-
-struct xyzarray *xyzarray_new(ivec3 dim);
-bool xyzarray_valid(struct xyzarray *xyz, ivec3 pos);
-bool xyzarray_edgemost(struct xyzarray *xyz, ivec3 pos);
-int xyzarray_get(struct xyzarray *xyz, ivec3 pos);
-void xyzarray_set(struct xyzarray *xyz, ivec3 pos, int val);
-void xyzarray_print(struct xyzarray *xyz);
-int xyzarray_count(struct xyzarray *xyz);
-
 enum {
     ca_445m = 0,
     ca_678_678_3m,
