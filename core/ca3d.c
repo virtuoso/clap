@@ -120,7 +120,7 @@ int xyzarray_count(struct xyzarray *xyz)
     return count;
 }
 
-void ca3d_prune(struct xyzarray *xyz)
+int ca3d_prune(struct xyzarray *xyz)
 {
     int x, y, z, cnt = 0;
 
@@ -136,7 +136,8 @@ void ca3d_prune(struct xyzarray *xyz)
                     xyzarray_setat(xyz, x, y, z, 0);
                     cnt++;
                 }
-    dbg("pruned: %d\n", cnt);
+
+    return cnt;
 }
 
 #define HIST_SIZE 128
