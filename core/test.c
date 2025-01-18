@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/time.h>
+#include "ca2d.h"
 #include "ca3d.h"
 #include "object.h"
 #include "common.h"
 #include "messagebus.h"
 #include "util.h"
+#include "xyarray.h"
 
 #define TEST_MAGIC0 0xdeadbeef
 
@@ -397,6 +399,34 @@ static int ca3d_test0(void)
     return ret;
 }
 
+static int ca2d_test0(void)
+{
+#define CA2D_SIDE 16
+    const struct cell_automaton ca_test = {
+        .name      = "test",
+        .born_mask = 3 << 2,
+        .surv_mask = 3 << 7,
+        .nr_states = 4,
+        .decay     = true,
+        .neigh_2d  = ca2d_neigh_m1,
+    };
+    int ret = EXIT_SUCCESS;
+    unsigned char *map;
+
+    map = ca2d_generate(&ca_test, CA2D_SIDE, 5);
+    int x, y, count;
+    for (y = 0, count = 0; y < CA2D_SIDE; y++)
+        for (x = 0; x < CA2D_SIDE; x++)
+            count += xyarray_get(map, CA2D_SIDE, x, y);
+
+    if (!count)
+        ret = EXIT_FAILURE;
+
+    free(map);
+
+    return ret;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -413,6 +443,7 @@ static struct test {
     { .name = "hashmap basic", .test = hashmap_test0 },
     { .name = "hashmap for each", .test = hashmap_test1 },
     { .name = "bitmap basic", .test = bitmap_test0 },
+    { .name = "ca2d basic", .test = ca2d_test0 },
     { .name = "ca3d basic", .test = ca3d_test0 },
 };
 
