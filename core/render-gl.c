@@ -129,7 +129,11 @@ void buffer_bind(buffer_t *buf, int loc)
 
 void buffer_unbind(buffer_t *buf, int loc)
 {
-    if (!buf->loaded || loc < 0)
+    if (!buf->loaded)
+        return;
+
+    GL(glBindBuffer(buf->type, 0));
+    if (loc < 0)
         return;
 
     GL(glDisableVertexAttribArray(loc));
