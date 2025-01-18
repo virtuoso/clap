@@ -188,7 +188,7 @@ got_it:
         .name      = __stringify(_name), \
     }
 
-struct cell_automn cas[] = {
+static struct cell_automn cas[] = {
     CA_DEF(ca_445m, CA_4, CA_4, 5, m1),
     CA_DEF(ca_678_678_3m, CA_6|CA_7|CA_8, CA_6|CA_7|CA_8, 3, m1),
     CA_DEF(ca_pyroclastic, CA_4|CA_5|CA_6|CA_7, CA_6|CA_7|CA_8, 10, m1),
