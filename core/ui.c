@@ -281,9 +281,9 @@ static void ui_text_measure(struct ui_text *uit)
     size_t len = strlen(uit->str);
     struct glyph *glyph;
 
-    free(uit->line_nrw);
-    free(uit->line_ws);
-    free(uit->line_w);
+    mem_free(uit->line_nrw);
+    mem_free(uit->line_ws);
+    mem_free(uit->line_w);
 
     glyph = font_get_glyph(uit->font, '-');
     ws_w = glyph->width;
@@ -408,7 +408,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     y = (float)uit.margin_y + uit.y_off;
     dbg_on(y < 0, "y: %f, height: %d y_off: %d, margin_y: %d\n",
            y, uit.height, uit.y_off, uit.margin_y);
-    CHECK(uies = calloc(len, sizeof(struct ui_element *)));
+    uies = mem_alloc(sizeof(struct ui_element *), .nr = len, .fatal_fail = 1);
     uit.nr_uies = len;
     for (line = 0, i = 0, x = x_off(&uit, line); i < len; i++) {
         if (str[i] == '\n') {
@@ -464,10 +464,10 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);
 
-    free(uies);
-    free(uit.line_nrw);
-    free(uit.line_ws);
-    free(uit.line_w);
+    mem_free(uies);
+    mem_free(uit.line_nrw);
+    mem_free(uit.line_ws);
+    mem_free(uit.line_w);
 
     m = model3d_new_quad(ui->ui_prog, 0, 1, 0, 1, -1);
     model3d_set_name(m, "ui_text: '%s'", str);
@@ -619,7 +619,7 @@ void __ui_debug_printf(const char *mod, const char *fmt, ...)
     if (ret < 0)
         *pstr = NULL;
     else
-        free(old);
+        mem_free(old);
 }
 
 static void ui_element_for_each_child(struct ui_element *uie, void (*cb)(struct ui_element *x, void *data), void *data)
@@ -782,7 +782,7 @@ static void ui_widget_drop(struct ref *ref)
             ref_put(uie);
     }
     ref_put_last(uiw->root);
-    free(uiw->uies);
+    mem_free(uiw->uies);
 }
 
 DECLARE_REFCLASS(ui_widget);
@@ -794,7 +794,7 @@ ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
     struct ui_widget *uiw;
 
     CHECK(uiw        = ref_new(ui_widget));
-    CHECK(uiw->uies  = calloc(nr_items, sizeof(struct ui_element *)));
+    uiw->uies        = mem_alloc(sizeof(struct ui_element *), .nr = nr_items, .fatal_fail = 1);
     /* XXX: render texts to FBOs to textures */
     CHECK(uiw->root  = ui_element_new(ui, NULL, ui_quadtx, affinity, x_off, y_off, w, h));
     uiw->nr_uies = nr_items;
@@ -1397,9 +1397,9 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     if (!font)
         return NULL;
 
-    CHECK(pocket_text = calloc(nr, sizeof(struct ui_element *)));
-    CHECK(pocket_count = calloc(nr, sizeof(int)));
-    CHECK(pocket_total = calloc(nr, sizeof(int)));
+    pocket_text = mem_alloc(sizeof(struct ui_element *), .nr = nr, .fatal_fail = 1);
+    pocket_count = mem_alloc(sizeof(int), .nr = nr, .fatal_fail = 1);
+    pocket_total = mem_alloc(sizeof(int), .nr = nr, .fatal_fail = 1);
 
     p = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_RIGHT,
                        10, 10, 200, 100 * nr);
@@ -1606,10 +1606,10 @@ void ui_done(struct ui *ui)
     int i;
 
     for (i = 0; i < nr_ui_debug_mods; i++)
-        free(ui_debug_strs[i]);
+        mem_free(ui_debug_strs[i]);
 
-    free(ui_debug_mods);
-    free(ui_debug_strs);
+    mem_free(ui_debug_mods);
+    mem_free(ui_debug_strs);
 }
 
 void ui_show(struct ui *ui)

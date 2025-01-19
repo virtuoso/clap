@@ -112,7 +112,7 @@ static void log_flush(struct log_entry *e, void *data)
 
     size = sizeof(*mcmd) + sizeof(*mlog) + strlen(e->msg) + 1;
     size += strlen(modfile) + strlen(e->func) + 7 + 5;
-    CHECK(buf = calloc(1, size));
+    buf = mem_alloc(size, .nr = 1, .fatal_fail = 1);
     mcmd = buf;
     mlog = buf + sizeof(*mcmd);
     mcmd->log_follows = 1;
@@ -144,11 +144,11 @@ static void polling_alloc()
     }
 
     dbg("pollfds: %d\n", nr_nodes);
-    free(pollfds);
+    mem_free(pollfds);
     pollfds = NULL;
 
     if (nr_nodes)
-        CHECK(pollfds = calloc(nr_nodes, sizeof(struct pollfd)));
+        pollfds = mem_alloc(sizeof(struct pollfd), .nr = nr_nodes, .fatal_fail = 1);
     need_polling_alloc = 0;
 }
 
@@ -183,8 +183,8 @@ static void network_node_drop(struct ref *ref)
     if (n->mode == CLIENT)
         rb_sink_del(n);
 
-    free(n->input);
-    free(n->src);
+    mem_free(n->input);
+    mem_free(n->src);
     list_del(&n->entry);
     close(n->fd);
     shutdown(n->fd, SHUT_RDWR);
@@ -264,7 +264,7 @@ static struct network_node *network_node_accept(struct network_node *n)
     struct network_node *child = network_node_new_parent(n);
     child->mode         = SERVER;
     CHECK(child->fd = accept(n->fd, (struct sockaddr *)&n->sa, &n->addrlen));
-    CHECK(child->src = calloc(1, sizeof(*child->src)));
+    child->src = mem_alloc(sizeof(*child->src), .zero = 1, .fatal_fail = 1);
     child->src->type = MST_CLIENT;
     CHECK(asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr)));
     dbg("new client '%s'\n", child->src->name);
@@ -302,7 +302,7 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
     if (!wsh->key)
         return -1;
 
-    CHECK(key = calloc(1, wslen + strlen(wsguid) + 1));
+    key = mem_alloc(wslen + strlen(wsguid) + 1, .zero = 1, .fatal_fail = 1);
     strcpy(key, wsh->key);
     strcpy(key + wslen, wsguid);
     SHA1(h, key, strlen(key));
@@ -321,7 +321,7 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
     CHECK(outsz);
     queue_outmsg(n, out, outsz);
     //free(out);
-    free(key);
+    mem_free(key);
 
     return 0;
 }
@@ -377,7 +377,7 @@ static size_t ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *
         return -2;
     }
 
-    CHECK(output = calloc(1, len + 1));
+    output = mem_alloc(len + 1, .zero = 1, .fatal_fail = 1);
     if (!h->mask) {
         memcpy(output, &input[off], len);
     } else {
@@ -418,7 +418,7 @@ static int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *
     length += lensz;
     off += lensz;
 
-    CHECK(output = calloc(1, length));
+    output = mem_alloc(length, .zero = 1, .fatal_fail = 1);
     h         = (void *)output;
     h->fin    = 1;
     h->opcode = WSOP_BIN;
@@ -691,7 +691,7 @@ static void queue_outmsg(struct network_node *n, void *data, size_t size)
     if (!size)
         size = strlen(data) + 1;
 
-    CHECK(qd = calloc(1, sizeof(*qd)));
+    qd = mem_alloc(sizeof(*qd), .zero = 1, .fatal_fail = 1);
 
     if (n->websocket) {
         uint8_t *frame;
@@ -699,7 +699,7 @@ static void queue_outmsg(struct network_node *n, void *data, size_t size)
 
         CHECK0(ws_encode(data, size, &frame, &framesz));
 
-        free(data); /* XXX: unless it's static; don't queue static stuff */
+        mem_free(data); /* XXX: unless it's static; don't queue static stuff */
         data = frame;
         size = framesz;
     }
@@ -715,7 +715,7 @@ static void network_node_cache(struct network_node *n, size_t off)
 {
     void *xx;
     CHECK(xx = memdup(n->input + off, n->inputsz - off));
-    free(n->input);
+    mem_free(n->input);
     n->input = xx;
     n->inputsz -= off;
 }
@@ -732,7 +732,7 @@ static void network_node_wscache(struct network_node *n, size_t off)
 {
     void *xx;
     CHECK(xx = memdup(n->wsinput + off, n->wsinputsz - off));
-    free(n->wsinput);
+    mem_free(n->wsinput);
     n->wsinput = xx;
     n->wsinputsz -= off;
 }
@@ -815,7 +815,7 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
         } while (handled > 0 && handled < n->inputsz);
 
         if (handled == n->inputsz) {
-            free(n->input);
+            mem_free(n->input);
             n->input = NULL;
             n->inputsz = 0;
         }
@@ -823,11 +823,11 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
         done += size;
 
         if (n->websocket)
-            free(x);
+            mem_free(x);
     }
 
     if (n->websocket) {
-        free(n->wsinput);
+        mem_free(n->wsinput);
         n->wsinput = NULL;
         n->wsinputsz = 0;
     }
@@ -923,10 +923,10 @@ void networking_poll(void)
             list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
                 //dbg("sending[%d]: <-- %zd\n", i, qd->outsz);
                 ret = sendto(n->fd, qd->out, qd->outsz, MSG_NOSIGNAL, (struct sockaddr *)&n->sa, n->addrlen);
-                free(qd->out);
+                mem_free(qd->out);
 
                 list_del(&qd->entry);
-                free(qd);
+                mem_free(qd);
 
                 //n->outsz = asprintf(&n->out, "PING");
                 if (n->handshake) {
@@ -949,7 +949,7 @@ state:
             struct timespec ts;
 
             dbg("server '%s:%d' handshake\n", inet_ntoa(n->sa.sin_addr), ntohs(n->sa.sin_port));
-            CHECK(mcmd = calloc(1, sizeof(*mcmd)));
+            mcmd = mem_alloc(sizeof(*mcmd), .zero = 1, .fatal_fail = 1);
             mcmd->connect = 1;
             clock_gettime(CLOCK_REALTIME, &ts);
             timespec_to_64(&ts, &mcmd->time);
@@ -1007,5 +1007,5 @@ not_empty:
             goto not_empty;
         ref_put(n);
     }
-    free(_ncfg);
+    mem_free(_ncfg);
 }

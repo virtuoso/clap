@@ -619,7 +619,7 @@ static void gltf_load_skins(struct gltf_data *gd, JsonNode *skins)
         if (jjoints && jjoints->tag == JSON_ARRAY) {
             int j;
             skin->joints = json_int_array_alloc(jjoints, &skin->nr_joints);
-            skin->nodes = calloc(skin->nr_joints, sizeof(int));
+            skin->nodes = mem_alloc(sizeof(int), .nr = skin->nr_joints);
             for (j = 0; j < skin->nr_joints; j++)
                 skin->nodes[skin->joints[j]] = j;
         }
@@ -796,11 +796,11 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
 
         CHECK(buf = darray_add(gd->buffers));
         if (juri) {
-            CHECK(*buf = malloc(len));
+            *buf = mem_alloc(len, .fatal_fail = 1);
             dlen = base64_decode(*buf, len, juri->string_ + sizeof(DATA_URI) - 1, slen);
             if (dlen < 0) {
                 err("error decoding base64 buffer %zu\n", darray_count(gd->buffers) - 1);
-                free(*buf);
+                mem_free(*buf);
                 /*
                 * leave a NULL hole in the buffers array to keep the GLTF buffer
                 * indices
@@ -1065,7 +1065,7 @@ static cerr gltf_bin_parse(void *buf, size_t size, struct gltf_data *gd)
     gd->bin = bin_chunk->data;
     char *json_buf = strndup((const char *)json_chunk->data, json_chunk->length);
     cerr err = gltf_json_parse(json_buf, gd);
-    free(json_buf);
+    mem_free(json_buf);
 
     return err;
 }
@@ -1282,7 +1282,7 @@ struct gltf_data *gltf_load(struct scene *scene, const char *name)
     struct lib_handle *lh;
     enum res_state state;
 
-    CHECK(gd = calloc(1, sizeof(*gd)));
+    gd = mem_alloc(sizeof(*gd), .zero = 1, .fatal_fail = 1);
     gd->scene = scene;
     lh = lib_request(RES_ASSET, name, gltf_onload, gd);
     state = lh->state;

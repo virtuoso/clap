@@ -380,7 +380,7 @@ void find_trees(struct entity3d *e, void *data)
     const char* name = entity_name(e);
     if (!strcmp(name, "tree") || !strcmp(name, "cool tree") || !strcmp(name, "spruce tree")) {
         // insert tree into the list of free trees.
-        struct free_tree *new_tree = malloc(sizeof(struct free_tree));
+        struct free_tree *new_tree = mem_alloc(sizeof(struct free_tree), .fatal_fail = 1);
         new_tree->entity = e;
         list_append(&g->free_trees, &new_tree->entry);
         g->number_of_free_trees++;

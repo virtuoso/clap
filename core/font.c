@@ -45,7 +45,7 @@ static void font_load_glyph(struct font *font, unsigned char c)
     font->g[c].height = glyph->bitmap.rows;
     //dbg("glyph '%c': %ux%u\n", c, glyph->bitmap.width, glyph->bitmap.rows);
     //hexdump(glyph->bitmap.buffer, glyph->bitmap.width * glyph->bitmap.rows);
-    buf = calloc(1, glyph->bitmap.width * glyph->bitmap.rows * RGBA_SZ);
+    buf = mem_alloc(glyph->bitmap.width * glyph->bitmap.rows * RGBA_SZ, .zero = 1);
     for (y = 0; y < glyph->bitmap.rows; y++) {
         for (x = 0; x < glyph->bitmap.width; x++) {
             unsigned int factor = glyph->bitmap.buffer[_GAT(x, y)];
@@ -79,7 +79,7 @@ static void font_drop(struct ref *ref)
 
     for (i = 0; i < array_size(font->g); i++)
         texture_deinit(&font->g[i].tex);
-    free(font->name);
+    mem_free(font->name);
     FT_Done_Face(font->face);
 }
 

@@ -9,6 +9,7 @@
 #include "common.h"
 #include "librarian.h"
 #include "json.h"
+#include "memory.h"
 
 #if defined(CONFIG_BROWSER) && 0
 static char base_url[PATH_MAX] = "http://ukko.local/clap/";
@@ -44,7 +45,7 @@ static void handle_drop(struct ref *ref)
 {
     struct lib_handle *h = container_of(ref, struct lib_handle, ref);
 
-    free(h->buf);
+    mem_free(h->buf);
 }
 
 DECLARE_REFCLASS_DROP(lib_handle, handle_drop);
@@ -145,9 +146,9 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
         struct stat st;
 
         fstat(fileno(f), &st);
-        h->buf = malloc(st.st_size + 1);
+        h->buf = mem_alloc(st.st_size + 1, .zero = 1);
 
-        if (fread(h->buf, st.st_size, 1, f) != 1) {
+        if (!h->buf || fread(h->buf, st.st_size, 1, f) != 1) {
             ref_put(h);
             return NULL;
         }
@@ -164,7 +165,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
 
 void lib_release(struct lib_handle *h)
 {
-    free(h->data);
+    mem_free(h->data);
     ref_put(h);
 }
 
@@ -204,10 +205,10 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
         struct stat st;
 
         fstat(fileno(f), &st);
-        h->buf = calloc(1, st.st_size + 1);
+        h->buf = mem_alloc(st.st_size + 1, .zero = 1);
         *bufp = h->buf;
 
-        if (fread(h->buf, st.st_size, 1, f) != 1) {
+        if (!h->buf || fread(h->buf, st.st_size, 1, f) != 1) {
             ref_put(h);
             return NULL;
         }

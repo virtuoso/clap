@@ -110,7 +110,7 @@ static int settings_load(struct settings *settings)
         json_delete(settings->root);
     }
 
-    CHECK(buf = calloc(1, st.st_size + 1));
+    buf = mem_alloc(st.st_size + 1, .zero = 1, .fatal_fail = 1);
     if (fread(buf, st.st_size, 1, f) == 1)
         settings->root = json_decode(buf);
 
@@ -306,7 +306,7 @@ void settings_done(struct settings *settings)
 {
     settings_store(settings);
 #ifndef __EMSCRIPTEN__
-    free(settings_file);
+    mem_free(settings_file);
 #endif /* !__EMSCRIPTEN__ */
     json_delete(settings->root);
     settings->ready = false;

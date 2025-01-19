@@ -4,7 +4,7 @@
 static void ui_animation_done(struct ui_animation *uia)
 {
     list_del(&uia->entry);
-    free(uia);
+    mem_free(uia);
 }
 
 void ui_element_animations_done(struct ui_element *uie)
@@ -47,7 +47,7 @@ static struct ui_animation *ui_animation(struct ui_element *uie)
 {
     struct ui_animation *ua;
 
-    CHECK(ua = calloc(1, sizeof(struct ui_animation)));
+    ua = mem_alloc(sizeof(struct ui_animation), .zero = 1, .fatal_fail = 1);
     ua->uie = uie;
     list_append(&uie->animation, &ua->entry);
     uie->entity->update = ui_animation_update;

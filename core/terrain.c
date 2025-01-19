@@ -150,8 +150,8 @@ static void bsp_part_one(struct bsp_part *root, int level, bsp_cb cb, void *data
     else if (root->h / root->w > 4)
         vertical = false;
 
-    CHECK(a = calloc(1, sizeof(*a)));
-    CHECK(b = calloc(1, sizeof(*b)));
+    a = mem_alloc(sizeof(*a), .zero = 1, .fatal_fail = 1);
+    b = mem_alloc(sizeof(*b), .zero = 1, .fatal_fail = 1);
     a->x = b->x = root->x;
     a->y = b->y = root->y;
     a->w = b->w = root->w;
@@ -194,7 +194,7 @@ bsp_process(unsigned long seed, int depth, int x, int y, int w, int h, bsp_cb cb
     struct bsp_part *root;
 
     srand48(seed);
-    CHECK(root = calloc(1, sizeof(*root)));
+    root = mem_alloc(sizeof(*root), .zero = 1, .fatal_fail = 1);
     root->x = x;
     root->y = y;
     root->w = w;
@@ -212,7 +212,7 @@ static void bsp_cleanup(struct bsp_part *root)
         bsp_cleanup(root->b);
     }
 
-    free(root);
+    mem_free(root);
 }
 
 static bool bsp_within_rect(struct bsp_part *bp, int x, int y)
@@ -381,7 +381,7 @@ static void terrain_drop(struct ref *ref)
     struct terrain *terrain = container_of(ref, struct terrain, ref);
 
     // ref_put_last(terrain->entity);
-    free(terrain->map);
+    mem_free(terrain->map);
 }
 
 DECLARE_REFCLASS(terrain);
@@ -441,11 +441,11 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     t->x       = x;
     t->y       = y;
     t->z       = z;
-    CHECK(t->map0 = calloc(nr_v * nr_v, sizeof(float)));
+    t->map0 = mem_alloc(sizeof(float), .nr = nr_v * nr_v, .fatal_fail = 1);
     for (i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++)
             t->map0[i * nr_v + j] = get_rand_height(t, i, j);
-    t->map  = calloc(nr_v * nr_v, sizeof(float));
+    t->map  = mem_alloc(sizeof(float), .nr = nr_v * nr_v, .fatal_fail = 1);
     for (i = 0; i < nr_v; i++)
         for (j = 0; j < nr_v; j++) {
             struct bsp_part *bp = bsp_find(bsp_root, i, j);
@@ -462,7 +462,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             float avg   = cos_interp(xavg, yavg, fabsf(xfrac - yfrac));
             t->map[i * nr_v + j] = get_height(t, i, j, powf(1.5, avg), OCTAVES) + avg;
         }
-    free(t->map0);
+    mem_free(t->map0);
     t->map0 = NULL;
     bsp_cleanup(bsp_root);
 
@@ -478,10 +478,10 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
 
     idxsz = 6 * (nr_v - 1) * (nr_v - 1) * sizeof(*idx);
 
-    CHECK(vx    = malloc(vxsz));
-    CHECK(norm  = malloc(vxsz));
-    CHECK(tx    = malloc(txsz));
-    CHECK(idx   = malloc(idxsz));
+    vx    = mem_alloc(vxsz);
+    norm  = mem_alloc(vxsz);
+    tx    = mem_alloc(txsz);
+    idx   = mem_alloc(idxsz);
     if (!vx || !norm || !tx || !idx)
         return NULL;
 
@@ -517,8 +517,8 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     
     model = model3d_new_from_vectors("terrain", prog, vx, vxsz, idx, idxsz,
                                      tx, txsz, norm, vxsz);
-    free(tx);
-    free(norm);
+    mem_free(tx);
+    mem_free(norm);
 
     txm = model3dtx_new(ref_pass(model), "terrain.png");
     scene_add_model(s, txm);
@@ -545,7 +545,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
                 if (xyarray_get(maze, i, j) == ca_instors[ca].nr_states) {
                     struct instantiator *instor;
 
-                    CHECK(instor = calloc(1, sizeof(*instor)));
+                    instor = mem_alloc(sizeof(*instor), .fatal_fail = 1);
                     instor->name = ca_instors[ca].name;
                     instor->dx = x + (float)(i + 0.5) * MAZE_FAC * side / (nr_v - 1);
                     instor->dz = z + (float)(j + 0.5) * MAZE_FAC * side / (nr_v - 1);

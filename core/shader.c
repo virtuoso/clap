@@ -27,11 +27,11 @@ static GLuint load_shader(GLenum type, const char *source)
         GLint infoLen = 0;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
         if (infoLen) {
-            char *buf = malloc(infoLen);
+            char *buf = mem_alloc(infoLen);
             if (buf) {
                 glGetShaderInfoLog(shader, infoLen, NULL, buf);
                 err("Could not Compile Shader %d:\n%s\n", type, buf);
-                free(buf);
+                mem_free(buf);
                 err("--> %s <--\n", source);
             }
             glDeleteShader(shader);
@@ -72,11 +72,11 @@ static int shader_prog_init(struct shader_prog *p, const char *vertex,
         GLint bufLength = 0;
         glGetProgramiv(p->prog, GL_INFO_LOG_LENGTH, &bufLength);
         if (bufLength) {
-            char *buf = malloc(bufLength);
+            char *buf = mem_alloc(bufLength);
             if (buf) {
                 glGetProgramInfoLog(p->prog, bufLength, NULL, buf);
                 err("Could not link program:\n%s\n", buf);
-                free(buf);
+                mem_free(buf);
                 glDeleteShader(p->vert);
                 glDeleteShader(p->frag);
                 if (p->geom)

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include "memory.h"
 #include "util.h"
 #include "logger.h"
 #include "json.h" /* XXX: factor out ser/deser code */
@@ -102,7 +103,7 @@ static inline bool ref_is_static(struct ref *ref)
     if (!ref_is_static(__ref)) { \
         err_on(__ref->count != 0, "freeing object '%s' with refcount %d\n", \
                __ref->refclass->name, __ref->count); \
-        free(ref_obj(__ref)); \
+        mem_free(ref_obj(__ref)); \
     } \
 } while (0)
 
@@ -208,9 +209,8 @@ static inline void _ref_put(struct ref *ref)
  */
 #define ref_new(struct_name) ({ \
     struct ref_class *__rc = &ref_class_ ## struct_name; \
-    struct struct_name *__v = malloc(__rc->size); \
+    struct struct_name *__v = mem_alloc(__rc->size, .zero = 1); \
     if (__v) { \
-        memset(__v, 0, __rc->size); \
         __v->ref.refclass = __rc; \
         ref_init(&__v->ref); \
         if (__rc->make) __rc->make(&__v->ref); \

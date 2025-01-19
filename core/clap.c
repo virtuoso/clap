@@ -136,7 +136,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (cfg && !clap_config_is_valid(cfg))
         return NULL;
 
-    ctx = malloc(sizeof(*ctx));
+    ctx = mem_alloc(sizeof(*ctx));
     if (!ctx)
         return NULL;
 
@@ -191,6 +191,6 @@ void clap_done(struct clap_context *ctx, int status)
     if (ctx->cfg.font)
         font_done();
     messagebus_done();
-    free(ctx);
+    mem_free(ctx);
     exit_cleanup_run(status);
 }

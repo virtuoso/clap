@@ -3,6 +3,7 @@
 #include <string.h>
 #include "util.h"
 #include "matrix.h"
+#include "memory.h"
 
 void mx_set_identity(struct matrix4f *m)
 {
@@ -29,7 +30,7 @@ void mx_scale(struct matrix4f *m, float scale)
 
 struct matrix4f *mx_new(void)
 {
-    struct matrix4f *m = malloc(sizeof(*m));
+    struct matrix4f *m = mem_alloc(sizeof(*m));
     if (!m)
         return NULL;
 

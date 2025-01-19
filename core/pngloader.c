@@ -40,15 +40,15 @@ static unsigned char *parse_png(png_structp png, png_infop info, int *width, int
         goto out;
     }
 
-    row_pointers = malloc(sizeof(png_bytep) * *height);
-    buffer = malloc(sizeof(png_byte) * *height * rowsz);
+    row_pointers = mem_alloc(sizeof(png_bytep), .nr = *height, .fatal_fail = 1);
+    buffer = mem_alloc(sizeof(png_byte), .nr = *height * rowsz, .fatal_fail = 1);
     for (y = 0; y < *height; y++)
         row_pointers[y] = &buffer[rowsz * y];
 
     png_read_image(png, row_pointers);
 
     png_destroy_read_struct(&png, &info, NULL);
-    free(row_pointers);
+    mem_free(row_pointers);
 
 out:
     return buffer;

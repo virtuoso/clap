@@ -47,12 +47,12 @@ static void model3d_drop(struct ref *ref)
         animation_delete(&m->anis.x[0]);
     for (i = 0; i < m->nr_joints; i++) {
         darray_clearout(m->joints[i].children);
-        free(m->joints[i].name);
+        mem_free(m->joints[i].name);
     }
-    free(m->joints);
-    free(m->collision_vx);
-    free(m->collision_idx);
-    free(m->name);
+    mem_free(m->joints);
+    mem_free(m->collision_vx);
+    mem_free(m->collision_idx);
+    mem_free(m->name);
 }
 
 DECLARE_REFCLASS(model3d);
@@ -110,7 +110,7 @@ static cerr_check model3dtx_add_texture_from_png_buffer(struct model3dtx *txm, e
 
     buffer = decode_png(input, length, &width, &height, &has_alpha);
     cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
-    free(buffer);
+    mem_free(buffer);
 
     return err;
 }
@@ -121,7 +121,7 @@ static cerr model3dtx_add_texture_at(struct model3dtx *txm, enum shader_vars var
     unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
 
     cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
-    free(buffer);
+    mem_free(buffer);
 
     return err;
 }
@@ -316,7 +316,7 @@ void model3d_set_name(struct model3d *m, const char *fmt, ...)
 {
     va_list ap;
 
-    free(m->name);
+    mem_free(m->name);
     va_start(ap, fmt);
     CHECK(vasprintf(&m->name, fmt, ap));
     va_end(ap);
@@ -405,7 +405,7 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
             return -1;
     }
 
-    CHECK(m->joints = calloc(nr_joints, sizeof(struct model_joint)));
+    m->joints = mem_alloc(sizeof(struct model_joint), .nr = nr_joints, .fatal_fail = 1);
     for (j = 0; j < nr_joints; j++) {
         memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
         darray_init(m->joints[j].children);
@@ -527,7 +527,7 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
                     .comp_type  = DT_SHORT,
                     .data       = lod,
                     .size       = nr_idx * mesh_idx_stride(mesh));
-        free(lod);
+        mem_free(lod);
         m->nr_faces[m->nr_lods] = nr_idx;
         m->nr_lods++;
     }
@@ -630,7 +630,7 @@ struct animation *animation_new(struct model3d *model, const char *name, unsigne
     an->model = model;
     an->nr_channels = nr_channels;
     an->cur_channel = 0;
-    CHECK(an->channels = calloc(an->nr_channels, sizeof(struct channel)));
+    an->channels = mem_alloc(sizeof(struct channel), .nr = an->nr_channels, .fatal_fail = 1);
 
     return an;
 }
@@ -651,11 +651,11 @@ void animation_delete(struct animation *an)
 
 found:
     for (i = 0; i < an->nr_channels; i++) {
-        free(an->channels[i].time);
-        free(an->channels[i].data);
+        mem_free(an->channels[i].time);
+        mem_free(an->channels[i].data);
     }
-    free(an->channels);
-    free(an->name);
+    mem_free(an->channels);
+    mem_free(an->name);
     darray_delete(an->model->anis, idx);
 }
 
@@ -1333,9 +1333,9 @@ static void entity3d_drop(struct ref *ref)
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
     }
-    free(e->joints);
-    free(e->joint_transforms);
-    free(e->mx);
+    mem_free(e->joints);
+    mem_free(e->joint_transforms);
+    mem_free(e->mx);
 }
 
 DECLARE_REFCLASS(entity3d);
@@ -1361,8 +1361,8 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
     e->update  = default_update;
     entity3d_aabb_update(e);
     if (model->anis.da.nr_el) {
-        CHECK(e->joints = calloc(model->nr_joints, sizeof(*e->joints)));
-        CHECK(e->joint_transforms = calloc(model->nr_joints, sizeof(mat4x4)));
+        e->joints = mem_alloc(sizeof(*e->joints), .nr = model->nr_joints, .fatal_fail = 1);
+        e->joint_transforms = mem_alloc(sizeof(mat4x4), .nr = model->nr_joints, .fatal_fail = 1);
     }
     darray_init(e->aniq);
     e->animation = -1;

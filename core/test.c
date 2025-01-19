@@ -159,7 +159,7 @@ static int list_test1(void)
 
     list_init(&list);
     for (i = 0; i < 10; i++) {
-        entry = calloc(1, sizeof(*entry));
+        entry = mem_alloc(sizeof(*entry), .zero = 1);
         entry->i = i;
         list_append(&list, &entry->entry);
     }
@@ -185,7 +185,7 @@ static int list_test1(void)
 
     list_for_each_entry_iter(e, ie, &list, entry) {
         list_del(&e->entry);
-        free(e);
+        mem_free(e);
     }
 
     if (!list_empty(&list))
@@ -398,7 +398,7 @@ static int ca3d_test0(void)
         if (!xyzarray_count(xyz))
             ret = EXIT_FAILURE;
 
-        free(xyz);
+        mem_free(xyz);
     }
 
     return ret;

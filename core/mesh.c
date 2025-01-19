@@ -15,7 +15,7 @@ static void mesh_drop(struct ref *ref)
         if (!ma->nr)
             continue;
         
-        free(ma->data);
+        mem_free(ma->data);
         ma->nr = ma->stride = 0;
     }
 }
@@ -49,7 +49,7 @@ int mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t 
     if (attr >= MESH_MAX)
         return -1;
 
-    CHECK(mesh->attr[attr].data = calloc(nr, stride));
+    mesh->attr[attr].data = mem_alloc(stride, .nr = nr, .fatal_fail = 1);
     mesh->attr[attr].stride = stride;
     mesh->attr[attr].nr = 0;
     mesh->attr[attr].type = attr;
@@ -73,7 +73,7 @@ static unsigned int *idx_to_idx32(unsigned short *idx, size_t nr_idx)
     unsigned int *idx32;
     int i;
 
-    CHECK(idx32 = malloc(nr_idx * sizeof(*idx32)));
+    idx32 = mem_alloc(nr_idx * sizeof(*idx32), .fatal_fail = 1);
     for (i = 0; i < nr_idx; i++)
         idx32[i] = idx[i];
 
@@ -85,11 +85,11 @@ static unsigned short *idx32_to_idx(unsigned int *idx32, size_t nr_idx)
     unsigned short *idx;
     int i;
 
-    CHECK(idx = malloc(nr_idx * sizeof(*idx)));
+    idx = mem_alloc(nr_idx * sizeof(*idx), .fatal_fail = 1);
     for (i = 0; i < nr_idx; i++) {
         /* XXX: CU() */
         if (idx32[i] > USHRT_MAX) {
-            free(idx);
+            mem_free(idx);
             return NULL;
         }
         idx[i] = idx32[i];
@@ -108,10 +108,10 @@ unsigned int *mesh_idx_to_idx32(struct mesh *mesh)
 
 void mesh_idx_from_idx32(struct mesh *mesh, unsigned int *idx32)
 {
-    free(mesh->attr[MESH_IDX].data);
+    mem_free(mesh->attr[MESH_IDX].data);
     mesh->attr[MESH_IDX].data = idx32_to_idx(idx32, mesh_nr_idx(mesh));
     mesh->attr[MESH_IDX].stride = sizeof(unsigned short); /* because GLES/WebGL */
-    free(idx32);
+    mem_free(idx32);
     /* XXX: propagate the error up the stack */
     assert(mesh_idx(mesh));
 }
@@ -121,10 +121,10 @@ unsigned short *mesh_lod_from_idx32(struct mesh *mesh, unsigned int *idx32)
     unsigned int i, nr_idx = mesh_nr_idx(mesh);
     unsigned short *idx;
 
-    CHECK(idx = calloc(nr_idx, sizeof(*idx)));
+    idx = mem_alloc(sizeof(*idx), .nr = nr_idx, .fatal_fail = 1);
     for (i = 0; i < nr_idx; i++)
         idx[i] = idx32[i];
-    free(idx32);
+    mem_free(idx32);
 
     return idx;
 }
@@ -205,7 +205,7 @@ void mesh_optimize(struct mesh *mesh)
     }
 
     err_on(!nr_streams);
-    CHECK(remap = calloc(nr_idx, sizeof(*remap)));
+    remap = mem_alloc(sizeof(*remap), .nr = nr_idx, .fatal_fail = 1);
     idx32 = mesh_idx_to_idx32(mesh);
     nr_new_vx = meshopt_generateVertexRemapMulti(remap, idx32, nr_idx, nr_vx, streams, nr_streams);
     dbg("remapping mesh vertices vx: %zd -> %zd\n", nr_vx, nr_new_vx);
@@ -223,12 +223,12 @@ void mesh_optimize(struct mesh *mesh)
             ma->nr = nr_new_vx;
         }
     }
-    free(remap);
+    mem_free(remap);
 
     meshopt_optimizeVertexCache(idx32, idx32, nr_idx, nr_new_vx);
     meshopt_optimizeOverdraw(idx32, idx32, nr_idx, vxa->data, vxa->nr, vxa->stride, 1.05f);
 
-    CHECK(remap = calloc(vxa->nr, sizeof(*remap)));
+    remap = mem_alloc(sizeof(*remap), .nr = vxa->nr, .fatal_fail = 1);
     nr_new_vx = meshopt_optimizeVertexFetchRemap(remap, idx32, nr_idx, vxa->nr);
     meshopt_remapIndexBuffer(idx32, idx32, nr_idx, remap);
 
@@ -244,7 +244,7 @@ void mesh_optimize(struct mesh *mesh)
             ma->nr = nr_new_vx;
         }
     }
-    free(remap);
+    mem_free(remap);
 
     mesh_idx_from_idx32(mesh, idx32);
 }
@@ -272,7 +272,7 @@ ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t
 
     *idx = idx32_to_idx(idx32, nr_idx);
 out:
-    free(idx32);
+    mem_free(idx32);
 
     return nr_idx;
 }

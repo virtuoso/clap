@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "common.h"
+#include "memory.h"
 #include "messagebus.h"
 #include "input.h"
 #include "input-joystick.h"
@@ -121,7 +122,7 @@ static void touch_push(struct touch *touch, long id, long x, long y)
         return;
     }
     // dbg("new touch %ld\n", id);
-    CHECK(pt = calloc(1, sizeof(*pt)));
+    pt = mem_alloc(sizeof(*pt), .zero = 1, .fatal_fail = 1);
     pt->id = id;
     pt->x = x;
     pt->y = y;
@@ -163,7 +164,7 @@ static void touch_gc(struct touch *touch)
         if (!pt->grace) {
             // dbg("touch %ld removed\n", pt->id);
             list_del(&pt->entry);
-            free(pt);
+            mem_free(pt);
         }
     }
 }

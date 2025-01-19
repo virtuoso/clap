@@ -28,18 +28,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define out_of_memory() do {                    \
-		fprintf(stderr, "Out of memory.\n");    \
-		exit(EXIT_FAILURE);                     \
-	} while (0)
+#include "memory.h"
 
 /* Sadly, strdup is not portable. */
 static char *json_strdup(const char *str)
 {
-	char *ret = (char*) malloc(strlen(str) + 1);
-	if (ret == NULL)
-		out_of_memory();
+	char *ret = mem_alloc(strlen(str) + 1, .fatal_fail = 1);
 	strcpy(ret, str);
 	return ret;
 }
@@ -55,9 +49,7 @@ typedef struct
 
 static void sb_init(SB *sb)
 {
-	sb->start = (char*) malloc(17);
-	if (sb->start == NULL)
-		out_of_memory();
+	sb->start = mem_alloc(17, .fatal_fail = 1);
 	sb->cur = sb->start;
 	sb->end = sb->start + 16;
 }
@@ -77,9 +69,7 @@ static void sb_grow(SB *sb, int need)
 		alloc *= 2;
 	} while (alloc < length + need);
 	
-	sb->start = (char*) realloc(sb->start, alloc + 1);
-	if (sb->start == NULL)
-		out_of_memory();
+	sb->start = mem_realloc(sb->start, alloc + 1, .fatal_fail = 1);
 	sb->cur = sb->start + length;
 	sb->end = sb->start + alloc;
 }
@@ -485,9 +475,7 @@ JsonNode *json_first_child(const JsonNode *node)
 
 static JsonNode *mknode(JsonTag tag)
 {
-	JsonNode *ret = (JsonNode*) calloc(1, sizeof(JsonNode));
-	if (ret == NULL)
-		out_of_memory();
+	JsonNode *ret = mem_alloc(sizeof(JsonNode), .zero = 1, .fatal_fail = 1);
 	ret->tag = tag;
 	return ret;
 }

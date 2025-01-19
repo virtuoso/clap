@@ -671,7 +671,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     int i;
 
     idxsz /= sizeof(unsigned short);
-    CHECK(tidx = calloc(idxsz, sizeof(*tidx))); /* XXX: refcounting, or tied to model? */
+    tidx = mem_alloc(sizeof(*tidx), .nr = idxsz, .fatal_fail = 1); /* XXX: refcounting, or tied to model? */
     for (i = 0; i < idxsz; i += 3) {
         /* swap i+1 and i+2 on either side to switch winding */
         tidx[i + 0] = idx[i + 0];
@@ -680,7 +680,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     }
 
     vxsz /= sizeof(GLfloat);
-    CHECK(tvx = calloc(vxsz, sizeof(*tvx)));
+    tvx = mem_alloc(sizeof(*tvx), .nr = vxsz, .fatal_fail = 1);
     for (i = 0; i < vxsz; i += 3) {
         /* apply rotation and scale */
         mat4x4 trans;
@@ -708,8 +708,8 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     trimesh = dCreateTriMesh(phys->space, meshdata, NULL, NULL, NULL);
     if (!trimesh) {
         dGeomTriMeshDataDestroy(meshdata);
-        free(tvx);
-        free(tidx);
+        mem_free(tvx);
+        mem_free(tidx);
         return NULL;
     }
 
@@ -741,7 +741,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, geom
     dMatrix3 rot;
     dMass m;
 
-    CHECK(body = calloc(1, sizeof(*body)));
+    body = mem_alloc(sizeof(*body), .zero = 1, .fatal_fail = 1);
     list_init(&body->pen_entry);
     body->phys = phys;
 
@@ -761,7 +761,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, geom
     if (!body->geom) {
         if (has_body)
             dBodyDestroy(body->body);
-        free(body);
+        mem_free(body);
 
         return NULL;
     }
@@ -820,8 +820,8 @@ void phys_body_done(struct phys_body *body)
     dTriMeshDataID meshdata = NULL;
     if (body->class == GEOM_TRIMESH) {
         meshdata = dGeomTriMeshGetTriMeshDataID(body->geom);
-        free(body->trimesh_vx);
-        free(body->trimesh_idx);
+        mem_free(body->trimesh_vx);
+        mem_free(body->trimesh_idx);
     }
     if (body->geom)
         dGeomDestroy(body->geom);
@@ -831,7 +831,7 @@ void phys_body_done(struct phys_body *body)
         dBodyDestroy(body->body);
     body->geom = NULL;
     body->body = NULL;
-    free(body);
+    mem_free(body);
 }
 
 static void ode_error(int errnum, const char *msg, va_list ap)
@@ -861,7 +861,7 @@ struct phys *phys_init(void)
 {
     struct phys *phys;
 
-    phys = calloc(1, sizeof(*phys));
+    phys = mem_alloc(sizeof(*phys));
     if (!phys)
         return NULL;
 
@@ -894,7 +894,7 @@ void phys_done(struct phys *phys)
     dWorldDestroy(phys->world);
     dJointGroupDestroy(phys->contact);
     dCloseODE();
-    free(phys);
+    mem_free(phys);
 }
 
 void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)

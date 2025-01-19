@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "memory.h"
 #include "model.h"
 #include "pipeline.h"
 #include "primitives.h"
@@ -83,7 +84,7 @@ static void pipeline_drop(struct ref *ref)
         if (pass->prog_override)
             ref_put(pass->prog_override);
 
-        free(pass);
+        mem_free(pass);
     }
 }
 DECLARE_REFCLASS(pipeline);
@@ -176,7 +177,10 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     struct entity3d *e;
     struct model3d *m;
 
-    CHECK(pass = calloc(1, sizeof(*pass)));
+    pass = mem_alloc(sizeof(*pass), .zero = 1);
+    if (!pass)
+        return NULL;
+
     list_append(&pl->passes, &pass->entry);
     darray_init(pass->src);
     darray_init(pass->fbo);
@@ -286,7 +290,7 @@ err_fbo:
 err_fbo_array:
     darray_clearout(pass->fbo);
     list_del(&pass->entry);
-    free(pass);
+    mem_free(pass);
     return NULL;
 }
 

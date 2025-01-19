@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include "memory.h"
 #include "util.h"
 
 void cleanup__fd(int *fd)
@@ -20,22 +21,22 @@ void cleanup__FILEp(FILE **f)
 
 void cleanup__malloc(void **x)
 {
-    free(*x);
+    mem_free(*x);
 }
 
 void cleanup__charp(char **s)
 {
-    free(*s);
+    mem_free(*s);
 }
 
 void cleanup__ucharp(uchar **s)
 {
-    free(*s);
+    mem_free(*s);
 }
 
 void *memdup(const void *x, size_t size)
 {
-    void *r = malloc(size);
+    void *r = mem_alloc(size);
     if (r) {
         memcpy(r, x, size);
     }
@@ -59,7 +60,7 @@ void *_darray_resize(struct darray *da, size_t nr_el)
     if (nr_el < da->nr_el)
         goto out;
 
-    new = realloc(da->array, nr_el * da->elsz);
+    new = mem_realloc_array(da->array, nr_el, da->elsz);
 
     if (!new)
         return NULL;
@@ -126,7 +127,7 @@ void _darray_delete(struct darray *da, size_t idx)
 
 void _darray_clearout(struct darray *da)
 {
-    free(da->array);
+    mem_free(da->array);
     da->array = NULL;
     da->nr_el = 0;
 }
@@ -166,7 +167,7 @@ int hashmap_init(struct hashmap *hm, size_t nr_buckets)
     if (nr_buckets & (nr_buckets - 1))
         return -1;
 
-    hm->buckets = calloc(nr_buckets, sizeof(struct list));
+    hm->buckets = mem_alloc(sizeof(struct list), .nr = nr_buckets);
     hm->nr_buckets = nr_buckets;
     hm->hash = hash_simple;
     list_init(&hm->list);
@@ -183,9 +184,9 @@ void hashmap_done(struct hashmap *hm)
 
     list_for_each_entry_iter(e, it, &hm->list, list_entry) {
         list_del(&e->list_entry);
-        free(e);
+        mem_free(e);
     }
-    free(hm->buckets);
+    mem_free(hm->buckets);
     hm->nr_buckets = 0;
 }
 
@@ -232,7 +233,7 @@ int hashmap_insert(struct hashmap *hm, unsigned int key, void *value)
     if (_hashmap_find(hm, key, &hash))
         return -EBUSY;
 
-    e = calloc(1, sizeof(*e));
+    e = mem_alloc(sizeof(*e), .zero = 1);
     if (!e)
         return -ENOMEM;
 
@@ -258,7 +259,7 @@ void bitmap_init(struct bitmap *b, size_t bits)
     size_t size = bits / BITS_PER_LONG;
 
     size += !!(bits % BITS_PER_LONG);
-    b->mask = calloc(1, size * sizeof(unsigned long));
+    b->mask = mem_alloc(sizeof(unsigned long), .nr = size);
     if (!b->mask)
         return;
 
@@ -310,11 +311,10 @@ notrace int exit_cleanup(exit_handler_fn fn)
 {
     struct exit_handler *eh;
 
-    eh = malloc(sizeof(*eh));
+    eh = mem_alloc(sizeof(*eh), .zero = 1);
     if (!eh)
         return -ENOMEM;
 
-    memset(eh, 0, sizeof(*eh));
     eh->fn = fn;
 
     list_append(&ehs_list, &eh->entry);
@@ -328,7 +328,7 @@ void exit_cleanup_run(int status)
     list_for_each_entry_iter(eh, iter, &ehs_list, entry) {
         eh->fn(status);
         list_del(&eh->entry);
-        free(eh);
+        mem_free(eh);
     }
 }
 

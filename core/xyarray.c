@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <stdio.h>
 #include "logger.h"
+#include "memory.h"
 #include "xyarray.h"
 
 struct xyzarray *xyzarray_new(ivec3 dim)
 {
     struct xyzarray *xyz;
 
-    CHECK(xyz = calloc(1, offsetof(struct xyzarray, arr[dim[0] * dim[1] * dim[2]])));
+    xyz = mem_alloc(offsetof(struct xyzarray, arr[dim[0] * dim[1] * dim[2]]),
+                    .zero = 1, .fatal_fail = 1);
     xyz->dim[0] = dim[0];
     xyz->dim[1] = dim[1];
     xyz->dim[2] = dim[2];
@@ -52,14 +54,14 @@ void xyzarray_print(struct xyzarray *xyz)
     char *line;
     int x, y, z;
 
-    CHECK(line = calloc(xyz->dim[0] + 1, 1));
+    line = mem_alloc(xyz->dim[0] + 1, .zero = 1, .fatal_fail = 1);
     for (z = 0; z < xyz->dim[2]; z++)
         for (y = 0; y < xyz->dim[1]; y++) {
             for (x = 0; x < xyz->dim[0]; x++)
                 line[x] = xyzarray_get(xyz, (ivec3){ x, y, z }) ? '#' : ' ';
             dbg(" #%d# |%s|\n", z, line);
         }
-    free(line);
+    mem_free(line);
 }
 
 int xyzarray_count(struct xyzarray *xyz)
@@ -88,7 +90,7 @@ void xyarray_free(unsigned char *arr)
 {
     struct xyzarray *xyz = container_of(arr, struct xyzarray, arr);
 
-    free(xyz);
+    mem_free(xyz);
 }
 
 unsigned char xyarray_get(unsigned char *arr, int x, int y)

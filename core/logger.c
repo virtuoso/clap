@@ -10,6 +10,7 @@
 #include <time.h>
 #include "config.h"
 #include "messagebus.h"
+#include "memory.h"
 #include "logger.h"
 #include "util.h"
 
@@ -115,7 +116,7 @@ int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int 
 {
     struct rb_sink *s;
 
-    CHECK_NVAL(s = calloc(1, sizeof(*s)), !!, true);
+    s = mem_alloc(sizeof(*s), .zero = 1, .fatal_fail = 1);
     s->flush  = flush;
     s->filter = filter;
     s->fill   = fill;
@@ -133,7 +134,7 @@ void rb_sink_del(void *data)
     list_for_each_entry(s, &log_rb_sinks, entry) {
         if (s->data == data) {
             list_del(&s->entry);
-            free(s);
+            mem_free(s);
             return;
         }
     }
@@ -181,7 +182,7 @@ static notrace void rb_flush(void)
     if (rp_min == __INT_MAX__ || rp_max == __INT_MAX__)
         return;
     for (i = rp_min; i != rp_max; i = (i + 1) % log_rb_sz) {
-        free((void *)log_rb[i].msg);
+        mem_free((void *)log_rb[i].msg);
         log_rb[i].msg = NULL;
     }
 }
@@ -193,7 +194,7 @@ static void rb_cleanup(int status)
 
 static notrace int rb_init(void)
 {
-    log_rb = calloc(LOG_RB_MAX, sizeof(struct log_entry));
+    log_rb = mem_alloc(sizeof(struct log_entry), .nr = LOG_RB_MAX);
     if (!log_rb)
         return -ENOMEM;
 

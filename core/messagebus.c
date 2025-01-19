@@ -3,6 +3,7 @@
 #include <errno.h>
 #include "common.h"
 #include "messagebus.h"
+#include "memory.h"
 
 static struct list subscriber[MT_MAX];
 
@@ -10,7 +11,7 @@ int subscribe(enum message_type type, subscriber_fn fn, void *data)
 {
     struct subscriber *s;
 
-    s = malloc(sizeof(*s));
+    s = mem_alloc(sizeof(*s));
     if (!s)
         return -ENOMEM;
 
@@ -55,7 +56,7 @@ void messagebus_done(void)
 
         list_for_each_entry_iter(s, iter, &subscriber[i], entry) {
             list_del(&s->entry);
-            free(s);
+            mem_free(s);
         }
     }
 }

@@ -90,7 +90,7 @@ static int parse_ogg(struct sound *sound, const char *uri)
     dbg("size: %d\n", sound->size);
     alBufferData(sound->buffer_idx, sound->format, sound->buf,
                  sound->size, sound->freq);
-    free(sound->buf);
+    mem_free(sound->buf);
     sound->buf = NULL;
     ov_clear(&vf);
 
@@ -108,7 +108,7 @@ static int parse_wav(struct sound *sound, const char *uri)
     fstat(fileno(f), &st);
     sound->size = st.st_size;
 
-    CHECK(sound->buf = malloc(st.st_size));
+    sound->buf = mem_alloc(st.st_size, .fatal_fail = 1);
     CHECK_VAL(fread(sound->buf, st.st_size, 1, f), st.st_size);
 
     offset = 12; // ignore the RIFF header
@@ -172,7 +172,7 @@ static void sound_drop(struct ref *ref)
     struct sound *sound = container_of(ref, struct sound, ref);
     alDeleteBuffers(1, &sound->buffer_idx);
     alDeleteSources(1, &sound->source_idx);
-    free(sound->buf);
+    mem_free(sound->buf);
 }
 
 DECLARE_REFCLASS(sound);
