@@ -67,7 +67,7 @@ out:
     return ret;
 }
 
-void _mem_free(const char *mod, void *buf)
+void _mem_free(const char *mod, void *buf, const free_params *params)
 {
     free(buf);
 }

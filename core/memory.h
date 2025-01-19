@@ -20,6 +20,11 @@ typedef struct realloc_params {
     const char      *mod;
 } realloc_params;
 
+typedef struct free_params {
+    size_t          size;
+    const char      *mod;
+} free_params;
+
 #define mem_alloc(_size, args...) \
     _mem_alloc(MODNAME, (_size), &(alloc_params){ args })
 must_check void *_mem_alloc(const char *mod, size_t size, const alloc_params *params);
@@ -31,8 +36,8 @@ must_check void *_mem_alloc(const char *mod, size_t size, const alloc_params *pa
 must_check void *_mem_realloc_array(const char *mod, void *buf, size_t nmemb, size_t size,
                                     const realloc_params *params);
 
-#define mem_free(_buf) \
-    _mem_free(MODNAME, (_buf))
-void _mem_free(const char *mod, void *buf);
+#define mem_free(_buf, args...) \
+    _mem_free(MODNAME, (_buf), &(free_params){ args })
+void _mem_free(const char *mod, void *buf, const free_params *params);
 
 #endif /* __CLAP_MEMORY_H__ */
