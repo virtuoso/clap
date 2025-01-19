@@ -48,16 +48,24 @@ static void pipeline_drop(struct ref *ref)
      * element to not be freed
      */
     list_for_each_entry(pass, &pl->passes, entry) {
-        struct model3dtx *txm = mq_model_first(&pass->mq);
-        int i;
+        /*
+         * Depth/color attachments don't have quad models,
+         * so the below would cause a massive memory violation
+         * that for some reason no ASAN can catch, so naturally
+         * skip it if the mq list is empty
+         */
+        if (!list_empty(&pass->mq.txmodels)) {
+            struct model3dtx *txm = mq_model_first(&pass->mq);
+            int i;
 
-        for (i = 0; i < darray_count(pass->fbo); i++) {
-            fbo_t **pfbo = &pass->fbo.x[i];
+            for (i = 0; i < darray_count(pass->fbo); i++) {
+                fbo_t **pfbo = &pass->fbo.x[i];
 
-            if (txm->emission == fbo_texture(*pfbo))
-                txm->emission = &txm->_emission;
-            if (txm->sobel == fbo_texture(*pfbo))
-                txm->sobel = &txm->_sobel;
+                if (txm->emission == fbo_texture(*pfbo))
+                    txm->emission = &txm->_emission;
+                if (txm->sobel == fbo_texture(*pfbo))
+                    txm->sobel = &txm->_sobel;
+            }
         }
 
         darray_clearout(pass->src);
