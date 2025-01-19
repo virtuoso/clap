@@ -336,7 +336,7 @@ static bool parse_object    (const char **sp, JsonNode        **out);
 static bool parse_hex16     (const char **sp, uint16_t         *out);
 
 static bool expect_literal  (const char **sp, const char *str);
-static void skip_space      (const char **sp);
+static void skip_space_     (const char **sp);
 
 static void emit_value              (SB *out, const JsonNode *node);
 static void emit_value_indented     (SB *out, const JsonNode *node, const char *space, int indent_level);
@@ -363,11 +363,11 @@ JsonNode *json_decode(const char *json)
 	const char *s = json;
 	JsonNode *ret;
 	
-	skip_space(&s);
+	skip_space_(&s);
 	if (!parse_value(&s, &ret))
 		return NULL;
 	
-	skip_space(&s);
+	skip_space_(&s);
 	if (*s != 0) {
 		json_delete(ret);
 		return NULL;
@@ -434,11 +434,11 @@ bool json_validate(const char *json)
 {
 	const char *s = json;
 	
-	skip_space(&s);
+	skip_space_(&s);
 	if (!parse_value(&s, NULL))
 		return false;
 	
-	skip_space(&s);
+	skip_space_(&s);
 	if (*s != 0)
 		return false;
 	
@@ -698,7 +698,7 @@ static bool parse_array(const char **sp, JsonNode **out)
 	
 	if (*s++ != '[')
 		goto failure;
-	skip_space(&s);
+	skip_space_(&s);
 	
 	if (*s == ']') {
 		s++;
@@ -708,7 +708,7 @@ static bool parse_array(const char **sp, JsonNode **out)
 	for (;;) {
 		if (!parse_value(&s, out ? &element : NULL))
 			goto failure;
-		skip_space(&s);
+		skip_space_(&s);
 		
 		if (out)
 			json_append_element(ret, element);
@@ -720,7 +720,7 @@ static bool parse_array(const char **sp, JsonNode **out)
 		
 		if (*s++ != ',')
 			goto failure;
-		skip_space(&s);
+		skip_space_(&s);
 	}
 	
 success:
@@ -743,7 +743,7 @@ static bool parse_object(const char **sp, JsonNode **out)
 	
 	if (*s++ != '{')
 		goto failure;
-	skip_space(&s);
+	skip_space_(&s);
 	
 	if (*s == '}') {
 		s++;
@@ -753,15 +753,15 @@ static bool parse_object(const char **sp, JsonNode **out)
 	for (;;) {
 		if (!parse_string(&s, out ? &key : NULL))
 			goto failure;
-		skip_space(&s);
+		skip_space_(&s);
 		
 		if (*s++ != ':')
 			goto failure_free_key;
-		skip_space(&s);
+		skip_space_(&s);
 		
 		if (!parse_value(&s, out ? &value : NULL))
 			goto failure_free_key;
-		skip_space(&s);
+		skip_space_(&s);
 		
 		if (out)
 			append_member(ret, key, value);
@@ -773,7 +773,7 @@ static bool parse_object(const char **sp, JsonNode **out)
 		
 		if (*s++ != ',')
 			goto failure;
-		skip_space(&s);
+		skip_space_(&s);
 	}
 	
 success:
@@ -963,7 +963,7 @@ bool parse_number(const char **sp, double *out)
 	return true;
 }
 
-static void skip_space(const char **sp)
+static void skip_space_(const char **sp)
 {
 	const char *s = *sp;
 	while (is_space(*s))
@@ -1425,7 +1425,7 @@ _type *json_ ## _type ##_array_alloc(JsonNode *node, unsigned int *psz) \
 	if (size <= 0) \
 		return NULL; \
 	 \
-	array = calloc(size, sizeof(_type)); \
+	array = mem_alloc(sizeof(_type), .nr = size); \
 	if (!array) \
 		return NULL; \
 	 \
