@@ -11,6 +11,7 @@
 #include "input.h"
 #include "font.h"
 #include "sound.h"
+#include "mesh.h"
 #include "messagebus.h"
 #include "librarian.h"
 #include "physics.h"
@@ -139,6 +140,8 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     ctx = mem_alloc(sizeof(*ctx));
     if (!ctx)
         return NULL;
+
+    mesh_init();
 
     if (cfg)
         memcpy(&ctx->cfg, cfg, sizeof(ctx->cfg));

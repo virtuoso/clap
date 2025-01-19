@@ -276,3 +276,18 @@ out:
 
     return nr_idx;
 }
+
+static void *meshopt_alloc(size_t size)
+{
+    return mem_alloc(size);
+}
+
+static void meshopt_dealloc(void *ptr)
+{
+    mem_free(ptr);
+}
+
+void mesh_init(void)
+{
+    meshopt_setAllocator(meshopt_alloc, meshopt_dealloc);
+}

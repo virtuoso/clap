@@ -112,5 +112,6 @@ void mesh_push(float *vx, float *tx, float *norm, unsigned short *idx,
                float x, float y, float z, float scale);
 void mesh_optimize(struct mesh *mesh);
 ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t orig_idx);
+void mesh_init(void);
 
 #endif /* __CLAP_MESH_H__ */
