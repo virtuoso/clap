@@ -857,6 +857,21 @@ void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact
     phys->ground_contact = ground_contact;
 }
 
+static void *ode_alloc(dsizeint size)
+{
+    return mem_alloc(size);
+}
+
+static void *ode_realloc(void *ptr, dsizeint oldsize, dsizeint newsize)
+{
+    return mem_realloc(ptr, newsize, .old_size = oldsize);
+}
+
+static void ode_free(void *ptr, dsizeint size)
+{
+    mem_free(ptr, .size = size);
+}
+
 struct phys *phys_init(void)
 {
     struct phys *phys;
@@ -866,6 +881,9 @@ struct phys *phys_init(void)
         return NULL;
 
     dInitODE2(0);
+    dSetAllocHandler(ode_alloc);
+    dSetReallocHandler(ode_realloc);
+    dSetFreeHandler(ode_free);
     dSetErrorHandler(ode_error);
     dSetDebugHandler(ode_debug);
     dSetMessageHandler(ode_message);
