@@ -588,7 +588,7 @@ void model3dtx_draw(struct model3dtx *txm)
     struct model3d *m = txm->model;
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    glDrawElements(m->draw_type, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0);
+    GL(glDrawElements(m->draw_type, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0));
 }
 
 static void model3d_done(struct model3d *m, struct shader_prog *p)
