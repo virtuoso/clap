@@ -57,7 +57,7 @@ void *_darray_resize(struct darray *da, size_t nr_el)
      *  - the element size is large
      *  - the ratio of additions to deletions is higher than a certain threshold
      */
-    if (nr_el < da->nr_el)
+    if (nr_el <= da->nr_el)
         goto out;
 
     new = mem_realloc_array(da->array, nr_el, da->elsz, .mod = da->mod);
