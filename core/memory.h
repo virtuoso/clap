@@ -17,6 +17,7 @@ typedef struct alloc_params {
 typedef struct realloc_params {
     uint64_t        fatal_fail  : 1,
                     __reserved0 : 63;
+    size_t          old_size;
     const char      *mod;
 } realloc_params;
 
