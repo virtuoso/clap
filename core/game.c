@@ -328,7 +328,7 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
     }
 
     health_set(g->health / g->options.max_health);
-    ui_debug_printf("apple in hand: %d, health: %f, apples in the burrow: %d (%d mature)\n",
+    ui_debug_printf("apple in hand: %d, health: %f, apples in the burrow: %zu (%d mature)\n",
                     g->apple_is_carried ? 1 : 0,
                     g->health,
                     g->burrow.items.da.nr_el,

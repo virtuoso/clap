@@ -128,7 +128,7 @@ static inline const char *str_basename(const char *str)
 struct darray {
     void            *array;
     size_t          elsz;
-    unsigned int    nr_el;
+    size_t          nr_el;
 };
 
 #define darray(_type, _name) \
@@ -139,24 +139,24 @@ union { \
 
 #define darray_init(_da) { (_da)->da.elsz = sizeof(*(_da)->x); (_da)->da.nr_el = 0; (_da)->x = NULL; }
 
-static inline unsigned int _darray_count(struct darray *da)
+static inline size_t _darray_count(struct darray *da)
 {
     return da->nr_el;
 }
 
 #define darray_count(_x) _darray_count(&((_x).da))
 
-static inline void *darray_get(struct darray *da, unsigned int el)
+static inline void *darray_get(struct darray *da, size_t el)
 {
     if (el >= da->nr_el)
         return NULL;
     return da->array + da->elsz * el;
 }
 
-void *darray_resize(struct darray *da, unsigned int nr_el);
+void *darray_resize(struct darray *da, size_t nr_el);
 void *darray_add(struct darray *da);
-void *darray_insert(struct darray *da, int idx);
-void darray_delete(struct darray *da, int idx);
+void *darray_insert(struct darray *da, size_t idx);
+void darray_delete(struct darray *da, size_t idx);
 void darray_clearout(struct darray *da);
 #define DA(_da, _type, _idx) ((_type *)darray_get((_da), _idx))
 #define darray_for_each(_el, _da) \

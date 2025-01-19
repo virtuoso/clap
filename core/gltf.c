@@ -799,7 +799,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             CHECK(*buf = malloc(len));
             dlen = base64_decode(*buf, len, juri->string_ + sizeof(DATA_URI) - 1, slen);
             if (dlen < 0) {
-                err("error decoding base64 buffer %d\n", darray_count(gd->buffers) - 1);
+                err("error decoding base64 buffer %zu\n", darray_count(gd->buffers) - 1);
                 free(*buf);
                 /*
                 * leave a NULL hole in the buffers array to keep the GLTF buffer
@@ -897,7 +897,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
 
         int *img = darray_add(&gd->imgs.da);
         *img = supported ? jbufvw->number_ : -1;
-        dbg("image %d: bufferView: %d\n", darray_count(gd->imgs), *img);
+        dbg("image %zu: bufferView: %d\n", darray_count(gd->imgs), *img);
     }
 
     /* Textures */
@@ -965,8 +965,8 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             }
         }
 
-        dbg("material %d: tex: %d nmap: %d emission: %d met: %f rough: %f\n",
-            gd->mats.da.nr_el - 1, mat->base_tex,
+        dbg("material %zu: tex: %d nmap: %d emission: %d met: %f rough: %f\n",
+            darray_count(gd->mats) - 1, mat->base_tex,
             mat->normal_tex,
             mat->emission_tex,
             mat->metallic,

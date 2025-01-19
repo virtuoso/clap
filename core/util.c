@@ -42,7 +42,7 @@ void *memdup(const void *x, size_t size)
     return r;
 }
 
-void *darray_resize(struct darray *da, unsigned int nr_el)
+void *darray_resize(struct darray *da, size_t nr_el)
 {
     void *new;
 
@@ -54,7 +54,7 @@ void *darray_resize(struct darray *da, unsigned int nr_el)
      *
      * Possible reasons to shrink an array:
      *  - the element size is large
-     *  - the ration off additions to deletions is higher than a certain threshold
+     *  - the ratio of additions to deletions is higher than a certain threshold
      */
     if (nr_el < da->nr_el)
         goto out;
@@ -94,7 +94,7 @@ void *darray_add(struct darray *da)
     return new;
 }
 
-void *darray_insert(struct darray *da, int idx)
+void *darray_insert(struct darray *da, size_t idx)
 {
     void *new = darray_resize(da, da->nr_el + 1);
 
@@ -109,7 +109,7 @@ void *darray_insert(struct darray *da, int idx)
     return new;
 }
 
-void darray_delete(struct darray *da, int idx)
+void darray_delete(struct darray *da, size_t idx)
 {
     if (!da->nr_el)
         return;
