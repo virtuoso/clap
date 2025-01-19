@@ -31,6 +31,10 @@ void cleanup__ucharp(uchar **s);
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
+/* Multiplication overflows are by definition unlikely */
+#define _mul_overflow(a, b, res) __builtin_mul_overflow((a), (b), (res))
+#define mul_overflow(a, b, res) unlikely(__builtin_mul_overflow((a), (b), (res)))
+
 #define array_size(x) (sizeof(x) / sizeof(*x))
 #ifndef offsetof
 #define offsetof(a, b) __builtin_offsetof(a, b)
