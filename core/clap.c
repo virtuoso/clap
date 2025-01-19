@@ -191,5 +191,6 @@ void clap_done(struct clap_context *ctx, int status)
     if (ctx->cfg.font)
         font_done();
     messagebus_done();
+    free(ctx);
     exit_cleanup_run(status);
 }
