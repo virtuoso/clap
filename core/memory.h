@@ -1,0 +1,35 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#ifndef __CLAP_MEMORY_H__
+#define __CLAP_MEMORY_H__
+
+#include <stddef.h>
+#include "common.h"
+#include "error.h"
+
+typedef struct alloc_params {
+    size_t          nr;
+    unsigned long   fatal_fail  : 1,
+                    zero        : 1;
+} alloc_params;
+
+typedef struct realloc_params {
+    unsigned long   fatal_fail  : 1;
+    const char      *mod;
+} realloc_params;
+
+#define mem_alloc(_size, args...) \
+    _mem_alloc(MODNAME, (_size), &(alloc_params){ args })
+must_check void *_mem_alloc(const char *mod, size_t size, const alloc_params *params);
+
+#define mem_realloc(_buf, _size, args...) \
+    _mem_realloc_array(MODNAME, (_buf), 1, (_size), &(realloc_params){ args })
+#define mem_realloc_array(_buf, _nmemb, _size, args...) \
+    _mem_realloc_array(MODNAME, (_buf), (_nmemb), (_size), &(realloc_params){ args })
+must_check void *_mem_realloc_array(const char *mod, void *buf, size_t nmemb, size_t size,
+                                    const realloc_params *params);
+
+#define mem_free(_buf) \
+    _mem_free(MODNAME, (_buf))
+void _mem_free(const char *mod, void *buf);
+
+#endif /* __CLAP_MEMORY_H__ */
