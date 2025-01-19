@@ -18,8 +18,13 @@
 #else
 #include <stdlib.h>
 #define enter_debugger() abort()
+#ifdef _WIN32
+#define PRItime "lld"
+#define PRItvsec "lld"
+#else
 #define PRItime "ld"
 #define PRItvsec "ld"
+#endif /* _WIN32 */
 #endif /* CONFIG_BROWSER */
 
 #define BITS_PER_LONG   (8 * sizeof(long))
