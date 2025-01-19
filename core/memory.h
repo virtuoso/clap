@@ -3,17 +3,20 @@
 #define __CLAP_MEMORY_H__
 
 #include <stddef.h>
+#include <stdint.h>
 #include "common.h"
 #include "error.h"
 
 typedef struct alloc_params {
     size_t          nr;
-    unsigned long   fatal_fail  : 1,
-                    zero        : 1;
+    uint64_t        fatal_fail  : 1,
+                    zero        : 1,
+                    __reserved0 : 62;
 } alloc_params;
 
 typedef struct realloc_params {
-    unsigned long   fatal_fail  : 1;
+    uint64_t        fatal_fail  : 1,
+                    __reserved0 : 63;
     const char      *mod;
 } realloc_params;
 

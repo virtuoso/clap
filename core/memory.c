@@ -7,6 +7,9 @@
 
 void *_mem_alloc(const char *mod, size_t size, const alloc_params *params)
 {
+    if (params->__reserved0)
+        return NULL;
+
     mod = str_basename(mod);
 
     void *ret = NULL;
@@ -37,6 +40,9 @@ out:
 void *_mem_realloc_array(const char *mod, void *buf, size_t nmemb, size_t size,
                          const realloc_params *params)
 {
+    if (params->__reserved0)
+        return NULL;
+
     if (params->mod)
         mod = params->mod;
 
