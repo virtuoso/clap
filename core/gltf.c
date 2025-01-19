@@ -205,36 +205,36 @@ void gltf_free(struct gltf_data *gd)
     int i;
 
     for (i = 0; i < gd->anis.da.nr_el; i++) {
-        struct gltf_animation *ani = &gd->anis.x[i];
+        struct gltf_animation *ani = DA(gd->anis, i);
         free((void *)ani->name);
 
-        darray_clearout(&ani->channels.da);
-        darray_clearout(&ani->samplers.da);
+        darray_clearout(ani->channels);
+        darray_clearout(ani->samplers);
     }
 
     for (i = 0; i < gd->buffers.da.nr_el; i++)
-        free(gd->buffers.x[i]);
+        free(*DA(gd->buffers, i));
 
     for (i = 0; i < gd->meshes.da.nr_el; i++)
-        free((void *)gd->meshes.x[i].name);
-    darray_for_each(node, &gd->nodes) {
+        free((void *)DA(gd->meshes, i)->name);
+    darray_for_each(node, gd->nodes) {
         free((void *)node->name);
         free(node->ch_arr);
     }
-    darray_for_each(skin, &gd->skins) {
+    darray_for_each(skin, gd->skins) {
         free((void *)skin->joints);
         free(skin->nodes);
         free((void *)skin->name);
     }
-    darray_clearout(&gd->buffers.da);
-    darray_clearout(&gd->bufvws.da);
-    darray_clearout(&gd->meshes.da);
-    darray_clearout(&gd->accrs.da);
-    darray_clearout(&gd->nodes.da);
-    darray_clearout(&gd->mats.da);
-    darray_clearout(&gd->anis.da);
-    darray_clearout(&gd->skins.da);
-    darray_clearout(&gd->imgs.da);
+    darray_clearout(gd->buffers);
+    darray_clearout(gd->bufvws);
+    darray_clearout(gd->meshes);
+    darray_clearout(gd->accrs);
+    darray_clearout(gd->nodes);
+    darray_clearout(gd->mats);
+    darray_clearout(gd->anis);
+    darray_clearout(gd->skins);
+    darray_clearout(gd->imgs);
     free(gd->texs);
     free(gd);
 }
@@ -248,16 +248,16 @@ int gltf_mesh_by_name(struct gltf_data *gd, const char *name)
 {
     int i;
 
-    for (i = 0; i < gd->meshes.da.nr_el; i++)
-        if (!strcasecmp(name, gd->meshes.x[i].name))
-            return i;//&gd->meshes.x[i];
+    for (i = 0; i < darray_count(gd->meshes); i++)
+        if (!strcasecmp(name, DA(gd->meshes, i)->name))
+            return i;
 
     return -1;
 }
 
 struct gltf_mesh *gltf_mesh(struct gltf_data *gd, int mesh)
 {
-    return &gd->meshes.x[mesh];
+    return DA(gd->meshes, mesh);
 }
 
 const char *gltf_mesh_name(struct gltf_data *gd, int mesh)
@@ -272,7 +272,7 @@ const char *gltf_mesh_name(struct gltf_data *gd, int mesh)
 
 struct gltf_accessor *gltf_accessor(struct gltf_data *gd, int accr)
 {
-    struct gltf_accessor *ga = &gd->accrs.x[accr];
+    struct gltf_accessor *ga = DA(gd->accrs, accr);
 
     if (!ga)
         return NULL;
@@ -296,12 +296,12 @@ size_t gltf_accessor_nr(struct gltf_data *gd, int accr)
 
 struct gltf_bufview *gltf_bufview_accr(struct gltf_data *gd, int accr)
 {
-    struct gltf_accessor *ga = &gd->accrs.x[accr];
+    struct gltf_accessor *ga = DA(gd->accrs, accr);
 
     if (!ga)
         return NULL;
 
-    return &gd->bufvws.x[ga->bufview];
+    return DA(gd->bufvws, ga->bufview);
 }
 
 struct gltf_bufview *gltf_bufview_tex(struct gltf_data *gd, int tex)
@@ -313,28 +313,28 @@ struct gltf_bufview *gltf_bufview_tex(struct gltf_data *gd, int tex)
     if (img >= darray_count(gd->imgs))
         return NULL;
 
-    int bv = gd->imgs.x[img];
+    int bv = *DA(gd->imgs, img);
     if (bv >= darray_count(gd->bufvws) || bv < 0)
         return NULL;
 
-    return &gd->bufvws.x[bv];
+    return DA(gd->bufvws, bv);
 }
 
 void *gltf_accessor_buf(struct gltf_data *gd, int accr)
 {
-    struct gltf_accessor *ga = &gd->accrs.x[accr];
+    struct gltf_accessor *ga = DA(gd->accrs, accr);
     struct gltf_bufview *bv;
 
     bv = gltf_bufview_accr(gd, accr);
     if (!bv)
         return NULL;
 
-    return gd->buffers.x[bv->buffer] + ga->offset + bv->offset;
+    return *DA(gd->buffers, bv->buffer) + ga->offset + bv->offset;
 }
 
 void *gltf_accessor_element(struct gltf_data *gd, int accr, size_t el)
 {
-    struct gltf_accessor *ga = &gd->accrs.x[accr];
+    struct gltf_accessor *ga = DA(gd->accrs, accr);
     struct gltf_bufview *bv;
     size_t elsz;
     void *buf;
@@ -343,7 +343,7 @@ void *gltf_accessor_element(struct gltf_data *gd, int accr, size_t el)
     if (!bv)
         return NULL;
 
-    buf = gd->buffers.x[bv->buffer] + ga->offset + bv->offset;
+    buf = *DA(gd->buffers, bv->buffer) + ga->offset + bv->offset;
     elsz = comp_sizes[ga->comptype];
 
     return buf + elsz * el;
@@ -404,7 +404,7 @@ struct gltf_material *gltf_material(struct gltf_data *gd, int mesh)
     if (!m)
         return NULL;
 
-    return &gd->mats.x[m->material];
+    return DA(gd->mats, m->material);
 }
 
 #define GLTF_MAT_TEX(_attr, _name) \
@@ -430,7 +430,7 @@ void *gltf_ ## _name(struct gltf_data *gd, int mesh) \
     if (!bv) \
         return NULL; \
  \
-    return gd->buffers.x[bv->buffer] + bv->offset; \
+    return *DA(gd->buffers, bv->buffer) + bv->offset; \
 } \
 unsigned int gltf_ ## _name ## sz(struct gltf_data *gd, int mesh) \
 { \
@@ -460,7 +460,7 @@ int gltf_root_mesh(struct gltf_data *gd)
     if (root < 0)
         return 0;
 
-    return gd->nodes.x[root].mesh;
+    return DA(gd->nodes, root)->mesh;
 }
 
 int gltf_mesh_skin(struct gltf_data *gd, int mesh)
@@ -471,8 +471,8 @@ int gltf_mesh_skin(struct gltf_data *gd, int mesh)
         return -1;
 
     for (i = 0; i < gd->nodes.da.nr_el; i++)
-        if (gd->nodes.x[i].mesh == mesh && gd->nodes.x[i].skin >= 0)
-            return gd->nodes.x[i].skin;
+        if (DA(gd->nodes, i)->mesh == mesh && DA(gd->nodes, i)->skin >= 0)
+            return DA(gd->nodes, i)->skin;
     return -1;
 }
 
@@ -493,8 +493,8 @@ static void unused nodes_print(struct gltf_data *gd, struct gltf_node *node, int
     list_init(&node->children);
     dbg("%.*s-> node %d '%s'\n", level, "----------", node->id, node->name);
     for (child = 0; child < node->nr_children; child++) {
-        nodes_print(gd, &gd->nodes.x[node->ch_arr[child]], level + 1);
-        list_append(&node->children, &gd->nodes.x[node->ch_arr[child]].entry);
+        nodes_print(gd, DA(gd->nodes, node->ch_arr[child]), level + 1);
+        list_append(&node->children, &DA(gd->nodes, node->ch_arr[child])->entry);
     }
 }
 
@@ -514,17 +514,17 @@ static void gltf_load_animations(struct gltf_data *gd, JsonNode *anis)
         jchans = json_find_member(n, "channels");
         jsamplers = json_find_member(n, "samplers");
 
-        CHECK(ani = darray_add(&gd->anis.da));
+        CHECK(ani = darray_add(gd->anis));
         if (jname && jname->tag == JSON_STRING)
             ani->name = strdup(jname->string_);
 
-        darray_init(&ani->channels);
-        darray_init(&ani->samplers);
+        darray_init(ani->channels);
+        darray_init(ani->samplers);
         for (jn = jchans->children.head; jn; jn = jn->next) {
             JsonNode *jsampler, *jtarget, *jnode, *jpath;
             struct gltf_channel *chan;
 
-            CHECK(chan = darray_add(&ani->channels.da));
+            CHECK(chan = darray_add(ani->channels));
             chan->sampler = -1;
             chan->node = -1;
             chan->path = PATH_NONE;
@@ -560,7 +560,7 @@ static void gltf_load_animations(struct gltf_data *gd, JsonNode *anis)
             struct gltf_sampler *sampler;
             int i;
 
-            CHECK(sampler = darray_add(&ani->samplers.da));
+            CHECK(sampler = darray_add(ani->samplers));
             sampler->input = -1;
             sampler->output = -1;
             sampler->interp = -1;
@@ -601,11 +601,11 @@ static void gltf_load_skins(struct gltf_data *gd, JsonNode *skins)
         JsonNode *jmat, *jname, *jjoints;
         struct gltf_skin *skin;
 
-        CHECK(skin = darray_add(&gd->skins.da));
+        CHECK(skin = darray_add(gd->skins));
 
         jmat = json_find_member(n, "inverseBindMatrices");
         if (jmat && jmat->tag == JSON_NUMBER) {
-            struct gltf_accessor *ga = &gd->accrs.x[(int)jmat->number_];
+            struct gltf_accessor *ga = DA(gd->accrs, (int)jmat->number_);
 
             skin->invmxs = gltf_accessor_buf(gd, jmat->number_);
             skin->nr_invmxs = ga->count;
@@ -640,15 +640,15 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         return CERR_PARSE_FAILED;
 
     gd->root_node = -1;
-    darray_init(&gd->nodes);
-    darray_init(&gd->meshes);
-    darray_init(&gd->bufvws);
-    darray_init(&gd->mats);
-    darray_init(&gd->accrs);
-    darray_init(&gd->buffers);
-    darray_init(&gd->anis);
-    darray_init(&gd->skins);
-    darray_init(&gd->imgs);
+    darray_init(gd->nodes);
+    darray_init(gd->meshes);
+    darray_init(gd->bufvws);
+    darray_init(gd->mats);
+    darray_init(gd->accrs);
+    darray_init(gd->buffers);
+    darray_init(gd->anis);
+    darray_init(gd->skins);
+    darray_init(gd->imgs);
 
     scenes = json_find_member(root, "scenes");
     scene = json_find_member(root, "scene");
@@ -708,7 +708,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (!jname || jname->tag != JSON_STRING) /* actually, there only name is guaranteed */
             continue;
 
-        CHECK(node = darray_add(&gd->nodes.da));
+        CHECK(node = darray_add(gd->nodes));
         node->name = strdup(jname->string_);
         node->id = nid;
         if (jmesh && jmesh->tag == JSON_NUMBER)
@@ -748,7 +748,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             continue;
 
         for (i = 0; i < nr_nodes; i++) {
-            struct gltf_node *node = darray_get(&gd->nodes.da, nodes[i]);
+            struct gltf_node *node = DA(gd->nodes, nodes[i]);
 
             if (!node)
                 continue;
@@ -794,7 +794,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             len = max(len, base64_decoded_length(slen));
         }
 
-        CHECK(buf = darray_add(&gd->buffers.da));
+        CHECK(buf = darray_add(gd->buffers));
         if (juri) {
             CHECK(*buf = malloc(len));
             dlen = base64_decode(*buf, len, juri->string_ + sizeof(DATA_URI) - 1, slen);
@@ -828,7 +828,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (jbuf->number_ >= gd->buffers.da.nr_el)
             continue;
 
-        CHECK(bv = darray_add(&gd->bufvws.da));
+        CHECK(bv = darray_add(gd->bufvws));
         bv->buffer = jbuf->number_;
         bv->offset = joff->number_;
         bv->length = jlen->number_;
@@ -860,7 +860,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (i == array_size(types))
             continue;
 
-        CHECK(ga = darray_add(&gd->accrs.da));
+        CHECK(ga = darray_add(gd->accrs));
         ga->bufview = jbufvw->number_;
         ga->comptype = jcomptype->number_;
         ga->count = jcount->number_;
@@ -895,7 +895,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (jbufvw->number_ >= gd->bufvws.da.nr_el)
             continue;
 
-        int *img = darray_add(&gd->imgs.da);
+        int *img = darray_add(gd->imgs);
         *img = supported ? jbufvw->number_ : -1;
         dbg("image %zu: bufferView: %d\n", darray_count(gd->imgs), *img);
     }
@@ -936,7 +936,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (jwut->tag != JSON_NUMBER || jwut->number_ >= gd->nr_texs)
             continue;
 
-        CHECK(mat = darray_add(&gd->mats.da));
+        CHECK(mat = darray_add(gd->mats));
         mat->base_tex = jwut->number_;
         mat->normal_tex = -1;
         mat->emission_tex = -1;
@@ -995,7 +995,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (!jattr || jattr->tag != JSON_OBJECT || !jindices || !jmat)
             continue;
 
-        CHECK(mesh = darray_add(&gd->meshes.da));
+        CHECK(mesh = darray_add(gd->meshes));
         gltf_mesh_init(mesh, jname->string_,
                        jindices->number_, jmat->number_);
         for (p = jattr->children.head; p; p = p->next) {
@@ -1121,10 +1121,10 @@ void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, un
 
 int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
 {
-    if (node >= gd->skins.x[skin].nr_joints)
+    if (node >= DA(gd->skins, skin)->nr_joints)
         return -1;
 
-    return gd->skins.x[skin].nodes[node];
+    return DA(gd->skins, skin)->nodes[node];
 }
 
 int gltf_instantiate_one(struct gltf_data *gd, int mesh)
@@ -1170,7 +1170,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     skin = gltf_mesh_skin(gd, mesh);
     if (skin >= 0) {
-        struct gltf_skin *s = &gd->skins.x[skin];
+        struct gltf_skin *s = DA(gd->skins, skin);
         struct gltf_animation *ga;
         struct gltf_node *node;
         struct animation *an;
@@ -1184,7 +1184,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
             goto no_skinning;
 
         mat4x4_identity(root_pose);
-        darray_for_each(node, &gd->nodes) {
+        darray_for_each(node, gd->nodes) {
             if (!strcmp(node->name, s->name)) {
                 if (vec4_len(node->rotation)) {
                     mat4x4_from_quat(root_pose, node->rotation);
@@ -1203,16 +1203,16 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
         for (i = 0; i < s->nr_joints; i++) {
             int ch;
 
-            node = &gd->nodes.x[s->joints[i]];
+            node = DA(gd->nodes, s->joints[i]);
             txm->model->joints[i].name = strdup(node->name);
 
             for (ch = 0; ch < node->nr_children; ch++) {
-                int *pchild = darray_add(&txm->model->joints[i].children.da);
+                int *pchild = darray_add(txm->model->joints[i].children);
                 *pchild = gltf_skin_node_to_joint(gd, skin, node->ch_arr[ch]);//node->ch_arr[ch];
             }
         }
 
-        darray_for_each(ga, &gd->anis) {
+        darray_for_each(ga, gd->anis) {
             struct gltf_channel *chan;
 
             /*
@@ -1229,9 +1229,9 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
              */
             CHECK(an = animation_new(txm->model, ga->name,
                                      ga->channels.da.nr_el));
-            darray_for_each(chan, &ga->channels) {
-                int accr_in = ga->samplers.x[chan->sampler].input;
-                int accr_out = ga->samplers.x[chan->sampler].output;
+            darray_for_each(chan, ga->channels) {
+                int accr_in = DA(ga->samplers, chan->sampler)->input;
+                int accr_out = DA(ga->samplers, chan->sampler)->output;
                 size_t frames = gltf_accessor_nr(gd, accr_in);
                 float *time = gltf_accessor_buf(gd, accr_in);
                 float *data = gltf_accessor_buf(gd, accr_out);
@@ -1241,7 +1241,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
                 int joint = gltf_skin_node_to_joint(gd, skin, chan->node);
                 if (joint < 0) {
                     warn("animation '%s' channel %d references a non-existent joint %d in skin '%s'\n",
-                         an->name, an->cur_channel, chan->node, gd->skins.x[skin].name);
+                         an->name, an->cur_channel, chan->node, DA(gd->skins, skin)->name);
                     continue;
                 }
 

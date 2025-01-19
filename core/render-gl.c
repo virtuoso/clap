@@ -707,7 +707,7 @@ cerr_check fbo_resize(fbo_t *fbo, int width, int height)
         return err;
 
     int *color_buf;
-    darray_for_each(color_buf, &fbo->color_buf) {
+    darray_for_each(color_buf, fbo->color_buf) {
         GL(glBindRenderbuffer(GL_RENDERBUFFER, *color_buf));
         __fbo_color_buffer_setup(fbo);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
@@ -766,7 +766,7 @@ static int fbo_make(struct ref *ref)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
-    darray_init(&fbo->color_buf);
+    darray_init(fbo->color_buf);
     fbo->depth_buf = -1;
 
     return 0;
@@ -782,9 +782,9 @@ static void fbo_drop(struct ref *ref)
     texture_deinit(&fbo->tex);
 
     int *color_buf;
-    darray_for_each(color_buf, &fbo->color_buf)
+    darray_for_each(color_buf, fbo->color_buf)
         glDeleteRenderbuffers(1, (const GLuint *)color_buf);
-    darray_clearout(&fbo->color_buf.da);
+    darray_clearout(fbo->color_buf);
 
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
@@ -812,7 +812,7 @@ static cerr_check fbo_init(fbo_t *fbo, int nr_attachments)
         int target;
 
         for (target = 0; target < nr_attachments; target++) {
-            int *color_buf = darray_add(&fbo->color_buf.da);
+            int *color_buf = darray_add(fbo->color_buf);
             if (!color_buf)
                 err = CERR_NOMEM;
 
@@ -836,7 +836,7 @@ static cerr_check fbo_init(fbo_t *fbo, int nr_attachments)
     return err;
 
 err:
-    darray_clearout(&fbo->color_buf.da);
+    darray_clearout(fbo->color_buf);
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glDeleteFramebuffers(1, &fbo->fbo));
 

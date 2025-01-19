@@ -42,7 +42,7 @@ void *memdup(const void *x, size_t size)
     return r;
 }
 
-void *darray_resize(struct darray *da, size_t nr_el)
+void *_darray_resize(struct darray *da, size_t nr_el)
 {
     void *new;
 
@@ -76,40 +76,40 @@ out:
      * free the array when the last element is gone
      */
     if (!da->nr_el)
-        darray_clearout(da);
+        _darray_clearout(da);
 
     return da->array;
 }
 
-void *darray_add(struct darray *da)
+void *_darray_add(struct darray *da)
 {
-    void *new = darray_resize(da, da->nr_el + 1);
+    void *new = _darray_resize(da, da->nr_el + 1);
 
     if (!new)
         return NULL;
 
-    new = darray_get(da, da->nr_el - 1);
+    new = _darray_get(da, da->nr_el - 1);
     memset(new, 0, da->elsz);
 
     return new;
 }
 
-void *darray_insert(struct darray *da, size_t idx)
+void *_darray_insert(struct darray *da, size_t idx)
 {
-    void *new = darray_resize(da, da->nr_el + 1);
+    void *new = _darray_resize(da, da->nr_el + 1);
 
     if (!new)
         return NULL;
 
     memmove(new + (idx + 1) * da->elsz, new + idx * da->elsz,
             (da->nr_el - idx - 1) * da->elsz);
-    new = darray_get(da, idx);
+    new = _darray_get(da, idx);
     memset(new, 0, da->elsz);
 
     return new;
 }
 
-void darray_delete(struct darray *da, size_t idx)
+void _darray_delete(struct darray *da, size_t idx)
 {
     if (!da->nr_el)
         return;
@@ -121,10 +121,10 @@ void darray_delete(struct darray *da, size_t idx)
         memmove(da->array + idx * da->elsz, da->array + (idx + 1) * da->elsz,
                 (da->nr_el - idx - 1) * da->elsz);
 
-    (void)darray_resize(da, da->nr_el - 1);
+    (void)_darray_resize(da, da->nr_el - 1);
 }
 
-void darray_clearout(struct darray *da)
+void _darray_clearout(struct darray *da)
 {
     free(da->array);
     da->array = NULL;

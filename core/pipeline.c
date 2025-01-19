@@ -60,17 +60,17 @@ static void pipeline_drop(struct ref *ref)
                 txm->sobel = &txm->_sobel;
         }
 
-        darray_clearout(&pass->src.da);
-        darray_clearout(&pass->blit_src.da);
+        darray_clearout(pass->src);
+        darray_clearout(pass->blit_src);
     }
 
     list_for_each_entry_iter(pass, iter, &pl->passes, entry) {
         mq_release(&pass->mq);
 
         fbo_t **pfbo;
-        darray_for_each(pfbo, &pass->fbo)
+        darray_for_each(pfbo, pass->fbo)
             fbo_put(*pfbo);
-        darray_clearout(&pass->fbo.da);
+        darray_clearout(pass->fbo);
 
         if (pass->prog_override)
             ref_put(pass->prog_override);
@@ -137,7 +137,7 @@ void pipeline_resize(struct pipeline *pl)
             continue;
 
         fbo_t **pfbo;
-        darray_for_each(pfbo, &pass->fbo)
+        darray_for_each(pfbo, pass->fbo)
             if (!pl->resize(*pfbo, false, pl->scene->width, pl->scene->height))
                 return;
     }
@@ -170,9 +170,9 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
 
     CHECK(pass = calloc(1, sizeof(*pass)));
     list_append(&pl->passes, &pass->entry);
-    darray_init(&pass->src);
-    darray_init(&pass->fbo);
-    darray_init(&pass->blit_src);
+    darray_init(pass->src);
+    darray_init(pass->fbo);
+    darray_init(pass->blit_src);
     pass->name = shader;
 
     /*
@@ -180,7 +180,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
      * sources, and the data is copied out to following passes' textures instead
      * of by rendering a quad
      */
-    fbo_t **pfbo = darray_add(&pass->fbo.da);
+    fbo_t **pfbo = darray_add(pass->fbo);
     if (!pfbo)
         return NULL;
 
@@ -216,7 +216,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     if (!*pfbo)
         goto err_fbo_array;
 
-    struct render_pass **psrc = darray_add(&pass->src.da);
+    struct render_pass **psrc = darray_add(pass->src);
     if (!psrc)
         goto err_fbo;
 
@@ -242,7 +242,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     if (!shader || pass->blit)
         return pass;
 
-    int *pblit_src = darray_add(&pass->blit_src.da);
+    int *pblit_src = darray_add(pass->blit_src);
     if (!pblit_src)
         goto err_override;
 
@@ -267,16 +267,16 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     return pass;
 
 err_blit_src:
-    darray_clearout(&pass->blit_src.da);
+    darray_clearout(pass->blit_src);
 err_override:
     if (shader_override)
         ref_put(pass->prog_override);
 err_src:
-    darray_clearout(&pass->src.da);
+    darray_clearout(pass->src);
 err_fbo:
     fbo_put_last(*pfbo);
 err_fbo_array:
-    darray_clearout(&pass->fbo.da);
+    darray_clearout(pass->fbo);
     list_del(&pass->entry);
     free(pass);
     return NULL;
@@ -314,12 +314,12 @@ void pipeline_pass_set_name(struct render_pass *pass, const char *name)
 void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src)
 {
     struct model3dtx *txm = mq_model_first(&pass->mq);
-    struct render_pass **psrc = darray_add(&pass->src.da);
+    struct render_pass **psrc = darray_add(pass->src);
 
     if (!psrc)
         return;
 
-    fbo_t **pfbo = darray_add(&pass->fbo.da);
+    fbo_t **pfbo = darray_add(pass->fbo);
     if (!pfbo)
         goto err_src;
 
@@ -328,7 +328,7 @@ void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int
     if (!*pfbo)
         goto err_fbo_array;
 
-    int *pblit_src = darray_add(&pass->blit_src.da);
+    int *pblit_src = darray_add(pass->blit_src);
     if (!pblit_src)
         goto err_fbo;
 
@@ -342,9 +342,9 @@ void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int
 err_fbo:
     fbo_put(*pfbo);
 err_fbo_array:
-    darray_delete(&pass->fbo.da, -1);
+    darray_delete(pass->fbo, -1);
 err_src:
-    darray_delete(&pass->src.da, -1);
+    darray_delete(pass->src, -1);
 }
 
 #ifndef CONFIG_FINAL
@@ -542,7 +542,7 @@ static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t *
         fbo_t **pfbo;
         int j = 0;
 
-        darray_for_each(pfbo, &pass->fbo) {
+        darray_for_each(pfbo, pass->fbo) {
             if (*item == i) {
                 snprintf(name, sizeof(name), "%s/%d", pass->name, j + 100 * cascade);
                 *tex = fbo_texture(*pfbo);
@@ -563,7 +563,7 @@ found:
             fbo_t **pfbo;
             int j = 0;
 
-            darray_for_each(pfbo, &pass->fbo) {
+            darray_for_each(pfbo, pass->fbo) {
                 bool selected = *item == i;
 
                 snprintf(name, sizeof(name), "%s/%d", pass->name, j + 100 * cascade);

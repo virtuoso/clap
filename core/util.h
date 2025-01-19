@@ -137,30 +137,61 @@ union { \
     struct darray   da; \
 } _name;
 
-#define darray_init(_da) { (_da)->da.elsz = sizeof(*(_da)->x); (_da)->da.nr_el = 0; (_da)->x = NULL; }
+#define darray_init(_x) do { \
+    (_x).da.elsz = sizeof(*(_x).x); \
+    (_x).da.nr_el = 0; \
+    (_x).x = NULL; \
+} while (0)
 
 static inline size_t _darray_count(struct darray *da)
 {
     return da->nr_el;
 }
 
+/* Return the number of elements in an array */
 #define darray_count(_x) _darray_count(&((_x).da))
 
-static inline void *darray_get(struct darray *da, size_t el)
+static inline void *_darray_get(struct darray *da, size_t el)
 {
     if (el >= da->nr_el)
         return NULL;
     return da->array + da->elsz * el;
 }
 
-void *darray_resize(struct darray *da, size_t nr_el);
-void *darray_add(struct darray *da);
-void *darray_insert(struct darray *da, size_t idx);
-void darray_delete(struct darray *da, size_t idx);
-void darray_clearout(struct darray *da);
-#define DA(_da, _type, _idx) ((_type *)darray_get((_da), _idx))
+/* Get an element of an array */
+#define darray_get(_x, _el) ((typeof((_x).x))_darray_get(&((_x).da), (_el)))
+
+void *_darray_resize(struct darray *da, size_t nr_el);
+
+/* Resize an array to a given number of elements */
+#define darray_resize(_x, _nr) _darray_resize(&((_x).da), (_nr))
+
+void *_darray_add(struct darray *da);
+
+/* Add an element and return a pointer to it */
+#define darray_add(_x) ((typeof((_x).x))_darray_add(&((_x).da)))
+
+void *_darray_insert(struct darray *da, size_t idx);
+
+/* Inserts an element at a given index */
+#define darray_insert(_x, _idx) ((typeof((_x).x))_darray_insert(&((_x).da), (_idx)))
+
+void _darray_delete(struct darray *da, size_t idx);
+
+/* Delete an element at a given index */
+#define darray_delete(_x, _idx) _darray_delete(&((_x).da), (_idx))
+
+void _darray_clearout(struct darray *da);
+
+/* Free up the array */
+#define darray_clearout(_x) _darray_clearout(&((_x).da))
+
+/* A shorthand for getting an element of an array */
+#define DA(_x, _idx) (darray_get((_x), _idx))
+
+/* Iterate through the elements of an array */
 #define darray_for_each(_el, _da) \
-    for (_el = &(_da)->x[0]; _el != &(_da)->x[(_da)->da.nr_el]; _el++)
+    for (_el = &(_da).x[0]; _el != &(_da).x[(_da).da.nr_el]; _el++)
 
 struct list {
     struct list *prev, *next;

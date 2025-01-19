@@ -199,9 +199,9 @@ static int darray_test0(void)
     darray(int, da);
     int i;
 
-    darray_init(&da);
+    darray_init(da);
     for (i = 0; i < 10; i++) {
-        int *x = darray_add(&da.da);
+        int *x = darray_add(da);
         *x = i;
     }
 
@@ -211,7 +211,7 @@ static int darray_test0(void)
     if (da.x[5] != 5)
         return EXIT_FAILURE;
 
-    darray_clearout(&da.da);
+    darray_clearout(da);
 
     if (da.da.nr_el)
         return EXIT_FAILURE;
@@ -224,13 +224,13 @@ static int darray_test1(void)
     darray(int, da);
     int i;
 
-    darray_init(&da);
+    darray_init(da);
     for (i = 0; i < 10; i++) {
-        int *x = darray_add(&da.da);
+        int *x = darray_add(da);
         *x = i;
     }
 
-    int *x = darray_insert(&da.da, 3);
+    int *x = darray_insert(da, 3);
     *x = -1;
 
     if (da.da.nr_el != 11)
@@ -242,7 +242,7 @@ static int darray_test1(void)
     if (da.x[10] != 9)
         return EXIT_FAILURE;
 
-    darray_clearout(&da.da);
+    darray_clearout(da);
 
     if (da.da.nr_el)
         return EXIT_FAILURE;
@@ -255,13 +255,13 @@ static int darray_test2(void)
     darray(int, da);
     int i;
 
-    darray_init(&da);
+    darray_init(da);
     for (i = 0; i < 10; i++) {
-        int *x = darray_add(&da.da);
+        int *x = darray_add(da);
         *x = i;
     }
 
-    darray_delete(&da.da, 3);
+    darray_delete(da, 3);
 
     if (da.x[3] != 4 || da.x[8] != 9)
         return EXIT_FAILURE;
@@ -269,7 +269,7 @@ static int darray_test2(void)
     if (da.da.nr_el != 9)
         return EXIT_FAILURE;
 
-    darray_delete(&da.da, -1);
+    darray_delete(da, -1);
 
     if (da.da.nr_el != 8)
         return EXIT_FAILURE;
@@ -277,7 +277,7 @@ static int darray_test2(void)
     if (da.x[7] != 8)
         return EXIT_FAILURE;
 
-    darray_clearout(&da.da);
+    darray_clearout(da);
 
     if (da.da.nr_el)
         return EXIT_FAILURE;

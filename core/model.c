@@ -46,7 +46,7 @@ static void model3d_drop(struct ref *ref)
     while (darray_count(m->anis))
         animation_delete(&m->anis.x[0]);
     for (i = 0; i < m->nr_joints; i++) {
-        darray_clearout(&m->joints[i].children.da);
+        darray_clearout(m->joints[i].children);
         free(m->joints[i].name);
     }
     free(m->joints);
@@ -408,7 +408,7 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     CHECK(m->joints = calloc(nr_joints, sizeof(struct model_joint)));
     for (j = 0; j < nr_joints; j++) {
         memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
-        darray_init(&m->joints[j].children);
+        darray_init(m->joints[j].children);
     }
 
     shader_prog_use(m->prog);
@@ -451,7 +451,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, s
     m->alpha_blend = false;
     m->draw_type = GL_TRIANGLES;
     model3d_calc_aabb(m, vx, vxsz);
-    darray_init(&m->anis);
+    darray_init(m->anis);
 
     vertex_array_init(&m->vao);
 
@@ -625,7 +625,7 @@ struct animation *animation_new(struct model3d *model, const char *name, unsigne
 {
     struct animation *an;
 
-    CHECK(an = darray_add(&model->anis.da));
+    CHECK(an = darray_add(model->anis));
     an->name = strdup(name);
     an->model = model;
     an->nr_channels = nr_channels;
@@ -640,7 +640,7 @@ void animation_delete(struct animation *an)
     struct animation *_an;
     int i, idx = 0;
 
-    darray_for_each(_an, &an->model->anis) {
+    darray_for_each(_an, an->model->anis) {
         if (_an == an)
             goto found;
         idx++;
@@ -656,7 +656,7 @@ found:
     }
     free(an->channels);
     free(an->name);
-    darray_delete(&an->model->anis.da, idx);
+    darray_delete(an->model->anis, idx);
 }
 
 void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
@@ -1110,7 +1110,7 @@ static void one_joint_transform(struct entity3d *e, int joint, int parent)
      */
     mat4x4_mul(e->joint_transforms[joint], *jt, *invglobal);
 
-    darray_for_each(child, &model->joints[joint].children)
+    darray_for_each(child, model->joints[joint].children)
         one_joint_transform(e, *child, joint);
 }
 
@@ -1227,12 +1227,12 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
         if (qa)
             memcpy(&_qa, qa, sizeof(_qa));
 
-        darray_clearout(&e->aniq.da);
+        darray_clearout(e->aniq);
 
         if (qa)
             animation_end(&_qa, s);
     }
-    qa = darray_add(&e->aniq.da);
+    qa = darray_add(e->aniq);
     qa->animation = id;
     qa->repeat = repeat;
     qa->speed = 1.0;
@@ -1328,7 +1328,7 @@ static void entity3d_drop(struct ref *ref)
     list_del(&e->entry);
     ref_put(e->txmodel);
 
-    darray_clearout(&e->aniq.da);
+    darray_clearout(e->aniq);
     if (e->phys_body) {
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
@@ -1364,7 +1364,7 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
         CHECK(e->joints = calloc(model->nr_joints, sizeof(*e->joints)));
         CHECK(e->joint_transforms = calloc(model->nr_joints, sizeof(mat4x4)));
     }
-    darray_init(&e->aniq);
+    darray_init(e->aniq);
     e->animation = -1;
     e->light_idx = -1;
 

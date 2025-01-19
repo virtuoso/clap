@@ -175,7 +175,7 @@ struct game_item *game_item_new(struct game_state *g, enum game_item_kind kind,
 {
     struct game_item *item;
 
-    CHECK(item = darray_add(&g->items.da));
+    CHECK(item = darray_add(g->items));
     game_item_init(item, g, kind, txm);
 
     return item;
@@ -204,7 +204,7 @@ void game_item_delete_idx(struct game_state *g, int idx)
     if (idx != last)
         g->items.x[idx] = g->items.x[last];
 
-    darray_resize(&g->items.da, g->items.da.nr_el - 1);
+    darray_resize(g->items, g->items.da.nr_el - 1);
 }
 
 void game_item_delete(struct game_state *g, struct game_item *item)
@@ -270,7 +270,7 @@ void put_apple_to_burrow(struct game_state *g) {
         return;
     get_apple_out_of_pocket(g);
     struct game_item *apple;
-    CHECK(apple = darray_add(&g->burrow.items.da));
+    CHECK(apple = darray_add(g->burrow.items));
     apple_in_burrow_init(g, apple);
 }
 
@@ -389,7 +389,7 @@ void find_trees(struct entity3d *e, void *data)
 
 struct burrow burrow_init() {
     struct burrow b;
-    darray_init(&b.items);
+    darray_init(b.items);
     b.number_of_mature_apples = 0;
     return b;
 }
@@ -402,7 +402,7 @@ void game_init(struct scene *scene, struct ui *ui)
     game_state.apple_is_carried = false;
     game_state.health = game_state.options.initial_health;
     game_state.burrow = burrow_init();
-    darray_init(&game_state.items);
+    darray_init(game_state.items);
     list_init(&game_state.free_trees);
     mq_for_each(&scene->mq, find_trees, &game_state);
     struct model3dtx *txmodel;
