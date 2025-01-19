@@ -892,7 +892,9 @@ void phys_done(struct phys *phys)
     dSpaceDestroy(phys->collision);
     dSpaceDestroy(phys->space);
     dWorldDestroy(phys->world);
+    dJointGroupDestroy(phys->contact);
     dCloseODE();
+    free(phys);
 }
 
 void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)
