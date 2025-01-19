@@ -133,6 +133,7 @@ struct darray {
     void            *array;
     size_t          elsz;
     size_t          nr_el;
+    const char      *mod;
 };
 
 #define darray(_type, _name) \
@@ -144,6 +145,7 @@ union { \
 #define darray_init(_x) do { \
     (_x).da.elsz = sizeof(*(_x).x); \
     (_x).da.nr_el = 0; \
+    (_x).da.mod = MODNAME; \
     (_x).x = NULL; \
 } while (0)
 
