@@ -20,6 +20,7 @@
   - [Run local web server](#run-local-web-server)
 - [Windows build](#windows-build)
 - [Build using cmake presets](#build-using-cmake-presets)
+- [What to do with all this](#what-to-do-with-all-this)
 
 ## Live demos
 [Live demo: main](http://ash.works/clap/main/clap/)
@@ -154,3 +155,7 @@ Having done that, you can do one or several of the cmake presets:
 cmake --preset emtest -B build/emtest
 cmake --build build/emtest
 ```
+
+## What to do with all this
+
+Check out the brand new [CONTRIBUTING](https://github.com/virtuoso/clap/blob/main/CONTRIBUTING.md) file for details on the whats and the hows.
