@@ -118,14 +118,18 @@ static bool clap_config_is_valid(struct clap_config *cfg)
 
 int clap_restart(struct clap_context *ctx)
 {
-    if (!ctx->argc || !ctx->argv)
+    int argc = ctx->argc;
+    char **argv = ctx->argv;
+    char **envp = ctx->envp;
+
+    if (!argc || !argv)
         return -EINVAL;
 
     clap_done(ctx, 0);
 #ifdef __APPLE__
-    return execve(ctx->argv[0], ctx->argv, ctx->envp);
+    return execve(argv[0], argv, envp);
 #else
-    return execve(program_invocation_name, ctx->argv, ctx->envp);
+    return execve(program_invocation_name, argv, envp);
 #endif
 }
 
