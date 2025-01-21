@@ -101,11 +101,11 @@ int main(int argc, char **argv, char **envp)
     subscribe(MT_COMMAND, handle_command, NULL);
     server_run();
     networking_done();
-    clap_done(clap, 0);
     if (restart_server) {
         dbg("### restarting server ###\n");
         return clap_restart(clap);
     }
+    clap_done(clap, 0);
 
     return EXIT_SUCCESS;
 }
