@@ -399,7 +399,6 @@ static int character_update(struct entity3d *e, void *data)
     struct character *c = e->priv;
     struct scene     *s = data;
 
-    motion_compute_rs(&c->mctl);
     if (c->mctl.rs_dy) {
         float delta = c->mctl.rs_dy;
 
