@@ -9,7 +9,7 @@
 #include "ui.h"
 #include "ui-debug.h"
 
-static void character_sprint(struct character *ch)
+static void character_sprint(struct character *ch, struct scene *s)
 {
     if (!ch->can_sprint)
         return;
@@ -17,7 +17,7 @@ static void character_sprint(struct character *ch)
     /* if not already dashing or in dashing cooldown, dash */
     if (!timespec_nonzero(&ch->dash_started)) {
         memcpy(&ch->dash_started, &ch->ts, sizeof(ch->dash_started));
-        ch->mctl.lin_speed *= 1.5;
+        s->mctl.lin_speed *= 1.5;
         animation_set_speed(ch->entity, 1.5);
     }
 }
@@ -27,25 +27,28 @@ static float character_lin_speed(struct character *ch)
     return entity3d_aabb_Y(ch->entity) * ch->speed;
 }
 
+/* Set mctl::lin_speed depending on the dashing phase */
 static void character_motion_reset(struct character *ch, struct scene *s)
 {
+    /* Only applies to the controlled character */
+    if (scene_control_character(s) != ch)
+        return;
+
     if (timespec_nonzero(&ch->dash_started)) {
         struct timespec diff;
 
         timespec_diff(&ch->dash_started, &s->ts, &diff);
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1) {
-            ch->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+            s->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
             animation_set_speed(ch->entity, 1.0);
         }
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
             ch->dash_started.tv_sec = ch->dash_started.tv_nsec = 0;
     } else {
-        ch->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+        s->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
     }
-
-    motion_reset(&ch->mctl, s);
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
@@ -55,12 +58,12 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     ch->ts = s->ts;
 
     if (m->input.dash || m->input.pad_rb)
-        character_sprint(ch);
+        character_sprint(ch, s);
 
-    motion_parse_input(&ch->mctl, m);
+    motion_parse_input(&s->mctl, m);
 
     if (scene_character_is_camera(s, control) && m->input.trigger_l)
-        ch->mctl.rs_height = true;
+        s->mctl.rs_height = true;
 
     if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x))
         ch->jump = true;
@@ -120,28 +123,25 @@ void character_move(struct character *ch, struct scene *s)
     vec3 old_motion;
     vec3_dup(old_motion, ch->motion);
 
-    /*
-     * ch->motion: motion resulting from inputs
-     */
-    motion_compute(&ch->mctl);
+    if (control == ch) {
+        /*
+         * ch->motion: motion resulting from inputs
+         */
+        motion_compute(&s->mctl);
 
-    float delta_x = ch->mctl.ls_dx;
-    float delta_z = ch->mctl.ls_dy;
-    float yawcos = cos(to_radians(s->camera->target_yaw));
-    float yawsin = sin(to_radians(s->camera->target_yaw));
-
-    if (control == ch && !(ch->mctl.ls_dx || ch->mctl.ls_dy || ch->mctl.rs_dx || ch->mctl.rs_dy))
-    {
-        // We got no input regarding character position or camera,
-        // so we reset the "target" camera position to the "current"
-        // (however, we don't allow the pitch to be too extreme).
-        camera_set_target_to_current(s->camera);
+        if (!(s->mctl.ls_dx || s->mctl.ls_dy || s->mctl.rs_dx || s->mctl.rs_dy))
+        {
+            // We got no input regarding character position or camera,
+            // so we reset the "target" camera position to the "current"
+            // (however, we don't allow the pitch to be too extreme).
+            camera_set_target_to_current(s->camera);
+        }
     }
 
     ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
 
-    if (ch->state == CS_START) {
-        if (ch->mctl.ls_dx || ch->mctl.ls_dy) {
+    if (control == ch && ch->state == CS_START) {
+        if (s->mctl.ls_dx || s->mctl.ls_dy) {
             ch->state = CS_WAKING;
             animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
             animation_set_end_callback(ch->entity, character_idle, ch);
@@ -157,6 +157,11 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (control == ch) {
+        float delta_x = s->mctl.ls_dx;
+        float delta_z = s->mctl.ls_dy;
+        float yawcos = cos(to_radians(s->camera->target_yaw));
+        float yawsin = sin(to_radians(s->camera->target_yaw));
+
         if (ch->jumping && !ch->airborne && ch->jump) {
             float dx = delta_x * yawcos - delta_z * yawsin;
             float dz = delta_x * yawsin + delta_z * yawcos;
@@ -301,18 +306,20 @@ static int character_update(struct entity3d *e, void *data)
     struct character *c = e->priv;
     struct scene     *s = data;
 
-    if (c->mctl.rs_dy) {
-        float delta = c->mctl.rs_dy;
+    if (scene_control_character(s) == c) {
+        if (s->mctl.rs_dy) {
+            float delta = s->mctl.rs_dy;
 
-        if (c->mctl.rs_height)
-            s->camera->ch->motion[1] -= delta / s->ang_speed * 0.1/*s->lin_speed*/;
-        else
-            camera_add_pitch(s->camera, delta);
-        s->camera->ch->moved++;
-    }
-    if (c->mctl.rs_dx) {
-        camera_add_yaw(s->camera, c->mctl.rs_dx);
-        s->camera->ch->moved++;
+            if (s->mctl.rs_height)
+                s->camera->ch->motion[1] -= delta / s->ang_speed * 0.1/*s->lin_speed*/;
+            else
+                camera_add_pitch(s->camera, delta);
+            s->camera->ch->moved++;
+        }
+        if (s->mctl.rs_dx) {
+            camera_add_yaw(s->camera, s->mctl.rs_dx);
+            s->camera->ch->moved++;
+        }
     }
 
     /* XXX "wow out" */

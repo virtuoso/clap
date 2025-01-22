@@ -7,6 +7,7 @@
 #include "character.h"
 #include "matrix.h"
 #include "model.h"
+#include "motion.h"
 #include "light.h"
 #include "physics.h"
 #include "camera.h"
@@ -30,6 +31,7 @@ struct scene {
     struct list         instor;
     struct entity3d     *focus;
     struct entity3d     *control;
+    struct motionctl    mctl;
     struct list         shaders;
     struct terrain      *terrain;
     struct camera       *camera;

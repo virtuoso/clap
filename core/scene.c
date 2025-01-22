@@ -404,6 +404,8 @@ void scene_update(struct scene *scene)
     }
 
     mq_update(&scene->mq);
+
+    motion_reset(&scene->mctl, scene);
 }
 
 int scene_init(struct scene *scene)

@@ -6,7 +6,6 @@
 #include "matrix.h"
 #include "messagebus.h"
 #include "model.h"
-#include "motion.h"
 #include "physics.h"
 #include "scene.h"
 
@@ -21,7 +20,6 @@ struct character {
     struct entity3d *entity;
     int (*orig_update)(struct entity3d *, void *);
     struct camera *camera;
-    struct motionctl mctl;
     struct timespec ts;
     struct timespec dash_started;
     /* XXX: the below double entity's: dx,dy,dz,rx,ry,rz */
