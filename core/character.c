@@ -5,6 +5,7 @@
 #include "terrain.h"
 #include "character.h"
 #include "messagebus.h"
+#include "motion.h"
 #include "ui.h"
 #include "ui-debug.h"
 
@@ -21,107 +22,9 @@ static void character_sprint(struct character *ch)
     }
 }
 
-static void motion_parse_input(struct motionctl *mctl, struct message *m)
-{
-#ifndef CONFIG_FINAL
-    if (m->input.trigger_r)
-        mctl->lin_speed *= (m->input.trigger_r + 1) * 3;
-    else if (m->input.pad_rt)
-        mctl->lin_speed *= 3;
-#endif
-
-    /* left stick right/left/up/down */
-    if (m->input.right == 1)
-        mctl->ls_right = 1;
-    else if (m->input.right == 2)
-        mctl->ls_right = 0;
-
-    if (m->input.left == 1)
-        mctl->ls_left = 1;
-    else if (m->input.left == 2)
-        mctl->ls_left = 0;
-
-    if (m->input.up == 1)
-        mctl->ls_up = 1;
-    else if (m->input.up == 2)
-        mctl->ls_up = 0;
-
-    if (m->input.down == 1)
-        mctl->ls_down = 1;
-    else if (m->input.down == 2)
-        mctl->ls_down = 0;
-
-    if (m->input.delta_lx || m->input.delta_ly) {
-        float angle = atan2f(m->input.delta_ly, m->input.delta_lx);
-        mctl->ls_dx = mctl->lin_speed * cos(angle);
-        mctl->ls_dy = mctl->lin_speed * sin(angle);
-    }
-
-    /* right stick */
-    if (m->input.pitch_up == 1)
-        mctl->rs_up = mctl->ang_speed;
-    else if (m->input.pitch_up == 2)
-        mctl->rs_up = 0;
-
-    if (m->input.pitch_down == 1)
-        mctl->rs_down = mctl->ang_speed;
-    else if (m->input.pitch_down == 2)
-        mctl->rs_down = 0;
-
-    if (m->input.delta_ry)
-        mctl->rs_dy = mctl->ang_speed * m->input.delta_ry;
-
-    if (m->input.yaw_right == 1)
-        mctl->rs_right = mctl->h_ang_speed;
-    else if (m->input.yaw_right == 2)
-        mctl->rs_right = 0;
-
-    if (m->input.yaw_left == 1)
-        mctl->rs_left = mctl->h_ang_speed;
-    else if (m->input.yaw_left == 2)
-        mctl->rs_left = 0;
-
-    if (m->input.delta_rx)
-        mctl->rs_dx = mctl->h_ang_speed * m->input.delta_rx;
-}
-
-static void motion_compute_ls(struct motionctl *mctl)
-{
-    int dir = 0;
-
-    if (mctl->ls_left || mctl->ls_right) {
-        mctl->ls_dx = (mctl->ls_right - mctl->ls_left) * mctl->lin_speed;
-        dir++;
-    }
-    if (mctl->ls_up || mctl->ls_down) {
-        mctl->ls_dy = (mctl->ls_down - mctl->ls_up) * mctl->lin_speed;
-        dir++;
-    }
-    if (dir == 2) {
-        mctl->ls_dx *= cos(M_PI_4);
-        mctl->ls_dy *= sin(M_PI_4);
-    }
-}
-
-static void motion_compute_rs(struct motionctl *mctl)
-{
-    if (mctl->rs_left || mctl->rs_right)
-        mctl->rs_dx = mctl->rs_right - mctl->rs_left;
-    if (mctl->rs_up || mctl->rs_down)
-        mctl->rs_dy = mctl->rs_down - mctl->rs_up;
-}
-
 static float character_lin_speed(struct character *ch)
 {
     return entity3d_aabb_Y(ch->entity) * ch->speed;
-}
-
-static void motion_reset(struct motionctl *mctl, struct scene *s)
-{
-    mctl->ang_speed = s->ang_speed;
-    mctl->h_ang_speed = s->ang_speed * 1.5;
-    mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
-    mctl->rs_height = false;
 }
 
 static void character_motion_reset(struct character *ch, struct scene *s)
@@ -220,8 +123,7 @@ void character_move(struct character *ch, struct scene *s)
     /*
      * ch->motion: motion resulting from inputs
      */
-    motion_compute_ls(&ch->mctl);
-    motion_compute_rs(&ch->mctl); // We need to compute this to determine if the user moved the camera.
+    motion_compute(&ch->mctl);
 
     float delta_x = ch->mctl.ls_dx;
     float delta_z = ch->mctl.ls_dy;

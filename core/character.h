@@ -6,27 +6,9 @@
 #include "matrix.h"
 #include "messagebus.h"
 #include "model.h"
+#include "motion.h"
 #include "physics.h"
 #include "scene.h"
-
-struct motionctl {
-    float   lin_speed;
-    float   ang_speed;
-    float   h_ang_speed;    /* horizontal angular speed */
-    float   ls_left;
-    float   ls_right;
-    float   ls_up;
-    float   ls_down;
-    float   ls_dx;
-    float   ls_dy;
-    float   rs_left;
-    float   rs_right;
-    float   rs_up;
-    float   rs_down;
-    float   rs_dx;
-    float   rs_dy;
-    bool    rs_height;
-};
 
 enum character_state {
     CS_START = 0,
