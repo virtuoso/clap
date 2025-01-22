@@ -114,6 +114,39 @@ static void character_debug(struct character *ch)
 static inline void character_debug(struct character *ch) {}
 #endif /* CONFIG_FINAL */
 
+static bool character_jump(struct character *ch, struct scene *s, float dx, float dz)
+{
+    if (!ch->jumping || ch->airborne)
+        return false;
+
+    struct phys_body *body = ch->entity->phys_body;
+    if (!body || !phys_body_has_body(body))
+        return false;
+
+    vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
+
+    ch->jump = false;
+    ch->airborne = true;
+
+    bool was_in_motion = !!vec3_len(ch->motion);
+
+    phys_body_attach_motor(body, false);
+    phys_body_set_velocity(body, jump);
+
+    if (anictl_set_state(&ch->anictl, 2)) {
+        if (!animation_by_name(ch->entity->txmodel->model, "jump"))
+            animation_push_by_name(ch->entity, s, "jump", true, false);
+        else
+            animation_push_by_name(ch->entity, s, "motion", true, was_in_motion);
+        if (!was_in_motion) {
+            animation_push_by_name(ch->entity, s, "motion_stop", false, false);
+            animation_push_by_name(ch->entity, s, "idle", false, false);
+        }
+    }
+
+    return true;
+}
+
 void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
@@ -122,33 +155,7 @@ void character_move(struct character *ch, struct scene *s)
     vec3 old_motion;
     vec3_dup(old_motion, ch->motion);
 
-    if (control == ch) {
-        /*
-         * ch->motion: motion resulting from inputs
-         */
-        motion_compute(&s->mctl);
-
-        if (!(s->mctl.ls_dx || s->mctl.ls_dy || s->mctl.rs_dx || s->mctl.rs_dy))
-        {
-            // We got no input regarding character position or camera,
-            // so we reset the "target" camera position to the "current"
-            // (however, we don't allow the pitch to be too extreme).
-            camera_set_target_to_current(s->camera);
-        }
-    }
-
     ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
-
-    if (control == ch && ch->state == CS_START) {
-        if (s->mctl.ls_dx || s->mctl.ls_dy) {
-            ch->state = CS_WAKING;
-            animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
-            animation_set_end_callback(ch->entity, character_idle, ch);
-        }
-        goto out;
-    } else if (ch->state < CS_AWAKE) {
-        goto out;
-    }
 
     if (ch->airborne) {
         phys_body_set_motor_velocity(body, false, (vec3){ 0, 0, 0 });
@@ -156,43 +163,46 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (control == ch) {
+        /*
+         * ch->motion: motion resulting from inputs
+         */
+        motion_compute(&s->mctl);
+
+        if (!(s->mctl.ls_dx || s->mctl.ls_dy || s->mctl.rs_dx || s->mctl.rs_dy)) {
+            // We got no input regarding character position or camera,
+            // so we reset the "target" camera position to the "current"
+            // (however, we don't allow the pitch to be too extreme).
+            camera_set_target_to_current(s->camera);
+        }
+
+        if (ch->state == CS_START) {
+            if (s->mctl.ls_dx || s->mctl.ls_dy) {
+                ch->state = CS_WAKING;
+                animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
+                animation_set_end_callback(ch->entity, character_idle, ch);
+            }
+            goto out;
+        } else if (ch->state < CS_AWAKE) {
+            goto out;
+        }
+
         float delta_x = s->mctl.ls_dx;
         float delta_z = s->mctl.ls_dy;
         float yawcos = cos(to_radians(s->camera->target_yaw));
         float yawsin = sin(to_radians(s->camera->target_yaw));
+        float dx = delta_x * yawcos - delta_z * yawsin;
+        float dz = delta_x * yawsin + delta_z * yawcos;
 
-        if (ch->jumping && !ch->airborne && ch->jump) {
-            float dx = delta_x * yawcos - delta_z * yawsin;
-            float dz = delta_x * yawsin + delta_z * yawcos;
-            vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
-
-            ch->jump = false;
-            ch->airborne = true;
-
-            if (body && phys_body_has_body(body)) {
-                bool was_in_motion = !!vec3_len(ch->motion);
-
-                phys_body_attach_motor(body, false);
-                phys_body_set_velocity(body, jump);
-
-                if (anictl_set_state(&ch->anictl, 2)) {
-                    if (!animation_by_name(ch->entity->txmodel->model, "jump"))
-                        animation_push_by_name(ch->entity, s, "jump", true, false);
-                    else
-                        animation_push_by_name(ch->entity, s, "motion", true, was_in_motion);
-                    if (!was_in_motion) {
-                        animation_push_by_name(ch->entity, s, "motion_stop", false, false);
-                        animation_push_by_name(ch->entity, s, "idle", false, false);
-                    }
-                }
+        if (ch->jump)
+            if (character_jump(ch, s, dx, dz))
                 goto out;
-            }
-        } else {
-            ch->motion[0] = delta_x * yawcos - delta_z * yawsin;
-            if (!scene_character_is_camera(s, ch))
-                ch->motion[1] = 0.0;
-            ch->motion[2] = delta_x * yawsin + delta_z * yawcos;
-        }
+
+        ch->motion[0] = dx;
+        if (!scene_character_is_camera(s, ch))
+            ch->motion[1] = 0.0;
+        ch->motion[2] = dz;
+    } else if (ch->state == CS_START) {
+        goto out;
     }
 
     if (vec3_len(ch->motion)) {
