@@ -2,7 +2,6 @@
 #include "common.h"
 #include "model.h"
 #include "scene.h"
-#include "terrain.h"
 #include "character.h"
 #include "messagebus.h"
 #include "motion.h"

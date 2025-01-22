@@ -6,7 +6,6 @@
 #include "physics.h"
 #include "primitives.h"
 #include "shader.h"
-#include "terrain.h"
 #include "model.h"
 #include "scene.h"
 #include "sound.h"
@@ -888,9 +887,6 @@ void scene_done(struct scene *scene)
         list_del(&instor->entry);
         free(instor);
     }
-
-    if (scene->terrain)
-        terrain_done(scene->terrain);
 
     mq_release(&scene->mq);
 

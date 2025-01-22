@@ -33,7 +33,6 @@ struct scene {
     struct entity3d     *control;
     struct motionctl    mctl;
     struct list         shaders;
-    struct terrain      *terrain;
     struct camera       *camera;
     struct camera       cameras[NR_CAMERAS_MAX];
     struct light        light;

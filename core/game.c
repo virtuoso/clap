@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "game.h"
 #include "model.h"
-#include "terrain.h"
 #include "ui-debug.h"
 #include "ui.h"
 
@@ -137,11 +136,13 @@ struct free_tree *get_free_tree(struct list *trees, int index) {
     return tree;
 }
 
-void place_apple(struct scene *s, struct entity3d *tree, struct entity3d *apple) {
+void place_apple(struct scene *s, struct entity3d *tree, struct entity3d *apple)
+{
     float angle = (float)drand48() * 2.0 * M_PI;
     apple->dx = tree->dx + 1.0 * cos(angle);
     apple->dz = tree->dz + 1.0 * sin(angle);
-    apple->dy = terrain_height(s->terrain, apple->dx, apple->dz);
+    apple->dy = tree->dy + 10.0;
+    phys_ground_entity(clap_get_phys(s->clap_ctx), tree);
 }
 
 static const char *game_item_str(struct game_item *item)
