@@ -8,25 +8,27 @@
 #include "ui.h"
 #include "ui-debug.h"
 
+static void character_sprint(struct character *ch)
+{
+    if (!ch->can_sprint)
+        return;
+
+    /* if not already dashing or in dashing cooldown, dash */
+    if (!timespec_nonzero(&ch->dash_started)) {
+        memcpy(&ch->dash_started, &ch->ts, sizeof(ch->dash_started));
+        ch->mctl.lin_speed *= 1.5;
+        animation_set_speed(ch->entity, 1.5);
+    }
+}
+
 static void motion_parse_input(struct motionctl *mctl, struct message *m)
 {
-    struct character *ch = container_of(mctl, struct character, mctl);
-
 #ifndef CONFIG_FINAL
     if (m->input.trigger_r)
         mctl->lin_speed *= (m->input.trigger_r + 1) * 3;
     else if (m->input.pad_rt)
         mctl->lin_speed *= 3;
 #endif
-
-    if (ch->can_sprint && (m->input.dash || m->input.pad_rb)) {
-        /* if not already dashing or in dashing cooldown, dash */
-        if (!timespec_nonzero(&mctl->dash_started)) {
-            memcpy(&mctl->dash_started, &mctl->ts, sizeof(mctl->dash_started));
-            mctl->lin_speed *= 1.5;
-            animation_set_speed(ch->entity, 1.5);
-        }
-    }
 
     /* left stick right/left/up/down */
     if (m->input.right == 1)
@@ -116,41 +118,49 @@ static float character_lin_speed(struct character *ch)
 
 static void motion_reset(struct motionctl *mctl, struct scene *s)
 {
-    struct character *ch = container_of(mctl, struct character, mctl);
+    mctl->ang_speed = s->ang_speed;
+    mctl->h_ang_speed = s->ang_speed * 1.5;
+    mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
+    mctl->rs_height = false;
+}
 
-    if (timespec_nonzero(&mctl->dash_started)) {
+static void character_motion_reset(struct character *ch, struct scene *s)
+{
+    if (timespec_nonzero(&ch->dash_started)) {
         struct timespec diff;
 
-        timespec_diff(&mctl->dash_started, &s->ts, &diff);
+        timespec_diff(&ch->dash_started, &s->ts, &diff);
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1) {
-            mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+            ch->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
             animation_set_speed(ch->entity, 1.0);
         }
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
-            mctl->dash_started.tv_sec = mctl->dash_started.tv_nsec = 0;
+            ch->dash_started.tv_sec = ch->dash_started.tv_nsec = 0;
     } else {
-        mctl->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+        ch->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
     }
-    mctl->ang_speed = s->ang_speed;
-    mctl->h_ang_speed = s->ang_speed * 1.5;
-    mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
-    mctl->jump = mctl->rs_height = false;
+
+    motion_reset(&ch->mctl, s);
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
 {
     struct character *control = scene_control_character(s);
 
-    memcpy(&ch->mctl.ts, &s->ts, sizeof(ch->mctl.ts));
+    ch->ts = s->ts;
+
+    if (m->input.dash || m->input.pad_rb)
+        character_sprint(ch);
+
     motion_parse_input(&ch->mctl, m);
 
     if (scene_character_is_camera(s, control) && m->input.trigger_l)
         ch->mctl.rs_height = true;
 
     if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x))
-        ch->mctl.jump = true;
+        ch->jump = true;
 
     s->camera->zoom = !!(m->input.zoom);
 }
@@ -245,11 +255,12 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (control == ch) {
-        if (ch->jumping && !ch->airborne && ch->mctl.jump) {
+        if (ch->jumping && !ch->airborne && ch->jump) {
             float dx = delta_x * yawcos - delta_z * yawsin;
             float dz = delta_x * yawsin + delta_z * yawcos;
             vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
 
+            ch->jump = false;
             ch->airborne = true;
 
             if (body && phys_body_has_body(body)) {
@@ -427,7 +438,7 @@ static int character_update(struct entity3d *e, void *data)
         camera_update(c->camera, s, c->entity, start);
     }
 
-    motion_reset(&c->mctl, s);
+    character_motion_reset(c, s);
 
     return c->orig_update(e, data);
 }
@@ -445,7 +456,7 @@ struct character *character_new(struct model3dtx *txm, struct scene *s)
     c->jump_forward = 2.0;
     c->jump_upward = 3.0;
     list_append(&s->characters, &c->entry);
-    motion_reset(&c->mctl, s);
+    character_motion_reset(c, s);
 
     return c;
 }

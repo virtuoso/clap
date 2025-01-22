@@ -10,11 +10,9 @@
 #include "scene.h"
 
 struct motionctl {
-    struct timespec ts;
-    struct timespec dash_started;
     float   lin_speed;
     float   ang_speed;
-    float   h_ang_speed;
+    float   h_ang_speed;    /* horizontal angular speed */
     float   ls_left;
     float   ls_right;
     float   ls_up;
@@ -28,7 +26,6 @@ struct motionctl {
     float   rs_dx;
     float   rs_dy;
     bool    rs_height;
-    bool    jump;
 };
 
 enum character_state {
@@ -43,6 +40,8 @@ struct character {
     int (*orig_update)(struct entity3d *, void *);
     struct camera *camera;
     struct motionctl mctl;
+    struct timespec ts;
+    struct timespec dash_started;
     /* XXX: the below double entity's: dx,dy,dz,rx,ry,rz */
     float   pos[3];
     float   pitch;  /* left/right */
@@ -61,6 +60,7 @@ struct character {
     struct anictl anictl;
     struct entity3d *collision;
     int     moved;
+    bool    jump;
     bool    airborne;
     bool    stuck;
     bool    stopped;
