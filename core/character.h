@@ -44,10 +44,10 @@ struct character {
     struct camera *camera;
     struct motionctl mctl;
     /* XXX: the below double entity's: dx,dy,dz,rx,ry,rz */
-    GLfloat pos[3];
-    GLfloat pitch;  /* left/right */
-    GLfloat yaw;    /* sideways */
-    GLfloat roll;   /* up/down */
+    float   pos[3];
+    float   pitch;  /* left/right */
+    float   yaw;    /* sideways */
+    float   roll;   /* up/down */
     vec3    motion;
     vec3    angle;
     vec3    velocity;
