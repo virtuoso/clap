@@ -5,7 +5,6 @@
 #include "render.h"
 
 struct glyph {
-    // GLuint  texture_id;
     texture_t       tex;
     unsigned int width;
     unsigned int height;
@@ -24,7 +23,6 @@ struct font *font_open(const char *name, unsigned int size);
 void         font_put(struct font *font);
 struct font *font_get(struct font *font);
 struct font *font_get_default(void);
-GLuint font_get_texture(struct font *font, unsigned char c);
 struct glyph *font_get_glyph(struct font *font, unsigned char c);
 
 #endif /* __CLAP_FONT_H__ */

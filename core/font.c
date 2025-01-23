@@ -98,16 +98,6 @@ struct font *font_get_default(void)
     return font_get(default_font);
 }
 
-GLuint font_get_texture(struct font *font, unsigned char c)
-{
-    if (!font->g[c].loaded)
-        font_load_glyph(font, c);
-    if (!font->g[c].loaded)
-        return 0;
-
-    return texture_id(&font->g[c].tex);
-}
-
 struct glyph *font_get_glyph(struct font *font, unsigned char c)
 {
     if (!font->g[c].loaded)
