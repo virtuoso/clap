@@ -141,8 +141,7 @@ void gl_get_window_pos_size(int *x, int *y, int *w, int *h)
 void gl_init(const char *title, int w, int h, display_update update, void *update_data, display_resize resize)
 {
     const unsigned char *ext, *vendor, *renderer, *glver, *shlangver;
-    GLint nr_exts;
-    GLenum ret;
+    int nr_exts, ret;
     int i;
 
     width = w;

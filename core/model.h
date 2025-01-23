@@ -96,8 +96,8 @@ struct model3d {
     buffer_t            tangent;
     buffer_t            vjoints;
     buffer_t            weights;
-    GLuint              nr_vertices;
-    GLuint              nr_faces[LOD_MAX];
+    unsigned int        nr_vertices;
+    unsigned int        nr_faces[LOD_MAX];
     struct model_joint  *joints;
     /* Collision mesh, if needed */
     float               *collision_vx;
@@ -123,8 +123,8 @@ struct model3dtx {
     struct list    entities;           /* links entity3d->entry */
 };
 
-struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
-                                         GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz, GLfloat *norm,
+struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
+                                         unsigned short *idx, size_t idxsz, float *tx, size_t txsz, float *norm,
                                          size_t normsz);
 struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
 void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz);
@@ -210,14 +210,14 @@ struct entity3d {
     mat4x4           *joint_transforms;
 
     struct phys_body *phys_body;
-    GLfloat color[4];
+    float   color[4];
     enum color_pt color_pt;
     vec3    pos;
-    GLfloat rx, ry, rz;
-    GLfloat scale;
-    GLfloat _dx, _dy, _dz;
-    GLfloat _rx, _ry, _rz;
-    GLfloat _scale;
+    float   rx, ry, rz;
+    float   scale;
+    float   _dx, _dy, _dz;
+    float   _rx, _ry, _rz;
+    float   _scale;
     int     light_idx;
     bool    skip_culling;
     bool    ani_cleared;

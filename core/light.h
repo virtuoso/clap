@@ -10,10 +10,10 @@
 #define LIGHTS_MAX 4
 
 struct light {
-    GLfloat pos[3 * LIGHTS_MAX];
-    GLfloat color[3 * LIGHTS_MAX];
-    GLfloat attenuation[3 * LIGHTS_MAX];
-    GLfloat dir[3 * LIGHTS_MAX];
+    float pos[3 * LIGHTS_MAX];
+    float color[3 * LIGHTS_MAX];
+    float attenuation[3 * LIGHTS_MAX];
+    float dir[3 * LIGHTS_MAX];
     struct view view[LIGHTS_MAX];
     texture_t *shadow[LIGHTS_MAX][CASCADES_MAX];
     bool shadow_outline;

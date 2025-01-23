@@ -680,7 +680,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
         tidx[i + 2] = idx[i + 2];
     }
 
-    vxsz /= sizeof(GLfloat);
+    vxsz /= sizeof(float);
     tvx = mem_alloc(sizeof(*tvx), .nr = vxsz, .fatal_fail = 1);
     for (i = 0; i < vxsz; i += 3) {
         /* apply rotation and scale */

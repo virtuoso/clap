@@ -528,6 +528,12 @@ texture_t *transparent_pixel(void) { return &_transparent_pixel; }
 
 void textures_init(void)
 {
+    static_assert(sizeof(GLint) == sizeof(int), "GLint doesn't match int");
+    static_assert(sizeof(GLenum) == sizeof(int), "GLenum doesn't match int");
+    static_assert(sizeof(GLuint) == sizeof(unsigned int), "GLuint doesn't match unsigned int");
+    static_assert(sizeof(GLfloat) == sizeof(float), "GLfloat doesn't match float");
+    static_assert(sizeof(GLushort) == sizeof(unsigned short), "GLushort doesn't match unsigned short");
+
     GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits.gl_max_texture_size));
     GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
     GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));

@@ -60,7 +60,7 @@ DECLARE_REFCLASS(model3d);
 static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
                                    int has_alpha, enum shader_vars var, texture_t *tex)
 {
-    GLuint color_type = has_alpha ? TEX_FMT_RGBA : TEX_FMT_RGB;
+    texture_format color_type = has_alpha ? TEX_FMT_RGBA : TEX_FMT_RGB;
     if (!buffer)
         return CERR_INVALID_ARGUMENTS;
 
@@ -435,9 +435,9 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
 }
 
 struct model3d *
-model3d_new_from_vectors(const char *name, struct shader_prog *p, GLfloat *vx, size_t vxsz,
-                         GLushort *idx, size_t idxsz, GLfloat *tx, size_t txsz,
-                         GLfloat *norm, size_t normsz)
+model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
+                         unsigned short *idx, size_t idxsz, float *tx, size_t txsz,
+                         float *norm, size_t normsz)
 {
     struct model3d *m;
 

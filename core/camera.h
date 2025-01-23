@@ -10,12 +10,12 @@
 struct camera {
     struct character *ch;
     struct view view;
-    GLfloat target_pitch;
-    GLfloat target_yaw;
-    GLfloat target_roll;
-    GLfloat current_pitch;
-    GLfloat current_yaw;
-    GLfloat current_roll;
+    float  target_pitch;
+    float  target_yaw;
+    float  target_roll;
+    float  current_pitch;
+    float  current_yaw;
+    float  current_roll;
     unsigned int zoom;
     float   dist;
     float   yaw_delta;
