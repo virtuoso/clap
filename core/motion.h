@@ -7,9 +7,6 @@
 struct scene;
 
 struct motionctl {
-    float   lin_speed;
-    float   ang_speed;
-    float   h_ang_speed;    /* horizontal angular speed */
     float   ls_left;
     float   ls_right;
     float   ls_up;

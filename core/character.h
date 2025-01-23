@@ -36,6 +36,9 @@ struct character {
     float   jump_upward;
     float   yaw_turn;
     float   pitch_turn;
+    float   lin_speed;
+    float   ang_speed;
+    float   h_ang_speed;    /* horizontal angular speed */
     struct list entry;
     struct anictl anictl;
     struct entity3d *collision;

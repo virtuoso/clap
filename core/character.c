@@ -16,7 +16,7 @@ static void character_sprint(struct character *ch, struct scene *s)
     /* if not already dashing or in dashing cooldown, dash */
     if (!timespec_nonzero(&ch->dash_started)) {
         memcpy(&ch->dash_started, &ch->ts, sizeof(ch->dash_started));
-        s->mctl.lin_speed *= 1.5;
+        ch->lin_speed *= 1.5;
         animation_set_speed(ch->entity, 1.5);
     }
 }
@@ -39,20 +39,30 @@ static void character_motion_reset(struct character *ch, struct scene *s)
         timespec_diff(&ch->dash_started, &s->ts, &diff);
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1) {
-            s->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+            ch->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
             animation_set_speed(ch->entity, 1.0);
         }
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
             ch->dash_started.tv_sec = ch->dash_started.tv_nsec = 0;
     } else {
-        s->mctl.lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+        ch->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
     }
+
+    ch->ang_speed = s->ang_speed;
+    ch->h_ang_speed = s->ang_speed * 1.5;
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
 {
     struct character *control = scene_control_character(s);
+
+#ifndef CONFIG_FINAL
+    if (m->input.trigger_r)
+        ch->lin_speed *= (m->input.trigger_r + 1) * 3;
+    else if (m->input.pad_rt)
+        ch->lin_speed *= 3;
+#endif
 
     ch->ts = s->ts;
 
@@ -186,8 +196,8 @@ void character_move(struct character *ch, struct scene *s)
             goto out;
         }
 
-        float delta_x = s->mctl.ls_dx;
-        float delta_z = s->mctl.ls_dy;
+        float delta_x = s->mctl.ls_dx * ch->lin_speed;
+        float delta_z = s->mctl.ls_dy * ch->lin_speed;
         float yawcos = cos(to_radians(s->camera->target_yaw));
         float yawsin = sin(to_radians(s->camera->target_yaw));
         float dx = delta_x * yawcos - delta_z * yawsin;
@@ -317,7 +327,7 @@ static int character_update(struct entity3d *e, void *data)
 
     if (scene_control_character(s) == c) {
         if (s->mctl.rs_dy) {
-            float delta = s->mctl.rs_dy;
+            float delta = s->mctl.rs_dy * c->ang_speed;
 
             if (s->mctl.rs_height)
                 s->camera->ch->motion[1] -= delta / s->ang_speed * 0.1/*s->lin_speed*/;
@@ -326,7 +336,7 @@ static int character_update(struct entity3d *e, void *data)
             s->camera->ch->moved++;
         }
         if (s->mctl.rs_dx) {
-            camera_add_yaw(s->camera, s->mctl.rs_dx);
+            camera_add_yaw(s->camera, s->mctl.rs_dx * c->h_ang_speed);
             s->camera->ch->moved++;
         }
     }
