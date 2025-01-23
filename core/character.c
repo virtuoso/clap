@@ -100,9 +100,8 @@ static void character_debug(struct character *ch)
         return;
 
     if (dbgm->unfolded) {
-        vec3 pos = { ch->entity->dx, ch->entity->dy, ch->entity->dz };
         ui_igVecTableHeader("vectors", 3);
-        ui_igVecRow(pos, 3, "position");
+        ui_igVecRow(ch->entity->pos, 3, "position");
         ui_igVecRow(ch->angle, 3, "angle");
         ui_igVecRow(ch->motion, 3, "motion");
         ui_igVecRow(ch->velocity, 3, "velocity");
@@ -253,10 +252,11 @@ void character_move(struct character *ch, struct scene *s)
 
             phys_body_set_motor_velocity(body, body_also, ch->velocity);
         } else {
-            vec3 pos = { ch->entity->dx, ch->entity->dy, ch->entity->dz };
+            vec3 pos;
+            vec3_dup(pos, ch->entity->pos);
             vec3_add(pos, pos, ch->angle);
-            ch->entity->dx = pos[0];
-            ch->entity->dz = pos[2];
+            ch->entity->pos[0] = pos[0];
+            ch->entity->pos[2] = pos[2];
         }
 
         vec3_norm(ch->angle, ch->angle);
@@ -341,8 +341,8 @@ static int character_update(struct entity3d *e, void *data)
     }
 
     /* XXX "wow out" */
-    if (e->dy <= s->limbo_height)
-        entity3d_position(e, e->dx, -e->dy, e->dz);
+    if (e->pos[1] <= s->limbo_height)
+        entity3d_position(e, e->pos[0], -e->pos[1], e->pos[2]);
 
     if (e->phys_body) {
         if (phys_body_update(e)) {
@@ -355,8 +355,7 @@ static int character_update(struct entity3d *e, void *data)
 
     if (c->camera) {
         camera_move(c->camera, s->fps.fps_fine);
-        vec3 start = { e->dx, e->dy, e->dz };
-        camera_update(c->camera, s, e, start);
+        camera_update(c->camera, s, e);
     }
 
     character_motion_reset(c, s);

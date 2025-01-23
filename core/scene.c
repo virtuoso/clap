@@ -237,16 +237,16 @@ static void scene_camera_calc(struct scene *s, int camera)
     if (s->control != cam->ch->entity &&
         (camera_has_moved(cam) || current->moved)) {
 
-        float x = current->entity->dx;
-        float y = current->entity->dy + entity3d_aabb_Y(current->entity) / 4 * 3;
-        float z = current->entity->dz;
+        float x = current->entity->pos[0];
+        float y = current->entity->pos[1] + entity3d_aabb_Y(current->entity) / 4 * 3;
+        float z = current->entity->pos[2];
         camera_position(cam, x, y, z);
     }
 
     camera_reset_movement(cam);
     cam->ch->moved = 0;
 
-    vec3 cam_pos = { cam->ch->entity->dx, cam->ch->entity->dy, cam->ch->entity->dz };
+    float *cam_pos = cam->ch->entity->pos;
     view_update_from_angles(&cam->view, cam_pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
     view_calc_frustum(&cam->view);
 
@@ -571,15 +571,15 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             pos = jpos->children.head;
             if (pos->tag != JSON_NUMBER)
                 continue; /* XXX */
-            e->dx = pos->number_;
+            e->pos[0] = pos->number_;
             pos = pos->next;      
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
-            e->dy = pos->number_;
+            e->pos[1] = pos->number_;
             pos = pos->next;
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
-            e->dz = pos->number_;
+            e->pos[2] = pos->number_;
             pos = pos->next;
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
@@ -632,7 +632,7 @@ light_done:
             if (c)
                 c->speed  = speed;
 
-            mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
+            mat4x4_translate_in_place(e->mx->m, e->pos[0], e->pos[1], e->pos[2]);
             mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
             e->visible        = 1;
             model3dtx_add_entity(txm, e);
@@ -644,7 +644,6 @@ light_done:
                                              .bounce = bounce,
                                              .bounce_vel = bounce_vel);
             }
-            trace("added '%s' entity at %f,%f,%f scale %f\n", name, e->dx, e->dy, e->dz, e->scale);
 
             if (entity_animated(e) && anis) {
                 for (p = anis->children.head; p; p = p->next) {

@@ -811,11 +811,12 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
             }
 
             if (camera && camera->ch) {
-                vec3 dist = { e->dx, e->dy, e->dz };
                 unsigned int lod;
+                vec3 dist;
 
-                vec3 cam_pos = { camera->ch->entity->dx, camera->ch->entity->dy, camera->ch->entity->dz };
-                vec3_sub(dist, dist, cam_pos);
+                vec3_dup(dist, e->pos);
+
+                vec3_sub(dist, dist, camera->ch->entity->pos);
                 lod = vec3_len(dist) / 80;
                 model3d_set_lod(model, lod);
             }
@@ -1267,16 +1268,16 @@ static bool needs_update(struct entity3d *e)
      * Cache TRS data, this should cut out a lot of matrix multiplications
      * especially on stationaly entities.
      */
-    if (e->dx != e->_dx ||
-        e->dy != e->_dy ||
-        e->dz != e->_dz ||
+    if (e->pos[0] != e->_dx ||
+        e->pos[1] != e->_dy ||
+        e->pos[2] != e->_dz ||
         e->rx != e->_rx ||
         e->ry != e->_ry ||
         e->rz != e->_rz ||
         e->scale != e->_scale) {
-        e->_dx = e->dx;
-        e->_dy = e->dy;
-        e->_dz = e->dz;
+        e->_dx = e->pos[0];
+        e->_dy = e->pos[1];
+        e->_dz = e->pos[2];
         e->_rx = e->rx;
         e->_ry = e->ry;
         e->_rz = e->rz;
@@ -1292,7 +1293,7 @@ static int default_update(struct entity3d *e, void *data)
 
     if (needs_update(e)) {
         mat4x4_identity(e->mx->m);
-        mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
+        mat4x4_translate_in_place(e->mx->m, e->pos[0], e->pos[1], e->pos[2]);
         mat4x4_rotate_X(e->mx->m, e->mx->m, e->rx);
         mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
         mat4x4_rotate_Z(e->mx->m, e->mx->m, e->rz);
@@ -1301,7 +1302,8 @@ static int default_update(struct entity3d *e, void *data)
         entity3d_aabb_update(e);
 
         if (scene && e->light_idx >= 0) {
-            float pos[3] = { e->dx + e->light_off[0], e->dy + e->light_off[1], e->dz + e->light_off[2] };
+            float pos[3];
+            vec3_add(pos, e->pos, e->light_off);
             light_set_pos(&scene->light, e->light_idx, pos);
         }
     }
@@ -1392,16 +1394,16 @@ void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, in
 
 void entity3d_position(struct entity3d *e, float x, float y, float z)
 {
-    e->dx = x;
-    e->dy = y;
-    e->dz = z;
+    e->pos[0] = x;
+    e->pos[1] = y;
+    e->pos[2] = z;
     if (e->phys_body)
-        phys_body_set_position(e->phys_body, (vec3){ e->dx, e->dy, e->dz });
+        phys_body_set_position(e->phys_body, e->pos);
 }
 
 void entity3d_move(struct entity3d *e, float dx, float dy, float dz)
 {
-    entity3d_position(e, e->dx + dx, e->dy + dy, e->dz + dz);
+    entity3d_position(e, e->pos[0] + dx, e->pos[1] + dy, e->pos[2] + dz);
 }
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
@@ -1414,9 +1416,9 @@ struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *
 {
     struct entity3d *e = entity3d_new(txm);
     e->scale = 1.0;
-    e->dx = instor->dx;
-    e->dy = instor->dy;
-    e->dz = instor->dz;
+    e->pos[0] = instor->dx;
+    e->pos[1] = instor->dy;
+    e->pos[2] = instor->dz;
     if (randomize_yrot)
         e->ry = drand48() * 360;
     if (randomize_scale)

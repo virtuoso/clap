@@ -27,9 +27,9 @@ void camera_move(struct camera *c, unsigned long fps)
 void camera_position(struct camera *c, float x, float y, float z)
 {
     // Calculate position of the camera with respect to the character.
-    c->ch->entity->dx = x + c->dist * sin(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
-    c->ch->entity->dy = y + c->dist * sin(to_radians(c->current_pitch));
-    c->ch->entity->dz = z + c->dist * cos(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
+    c->ch->entity->pos[0] = x + c->dist * sin(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
+    c->ch->entity->pos[1] = y + c->dist * sin(to_radians(c->current_pitch));
+    c->ch->entity->pos[2] = z + c->dist * cos(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
 }
 
 void camera_reset_movement(struct camera *c)
@@ -159,9 +159,12 @@ bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start, float 
     return true;
 }
 
-void camera_update(struct camera *c, struct scene *scene, struct entity3d *entity, vec3 start)
+void camera_update(struct camera *c, struct scene *scene, struct entity3d *entity)
 {
     double dist, height, next_distance;
+    vec3 start;
+
+    vec3_dup(start, entity->pos);
 
     // We start with target pitch.
     c->current_pitch = c->target_pitch;

@@ -30,11 +30,11 @@ void add_health(struct game_state *g, float health) {
     g->health = fmax(0.0, fmin(g->options.max_health, g->health + health));
 }
 
-float calculate_squared_distance(struct entity3d *a, struct entity3d *b) {
-    float dx = a->dx - b->dx;
-    float dy = a->dy - b->dy;
-    float dz = a->dz - b->dz;
-    return dx * dx + dy * dy + dz * dz;
+float calculate_squared_distance(struct entity3d *a, struct entity3d *b)
+{
+    vec3 dist;
+    vec3_sub(dist, a->pos, b->pos);
+    return dist[0] * dist[0] + dist[1] * dist[1] + dist[2] * dist[2];
 }
 
 void put_apple_into_pocket(struct game_state *g) {
@@ -139,9 +139,9 @@ struct free_tree *get_free_tree(struct list *trees, int index) {
 void place_apple(struct scene *s, struct entity3d *tree, struct entity3d *apple)
 {
     float angle = (float)drand48() * 2.0 * M_PI;
-    apple->dx = tree->dx + 1.0 * cos(angle);
-    apple->dz = tree->dz + 1.0 * sin(angle);
-    apple->dy = tree->dy + 10.0;
+    apple->pos[0] = tree->pos[0] + 1.0 * cos(angle);
+    apple->pos[1] = tree->pos[1] + 1.0 * sin(angle);
+    apple->pos[2] = tree->pos[2] + 10.0;
     phys_ground_entity(clap_get_phys(s->clap_ctx), tree);
 }
 

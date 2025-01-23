@@ -32,7 +32,7 @@ void camera_position(struct camera *c, float x, float y, float z);
 void camera_reset_movement(struct camera *c);
 void camera_add_pitch(struct camera *c, float delta);
 void camera_add_yaw(struct camera *c, float delta);
-void camera_update(struct camera *c, struct scene *s, struct entity3d *entity, vec3 start);
+void camera_update(struct camera *c, struct scene *s, struct entity3d *entity);
 bool camera_has_moved(struct camera *c);
 void camera_set_target_to_current(struct camera *c);
 void debug_camera_action(struct camera *c);

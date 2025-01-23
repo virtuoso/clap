@@ -212,7 +212,7 @@ struct entity3d {
     struct phys_body *phys_body;
     GLfloat color[4];
     enum color_pt color_pt;
-    GLfloat dx, dy, dz;
+    vec3    pos;
     GLfloat rx, ry, rz;
     GLfloat scale;
     GLfloat _dx, _dy, _dz;

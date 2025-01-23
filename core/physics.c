@@ -394,9 +394,10 @@ struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 star
     struct entity3d *target = NULL;
     dGeomID ray = NULL;
     struct contact c = {};
-    vec3 _start = { start[0], start[1], start[2] };
+    vec3 _start;
     bool check_self = !!e->phys_body;
 
+    vec3_dup(_start, start);
     ray = dCreateRay(phys->space, *pdist);
     dGeomRaySetFirstContact(ray, 0);
     dGeomRaySetClosestHit(ray, 1);
@@ -441,7 +442,7 @@ struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double 
 void phys_ground_entity(struct phys *phys, struct entity3d *e)
 {
     struct entity3d *collision;
-    vec3 start = { e->dx, e->dy, e->dz };
+    float *start = e->pos;
     vec3 dir = { 0, -1, 0 };
     double dist = 1e6;
 
@@ -451,7 +452,7 @@ void phys_ground_entity(struct phys *phys, struct entity3d *e)
     if (!collision)
         return;
 
-    e->dy -= dist;
+    e->pos[1] -= dist;
 }
 
 bool phys_body_ground_collide(struct phys_body *body, bool grounded)
@@ -580,9 +581,9 @@ int phys_body_update(struct entity3d *e)
         return 0;
 
     pos = dGeomGetPosition(e->phys_body->geom);
-    e->dx = pos[0];
-    e->dy = pos[1] - e->phys_body->yoffset;
-    e->dz = pos[2];
+    e->pos[0] = pos[0];
+    e->pos[1] = pos[1] - e->phys_body->yoffset;
+    e->pos[2] = pos[2];
     vel = dBodyGetLinearVel(e->phys_body->body);
 
     return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;
@@ -769,7 +770,7 @@ struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, geom
     body->class = class;
 
     dRSetIdentity(rot);
-    phys_body_set_position(body, (vec3){ entity->dx, entity->dy, entity->dz });
+    phys_body_set_position(body, entity->pos);
     if (has_body) {
         dBodySetRotation(body->body, rot);
         dGeomSetBody(body->geom, body->body);
