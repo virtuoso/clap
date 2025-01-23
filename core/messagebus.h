@@ -57,7 +57,6 @@ struct message_input {
     unsigned char   focus_prev;
     unsigned char   focus_cancel;
     unsigned char   verboser;
-    unsigned char   autopilot;
     unsigned char   fullscreen;
     unsigned char   resize;
     unsigned char   volume_up;
@@ -88,7 +87,6 @@ struct message_command {
                     restart     : 1,
                     log_follows : 1,
                     toggle_fuzzer : 1,
-                    toggle_autopilot : 1,
                     toggle_noise: 1;
     unsigned int    fps, sys_seconds, world_seconds;
     struct timespec64 time;

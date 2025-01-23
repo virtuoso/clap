@@ -328,7 +328,6 @@ static int handle_command(struct message *m, void *data)
 }
 
 static struct option long_options[] = {
-    { "autopilot",  no_argument,        0, 'A' },
     { "fullscreen", no_argument,        0, 'F' },
     { "exitafter",  required_argument,  0, 'e' },
     { "aoe",        no_argument,        0, 'E' },
@@ -336,7 +335,7 @@ static struct option long_options[] = {
     {}
 };
 
-static const char short_options[] = "Ae:EFS:";
+static const char short_options[] = "e:EFS:";
 
 int main(int argc, char **argv, char **envp)
 {
@@ -378,9 +377,6 @@ int main(int argc, char **argv, char **envp)
             fullscreen++;
             break;
 #ifndef CONFIG_FINAL
-        case 'A':
-            scene.autopilot = 1;
-            break;
         case 'e':
             exit_timeout = atoi(optarg);
             break;

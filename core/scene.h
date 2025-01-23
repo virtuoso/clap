@@ -51,7 +51,6 @@ struct scene {
     float               auto_yoffset;
     int                 nr_lights;
     int                 nr_cameras;
-    int                 autopilot;
     int                 fullscreen;
     int                 proj_update;
     bool                initialized;

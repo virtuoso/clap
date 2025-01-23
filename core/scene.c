@@ -12,16 +12,6 @@
 #include "json.h"
 #include "ui-debug.h"
 
-static void scene_camera_autopilot(struct scene *s)
-{
-    s->camera->ch->pos[1] = s->auto_yoffset + 2.0;
-
-    s->camera->ch->motion[2] = -s->lin_speed;
-    s->camera->ch->motion[0] = 0;
-    camera_add_yaw(s->camera, -s->ang_speed / 5);
-    s->camera->ch->moved++;
-}
-
 static void scene_control_next(struct scene *s)
 {
     struct character *first, *last, *prev, *current;
@@ -243,8 +233,6 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     if (!s->fps.fps_fine)
         return;
-    if (s->autopilot)
-        scene_camera_autopilot(s);
     if (!cam->ch->moved && current == cam->ch)
         return;
 
@@ -312,11 +300,6 @@ static int scene_handle_command(struct message *m, void *data)
     if (s->ui_is_on)
         goto out;
 
-    if (m->cmd.toggle_autopilot) {
-        s->autopilot ^= 1;
-        ret = MSG_HANDLED;
-    }
-
 out:
     return ret;
 }
@@ -333,8 +316,6 @@ static int scene_handle_input(struct message *m, void *data)
 #ifndef CONFIG_FINAL
     if (m->input.tab || m->input.stick_r)
         scene_control_next(s);
-    if (m->input.autopilot)
-        s->autopilot ^= 1;
     if (m->input.focus_next)
         scene_focus_next(s);
     if (m->input.focus_prev)
