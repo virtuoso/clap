@@ -814,7 +814,8 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 vec3 dist = { e->dx, e->dy, e->dz };
                 unsigned int lod;
 
-                vec3_sub(dist, dist, camera->ch->pos);
+                vec3 cam_pos = { camera->ch->entity->dx, camera->ch->entity->dy, camera->ch->entity->dz };
+                vec3_sub(dist, dist, cam_pos);
                 lod = vec3_len(dist) / 80;
                 model3d_set_lod(model, lod);
             }

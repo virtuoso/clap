@@ -24,12 +24,12 @@ void camera_move(struct camera *c, unsigned long fps)
         c->target_yaw += 360;
 }
 
-void camera_position(struct camera *c, float x, float y, float z, GLfloat *pos)
+void camera_position(struct camera *c, float x, float y, float z)
 {
     // Calculate position of the camera with respect to the character.
-    pos[0] = x + c->dist * sin(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
-    pos[1] = y + c->dist * sin(to_radians(c->current_pitch));
-    pos[2] = z + c->dist * cos(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
+    c->ch->entity->dx = x + c->dist * sin(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
+    c->ch->entity->dy = y + c->dist * sin(to_radians(c->current_pitch));
+    c->ch->entity->dz = z + c->dist * cos(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
 }
 
 void camera_reset_movement(struct camera *c)

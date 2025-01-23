@@ -100,8 +100,9 @@ static void character_debug(struct character *ch)
         return;
 
     if (dbgm->unfolded) {
+        vec3 pos = { ch->entity->dx, ch->entity->dy, ch->entity->dz };
         ui_igVecTableHeader("vectors", 3);
-        ui_igVecRow(ch->pos, 3, "position");
+        ui_igVecRow(pos, 3, "position");
         ui_igVecRow(ch->angle, 3, "angle");
         ui_igVecRow(ch->motion, 3, "motion");
         ui_igVecRow(ch->velocity, 3, "velocity");
@@ -252,9 +253,10 @@ void character_move(struct character *ch, struct scene *s)
 
             phys_body_set_motor_velocity(body, body_also, ch->velocity);
         } else {
-            vec3_add(ch->pos, ch->pos, ch->angle);
-            ch->entity->dx = ch->pos[0];
-            ch->entity->dz = ch->pos[2];
+            vec3 pos = { ch->entity->dx, ch->entity->dy, ch->entity->dz };
+            vec3_add(pos, pos, ch->angle);
+            ch->entity->dx = pos[0];
+            ch->entity->dz = pos[2];
         }
 
         vec3_norm(ch->angle, ch->angle);
@@ -289,7 +291,6 @@ void character_move(struct character *ch, struct scene *s)
             animation_push_by_name(ch->entity, s, "motion", false, true);
         }
     } else if (body) {
-        // vec3_scale(ch->angle, ch->angle, 0.5);
         ch->angle[0] = 0;
         ch->angle[1] = 0;
         ch->angle[2] = 0;
@@ -302,8 +303,6 @@ void character_move(struct character *ch, struct scene *s)
 
     if (body)
         phys_body_enable(body, true);
-
-    ch->entity->dy = ch->pos[1];
 
 out:
     if (scene_camera_follows(s, ch))
@@ -342,10 +341,8 @@ static int character_update(struct entity3d *e, void *data)
     }
 
     /* XXX "wow out" */
-    if (e->dy <= s->limbo_height) {
+    if (e->dy <= s->limbo_height)
         entity3d_position(e, e->dx, -e->dy, e->dz);
-        c->pos[1] = -c->pos[1];
-    }
 
     if (e->phys_body) {
         if (phys_body_update(e)) {
@@ -353,16 +350,13 @@ static int character_update(struct entity3d *e, void *data)
             if (scene_camera_follows(s, c))
                 s->camera->ch->moved++;
         }
-        c->pos[0] = e->dx;
-        c->pos[1] = e->dy;
-        c->pos[2] = e->dz;
     }
 
 
     if (c->camera) {
         camera_move(c->camera, s->fps.fps_fine);
-        vec3 start = { c->pos[0], c->pos[1], c->pos[2] };
-        camera_update(c->camera, s, c->entity, start);
+        vec3 start = { e->dx, e->dy, e->dz };
+        camera_update(c->camera, s, e, start);
     }
 
     character_motion_reset(c, s);

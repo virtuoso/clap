@@ -28,7 +28,7 @@ struct camera {
 
 void camera_setup(struct camera *c);
 void camera_move(struct camera *c, unsigned long fps);
-void camera_position(struct camera *c, float x, float y, float z, GLfloat *pos);
+void camera_position(struct camera *c, float x, float y, float z);
 void camera_reset_movement(struct camera *c);
 void camera_add_pitch(struct camera *c, float delta);
 void camera_add_yaw(struct camera *c, float delta);

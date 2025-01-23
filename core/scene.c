@@ -125,9 +125,6 @@ int scene_camera_add(struct scene *s)
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
 
-    s->camera->ch->pos[0] = 0.0;
-    s->camera->ch->pos[1] = 3.0;
-    s->camera->ch->pos[2] = -4.0 + s->nr_cameras * 2;
     camera_setup(s->camera);
     s->camera->ch->moved++;
     s->camera->dist = 10;
@@ -240,17 +237,17 @@ static void scene_camera_calc(struct scene *s, int camera)
     if (s->control != cam->ch->entity &&
         (camera_has_moved(cam) || current->moved)) {
 
-        float x              = current->pos[0];
-        float y              = current->pos[1] + entity3d_aabb_Y(current->entity) / 4 * 3;
-        float z              = current->pos[2];
-        camera_position(cam, x, y, z, cam->ch->pos);
+        float x = current->entity->dx;
+        float y = current->entity->dy + entity3d_aabb_Y(current->entity) / 4 * 3;
+        float z = current->entity->dz;
+        camera_position(cam, x, y, z);
     }
 
     camera_reset_movement(cam);
     cam->ch->moved = 0;
-    trace("camera: %f/%f/%f zoom: %d\n", cam->ch->pos[0], cam->ch->pos[1], cam->ch->pos[2], cam->zoom);
 
-    view_update_from_angles(&cam->view, cam->ch->pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
+    vec3 cam_pos = { cam->ch->entity->dx, cam->ch->entity->dy, cam->ch->entity->dz };
+    view_update_from_angles(&cam->view, cam_pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
     view_calc_frustum(&cam->view);
 
     light_debug(&s->light, 0);
@@ -261,7 +258,7 @@ static void scene_camera_calc(struct scene *s, int camera)
 #ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
         gl_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
-                 cam->ch->pos[0], cam->ch->pos[1], cam->ch->pos[2],
+                 cam_pos[0], cam_pos[1], cam_pos[2],
                  cam->current_pitch, cam->current_yaw);
 #endif
 }
@@ -632,12 +629,8 @@ light_done:
             if (terrain_clamp)
                 phys_ground_entity(clap_get_phys(scene->clap_ctx), e);
 
-            if (c) {
-                c->pos[0] = e->dx;
-                c->pos[1] = e->dy;
-                c->pos[2] = e->dz;
+            if (c)
                 c->speed  = speed;
-            }
 
             mat4x4_translate_in_place(e->mx->m, e->dx, e->dy, e->dz);
             mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
