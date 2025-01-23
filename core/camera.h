@@ -2,22 +2,14 @@
 #ifndef __CLAP_CAMERA_H__
 #define __CLAP_CAMERA_H__
 
-//#include "common.h"
-//#include "character.h"
-//#include "matrix.h"
-//#include "model.h"
 #include "model.h"
 #include "view.h"
-//#include "physics.h"
 
 #define NUMBER_OF_DEBUG_LINES 4
 
 struct camera {
     struct character *ch;
     struct view view;
-    /* GLfloat pitch;  /\* left/right *\/ */
-    /* GLfloat yaw;    /\* sideways *\/ */
-    /* GLfloat roll;   /\* up/down *\/ */
     GLfloat target_pitch;
     GLfloat target_yaw;
     GLfloat target_roll;
