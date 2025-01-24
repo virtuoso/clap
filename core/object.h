@@ -91,7 +91,6 @@ static inline void ref_init(struct ref *ref)
 static inline void _ref_embed(struct ref *ref)
 {
     ref->count = _REF_EMBEDDED;
-    ref_class_add(ref);
 }
 
 static inline bool ref_is_static(struct ref *ref)
