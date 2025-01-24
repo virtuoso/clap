@@ -262,6 +262,7 @@ void entity3d_put(struct entity3d *e);
 void entity3d_scale(struct entity3d *e, float scale);
 void entity3d_move(struct entity3d *e, vec3 off);
 void entity3d_position(struct entity3d *e, vec3 pos);
+void entity3d_visible(struct entity3d *e, unsigned int visible);
 void entity3d_rotate_X(struct entity3d *e, float rx);
 void entity3d_rotate_Y(struct entity3d *e, float ry);
 void entity3d_rotate_Z(struct entity3d *e, float rz);

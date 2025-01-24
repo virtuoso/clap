@@ -1380,6 +1380,11 @@ void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, in
     e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
 }
 
+void entity3d_visible(struct entity3d *e, unsigned int visible)
+{
+    e->visible = visible;
+}
+
 void entity3d_rotate_X(struct entity3d *e, float rx)
 {
     e->rx = rx;
@@ -1436,8 +1441,7 @@ struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *
     if (randomize_scale)
         entity3d_scale(e, 1 + randomize_scale * (1 - drand48() * 2));
     default_update(e, scene);
-    e->update = default_update;
-    e->visible = 1;
+    entity3d_visible(e, 1);
     model3dtx_add_entity(txm, e);
     return e;
 }
@@ -1478,7 +1482,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     mq_add_model(&scene->debug_mq, txm);
     CHECK(dd->entity = entity3d_new(txm));
     model3dtx_add_entity(txm, dd->entity);
-    dd->entity->visible = 1;
+    entity3d_visible(dd->entity, 1);
     dd->entity->update = NULL;
     dd->entity->color_pt = COLOR_PT_ALL;
     dd->entity->color[0] = 1.0;
