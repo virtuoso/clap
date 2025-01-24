@@ -67,6 +67,7 @@ struct ref {
 };
 
 void ref_class_add(struct ref *ref);
+void ref_class_unuse(struct ref *ref);
 const char *ref_classes_get_string(void);
 
 static inline const char *_ref_name(struct ref *ref)
@@ -213,7 +214,13 @@ static inline void _ref_put(struct ref *ref)
     if (__v) { \
         __v->ref.refclass = __rc; \
         ref_init(&__v->ref); \
-        if (__rc->make) __rc->make(&__v->ref); \
+        if (__rc->make) { \
+            if (__rc->make(&__v->ref)) { \
+                ref_class_unuse(&__v->ref); \
+                mem_free(__v); \
+                __v = NULL; \
+            } \
+        } \
     } \
     __v; \
 })

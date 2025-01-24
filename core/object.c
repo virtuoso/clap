@@ -60,7 +60,7 @@ void ref_class_add(struct ref *ref)
     ref_classes_updated = true;
 }
 
-static void ref_class_unuse(struct ref *ref)
+void ref_class_unuse(struct ref *ref)
 {
     /* not deleting the class itself */
     ref->refclass->nr_active--;
