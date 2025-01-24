@@ -215,7 +215,6 @@ struct entity3d {
     vec3    pos;
     float   rx, ry, rz;
     float   scale;
-    float   _rx, _ry, _rz;
     float   _scale;
     int     light_idx;
     int     updated;
@@ -263,6 +262,9 @@ void entity3d_update(struct entity3d *e, void *data);
 void entity3d_put(struct entity3d *e);
 void entity3d_move(struct entity3d *e, vec3 off);
 void entity3d_position(struct entity3d *e, vec3 pos);
+void entity3d_rotate_X(struct entity3d *e, float rx);
+void entity3d_rotate_Y(struct entity3d *e, float ry);
+void entity3d_rotate_Z(struct entity3d *e, float rz);
 void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
 struct instantiator;

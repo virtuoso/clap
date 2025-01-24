@@ -1269,13 +1269,7 @@ static bool needs_update(struct entity3d *e)
      * especially on stationaly entities.
      */
     if (e->updated      ||
-        e->rx != e->_rx ||
-        e->ry != e->_ry ||
-        e->rz != e->_rz ||
         e->scale != e->_scale) {
-        e->_rx = e->rx;
-        e->_ry = e->ry;
-        e->_rz = e->rz;
         e->_scale = e->scale;
         return true;
     }
@@ -1387,6 +1381,24 @@ void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, in
     e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
 }
 
+void entity3d_rotate_X(struct entity3d *e, float rx)
+{
+    e->rx = rx;
+    e->updated++;
+}
+
+void entity3d_rotate_Y(struct entity3d *e, float ry)
+{
+    e->ry = ry;
+    e->updated++;
+}
+
+void entity3d_rotate_Z(struct entity3d *e, float rz)
+{
+    e->rz = rz;
+    e->updated++;
+}
+
 void entity3d_position(struct entity3d *e, vec3 pos)
 {
     e->updated++;
@@ -1415,7 +1427,7 @@ struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *
     e->scale = 1.0;
     entity3d_position(e, (vec3){ instor->dx, instor->dy, instor->dz });
     if (randomize_yrot)
-        e->ry = drand48() * 360;
+        entity3d_rotate_Y(e, drand48() * 360);
     if (randomize_scale)
         e->scale = 1 + randomize_scale * (1 - drand48() * 2);
     default_update(e, scene);

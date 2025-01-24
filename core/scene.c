@@ -569,6 +569,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 continue;
 
             vec3 e_pos = {};
+            float ry = 0;
 
             pos = jpos->children.head;
             if (pos->tag != JSON_NUMBER)
@@ -590,9 +591,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             /* rotation: optional */
             pos = pos->next;
             if (pos && pos->tag == JSON_NUMBER)
-                e->ry = to_radians(pos->number_);
-            else
-                e->ry = 0;
+                ry = to_radians(pos->number_);
+            entity3d_rotate_Y(e, ry);
 
             double _light_color[3];
             jpos = json_find_member(it, "light_color");

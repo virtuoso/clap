@@ -278,13 +278,13 @@ void character_move(struct character *ch, struct scene *s)
 
                 // ch->angle is already normalized, so we can just add those two.
                 vec3_add(velocity, velocity, ch->angle);
-                ch->entity->ry = atan2f(velocity[0], velocity[2]);
+                entity3d_rotate_Y(ch->entity, atan2f(velocity[0], velocity[2]));
             }
         } else {
-            ch->entity->ry = atan2f(ch->angle[0], ch->angle[2]);
+            entity3d_rotate_Y(ch->entity, atan2f(ch->angle[0], ch->angle[2]));
         }
 
-        // ch->entity->rz = atan2f(ch->angle[1], res[1]);
+        // entity3d_rotate_Z(ch->entity, atan2f(ch->angle[1], ch->velocity[1]));
         ch->moved++;
         if (anictl_set_state(&ch->anictl, 1)) {
             animation_push_by_name(ch->entity, s, "motion_start", true, false);
