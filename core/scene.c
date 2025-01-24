@@ -587,7 +587,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             pos = pos->next;
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
-            e->scale = pos->number_;
+            entity3d_scale(e, pos->number_);
+
             /* rotation: optional */
             pos = pos->next;
             if (pos && pos->tag == JSON_NUMBER)

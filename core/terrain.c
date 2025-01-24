@@ -527,9 +527,8 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     t->entity->txmodel->model->collision_vxsz = vxsz;
     t->entity->txmodel->model->collision_idx = idx;
     t->entity->txmodel->model->collision_idxsz = idxsz;
-    t->entity->visible = 1;
     t->entity->update  = NULL;
-    t->entity->scale = 1;
+    entity3d_scale(t->entity, 1);
     t->entity->skip_culling = true;
     entity3d_reset(t->entity);
     model3dtx_add_entity(txm, t->entity);

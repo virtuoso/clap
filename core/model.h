@@ -215,7 +215,6 @@ struct entity3d {
     vec3    pos;
     float   rx, ry, rz;
     float   scale;
-    float   _scale;
     int     light_idx;
     int     updated;
     bool    skip_culling;
@@ -260,6 +259,7 @@ void entity3d_aabb_max(struct entity3d *e, vec3 max);
 void entity3d_aabb_center(struct entity3d *e, vec3 center);
 void entity3d_update(struct entity3d *e, void *data);
 void entity3d_put(struct entity3d *e);
+void entity3d_scale(struct entity3d *e, float scale);
 void entity3d_move(struct entity3d *e, vec3 off);
 void entity3d_position(struct entity3d *e, vec3 pos);
 void entity3d_rotate_X(struct entity3d *e, float rx);

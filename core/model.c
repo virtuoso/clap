@@ -1262,15 +1262,14 @@ static void animated_update(struct entity3d *e, struct scene *s)
         animation_next(e, s);
 }
 
+/*
+ * If entity's position/rotation/scale (TRS) haven't been updated, this avoids
+ * needlessly updating its model matrix (entity3d::mx).
+ */
 static bool needs_update(struct entity3d *e)
 {
-    /*
-     * Cache TRS data, this should cut out a lot of matrix multiplications
-     * especially on stationaly entities.
-     */
-    if (e->updated      ||
-        e->scale != e->_scale) {
-        e->_scale = e->scale;
+    if (e->updated) {
+        e->updated = 0;
         return true;
     }
     return false;
@@ -1399,6 +1398,12 @@ void entity3d_rotate_Z(struct entity3d *e, float rz)
     e->updated++;
 }
 
+void entity3d_scale(struct entity3d *e, float scale)
+{
+    e->scale = scale;
+    e->updated++;
+}
+
 void entity3d_position(struct entity3d *e, vec3 pos)
 {
     e->updated++;
@@ -1424,12 +1429,12 @@ struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *
                                     bool randomize_yrot, float randomize_scale, struct scene *scene)
 {
     struct entity3d *e = entity3d_new(txm);
-    e->scale = 1.0;
+    entity3d_scale(e, 1);
     entity3d_position(e, (vec3){ instor->dx, instor->dy, instor->dz });
     if (randomize_yrot)
         entity3d_rotate_Y(e, drand48() * 360);
     if (randomize_scale)
-        e->scale = 1 + randomize_scale * (1 - drand48() * 2);
+        entity3d_scale(e, 1 + randomize_scale * (1 - drand48() * 2));
     default_update(e, scene);
     e->update = default_update;
     e->visible = 1;

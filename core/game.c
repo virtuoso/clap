@@ -168,7 +168,7 @@ void game_item_init(struct game_item *item, struct game_state *g,
 
     item->kind = kind;
     model3dtx_add_entity(txm, e);
-    e->scale = 1;
+    entity3d_scale(e, 1);
     e->visible = 1;
     item->entity = e;
 }
