@@ -120,6 +120,7 @@ int scene_camera_add(struct scene *s)
     s->camera->view.fov              = to_radians(70);
     s->camera->ch = character_new(txm, s);
     entity = character_entity(s->camera->ch);
+    entity3d_visible(entity, 0);
     s->control = entity;
     model3dtx_add_entity(txm, entity);
     scene_add_model(s, entity->txmodel);
@@ -638,7 +639,6 @@ light_done:
 
             mat4x4_translate_in_place(e->mx->m, e->pos[0], e->pos[1], e->pos[2]);
             mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
-            entity3d_visible(e, 1);
             model3dtx_add_entity(txm, e);
 
             if (phys) {

@@ -1312,6 +1312,23 @@ void entity3d_reset(struct entity3d *e)
     default_update(e, NULL);
 }
 
+static int entity3d_make(struct ref *ref)
+{
+    struct entity3d *e = container_of(ref, struct entity3d, ref);
+
+    darray_init(e->aniq);
+    e->animation = -1;
+    e->light_idx = -1;
+    e->scale     = 1.0;
+    e->visible   = 1;
+    e->update    = default_update;
+    e->mx        = mx_new();
+    if (!e->mx)
+        return -1;
+
+    return 0;
+}
+
 static void entity3d_drop(struct ref *ref)
 {
     struct entity3d *e = container_of(ref, struct entity3d, ref);
@@ -1329,7 +1346,7 @@ static void entity3d_drop(struct ref *ref)
     mem_free(e->mx);
 }
 
-DECLARE_REFCLASS(entity3d);
+DECLARE_REFCLASS2(entity3d);
 
 struct entity3d *entity3d_new(struct model3dtx *txm)
 {
@@ -1348,16 +1365,11 @@ struct entity3d *entity3d_new(struct model3dtx *txm)
         return NULL;
 
     e->txmodel = ref_get(txm);
-    e->mx = mx_new();
-    e->update  = default_update;
     entity3d_aabb_update(e);
     if (model->anis.da.nr_el) {
         e->joints = mem_alloc(sizeof(*e->joints), .nr = model->nr_joints, .fatal_fail = 1);
         e->joint_transforms = mem_alloc(sizeof(mat4x4), .nr = model->nr_joints, .fatal_fail = 1);
     }
-    darray_init(e->aniq);
-    e->animation = -1;
-    e->light_idx = -1;
 
     return e;
 }
@@ -1434,14 +1446,12 @@ struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *
                                     bool randomize_yrot, float randomize_scale, struct scene *scene)
 {
     struct entity3d *e = entity3d_new(txm);
-    entity3d_scale(e, 1);
     entity3d_position(e, (vec3){ instor->dx, instor->dy, instor->dz });
     if (randomize_yrot)
         entity3d_rotate_Y(e, drand48() * 360);
     if (randomize_scale)
         entity3d_scale(e, 1 + randomize_scale * (1 - drand48() * 2));
     default_update(e, scene);
-    entity3d_visible(e, 1);
     model3dtx_add_entity(txm, e);
     return e;
 }
