@@ -1268,16 +1268,11 @@ static bool needs_update(struct entity3d *e)
      * Cache TRS data, this should cut out a lot of matrix multiplications
      * especially on stationaly entities.
      */
-    if (e->pos[0] != e->_dx ||
-        e->pos[1] != e->_dy ||
-        e->pos[2] != e->_dz ||
+    if (e->updated      ||
         e->rx != e->_rx ||
         e->ry != e->_ry ||
         e->rz != e->_rz ||
         e->scale != e->_scale) {
-        e->_dx = e->pos[0];
-        e->_dy = e->pos[1];
-        e->_dz = e->pos[2];
         e->_rx = e->rx;
         e->_ry = e->ry;
         e->_rz = e->rz;
@@ -1392,18 +1387,20 @@ void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, in
     e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
 }
 
-void entity3d_position(struct entity3d *e, float x, float y, float z)
+void entity3d_position(struct entity3d *e, vec3 pos)
 {
-    e->pos[0] = x;
-    e->pos[1] = y;
-    e->pos[2] = z;
+    e->updated++;
+    vec3_dup(e->pos, pos);
     if (e->phys_body)
         phys_body_set_position(e->phys_body, e->pos);
 }
 
-void entity3d_move(struct entity3d *e, float dx, float dy, float dz)
+void entity3d_move(struct entity3d *e, vec3 off)
 {
-    entity3d_position(e, e->pos[0] + dx, e->pos[1] + dy, e->pos[2] + dz);
+    e->updated++;
+    vec3_add(e->pos, e->pos, off);
+    if (e->phys_body)
+        phys_body_set_position(e->phys_body, e->pos);
 }
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
@@ -1416,9 +1413,7 @@ struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *
 {
     struct entity3d *e = entity3d_new(txm);
     e->scale = 1.0;
-    e->pos[0] = instor->dx;
-    e->pos[1] = instor->dy;
-    e->pos[2] = instor->dz;
+    entity3d_position(e, (vec3){ instor->dx, instor->dy, instor->dz });
     if (randomize_yrot)
         e->ry = drand48() * 360;
     if (randomize_scale)

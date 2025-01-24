@@ -56,6 +56,7 @@ struct phys_body {
     dReal       pen_depth;
     dReal       *trimesh_vx;
     dTriIndex   *trimesh_idx;
+    int         updated;
     geom_class  class;
 };
 
@@ -157,6 +158,17 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, struct enti
 
 void phys_body_set_position(struct phys_body *body, vec3 pos)
 {
+    /*
+     * If pos comes from dBodyGetPosition(), no need to update it
+     * here. Also, if dReal is double, some precision will be lost
+     * and this will end up setting a slightly different position,
+     * which can't happen in the collider path.
+     */
+    if (body->updated) {
+        body->updated = 0;
+        return;
+    }
+
     if (phys_body_has_body(body))
         dBodySetPosition(body->body, pos[0], pos[1] + body->yoffset, pos[2]);
     else
@@ -452,7 +464,7 @@ void phys_ground_entity(struct phys *phys, struct entity3d *e)
     if (!collision)
         return;
 
-    e->pos[1] -= dist;
+    entity3d_move(e, (vec3){ 0, -dist, 0 });
 }
 
 bool phys_body_ground_collide(struct phys_body *body, bool grounded)
@@ -493,7 +505,7 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
          * stop the body
          */
         if (upness > 0.95)
-            entity3d_move(e, 0, ray_len + c.contact->geom.depth, 0);
+            entity3d_move(e, (vec3){ 0, ray_len + c.contact->geom.depth, 0 });
 
         phys_body_stop(body);
         ret = true;
@@ -539,7 +551,7 @@ got_it:
         return false;
 
 stick:
-    entity3d_move(e, 0, ray_len - c.contact[0].geom.depth, 0);
+    entity3d_move(e, (vec3){ 0, ray_len - c.contact[0].geom.depth, 0 });
     phys_body_stick(body, &c.contact[0]);
 
     return true;
@@ -581,9 +593,8 @@ int phys_body_update(struct entity3d *e)
         return 0;
 
     pos = dGeomGetPosition(e->phys_body->geom);
-    e->pos[0] = pos[0];
-    e->pos[1] = pos[1] - e->phys_body->yoffset;
-    e->pos[2] = pos[2];
+    e->phys_body->updated++;
+    entity3d_position(e, (vec3){ pos[0], pos[1] - e->phys_body->yoffset, pos[2] });
     vel = dBodyGetLinearVel(e->phys_body->body);
 
     return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;

@@ -568,18 +568,21 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             if (jpos->tag != JSON_ARRAY)
                 continue;
 
+            vec3 e_pos = {};
+
             pos = jpos->children.head;
             if (pos->tag != JSON_NUMBER)
                 continue; /* XXX */
-            e->pos[0] = pos->number_;
+            e_pos[0] = pos->number_;
             pos = pos->next;      
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
-            e->pos[1] = pos->number_;
+            e_pos[1] = pos->number_;
             pos = pos->next;
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
-            e->pos[2] = pos->number_;
+            e_pos[2] = pos->number_;
+            entity3d_position(e, e_pos);
             pos = pos->next;
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */

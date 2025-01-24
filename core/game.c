@@ -139,9 +139,11 @@ struct free_tree *get_free_tree(struct list *trees, int index) {
 void place_apple(struct scene *s, struct entity3d *tree, struct entity3d *apple)
 {
     float angle = (float)drand48() * 2.0 * M_PI;
-    apple->pos[0] = tree->pos[0] + 1.0 * cos(angle);
-    apple->pos[1] = tree->pos[1] + 1.0 * sin(angle);
-    apple->pos[2] = tree->pos[2] + 10.0;
+    /* XXX: Y and Z are reversed and phys_ground_entity() should ground apple, not tree*/
+    entity3d_position(apple, (vec3){
+                      tree->pos[0] + 1.0 * cos(angle),
+                      tree->pos[1] + 1.0 * sin(angle),
+                      tree->pos[2] + 10.0 });
     phys_ground_entity(clap_get_phys(s->clap_ctx), tree);
 }
 

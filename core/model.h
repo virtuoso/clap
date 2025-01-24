@@ -215,10 +215,10 @@ struct entity3d {
     vec3    pos;
     float   rx, ry, rz;
     float   scale;
-    float   _dx, _dy, _dz;
     float   _rx, _ry, _rz;
     float   _scale;
     int     light_idx;
+    int     updated;
     bool    skip_culling;
     bool    ani_cleared;
     /* 2 byte hole */
@@ -261,8 +261,8 @@ void entity3d_aabb_max(struct entity3d *e, vec3 max);
 void entity3d_aabb_center(struct entity3d *e, vec3 center);
 void entity3d_update(struct entity3d *e, void *data);
 void entity3d_put(struct entity3d *e);
-void entity3d_move(struct entity3d *e, float dx, float dy, float dz);
-void entity3d_position(struct entity3d *e, float x, float y, float z);
+void entity3d_move(struct entity3d *e, vec3 off);
+void entity3d_position(struct entity3d *e, vec3 pos);
 void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
 struct instantiator;

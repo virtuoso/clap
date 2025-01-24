@@ -342,7 +342,7 @@ static int character_update(struct entity3d *e, void *data)
 
     /* XXX "wow out" */
     if (e->pos[1] <= s->limbo_height)
-        entity3d_position(e, e->pos[0], -e->pos[1], e->pos[2]);
+        entity3d_position(e, (vec3){ e->pos[0], -e->pos[1], e->pos[2] });
 
     if (e->phys_body) {
         if (phys_body_update(e)) {
