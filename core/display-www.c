@@ -84,7 +84,7 @@ void gl_title(const char *fmt, ...)
     va_start(va, fmt);
     vasprintf(&title, fmt, va);
     va_end(va);
-    EM_ASM(document.title = UTF8ToString($0);, title);
+    emscripten_set_window_title(title);
 }
 
 void gl_get_sizes(int *widthp, int *heightp)
