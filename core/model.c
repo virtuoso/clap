@@ -132,7 +132,7 @@ static cerr model3dtx_add_texture(struct model3dtx *txm, const char *name)
     return model3dtx_add_texture_at(txm, UNIFORM_MODEL_TEX, name);
 }
 
-static int model3dtx_make(struct ref *ref)
+static cerr model3dtx_make(struct ref *ref)
 {
     struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
     txm->texture = &txm->_texture;
@@ -141,7 +141,7 @@ static int model3dtx_make(struct ref *ref)
     txm->sobel = &txm->_sobel;
     list_init(&txm->entities);
     list_init(&txm->entry);
-    return 0;
+    return CERR_OK;
 }
 
 static bool model3dtx_tex_is_ext(struct model3dtx *txm)
@@ -1247,7 +1247,7 @@ void entity3d_reset(struct entity3d *e)
     default_update(e, NULL);
 }
 
-static int entity3d_make(struct ref *ref)
+static cerr entity3d_make(struct ref *ref)
 {
     struct entity3d *e = container_of(ref, struct entity3d, ref);
 
@@ -1259,9 +1259,9 @@ static int entity3d_make(struct ref *ref)
     e->update    = default_update;
     e->mx        = mx_new();
     if (!e->mx)
-        return -1;
+        return CERR_NOMEM;
 
-    return 0;
+    return CERR_OK;
 }
 
 static void entity3d_drop(struct ref *ref)

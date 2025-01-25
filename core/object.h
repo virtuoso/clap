@@ -12,7 +12,7 @@
 #include "json.h" /* XXX: factor out ser/deser code */
 
 struct ref;
-typedef int (*make_t)(struct ref *ref);
+typedef cerr (*make_t)(struct ref *ref);
 typedef void (*drop_t)(struct ref *ref);
 
 #define _REF_STATIC	    (-1)

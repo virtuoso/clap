@@ -768,14 +768,14 @@ void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment)
                          GL_COLOR_BUFFER_BIT, GL_LINEAR));
 }
 
-static int fbo_make(struct ref *ref)
+static cerr fbo_make(struct ref *ref)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
     darray_init(fbo->color_buf);
     fbo->depth_buf = -1;
 
-    return 0;
+    return CERR_OK;
 }
 
 static void fbo_drop(struct ref *ref)
