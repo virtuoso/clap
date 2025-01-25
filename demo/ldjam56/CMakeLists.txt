@@ -12,21 +12,12 @@ get_directory_property(CONFIG_GLES
 get_directory_property(CIMGUI_DIR
     DIRECTORY "${CMAKE_SOURCE_DIR}/core"
     DEFINITION CIMGUI_DIR)
-if (CONFIG_GLES)
-    set(SHADER_TYPE "glsl-es")
-    set(SPIRV_CROSS_ARGS --es --version 300)
-else ()
-    set(SHADER_TYPE "glsl")
-    if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        set(SPIRV_CROSS_ARGS --no-es --no-420pack-extension --version 410)
-    else ()
-        set(SPIRV_CROSS_ARGS --no-es --version 410)
-    endif ()
-endif ()
 
-set(SHADER_DIR "${ASSET_DIR}/${SHADER_TYPE}")
+set(SHADER_BASE "${ASSET_DIR}")
+
+include("${PARENT_DIR}/clap/scripts/compile-shaders.cmake")
+
 set(SHADER_SOURCE_DIR "${PARENT_DIR}/clap/shaders")
-set(SPIRV_DIR "${clap_BINARY_DIR}/spirv")
 set(SHADERS "ui"
             "glyph"
             "model"
@@ -40,46 +31,7 @@ set(SHADERS "ui"
             "terrain"
 )
 
-add_custom_target(make-shader-ir-dir
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIRV_DIR}"
-)
-add_custom_target(make-shader-output-dir
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_DIR}"
-)
-
-find_program(GLSLC glslc HINTS "${GLSLC_HINT}")
-find_program(SPIRV_CROSS spirv-cross HINTS "${SPIRV_CROSS_HINT}")
-SET(SHADER_SRCS "")
-SET(SHADER_OUTS "")
-FOREACH(s ${SHADERS})
-    FOREACH(stage vert frag geom)
-        # Geometry shaders are optional in GL and not supported in GL ES
-        if (stage STREQUAL "geom")
-            if (NOT EXISTS "${SHADER_SOURCE_DIR}/${s}.${stage}" OR CONFIG_GLES)
-                continue ()
-            endif ()
-        endif ()
-        LIST(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${s}.${stage}")
-        LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${s}.${stage}")
-        add_custom_command(
-            OUTPUT "${SPIRV_DIR}/${s}.${stage}.spv"
-            DEPENDS make-shader-ir-dir "${SHADER_SOURCE_DIR}/${s}.${stage}" "${SHADER_SOURCE_DIR}/texel_fetch.inc"
-            COMMAND "${GLSLC}"
-            ARGS -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core -o ${SPIRV_DIR}/${s}.${stage}.spv -c ${SHADER_SOURCE_DIR}/${s}.${stage}
-        )
-        add_custom_command(
-            OUTPUT "${SHADER_DIR}/${s}.${stage}"
-            DEPENDS make-shader-output-dir "${SPIRV_DIR}/${s}.${stage}.spv"
-            COMMAND "${SPIRV_CROSS}"
-            ARGS ${SPIRV_CROSS_ARGS} ${SPIRV_DIR}/${s}.${stage}.spv --output ${SHADER_DIR}/${s}.${stage}
-        )
-    ENDFOREACH ()
-ENDFOREACH()
-
-add_custom_target(preprocess_shaders
-    DEPENDS ${SHADER_OUTS}
-    COMMENT "Preprocessing shaders"
-)
+compile_shaders("${SHADERS}" "")
 
 set(ASSETS  "${SHADER_OUTS}"
             "${ASSET_DIR}/scene.json")
