@@ -958,11 +958,6 @@ tail:
     *next = 0;
 }
 
-static float quat_dot(quat a, quat b)
-{
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
-}
-
 static void vec3_interp(vec3 res, vec3 a, vec3 b, float fac)
 {
     float rfac = 1.f - fac;
@@ -974,7 +969,7 @@ static void vec3_interp(vec3 res, vec3 a, vec3 b, float fac)
 
 static void quat_interp(quat res, quat a, quat b, float fac)
 {
-    float dot = quat_dot(a, b);
+    float dot = quat_inner_product(a, b);
     float rfac = 1.f - fac;
 
     if (dot < 0) {
@@ -997,7 +992,7 @@ static void quat_interp(quat res, quat a, quat b, float fac)
  */
 static void quat_slerp(quat res, quat a, quat b, float fac)
 {
-    float dot = quat_dot(a, b);
+    float dot = quat_inner_product(a, b);
     quat _b;
 
     memcpy(_b, b, sizeof(_b));
