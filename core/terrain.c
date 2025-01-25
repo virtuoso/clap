@@ -2,6 +2,7 @@
 #include <sys/time.h>
 #include <errno.h>
 #include "ca2d.h"
+#include "interp.h"
 #include "model.h"
 #include "physics.h"
 #include "scene.h"

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "interp.h"
 #include "ui.h"
 
 static void ui_animation_done(struct ui_animation *uia)
