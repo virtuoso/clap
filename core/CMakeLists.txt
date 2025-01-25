@@ -103,7 +103,47 @@ endif ()
 
 get_filename_component(PARENT_DIR ${clap_SOURCE_DIR} DIRECTORY)
 
+##########################################################################
+# Convert engine shaders
+##########################################################################
+set(SHADER_BASE "${CMAKE_BINARY_DIR}")
+
+include("${PARENT_DIR}/clap/scripts/compile-shaders.cmake")
+
+set(SHADER_SOURCE_DIR "${PARENT_DIR}/clap/shaders")
+set(SHADERS ui glyph model contrast sobel combine shadow debug hblur vblur terrain)
+
+compile_shaders("${SHADERS}" "_core")
+
+##########################################################################
+# Convert engine shaders into C string array to build them in statically
+##########################################################################
+add_custom_command(
+    DEPENDS preprocess_shaders_core ${SHADER_OUTS}
+    COMMENT "Generating builtin shaders"
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
+    COMMAND
+        ${CMAKE_COMMAND}
+            -DHEADER=1
+            -Dshaders="${SHADER_OUTS}"
+            -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
+            -P ${PARENT_DIR}/clap/scripts/builtin-shaders.cmake
+    COMMAND
+        ${CMAKE_COMMAND}
+            -Dshaders="${SHADER_OUTS}"
+            -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
+            -P ${PARENT_DIR}/clap/scripts/builtin-shaders.cmake
+    COMMAND
+        ${CMAKE_COMMAND}
+            -DFOOTER=1
+            -Dshaders="${SHADER_OUTS}"
+            -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
+            -P ${PARENT_DIR}/clap/scripts/builtin-shaders.cmake
+)
+
+##########################################################################
 # Build in ImGui via cimgui bindings
+##########################################################################
 set(CIMGUI_DIR ${PARENT_DIR}/clap/deps/src/cimgui)
 set(CIMGUI_BACKENDS_DIR ${CIMGUI_DIR}/imgui/backends)
 
@@ -159,7 +199,7 @@ ENDFOREACH ()
 
 FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/builddate.c "const char *build_date = \"${CONFIG_BUILDDATE}\";")
 
-add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c)
+add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shaders.c)
 add_dependencies(${ENGINE_LIB} ode)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)

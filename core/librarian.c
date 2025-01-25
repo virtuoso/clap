@@ -8,8 +8,12 @@
 #include <unistd.h>
 #include "common.h"
 #include "librarian.h"
+#include "librarian-file.h"
 #include "json.h"
 #include "memory.h"
+
+extern const unsigned int nr_builtin_shaders;
+extern const struct builtin_file builtin_shaders[];
 
 #if defined(CONFIG_BROWSER) && 0
 static char base_url[PATH_MAX] = "http://ukko.local/clap/";
@@ -44,6 +48,9 @@ static void fetch_file(const char *name)
 static void handle_drop(struct ref *ref)
 {
     struct lib_handle *h = container_of(ref, struct lib_handle, ref);
+
+    if (h->builtin)
+        return;
 
     mem_free(h->buf);
 }
@@ -175,6 +182,21 @@ void cleanup__lib_handlep(lib_handle **h)
         ref_put_last(*h);
 }
 
+static const char *builtin_file_contents(enum res_type type, const char *name)
+{
+    int i;
+
+    /* only for shaders at the moment */
+    if (type != RES_SHADER)
+        return NULL;
+
+    for (i = 0; i < nr_builtin_shaders; i++)
+        if (!strcmp(name, builtin_shaders[i].name))
+            return builtin_shaders[i].contents;
+
+    return NULL;
+}
+
 /*
  * How about:
  *  + first try the local FS, if unsuccessful,
@@ -186,6 +208,21 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     LOCAL(char, uri);
     LOCAL(FILE, f);
     int ret = 0;
+
+    const char *builtin_contents = builtin_file_contents(type, name);
+
+    if (builtin_contents) {
+        h = ref_new(lib_handle);
+        h->name = name;
+        h->type = type;
+        h->state = RES_LOADED;
+        h->buf = (void *)builtin_contents;
+        *bufp = h->buf;
+        h->size = strlen(builtin_contents);
+        *szp = h->size;
+        h->builtin = true;
+        return h;
+    }
 
     uri = lib_figure_uri(type, name);
     if (!uri)

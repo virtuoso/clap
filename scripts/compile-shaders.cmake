@@ -85,6 +85,8 @@ function(compile_shaders SHADERS PREPROCESS_SHADERS_TARGET)
         ENDFOREACH ()
     ENDFOREACH()
 
+    set(SHADER_OUTS "${SHADER_OUTS}" PARENT_SCOPE)
+
     # Create a preprocess_shaders target with a suffix
     add_custom_target(preprocess_shaders${PREPROCESS_SHADERS_TARGET}
         DEPENDS ${SHADER_OUTS}

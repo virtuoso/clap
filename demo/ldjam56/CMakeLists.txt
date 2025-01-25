@@ -13,28 +13,7 @@ get_directory_property(CIMGUI_DIR
     DIRECTORY "${CMAKE_SOURCE_DIR}/core"
     DEFINITION CIMGUI_DIR)
 
-set(SHADER_BASE "${ASSET_DIR}")
-
-include("${PARENT_DIR}/clap/scripts/compile-shaders.cmake")
-
-set(SHADER_SOURCE_DIR "${PARENT_DIR}/clap/shaders")
-set(SHADERS "ui"
-            "glyph"
-            "model"
-            "contrast"
-            "sobel"
-            "combine"
-            "shadow"
-            "debug"
-            "hblur"
-            "vblur"
-            "terrain"
-)
-
-compile_shaders("${SHADERS}" "")
-
-set(ASSETS  "${SHADER_OUTS}"
-            "${ASSET_DIR}/scene.json")
+set(ASSETS  "${ASSET_DIR}/scene.json")
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(EXTRA_LIBRARIES     "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
@@ -67,7 +46,7 @@ set(ENGINE_MAIN onehandclap.c)
 set(ENGINE_LIB libonehandclap)
 
 add_executable(${ENGINE_BIN} ${ENGINE_MAIN})
-add_dependencies(${ENGINE_BIN} ${ENGINE_LIB} meshoptimizer preprocess_shaders)
+add_dependencies(${ENGINE_BIN} ${ENGINE_LIB} meshoptimizer)
 target_include_directories(${ENGINE_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
 set_target_properties(${ENGINE_BIN} PROPERTIES LINK_DEPENDS "${ASSETS};${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html")
 target_link_libraries(${ENGINE_BIN} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})

@@ -29,6 +29,7 @@ typedef struct lib_handle {
     enum res_type   type;
     enum res_state  state;
     lib_complete_fn func;
+    bool            builtin;
 } lib_handle;
 
 void cleanup__lib_handlep(lib_handle **h);
