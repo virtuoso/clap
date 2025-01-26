@@ -1040,6 +1040,7 @@ void renderer_init(renderer_t *renderer)
 #ifndef CONFIG_GLES
     GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits.gl_max_color_texture_samples));
     GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
+    GL(glEnable(GL_MULTISAMPLE));
 #endif /* CONFIG_GLES */
 
     GL(glEnable(GL_CULL_FACE));
