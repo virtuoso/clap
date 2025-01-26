@@ -123,7 +123,6 @@ int ui_element_update(struct entity3d *e, void *data)
     return 0;
 }
 
-static void ui_debug_update(struct ui *ui);
 static void ui_reset_positioning(struct entity3d *e, void *data)
 {
     struct ui_element *uie = e->priv;
@@ -555,77 +554,6 @@ static void ui_roll_init(struct ui *ui)
 static bool display_fps;
 static struct ui_element *bottom_uit;
 static struct ui_element *bottom_element;
-static const char **ui_debug_mods = NULL;
-static unsigned int nr_ui_debug_mods;
-static unsigned int ui_debug_current;
-static char **ui_debug_strs;
-static struct ui_element *debug_uit;
-static struct ui_element *debug_element;
-static struct font *debug_font;
-
-static char **ui_debug_mod_str(const char *mod)
-{
-    int i;
-
-    mod = str_basename(mod);
-    for (i = 0; i < nr_ui_debug_mods; i++)
-        if (!strcmp(mod, ui_debug_mods[i]))
-            goto found;
-    
-    CHECK(ui_debug_mods = realloc(ui_debug_mods, sizeof(char *) * (i + 1)));
-    CHECK(ui_debug_strs = realloc(ui_debug_strs, sizeof(char *) * (i + 1)));
-    nr_ui_debug_mods++;
-
-    ui_debug_mods[i] = mod;
-    ui_debug_strs[i] = NULL;
-found:
-    return &ui_debug_strs[i];
-}
-
-static void ui_debug_update(struct ui *ui)
-{
-    struct font *font;
-    float color[] = { 0.9, 0.1, 0.2, 1.0 };
-    char *str;
-
-    if (!ui_debug_strs || !nr_ui_debug_mods)
-        return;
-
-    str = ui_debug_strs[ui_debug_current];
-    // char *x = ref_classes_get_string();
-    // if (ui_debug_str && !strcmp(x, ui_debug_str))
-    //     return;
-
-    // ui_debug_str = x;
-    if (debug_uit) {
-        ref_put_last(debug_uit);
-        debug_uit = NULL;
-    } else if (str) {
-        debug_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 400, 150);
-    }
-    if (str) {
-        font = font_get(debug_font);
-        debug_uit = ui_render_string(ui, font, debug_element, str, color, UI_AF_LEFT);
-        font_put(font);
-    }
-}
-
-void __ui_debug_printf(const char *mod, const char *fmt, ...)
-{
-    char **pstr = ui_debug_mod_str(mod);
-    char *old = *pstr;
-    va_list va;
-    int ret;
-
-    va_start(va, fmt);
-    ret = vasprintf(pstr, fmt, va);
-    va_end(va);
-
-    if (ret < 0)
-        *pstr = NULL;
-    else
-        mem_free(old);
-}
 
 static void ui_element_for_each_child(struct ui_element *uie, void (*cb)(struct ui_element *x, void *data), void *data)
 {
@@ -665,20 +593,6 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
 
 static void ui_menu_done(struct ui *ui);
 
-void ui_show_debug(const char *debug_name)
-{
-    int i;
-
-    for (i = 0; i < nr_ui_debug_mods; i++) {
-        if (!strcmp(debug_name, ui_debug_mods[i]))
-            goto found;
-    }
-
-    return;
-found:
-    ui_debug_current = i;
-}
-
 static void do_debugs(struct ui *ui, const char *debug_name)
 {
     ui_show_debug(debug_name);
@@ -703,7 +617,7 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
         ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
     } else if (!strcmp(str, "Monitor")) {
         ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, ui_debug_mods, nr_ui_debug_mods);
+        ui->menu = ui_debug_menu(ui);
     } else if (!strcmp(str, "Fullscreen")) {
         struct message_input mi;
         memset(&mi, 0, sizeof(mi));
@@ -1531,7 +1445,6 @@ int ui_init(struct ui *ui, int width, int height)
 {
     struct font *font;
 
-    ui_debug_mod_str("off");
     mq_init(&ui->mq, ui);
     list_init(&ui->shaders);
     lib_request_shaders("glyph", &ui->shaders);
@@ -1542,13 +1455,15 @@ int ui_init(struct ui *ui, int width, int height)
     if (!ui->ui_prog || !ui->glyph_prog)
         goto err;
 
-    debug_font = font_open("ProggyTiny.ttf", 28);
+    if (ui_debug_init(ui))
+        goto err;
+
     font = font_open("ProggyTiny.ttf", 16);
-    if (!debug_font || !font)
+    if (!font)
         goto err;
 
     if (ui_model_init(ui)) {
-        font_put(debug_font);
+        ui_debug_done(ui);
         font_put(font);
         goto err;
     }
@@ -1582,7 +1497,7 @@ void ui_done(struct ui *ui)
     if (ui->inventory)
         ui_inventory_done(ui);
 
-    font_put(debug_font);
+    ui_debug_done(ui);
     if (uie0)
         ref_put(uie0);
 #ifndef CONFIG_FINAL
@@ -1593,10 +1508,6 @@ void ui_done(struct ui *ui)
         ref_put_last(bottom_uit);
         ref_put_last(bottom_element);
     }
-    if (debug_uit) {
-        ref_put(debug_element);
-        ref_put_last(debug_uit);
-    }
     ui_roll_done();
 
     mq_release(&ui->mq);
@@ -1606,14 +1517,6 @@ void ui_done(struct ui *ui)
      * via mq_release()
      */
     shaders_free(&ui->shaders);
-
-    int i;
-
-    for (i = 0; i < nr_ui_debug_mods; i++)
-        mem_free(ui_debug_strs[i]);
-
-    mem_free(ui_debug_mods);
-    mem_free(ui_debug_strs);
 }
 
 void ui_show(struct ui *ui)

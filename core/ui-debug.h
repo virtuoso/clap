@@ -2,16 +2,24 @@
 #ifndef __CLAP_UI_DEBUG_H__
 #define __CLAP_UI_DEBUG_H__
 
-#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#include "cimgui.h"
-
 #include <stdbool.h>
+#include "error.h"
 #include "util.h"
 #include "linmath.h"
 
+struct settings;
+struct ui;
+
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#include "cimgui.h"
+
+void ui_debug_update(struct ui *ui);
 void __ui_debug_printf(const char *mod, const char *fmt, ...) __printf(2, 3);
 #define ui_debug_printf(args...) __ui_debug_printf(MODNAME, ## args)
 void ui_show_debug(const char *debug_name);
+struct ui_widget *ui_debug_menu(struct ui *ui);
+cerr ui_debug_init(struct ui *ui);
+void ui_debug_done(struct ui *ui);
 
 static inline void ui_show_debug_once(const char *debug_name)
 {
@@ -21,7 +29,6 @@ static inline void ui_show_debug_once(const char *debug_name)
         ui_show_debug(str_basename(debug_name));
 }
 
-struct settings;
 bool __ui_mouse_event_propagate(void);
 void imgui_init(struct clap_context *ctx, void *data, int width, int height);
 void imgui_set_settings(struct settings *rs);
