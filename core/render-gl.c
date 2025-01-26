@@ -1067,3 +1067,26 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, da
     GLenum _draw_type = gl_draw_type(draw_type);
     GL(glDrawElements(_draw_type, nr_faces, _idx_type, 0));
 }
+
+void renderer_clearcolor(renderer_t *r, vec4 color)
+{
+    if (!memcmp(r->clear_color, color, sizeof(vec4)))
+        return;
+
+    vec4_dup(r->clear_color, color);
+    GL(glClearColor(color[0], color[1], color[2], color[3]));
+}
+
+void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
+{
+    GLbitfield flags = 0;
+
+    if (color)
+        flags |= GL_COLOR_BUFFER_BIT;
+    if (depth)
+        flags |= GL_DEPTH_BUFFER_BIT;
+    if (stencil)
+        flags |= GL_STENCIL_BUFFER_BIT;
+
+    GL(glClear(flags));
+}

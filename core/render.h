@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "display.h"
 #include "error.h"
+#include "linmath.h"
 #include "logger.h"
 #include "object.h"
 #include "typedef.h"
@@ -231,6 +232,7 @@ TYPE(renderer,
     GLenum  cull_face;
     GLenum  blend_sfactor;
     GLenum  blend_dfactor;
+    vec4    clear_color;
     bool    blend;
     bool    depth_test;
     bool    wireframe;
@@ -257,6 +259,8 @@ typedef enum {
 void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
 void renderer_depth_test(renderer_t *r, bool enable);
 void renderer_wireframe(renderer_t *r, bool enable);
+void renderer_clearcolor(renderer_t *r, vec4 color);
+void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil);
 
 typedef enum {
     DRAW_TYPE_POINTS = 0,
