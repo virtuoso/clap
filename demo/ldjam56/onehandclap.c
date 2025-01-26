@@ -291,11 +291,12 @@ static void settings_onload(struct settings *rs, void *data)
 
 static int handle_input(struct message *m, void *data)
 {
-    float gain = sound_get_gain(intro_sound);
     bool  store = false;
 
     if (!intro_sound)
         return 0;
+
+    float gain = sound_get_gain(intro_sound);
 
     if (m->input.volume_up) {
         gain += 0.05;
