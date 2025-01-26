@@ -52,12 +52,8 @@ enum shader_vars {
 
 struct shader_prog {
     const char  *name;
-    GLuint      prog;
-    GLint       vars[SHADER_VAR_MAX];
-    GLint       attr_count;
-    GLuint      vert;
-    GLuint      frag;
-    GLuint      geom;
+    uniform_t   vars[SHADER_VAR_MAX];
+    shader_t    shader;
     struct ref  ref;
     struct list entry;
 };

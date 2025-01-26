@@ -12,97 +12,11 @@
 #include "librarian.h"
 #include "scene.h"
 
-static GLuint load_shader(GLenum type, const char *source)
-{
-    GLuint shader = glCreateShader(type);
-    if (!shader) {
-        err("couldn't create shader\n");
-        return -1;
-    }
-    GL(glShaderSource(shader, 1, &source, NULL));
-    GL(glCompileShader(shader));
-    GLint compiled = 0;
-    GL(glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled));
-    if (!compiled) {
-        GLint infoLen = 0;
-        GL(glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen));
-        if (infoLen) {
-            char *buf = mem_alloc(infoLen);
-            if (buf) {
-                GL(glGetShaderInfoLog(shader, infoLen, NULL, buf));
-                err("Could not Compile Shader %d:\n%s\n", type, buf);
-                mem_free(buf);
-                err("--> %s <--\n", source);
-            }
-            GL(glDeleteShader(shader));
-            shader = 0;
-        }
-    }
-    return shader;
-}
-
-static int shader_prog_init(struct shader_prog *p, const char *vertex,
-                            const char *geometry, const char *fragment)
-{
-    p->vert = load_shader(GL_VERTEX_SHADER, vertex);
-    p->geom =
-#ifndef CONFIG_BROWSER
-        geometry ? load_shader(GL_GEOMETRY_SHADER, geometry) : 0;
-#else
-        0;
-#endif
-    p->frag = load_shader(GL_FRAGMENT_SHADER, fragment);
-    p->prog = glCreateProgram();
-    GLint linkStatus = GL_FALSE;
-    int ret = -1;
-
-    if (!p->vert || (geometry && !p->geom) || !p->frag || !p->prog) {
-        err("vshader: %d gshader: %d fshader: %d program: %d\n",
-            p->vert, p->geom, p->frag, p->prog);
-        return ret;
-    }
-
-    GL(glAttachShader(p->prog, p->vert));
-    GL(glAttachShader(p->prog, p->frag));
-    if (p->geom)
-        GL(glAttachShader(p->prog, p->geom));
-    GL(glLinkProgram(p->prog));
-    GL(glGetProgramiv(p->prog, GL_LINK_STATUS, &linkStatus));
-    if (linkStatus != GL_TRUE) {
-        GLint bufLength = 0;
-        GL(glGetProgramiv(p->prog, GL_INFO_LOG_LENGTH, &bufLength));
-        if (bufLength) {
-            char *buf = mem_alloc(bufLength);
-            if (buf) {
-                GL(glGetProgramInfoLog(p->prog, bufLength, NULL, buf));
-                err("Could not link program:\n%s\n", buf);
-                mem_free(buf);
-                GL(glDeleteShader(p->vert));
-                GL(glDeleteShader(p->frag));
-                if (p->geom)
-                    GL(glDeleteShader(p->geom));
-            }
-        }
-        GL(glDeleteProgram(p->prog));
-        p->prog = 0;
-    } else {
-        ret = 0;
-    }
-    dbg("vshader: %d gshader: %d fshader: %d program: %d link: %d\n",
-        p->vert, p->geom, p->frag, p->prog, linkStatus);
-
-    return ret;
-}
-
 static void shader_prog_drop(struct ref *ref)
 {
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
 
-    GL(glDeleteProgram(p->prog));
-    GL(glDeleteShader(p->vert));
-    GL(glDeleteShader(p->frag));
-    if (p->geom)
-        GL(glDeleteShader(p->geom));
+    shader_done(&p->shader);
     list_del(&p->entry);
     dbg("dropping shader '%s'\n", p->name);
 }
@@ -182,9 +96,9 @@ static void shader_prog_link(struct shader_prog *p)
         const struct shader_var_desc *desc = &shader_var_desc[i];
 
         if (i < ATTR_MAX)
-            p->vars[i] = glGetAttribLocation(p->prog, desc->name);
+            p->vars[i] = shader_attribute(&p->shader, desc->name);
         else
-            p->vars[i] = glGetUniformLocation(p->prog, desc->name);
+            p->vars[i] = shader_uniform(&p->shader, desc->name);
         if (p->vars[i] >= 0)
             dbg(" -> %s %s: %d\n", i < ATTR_MAX ? "attribute" : "uniform", desc->name, p->vars[i]);
     }
@@ -205,30 +119,7 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
-    switch (desc->type) {
-        case DT_FLOAT: {
-            GL(glUniform1fv(p->vars[var], count, value));
-            break;
-        }
-        case DT_INT: {
-            GL(glUniform1iv(p->vars[var], count, value));
-            break;
-        }
-        case DT_VEC3: {
-            GL(glUniform3fv(p->vars[var], count, value));
-            break;
-        }
-        case DT_VEC4: {
-            GL(glUniform4fv(p->vars[var], count, value));
-            break;
-        }
-        case DT_MAT4: {
-            GL(glUniformMatrix4fv(p->vars[var], count, GL_FALSE, value));
-            break;
-        }
-        default:
-            break;
-    }
+    uniform_set_ptr(p->vars[var], desc->type, count, value);
 }
 
 void shader_set_var_float(struct shader_prog *p, enum shader_vars var, float value)
@@ -281,7 +172,7 @@ void shader_set_texture(struct shader_prog *p, enum shader_vars var)
     if (!shader_has_var(p, var))
         return;
 
-    GL(glUniform1i(p->vars[var], desc->texture_slot));
+    uniform_set_ptr(p->vars[var], desc->type, 1, &desc->texture_slot);
 }
 
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
@@ -329,7 +220,7 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, con
 
     list_init(&p->entry);
     p->name = name;
-    int err = shader_prog_init(p, vsh, gsh, fsh);
+    cerr err = shader_init(&p->shader, vsh, gsh, fsh);
     if (err) {
         err("couldn't create program '%s'\n", name);
         ref_put(p);
@@ -350,12 +241,12 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, con
 void shader_prog_use(struct shader_prog *p)
 {
     ref_get(p);
-    GL(glUseProgram(p->prog));
+    shader_use(&p->shader);
 }
 
 void shader_prog_done(struct shader_prog *p)
 {
-    GL(glUseProgram(0));
+    shader_unuse(&p->shader);
     ref_put(p);
 }
 

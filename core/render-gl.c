@@ -878,6 +878,148 @@ void fbo_put_last(fbo_t *fbo)
 }
 
 /****************************************************************************
+ * Shaders
+ ****************************************************************************/
+
+static GLuint load_shader(GLenum type, const char *source)
+{
+    GLuint shader = glCreateShader(type);
+    if (!shader) {
+        err("couldn't create shader\n");
+        return -1;
+    }
+    GL(glShaderSource(shader, 1, &source, NULL));
+    GL(glCompileShader(shader));
+    GLint compiled = 0;
+    GL(glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled));
+    if (!compiled) {
+        GLint infoLen = 0;
+        GL(glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen));
+        if (infoLen) {
+            char *buf = mem_alloc(infoLen);
+            if (buf) {
+                GL(glGetShaderInfoLog(shader, infoLen, NULL, buf));
+                err("Could not Compile Shader %d:\n%s\n", type, buf);
+                mem_free(buf);
+                err("--> %s <--\n", source);
+            }
+            GL(glDeleteShader(shader));
+            shader = 0;
+        }
+    }
+    return shader;
+}
+
+cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
+{
+    shader->vert = load_shader(GL_VERTEX_SHADER, vertex);
+    shader->geom =
+#ifndef CONFIG_BROWSER
+        geometry ? load_shader(GL_GEOMETRY_SHADER, geometry) : 0;
+#else
+        0;
+#endif
+    shader->frag = load_shader(GL_FRAGMENT_SHADER, fragment);
+    shader->prog = glCreateProgram();
+    GLint linkStatus = GL_FALSE;
+    cerr ret = CERR_INVALID_SHADER;
+
+    if (!shader->vert || (geometry && !shader->geom) || !shader->frag || !shader->prog) {
+        err("vshader: %d gshader: %d fshader: %d program: %d\n",
+            shader->vert, shader->geom, shader->frag, shader->prog);
+        return ret;
+    }
+
+    GL(glAttachShader(shader->prog, shader->vert));
+    GL(glAttachShader(shader->prog, shader->frag));
+    if (shader->geom)
+        GL(glAttachShader(shader->prog, shader->geom));
+    GL(glLinkProgram(shader->prog));
+    GL(glGetProgramiv(shader->prog, GL_LINK_STATUS, &linkStatus));
+    if (linkStatus != GL_TRUE) {
+        GLint bufLength = 0;
+        GL(glGetProgramiv(shader->prog, GL_INFO_LOG_LENGTH, &bufLength));
+        if (bufLength) {
+            char *buf = mem_alloc(bufLength);
+            if (buf) {
+                GL(glGetProgramInfoLog(shader->prog, bufLength, NULL, buf));
+                err("Could not link program:\n%s\n", buf);
+                mem_free(buf);
+                GL(glDeleteShader(shader->vert));
+                GL(glDeleteShader(shader->frag));
+                if (shader->geom)
+                    GL(glDeleteShader(shader->geom));
+            }
+        }
+        GL(glDeleteProgram(shader->prog));
+        shader->prog = 0;
+    } else {
+        ret = CERR_OK;
+    }
+    dbg("vshader: %d gshader: %d fshader: %d program: %d link: %d\n",
+        shader->vert, shader->geom, shader->frag, shader->prog, linkStatus);
+
+    return ret;
+}
+
+void shader_done(shader_t *shader)
+{
+    GL(glDeleteProgram(shader->prog));
+    GL(glDeleteShader(shader->vert));
+    GL(glDeleteShader(shader->frag));
+    if (shader->geom)
+        GL(glDeleteShader(shader->geom));
+}
+
+attr_t shader_attribute(shader_t *shader, const char *name)
+{
+    return glGetAttribLocation(shader->prog, name);
+}
+
+uniform_t shader_uniform(shader_t *shader, const char *name)
+{
+    return glGetUniformLocation(shader->prog, name);
+}
+
+void shader_use(shader_t *shader)
+{
+    GL(glUseProgram(shader->prog));
+}
+
+void shader_unuse(shader_t *shader)
+{
+    GL(glUseProgram(0));
+}
+
+void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value)
+{
+    switch (type) {
+        case DT_FLOAT: {
+            GL(glUniform1fv(uniform, count, value));
+            break;
+        }
+        case DT_INT: {
+            GL(glUniform1iv(uniform, count, value));
+            break;
+        }
+        case DT_VEC3: {
+            GL(glUniform3fv(uniform, count, value));
+            break;
+        }
+        case DT_VEC4: {
+            GL(glUniform4fv(uniform, count, value));
+            break;
+        }
+        case DT_MAT4: {
+            GL(glUniformMatrix4fv(uniform, count, GL_FALSE, value));
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+/****************************************************************************
  * Renderer context
  ****************************************************************************/
 

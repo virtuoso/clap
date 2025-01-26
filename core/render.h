@@ -228,6 +228,24 @@ int fbo_nr_attachments(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 fbo_attachment fbo_get_attachment(fbo_t *fbo);
 
+TYPE(shader,
+    GLuint  vert;
+    GLuint  frag;
+    GLuint  geom;
+    GLuint  prog;
+);
+
+typedef int uniform_t;
+typedef int attr_t;
+
+cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, const char *fragment);
+void shader_done(shader_t *shader);
+attr_t shader_attribute(shader_t *shader, const char *name);
+uniform_t shader_uniform(shader_t *shader, const char *name);
+void shader_use(shader_t *shader);
+void shader_unuse(shader_t *shader);
+void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value);
+
 TYPE(renderer,
     GLenum  cull_face;
     GLenum  blend_sfactor;
