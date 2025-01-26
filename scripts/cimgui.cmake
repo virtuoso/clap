@@ -39,7 +39,7 @@ ENDFOREACH ()
 list(APPEND ENGINE_COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ ")
 
 # Now append our own cimgui bindings/wrappers/backend(s)
-list(APPEND ENGINE_SRC ui-imgui.c)
+list(APPEND ENGINE_SRC ui-imgui.c ui-debug.c)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     list(APPEND ENGINE_SRC ui-imgui-www.c)

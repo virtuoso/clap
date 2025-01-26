@@ -10,6 +10,8 @@
 struct settings;
 struct ui;
 
+#ifndef CONFIG_FINAL
+
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
 
@@ -76,5 +78,30 @@ void ui_igSliderFloat(float *v, float min, float max, const char *fmt, ImGuiSlid
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(float *v, int n, const char *fmt, ...);
 bool ui_igMat4x4(mat4x4 m, const char *name);
+
+#else
+
+static inline void ui_debug_update(struct ui *ui) {}
+static inline void __ui_debug_printf(const char *mod, const char *fmt, ...) {}
+#define ui_debug_printf(args...) __ui_debug_printf(MODNAME, ## args)
+static inline void ui_show_debug(const char *debug_name) {}
+static inline void ui_show_debug_once(const char *debug_name) {}
+static inline struct ui_widget *ui_debug_menu(struct ui *ui) { return NULL; }
+static inline cerr ui_debug_init(struct ui *ui) { return 0; }
+static inline void ui_debug_done(struct ui *ui) {}
+
+static inline void ui_debug_selector(void) {}
+static inline void ui_toggle_debug_selector(void) {}
+static inline void ui_debug_set_settings(struct settings *rs) {}
+
+static inline bool __ui_mouse_event_propagate(void) { return true; }
+static inline void imgui_init(struct clap_context *ctx, void *data, int width, int height) {}
+static inline void imgui_set_settings(struct settings *rs) {}
+static inline void imgui_done(void) {}
+static inline void imgui_render_begin(int width, int height) {}
+static inline void imgui_render(void) {}
+
+
+#endif /* CONFIG_FINAL */
 
 #endif /* __CLAP_UI_DEBUG_H__ */

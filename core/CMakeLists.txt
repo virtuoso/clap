@@ -86,7 +86,7 @@ set(ENGINE_SRC
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c
     gltf.c input-joystick.c render-gl.c mesh.c pipeline.c input-keyboard.c
-    game.c camera.c xyarray.c ca2d.c ca3d.c ui-debug.c
+    game.c camera.c xyarray.c ca2d.c ca3d.c
     ${PLATFORM_SRC})
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
@@ -142,11 +142,13 @@ add_custom_command(
 ##########################################################################
 # Build in ImGui via cimgui bindings
 ##########################################################################
-set(CIMGUI_DIR ${CMAKE_SOURCE_DIR}/deps/src/cimgui)
-set(CIMGUI_BACKENDS_DIR ${CIMGUI_DIR}/imgui/backends)
-set(CIMGUI_BACKENDS glfw opengl3)
+if (NOT CLAP_BUILD_FINAL)
+    set(CIMGUI_DIR ${CMAKE_SOURCE_DIR}/deps/src/cimgui)
+    set(CIMGUI_BACKENDS_DIR ${CIMGUI_DIR}/imgui/backends)
+    set(CIMGUI_BACKENDS glfw opengl3)
 
-include("${CMAKE_SOURCE_DIR}/scripts/cimgui.cmake")
+    include("${CMAKE_SOURCE_DIR}/scripts/cimgui.cmake")
+endif ()
 
 # the regular C sources don't need any special cimgui API prefixes
 FOREACH(src ${ENGINE_SRC})
