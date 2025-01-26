@@ -447,7 +447,7 @@ static inline void pipeline_pass_debug_begin(struct pipeline *pl, struct render_
 static inline void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count) {}
 #endif /* CONFIG_FINAL */
 
-void pipeline_render2(struct pipeline *pl, bool stop)
+void pipeline_render(struct pipeline *pl, bool stop)
 {
     struct scene *s = pl->scene;
     struct render_pass *last_pass = list_last_entry(&pl->passes, struct render_pass, entry);
