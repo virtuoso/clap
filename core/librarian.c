@@ -170,12 +170,6 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
 }
 #endif
 
-void lib_release(struct lib_handle *h)
-{
-    mem_free(h->data);
-    ref_put(h);
-}
-
 void cleanup__lib_handlep(lib_handle **h)
 {
     if (*h)

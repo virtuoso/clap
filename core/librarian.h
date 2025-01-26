@@ -40,6 +40,4 @@ lib_request(enum res_type type, const char *name, lib_complete_fn cb, void *data
 char *lib_figure_uri(enum res_type type, const char *name);
 struct lib_handle *lib_read_file(enum res_type type, const char *name, void **buf, size_t *szp);
 
-void lib_release(struct lib_handle *h);
-
 #endif /* __CLAP_LIBRARIAN_H__ */
