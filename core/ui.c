@@ -239,7 +239,6 @@ static int ui_model_init(struct ui *ui)
 {
     float x = 0.f, y = 0.f, w = 1.f, h = 1.f;
     struct model3d *ui_quad = model3d_new_quad(ui->ui_prog, x, y, 0, w, h);
-    ui_quad->cull_face = false;
     ui_quad->debug = true;
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
@@ -988,7 +987,6 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     }
     frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0.01, 1, 1, 0.02);
     model3d_set_name(frame_m, "inventory item frame");
-    frame_m->cull_face = false;
     frame_m->alpha_blend = false;
     frame_txm = model3dtx_new_texture(ref_pass(frame_m), white_pixel());
     ui_add_model(ui, frame_txm);

@@ -25,6 +25,17 @@
  * the actual rendered model
  ****************************************************************************/
 
+static cerr model3d_make(struct ref *ref)
+{
+    struct model3d *m = container_of(ref, struct model3d, ref);
+
+    m->debug     = false;
+    m->cull_face = true;
+    m->draw_type = DRAW_TYPE_TRIANGLES;
+
+    return CERR_OK;
+}
+
 static void model3d_drop(struct ref *ref)
 {
     struct model3d *m = container_of(ref, struct model3d, ref);
@@ -56,7 +67,7 @@ static void model3d_drop(struct ref *ref)
     mem_free(m->name);
 }
 
-DECLARE_REFCLASS(model3d);
+DECLARE_REFCLASS2(model3d);
 
 static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
                                    int has_alpha, enum shader_vars var, texture_t *tex)
@@ -448,7 +459,6 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
 
     CHECK(m->name = strdup(name));
     m->prog = ref_get(p);
-    m->cull_face = true;
     m->alpha_blend = false;
     m->draw_type = GL_TRIANGLES;
     model3d_calc_aabb(m, vx, vxsz);
@@ -1417,7 +1427,6 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     CHECK(dd = ref_new(debug_draw));
     CHECK(m = model3d_new_from_vectors("debug", p, vx, vxsz, idx, idxsz, tx, vxsz / 3 * 2, NULL, 0));
     m->debug = true;
-    m->cull_face = false;
     m->draw_type = GL_LINES;
     ref_put(p);
 

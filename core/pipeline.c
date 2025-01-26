@@ -265,7 +265,6 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
         goto err_blit_src;
 
     m = model3d_new_quad(p, -1, 1, 0, 2, -2);
-    m->cull_face = true;
     m->debug = true;
     m->alpha_blend = false;
     txm = model3dtx_new_texture(ref_pass(m), fbo_texture(*pfbo));
