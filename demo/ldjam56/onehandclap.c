@@ -180,10 +180,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     /* XXX: this actually goes to ->update() */
     scene_cameras_calc(s);
 
-#ifndef CONFIG_GLES
-    glEnable(GL_MULTISAMPLE);
-#endif
-
     pipeline_render(main_pl, !ui.modal);
     if (scene.debug_draws_enabled)
         models_render(&scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
