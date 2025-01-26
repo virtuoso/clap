@@ -2,8 +2,7 @@ set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-get_filename_component(PARENT_DIR ${clap_SOURCE_DIR} DIRECTORY)
-set(ENGINE_INCLUDE "${PARENT_DIR}/clap/core" "${clap_BINARY_DIR}/core")
+set(ENGINE_INCLUDE "${CMAKE_SOURCE_DIR}/core" "${clap_BINARY_DIR}/core")
 set(ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/asset")
 
 get_directory_property(CONFIG_GLES

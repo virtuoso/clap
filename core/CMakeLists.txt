@@ -101,16 +101,14 @@ if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
     endif ()
 endif ()
 
-get_filename_component(PARENT_DIR ${clap_SOURCE_DIR} DIRECTORY)
-
 ##########################################################################
 # Convert engine shaders
 ##########################################################################
 set(SHADER_BASE "${CMAKE_BINARY_DIR}")
 
-include("${PARENT_DIR}/clap/scripts/compile-shaders.cmake")
+include("${CMAKE_SOURCE_DIR}/scripts/compile-shaders.cmake")
 
-set(SHADER_SOURCE_DIR "${PARENT_DIR}/clap/shaders")
+set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
 set(SHADERS ui glyph model contrast sobel combine shadow debug hblur vblur terrain)
 
 compile_shaders("${SHADERS}" "_core")
@@ -127,24 +125,24 @@ add_custom_command(
             -DHEADER=1
             -Dshaders="${SHADER_OUTS}"
             -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
-            -P ${PARENT_DIR}/clap/scripts/builtin-shaders.cmake
+            -P ${CMAKE_SOURCE_DIR}/scripts/builtin-shaders.cmake
     COMMAND
         ${CMAKE_COMMAND}
             -Dshaders="${SHADER_OUTS}"
             -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
-            -P ${PARENT_DIR}/clap/scripts/builtin-shaders.cmake
+            -P ${CMAKE_SOURCE_DIR}/scripts/builtin-shaders.cmake
     COMMAND
         ${CMAKE_COMMAND}
             -DFOOTER=1
             -Dshaders="${SHADER_OUTS}"
             -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
-            -P ${PARENT_DIR}/clap/scripts/builtin-shaders.cmake
+            -P ${CMAKE_SOURCE_DIR}/scripts/builtin-shaders.cmake
 )
 
 ##########################################################################
 # Build in ImGui via cimgui bindings
 ##########################################################################
-set(CIMGUI_DIR ${PARENT_DIR}/clap/deps/src/cimgui)
+set(CIMGUI_DIR ${CMAKE_SOURCE_DIR}/deps/src/cimgui)
 set(CIMGUI_BACKENDS_DIR ${CIMGUI_DIR}/imgui/backends)
 
 set(CIMGUI_BACKEND_HEADERS
