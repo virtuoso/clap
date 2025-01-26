@@ -21,6 +21,8 @@ static struct gl_limits {
 static const GLuint gl_comp_type[] = {
     [DT_FLOAT]  = GL_FLOAT,
     [DT_INT]    = GL_INT,
+    [DT_SHORT]  = GL_SHORT,
+    [DT_USHORT] = GL_UNSIGNED_SHORT,
     [DT_BYTE]   = GL_UNSIGNED_BYTE,
     [DT_VEC3]   = GL_FLOAT,
     [DT_VEC4]   = GL_FLOAT,
@@ -528,20 +530,6 @@ texture_t *transparent_pixel(void) { return &_transparent_pixel; }
 
 void textures_init(void)
 {
-    static_assert(sizeof(GLint) == sizeof(int), "GLint doesn't match int");
-    static_assert(sizeof(GLenum) == sizeof(int), "GLenum doesn't match int");
-    static_assert(sizeof(GLuint) == sizeof(unsigned int), "GLuint doesn't match unsigned int");
-    static_assert(sizeof(GLfloat) == sizeof(float), "GLfloat doesn't match float");
-    static_assert(sizeof(GLushort) == sizeof(unsigned short), "GLushort doesn't match unsigned short");
-
-    GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits.gl_max_texture_size));
-    GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
-    GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));
-    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits.gl_max_color_attachments));
-#ifndef CONFIG_GLES
-    GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits.gl_max_color_texture_samples));
-    GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
-#endif /* CONFIG_GLES */
     float white[] = { 1, 1, 1, 1 };
     CHECK0(texture_pixel_init(&_white_pixel, white));
     float black[] = { 0, 0, 0, 1 };
@@ -887,4 +875,195 @@ void fbo_put(fbo_t *fbo)
 void fbo_put_last(fbo_t *fbo)
 {
     ref_put_last(fbo);
+}
+
+/****************************************************************************
+ * Renderer context
+ ****************************************************************************/
+
+static renderer_t renderer;
+
+void renderer_init(renderer_t *renderer)
+{
+    static_assert(sizeof(GLint) == sizeof(int), "GLint doesn't match int");
+    static_assert(sizeof(GLenum) == sizeof(int), "GLenum doesn't match int");
+    static_assert(sizeof(GLuint) == sizeof(unsigned int), "GLuint doesn't match unsigned int");
+    static_assert(sizeof(GLfloat) == sizeof(float), "GLfloat doesn't match float");
+    static_assert(sizeof(GLushort) == sizeof(unsigned short), "GLushort doesn't match unsigned short");
+
+    GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits.gl_max_texture_size));
+    GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
+    GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));
+    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits.gl_max_color_attachments));
+#ifndef CONFIG_GLES
+    GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits.gl_max_color_texture_samples));
+    GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
+#endif /* CONFIG_GLES */
+
+    GL(glEnable(GL_CULL_FACE));
+    GL(glCullFace(GL_BACK));
+    renderer_cull_face(renderer, CULL_FACE_BACK);
+    GL(glDisable(GL_BLEND));
+    renderer_blend(renderer, false, BLEND_NONE, BLEND_NONE);
+    GL(glEnable(GL_DEPTH_TEST));
+    renderer_depth_test(renderer, true);
+#ifndef EGL_EGL_PROTOTYPES
+    GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+#endif /* EGL_EGL_PROTOTYPES */
+    renderer_wireframe(renderer, false);
+}
+
+renderer_t *renderer_get(void)
+{
+    return &renderer;
+}
+
+static GLenum gl_cull_face(cull_face cull)
+{
+    switch (cull) {
+        case CULL_FACE_NONE:
+            return GL_NONE;
+        case CULL_FACE_FRONT:
+            return GL_FRONT;
+        case CULL_FACE_BACK:
+            return GL_BACK;
+        default:    break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+void renderer_cull_face(renderer_t *r, cull_face cull)
+{
+    GLenum gl_cull = gl_cull_face(cull);
+
+    if (r->cull_face == gl_cull)
+        return;
+
+    r->cull_face = gl_cull;
+
+    if (gl_cull != GL_NONE) {
+        GL(glEnable(GL_CULL_FACE));
+    } else {
+        GL(glDisable(GL_CULL_FACE));
+        return;
+    }
+
+    GL(glCullFace(r->cull_face));
+}
+
+static GLenum gl_blend(blend blend)
+{
+    switch (blend) {
+        case BLEND_NONE:
+            return GL_NONE;
+        case BLEND_SRC_ALPHA:
+            return GL_SRC_ALPHA;
+        case BLEND_ONE_MINUS_SRC_ALPHA:
+            return GL_ONE_MINUS_SRC_ALPHA;
+        default:    break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
+{
+    GLenum _sfactor = gl_blend(sfactor);
+    GLenum _dfactor = gl_blend(dfactor);
+
+    if (r->blend == _blend)
+        return;
+
+    r->blend = _blend;
+
+    if (_blend) {
+        GL(glEnable(GL_BLEND));
+    } else {
+        GL(glDisable(GL_BLEND));
+        return;
+    }
+
+    if (r->blend_sfactor != _sfactor || r->blend_dfactor != _dfactor) {
+        r->blend_sfactor = _sfactor;
+        r->blend_dfactor = _dfactor;
+    }
+    GL(glBlendFunc(r->blend_sfactor, r->blend_dfactor));
+}
+
+void renderer_depth_test(renderer_t *r, bool enable)
+{
+    if (r->depth_test == enable)
+        return;
+
+    r->depth_test = enable;
+    if (enable)
+        GL(glEnable(GL_DEPTH_TEST));
+    else
+        GL(glDisable(GL_DEPTH_TEST));
+}
+
+void renderer_wireframe(renderer_t *r, bool enable)
+{
+    if (r->wireframe == enable)
+        return;
+
+    r->wireframe = enable;
+
+#ifndef EGL_EGL_PROTOTYPES
+    if (enable)
+        GL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
+    else
+        GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+#endif /* EGL_EGL_PROTOTYPES */
+}
+
+static GLenum gl_draw_type(draw_type draw_type)
+{
+    switch (draw_type) {
+        case DRAW_TYPE_POINTS:
+            return GL_POINTS;
+        case DRAW_TYPE_LINE_STRIP:
+            return GL_LINE_STRIP;
+        case DRAW_TYPE_LINE_LOOP:
+            return GL_LINE_LOOP;
+        case DRAW_TYPE_LINES:
+            return GL_LINES;
+#ifndef CONFIG_GLES
+        case DRAW_TYPE_LINE_STRIP_ADJACENCY:
+            return GL_LINE_STRIP_ADJACENCY;
+        case DRAW_TYPE_LINES_ADJACENCY:
+            return GL_LINES_ADJACENCY;
+        case DRAW_TYPE_TRIANGLES_ADJACENCY:
+            return GL_TRIANGLES_ADJACENCY;
+        case DRAW_TYPE_TRIANGLE_STRIP_ADJACENCY:
+            return GL_TRIANGLE_STRIP_ADJACENCY;
+#endif /* CONFIG_GLES */
+        case DRAW_TYPE_TRIANGLE_STRIP:
+            return GL_TRIANGLE_STRIP;
+        case DRAW_TYPE_TRIANGLE_FAN:
+            return GL_TRIANGLE_FAN;
+        case DRAW_TYPE_TRIANGLES:
+            return GL_TRIANGLES;
+        case DRAW_TYPE_PATCHES:
+            return GL_PATCHES;
+        default:    break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type)
+{
+    err_on(idx_type >= array_size(gl_comp_type), "invalid draw type %u\n", idx_type);
+
+    GLenum _idx_type = gl_comp_type[idx_type];
+    GLenum _draw_type = gl_draw_type(draw_type);
+    GL(glDrawElements(_draw_type, nr_faces, _idx_type, 0));
 }

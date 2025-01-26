@@ -18,6 +18,7 @@ typedef enum data_type {
     DT_NONE = 0,
     DT_BYTE,
     DT_SHORT,
+    DT_USHORT,
     DT_INT,
     DT_FLOAT,
     DT_VEC3,
@@ -225,5 +226,53 @@ int fbo_height(fbo_t *fbo);
 int fbo_nr_attachments(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 fbo_attachment fbo_get_attachment(fbo_t *fbo);
+
+TYPE(renderer,
+    GLenum  cull_face;
+    GLenum  blend_sfactor;
+    GLenum  blend_dfactor;
+    bool    blend;
+    bool    depth_test;
+    bool    wireframe;
+);
+
+renderer_t *renderer_get(void);
+void renderer_init(renderer_t *renderer);
+renderer_t *renderer_get(void);
+
+typedef enum {
+    CULL_FACE_NONE = 0,
+    CULL_FACE_FRONT,
+    CULL_FACE_BACK,
+} cull_face;
+
+void renderer_cull_face(renderer_t *r, cull_face cull);
+
+typedef enum {
+    BLEND_NONE = 0,
+    BLEND_SRC_ALPHA,
+    BLEND_ONE_MINUS_SRC_ALPHA,
+} blend;
+
+void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
+void renderer_depth_test(renderer_t *r, bool enable);
+void renderer_wireframe(renderer_t *r, bool enable);
+
+typedef enum {
+    DRAW_TYPE_POINTS = 0,
+    DRAW_TYPE_LINE_STRIP,
+    DRAW_TYPE_LINE_LOOP,
+    DRAW_TYPE_LINES,
+    DRAW_TYPE_LINE_STRIP_ADJACENCY,
+    DRAW_TYPE_LINES_ADJACENCY,
+    DRAW_TYPE_TRIANGLE_STRIP,
+    DRAW_TYPE_TRIANGLE_FAN,
+    DRAW_TYPE_TRIANGLES,
+    DRAW_TYPE_TRIANGLE_STRIP_ADJACENCY,
+    DRAW_TYPE_TRIANGLES_ADJACENCY,
+    DRAW_TYPE_PATCHES
+} draw_type;
+
+void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type);
 
 #endif /* __CLAP_RENDER_H__ */
