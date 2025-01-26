@@ -460,7 +460,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
     CHECK(m->name = strdup(name));
     m->prog = ref_get(p);
     m->alpha_blend = false;
-    m->draw_type = GL_TRIANGLES;
+    m->draw_type = DRAW_TYPE_TRIANGLES;
     model3d_calc_aabb(m, vx, vxsz);
     darray_init(m->anis);
 
@@ -597,9 +597,10 @@ void model3dtx_prepare(struct model3dtx *txm, struct shader_prog *p)
 void model3dtx_draw(struct model3dtx *txm)
 {
     struct model3d *m = txm->model;
+    renderer_t *r = renderer_get();
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    GL(glDrawElements(m->draw_type, m->nr_faces[m->cur_lod], GL_UNSIGNED_SHORT, 0));
+    renderer_draw(r, m->draw_type, m->nr_faces[m->cur_lod], DT_USHORT);
 }
 
 static void model3d_done(struct model3d *m, struct shader_prog *p)
@@ -698,6 +699,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
     struct view *view = NULL;
     struct subview *subview = NULL;
     unsigned long nr_ents = 0, culled = 0;
+    renderer_t *r = renderer_get();
 
     if (camera)
         view = &camera->view;
@@ -721,29 +723,15 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
 
         model->cur_lod = 0;
 
-        /*
-         * TODO: cache cull face/blend/depth test settings to avoid extra GL calls.
-         * Also, move these to render-gl.c.
-         */
-        if (model->cull_face) {
-            GL(glEnable(GL_CULL_FACE));
-            GL(glCullFace(shader_override ? GL_FRONT : GL_BACK));
-        } else {
-            GL(glDisable(GL_CULL_FACE));
-        }
+        cull_face cull = CULL_FACE_NONE;
+        if (model->cull_face)
+            cull = shader_override ? CULL_FACE_FRONT : CULL_FACE_BACK;
+        renderer_cull_face(r, cull);
 
-        if (model->alpha_blend) {
-            GL(glEnable(GL_BLEND));
-            GL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-        } else {
-            GL(glDisable(GL_BLEND));
-        }
+        renderer_blend(r, model->alpha_blend, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
 
         /* TODO: add a separate property for depth test control */
-        if (model->debug || !model->cull_face)
-            GL(glDisable(GL_DEPTH_TEST));
-        else
-            GL(glEnable(GL_DEPTH_TEST));
+        renderer_depth_test(r, !model->debug);
 
         if (model_prog != prog) {
             if (prog)
@@ -831,13 +819,9 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
                 lod = vec3_len(dist) / 80;
                 model3d_set_lod(model, lod);
             }
-#ifndef EGL_EGL_PROTOTYPES
-            if (focus == e) {
-                GL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
-            } else {
-                GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
-            }
-#endif
+
+            renderer_wireframe(r, focus == e);
+
             shader_set_var_int(prog, UNIFORM_ALBEDO_TEXTURE, !!e->priv);  /* e->priv now points to character */
             shader_set_var_int(prog, UNIFORM_ENTITY_HASH, fletcher32((void *)&e, sizeof(e) / 2));
             shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);
@@ -1427,7 +1411,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     CHECK(dd = ref_new(debug_draw));
     CHECK(m = model3d_new_from_vectors("debug", p, vx, vxsz, idx, idxsz, tx, vxsz / 3 * 2, NULL, 0));
     m->debug = true;
-    m->draw_type = GL_LINES;
+    m->draw_type = DRAW_TYPE_LINES;
     ref_put(p);
 
     CHECK(txm = ref_new(model3dtx));
