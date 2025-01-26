@@ -122,6 +122,7 @@ struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr
 int ui_init(struct ui *ui, int width, int height);
 void ui_done(struct ui *ui);
 void ui_update(struct ui *ui);
+struct model3dtx *ui_quadtx_get(void);
 
 void ui_element_animations_done(struct ui_element *uie);
 int ui_element_update(struct entity3d *e, void *data);

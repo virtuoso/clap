@@ -253,6 +253,11 @@ static int ui_model_init(struct ui *ui)
     return 0;
 }
 
+struct model3dtx *ui_quadtx_get(void)
+{
+    return ui_quadtx;
+}
+
 struct ui_text {
     struct font         *font;
     const char          *str;
