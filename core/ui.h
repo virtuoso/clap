@@ -111,9 +111,13 @@ struct ui {
 };
 
 void ui_pip_update(struct ui *ui, fbo_t *fbo);
+struct ui_element *
+ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
+                 const char *str, float *color, unsigned long flags);
 struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, struct model3dtx *txmodel,
                                   unsigned long affinity, float x_off, float y_off, float w, float h);
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
+struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 
 int ui_init(struct ui *ui, int width, int height);
 void ui_done(struct ui *ui);

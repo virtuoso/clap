@@ -658,7 +658,6 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
     ui_element_for_each_child(uie, __set_alpha, &alpha);
 }
 
-static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 static void ui_menu_done(struct ui *ui);
 
 void ui_show_debug(const char *debug_name)
@@ -932,7 +931,7 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     return menu;
 }
 
-static struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items)
+struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items)
 {
     struct ui_widget *menu;
     struct ui_widget_builder uwb = {
