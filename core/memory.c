@@ -71,3 +71,36 @@ void _mem_free(const char *mod, void *buf, const free_params *params)
 {
     free(buf);
 }
+
+cerr _mem_vasprintf(const char *mod, char **ret, const char *fmt, va_list va)
+{
+    va_list va2;
+    va_copy(va2, va);
+
+    int len = vsnprintf(NULL, 0, fmt, va2);
+    va_end(va2);
+
+    if (len < 0)
+        return CERR_INVALID_ARGUMENTS;
+
+    *ret = mem_alloc(len + 1u);
+    if (!*ret)
+        return CERR_NOMEM;
+
+    len = vsnprintf(*ret, len + 1u, fmt, va);
+    if (len < 0)
+        return CERR_INVALID_ARGUMENTS;
+
+    return len;
+}
+
+cerr _mem_asprintf(const char *mod, char **ret, const char *fmt, ...)
+{
+    va_list va;
+
+    va_start(va, fmt);
+    cerr err = _mem_vasprintf(mod, ret, fmt, va);
+    va_end(va);
+
+    return err;
+}
