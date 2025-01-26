@@ -57,7 +57,7 @@ void gl_title(const char *fmt, ...)
     LOCAL(char, title);
 
     va_start(va, fmt);
-    CHECK(vasprintf(&title, fmt, va));
+    CHECK(mem_vasprintf(&title, fmt, va));
     va_end(va);
     glfwSetWindowTitle(window, title);
 }

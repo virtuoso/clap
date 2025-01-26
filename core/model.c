@@ -330,7 +330,7 @@ void model3d_set_name(struct model3d *m, const char *fmt, ...)
 
     mem_free(m->name);
     va_start(ap, fmt);
-    CHECK(vasprintf(&m->name, fmt, ap));
+    CHECK(mem_vasprintf(&m->name, fmt, ap));
     va_end(ap);
 }
 

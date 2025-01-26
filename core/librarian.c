@@ -76,7 +76,7 @@ char *lib_figure_uri(enum res_type type, const char *name)
 #endif
     };
     char *uri;
-    int ret;
+    cerr ret;
 
     const char *dot = "";
 #if !defined(CONFIG_BROWSER) && !defined(_WIN32)
@@ -84,15 +84,15 @@ char *lib_figure_uri(enum res_type type, const char *name)
         dot = ".";
 #endif
 
-    ret = asprintf(&uri, "%s%s/%s%s", type == RES_STATE ? "" : base_url, pfx[type],
-                   dot, name);
+    ret = mem_asprintf(&uri, "%s%s/%s%s", type == RES_STATE ? "" : base_url, pfx[type],
+                       dot, name);
 #ifdef _WIN32
     int i;
     for (i = 0; i < ret; i++)
         if (uri[i] == '/')
             uri[i] = '\\';
 #endif /* _WIN32 */
-    return ret == -1 ? NULL : uri;
+    return ret < CERR_OK ? NULL : uri;
 }
 
 #if defined(CONFIG_BROWSER) && 0

@@ -7,6 +7,7 @@
 #include "common.h"
 #include "display.h"
 #include "input-joystick.h"
+#include "memory.h"
 #include "ui-debug.h"
 
 static int width, height;
@@ -82,9 +83,10 @@ void gl_title(const char *fmt, ...)
     va_list va;
 
     va_start(va, fmt);
-    vasprintf(&title, fmt, va);
+    cerr ret = mem_vasprintf(&title, fmt, va);
     va_end(va);
-    emscripten_set_window_title(title);
+    if (ret >= CERR_OK)
+        emscripten_set_window_title(title);
 }
 
 void gl_get_sizes(int *widthp, int *heightp)

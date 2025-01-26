@@ -283,9 +283,9 @@ int lib_request_shaders(const char *name, struct list *shaders)
     struct shader_prog *p;
     size_t vsz, fsz, gsz;
 
-    CHECK(asprintf(&nvert, "%s.vert", name));
-    CHECK(asprintf(&nfrag, "%s.frag", name));
-    CHECK(asprintf(&ngeom, "%s.geom", name));
+    CHECK(mem_asprintf(&nvert, "%s.vert", name));
+    CHECK(mem_asprintf(&nfrag, "%s.frag", name));
+    CHECK(mem_asprintf(&ngeom, "%s.geom", name));
     hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
     hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
     hg = lib_read_file(RES_SHADER, ngeom, (void **)&geom, &gsz);

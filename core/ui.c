@@ -1153,8 +1153,8 @@ static int ui_handle_command(struct message *m, void *data)
         } else {
             bottom_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
         }
-        CHECK(asprintf(&str, "FPS: %d\nTime: %d:%02d", m->cmd.fps,
-                       m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60));
+        CHECK(mem_asprintf(&str, "FPS: %d\nTime: %d:%02d", m->cmd.fps,
+                           m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60));
         bottom_uit = ui_render_string(ui, font, bottom_element, str, color, UI_AF_RIGHT);
     } else if (m->cmd.menu_enter) {
         ui_menu_init(ui);

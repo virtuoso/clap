@@ -266,7 +266,7 @@ static struct network_node *network_node_accept(struct network_node *n)
     CHECK(child->fd = accept(n->fd, (struct sockaddr *)&n->sa, &n->addrlen));
     child->src = mem_alloc(sizeof(*child->src), .zero = 1, .fatal_fail = 1);
     child->src->type = MST_CLIENT;
-    CHECK(asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr)));
+    CHECK(mem_asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr)));
     dbg("new client '%s'\n", child->src->name);
     child->src->desc = "remote client";
     child->state     = ST_HANDSHAKE;
@@ -308,10 +308,10 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
     SHA1(h, key, strlen(key));
 
     base64_encode(bh, sizeof(bh), h, sizeof(h) - 1);
-    outsz = asprintf((char **)&out,
-                     "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
-                     "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
-                     bh);
+    outsz = mem_asprintf((char **)&out,
+                         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
+                         "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
+                         bh);
     /*
      * XXX: wrapping format strings with CHECK*() doesn't work, because
      * err_on_cond() will try to paste the whole stringified expression
@@ -928,7 +928,7 @@ void networking_poll(void)
                 list_del(&qd->entry);
                 mem_free(qd);
 
-                //n->outsz = asprintf(&n->out, "PING");
+                //n->outsz = mem_asprintf(&n->out, "PING");
                 if (n->handshake) {
                     n->websocket = true;
                     n->handshake = NULL;
