@@ -103,11 +103,6 @@ void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
     }
 }
 
-static void clap_config_init(struct clap_config *cfg)
-{
-    memset(cfg, 0, sizeof(*cfg));
-}
-
 static bool clap_config_is_valid(struct clap_config *cfg)
 {
     if (cfg->graphics && (!cfg->frame_cb || !cfg->resize_cb || !cfg->title))
@@ -141,7 +136,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (cfg && !clap_config_is_valid(cfg))
         return NULL;
 
-    ctx = mem_alloc(sizeof(*ctx));
+    ctx = mem_alloc(sizeof(*ctx), .zero = 1);
     if (!ctx)
         return NULL;
 
@@ -149,8 +144,6 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
 
     if (cfg)
         memcpy(&ctx->cfg, cfg, sizeof(ctx->cfg));
-    else
-        clap_config_init(&ctx->cfg);
 
     if (ctx->cfg.debug)
         log_flags = LOG_FULL;
