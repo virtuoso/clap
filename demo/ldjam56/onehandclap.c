@@ -183,7 +183,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 #ifndef CONFIG_GLES
     glEnable(GL_MULTISAMPLE);
 #endif
-    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
     pipeline_render(main_pl, !ui.modal);
     if (scene.debug_draws_enabled)
