@@ -181,7 +181,7 @@ static inline struct model3d *
 ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
 {
     struct model3d *model = model3d_new_quadrev(p, x, y, 0, w, h);
-    model->debug = true;
+    model->depth_testing = false;
     return model;
 }
 
@@ -239,7 +239,7 @@ static int ui_model_init(struct ui *ui)
 {
     float x = 0.f, y = 0.f, w = 1.f, h = 1.f;
     struct model3d *ui_quad = model3d_new_quad(ui->ui_prog, x, y, 0, w, h);
-    ui_quad->debug = true;
+    ui_quad->depth_testing = false;
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
     /* XXX: maybe a "textured_model" as another interim object */
@@ -429,7 +429,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
         if (!txm) {
             m       = ui_quad_new(ui->glyph_prog, 0, 0, glyph->width, glyph->height);
             model3d_set_name(m, "glyph_%s_%c", font_name(uit.font), str[i]);
-            m->debug = true;
+            m->depth_testing = false;
             m->alpha_blend = true;
             txm = model3dtx_new_texture(ref_pass(m), &glyph->tex);
             ui_add_model(&fbo_ui, txm);
@@ -474,9 +474,8 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
 
     m = model3d_new_quad(ui->ui_prog, 0, 1, 0, 1, -1);
     model3d_set_name(m, "ui_text: '%s'", str);
-    m->debug = true;
+    m->depth_testing = false;
     m->alpha_blend = true;
-    m->debug = true;
     txmtex = model3dtx_new_texture(ref_pass(m), texture_clone(fbo_texture(fbo)));
     fbo_put_last(fbo);
     ui_add_model(ui, txmtex);
@@ -1290,7 +1289,7 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
         ref_put(uie0);
 
     m = ui_quad_new(ui->ui_prog, 0, 1, 1, -1);
-    m->debug = true;
+    m->depth_testing = false;
     ui_pip = model3dtx_new_texture(ref_pass(m), ui_fbo_tex);
     ui_add_model_tail(ui, ui_pip);
     dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo_width(fbo), fbo_height(fbo));

@@ -79,7 +79,7 @@ struct model3d {
     struct shader_prog  *prog;
     bool                cull_face;
     bool                alpha_blend;
-    bool                debug;
+    bool                depth_testing;
     unsigned int        draw_type;
     unsigned int        nr_joints;
     unsigned int        root_joint;
