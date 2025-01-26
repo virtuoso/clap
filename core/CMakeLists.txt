@@ -29,7 +29,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     endif ()
     set(CONFIG_BROWSER 1)
     set(CONFIG_GLES 1)
-    set(PLATFORM_SRC display-www.c input-www.c ui-imgui-www.c)
+    set(PLATFORM_SRC display-www.c input-www.c)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 else ()
     set(PLATFORM_SRC display-glfw.c)
@@ -86,7 +86,7 @@ set(ENGINE_SRC
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c
     gltf.c input-joystick.c render-gl.c mesh.c pipeline.c input-keyboard.c
-    game.c camera.c xyarray.c ca2d.c ca3d.c ui-imgui.c ui-debug.c
+    game.c camera.c xyarray.c ca2d.c ca3d.c ui-debug.c
     ${PLATFORM_SRC})
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
@@ -144,48 +144,16 @@ add_custom_command(
 ##########################################################################
 set(CIMGUI_DIR ${CMAKE_SOURCE_DIR}/deps/src/cimgui)
 set(CIMGUI_BACKENDS_DIR ${CIMGUI_DIR}/imgui/backends)
+set(CIMGUI_BACKENDS glfw opengl3)
 
-set(CIMGUI_BACKEND_HEADERS
-    "imgui_impl_glfw.h"
-    "imgui_impl_opengl3.h"
-)
-
-# ImGui's backend headers require a bit of hackery to work with C
-FOREACH(backend ${CIMGUI_BACKEND_HEADERS})
-    FILE(READ "${CIMGUI_BACKENDS_DIR}/${backend}" backend_src)
-    STRING(REPLACE "#include \"imgui.h\"" "" backend_src "${backend_src}")
-    STRING(REPLACE "glsl_version = nullptr" "glsl_version" backend_src "${backend_src}")
-    FILE(WRITE "${CMAKE_BINARY_DIR}/${backend}" "${backend_src}")
-ENDFOREACH ()
-
-file(GLOB
-    CIMGUI_SRC
-    "${CIMGUI_DIR}/*.cpp"
-    "${CIMGUI_DIR}/imgui/*.cpp"
-    "${CIMGUI_DIR}/imgui/backends/imgui_impl_glfw.cpp"
-    "${CIMGUI_DIR}/imgui/backends/imgui_impl_opengl3.cpp"
-)
-
-# cimgui specific compilation defines to disable C++ mangling: this only needs
-# to happen for the cimgui's compilation units, since it's C++
-# Also, clang 20.0.0 detects naughtiness all over the imgui code related to
-# memcpy()ing into non-trivial objects; the upstream solution seems to be to
-# silence the warning:
-# https://github.com/ocornut/imgui/commit/419a9ada16eb9b6d84ead4911b9c2a32820cfffb
-# so, do it here, but in a less intrusive way
-FOREACH(src ${CIMGUI_SRC})
-    set_source_files_properties(${src} PROPERTIES
-        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\";IMGUI_IMPL_OPENGL_LOADER_GL3W"
-        COMPILE_FLAGS "-Wno-nontrivial-memaccess"
-    )
-ENDFOREACH ()
+include("${CMAKE_SOURCE_DIR}/scripts/cimgui.cmake")
 
 # the regular C sources don't need any special cimgui API prefixes
 FOREACH(src ${ENGINE_SRC})
     get_source_file_property(CFLAGS ${src} COMPILE_FLAGS)
     string(REPLACE "NOTFOUND" "" CFLAGS ${CFLAGS})
     set_source_files_properties(${src} PROPERTIES
-                                COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ "
+                                COMPILE_DEFINITIONS "${ENGINE_COMPILE_DEFINITIONS}"
                                 INCLUDE_DIRECTORIES "${WLIBC_INCLUDE_DIR}"
     )
     if (NOT WIN32)
