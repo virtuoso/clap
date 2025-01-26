@@ -13,6 +13,7 @@ struct pipeline {
     struct list         passes;
     bool                (*resize)(fbo_t *fbo, bool shadow_map, int w, int h);
     const char          *name;
+    renderer_t          *renderer;
 };
 
 struct render_pass {
@@ -130,6 +131,7 @@ struct pipeline *pipeline_new(struct scene *s, const char *name)
 
     CHECK(pl = ref_new(pipeline));
     list_init(&pl->passes);
+    pl->renderer = renderer_get();
     pl->scene = s;
     pl->name = name;
     pl->resize = pipeline_default_resize;
@@ -484,15 +486,15 @@ repeat:
             } else {
                 fbo_prepare(fbo);
                 bool shadow = fbo_get_attachment(fbo) == FBO_ATTACHMENT_DEPTH;
-                GLbitfield flags = GL_COLOR_BUFFER_BIT;
+                bool clear_color = true, clear_depth = false;
                 if (shadow) {
-                    GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));
-                    flags = 0;
+                    renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
+                    clear_color = false;
                 }
 
                 if (!src)
-                    flags |= GL_DEPTH_BUFFER_BIT;
-                GL(glClear(flags));
+                    clear_depth = true;
+                renderer_clear(pl->renderer, clear_color, clear_depth, false);
 
                 if (!src)
                     models_render(&s->mq, pass->prog_override, &s->light,
@@ -536,8 +538,8 @@ repeat:
         pass = last_pass;
 
     /* render the last pass to the screen */
-    GL(glClearColor(0.2f, 0.2f, 0.6f, 1.0f));
-    GL(glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT));
+    renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
+    renderer_clear(pl->renderer, true, true, false);
     models_render(&pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, -1, NULL);
 }
 
