@@ -434,10 +434,13 @@ struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 star
         }
     }
 
-    if (min_i < 0)
-        return NULL;
+    if (min_i < 0) {
+        target = NULL;
+        goto out;
+    }
 
     *pdist = c.contact[min_i].geom.depth;
+out:
     dGeomDestroy(ray);
 
     return target;
