@@ -19,22 +19,22 @@ static GLuint load_shader(GLenum type, const char *source)
         err("couldn't create shader\n");
         return -1;
     }
-    glShaderSource(shader, 1, &source, NULL);
-    glCompileShader(shader);
+    GL(glShaderSource(shader, 1, &source, NULL));
+    GL(glCompileShader(shader));
     GLint compiled = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+    GL(glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled));
     if (!compiled) {
         GLint infoLen = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
+        GL(glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen));
         if (infoLen) {
             char *buf = mem_alloc(infoLen);
             if (buf) {
-                glGetShaderInfoLog(shader, infoLen, NULL, buf);
+                GL(glGetShaderInfoLog(shader, infoLen, NULL, buf));
                 err("Could not Compile Shader %d:\n%s\n", type, buf);
                 mem_free(buf);
                 err("--> %s <--\n", source);
             }
-            glDeleteShader(shader);
+            GL(glDeleteShader(shader));
             shader = 0;
         }
     }
@@ -62,28 +62,28 @@ static int shader_prog_init(struct shader_prog *p, const char *vertex,
         return ret;
     }
 
-    glAttachShader(p->prog, p->vert);
-    glAttachShader(p->prog, p->frag);
+    GL(glAttachShader(p->prog, p->vert));
+    GL(glAttachShader(p->prog, p->frag));
     if (p->geom)
-        glAttachShader(p->prog, p->geom);
-    glLinkProgram(p->prog);
-    glGetProgramiv(p->prog, GL_LINK_STATUS, &linkStatus);
+        GL(glAttachShader(p->prog, p->geom));
+    GL(glLinkProgram(p->prog));
+    GL(glGetProgramiv(p->prog, GL_LINK_STATUS, &linkStatus));
     if (linkStatus != GL_TRUE) {
         GLint bufLength = 0;
-        glGetProgramiv(p->prog, GL_INFO_LOG_LENGTH, &bufLength);
+        GL(glGetProgramiv(p->prog, GL_INFO_LOG_LENGTH, &bufLength));
         if (bufLength) {
             char *buf = mem_alloc(bufLength);
             if (buf) {
-                glGetProgramInfoLog(p->prog, bufLength, NULL, buf);
+                GL(glGetProgramInfoLog(p->prog, bufLength, NULL, buf));
                 err("Could not link program:\n%s\n", buf);
                 mem_free(buf);
-                glDeleteShader(p->vert);
-                glDeleteShader(p->frag);
+                GL(glDeleteShader(p->vert));
+                GL(glDeleteShader(p->frag));
                 if (p->geom)
-                    glDeleteShader(p->geom);
+                    GL(glDeleteShader(p->geom));
             }
         }
-        glDeleteProgram(p->prog);
+        GL(glDeleteProgram(p->prog));
         p->prog = 0;
     } else {
         ret = 0;
@@ -350,12 +350,12 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, con
 void shader_prog_use(struct shader_prog *p)
 {
     ref_get(p);
-    glUseProgram(p->prog);
+    GL(glUseProgram(p->prog));
 }
 
 void shader_prog_done(struct shader_prog *p)
 {
-    glUseProgram(0);
+    GL(glUseProgram(0));
     ref_put(p);
 }
 
