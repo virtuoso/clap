@@ -259,6 +259,10 @@ TYPE(renderer,
     int                 major;
     int                 minor;
     renderer_profile    profile;
+    int                 x;
+    int                 y;
+    int                 width;
+    int                 height;
     bool                blend;
     bool                depth_test;
     bool                wireframe;
@@ -268,6 +272,7 @@ renderer_t *renderer_get(void);
 void renderer_init(renderer_t *renderer);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 renderer_t *renderer_get(void);
+void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 
 typedef enum {
     CULL_FACE_NONE = 0,
