@@ -158,6 +158,15 @@ void buffer_load(buffer_t *buf, void *data, size_t sz, int loc)
  * Vertex Array Object
  ****************************************************************************/
 
+static bool gl_does_vao(void)
+{
+#if defined(CONFIG_GLES) && !defined(CONFIG_BROWSER)
+    return false;
+#else
+    return true;
+#endif
+}
+
 static void vertex_array_drop(struct ref *ref)
 {
     vertex_array_t *va = container_of(ref, vertex_array_t, ref);

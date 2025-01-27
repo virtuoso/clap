@@ -21,15 +21,6 @@ static display_resize resize_fn;
 static void *update_fn_data;
 static int refresh_rate;
 
-bool gl_does_vao(void)
-{
-#ifdef CONFIG_GLES
-    return false;
-#else
-    return true;
-#endif
-}
-
 static int __gl_refresh_rate(void)
 {
     GLFWmonitor *monitor = glfwGetWindowMonitor(window);

@@ -12,11 +12,6 @@
 
 static int width, height;
 
-bool gl_does_vao(void)
-{
-    return true;
-}
-
 static int refresh_rate = 0;
 
 int gl_refresh_rate(void)
