@@ -101,6 +101,7 @@ struct ui {
     struct list        shaders;
     struct shader_prog *ui_prog;
     struct shader_prog *glyph_prog;
+    renderer_t         *renderer;
     struct sound       *click;
     struct ui_widget   *menu;
     struct ui_widget   *inventory;

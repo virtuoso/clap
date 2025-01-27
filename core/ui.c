@@ -458,9 +458,9 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     }
 
     fbo_prepare(fbo);
-    glDisable(GL_DEPTH_TEST);
-    glClearColor(0.f, 0.f, 0.f, 0.f);
-    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+    renderer_depth_test(ui->renderer, false);
+    renderer_clearcolor(ui->renderer, (vec4){});
+    renderer_clear(ui->renderer, true, true, false);
     // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit.width, uit.height,
     //     fbo->fbo, fbo->width, fbo->height);
     models_render(&fbo_ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, NULL);
@@ -1447,6 +1447,7 @@ int ui_init(struct ui *ui, int width, int height)
     lib_request_shaders("glyph", &ui->shaders);
     lib_request_shaders("ui", &ui->shaders);
 
+    ui->renderer = renderer_get();
     ui->ui_prog = shader_prog_find(&ui->shaders, "ui");
     ui->glyph_prog = shader_prog_find(&ui->shaders, "glyph");
     if (!ui->ui_prog || !ui->glyph_prog)
