@@ -159,6 +159,18 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
 {
     struct clap_context *ctx = data;
 
+    if (ctx->settings) {
+        int window_x, window_y, window_width, window_height;
+        display_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
+        JsonNode *win_group = settings_find_get(ctx->settings, NULL, "window", JSON_OBJECT);
+        if (win_group) {
+            settings_set_num(ctx->settings, win_group, "x", window_x);
+            settings_set_num(ctx->settings, win_group, "y", window_y);
+            settings_set_num(ctx->settings, win_group, "width", window_width);
+            settings_set_num(ctx->settings, win_group, "height", window_height);
+        }
+    }
+
     if (ctx->cfg.resize_cb)
         ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
 }

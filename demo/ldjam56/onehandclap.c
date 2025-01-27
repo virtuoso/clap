@@ -248,19 +248,6 @@ void resize_cb(void *data, int width, int height)
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);
     scene->proj_update++;
-
-    struct settings *settings = clap_get_settings(scene->clap_ctx);
-    if (settings) {
-        int window_x, window_y, window_width, window_height;
-        display_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
-        JsonNode *win_group = settings_find_get(settings, NULL, "window", JSON_OBJECT);
-        if (win_group) {
-            settings_set_num(settings, win_group, "x", window_x);
-            settings_set_num(settings, win_group, "y", window_y);
-            settings_set_num(settings, win_group, "width", window_width);
-            settings_set_num(settings, win_group, "height", window_height);
-        }
-    }
 }
 
 static void ohc_ground_contact(void *priv, float x, float y, float z)
