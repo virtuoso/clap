@@ -8,6 +8,7 @@
 #include "display.h"
 #include "input-joystick.h"
 #include "memory.h"
+#include "render.h"
 #include "ui-debug.h"
 
 static int width, height;
@@ -161,6 +162,11 @@ void display_init(const char *title, int width, int height, display_update_cb up
     emscripten_webgl_make_context_current(context);
     exts = glGetString(GL_EXTENSIONS);
     msg("GL context: %d Extensions: '%s'\n", context, exts);
+
+    renderer_t *renderer = renderer_get();
+    renderer_init(renderer);
+    renderer_set_version(renderer, 3, 0, RENDERER_ANY_PROFILE);
+
     EM_ASM(runtime_ready = true;);
     display_get_sizes(NULL, NULL);
     calc_refresh_rate(update_fn, data);

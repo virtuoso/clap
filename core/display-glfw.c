@@ -235,6 +235,11 @@ restart:
         }
     }
 
+    renderer_t *r = renderer_get();
+    renderer_init(r);
+    renderer_set_version(r, major, minor,
+                         core_profile ? RENDERER_CORE_PROFILE : RENDERER_ANY_PROFILE);
+
     glGetIntegerv(GL_NUM_EXTENSIONS, &nr_exts);
     for (i = 0; i < nr_exts; i++) {
         ext = glGetStringi(GL_EXTENSIONS, i);
