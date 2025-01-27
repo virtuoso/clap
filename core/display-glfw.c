@@ -135,6 +135,13 @@ void display_init(const char *title, int w, int h, display_update_cb update, voi
     const unsigned char *ext, *vendor, *renderer, *glver, *shlangver;
     int nr_exts, ret;
     int i;
+#ifdef CONFIG_GLES
+    bool core_profile = false;
+    int major = 3, minor = 1;
+#else
+    bool core_profile = true;
+    int major = 4, minor = 1;
+#endif /* CONFIG_GLES */
 
     width = w;
     height = h;
@@ -142,6 +149,7 @@ void display_init(const char *title, int w, int h, display_update_cb update, voi
     update_fn_data = update_data;
     resize_fn = resize;
 
+restart:
     if (!glfwInit()) {
         err("failed to initialize GLFW\n");
         return;
@@ -151,15 +159,18 @@ void display_init(const char *title, int w, int h, display_update_cb update, voi
 
     glfwSetErrorCallback(error_cb);
     glfwWindowHint(GLFW_SAMPLES, 4);
+    dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
 #ifdef CONFIG_GLES
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+    glfwWindowHint(GLFW_OPENGL_PROFILE,
+                   core_profile ? GLFW_OPENGL_CORE_PROFILE : GLFW_OPENGL_ANY_PROFILE);
 #else
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+    glfwWindowHint(GLFW_OPENGL_PROFILE,
+                   core_profile ? GLFW_OPENGL_CORE_PROFILE : GLFW_OPENGL_ANY_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
     window = glfwCreateWindow(width, height, title, NULL, NULL);
@@ -189,6 +200,41 @@ void display_init(const char *title, int w, int h, display_update_cb update, voi
     shlangver = glGetString(GL_SHADING_LANGUAGE_VERSION);
     msg("GL vendor '%s' renderer '%s' GL version %s GLSL version %s\n",
         vendor, renderer, glver, shlangver);
+
+    int _major, _minor;
+    if (sscanf((const char *)glver, "%d.%d", &_major, &_minor) == 2) {
+        const char *profile;
+        int restart = 0;
+
+        profile = strstr("Profile", (const char *)glver);
+        if (!profile)
+            profile = strstr("profile", (const char *)glver);
+
+        if (profile) {
+            profile = strstr("Core", (const char *)glver);
+            if (!!profile && !core_profile) {
+                core_profile = true;
+                restart++;
+            }
+        }
+
+        if (_major > major) {
+            major = _major;
+            restart++;
+        }
+
+        if (_minor > minor) {
+            minor = _minor;
+            restart++;
+        }
+
+        if (restart) {
+            glfwDestroyWindow(window);
+            glfwTerminate();
+            goto restart;
+        }
+    }
+
     glGetIntegerv(GL_NUM_EXTENSIONS, &nr_exts);
     for (i = 0; i < nr_exts; i++) {
         ext = glGetStringi(GL_EXTENSIONS, i);
