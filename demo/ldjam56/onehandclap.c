@@ -52,18 +52,12 @@ struct profile {
 #define DECLARE_PROF(_n) \
     struct profile prof_ ## _n = { .name = __stringify(_n) }
 
-DECLARE_PROF(start);
-DECLARE_PROF(phys);
-DECLARE_PROF(net);
-DECLARE_PROF(updates);
-DECLARE_PROF(models);
-DECLARE_PROF(ui);
-DECLARE_PROF(end);
-
 #define PROF_FIRST(_n) \
+    DECLARE_PROF(_n); \
     clock_gettime(CLOCK_MONOTONIC, &prof_ ## _n.ts);
 
 #define PROF_STEP(_n, _prev) \
+    DECLARE_PROF(_n); \
     clock_gettime(CLOCK_MONOTONIC, &prof_ ## _n.ts); \
     timespec_diff(&prof_ ## _prev.ts, &prof_ ## _n.ts, &prof_ ## _n.diff);
 
