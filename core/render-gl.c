@@ -1065,6 +1065,13 @@ void renderer_init(renderer_t *renderer)
     renderer_wireframe(renderer, false);
 }
 
+void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
+{
+    renderer->major     = major;
+    renderer->minor     = minor;
+    renderer->profile   = profile;
+}
+
 renderer_t *renderer_get(void)
 {
     return &renderer;

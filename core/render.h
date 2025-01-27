@@ -246,18 +246,27 @@ void shader_use(shader_t *shader);
 void shader_unuse(shader_t *shader);
 void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value);
 
+typedef enum {
+    RENDERER_CORE_PROFILE,
+    RENDERER_ANY_PROFILE,
+} renderer_profile;
+
 TYPE(renderer,
-    GLenum  cull_face;
-    GLenum  blend_sfactor;
-    GLenum  blend_dfactor;
-    vec4    clear_color;
-    bool    blend;
-    bool    depth_test;
-    bool    wireframe;
+    GLenum              cull_face;
+    GLenum              blend_sfactor;
+    GLenum              blend_dfactor;
+    vec4                clear_color;
+    int                 major;
+    int                 minor;
+    renderer_profile    profile;
+    bool                blend;
+    bool                depth_test;
+    bool                wireframe;
 );
 
 renderer_t *renderer_get(void);
 void renderer_init(renderer_t *renderer);
+void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 renderer_t *renderer_get(void);
 
 typedef enum {
