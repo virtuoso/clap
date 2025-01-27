@@ -151,14 +151,16 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     clap_fps_calc(ctx, &ctx->fps);
 
-    ctx->cfg.frame_cb(ctx->cfg.callback_data);
+    if (ctx->cfg.frame_cb)
+        ctx->cfg.frame_cb(ctx->cfg.callback_data);
 }
 
 EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
 {
     struct clap_context *ctx = data;
 
-    ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
+    if (ctx->cfg.resize_cb)
+        ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
 }
 
 struct settings *clap_get_settings(struct clap_context *ctx)
