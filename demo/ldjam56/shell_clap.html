@@ -150,7 +150,7 @@
         canvas.width = html.clientWidth;
         canvas.height = height;
 	      if (runtime_ready)
-          ccall("gl_resize", 'void', ['int', 'int'], [canvas.clientWidth, canvas.clientHeight]);
+          ccall("display_resize", 'void', ['int', 'int'], [canvas.clientWidth, canvas.clientHeight]);
       }
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');

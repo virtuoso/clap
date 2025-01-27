@@ -73,7 +73,7 @@ void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
     clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
     f->time = clap_get_current_time(ctx);
     if (!f->ts_prev.tv_sec && !f->ts_prev.tv_nsec) {
-        f->ts_delta.tv_nsec = NSEC_PER_SEC / gl_refresh_rate();
+        f->ts_delta.tv_nsec = NSEC_PER_SEC / display_refresh_rate();
         f->ts_delta.tv_sec = 0;
     } else {
         timespec_diff(&f->ts_prev, &ctx->current_time, &f->ts_delta);
@@ -116,7 +116,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
         window_width = (int)settings_get_num(rs, win_group, "width");
         window_height = (int)settings_get_num(rs, win_group, "height");
         if (window_width && window_height)
-            gl_set_window_pos_size(window_x, window_y, window_width, window_height);
+            display_set_window_pos_size(window_x, window_y, window_width, window_height);
     }
 
     ui_debug_set_settings(rs);
@@ -192,8 +192,8 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (ctx->cfg.phys)
         CHECK(ctx->phys = phys_init());
     if (ctx->cfg.graphics) {
-        gl_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
-                ctx->cfg.frame_cb, ctx->cfg.callback_data, ctx->cfg.resize_cb);
+        display_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
+                     ctx->cfg.frame_cb, ctx->cfg.callback_data, ctx->cfg.resize_cb);
 
         renderer_t *renderer = renderer_get();
         renderer_init(renderer);
@@ -202,7 +202,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
     if (ctx->cfg.graphics && ctx->cfg.input)
-        gl_debug_ui_init(ctx);
+        display_debug_ui_init(ctx);
     if (ctx->cfg.settings)
         CHECK(ctx->settings = settings_init(clap_settings_onload, ctx));
 
@@ -217,7 +217,7 @@ void clap_done(struct clap_context *ctx, int status)
         phys_done(ctx->phys);
     if (ctx->cfg.graphics) {
         textures_done();
-        gl_done();
+        display_done();
     }
     if (ctx->cfg.font)
         font_done();

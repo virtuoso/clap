@@ -14,14 +14,14 @@ static int width, height;
 
 static int refresh_rate = 0;
 
-int gl_refresh_rate(void)
+int display_refresh_rate(void)
 {
     return refresh_rate;
 }
 
 struct calc_refresh_rate_priv {
-    display_update  update_fn;
-    void            *update_data;
+    display_update_cb   update_fn;
+    void                *update_data;
 };
 
 #define AVG_FRAMES 20
@@ -57,7 +57,7 @@ EMSCRIPTEN_KEEPALIVE void __calc_refresh_rate(void *data)
     emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
 }
 
-static void calc_refresh_rate(display_update update_fn, void *data)
+static void calc_refresh_rate(display_update_cb update_fn, void *data)
 {
     static struct calc_refresh_rate_priv priv;
 
@@ -68,11 +68,11 @@ static void calc_refresh_rate(display_update update_fn, void *data)
     emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
 }
 
-void gl_request_exit(void)
+void display_request_exit(void)
 {
 }
 
-void gl_title(const char *fmt, ...)
+void display_title(const char *fmt, ...)
 {
     LOCAL(char, title);
     va_list va;
@@ -84,7 +84,7 @@ void gl_title(const char *fmt, ...)
         emscripten_set_window_title(title);
 }
 
-void gl_get_sizes(int *widthp, int *heightp)
+void display_get_sizes(int *widthp, int *heightp)
 {
     EM_ASM(window.onresize(););
 
@@ -94,23 +94,23 @@ void gl_get_sizes(int *widthp, int *heightp)
         *heightp = height;
 }
 
-void gl_set_window_pos_size(int x, int y, int w, int h)
+void display_set_window_pos_size(int x, int y, int w, int h)
 {
 }
 
-void gl_get_window_pos_size(int *x, int *y, int *w, int *h)
+void display_get_window_pos_size(int *x, int *y, int *w, int *h)
 {
     *x = *y = *w = *h = -1;
 }
 
-void gl_main_loop(void)
+void display_main_loop(void)
 {
 }
 
-static display_resize resize_fn;
+static display_resize_cb resize_fn;
 static void *callback_data;
 
-EMSCRIPTEN_KEEPALIVE void gl_resize(int w, int h)
+EMSCRIPTEN_KEEPALIVE void display_resize(int w, int h)
 {
     resize_fn(callback_data, w, h);
     width = w;
@@ -119,7 +119,7 @@ EMSCRIPTEN_KEEPALIVE void gl_resize(int w, int h)
 
 extern void www_joysticks_poll(void);
 extern void www_touch_poll(void);
-void gl_swap_buffers(void)
+void display_swap_buffers(void)
 {
     emscripten_webgl_commit_frame();
     www_joysticks_poll();
@@ -127,17 +127,18 @@ void gl_swap_buffers(void)
     joysticks_poll();
 }
 
-void gl_enter_fullscreen(void)
+void display_enter_fullscreen(void)
 {
     emscripten_request_fullscreen("#canvas", 1);
 }
 
-void gl_leave_fullscreen(void)
+void display_leave_fullscreen(void)
 {
     emscripten_exit_fullscreen();
 }
 
-void gl_init(const char *title, int width, int height, display_update update_fn, void *data, display_resize rfn)
+void display_init(const char *title, int width, int height, display_update_cb update_fn, void *data,
+                  display_resize_cb rfn)
 {
     EmscriptenWebGLContextAttributes attr;
     const unsigned char *exts;
@@ -161,12 +162,12 @@ void gl_init(const char *title, int width, int height, display_update update_fn,
     exts = glGetString(GL_EXTENSIONS);
     msg("GL context: %d Extensions: '%s'\n", context, exts);
     EM_ASM(runtime_ready = true;);
-    gl_get_sizes(NULL, NULL);
+    display_get_sizes(NULL, NULL);
     calc_refresh_rate(update_fn, data);
     //resize_fn(width, height);
 }
 
-void gl_debug_ui_init(struct clap_context *ctx)
+void display_debug_ui_init(struct clap_context *ctx)
 {
     imgui_init(ctx, NULL, width, height);
 }

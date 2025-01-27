@@ -29,7 +29,7 @@ void ui_ig_new_frame(void)
 {
     struct ImGuiIO *io = igGetIO();
     double time = clap_get_current_time(bd.ctx);
-    io->DeltaTime = bd.time > 0.0 ? time - bd.time : 1.0 / gl_refresh_rate();
+    io->DeltaTime = bd.time > 0.0 ? time - bd.time : 1.0 / display_refresh_rate();
     bd.time = time;
 }
 

@@ -609,7 +609,7 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
         ui->menu = ui_menu_new(ui, help_items, array_size(help_items));
     } else if (!strcmp(str, "Exit")) {
         ui_menu_done(ui);
-        gl_request_exit();
+        display_request_exit();
     } else if (!strcmp(str, "HUD")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));

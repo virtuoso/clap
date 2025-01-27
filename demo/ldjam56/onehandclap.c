@@ -142,7 +142,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     ts_start = clap_get_current_timespec(clap_ctx);
     ts_delta = s->fps.ts_delta;
 
-    frame_count = max((unsigned long)gl_refresh_rate() / s->fps.fps_fine, 1);
+    frame_count = max((unsigned long)display_refresh_rate() / s->fps.fps_fine, 1);
     PROF_FIRST(start);
 
     imgui_render_begin(s->width, s->height);
@@ -199,7 +199,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     s->frames_total += frame_count;
     ui.frames_total += frame_count;
-    gl_swap_buffers();
+    display_swap_buffers();
     PROF_STEP(end, ui);
 #ifndef CONFIG_FINAL
     ui_debug_printf(
@@ -253,7 +253,7 @@ void resize_cb(void *data, int width, int height)
     struct settings *settings = clap_get_settings(scene->clap_ctx);
     if (settings) {
         int window_x, window_y, window_width, window_height;
-        gl_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
+        display_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
         JsonNode *win_group = settings_find_get(settings, NULL, "window", JSON_OBJECT);
         if (win_group) {
             settings_set_num(settings, win_group, "x", window_x);
@@ -301,7 +301,7 @@ static int handle_command(struct message *m, void *data)
 {
     if (m->cmd.status && exit_timeout >= 0) {
         if (!exit_timeout--)
-            gl_request_exit();
+            display_request_exit();
     }
 
     return 0;
@@ -416,7 +416,7 @@ int main(int argc, char **argv, char **envp)
     fuzzer_input_init();
 
     if (fullscreen)
-        gl_enter_fullscreen();
+        display_enter_fullscreen();
 
     scene_camera_add(&scene);
     scene.camera = &scene.cameras[0];
@@ -429,7 +429,7 @@ int main(int argc, char **argv, char **envp)
     // spawn_mushrooms(&game_state);
     // subscribe(MT_INPUT, handle_game_input, NULL);
 
-    gl_get_sizes(&scene.width, &scene.height);
+    display_get_sizes(&scene.width, &scene.height);
 
     build_main_pl(&main_pl);
 
@@ -443,7 +443,7 @@ int main(int argc, char **argv, char **envp)
     scene_cameras_calc(&scene);
 
     imgui_render();
-    gl_main_loop();
+    display_main_loop();
 
     dbg("exiting peacefully\n");
 

@@ -258,9 +258,9 @@ static void scene_camera_calc(struct scene *s, int camera)
     view_calc_frustum(&s->light.view[0]);
 #ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
-        gl_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
-                 cam_pos[0], cam_pos[1], cam_pos[2],
-                 cam->current_pitch, cam->current_yaw);
+        display_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
+                      cam_pos[0], cam_pos[1], cam_pos[2],
+                      cam->current_pitch, cam->current_yaw);
 #endif
 }
 
@@ -310,7 +310,7 @@ static int scene_handle_input(struct message *m, void *data)
         debug_camera_action(s->camera);
     }
     if (m->input.exit)
-        gl_request_exit();
+        display_request_exit();
 #ifndef CONFIG_FINAL
     if (m->input.tab || m->input.stick_r)
         scene_control_next(s);
@@ -322,12 +322,12 @@ static int scene_handle_input(struct message *m, void *data)
         scene_focus_cancel(s);
 #endif
     if (m->input.resize)
-        gl_resize(m->input.x, m->input.y);
+        display_resize(m->input.x, m->input.y);
     if (m->input.fullscreen) {
         if (s->fullscreen)
-            gl_leave_fullscreen();
+            display_leave_fullscreen();
         else
-            gl_enter_fullscreen();
+            display_enter_fullscreen();
         s->fullscreen ^= 1;
         trace("fullscreen: %d\n", s->fullscreen);
     }

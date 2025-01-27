@@ -23,21 +23,21 @@ static inline const char *gluErrorString(int err) { return "not implemented"; }
 #endif
 
 struct clap_context;
-typedef void (*display_update)(void *data);
-typedef void (*display_resize)(void *data, int w, int h);
-void gl_init(const char *title, int width, int height, display_update update_fn, void *update_fn_data, display_resize resize_fn);
-void gl_debug_ui_init(struct clap_context *ctx);
-int gl_refresh_rate(void);
-void gl_main_loop(void);
-void gl_done(void);
-void gl_swap_buffers(void);
-void gl_get_sizes(int *widthp, int *heightp);
-void gl_title(const char *fmt, ...);
-void gl_request_exit(void);
-void gl_resize(int w, int h);
-void gl_enter_fullscreen(void);
-void gl_leave_fullscreen(void);
-void gl_set_window_pos_size(int x, int y, int w, int h);
-void gl_get_window_pos_size(int *x, int *y, int *w, int *h);
+typedef void (*display_update_cb)(void *data);
+typedef void (*display_resize_cb)(void *data, int w, int h);
+void display_init(const char *title, int width, int height, display_update_cb update_fn, void *update_fn_data, display_resize_cb resize_fn);
+void display_debug_ui_init(struct clap_context *ctx);
+int display_refresh_rate(void);
+void display_main_loop(void);
+void display_done(void);
+void display_swap_buffers(void);
+void display_get_sizes(int *widthp, int *heightp);
+void display_title(const char *fmt, ...);
+void display_request_exit(void);
+void display_resize(int w, int h);
+void display_enter_fullscreen(void);
+void display_leave_fullscreen(void);
+void display_set_window_pos_size(int x, int y, int w, int h);
+void display_get_window_pos_size(int *x, int *y, int *w, int *h);
 
 #endif /* __CLAP_DISPLAY_H__ */

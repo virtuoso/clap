@@ -16,12 +16,12 @@
 
 static GLFWwindow *window;
 static int width, height;
-static display_update update_fn;
-static display_resize resize_fn;
+static display_update_cb update_fn;
+static display_resize_cb resize_fn;
 static void *update_fn_data;
 static int refresh_rate;
 
-static int __gl_refresh_rate(void)
+static int __display_refresh_rate(void)
 {
     GLFWmonitor *monitor = glfwGetWindowMonitor(window);
 
@@ -34,15 +34,15 @@ static int __gl_refresh_rate(void)
     return refresh_rate;
 }
 
-int gl_refresh_rate(void)
+int display_refresh_rate(void)
 {
     if (!refresh_rate)
-        refresh_rate = __gl_refresh_rate();
+        refresh_rate = __display_refresh_rate();
 
     return refresh_rate;
 }
 
-void gl_title(const char *fmt, ...)
+void display_title(const char *fmt, ...)
 {
     va_list va;
     LOCAL(char, title);
@@ -63,7 +63,7 @@ static void resize_cb(GLFWwindow *window, int w, int h)
 {
     width = w;
     height = h;
-    refresh_rate = __gl_refresh_rate();
+    refresh_rate = __display_refresh_rate();
     resize_fn(update_fn_data, w, h);
 }
 
@@ -73,12 +73,12 @@ static void move_cb(GLFWwindow *window, int x, int y)
      * force refresh rate update, in case we moved to a different
      * monitor
      */
-    refresh_rate = __gl_refresh_rate();
+    refresh_rate = __display_refresh_rate();
     /* store new window position in settings */
-    gl_get_sizes(NULL, NULL);
+    display_get_sizes(NULL, NULL);
 }
 
-void gl_get_sizes(int *widthp, int *heightp)
+void display_get_sizes(int *widthp, int *heightp)
 {
     glfwGetFramebufferSize(window, &width, &height);
     glViewport(0, 0, width, height);
@@ -90,7 +90,7 @@ void gl_get_sizes(int *widthp, int *heightp)
     resize_cb(window, width, height);
 }
 
-void gl_resize(int w, int h)
+void display_resize(int w, int h)
 {
     resize_cb(window, w, h);
 }
@@ -99,7 +99,7 @@ static GLFWmonitor *primary_monitor;
 static const GLFWvidmode *primary_monitor_mode;
 static int                saved_width, saved_height;
 
-void gl_enter_fullscreen(void)
+void display_enter_fullscreen(void)
 {
     glfwSetWindowMonitor(window, primary_monitor, 0, 0, 
                          primary_monitor_mode->width,
@@ -108,28 +108,29 @@ void gl_enter_fullscreen(void)
                          );
     saved_width = width;
     saved_height = height;
-    gl_resize(primary_monitor_mode->width, primary_monitor_mode->height);
+    display_resize(primary_monitor_mode->width, primary_monitor_mode->height);
 }
 
-void gl_leave_fullscreen(void)
+void display_leave_fullscreen(void)
 {
     glfwSetWindowMonitor(window, NULL, 0, 0, saved_width, saved_height, 0);
-    gl_resize(saved_width, saved_height);
+    display_resize(saved_width, saved_height);
 }
 
-void gl_set_window_pos_size(int x, int y, int w, int h)
+void display_set_window_pos_size(int x, int y, int w, int h)
 {
     glfwSetWindowPos(window, x, y);
     glfwSetWindowSize(window, w, h);
 }
 
-void gl_get_window_pos_size(int *x, int *y, int *w, int *h)
+void display_get_window_pos_size(int *x, int *y, int *w, int *h)
 {
     glfwGetWindowPos(window, x, y);
     glfwGetWindowSize(window, w, h);
 }
 
-void gl_init(const char *title, int w, int h, display_update update, void *update_data, display_resize resize)
+void display_init(const char *title, int w, int h, display_update_cb update, void *update_data,
+                  display_resize_cb resize)
 {
     const unsigned char *ext, *vendor, *renderer, *glver, *shlangver;
     int nr_exts, ret;
@@ -197,24 +198,24 @@ void gl_init(const char *title, int w, int h, display_update update, void *updat
     // msg("GL initialized extensions: %s\n", exts);
 }
 
-void gl_debug_ui_init(struct clap_context *ctx)
+void display_debug_ui_init(struct clap_context *ctx)
 {
     imgui_init(ctx, window, width, height);
 }
 
-void gl_request_exit(void)
+void display_request_exit(void)
 {
     glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
 
-void gl_main_loop(void)
+void display_main_loop(void)
 {
     while (!glfwWindowShouldClose(window)) {
         update_fn(update_fn_data);
     }
 }
 
-void gl_done(void)
+void display_done(void)
 {
     imgui_done();
     glfwDestroyWindow(window);
@@ -375,7 +376,7 @@ int platform_input_init(void)
     return 0;
 }
 
-void gl_swap_buffers(void)
+void display_swap_buffers(void)
 {
     glfwSwapBuffers(window);
     glfwPollEvents();
