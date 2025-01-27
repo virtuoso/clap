@@ -39,7 +39,6 @@ struct scene {
     /* FPS calculation -- very important! */
     unsigned long       frames_total;
     struct timespec     ts;
-    struct fps_data     fps;
     struct clap_context *clap_ctx;
     struct mq           debug_mq;
     struct list         debug_draws;

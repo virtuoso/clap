@@ -229,7 +229,7 @@ static void scene_camera_calc(struct scene *s, int camera)
     struct character *current = scene_control_character(s);
     struct camera *cam = &s->cameras[camera];
 
-    if (!s->fps.fps_fine)
+    if (!clap_get_fps_fine(s->clap_ctx))
         return;
     if (!cam->ch->moved && current == cam->ch)
         return;
@@ -258,7 +258,8 @@ static void scene_camera_calc(struct scene *s, int camera)
     view_calc_frustum(&s->light.view[0]);
 #ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
-        display_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]", s->fps.fps_coarse,
+        display_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]",
+                      clap_get_fps_coarse(s->clap_ctx),
                       cam_pos[0], cam_pos[1], cam_pos[2],
                       cam->current_pitch, cam->current_yaw);
 #endif

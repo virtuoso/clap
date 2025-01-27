@@ -235,7 +235,8 @@ void character_move(struct character *ch, struct scene *s)
 
         /* XXX: the numerator has to do with movement speed */
         vec3_scale(ch->angle, ch->motion, 60. / (float)display_refresh_rate());
-        vec3_scale(ch->angle, ch->angle, (float)display_refresh_rate() / (float)s->fps.fps_fine);
+        vec3_scale(ch->angle, ch->angle,
+                   (float)display_refresh_rate() / (float)clap_get_fps_fine(s->clap_ctx));
 
         /* watch out for Y and Z swapping places */
         vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
@@ -354,7 +355,7 @@ static int character_update(struct entity3d *e, void *data)
 
 
     if (c->camera) {
-        camera_move(c->camera, s->fps.fps_fine);
+        camera_move(c->camera, clap_get_fps_fine(s->clap_ctx));
         camera_update(c->camera, s, e);
     }
 

@@ -1062,7 +1062,7 @@ void animation_start(struct entity3d *e, struct scene *scene, int ani)
         chan = &an->channels[ch];
         e->joints[chan->target].off[chan->path] = 0;
     }
-    e->ani_time = scene->fps.time;
+    e->ani_time = clap_get_current_time(scene->clap_ctx);
 }
 
 int animation_by_name(struct model3d *m, const char *name)
@@ -1176,6 +1176,7 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
 
 static void animated_update(struct entity3d *e, struct scene *s)
 {
+    double time = clap_get_current_time(s->clap_ctx);
     struct model3d *model = e->txmodel->model;
     struct queued_animation *qa;
     struct animation *an;
@@ -1184,10 +1185,10 @@ static void animated_update(struct entity3d *e, struct scene *s)
         animation_next(e, s);
     qa = ani_current(e);
     an = &model->anis.x[qa->animation];
-    channels_transform(e, an, (s->fps.time - e->ani_time) * qa->speed);
+    channels_transform(e, an, (time - e->ani_time) * qa->speed);
     one_joint_transform(e, 0, -1);
 
-    if ((s->fps.time - e->ani_time) * qa->speed >= an->time_end)
+    if ((time - e->ani_time) * qa->speed >= an->time_end)
         animation_next(e, s);
 }
 

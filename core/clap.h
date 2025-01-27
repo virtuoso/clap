@@ -2,12 +2,7 @@
 #ifndef __CLAP_CLAP_H__
 #define __CLAP_CLAP_H__
 
-struct fps_data {
-    struct timespec ts_prev, ts_delta;
-    unsigned long   fps_fine, fps_coarse, seconds, count;
-    double          time;
-};
-
+struct fps_data;
 struct clap_context;
 struct phys;
 struct settings;
@@ -15,9 +10,12 @@ struct settings;
 /* Get the clap's physics handle */
 struct phys *clap_get_phys(struct clap_context *ctx);
 struct settings *clap_get_settings(struct clap_context *ctx);
-void clap_fps_calc(struct clap_context *ctx, struct fps_data *f);
 struct timespec clap_get_current_timespec(struct clap_context *ctx);
 double clap_get_current_time(struct clap_context *ctx);
+
+struct timespec clap_get_fps_delta(struct clap_context *ctx);
+unsigned long clap_get_fps_fine(struct clap_context *ctx);
+unsigned long clap_get_fps_coarse(struct clap_context *ctx);
 
 struct clap_config {
     unsigned long   debug       : 1,

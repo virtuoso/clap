@@ -138,11 +138,10 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     struct scene *s = data; /* XXX */
     unsigned long count, frame_count;
 
-    clap_fps_calc(clap_ctx, &s->fps);
     ts_start = clap_get_current_timespec(clap_ctx);
-    ts_delta = s->fps.ts_delta;
+    ts_delta = clap_get_fps_delta(clap_ctx);
 
-    frame_count = max((unsigned long)display_refresh_rate() / s->fps.fps_fine, 1);
+    frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(clap_ctx), 1);
     PROF_FIRST(start);
 
     imgui_render_begin(s->width, s->height);

@@ -40,8 +40,14 @@ const char *__asan_default_options() {
 }
 #endif /* HAVE_ASAN */
 
+struct fps_data {
+    struct timespec ts_prev, ts_delta;
+    unsigned long   fps_fine, fps_coarse, seconds, count;
+};
+
 struct clap_context {
     struct clap_config  cfg;
+    struct fps_data     fps;
     char                **argv;
     char                **envp;
     struct timespec     current_time;
@@ -65,13 +71,12 @@ double clap_get_current_time(struct clap_context *ctx)
     return (double)ctx->current_time.tv_sec + (double)ctx->current_time.tv_nsec / NSEC_PER_SEC;
 }
 
-void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
+static void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
 {
     bool status = false;
     struct message m;
 
     clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
-    f->time = clap_get_current_time(ctx);
     if (!f->ts_prev.tv_sec && !f->ts_prev.tv_nsec) {
         f->ts_delta.tv_nsec = NSEC_PER_SEC / display_refresh_rate();
         f->ts_delta.tv_sec = 0;
@@ -104,6 +109,21 @@ void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
     }
 }
 
+struct timespec clap_get_fps_delta(struct clap_context *ctx)
+{
+    return ctx->fps.ts_delta;
+}
+
+unsigned long clap_get_fps_fine(struct clap_context *ctx)
+{
+    return ctx->fps.fps_fine;
+}
+
+unsigned long clap_get_fps_coarse(struct clap_context *ctx)
+{
+    return ctx->fps.fps_coarse;
+}
+
 static void clap_settings_onload(struct settings *rs, void *data)
 {
     int window_x, window_y,  window_width, window_height;
@@ -123,6 +143,22 @@ static void clap_settings_onload(struct settings *rs, void *data)
 
     if (ctx->cfg.settings_cb)
         ctx->cfg.settings_cb(rs, ctx->cfg.settings_cb_data);
+}
+
+EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
+{
+    struct clap_context *ctx = data;
+
+    clap_fps_calc(ctx, &ctx->fps);
+
+    ctx->cfg.frame_cb(ctx->cfg.callback_data);
+}
+
+EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
+{
+    struct clap_context *ctx = data;
+
+    ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
 }
 
 struct settings *clap_get_settings(struct clap_context *ctx)
@@ -193,7 +229,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
         CHECK(ctx->phys = phys_init());
     if (ctx->cfg.graphics) {
         display_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
-                     ctx->cfg.frame_cb, ctx->cfg.callback_data, ctx->cfg.resize_cb);
+                     clap_frame, ctx, clap_resize);
 
         textures_init();
     }
