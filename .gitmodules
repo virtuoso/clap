@@ -1,5 +1,5 @@
 [submodule "ode"]
-	path = ode
+	path = deps/ode
 	url = git@github.com:virtuoso/ode.git
 [submodule "demo/ldjam56/asset"]
 	path = demo/ldjam56/asset

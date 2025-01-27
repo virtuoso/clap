@@ -91,7 +91,7 @@ endif ()
 
 include(ExternalProject)
 ExternalProject_Add(ode
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/ode
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/deps/ode
     CMAKE_ARGS
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
