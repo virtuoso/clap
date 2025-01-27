@@ -29,6 +29,7 @@
 #include "physics.h"
 #include "primitives.h"
 #include "networking.h"
+#include "profiler.h"
 #include "settings.h"
 #include "ui-debug.h"
 #include "game.h"
@@ -39,36 +40,6 @@ static int exit_timeout = -1;
 struct scene scene; /* XXX */
 struct ui ui;
 // struct game_state game_state;
-
-#ifndef CONFIG_FINAL
-#define PROFILER
-#endif
-
-#ifdef PROFILER
-struct profile {
-    struct timespec ts, diff;
-    const char      *name;
-};
-#define DECLARE_PROF(_n) \
-    struct profile prof_ ## _n = { .name = __stringify(_n) }
-
-#define PROF_FIRST(_n) \
-    DECLARE_PROF(_n); \
-    clock_gettime(CLOCK_MONOTONIC, &prof_ ## _n.ts);
-
-#define PROF_STEP(_n, _prev) \
-    DECLARE_PROF(_n); \
-    clock_gettime(CLOCK_MONOTONIC, &prof_ ## _n.ts); \
-    timespec_diff(&prof_ ## _prev.ts, &prof_ ## _n.ts, &prof_ ## _n.diff);
-
-#define PROF_SHOW(_n) \
-    dbg("PROFILER: '%s': %lu.%09lu\n", __stringify(_n), prof_ ## _n.diff.tv_sec, prof_ ## _n.diff.tv_nsec);
-#else
-#define DECLARE_PROF(x)
-#define PROF_FIRST(x)
-#define PROF_STEP(x,y)
-#define PROF_SHOW(x)
-#endif
 
 struct clap_context *clap_ctx;
 struct pipeline *main_pl;
@@ -153,11 +124,12 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         */
         scene_characters_move(s);
     }
+    PROF_STEP(move, start)
 
     for (count = 0; count < frame_count; count++)
         phys_step(clap_get_phys(s->clap_ctx), 1);
 
-    PROF_STEP(phys, start);
+    PROF_STEP(phys, move);
 
 #ifndef CONFIG_FINAL
     networking_poll();
@@ -171,15 +143,20 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     /* XXX: this actually goes to ->update() */
     scene_cameras_calc(s);
+    PROF_STEP(cameras, updates);
 
     pipeline_render(main_pl, !ui.modal);
+    PROF_STEP(render, cameras);
+
     if (scene.debug_draws_enabled)
         models_render(&scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
                       NULL, scene.width, scene.height, -1, NULL);
 
-    PROF_STEP(models, updates);
+    PROF_STEP(debug_draws, render);
 
     models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
+
+    PROF_STEP(ui_render, debug_draws);
 
     if (prev_msaa != s->light.shadow_msaa) {
         prev_msaa = s->light.shadow_msaa;
@@ -187,31 +164,12 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         build_main_pl(&main_pl);
     }
     pipeline_debug(main_pl);
+    profiler_show(PROF_PTR(start));
     imgui_render();
-    PROF_STEP(ui, models);
 
     s->frames_total += frame_count;
     ui.frames_total += frame_count;
     display_swap_buffers();
-    PROF_STEP(end, ui);
-#ifndef CONFIG_FINAL
-    ui_debug_printf(
-        "phys:    %" PRItvsec ".%09lu\n"
-        "net:     %" PRItvsec ".%09lu\n"
-        "updates: %" PRItvsec ".%09lu\n"
-        "models:  %" PRItvsec ".%09lu\n"
-        "ui:      %" PRItvsec ".%09lu\n"
-        "end:     %" PRItvsec ".%09lu\n"
-        "ui_entities: %lu\n%s",
-        prof_phys.diff.tv_sec, prof_phys.diff.tv_nsec,
-        prof_net.diff.tv_sec, prof_net.diff.tv_nsec,
-        prof_updates.diff.tv_sec, prof_updates.diff.tv_nsec,
-        prof_models.diff.tv_sec, prof_models.diff.tv_nsec,
-        prof_ui.diff.tv_sec, prof_ui.diff.tv_nsec,
-        prof_end.diff.tv_sec, prof_end.diff.tv_nsec,
-        count, ref_classes_get_string()
-    );
-#endif
     debug_draw_clearout(s);
 }
 

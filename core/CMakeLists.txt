@@ -92,6 +92,10 @@ set(ENGINE_SRC
 # Mac OS X has deprecated OpenAL and is very vocal about it
 set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
 
+if (NOT CLAP_BUILD_FINAL)
+    list(APPEND ENGINE_SRC profiler.c)
+endif ()
+
 if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
     list(APPEND ENGINE_SRC networking.c)
 
