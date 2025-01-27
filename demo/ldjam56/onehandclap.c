@@ -99,12 +99,8 @@ static void build_main_pl(struct pipeline **pl)
 
 EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
-    struct timespec ts_start, ts_delta;
-    struct scene *s = data; /* XXX */
+    struct scene *s = data;
     unsigned long count, frame_count;
-
-    ts_start = clap_get_current_timespec(clap_ctx);
-    ts_delta = clap_get_fps_delta(clap_ctx);
 
     frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(clap_ctx), 1);
     PROF_FIRST(start);
@@ -112,10 +108,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     imgui_render_begin(s->width, s->height);
     fuzzer_input_step();
 
-    /* XXX: fix game_init() */
-    // game_update(&game_state, ts_start, ui.modal);
-
-    scene.ts = ts_start;
+    scene.ts = clap_get_current_timespec(clap_ctx);
 
     if (s->control) {
         /*
