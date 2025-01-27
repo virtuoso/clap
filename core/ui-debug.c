@@ -130,6 +130,7 @@ static struct debug_module debug_enabled[DEBUG_MODULES_MAX] = {
     [DEBUG_LIGHT]               = { .name = "light position" },
     [DEBUG_CHARACTERS]          = { .name = "characters" },
     [DEBUG_CHARACTER_MOTION]    = { .name = "character motion" },
+    [DEBUG_FRAME_PROFILER]      = { .name = "frame profiler" },
 };
 
 debug_module *ui_debug_module(enum debug_modules mod)
