@@ -246,7 +246,6 @@ void resize_cb(void *data, int width, int height)
         pipeline_resize(main_pl);
     touch_set_size(width, height);
     trace("resizing to %dx%d\n", width, height);
-    glViewport(0, 0, ui.width, ui.height);
     scene->proj_update++;
 }
 

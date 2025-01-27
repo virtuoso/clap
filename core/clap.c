@@ -171,6 +171,9 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
         }
     }
 
+    renderer_t *r = renderer_get();
+    renderer_viewport(r, 0, 0, width, height);
+
     if (ctx->cfg.resize_cb)
         ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
 }
