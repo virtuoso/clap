@@ -46,6 +46,7 @@ struct clap_context {
     char                **envp;
     struct timespec     current_time;
     struct phys         *phys;
+    struct settings     *settings;
     int                 argc;
 };
 
@@ -101,6 +102,32 @@ void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
         m.cmd.sys_seconds = f->ts_prev.tv_sec;
         message_send(&m);
     }
+}
+
+static void clap_settings_onload(struct settings *rs, void *data)
+{
+    int window_x, window_y,  window_width, window_height;
+    struct clap_context *ctx = data;
+
+    JsonNode *win_group = settings_find_get(rs, NULL, "window", JSON_OBJECT);
+    if (win_group) {
+        window_x = (int)settings_get_num(rs, win_group, "x");
+        window_y = (int)settings_get_num(rs, win_group, "y");
+        window_width = (int)settings_get_num(rs, win_group, "width");
+        window_height = (int)settings_get_num(rs, win_group, "height");
+        if (window_width && window_height)
+            gl_set_window_pos_size(window_x, window_y, window_width, window_height);
+    }
+
+    ui_debug_set_settings(rs);
+
+    if (ctx->cfg.settings_cb)
+        ctx->cfg.settings_cb(rs, ctx->cfg.settings_cb_data);
+}
+
+struct settings *clap_get_settings(struct clap_context *ctx)
+{
+    return ctx->settings;
 }
 
 static bool clap_config_is_valid(struct clap_config *cfg)
@@ -176,7 +203,8 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
         (void)input_init(); /* XXX: error handling */
     if (ctx->cfg.graphics && ctx->cfg.input)
         gl_debug_ui_init(ctx);
-    //clap_settings = settings_init();
+    if (ctx->cfg.settings)
+        CHECK(ctx->settings = settings_init(clap_settings_onload, ctx));
 
     return ctx;
 }
@@ -193,6 +221,8 @@ void clap_done(struct clap_context *ctx, int status)
     }
     if (ctx->cfg.font)
         font_done();
+    if (ctx->settings)
+        settings_done(ctx->settings);
     messagebus_done();
     mem_free(ctx);
     exit_cleanup_run(status);

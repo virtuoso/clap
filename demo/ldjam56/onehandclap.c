@@ -34,7 +34,6 @@
 #include "game.h"
 
 /* XXX just note for the future */
-struct settings *settings;
 struct sound *intro_sound;
 static int exit_timeout = -1;
 struct scene scene; /* XXX */
@@ -250,6 +249,8 @@ void resize_cb(void *data, int width, int height)
     trace("resizing to %dx%d\n", width, height);
     glViewport(0, 0, ui.width, ui.height);
     scene->proj_update++;
+
+    struct settings *settings = clap_get_settings(scene->clap_ctx);
     if (settings) {
         int window_x, window_y, window_width, window_height;
         gl_get_window_pos_size(&window_x, &window_y, &window_width, &window_height);
@@ -269,28 +270,9 @@ static void ohc_ground_contact(void *priv, float x, float y, float z)
         scene.auto_yoffset = y;
 }
 
-static void settings_onload(struct settings *rs, void *data)
-{
-    float gain = settings_get_num(rs, NULL, "music_volume");
-    int window_x, window_y,  window_width, window_height;
-
-    sound_set_gain(intro_sound, gain);
-
-    JsonNode *win_group = settings_find_get(rs, NULL, "window", JSON_OBJECT);
-    if (win_group) {
-        window_x = (int)settings_get_num(rs, win_group, "x");
-        window_y = (int)settings_get_num(rs, win_group, "y");
-        window_width = (int)settings_get_num(rs, win_group, "width");
-        window_height = (int)settings_get_num(rs, win_group, "height");
-        if (window_width && window_height)
-            gl_set_window_pos_size(window_x, window_y, window_width, window_height);
-    }
-
-    ui_debug_set_settings(rs);
-}
-
 static int handle_input(struct message *m, void *data)
 {
+    struct scene *scene = data;
     bool  store = false;
 
     if (!intro_sound)
@@ -308,8 +290,10 @@ static int handle_input(struct message *m, void *data)
         store = true;
     }
 
-    if (store)
+    if (store) {
+        struct settings *settings = clap_get_settings(scene->clap_ctx);
         settings_set_num(settings, NULL, "music_volume", gain);
+    }
     return 0;
 }
 
@@ -342,6 +326,7 @@ int main(int argc, char **argv, char **envp)
         .sound          = 1,
         .phys           = 1,
         .graphics       = 1,
+        .settings       = 1,
         .title          = "One Hand Clap",
 #ifndef CONFIG_BROWSER
         .base_url       = "demo/ldjam56/",
@@ -403,7 +388,7 @@ int main(int argc, char **argv, char **envp)
 
     phys_set_ground_contact(clap_get_phys(clap_ctx), ohc_ground_contact);
 
-    subscribe(MT_INPUT, handle_input, NULL);
+    subscribe(MT_INPUT, handle_input, &scene);
     subscribe(MT_COMMAND, handle_command, &scene);
 
     /*
@@ -411,7 +396,6 @@ int main(int argc, char **argv, char **envp)
      * lib_request(RES_ASSET, "morning.ogg", opening_sound_load, &intro_sound);
      */
     intro_sound = sound_load("morning.ogg");
-    settings = settings_init(settings_onload, NULL);
     sound_set_gain(intro_sound, 0);
     sound_set_looping(intro_sound, true);
     sound_play(intro_sound);
@@ -467,7 +451,6 @@ int main(int argc, char **argv, char **envp)
     ui_done(&ui);
 exit_ui:
     scene_done(&scene);
-    settings_done(settings);
     //gl_done();
     clap_done(clap_ctx, 0);
 #else
