@@ -53,6 +53,7 @@ struct clap_context {
     struct timespec     current_time;
     struct phys         *phys;
     struct settings     *settings;
+    renderer_t          *renderer;
     int                 argc;
 };
 
@@ -173,8 +174,7 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
         }
     }
 
-    renderer_t *r = renderer_get();
-    renderer_viewport(r, 0, 0, width, height);
+    renderer_viewport(ctx->renderer, 0, 0, width, height);
 
     if (ctx->cfg.resize_cb)
         ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
@@ -250,6 +250,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
         display_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
                      clap_frame, ctx, clap_resize);
 
+        ctx->renderer = renderer_get();
         textures_init();
     }
     if (ctx->cfg.input)
