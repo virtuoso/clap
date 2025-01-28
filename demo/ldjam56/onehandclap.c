@@ -141,9 +141,11 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     pipeline_render(main_pl, !ui.modal);
     PROF_STEP(render, cameras);
 
-    if (scene.debug_draws_enabled)
+    if (scene.debug_draws_enabled) {
         models_render(&scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
                       NULL, scene.width, scene.height, -1, NULL);
+        debug_draw_clearout(s);
+    }
 
     PROF_STEP(debug_draws, render);
 
@@ -163,7 +165,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     s->frames_total += frame_count;
     ui.frames_total += frame_count;
     display_swap_buffers();
-    debug_draw_clearout(s);
 }
 
 #ifdef CONFIG_BROWSER
