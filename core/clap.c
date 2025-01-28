@@ -10,6 +10,9 @@
 #include "common.h"
 #include "input.h"
 #include "font.h"
+#include "networking.h"
+#include "profiler.h"
+#include "scene.h"
 #include "sound.h"
 #include "mesh.h"
 #include "messagebus.h"
@@ -158,11 +161,50 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     imgui_render_begin(width, height);
     fuzzer_input_step();
 
+    PROF_FIRST(start);
+
+    struct scene *scene = ctx->cfg.callback_data;
+    if (scene->control) {
+        /*
+         * calls into character_move(): handle inputs, adjust velocities etc
+         * for the physics step's dynamics simulation (dWorldStep())
+         */
+        scene_characters_move(scene);
+    }
+
+    PROF_STEP(move, start)
+
+    unsigned long frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(ctx), 1);
+
+    unsigned long count;
+    for (count = 0; count < frame_count; count++)
+        phys_step(clap_get_phys(ctx), 1);
+
+    PROF_STEP(phys, move);
+
+#ifndef CONFIG_FINAL
+    networking_poll();
+#endif
+
+    PROF_STEP(net, phys);
+
+    scene_update(scene);
+
+    scene_cameras_calc(scene);
+
+    PROF_STEP(updates, net);
+
     if (ctx->cfg.frame_cb)
         ctx->cfg.frame_cb(ctx->cfg.callback_data);
 
+    PROF_STEP(callback, updates);
+
+    profiler_show(PROF_PTR(start));
+
     imgui_render();
     display_swap_buffers();
+
+    scene->frames_total += frame_count;
 }
 
 EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)

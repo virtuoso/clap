@@ -103,38 +103,10 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     unsigned long count, frame_count;
 
     frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(clap_ctx), 1);
-    PROF_FIRST(start);
-
-    if (s->control) {
-        /*
-        * calls into character_move(): handle inputs, adjust velocities etc
-        * for the physics step
-        */
-        scene_characters_move(s);
-    }
-    PROF_STEP(move, start)
-
-    for (count = 0; count < frame_count; count++)
-        phys_step(clap_get_phys(s->clap_ctx), 1);
-
-    PROF_STEP(phys, move);
-
-#ifndef CONFIG_FINAL
-    networking_poll();
-#endif
-    PROF_STEP(net, phys);
-
-    scene_update(s);
 
     ui_update(&ui);
-    PROF_STEP(updates, net);
-
-    /* XXX: this actually goes to ->update() */
-    scene_cameras_calc(s);
-    PROF_STEP(cameras, updates);
 
     pipeline_render(main_pl, !ui.modal);
-    PROF_STEP(render, cameras);
 
     if (scene.debug_draws_enabled) {
         models_render(&scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
@@ -142,11 +114,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         debug_draw_clearout(s);
     }
 
-    PROF_STEP(debug_draws, render);
-
     models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
-
-    PROF_STEP(ui_render, debug_draws);
 
     if (prev_msaa != s->light.shadow_msaa) {
         prev_msaa = s->light.shadow_msaa;
@@ -154,9 +122,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         build_main_pl(&main_pl);
     }
     pipeline_debug(main_pl);
-    profiler_show(PROF_PTR(start));
 
-    s->frames_total += frame_count;
     ui.frames_total += frame_count;
 }
 
