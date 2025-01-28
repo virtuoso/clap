@@ -152,9 +152,16 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     clap_fps_calc(ctx, &ctx->fps);
 
+    int width, height;
+    renderer_get_viewport(ctx->renderer, NULL, NULL, &width, &height);
+
+    imgui_render_begin(width, height);
+    fuzzer_input_step();
+
     if (ctx->cfg.frame_cb)
         ctx->cfg.frame_cb(ctx->cfg.callback_data);
 
+    imgui_render();
     display_swap_buffers();
 }
 

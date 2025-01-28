@@ -105,9 +105,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(clap_ctx), 1);
     PROF_FIRST(start);
 
-    imgui_render_begin(s->width, s->height);
-    fuzzer_input_step();
-
     scene.ts = clap_get_current_timespec(clap_ctx);
 
     if (s->control) {
@@ -160,7 +157,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     }
     pipeline_debug(main_pl);
     profiler_show(PROF_PTR(start));
-    imgui_render();
 
     s->frames_total += frame_count;
     ui.frames_total += frame_count;
