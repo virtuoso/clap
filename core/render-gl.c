@@ -1089,6 +1089,18 @@ void renderer_viewport(renderer_t *r, int x, int y, int width, int height)
     GL(glViewport(x, y, width, height));
 }
 
+void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
+{
+    if (px)
+        *px      = r->x;
+    if (py)
+        *py      = r->y;
+    if (pwidth)
+        *pwidth  = r->width;
+    if (pheight)
+        *pheight = r->height;
+}
+
 static GLenum gl_cull_face(cull_face cull)
 {
     switch (cull) {

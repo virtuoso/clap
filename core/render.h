@@ -273,6 +273,7 @@ void renderer_init(renderer_t *renderer);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 renderer_t *renderer_get(void);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
+void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 
 typedef enum {
     CULL_FACE_NONE = 0,
