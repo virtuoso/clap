@@ -426,7 +426,7 @@ static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e, void *
     return 0;
 }
 
-void touch_set_size(int width, int height)
+void touch_input_set_size(int width, int height)
 {
     touch.w = width;
     touch.h = height;

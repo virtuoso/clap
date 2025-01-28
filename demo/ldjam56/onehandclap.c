@@ -126,12 +126,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     ui.frames_total += frame_count;
 }
 
-#ifdef CONFIG_BROWSER
-extern void touch_set_size(int, int);
-#else
-static void touch_set_size(int w, int h) {}
-#endif
-
 /*
  * XXX: this should be a message
  * cmd.resize
@@ -147,7 +141,6 @@ void resize_cb(void *data, int width, int height)
     ui.height = height;
     if (main_pl)
         pipeline_resize(main_pl);
-    touch_set_size(width, height);
 }
 
 static void ohc_ground_contact(void *priv, float x, float y, float z)

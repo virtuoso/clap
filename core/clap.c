@@ -232,6 +232,8 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
 
     if (ctx->cfg.resize_cb)
         ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
+
+    touch_input_set_size(width, height);
 }
 
 struct settings *clap_get_settings(struct clap_context *ctx)

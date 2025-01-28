@@ -11,4 +11,10 @@ int input_init(void);
 void fuzzer_input_step(void);
 void fuzzer_input_init(void);
 
+#ifdef CONFIG_BROWSER
+extern void touch_input_set_size(int, int);
+#else
+static inline void touch_input_set_size(int w, int h) {}
+#endif
+
 #endif /* __CLAP_INPUT_H__ */
