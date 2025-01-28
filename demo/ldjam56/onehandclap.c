@@ -145,13 +145,9 @@ void resize_cb(void *data, int width, int height)
 
     ui.width  = width;
     ui.height = height;
-    scene->width  = width;
-    scene->height = height;
     if (main_pl)
         pipeline_resize(main_pl);
     touch_set_size(width, height);
-    trace("resizing to %dx%d\n", width, height);
-    scene->proj_update++;
 }
 
 static void ohc_ground_contact(void *priv, float x, float y, float z)

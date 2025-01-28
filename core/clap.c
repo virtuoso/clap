@@ -225,6 +225,11 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
 
     renderer_viewport(ctx->renderer, 0, 0, width, height);
 
+    struct scene *scene = ctx->cfg.callback_data;
+    scene->width = width;
+    scene->height = height;
+    scene->proj_update++;
+
     if (ctx->cfg.resize_cb)
         ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
 }
