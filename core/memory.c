@@ -69,6 +69,11 @@ out:
 
 void _mem_free(const char *mod, void *buf, const free_params *params)
 {
+    if (params->mod)
+        mod = params->mod;
+
+    mod = str_basename(mod);
+
     free(buf);
 }
 
