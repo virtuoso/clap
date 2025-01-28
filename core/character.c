@@ -34,9 +34,10 @@ static void character_motion_reset(struct character *ch, struct scene *s)
         return;
 
     if (timespec_nonzero(&ch->dash_started)) {
-        struct timespec diff;
+        struct timespec diff, now;
 
-        timespec_diff(&ch->dash_started, &s->ts, &diff);
+        now = clap_get_current_timespec(s->clap_ctx);
+        timespec_diff(&ch->dash_started, &now, &diff);
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1) {
             ch->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
@@ -64,7 +65,7 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
         ch->lin_speed *= 3;
 #endif
 
-    ch->ts = s->ts;
+    ch->ts = clap_get_current_timespec(s->clap_ctx);
 
     if (m->input.dash || m->input.pad_rb)
         character_sprint(ch, s);

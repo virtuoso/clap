@@ -105,8 +105,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(clap_ctx), 1);
     PROF_FIRST(start);
 
-    scene.ts = clap_get_current_timespec(clap_ctx);
-
     if (s->control) {
         /*
         * calls into character_move(): handle inputs, adjust velocities etc
