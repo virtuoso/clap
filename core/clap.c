@@ -153,6 +153,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     if (ctx->cfg.frame_cb)
         ctx->cfg.frame_cb(ctx->cfg.callback_data);
+
+    display_swap_buffers();
 }
 
 EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)

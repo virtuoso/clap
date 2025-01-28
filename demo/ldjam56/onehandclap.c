@@ -164,7 +164,6 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     s->frames_total += frame_count;
     ui.frames_total += frame_count;
-    display_swap_buffers();
 }
 
 #ifdef CONFIG_BROWSER
