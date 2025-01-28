@@ -5,6 +5,22 @@
 #include "memory.h"
 #include "util.h"
 
+typedef struct mem_state {
+    int         in_frame;
+} mem_state;
+
+static thread_local mem_state state;
+
+void mem_frame_begin(void)
+{
+    state.in_frame++;
+}
+
+void mem_frame_end(void)
+{
+    state.in_frame = 0;
+}
+
 void *_mem_alloc(const char *mod, size_t size, const alloc_params *params)
 {
     if (params->__reserved0)

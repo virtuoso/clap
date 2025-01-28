@@ -153,6 +153,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 {
     struct clap_context *ctx = data;
 
+    mem_frame_begin();
     clap_fps_calc(ctx, &ctx->fps);
 
     int width, height;
@@ -205,6 +206,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     display_swap_buffers();
 
     scene->frames_total += frame_count;
+    mem_frame_end();
 }
 
 EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)

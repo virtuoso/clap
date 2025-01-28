@@ -7,6 +7,9 @@
 #include "common.h"
 #include "error.h"
 
+void mem_frame_begin(void);
+void mem_frame_end(void);
+
 typedef struct alloc_params {
     size_t          nr;
     uint64_t        fatal_fail  : 1,
