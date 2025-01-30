@@ -83,7 +83,7 @@ void eat_apple(struct game_state *g) {
 
 
 void handle_inventory_click(struct ui_element *uie, float x, float y) {
-    int apple_index = (long)uie->priv;
+    int apple_index = (intptr_t)uie->priv;
     eat_apple_from_inventory(&game_state, apple_index);
 }
 
