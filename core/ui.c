@@ -654,7 +654,7 @@ static void inv_onfocus(struct ui_element *uie, bool focus)
     int j;
     struct ui_element *current_item, *x;
     struct ui_widget *inv = uie->ui->inventory;
-    long focused = (long)uie->priv;
+    long focused = (intptr_t)uie->priv;
     float focus_color[] = { 1.0, 0.0, 0.0, 1.0 };
     float non_focus_color[] = { 1.0, 1.0, 1.0, 1.0 };
     float *color;
@@ -765,7 +765,7 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
         wheel->uies[i]           = ui_element_new(ui, wheel->root, ui_quadtx, affs[i], 0, 0, 300, 100);
         wheel->uies[i]->on_click = menu_onclick;
         wheel->uies[i]->on_focus = menu_onfocus;
-        wheel->uies[i]->priv     = (void *)(long)i;
+        wheel->uies[i]->priv     = (void *)(uintptr_t)i;
 
         memcpy(&wheel->uies[i]->entity->color, quad_color, sizeof(quad_color));
         wheel->uies[i]->entity->color_pt = COLOR_PT_ALL;
@@ -1011,7 +1011,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
             // "apple"
             inv->uies[i]->on_click = on_click;
             inv->uies[i]->on_focus = inv_onfocus;
-            inv->uies[i]->priv = (void *)(long)i;
+            inv->uies[i]->priv = (void *)(uintptr_t)i;
             if (apple_ages[i] < 1.0) {
                 // immature apple
                 inv->uies[i]->entity->color_pt = COLOR_PT_ALPHA;
@@ -1031,7 +1031,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
         } else {
             inv->uies[i]->on_click = inv_onclick;
             inv->uies[i]->on_focus = inv_onfocus;
-            inv->uies[i]->priv = (void *)(long)i;
+            inv->uies[i]->priv = (void *)(uintptr_t)i;
             CHECK(tui = ui_render_string(ui, font, inv->uies[i], "empty", color, 0));
         }
         tui->entity->color_pt = COLOR_PT_NONE;
