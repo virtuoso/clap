@@ -405,7 +405,7 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
 
     if (jointssz != m->nr_vertices * 4 ||
         weightssz != m->nr_vertices * 4 * sizeof(float)) {
-        err("wrong amount of joints or weights: %zu <> %d, %zu <> %lu\n",
+        err("wrong amount of joints or weights: %zu <> %d, %zu <> %zu\n",
             jointssz, m->nr_vertices * 4, weightssz, m->nr_vertices * 4 * sizeof(float));
         return -1;
     }
