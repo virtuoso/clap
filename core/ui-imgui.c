@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "common.h"
 #include "settings.h"
+#include "memory.h"
 #include "ui-debug.h"
 
 #ifdef __EMSCRIPTEN__
@@ -66,8 +67,19 @@ void imgui_render(void)
     }
 }
 
+static void *imgui_alloc(size_t size, unused void *user_data)
+{
+    return mem_alloc(size);
+}
+
+static void imgui_free(void *ptr, unused void *user_data)
+{
+    mem_free(ptr);
+}
+
 void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
 {
+    igSetAllocatorFunctions(imgui_alloc, imgui_free, NULL);
     ctx = igCreateContext(NULL);
     io = igGetIO();
 
