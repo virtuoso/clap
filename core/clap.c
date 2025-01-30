@@ -305,10 +305,17 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (ctx->cfg.phys)
         CHECK(ctx->phys = phys_init());
     if (ctx->cfg.graphics) {
+        /*
+         * XXX: it will get initialized in display_init(), but the pointer
+         * is valid here. display_init() will call display_get_sizes(), which
+         * will end up in clap_resize(), which needs a valid ctx->renderer.
+         * But not to worry, the renderer will be initialized at that point.
+         */
+        ctx->renderer = renderer_get();
+
         display_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
                      clap_frame, ctx, clap_resize);
 
-        ctx->renderer = renderer_get();
         textures_init();
     }
     if (ctx->cfg.input)
