@@ -12,11 +12,15 @@
 
 typedef unsigned char uchar;
 
+#define DECLARE_CLEANUP(t) void cleanup__## t ## p(t **p)
+#define DEFINE_CLEANUP(t, fn) \
+DECLARE_CLEANUP(t) { fn; }
+
 void cleanup__fd(int *fd);
-void cleanup__FILEp(FILE **f);
-void cleanup__malloc(void **x);
-void cleanup__charp(char **s);
-void cleanup__ucharp(uchar **s);
+DECLARE_CLEANUP(FILE);
+DECLARE_CLEANUP(void);
+DECLARE_CLEANUP(char);
+DECLARE_CLEANUP(uchar);
 
 #define CU(x) __attribute__((cleanup(cleanup__ ## x)))
 #define CUX(x) CU(x) = NULL

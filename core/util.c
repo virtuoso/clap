@@ -13,26 +13,10 @@ void cleanup__fd(int *fd)
     close(*fd);
 }
 
-void cleanup__FILEp(FILE **f)
-{
-    if (*f)
-        fclose(*f);
-}
-
-void cleanup__malloc(void **x)
-{
-    mem_free(*x);
-}
-
-void cleanup__charp(char **s)
-{
-    mem_free(*s);
-}
-
-void cleanup__ucharp(uchar **s)
-{
-    mem_free(*s);
-}
+DEFINE_CLEANUP(FILE, if (*p) fclose(*p))
+DEFINE_CLEANUP(void, mem_free(*p))
+DEFINE_CLEANUP(char, mem_free(*p))
+DEFINE_CLEANUP(uchar, mem_free(*p))
 
 void *memdup(const void *x, size_t size)
 {
