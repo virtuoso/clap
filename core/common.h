@@ -30,6 +30,14 @@
 #define BITS_PER_LONG   (8 * sizeof(long))
 #define DINFINITY (__builtin_inf())
 
+#if UINTPTR_MAX > ULONG_MAX
+#define UINTPTR_SUFFIX ull
+#define UINTPTR_CONST(x) (x ## ull)
+#else
+#define UINTPTR_SUFFIX ul
+#define UINTPTR_CONST(x) (x ## ul)
+#endif
+
 #if defined(__has_feature)
 # if __has_feature(address_sanitizer)
 #define HAVE_ASAN 1
