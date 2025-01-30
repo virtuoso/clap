@@ -318,7 +318,7 @@ struct hashmap_test_data {
 static void hashmap_cb(void *item, void *data)
 {
     struct hashmap_test_data *pctx = data;
-    unsigned long value = (unsigned long)item;
+    unsigned long value = (uintptr_t)item;
 
     if (pctx->value + 1 != value)
         pctx->broken = true;
@@ -334,7 +334,7 @@ static int hashmap_test1(void)
     hashmap_init(&hm, 256);
 
     for (i = 1; i < 1024; i++)
-        hashmap_insert(&hm, i, (void *)i);
+        hashmap_insert(&hm, i, (void *)(uintptr_t)i);
     hashmap_for_each(&hm, hashmap_cb, &ctx);
 
     hashmap_done(&hm);
