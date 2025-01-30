@@ -96,6 +96,10 @@ static inline double drand48()
     __w; \
 })
 
+/* Round up a value @x to a power of 2 @y */
+#define round_mask_log2(x, y) ((typeof(x))((y) - 1))
+#define round_up(x, y) ((((x) - 1) | round_mask_log2(x, y)) + 1)
+
 #define CHECK_NVAL(_st, _q, _val) ({ \
     typeof(_val) __x = _q (_st); \
     err_on_cond(__x != (_val), _st != _val, "failed: %ld\n", (long)__x); \
