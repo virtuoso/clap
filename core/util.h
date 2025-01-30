@@ -26,6 +26,8 @@ DECLARE_CLEANUP(uchar);
 #define CUX(x) CU(x) = NULL
 #define LOCAL_(t, ts, x) t *x CUX(ts ## p)
 #define LOCAL(t, x) LOCAL_(t, t, x)
+#define LOCAL_SET_(t, ts, x) t *x CU(ts ## p)
+#define LOCAL_SET(t, x) LOCAL_SET_(t, t, x)
 
 #define nonstring __attribute__((nonstring))
 #define unused __attribute__((unused))
