@@ -14,7 +14,7 @@ get_directory_property(CIMGUI_DIR
 
 set(ASSETS  "${ASSET_DIR}/scene.json")
 
-if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(EXTRA_LIBRARIES     "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
                             "--preload-file=${ASSET_DIR}@/asset")
 
