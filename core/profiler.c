@@ -12,7 +12,7 @@ void profiler_show(struct profile *first)
     if (dbgm->unfolded) {
         ui_igVecTableHeader("profile", 1);
 
-        struct profile *prof;
+        struct profile *prof, *last;
         for (prof = first->next; prof; prof = prof->next) {
             igTableNextRow(0, 0);
             igTableNextColumn();
@@ -20,7 +20,16 @@ void profiler_show(struct profile *first)
 
             igTableNextColumn();
             igText("%" PRItvsec ".%09lu", prof->diff.tv_sec, prof->diff.tv_nsec);
+            last = prof;
         }
+        struct timespec total;
+        timespec_diff(&first->ts, &last->ts, &total);
+        igTableNextRow(0, 0);
+        igTableNextColumn();
+        igText("total");
+
+        igTableNextColumn();
+        igText("%" PRItvsec ".%09lu", total.tv_sec, total.tv_nsec);
         igEndTable();
     }
 
