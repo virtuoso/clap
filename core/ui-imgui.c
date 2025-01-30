@@ -69,12 +69,12 @@ void imgui_render(void)
 
 static void *imgui_alloc(size_t size, unused void *user_data)
 {
-    return mem_alloc(size);
+    return mem_alloc(size, .per_frame = 0);
 }
 
 static void imgui_free(void *ptr, unused void *user_data)
 {
-    mem_free(ptr);
+    mem_free(ptr, .per_frame = 0);
 }
 
 void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)

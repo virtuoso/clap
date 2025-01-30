@@ -321,6 +321,8 @@ int main(int argc, char **argv, char **envp)
     scene.limbo_height = -70.0;
     scene_cameras_calc(&scene);
 
+    /* XXX: allocate all the ODE on demand crap outside the frame code */
+    // phys_step(clap_get_phys(clap_ctx), 1);
     imgui_render();
     display_main_loop();
 

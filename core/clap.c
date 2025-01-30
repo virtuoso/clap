@@ -273,6 +273,8 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     unsigned int log_flags = LOG_DEFAULT;
     struct clap_context *ctx;
 
+    mem_init();
+
     if (cfg && !clap_config_is_valid(cfg))
         return NULL;
 

@@ -7,24 +7,31 @@
 #include "common.h"
 #include "error.h"
 
+void mem_init(void);
+
 void mem_frame_begin(void);
 void mem_frame_end(void);
+void mem_frame_limit(size_t limit);
 
 typedef struct alloc_params {
     size_t          nr;
     uint64_t        fatal_fail  : 1,
                     zero        : 1,
-                    __reserved0 : 62;
+                    per_frame   : 1,
+                    __reserved0 : 61;
 } alloc_params;
 
 typedef struct realloc_params {
     uint64_t        fatal_fail  : 1,
-                    __reserved0 : 63;
+                    per_frame   : 1,
+                    __reserved0 : 62;
     size_t          old_size;
     const char      *mod;
 } realloc_params;
 
 typedef struct free_params {
+    uint64_t        per_frame   : 1,
+                    __reserved0 : 63;
     size_t          size;
     const char      *mod;
 } free_params;
