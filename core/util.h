@@ -22,6 +22,7 @@ DECLARE_CLEANUP(void);
 DECLARE_CLEANUP(char);
 DECLARE_CLEANUP(uchar);
 
+#define NOCU(x) ({ typeof(x) _x = x; x = NULL; _x; })
 #define CU(x) __attribute__((cleanup(cleanup__ ## x)))
 #define CUX(x) CU(x) = NULL
 #define LOCAL_(t, ts, x) t *x CUX(ts ## p)
