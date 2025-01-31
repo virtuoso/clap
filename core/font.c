@@ -13,6 +13,7 @@
 
 struct font {
     char *       name;
+    void         *buf;
     FT_Face      face;
     struct glyph g[256];
     struct ref   ref;
@@ -81,6 +82,7 @@ static void font_drop(struct ref *ref)
         texture_deinit(&font->g[i].tex);
     mem_free(font->name);
     FT_Done_Face(font->face);
+    mem_free(font->buf);
 }
 
 DECLARE_REFCLASS(font);
@@ -110,19 +112,30 @@ struct glyph *font_get_glyph(struct font *font, unsigned char c)
 
 struct font *font_open(const char *name, unsigned int size)
 {
-    LOCAL(char, font_name);
     struct font *font;
     FT_Face     face;
 
-    font_name = lib_figure_uri(RES_ASSET, name);
-    if (FT_New_Face(ft, font_name, 0, &face)) {
-        err("failed to load font '%s'\n", font_name);
+    void *buf;
+    size_t buf_size;
+    LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &buf, &buf_size);
+
+    if (!lh) {
+        err("failed to fetch font '%s'\n", name);
+        return NULL;
+    }
+
+    buf = memdup(buf, buf_size);
+    if (FT_New_Memory_Face(ft, buf, buf_size, 0, &face)) {
+        mem_free(buf);
+        err("failed to load font '%s'\n", name);
         return NULL;
     }
 
     font = ref_new(font);
     if (!font)
         return NULL;
+
+    font->buf = buf;
 
     CHECK(mem_asprintf(&font->name, "%s:%u", font_name, size));
     font->face = face;
