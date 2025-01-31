@@ -30,6 +30,7 @@ DECLARE_CLEANUP(uchar);
 #define LOCAL_SET_(t, ts, x) t *x CU(ts ## p)
 #define LOCAL_SET(t, x) LOCAL_SET_(t, t, x)
 
+#define weak __attribute__((weak))
 #define nonstring __attribute__((nonstring))
 #define unused __attribute__((unused))
 #define notrace __attribute__((no_instrument_function))
