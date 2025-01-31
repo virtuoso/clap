@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.7)
 project(clap)
 
+enable_language(C)
+
 include (FindPkgConfig)
 include(CheckSymbolExists)
 
@@ -37,6 +39,7 @@ endif ()
 include(scripts/rust-wasm.cmake)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    enable_language(ASM)
     check_symbol_exists(fls "strings.h" HAVE_FLS)
     set(OpenGL_GL_PREFERENCE "LEGACY")
     set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
