@@ -1,3 +1,5 @@
+option(LDJAM56_BUILD_IN_ASSETS BOOL ON)
+
 set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -14,6 +16,8 @@ get_directory_property(CIMGUI_DIR
 
 set(ASSETS  "${ASSET_DIR}/scene.json")
 
+include(${CMAKE_SOURCE_DIR}/scripts/pack-assets.cmake)
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(EXTRA_LIBRARIES     "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html"
                             "--preload-file=${ASSET_DIR}@/asset")
@@ -24,6 +28,12 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
     endif ()
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
+elseif (LDJAM56_BUILD_IN_ASSETS)
+    # No cpio on pax on windows
+    if (NOT WIN32)
+        asset_pack(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/asset)
+        set(ENGINE_ASSETS ${ASSET_FILE})
+    endif ()
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -44,7 +54,7 @@ endif ()
 set(ENGINE_MAIN onehandclap.c)
 set(ENGINE_LIB libonehandclap)
 
-add_executable(${ENGINE_BIN} ${ENGINE_MAIN})
+add_executable(${ENGINE_BIN} ${ENGINE_MAIN} ${ENGINE_ASSETS})
 add_dependencies(${ENGINE_BIN} ${ENGINE_LIB} meshoptimizer)
 target_include_directories(${ENGINE_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
 set_target_properties(${ENGINE_BIN} PROPERTIES LINK_DEPENDS "${ASSETS};${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html")
