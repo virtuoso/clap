@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "common.h"
+#include "cpio.h"
 #include "librarian.h"
 #include "librarian-file.h"
 #include "json.h"
@@ -14,6 +15,7 @@
 
 extern const unsigned int nr_builtin_shaders;
 extern const struct builtin_file builtin_shaders[];
+static darray(struct builtin_file, builtin_assets);
 
 #if defined(CONFIG_BROWSER) && 0
 static char base_url[PATH_MAX] = "http://ukko.local/clap/";
@@ -253,10 +255,35 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     return ret ? NULL : h;
 }
 
+char rodata weak clap_asset_cpio_start;
+char rodata weak clap_asset_cpio_end;
+
+static void builtin_add_file(void *callback_data, const char *name, void *data, size_t size)
+{
+    struct darray *da = callback_data;
+    struct builtin_file *new_file = _darray_add(da);
+
+    new_file->name = name;
+    new_file->size = size;
+    new_file->contents = data;
+}
+
 int librarian_init(const char *dir)
 {
+    darray_init(builtin_assets);
+
     if (dir && strlen(dir))
         strncpy(base_url, dir, sizeof(base_url) - 1);
+
+    if (&clap_asset_cpio_end - &clap_asset_cpio_start > 1) {
+        cpio_context *cpio = cpio_open(.buf = &clap_asset_cpio_start,
+                                       .buf_size = &clap_asset_cpio_end - &clap_asset_cpio_start,
+                                       .add_file = builtin_add_file,
+                                       .callback_data = &builtin_assets.da);
+        cerr err = cpio_read(cpio);
+        err_on(err != CERR_OK, "cpio_read() failed: %d\n", err);
+        cpio_close(cpio);
+    }
 
     return 0;
 }
