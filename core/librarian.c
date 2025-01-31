@@ -97,6 +97,28 @@ char *lib_figure_uri(enum res_type type, const char *name)
     return ret < CERR_OK ? NULL : uri;
 }
 
+static const char *builtin_file_contents(enum res_type type, const char *name, size_t *psize)
+{
+    int i;
+
+    /* only for shaders at the moment */
+    if (type == RES_SHADER) {
+        const char *_name = str_basename(name);
+        for (i = 0; i < nr_builtin_shaders; i++)
+            if (!strcmp(_name, builtin_shaders[i].name))
+                return builtin_shaders[i].contents;
+    }
+
+    struct builtin_file *file;
+    darray_for_each(file, builtin_assets)
+        if (!strcmp(name, file->name)) {
+            *psize = file->size;
+            return file->contents;
+        }
+
+    return NULL;
+}
+
 #if defined(CONFIG_BROWSER) && 0
 static void lib_onload(void *arg, void *buf, int size)
 {
@@ -135,10 +157,29 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
     struct lib_handle *h;
     LOCAL(char, uri);
     LOCAL(FILE, f);
+    size_t size;
 
     uri = lib_figure_uri(type, name);
     if (!uri)
         return NULL;
+
+    char *_uri = uri + strlen(base_url);
+    const char *builtin_contents = builtin_file_contents(type, _uri, &size);
+
+    if (builtin_contents) {
+        h = ref_new(lib_handle);
+        h->name = name;
+        h->data = data;
+        h->type = type;
+        h->state = RES_LOADED;
+        h->buf = mem_alloc(size + 1, .zero = 1);
+        memcpy(h->buf, builtin_contents, size);
+        h->size = size ? size : strlen(builtin_contents);
+        h->builtin = false;
+        h = ref_get(h);
+        cb(h, data);
+        return h;
+    }
 
     h        = ref_new(lib_handle);
     h->name  = name;
@@ -178,21 +219,6 @@ void cleanup__lib_handlep(lib_handle **h)
         ref_put_last(*h);
 }
 
-static const char *builtin_file_contents(enum res_type type, const char *name)
-{
-    int i;
-
-    /* only for shaders at the moment */
-    if (type != RES_SHADER)
-        return NULL;
-
-    for (i = 0; i < nr_builtin_shaders; i++)
-        if (!strcmp(name, builtin_shaders[i].name))
-            return builtin_shaders[i].contents;
-
-    return NULL;
-}
-
 /*
  * How about:
  *  + first try the local FS, if unsuccessful,
@@ -203,9 +229,15 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     struct lib_handle *h;
     LOCAL(char, uri);
     LOCAL(FILE, f);
+    size_t size;
     int ret = 0;
 
-    const char *builtin_contents = builtin_file_contents(type, name);
+    uri = lib_figure_uri(type, name);
+    if (!uri)
+        return NULL;
+
+    char *_uri = uri + strlen(base_url);
+    const char *builtin_contents = builtin_file_contents(type, _uri, &size);
 
     if (builtin_contents) {
         h = ref_new(lib_handle);
@@ -214,15 +246,11 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
         h->state = RES_LOADED;
         h->buf = (void *)builtin_contents;
         *bufp = h->buf;
-        h->size = strlen(builtin_contents);
+        h->size = size ? size : strlen(builtin_contents);
         *szp = h->size;
         h->builtin = true;
         return h;
     }
-
-    uri = lib_figure_uri(type, name);
-    if (!uri)
-        return NULL;
 
     h = ref_new(lib_handle);
     h->name = name;
