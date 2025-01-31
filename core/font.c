@@ -140,8 +140,6 @@ struct font *font_open(const char *name, unsigned int size)
     CHECK(mem_asprintf(&font->name, "%s:%u", font_name, size));
     font->face = face;
     FT_Set_Pixel_Sizes(font->face, size, size);
-    //for (c = 32; c < 128; c++)
-    //    font_load_glyph(font, c);
 
     return font;
 }
