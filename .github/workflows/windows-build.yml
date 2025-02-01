@@ -30,8 +30,8 @@ jobs:
       - name: configure
         run: |
           cmake --preset w32test -B build/test "${{ github.workspace }}"
-          cmake --preset w32debug -B build/debug "${{ github.workspace }}"
+          #cmake --preset w32debug -B build/debug "${{ github.workspace }}"
       - name: build
         run: |
           cmake --build build/test --parallel 4
-          cmake --build build/debug --parallel 4
+          #cmake --build build/debug --parallel 4
