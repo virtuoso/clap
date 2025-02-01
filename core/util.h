@@ -31,6 +31,11 @@ DECLARE_CLEANUP(uchar);
 #define LOCAL_SET(t, x) LOCAL_SET_(t, t, x)
 
 #define weak __attribute__((weak))
+#ifdef __APPLE__
+#define rodata __attribute__((section("__DATA_CONST,__const")))
+#else
+#define rodata __attribute__((section(".rodata")))
+#endif /* __APPLE__ */
 #define nonstring __attribute__((nonstring))
 #define unused __attribute__((unused))
 #define notrace __attribute__((no_instrument_function))
