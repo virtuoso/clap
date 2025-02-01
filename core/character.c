@@ -174,11 +174,6 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (control == ch) {
-        /*
-         * ch->motion: motion resulting from inputs
-         */
-        motion_compute(&s->mctl);
-
         if (!(s->mctl.ls_dx || s->mctl.ls_dy || s->mctl.rs_dx || s->mctl.rs_dy)) {
             // We got no input regarding character position or camera,
             // so we reset the "target" camera position to the "current"

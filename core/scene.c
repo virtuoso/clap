@@ -282,6 +282,9 @@ void scene_characters_move(struct scene *s)
     struct character *ch;
 
     list_for_each_entry(ch, &s->characters, entry) {
+        if (scene_control_character(s) == ch)
+            motion_compute(&s->mctl);
+
         character_move(ch, s);
     }
 }
