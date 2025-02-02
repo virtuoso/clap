@@ -8,28 +8,14 @@ function(asset_pack asset_dir asset)
     string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" asset_list "${asset_list}")
     file(WRITE ${asset_list_file} ${asset_list})
 
-    if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        # On Mac OS X, cpio doesn't generate proper cpio archives, but pax does
-        add_custom_command(
-            OUTPUT ${asset_cpio}
-            DEPENDS ${assets}
-            COMMAND cd ${asset_dir} && echo asset | pax -w -x bcpio > ${asset_cpio}
-        )
-    elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-        # On linux, good old cpio does the job
-        add_custom_command(
-            OUTPUT ${asset_cpio}
-            DEPENDS ${assets}
-            COMMAND cd ${asset_dir} && find asset | cpio -o > ${asset_cpio}
-        )
-    elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        # On Windows, we roll our own
-        add_custom_command(
-            OUTPUT ${asset_cpio}
-            DEPENDS ${assets} ucpio
-            COMMAND cd ${asset_dir} && ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio -o < ${asset_list_file} > ${asset_cpio}
-        )
-    endif ()
+    # Instead of relying on platforms having their own unique tools
+    # to create a cpio archive, use our own that's consistent across
+    # all platforms
+    add_custom_command(
+        OUTPUT ${asset_cpio}
+        DEPENDS ${assets} ucpio
+        COMMAND cd ${asset_dir} && ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio -o < ${asset_list_file} > ${asset_cpio}
+    )
 
     add_custom_command(
         COMMENT "Generating asset source"
