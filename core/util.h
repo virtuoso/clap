@@ -111,6 +111,19 @@ static inline double drand48()
 #define round_mask_log2(x, y) ((typeof(x))((y) - 1))
 #define round_up(x, y) ((((x) - 1) | round_mask_log2(x, y)) + 1)
 
+#define bitmask_field(x, m) \
+    ({ \
+        typeof(x) __x = (x); \
+        typeof(m) __m = (m); \
+        typeof(m) off = __builtin_ffs(__m); \
+        if (off) { \
+            __x = (__x & __m) >> (off - 1); \
+        } else { \
+            __x = 0; \
+        } \
+        __x; \
+    })
+
 #define CHECK_NVAL(_st, _q, _val) ({ \
     typeof(_val) __x = _q (_st); \
     err_on_cond(__x != (_val), _st != _val, "failed: %ld\n", (long)__x); \
