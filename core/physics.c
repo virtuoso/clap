@@ -390,8 +390,9 @@ static void got_contact(void *data, dGeomID o1, dGeomID o2)
         c->nc += dCollide(o1, o2, 1, &c->contact[c->nc].geom, sizeof(dContact));
 }
 
-struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 start,
-                                vec3 dir, double *pdist)
+static struct entity3d *
+__phys_ray_cast(struct phys *phys, struct entity3d *e, vec3 start, vec3 dir,
+                double *pdist, dContact *contact)
 {
     struct entity3d *target = NULL;
     dGeomID ray = NULL;
@@ -411,14 +412,16 @@ struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 star
     /* find the closest hit that's not self */
     int i, min_i = -1;
     dReal depth = dInfinity;
+    dContactGeom *cgeom;
     for (i = 0; i < c.nc; i++) {
-        if (entity_and_other_by_class(&c.contact[i].geom, dRayClass, NULL, &target)) {
+        cgeom = &c.contact[i].geom;
+        if (entity_and_other_by_class(cgeom, dRayClass, NULL, &target)) {
             /* skip self intersections */
             if (check_self && e == target)
                 continue;
 
-            if (depth > c.contact[i].geom.depth) {
-                depth = c.contact[i].geom.depth;
+            if (depth > cgeom->depth) {
+                depth = cgeom->depth;
                 min_i = i;
             }
         }
@@ -429,11 +432,21 @@ struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 star
         goto out;
     }
 
-    *pdist = c.contact[min_i].geom.depth;
+    cgeom = &c.contact[min_i].geom;
+    if (contact)
+        memcpy(contact, &c.contact[min_i], sizeof(*contact));
+
+    *pdist = cgeom->depth;
 out:
     dGeomDestroy(ray);
 
     return target;
+}
+
+struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 start,
+                                vec3 dir, double *pdist)
+{
+    return __phys_ray_cast(phys, e, start, dir, pdist, NULL);
 }
 
 struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
