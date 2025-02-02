@@ -156,9 +156,9 @@ cerr cpio_read(cpio_context *ctx)
         uint16_t namesize = cpio_val(ctx, h->h_namesize);
         char *name = (char *)ctx->cursor + sizeof(*h);
 
-        if (namesize == sizeof(TRAILER) - 1 &&
+        if (namesize == sizeof(TRAILER) &&
             !strncmp(name, TRAILER, sizeof(TRAILER)))
-            break;
+            return CERR_OK;
 
         ctx->cursor = (uint8_t *)name + ALIGN2(namesize);
 
