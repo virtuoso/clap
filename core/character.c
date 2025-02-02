@@ -52,6 +52,14 @@ static void character_motion_reset(struct character *ch, struct scene *s)
 
     ch->ang_speed = s->ang_speed;
     ch->h_ang_speed = s->ang_speed * 1.5;
+    /*
+     * While we won't perform a second jump while airborne, the ch->jump can
+     * still be set from the input handler, so clearing it only in
+     * character_jump() (via character_move()) is not enough, it needs to be
+     * cleared every frame after character_move() and character_update() are
+     * done.
+     */
+    ch->jump = false;
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
@@ -127,6 +135,13 @@ static inline void character_debug(struct character *ch) {}
 
 static bool character_jump(struct character *ch, struct scene *s, float dx, float dz)
 {
+    /*
+     * Clearing ch->jump here is pointless, because it can be set again from the
+     * input handler for the next frame. We won't act on it here while ch->airborne
+     * is set, but we will, as soon as the character touches the ground. Instead,
+     * it needs to be cleared every frame at character_motion_reset(). See comment
+     * there.
+     */
     if (!ch->jumping || ch->airborne)
         return false;
 
@@ -136,7 +151,6 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
 
     vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
 
-    ch->jump = false;
     ch->airborne = true;
 
     bool was_in_motion = !!vec3_len(ch->motion);
