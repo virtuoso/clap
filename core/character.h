@@ -44,8 +44,6 @@ struct character {
     int     moved;
     bool    jump;
     bool    airborne;
-    bool    stuck;
-    bool    stopped;
     bool    can_sprint;
     bool    jumping;
     /*

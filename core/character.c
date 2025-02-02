@@ -123,8 +123,6 @@ static void character_debug(struct character *ch)
 
         igText("collision %s", entity_name(ch->collision));
         igCheckbox("airborne", &ch->airborne);
-        igCheckbox("stuck", &ch->stuck);
-        igCheckbox("stopped", &ch->stopped);
         igCheckbox("moved", (bool *)&ch->moved);
     }
 

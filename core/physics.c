@@ -223,15 +223,6 @@ void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, vec3 v
     dJointSetLMotorParam(body->lmotor, dParamVel3, vel[2]);
     if (body_also)
         phys_body_set_velocity(body, vel);
-
-    struct entity3d *e = phys_body_entity(body);
-    if (e && e->priv) {
-        struct character *c = e->priv;
-        if (!vec3_len(vel))
-            c->stopped = true;
-        else
-            c->stopped = false;
-    }
 }
 
 void phys_body_stop(struct phys_body *body)
@@ -256,7 +247,6 @@ static void phys_body_stick(struct phys_body *body, dContact *contact)
         return;
 
     if (c) {
-        c->stuck = true;
         c->normal[0] = contact->geom.normal[0];
         c->normal[1] = contact->geom.normal[1];
         c->normal[2] = contact->geom.normal[2];
@@ -539,9 +529,6 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
     dGeomDestroy(ray);
     if (c.nc)
         goto got_it;
-
-    if (!ret)
-        ch->stuck = false;
 
     return ret;
 
