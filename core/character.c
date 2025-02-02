@@ -50,8 +50,6 @@ static void character_motion_reset(struct character *ch, struct scene *s)
         ch->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
     }
 
-    ch->ang_speed = s->ang_speed;
-    ch->h_ang_speed = s->ang_speed * 1.5;
     /*
      * While we won't perform a second jump while airborne, the ch->jump can
      * still be set from the input handler, so clearing it only in
@@ -336,7 +334,7 @@ static int character_update(struct entity3d *e, void *data)
 
     if (scene_control_character(s) == c) {
         if (s->mctl.rs_dy) {
-            float delta = s->mctl.rs_dy * c->ang_speed;
+            float delta = s->mctl.rs_dy * s->ang_speed;
 
             if (c->rs_height)
                 s->camera->ch->motion[1] -= delta / s->ang_speed * 0.1/*s->lin_speed*/;
@@ -345,7 +343,8 @@ static int character_update(struct entity3d *e, void *data)
             s->camera->ch->moved++;
         }
         if (s->mctl.rs_dx) {
-            camera_add_yaw(s->camera, s->mctl.rs_dx * c->h_ang_speed);
+            /* XXX: need a better way to represend horizontal rotational speed */
+            camera_add_yaw(s->camera, s->mctl.rs_dx * s->ang_speed * 1.5);
             s->camera->ch->moved++;
         }
     }
