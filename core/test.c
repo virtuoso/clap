@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include "ca2d.h"
 #include "ca3d.h"
+#include "cpio.h"
 #include "object.h"
 #include "common.h"
 #include "messagebus.h"
@@ -434,6 +435,61 @@ static int ca2d_test0(void)
     return ret;
 }
 
+#define CPIO_TEST_FILE "cpio_test_file"
+#define CPIO_TEST_STRING "cpio test string"
+struct cpio_test_cb_data {
+    int count;
+};
+
+static void __cpio_add_file(void *data, const char *name, void *buf, size_t size)
+{
+    struct cpio_test_cb_data *cbd = data;
+
+    if (!strcmp(name, "cpio_test0")) {
+        LOCAL_SET(char, str) = strndup(buf, size);
+        if (!strcmp(str, "cpio_test0"))
+            cbd->count++;
+    } else if (!strcmp(name, CPIO_TEST_FILE)) {
+        LOCAL_SET(char, str) = strndup(buf, size);
+        if (!strcmp(str, CPIO_TEST_STRING))
+            cbd->count++;
+    }
+}
+
+static int cpio_test0(void)
+{
+    LOCAL_SET(FILE, f) = tmpfile();
+    if (!f)
+        return EXIT_FAILURE;
+
+    LOCAL_SET(cpio_context, ctx) = cpio_open(.write = true, .file = f);
+    if (!ctx)
+        return EXIT_FAILURE;
+
+    cerr err = cpio_write(ctx, __func__, (void *)__func__, sizeof(__func__));
+    if (err != CERR_OK)
+        return EXIT_FAILURE;
+
+    err = cpio_write(ctx, CPIO_TEST_FILE, CPIO_TEST_STRING, sizeof(CPIO_TEST_STRING));
+    if (err != CERR_OK)
+        return EXIT_FAILURE;
+
+    cpio_close(ctx);
+    ctx = NULL;
+    fseek(f, 0, SEEK_SET);
+
+    struct cpio_test_cb_data cbd = {};
+    ctx = cpio_open(.file = f, .add_file = __cpio_add_file, .callback_data = &cbd );
+    if (!ctx)
+        return EXIT_FAILURE;
+
+    err = cpio_read(ctx);
+    if (err)
+        return EXIT_FAILURE;
+
+    return cbd.count == 2 ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -452,6 +508,7 @@ static struct test {
     { .name = "bitmap basic", .test = bitmap_test0 },
     { .name = "ca2d basic", .test = ca2d_test0 },
     { .name = "ca3d basic", .test = ca3d_test0 },
+    { .name = "cpio basic", .test = cpio_test0 },
 };
 
 static struct option long_options[] = {
