@@ -62,7 +62,9 @@ int main(int argc, char **argv, char **envp)
         struct stat st;
         FILE *f;
 
-        fgets(name, sizeof(name), stdin);
+        if (!fgets(name, sizeof(name), stdin))
+            continue;
+
         str_chomp(name);
 
         int err = stat(name, &st);
@@ -79,8 +81,8 @@ int main(int argc, char **argv, char **envp)
             continue;
 
         void *buf = mem_alloc(st.st_size);
-        fread(buf, st.st_size, 1, f);
-        cpio_write(ctx, name, buf, st.st_size);
+        if (fread(buf, st.st_size, 1, f) == 1)
+            cpio_write(ctx, name, buf, st.st_size);
         mem_free(buf);
         fclose(f);
     }
