@@ -80,6 +80,10 @@ static inline double drand48()
 #endif /* thread_local */
 #endif /* _WIN32 */
 
+#ifndef thread_local
+#define thread_local _Thread_local
+#endif /* thread_local */
+
 #ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
