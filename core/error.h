@@ -13,6 +13,8 @@ typedef enum cerr {
     CERR_ALREADY_LOADED         = -8,
     CERR_FONT_NOT_LOADED        = -9,
     CERR_INVALID_SHADER         = -10,
+    CERR_TOO_LARGE              = -11,
+    CERR_INVALID_OPERATION      = -12,
 } cerr;
 
 #define must_check __attribute__((warn_unused_result))
