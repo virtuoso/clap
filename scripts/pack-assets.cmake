@@ -2,7 +2,12 @@
 function(asset_pack asset_dir asset)
     set(asset_asm ${asset}.S)
     set(asset_cpio ${asset}.cpio)
+    set(asset_list_file ${CMAKE_CURRENT_BINARY_DIR}/asset.txt)
     file(GLOB_RECURSE assets ${asset_dir}/asset/*)
+    string(REPLACE ";" "\n" asset_list "${assets}")
+    string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" asset_list "${asset_list}")
+    file(WRITE ${asset_list_file} ${asset_list})
+
     if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         # On Mac OS X, cpio doesn't generate proper cpio archives, but pax does
         add_custom_command(
@@ -16,6 +21,13 @@ function(asset_pack asset_dir asset)
             OUTPUT ${asset_cpio}
             DEPENDS ${assets}
             COMMAND cd ${asset_dir} && find asset | cpio -o > ${asset_cpio}
+        )
+    elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        # On Windows, we roll our own
+        add_custom_command(
+            OUTPUT ${asset_cpio}
+            DEPENDS ${assets} ucpio
+            COMMAND cd ${asset_dir} && ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio -o < ${asset_list_file} > ${asset_cpio}
         )
     endif ()
 
