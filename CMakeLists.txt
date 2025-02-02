@@ -128,6 +128,7 @@ add_subdirectory(core)
 add_subdirectory(demo/ldjam56)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    add_subdirectory(tools/ucpio)
     add_subdirectory(tools/server)
 endif ()
 # find_package(PkgConfig REQUIRED)
