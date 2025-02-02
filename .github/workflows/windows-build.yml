@@ -33,5 +33,5 @@ jobs:
           #cmake --preset w32debug -B build/debug "${{ github.workspace }}"
       - name: build
         run: |
-          cmake --build build/test --parallel 4
+          cmake --build build/test --parallel 4 --verbose
           #cmake --build build/debug --parallel 4
