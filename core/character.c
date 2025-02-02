@@ -15,7 +15,7 @@ static void character_dash(struct character *ch, struct scene *s)
 
     /* if not already dashing or in dashing cooldown, dash */
     if (!timespec_nonzero(&ch->dash_started)) {
-        memcpy(&ch->dash_started, &ch->ts, sizeof(ch->dash_started));
+        ch->dash_started = clap_get_current_timespec(s->clap_ctx);
         ch->lin_speed *= 1.5;
         animation_set_speed(ch->entity, 1.5);
     }
@@ -71,8 +71,6 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     else if (m->input.pad_rt)
         ch->lin_speed *= 3;
 #endif
-
-    ch->ts = clap_get_current_timespec(s->clap_ctx);
 
     if (m->input.dash || m->input.pad_rb)
         character_dash(ch, s);

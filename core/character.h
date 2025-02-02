@@ -20,7 +20,6 @@ struct character {
     struct entity3d *entity;
     int (*orig_update)(struct entity3d *, void *);
     struct camera *camera;
-    struct timespec ts;
     struct timespec dash_started;
     vec3    motion;
     vec3    angle;
