@@ -142,6 +142,16 @@ static inline void __attribute__((noreturn)) clap_unreachable(void)
     unreachable();
 }
 
+static inline void str_chomp(char *str)
+{
+    if (!*str)
+        return;
+
+    int i;
+    for (i = strlen(str) - 1; isspace(str[i]) && i; i--)
+        str[i] = 0;
+}
+
 static inline bool str_endswith(const char *str, const char *sfx)
 {
     size_t sfxlen = strlen(sfx);
