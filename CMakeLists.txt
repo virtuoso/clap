@@ -36,8 +36,6 @@ if (WIN32)
     bootstrap_deps("bootstrap-win32.json")
 endif ()
 
-include(scripts/rust-wasm.cmake)
-
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     enable_language(ASM)
     check_symbol_exists(fls "strings.h" HAVE_FLS)
@@ -70,7 +68,6 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
 endif ()
 
 enable_testing()
-#add_subdirectory(rust)
 
 include(scripts/win32-helpers.cmake)
 
@@ -122,14 +119,10 @@ add_dependencies(libode ode)
 set_property(TARGET libode PROPERTY IMPORTED_LOCATION "${ODE_LIBRARY}")
 set(ODE_INCLUDE "${ODE_ROOT}/include")
 
-# add_subdirectory(ode)
 add_subdirectory(core)
-# add_subdirectory(demo/ldjam52)
 add_subdirectory(demo/ldjam56)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     add_subdirectory(tools/ucpio)
     add_subdirectory(tools/server)
 endif ()
-# find_package(PkgConfig REQUIRED)
-# pkg_check_modules(ode NAMES "ode/")
