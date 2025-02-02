@@ -95,5 +95,4 @@ void motion_compute(struct motionctl *mctl)
 void motion_reset(struct motionctl *mctl, struct scene *s)
 {
     mctl->rs_dx = mctl->rs_dy = mctl->ls_dx = mctl->ls_dy = 0;
-    mctl->rs_height = false;
 }

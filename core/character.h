@@ -48,6 +48,11 @@ struct character {
     bool    stopped;
     bool    can_sprint;
     bool    jumping;
+    /*
+     * Right stick moves the camera on the Y axis if character is
+     * camera if additional input is present, setting this to true
+     */
+    bool    rs_height;
     enum character_state state;
 };
 

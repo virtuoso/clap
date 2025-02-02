@@ -60,6 +60,7 @@ static void character_motion_reset(struct character *ch, struct scene *s)
      * done.
      */
     ch->jump = false;
+    ch->rs_height = false;
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
@@ -81,7 +82,7 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     motion_parse_input(&s->mctl, m);
 
     if (scene_character_is_camera(s, control) && m->input.trigger_l)
-        s->mctl.rs_height = true;
+        ch->rs_height = true;
 
     if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x))
         ch->jump = true;
@@ -339,7 +340,7 @@ static int character_update(struct entity3d *e, void *data)
         if (s->mctl.rs_dy) {
             float delta = s->mctl.rs_dy * c->ang_speed;
 
-            if (s->mctl.rs_height)
+            if (c->rs_height)
                 s->camera->ch->motion[1] -= delta / s->ang_speed * 0.1/*s->lin_speed*/;
             else
                 camera_add_pitch(s->camera, delta);

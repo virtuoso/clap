@@ -19,7 +19,6 @@ struct motionctl {
     float   rs_down;
     float   rs_dx;
     float   rs_dy;
-    bool    rs_height;
 };
 
 void motion_parse_input(struct motionctl *mctl, struct message *m);
