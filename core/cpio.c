@@ -44,11 +44,11 @@ typedef struct cpio_context {
     bool        alloc;
 } cpio_context;
 
-static inline uint16_t cpio_val(cpio_context *ctx, cpio_field *s)
+static inline uint16_t cpio_val(cpio_context *ctx, cpio_field s)
 {
     return ctx->reverse ?
-        ((uint16_t)(*s)[0] << 8 | (*s)[1]) :
-        ((uint16_t)(*s)[1] << 8 | (*s)[0]);
+        ((uint16_t)s[0] << 8 | s[1]) :
+        ((uint16_t)s[1] << 8 | s[0]);
 }
 
 #define ALIGN2(x) round_up((x), 2)
@@ -99,19 +99,19 @@ cerr cpio_read(cpio_context *ctx)
 {
     for (ctx->cursor = ctx->start; ctx->cursor - ctx->start < ctx->size;) {
         cpio_header *h = (cpio_header *)ctx->cursor;
-        uint16_t magic = cpio_val(ctx, &h->h_magic);
+        uint16_t magic = cpio_val(ctx, h->h_magic);
         if (magic != MAGIC) {
             ctx->reverse = true;
-            magic = cpio_val(ctx, &h->h_magic);
+            magic = cpio_val(ctx, h->h_magic);
             if (magic != MAGIC)
                 return CERR_PARSE_FAILED;
         }
 
-        size_t size = cpio_val(ctx, &h->h_filesize_1) << 16 |
-                      cpio_val(ctx, &h->h_filesize_2);
-        mode_t mode = cpio_val(ctx, &h->h_mode);
+        size_t size = cpio_val(ctx, h->h_filesize_1) << 16 |
+                      cpio_val(ctx, h->h_filesize_2);
+        mode_t mode = cpio_val(ctx, h->h_mode);
 
-        uint16_t namesize = cpio_val(ctx, &h->h_namesize);
+        uint16_t namesize = cpio_val(ctx, h->h_namesize);
         char *name = (char *)ctx->cursor + sizeof(*h);
 
         if (namesize == sizeof(TRAILER) - 1 &&
