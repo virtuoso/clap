@@ -29,11 +29,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     endif ()
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 elseif (LDJAM56_BUILD_IN_ASSETS)
-    # No cpio on pax on windows
-    if (NOT WIN32)
-        asset_pack(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/asset)
-        set(ENGINE_ASSETS ${ASSET_FILE})
-    endif ()
+    asset_pack(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/asset)
+    set(ENGINE_ASSETS ${ASSET_FILE})
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
