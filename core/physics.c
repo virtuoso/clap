@@ -479,10 +479,8 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
     struct phys *phys = body->phys;
     dReal epsilon = 1e-3;
     dReal ray_len = body->yoffset - body->ray_off + epsilon;
-    dVector3 dir = { 0, -ray_len, 0 };
     struct character *ch = e->priv;
     struct contact c = {};
-    dGeomID ray;
     const dReal *pos;
     bool ret = false;
 
@@ -528,34 +526,44 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
      *
      * ray_len * 2 might not be enough, but works well for the moment.
      */
-    ray = dCreateRay(phys->space, ray_len * 2);
-    dGeomRaySetBackfaceCull(ray, 1);
-    dGeomRaySetClosestHit(ray, 1);
-    dGeomRaySetFirstContact(ray, 0);
-    dGeomRaySet(ray, pos[0], pos[1] - body->ray_off, pos[2], dir[0], dir[1], dir[2]);
-    phys_contact_surface(NULL, NULL, c.contact, array_size(c.contact));
-    c.nc = 0;
-    dSpaceCollide2(ray, (dGeomID)phys->ground_space, &c, got_contact);
-    if (c.nc && !ch->collision)
-        entity_and_other_by_class(&c.contact[0].geom, dRayClass, NULL, &ch->collision);
-
-    dGeomDestroy(ray);
-    if (c.nc)
+    dContact contact;
+    double dist = ray_len * 2;
+    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0], pos[1] - body->ray_off, pos[2] },
+                                    (vec3){ 0, -1, 0 }, &dist, &contact);
+    if (ch->collision)
         goto got_it;
 
     return ret;
 
 got_it:
-    if (grounded && (c.contact[0].geom.depth > ray_len))
-        goto stick;
-    else if (ray_len - c.contact[0].geom.depth > epsilon)
-        goto stick;
-    else if (ray_len < c.contact[0].geom.depth)
+    if (grounded && (dist > ray_len)) {
+        /*
+         * correct for temporary raising above ground due to uneven
+         * terrain / stairs: move down
+         */
+        goto move;
+    } else if (dist < ray_len) {
+        /*
+         * correct for temporarily going below ground due to dynamics
+         * being faster than the frame rate: move up
+         */
+        goto move;
+    } else if (dist > ray_len) {
+        /*
+         * above ground, airborne, do nothing
+         */
         return false;
+    } else {
+        /*
+         * on the ground, stick, don't correct height
+         */
+        goto stick;
+    }
 
+move:
+    entity3d_move(e, (vec3){ 0, ray_len - dist, 0 });
 stick:
-    entity3d_move(e, (vec3){ 0, ray_len - c.contact[0].geom.depth, 0 });
-    phys_body_stick(body, &c.contact[0]);
+    phys_body_stick(body, &contact);
 
     return true;
 }
