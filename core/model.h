@@ -2,6 +2,7 @@
 #ifndef __CLAP_MODEL_H__
 #define __CLAP_MODEL_H__
 
+#include "anictl.h"
 #include "common.h"
 #include "object.h"
 #include "librarian.h"
@@ -193,6 +194,7 @@ struct entity3d {
     mat4x4           *joint_transforms;
 
     struct phys_body *phys_body;
+    struct anictl    anictl;
     float   color[4];
     enum color_pt color_pt;
     vec3    pos;

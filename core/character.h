@@ -2,7 +2,6 @@
 #ifndef __CLAP_CHARACTER_H__
 #define __CLAP_CHARACTER_H__
 
-#include "anictl.h"
 #include "matrix.h"
 #include "messagebus.h"
 #include "model.h"
@@ -30,7 +29,6 @@ struct character {
     float   jump_upward;
     float   lin_speed;
     struct list entry;
-    struct anictl anictl;
     struct entity3d *collision;
     int     moved;
     bool    jump;

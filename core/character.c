@@ -89,7 +89,7 @@ static void character_idle(struct scene *s, void *priv)
     struct character *c = priv;
 
     c->state = CS_AWAKE;
-    anictl_set_state(&c->anictl, 0);
+    anictl_set_state(&c->entity->anictl, 0);
     animation_push_by_name(c->entity, s, "idle", true, true);
 }
 
@@ -151,7 +151,7 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
     phys_body_attach_motor(body, false);
     phys_body_set_velocity(body, jump);
 
-    if (anictl_set_state(&ch->anictl, 2)) {
+    if (anictl_set_state(&ch->entity->anictl, 2)) {
         if (!animation_by_name(ch->entity->txmodel->model, "jump"))
             animation_push_by_name(ch->entity, s, "jump", true, false);
         else
@@ -290,7 +290,7 @@ void character_move(struct character *ch, struct scene *s)
 
         // entity3d_rotate_Z(ch->entity, atan2f(ch->angle[1], ch->velocity[1]));
         ch->moved++;
-        if (anictl_set_state(&ch->anictl, 1)) {
+        if (anictl_set_state(&ch->entity->anictl, 1)) {
             animation_push_by_name(ch->entity, s, "motion_start", true, false);
             animation_push_by_name(ch->entity, s, "motion", false, true);
         }
@@ -299,7 +299,7 @@ void character_move(struct character *ch, struct scene *s)
         ch->angle[1] = 0;
         ch->angle[2] = 0;
         phys_body_stop(body);
-        if (anictl_set_state(&ch->anictl, 0)) {
+        if (anictl_set_state(&ch->entity->anictl, 0)) {
             animation_push_by_name(ch->entity, s, "motion_stop", true, false);
             animation_push_by_name(ch->entity, s, "idle", false, true);
         }
