@@ -39,7 +39,7 @@ struct character {
     bool    jump;
     bool    airborne;
     bool    can_sprint;
-    bool    jumping;
+    bool    can_jump;
     /*
      * Right stick moves the camera on the Y axis if character is
      * camera if additional input is present, setting this to true

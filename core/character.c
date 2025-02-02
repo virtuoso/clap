@@ -139,7 +139,7 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
      * it needs to be cleared every frame at character_motion_reset(). See comment
      * there.
      */
-    if (!ch->jumping || ch->airborne)
+    if (!ch->can_jump || ch->airborne)
         return false;
 
     struct phys_body *body = ch->entity->phys_body;

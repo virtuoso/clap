@@ -209,7 +209,7 @@ static void scene_characters_debug(struct scene *scene)
             igSliderFloat("jump forward", &c->jump_forward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             igSliderFloat("jump upward", &c->jump_upward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             igSliderFloat("speed", &c->speed, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
-            igCheckbox("can jump", &c->jumping);
+            igCheckbox("can jump", &c->can_jump);
             igCheckbox("can sprint", &c->can_sprint);
             igPopID();
             igSeparator();
@@ -565,7 +565,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 e = c->entity;
                 e->skip_culling = true;
                 c->can_sprint = can_sprint;
-                c->jumping = jump;
+                c->can_jump = jump;
             } else {
                 e = entity3d_new(txm);
             }
