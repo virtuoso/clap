@@ -352,6 +352,8 @@ static int scene_handle_input(struct message *m, void *data)
     if (s->ui_is_on)
         return 0;
 
+    motion_parse_input(&s->mctl, m);
+
     struct character *current = scene_control_character(s);
     if (current)
         character_handle_input(current, s, m);

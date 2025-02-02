@@ -77,8 +77,6 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     if (m->input.dash || m->input.pad_rb)
         character_dash(ch, s);
 
-    motion_parse_input(&s->mctl, m);
-
     if (scene_character_is_camera(s, control) && m->input.trigger_l)
         ch->rs_height = true;
 
