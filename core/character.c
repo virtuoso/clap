@@ -8,9 +8,9 @@
 #include "ui.h"
 #include "ui-debug.h"
 
-static void character_sprint(struct character *ch, struct scene *s)
+static void character_dash(struct character *ch, struct scene *s)
 {
-    if (!ch->can_sprint)
+    if (!ch->can_dash)
         return;
 
     /* if not already dashing or in dashing cooldown, dash */
@@ -75,7 +75,7 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     ch->ts = clap_get_current_timespec(s->clap_ctx);
 
     if (m->input.dash || m->input.pad_rb)
-        character_sprint(ch, s);
+        character_dash(ch, s);
 
     motion_parse_input(&s->mctl, m);
 

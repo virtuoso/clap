@@ -38,7 +38,7 @@ struct character {
     int     moved;
     bool    jump;
     bool    airborne;
-    bool    can_sprint;
+    bool    can_dash;
     bool    can_jump;
     /*
      * Right stick moves the camera on the Y axis if character is

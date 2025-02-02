@@ -210,7 +210,7 @@ static void scene_characters_debug(struct scene *scene)
             igSliderFloat("jump upward", &c->jump_upward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             igSliderFloat("speed", &c->speed, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             igCheckbox("can jump", &c->can_jump);
-            igCheckbox("can sprint", &c->can_sprint);
+            igCheckbox("can dash", &c->can_dash);
             igPopID();
             igSeparator();
         }
@@ -435,7 +435,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *gltf = NULL;
-    bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, can_sprint = false;
+    bool terrain_clamp = false, cull_face = true, alpha_blend = false, jump = false, can_dash = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
     geom_class class = GEOM_SPHERE;
     int collision = -1;
@@ -461,8 +461,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             cull_face = p->bool_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "alpha_blend"))
             alpha_blend = p->bool_;
-        else if (p->tag == JSON_BOOL && !strcmp(p->key, "can_sprint"))
-            can_sprint = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "can_dash"))
+            can_dash = p->bool_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "jump"))
             jump = p->bool_;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
@@ -564,7 +564,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 c = character_new(txm, scene);
                 e = c->entity;
                 e->skip_culling = true;
-                c->can_sprint = can_sprint;
+                c->can_dash = can_dash;
                 c->can_jump = jump;
             } else {
                 e = entity3d_new(txm);
