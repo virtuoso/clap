@@ -22,10 +22,6 @@ struct character {
     struct camera *camera;
     struct timespec ts;
     struct timespec dash_started;
-    /* XXX: the below double entity's: rx,ry,rz */
-    float   pitch;  /* left/right */
-    float   yaw;    /* sideways */
-    float   roll;   /* up/down */
     vec3    motion;
     vec3    angle;
     vec3    velocity;
