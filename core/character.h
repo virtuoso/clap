@@ -28,8 +28,6 @@ struct character {
     float   speed;
     float   jump_forward;
     float   jump_upward;
-    float   yaw_turn;
-    float   pitch_turn;
     float   lin_speed;
     struct list entry;
     struct anictl anictl;
