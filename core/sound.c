@@ -262,6 +262,7 @@ void sound_done(void)
         ref_put(sound);
     }
 
+    alcMakeContextCurrent(NULL);
     alcDestroyContext(context);
     alcCloseDevice(device);
 }
