@@ -205,7 +205,6 @@ struct sound *sound_load(const char *name)
     CHECK(sound = ref_new(sound));
     CHECK(uri = lib_figure_uri(RES_ASSET, name));
 
-    alcMakeContextCurrent(context);
     alGenBuffers(1, &sound->buffer_idx);
     //CHECK_VAL(alGetError(), AL_NO_ERROR);
 
