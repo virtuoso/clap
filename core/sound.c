@@ -246,12 +246,6 @@ void sound_init(void)
 	alListenerfv(AL_VELOCITY,listenerVel);
 	alListenerfv(AL_ORIENTATION,listenerOri);
     CHECK_VAL(alGetError(), AL_NO_ERROR); // clear any error messages
-
-    //intro_sound = sound_load("the_entertainer.ogg");
-
-    //alSourcef(intro_sound->source_idx, AL_PITCH, 1.0f);
-	//alSourcefv(intro_sound->source_idx, AL_POSITION, source0Pos);
-	//alSourcefv(intro_sound->source_idx, AL_VELOCITY, source0Vel);
 }
 
 void sound_done(void)
