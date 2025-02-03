@@ -8,6 +8,14 @@
 #include <vorbis/codec.h>
 #include <vorbis/vorbisfile.h>
 
+#ifdef __APPLE__
+#include <OpenAL/al.h>
+#include <OpenAL/alc.h>
+#else
+#include <AL/al.h>
+#include <AL/alc.h>
+#endif /* __APPLE__ */
+
 #include "object.h"
 #include "librarian.h"
 #include "logger.h"

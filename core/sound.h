@@ -2,14 +2,6 @@
 #ifndef __CLAP_SOUND_H__
 #define __CLAP_SOUND_H__
 
-#ifdef __APPLE__
-#include <OpenAL/al.h>
-#include <OpenAL/alc.h>
-#else
-#include <AL/al.h>
-#include <AL/alc.h>
-#endif /* __APPLE__ */
-
 struct sound;
 
 void sound_init(void);
