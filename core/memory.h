@@ -33,10 +33,17 @@ typedef struct free_params {
     _mem_alloc(MODNAME, (_size), &(alloc_params){ args })
 must_check void *_mem_alloc(const char *mod, size_t size, const alloc_params *params);
 
-#define mem_realloc(_buf, _size, args...) \
-    _mem_realloc_array(MODNAME, (_buf), 1, (_size), &(realloc_params){ args })
-#define mem_realloc_array(_buf, _nmemb, _size, args...) \
-    _mem_realloc_array(MODNAME, (_buf), (_nmemb), (_size), &(realloc_params){ args })
+#define mem_realloc(_buf, _size, args...) ({ \
+    typeof(_buf) __x = _mem_realloc_array(MODNAME, (_buf), 1, (_size), \
+                                          &(realloc_params){ args }); \
+    __x; \
+})
+
+#define mem_realloc_array(_buf, _nmemb, _size, args...) ({ \
+    typeof(_buf) __x = _mem_realloc_array(MODNAME, (_buf), (_nmemb), (_size), \
+                                          &(realloc_params){ args }); \
+    __x; \
+})
 must_check void *_mem_realloc_array(const char *mod, void *buf, size_t nmemb, size_t size,
                                     const realloc_params *params);
 
