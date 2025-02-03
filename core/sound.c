@@ -255,6 +255,9 @@ struct sound *sound_load(const char *name)
 
     ov_cb_data cb_data = {};
     LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &cb_data.buf, &cb_data.size);
+    if (!lh)
+        return NULL;
+
     cerr err = CERR_INVALID_FORMAT;
 
     if (str_endswith(name, ".wav"))
