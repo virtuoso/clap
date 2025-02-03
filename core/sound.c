@@ -262,7 +262,9 @@ void sound_done(void)
         ref_put(sound);
     }
 
-    alcMakeContextCurrent(NULL);
+    warn_on(alcMakeContextCurrent(NULL) != ALC_TRUE,
+            "setting current context to NULL failed\n");
     alcDestroyContext(context);
-    alcCloseDevice(device);
+    warn_on(alcCloseDevice(device) != ALC_TRUE,
+            "destroying context failed\n");
 }
