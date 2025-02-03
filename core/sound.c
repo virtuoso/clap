@@ -128,7 +128,7 @@ static const ov_callbacks ogg_callbacks = {
 };
 
 #define BUFSZ (4096*1024)
-static int parse_ogg(struct sound *sound, ov_cb_data *cb_data)
+static cerr_check parse_ogg(struct sound *sound, ov_cb_data *cb_data)
 {
     long ret, offset = 0, bufsz = 0;
     int eof = 0, current_section;
@@ -137,7 +137,7 @@ static int parse_ogg(struct sound *sound, ov_cb_data *cb_data)
     char **ptr;
 
     if (ov_open_callbacks(cb_data, &vf, NULL, 0, ogg_callbacks) < 0)
-        return -1;
+        return CERR_PARSE_FAILED;
     
     ptr = ov_comment(&vf, -1)->user_comments;
     vi = ov_info(&vf,-1);
@@ -171,10 +171,10 @@ static int parse_ogg(struct sound *sound, ov_cb_data *cb_data)
     ov_clear(&vf);
     mem_free(buf);
 
-    return 0;
+    return CERR_OK;
 }
 
-static int parse_wav(struct sound *sound, ov_cb_data *cb_data)
+static cerr_check parse_wav(struct sound *sound, ov_cb_data *cb_data)
 {
     uchar *buf = cb_data->buf;
     int offset, bits;
@@ -220,7 +220,7 @@ static int parse_wav(struct sound *sound, ov_cb_data *cb_data)
     alBufferData(sound->buffer_idx, sound->format, buf + offset,
                  cb_data->size - offset, sound->freq);
 
-    return 0;
+    return CERR_OK;
 }
 
 void sound_set_gain(struct sound *sound, float gain)
@@ -255,14 +255,14 @@ struct sound *sound_load(const char *name)
 
     ov_cb_data cb_data = {};
     LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &cb_data.buf, &cb_data.size);
-    int err = -1;
+    cerr err = CERR_INVALID_FORMAT;
 
     if (str_endswith(name, ".wav"))
         err = parse_wav(sound, &cb_data);
     else if (str_endswith(name, ".ogg"))
         err = parse_ogg(sound, &cb_data);
 
-    if (err) {
+    if (err != CERR_OK) {
         err("couldn't load '%s'\n", lh->name);
         return NULL;
     }

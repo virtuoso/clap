@@ -15,6 +15,7 @@ typedef enum cerr {
     CERR_INVALID_SHADER         = -10,
     CERR_TOO_LARGE              = -11,
     CERR_INVALID_OPERATION      = -12,
+    CERR_INVALID_FORMAT         = -13,
 } cerr;
 
 #define must_check __attribute__((warn_unused_result))
