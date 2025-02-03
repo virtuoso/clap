@@ -13,6 +13,18 @@
 #include "logger.h"
 #include "sound.h"
 
+struct sound {
+    unsigned int    nr_channels;
+    ALsizei         size, freq;
+    ALenum          format;
+    ALuint          buffer_idx;
+    ALuint          source_idx;
+    float           gain;
+    uchar           *buf;
+    struct list     entry;
+    struct ref      ref;
+};
+
 //#define NUM_BUFFERS 1
 #define NUM_SOURCES 1
 #define NUM_ENVIRONMENTS 1

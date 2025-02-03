@@ -5,26 +5,12 @@
 #ifdef __APPLE__
 #include <OpenAL/al.h>
 #include <OpenAL/alc.h>
-//#include <OpenAL/alut.h>
 #else
 #include <AL/al.h>
 #include <AL/alc.h>
-//#include <AL/alut.h>
 #endif /* __APPLE__ */
 
-#include "object.h"
-
-struct sound {
-    unsigned int    nr_channels;
-    ALsizei         size, freq;
-    ALenum          format;
-    ALuint          buffer_idx;
-    ALuint          source_idx;
-    float           gain;
-    uchar           *buf;
-    struct list     entry;
-    struct ref      ref;
-};
+struct sound;
 
 void sound_init(void);
 void sound_done(void);
