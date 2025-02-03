@@ -76,7 +76,8 @@ static void windows_reslash(char *dest, const char *src, ssize_t len, bool forwa
             dest[i] = src[i];
     dest[i] = 0;
 #else
-    strncpy(dest, src, len + 1);
+    if (dest != src)
+        strncpy(dest, src, len + 1);
 #endif /* _WIN32 */
 }
 
