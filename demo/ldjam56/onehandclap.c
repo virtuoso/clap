@@ -274,11 +274,13 @@ int main(int argc, char **argv, char **envp)
      * Need to write vorbis callbacks for this
      * lib_request(RES_ASSET, "morning.ogg", opening_sound_load, &intro_sound);
      */
-    float intro_gain = settings_get_num(clap_get_settings(clap_ctx), NULL, "music_volume");
     intro_sound = sound_load("morning.ogg");
-    sound_set_gain(intro_sound, intro_gain);
-    sound_set_looping(intro_sound, true);
-    sound_play(intro_sound);
+    if (intro_sound) {
+        float intro_gain = settings_get_num(clap_get_settings(clap_ctx), NULL, "music_volume");
+        sound_set_gain(intro_sound, intro_gain);
+        sound_set_looping(intro_sound, true);
+        sound_play(intro_sound);
+    }
 
     /* Before models are created */
     lib_request_shaders("contrast", &scene.shaders);
