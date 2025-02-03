@@ -21,7 +21,7 @@
 #include "logger.h"
 #include "sound.h"
 
-struct sound {
+typedef struct sound {
     unsigned int    nr_channels;
     ALsizei         size, freq;
     ALenum          format;
@@ -31,7 +31,7 @@ struct sound {
     uchar           *buf;
     struct list     entry;
     struct ref      ref;
-};
+} sound;
 
 //#define NUM_BUFFERS 1
 #define NUM_SOURCES 1
@@ -205,11 +205,13 @@ static void sound_drop(struct ref *ref)
 
 DECLARE_REFCLASS(sound);
 
+DEFINE_CLEANUP(sound, if (*p) ref_put(*p))
+
 struct sound *sound_load(const char *name)
 {
-    struct sound *sound;
-
-    CHECK(sound = ref_new(sound));
+    LOCAL_SET(sound, sound) = ref_new(sound);
+    if (!sound)
+        return NULL;
 
     alGenBuffers(1, &sound->buffer_idx);
     //CHECK_VAL(alGetError(), AL_NO_ERROR);
@@ -225,7 +227,6 @@ struct sound *sound_load(const char *name)
 
     if (err) {
         err("couldn't load '%s'\n", lh->name);
-        ref_put_last(sound);
         return NULL;
     }
 
@@ -236,7 +237,7 @@ struct sound *sound_load(const char *name)
 
     list_append(&sounds, &sound->entry);
 
-    return sound;
+    return NOCU(sound);
 }
 
 void sound_set_looping(struct sound *sound, bool looping)
