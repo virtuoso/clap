@@ -24,12 +24,11 @@
 
 typedef struct sound {
     unsigned int    nr_channels;
-    ALsizei         size, freq;
+    ALsizei         freq;
     ALenum          format;
     ALuint          buffer_idx;
     ALuint          source_idx;
     float           gain;
-    uchar           *buf;
     struct list     entry;
     struct ref      ref;
 } sound;
@@ -155,54 +154,57 @@ static int parse_ogg(struct sound *sound, ov_cb_data *cb_data)
     sound->nr_channels = vi->channels;
     sound->freq = vi->rate;
     sound->format = AL_FORMAT_STEREO16; /* XXX */
+    uchar *buf = NULL;
+    size_t size = 0;
+
     while (!eof) {
         if (!bufsz) {
             bufsz = BUFSZ;
-            sound->buf = realloc(sound->buf, sound->size + BUFSZ);
+            buf = mem_realloc(buf, size + BUFSZ);
         }
-        ret = ov_read(&vf, (char *)sound->buf + offset, bufsz, 0, 2, 1, &current_section);
-        sound->size += ret;
+        ret = ov_read(&vf, (char *)buf + offset, bufsz, 0, 2, 1, &current_section);
+        size += ret;
         offset += ret;
         bufsz -= ret;
-        //dbg("read %ld (%ld), size %zu\n", ret, BUFSZ, sound->size);
+        //dbg("read %ld (%ld), size %zu\n", ret, BUFSZ, size);
         if (ret == 0)
             eof = 1;
     }
-    dbg("size: %d\n", sound->size);
-    alBufferData(sound->buffer_idx, sound->format, sound->buf,
-                 sound->size, sound->freq);
+    dbg("size: %zu\n", size);
+    alBufferData(sound->buffer_idx, sound->format, buf, size, sound->freq);
     ov_clear(&vf);
+    mem_free(buf);
 
     return 0;
 }
 
 static int parse_wav(struct sound *sound, ov_cb_data *cb_data)
 {
+    uchar *buf = cb_data->buf;
     int offset, bits;
 
-    sound->size = cb_data->size;
-    sound->buf = cb_data->buf;
+    buf = cb_data->buf;
 
     offset = 12; // ignore the RIFF header
     offset += 8; // ignore the fmt header
     offset += 2; // ignore the format type
   
-    sound->nr_channels = sound->buf[offset + 1] << 8;
-    sound->nr_channels |= sound->buf[offset];
+    sound->nr_channels = buf[offset + 1] << 8;
+    sound->nr_channels |= buf[offset];
     offset += 2;
     dbg("channels: %d\n", sound->nr_channels);
 
-    sound->freq  = sound->buf[offset + 3] << 24;
-    sound->freq |= sound->buf[offset + 2] << 16;
-    sound->freq |= sound->buf[offset + 1] << 8;
-    sound->freq |= sound->buf[offset];
+    sound->freq  = buf[offset + 3] << 24;
+    sound->freq |= buf[offset + 2] << 16;
+    sound->freq |= buf[offset + 1] << 8;
+    sound->freq |= buf[offset];
     offset += 4;
     dbg("frequency: %u\n", sound->freq);
 
     offset += 6; // ignore block size and bps
 
-    bits = sound->buf[offset + 1] << 8;
-    bits |= sound->buf[offset];
+    bits = buf[offset + 1] << 8;
+    bits |= buf[offset];
     offset += 2;
     dbg("bits: %u\n", bits);
 
@@ -222,8 +224,8 @@ static int parse_wav(struct sound *sound, ov_cb_data *cb_data)
     }
     offset += 8; // ignore the data chunk
 
-    alBufferData(sound->buffer_idx, sound->format, sound->buf + offset,
-                 sound->size - offset, sound->freq);
+    alBufferData(sound->buffer_idx, sound->format, buf + offset,
+                 cb_data->size - offset, sound->freq);
 
     return 0;
 }
@@ -244,7 +246,6 @@ static void sound_drop(struct ref *ref)
     struct sound *sound = container_of(ref, struct sound, ref);
     alDeleteBuffers(1, &sound->buffer_idx);
     alDeleteSources(1, &sound->source_idx);
-    mem_free(sound->buf);
 }
 
 DECLARE_REFCLASS(sound);
