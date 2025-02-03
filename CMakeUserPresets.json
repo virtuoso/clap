@@ -105,6 +105,7 @@
                 "VCPKG_LOAD_VCVARS_ENV": true,
                 "VCPKG_TARGET_TRIPLET": "x64-windows-static",
                 "CLAP_BUILD_NETWORKING": false,
+                "LDJAM56_BUILD_IN_ASSETS": false,
                 "GLSLC_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/shaderc",
                 "SPIRV_CROSS_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/spirv-cross"
             }
