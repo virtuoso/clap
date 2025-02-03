@@ -33,7 +33,6 @@ typedef struct sound {
     struct ref      ref;
 } sound;
 
-//#define NUM_BUFFERS 1
 #define NUM_SOURCES 1
 #define NUM_ENVIRONMENTS 1
 
@@ -46,7 +45,6 @@ ALfloat listenerOri[]={0.0,0.0,1.0, 0.0,1.0,0.0};
 ALfloat source0Pos[]={ 0.0, 0.0, 0.0};
 ALfloat source0Vel[]={ 0.0, 0.0, 0.0};
 
-//ALuint  buffer[NUM_BUFFERS];
 ALuint  source[NUM_SOURCES];
 ALuint  environment[NUM_ENVIRONMENTS];
 
@@ -166,11 +164,9 @@ static int parse_ogg(struct sound *sound, ov_cb_data *cb_data)
         size += ret;
         offset += ret;
         bufsz -= ret;
-        //dbg("read %ld (%ld), size %zu\n", ret, BUFSZ, size);
         if (ret == 0)
             eof = 1;
     }
-    dbg("size: %zu\n", size);
     alBufferData(sound->buffer_idx, sound->format, buf, size, sound->freq);
     ov_clear(&vf);
     mem_free(buf);
@@ -192,21 +188,18 @@ static int parse_wav(struct sound *sound, ov_cb_data *cb_data)
     sound->nr_channels = buf[offset + 1] << 8;
     sound->nr_channels |= buf[offset];
     offset += 2;
-    dbg("channels: %d\n", sound->nr_channels);
 
     sound->freq  = buf[offset + 3] << 24;
     sound->freq |= buf[offset + 2] << 16;
     sound->freq |= buf[offset + 1] << 8;
     sound->freq |= buf[offset];
     offset += 4;
-    dbg("frequency: %u\n", sound->freq);
 
     offset += 6; // ignore block size and bps
 
     bits = buf[offset + 1] << 8;
     bits |= buf[offset];
     offset += 2;
-    dbg("bits: %u\n", bits);
 
     sound->format = 0;
     if (bits == 8) {
@@ -259,7 +252,6 @@ struct sound *sound_load(const char *name)
         return NULL;
 
     alGenBuffers(1, &sound->buffer_idx);
-    //CHECK_VAL(alGetError(), AL_NO_ERROR);
 
     ov_cb_data cb_data = {};
     LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &cb_data.buf, &cb_data.size);
