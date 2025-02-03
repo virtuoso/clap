@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -82,8 +83,51 @@ static size_t ogg_read(void *ptr, size_t size, size_t nmemb, void *datasource)
     return nmemb;
 }
 
+static int ogg_seek(void *datasource, ogg_int64_t offset, int whence)
+{
+    ov_cb_data *cb_data = datasource;
+    ogg_int64_t new_offset;
+
+    switch (whence) {
+        case SEEK_SET:
+            if (offset > cb_data->size)
+                goto err_inval;
+            cb_data->off = offset;
+            break;
+
+        case SEEK_CUR:
+            new_offset = (ogg_int64_t)cb_data->off + offset;
+            if (new_offset < 0 || new_offset > cb_data->size)
+                goto err_inval;
+            cb_data->off = new_offset;
+            break;
+
+        case SEEK_END:
+            new_offset = (ogg_int64_t)cb_data->size + offset;
+            if (new_offset < 0 || new_offset > cb_data->size)
+                goto err_inval;
+            cb_data->off = new_offset;
+            break;
+        default:
+            goto err_inval;
+    }
+    return cb_data->off;
+
+err_inval:
+    errno = EINVAL;
+    return -1;
+}
+
+static long ogg_tell(void *datasource)
+{
+    ov_cb_data *cb_data = datasource;
+    return (long)cb_data->off;
+}
+
 static const ov_callbacks ogg_callbacks = {
     .read_func  = ogg_read,
+    .seek_func  = ogg_seek,
+    .tell_func  = ogg_tell,
 };
 
 #define BUFSZ (4096*1024)
