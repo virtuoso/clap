@@ -54,32 +54,49 @@ static DECLARE_LIST(sounds);
 
 /* ffmpeg -i asset/morning.wav -codec:a libvorbis -ar 44100 asset/morning.ogg */
 
+/*
+ * Ogg Vorbis callbacks for reading from a memory buffer
+ *
+ * Non-stdio load docs: https://xiph.org/vorbis/doc/vorbisfile/callbacks.html
+ */
+typedef struct ov_cb_data {
+    void    *buf;
+    size_t  size;
+    off_t   off;
+} ov_cb_data;
+
 static size_t ogg_read(void *ptr, size_t size, size_t nmemb, void *datasource)
 {
-    return fread(ptr, size, nmemb, datasource);
+    ov_cb_data *cb_data = datasource;
+    off_t total_size;
+
+    if (mul_overflow(size, nmemb, &total_size))
+        return 0;
+
+    if (cb_data->off + total_size > cb_data->size)
+        return 0;
+
+    memcpy(ptr, cb_data->buf + cb_data->off, total_size);
+    cb_data->off += total_size;
+
+    return nmemb;
 }
 
-/* OV_CALLBACKS_NOCLOSE have the wrong fread() */
 static const ov_callbacks ogg_callbacks = {
     .read_func  = ogg_read,
 };
 
-/* Non-stdio load: https://xiph.org/vorbis/doc/vorbisfile/callbacks.html */
 #define BUFSZ (4096*1024)
-static int parse_ogg(struct sound *sound, const char *uri)
+static int parse_ogg(struct sound *sound, ov_cb_data *cb_data)
 {
-    int eof = 0, current_section;
     long ret, offset = 0, bufsz = 0;
+    int eof = 0, current_section;
     OggVorbis_File vf;
     vorbis_info *vi;
-    LOCAL(FILE, f);
     char **ptr;
 
-    CHECK(f = fopen(uri, "r"));
-    if (ov_open_callbacks(f, &vf, NULL, 0, ogg_callbacks) < 0) {
-        err("can't open '%s'\n", uri);
+    if (ov_open_callbacks(cb_data, &vf, NULL, 0, ogg_callbacks) < 0)
         return -1;
-    }
     
     ptr = ov_comment(&vf, -1)->user_comments;
     vi = ov_info(&vf,-1);
@@ -110,26 +127,17 @@ static int parse_ogg(struct sound *sound, const char *uri)
     dbg("size: %d\n", sound->size);
     alBufferData(sound->buffer_idx, sound->format, sound->buf,
                  sound->size, sound->freq);
-    mem_free(sound->buf);
-    sound->buf = NULL;
     ov_clear(&vf);
 
     return 0;
 }
 
-static int parse_wav(struct sound *sound, const char *uri)
+static int parse_wav(struct sound *sound, ov_cb_data *cb_data)
 {
-    LOCAL(FILE, f);
-    struct stat st;
     int offset, bits;
 
-    CHECK(f = fopen(uri, "r"));
-
-    fstat(fileno(f), &st);
-    sound->size = st.st_size;
-
-    sound->buf = mem_alloc(st.st_size, .fatal_fail = 1);
-    CHECK_VAL(fread(sound->buf, st.st_size, 1, f), st.st_size);
+    sound->size = cb_data->size;
+    sound->buf = cb_data->buf;
 
     offset = 12; // ignore the RIFF header
     offset += 8; // ignore the fmt header
@@ -200,18 +208,26 @@ DECLARE_REFCLASS(sound);
 struct sound *sound_load(const char *name)
 {
     struct sound *sound;
-    LOCAL(char, uri);
 
     CHECK(sound = ref_new(sound));
-    CHECK(uri = lib_figure_uri(RES_ASSET, name));
 
     alGenBuffers(1, &sound->buffer_idx);
     //CHECK_VAL(alGetError(), AL_NO_ERROR);
 
-    if (str_endswith(uri, ".wav"))
-        CHECK_VAL(parse_wav(sound, uri), 0);
-    else if (str_endswith(uri, ".ogg"))
-        CHECK_VAL(parse_ogg(sound, uri), 0);
+    ov_cb_data cb_data = {};
+    LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &cb_data.buf, &cb_data.size);
+    int err = -1;
+
+    if (str_endswith(name, ".wav"))
+        err = parse_wav(sound, &cb_data);
+    else if (str_endswith(name, ".ogg"))
+        err = parse_ogg(sound, &cb_data);
+
+    if (err) {
+        err("couldn't load '%s'\n", lh->name);
+        ref_put_last(sound);
+        return NULL;
+    }
 
     alGenSources(1, &sound->source_idx);
     alSourcei(sound->source_idx, AL_BUFFER, sound->buffer_idx);
