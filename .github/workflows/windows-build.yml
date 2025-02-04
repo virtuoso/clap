@@ -40,4 +40,5 @@ jobs:
         with:
           name: clap
           retention-days: 30
-          path: ${{ github.workspace }}/build/test/demo/ldjam56/ldjam56.exe
+          path: ${{ github.workspace }}
+          #/build/test/demo/ldjam56/ldjam56.exe
