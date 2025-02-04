@@ -119,6 +119,24 @@ static const ov_callbacks ogg_callbacks = {
     .tell_func  = ogg_tell,
 };
 
+#ifdef CLAP_DEBUG
+#define AC(__x, __ret) do { \
+    __x; \
+    ALenum err = alGetError(); \
+    if (err != AL_NO_ERROR) { \
+        err("AL error: %x\n", err); \
+        enter_debugger(); \
+        __ret; \
+    } \
+} while(0)
+#else
+#define AC(__x, __ret) do { \
+    __x; \
+    if (alGetError() != AL_NO_ERROR) \
+        __ret; \
+} while (0);
+#endif /* CLAP_DEBUG */
+
 #define BUFSZ (4096*1024)
 static cerr_check parse_ogg(struct sound *sound, ov_cb_data *cb_data)
 {
@@ -144,7 +162,8 @@ static cerr_check parse_ogg(struct sound *sound, ov_cb_data *cb_data)
     sound->nr_channels = vi->channels;
     sound->freq = vi->rate;
     sound->format = AL_FORMAT_STEREO16; /* XXX */
-    uchar *buf = NULL;
+
+    LOCAL(uchar, buf);
     size_t size = 0;
 
     while (!eof) {
@@ -159,9 +178,11 @@ static cerr_check parse_ogg(struct sound *sound, ov_cb_data *cb_data)
         if (ret == 0)
             eof = 1;
     }
-    alBufferData(sound->buffer_idx, sound->format, buf, size, sound->freq);
+
     ov_clear(&vf);
-    mem_free(buf);
+
+    AC(alBufferData(sound->buffer_idx, sound->format, buf, size, sound->freq),
+                    return CERR_INVALID_OPERATION );
 
     return CERR_OK;
 }
@@ -209,8 +230,8 @@ static cerr_check parse_wav(struct sound *sound, ov_cb_data *cb_data)
     }
     offset += 8; // ignore the data chunk
 
-    alBufferData(sound->buffer_idx, sound->format, buf + offset,
-                 cb_data->size - offset, sound->freq);
+    AC(alBufferData(sound->buffer_idx, sound->format, buf + offset,
+                    cb_data->size - offset, sound->freq), return CERR_INVALID_OPERATION);
 
     return CERR_OK;
 }
@@ -218,7 +239,7 @@ static cerr_check parse_wav(struct sound *sound, ov_cb_data *cb_data)
 void sound_set_gain(struct sound *sound, float gain)
 {
     sound->gain = gain;
-    alSourcef(sound->source_idx, AL_GAIN, sound->gain);
+    AC(alSourcef(sound->source_idx, AL_GAIN, sound->gain), return);
 }
 
 float sound_get_gain(struct sound *sound)
@@ -243,7 +264,7 @@ struct sound *sound_load(const char *name)
     if (!sound)
         return NULL;
 
-    alGenBuffers(1, &sound->buffer_idx);
+    AC(alGenBuffers(1, &sound->buffer_idx), return NULL);
 
     ov_cb_data cb_data = {};
     LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &cb_data.buf, &cb_data.size);
@@ -262,10 +283,10 @@ struct sound *sound_load(const char *name)
         return NULL;
     }
 
-    alGenSources(1, &sound->source_idx);
-    alSourcei(sound->source_idx, AL_BUFFER, sound->buffer_idx);
-    alSourcei(sound->source_idx, AL_LOOPING, AL_FALSE);
-    alSourceQueueBuffers(sound->source_idx, 1, &sound->buffer_idx);
+    AC(alGenSources(1, &sound->source_idx), return NULL);
+    AC(alSourcei(sound->source_idx, AL_BUFFER, sound->buffer_idx), return NULL);
+    AC(alSourcei(sound->source_idx, AL_LOOPING, AL_FALSE), return NULL);
+    // AC(alSourceQueueBuffers(sound->source_idx, 1, &sound->buffer_idx), return NULL);
 
     list_append(&sounds, &sound->entry);
 
@@ -274,14 +295,14 @@ struct sound *sound_load(const char *name)
 
 void sound_set_looping(struct sound *sound, bool looping)
 {
-    alSourcei(sound->source_idx, AL_LOOPING, looping ? AL_TRUE : AL_FALSE);
+    AC(alSourcei(sound->source_idx, AL_LOOPING, looping ? AL_TRUE : AL_FALSE), return);
 }
 
 void sound_play(struct sound *sound)
 {
     int state;
 
-    alSourcePlay(sound->source_idx);
+    AC(alSourcePlay(sound->source_idx), return);
     alGetSourcei(sound->source_idx, AL_SOURCE_STATE, &state);
     dbg_on(state != AL_PLAYING, "source state: %d\n", state);
 }
@@ -298,10 +319,9 @@ void sound_init(void)
     context = alcCreateContext(device, NULL);
     alcMakeContextCurrent(context);
 
-	alListenerfv(AL_POSITION,listenerPos);
-	alListenerfv(AL_VELOCITY,listenerVel);
-	alListenerfv(AL_ORIENTATION,listenerOri);
-    CHECK_VAL(alGetError(), AL_NO_ERROR); // clear any error messages
+    AC(alListenerfv(AL_POSITION, listenerPos), return);
+    AC(alListenerfv(AL_VELOCITY, listenerVel), return);
+    AC(alListenerfv(AL_ORIENTATION, listenerOri), return);
 }
 
 void sound_done(void)
