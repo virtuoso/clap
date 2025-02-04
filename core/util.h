@@ -166,9 +166,15 @@ static inline bool str_endswith(const char *str, const char *sfx)
     return false;
 }
 
+#ifndef _WIN32
+#define PATH_DELIM '/'
+#else
+#define PATH_DELIM '\\'
+#endif /* _WIN32 */
+
 static inline const char *str_basename(const char *str)
 {
-    const char *p = strrchr(str, '/');
+    const char *p = strrchr(str, PATH_DELIM);
 
     if (p)
         return p + 1;
