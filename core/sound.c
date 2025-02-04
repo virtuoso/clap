@@ -22,6 +22,12 @@
 #include "logger.h"
 #include "sound.h"
 
+typedef struct sound_context {
+    ALCdevice   *device;
+    ALCcontext  *context;
+    struct list sounds;
+} sound_context;
+
 typedef struct sound {
     unsigned int    nr_channels;
     ALsizei         freq;
@@ -33,14 +39,9 @@ typedef struct sound {
     struct ref      ref;
 } sound;
 
-static ALCdevice *device;
-static ALCcontext *context;
-
 static ALfloat listenerPos[] = { 0.0, 0.0, 0.0 };
 static ALfloat listenerVel[] = { 0.0, 0.0, 0.0 };
 static ALfloat listenerOri[] = { 0.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
-
-static DECLARE_LIST(sounds);
 
 /* ffmpeg -i asset/morning.wav -codec:a libvorbis -ar 44100 asset/morning.ogg */
 
@@ -138,7 +139,7 @@ static const ov_callbacks ogg_callbacks = {
 #endif /* CLAP_DEBUG */
 
 #define BUFSZ (4096*1024)
-static cerr_check parse_ogg(struct sound *sound, ov_cb_data *cb_data)
+static cerr_check parse_ogg(sound *sound, ov_cb_data *cb_data)
 {
     long ret, offset = 0, bufsz = 0;
     int eof = 0, current_section;
@@ -187,7 +188,7 @@ static cerr_check parse_ogg(struct sound *sound, ov_cb_data *cb_data)
     return CERR_OK;
 }
 
-static cerr_check parse_wav(struct sound *sound, ov_cb_data *cb_data)
+static cerr_check parse_wav(sound *sound, ov_cb_data *cb_data)
 {
     uchar *buf = cb_data->buf;
     int offset, bits;
@@ -236,20 +237,20 @@ static cerr_check parse_wav(struct sound *sound, ov_cb_data *cb_data)
     return CERR_OK;
 }
 
-void sound_set_gain(struct sound *sound, float gain)
+void sound_set_gain(sound *sound, float gain)
 {
     sound->gain = gain;
     AC(alSourcef(sound->source_idx, AL_GAIN, sound->gain), return);
 }
 
-float sound_get_gain(struct sound *sound)
+float sound_get_gain(sound *sound)
 {
     return sound->gain;
 }
 
 static void sound_drop(struct ref *ref)
 {
-    struct sound *sound = container_of(ref, struct sound, ref);
+    sound *sound = container_of(ref, struct sound, ref);
     alDeleteBuffers(1, &sound->buffer_idx);
     alDeleteSources(1, &sound->source_idx);
 }
@@ -258,7 +259,7 @@ DECLARE_REFCLASS(sound);
 
 DEFINE_CLEANUP(sound, if (*p) ref_put(*p))
 
-struct sound *sound_load(const char *name)
+sound *sound_load(sound_context *ctx, const char *name)
 {
     LOCAL_SET(sound, sound) = ref_new(sound);
     if (!sound)
@@ -288,17 +289,17 @@ struct sound *sound_load(const char *name)
     AC(alSourcei(sound->source_idx, AL_LOOPING, AL_FALSE), return NULL);
     // AC(alSourceQueueBuffers(sound->source_idx, 1, &sound->buffer_idx), return NULL);
 
-    list_append(&sounds, &sound->entry);
+    list_append(&ctx->sounds, &sound->entry);
 
     return NOCU(sound);
 }
 
-void sound_set_looping(struct sound *sound, bool looping)
+void sound_set_looping(sound *sound, bool looping)
 {
     AC(alSourcei(sound->source_idx, AL_LOOPING, looping ? AL_TRUE : AL_FALSE), return);
 }
 
-void sound_play(struct sound *sound)
+void sound_play(sound *sound)
 {
     int state;
 
@@ -307,34 +308,44 @@ void sound_play(struct sound *sound)
     dbg_on(state != AL_PLAYING, "source state: %d\n", state);
 }
 
-void sound_init(void)
+DEFINE_CLEANUP(sound_context, if (*p) mem_free(*p))
+
+sound_context *sound_init(void)
 {
+    sound_context *ctx = mem_alloc(sizeof(*ctx), .zero = 1);
+    if (!ctx)
+        return NULL;
+
     int major, minor;
 
+    list_init(&ctx->sounds);
     alcGetIntegerv(NULL, ALC_MAJOR_VERSION, 1, &major);
     alcGetIntegerv(NULL, ALC_MINOR_VERSION, 1, &minor);
     dbg("ALC v%d.%d device: %s\n", major, minor, alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER));
 
-    device = alcOpenDevice(NULL);
-    context = alcCreateContext(device, NULL);
-    alcMakeContextCurrent(context);
+    ctx->device = alcOpenDevice(NULL);
+    ctx->context = alcCreateContext(ctx->device, NULL);
+    alcMakeContextCurrent(ctx->context);
 
-    AC(alListenerfv(AL_POSITION, listenerPos), return);
-    AC(alListenerfv(AL_VELOCITY, listenerVel), return);
-    AC(alListenerfv(AL_ORIENTATION, listenerOri), return);
+    AC(alListenerfv(AL_POSITION, listenerPos), return NULL);
+    AC(alListenerfv(AL_VELOCITY, listenerVel), return NULL);
+    AC(alListenerfv(AL_ORIENTATION, listenerOri), return NULL);
+
+    return ctx;
 }
 
-void sound_done(void)
+void sound_done(sound_context *ctx)
 {
-    struct sound *sound, *its;
+    sound *sound, *its;
 
-    list_for_each_entry_iter(sound, its, &sounds, entry) {
+    list_for_each_entry_iter(sound, its, &ctx->sounds, entry) {
         ref_put(sound);
     }
 
     warn_on(alcMakeContextCurrent(NULL) != ALC_TRUE,
             "setting current context to NULL failed\n");
-    alcDestroyContext(context);
-    warn_on(alcCloseDevice(device) != ALC_TRUE,
+    alcDestroyContext(ctx->context);
+    warn_on(alcCloseDevice(ctx->device) != ALC_TRUE,
             "destroying context failed\n");
+    mem_free(ctx);
 }

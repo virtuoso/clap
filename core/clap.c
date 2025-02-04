@@ -54,6 +54,7 @@ struct clap_context {
     char                **argv;
     char                **envp;
     struct timespec     current_time;
+    sound_context       *sound;
     struct phys         *phys;
     struct settings     *settings;
     renderer_t          *renderer;
@@ -63,6 +64,11 @@ struct clap_context {
 struct phys *clap_get_phys(struct clap_context *ctx)
 {
     return ctx->phys;
+}
+
+sound_context *clap_get_sound(struct clap_context *ctx)
+{
+    return ctx->sound;
 }
 
 struct timespec clap_get_current_timespec(struct clap_context *ctx)
@@ -301,7 +307,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (ctx->cfg.font)
         font_init(ctx->cfg.default_font_name);
     if (ctx->cfg.sound)
-        sound_init();
+        CHECK(ctx->sound = sound_init());
     if (ctx->cfg.phys)
         CHECK(ctx->phys = phys_init());
     if (ctx->cfg.graphics) {
@@ -331,7 +337,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
 void clap_done(struct clap_context *ctx, int status)
 {
     if (ctx->cfg.sound)
-        sound_done();
+        sound_done(ctx->sound);
     if (ctx->cfg.phys)
         phys_done(ctx->phys);
     if (ctx->cfg.graphics) {

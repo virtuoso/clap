@@ -6,9 +6,11 @@ struct fps_data;
 struct clap_context;
 struct phys;
 struct settings;
+typedef struct sound_context sound_context;
 
 /* Get the clap's physics handle */
 struct phys *clap_get_phys(struct clap_context *ctx);
+sound_context *clap_get_sound(struct clap_context *ctx);
 struct settings *clap_get_settings(struct clap_context *ctx);
 struct timespec clap_get_current_timespec(struct clap_context *ctx);
 double clap_get_current_time(struct clap_context *ctx);
