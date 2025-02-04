@@ -7,6 +7,10 @@ function(asset_pack asset_dir asset)
     string(REPLACE ";" "\n" asset_list "${assets}")
     string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" asset_list "${asset_list}")
     file(WRITE ${asset_list_file} ${asset_list})
+    # find_program(UCPIO bash)
+    # if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    #     set(SHELL "c:/Program Files/Git/bin/bash.exe")
+    # endif ()
 
     # Instead of relying on platforms having their own unique tools
     # to create a cpio archive, use our own that's consistent across
@@ -14,7 +18,11 @@ function(asset_pack asset_dir asset)
     add_custom_command(
         OUTPUT ${asset_cpio}
         DEPENDS ${assets} ucpio
-        COMMAND cd ${asset_dir} && ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio -o < ${asset_list_file} > ${asset_cpio}
+        WORKING_DIRECTORY ${asset_dir}
+        COMMAND ${CMAKE_SOURCE_DIR}/scripts/ucpio.sh
+        ARGS "${CMAKE_BINARY_DIR}" "${asset_list_file}" "${asset_cpio}"
+        # COMMAND "${CMAKE_BINARY_DIR}/tools/ucpio/ucpio"
+        # ARGS -o < "${asset_list_file}" > "${asset_cpio}"
     )
 
     add_custom_command(
