@@ -33,20 +33,12 @@ typedef struct sound {
     struct ref      ref;
 } sound;
 
-#define NUM_SOURCES 1
-#define NUM_ENVIRONMENTS 1
-
-static ALCdevice * device;
+static ALCdevice *device;
 static ALCcontext *context;
 
-ALfloat listenerPos[]={0.0,0.0,0.0};
-ALfloat listenerVel[]={0.0,0.0,0.0};
-ALfloat listenerOri[]={0.0,0.0,1.0, 0.0,1.0,0.0};
-ALfloat source0Pos[]={ 0.0, 0.0, 0.0};
-ALfloat source0Vel[]={ 0.0, 0.0, 0.0};
-
-ALuint  source[NUM_SOURCES];
-ALuint  environment[NUM_ENVIRONMENTS];
+static ALfloat listenerPos[] = { 0.0, 0.0, 0.0 };
+static ALfloat listenerVel[] = { 0.0, 0.0, 0.0 };
+static ALfloat listenerOri[] = { 0.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
 
 static DECLARE_LIST(sounds);
 
