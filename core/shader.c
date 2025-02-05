@@ -4,8 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include "common.h"
-//#include "matrix.h"
-#include "display.h"
+#include "render.h"
 #include "util.h"
 #include "object.h"
 #include "shader.h"

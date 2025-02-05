@@ -6,7 +6,6 @@
 #include "common.h"
 #include "object.h"
 #include "librarian.h"
-#include "display.h" /* XXX: OpenGL headers are included there */
 #include "physics.h"
 #include "matrix.h"
 #include "mesh.h"

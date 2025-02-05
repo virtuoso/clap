@@ -1,5 +1,4 @@
 #include "common.h"
-#include "display.h"
 #include "ui-debug.h"
 
 static struct backend_data {

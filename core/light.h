@@ -4,7 +4,7 @@
 
 #include "common.h"
 #include "render.h"
-#include "display.h"
+#include "render.h"
 #include "view.h"
 
 #define LIGHTS_MAX 4

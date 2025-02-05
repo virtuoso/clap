@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "common.h"
 #include "logger.h"
-#include "display.h"
 #include "render.h"
 #include "librarian.h"
 #include "util.h"

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "shader_constants.h"
-#include "display.h"
 #include "error.h"
 #include "logger.h"
 #include "object.h"
