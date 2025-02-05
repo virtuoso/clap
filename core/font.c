@@ -137,7 +137,7 @@ struct font *font_open(const char *name, unsigned int size)
 
     font->buf = buf;
 
-    CHECK(mem_asprintf(&font->name, "%s:%u", font_name, size));
+    CHECK(mem_asprintf(&font->name, "%s:%u", name, size));
     font->face = face;
     FT_Set_Pixel_Sizes(font->face, size, size);
 
