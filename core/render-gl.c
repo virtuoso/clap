@@ -1048,9 +1048,9 @@ void renderer_init(renderer_t *renderer)
     int i, nr_exts;
     const unsigned char *ext;
 
-    glGetIntegerv(GL_NUM_EXTENSIONS, &nr_exts);
+    GL(glGetIntegerv(GL_NUM_EXTENSIONS, &nr_exts));
     for (i = 0; i < nr_exts; i++) {
-        ext = glGetStringi(GL_EXTENSIONS, i);
+        GL(ext = glGetStringi(GL_EXTENSIONS, i));
         msg("GL extension: '%s'\n", ext);
     }
 
