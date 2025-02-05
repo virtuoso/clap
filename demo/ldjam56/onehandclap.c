@@ -41,7 +41,6 @@ struct scene scene; /* XXX */
 struct ui ui;
 // struct game_state game_state;
 
-struct clap_context *clap_ctx;
 struct pipeline *main_pl;
 static bool prev_msaa;
 
@@ -103,7 +102,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     unsigned long count, frame_count;
     renderer_t *r = clap_get_renderer(s->clap_ctx);
 
-    frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(clap_ctx), 1);
+    frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(s->clap_ctx), 1);
 
     ui_update(&ui);
 
@@ -254,7 +253,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    clap_ctx = clap_init(&cfg, argc, argv, envp);
+    struct clap_context *clap_ctx = clap_init(&cfg, argc, argv, envp);
 
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
