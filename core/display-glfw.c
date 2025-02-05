@@ -131,74 +131,61 @@ void display_get_window_pos_size(int *x, int *y, int *w, int *h)
     glfwGetWindowSize(window, w, h);
 }
 
-void display_init(const char *title, int w, int h, display_update_cb update, void *update_data,
-                  display_resize_cb resize)
+static cerr display_gl_init(const char *title, int *pmajor, int *pminor, bool *pcore_profile)
 {
     const unsigned char *vendor, *renderer, *glver, *shlangver;
-    int ret;
+    int glew_ret = -1;
+
 #ifdef CONFIG_GLES
-    bool core_profile = false;
-    int major = 3, minor = 1;
+    *pcore_profile = false;
+    *pmajor = 3;
+    *pminor = 1;
 #else
-    bool core_profile = true;
-    int major = 4, minor = 1;
+    *pcore_profile = true;
+    *pmajor = 4;
+    *pminor = 1;
 #endif /* CONFIG_GLES */
 
-    width = w;
-    height = h;
-    update_fn = update;
-    update_fn_data = update_data;
-    resize_fn = resize;
-
 restart:
-    if (!glfwInit()) {
-        err("failed to initialize GLFW\n");
-        return;
-    }
-    primary_monitor = glfwGetPrimaryMonitor();
-    primary_monitor_mode = glfwGetVideoMode(primary_monitor);
-
-    glfwSetErrorCallback(error_cb);
     glfwWindowHint(GLFW_SAMPLES, 4);
-    dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
-#ifdef CONFIG_GLES
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+    if (!*pcore_profile)
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, *pmajor);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, *pminor);
     glfwWindowHint(GLFW_OPENGL_PROFILE,
-                   core_profile ? GLFW_OPENGL_CORE_PROFILE : GLFW_OPENGL_ANY_PROFILE);
-#else
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
-    glfwWindowHint(GLFW_OPENGL_PROFILE,
-                   core_profile ? GLFW_OPENGL_CORE_PROFILE : GLFW_OPENGL_ANY_PROFILE);
+                   *pcore_profile ? GLFW_OPENGL_CORE_PROFILE : GLFW_OPENGL_ANY_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
+
     window = glfwCreateWindow(width, height, title, NULL, NULL);
     if (!window) {
         err("failed to create GLFW window\n");
-        return;
+        return CERR_INITIALIZATION_FAILED;
     }
 
     glfwSetWindowPosCallback(window, move_cb);
     glfwSetFramebufferSizeCallback(window, resize_cb);
+
     glfwMakeContextCurrent(window);
-    glewExperimental = GL_TRUE;
-    ret = glewInit();
-    if (ret != GLEW_OK) {
-        err("failed to initialize GLEW: %s\n", glewGetErrorString(ret));
-        return;
+
+    if (glew_ret) {
+        glewExperimental = GL_TRUE;
+        glew_ret = glewInit();
+        if (glew_ret != GLEW_OK) {
+            err("failed to initialize GLEW: %s\n", glewGetErrorString(glew_ret));
+            return CERR_NOMEM;
+        }
     }
+
     if (glfwExtensionSupported("WGL_EXT_swap_control_tear") ||
         glfwExtensionSupported("GLX_EXT_swap_control_tear"))
         glfwSwapInterval(-1);
     else
         glfwSwapInterval(1);
 
-    vendor    = glGetString(GL_VENDOR);
-    renderer  = glGetString(GL_RENDERER);
-    glver     = glGetString(GL_VERSION);
-    shlangver = glGetString(GL_SHADING_LANGUAGE_VERSION);
+    GL(vendor    = glGetString(GL_VENDOR));
+    GL(renderer  = glGetString(GL_RENDERER));
+    GL(glver     = glGetString(GL_VERSION));
+    GL(shlangver = glGetString(GL_SHADING_LANGUAGE_VERSION));
     msg("GL vendor '%s' renderer '%s' GL version %s GLSL version %s\n",
         vendor, renderer, glver, shlangver);
 
@@ -213,28 +200,53 @@ restart:
 
         if (profile) {
             profile = strstr("Core", (const char *)glver);
-            if (!!profile && !core_profile) {
-                core_profile = true;
+            if (!!profile && !*pcore_profile) {
+                *pcore_profile = true;
                 restart++;
             }
         }
 
-        if (_major > major) {
-            major = _major;
-            restart++;
-        }
-
-        if (_minor > minor) {
-            minor = _minor;
+        if (_major > *pmajor || _minor > *pminor) {
+            *pmajor = _major;
+            *pminor = _minor;
             restart++;
         }
 
         if (restart) {
             glfwDestroyWindow(window);
-            glfwTerminate();
             goto restart;
         }
     }
+
+    return CERR_OK;
+}
+
+void display_init(const char *title, int w, int h, display_update_cb update, void *update_data,
+                  display_resize_cb resize)
+{
+    bool core_profile;
+    int major, minor;
+
+    width = w;
+    height = h;
+    update_fn = update;
+    update_fn_data = update_data;
+    resize_fn = resize;
+
+    if (!glfwInit()) {
+        err("failed to initialize GLFW\n");
+        return;
+    }
+    primary_monitor = glfwGetPrimaryMonitor();
+    primary_monitor_mode = glfwGetVideoMode(primary_monitor);
+
+    glfwSetErrorCallback(error_cb);
+
+    cerr err = display_gl_init(title, &major, &minor, &core_profile);
+    if (err != CERR_OK)
+        return;
+
+    dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
 
     renderer_t *r = renderer_get();
     renderer_init(r);
