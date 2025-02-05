@@ -1,0 +1,21 @@
+# Use -DCLAP_RENDERER to select a renderer
+set(CLAP_RENDERER "OpenGL" CACHE STRING "Graphics renderer")
+
+if (${CLAP_RENDERER} STREQUAL "OpenGL")
+    set(CONFIG_RENDERER_OPENGL 1)
+elseif (${CLAP_RENDERER} STREQUAL "Metal")
+    set(CONFIG_RENDERER_METAL 1)
+    message(FATAL_ERROR "Metal renderer is not supported yet")
+elseif (${CLAP_RENDERER} STREQUAL "Vulkan")
+    set(CONFIG_RENDERER_VULKAN 1)
+    message(FATAL_ERROR "Vulkan renderer is not supported yet")
+elseif (${CLAP_RENDERER} STREQUAL "D3D12")
+    set(CONFIG_RENDERER_D3D12 1)
+    message(FATAL_ERROR "D3D12 renderer is not supported yet")
+else ()
+    message(FATAL_ERROR "Unsupported renderer: ${CLAP_RENDERER}")
+endif ()
+
+if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten") AND NOT CONFIG_RENDERER_OPENGL)
+    message(FATAL_ERROR "Emscripten build only supports OpenGL renderer")
+endif ()

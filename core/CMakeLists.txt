@@ -1,5 +1,7 @@
 set(CMAKE_C_STANDARD 23)
 
+include (${CMAKE_SOURCE_DIR}/scripts/renderer-switch.cmake)
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
