@@ -138,14 +138,13 @@ void display_leave_fullscreen(void)
     emscripten_exit_fullscreen();
 }
 
-void display_init(const char *title, int width, int height, display_update_cb update_fn, void *data,
-                  display_resize_cb rfn)
+cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, display_resize_cb rfn)
 {
     EmscriptenWebGLContextAttributes attr;
     int context;
 
     resize_fn = rfn;
-    callback_data = data;
+    callback_data = ctx;
     emscripten_webgl_init_context_attributes(&attr);
     attr.explicitSwapControl       = 0;
     attr.alpha                     = 1;
@@ -160,13 +159,15 @@ void display_init(const char *title, int width, int height, display_update_cb up
 
     emscripten_webgl_make_context_current(context);
 
-    renderer_t *renderer = renderer_get();
+    renderer_t *renderer = clap_get_renderer(ctx);
     renderer_init(renderer);
     renderer_set_version(renderer, 3, 0, RENDERER_ANY_PROFILE);
 
     EM_ASM(runtime_ready = true;);
     display_get_sizes(NULL, NULL);
-    calc_refresh_rate(update_fn, data);
+    calc_refresh_rate(update_fn, ctx);
+
+    return CERR_OK;
 }
 
 void display_debug_ui_init(struct clap_context *ctx)

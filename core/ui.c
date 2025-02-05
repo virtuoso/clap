@@ -463,7 +463,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     renderer_clear(ui->renderer, true, true, false);
     // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit.width, uit.height,
     //     fbo->fbo, fbo->width, fbo->height);
-    models_render(&fbo_ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, NULL);
+    models_render(ui->renderer, &fbo_ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, NULL);
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);
 
@@ -1438,7 +1438,7 @@ static void build_onclick(struct ui_element *uie, float x, float y)
 
 static unused const char *wheel_items[] = { "^", ">", "v", "<" };
 extern const char *build_date;
-int ui_init(struct ui *ui, int width, int height)
+int ui_init(struct ui *ui, renderer_t *r, int width, int height)
 {
     struct font *font;
 
@@ -1447,7 +1447,7 @@ int ui_init(struct ui *ui, int width, int height)
     lib_request_shaders("glyph", &ui->shaders);
     lib_request_shaders("ui", &ui->shaders);
 
-    ui->renderer = renderer_get();
+    ui->renderer = r;
     ui->ui_prog = shader_prog_find(&ui->shaders, "ui");
     ui->glyph_prog = shader_prog_find(&ui->shaders, "glyph");
     if (!ui->ui_prog || !ui->glyph_prog)

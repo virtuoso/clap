@@ -2,6 +2,7 @@
 #include <limits.h>
 #include "messagebus.h"
 #include "character.h"
+#include "clap.h"
 #include "gltf.h"
 #include "physics.h"
 #include "primitives.h"

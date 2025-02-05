@@ -17,6 +17,7 @@
 #endif
 
 #include <stdbool.h>
+#include "error.h"
 
 #ifdef CONFIG_BROWSER
 static inline const char *gluErrorString(int err) { return "not implemented"; }
@@ -25,7 +26,7 @@ static inline const char *gluErrorString(int err) { return "not implemented"; }
 struct clap_context;
 typedef void (*display_update_cb)(void *data);
 typedef void (*display_resize_cb)(void *data, int w, int h);
-void display_init(const char *title, int width, int height, display_update_cb update_fn, void *update_fn_data, display_resize_cb resize_fn);
+cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, display_resize_cb resize_cb);
 void display_debug_ui_init(struct clap_context *ctx);
 int display_refresh_rate(void);
 void display_main_loop(void);

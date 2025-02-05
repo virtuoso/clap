@@ -3,6 +3,7 @@
 #define __CLAP_UI_DEBUG_H__
 
 #include <stdbool.h>
+#include "clap.h"
 #include "error.h"
 #include "util.h"
 #include "linmath.h"

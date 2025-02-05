@@ -101,6 +101,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
     struct scene *s = data;
     unsigned long count, frame_count;
+    renderer_t *r = clap_get_renderer(s->clap_ctx);
 
     frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(clap_ctx), 1);
 
@@ -109,12 +110,12 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     pipeline_render(main_pl, !ui.modal);
 
     if (scene.debug_draws_enabled) {
-        models_render(&scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
+        models_render(r, &scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
                       NULL, scene.width, scene.height, -1, NULL);
         debug_draw_clearout(s);
     }
 
-    models_render(&ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
+    models_render(r, &ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
 
     if (prev_msaa != s->light.shadow_msaa) {
         prev_msaa = s->light.shadow_msaa;
@@ -314,7 +315,7 @@ int main(int argc, char **argv, char **envp)
 
     build_main_pl(&main_pl);
 
-    err = ui_init(&ui, scene.width, scene.height);
+    err = ui_init(&ui, clap_get_renderer(clap_ctx), scene.width, scene.height);
     if (err)
         goto exit_ui;
 

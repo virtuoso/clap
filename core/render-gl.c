@@ -1032,8 +1032,6 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
  * Renderer context
  ****************************************************************************/
 
-static renderer_t renderer;
-
 void renderer_init(renderer_t *renderer)
 {
     static_assert(sizeof(GLint) == sizeof(int), "GLint doesn't match int");
@@ -1082,11 +1080,6 @@ void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_p
     renderer->major     = major;
     renderer->minor     = minor;
     renderer->profile   = profile;
-}
-
-renderer_t *renderer_get(void)
-{
-    return &renderer;
 }
 
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height)

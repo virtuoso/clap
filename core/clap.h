@@ -2,6 +2,8 @@
 #ifndef __CLAP_CLAP_H__
 #define __CLAP_CLAP_H__
 
+#include "render.h"
+
 struct fps_data;
 struct clap_context;
 struct phys;
@@ -10,6 +12,10 @@ typedef struct sound_context sound_context;
 
 /* Get the clap's physics handle */
 struct phys *clap_get_phys(struct clap_context *ctx);
+/* Get clap's config structure */
+struct clap_config *clap_get_config(struct clap_context *ctx);
+/* Get clap's renderer */
+renderer_t *clap_get_renderer(struct clap_context *ctx);
 sound_context *clap_get_sound(struct clap_context *ctx);
 struct settings *clap_get_settings(struct clap_context *ctx);
 struct timespec clap_get_current_timespec(struct clap_context *ctx);

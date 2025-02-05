@@ -6,6 +6,7 @@
 #include <errno.h>
 #include "shader_constants.h"
 #include "librarian.h"
+#include "clap.h"
 #include "common.h"
 #include "interp.h"
 #include "render.h"
@@ -594,10 +595,9 @@ void model3dtx_prepare(struct model3dtx *txm, struct shader_prog *p)
     shader_plug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
 }
 
-void model3dtx_draw(struct model3dtx *txm)
+static void model3dtx_draw(renderer_t *r, struct model3dtx *txm)
 {
     struct model3d *m = txm->model;
-    renderer_t *r = renderer_get();
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
     renderer_draw(r, m->draw_type, m->nr_faces[m->cur_lod], DT_USHORT);
@@ -688,9 +688,10 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
     an->time_end = max(an->time_end, time[frames - 1]/* + time[1] - time[0]*/);
 }
 
-void models_render(struct mq *mq, struct shader_prog *shader_override, struct light *light,
-                   struct camera *camera, struct matrix4f *proj_mx, struct entity3d *focus,
-                   int width, int height, int cascade, unsigned long *count)
+void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
+                   struct light *light, struct camera *camera, struct matrix4f *proj_mx,
+                   struct entity3d *focus, int width, int height, int cascade,
+                   unsigned long *count)
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
@@ -699,7 +700,6 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
     struct view *view = NULL;
     struct subview *subview = NULL;
     unsigned long nr_ents = 0, culled = 0;
-    renderer_t *r = renderer_get();
 
     if (camera)
         view = &camera->view;
@@ -839,7 +839,7 @@ void models_render(struct mq *mq, struct shader_prog *shader_override, struct li
 
             shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx->cell);
 
-            model3dtx_draw(txmodel);
+            model3dtx_draw(r, txmodel);
             nr_ents++;
         }
         model3dtx_done(txmodel, prog);

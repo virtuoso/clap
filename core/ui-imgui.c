@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "clap.h"
 #include "common.h"
 #include "settings.h"
 #include "memory.h"

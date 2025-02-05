@@ -143,7 +143,6 @@ struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
 void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex);
 void model3dtx_prepare(struct model3dtx *m, struct shader_prog *p);
 void model3dtx_done(struct model3dtx *m, struct shader_prog *p);
-void model3dtx_draw(struct model3dtx *m);
 
 static inline const char *txmodel_name(struct model3dtx *txm)
 {
@@ -214,9 +213,10 @@ struct entity3d {
 };
 
 void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
-void models_render(struct mq *mq, struct shader_prog *shader_override, struct light *light,
-                   struct camera *camera, struct matrix4f *proj_mx, struct entity3d *focus,
-                   int width, int height, int cascade, unsigned long *count);
+void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
+                   struct light *light, struct camera *camera, struct matrix4f *proj_mx,
+                   struct entity3d *focus, int width, int height, int cascade,
+                   unsigned long *count);
 
 static inline const char *entity_name(struct entity3d *e)
 {

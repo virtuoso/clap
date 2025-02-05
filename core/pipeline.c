@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "clap.h"
 #include "memory.h"
 #include "model.h"
 #include "pipeline.h"
@@ -131,7 +132,7 @@ struct pipeline *pipeline_new(struct scene *s, const char *name)
 
     CHECK(pl = ref_new(pipeline));
     list_init(&pl->passes);
-    pl->renderer = renderer_get();
+    pl->renderer = clap_get_renderer(s->clap_ctx);
     pl->scene = s;
     pl->name = name;
     pl->resize = pipeline_default_resize;
@@ -497,12 +498,13 @@ repeat:
                 renderer_clear(pl->renderer, clear_color, clear_depth, false);
 
                 if (!src)
-                    models_render(&s->mq, pass->prog_override, &s->light,
+                    models_render(pl->renderer, &s->mq, pass->prog_override, &s->light,
                                   shadow ? NULL : &s->cameras[0],
                                   &s->cameras[0].view.main.proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo),
                                   pass->cascade, &count);
                 else
-                    models_render(&src->mq, NULL, NULL, NULL, NULL, NULL, fbo_width(fbo), fbo_height(fbo), -1, &count);
+                    models_render(pl->renderer, &src->mq, NULL, NULL, NULL, NULL, NULL,
+                                  fbo_width(fbo), fbo_height(fbo), -1, &count);
 
                 fbo_done(fbo, s->width, s->height);
             }
@@ -540,7 +542,7 @@ repeat:
     /* render the last pass to the screen */
     renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
     renderer_clear(pl->renderer, true, true, false);
-    models_render(&pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, -1, NULL);
+    models_render(pl->renderer, &pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, -1, NULL);
 }
 
 #ifndef CONFIG_FINAL

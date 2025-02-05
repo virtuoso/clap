@@ -12,6 +12,7 @@
 #include "font.h"
 #include "networking.h"
 #include "profiler.h"
+#include "render.h"
 #include "scene.h"
 #include "sound.h"
 #include "mesh.h"
@@ -57,13 +58,23 @@ struct clap_context {
     sound_context       *sound;
     struct phys         *phys;
     struct settings     *settings;
-    renderer_t          *renderer;
+    renderer_t          renderer;
     int                 argc;
 };
 
 /****************************************************************************
  * Context accessors
  ****************************************************************************/
+
+struct clap_config *clap_get_config(struct clap_context *ctx)
+{
+    return &ctx->cfg;
+}
+
+renderer_t *clap_get_renderer(struct clap_context *ctx)
+{
+    return &ctx->renderer;
+}
 
 struct settings *clap_get_settings(struct clap_context *ctx)
 {
@@ -176,7 +187,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     clap_fps_calc(ctx, &ctx->fps);
 
     int width, height;
-    renderer_get_viewport(ctx->renderer, NULL, NULL, &width, &height);
+    renderer_get_viewport(&ctx->renderer, NULL, NULL, &width, &height);
 
     imgui_render_begin(width, height);
     fuzzer_input_step();
@@ -244,7 +255,7 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
         }
     }
 
-    renderer_viewport(ctx->renderer, 0, 0, width, height);
+    renderer_viewport(&ctx->renderer, 0, 0, width, height);
 
     struct scene *scene = ctx->cfg.callback_data;
     scene->width = width;
@@ -329,10 +340,9 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
          * will end up in clap_resize(), which needs a valid ctx->renderer.
          * But not to worry, the renderer will be initialized at that point.
          */
-        ctx->renderer = renderer_get();
-
-        display_init(ctx->cfg.title, ctx->cfg.width, ctx->cfg.height,
-                     clap_frame, ctx, clap_resize);
+        cerr err = display_init(ctx, clap_frame, clap_resize);
+        if (err != CERR_OK)
+            return NULL;
 
         textures_init();
     }

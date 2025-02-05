@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "clap.h"
 #include "game.h"
 #include "model.h"
 #include "ui-debug.h"

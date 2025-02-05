@@ -50,7 +50,6 @@
 
 #include "util.h"
 #include "logger.h"
-#include "clap.h"
 
 #define bug_on(_c, args...) do { if ((_c)) { err("condition '" # _c "': " args); enter_debugger();} } while (0)
 

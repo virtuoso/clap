@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 //#include <GL/glew.h>
+#include "clap.h"
 #include "display.h"
 #include <GLFW/glfw3.h>
 #include "ui-debug.h"
@@ -16,6 +17,7 @@
 
 static GLFWwindow *window;
 static int width, height;
+static renderer_t *renderer;
 static display_update_cb update_fn;
 static display_resize_cb resize_fn;
 static void *update_fn_data;
@@ -82,8 +84,7 @@ void display_get_sizes(int *widthp, int *heightp)
 {
     glfwGetFramebufferSize(window, &width, &height);
 
-    renderer_t *r = renderer_get();
-    renderer_viewport(r, 0, 0, width, height);
+    renderer_viewport(renderer, 0, 0, width, height);
 
     if (widthp)
         *widthp = width;
@@ -221,37 +222,39 @@ restart:
     return CERR_OK;
 }
 
-void display_init(const char *title, int w, int h, display_update_cb update, void *update_data,
-                  display_resize_cb resize)
+cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, display_resize_cb resize_cb)
 {
+    struct clap_config *cfg = clap_get_config(ctx);
     bool core_profile;
     int major, minor;
 
-    width = w;
-    height = h;
-    update_fn = update;
-    update_fn_data = update_data;
-    resize_fn = resize;
+    renderer = clap_get_renderer(ctx);
+    width = cfg->width;
+    height = cfg->height;
+    update_fn = update_cb;
+    update_fn_data = ctx;
+    resize_fn = resize_cb;
 
     if (!glfwInit()) {
         err("failed to initialize GLFW\n");
-        return;
+        return CERR_INITIALIZATION_FAILED;
     }
     primary_monitor = glfwGetPrimaryMonitor();
     primary_monitor_mode = glfwGetVideoMode(primary_monitor);
 
     glfwSetErrorCallback(error_cb);
 
-    cerr err = display_gl_init(title, &major, &minor, &core_profile);
+    cerr err = display_gl_init(cfg->title, &major, &minor, &core_profile);
     if (err != CERR_OK)
-        return;
+        return CERR_INITIALIZATION_FAILED;
 
     dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
 
-    renderer_t *r = renderer_get();
-    renderer_init(r);
-    renderer_set_version(r, major, minor,
+    renderer_init(renderer);
+    renderer_set_version(renderer, major, minor,
                          core_profile ? RENDERER_CORE_PROFILE : RENDERER_ANY_PROFILE);
+
+    return CERR_OK;
 }
 
 void display_debug_ui_init(struct clap_context *ctx)
