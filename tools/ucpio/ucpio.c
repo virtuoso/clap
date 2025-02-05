@@ -29,6 +29,10 @@ int main(int argc, char **argv, char **envp)
 {
     int c, option_index, do_create = 0;
 
+    fprintf(stderr, "### starting argc: %d\n", argc);
+    for (c = 0; c < argc; c++)
+        fprintf(stderr, "### => '%s'\n", argv[c]);
+
     for (;;) {
         c = getopt_long(argc, argv, short_options, long_options, &option_index);
         if (c == -1)
@@ -49,6 +53,7 @@ int main(int argc, char **argv, char **envp)
         return EXIT_FAILURE;
     }
 
+    fprintf(stderr, "### opening stdout\n");
     ctx = cpio_open(.write = true, .file = stdout);
     if (!ctx) {
         fprintf(stderr, "can't open cpio output\n");
@@ -57,6 +62,7 @@ int main(int argc, char **argv, char **envp)
 
     signal(SIGINT, sigint_handler);
 
+    fprintf(stderr, "### opening reading stdin\n");
     while (!feof(stdin)) {
         char name[PATH_MAX];
         struct stat st;
@@ -67,22 +73,28 @@ int main(int argc, char **argv, char **envp)
 
         str_chomp(name);
 
+        fprintf(stderr, "### got '%s'\n", name);
         int err = stat(name, &st);
         if (err)
             continue;
 
+        fprintf(stderr, "### size: %zu, isreg: %d\n", st.st_size, S_ISREG(st.st_mode));
         if (!S_ISREG(st.st_mode)) {
             cpio_write(ctx, name, NULL, 0);
             continue;
         }
 
         f = fopen(name, "r");
+        fprintf(stderr, "### opening: %p\n", f);
         if (!f)
             continue;
 
         void *buf = mem_alloc(st.st_size);
-        if (fread(buf, st.st_size, 1, f) == 1)
-            cpio_write(ctx, name, buf, st.st_size);
+        fprintf(stderr, "### buf: %p\n", buf);
+        if (fread(buf, st.st_size, 1, f) == 1) {
+            cerr err = cpio_write(ctx, name, buf, st.st_size);
+            fprintf(stderr, "### err: %d\n", err);
+        }
         mem_free(buf);
         fclose(f);
     }
