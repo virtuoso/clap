@@ -34,7 +34,10 @@ jobs:
       - name: build
         run: |
           cmake --build build/test --parallel 4 --verbose
-          cmake --build build/debug --parallel 4
+          cmake --build build/debug --parallel 4 --verbose
+      - name: test
+        run: |
+          ctest --test-dir build/debug --verbose
       - name: upload-artifact-w32test
         uses: actions/upload-artifact@v4
         with:
