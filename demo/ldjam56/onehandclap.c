@@ -35,13 +35,13 @@
 #include "game.h"
 
 /* XXX just note for the future */
-struct sound *intro_sound;
+static struct sound *intro_sound;
 static int exit_timeout = -1;
-struct scene scene; /* XXX */
-struct ui ui;
+static struct scene scene; /* XXX */
+static struct ui ui;
 // struct game_state game_state;
 
-struct pipeline *main_pl;
+static struct pipeline *main_pl;
 static bool prev_msaa;
 
 static void build_main_pl(struct pipeline **pl)
