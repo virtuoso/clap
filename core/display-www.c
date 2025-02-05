@@ -155,7 +155,7 @@ void display_init(const char *title, int width, int height, display_update_cb up
     attr.majorVersion              = 2;
     attr.minorVersion              = 0;
     attr.enableExtensionsByDefault = 1;
-    
+
     context = emscripten_webgl_create_context("#canvas", &attr);
 
     emscripten_webgl_make_context_current(context);
@@ -167,7 +167,6 @@ void display_init(const char *title, int width, int height, display_update_cb up
     EM_ASM(runtime_ready = true;);
     display_get_sizes(NULL, NULL);
     calc_refresh_rate(update_fn, data);
-    //resize_fn(width, height);
 }
 
 void display_debug_ui_init(struct clap_context *ctx)
