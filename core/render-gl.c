@@ -1042,6 +1042,18 @@ void renderer_init(renderer_t *renderer)
     static_assert(sizeof(GLfloat) == sizeof(float), "GLfloat doesn't match float");
     static_assert(sizeof(GLushort) == sizeof(unsigned short), "GLushort doesn't match unsigned short");
 
+    /* Clear the any error state */
+    (void)glGetError();
+
+    int i, nr_exts;
+    const unsigned char *ext;
+
+    glGetIntegerv(GL_NUM_EXTENSIONS, &nr_exts);
+    for (i = 0; i < nr_exts; i++) {
+        ext = glGetStringi(GL_EXTENSIONS, i);
+        msg("GL extension: '%s'\n", ext);
+    }
+
     GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits.gl_max_texture_size));
     GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
     GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));

@@ -134,9 +134,8 @@ void display_get_window_pos_size(int *x, int *y, int *w, int *h)
 void display_init(const char *title, int w, int h, display_update_cb update, void *update_data,
                   display_resize_cb resize)
 {
-    const unsigned char *ext, *vendor, *renderer, *glver, *shlangver;
-    int nr_exts, ret;
-    int i;
+    const unsigned char *vendor, *renderer, *glver, *shlangver;
+    int ret;
 #ifdef CONFIG_GLES
     bool core_profile = false;
     int major = 3, minor = 1;
@@ -241,14 +240,6 @@ restart:
     renderer_init(r);
     renderer_set_version(r, major, minor,
                          core_profile ? RENDERER_CORE_PROFILE : RENDERER_ANY_PROFILE);
-
-    glGetIntegerv(GL_NUM_EXTENSIONS, &nr_exts);
-    for (i = 0; i < nr_exts; i++) {
-        ext = glGetStringi(GL_EXTENSIONS, i);
-        msg("GL extension: '%s'\n", ext);
-    }
-
-    // msg("GL initialized extensions: %s\n", exts);
 }
 
 void display_debug_ui_init(struct clap_context *ctx)

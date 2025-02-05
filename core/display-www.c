@@ -142,7 +142,6 @@ void display_init(const char *title, int width, int height, display_update_cb up
                   display_resize_cb rfn)
 {
     EmscriptenWebGLContextAttributes attr;
-    const unsigned char *exts;
     int context;
 
     resize_fn = rfn;
@@ -160,8 +159,6 @@ void display_init(const char *title, int width, int height, display_update_cb up
     context = emscripten_webgl_create_context("#canvas", &attr);
 
     emscripten_webgl_make_context_current(context);
-    exts = glGetString(GL_EXTENSIONS);
-    msg("GL context: %d Extensions: '%s'\n", context, exts);
 
     renderer_t *renderer = renderer_get();
     renderer_init(renderer);
