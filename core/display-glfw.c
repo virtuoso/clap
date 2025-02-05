@@ -81,7 +81,9 @@ static void move_cb(GLFWwindow *window, int x, int y)
 void display_get_sizes(int *widthp, int *heightp)
 {
     glfwGetFramebufferSize(window, &width, &height);
-    glViewport(0, 0, width, height);
+
+    renderer_t *r = renderer_get();
+    renderer_viewport(r, 0, 0, width, height);
 
     if (widthp)
         *widthp = width;
