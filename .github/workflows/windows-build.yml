@@ -35,6 +35,9 @@ jobs:
         run: |
           cmake --build build/test --parallel 4 --verbose
           #cmake --build build/debug --parallel 4
+      - name: test
+        run: |
+          ctest --test-dir build/test
       - name: upload-artifact
         uses: actions/upload-artifact@v4
         with:
