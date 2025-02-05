@@ -61,6 +61,15 @@ struct clap_context {
     int                 argc;
 };
 
+/****************************************************************************
+ * Context accessors
+ ****************************************************************************/
+
+struct settings *clap_get_settings(struct clap_context *ctx)
+{
+    return ctx->settings;
+}
+
 struct phys *clap_get_phys(struct clap_context *ctx)
 {
     return ctx->phys;
@@ -133,6 +142,10 @@ unsigned long clap_get_fps_coarse(struct clap_context *ctx)
 {
     return ctx->fps.fps_coarse;
 }
+
+/****************************************************************************
+ * Main callbacks
+ ****************************************************************************/
 
 static void clap_settings_onload(struct settings *rs, void *data)
 {
@@ -244,11 +257,6 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
     touch_input_set_size(width, height);
 }
 
-struct settings *clap_get_settings(struct clap_context *ctx)
-{
-    return ctx->settings;
-}
-
 static bool clap_config_is_valid(struct clap_config *cfg)
 {
     if (cfg->graphics && (!cfg->frame_cb || !cfg->resize_cb || !cfg->title))
@@ -256,6 +264,10 @@ static bool clap_config_is_valid(struct clap_config *cfg)
 
     return true;
 }
+
+/****************************************************************************
+ * Main API
+ ****************************************************************************/
 
 int clap_restart(struct clap_context *ctx)
 {
