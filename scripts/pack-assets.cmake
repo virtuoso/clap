@@ -19,6 +19,7 @@ function(asset_pack asset_dir asset)
         OUTPUT ${asset_cpio}
         DEPENDS ${assets} ucpio
         WORKING_DIRECTORY ${asset_dir}
+        COMMAND chmod +x ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio*
         COMMAND ${CMAKE_SOURCE_DIR}/scripts/ucpio.sh
         ARGS "${CMAKE_BINARY_DIR}" "${asset_list_file}" "${asset_cpio}"
         # COMMAND "${CMAKE_BINARY_DIR}/tools/ucpio/ucpio"
