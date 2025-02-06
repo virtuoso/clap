@@ -16,7 +16,7 @@ set(ENGINE_MAIN server.c)
 set(ENGINE_LIB libonehandclap)
 
 add_executable(${SERVER_BIN} ${ENGINE_MAIN})
-target_include_directories(${SERVER_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE})
+target_include_directories(${SERVER_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${GLEW_INCLUDE_DIRS})
 target_link_libraries(${SERVER_BIN} PRIVATE ${ENGINE_LIB})
 win32_executable(${SERVER_BIN})
 

@@ -182,6 +182,7 @@ target_link_libraries(${ENGINE_LIB} PRIVATE ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${V
 target_link_libraries(${ENGINE_LIB} PRIVATE libode meshoptimizer)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${EXTRA_LIBRARIES} ${DEBUG_LIBRARIES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
+target_include_directories(${ENGINE_LIB} PRIVATE ${GLEW_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${OPENAL_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR}/imgui)

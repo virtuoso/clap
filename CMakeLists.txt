@@ -37,6 +37,7 @@ if (WIN32)
 endif ()
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    include (FindGLEW)
     enable_language(ASM)
     check_symbol_exists(fls "strings.h" HAVE_FLS)
     set(OpenGL_GL_PREFERENCE "LEGACY")
