@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "config.h"
+#ifdef CONFIG_RENDERER_OPENGL
+#include <GL/glew.h>
+#endif /* CONFIG_RENDERER_OPENGL */
+
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-//#include <GL/glew.h>
 #include "clap.h"
 #include "display.h"
 #include <GLFW/glfw3.h>
@@ -132,6 +136,7 @@ void display_get_window_pos_size(int *x, int *y, int *w, int *h)
     glfwGetWindowSize(window, w, h);
 }
 
+#ifdef CONFIG_RENDERER_OPENGL
 static cerr display_gl_init(const char *title, int *pmajor, int *pminor, bool *pcore_profile)
 {
     const unsigned char *vendor, *renderer, *glver, *shlangver;
@@ -183,10 +188,10 @@ restart:
     else
         glfwSwapInterval(1);
 
-    GL(vendor    = glGetString(GL_VENDOR));
-    GL(renderer  = glGetString(GL_RENDERER));
-    GL(glver     = glGetString(GL_VERSION));
-    GL(shlangver = glGetString(GL_SHADING_LANGUAGE_VERSION));
+    vendor    = glGetString(GL_VENDOR);
+    renderer  = glGetString(GL_RENDERER);
+    glver     = glGetString(GL_VERSION);
+    shlangver = glGetString(GL_SHADING_LANGUAGE_VERSION);
     msg("GL vendor '%s' renderer '%s' GL version %s GLSL version %s\n",
         vendor, renderer, glver, shlangver);
 
@@ -221,6 +226,9 @@ restart:
 
     return CERR_OK;
 }
+#else
+static inline cerr display_gl_init(const char *name, int *pwidth, int *pheight, bool *pcore) { return CERR_NOT_SUPPORTED; }
+#endif /* CONFIG_RENDERER_OPENGL */
 
 cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, display_resize_cb resize_cb)
 {

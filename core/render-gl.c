@@ -8,6 +8,29 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+#ifdef CLAP_DEBUG
+static inline bool __gl_check_error(const char *str)
+{
+    GLenum err;
+
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+        err("%s: GL error: 0x%04X: %s\n", str ? str : "<>", err, gluErrorString(err));
+        abort();
+        return true;
+    }
+
+    return false;
+}
+
+#define GL(__x) do {                    \
+    __x;                                \
+    __gl_check_error(__stringify(__x)); \
+} while (0)
+#else
+#define GL(__x) __x
+#endif
+
 static struct gl_limits {
     GLint gl_max_texture_size;
     GLint gl_max_texture_units;
@@ -1034,8 +1057,9 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
 void renderer_init(renderer_t *renderer)
 {
     static_assert(sizeof(GLint) == sizeof(int), "GLint doesn't match int");
-    static_assert(sizeof(GLenum) == sizeof(int), "GLenum doesn't match int");
+    static_assert(sizeof(GLenum) == sizeof(unsigned int), "GLenum doesn't match unsigned int");
     static_assert(sizeof(GLuint) == sizeof(unsigned int), "GLuint doesn't match unsigned int");
+    static_assert(sizeof(GLsizei) == sizeof(int), "GLsizei doesn't match int");
     static_assert(sizeof(GLfloat) == sizeof(float), "GLfloat doesn't match float");
     static_assert(sizeof(GLushort) == sizeof(unsigned short), "GLushort doesn't match unsigned short");
 

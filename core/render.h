@@ -12,17 +12,26 @@
 #include "config.h"
 
 #ifdef CONFIG_RENDERER_OPENGL
-# if defined(CONFIG_BROWSER) || defined(CONFIG_GLES)
-#  include <GLES3/gl3.h>
-#  include <EGL/egl.h>
-#  define GL_GLEXT_PROTOTYPES
-#  include <GLES2/gl2ext.h>
-# else /* Full GL */
-#  ifdef __APPLE__
-#   define GL_SILENCE_DEPRECATION 1
-#  endif /* __APPLE__ */
-#  include <GL/glew.h>
-# endif
+# ifdef IMPLEMENTOR
+#  if defined(CONFIG_BROWSER) || defined(CONFIG_GLES)
+#   include <GLES3/gl3.h>
+#   include <EGL/egl.h>
+#   define GL_GLEXT_PROTOTYPES
+#   include <GLES2/gl2ext.h>
+#  else /* Full GL */
+#   ifdef __APPLE__
+#    define GL_SILENCE_DEPRECATION 1
+#   endif /* __APPLE__ */
+#   include <GL/glew.h>
+#  endif
+# else
+typedef int GLint;
+typedef int GLsizei;
+typedef float GLfloat;
+typedef unsigned int GLenum;
+typedef unsigned int GLuint;
+typedef unsigned short GLushort;
+# endif /* IMPLEMENTOR */
 #else
 # error "Unsupported renderer"
 #endif
@@ -139,32 +148,6 @@ TYPE(texture,
     unsigned int    height;
     float           border[4];
 );
-#endif /* CONFIG_RENDERER_OPENGL */
-
-/* XXX: this goes to render-gl.c */
-#ifdef CONFIG_RENDERER_OPENGL
-static inline bool __gl_check_error(const char *str)
-{
-    GLenum err;
-
-    err = glGetError();
-    if (err != GL_NO_ERROR) {
-        err("%s: GL error: 0x%04X: %s\n", str ? str : "<>", err, gluErrorString(err));
-        abort();
-        return true;
-    }
-
-    return false;
-}
-
-#ifdef CLAP_DEBUG
-#define GL(__x) do {                    \
-    __x;                                \
-    __gl_check_error(__stringify(__x)); \
-} while (0)
-#else
-#define GL(__x) __x
-#endif
 #endif /* CONFIG_RENDERER_OPENGL */
 
 typedef enum fbo_attachment {
