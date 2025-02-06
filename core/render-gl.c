@@ -794,7 +794,6 @@ static void fbo_drop(struct ref *ref)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
-    // dbg("dropping FBO %d: %d/%d/%d\n", fbo->fbo, fbo->tex, fbo->depth_tex, fbo->depth_buf);
     GL(glDeleteFramebuffers(1, &fbo->fbo));
     /* if the texture was cloned, its ->loaded==false making this a nop */
     texture_deinit(&fbo->tex);
@@ -806,7 +805,6 @@ static void fbo_drop(struct ref *ref)
 
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
-    // ref_free(fbo);
 }
 DECLARE_REFCLASS2(fbo);
 
