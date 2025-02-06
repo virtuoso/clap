@@ -11,6 +11,22 @@
 #include "typedef.h"
 #include "config.h"
 
+#ifdef CONFIG_RENDERER_OPENGL
+# if defined(CONFIG_BROWSER) || defined(CONFIG_GLES)
+#  include <GLES3/gl3.h>
+#  include <EGL/egl.h>
+#  define GL_GLEXT_PROTOTYPES
+#  include <GLES2/gl2ext.h>
+# else /* Full GL */
+#  ifdef __APPLE__
+#   define GL_SILENCE_DEPRECATION 1
+#  endif /* __APPLE__ */
+#  include <GL/glew.h>
+# endif
+#else
+# error "Unsupported renderer"
+#endif
+
 #ifdef CONFIG_BROWSER
 #define GL_CLAMP_TO_BORDER GL_CLAMP_TO_EDGE
 #endif /* CONFIG_BROWSER */
@@ -37,6 +53,7 @@ typedef enum buffer_usage {
     BUF_DYNAMIC
 } buffer_usage;
 
+#ifdef CONFIG_RENDERER_OPENGL
 TYPE(buffer,
     struct ref  ref;
     GLenum      type;
@@ -46,6 +63,7 @@ TYPE(buffer,
     GLuint      comp_count;
     bool        loaded;
 );
+#endif /* CONFIG_RENDERER_OPENGL */
 
 typedef struct buffer_init_options {
     buffer_type         type;
@@ -65,10 +83,12 @@ void buffer_unbind(buffer_t *buf, int loc);
 void buffer_load(buffer_t *buf, void *data, size_t sz, int loc);
 bool buffer_loaded(buffer_t *buf);
 
+#ifdef CONFIG_RENDERER_OPENGL
 TYPE(vertex_array,
     struct ref  ref;
     GLuint      vao;
 );
+#endif /* CONFIG_RENDERER_OPENGL */
 
 void vertex_array_init(vertex_array_t *va);
 void vertex_array_done(vertex_array_t *va);
@@ -100,6 +120,7 @@ typedef enum texture_format {
     TEX_FMT_DEPTH,
 } texture_format;
 
+#ifdef CONFIG_RENDERER_OPENGL
 TYPE(texture,
     struct ref      ref;
     GLuint          id;
@@ -118,7 +139,10 @@ TYPE(texture,
     unsigned int    height;
     float           border[4];
 );
+#endif /* CONFIG_RENDERER_OPENGL */
 
+/* XXX: this goes to render-gl.c */
+#ifdef CONFIG_RENDERER_OPENGL
 static inline bool __gl_check_error(const char *str)
 {
     GLenum err;
@@ -141,6 +165,7 @@ static inline bool __gl_check_error(const char *str)
 #else
 #define GL(__x) __x
 #endif
+#endif /* CONFIG_RENDERER_OPENGL */
 
 typedef enum fbo_attachment {
     FBO_ATTACHMENT_DEPTH,
@@ -187,6 +212,7 @@ texture_t *transparent_pixel(void);
 #define FBO_DEPTH_TEXTURE (-1)
 #define FBO_COLOR_TEXTURE (0)
 
+#ifdef CONFIG_RENDERER_OPENGL
 TYPE(fbo,
     struct ref      ref;
     int             width;
@@ -199,6 +225,7 @@ TYPE(fbo,
     unsigned int    nr_samples;
     int             retain_tex;
 );
+#endif /* CONFIG_RENDERER_OPENGL */
 
 /*
  * width and height correspond to the old fbo_new()'s parameters,
@@ -228,12 +255,14 @@ int fbo_nr_attachments(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 fbo_attachment fbo_get_attachment(fbo_t *fbo);
 
+#ifdef CONFIG_RENDERER_OPENGL
 TYPE(shader,
     GLuint  vert;
     GLuint  frag;
     GLuint  geom;
     GLuint  prog;
 );
+#endif /* CONFIG_RENDERER_OPENGL */
 
 typedef int uniform_t;
 typedef int attr_t;
@@ -251,6 +280,7 @@ typedef enum {
     RENDERER_ANY_PROFILE,
 } renderer_profile;
 
+#ifdef CONFIG_RENDERER_OPENGL
 TYPE(renderer,
     GLenum              cull_face;
     GLenum              blend_sfactor;
@@ -267,6 +297,7 @@ TYPE(renderer,
     bool                depth_test;
     bool                wireframe;
 );
+#endif /* CONFIG_RENDERER_OPENGL */
 
 void renderer_init(renderer_t *renderer);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
