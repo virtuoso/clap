@@ -282,9 +282,12 @@ int lib_request_shaders(const char *name, struct list *shaders)
     struct shader_prog *p;
     size_t vsz, fsz, gsz;
 
-    CHECK(mem_asprintf(&nvert, "%s.vert", name));
-    CHECK(mem_asprintf(&nfrag, "%s.frag", name));
-    CHECK(mem_asprintf(&ngeom, "%s.geom", name));
+    cres(int) vres = mem_asprintf(&nvert, "%s.vert", name);
+    cres(int) fres = mem_asprintf(&nfrag, "%s.frag", name);
+    cres(int) gres = mem_asprintf(&ngeom, "%s.geom", name);
+    if (IS_CERR(vres) || IS_CERR(fres) || IS_CERR(gres))
+        return CERR_NOMEM;
+
     hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
     hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
     hg = lib_read_file(RES_SHADER, ngeom, (void **)&geom, &gsz);

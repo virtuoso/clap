@@ -130,7 +130,7 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
 void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz);
 int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz,
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs);
-void model3d_set_name(struct model3d *m, const char *fmt, ...);
+cres(int) model3d_set_name(struct model3d *m, const char *fmt, ...);
 float model3d_aabb_X(struct model3d *m);
 float model3d_aabb_Y(struct model3d *m);
 float model3d_aabb_Z(struct model3d *m);

@@ -63,13 +63,12 @@ void __ui_debug_printf(const char *mod, const char *fmt, ...)
     char **pstr = ui_debug_mod_str(mod);
     char *old = *pstr;
     va_list va;
-    cerr ret;
 
     va_start(va, fmt);
-    ret = mem_vasprintf(pstr, fmt, va);
+    cres(int) res = mem_vasprintf(pstr, fmt, va);
     va_end(va);
 
-    if (ret < CERR_OK)
+    if (IS_CERR(res))
         *pstr = NULL;
     else
         mem_free(old);

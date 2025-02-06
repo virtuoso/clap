@@ -100,7 +100,6 @@ char *lib_figure_uri(enum res_type type, const char *name)
 #endif
     };
     char *uri;
-    cerr ret;
 
     const char *dot = "";
 #if !defined(CONFIG_BROWSER) && !defined(_WIN32)
@@ -108,12 +107,15 @@ char *lib_figure_uri(enum res_type type, const char *name)
         dot = ".";
 #endif
 
-    ret = mem_asprintf(&uri, "%s%s/%s%s", type == RES_STATE ? "" : base_url, pfx[type],
-                       dot, name);
-    /* uri is both char *dest and const char *src, but the compiler doesn't know */
-    windows_reslash(uri, uri, ret, false);
+    cres(int) res = mem_asprintf(&uri, "%s%s/%s%s", type == RES_STATE ? "" : base_url, pfx[type],
+                                 dot, name);
+    if (IS_CERR(res))
+        return NULL;
 
-    return ret < CERR_OK ? NULL : uri;
+    /* uri is both char *dest and const char *src, but the compiler doesn't know */
+    windows_reslash(uri, uri, res.val, false);
+
+    return uri;
 }
 
 static const char *builtin_file_contents(enum res_type type, const char *name, size_t *psize)

@@ -266,7 +266,12 @@ static struct network_node *network_node_accept(struct network_node *n)
     CHECK(child->fd = accept(n->fd, (struct sockaddr *)&n->sa, &n->addrlen));
     child->src = mem_alloc(sizeof(*child->src), .zero = 1, .fatal_fail = 1);
     child->src->type = MST_CLIENT;
-    CHECK(mem_asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr)));
+    cres(int) res = mem_asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr));
+    if (IS_CERR(res)) {
+        ref_put(child);
+        return NULL;
+    }
+
     dbg("new client '%s'\n", child->src->name);
     child->src->desc = "remote client";
     child->state     = ST_HANDSHAKE;
@@ -284,7 +289,7 @@ const char *wsguid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 static int websocket_parse(struct network_node *n, const uint8_t *_buf)
 {
     const char      *p, *c, *buf = (const char *)_buf;
-    size_t          len = strlen(buf), wslen = 0, outsz;
+    size_t          len = strlen(buf), wslen = 0;
     struct wsheader *wsh = n->data;
     char            h[21], bh[64];
     char            *key, *out;
@@ -308,18 +313,20 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
     SHA1(h, key, strlen(key));
 
     base64_encode(bh, sizeof(bh), h, sizeof(h) - 1);
-    outsz = mem_asprintf((char **)&out,
-                         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
-                         "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
-                         bh);
-    /*
-     * XXX: wrapping format strings with CHECK*() doesn't work, because
-     * err_on_cond() will try to paste the whole stringified expression
-     * with its own format string. Not a huge inconvenience, but would
-     * be nice to eventually fix this.
-     */
-    CHECK(outsz);
-    queue_outmsg(n, out, outsz);
+    cres(int) res = mem_asprintf((char **)&out,
+                                 "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
+                                 "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
+                                 bh);
+    if (IS_CERR(res)) {
+        /*
+         * XXX: wrapping format strings with CHECK*() doesn't work, because
+         * err_on_cond() will try to paste the whole stringified expression
+         * with its own format string. Not a huge inconvenience, but would
+         * be nice to eventually fix this.
+         */
+        CHECK(res.val);
+        queue_outmsg(n, out, res.val);
+    }
     //free(out);
     mem_free(key);
 

@@ -53,10 +53,10 @@ void _mem_free(const char *mod, void *buf, const free_params *params);
 
 #define mem_vasprintf(_ret, _fmt, _ap) \
     _mem_vasprintf(MODNAME, (_ret), (_fmt), (_ap))
-cerr _mem_vasprintf(const char *mod, char **ret, const char *fmt, va_list ap);
+cres_check(int) _mem_vasprintf(const char *mod, char **ret, const char *fmt, va_list ap);
 
 #define mem_asprintf(_ret, _fmt, args...) \
     _mem_asprintf(MODNAME, (_ret), (_fmt), ## args)
-cerr _mem_asprintf(const char *mod, char **ret, const char *fmt, ...) __printf(3, 4);
+cres_check(int) _mem_asprintf(const char *mod, char **ret, const char *fmt, ...) __printf(3, 4);
 
 #endif /* __CLAP_MEMORY_H__ */

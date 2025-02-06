@@ -325,14 +325,16 @@ void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_
     *targets[slot] = tex;
 }
 
-void model3d_set_name(struct model3d *m, const char *fmt, ...)
+cres(int) model3d_set_name(struct model3d *m, const char *fmt, ...)
 {
     va_list ap;
 
     mem_free(m->name);
     va_start(ap, fmt);
-    CHECK(mem_vasprintf(&m->name, fmt, ap));
+    cres(int) res = mem_vasprintf(&m->name, fmt, ap);
     va_end(ap);
+
+    return res;
 }
 
 static void model3d_calc_aabb(struct model3d *m, float *vx, size_t vxsz)

@@ -299,7 +299,6 @@ static notrace void log_submit(int level, const char *mod, int line, const char 
 notrace void vlogg(int level, const char *mod, int line, const char *func, const char *fmt, va_list va)
 {
     LOCAL(char, buf);
-    cerr ret;
 
     if (unlikely(!log_up))
         log_init(LOG_FULL);
@@ -308,9 +307,9 @@ notrace void vlogg(int level, const char *mod, int line, const char *func, const
     if (level < log_floor)
         return;
 
-    ret = mem_vasprintf(&buf, fmt, va);
+    cres(int) res = mem_vasprintf(&buf, fmt, va);
 
-    if (ret < CERR_OK)
+    if (IS_CERR(res))
         return;
 
     log_submit(level, mod, line, func, buf);

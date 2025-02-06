@@ -54,9 +54,11 @@ void display_title(const char *fmt, ...)
     LOCAL(char, title);
 
     va_start(va, fmt);
-    CHECK(mem_vasprintf(&title, fmt, va));
+    cres(int) res = mem_vasprintf(&title, fmt, va);
     va_end(va);
-    glfwSetWindowTitle(window, title);
+
+    if (!IS_CERR(res))
+        glfwSetWindowTitle(window, title);
 }
 
 static void error_cb(int error, const char *desc)

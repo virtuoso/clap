@@ -79,9 +79,9 @@ void display_title(const char *fmt, ...)
     va_list va;
 
     va_start(va, fmt);
-    cerr ret = mem_vasprintf(&title, fmt, va);
+    cres(int) res = mem_vasprintf(&title, fmt, va);
     va_end(va);
-    if (ret >= CERR_OK)
+    if (!IS_CERR(res))
         emscripten_set_window_title(title);
 }
 
