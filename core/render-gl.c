@@ -412,13 +412,6 @@ cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
     return err;
 }
 
-void texture_filters(texture_t *tex, GLint wrap, GLint filter)
-{
-    tex->wrap = wrap;
-    tex->min_filter = filter;
-    tex->mag_filter = filter;
-}
-
 static cerr texture_setup_begin(texture_t *tex, void *buf)
 {
     GL(glActiveTexture(tex->target));
