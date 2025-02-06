@@ -61,13 +61,13 @@ void display_title(const char *fmt, ...)
         glfwSetWindowTitle(window, title);
 }
 
-static void error_cb(int error, const char *desc)
+static void __error_cb(int error, const char *desc)
 {
     err("glfw error %d: '%s'\n", error, desc);
     abort();
 }
 
-static void resize_cb(GLFWwindow *window, int w, int h)
+static void __resize_cb(GLFWwindow *window, int w, int h)
 {
     width = w;
     height = h;
@@ -75,7 +75,7 @@ static void resize_cb(GLFWwindow *window, int w, int h)
     resize_fn(update_fn_data, w, h);
 }
 
-static void move_cb(GLFWwindow *window, int x, int y)
+static void __move_cb(GLFWwindow *window, int x, int y)
 {
     /*
      * force refresh rate update, in case we moved to a different
@@ -96,12 +96,12 @@ void display_get_sizes(int *widthp, int *heightp)
         *widthp = width;
     if (heightp)
         *heightp = height;
-    resize_cb(window, width, height);
+    __resize_cb(window, width, height);
 }
 
 void display_resize(int w, int h)
 {
-    resize_cb(window, w, h);
+    __resize_cb(window, w, h);
 }
 
 static GLFWmonitor *primary_monitor;
@@ -169,9 +169,6 @@ restart:
         err("failed to create GLFW window\n");
         return CERR_INITIALIZATION_FAILED;
     }
-
-    glfwSetWindowPosCallback(window, move_cb);
-    glfwSetFramebufferSizeCallback(window, resize_cb);
 
     glfwMakeContextCurrent(window);
 
@@ -252,11 +249,14 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
     primary_monitor = glfwGetPrimaryMonitor();
     primary_monitor_mode = glfwGetVideoMode(primary_monitor);
 
-    glfwSetErrorCallback(error_cb);
+    glfwSetErrorCallback(__error_cb);
 
     cerr err = display_gl_init(cfg->title, &major, &minor, &core_profile);
     if (err != CERR_OK)
         return CERR_INITIALIZATION_FAILED;
+
+    glfwSetWindowPosCallback(window, __move_cb);
+    glfwSetFramebufferSizeCallback(window, __resize_cb);
 
     dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
 
