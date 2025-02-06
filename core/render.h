@@ -167,6 +167,8 @@ typedef struct texture_init_options {
     float               *border;
 } texture_init_options;
 
+typedef int texid_t;
+
 void _texture_init(texture_t *tex, const texture_init_options *opts);
 #define texture_init(_t, args...) \
     _texture_init((_t), &(texture_init_options){ args })
@@ -175,7 +177,7 @@ void texture_done(texture_t *tex);
 cerr_check texture_load(texture_t *tex, texture_format format,
                         unsigned int width, unsigned int height, void *buf);
 cerr_check texture_resize(texture_t *tex, unsigned int width, unsigned int height);
-GLuint texture_id(texture_t *tex);
+texid_t texture_id(texture_t *tex);
 void texture_bind(texture_t *tex, unsigned int target);
 void texture_unbind(texture_t *tex, unsigned int target);
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight);

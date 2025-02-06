@@ -526,7 +526,7 @@ void texture_done(struct texture *tex)
         ref_put_last(tex);
 }
 
-GLuint texture_id(struct texture *tex)
+texid_t texture_id(struct texture *tex)
 {
     if (!tex)
         return 0;
