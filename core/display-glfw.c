@@ -139,32 +139,34 @@ void display_get_window_pos_size(int *x, int *y, int *w, int *h)
 }
 
 #ifdef CONFIG_RENDERER_OPENGL
-static cerr display_gl_init(const char *title, int *pmajor, int *pminor, bool *pcore_profile)
+static cerr display_gl_init(struct clap_context *ctx)
 {
     const unsigned char *vendor, *renderer, *glver, *shlangver;
-    int glew_ret = -1;
+    struct clap_config *cfg = clap_get_config(ctx);
+    int glew_ret = -1, minor, major;
+    bool core_profile;
 
 #ifdef CONFIG_GLES
-    *pcore_profile = false;
-    *pmajor = 3;
-    *pminor = 1;
+    core_profile = false;
+    major = 3;
+    minor = 1;
 #else
-    *pcore_profile = true;
-    *pmajor = 4;
-    *pminor = 1;
+    core_profile = true;
+    major = 4;
+    minor = 1;
 #endif /* CONFIG_GLES */
 
 restart:
     glfwWindowHint(GLFW_SAMPLES, 4);
-    if (!*pcore_profile)
+    if (!core_profile)
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, *pmajor);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, *pminor);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
     glfwWindowHint(GLFW_OPENGL_PROFILE,
-                   *pcore_profile ? GLFW_OPENGL_CORE_PROFILE : GLFW_OPENGL_ANY_PROFILE);
+                   core_profile ? GLFW_OPENGL_CORE_PROFILE : GLFW_OPENGL_ANY_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    window = glfwCreateWindow(width, height, title, NULL, NULL);
+    window = glfwCreateWindow(cfg->width, cfg->height, cfg->title, NULL, NULL);
     if (!window) {
         err("failed to create GLFW window\n");
         return CERR_INITIALIZATION_FAILED;
@@ -205,15 +207,15 @@ restart:
 
         if (profile) {
             profile = strstr("Core", (const char *)glver);
-            if (!!profile && !*pcore_profile) {
-                *pcore_profile = true;
+            if (!!profile && !core_profile) {
+                core_profile = true;
                 restart++;
             }
         }
 
-        if (_major > *pmajor || _minor > *pminor) {
-            *pmajor = _major;
-            *pminor = _minor;
+        if (_major > major || _minor > minor) {
+            major = _major;
+            minor = _minor;
             restart++;
         }
 
@@ -223,17 +225,22 @@ restart:
         }
     }
 
+    dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
+
+    renderer_t *r = clap_get_renderer(ctx);
+    renderer_init(r);
+    renderer_set_version(r, major, minor,
+                         core_profile ? RENDERER_CORE_PROFILE : RENDERER_ANY_PROFILE);
+
     return CERR_OK;
 }
 #else
-static inline cerr display_gl_init(const char *name, int *pwidth, int *pheight, bool *pcore) { return CERR_NOT_SUPPORTED; }
+static inline cerr display_gl_init(struct clap_context *ctx) { return CERR_NOT_SUPPORTED; }
 #endif /* CONFIG_RENDERER_OPENGL */
 
 cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, display_resize_cb resize_cb)
 {
     struct clap_config *cfg = clap_get_config(ctx);
-    bool core_profile;
-    int major, minor;
 
     renderer = clap_get_renderer(ctx);
     width = cfg->width;
@@ -251,18 +258,12 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
 
     glfwSetErrorCallback(__error_cb);
 
-    cerr err = display_gl_init(cfg->title, &major, &minor, &core_profile);
+    cerr err = display_gl_init(ctx);
     if (err != CERR_OK)
         return err;
 
     glfwSetWindowPosCallback(window, __move_cb);
     glfwSetFramebufferSizeCallback(window, __resize_cb);
-
-    dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
-
-    renderer_init(renderer);
-    renderer_set_version(renderer, major, minor,
-                         core_profile ? RENDERER_CORE_PROFILE : RENDERER_ANY_PROFILE);
 
     return CERR_OK;
 }
