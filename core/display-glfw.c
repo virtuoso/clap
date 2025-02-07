@@ -253,7 +253,7 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
 
     cerr err = display_gl_init(cfg->title, &major, &minor, &core_profile);
     if (err != CERR_OK)
-        return CERR_INITIALIZATION_FAILED;
+        return err;
 
     glfwSetWindowPosCallback(window, __move_cb);
     glfwSetFramebufferSizeCallback(window, __resize_cb);
