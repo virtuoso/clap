@@ -254,6 +254,10 @@ int main(int argc, char **argv, char **envp)
     }
 
     struct clap_context *clap_ctx = clap_init(&cfg, argc, argv, envp);
+    if (!clap_ctx) {
+        err("failed to initialize clap\n");
+        return EXIT_FAILURE;
+    }
 
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
