@@ -380,7 +380,9 @@ static inline int fls(int x)
 }
 #endif /* HAVE_FLS */
 
+#ifndef NSEC_PER_SEC
 #define NSEC_PER_SEC 1000000000l
+#endif /* NSEC_PER_SEC */
 
 struct timespec64 {
 #if __SIZEOF_LONG__ == 4
