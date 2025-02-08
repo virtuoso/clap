@@ -73,7 +73,7 @@ void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, 
 void animation_set_speed(struct entity3d *e, float speed);
 
 #define LOD_MAX 4
-struct model3d {
+typedef struct model3d {
     char                *name;
     struct ref          ref;
     struct shader_prog  *prog;
@@ -104,7 +104,7 @@ struct model3d {
     size_t              collision_vxsz;
     unsigned short      *collision_idx;
     size_t              collision_idxsz;
-};
+} model3d;
 
 struct model3dtx {
     struct model3d *model;

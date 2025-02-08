@@ -70,6 +70,8 @@ static void model3d_drop(struct ref *ref)
 
 DECLARE_REFCLASS2(model3d);
 
+DEFINE_CLEANUP(model3d, if (*p) ref_put(*p))
+
 static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
                                    int has_alpha, enum shader_vars var, texture_t *tex)
 {
@@ -456,9 +458,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
                          unsigned short *idx, size_t idxsz, float *tx, size_t txsz,
                          float *norm, size_t normsz)
 {
-    struct model3d *m;
-
-    m = ref_new(model3d);
+    LOCAL_SET(model3d, m) = ref_new(model3d);
     if (!m)
         return NULL;
 
@@ -511,7 +511,7 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
     m->nr_vertices = vxsz / sizeof(*vx) / 3;
     m->nr_faces[0] = idxsz / sizeof(*idx);
 
-    return m;
+    return NOCU(m);
 }
 
 struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh)
