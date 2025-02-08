@@ -214,7 +214,8 @@ static inline void _ref_put(struct ref *ref)
         __v->ref.refclass = __rc; \
         ref_init(&__v->ref); \
         if (__rc->make) { \
-            if (__rc->make(&__v->ref)) { \
+            cerr err = __rc->make(&__v->ref); \
+            if (IS_CERR(err)) { \
                 ref_class_unuse(&__v->ref); \
                 mem_free(__v); \
                 __v = NULL; \
@@ -233,7 +234,8 @@ static inline void _ref_put(struct ref *ref)
     memset(__v, 0, __rc->size); \
     __v->ref.refclass = __rc; \
     _ref_embed(&__v->ref); \
-    if (__rc->make) __rc->make(&__v->ref); \
+    cerr err = __rc->make ? __rc->make(&__v->ref) : CERR_OK; \
+    err; \
 })
 
 /*
