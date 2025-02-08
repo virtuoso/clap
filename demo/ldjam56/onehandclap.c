@@ -222,7 +222,7 @@ int main(int argc, char **argv, char **envp)
         .server_wsport = 21045,
         .logger        = 1,
     };
-    int c, option_index, err;
+    int c, option_index;
     unsigned int fullscreen = 0;
     struct render_pass *pass;
     //struct lib_handle *lh;
@@ -271,8 +271,14 @@ int main(int argc, char **argv, char **envp)
 
     phys_set_ground_contact(clap_get_phys(scene.clap_ctx), ohc_ground_contact);
 
-    subscribe(MT_INPUT, handle_input, &scene);
-    subscribe(MT_COMMAND, handle_command, &scene);
+    cerr err;
+    err = subscribe(MT_INPUT, handle_input, &scene);
+    if (err)
+        goto exit_scene;
+
+    err = subscribe(MT_COMMAND, handle_command, &scene);
+    if (err)
+        goto exit_scene;
 
     /*
      * Need to write vorbis callbacks for this
@@ -320,7 +326,7 @@ int main(int argc, char **argv, char **envp)
 
     err = ui_init(&ui, clap_get_renderer(scene.clap_ctx), scene.width, scene.height);
     if (err)
-        goto exit_ui;
+        goto exit_pl;
 
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
@@ -332,15 +338,16 @@ int main(int argc, char **argv, char **envp)
 
     dbg("exiting peacefully\n");
 
+exit_pl:
 #ifndef CONFIG_BROWSER
     pipeline_put(main_pl);
     ui_done(&ui);
-exit_ui:
+exit_scene:
     scene_done(&scene);
     //gl_done();
     clap_done(scene.clap_ctx, 0);
 #else
-exit_ui:
+exit_scene:
     if (err)
         imgui_render();
 #endif
