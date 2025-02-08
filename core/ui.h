@@ -120,7 +120,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, stru
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
 struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 
-int ui_init(struct ui *ui, renderer_t *r, int width, int height);
+cerr ui_init(struct ui *ui, renderer_t *r, int width, int height);
 void ui_done(struct ui *ui);
 void ui_update(struct ui *ui);
 struct model3dtx *ui_quadtx_get(void);

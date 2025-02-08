@@ -17,6 +17,7 @@ typedef enum cerr {
     CERR_INVALID_OPERATION      = -12,
     CERR_INVALID_FORMAT         = -13,
     CERR_INITIALIZATION_FAILED  = -14,
+    CERR_SHADER_NOT_LOADED      = -15,
 } cerr;
 
 #define must_check __attribute__((warn_unused_result))

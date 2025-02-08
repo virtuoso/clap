@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <errno.h>
+#include "error.h"
 #include "model.h"
 #include "primitives.h"
 #include "render.h"
@@ -235,7 +236,7 @@ static void ui_add_model_tail(struct ui *ui, struct model3dtx *txmodel)
     mq_add_model_tail(&ui->mq, txmodel);
 }
 
-static int ui_model_init(struct ui *ui)
+static cerr ui_model_init(struct ui *ui)
 {
     float x = 0.f, y = 0.f, w = 1.f, h = 1.f;
     struct model3d *ui_quad = model3d_new_quad(ui->ui_prog, x, y, 0, w, h);
@@ -245,10 +246,10 @@ static int ui_model_init(struct ui *ui)
     /* XXX: maybe a "textured_model" as another interim object */
     ui_quadtx = model3dtx_new_texture(ref_pass(ui_quad), transparent_pixel());
     if (!ui_quadtx)
-        return -EINVAL;
+        return CERR_INITIALIZATION_FAILED;
 
     ui_add_model_tail(ui, ui_quadtx);
-    return 0;
+    return CERR_OK;
 }
 
 struct model3dtx *ui_quadtx_get(void)
@@ -1439,8 +1440,9 @@ static void build_onclick(struct ui_element *uie, float x, float y)
 
 static unused const char *wheel_items[] = { "^", ">", "v", "<" };
 extern const char *build_date;
-int ui_init(struct ui *ui, renderer_t *r, int width, int height)
+cerr ui_init(struct ui *ui, renderer_t *r, int width, int height)
 {
+    cerr ret = CERR_OK;
     struct font *font;
 
     mq_init(&ui->mq, ui);
@@ -1451,17 +1453,23 @@ int ui_init(struct ui *ui, renderer_t *r, int width, int height)
     ui->renderer = r;
     ui->ui_prog = shader_prog_find(&ui->shaders, "ui");
     ui->glyph_prog = shader_prog_find(&ui->shaders, "glyph");
-    if (!ui->ui_prog || !ui->glyph_prog)
+    if (!ui->ui_prog || !ui->glyph_prog) {
+        ret = CERR_SHADER_NOT_LOADED;
         goto err;
+    }
 
-    if (ui_debug_init(ui))
+    ret = ui_debug_init(ui);
+    if (IS_CERR(ret))
         goto err;
 
     font = font_open("ProggyTiny.ttf", 16);
-    if (!font)
+    if (!font) {
+        ret = CERR_FONT_NOT_LOADED;
         goto err;
+    }
 
-    if (ui_model_init(ui)) {
+    ret = ui_model_init(ui);
+    if (IS_CERR(ret)) {
         ui_debug_done(ui);
         font_put(font);
         goto err;
@@ -1480,13 +1488,19 @@ int ui_init(struct ui *ui, renderer_t *r, int width, int height)
     const char *pocket_textures[] = { "apple.png", "mushroom thumb.png" };
     pocket = ui_pocket_new(ui, pocket_textures, array_size(pocket_textures));
     font_put(font);
-    subscribe(MT_COMMAND, ui_handle_command, ui);
-    subscribe(MT_INPUT, ui_handle_input, ui);
-    return 0;
+
+    ret = subscribe(MT_COMMAND, ui_handle_command, ui);
+    if (IS_CERR(ret))
+        goto err;
+    ret = subscribe(MT_INPUT, ui_handle_input, ui);
+    if (IS_CERR(ret))
+        goto err;
+
+    return ret;
 
 err:
     shaders_free(&ui->shaders);
-    return -1;
+    return ret;
 }
 
 void ui_done(struct ui *ui)
