@@ -919,9 +919,6 @@ void entity3d_aabb_center(struct entity3d *e, vec3 center)
     vec3_add(center, center, minv);
 }
 
-void model3d_skeleton_add(struct model3d *model, int joint, int parent)
-{}
-
 static void channel_time_to_idx(struct channel *chan, float time, int start, int *prev, int *next)
 {
     int i;
