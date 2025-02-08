@@ -41,6 +41,14 @@ DECLARE_CLEANUP(uchar);
 #define notrace __attribute__((no_instrument_function))
 #define __printf(x, y) __attribute__((__format__(__printf__, (x), (y))))
 
+/* Compiler annotations for things that can't be NULL or return NULL */
+#ifndef __nonnull_params
+#define __nonnull_params(params) __attribute__((__nonnull__ params))
+#endif /* __nonnull_params */
+#ifndef __returns_nonnull
+#define __returns_nonnull __attribute__((__returns_nonnull__))
+#endif /* __returns_nonnull */
+
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
