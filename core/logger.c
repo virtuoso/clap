@@ -272,6 +272,10 @@ void notrace log_init(unsigned int flags)
     if (log_up)
         return;
 
+    cerr err = subscribe(MT_COMMAND, log_command_handler, NULL);
+    if (IS_CERR(err))
+        return;
+
     if (flags & LOG_STDIO)
         logger_append(&logger_stdio);
 
@@ -281,7 +285,6 @@ void notrace log_init(unsigned int flags)
     if (flags & LOG_QUIET)
         log_floor = NORMAL;
 
-    subscribe(MT_COMMAND, log_command_handler, NULL);
     log_up++;
     dbg("logger initialized, build %s\n", CONFIG_BUILDDATE);
 }
