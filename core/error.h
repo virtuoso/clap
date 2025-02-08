@@ -28,6 +28,8 @@ typedef enum cerr {
 
 /* Name of a cres type with value type __type */
 #define cres(__type) cres_ ## __type
+/* Name of a cres type with value type pointer to __type */
+#define cresp(__type) cres_ ## __type ## p
 
 /* Declare a cres with value type __type */
 #define cres_ret(__type) \
@@ -36,7 +38,22 @@ typedef enum cerr {
         __type  val; \
     } cres(__type)
 
+/* Declare a cres with value type pointer to __type */
+#define cresp_ret(__type) \
+    typedef struct cresp(__type) { \
+        cerr    err; \
+        __type  *val; \
+    } cresp(__type)
+
+/* Declare a cres with value type pointer to struct __struct */
+#define cresp_struct_ret(__struct) \
+    typedef struct cresp(__struct) { \
+        cerr            err; \
+        struct __struct *val; \
+    } cresp(__struct)
+
 #define cres_check(__type) cres(__type) must_check
+#define cresp_check(__type) cresp(__type) must_check
 
 /* Declare cres with int value */
 cres_ret(int);
@@ -57,9 +74,26 @@ cres_ret(int);
     __res; \
 })
 
+/* Return a error */
+#define cresp_error(__type, __err) ({ \
+    cresp(__type) __res = { \
+        .err = (__err), \
+    }; \
+    __res; \
+})
+
 /* Return a value */
 #define cres_val(__type, __val) ({ \
     cres(__type) __res = { \
+        .err = CERR_OK, \
+        .val = (__val), \
+    }; \
+    __res; \
+})
+
+/* Return a value */
+#define cresp_val(__type, __val) ({ \
+    cresp(__type) __res = { \
         .err = CERR_OK, \
         .val = (__val), \
     }; \
