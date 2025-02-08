@@ -369,7 +369,7 @@ static int character_update(struct entity3d *e, void *data)
     return c->orig_update(e, data);
 }
 
-struct character *character_new(struct model3dtx *txm, struct scene *s)
+struct character *character_new(model3dtx *txm, struct scene *s)
 {
     struct character *c;
 

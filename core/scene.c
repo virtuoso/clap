@@ -46,7 +46,7 @@ static void scene_control_next(struct scene *s)
 #ifndef CONFIG_FINAL
 static void scene_focus_next(struct scene *s)
 {
-    struct model3dtx *next_txm;
+    model3dtx *next_txm;
 
     if (!s->focus) {
         next_txm = mq_nonempty_txm_next(&s->mq, NULL, true);
@@ -72,7 +72,7 @@ first_entry:
 
 static void scene_focus_prev(struct scene *s)
 {
-    struct model3dtx *next_txm;
+    model3dtx *next_txm;
 
     if (!s->focus) {
         next_txm = mq_nonempty_txm_next(&s->mq, NULL, false);
@@ -106,10 +106,10 @@ bool scene_camera_follows(struct scene *s, struct character *ch)
 
 int scene_camera_add(struct scene *s)
 {
-    struct model3d *m = model3d_new_cube(list_first_entry(&s->shaders, struct shader_prog, entry));
+    model3d *m = model3d_new_cube(list_first_entry(&s->shaders, struct shader_prog, entry));
     model3d_set_name(m, "camera");
 
-    struct model3dtx *txm = model3dtx_new_texture(ref_pass(m), transparent_pixel());
+    model3dtx *txm = model3dtx_new_texture(ref_pass(m), transparent_pixel());
     struct entity3d *entity;
 
     if (!txm)
@@ -362,7 +362,7 @@ static int scene_handle_input(struct message *m, void *data)
     return 0;
 }
 
-int scene_add_model(struct scene *s, struct model3dtx *txm)
+int scene_add_model(struct scene *s, model3dtx *txm)
 {
     mq_add_model(&s->mq, txm);
     return 0;
@@ -435,8 +435,8 @@ struct scene_config {
 struct scene_model_queue {
     JsonNode          *entities;
     unsigned int      loaded;
-    struct model3d    *model;
-    struct model3dtx  *txm;
+    model3d           *model;
+    model3dtx         *txm;
     struct scene      *scene;
 };
 
@@ -450,7 +450,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     int collision = -1;
     phys_type ptype = PHYS_BODY;
     struct gltf_data *gd = NULL;
-    struct model3dtx  *txm;
+    model3dtx  *txm;
 
     if (node->tag != JSON_OBJECT) {
         dbg("json: model is not an object\n");
@@ -667,7 +667,7 @@ light_done:
                     if (p->tag != JSON_STRING)
                         continue;
 
-                    struct model3d *m = e->txmodel->model;
+                    model3d *m = e->txmodel->model;
                     int idx = animation_by_name(m, p->string_);
 
                     if (idx < 0)

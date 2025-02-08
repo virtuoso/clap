@@ -1129,8 +1129,8 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
 
 int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
-    struct model3dtx *txm;
-    struct model3d   *m;
+    model3dtx   *txm;
+    model3d     *m;
     struct mesh *me;
     int skin;
 

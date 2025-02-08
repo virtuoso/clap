@@ -23,10 +23,10 @@ typedef struct prim_emit_opts {
 #define prim_emit_quad(_t, args...) \
     _prim_emit_quad((_t), &(prim_emit_opts){ args })
 
-struct model3d *model3d_new_cube(struct shader_prog *p);
-struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
-struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h);
-struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);
+model3d *model3d_new_cube(struct shader_prog *p);
+model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
+model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h);
+model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);
 
 /*
  * Generate a cylinder model
@@ -36,6 +36,6 @@ struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float
  * @radius: cylinder radius
  * @nr_segments: number of the segments of horizontal faces' circumference
  */
-struct model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments);
+model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments);
 
 #endif /* __CLAP_PRIMITIVES_H__ */

@@ -58,7 +58,7 @@ static void pipeline_drop(struct ref *ref)
          * skip it if the mq list is empty
          */
         if (!list_empty(&pass->mq.txmodels)) {
-            struct model3dtx *txm = mq_model_first(&pass->mq);
+            model3dtx *txm = mq_model_first(&pass->mq);
             int i;
 
             for (i = 0; i < darray_count(pass->fbo); i++) {
@@ -176,9 +176,9 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
 {
     struct render_pass *pass;
     struct shader_prog *p;
-    struct model3dtx *txm;
+    model3dtx *txm;
     struct entity3d *e;
-    struct model3d *m;
+    model3d *m;
 
     pass = mem_alloc(sizeof(*pass), .zero = 1);
     if (!pass)
@@ -327,7 +327,7 @@ void pipeline_pass_set_name(struct render_pass *pass, const char *name)
 
 void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src)
 {
-    struct model3dtx *txm = mq_model_first(&pass->mq);
+    model3dtx *txm = mq_model_first(&pass->mq);
     struct render_pass **psrc = darray_add(pass->src);
 
     if (!psrc)

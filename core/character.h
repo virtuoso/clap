@@ -53,7 +53,7 @@ static inline const char *character_name(struct character *c)
     return entity_name(character_entity(c));
 }
 
-struct character *character_new(struct model3dtx *txm, struct scene *s);
+struct character *character_new(model3dtx *txm, struct scene *s);
 void character_handle_input(struct character *ch, struct scene *s, struct message *m);
 void character_move(struct character *ch, struct scene *s);
 

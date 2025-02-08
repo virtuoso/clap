@@ -80,7 +80,7 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
     _prim_emit_triangle(triangle2, opts);
 }
 
-struct model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
+model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
 {
     /*
      * a triangle per each segment at the top and bottom, plus 2 triangles (quad)
@@ -149,7 +149,7 @@ struct model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float heig
 
     mesh_optimize(cylinder_mesh);
 
-    struct model3d *cylinder = model3d_new_from_mesh("cylinder", p, cylinder_mesh);
+    model3d *cylinder = model3d_new_from_mesh("cylinder", p, cylinder_mesh);
     cylinder->collision_vx = memdup(mesh_vx(cylinder_mesh), mesh_vx_sz(cylinder_mesh));
     cylinder->collision_vxsz = mesh_vx_sz(cylinder_mesh);
     cylinder->collision_idx = memdup(mesh_idx(cylinder_mesh), mesh_idx_sz(cylinder_mesh));
@@ -292,13 +292,13 @@ struct mesh cube_mesh = {
     }
 };
 
-struct model3d *model3d_new_cube(struct shader_prog *p)
+model3d *model3d_new_cube(struct shader_prog *p)
 {
     return model3d_new_from_vectors("cube", p, cube_vx, sizeof(cube_vx), cube_idx, sizeof(cube_idx),
                                     cube_tx, sizeof(cube_tx), NULL, 0);
 }
 
-struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)
+model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)
 {
     static unsigned short quad_idx[] = {0, 3, 1, 3, 2, 1};
     float quad_vx[] = {
@@ -309,7 +309,7 @@ struct model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float 
                                     quad_tx, sizeof(quad_tx), NULL, 0);
 }
 
-struct model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h)
+model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h)
 {
     static unsigned short quad_idx[] = {0, 1, 3, 3, 1, 2};
     float quad_vx[] = {
@@ -337,7 +337,7 @@ static float frame_tx[]  = {
     0.5, 0.5,
 };
 
-struct model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t)
+model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t)
 {
     float frame_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,

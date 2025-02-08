@@ -17,61 +17,6 @@ struct light;
 struct camera;
 struct shader_prog;
 
-struct model_joint {
-    darray(int, children);
-    char        *name;
-    mat4x4      invmx;
-    int         id;
-};
-
-enum chan_path {
-    PATH_TRANSLATION = 0,
-    PATH_ROTATION,
-    PATH_SCALE,
-    PATH_NONE,
-};
-
-struct joint {
-    vec3    translation;
-    quat    rotation;
-    vec3    scale;
-    mat4x4  global;
-    int     off[PATH_NONE];
-};
-
-struct channel {
-    float           *time;
-    float           *data;
-    unsigned int    nr;
-    unsigned int    stride;
-    unsigned int    target;
-    unsigned int    path;
-};
-
-struct animation {
-    char            *name;
-    struct model3d  *model;
-    struct channel  *channels;
-    unsigned int    nr_channels;
-    unsigned int    cur_channel;
-    float           time_end;
-};
-
-struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels);
-/*
- * Delete an animation from the @model's animation array and free all its
- * contents
- */
-void animation_delete(struct animation *an);
-void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
-                           size_t data_stride, unsigned int target, unsigned int path);
-void animation_start(struct entity3d *e, struct scene *scene, int ani);
-void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
-                            bool clear, bool repeat);
-int animation_by_name(struct model3d *m, const char *name);
-void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv);
-void animation_set_speed(struct entity3d *e, float speed);
-
 #define LOD_MAX 4
 typedef struct model3d {
     char                *name;
@@ -106,8 +51,58 @@ typedef struct model3d {
     size_t              collision_idxsz;
 } model3d;
 
+struct model_joint {
+    darray(int, children);
+    char        *name;
+    mat4x4      invmx;
+    int         id;
+};
+
+enum chan_path {
+    PATH_TRANSLATION = 0,
+    PATH_ROTATION,
+    PATH_SCALE,
+    PATH_NONE,
+};
+
+struct joint {
+    vec3    translation;
+    quat    rotation;
+    vec3    scale;
+    mat4x4  global;
+    int     off[PATH_NONE];
+};
+
+struct channel {
+    float           *time;
+    float           *data;
+    unsigned int    nr;
+    unsigned int    stride;
+    unsigned int    target;
+    unsigned int    path;
+};
+
+struct animation {
+    char            *name;
+    model3d         *model;
+    struct channel  *channels;
+    unsigned int    nr_channels;
+    unsigned int    cur_channel;
+    float           time_end;
+};
+
+/*
+ * Delete an animation from the @model's animation array and free all its
+ * contents
+ */
+void animation_delete(struct animation *an);
+void animation_add_channel(struct animation *an, size_t frames, float *time, float *data,
+                           size_t data_stride, unsigned int target, unsigned int path);
+struct animation *animation_new(model3d *model, const char *name, unsigned int nr_channels);
+int animation_by_name(model3d *m, const char *name);
+
 typedef struct model3dtx {
-    struct model3d *model;
+    model3d        *model;
     texture_t      _texture;
     texture_t      _normals;
     texture_t      _emission;
@@ -123,27 +118,27 @@ typedef struct model3dtx {
     struct list    entities;           /* links entity3d->entry */
 } model3dtx;
 
-struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
-                                         unsigned short *idx, size_t idxsz, float *tx, size_t txsz, float *norm,
-                                         size_t normsz);
-struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
-void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz);
-int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz,
+model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
+                                  unsigned short *idx, size_t idxsz, float *tx, size_t txsz, float *norm,
+                                  size_t normsz);
+model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
+void model3d_add_tangents(model3d *m, float *tg, size_t tgsz);
+int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs);
-cres(int) model3d_set_name(struct model3d *m, const char *fmt, ...);
-float model3d_aabb_X(struct model3d *m);
-float model3d_aabb_Y(struct model3d *m);
-float model3d_aabb_Z(struct model3d *m);
-struct model3dtx *model3dtx_new(struct model3d *m, const char *name);
-struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const char *norm);
-struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
-                                                 void *em, size_t emsz);
-struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex);
-void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex);
-void model3dtx_prepare(struct model3dtx *m, struct shader_prog *p);
-void model3dtx_done(struct model3dtx *m, struct shader_prog *p);
+cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
+float model3d_aabb_X(model3d *m);
+float model3d_aabb_Y(model3d *m);
+float model3d_aabb_Z(model3d *m);
+model3dtx *model3dtx_new(model3d *m, const char *name);
+model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm);
+model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
+                                          void *em, size_t emsz);
+model3dtx *model3dtx_new_texture(model3d *model, texture_t *tex);
+void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex);
+void model3dtx_prepare(model3dtx *m, struct shader_prog *p);
+void model3dtx_done(model3dtx *m, struct shader_prog *p);
 
-static inline const char *txmodel_name(struct model3dtx *txm)
+static inline const char *txmodel_name(model3dtx *txm)
 {
     return txm->model->name;
 }
@@ -157,11 +152,11 @@ void mq_init(struct mq *mq, void *priv);
 void mq_release(struct mq *mq);
 void mq_update(struct mq *mq);
 void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data);
-struct model3dtx *mq_model_first(struct mq *mq);
-struct model3dtx *mq_model_last(struct mq *mq);
-void mq_add_model(struct mq *mq, struct model3dtx *txmodel);
-void mq_add_model_tail(struct mq *mq, struct model3dtx *txmodel);
-struct model3dtx *mq_nonempty_txm_next(struct mq *mq, struct model3dtx *txm, bool fwd);
+model3dtx *mq_model_first(struct mq *mq);
+model3dtx *mq_model_last(struct mq *mq);
+void mq_add_model(struct mq *mq, model3dtx *txmodel);
+void mq_add_model_tail(struct mq *mq, model3dtx *txmodel);
+model3dtx *mq_nonempty_txm_next(struct mq *mq, model3dtx *txm, bool fwd);
 
 enum color_pt {
     COLOR_PT_NONE = 0,
@@ -179,7 +174,7 @@ struct queued_animation {
 };
 
 struct entity3d {
-    struct model3dtx *txmodel;
+    model3dtx        *txmodel;
     struct matrix4f  *mx;
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
@@ -211,7 +206,7 @@ struct entity3d {
     void *priv;
 };
 
-void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e);
+void model3dtx_add_entity(model3dtx *txm, struct entity3d *e);
 void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
                    struct light *light, struct camera *camera, struct matrix4f *proj_mx,
                    struct entity3d *focus, int width, int height, int cascade,
@@ -227,7 +222,7 @@ static inline bool entity_animated(struct entity3d *e)
     return e->txmodel->model->anis.da.nr_el;
 }
 
-struct entity3d *entity3d_new(struct model3dtx *txm);
+struct entity3d *entity3d_new(model3dtx *txm);
 
 /*
  * Set up entity's model matrix from entity's coordinates and euler rotations.
@@ -266,8 +261,15 @@ void entity3d_rotate_Y(struct entity3d *e, float ry);
 void entity3d_rotate_Z(struct entity3d *e, float rz);
 void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
+void animation_start(struct entity3d *e, struct scene *scene, int ani);
+void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
+                            bool clear, bool repeat);
+void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv);
+void animation_set_speed(struct entity3d *e, float speed);
+
+
 struct instantiator;
-struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
+struct entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
                                     bool randomize_yrot, float randomize_scale, struct scene *scene);
 
 void debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot);

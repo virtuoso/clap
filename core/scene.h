@@ -59,7 +59,7 @@ struct scene {
 int scene_get_light(struct scene *scene);
 int scene_camera_add(struct scene *s);
 void scene_cameras_calc(struct scene *s);
-int scene_add_model(struct scene *s, struct model3dtx *txm);
+int scene_add_model(struct scene *s, model3dtx *txm);
 int scene_init(struct scene *scene);
 void scene_done(struct scene *scene);
 void scene_save(struct scene *scene, const char *name);

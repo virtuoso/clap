@@ -14,10 +14,10 @@
 #include "render.h"
 #include "ui-debug.h"
 
-static struct model3dtx *ui_quadtx;
+static model3dtx *ui_quadtx;
 
 static texture_t *ui_fbo_tex; /* XXX */
-static struct model3dtx *ui_pip;
+static model3dtx *ui_pip;
 
 static bool __ui_element_is_visible(struct ui_element *uie, struct ui *ui)
 {
@@ -178,15 +178,15 @@ static void ui_element_drop(struct ref *ref)
 
 DECLARE_REFCLASS(ui_element);
 
-static inline struct model3d *
+static inline model3d *
 ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
 {
-    struct model3d *model = model3d_new_quadrev(p, x, y, 0, w, h);
+    model3d *model = model3d_new_quadrev(p, x, y, 0, w, h);
     model->depth_testing = false;
     return model;
 }
 
-struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, struct model3dtx *txmodel,
+struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, model3dtx *txmodel,
                                   unsigned long affinity, float x_off, float y_off, float w, float h)
 {
     struct ui_element *uie;
@@ -226,12 +226,12 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, stru
     return uie;
 }
 
-static void ui_add_model(struct ui *ui, struct model3dtx *txmodel)
+static void ui_add_model(struct ui *ui, model3dtx *txmodel)
 {
     mq_add_model(&ui->mq, txmodel);
 }
 
-static void ui_add_model_tail(struct ui *ui, struct model3dtx *txmodel)
+static void ui_add_model_tail(struct ui *ui, model3dtx *txmodel)
 {
     mq_add_model_tail(&ui->mq, txmodel);
 }
@@ -239,7 +239,7 @@ static void ui_add_model_tail(struct ui *ui, struct model3dtx *txmodel)
 static cerr ui_model_init(struct ui *ui)
 {
     float x = 0.f, y = 0.f, w = 1.f, h = 1.f;
-    struct model3d *ui_quad = model3d_new_quad(ui->ui_prog, x, y, 0, w, h);
+    model3d *ui_quad = model3d_new_quad(ui->ui_prog, x, y, 0, w, h);
     ui_quad->depth_testing = false;
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
@@ -252,7 +252,7 @@ static cerr ui_model_init(struct ui *ui)
     return CERR_OK;
 }
 
-struct model3dtx *ui_quadtx_get(void)
+model3dtx *ui_quadtx_get(void)
 {
     return ui_quadtx;
 }
@@ -350,9 +350,9 @@ static inline int x_off(struct ui_text *uit, unsigned int line)
     return x;
 }
 
-static struct model3dtx *ui_txm_find_by_texture(struct ui *ui, texture_t *tex)
+static model3dtx *ui_txm_find_by_texture(struct ui *ui, texture_t *tex)
 {
-    struct model3dtx *txmodel;
+    model3dtx *txmodel;
 
     /* XXX: need trees for better search, these lists are actually long */
     /* XXX^2: struct mq */
@@ -376,11 +376,11 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     size_t len = strlen(str);
     struct ui           fbo_ui;
     struct ui_element   **uies;
-    struct model3dtx    *txm, *txmtex;
+    model3dtx           *txm, *txmtex;
     fbo_t               *fbo;
     struct ui_text      uit = {};
     struct glyph        *glyph;
-    struct model3d      *m;
+    model3d             *m;
     unsigned int        i, line;
     float               x, y;
 
@@ -807,8 +807,8 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     struct ui_widget *menu = ui_widget_build(ui, uwb, nr_items);
     struct ui_element *tui;
     float off, width, height;
-    struct model3dtx *txm;
-    struct model3d *model;
+    model3dtx *txm;
+    model3d *model;
     int i;
 
     menu->focus = -1;
@@ -955,8 +955,8 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     unsigned int rows = 3, cols = 3, nr_items = rows * cols, i;
     float color[] = { 0.5, 0.5, 0.4, 1.0 };
     struct ui_widget *inv;
-    struct model3dtx *apple_txm = NULL, *frame_txm, *bar_txm = NULL;
-    struct model3d *apple_m, *frame_m, *bar_m;
+    model3dtx *apple_txm = NULL, *frame_txm, *bar_txm = NULL;
+    model3d *apple_m, *frame_m, *bar_m;
     struct ui_element *frame, *bar, *tui;
     struct font *font = font_get_default();
     float xoff = 0, yoff = 0, width = 0;
@@ -1281,7 +1281,7 @@ static float health_bar_width;
 
 void ui_pip_update(struct ui *ui, fbo_t *fbo)
 {
-    struct model3d *m;
+    model3d *m;
 
     ui_fbo_tex = fbo_texture(fbo);
 
@@ -1304,8 +1304,8 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
 
 struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
 {
-    struct model3d *model;
-    struct model3dtx *txm;
+    model3d *model;
+    model3dtx *txm;
     struct ui_element *p, *t;
     float color[4] = { 1, 1, 1, 1 };
     struct font *font = font_open("ProggyTiny.ttf", 48);
@@ -1391,8 +1391,8 @@ struct ui_element *ui_progress_new(struct ui *ui)
     float total_height = height + 2 * thickness;
     
     struct ui_element *uie, *bar, *frame;
-    struct model3dtx *bar_txm, *frame_txm;
-    struct model3d *bar_m, *frame_m;
+    model3dtx *bar_txm, *frame_txm;
+    model3d *bar_m, *frame_m;
 
     health_bar_width = width;
     

@@ -28,7 +28,7 @@
 
 static cerr model3d_make(struct ref *ref)
 {
-    struct model3d *m = container_of(ref, struct model3d, ref);
+    model3d *m = container_of(ref, model3d, ref);
 
     m->depth_testing = true;
     m->cull_face     = true;
@@ -39,7 +39,7 @@ static cerr model3d_make(struct ref *ref)
 
 static void model3d_drop(struct ref *ref)
 {
-    struct model3d *m = container_of(ref, struct model3d, ref);
+    model3d *m = container_of(ref, model3d, ref);
     int i;
 
     /* delete gl buffers */
@@ -99,7 +99,7 @@ static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int widt
     return CERR_OK;
 }
 
-static cerr model3dtx_add_texture_from_buffer(struct model3dtx *txm, enum shader_vars var, void *input,
+static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars var, void *input,
                                               int width, int height, int has_alpha)
 {
     texture_t *targets[] = { txm->texture, txm->normals, txm->emission, txm->sobel };
@@ -120,7 +120,7 @@ static cerr model3dtx_add_texture_from_buffer(struct model3dtx *txm, enum shader
     return err;
 }
 
-static cerr_check model3dtx_add_texture_from_png_buffer(struct model3dtx *txm, enum shader_vars var, void *input, size_t length)
+static cerr_check model3dtx_add_texture_from_png_buffer(model3dtx *txm, enum shader_vars var, void *input, size_t length)
 {
     int width, height, has_alpha;
     unsigned char *buffer;
@@ -132,7 +132,7 @@ static cerr_check model3dtx_add_texture_from_png_buffer(struct model3dtx *txm, e
     return err;
 }
 
-static cerr model3dtx_add_texture_at(struct model3dtx *txm, enum shader_vars var, const char *name)
+static cerr model3dtx_add_texture_at(model3dtx *txm, enum shader_vars var, const char *name)
 {
     int width = 0, height = 0, has_alpha = 0;
     unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
@@ -143,14 +143,14 @@ static cerr model3dtx_add_texture_at(struct model3dtx *txm, enum shader_vars var
     return err;
 }
 
-static cerr model3dtx_add_texture(struct model3dtx *txm, const char *name)
+static cerr model3dtx_add_texture(model3dtx *txm, const char *name)
 {
     return model3dtx_add_texture_at(txm, UNIFORM_MODEL_TEX, name);
 }
 
 static cerr model3dtx_make(struct ref *ref)
 {
-    struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
+    model3dtx *txm = container_of(ref, model3dtx, ref);
     txm->texture = &txm->_texture;
     txm->normals = &txm->_normals;
     txm->emission = &txm->_emission;
@@ -160,14 +160,14 @@ static cerr model3dtx_make(struct ref *ref)
     return CERR_OK;
 }
 
-static bool model3dtx_tex_is_ext(struct model3dtx *txm)
+static bool model3dtx_tex_is_ext(model3dtx *txm)
 {
     return txm->texture != &txm->_texture;
 }
 
 static void model3dtx_drop(struct ref *ref)
 {
-    struct model3dtx *txm = container_of(ref, struct model3dtx, ref);
+    model3dtx *txm = container_of(ref, model3dtx, ref);
     const char *name = txm->model->name;
 
     trace("dropping model3dtx [%s]\n", name);
@@ -190,7 +190,7 @@ DECLARE_REFCLASS2(model3dtx);
 
 DEFINE_CLEANUP(model3dtx, if (*p) ref_put(*p))
 
-struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const char *norm)
+model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm)
 {
     LOCAL_SET(model3dtx, txm) = ref_new(model3dtx);
     if (!txm) {
@@ -211,14 +211,14 @@ struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const c
     return NOCU(txm);
 }
 
-struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
+model3dtx *model3dtx_new(model3d *model, const char *name)
 {
     return model3dtx_new2(model, name, NULL);
 }
 
-static void model3dtx_add_fake_emission(struct model3dtx *txm)
+static void model3dtx_add_fake_emission(model3dtx *txm)
 {
-    struct model3d *model = txm->model;
+    model3d *model = txm->model;
     float fake_emission[4] = { 0, 0, 0, 1.0 };
 
     shader_prog_use(model->prog);
@@ -229,9 +229,9 @@ static void model3dtx_add_fake_emission(struct model3dtx *txm)
     warn_on(err != CERR_OK, "%s failed: %d\n", __func__, err);
 }
 
-static void model3dtx_add_fake_sobel(struct model3dtx *txm)
+static void model3dtx_add_fake_sobel(model3dtx *txm)
 {
-    struct model3d *model = txm->model;
+    model3d *model = txm->model;
     float fake_sobel[4] = { 1.0, 1.0, 1.0, 1.0 };
 
     shader_prog_use(model->prog);
@@ -242,8 +242,8 @@ static void model3dtx_add_fake_sobel(struct model3dtx *txm)
     warn_on(err != CERR_OK, "%s failed: %d\n", __func__, err);
 }
 
-struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
-                                                 void *em, size_t emsz)
+model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
+                                          void *em, size_t emsz)
 {
     if (!tex || !texsz)
         return NULL;
@@ -280,7 +280,7 @@ struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *te
     return NOCU(txm);
 }
 
-struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex)
+model3dtx *model3dtx_new_texture(model3d *model, texture_t *tex)
 {
     if (!tex)
         return NULL;
@@ -297,7 +297,7 @@ struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex)
     return NOCU(txm);
 }
 
-void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex)
+void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
 {
     struct shader_prog *prog = txm->model->prog;
     texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission, &txm->sobel };
@@ -315,7 +315,7 @@ void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_
     *targets[slot] = tex;
 }
 
-cres(int) model3d_set_name(struct model3d *m, const char *fmt, ...)
+cres(int) model3d_set_name(model3d *m, const char *fmt, ...)
 {
     va_list ap;
 
@@ -327,7 +327,7 @@ cres(int) model3d_set_name(struct model3d *m, const char *fmt, ...)
     return res;
 }
 
-static void model3d_calc_aabb(struct model3d *m, float *vx, size_t vxsz)
+static void model3d_calc_aabb(model3d *m, float *vx, size_t vxsz)
 {
     int i;
 
@@ -348,22 +348,22 @@ static void model3d_calc_aabb(struct model3d *m, float *vx, size_t vxsz)
     //     m->aabb[0], m->aabb[1], m->aabb[2], m->aabb[3], m->aabb[4], m->aabb[5]);
 }
 
-float model3d_aabb_X(struct model3d *m)
+float model3d_aabb_X(model3d *m)
 {
     return fabs(m->aabb[1] - m->aabb[0]);
 }
 
-float model3d_aabb_Y(struct model3d *m)
+float model3d_aabb_Y(model3d *m)
 {
     return fabs(m->aabb[3] - m->aabb[2]);
 }
 
-float model3d_aabb_Z(struct model3d *m)
+float model3d_aabb_Z(model3d *m)
 {
     return fabs(m->aabb[5] - m->aabb[4]);
 }
 
-void model3d_aabb_center(struct model3d *m, vec3 center)
+void model3d_aabb_center(model3d *m, vec3 center)
 {
     vec3 minv = { m->aabb[0], m->aabb[2], m->aabb[4] };
     vec3 maxv = { m->aabb[1], m->aabb[3], m->aabb[5] };
@@ -372,7 +372,7 @@ void model3d_aabb_center(struct model3d *m, vec3 center)
     vec3_scale(center, center, 0.5);
 }
 
-void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz)
+void model3d_add_tangents(model3d *m, float *tg, size_t tgsz)
 {
     if (!shader_has_var(m->prog, ATTR_TANGENT)) {
         dbg("no tangent input in program '%s'\n", m->prog->name);
@@ -391,7 +391,7 @@ void model3d_add_tangents(struct model3d *m, float *tg, size_t tgsz)
     shader_prog_done(m->prog);
 }
 
-int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t jointssz,
+int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs)
 {
     int v, j, jmax = 0;
@@ -439,7 +439,7 @@ int model3d_add_skinning(struct model3d *m, unsigned char *joints, size_t joints
     return 0;
 }
 
-struct model3d *
+model3d *
 model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
                          unsigned short *idx, size_t idxsz, float *tx, size_t txsz,
                          float *norm, size_t normsz)
@@ -500,10 +500,10 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
     return NOCU(m);
 }
 
-struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh)
+model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh)
 {
     unsigned short *lod = NULL;
-    struct model3d *m;
+    model3d *m;
     ssize_t nr_idx;
     int level;
 
@@ -543,7 +543,7 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
     return m;
 }
 
-static void model3d_set_lod(struct model3d *m, unsigned int lod)
+static void model3d_set_lod(model3d *m, unsigned int lod)
 {
     if (lod >= m->nr_lods)
         lod = max(0, m->nr_lods - 1);
@@ -555,7 +555,7 @@ static void model3d_set_lod(struct model3d *m, unsigned int lod)
     m->cur_lod = lod;
 }
 
-static void model3d_prepare(struct model3d *m, struct shader_prog *p)
+static void model3d_prepare(model3d *m, struct shader_prog *p)
 {
     vertex_array_bind(&m->vao);
     if (m->cur_lod >= 0)
@@ -570,9 +570,9 @@ static void model3d_prepare(struct model3d *m, struct shader_prog *p)
     }
 }
 
-void model3dtx_prepare(struct model3dtx *txm, struct shader_prog *p)
+void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
 {
-    struct model3d *m = txm->model;
+    model3d *m = txm->model;
 
     model3d_prepare(txm->model, p);
 
@@ -588,15 +588,15 @@ void model3dtx_prepare(struct model3dtx *txm, struct shader_prog *p)
     shader_plug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
 }
 
-static void model3dtx_draw(renderer_t *r, struct model3dtx *txm)
+static void model3dtx_draw(renderer_t *r, model3dtx *txm)
 {
-    struct model3d *m = txm->model;
+    model3d *m = txm->model;
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
     renderer_draw(r, m->draw_type, m->nr_faces[m->cur_lod], DT_USHORT);
 }
 
-static void model3d_done(struct model3d *m, struct shader_prog *p)
+static void model3d_done(model3d *m, struct shader_prog *p)
 {
     shader_unplug_attribute(p, ATTR_POSITION, &m->vertex);
     shader_unplug_attribute(p, ATTR_NORMAL, &m->norm);
@@ -613,7 +613,7 @@ static void model3d_done(struct model3d *m, struct shader_prog *p)
     m->cur_lod = -1;
 }
 
-void model3dtx_done(struct model3dtx *txm, struct shader_prog *p)
+void model3dtx_done(model3dtx *txm, struct shader_prog *p)
 {
     if (buffer_loaded(&txm->model->tex)) {
         shader_unplug_attribute(p, ATTR_TEX, &txm->model->tex);
@@ -626,7 +626,7 @@ void model3dtx_done(struct model3dtx *txm, struct shader_prog *p)
     model3d_done(txm->model, p);
 }
 
-struct animation *animation_new(struct model3d *model, const char *name, unsigned int nr_channels)
+struct animation *animation_new(model3d *model, const char *name, unsigned int nr_channels)
 {
     struct animation *an;
 
@@ -688,8 +688,8 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
 {
     struct entity3d *e;
     struct shader_prog *prog = NULL;
-    struct model3d *model;
-    struct model3dtx *txmodel;
+    model3d *model;
+    model3dtx *txmodel;
     struct view *view = NULL;
     struct subview *subview = NULL;
     unsigned long nr_ents = 0, culled = 0;
@@ -868,7 +868,7 @@ float entity3d_aabb_Z(struct entity3d *e)
 
 void entity3d_aabb_update(struct entity3d *e)
 {
-    struct model3d *m = e->txmodel->model;
+    model3d *m = e->txmodel->model;
     vec4 corners[] = {
         { m->aabb[0], m->aabb[2], m->aabb[4], 1.0 },
         { m->aabb[0], m->aabb[3], m->aabb[4], 1.0 },
@@ -994,7 +994,7 @@ static void channels_transform(struct entity3d *e, struct animation *an, float t
 
 static void one_joint_transform(struct entity3d *e, int joint, int parent)
 {
-    struct model3d *model = e->txmodel->model;
+    model3d *model = e->txmodel->model;
     mat4x4 *parentjt = NULL, R, *invglobal;
     struct joint *j = &e->joints[joint];
     mat4x4 *jt, T;
@@ -1037,7 +1037,7 @@ static void one_joint_transform(struct entity3d *e, int joint, int parent)
 
 void animation_start(struct entity3d *e, struct scene *scene, int ani)
 {
-    struct model3d *model = e->txmodel->model;
+    model3d *model = e->txmodel->model;
     struct animation *an;
     struct channel *chan;
     int ch;
@@ -1055,7 +1055,7 @@ void animation_start(struct entity3d *e, struct scene *scene, int ani)
     e->ani_time = clap_get_current_time(scene->clap_ctx);
 }
 
-int animation_by_name(struct model3d *m, const char *name)
+int animation_by_name(model3d *m, const char *name)
 {
     int i;
 
@@ -1088,7 +1088,7 @@ static void animation_next(struct entity3d *e, struct scene *s)
     struct queued_animation *qa;
 
     if (!e->aniq.da.nr_el || e->animation < 0) {
-        struct model3d *model = e->txmodel->model;
+        model3d *model = e->txmodel->model;
         struct animation *an;
 
         animation_push_by_name(e, s, "idle", true, true);
@@ -1167,7 +1167,7 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
 static void animated_update(struct entity3d *e, struct scene *s)
 {
     double time = clap_get_current_time(s->clap_ctx);
-    struct model3d *model = e->txmodel->model;
+    model3d *model = e->txmodel->model;
     struct queued_animation *qa;
     struct animation *an;
 
@@ -1268,9 +1268,9 @@ static void entity3d_drop(struct ref *ref)
 
 DECLARE_REFCLASS2(entity3d);
 
-struct entity3d *entity3d_new(struct model3dtx *txm)
+struct entity3d *entity3d_new(model3dtx *txm)
 {
-    struct model3d *model = txm->model;
+    model3d *model = txm->model;
     struct entity3d *e;
 
     /*
@@ -1357,12 +1357,12 @@ void entity3d_move(struct entity3d *e, vec3 off)
         phys_body_set_position(e->phys_body, e->pos);
 }
 
-void model3dtx_add_entity(struct model3dtx *txm, struct entity3d *e)
+void model3dtx_add_entity(model3dtx *txm, struct entity3d *e)
 {
     list_append(&txm->entities, &e->entry);
 }
 
-struct entity3d *instantiate_entity(struct model3dtx *txm, struct instantiator *instor,
+struct entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
                                     bool randomize_yrot, float randomize_scale, struct scene *scene)
 {
     struct entity3d *e = entity3d_new(txm);
@@ -1395,8 +1395,8 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
 {
     struct shader_prog *p;
     struct debug_draw *dd;
-    struct model3dtx *txm;
-    struct model3d *m;
+    model3dtx *txm;
+    model3d *m;
 
     p = shader_prog_find(&scene->shaders, "debug");
     CHECK(dd = ref_new(debug_draw));
@@ -1457,13 +1457,13 @@ void mq_init(struct mq *mq, void *priv)
 
 void mq_release(struct mq *mq)
 {
-    struct model3dtx *txmodel;
+    model3dtx *txmodel;
     struct entity3d *ent;
 
     while (!list_empty(&mq->txmodels)) {
         bool done = false;
 
-        txmodel = list_first_entry(&mq->txmodels, struct model3dtx, entry);
+        txmodel = list_first_entry(&mq->txmodels, model3dtx, entry);
 
         do {
             if (list_empty(&txmodel->entities))
@@ -1485,7 +1485,7 @@ void mq_release(struct mq *mq)
 
 void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data)
 {
-    struct model3dtx *txmodel;
+    model3dtx *txmodel;
     struct entity3d *ent, *itent;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
@@ -1500,33 +1500,33 @@ void mq_update(struct mq *mq)
     mq_for_each(mq, entity3d_update, mq->priv);
 }
 
-struct model3dtx *mq_model_first(struct mq *mq)
+model3dtx *mq_model_first(struct mq *mq)
 {
-    return list_first_entry(&mq->txmodels, struct model3dtx, entry);
+    return list_first_entry(&mq->txmodels, model3dtx, entry);
 }
 
-struct model3dtx *mq_model_last(struct mq *mq)
+model3dtx *mq_model_last(struct mq *mq)
 {
-    return list_last_entry(&mq->txmodels, struct model3dtx, entry);
+    return list_last_entry(&mq->txmodels, model3dtx, entry);
 }
 
-void mq_add_model(struct mq *mq, struct model3dtx *txmodel)
+void mq_add_model(struct mq *mq, model3dtx *txmodel)
 {
     txmodel = ref_pass(txmodel);
     list_append(&mq->txmodels, &txmodel->entry);
 }
 
-void mq_add_model_tail(struct mq *mq, struct model3dtx *txmodel)
+void mq_add_model_tail(struct mq *mq, model3dtx *txmodel)
 {
     txmodel = ref_pass(txmodel);
     list_prepend(&mq->txmodels, &txmodel->entry);
 }
 
-struct model3dtx *mq_nonempty_txm_next(struct mq *mq, struct model3dtx *txm, bool fwd)
+model3dtx *mq_nonempty_txm_next(struct mq *mq, model3dtx *txm, bool fwd)
 {
-    struct model3dtx *first_txm = mq_model_first(mq);
-    struct model3dtx *last_txm = mq_model_last(mq);
-    struct model3dtx *next_txm;
+    model3dtx *first_txm = mq_model_first(mq);
+    model3dtx *last_txm = mq_model_last(mq);
+    model3dtx *next_txm;
 
     if (list_empty(&mq->txmodels))
         return NULL;

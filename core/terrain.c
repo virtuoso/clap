@@ -418,8 +418,8 @@ const struct cell_automaton ca_instors[] = {
 struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y, float z, float side, unsigned int nr_v)
 {
     struct terrain *t;
-    struct model3d *model;
-    struct model3dtx *txm;
+    model3d *model;
+    model3dtx *txm;
     struct shader_prog *prog = shader_prog_find(&s->shaders, "terrain"); /* XXX */
     unsigned long total = nr_v * nr_v, it;
     size_t vxsz, txsz, idxsz;

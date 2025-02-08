@@ -58,7 +58,7 @@ struct game_state {
     
     struct list free_trees;
     int number_of_free_trees;
-    struct model3dtx *txmodel[GAME_ITEM_MAX];
+    model3dtx *txmodel[GAME_ITEM_MAX];
     struct game_options options;
     struct burrow burrow;
 };
@@ -77,7 +77,7 @@ struct game_item {
 };
 
 struct game_item *game_item_new(struct game_state *g, enum game_item_kind kind,
-                                struct model3dtx *txm);
+                                model3dtx *txm);
 void game_item_delete(struct game_state *g, struct game_item *item);
 int game_item_find_idx(struct game_state *g, struct game_item *item);
 void game_item_delete_idx(struct game_state *g, int idx);

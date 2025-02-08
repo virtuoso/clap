@@ -683,7 +683,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
                                      struct entity3d *e, double mass)
 {
     dTriMeshDataID meshdata = dGeomTriMeshDataCreate();
-    struct model3d *m = e->txmodel->model;
+    model3d *m = e->txmodel->model;
     unsigned short *idx = m->collision_idx;
     size_t idxsz = m->collision_idxsz;
     size_t vxsz = m->collision_vxsz;

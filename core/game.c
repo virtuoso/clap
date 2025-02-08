@@ -163,7 +163,7 @@ static const char *game_item_str(struct game_item *item)
 }
 
 void game_item_init(struct game_item *item, struct game_state *g,
-                    enum game_item_kind kind, struct model3dtx *txm)
+                    enum game_item_kind kind, model3dtx *txm)
 {
     struct entity3d *e = entity3d_new(txm);
 
@@ -173,7 +173,7 @@ void game_item_init(struct game_item *item, struct game_state *g,
 }
 
 struct game_item *game_item_new(struct game_state *g, enum game_item_kind kind,
-                                struct model3dtx *txm)
+                                model3dtx *txm)
 {
     struct game_item *item;
 
@@ -407,7 +407,7 @@ void game_init(struct scene *scene, struct ui *ui)
     darray_init(game_state.items);
     list_init(&game_state.free_trees);
     mq_for_each(&scene->mq, find_trees, &game_state);
-    struct model3dtx *txmodel;
+    model3dtx *txmodel;
 
     // find apple
     list_for_each_entry(txmodel, &scene->mq.txmodels, entry) {
