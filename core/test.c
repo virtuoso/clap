@@ -522,7 +522,9 @@ int main(int argc, char **argv, char **envp)
 {
     int ret, i, c, option_index;
 
-    messagebus_init();
+    cerr err = messagebus_init();
+    if (IS_CERR(err))
+        return EXIT_FAILURE;
 
     for (;;) {
         c = getopt_long(argc, argv, short_options, long_options, &option_index);

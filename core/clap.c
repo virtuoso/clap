@@ -323,8 +323,11 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     ctx->argv = argv;
     ctx->envp = envp;
 
+    cerr err = messagebus_init();
+    if (IS_CERR(err))
+        return cresp_error(clap_context, CERR_NOMEM);
+
     /* XXX: handle initialization errors */
-    messagebus_init();
     log_init(log_flags);
     (void)librarian_init(ctx->cfg.base_url);
     if (ctx->cfg.font)

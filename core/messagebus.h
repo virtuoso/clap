@@ -3,6 +3,7 @@
 #define __CLAP_MESSAGEBUS_H__
 
 #include <time.h>
+#include "error.h"
 #include "util.h"
 
 enum message_result {
@@ -123,9 +124,9 @@ struct subscriber {
     struct list         entry;
 };
 
-int subscribe(enum message_type type, subscriber_fn fn, void *data);
+cerr subscribe(enum message_type type, subscriber_fn fn, void *data);
 int message_send(struct message *m);
-int messagebus_init(void);
+cerr_check messagebus_init(void);
 void messagebus_done(void);
 
 #endif /* __CLAP_MESSAGEBUS_H__ */
