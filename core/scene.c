@@ -412,8 +412,14 @@ int scene_init(struct scene *scene)
 
     scene->light.shadow_msaa = false;
 
-    subscribe(MT_INPUT, scene_handle_input, scene);
-    subscribe(MT_COMMAND, scene_handle_command, scene);
+    cerr err;
+    err = subscribe(MT_INPUT, scene_handle_input, scene);
+    if (IS_CERR(err))
+        return err;
+
+    err = subscribe(MT_COMMAND, scene_handle_command, scene);
+    if (IS_CERR(err))
+        return err;
 
     scene->initialized = true;
 
