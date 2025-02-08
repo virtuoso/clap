@@ -72,7 +72,10 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
         # would be to set sb.start = sb.cur = throwaway_buffer and sb.end accordingly, but
         # the code is actually correct and clang is fine with it. So, shut the warning here
         # instead.
-        set_source_files_properties(json.c PROPERTIES COMPILE_FLAGS -Wno-maybe-uninitialized)
+        set_source_files_properties(json.c PROPERTIES
+                                    COMPILE_FLAGS -Wno-maybe-uninitialized -Wall
+                                                  -Wno-misleading-indentation -Wno-comment
+                                                  -Werror ${CFLAGS})
     endif ()
 
     add_executable(${TEST_BIN} ${TEST_SRC})
