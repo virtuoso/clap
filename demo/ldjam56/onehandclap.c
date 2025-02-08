@@ -253,23 +253,23 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    struct clap_context *clap_ctx = clap_init(&cfg, argc, argv, envp);
-    if (!clap_ctx) {
+    cresp(clap_context) clap_res = clap_init(&cfg, argc, argv, envp);
+    if (IS_CERR(clap_res)) {
         err("failed to initialize clap\n");
         return EXIT_FAILURE;
     }
 
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
-    scene.clap_ctx = clap_ctx;
+    scene.clap_ctx = clap_res.val;
     prev_msaa = scene.light.shadow_msaa;
 
 #ifndef CONFIG_FINAL
-    ncfg.clap = clap_ctx;
+    ncfg.clap = clap_res.val;
     networking_init(&ncfg, CLIENT);
 #endif
 
-    phys_set_ground_contact(clap_get_phys(clap_ctx), ohc_ground_contact);
+    phys_set_ground_contact(clap_get_phys(scene.clap_ctx), ohc_ground_contact);
 
     subscribe(MT_INPUT, handle_input, &scene);
     subscribe(MT_COMMAND, handle_command, &scene);
@@ -278,9 +278,9 @@ int main(int argc, char **argv, char **envp)
      * Need to write vorbis callbacks for this
      * lib_request(RES_ASSET, "morning.ogg", opening_sound_load, &intro_sound);
      */
-    intro_sound = sound_load(clap_get_sound(clap_ctx), "morning.ogg");
+    intro_sound = sound_load(clap_get_sound(scene.clap_ctx), "morning.ogg");
     if (intro_sound) {
-        float intro_gain = settings_get_num(clap_get_settings(clap_ctx), NULL, "music_volume");
+        float intro_gain = settings_get_num(clap_get_settings(scene.clap_ctx), NULL, "music_volume");
         sound_set_gain(intro_sound, intro_gain);
         sound_set_looping(intro_sound, true);
         sound_play(intro_sound);
@@ -318,7 +318,7 @@ int main(int argc, char **argv, char **envp)
 
     build_main_pl(&main_pl);
 
-    err = ui_init(&ui, clap_get_renderer(clap_ctx), scene.width, scene.height);
+    err = ui_init(&ui, clap_get_renderer(scene.clap_ctx), scene.width, scene.height);
     if (err)
         goto exit_ui;
 
@@ -338,7 +338,7 @@ int main(int argc, char **argv, char **envp)
 exit_ui:
     scene_done(&scene);
     //gl_done();
-    clap_done(clap_ctx, 0);
+    clap_done(scene.clap_ctx, 0);
 #else
 exit_ui:
     if (err)

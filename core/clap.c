@@ -280,34 +280,34 @@ static bool clap_config_is_valid(struct clap_config *cfg)
  * Main API
  ****************************************************************************/
 
-int clap_restart(struct clap_context *ctx)
+cres(int) clap_restart(struct clap_context *ctx)
 {
     int argc = ctx->argc;
     char **argv = ctx->argv;
     char **envp = ctx->envp;
 
     if (!argc || !argv)
-        return -EINVAL;
+        return cres_error(int, CERR_INVALID_ARGUMENTS);
 
     clap_done(ctx, 0);
 #ifdef __APPLE__
-    return execve(argv[0], argv, envp);
+    return cres_val(int, execve(argv[0], argv, envp));
 #else
-    return execve(program_invocation_name, argv, envp);
+    return cres_val(int, execve(program_invocation_name, argv, envp));
 #endif
 }
 
-struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
+cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
 {
     unsigned int log_flags = LOG_DEFAULT;
     struct clap_context *ctx;
 
     if (cfg && !clap_config_is_valid(cfg))
-        return NULL;
+        return cresp_error(clap_context, CERR_INVALID_ARGUMENTS);
 
     ctx = mem_alloc(sizeof(*ctx), .zero = 1);
     if (!ctx)
-        return NULL;
+        return cresp_error(clap_context, CERR_NOMEM);
 
     mesh_init();
 
@@ -342,7 +342,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
          */
         cerr err = display_init(ctx, clap_frame, clap_resize);
         if (err != CERR_OK)
-            return NULL;
+            return cresp_error(clap_context, err);
 
         textures_init();
     }
@@ -353,7 +353,7 @@ struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, c
     if (ctx->cfg.settings)
         CHECK(ctx->settings = settings_init(clap_settings_onload, ctx));
 
-    return ctx;
+    return cresp_val(clap_context, ctx);
 }
 
 void clap_done(struct clap_context *ctx, int status)

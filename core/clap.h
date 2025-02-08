@@ -46,8 +46,10 @@ struct clap_config {
     void            *settings_cb_data;
 };
 
-struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, char **envp);
+cresp_struct_ret(clap_context);
+
+cresp_check(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, char **envp);
 void clap_done(struct clap_context *ctx, int status) __nonnull_params((1));
-int clap_restart(struct clap_context *ctx) __nonnull_params((1));
+cres(int) clap_restart(struct clap_context *ctx) __nonnull_params((1));
 
 #endif /* __CLAP_CLAP_H__ */

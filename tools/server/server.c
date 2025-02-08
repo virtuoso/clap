@@ -82,9 +82,13 @@ int main(int argc, char **argv, char **envp)
     }
 
     signal(SIGINT, sigint_handler);
-    clap = clap_init(&cfg, argc, argv, envp);
+    cresp(clap_context) clap_res = clap_init(&cfg, argc, argv, envp);
+    if (IS_CERR(clap_res)) {
+        err("failed to initialize clap\n");
+        return EXIT_FAILURE;
+    }
 
-    ncfg.clap = clap;
+    ncfg.clap = clap_res.val;
 
     if (do_restart) {
         networking_init(&ncfg, CLIENT);
@@ -93,7 +97,7 @@ int main(int argc, char **argv, char **envp)
         networking_broadcast_restart();
         networking_poll();
         networking_done();
-        clap_done(clap, 0);
+        clap_done(clap_res.val, 0);
         return EXIT_SUCCESS;
     }
 
@@ -103,9 +107,11 @@ int main(int argc, char **argv, char **envp)
     networking_done();
     if (restart_server) {
         dbg("### restarting server ###\n");
-        return clap_restart(clap);
+        cres(int) res = clap_restart(clap_res.val);
+        if (IS_CERR(res))
+            return EXIT_FAILURE;
     }
-    clap_done(clap, 0);
+    clap_done(clap_res.val, 0);
 
     return EXIT_SUCCESS;
 }
