@@ -166,7 +166,7 @@ FOREACH(src ${ENGINE_SRC})
     )
     if (NOT WIN32)
         set_source_files_properties(${src} PROPERTIES
-                                    COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Werror ${CFLAGS}"
+                                    COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CFLAGS}"
         )
     endif ()
 ENDFOREACH ()
