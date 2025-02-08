@@ -58,13 +58,8 @@ typedef enum cerr {
 /* Declare cres with int value */
 cres_ret(int);
 
-/* Is cerr or cres an error */
-#define IS_CERR(__x) ( \
-    _Generic(__x, \
-        cerr: (__x), \
-        default: (__x).err \
-    ) != CERR_OK \
-)
+/* Is cerr or cres (or any compound type that has cerr at offset 0) an error */
+#define IS_CERR(__x) (*((cerr *)&(__x)) != CERR_OK)
 
 /* Return a error */
 #define cres_error(__type, __err) ({ \
