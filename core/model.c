@@ -512,6 +512,9 @@ struct model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, s
                                  mesh_idx(mesh), mesh_idx_sz(mesh),
                                  mesh_tx(mesh), mesh_tx_sz(mesh),
                                  mesh_norm(mesh), mesh_norm_sz(mesh));
+    if (!m)
+        return NULL;
+
     if (mesh_nr_tangent(mesh))
         model3d_add_tangents(m, mesh_tangent(mesh), mesh_tangent_sz(mesh));
 
