@@ -11,15 +11,15 @@ struct settings;
 typedef struct sound_context sound_context;
 
 /* Get the clap's physics handle */
-struct phys *clap_get_phys(struct clap_context *ctx);
+struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
 /* Get clap's config structure */
-struct clap_config *clap_get_config(struct clap_context *ctx);
+struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 /* Get clap's renderer */
-renderer_t *clap_get_renderer(struct clap_context *ctx);
-sound_context *clap_get_sound(struct clap_context *ctx);
-struct settings *clap_get_settings(struct clap_context *ctx);
-struct timespec clap_get_current_timespec(struct clap_context *ctx);
-double clap_get_current_time(struct clap_context *ctx);
+renderer_t *clap_get_renderer(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
+sound_context *clap_get_sound(struct clap_context *ctx) __nonnull_params((1));
+struct settings *clap_get_settings(struct clap_context *ctx) __nonnull_params((1));
+struct timespec clap_get_current_timespec(struct clap_context *ctx) __nonnull_params((1));
+double clap_get_current_time(struct clap_context *ctx) __nonnull_params((1));
 
 struct timespec clap_get_fps_delta(struct clap_context *ctx);
 unsigned long clap_get_fps_fine(struct clap_context *ctx);
@@ -47,7 +47,7 @@ struct clap_config {
 };
 
 struct clap_context *clap_init(struct clap_config *cfg, int argc, char **argv, char **envp);
-void clap_done(struct clap_context *ctx, int status);
-int clap_restart(struct clap_context *ctx);
+void clap_done(struct clap_context *ctx, int status) __nonnull_params((1));
+int clap_restart(struct clap_context *ctx) __nonnull_params((1));
 
 #endif /* __CLAP_CLAP_H__ */
