@@ -59,10 +59,13 @@ static void font_load_glyph(struct font *font, unsigned char c)
     }
 #undef _AT
 #undef _GAT
-    texture_init(&font->g[c].tex);
-    cerr err = texture_load(&font->g[c].tex, TEX_FMT_RGBA, glyph->bitmap.width,
-                            glyph->bitmap.rows, buf);
-    if (err)
+    cerr err = texture_init(&font->g[c].tex);
+    if (IS_CERR(err))
+        return;
+
+    err = texture_load(&font->g[c].tex, TEX_FMT_RGBA, glyph->bitmap.width,
+                       glyph->bitmap.rows, buf);
+    if (IS_CERR(err))
         return;
 
     font->g[c].advance_x = glyph->advance.x;

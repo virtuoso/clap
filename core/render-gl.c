@@ -308,14 +308,17 @@ bool texture_is_multisampled(texture_t *tex)
     return tex->multisampled;
 }
 
-void _texture_init(texture_t *tex, const texture_init_options *opts)
+cerr _texture_init(texture_t *tex, const texture_init_options *opts)
 {
     bool multisampled   = opts->multisampled;
 #ifdef CONFIG_GLES
     multisampled  = false;
 #endif /* CONFIG_GLES */
 
-    ref_embed(texture, tex);
+    cerr err = ref_embed(texture, tex);
+    if (IS_CERR(err))
+        return err;
+
     tex->component_type = GL_UNSIGNED_BYTE;
     tex->wrap           = gl_texture_wrap(opts->wrap);
     tex->min_filter     = gl_texture_filter(opts->min_filter);
@@ -329,6 +332,8 @@ void _texture_init(texture_t *tex, const texture_init_options *opts)
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     GL(glActiveTexture(tex->target));
     GL(glGenTextures(1, &tex->id));
+
+    return CERR_OK;
 }
 
 texture_t *texture_clone(texture_t *tex)
@@ -540,7 +545,10 @@ bool texture_loaded(struct texture *tex)
 
 cerr_check texture_pixel_init(texture_t *tex, float color[4])
 {
-    texture_init(tex);
+    cerr err = texture_init(tex);
+    if (IS_CERR(err))
+        return err;
+
     return texture_load(tex, TEX_FMT_RGBA, 1, 1, color);
 }
 
@@ -584,13 +592,16 @@ static int fbo_create(void)
 
 static cerr_check fbo_texture_init(fbo_t *fbo)
 {
-    texture_init(&fbo->tex,
-                 .multisampled  = fbo_is_multisampled(fbo),
-                 .wrap          = TEX_CLAMP_TO_EDGE,
-                 .min_filter    = TEX_FLT_LINEAR,
-                 .mag_filter    = TEX_FLT_LINEAR);
-    cerr err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
-    if (err)
+    cerr err = texture_init(&fbo->tex,
+                            .multisampled  = fbo_is_multisampled(fbo),
+                            .wrap          = TEX_CLAMP_TO_EDGE,
+                            .min_filter    = TEX_FLT_LINEAR,
+                            .mag_filter    = TEX_FLT_LINEAR);
+    if (IS_CERR(err))
+        return err;
+
+    err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
+    if (IS_CERR(err))
         return err;
 
     fbo->attachment = GL_COLOR_ATTACHMENT0;
@@ -601,19 +612,22 @@ static cerr_check fbo_texture_init(fbo_t *fbo)
 static cerr_check fbo_depth_texture_init(fbo_t *fbo)
 {
     float border[] = { 1, 1, 1, 1 };
-    texture_init(&fbo->tex,
+    cerr err = texture_init(&fbo->tex,
 #ifndef CONFIG_GLES
-                 .type          = TEX_2D_ARRAY,
-                 .layers        = CASCADES_MAX,
+                            .type          = TEX_2D_ARRAY,
+                            .layers        = CASCADES_MAX,
  #endif /* CONFIG_GLES */
-                 .multisampled  = fbo_is_multisampled(fbo),
-                 .wrap          = TEX_CLAMP_TO_BORDER,
-                 .border        = border,
-                 .min_filter    = TEX_FLT_NEAREST,
-                 .mag_filter    = TEX_FLT_NEAREST);
-    cerr err = texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT,
-                           fbo->width, fbo->height);
-    if (err)
+                            .multisampled  = fbo_is_multisampled(fbo),
+                            .wrap          = TEX_CLAMP_TO_BORDER,
+                            .border        = border,
+                            .min_filter    = TEX_FLT_NEAREST,
+                            .mag_filter    = TEX_FLT_NEAREST);
+    if (IS_CERR(err))
+        return err;
+
+    err = texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT,
+                      fbo->width, fbo->height);
+    if (IS_CERR(err))
         return err;
 
     fbo->attachment = GL_DEPTH_ATTACHMENT;

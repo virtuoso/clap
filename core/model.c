@@ -80,14 +80,16 @@ static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int widt
     if (!shader_has_var(p, var))
         return CERR_OK;
 
-    texture_init(tex,
-                 .target       = shader_get_texture_slot(p, var),
-                 .wrap         = TEX_WRAP_REPEAT,
-                 .min_filter   = TEX_FLT_NEAREST,
-                 .mag_filter   = TEX_FLT_NEAREST);
+    cerr err = texture_init(tex,
+                            .target       = shader_get_texture_slot(p, var),
+                            .wrap         = TEX_WRAP_REPEAT,
+                            .min_filter   = TEX_FLT_NEAREST,
+                            .mag_filter   = TEX_FLT_NEAREST);
+    if (IS_CERR(err))
+        return err;
 
-    cerr err = texture_load(tex, color_type, width, height, buffer);
-    if (err)
+    err = texture_load(tex, color_type, width, height, buffer);
+    if (IS_CERR(err))
         return err;
 
     shader_set_texture(p, var);
