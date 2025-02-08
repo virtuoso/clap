@@ -106,7 +106,7 @@ typedef struct model3d {
     size_t              collision_idxsz;
 } model3d;
 
-struct model3dtx {
+typedef struct model3dtx {
     struct model3d *model;
     texture_t      _texture;
     texture_t      _normals;
@@ -121,7 +121,7 @@ struct model3dtx {
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
     struct list    entities;           /* links entity3d->entry */
-};
+} model3dtx;
 
 struct model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
                                          unsigned short *idx, size_t idxsz, float *tx, size_t txsz, float *norm,

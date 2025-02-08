@@ -188,32 +188,27 @@ static void model3dtx_drop(struct ref *ref)
 
 DECLARE_REFCLASS2(model3dtx);
 
+DEFINE_CLEANUP(model3dtx, if (*p) ref_put(*p))
+
 struct model3dtx *model3dtx_new2(struct model3d *model, const char *tex, const char *norm)
 {
-    struct model3dtx *txm = ref_new(model3dtx);
-
-    if (!txm)
-        goto err;
+    LOCAL_SET(model3dtx, txm) = ref_new(model3dtx);
+    if (!txm) {
+        ref_put_passed(model);
+        return NULL;
+    }
 
     txm->model = ref_get(model);
-    if (model3dtx_add_texture(txm, tex)) {
-        ref_put_last(txm);
+    if (model3dtx_add_texture(txm, tex))
         return NULL;
-    }
 
-    if (norm && model3dtx_add_texture_at(txm, UNIFORM_NORMAL_MAP, norm)) {
-        ref_put_last(txm);
+    if (norm && model3dtx_add_texture_at(txm, UNIFORM_NORMAL_MAP, norm))
         return NULL;
-    }
 
     txm->roughness = 0.65;
     txm->metallic = 0.45;
 
-    return txm;
-
-err:
-    ref_put_passed(model);
-    return NULL;
+    return NOCU(txm);
 }
 
 struct model3dtx *model3dtx_new(struct model3d *model, const char *name)
@@ -251,64 +246,55 @@ struct model3dtx *model3dtx_new_from_png_buffers(struct model3d *model, void *te
                                                  void *em, size_t emsz)
 {
     if (!tex || !texsz)
-        goto err;
+        return NULL;
 
-    struct model3dtx *txm = ref_new(model3dtx);
-
-    if (!txm)
-        goto err;
+    LOCAL_SET(model3dtx, txm) = ref_new(model3dtx);
+    if (!txm) {
+        ref_put_passed(model);
+        return NULL;
+    }
 
     txm->model = ref_get(model);
 
     cerr err;
     err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
     if (err)
-        goto err_3dtx;
+        return NULL;
 
     if (norm && normsz) {
         err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
         if (err)
-            goto err_3dtx;
+            return NULL;
     }
 
     if (em && emsz) {
         err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
         if (err)
-            goto err_3dtx;
+            return NULL;;
     } else {
         model3dtx_add_fake_emission(txm);
     }
 
     model3dtx_add_fake_sobel(txm);
 
-    return txm;
-
-err_3dtx:
-    ref_put_last(txm);
-    return NULL;
-err:
-    ref_put_passed(model);
-    return NULL;
+    return NOCU(txm);
 }
 
 struct model3dtx *model3dtx_new_texture(struct model3d *model, texture_t *tex)
 {
     if (!tex)
-        goto err;
+        return NULL;
 
-    struct model3dtx *txm = ref_new(model3dtx);
-
-    if (!txm)
-        goto err;
+    LOCAL_SET(model3dtx, txm) = ref_new(model3dtx);
+    if (!txm) {
+        ref_put_passed(model);
+        return NULL;
+    }
 
     txm->model = ref_get(model);
     txm->texture = tex;
 
-    return txm;
-
-err:
-    ref_put_passed(model);
-    return NULL;
+    return NOCU(txm);
 }
 
 void model3dtx_set_texture(struct model3dtx *txm, enum shader_vars var, texture_t *tex)
