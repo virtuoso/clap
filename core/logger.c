@@ -87,7 +87,6 @@ static struct logger logger_stdio = {
 static struct log_entry *log_rb;
 static int log_rb_wp;
 static int log_rb_sz;
-//static FILE *log_rb_output;
 static DECLARE_LIST(log_rb_sinks);
 
 struct rb_sink {
@@ -201,7 +200,6 @@ static notrace cerr rb_init(void)
     if (!log_rb)
         return CERR_NOMEM;
 
-    //log_rb_output = stdout;
     log_rb_sz = LOG_RB_MAX;
     exit_cleanup(rb_cleanup);
 
@@ -212,7 +210,6 @@ static notrace cerr rb_log(int level, const char *mod, int line, const char *fun
 {
     struct timespec ts;
 
-    /* XXX not dealing with absence of clock_gettime() */
     (void)clock_gettime(CLOCK_REALTIME, &ts);
 
     msg = strdup(msg);
@@ -300,7 +297,6 @@ static notrace void log_submit(int level, const char *mod, int line, const char 
     struct logger *lg;
 
     for (lg = logger; lg; lg = lg->next) {
-        //fprintf(stderr, "# sending '%s' to '%s'\n", msg, lg->name);
         cerr err = lg->log(level, mod, line, func, msg);
         if (IS_CERR(err))
             submit_failures++;
