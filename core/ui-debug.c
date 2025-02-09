@@ -107,7 +107,8 @@ void ui_debug_done(struct ui *ui)
         ref_put_last(debug_uit);
     }
 
-    font_put(debug_font);
+    if (debug_font)
+        font_put(debug_font);
 
     int i;
 

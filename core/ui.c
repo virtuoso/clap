@@ -1518,9 +1518,11 @@ void ui_done(struct ui *ui)
     if (uie0)
         ref_put(uie0);
 #ifndef CONFIG_FINAL
-    ref_put_last(build_uit);
+    if (build_uit)
+        ref_put_last(build_uit);
 #endif
-    ref_put_last(uie1);
+    if (uie1)
+        ref_put_last(uie1);
     if (display_fps && bottom_uit) {
         ref_put_last(bottom_uit);
         ref_put_last(bottom_element);
