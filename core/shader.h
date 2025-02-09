@@ -70,7 +70,7 @@ void shader_set_var_float(struct shader_prog *p, enum shader_vars var, float val
 void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value);
 #define shader_setup_attribute(_p, _v, _b, args...) \
     _shader_setup_attribute((_p), (_v), (_b), &(buffer_init_options){ args })
-void _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf,
+cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf,
                              const buffer_init_options *opts);
 void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf);
 void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf);

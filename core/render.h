@@ -85,7 +85,7 @@ typedef struct buffer_init_options {
 
 #define buffer_init(_b, args...) \
     _buffer_init((_b), &(buffer_init_options){ args })
-void _buffer_init(buffer_t *buf, const buffer_init_options *opts);
+cerr_check _buffer_init(buffer_t *buf, const buffer_init_options *opts);
 void buffer_deinit(buffer_t *buf);
 void buffer_bind(buffer_t *buf, int loc);
 void buffer_unbind(buffer_t *buf, int loc);
@@ -99,7 +99,7 @@ TYPE(vertex_array,
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
-void vertex_array_init(vertex_array_t *va);
+cerr_check vertex_array_init(vertex_array_t *va);
 void vertex_array_done(vertex_array_t *va);
 void vertex_array_bind(vertex_array_t *va);
 void vertex_array_unbind(vertex_array_t *va);

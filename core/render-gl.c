@@ -103,9 +103,11 @@ bool buffer_loaded(buffer_t *buf)
     return buf->loaded;
 }
 
-void _buffer_init(buffer_t *buf, const buffer_init_options *opts)
+cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
-    ref_embed(buffer, buf);
+    cerr err = ref_embed(buffer, buf);
+    if (IS_CERR(err))
+        return err;
 
     data_type comp_type = opts->comp_type;
     if (comp_type == DT_NONE)
@@ -123,6 +125,8 @@ void _buffer_init(buffer_t *buf, const buffer_init_options *opts)
     if (opts->data && opts->size)
         buffer_load(buf, opts->data, opts->size,
                     buf->type == GL_ELEMENT_ARRAY_BUFFER ? -1 : 0);
+
+    return CERR_OK;
 }
 
 void buffer_deinit(buffer_t *buf)
@@ -197,14 +201,19 @@ static void vertex_array_drop(struct ref *ref)
 
 DECLARE_REFCLASS(vertex_array);
 
-void vertex_array_init(vertex_array_t *va)
+cerr vertex_array_init(vertex_array_t *va)
 {
-    ref_embed(vertex_array, va);
+    cerr err = ref_embed(vertex_array, va);
+    if (IS_CERR(err))
+        return err;
+
     if (!gl_does_vao())
-        return;
+        return CERR_OK;
 
     GL(glGenVertexArrays(1, &va->vao));
     GL(glBindVertexArray(va->vao));
+
+    return CERR_OK;
 }
 
 void vertex_array_done(vertex_array_t *va)

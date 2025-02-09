@@ -131,13 +131,13 @@ void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value)
     shader_set_var_ptr(p, var, 1, &value);
 }
 
-void _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf,
+cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf,
                              const buffer_init_options *opts)
 {
     if (!shader_has_var(p, var))
-        return;
+        return CERR_OK;
 
-    _buffer_init(buf, opts);
+    return _buffer_init(buf, opts);
 }
 
 void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)

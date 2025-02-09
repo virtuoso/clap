@@ -459,7 +459,9 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
     model3d_calc_aabb(m, vx, vxsz);
     darray_init(m->anis);
 
-    vertex_array_init(&m->vao);
+    cerr err = vertex_array_init(&m->vao);
+    if (IS_CERR(err))
+        return NULL;
 
     shader_prog_use(p);
     shader_setup_attribute(p, ATTR_POSITION, &m->vertex,
@@ -469,12 +471,17 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
                            .comp_count     = 3,
                            .data           = vx,
                            .size           = vxsz);
-    buffer_init(&m->index[0],
-                .type       = BUF_ELEMENT_ARRAY,
-                .usage      = BUF_STATIC,
-                .comp_type  = DT_SHORT,
-                .data       = idx,
-                .size       = idxsz);
+    err = buffer_init(&m->index[0],
+                      .type       = BUF_ELEMENT_ARRAY,
+                      .usage      = BUF_STATIC,
+                      .comp_type  = DT_SHORT,
+                      .data       = idx,
+                      .size       = idxsz);
+    if (IS_CERR(err)) {
+        shader_prog_done(p);
+        return NULL;
+    }
+
     m->nr_lods++;
 
     shader_setup_attribute(p, ATTR_TEX, &m->tex,
@@ -529,14 +536,18 @@ model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct m
         nr_idx = mesh_idx_to_lod(mesh, level, &lod, nr_idx);
         if (nr_idx < 0)
             break;
-        dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
-        buffer_init(&m->index[m->nr_lods],
-                    .type       = BUF_ELEMENT_ARRAY,
-                    .usage      = BUF_STATIC,
-                    .comp_type  = DT_SHORT,
-                    .data       = lod,
-                    .size       = nr_idx * mesh_idx_stride(mesh));
+        cerr err = buffer_init(&m->index[m->nr_lods],
+                               .type       = BUF_ELEMENT_ARRAY,
+                               .usage      = BUF_STATIC,
+                               .comp_type  = DT_SHORT,
+                               .data       = lod,
+                               .size       = nr_idx * mesh_idx_stride(mesh));
         mem_free(lod);
+
+        if (IS_CERR(err))
+            continue;
+
+        dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
         m->nr_faces[m->nr_lods] = nr_idx;
         m->nr_lods++;
     }
