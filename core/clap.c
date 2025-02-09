@@ -344,7 +344,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
          * But not to worry, the renderer will be initialized at that point.
          */
         cerr err = display_init(ctx, clap_frame, clap_resize);
-        if (err != CERR_OK)
+        if (IS_CERR(err))
             return cresp_error(clap_context, err);
 
         textures_init();

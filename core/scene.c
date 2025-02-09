@@ -393,7 +393,7 @@ void scene_update(struct scene *scene)
     motion_reset(&scene->mctl, scene);
 }
 
-int scene_init(struct scene *scene)
+cerr scene_init(struct scene *scene)
 {
     memset(scene, 0, sizeof(*scene));
     scene->auto_yoffset = 4.0;
@@ -423,7 +423,7 @@ int scene_init(struct scene *scene)
 
     scene->initialized = true;
 
-    return 0;
+    return CERR_OK;
 }
 
 struct scene_config {
@@ -855,7 +855,7 @@ cerr scene_load(struct scene *scene, const char *name)
     err_on(lh->state != RES_LOADED);
     ref_put_last(lh);
 
-    return 0;
+    return CERR_OK;
 }
 
 void scene_done(struct scene *scene)

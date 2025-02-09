@@ -332,7 +332,7 @@ int librarian_init(const char *dir)
                                        .add_file = builtin_add_file,
                                        .callback_data = &builtin_assets.da);
         cerr err = cpio_read(cpio);
-        err_on(err != CERR_OK, "cpio_read() failed: %d\n", err);
+        err_on(IS_CERR(err), "cpio_read() failed: %d\n", CERR_CODE(err));
         cpio_close(cpio);
     }
 

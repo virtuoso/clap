@@ -1081,12 +1081,12 @@ static void gltf_onload(struct lib_handle *h, void *data)
 
     /* try GLB first, if it's not GLB, it fails quickly */
     cerr err = gltf_bin_parse(h->buf, h->size, data);
-    if (err == CERR_OK)
+    if (!IS_CERR(err))
         goto out;
 
     /* if GLTF embedded fails, nothing more to do */
     err = gltf_json_parse(h->buf, data);
-    if (err != CERR_OK) {
+    if (IS_CERR(err)) {
         warn("couldn't parse '%s'\n", h->name);
         h->state = RES_ERROR;
     }

@@ -118,7 +118,7 @@ static bool pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int 
         width = height = shadow_map_size(width, height);
 
     cerr err = fbo_resize(fbo, width, height);
-    return !err;
+    return !IS_CERR(err);
 }
 
 void pipeline_set_resize_cb(struct pipeline *pl, bool (*cb)(fbo_t *, bool, int, int))
@@ -596,7 +596,8 @@ found:
 
 static bool debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
 {
-    return !fbo_resize(fbo, width, height);
+    cerr err = fbo_resize(fbo, width, height);
+    return !IS_CERR(err);
 }
 
 void pipeline_debug(struct pipeline *pl)

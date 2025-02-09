@@ -454,7 +454,7 @@ cerr_check texture_load(texture_t *tex, texture_format format,
     tex->height = height;
 
     cerr err = texture_setup_begin(tex, buf);
-    if (err)
+    if (IS_CERR(err))
         return err;
 
     texture_setup_end(tex);
@@ -483,7 +483,7 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, GLenum format,
 #endif /* CONFIG_GLES */
     }
     cerr err = texture_setup_begin(tex, NULL);
-    if (err)
+    if (IS_CERR(err))
         return err;
 
     if (tex->type == GL_TEXTURE_2D ||
@@ -562,12 +562,17 @@ texture_t *transparent_pixel(void) { return &_transparent_pixel; }
 
 void textures_init(void)
 {
+    cerr werr, berr, terr;
+
     float white[] = { 1, 1, 1, 1 };
-    CHECK0(texture_pixel_init(&_white_pixel, white));
+    werr = texture_pixel_init(&_white_pixel, white);
     float black[] = { 0, 0, 0, 1 };
-    CHECK0(texture_pixel_init(&_black_pixel, black));
+    berr = texture_pixel_init(&_black_pixel, black);
     float transparent[] = { 0, 0, 0, 0 };
-    CHECK0(texture_pixel_init(&_transparent_pixel, transparent));
+    terr = texture_pixel_init(&_transparent_pixel, transparent);
+
+    err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr), "failed: %d/%d/%d\n",
+           CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr));
 }
 
 void textures_done(void)
@@ -735,7 +740,7 @@ cerr_check fbo_resize(fbo_t *fbo, int width, int height)
     cerr err = CERR_OK;
     if (texture_loaded(&fbo->tex))
         err = texture_resize(&fbo->tex, width, height);
-    if (err)
+    if (IS_CERR(err))
         return err;
 
     int *color_buf;
@@ -850,7 +855,7 @@ static cerr_check fbo_init(fbo_t *fbo, int nr_attachments)
         }
     }
 
-    if (err)
+    if (IS_CERR(err))
         goto err;
 
     if (nr_attachments > 0)
@@ -895,7 +900,7 @@ must_check fbo_t *_fbo_new(const fbo_init_options *opts)
         fbo->nr_samples = MSAA_SAMPLES;
 
     cerr err = fbo_init(fbo, opts->nr_attachments);
-    if (err) {
+    if (IS_CERR(err)) {
         ref_put_last(fbo);
         return NULL;
     }

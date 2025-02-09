@@ -83,6 +83,6 @@ void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
 void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex);
 struct shader_prog *shader_prog_find(struct list *shaders, const char *name);
 void shaders_free(struct list *shaders);
-int lib_request_shaders(const char *name, struct list *shaders);
+cerr lib_request_shaders(const char *name, struct list *shaders);
 
 #endif /* __CLAP_SHADER_H__ */

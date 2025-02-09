@@ -279,7 +279,7 @@ sound *sound_load(sound_context *ctx, const char *name)
     else if (str_endswith(name, ".ogg"))
         err = parse_ogg(sound, &cb_data);
 
-    if (err != CERR_OK) {
+    if (IS_CERR(err)) {
         err("couldn't load '%s'\n", lh->name);
         return NULL;
     }

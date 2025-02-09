@@ -273,11 +273,11 @@ int main(int argc, char **argv, char **envp)
 
     cerr err;
     err = subscribe(MT_INPUT, handle_input, &scene);
-    if (err)
+    if (IS_CERR(err))
         goto exit_scene;
 
     err = subscribe(MT_COMMAND, handle_command, &scene);
-    if (err)
+    if (IS_CERR(err))
         goto exit_scene;
 
     /*
@@ -325,7 +325,7 @@ int main(int argc, char **argv, char **envp)
     build_main_pl(&main_pl);
 
     err = ui_init(&ui, clap_get_renderer(scene.clap_ctx), scene.width, scene.height);
-    if (err)
+    if (IS_CERR(err))
         goto exit_pl;
 
     scene.lin_speed = 2.0;
@@ -348,7 +348,7 @@ exit_scene:
     clap_done(scene.clap_ctx, 0);
 #else
 exit_scene:
-    if (err)
+    if (IS_CERR(err))
         imgui_render();
 #endif
 

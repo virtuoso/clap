@@ -199,11 +199,15 @@ model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm)
     }
 
     txm->model = ref_get(model);
-    if (model3dtx_add_texture(txm, tex))
+    cerr err = model3dtx_add_texture(txm, tex);
+    if (IS_CERR(err))
         return NULL;
 
-    if (norm && model3dtx_add_texture_at(txm, UNIFORM_NORMAL_MAP, norm))
-        return NULL;
+    if (norm) {
+        err = model3dtx_add_texture_at(txm, UNIFORM_NORMAL_MAP, norm);
+        if (IS_CERR(err))
+            return NULL;
+    }
 
     txm->roughness = 0.65;
     txm->metallic = 0.45;
@@ -226,7 +230,7 @@ static void model3dtx_add_fake_emission(model3dtx *txm)
                                       txm->emission);
     shader_prog_done(model->prog);
 
-    warn_on(err != CERR_OK, "%s failed: %d\n", __func__, err);
+    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
 }
 
 static void model3dtx_add_fake_sobel(model3dtx *txm)
@@ -239,7 +243,7 @@ static void model3dtx_add_fake_sobel(model3dtx *txm)
                                       txm->sobel);
     shader_prog_done(model->prog);
 
-    warn_on(err != CERR_OK, "%s failed: %d\n", __func__, err);
+    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
 }
 
 model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,

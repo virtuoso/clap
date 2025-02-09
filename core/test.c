@@ -467,11 +467,11 @@ static int cpio_test0(void)
         return EXIT_FAILURE;
 
     cerr err = cpio_write(ctx, __func__, (void *)__func__, sizeof(__func__));
-    if (err != CERR_OK)
+    if (IS_CERR(err))
         return EXIT_FAILURE;
 
     err = cpio_write(ctx, CPIO_TEST_FILE, CPIO_TEST_STRING, sizeof(CPIO_TEST_STRING));
-    if (err != CERR_OK)
+    if (IS_CERR(err))
         return EXIT_FAILURE;
 
     cpio_close(ctx);
@@ -484,7 +484,7 @@ static int cpio_test0(void)
         return EXIT_FAILURE;
 
     err = cpio_read(ctx);
-    if (err)
+    if (IS_CERR(err))
         return EXIT_FAILURE;
 
     return cbd.count == 2 ? EXIT_SUCCESS : EXIT_FAILURE;

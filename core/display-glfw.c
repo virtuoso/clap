@@ -259,7 +259,7 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
     glfwSetErrorCallback(__error_cb);
 
     cerr err = display_gl_init(ctx);
-    if (err != CERR_OK)
+    if (IS_CERR(err))
         return err;
 
     glfwSetWindowPosCallback(window, __move_cb);

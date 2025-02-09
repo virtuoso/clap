@@ -220,7 +220,7 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, con
     list_init(&p->entry);
     p->name = name;
     cerr err = shader_init(&p->shader, vsh, gsh, fsh);
-    if (err) {
+    if (IS_CERR(err)) {
         err("couldn't create program '%s'\n", name);
         ref_put(p);
         return NULL;
@@ -268,7 +268,7 @@ void shaders_free(struct list *shaders)
         ref_put(prog);
 }
 
-int lib_request_shaders(const char *name, struct list *shaders)
+cerr lib_request_shaders(const char *name, struct list *shaders)
 {
     LOCAL(lib_handle, hv);
     LOCAL(lib_handle, hf);
@@ -293,13 +293,13 @@ int lib_request_shaders(const char *name, struct list *shaders)
     hg = lib_read_file(RES_SHADER, ngeom, (void **)&geom, &gsz);
 
     if (!hv || !hf)
-        return -1;
+        return CERR_SHADER_NOT_LOADED;
 
     p = shader_prog_from_strings(name, vert, hg ? geom : NULL, frag);
     if (!p)
-        return -1;
+        return CERR_INVALID_SHADER;
 
     list_append(shaders, &p->entry);
 
-    return 0;
+    return CERR_OK;
 }

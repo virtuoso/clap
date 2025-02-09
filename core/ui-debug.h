@@ -89,7 +89,7 @@ static inline void __ui_debug_printf(const char *mod, const char *fmt, ...) {}
 static inline void ui_show_debug(const char *debug_name) {}
 static inline void ui_show_debug_once(const char *debug_name) {}
 static inline struct ui_widget *ui_debug_menu(struct ui *ui) { return NULL; }
-static inline cerr ui_debug_init(struct ui *ui) { return 0; }
+static inline cerr ui_debug_init(struct ui *ui) { return CERR_OK; }
 static inline void ui_debug_done(struct ui *ui) {}
 
 static inline void ui_debug_selector(void) {}
