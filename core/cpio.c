@@ -188,6 +188,10 @@ cerr cpio_write(cpio_context *ctx, const char *name, void *buf, size_t size)
     if (size > UINT_MAX)
         return CERR_TOO_LARGE;
 
+    /* buf and size can either be both set or both unset */
+    if (!!size != !!buf)
+        return CERR_INVALID_ARGUMENTS;
+
     if (size)
         mode |= S_IFREG;
     else
@@ -209,6 +213,9 @@ cerr cpio_write(cpio_context *ctx, const char *name, void *buf, size_t size)
     fwrite(name, namesize, 1, ctx->f);
     if (namesize & 1)
         fwrite("", 1, 1, ctx->f);
+
+    if (!buf)
+        return CERR_OK;
 
     fwrite(buf, size, 1, ctx->f);
     if (size & 1)
