@@ -345,7 +345,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
          */
         cerr err = display_init(ctx, clap_frame, clap_resize);
         if (IS_CERR(err))
-            return cresp_error(clap_context, err);
+            return cresp_error_cerr(clap_context, err);
 
         textures_init();
     }

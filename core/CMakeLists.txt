@@ -1,6 +1,7 @@
 set(CMAKE_C_STANDARD 23)
 
 include (${CMAKE_SOURCE_DIR}/scripts/renderer-switch.cmake)
+include (${CMAKE_SOURCE_DIR}/scripts/cerr-gen.cmake)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
