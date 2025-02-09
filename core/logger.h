@@ -35,13 +35,16 @@ struct log_entry {
     int             level;
 };
 
-int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill);
-void rb_sink_del(void *data);
+int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill)
+    __nonnull_params((1,2));
+void rb_sink_del(void *data) __nonnull_params();
 
-void hexdump(unsigned char *buf, size_t size);
+void hexdump(unsigned char *buf, size_t size) __nonnull_params();
 void log_init(unsigned int flags);
-void vlogg(int level, const char *mod, int line, const char *func, const char *fmt, va_list va);
-void logg(int level, const char *mod, int line, const char *func, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
+void vlogg(int level, const char *mod, int line, const char *func, const char *fmt, va_list va)
+    __nonnull_params((5,6));
+void logg(int level, const char *mod, int line, const char *func, const char *fmt, ...)
+    __attribute__((format(printf, 5, 6))) __nonnull_params((5));
 #define trace(args...) \
     logg(VDBG, MODNAME, __LINE__, __func__, ## args);
 #define trace_on(_c, args...) do { if ((_c)) trace("condition '" # _c "': " args); } while (0)
