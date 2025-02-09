@@ -21,12 +21,12 @@ struct view {
     float                   aspect;
 };
 
-struct entity3d;
+typedef struct entity3d entity3d;
 void view_update_perspective_projection(struct view *view, int width, int height);
 void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll);
 void view_update_from_target(struct view *view, vec3 eye, vec3 target);
 void view_update_from_frustum(struct view *view, vec3 dir, struct view *src);
 void view_calc_frustum(struct view *view);
-bool view_entity_in_frustum(struct view *view, struct entity3d *e);
+bool view_entity_in_frustum(struct view *view, entity3d *e);
 
 #endif /* __CLAP_VIEW_H__ */
