@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include "compiler.h"
 #include "logger.h"
 
 typedef unsigned char uchar;
@@ -23,45 +24,13 @@ DECLARE_CLEANUP(char);
 DECLARE_CLEANUP(uchar);
 
 #define NOCU(x) ({ typeof(x) _x = x; x = NULL; _x; })
-#define CU(x) __attribute__((cleanup(cleanup__ ## x)))
 #define CUX(x) CU(x) = NULL
 #define LOCAL_(t, ts, x) t *x CUX(ts ## p)
 #define LOCAL(t, x) LOCAL_(t, t, x)
 #define LOCAL_SET_(t, ts, x) t *x CU(ts ## p)
 #define LOCAL_SET(t, x) LOCAL_SET_(t, t, x)
 
-#define weak __attribute__((weak))
-#ifdef __APPLE__
-#define rodata __attribute__((section("__DATA_CONST,__const")))
-#else
-#define rodata __attribute__((section(".rodata")))
-#endif /* __APPLE__ */
-#define nonstring __attribute__((nonstring))
-#ifndef __unused
-#define __unused __attribute__((unused))
-#endif /* __unused */
-#define notrace __attribute__((no_instrument_function))
-#define __printf(x, y) __attribute__((__format__(__printf__, (x), (y))))
-
-/* Compiler annotations for things that can't be NULL or return NULL */
-#ifndef __nonnull_params
-#define __nonnull_params(params) __attribute__((__nonnull__ params))
-#endif /* __nonnull_params */
-#ifndef __returns_nonnull
-#define __returns_nonnull __attribute__((__returns_nonnull__))
-#endif /* __returns_nonnull */
-
-#define likely(x) __builtin_expect((x), 1)
-#define unlikely(x) __builtin_expect((x), 0)
-
-/* Multiplication overflows are by definition unlikely */
-#define _mul_overflow(a, b, res) __builtin_mul_overflow((a), (b), (res))
-#define mul_overflow(a, b, res) unlikely(__builtin_mul_overflow((a), (b), (res)))
-
 #define array_size(x) (sizeof(x) / sizeof(*x))
-#ifndef offsetof
-#define offsetof(a, b) __builtin_offsetof(a, b)
-#endif /* offsetof */
 #define container_of(node, type, field) ((type *)((void *)(node)-offsetof(type, field)))
 
 #define __stringify(x) (# x)
@@ -143,11 +112,7 @@ static inline double drand48()
 #define CHECK(_st) CHECK_NVAL(_st, !!, true)
 #define CHECK0(_st) CHECK_VAL(_st, 0)
 
-#ifndef unreachable
-#define unreachable __builtin_unreachable
-#endif /* unreachable */
-
-static inline void __attribute__((noreturn)) clap_unreachable(void)
+static inline void __noreturn clap_unreachable(void)
 {
     unreachable();
 }
