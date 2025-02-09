@@ -24,6 +24,9 @@ typedef enum cerr_enum {
     _CERR_INVALID_FORMAT         = -13,
     _CERR_INITIALIZATION_FAILED  = -14,
     _CERR_SHADER_NOT_LOADED      = -15,
+    _CERR_SOCK_ACCEPT_FAILED     = -16,
+    _CERR_SOCK_BIND_FAILED       = -17,
+    _CERR_SOCK_LISTEN_FAILED     = -18,
 } cerr_enum;
 
 /****************************************************************************

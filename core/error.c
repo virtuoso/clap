@@ -23,6 +23,9 @@ const char *cerr_str(cerr_enum err)
         case _CERR_INVALID_FORMAT:          return "invalid format";
         case _CERR_INITIALIZATION_FAILED:   return "initialization failed";
         case _CERR_SHADER_NOT_LOADED:       return "shader is not loaded";
+        case _CERR_SOCK_ACCEPT_FAILED:      return "socket accept failed";
+        case _CERR_SOCK_BIND_FAILED:        return "socket bind failed";
+        case _CERR_SOCK_LISTEN_FAILED:      return "socket listen failed";
         default:                            break;
     }
 
