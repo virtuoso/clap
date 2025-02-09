@@ -193,35 +193,47 @@ static void network_node_drop(struct ref *ref)
 
 DECLARE_REFCLASS(network_node);
 
-static struct network_node *network_node_new(int mode)
+cresp_struct_ret(network_node);
+
+static cresp(network_node) network_node_new(int mode)
 {
     struct network_node *n;
 
-    CHECK(n = ref_new(network_node));
+    n = ref_new(network_node);
+    if (!n)
+        return cresp_error(network_node, CERR_NOMEM);
+
     n->mode = mode;
     n->events = POLLIN | POLLHUP | POLLNVAL | POLLOUT;
     n->state  = ST_INIT;
     list_append(&nodes, &n->entry);
     list_init(&n->out_queue);
 
-    return n;
+    return cresp_val(network_node, n);
 }
 
-static struct network_node *network_node_new_parent(struct network_node *parent)
+static cresp(network_node) network_node_new_parent(struct network_node *parent)
 {
-    struct network_node *n = network_node_new(parent->mode);
+    cresp(network_node) res = network_node_new(parent->mode);
+    if (IS_CERR(res))
+        return res;
+
+    struct network_node *n = res.val;
     n->parent            = parent;
     n->handshake         = parent->handshake;
     n->data              = parent->data;
     n->addrlen           = parent->addrlen;
     memcpy(&n->sa, &parent->sa, n->addrlen);
-    return n;
+    return res;
 }
 
-static struct network_node *network_node_new_socket(const char *ip, unsigned int port, int mode)
+static cresp(network_node) network_node_new_socket(const char *ip, unsigned int port, int mode)
 {
-    struct network_node *n = network_node_new(mode);
+    cresp(network_node) res = network_node_new(mode);
+    if (IS_CERR(res))
+        return res;
 
+    struct network_node *n = res.val;
     n->addrlen = sizeof(n->sa);
     memset(&n->sa, 0, sizeof(struct sockaddr_in));
     n->fd            = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -234,16 +246,20 @@ static struct network_node *network_node_new_socket(const char *ip, unsigned int
     }
     fcntl(n->fd, F_SETFL, O_NONBLOCK);
 
-    return n;
+    return res;
 }
 
-static int network_node_listen(struct network_node *n)
+static cerr network_node_listen(struct network_node *n)
 {
-    CHECK0(bind(n->fd, (struct sockaddr *)&n->sa, n->addrlen));
-    CHECK0(listen(n->fd, 1));
+    if (bind(n->fd, (struct sockaddr *)&n->sa, n->addrlen))
+        return CERR_SOCK_BIND_FAILED;
+
+    if (listen(n->fd, 1))
+        return CERR_SOCK_LISTEN_FAILED;
+
     need_polling_alloc++;
 
-    return 0;
+    return CERR_OK;
 }
 
 static int network_node_connect(struct network_node *n)
@@ -259,24 +275,38 @@ static int network_node_connect(struct network_node *n)
     return ret;
 }
 
-static struct network_node *network_node_accept(struct network_node *n)
+static cresp(network_node) network_node_accept(struct network_node *n)
 {
-    struct network_node *child = network_node_new_parent(n);
+    cresp(network_node) res = network_node_new_parent(n);
+    if (IS_CERR(res))
+        return res;
+
+    struct network_node *child = res.val;
     child->mode         = SERVER;
-    CHECK(child->fd = accept(n->fd, (struct sockaddr *)&n->sa, &n->addrlen));
-    child->src = mem_alloc(sizeof(*child->src), .zero = 1, .fatal_fail = 1);
-    child->src->type = MST_CLIENT;
-    cres(int) res = mem_asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr));
-    if (IS_CERR(res)) {
+    child->fd = accept(n->fd, (struct sockaddr *)&n->sa, &n->addrlen);
+    if (child->fd < 0) {
         ref_put(child);
-        return NULL;
+        return cresp_error(network_node, CERR_SOCK_ACCEPT_FAILED);
+    }
+
+    child->src = mem_alloc(sizeof(*child->src), .zero = 1);
+    if (child->fd < 0) {
+        ref_put(child);
+        return cresp_error(network_node, CERR_NOMEM);
+    }
+
+    child->src->type = MST_CLIENT;
+    cres(int) name_res = mem_asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr));
+    if (IS_CERR(name_res)) {
+        ref_put(child);
+        return cresp_error_cerr(network_node, name_res);
     }
 
     dbg("new client '%s'\n", child->src->name);
     child->src->desc = "remote client";
     child->state     = ST_HANDSHAKE;
     need_polling_alloc++;
-    return child;
+    return res;
 }
 
 struct wsheader {
@@ -449,31 +479,45 @@ static int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *
     return 0;
 }
 
-static struct network_node *server_setup(const char *server_ip, unsigned int port)
+static cresp(network_node) server_setup(const char *server_ip, unsigned int port)
 {
-    struct network_node *n;
+    cresp(network_node) res = network_node_new_socket(server_ip, port, LISTEN);
+    if (IS_CERR(res))
+        return res;
 
-    CHECK(n = network_node_new_socket(server_ip, port, LISTEN));
-    CHECK0(network_node_listen(n));
+    cerr err = network_node_listen(res.val);
+    if (IS_CERR(err))
+        return cresp_error_cerr(network_node, err);
     need_polling_alloc++;
 
-    return n;
+    return res;
 }
 
-static struct network_node *_client_setup(struct networking_config *cfg, unsigned int port)
+static cresp(network_node) _client_setup(struct networking_config *cfg, unsigned int port)
 {
     struct network_node *n;
+    cerr err = CERR_OK;
 
-    CHECK(n = network_node_new_socket(cfg->server_ip, port, CLIENT));
+    cresp(network_node) res = network_node_new_socket(cfg->server_ip, port, CLIENT);
+    if (IS_CERR(res))
+        return res;
+
+    n = res.val;
     network_node_connect(n);
     if (cfg->logger)
-        rb_sink_add(log_flush, n, VDBG, 1);
+        err = rb_sink_add(log_flush, n, VDBG, 1);
+
+    if (IS_CERR(err)) {
+        ref_put(n);
+        return cresp_error_cerr(network_node, err);
+    }
+
     need_polling_alloc++;
 
-    return n;
+    return res;
 }
 
-static struct network_node *client_setup(struct networking_config *cfg)
+static cresp(network_node) client_setup(struct networking_config *cfg)
 {
 #ifdef __EMSCRIPTEN__
     return _client_setup(cfg, cfg->server_wsport);
@@ -861,7 +905,15 @@ void networking_poll(void)
     memset(buf, 0, sizeof(buf));
     polling_update();
     if (nr_nodes == 0) {
-        n = client_setup(_ncfg);
+        cresp(network_node) res = client_setup(_ncfg);
+        if (IS_CERR(res)) {
+            char buf[512];
+            cerr_strbuf(buf, sizeof(buf), &res);
+            err("Couldn't start client: %s\n", buf);
+            return;
+        }
+
+        n = res.val;
     }
 
     ret = poll(pollfds, nr_nodes, _ncfg->timeout);
@@ -875,7 +927,15 @@ void networking_poll(void)
         pollfds[i].revents = 0;
         /* First, new incoming connections */
         if (n->mode == LISTEN && (events & POLLIN)) {
-            CHECK(child = network_node_accept(n));
+            cresp(network_node) res = network_node_accept(n);
+            if (IS_CERR(res)) {
+                char buf[512];
+                cerr_strbuf(buf, sizeof(buf), &res);
+                err("Couldn't accept connection: %s\n", buf);
+                continue;
+            }
+
+            child = res.val;
             dbg("accepted client connection\n");
             ret = recvfrom(child->fd, buf, sizeof(buf), 0, (struct sockaddr *)&child->sa, &child->addrlen);
             //dbg("Handshake: '%s'\n", buf);
@@ -974,18 +1034,28 @@ static void socket_callback(int fd, void *data)
 }
 #endif /* __EMSCRIPTEN__ */
 
-int networking_init(struct networking_config *cfg, enum mode mode)
+cerr networking_init(struct networking_config *cfg, enum mode mode)
 {
     struct network_node *n;
+    cresp(network_node) res;
 
     _ncfg = memdup(cfg, sizeof(*cfg));
     switch (mode) {
     case CLIENT:
-        CHECK(n = client_setup(_ncfg));
+        res = client_setup(_ncfg);
+        if (IS_CERR(res))
+            return cerr_error_cres(res);
         break;
     case SERVER:
-        CHECK(n = server_setup(_ncfg->server_ip, _ncfg->server_port));
-        CHECK(n = server_setup(_ncfg->server_ip, _ncfg->server_wsport));
+        res = server_setup(_ncfg->server_ip, _ncfg->server_port);
+        if (IS_CERR(res))
+            return cerr_error_cres(res);
+
+        res = server_setup(_ncfg->server_ip, _ncfg->server_wsport);
+        if (IS_CERR(res))
+            return cerr_error_cres(res);
+
+        n            = res.val;
         n->data      = &_wsh;
         n->handshake = websocket_parse;
         need_polling_alloc++;
@@ -998,7 +1068,7 @@ int networking_init(struct networking_config *cfg, enum mode mode)
 #endif /* __EMSCRIPTEN__ */
     dbg("networking initialized\n");
 
-    return 0;
+    return CERR_OK;
 }
 
 void networking_done(void)

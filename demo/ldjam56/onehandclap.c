@@ -268,14 +268,20 @@ int main(int argc, char **argv, char **envp)
     scene.clap_ctx = clap_res.val;
     prev_msaa = scene.light.shadow_msaa;
 
+    cerr err;
 #ifndef CONFIG_FINAL
     ncfg.clap = clap_res.val;
-    networking_init(&ncfg, CLIENT);
+    err = networking_init(&ncfg, CLIENT);
+    if (IS_CERR(err)) {
+        char buf[512];
+
+        cerr_strbuf(buf, sizeof(buf), &clap_res);
+        err("failed to initialize networking: %s\n", buf);
+    }
 #endif
 
     phys_set_ground_contact(clap_get_phys(scene.clap_ctx), ohc_ground_contact);
 
-    cerr err;
     err = subscribe(MT_INPUT, handle_input, &scene);
     if (IS_CERR(err))
         goto exit_scene;

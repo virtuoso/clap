@@ -90,27 +90,48 @@ int main(int argc, char **argv, char **envp)
 
     ncfg.clap = clap_res.val;
 
+    cerr err;
+
     if (do_restart) {
-        networking_init(&ncfg, CLIENT);
+        err = networking_init(&ncfg, CLIENT);
+        if (IS_CERR(err)) {
+            char buf[512];
+
+            cerr_strbuf(buf, sizeof(buf), &err);
+            err("Failed to initialize client connection for restarting: %s\n", buf);
+
+            goto exit_clap;
+        }
         networking_poll();
         networking_poll();
         networking_broadcast_restart();
         networking_poll();
         networking_done();
-        clap_done(clap_res.val, 0);
-        return EXIT_SUCCESS;
+        goto exit_clap;
     }
 
-    networking_init(&ncfg, SERVER);
+    err = networking_init(&ncfg, SERVER);
+    if (IS_CERR(err)) {
+        char buf[512];
+
+        cerr_strbuf(buf, sizeof(buf), &err);
+        err("Failed to initialize server: %s\n", buf);
+
+        goto exit_clap;
+    }
+
     subscribe(MT_COMMAND, handle_command, NULL);
     server_run();
     networking_done();
     if (restart_server) {
         dbg("### restarting server ###\n");
         cres(int) res = clap_restart(clap_res.val);
+        /* XXX: on failure, exits either way, but let it fallthrough */
         if (IS_CERR(res))
             return EXIT_FAILURE;
     }
+
+exit_clap:
     clap_done(clap_res.val, 0);
 
     return EXIT_SUCCESS;
