@@ -2,6 +2,7 @@
 #ifndef __CLAP_ERROR_H__
 #define __CLAP_ERROR_H__
 
+#include <stddef.h>
 #include "compiler.h"
 #include "config.h"
 
@@ -121,6 +122,16 @@ typedef struct cerr {
 /* Declare cres with int value */
 cres_ret(int);
 
+/*
+ * Make sure that cerr and cres(T) have err, mod and line at same offsets, so
+ * both can be typecast to cerr and passed into cerr_strbuf()
+ */
+static_assert(offsetof(cerr, err)  == offsetof(cres(int), err),  "cerr/cres::err don't match");
+#ifndef CONFIG_FINAL
+static_assert(offsetof(cerr, mod)  == offsetof(cres(int), mod),  "cerr/cres::mod don't match");
+static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::line don't match");
+#endif /* CONFIG_FINAL */
+
 /* Get error value from cerr/cres */
 #define CERR_CODE(__x) (*((cerr_enum *)&(__x)))
 /* Is cerr or cres (or any compound type that has cerr at offset 0) an error */
@@ -181,5 +192,9 @@ cres_ret(int);
     }; \
     __res; \
 })
+
+/* Error code to text mapping */
+const char *cerr_str(cerr_enum err);
+int cerr_strbuf(char *buf, size_t size, void *err);
 
 #endif /* __CLAP_ERROR_H__ */
