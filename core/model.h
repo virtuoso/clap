@@ -151,7 +151,7 @@ struct mq {
 void mq_init(struct mq *mq, void *priv);
 void mq_release(struct mq *mq);
 void mq_update(struct mq *mq);
-void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data);
+void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data);
 model3dtx *mq_model_first(struct mq *mq);
 model3dtx *mq_model_last(struct mq *mq);
 void mq_add_model(struct mq *mq, model3dtx *txmodel);
@@ -173,7 +173,7 @@ struct queued_animation {
     float           speed;
 };
 
-struct entity3d {
+typedef struct entity3d {
     model3dtx        *txmodel;
     struct matrix4f  *mx;
     struct ref       ref;
@@ -200,76 +200,76 @@ struct entity3d {
     /* 2 byte hole */
     float   aabb[6];
     float   light_off[3];
-    int (*update)(struct entity3d *e, void *data);
-    int (*contact)(struct entity3d *e1, struct entity3d *e2);
-    void (*destroy)(struct entity3d *e);
+    int (*update)(entity3d *e, void *data);
+    int (*contact)(entity3d *e1, entity3d *e2);
+    void (*destroy)(entity3d *e);
     void *priv;
-};
+} entity3d;
 
-void model3dtx_add_entity(model3dtx *txm, struct entity3d *e);
+void model3dtx_add_entity(model3dtx *txm, entity3d *e);
 void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
                    struct light *light, struct camera *camera, struct matrix4f *proj_mx,
-                   struct entity3d *focus, int width, int height, int cascade,
+                   entity3d *focus, int width, int height, int cascade,
                    unsigned long *count);
 
-static inline const char *entity_name(struct entity3d *e)
+static inline const char *entity_name(entity3d *e)
 {
     return e ? txmodel_name(e->txmodel) : "<none>";
 }
 
-static inline bool entity_animated(struct entity3d *e)
+static inline bool entity_animated(entity3d *e)
 {
     return e->txmodel->model->anis.da.nr_el;
 }
 
-struct entity3d *entity3d_new(model3dtx *txm);
+entity3d *entity3d_new(model3dtx *txm);
 
 /*
  * Set up entity's model matrix from entity's coordinates and euler rotations.
  * Not necessary if the entity::update points to default_update(), which is the
  * default, or the new update callback calls the original callback.
  */
-void entity3d_reset(struct entity3d *e);
-float entity3d_aabb_X(struct entity3d *e);
-float entity3d_aabb_Y(struct entity3d *e);
-float entity3d_aabb_Z(struct entity3d *e);
-void entity3d_aabb_min(struct entity3d *e, vec3 min);
-void entity3d_aabb_max(struct entity3d *e, vec3 max);
-void entity3d_aabb_center(struct entity3d *e, vec3 center);
-void entity3d_update(struct entity3d *e, void *data);
-void entity3d_put(struct entity3d *e);
+void entity3d_reset(entity3d *e);
+float entity3d_aabb_X(entity3d *e);
+float entity3d_aabb_Y(entity3d *e);
+float entity3d_aabb_Z(entity3d *e);
+void entity3d_aabb_min(entity3d *e, vec3 min);
+void entity3d_aabb_max(entity3d *e, vec3 max);
+void entity3d_aabb_center(entity3d *e, vec3 center);
+void entity3d_update(entity3d *e, void *data);
+void entity3d_put(entity3d *e);
 
 /* Set entity's scale */
-void entity3d_scale(struct entity3d *e, float scale);
+void entity3d_scale(entity3d *e, float scale);
 
 /* Move entity by an offset */
-void entity3d_move(struct entity3d *e, vec3 off);
+void entity3d_move(entity3d *e, vec3 off);
 
 /* Set entity's absolute position */
-void entity3d_position(struct entity3d *e, vec3 pos);
+void entity3d_position(entity3d *e, vec3 pos);
 
 /* Set entity's visibility */
-void entity3d_visible(struct entity3d *e, unsigned int visible);
+void entity3d_visible(entity3d *e, unsigned int visible);
 
 /* Set entity's rotation aronud X axis */
-void entity3d_rotate_X(struct entity3d *e, float rx);
+void entity3d_rotate_X(entity3d *e, float rx);
 
 /* Set entity's rotation aronud Y axis */
-void entity3d_rotate_Y(struct entity3d *e, float ry);
+void entity3d_rotate_Y(entity3d *e, float ry);
 
 /* Set entity's rotation aronud Z axis */
-void entity3d_rotate_Z(struct entity3d *e, float rz);
-void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
+void entity3d_rotate_Z(entity3d *e, float rz);
+void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
-void animation_start(struct entity3d *e, struct scene *scene, int ani);
-void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
+void animation_start(entity3d *e, struct scene *scene, int ani);
+void animation_push_by_name(entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat);
-void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv);
-void animation_set_speed(struct entity3d *e, float speed);
+void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *), void *priv);
+void animation_set_speed(entity3d *e, float speed);
 
 
 struct instantiator;
-struct entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
+entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
                                     bool randomize_yrot, float randomize_scale, struct scene *scene);
 
 void debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot);

@@ -266,7 +266,7 @@ void view_calc_frustum(struct view *view)
     return subview_calc_frustum(&view->main);
 }
 
-bool view_entity_in_frustum(struct view *view, struct entity3d *e)
+bool view_entity_in_frustum(struct view *view, entity3d *e)
 {
     vec3 min, max;
     int i;

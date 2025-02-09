@@ -16,7 +16,7 @@ void ui_element_animations_done(struct ui_element *uie)
     }
 }
 
-static int ui_animation_update(struct entity3d *e, void *data)
+static int ui_animation_update(entity3d *e, void *data)
 {
     struct ui_element   *uie = e->priv;
     struct ui_animation *ua;

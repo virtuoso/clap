@@ -16,8 +16,8 @@ enum character_state {
 
 struct character {
     struct ref  ref;
-    struct entity3d *entity;
-    int (*orig_update)(struct entity3d *, void *);
+    entity3d *entity;
+    int (*orig_update)(entity3d *, void *);
     struct camera *camera;
     struct timespec dash_started;
     vec3    motion;
@@ -29,7 +29,7 @@ struct character {
     float   jump_upward;
     float   lin_speed;
     struct list entry;
-    struct entity3d *collision;
+    entity3d *collision;
     int     moved;
     bool    jump;
     bool    airborne;
@@ -43,7 +43,7 @@ struct character {
     enum character_state state;
 };
 
-static inline struct entity3d *character_entity(struct character *c)
+static inline entity3d *character_entity(struct character *c)
 {
     return c->entity;
 }

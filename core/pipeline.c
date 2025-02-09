@@ -177,7 +177,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     struct render_pass *pass;
     struct shader_prog *p;
     model3dtx *txm;
-    struct entity3d *e;
+    entity3d *e;
     model3d *m;
 
     pass = mem_alloc(sizeof(*pass), .zero = 1);

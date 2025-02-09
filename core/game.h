@@ -7,7 +7,7 @@
 #include "ui.h"
 
 struct free_tree {
-    struct entity3d *entity;
+    entity3d *entity;
     struct list entry;
 };
 
@@ -38,7 +38,7 @@ struct game_options {
 };
 
 struct burrow {
-    struct entity3d *entity;
+    entity3d *entity;
     darray(struct game_item, items);
     int number_of_mature_apples;
 };
@@ -65,13 +65,13 @@ struct game_state {
 
 struct game_item {
     enum game_item_kind kind;
-    struct entity3d *entity;
+    entity3d *entity;
     float age;
     float age_limit;
     struct free_tree *apple_parent;
     bool is_mature;
     bool is_deleted;
-    void (*interact)(struct game_state *g, struct game_item *item, struct entity3d *actor);
+    void (*interact)(struct game_state *g, struct game_item *item, entity3d *actor);
     void (*kill)(struct game_state *g, struct game_item *item);
     void *priv;
 };
@@ -81,7 +81,7 @@ struct game_item *game_item_new(struct game_state *g, enum game_item_kind kind,
 void game_item_delete(struct game_state *g, struct game_item *item);
 int game_item_find_idx(struct game_state *g, struct game_item *item);
 void game_item_delete_idx(struct game_state *g, int idx);
-void game_item_collect(struct game_state *g, struct game_item *item, struct entity3d *actor);
+void game_item_collect(struct game_state *g, struct game_item *item, entity3d *actor);
 struct game_item *game_item_spawn(struct game_state *g, enum game_item_kind kind);
 
 void game_init(struct scene *scene, struct ui *ui);

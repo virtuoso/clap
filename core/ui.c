@@ -39,7 +39,7 @@ static bool __ui_element_is_visible(struct ui_element *uie, struct ui *ui)
 
 static void ui_element_position(struct ui_element *uie, struct ui *ui)
 {
-    struct entity3d *e = uie->entity;
+    entity3d *e = uie->entity;
     float parent_width = ui->width, parent_height = ui->height;
     float x_off, y_off;
 
@@ -107,7 +107,7 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
         mat4x4_scale_aniso(e->mx->m, e->mx->m, uie->actual_w, uie->actual_h, 1.0);
 }
 
-int ui_element_update(struct entity3d *e, void *data)
+int ui_element_update(entity3d *e, void *data)
 {
     struct ui_element *uie = e->priv;
     struct ui *ui = uie->ui;
@@ -124,7 +124,7 @@ int ui_element_update(struct entity3d *e, void *data)
     return 0;
 }
 
-static void ui_reset_positioning(struct entity3d *e, void *data)
+static void ui_reset_positioning(entity3d *e, void *data)
 {
     struct ui_element *uie = e->priv;
     /* XXX */
@@ -146,7 +146,7 @@ void ui_update(struct ui *ui)
         ui_roll_done();
 }
 
-static void ui_element_destroy(struct entity3d *e)
+static void ui_element_destroy(entity3d *e)
 {
     struct ui_element *uie = e->priv;
 
@@ -190,7 +190,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, mode
                                   unsigned long affinity, float x_off, float y_off, float w, float h)
 {
     struct ui_element *uie;
-    struct entity3d *e = entity3d_new(txmodel);
+    entity3d *e = entity3d_new(txmodel);
 
     if (!e)
         return NULL;
@@ -503,7 +503,7 @@ static void ui_roll_done(void)
     ui_roll_element = NULL;
 }
 
-static int ui_roll_update(struct entity3d *e, void *data)
+static int ui_roll_update(entity3d *e, void *data)
 {
     struct ui_element *uie = e->priv;
     struct ui *ui = uie->ui;
@@ -1172,7 +1172,7 @@ struct ui_element_match_struct {
     int                 x, y;
 };
 
-static void ui_element_match(struct entity3d *e, void *data)
+static void ui_element_match(entity3d *e, void *data)
 {
     struct ui_element_match_struct *sd = data;
     struct ui_element *uie = e->priv;

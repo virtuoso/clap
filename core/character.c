@@ -324,7 +324,7 @@ static void character_drop(struct ref *ref)
 DECLARE_REFCLASS(character);
 
 /* data is struct scene */
-static int character_update(struct entity3d *e, void *data)
+static int character_update(entity3d *e, void *data)
 {
     struct character *c = e->priv;
     struct scene     *s = data;

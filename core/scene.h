@@ -29,8 +29,8 @@ struct scene {
     struct mq           mq;
     struct list         characters;
     struct list         instor;
-    struct entity3d     *focus;
-    struct entity3d     *control;
+    entity3d            *focus;
+    entity3d            *control;
     struct motionctl    mctl;
     struct list         shaders;
     struct camera       *camera;

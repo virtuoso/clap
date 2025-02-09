@@ -683,10 +683,10 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
 
 void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
                    struct light *light, struct camera *camera, struct matrix4f *proj_mx,
-                   struct entity3d *focus, int width, int height, int cascade,
+                   entity3d *focus, int width, int height, int cascade,
                    unsigned long *count)
 {
-    struct entity3d *e;
+    entity3d *e;
     struct shader_prog *prog = NULL;
     model3d *model;
     model3dtx *txmodel;
@@ -851,22 +851,22 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
  * instance of the model3d
  ****************************************************************************/
 
-float entity3d_aabb_X(struct entity3d *e)
+float entity3d_aabb_X(entity3d *e)
 {
     return model3d_aabb_X(e->txmodel->model) * e->scale;
 }
 
-float entity3d_aabb_Y(struct entity3d *e)
+float entity3d_aabb_Y(entity3d *e)
 {
     return model3d_aabb_Y(e->txmodel->model) * e->scale;
 }
 
-float entity3d_aabb_Z(struct entity3d *e)
+float entity3d_aabb_Z(entity3d *e)
 {
     return model3d_aabb_Z(e->txmodel->model) * e->scale;
 }
 
-void entity3d_aabb_update(struct entity3d *e)
+void entity3d_aabb_update(entity3d *e)
 {
     model3d *m = e->txmodel->model;
     vec4 corners[] = {
@@ -895,21 +895,21 @@ void entity3d_aabb_update(struct entity3d *e)
     }
 }
 
-void entity3d_aabb_min(struct entity3d *e, vec3 min)
+void entity3d_aabb_min(entity3d *e, vec3 min)
 {
     min[0] = e->aabb[0];
     min[1] = e->aabb[2];
     min[2] = e->aabb[4];
 }
 
-void entity3d_aabb_max(struct entity3d *e, vec3 max)
+void entity3d_aabb_max(entity3d *e, vec3 max)
 {
     max[0] = e->aabb[1];
     max[1] = e->aabb[3];
     max[2] = e->aabb[5];
 }
 
-void entity3d_aabb_center(struct entity3d *e, vec3 center)
+void entity3d_aabb_center(entity3d *e, vec3 center)
 {
     vec3 minv = { e->txmodel->model->aabb[0], e->txmodel->model->aabb[2], e->txmodel->model->aabb[4] };
     // center[0] = entity3d_aabb_X(e) + e->dx;
@@ -943,7 +943,7 @@ tail:
     *next = 0;
 }
 
-static void channel_transform(struct entity3d *e, struct channel *chan, float time)
+static void channel_transform(entity3d *e, struct channel *chan, float time)
 {
     void *p_data, *n_data;
     struct joint *joint = &e->joints[chan->target];
@@ -984,7 +984,7 @@ static void channel_transform(struct entity3d *e, struct channel *chan, float ti
     }
 }
 
-static void channels_transform(struct entity3d *e, struct animation *an, float time)
+static void channels_transform(entity3d *e, struct animation *an, float time)
 {
     int ch;
 
@@ -992,7 +992,7 @@ static void channels_transform(struct entity3d *e, struct animation *an, float t
         channel_transform(e, &an->channels[ch], time);
 }
 
-static void one_joint_transform(struct entity3d *e, int joint, int parent)
+static void one_joint_transform(entity3d *e, int joint, int parent)
 {
     model3d *model = e->txmodel->model;
     mat4x4 *parentjt = NULL, R, *invglobal;
@@ -1035,7 +1035,7 @@ static void one_joint_transform(struct entity3d *e, int joint, int parent)
         one_joint_transform(e, *child, joint);
 }
 
-void animation_start(struct entity3d *e, struct scene *scene, int ani)
+void animation_start(entity3d *e, struct scene *scene, int ani)
 {
     model3d *model = e->txmodel->model;
     struct animation *an;
@@ -1065,7 +1065,7 @@ int animation_by_name(model3d *m, const char *name)
     return -1;
 }
 
-static struct queued_animation *ani_current(struct entity3d *e)
+static struct queued_animation *ani_current(entity3d *e)
 {
     if (e->animation >= e->aniq.da.nr_el)
         return NULL;
@@ -1083,7 +1083,7 @@ static void animation_end(struct queued_animation *qa, struct scene *s)
     end(s, qa->end_priv);
 }
 
-static void animation_next(struct entity3d *e, struct scene *s)
+static void animation_next(entity3d *e, struct scene *s)
 {
     struct queued_animation *qa;
 
@@ -1111,7 +1111,7 @@ static void animation_next(struct entity3d *e, struct scene *s)
     animation_start(e, s, qa->animation);
 }
 
-void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, void *), void *priv)
+void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *), void *priv)
 {
     int nr_qas = darray_count(e->aniq);
 
@@ -1122,7 +1122,7 @@ void animation_set_end_callback(struct entity3d *e, void (*end)(struct scene *, 
     e->aniq.x[nr_qas - 1].end_priv = priv;
 }
 
-void animation_set_speed(struct entity3d *e, float speed)
+void animation_set_speed(entity3d *e, float speed)
 {
     struct queued_animation *qa = ani_current(e);
 
@@ -1132,7 +1132,7 @@ void animation_set_speed(struct entity3d *e, float speed)
     qa->speed = speed;
 }
 
-void animation_push_by_name(struct entity3d *e, struct scene *s, const char *name,
+void animation_push_by_name(entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat)
 {
     struct queued_animation *qa;
@@ -1164,7 +1164,7 @@ void animation_push_by_name(struct entity3d *e, struct scene *s, const char *nam
     }
 }
 
-static void animated_update(struct entity3d *e, struct scene *s)
+static void animated_update(entity3d *e, struct scene *s)
 {
     double time = clap_get_current_time(s->clap_ctx);
     model3d *model = e->txmodel->model;
@@ -1186,7 +1186,7 @@ static void animated_update(struct entity3d *e, struct scene *s)
  * If entity's position/rotation/scale (TRS) haven't been updated, this avoids
  * needlessly updating its model matrix (entity3d::mx).
  */
-static bool needs_update(struct entity3d *e)
+static bool needs_update(entity3d *e)
 {
     if (e->updated) {
         e->updated = 0;
@@ -1195,7 +1195,7 @@ static bool needs_update(struct entity3d *e)
     return false;
 }
 
-static int default_update(struct entity3d *e, void *data)
+static int default_update(entity3d *e, void *data)
 {
     struct scene *scene = data;
 
@@ -1227,14 +1227,14 @@ static int default_update(struct entity3d *e, void *data)
     return 0;
 }
 
-void entity3d_reset(struct entity3d *e)
+void entity3d_reset(entity3d *e)
 {
     default_update(e, NULL);
 }
 
 static cerr entity3d_make(struct ref *ref)
 {
-    struct entity3d *e = container_of(ref, struct entity3d, ref);
+    entity3d *e = container_of(ref, entity3d, ref);
 
     darray_init(e->aniq);
     e->animation = -1;
@@ -1251,7 +1251,7 @@ static cerr entity3d_make(struct ref *ref)
 
 static void entity3d_drop(struct ref *ref)
 {
-    struct entity3d *e = container_of(ref, struct entity3d, ref);
+    entity3d *e = container_of(ref, entity3d, ref);
     trace("dropping entity3d\n");
     list_del(&e->entry);
     ref_put(e->txmodel);
@@ -1268,10 +1268,10 @@ static void entity3d_drop(struct ref *ref)
 
 DECLARE_REFCLASS2(entity3d);
 
-struct entity3d *entity3d_new(model3dtx *txm)
+entity3d *entity3d_new(model3dtx *txm)
 {
     model3d *model = txm->model;
-    struct entity3d *e;
+    entity3d *e;
 
     /*
      * XXX this is ef'ed up
@@ -1295,53 +1295,53 @@ struct entity3d *entity3d_new(model3dtx *txm)
 }
 
 /* XXX: static inline? via macro? */
-void entity3d_put(struct entity3d *e)
+void entity3d_put(entity3d *e)
 {
     ref_put(e);
 }
 
-void entity3d_update(struct entity3d *e, void *data)
+void entity3d_update(entity3d *e, void *data)
 {
     if (e->update)
         e->update(e, data);
 }
 
-void entity3d_add_physics(struct entity3d *e, struct phys *phys, double mass, int class,
+void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class,
                           int type, double geom_off, double geom_radius, double geom_length)
 {
     e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
 }
 
-void entity3d_visible(struct entity3d *e, unsigned int visible)
+void entity3d_visible(entity3d *e, unsigned int visible)
 {
     e->visible = visible;
 }
 
-void entity3d_rotate_X(struct entity3d *e, float rx)
+void entity3d_rotate_X(entity3d *e, float rx)
 {
     e->rx = rx;
     e->updated++;
 }
 
-void entity3d_rotate_Y(struct entity3d *e, float ry)
+void entity3d_rotate_Y(entity3d *e, float ry)
 {
     e->ry = ry;
     e->updated++;
 }
 
-void entity3d_rotate_Z(struct entity3d *e, float rz)
+void entity3d_rotate_Z(entity3d *e, float rz)
 {
     e->rz = rz;
     e->updated++;
 }
 
-void entity3d_scale(struct entity3d *e, float scale)
+void entity3d_scale(entity3d *e, float scale)
 {
     e->scale = scale;
     e->updated++;
 }
 
-void entity3d_position(struct entity3d *e, vec3 pos)
+void entity3d_position(entity3d *e, vec3 pos)
 {
     e->updated++;
     vec3_dup(e->pos, pos);
@@ -1349,7 +1349,7 @@ void entity3d_position(struct entity3d *e, vec3 pos)
         phys_body_set_position(e->phys_body, e->pos);
 }
 
-void entity3d_move(struct entity3d *e, vec3 off)
+void entity3d_move(entity3d *e, vec3 off)
 {
     e->updated++;
     vec3_add(e->pos, e->pos, off);
@@ -1357,15 +1357,15 @@ void entity3d_move(struct entity3d *e, vec3 off)
         phys_body_set_position(e->phys_body, e->pos);
 }
 
-void model3dtx_add_entity(model3dtx *txm, struct entity3d *e)
+void model3dtx_add_entity(model3dtx *txm, entity3d *e)
 {
     list_append(&txm->entities, &e->entry);
 }
 
-struct entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
-                                    bool randomize_yrot, float randomize_scale, struct scene *scene)
+entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
+                             bool randomize_yrot, float randomize_scale, struct scene *scene)
 {
-    struct entity3d *e = entity3d_new(txm);
+    entity3d *e = entity3d_new(txm);
     entity3d_position(e, (vec3){ instor->dx, instor->dy, instor->dz });
     if (randomize_yrot)
         entity3d_rotate_Y(e, drand48() * 360);
@@ -1378,7 +1378,7 @@ struct entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
 
 struct debug_draw {
     struct ref      ref;
-    struct entity3d *entity;
+    entity3d        *entity;
     struct list     entry;
 };
 
@@ -1458,7 +1458,7 @@ void mq_init(struct mq *mq, void *priv)
 void mq_release(struct mq *mq)
 {
     model3dtx *txmodel;
-    struct entity3d *ent;
+    entity3d *ent;
 
     while (!list_empty(&mq->txmodels)) {
         bool done = false;
@@ -1469,8 +1469,8 @@ void mq_release(struct mq *mq)
             if (list_empty(&txmodel->entities))
                 break;
 
-            ent = list_first_entry(&txmodel->entities, struct entity3d, entry);
-            if (ent == list_last_entry(&txmodel->entities, struct entity3d, entry)) {
+            ent = list_first_entry(&txmodel->entities, entity3d, entry);
+            if (ent == list_last_entry(&txmodel->entities, entity3d, entry)) {
                 done = true;
                 ref_only(txmodel);
             }
@@ -1483,10 +1483,10 @@ void mq_release(struct mq *mq)
     }
 }
 
-void mq_for_each(struct mq *mq, void (*cb)(struct entity3d *, void *), void *data)
+void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data)
 {
     model3dtx *txmodel;
-    struct entity3d *ent, *itent;
+    entity3d *ent, *itent;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {

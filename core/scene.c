@@ -57,7 +57,7 @@ static void scene_focus_next(struct scene *s)
         goto first_entry;
     }
 
-    if (s->focus != list_last_entry(&s->focus->txmodel->entities, struct entity3d, entry)) {
+    if (s->focus != list_last_entry(&s->focus->txmodel->entities, entity3d, entry)) {
         s->focus = list_next_entry(s->focus, entry);
         return;
     }
@@ -67,7 +67,7 @@ static void scene_focus_next(struct scene *s)
         return;
 
 first_entry:
-    s->focus = list_first_entry(&next_txm->entities, struct entity3d, entry);
+    s->focus = list_first_entry(&next_txm->entities, entity3d, entry);
 }
 
 static void scene_focus_prev(struct scene *s)
@@ -81,7 +81,7 @@ static void scene_focus_prev(struct scene *s)
         goto last_entry;
     }
 
-    if (s->focus != list_first_entry(&s->focus->txmodel->entities, struct entity3d, entry)) {
+    if (s->focus != list_first_entry(&s->focus->txmodel->entities, entity3d, entry)) {
         s->focus = list_prev_entry(s->focus, entry);
         return;
     }
@@ -90,7 +90,7 @@ static void scene_focus_prev(struct scene *s)
     if (!next_txm)
         return;
 last_entry:
-    s->focus = list_last_entry(&next_txm->entities, struct entity3d, entry);
+    s->focus = list_last_entry(&next_txm->entities, entity3d, entry);
 }
 
 static void scene_focus_cancel(struct scene *s)
@@ -110,7 +110,7 @@ int scene_camera_add(struct scene *s)
     model3d_set_name(m, "camera");
 
     model3dtx *txm = model3dtx_new_texture(ref_pass(m), transparent_pixel());
-    struct entity3d *entity;
+    entity3d *entity;
 
     if (!txm)
         return -1;
@@ -563,8 +563,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         JsonNode *it = ent ? ent : ch;
         for (; it; it = it->next) {
             struct character *c = NULL;
-            struct entity3d  *e;
             JsonNode *pos, *jpos;
+            entity3d *e;
 
             if (it->tag != JSON_OBJECT)
                 continue; /* XXX: in fact, no */
@@ -687,7 +687,7 @@ light_done:
         }
     } else {
         struct instantiator *instor, *iter;
-        struct entity3d *e;
+        entity3d *e;
 
         list_for_each_entry_iter(instor, iter, &scene->instor, entry) {
             if (!strcmp(txmodel_name(txm), instor->name)) {

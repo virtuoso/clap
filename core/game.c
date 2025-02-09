@@ -31,7 +31,7 @@ void add_health(struct game_state *g, float health) {
     g->health = fmax(0.0, fmin(g->options.max_health, g->health + health));
 }
 
-float calculate_squared_distance(struct entity3d *a, struct entity3d *b)
+float calculate_squared_distance(entity3d *a, entity3d *b)
 {
     vec3 dist;
     vec3_sub(dist, a->pos, b->pos);
@@ -49,8 +49,8 @@ void get_apple_out_of_pocket(struct game_state *g) {
 }
 
 bool is_near_burrow(struct game_state *g) {
-    struct entity3d *gatherer = g->scene->control;
-    struct entity3d *burrow = g->burrow.entity;
+    entity3d *gatherer = g->scene->control;
+    entity3d *burrow = g->burrow.entity;
     float squared_distance_to_burrow = calculate_squared_distance(gatherer, burrow);
     return squared_distance_to_burrow < g->options.burrow_distance_squared;
 }
@@ -137,7 +137,7 @@ struct free_tree *get_free_tree(struct list *trees, int index) {
     return tree;
 }
 
-void place_apple(struct scene *s, struct entity3d *tree, struct entity3d *apple)
+void place_apple(struct scene *s, entity3d *tree, entity3d *apple)
 {
     float angle = (float)drand48() * 2.0 * M_PI;
     /* XXX: Y and Z are reversed and phys_ground_entity() should ground apple, not tree*/
@@ -165,7 +165,7 @@ static const char *game_item_str(struct game_item *item)
 void game_item_init(struct game_item *item, struct game_state *g,
                     enum game_item_kind kind, model3dtx *txm)
 {
-    struct entity3d *e = entity3d_new(txm);
+    entity3d *e = entity3d_new(txm);
 
     item->kind = kind;
     model3dtx_add_entity(txm, e);
@@ -219,7 +219,7 @@ void game_item_delete(struct game_state *g, struct game_item *item)
     game_item_delete_idx(g, idx);
 }
 
-void game_item_collect(struct game_state *g, struct game_item *item, struct entity3d *actor)
+void game_item_collect(struct game_state *g, struct game_item *item, entity3d *actor)
 {
     dbg("%s collects %s\n", entity_name(actor), game_item_str(item));
     g->carried[item->kind]++;
@@ -337,7 +337,7 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
                     g->burrow.number_of_mature_apples);
 
     int idx = 0;
-    struct entity3d *gatherer = g->scene->control;
+    entity3d *gatherer = g->scene->control;
     if (is_near_burrow(g) && g->apple_is_carried)
         put_apple_to_burrow(g);
     struct game_item *item;
@@ -376,7 +376,7 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
     }
 }
 
-void find_trees(struct entity3d *e, void *data)
+void find_trees(entity3d *e, void *data)
 {
     struct game_state *g = data;
     const char* name = entity_name(e);
@@ -416,7 +416,7 @@ void game_init(struct scene *scene, struct ui *ui)
         if (!strcmp(txmodel->model->name, "mushroom"))
             game_state.txmodel[GAME_ITEM_MUSHROOM] = txmodel;
         if (!strcmp(txmodel->model->name, "fantasy well")) {
-            game_state.burrow.entity = list_first_entry(&txmodel->entities, struct entity3d, entry);
+            game_state.burrow.entity = list_first_entry(&txmodel->entities, entity3d, entry);
         }
     }
 }

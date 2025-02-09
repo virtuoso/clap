@@ -71,7 +71,7 @@ void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_pa
     body->bounce_vel = params->bounce_vel;
 }
 
-struct entity3d *phys_body_entity(struct phys_body *body)
+entity3d *phys_body_entity(struct phys_body *body)
 {
     return dGeomGetData(body->geom);
 }
@@ -135,8 +135,8 @@ static bool geom_and_other_by_class(dContactGeom *geom, int class, dGeomID *matc
  * Useful to get the entity that a ray (dRayClass) hits or the character
  * (dCapsuleClass) that collides with the ground.
  */
-static bool entity_and_other_by_class(dContactGeom *geom, int class, struct entity3d **match,
-                                      struct entity3d **other)
+static bool entity_and_other_by_class(dContactGeom *geom, int class, entity3d **match,
+                                      entity3d **other)
 {
     dGeomID _match, _other;
 
@@ -237,7 +237,7 @@ void phys_body_stop(struct phys_body *body)
 
 static void phys_body_stick(struct phys_body *body, dContact *contact)
 {
-    struct entity3d *e = phys_body_entity(body);
+    entity3d *e = phys_body_entity(body);
     struct phys *phys = body->phys;
     struct character *c = e->priv;
     dJointID j;
@@ -256,7 +256,7 @@ static void phys_body_stick(struct phys_body *body, dContact *contact)
     dJointAttach(j, body->body, NULL);
 }
 
-static void phys_contact_surface(struct entity3d *e1, struct entity3d *e2, dContact *contact, int nc)
+static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, int nc)
 {
     int i;
 
@@ -303,7 +303,7 @@ static unused const char *class_str(int class)
  * on a list that is then handled in phys_step() after the collider functions
  * are done.
  */
-static void entity_pen_push(struct entity3d *e, dContact *contact, struct list *pen)
+static void entity_pen_push(entity3d *e, dContact *contact, struct list *pen)
 {
     vec3 norm = { contact->geom.normal[0], contact->geom.normal[1], contact->geom.normal[2] };
 
@@ -342,8 +342,8 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
         for (i = 0; i < nc; i++) {
             dGeomID g1 = contact[i].geom.g1;
             dGeomID g2 = contact[i].geom.g2;
-            struct entity3d *e1 = dGeomGetData(g1);
-            struct entity3d *e2 = dGeomGetData(g2);
+            entity3d *e1 = dGeomGetData(g1);
+            entity3d *e2 = dGeomGetData(g2);
             struct phys *phys = e1->phys_body->phys;
 
             b1 = dGeomGetBody(g1);
@@ -390,11 +390,11 @@ static void got_contact(void *data, dGeomID o1, dGeomID o2)
         c->nc += dCollide(o1, o2, 1, &c->contact[c->nc].geom, sizeof(dContact));
 }
 
-static struct entity3d *
-__phys_ray_cast(struct phys *phys, struct entity3d *e, vec3 start, vec3 dir,
+static entity3d *
+__phys_ray_cast(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
                 double *pdist, dContact *contact)
 {
-    struct entity3d *target = NULL;
+    entity3d *target = NULL;
     dGeomID ray = NULL;
     struct contact c = {};
     vec3 _start;
@@ -443,13 +443,13 @@ out:
     return target;
 }
 
-struct entity3d *phys_ray_cast2(struct phys *phys, struct entity3d *e, vec3 start,
-                                vec3 dir, double *pdist)
+entity3d *phys_ray_cast2(struct phys *phys, entity3d *e, vec3 start,
+                         vec3 dir, double *pdist)
 {
     return __phys_ray_cast(phys, e, start, dir, pdist, NULL);
 }
 
-struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double *pdist)
+entity3d *phys_ray_cast(entity3d *e, vec3 start, vec3 dir, double *pdist)
 {
     if (!e->phys_body)
         return NULL;
@@ -457,9 +457,9 @@ struct entity3d *phys_ray_cast(struct entity3d *e, vec3 start, vec3 dir, double 
     return phys_ray_cast2(e->phys_body->phys, e, start, dir, pdist);
 }
 
-void phys_ground_entity(struct phys *phys, struct entity3d *e)
+void phys_ground_entity(struct phys *phys, entity3d *e)
 {
-    struct entity3d *collision;
+    entity3d *collision;
     float *start = e->pos;
     vec3 dir = { 0, -1, 0 };
     double dist = 1e6;
@@ -475,7 +475,7 @@ void phys_ground_entity(struct phys *phys, struct entity3d *e)
 
 bool phys_body_ground_collide(struct phys_body *body, bool grounded)
 {
-    struct entity3d *e = phys_body_entity(body);
+    entity3d *e = phys_body_entity(body);
     struct phys *phys = body->phys;
     dReal epsilon = 1e-3;
     dReal ray_len = body->yoffset - body->ray_off + epsilon;
@@ -595,7 +595,7 @@ void phys_step(struct phys *phys, unsigned long frame_count)
     dJointGroupEmpty(phys->contact);
 }
 
-int phys_body_update(struct entity3d *e)
+int phys_body_update(entity3d *e)
 {
     const dReal *pos;
     const dReal *vel;
@@ -611,7 +611,7 @@ int phys_body_update(struct entity3d *e)
     return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;
 }
 
-static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, struct entity3d *e,
+static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, entity3d *e,
                                      double mass, double geom_radius, double geom_offset)
 {
     float r = 0.0, length = 0.0, off = 0.0, X, Y, Z;
@@ -680,7 +680,7 @@ static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, 
 }
 
 static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
-                                     struct entity3d *e, double mass)
+                                     entity3d *e, double mass)
 {
     dTriMeshDataID meshdata = dGeomTriMeshDataCreate();
     model3d *m = e->txmodel->model;
@@ -756,7 +756,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     return trimesh;
 }
 
-struct phys_body *phys_body_new(struct phys *phys, struct entity3d *entity, geom_class class,
+struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class class,
                                 double geom_radius, double geom_offset, phys_type type, double mass)
 {
     bool has_body = type == PHYS_BODY;

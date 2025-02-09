@@ -6,7 +6,7 @@
 
 struct terrain {
     struct ref     ref;
-    struct entity3d *entity;
+    entity3d       *entity;
     long           seed;
     float *vx, *norm, *tx;
     unsigned short *idx;

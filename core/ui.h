@@ -50,7 +50,7 @@ struct ui_animation {
 
 struct ui_element {
     struct ref       ref;
-    struct entity3d *entity;
+    entity3d         *entity;
     struct ui_element *parent;
     struct ui        *ui;
     struct list      children;
@@ -126,7 +126,7 @@ void ui_update(struct ui *ui);
 model3dtx *ui_quadtx_get(void);
 
 void ui_element_animations_done(struct ui_element *uie);
-int ui_element_update(struct entity3d *e, void *data);
+int ui_element_update(entity3d *e, void *data);
 void ui_element_set_visibility(struct ui_element *uie, int visible);
 void ui_element_set_alpha(struct ui_element *uie, float alpha);
 

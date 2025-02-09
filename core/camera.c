@@ -58,7 +58,7 @@ void camera_set_target_to_current(struct camera *c)
     c->target_yaw = c->current_yaw;
 }
 
-bool test_if_ray_intersects_scene(struct entity3d *entity, vec3 start, vec3 end, double *scale, struct entity3d **hit)
+bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end, double *scale, entity3d **hit)
 {
     vec3 dir;
     double distance, distance_to_hit;
@@ -105,7 +105,7 @@ static void camera_calc_rays(struct camera *c, struct scene *s, vec3 start, floa
     mat4x4_mul_vec4(se, m_inverse, r);
 }
 
-bool camera_position_is_good(struct camera *c, struct entity3d *entity,
+bool camera_position_is_good(struct camera *c, entity3d *entity,
                              vec3 start, float dist, struct scene *s, double *next_distance)
 {
     double scale_nw = 0;
@@ -113,7 +113,7 @@ bool camera_position_is_good(struct camera *c, struct entity3d *entity,
     double scale_sw = 0;
     double scale_se = 0;
     double min_scale;
-    struct entity3d *e1, *e2, *e3, *e4;
+    entity3d *e1, *e2, *e3, *e4;
     vec4 nw, ne, sw, se;
 
     camera_calc_rays(c, s, start, dist, nw, ne, sw, se);
@@ -160,7 +160,7 @@ bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start, float 
     return true;
 }
 
-void camera_update(struct camera *c, struct scene *scene, struct entity3d *entity)
+void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
 {
     double dist, height, next_distance;
     vec3 start;
