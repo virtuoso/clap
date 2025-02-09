@@ -114,11 +114,14 @@ static notrace void rb_flush_one(struct rb_sink *sink)
         }
 }
 
-int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill)
+cerr rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill)
 {
     struct rb_sink *s;
 
-    s = mem_alloc(sizeof(*s), .zero = 1, .fatal_fail = 1);
+    s = mem_alloc(sizeof(*s), .zero = 1);
+    if (!s)
+        return CERR_NOMEM;
+
     s->flush  = flush;
     s->filter = filter;
     s->fill   = fill;
@@ -126,7 +129,7 @@ int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int 
     s->rp     = -1;
     list_append(&log_rb_sinks, &s->entry);
 
-    return 0;
+    return CERR_OK;
 }
 
 void rb_sink_del(void *data)

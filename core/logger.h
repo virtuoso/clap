@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <time.h>
 #include "common.h"
+#include "error.h"
 
 #define LOG_RB_MAX 512
 #define LOG_STDIO   1
@@ -35,7 +36,7 @@ struct log_entry {
     int             level;
 };
 
-int rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill)
+cerr rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill)
     __nonnull_params((1,2));
 void rb_sink_del(void *data) __nonnull_params();
 
