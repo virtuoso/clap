@@ -68,12 +68,12 @@ void imgui_render(void)
     }
 }
 
-static void *imgui_alloc(size_t size, unused void *user_data)
+static void *imgui_alloc(size_t size, __unused void *user_data)
 {
     return mem_alloc(size);
 }
 
-static void imgui_free(void *ptr, unused void *user_data)
+static void imgui_free(void *ptr, __unused void *user_data)
 {
     mem_free(ptr);
 }

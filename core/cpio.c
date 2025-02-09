@@ -162,7 +162,7 @@ cerr cpio_read(cpio_context *ctx)
 
         ctx->cursor = (uint8_t *)name + ALIGN2(namesize);
 
-        unused uint8_t *body = ctx->cursor;
+        __unused uint8_t *body = ctx->cursor;
         ctx->cursor += ALIGN2(size);
 
         /* skip non-regular files (directories, devices, pipes, sockets) */

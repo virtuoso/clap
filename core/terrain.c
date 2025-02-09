@@ -285,7 +285,7 @@ static float bsp_yfrac(struct bsp_part *node, int y)
     return ((float)(y - node->y - node->h/2)) / ((float)node->h / 2);
 }
 
-static unused struct bsp_part *bsp_xneigh(struct bsp_part *node, int x, int y)
+static __unused struct bsp_part *bsp_xneigh(struct bsp_part *node, int x, int y)
 {
     int dir = bsp_xfrac(node, x) >= 0 ? 1 : -1;
 
@@ -300,7 +300,7 @@ static unused struct bsp_part *bsp_xneigh(struct bsp_part *node, int x, int y)
     return bsp_find(node->root, node->x - 1, y);
 }
 
-static unused struct bsp_part *bsp_yneigh(struct bsp_part *node, int x, int y)
+static __unused struct bsp_part *bsp_yneigh(struct bsp_part *node, int x, int y)
 {
     int dir = bsp_yfrac(node, y) >= 0 ? 1 : -1;
 

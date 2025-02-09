@@ -273,7 +273,7 @@ static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, 
 }
 
 #ifndef CONFIG_FINAL
-static unused const char *class_str(int class)
+static __unused const char *class_str(int class)
 {
     static const char *classes[] = {
         [dSphereClass]             = "sphere",

@@ -277,7 +277,7 @@ EMSCRIPTEN_KEEPALIVE void settings_ready(void)
 
 struct settings *settings_init(void *cb, void *data)
 {
-    unused const char *home;
+    __unused const char *home;
 
     _settings.on_ready      = cb;
     _settings.on_ready_data = data;

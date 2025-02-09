@@ -93,7 +93,7 @@ static int refcount_test2(void)
 static int __refcount_test3(void)
 {
     struct x0 *x0 = ref_new(x0);
-    CU(ref) unused struct ref *ref = &x0->ref;
+    CU(ref) __unused struct ref *ref = &x0->ref;
 
     x0->magic = TEST_MAGIC0;
 

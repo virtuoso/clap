@@ -326,7 +326,7 @@ void www_joysticks_poll(void)
 }
 
 
-static unused EM_BOOL scroll_callback(int eventType, const EmscriptenUiEvent *e, void *userData)
+static __unused EM_BOOL scroll_callback(int eventType, const EmscriptenUiEvent *e, void *userData)
 {
     return true;
 }

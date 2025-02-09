@@ -486,7 +486,7 @@ bool gltf_mesh_is_skinned(struct gltf_data *gd, int mesh)
     return false;
 }
 
-static void unused nodes_print(struct gltf_data *gd, struct gltf_node *node, int level)
+static void __unused nodes_print(struct gltf_data *gd, struct gltf_node *node, int level)
 {
     int child;
 

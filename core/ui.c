@@ -1438,7 +1438,7 @@ static void build_onclick(struct ui_element *uie, float x, float y)
     dbg("build onclick\n");
 }
 
-static unused const char *wheel_items[] = { "^", ">", "v", "<" };
+static __unused const char *wheel_items[] = { "^", ">", "v", "<" };
 extern const char *build_date;
 cerr ui_init(struct ui *ui, renderer_t *r, int width, int height)
 {

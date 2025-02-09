@@ -37,7 +37,9 @@ DECLARE_CLEANUP(uchar);
 #define rodata __attribute__((section(".rodata")))
 #endif /* __APPLE__ */
 #define nonstring __attribute__((nonstring))
-#define unused __attribute__((unused))
+#ifndef __unused
+#define __unused __attribute__((unused))
+#endif /* __unused */
 #define notrace __attribute__((no_instrument_function))
 #define __printf(x, y) __attribute__((__format__(__printf__, (x), (y))))
 
