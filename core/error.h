@@ -60,8 +60,10 @@ typedef enum cerr {
 /* Declare cres with int value */
 cres_ret(int);
 
+/* Get error value from cerr/cres */
+#define CERR_CODE(__x) (*((cerr *)&(__x)))
 /* Is cerr or cres (or any compound type that has cerr at offset 0) an error */
-#define IS_CERR(__x) (*((cerr *)&(__x)) != CERR_OK)
+#define IS_CERR(__x) (CERR_CODE(__x) != CERR_OK)
 
 /* Return a error */
 #define cres_error(__type, __err) ({ \
