@@ -23,9 +23,9 @@ typedef struct cpio_params {
 
 #define cpio_open(args...) \
     _cpio_open(&(cpio_params){ args })
-cpio_context *_cpio_open(const cpio_params *params);
-void cpio_close(cpio_context *ctx);
-cerr cpio_read(cpio_context *ctx);
-cerr cpio_write(cpio_context *ctx, const char *name, void *buf, size_t size);
+cpio_context *_cpio_open(const cpio_params *params) __nonnull_params();
+void cpio_close(cpio_context *ctx) __nonnull_params();
+cerr cpio_read(cpio_context *ctx) __nonnull_params();
+cerr cpio_write(cpio_context *ctx, const char *name, void *buf, size_t size) __nonnull_params((1, 2));
 
 #endif /* __CLAP_CPIO_H__ */
