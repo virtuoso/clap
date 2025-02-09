@@ -41,6 +41,8 @@ void __asan_error_report()
 # endif /* __has_feature(address_sanitizer) */
 #endif /* __has_feature */
 
+static thread_local unsigned long submit_failures = 0;
+
 /*
  * Chain multiple log sinks together, so that we can have
  * multiple independent outputs, if needed.
@@ -50,17 +52,18 @@ void __asan_error_report()
  */
 struct logger {
     const char  *name;
-    int         (*init)(void);
-    int         (*log)(int level, const char *mod, int line, const char *func, const char *msg);
+    cerr        (*init)(void);
+    cerr        (*log)(int level, const char *mod, int line, const char *func, const char *msg);
     struct logger *next;
 };
 
-static notrace int stdio_log(int level, const char *mod, int line, const char *func, const char *msg)
+static notrace cerr
+stdio_log(int level, const char *mod, int line, const char *func, const char *msg)
 {
     FILE *output = stdout;
 
     if (level < VDBG)
-        return 0;
+        return CERR_OK;
 
     if (level != NORMAL)
         output = stderr;
@@ -69,7 +72,7 @@ static notrace int stdio_log(int level, const char *mod, int line, const char *f
         fprintf(output, "[%s:%d @%s] ", mod, line, func);
     fputs(msg, output);
 
-    return 0;
+    return CERR_OK;
 }
 
 static struct logger logger_stdio = {
@@ -192,20 +195,20 @@ static void rb_cleanup(int status)
     rb_flush();
 }
 
-static notrace int rb_init(void)
+static notrace cerr rb_init(void)
 {
     log_rb = mem_alloc(sizeof(struct log_entry), .nr = LOG_RB_MAX);
     if (!log_rb)
-        return -ENOMEM;
+        return CERR_NOMEM;
 
     //log_rb_output = stdout;
     log_rb_sz = LOG_RB_MAX;
     exit_cleanup(rb_cleanup);
 
-    return 0;
+    return CERR_OK;
 }
 
-static notrace int rb_log(int level, const char *mod, int line, const char *func, const char *msg)
+static notrace cerr rb_log(int level, const char *mod, int line, const char *func, const char *msg)
 {
     struct timespec ts;
 
@@ -214,7 +217,7 @@ static notrace int rb_log(int level, const char *mod, int line, const char *func
 
     msg = strdup(msg);
     if (!msg)
-        return -ENOMEM; /* XXX error codes */
+        return CERR_NOMEM;
 
     rb_flush();
 
@@ -227,7 +230,7 @@ static notrace int rb_log(int level, const char *mod, int line, const char *func
     log_rb[log_rb_wp].msg = msg;
     log_rb_wp = (log_rb_wp + 1) % LOG_RB_MAX;
 
-    return 0;
+    return CERR_OK;
 }
 
 static struct logger logger_rb = {
@@ -246,9 +249,12 @@ static notrace void logger_append(struct logger *lg)
     for (lastp = &logger; *lastp; lastp = &((*lastp)->next))
         ;
 
-    *lastp = lg;
+    cerr err = CERR_OK;
     if (lg->init)
-        lg->init();
+        err = lg->init();
+
+    if (!IS_CERR(err))
+        *lastp = lg;
 }
 
 static int log_floor =
@@ -295,7 +301,9 @@ static notrace void log_submit(int level, const char *mod, int line, const char 
 
     for (lg = logger; lg; lg = lg->next) {
         //fprintf(stderr, "# sending '%s' to '%s'\n", msg, lg->name);
-        lg->log(level, mod, line, func, msg);
+        cerr err = lg->log(level, mod, line, func, msg);
+        if (IS_CERR(err))
+            submit_failures++;
     }
 }
 
