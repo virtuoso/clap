@@ -892,11 +892,11 @@ bool fbo_is_multisampled(fbo_t *fbo)
     return !!fbo->nr_samples;
 }
 
+DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
+
 must_check fbo_t *_fbo_new(const fbo_init_options *opts)
 {
-    fbo_t *fbo;
-
-    fbo = ref_new(fbo);
+    LOCAL_SET(fbo_t, fbo) = ref_new(fbo);
     if (!fbo)
         return fbo;
 
@@ -909,12 +909,10 @@ must_check fbo_t *_fbo_new(const fbo_init_options *opts)
         fbo->nr_samples = MSAA_SAMPLES;
 
     cerr err = fbo_init(fbo, opts->nr_attachments);
-    if (IS_CERR(err)) {
-        ref_put_last(fbo);
+    if (IS_CERR(err))
         return NULL;
-    }
 
-    return fbo;
+    return NOCU(fbo);
 }
 
 void fbo_put(fbo_t *fbo)
