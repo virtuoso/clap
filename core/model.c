@@ -258,18 +258,18 @@ model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texs
 
     cerr err;
     err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
-    if (err)
+    if (IS_CERR(err))
         return NULL;
 
     if (norm && normsz) {
         err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
-        if (err)
+        if (IS_CERR(err))
             return NULL;
     }
 
     if (em && emsz) {
         err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
-        if (err)
+        if (IS_CERR(err))
             return NULL;;
     } else {
         model3dtx_add_fake_emission(txm);
