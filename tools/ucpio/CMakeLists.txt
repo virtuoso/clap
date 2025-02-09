@@ -13,6 +13,12 @@ endif ()
 
 set(UCPIO_BIN ucpio)
 
+if (NOT WIN32)
+    set_source_files_properties(ucpio.c PROPERTIES
+        COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Wno-reserved-id-macro -Werror ${CFLAGS}"
+    )
+endif ()
+
 set(UCPIO_SRC ucpio.c ${ENGINE_SRC_DIR}/cpio.c ${ENGINE_SRC_DIR}/memory.c)
 set(ENGINE_LIB libonehandclap)
 
