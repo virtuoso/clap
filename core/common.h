@@ -2,6 +2,10 @@
 #ifndef __CLAP_COMMON_H__
 #define __CLAP_COMMON_H__
 
+#ifndef MODNAME
+#define MODNAME __BASE_FILE__
+#endif
+
 #include "config.h"
 #ifdef CONFIG_BROWSER
 #include <emscripten.h>

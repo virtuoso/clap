@@ -2,10 +2,6 @@
 #ifndef __CLAP_LOGGER_H__
 #define __CLAP_LOGGER_H__
 
-#ifndef MODNAME
-#define MODNAME __BASE_FILE__
-#endif
-
 #include <sys/types.h>
 #include <stdarg.h>
 #include <assert.h>
