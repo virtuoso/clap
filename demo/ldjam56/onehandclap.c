@@ -255,7 +255,11 @@ int main(int argc, char **argv, char **envp)
 
     cresp(clap_context) clap_res = clap_init(&cfg, argc, argv, envp);
     if (IS_CERR(clap_res)) {
-        err("failed to initialize clap\n");
+        char buf[512];
+
+        cerr_strbuf(buf, sizeof(buf), &clap_res);
+        err("failed to initialize clap: %s\n", buf);
+
         return EXIT_FAILURE;
     }
 
