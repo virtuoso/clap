@@ -224,12 +224,14 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     pass->cascade = -1;
 #endif /* CONFIG_GLES */
 
-    *pfbo = fbo_new(.width          = width,
-                    .height         = height,
-                    .multisampled   = ms,
-                    .nr_attachments = nr_targets);
-    if (!*pfbo)
+    cresp(fbo_t) res = fbo_new(.width          = width,
+                               .height         = height,
+                               .multisampled   = ms,
+                               .nr_attachments = nr_targets);
+    if (IS_CERR(res))
         goto err_fbo_array;
+
+    *pfbo = res.val;
 
     struct render_pass **psrc = darray_add(pass->src);
     if (!psrc)
@@ -338,9 +340,11 @@ void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int
         goto err_src;
 
     /* this is where src's txmodel will be rendered */
-    *pfbo = fbo_new(pl->scene->width, pl->scene->height);
-    if (!*pfbo)
+    cresp(fbo_t) res = fbo_new(pl->scene->width, pl->scene->height);
+    if (IS_CERR(res))
         goto err_fbo_array;
+
+    *pfbo = res.val;
 
     int *pblit_src = darray_add(pass->blit_src);
     if (!pblit_src)

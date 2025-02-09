@@ -894,11 +894,11 @@ bool fbo_is_multisampled(fbo_t *fbo)
 
 DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
 
-must_check fbo_t *_fbo_new(const fbo_init_options *opts)
+must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
 {
     LOCAL_SET(fbo_t, fbo) = ref_new(fbo);
     if (!fbo)
-        return fbo;
+        return cresp_error(fbo_t, CERR_NOMEM);
 
     fbo->width        = opts->width;
     fbo->height       = opts->height;
@@ -910,9 +910,9 @@ must_check fbo_t *_fbo_new(const fbo_init_options *opts)
 
     cerr err = fbo_init(fbo, opts->nr_attachments);
     if (IS_CERR(err))
-        return NULL;
+        return cresp_error_cerr(fbo_t, err);
 
-    return NOCU(fbo);
+    return cresp_val(fbo_t, NOCU(fbo));
 }
 
 void fbo_put(fbo_t *fbo)

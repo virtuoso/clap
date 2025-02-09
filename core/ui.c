@@ -401,7 +401,11 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     fbo_ui.width = uit.width + uit.margin_x * 2;
     fbo_ui.height = uit.height + uit.margin_y * 2;
     mq_init(&fbo_ui.mq, &fbo_ui);
-    fbo = fbo_new(fbo_ui.width, fbo_ui.height);
+    cresp(fbo_t) res = fbo_new(fbo_ui.width, fbo_ui.height);
+    if (IS_CERR(res))
+        return NULL;
+
+    fbo = res.val;
     // fbo->retain_tex = 1;
 
     if (parent) {

@@ -211,6 +211,8 @@ TYPE(fbo,
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
+cresp_ret(fbo_t);
+
 /*
  * width and height correspond to the old fbo_new()'s parameters,
  * so the old users won't need to be converted.
@@ -223,7 +225,7 @@ typedef struct fbo_init_options {
     bool            multisampled;
 } fbo_init_options;
 
-must_check fbo_t *_fbo_new(const fbo_init_options *opts);
+must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts);
 #define fbo_new(args...) \
     _fbo_new(&(fbo_init_options){ args })
 void fbo_put(fbo_t *fbo);
