@@ -109,7 +109,7 @@ static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars v
 
     slot = shader_get_texture_slot(prog, var);
     if (slot < 0)
-        return -EINVAL;
+        return CERR_INVALID_ARGUMENTS;
 
     shader_prog_use(prog);
     err = load_gl_texture_buffer(prog, input, width, height, has_alpha, var,
