@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "interp.h"
 #include "ui.h"
+#include "ui-debug.h"
 
 struct ui_animation {
-    struct list entry;
-    struct ui_element *uie;
-    void (*trans)(struct ui_animation *uia);
-    void *setter;
-    void (*iter)(struct ui_animation *uia);
-    unsigned long start_frame;
-    unsigned long nr_frames;
-    unsigned long sound_frame;
-    int           int0;
-    int           int1;
-    float         float0;
-    float         float_start;
-    float         float_end;
-    float         float_delta;
-    float         float_shift;
+    struct list         entry;
+    struct ui_element   *uie;
+    void                (*trans)(struct ui_animation *uia);
+    void                *setter;
+    void                (*iter)(struct ui_animation *uia);
+    unsigned long       start_frame;
+    unsigned long       nr_frames;
+    unsigned long       sound_frame;
+    int                 int0;
+    int                 int1;
+    float               float0;
+    float               float_start;
+    float               float_end;
+    float               float_delta;
+    float               float_shift;
 };
 
 static void ui_animation_done(struct ui_animation *uia)
