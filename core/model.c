@@ -448,6 +448,9 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
                          unsigned short *idx, size_t idxsz, float *tx, size_t txsz,
                          float *norm, size_t normsz)
 {
+    if (!p)
+        return NULL;
+
     LOCAL_SET(model3d, m) = ref_new(model3d);
     if (!m)
         return NULL;
