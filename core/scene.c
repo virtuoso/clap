@@ -108,6 +108,9 @@ int scene_camera_add(struct scene *s)
 {
     struct shader_prog *prog = shader_prog_find(&s->shaders, "model");
     model3d *m = model3d_new_cube(prog);
+    if (!m)
+        return -1;
+
     model3d_set_name(m, "camera");
 
     model3dtx *txm = model3dtx_new_texture(ref_pass(m), transparent_pixel());
