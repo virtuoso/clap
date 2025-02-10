@@ -1,6 +1,6 @@
 #version 460 core
 
-#include "color_passthrough.glsl"
+#include "shader_constants.h"
 
 uniform vec4 in_color;
 uniform int color_passthrough;

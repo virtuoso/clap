@@ -158,11 +158,6 @@ void mq_add_model(struct mq *mq, model3dtx *txmodel);
 void mq_add_model_tail(struct mq *mq, model3dtx *txmodel);
 model3dtx *mq_nonempty_txm_next(struct mq *mq, model3dtx *txm, bool fwd);
 
-enum color_pt {
-    COLOR_PT_NONE = 0,
-    COLOR_PT_ALPHA,
-    COLOR_PT_ALL,
-};
 
 struct queued_animation {
     int             animation;
@@ -189,7 +184,7 @@ typedef struct entity3d {
     struct phys_body *phys_body;
     struct anictl    anictl;
     float   color[4];
-    enum color_pt color_pt;
+    int     color_pt;
     vec3    pos;
     float   rx, ry, rz;
     float   scale;

@@ -1,6 +1,6 @@
 #version 460 core
 
-#include "color_passthrough.glsl"
+#include "shader_constants.h"
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;
