@@ -30,24 +30,6 @@ enum uie_mv {
 
 struct ui_element;
 
-struct ui_animation {
-    struct list entry;
-    struct ui_element *uie;
-    void (*trans)(struct ui_animation *uia);
-    void *setter;
-    void (*iter)(struct ui_animation *uia);
-    unsigned long start_frame;
-    unsigned long nr_frames;
-    unsigned long sound_frame;
-    int           int0;
-    int           int1;
-    float         float0;
-    float         float_start;
-    float         float_end;
-    float         float_delta;
-    float         float_shift;
-};
-
 struct ui_element {
     struct ref       ref;
     entity3d         *entity;
@@ -131,6 +113,7 @@ void ui_element_set_visibility(struct ui_element *uie, int visible);
 void ui_element_set_alpha(struct ui_element *uie, float alpha);
 
 /* animations */
+struct ui_animation;
 void uia_skip_frames(struct ui_element *uie, unsigned long frames);
 void uia_action(struct ui_element *uie, void (*callback)(struct ui_animation *));
 void uia_set_visible(struct ui_element *uie, int visible);
