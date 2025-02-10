@@ -21,6 +21,8 @@ static void mesh_drop(struct ref *ref)
 }
 DECLARE_REFCLASS(mesh);
 
+DEFINE_CLEANUP(mesh_t, if (*p) ref_put(*p))
+
 struct mesh *mesh_new(const char *name)
 {
     struct mesh *mesh;

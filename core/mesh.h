@@ -48,6 +48,8 @@ struct mesh {
 };
 typedef struct mesh mesh_t;
 
+DECLARE_CLEANUP(mesh_t);
+
 static inline struct mesh_attr *mesh_attr(struct mesh *mesh, unsigned int attr)
 {
     err_on(attr >= MESH_MAX);
