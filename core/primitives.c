@@ -45,7 +45,7 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
 
         vec3_sub(a, triangle[0], triangle[1]);
         vec3_sub(b, triangle[0], triangle[2]);
-        vec3_mul_cross(norm, b, a);
+        vec3_mul_cross(norm, a, b);
         vec3_norm(norm, norm);
 
         for (i = 0; i < 3; i++) {
