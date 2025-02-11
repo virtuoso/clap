@@ -223,7 +223,7 @@ model3dtx *model3dtx_new(model3d *model, const char *name)
 static void model3dtx_add_fake_emission(model3dtx *txm)
 {
     model3d *model = txm->model;
-    float fake_emission[4] = { 0, 0, 0, 1.0 };
+    uint8_t fake_emission[4] = { 0, 0, 0, 255 };
 
     shader_prog_use(model->prog);
     cerr err = load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, UNIFORM_EMISSION_MAP,
@@ -236,7 +236,7 @@ static void model3dtx_add_fake_emission(model3dtx *txm)
 static void model3dtx_add_fake_sobel(model3dtx *txm)
 {
     model3d *model = txm->model;
-    float fake_sobel[4] = { 1.0, 1.0, 1.0, 1.0 };
+    uint8_t fake_sobel[4] = { 255, 255, 255, 255 };
 
     shader_prog_use(model->prog);
     cerr err = load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, UNIFORM_SOBEL_TEX,
