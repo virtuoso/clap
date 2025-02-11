@@ -558,7 +558,8 @@ cerr_check texture_pixel_init(texture_t *tex, float color[4])
     if (IS_CERR(err))
         return err;
 
-    return texture_load(tex, TEX_FMT_RGBA, 1, 1, color);
+    uint8_t _color[4] = { color[0] * 255, color[1] * 255, color[2] * 255, color[3] * 255 };
+    return texture_load(tex, TEX_FMT_RGBA, 1, 1, _color);
 }
 
 static texture_t _white_pixel;
