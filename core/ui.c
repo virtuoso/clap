@@ -649,9 +649,9 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
 static void menu_onfocus(struct ui_element *uie, bool focus)
 {
     if (focus)
-        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, 10);
+        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, false, 10);
     else
-        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, 10);
+        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, false, 10);
 }
 
 static void inv_onfocus(struct ui_element *uie, bool focus)
@@ -777,8 +777,8 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
         /* XXX^5: animations hardcoded */
         // uia_skip_frames(wheel->uies[i], i * 7);
         uia_set_visible(wheel->uies[i], 1);
-        uia_lin_float(wheel->uies[i], ui_element_set_alpha_one, 0, 1.0, 100);
-        uia_cos_move(wheel->uies[i], motions[i], i < 2 ? 200 : 1, i < 2 ? 1 : 200, 30, 1.0, 0.0);
+        uia_lin_float(wheel->uies[i], ui_element_set_alpha_one, 0, 1.0, false, 100);
+        uia_cos_move(wheel->uies[i], motions[i], i < 2 ? 200 : 1, i < 2 ? 1 : 200, false, 30, 1.0, 0.0);
 
         CHECK(tui = ui_render_string(ui, font, wheel->uies[i], items[i], color, 0));
         width = max(width, wheel->uies[i]->width);
@@ -801,8 +801,8 @@ static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
     /* XXX^5: animations hardcoded */
     uia_skip_frames(uie, i * 7);
     uia_set_visible(uie, 1);
-    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, 100);
-    uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, 30, 1.0, 0.0);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, 100);
+    uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 30, 1.0, 0.0);
 }
 
 static struct ui_widget *
@@ -1118,9 +1118,9 @@ static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
         return;
 
     if (uiw->focus >= 0)
-        uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 20, 1, 10);
+        uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 20, 1, false, 10);
     if (n >= 0)
-        uia_lin_move(uiw->uies[n], UIE_MV_X_OFF, 1, 20, 10);
+        uia_lin_move(uiw->uies[n], UIE_MV_X_OFF, 1, 20, false, 10);
     uiw->focus = n;
 }
 

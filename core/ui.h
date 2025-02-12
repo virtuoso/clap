@@ -117,9 +117,11 @@ struct ui_animation;
 void uia_skip_frames(struct ui_element *uie, unsigned long frames);
 void uia_action(struct ui_element *uie, void (*callback)(struct ui_animation *));
 void uia_set_visible(struct ui_element *uie, int visible);
-void uia_lin_float(struct ui_element *uie, void *setter, float start, float end, unsigned long frames);
-void uia_quad_float(struct ui_element *uie, void *setter, float start, float end, float accel);
-void uia_lin_move(struct ui_element *uie, enum uie_mv mv, float start, float end, unsigned long frames);
-void uia_cos_move(struct ui_element *uie, enum uie_mv mv, float start, float end, unsigned long frames, float phase, float shift);
+void uia_lin_float(struct ui_element *uie, void *setter, float start, float end, bool wait, unsigned long frames);
+void uia_cos_float(struct ui_element *uie, void *setter, float start, float end, bool wait, unsigned long frames,
+                   float phase, float shift);
+void uia_quad_float(struct ui_element *uie, void *setter, float start, float end, float accel, bool wait);
+void uia_lin_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait, unsigned long frames);
+void uia_cos_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait, unsigned long frames, float phase, float shift);
 
 #endif /* __CLAP_UI_H__ */
