@@ -477,7 +477,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     mem_free(uit.line_ws);
     mem_free(uit.line_w);
 
-    m = model3d_new_quad(ui->ui_prog, 0, 1, 0, 1, -1);
+    m = model3d_new_quad(ui->glyph_prog, 0, 1, 0, 1, -1);
     model3d_set_name(m, "ui_text: '%s'", str);
     m->depth_testing = false;
     m->alpha_blend = true;
@@ -488,6 +488,8 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     uit.uietex = ui_element_new(ui, parent, ref_pass(txmtex),
                                 parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
                                 0, 0, fbo_ui.width, fbo_ui.height);
+    uit.uietex->entity->color[3] = 1.0;
+    uit.uietex->entity->color_pt = COLOR_PT_ALPHA;
     ref_only(uit.uietex->entity);
     ref_only(uit.uietex);
 
@@ -836,7 +838,6 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
             uwb->el_cb(menu->uies[i], i);
 
         CHECK(tui = ui_render_string(ui, uwb->font, menu->uies[i], items[i], uwb->text_color, 0));
-        tui->entity->color_pt = COLOR_PT_NONE;
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
         off += menu->uies[i]->height + uwb->el_margin;
