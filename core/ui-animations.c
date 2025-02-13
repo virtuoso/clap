@@ -116,7 +116,7 @@ static unsigned long start_frame(struct ui_element *uie, bool wait)
 
 static void __uia_lin_float_iter(struct ui_animation *ua)
 {
-    ua->float0 += ua->float_delta * ua_frames(ua);
+    ua->float0 = ua->float_start + ua->float_delta * ua_frames(ua);
 }
 
 static void __uia_quad_float_iter(struct ui_animation *ua)
