@@ -809,19 +809,12 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     struct ui_widget *menu = ui_widget_build(ui, uwb, nr_items);
     struct ui_element *tui;
     float off, width, height;
-    model3dtx *txm;
-    model3d *model;
     int i;
 
     menu->focus = -1;
-    model = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
-    model3d_set_name(model, "ui_menu");
-    // /* XXX^1: texture model(s) hardcoded */
-    txm = model3dtx_new_texture(ref_pass(model), white_pixel());
-    ui_add_model(ui, txm);
 
     for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
-        menu->uies[i]           = ui_element_new(ui, menu->root, txm, uwb->el_affinity,
+        menu->uies[i]           = ui_element_new(ui, menu->root, ui_quadtx, uwb->el_affinity,
                                                  uwb->el_x_off, uwb->el_y_off + off, uwb->el_w, uwb->el_h);
         menu->uies[i]->on_click = menu_onclick;
         menu->uies[i]->on_focus = menu_onfocus;
