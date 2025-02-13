@@ -101,6 +101,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, mode
                                   unsigned long affinity, float x_off, float y_off, float w, float h);
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
 struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
+struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_items);
 
 cerr ui_init(struct ui *ui, renderer_t *r, int width, int height);
 void ui_done(struct ui *ui);

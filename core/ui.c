@@ -794,6 +794,78 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     return wheel;
 }
 
+static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
+{
+    int refresh_rate = display_refresh_rate();
+
+    /*
+     * the first skip_frames is relative to ui::frames_total;
+     * the subsequent ones are relative to the previous skip_frame
+     */
+    uia_skip_frames(uie, i * refresh_rate * 8 + refresh_rate);
+    uia_set_visible(uie, 1);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1, true, refresh_rate * 3);
+    uia_skip_frames(uie, refresh_rate * 2);
+    uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, refresh_rate * 3);
+    uia_set_visible(uie, 0);
+    /* XXX: delete the widget when the animations are done */
+}
+
+static struct ui_widget *
+ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, unsigned int nr_items)
+{
+    struct ui_widget *osd = ui_widget_build(ui, uwb, nr_items);
+    struct ui_element *tui;
+    int i;
+
+    for (i = 0; i < nr_items; i++) {
+        osd->uies[i]           = ui_element_new(ui, osd->root, ui_quadtx, uwb->el_affinity,
+                                                uwb->el_x_off, uwb->el_y_off, uwb->el_w, uwb->el_h);
+        osd->uies[i]->priv     = (void *)items[i];
+
+        memcpy(&osd->uies[i]->entity->color, uwb->el_color, sizeof(uwb->el_color));
+        osd->uies[i]->entity->color_pt = COLOR_PT_NONE;
+
+        if (uwb->el_cb)
+            uwb->el_cb(osd->uies[i], i);
+
+        CHECK(tui = ui_render_string(ui, uwb->font, osd->uies[i], items[i], uwb->text_color, 0));
+        ui_element_set_visibility(osd->uies[i], 0);
+    }
+
+    return osd;
+}
+
+struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_items)
+{
+    struct ui_widget *osd;
+    struct ui_widget_builder uwb = {
+        .el_affinity  = UI_AF_CENTER,
+        .affinity   = UI_AF_BOTTOM | UI_AF_HCENTER,
+        .el_x_off   = 10,
+        .el_y_off   = 10,
+        .el_w       = 500,
+        .el_h       = 100,
+        .el_margin  = 4,
+        .x_off      = 0,
+        .y_off      = 0,
+        .w          = 500,
+        .h          = 0.3,
+        .el_cb      = ui_osd_element_cb,
+        .el_color   = { 0.0, 0.0, 0.0, 0.0 },
+        .text_color = { 0.8, 0.8, 0.8, 1.0 },
+    };
+
+    uwb.font = font_open(menu_font, 32);
+    if (!uwb.font)
+        return NULL;
+
+    osd = ui_osd_build(ui, &uwb, items, nr_items);
+    font_put(uwb.font);
+
+    return osd;
+}
+
 static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
 {
     /* XXX^5: animations hardcoded */
