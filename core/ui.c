@@ -183,6 +183,7 @@ ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
 {
     model3d *model = model3d_new_quadrev(p, x, y, 0, w, h);
     model->depth_testing = false;
+    model->alpha_blend = true;
     return model;
 }
 
@@ -429,10 +430,8 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
         glyph   = font_get_glyph(uit.font, str[i]);
         txm = ui_txm_find_by_texture(&fbo_ui, &glyph->tex);
         if (!txm) {
-            m       = ui_quad_new(ui->glyph_prog, 0, 0, glyph->width, glyph->height);
+            m = ui_quad_new(ui->glyph_prog, 0, 0, glyph->width, glyph->height);
             model3d_set_name(m, "glyph_%s_%c", font_name(uit.font), str[i]);
-            m->depth_testing = false;
-            m->alpha_blend = true;
             txm = model3dtx_new_texture(ref_pass(m), &glyph->tex);
             ui_add_model(&fbo_ui, txm);
         }
@@ -976,7 +975,6 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     if (number_of_apples > 0) {
         apple_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(apple_m, "inventory apple");
-        apple_m->alpha_blend = true;
         apple_txm = model3dtx_new(ref_pass(apple_m), "apple.png");
         ui_add_model(ui, apple_txm);
     }
@@ -1293,7 +1291,6 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
         ref_put(uie0);
 
     m = ui_quad_new(ui->ui_prog, 0, 1, 1, -1);
-    m->depth_testing = false;
     ui_pip = model3dtx_new_texture(ref_pass(m), ui_fbo_tex);
     ui_add_model_tail(ui, ui_pip);
     dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo_width(fbo), fbo_height(fbo));
