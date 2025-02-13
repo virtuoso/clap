@@ -238,12 +238,9 @@ static void ui_add_model_tail(struct ui *ui, model3dtx *txmodel)
 
 static cerr ui_model_init(struct ui *ui)
 {
-    float x = 0.f, y = 0.f, w = 1.f, h = 1.f;
-    model3d *ui_quad = model3d_new_quad(ui->ui_prog, x, y, 0, w, h);
-    ui_quad->depth_testing = false;
+    model3d *ui_quad = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
-    /* XXX: maybe a "textured_model" as another interim object */
     ui_quadtx = model3dtx_new_texture(ref_pass(ui_quad), transparent_pixel());
     if (!ui_quadtx)
         return CERR_INITIALIZATION_FAILED;
