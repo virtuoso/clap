@@ -96,11 +96,31 @@ static void build_main_pl(struct pipeline **pl)
                              .pingpong = 5);
 }
 
+static const char *intro_osd[] = {
+    "WASD to move the character",
+    "Space to jump",
+    "Shift to dash",
+    "Arrows to move the camera",
+    "Have fun"
+};
+
+enum main_state {
+    MS_STARTING = 0,
+    MS_RUNNING,
+};
+
+static enum main_state main_state;
+
 EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
     struct scene *s = data;
     unsigned long count, frame_count;
     renderer_t *r = clap_get_renderer(s->clap_ctx);
+
+    if (main_state == MS_STARTING) {
+        main_state++;
+        ui_osd_new(&ui, intro_osd, array_size(intro_osd));
+    }
 
     frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(s->clap_ctx), 1);
 
