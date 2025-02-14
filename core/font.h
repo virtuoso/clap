@@ -16,13 +16,17 @@ struct glyph {
 };
 
 struct font;
-int font_init(const char *default_font_name);
-void font_done(void);
+typedef struct font_context font_context;
+
+cresp_ret(font_context);
+
+cresp(font_context) font_init(const char *default_font_name);
+void font_done(font_context *ctx);
 const char *font_name(struct font *font);
-struct font *font_open(const char *name, unsigned int size);
+struct font *font_open(font_context *ctx, const char *name, unsigned int size);
 void         font_put(struct font *font);
 struct font *font_get(struct font *font);
-struct font *font_get_default(void);
+struct font *font_get_default(font_context *ctx);
 struct glyph *font_get_glyph(struct font *font, unsigned char c);
 
 #endif /* __CLAP_FONT_H__ */

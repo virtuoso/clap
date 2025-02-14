@@ -57,6 +57,7 @@ typedef struct clap_context {
     char                **envp;
     struct timespec     current_time;
     sound_context       *sound;
+    font_context        *font;
     struct phys         *phys;
     struct settings     *settings;
     renderer_t          renderer;
@@ -96,6 +97,11 @@ struct phys *clap_get_phys(struct clap_context *ctx)
 sound_context *clap_get_sound(struct clap_context *ctx)
 {
     return ctx->sound;
+}
+
+font_context *clap_get_font(clap_context *ctx)
+{
+    return ctx->font;
 }
 
 struct timespec clap_get_current_timespec(struct clap_context *ctx)
@@ -353,8 +359,14 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     /* XXX: handle initialization errors */
     log_init(log_flags);
     (void)librarian_init(ctx->cfg.base_url);
-    if (ctx->cfg.font)
-        font_init(ctx->cfg.default_font_name);
+    if (ctx->cfg.font) {
+        cresp(font_context) res = font_init(ctx->cfg.default_font_name);
+        if (IS_CERR(res))
+            return cresp_error_cerr(clap_context, res);
+
+        ctx->font = res.val;
+    }
+
     if (ctx->cfg.sound)
         CHECK(ctx->sound = sound_init());
     if (ctx->cfg.phys)
@@ -400,7 +412,7 @@ void clap_done(struct clap_context *ctx, int status)
         display_done();
     }
     if (ctx->cfg.font)
-        font_done();
+        font_done(ctx->font);
     if (ctx->settings)
         settings_done(ctx->settings);
     messagebus_done();

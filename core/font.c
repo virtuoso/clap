@@ -18,8 +18,10 @@ struct font {
     struct ref   ref;
 };
 
-static FT_Library ft;
-static struct font *default_font;
+typedef struct font_context {
+    FT_Library  ft;
+    struct font *default_font;
+} font_context;
 
 const char *font_name(struct font *font)
 {
@@ -94,12 +96,12 @@ struct font *font_get(struct font *font)
     return ref_get(font);
 }
 
-struct font *font_get_default(void)
+struct font *font_get_default(font_context *ctx)
 {
-    if (!default_font)
+    if (!ctx->default_font)
         return NULL;
 
-    return font_get(default_font);
+    return font_get(ctx->default_font);
 }
 
 struct glyph *font_get_glyph(struct font *font, unsigned char c)
@@ -112,7 +114,7 @@ struct glyph *font_get_glyph(struct font *font, unsigned char c)
     return &font->g[c];
 }
 
-struct font *font_open(const char *name, unsigned int size)
+struct font *font_open(font_context *ctx, const char *name, unsigned int size)
 {
     struct font *font;
     FT_Face     face;
@@ -127,7 +129,7 @@ struct font *font_open(const char *name, unsigned int size)
     }
 
     buf = memdup(buf, buf_size);
-    if (FT_New_Memory_Face(ft, buf, buf_size, 0, &face)) {
+    if (FT_New_Memory_Face(ctx->ft, buf, buf_size, 0, &face)) {
         mem_free(buf);
         err("failed to load font '%s'\n", name);
         return NULL;
@@ -154,27 +156,36 @@ void font_put(struct font *font)
     ref_put(font);
 }
 
+DEFINE_CLEANUP(font_context, if (*p) mem_free(*p))
+
 #define DEFAULT_FONT_NAME "ofl/Unbounded-Regular.ttf"
-int font_init(const char *default_font_name)
+cresp(font_context) font_init(const char *default_font_name)
 {
-    CHECK0(FT_Init_FreeType(&ft));
+    LOCAL_SET(font_context, ctx) = mem_alloc(sizeof(*ctx));
+    if (!ctx)
+        return cresp_error(font_context, CERR_NOMEM);
+
+    FT_Error err = FT_Init_FreeType(&ctx->ft);
+    if (err != FT_Err_Ok)
+        return cresp_error(font_context, CERR_INITIALIZATION_FAILED);
 
     if (!default_font_name)
         default_font_name = DEFAULT_FONT_NAME;
 
-    default_font = font_open(default_font_name, 32);
-    if (!default_font) {
+    ctx->default_font = font_open(ctx, default_font_name, 32);
+    if (!ctx->default_font) {
         err("couldn't load default font\n");
-        return -1;
+        return cresp_error(font_context, CERR_FONT_NOT_LOADED);
     }
 
     dbg("freetype initialized\n");
-    return 0;
+    return cresp_val(font_context, NOCU(ctx));
 }
 
-void font_done(void)
+void font_done(font_context *ctx)
 {
-    if (default_font)
-        font_put(default_font);
-    FT_Done_FreeType(ft);
+    if (ctx->default_font)
+        font_put(ctx->default_font);
+    FT_Done_FreeType(ctx->ft);
+    mem_free(ctx);
 }

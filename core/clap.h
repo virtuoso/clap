@@ -9,6 +9,7 @@ typedef struct clap_context clap_context;
 struct phys;
 struct settings;
 typedef struct sound_context sound_context;
+typedef struct font_context font_context;
 
 /* Get the clap's physics handle */
 struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
@@ -18,6 +19,8 @@ struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull 
 renderer_t *clap_get_renderer(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 /* Get clap's UI handle */
 struct ui *clap_get_ui(clap_context *ctx);
+/* Get clap's font handle */
+font_context *clap_get_font(clap_context *ctx);
 sound_context *clap_get_sound(struct clap_context *ctx) __nonnull_params((1));
 struct settings *clap_get_settings(struct clap_context *ctx) __nonnull_params((1));
 struct timespec clap_get_current_timespec(struct clap_context *ctx) __nonnull_params((1));
