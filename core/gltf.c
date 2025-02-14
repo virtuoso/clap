@@ -1152,7 +1152,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     struct shader_prog *prog = shader_prog_find(&gd->scene->shaders, "model");
 
-    m = model3d_new_from_mesh(gltf_mesh_name(gd, mesh), prog, me);
+    m = model3d_new_from_mesh(gltf_mesh_name(gd, mesh), ref_pass(prog), me);
     if (!m)
         return -1;
 
