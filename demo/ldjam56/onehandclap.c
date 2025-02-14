@@ -148,9 +148,6 @@ void resize_cb(void *data, int width, int height)
     if (!scene->initialized)
         return;
 
-    struct ui *ui = clap_get_ui(scene->clap_ctx);
-    ui->width  = width;
-    ui->height = height;
     if (main_pl)
         pipeline_resize(main_pl);
 }
