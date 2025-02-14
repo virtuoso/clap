@@ -136,6 +136,8 @@ static bool ui_roll_finished;
 
 void ui_update(struct ui *ui)
 {
+    ui->time = clap_get_current_time(ui->clap_ctx);
+
     ui_debug_update(ui);
     ui_debug_selector();
 
@@ -1554,6 +1556,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
 
     ui->clap_ctx = clap_ctx;
     ui->renderer = clap_get_renderer(ui->clap_ctx);
+    ui->time = clap_get_current_time(ui->clap_ctx);
     ui->ui_prog = shader_prog_find(&ui->shaders, "ui");
     ui->glyph_prog = shader_prog_find(&ui->shaders, "glyph");
     if (!ui->ui_prog || !ui->glyph_prog) {

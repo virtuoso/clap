@@ -113,20 +113,13 @@ static enum main_state main_state;
 EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
     struct scene *s = data;
-    unsigned long count, frame_count;
     renderer_t *r = clap_get_renderer(s->clap_ctx);
     struct ui *ui = clap_get_ui(s->clap_ctx);
-
-    ui->time = clap_get_current_time(s->clap_ctx);
 
     if (main_state == MS_STARTING) {
         main_state++;
         ui_osd_new(ui, intro_osd, array_size(intro_osd));
     }
-
-    frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(s->clap_ctx), 1);
-
-    ui_update(ui);
 
     pipeline_render(main_pl, !ui->modal);
 
@@ -136,16 +129,12 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         debug_draw_clearout(s);
     }
 
-    models_render(r, &ui->mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
-
     if (prev_msaa != s->light.shadow_msaa) {
         prev_msaa = s->light.shadow_msaa;
         pipeline_put(main_pl);
         build_main_pl(&main_pl);
     }
     pipeline_debug(main_pl);
-
-    ui->frames_total += frame_count;
 }
 
 /*

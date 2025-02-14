@@ -189,6 +189,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
 EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 {
     struct clap_context *ctx = data;
+    struct ui *ui = clap_get_ui(ctx);
 
     mem_frame_begin();
     clap_fps_calc(ctx, &ctx->fps);
@@ -230,6 +231,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     scene_cameras_calc(scene);
 
+    ui_update(ui);
+
     PROF_STEP(updates, net);
 
     if (ctx->cfg.frame_cb)
@@ -237,12 +240,17 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(callback, updates);
 
+    models_render(ui->renderer, &ui->mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
+
+    PROF_STEP(ui_render, callback);
+
     profiler_show(PROF_PTR(start));
 
     imgui_render();
     display_swap_buffers();
 
     scene->frames_total += frame_count;
+    ui->frames_total    += frame_count;
     mem_frame_end();
 }
 
