@@ -43,11 +43,9 @@ static inline float barrycentric(vec3 p1, vec3 p2, vec3 p3, vec2 pos)
 /* Linear interpolation between 2 vectors */
 static inline void vec3_interp(vec3 res, vec3 a, vec3 b, float fac)
 {
-    float rfac = 1.f - fac;
-
-    res[0] = rfac * a[0] + fac * b[0];
-    res[1] = rfac * a[1] + fac * b[1];
-    res[2] = rfac * a[2] + fac * b[2];
+    res[0] = linf_interp(a[0], b[0], fac);
+    res[1] = linf_interp(a[1], b[1], fac);
+    res[2] = linf_interp(a[2], b[2], fac);
 }
 
 /* Linear interpolation between 2 quaternions */
