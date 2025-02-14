@@ -121,7 +121,6 @@ void uia_set_visible(struct ui_element *uie, int visible);
 void uia_lin_float(struct ui_element *uie, void *setter, float start, float end, bool wait, unsigned long frames);
 void uia_cos_float(struct ui_element *uie, void *setter, float start, float end, bool wait, unsigned long frames,
                    float phase, float shift);
-void uia_quad_float(struct ui_element *uie, void *setter, float start, float end, float accel, bool wait);
 void uia_lin_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait, unsigned long frames);
 void uia_cos_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait, unsigned long frames, float phase, float shift);
 

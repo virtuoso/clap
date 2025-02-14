@@ -119,16 +119,6 @@ static void __uia_lin_float_iter(struct ui_animation *ua)
     ua->float0 = ua->float_start + ua->float_delta * ua_frames(ua);
 }
 
-static void __uia_quad_float_iter(struct ui_animation *ua)
-{
-    unsigned long frame;
-
-    for (frame = 0; frame < ua_frames(ua); frame++) {
-        ua->float0 += ua->float_delta;
-        ua->float_delta += ua->float_delta;
-    }
-}
-
 static void __uia_cos_float_iter(struct ui_animation *ua)
 {
     ua->float0 = cos_interp(ua->float_start, ua->float_end,
@@ -320,26 +310,6 @@ void uia_cos_float(struct ui_element *uie, void *setter, float start, float end,
     uia->float_shift = delta * shift;
     uia->setter      = setter;
     uia->iter        = __uia_cos_float_iter;
-    uia->trans       = __uia_float_trans;
-}
-
-void uia_quad_float(struct ui_element *uie, void *setter, float start, float end, float accel, bool wait)
-{
-    unsigned long _start_frame = start_frame(uie, wait);
-    struct ui_animation *uia;
-
-    if ((start > end && accel >= 0) || (start < end && accel <= 0)) {
-        warn("end %f unreachable from start %f via %f\n", end, start, accel);
-        return;
-    }
-
-    CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
-    uia->float_start = start;
-    uia->float_end   = end;
-    uia->float_delta = accel;
-    uia->setter      = setter;
-    uia->iter        = __uia_quad_float_iter;
     uia->trans       = __uia_float_trans;
 }
 
