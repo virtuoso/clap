@@ -43,7 +43,8 @@ struct ui_element {
     void             (*on_click)(struct ui_element *uie, float x, float y);
     void             (*on_focus)(struct ui_element *uie, bool focus);
     bool             prescaled;
-    int              force_hidden;
+    bool             force_hidden;
+    /* 2-byte hole */
     union {
         struct {
             float    x_off, y_off;
