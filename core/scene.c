@@ -107,7 +107,7 @@ bool scene_camera_follows(struct scene *s, struct character *ch)
 int scene_camera_add(struct scene *s)
 {
     struct shader_prog *prog = shader_prog_find(&s->shaders, "model");
-    model3d *m = model3d_new_cube(prog);
+    model3d *m = model3d_new_cube(ref_pass(prog));
     if (!m)
         return -1;
 
