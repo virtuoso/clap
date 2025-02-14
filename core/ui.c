@@ -842,7 +842,8 @@ static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
     uia_skip_duration(uie, 2.0);
     uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, 1.0);
     uia_set_visible(uie, 0);
-    /* XXX: delete the widget when the animations are done */
+    if (i == uie->widget->nr_uies - 1)
+        ui_widget_schedule_deletion(uie);
 }
 
 static struct ui_widget *
