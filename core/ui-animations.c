@@ -20,6 +20,11 @@ struct ui_animation {
     float               float_shift;
 };
 
+struct ui_element *ui_animation_element(struct ui_animation *uia)
+{
+    return uia->uie;
+}
+
 static void ui_animation_done(struct ui_animation *uia)
 {
     list_del(&uia->entry);

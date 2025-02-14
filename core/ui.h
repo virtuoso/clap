@@ -116,6 +116,7 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha);
 
 /* animations */
 struct ui_animation;
+struct ui_element *ui_animation_element(struct ui_animation *uia);
 void uia_skip_duration(struct ui_element *uie, double duration);
 void uia_action(struct ui_element *uie, void (*callback)(struct ui_animation *));
 void uia_set_visible(struct ui_element *uie, int visible);
