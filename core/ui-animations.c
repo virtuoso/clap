@@ -120,8 +120,8 @@ static void __uia_lin_float_iter(struct ui_animation *ua)
 
 static void __uia_cos_float_iter(struct ui_animation *ua)
 {
-    ua->float0 = cos_interp(ua->float_start, ua->float_end,
-                            ua->float_shift + ua->float_delta * ua_frames(ua));
+    ua->float0 = cosf_interp(ua->float_start, ua->float_end,
+                             ua->float_shift + ua->float_delta * ua_frames(ua));
 }
 
 /*

@@ -6,13 +6,18 @@
 #include "linmath.h"
 #include "util.h"
 
-/* Cosine interpolation between floats */
-static inline float cos_interp(float a, float b, float blend)
-{
-    float theta = blend * M_PI;
-    float  f = (1.f - cosf(theta)) / 2.f;
-    return a * (1.f - f) + b * f;
+/* Cosine interpolation between 2 values of type (float, double, long double) */
+#define DEFINE_COS_INTERP(_type, _suffix) \
+static inline _type cos  ## _suffix ## _interp(_type a, _type b, _type blend) \
+{ \
+    _type theta = blend * M_PI; \
+    _type  f = (1.0 - cos ## _suffix(theta)) / 2.0; \
+    return a * (1.0 - f) + b * f; \
 }
+
+DEFINE_COS_INTERP(float, f);
+DEFINE_COS_INTERP(double,);
+DEFINE_COS_INTERP(long double, l);
 
 /* Barrycentric interpolation between 3 vertices at @pos */
 static inline float barrycentric(vec3 p1, vec3 p2, vec3 p3, vec2 pos)

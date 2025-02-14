@@ -63,11 +63,11 @@ static float get_interp_height(struct terrain *t, float x, float z)
     float v2    = get_avg_height(t, intx + 1, intz);
     float v3    = get_avg_height(t, intx, intz + 1);
     float v4    = get_avg_height(t, intx + 1, intz + 1);
-    float i1    = cos_interp(v1, v2, fracx);
-    float i2    = cos_interp(v3, v4, fracx);
+    float i1    = cosf_interp(v1, v2, fracx);
+    float i2    = cosf_interp(v3, v4, fracx);
     //dbg("#### %f,%f => %f => %f; %f,%f => %f => %f\n", v1, v2, fracx, i1, v3, v4, fracx, i2);
 
-    return cos_interp(i1, i2, fracz);
+    return cosf_interp(i1, i2, fracz);
 }
 
 #define OCTAVES 4
@@ -459,9 +459,9 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             unsigned char cn = xyarray_get(maze, xpos, ypos);
             unsigned char xn = xyarray_get(maze, xfrac >= 0.5 ? xpos + 1 : xpos - 1, ypos);
             unsigned char yn = xyarray_get(maze, xpos, yfrac >= 0.5 ? ypos + 1 : ypos - 1);
-            float xavg  = cn > xn ? cn : cos_interp(cn, xn, 2 * xfrac - 1);
-            float yavg  = cn > yn ? cn : cos_interp(cn, yn, 2 * yfrac - 1);
-            float avg   = cos_interp(xavg, yavg, fabsf(xfrac - yfrac));
+            float xavg  = cn > xn ? cn : cosf_interp(cn, xn, 2 * xfrac - 1);
+            float yavg  = cn > yn ? cn : cosf_interp(cn, yn, 2 * yfrac - 1);
+            float avg   = cosf_interp(xavg, yavg, fabsf(xfrac - yfrac));
             t->map[i * nr_v + j] = get_height(t, i, j, powf(1.5, avg), OCTAVES) + avg;
         }
     mem_free(t->map0);
