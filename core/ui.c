@@ -800,13 +800,16 @@ static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
 
     /*
      * the first skip_frames is relative to ui::frames_total;
-     * the subsequent ones are relative to the previous skip_frame
+     * the subsequent ones are relative to the previous skip_frame.
+     *
+     * 1 second to fade in, 2 seconds to stay, 1 second to fade out,
+     * 1 second until the next one == 5 seconds per element.
      */
-    uia_skip_frames(uie, i * refresh_rate * 8 + refresh_rate);
+    uia_skip_frames(uie, i * refresh_rate * 5 + refresh_rate);
     uia_set_visible(uie, 1);
-    uia_lin_float(uie, ui_element_set_alpha, 0, 1, true, refresh_rate * 3);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1, true, refresh_rate);
     uia_skip_frames(uie, refresh_rate * 2);
-    uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, refresh_rate * 3);
+    uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, refresh_rate);
     uia_set_visible(uie, 0);
     /* XXX: delete the widget when the animations are done */
 }
@@ -871,7 +874,7 @@ static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
     /* XXX^5: animations hardcoded */
     uia_skip_frames(uie, i * 7);
     uia_set_visible(uie, 1);
-    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, 100);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, display_refresh_rate() / 2);
     uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 30, 1.0, 0.0);
 }
 
