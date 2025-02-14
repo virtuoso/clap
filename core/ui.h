@@ -43,7 +43,6 @@ struct ui_element {
     void             (*on_click)(struct ui_element *uie, float x, float y);
     void             (*on_focus)(struct ui_element *uie, bool focus);
     bool             prescaled;
-    bool             autoremove;
     int              force_hidden;
     union {
         struct {
