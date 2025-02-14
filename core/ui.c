@@ -1643,6 +1643,10 @@ void ui_done(struct ui *ui)
 
     mq_release(&ui->mq);
 
+    /* these match shader_prog_find() in ui_init() */
+    shader_prog_done(ui->ui_prog);
+    shader_prog_done(ui->glyph_prog);
+
     /*
      * clean up the shaders that weren't freed by model3d_drop()
      * via mq_release()
