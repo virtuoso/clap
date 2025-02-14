@@ -6,6 +6,17 @@
 #include "linmath.h"
 #include "util.h"
 
+/* Linear interpolation between 2 values of type (float, double, long double) */
+#define DEFINE_LIN_INTERP(_type, _suffix) \
+static inline _type lin  ## _suffix ## _interp(_type a, _type b, _type blend) \
+{ \
+    return a * (1.0 - blend) + b * blend; \
+}
+
+DEFINE_LIN_INTERP(float, f);
+DEFINE_LIN_INTERP(double,);
+DEFINE_LIN_INTERP(long double, l);
+
 /* Cosine interpolation between 2 values of type (float, double, long double) */
 #define DEFINE_COS_INTERP(_type, _suffix) \
 static inline _type cos  ## _suffix ## _interp(_type a, _type b, _type blend) \
