@@ -38,7 +38,6 @@
 static struct sound *intro_sound;
 static int exit_timeout = -1;
 static struct scene scene; /* XXX */
-static struct ui ui;
 // struct game_state game_state;
 
 static struct pipeline *main_pl;
@@ -116,19 +115,20 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     struct scene *s = data;
     unsigned long count, frame_count;
     renderer_t *r = clap_get_renderer(s->clap_ctx);
+    struct ui *ui = clap_get_ui(s->clap_ctx);
 
-    ui.time = clap_get_current_time(s->clap_ctx);
+    ui->time = clap_get_current_time(s->clap_ctx);
 
     if (main_state == MS_STARTING) {
         main_state++;
-        ui_osd_new(&ui, intro_osd, array_size(intro_osd));
+        ui_osd_new(ui, intro_osd, array_size(intro_osd));
     }
 
     frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(s->clap_ctx), 1);
 
-    ui_update(&ui);
+    ui_update(ui);
 
-    pipeline_render(main_pl, !ui.modal);
+    pipeline_render(main_pl, !ui->modal);
 
     if (scene.debug_draws_enabled) {
         models_render(r, &scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
@@ -136,7 +136,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         debug_draw_clearout(s);
     }
 
-    models_render(r, &ui.mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
+    models_render(r, &ui->mq, NULL, NULL, NULL, NULL, NULL, 0, 0, -1, &count);
 
     if (prev_msaa != s->light.shadow_msaa) {
         prev_msaa = s->light.shadow_msaa;
@@ -145,7 +145,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     }
     pipeline_debug(main_pl);
 
-    ui.frames_total += frame_count;
+    ui->frames_total += frame_count;
 }
 
 /*
@@ -159,8 +159,9 @@ void resize_cb(void *data, int width, int height)
     if (!scene->initialized)
         return;
 
-    ui.width  = width;
-    ui.height = height;
+    struct ui *ui = clap_get_ui(scene->clap_ctx);
+    ui->width  = width;
+    ui->height = height;
     if (main_pl)
         pipeline_resize(main_pl);
 }
@@ -227,6 +228,7 @@ int main(int argc, char **argv, char **envp)
         .sound          = 1,
         .phys           = 1,
         .graphics       = 1,
+        .ui             = 1,
         .settings       = 1,
         .title          = "One Hand Clap",
 #ifndef CONFIG_BROWSER
@@ -356,10 +358,6 @@ int main(int argc, char **argv, char **envp)
 
     build_main_pl(&main_pl);
 
-    err = ui_init(&ui, clap_get_renderer(scene.clap_ctx), scene.width, scene.height);
-    if (IS_CERR(err))
-        goto exit_pl;
-
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = -70.0;
@@ -373,7 +371,6 @@ int main(int argc, char **argv, char **envp)
 exit_pl:
 #ifndef CONFIG_BROWSER
     pipeline_put(main_pl);
-    ui_done(&ui);
 exit_scene:
     scene_done(&scene);
     //gl_done();

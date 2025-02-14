@@ -20,6 +20,7 @@
 #include "librarian.h"
 #include "physics.h"
 #include "settings.h"
+#include "ui.h"
 #include "ui-debug.h"
 #include "util.h"
 
@@ -49,7 +50,7 @@ struct fps_data {
     unsigned long   fps_fine, fps_coarse, seconds, count;
 };
 
-struct clap_context {
+typedef struct clap_context {
     struct clap_config  cfg;
     struct fps_data     fps;
     char                **argv;
@@ -59,8 +60,9 @@ struct clap_context {
     struct phys         *phys;
     struct settings     *settings;
     renderer_t          renderer;
+    struct ui           ui;
     int                 argc;
-};
+} clap_context;
 
 /****************************************************************************
  * Context accessors
@@ -74,6 +76,11 @@ struct clap_config *clap_get_config(struct clap_context *ctx)
 renderer_t *clap_get_renderer(struct clap_context *ctx)
 {
     return &ctx->renderer;
+}
+
+struct ui *clap_get_ui(clap_context *ctx)
+{
+    return &ctx->ui;
 }
 
 struct settings *clap_get_settings(struct clap_context *ctx)
@@ -272,6 +279,8 @@ static bool clap_config_is_valid(struct clap_config *cfg)
 {
     if (cfg->graphics && (!cfg->frame_cb || !cfg->resize_cb || !cfg->title))
         return false;
+    if (cfg->ui && !cfg->graphics)
+        return false;
 
     return true;
 }
@@ -353,6 +362,11 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     }
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
+    if (ctx->cfg.ui) {
+        cerr err = ui_init(&ctx->ui, ctx, ctx->cfg.width, ctx->cfg.height);
+        if (IS_CERR(err))
+            return cresp_error_cerr(clap_context, err);
+    }
     if (ctx->cfg.graphics && ctx->cfg.input)
         display_debug_ui_init(ctx);
     if (ctx->cfg.settings)
@@ -363,6 +377,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
 void clap_done(struct clap_context *ctx, int status)
 {
+    if (ctx->cfg.ui)
+        ui_done(&ctx->ui);
     if (ctx->cfg.sound)
         sound_done(ctx->sound);
     if (ctx->cfg.phys)

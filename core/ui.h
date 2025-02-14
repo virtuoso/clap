@@ -80,6 +80,8 @@ struct ui_widget {
     struct list        entry;
 };
 
+typedef struct clap_context clap_context;
+
 //int ui_element_init(struct scene *s, float x, float y, float w, float h);
 struct ui {
     struct mq          mq;
@@ -93,6 +95,7 @@ struct ui {
     struct list        widget_cleanup;
     unsigned long      frames_total;
     double             time;
+    clap_context       *clap_ctx;
     int width, height;
     bool modal;
     float mod_x, mod_y;
@@ -108,7 +111,7 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
 struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_items);
 
-cerr ui_init(struct ui *ui, renderer_t *r, int width, int height);
+cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height);
 void ui_done(struct ui *ui);
 void ui_update(struct ui *ui);
 model3dtx *ui_quadtx_get(void);

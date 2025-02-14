@@ -1539,18 +1539,21 @@ static void build_onclick(struct ui_element *uie, float x, float y)
 
 static __unused const char *wheel_items[] = { "^", ">", "v", "<" };
 extern const char *build_date;
-cerr ui_init(struct ui *ui, renderer_t *r, int width, int height)
+cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
 {
     cerr ret = CERR_OK;
     struct font *font;
 
+    ui->width = width;
+    ui->height = height;
     mq_init(&ui->mq, ui);
     list_init(&ui->shaders);
     list_init(&ui->widget_cleanup);
     lib_request_shaders("glyph", &ui->shaders);
     lib_request_shaders("ui", &ui->shaders);
 
-    ui->renderer = r;
+    ui->clap_ctx = clap_ctx;
+    ui->renderer = clap_get_renderer(ui->clap_ctx);
     ui->ui_prog = shader_prog_find(&ui->shaders, "ui");
     ui->glyph_prog = shader_prog_find(&ui->shaders, "glyph");
     if (!ui->ui_prog || !ui->glyph_prog) {
