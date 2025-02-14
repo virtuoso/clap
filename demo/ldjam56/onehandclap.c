@@ -225,6 +225,7 @@ int main(int argc, char **argv, char **envp)
         .frame_cb       = render_frame,
         .resize_cb      = resize_cb,
         .callback_data  = &scene,
+        .default_font_name  = "ofl/Unbounded-Regular.ttf",
     };
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
