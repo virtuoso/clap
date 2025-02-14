@@ -134,6 +134,13 @@ static void ui_reset_positioning(entity3d *e, void *data)
 static void ui_roll_done(void);
 static bool ui_roll_finished;
 
+static void widgets_cleanup(struct list *list)
+{
+    struct ui_widget *widget, *iter;
+    list_for_each_entry_iter(widget, iter, list, entry)
+        ref_put_last(widget);
+}
+
 void ui_update(struct ui *ui)
 {
     ui->time = clap_get_current_time(ui->clap_ctx);
@@ -145,9 +152,7 @@ void ui_update(struct ui *ui)
     mq_for_each(&ui->mq, ui_reset_positioning, NULL);
     mq_update(&ui->mq);
 
-    struct ui_widget *widget, *iter;
-    list_for_each_entry_iter(widget, iter, &ui->widget_cleanup, entry)
-        ref_put_last(widget);
+    widgets_cleanup(&ui->widget_cleanup);
 
     if (ui_roll_finished)
         ui_roll_done();
@@ -727,7 +732,7 @@ ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
     CHECK(uiw->root  = ui_element_new(ui, NULL, ui_quadtx, affinity, x_off, y_off, w, h));
     uiw->root->widget = uiw;
     uiw->nr_uies = nr_items;
-    list_init(&uiw->entry);
+    list_append(&ui->widgets, &uiw->entry);
 
     return uiw;
 }
@@ -742,6 +747,7 @@ void ui_widget_delete(struct ui_widget *widget)
 {
     struct ui *ui = widget->root->ui;
 
+    list_del(&widget->entry);
     list_append(&ui->widget_cleanup, &widget->entry);
 }
 
@@ -1550,6 +1556,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     ui->height = height;
     mq_init(&ui->mq, ui);
     list_init(&ui->shaders);
+    list_init(&ui->widgets);
     list_init(&ui->widget_cleanup);
     lib_request_shaders("glyph", &ui->shaders);
     lib_request_shaders("ui", &ui->shaders);
@@ -1615,6 +1622,9 @@ void ui_done(struct ui *ui)
         ui_menu_done(ui);
     if (ui->inventory)
         ui_inventory_done(ui);
+
+    widgets_cleanup(&ui->widget_cleanup);
+    widgets_cleanup(&ui->widgets);
 
     ui_debug_done(ui);
     if (uie0)

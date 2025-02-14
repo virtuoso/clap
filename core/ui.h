@@ -92,6 +92,7 @@ struct ui {
     struct sound       *click;
     struct ui_widget   *menu;
     struct ui_widget   *inventory;
+    struct list        widgets;
     struct list        widget_cleanup;
     unsigned long      frames_total;
     double             time;
