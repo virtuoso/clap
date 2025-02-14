@@ -142,6 +142,11 @@ void ui_update(struct ui *ui)
     /* XXX: this is double for_each, make better */
     mq_for_each(&ui->mq, ui_reset_positioning, NULL);
     mq_update(&ui->mq);
+
+    struct ui_widget *widget, *iter;
+    list_for_each_entry_iter(widget, iter, &ui->widget_cleanup, entry)
+        ref_put_last(widget);
+
     if (ui_roll_finished)
         ui_roll_done();
 }
@@ -202,6 +207,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, mode
     uie->ui = ui;
     if (parent) {
         uie->parent = ref_get(parent);
+        uie->widget = parent->widget;
         list_append(&parent->children, &uie->child_entry);
     }
 
@@ -701,6 +707,7 @@ static void ui_widget_drop(struct ref *ref)
             ref_put(uie);
     }
     ref_put_last(uiw->root);
+    list_del(&uiw->entry);
     mem_free(uiw->uies);
 }
 
@@ -716,7 +723,9 @@ ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
     uiw->uies        = mem_alloc(sizeof(struct ui_element *), .nr = nr_items, .fatal_fail = 1);
     /* XXX: render texts to FBOs to textures */
     CHECK(uiw->root  = ui_element_new(ui, NULL, ui_quadtx, affinity, x_off, y_off, w, h));
+    uiw->root->widget = uiw;
     uiw->nr_uies = nr_items;
+    list_init(&uiw->entry);
 
     return uiw;
 }
@@ -725,6 +734,30 @@ static struct ui_widget *
 ui_widget_build(struct ui *ui, struct ui_widget_builder *uwb, unsigned int nr_items)
 {
     return ui_widget_new(ui, nr_items, uwb->affinity, uwb->x_off, uwb->y_off, uwb->w, uwb->h);
+}
+
+void ui_widget_delete(struct ui_widget *widget)
+{
+    struct ui *ui = widget->root->ui;
+
+    list_append(&ui->widget_cleanup, &widget->entry);
+}
+
+static void __widget_delete_action(struct ui_animation *ua)
+{
+    struct ui_element *uie = ui_animation_element(ua);
+
+    if (!uie->widget) {
+        err("trying to delete an element without a widget: %s\n", entity_name(uie->entity));
+        return;
+    }
+
+    ui_widget_delete(uie->widget);
+}
+
+void ui_widget_schedule_deletion(struct ui_element *uie)
+{
+    uia_action(uie, __widget_delete_action);
 }
 
 /*
@@ -1512,6 +1545,7 @@ cerr ui_init(struct ui *ui, renderer_t *r, int width, int height)
 
     mq_init(&ui->mq, ui);
     list_init(&ui->shaders);
+    list_init(&ui->widget_cleanup);
     lib_request_shaders("glyph", &ui->shaders);
     lib_request_shaders("ui", &ui->shaders);
 

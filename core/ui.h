@@ -29,6 +29,7 @@ enum uie_mv {
 };
 
 struct ui_element;
+struct ui_widget;
 
 struct ui_element {
     struct ref       ref;
@@ -39,6 +40,7 @@ struct ui_element {
     struct list      child_entry;
     struct list      animation;
     unsigned long    affinity;
+    struct ui_widget *widget;
     void             *priv;
     void             (*on_click)(struct ui_element *uie, float x, float y);
     void             (*on_focus)(struct ui_element *uie, bool focus);
@@ -75,6 +77,7 @@ struct ui_widget {
     struct ref         ref;
     unsigned int       nr_uies;
     int                focus;
+    struct list        entry;
 };
 
 //int ui_element_init(struct scene *s, float x, float y, float w, float h);
@@ -87,6 +90,7 @@ struct ui {
     struct sound       *click;
     struct ui_widget   *menu;
     struct ui_widget   *inventory;
+    struct list        widget_cleanup;
     unsigned long      frames_total;
     double             time;
     int width, height;
