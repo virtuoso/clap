@@ -265,7 +265,7 @@ void shaders_free(struct list *shaders)
     struct shader_prog *prog, *iter;
 
     list_for_each_entry_iter(prog, iter, shaders, entry)
-        ref_put(prog);
+        ref_put_last(prog);
 }
 
 cerr lib_request_shaders(const char *name, struct list *shaders)
