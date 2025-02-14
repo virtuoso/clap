@@ -5,7 +5,7 @@
 #include "render.h"
 
 struct fps_data;
-struct clap_context;
+typedef struct clap_context clap_context;
 struct phys;
 struct settings;
 typedef struct sound_context sound_context;

@@ -297,10 +297,12 @@ cres(int) clap_restart(struct clap_context *ctx)
 #endif
 }
 
+DEFINE_CLEANUP(clap_context, if (*p) mem_free(*p))
+
 cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
 {
     unsigned int log_flags = LOG_DEFAULT;
-    struct clap_context *ctx;
+    LOCAL(clap_context, ctx);
 
     if (cfg && !clap_config_is_valid(cfg))
         return cresp_error(clap_context, CERR_INVALID_ARGUMENTS);
@@ -356,7 +358,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (ctx->cfg.settings)
         CHECK(ctx->settings = settings_init(clap_settings_onload, ctx));
 
-    return cresp_val(clap_context, ctx);
+    return cresp_val(clap_context, NOCU(ctx));
 }
 
 void clap_done(struct clap_context *ctx, int status)
