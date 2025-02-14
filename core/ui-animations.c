@@ -9,8 +9,8 @@ struct ui_animation {
     void                (*trans)(struct ui_animation *uia);
     void                *setter;
     void                (*iter)(struct ui_animation *uia);
-    unsigned long       start_frame;
-    unsigned long       nr_frames;
+    double              start_time;
+    double              duration;
     int                 int0;
     int                 int1;
     float               float0;
@@ -36,7 +36,7 @@ void ui_element_animations_done(struct ui_element *uie)
 
 static void ui_animation_run(struct ui_animation *ua)
 {
-    if (ua->uie->ui->frames_total >= ua->start_frame)
+    if (ua->uie->ui->time >= ua->start_time)
         ua->trans(ua);
 }
 
@@ -80,33 +80,38 @@ static struct ui_animation *ui_animation(struct ui_element *uie)
     return ua;
 }
 
-/* Frames elapsed for this animation */
-static unsigned long ua_frames(struct ui_animation *ua)
+/* Time elapsed for this animation */
+static double ua_elapsed(struct ui_animation *ua)
 {
     struct ui *ui = ua->uie->ui;
-    if (ui->frames_total < ua->start_frame)
+    if (ui->time < ua->start_time)
         return 0;
-    return ui->frames_total - ua->start_frame;
+    return ui->time - ua->start_time;
 }
 
-/* If it's past its last frame */
-static bool ua_frames_done(struct ui_animation *ua)
+/* Progress of the animation in range [0..1] */
+static double ua_progress(struct ui_animation *ua)
 {
-    unsigned long total = ua_frames(ua);
-    return total > ua->nr_frames;
+    return ua_elapsed(ua) / ua->duration;
 }
 
-/* Get start frame for a new animation */
-static unsigned long start_frame(struct ui_element *uie, bool wait)
+/* If it's past its duration */
+static bool ua_expired(struct ui_animation *ua)
 {
-    unsigned long frame = uie->ui->frames_total;
+    return ua_elapsed(ua) > ua->duration;
+}
+
+/* Get start time for a new animation */
+static double start_time(struct ui_element *uie, bool wait)
+{
+    double time = uie->ui->time;
 
     if (!list_empty(&uie->animation)) {
         struct ui_animation *last = list_last_entry(&uie->animation, struct ui_animation, entry);
-        frame = last->start_frame + (wait ? last->nr_frames : 0);
+        time = last->start_time + (wait ? last->duration : 0);
     }
 
-    return frame;
+    return time;
 }
 
 /*
@@ -115,17 +120,17 @@ static unsigned long start_frame(struct ui_element *uie, bool wait)
 
 static void __uia_lin_float_iter(struct ui_animation *ua)
 {
-    ua->float0 = ua->float_start + ua->float_delta * ua_frames(ua);
+    ua->float0 = linf_interp(ua->float_start, ua->float_end, ua_progress(ua));
 }
 
 static void __uia_cos_float_iter(struct ui_animation *ua)
 {
     ua->float0 = cosf_interp(ua->float_start, ua->float_end,
-                             ua->float_shift + ua->float_delta * ua_frames(ua));
+                             ua->float_shift + ua->float_delta * ua_elapsed(ua));
 }
 
 /*
- * *_trans(): set up first frame, call ::iter(), check that this animation
+ * *_trans(): initialize the value, call ::iter(), check that this animation
  * should keep running, call ::setter to apply the updated value, call the
  * next animation in the list, delete itself when it's done
  */
@@ -136,7 +141,7 @@ static void __uia_float_trans(struct ui_animation *ua)
     bool done = false;
 
     if (!ua->int0) {
-        /* first iteration: setup ::start_frame and initial animated value */
+        /* first iteration: set up the initial animated value */
         ua->float0 = ua->float_start;
         ua->int0++;
     } else {
@@ -144,10 +149,10 @@ static void __uia_float_trans(struct ui_animation *ua)
         ua->iter(ua);
     }
 
-    /* Check if the value has reached its target OR we ran out of frames */
+    /* Check if the value has reached its target OR we ran out of time */
     if ((ua->float_start < ua->float_end && ua->float0 >= ua->float_end) ||
         (ua->float_start > ua->float_end && ua->float0 <= ua->float_end) ||
-        ua_frames_done(ua)) {
+        ua_expired(ua)) {
         done = true;
         /* clamp, in case we overshoot */
         ua->float0 = ua->float_end;
@@ -177,7 +182,7 @@ static void __uia_float_move_trans(struct ui_animation *ua)
 
     if ((ua->float_start < ua->float_end && ua->float0 >= ua->float_end) ||
         (ua->float_start > ua->float_end && ua->float0 <= ua->float_end) ||
-        ua_frames_done(ua)) {
+        ua_expired(ua)) {
         done       = true;
         /* clamp, in case we overshoot */
         ua->float0 = ua->float_end;
@@ -197,12 +202,12 @@ static void __uia_float_move_trans(struct ui_animation *ua)
 }
 
 /*
- * Do nothing for the given number of frames, then call the next animation
+ * Do nothing for the given period of time, then call the next animation
  * and delete itself
  */
-static void __uia_skip_frames_trans(struct ui_animation *ua)
+static void __uia_skip_duration_trans(struct ui_animation *ua)
 {
-    if (!ua_frames_done(ua))
+    if (!ua_expired(ua))
         return;
 
     ui_animation_next(ua);
@@ -235,74 +240,75 @@ static void __uia_set_visible_trans(struct ui_animation *ua)
  * list of a ui_element and are played in the order in whic they were added.
  *
  * Calling one of these will append its animation to the list of UI element's
- * animations. Some of them are one-shot, others take a number of frames,
- * indicated by the @frames parameter, over which the animation takes place.
+ * animations. Some of them are one-shot, others take a duration in seconds,
+ * indicated by the @duration parameter, over which the animation takes place.
  * The @wait parameter, if true, means don't start this animation until the
  * previous one has played out, otherwise run it in parallel with the previous
  * one on the list, so multiple things can happen at once.
  * --------------------------------------------------------------------------- */
 
-void uia_skip_frames(struct ui_element *uie, unsigned long frames)
+void uia_skip_duration(struct ui_element *uie, double duration)
 {
-    unsigned long _start_frame = start_frame(uie, true);
+    double _start_time = start_time(uie, true);
     struct ui_animation *uia;
 
     CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
-    uia->nr_frames   = frames;
-    uia->trans       = __uia_skip_frames_trans;
+    uia->start_time  = _start_time;
+    uia->duration    = duration;
+    uia->trans       = __uia_skip_duration_trans;
 }
 
 void uia_action(struct ui_element *uie, void (*callback)(struct ui_animation *))
 {
-    unsigned long _start_frame = start_frame(uie, true);
+    double _start_time = start_time(uie, true);
     struct ui_animation *uia;
 
     CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
+    uia->start_time  = _start_time;
     uia->trans       = __uia_action_trans;
     uia->iter        = callback;
 }
 
 void uia_set_visible(struct ui_element *uie, int visible)
 {
-    unsigned long _start_frame = start_frame(uie, true);
+    double _start_time = start_time(uie, true);
     struct ui_animation *uia;
 
     CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
+    uia->start_time  = _start_time;
     uia->int0        = visible;
     uia->trans       = __uia_set_visible_trans;
 }
 
-void uia_lin_float(struct ui_element *uie, void *setter, float start, float end, bool wait, unsigned long frames)
+void uia_lin_float(struct ui_element *uie, void *setter, float start, float end, bool wait,
+                   double duration)
 {
-    unsigned long _start_frame = start_frame(uie, wait);
+    double _start_time = start_time(uie, wait);
     struct ui_animation *uia;
-    float len = end - start;
+    // float len = end - start;
 
     CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
+    uia->start_time  = _start_time;
     uia->float_start = start;
     uia->float_end   = end;
-    uia->float_delta = len / frames;
-    uia->nr_frames   = frames;
+    // uia->float_delta = len / duration; /* XXX: not really used */
+    uia->duration    = duration;
     uia->setter      = setter;
     uia->iter        = __uia_lin_float_iter;
     uia->trans       = __uia_float_trans;
 }
 
-void uia_cos_float(struct ui_element *uie, void *setter, float start, float end, bool wait, unsigned long frames,
-                   float phase, float shift)
+void uia_cos_float(struct ui_element *uie, void *setter, float start, float end, bool wait,
+                   double duration, float phase, float shift)
 {
-    unsigned long _start_frame = start_frame(uie, wait);
+    double _start_time = start_time(uie, wait);
     float len   = fabsf(start - end);
-    float delta = len / frames;
+    float delta = len / duration;
     struct ui_animation *uia;
 
     CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
-    uia->nr_frames   = frames;
+    uia->start_time  = _start_time;
+    uia->duration    = duration;
     uia->float_start = start;
     uia->float_end   = end;
     uia->float_delta = (delta / len) * phase;
@@ -312,34 +318,35 @@ void uia_cos_float(struct ui_element *uie, void *setter, float start, float end,
     uia->trans       = __uia_float_trans;
 }
 
-void uia_lin_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait, unsigned long frames)
+void uia_lin_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait,
+                  double duration)
 {
-    unsigned long _start_frame = start_frame(uie, wait);
+    double _start_time = start_time(uie, wait);
     struct ui_animation *uia;
-    float len = end - start;
+    // float len = end - start;
 
     CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
-    uia->nr_frames   = frames;
+    uia->start_time  = _start_time;
+    uia->duration    = duration;
     uia->float_start = start;
     uia->float_end   = end;
-    uia->float_delta = len / frames;
+    // uia->float_delta = len / duration; /* XXX: not really used */
     uia->int1        = mv;
     uia->trans       = __uia_float_move_trans;
     uia->iter        = __uia_lin_float_iter;
 }
 
-void uia_cos_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait, unsigned long frames, float phase,
-                  float shift)
+void uia_cos_move(struct ui_element *uie, enum uie_mv mv, float start, float end, bool wait,
+                  double duration, float phase, float shift)
 {
-    unsigned long _start_frame = start_frame(uie, wait);
+    double _start_time = start_time(uie, wait);
     float len   = fabsf(start - end);
-    float delta = len / frames;
+    float delta = len / duration;
     struct ui_animation *uia;
 
     CHECK(uia = ui_animation(uie));
-    uia->start_frame = _start_frame;
-    uia->nr_frames   = frames;
+    uia->start_time  = _start_time ;
+    uia->duration    = duration;
     uia->float_start = start;
     uia->float_end   = end;
     uia->float_delta = (delta / len) * phase;

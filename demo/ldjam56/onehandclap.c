@@ -117,6 +117,8 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     unsigned long count, frame_count;
     renderer_t *r = clap_get_renderer(s->clap_ctx);
 
+    ui.time = clap_get_current_time(s->clap_ctx);
+
     if (main_state == MS_STARTING) {
         main_state++;
         ui_osd_new(&ui, intro_osd, array_size(intro_osd));

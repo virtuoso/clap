@@ -647,9 +647,9 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
 static void menu_onfocus(struct ui_element *uie, bool focus)
 {
     if (focus)
-        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, false, 10);
+        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
     else
-        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, false, 10);
+        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, false, 1.0 / 6.0);
 }
 
 static void inv_onfocus(struct ui_element *uie, bool focus)
@@ -775,8 +775,8 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
         /* XXX^5: animations hardcoded */
         // uia_skip_frames(wheel->uies[i], i * 7);
         uia_set_visible(wheel->uies[i], 1);
-        uia_lin_float(wheel->uies[i], ui_element_set_alpha_one, 0, 1.0, false, 100);
-        uia_cos_move(wheel->uies[i], motions[i], i < 2 ? 200 : 1, i < 2 ? 1 : 200, false, 30, 1.0, 0.0);
+        uia_lin_float(wheel->uies[i], ui_element_set_alpha_one, 0, 1.0, false, 1.6);
+        uia_cos_move(wheel->uies[i], motions[i], i < 2 ? 200 : 1, i < 2 ? 1 : 200, false, 0.5, 1.0, 0.0);
 
         CHECK(tui = ui_render_string(ui, font, wheel->uies[i], items[i], color, 0));
         width = max(width, wheel->uies[i]->width);
@@ -796,8 +796,6 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 
 static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
 {
-    int refresh_rate = display_refresh_rate();
-
     /*
      * the first skip_frames is relative to ui::frames_total;
      * the subsequent ones are relative to the previous skip_frame.
@@ -805,11 +803,11 @@ static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
      * 1 second to fade in, 2 seconds to stay, 1 second to fade out,
      * 1 second until the next one == 5 seconds per element.
      */
-    uia_skip_frames(uie, i * refresh_rate * 5 + refresh_rate);
+    uia_skip_duration(uie, 1.0 + i * 5.0);
     uia_set_visible(uie, 1);
-    uia_lin_float(uie, ui_element_set_alpha, 0, 1, true, refresh_rate);
-    uia_skip_frames(uie, refresh_rate * 2);
-    uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, refresh_rate);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1, true, 1.0);
+    uia_skip_duration(uie, 2.0);
+    uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, 1.0);
     uia_set_visible(uie, 0);
     /* XXX: delete the widget when the animations are done */
 }
@@ -872,10 +870,10 @@ struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_
 static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
 {
     /* XXX^5: animations hardcoded */
-    uia_skip_frames(uie, i * 7);
+    uia_skip_duration(uie, 0.12 * i);
     uia_set_visible(uie, 1);
-    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, display_refresh_rate() / 2);
-    uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 30, 1.0, 0.0);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, 0.5);
+    uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 0.5, 1.0, 0.0);
 }
 
 static struct ui_widget *
@@ -1182,9 +1180,9 @@ static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
         return;
 
     if (uiw->focus >= 0)
-        uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 20, 1, false, 10);
+        uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 20, 1, false, 1.0 / 6.0);
     if (n >= 0)
-        uia_lin_move(uiw->uies[n], UIE_MV_X_OFF, 1, 20, false, 10);
+        uia_lin_move(uiw->uies[n], UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
     uiw->focus = n;
 }
 
