@@ -11,7 +11,6 @@ struct ui_animation {
     void                (*iter)(struct ui_animation *uia);
     unsigned long       start_frame;
     unsigned long       nr_frames;
-    unsigned long       sound_frame;
     int                 int0;
     int                 int1;
     float               float0;
