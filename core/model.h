@@ -136,9 +136,6 @@ typedef struct model3dtx {
 DEFINE_REFCLASS_INIT_OPTIONS(model3dtx);
 DECLARE_REFCLASS(model3dtx);
 
-model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
-                                  unsigned short *idx, size_t idxsz, float *tx, size_t txsz, float *norm,
-                                  size_t normsz);
 model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
 void model3d_add_tangents(model3d *m, float *tg, size_t tgsz);
 int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
