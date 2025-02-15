@@ -248,7 +248,4 @@ static inline void _ref_put(struct ref *ref)
     __obj; \
 })
 
-void cleanup__ref(struct ref **ref);
-
 #endif /* __CLAP_OBJECT_H__ */
-

@@ -90,30 +90,6 @@ static int refcount_test2(void)
     return EXIT_SUCCESS;
 }
 
-static int __refcount_test3(void)
-{
-    struct x0 *x0 = ref_new(x0);
-    CU(ref) __unused struct ref *ref = &x0->ref;
-
-    x0->magic = TEST_MAGIC0;
-
-    return EXIT_SUCCESS;
-}
-
-static int refcount_test3(void)
-{
-    int ret;
-
-    reset_counters();
-    ret = __refcount_test3();
-    if (ret)
-        return ret;
-    if (!ok_counters())
-        return EXIT_FAILURE;
-
-    return EXIT_SUCCESS;
-}
-
 struct list_entry {
     struct list entry;
     unsigned int i;
@@ -497,7 +473,6 @@ static struct test {
     { .name = "refcount basic", .test = refcount_test0 },
     { .name = "refcount get/put", .test = refcount_test1 },
     { .name = "refcount static", .test = refcount_test2 },
-    { .name = "refcount cleanup", .test = refcount_test3 },
     { .name = "list_for_each", .test = list_test0 },
     { .name = "list_for_each_iter", .test = list_test1 },
     { .name = "darray basic", .test = darray_test0 },

@@ -63,7 +63,7 @@ configure_file(config.h.in config.h)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(TEST_BIN tests)
-    set(TEST_SRC test.c object.c ref.c util.c logger.c json.c messagebus.c ca3d.c
+    set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c
         ca2d.c xyarray.c memory.c cpio.c)
 
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -87,7 +87,7 @@ endif ()
 
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
-    object.c ref.c util.c logger.c input.c messagebus.c primitives.c motion.c
+    object.c util.c logger.c input.c messagebus.c primitives.c motion.c
     matrix.c model.c shader.c librarian.c json.c clap.c view.c light.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
