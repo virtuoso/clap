@@ -1130,7 +1130,6 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
 int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
     model3dtx   *txm;
-    model3d     *m;
     int skin;
 
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
@@ -1152,15 +1151,18 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     struct shader_prog *prog = shader_prog_find(&gd->scene->shaders, "model");
 
-    m = model3d_new_from_mesh(gltf_mesh_name(gd, mesh), ref_pass(prog), me);
-    if (!m)
+    cresp(model3d) res = ref_new2(model3d,
+                                  .prog   = ref_pass(prog),
+                                  .name   = gltf_mesh_name(gd, mesh),
+                                  .mesh   = me);
+    if (IS_CERR(res))
         return -1;
 
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }
 
-    txm = model3dtx_new_from_png_buffers(ref_pass(m), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
+    txm = model3dtx_new_from_png_buffers(ref_pass(res.val), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
                                          gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh),
                                          gltf_em(gd, mesh), gltf_emsz(gd, mesh));
 
