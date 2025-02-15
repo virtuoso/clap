@@ -26,13 +26,107 @@
  * the actual rendered model
  ****************************************************************************/
 
+static void model3d_calc_aabb(model3d *m, float *vx, size_t vxsz);
+
 static cerr model3d_make(struct ref *ref, void *_opts)
 {
+    model3d_init_options *opts = _opts;
+
+    if (!opts->prog)
+        return CERR_INVALID_ARGUMENTS;
+
+    float *vx, *tx, *norm;
+    unsigned short *idx;
+    size_t vxsz, txsz, normsz, idxsz;
+
+    if (!opts->mesh) {
+        if (!opts->idx || !opts->idxsz || !opts->vx || !opts->vxsz)
+            return CERR_INVALID_ARGUMENTS;
+
+        vx      = opts->vx;
+        vxsz    = opts->vxsz;
+        idx     = opts->idx;
+        idxsz   = opts->idxsz;
+        tx      = opts->tx;
+        txsz    = opts->txsz;
+        norm    = opts->norm;
+        normsz  = opts->normsz;
+    } else {
+        if (opts->idx || opts->idxsz || opts->vx || opts->vxsz ||
+            opts->tx || opts->txsz || opts->norm || opts->normsz)
+            return CERR_INVALID_ARGUMENTS;
+
+        vx      = mesh_vx(opts->mesh);
+        vxsz    = mesh_vx_sz(opts->mesh);
+        idx     = mesh_idx(opts->mesh);
+        idxsz   = mesh_idx_sz(opts->mesh);
+        tx      = mesh_tx(opts->mesh);
+        txsz    = mesh_tx_sz(opts->mesh);
+        norm    = mesh_norm(opts->mesh);
+        normsz  = mesh_norm_sz(opts->mesh);
+    }
+
     model3d *m = container_of(ref, model3d, ref);
 
     m->depth_testing = true;
     m->cull_face     = true;
     m->draw_type     = DRAW_TYPE_TRIANGLES;
+
+    CHECK(m->name = strdup(opts->name));
+    m->prog = ref_get(opts->prog);
+    m->alpha_blend = false;
+    model3d_calc_aabb(m, vx, vxsz);
+    darray_init(m->anis);
+
+    cerr err = vertex_array_init(&m->vao);
+    if (IS_CERR(err))
+        return err;
+
+    shader_prog_use(opts->prog);
+    shader_setup_attribute(opts->prog, ATTR_POSITION, &m->vertex,
+                           .type           = BUF_ARRAY,
+                           .usage          = BUF_STATIC,
+                           .comp_type      = DT_FLOAT,
+                           .comp_count     = 3,
+                           .data           = vx,
+                           .size           = vxsz);
+    err = buffer_init(&m->index[0],
+                      .type       = BUF_ELEMENT_ARRAY,
+                      .usage      = BUF_STATIC,
+                      .comp_type  = DT_SHORT,
+                      .data       = idx,
+                      .size       = idxsz);
+    if (IS_CERR(err)) {
+        shader_prog_done(opts->prog);
+        return err;
+    }
+
+    m->nr_lods++;
+
+    if (tx)
+        shader_setup_attribute(opts->prog, ATTR_TEX, &m->tex,
+                               .type           = BUF_ARRAY,
+                               .usage          = BUF_STATIC,
+                               .comp_type      = DT_FLOAT,
+                               .comp_count     = 2,
+                               .data           = tx,
+                               .size           = txsz);
+
+    if (normsz)
+        shader_setup_attribute(opts->prog, ATTR_NORMAL, &m->norm,
+                               .type           = BUF_ARRAY,
+                               .usage          = BUF_STATIC,
+                               .comp_type      = DT_FLOAT,
+                               .comp_count     = 3,
+                               .data           = norm,
+                               .size           = normsz);
+
+    vertex_array_unbind(&m->vao);
+    shader_prog_done(opts->prog);
+
+    m->cur_lod = -1;
+    m->nr_vertices = vxsz / sizeof(*vx) / 3;
+    m->nr_faces[0] = idxsz / sizeof(*idx);
 
     return CERR_OK;
 }
@@ -448,70 +542,21 @@ model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, siz
                          unsigned short *idx, size_t idxsz, float *tx, size_t txsz,
                          float *norm, size_t normsz)
 {
-    if (!p)
+    cresp(model3d) res = ref_new2(model3d,
+                                  .name   = name,
+                                  .prog   = p,
+                                  .vx     = vx,
+                                  .vxsz   = vxsz,
+                                  .idx    = idx,
+                                  .idxsz  = idxsz,
+                                  .tx     = tx,
+                                  .txsz   = txsz,
+                                  .norm   = norm,
+                                  .normsz = normsz);
+    if (IS_CERR(res))
         return NULL;
 
-    LOCAL_SET(model3d, m) = ref_new(model3d);
-    if (!m)
-        return NULL;
-
-    CHECK(m->name = strdup(name));
-    m->prog = ref_get(p);
-    m->alpha_blend = false;
-    m->draw_type = DRAW_TYPE_TRIANGLES;
-    model3d_calc_aabb(m, vx, vxsz);
-    darray_init(m->anis);
-
-    cerr err = vertex_array_init(&m->vao);
-    if (IS_CERR(err))
-        return NULL;
-
-    shader_prog_use(p);
-    shader_setup_attribute(p, ATTR_POSITION, &m->vertex,
-                           .type           = BUF_ARRAY,
-                           .usage          = BUF_STATIC,
-                           .comp_type      = DT_FLOAT,
-                           .comp_count     = 3,
-                           .data           = vx,
-                           .size           = vxsz);
-    err = buffer_init(&m->index[0],
-                      .type       = BUF_ELEMENT_ARRAY,
-                      .usage      = BUF_STATIC,
-                      .comp_type  = DT_SHORT,
-                      .data       = idx,
-                      .size       = idxsz);
-    if (IS_CERR(err)) {
-        shader_prog_done(p);
-        return NULL;
-    }
-
-    m->nr_lods++;
-
-    shader_setup_attribute(p, ATTR_TEX, &m->tex,
-                           .type           = BUF_ARRAY,
-                           .usage          = BUF_STATIC,
-                           .comp_type      = DT_FLOAT,
-                           .comp_count     = 2,
-                           .data           = tx,
-                           .size           = txsz);
-
-    if (normsz)
-        shader_setup_attribute(p, ATTR_NORMAL, &m->norm,
-                               .type           = BUF_ARRAY,
-                               .usage          = BUF_STATIC,
-                               .comp_type      = DT_FLOAT,
-                               .comp_count     = 3,
-                               .data           = norm,
-                               .size           = normsz);
-
-    vertex_array_unbind(&m->vao);
-    shader_prog_done(p);
-
-    m->cur_lod = -1;
-    m->nr_vertices = vxsz / sizeof(*vx) / 3;
-    m->nr_faces[0] = idxsz / sizeof(*idx);
-
-    return NOCU(m);
+    return res.val;
 }
 
 model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh)
@@ -521,14 +566,14 @@ model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct m
     ssize_t nr_idx;
     int level;
 
-    m = model3d_new_from_vectors(name, p,
-                                 mesh_vx(mesh), mesh_vx_sz(mesh),
-                                 mesh_idx(mesh), mesh_idx_sz(mesh),
-                                 mesh_tx(mesh), mesh_tx_sz(mesh),
-                                 mesh_norm(mesh), mesh_norm_sz(mesh));
-    if (!m)
+    cresp(model3d) res = ref_new2(model3d,
+                                  .name   = name,
+                                  .prog   = p,
+                                  .mesh   = mesh);
+    if (IS_CERR(res))
         return NULL;
 
+    m = res.val;
     if (mesh_nr_tangent(mesh))
         model3d_add_tangents(m, mesh_tangent(mesh), mesh_tangent_sz(mesh));
 
