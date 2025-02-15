@@ -87,7 +87,7 @@ model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, flo
      * for each side: 4 triangles (12 vertices) per segment
      */
     int nr_vert = nr_serments * 12;
-    struct mesh *cylinder_mesh = mesh_new("cylinder");
+    LOCAL_SET(mesh_t, cylinder_mesh) = mesh_new("cylinder");
 
     if (!cylinder_mesh)
         return NULL;
@@ -149,12 +149,19 @@ model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, flo
 
     mesh_optimize(cylinder_mesh);
 
-    model3d *cylinder = model3d_new_from_mesh("cylinder", p, cylinder_mesh);
+    model3d *cylinder;
+    cresp(model3d) res = ref_new2(model3d,
+                                  .name = "cylinder",
+                                  .prog = p,
+                                  .mesh = cylinder_mesh);
+    if (IS_CERR(res))
+        return NULL;
+
+    cylinder = res.val;
     cylinder->collision_vx = memdup(mesh_vx(cylinder_mesh), mesh_vx_sz(cylinder_mesh));
     cylinder->collision_vxsz = mesh_vx_sz(cylinder_mesh);
     cylinder->collision_idx = memdup(mesh_idx(cylinder_mesh), mesh_idx_sz(cylinder_mesh));
     cylinder->collision_idxsz = mesh_idx_sz(cylinder_mesh);
-    ref_put_last(cylinder_mesh);
 
     return cylinder;
 }
