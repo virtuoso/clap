@@ -1465,10 +1465,23 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
 
     p = shader_prog_find(&scene->shaders, "debug");
     CHECK(dd = ref_new(debug_draw));
-    CHECK(m = model3d_new_from_vectors("debug", p, vx, vxsz, idx, idxsz, tx, vxsz / 3 * 2, NULL, 0));
+    cresp(model3d) res = ref_new2(model3d,
+                                  .name  = "debug",
+                                  .prog  = ref_pass(p),
+                                  .vx    = vx,
+                                  .vxsz  = vxsz,
+                                  .idx   = idx,
+                                  .idxsz = idxsz,
+                                  .tx    = tx,
+                                  .txsz  = vxsz / 3 * 2);
+    if (IS_CERR(res)) {
+        err_cerr(res, "can't create debug model3d\n");
+        return NULL;
+    }
+
+    m = res.val;
     m->depth_testing = false;
     m->draw_type = DRAW_TYPE_LINES;
-    ref_put(p);
 
     CHECK(txm = ref_new(model3dtx));
     txm->model = m;
