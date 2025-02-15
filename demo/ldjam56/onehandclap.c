@@ -266,11 +266,7 @@ int main(int argc, char **argv, char **envp)
 
     cresp(clap_context) clap_res = clap_init(&cfg, argc, argv, envp);
     if (IS_CERR(clap_res)) {
-        char buf[512];
-
-        cerr_strbuf(buf, sizeof(buf), &clap_res);
-        err("failed to initialize clap: %s\n", buf);
-
+        err_cerr(clap_res, "failed to initialize clap\n");
         return EXIT_FAILURE;
     }
 
@@ -283,12 +279,8 @@ int main(int argc, char **argv, char **envp)
 #ifndef CONFIG_FINAL
     ncfg.clap = clap_res.val;
     err = networking_init(&ncfg, CLIENT);
-    if (IS_CERR(err)) {
-        char buf[512];
-
-        cerr_strbuf(buf, sizeof(buf), &clap_res);
-        err("failed to initialize networking: %s\n", buf);
-    }
+    if (IS_CERR(err))
+        err_cerr(err, "failed to initialize networking\n");
 #endif
 
     phys_set_ground_contact(clap_get_phys(scene.clap_ctx), ohc_ground_contact);

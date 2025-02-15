@@ -95,11 +95,7 @@ int main(int argc, char **argv, char **envp)
     if (do_restart) {
         err = networking_init(&ncfg, CLIENT);
         if (IS_CERR(err)) {
-            char buf[512];
-
-            cerr_strbuf(buf, sizeof(buf), &err);
-            err("Failed to initialize client connection for restarting: %s\n", buf);
-
+            err_cerr(err, "Failed to initialize client connection for restarting\n");
             goto exit_clap;
         }
         networking_poll();
@@ -112,11 +108,7 @@ int main(int argc, char **argv, char **envp)
 
     err = networking_init(&ncfg, SERVER);
     if (IS_CERR(err)) {
-        char buf[512];
-
-        cerr_strbuf(buf, sizeof(buf), &err);
-        err("Failed to initialize server: %s\n", buf);
-
+        err_cerr(err, "Failed to initialize server\n");
         goto exit_clap;
     }
 

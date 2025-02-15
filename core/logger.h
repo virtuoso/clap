@@ -61,6 +61,12 @@ void logg(int level, const char *mod, int line, const char *func, const char *fm
 #define warn_on(_c, args...) do { if ((_c)) warn("condition '" # _c "': " args); } while (0)
 #define err(args...) \
     logg(ERR, MODNAME, __LINE__, __func__, ## args);
+#define err_cerr(_cerr, _fmt, args...) do { \
+    char __buf[512]; \
+    cerr_strbuf(__buf, sizeof(__buf), &(_cerr)); \
+    logg(ERR, MODNAME, __LINE__, __func__, "[%s] " _fmt, __buf, ## args); \
+} while (0)
+
 /*
  * err_on_cond() ignores @_cc, because sometimes format strings end up there,
  * which subsequently get pasted with the actuall error format string. I'm too

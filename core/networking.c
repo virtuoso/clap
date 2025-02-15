@@ -908,9 +908,7 @@ void networking_poll(void)
     if (nr_nodes == 0) {
         cresp(network_node) res = client_setup(_ncfg);
         if (IS_CERR(res)) {
-            char buf[512];
-            cerr_strbuf(buf, sizeof(buf), &res);
-            err("Couldn't start client: %s\n", buf);
+            err_cerr(res, "Couldn't start client\n");
             return;
         }
 
@@ -930,9 +928,7 @@ void networking_poll(void)
         if (n->mode == LISTEN && (events & POLLIN)) {
             cresp(network_node) res = network_node_accept(n);
             if (IS_CERR(res)) {
-                char buf[512];
-                cerr_strbuf(buf, sizeof(buf), &res);
-                err("Couldn't accept connection: %s\n", buf);
+                err_cerr(res, "Couldn't accept connection\n");
                 continue;
             }
 
