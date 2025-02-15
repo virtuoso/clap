@@ -517,10 +517,22 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             idx[it++] = bottom_right;
         }
     
-    model = model3d_new_from_vectors("terrain", prog, vx, vxsz, idx, idxsz,
-                                     tx, txsz, norm, vxsz);
+    model = ref_new(model3d,
+                    .name   = "terrain",
+                    .prog   = ref_pass(prog),
+                    .vx     = vx,
+                    .vxsz   = vxsz,
+                    .idx    = idx,
+                    .idxsz  = idxsz,
+                    .tx     = tx,
+                    .txsz   = txsz,
+                    .norm   = norm,
+                    .normsz = vxsz);
     mem_free(tx);
     mem_free(norm);
+
+    if (!model)
+        return NULL;
 
     txm = model3dtx_new(ref_pass(model), "terrain.png");
     scene_add_model(s, txm);
@@ -535,7 +547,6 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     model3dtx_add_entity(txm, t->entity);
     entity3d_add_physics(t->entity, clap_get_phys(s->clap_ctx), 0, GEOM_TRIMESH,
                          PHYS_GEOM, 0, 0, 0);
-    ref_put(prog); /* matches shader_prog_find() above */
 
     for (i = 0; i < mside; i++)
         for (j = 0; j < mside; j++) {
