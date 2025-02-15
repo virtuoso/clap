@@ -321,7 +321,7 @@ static void character_drop(struct ref *ref)
     ref_put_last_ref(&c->entity->ref);
 }
 
-DECLARE_REFCLASS(character);
+DEFINE_REFCLASS(character);
 
 /* data is struct scene */
 static int character_update(entity3d *e, void *data)

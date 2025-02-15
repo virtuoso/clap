@@ -19,7 +19,7 @@ static void mesh_drop(struct ref *ref)
         ma->nr = ma->stride = 0;
     }
 }
-DECLARE_REFCLASS(mesh);
+DEFINE_REFCLASS(mesh);
 
 DEFINE_CLEANUP(mesh_t, if (*p) ref_put(*p))
 

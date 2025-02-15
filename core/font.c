@@ -89,7 +89,7 @@ static void font_drop(struct ref *ref)
     mem_free(font->buf);
 }
 
-DECLARE_REFCLASS(font);
+DEFINE_REFCLASS(font);
 
 struct font *font_get(struct font *font)
 {

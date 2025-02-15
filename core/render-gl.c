@@ -70,7 +70,7 @@ static void buffer_drop(struct ref *ref)
     buffer_t *buf = container_of(ref, struct buffer, ref);
     buffer_deinit(buf);
 }
-DECLARE_REFCLASS(buffer);
+DEFINE_REFCLASS(buffer);
 
 static GLenum gl_buffer_type(buffer_type type)
 {
@@ -199,7 +199,7 @@ static void vertex_array_drop(struct ref *ref)
     vertex_array_done(va);
 }
 
-DECLARE_REFCLASS(vertex_array);
+DEFINE_REFCLASS(vertex_array);
 
 cerr vertex_array_init(vertex_array_t *va)
 {
@@ -243,7 +243,7 @@ static void texture_drop(struct ref *ref)
     struct texture *tex = container_of(ref, struct texture, ref);
     texture_deinit(tex);
 }
-DECLARE_REFCLASS(texture);
+DEFINE_REFCLASS(texture);
 
 static GLenum gl_texture_type(texture_type type, bool multisampled)
 {
@@ -835,7 +835,7 @@ static void fbo_drop(struct ref *ref)
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
 }
-DECLARE_REFCLASS2(fbo);
+DEFINE_REFCLASS2(fbo);
 
 /*
  * nr_attachments:

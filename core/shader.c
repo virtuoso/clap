@@ -20,7 +20,7 @@ static void shader_prog_drop(struct ref *ref)
     dbg("dropping shader '%s'\n", p->name);
 }
 
-DECLARE_REFCLASS(shader_prog);
+DEFINE_REFCLASS(shader_prog);
 
 struct shader_var_desc {
     const char              *name;

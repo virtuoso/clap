@@ -46,7 +46,7 @@ static void test_drop(struct ref *ref)
     dropcount++;
 }
 
-DECLARE_REFCLASS_DROP(x0, test_drop);
+DEFINE_REFCLASS_DROP(x0, test_drop);
 static int refcount_test0(void)
 {
     struct x0 *x0 = ref_new(x0);

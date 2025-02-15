@@ -188,7 +188,7 @@ static void ui_element_drop(struct ref *ref)
     ref_put_last(uie->entity);
 }
 
-DECLARE_REFCLASS(ui_element);
+DEFINE_REFCLASS(ui_element);
 
 static inline model3d *
 ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
@@ -718,7 +718,7 @@ static void ui_widget_drop(struct ref *ref)
     mem_free(uiw->uies);
 }
 
-DECLARE_REFCLASS(ui_widget);
+DEFINE_REFCLASS(ui_widget);
 
 static struct ui_widget *
 ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,

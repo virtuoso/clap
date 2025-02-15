@@ -255,7 +255,7 @@ static void sound_drop(struct ref *ref)
     alDeleteSources(1, &sound->source_idx);
 }
 
-DECLARE_REFCLASS(sound);
+DEFINE_REFCLASS(sound);
 
 DEFINE_CLEANUP(sound, if (*p) ref_put(*p))
 

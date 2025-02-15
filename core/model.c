@@ -68,7 +68,7 @@ static void model3d_drop(struct ref *ref)
     mem_free(m->name);
 }
 
-DECLARE_REFCLASS2(model3d);
+DEFINE_REFCLASS2(model3d);
 
 DEFINE_CLEANUP(model3d, if (*p) ref_put(*p))
 
@@ -186,7 +186,7 @@ static void model3dtx_drop(struct ref *ref)
     ref_put(txm->model);
 }
 
-DECLARE_REFCLASS2(model3dtx);
+DEFINE_REFCLASS2(model3dtx);
 
 DEFINE_CLEANUP(model3dtx, if (*p) ref_put(*p))
 
@@ -1284,7 +1284,7 @@ static void entity3d_drop(struct ref *ref)
     mem_free(e->mx);
 }
 
-DECLARE_REFCLASS2(entity3d);
+DEFINE_REFCLASS2(entity3d);
 
 entity3d *entity3d_new(model3dtx *txm)
 {
@@ -1406,7 +1406,7 @@ static void debug_draw_drop(struct ref *ref)
 
     ref_put(dd->entity);
 }
-DECLARE_REFCLASS(debug_draw);
+DEFINE_REFCLASS(debug_draw);
 
 struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
                                     unsigned short *idx, size_t idxsz, float *tx, mat4x4 *rot)

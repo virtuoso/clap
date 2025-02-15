@@ -57,7 +57,7 @@ static void handle_drop(struct ref *ref)
     mem_free(h->buf);
 }
 
-DECLARE_REFCLASS_DROP(lib_handle, handle_drop);
+DEFINE_REFCLASS_DROP(lib_handle, handle_drop);
 
 /* XXX: horrible name, horrible hack */
 static void windows_reslash(char *dest, const char *src, ssize_t len, bool forward)

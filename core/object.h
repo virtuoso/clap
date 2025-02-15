@@ -39,7 +39,7 @@ struct ref_class {
 };
 
 #define REFCLASS_NAME(struct_name) ref_class_ ## struct_name
-#define DECLARE_REFCLASS_MAKE_DROP(struct_name, makefn, dropfn) \
+#define DEFINE_REFCLASS_MAKE_DROP(struct_name, makefn, dropfn) \
 struct ref_class ref_class_ ## struct_name = { \
     .name   = __stringify(struct struct_name), \
     .make   = makefn, \
@@ -48,11 +48,11 @@ struct ref_class ref_class_ ## struct_name = { \
     .offset = offsetof(struct struct_name, ref), \
     .entry  = EMPTY_LIST(REFCLASS_NAME(struct_name).entry), \
 }
-#define DECLARE_REFCLASS_DROP(struct_name, dropfn) \
-    DECLARE_REFCLASS_MAKE_DROP(struct_name, NULL, dropfn)
-#define DECLARE_REFCLASS(struct_name)   DECLARE_REFCLASS_DROP(struct_name, struct_name ## _drop)
-#define DECLARE_REFCLASS2(struct_name) \
-    DECLARE_REFCLASS_MAKE_DROP(struct_name, struct_name ## _make, struct_name ## _drop)
+#define DEFINE_REFCLASS_DROP(struct_name, dropfn) \
+    DEFINE_REFCLASS_MAKE_DROP(struct_name, NULL, dropfn)
+#define DEFINE_REFCLASS(struct_name)   DEFINE_REFCLASS_DROP(struct_name, struct_name ## _drop)
+#define DEFINE_REFCLASS2(struct_name) \
+    DEFINE_REFCLASS_MAKE_DROP(struct_name, struct_name ## _make, struct_name ## _drop)
 
 /*
  * Reference counting

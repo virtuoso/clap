@@ -386,7 +386,7 @@ static void terrain_drop(struct ref *ref)
     mem_free(terrain->map);
 }
 
-DECLARE_REFCLASS(terrain);
+DEFINE_REFCLASS(terrain);
 
 const struct cell_automaton ca_test = {
     .name = "test",

@@ -89,7 +89,7 @@ static void pipeline_drop(struct ref *ref)
         mem_free(pass);
     }
 }
-DECLARE_REFCLASS(pipeline);
+DEFINE_REFCLASS(pipeline);
 
 void pipeline_put(struct pipeline *pl)
 {

@@ -191,7 +191,7 @@ static void network_node_drop(struct ref *ref)
     need_polling_alloc++;
 }
 
-DECLARE_REFCLASS(network_node);
+DEFINE_REFCLASS(network_node);
 
 cresp_struct_ret(network_node);
 
