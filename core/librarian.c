@@ -236,11 +236,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
 }
 #endif
 
-void cleanup__lib_handlep(lib_handle **h)
-{
-    if (*h)
-        ref_put_last(*h);
-}
+DEFINE_CLEANUP(lib_handle, if (*p) ref_put_last(*p))
 
 /*
  * How about:
