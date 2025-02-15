@@ -32,7 +32,7 @@ typedef struct lib_handle {
     bool            builtin;
 } lib_handle;
 
-void cleanup__lib_handlep(lib_handle **h);
+DECLARE_CLEANUP(lib_handle);
 
 int librarian_init(const char *dir);
 struct lib_handle *
