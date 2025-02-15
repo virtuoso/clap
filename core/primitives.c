@@ -294,8 +294,15 @@ struct mesh cube_mesh = {
 
 model3d *model3d_new_cube(struct shader_prog *p)
 {
-    return model3d_new_from_vectors("cube", p, cube_vx, sizeof(cube_vx), cube_idx, sizeof(cube_idx),
-                                    cube_tx, sizeof(cube_tx), NULL, 0);
+    return ref_new(model3d,
+                   .name    = "cube",
+                   .prog    = p,
+                   .vx      = cube_vx,
+                   .vxsz    = sizeof(cube_vx),
+                   .idx     = cube_idx,
+                   .idxsz   = sizeof(cube_idx),
+                   .tx      = cube_tx,
+                   .txsz    = sizeof(cube_tx));
 }
 
 model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)
@@ -305,8 +312,15 @@ model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, floa
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
 
-    return model3d_new_from_vectors("quad", p, quad_vx, sizeof(quad_vx), quad_idx, sizeof(quad_idx),
-                                    quad_tx, sizeof(quad_tx), NULL, 0);
+    return ref_new(model3d,
+                   .name    = "quad",
+                   .prog    = p,
+                   .vx      = quad_vx,
+                   .vxsz    = sizeof(quad_vx),
+                   .idx     = quad_idx,
+                   .idxsz   = sizeof(quad_idx),
+                   .tx      = quad_tx,
+                   .txsz    = sizeof(quad_tx));
 }
 
 model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h)
@@ -316,8 +330,15 @@ model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, f
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
 
-    return model3d_new_from_vectors("quad", p, quad_vx, sizeof(quad_vx), quad_idx, sizeof(quad_idx),
-                                    quad_tx, sizeof(quad_tx), NULL, 0);
+    return ref_new(model3d,
+                   .name    = "quad",
+                   .prog    = p,
+                   .vx      = quad_vx,
+                   .vxsz    = sizeof(quad_vx),
+                   .idx     = quad_idx,
+                   .idxsz   = sizeof(quad_idx),
+                   .tx      = quad_tx,
+                   .txsz    = sizeof(quad_tx));
 }
 
 static unsigned short frame_idx[] = {
@@ -344,6 +365,13 @@ model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, flo
         x + t, y + h - t, z, x + t, y + t, z, x + w - t, y + t, z, x + w - t, y + h - t, z,
     };
 
-    return model3d_new_from_vectors("frame", p, frame_vx, sizeof(frame_vx), frame_idx, sizeof(frame_idx),
-                                    frame_tx, sizeof(frame_tx), NULL, 0);    
+    return ref_new(model3d,
+        .name    = "frame",
+        .prog    = p,
+        .vx      = frame_vx,
+        .vxsz    = sizeof(frame_vx),
+        .idx     = frame_idx,
+        .idxsz   = sizeof(frame_idx),
+        .tx      = frame_tx,
+        .txsz    = sizeof(frame_tx));
 }
