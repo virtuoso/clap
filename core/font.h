@@ -18,6 +18,9 @@ struct glyph {
 struct font;
 typedef struct font_context font_context;
 
+DEFINE_REFCLASS_INIT_OPTIONS(font);
+DECLARE_REFCLASS(font);
+
 cresp_ret(font_context);
 
 cresp(font_context) font_init(const char *default_font_name);

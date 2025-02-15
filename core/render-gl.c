@@ -65,12 +65,17 @@ static const unsigned int gl_comp_count[] = {
  * Buffer
  ****************************************************************************/
 
+static cerr buffer_make(struct ref *ref, void *opts)
+{
+    return CERR_OK;
+}
+
 static void buffer_drop(struct ref *ref)
 {
     buffer_t *buf = container_of(ref, struct buffer, ref);
     buffer_deinit(buf);
 }
-DEFINE_REFCLASS(buffer);
+DEFINE_REFCLASS2(buffer);
 
 static GLenum gl_buffer_type(buffer_type type)
 {
@@ -199,6 +204,7 @@ static void vertex_array_drop(struct ref *ref)
     vertex_array_done(va);
 }
 
+DEFINE_REFCLASS_INIT_OPTIONS(vertex_array);
 DEFINE_REFCLASS(vertex_array);
 
 cerr vertex_array_init(vertex_array_t *va)
@@ -238,12 +244,19 @@ void vertex_array_unbind(vertex_array_t *va)
  * Texture
  ****************************************************************************/
 
+static cerr texture_make(struct ref *ref, void *_opts)
+{
+    return CERR_OK;
+}
+
 static void texture_drop(struct ref *ref)
 {
     struct texture *tex = container_of(ref, struct texture, ref);
     texture_deinit(tex);
 }
-DEFINE_REFCLASS(texture);
+DEFINE_REFCLASS2(texture);
+
+cresp_struct_ret(texture);
 
 static GLenum gl_texture_type(texture_type type, bool multisampled)
 {
@@ -809,7 +822,7 @@ void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment)
                          GL_COLOR_BUFFER_BIT, GL_LINEAR));
 }
 
-static cerr fbo_make(struct ref *ref)
+static cerr fbo_make(struct ref *ref, void *_opts)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
@@ -894,6 +907,7 @@ bool fbo_is_multisampled(fbo_t *fbo)
 }
 
 DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
+cresp_struct_ret(fbo);
 
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
 {

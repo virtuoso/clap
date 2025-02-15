@@ -32,6 +32,8 @@ typedef struct lib_handle {
     bool            builtin;
 } lib_handle;
 
+DEFINE_REFCLASS_INIT_OPTIONS(lib_handle);
+DECLARE_REFCLASS(lib_handle);
 DECLARE_CLEANUP(lib_handle);
 
 int librarian_init(const char *dir);

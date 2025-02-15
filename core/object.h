@@ -12,7 +12,7 @@
 #include "json.h" /* XXX: factor out ser/deser code */
 
 struct ref;
-typedef cerr (*make_t)(struct ref *ref);
+typedef cerr (*make_t)(struct ref *ref, void *opts);
 typedef void (*drop_t)(struct ref *ref);
 
 #define _REF_STATIC	    (-1)
@@ -38,21 +38,43 @@ struct ref_class {
     unsigned long   nr_active;
 };
 
+/* Extrapolate a refclass name from struct name */
 #define REFCLASS_NAME(struct_name) ref_class_ ## struct_name
+
+/* Define a refclass (in a compilation unit) */
 #define DEFINE_REFCLASS_MAKE_DROP(struct_name, makefn, dropfn) \
-struct ref_class ref_class_ ## struct_name = { \
-    .name   = __stringify(struct struct_name), \
-    .make   = makefn, \
-    .drop   = dropfn, \
-    .size   = sizeof(struct struct_name), \
-    .offset = offsetof(struct struct_name, ref), \
-    .entry  = EMPTY_LIST(REFCLASS_NAME(struct_name).entry), \
-}
+    struct ref_class ref_class_ ## struct_name = { \
+        .name   = __stringify(struct struct_name), \
+        .make   = makefn, \
+        .drop   = dropfn, \
+        .size   = sizeof(struct struct_name), \
+        .offset = offsetof(struct struct_name, ref), \
+        .entry  = EMPTY_LIST(REFCLASS_NAME(struct_name).entry), \
+    }; \
+    typedef struct cresp(struct_name) cresp(struct_name)
+
+/* Extrapolate constructor options type name from struct name */
+#define rc_init_opts(struct_name) struct_name ## _init_options
+
+/* Define constructor options for a constructor of a struct name */
+#define DEFINE_REFCLASS_INIT_OPTIONS(struct_name, args...) \
+    typedef struct rc_init_opts(struct_name) { args } rc_init_opts(struct_name)
+
+/* Define a refclass with just a drop method */
 #define DEFINE_REFCLASS_DROP(struct_name, dropfn) \
     DEFINE_REFCLASS_MAKE_DROP(struct_name, NULL, dropfn)
+
+/* Define a refclass with just a drop method named <struct_name>_drop() */
 #define DEFINE_REFCLASS(struct_name)   DEFINE_REFCLASS_DROP(struct_name, struct_name ## _drop)
+
+/* Define a refclass with drop and make methods */
 #define DEFINE_REFCLASS2(struct_name) \
     DEFINE_REFCLASS_MAKE_DROP(struct_name, struct_name ## _make, struct_name ## _drop)
+
+/* Declare a refclass for a struct name (in a header file)*/
+#define DECLARE_REFCLASS(struct_name) \
+    extern struct ref_class REFCLASS_NAME(struct_name); \
+    cresp_struct_ret(struct_name)
 
 /*
  * Reference counting
@@ -204,37 +226,47 @@ static inline void _ref_put(struct ref *ref)
     } while (0)
 #define ref_shared(obj) ref_shared_ref(&(obj)->ref)
 
-/*
- * Dynamically allocate an object
- */
-#define ref_new(struct_name) ({ \
+/* Dynamically allocate an object and return cresp(struct_name) */
+#define ref_new2(struct_name, args...) ({ \
     struct ref_class *__rc = &ref_class_ ## struct_name; \
     struct struct_name *__v = mem_alloc(__rc->size, .zero = 1); \
+    cresp(struct_name) __res = cresp_val(struct_name, __v); \
     if (__v) { \
         __v->ref.refclass = __rc; \
         ref_init(&__v->ref); \
         if (__rc->make) { \
-            cerr err = __rc->make(&__v->ref); \
+            cerr err = __rc->make(&__v->ref, &(struct_name ## _init_options){ args }); \
             if (IS_CERR(err)) { \
                 ref_class_unuse(&__v->ref); \
                 mem_free(__v); \
-                __v = NULL; \
+                __res = cresp_error_cerr(struct_name, err); \
             } \
         } \
+    } else { \
+        __res = cresp_error(struct_name, CERR_NOMEM); \
     } \
+    __res; \
+})
+
+/* Dynamically allocate an object and return a pointer or NULL */
+#define ref_new(struct_name, args...) ({ \
+    cresp(struct_name) res = ref_new2(struct_name, args); \
+    struct struct_name *__v = NULL; \
+    if (!IS_CERR(res)) \
+        __v = res.val; \
     __v; \
 })
 
-/*
- * Initialize a static/embedded object
- */
-#define ref_embed(struct_name, _obj) ({ \
+/* Initialize a static/embedded object and return cresp(struct_name) */
+#define ref_embed(struct_name, _obj, args...) ({ \
     struct ref_class *__rc = &ref_class_ ## struct_name; \
     typeof (_obj) __v = (_obj); \
     memset(__v, 0, __rc->size); \
     __v->ref.refclass = __rc; \
     _ref_embed(&__v->ref); \
-    cerr err = __rc->make ? __rc->make(&__v->ref) : CERR_OK; \
+    cerr err = __rc->make ? \
+        __rc->make(&__v->ref, &(struct_name ## _init_options){ args }) : \
+        CERR_OK; \
     err; \
 })
 

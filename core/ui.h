@@ -60,6 +60,9 @@ struct ui_element {
     float            actual_h;
 };
 
+DEFINE_REFCLASS_INIT_OPTIONS(ui_element);
+DECLARE_REFCLASS(ui_element);
+
 struct ui_widget_builder {
     unsigned long   affinity;
     float           x_off, y_off, w, h;
@@ -79,6 +82,9 @@ struct ui_widget {
     int                focus;
     struct list        entry;
 };
+
+DEFINE_REFCLASS_INIT_OPTIONS(ui_widget);
+DECLARE_REFCLASS(ui_widget);
 
 typedef struct clap_context clap_context;
 

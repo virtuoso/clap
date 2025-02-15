@@ -51,6 +51,9 @@ typedef struct model3d {
     size_t              collision_idxsz;
 } model3d;
 
+DEFINE_REFCLASS_INIT_OPTIONS(model3d);
+DECLARE_REFCLASS(model3d);
+
 struct model_joint {
     darray(int, children);
     char        *name;
@@ -117,6 +120,9 @@ typedef struct model3dtx {
     struct list    entry;              /* link to scene/ui->txmodels */
     struct list    entities;           /* links entity3d->entry */
 } model3dtx;
+
+DEFINE_REFCLASS_INIT_OPTIONS(model3dtx);
+DECLARE_REFCLASS(model3dtx);
 
 model3d *model3d_new_from_vectors(const char *name, struct shader_prog *p, float *vx, size_t vxsz,
                                   unsigned short *idx, size_t idxsz, float *tx, size_t txsz, float *norm,
@@ -200,6 +206,9 @@ typedef struct entity3d {
     void (*destroy)(entity3d *e);
     void *priv;
 } entity3d;
+
+DEFINE_REFCLASS_INIT_OPTIONS(entity3d);
+DECLARE_REFCLASS(entity3d);
 
 void model3dtx_add_entity(model3dtx *txm, entity3d *e);
 void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,

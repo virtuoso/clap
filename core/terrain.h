@@ -19,6 +19,9 @@ struct terrain {
     unsigned int   nr_vert;
 };
 
+DEFINE_REFCLASS_INIT_OPTIONS(terrain);
+DECLARE_REFCLASS(terrain);
+
 static inline size_t terrain_vxsz(struct terrain *t)
 {
     return t->nr_vx * sizeof(*t->vx) * 3;

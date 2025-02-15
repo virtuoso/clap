@@ -2,6 +2,7 @@
 #define __CLAP_MESH_H__
 
 #include <sys/types.h>
+#include "error.h"
 #include "logger.h"
 #include "object.h"
 
@@ -48,6 +49,8 @@ struct mesh {
 };
 typedef struct mesh mesh_t;
 
+DEFINE_REFCLASS_INIT_OPTIONS(mesh);
+DECLARE_REFCLASS(mesh);
 DECLARE_CLEANUP(mesh_t);
 
 static inline struct mesh_attr *mesh_attr(struct mesh *mesh, unsigned int attr)

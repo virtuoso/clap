@@ -58,6 +58,9 @@ struct shader_prog {
     struct list entry;
 };
 
+DEFINE_REFCLASS_INIT_OPTIONS(shader_prog);
+DECLARE_REFCLASS(shader_prog);
+
 struct shader_prog *
 shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, const char *fsh);
 void shader_prog_use(struct shader_prog *p);

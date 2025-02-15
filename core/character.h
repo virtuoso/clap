@@ -43,6 +43,9 @@ struct character {
     enum character_state state;
 };
 
+DEFINE_REFCLASS_INIT_OPTIONS(character);
+DECLARE_REFCLASS(character);
+
 static inline entity3d *character_entity(struct character *c)
 {
     return c->entity;

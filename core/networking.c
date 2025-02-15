@@ -87,6 +87,8 @@ struct network_node {
     int (*handshake)(struct network_node *n, const uint8_t *buf);
 };
 
+cresp_struct_ret(network_node);
+
 static struct networking_config  *_ncfg;
 static struct pollfd *pollfds;
 static unsigned int  nr_nodes;
@@ -191,9 +193,8 @@ static void network_node_drop(struct ref *ref)
     need_polling_alloc++;
 }
 
+DEFINE_REFCLASS_INIT_OPTIONS(network_node);
 DEFINE_REFCLASS(network_node);
-
-cresp_struct_ret(network_node);
 
 static cresp(network_node) network_node_new(int mode)
 {

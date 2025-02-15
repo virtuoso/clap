@@ -26,7 +26,7 @@
  * the actual rendered model
  ****************************************************************************/
 
-static cerr model3d_make(struct ref *ref)
+static cerr model3d_make(struct ref *ref, void *_opts)
 {
     model3d *m = container_of(ref, model3d, ref);
 
@@ -148,7 +148,7 @@ static cerr model3dtx_add_texture(model3dtx *txm, const char *name)
     return model3dtx_add_texture_at(txm, UNIFORM_MODEL_TEX, name);
 }
 
-static cerr model3dtx_make(struct ref *ref)
+static cerr model3dtx_make(struct ref *ref, void *opts)
 {
     model3dtx *txm = container_of(ref, model3dtx, ref);
     txm->texture = &txm->_texture;
@@ -1250,7 +1250,7 @@ void entity3d_reset(entity3d *e)
     default_update(e, NULL);
 }
 
-static cerr entity3d_make(struct ref *ref)
+static cerr entity3d_make(struct ref *ref, void *_opts)
 {
     entity3d *e = container_of(ref, entity3d, ref);
 
@@ -1406,7 +1406,9 @@ static void debug_draw_drop(struct ref *ref)
 
     ref_put(dd->entity);
 }
+cresp_struct_ret(debug_draw);
 DEFINE_REFCLASS(debug_draw);
+DEFINE_REFCLASS_INIT_OPTIONS(debug_draw);
 
 struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
                                     unsigned short *idx, size_t idxsz, float *tx, mat4x4 *rot)
