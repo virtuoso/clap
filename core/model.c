@@ -26,6 +26,33 @@
  * the actual rendered model
  ****************************************************************************/
 
+static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
+{
+    unsigned short *lod = NULL;
+    ssize_t nr_idx;
+    int level;
+
+    for (level = 0, nr_idx = mesh_nr_idx(mesh); level < LOD_MAX - 1; level++) {
+        nr_idx = mesh_idx_to_lod(mesh, level, &lod, nr_idx);
+        if (nr_idx < 0)
+            break;
+        cerr err = buffer_init(&m->index[m->nr_lods],
+                               .type       = BUF_ELEMENT_ARRAY,
+                               .usage      = BUF_STATIC,
+                               .comp_type  = DT_SHORT,
+                               .data       = lod,
+                               .size       = nr_idx * mesh_idx_stride(mesh));
+        mem_free(lod);
+
+        if (IS_CERR(err))
+            continue;
+
+        dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
+        m->nr_faces[m->nr_lods] = nr_idx;
+        m->nr_lods++;
+    }
+}
+
 static void model3d_calc_aabb(model3d *m, float *vx, size_t vxsz);
 
 static cerr model3d_make(struct ref *ref, void *_opts)
@@ -126,6 +153,9 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             .comp_type  = DT_FLOAT,
             .data       = mesh_tangent(opts->mesh),
             .size       = mesh_tangent_sz(opts->mesh));
+
+    if (opts->mesh)
+        model3d_lods_from_mesh(m, opts->mesh);
 
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog);
@@ -528,51 +558,6 @@ int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
 
     m->nr_joints = nr_joints;
     return 0;
-}
-
-model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh)
-{
-    unsigned short *lod = NULL;
-    model3d *m;
-    ssize_t nr_idx;
-    int level;
-
-    cresp(model3d) res = ref_new2(model3d,
-                                  .name   = name,
-                                  .prog   = p,
-                                  .mesh   = mesh);
-    if (IS_CERR(res))
-        return NULL;
-
-    m = res.val;
-
-    vertex_array_bind(&m->vao);
-    shader_prog_use(m->prog);
-
-    for (level = 0, nr_idx = mesh_nr_idx(mesh); level < LOD_MAX - 1; level++) {
-        nr_idx = mesh_idx_to_lod(mesh, level, &lod, nr_idx);
-        if (nr_idx < 0)
-            break;
-        cerr err = buffer_init(&m->index[m->nr_lods],
-                               .type       = BUF_ELEMENT_ARRAY,
-                               .usage      = BUF_STATIC,
-                               .comp_type  = DT_SHORT,
-                               .data       = lod,
-                               .size       = nr_idx * mesh_idx_stride(mesh));
-        mem_free(lod);
-
-        if (IS_CERR(err))
-            continue;
-
-        dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
-        m->nr_faces[m->nr_lods] = nr_idx;
-        m->nr_lods++;
-    }
-
-    shader_prog_done(m->prog);
-    vertex_array_unbind(&m->vao);
-
-    return m;
 }
 
 static void model3d_set_lod(model3d *m, unsigned int lod)
