@@ -1433,7 +1433,4 @@ JSON_ARRAY_DECL(float)
 JSON_ARRAY_DECL(double)
 JSON_ARRAY_DECL(int)
 
-void cleanup__JsonNodep(JsonNode **p)
-{
-    json_delete(*p);
-}
+DEFINE_CLEANUP(JsonNode, json_delete(*p));

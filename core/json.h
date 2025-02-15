@@ -26,6 +26,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "util.h"
 
 typedef enum {
 	JSON_NULL,
@@ -103,7 +104,7 @@ void json_append_member(JsonNode *object, const char *key, JsonNode *value);
 void json_prepend_member(JsonNode *object, const char *key, JsonNode *value);
 
 void json_remove_from_parent(JsonNode *node);
-void cleanup__JsonNodep(JsonNode **p);
+DECLARE_CLEANUP(JsonNode);
 
 int json_arraysz(JsonNode *node);
 int json_float_array(JsonNode *node, float *array, unsigned int nr_el);
