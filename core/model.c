@@ -96,10 +96,8 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                       .comp_type  = DT_SHORT,
                       .data       = idx,
                       .size       = idxsz);
-    if (IS_CERR(err)) {
-        shader_prog_done(opts->prog);
-        return err;
-    }
+    if (IS_CERR(err))
+        goto unbind;
 
     m->nr_lods++;
 
@@ -137,6 +135,12 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     m->nr_faces[0] = idxsz / sizeof(*idx);
 
     return CERR_OK;
+
+unbind:
+    vertex_array_unbind(&m->vao);
+    shader_prog_done(opts->prog);
+
+    return err;
 }
 
 static void model3d_drop(struct ref *ref)
