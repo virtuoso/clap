@@ -121,6 +121,14 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                                .data           = norm,
                                .size           = normsz);
 
+    if (opts->mesh && mesh_nr_tangent(opts->mesh))
+        shader_setup_attribute(opts->prog, ATTR_TANGENT, &m->tangent,
+            .type       = BUF_ARRAY,
+            .usage      = BUF_STATIC,
+            .comp_type  = DT_FLOAT,
+            .data       = mesh_tangent(opts->mesh),
+            .size       = mesh_tangent_sz(opts->mesh));
+
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog);
 
@@ -470,25 +478,6 @@ void model3d_aabb_center(model3d *m, vec3 center)
     vec3_scale(center, center, 0.5);
 }
 
-void model3d_add_tangents(model3d *m, float *tg, size_t tgsz)
-{
-    if (!shader_has_var(m->prog, ATTR_TANGENT)) {
-        dbg("no tangent input in program '%s'\n", m->prog->name);
-        return;
-    }
-
-    shader_prog_use(m->prog);
-    vertex_array_bind(&m->vao);
-    shader_setup_attribute(m->prog, ATTR_TANGENT, &m->tangent,
-                           .type       = BUF_ARRAY,
-                           .usage      = BUF_STATIC,
-                           .comp_type  = DT_FLOAT,
-                           .data       = tg,
-                           .size       = tgsz);
-    vertex_array_unbind(&m->vao);
-    shader_prog_done(m->prog);
-}
-
 int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs)
 {
@@ -552,8 +541,6 @@ model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct m
         return NULL;
 
     m = res.val;
-    if (mesh_nr_tangent(mesh))
-        model3d_add_tangents(m, mesh_tangent(mesh), mesh_tangent_sz(mesh));
 
     vertex_array_bind(&m->vao);
     shader_prog_use(m->prog);

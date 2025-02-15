@@ -137,7 +137,6 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3dtx);
 DECLARE_REFCLASS(model3dtx);
 
 model3d *model3d_new_from_mesh(const char *name, struct shader_prog *p, struct mesh *mesh);
-void model3d_add_tangents(model3d *m, float *tg, size_t tgsz);
 int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs);
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
