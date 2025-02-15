@@ -506,9 +506,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         if (root < 0)
             for (i = 0; i < gltf_get_meshes(gd); i++)
                 if (i != collision) {
-                    if (gltf_instantiate_one(gd, i)) {
+                    cerr err = gltf_instantiate_one(gd, i);
+                    if (IS_CERR(err)) {
                         gltf_free(gd);
-                        return CERR_PARSE_FAILED;
+                        return err;
                     }
                     break; /* XXX: why? */
                 }
@@ -516,9 +517,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         if (collision < 0)
             collision = 0;
     } else {
-        if (gltf_instantiate_one(gd, 0)) {
+        cerr err = gltf_instantiate_one(gd, 0);
+        if (IS_CERR(err)) {
             gltf_free(gd);
-            return CERR_PARSE_FAILED;
+            return err;
         }
         collision = 0;
     }

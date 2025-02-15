@@ -1127,13 +1127,13 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
     return DA(gd->skins, skin)->nodes[node];
 }
 
-int gltf_instantiate_one(struct gltf_data *gd, int mesh)
+cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
-    model3dtx   *txm;
+    model3dtx *txm;
     int skin;
 
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
-        return -1;
+        return CERR_INVALID_ARGUMENTS;
 
     LOCAL_SET(mesh_t, me) = mesh_new(gltf_mesh_name(gd, mesh));
     mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh));
@@ -1156,7 +1156,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
                                   .name   = gltf_mesh_name(gd, mesh),
                                   .mesh   = me);
     if (IS_CERR(res))
-        return -1;
+        return cerr_error_cres(res);
 
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
@@ -1168,7 +1168,7 @@ int gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     if (!txm) {
         warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));
-        return -1;
+        return CERR_TEXTURE_NOT_LOADED; /* XXX: until model3dtx gets a constructor */
     }
 
     skin = gltf_mesh_skin(gd, mesh);
@@ -1267,7 +1267,7 @@ no_skinning:
 
     scene_add_model(gd->scene, txm);
 
-    return 0;
+    return CERR_OK;
 }
 
 void gltf_instantiate_all(struct gltf_data *gd)

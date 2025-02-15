@@ -7,7 +7,7 @@ struct gltf_data *gltf_load(struct scene *scene, const char *name);
 void gltf_free(struct gltf_data *gd);
 int gltf_root_mesh(struct gltf_data *gd);
 int gltf_mesh_by_name(struct gltf_data *gd, const char *name);
-int gltf_instantiate_one(struct gltf_data *gd, int mesh);
+cerr_check gltf_instantiate_one(struct gltf_data *gd, int mesh);
 void gltf_instantiate_all(struct gltf_data *gd);
 int gltf_get_meshes(struct gltf_data *gd);
 int gltf_mesh(struct gltf_data *gd, const char *name);
