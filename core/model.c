@@ -57,7 +57,7 @@ static void model3d_calc_aabb(model3d *m, float *vx, size_t vxsz);
 
 static cerr model3d_make(struct ref *ref, void *_opts)
 {
-    model3d_init_options *opts = _opts;
+    rc_init_opts(model3d) *opts = _opts;
 
     if (!opts->prog)
         return CERR_INVALID_ARGUMENTS;
