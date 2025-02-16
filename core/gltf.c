@@ -1162,9 +1162,15 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }
 
-    txm = model3dtx_new_from_png_buffers(ref_pass(res.val), gltf_tex(gd, mesh), gltf_texsz(gd, mesh),
-                                         gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh),
-                                         gltf_em(gd, mesh), gltf_emsz(gd, mesh));
+    txm = ref_new(model3dtx,
+                  .model            = ref_pass(res.val),
+                  .buffers_png      = true,
+                  .texture_buffer   = gltf_tex(gd, mesh),
+                  .texture_size     = gltf_texsz(gd, mesh),
+                  .normal_buffer    = gltf_nmap(gd, mesh),
+                  .normal_size      = gltf_nmapsz(gd, mesh),
+                  .emission_buffer  = gltf_em(gd, mesh),
+                  .emission_size    = gltf_emsz(gd, mesh));
 
     if (!txm) {
         warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));
