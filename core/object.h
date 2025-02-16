@@ -250,10 +250,10 @@ static inline void _ref_put(struct ref *ref)
 
 /* Dynamically allocate an object and return a pointer or NULL */
 #define ref_new(struct_name, args...) ({ \
-    cresp(struct_name) res = ref_new2(struct_name, args); \
+    cresp(struct_name) __res = ref_new2(struct_name, args); \
     struct struct_name *__v = NULL; \
-    if (!IS_CERR(res)) \
-        __v = res.val; \
+    if (!IS_CERR(__res)) \
+        __v = __res.val; \
     __v; \
 })
 
