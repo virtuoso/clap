@@ -582,7 +582,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 c->can_dash = can_dash;
                 c->can_jump = can_jump;
             } else {
-                e = entity3d_new(txm);
+                e = ref_new(entity3d, .txmodel = txm);
             }
             jpos = json_find_member(it, "position");
             if (jpos->tag != JSON_ARRAY)
