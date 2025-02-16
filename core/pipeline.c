@@ -269,12 +269,15 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     if (!p)
         goto err_blit_src;
 
+    /* XXX: error checking */
     m = model3d_new_quad(p, -1, 1, 0, 2, -2);
     m->depth_testing = false;
     m->alpha_blend = false;
+    /* XXX: error checking */
     txm = ref_new(model3dtx, .model = ref_pass(m), .tex = fbo_texture(*pfbo));
     mq_add_model(&pass->mq, txm);
-    e = entity3d_new(txm);
+    /* XXX: error checking */
+    e = ref_new(entity3d, .txmodel = txm);
     list_append(&txm->entities, &e->entry);
     e->visible = true;
     mat4x4_identity(e->mx->m);
