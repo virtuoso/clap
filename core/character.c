@@ -374,7 +374,7 @@ struct character *character_new(model3dtx *txm, struct scene *s)
     struct character *c;
 
     CHECK(c = ref_new(character));
-    CHECK(c->entity = entity3d_new(txm));
+    CHECK(c->entity = ref_new(entity3d, .txmodel = txm));
     c->entity->priv = c;
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
