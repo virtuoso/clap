@@ -105,11 +105,12 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     model3d_calc_aabb(m, vx, vxsz);
     darray_init(m->anis);
 
+    shader_prog_use(opts->prog);
+
     cerr err = vertex_array_init(&m->vao);
     if (IS_CERR(err))
-        return err;
+        goto unbind;
 
-    shader_prog_use(opts->prog);
     shader_setup_attribute(opts->prog, ATTR_POSITION, &m->vertex,
                            .type           = BUF_ARRAY,
                            .usage          = BUF_STATIC,
