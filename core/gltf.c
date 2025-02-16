@@ -1135,7 +1135,7 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
         return CERR_INVALID_ARGUMENTS;
 
-    LOCAL_SET(mesh_t, me) = mesh_new(gltf_mesh_name(gd, mesh));
+    LOCAL_SET(mesh_t, me) = ref_new(mesh, .name = gltf_mesh_name(gd, mesh));
     mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh));
     mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh));
     mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh));

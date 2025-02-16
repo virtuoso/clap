@@ -49,7 +49,9 @@ struct mesh {
 };
 typedef struct mesh mesh_t;
 
-DEFINE_REFCLASS_INIT_OPTIONS(mesh);
+DEFINE_REFCLASS_INIT_OPTIONS(mesh,
+    const char *name;
+);
 DECLARE_REFCLASS(mesh);
 DECLARE_CLEANUP(mesh_t);
 
@@ -106,7 +108,6 @@ ATTR_ACCESSORS(idx, IDX, unsigned short);
 int mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
 int mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t nr);
 int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
-struct mesh *mesh_new(const char *name);
 void mesh_push_mesh(struct mesh *mesh, struct mesh *src,
                     float x, float y, float z, float scale);
 

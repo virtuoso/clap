@@ -4,6 +4,19 @@
 #include "common.h"
 #include "mesh.h"
 
+static cerr mesh_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(mesh) *opts = _opts;
+
+    if (!opts->name)
+        return CERR_INVALID_ARGUMENTS;
+
+    struct mesh *mesh = container_of(ref, struct mesh, ref);
+    mesh->name = opts->name;
+
+    return CERR_OK;
+}
+
 static void mesh_drop(struct ref *ref)
 {
     struct mesh *mesh = container_of(ref, struct mesh, ref);
@@ -19,19 +32,9 @@ static void mesh_drop(struct ref *ref)
         ma->nr = ma->stride = 0;
     }
 }
-DEFINE_REFCLASS(mesh);
+DEFINE_REFCLASS2(mesh);
 
 DEFINE_CLEANUP(mesh_t, if (*p) ref_put(*p))
-
-struct mesh *mesh_new(const char *name)
-{
-    struct mesh *mesh;
-
-    CHECK(mesh = ref_new(mesh));
-    mesh->name = name;
-
-    return mesh;
-}
 
 int mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr)
 {

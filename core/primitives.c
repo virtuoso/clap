@@ -87,7 +87,7 @@ model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, flo
      * for each side: 4 triangles (12 vertices) per segment
      */
     int nr_vert = nr_serments * 12;
-    LOCAL_SET(mesh_t, cylinder_mesh) = mesh_new("cylinder");
+    LOCAL_SET(mesh_t, cylinder_mesh) = ref_new(mesh, .name = "cylinder");
 
     if (!cylinder_mesh)
         return NULL;
