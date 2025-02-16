@@ -255,7 +255,7 @@ static cerr ui_model_init(struct ui *ui)
     model3d *ui_quad = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     ui_quad->alpha_blend = true;
     model3d_set_name(ui_quad, "ui_quad");
-    ui_quadtx = model3dtx_new_texture(ref_pass(ui_quad), transparent_pixel());
+    ui_quadtx = ref_new(model3dtx, .model = ref_pass(ui_quad), .tex = transparent_pixel());
     if (!ui_quadtx)
         return CERR_INITIALIZATION_FAILED;
 
@@ -445,7 +445,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
         if (!txm) {
             m = ui_quad_new(ui->glyph_prog, 0, 0, glyph->width, glyph->height);
             model3d_set_name(m, "glyph_%s_%c", font_name(uit.font), str[i]);
-            txm = model3dtx_new_texture(ref_pass(m), &glyph->tex);
+            txm = ref_new(model3dtx, .model = ref_pass(m), .tex = &glyph->tex);
             ui_add_model(&fbo_ui, txm);
         }
         /* uies[i] consumes (holds the only reference to) txm */
@@ -490,7 +490,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     model3d_set_name(m, "ui_text: '%s'", str);
     m->depth_testing = false;
     m->alpha_blend = true;
-    txmtex = model3dtx_new_texture(ref_pass(m), texture_clone(fbo_texture(fbo)));
+    txmtex = ref_new(model3dtx, .model = ref_pass(m), .tex = texture_clone(fbo_texture(fbo)));
     fbo_put_last(fbo);
     ui_add_model(ui, txmtex);
 
@@ -1090,13 +1090,13 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
         bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(bar_m, "inventory bar on immature apple");
         bar_m->alpha_blend = false;
-        bar_txm = model3dtx_new_texture(ref_pass(bar_m), white_pixel());
+        bar_txm = ref_new(model3dtx, .model = ref_pass(bar_m), .tex = white_pixel());
         ui_add_model(ui, bar_txm);
     }
     frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0.01, 1, 1, 0.02);
     model3d_set_name(frame_m, "inventory item frame");
     frame_m->alpha_blend = false;
-    frame_txm = model3dtx_new_texture(ref_pass(frame_m), white_pixel());
+    frame_txm = ref_new(model3dtx, .model = ref_pass(frame_m), .tex = white_pixel());
     ui_add_model(ui, frame_txm);
 
     width = 200;
@@ -1399,7 +1399,7 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
         ref_put(uie0);
 
     m = ui_quad_new(ui->ui_prog, 0, 1, 1, -1);
-    ui_pip = model3dtx_new_texture(ref_pass(m), ui_fbo_tex);
+    ui_pip = ref_new(model3dtx, .model = ref_pass(m), .tex = ui_fbo_tex);
     ui_add_model_tail(ui, ui_pip);
     dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo_width(fbo), fbo_height(fbo));
     if (fbo_width(fbo) < fbo_height(fbo))
@@ -1504,11 +1504,11 @@ struct ui_element *ui_progress_new(struct ui *ui)
     health_bar_width = width;
     
     frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0, total_width, total_height, 1);
-    frame_txm = model3dtx_new_texture(ref_pass(frame_m), white_pixel());
+    frame_txm = ref_new(model3dtx, .model = ref_pass(frame_m), .tex = white_pixel());
     ui_add_model(ui, frame_txm);
     
     bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
-    bar_txm = model3dtx_new_texture(ref_pass(bar_m), white_pixel());
+    bar_txm = ref_new(model3dtx, .model = ref_pass(bar_m), .tex = white_pixel());
     ui_add_model(ui, bar_txm);
     CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, height / 2, total_width, total_height));
     CHECK(bar = ui_element_new(ui, uie, bar_txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));

@@ -113,7 +113,7 @@ int scene_camera_add(struct scene *s)
 
     model3d_set_name(m, "camera");
 
-    model3dtx *txm = model3dtx_new_texture(ref_pass(m), transparent_pixel());
+    model3dtx *txm = ref_new(model3dtx, .model = ref_pass(m), .tex = transparent_pixel());
     entity3d *entity;
 
     if (!txm)

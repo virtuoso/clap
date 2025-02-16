@@ -477,14 +477,6 @@ model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texs
                    .emission_size      = emsz);
 }
 
-model3dtx *model3dtx_new_texture(model3d *model, texture_t *tex)
-{
-    if (!tex)
-        return NULL;
-
-    return ref_new(model3dtx, .model = model, .tex = tex);
-}
-
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
 {
     struct shader_prog *prog = txm->model->prog;

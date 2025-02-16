@@ -165,7 +165,6 @@ float model3d_aabb_Z(model3d *m);
 model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm);
 model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
                                           void *em, size_t emsz);
-model3dtx *model3dtx_new_texture(model3d *model, texture_t *tex);
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex);
 void model3dtx_prepare(model3dtx *m, struct shader_prog *p);
 void model3dtx_done(model3dtx *m, struct shader_prog *p);

@@ -272,7 +272,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     m = model3d_new_quad(p, -1, 1, 0, 2, -2);
     m->depth_testing = false;
     m->alpha_blend = false;
-    txm = model3dtx_new_texture(ref_pass(m), fbo_texture(*pfbo));
+    txm = ref_new(model3dtx, .model = ref_pass(m), .tex = fbo_texture(*pfbo));
     mq_add_model(&pass->mq, txm);
     e = entity3d_new(txm);
     list_append(&txm->entities, &e->entry);
