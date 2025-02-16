@@ -159,3 +159,4 @@ cmake --build build/emtest
 ## What to do with all this
 
 Check out the brand new [CONTRIBUTING](https://github.com/virtuoso/clap/blob/main/CONTRIBUTING.md) file for details on the whats and the hows.
+If you're using Visual Studio Code, [here](https://github.com/virtuoso/clap/blob/main/docs/vscode-setup.md) is a copy-pastable configuration for the project to get you up and running.
