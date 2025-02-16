@@ -165,7 +165,7 @@ static const char *game_item_str(struct game_item *item)
 void game_item_init(struct game_item *item, struct game_state *g,
                     enum game_item_kind kind, model3dtx *txm)
 {
-    entity3d *e = entity3d_new(txm);
+    entity3d *e = ref_new(entity3d, .txmodel = txm);
 
     item->kind = kind;
     model3dtx_add_entity(txm, e);
