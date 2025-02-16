@@ -203,7 +203,7 @@ struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, mode
                                   unsigned long affinity, float x_off, float y_off, float w, float h)
 {
     struct ui_element *uie;
-    entity3d *e = entity3d_new(txmodel);
+    entity3d *e = ref_new(entity3d, .txmodel = txmodel);
 
     if (!e)
         return NULL;
