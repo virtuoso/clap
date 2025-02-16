@@ -544,7 +544,6 @@ repeat:
         pass = last_pass;
 
     /* render the last pass to the screen */
-    renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
     renderer_clear(pl->renderer, true, true, false);
     models_render(pl->renderer, &pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, -1, NULL);
 }
