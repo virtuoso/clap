@@ -536,7 +536,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
 
     txm = ref_new(model3dtx, .model = ref_pass(model), .texture_file_name = "terrain.png");
     scene_add_model(s, txm);
-    t->entity = entity3d_new(txm);
+    t->entity = ref_new(entity3d, .txmodel = txm);
     t->entity->txmodel->model->collision_vx = vx;
     t->entity->txmodel->model->collision_vxsz = vxsz;
     t->entity->txmodel->model->collision_idx = idx;
