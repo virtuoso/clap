@@ -183,6 +183,7 @@ static void model3d_drop(struct ref *ref)
     buffer_deinit(&m->vertex);
     for (i = 0; i < m->nr_lods; i++)
         buffer_deinit(&m->index[i]);
+    buffer_deinit(&m->tangent);
     buffer_deinit(&m->norm);
     buffer_deinit(&m->tex);
     if (m->nr_joints) {
