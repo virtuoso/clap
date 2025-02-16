@@ -1266,6 +1266,7 @@ void entity3d_reset(entity3d *e)
 
 static cerr entity3d_make(struct ref *ref, void *_opts)
 {
+    rc_init_opts(entity3d) *opts = _opts;
     entity3d *e = container_of(ref, entity3d, ref);
 
     darray_init(e->aniq);
@@ -1277,6 +1278,14 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     e->mx        = mx_new();
     if (!e->mx)
         return CERR_NOMEM;
+
+    model3d *model = opts->txmodel->model;
+    e->txmodel = ref_get(opts->txmodel);
+    entity3d_aabb_update(e);
+    if (model->anis.da.nr_el) {
+        e->joints = mem_alloc(sizeof(*e->joints), .nr = model->nr_joints, .fatal_fail = 1);
+        e->joint_transforms = mem_alloc(sizeof(mat4x4), .nr = model->nr_joints, .fatal_fail = 1);
+    }
 
     return CERR_OK;
 }
@@ -1302,9 +1311,6 @@ DEFINE_REFCLASS2(entity3d);
 
 entity3d *entity3d_new(model3dtx *txm)
 {
-    model3d *model = txm->model;
-    entity3d *e;
-
     /*
      * XXX this is ef'ed up
      * The reason is that mq_release() iterates txms' entities list
@@ -1312,18 +1318,7 @@ entity3d *entity3d_new(model3dtx *txm)
      * making it impossible to continue. Fixing that.
      */
     // ref_shared(txm);
-    e = ref_new(entity3d);
-    if (!e)
-        return NULL;
-
-    e->txmodel = ref_get(txm);
-    entity3d_aabb_update(e);
-    if (model->anis.da.nr_el) {
-        e->joints = mem_alloc(sizeof(*e->joints), .nr = model->nr_joints, .fatal_fail = 1);
-        e->joint_transforms = mem_alloc(sizeof(mat4x4), .nr = model->nr_joints, .fatal_fail = 1);
-    }
-
-    return e;
+    return ref_new(entity3d, .txmodel = txm);
 }
 
 /* XXX: static inline? via macro? */

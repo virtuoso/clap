@@ -229,7 +229,9 @@ typedef struct entity3d {
     void *priv;
 } entity3d;
 
-DEFINE_REFCLASS_INIT_OPTIONS(entity3d);
+DEFINE_REFCLASS_INIT_OPTIONS(entity3d,
+    model3dtx   *txmodel;
+);
 DECLARE_REFCLASS(entity3d);
 
 void model3dtx_add_entity(model3dtx *txm, entity3d *e);
