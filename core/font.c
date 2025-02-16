@@ -77,6 +77,39 @@ static void font_load_glyph(struct font *font, unsigned char c)
     font->g[c].loaded    = true;
 }
 
+static cerr font_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(font) *opts = _opts;
+    struct font *font = container_of(ref, struct font, ref);
+
+    void *buf;
+    size_t buf_size;
+    LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, opts->name, &buf, &buf_size);
+    if (!lh) {
+        err("failed to fetch font '%s'\n", opts->name);
+        return CERR_FONT_NOT_LOADED;
+    }
+
+    LOCAL_SET(void, _buf) = memdup(buf, buf_size);
+
+    FT_Face face;
+    if (FT_New_Memory_Face(opts->ctx->ft, _buf, buf_size, 0, &face)) {
+        err("failed to load font '%s'\n", opts->name);
+        return CERR_FONT_NOT_LOADED;
+    }
+
+
+    cres(int) res = mem_asprintf(&font->name, "%s:%u", opts->name, opts->size);
+    if (IS_CERR(res))
+        return cerr_error_cres(res);
+
+    font->buf = NOCU(_buf);
+    font->face = face;
+    FT_Set_Pixel_Sizes(font->face, opts->size, opts->size);
+
+    return CERR_OK;
+}
+
 static void font_drop(struct ref *ref)
 {
     struct font *font = container_of(ref, struct font, ref);
@@ -89,7 +122,7 @@ static void font_drop(struct ref *ref)
     mem_free(font->buf);
 }
 
-DEFINE_REFCLASS(font);
+DEFINE_REFCLASS2(font);
 
 struct font *font_get(struct font *font)
 {
@@ -116,39 +149,7 @@ struct glyph *font_get_glyph(struct font *font, unsigned char c)
 
 struct font *font_open(font_context *ctx, const char *name, unsigned int size)
 {
-    struct font *font;
-    FT_Face     face;
-
-    void *buf;
-    size_t buf_size;
-    LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &buf, &buf_size);
-
-    if (!lh) {
-        err("failed to fetch font '%s'\n", name);
-        return NULL;
-    }
-
-    buf = memdup(buf, buf_size);
-    if (FT_New_Memory_Face(ctx->ft, buf, buf_size, 0, &face)) {
-        mem_free(buf);
-        err("failed to load font '%s'\n", name);
-        return NULL;
-    }
-
-    font = ref_new(font);
-    if (!font)
-        return NULL;
-
-    font->buf = buf;
-
-    cres(int) res = mem_asprintf(&font->name, "%s:%u", name, size);
-    if (IS_CERR(res))
-        return NULL;
-
-    font->face = face;
-    FT_Set_Pixel_Sizes(font->face, size, size);
-
-    return font;
+    return ref_new(font, .ctx = ctx, .name = name, .size = size);
 }
 
 void font_put(struct font *font)
