@@ -232,12 +232,13 @@ static inline void _ref_put(struct ref *ref)
     struct struct_name *__v = mem_alloc(__rc->size, .zero = 1); \
     cresp(struct_name) __res = cresp_val(struct_name, __v); \
     if (__v) { \
-        __v->ref.refclass = __rc; \
-        ref_init(&__v->ref); \
+        struct ref *__ref = (void *)__v + __rc->offset; \
+        __ref->refclass = __rc; \
+        ref_init(__ref); \
         if (__rc->make) { \
-            cerr err = __rc->make(&__v->ref, &(rc_init_opts(struct_name)){ args }); \
+            cerr err = __rc->make(__ref, &(rc_init_opts(struct_name)){ args }); \
             if (IS_CERR(err)) { \
-                ref_class_unuse(&__v->ref); \
+                ref_class_unuse(__ref); \
                 mem_free(__v); \
                 __res = cresp_error_cerr(struct_name, err); \
             } \
