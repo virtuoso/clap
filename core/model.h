@@ -250,8 +250,6 @@ static inline bool entity_animated(entity3d *e)
     return e->txmodel->model->anis.da.nr_el;
 }
 
-entity3d *entity3d_new(model3dtx *txm);
-
 /*
  * Set up entity's model matrix from entity's coordinates and euler rotations.
  * Not necessary if the entity::update points to default_update(), which is the

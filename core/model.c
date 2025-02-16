@@ -1309,18 +1309,6 @@ static void entity3d_drop(struct ref *ref)
 
 DEFINE_REFCLASS2(entity3d);
 
-entity3d *entity3d_new(model3dtx *txm)
-{
-    /*
-     * XXX this is ef'ed up
-     * The reason is that mq_release() iterates txms' entities list
-     * and when the last entity drops, the txm would disappear,
-     * making it impossible to continue. Fixing that.
-     */
-    // ref_shared(txm);
-    return ref_new(entity3d, .txmodel = txm);
-}
-
 /* XXX: static inline? via macro? */
 void entity3d_put(entity3d *e)
 {
@@ -1392,7 +1380,7 @@ void model3dtx_add_entity(model3dtx *txm, entity3d *e)
 entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
                              bool randomize_yrot, float randomize_scale, struct scene *scene)
 {
-    entity3d *e = entity3d_new(txm);
+    entity3d *e = ref_new(entity3d, .txmodel = txm);
     entity3d_position(e, (vec3){ instor->dx, instor->dy, instor->dz });
     if (randomize_yrot)
         entity3d_rotate_Y(e, drand48() * 360);
@@ -1450,7 +1438,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     CHECK(txm = ref_new(model3dtx, .model = ref_pass(m)));
     list_init(&txm->entities);
     mq_add_model(&scene->debug_mq, txm);
-    CHECK(dd->entity = entity3d_new(txm));
+    CHECK(dd->entity = ref_new(entity3d, .txmodel = txm));
     model3dtx_add_entity(txm, dd->entity);
     entity3d_visible(dd->entity, 1);
     dd->entity->update = NULL;
