@@ -104,30 +104,34 @@ bool scene_camera_follows(struct scene *s, struct character *ch)
     return scene_control_character(s) == ch && ch != s->camera->ch;
 }
 
-int scene_camera_add(struct scene *s)
+cres(int) scene_camera_add(struct scene *s)
 {
     struct shader_prog *prog = shader_prog_find(&s->shaders, "model");
     model3d *m = model3d_new_cube(ref_pass(prog));
     if (!m)
-        return -1;
+        return cres_error(int, CERR_NOMEM);
 
     model3d_set_name(m, "camera");
 
-    model3dtx *txm = ref_new(model3dtx, .model = ref_pass(m), .tex = transparent_pixel());
-    entity3d *entity;
+    cresp(model3dtx) txmres = ref_new2(model3dtx, .model = ref_pass(m), .tex = transparent_pixel());
+    if (IS_CERR(txmres))
+        return cres_error_cerr(int, txmres);
 
-    if (!txm)
-        return -1;
+    cresp(character) chres = ref_new2(character, .txmodel = txmres.val, .scene = s);
+    if (IS_CERR(chres)) {
+        ref_put(txmres.val);
+        return cres_error_cerr(int, chres);
+    }
 
     s->camera = &s->cameras[s->nr_cameras];
     s->camera->view.main.near_plane  = 0.1;
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
-    s->camera->ch = ref_new(character, .txmodel = txm, .scene = s);
-    entity = character_entity(s->camera->ch);
+    s->camera->ch = chres.val;
+    entity3d *entity = character_entity(s->camera->ch);
     entity3d_visible(entity, 0);
     s->control = entity;
-    model3dtx_add_entity(txm, entity);
+    model3dtx_add_entity(txmres.val, entity);
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
 
@@ -135,7 +139,7 @@ int scene_camera_add(struct scene *s)
     s->camera->ch->moved++;
     s->camera->dist = 10;
 
-    return s->nr_cameras++;
+    return cres_val(int, s->nr_cameras++);
 }
 
 #ifndef CONFIG_FINAL
