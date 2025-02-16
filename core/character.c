@@ -314,15 +314,6 @@ out:
         character_debug(ch);
 }
 
-static void character_drop(struct ref *ref)
-{
-    struct character *c = container_of(ref, struct character, ref);
-
-    ref_put_last_ref(&c->entity->ref);
-}
-
-DEFINE_REFCLASS(character);
-
 /* data is struct scene */
 static int character_update(entity3d *e, void *data)
 {
@@ -369,20 +360,37 @@ static int character_update(entity3d *e, void *data)
     return c->orig_update(e, data);
 }
 
-struct character *character_new(model3dtx *txm, struct scene *s)
+static cerr character_make(struct ref *ref, void *_opts)
 {
-    struct character *c;
+    rc_init_opts(character) *opts = _opts;
 
-    CHECK(c = ref_new(character));
-    CHECK(c->entity = ref_new(entity3d, .txmodel = txm));
+    if (!opts->txmodel || !opts->scene)
+        return CERR_INVALID_ARGUMENTS;
+
+    struct character *c = container_of(ref, struct character, ref);
+
+    cresp(entity3d) res = ref_new2(entity3d, .txmodel = opts->txmodel);
+    if (IS_CERR(res))
+        return cerr_error_cres(res);
+
+    c->entity = res.val;
     c->entity->priv = c;
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
     c->state = CS_AWAKE;
     c->jump_forward = 2.0;
     c->jump_upward = 3.0;
-    list_append(&s->characters, &c->entry);
-    character_motion_reset(c, s);
+    list_append(&opts->scene->characters, &c->entry);
+    character_motion_reset(c, opts->scene);
 
-    return c;
+    return CERR_OK;
 }
+
+static void character_drop(struct ref *ref)
+{
+    struct character *c = container_of(ref, struct character, ref);
+
+    ref_put_last_ref(&c->entity->ref);
+}
+
+DEFINE_REFCLASS2(character);

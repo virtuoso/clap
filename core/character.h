@@ -43,7 +43,10 @@ struct character {
     enum character_state state;
 };
 
-DEFINE_REFCLASS_INIT_OPTIONS(character);
+DEFINE_REFCLASS_INIT_OPTIONS(character,
+    model3dtx       *txmodel;
+    struct scene    *scene;
+);
 DECLARE_REFCLASS(character);
 
 static inline entity3d *character_entity(struct character *c)
@@ -56,7 +59,6 @@ static inline const char *character_name(struct character *c)
     return entity_name(character_entity(c));
 }
 
-struct character *character_new(model3dtx *txm, struct scene *s);
 void character_handle_input(struct character *ch, struct scene *s, struct message *m);
 void character_move(struct character *ch, struct scene *s);
 

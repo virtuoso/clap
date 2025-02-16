@@ -123,7 +123,7 @@ int scene_camera_add(struct scene *s)
     s->camera->view.main.near_plane  = 0.1;
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
-    s->camera->ch = character_new(txm, s);
+    s->camera->ch = ref_new(character, .txmodel = txm, .scene = s);
     entity = character_entity(s->camera->ch);
     entity3d_visible(entity, 0);
     s->control = entity;
@@ -576,7 +576,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 continue; /* XXX: in fact, no */
 
             if (ch) {
-                c = character_new(txm, scene);
+                c = ref_new(character, .txmodel = txm, .scene = scene);
                 e = c->entity;
                 e->skip_culling = true;
                 c->can_dash = can_dash;
