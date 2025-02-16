@@ -235,7 +235,7 @@ static inline void _ref_put(struct ref *ref)
         __v->ref.refclass = __rc; \
         ref_init(&__v->ref); \
         if (__rc->make) { \
-            cerr err = __rc->make(&__v->ref, &(struct_name ## _init_options){ args }); \
+            cerr err = __rc->make(&__v->ref, &(rc_init_opts(struct_name)){ args }); \
             if (IS_CERR(err)) { \
                 ref_class_unuse(&__v->ref); \
                 mem_free(__v); \
@@ -265,7 +265,7 @@ static inline void _ref_put(struct ref *ref)
     __v->ref.refclass = __rc; \
     _ref_embed(&__v->ref); \
     cerr err = __rc->make ? \
-        __rc->make(&__v->ref, &(struct_name ## _init_options){ args }) : \
+        __rc->make(&__v->ref, &(rc_init_opts(struct_name)){ args }) : \
         CERR_OK; \
     err; \
 })
