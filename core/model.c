@@ -460,11 +460,6 @@ model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm)
                    .normal_file_name   = norm);
 }
 
-model3dtx *model3dtx_new(model3d *model, const char *name)
-{
-    return model3dtx_new2(model, name, NULL);
-}
-
 model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
                                           void *em, size_t emsz)
 {

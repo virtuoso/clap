@@ -1083,7 +1083,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     if (number_of_apples > 0) {
         apple_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(apple_m, "inventory apple");
-        apple_txm = model3dtx_new(ref_pass(apple_m), "apple.png");
+        apple_txm = ref_new(model3dtx, .model = ref_pass(apple_m), .texture_file_name = "apple.png");
         ui_add_model(ui, apple_txm);
     }
     if (number_of_immature_apples > 0) {
@@ -1430,7 +1430,7 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     for (i = 0; i < nr; i++) {
         model = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(model, "ui_pocket_element");
-        txm = model3dtx_new(ref_pass(model), tex[i]);
+        txm = ref_new(model3dtx, .model = ref_pass(model), .texture_file_name = tex[i]);
         if (!txm)
             continue;
         ui_add_model(ui, txm);

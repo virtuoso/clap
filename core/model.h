@@ -162,7 +162,6 @@ cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
 float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);
 float model3d_aabb_Z(model3d *m);
-model3dtx *model3dtx_new(model3d *m, const char *name);
 model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm);
 model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
                                           void *em, size_t emsz);
