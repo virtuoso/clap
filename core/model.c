@@ -111,13 +111,16 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     if (IS_CERR(err))
         goto unbind;
 
-    shader_setup_attribute(opts->prog, ATTR_POSITION, &m->vertex,
-                           .type           = BUF_ARRAY,
-                           .usage          = BUF_STATIC,
-                           .comp_type      = DT_FLOAT,
-                           .comp_count     = 3,
-                           .data           = vx,
-                           .size           = vxsz);
+    err = shader_setup_attribute(opts->prog, ATTR_POSITION, &m->vertex,
+                                 .type           = BUF_ARRAY,
+                                 .usage          = BUF_STATIC,
+                                 .comp_type      = DT_FLOAT,
+                                 .comp_count     = 3,
+                                 .data           = vx,
+                                 .size           = vxsz);
+    if (IS_CERR(err))
+        goto vao_done;
+
     err = buffer_init(&m->index[0],
                       .type       = BUF_ELEMENT_ARRAY,
                       .usage      = BUF_STATIC,
@@ -125,35 +128,44 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                       .data       = idx,
                       .size       = idxsz);
     if (IS_CERR(err))
-        goto unbind;
+        goto pos_done;
 
     m->nr_lods++;
 
-    if (tx)
-        shader_setup_attribute(opts->prog, ATTR_TEX, &m->tex,
-                               .type           = BUF_ARRAY,
-                               .usage          = BUF_STATIC,
-                               .comp_type      = DT_FLOAT,
-                               .comp_count     = 2,
-                               .data           = tx,
-                               .size           = txsz);
+    if (tx) {
+        err = shader_setup_attribute(opts->prog, ATTR_TEX, &m->tex,
+                                     .type           = BUF_ARRAY,
+                                     .usage          = BUF_STATIC,
+                                     .comp_type      = DT_FLOAT,
+                                     .comp_count     = 2,
+                                     .data           = tx,
+                                     .size           = txsz);
+        if (IS_CERR(err))
+            goto tex_done;
+    }
 
-    if (normsz)
-        shader_setup_attribute(opts->prog, ATTR_NORMAL, &m->norm,
-                               .type           = BUF_ARRAY,
-                               .usage          = BUF_STATIC,
-                               .comp_type      = DT_FLOAT,
-                               .comp_count     = 3,
-                               .data           = norm,
-                               .size           = normsz);
+    if (normsz) {
+        err = shader_setup_attribute(opts->prog, ATTR_NORMAL, &m->norm,
+                                     .type           = BUF_ARRAY,
+                                     .usage          = BUF_STATIC,
+                                     .comp_type      = DT_FLOAT,
+                                     .comp_count     = 3,
+                                     .data           = norm,
+                                     .size           = normsz);
+        if (IS_CERR(err))
+            goto norm_done;
+    }
 
-    if (opts->mesh && mesh_nr_tangent(opts->mesh))
-        shader_setup_attribute(opts->prog, ATTR_TANGENT, &m->tangent,
+    if (opts->mesh && mesh_nr_tangent(opts->mesh)) {
+        err = shader_setup_attribute(opts->prog, ATTR_TANGENT, &m->tangent,
             .type       = BUF_ARRAY,
             .usage      = BUF_STATIC,
             .comp_type  = DT_FLOAT,
             .data       = mesh_tangent(opts->mesh),
             .size       = mesh_tangent_sz(opts->mesh));
+        if (IS_CERR(err))
+            goto tangent_done;
+    }
 
     if (opts->mesh)
         model3d_lods_from_mesh(m, opts->mesh);
@@ -166,6 +178,17 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     m->nr_faces[0] = idxsz / sizeof(*idx);
 
     return CERR_OK;
+
+tangent_done:
+    buffer_deinit(&m->tangent);
+norm_done:
+    buffer_deinit(&m->norm);
+tex_done:
+    buffer_deinit(&m->tex);
+pos_done:
+    buffer_deinit(&m->vertex);
+vao_done:
+    vertex_array_done(&m->vao);
 
 unbind:
     vertex_array_unbind(&m->vao);
