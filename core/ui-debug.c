@@ -96,7 +96,7 @@ struct ui_widget *ui_debug_menu(struct ui *ui)
 cerr ui_debug_init(struct ui *ui)
 {
     ui_debug_mod_str("off");
-    debug_font = font_open(clap_get_font(ui->clap_ctx), "ProggyTiny.ttf", 28);
+    debug_font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 28);
     return debug_font ? CERR_OK : CERR_FONT_NOT_LOADED;
 }
 

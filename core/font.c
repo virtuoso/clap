@@ -147,11 +147,6 @@ struct glyph *font_get_glyph(struct font *font, unsigned char c)
     return &font->g[c];
 }
 
-struct font *font_open(font_context *ctx, const char *name, unsigned int size)
-{
-    return ref_new(font, .ctx = ctx, .name = name, .size = size);
-}
-
 void font_put(struct font *font)
 {
     ref_put(font);
@@ -173,11 +168,13 @@ cresp(font_context) font_init(const char *default_font_name)
     if (!default_font_name)
         default_font_name = DEFAULT_FONT_NAME;
 
-    ctx->default_font = font_open(ctx, default_font_name, 32);
-    if (!ctx->default_font) {
+    cresp(font) res = ref_new2(font, .ctx = ctx, .name = default_font_name, .size = 32);
+    if (IS_CERR(res)) {
         err("couldn't load default font\n");
-        return cresp_error(font_context, CERR_FONT_NOT_LOADED);
+        return cresp_error_cerr(font_context, res);
     }
+
+    ctx->default_font = res.val;
 
     dbg("freetype initialized\n");
     return cresp_val(font_context, NOCU(ctx));

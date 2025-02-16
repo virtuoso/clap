@@ -798,7 +798,7 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     wheel->focus   = -1;
 
     /* XXX^2: font global/hardcoded */
-    font = font_open(clap_get_font(ui->clap_ctx), "ProggyTiny.ttf", 48);
+    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 48);
     if (!font) {
         ref_put_last(wheel);
         return NULL;
@@ -899,7 +899,7 @@ struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_
         .text_color = { 0.8, 0.8, 0.8, 1.0 },
     };
 
-    uwb.font = font_open(clap_get_font(ui->clap_ctx), menu_font, 32);
+    uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
     if (!uwb.font)
         return NULL;
 
@@ -978,7 +978,7 @@ struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr
         .text_color = { 0.5, 0.3, 0.4, 1.0 },
     };
 
-    uwb.font = font_open(clap_get_font(ui->clap_ctx), menu_font, 32);
+    uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
     if (!uwb.font)
         return NULL;
 
@@ -1415,7 +1415,10 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     model3dtx *txm;
     struct ui_element *p, *t;
     float color[4] = { 1, 1, 1, 1 };
-    struct font *font = font_open(clap_get_font(ui->clap_ctx), "ProggyTiny.ttf", 48);
+    struct font *font = ref_new(font,
+                                .ctx  = clap_get_font(ui->clap_ctx),
+                                .name = "ProggyTiny.ttf",
+                                .size = 48);
     int i;
 
     if (!font)
@@ -1461,7 +1464,10 @@ void pocket_update(struct ui *ui)
     struct ui_element *parent;
     float color[4] = { 1, 1, 1, 1 };
     char buf[10];
-    struct font *font = font_open(clap_get_font(ui->clap_ctx), "ProggyTiny.ttf", 48);
+    struct font *font = ref_new(font,
+                                .ctx  = clap_get_font(ui->clap_ctx),
+                                .name = "ProggyTiny.ttf",
+                                .size = 48);
     int i;
 
     if (!font)
@@ -1575,7 +1581,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     if (IS_CERR(ret))
         goto err;
 
-    font = font_open(clap_get_font(ui->clap_ctx), "ProggyTiny.ttf", 16);
+    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 16);
     if (!font) {
         ret = CERR_FONT_NOT_LOADED;
         goto err;

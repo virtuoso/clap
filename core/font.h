@@ -30,7 +30,6 @@ cresp_ret(font_context);
 cresp(font_context) font_init(const char *default_font_name);
 void font_done(font_context *ctx);
 const char *font_name(struct font *font);
-struct font *font_open(font_context *ctx, const char *name, unsigned int size);
 void         font_put(struct font *font);
 struct font *font_get(struct font *font);
 struct font *font_get_default(font_context *ctx);
