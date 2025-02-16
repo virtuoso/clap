@@ -173,6 +173,49 @@ static void polling_update(void)
     }
 }
 
+DEFINE_REFCLASS_INIT_OPTIONS(network_node,
+    struct network_node *parent;
+    const char          *ip;
+    unsigned int        port;
+    int                 mode;
+);
+
+static cerr network_node_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(network_node) *opts = _opts;
+    int mode = opts->parent ? opts->parent->mode : opts->mode;
+
+    struct network_node *n = container_of(ref, struct network_node, ref);
+
+    n->mode = mode;
+    n->events = POLLIN | POLLHUP | POLLNVAL | POLLOUT;
+    n->state  = ST_INIT;
+    list_append(&nodes, &n->entry);
+    list_init(&n->out_queue);
+
+    if (opts->parent) {
+        n->parent            = opts->parent;
+        n->handshake         = opts->parent->handshake;
+        n->data              = opts->parent->data;
+        n->addrlen           = opts->parent->addrlen;
+        memcpy(&n->sa, &opts->parent->sa, n->addrlen);
+    } else if (opts->ip) {
+        n->addrlen = sizeof(n->sa);
+        memset(&n->sa, 0, sizeof(struct sockaddr_in));
+        n->fd            = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+        n->sa.sin_family = AF_INET;
+        n->sa.sin_port   = htons(opts->port);
+        inet_pton(AF_INET, opts->ip, &n->sa.sin_addr);
+        if (mode == LISTEN) {
+            int val = 1;
+            setsockopt(n->fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+        }
+        fcntl(n->fd, F_SETFL, O_NONBLOCK);
+    }
+
+    return CERR_OK;
+}
+
 static void network_node_drop(struct ref *ref)
 {
     struct network_node *n = container_of(ref, struct network_node, ref);
@@ -193,62 +236,7 @@ static void network_node_drop(struct ref *ref)
     need_polling_alloc++;
 }
 
-DEFINE_REFCLASS_INIT_OPTIONS(network_node);
-DEFINE_REFCLASS(network_node);
-
-static cresp(network_node) network_node_new(int mode)
-{
-    struct network_node *n;
-
-    n = ref_new(network_node);
-    if (!n)
-        return cresp_error(network_node, CERR_NOMEM);
-
-    n->mode = mode;
-    n->events = POLLIN | POLLHUP | POLLNVAL | POLLOUT;
-    n->state  = ST_INIT;
-    list_append(&nodes, &n->entry);
-    list_init(&n->out_queue);
-
-    return cresp_val(network_node, n);
-}
-
-static cresp(network_node) network_node_new_parent(struct network_node *parent)
-{
-    cresp(network_node) res = network_node_new(parent->mode);
-    if (IS_CERR(res))
-        return res;
-
-    struct network_node *n = res.val;
-    n->parent            = parent;
-    n->handshake         = parent->handshake;
-    n->data              = parent->data;
-    n->addrlen           = parent->addrlen;
-    memcpy(&n->sa, &parent->sa, n->addrlen);
-    return res;
-}
-
-static cresp(network_node) network_node_new_socket(const char *ip, unsigned int port, int mode)
-{
-    cresp(network_node) res = network_node_new(mode);
-    if (IS_CERR(res))
-        return res;
-
-    struct network_node *n = res.val;
-    n->addrlen = sizeof(n->sa);
-    memset(&n->sa, 0, sizeof(struct sockaddr_in));
-    n->fd            = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    n->sa.sin_family = AF_INET;
-    n->sa.sin_port   = htons(port);
-    inet_pton(AF_INET, ip, &n->sa.sin_addr);
-    if (mode == LISTEN) {
-        int val = 1;
-        setsockopt(n->fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
-    }
-    fcntl(n->fd, F_SETFL, O_NONBLOCK);
-
-    return res;
-}
+DEFINE_REFCLASS2(network_node);
 
 static cerr network_node_listen(struct network_node *n)
 {
@@ -278,7 +266,7 @@ static int network_node_connect(struct network_node *n)
 
 static cresp(network_node) network_node_accept(struct network_node *n)
 {
-    cresp(network_node) res = network_node_new_parent(n);
+    cresp(network_node) res = ref_new2(network_node, .parent = n);
     if (IS_CERR(res))
         return res;
 
@@ -482,7 +470,7 @@ static int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *
 
 static cresp(network_node) server_setup(const char *server_ip, unsigned int port)
 {
-    cresp(network_node) res = network_node_new_socket(server_ip, port, LISTEN);
+    cresp(network_node) res = ref_new2(network_node, .ip = server_ip, .port = port, .mode = LISTEN);
     if (IS_CERR(res))
         return res;
 
@@ -499,7 +487,7 @@ static cresp(network_node) _client_setup(struct networking_config *cfg, unsigned
     struct network_node *n;
     cerr err = CERR_OK;
 
-    cresp(network_node) res = network_node_new_socket(cfg->server_ip, port, CLIENT);
+    cresp(network_node) res = ref_new2(network_node, .ip = cfg->server_ip, .port = port, .mode = CLIENT);
     if (IS_CERR(res))
         return res;
 
