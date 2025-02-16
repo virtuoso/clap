@@ -18,7 +18,10 @@ typedef struct pipeline_pass_config {
     bool                stop;
 } pipeline_pass_config;
 
-DEFINE_REFCLASS_INIT_OPTIONS(pipeline);
+DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
+    const char      *name;
+    struct scene    *scene;
+);
 DECLARE_REFCLASS(pipeline);
 
 struct pipeline *pipeline_new(struct scene *s, const char *name);

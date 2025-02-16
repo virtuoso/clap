@@ -40,6 +40,52 @@ texture_t *pipeline_pass_get_texture(struct render_pass *pass, unsigned int idx)
     return fbo_texture(pass->fbo.x[idx]);
 }
 
+#define DEFAULT_FBO_SIZE 1024
+static inline int shadow_map_size(int width, int height)
+{
+    int side = max(width, height);
+    int order = fls(side);
+
+    if (!order)
+        return DEFAULT_FBO_SIZE;
+
+    return 1 << order;
+}
+
+static bool pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int height)
+{
+    int side = max(width, height);
+
+    if (side <= 0)
+        width = height = DEFAULT_FBO_SIZE;
+    else if (shadow_map)
+        width = height = shadow_map_size(width, height);
+
+    cerr err = fbo_resize(fbo, width, height);
+    return !IS_CERR(err);
+}
+
+void pipeline_set_resize_cb(struct pipeline *pl, bool (*cb)(fbo_t *, bool, int, int))
+{
+    pl->resize = cb ? cb : pipeline_default_resize;
+}
+
+static cerr pipeline_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(pipeline) *opts = _opts;
+    if (!opts->name || !opts->scene)
+        return CERR_INVALID_ARGUMENTS;
+
+    struct pipeline *pl = container_of(ref, struct pipeline, ref);
+    list_init(&pl->passes);
+    pl->renderer = clap_get_renderer(opts->scene->clap_ctx);
+    pl->scene = opts->scene;
+    pl->name = opts->name;
+    pl->resize = pipeline_default_resize;
+
+    return CERR_OK;
+}
+
 static void pipeline_drop(struct ref *ref)
 {
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
@@ -89,55 +135,16 @@ static void pipeline_drop(struct ref *ref)
         mem_free(pass);
     }
 }
-DEFINE_REFCLASS(pipeline);
+DEFINE_REFCLASS2(pipeline);
 
 void pipeline_put(struct pipeline *pl)
 {
     ref_put(pl);
 }
 
-#define DEFAULT_FBO_SIZE 1024
-static inline int shadow_map_size(int width, int height)
-{
-    int side = max(width, height);
-    int order = fls(side);
-
-    if (!order)
-        return DEFAULT_FBO_SIZE;
-
-    return 1 << order;
-}
-
-static bool pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int height)
-{
-    int side = max(width, height);
-
-    if (side <= 0)
-        width = height = DEFAULT_FBO_SIZE;
-    else if (shadow_map)
-        width = height = shadow_map_size(width, height);
-
-    cerr err = fbo_resize(fbo, width, height);
-    return !IS_CERR(err);
-}
-
-void pipeline_set_resize_cb(struct pipeline *pl, bool (*cb)(fbo_t *, bool, int, int))
-{
-    pl->resize = cb ? cb : pipeline_default_resize;
-}
-
 struct pipeline *pipeline_new(struct scene *s, const char *name)
 {
-    struct pipeline *pl;
-
-    CHECK(pl = ref_new(pipeline));
-    list_init(&pl->passes);
-    pl->renderer = clap_get_renderer(s->clap_ctx);
-    pl->scene = s;
-    pl->name = name;
-    pl->resize = pipeline_default_resize;
-
-    return pl;
+    return ref_new(pipeline, .name = name, .scene = s);
 }
 
 void pipeline_resize(struct pipeline *pl)
