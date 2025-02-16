@@ -45,7 +45,7 @@ static bool prev_msaa;
 
 static void build_main_pl(struct pipeline **pl)
 {
-    *pl = pipeline_new(&scene, "main");
+    *pl = ref_new(pipeline, .scene = &scene, .name = "main");
 
     struct render_pass *shadow_pass[CASCADES_MAX];
 
