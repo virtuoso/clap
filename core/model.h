@@ -133,7 +133,27 @@ typedef struct model3dtx {
     struct list    entities;           /* links entity3d->entry */
 } model3dtx;
 
-DEFINE_REFCLASS_INIT_OPTIONS(model3dtx);
+DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
+    model3d     *model;
+    texture_t   *tex;
+    const char  *texture_file_name;
+    const char  *normal_file_name;
+    const char  *emission_file_name;
+    void        *texture_buffer;
+    void        *normal_buffer;
+    void        *emission_buffer;
+    size_t      texture_size;
+    size_t      normal_size;
+    size_t      emission_size;
+    int         texture_width;
+    int         texture_height;
+    int         normal_width;
+    int         normal_height;
+    int         emission_width;
+    int         emission_height;
+    bool        texture_has_alpha;
+    bool        buffers_png;
+);
 DECLARE_REFCLASS(model3dtx);
 
 int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,

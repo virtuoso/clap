@@ -304,21 +304,30 @@ static cerr model3dtx_add_texture_at(model3dtx *txm, enum shader_vars var, const
     return err;
 }
 
-static cerr model3dtx_add_texture(model3dtx *txm, const char *name)
+static void model3dtx_add_fake_emission(model3dtx *txm)
 {
-    return model3dtx_add_texture_at(txm, UNIFORM_MODEL_TEX, name);
+    model3d *model = txm->model;
+    uint8_t fake_emission[4] = { 0, 0, 0, 255 };
+
+    shader_prog_use(model->prog);
+    cerr err = load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, UNIFORM_EMISSION_MAP,
+                                      txm->emission);
+    shader_prog_done(model->prog);
+
+    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
 }
 
-static cerr model3dtx_make(struct ref *ref, void *opts)
+static void model3dtx_add_fake_sobel(model3dtx *txm)
 {
-    model3dtx *txm = container_of(ref, model3dtx, ref);
-    txm->texture = &txm->_texture;
-    txm->normals = &txm->_normals;
-    txm->emission = &txm->_emission;
-    txm->sobel = &txm->_sobel;
-    list_init(&txm->entities);
-    list_init(&txm->entry);
-    return CERR_OK;
+    model3d *model = txm->model;
+    uint8_t fake_sobel[4] = { 255, 255, 255, 255 };
+
+    shader_prog_use(model->prog);
+    cerr err = load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, UNIFORM_SOBEL_TEX,
+                                      txm->sobel);
+    shader_prog_done(model->prog);
+
+    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
 }
 
 static bool model3dtx_tex_is_ext(model3dtx *txm)
@@ -347,64 +356,113 @@ static void model3dtx_drop(struct ref *ref)
     ref_put(txm->model);
 }
 
+static cerr model3dtx_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(model3dtx) *opts = _opts;
+
+    if (!opts->model)
+        return CERR_INVALID_ARGUMENTS;
+
+    model3dtx *txm  = container_of(ref, model3dtx, ref);
+    txm->texture    = &txm->_texture;
+    txm->normals    = &txm->_normals;
+    txm->emission   = &txm->_emission;
+    txm->sobel      = &txm->_sobel;
+    list_init(&txm->entities);
+    list_init(&txm->entry);
+
+    txm->model = ref_get(opts->model);
+
+    cerr err = CERR_INVALID_ARGUMENTS;
+
+    if (opts->tex) {
+        if (opts->texture_buffer || opts->texture_file_name)
+            goto drop_txm;
+
+        txm->texture = opts->tex;
+    } else if (opts->texture_buffer) {
+        if (opts->buffers_png)
+            err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, opts->texture_buffer,
+                                                        opts->texture_size);
+        else
+            err = model3dtx_add_texture_from_buffer(txm, UNIFORM_MODEL_TEX, opts->texture_buffer,
+                                                    opts->texture_width, opts->texture_height,
+                                                    opts->texture_has_alpha);
+        if (IS_CERR(err))
+            goto drop_txm;
+    } else if (opts->texture_file_name) {
+        err = model3dtx_add_texture_at(txm, UNIFORM_MODEL_TEX, opts->texture_file_name);
+        if (IS_CERR(err))
+            goto drop_txm;
+    }
+
+    if (opts->normal_buffer) {
+        if (opts->normal_file_name)
+            goto drop_txm;
+
+        if (opts->buffers_png)
+            err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, opts->normal_buffer,
+                                                        opts->normal_size);
+        else
+            err = model3dtx_add_texture_from_buffer(txm, UNIFORM_NORMAL_MAP, opts->normal_buffer,
+                                                    opts->normal_width, opts->normal_height, false);
+        if (IS_CERR(err))
+            goto drop_txm;
+    } else if (opts->normal_file_name) {
+        err = model3dtx_add_texture_at(txm, UNIFORM_NORMAL_MAP, opts->normal_file_name);
+        if (IS_CERR(err))
+            goto drop_txm;
+    }
+
+    if (opts->emission_buffer) {
+        if (opts->emission_file_name)
+            goto drop_txm;
+
+        if (opts->buffers_png)
+            err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, opts->emission_buffer,
+                                                        opts->emission_size);
+        else
+            err = model3dtx_add_texture_from_buffer(txm, UNIFORM_EMISSION_MAP, opts->emission_buffer,
+                                                    opts->emission_width, opts->emission_height, false);
+        if (IS_CERR(err))
+            goto drop_txm;
+    } else if (opts->emission_file_name) {
+        err = model3dtx_add_texture_at(txm, UNIFORM_EMISSION_MAP, opts->emission_file_name);
+
+        if (IS_CERR(err))
+            goto drop_txm;
+    } else {
+        model3dtx_add_fake_emission(txm);
+    }
+
+    model3dtx_add_fake_sobel(txm);
+
+    txm->roughness = 0.65;
+    txm->metallic = 0.45;
+
+    return CERR_OK;
+
+drop_txm:
+    model3dtx_drop(ref);
+
+    return err;
+}
+
 DEFINE_REFCLASS2(model3dtx);
 
 DEFINE_CLEANUP(model3dtx, if (*p) ref_put(*p))
 
 model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm)
 {
-    LOCAL_SET(model3dtx, txm) = ref_new(model3dtx);
-    if (!txm) {
-        ref_put_passed(model);
-        return NULL;
-    }
-
-    txm->model = ref_get(model);
-    cerr err = model3dtx_add_texture(txm, tex);
-    if (IS_CERR(err))
-        return NULL;
-
-    if (norm) {
-        err = model3dtx_add_texture_at(txm, UNIFORM_NORMAL_MAP, norm);
-        if (IS_CERR(err))
-            return NULL;
-    }
-
-    txm->roughness = 0.65;
-    txm->metallic = 0.45;
-
-    return NOCU(txm);
+    return ref_new(model3dtx,
+                   .model              = model,
+                   .texture_file_name  = tex,
+                   .normal_file_name   = norm);
 }
 
 model3dtx *model3dtx_new(model3d *model, const char *name)
 {
     return model3dtx_new2(model, name, NULL);
-}
-
-static void model3dtx_add_fake_emission(model3dtx *txm)
-{
-    model3d *model = txm->model;
-    uint8_t fake_emission[4] = { 0, 0, 0, 255 };
-
-    shader_prog_use(model->prog);
-    cerr err = load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, UNIFORM_EMISSION_MAP,
-                                      txm->emission);
-    shader_prog_done(model->prog);
-
-    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
-}
-
-static void model3dtx_add_fake_sobel(model3dtx *txm)
-{
-    model3d *model = txm->model;
-    uint8_t fake_sobel[4] = { 255, 255, 255, 255 };
-
-    shader_prog_use(model->prog);
-    cerr err = load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, UNIFORM_SOBEL_TEX,
-                                      txm->sobel);
-    shader_prog_done(model->prog);
-
-    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
 }
 
 model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
@@ -413,36 +471,15 @@ model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texs
     if (!tex || !texsz)
         return NULL;
 
-    LOCAL_SET(model3dtx, txm) = ref_new(model3dtx);
-    if (!txm) {
-        ref_put_passed(model);
-        return NULL;
-    }
-
-    txm->model = ref_get(model);
-
-    cerr err;
-    err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, tex, texsz);
-    if (IS_CERR(err))
-        return NULL;
-
-    if (norm && normsz) {
-        err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_NORMAL_MAP, norm, normsz);
-        if (IS_CERR(err))
-            return NULL;
-    }
-
-    if (em && emsz) {
-        err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_EMISSION_MAP, em, emsz);
-        if (IS_CERR(err))
-            return NULL;;
-    } else {
-        model3dtx_add_fake_emission(txm);
-    }
-
-    model3dtx_add_fake_sobel(txm);
-
-    return NOCU(txm);
+    return ref_new(model3dtx,
+                   .model = model,
+                   .buffers_png        = true,
+                   .texture_buffer     = tex,
+                   .texture_size       = texsz,
+                   .normal_buffer      = norm,
+                   .normal_size        = normsz,
+                   .emission_buffer    = em,
+                   .emission_size      = emsz);
 }
 
 model3dtx *model3dtx_new_texture(model3d *model, texture_t *tex)
@@ -450,16 +487,7 @@ model3dtx *model3dtx_new_texture(model3d *model, texture_t *tex)
     if (!tex)
         return NULL;
 
-    LOCAL_SET(model3dtx, txm) = ref_new(model3dtx);
-    if (!txm) {
-        ref_put_passed(model);
-        return NULL;
-    }
-
-    txm->model = ref_get(model);
-    txm->texture = tex;
-
-    return NOCU(txm);
+    return ref_new(model3dtx, .model = model, .tex = tex);
 }
 
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
@@ -1462,8 +1490,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     m->depth_testing = false;
     m->draw_type = DRAW_TYPE_LINES;
 
-    CHECK(txm = ref_new(model3dtx));
-    txm->model = m;
+    CHECK(txm = ref_new(model3dtx, .model = ref_pass(m)));
     list_init(&txm->entities);
     mq_add_model(&scene->debug_mq, txm);
     CHECK(dd->entity = entity3d_new(txm));
