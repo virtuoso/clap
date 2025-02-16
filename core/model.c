@@ -452,14 +452,6 @@ DEFINE_REFCLASS2(model3dtx);
 
 DEFINE_CLEANUP(model3dtx, if (*p) ref_put(*p))
 
-model3dtx *model3dtx_new2(model3d *model, const char *tex, const char *norm)
-{
-    return ref_new(model3dtx,
-                   .model              = model,
-                   .texture_file_name  = tex,
-                   .normal_file_name   = norm);
-}
-
 model3dtx *model3dtx_new_from_png_buffers(model3d *model, void *tex, size_t texsz, void *norm, size_t normsz,
                                           void *em, size_t emsz)
 {
