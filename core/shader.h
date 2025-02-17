@@ -58,11 +58,14 @@ struct shader_prog {
     struct list entry;
 };
 
-DEFINE_REFCLASS_INIT_OPTIONS(shader_prog);
+DEFINE_REFCLASS_INIT_OPTIONS(shader_prog,
+    const char  *name;
+    const char  *vert_text;
+    const char  *geom_text;
+    const char  *frag_text;
+);
 DECLARE_REFCLASS(shader_prog);
 
-struct shader_prog *
-shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, const char *fsh);
 void shader_prog_use(struct shader_prog *p);
 void shader_prog_done(struct shader_prog *p);
 const char *shader_get_var_name(enum shader_vars var);

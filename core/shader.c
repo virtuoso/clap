@@ -11,17 +11,6 @@
 #include "librarian.h"
 #include "scene.h"
 
-static void shader_prog_drop(struct ref *ref)
-{
-    struct shader_prog *p = container_of(ref, struct shader_prog, ref);
-
-    shader_done(&p->shader);
-    list_del(&p->entry);
-    dbg("dropping shader '%s'\n", p->name);
-}
-
-DEFINE_REFCLASS(shader_prog);
-
 struct shader_var_desc {
     const char              *name;
     enum data_type          type;
@@ -208,22 +197,23 @@ void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
     }
 }
 
-struct shader_prog *
-shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, const char *fsh)
+static cerr shader_prog_make(struct ref *ref, void *_opts)
 {
-    struct shader_prog *p;
+    rc_init_opts(shader_prog) *opts = _opts;
 
-    p = ref_new(shader_prog);
-    if (!p)
-        return NULL;
+    if (!opts->vert_text || !opts->frag_text)
+        return CERR_INVALID_ARGUMENTS;
+    if (!opts->name)
+        return CERR_INVALID_ARGUMENTS;
 
+    struct shader_prog *p = container_of(ref, struct shader_prog, ref);
     list_init(&p->entry);
-    p->name = name;
-    cerr err = shader_init(&p->shader, vsh, gsh, fsh);
+    p->name = opts->name;
+    cerr err = shader_init(&p->shader, opts->vert_text, opts->geom_text, opts->frag_text);
     if (IS_CERR(err)) {
-        err("couldn't create program '%s'\n", name);
+        err("couldn't create program '%s'\n", opts->name);
         ref_put(p);
-        return NULL;
+        return cerr_error_cres(err);
     }
 
     shader_prog_use(p);
@@ -232,10 +222,21 @@ shader_prog_from_strings(const char *name, const char *vsh, const char *gsh, con
     if (!shader_has_var(p, ATTR_POSITION)) {
         err("program '%s' doesn't have position attribute\n", p->name);
         ref_put_last(p);
-        return NULL;
+        return CERR_INVALID_SHADER;
     }
-    return p;
+    return CERR_OK;
 }
+
+static void shader_prog_drop(struct ref *ref)
+{
+    struct shader_prog *p = container_of(ref, struct shader_prog, ref);
+
+    shader_done(&p->shader);
+    list_del(&p->entry);
+    dbg("dropping shader '%s'\n", p->name);
+}
+
+DEFINE_REFCLASS2(shader_prog);
 
 void shader_prog_use(struct shader_prog *p)
 {
@@ -279,7 +280,6 @@ cerr lib_request_shaders(const char *name, struct list *shaders)
     char *vert;
     char *frag;
     char *geom;
-    struct shader_prog *p;
     size_t vsz, fsz, gsz;
 
     cres(int) vres = mem_asprintf(&nvert, "%s.vert", name);
@@ -295,11 +295,15 @@ cerr lib_request_shaders(const char *name, struct list *shaders)
     if (!hv || !hf)
         return CERR_SHADER_NOT_LOADED;
 
-    p = shader_prog_from_strings(name, vert, hg ? geom : NULL, frag);
-    if (!p)
-        return CERR_INVALID_SHADER;
+    cresp(shader_prog) res = ref_new2(shader_prog,
+                                      .name      = name,
+                                      .vert_text = vert,
+                                      .geom_text = hg ? geom : NULL,
+                                      .frag_text = frag);
+    if (IS_CERR(res))
+        return cerr_error_cres(res);
 
-    list_append(shaders, &p->entry);
+    list_append(shaders, &res.val->entry);
 
     return CERR_OK;
 }
