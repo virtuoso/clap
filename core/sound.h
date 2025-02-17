@@ -5,7 +5,10 @@
 typedef struct sound_context sound_context;
 typedef struct sound sound;
 
-DEFINE_REFCLASS_INIT_OPTIONS(sound);
+DEFINE_REFCLASS_INIT_OPTIONS(sound,
+    const char      *name;
+    sound_context   *ctx;
+);
 DECLARE_REFCLASS(sound);
 
 sound_context *sound_init(void);

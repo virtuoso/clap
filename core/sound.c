@@ -248,6 +248,43 @@ float sound_get_gain(sound *sound)
     return sound->gain;
 }
 
+static cerr sound_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(sound) *opts = _opts;
+    if (!opts->name || !opts->ctx)
+        return CERR_INVALID_ARGUMENTS;
+
+    sound *sound = container_of(ref, struct sound, ref);
+
+    AC(alGenBuffers(1, &sound->buffer_idx), return CERR_NOMEM);
+
+    ov_cb_data cb_data = {};
+    LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, opts->name, &cb_data.buf, &cb_data.size);
+    if (!lh)
+        return CERR_SOUND_NOT_LOADED;
+
+    cerr err = CERR_INVALID_FORMAT;
+
+    if (str_endswith(opts->name, ".wav"))
+        err = parse_wav(sound, &cb_data);
+    else if (str_endswith(opts->name, ".ogg"))
+        err = parse_ogg(sound, &cb_data);
+
+    if (IS_CERR(err)) {
+        err("couldn't load '%s'\n", lh->name);
+        return err;
+    }
+
+    AC(alGenSources(1, &sound->source_idx), return CERR_NOMEM);
+    AC(alSourcei(sound->source_idx, AL_BUFFER, sound->buffer_idx), return CERR_NOMEM);
+    AC(alSourcei(sound->source_idx, AL_LOOPING, AL_FALSE), return CERR_NOMEM);
+    // AC(alSourceQueueBuffers(sound->source_idx, 1, &sound->buffer_idx), return NULL);
+
+    list_append(&opts->ctx->sounds, &sound->entry);
+
+    return CERR_OK;
+}
+
 static void sound_drop(struct ref *ref)
 {
     sound *sound = container_of(ref, struct sound, ref);
@@ -255,43 +292,13 @@ static void sound_drop(struct ref *ref)
     alDeleteSources(1, &sound->source_idx);
 }
 
-DEFINE_REFCLASS(sound);
+DEFINE_REFCLASS2(sound);
 
 DEFINE_CLEANUP(sound, if (*p) ref_put(*p))
 
 sound *sound_load(sound_context *ctx, const char *name)
 {
-    LOCAL_SET(sound, sound) = ref_new(sound);
-    if (!sound)
-        return NULL;
-
-    AC(alGenBuffers(1, &sound->buffer_idx), return NULL);
-
-    ov_cb_data cb_data = {};
-    LOCAL_SET(lib_handle, lh) = lib_read_file(RES_ASSET, name, &cb_data.buf, &cb_data.size);
-    if (!lh)
-        return NULL;
-
-    cerr err = CERR_INVALID_FORMAT;
-
-    if (str_endswith(name, ".wav"))
-        err = parse_wav(sound, &cb_data);
-    else if (str_endswith(name, ".ogg"))
-        err = parse_ogg(sound, &cb_data);
-
-    if (IS_CERR(err)) {
-        err("couldn't load '%s'\n", lh->name);
-        return NULL;
-    }
-
-    AC(alGenSources(1, &sound->source_idx), return NULL);
-    AC(alSourcei(sound->source_idx, AL_BUFFER, sound->buffer_idx), return NULL);
-    AC(alSourcei(sound->source_idx, AL_LOOPING, AL_FALSE), return NULL);
-    // AC(alSourceQueueBuffers(sound->source_idx, 1, &sound->buffer_idx), return NULL);
-
-    list_append(&ctx->sounds, &sound->entry);
-
-    return NOCU(sound);
+    return ref_new(sound, .name = name, .ctx = ctx);
 }
 
 void sound_set_looping(sound *sound, bool looping)
