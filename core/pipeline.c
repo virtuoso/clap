@@ -142,11 +142,6 @@ void pipeline_put(struct pipeline *pl)
     ref_put(pl);
 }
 
-struct pipeline *pipeline_new(struct scene *s, const char *name)
-{
-    return ref_new(pipeline, .name = name, .scene = s);
-}
-
 void pipeline_resize(struct pipeline *pl)
 {
     struct render_pass *pass;
