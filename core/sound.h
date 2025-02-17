@@ -13,7 +13,6 @@ DECLARE_REFCLASS(sound);
 
 sound_context *sound_init(void);
 void sound_done(sound_context *ctx);
-struct sound *sound_load(sound_context *ctx, const char *name);
 float sound_get_gain(sound *sound);
 void sound_set_gain(sound *sound, float gain);
 void sound_set_looping(sound *sound, bool looping);

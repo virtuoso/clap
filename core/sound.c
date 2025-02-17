@@ -296,11 +296,6 @@ DEFINE_REFCLASS2(sound);
 
 DEFINE_CLEANUP(sound, if (*p) ref_put(*p))
 
-sound *sound_load(sound_context *ctx, const char *name)
-{
-    return ref_new(sound, .name = name, .ctx = ctx);
-}
-
 void sound_set_looping(sound *sound, bool looping)
 {
     AC(alSourcei(sound->source_idx, AL_LOOPING, looping ? AL_TRUE : AL_FALSE), return);
