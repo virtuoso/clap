@@ -27,6 +27,7 @@ typedef enum cerr_enum {
     _CERR_SOCK_ACCEPT_FAILED     = -16,
     _CERR_SOCK_BIND_FAILED       = -17,
     _CERR_SOCK_LISTEN_FAILED     = -18,
+    _CERR_SOUND_NOT_LOADED       = -19,
 } cerr_enum;
 
 /****************************************************************************
