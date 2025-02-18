@@ -1372,6 +1372,19 @@ void entity3d_move(entity3d *e, vec3 off)
         phys_body_set_position(e->phys_body, e->pos);
 }
 
+void entity3d_color(entity3d *e, int color_pt, vec4 color)
+{
+    switch (color_pt) {
+        case COLOR_PT_ALPHA:
+        case COLOR_PT_ALL:
+            vec4_dup(e->color, color);
+        case COLOR_PT_NONE:
+            e->color_pt = color_pt;
+            break;
+        default:
+    }
+}
+
 void model3dtx_add_entity(model3dtx *txm, entity3d *e)
 {
     list_append(&txm->entities, &e->entry);
@@ -1442,9 +1455,7 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     model3dtx_add_entity(txm, dd->entity);
     entity3d_visible(dd->entity, 1);
     dd->entity->update = NULL;
-    dd->entity->color_pt = COLOR_PT_ALL;
-    dd->entity->color[0] = 1.0;
-    dd->entity->color[3] = 1.0;
+    entity3d_color(dd->entity, COLOR_PT_ALL, (vec4){ 1, 0, 0, 1 });
     if (rot)
         memcpy(dd->entity->mx->m, rot, sizeof(mat4x4));
     else

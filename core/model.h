@@ -265,6 +265,9 @@ void entity3d_aabb_center(entity3d *e, vec3 center);
 void entity3d_update(entity3d *e, void *data);
 void entity3d_put(entity3d *e);
 
+/* Set entity's color override mode and color */
+void entity3d_color(entity3d *e, int color_pt, vec4 color);
+
 /* Set entity's scale */
 void entity3d_scale(entity3d *e, float scale);
 
