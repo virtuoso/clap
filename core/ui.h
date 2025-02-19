@@ -60,18 +60,6 @@ struct ui_element {
     float            actual_h;
 };
 
-DEFINE_REFCLASS_INIT_OPTIONS(ui_element,
-    struct ui           *ui;
-    struct ui_element   *parent;
-    model3dtx           *txmodel;
-    unsigned long       affinity;
-    float               x_off;
-    float               y_off;
-    float               width;
-    float               height;
-);
-DECLARE_REFCLASS(ui_element);
-
 struct ui_widget_builder {
     unsigned long   affinity;
     float           x_off, y_off, w, h;
@@ -82,6 +70,19 @@ struct ui_widget_builder {
     float           text_color[4];
     void            (*el_cb)(struct ui_element *uie, unsigned int i);
 };
+
+DEFINE_REFCLASS_INIT_OPTIONS(ui_element,
+    struct ui                   *ui;
+    struct ui_element           *parent;
+    model3dtx                   *txmodel;
+    unsigned long               affinity;
+    float                       x_off;
+    float                       y_off;
+    float                       width;
+    float                       height;
+    struct ui_widget_builder    *uwb;
+);
+DECLARE_REFCLASS(ui_element);
 
 struct ui_widget {
     struct ui_element  *root;

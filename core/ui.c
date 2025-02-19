@@ -169,7 +169,7 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(ui_element) *opts = _opts;
 
-    if (!opts->ui || !opts->txmodel || !opts->affinity)
+    if (!opts->ui || !opts->txmodel || (!opts->affinity && !opts->uwb->affinity))
         return CERR_INVALID_ARGUMENTS;
 
     struct ui_element *uie = container_of(ref, struct ui_element, ref);
@@ -189,11 +189,30 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
         list_append(&opts->parent->children, &uie->child_entry);
     }
 
-    uie->affinity = opts->affinity;
-    uie->width    = opts->width;
-    uie->height   = opts->height;
-    uie->x_off    = opts->x_off;
-    uie->y_off    = opts->y_off;
+    /* Use ui_widget_builder to initialize the geometry */
+    if (opts->uwb) {
+        uie->affinity = opts->uwb->el_affinity;
+        uie->width    = opts->uwb->el_w;
+        uie->height   = opts->uwb->el_h;
+        uie->x_off    = opts->uwb->el_x_off;
+        uie->y_off    = opts->uwb->el_y_off;
+    }
+
+    /*
+     * But if individual fields are provided, the override
+     * whatever came from the ui_widget_builder
+     */
+    if (opts->affinity)
+        uie->affinity   = opts->affinity;
+    if (opts->width)
+        uie->width      = opts->width;
+    if (opts->height)
+        uie->height     = opts->height;
+    if (opts->x_off)
+        uie->x_off      = opts->x_off;
+    if (opts->y_off)
+        uie->y_off      = opts->y_off;
+
     list_init(&uie->children);
     list_init(&uie->animation);
 
