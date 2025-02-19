@@ -261,20 +261,6 @@ ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
     return model;
 }
 
-struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, model3dtx *txmodel,
-                                  unsigned long affinity, float x_off, float y_off, float w, float h)
-{
-    return ref_new(ui_element,
-                   .ui       = ui,
-                   .parent   = parent,
-                   .txmodel  = txmodel,
-                   .affinity = affinity,
-                   .x_off    = x_off,
-                   .y_off    = y_off,
-                   .width    = w,
-                   .height   = h);
- }
-
 static void ui_add_model(struct ui *ui, model3dtx *txmodel)
 {
     mq_add_model(&ui->mq, txmodel);
@@ -484,10 +470,14 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
             ui_add_model(&fbo_ui, txm);
         }
         /* uies[i] consumes (holds the only reference to) txm */
-        uies[i] = ui_element_new(&fbo_ui, NULL, txm, UI_AF_TOP | UI_AF_LEFT,
-                                      x + glyph->bearing_x,
-                                      y - glyph->bearing_y,
-                                      glyph->width, glyph->height);
+        uies[i] = ref_new(ui_element,
+                          .ui       = &fbo_ui,
+                          .txmodel  = txm,
+                          .affinity = UI_AF_TOP | UI_AF_LEFT,
+                          .x_off    = x + glyph->bearing_x,
+                          .y_off    = y - glyph->bearing_y,
+                          .width    = glyph->width,
+                          .height   = glyph->height);
         ref_only(uies[i]->entity);
         ref_only(uies[i]);
         entity3d_color(uies[i]->entity, COLOR_PT_ALL, color);
@@ -525,9 +515,13 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     fbo_put_last(fbo);
     ui_add_model(ui, txmtex);
 
-    uit.uietex = ui_element_new(ui, parent, ref_pass(txmtex),
-                                parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
-                                0, 0, fbo_ui.width, fbo_ui.height);
+    uit.uietex = ref_new(ui_element,
+                         .ui        = ui,
+                         .parent    = parent,
+                         .txmodel   = ref_pass(txmtex),
+                         .affinity  = parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
+                         .width     = fbo_ui.width,
+                         .height    = fbo_ui.height);
     entity3d_color(uit.uietex->entity, COLOR_PT_ALPHA, (vec4){ 0, 0, 0, 1 });
     ref_only(uit.uietex->entity);
     ref_only(uit.uietex);
@@ -759,7 +753,14 @@ ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
     CHECK(uiw        = ref_new(ui_widget));
     uiw->uies        = mem_alloc(sizeof(struct ui_element *), .nr = nr_items, .fatal_fail = 1);
     /* XXX: render texts to FBOs to textures */
-    CHECK(uiw->root  = ui_element_new(ui, NULL, ui_quadtx, affinity, x_off, y_off, w, h));
+    CHECK(uiw->root  = ref_new(ui_element,
+                               .ui          = ui,
+                               .txmodel     = ui_quadtx,
+                               .affinity    = affinity,
+                               .x_off       = x_off,
+                               .y_off       = y_off,
+                               .width       = w,
+                               .height      = h));
     uiw->root->widget = uiw;
     uiw->nr_uies = nr_items;
     list_append(&ui->widgets, &uiw->entry);
@@ -836,7 +837,13 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 
     for (i = 0, width = 0.0, height = 0.0; i < 4; i++) {
         /* XXX^3: element placement hardcoded */
-        wheel->uies[i]           = ui_element_new(ui, wheel->root, ui_quadtx, affs[i], 0, 0, 300, 100);
+        wheel->uies[i]           = ref_new(ui_element,
+                                           .ui          = ui,
+                                           .parent      = wheel->root,
+                                           .txmodel     = ui_quadtx,
+                                           .affinity    = affs[i],
+                                           .width       = 300,
+                                           .height      = 100);
         wheel->uies[i]->on_click = menu_onclick;
         wheel->uies[i]->on_focus = menu_onfocus;
         wheel->uies[i]->priv     = (void *)(uintptr_t)i;
@@ -891,8 +898,12 @@ ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, u
     int i;
 
     for (i = 0; i < nr_items; i++) {
-        osd->uies[i]           = ui_element_new(ui, osd->root, ui_quadtx, uwb->el_affinity,
-                                                uwb->el_x_off, uwb->el_y_off, uwb->el_w, uwb->el_h);
+        osd->uies[i]           = ref_new(ui_element,
+                                         .ui        = ui,
+                                         .parent    = osd->root,
+                                         .txmodel   = ui_quadtx,
+                                         .affinity  = uwb->el_affinity,
+                                         .uwb       = uwb);
         osd->uies[i]->priv     = (void *)items[i];
 
         if (uwb->el_cb)
@@ -955,8 +966,11 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     menu->focus = -1;
 
     for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
-        menu->uies[i]           = ui_element_new(ui, menu->root, ui_quadtx, uwb->el_affinity,
-                                                 uwb->el_x_off, uwb->el_y_off + off, uwb->el_w, uwb->el_h);
+        menu->uies[i]           = ref_new(ui_element,
+                                          .ui       = ui,
+                                          .parent   = menu->root,
+                                          .txmodel  = ui_quadtx,
+                                          .uwb      = uwb);
         menu->uies[i]->on_click = menu_onclick;
         menu->uies[i]->on_focus = menu_onfocus;
         menu->uies[i]->priv     = (void *)items[i];
@@ -1130,16 +1144,36 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
         yoff = (i / cols) * (width + 10);
         if (i < number_of_apples) {
             // drawing "apple"
-            inv->uies[i] = ui_element_new(ui, inv->root, apple_txm, UI_AF_TOP | UI_AF_LEFT,
-                                          xoff, yoff, 100, 100);
+            inv->uies[i] = ref_new(ui_element,
+                                   .ui          = ui,
+                                   .parent      = inv->root,
+                                   .txmodel     = apple_txm,
+                                   .affinity    = UI_AF_TOP | UI_AF_LEFT,
+                                   .x_off       = xoff,
+                                   .y_off       = yoff,
+                                   .width       = 100,
+                                   .height      = 100);
         } else {
             // drawing "empty"
-            inv->uies[i] = ui_element_new(ui, inv->root, ui_quadtx, UI_AF_TOP | UI_AF_LEFT,
-                                          xoff, yoff, 100, 100);
+            inv->uies[i] = ref_new(ui_element,
+                                   .ui          = ui,
+                                   .parent      = inv->root,
+                                   .txmodel     = ui_quadtx,
+                                   .affinity    = UI_AF_TOP | UI_AF_LEFT,
+                                   .x_off       = xoff,
+                                   .y_off       = yoff,
+                                   .width       = 100,
+                                   .height      = 100);
         }
 
         // frame must be the first child.
-        CHECK(frame = ui_element_new(ui, inv->uies[i], frame_txm, UI_AF_BOTTOM | UI_AF_LEFT, 0, 0, 1, 1));
+        CHECK(frame = ref_new(ui_element,
+                              .ui       = ui,
+                              .parent   = inv->uies[i],
+                              .txmodel  = frame_txm,
+                              .affinity = UI_AF_BOTTOM | UI_AF_LEFT,
+                              .width    = 1,
+                              .height   = 1));
 
         if (i < number_of_apples) {
             // "apple"
@@ -1164,7 +1198,14 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
         if (i < number_of_apples) {
             if (apple_ages[i] < 1.0) {
                 // immature apple
-                CHECK(bar = ui_element_new(ui, frame, bar_txm, UI_AF_TOP | UI_AF_LEFT, 0, 10, width * apple_ages[i], 5));
+                CHECK(bar = ref_new(ui_element,
+                                    .ui         = ui,
+                                    .parent     = frame,
+                                    .txmodel    = bar_txm,
+                                    .affinity   = UI_AF_TOP | UI_AF_LEFT,
+                                    .y_off      = 10,
+                                    .width      = width * apple_ages[i],
+                                    .height     = 5));
                 entity3d_color(bar->entity, COLOR_PT_ALL, (vec4){ 0, 1, 0, 1 });
             }
         }
@@ -1270,7 +1311,14 @@ static int ui_handle_command(struct message *m, void *data)
         if (bottom_uit) {
             ref_put_last(bottom_uit);
         } else {
-            bottom_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_BOTTOM | UI_AF_RIGHT, 0.01, 50, 400, 150);
+            bottom_element = ref_new(ui_element,
+                                     .ui        = ui,
+                                     .txmodel   = ui_quadtx,
+                                     .affinity  = UI_AF_BOTTOM | UI_AF_RIGHT,
+                                     .x_off     = 0.01,
+                                     .y_off     = 50,
+                                     .width     = 400,
+                                     .height    = 150);
         }
         cres(int) res = mem_asprintf(&str, "FPS: %d\nTime: %d:%02d", m->cmd.fps,
                                      m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60);
@@ -1414,9 +1462,19 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
     ui_add_model_tail(ui, ui_pip);
     dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo_width(fbo), fbo_height(fbo));
     if (fbo_width(fbo) < fbo_height(fbo))
-        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_VCENTER | UI_AF_LEFT, 0, 0, fbo_width(fbo), fbo_height(fbo));
+        uie0 = ref_new(ui_element,
+                       .ui          = ui,
+                       .txmodel     = ui_pip,
+                       .affinity    = UI_AF_VCENTER | UI_AF_LEFT,
+                       .width       = fbo_width(fbo),
+                       .height      = fbo_height(fbo));
     else
-        uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, fbo_width(fbo), fbo_height(fbo));
+        uie0 = ref_new(ui_element,
+                       .ui          = ui,
+                       .txmodel     = ui_pip,
+                       .affinity    = UI_AF_TOP | UI_AF_HCENTER,
+                       .width       = fbo_width(fbo),
+                       .height      = fbo_height(fbo));
     entity3d_color(uie0->entity, COLOR_PT_NONE, (vec4){});
 }
 
@@ -1439,8 +1497,15 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     pocket_count = mem_alloc(sizeof(int), .nr = nr, .fatal_fail = 1);
     pocket_total = mem_alloc(sizeof(int), .nr = nr, .fatal_fail = 1);
 
-    p = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_RIGHT,
-                       10, 10, 200, 100 * nr);
+    p = ref_new(ui_element,
+                .ui         = ui,
+                .parent     = NULL,
+                .txmodel    = ui_quadtx,
+                .affinity   = UI_AF_TOP | UI_AF_RIGHT,
+                .x_off      = 10,
+                .y_off      = 10,
+                .width      = 200,
+                .height     = 100 * nr);
     for (i = 0; i < nr; i++) {
         model = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(model, "ui_pocket_element");
@@ -1449,8 +1514,23 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
             continue;
         ui_add_model(ui, txm);
 
-        (void)ui_element_new(ui, p, txm, UI_AF_LEFT | UI_AF_TOP, 0, 100 * i, 100, 100);
-        t = ui_element_new(ui, p, ui_quadtx, UI_AF_LEFT | UI_AF_TOP, 100, 100 * i, 100, 100);
+        (void)ref_new(ui_element,
+                      .ui       = ui,
+                      .parent   = p,
+                      .txmodel  = txm,
+                      .affinity = UI_AF_LEFT | UI_AF_TOP,
+                      .y_off    = 100 * i,
+                      .width    = 100,
+                      .height   = 100);
+        t = ref_new(ui_element,
+                    .ui       = ui,
+                    .parent   = p,
+                    .txmodel  = ui_quadtx,
+                    .affinity = UI_AF_LEFT | UI_AF_TOP,
+                    .x_off    = 100,
+                    .y_off    = 100 * i,
+                    .width    = 100,
+                    .height   = 100);
         pocket_text[i] = ui_render_string(ui, font, t, "", color, UI_AF_LEFT | UI_AF_VCENTER);
     }
     ui_element_set_visibility(p, 0);
@@ -1527,11 +1607,35 @@ struct ui_element *ui_progress_new(struct ui *ui)
     bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     bar_txm = ref_new(model3dtx, .model = ref_pass(bar_m), .tex = white_pixel());
     ui_add_model(ui, bar_txm);
-    CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, height / 2, total_width, total_height));
-    CHECK(bar = ui_element_new(ui, uie, bar_txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));
+    CHECK(uie = ref_new(ui_element,
+                        .ui         = ui,
+                        .parent     = NULL,
+                        .txmodel    = ui_quadtx,
+                        .affinity   = UI_AF_TOP | UI_AF_HCENTER,
+                        .x_off      = 0,
+                        .y_off      = height / 2,
+                        .width      = total_width,
+                        .height     = total_height));
+    CHECK(bar = ref_new(ui_element,
+                        .ui         = ui,
+                        .parent     = uie,
+                        .txmodel    = bar_txm,
+                        .affinity   = UI_AF_TOP | UI_AF_LEFT,
+                        .x_off      = 1,
+                        .y_off      = 1,
+                        .width      = width,
+                        .height     = height));
     entity3d_color(bar->entity, COLOR_PT_ALL, (vec4){ 0, 1, 0, 1 });
 
-    CHECK(frame = ui_element_new(ui, uie, frame_txm, UI_AF_BOTTOM | UI_AF_LEFT, 0, 0, total_width, total_height));
+    CHECK(frame = ref_new(ui_element,
+                          .ui         = ui,
+                          .parent     = uie,
+                          .txmodel    = frame_txm,
+                          .affinity   = UI_AF_BOTTOM | UI_AF_LEFT,
+                          .x_off      = 0,
+                          .y_off      = 0,
+                          .width      = total_width,
+                          .height     = total_height));
     frame->width = 1;
     frame->height = 1;
     entity3d_color(frame->entity, COLOR_PT_ALL, (vec4){ 1, 1, 1, 1 });
@@ -1599,7 +1703,14 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
         goto err;
     }
 
-    uie1 = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP    | UI_AF_LEFT, 10, 10, 300, 100);
+    uie1 = ref_new(ui_element,
+                   .ui          = ui,
+                   .txmodel     = ui_quadtx,
+                   .affinity    = UI_AF_TOP | UI_AF_LEFT,
+                   .x_off       = 10,
+                   .y_off       = 10,
+                   .width       = 300,
+                   .height      = 100);
     uie1->on_click = build_onclick;
 
 #ifndef CONFIG_FINAL

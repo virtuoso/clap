@@ -49,7 +49,14 @@ void ui_debug_update(struct ui *ui)
         ref_put_last(debug_uit);
         debug_uit = NULL;
     } else if (str) {
-        debug_element = ui_element_new(ui, NULL, ui_quadtx_get(), UI_AF_BOTTOM | UI_AF_LEFT, 0.01, 50, 400, 150);
+        debug_element = ref_new(ui_element,
+                                .ui         = ui,
+                                .txmodel    = ui_quadtx_get(),
+                                .affinity   = UI_AF_BOTTOM | UI_AF_LEFT,
+                                .x_off      = 0.01,
+                                .y_off      = 50,
+                                .width      = 400,
+                                .height     = 150);
     }
     if (str) {
         font = font_get(debug_font);
