@@ -98,7 +98,6 @@ DECLARE_REFCLASS(ui_widget);
 
 typedef struct clap_context clap_context;
 
-//int ui_element_init(struct scene *s, float x, float y, float w, float h);
 struct ui {
     struct mq          mq;
     struct list        shaders;
