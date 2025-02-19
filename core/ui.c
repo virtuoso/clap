@@ -471,11 +471,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
                                       glyph->width, glyph->height);
         ref_only(uies[i]->entity);
         ref_only(uies[i]);
-        uies[i]->entity->color[0] = color[0];
-        uies[i]->entity->color[1] = color[1];
-        uies[i]->entity->color[2] = color[2];
-        uies[i]->entity->color[3] = color[3];
-        uies[i]->entity->color_pt = COLOR_PT_ALL;
+        entity3d_color(uies[i]->entity, COLOR_PT_ALL, color);
 
         uies[i]->prescaled = true;
         
@@ -513,8 +509,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     uit.uietex = ui_element_new(ui, parent, ref_pass(txmtex),
                                 parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
                                 0, 0, fbo_ui.width, fbo_ui.height);
-    uit.uietex->entity->color[3] = 1.0;
-    uit.uietex->entity->color_pt = COLOR_PT_ALPHA;
+    entity3d_color(uit.uietex->entity, COLOR_PT_ALPHA, (vec4){ 0, 0, 0, 1 });
     ref_only(uit.uietex->entity);
     ref_only(uit.uietex);
 
@@ -827,8 +822,7 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
         wheel->uies[i]->on_focus = menu_onfocus;
         wheel->uies[i]->priv     = (void *)(uintptr_t)i;
 
-        memcpy(&wheel->uies[i]->entity->color, quad_color, sizeof(quad_color));
-        wheel->uies[i]->entity->color_pt = COLOR_PT_ALL;
+        entity3d_color(wheel->uies[i]->entity, COLOR_PT_ALL, quad_color);
         /* XXX^5: animations hardcoded */
         // uia_skip_frames(wheel->uies[i], i * 7);
         uia_set_visible(wheel->uies[i], 1);
@@ -881,9 +875,6 @@ ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, u
         osd->uies[i]           = ui_element_new(ui, osd->root, ui_quadtx, uwb->el_affinity,
                                                 uwb->el_x_off, uwb->el_y_off, uwb->el_w, uwb->el_h);
         osd->uies[i]->priv     = (void *)items[i];
-
-        memcpy(&osd->uies[i]->entity->color, uwb->el_color, sizeof(uwb->el_color));
-        osd->uies[i]->entity->color_pt = COLOR_PT_NONE;
 
         if (uwb->el_cb)
             uwb->el_cb(osd->uies[i], i);
@@ -951,8 +942,7 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
         menu->uies[i]->on_focus = menu_onfocus;
         menu->uies[i]->priv     = (void *)items[i];
 
-        memcpy(&menu->uies[i]->entity->color, uwb->el_color, sizeof(uwb->el_color));
-        menu->uies[i]->entity->color_pt = COLOR_PT_ALL;
+        entity3d_color(menu->uies[i]->entity, COLOR_PT_ALL, uwb->el_color);
 
         if (uwb->el_cb)
             uwb->el_cb(menu->uies[i], i);
@@ -1139,18 +1129,10 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
             inv->uies[i]->priv = (void *)(uintptr_t)i;
             if (apple_ages[i] < 1.0) {
                 // immature apple
-                inv->uies[i]->entity->color_pt = COLOR_PT_ALPHA;
-                inv->uies[i]->entity->color[0] = 0.1;
-                inv->uies[i]->entity->color[1] = 0.5;
-                inv->uies[i]->entity->color[2] = 0.9;
-                inv->uies[i]->entity->color[3] = 0.3;
+                entity3d_color(inv->uies[i]->entity, COLOR_PT_ALPHA, (vec4){ 0.1, 0.5, 0.9, 0.3 });
             } else {
                 // mature apple
-                inv->uies[i]->entity->color_pt = COLOR_PT_NONE;
-                inv->uies[i]->entity->color[0] = 0.9;
-                inv->uies[i]->entity->color[1] = 0.9;
-                inv->uies[i]->entity->color[2] = 0.9;
-                inv->uies[i]->entity->color[3] = 0.7;
+                entity3d_color(inv->uies[i]->entity, COLOR_PT_NONE, (vec4){});
             }
             CHECK(tui = ui_render_string(ui, font, inv->uies[i], "apple", color, 0));
         } else {
@@ -1164,16 +1146,10 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
             if (apple_ages[i] < 1.0) {
                 // immature apple
                 CHECK(bar = ui_element_new(ui, frame, bar_txm, UI_AF_TOP | UI_AF_LEFT, 0, 10, width * apple_ages[i], 5));
-                bar->entity->color_pt = COLOR_PT_ALL;
-                bar->entity->color[1] = 1;
-                bar->entity->color[3] = 1;
+                entity3d_color(bar->entity, COLOR_PT_ALL, (vec4){ 0, 1, 0, 1 });
             }
         }
-        frame->entity->color_pt = COLOR_PT_ALL;
-        frame->entity->color[0] = 1.0;
-        frame->entity->color[1] = 1.0;
-        frame->entity->color[2] = 1.0;
-        frame->entity->color[3] = 1.0;
+        entity3d_color(frame->entity, COLOR_PT_ALL, (vec4){ 1, 1, 1, 1 });
         
         // memcpy(&inv->uies[i]->entity->color, quad_color, sizeof(quad_color));
         // inv->uies[i]->entity->color_pt = COLOR_PT_ALL;
@@ -1422,7 +1398,7 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
         uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_VCENTER | UI_AF_LEFT, 0, 0, fbo_width(fbo), fbo_height(fbo));
     else
         uie0 = ui_element_new(ui, NULL, ui_pip, UI_AF_TOP | UI_AF_HCENTER, 0, 0, fbo_width(fbo), fbo_height(fbo));
-    uie0->entity->color_pt = COLOR_PT_NONE;
+    entity3d_color(uie0->entity, COLOR_PT_NONE, (vec4){});
 }
 
 struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
@@ -1534,18 +1510,12 @@ struct ui_element *ui_progress_new(struct ui *ui)
     ui_add_model(ui, bar_txm);
     CHECK(uie = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER, 0, height / 2, total_width, total_height));
     CHECK(bar = ui_element_new(ui, uie, bar_txm, UI_AF_TOP | UI_AF_LEFT, 1, 1, width, height));
-    bar->entity->color_pt = COLOR_PT_ALL;
-    bar->entity->color[1] = 1;
-    bar->entity->color[3] = 1;
+    entity3d_color(bar->entity, COLOR_PT_ALL, (vec4){ 0, 1, 0, 1 });
 
     CHECK(frame = ui_element_new(ui, uie, frame_txm, UI_AF_BOTTOM | UI_AF_LEFT, 0, 0, total_width, total_height));
     frame->width = 1;
     frame->height = 1;
-    frame->entity->color_pt = COLOR_PT_ALL;
-    frame->entity->color[0] = 1;
-    frame->entity->color[1] = 1;
-    frame->entity->color[2] = 1;
-    frame->entity->color[3] = 1;
+    entity3d_color(frame->entity, COLOR_PT_ALL, (vec4){ 1, 1, 1, 1 });
     return bar;
 }
 
