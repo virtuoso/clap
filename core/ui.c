@@ -165,6 +165,49 @@ static void ui_element_destroy(entity3d *e)
     ref_put(uie);
 }
 
+static cerr ui_element_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(ui_element) *opts = _opts;
+
+    if (!opts->ui || !opts->txmodel || !opts->affinity)
+        return CERR_INVALID_ARGUMENTS;
+
+    struct ui_element *uie = container_of(ref, struct ui_element, ref);
+
+    cresp(entity3d) res = ref_new2(entity3d, .txmodel = opts->txmodel);
+
+    if (IS_CERR(res))
+        return cerr_error_cres(res);
+
+    entity3d *e = res.val;
+    uie->entity = e;
+    uie->entity->destroy = ui_element_destroy;
+    uie->ui = opts->ui;
+    if (opts->parent) {
+        uie->parent = ref_get(opts->parent);
+        uie->widget = opts->parent->widget;
+        list_append(&opts->parent->children, &uie->child_entry);
+    }
+
+    uie->affinity = opts->affinity;
+    uie->width    = opts->width;
+    uie->height   = opts->height;
+    uie->x_off    = opts->x_off;
+    uie->y_off    = opts->y_off;
+    list_init(&uie->children);
+    list_init(&uie->animation);
+
+    e->update  = ui_element_update;
+    e->priv    = uie;
+    e->visible = 1;
+    entity3d_color(e, COLOR_PT_NONE, (vec4){});
+
+    list_append(&opts->txmodel->entities, &e->entry);
+    ui_element_position(uie, opts->ui);
+
+    return CERR_OK;
+}
+
 static void ui_element_drop(struct ref *ref)
 {
     struct ui_element *uie = container_of(ref, struct ui_element, ref);
@@ -188,7 +231,7 @@ static void ui_element_drop(struct ref *ref)
     ref_put_last(uie->entity);
 }
 
-DEFINE_REFCLASS(ui_element);
+DEFINE_REFCLASS2(ui_element);
 
 static inline model3d *
 ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
@@ -202,43 +245,16 @@ ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
 struct ui_element *ui_element_new(struct ui *ui, struct ui_element *parent, model3dtx *txmodel,
                                   unsigned long affinity, float x_off, float y_off, float w, float h)
 {
-    struct ui_element *uie;
-    entity3d *e = ref_new(entity3d, .txmodel = txmodel);
-
-    if (!e)
-        return NULL;
-
-    uie = ref_new(ui_element);
-    uie->entity = e;
-    uie->entity->destroy = ui_element_destroy;
-    uie->ui = ui;
-    if (parent) {
-        uie->parent = ref_get(parent);
-        uie->widget = parent->widget;
-        list_append(&parent->children, &uie->child_entry);
-    }
-
-    uie->affinity = affinity;
-    uie->width    = w;
-    uie->height   = h;
-    uie->x_off    = x_off;
-    uie->y_off    = y_off;
-    list_init(&uie->children);
-    list_init(&uie->animation);
-
-    //dbg("VIEWPORT: %ux%u; width %u -> %f; height %u -> %f\n", ui->width, ui->height, w, width, h, height);
-
-    e->update  = ui_element_update;
-    e->priv    = uie;
-    e->visible = 1;
-    e->color_pt = COLOR_PT_NONE;
-    e->color[3] = 1.0;
-
-    list_append(&txmodel->entities, &e->entry);
-    ui_element_position(uie, ui);
-
-    return uie;
-}
+    return ref_new(ui_element,
+                   .ui       = ui,
+                   .parent   = parent,
+                   .txmodel  = txmodel,
+                   .affinity = affinity,
+                   .x_off    = x_off,
+                   .y_off    = y_off,
+                   .width    = w,
+                   .height   = h);
+ }
 
 static void ui_add_model(struct ui *ui, model3dtx *txmodel)
 {
