@@ -1382,6 +1382,7 @@ void entity3d_color(entity3d *e, int color_pt, vec4 color)
             e->color_pt = color_pt;
             break;
         default:
+            break;
     }
 }
 
