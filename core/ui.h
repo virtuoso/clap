@@ -60,7 +60,16 @@ struct ui_element {
     float            actual_h;
 };
 
-DEFINE_REFCLASS_INIT_OPTIONS(ui_element);
+DEFINE_REFCLASS_INIT_OPTIONS(ui_element,
+    struct ui           *ui;
+    struct ui_element   *parent;
+    model3dtx           *txmodel;
+    unsigned long       affinity;
+    float               x_off;
+    float               y_off;
+    float               width;
+    float               height;
+);
 DECLARE_REFCLASS(ui_element);
 
 struct ui_widget_builder {
