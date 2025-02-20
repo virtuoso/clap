@@ -190,12 +190,18 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
     }
 
     /* Use ui_widget_builder to initialize the geometry */
-    if (opts->uwb) {
+    if (opts->uwb && !opts->uwb_root) {
         uie->affinity = opts->uwb->el_affinity;
         uie->width    = opts->uwb->el_w;
         uie->height   = opts->uwb->el_h;
         uie->x_off    = opts->uwb->el_x_off;
         uie->y_off    = opts->uwb->el_y_off;
+    } else if (opts->uwb && opts->uwb_root) {
+        uie->affinity = opts->uwb->affinity;
+        uie->width    = opts->uwb->w;
+        uie->height   = opts->uwb->h;
+        uie->x_off    = opts->uwb->x_off;
+        uie->y_off    = opts->uwb->y_off;
     }
 
     /*

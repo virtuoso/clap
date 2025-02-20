@@ -81,6 +81,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(ui_element,
     float                       width;
     float                       height;
     struct ui_widget_builder    *uwb;
+    bool                        uwb_root;
 );
 DECLARE_REFCLASS(ui_element);
 
