@@ -94,7 +94,11 @@ struct ui_widget {
     struct list        entry;
 };
 
-DEFINE_REFCLASS_INIT_OPTIONS(ui_widget);
+DEFINE_REFCLASS_INIT_OPTIONS(ui_widget,
+    struct ui                   *ui;
+    struct ui_widget_builder    *uwb;
+    unsigned int                nr_items;
+);
 DECLARE_REFCLASS(ui_widget);
 
 typedef struct clap_context clap_context;

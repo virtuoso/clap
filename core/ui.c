@@ -730,6 +730,38 @@ static void ui_element_children(struct ui_element *uie, struct list *list)
     list_append(list, &uie->child_entry);
 }
 
+static cerr ui_widget_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(ui_widget) *opts = _opts;
+
+    if (!opts->ui || !opts->uwb || !opts->nr_items)
+        return CERR_INVALID_ARGUMENTS;
+
+    struct ui_widget *uiw = container_of(ref, struct ui_widget, ref);
+
+    uiw->uies = mem_alloc(sizeof(struct ui_element *), .nr = opts->nr_items);
+    if (!uiw->uies)
+        return CERR_NOMEM;
+
+    /* XXX: render texts to FBOs to textures */
+    cresp(ui_element) res = ref_new2(ui_element,
+                                     .ui          = opts->ui,
+                                     .txmodel     = ui_quadtx,
+                                     .uwb         = opts->uwb,
+                                     .uwb_root    = true);
+    if (IS_CERR(res)) {
+        mem_free(uiw->uies);
+        return cerr_error_cres(res);
+    }
+
+    uiw->root = res.val;
+    uiw->root->widget = uiw;
+    uiw->nr_uies = opts->nr_items;
+    list_append(&opts->ui->widgets, &uiw->entry);
+
+    return CERR_OK;
+}
+
 static void ui_widget_drop(struct ref *ref)
 {
     struct ui_widget *uiw = container_of(ref, struct ui_widget, ref);
@@ -748,37 +780,7 @@ static void ui_widget_drop(struct ref *ref)
     mem_free(uiw->uies);
 }
 
-DEFINE_REFCLASS(ui_widget);
-
-static struct ui_widget *
-ui_widget_new(struct ui *ui, unsigned int nr_items, unsigned long affinity,
-              float x_off, float y_off, float w, float h)
-{
-    struct ui_widget *uiw;
-
-    CHECK(uiw        = ref_new(ui_widget));
-    uiw->uies        = mem_alloc(sizeof(struct ui_element *), .nr = nr_items, .fatal_fail = 1);
-    /* XXX: render texts to FBOs to textures */
-    CHECK(uiw->root  = ref_new(ui_element,
-                               .ui          = ui,
-                               .txmodel     = ui_quadtx,
-                               .affinity    = affinity,
-                               .x_off       = x_off,
-                               .y_off       = y_off,
-                               .width       = w,
-                               .height      = h));
-    uiw->root->widget = uiw;
-    uiw->nr_uies = nr_items;
-    list_append(&ui->widgets, &uiw->entry);
-
-    return uiw;
-}
-
-static struct ui_widget *
-ui_widget_build(struct ui *ui, struct ui_widget_builder *uwb, unsigned int nr_items)
-{
-    return ui_widget_new(ui, nr_items, uwb->affinity, uwb->x_off, uwb->y_off, uwb->w, uwb->h);
-}
+DEFINE_REFCLASS2(ui_widget);
 
 void ui_widget_delete(struct ui_widget *widget)
 {
@@ -831,7 +833,19 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     int i;
 
     /* XXX^0: affinity and placement hardcoded */
-    CHECK(wheel = ui_widget_new(ui, 4, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 0.3, 0.3));
+    cresp(ui_widget) res = ref_new2(ui_widget,
+                                    .ui       = ui,
+                                    .nr_items = 4,
+                                    .uwb      = &(struct ui_widget_builder) {
+                                          .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
+                                          .w          = 0.3,
+                                          .h          = 0.3
+                                    });
+
+    if (IS_CERR(res))
+        return NULL;
+
+    wheel = res.val;
     wheel->focus   = -1;
 
     /* XXX^2: font global/hardcoded */
@@ -899,7 +913,7 @@ static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
 static struct ui_widget *
 ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, unsigned int nr_items)
 {
-    struct ui_widget *osd = ui_widget_build(ui, uwb, nr_items);
+    struct ui_widget *osd = ref_new(ui_widget, .ui = ui, .uwb = uwb, .nr_items = nr_items);
     struct ui_element *tui;
     int i;
 
@@ -964,7 +978,7 @@ static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
 static struct ui_widget *
 ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, unsigned int nr_items)
 {
-    struct ui_widget *menu = ui_widget_build(ui, uwb, nr_items);
+    struct ui_widget *menu = ref_new(ui_widget, .ui = ui, .uwb = uwb, .nr_items = nr_items);
     struct ui_element *tui;
     float off, width, height;
     int i;
@@ -1117,7 +1131,14 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
 
     ui_modality_send();
 
-    CHECK(inv = ui_widget_new(ui, nr_items, UI_AF_VCENTER | UI_AF_HCENTER, 0, 0, 0.3, 0.3));
+    CHECK(inv = ref_new(ui_widget,
+                        .ui         = ui,
+                        .nr_items   = nr_items,
+                        .uwb        = &(struct ui_widget_builder) {
+                            .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
+                            .w          = 0.3,
+                            .h          = 0.3
+                        }));
     inv->focus = -1;
 
     int number_of_immature_apples = 0;
