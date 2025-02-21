@@ -3,6 +3,7 @@
 #define __CLAP_ERROR_H__
 
 #include <stddef.h>
+#include <assert.h>
 #include "compiler.h"
 #include "config.h"
 
