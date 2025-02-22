@@ -14,7 +14,9 @@ function(asset_pack asset_dir asset)
     add_custom_command(
         OUTPUT ${asset_cpio}
         DEPENDS ${assets} ucpio
-        COMMAND cd ${asset_dir} && ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio -o < ${asset_list_file} > ${asset_cpio}
+        WORKING_DIRECTORY ${asset_dir}
+        COMMAND ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio
+        ARGS -o < ${asset_list_file} > ${asset_cpio}
     )
 
     add_custom_command(
