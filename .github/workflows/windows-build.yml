@@ -35,9 +35,15 @@ jobs:
         run: |
           cmake --build build/test --parallel 4 --verbose
           cmake --build build/debug --parallel 4
-      - name: upload-artifact
+      - name: upload-artifact-w32test
         uses: actions/upload-artifact@v4
         with:
           name: clap
           retention-days: 30
           path: ${{ github.workspace }}/build/test/demo/ldjam56/ldjam56.exe
+      - name: upload-artifact-w32debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: clapdbg
+          retention-days: 30
+          path: ${{ github.workspace }}/build/debug/demo/ldjam56/ldjam56.exe
