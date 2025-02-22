@@ -1,4 +1,4 @@
-From 914df5ca7775277cef73fe6defce671f99ed3d97 Mon Sep 17 00:00:00 2001
+From 5506c50486cd498cde4171097d2d95738dc5f6dc Mon Sep 17 00:00:00 2001
 From: Alexander Shishkin <alex@ash.works>
 Date: Sat, 22 Feb 2025 23:20:37 +0200
 Subject: [PATCH] cmake: Fix module search path
@@ -14,12 +14,16 @@ Also, fix clock_gettime() tv_nsec calculation.
 
 Also, make wmain visible.
 
+Also, instrument wmain() with _CrtDbgReport().
+
+Also, hide wlibc_raise() calls behind WLIBC_SIGNALS.
+
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
  CMakeLists.txt       |  4 ++--
- src/internal/wmain.c | 17 +++++++++++++++--
+ src/internal/wmain.c | 43 +++++++++++++++++++++++++++++++++++++++++--
  src/sys/time/clock.c |  2 +-
- 3 files changed, 18 insertions(+), 5 deletions(-)
+ 3 files changed, 44 insertions(+), 5 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index cb6030a..9dc9be8 100644
@@ -44,7 +48,7 @@ index cb6030a..9dc9be8 100644
  
  option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 diff --git a/src/internal/wmain.c b/src/internal/wmain.c
-index beb8d3c..c83ad2e 100644
+index beb8d3c..d95913c 100644
 --- a/src/internal/wmain.c
 +++ b/src/internal/wmain.c
 @@ -14,8 +14,9 @@
@@ -57,7 +61,36 @@ index beb8d3c..c83ad2e 100644
  
  // From errno/program.c
  void init_program_name(void);
-@@ -58,12 +59,15 @@ int exception_handler(DWORD code)
+@@ -30,7 +31,9 @@ int exception_handler(DWORD code)
+ 	case STATUS_ARRAY_BOUNDS_EXCEEDED:
+ 	case STATUS_GUARD_PAGE_VIOLATION:
+ 	case STATUS_IN_PAGE_ERROR:
++#ifdef WLIBC_SIGNALS
+ 		wlibc_raise(SIGSEGV);
++#endif
+ 		return EXCEPTION_CONTINUE_EXECUTION;
+ 
+ 	// SIGFPE
+@@ -43,14 +46,18 @@ int exception_handler(DWORD code)
+ 	case STATUS_FLOAT_UNDERFLOW:
+ 	case STATUS_INTEGER_DIVIDE_BY_ZERO:
+ 	case STATUS_INTEGER_OVERFLOW:
++#ifdef WLIBC_SIGNALS
+ 		wlibc_raise(SIGFPE);
++#endif
+ 		return EXCEPTION_CONTINUE_EXECUTION;
+ 
+ 	// SIGILL
+ 	case STATUS_ILLEGAL_INSTRUCTION:
+ 	case STATUS_PRIVILEGED_INSTRUCTION:
+ 	case STATUS_STACK_OVERFLOW:
++#ifdef WLIBC_SIGNALS
+ 		wlibc_raise(SIGILL);
++#endif
+ 		return EXCEPTION_CONTINUE_EXECUTION;
+ 
+ 	default:
+@@ -58,12 +65,17 @@ int exception_handler(DWORD code)
  	}
  }
  
@@ -67,60 +100,80 @@ index beb8d3c..c83ad2e 100644
  	char **argv = NULL, **env = NULL;
  	UTF8_STRING *u8_args = NULL, *u8_env = NULL;
  
++#ifdef CLAP_DEBUG
 +	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE/* | _CRTDBG_MODE_WNDW*/);
 +	_CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### entering wmain, argc=%d\n", argc);
++#endif
  	if (argc)
  	{
  		argv = (char **)RtlAllocateHeap(NtCurrentProcessHeap(), 0, sizeof(char *) * (argc + 1)); // argv ends with NULL
-@@ -129,6 +133,7 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+@@ -129,6 +141,9 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
  	}
  
  #ifdef WLIBC_IO
++#ifdef CLAP_DEBUG
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing IO\n");
++#endif
  	// DO NOT change the order of this.
  	init_fd_table();
  	initialize_stdio();
-@@ -136,26 +141,32 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+@@ -136,26 +151,44 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
  	atexit(cleanup_stdio);
  #endif
  #ifdef WLIBC_SIGNALS
++#ifdef CLAP_DEBUG
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing signals\n");
++#endif
  	signal_init();
  	atexit(signal_cleanup);
  #endif
  #ifdef WLIBC_SPAWN
++#ifdef CLAP_DEBUG
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing spawn\n");
++#endif
  	process_init();
  	atexit(process_cleanup);
  #endif
  #ifdef WLIBC_THREADS
++#ifdef CLAP_DEBUG
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing threads\n");
++#endif
  	threads_init();
  	atexit(threads_cleanup);
  #endif
  #ifdef WLIBC_ACLS
++#ifdef CLAP_DEBUG
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing ACLs\n");
++#endif
  	initialize_sids();
  	atexit(cleanup_security_decsriptors);
  #endif
  #ifdef WLIBC_TIMERS
++#ifdef CLAP_DEBUG
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing timers\n");
++#endif
  	initialize_itimers();
  	atexit(cleanup_itimers);
  #endif
  #ifdef WLIBC_ERRNO
++#ifdef CLAP_DEBUG
 +	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing program name\n");
++#endif
  	init_program_name();
  #endif
  
-@@ -163,7 +174,9 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+@@ -163,7 +196,13 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
  
  	__try
  	{
++#ifdef CLAP_DEBUG
 +		_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### calling main\n");
++#endif
  		exit_status = main(argc, argv, env);
++#ifdef CLAP_DEBUG
 +		_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### main returned=%d\n", exit_status);
++#endif
  	}
  	__except (exception_handler(GetExceptionCode()))
  	{
