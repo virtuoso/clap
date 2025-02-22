@@ -1,19 +1,4 @@
-function(win32_fixup_flags)
-    if (WIN32)
-        set(CompilerFlags
-                CMAKE_CXX_FLAGS
-                CMAKE_CXX_FLAGS_DEBUG
-                CMAKE_CXX_FLAGS_RELEASE
-                CMAKE_C_FLAGS
-                CMAKE_C_FLAGS_DEBUG
-                CMAKE_C_FLAGS_RELEASE
-                )
-        foreach(CompilerFlag ${CompilerFlags})
-            string(REPLACE "/MD${W32LIBSUFFIX}" "/MT${W32LIBSUFFIX}" ${CompilerFlag} "${${CompilerFlag}}")
-            set(${CompilerFlag} ${${CompilerFlag}} CACHE INTERNAL "")
-        endforeach()
-    endif ()
-endfunction ()
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 function(wlibc_setup wlibc_dir)
     if (WIN32)
