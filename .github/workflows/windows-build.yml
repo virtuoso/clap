@@ -29,21 +29,21 @@ jobs:
           vcpkg install libpng:x64-windows-static glfw3:x64-windows-static glew:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
       - name: configure
         run: |
-          cmake --preset w32test -B build/test "${{ github.workspace }}"
+          # cmake --preset w32test -B build/test "${{ github.workspace }}"
           cmake --preset w32debug -B build/debug "${{ github.workspace }}"
       - name: build
         run: |
-          cmake --build build/test --parallel 4 --verbose
+          # cmake --build build/test --parallel 4 --verbose
           cmake --build build/debug --parallel 4 --verbose
       - name: test
         run: |
           ctest --test-dir build/debug --verbose
-      - name: upload-artifact-w32test
-        uses: actions/upload-artifact@v4
-        with:
-          name: clap
-          retention-days: 30
-          path: ${{ github.workspace }}/build/test/demo/ldjam56/ldjam56.exe
+      # - name: upload-artifact-w32test
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: clap
+      #     retention-days: 30
+      #     path: ${{ github.workspace }}/build/test/demo/ldjam56/ldjam56.exe
       - name: upload-artifact-w32debug
         uses: actions/upload-artifact@v4
         with:
