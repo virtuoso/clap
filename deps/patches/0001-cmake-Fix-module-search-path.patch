@@ -1,6 +1,6 @@
-From ad2bccc1f93810810523c64d2476605882b3d1f0 Mon Sep 17 00:00:00 2001
+From 914df5ca7775277cef73fe6defce671f99ed3d97 Mon Sep 17 00:00:00 2001
 From: Alexander Shishkin <alex@ash.works>
-Date: Mon, 25 Nov 2024 20:53:53 +0200
+Date: Sat, 22 Feb 2025 23:20:37 +0200
 Subject: [PATCH] cmake: Fix module search path
 
 Currently, the "cmake" directory at the top of source tree is made the
@@ -12,11 +12,14 @@ While at it, disable all compilation warnings.
 
 Also, fix clock_gettime() tv_nsec calculation.
 
+Also, make wmain visible.
+
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
- CMakeLists.txt       | 4 ++--
- src/sys/time/clock.c | 2 +-
- 2 files changed, 3 insertions(+), 3 deletions(-)
+ CMakeLists.txt       |  4 ++--
+ src/internal/wmain.c | 17 +++++++++++++++--
+ src/sys/time/clock.c |  2 +-
+ 3 files changed, 18 insertions(+), 5 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index cb6030a..9dc9be8 100644
@@ -40,6 +43,87 @@ index cb6030a..9dc9be8 100644
  include_directories(include)
  
  option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
+diff --git a/src/internal/wmain.c b/src/internal/wmain.c
+index beb8d3c..c83ad2e 100644
+--- a/src/internal/wmain.c
++++ b/src/internal/wmain.c
+@@ -14,8 +14,9 @@
+ #include <internal/thread.h>
+ #include <internal/timer.h>
+ #include <stdlib.h>
++#include <crtdbg.h>
+ 
+ extern int main(int argc, char **argv, char **env);
+ 
+ // From errno/program.c
+ void init_program_name(void);
+@@ -58,12 +59,15 @@ int exception_handler(DWORD code)
+ 	}
+ }
+ 
+ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ {
+ 	int envc = 0;
+ 	char **argv = NULL, **env = NULL;
+ 	UTF8_STRING *u8_args = NULL, *u8_env = NULL;
+ 
++	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE/* | _CRTDBG_MODE_WNDW*/);
++	_CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### entering wmain, argc=%d\n", argc);
+ 	if (argc)
+ 	{
+ 		argv = (char **)RtlAllocateHeap(NtCurrentProcessHeap(), 0, sizeof(char *) * (argc + 1)); // argv ends with NULL
+@@ -129,6 +133,7 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ 	}
+ 
+ #ifdef WLIBC_IO
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing IO\n");
+ 	// DO NOT change the order of this.
+ 	init_fd_table();
+ 	initialize_stdio();
+@@ -136,26 +141,32 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ 	atexit(cleanup_stdio);
+ #endif
+ #ifdef WLIBC_SIGNALS
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing signals\n");
+ 	signal_init();
+ 	atexit(signal_cleanup);
+ #endif
+ #ifdef WLIBC_SPAWN
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing spawn\n");
+ 	process_init();
+ 	atexit(process_cleanup);
+ #endif
+ #ifdef WLIBC_THREADS
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing threads\n");
+ 	threads_init();
+ 	atexit(threads_cleanup);
+ #endif
+ #ifdef WLIBC_ACLS
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing ACLs\n");
+ 	initialize_sids();
+ 	atexit(cleanup_security_decsriptors);
+ #endif
+ #ifdef WLIBC_TIMERS
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing timers\n");
+ 	initialize_itimers();
+ 	atexit(cleanup_itimers);
+ #endif
+ #ifdef WLIBC_ERRNO
++	_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### initializing program name\n");
+ 	init_program_name();
+ #endif
+ 
+@@ -163,7 +174,9 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ 
+ 	__try
+ 	{
++		_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### calling main\n");
+ 		exit_status = main(argc, argv, env);
++		_CrtDbgReport(_CRT_WARN, __FILE__, __LINE__, "wlibc.lib", "### main returned=%d\n", exit_status);
+ 	}
+ 	__except (exception_handler(GetExceptionCode()))
+ 	{
 diff --git a/src/sys/time/clock.c b/src/sys/time/clock.c
 index 6698e04..3d11b5e 100644
 --- a/src/sys/time/clock.c
@@ -54,5 +138,5 @@ index 6698e04..3d11b5e 100644
  	return 0;
  }
 -- 
-2.32.0.windows.2
+2.47.1.windows.2
 

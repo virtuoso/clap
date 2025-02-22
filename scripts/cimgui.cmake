@@ -31,7 +31,7 @@ ENDFOREACH ()
 # so, do it here, but in a less intrusive way
 FOREACH(src ${CIMGUI_SRC})
     set_source_files_properties(${src} PROPERTIES
-        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\";IMGUI_IMPL_OPENGL_LOADER_GL3W"
+        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\";IMGUI_IMPL_OPENGL_LOADER_GL3W;CIMGUI_NO_EXPORT"
         COMPILE_FLAGS "-Wno-nontrivial-memaccess"
     )
 ENDFOREACH ()
