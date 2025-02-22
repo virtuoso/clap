@@ -1,6 +1,6 @@
-From ad2bccc1f93810810523c64d2476605882b3d1f0 Mon Sep 17 00:00:00 2001
+From d33844a653639edef0d9d8e3e4126355aeccd163 Mon Sep 17 00:00:00 2001
 From: Alexander Shishkin <alex@ash.works>
-Date: Mon, 25 Nov 2024 20:53:53 +0200
+Date: Tue, 25 Feb 2025 22:45:48 +0200
 Subject: [PATCH] cmake: Fix module search path
 
 Currently, the "cmake" directory at the top of source tree is made the
@@ -12,14 +12,21 @@ While at it, disable all compilation warnings.
 
 Also, fix clock_gettime() tv_nsec calculation.
 
+Also, conditionally replace the Rtl* unicode calls with stubs so that
+programs don't crash with 0xc0000139 on older Windows.
+
+Also, actually delete streams on close_all_streams().
+
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
- CMakeLists.txt       | 4 ++--
- src/sys/time/clock.c | 2 +-
- 2 files changed, 3 insertions(+), 3 deletions(-)
+ CMakeLists.txt        |   4 +-
+ include/internal/nt.h | 114 ++++++++++++++++++++++++++++++++++++++++++
+ src/stdio/internal.c  |   2 +-
+ src/sys/time/clock.c  |   2 +-
+ 4 files changed, 118 insertions(+), 4 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index cb6030a..9dc9be8 100644
+index 820d498..f751716 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -18,7 +18,7 @@ add_compile_definitions(UNICODE _UNICODE
@@ -40,8 +47,170 @@ index cb6030a..9dc9be8 100644
  include_directories(include)
  
  option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
+diff --git a/include/internal/nt.h b/include/internal/nt.h
+index acb8b10..7c00687 100644
+--- a/include/internal/nt.h
++++ b/include/internal/nt.h
+@@ -618,29 +618,143 @@ NTSTATUS
+ NTAPI
+ NtDelayExecution(_In_ BOOLEAN Alertable, _In_opt_ PLARGE_INTEGER DelayInterval);
+ 
++// #define USE_REAL_RTL_UNICODE 1
++#ifdef USE_REAL_RTL_UNICODE
+ NTSYSAPI
+ VOID NTAPI RtlInitUTF8String(_Out_ PUTF8_STRING DestinationString, _In_opt_z_ PCSTR SourceString);
++#else
++static inline void RtlInitUTF8String(PSTRING DestinationString, PCSTR SourceString)
++{
++    DestinationString->Buffer = (PCHAR)SourceString;
++    DestinationString->Length = SourceString ? (USHORT)strlen(SourceString) : 0;
++    DestinationString->MaximumLength = DestinationString->Length + 1;
++}
++#endif
+ 
++#ifdef USE_REAL_RTL_UNICODE
+ NTSYSAPI
+ VOID NTAPI RtlInitUnicodeString(_Out_ PUNICODE_STRING DestinationString, _In_opt_z_ PCWSTR SourceString);
++#else
++static inline NTSTATUS NTAPI RtlInitUnicodeString(PUNICODE_STRING DestinationString, PCWSTR SourceString)
++{
++    if (DestinationString == NULL) return -1;
++    if (SourceString) {
++        size_t len = wcslen(SourceString);
++        if (len > 0xFFFF / sizeof(WCHAR)) return -1; // Too long
++        DestinationString->Length = (USHORT)(len * sizeof(WCHAR));
++        DestinationString->MaximumLength = DestinationString->Length + sizeof(WCHAR);
++        DestinationString->Buffer = (PWSTR)SourceString;
++    } else {
++        DestinationString->Length = 0;
++        DestinationString->MaximumLength = 0;
++        DestinationString->Buffer = NULL;
++    }
++    return 0;
++}
++#endif
+ 
++#ifdef USE_REAL_RTL_UNICODE
+ NTSYSAPI
+ NTSTATUS
+ NTAPI
+ RtlUnicodeStringToUTF8String(_Out_ PUTF8_STRING DestinationString, _In_ PCUNICODE_STRING SourceString,
+ 							 _In_ BOOLEAN AllocateDestinationString);
++#else
++extern void *malloc(size_t size);
++static inline NTSTATUS NTAPI RtlUnicodeStringToUTF8String(PANSI_STRING DestinationString, PUNICODE_STRING SourceString, ULONG AllocateFlags)
++{
++    if (!SourceString || !SourceString->Buffer)
++        return -1;
++
++    // For a simple ASCII-only conversion:
++    size_t wlen = SourceString->Length / sizeof(WCHAR);
++    size_t requiredLen = wlen; // each wchar_t becomes one byte (assuming ASCII)
++
++    // Check if the caller already provided a buffer.
++    if (AllocateFlags == 0 && DestinationString->Buffer != NULL) {
++        // Use the caller's buffer. Ensure we don't exceed MaximumLength.
++        size_t maxLen = DestinationString->MaximumLength;
++        if (requiredLen >= maxLen) {
++            requiredLen = maxLen - 1;
++        }
++        for (size_t i = 0; i < requiredLen; i++) {
++            DestinationString->Buffer[i] = (char)SourceString->Buffer[i];
++        }
++        DestinationString->Buffer[requiredLen] = '\0';
++        DestinationString->Length = (USHORT)requiredLen;
++        return 0;
++    } else {
++        // Otherwise, allocate a new buffer.
++        char *buf = malloc(requiredLen + 1);
++        if (!buf)
++            return -1;
++        for (size_t i = 0; i < requiredLen; i++) {
++            buf[i] = (char)SourceString->Buffer[i];
++        }
++        buf[requiredLen] = '\0';
++        DestinationString->Buffer = buf;
++        DestinationString->Length = (USHORT)requiredLen;
++        DestinationString->MaximumLength = (USHORT)(requiredLen + 1);
++        return 0;
++    }
++}
++#endif
+ 
++#ifdef USE_REAL_RTL_UNICODE
+ NTSYSAPI
+ VOID NTAPI RtlFreeUTF8String(_Inout_ _At_(utf8String->Buffer, _Frees_ptr_opt_) PUTF8_STRING utf8String);
++#else
++extern void free(void *ptr);
++static inline NTSTATUS NTAPI RtlFreeUTF8String(PANSI_STRING UnicodeString)
++{
++    if (UnicodeString && UnicodeString->Buffer) {
++        free(UnicodeString->Buffer);
++        UnicodeString->Buffer = NULL;
++    }
++    return 0;
++}
++#endif
+ 
++#ifdef USE_REAL_RTL_UNICODE
+ NTSYSAPI
+ NTSTATUS
+ NTAPI
+ RtlUTF8StringToUnicodeString(_Out_ PUNICODE_STRING DestinationString, _In_ PUTF8_STRING SourceString,
+ 							 _In_ BOOLEAN AllocateDestinationString);
++#else
++extern size_t __cdecl mbstowcs(wchar_t *destination, char const *source, size_t count);
++static inline NTSTATUS RtlUTF8StringToUnicodeString(PUNICODE_STRING DestinationString, PUTF8_STRING SourceString, BOOLEAN AllocateDestinationString)
++{
++    size_t len = mbstowcs(NULL, SourceString->Buffer, 0);
++    if (len == (size_t)-1) return STATUS_UNSUCCESSFUL;
++
++    if (AllocateDestinationString) {
++        DestinationString->Buffer = (WCHAR *)malloc((len + 1) * sizeof(WCHAR));
++        if (!DestinationString->Buffer) return STATUS_NO_MEMORY;
++        DestinationString->MaximumLength = (USHORT)((len + 1) * sizeof(WCHAR));
++    }
++
++    DestinationString->Length = (USHORT)(len * sizeof(WCHAR));
++    mbstowcs(DestinationString->Buffer, SourceString->Buffer, len + 1);
++    return STATUS_SUCCESS;
++}
++#endif
+ 
++#ifdef USE_REAL_RTL_UNICODE
+ NTSYSAPI
+ VOID NTAPI RtlFreeUnicodeString(_Inout_ _At_(UnicodeString->Buffer, _Frees_ptr_opt_) PUNICODE_STRING UnicodeString);
++#else
++static inline NTSTATUS NTAPI RtlFreeUnicodeString(PUNICODE_STRING UnicodeString)
++{
++	if (!UnicodeString)
++		return STATUS_INVALID_ADDRESS;
++
++	free(UnicodeString->Buffer);
++	UnicodeString->Length = 0;
++	UnicodeString->MaximumLength = 0;
++	return STATUS_SUCCESS;
++}
++#endif
+ 
+ //
+ // Define the create disposition values
+diff --git a/src/stdio/internal.c b/src/stdio/internal.c
+index 48e4913..50cd5a3 100644
+--- a/src/stdio/internal.c
++++ b/src/stdio/internal.c
+@@ -62,8 +62,8 @@ void close_all_streams(void)
+ 		FILE *prev = _wlibc_stdio_head->prev;
+ 
+ 		close_fd(_wlibc_stdio_head->fd);
+-		RtlFreeHeap(NtCurrentProcessHeap(), 0, _wlibc_stdio_head);
+ 
++		delete_stream(_wlibc_stdio_head);
+ 		_wlibc_stdio_head = prev;
+ 	}
+ 
 diff --git a/src/sys/time/clock.c b/src/sys/time/clock.c
-index 6698e04..3d11b5e 100644
+index f83e425..9978092 100644
 --- a/src/sys/time/clock.c
 +++ b/src/sys/time/clock.c
 @@ -53,7 +53,7 @@ int wlibc_clock_gettime(clockid_t id, struct timespec *ts)
@@ -54,5 +223,5 @@ index 6698e04..3d11b5e 100644
  	return 0;
  }
 -- 
-2.32.0.windows.2
+2.47.1.windows.2
 
