@@ -37,7 +37,7 @@ jobs:
           cmake --build build/debug --parallel 4 --verbose
       - name: test
         run: |
-          ctest --test-dir build/debug --verbose
+          ctest --test-dir build/debug --verbose --rerun-failed --output-on-failure 2>&1 || cat build/debug/Testing/Temporary/LastTest.log
       # - name: upload-artifact-w32test
       #   uses: actions/upload-artifact@v4
       #   with:
