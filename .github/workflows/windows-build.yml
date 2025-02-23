@@ -26,8 +26,14 @@ jobs:
         run: |
           pwd
           echo "${{ github.workspace }}"
-          git clone https://github.com/MarkSchofield/WindowsToolchain.git ../WindowsToolchain
+          # git clone https://github.com/MarkSchofield/WindowsToolchain.git ../WindowsToolchain
           vcpkg install libpng:x64-windows-static glfw3:x64-windows-static glew:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
+      - name: Install Ninja
+        run: |
+          curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip
+          mkdir ~/bin
+          unzip ninja.zip -d ~/bin
+          echo "${HOME}/bin" >> $GITHUB_PATH
       - name: configure
         run: |
           # cmake --preset w32test -B build/test "${{ github.workspace }}"
@@ -35,20 +41,92 @@ jobs:
       - name: build
         run: |
           # cmake --build build/test --parallel 4 --verbose
-          cmake --build build/debug --parallel 4 --verbose
+          cmake --build build/debug --parallel 4 --verbose || echo debug-failed
       - name: test
         run: |
+          ls -l build/debug/core/tests.exe || echo no-tests.exe
+          ls -l build/debug/core/test2.exe || echo no-test2.exe
+          ls -l build/debug/tools/ucpio/ucpio.exe || echo no-ucpio.exe
+          find build/debug -name 'tests.map'
+          export __COMPAT_LAYER=DisableCfg
           ctest --test-dir build/debug --verbose --rerun-failed --output-on-failure 2>&1 || cat build/debug/Testing/Temporary/LastTest.log
-      - name: Set up Visual Studio environment
+          # echo "C:/msys64/usr/bin" >> $GITHUB_PATH
+          # find /c/msys64 -name ntldd.exe
+      - name: test run debugs
         shell: cmd
+        continue-on-error: true
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat" && dumpbin /dependents build\debug\core\tests.exe > dumpbin_output.txt || echo nope
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat" && dumpbin /dependents build\debug\core\tests.exe > dumpbin_output.txt || echo nope
+          set __compat_layer=DisableCfg
+          set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat"
+          dumpbin /imports build\debug\core\tests.exe > dumpbin_output.txt || echo "No dumpbin?"
+          dumpbin /symbols build\debug\core\tests.exe >> dumpbin_output.txt || echo nope
+          dumpbin /exports C:\Windows\System32\ntdll.dll >> dumpbin_output.txt || echo nope
+          dumpbin /imports build\debug\tools\ucpio\ucpio.exe > dumpbin_output_ucpio.txt || echo "No dumpbin?"
+          dumpbin /symbols build\debug\tools\ucpio\ucpio.exe >> dumpbin_output_ucpio.txt || echo nope
+          dumpbin /imports build\debug\core\test2.exe > dumpbin_output_test2.txt || echo "No dumpbin?"
+          dumpbin /symbols build\debug\core\test2.exe >> dumpbin_output_test2.txt || echo nope
+          echo "ntldd"
+          c:\MSYS64\bin\ntldd build\debug\tools\ucpio\ucpio.exe || echo "No ntldd"
+          echo "gflags"
+          gflags /p /enable build\debug\tools\ucpio\ucpio.exe /full || echo "No gflags"
+          echo "cdb"
+          cdb -c "g; .sleep 5000; q" -logo cdb-ucpio.txt -g -G build\debug\tools\ucpio\ucpio.exe || echo "No cdb"
+          echo "windbg"
+          windbg -c "g; .sleep 5000; q" -logo windbg-ucpio.txt -g -G build\debug\tools\ucpio\ucpio.exe || echo "No windbg"
+          echo "done"
+          echo "ntldd"
+          c:\MSYS64\bin\ntldd build\debug\core\tests.exe || echo "No ntldd"
+          echo "gflags"
+          gflags /p /enable build\debug\core\tests.exe /full || echo "No gflags"
+          echo "cdb"
+          cdb -c "g; .sleep 5000; q" -logo cdb.txt -g -G build\debug\core\tests.exe || echo "No cdb"
+          echo "windbg"
+          windbg -c "g; .sleep 5000; q" -logo windbg.txt -g -G build\debug\core\tests.exe || echo "No windbg"
+          echo "done"
+          exit /b 0
+      - name: Run ucpio.exe under debugger
+        continue-on-error: true
+        run: |
+          cdb -c ".logopen ucpio.log; g; q" -o ucpio.exe || echo "Debugger caught an issue."
+      - name: Print debugger log
+        continue-on-error: true
+        run: cat ucpio.log
+      - name: Upload cdb.txt
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdb.txt
+          path: cdb.txt
+      - name: Upload windbg.txt
+        uses: actions/upload-artifact@v4
+        with:
+          name: windbg.txt
+          path: windbg.txt
       - name: Upload dumpbin output
         uses: actions/upload-artifact@v4
         with:
           name: dumpbin-output
           path: dumpbin_output.txt
+      - name: Upload cdb-ucpio.txt
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdb-ucpio.txt
+          path: cdb-ucpio.txt
+      - name: Upload windbg-ucpio.txt
+        uses: actions/upload-artifact@v4
+        with:
+          name: windbg-ucpio.txt
+          path: windbg-ucpio.txt
+      - name: Upload dumpbin-ucpio output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dumpbin-output-ucpio
+          path: dumpbin_output_ucpio.txt
+      - name: Upload dumpbin-test2 output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dumpbin-output-test2
+          path: dumpbin_output_test2.txt
       # - name: upload-artifact-w32test
       #   uses: actions/upload-artifact@v4
       #   with:

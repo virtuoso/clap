@@ -62,6 +62,14 @@ string(TIMESTAMP CONFIG_BUILDDATE "%Y%m%d_%H%M%S")
 configure_file(config.h.in config.h)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    if (WIN32)
+        set_source_files_properties(test2.c PROPERTIES
+                                    INCLUDE_DIRECTORIES ""
+                                    COMPILE_DEFINITIONS "WIN32_LEAN_AND_MEAN;UMDF_USING_NTSTATUS;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE")
+        add_executable(test2 test2.c)
+        win32_executable(test2)
+        add_test(test2 test2)
+    endif ()
     set(TEST_BIN tests)
     set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c
         ca2d.c xyarray.c memory.c cpio.c)

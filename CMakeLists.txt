@@ -17,8 +17,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CARGO_RELEASE_FLAG "" CACHE INTERNAL "")
     set(TARGET_DIR "debug" CACHE INTERNAL "")
     if (WIN32)
-        set(CMAKE_C_FLAGS "-DCLAP_DEBUG") # -fsanitize=address /Oy-
-        set(CMAKE_CXX_FLAGS "-DCLAP_DEBUG")
+        set(CMAKE_C_FLAGS "-DCLAP_DEBUG /guard:cf-") # -fsanitize=address /Oy-
+        set(CMAKE_CXX_FLAGS "-DCLAP_DEBUG /guard:cf-")
         set(W32LIBSUFFIX "d")
     else ()
         set(CMAKE_C_FLAGS "-ggdb -fsanitize=address -fno-omit-frame-pointer -DCLAP_DEBUG")
@@ -61,8 +61,9 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(PNG_LIBRARY PNG::PNG)
     set(OPENAL_LIBRARY OpenAL::OpenAL)
     set(GLEW_LIBRARIES GLEW::GLEW)
+    set(FREETYPE_LIBRARIES Freetype::Freetype)
     if (WIN32)
-        set(EXTRA_LIBRARIES internal ntdll Netapi32)
+        set(EXTRA_LIBRARIES ntdll Netapi32)
     else ()
         set(EXTRA_LIBRARIES m pthread stdc++)
     endif ()
@@ -98,6 +99,9 @@ ExternalProject_Add(ode
         -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${VCPKG_CHAINLOAD_TOOLCHAIN_FILE}
         -DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}
         -DCMAKE_C_COMPILER_FRONTEND_VARIANT=MSVC -DCMAKE_CXX_COMPILER_FRONTEND_VARIANT=MSVC
+        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        -DCMAKE_AR=${CMAKE_AR}
         -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
         -DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}
         -DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}
