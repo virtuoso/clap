@@ -1,4 +1,4 @@
-From 4b040bacfa47e21dad222ee260af64e41ce47d28 Mon Sep 17 00:00:00 2001
+From 318e33a7503eded3276a7f180ddf04e1e5a25f39 Mon Sep 17 00:00:00 2001
 From: Alexander Shishkin <alex@ash.works>
 Date: Sat, 22 Feb 2025 23:20:37 +0200
 Subject: [PATCH] cmake: Fix module search path
@@ -18,12 +18,14 @@ Also, hide wlibc_raise() calls behind WLIBC_SIGNALS.
 
 Also, comment out SEH (__try/__except).
 
+Also, replace the Rtl* unicode calls, which seem to be causing trouble.
+
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
- CMakeLists.txt       |  4 ++--
- src/internal/wmain.c | 55 ++++++++++++++++++++++++++++++++++++++------
+ CMakeLists.txt       |  4 +-
+ src/internal/wmain.c | 98 ++++++++++++++++++++++++++++++++++++++++----
  src/sys/time/clock.c |  2 +-
- 3 files changed, 51 insertions(+), 10 deletions(-)
+ 3 files changed, 94 insertions(+), 10 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index cb6030a..9dc9be8 100644
@@ -48,7 +50,7 @@ index cb6030a..9dc9be8 100644
  
  option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 diff --git a/src/internal/wmain.c b/src/internal/wmain.c
-index beb8d3c..28a54ae 100644
+index beb8d3c..b91a4c3 100644
 --- a/src/internal/wmain.c
 +++ b/src/internal/wmain.c
 @@ -14,11 +14,14 @@
@@ -95,7 +97,7 @@ index beb8d3c..28a54ae 100644
  		return EXCEPTION_CONTINUE_EXECUTION;
  
  	default:
-@@ -64,6 +73,11 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+@@ -64,8 +73,14 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
  	char **argv = NULL, **env = NULL;
  	UTF8_STRING *u8_args = NULL, *u8_env = NULL;
  
@@ -106,9 +108,55 @@ index beb8d3c..28a54ae 100644
 +#endif
  	if (argc)
  	{
++#if 0
  		argv = (char **)RtlAllocateHeap(NtCurrentProcessHeap(), 0, sizeof(char *) * (argc + 1)); // argv ends with NULL
-@@ -129,6 +143,9 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ 		u8_args = (UTF8_STRING *)RtlAllocateHeap(NtCurrentProcessHeap(), 0, sizeof(UTF8_STRING) * argc);
+ 
+@@ -91,8 +106,39 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ 			argv[i] = u8_args[i].Buffer;
+ 		}
+ 		argv[argc] = NULL;
++#else
++	// Allocate an argv array with room for argc + 1 pointers.
++	argv = malloc((argc + 1) * sizeof(char *));
++	if (!argv) {
++		// Allocation failure; exit with error.
++		return EXIT_FAILURE;
  	}
+ 
++	// Convert each wide argument to a narrow string.
++	for (int i = 0; i < argc; i++) {
++		// Determine required length (including the null terminator).
++		size_t len = wcstombs(NULL, wargv[i], 0);
++		if (len == (size_t)-1) {
++			// Conversion error; use an empty string.
++			len = 0;
++		}
++		argv[i] = malloc(len + 1);
++		if (!argv[i]) {
++			// Free previously allocated strings if allocation fails.
++			for (int j = 0; j < i; j++) {
++				free(argv[j]);
++			}
++			free(argv);
++			return -1;
++		}
++		// Perform the conversion.
++		wcstombs(argv[i], wargv[i], len + 1);
++	}
++	argv[argc] = NULL;  // Null-terminate the argv array.
++#endif
++	}
++
++#if 0
+ 	if (wenv)
+ 	{
+ 		for (envc = 0; wenv[envc] != NULL; ++envc)
+@@ -127,8 +173,12 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ 		}
+ 		env[envc] = NULL;
+ 	}
++#endif
  
  #ifdef WLIBC_IO
 +#ifdef CLAP_DEBUG
@@ -117,7 +165,7 @@ index beb8d3c..28a54ae 100644
  	// DO NOT change the order of this.
  	init_fd_table();
  	initialize_stdio();
-@@ -136,39 +153,63 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+@@ -136,50 +186,83 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
  	atexit(cleanup_stdio);
  #endif
  #ifdef WLIBC_SIGNALS
@@ -188,6 +236,34 @@ index beb8d3c..28a54ae 100644
  
  	if (argc)
  	{
++#if 0
+ 		for (int i = 0; i < argc; i++)
+ 		{
+ 			RtlFreeUTF8String(&u8_args[i]);
+ 		}
+ 		RtlFreeHeap(NtCurrentProcessHeap(), 0, u8_args);
+ 		RtlFreeHeap(NtCurrentProcessHeap(), 0, argv);
++#else
++		for (int i = 0; i < argc; i++)
++		{
++			free(argv[i]);
++		}
++		free(argv);
++#endif
+ 	}
+ 
++#if 0
+ 	if (wenv)
+ 	{
+ 		for (int i = 0; i < envc; i++)
+@@ -189,6 +272,7 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
+ 		RtlFreeHeap(NtCurrentProcessHeap(), 0, u8_env);
+ 		RtlFreeHeap(NtCurrentProcessHeap(), 0, env);
+ 	}
++#endif
+ 
+ 	return exit_status;
+ }
 diff --git a/src/sys/time/clock.c b/src/sys/time/clock.c
 index 6698e04..3d11b5e 100644
 --- a/src/sys/time/clock.c
