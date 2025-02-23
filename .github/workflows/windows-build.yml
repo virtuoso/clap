@@ -5,6 +5,7 @@ jobs:
     runs-on: windows-2019
     env:
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      ProgramFiles: "C:/Program Files"
     defaults:
       run:
         shell: bash
@@ -30,7 +31,7 @@ jobs:
       - name: configure
         run: |
           # cmake --preset w32test -B build/test "${{ github.workspace }}"
-          cmake --preset w32debug -B build/debug "${{ github.workspace }}"
+          env ProgramFiles="C:/Program Files" cmake --preset w32debug -B build/debug "${{ github.workspace }}"
       - name: build
         run: |
           # cmake --build build/test --parallel 4 --verbose
