@@ -1,4 +1,4 @@
-From 0194332bf310bf104655d5e883a6b2d587ef25b7 Mon Sep 17 00:00:00 2001
+From 4b040bacfa47e21dad222ee260af64e41ce47d28 Mon Sep 17 00:00:00 2001
 From: Alexander Shishkin <alex@ash.works>
 Date: Sat, 22 Feb 2025 23:20:37 +0200
 Subject: [PATCH] cmake: Fix module search path
@@ -12,8 +12,6 @@ While at it, disable all compilation warnings.
 
 Also, fix clock_gettime() tv_nsec calculation.
 
-Also, make wmain visible.
-
 Also, instrument wmain() with _CrtDbgReport().
 
 Also, hide wlibc_raise() calls behind WLIBC_SIGNALS.
@@ -22,10 +20,10 @@ Also, comment out SEH (__try/__except).
 
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
- CMakeLists.txt       |  4 +--
- src/internal/wmain.c | 59 +++++++++++++++++++++++++++++++++++++-------
+ CMakeLists.txt       |  4 ++--
+ src/internal/wmain.c | 55 ++++++++++++++++++++++++++++++++++++++------
  src/sys/time/clock.c |  2 +-
- 3 files changed, 53 insertions(+), 12 deletions(-)
+ 3 files changed, 51 insertions(+), 10 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index cb6030a..9dc9be8 100644
@@ -50,7 +48,7 @@ index cb6030a..9dc9be8 100644
  
  option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 diff --git a/src/internal/wmain.c b/src/internal/wmain.c
-index beb8d3c..4666a8f 100644
+index beb8d3c..28a54ae 100644
 --- a/src/internal/wmain.c
 +++ b/src/internal/wmain.c
 @@ -14,11 +14,14 @@
@@ -97,13 +95,7 @@ index beb8d3c..4666a8f 100644
  		return EXCEPTION_CONTINUE_EXECUTION;
  
  	default:
-@@ -58,12 +67,17 @@ int exception_handler(DWORD code)
- 	}
- }
- 
- int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
- {
- 	int envc = 0;
+@@ -64,6 +73,11 @@ int wmain(int argc, wchar_t **wargv, wchar_t **wenv)
  	char **argv = NULL, **env = NULL;
  	UTF8_STRING *u8_args = NULL, *u8_env = NULL;
  
