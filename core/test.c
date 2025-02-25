@@ -500,6 +500,8 @@ int main(int argc, char **argv, char **envp)
 {
     int ret, i, c, option_index;
 
+    /* XXX: wlibc debug; XXX: make it an option for logger? */
+    setvbuf(stdout, NULL, _IONBF, 0);
     cerr err = messagebus_init();
     if (IS_CERR(err))
         return EXIT_FAILURE;
