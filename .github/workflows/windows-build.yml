@@ -36,11 +36,11 @@ jobs:
           echo "${HOME}/bin" >> $GITHUB_PATH
       - name: configure
         run: |
-          # cmake --preset w32test -B build/test "${{ github.workspace }}"
+          cmake --preset w32test -B build/test "${{ github.workspace }}"
           env ProgramFiles="C:/Program Files" cmake --preset w32debug -B build/debug "${{ github.workspace }}"
       - name: build
         run: |
-          # cmake --build build/test --parallel 4 --verbose
+          cmake --build build/test --parallel 4 --verbose || echo test-failed
           cmake --build build/debug --parallel 4 --verbose || echo debug-failed
       - name: test
         run: |
@@ -49,6 +49,7 @@ jobs:
           ls -l build/debug/tools/ucpio/ucpio.exe || echo no-ucpio.exe
           find build/debug -name 'tests.map'
           export __COMPAT_LAYER=DisableCfg
+          ctest --test-dir build/test --verbose --rerun-failed --output-on-failure 2>&1 || cat build/debug/Testing/Temporary/LastTest.log
           ctest --test-dir build/debug --verbose --rerun-failed --output-on-failure 2>&1 || cat build/debug/Testing/Temporary/LastTest.log
           # echo "C:/msys64/usr/bin" >> $GITHUB_PATH
           # find /c/msys64 -name ntldd.exe
@@ -79,11 +80,11 @@ jobs:
           c:\MSYS64\bin\ntldd build\debug\core\tests.exe || echo "No ntldd"
           echo "gflags"
           gflags /p /enable build\debug\core\tests.exe /full || echo "No gflags"
-          echo "cdb"
-          cdb -c "g; .sleep 5000; q" -logo cdb.txt -g -G build\debug\core\tests.exe || echo "No cdb"
-          echo "windbg"
-          windbg -c "g; .sleep 5000; q" -logo windbg.txt -g -G build\debug\core\tests.exe || echo "No windbg"
-          echo "done"
+          # echo "cdb"
+          # cdb -c "g; .sleep 5000; q" -logo cdb.txt -g -G build\debug\core\tests.exe || echo "No cdb"
+          # echo "windbg"
+          # windbg -c "g; .sleep 5000; q" -logo windbg.txt -g -G build\debug\core\tests.exe || echo "No windbg"
+          # echo "done"
           exit /b 0
       - name: Run ucpio.exe under debugger
         continue-on-error: true
@@ -127,12 +128,12 @@ jobs:
         with:
           name: dumpbin-output-test2
           path: dumpbin_output_test2.txt
-      # - name: upload-artifact-w32test
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: clap
-      #     retention-days: 30
-      #     path: ${{ github.workspace }}/build/test/demo/ldjam56/ldjam56.exe
+      - name: upload-artifact-w32test
+        uses: actions/upload-artifact@v4
+        with:
+          name: clap
+          retention-days: 30
+          path: ${{ github.workspace }}/build/test/demo/ldjam56/ldjam56.exe
       - name: upload-artifact-w32debug
         uses: actions/upload-artifact@v4
         with:
