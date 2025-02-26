@@ -27,6 +27,12 @@ jobs:
           echo "${{ github.workspace }}"
           git clone https://github.com/MarkSchofield/WindowsToolchain.git ../WindowsToolchain
           vcpkg install libpng:x64-windows-static glfw3:x64-windows-static glew:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
+      - name: Install Ninja
+        run: |
+          curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip
+          mkdir ~/bin
+          unzip ninja.zip -d ~/bin
+          echo "${HOME}/bin" >> $GITHUB_PATH
       - name: configure
         run: |
           cmake --preset w32test -B build/test "${{ github.workspace }}"
