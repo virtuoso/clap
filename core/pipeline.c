@@ -498,8 +498,13 @@ repeat:
                 bool shadow = fbo_get_attachment(fbo) == FBO_ATTACHMENT_DEPTH;
                 bool clear_color = true, clear_depth = false;
                 if (shadow) {
+                    renderer_cleardepth(pl->renderer, 0.0);
+                    renderer_depth_func(pl->renderer, DEPTH_FN_GREATER);
                     renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
                     clear_color = false;
+                } else {
+                    renderer_cleardepth(pl->renderer, 1.0);
+                    renderer_depth_func(pl->renderer, DEPTH_FN_LESS);
                 }
 
                 if (!src)

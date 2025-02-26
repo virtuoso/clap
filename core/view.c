@@ -176,7 +176,7 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
     }
 
     mat4x4_ortho(dst->proj_mx.m, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
-                 aabb_min[2] * near_factor, aabb_max[2] * far_factor);
+                 aabb_max[2] * far_factor, aabb_min[2] * near_factor);
     subview_calc_frustum(dst);
     subview_debug(dst, light_pos, _aabb_min, _aabb_max, aabb_min, aabb_max);
 }

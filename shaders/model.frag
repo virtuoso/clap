@@ -51,7 +51,7 @@ float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in flo
     for (int x = -pcf_count; x < pcf_count; x++)
         for (int y = -pcf_count; y < pcf_count; y++) {
             float shadow_distance = texel_fetch_2darray(map, vec3(pos.xy, float(layer)), ivec2(x, y)).r;
-            if (pos.z - bias > shadow_distance)
+            if (pos.z + bias < shadow_distance)
                 total += 1.0;
         }
 
@@ -67,7 +67,7 @@ float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
     for (int x = -pcf_count; x < pcf_count; x++)
         for (int y = -pcf_count; y < pcf_count; y++) {
             float shadow_distance = texel_fetch_2d(map, pos.xy, ivec2(x, y)).r;
-            if (pos.z - bias > shadow_distance)
+            if (pos.z + bias < shadow_distance)
                 total += 1.0;
         }
 
@@ -82,7 +82,7 @@ float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in int layer, in 
     for (int i = 0; i < MSAA_SAMPLES; i++) {
         float shadow_distance = texel_fetch_2dms_array_sample(map, vec3(pos.xy, float(layer)), i).r;
 
-        if (pos.z - bias > shadow_distance)
+        if (pos.z + bias < shadow_distance)
             total += 1.0;
     }
     total /= MSAA_SAMPLES;
