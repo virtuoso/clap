@@ -25,7 +25,6 @@ jobs:
         run: |
           pwd
           echo "${{ github.workspace }}"
-          git clone https://github.com/MarkSchofield/WindowsToolchain.git ../WindowsToolchain
           vcpkg install libpng:x64-windows-static glfw3:x64-windows-static glew:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
       - name: Install Ninja
         run: |
