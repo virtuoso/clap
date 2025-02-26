@@ -41,23 +41,36 @@ static struct gl_limits {
 } gl_limits;
 
 static const GLuint gl_comp_type[] = {
-    [DT_FLOAT]  = GL_FLOAT,
-    [DT_INT]    = GL_INT,
+    [DT_BYTE]   = GL_UNSIGNED_BYTE,
     [DT_SHORT]  = GL_SHORT,
     [DT_USHORT] = GL_UNSIGNED_SHORT,
-    [DT_BYTE]   = GL_UNSIGNED_BYTE,
+    [DT_INT]    = GL_INT,
+    [DT_FLOAT]  = GL_FLOAT,
+    [DT_IVEC2]  = GL_INT,
+    [DT_IVEC3]  = GL_INT,
+    [DT_IVEC4]  = GL_INT,
+    [DT_VEC2]   = GL_FLOAT,
     [DT_VEC3]   = GL_FLOAT,
     [DT_VEC4]   = GL_FLOAT,
+    [DT_MAT2]   = GL_FLOAT,
+    [DT_MAT3]   = GL_FLOAT,
     [DT_MAT4]   = GL_FLOAT,
 };
 
 static const unsigned int gl_comp_count[] = {
-    [DT_FLOAT]  = 1,
-    [DT_INT]    = 1,
-    [DT_SHORT]  = 1,
     [DT_BYTE]   = 1,
+    [DT_SHORT]  = 1,
+    [DT_USHORT] = 1,
+    [DT_INT]    = 1,
+    [DT_FLOAT]  = 1,
+    [DT_IVEC2]  = 2,
+    [DT_IVEC3]  = 3,
+    [DT_IVEC4]  = 4,
+    [DT_VEC2]   = 2,
     [DT_VEC3]   = 3,
     [DT_VEC4]   = 4,
+    [DT_MAT2]   = 4,
+    [DT_MAT3]   = 9,
     [DT_MAT4]   = 16,
 };
 

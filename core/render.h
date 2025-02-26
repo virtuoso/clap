@@ -48,8 +48,14 @@ typedef enum data_type {
     DT_USHORT,
     DT_INT,
     DT_FLOAT,
+    DT_IVEC2,
+    DT_IVEC3,
+    DT_IVEC4,
+    DT_VEC2,
     DT_VEC3,
     DT_VEC4,
+    DT_MAT2,
+    DT_MAT3,
     DT_MAT4,
 } data_type;
 
