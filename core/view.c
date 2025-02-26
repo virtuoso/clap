@@ -59,8 +59,11 @@ static void view_debug_begin(void)
         return;
 
     igSliderFloat("frustum extra", &frustum_extra, 1.0, 50.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+    igSliderFloat("near buffer", &near_buffer, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("near plane", &near_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("far plane", &far_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+    igSliderFloat("aabb margin XY", &aabb_margin_xy, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+    igSliderFloat("aabb margin Z", &aabb_margin_z, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
 }
 
 static void subview_debug(struct subview *dst, float *light_pos,
