@@ -1094,6 +1094,7 @@ void renderer_init(renderer_t *renderer)
     static_assert(sizeof(GLsizei) == sizeof(int), "GLsizei doesn't match int");
     static_assert(sizeof(GLfloat) == sizeof(float), "GLfloat doesn't match float");
     static_assert(sizeof(GLushort) == sizeof(unsigned short), "GLushort doesn't match unsigned short");
+    static_assert(sizeof(GLsizeiptr) == sizeof(ptrdiff_t), "GLsizeiptr doesn't match ptrdiff_t");
 
     /* Clear the any error state */
     (void)glGetError();

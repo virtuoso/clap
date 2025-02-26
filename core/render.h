@@ -31,6 +31,7 @@ typedef float GLfloat;
 typedef unsigned int GLenum;
 typedef unsigned int GLuint;
 typedef unsigned short GLushort;
+typedef ptrdiff_t GLsizeiptr;
 # endif /* IMPLEMENTOR */
 #else
 # error "Unsupported renderer"
