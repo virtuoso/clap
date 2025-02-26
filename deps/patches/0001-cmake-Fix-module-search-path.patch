@@ -1,4 +1,4 @@
-From 7609cd7a53573ae385793a5c800d419ecf0b6770 Mon Sep 17 00:00:00 2001
+From d33844a653639edef0d9d8e3e4126355aeccd163 Mon Sep 17 00:00:00 2001
 From: Alexander Shishkin <alex@ash.works>
 Date: Tue, 25 Feb 2025 22:45:48 +0200
 Subject: [PATCH] cmake: Fix module search path
@@ -15,12 +15,15 @@ Also, fix clock_gettime() tv_nsec calculation.
 Also, conditionally replace the Rtl* unicode calls with stubs so that
 programs don't crash with 0xc0000139 on older Windows.
 
+Also, actually delete streams on close_all_streams().
+
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
  CMakeLists.txt        |   4 +-
  include/internal/nt.h | 114 ++++++++++++++++++++++++++++++++++++++++++
+ src/stdio/internal.c  |   2 +-
  src/sys/time/clock.c  |   2 +-
- 3 files changed, 117 insertions(+), 3 deletions(-)
+ 4 files changed, 118 insertions(+), 4 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 820d498..f751716 100644
@@ -192,6 +195,20 @@ index acb8b10..7c00687 100644
  
  //
  // Define the create disposition values
+diff --git a/src/stdio/internal.c b/src/stdio/internal.c
+index 48e4913..50cd5a3 100644
+--- a/src/stdio/internal.c
++++ b/src/stdio/internal.c
+@@ -62,8 +62,8 @@ void close_all_streams(void)
+ 		FILE *prev = _wlibc_stdio_head->prev;
+ 
+ 		close_fd(_wlibc_stdio_head->fd);
+-		RtlFreeHeap(NtCurrentProcessHeap(), 0, _wlibc_stdio_head);
+ 
++		delete_stream(_wlibc_stdio_head);
+ 		_wlibc_stdio_head = prev;
+ 	}
+ 
 diff --git a/src/sys/time/clock.c b/src/sys/time/clock.c
 index f83e425..9978092 100644
 --- a/src/sys/time/clock.c
