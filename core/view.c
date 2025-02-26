@@ -18,6 +18,8 @@ static float near_factor = 0.0, far_factor = 1.0, frustum_extra = 10.0;
  */
 static float aabb_margin_xy = 1.0;
 static float aabb_margin_z = 5.5;
+/* Adjust near plane computation for better stability */
+static float near_buffer = 10.0f;
 
 static void subview_calc_frustum(struct subview *subview);
 
@@ -139,9 +141,9 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
     }
 
     if (_aabb_min[2] < 0)
-        _aabb_min[2] *= frustum_extra;
+        _aabb_min[2] *= (frustum_extra * 0.5f);  // XXX: or just reduce frustum_extra at the source?
     else
-        _aabb_min[2] /= frustum_extra;
+        _aabb_min[2] -= near_buffer;  // Add a small buffer instead or XXX: unify the two?
     // if (aabb_max[2] < 0)
     //     aabb_max[2] /= FRUSTUM_EXTRA;
     // else
