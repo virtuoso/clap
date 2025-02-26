@@ -5,6 +5,19 @@
 #include "ui-debug.h"
 
 static float near_factor = 0.0, far_factor = 1.0, frustum_extra = 10.0;
+/*
+ * Margins around the frustum AABB box; there're 2 of them, because they
+ * don't need to be uniform in all directions, but they do need to be as
+ * small as possible without clipping.
+ * A higher margin may indicate a large scale scene, it might make sense
+ * to dynamically adjust it:
+ *
+ *   dynamic_margin = max(5.5f, scene_scale * 0.05f);
+ *
+ * where scene_scale would be derived from the scene's bounding box.
+ */
+static float aabb_margin_xy = 1.0;
+static float aabb_margin_z = 5.5;
 
 static void subview_calc_frustum(struct subview *subview);
 
@@ -116,10 +129,13 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
         vec4 corner;
         mat4x4_mul_vec4(corner, dst->view_mx.m, src->frustum_corners[i]);
 
-        for (j = 0; j < 3; j++) {
-            _aabb_min[j] = fminf(_aabb_min[j], corner[j]);
-            _aabb_max[j] = fmaxf(_aabb_max[j], corner[j]);
+        /* Add some padding to the AABB to avoid precision issues */
+        for (j = 0; j < 2; j++) {
+            _aabb_min[j] = fminf(_aabb_min[j], corner[j]) - aabb_margin_xy;
+            _aabb_max[j] = fmaxf(_aabb_max[j], corner[j]) + aabb_margin_xy;
         }
+        _aabb_min[j] = fminf(_aabb_min[j], corner[j]) - aabb_margin_z;
+        _aabb_max[j] = fmaxf(_aabb_max[j], corner[j]) + aabb_margin_z;
     }
 
     if (_aabb_min[2] < 0)
