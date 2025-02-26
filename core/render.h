@@ -266,12 +266,25 @@ typedef enum {
     RENDERER_ANY_PROFILE,
 } renderer_profile;
 
+typedef enum {
+    DEPTH_FN_NEVER,
+    DEPTH_FN_LESS,
+    DEPTH_FN_EQUAL,
+    DEPTH_FN_LESS_OR_EQUAL,
+    DEPTH_FN_GREATER,
+    DEPTH_FN_NOT_EQUAL,
+    DEPTH_FN_GREATER_OR_EQUAL,
+    DEPTH_FN_ALWAYS,
+} depth_func;
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(renderer,
     GLenum              cull_face;
     GLenum              blend_sfactor;
     GLenum              blend_dfactor;
+    GLenum              depth_func;
     vec4                clear_color;
+    double              clear_depth;
     int                 major;
     int                 minor;
     renderer_profile    profile;
@@ -305,6 +318,8 @@ typedef enum {
 } blend;
 
 void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
+void renderer_depth_func(renderer_t *r, depth_func fn);
+void renderer_cleardepth(renderer_t *r, double depth);
 void renderer_depth_test(renderer_t *r, bool enable);
 void renderer_wireframe(renderer_t *r, bool enable);
 void renderer_clearcolor(renderer_t *r, vec4 color);

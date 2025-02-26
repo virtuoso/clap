@@ -1124,6 +1124,8 @@ void renderer_init(renderer_t *renderer)
     renderer_blend(renderer, false, BLEND_NONE, BLEND_NONE);
     GL(glEnable(GL_DEPTH_TEST));
     renderer_depth_test(renderer, true);
+    renderer_depth_func(renderer, DEPTH_FN_LESS);
+    renderer_cleardepth(renderer, 1.0);
 #ifndef EGL_EGL_PROTOTYPES
     GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
 #endif /* EGL_EGL_PROTOTYPES */
@@ -1309,6 +1311,57 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, da
     GLenum _idx_type = gl_comp_type[idx_type];
     GLenum _draw_type = gl_draw_type(draw_type);
     GL(glDrawElements(_draw_type, nr_faces, _idx_type, 0));
+}
+
+static GLenum gl_depth_func(depth_func fn)
+{
+    switch (fn) {
+        case DEPTH_FN_NEVER:
+            return GL_NEVER;
+        case DEPTH_FN_LESS:
+            return GL_LESS;
+        case DEPTH_FN_EQUAL:
+            return GL_EQUAL;
+        case DEPTH_FN_LESS_OR_EQUAL:
+            return GL_LEQUAL;
+        case DEPTH_FN_GREATER:
+            return GL_GREATER;
+        case DEPTH_FN_NOT_EQUAL:
+            return GL_NOTEQUAL;
+        case DEPTH_FN_GREATER_OR_EQUAL:
+            return GL_GEQUAL;
+        case DEPTH_FN_ALWAYS:
+            return GL_ALWAYS;
+        default:    break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+void renderer_depth_func(renderer_t *r, depth_func fn)
+{
+    GLenum _fn = gl_depth_func(fn);
+
+    if (r->depth_func == _fn)
+        return;
+
+    r->depth_func = _fn;
+    GL(glDepthFunc(r->depth_func));
+}
+
+void renderer_cleardepth(renderer_t *r, double depth)
+{
+    if (r->clear_depth == depth)
+        return;
+
+    r->clear_depth = depth;
+#ifdef CONFIG_GLES
+    GL(glClearDepthf((float)r->clear_depth));
+#else
+    GL(glClearDepth(r->clear_depth));
+#endif /* CONFIG_GLES */
 }
 
 void renderer_clearcolor(renderer_t *r, vec4 color)
