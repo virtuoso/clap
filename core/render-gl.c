@@ -973,6 +973,81 @@ void binding_points_add(binding_points_t *bps, shader_stage stage, int binding)
 }
 
 /****************************************************************************
+ * UBOs
+ ****************************************************************************/
+
+static cerr uniform_buffer_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(uniform_buffer) *opts = _opts;
+
+    if (opts->binding < 0)
+        return CERR_INVALID_ARGUMENTS;
+
+    uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
+
+    ubo->binding = opts->binding;
+    ubo->dirty   = true;
+
+    GL(glGenBuffers(1, &ubo->id));
+
+    return CERR_OK;
+}
+
+static void uniform_buffer_drop(struct ref *ref)
+{
+    uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
+
+    mem_free(ubo->data);
+    GL(glDeleteBuffers(1, &ubo->id));
+}
+DEFINE_REFCLASS2(uniform_buffer);
+
+cerr_check uniform_buffer_init(uniform_buffer_t *ubo, int binding)
+{
+    return ref_embed(uniform_buffer, ubo, .binding = binding);
+}
+
+void uniform_buffer_done(uniform_buffer_t *ubo)
+{
+    if (!ref_is_static(&ubo->ref))
+        ref_put_last(ubo);
+    else
+        uniform_buffer_drop(&ubo->ref);
+}
+
+cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
+{
+    /* There's no reason to ever want to reallocate a UBO */
+    if (ubo->data || ubo->size)
+        return CERR_INVALID_OPERATION;
+
+    ubo->data = mem_alloc(size, .zero = 1);
+    if (!ubo->data)
+        return CERR_NOMEM;
+
+    ubo->size = size;
+
+    GL(glBindBuffer(GL_UNIFORM_BUFFER, ubo->id));
+    GL(glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_DYNAMIC_DRAW));
+    GL(glBindBufferBase(GL_UNIFORM_BUFFER, ubo->binding, ubo->id));
+    GL(glBindBuffer(GL_UNIFORM_BUFFER, 0));
+
+    return CERR_OK;
+}
+
+void uniform_buffer_update(uniform_buffer_t *ubo)
+{
+    if (!ubo->dirty)
+        return;
+
+    GL(glBindBuffer(GL_UNIFORM_BUFFER, ubo->id));
+    GL(glBufferSubData(GL_UNIFORM_BUFFER, 0, ubo->size, ubo->data));
+    GL(glBindBuffer(GL_UNIFORM_BUFFER, 0));
+
+    ubo->dirty = false;
+}
+
+/****************************************************************************
  * Shaders
  ****************************************************************************/
 

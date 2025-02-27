@@ -267,6 +267,26 @@ void binding_points_done(binding_points_t *bps);
 void binding_points_add(binding_points_t *bps, shader_stage stage, int binding);
 
 #ifdef CONFIG_RENDERER_OPENGL
+TYPE(uniform_buffer,
+    struct ref  ref;
+    GLsizeiptr  size;     /* Size in bytes */
+    GLuint      id;       /* GL buffer object */
+    GLuint      binding;  /* UBO binding point */
+    void        *data;    /* CPU-side shadow buffer */
+    bool        dirty;    /* Flag for updates */
+);
+#endif
+
+DEFINE_REFCLASS_INIT_OPTIONS(uniform_buffer,
+    int     binding;
+);
+
+cerr_check uniform_buffer_init(uniform_buffer_t *ubo, int binding);
+cerr_check uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
+void uniform_buffer_done(uniform_buffer_t *ubo);
+void uniform_buffer_update(uniform_buffer_t *ubo);
+
+#ifdef CONFIG_RENDERER_OPENGL
 TYPE(shader,
     GLuint  vert;
     GLuint  frag;
