@@ -39,7 +39,7 @@ git submodule update --init --recursive
 ### Install dependencies
 
 ```sh
-brew install cmake glew zlib libpng libogg libvorbis freetype glfw shaderc spirv-cross
+brew install cmake glew zlib libpng libogg libvorbis freetype glfw shaderc spirv-cross pkg-config
 ```
 
 ### Build
