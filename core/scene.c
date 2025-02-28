@@ -507,7 +507,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         int i, root = gltf_root_mesh(gd);
 
         collision = gltf_mesh_by_name(gd, "collision");
-        if (root < 0)
+        if (root < 0) {
             for (i = 0; i < gltf_get_meshes(gd); i++)
                 if (i != collision) {
                     cerr err = gltf_instantiate_one(gd, i);
@@ -517,9 +517,17 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                     }
                     break; /* XXX: why? */
                 }
+        } else {
+            cerr err = gltf_instantiate_one(gd, root);
+            if (IS_CERR(err)) {
+                gltf_free(gd);
+                return err;
+            }
+        }
+
         /* In the absence of a dedicated collision mesh, use the main one */
         if (collision < 0)
-            collision = 0;
+            collision = root ? root : 0;
     } else {
         cerr err = gltf_instantiate_one(gd, 0);
         if (IS_CERR(err)) {
