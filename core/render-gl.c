@@ -74,6 +74,60 @@ static const unsigned int gl_comp_count[] = {
     [DT_MAT4]   = 16,
 };
 
+static const size_t gl_comp_size[] = {
+    [DT_BYTE]   = sizeof(GLbyte),
+    [DT_SHORT]  = sizeof(GLshort),
+    [DT_USHORT] = sizeof(GLushort),
+    [DT_INT]    = sizeof(GLint),
+    [DT_FLOAT]  = sizeof(GLfloat),
+    [DT_IVEC2]  = sizeof(GLint),
+    [DT_IVEC3]  = sizeof(GLint),
+    [DT_IVEC4]  = sizeof(GLint),
+    [DT_VEC3]   = sizeof(GLfloat),
+    [DT_VEC4]   = sizeof(GLfloat),
+    [DT_MAT4]   = sizeof(GLfloat),
+};
+
+static inline size_t gl_type_size(data_type type)
+{
+    if (unlikely(type >= array_size(gl_comp_size)))
+        return 0;
+
+    return gl_comp_size[type] * gl_comp_count[type];
+}
+
+/* Get std140 storage size for a given type */
+static inline size_t gl_type_storage_size(data_type type)
+{
+    size_t storage_size = gl_type_size(type);
+    if (!storage_size) {
+        clap_unreachable();
+        return 0;
+    }
+
+
+    /* Matrices are basically arrays of vec4 (technically, vecN padded to 16 bytes) */
+    switch (type) {
+        case DT_MAT2:
+            storage_size = 2 * gl_type_size(DT_VEC4); /* vec2 padded to vec4 */
+            break;
+        case DT_MAT3:
+            storage_size = 3 * gl_type_size(DT_VEC4); /* vec3 padded to vec4 */
+            break;
+        /* And what's left is mat4, which is perfect as it is */
+        default:
+            /*
+             * Everything is 16-byte aligned;
+             * vec4 and mat4 are perfect as they are
+             */
+            if (storage_size < 16)
+                storage_size = 16;
+            break;
+    }
+
+    return storage_size;
+}
+
 /****************************************************************************
  * Buffer
  ****************************************************************************/
@@ -1045,6 +1099,70 @@ void uniform_buffer_update(uniform_buffer_t *ubo)
     GL(glBindBuffer(GL_UNIFORM_BUFFER, 0));
 
     ubo->dirty = false;
+}
+
+cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, unsigned int count,
+                        const void *value)
+{
+    size_t elem_size = gl_type_size(type);            /* C ABI element size */
+    size_t storage_size = gl_type_storage_size(type); /* std140-aligned size */
+    bool dirty = ubo->dirty;
+    cerr err = CERR_OK;
+
+    if (!elem_size || !storage_size)
+        return CERR_INVALID_ARGUMENTS;
+
+    const char *src = (const char *)value;
+    char *dst = (char *)ubo->data + *offset;
+
+    /*
+     * Copy elements from a C array to std140 array. Because unlike C, std140
+     * uses fun alignments for various types that don't match C at all, they
+     * need to be copied one at a time.
+     */
+    for (unsigned int i = 0; i < count; i++) {
+        if (value) {
+            /* If we overshoot, the buffer is still dirty, return straight away */
+            if (*offset + storage_size > ubo->size) {
+                err = CERR_BUFFER_OVERRUN;
+                goto out;
+            }
+
+            if (type == DT_MAT2 || type == DT_MAT3) {
+                /* Manually copy row-by-row with padding */
+                bool is_mat3 = type == DT_MAT2;
+                int rows = is_mat3 ? 3 : 2;
+                /* Source row: DT_VEC2 or DT_VEC3 */
+                size_t row_size = gl_type_size(is_mat3 ? DT_VEC3 : DT_VEC2);
+                /* Destination row: DT_VEC4 */
+                size_t row_stride = gl_type_storage_size(DT_VEC4);
+
+                for (int r = 0; r < rows; r++) {
+                    if (memcmp(dst, src, row_size)) {
+                        memcpy(dst, src, row_size);
+                        dirty = true;
+                    }
+                    src += row_size;             /* Move to next row */
+                    dst += row_stride;           /* Move to next aligned row */
+                }
+            } else {
+                /* Only update the target value if it changed */
+                if (memcmp(dst, src, elem_size)) {
+                    /* Copy only valid bytes */
+                    memcpy(dst, src, elem_size);
+                    dirty = true;
+                }
+                src += elem_size;            /* Move to next element (C ABI aligned) */
+                dst += storage_size;         /* Move to next element (std140 aligned) */
+            }
+        }
+        *offset += storage_size;
+    }
+
+out:
+    ubo->dirty = dirty;
+
+    return err;
 }
 
 /****************************************************************************

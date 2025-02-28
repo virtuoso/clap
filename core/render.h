@@ -286,6 +286,15 @@ cerr_check uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
 void uniform_buffer_done(uniform_buffer_t *ubo);
 void uniform_buffer_update(uniform_buffer_t *ubo);
 
+/*
+ * Put data into a uniform buffer in conformance with whatever data
+ * layout rules the renderer imposes (i.e. GL's std140), adjust the
+ * offset to point past the copied data. value==NULL is allowed, in
+ * which case just adjust the offset.
+ */
+cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, unsigned int count,
+                              const void *value);
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(shader,
     GLuint  vert;
