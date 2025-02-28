@@ -285,6 +285,7 @@ cerr_check uniform_buffer_init(uniform_buffer_t *ubo, int binding);
 cerr_check uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
 void uniform_buffer_done(uniform_buffer_t *ubo);
 void uniform_buffer_update(uniform_buffer_t *ubo);
+cerr_check uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points);
 
 /*
  * Put data into a uniform buffer in conformance with whatever data

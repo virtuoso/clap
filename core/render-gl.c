@@ -32,6 +32,7 @@ static inline bool __gl_check_error(const char *str)
 #endif
 
 static struct gl_limits {
+    GLint gl_max_ubo_bindings;
     GLint gl_max_texture_size;
     GLint gl_max_texture_units;
     GLint gl_max_texture_layers;
@@ -1089,6 +1090,22 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
     return CERR_OK;
 }
 
+cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
+{
+    if (binding_points->binding < 0)
+        return CERR_INVALID_ARGUMENTS;
+
+    if (binding_points->binding >= gl_limits.gl_max_ubo_bindings)
+        return CERR_TOO_LARGE;
+
+    if (unlikely(!ubo->data || !ubo->size))
+        return CERR_BUFFER_INCOMPLETE;
+
+    GL(glBindBufferBase(GL_UNIFORM_BUFFER, binding_points->binding, ubo->id));
+
+    return CERR_OK;
+}
+
 void uniform_buffer_update(uniform_buffer_t *ubo)
 {
     if (!ubo->dirty)
@@ -1337,6 +1354,7 @@ void renderer_init(renderer_t *renderer)
     GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
     GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));
     GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits.gl_max_color_attachments));
+    GL(glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &gl_limits.gl_max_ubo_bindings));
 #ifndef CONFIG_GLES
     GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits.gl_max_color_texture_samples));
     GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
