@@ -161,9 +161,6 @@ This only works if you have a working **gdb**, that is, on Linux.
 
 I have not tried lldb on Linux, the below may or may not work on Linux as well. Having used gdb for decades, I find lldb's command interface differs from gdb's just enough to make using it extremely irritating. You don't have to worry about this as long as you're using it from vscode.
 
-> [!NOTE]
-> The only way to get the console output on Mac OS X is to launch the external terminal (the "externalConsole" option below). The problem is that it will launch a new instance or a new tab of the terminal every time, which is tiresome, so it's commented out below.
-
 **.vscode/launch.json**
 ```json
 {
@@ -176,7 +173,8 @@ I have not tried lldb on Linux, the below may or may not work on Linux as well. 
             "cwd": "${workspaceFolder}",
             "args": [ "-E" ],
             "MIMode": "lldb",
-            // "externalConsole": true,
+            "externalConsole": false,
+            "internalConsoleOptions": "openOnSessionStart",
             "program": "${command:cmake.buildDirectory}/demo/ldjam56/${command:cmake.launchTargetFilename}",
         }
     ]
