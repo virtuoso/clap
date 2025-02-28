@@ -50,7 +50,7 @@ You'll need 3 files in the local **.vscode** directory: **settings.json**, **tas
     "editor.formatOnType": false,
     "editor.formatOnPaste": false,
     "editor.formatOnSave": false,
-    "C_Cpp.default.compileCommands": "${workspaceRoot}/build/${command:cmake.configurePreset}/compile_commands.json",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/${command:cmake.configurePreset}/compile_commands.json",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "cmake.configureOnOpen": false,
     "cmake.parallelJobs": 4,
@@ -136,7 +136,7 @@ This only works if you have a working **gdb**, that is, on Linux.
             "program": "${command:cmake.buildDirectory}/demo/ldjam56/${command:cmake.launchTargetFilename}",
             "args": [ "-E" ],
             "stopAtEntry": false,
-            "cwd": "${workspaceRoot}",
+            "cwd": "${workspaceFolder}",
             "environment": [{
                 "name": "DISPLAY",
                 "value": ":0"
@@ -173,7 +173,7 @@ I have not tried lldb on Linux, the below may or may not work on Linux as well. 
             "name": "Launch native",
             "type": "cppdbg",
             "request":"launch",
-            "cwd": "${workspaceRoot}",
+            "cwd": "${workspaceFolder}",
             "args": [ "-E" ],
             "MIMode": "lldb",
             // "externalConsole": true,
