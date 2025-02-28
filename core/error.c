@@ -28,6 +28,7 @@ const char *cerr_str(cerr_enum err)
         case _CERR_SOCK_LISTEN_FAILED:      return "socket listen failed";
         case _CERR_SOUND_NOT_LOADED:        return "sound not loaded";
         case _CERR_BUFFER_OVERRUN:          return "buffer overrun";
+        case _CERR_BUFFER_INCOMPLETE:       return "buffer incomplete";
         default:                            break;
     }
 
