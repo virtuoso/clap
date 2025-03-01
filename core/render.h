@@ -248,6 +248,24 @@ int fbo_nr_attachments(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 fbo_attachment fbo_get_attachment(fbo_t *fbo);
 
+typedef enum {
+    SHADER_STAGE_VERTEX,
+    SHADER_STAGE_FRAGMENT,
+    SHADER_STAGE_GEOMETRY,
+    SHADER_STAGE_COMPUTE,
+    SHADER_STAGES_MAX,
+} shader_stage;
+
+#ifdef CONFIG_RENDERER_OPENGL
+TYPE(binding_points,
+    int binding;
+);
+#endif
+
+void binding_points_init(binding_points_t *bps);
+void binding_points_done(binding_points_t *bps);
+void binding_points_add(binding_points_t *bps, shader_stage stage, int binding);
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(shader,
     GLuint  vert;

@@ -954,6 +954,25 @@ void fbo_put_last(fbo_t *fbo)
 }
 
 /****************************************************************************
+ * Binding points
+ ****************************************************************************/
+
+void binding_points_init(binding_points_t *bps)
+{
+    bps->binding = -1;
+}
+
+void binding_points_done(binding_points_t *bps)
+{
+    bps->binding = -1;
+}
+
+void binding_points_add(binding_points_t *bps, shader_stage stage, int binding)
+{
+    bps->binding = binding;
+}
+
+/****************************************************************************
  * Shaders
  ****************************************************************************/
 
