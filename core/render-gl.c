@@ -88,8 +88,11 @@ static const size_t gl_comp_size[] = {
     [DT_IVEC2]  = sizeof(GLint),
     [DT_IVEC3]  = sizeof(GLint),
     [DT_IVEC4]  = sizeof(GLint),
+    [DT_VEC2]   = sizeof(GLfloat),
     [DT_VEC3]   = sizeof(GLfloat),
     [DT_VEC4]   = sizeof(GLfloat),
+    [DT_MAT2]   = sizeof(GLfloat),
+    [DT_MAT3]   = sizeof(GLfloat),
     [DT_MAT4]   = sizeof(GLfloat),
 };
 
