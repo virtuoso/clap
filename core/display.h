@@ -6,9 +6,6 @@
 #include "config.h"
 #include "error.h"
 
-#ifdef CONFIG_BROWSER
-static inline const char *gluErrorString(int err) { return "not implemented"; }
-#endif
 
 struct clap_context;
 typedef void (*display_update_cb)(void *data);

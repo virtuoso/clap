@@ -8,6 +8,10 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+#if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
+static inline const char *gluErrorString(int err) { return "not implemented"; }
+#endif
+
 #ifdef CLAP_DEBUG
 static inline bool __gl_check_error(const char *str)
 {
