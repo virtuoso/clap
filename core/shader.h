@@ -2,7 +2,6 @@
 #ifndef __CLAP_SHADER_H__
 #define __CLAP_SHADER_H__
 
-#include "render.h"
 #include "object.h"
 #include "render.h"
 
