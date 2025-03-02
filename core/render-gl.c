@@ -1283,6 +1283,11 @@ void shader_done(shader_t *shader)
         GL(glDeleteShader(shader->geom));
 }
 
+int shader_id(shader_t *shader)
+{
+    return shader->prog;
+}
+
 attr_t shader_attribute(shader_t *shader, const char *name)
 {
     return glGetAttribLocation(shader->prog, name);
