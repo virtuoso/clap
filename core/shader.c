@@ -283,12 +283,23 @@ static void shader_prog_link(struct shader_prog *p)
     }
 }
 
-bool shader_has_var(struct shader_prog *p, enum shader_vars var)
+/* Check if shader has a standalone variable or an attribute */
+static inline bool __shader_has_var(struct shader_prog *p, enum shader_vars var)
 {
     if (var >= SHADER_VAR_MAX)
         return false;
 
     return p->vars[var] >= 0;
+}
+
+/* Check if shader has a variable either standalone or in a variable block */
+bool shader_has_var(struct shader_prog *p, enum shader_vars var)
+{
+    bool ret = __shader_has_var(p, var);
+    if (ret)
+        return ret;
+
+    return !!shader_get_var_block_by_var(p, var);
 }
 
 void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
@@ -297,7 +308,7 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
     const struct shader_var_desc *desc = &shader_var_desc[var];
 
     /* If a shader has a uniform @var, set it directly */
-    if (shader_has_var(p, var)) {
+    if (__shader_has_var(p, var)) {
         uniform_set_ptr(p->vars[var], desc->type, count, value);
         return;
     }
@@ -325,7 +336,7 @@ void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value)
 cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf,
                              const buffer_init_options *opts)
 {
-    if (!shader_has_var(p, var))
+    if (!__shader_has_var(p, var))
         return CERR_OK;
 
     return _buffer_init(buf, opts);
@@ -333,7 +344,7 @@ cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer
 
 void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
-    if (!shader_has_var(p, var) || !buf)
+    if (!__shader_has_var(p, var) || !buf)
         return;
 
     buffer_bind(buf, p->vars[var]);
@@ -341,7 +352,7 @@ void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t
 
 void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
-    if (!shader_has_var(p, var))
+    if (!__shader_has_var(p, var))
         return;
 
     buffer_unbind(buf, p->vars[var]);
@@ -349,7 +360,7 @@ void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer
 
 int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)
 {
-    if (!shader_has_var(p, var))
+    if (!__shader_has_var(p, var))
         return -1;
 
     return shader_var_desc[var].texture_slot;
@@ -359,7 +370,7 @@ void shader_set_texture(struct shader_prog *p, enum shader_vars var)
 {
     const struct shader_var_desc *desc = &shader_var_desc[var];
 
-    if (!shader_has_var(p, var))
+    if (!__shader_has_var(p, var))
         return;
 
     uniform_set_ptr(p->vars[var], desc->type, 1, &desc->texture_slot);
@@ -367,7 +378,7 @@ void shader_set_texture(struct shader_prog *p, enum shader_vars var)
 
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
 {
-    if (!shader_has_var(p, var) || !texture_loaded(tex))
+    if (!__shader_has_var(p, var) || !texture_loaded(tex))
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
@@ -378,7 +389,7 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
 
 void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
 {
-    if (!shader_has_var(p, var) || !texture_loaded(tex))
+    if (!__shader_has_var(p, var) || !texture_loaded(tex))
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
@@ -421,7 +432,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     shader_prog_use(p);
     shader_prog_link(p);
     shader_prog_done(p);
-    if (!shader_has_var(p, ATTR_POSITION)) {
+    if (!__shader_has_var(p, ATTR_POSITION)) {
         err("program '%s' doesn't have position attribute\n", p->name);
         ref_put_last(p);
         return CERR_INVALID_SHADER;
