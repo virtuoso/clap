@@ -31,6 +31,7 @@ typedef enum cerr_enum {
     _CERR_SOUND_NOT_LOADED       = -19,
     _CERR_BUFFER_OVERRUN         = -20,
     _CERR_BUFFER_INCOMPLETE      = -21,
+    _CERR_INVALID_INDEX          = -22,
 } cerr_enum;
 
 /****************************************************************************
