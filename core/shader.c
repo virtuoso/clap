@@ -111,7 +111,11 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_CASCADE_DISTANCES,
                             UNIFORM_SHADOW_OUTLINE),
     DEFINE_SHADER_VAR_BLOCK(transform, SHADER_STAGE_VERTEX_BIT,
-                            UNIFORM_TRANS)
+                            UNIFORM_TRANS),
+    DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_PROJ,
+                            UNIFORM_VIEW,
+                            UNIFORM_INVERSE_VIEW)
 };
 
 /* Runtime shader context */

@@ -25,6 +25,12 @@ layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
     bool shadow_outline;
 };
 
+layout (std140, binding = UBO_BINDING_projview) uniform projview {
+    mat4 proj;
+    mat4 view;
+    mat4 inverse_view;
+};
+
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform sampler2D emission_map;
@@ -37,7 +43,6 @@ uniform sampler2D shadow_map3;
 uniform sampler2DArray shadow_map;
 uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
-uniform mat4 view;
 uniform float shine_damper;
 uniform float reflectivity;
 uniform bool albedo_texture;

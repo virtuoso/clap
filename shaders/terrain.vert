@@ -11,10 +11,13 @@ layout (std140, binding = UBO_BINDING_transform) uniform transform {
     mat4 trans;
 };
 
+layout (std140, binding = UBO_BINDING_projview) uniform projview {
+    mat4 proj;
+    mat4 view;
+    mat4 inverse_view;
+};
+
 uniform vec3 light_pos;
-uniform mat4 proj;
-uniform mat4 view;
-uniform mat4 inverse_view;
 
 layout (location=0) out vec2 pass_tex;
 layout (location=1) out vec3 surface_normal;
