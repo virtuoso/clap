@@ -201,6 +201,26 @@ void shader_vars_done(shader_context *ctx)
     mem_free(ctx);
 }
 
+struct shader_prog {
+    struct shader_var_block *var_block[array_size(shader_var_block_desc)];
+    shader_context  *ctx;
+    const char      *name;
+    uniform_t       vars[SHADER_VAR_MAX];
+    shader_t        shader;
+    struct ref      ref;
+    struct list     entry;
+};
+
+const char *shader_name(struct shader_prog *p)
+{
+    return p->name;
+}
+
+shader_context *shader_ctx(struct shader_prog *p)
+{
+    return p->ctx;
+}
+
 void shader_var_blocks_update(shader_context *ctx)
 {
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
