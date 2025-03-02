@@ -924,6 +924,7 @@ static void fbo_drop(struct ref *ref)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
 }
 DEFINE_REFCLASS2(fbo);
+DECLARE_REFCLASS(fbo);
 
 /*
  * nr_attachments:
@@ -982,7 +983,6 @@ bool fbo_is_multisampled(fbo_t *fbo)
 }
 
 DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
-cresp_struct_ret(fbo);
 
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
 {

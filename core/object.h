@@ -10,6 +10,7 @@
 #include "util.h"
 #include "logger.h"
 #include "json.h" /* XXX: factor out ser/deser code */
+#include "refclasses.h"
 
 struct ref;
 typedef cerr (*make_t)(struct ref *ref, void *opts);
@@ -51,6 +52,11 @@ struct ref_class {
         .offset = offsetof(struct struct_name, ref), \
         .entry  = EMPTY_LIST(REFCLASS_NAME(struct_name).entry), \
     }; \
+    struct ref *struct_name ## _ref(void *_obj) \
+    { \
+        struct struct_name *obj = _obj; \
+        return &obj->ref; \
+    } \
     typedef struct cresp(struct_name) cresp(struct_name)
 
 /* Extrapolate constructor options type name from struct name */
@@ -74,6 +80,7 @@ struct ref_class {
 /* Declare a refclass for a struct name (in a header file)*/
 #define DECLARE_REFCLASS(struct_name) \
     extern struct ref_class REFCLASS_NAME(struct_name); \
+    extern struct ref *struct_name ## _ref(void *obj); \
     cresp_struct_ret(struct_name)
 
 /*
@@ -163,7 +170,7 @@ static inline bool __ref_get(struct ref *ref)
     __o; \
 })
 
-#define ref_get(t) _ref_get(t, &t->ref)
+#define ref_get(t) _ref_get(t, __obj_ref(t))
 
 void _ref_drop(struct ref *ref);
 
@@ -183,7 +190,7 @@ static inline void _ref_put(struct ref *ref)
         _ref_put(r); \
     } while (0)
 
-#define ref_put(obj) ref_put_ref(&(obj)->ref)
+#define ref_put(obj) ref_put_ref(__obj_ref(obj))
 
 #define ref_put_passed_ref(r) do { \
         if ((r)->consume) { \
@@ -277,7 +284,8 @@ static inline void _ref_put(struct ref *ref)
 #define ref_pass(obj) ({ \
     typeof (obj) __obj = (obj); \
     obj = NULL; \
-    __obj->ref.consume = true; \
+    struct ref *__ref = __obj_ref(__obj); \
+    __ref->consume = true; \
     __obj; \
 })
 
