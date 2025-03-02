@@ -8,7 +8,10 @@ layout (location=1) in vec2 tex;
 layout (location=2) in vec4 joints;
 layout (location=3) in vec4 weights;
 
-uniform mat4 trans;
+layout (std140, binding = UBO_BINDING_transform) uniform transform {
+    mat4 trans;
+};
+
 uniform mat4 view;
 uniform mat4 proj;
 uniform int use_skinning;
