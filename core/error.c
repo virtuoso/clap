@@ -29,6 +29,7 @@ const char *cerr_str(cerr_enum err)
         case _CERR_SOUND_NOT_LOADED:        return "sound not loaded";
         case _CERR_BUFFER_OVERRUN:          return "buffer overrun";
         case _CERR_BUFFER_INCOMPLETE:       return "buffer incomplete";
+        case _CERR_INVALID_INDEX:           return "invalid index";
         default:                            break;
     }
 
