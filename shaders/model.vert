@@ -9,7 +9,13 @@ layout (location=3) in vec4 tangent;
 layout (location=4) in vec4 joints;
 layout (location=5) in vec4 weights;
 
-uniform vec3 light_pos[LIGHTS_MAX];
+layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
+    vec3 light_pos[LIGHTS_MAX];
+    vec3 light_color[LIGHTS_MAX];
+    vec3 light_dir[LIGHTS_MAX];
+    vec3 attenuation[LIGHTS_MAX];
+};
+
 uniform mat4 proj;
 uniform mat4 view;
 uniform mat4 inverse_view;

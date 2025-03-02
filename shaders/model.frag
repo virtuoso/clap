@@ -12,6 +12,13 @@ layout (location=4) in vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) in vec3 to_camera_vector;
 layout (location=9) in vec4 world_pos;
 
+layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
+    vec3 light_pos[LIGHTS_MAX];
+    vec3 light_color[LIGHTS_MAX];
+    vec3 light_dir[LIGHTS_MAX];
+    vec3 attenuation[LIGHTS_MAX];
+};
+
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform sampler2D emission_map;
@@ -27,14 +34,11 @@ uniform sampler2DMSArray shadow_map_ms;
 uniform mat4 shadow_mvp[CASCADES_MAX];
 uniform float cascade_distances[CASCADES_MAX];
 uniform mat4 view;
-uniform vec3 light_color[LIGHTS_MAX];
-uniform vec3 attenuation[LIGHTS_MAX];
 uniform float shine_damper;
 uniform float reflectivity;
 uniform bool albedo_texture;
 uniform int entity_hash;
 uniform vec4 highlight_color;
-uniform vec3 light_dir[LIGHTS_MAX];
 uniform bool shadow_outline;
 uniform bool use_msaa;
 
