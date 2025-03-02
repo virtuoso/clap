@@ -76,6 +76,7 @@ struct shader_var_block {
     uniform_buffer_t    ub;
     binding_points_t    binding_points;
     darray(size_t, offsets);
+    const struct shader_var_block_desc *desc;
 };
 
 /* Static variable block (uniform buffer) descriptor */
@@ -141,6 +142,7 @@ cresp(shader_context) shader_vars_init(void)
         size_t size = 0;
 
         darray_init(var_block->offsets);
+        var_block->desc = desc;
 
         /* Initialize the uniform buffer */
         uniform_buffer_t *ub = &var_block->ub;
@@ -202,13 +204,13 @@ void shader_vars_done(shader_context *ctx)
 }
 
 struct shader_prog {
-    struct shader_var_block *var_block[array_size(shader_var_block_desc)];
-    shader_context  *ctx;
-    const char      *name;
-    uniform_t       vars[SHADER_VAR_MAX];
-    shader_t        shader;
-    struct ref      ref;
-    struct list     entry;
+    struct shader_var_block *var_blocks[array_size(shader_var_block_desc)];
+    shader_context          *ctx;
+    const char              *name;
+    uniform_t               vars[SHADER_VAR_MAX];
+    shader_t                shader;
+    struct ref              ref;
+    struct list             entry;
 };
 
 const char *shader_name(struct shader_prog *p)
@@ -403,6 +405,15 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     }
 
     p->ctx = opts->ctx;
+
+    for (int i = 0; i < array_size(shader_var_block_desc); i++) {
+        struct shader_var_block *var_block = &p->ctx->var_blocks[i];
+        const struct shader_var_block_desc *desc = var_block->desc;
+
+        err = shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name);
+        if (!IS_CERR(err))
+            p->var_blocks[desc->binding] = var_block;
+    }
 
     return CERR_OK;
 }
