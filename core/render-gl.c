@@ -37,6 +37,9 @@ static inline bool __gl_check_error(const char *str)
 
 static struct gl_limits {
     GLint gl_max_ubo_bindings;
+    GLint gl_max_vertex_uniform_blocks;
+    GLint gl_max_fragment_uniform_blocks;
+    GLint gl_max_geometry_uniform_blocks;
     GLint gl_max_texture_size;
     GLint gl_max_texture_units;
     GLint gl_max_texture_layers;
@@ -1384,7 +1387,10 @@ void renderer_init(renderer_t *renderer)
     GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));
     GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits.gl_max_color_attachments));
     GL(glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &gl_limits.gl_max_ubo_bindings));
+    GL(glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, &gl_limits.gl_max_vertex_uniform_blocks));
+    GL(glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &gl_limits.gl_max_fragment_uniform_blocks));
 #ifndef CONFIG_GLES
+    GL(glGetIntegerv(GL_MAX_GEOMETRY_UNIFORM_BLOCKS, &gl_limits.gl_max_geometry_uniform_blocks));
     GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits.gl_max_color_texture_samples));
     GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
     GL(glEnable(GL_MULTISAMPLE));
