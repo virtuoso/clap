@@ -266,7 +266,7 @@ static int network_node_connect(struct network_node *n)
 
 static cresp(network_node) network_node_accept(struct network_node *n)
 {
-    cresp(network_node) res = ref_new2(network_node, .parent = n);
+    cresp(network_node) res = ref_new_checked(network_node, .parent = n);
     if (IS_CERR(res))
         return res;
 
@@ -470,7 +470,7 @@ static int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *
 
 static cresp(network_node) server_setup(const char *server_ip, unsigned int port)
 {
-    cresp(network_node) res = ref_new2(network_node, .ip = server_ip, .port = port, .mode = LISTEN);
+    cresp(network_node) res = ref_new_checked(network_node, .ip = server_ip, .port = port, .mode = LISTEN);
     if (IS_CERR(res))
         return res;
 
@@ -487,7 +487,7 @@ static cresp(network_node) _client_setup(struct networking_config *cfg, unsigned
     struct network_node *n;
     cerr err = CERR_OK;
 
-    cresp(network_node) res = ref_new2(network_node, .ip = cfg->server_ip, .port = port, .mode = CLIENT);
+    cresp(network_node) res = ref_new_checked(network_node, .ip = cfg->server_ip, .port = port, .mode = CLIENT);
     if (IS_CERR(res))
         return res;
 

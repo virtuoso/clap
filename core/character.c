@@ -369,7 +369,7 @@ static cerr character_make(struct ref *ref, void *_opts)
 
     struct character *c = container_of(ref, struct character, ref);
 
-    cresp(entity3d) res = ref_new2(entity3d, .txmodel = opts->txmodel);
+    cresp(entity3d) res = ref_new_checked(entity3d, .txmodel = opts->txmodel);
     if (IS_CERR(res))
         return cerr_error_cres(res);
 

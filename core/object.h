@@ -234,7 +234,7 @@ static inline void _ref_put(struct ref *ref)
 #define ref_shared(obj) ref_shared_ref(&(obj)->ref)
 
 /* Dynamically allocate an object and return cresp(struct_name) */
-#define ref_new2(struct_name, args...) ({ \
+#define ref_new_checked(struct_name, args...) ({ \
     struct ref_class *__rc = &ref_class_ ## struct_name; \
     struct struct_name *__v = mem_alloc(__rc->size, .zero = 1); \
     cresp(struct_name) __res = cresp_val(struct_name, __v); \
@@ -258,7 +258,7 @@ static inline void _ref_put(struct ref *ref)
 
 /* Dynamically allocate an object and return a pointer or NULL */
 #define ref_new(struct_name, args...) ({ \
-    cresp(struct_name) __res = ref_new2(struct_name, args); \
+    cresp(struct_name) __res = ref_new_checked(struct_name, args); \
     struct struct_name *__v = NULL; \
     if (!IS_CERR(__res)) \
         __v = __res.val; \

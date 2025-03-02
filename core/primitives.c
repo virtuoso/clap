@@ -150,10 +150,10 @@ model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, flo
     mesh_optimize(cylinder_mesh);
 
     model3d *cylinder;
-    cresp(model3d) res = ref_new2(model3d,
-                                  .name = "cylinder",
-                                  .prog = p,
-                                  .mesh = cylinder_mesh);
+    cresp(model3d) res = ref_new_checked(model3d,
+                                         .name = "cylinder",
+                                         .prog = p,
+                                         .mesh = cylinder_mesh);
     if (IS_CERR(res))
         return NULL;
 

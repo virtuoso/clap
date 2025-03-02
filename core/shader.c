@@ -455,12 +455,12 @@ cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *sha
     if (!hv || !hf)
         return CERR_SHADER_NOT_LOADED;
 
-    cresp(shader_prog) res = ref_new2(shader_prog,
-                                      .ctx       = ctx,
-                                      .name      = name,
-                                      .vert_text = vert,
-                                      .geom_text = hg ? geom : NULL,
-                                      .frag_text = frag);
+    cresp(shader_prog) res = ref_new_checked(shader_prog,
+                                             .ctx       = ctx,
+                                             .name      = name,
+                                             .vert_text = vert,
+                                             .geom_text = hg ? geom : NULL,
+                                             .frag_text = frag);
     if (IS_CERR(res))
         return cerr_error_cres(res);
 
