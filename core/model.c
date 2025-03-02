@@ -459,7 +459,7 @@ void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
     int slot = shader_get_texture_slot(prog, var);
 
     if (slot < 0) {
-        dbg("program '%s' doesn't have texture %s or it's not a texture\n", prog->name,
+        dbg("program '%s' doesn't have texture %s or it's not a texture\n", shader_name(prog),
             shader_get_var_name(var));
         return;
     }
@@ -864,7 +864,7 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
 
             shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx->cell);
 
-            shader_var_blocks_update(prog->ctx);
+            shader_var_blocks_update(shader_ctx(prog));
             model3dtx_draw(r, txmodel);
             nr_ents++;
         }

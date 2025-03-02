@@ -52,14 +52,7 @@ enum shader_vars {
 typedef struct shader_context shader_context;
 cresp_ret(shader_context);
 
-struct shader_prog {
-    shader_context  *ctx;
-    const char      *name;
-    uniform_t       vars[SHADER_VAR_MAX];
-    shader_t        shader;
-    struct ref      ref;
-    struct list     entry;
-};
+struct shader_prog;
 
 DEFINE_REFCLASS_INIT_OPTIONS(shader_prog,
     shader_context  *ctx;
@@ -70,6 +63,8 @@ DEFINE_REFCLASS_INIT_OPTIONS(shader_prog,
 );
 DECLARE_REFCLASS(shader_prog);
 
+const char *shader_name(struct shader_prog *p);
+shader_context *shader_ctx(struct shader_prog *p);
 void shader_prog_use(struct shader_prog *p);
 void shader_prog_done(struct shader_prog *p);
 const char *shader_get_var_name(enum shader_vars var);
