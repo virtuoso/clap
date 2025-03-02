@@ -89,7 +89,7 @@ struct shader_var_block_desc {
 /* Define a variable block: name, shader stages, a list of uniforms */
 #define DEFINE_SHADER_VAR_BLOCK(_n, _stages, args...) \
     { \
-        .name       = __stringify((_n)), \
+        .name       = __stringify(_n), \
         .binding    = (UBO_BINDING_ ## _n), \
         .stages     = (_stages), \
         .vars       = (enum shader_vars[]){ args, SHADER_VAR_MAX }, \
