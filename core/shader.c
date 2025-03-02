@@ -245,11 +245,23 @@ bool shader_has_var(struct shader_prog *p, enum shader_vars var)
 void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
                         unsigned int count, void *value)
 {
-    if (!shader_has_var(p, var))
+    const struct shader_var_desc *desc = &shader_var_desc[var];
+
+    /* If a shader has a uniform @var, set it directly */
+    if (shader_has_var(p, var)) {
+        uniform_set_ptr(p->vars[var], desc->type, count, value);
+        return;
+    }
+
+    struct shader_var_block *var_block = p->ctx->vars[var].block;
+
+    if (!var_block)
         return;
 
-    const struct shader_var_desc *desc = &shader_var_desc[var];
-    uniform_set_ptr(p->vars[var], desc->type, count, value);
+    size_t offset = *DA(var_block->offsets, p->ctx->vars[var].var_in_block_idx);
+    cerr err = uniform_buffer_set(&var_block->ub, desc->type, &offset, count, value);
+    if (IS_CERR(err))
+        err_cerr(err, "failed to set a uniform buffer variable '%s'\n", desc->name);
 }
 
 void shader_set_var_float(struct shader_prog *p, enum shader_vars var, float value)
