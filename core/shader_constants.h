@@ -12,6 +12,7 @@
 
 /* UBO binding locations */
 #define UBO_BINDING_color_pt    0
+#define UBO_BINDING_lighting    1
 
 #endif /* CLAP_SHADER_CONSTANTS_H */
 
