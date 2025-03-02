@@ -168,7 +168,7 @@ cresp(font_context) font_init(const char *default_font_name)
     if (!default_font_name)
         default_font_name = DEFAULT_FONT_NAME;
 
-    cresp(font) res = ref_new2(font, .ctx = ctx, .name = default_font_name, .size = 32);
+    cresp(font) res = ref_new_checked(font, .ctx = ctx, .name = default_font_name, .size = 32);
     if (IS_CERR(res)) {
         err("couldn't load default font\n");
         return cresp_error_cerr(font_context, res);

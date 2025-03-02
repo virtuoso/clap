@@ -113,11 +113,11 @@ cres(int) scene_camera_add(struct scene *s)
 
     model3d_set_name(m, "camera");
 
-    cresp(model3dtx) txmres = ref_new2(model3dtx, .model = ref_pass(m), .tex = transparent_pixel());
+    cresp(model3dtx) txmres = ref_new_checked(model3dtx, .model = ref_pass(m), .tex = transparent_pixel());
     if (IS_CERR(txmres))
         return cres_error_cerr(int, txmres);
 
-    cresp(character) chres = ref_new2(character, .txmodel = txmres.val, .scene = s);
+    cresp(character) chres = ref_new_checked(character, .txmodel = txmres.val, .scene = s);
     if (IS_CERR(chres)) {
         ref_put(txmres.val);
         return cres_error_cerr(int, chres);

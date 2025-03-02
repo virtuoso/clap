@@ -1151,10 +1151,10 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     struct shader_prog *prog = shader_prog_find(&gd->scene->shaders, "model");
 
-    cresp(model3d) res = ref_new2(model3d,
-                                  .prog   = ref_pass(prog),
-                                  .name   = gltf_mesh_name(gd, mesh),
-                                  .mesh   = me);
+    cresp(model3d) res = ref_new_checked(model3d,
+                                         .prog   = ref_pass(prog),
+                                         .name   = gltf_mesh_name(gd, mesh),
+                                         .mesh   = me);
     if (IS_CERR(res))
         return cerr_error_cres(res);
 
@@ -1162,15 +1162,15 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }
 
-    cresp(model3dtx) txres = ref_new2(model3dtx,
-                                      .model            = ref_pass(res.val),
-                                      .buffers_png      = true,
-                                      .texture_buffer   = gltf_tex(gd, mesh),
-                                      .texture_size     = gltf_texsz(gd, mesh),
-                                      .normal_buffer    = gltf_nmap(gd, mesh),
-                                      .normal_size      = gltf_nmapsz(gd, mesh),
-                                      .emission_buffer  = gltf_em(gd, mesh),
-                                      .emission_size    = gltf_emsz(gd, mesh));
+    cresp(model3dtx) txres = ref_new_checked(model3dtx,
+                                             .model            = ref_pass(res.val),
+                                             .buffers_png      = true,
+                                             .texture_buffer   = gltf_tex(gd, mesh),
+                                             .texture_size     = gltf_texsz(gd, mesh),
+                                             .normal_buffer    = gltf_nmap(gd, mesh),
+                                             .normal_size      = gltf_nmapsz(gd, mesh),
+                                             .emission_buffer  = gltf_em(gd, mesh),
+                                             .emission_size    = gltf_emsz(gd, mesh));
 
     if (IS_CERR(txres)) {
         warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));

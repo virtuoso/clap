@@ -174,7 +174,7 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
 
     struct ui_element *uie = container_of(ref, struct ui_element, ref);
 
-    cresp(entity3d) res = ref_new2(entity3d, .txmodel = opts->txmodel);
+    cresp(entity3d) res = ref_new_checked(entity3d, .txmodel = opts->txmodel);
 
     if (IS_CERR(res))
         return cerr_error_cres(res);
@@ -744,11 +744,11 @@ static cerr ui_widget_make(struct ref *ref, void *_opts)
         return CERR_NOMEM;
 
     /* XXX: render texts to FBOs to textures */
-    cresp(ui_element) res = ref_new2(ui_element,
-                                     .ui          = opts->ui,
-                                     .txmodel     = ui_quadtx,
-                                     .uwb         = opts->uwb,
-                                     .uwb_root    = true);
+    cresp(ui_element) res = ref_new_checked(ui_element,
+                                            .ui          = opts->ui,
+                                            .txmodel     = ui_quadtx,
+                                            .uwb         = opts->uwb,
+                                            .uwb_root    = true);
     if (IS_CERR(res)) {
         mem_free(uiw->uies);
         return cerr_error_cres(res);
@@ -833,14 +833,14 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     int i;
 
     /* XXX^0: affinity and placement hardcoded */
-    cresp(ui_widget) res = ref_new2(ui_widget,
-                                    .ui       = ui,
-                                    .nr_items = 4,
-                                    .uwb      = &(struct ui_widget_builder) {
-                                          .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
-                                          .w          = 0.3,
-                                          .h          = 0.3
-                                    });
+    cresp(ui_widget) res = ref_new_checked(ui_widget,
+                                           .ui       = ui,
+                                           .nr_items = 4,
+                                           .uwb      = &(struct ui_widget_builder) {
+                                                 .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
+                                                 .w          = 0.3,
+                                                 .h          = 0.3
+                                           });
 
     if (IS_CERR(res))
         return NULL;
