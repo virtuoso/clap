@@ -1,15 +1,20 @@
 #version 460 core
 
+#include "shader_constants.h"
+
 layout (location=0) in vec3 position;
 layout (location=1) in vec2 tex;
 layout (location=2) in vec3 normal;
 layout (location=3) in vec4 tangent;
 
+layout (std140, binding = UBO_BINDING_transform) uniform transform {
+    mat4 trans;
+};
+
 uniform vec3 light_pos;
 uniform mat4 proj;
 uniform mat4 view;
 uniform mat4 inverse_view;
-uniform mat4 trans;
 
 layout (location=0) out vec2 pass_tex;
 layout (location=1) out vec3 surface_normal;

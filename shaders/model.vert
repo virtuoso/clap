@@ -16,10 +16,13 @@ layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
     vec3 attenuation[LIGHTS_MAX];
 };
 
+layout (std140, binding = UBO_BINDING_transform) uniform transform {
+    mat4 trans;
+};
+
 uniform mat4 proj;
 uniform mat4 view;
 uniform mat4 inverse_view;
-uniform mat4 trans;
 uniform int use_normals;
 uniform int use_skinning;
 uniform mat4 joint_transforms[JOINTS_MAX];
