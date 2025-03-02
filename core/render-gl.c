@@ -1288,6 +1288,23 @@ int shader_id(shader_t *shader)
     return shader->prog;
 }
 
+static cres(int) shader_uniform_block_index(shader_t *shader, const char *name)
+{
+    GLuint index = glGetUniformBlockIndex(shader->prog, name);
+    return index == GL_INVALID_INDEX ? cres_error(int, CERR_INVALID_INDEX) : cres_val(int, index);
+}
+
+cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
+{
+    cres(int) res = shader_uniform_block_index(shader, name);
+    if (IS_CERR(res))
+        return cerr_error_cres(res);
+
+    GL(glUniformBlockBinding(shader->prog, res.val, bpt->binding));
+
+    return CERR_OK;
+}
+
 attr_t shader_attribute(shader_t *shader, const char *name)
 {
     return glGetAttribLocation(shader->prog, name);
