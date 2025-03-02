@@ -864,7 +864,7 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
 
             shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx->cell);
 
-            shader_var_blocks_update(shader_ctx(prog));
+            shader_var_blocks_update(prog);
             model3dtx_draw(r, txmodel);
             nr_ents++;
         }

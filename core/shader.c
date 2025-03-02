@@ -218,18 +218,24 @@ const char *shader_name(struct shader_prog *p)
     return p->name;
 }
 
-shader_context *shader_ctx(struct shader_prog *p)
+static struct shader_var_block *
+shader_get_var_block_by_binding(struct shader_prog *p, int binding)
 {
-    return p->ctx;
+    if (binding < 0 || binding >= array_size(shader_var_block_desc))
+        return NULL;
+
+    return p->var_blocks[binding];
 }
 
-void shader_var_blocks_update(shader_context *ctx)
+void shader_var_blocks_update(struct shader_prog *p)
 {
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
-        struct shader_var_block *var_block = &ctx->var_blocks[i];
-        cerr err = uniform_buffer_bind(&var_block->ub, &var_block->binding_points);
-        if (IS_CERR(err))
-            err_cerr(err, "UBO binding failed\n");
+        struct shader_var_block *var_block = shader_get_var_block_by_binding(p, i);
+
+        /* Don't update uniform buffer on the GPU if current shader is not using it */
+        if (!var_block)
+            continue;
+
         uniform_buffer_update(&var_block->ub);
     }
 }
