@@ -98,5 +98,6 @@ cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *sha
 
 must_check cresp(shader_context) shader_vars_init(void);
 void shader_vars_done(shader_context *ctx);
+void shader_var_blocks_update(shader_context *ctx);
 
 #endif /* __CLAP_SHADER_H__ */

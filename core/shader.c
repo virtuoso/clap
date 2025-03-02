@@ -198,6 +198,17 @@ void shader_vars_done(shader_context *ctx)
     mem_free(ctx);
 }
 
+void shader_var_blocks_update(shader_context *ctx)
+{
+    for (int i = 0; i < array_size(shader_var_block_desc); i++) {
+        struct shader_var_block *var_block = &ctx->var_blocks[i];
+        cerr err = uniform_buffer_bind(&var_block->ub, &var_block->binding_points);
+        if (IS_CERR(err))
+            err_cerr(err, "UBO binding failed\n");
+        uniform_buffer_update(&var_block->ub);
+    }
+}
+
 const char *shader_get_var_name(enum shader_vars var)
 {
     if (var >= SHADER_VAR_MAX)
