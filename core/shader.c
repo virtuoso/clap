@@ -227,6 +227,19 @@ shader_get_var_block_by_binding(struct shader_prog *p, int binding)
     return p->var_blocks[binding];
 }
 
+static struct shader_var_block *
+shader_get_var_block_by_var(struct shader_prog *p, enum shader_vars var)
+{
+    if (var >= SHADER_VAR_MAX)
+        return NULL;
+
+    struct shader_var_block *var_block = p->ctx->vars[var].block;
+    if (!var_block)
+        return NULL;
+
+    return p->var_blocks[var_block->desc->binding];
+}
+
 void shader_var_blocks_update(struct shader_prog *p)
 {
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
@@ -284,8 +297,7 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
         return;
     }
 
-    struct shader_var_block *var_block = p->ctx->vars[var].block;
-
+    struct shader_var_block *var_block = shader_get_var_block_by_var(p, var);
     if (!var_block)
         return;
 
