@@ -2,8 +2,10 @@
 
 #include "shader_constants.h"
 
-uniform vec4 in_color;
-uniform int color_passthrough;
+layout (std140, binding = UBO_BINDING_color_pt) uniform color_pt {
+    vec4 in_color;
+    int color_passthrough;
+};
 
 layout (location=0) out vec4 FragColor;
 

@@ -97,6 +97,9 @@ struct shader_var_block_desc {
 
 /* Variable block table */
 static const struct shader_var_block_desc shader_var_block_desc[] = {
+    DEFINE_SHADER_VAR_BLOCK(color_pt, SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_IN_COLOR,
+                            UNIFORM_COLOR_PASSTHROUGH)
 };
 
 /* Runtime shader context */

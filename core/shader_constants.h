@@ -10,5 +10,8 @@
 #define COLOR_PT_ALPHA 1
 #define COLOR_PT_ALL 2
 
+/* UBO binding locations */
+#define UBO_BINDING_color_pt    0
+
 #endif /* CLAP_SHADER_CONSTANTS_H */
 
