@@ -19,6 +19,12 @@ layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
     vec3 attenuation[LIGHTS_MAX];
 };
 
+layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
+    mat4 shadow_mvp[CASCADES_MAX];
+    float cascade_distances[CASCADES_MAX];
+    bool shadow_outline;
+};
+
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform sampler2D emission_map;
@@ -31,15 +37,12 @@ uniform sampler2D shadow_map3;
 uniform sampler2DArray shadow_map;
 uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
-uniform mat4 shadow_mvp[CASCADES_MAX];
-uniform float cascade_distances[CASCADES_MAX];
 uniform mat4 view;
 uniform float shine_damper;
 uniform float reflectivity;
 uniform bool albedo_texture;
 uniform int entity_hash;
 uniform vec4 highlight_color;
-uniform bool shadow_outline;
 uniform bool use_msaa;
 
 layout (location=0) out vec4 FragColor;
