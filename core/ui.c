@@ -1700,8 +1700,8 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     list_init(&ui->shaders);
     list_init(&ui->widgets);
     list_init(&ui->widget_cleanup);
-    lib_request_shaders("glyph", &ui->shaders);
-    lib_request_shaders("ui", &ui->shaders);
+    lib_request_shaders(clap_get_shaders(clap_ctx), "glyph", &ui->shaders);
+    lib_request_shaders(clap_get_shaders(clap_ctx), "ui", &ui->shaders);
 
     ui->clap_ctx = clap_ctx;
     ui->renderer = clap_get_renderer(ui->clap_ctx);

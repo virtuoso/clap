@@ -61,6 +61,7 @@ typedef struct clap_context {
     struct phys         *phys;
     struct settings     *settings;
     renderer_t          renderer;
+    shader_context      *shaders;
     struct ui           ui;
     int                 argc;
 } clap_context;
@@ -77,6 +78,11 @@ struct clap_config *clap_get_config(struct clap_context *ctx)
 renderer_t *clap_get_renderer(struct clap_context *ctx)
 {
     return &ctx->renderer;
+}
+
+shader_context *clap_get_shaders(struct clap_context *ctx)
+{
+    return ctx->shaders;
 }
 
 struct ui *clap_get_ui(clap_context *ctx)
@@ -383,6 +389,11 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
             return cresp_error_cerr(clap_context, err);
 
         textures_init();
+        cresp(shader_context) res = shader_vars_init();
+        if (IS_CERR(res))
+            return cresp_error_cerr(clap_context, res);
+
+        ctx->shaders = res.val;
     }
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
@@ -408,6 +419,7 @@ void clap_done(struct clap_context *ctx, int status)
     if (ctx->cfg.phys)
         phys_done(ctx->phys);
     if (ctx->cfg.graphics) {
+        shader_vars_done(ctx->shaders);
         textures_done();
         display_done();
     }

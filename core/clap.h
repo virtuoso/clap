@@ -10,6 +10,7 @@ struct phys;
 struct settings;
 typedef struct sound_context sound_context;
 typedef struct font_context font_context;
+typedef struct shader_context shader_context;
 
 /* Get the clap's physics handle */
 struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
@@ -17,6 +18,8 @@ struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
 struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 /* Get clap's renderer */
 renderer_t *clap_get_renderer(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
+/* Get clap's shaders context */
+shader_context *clap_get_shaders(struct clap_context *ctx);
 /* Get clap's UI handle */
 struct ui *clap_get_ui(clap_context *ctx);
 /* Get clap's font handle */

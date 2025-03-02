@@ -306,15 +306,15 @@ int main(int argc, char **argv, char **envp)
     }
 
     /* Before models are created */
-    lib_request_shaders("contrast", &scene.shaders);
-    lib_request_shaders("hblur", &scene.shaders);
-    lib_request_shaders("vblur", &scene.shaders);
-    lib_request_shaders("sobel", &scene.shaders);
-    lib_request_shaders("combine", &scene.shaders);
-    lib_request_shaders("shadow", &scene.shaders);
-    lib_request_shaders("debug", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "contrast", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "hblur", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "vblur", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "sobel", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "combine", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "shadow", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "debug", &scene.shaders);
     // lib_request_shaders("terrain", &scene.shaders);
-    lib_request_shaders("model", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "model", &scene.shaders);
     //lib_request_shaders("ui", &scene);
 
     fuzzer_input_init();

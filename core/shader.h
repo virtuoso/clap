@@ -50,19 +50,24 @@ enum shader_vars {
     SHADER_VAR_MAX
 };
 
+typedef struct shader_context shader_context;
+cresp_ret(shader_context);
+
 struct shader_prog {
-    const char  *name;
-    uniform_t   vars[SHADER_VAR_MAX];
-    shader_t    shader;
-    struct ref  ref;
-    struct list entry;
+    shader_context  *ctx;
+    const char      *name;
+    uniform_t       vars[SHADER_VAR_MAX];
+    shader_t        shader;
+    struct ref      ref;
+    struct list     entry;
 };
 
 DEFINE_REFCLASS_INIT_OPTIONS(shader_prog,
-    const char  *name;
-    const char  *vert_text;
-    const char  *geom_text;
-    const char  *frag_text;
+    shader_context  *ctx;
+    const char      *name;
+    const char      *vert_text;
+    const char      *geom_text;
+    const char      *frag_text;
 );
 DECLARE_REFCLASS(shader_prog);
 
@@ -89,6 +94,9 @@ void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
 void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex);
 struct shader_prog *shader_prog_find(struct list *shaders, const char *name);
 void shaders_free(struct list *shaders);
-cerr lib_request_shaders(const char *name, struct list *shaders);
+cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *shaders);
+
+must_check cresp(shader_context) shader_vars_init(void);
+void shader_vars_done(shader_context *ctx);
 
 #endif /* __CLAP_SHADER_H__ */

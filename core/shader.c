@@ -4,6 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include "common.h"
+#include "error.h"
 #include "render.h"
 #include "util.h"
 #include "object.h"
@@ -69,6 +70,133 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_ALBEDO_TEXTURE,      "albedo_texture",       DT_INT),
     SHADER_ARR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4, JOINTS_MAX),
 };
+
+/* Runtime handle for a variable block (uniform buffer) */
+struct shader_var_block {
+    uniform_buffer_t    ub;
+    binding_points_t    binding_points;
+    darray(size_t, offsets);
+};
+
+/* Static variable block (uniform buffer) descriptor */
+struct shader_var_block_desc {
+    const char          *name;
+    int                 binding;
+    unsigned int        stages;
+    enum shader_vars    *vars;
+};
+
+/* Define a variable block: name, shader stages, a list of uniforms */
+#define DEFINE_SHADER_VAR_BLOCK(_n, _stages, args...) \
+    { \
+        .name       = __stringify((_n)), \
+        .binding    = (UBO_BINDING_ ## _n), \
+        .stages     = (_stages), \
+        .vars       = (enum shader_vars[]){ args, SHADER_VAR_MAX }, \
+    }
+
+/* Variable block table */
+static const struct shader_var_block_desc shader_var_block_desc[] = {
+};
+
+/* Runtime shader context */
+typedef struct shader_context {
+    /* Dynamically calculated uniform block parameters */
+    struct shader_var_block     var_blocks[array_size(shader_var_block_desc)];
+    /* Per-variable array of their respective blocks */
+    struct {
+        struct shader_var_block *block;
+        int                     var_in_block_idx;
+    } vars[SHADER_VAR_MAX];
+} shader_context;
+
+DEFINE_CLEANUP(shader_context, if (*p) mem_free(*p));
+
+static void shader_var_block_done(shader_context *ctx, int var_idx)
+{
+    struct shader_var_block *var_block = &ctx->var_blocks[var_idx];
+    darray_clearout(var_block->offsets);
+
+    uniform_buffer_done(&var_block->ub);
+    binding_points_done(&var_block->binding_points);
+}
+
+/* Initialize a shader context */
+cresp(shader_context) shader_vars_init(void)
+{
+    LOCAL_SET(shader_context, ctx) = mem_alloc(sizeof(*ctx), .zero = 1);
+    if (!ctx)
+        return cresp_error(shader_context, CERR_NOMEM);
+
+    cerr err = CERR_OK;
+    int i, j;
+
+    /* Instantiate shader variable blocks */
+    for (i = 0; i < array_size(shader_var_block_desc); i++) {
+        const struct shader_var_block_desc *desc = &shader_var_block_desc[i];
+        struct shader_var_block *var_block = &ctx->var_blocks[i];
+        size_t size = 0;
+
+        darray_init(var_block->offsets);
+
+        /* Initialize the uniform buffer */
+        uniform_buffer_t *ub = &var_block->ub;
+        err = uniform_buffer_init(ub, desc->binding);
+        if (IS_CERR(err))
+            goto error;
+
+        /* Set up binding points for the uniform buffer from the stages bitmask */
+        binding_points_init(&var_block->binding_points);
+        for (int stage = 0; stage < SHADER_STAGES_MAX; stage++)
+            if (desc->stages & (1 << stage))
+                binding_points_add(&var_block->binding_points, stage, desc->binding);
+
+        /* Attach uniforms to a variable block */
+        for (j = 0; desc->vars[j] < SHADER_VAR_MAX; j++) {
+            enum shader_vars var = desc->vars[j];
+            const struct shader_var_desc *var_desc = &shader_var_desc[var];
+
+            size_t *poffset = darray_add(var_block->offsets);
+            if (!poffset)
+                goto error_ub_done;
+
+            *poffset = size;
+
+            err = uniform_buffer_set(ub, var_desc->type, &size, var_desc->elem_count, NULL);
+            if (IS_CERR(err))
+                goto error_ub_done;
+
+            ctx->vars[var].block = var_block;
+            ctx->vars[var].var_in_block_idx = j;
+        }
+
+        err = uniform_buffer_data_alloc(ub, size);
+        if (IS_CERR(err))
+            goto error_ub_done;
+
+        err = uniform_buffer_bind(ub, &var_block->binding_points);
+        if (IS_CERR(err))
+            goto error_ub_done;
+    }
+
+    return cresp_val(shader_context, NOCU(ctx));
+
+error_ub_done:
+    for (; i >= 0; i--) {
+        shader_var_block_done(ctx, i);
+error:
+    }
+
+    return cresp_error_cerr(shader_context, err);
+}
+
+void shader_vars_done(shader_context *ctx)
+{
+    for (int i = 0; i < array_size(shader_var_block_desc); i++)
+        shader_var_block_done(ctx, i);
+
+    mem_free(ctx);
+}
 
 const char *shader_get_var_name(enum shader_vars var)
 {
@@ -204,7 +332,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(shader_prog) *opts = _opts;
 
-    if (!opts->vert_text || !opts->frag_text)
+    if (!opts->ctx || !opts->vert_text || !opts->frag_text)
         return CERR_INVALID_ARGUMENTS;
     if (!opts->name)
         return CERR_INVALID_ARGUMENTS;
@@ -227,6 +355,9 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         ref_put_last(p);
         return CERR_INVALID_SHADER;
     }
+
+    p->ctx = opts->ctx;
+
     return CERR_OK;
 }
 
@@ -272,7 +403,7 @@ void shaders_free(struct list *shaders)
         ref_put_last(prog);
 }
 
-cerr lib_request_shaders(const char *name, struct list *shaders)
+cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *shaders)
 {
     LOCAL(lib_handle, hv);
     LOCAL(lib_handle, hf);
@@ -299,6 +430,7 @@ cerr lib_request_shaders(const char *name, struct list *shaders)
         return CERR_SHADER_NOT_LOADED;
 
     cresp(shader_prog) res = ref_new2(shader_prog,
+                                      .ctx       = ctx,
                                       .name      = name,
                                       .vert_text = vert,
                                       .geom_text = hg ? geom : NULL,
