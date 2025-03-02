@@ -48,7 +48,7 @@ static void test_drop(struct ref *ref)
 
 DEFINE_REFCLASS_INIT_OPTIONS(x0);
 DEFINE_REFCLASS_DROP(x0, test_drop);
-cresp_struct_ret(x0);
+DECLARE_REFCLASS(x0);
 
 static int refcount_test0(void)
 {

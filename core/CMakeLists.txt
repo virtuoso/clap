@@ -80,6 +80,7 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     endif ()
 
     add_executable(${TEST_BIN} ${TEST_SRC})
+    add_dependencies(${TEST_BIN} refclasses_gen)
     win32_executable(${TEST_BIN})
 
     add_test(${TEST_BIN} ${TEST_BIN})
@@ -97,6 +98,19 @@ set(ENGINE_SRC
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
 set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
+
+set(REFCLASSES_H "${CMAKE_CURRENT_BINARY_DIR}/refclasses.h")
+
+add_custom_target(refclasses_gen
+    COMMENT "Generating refclasses.h"
+    OUTPUT "${REFCLASSES_H}"
+    DEPENDS ${ENGINE_SRC}
+    COMMAND
+        ${CMAKE_COMMAND}
+            -Ddir="${CMAKE_CURRENT_SOURCE_DIR}"
+            -Doutput="${REFCLASSES_H}"
+            -P ${CMAKE_SOURCE_DIR}/scripts/refclass-gen.cmake
+)
 
 if (NOT CLAP_BUILD_FINAL)
     list(APPEND ENGINE_SRC profiler.c)
@@ -178,7 +192,7 @@ ENDFOREACH ()
 FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/builddate.c "const char *build_date = \"${CONFIG_BUILDDATE}\";")
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shaders.c)
-add_dependencies(${ENGINE_LIB} ode)
+add_dependencies(${ENGINE_LIB} ode refclasses_gen)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
