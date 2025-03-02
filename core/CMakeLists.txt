@@ -1,7 +1,6 @@
 set(CMAKE_C_STANDARD 23)
 
 include (${CMAKE_SOURCE_DIR}/scripts/renderer-switch.cmake)
-include (${CMAKE_SOURCE_DIR}/scripts/cerr-gen.cmake)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -80,7 +79,7 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     endif ()
 
     add_executable(${TEST_BIN} ${TEST_SRC})
-    add_dependencies(${TEST_BIN} refclasses_gen)
+    add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen)
     win32_executable(${TEST_BIN})
 
     add_test(${TEST_BIN} ${TEST_BIN})
@@ -99,6 +98,19 @@ set(ENGINE_SRC
 # Mac OS X has deprecated OpenAL and is very vocal about it
 set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
 
+set(CERRS_H "${CMAKE_CURRENT_BINARY_DIR}/cerrs.h")
+
+add_custom_target(cerrs_gen
+    COMMENT "Generating refclasses.h"
+    OUTPUT "${CERRS_H}"
+    DEPENDS error.h
+    COMMAND
+        ${CMAKE_COMMAND}
+            -Ddir="${CMAKE_CURRENT_SOURCE_DIR}"
+            -Doutput="${CERRS_H}"
+            -DCLAP_BUILD_FINAL:BOOL=${CLAP_BUILD_FINAL}
+            -P ${CMAKE_SOURCE_DIR}/scripts/cerr-gen.cmake
+)
 set(REFCLASSES_H "${CMAKE_CURRENT_BINARY_DIR}/refclasses.h")
 
 add_custom_target(refclasses_gen
@@ -192,7 +204,7 @@ ENDFOREACH ()
 FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/builddate.c "const char *build_date = \"${CONFIG_BUILDDATE}\";")
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shaders.c)
-add_dependencies(${ENGINE_LIB} ode refclasses_gen)
+add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
