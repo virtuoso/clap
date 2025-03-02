@@ -16,10 +16,13 @@ struct shader_var_desc {
     enum data_type          type;
     int                     texture_slot;
     unsigned int            attr_count;
+    unsigned int            elem_count;
 };
 
 #define SHADER_VAR(_c, _n, _t) \
-    [_c] = { .name = (_n), .type = (_t), .texture_slot = -1 }
+    [_c] = { .name = (_n), .type = (_t), .texture_slot = -1, .elem_count = 1 }
+#define SHADER_ARR(_c, _n, _t, _el) \
+    [_c] = { .name = (_n), .type = (_t), .texture_slot = -1, .elem_count = (_el) }
 #define SHADER_TEX(_c, _n, _slot) \
     [_c] = { .name = (_n), .type = DT_INT, .texture_slot = (_slot) }
 #define SHADER_ATTR(_c, _n, _t, _count) \
@@ -47,24 +50,24 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_VIEW,                "view",                 DT_MAT4),
     SHADER_VAR(UNIFORM_TRANS,               "trans",                DT_MAT4),
     SHADER_VAR(UNIFORM_INVERSE_VIEW,        "inverse_view",         DT_MAT4),
-    SHADER_VAR(UNIFORM_LIGHT_POS,           "light_pos",            DT_VEC3),
-    SHADER_VAR(UNIFORM_LIGHT_COLOR,         "light_color",          DT_VEC3),
-    SHADER_VAR(UNIFORM_LIGHT_DIR,           "light_dir",            DT_VEC3),
-    SHADER_VAR(UNIFORM_ATTENUATION,         "attenuation",          DT_VEC3),
+    SHADER_ARR(UNIFORM_LIGHT_POS,           "light_pos",            DT_VEC3, LIGHTS_MAX),
+    SHADER_ARR(UNIFORM_LIGHT_COLOR,         "light_color",          DT_VEC3, LIGHTS_MAX),
+    SHADER_ARR(UNIFORM_LIGHT_DIR,           "light_dir",            DT_VEC3, LIGHTS_MAX),
+    SHADER_ARR(UNIFORM_ATTENUATION,         "attenuation",          DT_VEC3, LIGHTS_MAX),
     SHADER_VAR(UNIFORM_SHINE_DAMPER,        "shine_damper",         DT_FLOAT),
     SHADER_VAR(UNIFORM_REFLECTIVITY,        "reflectivity",         DT_FLOAT),
     SHADER_VAR(UNIFORM_HIGHLIGHT_COLOR,     "highlight_color",      DT_VEC4),
     SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             DT_VEC4),
     SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    DT_INT),
-    SHADER_VAR(UNIFORM_SHADOW_MVP,          "shadow_mvp",           DT_MAT4),
-    SHADER_VAR(UNIFORM_CASCADE_DISTANCES,   "cascade_distances",    DT_FLOAT),
+    SHADER_ARR(UNIFORM_SHADOW_MVP,          "shadow_mvp",           DT_MAT4, CASCADES_MAX),
+    SHADER_ARR(UNIFORM_CASCADE_DISTANCES,   "cascade_distances",    DT_FLOAT, CASCADES_MAX),
     SHADER_VAR(UNIFORM_SHADOW_OUTLINE,      "shadow_outline",       DT_INT),
     SHADER_VAR(UNIFORM_ENTITY_HASH,         "entity_hash",          DT_INT),
     SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          DT_INT),
     SHADER_VAR(UNIFORM_USE_SKINNING,        "use_skinning",         DT_INT),
     SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),
     SHADER_VAR(UNIFORM_ALBEDO_TEXTURE,      "albedo_texture",       DT_INT),
-    SHADER_VAR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4),
+    SHADER_ARR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4, JOINTS_MAX),
 };
 
 const char *shader_get_var_name(enum shader_vars var)
