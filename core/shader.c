@@ -105,7 +105,11 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_LIGHT_POS,
                             UNIFORM_LIGHT_COLOR,
                             UNIFORM_LIGHT_DIR,
-                            UNIFORM_ATTENUATION)
+                            UNIFORM_ATTENUATION),
+    DEFINE_SHADER_VAR_BLOCK(shadow, SHADER_STAGE_GEOMETRY_BIT | SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_SHADOW_MVP,
+                            UNIFORM_CASCADE_DISTANCES,
+                            UNIFORM_SHADOW_OUTLINE)
 };
 
 /* Runtime shader context */
