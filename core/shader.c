@@ -115,7 +115,10 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
     DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_PROJ,
                             UNIFORM_VIEW,
-                            UNIFORM_INVERSE_VIEW)
+                            UNIFORM_INVERSE_VIEW),
+    DEFINE_SHADER_VAR_BLOCK(skinning, SHADER_STAGE_VERTEX_BIT,
+                            UNIFORM_USE_SKINNING,
+                            UNIFORM_JOINT_TRANSFORMS),
 };
 
 /* Runtime shader context */

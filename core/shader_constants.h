@@ -16,6 +16,7 @@
 #define UBO_BINDING_shadow      2
 #define UBO_BINDING_transform   3
 #define UBO_BINDING_projview    4
+#define UBO_BINDING_skinning    5
 
 #endif /* CLAP_SHADER_CONSTANTS_H */
 

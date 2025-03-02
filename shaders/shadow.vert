@@ -18,8 +18,10 @@ layout (std140, binding = UBO_BINDING_projview) uniform projview {
     mat4 inverse_view;
 };
 
-uniform int use_skinning;
-uniform mat4 joint_transforms[JOINTS_MAX];
+layout (std140, binding = UBO_BINDING_skinning) uniform skinning {
+    int use_skinning;
+    mat4 joint_transforms[JOINTS_MAX];
+};
 
 void main()
 {

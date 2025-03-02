@@ -26,9 +26,12 @@ layout (std140, binding = UBO_BINDING_projview) uniform projview {
     mat4 inverse_view;
 };
 
+layout (std140, binding = UBO_BINDING_skinning) uniform skinning {
+    int use_skinning;
+    mat4 joint_transforms[JOINTS_MAX];
+};
+
 uniform int use_normals;
-uniform int use_skinning;
-uniform mat4 joint_transforms[JOINTS_MAX];
 
 layout (location=0) flat out int do_use_normals;
 layout (location=1) out vec2 pass_tex;
