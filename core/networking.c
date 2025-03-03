@@ -87,7 +87,6 @@ struct network_node {
     int (*handshake)(struct network_node *n, const uint8_t *buf);
 };
 
-cresp_struct_ret(network_node);
 
 static struct networking_config  *_ncfg;
 static struct pollfd *pollfds;
@@ -237,6 +236,7 @@ static void network_node_drop(struct ref *ref)
 }
 
 DEFINE_REFCLASS2(network_node);
+DECLARE_REFCLASS(network_node);
 
 static cerr network_node_listen(struct network_node *n)
 {
