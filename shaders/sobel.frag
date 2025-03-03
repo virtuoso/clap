@@ -7,15 +7,13 @@
 
 layout (location=0) in vec2 pass_tex;
 uniform sampler2D	model_tex;
-uniform float 		width;
-uniform float 		height;
 
 layout (location=0) out vec4 FragColor;
 
 void make_kernel(inout vec4 n[9], sampler2D tex, vec2 coord)
 {
-	float w = 1.0 / width;
-	float h = 1.0 / height;
+	float w = 1.0 / textureSize(tex, 0).x;
+	float h = 1.0 / textureSize(tex, 0).y;
 
 	n[0] = texture(tex, coord + vec2( -w, -h));
 	n[1] = texture(tex, coord + vec2(0.0, -h));
