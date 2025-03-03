@@ -717,7 +717,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo)
 
 static cerr_check fbo_depth_texture_init(fbo_t *fbo)
 {
-    float border[] = { 1, 1, 1, 1 };
+    float border[4] = {};
     cerr err = texture_init(&fbo->tex,
 #ifndef CONFIG_GLES
                             .type          = TEX_2D_ARRAY,
