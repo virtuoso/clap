@@ -45,8 +45,8 @@ uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
 uniform float shine_damper;
 uniform float reflectivity;
-uniform bool albedo_texture;
-uniform int entity_hash;
+uniform bool sobel_solid;
+uniform int sobel_solid_id;
 uniform vec4 highlight_color;
 uniform bool use_msaa;
 
@@ -195,11 +195,11 @@ void main()
     total_diffuse = max(total_diffuse, 0.2) * shadow_factor;
     FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
 
-    if (albedo_texture) {
+    if (sobel_solid) {
         Albedo = vec4((normalize(cross(texture_sample.rgb, vec3(
-            abs(fract(cos(mod(float(entity_hash), 3.1415926)))),
-            abs(fract(sin(mod(float(entity_hash), 3.1415926)))),
-            abs(fract(log(float(entity_hash))))
+            abs(fract(cos(mod(float(sobel_solid_id), 3.1415926)))),
+            abs(fract(sin(mod(float(sobel_solid_id), 3.1415926)))),
+            abs(fract(log(float(sobel_solid_id))))
         ))) + vec3(1.0, 1.0, 1.0) / 2.0), 1.0);
     } else {
         vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;

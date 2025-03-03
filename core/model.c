@@ -847,8 +847,8 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
 
             renderer_wireframe(r, focus == e);
 
-            shader_set_var_int(prog, UNIFORM_ALBEDO_TEXTURE, !!e->priv);  /* e->priv now points to character */
-            shader_set_var_int(prog, UNIFORM_ENTITY_HASH, fletcher32((void *)&e, sizeof(e) / 2));
+            shader_set_var_int(prog, UNIFORM_SOBEL_SOLID, !!e->priv);  /* e->priv now points to character */
+            shader_set_var_int(prog, UNIFORM_SOBEL_SOLID_ID, fletcher32((void *)&e, sizeof(e) / 2));
             shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);
             shader_set_var_int(prog, UNIFORM_COLOR_PASSTHROUGH, e->color_pt);
 
