@@ -2,23 +2,24 @@
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;
-layout (location=1) in vec2 blur_coords[11];
 
 uniform sampler2D model_tex;
 
 void main()
 {
+    float pixsz = 1.0 / textureSize(model_tex, 0).x;
+    vec4 color = vec4(0.0);
+    color += texture(model_tex, pass_tex + vec2(-5.0 * pixsz, 0.0)) * 0.0093;
+    color += texture(model_tex, pass_tex + vec2(-4.0 * pixsz, 0.0)) * 0.028002;
+    color += texture(model_tex, pass_tex + vec2(-3.0 * pixsz, 0.0)) * 0.065984;
+    color += texture(model_tex, pass_tex + vec2(-2.0 * pixsz, 0.0)) * 0.121703;
+    color += texture(model_tex, pass_tex + vec2(-1.0 * pixsz, 0.0)) * 0.175713;
+    color += texture(model_tex, pass_tex + vec2( 0.0 * pixsz, 0.0)) * 0.198596;
+    color += texture(model_tex, pass_tex + vec2( 1.0 * pixsz, 0.0)) * 0.175713;
+    color += texture(model_tex, pass_tex + vec2( 2.0 * pixsz, 0.0)) * 0.121703;
+    color += texture(model_tex, pass_tex + vec2( 3.0 * pixsz, 0.0)) * 0.065984;
+    color += texture(model_tex, pass_tex + vec2( 4.0 * pixsz, 0.0)) * 0.028002;
+    color += texture(model_tex, pass_tex + vec2( 5.0 * pixsz, 0.0)) * 0.0093;
 
-    FragColor = vec4(0.0);
-    FragColor += texture(model_tex, pass_tex + blur_coords[0]) * 0.0093;
-    FragColor += texture(model_tex, pass_tex + blur_coords[1]) * 0.028002;
-    FragColor += texture(model_tex, pass_tex + blur_coords[2]) * 0.065984;
-    FragColor += texture(model_tex, pass_tex + blur_coords[3]) * 0.121703;
-    FragColor += texture(model_tex, pass_tex + blur_coords[4]) * 0.175713;
-    FragColor += texture(model_tex, pass_tex + blur_coords[5]) * 0.198596;
-    FragColor += texture(model_tex, pass_tex + blur_coords[6]) * 0.175713;
-    FragColor += texture(model_tex, pass_tex + blur_coords[7]) * 0.121703;
-    FragColor += texture(model_tex, pass_tex + blur_coords[8]) * 0.065984;
-    FragColor += texture(model_tex, pass_tex + blur_coords[9]) * 0.028002;
-    FragColor += texture(model_tex, pass_tex + blur_coords[10]) * 0.0093;
+    FragColor = color;
 }
