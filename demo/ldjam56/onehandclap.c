@@ -71,11 +71,25 @@ static void build_main_pl(struct pipeline **pl)
                                                        .nr_attachments = 3,
                                                        .name           = "model");
     struct render_pass *pass;
-    pass = pipeline_add_pass(*pl, .source = model_pass, .shader = "vblur", .blit_from = 1);
+    /* XXX: blit the color buffer into another framebuffer in the next pass instead? */
+    pass = pipeline_add_pass(*pl, .source = model_pass, .shader = "contrast", .blit_from = 1);
+    pass = pipeline_add_pass(*pl,
+                             .source    = pass,
+                             .shader    = "downsample",
+                             .scale     = 0.25);
+
+    pass = pipeline_add_pass(*pl,
+                             .source    = pass,
+                             .scale     = 0.25,
+                             .shader    = "vblur");
+    pass = pipeline_add_pass(*pl,
+                             .source    = pass,
+                             .scale     = 0.25,
+                             .shader    = "hblur");
     struct render_pass *bloom_pass = pipeline_add_pass(*pl,
-                                                       .source     = pass,
-                                                       .shader     = "hblur",
-                                                       .pingpong   = 5);
+                                                       .source  = pass,
+                                                       .shader  = "upsample");
+    pipeline_pass_add_source(*pl, bloom_pass, UNIFORM_EMISSION_MAP, model_pass, 1);
     struct render_pass *sobel_pass = pipeline_add_pass(*pl,
                                                        .source     = model_pass,
                                                        .shader     = "sobel",
@@ -87,12 +101,24 @@ static void build_main_pl(struct pipeline **pl)
     pipeline_pass_add_source(*pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1);
     pipeline_pass_add_source(*pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
 
-    pass = pipeline_add_pass(*pl, .source = pass, .shader = "vblur", .name = "menu vblur");
     pass = pipeline_add_pass(*pl,
-                             .source   = pass,
-                             .shader   = "hblur",
-                             .name     = "menu hblur",
-                             .pingpong = 5);
+                             .source    = pass,
+                             .shader    = "downsample",
+                             .scale     = 0.25,
+                             .name      = "menu downsample");
+    pass = pipeline_add_pass(*pl,
+                             .source    = pass,
+                             .shader    = "vblur",
+                             .scale     = 0.25,
+                             .name = "menu vblur");
+    pass = pipeline_add_pass(*pl,
+                             .source    = pass,
+                             .shader    = "hblur",
+                             .scale     = 0.25,
+                             .name      = "menu hblur");
+    pass = pipeline_add_pass(*pl,
+                             .source    = pass,
+                             .shader    = "upsample");
 }
 
 static const char *intro_osd[] = {
@@ -309,6 +335,8 @@ int main(int argc, char **argv, char **envp)
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "contrast", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "hblur", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "vblur", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "downsample", &scene.shaders);
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "upsample", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "sobel", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "combine", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "shadow", &scene.shaders);
