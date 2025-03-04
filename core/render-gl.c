@@ -890,14 +890,28 @@ void fbo_done(fbo_t *fbo, int width, int height)
     GL(glViewport(0, 0, width, height));
 }
 
+/*
+ * attachment:
+ * >= 0: color buffer
+ *  < 0: depth buffer
+ */
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment)
 {
+    GLbitfield mask = GL_COLOR_BUFFER_BIT;
+
+    if (attachment < 0) {
+        mask = GL_DEPTH_BUFFER_BIT;
+        attachment = GL_DEPTH_ATTACHMENT;
+    } else {
+        attachment += GL_COLOR_ATTACHMENT0;
+    }
+
     GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo->fbo));
     GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo->fbo));
-    GL(glReadBuffer(GL_COLOR_ATTACHMENT0 + attachment));
+    GL(glReadBuffer(attachment));
     GL(glBlitFramebuffer(0, 0, src_fbo->width, src_fbo->height,
                          0, 0, fbo->width, fbo->height,
-                         GL_COLOR_BUFFER_BIT, GL_LINEAR));
+                         mask, GL_LINEAR));
 }
 
 static cerr fbo_make(struct ref *ref, void *_opts)
