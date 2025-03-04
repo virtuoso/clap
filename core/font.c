@@ -65,7 +65,7 @@ static void font_load_glyph(struct font *font, unsigned char c)
     if (IS_CERR(err))
         return;
 
-    err = texture_load(&font->g[c].tex, TEX_FMT_RGBA, glyph->bitmap.width,
+    err = texture_load(&font->g[c].tex, TEX_FMT_RGBA8, glyph->bitmap.width,
                        glyph->bitmap.rows, buf);
     if (IS_CERR(err))
         return;

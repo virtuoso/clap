@@ -386,8 +386,8 @@ static GLenum gl_texture_filter(texture_filter filter)
 static GLenum gl_texture_format(texture_format format)
 {
     switch (format) {
-        case TEX_FMT_RGBA:  return GL_RGBA;
-        case TEX_FMT_RGB:   return GL_RGB;
+        case TEX_FMT_RGBA8: return GL_RGBA;
+        case TEX_FMT_RGB8:  return GL_RGB;
         case TEX_FMT_DEPTH: return GL_DEPTH_COMPONENT;
         default:            break;
     }
@@ -650,7 +650,7 @@ cerr_check texture_pixel_init(texture_t *tex, float color[4])
         return err;
 
     uint8_t _color[4] = { color[0] * 255, color[1] * 255, color[2] * 255, color[3] * 255 };
-    return texture_load(tex, TEX_FMT_RGBA, 1, 1, _color);
+    return texture_load(tex, TEX_FMT_RGBA8, 1, 1, _color);
 }
 
 static texture_t _white_pixel;

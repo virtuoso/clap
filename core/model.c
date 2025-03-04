@@ -236,7 +236,7 @@ DEFINE_CLEANUP(model3d, if (*p) ref_put(*p))
 static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
                                    int has_alpha, enum shader_vars var, texture_t *tex)
 {
-    texture_format color_type = has_alpha ? TEX_FMT_RGBA : TEX_FMT_RGB;
+    texture_format color_type = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
     if (!buffer)
         return CERR_INVALID_ARGUMENTS;
 

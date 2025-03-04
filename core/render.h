@@ -131,8 +131,8 @@ typedef enum texture_filter {
 } texture_filter;
 
 typedef enum texture_format {
-    TEX_FMT_RGBA,
-    TEX_FMT_RGB,
+    TEX_FMT_RGBA8,
+    TEX_FMT_RGB8,
     TEX_FMT_DEPTH,
 } texture_format;
 
