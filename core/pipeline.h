@@ -10,11 +10,12 @@ typedef struct pipeline_pass_config {
     const char          *shader;
     const char          *shader_override;
     const char          *name;
-    bool                multisampled;
+    float               scale;
     int                 nr_attachments;
     int                 blit_from;
     int                 pingpong;
     int                 cascade;
+    bool                multisampled;
     bool                stop;
 } pipeline_pass_config;
 

@@ -29,6 +29,7 @@ struct render_pass {
     int                 rep_total;
     int                 rep_count;
     int                 cascade;
+    float               scale;
     bool                blit;
     bool                stop;
 };
@@ -152,7 +153,7 @@ void pipeline_resize(struct pipeline *pl)
 
         fbo_t **pfbo;
         darray_for_each(pfbo, pass->fbo)
-            if (!pl->resize(*pfbo, false, pl->scene->width, pl->scene->height))
+            if (!pl->resize(*pfbo, false, pl->scene->width * pass->scale, pl->scene->height * pass->scale))
                 return;
     }
 }
@@ -174,7 +175,8 @@ found:
 
 static struct render_pass *
 __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
-                    const char *shader_override, bool ms, int nr_targets, int target, int cascade)
+                    const char *shader_override, bool ms, int nr_targets, int target,
+                    int cascade, float scale)
 {
     struct render_pass *pass;
     struct shader_prog *p;
@@ -209,10 +211,11 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     if (shader_override) {
         width = height = shadow_map_size(width, height);
         pass->name = shader_override;
-    } else if (src && !src->prog_override) {
-        width = fbo_width(src->fbo.x[0]);
-        height = fbo_height(src->fbo.x[0]);
     }
+
+    width = (float)width * scale;
+    height = (float)height * scale;
+    pass->scale = scale;
 
 #ifdef CONFIG_GLES
     if (nr_targets == FBO_DEPTH_TEXTURE) {
@@ -308,8 +311,11 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
     pipeline_pass_config _cfg = *cfg;
     struct render_pass *pass;
 
+    if (!_cfg.scale)
+        _cfg.scale = 1.0;
+
     pass = __pipeline_add_pass(pl, _cfg.source, _cfg.shader, _cfg.shader_override, _cfg.multisampled,
-                               _cfg.nr_attachments, _cfg.blit_from, _cfg.cascade);
+                               _cfg.nr_attachments, _cfg.blit_from, _cfg.cascade, _cfg.scale);
     if (pass) {
         if (_cfg.name)
             pipeline_pass_set_name(pass, _cfg.name);
