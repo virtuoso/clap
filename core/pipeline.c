@@ -534,6 +534,7 @@ repeat:
                 if (!src)
                     models_render(pl->renderer, &s->mq,
                                   .shader_override  = pass->prog_override,
+                                  .render_options   = &s->render_options,
                                   .light            = &s->light,
                                   .camera           = shadow ? NULL : &s->cameras[0],
                                   .cascade          = pass->cascade,

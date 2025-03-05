@@ -15,6 +15,7 @@ struct scene;
 struct light;
 struct camera;
 struct shader_prog;
+typedef struct render_options render_options;
 
 #define LOD_MAX 4
 typedef struct model3d {
@@ -241,6 +242,7 @@ typedef struct models_render_options {
     struct camera       *camera;
     unsigned long       *entity_count;
     unsigned long       *txm_count;
+    render_options      *render_options;
     int                 cascade;
 } models_render_options;
 

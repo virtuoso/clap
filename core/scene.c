@@ -164,9 +164,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
         cam->view.fov = to_radians(fov);
 
-        igCheckbox("shadow outline", &scene->light.shadow_outline);
-        igCheckbox("shadow msaa", &scene->light.shadow_msaa);
-        igCheckbox("debug draws", &scene->debug_draws_enabled);
+        igCheckbox("shadow outline", &scene->render_options.shadow_outline);
+        igCheckbox("shadow msaa", &scene->render_options.shadow_msaa);
+        igCheckbox("debug draws", &scene->render_options.debug_draws_enabled);
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
                     input_text_callback, NULL);
         if (igButton("save level", (ImVec2){}))
@@ -418,7 +418,7 @@ cerr scene_init(struct scene *scene)
         light_set_attenuation(&scene->light, i, attenuation);
     }
 
-    scene->light.shadow_msaa = false;
+    scene->render_options.shadow_msaa = false;
 
     cerr err;
     err = subscribe(MT_INPUT, scene_handle_input, scene);

@@ -20,6 +20,12 @@ struct instantiator {
     float           dx, dy, dz;
 };
 
+typedef struct render_options {
+    bool    shadow_outline;
+    bool    shadow_msaa;
+    bool    debug_draws_enabled;
+} render_options;
+
 #define SCENE_NAME_MAX 128
 struct scene {
     char                name[SCENE_NAME_MAX];
@@ -32,6 +38,7 @@ struct scene {
     entity3d            *control;
     struct motionctl    mctl;
     struct list         shaders;
+    render_options      render_options;
     struct camera       *camera;
     struct camera       cameras[NR_CAMERAS_MAX];
     struct light        light;
@@ -52,7 +59,6 @@ struct scene {
     int                 proj_update;
     bool                initialized;
     bool                ui_is_on;
-    bool                debug_draws_enabled;
 };
 
 int scene_get_light(struct scene *scene);

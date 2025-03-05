@@ -738,6 +738,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     }
 
     unsigned long nr_ents = 0, nr_txms = 0, culled = 0;
+    render_options *ropts = opts->render_options;
     struct shader_prog *prog = NULL;
     model3dtx *txmodel;
 
@@ -764,12 +765,16 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             prog = model_prog;
             shader_prog_use(prog);
 
+            if (ropts) {
+                shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, ropts->shadow_outline);
+                shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
+            }
+
             if (light) {
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_POS, LIGHTS_MAX, light->pos);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_COLOR, LIGHTS_MAX, light->color);
                 shader_set_var_ptr(prog, UNIFORM_ATTENUATION, LIGHTS_MAX, light->attenuation);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIR, LIGHTS_MAX, light->dir);
-                shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, light->shadow_outline);
                 if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
                     mat4x4 mvp[CASCADES_MAX];
                     int i;
@@ -789,8 +794,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                     shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
 #else
                     if (shader_has_var(prog, UNIFORM_SHADOW_MAP_MS)) {
-                        shader_set_var_int(prog, UNIFORM_USE_MSAA, light->shadow_msaa);
-                        shader_plug_textures_multisample(prog, light->shadow_msaa,
+                        shader_plug_textures_multisample(prog, ropts ? ropts->shadow_msaa : false,
                                                          UNIFORM_SHADOW_MAP, UNIFORM_SHADOW_MAP_MS,
                                                          light->shadow[0][0]);
                     } else {
@@ -1249,7 +1253,7 @@ static int default_update(entity3d *e, void *data)
 
     if (entity_animated(e))
         animated_update(e, scene);
-    if (scene->debug_draws_enabled && e->phys_body)
+    if (scene->render_options.debug_draws_enabled && e->phys_body)
         phys_debug_draw(scene, e->phys_body);
 
     return 0;
@@ -1468,7 +1472,7 @@ static struct debug_draw *__debug_draw_line(struct scene *scene, vec3 a, vec3 b,
 
 void debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot)
 {
-    if (scene->debug_draws_enabled)
+    if (scene->render_options.debug_draws_enabled)
         (void)__debug_draw_line(scene, a, b, rot);
 }
 

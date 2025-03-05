@@ -58,7 +58,7 @@ static void build_main_pl(struct pipeline **pl)
     }
 #else
     shadow_pass[0] = pipeline_add_pass(*pl,
-                                       .multisampled    = scene.light.shadow_msaa,
+                                       .multisampled    = scene.render_options.shadow_msaa,
                                        .nr_attachments  = FBO_DEPTH_TEXTURE,
                                        .shader_override = "shadow");
     scene.light.shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], 0);
@@ -174,13 +174,13 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     pipeline_render(main_pl, !ui->modal);
 
-    if (scene.debug_draws_enabled) {
+    if (scene.render_options.debug_draws_enabled) {
         models_render(r, &scene.debug_mq, .camera = scene.camera, .cascade = -1);
         debug_draw_clearout(s);
     }
 
-    if (prev_msaa != s->light.shadow_msaa) {
-        prev_msaa = s->light.shadow_msaa;
+    if (prev_msaa != s->render_options.shadow_msaa) {
+        prev_msaa = s->render_options.shadow_msaa;
         pipeline_put(main_pl);
         build_main_pl(&main_pl);
     }
@@ -323,7 +323,7 @@ int main(int argc, char **argv, char **envp)
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
     scene.clap_ctx = clap_res.val;
-    prev_msaa = scene.light.shadow_msaa;
+    prev_msaa = scene.render_options.shadow_msaa;
 
     cerr err;
 #ifndef CONFIG_FINAL
