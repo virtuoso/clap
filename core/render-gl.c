@@ -1070,8 +1070,10 @@ static cerr_check fbo_init(fbo_t *fbo, int nr_attachments)
 
         for (target = 0; target < nr_attachments; target++) {
             int *color_buf = darray_add(fbo->color_buf);
-            if (!color_buf)
+            if (!color_buf) {
                 err = CERR_NOMEM;
+                break;
+            }
 
             *color_buf = fbo_color_buffer(fbo, target);
         }
