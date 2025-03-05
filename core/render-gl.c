@@ -383,13 +383,68 @@ static GLenum gl_texture_filter(texture_filter filter)
     return GL_NONE;
 }
 
+
 static GLenum gl_texture_format(texture_format format)
 {
     switch (format) {
-        case TEX_FMT_RGBA8: return GL_RGBA;
-        case TEX_FMT_RGB8:  return GL_RGB;
-        case TEX_FMT_DEPTH: return GL_DEPTH_COMPONENT;
-        default:            break;
+        case TEX_FMT_RGBA32F:
+        case TEX_FMT_RGBA16F:
+        case TEX_FMT_RGBA8:     return GL_RGBA;
+        case TEX_FMT_RGB32F:
+        case TEX_FMT_RGB16F:
+        case TEX_FMT_RGB8:      return GL_RGB;
+        case TEX_FMT_DEPTH16F:
+        case TEX_FMT_DEPTH24F:
+        case TEX_FMT_DEPTH32F:  return GL_DEPTH_COMPONENT;
+        default:                break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+static GLenum gl_texture_internal_format(texture_format fmt)
+{
+    switch (fmt) {
+        case TEX_FMT_RGBA8:     return GL_RGBA8;
+        case TEX_FMT_RGB8:      return GL_RGB8;
+        case TEX_FMT_RGBA32F:   return GL_RGBA32F;
+        case TEX_FMT_RGBA16F:   return GL_RGBA16F;
+        case TEX_FMT_RGB32F:    return GL_RGB32F;
+        case TEX_FMT_RGB16F:    return GL_RGB16F;
+        case TEX_FMT_DEPTH32F:  return GL_DEPTH_COMPONENT32F;
+        case TEX_FMT_DEPTH24F:  return GL_DEPTH_COMPONENT24;
+        case TEX_FMT_DEPTH16F:  return GL_DEPTH_COMPONENT16;
+        default:                break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+static GLenum gl_texture_component_type(texture_format fmt)
+{
+    switch (fmt) {
+        case TEX_FMT_RGB8:
+        case TEX_FMT_RGBA8:     return GL_UNSIGNED_BYTE;
+        case TEX_FMT_RGB16F:
+#ifdef CONFIG_GLES
+        case TEX_FMT_RGBA16F:   return GL_UNSIGNED_SHORT;
+#else
+        case TEX_FMT_RGBA16F:   return GL_HALF_FLOAT;
+#endif /* CONFIG_GLES */
+        case TEX_FMT_RGB32F:
+        case TEX_FMT_RGBA32F:   return GL_FLOAT;
+        case TEX_FMT_DEPTH32F:  return GL_FLOAT;
+        case TEX_FMT_DEPTH24F:  return GL_UNSIGNED_INT;
+#ifdef CONFIG_GLES
+        case TEX_FMT_DEPTH16F:  return GL_UNSIGNED_SHORT;
+#else
+        case TEX_FMT_DEPTH16F:  return GL_HALF_FLOAT;
+#endif /* CONFIG_GLES */
+        default:                break;
     }
 
     clap_unreachable();
@@ -419,14 +474,16 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
     if (IS_CERR(err))
         return err;
 
-    tex->component_type = GL_UNSIGNED_BYTE;
-    tex->wrap           = gl_texture_wrap(opts->wrap);
-    tex->min_filter     = gl_texture_filter(opts->min_filter);
-    tex->mag_filter     = gl_texture_filter(opts->mag_filter);
-    tex->target         = GL_TEXTURE0 + opts->target;
-    tex->type           = gl_texture_type(opts->type, multisampled);
-    tex->layers         = opts->layers;
-    tex->multisampled   = multisampled;
+    tex->component_type     = gl_texture_component_type(opts->format);
+    tex->wrap               = gl_texture_wrap(opts->wrap);
+    tex->min_filter         = gl_texture_filter(opts->min_filter);
+    tex->mag_filter         = gl_texture_filter(opts->mag_filter);
+    tex->target             = GL_TEXTURE0 + opts->target;
+    tex->type               = gl_texture_type(opts->type, multisampled);
+    tex->format             = gl_texture_format(opts->format);
+    tex->internal_format    = gl_texture_internal_format(opts->format);
+    tex->layers             = opts->layers;
+    tex->multisampled       = multisampled;
     if (opts->border)
         memcpy(tex->border, opts->border, sizeof(tex->border));
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
@@ -441,19 +498,20 @@ texture_t *texture_clone(texture_t *tex)
     texture_t *ret = ref_new(texture);
 
     if (ret) {
-        ret->id             = tex->id;
-        ret->wrap           = tex->wrap;
-        ret->component_type = tex->component_type;
-        ret->type           = tex->type;
-        ret->target         = tex->target;
-        ret->min_filter     = tex->min_filter;
-        ret->mag_filter     = tex->mag_filter;
-        ret->width          = tex->width;
-        ret->height         = tex->height;
-        ret->layers         = tex->layers;
-        ret->format         = tex->format;
-        ret->loaded         = tex->loaded;
-        tex->loaded         = false;
+        ret->id                 = tex->id;
+        ret->wrap               = tex->wrap;
+        ret->component_type     = tex->component_type;
+        ret->type               = tex->type;
+        ret->target             = tex->target;
+        ret->min_filter         = tex->min_filter;
+        ret->mag_filter         = tex->mag_filter;
+        ret->width              = tex->width;
+        ret->height             = tex->height;
+        ret->layers             = tex->layers;
+        ret->format             = tex->format;
+        ret->internal_format    = tex->internal_format;
+        ret->loaded             = tex->loaded;
+        tex->loaded             = false;
     }
 
     return ret;
@@ -548,8 +606,13 @@ cerr_check texture_load(texture_t *tex, texture_format format,
     if (!texture_size_valid(width, height))
         return CERR_INVALID_TEXTURE_SIZE;
 
-    tex->format = gl_texture_format(format);
-    tex->internal_format = tex->format;
+    GLuint gl_format = gl_texture_format(format);
+
+    if (gl_format != tex->format) {
+        tex->format             = gl_texture_format(format);
+        tex->internal_format    = gl_texture_internal_format(format);
+        tex->component_type     = gl_texture_component_type(format);
+    }
     tex->width  = width;
     tex->height = height;
 
@@ -563,25 +626,22 @@ cerr_check texture_load(texture_t *tex, texture_format format,
     return CERR_OK;
 }
 
-static cerr_check texture_fbo(texture_t *tex, GLuint attachment, GLenum format,
+static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format format,
                               unsigned int width, unsigned int height)
 {
     if (!texture_size_valid(width, height))
         return CERR_INVALID_TEXTURE_SIZE;
 
-    tex->format = format;
-    tex->internal_format = format;
+    GLuint gl_format = gl_texture_format(format);
+
+    if (gl_format != tex->format) {
+        tex->format             = gl_texture_format(format);
+        tex->internal_format    = gl_texture_internal_format(format);
+        tex->component_type     = gl_texture_component_type(format);
+    }
     tex->width  = width;
     tex->height = height;
-    if (attachment == GL_DEPTH_ATTACHMENT) {
-#ifdef CONFIG_GLES
-        tex->component_type = GL_UNSIGNED_SHORT;
-        tex->internal_format = GL_DEPTH_COMPONENT16;
-#else
-        tex->component_type = GL_FLOAT;
-        tex->internal_format = GL_DEPTH_COMPONENT32F;
-#endif /* CONFIG_GLES */
-    }
+
     cerr err = texture_setup_begin(tex, NULL);
     if (IS_CERR(err))
         return err;
@@ -699,6 +759,7 @@ static int fbo_create(void)
 static cerr_check fbo_texture_init(fbo_t *fbo)
 {
     cerr err = texture_init(&fbo->tex,
+                            .format        = fbo->color_format,
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_EDGE,
                             .min_filter    = TEX_FLT_LINEAR,
@@ -706,7 +767,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo)
     if (IS_CERR(err))
         return err;
 
-    err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, GL_RGBA, fbo->width, fbo->height);
+    err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, fbo->color_format, fbo->width, fbo->height);
     if (IS_CERR(err))
         return err;
 
@@ -722,7 +783,8 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
 #ifndef CONFIG_GLES
                             .type          = TEX_2D_ARRAY,
                             .layers        = CASCADES_MAX,
- #endif /* CONFIG_GLES */
+#endif /* CONFIG_GLES */
+                            .format        = fbo->depth_format,
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_BORDER,
                             .border        = border,
@@ -731,7 +793,7 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
     if (IS_CERR(err))
         return err;
 
-    err = texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, GL_DEPTH_COMPONENT,
+    err = texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, fbo->depth_format,
                       fbo->width, fbo->height);
     if (IS_CERR(err))
         return err;
@@ -787,11 +849,12 @@ fbo_attachment fbo_get_attachment(fbo_t *fbo)
 
 static void __fbo_color_buffer_setup(fbo_t *fbo)
 {
+    GLenum gl_internal_format = gl_texture_internal_format(fbo->color_format);
     if (fbo_is_multisampled(fbo))
-        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples, GL_RGBA8,
+        GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples, gl_internal_format,
                                             fbo->width, fbo->height));
     else
-        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, fbo->width, fbo->height));
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, gl_internal_format, fbo->width, fbo->height));
 }
 
 static int fbo_color_buffer(fbo_t *fbo, int output)
@@ -809,11 +872,12 @@ static int fbo_color_buffer(fbo_t *fbo, int output)
 
 static void __fbo_depth_buffer_setup(fbo_t *fbo)
 {
+    GLenum gl_internal_format = gl_texture_internal_format(fbo->depth_format);
     if (fbo_is_multisampled(fbo))
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples,
-                                            GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
+                                            gl_internal_format, fbo->width, fbo->height));
     else
-        GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, fbo->width, fbo->height));
+        GL(glRenderbufferStorage(GL_RENDERBUFFER, gl_internal_format, fbo->width, fbo->height));
 }
 
 static int fbo_depth_buffer(fbo_t *fbo)
@@ -1003,17 +1067,26 @@ DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
 
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
 {
+    if (!opts->width || !opts->height)
+        return cresp_error(fbo_t, CERR_INVALID_ARGUMENTS);
+
     LOCAL_SET(fbo_t, fbo) = ref_new(fbo);
     if (!fbo)
         return cresp_error(fbo_t, CERR_NOMEM);
 
     fbo->width        = opts->width;
     fbo->height       = opts->height;
+    fbo->color_format = opts->color_format;
+    fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
 
+#ifdef CONFIG_GLES
+    fbo->nr_samples = 0;
+#else
     if (opts->nr_samples)
         fbo->nr_samples = opts->nr_samples;
     else if (opts->multisampled)
         fbo->nr_samples = MSAA_SAMPLES;
+#endif
 
     cerr err = fbo_init(fbo, opts->nr_attachments);
     if (IS_CERR(err))

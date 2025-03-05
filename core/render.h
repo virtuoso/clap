@@ -131,9 +131,17 @@ typedef enum texture_filter {
 } texture_filter;
 
 typedef enum texture_format {
-    TEX_FMT_RGBA8,
+    TEX_FMT_DEFAULT,
+    TEX_FMT_RGBA8 = TEX_FMT_DEFAULT,
     TEX_FMT_RGB8,
-    TEX_FMT_DEPTH,
+    TEX_FMT_RGBA16F,
+    TEX_FMT_RGB16F,
+    TEX_FMT_RGBA32F,
+    TEX_FMT_RGB32F,
+    TEX_FMT_DEPTH16F,
+    TEX_FMT_DEPTH24F,
+    TEX_FMT_DEPTH32F,
+    TEX_FMT_MAX,
 } texture_format;
 
 #ifdef CONFIG_RENDERER_OPENGL
@@ -169,6 +177,7 @@ typedef struct texture_init_options {
     texture_wrap        wrap;
     texture_filter      min_filter;
     texture_filter      mag_filter;
+    texture_format      format;
     unsigned int        layers;
     bool                multisampled;
     float               *border;
@@ -211,6 +220,8 @@ TYPE(fbo,
     unsigned int    fbo;
     int             depth_buf;
     GLuint          attachment;
+    texture_format  color_format;
+    texture_format  depth_format;
     darray(int, color_buf);
     texture_t       tex;
     unsigned int    nr_samples;
@@ -229,6 +240,8 @@ typedef struct fbo_init_options {
     unsigned int    height;
     int             nr_attachments;
     unsigned int    nr_samples;
+    texture_format  color_format;
+    texture_format  depth_format;
     bool            multisampled;
 } fbo_init_options;
 
