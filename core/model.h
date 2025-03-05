@@ -236,9 +236,7 @@ DECLARE_REFCLASS(entity3d);
 
 void model3dtx_add_entity(model3dtx *txm, entity3d *e);
 void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
-                   struct light *light, struct camera *camera, struct matrix4f *proj_mx,
-                   entity3d *focus, int width, int height, int cascade,
-                   unsigned long *count);
+                   struct light *light, struct camera *camera, int cascade, unsigned long *count);
 
 static inline const char *entity_name(entity3d *e)
 {

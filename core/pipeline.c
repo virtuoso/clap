@@ -533,12 +533,9 @@ repeat:
 
                 if (!src)
                     models_render(pl->renderer, &s->mq, pass->prog_override, &s->light,
-                                  shadow ? NULL : &s->cameras[0],
-                                  &s->cameras[0].view.main.proj_mx, s->focus, fbo_width(fbo), fbo_height(fbo),
-                                  pass->cascade, &count);
+                                  shadow ? NULL : &s->cameras[0], pass->cascade, &count);
                 else
-                    models_render(pl->renderer, &src->mq, NULL, NULL, NULL, NULL, NULL,
-                                  fbo_width(fbo), fbo_height(fbo), -1, &count);
+                    models_render(pl->renderer, &src->mq, NULL, NULL, NULL, -1, &count);
 
                 fbo_done(fbo, s->width, s->height);
             }
@@ -576,7 +573,7 @@ repeat:
     /* render the last pass to the screen */
     renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
     renderer_clear(pl->renderer, true, true, false);
-    models_render(pl->renderer, &pass->mq, NULL, NULL, NULL, NULL, NULL, s->width, s->height, -1, NULL);
+    models_render(pl->renderer, &pass->mq, NULL, NULL, NULL, -1, NULL);
 }
 
 #ifndef CONFIG_FINAL

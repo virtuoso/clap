@@ -170,8 +170,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     pipeline_render(main_pl, !ui->modal);
 
     if (scene.debug_draws_enabled) {
-        models_render(r, &scene.debug_mq, NULL, NULL, scene.camera, &scene.camera->view.main.proj_mx,
-                      NULL, scene.width, scene.height, -1, NULL);
+        models_render(r, &scene.debug_mq, NULL, NULL, scene.camera, -1, NULL);
         debug_draw_clearout(s);
     }
 

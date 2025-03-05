@@ -714,29 +714,29 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
 }
 
 void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
-                   struct light *light, struct camera *camera, struct matrix4f *proj_mx,
-                   entity3d *focus, int width, int height, int cascade,
-                   unsigned long *count)
+                   struct light *light, struct camera *camera, int cascade, unsigned long *count)
 {
     entity3d *e;
     struct shader_prog *prog = NULL;
     model3d *model;
     model3dtx *txmodel;
     struct view *view = NULL;
+    struct matrix4f *proj = NULL;
     struct subview *subview = NULL;
     unsigned long nr_ents = 0, culled = 0;
 
-    if (camera)
+    if (camera) {
         view = &camera->view;
-    else if (light) {
+        proj = &camera->view.main.proj_mx;
+    } else if (light) {
         view = &light->view[0];
-        proj_mx = &light->view[0].main.proj_mx;
+        proj = &light->view[0].main.proj_mx;
     }
 
     if (view) {
         if (cascade >= 0 && cascade < CASCADES_MAX) {
             subview = &view->subview[cascade];
-            proj_mx = &subview->proj_mx;
+            proj = &subview->proj_mx;
         } else {
             subview = &view->main;
         }
@@ -809,8 +809,8 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
                 shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, subview->inv_view_mx.cell);
             }
 
-            if (proj_mx)
-                shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj_mx->cell);
+            if (proj)
+                shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj->cell);
         }
 
         model3dtx_prepare(txmodel, prog);
@@ -821,7 +821,6 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
         shader_set_var_float(prog, UNIFORM_REFLECTIVITY, txmodel->metallic);
 
         list_for_each_entry (e, &txmodel->entities, entry) {
-            float hc[] = { 0.7, 0.7, 0.0, 1.0 }, nohc[] = { 0.0, 0.0, 0.0, 0.0 };
             if (!e->visible)
                 continue;
 
@@ -842,15 +841,10 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
                 model3d_set_lod(model, lod);
             }
 
-            renderer_wireframe(r, focus == e);
-
             shader_set_var_int(prog, UNIFORM_SOBEL_SOLID, !!e->priv);  /* e->priv now points to character */
             shader_set_var_int(prog, UNIFORM_SOBEL_SOLID_ID, fletcher32((void *)&e, sizeof(e) / 2));
             shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);
             shader_set_var_int(prog, UNIFORM_COLOR_PASSTHROUGH, e->color_pt);
-
-            if (focus)
-                shader_set_var_ptr(prog, UNIFORM_HIGHLIGHT_COLOR, 1, focus == e ? hc : nohc);
 
             if (model->nr_joints && model->anis.da.nr_el) {
                 shader_set_var_int(prog, UNIFORM_USE_SKINNING, 1);
