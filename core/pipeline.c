@@ -532,10 +532,14 @@ repeat:
                 renderer_clear(pl->renderer, clear_color, clear_depth, false);
 
                 if (!src)
-                    models_render(pl->renderer, &s->mq, pass->prog_override, &s->light,
-                                  shadow ? NULL : &s->cameras[0], pass->cascade, &count);
+                    models_render(pl->renderer, &s->mq,
+                                  .shader_override  = pass->prog_override,
+                                  .light            = &s->light,
+                                  .camera           = shadow ? NULL : &s->cameras[0],
+                                  .cascade          = pass->cascade,
+                                  .entity_count     = &count);
                 else
-                    models_render(pl->renderer, &src->mq, NULL, NULL, NULL, -1, &count);
+                    models_render(pl->renderer, &src->mq, .entity_count = &count);
 
                 fbo_done(fbo, s->width, s->height);
             }
@@ -573,7 +577,7 @@ repeat:
     /* render the last pass to the screen */
     renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
     renderer_clear(pl->renderer, true, true, false);
-    models_render(pl->renderer, &pass->mq, NULL, NULL, NULL, -1, NULL);
+    models_render(pl->renderer, &pass->mq);
 }
 
 #ifndef CONFIG_FINAL

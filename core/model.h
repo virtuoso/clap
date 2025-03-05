@@ -235,8 +235,19 @@ DEFINE_REFCLASS_INIT_OPTIONS(entity3d,
 DECLARE_REFCLASS(entity3d);
 
 void model3dtx_add_entity(model3dtx *txm, entity3d *e);
-void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
-                   struct light *light, struct camera *camera, int cascade, unsigned long *count);
+
+typedef struct models_render_options {
+    struct shader_prog  *shader_override;
+    struct light        *light;
+    struct camera       *camera;
+    unsigned long       *entity_count;
+    unsigned long       *txm_count;
+    int                 cascade;
+} models_render_options;
+
+#define models_render(_r, _mq, args...) \
+    _models_render((_r), (_mq), &(models_render_options){ args })
+void _models_render(renderer_t *r, struct mq *mq, const models_render_options *opts);
 
 static inline const char *entity_name(entity3d *e)
 {

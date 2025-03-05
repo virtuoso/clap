@@ -252,7 +252,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(callback, updates);
 
-    models_render(ui->renderer, &ui->mq, NULL, NULL, NULL, -1, &count);
+    models_render(ui->renderer, &ui->mq);
 
     PROF_STEP(ui_render, callback);
 

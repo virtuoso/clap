@@ -713,17 +713,13 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
     an->time_end = max(an->time_end, time[frames - 1]/* + time[1] - time[0]*/);
 }
 
-void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_override,
-                   struct light *light, struct camera *camera, int cascade, unsigned long *count)
+void _models_render(renderer_t *r, struct mq *mq, const models_render_options *opts)
 {
-    entity3d *e;
-    struct shader_prog *prog = NULL;
-    model3d *model;
-    model3dtx *txmodel;
-    struct view *view = NULL;
-    struct matrix4f *proj = NULL;
+    struct camera *camera = opts->camera;
+    struct light *light = opts->light;
     struct subview *subview = NULL;
-    unsigned long nr_ents = 0, culled = 0;
+    struct matrix4f *proj = NULL;
+    struct view *view = NULL;
 
     if (camera) {
         view = &camera->view;
@@ -734,23 +730,27 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
     }
 
     if (view) {
-        if (cascade >= 0 && cascade < CASCADES_MAX) {
-            subview = &view->subview[cascade];
+        if (opts->cascade >= 0 && opts->cascade < CASCADES_MAX) {
+            subview = &view->subview[opts->cascade];
             proj = &subview->proj_mx;
         } else {
             subview = &view->main;
         }
     }
 
+    unsigned long nr_ents = 0, nr_txms = 0, culled = 0;
+    struct shader_prog *prog = NULL;
+    model3dtx *txmodel;
+
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
-        model = txmodel->model;
-        struct shader_prog *model_prog = shader_override ? shader_override : model->prog;
+        model3d *model = txmodel->model;
+        struct shader_prog *model_prog = opts->shader_override ? : model->prog;
 
         model->cur_lod = 0;
 
         cull_face cull = CULL_FACE_NONE;
         if (model->cull_face)
-            cull = shader_override ? CULL_FACE_FRONT : CULL_FACE_BACK;
+            cull = opts->shader_override ? CULL_FACE_FRONT : CULL_FACE_BACK;
         renderer_cull_face(r, cull);
 
         renderer_blend(r, model->alpha_blend, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
@@ -820,6 +820,8 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
         shader_set_var_float(prog, UNIFORM_SHINE_DAMPER, txmodel->roughness);
         shader_set_var_float(prog, UNIFORM_REFLECTIVITY, txmodel->metallic);
 
+        entity3d *e;
+
         list_for_each_entry (e, &txmodel->entities, entry) {
             if (!e->visible)
                 continue;
@@ -860,10 +862,13 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
             nr_ents++;
         }
         model3dtx_done(txmodel, prog);
+        nr_txms++;
     }
 
-    if (count)
-        *count = nr_ents;
+    if (opts->entity_count)
+        *opts->entity_count = nr_ents;
+    if (opts->txm_count)
+        *opts->txm_count = nr_txms;
     if (prog)
         shader_prog_done(prog);
     if (camera && culled)

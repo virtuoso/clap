@@ -504,7 +504,7 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     renderer_clear(ui->renderer, true, true, false);
     // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit.width, uit.height,
     //     fbo->fbo, fbo->width, fbo->height);
-    models_render(ui->renderer, &fbo_ui.mq, NULL, NULL, NULL, -1, NULL);
+    models_render(ui->renderer, &fbo_ui.mq);
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);
 
