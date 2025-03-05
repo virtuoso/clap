@@ -1409,8 +1409,8 @@ static void debug_draw_drop(struct ref *ref)
 
     ref_put(dd->entity);
 }
-cresp_struct_ret(debug_draw);
 DEFINE_REFCLASS(debug_draw);
+DECLARE_REFCLASS(debug_draw);
 DEFINE_REFCLASS_INIT_OPTIONS(debug_draw);
 
 struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
