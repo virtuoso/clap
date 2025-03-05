@@ -221,7 +221,7 @@ TYPE(fbo,
     unsigned int    fbo;
     int             depth_buf;
     GLuint          attachment;
-    texture_format  color_format;
+    texture_format  *color_format;
     texture_format  depth_format;
     darray(int, color_buf);
     texture_t       tex;
@@ -241,7 +241,7 @@ typedef struct fbo_init_options {
     unsigned int    height;
     int             nr_attachments;
     unsigned int    nr_samples;
-    texture_format  color_format;
+    texture_format  *color_format;
     texture_format  depth_format;
     bool            multisampled;
 } fbo_init_options;

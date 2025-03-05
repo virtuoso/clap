@@ -798,10 +798,23 @@ static int fbo_create(void)
     return fbo;
 }
 
+static texture_format fbo_color_format(fbo_t *fbo, int target)
+{
+    /*
+     * boundary check may not be possible yet, because this will be called early
+     * in the initialization path, fbo doesn't keep the size of this array, but
+     * internally correct code shouldn't violate it; otherwise it's better to
+     * crash than to be unwittingly stuck with the wrong texture format
+     */
+    if (fbo->color_format)
+        return fbo->color_format[target];
+
+    return TEX_FMT_DEFAULT;
+}
 static cerr_check fbo_texture_init(fbo_t *fbo)
 {
     cerr err = texture_init(&fbo->tex,
-                            .format        = fbo->color_format,
+                            .format        = fbo_color_format(fbo, 0),
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_EDGE,
                             .min_filter    = TEX_FLT_LINEAR,
@@ -809,7 +822,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo)
     if (IS_CERR(err))
         return err;
 
-    err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, fbo->color_format, fbo->width, fbo->height);
+    err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, fbo_color_format(fbo, 0), fbo->width, fbo->height);
     if (IS_CERR(err))
         return err;
 
@@ -889,9 +902,9 @@ fbo_attachment fbo_get_attachment(fbo_t *fbo)
     return GL_NONE;
 }
 
-static void __fbo_color_buffer_setup(fbo_t *fbo)
+static void __fbo_color_buffer_setup(fbo_t *fbo, int target)
 {
-    GLenum gl_internal_format = gl_texture_internal_format(fbo->color_format);
+    GLenum gl_internal_format = gl_texture_internal_format(fbo_color_format(fbo, target));
     if (fbo_is_multisampled(fbo))
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples, gl_internal_format,
                                             fbo->width, fbo->height));
@@ -905,7 +918,7 @@ static int fbo_color_buffer(fbo_t *fbo, int output)
 
     GL(glGenRenderbuffers(1, &buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, buf));
-    __fbo_color_buffer_setup(fbo);
+    __fbo_color_buffer_setup(fbo, output);
     GL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + output, GL_RENDERBUFFER, buf));
     GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
 
@@ -950,10 +963,10 @@ cerr_check fbo_resize(fbo_t *fbo, int width, int height)
     if (IS_CERR(err))
         return err;
 
-    int *color_buf;
+    int *color_buf, target = 0;
     darray_for_each(color_buf, fbo->color_buf) {
         GL(glBindRenderbuffer(GL_RENDERBUFFER, *color_buf));
-        __fbo_color_buffer_setup(fbo);
+        __fbo_color_buffer_setup(fbo, target++);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
 
@@ -1043,6 +1056,8 @@ static void fbo_drop(struct ref *ref)
         glDeleteRenderbuffers(1, (const GLuint *)color_buf);
     darray_clearout(fbo->color_buf);
 
+    mem_free(fbo->color_format);
+
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
 }
@@ -1120,8 +1135,16 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
 
     fbo->width        = opts->width;
     fbo->height       = opts->height;
-    fbo->color_format = opts->color_format;
     fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
+
+    if (opts->nr_attachments >= 0 && opts->color_format) {
+        int nr_color_formats = opts->nr_attachments;
+        if (!nr_color_formats)
+            nr_color_formats = 1;
+
+        size_t size = nr_color_formats * sizeof(texture_format);
+        fbo->color_format = memdup(opts->color_format, size);
+    }
 
 #ifdef CONFIG_GLES
     fbo->nr_samples = 0;
@@ -1574,7 +1597,9 @@ void renderer_init(renderer_t *renderer)
             else
                 fbo_put(res.val);
         } else {
-            res = fbo_new(.width = 1, .height = 1, .color_format = i, .nr_attachments = 0);
+            res = fbo_new(.width = 1, .height = 1,
+                          .color_format = (texture_format *)&i,
+                          .nr_attachments = 0);
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
             else
