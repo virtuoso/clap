@@ -50,8 +50,7 @@ static void build_main_pl(struct pipeline **pl)
     struct render_pass *shadow_pass[CASCADES_MAX];
 
 #ifdef CONFIG_GLES
-    int i;
-    for (i = 0; i < CASCADES_MAX; i++) {
+    for (int i = 0; i < CASCADES_MAX; i++) {
         shadow_pass[i] = pipeline_add_pass(*pl,
                                            .cascade         = i,
                                            .nr_attachments  = FBO_DEPTH_TEXTURE,
@@ -66,13 +65,21 @@ static void build_main_pl(struct pipeline **pl)
     scene.light.shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], 0);
 #endif /* CONFIG_GLES */
 
+    texture_format hdr_fmts[] = { TEX_FMT_RGB16F, TEX_FMT_RGBA16F, TEX_FMT_RGB32F, TEX_FMT_RGBA32F };
+    texture_format hdr_fmt = TEX_FMT_RGBA8;
+    for (int i = 0; i < array_size(hdr_fmts); i++)
+        if (fbo_texture_supported(hdr_fmts[i])) {
+            hdr_fmt = hdr_fmts[i];
+            break;
+        }
+
     struct render_pass *model_pass = pipeline_add_pass(*pl,
                                                        .multisampled   = true,
                                                        .nr_attachments = 3,
                                                        .name           = "model",
                                                        .color_format   = (texture_format[]) {
                                                                            TEX_FMT_RGBA8,
-                                                                           TEX_FMT_RGBA32F,
+                                                                           hdr_fmt,
                                                                            TEX_FMT_RGBA8 });
     struct render_pass *pass;
     /* XXX: blit the color buffer into another framebuffer in the next pass instead? */
@@ -80,28 +87,28 @@ static void build_main_pl(struct pipeline **pl)
                              .source        = model_pass,
                              .shader        = "contrast",
                              .blit_from     = 1,
-                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
+                             .color_format  = (texture_format[]){ hdr_fmt });
     pass = pipeline_add_pass(*pl,
                              .source        = pass,
                              .shader        = "downsample",
                              .scale         = 0.25,
-                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
+                             .color_format  = (texture_format[]){ hdr_fmt });
 
     pass = pipeline_add_pass(*pl,
                              .source        = pass,
                              .scale         = 0.25,
                              .shader        = "vblur",
-                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
+                             .color_format  = (texture_format[]){ hdr_fmt });
     pass = pipeline_add_pass(*pl,
                              .source        = pass,
                              .scale         = 0.25,
                              .shader        = "hblur",
-                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
+                             .color_format  = (texture_format[]){ hdr_fmt });
     struct render_pass *bloom_pass = pipeline_add_pass(*pl,
                                                        .source        = pass,
                                                        .shader        = "upsample",
                                                        .color_format  = (texture_format[])
-                                                                        { TEX_FMT_RGBA32F });
+                                                                        { hdr_fmt });
     pipeline_pass_add_source(*pl, bloom_pass, UNIFORM_EMISSION_MAP, model_pass, 1, TEX_FMT_RGBA32F);
     struct render_pass *sobel_pass = pipeline_add_pass(*pl,
                                                        .source     = model_pass,
