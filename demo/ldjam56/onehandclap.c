@@ -181,7 +181,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     if (prev_msaa != s->render_options.shadow_msaa) {
         prev_msaa = s->render_options.shadow_msaa;
-        pipeline_put(main_pl);
+        ref_put(main_pl);
         build_main_pl(&main_pl);
     }
     pipeline_debug(main_pl);
@@ -401,7 +401,7 @@ int main(int argc, char **argv, char **envp)
 
 exit_pl:
 #ifndef CONFIG_BROWSER
-    pipeline_put(main_pl);
+    ref_put(main_pl);
 exit_scene:
     scene_done(&scene);
     //gl_done();
