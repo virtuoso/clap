@@ -101,7 +101,7 @@ set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-dec
 set(CERRS_H "${CMAKE_CURRENT_BINARY_DIR}/cerrs.h")
 
 add_custom_target(cerrs_gen
-    COMMENT "Generating refclasses.h"
+    COMMENT "Generating cerrs.h"
     OUTPUT "${CERRS_H}"
     DEPENDS error.h
     COMMAND
