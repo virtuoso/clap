@@ -217,20 +217,26 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     height = (float)height * scale;
     pass->scale = scale;
 
-#ifdef CONFIG_GLES
+    texture_format depth_format = TEX_FMT_DEPTH32F;
     if (nr_targets == FBO_DEPTH_TEXTURE) {
+#ifdef CONFIG_GLES
         /* in GL ES, we render one depth cascade at a time */
         pass->cascade = clamp(cascade, 0, CASCADES_MAX - 1);
+#else
+        pass->cascade = -1;
+#endif /* CONFIG_GLES */
+
+        /* Use 16 bit depth texture for shadows, if available */
+        if (fbo_texture_supported(TEX_FMT_DEPTH16F))
+            depth_format = TEX_FMT_DEPTH16F;
     } else {
         /* otherwise, render all at once into a texture array */
         pass->cascade = -1;
     }
-#else
-    pass->cascade = -1;
-#endif /* CONFIG_GLES */
 
     cresp(fbo_t) res = fbo_new(.width          = width,
                                .height         = height,
+                               .depth_format   = depth_format,
                                .multisampled   = ms,
                                .nr_attachments = nr_targets);
     if (IS_CERR(res))
