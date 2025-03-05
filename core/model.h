@@ -198,7 +198,7 @@ struct queued_animation {
 
 typedef struct entity3d {
     model3dtx        *txmodel;
-    struct matrix4f  *mx;
+    mat4x4           mx;
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
     unsigned int     visible;

@@ -100,11 +100,11 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
     e->visible = __ui_element_is_visible(uie, ui) ? 1 : 0;
     /*trace("VIEWPORT %fx%f; xywh: %f %f %f %f\n", parent_width, parent_height,
           uie->actual_x, uie->actual_y, uie->actual_w, uie->actual_h);*/
-    mat4x4_identity(e->mx->m);
-    mat4x4_translate_in_place(e->mx->m, uie->actual_x, uie->actual_y, 0.0);
+    mat4x4_identity(e->mx);
+    mat4x4_translate_in_place(e->mx, uie->actual_x, uie->actual_y, 0.0);
     //dbg("## positioning '%s' at %f,%f\n", entity_name(e), uie->actual_x, uie->actual_y);
     if (!uie->prescaled)
-        mat4x4_scale_aniso(e->mx->m, e->mx->m, uie->actual_w, uie->actual_h, 1.0);
+        mat4x4_scale_aniso(e->mx, e->mx, uie->actual_w, uie->actual_h, 1.0);
 }
 
 int ui_element_update(entity3d *e, void *data)
@@ -119,7 +119,7 @@ int ui_element_update(entity3d *e, void *data)
 
     mat4x4_identity(p);
     mat4x4_ortho(p, 0, (float)ui->width, 0, (float)ui->height, 1.0, -1.0);
-    mat4x4_mul(e->mx->m, p, e->mx->m);
+    mat4x4_mul(e->mx, p, e->mx);
 
     return 0;
 }

@@ -855,7 +855,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_int(prog, UNIFORM_USE_SKINNING, 0);
             }
 
-            shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx->cell);
+            shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx);
 
             shader_var_blocks_update(prog);
             model3dtx_draw(r, txmodel);
@@ -914,7 +914,7 @@ void entity3d_aabb_update(entity3d *e)
     e->aabb[0] = e->aabb[2] = e->aabb[3] = INFINITY;
     e->aabb[1] = e->aabb[3] = e->aabb[5] = -INFINITY;
     for (i = 0; i < array_size(corners); i++) {
-        mat4x4_mul_vec4(v, e->mx->m, corners[i]);
+        mat4x4_mul_vec4(v, e->mx, corners[i]);
         e->aabb[0] = min(v[0], e->aabb[0]);
         e->aabb[1] = max(v[0], e->aabb[1]);
         e->aabb[2] = min(v[1], e->aabb[2]);
@@ -1229,12 +1229,12 @@ static int default_update(entity3d *e, void *data)
     struct scene *scene = data;
 
     if (needs_update(e)) {
-        mat4x4_identity(e->mx->m);
-        mat4x4_translate_in_place(e->mx->m, e->pos[0], e->pos[1], e->pos[2]);
-        mat4x4_rotate_X(e->mx->m, e->mx->m, e->rx);
-        mat4x4_rotate_Y(e->mx->m, e->mx->m, e->ry);
-        mat4x4_rotate_Z(e->mx->m, e->mx->m, e->rz);
-        mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
+        mat4x4_identity(e->mx);
+        mat4x4_translate_in_place(e->mx, e->pos[0], e->pos[1], e->pos[2]);
+        mat4x4_rotate_X(e->mx, e->mx, e->rx);
+        mat4x4_rotate_Y(e->mx, e->mx, e->ry);
+        mat4x4_rotate_Z(e->mx, e->mx, e->rz);
+        mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
         entity3d_aabb_update(e);
 
@@ -1272,9 +1272,6 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     e->scale     = 1.0;
     e->visible   = 1;
     e->update    = default_update;
-    e->mx        = mx_new();
-    if (!e->mx)
-        return CERR_NOMEM;
 
     model3d *model = opts->txmodel->model;
     e->txmodel = ref_get(opts->txmodel);
@@ -1301,7 +1298,6 @@ static void entity3d_drop(struct ref *ref)
     }
     mem_free(e->joints);
     mem_free(e->joint_transforms);
-    mem_free(e->mx);
 }
 
 DEFINE_REFCLASS2(entity3d);
@@ -1455,9 +1451,9 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     dd->entity->update = NULL;
     entity3d_color(dd->entity, COLOR_PT_ALL, (vec4){ 1, 0, 0, 1 });
     if (rot)
-        memcpy(dd->entity->mx->m, rot, sizeof(mat4x4));
+        memcpy(dd->entity->mx, rot, sizeof(mat4x4));
     else
-        mat4x4_identity(dd->entity->mx->m);
+        mat4x4_identity(dd->entity->mx);
     entity3d_aabb_update(dd->entity);
     list_append(&scene->debug_draws, &dd->entry);
 

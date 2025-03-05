@@ -668,8 +668,8 @@ light_done:
             if (c)
                 c->speed  = speed;
 
-            mat4x4_translate_in_place(e->mx->m, e->pos[0], e->pos[1], e->pos[2]);
-            mat4x4_scale_aniso(e->mx->m, e->mx->m, e->scale, e->scale, e->scale);
+            mat4x4_translate_in_place(e->mx, e->pos[0], e->pos[1], e->pos[2]);
+            mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
             model3dtx_add_entity(txm, e);
 
             if (phys) {
