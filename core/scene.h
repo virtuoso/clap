@@ -5,7 +5,6 @@
 #include <time.h>
 #include "common.h"
 #include "character.h"
-#include "matrix.h"
 #include "model.h"
 #include "motion.h"
 #include "light.h"

@@ -2,7 +2,6 @@
 #ifndef __CLAP_CHARACTER_H__
 #define __CLAP_CHARACTER_H__
 
-#include "matrix.h"
 #include "messagebus.h"
 #include "model.h"
 #include "physics.h"

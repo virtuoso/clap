@@ -18,7 +18,6 @@
 #include "input.h"
 #include "messagebus.h"
 #include "librarian.h"
-#include "matrix.h"
 #include "model.h"
 #include "shader.h"
 #include "terrain.h"

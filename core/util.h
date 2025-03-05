@@ -45,6 +45,16 @@ DECLARE_CLEANUP(uchar);
 #define M_PI_4 0.785398163397448309615660845819875721
 #endif
 
+static inline float to_radians(float degrees)
+{
+    return degrees * M_PI / 180.0;
+}
+
+static inline float to_degrees(float radians)
+{
+    return radians / M_PI * 180.0;
+}
+
 #ifdef _WIN32
 #define srand48 srand
 #define lrand rand
