@@ -138,11 +138,6 @@ static void pipeline_drop(struct ref *ref)
 }
 DEFINE_REFCLASS2(pipeline);
 
-void pipeline_put(struct pipeline *pl)
-{
-    ref_put(pl);
-}
-
 void pipeline_resize(struct pipeline *pl)
 {
     struct render_pass *pass;

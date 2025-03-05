@@ -26,7 +26,6 @@ DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
 );
 DECLARE_REFCLASS(pipeline);
 
-void pipeline_put(struct pipeline *pl);
 void pipeline_resize(struct pipeline *pl);
 void pipeline_shadow_resize(struct pipeline *pl, int width);
 void pipeline_set_resize_cb(struct pipeline *pl, bool (*cb)(fbo_t *, bool, int, int));
