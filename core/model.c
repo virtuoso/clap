@@ -765,9 +765,6 @@ void models_render(renderer_t *r, struct mq *mq, struct shader_prog *shader_over
             prog = model_prog;
             shader_prog_use(prog);
 
-            shader_set_var_float(prog, UNIFORM_WIDTH, width);
-            shader_set_var_float(prog, UNIFORM_HEIGHT, height);
-
             if (light) {
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_POS, LIGHTS_MAX, light->pos);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_COLOR, LIGHTS_MAX, light->color);
