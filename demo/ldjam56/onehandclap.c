@@ -89,7 +89,7 @@ static void build_main_pl(struct pipeline **pl)
     struct render_pass *bloom_pass = pipeline_add_pass(*pl,
                                                        .source  = pass,
                                                        .shader  = "upsample");
-    pipeline_pass_add_source(*pl, bloom_pass, UNIFORM_EMISSION_MAP, model_pass, 1);
+    pipeline_pass_add_source(*pl, bloom_pass, UNIFORM_EMISSION_MAP, model_pass, 1, TEX_FMT_RGBA8);
     struct render_pass *sobel_pass = pipeline_add_pass(*pl,
                                                        .source     = model_pass,
                                                        .shader     = "sobel",
@@ -98,8 +98,8 @@ static void build_main_pl(struct pipeline **pl)
                              .source = model_pass,
                              .shader = "combine",
                              .stop   = true);
-    pipeline_pass_add_source(*pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1);
-    pipeline_pass_add_source(*pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1);
+    pipeline_pass_add_source(*pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1, TEX_FMT_RGBA8);
+    pipeline_pass_add_source(*pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1, TEX_FMT_RGBA8);
 
     pass = pipeline_add_pass(*pl,
                              .source    = pass,

@@ -176,7 +176,7 @@ found:
 static struct render_pass *
 __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
                     const char *shader_override, bool ms, int nr_targets, int target,
-                    int cascade, float scale)
+                    int cascade, float scale, texture_format *color_format)
 {
     struct render_pass *pass;
     struct shader_prog *p;
@@ -236,6 +236,7 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
 
     cresp(fbo_t) res = fbo_new(.width          = width,
                                .height         = height,
+                               .color_format   = color_format,
                                .depth_format   = depth_format,
                                .multisampled   = ms,
                                .nr_attachments = nr_targets);
@@ -321,7 +322,8 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
         _cfg.scale = 1.0;
 
     pass = __pipeline_add_pass(pl, _cfg.source, _cfg.shader, _cfg.shader_override, _cfg.multisampled,
-                               _cfg.nr_attachments, _cfg.blit_from, _cfg.cascade, _cfg.scale);
+                               _cfg.nr_attachments, _cfg.blit_from, _cfg.cascade, _cfg.scale,
+                               _cfg.color_format);
     if (pass) {
         if (_cfg.name)
             pipeline_pass_set_name(pass, _cfg.name);
@@ -344,8 +346,12 @@ void pipeline_pass_set_name(struct render_pass *pass, const char *name)
     pass->name = name;
 }
 
-void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to, struct render_pass *src, int blit_src)
+void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to,
+                              struct render_pass *src, int blit_src, texture_format color_format)
 {
+    if (!src || blit_src >= fbo_nr_attachments(src->fbo.x[0]))
+        return;
+
     model3dtx *txm = mq_model_first(&pass->mq);
     struct render_pass **psrc = darray_add(pass->src);
 
@@ -357,7 +363,9 @@ void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int
         goto err_src;
 
     /* this is where src's txmodel will be rendered */
-    cresp(fbo_t) res = fbo_new(pl->scene->width, pl->scene->height);
+    cresp(fbo_t) res = fbo_new(.width           = pl->scene->width,
+                               .height          = pl->scene->height,
+                               .color_format    = &color_format);
     if (IS_CERR(res))
         goto err_fbo_array;
 
