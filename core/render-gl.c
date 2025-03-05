@@ -528,23 +528,25 @@ void texture_deinit(texture_t *tex)
 static cerr texture_storage(texture_t *tex, void *buf)
 {
     if (tex->type == GL_TEXTURE_2D)
-        GL(glTexImage2D(tex->type, 0, tex->internal_format, tex->width, tex->height,
-                        0, tex->format, tex->component_type, buf));
+        glTexImage2D(tex->type, 0, tex->internal_format, tex->width, tex->height,
+                     0, tex->format, tex->component_type, buf);
     else if (tex->type == GL_TEXTURE_2D_ARRAY || tex->type == GL_TEXTURE_3D)
-        GL(glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
-                        0, tex->format, tex->component_type, buf));
+        glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
+                     0, tex->format, tex->component_type, buf);
 #ifdef CONFIG_GLES
     else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE ||
              tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
          return CERR_NOT_SUPPORTED;
 #else
     else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE)
-        GL(glTexImage2DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
-                                   GL_TRUE));
+        glTexImage2DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
+                                GL_TRUE);
     else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
-        GL(glTexImage3DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
-           tex->layers, GL_TRUE));
+        glTexImage3DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
+                                tex->layers, GL_TRUE);
 #endif /* CONFIG_GLES */
+    if (glGetError() != GL_NO_ERROR)
+        return CERR_NOT_SUPPORTED;
 
     return CERR_OK;
 }
