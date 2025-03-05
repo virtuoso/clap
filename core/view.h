@@ -3,13 +3,12 @@
 #define __CLAP_VIEW_H__
 
 #include "shader_constants.h"
-#include "matrix.h"
 
 struct view {
     struct subview {
-        struct matrix4f     view_mx;
-        struct matrix4f     inv_view_mx;
-        struct matrix4f     proj_mx;
+        mat4x4              view_mx;
+        mat4x4              inv_view_mx;
+        mat4x4              proj_mx;
         vec4                frustum_planes[6];
         vec4                frustum_corners[8];
         float               near_plane;

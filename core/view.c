@@ -43,9 +43,9 @@ static void view_update_perspective_subviews(struct view *view)
     for (i = 0; i < max; i++) {
         struct subview *sv = &view->subview[i];
 
-        mat4x4_dup(sv->view_mx.m, view->main.view_mx.m);
-        mat4x4_dup(sv->inv_view_mx.m, view->main.inv_view_mx.m);
-        mat4x4_perspective(sv->proj_mx.m, view->fov, view->aspect, sv->near_plane, sv->far_plane);
+        mat4x4_dup(sv->view_mx, view->main.view_mx);
+        mat4x4_dup(sv->inv_view_mx, view->main.inv_view_mx);
+        mat4x4_perspective(sv->proj_mx, view->fov, view->aspect, sv->near_plane, sv->far_plane);
         subview_calc_frustum(sv);
     }
 }
@@ -76,12 +76,12 @@ static void subview_debug(struct subview *dst, float *light_pos,
         return;
 
     vec4 light_pos_world;
-    mat4x4_mul_vec4(light_pos_world, dst->inv_view_mx.m, light_pos);
+    mat4x4_mul_vec4(light_pos_world, dst->inv_view_mx, light_pos);
 
     igText("projection matrix");
-    ui_igMat4x4(dst->proj_mx.m, "projection");
+    ui_igMat4x4(dst->proj_mx, "projection");
     igText("view matrix");
-    ui_igMat4x4(dst->view_mx.m, "view");
+    ui_igMat4x4(dst->view_mx, "view");
     // igText("_aabb_min[2]: %f dir: %f", _aabb_min[2], vec3_len(dir));
     ui_igVecTableHeader("AABB", 4);
     ui_igVecRow(light_pos, 4, "light pos");
@@ -132,7 +132,7 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
 
     for (i = 0; i < 8; i++) {
         vec4 corner;
-        mat4x4_mul_vec4(corner, dst->view_mx.m, src->frustum_corners[i]);
+        mat4x4_mul_vec4(corner, dst->view_mx, src->frustum_corners[i]);
 
         /* Add some padding to the AABB to avoid precision issues */
         for (j = 0; j < 2; j++) {
@@ -158,16 +158,16 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
     vec3_add(light_pos, near_bottom_left, near_top_right);
     vec3_scale(light_pos, light_pos, 0.5);
     /* this is the same as translate_in_place by light_pos_world, but quicker */
-    dst->view_mx.m[3][0] = -light_pos[0];
-    dst->view_mx.m[3][1] = -light_pos[1];
-    dst->view_mx.m[3][2] = -light_pos[2];
-    mat4x4_invert(dst->inv_view_mx.m, dst->view_mx.m);
+    dst->view_mx[3][0] = -light_pos[0];
+    dst->view_mx[3][1] = -light_pos[1];
+    dst->view_mx[3][2] = -light_pos[2];
+    mat4x4_invert(dst->inv_view_mx, dst->view_mx);
 
     vec4 aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
 
     for (i = 0; i < 8; i++) {
         vec4 corner;
-        mat4x4_mul_vec4(corner, dst->view_mx.m, src->frustum_corners[i]);
+        mat4x4_mul_vec4(corner, dst->view_mx, src->frustum_corners[i]);
 
         for (j = 0; j < 3; j++) {
             aabb_min[j] = fminf(aabb_min[j], corner[j]);
@@ -175,7 +175,7 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
         }
     }
 
-    mat4x4_ortho(dst->proj_mx.m, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
+    mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
                  aabb_max[2] * far_factor, aabb_min[2] * near_factor);
     subview_calc_frustum(dst);
     subview_debug(dst, light_pos, _aabb_min, _aabb_max, aabb_min, aabb_max);
@@ -198,13 +198,13 @@ static void view_projection_update(struct view *view, struct view *src)
 
 static void subview_update_from_angles(struct subview *sv, vec3 eye, float pitch, float yaw, float roll)
 {
-    mat4x4_identity(sv->view_mx.m);
-    mat4x4_rotate_X(sv->view_mx.m, sv->view_mx.m, to_radians(pitch));
-    mat4x4_rotate_Y(sv->view_mx.m, sv->view_mx.m, to_radians(yaw));
-    mat4x4_rotate_Z(sv->view_mx.m, sv->view_mx.m, to_radians(roll));
-    mat4x4_translate_in_place(sv->view_mx.m, -eye[0], -eye[1], -eye[2]);
+    mat4x4_identity(sv->view_mx);
+    mat4x4_rotate_X(sv->view_mx, sv->view_mx, to_radians(pitch));
+    mat4x4_rotate_Y(sv->view_mx, sv->view_mx, to_radians(yaw));
+    mat4x4_rotate_Z(sv->view_mx, sv->view_mx, to_radians(roll));
+    mat4x4_translate_in_place(sv->view_mx, -eye[0], -eye[1], -eye[2]);
 
-    mat4x4_invert(sv->inv_view_mx.m, sv->view_mx.m);
+    mat4x4_invert(sv->inv_view_mx, sv->view_mx);
 }
 
 void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll)
@@ -217,7 +217,7 @@ void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw
 void view_update_perspective_projection(struct view *view, int width, int height)
 {
     view->aspect = (float)width / (float)height;
-    mat4x4_perspective(view->main.proj_mx.m, view->fov, view->aspect,
+    mat4x4_perspective(view->main.proj_mx, view->fov, view->aspect,
                        view->main.near_plane, view->main.far_plane);
     view_update_perspective_subviews(view);
 }
@@ -226,8 +226,8 @@ static void subview_update_from_target(struct subview *subview, vec3 eye, vec3 t
 {
     vec3 up = { 0.0, 1.0, 0.0 };
 
-    mat4x4_look_at(subview->view_mx.m, eye, target, up);
-    mat4x4_invert(subview->inv_view_mx.m, subview->view_mx.m);
+    mat4x4_look_at(subview->view_mx, eye, target, up);
+    mat4x4_invert(subview->inv_view_mx, subview->view_mx);
 }
 
 void view_update_from_target(struct view *view, vec3 eye, vec3 target)
@@ -261,7 +261,7 @@ static void subview_calc_frustum(struct subview *subview)
     };
     int i = 0;
 
-    mat4x4_mul(mvp, subview->proj_mx.m, subview->view_mx.m);
+    mat4x4_mul(mvp, subview->proj_mx, subview->view_mx);
     mat4x4_transpose(trans, mvp);
     mat4x4_invert(invmvp, mvp);
 

@@ -195,7 +195,7 @@ static void light_debug(struct light *light, int idx)
             ui_igVecRow(dir, 3, "direction");
             igEndTable();
         }
-        ui_igMat4x4(view->main.view_mx.m, "view matrix");
+        ui_igMat4x4(view->main.view_mx, "view matrix");
     }
 
     ui_igEnd(DEBUG_LIGHT);

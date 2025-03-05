@@ -10,7 +10,6 @@
 #include "common.h"
 #include "interp.h"
 #include "render.h"
-#include "matrix.h"
 #include "util.h"
 #include "object.h"
 #include "mesh.h"
@@ -718,8 +717,8 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     struct camera *camera = opts->camera;
     struct light *light = opts->light;
     struct subview *subview = NULL;
-    struct matrix4f *proj = NULL;
     struct view *view = NULL;
+    mat4x4 *proj = NULL;
 
     if (camera) {
         view = &camera->view;
@@ -777,7 +776,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
                     for (i = 0; i < CASCADES_MAX; i++) {
                         struct subview *light_sv = &light->view[0].subview[i];
-                        mat4x4_mul(mvp[i], light_sv->proj_mx.m, light_sv->view_mx.m);
+                        mat4x4_mul(mvp[i], light_sv->proj_mx, light_sv->view_mx);
                     }
                     shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
                 }
@@ -805,12 +804,12 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_CASCADE_DISTANCES, CASCADES_MAX, view->divider);
 
             if (subview) {
-                shader_set_var_ptr(prog, UNIFORM_VIEW, 1, subview->view_mx.cell);
-                shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, subview->inv_view_mx.cell);
+                shader_set_var_ptr(prog, UNIFORM_VIEW, 1, subview->view_mx);
+                shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, subview->inv_view_mx);
             }
 
             if (proj)
-                shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj->cell);
+                shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj);
         }
 
         model3dtx_prepare(txmodel, prog);
