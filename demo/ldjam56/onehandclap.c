@@ -69,27 +69,40 @@ static void build_main_pl(struct pipeline **pl)
     struct render_pass *model_pass = pipeline_add_pass(*pl,
                                                        .multisampled   = true,
                                                        .nr_attachments = 3,
-                                                       .name           = "model");
+                                                       .name           = "model",
+                                                       .color_format   = (texture_format[]) {
+                                                                           TEX_FMT_RGBA8,
+                                                                           TEX_FMT_RGBA32F,
+                                                                           TEX_FMT_RGBA8 });
     struct render_pass *pass;
     /* XXX: blit the color buffer into another framebuffer in the next pass instead? */
-    pass = pipeline_add_pass(*pl, .source = model_pass, .shader = "contrast", .blit_from = 1);
     pass = pipeline_add_pass(*pl,
-                             .source    = pass,
-                             .shader    = "downsample",
-                             .scale     = 0.25);
+                             .source        = model_pass,
+                             .shader        = "contrast",
+                             .blit_from     = 1,
+                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
+    pass = pipeline_add_pass(*pl,
+                             .source        = pass,
+                             .shader        = "downsample",
+                             .scale         = 0.25,
+                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
 
     pass = pipeline_add_pass(*pl,
-                             .source    = pass,
-                             .scale     = 0.25,
-                             .shader    = "vblur");
+                             .source        = pass,
+                             .scale         = 0.25,
+                             .shader        = "vblur",
+                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
     pass = pipeline_add_pass(*pl,
-                             .source    = pass,
-                             .scale     = 0.25,
-                             .shader    = "hblur");
+                             .source        = pass,
+                             .scale         = 0.25,
+                             .shader        = "hblur",
+                             .color_format  = (texture_format[]){ TEX_FMT_RGBA32F });
     struct render_pass *bloom_pass = pipeline_add_pass(*pl,
-                                                       .source  = pass,
-                                                       .shader  = "upsample");
-    pipeline_pass_add_source(*pl, bloom_pass, UNIFORM_EMISSION_MAP, model_pass, 1, TEX_FMT_RGBA8);
+                                                       .source        = pass,
+                                                       .shader        = "upsample",
+                                                       .color_format  = (texture_format[])
+                                                                        { TEX_FMT_RGBA32F });
+    pipeline_pass_add_source(*pl, bloom_pass, UNIFORM_EMISSION_MAP, model_pass, 1, TEX_FMT_RGBA32F);
     struct render_pass *sobel_pass = pipeline_add_pass(*pl,
                                                        .source     = model_pass,
                                                        .shader     = "sobel",
