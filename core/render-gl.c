@@ -383,6 +383,27 @@ static GLenum gl_texture_filter(texture_filter filter)
     return GL_NONE;
 }
 
+static bool _texture_format_supported[TEX_FMT_MAX];
+
+bool texture_format_supported(texture_format format)
+{
+    if (format >= TEX_FMT_MAX)
+        return false;
+
+    return _texture_format_supported[format];
+}
+
+static __unused const char *texture_format_string[TEX_FMT_MAX] = {
+        [TEX_FMT_RGBA8]     = "RGBA8",
+        [TEX_FMT_RGB8]      = "RGB8",
+        [TEX_FMT_RGBA16F]   = "RGBA16F",
+        [TEX_FMT_RGB16F]    = "RGB16F",
+        [TEX_FMT_RGBA32F]   = "RGBA32F",
+        [TEX_FMT_RGB32F]    = "RGB32F",
+        [TEX_FMT_DEPTH32F]  = "DEPTH32F",
+        [TEX_FMT_DEPTH24F]  = "DEPTH24F",
+        [TEX_FMT_DEPTH16F]  = "DEPTH16F",
+};
 
 static GLenum gl_texture_format(texture_format format)
 {
@@ -469,6 +490,9 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
 #ifdef CONFIG_GLES
     multisampled  = false;
 #endif /* CONFIG_GLES */
+
+    if (!texture_format_supported(opts->format))
+        return CERR_NOT_SUPPORTED;
 
     cerr err = ref_embed(texture, tex);
     if (IS_CERR(err))
@@ -608,6 +632,9 @@ cerr_check texture_load(texture_t *tex, texture_format format,
     if (!texture_size_valid(width, height))
         return CERR_INVALID_TEXTURE_SIZE;
 
+    if (!texture_format_supported(format))
+        return CERR_NOT_SUPPORTED;
+
     GLuint gl_format = gl_texture_format(format);
 
     if (gl_format != tex->format) {
@@ -633,6 +660,9 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
 {
     if (!texture_size_valid(width, height))
         return CERR_INVALID_TEXTURE_SIZE;
+
+    if (!fbo_texture_supported(format))
+        return CERR_NOT_SUPPORTED;
 
     GLuint gl_format = gl_texture_format(format);
 
@@ -748,6 +778,16 @@ void textures_done(void)
 /****************************************************************************
  * Framebuffer
  ****************************************************************************/
+
+static bool _fbo_texture_supported[TEX_FMT_MAX];
+
+bool fbo_texture_supported(texture_format format)
+{
+    if (format >= TEX_FMT_MAX)
+        return false;
+
+    return _fbo_texture_supported[format];
+}
 
 static int fbo_create(void)
 {
@@ -1498,6 +1538,52 @@ void renderer_init(renderer_t *renderer)
     GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
 #endif /* EGL_EGL_PROTOTYPES */
     renderer_wireframe(renderer, false);
+
+    for (i = 0; i < TEX_FMT_MAX; i++) {
+        float buf[4] = {};
+        texture_t tex;
+
+        _texture_format_supported[i] = true;
+
+        cerr err = texture_init(&tex);
+        if (!IS_CERR(err)) {
+            err = texture_load(&tex, i, 1, 1, &buf);
+            if (IS_CERR(err))
+                _texture_format_supported[i] = false;
+
+            texture_deinit(&tex);
+        }
+
+#ifdef CLAP_DEBUG
+        dbg("texture format %s is %ssupported in textures\n",
+            texture_format_string[i], _texture_format_supported[i] ? "" : "not ");
+#endif /* CLAP_DEBUG */
+    }
+
+    for (i = 0; i < TEX_FMT_MAX; i++) {
+        cresp(fbo_t) res;
+
+        _fbo_texture_supported[i] = true;
+
+        if (gl_texture_format(i) == GL_DEPTH_COMPONENT) {
+            res = fbo_new(.width = 1, .height = 1, .depth_format = i, .nr_attachments = FBO_DEPTH_TEXTURE);
+            if (IS_CERR(res))
+                _fbo_texture_supported[i] = false;
+            else
+                fbo_put(res.val);
+        } else {
+            res = fbo_new(.width = 1, .height = 1, .color_format = i, .nr_attachments = 0);
+            if (IS_CERR(res))
+                _fbo_texture_supported[i] = false;
+            else
+                fbo_put(res.val);
+        }
+
+#ifdef CLAP_DEBUG
+        dbg("texture format %s is %ssupported as texture attachment\n",
+            texture_format_string[i], _fbo_texture_supported[i] ? "" : "not ");
+#endif /* CLAP_DEBUG */
+    }
 }
 
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)

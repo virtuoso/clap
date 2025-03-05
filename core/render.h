@@ -185,6 +185,7 @@ typedef struct texture_init_options {
 
 typedef int texid_t;
 
+bool texture_format_supported(texture_format format);
 cerr_check _texture_init(texture_t *tex, const texture_init_options *opts);
 #define texture_init(_t, args...) \
     _texture_init((_t), &(texture_init_options){ args })
@@ -245,6 +246,7 @@ typedef struct fbo_init_options {
     bool            multisampled;
 } fbo_init_options;
 
+bool fbo_texture_supported(texture_format format);
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts);
 #define fbo_new(args...) \
     _fbo_new(&(fbo_init_options){ args })
