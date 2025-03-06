@@ -1030,15 +1030,21 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
     if (!fbo)
         return CERR_INVALID_ARGUMENTS;
 
-    fbo->width = width;
-    fbo->height = height;
     GL(glFinish());
 
     cerr err = CERR_OK;
     if (texture_loaded(&fbo->tex))
         err = texture_resize(&fbo->tex, width, height);
-    if (IS_CERR(err))
+    /* On error, revert back to the previous size */
+    if (IS_CERR(err)) {
+        if (width != fbo->width || height != fbo->height)
+            return fbo_resize(fbo, fbo->width, fbo->height);
+
         return err;
+    }
+
+    fbo->width = width;
+    fbo->height = height;
 
     int *color_buf, target = 0;
     darray_for_each(color_buf, fbo->color_buf) {
