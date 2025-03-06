@@ -69,7 +69,7 @@ stdio_log(int level, const char *mod, int line, const char *func, const char *ms
         output = stderr;
 
     if (level < 0 || level >= WARN)
-        fprintf(output, "[%s:%d @%s] ", mod, line, func);
+        fprintf(output, "[%s:%d @%s] ", str_basename(mod), line, func);
     fputs(msg, output);
 
     return CERR_OK;
