@@ -1284,6 +1284,8 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
         e->joint_transforms = mem_alloc(sizeof(mat4x4), .nr = model->nr_joints, .fatal_fail = 1);
     }
 
+    list_append(&e->txmodel->entities, &e->entry);
+
     return CERR_OK;
 }
 
@@ -1382,11 +1384,6 @@ void entity3d_color(entity3d *e, int color_pt, vec4 color)
     }
 }
 
-void model3dtx_add_entity(model3dtx *txm, entity3d *e)
-{
-    list_append(&txm->entities, &e->entry);
-}
-
 entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
                              bool randomize_yrot, float randomize_scale, struct scene *scene)
 {
@@ -1397,7 +1394,6 @@ entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
     if (randomize_scale)
         entity3d_scale(e, 1 + randomize_scale * (1 - drand48() * 2));
     default_update(e, scene);
-    model3dtx_add_entity(txm, e);
     return e;
 }
 
@@ -1449,7 +1445,6 @@ struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
     list_init(&txm->entities);
     mq_add_model(&scene->debug_mq, txm);
     CHECK(dd->entity = ref_new(entity3d, .txmodel = txm));
-    model3dtx_add_entity(txm, dd->entity);
     entity3d_visible(dd->entity, 1);
     dd->entity->update = NULL;
     entity3d_color(dd->entity, COLOR_PT_ALL, (vec4){ 1, 0, 0, 1 });

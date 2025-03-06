@@ -168,7 +168,6 @@ void game_item_init(struct game_item *item, struct game_state *g,
     entity3d *e = ref_new(entity3d, .txmodel = txm);
 
     item->kind = kind;
-    model3dtx_add_entity(txm, e);
     item->entity = e;
 }
 

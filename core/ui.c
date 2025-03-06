@@ -227,7 +227,6 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
     e->visible = 1;
     entity3d_color(e, COLOR_PT_NONE, (vec4){});
 
-    list_append(&opts->txmodel->entities, &e->entry);
     ui_element_position(uie, opts->ui);
 
     return CERR_OK;

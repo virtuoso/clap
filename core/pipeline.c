@@ -285,7 +285,6 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
     mq_add_model(&pass->mq, txm);
     /* XXX: error checking */
     e = ref_new(entity3d, .txmodel = txm);
-    list_append(&txm->entities, &e->entry);
     e->visible = true;
     mat4x4_identity(e->mx);
     ref_put(p);

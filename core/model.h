@@ -234,8 +234,6 @@ DEFINE_REFCLASS_INIT_OPTIONS(entity3d,
 );
 DECLARE_REFCLASS(entity3d);
 
-void model3dtx_add_entity(model3dtx *txm, entity3d *e);
-
 typedef struct models_render_options {
     struct shader_prog  *shader_override;
     struct light        *light;

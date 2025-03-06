@@ -131,7 +131,6 @@ cres(int) scene_camera_add(struct scene *s)
     entity3d *entity = character_entity(s->camera->ch);
     entity3d_visible(entity, 0);
     s->control = entity;
-    model3dtx_add_entity(txmres.val, entity);
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
 
@@ -670,7 +669,6 @@ light_done:
 
             mat4x4_translate_in_place(e->mx, e->pos[0], e->pos[1], e->pos[2]);
             mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
-            model3dtx_add_entity(txm, e);
 
             if (phys) {
                 entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
