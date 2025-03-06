@@ -141,6 +141,9 @@ typedef enum texture_format {
     TEX_FMT_DEPTH16F,
     TEX_FMT_DEPTH24F,
     TEX_FMT_DEPTH32F,
+    TEX_FMT_R8,
+    TEX_FMT_R16F,
+    TEX_FMT_R32F,
     TEX_FMT_MAX,
 } texture_format;
 

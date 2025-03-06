@@ -394,6 +394,9 @@ bool texture_format_supported(texture_format format)
 }
 
 static __unused const char *texture_format_string[TEX_FMT_MAX] = {
+        [TEX_FMT_R8]        = "R8",
+        [TEX_FMT_R16F]      = "R16F",
+        [TEX_FMT_R32F]      = "R32F",
         [TEX_FMT_RGBA8]     = "RGBA8",
         [TEX_FMT_RGB8]      = "RGB8",
         [TEX_FMT_RGBA16F]   = "RGBA16F",
@@ -408,6 +411,9 @@ static __unused const char *texture_format_string[TEX_FMT_MAX] = {
 static GLenum gl_texture_format(texture_format format)
 {
     switch (format) {
+        case TEX_FMT_R32F:
+        case TEX_FMT_R16F:
+        case TEX_FMT_R8:        return GL_RED;
         case TEX_FMT_RGBA32F:
         case TEX_FMT_RGBA16F:
         case TEX_FMT_RGBA8:     return GL_RGBA;
@@ -428,6 +434,9 @@ static GLenum gl_texture_format(texture_format format)
 static GLenum gl_texture_internal_format(texture_format fmt)
 {
     switch (fmt) {
+        case TEX_FMT_R8:        return GL_R8;
+        case TEX_FMT_R16F:      return GL_R16F;
+        case TEX_FMT_R32F:      return GL_R32F;
         case TEX_FMT_RGBA8:     return GL_RGBA8;
         case TEX_FMT_RGB8:      return GL_RGB8;
         case TEX_FMT_RGBA32F:   return GL_RGBA32F;
@@ -448,14 +457,17 @@ static GLenum gl_texture_internal_format(texture_format fmt)
 static GLenum gl_texture_component_type(texture_format fmt)
 {
     switch (fmt) {
+        case TEX_FMT_R8:
         case TEX_FMT_RGB8:
         case TEX_FMT_RGBA8:     return GL_UNSIGNED_BYTE;
+        case TEX_FMT_R16F:
         case TEX_FMT_RGB16F:
 #ifdef CONFIG_GLES
         case TEX_FMT_RGBA16F:   return GL_UNSIGNED_SHORT;
 #else
         case TEX_FMT_RGBA16F:   return GL_HALF_FLOAT;
 #endif /* CONFIG_GLES */
+        case TEX_FMT_R32F:
         case TEX_FMT_RGB32F:
         case TEX_FMT_RGBA32F:   return GL_FLOAT;
         case TEX_FMT_DEPTH32F:  return GL_FLOAT;
