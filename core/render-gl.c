@@ -851,6 +851,8 @@ static texture_format fbo_color_format(fbo_t *fbo, fbo_attachment attachment)
 static cerr_check fbo_texture_init(fbo_t *fbo)
 {
     cerr err = texture_init(&fbo->tex,
+                            .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
+                            .layers        = fbo->layers,
                             .format        = fbo_color_format(fbo, 0),
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_EDGE,
@@ -872,10 +874,8 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
 {
     float border[4] = {};
     cerr err = texture_init(&fbo->tex,
-#ifndef CONFIG_GLES
-                            .type          = TEX_2D_ARRAY,
-                            .layers        = CASCADES_MAX,
-#endif /* CONFIG_GLES */
+                            .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
+                            .layers        = fbo->layers,
                             .format        = fbo->depth_format,
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_BORDER,
@@ -1226,6 +1226,7 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
 
     fbo->width        = opts->width;
     fbo->height       = opts->height;
+    fbo->layers       = opts->layers;
     fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
 
     if (opts->attachment_config != FBO_DEPTH_TEXTURE && opts->color_format) {

@@ -60,6 +60,7 @@ static void build_main_pl(struct pipeline **pl)
     shadow_pass[0] = pipeline_add_pass(*pl,
                                        .multisampled    = scene.render_options.shadow_msaa,
                                        .nr_attachments  = FBO_DEPTH_TEXTURE,
+                                       .layers          = CASCADES_MAX,
                                        .shader_override = "shadow");
     scene.light.shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], 0);
 #endif /* CONFIG_GLES */

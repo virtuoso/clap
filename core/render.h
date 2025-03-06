@@ -237,6 +237,7 @@ TYPE(fbo,
     struct ref      ref;
     int             width;
     int             height;
+    unsigned int    layers;
     unsigned int    fbo;
     int             depth_buf;
     GLuint          attachment;
@@ -258,6 +259,7 @@ cresp_ret(fbo_t);
 typedef struct fbo_init_options {
     unsigned int    width;
     unsigned int    height;
+    unsigned int    layers;
     fbo_attachment  attachment_config;
     unsigned int    nr_samples;
     texture_format  *color_format;
