@@ -1536,6 +1536,14 @@ void renderer_init(renderer_t *renderer)
         msg("GL extension: '%s'\n", ext);
     }
 
+#ifdef __APPLE__
+    const char *renderer_str = (const char *)glGetString(GL_RENDERER);
+    /* A quirk to fix frame stutter on mac OS with AMD graphics */
+    if (renderer_str && !strncmp(renderer_str, "AMD", 3))
+        renderer->mac_amd_quirk = true;
+#endif /* __APPLE__ */
+
+
     GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits.gl_max_texture_size));
     GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
     GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));
@@ -1792,6 +1800,10 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, da
     GLenum _idx_type = gl_comp_type[idx_type];
     GLenum _draw_type = gl_draw_type(draw_type);
     GL(glDrawElements(_draw_type, nr_faces, _idx_type, 0));
+
+    /* Fix frame stutter on macOS + AMD (forces frame submission) */
+    if (r->mac_amd_quirk)
+        GL(glFlush());
 }
 
 static GLenum gl_depth_func(depth_func fn)

@@ -372,6 +372,7 @@ TYPE(renderer,
     bool                blend;
     bool                depth_test;
     bool                wireframe;
+    bool                mac_amd_quirk;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
