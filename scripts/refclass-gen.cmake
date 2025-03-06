@@ -6,10 +6,22 @@
 
 list(APPEND decls "")
 file(GLOB sources "${dir}/*.h" "${dir}/*.c")
-file(WRITE  "${output}" "#ifndef __CLAP_REFCLASS_H_GENERATED__\n")
-file(APPEND "${output}" "#define __CLAP_REFCLASS_H_GENERATED__\n\n")
-file(APPEND "${output}" "struct ref;\n\n")
-file(APPEND "${output}" "static inline struct ref *__bad_object(void *x) { return NULL; };\n\n")
+
+# Read the existing file (if it exists)
+set(existing_content "")
+if (EXISTS "${output}")
+    file(READ "${output}" existing_content)
+endif()
+
+# Write the new contents into a variable first, so it can be compared
+# against the existing contents and only update the file if they differ
+set(new_content "#ifndef __CLAP_REFCLASS_H_GENERATED__\n")
+set(new_content "${new_content}#define __CLAP_REFCLASS_H_GENERATED__\n\n")
+set(new_content "${new_content}struct ref;\n\n")
+set(new_content "${new_content}static inline struct ref *__bad_object(void *x) { return NULL; };\n\n")
+
+# Trawl through the source files for the declarations of refclasses,
+# store the caught ones in ${decl} list
 foreach (src ${sources})
     file(READ "${src}" text)
     string(REGEX MATCHALL "DECLARE_REFCLASS\\(([A-Za-z_0-9]*)\\);" decl "${text}")
@@ -22,13 +34,24 @@ foreach (src ${sources})
     endif ()
 endforeach ()
 
+# Declare the ref* obtaining functions defined in DEFINE_REFCLASS*()
 foreach (decl ${decls})
-    file(APPEND "${output}" "struct ref *${decl}_ref(void *x);\n")
+    set(new_content "${new_content}struct ref *${decl}_ref(void *x);\n")
 endforeach ()
 
-file(APPEND "${output}" "\n#define __obj_ref(_obj) (_Generic((_obj), \\\n")
+# Define a macro _Generic over the give type to select the ref* obtaining
+# function appropriate to the type and call it
+set(new_content "${new_content}\n#define __obj_ref(_obj) (_Generic((_obj), \\\n")
 foreach (decl ${decls})
-    file(APPEND "${output}" "    struct ${decl} *: ${decl}_ref, \\\n")
+    set(new_content "${new_content}    struct ${decl} *: ${decl}_ref, \\\n")
 endforeach ()
-file(APPEND "${output}" "    default: __bad_object)((_obj)))\n\n")
-file(APPEND "${output}" "#endif /* __CLAP_REFCLASS_H_GENERATED__ */\n")
+
+# Fallback for unknown types, returns NULL: a guaranteed immediate SEGFAULT
+# is always better than obscure memory corruptions with delayed effect
+set(new_content "${new_content}    default: __bad_object)((_obj)))\n\n")
+set(new_content "${new_content}#endif /* __CLAP_REFCLASS_H_GENERATED__ */\n")
+
+# Only write to the file if the content has changed
+if (NOT existing_content STREQUAL new_content)
+    file(WRITE "${output}" "${new_content}")
+endif ()

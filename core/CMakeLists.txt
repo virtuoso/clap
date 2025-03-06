@@ -100,7 +100,7 @@ set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-dec
 
 set(CERRS_H "${CMAKE_CURRENT_BINARY_DIR}/cerrs.h")
 
-add_custom_target(cerrs_gen
+add_custom_command(
     COMMENT "Generating cerrs.h"
     OUTPUT "${CERRS_H}"
     DEPENDS error.h
@@ -111,9 +111,12 @@ add_custom_target(cerrs_gen
             -DCLAP_BUILD_FINAL:BOOL=${CLAP_BUILD_FINAL}
             -P ${CMAKE_SOURCE_DIR}/scripts/cerr-gen.cmake
 )
+
+add_custom_target(cerrs_gen DEPENDS "${CERRS_H}")
+
 set(REFCLASSES_H "${CMAKE_CURRENT_BINARY_DIR}/refclasses.h")
 
-add_custom_target(refclasses_gen
+add_custom_command(
     COMMENT "Generating refclasses.h"
     OUTPUT "${REFCLASSES_H}"
     DEPENDS ${ENGINE_SRC}
@@ -123,6 +126,8 @@ add_custom_target(refclasses_gen
             -Doutput="${REFCLASSES_H}"
             -P ${CMAKE_SOURCE_DIR}/scripts/refclass-gen.cmake
 )
+
+add_custom_target(refclasses_gen DEPENDS "${REFCLASSES_H}")
 
 if (NOT CLAP_BUILD_FINAL)
     list(APPEND ENGINE_SRC profiler.c)
