@@ -229,12 +229,12 @@ __pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *sh
         pass->cascade = -1;
     }
 
-    cresp(fbo_t) res = fbo_new(.width          = width,
-                               .height         = height,
-                               .color_format   = color_format,
-                               .depth_format   = depth_format,
-                               .multisampled   = ms,
-                               .nr_attachments = nr_targets);
+    cresp(fbo_t) res = fbo_new(.width               = width,
+                               .height              = height,
+                               .color_format        = color_format,
+                               .depth_format        = depth_format,
+                               .multisampled        = ms,
+                               .attachment_config   = nr_targets);
     if (IS_CERR(res))
         goto err_fbo_array;
 

@@ -168,11 +168,11 @@ TYPE(texture,
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
-typedef enum fbo_attachment {
+typedef enum fbo_attachment_type {
     FBO_ATTACHMENT_DEPTH,
     FBO_ATTACHMENT_STENCIL,
     FBO_ATTACHMENT_COLOR0,
-} fbo_attachment;
+} fbo_attachment_type;
 
 typedef struct texture_init_options {
     unsigned int        target;
@@ -212,9 +212,25 @@ texture_t *white_pixel(void);
 texture_t *black_pixel(void);
 texture_t *transparent_pixel(void);
 
-/* Special constants for nr_attachments */
-#define FBO_DEPTH_TEXTURE (-1)
-#define FBO_COLOR_TEXTURE (0)
+/*
+ * fbo_attachment describes both individual attachments
+ * and fbo's whole attachment configuration
+ */
+typedef enum fbo_attachment {
+    FBO_DEPTH_TEXTURE = -1,
+    FBO_DEPTH_BUFFER = FBO_DEPTH_TEXTURE,
+    FBO_COLOR_TEXTURE = 0,
+    FBO_COLOR_BUFFER0,
+    FBO_COLOR_BUFFER1,
+    FBO_COLOR_BUFFER2,
+    FBO_COLOR_BUFFER3,
+    FBO_COLOR_BUFFER4,
+    FBO_COLOR_BUFFER5,
+    FBO_COLOR_BUFFER6,
+    FBO_COLOR_BUFFER7,
+} fbo_attachment;
+
+const char *fbo_attachment_string(fbo_attachment attachment);
 
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(fbo,
@@ -242,7 +258,7 @@ cresp_ret(fbo_t);
 typedef struct fbo_init_options {
     unsigned int    width;
     unsigned int    height;
-    int             nr_attachments;
+    fbo_attachment  attachment_config;
     unsigned int    nr_samples;
     texture_format  *color_format;
     texture_format  depth_format;
@@ -258,14 +274,16 @@ void fbo_put(fbo_t *fbo);
 void fbo_put_last(fbo_t *fbo);
 void fbo_prepare(fbo_t *fbo);
 void fbo_done(fbo_t *fbo, int width, int height);
-void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, int attachment);
+void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment);
 cerr_check fbo_resize(fbo_t *fbo, int width, int height);
 texture_t *fbo_texture(fbo_t *fbo);
 int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
 int fbo_nr_attachments(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
-fbo_attachment fbo_get_attachment(fbo_t *fbo);
+bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
+fbo_attachment_type fbo_get_attachment(fbo_t *fbo);
+texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment);
 
 typedef enum {
     SHADER_STAGE_VERTEX,
