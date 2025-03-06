@@ -1025,7 +1025,7 @@ static int fbo_depth_buffer(fbo_t *fbo)
     return buf;
 }
 
-cerr_check fbo_resize(fbo_t *fbo, int width, int height)
+cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     if (!fbo)
         return CERR_INVALID_ARGUMENTS;
@@ -1080,7 +1080,7 @@ void fbo_prepare(fbo_t *fbo)
     GL(glDrawBuffers(darray_count(fbo->color_buf), buffers));
 }
 
-void fbo_done(fbo_t *fbo, int width, int height)
+void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, width, height));

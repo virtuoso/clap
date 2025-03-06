@@ -235,8 +235,8 @@ const char *fbo_attachment_string(fbo_attachment attachment);
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(fbo,
     struct ref      ref;
-    int             width;
-    int             height;
+    unsigned int    width;
+    unsigned int    height;
     unsigned int    layers;
     unsigned int    fbo;
     int             depth_buf;
@@ -275,9 +275,9 @@ fbo_t *fbo_get(fbo_t *fbo);
 void fbo_put(fbo_t *fbo);
 void fbo_put_last(fbo_t *fbo);
 void fbo_prepare(fbo_t *fbo);
-void fbo_done(fbo_t *fbo, int width, int height);
+void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment);
-cerr_check fbo_resize(fbo_t *fbo, int width, int height);
+cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
 texture_t *fbo_texture(fbo_t *fbo);
 int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
