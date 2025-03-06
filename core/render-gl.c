@@ -1174,6 +1174,11 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     return cresp_val(fbo_t, NOCU(fbo));
 }
 
+fbo_t *fbo_get(fbo_t *fbo)
+{
+    return ref_get(fbo);
+}
+
 void fbo_put(fbo_t *fbo)
 {
     ref_put(fbo);

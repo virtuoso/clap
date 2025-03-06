@@ -253,6 +253,7 @@ bool fbo_texture_supported(texture_format format);
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts);
 #define fbo_new(args...) \
     _fbo_new(&(fbo_init_options){ args })
+fbo_t *fbo_get(fbo_t *fbo);
 void fbo_put(fbo_t *fbo);
 void fbo_put_last(fbo_t *fbo);
 void fbo_prepare(fbo_t *fbo);
