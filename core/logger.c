@@ -292,7 +292,7 @@ void notrace log_init(unsigned int flags)
         log_floor = NORMAL;
 
     log_up++;
-    dbg("logger initialized, build %s\n", CONFIG_BUILDDATE);
+    dbg("logger initialized, build %s\n", build_date);
 }
 
 static notrace void log_submit(int level, const char *mod, int line, const char *func, const char *msg)

@@ -57,13 +57,12 @@ if (CLAP_SERVER_IP)
     set(CONFIG_SERVER_IP ${CLAP_SERVER_IP})
 endif ()
 
-string(TIMESTAMP CONFIG_BUILDDATE "%Y%m%d_%H%M%S")
 configure_file(config.h.in config.h)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(TEST_BIN tests)
     set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c
-        ca2d.c xyarray.c memory.c cpio.c)
+        ca2d.c xyarray.c memory.c cpio.c builddate.c)
 
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
@@ -79,7 +78,7 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     endif ()
 
     add_executable(${TEST_BIN} ${TEST_SRC})
-    add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen)
+    add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate)
     win32_executable(${TEST_BIN})
 
     add_test(${TEST_BIN} ${TEST_BIN})
@@ -206,10 +205,20 @@ FOREACH(src ${ENGINE_SRC})
     endif ()
 ENDFOREACH ()
 
-FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/builddate.c "const char *build_date = \"${CONFIG_BUILDDATE}\";")
+add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builddate.c" FORCE_REGEN
+    COMMAND ${CMAKE_COMMAND} -P "${CMAKE_SOURCE_DIR}/scripts/builddate-gen.cmake"
+    COMMENT "Generating builddate.c with actual build-time timestamp"
+)
+
+add_custom_target(
+    force_builddate ALL
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/builddate.c"
+    COMMENT "Forcing builddate.c update"
+)
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shaders.c)
-add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen)
+add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen force_builddate)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
