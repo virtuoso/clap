@@ -378,6 +378,23 @@ typedef enum {
     DEPTH_FN_ALWAYS,
 } depth_func;
 
+typedef enum render_limit {
+    RENDER_LIMIT_MAX_TEXTURE_SIZE,
+    RENDER_LIMIT_MAX_TEXTURE_UNITS,
+    RENDER_LIMIT_MAX_TEXTURE_ARRAY_LAYERS,
+    RENDER_LIMIT_MAX_COLOR_ATTACHMENTS,
+    RENDER_LIMIT_MAX_COLOR_TEXTURE_SAMPLES,
+    RENDER_LIMIT_MAX_DEPTH_TEXTURE_SAMPLES,
+    RENDER_LIMIT_MAX_SAMPLES,
+    RENDER_LIMIT_MAX_DRAW_BUFFERS,
+    RENDER_LIMIT_MAX_ANISOTROPY,
+    RENDER_LIMIT_MAX_UBO_BINDINGS,
+    RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS,
+    RENDER_LIMIT_MAX_GEOMETRY_UNIFORM_BLOCKS,
+    RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS,
+    RENDER_LIMIT_MAX,
+} render_limit;
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(renderer,
     GLenum              cull_face;
@@ -400,6 +417,7 @@ TYPE(renderer,
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
+int renderer_query_limits(renderer_t *renderer, render_limit limit);
 void renderer_init(renderer_t *renderer);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);

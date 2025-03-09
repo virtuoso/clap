@@ -35,18 +35,7 @@ static inline bool __gl_check_error(const char *str)
 #define GL(__x) __x
 #endif
 
-static struct gl_limits {
-    GLint gl_max_ubo_bindings;
-    GLint gl_max_vertex_uniform_blocks;
-    GLint gl_max_fragment_uniform_blocks;
-    GLint gl_max_geometry_uniform_blocks;
-    GLint gl_max_texture_size;
-    GLint gl_max_texture_units;
-    GLint gl_max_texture_layers;
-    GLint gl_max_color_attachments;
-    GLint gl_max_color_texture_samples;
-    GLint gl_max_depth_texture_samples;
-} gl_limits;
+static int gl_limits[RENDER_LIMIT_MAX];
 
 static const GLuint gl_comp_type[] = {
     [DT_BYTE]   = GL_UNSIGNED_BYTE,
@@ -589,8 +578,8 @@ static cerr texture_storage(texture_t *tex, void *buf)
 
 static bool texture_size_valid(unsigned int width, unsigned int height)
 {
-    return width < gl_limits.gl_max_texture_size &&
-           height < gl_limits.gl_max_texture_size;
+    return width < gl_limits[RENDER_LIMIT_MAX_TEXTURE_SIZE] &&
+           height < gl_limits[RENDER_LIMIT_MAX_TEXTURE_SIZE];
 }
 
 cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
@@ -1362,7 +1351,7 @@ cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points
     if (binding_points->binding < 0)
         return CERR_INVALID_ARGUMENTS;
 
-    if (binding_points->binding >= gl_limits.gl_max_ubo_bindings)
+    if (binding_points->binding >= gl_limits[RENDER_LIMIT_MAX_UBO_BINDINGS])
         return CERR_TOO_LARGE;
 
     if (unlikely(!ubo->data || !ubo->size))
@@ -1647,17 +1636,37 @@ void renderer_init(renderer_t *renderer)
 #endif /* __APPLE__ */
 
 
-    GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits.gl_max_texture_size));
-    GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits.gl_max_texture_units));
-    GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits.gl_max_texture_layers));
-    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits.gl_max_color_attachments));
-    GL(glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &gl_limits.gl_max_ubo_bindings));
-    GL(glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, &gl_limits.gl_max_vertex_uniform_blocks));
-    GL(glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &gl_limits.gl_max_fragment_uniform_blocks));
+    GL(glGetIntegerv(GL_MAX_SAMPLES, &gl_limits[RENDER_LIMIT_MAX_SAMPLES]));
+    GL(glGetIntegerv(GL_MAX_DRAW_BUFFERS, &gl_limits[RENDER_LIMIT_MAX_DRAW_BUFFERS]));
+    GL(glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_limits[RENDER_LIMIT_MAX_TEXTURE_SIZE]));
+    GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits[RENDER_LIMIT_MAX_TEXTURE_UNITS]));
+    GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits[RENDER_LIMIT_MAX_TEXTURE_ARRAY_LAYERS]));
+    GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits[RENDER_LIMIT_MAX_COLOR_ATTACHMENTS]));
+    GL(glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &gl_limits[RENDER_LIMIT_MAX_UBO_BINDINGS]));
+    GL(glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, &gl_limits[RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS]));
+    GL(glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &gl_limits[RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS]));
+
+#ifdef GL_MAX_GEOMETRY_UNIFORM_BLOCKS
+    GL(glGetIntegerv(GL_MAX_GEOMETRY_UNIFORM_BLOCKS, &gl_limits[RENDER_LIMIT_MAX_GEOMETRY_UNIFORM_BLOCKS]));
+#endif /* GL_MAX_GEOMETRY_UNIFORM_BLOCKS */
+
+#ifdef GL_MAX_COLOR_TEXTURE_SAMPLES
+    GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits[RENDER_LIMIT_MAX_COLOR_TEXTURE_SAMPLES]));
+#endif /* GL_MAX_COLOR_TEXTURE_SAMPLES */
+
+#ifdef GL_MAX_DEPTH_TEXTURE_SAMPLES
+    GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits[RENDER_LIMIT_MAX_DEPTH_TEXTURE_SAMPLES]));
+#endif /* GL_MAX_DEPTH_TEXTURE_SAMPLES */
+
+#ifdef GL_MAX_TEXTURE_MAX_ANISOTROPY
+    GLfloat max_aniso = 1.0f;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &max_aniso);
+    gl_limits[RENDER_LIMIT_MAX_ANISOTROPY] = (int)max_aniso;
+#else
+    gl_limits[RENDER_LIMIT_MAX_ANISOTROPY] = 1;
+#endif
+
 #ifndef CONFIG_GLES
-    GL(glGetIntegerv(GL_MAX_GEOMETRY_UNIFORM_BLOCKS, &gl_limits.gl_max_geometry_uniform_blocks));
-    GL(glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &gl_limits.gl_max_color_texture_samples));
-    GL(glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &gl_limits.gl_max_depth_texture_samples));
     GL(glEnable(GL_MULTISAMPLE));
 #endif /* CONFIG_GLES */
 
@@ -1722,6 +1731,14 @@ void renderer_init(renderer_t *renderer)
             texture_format_string[i], _fbo_texture_supported[i] ? "" : "not ");
 #endif /* CLAP_DEBUG */
     }
+}
+
+int renderer_query_limits(renderer_t *renderer, render_limit limit)
+{
+    if (limit >= RENDER_LIMIT_MAX)
+        return 0;
+
+    return gl_limits[limit];
 }
 
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
