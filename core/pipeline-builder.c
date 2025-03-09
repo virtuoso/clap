@@ -80,6 +80,25 @@ static const render_pass_ops postproc_ops = {
     .prepare    = postproc_prepare,
 };
 
+static texture_format get_hdr_format(void)
+{
+    texture_format hdr_fmts[] = {
+#ifdef __APPLE__
+        TEX_FMT_RGBA32F
+#else
+        TEX_FMT_RGB16F, TEX_FMT_RGBA16F, TEX_FMT_RGB32F, TEX_FMT_RGBA32F
+#endif /* __APPLE__ */
+    };
+    texture_format hdr_fmt = TEX_FMT_RGBA8;
+    for (int i = 0; i < array_size(hdr_fmts); i++)
+        if (fbo_texture_supported(hdr_fmts[i])) {
+            hdr_fmt = hdr_fmts[i];
+            break;
+        }
+
+    return hdr_fmt;
+}
+
 /****************************************************************************
  * pipeline builder
  ****************************************************************************/
@@ -128,19 +147,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     opts->pl_opts->light->shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0]);
 #endif /* CONFIG_GLES */
 
-    texture_format hdr_fmts[] = {
-#ifdef __APPLE__
-        TEX_FMT_RGBA32F
-#else
-        TEX_FMT_RGB16F, TEX_FMT_RGBA16F, TEX_FMT_RGB32F, TEX_FMT_RGBA32F
-#endif /* __APPLE__ */
-    };
-    texture_format hdr_fmt = TEX_FMT_RGBA8;
-    for (int i = 0; i < array_size(hdr_fmts); i++)
-        if (fbo_texture_supported(hdr_fmts[i])) {
-            hdr_fmt = hdr_fmts[i];
-            break;
-        }
+    texture_format hdr_fmt = get_hdr_format();
 
     struct render_pass *model_pass =
         pipeline_add_pass(pl,
