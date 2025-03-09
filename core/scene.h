@@ -9,6 +9,7 @@
 #include "motion.h"
 #include "light.h"
 #include "physics.h"
+#include "pipeline.h"
 #include "camera.h"
 
 
@@ -19,12 +20,6 @@ struct instantiator {
     struct list     entry;
     float           dx, dy, dz;
 };
-
-typedef struct render_options {
-    bool    shadow_outline;
-    bool    shadow_msaa;
-    bool    debug_draws_enabled;
-} render_options;
 
 #define SCENE_NAME_MAX 128
 struct scene {

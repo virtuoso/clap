@@ -24,7 +24,7 @@
 #include "ui.h"
 #include "scene.h"
 #include "sound.h"
-#include "pipeline.h"
+#include "pipeline-builder.h"
 #include "physics.h"
 #include "primitives.h"
 #include "networking.h"
@@ -44,107 +44,19 @@ static bool prev_msaa;
 
 static void build_main_pl(struct pipeline **pl)
 {
-    *pl = ref_new(pipeline, .scene = &scene, .name = "main");
-
-    struct render_pass *shadow_pass[CASCADES_MAX];
-
-#ifdef CONFIG_GLES
-    for (int i = 0; i < CASCADES_MAX; i++) {
-        shadow_pass[i] = pipeline_add_pass(*pl,
-                                           .cascade         = i,
-                                           .nr_attachments  = FBO_DEPTH_TEXTURE,
-                                           .shader_override = "shadow");
-        scene.light.shadow[0][i] = pipeline_pass_get_texture(shadow_pass[i], 0);
-    }
-#else
-    shadow_pass[0] = pipeline_add_pass(*pl,
-                                       .multisampled    = scene.render_options.shadow_msaa,
-                                       .nr_attachments  = FBO_DEPTH_TEXTURE,
-                                       .layers          = CASCADES_MAX,
-                                       .shader_override = "shadow");
-    scene.light.shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], 0);
-#endif /* CONFIG_GLES */
-
-    texture_format hdr_fmts[] = {
-#ifdef __APPLE__
-        TEX_FMT_RGBA32F
-#else
-        TEX_FMT_RGB16F, TEX_FMT_RGBA16F, TEX_FMT_RGB32F, TEX_FMT_RGBA32F
-#endif /* __APPLE__ */
-    };
-    texture_format hdr_fmt = TEX_FMT_RGBA8;
-    for (int i = 0; i < array_size(hdr_fmts); i++)
-        if (fbo_texture_supported(hdr_fmts[i])) {
-            hdr_fmt = hdr_fmts[i];
-            break;
-        }
-
-    struct render_pass *model_pass = pipeline_add_pass(*pl,
-                                                       .multisampled   = true,
-                                                       .nr_attachments = 3,
-                                                       .name           = "model",
-                                                       .color_format   = (texture_format[]) {
-                                                                           TEX_FMT_RGBA8,
-                                                                           hdr_fmt,
-                                                                           TEX_FMT_RGBA8 });
-    struct render_pass *pass;
-    /* XXX: blit the color buffer into another framebuffer in the next pass instead? */
-    pass = pipeline_add_pass(*pl,
-                             .source        = model_pass,
-                             .shader        = "contrast",
-                             .blit_from     = 1,
-                             .color_format  = (texture_format[]){ hdr_fmt });
-    pass = pipeline_add_pass(*pl,
-                             .source        = pass,
-                             .shader        = "downsample",
-                             .scale         = 0.25,
-                             .color_format  = (texture_format[]){ hdr_fmt });
-
-    pass = pipeline_add_pass(*pl,
-                             .source        = pass,
-                             .scale         = 0.25,
-                             .shader        = "vblur",
-                             .color_format  = (texture_format[]){ hdr_fmt });
-    pass = pipeline_add_pass(*pl,
-                             .source        = pass,
-                             .scale         = 0.25,
-                             .shader        = "hblur",
-                             .color_format  = (texture_format[]){ hdr_fmt });
-    struct render_pass *bloom_pass = pipeline_add_pass(*pl,
-                                                       .source        = pass,
-                                                       .shader        = "upsample",
-                                                       .color_format  = (texture_format[])
-                                                                        { hdr_fmt });
-    pipeline_pass_add_source(*pl, bloom_pass, UNIFORM_EMISSION_MAP, model_pass, 1, TEX_FMT_RGBA32F);
-    struct render_pass *sobel_pass = pipeline_add_pass(*pl,
-                                                       .source     = model_pass,
-                                                       .shader     = "sobel",
-                                                       .blit_from  = 2);
-    pass = pipeline_add_pass(*pl,
-                             .source = model_pass,
-                             .shader = "combine",
-                             .stop   = true);
-    pipeline_pass_add_source(*pl, pass, UNIFORM_EMISSION_MAP, bloom_pass, -1, TEX_FMT_RGBA8);
-    pipeline_pass_add_source(*pl, pass, UNIFORM_SOBEL_TEX, sobel_pass, -1, TEX_FMT_RGBA8);
-
-    pass = pipeline_add_pass(*pl,
-                             .source    = pass,
-                             .shader    = "downsample",
-                             .scale     = 0.25,
-                             .name      = "menu downsample");
-    pass = pipeline_add_pass(*pl,
-                             .source    = pass,
-                             .shader    = "vblur",
-                             .scale     = 0.25,
-                             .name = "menu vblur");
-    pass = pipeline_add_pass(*pl,
-                             .source    = pass,
-                             .shader    = "hblur",
-                             .scale     = 0.25,
-                             .name      = "menu hblur");
-    pass = pipeline_add_pass(*pl,
-                             .source    = pass,
-                             .shader    = "upsample");
+    *pl = pipeline_build(&(pipeline_builder_opts) {
+        .pl_opts = &(pipeline_init_options) {
+                  .width            = scene.width,
+                  .height           = scene.height,
+                  .light            = &scene.light,
+                  .camera           = &scene.cameras[0],
+                  .renderer         = clap_get_renderer(scene.clap_ctx),
+                  .render_options   = &scene.render_options,
+                  .shaders          = &scene.shaders,
+                  .name             = "main"
+        },
+        .mq     = &scene.mq,
+    });
 }
 
 static const char *intro_osd[] = {
@@ -173,7 +85,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         ui_osd_new(ui, intro_osd, array_size(intro_osd));
     }
 
-    pipeline_render(main_pl, !ui->modal);
+    pipeline_render(main_pl, ui->modal ? 1 : 0);
 
     if (scene.render_options.debug_draws_enabled) {
         models_render(r, &scene.debug_mq, .camera = scene.camera, .cascade = -1);
@@ -200,7 +112,7 @@ void resize_cb(void *data, int width, int height)
         return;
 
     if (main_pl)
-        pipeline_resize(main_pl);
+        pipeline_resize(main_pl, width, height);
 }
 
 static void ohc_ground_contact(void *priv, float x, float y, float z)

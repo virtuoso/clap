@@ -87,10 +87,10 @@ endif ()
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c logger.c input.c messagebus.c primitives.c motion.c
-    model.c shader.c librarian.c json.c clap.c view.c light.c
+    model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
-    gltf.c input-joystick.c render-gl.c mesh.c pipeline.c input-keyboard.c
+    gltf.c input-joystick.c render-gl.c mesh.c pipeline.c pipeline-builder.c
     game.c camera.c xyarray.c ca2d.c ca3d.c cpio.c
     ${PLATFORM_SRC})
 
@@ -129,7 +129,7 @@ add_custom_command(
 add_custom_target(refclasses_gen DEPENDS "${REFCLASSES_H}")
 
 if (NOT CLAP_BUILD_FINAL)
-    list(APPEND ENGINE_SRC profiler.c)
+    list(APPEND ENGINE_SRC profiler.c pipeline-debug.c)
 endif ()
 
 if (NOT WIN32 AND CLAP_BUILD_NETWORKING)

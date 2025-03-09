@@ -3,86 +3,40 @@
 #include "memory.h"
 #include "model.h"
 #include "pipeline.h"
+#include "pipeline-debug.h"
+#include "pipeline-internal.h"
 #include "primitives.h"
-#include "scene.h"
 #include "shader.h"
 #include "ui-debug.h"
 
-struct pipeline {
-    struct scene        *scene;
-    struct ref          ref;
-    struct list         passes;
-    bool                (*resize)(fbo_t *fbo, bool shadow_map, int w, int h);
-    const char          *name;
-    renderer_t          *renderer;
-};
-
-struct render_pass {
-    darray(struct render_pass *, src);
-    darray(fbo_t *, fbo);
-    darray(int, blit_src);
-    struct mq           mq;
-    struct list         entry;
-    struct render_pass  *repeat;
-    struct shader_prog  *prog_override;
-    const char          *name;
-    int                 rep_total;
-    int                 rep_count;
-    int                 cascade;
-    float               scale;
-    bool                blit;
-    bool                stop;
-};
-
-texture_t *pipeline_pass_get_texture(struct render_pass *pass, unsigned int idx)
+texture_t *pipeline_pass_get_texture(struct render_pass *pass)
 {
-    if (idx >= darray_count(pass->fbo))
-        return NULL;
-    return fbo_texture(pass->fbo.x[idx]);
+    return fbo_texture(pass->fbo);
 }
 
-#define DEFAULT_FBO_SIZE 1024
-static inline int shadow_map_size(int width, int height)
+float pipeline_pass_get_scale(render_pass *pass)
 {
-    int side = max(width, height);
-    int order = fls(side);
-
-    if (!order)
-        return DEFAULT_FBO_SIZE;
-
-    return 1 << order;
-}
-
-static bool pipeline_default_resize(fbo_t *fbo, bool shadow_map, int width, int height)
-{
-    int side = max(width, height);
-
-    if (side <= 0)
-        width = height = DEFAULT_FBO_SIZE;
-    else if (shadow_map)
-        width = height = shadow_map_size(width, height);
-
-    cerr err = fbo_resize(fbo, width, height);
-    return !IS_CERR(err);
-}
-
-void pipeline_set_resize_cb(struct pipeline *pl, bool (*cb)(fbo_t *, bool, int, int))
-{
-    pl->resize = cb ? cb : pipeline_default_resize;
+    return pass->scale;
 }
 
 static cerr pipeline_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(pipeline) *opts = _opts;
-    if (!opts->name || !opts->scene)
+    if (!opts->name || !opts->renderer || !opts->shaders || !opts->width || !opts->height)
         return CERR_INVALID_ARGUMENTS;
 
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
     list_init(&pl->passes);
-    pl->renderer = clap_get_renderer(opts->scene->clap_ctx);
-    pl->scene = opts->scene;
-    pl->name = opts->name;
-    pl->resize = pipeline_default_resize;
+    pl->render_options  = opts->render_options;
+    pl->renderer        = opts->renderer;
+    pl->shaders         = opts->shaders;
+    pl->camera          = opts->camera;
+    pl->light           = opts->light;
+    pl->name            = opts->name;
+    pl->width           = opts->width;
+    pl->height          = opts->height;
+
+    pipeline_debug_init(pl);
 
     return CERR_OK;
 }
@@ -91,6 +45,8 @@ static void pipeline_drop(struct ref *ref)
 {
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
     struct render_pass *pass, *iter;
+
+    pipeline_debug_done(pl);
 
     /*
      * We need 2 passes, because @pass sources reference elements behind itself
@@ -104,575 +60,391 @@ static void pipeline_drop(struct ref *ref)
          * that for some reason no ASAN can catch, so naturally
          * skip it if the mq list is empty
          */
-        if (!list_empty(&pass->mq.txmodels)) {
-            model3dtx *txm = mq_model_first(&pass->mq);
-            int i;
+        if (pass->quad) {
+            model3dtx *txm = pass->quad->txmodel;
 
-            for (i = 0; i < darray_count(pass->fbo); i++) {
-                fbo_t **pfbo = &pass->fbo.x[i];
+            for (int i = 0; i < pass->nr_sources; i++) {
+                render_source *source = &pass->source[i];
 
-                if (txm->emission == fbo_texture(*pfbo))
-                    txm->emission = &txm->_emission;
-                if (txm->sobel == fbo_texture(*pfbo))
-                    txm->sobel = &txm->_sobel;
+                if (source->pass) {
+                    fbo_t *fbo = source->pass->fbo;
+
+                    if (txm->texture == fbo_texture(fbo))
+                        txm->texture = &txm->_texture;
+                    if (txm->emission == fbo_texture(fbo))
+                        txm->emission = &txm->_emission;
+                    if (txm->sobel == fbo_texture(fbo))
+                        txm->sobel = &txm->_sobel;
+                }
             }
-        }
 
-        darray_clearout(pass->src);
-        darray_clearout(pass->blit_src);
+            ref_put_last(pass->quad);
+        }
     }
 
     list_for_each_entry_iter(pass, iter, &pl->passes, entry) {
-        mq_release(&pass->mq);
+        for (int i = 0; i < pass->nr_sources; i++)
+            if (pass->blit_fbo[i])
+                fbo_put(pass->blit_fbo[i]);
 
-        fbo_t **pfbo;
-        darray_for_each(pfbo, pass->fbo)
-            fbo_put(*pfbo);
-        darray_clearout(pass->fbo);
-
+        fbo_put(pass->fbo);
         if (pass->prog_override)
             ref_put(pass->prog_override);
 
+        mem_free(pass->blit_fbo);
+        mem_free(pass->source);
+        list_del(&pass->entry);
         mem_free(pass);
     }
 }
 DEFINE_REFCLASS2(pipeline);
 
-void pipeline_resize(struct pipeline *pl)
+void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height)
 {
     struct render_pass *pass;
 
     list_for_each_entry(pass, &pl->passes, entry) {
-        if (pass->prog_override)
-            continue;
+        RENDER_PASS_OPS_PARAMS(pl, pass);
+        cerr err;
 
-        fbo_t **pfbo;
-        darray_for_each(pfbo, pass->fbo)
-            if (!pl->resize(*pfbo, false, pl->scene->width * pass->scale, pl->scene->height * pass->scale))
-                return;
+        /* First, resize blit_fbo[]s to match the fbos they're blitting from */
+        for (int i = 0; i < pass->nr_sources; i++) {
+            render_pass *src_pass = pass->source[i].pass;
+            if (!src_pass)
+                continue;
+
+            unsigned int _width = width, _height = height;
+            if (pass->blit_fbo[i]) {
+                /* use src_pass' resize() to obtain dimensions */
+                params.render_scale = src_pass->scale;
+                src_pass->ops->resize(&params, &_width, &_height);
+                err = fbo_resize(pass->blit_fbo[i], _width, _height);
+                if (IS_CERR(err))
+                    err_cerr(err, "pass '%s': error resizing blit FBO to %d x %d\n",
+                             pass->name, _width, _height);
+            }
+        }
+
+        /* Then, resize our fbo */
+        unsigned int _width = width, _height = height;
+        params.render_scale = pass->scale;
+        pass->ops->resize(&params, &_width, &_height);
+        err = fbo_resize(pass->fbo, _width, _height);
+        if (IS_CERR(err))
+            err_cerr(err, "pass '%s': error resizing FBO to %d x %d\n",
+                     pass->name, _width, _height);
     }
+
+    pl->width = width;
+    pl->height = height;
 }
 
-void pipeline_shadow_resize(struct pipeline *pl, int width)
+struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg)
 {
-    struct render_pass *pass;
+    if (!cfg->source || !cfg->ops || !cfg->ops->resize || !cfg->ops->prepare)
+        return NULL;
 
-    list_for_each_entry(pass, &pl->passes, entry) {
-        if (pass->prog_override)
-            goto found;
-    }
+    /* Either shader or shader_override must be present, but not together */
+    if (cfg->shader && cfg->shader_override)
+        return NULL;
 
-    return;
-
-found:
-    (void)pl->resize(pass->fbo.x[0], true, width, width);
-}
-
-static struct render_pass *
-__pipeline_add_pass(struct pipeline *pl, struct render_pass *src, const char *shader,
-                    const char *shader_override, bool ms, int nr_targets, int target,
-                    int cascade, float scale, texture_format *color_format)
-{
-    struct render_pass *pass;
-    struct shader_prog *p;
-    model3dtx *txm;
-    entity3d *e;
-    model3d *m;
-
-    pass = mem_alloc(sizeof(*pass), .zero = 1);
+    render_pass *pass = mem_alloc(sizeof(*pass), .zero = 1);
     if (!pass)
         return NULL;
 
     list_append(&pl->passes, &pass->entry);
-    darray_init(pass->src);
-    darray_init(pass->fbo);
-    darray_init(pass->blit_src);
-    pass->name = shader;
 
-    /*
-     * FBOs and srcs are a 1:1 mapping *except* the ms passes, which don't have
-     * sources, and the data is copied out to following passes' textures instead
-     * of by rendering a quad
-     */
-    fbo_t **pfbo = darray_add(pass->fbo);
-    if (!pfbo)
-        return NULL;
+    for (pass->nr_sources = 0;
+         cfg->source[pass->nr_sources].pass || cfg->source[pass->nr_sources].mq;
+         pass->nr_sources++)
+        ;
 
-    int width = pl->scene->width, height = pl->scene->height;
+    /* Must have at least one source */
+    if (!pass->nr_sources)
+        goto err_free;
 
-    /*
-     * XXX: better way of determining shadow pass
-     */
-    if (shader_override) {
-        width = height = shadow_map_size(width, height);
-        pass->name = shader_override;
-    }
+    pass->source = memdup(cfg->source, sizeof(render_source) * pass->nr_sources);
+    if (!pass->source)
+        goto err_free;
 
-    width = (float)width * scale;
-    height = (float)height * scale;
-    pass->scale = scale;
+    pass->ops = cfg->ops;
+    pass->name = cfg->name;
+    pass->checkpoint = cfg->checkpoint;
 
-    texture_format depth_format = TEX_FMT_DEPTH32F;
-    if (nr_targets == FBO_DEPTH_TEXTURE) {
-#ifdef CONFIG_GLES
-        /* in GL ES, we render one depth cascade at a time */
-        pass->cascade = clamp(cascade, 0, CASCADES_MAX - 1);
-#else
-        pass->cascade = -1;
-#endif /* CONFIG_GLES */
+    if (!pass->name)
+        pass->name = cfg->shader;
 
-        /* Use 16 bit depth texture for shadows, if available */
-        if (fbo_texture_supported(TEX_FMT_DEPTH16F))
-            depth_format = TEX_FMT_DEPTH16F;
-    } else {
-        /* otherwise, render all at once into a texture array */
-        pass->cascade = -1;
-    }
+    if (cfg->shader_override && !pass->name)
+        pass->name = cfg->shader_override;
+
+    pass->cascade = cfg->cascade;
+    pass->scale = cfg->scale ? : 1.0;
+    unsigned int width = pl->width, height = pl->height;
+    RENDER_PASS_OPS_PARAMS(pl, pass);
+    pass->ops->resize(&params, &width, &height);
 
     cresp(fbo_t) res = fbo_new(.width               = width,
                                .height              = height,
-                               .color_format        = color_format,
-                               .depth_format        = depth_format,
-                               .multisampled        = ms,
-                               .attachment_config   = nr_targets);
+                               .layers              = cfg->layers,
+                               .color_format        = cfg->color_format,
+                               .depth_format        = cfg->depth_format,
+                               .multisampled        = cfg->multisampled,
+                               .attachment_config   = cfg->attachment_config);
     if (IS_CERR(res))
-        goto err_fbo_array;
+        goto err_source;
 
-    *pfbo = res.val;
+    pass->fbo = res.val;
 
-    struct render_pass **psrc = darray_add(pass->src);
-    if (!psrc)
+    pass->blit_fbo = mem_alloc(sizeof(fbo_t *), .nr = pass->nr_sources);
+    if (!pass->blit_fbo)
         goto err_fbo;
 
-    *psrc = src;
+    int nr_blits = 0, nr_renders = 0, nr_uses = 0;
+    for (int i = 0; i < pass->nr_sources; i++) {
+        render_source *rsrc = &pass->source[i];
 
-    /*
-     * nr_targets > 0 means color buffers instead of a texture in the FBO, so
-     * the next pass will have to blit from this one instead of rendering it
-     */
-    pass->blit = nr_targets > 0;
-    mq_init(&pass->mq, NULL);
+        if (rsrc->method == RM_BLIT) {
+            /*
+             * Set up blit_fbo[i] as a color texture buffer for blitting from rsrc->pass->fbo
+             * attachment rsrc->attachment with the color format of that attachment
+             */
+            render_pass *src_pass = rsrc->pass;
+            if (!src_pass || !src_pass->fbo)
+                goto err_blit_fbo;
 
-    if (shader_override) {
-        pass->prog_override = shader_prog_find(&pl->scene->shaders, shader_override);
-        if (!pass->prog_override)
-            goto err_src;
+            if (rsrc->attachment == FBO_DEPTH_BUFFER) {
+                res = fbo_new(.width                = fbo_width(src_pass->fbo),
+                              .height               = fbo_height(src_pass->fbo),
+                              .attachment_config    = FBO_DEPTH_TEXTURE,
+                              .depth_format         = fbo_texture_format(src_pass->fbo, rsrc->attachment));
+            } else if (rsrc->attachment >= FBO_COLOR_BUFFER0) {
+                if (!fbo_attachment_valid(src_pass->fbo, rsrc->attachment))
+                    goto err_blit_fbo;
+
+                res = fbo_new(.width                = fbo_width(src_pass->fbo),
+                              .height               = fbo_height(src_pass->fbo),
+                              .attachment_config    = FBO_COLOR_TEXTURE,
+                              .color_format         = (texture_format[]) {
+                                    fbo_texture_format(src_pass->fbo, rsrc->attachment)
+                              });
+            } else {
+                goto err_blit_fbo;
+            }
+
+            if (IS_CERR(res))
+                goto err_blit_fbo;
+
+            pass->blit_fbo[i] = res.val;
+
+            nr_blits++;
+        } else if (rsrc->method == RM_RENDER) {
+            if (!rsrc->mq)
+                goto err_blit_fbo;
+
+            nr_renders++;
+        } else if (rsrc->method == RM_USE) {
+            if (!rsrc->pass)
+                goto err_blit_fbo;
+
+            pass->blit_fbo[i] = fbo_get(rsrc->pass->fbo);
+            if (!fbo_texture(pass->blit_fbo[i]))
+                goto err_blit_fbo;
+
+            nr_uses++;
+        } else {
+            goto err_blit_fbo;
+        }
     }
 
-    /*
-     * nr_targets > 0: ignore @shader, because it means that we'll be blitting
-     * from this fbo instead of rendering its quad using a shader
-     */
-    if (!shader || pass->blit)
-        return pass;
+    struct shader_prog *prog;
+    model3dtx *txm;
+    model3d *m;
 
-    int *pblit_src = darray_add(pass->blit_src);
-    if (!pblit_src)
-        goto err_override;
+    if (cfg->shader_override) {
+        if (!nr_renders)
+            goto err_blit_fbo;
 
-    *pblit_src = target;
+        pass->prog_override = shader_prog_find(pl->shaders, cfg->shader_override);
+        if (!pass->prog_override)
+            goto err_blit_fbo;
+    } else if (cfg->shader) {
+        if (!nr_blits && !nr_uses)
+            goto err_blit_fbo;
 
-    p = shader_prog_find(&pl->scene->shaders, shader);
-    if (!p)
-        goto err_blit_src;
+        prog = shader_prog_find(pl->shaders, cfg->shader);
+        if (!prog)
+            goto err_override;
 
-    /* XXX: error checking */
-    m = model3d_new_quad(p, -1, 1, 0, 2, -2);
-    m->depth_testing = false;
-    m->alpha_blend = false;
-    /* XXX: error checking */
-    txm = ref_new(model3dtx, .model = ref_pass(m), .tex = fbo_texture(*pfbo));
-    mq_add_model(&pass->mq, txm);
-    /* XXX: error checking */
-    e = ref_new(entity3d, .txmodel = txm);
-    e->visible = true;
-    mat4x4_identity(e->mx);
-    ref_put(p);
+        m = model3d_new_quad(prog, -1, 1, 0, 2, -2);
+        if (!m)
+            goto err_prog;
+
+        m->depth_testing = false;
+        m->alpha_blend = false;
+
+        txm = ref_new(model3dtx, .model = ref_pass(m));//, .tex = fbo_texture(pass->fbo));
+        if (!txm)
+            goto err_model;
+
+        for (int i = 0; i < pass->nr_sources; i++) {
+            render_source *rsrc = &pass->source[i];
+
+            if (rsrc->method != RM_BLIT && rsrc->method != RM_USE)
+                continue;
+
+            model3dtx_set_texture(txm, rsrc->sampler, fbo_texture(pass->blit_fbo[i]));
+        }
+
+        /*
+         * ref_pass() because this txmodel is only ever on a temporary mq and doesn't
+         * ever get released via mq_release() (like regular txmodels), on the other
+         * hand, it's a 1:1 between this quad and this txmodel, so make the quad hold
+         * the only reference to the txmodel so it gets freed on ref_put(pass->quad).
+         */
+        pass->quad = ref_new(entity3d, .txmodel = ref_pass(txm));
+        if (!pass->quad)
+            goto err_txmodel;
+
+        mat4x4_identity(pass->quad->mx);
+        ref_put(prog);
+    }
+
+    pipeline_dropdown_push(pl, pass);
 
     return pass;
 
-err_blit_src:
-    darray_clearout(pass->blit_src);
+err_txmodel:
+    ref_put_last(txm);
+err_model:
+    ref_put_last(m);
+err_prog:
+    ref_put(prog);
 err_override:
-    if (shader_override)
+    if (pass->prog_override)
         ref_put(pass->prog_override);
-err_src:
-    darray_clearout(pass->src);
+err_blit_fbo:
+    for (int i = 0; i < pass->nr_sources; i++)
+        if (pass->blit_fbo[i])
+            fbo_put(pass->blit_fbo[i]);
 err_fbo:
-    fbo_put_last(*pfbo);
-err_fbo_array:
-    darray_clearout(pass->fbo);
+    fbo_put_last(pass->fbo);
+err_source:
+    mem_free(pass->source);
+err_free:
     list_del(&pass->entry);
     mem_free(pass);
     return NULL;
 }
 
-struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg)
+/*
+ * Copy in stuff that needs copying from source passes, return mq if
+ * one of the sources has it.
+ */
+static struct mq *pass_resolve_sources(pipeline *pl, render_pass *pass)
 {
-    pipeline_pass_config _cfg = *cfg;
-    struct render_pass *pass;
+    struct mq *mq = NULL;
 
-    if (!_cfg.scale)
-        _cfg.scale = 1.0;
+    /* Blit stuff to blit_fbo[]s, pick up mq is one was given */
+    for (int i = 0; i < pass->nr_sources; i++) {
+        pipeline_pass_debug_begin(pl, pass, i);
 
-    pass = __pipeline_add_pass(pl, _cfg.source, _cfg.shader, _cfg.shader_override, _cfg.multisampled,
-                               _cfg.nr_attachments, _cfg.blit_from, _cfg.cascade, _cfg.scale,
-                               _cfg.color_format);
-    if (pass) {
-        if (_cfg.name)
-            pipeline_pass_set_name(pass, _cfg.name);
-        if (_cfg.pingpong)
-            pipeline_pass_repeat(pass, _cfg.source, _cfg.pingpong);
-        pass->stop = _cfg.stop;
-    }
+        render_source *rsrc = &pass->source[i];
 
-    return pass;
-}
-
-void pipeline_pass_repeat(struct render_pass *pass, struct render_pass *repeat, int count)
-{
-    pass->repeat = repeat;
-    pass->rep_total = count;
-}
-
-void pipeline_pass_set_name(struct render_pass *pass, const char *name)
-{
-    pass->name = name;
-}
-
-void pipeline_pass_add_source(struct pipeline *pl, struct render_pass *pass, int to,
-                              struct render_pass *src, int blit_src, texture_format color_format)
-{
-    if (!src || blit_src >= fbo_nr_attachments(src->fbo.x[0]))
-        return;
-
-    model3dtx *txm = mq_model_first(&pass->mq);
-    struct render_pass **psrc = darray_add(pass->src);
-
-    if (!psrc)
-        return;
-
-    fbo_t **pfbo = darray_add(pass->fbo);
-    if (!pfbo)
-        goto err_src;
-
-    /* this is where src's txmodel will be rendered */
-    cresp(fbo_t) res = fbo_new(.width           = pl->scene->width,
-                               .height          = pl->scene->height,
-                               .color_format    = &color_format);
-    if (IS_CERR(res))
-        goto err_fbo_array;
-
-    *pfbo = res.val;
-
-    int *pblit_src = darray_add(pass->blit_src);
-    if (!pblit_src)
-        goto err_fbo;
-
-    if (src->blit)
-        *pblit_src = blit_src;
-
-    *psrc = src;
-    model3dtx_set_texture(txm, to, fbo_texture(*pfbo));
-    return;
-
-err_fbo:
-    fbo_put(*pfbo);
-err_fbo_array:
-    darray_delete(pass->fbo, -1);
-err_src:
-    darray_delete(pass->src, -1);
-}
-
-#ifndef CONFIG_FINAL
-static void pipeline_debug_begin(struct pipeline *pl)
-{
-    debug_module *dbgm = ui_igBegin_name(DEBUG_PIPELINE_PASSES, ImGuiWindowFlags_AlwaysAutoResize,
-                                         "pipeline %s", pl->name);
-
-    if (!dbgm->display || !dbgm->unfolded)
-        return;
-
-    struct render_pass *pass;
-    char dbg_name[128];
-
-    list_for_each_entry(pass, &pl->passes, entry)
-        if (pass->rep_total) {
-            snprintf(dbg_name, sizeof(dbg_name), "%s reps", pass->name);
-            igSliderInt(dbg_name, &pass->rep_total, 1, 20, "%d", ImGuiSliderFlags_AlwaysClamp);
+        if (rsrc->method == RM_RENDER) {
+            if (mq) {
+                err("pass '%s' has multiple RM_RENDER sources\n", pass->name);
+                continue;
+            }
+            mq = rsrc->mq;
+            continue;
         }
 
-    igBeginTable("pipeline passes", 5, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
-    igTableSetupColumn("pass", ImGuiTableColumnFlags_WidthStretch, 0, 0);
-    igTableSetupColumn("src", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-    igTableSetupColumn("dim", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-    igTableSetupColumn("attachment", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-    igTableSetupColumn("count", ImGuiTableColumnFlags_WidthFixed, 0, 0);
-}
+        if (rsrc->method != RM_BLIT)
+            continue;
 
-static void pipeline_debug_end(struct pipeline *pl)
-{
-    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
+        fbo_t *fbo = pass->blit_fbo[i];
+        if (!fbo) {
+            err("pass '%s' source %d blitting into a NULL FBO\n", pass->name, i);
+            continue;
+        }
 
-    if (!dbgm->display)
-        return;
-    if (dbgm->unfolded)
-        igEndTable();
-
-    ui_igEnd(DEBUG_PIPELINE_PASSES);
-}
-
-static void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx,
-                                      struct render_pass *src)
-{
-    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
-    fbo_t *fbo = pass->fbo.x[srcidx];
-
-    if (!dbgm->display || !dbgm->unfolded)
-        return;
-    igTableNextRow(0, 0);
-    igTableNextColumn();
-
-    igText("%s:%d", pass->name, srcidx);
-    igTableNextColumn();
-    if (src) {
-        if (src->blit)
-            igText("%s:%d", src->name, pass->blit_src.x[srcidx]);
-        else
-            igText("%s", src->name);
-    } else {
-        igText("<none>");
+        fbo_prepare(fbo);
+        fbo_blit_from_fbo(fbo, rsrc->pass->fbo, rsrc->attachment);
+        fbo_done(fbo, pl->width, pl->height);
     }
-    igTableNextColumn();
-    igText("%u x %u", fbo_width(fbo), fbo_height(fbo));
-    igTableNextColumn();
-    const char *att[] = {
-        [FBO_ATTACHMENT_COLOR0]  = "color",
-        [FBO_ATTACHMENT_DEPTH]   = "depth",
-        [FBO_ATTACHMENT_STENCIL] = "stencil",
-    };
-    igText("%s", att[fbo_get_attachment(fbo)]);
+
+    return mq;
 }
 
-static void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count)
+/*
+ * Render one pass either to its framebuffer (the caller does fbo_prepare()/fbo_done())
+ * or to the screen.
+ */
+static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
 {
-    debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
-    if (!dbgm->display || !dbgm->unfolded)
-        return;
+    unsigned long count = 0;
+    RENDER_PASS_OPS_PARAMS(pl, pass);
 
-    igTableNextColumn();
-    igText("%lu", count);
+    pass->ops->prepare(&params);
+
+    if (mq) {
+        /* Render render_source::mq models */
+        models_render(pl->renderer, mq,
+                      .shader_override  = pass->prog_override,
+                      .render_options   = pl->render_options,
+                      .light            = params.light,
+                      .camera           = params.camera,
+                      .cascade          = pass->cascade,
+                      .entity_count     = &count);
+    } else {
+        /* Render our postprocessing quad */
+        struct mq _mq; /* XXX: -> pass->mq, then mq_release() on drop */
+
+        mq_init(&_mq, NULL);
+        mq_add_model(&_mq, pass->quad->txmodel);
+        models_render(pl->renderer, &_mq,
+                      .render_options   = pl->render_options,
+                      .entity_count     = &count);
+        list_del(&pass->quad->txmodel->entry);
+    }
+
+    pipeline_pass_debug_end(pl, count);
 }
-#else
-static inline void pipeline_debug_begin(struct pipeline *pl) {}
-static inline void pipeline_debug_end(struct pipeline *pl) {}
-static inline void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx,
-                                             struct render_pass *src) {}
-static inline void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count) {}
-#endif /* CONFIG_FINAL */
 
-void pipeline_render(struct pipeline *pl, bool stop)
+void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
 {
-    struct scene *s = pl->scene;
     struct render_pass *last_pass = list_last_entry(&pl->passes, struct render_pass, entry);
-    struct render_pass *pass, *ppass = NULL;
-    bool repeating = false;
+    struct render_pass *pass;
+    struct mq *mq = NULL;
+    bool stop = false;
 
     pipeline_debug_begin(pl);
 
     list_for_each_entry(pass, &pl->passes, entry) {
-        if (!ppass || !repeating || ppass->rep_count)
-            ppass = darray_count(pass->src) ? pass->src.x[0] : NULL;
+        /* Prepare to render from pass' sources */
+        mq = pass_resolve_sources(pl, pass);
 
-        int i;
         /*
-         * This renders the contents of @ppass, using its shader into
-         * @pass texture.
+         * "checkpoint" is a mark of a render pass at which the caller can request
+         * to stop rendering; this render pass will be rendered on the screen instead
+         * of its framebuffer. Useful for having a few extra blur stages at the end
+         * for when the modal UI needs to come in.
          */
-repeat:
-        /*
-         * If by some reason a repeat pass ends up having more than one
-         * source, only the first one will be sourced from the previous
-         * pass in the loop, the rest still get rendered/blitted from
-         * their original sources.
-         */
-        for (i = 0; i < darray_count(pass->src); i++, ppass = NULL) {
-            struct render_pass *src = ppass ? ppass : pass->src.x[i];
-            fbo_t *fbo = pass->fbo.x[i];
-            unsigned long count = 0;
-
-            pipeline_pass_debug_begin(pl, pass, i, src);
-
-            if (src && src->blit) {
-                fbo_prepare(fbo);
-                fbo_blit_from_fbo(fbo, src->fbo.x[0], pass->blit_src.x[i]);
-                fbo_done(fbo, s->width, s->height);
-            } else {
-                fbo_prepare(fbo);
-                bool shadow = fbo_get_attachment(fbo) == FBO_ATTACHMENT_DEPTH;
-                bool clear_color = true, clear_depth = false;
-                if (shadow) {
-                    renderer_cleardepth(pl->renderer, 0.0);
-                    renderer_depth_func(pl->renderer, DEPTH_FN_GREATER);
-                    renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
-                    clear_color = false;
-                } else {
-                    renderer_cleardepth(pl->renderer, 1.0);
-                    renderer_depth_func(pl->renderer, DEPTH_FN_LESS);
-                }
-
-                if (!src)
-                    clear_depth = true;
-                renderer_clear(pl->renderer, clear_color, clear_depth, false);
-
-                if (!src)
-                    models_render(pl->renderer, &s->mq,
-                                  .shader_override  = pass->prog_override,
-                                  .render_options   = &s->render_options,
-                                  .light            = &s->light,
-                                  .camera           = shadow ? NULL : &s->cameras[0],
-                                  .cascade          = pass->cascade,
-                                  .entity_count     = &count);
-                else
-                    models_render(pl->renderer, &src->mq, .entity_count = &count);
-
-                fbo_done(fbo, s->width, s->height);
-            }
-
-            pipeline_pass_debug_end(pl, count);
-        }
-
-        if (pass->rep_count && pass->rep_count--) {
-            if (!pass->rep_count) {
-                ppass = NULL;
-                repeating = false;
-                continue;
-            }
-
-            ppass = pass;
-            pass = pass->repeat;
-            goto repeat;
-        } else if (pass->repeat) {
-            repeating = true;
-            pass->rep_count = pass->rep_total;
-            ppass = pass;
-            pass = pass->repeat;
-            goto repeat;
-        }
-
-        if (stop && pass->stop)
+        if (pass->checkpoint > checkpoint) {
+            stop = true;
             break;
-    }
+        }
 
-    pipeline_debug_end(pl);
+        fbo_prepare(pass->fbo);
+        pass_render(pl, pass, mq);
+        fbo_done(pass->fbo, pl->width, pl->height);
+    }
 
     if (!stop)
         pass = last_pass;
 
     /* render the last pass to the screen */
-    renderer_clearcolor(pl->renderer, (vec4){ 0, 0, 0, 1 });
-    renderer_clear(pl->renderer, true, true, false);
-    models_render(pl->renderer, &pass->mq);
+    pass_render(pl, pass, mq);
+
+    pipeline_debug_end(pl);
 }
-
-#ifndef CONFIG_FINAL
-static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex)
-{
-    struct render_pass *pass;
-    char name[128];
-    int i = 0;
-
-    list_for_each_entry(pass, &pl->passes, entry) {
-        int cascade = pass->cascade < 0 ? 0 : (pass->cascade + 1);
-        fbo_t **pfbo;
-        int j = 0;
-
-        darray_for_each(pfbo, pass->fbo) {
-            if (*item == i) {
-                snprintf(name, sizeof(name), "%s/%d", pass->name, j + 100 * cascade);
-                *tex = fbo_texture(*pfbo);
-                goto found;
-            }
-            i++, j++;
-        }
-    }
-
-    pass = list_first_entry(&pl->passes, struct render_pass, entry);
-    *item = 0;
-
-found:
-    if (igBeginCombo("passes", name, ImGuiComboFlags_HeightRegular)) {
-        i = 0;
-        list_for_each_entry(pass, &pl->passes, entry) {
-            int cascade = pass->cascade < 0 ? 0 : (pass->cascade + 1);
-            fbo_t **pfbo;
-            int j = 0;
-
-            darray_for_each(pfbo, pass->fbo) {
-                bool selected = *item == i;
-
-                snprintf(name, sizeof(name), "%s/%d", pass->name, j + 100 * cascade);
-                if (igSelectable_Bool(name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
-                    igSetItemDefaultFocus();
-                    *item = i;
-                    *tex = fbo_texture(*pfbo);
-                }
-                i++, j++;
-            }
-        }
-        igEndCombo();
-    }
-}
-
-static bool debug_shadow_resize(fbo_t *fbo, bool shadow, int width, int height)
-{
-    cerr err = fbo_resize(fbo, width, height);
-    return !IS_CERR(err);
-}
-
-void pipeline_debug(struct pipeline *pl)
-{
-    debug_module *dbgm = ui_igBegin(DEBUG_PIPELINE_SELECTOR, ImGuiWindowFlags_AlwaysAutoResize);
-
-    if (!dbgm->display)
-        return;
-
-    static int pass_preview;
-    unsigned int width, height;
-    texture_t *pass_tex = NULL;
-    int depth_log2;
-
-    if (!dbgm->unfolded)
-        return;
-
-    pipeline_passes_dropdown(pl, &pass_preview, &pass_tex);
-    if (pass_tex) {
-        texture_get_dimesnions(pass_tex, &width, &height);
-        if (!pass_preview) {
-            int prev_depth_log2 = depth_log2 = ffs(width) - 1;
-            igSliderInt("dim log2", &depth_log2, 8, 16, "%d", 0);
-            if (depth_log2 != prev_depth_log2) {
-                pipeline_set_resize_cb(pl, debug_shadow_resize);
-                pipeline_shadow_resize(pl, 1 << depth_log2);
-                pipeline_set_resize_cb(pl, NULL);
-            }
-            igText("shadow map resolution: %d x %d", 1 << depth_log2, 1 << depth_log2);
-        } else {
-            igText("texture resolution: %d x %d", width, height);
-        }
-    }
-    ui_igEnd(DEBUG_PIPELINE_SELECTOR);
-
-    if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
-        if (igBegin("Render pass preview", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-            igPushItemWidth(512);
-            double aspect = (double)height / width;
-            igImage((ImTextureID)texture_id(pass_tex), (ImVec2){512, 512 * aspect},
-                    (ImVec2){1,1}, (ImVec2){0,0}, (ImVec4){1,1,1,1}, (ImVec4){1,1,1,1});
-            igEnd();
-        } else {
-            igEnd();
-        }
-    }
-}
-#endif /* CONFIG_FINAL */
