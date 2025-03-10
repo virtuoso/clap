@@ -101,6 +101,34 @@ float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in int layer, in 
 
     return 1.0 - total * pos.w;
 }
+
+float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int layer, in float bias)
+{
+    float total = 0.0;
+    float mean = 0.0, variance = 0.0;
+    float samples[MSAA_SAMPLES];
+
+    for (int i = 0; i < MSAA_SAMPLES; i++) {
+        samples[i] = texel_fetch_2dms_array_sample(map, vec3(pos.xy, float(layer)), i).r;
+        mean += samples[i];
+    }
+    mean /= MSAA_SAMPLES;
+
+    for (int i = 0; i < MSAA_SAMPLES; i++) {
+        variance += pow(samples[i] - mean, 2);
+    }
+    variance /= MSAA_SAMPLES;
+
+    float adaptWeight = exp(-variance * 16.0); // Higher variance = more conservative filtering
+
+    for (int i = 0; i < MSAA_SAMPLES; i++) {
+        float weight = mix(1.0, adaptWeight, variance);
+        if (pos.z + bias < samples[i]) total += weight;
+    }
+    total /= MSAA_SAMPLES;
+
+    return 1.0 - total * pos.w;
+}
 #endif /* CONFIG_GLES */
 
 float shadow_factor_calc(in vec3 unit_normal)
@@ -147,7 +175,7 @@ float shadow_factor_calc(in vec3 unit_normal)
     }
 #else
     if (use_msaa)
-        shadow_factor = shadow_factor_msaa(shadow_map_ms, proj_coords, layer, bias);
+        shadow_factor = shadow_factor_msaa_weighted(shadow_map_ms, proj_coords, layer, bias);
     else
         shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
 #endif /* CONFIG_GLES */
