@@ -516,7 +516,8 @@ ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
     model3d_set_name(m, "ui_text: '%s'", str);
     m->depth_testing = false;
     m->alpha_blend = true;
-    txmtex = ref_new(model3dtx, .model = ref_pass(m), .tex = texture_clone(fbo_texture(fbo)));
+    txmtex = ref_new(model3dtx, .model = ref_pass(m),
+                     .tex = texture_clone(fbo_texture(fbo, FBO_COLOR_TEXTURE(0))));
     fbo_put_last(fbo);
     ui_add_model(ui, txmtex);
 
@@ -1476,7 +1477,7 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
 {
     model3d *m;
 
-    ui_fbo_tex = fbo_texture(fbo);
+    ui_fbo_tex = fbo_texture(fbo, FBO_COLOR_TEXTURE(0));
 
     if (ui_pip)
         ref_put(ui_pip);

@@ -790,27 +790,60 @@ bool fbo_texture_supported(texture_format format)
     return _fbo_texture_supported[format];
 }
 
-const char *fbo_attachment_string(fbo_attachment attachment)
+static unsigned int fa_nr_color_buffer(fbo_attachment attachment)
 {
-    switch (attachment) {
-        /* render buffer or texture is ambiguous */
-        case FBO_DEPTH_BUFFER:  return "depth";
-        case FBO_COLOR_TEXTURE: return "color texture";
-        case FBO_COLOR_BUFFER0: return "color buffer0";
-        case FBO_COLOR_BUFFER1: return "color buffer1";
-        case FBO_COLOR_BUFFER2: return "color buffer2";
-        case FBO_COLOR_BUFFER3: return "color buffer3";
-        case FBO_COLOR_BUFFER4: return "color buffer4";
-        case FBO_COLOR_BUFFER5: return "color buffer5";
-        case FBO_COLOR_BUFFER6: return "color buffer6";
-        case FBO_COLOR_BUFFER7: return "color buffer7";
-        default:                return "invalid";
-    }
+    return fls(attachment.color_buffers);
 }
 
-static inline int fbo_attachment_target(fbo_attachment attachment)
+static unsigned int fa_nr_color_texture(fbo_attachment attachment)
 {
-    return attachment < FBO_COLOR_BUFFER0 ? 0 : attachment - FBO_COLOR_BUFFER0;
+    return fls(attachment.color_textures);
+}
+
+static bool fbo_attachment_is_buffers(fbo_attachment attachment)
+{
+    return attachment.color_buffers ||
+           attachment.depth_buffer  ||
+           attachment.stencil_buffer;
+}
+
+const char *fbo_attachment_string(fbo_attachment attachment)
+{
+    switch (fa_nr_color_buffer(attachment)) {
+        case 0:  return "color buffer0";
+        case 1:  return "color buffer1";
+        case 2:  return "color buffer2";
+        case 3:  return "color buffer3";
+        case 4:  return "color buffer4";
+        case 5:  return "color buffer5";
+        case 6:  return "color buffer6";
+        case 7:  return "color buffer7";
+        default: break;
+    }
+
+    switch (fa_nr_color_texture(attachment)) {
+        case 0:  return "color texture0";
+        case 1:  return "color texture1";
+        case 2:  return "color texture2";
+        case 3:  return "color texture3";
+        case 4:  return "color texture4";
+        case 5:  return "color texture5";
+        case 6:  return "color texture6";
+        case 7:  return "color texture7";
+        default: break;
+    }
+
+    if (attachment.depth_buffer)
+        return "depth buffer";
+    if (attachment.depth_texture)
+        return "depth texture";
+
+    return "implement me";
+}
+
+static inline int fbo_attachment_color(fbo_attachment attachment)
+{
+    return (fa_nr_color_buffer(attachment) ? : fa_nr_color_texture(attachment)) - 1;
 }
 
 static int fbo_create(void)
@@ -822,9 +855,17 @@ static int fbo_create(void)
     return fbo;
 }
 
-static texture_format fbo_color_format(fbo_t *fbo, fbo_attachment attachment)
+#define fa_for_each(_it, _fa, _kind) \
+    for (fbo_attachment _it = { .color_ ## _kind ## s = 1 }; \
+         fa_nr_color_ ## _kind(_it) <= fa_nr_color_ ## _kind(_fa); \
+         _it.color_ ## _kind ## s = _it.color_ ## _kind ## s * 2 + 1)
+
+texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
-    int target = fbo_attachment_target(attachment);
+    if (attachment.depth_buffer || attachment.depth_texture)
+        return fbo->depth_format;
+
+    int target = fbo_attachment_color(attachment);
 
     /*
      * boundary check may not be possible yet, because this will be called early
@@ -837,12 +878,26 @@ static texture_format fbo_color_format(fbo_t *fbo, fbo_attachment attachment)
 
     return TEX_FMT_DEFAULT;
 }
-static cerr_check fbo_texture_init(fbo_t *fbo)
+
+static GLenum fbo_gl_attachment(fbo_attachment attachment)
 {
-    cerr err = texture_init(&fbo->tex,
+    if (attachment.depth_buffer || attachment.depth_texture)
+        return GL_DEPTH_ATTACHMENT;
+
+    if (attachment.stencil_buffer || attachment.stencil_texture)
+        return GL_STENCIL_ATTACHMENT;
+
+    return GL_COLOR_ATTACHMENT0 + fbo_attachment_color(attachment);
+}
+
+static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
+{
+    int idx = fbo_attachment_color(attachment);
+
+    cerr err = texture_init(&fbo->color_tex[idx],
                             .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
-                            .format        = fbo_color_format(fbo, 0),
+                            .format        = fbo_texture_format(fbo, attachment),
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_EDGE,
                             .min_filter    = TEX_FLT_LINEAR,
@@ -850,11 +905,21 @@ static cerr_check fbo_texture_init(fbo_t *fbo)
     if (IS_CERR(err))
         return err;
 
-    err = texture_fbo(&fbo->tex, GL_COLOR_ATTACHMENT0, fbo_color_format(fbo, 0), fbo->width, fbo->height);
+    err = texture_fbo(&fbo->color_tex[idx], fbo_gl_attachment(attachment),
+                      fbo_texture_format(fbo, attachment), fbo->width, fbo->height);
     if (IS_CERR(err))
         return err;
 
-    fbo->attachment = GL_COLOR_ATTACHMENT0;
+    return CERR_OK;
+}
+
+static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment attachment)
+{
+    fa_for_each(fa, attachment, texture) {
+        cerr err = fbo_texture_init(fbo, fa);
+        if (IS_CERR(err))
+            return err;
+    }
 
     return CERR_OK;
 }
@@ -862,7 +927,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo)
 static cerr_check fbo_depth_texture_init(fbo_t *fbo)
 {
     float border[4] = {};
-    cerr err = texture_init(&fbo->tex,
+    cerr err = texture_init(&fbo->depth_tex,
                             .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
                             .format        = fbo->depth_format,
@@ -874,58 +939,55 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
     if (IS_CERR(err))
         return err;
 
-    err = texture_fbo(&fbo->tex, GL_DEPTH_ATTACHMENT, fbo->depth_format,
+    err = texture_fbo(&fbo->depth_tex, GL_DEPTH_ATTACHMENT, fbo->depth_format,
                       fbo->width, fbo->height);
     if (IS_CERR(err))
         return err;
 
-    fbo->attachment = GL_DEPTH_ATTACHMENT;
-
     return CERR_OK;
 }
 
-texture_t *fbo_texture(fbo_t *fbo)
+texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
 {
-    if (fbo_nr_attachments(fbo))
+    if (attachment.depth_texture)
+        return &fbo->depth_tex;
+
+    int idx = fbo_attachment_color(attachment);
+    if (idx >= fa_nr_color_texture(fbo->attachment_config))
         return NULL;
 
-    return &fbo->tex;
+    return &fbo->color_tex[idx];
 }
 
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
-    switch (attachment) {
-        case FBO_DEPTH_TEXTURE:
-            return fbo->attachment == GL_DEPTH_ATTACHMENT && texture_loaded(&fbo->tex);
-        case FBO_COLOR_TEXTURE:
-            return fbo->attachment == GL_COLOR_ATTACHMENT0 && texture_loaded(&fbo->tex);
-        default:
-            break;
-    }
-
-    if (fbo_attachment_target(attachment) >= darray_count(fbo->color_buf))
+    if (attachment.depth_texture && !fbo->attachment_config.depth_texture)
         return false;
 
-    return true;
+    if (attachment.depth_buffer && !fbo->attachment_config.depth_buffer)
+        return false;
+
+    int tidx = fbo_attachment_color(attachment);
+    if (tidx <= fbo_attachment_color(fbo->attachment_config) &&
+        texture_loaded(&fbo->color_tex[tidx]))
+        return true;
+
+    int bidx = fbo_attachment_color(attachment);
+    if (bidx <= fbo_attachment_color(attachment) &&
+        fbo->color_buf[bidx])
+        return true;
+
+    return false;
 }
 
-texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
+texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (!fbo_attachment_valid(fbo, attachment)) {
         err("invalid attachment '%s'\n", fbo_attachment_string(attachment));
         return TEX_FMT_MAX;
     }
 
-    switch (attachment) {
-        case FBO_DEPTH_TEXTURE:
-            return fbo->depth_format;
-        case FBO_COLOR_TEXTURE:
-            return fbo->color_format[0];
-        default:
-            break;
-    }
-
-    return fbo->color_format[fbo_attachment_target(attachment)];
+    return fbo->color_format[fbo_attachment_color(attachment)];
 }
 
 int fbo_width(fbo_t *fbo)
@@ -938,26 +1000,16 @@ int fbo_height(fbo_t *fbo)
     return fbo->height;
 }
 
-int fbo_nr_attachments(fbo_t *fbo)
-{
-    return darray_count(fbo->color_buf);
-}
-
 fbo_attachment_type fbo_get_attachment(fbo_t *fbo)
 {
-    if (fbo_nr_attachments(fbo))
+    if (fbo_attachment_color(fbo->attachment_config))
         return FBO_ATTACHMENT_COLOR0;
 
-    switch (fbo->attachment) {
-        case GL_DEPTH_ATTACHMENT:
-            return FBO_ATTACHMENT_DEPTH;
-        case GL_COLOR_ATTACHMENT0:
-            return FBO_ATTACHMENT_COLOR0;
-        case GL_STENCIL_ATTACHMENT:
-            return FBO_ATTACHMENT_STENCIL;
-        default:
-            break;
-    }
+    if (fbo->attachment_config.depth_buffer)
+        return FBO_ATTACHMENT_DEPTH;
+
+    if (fbo->attachment_config.stencil_buffer)
+        return FBO_ATTACHMENT_STENCIL;
 
     clap_unreachable();
 
@@ -966,7 +1018,7 @@ fbo_attachment_type fbo_get_attachment(fbo_t *fbo)
 
 static void __fbo_color_buffer_setup(fbo_t *fbo, fbo_attachment attachment)
 {
-    GLenum gl_internal_format = gl_texture_internal_format(fbo_color_format(fbo, attachment));
+    GLenum gl_internal_format = gl_texture_internal_format(fbo_texture_format(fbo, attachment));
     if (fbo_is_multisampled(fbo))
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples, gl_internal_format,
                                             fbo->width, fbo->height));
@@ -976,10 +1028,10 @@ static void __fbo_color_buffer_setup(fbo_t *fbo, fbo_attachment attachment)
 
 static cres(int) fbo_color_buffer(fbo_t *fbo, fbo_attachment attachment)
 {
-    if (attachment <= FBO_COLOR_TEXTURE)
+    if (!fa_nr_color_buffer(attachment))
         return cres_error(int, CERR_INVALID_ARGUMENTS);
 
-    int gl_attachment = GL_COLOR_ATTACHMENT0 + fbo_attachment_target(attachment);
+    GLenum gl_attachment = fbo_gl_attachment(attachment);
     unsigned int buf;
 
     GL(glGenRenderbuffers(1, &buf));
@@ -1022,23 +1074,25 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
     GL(glFinish());
 
     cerr err = CERR_OK;
-    if (texture_loaded(&fbo->tex))
-        err = texture_resize(&fbo->tex, width, height);
-    /* On error, revert back to the previous size */
-    if (IS_CERR(err)) {
-        if (width != fbo->width || height != fbo->height)
-            return fbo_resize(fbo, fbo->width, fbo->height);
+    fa_for_each(fa, fbo->attachment_config, texture) {
+        texture_t *tex = &fbo->color_tex[fa_nr_color_texture(fa)];
+        if (texture_loaded(tex))
+            err = texture_resize(tex, width, height);
+        /* On error, revert back to the previous size */
+        if (IS_CERR(err)) {
+            if (width != fbo->width || height != fbo->height)
+                return texture_resize(tex, fbo->width, fbo->height);
 
-        return err;
+            return err;
+        }
     }
 
     fbo->width = width;
     fbo->height = height;
 
-    int *color_buf, target = 0;
-    darray_for_each(color_buf, fbo->color_buf) {
-        GL(glBindRenderbuffer(GL_RENDERBUFFER, *color_buf));
-        __fbo_color_buffer_setup(fbo, target++);
+    fa_for_each(fa, fbo->attachment_config, buffer) {
+        GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->color_buf[fbo_attachment_color(fa)]));
+        __fbo_color_buffer_setup(fbo, fa);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
 
@@ -1051,28 +1105,30 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
     return CERR_OK;
 }
 
-#define NR_TARGETS 4
+#define NR_TARGETS FBO_COLOR_ATTACHMENTS_MAX
 void fbo_prepare(fbo_t *fbo)
 {
     GLenum buffers[NR_TARGETS];
-    int target;
+    int target = 0;
 
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
 
-    if (!darray_count(fbo->color_buf)) {
-        if (fbo->attachment == GL_DEPTH_ATTACHMENT) {
-            buffers[0] = GL_NONE;
-            GL(glDrawBuffers(1, buffers));
-            GL(glReadBuffer(GL_NONE));
-        }
-
-        return;
+    if (fbo_attachment_is_buffers(fbo->attachment_config)) {
+        fa_for_each(fa, fbo->attachment_config, buffer)
+            buffers[target++] = fbo_gl_attachment(fa);
+    } else {
+        fa_for_each(fa, fbo->attachment_config, texture)
+            buffers[target++] = fbo_gl_attachment(fa);
     }
 
-    for (target = 0; target < darray_count(fbo->color_buf); target++)
-        buffers[target] = GL_COLOR_ATTACHMENT0 + target;
-    GL(glDrawBuffers(darray_count(fbo->color_buf), buffers));
+    if (!target) {
+        buffers[0] = GL_NONE;
+        GL(glDrawBuffers(1, buffers));
+        GL(glReadBuffer(GL_NONE));
+    }
+
+    GL(glDrawBuffers(target, buffers));
 }
 
 void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
@@ -1092,15 +1148,18 @@ void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
     GLuint gl_attachment;
     GLenum gl_filter;
 
-    if (attachment == FBO_DEPTH_BUFFER) {
+    if (attachment.depth_buffer) {
         mask = GL_DEPTH_BUFFER_BIT;
         gl_attachment = GL_DEPTH_ATTACHMENT;
         gl_filter = GL_NEAREST;
-    } else if (attachment >= FBO_COLOR_BUFFER0) {
-        gl_attachment = GL_COLOR_ATTACHMENT0 + fbo_attachment_target(attachment);
+    } else if (attachment.stencil_buffer) {
+        mask = GL_STENCIL_BUFFER_BIT;
+        gl_attachment = GL_STENCIL_ATTACHMENT;
+        gl_filter = GL_LINEAR;
+    } else if (attachment.color_buffers || attachment.color_textures) {
+        gl_attachment = fbo_gl_attachment(attachment);
         gl_filter = GL_LINEAR;
     } else {
-        err("trying to blit from color texture -- why?\n");
         return;
     }
 
@@ -1116,7 +1175,6 @@ static cerr fbo_make(struct ref *ref, void *_opts)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
-    darray_init(fbo->color_buf);
     fbo->depth_buf = -1;
 
     return CERR_OK;
@@ -1128,12 +1186,11 @@ static void fbo_drop(struct ref *ref)
 
     GL(glDeleteFramebuffers(1, &fbo->fbo));
     /* if the texture was cloned, its ->loaded==false making this a nop */
-    texture_deinit(&fbo->tex);
+    fa_for_each(fa, fbo->attachment_config, texture)
+        texture_deinit(&fbo->color_tex[fbo_attachment_color(fa)]);
 
-    int *color_buf;
-    darray_for_each(color_buf, fbo->color_buf)
-        glDeleteRenderbuffers(1, (const GLuint *)color_buf);
-    darray_clearout(fbo->color_buf);
+    fa_for_each(fa, fbo->attachment_config, buffer)
+        glDeleteRenderbuffers(1, (const GLuint *)&fbo->color_buf[fbo_attachment_color(fa)]);
 
     mem_free(fbo->color_format);
 
@@ -1149,38 +1206,32 @@ DECLARE_REFCLASS(fbo);
  *  FBO_COLOR_TEXTURE: color texture
  *  FBO_COLOR_BUFFERn: n color buffer attachments
  */
-static cerr_check fbo_init(fbo_t *fbo, fbo_attachment attachment_config)
+static cerr_check fbo_init(fbo_t *fbo)
 {
     cerr err = CERR_OK;
-    int *color_buf;
 
     fbo->fbo = fbo_create();
 
-    if (attachment_config <= FBO_DEPTH_TEXTURE) {
+    if (fbo->attachment_config.depth_texture) {
         err = fbo_depth_texture_init(fbo);
-    } else if (attachment_config == FBO_COLOR_TEXTURE) {
-        err = fbo_texture_init(fbo);
-    } else {
+    }
+    if (fbo->attachment_config.color_textures) {
+        err = fbo_textures_init(fbo, fbo->attachment_config);
+    } else if (fbo->attachment_config.color_buffers) {
         /* "<="" meaning "up to and including attachment_config color buffer"*/
-        for (fbo_attachment target = FBO_COLOR_BUFFER0; target <= attachment_config; target++) {
-            color_buf = darray_add(fbo->color_buf);
-            if (!color_buf) {
-                err = CERR_NOMEM;
-                break;
-            }
-
-            cres(int) res = fbo_color_buffer(fbo, target);
+        fa_for_each(fa, fbo->attachment_config, buffer) {
+            cres(int) res = fbo_color_buffer(fbo, fa);
             if (IS_CERR(res))
                 goto err;
 
-            *color_buf = res.val;
+            fbo->color_buf[fbo_attachment_color(fa)] = res.val;
         }
     }
 
     if (IS_CERR(err))
         goto err;
 
-    if (attachment_config >= FBO_COLOR_BUFFER0)
+    if (fbo->attachment_config.depth_buffer)
         fbo->depth_buf = fbo_depth_buffer(fbo);
 
     int fb_err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -1193,10 +1244,11 @@ static cerr_check fbo_init(fbo_t *fbo, fbo_attachment attachment_config)
     return err;
 
 err:
-    darray_for_each(color_buf, fbo->color_buf)
-        if (*color_buf)
-            glDeleteRenderbuffers(1, (const GLuint *)color_buf);
-    darray_clearout(fbo->color_buf);
+    fa_for_each(fa, fbo->attachment_config, buffer) {
+        int color_buf = fbo->color_buf[fbo_attachment_color(fa)];
+        if (color_buf)
+            glDeleteRenderbuffers(1, (const GLuint *)&color_buf);
+    }
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glDeleteFramebuffers(1, &fbo->fbo));
 
@@ -1223,15 +1275,16 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     fbo->height       = opts->height;
     fbo->layers       = opts->layers;
     fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
+    fbo->attachment_config = opts->attachment_config;
+    /* for compatibility */
+    if (!fbo->attachment_config.mask)
+        fbo->attachment_config.color_texture0 = 1;
 
-    if (opts->attachment_config != FBO_DEPTH_TEXTURE && opts->color_format) {
-        int nr_color_formats = opts->attachment_config;
-        if (opts->attachment_config == FBO_COLOR_TEXTURE)
-            nr_color_formats = 1;
+    int nr_color_formats = fa_nr_color_buffer(fbo->attachment_config) ? :
+                           fa_nr_color_texture(fbo->attachment_config);
 
-        size_t size = nr_color_formats * sizeof(texture_format);
-        fbo->color_format = memdup(opts->color_format, size);
-    }
+    size_t size = nr_color_formats * sizeof(texture_format);
+    fbo->color_format = memdup(opts->color_format ? : (texture_format[]){ TEX_FMT_DEFAULT }, size);
 
 #ifdef CONFIG_GLES
     fbo->nr_samples = 0;
@@ -1242,7 +1295,7 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
         fbo->nr_samples = MSAA_SAMPLES;
 #endif
 
-    cerr err = fbo_init(fbo, opts->attachment_config);
+    cerr err = fbo_init(fbo);
     if (IS_CERR(err))
         return cresp_error_cerr(fbo_t, err);
 
@@ -1711,15 +1764,15 @@ void renderer_init(renderer_t *renderer)
         _fbo_texture_supported[i] = true;
 
         if (gl_texture_format(i) == GL_DEPTH_COMPONENT) {
-            res = fbo_new(.width = 1, .height = 1, .depth_format = i, .attachment_config = FBO_DEPTH_TEXTURE);
+            res = fbo_new(.width = 1, .height = 1, .depth_format = i,
+                          .attachment_config = { .depth_texture = 1 });
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
             else
                 fbo_put(res.val);
         } else {
             res = fbo_new(.width = 1, .height = 1,
-                          .color_format = (texture_format *)&i,
-                          .attachment_config = FBO_COLOR_TEXTURE);
+                          .color_format = (texture_format *)&i);
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
             else

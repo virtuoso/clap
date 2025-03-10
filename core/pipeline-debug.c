@@ -21,7 +21,7 @@ void pipeline_dropdown_push(pipeline *pl, render_pass *pass)
     pipeline_dropdown *entry;
 
     for (int i = 0; i < pass->nr_sources; i++) {
-        if (!pass->blit_fbo[i])
+        if (!pass->blit_fbo[i] && !pass->use_tex[i])
             continue;
 
         entry = darray_add(pl->dropdown);
@@ -29,7 +29,9 @@ void pipeline_dropdown_push(pipeline *pl, render_pass *pass)
             return;
 
         snprintf(entry->name, sizeof(entry->name), "%s input %d", pass->name, i);
-        entry->tex = fbo_texture(pass->blit_fbo[i]);
+        entry->tex = pass->blit_fbo[i] ?
+            fbo_texture(pass->blit_fbo[i], FBO_COLOR_TEXTURE(0)) :
+            pass->use_tex[i];
     }
 
     entry = darray_add(pl->dropdown);
@@ -40,7 +42,7 @@ void pipeline_dropdown_push(pipeline *pl, render_pass *pass)
         snprintf(entry->name, sizeof(entry->name), "%s cascade %d", pass->name, pass->cascade);
     else
         strncpy(entry->name, pass->name, sizeof(entry->name));
-    entry->tex = fbo_texture(pass->fbo);
+    entry->tex = fbo_texture(pass->fbo, FBO_COLOR_TEXTURE(0));
     entry->pass = pass;
 }
 
@@ -142,10 +144,12 @@ static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t *
         darray_for_each(entry, pl->dropdown) {
             bool selected = *item == i;
 
+            igPushID_Int(i);
             if (igSelectable_Bool(entry->name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
                 igSetItemDefaultFocus();
                 *item = i;
             }
+            igPopID();
 
             i++;
         }

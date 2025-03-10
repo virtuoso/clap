@@ -27,6 +27,7 @@ struct render_pass {
      * blit_fbo[x] only exists if source x needs blitting
      */
     fbo_t                   **blit_fbo;
+    texture_t               **use_tex;
     /* Render output: always exists */
     fbo_t                   *fbo;
     /*

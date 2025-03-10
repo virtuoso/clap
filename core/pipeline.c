@@ -9,9 +9,9 @@
 #include "shader.h"
 #include "ui-debug.h"
 
-texture_t *pipeline_pass_get_texture(struct render_pass *pass)
+texture_t *pipeline_pass_get_texture(struct render_pass *pass, fbo_attachment attachment)
 {
-    return fbo_texture(pass->fbo);
+    return fbo_texture(pass->fbo, attachment);
 }
 
 float pipeline_pass_get_scale(render_pass *pass)
@@ -69,11 +69,11 @@ static void pipeline_drop(struct ref *ref)
                 if (source->pass) {
                     fbo_t *fbo = source->pass->fbo;
 
-                    if (txm->texture == fbo_texture(fbo))
+                    if (txm->texture == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
                         txm->texture = &txm->_texture;
-                    if (txm->emission == fbo_texture(fbo))
+                    if (txm->emission == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
                         txm->emission = &txm->_emission;
-                    if (txm->sobel == fbo_texture(fbo))
+                    if (txm->sobel == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
                         txm->sobel = &txm->_sobel;
                 }
             }
@@ -92,6 +92,7 @@ static void pipeline_drop(struct ref *ref)
             ref_put(pass->prog_override);
 
         mem_free(pass->blit_fbo);
+        mem_free(pass->use_tex);
         mem_free(pass->source);
         list_del(&pass->entry);
         mem_free(pass);
@@ -199,6 +200,10 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
     if (!pass->blit_fbo)
         goto err_fbo;
 
+    pass->use_tex = mem_alloc(sizeof(texture_t *), .nr = pass->nr_sources);
+    if (!pass->blit_fbo)
+        goto err_blit_fbo;
+
     int nr_blits = 0, nr_renders = 0, nr_uses = 0;
     for (int i = 0; i < pass->nr_sources; i++) {
         render_source *rsrc = &pass->source[i];
@@ -210,49 +215,51 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
              */
             render_pass *src_pass = rsrc->pass;
             if (!src_pass || !src_pass->fbo)
-                goto err_blit_fbo;
+                goto err_use_tex;
 
-            if (rsrc->attachment == FBO_DEPTH_BUFFER) {
+            if (rsrc->attachment.depth_buffer || rsrc->attachment.depth_texture) {
                 res = fbo_new(.width                = fbo_width(src_pass->fbo),
                               .height               = fbo_height(src_pass->fbo),
-                              .attachment_config    = FBO_DEPTH_TEXTURE,
+                              .attachment_config    = { .depth_texture = 1 },
+                              .multisampled         = fbo_is_multisampled(pass->fbo),
                               .depth_format         = fbo_texture_format(src_pass->fbo, rsrc->attachment));
-            } else if (rsrc->attachment >= FBO_COLOR_BUFFER0) {
+            } else if (rsrc->attachment.color_buffers || rsrc->attachment.color_textures) {
                 if (!fbo_attachment_valid(src_pass->fbo, rsrc->attachment))
-                    goto err_blit_fbo;
+                    goto err_use_tex;
 
                 res = fbo_new(.width                = fbo_width(src_pass->fbo),
                               .height               = fbo_height(src_pass->fbo),
-                              .attachment_config    = FBO_COLOR_TEXTURE,
+                              .multisampled         = fbo_is_multisampled(pass->fbo),
+                              .attachment_config    = { .color_texture0 = 1 },
                               .color_format         = (texture_format[]) {
                                     fbo_texture_format(src_pass->fbo, rsrc->attachment)
                               });
             } else {
-                goto err_blit_fbo;
+                goto err_use_tex;
             }
 
             if (IS_CERR(res))
-                goto err_blit_fbo;
+                goto err_use_tex;
 
             pass->blit_fbo[i] = res.val;
 
             nr_blits++;
         } else if (rsrc->method == RM_RENDER) {
             if (!rsrc->mq)
-                goto err_blit_fbo;
+                goto err_use_tex;
 
             nr_renders++;
         } else if (rsrc->method == RM_USE) {
             if (!rsrc->pass)
-                goto err_blit_fbo;
+                goto err_use_tex;
 
-            pass->blit_fbo[i] = fbo_get(rsrc->pass->fbo);
-            if (!fbo_texture(pass->blit_fbo[i]))
-                goto err_blit_fbo;
+            pass->use_tex[i] = fbo_texture(rsrc->pass->fbo, rsrc->attachment);
+            if (!pass->use_tex[i])
+                goto err_use_tex;
 
             nr_uses++;
         } else {
-            goto err_blit_fbo;
+            goto err_use_tex;
         }
     }
 
@@ -262,14 +269,14 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
 
     if (cfg->shader_override) {
         if (!nr_renders)
-            goto err_blit_fbo;
+            goto err_use_tex;
 
         pass->prog_override = shader_prog_find(pl->shaders, cfg->shader_override);
         if (!pass->prog_override)
-            goto err_blit_fbo;
+            goto err_use_tex;
     } else if (cfg->shader) {
         if (!nr_blits && !nr_uses)
-            goto err_blit_fbo;
+            goto err_use_tex;
 
         prog = shader_prog_find(pl->shaders, cfg->shader);
         if (!prog)
@@ -292,7 +299,10 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
             if (rsrc->method != RM_BLIT && rsrc->method != RM_USE)
                 continue;
 
-            model3dtx_set_texture(txm, rsrc->sampler, fbo_texture(pass->blit_fbo[i]));
+            if (pass->blit_fbo[i])
+                model3dtx_set_texture(txm, rsrc->sampler, fbo_texture(pass->blit_fbo[i], FBO_COLOR_TEXTURE(0)));
+            else
+                model3dtx_set_texture(txm, rsrc->sampler, pass->use_tex[i]);
         }
 
         /*
@@ -322,10 +332,13 @@ err_prog:
 err_override:
     if (pass->prog_override)
         ref_put(pass->prog_override);
+err_use_tex:
+    mem_free(pass->use_tex);
 err_blit_fbo:
     for (int i = 0; i < pass->nr_sources; i++)
         if (pass->blit_fbo[i])
             fbo_put(pass->blit_fbo[i]);
+    mem_free(pass->blit_fbo);
 err_fbo:
     fbo_put_last(pass->fbo);
 err_source:

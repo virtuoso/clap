@@ -216,19 +216,56 @@ texture_t *transparent_pixel(void);
  * fbo_attachment describes both individual attachments
  * and fbo's whole attachment configuration
  */
-typedef enum fbo_attachment {
-    FBO_DEPTH_TEXTURE = -1,
-    FBO_DEPTH_BUFFER = FBO_DEPTH_TEXTURE,
-    FBO_COLOR_TEXTURE = 0,
-    FBO_COLOR_BUFFER0,
-    FBO_COLOR_BUFFER1,
-    FBO_COLOR_BUFFER2,
-    FBO_COLOR_BUFFER3,
-    FBO_COLOR_BUFFER4,
-    FBO_COLOR_BUFFER5,
-    FBO_COLOR_BUFFER6,
-    FBO_COLOR_BUFFER7,
+typedef union fbo_attachment {
+    /*
+     * These are currently used in the code somewhat, but could be replaced
+     * by bitwise tests if need be
+     */
+    struct {
+        uint64_t    color_buffer0           : 1,
+                    color_buffer1           : 1,
+                    color_buffer2           : 1,
+                    color_buffer3           : 1,
+                    color_buffer4           : 1,
+                    color_buffer5           : 1,
+                    color_buffer6           : 1,
+                    color_buffer7           : 1,
+                    depth_buffer            : 1,
+                    stencil_buffer          : 1,
+                    depth_stencil_buffer    : 1,
+                    _reserved1              : 5, /* 16 */
+                    color_texture0          : 1,
+                    color_texture1          : 1,
+                    color_texture2          : 1,
+                    color_texture3          : 1,
+                    color_texture4          : 1,
+                    color_texture5          : 1,
+                    color_texture6          : 1,
+                    color_texture7          : 1,
+                    depth_texture           : 1,
+                    stencil_texture         : 1,
+                    depth_stencil_texture   : 1,
+                    _reserved2              : 5, /* 32 */
+                    _reserved3              : 32;
+    };
+    uint64_t    mask;
+    struct {
+        uint8_t     color_buffers;
+        uint8_t     depth_buffers;
+        uint8_t     color_textures;
+        uint8_t     depth_textures;
+        uint32_t    _pad;
+    };
 } fbo_attachment;
+
+#define FBO_COLOR_TEXTURE(_n)       (fbo_attachment){ .color_textures = (1 << ((_n) + 1)) - 1 }
+#define FBO_DEPTH_TEXTURE(_n)       (fbo_attachment){ .depth_textures = (1 << ((_n) + 1)) - 1 }
+#define FBO_COLOR_DEPTH_TEXTURE(_n) (fbo_attachment){ .color_textures = (1 << ((_n) + 1)) - 1, \
+                                                      .depth_textures = 1 }
+#define FBO_COLOR_BUFFER(_n)        (fbo_attachment){ .color_buffers = (1 << ((_n) + 1)) - 1 }
+#define FBO_COLOR_DEPTH_BUFFER(_n)  (fbo_attachment){ .color_buffers = (1 << ((_n) + 1)) - 1, \
+                                                      .depth_buffers = 1 }
+#define FBO_COLOR_ATTACHMENTS_MAX 8
 
 const char *fbo_attachment_string(fbo_attachment attachment);
 
@@ -239,14 +276,14 @@ TYPE(fbo,
     unsigned int    height;
     unsigned int    layers;
     unsigned int    fbo;
-    int             depth_buf;
-    GLuint          attachment;
+    fbo_attachment  attachment_config;
     texture_format  *color_format;
     texture_format  depth_format;
-    darray(int, color_buf);
-    texture_t       tex;
+    texture_t       depth_tex;
+    int             color_buf[FBO_COLOR_ATTACHMENTS_MAX];
+    texture_t       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
+    int             depth_buf;
     unsigned int    nr_samples;
-    int             retain_tex;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -268,6 +305,7 @@ typedef struct fbo_init_options {
 } fbo_init_options;
 
 bool fbo_texture_supported(texture_format format);
+texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment);
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts);
 #define fbo_new(args...) \
     _fbo_new(&(fbo_init_options){ args })
@@ -278,14 +316,13 @@ void fbo_prepare(fbo_t *fbo);
 void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment);
 cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
-texture_t *fbo_texture(fbo_t *fbo);
+texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment);
 int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
-int fbo_nr_attachments(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 fbo_attachment_type fbo_get_attachment(fbo_t *fbo);
-texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment);
+texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
 
 typedef enum {
     SHADER_STAGE_VERTEX,

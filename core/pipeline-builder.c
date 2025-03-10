@@ -127,11 +127,11 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
                 .source               = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
                 .ops                  = &shadow_ops,
                 .multisampled         = opts->pl_opts->render_options->shadow_msaa,
-                .attachment_config    = FBO_DEPTH_TEXTURE,
+                .attachment_config    = FBO_DEPTH_TEXTURE(0),
                 .cascade              = i,
                 .shader_override      = "shadow"
         );
-        opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(shadow_pass[i]);
+        opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(shadow_pass[i], FBO_DEPTH_TEXTURE(i));
     }
 #else
     shadow_pass[0] =
@@ -139,12 +139,12 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             .source             = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
             .ops                = &shadow_ops,
             .multisampled       = opts->pl_opts->render_options->shadow_msaa,
-            .attachment_config  = FBO_DEPTH_TEXTURE,
+            .attachment_config  = FBO_DEPTH_TEXTURE(0),
             .layers             = CASCADES_MAX,
             .cascade            = -1,
             .shader_override    = "shadow"
     );
-    opts->pl_opts->light->shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0]);
+    opts->pl_opts->light->shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], FBO_DEPTH_TEXTURE(0));
 #endif /* CONFIG_GLES */
 
     texture_format hdr_fmt = get_hdr_format();
@@ -154,35 +154,35 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             .source             = (render_source[]) {
                 { .mq = opts->mq, .method = RM_RENDER, },
 #ifdef CONFIG_GLES
-                { .pass = shadow_pass[0], .attachment = FBO_DEPTH_TEXTURE, .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP },
-                { .pass = shadow_pass[1], .attachment = FBO_DEPTH_TEXTURE, .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP1 },
-                { .pass = shadow_pass[2], .attachment = FBO_DEPTH_TEXTURE, .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP2 },
-                { .pass = shadow_pass[3], .attachment = FBO_DEPTH_TEXTURE, .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP3 },
+                { .pass = shadow_pass[0], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP },
+                { .pass = shadow_pass[1], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP1 },
+                { .pass = shadow_pass[2], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP2 },
+                { .pass = shadow_pass[3], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP3 },
                 {}
 #else
-                { .pass = shadow_pass[0], .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP }, {}
+                { .pass = shadow_pass[0], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP }, {}
 #endif /* CONFIG_GLES */
             },
             .multisampled       = true,
             .ops                = &model_ops,
-            .attachment_config  = FBO_COLOR_BUFFER2,
+            .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(2),
             .name               = "model",
             .cascade            = -1,
             .color_format       = (texture_format[]) {
                                     hdr_fmt,
                                     hdr_fmt,
-                                    TEX_FMT_RGBA8
+                                    TEX_FMT_RGBA8,
                                 },
             .depth_format       = TEX_FMT_DEPTH32F
     );
     struct render_pass *pass;
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_BUFFER1, .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(1), .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ hdr_fmt },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .shader             = "downsample",
         .scale              = 0.25,
@@ -190,67 +190,67 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
 
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ hdr_fmt },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .scale              = 0.25,
         .shader             = "vblur",
     );
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ hdr_fmt },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .scale              = 0.25,
         .shader             = "hblur",
     );
     struct render_pass *bloom_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
-            { .pass = model_pass, .attachment = FBO_COLOR_BUFFER1, .method = RM_BLIT, .sampler = UNIFORM_EMISSION_MAP },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(1), .method = RM_BLIT, .sampler = UNIFORM_EMISSION_MAP },
             {}
         },
         .color_format       = (texture_format[]) { hdr_fmt },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .shader             = "upsample",
     );
     struct render_pass *sobel_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_BUFFER2, .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .shader             = "sobel",
     );
     pass = pipeline_add_pass(pl,
         .source            = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_BUFFER0, .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
-            { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
-            { .pass = sobel_pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
+            { .pass = sobel_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
         .ops                = &postproc_ops,
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .shader             = "combine",
     );
     render_pass *contrast_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
         .ops                = &postproc_ops,
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .shader             = "contrast",
         .checkpoint         = 1,
     );
@@ -258,45 +258,45 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     /* Extra blur for the menu */
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ TEX_FMT_RGBA8 },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .shader             = "downsample",
         .scale              = 0.25,
     );
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ TEX_FMT_RGBA8 },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .scale              = 0.25,
         .shader             = "vblur",
     );
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ TEX_FMT_RGBA8 },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .scale              = 0.25,
         .shader             = "hblur",
     );
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
-            { .pass = contrast_pass, .attachment = FBO_COLOR_TEXTURE, .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
+            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = contrast_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
-        .attachment_config  = FBO_COLOR_TEXTURE,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .shader             = "upsample",
         .checkpoint         = 2,

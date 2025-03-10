@@ -105,7 +105,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
 #define pipeline_add_pass(_pl, args...) \
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })
 void pipeline_render(struct pipeline *pl, unsigned int checkpoint);
-texture_t *pipeline_pass_get_texture(struct render_pass *pass);
+texture_t *pipeline_pass_get_texture(struct render_pass *pass, fbo_attachment attachment);
 float pipeline_pass_get_scale(render_pass *pass);
 #ifndef CONFIG_FINAL
 void pipeline_debug(struct pipeline *pl);
