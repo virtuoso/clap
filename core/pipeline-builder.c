@@ -108,6 +108,15 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     if (!opts->mq)
         return NULL;
 
+    bool model_pass_msaa =
+#ifdef CONFIG_BROWSER
+        false;
+#else
+        opts->pl_opts->render_options->model_msaa;
+#endif /* CONFIG_BROWSER */
+
+    render_method model_pass_method = model_pass_msaa ? RM_BLIT : RM_USE;
+
     pipeline *pl = ref_new(pipeline,
                            .width            = opts->pl_opts->width,
                            .height           = opts->pl_opts->height,
@@ -163,7 +172,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
                 { .pass = shadow_pass[0], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP }, {}
 #endif /* CONFIG_GLES */
             },
-            .multisampled       = true,
+            .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
             .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(2),
             .name               = "model",
@@ -178,7 +187,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     struct render_pass *pass;
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(1), .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(1), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ hdr_fmt },
@@ -213,7 +222,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     struct render_pass *bloom_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
             { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(1), .method = RM_BLIT, .sampler = UNIFORM_EMISSION_MAP },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(1), .method = model_pass_method, .sampler = UNIFORM_EMISSION_MAP },
             {}
         },
         .color_format       = (texture_format[]) { hdr_fmt },
@@ -223,7 +232,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     );
     struct render_pass *sobel_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
@@ -233,7 +242,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     );
     pass = pipeline_add_pass(pl,
         .source            = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_BLIT, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
             { .pass = sobel_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
             {}

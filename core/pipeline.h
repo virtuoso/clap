@@ -10,6 +10,7 @@ typedef struct pipeline pipeline;
 typedef struct render_options {
     bool    shadow_outline;
     bool    shadow_msaa;
+    bool    model_msaa;
     bool    debug_draws_enabled;
 } render_options;
 
