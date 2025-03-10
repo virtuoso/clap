@@ -108,6 +108,9 @@ float shadow_factor_calc(in vec3 unit_normal)
     float shadow_factor = 1.0;
 
     float light_dot = dot(unit_normal, normalize(-light_dir[0]));
+    if (light_dot < 0)
+        return shadow_factor;
+
     vec4 view_pos = view * world_pos;
     int layer = -1;
 
