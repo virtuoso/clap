@@ -232,13 +232,14 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     );
     struct render_pass *sobel_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
         .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
-        .shader             = "sobel",
+        .name               = "sobel",
+        .shader             = model_pass_msaa ? "sobel-msaa" : "sobel",
     );
     pass = pipeline_add_pass(pl,
         .source            = (render_source[]) {

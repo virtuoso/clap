@@ -149,7 +149,7 @@ set(SHADER_BASE "${CMAKE_BINARY_DIR}")
 include("${CMAKE_SOURCE_DIR}/scripts/compile-shaders.cmake")
 
 set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
-set(SHADERS ui glyph model contrast sobel combine shadow debug hblur vblur downsample upsample terrain)
+set(SHADERS ui glyph model contrast sobel sobel-msaa combine shadow debug hblur vblur downsample upsample terrain)
 
 compile_shaders("${SHADERS}" "_core")
 

@@ -276,6 +276,9 @@ int main(int argc, char **argv, char **envp)
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "downsample", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "upsample", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "sobel", &scene.shaders);
+#ifndef CONFIG_GLES
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "sobel-msaa", &scene.shaders);
+#endif /* CONFIG_GLES */
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "combine", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "shadow", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "debug", &scene.shaders);
