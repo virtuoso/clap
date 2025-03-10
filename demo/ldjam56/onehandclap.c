@@ -40,7 +40,7 @@ static struct scene scene; /* XXX */
 // struct game_state game_state;
 
 static struct pipeline *main_pl;
-static bool prev_msaa;
+static bool shadow_msaa, model_msaa;
 
 static void build_main_pl(struct pipeline **pl)
 {
@@ -92,8 +92,10 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         debug_draw_clearout(s);
     }
 
-    if (prev_msaa != s->render_options.shadow_msaa) {
-        prev_msaa = s->render_options.shadow_msaa;
+    if (shadow_msaa != s->render_options.shadow_msaa ||
+        model_msaa != s->render_options.model_msaa) {
+        shadow_msaa = s->render_options.shadow_msaa;
+        model_msaa = s->render_options.model_msaa;
         ref_put(main_pl);
         build_main_pl(&main_pl);
     }
@@ -236,7 +238,6 @@ int main(int argc, char **argv, char **envp)
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
     scene.clap_ctx = clap_res.val;
-    prev_msaa = scene.render_options.shadow_msaa;
 
     cerr err;
 #ifndef CONFIG_FINAL
