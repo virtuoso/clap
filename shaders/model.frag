@@ -60,8 +60,8 @@ float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in flo
     const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
     float total = 0.0;
 
-    for (int x = -pcf_count; x < pcf_count; x++)
-        for (int y = -pcf_count; y < pcf_count; y++) {
+    for (int x = -pcf_count; x <= pcf_count; x++)
+        for (int y = -pcf_count; y <= pcf_count; y++) {
             float shadow_distance = texel_fetch_2darray(map, vec3(pos.xy, float(layer)), ivec2(x, y)).r;
             if (pos.z + bias < shadow_distance)
                 total += 1.0;
@@ -76,8 +76,8 @@ float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
     const float pcf_total_texels = pow(float(pcf_count) * 2.0 + 1.0, 2.0);
     float total = 0.0;
 
-    for (int x = -pcf_count; x < pcf_count; x++)
-        for (int y = -pcf_count; y < pcf_count; y++) {
+    for (int x = -pcf_count; x <= pcf_count; x++)
+        for (int y = -pcf_count; y <= pcf_count; y++) {
             float shadow_distance = texel_fetch_2d(map, pos.xy, ivec2(x, y)).r;
             if (pos.z + bias < shadow_distance)
                 total += 1.0;
@@ -149,7 +149,7 @@ float shadow_factor_calc(in vec3 unit_normal)
         shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
 #endif /* CONFIG_GLES */
 
-    return shadow_factor;
+    return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.3));
 }
 
 void main()
