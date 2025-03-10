@@ -195,7 +195,9 @@ void main()
         total_diffuse = total_diffuse + brightness * light_color[i] / att_fac;
     }
 
-    total_diffuse = max(total_diffuse, 0.2) * shadow_factor;
+    vec3 shadow_tint = light_color[0] * vec3(0.4, 0.3, 0.3); /* XXX: parameterize me */
+    total_diffuse = mix(max(total_diffuse, 0.2), shadow_tint, 1.0 - shadow_factor);
+
     FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
 
     if (sobel_solid) {
