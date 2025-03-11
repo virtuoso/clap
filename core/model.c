@@ -607,14 +607,10 @@ void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
 
     model3d_prepare(txm->model, p);
 
-    if (shader_has_var(p, ATTR_TEX) && texture_loaded(txm->texture)) {
-        shader_plug_attribute(p, ATTR_TEX, &m->tex);
-        shader_plug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
-    }
+    shader_plug_attribute(p, ATTR_TEX, &m->tex);
 
-    if (txm->normals)
-        shader_plug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
-
+    shader_plug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
+    shader_plug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
     shader_plug_texture(p, UNIFORM_EMISSION_MAP, txm->emission);
     shader_plug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
 }
