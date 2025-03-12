@@ -127,7 +127,8 @@ static void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
 
     clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
     if (!f->ts_prev.tv_sec && !f->ts_prev.tv_nsec) {
-        f->ts_delta.tv_nsec = NSEC_PER_SEC / display_refresh_rate();
+        // Default to a reasonable value (~60 FPS) instead of display_refresh_rate()
+        f->ts_delta.tv_nsec = NSEC_PER_SEC / 1000 * 16;  // 16ms
         f->ts_delta.tv_sec = 0;
     } else {
         timespec_diff(&f->ts_prev, &ctx->current_time, &f->ts_delta);
@@ -140,19 +141,16 @@ static void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
         f->seconds    = ctx->current_time.tv_sec;
         status        = true;
     }
-    f->count += 1;//f->ts_delta.tv_nsec / (1000000000/60);
+    f->count += 1;
 
-    if (f->ts_delta.tv_sec) {
-        f->fps_fine = 1;
-    } else {
-        f->fps_fine = NSEC_PER_SEC / f->ts_delta.tv_nsec;
-    }
+    /* More stable FPS calculation */
+    f->fps_fine = f->ts_delta.tv_sec ? 1 : (NSEC_PER_SEC / f->ts_delta.tv_nsec);
 
     if (status) {
         memset(&m, 0, sizeof(m));
         m.type            = MT_COMMAND;
         m.cmd.status      = 1;
-        m.cmd.fps         = f->fps_fine;//f->fps_coarse;
+        m.cmd.fps         = f->fps_fine;
         m.cmd.sys_seconds = f->ts_prev.tv_sec;
         message_send(&m);
     }
