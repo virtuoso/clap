@@ -2,6 +2,7 @@
 #ifndef __CLAP_PIPELINE_H__
 #define __CLAP_PIPELINE_H__
 
+#include "camera.h"
 #include "shader.h"
 
 typedef struct render_pass render_pass;
@@ -41,6 +42,8 @@ typedef struct render_pass_ops_params {
     struct light    *light;
     struct camera   *camera;
     float           render_scale;
+    float           near_plane;
+    float           far_plane;
 } render_pass_ops_params;
 
 #define RENDER_PASS_OPS_PARAMS(_pl, _pass) \
@@ -48,6 +51,8 @@ typedef struct render_pass_ops_params {
         .renderer       = (_pl)->renderer, \
         .camera         = (_pl)->camera, \
         .light          = (_pl)->light, \
+        .near_plane     = (_pl)->camera->view.main.near_plane, \
+        .far_plane      = (_pl)->camera->view.main.far_plane, \
         .render_scale   = (_pass)->scale, \
     };
 

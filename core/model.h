@@ -242,6 +242,8 @@ typedef struct models_render_options {
     unsigned long       *txm_count;
     render_options      *render_options;
     int                 cascade;
+    float               near_plane;
+    float               far_plane;
 } models_render_options;
 
 #define models_render(_r, _mq, args...) \

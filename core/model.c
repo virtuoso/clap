@@ -713,6 +713,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     struct camera *camera = opts->camera;
     struct light *light = opts->light;
     struct subview *subview = NULL;
+    float near_plane, far_plane;
     struct view *view = NULL;
     mat4x4 *proj = NULL;
 
@@ -731,7 +732,14 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         } else {
             subview = &view->main;
         }
+        near_plane = subview->near_plane;
+        far_plane = subview->far_plane;
     }
+
+    if (opts->near_plane)
+        near_plane = opts->near_plane;
+    if (opts->far_plane)
+        far_plane = opts->far_plane;
 
     unsigned long nr_ents = 0, nr_txms = 0, culled = 0;
     render_options *ropts = opts->render_options;
@@ -802,6 +810,9 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             if (view)
                 shader_set_var_ptr(prog, UNIFORM_CASCADE_DISTANCES, CASCADES_MAX, view->divider);
+
+            shader_set_var_float(prog, UNIFORM_NEAR_PLANE, near_plane);
+            shader_set_var_float(prog, UNIFORM_FAR_PLANE, far_plane);
 
             if (subview) {
                 shader_set_var_ptr(prog, UNIFORM_VIEW, 1, subview->view_mx);

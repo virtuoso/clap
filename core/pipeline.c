@@ -416,6 +416,8 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         mq_init(&_mq, NULL);
         mq_add_model(&_mq, pass->quad->txmodel);
         models_render(pl->renderer, &_mq,
+                      .near_plane       = params.near_plane,
+                      .far_plane        = params.far_plane,
                       .render_options   = pl->render_options,
                       .entity_count     = &count);
         list_del(&pass->quad->txmodel->entry);

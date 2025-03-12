@@ -47,6 +47,8 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_TEX(UNIFORM_SHADOW_MAP3,         "shadow_map3",          7),
     SHADER_VAR(UNIFORM_WIDTH,               "width",                DT_FLOAT),
     SHADER_VAR(UNIFORM_HEIGHT,              "height",               DT_FLOAT),
+    SHADER_VAR(UNIFORM_NEAR_PLANE,          "near_plane",           DT_FLOAT),
+    SHADER_VAR(UNIFORM_FAR_PLANE,           "far_plane",            DT_FLOAT),
     SHADER_VAR(UNIFORM_PROJ,                "proj",                 DT_MAT4),
     SHADER_VAR(UNIFORM_VIEW,                "view",                 DT_MAT4),
     SHADER_VAR(UNIFORM_TRANS,               "trans",                DT_MAT4),
