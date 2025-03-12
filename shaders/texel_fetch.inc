@@ -1,3 +1,6 @@
+#ifndef CLAP_TEXEL_FETCH_GLSL
+#define CLAP_TEXEL_FETCH_GLSL
+
 vec4 texel_fetch_2d(in sampler2D map, in vec2 pos, in ivec2 tex_off)
 {
     float texel_size_x = 1.0 / float(textureSize(map, 0).x);
@@ -124,3 +127,5 @@ vec4 texel_fetch_2dmsarray(in sampler2DMSArray map, in vec3 pos)
 }
 
 #endif
+
+#endif /* CLAP_TEXEL_FETCH_GLSL */
