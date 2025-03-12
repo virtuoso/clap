@@ -38,12 +38,18 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
     LIST(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${shader}")
     LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}")
 
+    if (EXISTS "${SPIRV_DIR}/${shader}.spv.d")
+        file(READ "${SPIRV_DIR}/${shader}.spv.d" implicit_depends)
+        string(REPLACE "${SPIRV_DIR}/${shader}.spv: " "" implicit_depends ${implicit_depends})
+        string(REPLACE " " ";" implicit_depends ${implicit_depends})
+    endif ()
+
     # Command to build an intermediate representation of ${shader}
     add_custom_command(
         OUTPUT "${SPIRV_DIR}/${shader}.spv"
-        DEPENDS make-shader-ir-dir${PREPROCESS_SHADERS_TARGET} "${SHADER_SOURCE_DIR}/${shader}" "${SHADER_SOURCE_DIR}/texel_fetch.inc"
+        DEPENDS make-shader-ir-dir${PREPROCESS_SHADERS_TARGET} "${SHADER_SOURCE_DIR}/${shader}" "${implicit_depends}"
         COMMAND "${GLSLC}"
-        ARGS -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core -o ${SPIRV_DIR}/${shader}.spv -c ${SHADER_SOURCE_DIR}/${shader}
+        ARGS -MD -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core -o ${SPIRV_DIR}/${shader}.spv -c ${SHADER_SOURCE_DIR}/${shader}
     )
 
     # Command to build the final ${shader}
