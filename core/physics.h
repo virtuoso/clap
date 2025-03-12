@@ -59,7 +59,7 @@ typedef struct phys_contact_params {
     _phys_body_set_contact_params((_b), &(phys_contact_params){ args })
 void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_params *params);
 
-void phys_step(struct phys *phys, unsigned long frame_count);
+void phys_step(struct phys *phys, double dt);
 struct phys *phys_init(void);
 void phys_done(struct phys *phys);
 /* Set the global ground_contact callback */

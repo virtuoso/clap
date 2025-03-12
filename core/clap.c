@@ -227,9 +227,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     unsigned long frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(ctx), 1);
 
-    unsigned long count;
-    for (count = 0; count < frame_count; count++)
-        phys_step(clap_get_phys(ctx), 1);
+    double dt = ctx->fps.ts_delta.tv_nsec / (double)NSEC_PER_SEC;
+    phys_step(clap_get_phys(ctx), dt);
 
     PROF_STEP(phys, move);
 

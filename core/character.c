@@ -237,10 +237,7 @@ void character_move(struct character *ch, struct scene *s)
         vec3_norm(newy, newy);
         vec3_norm(newz, newz);
 
-        /* XXX: the numerator has to do with movement speed */
-        vec3_scale(ch->angle, ch->motion, 60. / (float)display_refresh_rate());
-        vec3_scale(ch->angle, ch->angle,
-                   (float)display_refresh_rate() / (float)clap_get_fps_fine(s->clap_ctx));
+        vec3_dup(ch->angle, ch->motion);
 
         /* watch out for Y and Z swapping places */
         vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);

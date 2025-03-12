@@ -568,7 +568,7 @@ stick:
     return true;
 }
 
-void phys_step(struct phys *phys, unsigned long frame_count)
+void phys_step(struct phys *phys, double dt)
 {
     struct phys_body *pb, *itpb;
     DECLARE_LIST(pen);
@@ -590,8 +590,8 @@ void phys_step(struct phys *phys, unsigned long frame_count)
         pb->pen_norm[0] = pb->pen_norm[1] = pb->pen_norm[2] = 0.0;
     }
 
-    /* XXX: quick step fails in quickstep.cpp:3267 */
-    dWorldQuickStep(phys->world, 0.01 * frame_count);
+    /* ODE manual warns against this */
+    dWorldQuickStep(phys->world, dt);
     dJointGroupEmpty(phys->contact);
 }
 
