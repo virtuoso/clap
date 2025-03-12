@@ -27,9 +27,10 @@ bool __ui_set_mouse_click(unsigned int button, bool down)
 void ui_ig_new_frame(void)
 {
     struct ImGuiIO *io = igGetIO();
-    double time = clap_get_current_time(bd.ctx);
-    io->DeltaTime = bd.time > 0.0 ? time - bd.time : 1.0 / display_refresh_rate();
-    bd.time = time;
+    struct timespec delta = clap_get_fps_delta(bd.ctx);
+
+    double dt = delta.tv_sec + (delta.tv_nsec / (double)NSEC_PER_SEC);
+    io->DeltaTime = dt;
 }
 
 void ui_ig_init_for_emscripten(struct clap_context *ctx)
