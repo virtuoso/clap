@@ -809,29 +809,31 @@ static bool fbo_attachment_is_buffers(fbo_attachment attachment)
 
 const char *fbo_attachment_string(fbo_attachment attachment)
 {
-    switch (fa_nr_color_buffer(attachment)) {
-        case 0:  return "color buffer0";
-        case 1:  return "color buffer1";
-        case 2:  return "color buffer2";
-        case 3:  return "color buffer3";
-        case 4:  return "color buffer4";
-        case 5:  return "color buffer5";
-        case 6:  return "color buffer6";
-        case 7:  return "color buffer7";
-        default: break;
-    }
+    if (attachment.color_buffers)
+        switch (fa_nr_color_buffer(attachment)) {
+            case 0:  return "color buffer0";
+            case 1:  return "color buffer1";
+            case 2:  return "color buffer2";
+            case 3:  return "color buffer3";
+            case 4:  return "color buffer4";
+            case 5:  return "color buffer5";
+            case 6:  return "color buffer6";
+            case 7:  return "color buffer7";
+            default: break;
+        }
 
-    switch (fa_nr_color_texture(attachment)) {
-        case 0:  return "color texture0";
-        case 1:  return "color texture1";
-        case 2:  return "color texture2";
-        case 3:  return "color texture3";
-        case 4:  return "color texture4";
-        case 5:  return "color texture5";
-        case 6:  return "color texture6";
-        case 7:  return "color texture7";
-        default: break;
-    }
+    if (attachment.color_textures)
+        switch (fa_nr_color_texture(attachment)) {
+            case 0:  return "color texture0";
+            case 1:  return "color texture1";
+            case 2:  return "color texture2";
+            case 3:  return "color texture3";
+            case 4:  return "color texture4";
+            case 5:  return "color texture5";
+            case 6:  return "color texture6";
+            case 7:  return "color texture7";
+            default: break;
+        }
 
     if (attachment.depth_buffer)
         return "depth buffer";
