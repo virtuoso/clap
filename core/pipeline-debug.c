@@ -90,7 +90,6 @@ void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, in
 {
     debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
     render_source *rsrc = &pass->source[srcidx];
-    fbo_t *src_fbo = pass->blit_fbo[srcidx];
 
     if (!dbgm->display || !dbgm->unfolded)
         return;
@@ -126,8 +125,15 @@ void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, in
     igTableNextColumn();
 
     /* "dim" */
-    if (src_fbo)
+    fbo_t *src_fbo = pass->blit_fbo[srcidx];
+    texture_t *tex = pass->use_tex[srcidx];
+    if (src_fbo) {
         igText("%ux%u", fbo_width(src_fbo), fbo_height(src_fbo));
+    } else if (tex) {
+        unsigned int width, height;
+        texture_get_dimesnions(tex, &width, &height);
+        igText("%ux%u", width, height);
+    }
     igTableNextColumn();
 }
 
