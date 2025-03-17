@@ -249,22 +249,22 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
         .ops                = &postproc_ops,
         .shader             = "upsample",
     );
-    struct render_pass *sobel_pass = pipeline_add_pass(pl,
+    struct render_pass *edge_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
             {}
         },
-        .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+        .color_format       = (texture_format[]) { TEX_FMT_R8 },
         .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
-        .name               = "sobel",
+        .name               = "edge",
         .shader             = model_pass_msaa ? "sobel-msaa" : "sobel",
     );
     pass = pipeline_add_pass(pl,
         .source            = (render_source[]) {
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
-            { .pass = sobel_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
+            { .pass = edge_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
