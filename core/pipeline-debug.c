@@ -42,7 +42,12 @@ void pipeline_dropdown_push(pipeline *pl, render_pass *pass)
         snprintf(entry->name, sizeof(entry->name), "%s cascade %d", pass->name, pass->cascade);
     else
         strncpy(entry->name, pass->name, sizeof(entry->name));
-    entry->tex = fbo_texture(pass->fbo, FBO_COLOR_TEXTURE(0));
+    entry->tex = fbo_texture(
+        pass->fbo,
+        fbo_attachment_valid(pass->fbo, FBO_COLOR_TEXTURE(0)) ?
+            FBO_COLOR_TEXTURE(0) :
+            FBO_DEPTH_TEXTURE(0)
+    );
     entry->pass = pass;
 }
 
