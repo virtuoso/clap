@@ -4,6 +4,7 @@
 #include "texel_fetch.inc"
 
 uniform sampler2DMS model_tex;
+uniform sampler2DMS normal_map;
 const int numSamples = MSAA_SAMPLES;
 
 layout (location=0) in vec2 pass_tex;
@@ -16,8 +17,8 @@ const ivec2 offsets[8] = ivec2[](
 );
 
 void main() {
-    ivec2 texSize = textureSize(model_tex);
-    ivec2 texelCoord = ivec2(pass_tex.x * texSize.x, pass_tex.y * texSize.y);//ivec2(gl_FragCoord.xy); // Integer texel coordinates
+    ivec2 texSize = textureSize(normal_map);
+    ivec2 texelCoord = ivec2(pass_tex.x * texSize.x, pass_tex.y * texSize.y); // Integer texel coordinates
 
     // Ensure we're not sampling out-of-bounds
     texelCoord = clamp(texelCoord, ivec2(1), texSize - ivec2(2));
@@ -25,9 +26,9 @@ void main() {
     // Fetch averaged colors for Sobel
     float kernel[9];
     for (int i = 0; i < 8; i++) {
-        kernel[i] = dot(texel_fetch_2dms(model_tex, pass_tex + offsets[i] / vec2(texSize)).rgb, vec3(0.299, 0.587, 0.114)); // Grayscale
+        kernel[i] = dot(texel_fetch_2dms(normal_map, pass_tex + offsets[i] / vec2(texSize)).rgb, vec3(0.299, 0.587, 0.114)); // Grayscale
     }
-    kernel[4] = dot(texel_fetch_2dms(model_tex, pass_tex).rgb, vec3(0.299, 0.587, 0.114)); // Center pixel
+    kernel[4] = dot(texel_fetch_2dms(normal_map, pass_tex).rgb, vec3(0.299, 0.587, 0.114)); // Center pixel
 
     // Sobel operator
     float edgeX = kernel[2] + 2.0 * kernel[4] + kernel[7] - (kernel[0] + 2.0 * kernel[3] + kernel[5]);
