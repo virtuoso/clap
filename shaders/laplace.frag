@@ -10,14 +10,14 @@ uniform sampler2D normal_map;
 
 uniform float near_plane;
 uniform float far_plane;
-uniform int laplace_kernel3;
+uniform int laplace_kernel;
 
 layout (location=0) out vec4 FragColor;
 
 void main(void)
 {
-    float laplacian_normal_edge = laplace_float(normal_map, pass_tex, laplace_kernel3 != 0 ? 3 : 5);
-    float laplacian_depth_edge = laplace_float(model_tex, pass_tex, laplace_kernel3 != 0 ? 3 : 5,
+    float laplacian_normal_edge = laplace_float(normal_map, pass_tex, laplace_kernel);
+    float laplacian_depth_edge = laplace_float(model_tex, pass_tex, laplace_kernel,
                                                near_plane, far_plane);
     laplacian_depth_edge = max(laplacian_depth_edge - 0.1, 0.0); // Excessive noise
 

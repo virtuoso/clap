@@ -167,6 +167,13 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("shadow msaa", &scene->render_options.shadow_msaa);
         igCheckbox("model msaa", &scene->render_options.model_msaa);
         igCheckbox("edge sobel", &scene->render_options.edge_sobel);
+        if (!scene->render_options.edge_sobel) {
+            igText("Laplace kernel size");
+            igSameLine(0.0, 0.0);
+            igRadioButton_IntPtr("3x3", &scene->render_options.laplace_kernel, 3);
+            igSameLine(0.0, 0.0);
+            igRadioButton_IntPtr("5x5", &scene->render_options.laplace_kernel, 5);
+        }
         igCheckbox("debug draws", &scene->render_options.debug_draws_enabled);
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
                     input_text_callback, NULL);
@@ -420,6 +427,7 @@ cerr scene_init(struct scene *scene)
     }
 
     scene->render_options.shadow_msaa = false;
+    scene->render_options.laplace_kernel = 3;
 
     cerr err;
     err = subscribe(MT_INPUT, scene_handle_input, scene);

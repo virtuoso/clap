@@ -772,6 +772,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (ropts) {
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, ropts->shadow_outline);
                 shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
+                shader_set_var_int(prog, UNIFORM_LAPLACE_KERNEL, ropts->laplace_kernel);
             }
 
             if (light) {
