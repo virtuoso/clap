@@ -127,6 +127,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     if (!opts->mq)
         return NULL;
 
+    bool edge_aa = opts->pl_opts->render_options->edge_antialiasing;
     bool model_pass_msaa =
 #ifdef CONFIG_BROWSER
         false;
@@ -276,7 +277,19 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
         .name               = "edge",
         .shader             = model_pass_msaa ? edge_msaa_shader : edge_shader,
     );
-    pass = pipeline_add_pass(pl,
+    render_pass *smaa_weights_pass = edge_aa ? pipeline_add_pass(pl,
+        .source             = (render_source[]) {
+            { .pass = edge_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            {}
+        },
+        .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+        .ops                = &postproc_ops,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
+        .name               = "smaa-weights",
+        .shader             = "smaa-blend-weights",
+    ) : NULL;
+
+    render_pass *combine_pass = pipeline_add_pass(pl,
         .source            = (render_source[]) {
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
@@ -288,9 +301,23 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
         .attachment_config  = FBO_COLOR_TEXTURE(0),
         .shader             = "combine",
     );
+
+    render_pass *smaa_blend_pass = edge_aa ? pipeline_add_pass(pl,
+        .source             = (render_source[]) {
+            { .pass = combine_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = smaa_weights_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
+            {}
+        },
+        .color_format       = (texture_format[]) { hdr_fmt },
+        .ops                = &postproc_ops,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
+        .name               = "smaa-blend",
+        .shader             = "smaa-neighborhood-blend",
+    ) : NULL;
+
     render_pass *contrast_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = edge_aa ? smaa_blend_pass : combine_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },

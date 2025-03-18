@@ -167,6 +167,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("shadow msaa", &scene->render_options.shadow_msaa);
         igCheckbox("model msaa", &scene->render_options.model_msaa);
         igCheckbox("edge sobel", &scene->render_options.edge_sobel);
+        igCheckbox("edge antialiasing", &scene->render_options.edge_antialiasing);
         if (!scene->render_options.edge_sobel) {
             igText("Laplace kernel size");
             igSameLine(0.0, 0.0);
@@ -428,6 +429,7 @@ cerr scene_init(struct scene *scene)
 
     scene->render_options.shadow_msaa = false;
     scene->render_options.laplace_kernel = 3;
+    scene->render_options.edge_antialiasing = true;
 
     cerr err;
     err = subscribe(MT_INPUT, scene_handle_input, scene);
