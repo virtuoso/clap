@@ -251,6 +251,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     );
     struct render_pass *edge_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
+            { .pass = model_pass, .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
             {}
         },
