@@ -40,7 +40,7 @@ static struct scene scene; /* XXX */
 // struct game_state game_state;
 
 static struct pipeline *main_pl;
-static bool shadow_msaa, model_msaa;
+static bool shadow_msaa, model_msaa, edge_sobel;
 
 static void build_main_pl(struct pipeline **pl)
 {
@@ -93,9 +93,11 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     }
 
     if (shadow_msaa != s->render_options.shadow_msaa ||
-        model_msaa != s->render_options.model_msaa) {
+        model_msaa != s->render_options.model_msaa ||
+        edge_sobel != s->render_options.edge_sobel) {
         shadow_msaa = s->render_options.shadow_msaa;
         model_msaa = s->render_options.model_msaa;
+        edge_sobel = s->render_options.edge_sobel;
         ref_put(main_pl);
         build_main_pl(&main_pl);
     }
@@ -279,6 +281,7 @@ int main(int argc, char **argv, char **envp)
 #ifndef CONFIG_GLES
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "sobel-msaa", &scene.shaders);
 #endif /* CONFIG_GLES */
+    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "laplace", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "combine", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "shadow", &scene.shaders);
     lib_request_shaders(clap_get_shaders(scene.clap_ctx), "debug", &scene.shaders);

@@ -13,6 +13,7 @@ typedef struct render_options {
     bool    shadow_msaa;
     bool    model_msaa;
     bool    debug_draws_enabled;
+    bool    edge_sobel;
 } render_options;
 
 typedef enum {

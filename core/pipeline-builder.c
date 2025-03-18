@@ -136,6 +136,10 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
 
     render_method model_pass_method = model_pass_msaa ? RM_BLIT : RM_USE;
 
+    bool edge_sobel = opts->pl_opts->render_options->edge_sobel;
+    const char *edge_msaa_shader = edge_sobel ? "sobel-msaa" : "laplace";
+    const char *edge_shader = edge_sobel ? "sobel" : "laplace";
+
     pipeline *pl = ref_new(pipeline,
                            .width            = opts->pl_opts->width,
                            .height           = opts->pl_opts->height,
@@ -252,15 +256,25 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     );
     struct render_pass *edge_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(3), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
-            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
+            {
+                .pass       = model_pass,
+                .attachment = FBO_COLOR_TEXTURE(3),
+                .method     = edge_sobel ? RM_USE : model_pass_method,
+                .sampler    = UNIFORM_MODEL_TEX
+            },
+            {
+                .pass       = model_pass,
+                .attachment = FBO_COLOR_TEXTURE(2),
+                .method     = edge_sobel ? RM_USE : model_pass_method,
+                .sampler    = UNIFORM_NORMAL_MAP
+            },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_R8 },
         .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
         .name               = "edge",
-        .shader             = model_pass_msaa ? "sobel-msaa" : "sobel",
+        .shader             = model_pass_msaa ? edge_msaa_shader : edge_shader,
     );
     pass = pipeline_add_pass(pl,
         .source            = (render_source[]) {

@@ -166,6 +166,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("shadow outline", &scene->render_options.shadow_outline);
         igCheckbox("shadow msaa", &scene->render_options.shadow_msaa);
         igCheckbox("model msaa", &scene->render_options.model_msaa);
+        igCheckbox("edge sobel", &scene->render_options.edge_sobel);
         igCheckbox("debug draws", &scene->render_options.debug_draws_enabled);
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
                     input_text_callback, NULL);

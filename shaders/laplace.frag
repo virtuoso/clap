@@ -1,0 +1,27 @@
+#version 460 core
+
+#include "shader_constants.h"
+#include "texel_fetch.inc"
+#include "edge_filter.glsl"
+
+layout (location=0) in vec2 pass_tex;
+uniform sampler2D model_tex;
+uniform sampler2D normal_map;
+
+uniform float near_plane;
+uniform float far_plane;
+uniform int laplace_kernel3;
+
+layout (location=0) out vec4 FragColor;
+
+void main(void)
+{
+    float laplacian_normal_edge = laplace_float(normal_map, pass_tex, laplace_kernel3 != 0 ? 3 : 5);
+    float laplacian_depth_edge = laplace_float(model_tex, pass_tex, laplace_kernel3 != 0 ? 3 : 5,
+                                               near_plane, far_plane);
+    laplacian_depth_edge = max(laplacian_depth_edge - 0.1, 0.0); // Excessive noise
+
+    float mixed_edge = max(laplacian_normal_edge, laplacian_depth_edge);
+
+    FragColor = vec4(1 - mixed_edge, 0.0, 0.0, 1.0);
+}
