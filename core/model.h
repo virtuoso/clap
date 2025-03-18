@@ -220,7 +220,8 @@ typedef struct entity3d {
     int     updated;
     bool    skip_culling;
     bool    ani_cleared;
-    /* 2 byte hole */
+    bool    outline_exclude;
+    /* 1 byte hole */
     float   aabb[6];
     float   light_off[3];
     int (*update)(entity3d *e, void *data);

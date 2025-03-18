@@ -452,7 +452,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *gltf = NULL;
-    bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
+    bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false, outline_exclude = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
     geom_class class = GEOM_SPHERE;
     int collision = -1;
@@ -490,6 +490,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             anis = p;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "speed"))
             speed = p->number_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "outline_exclude"))
+            outline_exclude = p->bool_;
     }
 
     if (!name || !gltf) {
@@ -596,6 +598,13 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             } else {
                 e = ref_new(entity3d, .txmodel = txm);
             }
+
+            jpos = json_find_member(it, "outline_exclude");
+            if (jpos && jpos->tag == JSON_BOOL)
+                e->outline_exclude = jpos->bool_;
+            else
+                e->outline_exclude = outline_exclude;
+
             jpos = json_find_member(it, "position");
             if (jpos->tag != JSON_ARRAY)
                 continue;

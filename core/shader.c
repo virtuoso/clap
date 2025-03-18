@@ -64,6 +64,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    DT_INT),
     SHADER_ARR(UNIFORM_SHADOW_MVP,          "shadow_mvp",           DT_MAT4, CASCADES_MAX),
     SHADER_ARR(UNIFORM_CASCADE_DISTANCES,   "cascade_distances",    DT_FLOAT, CASCADES_MAX),
+    SHADER_VAR(UNIFORM_OUTLINE_EXCLUDE,     "outline_exclude",      DT_INT),
     SHADER_VAR(UNIFORM_SHADOW_OUTLINE,      "shadow_outline",       DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID_ID,      "sobel_solid_id",       DT_INT),
     SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          DT_INT),

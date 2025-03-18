@@ -853,6 +853,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 model3d_set_lod(model, lod);
             }
 
+            shader_set_var_int(prog, UNIFORM_OUTLINE_EXCLUDE, e->outline_exclude);
             shader_set_var_int(prog, UNIFORM_SOBEL_SOLID, !!e->priv);  /* e->priv now points to character */
             shader_set_var_int(prog, UNIFORM_SOBEL_SOLID_ID, fletcher32((void *)&e, sizeof(e) / 2));
             shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);

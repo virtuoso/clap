@@ -193,13 +193,14 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(2),
+            .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(3),
             .name               = "model",
             .cascade            = -1,
             .color_format       = (texture_format[]) {
                                     hdr_fmt,
                                     hdr_fmt,
                                     TEX_FMT_RGBA8,
+                                    TEX_FMT_R32F,
                                 },
             .depth_format       = TEX_FMT_DEPTH32F
     );
@@ -251,7 +252,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     );
     struct render_pass *edge_pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = model_pass, .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(3), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(2), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
             {}
         },

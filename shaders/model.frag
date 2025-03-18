@@ -49,10 +49,12 @@ uniform bool sobel_solid;
 uniform int sobel_solid_id;
 uniform vec4 highlight_color;
 uniform bool use_msaa;
+uniform bool outline_exclude;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 Albedo;
+layout (location=3) out float Depth;
 
 float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
 {
@@ -227,6 +229,7 @@ void main()
     total_diffuse = mix(max(total_diffuse, 0.2), shadow_tint, 1.0 - shadow_factor);
 
     FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
+    Depth = gl_FragCoord.z;
 
     if (sobel_solid) {
         Albedo = vec4((normalize(cross(texture_sample.rgb, vec3(
@@ -234,6 +237,9 @@ void main()
             abs(fract(sin(mod(float(sobel_solid_id), 3.1415926)))),
             abs(fract(log(float(sobel_solid_id))))
         ))) + vec3(1.0, 1.0, 1.0) / 2.0), 1.0);
+    } else if (outline_exclude) {
+        Albedo = vec4(vec3(0.0), 1.0);
+        Depth = 1.0;
     } else {
         vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
         Albedo = vec4(pos_normal * (shadow_outline ? shadow_factor : 1.0), 1.0);
