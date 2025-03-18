@@ -2,13 +2,16 @@
 
 #include "shader_constants.h"
 #include "texel_fetch.inc"
+#include "edge_filter.glsl"
 
 uniform sampler2DMS model_tex;
 uniform sampler2DMS normal_map;
-const int numSamples = MSAA_SAMPLES;
 
 layout (location=0) in vec2 pass_tex;
 layout (location=0) out vec4 FragColor;
+
+uniform float near_plane;
+uniform float far_plane;
 
 const ivec2 offsets[8] = ivec2[](
     ivec2(-1,  1), ivec2( 0,  1), ivec2( 1,  1),
@@ -16,12 +19,25 @@ const ivec2 offsets[8] = ivec2[](
     ivec2(-1, -1), ivec2( 0, -1), ivec2( 1, -1)
 );
 
+float depth_fetch(sampler2DMS map, vec2 coords, float near_plane, float far_plane)
+{
+    return linearize_depth(texel_fetch_2dms(map, coords).r, near_plane, far_plane);
+}
+
 void main() {
     ivec2 texSize = textureSize(normal_map);
     ivec2 texelCoord = ivec2(pass_tex.x * texSize.x, pass_tex.y * texSize.y); // Integer texel coordinates
 
     // Ensure we're not sampling out-of-bounds
     texelCoord = clamp(texelCoord, ivec2(1), texSize - ivec2(2));
+
+    float laplacian_edge =
+        4.0 * depth_fetch(model_tex, pass_tex, near_plane, far_plane) -
+        depth_fetch(model_tex, pass_tex + ivec2(1, 0) / vec2(texSize), near_plane, far_plane) -
+        depth_fetch(model_tex, pass_tex + ivec2(-1, 0) / vec2(texSize), near_plane, far_plane) -
+        depth_fetch(model_tex, pass_tex + ivec2(0, 1) / vec2(texSize), near_plane, far_plane) -
+        depth_fetch(model_tex, pass_tex + ivec2(0, -1) / vec2(texSize), near_plane, far_plane);
+    laplacian_edge = pow(laplacian_edge, 0.9);
 
     // Fetch averaged colors for Sobel
     float kernel[9];
@@ -35,6 +51,7 @@ void main() {
     float edgeY = kernel[0] + 2.0 * kernel[1] + kernel[2] - (kernel[5] + 2.0 * kernel[6] + kernel[7]);
 
     float edge = sqrt(edgeX * edgeX + edgeY * edgeY);
+    float final_edge = max(edge, laplacian_edge);
 
-    FragColor = vec4(1.0 - vec3(edge), 1.0);
+    FragColor = vec4(1.0 - vec3(final_edge), 1.0);
 }
