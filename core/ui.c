@@ -1029,8 +1029,8 @@ struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr
         .w          = 500,
         .h          = 0.8,
         .el_cb      = ui_menu_element_cb,
-        .el_color   = { 0.0, 0.1, 0.5, 1.0 },
-        .text_color = { 0.5, 0.3, 0.4, 1.0 },
+        .el_color   = { 0.52f, 0.12f, 0.12f, 1.0f },
+        .text_color = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
     };
 
     uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
