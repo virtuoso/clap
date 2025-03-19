@@ -13,6 +13,7 @@ typedef struct render_options {
     bool    shadow_msaa;
     bool    model_msaa;
     bool    debug_draws_enabled;
+    float   shadow_outline_threshold;
     int     laplace_kernel;
     bool    edge_antialiasing;
     bool    edge_sobel;

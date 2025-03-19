@@ -9,6 +9,7 @@ layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
     mat4 shadow_mvp[CASCADES_MAX];
     float cascade_distances[CASCADES_MAX];
     bool shadow_outline;
+    float shadow_outline_threshold;
 };
 
 void main()

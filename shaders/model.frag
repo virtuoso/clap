@@ -23,6 +23,7 @@ layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
     mat4 shadow_mvp[CASCADES_MAX];
     float cascade_distances[CASCADES_MAX];
     bool shadow_outline;
+    float shadow_outline_threshold;
 };
 
 layout (std140, binding = UBO_BINDING_projview) uniform projview {
@@ -242,6 +243,6 @@ void main()
         Depth = 1.0;
     } else {
         vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
-        Albedo = vec4(pos_normal * (shadow_outline ? shadow_factor : 1.0), 1.0);
+        Albedo = vec4(pos_normal * (shadow_outline && shadow_factor < shadow_outline_threshold ? 0.0 : 1.0), 1.0);
     }
 }
