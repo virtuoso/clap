@@ -433,12 +433,9 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     if (!flags)
         flags = UI_AF_VCENTER;
 
-    // CHECK(uit       = ref_new(ui_text));
     uit.flags      = flags;
     uit.margin_x   = 10;
     uit.margin_y   = 10;
-    // uit.parent     = parent;
-    // CHECK(uit.str  = strdup(str));
     uit.str = str;
     uit.font       = font;
 
@@ -452,7 +449,6 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
         return NULL;
 
     fbo = res.val;
-    // fbo->retain_tex = 1;
 
     if (parent) {
         parent->width = uit.width + uit.margin_x * 2;
@@ -500,8 +496,6 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
         
         /* XXX: to trigger ui_element_position() XXX */
         uies[i]->actual_x = uies[i]->actual_y = -1;
-        // uies[i]->actual_w = glyph->width;
-        // uies[i]->actual_h = glyph->height;
         entity3d_update(uies[i]->entity, &fbo_ui);
         x += glyph->advance_x >> 6;
     }
@@ -510,8 +504,6 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     renderer_depth_test(ui->renderer, false);
     renderer_clearcolor(ui->renderer, (vec4){});
     renderer_clear(ui->renderer, true, true, false);
-    // dbg("rendering '%s' uit(%dx%d) to FBO %d (%dx%d)\n", str, uit.width, uit.height,
-    //     fbo->fbo, fbo->width, fbo->height);
     models_render(ui->renderer, &fbo_ui.mq);
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);
@@ -591,12 +583,8 @@ static void ui_roll_init(struct ui *ui)
         return;
     }
 
-    // ui_roll_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER/* | UI_SZ_NORES*/, 0, ui->height, 300, 100);
-    // ui_roll_element->entity->update = ui_roll_update;
-
     ui_roll_element = ui_printf(ui, font, NULL, color, UI_AF_HCENTER | UI_AF_BOTTOM | UI_SZ_NORES,
                                 "%s", buffer);
-    // ui_roll_element->affinity |= UI_SZ_NORES;
     ui_roll_element->entity->update = ui_roll_update;
     ui_roll_element->y_off = -ui_roll_element->height;
     ui_element_position(ui_roll_element, ui);
@@ -893,8 +881,6 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     for (i = 0; i < 4; i++) {
         wheel->uies[i]->width = width;
         wheel->uies[i]->height = height;
-        // if (i > 0)
-        //     wheel->uies[i]->y_off = 10 + (4 + height) * i;
     }
     font_put(font);
 
