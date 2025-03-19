@@ -377,7 +377,9 @@ static cerr character_make(struct ref *ref, void *_opts)
     c->state = CS_AWAKE;
     c->jump_forward = 2.0;
     c->jump_upward = 3.0;
+    c->mq = &opts->scene->mq;
     list_append(&opts->scene->characters, &c->entry);
+    c->mq->nr_characters++;
     character_motion_reset(c, opts->scene);
 
     return CERR_OK;
@@ -387,6 +389,7 @@ static void character_drop(struct ref *ref)
 {
     struct character *c = container_of(ref, struct character, ref);
 
+    c->mq->nr_characters--;
     ref_put_last_ref(&c->entity->ref);
 }
 

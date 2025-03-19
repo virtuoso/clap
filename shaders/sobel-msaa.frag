@@ -42,9 +42,9 @@ void main() {
     // Fetch averaged colors for Sobel
     float kernel[9];
     for (int i = 0; i < 8; i++) {
-        kernel[i] = dot(texel_fetch_2dms(normal_map, pass_tex + offsets[i] / vec2(texSize)).rgb, vec3(0.299, 0.587, 0.114)); // Grayscale
+        kernel[i] = normals_fetch(normal_map, pass_tex + offsets[i] / vec2(texSize));
     }
-    kernel[4] = dot(texel_fetch_2dms(normal_map, pass_tex).rgb, vec3(0.299, 0.587, 0.114)); // Center pixel
+    kernel[4] = normals_fetch(normal_map, pass_tex); // Center pixel
 
     // Sobel operator
     float edgeX = kernel[2] + 2.0 * kernel[4] + kernel[7] - (kernel[0] + 2.0 * kernel[3] + kernel[5]);

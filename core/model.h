@@ -174,6 +174,7 @@ static inline const char *txmodel_name(model3dtx *txm)
 struct mq {
     struct list     txmodels;
     void            *priv;
+    unsigned int    nr_characters;
 };
 
 void mq_init(struct mq *mq, void *priv);

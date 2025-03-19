@@ -68,7 +68,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_SHADOW_OUTLINE,      "shadow_outline",       DT_INT),
     SHADER_VAR(UNIFORM_SHADOW_OUTLINE_THRESHOLD, "shadow_outline_threshold", DT_FLOAT),
     SHADER_VAR(UNIFORM_LAPLACE_KERNEL,      "laplace_kernel",       DT_INT),
-    SHADER_VAR(UNIFORM_SOBEL_SOLID_ID,      "sobel_solid_id",       DT_INT),
+    SHADER_VAR(UNIFORM_SOBEL_SOLID_ID,      "sobel_solid_id",       DT_FLOAT),
     SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          DT_INT),
     SHADER_VAR(UNIFORM_USE_SKINNING,        "use_skinning",         DT_INT),
     SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),

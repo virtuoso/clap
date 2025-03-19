@@ -47,7 +47,7 @@ uniform sampler2DMSArray shadow_map_ms;
 uniform float shine_damper;
 uniform float reflectivity;
 uniform bool sobel_solid;
-uniform int sobel_solid_id;
+uniform float sobel_solid_id;
 uniform vec4 highlight_color;
 uniform bool use_msaa;
 uniform bool outline_exclude;
@@ -233,11 +233,7 @@ void main()
     Depth = gl_FragCoord.z;
 
     if (sobel_solid) {
-        Albedo = vec4((normalize(cross(texture_sample.rgb, vec3(
-            abs(fract(cos(mod(float(sobel_solid_id), 3.1415926)))),
-            abs(fract(sin(mod(float(sobel_solid_id), 3.1415926)))),
-            abs(fract(log(float(sobel_solid_id))))
-        ))) + vec3(1.0, 1.0, 1.0) / 2.0), 1.0);
+        Albedo = vec4(texture_sample.rgb, sobel_solid_id);
     } else if (outline_exclude) {
         Albedo = vec4(vec3(0.0), 1.0);
         Depth = 1.0;

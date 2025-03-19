@@ -29,6 +29,7 @@ struct character {
     float   lin_speed;
     struct list entry;
     entity3d *collision;
+    struct mq *mq;
     int     moved;
     bool    jump;
     bool    airborne;
