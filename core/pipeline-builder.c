@@ -308,7 +308,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             { .pass = smaa_weights_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
             {}
         },
-        .color_format       = (texture_format[]) { hdr_fmt },
+        .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
         .ops                = &postproc_ops,
         .attachment_config  = FBO_COLOR_TEXTURE(0),
         .name               = "smaa-blend",
