@@ -374,8 +374,8 @@ cerr_check uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_
  * offset to point past the copied data. value==NULL is allowed, in
  * which case just adjust the offset.
  */
-cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, unsigned int count,
-                              const void *value);
+cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                              unsigned int count, const void *value);
 
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(shader,

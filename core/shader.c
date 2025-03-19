@@ -187,9 +187,7 @@ cresp(shader_context) shader_vars_init(void)
             if (!poffset)
                 goto error_ub_done;
 
-            *poffset = size;
-
-            err = uniform_buffer_set(ub, var_desc->type, &size, var_desc->elem_count, NULL);
+            err = uniform_buffer_set(ub, var_desc->type, poffset, &size, var_desc->elem_count, NULL);
             if (IS_CERR(err))
                 goto error_ub_done;
 
@@ -197,6 +195,8 @@ cresp(shader_context) shader_vars_init(void)
             ctx->vars[var].var_in_block_idx = j;
         }
 
+        /* If a UBO ends on a non-padded scalar, the UBO size needs to be padded */
+        size = round_up(size, 16);
         err = uniform_buffer_data_alloc(ub, size);
         if (IS_CERR(err))
             goto error_ub_done;
@@ -335,7 +335,7 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
         return;
 
     size_t offset = *DA(var_block->offsets, p->ctx->vars[var].var_in_block_idx);
-    cerr err = uniform_buffer_set(&var_block->ub, desc->type, &offset, count, value);
+    cerr err = uniform_buffer_set(&var_block->ub, desc->type, &offset, &offset, count, value);
     if (IS_CERR(err))
         err_cerr(err, "failed to set a uniform buffer variable '%s'\n", desc->name);
 }

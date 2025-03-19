@@ -105,7 +105,6 @@ static inline size_t gl_type_storage_size(data_type type)
         return 0;
     }
 
-
     /* Matrices are basically arrays of vec4 (technically, vecN padded to 16 bytes) */
     switch (type) {
         case DT_MAT2:
@@ -117,11 +116,10 @@ static inline size_t gl_type_storage_size(data_type type)
         /* And what's left is mat4, which is perfect as it is */
         default:
             /*
-             * Everything is 16-byte aligned;
-             * vec4 and mat4 are perfect as they are
+             * Scalars are not padded to 16 bytes unless they are followed by
+             * compound types, which we don't know about here; instead,
+             * uniform_buffer_set() handles the std140 compliant offset alignment.
              */
-            if (storage_size < 16)
-                storage_size = 16;
             break;
     }
 
@@ -1429,8 +1427,8 @@ void uniform_buffer_update(uniform_buffer_t *ubo)
     ubo->dirty = false;
 }
 
-cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, unsigned int count,
-                        const void *value)
+cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                        unsigned int count, const void *value)
 {
     size_t elem_size = gl_type_size(type);            /* C ABI element size */
     size_t storage_size = gl_type_storage_size(type); /* std140-aligned size */
@@ -1443,6 +1441,20 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, u
     const char *src = (const char *)value;
     char *dst = (char *)ubo->data + *offset;
 
+    *offset = *size;
+
+    /*
+     * Individual scalars are *not* padded to 16 bytes, unless they're in
+     * an array; compound types are aligned to a 16 bype boundary even if
+     * they follow non-padded scalars
+     */
+    if (storage_size < 16 && count > 1) {
+        storage_size = 16;
+    } else if (storage_size >= 16 && *offset % 16) {
+        *offset = round_up(*offset, 16);
+    }
+    *size = *offset;
+
     /*
      * Copy elements from a C array to std140 array. Because unlike C, std140
      * uses fun alignments for various types that don't match C at all, they
@@ -1451,7 +1463,7 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, u
     for (unsigned int i = 0; i < count; i++) {
         if (value) {
             /* If we overshoot, the buffer is still dirty, return straight away */
-            if (*offset + storage_size > ubo->size) {
+            if (*size + storage_size > ubo->size) {
                 err = CERR_BUFFER_OVERRUN;
                 goto out;
             }
@@ -1484,7 +1496,7 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, u
                 dst += storage_size;         /* Move to next element (std140 aligned) */
             }
         }
-        *offset += storage_size;
+        *size += storage_size;
     }
 
 out:
