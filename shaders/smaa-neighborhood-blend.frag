@@ -1,7 +1,7 @@
 #version 460 core
 
 #include "shader_constants.h"
-#include "texel_fetch.inc"
+#include "texel_fetch.glsl"
 
 uniform sampler2D model_tex;  /* Pre-edge detection color input */
 uniform sampler2D normal_map; /* Blend weights from previous pass */

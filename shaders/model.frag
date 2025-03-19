@@ -2,7 +2,7 @@
 
 #include "config.h"
 #include "shader_constants.h"
-#include "texel_fetch.inc"
+#include "texel_fetch.glsl"
 
 layout (location=0) flat in int do_use_normals;
 layout (location=1) in vec2 pass_tex;

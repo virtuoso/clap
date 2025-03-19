@@ -1,7 +1,7 @@
 #version 460 core
 
 #include "shader_constants.h"
-#include "texel_fetch.inc"
+#include "texel_fetch.glsl"
 #include "edge_filter.glsl"
 
 layout (location=0) in vec2 pass_tex;

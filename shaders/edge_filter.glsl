@@ -1,7 +1,7 @@
 #ifndef SOBEL_FILTER_GLSL
 #define SOBEL_FILTER_GLSL
 
-#include "texel_fetch.inc"
+#include "texel_fetch.glsl"
 
 float linearize_depth(float depth, float near_plane, float far_plane)
 {
