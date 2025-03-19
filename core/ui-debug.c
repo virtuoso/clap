@@ -60,7 +60,7 @@ void ui_debug_update(struct ui *ui)
     }
     if (str) {
         font = font_get(debug_font);
-        debug_uit = ui_render_string(ui, font, debug_element, str, color, UI_AF_LEFT);
+        debug_uit = ui_printf(ui, font, debug_element, color, UI_AF_LEFT, "%s", str);
         font_put(font);
     }
 }

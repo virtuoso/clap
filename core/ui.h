@@ -123,9 +123,9 @@ struct ui {
 };
 
 void ui_pip_update(struct ui *ui, fbo_t *fbo);
-struct ui_element *
-ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
-                 const char *str, float *color, unsigned long flags);
+struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element *parent,
+                             float *color, unsigned long flags, const char *fmt, ...)
+                             __printf(6, 7) __nonnull_params((1, 2, 4, 6));
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
 struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_items);

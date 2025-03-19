@@ -406,11 +406,20 @@ static model3dtx *ui_txm_find_by_texture(struct ui *ui, texture_t *tex)
     return NULL;
 }
 
-struct ui_element *
-ui_render_string(struct ui *ui, struct font *font, struct ui_element *parent,
-                 const char *str, float *color, unsigned long flags)
+struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element *parent,
+                             float *color, unsigned long flags, const char *fmt, ...)
 {
-    size_t len = strlen(str);
+    va_list ap;
+    LOCAL(char, str);
+
+    va_start(ap, fmt);
+    cres(int) str_res = mem_vasprintf(&str, fmt, ap);
+    va_end(ap);
+
+    if (IS_CERR(str_res))
+        return NULL;
+
+    size_t              len = str_res.val;
     struct ui           fbo_ui;
     struct ui_element   **uies;
     model3dtx           *txm, *txmtex;
@@ -585,7 +594,8 @@ static void ui_roll_init(struct ui *ui)
     // ui_roll_element = ui_element_new(ui, NULL, ui_quadtx, UI_AF_TOP | UI_AF_HCENTER/* | UI_SZ_NORES*/, 0, ui->height, 300, 100);
     // ui_roll_element->entity->update = ui_roll_update;
 
-    ui_roll_element = ui_render_string(ui, font, NULL, buffer, color, UI_AF_HCENTER | UI_AF_BOTTOM | UI_SZ_NORES);
+    ui_roll_element = ui_printf(ui, font, NULL, color, UI_AF_HCENTER | UI_AF_BOTTOM | UI_SZ_NORES,
+                                "%s", buffer);
     // ui_roll_element->affinity |= UI_SZ_NORES;
     ui_roll_element->entity->update = ui_roll_update;
     ui_roll_element->y_off = -ui_roll_element->height;
@@ -875,7 +885,7 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
         uia_lin_float(wheel->uies[i], ui_element_set_alpha_one, 0, 1.0, false, 1.6);
         uia_cos_move(wheel->uies[i], motions[i], i < 2 ? 200 : 1, i < 2 ? 1 : 200, false, 0.5, 1.0, 0.0);
 
-        CHECK(tui = ui_render_string(ui, font, wheel->uies[i], items[i], color, 0));
+        CHECK(tui = ui_printf(ui, font, wheel->uies[i], color, 0, "%s", items[i]));
         width = max(width, wheel->uies[i]->width);
         height = max(height, wheel->uies[i]->height);
         ui_element_set_visibility(wheel->uies[i], 0);
@@ -929,7 +939,7 @@ ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, u
         if (uwb->el_cb)
             uwb->el_cb(osd->uies[i], i);
 
-        CHECK(tui = ui_render_string(ui, uwb->font, osd->uies[i], items[i], uwb->text_color, 0));
+        CHECK(tui = ui_printf(ui, uwb->font, osd->uies[i], uwb->text_color, 0, "%s", items[i]));
         ui_element_set_visibility(osd->uies[i], 0);
     }
 
@@ -1000,7 +1010,7 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
         if (uwb->el_cb)
             uwb->el_cb(menu->uies[i], i);
 
-        CHECK(tui = ui_render_string(ui, uwb->font, menu->uies[i], items[i], uwb->text_color, 0));
+        CHECK(tui = ui_printf(ui, uwb->font, menu->uies[i], uwb->text_color, 0, "%s", items[i]));
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
         off += menu->uies[i]->height + uwb->el_margin;
@@ -1214,12 +1224,12 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
                 // mature apple
                 entity3d_color(inv->uies[i]->entity, COLOR_PT_NONE, (vec4){});
             }
-            CHECK(tui = ui_render_string(ui, font, inv->uies[i], "apple", color, 0));
+            CHECK(tui = ui_printf(ui, font, inv->uies[i], color, 0, "apple"));
         } else {
             inv->uies[i]->on_click = inv_onclick;
             inv->uies[i]->on_focus = inv_onfocus;
             inv->uies[i]->priv = (void *)(uintptr_t)i;
-            CHECK(tui = ui_render_string(ui, font, inv->uies[i], "empty", color, 0));
+            CHECK(tui = ui_printf(ui, font, inv->uies[i], color, 0, "empty"));
         }
         tui->entity->color_pt = COLOR_PT_NONE;
         if (i < number_of_apples) {
@@ -1347,10 +1357,10 @@ static int ui_handle_command(struct message *m, void *data)
                                      .width     = 400,
                                      .height    = 150);
         }
-        cres(int) res = mem_asprintf(&str, "FPS: %d\nTime: %d:%02d", m->cmd.fps,
-                                     m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60);
-        if (!IS_CERR(res))
-            bottom_uit = ui_render_string(ui, font, bottom_element, str, color, UI_AF_RIGHT);
+
+        bottom_uit = ui_printf(ui, font, bottom_element, color, UI_AF_RIGHT,
+                               "FPS: %d\nTime: %d:%02d", m->cmd.fps,
+                               m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60);
     } else if (m->cmd.menu_enter) {
         ui_menu_init(ui);
     } else if (m->cmd.menu_exit) {
@@ -1510,7 +1520,6 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     model3d *model;
     model3dtx *txm;
     struct ui_element *p, *t;
-    float color[4] = { 1, 1, 1, 1 };
     struct font *font = ref_new(font,
                                 .ctx  = clap_get_font(ui->clap_ctx),
                                 .name = "ProggyTiny.ttf",
@@ -1558,7 +1567,8 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
                     .y_off    = 100 * i,
                     .width    = 100,
                     .height   = 100);
-        pocket_text[i] = ui_render_string(ui, font, t, "", color, UI_AF_LEFT | UI_AF_VCENTER);
+        pocket_text[i] = ui_printf(ui, font, t, (vec4){ 1, 1, 1, 1 }, UI_AF_LEFT | UI_AF_VCENTER,
+                                   "%s", tex[i]);
     }
     ui_element_set_visibility(p, 0);
     font_put(font);
@@ -1581,7 +1591,6 @@ void pocket_update(struct ui *ui)
 {
     struct ui_element *parent;
     float color[4] = { 1, 1, 1, 1 };
-    char buf[10];
     struct font *font = ref_new(font,
                                 .ctx  = clap_get_font(ui->clap_ctx),
                                 .name = "ProggyTiny.ttf",
@@ -1595,8 +1604,8 @@ void pocket_update(struct ui *ui)
         parent = pocket_text[i]->parent;
         ref_put_last(pocket_text[i]);
 
-        snprintf(buf, sizeof(buf), "x %d/%d", pocket_count[i], pocket_total[i]);
-        pocket_text[i] = ui_render_string(ui, font, parent, buf, color, UI_AF_LEFT | UI_AF_VCENTER);
+        pocket_text[i] = ui_printf(ui, font, parent, color, UI_AF_LEFT | UI_AF_VCENTER,
+                                   "x %d/%d", pocket_count[i], pocket_total[i]);
     }
     font_put(font);
 }
@@ -1740,8 +1749,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     uie1->on_click = build_onclick;
 
 #ifndef CONFIG_FINAL
-    float color[] = { 0.7, 0.7, 0.7, 1.0 };
-    build_uit = ui_render_string(ui, font, uie1, build_date, color, 0);
+    build_uit = ui_printf(ui, font, uie1, (vec4){ 0.7, 0.7, 0.7, 1.0 }, 0, "%s", build_date);
 #endif
 
     health = ui_progress_new(ui);
