@@ -1223,11 +1223,21 @@ static void animated_update(entity3d *e, struct scene *s)
         animation_next(e, s);
     qa = ani_current(e);
     an = &model->anis.x[qa->animation];
-    channels_transform(e, an, (time - e->ani_time) * qa->speed);
+
+    double frame_time = (time - e->ani_time) * qa->speed;
+    if (frame_time == 0.0)
+        qa->sfx_state = 0;
+
+    channels_transform(e, an, frame_time);
     one_joint_transform(e, 0, -1);
 
-    if ((time - e->ani_time) * qa->speed >= an->time_end)
+    if (an->frame_sfx)
+        an->frame_sfx(qa, e, s, frame_time / an->time_end);
+
+    if (frame_time >= an->time_end) {
+        qa->sfx_state = 0;
         animation_next(e, s);
+    }
 }
 
 /*
