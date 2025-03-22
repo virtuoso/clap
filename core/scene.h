@@ -11,6 +11,7 @@
 #include "physics.h"
 #include "pipeline.h"
 #include "camera.h"
+#include "sound.h"
 
 
 #define NR_CAMERAS_MAX 4
@@ -37,6 +38,7 @@ struct scene {
     struct camera       *camera;
     struct camera       cameras[NR_CAMERAS_MAX];
     struct light        light;
+    sfx_container       sfxc;
     /* FPS calculation -- very important! */
     unsigned long       frames_total;
     struct clap_context *clap_ctx;

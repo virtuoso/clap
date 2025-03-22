@@ -97,6 +97,9 @@ struct channel {
     unsigned int    path;
 };
 
+struct queued_animation;
+typedef void (*frame_fn)(struct queued_animation *qa, entity3d *e, struct scene *s, double time);
+
 struct animation {
     char            *name;
     model3d         *model;
@@ -104,6 +107,7 @@ struct animation {
     unsigned int    nr_channels;
     unsigned int    cur_channel;
     float           time_end;
+    frame_fn        frame_sfx;
 };
 
 /*
@@ -195,6 +199,7 @@ struct queued_animation {
     void            (*end)(struct scene *s, void *end_priv);
     void            *end_priv;
     float           speed;
+    unsigned int    sfx_state;
 };
 
 typedef struct entity3d {

@@ -423,6 +423,7 @@ cerr scene_init(struct scene *scene)
     list_init(&scene->instor);
     list_init(&scene->shaders);
     list_init(&scene->debug_draws);
+    sfx_container_init(&scene->sfxc);
 
     int i;
     for (i = 0; i < LIGHTS_MAX; i++) {
@@ -449,6 +450,52 @@ cerr scene_init(struct scene *scene)
 
     return CERR_OK;
 }
+
+static sfx *scene_get_sfx(struct scene *s, entity3d *e, const char *name)
+{
+    struct character *c = e->priv;
+    sfx *sfx = NULL;
+
+    if (c && !c->airborne)
+        sfx = sfx_get(&s->sfxc, name);
+
+    return sfx;
+}
+
+static void motion_frame_sfx(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
+{
+    if (time < (double)(qa->sfx_state * 2 + 1) / 8.0)
+        return;
+
+    qa->sfx_state++;
+
+    const char *footstep = qa->sfx_state & 1 ? "footstep_right" : "footstep_left";
+    sfx *sfx = scene_get_sfx(s, e, footstep);
+    if (!sfx)
+        return;
+
+    sfx_play(sfx);
+}
+
+static void motion_stop_frame_sfx(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
+{
+    if (qa->sfx_state)
+        return;
+
+    qa->sfx_state++;
+
+    sfx *sfx = scene_get_sfx(s, e, "footstep_left");
+    if (sfx)
+        sfx_play(sfx);
+}
+
+const static struct animation_sfx {
+    const char  *name;
+    frame_fn    frame_sfx;
+} animation_sfx[] = {
+    { .name = "motion", .frame_sfx = motion_frame_sfx },
+    { .name = "motion_stop", .frame_sfx = motion_stop_frame_sfx },
+};
 
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
@@ -702,6 +749,12 @@ light_done:
                         continue;
                     free(m->anis.x[idx].name);
                     m->anis.x[idx].name = strdup(p->key);
+
+                    for (int i = 0; i < array_size(animation_sfx); i++)
+                        if (!strcmp(p->key, animation_sfx[i].name)) {
+                            m->anis.x[idx].frame_sfx = animation_sfx[i].frame_sfx;
+                            break;
+                        }
                 }
 
                 if (c &&
@@ -905,6 +958,8 @@ void scene_done(struct scene *scene)
         list_del(&instor->entry);
         mem_free(instor);
     }
+
+    sfx_container_clearout(&scene->sfxc);
 
     mq_release(&scene->mq);
 
