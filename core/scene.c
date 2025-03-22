@@ -903,7 +903,7 @@ void scene_done(struct scene *scene)
     while (!list_empty(&scene->instor)) {
         instor = list_first_entry(&scene->instor, struct instantiator, entry);
         list_del(&instor->entry);
-        free(instor);
+        mem_free(instor);
     }
 
     mq_release(&scene->mq);
