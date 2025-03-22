@@ -394,7 +394,7 @@ static entity3d *
 __phys_ray_cast(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
                 double *pdist, dContact *contact)
 {
-    entity3d *target = NULL;
+    entity3d *target = NULL, *ret = NULL;
     dGeomID ray = NULL;
     struct contact c = {};
     vec3 _start;
@@ -423,6 +423,7 @@ __phys_ray_cast(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
             if (depth > cgeom->depth) {
                 depth = cgeom->depth;
                 min_i = i;
+                ret   = target;
             }
         }
     }
@@ -440,7 +441,7 @@ __phys_ray_cast(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
 out:
     dGeomDestroy(ray);
 
-    return target;
+    return ret;
 }
 
 entity3d *phys_ray_cast2(struct phys *phys, entity3d *e, vec3 start,
