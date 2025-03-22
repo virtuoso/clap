@@ -290,6 +290,7 @@ static void sound_drop(struct ref *ref)
     sound *sound = container_of(ref, struct sound, ref);
     alDeleteBuffers(1, &sound->buffer_idx);
     alDeleteSources(1, &sound->source_idx);
+    list_del(&sound->entry);
 }
 
 DEFINE_REFCLASS2(sound);
