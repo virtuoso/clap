@@ -1170,14 +1170,23 @@ void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *)
     e->aniq.x[nr_qas - 1].end_priv = priv;
 }
 
-void animation_set_speed(entity3d *e, float speed)
+void animation_set_speed(entity3d *e, struct scene *s, float speed)
 {
     struct queued_animation *qa = ani_current(e);
 
     if (!qa)
         return;
 
+    double time = clap_get_current_time(s->clap_ctx);
+    struct animation *an = &e->txmodel->model->anis.x[qa->animation];
+
     qa->speed = speed;
+
+    double frame_time = (time - e->ani_time) * qa->speed;
+    if (frame_time >= an->time_end) {
+        e->ani_time = time;
+        qa->sfx_state = 0;
+    }
 }
 
 void animation_push_by_name(entity3d *e, struct scene *s, const char *name,

@@ -311,7 +311,7 @@ void animation_start(entity3d *e, struct scene *scene, int ani);
 void animation_push_by_name(entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat);
 void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *), void *priv);
-void animation_set_speed(entity3d *e, float speed);
+void animation_set_speed(entity3d *e, struct scene *s, float speed);
 
 
 struct instantiator;

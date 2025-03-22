@@ -18,7 +18,7 @@ static void character_dash(struct character *ch, struct scene *s)
     if (!timespec_nonzero(&ch->dash_started)) {
         ch->dash_started = clap_get_current_timespec(s->clap_ctx);
         ch->lin_speed *= 1.5;
-        animation_set_speed(ch->entity, 1.5);
+        animation_set_speed(ch->entity, s, 1.5);
     }
 }
 
@@ -42,7 +42,7 @@ static void character_motion_reset(struct character *ch, struct scene *s)
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1) {
             ch->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
-            animation_set_speed(ch->entity, 1.0);
+            animation_set_speed(ch->entity, s, 1.0);
         }
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
