@@ -219,7 +219,7 @@ void pipeline_debug(struct pipeline *pl)
             igPushItemWidth(512);
             double aspect = (double)height / width;
             igImage((ImTextureID)texture_id(pass_tex), (ImVec2){512, 512 * aspect},
-                    (ImVec2){1,1}, (ImVec2){0,0}, (ImVec4){1,1,1,1}, (ImVec4){1,1,1,1});
+                    (ImVec2){1,1}, (ImVec2){0,0});
             igEnd();
         } else {
             igEnd();

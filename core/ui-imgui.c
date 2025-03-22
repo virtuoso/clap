@@ -20,7 +20,7 @@ static struct ImGuiIO *io;
 
 bool __ui_mouse_event_propagate(void)
 {
-    struct ImGuiIO *io = igGetIO();
+    struct ImGuiIO *io = igGetIO_ContextPtr(ctx);
     return io->WantCaptureMouse;
 }
 
@@ -82,7 +82,7 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
 {
     igSetAllocatorFunctions(imgui_alloc, imgui_free, NULL);
     ctx = igCreateContext(NULL);
-    io = igGetIO();
+    io = igGetIO_ContextPtr(ctx);
 
     io->IniFilename = NULL;
     io->LogFilename = NULL;
@@ -165,7 +165,7 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
     ImGui_ImplGlfw_InitForOpenGL(win, true);
     const char *glsl_version = "#version 410";
 #else
-    ui_ig_init_for_emscripten(clap_ctx);
+    ui_ig_init_for_emscripten(clap_ctx, ctx, io);
     const char *glsl_version = "#version 300 es";
 #endif
 
