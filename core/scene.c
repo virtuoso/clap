@@ -456,8 +456,12 @@ static sfx *scene_get_sfx(struct scene *s, entity3d *e, const char *name)
     struct character *c = e->priv;
     sfx *sfx = NULL;
 
-    if (c && !c->airborne)
-        sfx = sfx_get(&s->sfxc, name);
+    if (c && !c->airborne) {
+        if (c->collision)
+            sfx = sfx_get(&c->collision->txmodel->model->sfxc, name);
+        if (!sfx)
+            sfx = sfx_get(&s->sfxc, name);
+    }
 
     return sfx;
 }
@@ -497,12 +501,24 @@ const static struct animation_sfx {
     { .name = "motion_stop", .frame_sfx = motion_stop_frame_sfx },
 };
 
+static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode *_sfx)
+{
+    if (_sfx->tag != JSON_STRING)
+        return CERR_PARSE_FAILED;
+
+    cresp(sfx) res = sfx_new(sfxc, _sfx->key, _sfx->string_, ctx);
+    if (IS_CERR(res))
+        return cerr_error_cres(res);
+
+    return CERR_OK;
+}
+
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false, outline_exclude = false;
-    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL;
+    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *sfx = NULL;
     geom_class class = GEOM_SPHERE;
     int collision = -1;
     phys_type ptype = PHYS_BODY;
@@ -537,6 +553,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             ch = p->children.head;
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "animations"))
             anis = p;
+        else if (p->tag == JSON_OBJECT && !strcmp(p->key, "sfx"))
+            sfx = p;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "speed"))
             speed = p->number_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "outline_exclude"))
@@ -627,6 +645,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                            &txm->model->collision_idx, &txm->model->collision_idxsz, NULL, NULL, NULL, NULL);
         }
     }
+
+    if (sfx)
+        for (p = sfx->children.head; p; p = p->next)
+            sfx_add_from_json(&txm->model->sfxc, clap_get_sound(scene->clap_ctx), p);
 
     if (ent || ch) {
         JsonNode *it = ent ? ent : ch;
@@ -874,6 +896,11 @@ static void scene_onload(struct lib_handle *h, void *buf)
 
             for (light = p->children.head; light; light = light->next)
                 scene_add_light_from_json(scene, light);
+        } else if (!strcmp(p->key, "sfx") && p->tag == JSON_OBJECT) {
+            JsonNode *sfx;
+
+            for (sfx = p->children.head; sfx; sfx = sfx->next)
+                sfx_add_from_json(&scene->sfxc, clap_get_sound(scene->clap_ctx), sfx);
         }
     }
     dbg("loaded scene: '%s'\n", scene->name);
