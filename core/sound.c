@@ -352,3 +352,87 @@ void sound_done(sound_context *ctx)
             "destroying context failed\n");
     mem_free(ctx);
 }
+
+typedef struct sfx {
+    sound       *sound;
+    char        *action;
+    struct list entry;
+} sfx;
+
+void sfx_container_init(sfx_container *sfxc)
+{
+    list_init(&sfxc->list);
+}
+
+static void sfx_container_add(sfx_container *sfxc, sfx *sfx)
+{
+    list_append(&sfxc->list, &sfx->entry);
+}
+
+static void sfx_done(sfx *sfx)
+{
+    if (sfx->sound)
+        ref_put(sfx->sound);
+
+    list_del(&sfx->entry);
+    mem_free(sfx->action);
+    mem_free(sfx);
+}
+
+void sfx_container_clearout(sfx_container *sfxc)
+{
+    while (!list_empty(&sfxc->list)) {
+        sfx *sfx = list_first_entry(&sfxc->list, struct sfx, entry);
+        sfx_done(sfx);
+    }
+}
+
+DEFINE_CLEANUP(sfx, if (*p) { sfx_done(*p); });
+
+cresp(sfx) sfx_new(sfx_container *sfxc, const char *name, const char *file, sound_context *ctx)
+{
+    LOCAL_SET(sfx, sfx) = mem_alloc(sizeof(*sfx), .zero = 1);
+    if (!sfx)
+        return cresp_error(sfx, CERR_NOMEM);
+
+    list_init(&sfx->entry); /* if sfx_done() is called on a partial sfx */
+    sfx->action = strdup(name);
+    if (!sfx->action)
+        return cresp_error(sfx, CERR_NOMEM);
+
+    cresp(sound) res = ref_new_checked(sound, .name = file, .ctx = ctx);
+    if (IS_CERR(res))
+        return cresp_error_cerr(sfx, res);
+
+    sfx->sound = res.val;
+    sound_set_gain(sfx->sound, 1.0);
+    sfx_container_add(sfxc, sfx);
+
+    return cresp_val(sfx, NOCU(sfx));
+}
+
+sfx *sfx_get(sfx_container *sfxc, const char *name)
+{
+    sfx *sfx;
+
+    list_for_each_entry(sfx, &sfxc->list, entry)
+        if (!strcmp(sfx->action, name))
+            return sfx;
+
+    return NULL;
+}
+
+void sfx_play(sfx *sfx)
+{
+    sound_play(sfx->sound);
+}
+
+void sfx_play_by_name(sfx_container *sfxc, const char *name)
+{
+    sfx *sfx = sfx_get(sfxc, name);
+
+    if (!sfx)
+        return;
+
+    sound_play(sfx->sound);
+}
