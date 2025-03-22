@@ -193,7 +193,6 @@ void mq_add_model(struct mq *mq, model3dtx *txmodel);
 void mq_add_model_tail(struct mq *mq, model3dtx *txmodel);
 model3dtx *mq_nonempty_txm_next(struct mq *mq, model3dtx *txm, bool fwd);
 
-
 struct queued_animation {
     int             animation;
     bool            repeat;
