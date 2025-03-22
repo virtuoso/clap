@@ -450,20 +450,6 @@ cerr scene_init(struct scene *scene)
     return CERR_OK;
 }
 
-struct scene_config {
-    char            name[256];
-    struct model    *model;
-    unsigned long   nr_model;
-};
-
-struct scene_model_queue {
-    JsonNode          *entities;
-    unsigned int      loaded;
-    model3d           *model;
-    model3dtx         *txm;
-    struct scene      *scene;
-};
-
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
