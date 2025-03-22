@@ -18,6 +18,7 @@
 #include "physics.h"
 #include "shader.h"
 #include "scene.h"
+#include "sound.h"
 #include "ui-debug.h"
 
 /****************************************************************************
@@ -103,6 +104,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     m->alpha_blend = false;
     model3d_calc_aabb(m, vx, vxsz);
     darray_init(m->anis);
+    sfx_container_init(&m->sfxc);
 
     shader_prog_use(opts->prog);
 
@@ -222,6 +224,7 @@ static void model3d_drop(struct ref *ref)
         darray_clearout(m->joints[i].children);
         mem_free(m->joints[i].name);
     }
+    sfx_container_clearout(&m->sfxc);
     mem_free(m->joints);
     mem_free(m->collision_vx);
     mem_free(m->collision_idx);

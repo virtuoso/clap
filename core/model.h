@@ -10,6 +10,7 @@
 #include "mesh.h"
 #include "render.h"
 #include "shader.h"
+#include "sound.h"
 
 struct scene;
 struct light;
@@ -41,6 +42,7 @@ typedef struct model3d {
     buffer_t            tangent;
     buffer_t            vjoints;
     buffer_t            weights;
+    sfx_container       sfxc;
     unsigned int        nr_vertices;
     unsigned int        nr_faces[LOD_MAX];
     struct model_joint  *joints;
