@@ -7,6 +7,7 @@ You contributions are welcome and appreciated! This document is here to help wit
   - [But C?](#but-c)
   - [Code layout](#code-layout)
   - [More specifically](#more-specifically)
+- [I get build errors](#i-get-build-errors)
 - [Coding style](#coding-style)
 - [Pull requests](#pull-requests)
 
@@ -66,6 +67,10 @@ A short tour of core/:
 ... to be continued (send pull requests).
 
 Another useful tool is git grep. Also, build configurations generate compile_commands.json that can be plugged into your favorite IDE. Having done that, you'll be able to inspect the code much more efficiently.
+
+## I get build errors
+
+If you're suddenly getting build errors, [check here](https://github.com/virtuoso/clap/tree/main/docs/build-errors.md). Otherwise, [report an issue](https://github.com/virtuoso/clap/issues/new) and/or send a pull request.
 
 ## Coding style
 

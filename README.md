@@ -20,6 +20,7 @@
   - [Run local web server](#run-local-web-server)
 - [Windows build](#windows-build)
 - [Build using cmake presets](#build-using-cmake-presets)
+- [Build errors](https://github.com/virtuoso/clap/tree/main/docs/build-errors.md)
 - [What to do with all this](#what-to-do-with-all-this)
 
 ## Live demos
