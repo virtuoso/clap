@@ -474,7 +474,6 @@ static void shader_prog_drop(struct ref *ref)
 
     shader_done(&p->shader);
     list_del(&p->entry);
-    dbg("dropping shader '%s'\n", p->name);
 }
 
 DEFINE_REFCLASS2(shader_prog);
