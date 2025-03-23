@@ -22,14 +22,15 @@ float pipeline_pass_get_scale(render_pass *pass)
 static cerr pipeline_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(pipeline) *opts = _opts;
-    if (!opts->name || !opts->renderer || !opts->shaders || !opts->width || !opts->height)
+    if (!opts->name || !opts->renderer || !opts->shader_ctx || !opts->width || !opts->height)
         return CERR_INVALID_ARGUMENTS;
 
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
     list_init(&pl->passes);
+    list_init(&pl->shaders);
     pl->render_options  = opts->render_options;
     pl->renderer        = opts->renderer;
-    pl->shaders         = opts->shaders;
+    pl->shader_ctx      = opts->shader_ctx;
     pl->camera          = opts->camera;
     pl->light           = opts->light;
     pl->name            = opts->name;
@@ -103,8 +104,15 @@ static void pipeline_drop(struct ref *ref)
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
 
     pipeline_clearout(pl);
+
+    shaders_free(&pl->shaders);
 }
 DEFINE_REFCLASS2(pipeline);
+
+cresp(shader_prog) pipeline_shader_find_get(pipeline *pl, const char *name)
+{
+    return shader_prog_find_get(pl->shader_ctx, &pl->shaders, name);
+}
 
 void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height)
 {
@@ -277,17 +285,22 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
         if (!nr_renders)
             goto err_use_tex;
 
-        pass->prog_override = shader_prog_find(pl->shaders, cfg->shader_override);
-        if (!pass->prog_override)
+        cresp(shader_prog) prog_res = shader_prog_find_get(pl->shader_ctx, &pl->shaders,
+                                                           cfg->shader_override);
+        if (IS_CERR(prog_res))
             goto err_use_tex;
+
+        pass->prog_override = prog_res.val;
     } else if (cfg->shader) {
         if (!nr_blits && !nr_uses)
             goto err_use_tex;
 
-        prog = shader_prog_find(pl->shaders, cfg->shader);
-        if (!prog)
+        cresp(shader_prog) prog_res = shader_prog_find_get(pl->shader_ctx, &pl->shaders,
+                                                           cfg->shader);
+        if (IS_CERR(prog_res))
             goto err_override;
 
+        prog = prog_res.val;
         m = model3d_new_quad(prog, -1, 1, 0, 2, -2);
         if (!m)
             goto err_prog;

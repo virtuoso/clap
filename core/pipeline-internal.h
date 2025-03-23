@@ -10,7 +10,8 @@ struct pipeline {
     const char          *name;
     renderer_t          *renderer;
     render_options      *render_options;
-    struct list         *shaders;
+    struct list         shaders;
+    shader_context      *shader_ctx;
     struct camera       *camera;
     struct light        *light;
     int                 width;

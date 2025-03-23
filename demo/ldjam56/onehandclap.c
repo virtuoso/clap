@@ -39,7 +39,6 @@ static int exit_timeout = -1;
 static struct scene scene; /* XXX */
 // struct game_state game_state;
 
-static struct pipeline *main_pl;
 static bool shadow_msaa, model_msaa, edge_aa, edge_sobel;
 
 static void build_main_pl(struct pipeline **pl)
@@ -50,12 +49,13 @@ static void build_main_pl(struct pipeline **pl)
                   .height           = scene.height,
                   .light            = &scene.light,
                   .camera           = &scene.cameras[0],
+                  .shader_ctx       = clap_get_shaders(scene.clap_ctx),
                   .renderer         = clap_get_renderer(scene.clap_ctx),
                   .render_options   = &scene.render_options,
-                  .shaders          = &scene.shaders,
                   .name             = "main"
         },
         .mq     = &scene.mq,
+        .pl     = scene.pl
     });
 }
 
@@ -85,7 +85,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         ui_osd_new(ui, intro_osd, array_size(intro_osd));
     }
 
-    pipeline_render(main_pl, ui->modal ? 1 : 0);
+    pipeline_render(scene.pl, ui->modal ? 1 : 0);
 
     if (scene.render_options.debug_draws_enabled) {
         models_render(r, &scene.debug_mq, .camera = scene.camera, .cascade = -1);
@@ -100,10 +100,10 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         model_msaa = s->render_options.model_msaa;
         edge_sobel = s->render_options.edge_sobel;
         edge_aa = s->render_options.edge_antialiasing;
-        ref_put(main_pl);
-        build_main_pl(&main_pl);
+        pipeline_clearout(scene.pl);
+        build_main_pl(&scene.pl);
     }
-    pipeline_debug(main_pl);
+    pipeline_debug(scene.pl);
 }
 
 /*
@@ -117,8 +117,8 @@ void resize_cb(void *data, int width, int height)
     if (!scene->initialized)
         return;
 
-    if (main_pl)
-        pipeline_resize(main_pl, width, height);
+    if (scene->pl)
+        pipeline_resize(scene->pl, width, height);
 }
 
 static void ohc_ground_contact(void *priv, float x, float y, float z)
@@ -273,25 +273,9 @@ int main(int argc, char **argv, char **envp)
         sound_play(intro_sound);
     }
 
-    /* Before models are created */
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "contrast", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "hblur", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "vblur", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "downsample", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "upsample", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "sobel", &scene.shaders);
-#ifndef CONFIG_GLES
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "sobel-msaa", &scene.shaders);
-#endif /* CONFIG_GLES */
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "laplace", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "smaa-blend-weights", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "smaa-neighborhood-blend", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "combine", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "shadow", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "debug", &scene.shaders);
-    // lib_request_shaders("terrain", &scene.shaders);
-    lib_request_shaders(clap_get_shaders(scene.clap_ctx), "model", &scene.shaders);
-    //lib_request_shaders("ui", &scene);
+    display_get_sizes(&scene.width, &scene.height);
+
+    build_main_pl(&scene.pl);
 
     fuzzer_input_init();
 
@@ -309,10 +293,6 @@ int main(int argc, char **argv, char **envp)
     // spawn_mushrooms(&game_state);
     // subscribe(MT_INPUT, handle_game_input, NULL);
 
-    display_get_sizes(&scene.width, &scene.height);
-
-    build_main_pl(&main_pl);
-
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = -70.0;
@@ -323,12 +303,10 @@ int main(int argc, char **argv, char **envp)
 
     dbg("exiting peacefully\n");
 
-exit_pl:
 #ifndef CONFIG_BROWSER
-    ref_put(main_pl);
 exit_scene:
     scene_done(&scene);
-    //gl_done();
+    ref_put(scene.pl); /* XXX: scene_init()/scene_done() */
     clap_done(scene.clap_ctx, 0);
 #else
 exit_scene:

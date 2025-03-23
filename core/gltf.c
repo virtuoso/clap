@@ -180,7 +180,8 @@ struct gltf_material {
 };
 
 struct gltf_data {
-    struct scene *scene;
+    struct mq                     *mq;
+    pipeline                      *pl;
     darray(void *,                buffers);
     darray(struct gltf_bufview,   bufvws);
     darray(struct gltf_accessor,  accrs);
@@ -204,6 +205,7 @@ void gltf_free(struct gltf_data *gd)
     struct gltf_node *node;
     int i;
 
+    ref_put(gd->pl);
     for (i = 0; i < gd->anis.da.nr_el; i++) {
         struct gltf_animation *ani = DA(gd->anis, i);
         free((void *)ani->name);
@@ -1149,14 +1151,18 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh), gltf_nr_tangent(gd, mesh));
     mesh_optimize(me);
 
-    struct shader_prog *prog = shader_prog_find(&gd->scene->shaders, "model");
+    cresp(shader_prog) prog_res = pipeline_shader_find_get(gd->pl, "model");
+    if (IS_CERR(prog_res))
+        return cerr_error_cres(prog_res);
 
     cresp(model3d) res = ref_new_checked(model3d,
-                                         .prog   = ref_pass(prog),
+                                         .prog   = ref_pass(prog_res.val),
                                          .name   = gltf_mesh_name(gd, mesh),
                                          .mesh   = me);
-    if (IS_CERR(res))
+    if (IS_CERR(res)) {
+        ref_put(prog_res.val);
         return cerr_error_cres(res);
+    }
 
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
@@ -1273,7 +1279,7 @@ no_skinning:
     txm->metallic = clampf(gltf_material(gd, mesh)->metallic, 0.1, 1.0);
     txm->roughness = clampf(gltf_material(gd, mesh)->roughness, 0.2, 1.0);
 
-    scene_add_model(gd->scene, txm);
+    mq_add_model(gd->mq, txm);
 
     return CERR_OK;
 }
@@ -1286,14 +1292,15 @@ void gltf_instantiate_all(struct gltf_data *gd)
         gltf_instantiate_one(gd, i);
 }
 
-struct gltf_data *gltf_load(struct scene *scene, const char *name)
+struct gltf_data *gltf_load(struct mq *mq, pipeline *pl, const char *name)
 {
     struct gltf_data  *gd;
     struct lib_handle *lh;
     enum res_state state;
 
     gd = mem_alloc(sizeof(*gd), .zero = 1, .fatal_fail = 1);
-    gd->scene = scene;
+    gd->pl = ref_get(pl);
+    gd->mq = mq;
     lh = lib_request(RES_ASSET, name, gltf_onload, gd);
     state = lh->state;
     ref_put(lh);

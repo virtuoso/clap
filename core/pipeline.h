@@ -101,8 +101,8 @@ typedef struct pipeline_pass_config {
 DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
     const char      *name;
     renderer_t      *renderer;
-    struct list     *shaders;
     render_options  *render_options;
+    shader_context  *shader_ctx;
     struct light    *light;
     struct camera   *camera;
     unsigned int    width;
@@ -112,6 +112,7 @@ DECLARE_REFCLASS(pipeline);
 
 void pipeline_clearout(pipeline *pl);
 void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height);
+cresp(shader_prog) pipeline_shader_find_get(pipeline *pl, const char *name);
 struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
 #define pipeline_add_pass(_pl, args...) \
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })

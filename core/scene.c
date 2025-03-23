@@ -106,8 +106,11 @@ bool scene_camera_follows(struct scene *s, struct character *ch)
 
 cres(int) scene_camera_add(struct scene *s)
 {
-    struct shader_prog *prog = shader_prog_find(&s->shaders, "model");
-    model3d *m = model3d_new_cube(ref_pass(prog));
+    cresp(shader_prog) prog_res = pipeline_shader_find_get(s->pl, "model");
+    if (IS_CERR(prog_res))
+        return cres_error_cerr(int, prog_res);
+
+    model3d *m = model3d_new_cube(ref_pass(prog_res.val));
     if (!m)
         return cres_error(int, CERR_NOMEM);
 
@@ -566,7 +569,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         return CERR_PARSE_FAILED;
     }
     
-    gd = gltf_load(scene, gltf);
+    gd = gltf_load(&scene->mq, scene->pl, gltf);
     if (!gd) {
         warn("Error loading GLTF '%s'\n", gltf);
         return CERR_PARSE_FAILED;

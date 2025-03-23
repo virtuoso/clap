@@ -7,6 +7,7 @@
 typedef struct pipeline_builder_opts {
     pipeline_init_options   *pl_opts;
     struct mq               *mq;
+    pipeline                *pl;
 } pipeline_builder_opts;
 
 pipeline *pipeline_build(pipeline_builder_opts *opts);

@@ -28,6 +28,7 @@ struct scene {
     int                 width;
     int                 height;
     struct mq           mq;
+    pipeline            *pl;
     struct list         characters;
     struct list         instor;
     entity3d            *focus;

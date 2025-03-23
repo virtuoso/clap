@@ -141,14 +141,14 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     const char *edge_msaa_shader = edge_sobel ? "sobel-msaa" : "laplace";
     const char *edge_shader = edge_sobel ? "sobel" : "laplace";
 
-    pipeline *pl = ref_new(pipeline,
+    pipeline *pl = opts->pl ? : ref_new(pipeline,
                            .width            = opts->pl_opts->width,
                            .height           = opts->pl_opts->height,
                            .light            = opts->pl_opts->light,
                            .camera           = opts->pl_opts->camera,
                            .renderer         = opts->pl_opts->renderer,
                            .render_options   = opts->pl_opts->render_options,
-                           .shaders          = opts->pl_opts->shaders,
+                           .shader_ctx       = opts->pl_opts->shader_ctx,
                            .name             = opts->pl_opts->name);
 
     struct render_pass *shadow_pass[CASCADES_MAX];
