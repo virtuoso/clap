@@ -92,6 +92,7 @@ struct ui_widget {
     unsigned int       nr_uies;
     int                focus;
     struct list        entry;
+    void               *priv;
 };
 
 DEFINE_REFCLASS_INIT_OPTIONS(ui_widget,
@@ -129,6 +130,23 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
 struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
 struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_items);
+
+typedef struct progress_bar_options {
+    float           width;
+    float           height;
+    float           border;
+    float           y_off;
+    unsigned long   affinity;
+    const char      *fmt;
+    float           *border_color;
+    float           *bar_color;
+} progress_bar_options;
+
+#define ui_progress_bar_new(_ui, args...) \
+    _ui_progress_bar_new((_ui), &(progress_bar_options){ args })
+cresp(ui_widget) _ui_progress_bar_new(struct ui *ui, const progress_bar_options *opts);
+void ui_progress_bar_set_progress(struct ui_widget *bar, float progress);
+void ui_progress_bar_set_color(struct ui_widget *bar, vec4 color);
 
 cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height);
 void ui_done(struct ui *ui);

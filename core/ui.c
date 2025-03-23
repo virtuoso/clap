@@ -722,6 +722,9 @@ static void ui_element_children(struct ui_element *uie, struct list *list)
 {
     struct ui_element *child, *iter;
 
+    if (!uie)
+        return;
+
     list_for_each_entry_iter(child, iter, &uie->children, child_entry)
         ui_element_children(child, list);
     list_del(&uie->child_entry);
@@ -1465,9 +1468,8 @@ static int ui_handle_input(struct message *m, void *data)
 static struct ui_element *build_uit;
 #endif /* CONFIG_FINAL */
 
-struct ui_element *uie0, *uie1, *health, *pocket, **pocket_text;
+struct ui_element *uie0, *uie1, *pocket, **pocket_text;
 static int pocket_buckets, *pocket_count, *pocket_total;
-static float health_bar_width;
 
 void ui_pip_update(struct ui *ui, fbo_t *fbo)
 {
@@ -1608,73 +1610,92 @@ void pocket_total_set(struct ui *ui, int kind, int total)
     pocket_update(ui);
 }
 
-struct ui_element *ui_progress_new(struct ui *ui)
+cresp(ui_widget) _ui_progress_bar_new(struct ui *ui, const progress_bar_options *opts)
 {
-    float width = ui->width / 3;
-    float height = 20.0;
-    float thickness = 1.0;
-    float total_width = width + 2 * thickness;
-    float total_height = height + 2 * thickness;
-    
-    struct ui_element *uie, *bar, *frame;
-    model3dtx *bar_txm, *frame_txm;
-    model3d *bar_m, *frame_m;
+    if (!opts->width || !opts->height || !opts->affinity)
+        return cresp_error(ui_widget, CERR_INVALID_ARGUMENTS);
 
-    health_bar_width = width;
-    
-    frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0, total_width, total_height, 1);
-    frame_txm = ref_new(model3dtx, .model = ref_pass(frame_m), .tex = white_pixel());
+    float bar_width = opts->width - 2 * opts->border;
+    float bar_height = opts->height - 2 * opts->border;
+
+    cresp(ui_widget) res    = ref_new_checked(ui_widget,
+        .ui                 = ui,
+        .nr_items           = 2,
+        .uwb                = &(struct ui_widget_builder) {
+            .affinity       = opts->affinity,
+            .w              = opts->width,
+            .h              = opts->height,
+            .y_off          = opts->y_off,
+        }
+    );
+
+    if (IS_CERR(res))
+        return cresp_error_cerr(ui_widget, res);
+
+    res.val->priv = (void *)(uintptr_t)bar_width;
+
+    model3d *frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0, opts->width, opts->height, opts->border);
+    frame_m->depth_testing = false;
+    frame_m->alpha_blend = false;
+    model3dtx *frame_txm = ref_new(model3dtx, .model = ref_pass(frame_m), .tex = white_pixel());
     ui_add_model(ui, frame_txm);
-    
-    bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
-    bar_txm = ref_new(model3dtx, .model = ref_pass(bar_m), .tex = white_pixel());
-    ui_add_model(ui, bar_txm);
-    CHECK(uie = ref_new(ui_element,
-                        .ui         = ui,
-                        .parent     = NULL,
-                        .txmodel    = ui_quadtx,
-                        .affinity   = UI_AF_TOP | UI_AF_HCENTER,
-                        .x_off      = 0,
-                        .y_off      = height / 2,
-                        .width      = total_width,
-                        .height     = total_height));
-    CHECK(bar = ref_new(ui_element,
-                        .ui         = ui,
-                        .parent     = uie,
-                        .txmodel    = bar_txm,
-                        .affinity   = UI_AF_TOP | UI_AF_LEFT,
-                        .x_off      = 1,
-                        .y_off      = 1,
-                        .width      = width,
-                        .height     = height));
-    entity3d_color(bar->entity, COLOR_PT_ALL, (vec4){ 0, 1, 0, 1 });
 
-    CHECK(frame = ref_new(ui_element,
-                          .ui         = ui,
-                          .parent     = uie,
-                          .txmodel    = frame_txm,
-                          .affinity   = UI_AF_BOTTOM | UI_AF_LEFT,
-                          .x_off      = 0,
-                          .y_off      = 0,
-                          .width      = total_width,
-                          .height     = total_height));
-    frame->width = 1;
-    frame->height = 1;
-    entity3d_color(frame->entity, COLOR_PT_ALL, (vec4){ 1, 1, 1, 1 });
-    return bar;
+    model3d *bar_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
+    model3dtx *bar_txm = ref_new(model3dtx, .model = ref_pass(bar_m), .tex = white_pixel());
+    ui_add_model(ui, bar_txm);
+
+    struct ui_widget *progress_bar = res.val;
+    cresp(ui_element) uie_res = ref_new_checked(ui_element,
+        .ui         = ui,
+        .parent     = progress_bar->root,
+        .txmodel    = bar_txm,
+        .affinity   = UI_AF_VCENTER | UI_AF_LEFT,
+        .x_off      = opts->border,
+        .y_off      = opts->border,
+        .width      = bar_width,
+        .height     = bar_height,
+    );
+    if (IS_CERR(uie_res)) {
+        ref_put(res.val);
+        return cresp_error_cerr(ui_widget, uie_res);
+    }
+
+    progress_bar->uies[0] = uie_res.val;
+    entity3d_color(progress_bar->uies[0]->entity, COLOR_PT_ALL,
+                   opts->bar_color ? : (vec4){ 0, 0, 1, 1 });
+
+    uie_res = ref_new_checked(ui_element,
+        .ui         = ui,
+        .parent     = progress_bar->root,
+        .txmodel    = frame_txm,
+        .affinity   = UI_AF_BOTTOM | UI_AF_LEFT,
+        .width      = opts->width,
+        .height     = opts->height,
+    );
+    if (IS_CERR(uie_res)) {
+        ref_put(res.val);
+        return cresp_error_cerr(ui_widget, uie_res);
+    }
+
+    progress_bar->uies[1] = uie_res.val;
+    progress_bar->uies[1]->width = 1.0;
+    progress_bar->uies[1]->height = 1.0;
+    ui_element_position(progress_bar->uies[1], ui);
+    entity3d_color(progress_bar->uies[1]->entity, COLOR_PT_ALL,
+                   opts->border_color ? : (vec4){ 1, 1, 1, 1 });
+
+    return cresp_val(ui_widget, progress_bar);
 }
 
-void health_set(float perc)
+void ui_progress_bar_set_progress(struct ui_widget *bar, float progress)
 {
-    health->width = health_bar_width * perc;
-    if (perc < 0.2) {
-        health->entity->color[0] = 1;
-        health->entity->color[1] = 0;
-    } else {
-        health->entity->color[0] = 0;
-        health->entity->color[1] = 1;
-    }
-    ui_element_update(health->entity, NULL);
+    float total_width = (float)(uintptr_t)bar->priv;
+    bar->uies[0]->width = total_width * progress;
+}
+
+void ui_progress_bar_set_color(struct ui_widget *bar, vec4 color)
+{
+    entity3d_color(bar->uies[1]->entity, COLOR_PT_ALL, color);
 }
 
 static void build_onclick(struct ui_element *uie, float x, float y)
@@ -1737,8 +1758,6 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
 #ifndef CONFIG_FINAL
     build_uit = ui_printf(ui, font, uie1, (vec4){ 0.7, 0.7, 0.7, 1.0 }, 0, "%s", build_date);
 #endif
-
-    health = ui_progress_new(ui);
 
     const char *pocket_textures[] = { "apple.png", "mushroom thumb.png" };
     pocket = ui_pocket_new(ui, pocket_textures, array_size(pocket_textures));

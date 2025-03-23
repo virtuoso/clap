@@ -328,7 +328,7 @@ void game_update(struct game_state *g, struct timespec ts, bool paused)
         // dbg("DIE.\n");
     }
 
-    health_set(g->health / g->options.max_health);
+    ui_progress_bar_set_progress(g->health_bar, g->health / g->options.max_health);
     ui_debug_printf("apple in hand: %d, health: %f, apples in the burrow: %zu (%d mature)\n",
                     g->apple_is_carried ? 1 : 0,
                     g->health,
@@ -397,6 +397,11 @@ struct burrow burrow_init() {
 
 void game_init(struct scene *scene, struct ui *ui)
 {
+    cresp(ui_widget) res = ui_progress_bar_new(ui, ui->width / 3, 20, 1);
+    if (IS_CERR(res))
+        return;
+
+    game_state.health_bar = res.val;
     game_state.scene = scene;
     game_state.ui = ui;
     game_state.options = game_options_init();

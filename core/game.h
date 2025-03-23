@@ -53,6 +53,7 @@ struct game_state {
     float next_spawn_time;
 
     float health;
+    struct ui_widget *health_bar;
     bool apple_is_carried;
     int carried[GAME_ITEM_MAX];
     
@@ -89,7 +90,6 @@ void game_update(struct game_state *g, struct timespec ts, bool paused);
 int handle_game_input(struct message *m, void *data);
 
 /* from ui.c, but doesn't really fit in ui.h */
-void health_set(float perc);
 void show_apple_in_pocket();
 void show_empty_pocket();
 void pocket_count_set(struct ui *ui, int kind, int count);
