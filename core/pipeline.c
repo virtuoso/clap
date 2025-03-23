@@ -41,9 +41,8 @@ static cerr pipeline_make(struct ref *ref, void *_opts)
     return CERR_OK;
 }
 
-static void pipeline_drop(struct ref *ref)
+void pipeline_clearout(pipeline *pl)
 {
-    struct pipeline *pl = container_of(ref, struct pipeline, ref);
     struct render_pass *pass, *iter;
 
     pipeline_debug_done(pl);
@@ -97,6 +96,13 @@ static void pipeline_drop(struct ref *ref)
         list_del(&pass->entry);
         mem_free(pass);
     }
+}
+
+static void pipeline_drop(struct ref *ref)
+{
+    struct pipeline *pl = container_of(ref, struct pipeline, ref);
+
+    pipeline_clearout(pl);
 }
 DEFINE_REFCLASS2(pipeline);
 

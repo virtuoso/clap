@@ -110,6 +110,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
 );
 DECLARE_REFCLASS(pipeline);
 
+void pipeline_clearout(pipeline *pl);
 void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height);
 struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
 #define pipeline_add_pass(_pl, args...) \
