@@ -289,7 +289,6 @@ static void shader_prog_link(struct shader_prog *p)
 {
     int i;
 
-    dbg("program '%s' attrs/uniforms\n", p->name);
     for (i = 0; i < SHADER_VAR_MAX; i++) {
         const struct shader_var_desc *desc = &shader_var_desc[i];
 
@@ -297,8 +296,6 @@ static void shader_prog_link(struct shader_prog *p)
             p->vars[i] = shader_attribute(&p->shader, desc->name);
         else
             p->vars[i] = shader_uniform(&p->shader, desc->name);
-        if (p->vars[i] >= 0)
-            dbg(" -> %s %s: %d\n", i < ATTR_MAX ? "attribute" : "uniform", desc->name, p->vars[i]);
     }
 }
 

@@ -1584,8 +1584,6 @@ cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, con
     } else {
         ret = CERR_OK;
     }
-    dbg("vshader: %d gshader: %d fshader: %d program: %d link: %d\n",
-        shader->vert, shader->geom, shader->frag, shader->prog, linkStatus);
 
     return ret;
 }
