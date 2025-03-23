@@ -299,7 +299,7 @@ void character_move(struct character *ch, struct scene *s)
 
         // entity3d_rotate_Z(ch->entity, atan2f(ch->angle[1], ch->velocity[1]));
         ch->moved++;
-        if (anictl_set_state(&ch->entity->anictl, 1)) {
+        if (anictl_set_state(&ch->entity->anictl, 1) && ch->state != CS_MOVING) {
             animation_push_by_name(ch->entity, s, "motion_start", true, false);
             animation_set_end_callback(ch->entity, character_start_motion, ch);
             animation_push_by_name(ch->entity, s, "motion", false, true);
