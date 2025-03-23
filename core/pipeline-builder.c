@@ -98,7 +98,7 @@ static void hdr_constraints(texture_format *hdr_fmt)
     );
 #endif /* __EMSCRIPTEN__ */
 
-    if (__user_agent && strstr(__user_agent, "iPhone"))
+    if (__user_agent && (strstr(__user_agent, "iPhone") || strstr(__user_agent, "iPad")))
         *hdr_fmt = TEX_FMT_RGBA8;
 }
 
