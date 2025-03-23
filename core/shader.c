@@ -552,3 +552,18 @@ cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *sha
 
     return CERR_OK;
 }
+
+cresp(shader_prog) shader_prog_find_get(shader_context *ctx, struct list *shaders, const char *name)
+{
+    struct shader_prog *prog = shader_prog_find(shaders, name);
+
+    if (prog)
+        return cresp_val(shader_prog, prog);
+
+    cerr err = lib_request_shaders(ctx, name, shaders);
+    if (IS_CERR(err))
+        return cresp_error_cerr(shader_prog, err);
+
+    prog = list_last_entry(shaders, struct shader_prog, entry);
+    return cresp_val(shader_prog, prog);
+}
