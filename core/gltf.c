@@ -1174,6 +1174,7 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     if (IS_CERR(txres)) {
         warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));
+        ref_put(res.val);
         return cerr_error_cres(txres);
     }
 
