@@ -10,7 +10,8 @@
 enum character_state {
     CS_START = 0,
     CS_WAKING,
-    CS_AWAKE
+    CS_AWAKE,
+    CS_MOVING
 };
 
 struct character {

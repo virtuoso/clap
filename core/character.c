@@ -94,6 +94,13 @@ static void character_idle(struct scene *s, void *priv)
     animation_push_by_name(c->entity, s, "idle", true, true);
 }
 
+static void character_start_motion(struct scene *s, void *priv)
+{
+    struct character *c = priv;
+
+    c->state = CS_MOVING;
+}
+
 #ifndef CONFIG_FINAL
 static void character_debug(struct character *ch)
 {
@@ -146,6 +153,7 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
     vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
 
     ch->airborne = true;
+    ch->state = CS_MOVING;
 
     bool was_in_motion = !!vec3_len(ch->motion);
 
@@ -237,7 +245,10 @@ void character_move(struct character *ch, struct scene *s)
         vec3_norm(newy, newy);
         vec3_norm(newz, newz);
 
-        vec3_dup(ch->angle, ch->motion);
+        if (ch->state == CS_MOVING)
+            vec3_dup(ch->angle, ch->motion);
+        else
+            vec3_scale(ch->angle, ch->motion, 0.3); /* XXX: parameterize me */
 
         /* watch out for Y and Z swapping places */
         vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
@@ -290,6 +301,7 @@ void character_move(struct character *ch, struct scene *s)
         ch->moved++;
         if (anictl_set_state(&ch->entity->anictl, 1)) {
             animation_push_by_name(ch->entity, s, "motion_start", true, false);
+            animation_set_end_callback(ch->entity, character_start_motion, ch);
             animation_push_by_name(ch->entity, s, "motion", false, true);
         }
     } else if (body) {
@@ -297,6 +309,7 @@ void character_move(struct character *ch, struct scene *s)
         ch->angle[1] = 0;
         ch->angle[2] = 0;
         phys_body_stop(body);
+        ch->state = CS_AWAKE;
         if (anictl_set_state(&ch->entity->anictl, 0)) {
             animation_push_by_name(ch->entity, s, "motion_stop", true, false);
             animation_push_by_name(ch->entity, s, "idle", false, true);
