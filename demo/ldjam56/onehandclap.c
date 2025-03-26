@@ -18,6 +18,7 @@
 #include "input.h"
 #include "messagebus.h"
 #include "librarian.h"
+#include "loading-screen.h"
 #include "model.h"
 #include "shader.h"
 #include "terrain.h"
@@ -185,7 +186,7 @@ int main(int argc, char **argv, char **envp)
         .graphics       = 1,
         .ui             = 1,
         .settings       = 1,
-        .title          = "One Hand Clap",
+        .title          = "When the Mountain Wakes",
 #ifndef CONFIG_BROWSER
         .base_url       = "demo/ldjam56/",
 #endif
@@ -242,6 +243,7 @@ int main(int argc, char **argv, char **envp)
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
     scene.clap_ctx = clap_res.val;
+    scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
 
     cerr err;
 #ifndef CONFIG_FINAL
@@ -287,6 +289,8 @@ int main(int argc, char **argv, char **envp)
     // scene_camera_add(&scene);
 
     scene_load(&scene, "scene.json");
+
+    loading_screen_done(scene.ls);
 
     /* XXX: fix game_init() */
     //game_init(&scene, &ui); // this must happen after scene_load, because we need the trees.
