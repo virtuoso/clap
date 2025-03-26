@@ -7,11 +7,13 @@
 #include "physics.h"
 #include "primitives.h"
 #include "shader.h"
+#include "loading-screen.h"
 #include "model.h"
 #include "scene.h"
 #include "sound.h"
 #include "json.h"
 #include "ui-debug.h"
+#include "ui.h"
 
 static void scene_control_next(struct scene *s)
 {
@@ -516,6 +518,8 @@ static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode 
     return CERR_OK;
 }
 
+unsigned int total_models, nr_models;
+
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
@@ -817,6 +821,10 @@ light_done:
 
     dbg("loaded model '%s'\n", name);
 
+    if (scene->ls)
+        loading_screen_progress(scene->ls, (float)nr_models / (float)total_models);
+    nr_models++;
+
     return CERR_OK;
 }
 
@@ -877,6 +885,10 @@ static void scene_onload(struct lib_handle *h, void *buf)
         err("parse error in '%s'\n", h->name);
         goto err;
     }
+
+    p = json_find_member(scene->json_root, "model");
+    for (JsonNode *m = p->children.head; m; m = m->next)
+        total_models++;
 
     for (p = scene->json_root->children.head; p; p = p->next) {
         if (!strcmp(p->key, "name")) {

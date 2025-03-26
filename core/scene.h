@@ -8,6 +8,7 @@
 #include "model.h"
 #include "motion.h"
 #include "light.h"
+#include "loading-screen.h"
 #include "physics.h"
 #include "pipeline.h"
 #include "camera.h"
@@ -47,6 +48,7 @@ struct scene {
     struct list         debug_draws;
     JsonNode            *json_root;
     char                *file_name;
+    loading_screen      *ls;
     float               lin_speed;
     float               ang_speed;
     float               limbo_height;

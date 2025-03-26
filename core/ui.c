@@ -7,6 +7,7 @@
 #include "primitives.h"
 #include "render.h"
 #include "shader.h"
+#include "shader_constants.h"
 #include "messagebus.h"
 #include "input.h"
 #include "ui.h"
@@ -14,7 +15,7 @@
 #include "render.h"
 #include "ui-debug.h"
 
-static model3dtx *ui_quadtx;
+model3dtx *ui_quadtx;
 
 static texture_t *ui_fbo_tex; /* XXX */
 static model3dtx *ui_pip;
@@ -257,8 +258,7 @@ static void ui_element_drop(struct ref *ref)
 
 DEFINE_REFCLASS2(ui_element);
 
-static inline model3d *
-ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
+model3d *ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
 {
     model3d *model = model3d_new_quadrev(p, x, y, 0, w, h);
     model->depth_testing = false;
@@ -266,12 +266,12 @@ ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
     return model;
 }
 
-static void ui_add_model(struct ui *ui, model3dtx *txmodel)
+void ui_add_model(struct ui *ui, model3dtx *txmodel)
 {
     mq_add_model(&ui->mq, txmodel);
 }
 
-static void ui_add_model_tail(struct ui *ui, model3dtx *txmodel)
+void ui_add_model_tail(struct ui *ui, model3dtx *txmodel)
 {
     mq_add_model_tail(&ui->mq, txmodel);
 }

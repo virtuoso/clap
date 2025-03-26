@@ -34,7 +34,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(PLATFORM_SRC display-www.c input-www.c)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 else ()
-    set(PLATFORM_SRC display-glfw.c)
+    set(PLATFORM_SRC display-glfw.c loading-screen.c)
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")

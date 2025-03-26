@@ -4,7 +4,6 @@
 
 #include "object.h"
 #include "model.h"
-#include "scene.h"
 #include "sound.h"
 
 /* alignment affinity */
@@ -151,7 +150,10 @@ void ui_progress_bar_set_color(struct ui_widget *bar, vec4 color);
 cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height);
 void ui_done(struct ui *ui);
 void ui_update(struct ui *ui);
+model3d *ui_quad_new(struct shader_prog *p, float x, float y, float w, float h);
 model3dtx *ui_quadtx_get(void);
+void ui_add_model(struct ui *ui, model3dtx *txmodel);
+void ui_add_model_tail(struct ui *ui, model3dtx *txmodel);
 
 void ui_element_animations_done(struct ui_element *uie);
 int ui_element_update(entity3d *e, void *data);
