@@ -3,6 +3,8 @@ on: [push]
 jobs:
   build-ubuntu:
     runs-on: ubuntu-24.04
+    env:
+      remote_host: ${{ secrets.REMOTE_DEPLOY_HOST }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -19,8 +21,20 @@ jobs:
           cd ${{ github.workspace }}
           touch build_config
           echo opts=\"--parallel 4\" >> build_config
+          echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/linux\" >> build_config
           ./configure.sh
       - name: build
         run: |
           cd ${{ github.workspace }}
           ./build.sh
+          cmake --install build/rel
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@main
+        if: ${{ env.remote_host }}
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.REMOTE_DEPLOY_KEY }}
+          ARGS: "-rlgoDzvc -i"
+          SOURCE: "clap/"
+          REMOTE_HOST: ${{ secrets.REMOTE_DEPLOY_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_DEPLOY_USER }}
+          TARGET: ${{ secrets.REMOTE_DEPLOY_TARGET }}

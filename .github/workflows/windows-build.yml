@@ -5,6 +5,7 @@ jobs:
     runs-on: windows-2019
     env:
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      remote_host: ${{ secrets.REMOTE_DEPLOY_HOST }}
     defaults:
       run:
         shell: bash
@@ -34,11 +35,11 @@ jobs:
           echo "${HOME}/bin" >> $GITHUB_PATH
       - name: configure
         run: |
-          cmake --preset w32test -B build/test "${{ github.workspace }}"
+          cmake --preset w32test -B build/test -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/windows "${{ github.workspace }}"
           cmake --preset w32debug -B build/debug "${{ github.workspace }}"
       - name: build
         run: |
-          cmake --build build/test --parallel 4
+          cmake --build build/test --parallel 4 && cmake --install build/test
           cmake --build build/debug --parallel 4
       - name: test
         run: |
@@ -56,3 +57,8 @@ jobs:
           name: clapdbg
           retention-days: 30
           path: ${{ github.workspace }}/build/debug/demo/ldjam56/ldjam56.exe
+      - name: Deploy to server
+        if: ${{ env.remote_host }}
+        run: |
+          echo "${{ secrets.REMOTE_DEPLOY_KEY }}" > ./ssh_id
+          scp -o StrictHostKeyChecking=no -i ./ssh_id -r ./clap/${GITHUB_REF##*/} ${{ secrets.REMOTE_DEPLOY_USER}}@${{ secrets.REMOTE_DEPLOY_HOST }}:${{ secrets.REMOTE_DEPLOY_TARGET }}
