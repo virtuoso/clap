@@ -8,6 +8,7 @@
 # Index
 
 - [Live demos](#live-demos)
+- [Native demo executables](#native-demo-executables)
 - [Source code and submodules](#source-code-and-submodules)
 - [Local build (Macos)](#local-build-macos)
   - [Install dependencies](#install-dependencies)
@@ -26,6 +27,11 @@
 ## Live demos
 [Live demo: main](http://ash.works/clap/main/clap/)
 [Live demo: testing](http://ash.works/clap/main/claptest/)
+
+## Native demo executables
+[Windows x64](http://ash.works/clap/main/windows/bin/ldjam56.exe)
+[Mac OS X arm64](http://ash.works/clap/main/macos/bin/ldjam56)
+[Linux x86_64](http://ash.works/clap/main/linux/bin/ldjam56)
 
 ## Source code and submodules
 
