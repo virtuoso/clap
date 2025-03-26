@@ -3,6 +3,8 @@ on: [push]
 jobs:
   build-www:
     runs-on: ubuntu-24.04
+    env:
+      remote_host: ${{ secrets.REMOTE_DEPLOY_HOST }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -35,6 +37,7 @@ jobs:
           cmake --install build/emdebug
       - name: Deploy to Server
         uses: easingthemes/ssh-deploy@main
+        if: ${{ env.remote_host }}
         with:
             SSH_PRIVATE_KEY: ${{ secrets.REMOTE_DEPLOY_KEY }}
             ARGS: "-rlgoDzvc -i"
