@@ -1001,6 +1001,13 @@ static void channel_transform(entity3d *e, struct channel *chan, float time)
     float p_time, n_time, fac = 0;
     int prev, next;
 
+    /*
+     * Don't crash on broken animations (channel referenced a non-existent
+     * joint, see warning in gltf_instantiate_one()).
+     */
+    if (!chan->nr || !chan->data || !chan->time)
+        return;
+
     channel_time_to_idx(chan, time, joint->off[chan->path], &prev, &next);
     joint->off[chan->path] = min(prev, next);
 
