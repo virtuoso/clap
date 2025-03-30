@@ -1454,16 +1454,22 @@ DEFINE_REFCLASS_INIT_OPTIONS(debug_draw);
 struct debug_draw *__debug_draw_new(struct scene *scene, float *vx, size_t vxsz,
                                     unsigned short *idx, size_t idxsz, float *tx, mat4x4 *rot)
 {
-    struct shader_prog *p;
     struct debug_draw *dd;
     model3dtx *txm;
     model3d *m;
 
-    p = shader_prog_find(&scene->shaders, "debug");
+    cresp(shader_prog) prog_res = shader_prog_find_get(
+        clap_get_shaders(scene->clap_ctx),
+        &scene->shaders,
+        "debug"
+    );
+    if (IS_CERR(prog_res))
+        return NULL;
+
     CHECK(dd = ref_new(debug_draw));
     cresp(model3d) res = ref_new_checked(model3d,
                                          .name  = "debug",
-                                         .prog  = ref_pass(p),
+                                         .prog  = ref_pass(prog_res.val),
                                          .vx    = vx,
                                          .vxsz  = vxsz,
                                          .idx   = idx,
