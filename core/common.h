@@ -2,6 +2,16 @@
 #ifndef __CLAP_COMMON_H__
 #define __CLAP_COMMON_H__
 
+/*
+ * VScode/Intellisense are dumb, this is the only way to make them believe
+ * in booleans again. Doesn't have implications for the actual code.
+ */
+#if defined(__INTELLISENSE__) && !defined(__cplusplus)
+#define bool _Bool
+#define true 1
+#define false 0
+#endif
+
 #ifndef MODNAME
 #define MODNAME __BASE_FILE__
 #endif
