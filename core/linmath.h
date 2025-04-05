@@ -212,6 +212,15 @@ LINMATH_H_FUNC void mat4x4_mul_vec4(vec4 r, mat4x4 M, vec4 v)
 			r[j] += M[i][j] * v[i];
 	}
 }
+
+LINMATH_H_FUNC void mat4x4_mul_vec4_post(vec4 r, mat4x4 M, vec4 v)
+{
+	vec4 temp;
+    for (int i = 0; i < 4; ++i)
+        temp[i] = M[0][i]*v[0] + M[1][i]*v[1] + M[2][i]*v[2] + M[3][i]*v[3];
+	vec4_dup(r, temp);
+}
+
 LINMATH_H_FUNC void mat4x4_translate(mat4x4 T, float x, float y, float z)
 {
 	mat4x4_identity(T);
