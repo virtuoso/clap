@@ -95,7 +95,7 @@ set(ENGINE_SRC
     ${PLATFORM_SRC})
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
-set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
+set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-unknown-pragmas")
 
 set(CERRS_H "${CMAKE_CURRENT_BINARY_DIR}/cerrs.h")
 
