@@ -108,6 +108,7 @@ struct animation {
     struct channel  *channels;
     unsigned int    nr_channels;
     unsigned int    cur_channel;
+    unsigned int    nr_segments;
     float           time_end;
     frame_fn        frame_sfx;
 };

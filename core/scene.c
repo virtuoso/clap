@@ -525,7 +525,10 @@ static sfx *scene_get_sfx(struct scene *s, entity3d *e, const char *name)
 
 static void motion_frame_sfx(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
 {
-    if (time < (double)(qa->sfx_state * 2 + 1) / 8.0)
+    model3d *m = e->txmodel->model;
+    double nr_segments = (double)m->anis.x[qa->animation].nr_segments;
+
+    if (time < (double)(qa->sfx_state * 2 + 1) / nr_segments)
         return;
 
     qa->sfx_state++;
@@ -579,7 +582,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false, outline_exclude = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *sfx = NULL;
     geom_class class = GEOM_SPHERE;
-    int collision = -1;
+    int collision = -1, motion_segments = 8;
     phys_type ptype = PHYS_BODY;
     struct gltf_data *gd = NULL;
     model3dtx  *txm;
@@ -618,6 +621,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             speed = p->number_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "outline_exclude"))
             outline_exclude = p->bool_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "motion_segments"))
+            motion_segments = p->number_;
     }
 
     if (!name || !gltf) {
@@ -830,6 +835,8 @@ light_done:
                         continue;
                     free(m->anis.x[idx].name);
                     m->anis.x[idx].name = strdup(p->key);
+                    if (!strcmp(p->key, "motion"))
+                        m->anis.x[idx].nr_segments = motion_segments;
 
                     for (int i = 0; i < array_size(animation_sfx); i++)
                         if (!strcmp(p->key, animation_sfx[i].name)) {
