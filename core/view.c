@@ -226,7 +226,7 @@ static void subview_update_from_target(struct subview *subview, vec3 eye, vec3 t
 {
     vec3 up = { 0.0, 1.0, 0.0 };
 
-    mat4x4_look_at(subview->view_mx, eye, target, up);
+    mat4x4_look_at_safe(subview->view_mx, eye, target, up);
     mat4x4_invert(subview->inv_view_mx, subview->view_mx);
 }
 
