@@ -310,7 +310,7 @@ void entity3d_rotate_Z(entity3d *e, float rz);
 void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
 void animation_start(entity3d *e, struct scene *scene, int ani);
-void animation_push_by_name(entity3d *e, struct scene *s, const char *name,
+bool animation_push_by_name(entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat);
 void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *), void *priv);
 void animation_set_speed(entity3d *e, struct scene *s, float speed);

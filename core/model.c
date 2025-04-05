@@ -1200,14 +1200,10 @@ void animation_set_speed(entity3d *e, struct scene *s, float speed)
     }
 }
 
-void animation_push_by_name(entity3d *e, struct scene *s, const char *name,
+bool animation_push_by_name(entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat)
 {
     struct queued_animation *qa;
-    int id = animation_by_name(e->txmodel->model, name);
-
-    if (id < 0)
-        id = 0;
 
     if (clear) {
         struct queued_animation _qa;
@@ -1221,6 +1217,14 @@ void animation_push_by_name(entity3d *e, struct scene *s, const char *name,
         if (qa)
             animation_end(&_qa, s);
     }
+
+    int id = animation_by_name(e->txmodel->model, name);
+    if (id < 0) {
+        if (clear)
+            e->animation = -1;
+        return false;
+    }
+
     qa = darray_add(e->aniq);
     qa->animation = id;
     qa->repeat = repeat;
@@ -1230,6 +1234,8 @@ void animation_push_by_name(entity3d *e, struct scene *s, const char *name,
         e->animation = 0;
         e->ani_cleared = true;
     }
+
+    return true;
 }
 
 static void animated_update(entity3d *e, struct scene *s)
