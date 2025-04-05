@@ -45,7 +45,8 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS":true,
-                "LDJAM56_BUILD_IN_ASSETS":false
+                "LDJAM56_BUILD_IN_ASSETS":false,
+                "LDJAM57_BUILD_IN_ASSETS":false
             }
         },
         {
@@ -56,7 +57,8 @@
             "binaryDir": "${sourceDir}/build/test",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"RelWithDebInfo",
-                "LDJAM56_BUILD_IN_ASSETS":true
+                "LDJAM56_BUILD_IN_ASSETS":true,
+                "LDJAM57_BUILD_IN_ASSETS":true
             }
         },
         {
@@ -68,7 +70,8 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Release",
                 "CLAP_BUILD_FINAL": true,
-                "LDJAM56_BUILD_IN_ASSETS":true
+                "LDJAM56_BUILD_IN_ASSETS":true,
+                "LDJAM57_BUILD_IN_ASSETS":true
             }
         },
         {
