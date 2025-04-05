@@ -1242,6 +1242,9 @@ static void animated_update(entity3d *e, struct scene *s)
     if (e->animation < 0)
         animation_next(e, s);
     qa = ani_current(e);
+    if (!qa)
+        return;
+
     an = &model->anis.x[qa->animation];
 
     double frame_time = (time - e->ani_time) * qa->speed;
