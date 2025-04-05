@@ -18,6 +18,7 @@ struct phys {
     dSpaceID    collision;
     dJointGroupID contact;
     ground_contact_fn ground_contact;
+    double      time_acc;
 };
 
 /*
@@ -591,7 +592,7 @@ stick:
     return true;
 }
 
-void phys_step(struct phys *phys, double dt)
+static void __phys_step(struct phys *phys, double dt)
 {
     struct phys_body *pb, *itpb;
     DECLARE_LIST(pen);
@@ -616,6 +617,22 @@ void phys_step(struct phys *phys, double dt)
     /* ODE manual warns against this */
     dWorldQuickStep(phys->world, dt);
     dJointGroupEmpty(phys->contact);
+}
+
+void phys_step(struct phys *phys, double dt)
+{
+    const dReal fixed_dt = 1.0 / 120.0;
+
+    phys->time_acc += dt;
+
+    int steps, max_steps;
+    for (steps = 0, max_steps = 5;
+         phys->time_acc >= fixed_dt && steps < max_steps;
+         phys->time_acc -= fixed_dt, steps++)
+        __phys_step(phys, fixed_dt);
+
+    if (steps == max_steps)
+        phys->time_acc = 0.0;
 }
 
 int phys_body_update(entity3d *e)
