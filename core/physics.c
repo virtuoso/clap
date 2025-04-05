@@ -40,6 +40,7 @@ struct phys_body {
      */
     dReal       yoffset;
     dReal       ray_off;
+    dReal       radius;
     /* motor that fixes us in space and moves us around */
     dJointID    lmotor;
 
@@ -535,6 +536,26 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
     if (ch->collision)
         goto got_it;
 
+    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0] + body->radius, pos[1] - body->ray_off, pos[2] },
+                                    (vec3){ 0, -1, 0 }, &dist, &contact);
+    if (ch->collision)
+        goto got_it;
+
+    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0] - body->radius, pos[1] - body->ray_off, pos[2] },
+                                    (vec3){ 0, -1, 0 }, &dist, &contact);
+    if (ch->collision)
+        goto got_it;
+
+    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0], pos[1] - body->ray_off, pos[2] + body->radius },
+                                    (vec3){ 0, -1, 0 }, &dist, &contact);
+    if (ch->collision)
+        goto got_it;
+
+    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0], pos[1] - body->ray_off, pos[2] - body->radius},
+                                    (vec3){ 0, -1, 0 }, &dist, &contact);
+    if (ch->collision)
+        goto got_it;
+
     return ret;
 
 got_it:
@@ -667,6 +688,7 @@ static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, 
     else
         CHECK(g = dCreateSphere(phys->space, r));
     //dGeomSetData(g, e);
+    body->radius = r;
 
     body->yoffset = off;
     if (phys_body_has_body(body)) {
