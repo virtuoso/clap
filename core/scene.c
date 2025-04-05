@@ -263,8 +263,6 @@ static int scene_debug_draw(struct message *m, void *data)
 
     mat4x4_mul_vec4_post(v0, mvp, v0);
     mat4x4_mul_vec4_post(v1, mvp, v1);
-    vec4 clip;
-    vec4_dup(clip, v0);
 
     vec3_scale(v0, v0, 1.0 / v0[3]);
     vec3_scale(v1, v1, 1.0 / v1[3]);
