@@ -182,6 +182,9 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
         dist = next_distance;
     }
 
+    if (c->dist != dist)
+        c->ch->moved++;
+
     c->dist = dist;
     debug_draw_camera(scene, c, start, dist, scene);
 }
