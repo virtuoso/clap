@@ -1181,6 +1181,16 @@ void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *)
     e->aniq.x[nr_qas - 1].end_priv = priv;
 }
 
+void animation_set_frame_callback(entity3d *e, frame_fn cb)
+{
+    int nr_qas = darray_count(e->aniq);
+
+    if (!nr_qas)
+        return;
+
+    e->aniq.x[nr_qas - 1].frame_cb = cb;
+}
+
 void animation_set_speed(entity3d *e, struct scene *s, float speed)
 {
     struct queued_animation *qa = ani_current(e);
@@ -1260,6 +1270,8 @@ static void animated_update(entity3d *e, struct scene *s)
     channels_transform(e, an, frame_time);
     one_joint_transform(e, 0, -1);
 
+    if (qa->frame_cb)
+        qa->frame_cb(qa, e, s, frame_time / an->time_end);
     if (an->frame_sfx)
         an->frame_sfx(qa, e, s, frame_time / an->time_end);
 

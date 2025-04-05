@@ -202,6 +202,7 @@ struct queued_animation {
     void            *end_priv;
     float           speed;
     unsigned int    sfx_state;
+    frame_fn        frame_cb;
 };
 
 typedef struct entity3d {
@@ -313,6 +314,7 @@ void animation_start(entity3d *e, struct scene *scene, int ani);
 bool animation_push_by_name(entity3d *e, struct scene *s, const char *name,
                             bool clear, bool repeat);
 void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *), void *priv);
+void animation_set_frame_callback(entity3d *e, frame_fn cb);
 void animation_set_speed(entity3d *e, struct scene *s, float speed);
 
 
