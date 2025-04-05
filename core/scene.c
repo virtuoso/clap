@@ -284,6 +284,58 @@ static int scene_debug_draw(struct message *m, void *data)
 
             break;
         }
+        case DEBUG_DRAW_AABB: {
+            vec3 min, max;
+            vec3_dup(min, dd->v0);
+            vec3_dup(max, dd->v1);
+
+            vec3 corners[8] = {
+                { min[0], min[1], min[2] },
+                { max[0], min[1], min[2] },
+                { max[0], max[1], min[2] },
+                { min[0], max[1], min[2] },
+                { min[0], min[1], max[2] },
+                { max[0], min[1], max[2] },
+                { max[0], max[1], max[2] },
+                { min[0], max[1], max[2] },
+            };
+
+            int edges[12][2] = {
+                {0,1},{1,2},{2,3},{3,0}, // bottom face
+                {4,5},{5,6},{6,7},{7,4}, // top face
+                {0,4},{1,5},{2,6},{3,7}  // verticals
+            };
+
+            for (int i = 0; i < 12; i++) {
+                vec4 a = { corners[edges[i][0]][0], corners[edges[i][0]][1], corners[edges[i][0]][2], 1.0 };
+                vec4 b = { corners[edges[i][1]][0], corners[edges[i][1]][1], corners[edges[i][1]][2], 1.0 };
+
+                mat4x4 mvp;
+                mat4x4_mul(mvp, sv->proj_mx, sv->view_mx);
+                mat4x4_mul_vec4_post(a, mvp, a);
+                mat4x4_mul_vec4_post(b, mvp, b);
+
+                if (a[3] < 1e-3 || b[3] < 1e-3)
+                    continue;
+
+                vec3_scale(a, a, 1.0 / a[3]);
+                vec3_scale(b, b, 1.0 / b[3]);
+
+                ImVec2 p0 = {
+                    .x = ((a[0] + 1.0f) / 2.0f) * s->width,
+                    .y = ((1.0f - a[1]) / 2.0f) * s->height
+                };
+
+                ImVec2 p1 = {
+                    .x = ((b[0] + 1.0f) / 2.0f) * s->width,
+                    .y = ((1.0f - b[1]) / 2.0f) * s->height
+                };
+
+                ImDrawList_AddLine(draw, p0, p1, color, 1.0f);
+            }
+            break;
+        }
+
         default:
             break;
     }
