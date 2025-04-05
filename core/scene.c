@@ -306,14 +306,15 @@ static void scene_camera_calc(struct scene *s, int camera)
     if (!cam->ch->moved && current == cam->ch)
         return;
 
+    vec3 target;
+    vec3_dup(target, current->entity->pos);
+    target[1] += entity3d_aabb_Y(current->entity) / 4 * 3;
+
     /* circle the entity s->control, unless it's camera */
     if (s->control != cam->ch->entity &&
         (camera_has_moved(cam) || current->moved)) {
 
-        float x = current->entity->pos[0];
-        float y = current->entity->pos[1] + entity3d_aabb_Y(current->entity) / 4 * 3;
-        float z = current->entity->pos[2];
-        camera_position(cam, x, y, z);
+        camera_position(cam, target[0], target[1], target[2]);
     }
 
     camera_reset_movement(cam);
