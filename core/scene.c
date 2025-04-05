@@ -540,7 +540,33 @@ static void motion_frame_sfx(struct queued_animation *qa, entity3d *e, struct sc
     sfx_play(sfx);
 }
 
+static void jump_to_motion_frame_sfx(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
+{
+    if (time < 0.5 || qa->sfx_state)
+        return;
+
+    qa->sfx_state++;
+
+    sfx *sfx = scene_get_sfx(s, e, "footstep_right");
+    if (!sfx)
+        return;
+
+    sfx_play(sfx);
+}
+
 static void motion_stop_frame_sfx(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
+{
+    if (qa->sfx_state)
+        return;
+
+    qa->sfx_state++;
+
+    sfx *sfx = scene_get_sfx(s, e, "footstep_left");
+    if (sfx)
+        sfx_play(sfx);
+}
+
+static void fall_frame_sfx(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
 {
     if (qa->sfx_state)
         return;
@@ -558,6 +584,9 @@ const static struct animation_sfx {
 } animation_sfx[] = {
     { .name = "motion", .frame_sfx = motion_frame_sfx },
     { .name = "motion_stop", .frame_sfx = motion_stop_frame_sfx },
+    { .name = "fall_to_idle", .frame_sfx = fall_frame_sfx },
+    { .name = "jump_to_idle", .frame_sfx = fall_frame_sfx },
+    { .name = "jump_to_motion", .frame_sfx = jump_to_motion_frame_sfx },
 };
 
 static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode *_sfx)
