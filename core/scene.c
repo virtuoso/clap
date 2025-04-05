@@ -252,25 +252,9 @@ static int scene_debug_draw(struct message *m, void *data)
 
     ImDrawList *draw = igGetBackgroundDrawList_Nil();
 
-    vec4 v0, v1;
-    vec3_dup(v0, dd->v0);
-    vec3_dup(v1, dd->v1);
-    v0[3] = v1[3] = 1.0;
-
     struct subview *sv = &s->camera->view.main;
     mat4x4 mvp;
     mat4x4_mul(mvp, sv->proj_mx, sv->view_mx);
-
-    mat4x4_mul_vec4_post(v0, mvp, v0);
-    mat4x4_mul_vec4_post(v1, mvp, v1);
-
-    vec3_scale(v0, v0, 1.0 / v0[3]);
-    vec3_scale(v1, v1, 1.0 / v1[3]);
-
-    ImVec2 p0 = {
-        .x = ((v0[0] + 1.0) / 2.0) * s->width,
-        .y = ((1.0 - v0[1]) / 2.0) * s->height,
-    };
 
     ImU32 color = IM_COL32(
         (int)(dd->color[0] * 255),
@@ -278,10 +262,25 @@ static int scene_debug_draw(struct message *m, void *data)
         (int)(dd->color[2] * 255),
         (int)(dd->color[3] * 255)
     );
+
     switch (dd->shape) {
-        case DEBUG_DRAW_CIRCLE:
+        case DEBUG_DRAW_CIRCLE: {
+            vec4 v0;
+            vec3_dup(v0, dd->v0);
+            v0[3] = 1.0;
+
+            mat4x4_mul_vec4_post(v0, mvp, v0);
+            vec3_scale(v0, v0, 1.0 / v0[3]);
+
+            ImVec2 p0 = {
+                .x = ((v0[0] + 1.0) / 2.0) * s->width,
+                .y = ((1.0 - v0[1]) / 2.0) * s->height,
+            };
+
             ImDrawList_AddCircleFilled(draw, p0, dd->radius, color, 16);
+
             break;
+        }
         default:
             break;
     }
