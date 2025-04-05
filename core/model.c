@@ -933,10 +933,10 @@ void entity3d_aabb_update(entity3d *e)
     vec4 v;
     int i;
 
-    e->aabb[0] = e->aabb[2] = e->aabb[3] = INFINITY;
+    e->aabb[0] = e->aabb[2] = e->aabb[4] = INFINITY;
     e->aabb[1] = e->aabb[3] = e->aabb[5] = -INFINITY;
     for (i = 0; i < array_size(corners); i++) {
-        mat4x4_mul_vec4(v, e->mx, corners[i]);
+        mat4x4_mul_vec4_post(v, e->mx, corners[i]);
         e->aabb[0] = min(v[0], e->aabb[0]);
         e->aabb[1] = max(v[0], e->aabb[1]);
         e->aabb[2] = min(v[1], e->aabb[2]);
