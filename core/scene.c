@@ -301,8 +301,6 @@ static void scene_camera_calc(struct scene *s, int camera)
     struct character *current = scene_control_character(s);
     struct camera *cam = &s->cameras[camera];
 
-    if (!clap_get_fps_fine(s->clap_ctx))
-        return;
     if (!cam->ch->moved && current == cam->ch)
         return;
 
