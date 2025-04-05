@@ -16,6 +16,13 @@ struct ui;
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #include "cimgui.h"
 
+/* cimgui doesn't export IM_COL32() */
+#ifdef IMGUI_USE_BGRA_PACKED_COLOR
+#define IM_COL32(R,G,B,A) (((A)<<24) | ((R)<<16) | ((G)<<8) | (B))
+#else
+#define IM_COL32(R,G,B,A) (((A)<<24) | ((B)<<16) | ((G)<<8) | (R))
+#endif
+
 void ui_debug_update(struct ui *ui);
 void __ui_debug_printf(const char *mod, const char *fmt, ...) __printf(2, 3);
 #define ui_debug_printf(args...) __ui_debug_printf(MODNAME, ## args)
