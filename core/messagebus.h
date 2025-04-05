@@ -104,6 +104,7 @@ struct message_log {
 
 typedef enum debug_draw_shape {
     DEBUG_DRAW_LINE,
+    DEBUG_DRAW_AABB,
     DEBUG_DRAW_CIRCLE,
     DEBUG_DRAW_DISC,
 } debug_draw_shape;

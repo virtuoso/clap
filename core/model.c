@@ -529,6 +529,47 @@ void model3d_aabb_center(model3d *m, vec3 center)
     vec3_scale(center, center, 0.5);
 }
 
+#ifndef CONFIG_FINAL
+static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
+{
+    if (entity) {
+        struct message dm = {
+            .type   = MT_DEBUG_DRAW,
+            .debug_draw = (struct message_debug_draw){
+                .color  = { 1.0, 1.0, 0.0, 1.0 },
+                .radius = 10.0,
+                .shape  = DEBUG_DRAW_AABB,
+                .v0     = { e->aabb[0], e->aabb[2], e->aabb[4] },
+                .v1     = { e->aabb[1], e->aabb[3], e->aabb[5] },
+            }
+        };
+        message_send(&dm);
+    }
+
+    if (model) {
+        model3d *m = e->txmodel->model;
+        vec4 v0 = { m->aabb[0], m->aabb[2], m->aabb[4], 1.0 };
+        vec4 v1 = { m->aabb[1], m->aabb[3], m->aabb[5], 1.0 };
+        mat4x4_mul_vec4_post(v0, e->mx, v0);
+        mat4x4_mul_vec4_post(v1, e->mx, v1);
+
+        struct message dm = {
+            .type   = MT_DEBUG_DRAW,
+            .debug_draw = (struct message_debug_draw){
+                .color  = { 1.0, 0.0, 0.0, 1.0 },
+                .radius = 10.0,
+                .shape  = DEBUG_DRAW_AABB,
+                .v0     = { v0[0], v0[1], v0[2] },
+                .v1     = { v1[0], v1[1], v1[2] },
+            }
+        };
+        message_send(&dm);
+    }
+}
+#else
+static inline void entity3d_aabb_draw(entity3d *e, bool entity, bool model) {}
+#endif /* CONFIG_FINAL */
+
 int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
                          float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs)
 {
@@ -839,6 +880,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         entity3d *e;
 
         list_for_each_entry (e, &txmodel->entities, entry) {
+            entity3d_aabb_draw(e, true, true);
             if (!e->visible)
                 continue;
 
