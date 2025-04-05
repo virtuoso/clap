@@ -820,6 +820,8 @@ light_done:
                 phys_body_set_contact_params(e->phys_body,
                                              .bounce = bounce,
                                              .bounce_vel = bounce_vel);
+                if (c)
+                    phys_body_enable(e->phys_body, false);
             }
 
             if (entity_animated(e) && anis) {
