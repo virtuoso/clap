@@ -509,11 +509,12 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
          * greater than that, we ran into an obstacle, either way,
          * stop the body
          */
-        if (upness > 0.95)
+        if (upness > 0.95) {
             entity3d_move(e, (vec3){ 0, ray_len + c.contact->geom.depth, 0 });
+            ret = true;
+        }
 
         phys_body_stop(body);
-        ret = true;
         break;
     }
 
