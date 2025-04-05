@@ -3,6 +3,7 @@
 #include "common.h"
 #include "character.h"
 #include "linmath.h"
+#include "messagebus.h"
 #include "model.h"
 #include "physics.h"
 #include "ui-debug.h"
@@ -342,6 +343,17 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
     nc = dCollide(o1, o2, MAX_CONTACTS, &contact[0].geom, sizeof(dContact));
     if (nc) {
         for (i = 0; i < nc; i++) {
+            struct message dm = {
+                .type   = MT_DEBUG_DRAW,
+                .debug_draw = (struct message_debug_draw){
+                    .color  = { 1.0, 0.0, 0.0, 1.0 },
+                    .radius = 10.0,
+                    .shape  = DEBUG_DRAW_CIRCLE,
+                    .v0     = { contact[i].geom.pos[0], contact[i].geom.pos[1], contact[i].geom.pos[2] },
+                }
+            };
+            message_send(&dm);
+
             dGeomID g1 = contact[i].geom.g1;
             dGeomID g2 = contact[i].geom.g2;
             entity3d *e1 = dGeomGetData(g1);
