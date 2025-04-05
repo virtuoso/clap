@@ -79,7 +79,8 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     if (scene_character_is_camera(s, control) && m->input.trigger_l)
         ch->rs_height = true;
 
-    if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x))
+    if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x) &&
+        ch->state != CS_JUMPING && ch->state != CS_JUMP_START)
         ch->jump = true;
 
     s->camera->zoom = !!(m->input.zoom);
@@ -90,7 +91,6 @@ static void character_idle(struct scene *s, void *priv)
     struct character *c = priv;
 
     c->state = CS_AWAKE;
-    anictl_set_state(&c->entity->anictl, 0);
     animation_push_by_name(c->entity, s, "idle", true, true);
 }
 
@@ -101,7 +101,39 @@ static void character_start_motion(struct scene *s, void *priv)
     c->state = CS_MOVING;
 }
 
+static void character_set_state(struct character *ch, struct scene *s, character_state state);
+
+static void character_any_to_jump(struct scene *s, void *priv)
+{
+    struct character *c = priv;
+
+    c->airborne = true;
+    phys_body_attach_motor(c->entity->phys_body, false);
+    phys_body_set_velocity(c->entity->phys_body, c->velocity);
+    character_set_state(c, s, CS_JUMPING);
+}
+
+static void character_jump_frame_callback(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
+{
+    struct character *ch = e->priv;
+
+    if (time >= 0.5) {
+        phys_body_set_velocity(ch->entity->phys_body, ch->velocity);
+        qa->frame_cb = NULL;
+    }
+}
+
 #ifndef CONFIG_FINAL
+static const char *character_state_string[] = {
+    [CS_START]      = "start",
+    [CS_WAKING]     = "waking",
+    [CS_IDLE]       = "idle",
+    [CS_MOVING]     = "moving",
+    [CS_JUMP_START] = "jump start",
+    [CS_JUMPING]    = "jumping",
+    [CS_FALLING]    = "falling"
+};
+
 static void character_debug(struct character *ch)
 {
     const char *name = entity_name(ch->entity);
@@ -124,8 +156,17 @@ static void character_debug(struct character *ch)
         igText("upness %f", dot);
 
         igText("collision %s", entity_name(ch->collision));
+        igText("state %s", character_state_string[ch->state]);
         igCheckbox("airborne", &ch->airborne);
         igCheckbox("moved", (bool *)&ch->moved);
+        if (igButton("disable body", (ImVec2){}))
+            phys_body_enable(ch->entity->phys_body, false);
+
+        igSeparator();
+        model3d *m = ch->entity->txmodel->model;
+        struct animation *an;
+        darray_for_each(an, m->anis)
+            igText("animation '%s'", an->name);
     }
 
     ui_igEnd(DEBUG_CHARACTER_MOTION);
@@ -133,6 +174,158 @@ static void character_debug(struct character *ch)
 #else
 static inline void character_debug(struct character *ch) {}
 #endif /* CONFIG_FINAL */
+
+static void character_apply_velocity(struct character *ch)
+{
+    entity3d *e = ch->entity;
+    bool body_also = false;
+
+    vec3 old_motion, motion;
+    vec3_norm_safe(motion, ch->motion);
+    vec3_norm_safe(old_motion, ch->old_motion);
+    if (fabsf(vec3_mul_inner(old_motion, motion)) >= 1e-3)
+        body_also = true;
+
+    vec3_dup(ch->old_motion, ch->motion);
+
+    if (e->phys_body)
+        phys_body_set_motor_velocity(e->phys_body, body_also, ch->velocity);
+    else
+        vec3_add(e->pos, e->pos, ch->velocity);
+
+    entity3d_rotate_Y(ch->entity, atan2f(ch->angle[0], ch->angle[2]));
+}
+
+static void character_set_state(struct character *ch, struct scene *s, character_state state)
+{
+    /* if character is in START state and motion is triggered */
+    if (unlikely(state != CS_IDLE && ch->state < CS_IDLE)) {
+        if (ch->state == CS_START) {
+            ch->state = CS_WAKING;
+            animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
+            animation_set_end_callback(ch->entity, character_idle, ch);
+        }
+        return;
+    }
+
+    struct phys_body *body = ch->entity->phys_body;
+
+fail_fallback:
+    switch (state) {
+        case CS_IDLE:
+            if (ch->airborne)
+                return;
+
+            if (ch->state == CS_MOVING) {
+                animation_push_by_name(ch->entity, s, "motion_stop", true, false);
+            } else if (ch->state == CS_JUMPING) {
+                animation_push_by_name(ch->entity, s, "jump_to_idle", true, false);
+            } else if (ch->state == CS_FALLING) {
+                animation_push_by_name(ch->entity, s, "fall_to_idle", true, false);
+            } else if (ch->state <= CS_IDLE || ch->state == CS_JUMP_START) {
+                return;
+            }
+            animation_push_by_name(ch->entity, s, "idle", false, true);
+
+            if (body) {
+                phys_body_stop(body);
+                phys_body_enable(body, false);
+            }
+
+            ch->state = state;
+            break;
+
+        case CS_MOVING:
+            /* velocity vector may have changed, always apply it */
+            character_apply_velocity(ch);
+            ch->moved++;
+
+            if (ch->state == CS_IDLE) {
+                if (animation_push_by_name(ch->entity, s, "motion_start", true, false)) {
+                    animation_set_end_callback(ch->entity, character_start_motion, ch);
+                } else {
+                    state = CS_IDLE;
+                    goto fail_fallback;
+                }
+            } else if ((ch->state == CS_FALLING || ch->state == CS_JUMPING) && !ch->airborne) {
+                if (!animation_push_by_name(ch->entity, s, "jump_to_motion", true, false)) {
+                    state = CS_IDLE;
+                    goto fail_fallback;
+                }
+            } else if (ch->state == CS_JUMP_START) {
+                state = CS_IDLE;
+                goto fail_fallback;
+            } else if (ch->state == CS_MOVING) {
+                return;
+            }
+
+            if (body)
+                phys_body_enable(body, true);
+
+            if (!animation_push_by_name(ch->entity, s, "motion", false, true)) {
+                state = CS_IDLE;
+                goto fail_fallback;
+            }
+            ch->state = state;
+            break;
+
+        case CS_JUMP_START:
+            if (ch->state == CS_IDLE) {
+                if (body)
+                    phys_body_enable(body, true);
+
+                if (animation_push_by_name(ch->entity, s, "idle_to_jump", true, false)) {
+                    animation_set_frame_callback(ch->entity, character_jump_frame_callback);
+                    animation_set_end_callback(ch->entity, character_any_to_jump, ch);
+                } else {
+                    state = CS_IDLE;
+                    goto fail_fallback;
+                }
+            } else if (ch->state == CS_MOVING) {
+                phys_body_attach_motor(body, false);
+                phys_body_set_velocity(body, ch->velocity);
+                ch->airborne = true;
+
+                if (animation_push_by_name(ch->entity, s, "motion_to_jump", true, false)) {
+                    animation_set_end_callback(ch->entity, character_any_to_jump, ch);
+                } else {
+                    state = CS_IDLE;
+                    goto fail_fallback;
+                }
+            } else if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
+                state = CS_IDLE;
+                goto fail_fallback;
+            }
+
+            ch->state = state;
+            break;
+
+        case CS_JUMPING:
+            if (ch->state == CS_JUMP_START) {
+                if (animation_push_by_name(ch->entity, s, "jump", true, true)) {
+                    ch->state = state;
+                    break;
+                }
+            }
+            state = CS_IDLE;
+            goto fail_fallback;
+
+        case CS_FALLING:
+            if (ch->state == CS_MOVING) {
+                phys_body_set_motor_velocity(body, false, (vec3){ 0, 0, 0 });
+                phys_body_attach_motor(body, false);
+                animation_push_by_name(ch->entity, s, "fall", true, true);
+            } else if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
+                return;
+            }
+            ch->state = state;
+            break;
+
+        default:
+            ch->state = state;
+            break;
+    }
+}
 
 static bool character_jump(struct character *ch, struct scene *s, float dx, float dz)
 {
@@ -150,26 +343,9 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
     if (!body || !phys_body_has_body(body))
         return false;
 
-    vec3 jump = { dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward };
+    vec3_dup(ch->velocity, (vec3){ dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward });
 
-    ch->airborne = true;
-    ch->state = CS_MOVING;
-
-    bool was_in_motion = !!vec3_len(ch->motion);
-
-    phys_body_attach_motor(body, false);
-    phys_body_set_velocity(body, jump);
-
-    if (anictl_set_state(&ch->entity->anictl, 2)) {
-        if (!animation_by_name(ch->entity->txmodel->model, "jump"))
-            animation_push_by_name(ch->entity, s, "jump", true, false);
-        else
-            animation_push_by_name(ch->entity, s, "motion", true, was_in_motion);
-        if (!was_in_motion) {
-            animation_push_by_name(ch->entity, s, "motion_stop", false, false);
-            animation_push_by_name(ch->entity, s, "idle", false, false);
-        }
-    }
+    character_set_state(ch, s, CS_JUMP_START);
 
     return true;
 }
@@ -179,13 +355,11 @@ void character_move(struct character *ch, struct scene *s)
     struct phys_body *body = ch->entity->phys_body;
     struct character *control = scene_control_character(s);
     struct character *cam = s->camera->ch;
-    vec3 old_motion;
-    vec3_dup(old_motion, ch->motion);
 
     ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
 
     if (ch->airborne) {
-        phys_body_set_motor_velocity(body, false, (vec3){ 0, 0, 0 });
+        character_set_state(ch, s, CS_FALLING);
         goto out;
     }
 
@@ -195,17 +369,6 @@ void character_move(struct character *ch, struct scene *s)
             // so we reset the "target" camera position to the "current"
             // (however, we don't allow the pitch to be too extreme).
             camera_set_target_to_current(s->camera);
-        }
-
-        if (ch->state == CS_START) {
-            if (s->mctl.ls_dx || s->mctl.ls_dy) {
-                ch->state = CS_WAKING;
-                animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
-                animation_set_end_callback(ch->entity, character_idle, ch);
-            }
-            goto out;
-        } else if (ch->state < CS_AWAKE) {
-            goto out;
         }
 
         float delta_x = s->mctl.ls_dx * ch->lin_speed;
@@ -245,6 +408,7 @@ void character_move(struct character *ch, struct scene *s)
         vec3_norm(newy, newy);
         vec3_norm(newz, newz);
 
+        /* XXX: apply this in character_apply_velocity() */
         if (ch->state == CS_MOVING)
             vec3_dup(ch->angle, ch->motion);
         else
@@ -252,25 +416,6 @@ void character_move(struct character *ch, struct scene *s)
 
         /* watch out for Y and Z swapping places */
         vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
-
-        if (body) {
-            vec3 res_norm;
-            vec3_norm(res_norm, ch->velocity);
-            vec3_norm_safe(old_motion, old_motion);
-
-            /* Get rid of the drift */
-            bool body_also = false;
-            if (fabsf(vec3_mul_inner(res_norm, old_motion) - 1) >= 1e-3)
-                body_also = true;
-
-            phys_body_set_motor_velocity(body, body_also, ch->velocity);
-        } else {
-            vec3 pos;
-            vec3_dup(pos, ch->entity->pos);
-            vec3_add(pos, pos, ch->angle);
-            ch->entity->pos[0] = pos[0];
-            ch->entity->pos[2] = pos[2];
-        }
 
         vec3_norm(ch->angle, ch->angle);
 
@@ -286,38 +431,22 @@ void character_move(struct character *ch, struct scene *s)
             {
                 float velocity_vs_direction_coefficient = 0.2; // direction from input is more important.
                 vec3 velocity = { vel[0], vel[1], vel[2] };
-                vec3_norm(velocity, velocity);
+                vec3_norm_safe(velocity, velocity);
                 vec3_scale(velocity, velocity, velocity_vs_direction_coefficient);
 
                 // ch->angle is already normalized, so we can just add those two.
-                vec3_add(velocity, velocity, ch->angle);
-                entity3d_rotate_Y(ch->entity, atan2f(velocity[0], velocity[2]));
+                vec3_add(ch->angle, velocity, ch->angle);
             }
-        } else {
-            entity3d_rotate_Y(ch->entity, atan2f(ch->angle[0], ch->angle[2]));
         }
 
         // entity3d_rotate_Z(ch->entity, atan2f(ch->angle[1], ch->velocity[1]));
-        ch->moved++;
-        if (anictl_set_state(&ch->entity->anictl, 1) && ch->state != CS_MOVING) {
-            animation_push_by_name(ch->entity, s, "motion_start", true, false);
-            animation_set_end_callback(ch->entity, character_start_motion, ch);
-            animation_push_by_name(ch->entity, s, "motion", false, true);
-        }
-    } else if (body) {
+        character_set_state(ch, s, CS_MOVING);
+    } else if (!ch->airborne) {
         ch->angle[0] = 0;
         ch->angle[1] = 0;
         ch->angle[2] = 0;
-        phys_body_stop(body);
-        ch->state = CS_AWAKE;
-        if (anictl_set_state(&ch->entity->anictl, 0)) {
-            animation_push_by_name(ch->entity, s, "motion_stop", true, false);
-            animation_push_by_name(ch->entity, s, "idle", false, true);
-        }
+        character_set_state(ch, s, CS_IDLE);
     }
-
-    if (body)
-        phys_body_enable(body, true);
 
 out:
     if (scene_camera_follows(s, ch))

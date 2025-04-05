@@ -7,12 +7,16 @@
 #include "physics.h"
 #include "scene.h"
 
-enum character_state {
+typedef enum character_state {
     CS_START = 0,
     CS_WAKING,
     CS_AWAKE,
-    CS_MOVING
-};
+    CS_IDLE = CS_AWAKE,
+    CS_MOVING,
+    CS_JUMP_START,
+    CS_JUMPING,
+    CS_FALLING,
+} character_state;
 
 struct character {
     struct ref  ref;
@@ -21,6 +25,7 @@ struct character {
     struct camera *camera;
     struct timespec dash_started;
     vec3    motion;
+    vec3    old_motion;
     vec3    angle;
     vec3    velocity;
     vec3    normal;
