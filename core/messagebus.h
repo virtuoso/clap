@@ -3,7 +3,9 @@
 #define __CLAP_MESSAGEBUS_H__
 
 #include <time.h>
+#include <stdint.h>
 #include "error.h"
+#include "linmath.h"
 #include "util.h"
 
 enum message_result {
@@ -16,6 +18,7 @@ enum message_type {
     MT_INPUT,
     MT_COMMAND,
     MT_LOG,
+    MT_DEBUG_DRAW,
     /*---*/
     MT_MAX,
 };
@@ -99,6 +102,21 @@ struct message_log {
     char                msg[0];
 };
 
+typedef enum debug_draw_shape {
+    DEBUG_DRAW_LINE,
+    DEBUG_DRAW_CIRCLE,
+    DEBUG_DRAW_DISC,
+} debug_draw_shape;
+
+struct message_debug_draw {
+    vec3                v0;
+    vec3                v1;
+    debug_draw_shape    shape;
+    float               radius;
+    vec4                color;
+    float               thickness;
+};
+
 struct message_source {
     enum message_source_type    type;
     char                        *name;
@@ -110,9 +128,10 @@ struct message {
     struct message_source       *source; /* for input: keyboard, joystick */
 
     union {
-        struct message_input    input;
-        struct message_command  cmd;
-        struct message_log      log;
+        struct message_input        input;
+        struct message_command      cmd;
+        struct message_log          log;
+        struct message_debug_draw   debug_draw;
     };
 };
 
