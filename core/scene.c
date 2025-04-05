@@ -250,6 +250,9 @@ static int scene_debug_draw(struct message *m, void *data)
     struct message_debug_draw *dd = &m->debug_draw;
     struct scene *s = data;
 
+    if (!s->camera)
+        return MSG_HANDLED;
+
     ImDrawList *draw = igGetBackgroundDrawList_Nil();
 
     struct subview *sv = &s->camera->view.main;
