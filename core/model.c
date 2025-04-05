@@ -1166,6 +1166,7 @@ static void animation_next(entity3d *e, struct scene *s)
         e->animation = (e->animation + 1) % e->aniq.da.nr_el;
         qa = ani_current(e);
     }
+    qa->sfx_state = 0;
     animation_start(e, s, qa->animation);
 }
 
@@ -1253,10 +1254,8 @@ static void animated_update(entity3d *e, struct scene *s)
     if (an->frame_sfx)
         an->frame_sfx(qa, e, s, frame_time / an->time_end);
 
-    if (frame_time >= an->time_end) {
-        qa->sfx_state = 0;
+    if (frame_time >= an->time_end)
         animation_next(e, s);
-    }
 }
 
 /*
