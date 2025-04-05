@@ -478,6 +478,22 @@ LINMATH_H_FUNC void mat4x4_look_at(mat4x4 m, vec3 eye, vec3 center, vec3 up)
 	mat4x4_translate_in_place(m, -eye[0], -eye[1], -eye[2]);
 }
 
+LINMATH_H_FUNC void mat4x4_look_at_safe(mat4x4 m, vec3 eye, vec3 center, vec3 up)
+{
+	vec3 forward, up_adj;
+	vec3_sub(forward, center, eye);
+	vec3_norm(forward, forward);
+
+	/* If forward and up are nearly parallel, pick a different up vector */
+	float dp = fabsf(vec3_mul_inner(forward, up));
+	if (dp > 0.999f)
+		vec3_dup(up_adj, (vec3){ 0.0, 0.0, -1.0 });
+	else
+	    vec3_dup(up_adj, up);
+
+	mat4x4_look_at(m, eye, center, up_adj);
+}
+
 typedef float quat[4];
 LINMATH_H_FUNC void quat_identity(quat q)
 {
