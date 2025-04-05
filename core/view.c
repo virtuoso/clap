@@ -76,7 +76,7 @@ static void subview_debug(struct subview *dst, float *light_pos,
         return;
 
     vec4 light_pos_world;
-    mat4x4_mul_vec4(light_pos_world, dst->inv_view_mx, light_pos);
+    mat4x4_mul_vec4_post(light_pos_world, dst->inv_view_mx, light_pos);
 
     igText("projection matrix");
     ui_igMat4x4(dst->proj_mx, "projection");
@@ -132,7 +132,7 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
 
     for (i = 0; i < 8; i++) {
         vec4 corner;
-        mat4x4_mul_vec4(corner, dst->view_mx, src->frustum_corners[i]);
+        mat4x4_mul_vec4_post(corner, dst->view_mx, src->frustum_corners[i]);
 
         /* Add some padding to the AABB to avoid precision issues */
         for (j = 0; j < 2; j++) {
@@ -167,7 +167,7 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
 
     for (i = 0; i < 8; i++) {
         vec4 corner;
-        mat4x4_mul_vec4(corner, dst->view_mx, src->frustum_corners[i]);
+        mat4x4_mul_vec4_post(corner, dst->view_mx, src->frustum_corners[i]);
 
         for (j = 0; j < 3; j++) {
             aabb_min[j] = fminf(aabb_min[j], corner[j]);
@@ -277,7 +277,7 @@ static void subview_calc_frustum(struct subview *subview)
     for (i = 0; i < 8; i++) {
         vec4 q;
 
-        mat4x4_mul_vec4(q, invmvp, corners[i]);
+        mat4x4_mul_vec4_post(q, invmvp, corners[i]);
         vec4_scale(subview->frustum_corners[i], q, 1.f / q[3]);
     }
 }
