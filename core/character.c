@@ -395,7 +395,7 @@ void character_move(struct character *ch, struct scene *s)
         vec3 oldx = { 1, 0, 0 };
 
         vec3_dup(newy, ch->normal);
-        if (likely(vec3_len(newy))) {
+        if (likely(vec3_len(newy) > 0.0)) {
             vec3_mul_cross(newz, oldx, newy);
             vec3_mul_cross(newx, newy, newz);
 
