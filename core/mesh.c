@@ -46,6 +46,9 @@ int mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t strid
     mesh->attr[attr].nr = nr;
     mesh->attr[attr].type = attr;
 
+    if (attr == MESH_VX)
+        vertex_array_aabb_calc(mesh->aabb, data, nr * stride);
+
     return 0;
 }
 
@@ -69,6 +72,9 @@ int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t strid
 
     memcpy(mesh->attr[attr].data, data, stride * nr);
     mesh->attr[attr].nr = nr;
+
+    if (attr == MESH_VX)
+        vertex_array_aabb_calc(mesh->aabb, data, nr * stride);
 
     return 0;
 }
