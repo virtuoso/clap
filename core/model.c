@@ -53,8 +53,6 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
     }
 }
 
-static void model3d_calc_aabb(model3d *m, float *vx, size_t vxsz);
-
 static cerr model3d_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(model3d) *opts = _opts;
@@ -102,7 +100,11 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     CHECK(m->name = strdup(opts->name));
     m->prog = ref_get(opts->prog);
     m->alpha_blend = false;
-    model3d_calc_aabb(m, vx, vxsz);
+    if (opts->mesh) {
+        memcpy(m->aabb, opts->mesh->aabb, sizeof(m->aabb));
+    } else {
+        vertex_array_aabb_calc(m->aabb, vx, vxsz);
+    }
     m->collision_vx = memdup(vx, vxsz);
     m->collision_vxsz = vxsz;
     m->collision_idx = memdup(idx, idxsz);
@@ -488,27 +490,6 @@ cres(int) model3d_set_name(model3d *m, const char *fmt, ...)
     return res;
 }
 
-static void model3d_calc_aabb(model3d *m, float *vx, size_t vxsz)
-{
-    int i;
-
-    vxsz /= sizeof(float);
-    vxsz /= 3;
-    m->aabb[0] = m->aabb[2] = m->aabb[4] = INFINITY;
-    m->aabb[1] = m->aabb[3] = m->aabb[5] = -INFINITY;
-    for (i = 0; i < vxsz; i += 3) {
-        m->aabb[0] = min(vx[i + 0], m->aabb[0]);
-        m->aabb[1] = max(vx[i + 0], m->aabb[1]);
-        m->aabb[2] = min(vx[i + 1], m->aabb[2]);
-        m->aabb[3] = max(vx[i + 1], m->aabb[3]);
-        m->aabb[4] = min(vx[i + 2], m->aabb[4]);
-        m->aabb[5] = max(vx[i + 2], m->aabb[5]);
-    }
-
-    // dbg("bounding box for '%s': %f..%f,%f..%f,%f..%f\n", m->name,
-    //     m->aabb[0], m->aabb[1], m->aabb[2], m->aabb[3], m->aabb[4], m->aabb[5]);
-}
-
 float model3d_aabb_X(model3d *m)
 {
     return fabs(m->aabb[1] - m->aabb[0]);
@@ -526,11 +507,7 @@ float model3d_aabb_Z(model3d *m)
 
 void model3d_aabb_center(model3d *m, vec3 center)
 {
-    vec3 minv = { m->aabb[0], m->aabb[2], m->aabb[4] };
-    vec3 maxv = { m->aabb[1], m->aabb[3], m->aabb[5] };
-
-    vec3_sub(center, maxv, minv);
-    vec3_scale(center, center, 0.5);
+    aabb_center(m->aabb, center);
 }
 
 #ifndef CONFIG_FINAL
