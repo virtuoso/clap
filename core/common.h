@@ -66,6 +66,7 @@
 #include "logger.h"
 
 extern const char *build_date;
+extern const char *clap_version;
 
 #define bug_on(_c, args...) do { if ((_c)) { err("condition '" # _c "': " args); enter_debugger();} } while (0)
 
