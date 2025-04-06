@@ -333,7 +333,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     /* Extra blur for the menu */
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
-            { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = contrast_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
             {}
         },
         .color_format       = (texture_format[]){ TEX_FMT_RGBA8 },
@@ -373,7 +373,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
         .attachment_config  = FBO_COLOR_TEXTURE(0),
         .ops                = &postproc_ops,
-        .shader             = "upsample",
+        .shader             = "contrast",
         .checkpoint         = 2,
     );
 
