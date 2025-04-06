@@ -3,7 +3,17 @@
 #define __CLAP_GLTF_H__
 
 struct gltf_data;
-struct gltf_data *gltf_load(struct mq *mq, pipeline *pl, const char *name);
+
+typedef struct gltf_load_options {
+    const char  *name;
+    struct mq   *mq;
+    pipeline    *pipeline;
+} gltf_load_options;
+
+#define gltf_load(args...) \
+    _gltf_load(&(gltf_load_options){ args })
+
+struct gltf_data *_gltf_load(const gltf_load_options *opts);
 void gltf_free(struct gltf_data *gd);
 int gltf_root_mesh(struct gltf_data *gd);
 int gltf_mesh_by_name(struct gltf_data *gd, const char *name);

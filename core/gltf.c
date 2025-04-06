@@ -1296,16 +1296,19 @@ void gltf_instantiate_all(struct gltf_data *gd)
     }
 }
 
-struct gltf_data *gltf_load(struct mq *mq, pipeline *pl, const char *name)
+struct gltf_data *_gltf_load(const gltf_load_options *opts)
 {
+    if (!opts->name || !opts->mq || !opts->pipeline)
+        return NULL;
+
     struct gltf_data  *gd;
     struct lib_handle *lh;
     enum res_state state;
 
     gd = mem_alloc(sizeof(*gd), .zero = 1, .fatal_fail = 1);
-    gd->pl = ref_get(pl);
-    gd->mq = mq;
-    lh = lib_request(RES_ASSET, name, gltf_onload, gd);
+    gd->pl = ref_get((pipeline *)opts->pipeline);
+    gd->mq = opts->mq;
+    lh = lib_request(RES_ASSET, opts->name, gltf_onload, gd);
     state = lh->state;
     ref_put(lh);
 

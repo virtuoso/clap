@@ -712,7 +712,11 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         return CERR_PARSE_FAILED;
     }
     
-    gd = gltf_load(&scene->mq, scene->pl, gltf);
+    gd = gltf_load(
+        .mq         = &scene->mq,
+        .pipeline   = scene->pl,
+        .name       = gltf,
+    );
     if (!gd) {
         warn("Error loading GLTF '%s'\n", gltf);
         return CERR_PARSE_FAILED;
