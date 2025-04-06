@@ -37,6 +37,7 @@ struct character {
     float   lin_speed;
     struct list entry;
     entity3d *collision;
+    entity3d *old_collision;
     struct mq *mq;
     struct {
         vec3            pos[POS_HISTORY_MAX];

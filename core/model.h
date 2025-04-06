@@ -234,6 +234,9 @@ typedef struct entity3d {
     float   light_off[3];
     int (*update)(entity3d *e, void *data);
     int (*contact)(entity3d *e1, entity3d *e2);
+    void (*connect)(entity3d *e, entity3d *connection, void *data);
+    void (*disconnect)(entity3d *e, entity3d *connection, void *data);
+    void *connect_priv;
     void (*destroy)(entity3d *e);
     void *priv;
 } entity3d;

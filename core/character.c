@@ -367,6 +367,14 @@ void character_move(struct character *ch, struct scene *s)
         goto out;
     }
 
+    if (ch->old_collision != ch->collision) {
+        if (ch->old_collision && ch->old_collision->disconnect)
+            ch->old_collision->disconnect(ch->old_collision, ch->entity, ch->old_collision->connect_priv);
+        if (ch->collision && ch->collision->connect)
+            ch->collision->connect(ch->collision, ch->entity, ch->collision->connect_priv);
+        ch->old_collision = ch->collision;
+    }
+
     if (control == ch) {
         if (!(s->mctl.ls_dx || s->mctl.ls_dy || s->mctl.rs_dx || s->mctl.rs_dy)) {
             // We got no input regarding character position or camera,
