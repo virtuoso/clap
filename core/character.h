@@ -18,6 +18,8 @@ typedef enum character_state {
     CS_FALLING,
 } character_state;
 
+#define POS_HISTORY_MAX 8
+
 struct character {
     struct ref  ref;
     entity3d *entity;
@@ -36,6 +38,11 @@ struct character {
     struct list entry;
     entity3d *collision;
     struct mq *mq;
+    struct {
+        vec3            pos[POS_HISTORY_MAX];
+        unsigned int    head;
+        bool            wrapped;
+    } history;
     int     moved;
     bool    jump;
     bool    airborne;

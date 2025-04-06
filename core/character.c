@@ -457,6 +457,31 @@ out:
         character_debug(ch);
 }
 
+static void history_push(struct character *c)
+{
+    if (c->airborne)
+        return;
+
+    vec3_dup(c->history.pos[c->history.head++], c->entity->pos);
+    c->history.head %= POS_HISTORY_MAX;
+
+    if (!c->history.wrapped && !c->history.head)
+        c->history.wrapped = true;
+}
+
+static void history_fetch(struct character *c, vec3 pos)
+{
+    if (c->history.wrapped) {
+        vec3_dup(pos, c->history.pos[c->history.head]);
+        c->history.wrapped = false;
+    } else {
+        /* if history is completely empty, (0,0,0) is as good a place as any */
+        vec3_dup(pos, c->history.pos[0]);
+    }
+
+    c->history.head = 0;
+}
+
 /* data is struct scene */
 static int character_update(entity3d *e, void *data)
 {
@@ -481,11 +506,15 @@ static int character_update(entity3d *e, void *data)
     }
 
     /* XXX "wow out" */
-    if (e->pos[1] <= s->limbo_height)
-        entity3d_position(e, (vec3){ e->pos[0], -e->pos[1], e->pos[2] });
+    if (e->pos[1] <= s->limbo_height) {
+        vec3 pos;
+        history_fetch(c, pos);
+        entity3d_position(e, pos);
+    }
 
     if (e->phys_body) {
         if (phys_body_update(e)) {
+            history_push(c);
             c->moved++;
             if (scene_camera_follows(s, c))
                 s->camera->ch->moved++;
