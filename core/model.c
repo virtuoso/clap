@@ -104,6 +104,8 @@ static cerr model3d_make(struct ref *ref, void *_opts)
         memcpy(m->aabb, opts->mesh->aabb, sizeof(m->aabb));
     } else {
         vertex_array_aabb_calc(m->aabb, vx, vxsz);
+        if (opts->fix_origin)
+            vertex_array_fix_origin(vx, vxsz, m->aabb);
     }
     m->collision_vx = memdup(vx, vxsz);
     m->collision_vxsz = vxsz;

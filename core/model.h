@@ -65,6 +65,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     size_t              idxsz;
     size_t              txsz;
     size_t              normsz;
+    bool                fix_origin;
 );
 DECLARE_REFCLASS(model3d);
 
