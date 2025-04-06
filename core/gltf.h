@@ -8,6 +8,7 @@ typedef struct gltf_load_options {
     const char  *name;
     struct mq   *mq;
     pipeline    *pipeline;
+    bool        fix_origin;
 } gltf_load_options;
 
 #define gltf_load(args...) \

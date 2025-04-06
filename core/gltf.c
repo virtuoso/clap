@@ -198,6 +198,7 @@ struct gltf_data {
     int                  root_node;
     unsigned int nr_texs;
     unsigned int texid;
+    bool         fix_origin;
 };
 
 void gltf_free(struct gltf_data *gd)
@@ -1138,7 +1139,7 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
         return CERR_INVALID_ARGUMENTS;
 
-    LOCAL_SET(mesh_t, me) = ref_new(mesh, .name = gltf_mesh_name(gd, mesh));
+    LOCAL_SET(mesh_t, me) = ref_new(mesh, .name = gltf_mesh_name(gd, mesh), .fix_origin = gd->fix_origin);
     mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh));
     mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh));
     mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh));
@@ -1308,6 +1309,7 @@ struct gltf_data *_gltf_load(const gltf_load_options *opts)
     gd = mem_alloc(sizeof(*gd), .zero = 1, .fatal_fail = 1);
     gd->pl = ref_get((pipeline *)opts->pipeline);
     gd->mq = opts->mq;
+    gd->fix_origin = opts->fix_origin;
     lh = lib_request(RES_ASSET, opts->name, gltf_onload, gd);
     state = lh->state;
     ref_put(lh);
