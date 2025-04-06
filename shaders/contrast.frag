@@ -11,7 +11,7 @@ layout (std140, binding = UBO_BINDING_color_pt) uniform color_pt {
     int color_passthrough;
 };
 
-const float contrast = 0.3;
+uniform float contrast;
 
 void main()
 {

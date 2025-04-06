@@ -9,6 +9,7 @@ typedef struct render_pass render_pass;
 typedef struct pipeline pipeline;
 
 typedef struct render_options {
+    float   contrast;
     bool    shadow_outline;
     bool    shadow_msaa;
     bool    model_msaa;
