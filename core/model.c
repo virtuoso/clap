@@ -809,6 +809,9 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_LIGHTING_EXPOSURE, ropts->lighting_exposure);
                 shader_set_var_float(prog, UNIFORM_LIGHTING_OPERATOR, ropts->lighting_operator);
                 shader_set_var_float(prog, UNIFORM_CONTRAST, ropts->contrast);
+                shader_set_var_float(prog, UNIFORM_FOG_NEAR, ropts->fog_near);
+                shader_set_var_float(prog, UNIFORM_FOG_FAR, ropts->fog_far);
+                shader_set_var_ptr(prog, UNIFORM_FOG_COLOR, 1, ropts->fog_color);
             }
 
             if (light) {

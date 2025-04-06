@@ -16,6 +16,9 @@ typedef struct render_options {
     float   lighting_exposure;
     float   lighting_operator;
     float   contrast;
+    float   fog_near;
+    float   fog_far;
+    vec3    fog_color;
     bool    shadow_outline;
     bool    shadow_msaa;
     bool    model_msaa;

@@ -81,6 +81,9 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_LIGHTING_EXPOSURE,   "lighting_exposure",    DT_FLOAT),
     SHADER_VAR(UNIFORM_LIGHTING_OPERATOR,   "lighting_operator",    DT_FLOAT),
     SHADER_VAR(UNIFORM_CONTRAST,            "contrast",             DT_FLOAT),
+    SHADER_VAR(UNIFORM_FOG_NEAR,            "fog_near",             DT_FLOAT),
+    SHADER_VAR(UNIFORM_FOG_FAR,             "fog_far",              DT_FLOAT),
+    SHADER_VAR(UNIFORM_FOG_COLOR,           "fog_color",            DT_VEC3),
     SHADER_ARR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4, JOINTS_MAX),
 };
 

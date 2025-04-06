@@ -21,16 +21,16 @@ uniform float lighting_exposure;
 uniform float lighting_operator;
 uniform bool use_hdr;
 
-const float near_fog = 60.0;
-const float far_fog = 100.0;
-const vec3 fog_color = { 0.1, 0.1, 0.12 };
+uniform float fog_near;
+uniform float fog_far;
+uniform vec3 fog_color;
 
 float fog_factor(sampler2D tex, vec2 uv)
 {
     float depth = texture(tex, uv, 0.0).r;
     float z = depth * 2.0 - 1.0; // Convert to NDC space
     float dist = (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
-    return clamp((dist - near_fog) / (far_fog - near_fog), 0.0, 1.0);
+    return clamp((dist - fog_near) / (fog_far - fog_near), 0.0, 1.0);
 }
 
 void main()

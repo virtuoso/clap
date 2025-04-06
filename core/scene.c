@@ -211,6 +211,18 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         scene->render_options.lighting_operator = (float)lop;
         igSliderFloat("contrast", &scene->render_options.contrast, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSeparator();
+        igSliderFloat("fog near", &scene->render_options.fog_near, 1.0, 100.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("fog far", &scene->render_options.fog_far, scene->render_options.fog_near, 200.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igColorEdit3(
+            "fog_color",
+            scene->render_options.fog_color,
+            ImGuiColorEditFlags_NoInputs |
+            ImGuiColorEditFlags_NoLabel  |
+            ImGuiColorEditFlags_NoTooltip
+        );
+        igSameLine(0, 0);
+        igText("fog color");
+        igSeparator();
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
                     input_text_callback, NULL);
         if (igButton("save level", (ImVec2){}))
@@ -573,6 +585,9 @@ cerr scene_init(struct scene *scene)
     scene->render_options.lighting_exposure = 1.3;
     scene->render_options.lighting_operator = 0.0;
     scene->render_options.contrast = 0.15;
+    scene->render_options.fog_near = 5.0;
+    scene->render_options.fog_far = 80.0;
+    vec3_dup(scene->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
 
     cerr err;
     err = subscribe(MT_INPUT, scene_handle_input, scene);
