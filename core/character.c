@@ -550,8 +550,8 @@ static cerr character_make(struct ref *ref, void *_opts)
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
     c->state = CS_AWAKE;
-    c->jump_forward = 2.0;
-    c->jump_upward = 3.0;
+    c->jump_forward = 0.5;
+    c->jump_upward = 3.5;
     c->mq = &opts->scene->mq;
     list_append(&opts->scene->characters, &c->entry);
     c->mq->nr_characters++;
