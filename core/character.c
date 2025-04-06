@@ -314,10 +314,14 @@ fail_fallback:
             if (ch->state == CS_MOVING) {
                 phys_body_set_motor_velocity(body, false, (vec3){ 0, 0, 0 });
                 phys_body_attach_motor(body, false);
-                animation_push_by_name(ch->entity, s, "fall", true, true);
+            } else if (ch->state == CS_IDLE) {
+                /* ground disappeared */
+                phys_body_enable(body, true);
+                phys_body_attach_motor(body, false);
             } else if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
                 return;
             }
+            animation_push_by_name(ch->entity, s, "fall", true, true);
             ch->state = state;
             break;
 
