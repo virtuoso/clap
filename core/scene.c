@@ -789,11 +789,6 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                     ptype = PHYS_GEOM;
             }
         }
-
-        if (gd && class == GEOM_TRIMESH) {
-            gltf_mesh_data(gd, collision, &txm->model->collision_vx, &txm->model->collision_vxsz,
-                           &txm->model->collision_idx, &txm->model->collision_idxsz, NULL, NULL, NULL, NULL);
-        }
     }
 
     if (sfx)

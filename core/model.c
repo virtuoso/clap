@@ -103,6 +103,10 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     m->prog = ref_get(opts->prog);
     m->alpha_blend = false;
     model3d_calc_aabb(m, vx, vxsz);
+    m->collision_vx = memdup(vx, vxsz);
+    m->collision_vxsz = vxsz;
+    m->collision_idx = memdup(idx, idxsz);
+    m->collision_idxsz = idxsz;
     darray_init(m->anis);
     sfx_container_init(&m->sfxc);
 
