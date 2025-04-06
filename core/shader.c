@@ -74,6 +74,12 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),
     SHADER_VAR(UNIFORM_USE_HDR,             "use_hdr",              DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID,         "sobel_solid",          DT_INT),
+    SHADER_VAR(UNIFORM_BLOOM_EXPOSURE,      "bloom_exposure",       DT_FLOAT),
+    SHADER_VAR(UNIFORM_BLOOM_INTENSITY,     "bloom_intensity",      DT_FLOAT),
+    SHADER_VAR(UNIFORM_BLOOM_THRESHOLD,     "bloom_threshold",      DT_FLOAT),
+    SHADER_VAR(UNIFORM_BLOOM_OPERATOR,      "bloom_operator",       DT_FLOAT),
+    SHADER_VAR(UNIFORM_LIGHTING_EXPOSURE,   "lighting_exposure",    DT_FLOAT),
+    SHADER_VAR(UNIFORM_LIGHTING_OPERATOR,   "lighting_operator",    DT_FLOAT),
     SHADER_VAR(UNIFORM_CONTRAST,            "contrast",             DT_FLOAT),
     SHADER_ARR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4, JOINTS_MAX),
 };

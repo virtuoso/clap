@@ -187,6 +187,28 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("collision draws", &scene->render_options.collision_draws_enabled);
         igCheckbox("aabb draws", &scene->render_options.aabb_draws_enabled);
         igCheckbox("use HDR", &scene->render_options.hdr);
+        igSliderFloat("bloom exposure", &scene->render_options.bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("bloom intensity", &scene->render_options.bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("bloom threshold", &scene->render_options.bloom_threshold, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        int bop = (int)scene->render_options.bloom_operator;
+        igText("bloom tonemapping op:");
+        igSameLine(0.0, 0.0);
+        igPushID_Str("bop");
+        igRadioButton_IntPtr("Reinhard", &bop, 0);
+        igSameLine(0.0, 0.0);
+        igRadioButton_IntPtr("ACES", &bop, 1);
+        igPopID();
+        scene->render_options.bloom_operator = (float)bop;
+        igSliderFloat("lighting exposure", &scene->render_options.lighting_exposure, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        int lop = (int)scene->render_options.lighting_operator;
+        igText("lighting tonemapping op:");
+        igSameLine(0.0, 0.0);
+        igPushID_Str("lop");
+        igRadioButton_IntPtr("Reinhard", &lop, 0);
+        igSameLine(0.0, 0.0);
+        igRadioButton_IntPtr("ACES", &lop, 1);
+        igPopID();
+        scene->render_options.lighting_operator = (float)lop;
         igSliderFloat("contrast", &scene->render_options.contrast, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSeparator();
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
@@ -544,6 +566,12 @@ cerr scene_init(struct scene *scene)
     scene->render_options.shadow_outline = true;
     scene->render_options.shadow_outline_threshold = 0.4;
     scene->render_options.hdr = true;
+    scene->render_options.bloom_exposure = 1.7;
+    scene->render_options.bloom_intensity = 2.0;
+    scene->render_options.bloom_threshold = 0.27;
+    scene->render_options.bloom_operator = 1.0;
+    scene->render_options.lighting_exposure = 1.3;
+    scene->render_options.lighting_operator = 0.0;
     scene->render_options.contrast = 0.15;
 
     cerr err;

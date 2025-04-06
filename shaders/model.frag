@@ -51,6 +51,10 @@ uniform float sobel_solid_id;
 uniform vec4 highlight_color;
 uniform bool use_msaa;
 uniform bool outline_exclude;
+uniform bool use_hdr;
+uniform float bloom_scene;
+uniform float bloom_threshold;
+uniform float bloom_intensity;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
@@ -204,7 +208,6 @@ void main()
 
     vec3 unit_to_camera_vector = normalize(to_camera_vector);
     vec4 texture_sample = texture(model_tex, pass_tex);
-    EmissiveColor = texture(emission_map, pass_tex);
 
     float shadow_factor = shadow_factor_calc(unit_normal);
 
@@ -231,6 +234,10 @@ void main()
 
     FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
     Depth = gl_FragCoord.z;
+
+    vec3 emission = texture(emission_map, pass_tex).rgb;
+    emission = max(emission - bloom_threshold, vec3(0.0)) * bloom_intensity;
+    EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
 
     if (sobel_solid) {
         Albedo = vec4(texture_sample.rgb, sobel_solid_id);

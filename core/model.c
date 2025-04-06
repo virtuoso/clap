@@ -802,6 +802,12 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
                 shader_set_var_int(prog, UNIFORM_LAPLACE_KERNEL, ropts->laplace_kernel);
                 shader_set_var_int(prog, UNIFORM_USE_HDR, ropts->hdr);
+                shader_set_var_float(prog, UNIFORM_BLOOM_EXPOSURE, ropts->bloom_exposure);
+                shader_set_var_float(prog, UNIFORM_BLOOM_INTENSITY, ropts->bloom_intensity);
+                shader_set_var_float(prog, UNIFORM_BLOOM_THRESHOLD, ropts->bloom_threshold);
+                shader_set_var_float(prog, UNIFORM_BLOOM_OPERATOR, ropts->bloom_operator);
+                shader_set_var_float(prog, UNIFORM_LIGHTING_EXPOSURE, ropts->lighting_exposure);
+                shader_set_var_float(prog, UNIFORM_LIGHTING_OPERATOR, ropts->lighting_operator);
                 shader_set_var_float(prog, UNIFORM_CONTRAST, ropts->contrast);
             }
 
