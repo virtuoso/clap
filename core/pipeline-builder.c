@@ -201,7 +201,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(3),
+            .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(4),
             .name               = "model",
             .cascade            = -1,
             .color_format       = (texture_format[]) {
@@ -209,6 +209,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
                                     hdr_fmt,
                                     TEX_FMT_RGBA8,
                                     TEX_FMT_R32F,
+                                    hdr_fmt
                                 },
             .depth_format       = TEX_FMT_DEPTH32F
     );
@@ -297,7 +298,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
             { .pass = edge_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
-            { .pass = model_pass, .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(4), .method = model_pass_method, .sampler = UNIFORM_NORMAL_MAP },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },

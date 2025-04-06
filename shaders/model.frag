@@ -60,6 +60,7 @@ layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 Albedo;
 layout (location=3) out float Depth;
+layout (location=4) out vec4 Gbuffer;
 
 float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
 {
@@ -138,7 +139,7 @@ float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int l
 }
 #endif /* CONFIG_GLES */
 
-float shadow_factor_calc(in vec3 unit_normal)
+float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos)
 {
     float shadow_factor = 1.0;
 
@@ -146,7 +147,6 @@ float shadow_factor_calc(in vec3 unit_normal)
     if (light_dot < 0)
         return shadow_factor;
 
-    vec4 view_pos = view * world_pos;
     int layer = -1;
 
     for (int i = 0; i < CASCADES_MAX; i++) {
@@ -208,8 +208,9 @@ void main()
 
     vec3 unit_to_camera_vector = normalize(to_camera_vector);
     vec4 texture_sample = texture(model_tex, pass_tex);
+    vec4 view_pos = view * world_pos;
 
-    float shadow_factor = shadow_factor_calc(unit_normal);
+    float shadow_factor = shadow_factor_calc(unit_normal, view_pos);
 
     vec3 total_diffuse = vec3(0.0);
     vec3 total_specular = vec3(0.0);
@@ -238,6 +239,7 @@ void main()
     vec3 emission = texture(emission_map, pass_tex).rgb;
     emission = max(emission - bloom_threshold, vec3(0.0)) * bloom_intensity;
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
+    Gbuffer = view_pos;
 
     if (sobel_solid) {
         Albedo = vec4(texture_sample.rgb, sobel_solid_id);
