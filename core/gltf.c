@@ -10,6 +10,7 @@
 #include "pngloader.h"
 #include "scene.h"
 #include "shader.h"
+#include "gltf.h"
 
 #define DATA_URI "data:application/octet-stream;base64,"
 
@@ -1288,8 +1289,11 @@ void gltf_instantiate_all(struct gltf_data *gd)
 {
     int i;
 
-    for (i = 0; i < gd->meshes.da.nr_el; i++)
-        gltf_instantiate_one(gd, i);
+    for (i = 0; i < gd->meshes.da.nr_el; i++) {
+        cerr err = gltf_instantiate_one(gd, i);
+        if (IS_CERR(err))
+            err_cerr(err, "couldn't instantiate mesh '%s'\n", gltf_mesh_name(gd, i));
+    }
 }
 
 struct gltf_data *gltf_load(struct mq *mq, pipeline *pl, const char *name)
