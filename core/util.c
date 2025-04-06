@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include "linmath.h"
 #include "memory.h"
 #include "util.h"
 
@@ -17,6 +18,45 @@ DEFINE_CLEANUP(FILE, if (*p) fclose(*p))
 DEFINE_CLEANUP(void, mem_free(*p))
 DEFINE_CLEANUP(char, mem_free(*p))
 DEFINE_CLEANUP(uchar, mem_free(*p))
+
+void aabb_center(float *aabb, float *center)
+{
+    vec3 minv = { aabb[0], aabb[2], aabb[4] };
+    vec3 maxv = { aabb[1], aabb[3], aabb[5] };
+
+    vec3_sub(center, maxv, minv);
+    vec3_scale(center, center, 0.5);
+    vec3_add(center, center, minv);
+}
+
+void vertex_array_aabb_calc(float *aabb, float *vx, size_t vxsz)
+{
+    int i;
+
+    vxsz /= sizeof(float);
+    aabb[0] = aabb[2] = aabb[4] = INFINITY;
+    aabb[1] = aabb[3] = aabb[5] = -INFINITY;
+    for (i = 0; i < vxsz; i += 3) {
+        aabb[0] = min(vx[i + 0], aabb[0]);
+        aabb[1] = max(vx[i + 0], aabb[1]);
+        aabb[2] = min(vx[i + 1], aabb[2]);
+        aabb[3] = max(vx[i + 1], aabb[3]);
+        aabb[4] = min(vx[i + 2], aabb[4]);
+        aabb[5] = max(vx[i + 2], aabb[5]);
+    }
+}
+
+void vertex_array_fix_origin(float *vx, size_t vxsz, float *aabb)
+{
+    vec3 center;
+    aabb_center(aabb, center);
+    center[1] = aabb[2];
+
+    for (int v = 0; v < vxsz / sizeof(float); v += 3)
+        vec3_sub(&vx[v], &vx[v], center);
+
+    vertex_array_aabb_calc(aabb, vx, vxsz);
+}
 
 void *memdup(const void *x, size_t size)
 {
