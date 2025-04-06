@@ -801,6 +801,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_SHADOW_OUTLINE_THRESHOLD, ropts->shadow_outline_threshold);
                 shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
                 shader_set_var_int(prog, UNIFORM_LAPLACE_KERNEL, ropts->laplace_kernel);
+                shader_set_var_int(prog, UNIFORM_USE_HDR, ropts->hdr);
             }
 
             if (light) {
