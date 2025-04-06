@@ -47,11 +47,13 @@ struct mesh {
     size_t              idxsz;
     struct mesh_attr    attr[MESH_MAX];
     float               aabb[6];
+    bool                fix_origin;
 };
 typedef struct mesh mesh_t;
 
 DEFINE_REFCLASS_INIT_OPTIONS(mesh,
     const char *name;
+    bool       fix_origin;
 );
 DECLARE_REFCLASS(mesh);
 DECLARE_CLEANUP(mesh_t);

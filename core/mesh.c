@@ -13,6 +13,7 @@ static cerr mesh_make(struct ref *ref, void *_opts)
 
     struct mesh *mesh = container_of(ref, struct mesh, ref);
     mesh->name = opts->name;
+    mesh->fix_origin = opts->fix_origin;
 
     return CERR_OK;
 }
@@ -48,6 +49,7 @@ int mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t strid
 
     if (attr == MESH_VX)
         vertex_array_aabb_calc(mesh->aabb, data, nr * stride);
+    /* @data doesn't belong to us, mesh->fix_origin does not apply */
 
     return 0;
 }
@@ -73,8 +75,11 @@ int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t strid
     memcpy(mesh->attr[attr].data, data, stride * nr);
     mesh->attr[attr].nr = nr;
 
-    if (attr == MESH_VX)
+    if (attr == MESH_VX) {
         vertex_array_aabb_calc(mesh->aabb, data, nr * stride);
+        if (mesh->fix_origin)
+            vertex_array_fix_origin(mesh_vx(mesh), nr * stride, mesh->aabb);
+    }
 
     return 0;
 }
