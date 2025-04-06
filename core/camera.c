@@ -56,6 +56,9 @@ void camera_set_target_to_current(struct camera *c)
     // c->target_pitch = clampf(c->current_pitch, -60, 60);
     c->target_pitch = c->current_pitch;
     c->target_yaw = c->current_yaw;
+    vec3_dup(c->ch->motion, (vec3){});
+    vec3_dup(c->ch->angle, (vec3){});
+    vec3_dup(c->ch->velocity, (vec3){});
 }
 
 bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end, double *scale, entity3d **hit)

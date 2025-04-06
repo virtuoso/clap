@@ -395,27 +395,31 @@ void character_move(struct character *ch, struct scene *s)
         vec3 oldx = { 1, 0, 0 };
 
         vec3_dup(newy, ch->normal);
+        if (likely(vec3_len(newy))) {
+            vec3_mul_cross(newz, oldx, newy);
+            vec3_mul_cross(newx, newy, newz);
 
-        if (!vec3_len(ch->normal) && ch != cam) {
-            err("no normal vector: is there collision?\n");
-            goto out;
-        }
+            vec3_norm(newx, newx);
+            vec3_norm(newy, newy);
+            vec3_norm(newz, newz);
 
-        vec3_mul_cross(newz, oldx, newy);
-        vec3_mul_cross(newx, newy, newz);
+            /* XXX: apply this in character_apply_velocity() */
+            if (ch->state == CS_MOVING)
+                vec3_dup(ch->angle, ch->motion);
+            else
+                vec3_scale(ch->angle, ch->motion, 0.3); /* XXX: parameterize me */
 
-        vec3_norm(newx, newx);
-        vec3_norm(newy, newy);
-        vec3_norm(newz, newz);
+            /* watch out for Y and Z swapping places */
+            vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
+        } else {
+            if (ch != cam) {
+                err("no normal vector: is there collision?\n");
+                goto out;
+            }
 
-        /* XXX: apply this in character_apply_velocity() */
-        if (ch->state == CS_MOVING)
             vec3_dup(ch->angle, ch->motion);
-        else
-            vec3_scale(ch->angle, ch->motion, 0.3); /* XXX: parameterize me */
-
-        /* watch out for Y and Z swapping places */
-        vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
+            vec3_dup(ch->velocity, ch->motion);
+        }
 
         vec3_norm(ch->angle, ch->angle);
 
@@ -449,7 +453,7 @@ void character_move(struct character *ch, struct scene *s)
     }
 
 out:
-    if (scene_camera_follows(s, ch))
+    if (scene_control_character(s) == ch)
         character_debug(ch);
 }
 
