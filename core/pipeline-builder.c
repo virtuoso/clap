@@ -297,6 +297,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
             { .pass = edge_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
+            { .pass = model_pass, .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_NORMAL_MAP },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },

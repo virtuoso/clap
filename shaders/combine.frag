@@ -8,6 +8,10 @@ layout (location=0) in vec2 pass_tex;
 uniform sampler2D model_tex;
 uniform sampler2D emission_map;
 uniform sampler2D sobel_tex;
+uniform sampler2D normal_map;
+
+uniform float near_plane;
+uniform float far_plane;
 
 uniform float bloom_intensity;
 uniform float bloom_exposure;
@@ -17,11 +21,26 @@ uniform float lighting_exposure;
 uniform float lighting_operator;
 uniform bool use_hdr;
 
+const float near_fog = 60.0;
+const float far_fog = 100.0;
+const vec3 fog_color = { 0.1, 0.1, 0.12 };
+
+float fog_factor(sampler2D tex, vec2 uv)
+{
+    float depth = texture(tex, uv, 0.0).r;
+    float z = depth * 2.0 - 1.0; // Convert to NDC space
+    float dist = (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
+    return clamp((dist - near_fog) / (far_fog - near_fog), 0.0, 1.0);
+}
+
 void main()
 {
     vec3 tex_color = texture(model_tex, pass_tex).rgb;
     vec3 highlight_color = texture(emission_map, pass_tex).rgb;
     vec4 sobel = texture(sobel_tex, pass_tex);
+
+    /* mix in just a smidgen of depth fog for a less depressing void */
+    tex_color = mix(tex_color, fog_color, fog_factor(normal_map, pass_tex));
 
     if (use_hdr) {
         vec3 hdr_color = tex_color * lighting_exposure;
