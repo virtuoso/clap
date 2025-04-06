@@ -661,7 +661,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
     char *name = NULL, *gltf = NULL;
-    bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false, outline_exclude = false;
+    bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
+    bool outline_exclude = false, fix_origin = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *sfx = NULL;
     geom_class class = GEOM_SPHERE;
     int collision = -1, motion_segments = 8;
@@ -705,6 +706,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             outline_exclude = p->bool_;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "motion_segments"))
             motion_segments = p->number_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "fix_origin"))
+            fix_origin = p->bool_;
     }
 
     if (!name || !gltf) {
@@ -716,6 +719,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         .mq         = &scene->mq,
         .pipeline   = scene->pl,
         .name       = gltf,
+        .fix_origin = fix_origin
     );
     if (!gd) {
         warn("Error loading GLTF '%s'\n", gltf);
