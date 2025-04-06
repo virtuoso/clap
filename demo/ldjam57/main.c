@@ -38,6 +38,192 @@ static struct sound *intro_sound;
 static int exit_timeout = -1;
 static struct scene scene;
 
+texture_t platform_emission_purple;
+texture_t platform_emission_teal;
+texture_t platform_emission_peach;
+
+typedef struct switch_obj {
+    entity3d        *e;
+    struct list     platforms;
+    const char      *name;
+    bool            toggled;
+    bool            permanent;
+} switch_obj;
+
+typedef struct platform_obj {
+    entity3d        *e;
+    struct list     entry;
+    switch_obj      *sw;
+    char            *sw_name;
+    vec3            pos;
+    int             (*orig_update)(entity3d *, void *);
+} platform_obj;
+
+static darray(platform_obj, pobjs);
+static darray(switch_obj, sobjs);
+
+typedef struct platform_fixup {
+    const char  *name;
+    const char  *infix;
+    texture_t   *emission;
+    void        (*connect)(entity3d *e, entity3d *connection, void *data);
+    void        (*disconnect)(entity3d *e, entity3d *connection, void *data);
+    bool        hide;
+} platform_fixup;
+
+static int platform_entity_update(entity3d *e, void *data)
+{
+    platform_obj *pobj = e->connect_priv;
+    if (!pobj)
+        return -1;
+
+    /* here is where would animate the appearance of a platform */
+    e->update = pobj->orig_update;
+    entity3d_position(e, pobj->pos);
+    e->visible = 1;
+
+    return pobj->orig_update(e, data);
+}
+
+static void switch_connect(entity3d *e, entity3d *connection, void *data)
+{
+    struct character *c = connection->priv;
+    switch_obj *sobj = data;
+    if (!sobj)
+        return;
+
+    if (sobj->toggled)
+        return;
+
+    sobj->toggled = true;
+    platform_obj *pobj;
+    list_for_each_entry(pobj, &sobj->platforms, entry) {
+        if (pobj->e->update != platform_entity_update) {
+            pobj->orig_update = pobj->e->update;
+            pobj->e->update = platform_entity_update;
+            pobj->e->connect_priv = pobj;
+        }
+        pobj->e->visible = 1;
+    }
+}
+
+static void switch_disconnect(entity3d *e, entity3d *connection, void *data)
+{
+    struct character *c = connection->priv;
+    switch_obj *sobj = data;
+    if (!sobj)
+        return;
+
+    if (sobj->permanent)
+        return;
+
+    if (!sobj->toggled)
+        return;
+
+    sobj->toggled = false;
+    platform_obj *pobj;
+    list_for_each_entry(pobj, &sobj->platforms, entry) {
+        vec3 pos;
+        vec3_add(pos, pobj->pos, (vec3){ 0, 100, 0 });
+        entity3d_position(pobj->e, pos);
+        pobj->e->visible = 0;
+        pobj->e->update = pobj->orig_update;
+    }
+}
+
+static void process_entity(entity3d *e, void *data)
+{
+    const char *name = entity_name(e);
+    char *substr;
+
+    if ((substr = strstr(name, ".platform"))) {
+        platform_obj *pobj = darray_add(pobjs);
+        pobj->e = e;
+        vec3_dup(pobj->pos, e->pos);
+
+        pobj->sw_name = strndup(name, substr - name);
+
+        /* hide the platform */
+        e->visible = 0;
+        entity3d_move(e, (vec3){ 0, 100, 0 });
+
+        model3dtx *txm = e->txmodel;
+        if (texture_loaded(txm->emission) && txm->emission != &platform_emission_peach) {
+            texture_deinit(txm->emission);
+            model3dtx_set_texture(txm, UNIFORM_EMISSION_MAP, &platform_emission_peach);
+        }
+    } else if ((substr = strstr(name, ".switch"))) {
+        switch_obj *sobj = darray_add(sobjs);
+        sobj->e = e;
+        sobj->name = name;
+        e->connect = switch_connect;
+        e->disconnect = switch_disconnect;
+
+        if (strstr(name, ".P."))
+            sobj->permanent = true;
+    }
+}
+
+static void process_scene(struct scene *s)
+{
+    model3dtx *txm;
+
+    mq_for_each(&s->mq, process_entity, NULL);
+
+    switch_obj *sobj;
+    darray_for_each(sobj, sobjs) {
+        list_init(&sobj->platforms);
+        sobj->e->connect_priv = sobj;
+    }
+
+    platform_obj *pobj;
+    darray_for_each(pobj, pobjs) {
+        darray_for_each(sobj, sobjs)
+            if (!strcmp(pobj->sw_name, sobj->name)) {
+                pobj->sw = sobj;
+
+                list_append(&sobj->platforms, &pobj->entry);
+                break;
+            }
+    }
+}
+
+static void startup(struct scene *s)
+{
+    cerr err;
+
+    darray_init(pobjs);
+    darray_init(sobjs);
+
+    /* common scene parameters */
+    s->lin_speed = 2.0;
+    s->ang_speed = 45.0;
+    s->limbo_height = -100.0;
+    s->render_options.bloom_intensity = 1.1;
+    s->render_options.bloom_threshold = 0.3;
+    s->render_options.bloom_exposure = 2.5;
+
+    /* pixel textures for everyday use */
+    err = texture_pixel_init(&platform_emission_purple, (float[]){ 0.5, 0.3, 0.5, 1 });
+    if (IS_CERR(err))
+        err_cerr(err, "couldn't initialize pixel texture\n");
+    err = texture_pixel_init(&platform_emission_teal, (float[]){ 0.3, 0.5, 0.5, 1 });
+    if (IS_CERR(err))
+        err_cerr(err, "couldn't initialize pixel texture\n");
+    err = texture_pixel_init(&platform_emission_peach, (float[]){ 0.5, 0.375, 0.3, 1 });
+    if (IS_CERR(err))
+        err_cerr(err, "couldn't initialize pixel texture\n");
+}
+
+static void cleanup(struct scene *s)
+{
+    platform_obj *pobj;
+    darray_for_each(pobj, pobjs)
+        mem_free(pobj->sw_name);
+    darray_clearout(pobjs);
+    darray_clearout(sobjs);
+}
+
 static bool shadow_msaa, model_msaa, edge_aa, edge_sobel;
 
 static void build_main_pl(struct pipeline **pl)
@@ -281,11 +467,11 @@ int main(int argc, char **argv, char **envp)
 
     scene_load(&scene, "scene.json");
 
+    startup(&scene);
+    process_scene(&scene);
+
     loading_screen_done(scene.ls);
 
-    scene.lin_speed = 2.0;
-    scene.ang_speed = 45.0;
-    scene.limbo_height = -70.0;
     scene_cameras_calc(&scene);
 
     imgui_render();
@@ -295,6 +481,8 @@ int main(int argc, char **argv, char **envp)
 
 #ifndef CONFIG_BROWSER
 exit_scene:
+    cleanup(&scene);
+
     scene_done(&scene);
     ref_put(scene.pl);
     clap_done(scene.clap_ctx, 0);
