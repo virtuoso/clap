@@ -102,8 +102,11 @@ static void hdr_constraints(texture_format *hdr_fmt)
         *hdr_fmt = TEX_FMT_RGBA8;
 }
 
-static texture_format get_hdr_format(void)
+static texture_format get_hdr_format(pipeline_builder_opts *opts)
 {
+    if (!opts->pl_opts->render_options->hdr)
+        return TEX_FMT_RGBA8;
+
     texture_format hdr_fmts[] = {
         TEX_FMT_RGB16F, TEX_FMT_RGBA16F, TEX_FMT_RGB32F, TEX_FMT_RGBA32F
     };
@@ -180,7 +183,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     opts->pl_opts->light->shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], FBO_DEPTH_TEXTURE(0));
 #endif /* CONFIG_GLES */
 
-    texture_format hdr_fmt = get_hdr_format();
+    texture_format hdr_fmt = get_hdr_format(opts);
 
     struct render_pass *model_pass =
         pipeline_add_pass(pl,

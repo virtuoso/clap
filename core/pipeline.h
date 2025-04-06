@@ -17,6 +17,7 @@ typedef struct render_options {
     int     laplace_kernel;
     bool    edge_antialiasing;
     bool    edge_sobel;
+    bool    hdr;
     bool    collision_draws_enabled;
     bool    aabb_draws_enabled;
 } render_options;

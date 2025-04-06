@@ -186,6 +186,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("debug draws", &scene->render_options.debug_draws_enabled);
         igCheckbox("collision draws", &scene->render_options.collision_draws_enabled);
         igCheckbox("aabb draws", &scene->render_options.aabb_draws_enabled);
+        igCheckbox("use HDR", &scene->render_options.hdr);
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
                     input_text_callback, NULL);
         if (igButton("save level", (ImVec2){}))
@@ -540,6 +541,7 @@ cerr scene_init(struct scene *scene)
     scene->render_options.edge_antialiasing = true;
     scene->render_options.shadow_outline = true;
     scene->render_options.shadow_outline_threshold = 0.4;
+    scene->render_options.hdr = true;
 
     cerr err;
     err = subscribe(MT_INPUT, scene_handle_input, scene);
