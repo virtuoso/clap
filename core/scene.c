@@ -233,7 +233,7 @@ static void scene_characters_debug(struct scene *scene)
             const char *name = entity_name(c->entity);
 
             igText("character '%s'", name);
-            igPushID_Str(name);
+            igPushID_Ptr(c);
             igSliderFloat("jump forward", &c->jump_forward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             igSliderFloat("jump upward", &c->jump_upward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             igSliderFloat("speed", &c->speed, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
