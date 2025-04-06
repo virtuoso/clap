@@ -858,6 +858,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             else
                 e->outline_exclude = outline_exclude;
 
+            jpos = json_find_member(it, "name");
+            if (jpos && jpos->tag == JSON_STRING)
+                e->name = strdup(jpos->string_);
+
             jpos = json_find_member(it, "position");
             if (jpos->tag != JSON_ARRAY)
                 continue;

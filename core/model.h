@@ -213,6 +213,7 @@ typedef struct entity3d {
     unsigned int     visible;
     int              animation;
     double           ani_time;
+    char             *name;
     darray(struct queued_animation, aniq);
     /* these both have model->nr_joints elements */
     struct joint     *joints;
@@ -264,6 +265,9 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
 static inline const char *entity_name(entity3d *e)
 {
+    if (e && e->name)
+        return e->name;
+
     return e ? txmodel_name(e->txmodel) : "<none>";
 }
 

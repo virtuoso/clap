@@ -1401,6 +1401,7 @@ static void entity3d_drop(struct ref *ref)
     }
     mem_free(e->joints);
     mem_free(e->joint_transforms);
+    mem_free(e->name);
 }
 
 DEFINE_REFCLASS2(entity3d);
