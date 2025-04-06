@@ -888,7 +888,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 vec3_dup(dist, e->pos);
 
                 vec3_sub(dist, dist, camera->ch->entity->pos);
-                lod = vec3_len(dist) / 80;
+                lod = false ? vec3_len(dist) / 80 : 0;
                 model3d_set_lod(model, lod);
             }
 
