@@ -198,7 +198,7 @@ static void startup(struct scene *s)
     /* common scene parameters */
     s->lin_speed = 2.0;
     s->ang_speed = 45.0;
-    s->limbo_height = -100.0;
+    s->limbo_height = 70.0;
     s->render_options.bloom_intensity = 1.1;
     s->render_options.bloom_threshold = 0.3;
     s->render_options.bloom_exposure = 2.5;

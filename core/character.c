@@ -494,6 +494,17 @@ static void history_fetch(struct character *c, vec3 pos)
     c->history.head = 0;
 }
 
+static void history_newest(struct character *c, vec3 pos)
+{
+    if (c->history.head) {
+        vec3_dup(pos, c->history.pos[c->history.head - 1]);
+    } else if (c->history.wrapped) {
+        vec3_dup(pos, c->history.pos[POS_HISTORY_MAX - 1]);
+    } else {
+        vec3_dup(pos, (vec3){});
+    }
+}
+
 /* data is struct scene */
 static int character_update(entity3d *e, void *data)
 {
@@ -517,8 +528,13 @@ static int character_update(entity3d *e, void *data)
         }
     }
 
-    /* XXX "wow out" */
-    if (e->pos[1] <= s->limbo_height) {
+    /*
+     * If character falls too far down from their last know grounded Y coordinate,
+     * teleport them back to a farthest grounded location in history buffer
+     */
+    vec3 last;
+    history_newest(c, last);
+    if (vec3_mul_inner(last, last) > 0.0 && fabsf(e->pos[1] - last[1]) >= s->limbo_height) {
         vec3 pos;
         history_fetch(c, pos);
         entity3d_position(e, pos);
