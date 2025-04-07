@@ -38,9 +38,11 @@ static struct sound *intro_sound;
 static int exit_timeout = -1;
 static struct scene scene;
 
-texture_t platform_emission_purple;
-texture_t platform_emission_teal;
-texture_t platform_emission_peach;
+static texture_t platform_emission_purple;
+static texture_t platform_emission_teal;
+static texture_t platform_emission_peach;
+
+static struct ui_element *switcher, *switcher_text;
 
 typedef struct switch_obj {
     entity3d        *e;
