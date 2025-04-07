@@ -58,6 +58,7 @@ static struct key_map key_map_wasd[] = {
     KEY_NAME("F2",         is_press,         volume_down),
     KEY_NAME("F3",         is_press,         volume_up),
     KEY_NAME("F12",        is_press,         verboser),
+    KEY_NAME("Enter",      is_press,         enter),
     KEY_NAME("Tab",        is_press,         tab),
 };
 #else
@@ -78,6 +79,7 @@ static struct key_map key_map_wasd[] = {
     KEY_VAL(GLFW_KEY_F2,    is_press,         volume_down),
     KEY_VAL(GLFW_KEY_F3,    is_press,         volume_up),
     KEY_VAL(GLFW_KEY_F12,   is_press,         verboser),
+    KEY_VAL(GLFW_KEY_ENTER, is_press,         enter),
     KEY_VAL(GLFW_KEY_TAB,   is_press,         tab),
 };
 #endif
