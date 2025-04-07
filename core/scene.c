@@ -15,7 +15,7 @@
 #include "ui-debug.h"
 #include "ui.h"
 
-static void scene_control_next(struct scene *s)
+void scene_control_next(struct scene *s)
 {
     struct character *first, *last, *prev, *current;
 
