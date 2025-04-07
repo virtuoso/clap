@@ -142,7 +142,12 @@ static void character_obj_next(struct scene *s)
     
     do {
         scene_control_next(s);
-        cobj = scene_control_character(s)->entity->connect_priv;
+
+        struct character *ch = scene_control_character(s);
+        if (ch == s->camera->ch)
+            continue;
+
+        cobj = ch->entity->connect_priv;
     } while (!cobj->connected);
 }
 
