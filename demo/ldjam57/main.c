@@ -16,6 +16,7 @@
 #include "object.h"
 #include "common.h"
 #include "input.h"
+#include "font.h"
 #include "messagebus.h"
 #include "librarian.h"
 #include "loading-screen.h"
@@ -61,9 +62,19 @@ typedef struct platform_obj {
     int             (*orig_update)(entity3d *, void *);
 } platform_obj;
 
+typedef struct character_obj {
+    entity3d        *e;
+    int             (*orig_update)(entity3d *, void *);
+    float           my_distance;
+    float           distance_to_active;
+    bool            connected;
+} character_obj;
+
 static darray(platform_obj, pobjs);
 static darray(switch_obj, sobjs);
+static darray(character_obj, cobjs);
 
+static struct character *control;
 
 static int platform_entity_update(entity3d *e, void *data)
 {
@@ -125,10 +136,94 @@ static void switch_disconnect(entity3d *e, entity3d *connection, void *data)
     }
 }
 
+static void character_obj_next(struct scene *s)
+{
+    character_obj *cobj;
+    
+    do {
+        scene_control_next(s);
+        cobj = scene_control_character(s)->entity->connect_priv;
+    } while (!cobj->connected);
+}
+
+static void switcher_update(struct scene *s)
+{
+    static char buf[512];
+    character_obj *cobj;
+    size_t len = 0;
+    int i = 0;
+
+    darray_for_each(cobj, cobjs) {
+        if (!cobj->connected)
+            continue;
+
+        bool brackets = scene_camera_follows(s, cobj->e->priv);
+        control = cobj->e->priv;
+        len += snprintf(buf + len, sizeof(buf) - len, "%s%s%s%s", len ? "\n" : "",
+                        brackets ? "> " : "", entity_name(cobj->e), brackets ? " <" : "");
+    }
+
+    if (switcher_text)
+        ref_put_last(switcher_text);
+
+    font_context *font_ctx = clap_get_font(s->clap_ctx);
+    struct font *font = font_get_default(font_ctx);
+    struct ui *ui = clap_get_ui(s->clap_ctx);
+    switcher_text = ui_printf(ui, font, switcher, (float[]){ 1.0f, 1.0f, 1.0f, 1.0f },
+                              UI_AF_BOTTOM | UI_AF_LEFT, "%s", buf);
+    ref_put(font);
+}
+
+static int character_obj_update(entity3d *e, void *data)
+{
+    character_obj *cobj = e->connect_priv;
+    if (!cobj)
+        return -1;
+
+    struct character *c = cobj->e->priv;
+    struct scene *s = data;
+
+    unsigned int update = 0;
+
+    if (scene_camera_follows(s, c)) {
+        if (c != control)
+            update++;
+
+        if (!cobj->connected) {
+            cobj->connected = true;
+            switcher_update(s);
+        }
+
+        character_obj *target;
+        darray_for_each(target, cobjs) {
+            if (target->e->priv == s->camera->ch)
+                continue;
+
+            if (target == cobj)
+                continue;
+
+            vec3 dist;
+            vec3_sub(dist, target->e->pos, cobj->e->pos);
+            target->distance_to_active = vec3_mul_inner(dist, dist);
+            if (target->distance_to_active < target->my_distance) {
+                target->connected = true;
+                update++;
+            }
+        }
+    }
+
+    if (update)
+        switcher_update(s);
+
+    return cobj->orig_update(e, data);
+}
+
 static void process_entity(entity3d *e, void *data)
 {
     const char *name = entity_name(e);
     char *substr;
+
+    bool permanent = !!strstr(name, ".P.");
 
     if ((substr = strstr(name, ".platform"))) {
         platform_obj *pobj = darray_add(pobjs);
@@ -142,7 +237,7 @@ static void process_entity(entity3d *e, void *data)
         entity3d_move(e, (vec3){ 0, 100, 0 });
 
         model3dtx *txm = e->txmodel;
-        if (texture_loaded(txm->emission) && txm->emission != &platform_emission_peach) {
+        if (!permanent && texture_loaded(txm->emission) && txm->emission != &platform_emission_peach) {
             texture_deinit(txm->emission);
             model3dtx_set_texture(txm, UNIFORM_EMISSION_MAP, &platform_emission_peach);
         }
@@ -153,8 +248,15 @@ static void process_entity(entity3d *e, void *data)
         e->connect = switch_connect;
         e->disconnect = switch_disconnect;
 
-        if (strstr(name, ".P."))
+        if (permanent)
             sobj->permanent = true;
+    } else if ((substr = strstr(name, ".body"))) {
+        character_obj *cobj = darray_add(cobjs);
+        cobj->e = e;
+        cobj->orig_update = e->update;
+        e->update = character_obj_update;
+        cobj->my_distance = entity3d_aabb_Y(e) * 3.0;
+        cobj->my_distance *= cobj->my_distance;
     }
 }
 
@@ -164,6 +266,11 @@ static void process_scene(struct scene *s)
 
     mq_for_each(&s->mq, process_entity, NULL);
 
+    /*
+     * These have to be done after the darrays have been filled,
+     * because darray_add() may do realloc() and old pointers to
+     * its elements become invalid.
+     */
     switch_obj *sobj;
     darray_for_each(sobj, sobjs) {
         list_init(&sobj->platforms);
@@ -180,6 +287,10 @@ static void process_scene(struct scene *s)
                 break;
             }
     }
+
+    character_obj *cobj;
+    darray_for_each(cobj, cobjs)
+        cobj->e->connect_priv = cobj;
 }
 
 static void startup(struct scene *s)
@@ -188,10 +299,11 @@ static void startup(struct scene *s)
 
     darray_init(pobjs);
     darray_init(sobjs);
+    darray_init(cobjs);
 
     /* common scene parameters */
     s->lin_speed = 2.0;
-    s->ang_speed = 45.0;
+    s->ang_speed = 90.0;
     s->limbo_height = 70.0;
     s->render_options.bloom_intensity = 1.1;
     s->render_options.bloom_threshold = 0.3;
@@ -207,15 +319,36 @@ static void startup(struct scene *s)
     err = texture_pixel_init(&platform_emission_peach, (float[]){ 0.5, 0.375, 0.3, 1 });
     if (IS_CERR(err))
         err_cerr(err, "couldn't initialize pixel texture\n");
+
+    struct ui *ui = clap_get_ui(s->clap_ctx);
+    cresp(ui_element) res = ref_new_checked(ui_element,
+        .ui         = ui,
+        .txmodel    = ui_quadtx_get(),
+        .affinity   = UI_AF_BOTTOM | UI_AF_RIGHT,
+        .x_off      = 0.05,
+        .y_off      = 5,
+        .width      = 300,
+        .height     = 400,
+    );
+    if (IS_CERR(res)) {
+        err_cerr(res, "can't create UI element\n");
+        return;
+    }
+    switcher = res.val;
 }
 
 static void cleanup(struct scene *s)
 {
+    if (switcher_text)
+        ref_put_last(switcher_text);
+    ref_put_last(switcher);
+
     platform_obj *pobj;
     darray_for_each(pobj, pobjs)
         mem_free(pobj->sw_name);
     darray_clearout(pobjs);
     darray_clearout(sobjs);
+    darray_clearout(cobjs);
 }
 
 static bool shadow_msaa, model_msaa, edge_aa, edge_sobel;
@@ -243,6 +376,7 @@ static const char *intro_osd[] = {
     "Space to jump",
     "Shift to dash",
     "Arrows to move the camera",
+    "Enter to switch bodies",
     "Have fun"
 };
 
@@ -310,6 +444,9 @@ static int handle_input(struct message *m, void *data)
 {
     struct scene *scene = data;
     bool  store = false;
+
+    if (m->input.enter)
+        character_obj_next(scene);
 
     if (!intro_sound)
         return 0;
