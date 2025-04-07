@@ -64,14 +64,6 @@ typedef struct platform_obj {
 static darray(platform_obj, pobjs);
 static darray(switch_obj, sobjs);
 
-typedef struct platform_fixup {
-    const char  *name;
-    const char  *infix;
-    texture_t   *emission;
-    void        (*connect)(entity3d *e, entity3d *connection, void *data);
-    void        (*disconnect)(entity3d *e, entity3d *connection, void *data);
-    bool        hide;
-} platform_fixup;
 
 static int platform_entity_update(entity3d *e, void *data)
 {
