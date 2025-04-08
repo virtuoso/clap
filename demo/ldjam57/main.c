@@ -174,7 +174,8 @@ static void switcher_update(struct scene *s)
             continue;
 
         bool brackets = scene_camera_follows(s, cobj->e->priv);
-        control = cobj->e->priv;
+        if (brackets)
+            control = cobj->e->priv;
         len += snprintf(buf + len, sizeof(buf) - len, "%s%s%s%s", len ? "\n" : "",
                         brackets ? "> " : "", entity_name(cobj->e), brackets ? " <" : "");
     }
@@ -210,7 +211,7 @@ static int character_obj_update(entity3d *e, void *data)
 
         if (!cobj->connected) {
             cobj->connected = true;
-            switcher_update(s);
+            update++;
         }
 
         character_obj *target;
