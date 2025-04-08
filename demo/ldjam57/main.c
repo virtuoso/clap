@@ -262,6 +262,9 @@ static void process_entity(entity3d *e, void *data)
         e->update = character_obj_update;
         cobj->my_distance = entity3d_aabb_Y(e) * 3.0;
         cobj->my_distance *= cobj->my_distance;
+    } else if (!strncmp(name, "glowing spheres around", 22)) {
+        texture_deinit(e->txmodel->emission);
+        model3dtx_set_texture(e->txmodel, UNIFORM_EMISSION_MAP, &platform_emission_peach);
     }
 }
 
