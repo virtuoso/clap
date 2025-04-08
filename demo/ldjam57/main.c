@@ -42,6 +42,7 @@ static struct scene scene;
 static texture_t platform_emission_purple;
 static texture_t platform_emission_teal;
 static texture_t platform_emission_peach;
+static texture_t platform_emission_orange;
 
 static struct ui_element *switcher, *switcher_text;
 
@@ -179,6 +180,10 @@ static void switcher_update(struct scene *s)
     ref_put(font);
 }
 
+static const float game_over_start_height = -70.0;
+static const float game_over_end_height = -140.0;
+static const char *outro_osd[] = { "The End" };
+
 static int character_obj_update(entity3d *e, void *data)
 {
     character_obj *cobj = e->connect_priv;
@@ -219,6 +224,16 @@ static int character_obj_update(entity3d *e, void *data)
 
     if (update)
         switcher_update(s);
+
+    if (e->pos[1] <= game_over_end_height) {
+        struct ui *ui = clap_get_ui(s->clap_ctx);
+        ui_osd_new(ui, outro_osd, array_size(outro_osd));
+
+        return 0;
+    } else if (e->pos[1] <= game_over_start_height) {
+        s->camera->target_yaw += 90 / fabsf(game_over_end_height - game_over_start_height);// *
+        s->camera->ch->moved++;
+    }
 
     return cobj->orig_update(e, data);
 }
@@ -316,6 +331,7 @@ static void startup(struct scene *s)
     s->render_options.bloom_intensity = 1.1;
     s->render_options.bloom_threshold = 0.3;
     s->render_options.bloom_exposure = 2.5;
+    s->render_options.shadow_outline = false;
 
     /* pixel textures for everyday use */
     err = texture_pixel_init(&platform_emission_purple, (float[]){ 0.5, 0.3, 0.5, 1 });
@@ -380,10 +396,8 @@ static void build_main_pl(struct pipeline **pl)
 }
 
 static const char *intro_osd[] = {
-    "WASD to move the character",
-    "Space to jump",
-    "Shift to dash",
     "Arrows to move the camera",
+    "WASD to move the character",
     "Enter to switch bodies",
     "Have fun"
 };
@@ -509,7 +523,7 @@ int main(int argc, char **argv, char **envp)
         .graphics       = 1,
         .ui             = 1,
         .settings       = 1,
-        .title          = "Working Title",
+        .title          = "Towards the Light",
 #ifndef CONFIG_BROWSER
         .base_url       = "demo/ldjam57/",
 #endif
