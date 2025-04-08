@@ -44,6 +44,14 @@ static texture_t platform_emission_teal;
 static texture_t platform_emission_peach;
 static texture_t platform_emission_orange;
 
+enum main_state {
+    MS_STARTING = 0,
+    MS_RUNNING,
+    MS_THE_END,
+};
+
+static enum main_state main_state;
+
 static struct ui_element *switcher, *switcher_text;
 
 typedef struct switch_obj {
@@ -182,9 +190,8 @@ static void switcher_update(struct scene *s)
     ref_put(font);
 }
 
-static const float game_over_start_height = -70.0;
-static const float game_over_end_height = -140.0;
-static const char *outro_osd[] = { "The End" };
+static const float game_over_start_height = -130.0;
+static const float game_over_end_height = -450.0;
 
 static int character_obj_update(entity3d *e, void *data)
 {
@@ -227,13 +234,15 @@ static int character_obj_update(entity3d *e, void *data)
     if (update)
         switcher_update(s);
 
-    if (e->pos[1] <= game_over_end_height) {
-        struct ui *ui = clap_get_ui(s->clap_ctx);
-        ui_osd_new(ui, outro_osd, array_size(outro_osd));
+    if (e->pos[1] <= game_over_start_height) {
+        static int once = 0;
 
-        return 0;
-    } else if (e->pos[1] <= game_over_start_height) {
-        s->camera->target_yaw += 90 / fabsf(game_over_end_height - game_over_start_height);// *
+        if (!once++) {
+            main_state++;
+            s->limbo_height = fabsf(game_over_end_height - game_over_start_height) + 10;
+        }
+
+        s->camera->target_yaw += 90 / fabsf(game_over_end_height - game_over_start_height);
         s->camera->ch->moved++;
     }
 
@@ -404,12 +413,7 @@ static const char *intro_osd[] = {
     "Have fun"
 };
 
-enum main_state {
-    MS_STARTING = 0,
-    MS_RUNNING,
-};
-
-static enum main_state main_state;
+static const char *outro_osd[] = { "Thank you for playing!", "The End" };
 
 EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
@@ -420,6 +424,9 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
     if (main_state == MS_STARTING) {
         main_state++;
         ui_osd_new(ui, intro_osd, array_size(intro_osd));
+    } else if (main_state == MS_THE_END) {
+        main_state++;
+        ui_osd_new(ui, outro_osd, array_size(outro_osd));
     }
 
     pipeline_render(scene.pl, ui->modal ? 1 : 0);
