@@ -41,6 +41,9 @@ void scene_control_next(struct scene *s)
     s->camera->dist = 10;
     s->camera->ch->moved++;
 
+    /* Stop the previous character from running */
+    character_stop(prev, s);
+
     trace("scene control at: '%s'\n", entity_name(s->control));
     dbg("scene control at: '%s'\n", entity_name(s->control));
 }

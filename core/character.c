@@ -469,6 +469,14 @@ out:
         character_debug(ch);
 }
 
+void character_stop(struct character *c, struct scene *s)
+{
+    vec3_dup(c->motion, (vec3){});
+    vec3_dup(c->old_motion, (vec3){});
+    vec3_dup(c->velocity, (vec3){});
+    character_set_state(c, s, CS_IDLE);
+}
+
 static void history_push(struct character *c)
 {
     if (c->airborne)

@@ -75,5 +75,6 @@ static inline const char *character_name(struct character *c)
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m);
 void character_move(struct character *ch, struct scene *s);
+void character_stop(struct character *c, struct scene *s);
 
 #endif /* __CLAP_CHARACTER_H__ */
