@@ -6,7 +6,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(SECTION "\".rodata\"")
     set(SYM_PREFIX "")
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    set(SECTION ".rdata, \"dr\"")
+    set(SECTION ".clap_assets")
     set(SYM_PREFIX "")
 endif()
 
