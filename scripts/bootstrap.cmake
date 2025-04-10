@@ -1,5 +1,5 @@
 function(bootstrap_deps bootstrap_file)
-    if(WIN32)
+    if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         set(PYTHON_EXECUTABLE "python")
     else()
         set(PYTHON_EXECUTABLE "python3")
