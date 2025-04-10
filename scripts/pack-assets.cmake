@@ -13,7 +13,7 @@ function(asset_pack asset_dir asset)
     # all platforms
     add_custom_command(
         OUTPUT ${asset_cpio}
-        DEPENDS ${assets} ucpio
+        DEPENDS ${assets} ucpio_host
         WORKING_DIRECTORY ${asset_dir}
         COMMAND ${CMAKE_BINARY_DIR}/tools/ucpio/ucpio
         ARGS -o < ${asset_list_file} > ${asset_cpio}
