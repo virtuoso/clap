@@ -2,8 +2,9 @@ name: windows-build
 on: [push]
 jobs:
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-2025
     env:
+      VCPKG_INSTALLATION_ROOT: ${{ github.workspace }}/vcpkg-mingw
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
       remote_host: ${{ secrets.REMOTE_DEPLOY_HOST }}
     defaults:
@@ -22,25 +23,41 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-      - name: install-deps
+      - name: Download dependencies
         run: |
-          pwd
-          echo "${{ github.workspace }}"
-          vcpkg install libpng:x64-windows-static glfw3:x64-windows-static glew:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
-      - name: Install Ninja
+          git clone --depth 1 git@github.com:virtuoso/vcpkg-mingw.git
+          cd vcpkg-mingw
+          ./bootstrap-vcpkg.sh -disableMetrics
+      - name: Cache vcpkg
+        uses: actions/cache@v3
+        with:
+          path: |
+            vcpkg-mingw/installed
+            vcpkg-mingw/buildtrees
+            vcpkg-mingw/downloads
+          key: vcpkg-mingw-${{ hashFiles('vcpkg-mingw/vcpkg.json', 'vcpkg-mingw/ports/**', 'triplets/**') }}
+          restore-keys: |
+            vcpkg-mingw-
+      - name: Build dependencies
         run: |
-          curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip
-          mkdir ~/bin
-          unzip ninja.zip -d ~/bin
-          echo "${HOME}/bin" >> $GITHUB_PATH
+          cd vcpkg-mingw
+          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw glew:x64-mingw freetype:x64-mingw openal-soft:x64-mingw libogg:x64-mingw libvorbis:x64-mingw shaderc spirv-cross
+      # - name: Install Ninja
+      #   run: |
+      #     curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip
+      #     mkdir ~/bin
+      #     unzip ninja.zip -d ~/bin
+      #     echo "${HOME}/bin" >> $GITHUB_PATH
       - name: configure
         run: |
-          cmake --preset w32test -B build/test -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/windows "${{ github.workspace }}"
-          cmake --preset w32debug -B build/debug "${{ github.workspace }}"
+          cmake --preset w32rel -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32rel
+          cmake --preset w32test -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32test
+          cmake --preset w32debug -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32debug
       - name: build
         run: |
+          cmake --build build/rel --parallel 4 && cmake --install build/rel
           cmake --build build/test --parallel 4 && cmake --install build/test
-          cmake --build build/debug --parallel 4
+          cmake --build build/debug --parallel 4 && cmake --install build/debug
       - name: test
         run: |
           ctest --test-dir build/test
