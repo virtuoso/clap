@@ -5,6 +5,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       remote_host: ${{ secrets.REMOTE_DEPLOY_HOST }}
+      VCPKG_INSTALLATION_ROOT: ${{ github.workspace }}/vcpkg-mingw
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -12,10 +13,28 @@ jobs:
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git submodule update --init --recursive --depth 1
-      - name: install-deps
+      - name: Download dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross
+          sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+          git clone --depth 1 git@github.com:virtuoso/vcpkg-mingw.git
+          cd vcpkg-mingw
+          ./bootstrap-vcpkg.sh -disableMetrics
+      - name: Cache vcpkg
+        uses: actions/cache@v3
+        with:
+          path: |
+            vcpkg-mingw/installed
+            vcpkg-mingw/packages
+            vcpkg-mingw/buildtrees
+            vcpkg-mingw/downloads
+          key: vcpkg-mingw-cross-${{ hashFiles('vcpkg-mingw/vcpkg.json', 'vcpkg-mingw/ports/**', 'triplets/**') }}
+          restore-keys: |
+            vcpkg-mingw-cross-
+      - name: Build dependencies
+        run: |
+          cd vcpkg-mingw
+          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw glew:x64-mingw freetype:x64-mingw openal-soft:x64-mingw libogg:x64-mingw libvorbis:x64-mingw
       - name: configure
         run: |
           cd ${{ github.workspace }}
@@ -23,11 +42,20 @@ jobs:
           echo opts=\"--parallel 4\" >> build_config
           echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/linux\" >> build_config
           ./configure.sh
+          cmake --preset=w32debug-cross -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32debug
+          cmake --preset=w32test-cross -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32test
+          cmake --preset=w32rel-cross -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32rel
       - name: build
         run: |
           cd ${{ github.workspace }}
           ./build.sh
+          cmake --build build/w32debug --parallel 4
+          cmake --build build/w32test --parallel 4
+          cmake --build build/w32rel --parallel 4
           cmake --install build/rel
+          cmake --install build/w32debug
+          cmake --install build/w32test
+          cmake --install build/w32rel
       - name: Deploy to Server
         uses: easingthemes/ssh-deploy@main
         if: ${{ env.remote_host }}
