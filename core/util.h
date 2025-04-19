@@ -67,11 +67,14 @@ static inline double drand48()
 {
     return (double)rand() / RAND_MAX;
 }
-#define PATH_MAX 4096
 #ifndef thread_local
 #define thread_local __declspec(thread)
 #endif /* thread_local */
 #endif /* _WIN32 */
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif /* PATH_MAX */
 
 #ifndef thread_local
 #define thread_local _Thread_local
