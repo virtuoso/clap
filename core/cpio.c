@@ -82,7 +82,7 @@ cpio_context *_cpio_open(const cpio_params *params)
 
     if (!params->buf) {
         ctx->f = params->file_name ?
-            fopen(params->file_name, params->write ? "w" : "r") :
+            fopen(params->file_name, params->write ? FOPEN_WB : FOPEN_RB) :
             params->file;
         if (!ctx->f)
             return NULL;
@@ -108,6 +108,7 @@ cpio_context *_cpio_open(const cpio_params *params)
         }
 
         ctx->writing = params->write;
+        compat_set_binary(ctx->f);
     } else {
         ctx->start  = params->buf;
         ctx->size   = params->buf_size;

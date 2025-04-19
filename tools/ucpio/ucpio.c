@@ -76,7 +76,7 @@ int main(int argc, char **argv, char **envp)
             continue;
         }
 
-        f = fopen(name, "r");
+        f = fopen(name, FOPEN_RB);
         if (!f)
             continue;
 
