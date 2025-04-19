@@ -1,0 +1,8 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+#ifndef __CLAP_COMPAT_CONFIG_H__
+#define __CLAP_COMPAT_CONFIG_H__
+
+#cmakedefine HAVE_FFS @HAVE_FFS@
+#cmakedefine HAVE_FLS @HAVE_FLS@
+
+#endif /* __CLAP_COMPAT_CONFIG_H__ */

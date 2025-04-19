@@ -4,7 +4,6 @@ project(clap)
 enable_language(C)
 
 include (FindPkgConfig)
-include(CheckSymbolExists)
 
 option(CLAP_BUILD_WITH_GLES BOOL OFF)
 option(CLAP_BUILD_FINAL BOOL OFF)
@@ -39,10 +38,11 @@ if (WIN32)
     bootstrap_deps("bootstrap-win32.json")
 endif ()
 
+add_subdirectory(${CMAKE_SOURCE_DIR}/compat)
+
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     include (FindGLEW)
     enable_language(ASM)
-    check_symbol_exists(fls "strings.h" HAVE_FLS)
     set(OpenGL_GL_PREFERENCE "LEGACY")
     set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
     find_package(glfw3 REQUIRED)

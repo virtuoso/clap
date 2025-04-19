@@ -10,5 +10,4 @@
 #cmakedefine CONFIG_FINAL "@CONFIG_FINAL@"
 #cmakedefine CONFIG_NETWORKING "@CONFIG_NETWORKING@"
 #cmakedefine CONFIG_SERVER_IP "@CONFIG_SERVER_IP@"
-#cmakedefine HAVE_FLS @HAVE_FLS@
 #endif /* CLAP_CONFIG_H */
