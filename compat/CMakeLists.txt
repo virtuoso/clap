@@ -7,6 +7,8 @@ check_symbol_exists(fls "strings.h" HAVE_FLS)
 
 configure_file(compat_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/compat_config.h)
 
+target_compile_definitions(clap_compat INTERFACE -D_GNU_SOURCE)
+
 set(COMPAT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
 
 target_include_directories(clap_compat INTERFACE

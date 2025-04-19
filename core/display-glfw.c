@@ -4,7 +4,6 @@
 #include <GL/glew.h>
 #endif /* CONFIG_RENDERER_OPENGL */
 
-#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>

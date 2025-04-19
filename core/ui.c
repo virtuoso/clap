@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-#define _GNU_SOURCE
 #include <stdlib.h>
 #include <errno.h>
 #include "error.h"
