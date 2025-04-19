@@ -7,3 +7,7 @@ target_compile_options(clap_compat INTERFACE "-include" @COMPAT_HEADER@)
 target_include_directories(clap_compat INTERFACE
     @COMPAT_INCLUDE_DIR@
 )
+
+if (MINGW)
+    target_sources(clap_compat INTERFACE @COMPAT_WINDOWS_SOURCES_STRING@)
+endif()

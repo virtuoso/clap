@@ -23,6 +23,17 @@ target_include_directories(clap_compat INTERFACE
 set(COMPAT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/compat.h")
 target_compile_options(clap_compat INTERFACE "-include" ${COMPAT_HEADER})
 
+if (MINGW)
+    set(COMPAT_WINDOWS_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/windows/init.c"
+        "${CMAKE_CURRENT_LIST_DIR}/windows/fs.c"
+        "${CMAKE_CURRENT_LIST_DIR}/windows/string.c"
+        "${CMAKE_CURRENT_LIST_DIR}/windows/time.c"
+    )
+    string(JOIN ";" COMPAT_WINDOWS_SOURCES_STRING ${COMPAT_WINDOWS_SOURCES})
+    target_sources(clap_compat INTERFACE ${COMPAT_WINDOWS_SOURCES})
+endif()
+
 # Create build-friendly config
 set(clap_compat_EXPORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/cmake")
 configure_file(

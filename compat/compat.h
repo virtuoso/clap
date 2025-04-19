@@ -6,6 +6,15 @@
 
 #include "compat_config.h"
 
+#if defined(_WIN32)
+# if !defined(WLIBC_H)
+#  include "windows/compat.h"
+# endif /* !WLIBC_H */
+# include "windows/path.h"
+#else
+# include "shared/path.h"
+#endif
+
 #include "shared/strings.h"
 
 #endif /* __ASSEMBLER__ */
