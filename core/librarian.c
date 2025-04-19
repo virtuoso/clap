@@ -58,28 +58,6 @@ static void handle_drop(struct ref *ref)
 
 DEFINE_REFCLASS_DROP(lib_handle, handle_drop);
 
-/* XXX: horrible name, horrible hack */
-static void windows_reslash(char *dest, const char *src, ssize_t len, bool forward)
-{
-    if (len < 0)
-        len = strlen(src);
-
-#ifdef _WIN32
-    int i;
-    for (i = 0; i < len; i++)
-        if (!forward && src[i] == '/')
-            dest[i] = '\\';
-        else if (forward && src[i] == '\\')
-            dest[i] = '/';
-        else
-            dest[i] = src[i];
-    dest[i] = 0;
-#else
-    if (dest != src)
-        strncpy(dest, src, len + 1);
-#endif /* _WIN32 */
-}
-
 char *lib_figure_uri(enum res_type type, const char *name)
 {
     char *pfx[] = {
@@ -112,7 +90,7 @@ char *lib_figure_uri(enum res_type type, const char *name)
         return NULL;
 
     /* uri is both char *dest and const char *src, but the compiler doesn't know */
-    windows_reslash(uri, uri, res.val, false);
+    path_to_os(uri);
 
     return uri;
 }
@@ -130,10 +108,8 @@ static const char *builtin_file_contents(enum res_type type, const char *name, s
     }
 
     struct builtin_file *file;
-    char _name[PATH_MAX];
-    windows_reslash(_name, name, -1, true);
     darray_for_each(file, builtin_assets)
-        if (!strcmp(_name, file->name)) {
+        if (!path_cmp(name, file->name)) {
             *psize = file->size;
             return file->contents;
         }
