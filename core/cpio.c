@@ -212,14 +212,14 @@ cerr cpio_write(cpio_context *ctx, const char *name, void *buf, size_t size)
     fwrite(&h, sizeof(h), 1, ctx->f);
     fwrite(name, namesize, 1, ctx->f);
     if (namesize & 1)
-        fwrite("", 1, 1, ctx->f);
+        fputc('\0', ctx->f);
 
     if (!buf)
         return CERR_OK;
 
     fwrite(buf, size, 1, ctx->f);
     if (size & 1)
-        fwrite("", 1, 1, ctx->f);
+        fputc('\0', ctx->f);
 
     return CERR_OK;
 }
