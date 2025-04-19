@@ -10,8 +10,10 @@
 # if !defined(WLIBC_H)
 #  include "windows/compat.h"
 # endif /* !WLIBC_H */
+# include "windows/io.h"
 # include "windows/path.h"
 #else
+# include "shared/io.h"
 # include "shared/path.h"
 #endif
 
