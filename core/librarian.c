@@ -187,7 +187,7 @@ struct lib_handle *lib_request(enum res_type type, const char *name, lib_complet
     h->state = RES_REQUESTED;
 
     h = ref_get(h); /* matches ref_put() in the callback, which is mandatory */
-    f = fopen(uri, "r");
+    f = fopen(uri, FOPEN_RB);
     if (!f) {
         h->state = RES_ERROR;
     } else {
@@ -252,7 +252,7 @@ struct lib_handle *lib_read_file(enum res_type type, const char *name, void **bu
     h->state = RES_REQUESTED;
 
     h = ref_get(h); /* matches ref_put() in lib_onload() */
-    f = fopen(uri, "r");
+    f = fopen(uri, FOPEN_RB);
     if (!f) {
         ret = -1;
         ref_put(h);
