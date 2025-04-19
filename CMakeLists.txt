@@ -34,9 +34,6 @@ endif ()
 
 include(scripts/bootstrap.cmake)
 bootstrap_deps("bootstrap.json")
-if (WIN32)
-    bootstrap_deps("bootstrap-win32.json")
-endif ()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/compat)
 
@@ -80,8 +77,6 @@ set(MESHOPT_BUILD_TOOLS OFF CACHE BOOL "")
 set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "")
 add_subdirectory(deps/src/meshoptimizer EXCLUDE_FROM_ALL)
 set_property(TARGET meshoptimizer PROPERTY FOLDER "ThirdPartyLibraries")
-
-wlibc_setup(deps/src/windows-libc)
 
 set(ODE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ode")
 

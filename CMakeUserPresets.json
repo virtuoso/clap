@@ -75,51 +75,81 @@
             }
         },
         {
-            "name": "w32debug",
-            "displayName": "win32 debug",
-            "binaryDir": "build/debug",
-            "generator": "Ninja",
+            "name": "w32debug-cross",
+            "displayName": "win32 debug with (mingw, cross)",
+            "binaryDir": "build/w32debug",
+            "generator": "Unix Makefiles",
             "toolchainFile": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake",
             "cacheVariables": {
-                "CMAKE_PROGRAM_PATH": "C:/Program Files/LLVM/bin",
                 "CMAKE_BUILD_TYPE":"Debug",
                 "CMAKE_SYSTEM_PROCESSOR": "AMD64",
-                "CMAKE_C_COMPILER_FRONTEND_VARIANT": "MSVC",
-                "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "MSVC",
-                "CMAKE_C_COMPILER": "clang-cl.exe",
-                "CMAKE_CXX_COMPILER": "clang-cl.exe",
-                "CMAKE_AR": "llvm-lib.exe",
-                "CMAKE_PREFIX_PATH": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/",
+                "CMAKE_SYSTEM_NAME": "Windows",
+                "CMAKE_C_COMPILER_FRONTEND_VARIANT": "GNU",
+                "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "GNU",
+                "CMAKE_C_COMPILER": "x86_64-w64-mingw32-gcc",
+                "CMAKE_CXX_COMPILER": "x86_64-w64-mingw32-g++",
+                "CMAKE_AR": "x86_64-w64-mingw32-ar",
+                "CMAKE_RANLIB": "x86_64-w64-mingw32-ranlib",
+                "CMAKE_NM": "x86_64-w64-mingw32-nm",
+                "CMAKE_STRIP": "x86_64-w64-mingw32-strip",
                 "VCPKG_LOAD_VCVARS_ENV": true,
-                "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+                "VCPKG_TARGET_TRIPLET": "x64-mingw",
                 "VCPKG_APPLOCAL_DEPS": false,
                 "CLAP_BUILD_NETWORKING": false,
+                "LDJAM56_BUILD_IN_ASSETS":true,
+                "LDJAM57_BUILD_IN_ASSETS":true
+            }
+        },
+        {
+            "name": "w32test-cross",
+            "displayName": "win32 test/release-with-debug-info (mingw, cross)",
+            "inherits": "w32debug-cross",
+            "cacheVariables": {
+              "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            },
+            "binaryDir": "build/w32test"
+        },
+        {
+            "name": "w32rel-cross",
+            "displayName": "win32 release (mingw, cross)",
+            "inherits": "w32debug-cross",
+            "cacheVariables": {
+              "CMAKE_BUILD_TYPE": "Release"
+            },
+            "binaryDir": "build/w32rel"
+        },
+        {
+            "name": "w32debug",
+            "displayName": "win32 debug (mingw, native)",
+            "binaryDir": "build/debug",
+            "inherits": "w32debug-cross",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc.exe",
+                "CMAKE_CXX_COMPILER": "g++.exe",
+                "CMAKE_AR": "ar.exe",
+                "CMAKE_STRIP": "strip.exe",
+                "CMAKE_RANLIB": "ranlib.exe",
                 "GLSLC_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/shaderc",
                 "SPIRV_CROSS_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/spirv-cross"
             }
         },
         {
             "name": "w32test",
-            "displayName": "win32 test",
+            "displayName": "win32 test/release-with-debug-info (mingw, native)",
             "binaryDir": "build/test",
-            "generator": "Ninja",
-            "toolchainFile": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "inherits": "w32debug",
             "cacheVariables": {
-                "CMAKE_PROGRAM_PATH": "C:/Program Files/LLVM/bin",
-                "CMAKE_BUILD_TYPE":"Release",
-                "CMAKE_SYSTEM_PROCESSOR": "AMD64",
-                "CMAKE_C_COMPILER_FRONTEND_VARIANT": "MSVC",
-                "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "MSVC",
-                "CMAKE_C_COMPILER": "clang-cl.exe",
-                "CMAKE_CXX_COMPILER": "clang-cl.exe",
-                "CMAKE_AR": "llvm-lib.exe",
-                "CMAKE_PREFIX_PATH": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows-static/",
-                "VCPKG_LOAD_VCVARS_ENV": true,
-                "VCPKG_TARGET_TRIPLET": "x64-windows-static",
-                "VCPKG_APPLOCAL_DEPS": false,
-                "CLAP_BUILD_NETWORKING": false,
-                "GLSLC_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/shaderc",
-                "SPIRV_CROSS_HINT": "$env{VCPKG_INSTALLATION_ROOT}/installed/x64-windows/tools/spirv-cross"
+                "CMAKE_BUILD_TYPE":"RelWithDebInfo"
+            }
+        },
+        {
+            "name": "w32rel",
+            "displayName": "win32 release (mingw, native)",
+            "binaryDir": "build/rel",
+            "inherits": "w32debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Release"
             }
         }
     ],
