@@ -1,0 +1,9 @@
+add_library(clap_compat INTERFACE)
+
+target_compile_definitions(clap_compat INTERFACE -D_GNU_SOURCE)
+
+target_compile_options(clap_compat INTERFACE "-include" @COMPAT_HEADER@)
+
+target_include_directories(clap_compat INTERFACE
+    @COMPAT_INCLUDE_DIR@
+)

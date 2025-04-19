@@ -1,3 +1,8 @@
+if(NOT DEFINED PROJECT_NAME)
+    cmake_minimum_required(VERSION 3.21)
+    project(clap_compat C)
+endif()
+
 add_library(clap_compat INTERFACE)
 
 include(CheckSymbolExists)
@@ -17,3 +22,11 @@ target_include_directories(clap_compat INTERFACE
 
 set(COMPAT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/compat.h")
 target_compile_options(clap_compat INTERFACE "-include" ${COMPAT_HEADER})
+
+# Create build-friendly config
+set(clap_compat_EXPORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/cmake")
+configure_file(
+    "${CMAKE_CURRENT_LIST_DIR}/cmake/clap_compatConfig.cmake.in"
+    "${clap_compat_EXPORT_DIR}/clap_compatConfig.cmake"
+    @ONLY
+)

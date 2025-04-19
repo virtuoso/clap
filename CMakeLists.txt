@@ -131,15 +131,25 @@ add_subdirectory(demo/ldjam56)
 add_subdirectory(demo/ldjam57)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    ExternalProject_Add(compat-host
+        SOURCE_DIR  ${CMAKE_SOURCE_DIR}/compat
+        BINARY_DIR  ${CMAKE_BINARY_DIR}/compat-host
+        CMAKE_ARGS
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        INSTALL_COMMAND   ""
+    )
+
     set(UCPIO_HOST_BUILD_DIR "${CMAKE_BINARY_DIR}/tools/ucpio")
 
     ExternalProject_Add(ucpio_host
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/tools/ucpio"
         BINARY_DIR "${UCPIO_HOST_BUILD_DIR}"
+        DEPENDS compat-host cerrs_gen
         CMAKE_ARGS
             -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DCMAKE_INSTALL_PREFIX=${UCPIO_HOST_BUILD_DIR}/install
             -DENGINE_SRC_DIR=${CMAKE_SOURCE_DIR}/core
+            -Dclap_compat_DIR=${CMAKE_BINARY_DIR}/compat/cmake
             -Dclap_BINARY_DIR=${CMAKE_BINARY_DIR}
         BUILD_BYPRODUCTS "${UCPIO_HOST_BUILD_DIR}/ucpio"
         USES_TERMINAL_BUILD TRUE
