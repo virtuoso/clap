@@ -1,4 +1,9 @@
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    set(WIN32_HOST ON)
+elseif (WIN32)
+    set(WIN32_HOST OFF)
+endif ()
 
 function(wlibc_setup wlibc_dir)
     if (WIN32)

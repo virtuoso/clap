@@ -40,6 +40,8 @@ endif ()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/compat)
 
+include(scripts/win32-helpers.cmake)
+
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     include (FindGLEW)
     enable_language(ASM)
@@ -51,7 +53,7 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     find_package(PNG REQUIRED)
     find_package(Freetype REQUIRED)
     find_package(OpenAL REQUIRED)
-    if (WIN32)
+    if (WIN32_HOST)
         # win32 doesn't have pkg-config
         find_package(Vorbis REQUIRED)
         set(VORBISFILE_LIBRARY Vorbis::vorbisfile)
@@ -72,8 +74,6 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
 endif ()
 
 enable_testing()
-
-include(scripts/win32-helpers.cmake)
 
 set(MESHOPT_BUILD_DEMO OFF CACHE BOOL "")
 set(MESHOPT_BUILD_TOOLS OFF CACHE BOOL "")
