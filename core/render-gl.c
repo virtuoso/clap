@@ -1707,6 +1707,7 @@ void renderer_init(renderer_t *renderer)
     GL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_limits[RENDER_LIMIT_MAX_TEXTURE_UNITS]));
     GL(glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &gl_limits[RENDER_LIMIT_MAX_TEXTURE_ARRAY_LAYERS]));
     GL(glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &gl_limits[RENDER_LIMIT_MAX_COLOR_ATTACHMENTS]));
+    GL(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &gl_limits[RENDER_LIMIT_MAX_UBO_SIZE]));
     GL(glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &gl_limits[RENDER_LIMIT_MAX_UBO_BINDINGS]));
     GL(glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, &gl_limits[RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS]));
     GL(glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &gl_limits[RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS]));
@@ -1801,6 +1802,7 @@ static const char *gl_limit_names[RENDER_LIMIT_MAX] = {
     [RENDER_LIMIT_MAX_SAMPLES]                  = "max samples",
     [RENDER_LIMIT_MAX_DRAW_BUFFERS]             = "max draw buffers",
     [RENDER_LIMIT_MAX_ANISOTROPY]               = "max anisotrophy",
+    [RENDER_LIMIT_MAX_UBO_SIZE]                 = "max UBO size",
     [RENDER_LIMIT_MAX_UBO_BINDINGS]             = "max UBO bindings",
     [RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS]    = "max vertex uniform blocks",
     [RENDER_LIMIT_MAX_GEOMETRY_UNIFORM_BLOCKS]  = "max geometry uniform blocks",
