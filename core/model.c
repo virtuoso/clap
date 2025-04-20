@@ -774,6 +774,9 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         model3d *model = txmodel->model;
+        if (model->skip_shadow && opts->shader_override)
+            continue;
+
         struct shader_prog *model_prog = opts->shader_override ? : model->prog;
 
         model->cur_lod = 0;

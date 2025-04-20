@@ -25,6 +25,7 @@ typedef struct model3d {
     bool                cull_face;
     bool                alpha_blend;
     bool                depth_testing;
+    bool                skip_shadow;
     unsigned int        draw_type;
     unsigned int        nr_joints;
     unsigned int        root_joint;
