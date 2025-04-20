@@ -161,12 +161,6 @@ static void character_debug(struct character *ch)
         igCheckbox("moved", (bool *)&ch->moved);
         if (igButton("disable body", (ImVec2){}))
             phys_body_enable(ch->entity->phys_body, false);
-
-        igSeparator();
-        model3d *m = ch->entity->txmodel->model;
-        struct animation *an;
-        darray_for_each(an, m->anis)
-            igText("animation '%s'", an->name);
     }
 
     ui_igEnd(DEBUG_CHARACTER_MOTION);
