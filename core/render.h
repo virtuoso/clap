@@ -504,6 +504,7 @@ typedef enum {
     DRAW_TYPE_PATCHES
 } draw_type;
 
-void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type);
+void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type,
+                   unsigned int nr_instances);
 
 #endif /* __CLAP_RENDER_H__ */

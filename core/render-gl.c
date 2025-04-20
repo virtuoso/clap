@@ -2017,13 +2017,17 @@ static GLenum gl_draw_type(draw_type draw_type)
     return GL_NONE;
 }
 
-void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type)
+void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type,
+                   unsigned int nr_instances)
 {
     err_on(idx_type >= array_size(gl_comp_type), "invalid draw type %u\n", idx_type);
 
     GLenum _idx_type = gl_comp_type[idx_type];
     GLenum _draw_type = gl_draw_type(draw_type);
-    GL(glDrawElements(_draw_type, nr_faces, _idx_type, 0));
+    if (nr_instances <= 1)
+        GL(glDrawElements(_draw_type, nr_faces, _idx_type, 0));
+    else
+        GL(glDrawElementsInstanced(_draw_type, nr_faces, _idx_type, 0, nr_instances));
 
     /* Fix frame stutter on macOS + AMD (forces frame submission) */
     if (r->mac_amd_quirk)

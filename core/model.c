@@ -641,12 +641,12 @@ void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
     shader_plug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
 }
 
-static void model3dtx_draw(renderer_t *r, model3dtx *txm)
+static void model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int nr_instances)
 {
     model3d *m = txm->model;
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    renderer_draw(r, m->draw_type, m->nr_faces[m->cur_lod], DT_USHORT);
+    renderer_draw(r, m->draw_type, m->nr_faces[m->cur_lod], DT_USHORT, nr_instances);
 }
 
 static void model3d_done(model3d *m, struct shader_prog *p)
@@ -915,7 +915,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx);
 
             shader_var_blocks_update(prog);
-            model3dtx_draw(r, txmodel);
+            model3dtx_draw(r, txmodel, 1);
             nr_ents++;
         }
         model3dtx_done(txmodel, prog);
