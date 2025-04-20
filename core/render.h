@@ -460,6 +460,12 @@ void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_p
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 
+#ifndef CONFIG_FINAL
+void renderer_debug(renderer_t *r);
+#else
+static inline void renderer_debug(renderer_t *r) {}
+#endif /* CONFIG_FINAL */
+
 typedef enum {
     CULL_FACE_NONE = 0,
     CULL_FACE_FRONT,

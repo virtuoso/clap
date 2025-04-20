@@ -1798,6 +1798,44 @@ void renderer_init(renderer_t *renderer)
     }
 }
 
+#ifndef CONFIG_FINAL
+#include "ui-debug.h"
+
+static const char *gl_limit_names[RENDER_LIMIT_MAX] = {
+    [RENDER_LIMIT_MAX_TEXTURE_SIZE]             = "max texture size",
+    [RENDER_LIMIT_MAX_TEXTURE_UNITS]            = "max texture units",
+    [RENDER_LIMIT_MAX_TEXTURE_ARRAY_LAYERS]     = "max texture array layers",
+    [RENDER_LIMIT_MAX_COLOR_ATTACHMENTS]        = "max color attachments",
+    [RENDER_LIMIT_MAX_COLOR_TEXTURE_SAMPLES]    = "max color texture samples",
+    [RENDER_LIMIT_MAX_DEPTH_TEXTURE_SAMPLES]    = "max depth texture samples",
+    [RENDER_LIMIT_MAX_SAMPLES]                  = "max samples",
+    [RENDER_LIMIT_MAX_DRAW_BUFFERS]             = "max draw buffers",
+    [RENDER_LIMIT_MAX_ANISOTROPY]               = "max anisotrophy",
+    [RENDER_LIMIT_MAX_UBO_BINDINGS]             = "max UBO bindings",
+    [RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS]    = "max vertex uniform blocks",
+    [RENDER_LIMIT_MAX_GEOMETRY_UNIFORM_BLOCKS]  = "max geometry uniform blocks",
+    [RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS]  = "max fragment uniform blocks",
+};
+
+void renderer_debug(renderer_t *r)
+{
+    debug_module *dbgm = ui_igBegin(DEBUG_RENDERER, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        ui_igTableHeader("renderer", (const char *[]){ "value"}, 1);
+
+        for (int i = 0; i < array_size(gl_limits); i++)
+            ui_igTableRow(gl_limit_names[i], "%d", gl_limits[i]);
+        igEndTable();
+    }
+
+    ui_igEnd(DEBUG_RENDERER);
+}
+#endif /* CONFIG_FINAL */
+
 int renderer_query_limits(renderer_t *renderer, render_limit limit)
 {
     if (limit >= RENDER_LIMIT_MAX)
