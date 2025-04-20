@@ -84,6 +84,8 @@ void ui_igCheckbox(bool *v, const char *label, ...) __printf(2, 3);
 void ui_igSliderFloat(float *v, float min, float max, const char *fmt, ImGuiSliderFlags flags,
                       const char *label, ...) __printf(6, 7);
 
+bool ui_igTableHeader(const char *str_id, const char **labels, int n);
+void ui_igTableRow(const char *key, const char *fmt, ...);
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(float *v, int n, const char *fmt, ...);
 bool ui_igMat4x4(mat4x4 m, const char *name);
