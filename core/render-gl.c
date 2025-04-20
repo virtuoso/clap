@@ -1825,10 +1825,19 @@ void renderer_debug(renderer_t *r)
         return;
 
     if (dbgm->unfolded) {
+        igText("GL limits");
         ui_igTableHeader("renderer", (const char *[]){ "value"}, 1);
 
         for (int i = 0; i < array_size(gl_limits); i++)
             ui_igTableRow(gl_limit_names[i], "%d", gl_limits[i]);
+        igEndTable();
+
+        igText("FBO color formats");
+        ui_igTableHeader("color formats", (const char *[]){ "supported"}, 1);
+
+        for (int i = 0; i < array_size(_texture_format_supported); i++)
+            ui_igTableRow(texture_format_string[i], "%s",
+                          fbo_texture_supported(i) ? "supported" : "");
         igEndTable();
     }
 
