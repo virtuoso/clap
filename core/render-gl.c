@@ -1763,11 +1763,6 @@ void renderer_init(renderer_t *renderer)
 
             texture_deinit(&tex);
         }
-
-#ifdef CLAP_DEBUG
-        dbg("texture format %s is %ssupported in textures\n",
-            texture_format_string[i], _texture_format_supported[i] ? "" : "not ");
-#endif /* CLAP_DEBUG */
     }
 
     for (i = 0; i < TEX_FMT_MAX; i++) {
@@ -1790,11 +1785,6 @@ void renderer_init(renderer_t *renderer)
             else
                 fbo_put(res.val);
         }
-
-#ifdef CLAP_DEBUG
-        dbg("texture format %s is %ssupported as texture attachment\n",
-            texture_format_string[i], _fbo_texture_supported[i] ? "" : "not ");
-#endif /* CLAP_DEBUG */
     }
 }
 
