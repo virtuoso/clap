@@ -13,6 +13,10 @@ typedef struct prim_emit_opts {
     float           *uv;
 } prim_emit_opts;
 
+void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts);
+void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts);
+void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
+
 /* Append a vertex to a mesh */
 #define prim_emit_vertex(_p, args...) \
     _prim_emit_vertex((_p), &(prim_emit_opts){ args })
