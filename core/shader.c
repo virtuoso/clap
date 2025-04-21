@@ -84,6 +84,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_FOG_FAR,             "fog_far",              DT_FLOAT),
     SHADER_VAR(UNIFORM_FOG_COLOR,           "fog_color",            DT_VEC3),
     SHADER_ARR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4, JOINTS_MAX),
+    SHADER_ARR(UNIFORM_PARTICLE_POS,        "particle_pos",         DT_VEC3, PARTICLES_MAX),
 };
 
 /* Runtime handle for a variable block (uniform buffer) */
@@ -135,6 +136,8 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
     DEFINE_SHADER_VAR_BLOCK(skinning, SHADER_STAGE_VERTEX_BIT,
                             UNIFORM_USE_SKINNING,
                             UNIFORM_JOINT_TRANSFORMS),
+    DEFINE_SHADER_VAR_BLOCK(particles, SHADER_STAGE_VERTEX_BIT,
+                            UNIFORM_PARTICLE_POS),
 };
 
 /* Runtime shader context */

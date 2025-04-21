@@ -62,6 +62,7 @@ enum shader_vars {
     UNIFORM_FOG_NEAR,
     UNIFORM_FOG_FAR,
     UNIFORM_FOG_COLOR,
+    UNIFORM_PARTICLE_POS,
     SHADER_VAR_MAX
 };
 
