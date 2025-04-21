@@ -215,7 +215,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
         goto err_fbo;
 
     pass->use_tex = mem_alloc(sizeof(texture_t *), .nr = pass->nr_sources);
-    if (!pass->blit_fbo)
+    if (!pass->use_tex)
         goto err_blit_fbo;
 
     int nr_blits = 0, nr_renders = 0, nr_uses = 0;
