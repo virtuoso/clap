@@ -43,6 +43,8 @@ static texture_t platform_emission_teal;
 static texture_t platform_emission_peach;
 static texture_t platform_emission_orange;
 
+static particle_system *spores;
+
 enum main_state {
     MS_STARTING = 0,
     MS_RUNNING,
@@ -205,6 +207,9 @@ static int character_obj_update(entity3d *e, void *data)
     unsigned int update = 0;
 
     if (scene_camera_follows(s, c)) {
+        if (spores)
+            particle_system_position(spores, s->control->pos);
+
         if (c != control)
             update++;
 
@@ -355,6 +360,26 @@ static void startup(struct scene *s)
     if (IS_CERR(err))
         err_cerr(err, "couldn't initialize pixel texture\n");
 
+    cresp(shader_prog) prog_res = pipeline_shader_find_get(s->pl, "particle");
+    if (IS_CERR(prog_res)) {
+        err_cerr(prog_res, "can't load spore shader\n");
+    } else {
+        cresp(particle_system) psres = ref_new_checked(particle_system,
+            .name   = "spores",
+            .prog   = ref_pass(prog_res.val),
+            .mq     = &s->mq,
+            .dist   = PART_DIST_POW075,
+            .emit   = &platform_emission_purple,
+            .count  = 512,
+            .radius = 40.0,
+            .scale  = 0.02,
+        );
+        if (IS_CERR(psres))
+            err_cerr(psres, "can't create particle system\n");
+        else
+            spores = psres.val;
+    }
+
     struct ui *ui = clap_get_ui(s->clap_ctx);
     cresp(ui_element) res = ref_new_checked(ui_element,
         .ui         = ui,
@@ -377,6 +402,7 @@ static void cleanup(struct scene *s)
     if (switcher_text)
         ref_put_last(switcher_text);
     ref_put_last(switcher);
+    ref_put(spores);
 
     platform_obj *pobj;
     darray_for_each(pobj, pobjs)
