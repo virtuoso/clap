@@ -58,9 +58,9 @@ uniform float bloom_intensity;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
-layout (location=2) out vec4 Albedo;
-layout (location=3) out float Depth;
-layout (location=4) out vec4 Gbuffer;
+layout (location=2) out vec4 EdgeNormal;
+layout (location=3) out float EdgeDepthMask;
+layout (location=4) out vec4 ViewPosition;
 
 float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
 {
@@ -234,20 +234,20 @@ void main()
     total_diffuse = mix(max(total_diffuse, 0.2), shadow_tint, 1.0 - shadow_factor);
 
     FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
-    Depth = gl_FragCoord.z;
+    EdgeDepthMask = gl_FragCoord.z;
 
     vec3 emission = texture(emission_map, pass_tex).rgb;
     emission = max(emission - bloom_threshold, vec3(0.0)) * bloom_intensity;
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
-    Gbuffer = view_pos;
+    ViewPosition = view_pos;
 
     if (sobel_solid) {
-        Albedo = vec4(texture_sample.rgb, sobel_solid_id);
+        EdgeNormal = vec4(texture_sample.rgb, sobel_solid_id);
     } else if (outline_exclude) {
-        Albedo = vec4(vec3(0.0), 1.0);
-        Depth = 1.0;
+        EdgeNormal = vec4(vec3(0.0), 1.0);
+        EdgeDepthMask = 1.0;
     } else {
         vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
-        Albedo = vec4(pos_normal * (shadow_outline && shadow_factor < shadow_outline_threshold ? 0.0 : 1.0), 1.0);
+        EdgeNormal = vec4(pos_normal * (shadow_outline && shadow_factor < shadow_outline_threshold ? 0.0 : 1.0), 1.0);
     }
 }
