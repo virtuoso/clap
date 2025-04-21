@@ -5,6 +5,7 @@
 #include "common.h"
 #include "object.h"
 #include "librarian.h"
+#include "particle.h"
 #include "physics.h"
 #include "mesh.h"
 #include "render.h"
@@ -221,6 +222,7 @@ typedef struct entity3d {
     mat4x4           *joint_transforms;
 
     struct phys_body *phys_body;
+    particle_system  *particles;
     float   color[4];
     int     color_pt;
     vec3    pos;

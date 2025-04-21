@@ -93,7 +93,7 @@ set(ENGINE_SRC
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
     gltf.c input-joystick.c render-gl.c mesh.c pipeline.c pipeline-builder.c
-    game.c camera.c xyarray.c ca2d.c ca3d.c cpio.c
+    game.c camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c
     ${PLATFORM_SRC})
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
@@ -153,7 +153,7 @@ include("${CMAKE_SOURCE_DIR}/scripts/compile-shaders.cmake")
 set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
 set(SHADERS ui glyph model contrast sobel sobel-msaa laplace
     smaa-blend-weights smaa-neighborhood-blend combine shadow
-    debug hblur vblur downsample upsample terrain)
+    debug hblur vblur downsample upsample terrain particle)
 
 compile_shaders("${SHADERS}" "_core")
 

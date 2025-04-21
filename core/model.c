@@ -917,8 +917,14 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx);
 
+            unsigned int nr_instances = 1;
+            if (e->particles) {
+                particle_system_upload(e->particles, prog);
+                nr_instances = particle_system_count(e->particles);
+            }
+
             shader_var_blocks_update(prog);
-            model3dtx_draw(r, txmodel, 1);
+            model3dtx_draw(r, txmodel, nr_instances);
             nr_ents++;
         }
         model3dtx_done(txmodel, prog);
