@@ -189,6 +189,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("debug draws", &scene->render_options.debug_draws_enabled);
         igCheckbox("collision draws", &scene->render_options.collision_draws_enabled);
         igCheckbox("aabb draws", &scene->render_options.aabb_draws_enabled);
+        igCheckbox("use SSAO", &scene->render_options.ssao);
+        igSliderFloat("SSAO radius", &scene->render_options.ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("SSAO weight", &scene->render_options.ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
         igCheckbox("use HDR", &scene->render_options.hdr);
         igSliderFloat("bloom exposure", &scene->render_options.bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom intensity", &scene->render_options.bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
@@ -581,6 +584,16 @@ cerr scene_init(struct scene *scene)
     scene->render_options.shadow_outline = true;
     scene->render_options.shadow_outline_threshold = 0.4;
     scene->render_options.hdr = true;
+    /*
+     * Apple Silicon's GL driver can't handle this much postprocessing
+     * without driving FPS into single digits and heating up like a frying
+     * pan. Disable it until Metal renderer is ready.
+     */
+#if !defined(__APPLE__) && !defined(__arm64__)
+    scene->render_options.ssao = true;
+#endif /* __APPLE__ && __arm64__ */
+    scene->render_options.ssao_radius = 0.3;
+    scene->render_options.ssao_weight = 0.85;
     scene->render_options.bloom_exposure = 1.7;
     scene->render_options.bloom_intensity = 2.0;
     scene->render_options.bloom_threshold = 0.27;

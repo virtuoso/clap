@@ -16,6 +16,8 @@ typedef struct render_options {
     float   lighting_exposure;
     float   lighting_operator;
     float   contrast;
+    float   ssao_radius;
+    float   ssao_weight;
     float   fog_near;
     float   fog_far;
     vec3    fog_color;
@@ -27,6 +29,7 @@ typedef struct render_options {
     int     laplace_kernel;
     bool    edge_antialiasing;
     bool    edge_sobel;
+    bool    ssao;
     bool    hdr;
     bool    collision_draws_enabled;
     bool    aabb_draws_enabled;
