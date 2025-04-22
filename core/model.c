@@ -272,7 +272,7 @@ static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int widt
 static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars var, void *input,
                                               int width, int height, int has_alpha)
 {
-    texture_t *targets[] = { txm->texture, txm->normals, txm->emission, txm->sobel };
+    texture_t *targets[] = { txm->texture, txm->normals, txm->emission, txm->sobel, txm->shadow };
     struct shader_prog *prog = txm->model->prog;
     int slot;
     cerr err;
@@ -362,6 +362,8 @@ static void model3dtx_drop(struct ref *ref)
         texture_deinit(txm->emission);
     if (txm->sobel)
         texture_deinit(txm->sobel);
+    if (txm->shadow)
+        texture_deinit(txm->shadow);
     ref_put(txm->model);
 }
 
@@ -377,6 +379,7 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
     txm->normals    = &txm->_normals;
     txm->emission   = &txm->_emission;
     txm->sobel      = &txm->_sobel;
+    txm->shadow     = &txm->_shadow;
     list_init(&txm->entities);
     list_init(&txm->entry);
 
@@ -464,7 +467,7 @@ DEFINE_CLEANUP(model3dtx, if (*p) ref_put(*p))
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
 {
     struct shader_prog *prog = txm->model->prog;
-    texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission, &txm->sobel };
+    texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission, &txm->sobel, &txm->shadow };
     int slot = shader_get_texture_slot(prog, var);
 
     if (slot < 0) {
@@ -639,6 +642,7 @@ void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
     shader_plug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
     shader_plug_texture(p, UNIFORM_EMISSION_MAP, txm->emission);
     shader_plug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
+    shader_plug_texture(p, UNIFORM_SHADOW_MAP, txm->shadow);
 }
 
 static void model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int nr_instances)

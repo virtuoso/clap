@@ -75,6 +75,8 @@ void pipeline_clearout(pipeline *pl)
                         txm->emission = &txm->_emission;
                     if (txm->sobel == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
                         txm->sobel = &txm->_sobel;
+                    if (txm->shadow == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
+                        txm->shadow = &txm->_shadow;
                 }
             }
 
