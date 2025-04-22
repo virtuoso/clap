@@ -437,6 +437,8 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
                       .render_options   = pl->render_options,
                       .light            = params.light,
                       .camera           = params.camera,
+                      .width            = fbo_width(pass->fbo),
+                      .height           = fbo_height(pass->fbo),
                       .cascade          = pass->cascade,
                       .entity_count     = &count);
     } else {
@@ -449,6 +451,8 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
                       .near_plane       = params.near_plane,
                       .far_plane        = params.far_plane,
                       .render_options   = pl->render_options,
+                      .width            = fbo_width(pass->fbo),
+                      .height           = fbo_height(pass->fbo),
                       .entity_count     = &count);
         list_del(&pass->quad->txmodel->entry);
     }
