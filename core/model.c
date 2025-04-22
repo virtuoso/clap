@@ -816,6 +816,11 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_FOG_COLOR, 1, ropts->fog_color);
             }
 
+            if (opts->width)
+                shader_set_var_float(prog, UNIFORM_WIDTH, (float)opts->width);
+            if (opts->height)
+                shader_set_var_float(prog, UNIFORM_HEIGHT, (float)opts->height);
+
             if (light) {
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_POS, LIGHTS_MAX, light->pos);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_COLOR, LIGHTS_MAX, light->color);

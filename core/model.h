@@ -257,6 +257,8 @@ typedef struct models_render_options {
     unsigned long       *entity_count;
     unsigned long       *txm_count;
     render_options      *render_options;
+    unsigned int        width;
+    unsigned int        height;
     int                 cascade;
     float               near_plane;
     float               far_plane;
