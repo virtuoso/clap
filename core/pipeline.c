@@ -334,6 +334,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
         if (!pass->quad)
             goto err_txmodel;
 
+        pass->quad->skip_culling = true;
         mat4x4_identity(pass->quad->mx);
         ref_put(prog);
     }
