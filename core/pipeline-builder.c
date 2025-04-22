@@ -370,7 +370,6 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     pass = pipeline_add_pass(pl,
         .source             = (render_source[]) {
             { .pass = pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_MODEL_TEX },
-            { .pass = contrast_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
