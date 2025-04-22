@@ -42,11 +42,14 @@ typedef enum {
     RM_USE,
     /* render a model queue render_source::mq info fbo */
     RM_RENDER,
+    /* use a texture */
+    RM_PLUG,
 } render_method;
 
 typedef struct render_source {
     union {
         render_pass     *pass;
+        texture_t       *tex;
         struct mq       *mq;
     };
     fbo_attachment      attachment;

@@ -67,15 +67,17 @@ void pipeline_clearout(pipeline *pl)
                 render_source *source = &pass->source[i];
 
                 if (source->pass) {
-                    fbo_t *fbo = source->pass->fbo;
+                    texture_t *tex = pass->use_tex[i] ?
+                        pass->use_tex[i] :
+                        fbo_texture(source->pass->fbo, FBO_COLOR_TEXTURE(0));
 
-                    if (txm->texture == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
+                    if (txm->texture == tex)
                         txm->texture = &txm->_texture;
-                    if (txm->emission == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
+                    if (txm->emission == tex)
                         txm->emission = &txm->_emission;
-                    if (txm->sobel == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
+                    if (txm->sobel == tex)
                         txm->sobel = &txm->_sobel;
-                    if (txm->shadow == fbo_texture(fbo, FBO_COLOR_TEXTURE(0)))
+                    if (txm->shadow == tex)
                         txm->shadow = &txm->_shadow;
                 }
             }
@@ -220,7 +222,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
     if (!pass->use_tex)
         goto err_blit_fbo;
 
-    int nr_blits = 0, nr_renders = 0, nr_uses = 0;
+    int nr_blits = 0, nr_renders = 0, nr_uses = 0, nr_plugs = 0;
     for (int i = 0; i < pass->nr_sources; i++) {
         render_source *rsrc = &pass->source[i];
 
@@ -274,6 +276,12 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
                 goto err_use_tex;
 
             nr_uses++;
+        } else if (rsrc->method == RM_PLUG) {
+            if (!rsrc->tex)
+                goto err_use_tex;
+
+            pass->use_tex[i] = rsrc->tex;
+            nr_plugs++;
         } else {
             goto err_use_tex;
         }
@@ -294,7 +302,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
 
         pass->prog_override = prog_res.val;
     } else if (cfg->shader) {
-        if (!nr_blits && !nr_uses)
+        if (!nr_blits && !nr_uses && !nr_plugs)
             goto err_use_tex;
 
         cresp(shader_prog) prog_res = shader_prog_find_get(pl->shader_ctx, &pl->shaders,
@@ -317,7 +325,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
         for (int i = 0; i < pass->nr_sources; i++) {
             render_source *rsrc = &pass->source[i];
 
-            if (rsrc->method != RM_BLIT && rsrc->method != RM_USE)
+            if (rsrc->method == RM_RENDER)
                 continue;
 
             if (pass->blit_fbo[i])

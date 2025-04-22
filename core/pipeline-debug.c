@@ -83,6 +83,7 @@ void pipeline_debug_end(struct pipeline *pl)
 static const char *render_method_string[] = {
     [RM_BLIT]   = "blit",
     [RM_USE]    = "use",
+    [RM_PLUG]   = "plug",
     [RM_RENDER] = "render",
 };
 
