@@ -11,6 +11,7 @@
 #include "render.h"
 #include "shader.h"
 #include "sound.h"
+#include "ssao.h"
 
 struct scene;
 struct light;
@@ -259,6 +260,7 @@ typedef struct models_render_options {
     unsigned long       *entity_count;
     unsigned long       *txm_count;
     render_options      *render_options;
+    ssao_state          *ssao_state;
     unsigned int        width;
     unsigned int        height;
     int                 cascade;

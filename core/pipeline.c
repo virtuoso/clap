@@ -36,6 +36,7 @@ static cerr pipeline_make(struct ref *ref, void *_opts)
     pl->name            = opts->name;
     pl->width           = opts->width;
     pl->height          = opts->height;
+    pl->ssao_state      = opts->ssao_state;
 
     pipeline_debug_init(pl);
 
@@ -448,11 +449,14 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         mq_init(&_mq, NULL);
         mq_add_model(&_mq, pass->quad->txmodel);
         models_render(pl->renderer, &_mq,
+                      .camera           = params.camera,
                       .near_plane       = params.near_plane,
                       .far_plane        = params.far_plane,
                       .render_options   = pl->render_options,
                       .width            = fbo_width(pass->fbo),
                       .height           = fbo_height(pass->fbo),
+                      .ssao_state       = pl->ssao_state,
+                      .cascade          = -1,
                       .entity_count     = &count);
         list_del(&pass->quad->txmodel->entry);
     }

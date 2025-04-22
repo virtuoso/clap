@@ -6,6 +6,7 @@
 #include "pipeline-builder.h"
 #include "render.h"
 #include "shader_constants.h"
+#include "ssao.h"
 
 /****************************************************************************
  * shadow render pass operations
@@ -130,6 +131,14 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     if (!opts->mq)
         return NULL;
 
+    bool ssao = opts->pl_opts->render_options->ssao;
+
+    static ssao_state ssao_state = {};
+    if (ssao)
+        ssao_init(&ssao_state);
+    else
+        ssao_done(&ssao_state);
+
     bool edge_aa = opts->pl_opts->render_options->edge_antialiasing;
     bool model_pass_msaa =
 #ifdef CONFIG_BROWSER
@@ -152,6 +161,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
                            .renderer         = opts->pl_opts->renderer,
                            .render_options   = opts->pl_opts->render_options,
                            .shader_ctx       = opts->pl_opts->shader_ctx,
+                           .ssao_state       = &ssao_state,
                            .name             = opts->pl_opts->name);
 
     struct render_pass *shadow_pass[CASCADES_MAX];
@@ -294,12 +304,52 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
         .shader             = "smaa-blend-weights",
     ) : NULL;
 
+    render_pass *ssao_pass = ssao ? pipeline_add_pass(pl,
+        .source             = (render_source[]) {
+            { .pass = model_pass, .attachment = FBO_DEPTH_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
+            { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(5), .method = model_pass_method, .sampler = UNIFORM_NORMAL_MAP },
+            { .tex  = &ssao_state.noise, .method = RM_PLUG, .sampler = UNIFORM_SOBEL_TEX },
+            {}
+        },
+        .color_format       = (texture_format[]) { TEX_FMT_R8 },
+        .ops                = &postproc_ops,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
+        .shader             = "ssao",
+    ) : NULL;
+
+    render_pass *ssao_vblur_pass = ssao ? pipeline_add_pass(pl,
+        .source             = (render_source[]) {
+            { .pass = ssao_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
+            {}
+        },
+        .color_format       = (texture_format[]) { TEX_FMT_R8 },
+        .ops                = &postproc_ops,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
+        .shader             = "vblur",
+        .scale              = 0.25,
+    ) : NULL;
+
+    render_pass *ssao_hblur_pass = ssao ? pipeline_add_pass(pl,
+        .source             = (render_source[]) {
+            { .pass = ssao_vblur_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
+            {}
+        },
+        .color_format       = (texture_format[]) { TEX_FMT_R8 },
+        .ops                = &postproc_ops,
+        .attachment_config  = FBO_COLOR_TEXTURE(0),
+        .shader             = "hblur",
+        .scale              = 0.25,
+    ) : NULL;
+
     render_pass *combine_pass = pipeline_add_pass(pl,
         .source            = (render_source[]) {
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = model_pass_method, .sampler = UNIFORM_MODEL_TEX },
             { .pass = bloom_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_EMISSION_MAP },
             { .pass = edge_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SOBEL_TEX },
             { .pass = model_pass, .attachment = FBO_COLOR_TEXTURE(4), .method = model_pass_method, .sampler = UNIFORM_NORMAL_MAP },
+            ssao ?
+                (render_source){ .pass = ssao_hblur_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP } :
+                (render_source){ .tex = black_pixel(), .method = RM_PLUG, .sampler = UNIFORM_SHADOW_MAP },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },

@@ -929,6 +929,9 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx);
 
+            if (opts->ssao_state)
+                ssao_upload(opts->ssao_state, prog, opts->width, opts->height);
+
             unsigned int nr_instances = 1;
             if (e->particles) {
                 particle_system_upload(e->particles, prog);

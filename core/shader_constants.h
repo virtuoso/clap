@@ -7,6 +7,7 @@
 #define CASCADES_MAX 4
 #define MSAA_SAMPLES 4
 #define SSAO_KERNEL_SIZE 64
+#define SSAO_NOISE_DIM 16
 
 #define COLOR_PT_NONE 0
 #define COLOR_PT_ALPHA 1

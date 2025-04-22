@@ -9,6 +9,7 @@ uniform sampler2D model_tex;
 uniform sampler2D emission_map;
 uniform sampler2D sobel_tex;
 uniform sampler2D normal_map;
+uniform sampler2D shadow_map;
 
 uniform float bloom_intensity;
 uniform float bloom_exposure;
@@ -17,6 +18,8 @@ uniform float bloom_operator;
 uniform float lighting_exposure;
 uniform float lighting_operator;
 uniform bool use_hdr;
+uniform bool use_ssao;
+uniform float ssao_weight;
 
 uniform float fog_near;
 uniform float fog_far;
@@ -34,6 +37,10 @@ void main()
     vec3 tex_color = texture(model_tex, pass_tex).rgb;
     vec3 highlight_color = texture(emission_map, pass_tex).rgb;
     vec4 sobel = texture(sobel_tex, pass_tex);
+    float ao = texture(shadow_map, pass_tex).r;
+
+    if (use_ssao)
+        tex_color = tex_color * mix(1.0, ao, ssao_weight);
 
     if (use_hdr) {
         vec3 hdr_color = tex_color * lighting_exposure;

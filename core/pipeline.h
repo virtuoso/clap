@@ -124,6 +124,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
     shader_context  *shader_ctx;
     struct light    *light;
     struct camera   *camera;
+    ssao_state      *ssao_state;
     unsigned int    width;
     unsigned int    height;
 );

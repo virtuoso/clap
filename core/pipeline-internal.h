@@ -3,6 +3,7 @@
 #define __CLAP_PIPELINE_INTERNAL_H__
 
 #include "render.h"
+#include "ssao.h"
 
 struct pipeline {
     struct ref          ref;
@@ -14,6 +15,7 @@ struct pipeline {
     shader_context      *shader_ctx;
     struct camera       *camera;
     struct light        *light;
+    ssao_state          *ssao_state;
     int                 width;
     int                 height;
 
