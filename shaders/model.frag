@@ -61,6 +61,7 @@ layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 EdgeNormal;
 layout (location=3) out float EdgeDepthMask;
 layout (location=4) out vec4 ViewPosition;
+layout (location=5) out vec4 Normal;
 
 float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
 {
@@ -197,12 +198,13 @@ void main()
         return;
     }
 
-    vec3 unit_normal;
+    vec3 normal_vec, unit_normal;
 
     if (do_use_normals > 0.5) {
-        vec4 normal_vec = texture(normal_map, pass_tex) * 2.0 - 1.0;
+        normal_vec = texture(normal_map, pass_tex).xyz * 2.0 - 1.0;
         unit_normal = normalize(normal_vec.xyz);
     } else {
+        normal_vec = surface_normal;
         unit_normal = normalize(surface_normal);
     }
 
@@ -240,6 +242,9 @@ void main()
     emission = max(emission - bloom_threshold, vec3(0.0)) * bloom_intensity;
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
     ViewPosition = view_pos;
+
+    vec3 world_normal = mat3(view) * normal_vec;
+    Normal = vec4(world_normal * 0.5 + 0.5, 1.0);
 
     if (sobel_solid) {
         EdgeNormal = vec4(texture_sample.rgb, sobel_solid_id);

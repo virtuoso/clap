@@ -201,7 +201,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(4),
+            .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(5),
             .name               = "model",
             .cascade            = -1,
             .color_format       = (texture_format[]) {
@@ -209,7 +209,8 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
                                     hdr_fmt,
                                     TEX_FMT_RGBA8,
                                     TEX_FMT_R32F,
-                                    hdr_fmt
+                                    hdr_fmt,
+                                    TEX_FMT_RGBA8,
                                 },
             .depth_format       = TEX_FMT_DEPTH32F
     );
