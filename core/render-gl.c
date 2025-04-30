@@ -961,12 +961,6 @@ texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
 
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
-    if (attachment.depth_texture && !fbo->attachment_config.depth_texture)
-        return false;
-
-    if (attachment.depth_buffer && !fbo->attachment_config.depth_buffer)
-        return false;
-
     int tidx = fbo_attachment_color(attachment);
     if (tidx <= fbo_attachment_color(fbo->attachment_config) &&
         texture_loaded(&fbo->color_tex[tidx]))
@@ -975,6 +969,12 @@ bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
     int bidx = fbo_attachment_color(attachment);
     if (bidx <= fbo_attachment_color(attachment) &&
         fbo->color_buf[bidx])
+        return true;
+
+    if (attachment.depth_texture && fbo->attachment_config.depth_texture)
+        return true;
+
+    if (attachment.depth_buffer && fbo->attachment_config.depth_buffer)
         return true;
 
     return false;
