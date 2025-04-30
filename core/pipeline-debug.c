@@ -34,21 +34,44 @@ void pipeline_dropdown_push(pipeline *pl, render_pass *pass)
             pass->use_tex[i];
     }
 
-    entry = darray_add(pl->dropdown);
-    if (!entry)
-        return;
+    if (pass->cascade >= 0) {
+        entry = darray_add(pl->dropdown);
+        if (!entry)
+            return;
 
-    if (pass->cascade >= 0)
         snprintf(entry->name, sizeof(entry->name), "%s cascade %d", pass->name, pass->cascade);
-    else
-        strncpy(entry->name, pass->name, sizeof(entry->name));
-    entry->tex = fbo_texture(
-        pass->fbo,
-        fbo_attachment_valid(pass->fbo, FBO_COLOR_TEXTURE(0)) ?
-            FBO_COLOR_TEXTURE(0) :
-            FBO_DEPTH_TEXTURE(0)
-    );
-    entry->pass = pass;
+        entry->tex = fbo_texture(
+            pass->fbo,
+            fbo_attachment_valid(pass->fbo, FBO_COLOR_TEXTURE(0)) ?
+                FBO_COLOR_TEXTURE(0) :
+                FBO_DEPTH_TEXTURE(0)
+        );
+        entry->pass = pass;
+    } else {
+        if (fbo_attachment_valid(pass->fbo, FBO_DEPTH_TEXTURE(0))) {
+            entry = darray_add(pl->dropdown);
+            if (!entry)
+                return;
+
+            snprintf(entry->name, sizeof(entry->name), "%s depth", pass->name);
+            entry->tex = fbo_texture(pass->fbo, FBO_DEPTH_TEXTURE(0));
+            entry->pass = pass;
+        }
+
+        for (int i = 0; i < FBO_COLOR_ATTACHMENTS_MAX; i++) {
+            if (fbo_attachment_valid(pass->fbo, FBO_COLOR_TEXTURE(i))) {
+                entry = darray_add(pl->dropdown);
+                if (!entry)
+                    return;
+
+                snprintf(entry->name, sizeof(entry->name), "%s color %d", pass->name, i);
+                entry->tex = fbo_texture(pass->fbo, FBO_COLOR_TEXTURE(i));
+                entry->pass = pass;
+            } else {
+                break;
+            }
+        }
+    }
 }
 
 void pipeline_debug_begin(struct pipeline *pl)
