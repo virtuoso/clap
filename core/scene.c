@@ -330,6 +330,35 @@ static int scene_debug_draw(struct message *m, void *data)
             }
             break;
 
+        case DEBUG_DRAW_LINE:
+            {
+                vec4 v0, v1;
+                vec3_dup(v0, dd->v0);
+                vec3_dup(v1, dd->v1);
+                v0[3] = v1[3] = 1.0;
+
+                mat4x4_mul_vec4_post(v0, mvp, v0);
+                vec3_scale(v0, v0, 1.0 / v0[3]);
+                mat4x4_mul_vec4_post(v1, mvp, v1);
+                vec3_scale(v1, v1, 1.0 / v1[3]);
+
+                if (v0[3] < 1e-3 || v1[3] < 1e-3)
+                    break;
+
+                ImVec2 p0 = {
+                    .x = ((v0[0] + 1.0) / 2.0) * s->width,
+                    .y = ((1.0 - v0[1]) / 2.0) * s->height,
+                };
+
+                ImVec2 p1 = {
+                    .x = ((v1[0] + 1.0) / 2.0) * s->width,
+                    .y = ((1.0 - v1[1]) / 2.0) * s->height,
+                };
+
+                ImDrawList_AddLine(draw, p0, p1, color, dd->thickness);
+            }
+            break;
+
         case DEBUG_DRAW_AABB:
             if (s->render_options.aabb_draws_enabled) {
                 vec3 min, max;
