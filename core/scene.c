@@ -360,7 +360,7 @@ static int scene_debug_draw(struct message *m, void *data)
             break;
 
         case DEBUG_DRAW_AABB:
-            if (s->render_options.aabb_draws_enabled) {
+            {
                 vec3 min, max;
                 vec3_dup(min, dd->v0);
                 vec3_dup(max, dd->v1);
