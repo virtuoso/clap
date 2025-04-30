@@ -34,7 +34,7 @@ void pipeline_dropdown_push(pipeline *pl, render_pass *pass)
             pass->use_tex[i];
     }
 
-    if (pass->cascade >= 0) {
+    if (pass->cascade >= 0 && !pass->quad) {
         entry = darray_add(pl->dropdown);
         if (!entry)
             return;
