@@ -20,6 +20,7 @@ struct phys {
     dJointGroupID contact;
     ground_contact_fn ground_contact;
     double      time_acc;
+    bool        draw_contacts;
 };
 
 /*
@@ -343,22 +344,24 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
     nc = dCollide(o1, o2, MAX_CONTACTS, &contact[0].geom, sizeof(dContact));
     if (nc) {
         for (i = 0; i < nc; i++) {
-            struct message dm = {
-                .type   = MT_DEBUG_DRAW,
-                .debug_draw = (struct message_debug_draw){
-                    .color  = { 1.0, 0.0, 0.0, 1.0 },
-                    .radius = 10.0,
-                    .shape  = DEBUG_DRAW_CIRCLE,
-                    .v0     = { contact[i].geom.pos[0], contact[i].geom.pos[1], contact[i].geom.pos[2] },
-                }
-            };
-            message_send(&dm);
-
             dGeomID g1 = contact[i].geom.g1;
             dGeomID g2 = contact[i].geom.g2;
             entity3d *e1 = dGeomGetData(g1);
             entity3d *e2 = dGeomGetData(g2);
             struct phys *phys = e1->phys_body->phys;
+
+            if (unlikely(phys->draw_contacts)) {
+                struct message dm = {
+                    .type   = MT_DEBUG_DRAW,
+                    .debug_draw = (struct message_debug_draw){
+                        .color  = { 1.0, 0.0, 0.0, 1.0 },
+                        .radius = 10.0,
+                        .shape  = DEBUG_DRAW_CIRCLE,
+                        .v0     = { contact[i].geom.pos[0], contact[i].geom.pos[1], contact[i].geom.pos[2] },
+                    }
+                };
+                message_send(&dm);
+            }
 
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
@@ -989,6 +992,11 @@ void phys_done(struct phys *phys)
     dJointGroupDestroy(phys->contact);
     dCloseODE();
     mem_free(phys);
+}
+
+void phys_contacts_debug_enable(struct phys *phys, bool enable)
+{
+    phys->draw_contacts = enable;
 }
 
 void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)

@@ -62,6 +62,10 @@ void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_pa
 void phys_step(struct phys *phys, double dt);
 struct phys *phys_init(void);
 void phys_done(struct phys *phys);
+
+/* Enable debug draw of contact points */
+void phys_contacts_debug_enable(struct phys *phys, bool enable);
+
 /* Set the global ground_contact callback */
 void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact);
 void phys_ground_add(entity3d *e);
