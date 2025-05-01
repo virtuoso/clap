@@ -65,6 +65,8 @@ void phys_done(struct phys *phys);
 
 /* Enable debug draw of contact points */
 void phys_contacts_debug_enable(struct phys *phys, bool enable);
+/* Enable debug draw of character capsules */
+void phys_capsules_debug_enable(struct phys *phys, bool enable);
 
 /* Set the global ground_contact callback */
 void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact);

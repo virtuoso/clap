@@ -21,6 +21,7 @@ struct phys {
     ground_contact_fn ground_contact;
     double      time_acc;
     bool        draw_contacts;
+    bool        draw_capsules;
 };
 
 /*
@@ -999,6 +1000,11 @@ void phys_contacts_debug_enable(struct phys *phys, bool enable)
     phys->draw_contacts = enable;
 }
 
+void phys_capsules_debug_enable(struct phys *phys, bool enable)
+{
+    phys->draw_capsules = enable;
+}
+
 void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)
 {
     float *mx = (float *)*m;
@@ -1022,6 +1028,9 @@ void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)
 
 void phys_debug_draw(struct scene *scene, struct phys_body *body)
 {
+    if (likely(!body->phys->draw_capsules))
+        return;
+
     vec3 start, end;
     const dReal *pos = dGeomGetPosition(body->geom);
     dReal r, len = 0;
