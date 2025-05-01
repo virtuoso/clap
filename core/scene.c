@@ -187,7 +187,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             igRadioButton_IntPtr("5x5", &scene->render_options.laplace_kernel, 5);
         }
         igCheckbox("debug draws", &scene->render_options.debug_draws_enabled);
-        igCheckbox("collision draws", &scene->render_options.collision_draws_enabled);
+        if (igCheckbox("collision draws", &scene->render_options.collision_draws_enabled))
+            phys_contacts_debug_enable(clap_get_phys(scene->clap_ctx), scene->render_options.collision_draws_enabled);
         igCheckbox("aabb draws", &scene->render_options.aabb_draws_enabled);
         igCheckbox("use SSAO", &scene->render_options.ssao);
         igSliderFloat("SSAO radius", &scene->render_options.ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
@@ -313,7 +314,7 @@ static int scene_debug_draw(struct message *m, void *data)
 
     switch (dd->shape) {
         case DEBUG_DRAW_CIRCLE:
-            if (s->render_options.collision_draws_enabled) {
+            {
                 vec4 v0;
                 vec3_dup(v0, dd->v0);
                 v0[3] = 1.0;
