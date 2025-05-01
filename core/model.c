@@ -1378,7 +1378,7 @@ static int default_update(entity3d *e, void *data)
 
     if (entity_animated(e))
         animated_update(e, scene);
-    if (scene->render_options.debug_draws_enabled && e->phys_body)
+    if (e->phys_body)
         phys_debug_draw(scene, e->phys_body);
 
     return 0;
