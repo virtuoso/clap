@@ -1005,37 +1005,13 @@ void phys_capsules_debug_enable(struct phys *phys, bool enable)
     phys->draw_capsules = enable;
 }
 
-void phys_rotation_to_mat4x4(const dReal *rot, const dReal *pos, mat4x4 *m)
-{
-    float *mx = (float *)*m;
-    mx[0] = rot[0];
-    mx[1] = rot[1];
-    mx[2] = rot[2];
-    mx[3] = 0;
-    mx[4] = rot[4];
-    mx[5] = rot[5];
-    mx[6] = rot[6];
-    mx[7] = 0;
-    mx[8] = rot[8];
-    mx[9] = rot[9];
-    mx[10] = rot[10];
-    mx[11] = 0;
-    mx[12] = pos ? pos[0] : 0;
-    mx[13] = pos ? pos[1] : 0;
-    mx[14] = pos ? pos[2] : 0;
-    mx[15] = 1;
-}
-
 void phys_debug_draw(struct scene *scene, struct phys_body *body)
 {
     if (likely(!body->phys->draw_capsules))
         return;
 
-    vec3 start, end;
     const dReal *pos = dGeomGetPosition(body->geom);
     dReal r, len = 0;
-    const dReal *rot;
-    mat4x4 _rot, _rot_tmp;
     int class = dGeomGetClass(body->geom);
 
     if (class == dCapsuleClass)
@@ -1045,38 +1021,27 @@ void phys_debug_draw(struct scene *scene, struct phys_body *body)
     else
         return;
 
-    rot = dGeomGetRotation(body->geom);
-    phys_rotation_to_mat4x4(rot, NULL, &_rot_tmp);
-    mat4x4_invert(_rot, _rot_tmp);
-    _rot[3][0] = pos[0];
-    _rot[3][1] = pos[1];
-    _rot[3][2] = pos[2];
+    struct message dm   = {
+        .type           = MT_DEBUG_DRAW,
+        .debug_draw     = (struct message_debug_draw){
+            .color      = { 1.0, 0.0, 0.0, 1.0 },
+            .thickness  = 4.0,
+            .shape      = DEBUG_DRAW_LINE,
+        }
+    };
+    vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] - r, pos[1]  - len / 2 - r, pos[2] - r });
+    vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] + r, pos[1]  + len / 2 + r, pos[2] + r });
+    message_send(&dm);
 
-    start[0] = -r;
-    start[1] = -r;
-    start[2] = -len / 2 - r;
-    end[0] = r;
-    end[1] = r;
-    end[2] = len / 2 + r;
-    debug_draw_line(scene, start, end, &_rot);
-    start[0] = r;
-    start[1] = r;
-    end[0] = -r;
-    end[1] = -r;
-    debug_draw_line(scene, start, end, &_rot);
-    start[0] = -r;
-    start[1] = r;
-    end[0] = r;
-    end[1] = -r;
-    debug_draw_line(scene, start, end, &_rot);
-    start[0] = r;
-    start[1] = -r;
-    end[0] = -r;
-    end[1] = r;
-    debug_draw_line(scene, start, end, &_rot);
-    start[0] = r;
-    start[1] = -r;
-    end[0] = -r;
-    end[1] = r;
-    debug_draw_line(scene, start, end, &_rot);
+    vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] + r, pos[1] - len / 2 - r, pos[2] + r });
+    vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] - r, pos[1] + len / 2 + r, pos[2] - r });
+    message_send(&dm);
+
+    vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] - r, pos[1] - len / 2 - r, pos[2] + r });
+    vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] + r, pos[1] + len / 2 + r, pos[2] - r });
+    message_send(&dm);
+
+    vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] + r, pos[1] - len / 2 - r, pos[2] - r });
+    vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] - r, pos[1] + len / 2 + r, pos[2] + r });
+    message_send(&dm);
 }
