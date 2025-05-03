@@ -7,7 +7,9 @@
 
 # Index
 
-- [Live demos](#live-demos)
+- [Live demos and executables](#live-demos-and-executables)
+  - [Built from the "main" branch](#built-from-the-main-branch)
+  - [Built from the "testing" branch](#built-from-the-testing-branch)
 - [Native demo executables](#native-demo-executables)
 - [Source code and submodules](#source-code-and-submodules)
 - [Local build (Macos)](#local-build-macos)
@@ -24,14 +26,30 @@
 - [Build errors](https://github.com/virtuoso/clap/tree/main/docs/build-errors.md)
 - [What to do with all this](#what-to-do-with-all-this)
 
-## Live demos
-[Live demo: main](http://ash.works/clap/main/clap/)
-[Live demo: testing](http://ash.works/clap/main/claptest/)
+## Live demos and executables
+There are 2 live demos that build from this repository: a testbed of sorts -- a place for wild experiments and [Towards the Light](https://ldjam.com/events/ludum-dare/57/towards-the-light), a game made for Ludum Dare 57 game jam.
 
-## Native demo executables
-[Windows x64](http://ash.works/clap/main/windows/bin/ldjam56.exe)
-[Mac OS X arm64](http://ash.works/clap/main/macos/bin/ldjam56)
-[Linux x86_64](http://ash.works/clap/main/linux/bin/ldjam56)
+### Built from the "main" branch
+
+| platform | testbed release build | testbed test build | ldjam57 release build | ldjam57 test build |
+| -------- | --------------------- | ------------------ | --------------------- | ------------------ |
+| web      | [clap](http://ash.works/clap/main/clap/) | [claptest](http://ash.works/clap/main/claptest/) | [ldjam57](http://ash.works/clap/main/ldjam57/) | [ldjam57 test](http://ash.works/clap/main/ldjam57test/) |
+| linux x86_64 | [clap](http://ash.works/clap/main/linux/bin/ldjam56) | <not currently deployed> | [ldjam57](http://ash.works/clap/main/linux/bin/ldjam57) | <not currently deployed> |
+| Mac OS X arm64 | [clap](http://ash.works/clap/main/macos/bin/ldjam56) | <not currently deployed> | [ldjam57](http://ash.works/clap/main/macos/bin/ldjam57) | <not currently deployed> |
+| Windows x64 | [clap](http://ash.works/clap/main/w32rel/bin/ldjam56.exe) | [claptest](http://ash.works/clap/main/w32test/bin/ldjam56.exe) | [ldjam57](http://ash.works/clap/main/w32rel/bin/ldjam57.exe) | [ldjam57test](http://ash.works/clap/main/w32test/bin/ldjam57.exe) |
+
+The windows executables are cross-built on linux using MinGW. There are also native windows builds: [clap](http://ash.works/clap/main/windows/bin/ldjam56.exe), [ldjam57](http://ash.works/clap/main/windows/bin/ldjam57)
+
+### Built from the "testing" branch
+
+These are more for development-curious.
+
+| platform | testbed release build | testbed test build | ldjam57 release build | ldjam57 test build |
+| -------- | --------------------- | ------------------ | --------------------- | ------------------ |
+| web      | [clap](http://ash.works/clap/testing/clap/) | [claptest](http://ash.works/clap/testing/claptest/) | [ldjam57](http://ash.works/clap/testing/ldjam57/) | [ldjam57 test](http://ash.works/clap/testing/ldjam57test/) |
+| linux x86_64 | [clap](http://ash.works/clap/testing/linux/bin/ldjam56) | <not currently deployed> | [ldjam57](http://ash.works/clap/testing/linux/bin/ldjam57) | <not currently deployed> |
+| Mac OS X arm64 | [clap](http://ash.works/clap/testing/macos/bin/ldjam56) | <not currently deployed> | [ldjam57](http://ash.works/clap/testing/macos/bin/ldjam57) | <not currently deployed> |
+| Windows x64 | [clap](http://ash.works/clap/testing/w32rel/bin/ldjam56.exe) | [claptest](http://ash.works/clap/testing/w32test/bin/ldjam56.exe) | [ldjam57](http://ash.works/clap/testing/w32rel/bin/ldjam57.exe) | [ldjam57test](http://ash.works/clap/testing/w32test/bin/ldjam57.exe) |
 
 ## Source code and submodules
 
