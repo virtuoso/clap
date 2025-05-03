@@ -59,6 +59,16 @@ void aabb_center(float *aabb, float *center);
 void vertex_array_aabb_calc(float *aabb, float *vx, size_t vxsz);
 void vertex_array_fix_origin(float *vx, size_t vxsz, float *aabb);
 
+static inline bool aabb_point_is_inside(float *aabb, float *point)
+{
+    if (point[0] >= aabb[0] && point[0] <= aabb[1] &&
+        point[1] >= aabb[2] && point[1] <= aabb[3] &&
+        point[2] >= aabb[4] && point[2] <= aabb[5])
+        return true;
+
+    return false;
+}
+
 #ifdef _WIN32
 #define srand48 srand
 #define lrand rand
