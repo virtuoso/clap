@@ -1376,6 +1376,21 @@ static int default_update(entity3d *e, void *data)
     if (!scene)
         return 0;
 
+    /*
+     * Find the biggest bounding volume that contains camera or the character
+     */
+    struct camera *cam = scene->camera;
+    if ((aabb_point_is_inside(e->aabb, cam->ch->entity->pos) ||
+         aabb_point_is_inside(e->aabb, scene->control->pos)) &&
+         e != cam->ch->entity && e != scene->control) {
+        float volume = entity3d_aabb_X(e) * entity3d_aabb_Y(e) * entity3d_aabb_Z(e);
+
+        if (!cam->bv || volume > cam->bv_volume) {
+            cam->bv = e;
+            cam->bv_volume = volume;
+        }
+    }
+
     if (entity_animated(e))
         animated_update(e, scene);
     if (e->phys_body)

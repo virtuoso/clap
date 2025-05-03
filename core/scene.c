@@ -493,6 +493,8 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     light_debug(&s->light, 0);
 
+    cam->bv = NULL;
+
     /* only the first light source get to cast shadows for now */
     view_update_from_frustum(&s->light.view[0], &s->light.dir[0 * 3], &cam->view);
     view_calc_frustum(&s->light.view[0]);

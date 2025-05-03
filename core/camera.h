@@ -10,6 +10,8 @@
 struct camera {
     struct character *ch;
     struct view view;
+    entity3d    *bv;
+    float  bv_volume;
     float  target_pitch;
     float  target_yaw;
     float  target_roll;
