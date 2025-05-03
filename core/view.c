@@ -4,7 +4,7 @@
 #include "shader.h"
 #include "ui-debug.h"
 
-static float near_factor = 1.0, far_factor = 1.0, frustum_extra = 10.0;
+static float near_factor = 1.0, far_factor = 1.0;
 /*
  * Margins around the frustum AABB box; there're 2 of them, because they
  * don't need to be uniform in all directions, but they do need to be as
@@ -12,8 +12,6 @@ static float near_factor = 1.0, far_factor = 1.0, frustum_extra = 10.0;
  */
 static float aabb_margin_xy = 0.0;
 static float aabb_margin_z = 0.0;
-/* Adjust near plane computation for better stability */
-static float near_buffer = 0.0;
 
 static void subview_calc_frustum(struct subview *subview);
 
@@ -53,8 +51,6 @@ static void view_debug_begin(float near_backup)
         return;
 
     igText("near_backup: %.02f", near_backup);
-    igSliderFloat("frustum extra", &frustum_extra, 1.0, 50.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
-    igSliderFloat("near buffer", &near_buffer, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("near plane", &near_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("far plane", &far_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("aabb margin XY", &aabb_margin_xy, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
