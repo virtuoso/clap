@@ -33,6 +33,8 @@ typedef struct render_options {
     bool    hdr;
     bool    collision_draws_enabled;
     bool    aabb_draws_enabled;
+    bool    camera_frusta_draws_enabled;
+    bool    light_frusta_draws_enabled;
 } render_options;
 
 typedef enum {

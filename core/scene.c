@@ -190,6 +190,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             phys_capsules_debug_enable(clap_get_phys(scene->clap_ctx), scene->render_options.debug_draws_enabled);
         if (igCheckbox("collision draws", &scene->render_options.collision_draws_enabled))
             phys_contacts_debug_enable(clap_get_phys(scene->clap_ctx), scene->render_options.collision_draws_enabled);
+        igCheckbox("camera frusta draws", &scene->render_options.camera_frusta_draws_enabled);
+        igCheckbox("light frusta draws", &scene->render_options.light_frusta_draws_enabled);
         igCheckbox("aabb draws", &scene->render_options.aabb_draws_enabled);
         igCheckbox("use SSAO", &scene->render_options.ssao);
         igSliderFloat("SSAO radius", &scene->render_options.ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
@@ -420,10 +422,47 @@ static int scene_debug_draw(struct message *m, void *data)
 
     return MSG_HANDLED;
 }
+
+static void scene_debug_frusta(struct view *view)
+{
+    static const uint8_t frustum_edges[12][2] = {
+        { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, // near plane edges
+        { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 }, // far plane edges
+        { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }  // connecting edges
+    };
+
+    static const vec4 color_for_cascade[] = {
+        { 1.0, 0.0, 0.0, 1.0 },
+        { 0.0, 1.0, 0.0, 1.0 },
+        { 0.0, 0.0, 1.0, 1.0 },
+        { 1.0, 1.0, 0.0, 1.0 },
+    };
+
+    for (int v = 0; v < CASCADES_MAX; v++) {
+        struct subview *src = &view->debug_subview[v];
+
+        for (int i = 0; i < 12; ++i) {
+            struct message dm = {
+                .type       = MT_DEBUG_DRAW,
+                .debug_draw = (struct message_debug_draw) {
+                    .shape = DEBUG_DRAW_LINE,
+                    .radius = 0.0f,
+                    .thickness = 2.0f
+                }
+            };
+            vec3_dup(dm.debug_draw.v0, src->frustum_corners[frustum_edges[i][0]]);
+            vec3_dup(dm.debug_draw.v1, src->frustum_corners[frustum_edges[i][1]]);
+            vec4_dup(dm.debug_draw.color, color_for_cascade[v]);
+            message_send(&dm);
+        }
+    }
+}
+
 #else
 static void scene_parameters_debug(struct scene *scene, int cam_idx) {}
 static inline void light_debug(struct light *light, int idx) {}
 static inline void scene_characters_debug(struct scene *scene) {}
+static inline void scene_debug_frusta(struct view *view) {}
 #endif /* CONFIG_FINAL */
 
 static void scene_camera_calc(struct scene *s, int camera)
@@ -511,9 +550,17 @@ static int scene_handle_input(struct message *m, void *data)
 {
     struct scene *s = data;
 
+#ifndef CONFIG_FINAL
     if (m->input.debug_action || (m->input.pad_lb && m->input.pad_rb)) {
         debug_camera_action(s->camera);
+
+        struct view *cam_view = &s->camera->view;
+        memcpy(cam_view->debug_subview, cam_view->subview, sizeof(cam_view->debug_subview));
+
+        struct view *light_view = &s->light.view[0];
+        memcpy(light_view->debug_subview, light_view->subview, sizeof(light_view->debug_subview));
     }
+#endif /* CONFIG_FINAL */
     if (m->input.exit)
         display_request_exit();
 #ifndef CONFIG_FINAL
@@ -589,6 +636,11 @@ void scene_update(struct scene *scene)
     }
 
     mq_update(&scene->mq);
+
+    if (scene->render_options.camera_frusta_draws_enabled)
+        scene_debug_frusta(&scene->camera->view);
+    if (scene->render_options.light_frusta_draws_enabled)
+        scene_debug_frusta(&scene->light.view[0]);
 
     motion_reset(&scene->mctl, scene);
 }

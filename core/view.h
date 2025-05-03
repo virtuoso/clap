@@ -15,6 +15,9 @@ struct view {
         float               far_plane;
     } main;
     struct subview          subview[CASCADES_MAX];
+#ifndef CONFIG_FINAL
+    struct subview          debug_subview[CASCADES_MAX];
+#endif /* CONFIG_FINAL */
     float                   divider[CASCADES_MAX];
     float                   fov;
     float                   aspect;
