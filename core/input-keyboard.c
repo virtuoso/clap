@@ -54,6 +54,7 @@ static struct key_map key_map_wasd[] = {
     KEY_NAME("ArrowRight", to_press_release, yaw_right),
     KEY_NAME("KeyQ",       is_press,         inv_toggle),
     KEY_NAME("KeyE",       is_press,         pad_y),
+    KEY_NAME("KeyP",       is_press,         debug_action),
     KEY_NAME("F1",         is_press,         fullscreen),
     KEY_NAME("F2",         is_press,         volume_down),
     KEY_NAME("F3",         is_press,         volume_up),
