@@ -4,7 +4,7 @@
 #include "shader.h"
 #include "ui-debug.h"
 
-static float near_factor = 0.0, far_factor = 1.0, frustum_extra = 10.0;
+static float near_factor = 1.0, far_factor = 1.0, frustum_extra = 10.0;
 /*
  * Margins around the frustum AABB box; there're 2 of them, because they
  * don't need to be uniform in all directions, but they do need to be as
@@ -66,7 +66,7 @@ static void view_debug_begin(void)
     igSliderFloat("aabb margin Z", &aabb_margin_z, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
 }
 
-static void subview_debug(struct subview *dst, float *light_pos,
+static void subview_debug(struct subview *dst, float *light_pos, float *light_dir,
                           float *_aabb_min, float *_aabb_max,
                           float *aabb_min, float *aabb_max)
 {
@@ -84,6 +84,7 @@ static void subview_debug(struct subview *dst, float *light_pos,
     ui_igMat4x4(dst->view_mx, "view");
     // igText("_aabb_min[2]: %f dir: %f", _aabb_min[2], vec3_len(dir));
     ui_igVecTableHeader("AABB", 4);
+    ui_igVecRow(light_dir, 4, "light dir");
     ui_igVecRow(light_pos, 4, "light pos");
     ui_igVecRow(light_pos_world, 4, "light pos world");
     ui_igVecRow(_aabb_min, 4, "_aabb_min");
@@ -118,7 +119,7 @@ static void view_debug_end(void)
 }
 #else
 static inline void view_debug_begin(void) {}
-static inline  void subview_debug(struct subview *dst, float *light_pos,
+static inline  void subview_debug(struct subview *dst, float *light_pos, float *light_dir,
                                   float *_aabb_min, float *_aabb_max,
                                   float *aabb_min, float *aabb_max) {}
 static inline void view_frustum_debug(struct view *src, int idx) {}
@@ -143,24 +144,20 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
         _aabb_max[j] = fmaxf(_aabb_max[j], corner[j]) + aabb_margin_z;
     }
 
-    if (_aabb_min[2] < 0)
-        _aabb_min[2] *= (frustum_extra * 0.5f);  // XXX: or just reduce frustum_extra at the source?
-    else
-        _aabb_min[2] -= near_buffer;  // Add a small buffer instead or XXX: unify the two?
-    // if (aabb_max[2] < 0)
-    //     aabb_max[2] /= FRUSTUM_EXTRA;
-    // else
-    //     aabb_max[2] *= FRUSTUM_EXTRA;
-
-    vec3 near_bottom_left = { _aabb_min[0], _aabb_min[1], _aabb_min[2] };
-    vec3 near_top_right = { _aabb_max[0], _aabb_max[1], _aabb_min[2] };
     vec4 light_pos = { 0, 0, 0, 1 };
-    vec3_add(light_pos, near_bottom_left, near_top_right);
+    vec3_add(light_pos, _aabb_min, _aabb_max);
     vec3_scale(light_pos, light_pos, 0.5);
-    /* this is the same as translate_in_place by light_pos_world, but quicker */
-    dst->view_mx[3][0] = -light_pos[0];
-    dst->view_mx[3][1] = -light_pos[1];
-    dst->view_mx[3][2] = -light_pos[2];
+
+    vec4 light_dir = {
+        -dst->view_mx[2][0],
+        -dst->view_mx[2][1],
+        -dst->view_mx[2][2],
+        1.0
+    };
+
+    vec3_norm_safe(light_dir, light_dir);
+
+    mat4x4_translate_in_place(dst->view_mx, light_pos[0], light_pos[1], light_pos[2]);
     mat4x4_invert(dst->inv_view_mx, dst->view_mx);
 
     vec4 aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
@@ -176,9 +173,10 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
     }
 
     mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
-                 aabb_max[2] * far_factor, aabb_min[2] * near_factor);
+                 fmaxf(aabb_max[2] * far_factor, 0.0), aabb_min[2] * near_factor);
+
     subview_calc_frustum(dst);
-    subview_debug(dst, light_pos, _aabb_min, _aabb_max, aabb_min, aabb_max);
+    subview_debug(dst, light_pos, light_dir, _aabb_min, _aabb_max, aabb_min, aabb_max);
 }
 
 static void view_projection_update(struct view *view, struct view *src)
