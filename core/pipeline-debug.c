@@ -239,10 +239,15 @@ void pipeline_debug(struct pipeline *pl)
     ui_igEnd(DEBUG_PIPELINE_SELECTOR);
 
     if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
-        if (igBegin("Render pass preview", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-            igPushItemWidth(512);
+        if (igBegin("Render pass preview", NULL, 0)) {
+            ImVec2 avail;
+            igGetContentRegionAvail(&avail);
+            if (avail.x < 512) {
+                igPushItemWidth(512);
+                avail.x = 512;
+            }
             double aspect = (double)height / width;
-            igImage((ImTextureID)texture_id(pass_tex), (ImVec2){512, 512 * aspect},
+            igImage((ImTextureID)texture_id(pass_tex), (ImVec2){avail.x, avail.x * aspect},
                     (ImVec2){1,1}, (ImVec2){0,0});
             igEnd();
         } else {
