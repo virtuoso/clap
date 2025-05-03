@@ -301,6 +301,8 @@ int main(int argc, char **argv, char **envp)
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = 70.0;
+    scene.render_options.fog_near = 80.0;
+    scene.render_options.fog_far = 120.0;
     scene_cameras_calc(&scene);
 
     imgui_render();
