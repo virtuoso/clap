@@ -38,7 +38,7 @@ There are 2 live demos that build from this repository: a testbed of sorts -- a 
 | Mac OS X arm64 | [clap](http://ash.works/clap/main/macos/bin/ldjam56) | <not currently deployed> | [ldjam57](http://ash.works/clap/main/macos/bin/ldjam57) | <not currently deployed> |
 | Windows x64 | [clap](http://ash.works/clap/main/w32rel/bin/ldjam56.exe) | [claptest](http://ash.works/clap/main/w32test/bin/ldjam56.exe) | [ldjam57](http://ash.works/clap/main/w32rel/bin/ldjam57.exe) | [ldjam57test](http://ash.works/clap/main/w32test/bin/ldjam57.exe) |
 
-The windows executables are cross-built on linux using MinGW. There are also native windows builds: [clap](http://ash.works/clap/main/windows/bin/ldjam56.exe), [ldjam57](http://ash.works/clap/main/windows/bin/ldjam57)
+The windows executables are cross-built on linux using MinGW. There are also native windows builds: [clap](http://ash.works/clap/main/windows/bin/ldjam56.exe), [ldjam57](http://ash.works/clap/main/windows/bin/ldjam57.exe)
 
 ### Built from the "testing" branch
 
