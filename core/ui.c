@@ -1324,7 +1324,6 @@ static int ui_handle_command(struct message *m, void *data)
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
     struct ui *ui = data;
     struct font *font = font_get_default(clap_get_font(ui->clap_ctx));
-    LOCAL(char, str);
 
     if (!font)
         return -1;
