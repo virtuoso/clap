@@ -4,6 +4,7 @@
 #include "character.h"
 #include "clap.h"
 #include "gltf.h"
+#include "interp.h"
 #include "physics.h"
 #include "primitives.h"
 #include "shader.h"
@@ -493,10 +494,32 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     light_debug(&s->light, 0);
 
+    entity3d *env = cam->bv;
     cam->bv = NULL;
 
+    float near_backup = 0.0;
+    if (env) {
+        vec3 light_dir;
+        /*
+         * Calculate frusta's near plane extension from the bounding volume's
+         * dimensions and the light direction vector.
+         * TODO: this does not take into account the camera's position within
+         * the AABB.
+         */
+        vec3_norm_safe(light_dir, &s->light.dir[0]);
+        float xz_mix = linf_interp(
+            entity3d_aabb_Z(env),
+            entity3d_aabb_X(env),
+            fabsf(vec3_mul_inner(light_dir, (vec3){ 1.0, 0.0, 0.0 }))
+        );
+        near_backup = linf_interp(
+            xz_mix,
+            entity3d_aabb_Y(env),
+            fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 }))
+        );
+    }
     /* only the first light source get to cast shadows for now */
-    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3]);
+    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup);
     view_calc_frustum(&s->light.view[0]);
 #ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
@@ -1154,7 +1177,7 @@ static int scene_add_light_from_json(struct scene *s, JsonNode *light)
 
     vec3 center = {};
     vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
-    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3]);
+    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0);
 
     return 0;
 }

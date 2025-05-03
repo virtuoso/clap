@@ -9,17 +9,11 @@ static float near_factor = 1.0, far_factor = 1.0, frustum_extra = 10.0;
  * Margins around the frustum AABB box; there're 2 of them, because they
  * don't need to be uniform in all directions, but they do need to be as
  * small as possible without clipping.
- * A higher margin may indicate a large scale scene, it might make sense
- * to dynamically adjust it:
- *
- *   dynamic_margin = max(5.5f, scene_scale * 0.05f);
- *
- * where scene_scale would be derived from the scene's bounding box.
  */
-static float aabb_margin_xy = 1.0;
-static float aabb_margin_z = 5.5;
+static float aabb_margin_xy = 0.0;
+static float aabb_margin_z = 0.0;
 /* Adjust near plane computation for better stability */
-static float near_buffer = 10.0f;
+static float near_buffer = 0.0;
 
 static void subview_calc_frustum(struct subview *subview);
 
@@ -51,13 +45,14 @@ static void view_update_perspective_subviews(struct view *view)
 }
 
 #ifndef CONFIG_FINAL
-static void view_debug_begin(void)
+static void view_debug_begin(float near_backup)
 {
    debug_module *dbgm = ui_igBegin(DEBUG_FRUSTUM_VIEW, ImGuiWindowFlags_AlwaysAutoResize);
 
     if (!dbgm->display || !dbgm->unfolded)
         return;
 
+    igText("near_backup: %.02f", near_backup);
     igSliderFloat("frustum extra", &frustum_extra, 1.0, 50.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("near buffer", &near_buffer, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("near plane", &near_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
@@ -118,7 +113,7 @@ static void view_debug_end(void)
     ui_igEnd(DEBUG_FRUSTUM_VIEW);
 }
 #else
-static inline void view_debug_begin(void) {}
+static inline void view_debug_begin(float near_backup) {}
 static inline  void subview_debug(struct subview *dst, float *light_pos, float *light_dir,
                                   float *_aabb_min, float *_aabb_max,
                                   float *aabb_min, float *aabb_max) {}
@@ -126,7 +121,7 @@ static inline void view_frustum_debug(struct view *src, int idx) {}
 static inline void view_debug_end(void) {}
 #endif /* CONFIG_FINAL */
 
-static void subview_projection_update(struct subview *dst, struct subview *src)
+static void subview_projection_update(struct subview *dst, struct subview *src, float near_backup)
 {
     vec4 _aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, _aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
     int i, j;
@@ -173,20 +168,20 @@ static void subview_projection_update(struct subview *dst, struct subview *src)
     }
 
     mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
-                 fmaxf(aabb_max[2] * far_factor, 0.0), aabb_min[2] * near_factor);
+                 fmaxf(aabb_max[2] * far_factor, 0.0), aabb_min[2] * near_factor - near_backup);
 
     subview_calc_frustum(dst);
     subview_debug(dst, light_pos, light_dir, _aabb_min, _aabb_max, aabb_min, aabb_max);
 }
 
-static void view_projection_update(struct view *view, struct view *src)
+static void view_projection_update(struct view *view, struct view *src, float near_backup)
 {
     int v;
 
-    view_debug_begin();
+    view_debug_begin(near_backup);
     for (v = 0; v < array_size(view->subview); v++) {
         view_frustum_debug(src, v);
-        subview_projection_update(&view->subview[v], &src->subview[v]);
+        subview_projection_update(&view->subview[v], &src->subview[v], near_backup);
     }
 
     view_debug_end();
@@ -248,12 +243,12 @@ static void view_update_from_target(struct view *view, struct view *src, vec3 ta
     subview_update_from_target(&view->main, &src->main, target);
 }
 
-void view_update_from_frustum(struct view *view, struct view *src, vec3 dir)
+void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, float near_backup)
 {
     vec3 target = { -dir[0], -dir[1], -dir[2] };
 
     view_update_from_target(view, src, target);
-    view_projection_update(view, src);
+    view_projection_update(view, src, near_backup);
 }
 
 static void subview_calc_frustum(struct subview *subview)
