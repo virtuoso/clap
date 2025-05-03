@@ -222,30 +222,39 @@ void view_update_perspective_projection(struct view *view, int width, int height
     view_update_perspective_subviews(view);
 }
 
-static void subview_update_from_target(struct subview *subview, vec3 eye, vec3 target)
+static void subview_update_from_target(struct subview *subview, struct subview *src, vec3 target)
 {
     vec3 up = { 0.0, 1.0, 0.0 };
 
-    mat4x4_look_at_safe(subview->view_mx, eye, target, up);
+    vec3 light_pos = {};
+    for (int i = 0; i < 8; i++)
+        vec3_add(light_pos, light_pos, src->frustum_corners[i]);
+    vec3_scale(light_pos, light_pos, 1.0 / 8.0);
+
+    vec3 light_dir_norm;
+    vec3_norm_safe(light_dir_norm, target);
+
+    vec3 light_eye;
+    vec3_sub(light_eye, light_pos, light_dir_norm);
+    mat4x4_look_at_safe(subview->view_mx, light_eye, light_pos, up);
     mat4x4_invert(subview->inv_view_mx, subview->view_mx);
 }
 
-void view_update_from_target(struct view *view, vec3 eye, vec3 target)
+static void view_update_from_target(struct view *view, struct view *src, vec3 target)
 {
     int i;
 
     for (i = 0; i < array_size(view->subview); i++)
-        subview_update_from_target(&view->subview[i], eye, target);
+        subview_update_from_target(&view->subview[i], &src->subview[i], target);
 
-    subview_update_from_target(&view->main, eye, target);
+    subview_update_from_target(&view->main, &src->main, target);
 }
 
-void view_update_from_frustum(struct view *view, vec3 dir, struct view *src)
+void view_update_from_frustum(struct view *view, struct view *src, vec3 dir)
 {
-    vec3 center = { -dir[0], -dir[1], -dir[2] };
-    vec3 eye = {};
+    vec3 target = { -dir[0], -dir[1], -dir[2] };
 
-    view_update_from_target(view, eye, center);
+    view_update_from_target(view, src, target);
     view_projection_update(view, src);
 }
 
