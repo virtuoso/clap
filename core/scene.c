@@ -245,25 +245,42 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
     ui_igEnd(DEBUG_SCENE_PARAMETERS);
 }
 
-static void light_debug(struct light *light, int idx)
+static void light_debug(struct scene *scene)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_LIGHT, ImGuiWindowFlags_AlwaysAutoResize);
 
     if (!dbgm->display)
         return;
 
-    struct view *view = &light->view[idx];
-    float *dir = &light->dir[3 * idx];
-
     if (dbgm->unfolded) {
-        igSetNextItemWidth(400);
-        igSliderFloat3("light", dir, -500, 500, "%f", 0);
-        igColorPicker3("color", &light->color[3 * idx], ImGuiColorEditFlags_DisplayRGB);
-        if (ui_igVecTableHeader("view positions", 3)) {
-            ui_igVecRow(dir, 3, "direction");
-            igEndTable();
+        for (int idx = 0; idx < scene->nr_lights; idx++) {
+            igPushID_Int(idx);
+
+            float *dir = &scene->light.dir[3 * idx];
+            igSetNextItemWidth(300);
+            igSliderFloat3("pos", dir, -500, 500, "%.02f", 0);
+
+            float *color = &scene->light.color[3 * idx];
+            igColorEdit3(
+                "color",
+                color,
+                ImGuiColorEditFlags_NoInputs |
+                ImGuiColorEditFlags_NoLabel  |
+                ImGuiColorEditFlags_NoTooltip
+            );
+            igSameLine(0.0, 10.0);
+            igText("RGB: #%02x%02x%02x (%.02f,%.02f,%.02f)",
+                (unsigned int)(color[0] * 255.0),
+                (unsigned int)(color[1] * 255.0),
+                (unsigned int)(color[2] * 255.0),
+                color[0], color[1], color[2]
+            );
+
+            igPopID();
+
+            if (idx < scene->nr_lights - 1)
+                igSeparator();
         }
-        ui_igMat4x4(view->main.view_mx, "view matrix");
     }
 
     ui_igEnd(DEBUG_LIGHT);
@@ -462,7 +479,7 @@ static void scene_debug_frusta(struct view *view)
 
 #else
 static void scene_parameters_debug(struct scene *scene, int cam_idx) {}
-static inline void light_debug(struct light *light, int idx) {}
+static inline void light_debug(struct scene *scene) {}
 static inline void scene_characters_debug(struct scene *scene) {}
 static inline void scene_debug_frusta(struct view *view) {}
 #endif /* CONFIG_FINAL */
@@ -493,7 +510,7 @@ static void scene_camera_calc(struct scene *s, int camera)
     view_update_from_angles(&cam->view, cam_pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
     view_calc_frustum(&cam->view);
 
-    light_debug(&s->light, 0);
+    light_debug(s);
 
     entity3d *env = cam->bv;
     cam->bv = NULL;
