@@ -969,6 +969,20 @@ struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_
     return osd;
 }
 
+static void ui_menu_preselect(struct ui_animation *ua)
+{
+    struct ui_element *uie = ui_animation_element(ua);
+
+    if (!uie)
+        return;
+
+    struct ui_widget *uiw = uie->widget;
+    if (!uiw || uiw->focus < 0 || uiw->focus >= uiw->nr_uies)
+        return;
+
+    menu_onfocus(uiw->uies[uiw->focus], true);
+}
+
 static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
 {
     /* XXX^5: animations hardcoded */
@@ -976,6 +990,8 @@ static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
     uia_set_visible(uie, 1);
     uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, 0.5);
     uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 0.5, 1.0, 0.0);
+    if (i == uie->widget->nr_uies - 1)
+        uia_action(uie, ui_menu_preselect);
 }
 
 static struct ui_widget *
