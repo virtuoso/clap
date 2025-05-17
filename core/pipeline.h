@@ -30,6 +30,7 @@ typedef struct render_options {
     bool    edge_antialiasing;
     bool    edge_sobel;
     bool    ssao;
+    bool    shadow_vsm;
     bool    hdr;
     bool    collision_draws_enabled;
     bool    aabb_draws_enabled;

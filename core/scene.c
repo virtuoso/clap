@@ -176,6 +176,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         if (scene->render_options.shadow_outline)
             igSliderFloat("shadow outline threshold", &scene->render_options.shadow_outline_threshold,
                           0.0, 1.0, "%.02f", ImGuiSliderFlags_ClampOnInput);
+        igCheckbox("VSM shadows", &scene->render_options.shadow_vsm);
         igCheckbox("shadow msaa", &scene->render_options.shadow_msaa);
         igCheckbox("model msaa", &scene->render_options.model_msaa);
         igCheckbox("edge sobel", &scene->render_options.edge_sobel);
@@ -688,6 +689,7 @@ cerr scene_init(struct scene *scene)
         light_set_attenuation(&scene->light, i, attenuation);
     }
 
+    scene->render_options.shadow_vsm = true;
     scene->render_options.shadow_msaa = false;
     scene->render_options.laplace_kernel = 3;
     scene->render_options.edge_antialiasing = true;

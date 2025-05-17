@@ -803,6 +803,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             shader_prog_use(prog);
 
             if (ropts) {
+                shader_set_var_int(prog, UNIFORM_SHADOW_VSM, ropts->shadow_vsm);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, ropts->shadow_outline);
                 shader_set_var_float(prog, UNIFORM_SHADOW_OUTLINE_THRESHOLD, ropts->shadow_outline_threshold);
                 shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
