@@ -687,6 +687,10 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
 
 static void menu_onfocus(struct ui_element *uie, bool focus)
 {
+    ui_element_animations_done(uie);
+    ui_element_set_visibility(uie, 1);
+    ui_element_set_alpha(uie, 1.0);
+
     if (focus)
         uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
     else
