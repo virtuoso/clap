@@ -318,6 +318,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
 
         m->depth_testing = false;
         m->alpha_blend = false;
+        m->skip_aabb = true;
 
         txm = ref_new(model3dtx, .model = ref_pass(m));//, .tex = fbo_texture(pass->fbo));
         if (!txm)
