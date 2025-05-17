@@ -1087,7 +1087,7 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
 
     cerr err = CERR_OK;
     fa_for_each(fa, fbo->attachment_config, texture) {
-        texture_t *tex = &fbo->color_tex[fa_nr_color_texture(fa)];
+        texture_t *tex = &fbo->color_tex[fa_nr_color_texture(fa) - 1];
         if (texture_loaded(tex))
             err = texture_resize(tex, width, height);
         /* On error, revert back to the previous size */
