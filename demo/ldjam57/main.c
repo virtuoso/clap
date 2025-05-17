@@ -412,7 +412,7 @@ static void cleanup(struct scene *s)
     darray_clearout(cobjs);
 }
 
-static bool shadow_msaa, model_msaa, edge_aa, edge_sobel, ssao;
+static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao;
 
 static void build_main_pl(struct pipeline **pl)
 {
