@@ -1099,6 +1099,16 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
         }
     }
 
+    if (texture_loaded(&fbo->depth_tex)) {
+        err = texture_resize(&fbo->depth_tex, width, height);
+        if (IS_CERR(err)) {
+            if (width != fbo->width || height != fbo->height)
+                err = texture_resize(&fbo->depth_tex, fbo->width, fbo->height);
+
+            return err;
+        }
+    }
+
     fbo->width = width;
     fbo->height = height;
 
