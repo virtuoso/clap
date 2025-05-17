@@ -12,6 +12,13 @@ typedef struct sound_context sound_context;
 typedef struct font_context font_context;
 typedef struct shader_context shader_context;
 
+typedef struct clap_os_info {
+    char    *name;
+    bool    mobile;
+} clap_os_info;
+
+/* Get OS info */
+clap_os_info *clap_ges_os(clap_context *ctx);
 /* Get the clap's physics handle */
 struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
 /* Get clap's config structure */

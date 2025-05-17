@@ -54,6 +54,7 @@ typedef struct clap_context {
     struct fps_data     fps;
     char                **argv;
     char                **envp;
+    clap_os_info        os_info;
     struct timespec     current_time;
     sound_context       *sound;
     font_context        *font;
@@ -107,6 +108,11 @@ sound_context *clap_get_sound(struct clap_context *ctx)
 font_context *clap_get_font(clap_context *ctx)
 {
     return ctx->font;
+}
+
+clap_os_info *clap_ges_os(clap_context *ctx)
+{
+    return &ctx->os_info;
 }
 
 struct timespec clap_get_current_timespec(struct clap_context *ctx)
@@ -307,6 +313,61 @@ static bool clap_config_is_valid(struct clap_config *cfg)
 }
 
 /****************************************************************************
+ * OS detection
+ ****************************************************************************/
+#ifdef __EMSCRIPTEN__
+static char *__user_agent;
+
+EMSCRIPTEN_KEEPALIVE void clap_set_user_agent(const char *user_agent)
+{
+    __user_agent = strdup(user_agent);
+    dbg("user agent: '%s'\n", __user_agent);
+}
+
+static cerr clap_os_init(struct clap_context *ctx)
+{
+    EM_ASM(
+        ccall("clap_set_user_agent", 'void', ['string'], [navigator.userAgent]);
+    );
+
+    if (!__user_agent)
+        return CERR_NOT_SUPPORTED;
+
+    ctx->os_info.name = strdup(__user_agent);
+    free(__user_agent);
+    __user_agent = NULL;
+
+    if (!ctx->os_info.name)
+        return CERR_NOMEM;
+
+    if (ctx->os_info.name &&
+        (strstr(ctx->os_info.name, "iPhone") ||
+         strstr(ctx->os_info.name, "iPad")
+        )
+    )
+        ctx->os_info.mobile = true;
+
+    return CERR_OK;
+}
+#else
+static cerr clap_os_init(struct clap_context *ctx)
+{
+    /* XXX: get struct uts_name from uname() */
+    ctx->os_info.name = strdup(
+#if defined(linux)
+        "Linux"
+#elif defined(__APPLE__)
+        "Mac OS X"
+#else /* XXX: windows */
+        "unknown"
+#endif
+    );
+
+    return ctx->os_info.name ? CERR_OK : CERR_NOMEM;
+}
+#endif /* __EMSCRIPTEN__ */
+
+/****************************************************************************
  * Main API
  ****************************************************************************/
 
@@ -340,6 +401,10 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     ctx = mem_alloc(sizeof(*ctx), .zero = 1);
     if (!ctx)
         return cresp_error(clap_context, CERR_NOMEM);
+
+    cerr os_err = clap_os_init(ctx);
+    if (IS_CERR(os_err))
+        return cresp_error_cerr(clap_context, os_err);
 
     mesh_init();
 
@@ -425,6 +490,7 @@ void clap_done(struct clap_context *ctx, int status)
     if (ctx->settings)
         settings_done(ctx->settings);
     messagebus_done();
+    free(ctx->os_info.name);
     mem_free(ctx);
     exit_cleanup_run(status);
 }
