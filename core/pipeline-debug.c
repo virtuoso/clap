@@ -219,7 +219,7 @@ void pipeline_debug(struct pipeline *pl)
             int prev_depth_log2 = depth_log2 = ffs(width) - 1;
             igSliderInt("dim log2", &depth_log2, 8, 16, "%d", 0);
             if (depth_log2 != prev_depth_log2) {
-                width = height = 1 << (depth_log2 - 1);
+                width = height = 1 << depth_log2;
                 RENDER_PASS_OPS_PARAMS(pl, pass);
                 pass->ops->resize(&params, &width, &height);
                 cerr err = fbo_resize(pass->fbo, width, height);
