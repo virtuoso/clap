@@ -117,7 +117,7 @@ static inline void view_frustum_debug(struct view *src, int idx) {}
 static inline void view_debug_end(void) {}
 #endif /* CONFIG_FINAL */
 
-static void subview_projection_update(struct subview *dst, struct subview *src, float near_backup)
+static void subview_projection_update(struct subview *dst, struct subview *src, float near_backup, bool z_reverse)
 {
     vec4 _aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, _aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
     int i, j;
@@ -163,21 +163,25 @@ static void subview_projection_update(struct subview *dst, struct subview *src, 
         }
     }
 
-    mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
-                 fmaxf(aabb_max[2] * far_factor, 0.0), aabb_min[2] * near_factor - near_backup);
+    if (z_reverse)
+        mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
+                     fmaxf(aabb_max[2] * far_factor, 0.0), aabb_min[2] * near_factor - near_backup);
+    else
+        mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
+                     aabb_min[2] * near_factor - near_backup, fmaxf(aabb_max[2] * far_factor, 0.0));
 
     subview_calc_frustum(dst);
     subview_debug(dst, light_pos, light_dir, _aabb_min, _aabb_max, aabb_min, aabb_max);
 }
 
-static void view_projection_update(struct view *view, struct view *src, float near_backup)
+static void view_projection_update(struct view *view, struct view *src, float near_backup, bool z_reverse)
 {
     int v;
 
     view_debug_begin(near_backup);
     for (v = 0; v < array_size(view->subview); v++) {
         view_frustum_debug(src, v);
-        subview_projection_update(&view->subview[v], &src->subview[v], near_backup);
+        subview_projection_update(&view->subview[v], &src->subview[v], near_backup, z_reverse);
     }
 
     view_debug_end();
@@ -239,12 +243,12 @@ static void view_update_from_target(struct view *view, struct view *src, vec3 ta
     subview_update_from_target(&view->main, &src->main, target);
 }
 
-void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, float near_backup)
+void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse)
 {
     vec3 target = { -dir[0], -dir[1], -dir[2] };
 
     view_update_from_target(view, src, target);
-    view_projection_update(view, src, near_backup);
+    view_projection_update(view, src, near_backup, z_reverse);
 }
 
 static void subview_calc_frustum(struct subview *subview)

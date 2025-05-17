@@ -519,7 +519,7 @@ static void scene_camera_calc(struct scene *s, int camera)
         );
     }
     /* only the first light source get to cast shadows for now */
-    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup);
+    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, true);
     view_calc_frustum(&s->light.view[0]);
 #ifndef CONFIG_FINAL
     if (!(s->frames_total & 0xf) && camera == 0)
@@ -1177,7 +1177,7 @@ static int scene_add_light_from_json(struct scene *s, JsonNode *light)
 
     vec3 center = {};
     vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
-    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0);
+    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, true);
 
     return 0;
 }
