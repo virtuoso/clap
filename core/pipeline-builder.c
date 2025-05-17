@@ -106,31 +106,13 @@ static const render_pass_ops postproc_ops = {
     .prepare    = postproc_prepare,
 };
 
-char *__user_agent;
-
-#ifdef __EMSCRIPTEN__
-EMSCRIPTEN_KEEPALIVE __unused void set_user_agent(const char *user_agent)
-{
-    __user_agent = strdup(user_agent);
-    dbg("user agent: '%s'\n", __user_agent);
-}
-#endif /* __EMSCRIPTEN__ */
-
-static void hdr_constraints(texture_format *hdr_fmt)
-{
-#ifdef __EMSCRIPTEN__
-    EM_ASM(
-        ccall("set_user_agent", 'void', ['string'], [navigator.userAgent]);
-    );
-#endif /* __EMSCRIPTEN__ */
-
-    if (__user_agent && (strstr(__user_agent, "iPhone") || strstr(__user_agent, "iPad")))
-        *hdr_fmt = TEX_FMT_RGBA8;
-}
-
 static texture_format get_hdr_format(pipeline_builder_opts *opts)
 {
     if (!opts->pl_opts->render_options->hdr)
+        return TEX_FMT_RGBA8;
+
+    clap_context *clap_ctx = opts->pl_opts->clap_ctx;
+    if (clap_ctx && clap_ges_os(clap_ctx)->mobile)
         return TEX_FMT_RGBA8;
 
     texture_format hdr_fmts[] = {
@@ -142,7 +124,6 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
             hdr_fmt = hdr_fmts[i];
             break;
         }
-    hdr_constraints(&hdr_fmt);
 
     return hdr_fmt;
 }
