@@ -74,7 +74,7 @@ enum main_state {
 
 static enum main_state main_state;
 
-EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
+static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
     struct scene *s = data;
     renderer_t *r = clap_get_renderer(s->clap_ctx);
@@ -112,7 +112,7 @@ EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
  * XXX: this should be a message
  * cmd.resize
  */
-void resize_cb(void *data, int width, int height)
+static void resize_cb(void *data, int width, int height)
 {
     struct scene *scene = data;
 
