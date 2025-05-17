@@ -39,7 +39,7 @@ static int exit_timeout = -1;
 static struct scene scene; /* XXX */
 // struct game_state game_state;
 
-static bool shadow_msaa, model_msaa, edge_aa, edge_sobel, ssao;
+static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao;
 
 static void build_main_pl(struct pipeline **pl)
 {
