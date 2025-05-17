@@ -122,9 +122,8 @@ typedef struct pipeline_pass_config {
 
 DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
     const char      *name;
-    renderer_t      *renderer;
+    clap_context    *clap_ctx;
     render_options  *render_options;
-    shader_context  *shader_ctx;
     struct light    *light;
     struct camera   *camera;
     ssao_state      *ssao_state;

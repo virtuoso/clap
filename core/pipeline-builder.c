@@ -184,9 +184,8 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
                            .height           = opts->pl_opts->height,
                            .light            = opts->pl_opts->light,
                            .camera           = opts->pl_opts->camera,
-                           .renderer         = opts->pl_opts->renderer,
+                           .clap_ctx         = opts->pl_opts->clap_ctx,
                            .render_options   = opts->pl_opts->render_options,
-                           .shader_ctx       = opts->pl_opts->shader_ctx,
                            .ssao_state       = &ssao_state,
                            .name             = opts->pl_opts->name);
 

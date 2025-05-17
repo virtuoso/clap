@@ -22,15 +22,15 @@ float pipeline_pass_get_scale(render_pass *pass)
 static cerr pipeline_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(pipeline) *opts = _opts;
-    if (!opts->name || !opts->renderer || !opts->shader_ctx || !opts->width || !opts->height)
+    if (!opts->name || !opts->clap_ctx || !opts->width || !opts->height)
         return CERR_INVALID_ARGUMENTS;
 
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
     list_init(&pl->passes);
     list_init(&pl->shaders);
     pl->render_options  = opts->render_options;
-    pl->renderer        = opts->renderer;
-    pl->shader_ctx      = opts->shader_ctx;
+    pl->renderer        = clap_get_renderer(opts->clap_ctx);
+    pl->shader_ctx      = clap_get_shaders(opts->clap_ctx);
     pl->camera          = opts->camera;
     pl->light           = opts->light;
     pl->name            = opts->name;

@@ -47,10 +47,9 @@ static void build_main_pl(struct pipeline **pl)
         .pl_opts = &(pipeline_init_options) {
                   .width            = scene.width,
                   .height           = scene.height,
+                  .clap_ctx         = scene.clap_ctx,
                   .light            = &scene.light,
                   .camera           = &scene.cameras[0],
-                  .shader_ctx       = clap_get_shaders(scene.clap_ctx),
-                  .renderer         = clap_get_renderer(scene.clap_ctx),
                   .render_options   = &scene.render_options,
                   .name             = "main"
         },
