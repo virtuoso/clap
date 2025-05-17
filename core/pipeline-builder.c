@@ -15,6 +15,9 @@
 #define DEFAULT_SHADOW_SIZE 1024
 static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, unsigned int *pheight)
 {
+    if (*pwidth == *pheight && !(*pwidth & (*pwidth - 1)))
+        return true;
+
     int side = max(*pwidth, *pheight);
     int order = fls(side);
 
