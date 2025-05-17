@@ -44,6 +44,7 @@ uniform sampler2D shadow_map3;
 uniform sampler2DArray shadow_map;
 uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
+uniform bool shadow_vsm; /* XXX: move to shadow UBO */
 uniform float shine_damper;
 uniform float reflectivity;
 uniform bool sobel_solid;
@@ -140,6 +141,41 @@ float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int l
 }
 #endif /* CONFIG_GLES */
 
+float shadow_factor_vsm_calc(in vec2 moments, in float d)
+{
+    float m1 = moments.x;
+    float m2 = moments.y;
+
+    /* Early out if fully lit */
+    if (d < m1)
+        return 1.0;
+
+    float distance = d - m1;
+    float variance = max(m2 - m1 * m1, 1e-6);
+
+    /* Chebyshev upper bound */
+    float p_max = variance / (variance + distance * distance);
+
+    const float light_bleed_reduction = 0.8; /* XXX: parameterize me */
+    p_max = clamp((p_max - light_bleed_reduction) / (1.0 - light_bleed_reduction), 0.0, 1.0);
+
+    return smoothstep(0.15, 0.95, clamp(p_max, 0.0, 1.0));
+}
+
+float shadow_factor_vsm(in sampler2D map, in vec4 pos)
+{
+    vec2 moments = texel_fetch_2d(map, pos.xy, ivec2(0)).rg;
+
+    return shadow_factor_vsm_calc(moments, pos.z);
+}
+
+float shadow_factor_vsm(in sampler2DArray map, in vec4 pos, in int layer)
+{
+    vec2 moments = texel_fetch_2darray(map, vec3(pos.xy, float(layer)), ivec2(0)).rg;
+
+    return shadow_factor_vsm_calc(moments, pos.z);
+}
+
 float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos)
 {
     float shadow_factor = 1.0;
@@ -168,24 +204,34 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos)
 #ifdef CONFIG_GLES
     switch (layer) {
         case 0:
-            shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, bias);
+            shadow_factor = shadow_vsm ?
+                shadow_factor_vsm(shadow_map, proj_coords) :
+                shadow_factor_pcf(shadow_map, proj_coords, bias);
             break;
         case 1:
-            shadow_factor = shadow_factor_pcf(shadow_map1, proj_coords, bias);
+            shadow_factor = shadow_vsm ?
+                shadow_factor_vsm(shadow_map1, proj_coords) :
+                shadow_factor_pcf(shadow_map1, proj_coords, bias);
             break;
         case 2:
-            shadow_factor = shadow_factor_pcf(shadow_map2, proj_coords, bias);
+            shadow_factor = shadow_vsm ?
+                shadow_factor_vsm(shadow_map2, proj_coords) :
+                shadow_factor_pcf(shadow_map2, proj_coords, bias);
             break;
         default:
         case 3:
-            shadow_factor = shadow_factor_pcf(shadow_map3, proj_coords, bias);
+            shadow_factor = shadow_vsm ?
+                shadow_factor_vsm(shadow_map3, proj_coords) :
+                shadow_factor_pcf(shadow_map3, proj_coords, bias);
             break;
     }
 #else
     if (use_msaa)
         shadow_factor = shadow_factor_msaa_weighted(shadow_map_ms, proj_coords, layer, bias);
     else
-        shadow_factor = shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
+        shadow_factor = shadow_vsm ?
+            shadow_factor_vsm(shadow_map, proj_coords, layer) :
+            shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
 #endif /* CONFIG_GLES */
 
     return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.3));

@@ -41,6 +41,28 @@ static const render_pass_ops shadow_ops = {
     .prepare    = shadow_prepare,
 };
 
+static void shadow_vsm_prepare(render_pass_ops_params *params)
+{
+    /*
+     * VSM needs the depth values to not be reversed, so that gl_FragCoords.z
+     * that gets written into shadow maps does not require additional reversal
+     * in sampling and to avoid potential precision issues.
+     *
+     * Unlike the "regular" CSM shadow pass, it also uses a color attachment
+     * for its output, which needs to be cleared.qs
+     */
+    renderer_cleardepth(params->renderer, 1.0);
+    renderer_depth_func(params->renderer, DEPTH_FN_LESS);
+    renderer_clearcolor(params->renderer, (vec4){ 0, 0, 0, 1 });
+    renderer_clear(params->renderer, true, true, false);
+    params->camera = NULL;
+}
+
+static const render_pass_ops shadow_vsm_ops = {
+    .resize     = shadow_resize,
+    .prepare    = shadow_vsm_prepare,
+};
+
 /****************************************************************************
  * model render pass operations
  ****************************************************************************/
@@ -155,6 +177,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
     bool edge_sobel = opts->pl_opts->render_options->edge_sobel;
     const char *edge_msaa_shader = edge_sobel ? "sobel-msaa" : "laplace";
     const char *edge_shader = edge_sobel ? "sobel" : "laplace";
+    bool vsm = opts->pl_opts->render_options->shadow_vsm;
 
     pipeline *pl = opts->pl ? : ref_new(pipeline,
                            .width            = opts->pl_opts->width,
@@ -174,26 +197,32 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
         shadow_pass[i] =
             pipeline_add_pass(pl,
                 .source               = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
-                .ops                  = &shadow_ops,
+                .ops                  = vsm ? &shadow_vsm_ops : &shadow_ops,
                 .multisampled         = opts->pl_opts->render_options->shadow_msaa,
-                .attachment_config    = FBO_DEPTH_TEXTURE(0),
+                .attachment_config    = vsm ? FBO_COLOR_DEPTH_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+                .color_format         = (texture_format[]){ TEX_FMT_RG32F },
                 .cascade              = i,
-                .shader_override      = "shadow"
+                .shader_override      = vsm ? "shadow_vsm" : "shadow"
         );
-        opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(shadow_pass[i], FBO_DEPTH_TEXTURE(i));
+        opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(
+            shadow_pass[i], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
+        );
     }
 #else
     shadow_pass[0] =
         pipeline_add_pass(pl,
             .source             = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
-            .ops                = &shadow_ops,
+            .ops                = vsm ? &shadow_vsm_ops : &shadow_ops,
             .multisampled       = opts->pl_opts->render_options->shadow_msaa,
-            .attachment_config  = FBO_DEPTH_TEXTURE(0),
+            .color_format       = (texture_format[]){ TEX_FMT_RG32F },
+            .attachment_config  = vsm ? FBO_COLOR_DEPTH_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
             .layers             = CASCADES_MAX,
             .cascade            = -1,
-            .shader_override    = "shadow"
+            .shader_override    = vsm ? "shadow_vsm" : "shadow"
     );
-    opts->pl_opts->light->shadow[0][0] = pipeline_pass_get_texture(shadow_pass[0], FBO_DEPTH_TEXTURE(0));
+    opts->pl_opts->light->shadow[0][0] = pipeline_pass_get_texture(
+        shadow_pass[0], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
+    );
 #endif /* CONFIG_GLES */
 
     texture_format hdr_fmt = get_hdr_format(opts);
@@ -203,13 +232,39 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             .source             = (render_source[]) {
                 { .mq = opts->mq, .method = RM_RENDER, },
 #ifdef CONFIG_GLES
-                { .pass = shadow_pass[0], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP },
-                { .pass = shadow_pass[1], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP1 },
-                { .pass = shadow_pass[2], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP2 },
-                { .pass = shadow_pass[3], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP3 },
+                {
+                    .pass       = shadow_pass[0],
+                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_SHADOW_MAP
+                },
+                {
+                    .pass       = shadow_pass[1],
+                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_SHADOW_MAP1
+                },
+                {
+                    .pass       = shadow_pass[2],
+                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_SHADOW_MAP2
+                },
+                {
+                    .pass       = shadow_pass[3],
+                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_SHADOW_MAP3
+                },
                 {}
 #else
-                { .pass = shadow_pass[0], .attachment = FBO_DEPTH_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP }, {}
+                {
+                    .pass       = shadow_pass[0],
+                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_SHADOW_MAP
+                },
+                {}
 #endif /* CONFIG_GLES */
             },
             .multisampled       = model_pass_msaa,
