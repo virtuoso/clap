@@ -47,6 +47,7 @@ typedef struct model3d {
     sfx_container       sfxc;
     unsigned int        nr_vertices;
     unsigned int        nr_faces[LOD_MAX];
+    bool                skip_aabb;
     struct model_joint  *joints;
     /* Collision mesh, if needed */
     float               *collision_vx;
@@ -68,6 +69,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     size_t              txsz;
     size_t              normsz;
     bool                fix_origin;
+    bool                skip_aabb;
 );
 DECLARE_REFCLASS(model3d);
 

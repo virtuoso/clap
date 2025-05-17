@@ -99,9 +99,10 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     CHECK(m->name = strdup(opts->name));
     m->prog = ref_get(opts->prog);
     m->alpha_blend = false;
+    m->skip_aabb = opts->skip_aabb;
     if (opts->mesh) {
         memcpy(m->aabb, opts->mesh->aabb, sizeof(m->aabb));
-    } else {
+    } else if (!m->skip_aabb) {
         vertex_array_aabb_calc(m->aabb, vx, vxsz);
         if (opts->fix_origin)
             vertex_array_fix_origin(vx, vxsz, m->aabb);
@@ -889,7 +890,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         entity3d *e;
 
         list_for_each_entry (e, &txmodel->entities, entry) {
-            if (unlikely(ropts && ropts->aabb_draws_enabled))
+            if (unlikely(ropts && ropts->aabb_draws_enabled && !model->skip_aabb))
                 entity3d_aabb_draw(e, true, true);
             if (!e->visible)
                 continue;
@@ -981,6 +982,10 @@ float entity3d_aabb_Z(entity3d *e)
 void entity3d_aabb_update(entity3d *e)
 {
     model3d *m = e->txmodel->model;
+
+    if (m->skip_aabb)
+        return;
+
     vec4 corners[] = {
         { m->aabb[0], m->aabb[2], m->aabb[4], 1.0 },
         { m->aabb[0], m->aabb[3], m->aabb[4], 1.0 },
