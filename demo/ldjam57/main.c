@@ -412,7 +412,7 @@ static void cleanup(struct scene *s)
     darray_clearout(cobjs);
 }
 
-static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao;
+static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = true;
 
 static void build_main_pl(struct pipeline **pl)
 {
@@ -466,12 +466,14 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         model_msaa != s->render_options.model_msaa ||
         edge_sobel != s->render_options.edge_sobel ||
         ssao != s->render_options.ssao ||
+        vsm != s->render_options.shadow_vsm ||
         edge_aa != s->render_options.edge_antialiasing) {
         shadow_msaa = s->render_options.shadow_msaa;
         model_msaa = s->render_options.model_msaa;
         edge_sobel = s->render_options.edge_sobel;
         edge_aa = s->render_options.edge_antialiasing;
         ssao = s->render_options.ssao;
+        vsm = s->render_options.shadow_vsm;
         pipeline_clearout(scene.pl);
         build_main_pl(&scene.pl);
     }
