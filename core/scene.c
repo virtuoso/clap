@@ -569,11 +569,12 @@ void scene_characters_move(struct scene *s)
 {
     struct character *ch;
 
+    /* Always compute the active inputs in the frame */
+    motion_compute(&s->mctl);
     list_for_each_entry(ch, &s->characters, entry) {
+        /* But only apply them to the active character */
         if (scene_control_character(s) == ch)
-            motion_compute(&s->mctl);
-
-        character_move(ch, s);
+            character_move(ch, s);
     }
 }
 
