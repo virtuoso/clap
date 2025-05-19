@@ -165,7 +165,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
 
     if (dbgm->unfolded) {
         igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 300.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 1000.0, "%f", ImGuiSliderFlags_ClampOnInput);
 
         float fov = to_degrees(cam->view.fov);
         igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
