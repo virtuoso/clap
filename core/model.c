@@ -1038,6 +1038,11 @@ void entity3d_aabb_center(entity3d *e, vec3 center)
     vec3_add(center, center, minv);
 }
 
+float entity3d_aabb_avg_edge(entity3d *e)
+{
+    return cbrtf(entity3d_aabb_X(e) * entity3d_aabb_Y(e) * entity3d_aabb_Z(e));
+}
+
 static void channel_time_to_idx(struct channel *chan, float time, int start, int *prev, int *next)
 {
     int i;

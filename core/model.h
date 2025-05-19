@@ -300,6 +300,7 @@ float entity3d_aabb_Z(entity3d *e);
 void entity3d_aabb_min(entity3d *e, vec3 min);
 void entity3d_aabb_max(entity3d *e, vec3 max);
 void entity3d_aabb_center(entity3d *e, vec3 center);
+float entity3d_aabb_avg_edge(entity3d *e);
 void entity3d_update(entity3d *e, void *data);
 void entity3d_put(entity3d *e);
 
