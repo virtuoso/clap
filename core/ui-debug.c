@@ -228,8 +228,14 @@ debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
         va_list va;
 
         va_start(va, fmt);
-        vsnprintf(name, sizeof(name), fmt, va);
+        int pos = vsnprintf(name, sizeof(name), fmt, va);
         va_end(va);
+
+        if (pos < sizeof(name) - 1) {
+            pos += snprintf(name + pos, sizeof(name) - pos, "###%s", dbgm->name);
+            if (pos == sizeof(name))
+                name[sizeof(name) - 1] = 0;
+        }
     }
 
     dbgm->open = true;
