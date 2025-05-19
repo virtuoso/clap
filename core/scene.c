@@ -679,12 +679,27 @@ void scene_update(struct scene *scene)
     scene_parameters_debug(scene, 0);
     scene_characters_debug(scene);
 
+    mq_update(&scene->mq);
+
+    if (scene->mctl.rs_dy) {
+        float delta = scene->mctl.rs_dy * scene->ang_speed;
+
+        camera_add_pitch(scene->camera, delta);
+        scene->camera->ch->moved++;
+    }
+    if (scene->mctl.rs_dx) {
+        /* XXX: need a better way to represend horizontal rotational speed */
+        camera_add_yaw(scene->camera, scene->mctl.rs_dx * scene->ang_speed * 1.5);
+        scene->camera->ch->moved++;
+    }
+
     if (scene->proj_update) {
         view_update_perspective_projection(&cam->view, scene->width, scene->height);
         scene->proj_update = 0;
     }
 
-    mq_update(&scene->mq);
+    camera_move(scene->camera, clap_get_fps_fine(scene->clap_ctx));
+    camera_update(scene->camera, scene, scene->control);
 
     if (scene->render_options.camera_frusta_draws_enabled)
         scene_debug_frusta(&scene->camera->view);

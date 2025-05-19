@@ -513,23 +513,6 @@ static int character_update(entity3d *e, void *data)
     struct character *c = e->priv;
     struct scene     *s = data;
 
-    if (scene_control_character(s) == c) {
-        if (s->mctl.rs_dy) {
-            float delta = s->mctl.rs_dy * s->ang_speed;
-
-            if (c->rs_height)
-                s->camera->ch->motion[1] -= delta / s->ang_speed * 0.1/*s->lin_speed*/;
-            else
-                camera_add_pitch(s->camera, delta);
-            s->camera->ch->moved++;
-        }
-        if (s->mctl.rs_dx) {
-            /* XXX: need a better way to represend horizontal rotational speed */
-            camera_add_yaw(s->camera, s->mctl.rs_dx * s->ang_speed * 1.5);
-            s->camera->ch->moved++;
-        }
-    }
-
     /*
      * If character falls too far down from their last know grounded Y coordinate,
      * teleport them back to a farthest grounded location in history buffer
@@ -549,12 +532,6 @@ static int character_update(entity3d *e, void *data)
             if (scene_camera_follows(s, c))
                 s->camera->ch->moved++;
         }
-    }
-
-
-    if (c->camera) {
-        camera_move(c->camera, clap_get_fps_fine(s->clap_ctx));
-        camera_update(c->camera, s, e);
     }
 
     character_motion_reset(c, s);
