@@ -168,15 +168,23 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
     double dist, height, next_distance;
     vec3 start;
 
-    vec3_dup(start, entity->pos);
+    if (entity->priv)
+        vec3_dup(start, entity->pos);
+    else
+        vec3_dup(start, entity->aabb_center);
 
     // We start with target pitch.
     c->current_pitch = c->target_pitch;
     c->current_yaw = c->target_yaw;
 
-    height = entity3d_aabb_Y(entity) * 3 / 4;
+    if (entity->priv)
+        height = entity3d_aabb_Y(entity) * 3 / 4;
+    else
+        height = entity3d_aabb_Y(entity) / 2;
+
     dist = height * 3;
-    start[1] += height;
+    if (entity->priv)
+        start[1] += height;
 
     // Searching for camera distance that is good enough.
     while (dist > 0.1) {

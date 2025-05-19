@@ -498,12 +498,19 @@ static void scene_camera_calc(struct scene *s, int camera)
         return;
 
     vec3 target;
-    vec3_dup(target, current->entity->pos);
-    target[1] += entity3d_aabb_Y(current->entity) / 4 * 3;
+    if (current) {
+        /* for characters, assume origin is between their feet */
+        vec3_dup(target, s->control->pos);
+        /* look at three quarters their height (XXX: parameterize) */
+        target[1] += entity3d_aabb_Y(s->control) / 4 * 3;
+    } else {
+        /* otherwise, origin can't be trusted at all; look at dead center */
+        vec3_dup(target, s->control->aabb_center);
+    }
 
     /* circle the entity s->control, unless it's camera */
     if (s->control != cam->ch->entity &&
-        (camera_has_moved(cam) || current->moved)) {
+        (camera_has_moved(cam) || (current && current->moved))) {
 
         camera_position(cam, target[0], target[1], target[2]);
     }
