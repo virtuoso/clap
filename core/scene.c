@@ -331,7 +331,12 @@ static void dropdown_entity(entity3d *e, void *data)
 
 static void scene_camera_selector_debug(struct scene *scene)
 {
-    debug_module *dbgm = ui_igBegin(DEBUG_CAMERA_SELECTOR, ImGuiWindowFlags_AlwaysAutoResize);
+    debug_module *dbgm = ui_igBegin_name(
+        DEBUG_ENTITY_INSPECTOR,
+        ImGuiWindowFlags_AlwaysAutoResize,
+        "entity '%s'",
+        entity_name(scene->control)
+    );
 
     if (!dbgm->display)
         return;
@@ -398,7 +403,7 @@ static void scene_camera_selector_debug(struct scene *scene)
         igPopItemWidth();
     }
 
-    ui_igEnd(DEBUG_CAMERA_SELECTOR);
+    ui_igEnd(DEBUG_ENTITY_INSPECTOR);
 }
 
 static int scene_debug_draw(struct message *m, void *data)
