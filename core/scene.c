@@ -333,7 +333,7 @@ static void scene_camera_selector_debug(struct scene *scene)
 {
     debug_module *dbgm = ui_igBegin_name(
         DEBUG_ENTITY_INSPECTOR,
-        ImGuiWindowFlags_AlwaysAutoResize,
+        0,
         "entity '%s'",
         entity_name(scene->control)
     );
@@ -345,7 +345,11 @@ static void scene_camera_selector_debug(struct scene *scene)
         if (igButton("detach camera", (ImVec2){}))
             scene->control = scene->camera->ch->entity;
 
-        igPushItemWidth(500.0);
+        /*
+         * Stretch all following widgets horizontally to fill the window,
+         * unless told otherwis.
+         */
+        igPushItemWidth(-1.0);
 
         if (igBeginCombo("focus on", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
             mq_for_each(&scene->mq, dropdown_entity, scene);
