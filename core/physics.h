@@ -100,6 +100,8 @@ void phys_body_done(struct phys_body *body);
 void phys_body_attach_motor(struct phys_body *body, bool attach);
 /* Set body's body or geometry's position, taking into account body::yoffset */
 void phys_body_set_position(struct phys_body *body, vec3 pos);
+/* Set body's rotation from 4x4 TRS matrix */
+void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs);
 /* Enable/disable a body */
 void phys_body_enable(struct phys_body *body, bool enable);
 /* Get the physical body's linear velocity */
