@@ -340,6 +340,8 @@ static void scene_camera_selector_debug(struct scene *scene)
         if (igButton("detach camera", (ImVec2){}))
             scene->control = scene->camera->ch->entity;
 
+        igPushItemWidth(500.0);
+
         if (igBeginCombo("focus on", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
             mq_for_each(&scene->mq, dropdown_entity, scene);
             igEndCombo();
@@ -374,11 +376,26 @@ static void scene_camera_selector_debug(struct scene *scene)
             message_send(&dm_aabb_center);
         }
 
-        ui_igVecTableHeader("pos", 3);
-        ui_igVecRow(e->aabb_center, 3, "%s center", entity_name(e));
-        ui_igVecRow(e->pos, 3, "%s pos", entity_name(e));
-        ui_igVecRow(scene->camera->ch->entity->pos, 3, "camera");
-        igEndTable();
+        vec3 pos;
+        vec3_dup(pos, e->pos);
+
+        if (igSliderFloat3("pos", pos, -500.0, 500.0, "%.02f", 0)) {
+            entity3d_position(e, pos);
+            scene->camera->ch->moved++;
+        }
+
+        float rx = to_degrees(e->rx);
+        if (igSliderFloat("rx", &rx, -180.0, 180.0, "%.02f", 0))
+            entity3d_rotate_X(e, to_radians(rx));
+
+        float ry = to_degrees(e->ry);
+        if (igSliderFloat("ry", &ry, -180.0, 180.0, "%.02f", 0))
+            entity3d_rotate_Y(e, to_radians(ry));
+
+        float rz = to_degrees(e->rz);
+        if (igSliderFloat("rz", &rz, -180.0, 180.0, "%.02f", 0))
+            entity3d_rotate_Z(e, to_radians(rz));
+        igPopItemWidth();
     }
 
     ui_igEnd(DEBUG_CAMERA_SELECTOR);
