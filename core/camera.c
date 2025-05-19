@@ -51,9 +51,6 @@ void camera_add_yaw(struct camera *c, float delta)
 
 void camera_set_target_to_current(struct camera *c)
 {
-    // Target pitch should never be too extreme.
-    // XXX: why not?
-    // c->target_pitch = clampf(c->current_pitch, -60, 60);
     c->target_pitch = c->current_pitch;
     c->target_yaw = c->current_yaw;
     vec3_dup(c->ch->motion, (vec3){});
