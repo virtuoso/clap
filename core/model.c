@@ -1010,6 +1010,8 @@ void entity3d_aabb_update(entity3d *e)
         e->aabb[4] = min(v[2], e->aabb[4]);
         e->aabb[5] = max(v[2], e->aabb[5]);
     }
+
+    aabb_center(e->aabb, e->aabb_center);
 }
 
 void entity3d_aabb_min(entity3d *e, vec3 min)

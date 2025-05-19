@@ -240,6 +240,7 @@ typedef struct entity3d {
     bool    outline_exclude;
     /* 1 byte hole */
     float   aabb[6];
+    vec3    aabb_center;
     float   light_off[3];
     int (*update)(entity3d *e, void *data);
     int (*contact)(entity3d *e1, entity3d *e2);
