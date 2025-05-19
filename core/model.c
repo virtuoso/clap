@@ -1375,9 +1375,16 @@ static int default_update(entity3d *e, void *data)
         mat4x4_rotate_X(e->mx, e->mx, e->rx);
         mat4x4_rotate_Y(e->mx, e->mx, e->ry);
         mat4x4_rotate_Z(e->mx, e->mx, e->rz);
+
+        mat4x4 tr_no_scale;
+        mat4x4_dup(tr_no_scale, e->mx);
+
         mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
         entity3d_aabb_update(e);
+
+        if (e->phys_body)
+            phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
 
         if (scene && e->light_idx >= 0) {
             float pos[3];
