@@ -796,11 +796,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     body->trimesh_vx = tvx;
     body->trimesh_idx = tidx;
 
-    /*
-     * XXX: terrain.c corner case, calls here directly with body==NULL
-     * XXX: make it create PHYS_GEOM "body" instead.
-     */
-    if (body) {
+    if (phys_body_has_body(body)) {
         body->geom = trimesh;
         if (phys_body_has_body(body)) {
             dMassSetTrimeshTotal(&body->mass, mass, body->geom);
