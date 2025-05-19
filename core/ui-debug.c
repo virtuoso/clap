@@ -239,7 +239,7 @@ debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
     }
 
     dbgm->open = true;
-    dbgm->unfolded = igBegin(fmt ? name : dbgm->name, &dbgm->open, ImGuiWindowFlags_AlwaysAutoResize);
+    dbgm->unfolded = igBegin(fmt ? name : dbgm->name, &dbgm->open, flags);
 
     return dbgm;
 }
