@@ -47,6 +47,7 @@ void imgui_render_begin(int width, int height);
 void imgui_render(void);
 
 enum debug_modules {
+    DEBUG_CAMERA_SELECTOR,
     DEBUG_PIPELINE_PASSES,
     DEBUG_PIPELINE_SELECTOR,
     DEBUG_SCENE_PARAMETERS,

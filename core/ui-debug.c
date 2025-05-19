@@ -130,6 +130,7 @@ void ui_debug_done(struct ui *ui)
  * ImGui based debug UI
  *************************************************************************/
 static struct debug_module debug_enabled[DEBUG_MODULES_MAX] = {
+    [DEBUG_CAMERA_SELECTOR]     = { .name = "camera selector" },
     [DEBUG_PIPELINE_PASSES]     = { .name = "pipeline passes" },
     [DEBUG_PIPELINE_SELECTOR]   = { .name = "pipeline selector" },
     [DEBUG_SCENE_PARAMETERS]    = { .name = "scene parameters" },

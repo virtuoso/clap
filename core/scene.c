@@ -317,6 +317,74 @@ static void scene_characters_debug(struct scene *scene)
     ui_igEnd(DEBUG_CHARACTERS);
 }
 
+static void dropdown_entity(entity3d *e, void *data)
+{
+    struct scene *scene = data;
+    bool selected = scene->control == e;
+
+    igPushID_Ptr(e);
+    if (igSelectable_Bool(entity_name(e), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
+        igSetItemDefaultFocus();
+        scene->control = e;
+    }
+    igPopID();
+}
+
+static void scene_camera_selector_debug(struct scene *scene)
+{
+    debug_module *dbgm = ui_igBegin(DEBUG_CAMERA_SELECTOR, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        if (igButton("detach camera", (ImVec2){}))
+            scene->control = scene->camera->ch->entity;
+
+        if (igBeginCombo("focus on", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
+            mq_for_each(&scene->mq, dropdown_entity, scene);
+            igEndCombo();
+        }
+
+        entity3d *e = scene->control;
+        static bool draw_aabb;
+
+        igCheckbox("draw aabb", &draw_aabb);
+        if (draw_aabb) {
+            struct message dm_aabb = {
+                .type   = MT_DEBUG_DRAW,
+                .debug_draw     = (struct message_debug_draw) {
+                    .color      = { 1.0, 0.0, 0.0, 1.0 },
+                    .thickness  = 4.0,
+                    .shape      = DEBUG_DRAW_AABB,
+                    .v0         = { e->aabb[0], e->aabb[2], e->aabb[4] },
+                    .v1         = { e->aabb[1], e->aabb[3], e->aabb[5] },
+                }
+            };
+            message_send(&dm_aabb);
+
+            struct message dm_aabb_center = {
+                .type   = MT_DEBUG_DRAW,
+                .debug_draw     = (struct message_debug_draw) {
+                    .color      = { 1.0, 0.0, 0.0, 1.0 },
+                    .radius     = 10.0,
+                    .shape      = DEBUG_DRAW_CIRCLE,
+                    .v0         = { e->aabb_center[0], e->aabb_center[1], e->aabb_center[2] },
+                }
+            };
+            message_send(&dm_aabb_center);
+        }
+
+        ui_igVecTableHeader("pos", 3);
+        ui_igVecRow(e->aabb_center, 3, "%s center", entity_name(e));
+        ui_igVecRow(e->pos, 3, "%s pos", entity_name(e));
+        ui_igVecRow(scene->camera->ch->entity->pos, 3, "camera");
+        igEndTable();
+    }
+
+    ui_igEnd(DEBUG_CAMERA_SELECTOR);
+}
+
 static int scene_debug_draw(struct message *m, void *data)
 {
     struct message_debug_draw *dd = &m->debug_draw;
@@ -486,6 +554,7 @@ static void scene_debug_frusta(struct view *view)
 static void scene_parameters_debug(struct scene *scene, int cam_idx) {}
 static inline void light_debug(struct scene *scene) {}
 static inline void scene_characters_debug(struct scene *scene) {}
+static inline void scene_camera_selector_debug(struct scene *scene) {}
 static inline void scene_debug_frusta(struct view *view) {}
 #endif /* CONFIG_FINAL */
 
@@ -685,6 +754,7 @@ void scene_update(struct scene *scene)
 
     scene_parameters_debug(scene, 0);
     scene_characters_debug(scene);
+    scene_camera_selector_debug(scene);
 
     mq_update(&scene->mq);
 
