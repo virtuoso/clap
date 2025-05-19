@@ -379,8 +379,8 @@ void character_move(struct character *ch, struct scene *s)
 
         float delta_x = s->mctl.ls_dx * ch->lin_speed;
         float delta_z = s->mctl.ls_dy * ch->lin_speed;
-        float yawcos = cos(to_radians(s->camera->target_yaw));
-        float yawsin = sin(to_radians(s->camera->target_yaw));
+        float yawcos = cos(to_radians(s->camera->yaw));
+        float yawsin = sin(to_radians(s->camera->yaw));
         float dx = delta_x * yawcos - delta_z * yawsin;
         float dz = delta_x * yawsin + delta_z * yawcos;
 

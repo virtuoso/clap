@@ -143,7 +143,6 @@ cres(int) scene_camera_add(struct scene *s)
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
 
-    camera_setup(s->camera);
     s->camera->ch->moved++;
     s->camera->dist = 10;
 
@@ -588,7 +587,7 @@ static void scene_camera_calc(struct scene *s, int camera)
     cam->ch->moved = 0;
 
     float *cam_pos = cam->ch->entity->pos;
-    view_update_from_angles(&cam->view, cam_pos, cam->current_pitch, cam->current_yaw, cam->current_roll);
+    view_update_from_angles(&cam->view, cam_pos, cam->pitch, cam->yaw, cam->roll);
     view_calc_frustum(&cam->view);
 
     light_debug(s);
@@ -625,7 +624,7 @@ static void scene_camera_calc(struct scene *s, int camera)
         display_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]",
                       clap_get_fps_coarse(s->clap_ctx),
                       cam_pos[0], cam_pos[1], cam_pos[2],
-                      cam->current_pitch, cam->current_yaw);
+                      cam->pitch, cam->yaw);
 #endif
 }
 

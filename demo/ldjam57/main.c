@@ -247,7 +247,7 @@ static int character_obj_update(entity3d *e, void *data)
             s->limbo_height = fabsf(game_over_end_height - game_over_start_height) + 10;
         }
 
-        s->camera->target_yaw += 90 / fabsf(game_over_end_height - game_over_start_height);
+        s->camera->yaw += 90 / fabsf(game_over_end_height - game_over_start_height);
         s->camera->ch->moved++;
     }
 

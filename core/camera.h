@@ -12,12 +12,9 @@ struct camera {
     struct view view;
     entity3d    *bv;
     float  bv_volume;
-    float  target_pitch;
-    float  target_yaw;
-    float  target_roll;
-    float  current_pitch;
-    float  current_yaw;
-    float  current_roll;
+    float  pitch;
+    float  yaw;
+    float  roll;
     unsigned int zoom;
     float   dist;
     float   yaw_delta;
@@ -28,7 +25,6 @@ struct camera {
     float   debug_line_end[3 * NUMBER_OF_DEBUG_LINES];
 };
 
-void camera_setup(struct camera *c);
 void camera_move(struct camera *c, unsigned long fps);
 void camera_position(struct camera *c, float x, float y, float z);
 void camera_reset_movement(struct camera *c);

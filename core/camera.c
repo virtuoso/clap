@@ -3,34 +3,27 @@
 #include "character.h"
 #include "ui-debug.h"
 
-void camera_setup(struct camera *c)
-{
-    // starting yaw values
-    c->target_yaw = 0;
-    c->current_yaw = 0;
-}
-
 void camera_move(struct camera *c, unsigned long fps)
 {
     // Add delta and clamp pitch between -90 and 90.
-    c->target_pitch += c->pitch_delta / (float)fps;
-    c->target_pitch = clampf(c->target_pitch, -90, 90);
+    c->pitch += c->pitch_delta / (float)fps;
+    c->pitch = clampf(c->pitch, -90, 90);
 
     // Add delta and make sure yaw is between -180 and 180.
-    c->target_yaw += c->yaw_delta / (float)fps;
-    if (c->target_yaw > 180)
-        c->target_yaw -= 360;
-    else if (c->target_yaw <= -180)
-        c->target_yaw += 360;
+    c->yaw += c->yaw_delta / (float)fps;
+    if (c->yaw > 180)
+        c->yaw -= 360;
+    else if (c->yaw <= -180)
+        c->yaw += 360;
 }
 
 void camera_position(struct camera *c, float x, float y, float z)
 {
     // Calculate position of the camera with respect to the character.
     entity3d_position(c->ch->entity, (vec3){
-                      x + c->dist * sin(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch)),
-                      y + c->dist * sin(to_radians(c->current_pitch)),
-                      z + c->dist * cos(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch))});
+                      x + c->dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch)),
+                      y + c->dist * sin(to_radians(c->pitch)),
+                      z + c->dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch))});
 }
 
 void camera_reset_movement(struct camera *c)
@@ -51,8 +44,6 @@ void camera_add_yaw(struct camera *c, float delta)
 
 void camera_set_target_to_current(struct camera *c)
 {
-    c->target_pitch = c->current_pitch;
-    c->target_yaw = c->current_yaw;
     vec3_dup(c->ch->motion, (vec3){});
     vec3_dup(c->ch->angle, (vec3){});
     vec3_dup(c->ch->velocity, (vec3){});
@@ -86,11 +77,11 @@ static void camera_calc_rays(struct camera *c, struct scene *s, vec3 start, floa
     vec4 r = { 0.0, 0.0, 0.0, 1.0 };
 
     mat4x4_identity(m);
-    mat4x4_rotate_X(m, m, to_radians(c->current_pitch));
-    mat4x4_rotate_Y(m, m, to_radians(c->current_yaw));
-    c_position[0] = start[0] + dist * sin(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
-    c_position[1] = start[1] + dist * sin(to_radians(c->current_pitch));
-    c_position[2] = start[2] + dist * cos(to_radians(-c->current_yaw)) * cos(to_radians(c->current_pitch));
+    mat4x4_rotate_X(m, m, to_radians(c->pitch));
+    mat4x4_rotate_Y(m, m, to_radians(c->yaw));
+    c_position[0] = start[0] + dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
+    c_position[1] = start[1] + dist * sin(to_radians(c->pitch));
+    c_position[2] = start[2] + dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
     mat4x4_translate_in_place(m, -c_position[0], -c_position[1], -c_position[2]);
     mat4x4_invert(m_inverse, m);
 
@@ -169,10 +160,6 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
         vec3_dup(start, entity->pos);
     else
         vec3_dup(start, entity->aabb_center);
-
-    // We start with target pitch.
-    c->current_pitch = c->target_pitch;
-    c->current_yaw = c->target_yaw;
 
     if (entity->priv)
         height = entity3d_aabb_Y(entity) * 3 / 4;
