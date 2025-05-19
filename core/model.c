@@ -521,12 +521,12 @@ static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
     if (entity) {
         struct message dm = {
             .type   = MT_DEBUG_DRAW,
-            .debug_draw = (struct message_debug_draw){
-                .color  = { 1.0, 1.0, 0.0, 1.0 },
-                .radius = 10.0,
-                .shape  = DEBUG_DRAW_AABB,
-                .v0     = { e->aabb[0], e->aabb[2], e->aabb[4] },
-                .v1     = { e->aabb[1], e->aabb[3], e->aabb[5] },
+            .debug_draw     = (struct message_debug_draw){
+                .color      = { 1.0, 1.0, 0.0, 1.0 },
+                .thickness  = 1.0,
+                .shape      = DEBUG_DRAW_AABB,
+                .v0         = { e->aabb[0], e->aabb[2], e->aabb[4] },
+                .v1         = { e->aabb[1], e->aabb[3], e->aabb[5] },
             }
         };
         message_send(&dm);
@@ -541,12 +541,12 @@ static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
 
         struct message dm = {
             .type   = MT_DEBUG_DRAW,
-            .debug_draw = (struct message_debug_draw){
-                .color  = { 1.0, 0.0, 0.0, 1.0 },
-                .radius = 10.0,
-                .shape  = DEBUG_DRAW_AABB,
-                .v0     = { v0[0], v0[1], v0[2] },
-                .v1     = { v1[0], v1[1], v1[2] },
+            .debug_draw     = (struct message_debug_draw){
+                .color      = { 1.0, 0.0, 0.0, 1.0 },
+                .thickness  = 1.0,
+                .shape      = DEBUG_DRAW_AABB,
+                .v0         = { v0[0], v0[1], v0[2] },
+                .v1         = { v1[0], v1[1], v1[2] },
             }
         };
         message_send(&dm);

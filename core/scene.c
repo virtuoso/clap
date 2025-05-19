@@ -434,7 +434,7 @@ static int scene_debug_draw(struct message *m, void *data)
                         .y = ((1.0f - b[1]) / 2.0f) * s->height
                     };
 
-                    ImDrawList_AddLine(draw, p0, p1, color, 1.0f);
+                    ImDrawList_AddLine(draw, p0, p1, color, dd->thickness);
                 }
             }
             break;
