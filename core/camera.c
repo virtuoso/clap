@@ -182,7 +182,8 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
     else
         height = entity3d_aabb_Y(entity) / 2;
 
-    dist = height * 3;
+    float dist_cap = fmaxf(10.0, entity3d_aabb_avg_edge(entity));
+    dist = fminf(height * 3, fminf(dist_cap, c->view.main.far_plane - 10.0));
     if (entity->priv)
         start[1] += height;
 
