@@ -631,7 +631,7 @@ static void model3d_prepare(model3d *m, struct shader_prog *p)
     }
 }
 
-void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
+static void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
 {
     model3d *m = txm->model;
 
@@ -671,7 +671,7 @@ static void model3d_done(model3d *m, struct shader_prog *p)
     m->cur_lod = -1;
 }
 
-void model3dtx_done(model3dtx *txm, struct shader_prog *p)
+static void model3dtx_done(model3dtx *txm, struct shader_prog *p)
 {
     if (buffer_loaded(&txm->model->tex)) {
         shader_unplug_attribute(p, ATTR_TEX, &txm->model->tex);

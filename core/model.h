@@ -177,8 +177,6 @@ float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);
 float model3d_aabb_Z(model3d *m);
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex);
-void model3dtx_prepare(model3dtx *m, struct shader_prog *p);
-void model3dtx_done(model3dtx *m, struct shader_prog *p);
 
 static inline const char *txmodel_name(model3dtx *txm)
 {
