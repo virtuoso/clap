@@ -96,6 +96,7 @@ bool ui_igSliderFloat3(const char *label, float *v, float min, float max, const 
                        ImGuiSliderFlags flags);
 bool ui_igBeginCombo(const char *label, const char *preview_value, ImGuiComboFlags flags);
 void ui_igEndCombo(void);
+bool ui_igColorEdit3(const char *label, float *color, ImGuiColorEditFlags flags);
 
 #else
 

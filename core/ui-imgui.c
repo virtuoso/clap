@@ -366,3 +366,25 @@ void ui_igEndCombo(void)
     igEndCombo();
     igPopItemWidth();
 }
+
+bool ui_igColorEdit3(const char *label, float *color, ImGuiColorEditFlags flags)
+{
+    char buf[128];
+    snprintf(buf, sizeof(buf), "##%s", label);
+
+    igTableNextRow(0, 0);
+    igTableNextColumn();
+
+    bool ret = igColorEdit3(buf, color, flags);
+
+    igTableNextColumn();
+
+    igText("RGB: #%02x%02x%02x (%.02f,%.02f,%.02f)",
+        (unsigned int)(color[0] * 255.0),
+        (unsigned int)(color[1] * 255.0),
+        (unsigned int)(color[2] * 255.0),
+        color[0], color[1], color[2]
+    );
+
+    return ret;
+}
