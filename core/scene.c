@@ -250,7 +250,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
 
 static void light_debug(struct scene *scene)
 {
-    debug_module *dbgm = ui_igBegin(DEBUG_LIGHT, ImGuiWindowFlags_AlwaysAutoResize);
+    debug_module *dbgm = ui_igBegin(DEBUG_LIGHT, 0);
 
     if (!dbgm->display)
         return;
@@ -258,31 +258,20 @@ static void light_debug(struct scene *scene)
     if (dbgm->unfolded) {
         for (int idx = 0; idx < scene->nr_lights; idx++) {
             igPushID_Int(idx);
+            ui_igControlTableHeader("light %d", "pos", idx);
 
-            float *dir = &scene->light.dir[3 * idx];
-            igSetNextItemWidth(300);
-            igSliderFloat3("pos", dir, -500, 500, "%.02f", 0);
+            ui_igSliderFloat3("pos", &scene->light.dir[3 * idx], -500, 500, "%.02f", 0);
 
-            float *color = &scene->light.color[3 * idx];
-            igColorEdit3(
+            ui_igColorEdit3(
                 "color",
-                color,
+                &scene->light.color[3 * idx],
                 ImGuiColorEditFlags_NoInputs |
                 ImGuiColorEditFlags_NoLabel  |
                 ImGuiColorEditFlags_NoTooltip
             );
-            igSameLine(0.0, 10.0);
-            igText("RGB: #%02x%02x%02x (%.02f,%.02f,%.02f)",
-                (unsigned int)(color[0] * 255.0),
-                (unsigned int)(color[1] * 255.0),
-                (unsigned int)(color[2] * 255.0),
-                color[0], color[1], color[2]
-            );
 
+            igEndTable();
             igPopID();
-
-            if (idx < scene->nr_lights - 1)
-                igSeparator();
         }
     }
 
