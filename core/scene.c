@@ -342,9 +342,6 @@ static void scene_camera_selector_debug(struct scene *scene)
         return;
 
     if (dbgm->unfolded) {
-        if (igButton("detach camera", (ImVec2){}))
-            scene->control = scene->camera->ch->entity;
-
         /*
          * Stretch all following widgets horizontally to fill the window,
          * unless told otherwis.
