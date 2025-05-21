@@ -384,14 +384,14 @@ void character_move(struct character *ch, struct scene *s)
         float dx = delta_x * yawcos - delta_z * yawsin;
         float dz = delta_x * yawsin + delta_z * yawcos;
 
-        if (ch->jump)
-            if (character_jump(ch, s, dx, dz))
-                goto out;
-
         ch->motion[0] = dx;
         if (!scene_character_is_camera(s, ch))
             ch->motion[1] = 0.0;
         ch->motion[2] = dz;
+
+        if (ch->jump)
+            if (character_jump(ch, s, dx, dz))
+                goto out;
     } else if (ch->state == CS_START) {
         goto out;
     }
