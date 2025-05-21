@@ -348,15 +348,17 @@ static void scene_camera_selector_debug(struct scene *scene)
          */
         igPushItemWidth(-1.0);
 
-        if (igBeginCombo("focus on", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
+        ui_igControlTableHeader("entity", "entity");
+
+        if (ui_igBeginCombo("entity", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
             mq_for_each(&scene->mq, dropdown_entity, scene);
-            igEndCombo();
+            ui_igEndCombo();
         }
 
         entity3d *e = scene->control;
         static bool draw_aabb;
 
-        igCheckbox("draw aabb", &draw_aabb);
+        ui_igCheckbox("draw aabb", &draw_aabb);
         if (draw_aabb) {
             struct message dm_aabb = {
                 .type   = MT_DEBUG_DRAW,
@@ -385,22 +387,24 @@ static void scene_camera_selector_debug(struct scene *scene)
         vec3 pos;
         vec3_dup(pos, e->pos);
 
-        if (igSliderFloat3("pos", pos, -500.0, 500.0, "%.02f", 0)) {
+        if (ui_igSliderFloat3("pos", pos, -500.0, 500.0, "%.02f", 0)) {
             entity3d_position(e, pos);
             scene->camera->ch->moved++;
         }
 
         float rx = to_degrees(e->rx);
-        if (igSliderFloat("rx", &rx, -180.0, 180.0, "%.02f", 0))
+        if (ui_igSliderFloat("rx", &rx, -180.0, 180.0, "%.02f", 0))
             entity3d_rotate_X(e, to_radians(rx));
 
         float ry = to_degrees(e->ry);
-        if (igSliderFloat("ry", &ry, -180.0, 180.0, "%.02f", 0))
+        if (ui_igSliderFloat("ry", &ry, -180.0, 180.0, "%.02f", 0))
             entity3d_rotate_Y(e, to_radians(ry));
 
         float rz = to_degrees(e->rz);
-        if (igSliderFloat("rz", &rz, -180.0, 180.0, "%.02f", 0))
+        if (ui_igSliderFloat("rz", &rz, -180.0, 180.0, "%.02f", 0))
             entity3d_rotate_Z(e, to_radians(rz));
+
+        igEndTable();
         igPopItemWidth();
     }
 
