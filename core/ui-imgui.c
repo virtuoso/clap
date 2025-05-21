@@ -269,16 +269,23 @@ bool ui_igMat4x4(mat4x4 m, const char *name)
 
 static const float left_padding = 4;
 
-bool ui_igControlTableHeader(const char *str_id, const char *longest_label)
+bool ui_igControlTableHeader(const char *str_id_fmt, const char *longest_label, ...)
 {
-    igSeparatorText(str_id);
-    if (!igBeginTable(str_id, 2, ImGuiTableFlags_SizingFixedFit, (ImVec2){0,0}, 0))
+    char buf[128];
+    va_list va;
+
+    va_start(va, longest_label);
+    vsnprintf(buf, sizeof(buf), str_id_fmt, va);
+    va_end(va);
+
+    igSeparatorText(buf);
+    if (!igBeginTable(buf, 2, ImGuiTableFlags_SizingFixedFit, (ImVec2){0,0}, 0))
         return false;
 
     ImVec2 size;
     igCalcTextSize(&size, longest_label, NULL, true, 0);
 
-    igPushID_Str(str_id);
+    igPushID_Str(buf);
     igTableSetupColumn("key", ImGuiTableColumnFlags_WidthFixed, size.x + left_padding, 0);
     igTableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch, 0, 0);
     igPopID();
