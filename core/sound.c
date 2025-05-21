@@ -29,6 +29,7 @@ typedef struct sound_context {
 } sound_context;
 
 typedef struct sound {
+    char            *name;
     unsigned int    nr_channels;
     ALsizei         freq;
     ALenum          format;
@@ -280,6 +281,7 @@ static cerr sound_make(struct ref *ref, void *_opts)
     AC(alSourcei(sound->source_idx, AL_LOOPING, AL_FALSE), return CERR_NOMEM);
     // AC(alSourceQueueBuffers(sound->source_idx, 1, &sound->buffer_idx), return NULL);
 
+    sound->name = strdup(opts->name);
     list_append(&opts->ctx->sounds, &sound->entry);
 
     return CERR_OK;
@@ -291,6 +293,7 @@ static void sound_drop(struct ref *ref)
     alDeleteBuffers(1, &sound->buffer_idx);
     alDeleteSources(1, &sound->source_idx);
     list_del(&sound->entry);
+    free(sound->name);
 }
 
 DEFINE_REFCLASS2(sound);
@@ -400,11 +403,19 @@ cresp(sfx) sfx_new(sfx_container *sfxc, const char *name, const char *file, soun
     if (!sfx->action)
         return cresp_error(sfx, CERR_NOMEM);
 
+    sound *s;
+    list_for_each_entry(s, &ctx->sounds, entry)
+        if (!strcmp(s->name, file)) {
+            sfx->sound = ref_get(s);
+            goto found;
+        }
+
     cresp(sound) res = ref_new_checked(sound, .name = file, .ctx = ctx);
     if (IS_CERR(res))
         return cresp_error_cerr(sfx, res);
 
     sfx->sound = res.val;
+found:
     sound_set_gain(sfx->sound, 1.0);
     sfx_container_add(sfxc, sfx);
 
