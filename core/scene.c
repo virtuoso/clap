@@ -339,14 +339,23 @@ static void scene_camera_selector_debug(struct scene *scene)
          */
         igPushItemWidth(-1.0);
 
-        ui_igControlTableHeader("entity", "entity");
+        ui_igControlTableHeader("entity", "actions");
 
         if (ui_igBeginCombo("entity", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
             mq_for_each(&scene->mq, dropdown_entity, scene);
             ui_igEndCombo();
         }
 
+        ui_igLabel("actions");
+        igTableNextColumn();
+
         entity3d *e = scene->control;
+        if (igButton("delete", (ImVec2){})) {
+            scene_control_next(scene);
+            ref_put(e);
+            e = scene->control;
+        }
+
         static bool draw_aabb;
 
         ui_igCheckbox("draw aabb", &draw_aabb);
