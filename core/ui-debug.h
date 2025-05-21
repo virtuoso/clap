@@ -82,10 +82,6 @@ static inline debug_module *ui_igBegin(enum debug_modules mod, ImGuiWindowFlags 
 
 void ui_igEnd(enum debug_modules mod);
 
-void ui_igCheckbox(bool *v, const char *label, ...) __printf(2, 3);
-void ui_igSliderFloat(float *v, float min, float max, const char *fmt, ImGuiSliderFlags flags,
-                      const char *label, ...) __printf(6, 7);
-
 bool ui_igTableHeader(const char *str_id, const char **labels, int n);
 void ui_igTableRow(const char *key, const char *fmt, ...);
 bool ui_igVecTableHeader(const char *str_id, int n);
