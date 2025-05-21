@@ -282,7 +282,7 @@ static void light_debug(struct scene *scene)
 
 static void scene_characters_debug(struct scene *scene)
 {
-    debug_module *dbgm = ui_igBegin(DEBUG_CHARACTERS, ImGuiWindowFlags_AlwaysAutoResize);
+    debug_module *dbgm = ui_igBegin(DEBUG_CHARACTERS, 0);
     struct character *c;
 
     if (!dbgm->display)
@@ -292,15 +292,15 @@ static void scene_characters_debug(struct scene *scene)
         list_for_each_entry(c, &scene->characters, entry) {
             const char *name = entity_name(c->entity);
 
-            igText("character '%s'", name);
+            ui_igControlTableHeader("character '%s'", "jump forward", name);
             igPushID_Ptr(c);
-            igSliderFloat("jump forward", &c->jump_forward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
-            igSliderFloat("jump upward", &c->jump_upward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
-            igSliderFloat("speed", &c->speed, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
-            igCheckbox("can jump", &c->can_jump);
-            igCheckbox("can dash", &c->can_dash);
+            ui_igSliderFloat("jump forward", &c->jump_forward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
+            ui_igSliderFloat("jump upward", &c->jump_upward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
+            ui_igSliderFloat("speed", &c->speed, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
+            ui_igCheckbox("can jump", &c->can_jump);
+            ui_igCheckbox("can dash", &c->can_dash);
             igPopID();
-            igSeparator();
+            igEndTable();
         }
     }
 
