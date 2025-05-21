@@ -266,3 +266,96 @@ bool ui_igMat4x4(mat4x4 m, const char *name)
     igEndTable();
     return true;
 }
+
+static const float left_padding = 4;
+
+bool ui_igControlTableHeader(const char *str_id, const char *longest_label)
+{
+    igSeparatorText(str_id);
+    if (!igBeginTable(str_id, 2, ImGuiTableFlags_SizingFixedFit, (ImVec2){0,0}, 0))
+        return false;
+
+    ImVec2 size;
+    igCalcTextSize(&size, longest_label, NULL, true, 0);
+
+    igPushID_Str(str_id);
+    igTableSetupColumn("key", ImGuiTableColumnFlags_WidthFixed, size.x + left_padding, 0);
+    igTableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch, 0, 0);
+    igPopID();
+
+    return true;
+}
+
+bool ui_igCheckbox(const char *label, bool *v)
+{
+    igTableNextRow(0, 0);
+    igTableNextColumn();
+    igTableNextColumn();
+
+    return igCheckbox(label, v);
+}
+
+void ui_igLabel(const char *label)
+{
+    igTableNextRow(0, 0);
+    igTableNextColumn();
+
+    ImVec2 size;
+    igCalcTextSize(&size, label, NULL, true, 0);
+    igSetCursorPosX(igGetCursorPosX() + fabsf(igGetColumnWidth(0) - size.x - left_padding));
+    igTextUnformatted(label, NULL);
+}
+
+bool ui_igSliderFloat(const char *label, float *v, float min, float max, const char *fmt,
+                      ImGuiSliderFlags flags)
+{
+    ui_igLabel(label);
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "##%s", label);
+
+    igTableNextColumn();
+    igPushItemWidth(-1.0);
+    bool ret = igSliderFloat(buf, v, min, max, fmt, flags);
+    igPopItemWidth();
+
+    return ret;
+}
+
+bool ui_igSliderFloat3(const char *label, float *v, float min, float max, const char *fmt,
+                       ImGuiSliderFlags flags)
+{
+    ui_igLabel(label);
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "##%s", label);
+
+    igTableNextColumn();
+    igPushItemWidth(-1.0);
+    bool ret = igSliderFloat3(buf, v, min, max, fmt, flags);
+    igPopItemWidth();
+
+    return ret;
+}
+
+bool ui_igBeginCombo(const char *label, const char *preview_value, ImGuiComboFlags flags)
+{
+    ui_igLabel(label);
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "##%s", label);
+
+    igTableNextColumn();
+    igPushItemWidth(-1.0);
+    bool ret = igBeginCombo(buf, preview_value, flags);
+    if (!ret)
+        igPopItemWidth();
+
+    return ret;
+}
+
+void ui_igEndCombo(void)
+{
+    igEndCombo();
+    igPopItemWidth();
+}
