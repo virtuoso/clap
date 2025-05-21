@@ -192,6 +192,8 @@ bool ui_igTableHeader(const char *str_id, const char **labels, int n)
     for (i = 0; i < n; i++)
         igTableSetupColumn(labels[i], ImGuiTableColumnFlags_WidthFixed, 0, 0);
 
+    igTableHeadersRow();
+
     return true;
 }
 
