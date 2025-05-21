@@ -21,13 +21,13 @@ void scene_control_next(struct scene *s)
     struct character *first, *last, *prev, *current;
 
     current = scene_control_character(s);
-    if (list_empty(&s->characters) || !current)
+    if (list_empty(&s->characters))
         return;
 
     prev = current;
     first = list_first_entry(&s->characters, struct character, entry);
     last = list_last_entry(&s->characters, struct character, entry);
-    if (current == last)
+    if (!current || current == last)
         s->control = first->entity;
     else
         s->control = list_next_entry(current, entry)->entity;
@@ -36,14 +36,16 @@ void scene_control_next(struct scene *s)
     if (current == prev)
         return;
 
-    prev->camera = NULL;
+    if (prev)
+        prev->camera = NULL;
     current->camera = s->camera;
     current->moved++;
     s->camera->dist = 10;
     s->camera->ch->moved++;
 
     /* Stop the previous character from running */
-    character_stop(prev, s);
+    if (prev)
+        character_stop(prev, s);
 
     trace("scene control at: '%s'\n", entity_name(s->control));
     dbg("scene control at: '%s'\n", entity_name(s->control));
