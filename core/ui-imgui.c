@@ -181,15 +181,20 @@ void imgui_done(void)
     igDestroyContext(ctx);
 }
 
+/*
+ * Set up a table header with column labels
+ * @str_id:     table ID
+ * @labels:     array of column name strings, must contain at least @n elements
+ * @n:          number of columns
+ */
 bool ui_igTableHeader(const char *str_id, const char **labels, int n)
 {
-    if (!igBeginTable(str_id, n + 1, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0))
+    if (!igBeginTable(str_id, n, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0))
         return false;
 
-    igTableSetupColumn(str_id, ImGuiTableColumnFlags_WidthStretch, 0, 0);
+    igTableSetupColumn(labels[0], ImGuiTableColumnFlags_WidthStretch, 0, 0);
 
-    int i;
-    for (i = 0; i < n; i++)
+    for (int i = 1; i < n; i++)
         igTableSetupColumn(labels[i], ImGuiTableColumnFlags_WidthFixed, 0, 0);
 
     igTableHeadersRow();
@@ -202,7 +207,7 @@ bool ui_igVecTableHeader(const char *str_id, int n)
     if (n > 4)
         return false;
 
-    const char *labels[] = { "X", "Y", "Z", "W" };
+    const char *labels[] = { "vector", "X", "Y", "Z", "W" };
 
     return ui_igTableHeader(str_id, labels, n);
 }
