@@ -71,8 +71,7 @@ static bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end,
     return false;
 }
 
-static void camera_calc_rays(struct camera *c, struct scene *s, float dist,
-                             vec4 nw, vec4 ne, vec4 sw, vec4 se)
+static void camera_calc_rays(struct camera *c, float dist)
 {
     mat4x4 m;
     mat4x4 m_inverse;
@@ -92,13 +91,13 @@ static void camera_calc_rays(struct camera *c, struct scene *s, float dist,
 
     // test four corners.
     r[0] = w; r[1] = h;
-    mat4x4_mul_vec4(nw, m_inverse, r);
+    mat4x4_mul_vec4(c->frustum_corner[0], m_inverse, r);
     r[0] = -w; r[1] = h;
-    mat4x4_mul_vec4(ne, m_inverse, r);
+    mat4x4_mul_vec4(c->frustum_corner[1], m_inverse, r);
     r[0] = w; r[1] = -h;
-    mat4x4_mul_vec4(sw, m_inverse, r);
+    mat4x4_mul_vec4(c->frustum_corner[2], m_inverse, r);
     r[0] = -w; r[1] = -h;
-    mat4x4_mul_vec4(se, m_inverse, r);
+    mat4x4_mul_vec4(c->frustum_corner[3], m_inverse, r);
 }
 
 static bool camera_position_is_good(struct camera *c, entity3d *entity,
@@ -110,18 +109,17 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
     double scale_se = 0;
     double min_scale;
     entity3d *e1, *e2, *e3, *e4;
-    vec4 nw, ne, sw, se;
 
-    camera_calc_rays(c, s, dist, nw, ne, sw, se);
+    camera_calc_rays(c, dist);
 
     min_scale = 1.0;
-    if (test_if_ray_intersects_scene(entity, c->target, nw, &scale_nw, &e1))
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[0], &scale_nw, &e1))
         min_scale = fmin(min_scale, scale_nw);
-    if (test_if_ray_intersects_scene(entity, c->target, ne, &scale_ne, &e2))
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[1], &scale_ne, &e2))
         min_scale = fmin(min_scale, scale_ne);
-    if (test_if_ray_intersects_scene(entity, c->target, sw, &scale_sw, &e3))
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[2], &scale_sw, &e3))
         min_scale = fmin(min_scale, scale_sw);
-    if (test_if_ray_intersects_scene(entity, c->target, se, &scale_se, &e4))
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[3], &scale_se, &e4))
         min_scale = fmin(min_scale, scale_se);
 
     if (min_scale < 0.99) {
@@ -132,24 +130,26 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
     return true;
 }
 
-
-static bool debug_draw_camera(struct scene *scene, struct camera *c, float dist)
+static void debug_draw_camera(struct scene *scene, struct camera *c)
 {
-    vec4 nw, ne, sw, se;
+    if (likely(!scene->render_options.debug_draws_enabled))
+        return;
 
-    camera_calc_rays(c, scene, dist, nw, ne, sw, se);
+    struct message dm = {
+        .type       = MT_DEBUG_DRAW,
+        .debug_draw = {
+            .shape      = DEBUG_DRAW_LINE,
+            .color      = { 1.0, 0.0, 1.0, 1.0 },
+            .thickness  = 4.0f,
+        }
+    };
 
-    /* use common start vertex + 4 corner vertices */
-    memcpy(c->tmp_debug_line_start, c->target, sizeof(float) * 3);
-    memcpy(c->tmp_debug_line_end, nw, sizeof(float) * 3);
-    memcpy(3 + c->tmp_debug_line_end, ne, sizeof(float) * 3);
-    memcpy(6 + c->tmp_debug_line_end, sw, sizeof(float) * 3);
-    memcpy(9 + c->tmp_debug_line_end, se, sizeof(float) * 3);
+    vec3_dup(dm.debug_draw.v0, c->debug_target);
 
-    for (int i = 0; i < NUMBER_OF_DEBUG_LINES; i++)
-        debug_draw_line(scene, c->debug_line_start, c->debug_line_end + 3 * i, NULL);
-
-    return true;
+    for (int i = 0; i < array_size(c->debug_corner); i++) {
+        vec3_dup(dm.debug_draw.v1, c->debug_corner[i]);
+        message_send(&dm);
+    }
 }
 
 static void camera_target(struct camera *c, entity3d *entity)
@@ -179,11 +179,11 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
 
     /* circle the entity s->control, unless it's camera */
     if (!camera_has_moved(c))
-        return;
+        goto out;
 
     if (current == c->ch) {
         camera_reset_movement(c);
-        return;
+        goto out;
     }
 
     camera_target(c, scene->control);
@@ -205,12 +205,15 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
     c->dist = dist;
     camera_position(c);
 
-    debug_draw_camera(scene, c, dist);
+out:
+    debug_draw_camera(scene, c);
 }
 
-void debug_camera_action(struct camera *c) {
-    memcpy(c->debug_line_start, c->tmp_debug_line_start, sizeof(float) * 3);
-    memcpy(c->debug_line_end, c->tmp_debug_line_end, sizeof(float) * 3 * NUMBER_OF_DEBUG_LINES);
+void debug_camera_action(struct camera *c)
+{
+    for (int i = 0; i < array_size(c->debug_corner); i++)
+        vec3_dup(c->debug_corner[i], c->frustum_corner[i]);
+    vec3_dup(c->debug_target, c->target);
 }
 
 bool camera_has_moved(struct camera *c)
