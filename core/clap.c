@@ -402,9 +402,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (!ctx)
         return cresp_error(clap_context, CERR_NOMEM);
 
-    cerr os_err = clap_os_init(ctx);
-    if (IS_CERR(os_err))
-        return cresp_error_cerr(clap_context, os_err);
+    CERR_RET(clap_os_init(ctx), return cresp_error_cerr(clap_context, __cerr));
 
     mesh_init();
 
@@ -420,9 +418,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     ctx->argv = argv;
     ctx->envp = envp;
 
-    cerr err = messagebus_init();
-    if (IS_CERR(err))
-        return cresp_error(clap_context, CERR_NOMEM);
+    CERR_RET(messagebus_init(), return cresp_error(clap_context, CERR_NOMEM));
 
     /* XXX: handle initialization errors */
     log_init(log_flags);
@@ -446,9 +442,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
          * will end up in clap_resize(), which needs a valid ctx->renderer.
          * But not to worry, the renderer will be initialized at that point.
          */
-        cerr err = display_init(ctx, clap_frame, clap_resize);
-        if (IS_CERR(err))
-            return cresp_error_cerr(clap_context, err);
+        CERR_RET(display_init(ctx, clap_frame, clap_resize), return cresp_error_cerr(clap_context, __cerr));
 
         textures_init();
         cresp(shader_context) res = shader_vars_init();
@@ -460,9 +454,10 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
     if (ctx->cfg.ui) {
-        cerr err = ui_init(&ctx->ui, ctx, ctx->cfg.width, ctx->cfg.height);
-        if (IS_CERR(err))
-            return cresp_error_cerr(clap_context, err);
+        CERR_RET(
+            ui_init(&ctx->ui, ctx, ctx->cfg.width, ctx->cfg.height),
+            return cresp_error_cerr(clap_context, __cerr)
+        );
     }
     if (ctx->cfg.graphics && ctx->cfg.input)
         display_debug_ui_init(ctx);
