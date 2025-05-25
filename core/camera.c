@@ -21,13 +21,17 @@ void camera_move(struct camera *c, unsigned long fps)
         c->yaw += 360;
 }
 
-void camera_position(struct camera *c, float x, float y, float z)
+static void camera_position(struct camera *c)
 {
     // Calculate position of the camera with respect to the character.
-    entity3d_position(c->ch->entity, (vec3){
-                      x + c->dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch)),
-                      y + c->dist * sin(to_radians(c->pitch)),
-                      z + c->dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch))});
+    entity3d_position(
+        c->ch->entity,
+        (vec3) {
+            c->target[0] + c->dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch)),
+            c->target[1] + c->dist * sin(to_radians(c->pitch)),
+            c->target[2] + c->dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch))
+        }
+    );
 }
 
 void camera_reset_movement(struct camera *c)
@@ -202,7 +206,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
         character_set_moved(c->ch);
 
     c->dist = dist;
-    camera_position(c, c->target[0], c->target[1], c->target[2]); /* XXX */
+    camera_position(c);
 
     debug_draw_camera(scene, c, c->target, dist);
 }
