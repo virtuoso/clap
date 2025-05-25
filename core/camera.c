@@ -132,11 +132,11 @@ bool camera_position_is_good(struct camera *c, entity3d *entity,
 }
 
 
-bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start, float dist, struct scene *s)
+static bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start, float dist)
 {
     vec4 nw, ne, sw, se;
 
-    camera_calc_rays(c, s, start, dist, nw, ne, sw, se);
+    camera_calc_rays(c, scene, start, dist, nw, ne, sw, se);
 
     /* use common start vertex + 4 corner vertices */
     memcpy(c->tmp_debug_line_start, start, sizeof(float) * 3);
@@ -182,7 +182,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
         character_set_moved(c->ch);
 
     c->dist = dist;
-    debug_draw_camera(scene, c, start, dist, scene);
+    debug_draw_camera(scene, c, start, dist);
 }
 
 void debug_camera_action(struct camera *c) {
