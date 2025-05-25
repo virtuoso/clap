@@ -53,7 +53,8 @@ void camera_add_yaw(struct camera *c, float delta)
     c->yaw_delta = delta;
 }
 
-bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end, double *scale, entity3d **hit)
+static bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end, double *scale,
+                                         entity3d **hit)
 {
     vec3 dir;
     double distance, distance_to_hit;
