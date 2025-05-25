@@ -212,7 +212,6 @@ void view_update_perspective_projection(struct view *view, int width, int height
     view->aspect = (float)width / (float)height;
     mat4x4_perspective(view->main.proj_mx, view->fov, view->aspect,
                        view->main.near_plane, view->main.far_plane);
-    view_update_perspective_subviews(view);
 }
 
 static void subview_update_from_target(struct subview *subview, struct subview *src, vec3 target)
