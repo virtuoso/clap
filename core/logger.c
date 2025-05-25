@@ -203,7 +203,9 @@ static notrace cerr rb_init(void)
         return CERR_NOMEM;
 
     log_rb_sz = LOG_RB_MAX;
-    exit_cleanup(rb_cleanup);
+    cerr err = exit_cleanup(rb_cleanup);
+    if (IS_CERR(err))
+        err_cerr(err, "couldn't install rb_cleanup()\n");
 
     return CERR_OK;
 }

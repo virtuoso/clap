@@ -331,18 +331,18 @@ struct exit_handler {
 
 static DECLARE_LIST(ehs_list);
 
-notrace int exit_cleanup(exit_handler_fn fn)
+notrace cerr exit_cleanup(exit_handler_fn fn)
 {
     struct exit_handler *eh;
 
     eh = mem_alloc(sizeof(*eh), .zero = 1);
     if (!eh)
-        return -ENOMEM;
+        return CERR_NOMEM;
 
     eh->fn = fn;
 
     list_append(&ehs_list, &eh->entry);
-    return 0;
+    return CERR_OK;
 }
 
 void exit_cleanup_run(int status)

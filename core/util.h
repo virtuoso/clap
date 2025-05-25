@@ -9,6 +9,7 @@
 #include <string.h>
 #include <time.h>
 #include "compiler.h"
+#include "error.h"
 #include "logger.h"
 
 typedef unsigned char uchar;
@@ -436,7 +437,7 @@ static inline const char *skip_to_new_line(const char *pos)
 }
 
 typedef void (*exit_handler_fn)(int);
-int exit_cleanup(exit_handler_fn);
+cerr_check exit_cleanup(exit_handler_fn);
 void exit_cleanup_run(int status);
 
 #endif /* __CLAP_UTIL_H__ */
