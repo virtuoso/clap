@@ -32,7 +32,6 @@
 #include "profiler.h"
 #include "settings.h"
 #include "ui-debug.h"
-#include "game.h"
 
 static struct sound *intro_sound;
 static int exit_timeout = -1;

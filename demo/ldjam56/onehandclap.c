@@ -31,13 +31,11 @@
 #include "profiler.h"
 #include "settings.h"
 #include "ui-debug.h"
-#include "game.h"
 
 /* XXX just note for the future */
 static struct sound *intro_sound;
 static int exit_timeout = -1;
 static struct scene scene; /* XXX */
-// struct game_state game_state;
 
 static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = true;
 
@@ -293,11 +291,6 @@ int main(int argc, char **argv, char **envp)
     scene_load(&scene, "scene.json");
 
     loading_screen_done(scene.ls);
-
-    /* XXX: fix game_init() */
-    //game_init(&scene, &ui); // this must happen after scene_load, because we need the trees.
-    // spawn_mushrooms(&game_state);
-    // subscribe(MT_INPUT, handle_game_input, NULL);
 
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
