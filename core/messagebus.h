@@ -122,14 +122,14 @@ struct message_debug_draw {
 };
 
 struct message_source {
-    enum message_source_type    type;
     char                        *name;
     const char                  *desc;
+    enum message_source_type    type;
 };
 
 struct message {
-    enum message_type           type;
     struct message_source       *source; /* for input: keyboard, joystick */
+    enum message_type           type;
 
     union {
         struct message_input        input;
