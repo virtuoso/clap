@@ -299,17 +299,18 @@ struct mesh cube_mesh = {
     }
 };
 
-model3d *model3d_new_cube(struct shader_prog *p)
+model3d *model3d_new_cube(struct shader_prog *p, bool skip_aabb)
 {
     return ref_new(model3d,
-                   .name    = "cube",
-                   .prog    = p,
-                   .vx      = cube_vx,
-                   .vxsz    = sizeof(cube_vx),
-                   .idx     = cube_idx,
-                   .idxsz   = sizeof(cube_idx),
-                   .tx      = cube_tx,
-                   .txsz    = sizeof(cube_tx));
+                   .name        = "cube",
+                   .prog        = p,
+                   .vx          = cube_vx,
+                   .vxsz        = sizeof(cube_vx),
+                   .idx         = cube_idx,
+                   .idxsz       = sizeof(cube_idx),
+                   .tx          = cube_tx,
+                   .txsz        = sizeof(cube_tx),
+                   .skip_aabb   = skip_aabb);
 }
 
 model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)

@@ -27,7 +27,7 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 #define prim_emit_quad(_t, args...) \
     _prim_emit_quad((_t), &(prim_emit_opts){ args })
 
-model3d *model3d_new_cube(struct shader_prog *p);
+model3d *model3d_new_cube(struct shader_prog *p, bool skip_aabb);
 model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
 model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h);
 model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);

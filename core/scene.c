@@ -117,7 +117,7 @@ cres(int) scene_camera_add(struct scene *s)
     if (IS_CERR(prog_res))
         return cres_error_cerr(int, prog_res);
 
-    model3d *m = model3d_new_cube(ref_pass(prog_res.val));
+    model3d *m = model3d_new_cube(ref_pass(prog_res.val), true);
     if (!m)
         return cres_error(int, CERR_NOMEM);
 
