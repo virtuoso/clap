@@ -321,6 +321,7 @@ static void dropdown_entity(entity3d *e, void *data)
     if (igSelectable_Bool(entity_name(e), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
         igSetItemDefaultFocus();
         scene->control = e;
+        character_set_moved(scene->camera->ch);
     }
     igPopID();
 }
