@@ -249,24 +249,24 @@ void hashmap_delete(struct hashmap *hm, unsigned int key)
     free(e);
 }
 
-int hashmap_insert(struct hashmap *hm, unsigned int key, void *value)
+cerr hashmap_insert(struct hashmap *hm, unsigned int key, void *value)
 {
     unsigned long hash;
     struct hashmap_entry *e;
 
     if (_hashmap_find(hm, key, &hash))
-        return -EBUSY;
+        return CERR_ALREADY_LOADED;
 
     e = mem_alloc(sizeof(*e), .zero = 1);
     if (!e)
-        return -ENOMEM;
+        return CERR_NOMEM;
 
     e->value = value;
     e->key = key;
     list_append(&hm->buckets[hash], &e->entry);
     list_append(&hm->list, &e->list_entry);
 
-    return 0;
+    return CERR_OK;
 }
 
 void hashmap_for_each(struct hashmap *hm, void (*cb)(void *value, void *data), void *data)
