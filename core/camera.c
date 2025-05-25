@@ -5,6 +5,10 @@
 
 void camera_move(struct camera *c, unsigned long fps)
 {
+    /* XXX: clap_ctx->ts_delta */
+    if (!fps)
+        return;
+
     // Add delta and clamp pitch between -90 and 90.
     c->pitch += c->pitch_delta / (float)fps;
     c->pitch = clampf(c->pitch, -90, 90);
