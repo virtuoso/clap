@@ -608,29 +608,15 @@ static void scene_camera_calc(struct scene *s, int camera)
     struct character *current = scene_control_character(s);
     struct camera *cam = &s->cameras[camera];
 
+    if (s->proj_update) {
+        view_update_perspective_projection(&cam->view, s->width, s->height);
+        s->proj_update = 0;
+    }
+
+    camera_update(s->camera, s, s->control);
+
     if (!cam->ch->moved && current == cam->ch)
         return;
-
-    vec3 target;
-    if (current) {
-        /* for characters, assume origin is between their feet */
-        vec3_dup(target, s->control->pos);
-        /* look at three quarters their height (XXX: parameterize) */
-        target[1] += entity3d_aabb_Y(s->control) / 4 * 3;
-    } else {
-        /* otherwise, origin can't be trusted at all; look at dead center */
-        vec3_dup(target, s->control->aabb_center);
-    }
-
-    /* circle the entity s->control, unless it's camera */
-    if (s->control != cam->ch->entity &&
-        (camera_has_moved(cam) || (current && current->moved))) {
-
-        camera_position(cam, target[0], target[1], target[2]);
-    }
-
-    camera_reset_movement(cam);
-    cam->ch->moved = 0;
 
     float *cam_pos = cam->ch->entity->pos;
     view_update_from_angles(&cam->view, cam_pos, cam->pitch, cam->yaw, cam->roll);
@@ -795,8 +781,6 @@ int scene_get_light(struct scene *scene)
 
 void scene_update(struct scene *scene)
 {
-    struct camera *cam = &scene->camera[0];
-
     scene_parameters_debug(scene, 0);
     scene_characters_debug(scene);
     scene_entity_inspector_debug(scene);
@@ -815,13 +799,7 @@ void scene_update(struct scene *scene)
         character_set_moved(scene->camera->ch);
     }
 
-    if (scene->proj_update) {
-        view_update_perspective_projection(&cam->view, scene->width, scene->height);
-        scene->proj_update = 0;
-    }
-
     camera_move(scene->camera, clap_get_fps_fine(scene->clap_ctx));
-    camera_update(scene->camera, scene, scene->control);
 
     if (scene->render_options.camera_frusta_draws_enabled)
         scene_debug_frusta(&scene->camera->view);

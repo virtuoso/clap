@@ -15,6 +15,7 @@ struct camera {
     float  pitch;
     float  yaw;
     float  roll;
+    vec3   target;
     unsigned int zoom;
     float   dist;
     float   yaw_delta;

@@ -151,29 +151,49 @@ static bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start,
     return true;
 }
 
-void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
+static void camera_target(struct camera *c, entity3d *entity)
 {
-    double dist, height, next_distance;
-    vec3 start;
+    double height;
 
-    if (entity->priv)
-        vec3_dup(start, entity->pos);
-    else
-        vec3_dup(start, entity->aabb_center);
-
-    if (entity->priv)
+    if (entity->priv) {
+        /* for characters, assume origin is between their feet */
+        vec3_dup(c->target, entity->pos);
+        /* look at three quarters their height (XXX: parameterize) */
         height = entity3d_aabb_Y(entity) * 3 / 4;
-    else
+        c->target[1] += height;
+    } else {
+        /* otherwise, origin can't be trusted at all; look at dead center */
+        vec3_dup(c->target, entity->aabb_center);
         height = entity3d_aabb_Y(entity) / 2;
+    }
 
     float dist_cap = fmaxf(10.0, entity3d_aabb_avg_edge(entity));
-    dist = fminf(height * 3, fminf(dist_cap, c->view.main.far_plane - 10.0));
-    if (entity->priv)
-        start[1] += height;
+    c->dist = fminf(height * 3, fminf(dist_cap, c->view.main.far_plane - 10.0));
+}
+
+void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
+{
+    struct character *current = scene_control_character(scene);
+    double dist, next_distance;
+
+    /* circle the entity s->control, unless it's camera */
+    if (!camera_has_moved(c))
+        return;
+
+    if (current == c->ch) {
+        camera_set_target_to_current(c);
+        return;
+    }
+
+    camera_target(c, scene->control);
+    dist = c->dist;
+
+    camera_reset_movement(c);
+    c->ch->moved = 0;
 
     // Searching for camera distance that is good enough.
     while (dist > 0.1) {
-        if (camera_position_is_good(c, entity, start, dist, scene, &next_distance))
+        if (camera_position_is_good(c, entity, c->target, dist, scene, &next_distance))
             break;
         dist = next_distance;
     }
@@ -182,7 +202,9 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
         character_set_moved(c->ch);
 
     c->dist = dist;
-    debug_draw_camera(scene, c, start, dist);
+    camera_position(c, c->target[0], c->target[1], c->target[2]); /* XXX */
+
+    debug_draw_camera(scene, c, c->target, dist);
 }
 
 void debug_camera_action(struct camera *c) {
