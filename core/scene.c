@@ -815,11 +815,9 @@ cerr scene_init(struct scene *scene)
     memset(scene, 0, sizeof(*scene));
     scene->auto_yoffset = 4.0;
     mq_init(&scene->mq, scene);
-    mq_init(&scene->debug_mq, scene);
     list_init(&scene->characters);
     list_init(&scene->instor);
     list_init(&scene->shaders);
-    list_init(&scene->debug_draws);
     sfx_container_init(&scene->sfxc);
 
     int i;

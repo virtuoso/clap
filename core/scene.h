@@ -44,8 +44,6 @@ struct scene {
     /* FPS calculation -- very important! */
     unsigned long       frames_total;
     struct clap_context *clap_ctx;
-    struct mq           debug_mq;
-    struct list         debug_draws;
     JsonNode            *json_root;
     char                *file_name;
     loading_screen      *ls;

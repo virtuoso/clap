@@ -84,11 +84,6 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     pipeline_render(scene.pl, ui->modal ? 1 : 0);
 
-    if (scene.render_options.debug_draws_enabled) {
-        models_render(r, &scene.debug_mq, .camera = scene.camera, .cascade = -1);
-        debug_draw_clearout(s);
-    }
-
     if (shadow_msaa != s->render_options.shadow_msaa ||
         model_msaa != s->render_options.model_msaa ||
         edge_sobel != s->render_options.edge_sobel ||
