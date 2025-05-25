@@ -271,8 +271,8 @@ static int hashmap_test0(void)
     char *value;
 
     hashmap_init(&hm, 256);
-    hashmap_insert(&hm, 0, "zero");
-    hashmap_insert(&hm, 256, "one");
+    CERR_RET(hashmap_insert(&hm, 0, "zero"), return EXIT_FAILURE);
+    CERR_RET(hashmap_insert(&hm, 256, "one"), return EXIT_FAILURE);
 
     value = hashmap_find(&hm, 0);
     if (strcmp(value, "zero"))
@@ -314,7 +314,7 @@ static int hashmap_test1(void)
     hashmap_init(&hm, 256);
 
     for (i = 1; i < 1024; i++)
-        hashmap_insert(&hm, i, (void *)(uintptr_t)i);
+        CERR_RET(hashmap_insert(&hm, i, (void *)(uintptr_t)i), return EXIT_FAILURE);
     hashmap_for_each(&hm, hashmap_cb, &ctx);
 
     hashmap_done(&hm);
