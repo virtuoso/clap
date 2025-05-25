@@ -405,6 +405,20 @@ static void scene_camera_selector_debug(struct scene *scene)
             entity3d_rotate_Z(e, to_radians(rz));
 
         igEndTable();
+
+        model3d *m = e->txmodel->model;
+        igText("vertices: %u", m->nr_vertices);
+        ui_igTableHeader("lod", (const char *[]){ "LOD", "faces", "edges" }, 3);
+        for (int i = 0; i < m->nr_lods; i++) {
+            igTableNextRow(0, 0);
+            igTableNextColumn();
+            igText("%d", i);
+            igTableNextColumn();
+            igText("%u", m->nr_faces[i]);
+            igTableNextColumn();
+            igText("%u", m->nr_faces[i] * 3);
+        }
+        igEndTable();
         igPopItemWidth();
     }
 
