@@ -53,8 +53,7 @@ void camera_add_yaw(struct camera *c, float delta)
     c->yaw_delta = delta;
 }
 
-static bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end, double *scale,
-                                         entity3d **hit)
+static bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end, double *scale)
 {
     vec3 dir;
     double distance, distance_to_hit;
@@ -62,8 +61,8 @@ static bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end,
     vec3_sub(dir, end, start);
     distance = vec3_len(dir);
     distance_to_hit = distance;
-    *hit = phys_ray_cast(entity, start, dir, &distance_to_hit);
-    if (*hit) {
+    entity3d *hit = phys_ray_cast(entity, start, dir, &distance_to_hit);
+    if (hit) {
         *scale = distance_to_hit / distance;
         return true;
     }
@@ -103,24 +102,20 @@ static void camera_calc_rays(struct camera *c, float dist)
 static bool camera_position_is_good(struct camera *c, entity3d *entity,
                                     float dist, struct scene *s, double *next_distance)
 {
-    double scale_nw = 0;
-    double scale_ne = 0;
-    double scale_sw = 0;
-    double scale_se = 0;
+    double scale = 0;
     double min_scale;
-    entity3d *e1, *e2, *e3, *e4;
 
     camera_calc_rays(c, dist);
 
     min_scale = 1.0;
-    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[0], &scale_nw, &e1))
-        min_scale = fmin(min_scale, scale_nw);
-    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[1], &scale_ne, &e2))
-        min_scale = fmin(min_scale, scale_ne);
-    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[2], &scale_sw, &e3))
-        min_scale = fmin(min_scale, scale_sw);
-    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[3], &scale_se, &e4))
-        min_scale = fmin(min_scale, scale_se);
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[0], &scale))
+        min_scale = fmin(min_scale, scale);
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[1], &scale))
+        min_scale = fmin(min_scale, scale);
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[2], &scale))
+        min_scale = fmin(min_scale, scale);
+    if (test_if_ray_intersects_scene(entity, c->target, c->frustum_corner[3], &scale))
+        min_scale = fmin(min_scale, scale);
 
     if (min_scale < 0.99) {
         *next_distance = dist * min_scale;
