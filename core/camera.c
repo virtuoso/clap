@@ -71,7 +71,7 @@ static bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end,
     return false;
 }
 
-static void camera_calc_rays(struct camera *c, struct scene *s, vec3 start, float dist,
+static void camera_calc_rays(struct camera *c, struct scene *s, float dist,
                              vec4 nw, vec4 ne, vec4 sw, vec4 se)
 {
     mat4x4 m;
@@ -84,9 +84,9 @@ static void camera_calc_rays(struct camera *c, struct scene *s, vec3 start, floa
     mat4x4_identity(m);
     mat4x4_rotate_X(m, m, to_radians(c->pitch));
     mat4x4_rotate_Y(m, m, to_radians(c->yaw));
-    c_position[0] = start[0] + dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
-    c_position[1] = start[1] + dist * sin(to_radians(c->pitch));
-    c_position[2] = start[2] + dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
+    c_position[0] = c->target[0] + dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
+    c_position[1] = c->target[1] + dist * sin(to_radians(c->pitch));
+    c_position[2] = c->target[2] + dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
     mat4x4_translate_in_place(m, -c_position[0], -c_position[1], -c_position[2]);
     mat4x4_invert(m_inverse, m);
 
@@ -102,7 +102,7 @@ static void camera_calc_rays(struct camera *c, struct scene *s, vec3 start, floa
 }
 
 static bool camera_position_is_good(struct camera *c, entity3d *entity,
-                                    vec3 start, float dist, struct scene *s, double *next_distance)
+                                    float dist, struct scene *s, double *next_distance)
 {
     double scale_nw = 0;
     double scale_ne = 0;
@@ -112,16 +112,16 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
     entity3d *e1, *e2, *e3, *e4;
     vec4 nw, ne, sw, se;
 
-    camera_calc_rays(c, s, start, dist, nw, ne, sw, se);
+    camera_calc_rays(c, s, dist, nw, ne, sw, se);
 
     min_scale = 1.0;
-    if (test_if_ray_intersects_scene(entity, start, nw, &scale_nw, &e1))
+    if (test_if_ray_intersects_scene(entity, c->target, nw, &scale_nw, &e1))
         min_scale = fmin(min_scale, scale_nw);
-    if (test_if_ray_intersects_scene(entity, start, ne, &scale_ne, &e2))
+    if (test_if_ray_intersects_scene(entity, c->target, ne, &scale_ne, &e2))
         min_scale = fmin(min_scale, scale_ne);
-    if (test_if_ray_intersects_scene(entity, start, sw, &scale_sw, &e3))
+    if (test_if_ray_intersects_scene(entity, c->target, sw, &scale_sw, &e3))
         min_scale = fmin(min_scale, scale_sw);
-    if (test_if_ray_intersects_scene(entity, start, se, &scale_se, &e4))
+    if (test_if_ray_intersects_scene(entity, c->target, se, &scale_se, &e4))
         min_scale = fmin(min_scale, scale_se);
 
     if (min_scale < 0.99) {
@@ -133,14 +133,14 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
 }
 
 
-static bool debug_draw_camera(struct scene *scene, struct camera *c, vec3 start, float dist)
+static bool debug_draw_camera(struct scene *scene, struct camera *c, float dist)
 {
     vec4 nw, ne, sw, se;
 
-    camera_calc_rays(c, scene, start, dist, nw, ne, sw, se);
+    camera_calc_rays(c, scene, dist, nw, ne, sw, se);
 
     /* use common start vertex + 4 corner vertices */
-    memcpy(c->tmp_debug_line_start, start, sizeof(float) * 3);
+    memcpy(c->tmp_debug_line_start, c->target, sizeof(float) * 3);
     memcpy(c->tmp_debug_line_end, nw, sizeof(float) * 3);
     memcpy(3 + c->tmp_debug_line_end, ne, sizeof(float) * 3);
     memcpy(6 + c->tmp_debug_line_end, sw, sizeof(float) * 3);
@@ -194,7 +194,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
 
     // Searching for camera distance that is good enough.
     while (dist > 0.1) {
-        if (camera_position_is_good(c, entity, c->target, dist, scene, &next_distance))
+        if (camera_position_is_good(c, entity, dist, scene, &next_distance))
             break;
         dist = next_distance;
     }
@@ -205,7 +205,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
     c->dist = dist;
     camera_position(c);
 
-    debug_draw_camera(scene, c, c->target, dist);
+    debug_draw_camera(scene, c, dist);
 }
 
 void debug_camera_action(struct camera *c) {
