@@ -72,6 +72,7 @@ struct message_input {
     unsigned char   exit;
     unsigned char   dash;
     unsigned char   debug_action;
+    unsigned char   reserved0[3];
     float           delta_lx;
     float           delta_ly;
     float           delta_rx;
