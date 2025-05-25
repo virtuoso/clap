@@ -130,6 +130,7 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
     return true;
 }
 
+#ifndef CONFIG_FINAL
 static void debug_draw_camera(struct scene *scene, struct camera *c)
 {
     if (likely(!scene->render_options.debug_draws_enabled))
@@ -151,6 +152,16 @@ static void debug_draw_camera(struct scene *scene, struct camera *c)
         message_send(&dm);
     }
 }
+
+void debug_camera_action(struct camera *c)
+{
+    for (int i = 0; i < array_size(c->debug_corner); i++)
+        vec3_dup(c->debug_corner[i], c->frustum_corner[i]);
+    vec3_dup(c->debug_target, c->target);
+}
+#else
+static inline void debug_draw_camera(struct scene *scene, struct camera *c) {}
+#endif /* CONFIG_FINAL */
 
 static void camera_target(struct camera *c, entity3d *entity)
 {
@@ -207,13 +218,6 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
 
 out:
     debug_draw_camera(scene, c);
-}
-
-void debug_camera_action(struct camera *c)
-{
-    for (int i = 0; i < array_size(c->debug_corner); i++)
-        vec3_dup(c->debug_corner[i], c->frustum_corner[i]);
-    vec3_dup(c->debug_target, c->target);
 }
 
 bool camera_has_moved(struct camera *c)
