@@ -165,12 +165,19 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         return;
 
     if (dbgm->unfolded) {
-        igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 1000.0, "%f", ImGuiSliderFlags_ClampOnInput);
+        if (igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f",
+            ImGuiSliderFlags_ClampOnInput))
+            scene->proj_update++;
+
+        if (igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 1000.0, "%f",
+            ImGuiSliderFlags_ClampOnInput))
+            scene->proj_update++;
 
         float fov = to_degrees(cam->view.fov);
-        igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput);
-        cam->view.fov = to_radians(fov);
+        if (igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput)) {
+            cam->view.fov = to_radians(fov);
+            scene->proj_update++;
+        }
 
         igCheckbox("shadow outline", &scene->render_options.shadow_outline);
         if (scene->render_options.shadow_outline)
@@ -243,7 +250,6 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
                     input_text_callback, NULL);
         if (igButton("save level", (ImVec2){}))
             scene_save(scene, NULL);
-        scene->proj_update++;
     }
 
     ui_igEnd(DEBUG_SCENE_PARAMETERS);
