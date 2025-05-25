@@ -423,13 +423,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     /* XXX: handle initialization errors */
     log_init(log_flags);
     (void)librarian_init(ctx->cfg.base_url);
-    if (ctx->cfg.font) {
-        cresp(font_context) res = font_init(ctx->cfg.default_font_name);
-        if (IS_CERR(res))
-            return cresp_error_cerr(clap_context, res);
-
-        ctx->font = res.val;
-    }
+    if (ctx->cfg.font)
+        ctx->font = CRES_RET(font_init(ctx->cfg.default_font_name), return cresp_error_cerr(clap_context, __resp));
 
     if (ctx->cfg.sound)
         CHECK(ctx->sound = sound_init());
@@ -445,11 +440,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         CERR_RET(display_init(ctx, clap_frame, clap_resize), return cresp_error_cerr(clap_context, __cerr));
 
         textures_init();
-        cresp(shader_context) res = shader_vars_init();
-        if (IS_CERR(res))
-            return cresp_error_cerr(clap_context, res);
-
-        ctx->shaders = res.val;
+        ctx->shaders = CRES_RET(shader_vars_init(), return cresp_error_cerr(clap_context, __resp));
     }
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
