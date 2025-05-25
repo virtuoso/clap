@@ -113,9 +113,11 @@ struct message_debug_draw {
     vec3                v0;
     vec3                v1;
     debug_draw_shape    shape;
-    float               radius;
     vec4                color;
-    float               thickness;
+    union {
+        float           thickness;
+        float           radius;
+    };
 };
 
 struct message_source {

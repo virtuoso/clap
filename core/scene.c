@@ -584,7 +584,6 @@ static void scene_debug_frusta(struct view *view)
                 .type       = MT_DEBUG_DRAW,
                 .debug_draw = (struct message_debug_draw) {
                     .shape = DEBUG_DRAW_LINE,
-                    .radius = 0.0f,
                     .thickness = 2.0f
                 }
             };
