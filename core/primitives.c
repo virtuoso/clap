@@ -321,14 +321,15 @@ model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, floa
     };
 
     return ref_new(model3d,
-                   .name    = "quad",
-                   .prog    = p,
-                   .vx      = quad_vx,
-                   .vxsz    = sizeof(quad_vx),
-                   .idx     = quad_idx,
-                   .idxsz   = sizeof(quad_idx),
-                   .tx      = quad_tx,
-                   .txsz    = sizeof(quad_tx));
+                   .name        = "quad",
+                   .prog        = p,
+                   .vx          = quad_vx,
+                   .vxsz        = sizeof(quad_vx),
+                   .idx         = quad_idx,
+                   .idxsz       = sizeof(quad_idx),
+                   .tx          = quad_tx,
+                   .txsz        = sizeof(quad_tx),
+                   .skip_aabb   = true);
 }
 
 model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h)
@@ -339,14 +340,15 @@ model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, f
     };
 
     return ref_new(model3d,
-                   .name    = "quad",
-                   .prog    = p,
-                   .vx      = quad_vx,
-                   .vxsz    = sizeof(quad_vx),
-                   .idx     = quad_idx,
-                   .idxsz   = sizeof(quad_idx),
-                   .tx      = quad_tx,
-                   .txsz    = sizeof(quad_tx));
+                   .name        = "quad",
+                   .prog        = p,
+                   .vx          = quad_vx,
+                   .vxsz        = sizeof(quad_vx),
+                   .idx         = quad_idx,
+                   .idxsz       = sizeof(quad_idx),
+                   .tx          = quad_tx,
+                   .txsz        = sizeof(quad_tx),
+                   .skip_aabb   = true);
 }
 
 static unsigned short frame_idx[] = {
@@ -374,12 +376,13 @@ model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, flo
     };
 
     return ref_new(model3d,
-        .name    = "frame",
-        .prog    = p,
-        .vx      = frame_vx,
-        .vxsz    = sizeof(frame_vx),
-        .idx     = frame_idx,
-        .idxsz   = sizeof(frame_idx),
-        .tx      = frame_tx,
-        .txsz    = sizeof(frame_tx));
+        .name       = "frame",
+        .prog       = p,
+        .vx         = frame_vx,
+        .vxsz       = sizeof(frame_vx),
+        .idx        = frame_idx,
+        .idxsz      = sizeof(frame_idx),
+        .tx         = frame_tx,
+        .txsz       = sizeof(frame_tx),
+        .skip_aabb  = true);
 }
