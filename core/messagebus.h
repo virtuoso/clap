@@ -91,7 +91,8 @@ struct message_command {
                     restart     : 1,
                     log_follows : 1,
                     toggle_fuzzer : 1,
-                    toggle_noise: 1;
+                    toggle_noise: 1,
+                    reserved0   : 22;
     unsigned int    fps, sys_seconds, world_seconds;
     struct timespec64 time;
 };
