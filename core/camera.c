@@ -120,10 +120,6 @@ bool camera_position_is_good(struct camera *c, entity3d *entity,
         min_scale = fmin(min_scale, scale_se);
 
     if (min_scale < 0.99) {
-        // ui_debug_printf("entity: %s\nstart %f,%f,%f\nmin_scale: %f\ndist: %f\nnw: %f %s\nne: %f %s\nsw: %f %s\nse: %f %s",
-        //                 entity_name(entity),
-        //                 start[0], start[1], start[2], min_scale, dist, scale_nw, entity_name(e1),
-        //                 scale_ne, entity_name(e2), scale_sw, entity_name(e3), scale_se, entity_name(e4));
         *next_distance = dist * min_scale;
         return false;
     }
