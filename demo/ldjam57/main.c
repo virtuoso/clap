@@ -248,7 +248,7 @@ static int character_obj_update(entity3d *e, void *data)
         }
 
         s->camera->yaw += 90 / fabsf(game_over_end_height - game_over_start_height);
-        s->camera->ch->moved++;
+        character_set_moved(s->camera->ch);
     }
 
     return cobj->orig_update(e, data);
