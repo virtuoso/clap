@@ -597,7 +597,7 @@ static void scene_debug_frusta(struct view *view)
 }
 
 #else
-static void scene_parameters_debug(struct scene *scene, int cam_idx) {}
+static inline void scene_parameters_debug(struct scene *scene, int cam_idx) {}
 static inline void light_debug(struct scene *scene) {}
 static inline void scene_characters_debug(struct scene *scene) {}
 static inline void scene_entity_inspector_debug(struct scene *scene) {}
