@@ -38,6 +38,9 @@ void camera_reset_movement(struct camera *c)
 {
     c->pitch_delta = 0;
     c->yaw_delta = 0;
+    vec3_dup(c->ch->motion, (vec3){});
+    vec3_dup(c->ch->angle, (vec3){});
+    vec3_dup(c->ch->velocity, (vec3){});
 }
 
 void camera_add_pitch(struct camera *c, float delta)
@@ -48,13 +51,6 @@ void camera_add_pitch(struct camera *c, float delta)
 void camera_add_yaw(struct camera *c, float delta)
 {
     c->yaw_delta = delta;
-}
-
-void camera_set_target_to_current(struct camera *c)
-{
-    vec3_dup(c->ch->motion, (vec3){});
-    vec3_dup(c->ch->angle, (vec3){});
-    vec3_dup(c->ch->velocity, (vec3){});
 }
 
 bool test_if_ray_intersects_scene(entity3d *entity, vec3 start, vec3 end, double *scale, entity3d **hit)
@@ -185,7 +181,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
         return;
 
     if (current == c->ch) {
-        camera_set_target_to_current(c);
+        camera_reset_movement(c);
         return;
     }
 

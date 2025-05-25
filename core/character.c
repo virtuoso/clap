@@ -377,13 +377,6 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     if (control == ch) {
-        if (!(s->mctl.ls_dx || s->mctl.ls_dy || s->mctl.rs_dx || s->mctl.rs_dy)) {
-            // We got no input regarding character position or camera,
-            // so we reset the "target" camera position to the "current"
-            // (however, we don't allow the pitch to be too extreme).
-            camera_set_target_to_current(s->camera);
-        }
-
         float delta_x = s->mctl.ls_dx * ch->lin_speed;
         float delta_z = s->mctl.ls_dy * ch->lin_speed;
         float yawcos = cos(to_radians(s->camera->yaw));
