@@ -100,8 +100,8 @@ static void camera_calc_rays(struct camera *c, struct scene *s, vec3 start, floa
     mat4x4_mul_vec4(se, m_inverse, r);
 }
 
-bool camera_position_is_good(struct camera *c, entity3d *entity,
-                             vec3 start, float dist, struct scene *s, double *next_distance)
+static bool camera_position_is_good(struct camera *c, entity3d *entity,
+                                    vec3 start, float dist, struct scene *s, double *next_distance)
 {
     double scale_nw = 0;
     double scale_ne = 0;
