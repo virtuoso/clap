@@ -39,9 +39,8 @@ void scene_control_next(struct scene *s)
     if (prev)
         prev->camera = NULL;
     current->camera = s->camera;
-    current->moved++;
+    character_set_moved(current);
     s->camera->dist = 10;
-    s->camera->ch->moved++;
 
     /* Stop the previous character from running */
     if (prev)
@@ -145,7 +144,7 @@ cres(int) scene_camera_add(struct scene *s)
     scene_add_model(s, entity->txmodel);
     ref_put(entity->txmodel);
 
-    s->camera->ch->moved++;
+    character_set_moved(s->camera->ch);
     s->camera->dist = 10;
 
     return cres_val(int, s->nr_cameras++);
@@ -389,7 +388,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         if (ui_igSliderFloat3("pos", pos, -500.0, 500.0, "%.02f", 0)) {
             entity3d_position(e, pos);
-            scene->camera->ch->moved++;
+            character_set_moved(scene->camera->ch);
         }
 
         float rx = to_degrees(e->rx);
@@ -802,12 +801,12 @@ void scene_update(struct scene *scene)
         float delta = scene->mctl.rs_dy * scene->ang_speed;
 
         camera_add_pitch(scene->camera, delta);
-        scene->camera->ch->moved++;
+        character_set_moved(scene->camera->ch);
     }
     if (scene->mctl.rs_dx) {
         /* XXX: need a better way to represend horizontal rotational speed */
         camera_add_yaw(scene->camera, scene->mctl.rs_dx * scene->ang_speed * 1.5);
-        scene->camera->ch->moved++;
+        character_set_moved(scene->camera->ch);
     }
 
     if (scene->proj_update) {

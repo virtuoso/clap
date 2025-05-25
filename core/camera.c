@@ -175,7 +175,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
     }
 
     if (c->dist != dist)
-        c->ch->moved++;
+        character_set_moved(c->ch);
 
     c->dist = dist;
     debug_draw_camera(scene, c, start, dist, scene);

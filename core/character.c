@@ -123,6 +123,13 @@ static void character_jump_frame_callback(struct queued_animation *qa, entity3d 
     }
 }
 
+void character_set_moved(struct character *c)
+{
+    c->moved++;
+    if (c->camera)
+        c->camera->ch->moved++;
+}
+
 #ifndef CONFIG_FINAL
 static const char *character_state_string[] = {
     [CS_START]      = "start",
@@ -232,7 +239,7 @@ fail_fallback:
         case CS_MOVING:
             /* velocity vector may have changed, always apply it */
             character_apply_velocity(ch);
-            ch->moved++;
+            character_set_moved(ch);
 
             if (ch->state == CS_IDLE) {
                 if (animation_push_by_name(ch->entity, s, "motion_start", true, false)) {
@@ -528,9 +535,7 @@ static int character_update(entity3d *e, void *data)
     if (e->phys_body) {
         if (phys_body_update(e)) {
             history_push(c);
-            c->moved++;
-            if (scene_camera_follows(s, c))
-                s->camera->ch->moved++;
+            character_set_moved(c);
         }
     }
 
