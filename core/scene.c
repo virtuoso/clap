@@ -320,7 +320,7 @@ static void dropdown_entity(entity3d *e, void *data)
     igPopID();
 }
 
-static void scene_camera_selector_debug(struct scene *scene)
+static void scene_entity_inspector_debug(struct scene *scene)
 {
     debug_module *dbgm = ui_igBegin_name(
         DEBUG_ENTITY_INSPECTOR,
@@ -594,7 +594,7 @@ static void scene_debug_frusta(struct view *view)
 static void scene_parameters_debug(struct scene *scene, int cam_idx) {}
 static inline void light_debug(struct scene *scene) {}
 static inline void scene_characters_debug(struct scene *scene) {}
-static inline void scene_camera_selector_debug(struct scene *scene) {}
+static inline void scene_entity_inspector_debug(struct scene *scene) {}
 static inline void scene_debug_frusta(struct view *view) {}
 #endif /* CONFIG_FINAL */
 
@@ -794,7 +794,7 @@ void scene_update(struct scene *scene)
 
     scene_parameters_debug(scene, 0);
     scene_characters_debug(scene);
-    scene_camera_selector_debug(scene);
+    scene_entity_inspector_debug(scene);
 
     mq_update(&scene->mq);
 
