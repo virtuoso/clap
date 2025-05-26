@@ -410,11 +410,8 @@ cresp(sfx) sfx_new(sfx_container *sfxc, const char *name, const char *file, soun
             goto found;
         }
 
-    cresp(sound) res = ref_new_checked(sound, .name = file, .ctx = ctx);
-    if (IS_CERR(res))
-        return cresp_error_cerr(sfx, res);
+    sfx->sound = CRES_RET_T(ref_new_checked(sound, .name = file, .ctx = ctx), sfx);
 
-    sfx->sound = res.val;
 found:
     sound_set_gain(sfx->sound, 1.0);
     sfx_container_add(sfxc, sfx);
