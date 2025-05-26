@@ -60,14 +60,12 @@ static void font_load_glyph(struct font *font, unsigned char c)
     }
 #undef _AT
 #undef _GAT
-    cerr err = texture_init(&font->g[c].tex);
-    if (IS_CERR(err))
-        return;
+    CERR_RET(texture_init(&font->g[c].tex), return);
 
-    err = texture_load(&font->g[c].tex, TEX_FMT_RGBA8, glyph->bitmap.width,
-                       glyph->bitmap.rows, buf);
-    if (IS_CERR(err))
-        return;
+    CERR_RET(
+        texture_load(&font->g[c].tex, TEX_FMT_RGBA8, glyph->bitmap.width, glyph->bitmap.rows, buf),
+        { texture_done(&font->g[c].tex); return; }
+    );
 
     font->g[c].advance_x = glyph->advance.x;
     font->g[c].advance_y = glyph->advance.y;
@@ -97,10 +95,7 @@ static cerr font_make(struct ref *ref, void *_opts)
         return CERR_FONT_NOT_LOADED;
     }
 
-
-    cres(int) res = mem_asprintf(&font->name, "%s:%u", opts->name, opts->size);
-    if (IS_CERR(res))
-        return cerr_error_cres(res);
+    CRES_RET_CERR(mem_asprintf(&font->name, "%s:%u", opts->name, opts->size));
 
     font->buf = NOCU(_buf);
     font->face = face;
@@ -167,13 +162,10 @@ cresp(font_context) font_init(const char *default_font_name)
     if (!default_font_name)
         default_font_name = DEFAULT_FONT_NAME;
 
-    cresp(font) res = ref_new_checked(font, .ctx = ctx, .name = default_font_name, .size = 32);
-    if (IS_CERR(res)) {
-        err("couldn't load default font\n");
-        return cresp_error_cerr(font_context, res);
-    }
-
-    ctx->default_font = res.val;
+    ctx->default_font = CRES_RET(
+        ref_new_checked(font, .ctx = ctx, .name = default_font_name, .size = 32),
+        { err("couldn't load default font\n"); return cresp_error_cerr(font_context, __resp); }
+    );
 
     dbg("freetype initialized\n");
     return cresp_val(font_context, NOCU(ctx));
