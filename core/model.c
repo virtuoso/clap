@@ -202,6 +202,7 @@ vao_done:
 unbind:
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog);
+    ref_put(m->prog);
 
     return err;
 }
