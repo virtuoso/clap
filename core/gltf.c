@@ -1089,11 +1089,14 @@ static void gltf_onload(struct lib_handle *h, void *data)
         goto out;
 
     /* if GLTF embedded fails, nothing more to do */
-    err = gltf_json_parse(h->buf, data);
-    if (IS_CERR(err)) {
-        warn("couldn't parse '%s'\n", h->name);
-        h->state = RES_ERROR;
-    }
+    CERR_RET(
+        gltf_json_parse(h->buf, data),
+        {
+            /* this error has nowhere further to go, print it here */
+            err_cerr(__cerr, "couldn't parse '%s'\n", h->name);
+            h->state = RES_ERROR;
+        }
+    );
 
 out:
     ref_put(h);
@@ -1133,7 +1136,6 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
 
 cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
-    model3dtx *txm;
     int skin;
 
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
@@ -1153,40 +1155,48 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh), gltf_nr_tangent(gd, mesh));
     mesh_optimize(me);
 
-    cresp(shader_prog) prog_res = pipeline_shader_find_get(gd->pl, "model");
-    if (IS_CERR(prog_res))
-        return cerr_error_cres(prog_res);
-
-    cresp(model3d) res = ref_new_checked(model3d,
-                                         .prog   = ref_pass(prog_res.val),
-                                         .name   = gltf_mesh_name(gd, mesh),
-                                         .mesh   = me);
-    if (IS_CERR(res)) {
-        ref_put(prog_res.val);
-        return cerr_error_cres(res);
-    }
+    struct shader_prog *prog = CRES_RET_CERR(pipeline_shader_find_get(gd->pl, "model"));
+    /*
+     * ref_put(prog) on failure is not necessary, model3d constructor
+     * already drops this reference; plus ref_pass(prog) sets prog to NULL
+     * effectively making this a requirement
+     */
+    model3d *m = CRES_RET_CERR(
+        ref_new_checked(
+            model3d,
+            .prog   = ref_pass(prog),
+            .name   = gltf_mesh_name(gd, mesh),
+            .mesh   = me
+        )
+    );
 
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }
 
-    cresp(model3dtx) txres = ref_new_checked(model3dtx,
-                                             .model            = ref_pass(res.val),
-                                             .buffers_png      = true,
-                                             .texture_buffer   = gltf_tex(gd, mesh),
-                                             .texture_size     = gltf_texsz(gd, mesh),
-                                             .normal_buffer    = gltf_nmap(gd, mesh),
-                                             .normal_size      = gltf_nmapsz(gd, mesh),
-                                             .emission_buffer  = gltf_em(gd, mesh),
-                                             .emission_size    = gltf_emsz(gd, mesh));
+    model3dtx *txm = CRES_RET(
+        ref_new_checked(
+            model3dtx,
+            .model            = ref_pass(m),
+            .buffers_png      = true,
+            .texture_buffer   = gltf_tex(gd, mesh),
+            .texture_size     = gltf_texsz(gd, mesh),
+            .normal_buffer    = gltf_nmap(gd, mesh),
+            .normal_size      = gltf_nmapsz(gd, mesh),
+            .emission_buffer  = gltf_em(gd, mesh),
+            .emission_size    = gltf_emsz(gd, mesh)
+        ),
+        {
+            /*
+             * ref_put(m) on failure is not necessary, model3dtx constructor
+             * already drops this reference; plus, ref_pass(m) sets m to NULL
+             * effectively making this a requirement
+             */
+            warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));
+            return cerr_error_cres(__resp);
+        }
+    );
 
-    if (IS_CERR(txres)) {
-        warn("failed to load texture(s) for mesh '%s'\n", gltf_mesh_name(gd, mesh));
-        ref_put(res.val);
-        return cerr_error_cres(txres);
-    }
-
-    txm = txres.val;
     skin = gltf_mesh_skin(gd, mesh);
     if (skin >= 0) {
         struct gltf_skin *s = DA(gd->skins, skin);
