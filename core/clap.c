@@ -321,7 +321,6 @@ static char *__user_agent;
 EMSCRIPTEN_KEEPALIVE void clap_set_user_agent(const char *user_agent)
 {
     __user_agent = strdup(user_agent);
-    dbg("user agent: '%s'\n", __user_agent);
 }
 
 static cerr clap_os_init(struct clap_context *ctx)
