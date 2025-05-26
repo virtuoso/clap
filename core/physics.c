@@ -460,10 +460,8 @@ __phys_ray_cast(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
         }
     }
 
-    if (min_i < 0) {
-        target = NULL;
+    if (min_i < 0)
         goto out;
-    }
 
     cgeom = &c.contact[min_i].geom;
     if (contact)
