@@ -31,6 +31,17 @@ static void ui_animation_done(struct ui_animation *uia)
     mem_free(uia);
 }
 
+static void __uia_skip_duration_trans(struct ui_animation *ua);
+
+void ui_element_animations_skip(struct ui_element *uie)
+{
+    struct ui_animation *ua;
+    list_for_each_entry(ua, &uie->animation, entry) {
+        ua->start_time = 0;
+        ua->trans = __uia_skip_duration_trans;
+    }
+}
+
 void ui_element_animations_done(struct ui_element *uie)
 {
     struct ui_animation *ua, *itua;

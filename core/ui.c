@@ -686,7 +686,6 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
 
 static void menu_onfocus(struct ui_element *uie, bool focus)
 {
-    ui_element_animations_done(uie);
     ui_element_set_visibility(uie, 1);
     ui_element_set_alpha(uie, 1.0);
 
@@ -979,6 +978,7 @@ static void ui_menu_preselect(struct ui_animation *ua)
     if (!uiw || uiw->focus < 0 || uiw->focus >= uiw->nr_uies)
         return;
 
+    ui_element_animations_skip(uie);
     menu_onfocus(uiw->uies[uiw->focus], true);
 }
 

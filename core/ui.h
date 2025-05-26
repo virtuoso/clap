@@ -156,6 +156,7 @@ void ui_add_model(struct ui *ui, model3dtx *txmodel);
 void ui_add_model_tail(struct ui *ui, model3dtx *txmodel);
 
 void ui_element_animations_done(struct ui_element *uie);
+void ui_element_animations_skip(struct ui_element *uie);
 int ui_element_update(entity3d *e, void *data);
 void ui_element_set_visibility(struct ui_element *uie, int visible);
 void ui_element_set_alpha(struct ui_element *uie, float alpha);
