@@ -272,7 +272,7 @@ static cerr sound_make(struct ref *ref, void *_opts)
         err = parse_ogg(sound, &cb_data);
 
     if (IS_CERR(err)) {
-        err("couldn't load '%s'\n", lh->name);
+        err_cerr(err, "couldn't load '%s'\n", lh->name);
         return err;
     }
 
