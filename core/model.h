@@ -339,7 +339,4 @@ struct instantiator;
 entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
                                     bool randomize_yrot, float randomize_scale, struct scene *scene);
 
-void debug_draw_line(struct scene *scene, vec3 a, vec3 b, mat4x4 *rot);
-void debug_draw_clearout(struct scene *scene);
-
 #endif /* __CLAP_MODEL_H__ */
