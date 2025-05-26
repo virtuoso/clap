@@ -175,6 +175,14 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
     (__resp).val; \
 })
 
+/* Check if cres is an error and return cerr of it if it is, otherwise return its value */
+#define CRES_RET_CERR(__x) ({ \
+    typeof((__x)) __resp = (__x); \
+    if (IS_CERR(__resp)) \
+        return cerr_error_cres(__resp); \
+    (__resp).val; \
+})
+
 /* Return an error */
 #define cres_error(__type, __err) ({ \
     cres(__type) __res = { \
