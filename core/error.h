@@ -153,11 +153,7 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 })
 
 /* Check if cerr is an error and return cresp(__t) if it is */
-#define CERR_RET_T(__x, __t) ({ \
-    cerr __cerr = (__x); \
-    if (IS_CERR(__cerr)) \
-        return cresp_error_cerr(__t, __cerr); \
-})
+#define CERR_RET_T(__x, __t) CERR_RET(__x, return cresp_error_cerr(__t, __cerr))
 
 /* Check if cres is an error and execute @__ret statement if it is, otherwise return its value */
 #define CRES_RET(__x, __ret) ({ \
@@ -168,20 +164,10 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 })
 
 /* Check if cres is an error and return cresp(__t) if it is, otherwise return its value */
-#define CRES_RET_T(__x, __t) ({ \
-    typeof((__x)) __resp = (__x); \
-    if (IS_CERR(__resp)) \
-        return cresp_error_cerr(__t, __resp); \
-    (__resp).val; \
-})
+#define CRES_RET_T(__x, __t) CRES_RET(__x, return cresp_error_cerr(__t, __resp))
 
 /* Check if cres is an error and return cerr of it if it is, otherwise return its value */
-#define CRES_RET_CERR(__x) ({ \
-    typeof((__x)) __resp = (__x); \
-    if (IS_CERR(__resp)) \
-        return cerr_error_cres(__resp); \
-    (__resp).val; \
-})
+#define CRES_RET_CERR(__x) CRES_RET(__x, return cerr_error_cres(__resp))
 
 /* Return an error */
 #define cres_error(__type, __err) ({ \
