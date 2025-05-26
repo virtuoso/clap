@@ -113,31 +113,32 @@ bool scene_camera_follows(struct scene *s, struct character *ch)
 
 cres(int) scene_camera_add(struct scene *s)
 {
-    cresp(shader_prog) prog_res = pipeline_shader_find_get(s->pl, "model");
-    if (IS_CERR(prog_res))
-        return cres_error_cerr(int, prog_res);
+    struct shader_prog *prog = CRES_RET(
+        pipeline_shader_find_get(s->pl, "model"),
+        return cres_error_cerr(int, __resp)
+    );
 
-    model3d *m = model3d_new_cube(ref_pass(prog_res.val), true);
+    model3d *m = model3d_new_cube(ref_pass(prog), true);
     if (!m)
         return cres_error(int, CERR_NOMEM);
 
     model3d_set_name(m, "camera");
 
-    cresp(model3dtx) txmres = ref_new_checked(model3dtx, .model = ref_pass(m), .tex = transparent_pixel());
-    if (IS_CERR(txmres))
-        return cres_error_cerr(int, txmres);
+    model3dtx *txm = CRES_RET(
+        ref_new_checked(model3dtx, .model = ref_pass(m), .tex = transparent_pixel()),
+        return cres_error_cerr(int, __resp)
+    );
 
-    cresp(character) chres = ref_new_checked(character, .txmodel = txmres.val, .scene = s);
-    if (IS_CERR(chres)) {
-        ref_put(txmres.val);
-        return cres_error_cerr(int, chres);
-    }
+    struct character *ch = CRES_RET(
+        ref_new_checked(character, .txmodel = txm, .scene = s),
+        { ref_put(txm); return cres_error_cerr(int, __resp); }
+    );
 
     s->camera = &s->cameras[s->nr_cameras];
     s->camera->view.main.near_plane  = 0.1;
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
-    s->camera->ch = chres.val;
+    s->camera->ch = ch;
     entity3d *entity = character_entity(s->camera->ch);
     entity3d_visible(entity, 0);
     s->control = entity;
@@ -853,17 +854,12 @@ cerr scene_init(struct scene *scene)
     scene->render_options.fog_far = 80.0;
     vec3_dup(scene->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
 
-    cerr err;
-    err = subscribe(MT_INPUT, scene_handle_input, scene);
-    if (IS_CERR(err))
-        return err;
-
-    err = subscribe(MT_COMMAND, scene_handle_command, scene);
-    if (IS_CERR(err))
-        return err;
+    /* messagebus_done() will "unsubscribe" (free) these */
+    CERR_RET(subscribe(MT_INPUT, scene_handle_input, scene), return __cerr);
+    CERR_RET(subscribe(MT_COMMAND, scene_handle_command, scene), return __cerr);
 
 #ifndef CONFIG_FINAL
-    err = subscribe(MT_DEBUG_DRAW, scene_debug_draw, scene);
+    cerr err = subscribe(MT_DEBUG_DRAW, scene_debug_draw, scene);
     if (IS_CERR(err))
         err_cerr(err, "couldn't subscribe to debug draw messages\n");
 #endif /* CONFIG_FINAL */
@@ -960,9 +956,7 @@ static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode 
     if (_sfx->tag != JSON_STRING)
         return CERR_PARSE_FAILED;
 
-    cresp(sfx) res = sfx_new(sfxc, _sfx->key, _sfx->string_, ctx);
-    if (IS_CERR(res))
-        return cerr_error_cres(res);
+    CRES_RET_CERR(sfx_new(sfxc, _sfx->key, _sfx->string_, ctx));
 
     return CERR_OK;
 }
@@ -1045,30 +1039,27 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         if (root < 0) {
             for (i = 0; i < gltf_get_meshes(gd); i++)
                 if (i != collision) {
-                    cerr err = gltf_instantiate_one(gd, i);
-                    if (IS_CERR(err)) {
-                        gltf_free(gd);
-                        return err;
-                    }
+                    CERR_RET(
+                        gltf_instantiate_one(gd, i),
+                        { gltf_free(gd); return __cerr; }
+                    );
                     break; /* XXX: why? */
                 }
         } else {
-            cerr err = gltf_instantiate_one(gd, root);
-            if (IS_CERR(err)) {
-                gltf_free(gd);
-                return err;
-            }
+            CERR_RET(
+                gltf_instantiate_one(gd, root),
+                { gltf_free(gd); return __cerr; }
+            );
         }
 
         /* In the absence of a dedicated collision mesh, use the main one */
         if (collision < 0)
             collision = root ? root : 0;
     } else {
-        cerr err = gltf_instantiate_one(gd, 0);
-        if (IS_CERR(err)) {
-            gltf_free(gd);
-            return err;
-        }
+        CERR_RET(
+            gltf_instantiate_one(gd, 0),
+            { gltf_free(gd); return __cerr; }
+        );
         collision = 0;
     }
     txm = mq_model_last(&scene->mq);
