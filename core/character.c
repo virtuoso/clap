@@ -546,11 +546,7 @@ static cerr character_make(struct ref *ref, void *_opts)
 
     struct character *c = container_of(ref, struct character, ref);
 
-    cresp(entity3d) res = ref_new_checked(entity3d, .txmodel = opts->txmodel);
-    if (IS_CERR(res))
-        return cerr_error_cres(res);
-
-    c->entity = res.val;
+    c->entity = CRES_RET_CERR(ref_new_checked(entity3d, .txmodel = opts->txmodel));
     c->entity->priv = c;
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
