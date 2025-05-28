@@ -1623,7 +1623,7 @@ void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data)
 
 void mq_update(struct mq *mq)
 {
-    mq_for_each(mq, entity3d_update, mq->priv);
+    mq_for_each_matching(mq, ENTITY3D_ALIVE, entity3d_update, mq->priv);
 }
 
 model3dtx *mq_model_first(struct mq *mq)
