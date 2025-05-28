@@ -359,7 +359,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
         entity3d *e = scene->control;
         if (igButton("delete", (ImVec2){})) {
             scene_control_next(scene);
-            ref_put(e);
+            entity3d_delete(e);
             e = scene->control;
         }
 
