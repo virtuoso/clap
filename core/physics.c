@@ -452,6 +452,9 @@ __phys_ray_cast(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
             if (check_self && e == target)
                 continue;
 
+            if (!entity3d_matches(e, ENTITY3D_ALIVE))
+                continue;
+
             if (depth > cgeom->depth) {
                 depth = cgeom->depth;
                 min_i = i;
