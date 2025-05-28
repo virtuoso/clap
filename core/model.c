@@ -891,8 +891,12 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         entity3d *e;
 
         list_for_each_entry (e, &txmodel->entities, entry) {
+            if (!entity3d_matches(e, ENTITY3D_ALIVE))
+                continue;
+
             if (unlikely(ropts && ropts->aabb_draws_enabled && !model->skip_aabb))
                 entity3d_aabb_draw(e, true, true);
+
             if (!e->visible)
                 continue;
 
