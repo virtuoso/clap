@@ -198,6 +198,7 @@ struct mq {
 void mq_init(struct mq *mq, void *priv);
 void mq_release(struct mq *mq);
 void mq_update(struct mq *mq);
+void mq_for_each_matching(struct mq *mq, entity3d_flags flags, void (*cb)(entity3d *, void *), void *data);
 void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data);
 model3dtx *mq_model_first(struct mq *mq);
 model3dtx *mq_model_last(struct mq *mq);

@@ -1603,16 +1603,22 @@ void mq_release(struct mq *mq)
     }
 }
 
-void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data)
+void mq_for_each_matching(struct mq *mq, entity3d_flags flags, void (*cb)(entity3d *, void *), void *data)
 {
     model3dtx *txmodel;
     entity3d *ent, *itent;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
-            cb(ent, data);
+            if (entity3d_matches(ent, flags))
+                cb(ent, data);
         }
     }
+}
+
+void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data)
+{
+    mq_for_each_matching(mq, ENTITY3D_ANY, cb, data);
 }
 
 void mq_update(struct mq *mq)
