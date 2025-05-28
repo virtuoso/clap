@@ -965,6 +965,11 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
  * instance of the model3d
  ****************************************************************************/
 
+bool entity3d_matches(entity3d *e, entity3d_flags flags)
+{
+    return !!(e->flags & flags);
+}
+
 float entity3d_aabb_X(entity3d *e)
 {
     return model3d_aabb_X(e->txmodel->model) * e->scale;
@@ -1446,6 +1451,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     }
 
     list_append(&e->txmodel->entities, &e->entry);
+    e->flags |= ENTITY3D_ALIVE;
 
     return CERR_OK;
 }
@@ -1469,9 +1475,9 @@ static void entity3d_drop(struct ref *ref)
 
 DEFINE_REFCLASS2(entity3d);
 
-/* XXX: static inline? via macro? */
-void entity3d_put(entity3d *e)
+void entity3d_delete(entity3d *e)
 {
+    e->flags &= ENTITY3D_DEAD;
     ref_put(e);
 }
 

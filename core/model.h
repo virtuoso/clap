@@ -183,6 +183,12 @@ static inline const char *txmodel_name(model3dtx *txm)
     return txm->model->name;
 }
 
+typedef enum entity3d_flags {
+    ENTITY3D_ALIVE  = 1u << 31,
+    ENTITY3D_DEAD   = ~ENTITY3D_ALIVE,
+    ENTITY3D_ANY    = ~0u,
+} entity3d_flags;
+
 struct mq {
     struct list     txmodels;
     void            *priv;
@@ -215,6 +221,7 @@ typedef struct entity3d {
     mat4x4           mx;
     struct ref       ref;
     struct list      entry;     /* link to txmodel->entities */
+    entity3d_flags   flags;
     unsigned int     visible;
     int              animation;
     double           ani_time;
@@ -300,7 +307,8 @@ void entity3d_aabb_max(entity3d *e, vec3 max);
 void entity3d_aabb_center(entity3d *e, vec3 center);
 float entity3d_aabb_avg_edge(entity3d *e);
 void entity3d_update(entity3d *e, void *data);
-void entity3d_put(entity3d *e);
+void entity3d_delete(entity3d *e);
+bool entity3d_matches(entity3d *e, entity3d_flags flags);
 
 /* Set entity's color override mode and color */
 void entity3d_color(entity3d *e, int color_pt, vec4 color);
