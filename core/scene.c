@@ -349,7 +349,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
         ui_igControlTableHeader("entity", "actions");
 
         if (ui_igBeginCombo("entity", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
-            mq_for_each(&scene->mq, dropdown_entity, scene);
+            mq_for_each_matching(&scene->mq, ENTITY3D_ALIVE, dropdown_entity, scene);
             ui_igEndCombo();
         }
 
