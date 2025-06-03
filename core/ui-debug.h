@@ -23,22 +23,6 @@ struct ui;
 #define IM_COL32(R,G,B,A) (((A)<<24) | ((B)<<16) | ((G)<<8) | (R))
 #endif
 
-void ui_debug_update(struct ui *ui);
-void __ui_debug_printf(const char *mod, const char *fmt, ...) __printf(2, 3);
-#define ui_debug_printf(args...) __ui_debug_printf(MODNAME, ## args)
-void ui_show_debug(const char *debug_name);
-struct ui_widget *ui_debug_menu(struct ui *ui);
-cerr ui_debug_init(struct ui *ui);
-void ui_debug_done(struct ui *ui);
-
-static inline void ui_show_debug_once(const char *debug_name)
-{
-    static int done = 0;
-
-    if (!done++)
-        ui_show_debug(str_basename(debug_name));
-}
-
 bool __ui_mouse_event_propagate(void);
 void imgui_init(struct clap_context *ctx, void *data, int width, int height);
 void imgui_set_settings(struct settings *rs);
@@ -100,15 +84,6 @@ void ui_igEndCombo(void);
 bool ui_igColorEdit3(const char *label, float *color, ImGuiColorEditFlags flags);
 
 #else
-
-static inline void ui_debug_update(struct ui *ui) {}
-static inline void __ui_debug_printf(const char *mod, const char *fmt, ...) {}
-#define ui_debug_printf(args...) __ui_debug_printf(MODNAME, ## args)
-static inline void ui_show_debug(const char *debug_name) {}
-static inline void ui_show_debug_once(const char *debug_name) {}
-static inline struct ui_widget *ui_debug_menu(struct ui *ui) { return NULL; }
-static inline cerr ui_debug_init(struct ui *ui) { return CERR_OK; }
-static inline void ui_debug_done(struct ui *ui) {}
 
 static inline void ui_debug_selector(void) {}
 static inline void ui_toggle_debug_selector(void) {}

@@ -145,7 +145,6 @@ void ui_update(struct ui *ui)
 {
     ui->time = clap_get_current_time(ui->clap_ctx);
 
-    ui_debug_update(ui);
     ui_debug_selector();
 
     /* XXX: this is double for_each, make better */
@@ -634,12 +633,6 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
 
 static void ui_menu_done(struct ui *ui);
 
-static void do_debugs(struct ui *ui, const char *debug_name)
-{
-    ui_show_debug(debug_name);
-    ui_menu_done(ui);
-}
-
 static const char *help_items[] = { "...license", "...help", "...credits" };
 static const char *hud_items[] = { "FPS", };
 static void menu_onclick(struct ui_element *uie, float x, float y)
@@ -656,9 +649,6 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
     } else if (!strcmp(str, "HUD")) {
         ref_put_last(ui->menu);
         ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
-    } else if (!strcmp(str, "Monitor")) {
-        ref_put_last(ui->menu);
-        ui->menu = ui_debug_menu(ui);
     } else if (!strcmp(str, "Fullscreen")) {
         struct message_input mi;
         memset(&mi, 0, sizeof(mi));
@@ -680,7 +670,7 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
         ui_roll_init(ui);
         ui_menu_done(ui); /* cancels modality */
     } else {
-        do_debugs(ui, str);
+        ui_menu_done(ui);
     }
 }
 
@@ -1105,7 +1095,6 @@ static const char *menu_items[] = {
     "HUD",
 #ifndef CONFIG_FINAL
     "Devel",
-    "Monitor",
     "Fullscreen",
 #endif
     "Help",
@@ -1746,10 +1735,6 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
         goto err;
     }
 
-    ret = ui_debug_init(ui);
-    if (IS_CERR(ret))
-        goto err;
-
     font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 16);
     if (!font) {
         ret = CERR_FONT_NOT_LOADED;
@@ -1758,7 +1743,6 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
 
     ret = ui_model_init(ui);
     if (IS_CERR(ret)) {
-        ui_debug_done(ui);
         font_put(font);
         goto err;
     }
@@ -1805,7 +1789,6 @@ void ui_done(struct ui *ui)
     widgets_cleanup(&ui->widget_cleanup);
     widgets_cleanup(&ui->widgets);
 
-    ui_debug_done(ui);
     if (uie0)
         ref_put(uie0);
 #ifndef CONFIG_FINAL
