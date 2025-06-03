@@ -334,8 +334,6 @@ void input_events_dispatch(void)
             mi.delta_ry = (float)(pt->y - pt->orig_y) / touch.h * 4;
         }
     }
-    // ui_debug_printf("lx: %f ly: %f // rx: %f ry: %f",
-    //                 mi.delta_lx, mi.delta_ly, mi.delta_rx, mi.delta_ry);
     message_input_send(&mi, &keyboard_source);
 }
 
