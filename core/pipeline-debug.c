@@ -89,6 +89,7 @@ void pipeline_debug_begin(struct pipeline *pl)
     igTableSetupColumn("dim", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     igTableSetupColumn("at", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     igTableSetupColumn("count", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableHeadersRow();
 }
 
 void pipeline_debug_end(struct pipeline *pl)
