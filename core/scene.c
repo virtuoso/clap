@@ -415,7 +415,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         model3d *m = e->txmodel->model;
         igText("vertices: %u", m->nr_vertices);
-        ui_igTableHeader("lod", (const char *[]){ "LOD", "faces", "edges" }, 3);
+        ui_igTableHeader("lod", (const char *[]){ "LOD", "faces", "edges", "error" }, 4);
         for (int i = 0; i < m->nr_lods; i++) {
             igTableNextRow(0, 0);
             igTableNextColumn();
@@ -424,6 +424,8 @@ static void scene_entity_inspector_debug(struct scene *scene)
             igText("%u", m->nr_faces[i]);
             igTableNextColumn();
             igText("%u", m->nr_faces[i] * 3);
+            igTableNextColumn();
+            igText("%f", m->lod_errors[i]);
         }
         igEndTable();
         igPopItemWidth();
