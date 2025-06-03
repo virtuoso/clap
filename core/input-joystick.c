@@ -315,10 +315,7 @@ void joysticks_poll(void)
         }
 
         if (count) {
-            // ui_debug_printf("lx: %f ly: %f rx: %f ry: %f lt: %f rt: %f\nbuttons: %016lx",
-            //                 mi.delta_lx, mi.delta_ly, mi.delta_rx, mi.delta_ry,
-            //                 mi.trigger_l, mi.trigger_r,
-            //                 j->button_state);
+            /* TODO: display this in input debug UI if necessary */
             message_input_send(&mi, &j->msg_src);
         }
     }
