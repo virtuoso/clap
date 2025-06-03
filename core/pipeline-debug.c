@@ -82,13 +82,14 @@ void pipeline_debug_begin(struct pipeline *pl)
     if (!dbgm->display || !dbgm->unfolded)
         return;
 
-    igBeginTable("pipeline passes", 6, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
+    igBeginTable("pipeline passes", 7, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0);
     igTableSetupColumn("pass", ImGuiTableColumnFlags_WidthStretch, 0, 0);
     igTableSetupColumn("method", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     igTableSetupColumn("src", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     igTableSetupColumn("dim", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     igTableSetupColumn("at", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     igTableSetupColumn("count", ImGuiTableColumnFlags_WidthFixed, 0, 0);
+    igTableSetupColumn("culled", ImGuiTableColumnFlags_WidthFixed, 0, 0);
     igTableHeadersRow();
 }
 
@@ -162,13 +163,15 @@ void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, in
     igTableNextColumn();
 }
 
-void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count)
+void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count, unsigned long culled)
 {
     debug_module *dbgm = ui_debug_module(DEBUG_PIPELINE_PASSES);
     if (!dbgm->display || !dbgm->unfolded)
         return;
 
     igText("%lu", count);
+    igTableNextColumn();
+    igText("%lu", culled);
 }
 
 static void pipeline_passes_dropdown(struct pipeline *pl, int *item, texture_t **tex, render_pass **pass)

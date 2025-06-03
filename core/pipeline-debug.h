@@ -18,7 +18,7 @@ void pipeline_dropdown_push(pipeline *pl, render_pass *pass);
 void pipeline_debug_begin(struct pipeline *pl);
 void pipeline_debug_end(struct pipeline *pl);
 void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx);
-void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count);
+void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count, unsigned long culled);
 
 #define PIPELINE_DEBUG_DATA darray(pipeline_dropdown, dropdown)
 #else
@@ -30,7 +30,7 @@ static inline void pipeline_dropdown_push(pipeline *pl, render_pass *pass) {}
 static inline void pipeline_debug_begin(struct pipeline *pl) {}
 static inline void pipeline_debug_end(struct pipeline *pl) {}
 static inline void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx) {}
-static inline void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count) {}
+static inline void pipeline_pass_debug_end(struct pipeline *pl, unsigned long count, unsigned long culled) {}
 
 #endif /* CONFIG_FINAL */
 

@@ -426,7 +426,7 @@ static struct mq *pass_resolve_sources(pipeline *pl, render_pass *pass)
  */
 static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
 {
-    unsigned long count = 0;
+    unsigned long count = 0, culled = 0;
     RENDER_PASS_OPS_PARAMS(pl, pass);
 
     pass->ops->prepare(&params);
@@ -441,7 +441,8 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
                       .width            = fbo_width(pass->fbo),
                       .height           = fbo_height(pass->fbo),
                       .cascade          = pass->cascade,
-                      .entity_count     = &count);
+                      .entity_count     = &count,
+                      .culled_count     = &culled);
     } else {
         /* Render our postprocessing quad */
         struct mq _mq; /* XXX: -> pass->mq, then mq_release() on drop */
@@ -461,7 +462,7 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         list_del(&pass->quad->txmodel->entry);
     }
 
-    pipeline_pass_debug_end(pl, count);
+    pipeline_pass_debug_end(pl, count, culled);
 }
 
 void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
