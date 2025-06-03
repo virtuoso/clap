@@ -231,12 +231,12 @@ _hashmap_find(struct hashmap *hm, unsigned int key, unsigned long *phash)
     return NULL;
 }
 
-void *hashmap_find(struct hashmap *hm, unsigned int key)
+cresp(void) hashmap_find(struct hashmap *hm, unsigned int key)
 {
     unsigned long hash;
     struct hashmap_entry *e = _hashmap_find(hm, key, &hash);
 
-    return e ? e->value : NULL;
+    return e ? cresp_val(void, e->value) : cresp_error(void, CERR_NOT_FOUND);
 }
 
 void hashmap_delete(struct hashmap *hm, unsigned int key)

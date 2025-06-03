@@ -275,11 +275,11 @@ static int hashmap_test0(void)
     CERR_RET(hashmap_insert(&hm, 0, "zero"), goto out);
     CERR_RET(hashmap_insert(&hm, 256, "one"), goto out);
 
-    value = hashmap_find(&hm, 0);
+    value = CRES_RET(hashmap_find(&hm, 0), goto out);
     if (strcmp(value, "zero"))
         goto out;
 
-    value = hashmap_find(&hm, 256);
+    value = CRES_RET(hashmap_find(&hm, 256), goto out);
     if (strcmp(value, "one"))
         goto out;
 
