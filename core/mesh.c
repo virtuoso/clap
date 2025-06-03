@@ -59,6 +59,7 @@ int mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t 
     if (attr >= MESH_MAX)
         return -1;
 
+    mem_free(mesh->attr[attr].data);
     mesh->attr[attr].data = mem_alloc(stride, .nr = nr, .fatal_fail = 1);
     mesh->attr[attr].stride = stride;
     mesh->attr[attr].nr = 0;
