@@ -11,6 +11,12 @@ int input_init(void);
 void fuzzer_input_step(void);
 void fuzzer_input_init(void);
 
+#if !defined(CONFIG_FINAL) && defined(CONFIG_BROWSER)
+void input_debug(void);
+#else
+static inline void input_debug(void) {}
+#endif /* !CONFIG_FINAL && CONFIG_BROWSER */
+
 #ifdef CONFIG_BROWSER
 extern void touch_input_set_size(int, int);
 extern void input_events_dispatch(void);

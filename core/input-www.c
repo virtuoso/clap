@@ -273,6 +273,35 @@ static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void 
 
 static struct touch touch;
 
+#ifndef CONFIG_FINAL
+void input_debug(void)
+{
+    debug_module *dbgm = ui_igBegin(DEBUG_INPUT, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        struct touchpoint *pt;
+        igText("list_empty: %d used_mask: %08x", list_empty(&touch.head), touch.used_mask);
+        list_for_each_entry(pt, &touch.head, entry) {
+            igText("pt%d: %d,%d - %d,%d lifetime: %d imgui: %d pop: %d",
+                pt->id, pt->x, pt->y, pt->orig_x, pt->orig_y, pt->lifetime, pt->imgui, pt->pop
+            );
+        }
+
+        for (int i = 0; i < NR_TOUCHPOINTS; i++) {
+            if (!(touch.used_mask & (1u << i)))
+                continue;
+
+            igText("%d: lifetime: %d", i, touch.pool[i].lifetime);
+        }
+    }
+
+    ui_igEnd(DEBUG_INPUT);
+}
+#endif /* CONFIG_FINAL */
+
 void input_events_dispatch(void)
 {
     struct message_input mi = {};

@@ -261,6 +261,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     profiler_show(PROF_PTR(start));
     renderer_debug(&ctx->renderer);
+    input_debug();
 
     imgui_render();
     display_swap_buffers();
