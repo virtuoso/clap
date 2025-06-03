@@ -268,6 +268,7 @@ typedef struct models_render_options {
     struct camera       *camera;
     unsigned long       *entity_count;
     unsigned long       *txm_count;
+    unsigned long       *culled_count;
     render_options      *render_options;
     ssao_state          *ssao_state;
     unsigned int        width;

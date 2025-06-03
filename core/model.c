@@ -958,10 +958,10 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         *opts->entity_count = nr_ents;
     if (opts->txm_count)
         *opts->txm_count = nr_txms;
+    if (opts->culled_count)
+        *opts->culled_count = culled;
     if (prog)
         shader_prog_done(prog);
-    if (camera && culled)
-        ui_debug_printf("culled entities: %lu", culled);
 }
 
 /****************************************************************************
