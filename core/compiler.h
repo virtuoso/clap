@@ -41,4 +41,6 @@
 #define unreachable __builtin_unreachable
 #endif /* unreachable */
 
+#define barrier() asm volatile("" ::: "memory")
+
 #endif /* __CLAP_COMPILER_H__ */
