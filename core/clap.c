@@ -214,6 +214,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     imgui_render_begin(width, height);
     fuzzer_input_step();
+    input_events_dispatch();
 
     PROF_FIRST(start);
 

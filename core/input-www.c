@@ -85,18 +85,55 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
 
 struct touchpoint {
     struct list entry;
-    long    x, y;
-    long    orig_x, orig_y;
-    long    id;
-    long    grace;
-    long    lifetime;
+    int         x, y;
+    int         orig_x, orig_y;
+    int         id;
+    int         lifetime;
+    bool        imgui;
+    bool        pop;
+    /* XXX: padding */
 };
 
+#define NR_TOUCHPOINTS 32
 struct touch {
-    struct list     head;
-    long            w, h;
-    unsigned int    nr_pts;
+    struct touchpoint   pool[NR_TOUCHPOINTS];
+    uint32_t            used_mask;
+    struct list         head;
+    int                 w, h;
 };
+
+static struct touchpoint *touch_alloc(struct touch *touch)
+{
+    if (touch->used_mask == ~0u)
+        return NULL;
+
+    int slot = __builtin_ctz(~touch->used_mask);
+    touch->used_mask |= 1u << slot;
+    struct touchpoint *pt = &touch->pool[slot];
+    memset(pt, 0, sizeof(*pt));
+
+    /* make sure used_mask store happens before the slot is used */
+    barrier();
+    list_append(&touch->head, &pt->entry);
+
+    return pt;
+}
+
+static void touch_free(struct touch *touch, struct touchpoint *pt)
+{
+    list_del(&pt->entry);
+
+    /* make sure slot is unused before used_mask store */
+    barrier();
+
+    int slot = pt - touch->pool;
+    if (slot >= array_size(touch->pool)) {
+        err("touchpoint out of bounds: %d vs %zu\n", slot, array_size(touch->pool));
+        return;
+    }
+
+    touch->used_mask &= ~(1u << slot);
+}
 
 static struct touchpoint *touch_find(struct touch *touch, long id)
 {
@@ -109,64 +146,25 @@ static struct touchpoint *touch_find(struct touch *touch, long id)
     return NULL;
 }
 
-static void touch_push(struct touch *touch, long id, long x, long y)
+static void touch_push(struct touch *touch, int id, int x, int y)
 {
     struct touchpoint *pt = touch_find(touch, id);
 
     if (pt) {
         pt->x = x;
         pt->y = y;
-        pt->grace = 0;
-        pt->lifetime++;
-        // dbg("already have touch %ld\n", id);
         return;
     }
-    // dbg("new touch %ld\n", id);
-    pt = mem_alloc(sizeof(*pt), .zero = 1, .fatal_fail = 1);
+
+    pt = touch_alloc(touch);
+    if (!pt)
+        return;
+
     pt->id = id;
     pt->x = x;
     pt->y = y;
     pt->orig_x = x;
     pt->orig_y = y;
-    list_append(&touch->head, &pt->entry);
-}
-
-static void touch_pop(struct touch *touch, long id)
-{
-    struct touchpoint *pt = touch_find(touch, id);
-
-    if (!pt)
-        return;
-    // dbg("touch %ld (%p) [lt: %lu] on notice\n", id, pt, pt->lifetime);
-    if (pt->lifetime < 3) {
-        struct message_input mi;
-
-        memset(&mi, 0, sizeof(mi));
-        /* send a dash on a short tap */
-        mi.pad_rb = 1;
-        mi.x = pt->x;
-        mi.y = pt->y;
-        message_input_send(&mi, &keyboard_source);
-    }
-    pt->grace = 300;
-}
-
-static void touch_gc(struct touch *touch)
-{
-    struct touchpoint *pt, *iter;
-
-    list_for_each_entry_iter(pt, iter, &touch->head, entry) {
-        if (!pt->grace)
-            continue;
-
-        pt->grace--;
-        // dbg("## touch %ld countdown: %ld\n", pt->id, pt->grace);
-        if (!pt->grace) {
-            // dbg("touch %ld removed\n", pt->id);
-            list_del(&pt->entry);
-            mem_free(pt);
-        }
-    }
 }
 
 static EM_BOOL touchstart_callback(int type, const EmscriptenTouchEvent *e, void *userData)
@@ -177,9 +175,21 @@ static EM_BOOL touchstart_callback(int type, const EmscriptenTouchEvent *e, void
     // dbg("touchstart_callback: %d: '%s' num_touches: %d\n", type, emscripten_event_type_to_string(type), e->numTouches);
     for (i = 0; i < e->numTouches; ++i) {
         const EmscriptenTouchPoint *t = &e->touches[i];
-        // dbg("  %ld: screen: (%ld,%ld), client: (%ld,%ld), page: (%ld,%ld), isChanged: %d, onTarget: %d, canvas: (%ld, %ld)\n",
+
+        // dbg("  %d: screen: (%d,%d), client: (%d,%d), page: (%d,%d), isChanged: %d, onTarget: %d, canvas: (%d, %d)\n",
         //     t->identifier, t->screenX, t->screenY, t->clientX, t->clientY, t->pageX, t->pageY, t->isChanged, t->onTarget, t->canvasX, t->canvasY);
         touch_push(touch, t->identifier, t->pageX, t->pageY);
+
+        /*
+         * assume that only the first (preferably single) touch is used to
+         * interact with ImGui
+         */
+        if (!i) {
+            __ui_set_mouse_position(t->pageX, t->pageY);
+            struct touchpoint *pt = touch_find(touch, t->identifier);
+            if (pt)
+                pt->imgui = true;
+        }
     }
 
     return true;
@@ -190,17 +200,26 @@ static EM_BOOL touchend_callback(int type, const EmscriptenTouchEvent *e, void *
     struct touch *touch = userData;
     int i;
 
-    /*
-     * TODO: process input here VS in UI code
-     *
-     * Some quick touches can translate to mouse events;
-     * touchstart+touchmove... -> delta_{l,r}{x,y}
-     */
-    // dbg("touchend_callback: %d: '%s' num_touches: %d\n", type, emscripten_event_type_to_string(type), e->numTouches);
     for (i = 0; i < e->numTouches; ++i) {
         const EmscriptenTouchPoint *t = &e->touches[i];
-        touch_pop(touch, t->identifier);
-        // dbg("  %ld: screen: (%ld,%ld), client: (%ld,%ld), page: (%ld,%ld), isChanged: %d, onTarget: %d, canvas: (%ld, %ld)\n",
+
+        struct touchpoint *pt = touch_find(touch, t->identifier);
+        if (!pt)
+            continue;
+
+        if (pt->imgui) {
+            __ui_set_mouse_click(0, false);
+        } else if (pt->x == pt->orig_x && pt->y == pt->orig_y && pt->lifetime < 10) {
+            /* a short tap without movement -> mouse click */
+            struct message_input mi = {};
+            mi.mouse_click = 1;
+            mi.x = pt->x;
+            mi.y = pt->y;
+            message_input_send(&mi, &keyboard_source);
+        }
+
+        pt->pop = true;
+        // dbg("  %d: screen: (%d,%d), client: (%d,%d), page: (%d,%d), isChanged: %d, onTarget: %d, canvas: (%d, %d)\n",
         //     t->identifier, t->screenX, t->screenY, t->clientX, t->clientY, t->pageX, t->pageY, t->isChanged, t->onTarget, t->canvasX, t->canvasY);
     }
 
@@ -212,40 +231,22 @@ static EM_BOOL touch_callback(int type, const EmscriptenTouchEvent *e, void *use
     struct touch *touch = userData;
     int i;
 
-    /*
-     * TODO: process input here VS in UI code
-     *
-     * Some quick touches can translate to mouse events;
-     * touchstart+touchmove... -> delta_{l,r}{x,y}
-     */
-    // dbg("touch_callback2: %d: '%s' num_touches: %d\n", type, emscripten_event_type_to_string(type), e->numTouches);
-    if (e->numTouches == 3) {
-        struct message m;
-
-        memset(&m, 0, sizeof(m));
-        m.type = MT_COMMAND;
-        m.cmd.menu_enter = 1;
-        message_send(&m);
-        return true;
-    }
-
     for (i = 0; i < e->numTouches; ++i) {
         const EmscriptenTouchPoint *t = &e->touches[i];
+
         struct touchpoint *pt = touch_find(touch, t->identifier);
 
         if (!pt)
             continue;
 
-        if (pt->grace)
-            dbg("touch %ld drop notice\n", pt->id);
-        pt->grace = 0;
-        pt->lifetime++;
-        // dbg("  %ld: screen: (%ld,%ld), client: (%ld,%ld), page: (%ld,%ld), isChanged: %d, onTarget: %d, canvas: (%ld, %ld)\n",
+        if (!i && pt->imgui)
+            __ui_set_mouse_position(t->pageX, t->pageY);
+
+        // dbg("  %d: screen: (%d,%d), client: (%d,%d), page: (%d,%d), isChanged: %d, onTarget: %d, canvas: (%d, %d)\n",
         //     t->identifier, t->screenX, t->screenY, t->clientX, t->clientY, t->pageX, t->pageY, t->isChanged, t->onTarget, t->canvasX, t->canvasY);
         pt->x = t->pageX;
         pt->y = t->pageY;
     }
-    touch_gc(touch);
 
     return true;
 }
@@ -271,18 +272,29 @@ static EM_BOOL gamepad_callback(int type, const EmscriptenGamepadEvent *e, void 
 }
 
 static struct touch touch;
-void www_touch_poll(void)
+
+void input_events_dispatch(void)
 {
-    struct message_input mi;
-    struct touchpoint *pt;
+    struct message_input mi = {};
+    struct touchpoint *pt, *ptit;
 
-    touch_gc(&touch);
+    list_for_each_entry_iter(pt, ptit, &touch.head, entry) {
 
-    memset(&mi, 0, sizeof(mi));
-    list_for_each_entry(pt, &touch.head, entry) {
-
-        if (pt->grace)
+        if (pt->pop) {
+            touch_free(&touch, pt);
             continue;
+        }
+
+        if (pt->imgui) {
+            if (__ui_mouse_event_propagate()) {
+                __ui_set_mouse_click(0, true);
+                continue;
+            } else {
+                pt->imgui = false;
+            }
+        }
+
+        pt->lifetime++;
         if (pt->orig_x < touch.w / 2) {
             /* left stick */
             mi.delta_lx = (float)(pt->x - pt->orig_x) / touch.w * 8;
@@ -435,6 +447,7 @@ void touch_input_set_size(int width, int height)
 int platform_input_init(void)
 {
     list_init(&touch.head);
+    touch.used_mask = 0;
     CHECK0(emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback));
     CHECK0(emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback));
     CHECK0(emscripten_set_touchstart_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, &touch, 1, touchstart_callback));

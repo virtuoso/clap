@@ -118,12 +118,10 @@ EMSCRIPTEN_KEEPALIVE void display_resize(int w, int h)
 }
 
 extern void www_joysticks_poll(void);
-extern void www_touch_poll(void);
 void display_swap_buffers(void)
 {
     emscripten_webgl_commit_frame();
     www_joysticks_poll();
-    www_touch_poll();
     joysticks_poll();
 }
 
