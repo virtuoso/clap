@@ -324,9 +324,9 @@ static void ui_text_measure(struct ui_text *uit)
         if (uit->str[i] == '\n' || !uit->str[i]) { /* end of line */
             nr_words++;
 
-            CHECK(uit->line_w = realloc(uit->line_w, sizeof(*uit->line_w) * (uit->nr_lines + 1)));
-            CHECK(uit->line_ws = realloc(uit->line_ws, sizeof(*uit->line_ws) * (uit->nr_lines + 1)));
-            CHECK(uit->line_nrw = realloc(uit->line_nrw, sizeof(*uit->line_nrw) * (uit->nr_lines + 1)));
+            uit->line_w = mem_realloc_array(uit->line_w, uit->nr_lines + 1, sizeof(*uit->line_w), .fatal_fail = 1);
+            uit->line_ws = mem_realloc_array(uit->line_ws, uit->nr_lines + 1, sizeof(*uit->line_ws), .fatal_fail = 1);
+            uit->line_nrw = mem_realloc_array(uit->line_nrw, uit->nr_lines + 1, sizeof(*uit->line_nrw), .fatal_fail = 1);
             uit->line_w[uit->nr_lines] = nonws_w;// + ws_w * (nr_words - 1);
             uit->line_nrw[uit->nr_lines] = nr_words - 1;
             w = max(w, nonws_w + ws_w * (nr_words - 1));
