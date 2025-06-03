@@ -663,6 +663,7 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
         } else {
             display_fps = true;
         }
+        ui_menu_done(ui);
     } else if (!strcmp(str, "Devel")) {
         ui_toggle_debug_selector();
         ui_menu_done(ui); /* cancels modality */
