@@ -173,13 +173,7 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
 
     struct ui_element *uie = container_of(ref, struct ui_element, ref);
 
-    cresp(entity3d) res = ref_new_checked(entity3d, .txmodel = opts->txmodel);
-
-    if (IS_CERR(res))
-        return cerr_error_cres(res);
-
-    entity3d *e = res.val;
-    uie->entity = e;
+    uie->entity = CRES_RET_CERR(ref_new_checked(entity3d, .txmodel = opts->txmodel));
     uie->entity->destroy = ui_element_destroy;
     uie->ui = opts->ui;
     if (opts->parent) {
@@ -221,10 +215,10 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
     list_init(&uie->children);
     list_init(&uie->animation);
 
-    e->update  = ui_element_update;
-    e->priv    = uie;
-    e->visible = 1;
-    entity3d_color(e, COLOR_PT_NONE, (vec4){});
+    uie->entity->update  = ui_element_update;
+    uie->entity->priv    = uie;
+    uie->entity->visible = 1;
+    entity3d_color(uie->entity, COLOR_PT_NONE, (vec4){});
 
     ui_element_position(uie, opts->ui);
 
@@ -442,11 +436,7 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     fbo_ui.width = uit.width + uit.margin_x * 2;
     fbo_ui.height = uit.height + uit.margin_y * 2;
     mq_init(&fbo_ui.mq, &fbo_ui);
-    cresp(fbo_t) res = fbo_new(fbo_ui.width, fbo_ui.height);
-    if (IS_CERR(res))
-        return NULL;
-
-    fbo = res.val;
+    fbo = CRES_RET(fbo_new(fbo_ui.width, fbo_ui.height), return NULL);
 
     if (parent) {
         parent->width = uit.width + uit.margin_x * 2;
@@ -738,17 +728,17 @@ static cerr ui_widget_make(struct ref *ref, void *_opts)
         return CERR_NOMEM;
 
     /* XXX: render texts to FBOs to textures */
-    cresp(ui_element) res = ref_new_checked(ui_element,
-                                            .ui          = opts->ui,
-                                            .txmodel     = ui_quadtx,
-                                            .uwb         = opts->uwb,
-                                            .uwb_root    = true);
-    if (IS_CERR(res)) {
-        mem_free(uiw->uies);
-        return cerr_error_cres(res);
-    }
+    uiw->root = CRES_RET(
+        ref_new_checked(
+            ui_element,
+            .ui          = opts->ui,
+            .txmodel     = ui_quadtx,
+            .uwb         = opts->uwb,
+            .uwb_root    = true
+        ),
+        { mem_free(uiw->uies); return cerr_error_cres(__resp); }
+    );
 
-    uiw->root = res.val;
     uiw->root->widget = uiw;
     uiw->nr_uies = opts->nr_items;
     list_append(&opts->ui->widgets, &uiw->entry);
@@ -827,19 +817,20 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     int i;
 
     /* XXX^0: affinity and placement hardcoded */
-    cresp(ui_widget) res = ref_new_checked(ui_widget,
-                                           .ui       = ui,
-                                           .nr_items = 4,
-                                           .uwb      = &(struct ui_widget_builder) {
-                                                 .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
-                                                 .w          = 0.3,
-                                                 .h          = 0.3
-                                           });
-
-    if (IS_CERR(res))
+    wheel = CRES_RET(
+        ref_new_checked(
+            ui_widget,
+            .ui       = ui,
+            .nr_items = 4,
+            .uwb      = &(struct ui_widget_builder) {
+                  .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
+                  .w          = 0.3,
+                  .h          = 0.3
+            }
+        ),
         return NULL;
+    );
 
-    wheel = res.val;
     wheel->focus   = -1;
 
     /* XXX^2: font global/hardcoded */
@@ -1626,21 +1617,22 @@ cresp(ui_widget) _ui_progress_bar_new(struct ui *ui, const progress_bar_options 
     float bar_width = opts->width - 2 * opts->border;
     float bar_height = opts->height - 2 * opts->border;
 
-    cresp(ui_widget) res    = ref_new_checked(ui_widget,
-        .ui                 = ui,
-        .nr_items           = 2,
-        .uwb                = &(struct ui_widget_builder) {
-            .affinity       = opts->affinity,
-            .w              = opts->width,
-            .h              = opts->height,
-            .y_off          = opts->y_off,
-        }
+    struct ui_widget *progress_bar = CRES_RET_T(
+        ref_new_checked(
+            ui_widget,
+            .ui                 = ui,
+            .nr_items           = 2,
+            .uwb                = &(struct ui_widget_builder) {
+                .affinity       = opts->affinity,
+                .w              = opts->width,
+                .h              = opts->height,
+                .y_off          = opts->y_off,
+            }
+        ),
+        ui_widget
     );
 
-    if (IS_CERR(res))
-        return cresp_error_cerr(ui_widget, res);
-
-    res.val->priv = (void *)(uintptr_t)bar_width;
+    progress_bar->priv = (void *)(uintptr_t)bar_width;
 
     model3d *frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0, opts->width, opts->height, opts->border);
     frame_m->depth_testing = false;
@@ -1652,40 +1644,37 @@ cresp(ui_widget) _ui_progress_bar_new(struct ui *ui, const progress_bar_options 
     model3dtx *bar_txm = ref_new(model3dtx, .model = ref_pass(bar_m), .tex = white_pixel());
     ui_add_model(ui, bar_txm);
 
-    struct ui_widget *progress_bar = res.val;
-    cresp(ui_element) uie_res = ref_new_checked(ui_element,
-        .ui         = ui,
-        .parent     = progress_bar->root,
-        .txmodel    = bar_txm,
-        .affinity   = UI_AF_VCENTER | UI_AF_LEFT,
-        .x_off      = opts->border,
-        .y_off      = opts->border,
-        .width      = bar_width,
-        .height     = bar_height,
+    progress_bar->uies[0] = CRES_RET(
+        ref_new_checked(
+            ui_element,
+            .ui         = ui,
+            .parent     = progress_bar->root,
+            .txmodel    = bar_txm,
+            .affinity   = UI_AF_VCENTER | UI_AF_LEFT,
+            .x_off      = opts->border,
+            .y_off      = opts->border,
+            .width      = bar_width,
+            .height     = bar_height,
+        ),
+        { ref_put(progress_bar); return cresp_error_cerr(ui_widget, __resp); }
     );
-    if (IS_CERR(uie_res)) {
-        ref_put(res.val);
-        return cresp_error_cerr(ui_widget, uie_res);
-    }
 
-    progress_bar->uies[0] = uie_res.val;
     entity3d_color(progress_bar->uies[0]->entity, COLOR_PT_ALL,
                    opts->bar_color ? : (vec4){ 0, 0, 1, 1 });
 
-    uie_res = ref_new_checked(ui_element,
-        .ui         = ui,
-        .parent     = progress_bar->root,
-        .txmodel    = frame_txm,
-        .affinity   = UI_AF_BOTTOM | UI_AF_LEFT,
-        .width      = opts->width,
-        .height     = opts->height,
+    progress_bar->uies[1] = CRES_RET(
+        ref_new_checked(
+            ui_element,
+            .ui         = ui,
+            .parent     = progress_bar->root,
+            .txmodel    = frame_txm,
+            .affinity   = UI_AF_BOTTOM | UI_AF_LEFT,
+            .width      = opts->width,
+            .height     = opts->height,
+        ),
+        { ref_put(progress_bar); return cresp_error_cerr(ui_widget, __resp); }
     );
-    if (IS_CERR(uie_res)) {
-        ref_put(res.val);
-        return cresp_error_cerr(ui_widget, uie_res);
-    }
 
-    progress_bar->uies[1] = uie_res.val;
     progress_bar->uies[1]->width = 1.0;
     progress_bar->uies[1]->height = 1.0;
     ui_element_position(progress_bar->uies[1], ui);
@@ -1742,11 +1731,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
         goto err;
     }
 
-    ret = ui_model_init(ui);
-    if (IS_CERR(ret)) {
-        font_put(font);
-        goto err;
-    }
+    CERR_RET(ui_model_init(ui), { font_put(font); goto err; });
 
     uie1 = ref_new(ui_element,
                    .ui          = ui,
