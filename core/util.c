@@ -184,14 +184,17 @@ static unsigned long hash_simple(struct hashmap *hm, unsigned int key)
     return key & (hm->nr_buckets - 1);
 }
 
-int hashmap_init(struct hashmap *hm, size_t nr_buckets)
+cerr hashmap_init(struct hashmap *hm, size_t nr_buckets)
 {
     int i;
 
     if (nr_buckets & (nr_buckets - 1))
-        return -1;
+        return CERR_INVALID_ARGUMENTS;
 
     hm->buckets = mem_alloc(sizeof(struct list), .nr = nr_buckets);
+    if (!hm->buckets)
+        return CERR_NOMEM;
+
     hm->nr_buckets = nr_buckets;
     hm->hash = hash_simple;
     list_init(&hm->list);
@@ -199,7 +202,7 @@ int hashmap_init(struct hashmap *hm, size_t nr_buckets)
     for (i = 0; i < nr_buckets; i++)
         list_init(&hm->buckets[i]);
 
-    return 0;
+    return CERR_OK;
 }
 
 void hashmap_done(struct hashmap *hm)

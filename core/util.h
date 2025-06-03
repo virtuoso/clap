@@ -319,7 +319,7 @@ struct hashmap_entry {
     unsigned int    key;
 };
 
-int hashmap_init(struct hashmap *hm, size_t nr_buckets);
+cerr_check hashmap_init(struct hashmap *hm, size_t nr_buckets);
 void *hashmap_find(struct hashmap *hm, unsigned int key);
 void hashmap_delete(struct hashmap *hm, unsigned int key);
 cerr_check hashmap_insert(struct hashmap *hm, unsigned int key, void *value);

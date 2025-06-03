@@ -267,27 +267,30 @@ static int darray_test2(void)
 
 static int hashmap_test0(void)
 {
+    int ret = EXIT_FAILURE;
     struct hashmap hm;
     char *value;
 
-    hashmap_init(&hm, 256);
-    CERR_RET(hashmap_insert(&hm, 0, "zero"), return EXIT_FAILURE);
-    CERR_RET(hashmap_insert(&hm, 256, "one"), return EXIT_FAILURE);
+    CERR_RET(hashmap_init(&hm, 256), return EXIT_FAILURE);
+    CERR_RET(hashmap_insert(&hm, 0, "zero"), goto out);
+    CERR_RET(hashmap_insert(&hm, 256, "one"), goto out);
 
     value = hashmap_find(&hm, 0);
     if (strcmp(value, "zero"))
-        return EXIT_FAILURE;
+        goto out;
 
     value = hashmap_find(&hm, 256);
     if (strcmp(value, "one"))
-        return EXIT_FAILURE;
+        goto out;
 
+    ret = EXIT_SUCCESS;
+out:
     hashmap_done(&hm);
 
     if (!list_empty(&hm.list) || hm.nr_buckets)
         return EXIT_FAILURE;
 
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 struct hashmap_test_data {
@@ -309,20 +312,22 @@ static int hashmap_test1(void)
 {
     struct hashmap_test_data ctx = {};
     struct hashmap hm;
-    long i;
+    long i, ret = EXIT_FAILURE;
 
-    hashmap_init(&hm, 256);
+    CERR_RET(hashmap_init(&hm, 256), return EXIT_FAILURE);
 
     for (i = 1; i < 1024; i++)
-        CERR_RET(hashmap_insert(&hm, i, (void *)(uintptr_t)i), return EXIT_FAILURE);
+        CERR_RET(hashmap_insert(&hm, i, (void *)(uintptr_t)i), goto out);
     hashmap_for_each(&hm, hashmap_cb, &ctx);
 
+    ret = EXIT_SUCCESS;
+out:
     hashmap_done(&hm);
 
     if (ctx.broken)
         return EXIT_FAILURE;
 
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 static int bitmap_test0(void)
