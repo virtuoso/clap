@@ -915,7 +915,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (jsrc->number_ >= darray_count(gd->imgs))
             continue;
 
-        CHECK(gd->texs = realloc(gd->texs, (gd->nr_texs + 1) * sizeof(unsigned int)));
+        gd->texs = mem_realloc_array(gd->texs, (gd->nr_texs + 1), sizeof(unsigned int), .fatal_fail = 1);
         gd->texs[gd->nr_texs] = jsrc->number_;
         // dbg("texture %d: source: %d\n", gd->nr_texs, gd->texs[gd->nr_texs]);
         gd->nr_texs++;
