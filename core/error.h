@@ -130,6 +130,8 @@ typedef struct cerr {
 
 /* Declare cres with int value */
 cres_ret(int);
+/* Declare cres with void pointer value */
+cresp_ret(void);
 
 /*
  * Make sure that cerr and cres(T) have err, mod and line at same offsets, so
