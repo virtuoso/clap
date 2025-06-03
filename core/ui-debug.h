@@ -75,6 +75,8 @@ bool ui_igMat4x4(mat4x4 m, const char *name);
 bool ui_igControlTableHeader(const char *str_id_fmt, const char *longest_label, ...);
 bool ui_igCheckbox(const char *label, bool *v);
 void ui_igLabel(const char *label);
+bool ui_igSliderInt(const char *label, int *v, int min, int max, const char *fmt,
+                    ImGuiSliderFlags flags);
 bool ui_igSliderFloat(const char *label, float *v, float min, float max, const char *fmt,
                       ImGuiSliderFlags flags);
 bool ui_igSliderFloat3(const char *label, float *v, float min, float max, const char *fmt,

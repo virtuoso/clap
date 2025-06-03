@@ -336,6 +336,22 @@ bool ui_igSliderFloat(const char *label, float *v, float min, float max, const c
     return ret;
 }
 
+bool ui_igSliderInt(const char *label, int *v, int min, int max, const char *fmt,
+                    ImGuiSliderFlags flags)
+{
+    ui_igLabel(label);
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "##%s", label);
+
+    igTableNextColumn();
+    igPushItemWidth(-1.0);
+    bool ret = igSliderInt(buf, v, min, max, fmt, flags);
+    igPopItemWidth();
+
+    return ret;
+}
+
 bool ui_igSliderFloat3(const char *label, float *v, float min, float max, const char *fmt,
                        ImGuiSliderFlags flags)
 {
