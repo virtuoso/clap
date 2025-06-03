@@ -27,6 +27,10 @@
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
       canvas.emscripten { border: 0px none; background-color: black; width: 100vw; }
       .canvas {
+        -webkit-touch-callout: none;   /* disable long-press menu */
+        -webkit-user-select: none;     /* disable selection */
+        user-select: none;             /* same for non-webkit */
+        touch-action: none;            /* disable pinch/double-tap zoom etc */
         width: 100vw;
         height: 80vh;
       }
@@ -160,9 +164,12 @@
           if (text) Module.printErr('[post-exception status] ' + text);
         };
       };
+      document.addEventListener('touchstart', function (event) {
+	      event.preventDefault();
+      }, { passive: false });
       document.addEventListener('touchmove', function (event) {
-	      if (event.scale !== 1) {event.preventDefault(); }
-      }, false);
+	      event.preventDefault();
+      }, { passive: false });
       document.addEventListener('mousewheel', function (event) {
 	      // if (event.originalEvent.wheelDeltaX !== 0) {event.preventDefault(); }
         event.preventDefault();
