@@ -235,7 +235,7 @@ void mesh_optimize(struct mesh *mesh)
         
         meshopt_remapVertexBuffer(ma->data, ma->data, ma->nr, ma->stride, remap);
         if (nr_new_vx < ma->nr) {
-            CHECK(ma->data = realloc(ma->data, nr_new_vx * ma->stride));
+            ma->data = mem_realloc_array(ma->data, nr_new_vx, ma->stride, .fatal_fail = 1);
             ma->nr = nr_new_vx;
         }
     }
@@ -256,7 +256,7 @@ void mesh_optimize(struct mesh *mesh)
         
         meshopt_remapVertexBuffer(ma->data, ma->data, ma->nr, ma->stride, remap);
         if (nr_new_vx < ma->nr) {
-            CHECK(ma->data = realloc(ma->data, nr_new_vx * ma->stride));
+            ma->data = mem_realloc_array(ma->data, nr_new_vx, ma->stride, .fatal_fail = 1);
             ma->nr = nr_new_vx;
         }
     }
