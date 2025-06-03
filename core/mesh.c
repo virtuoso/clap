@@ -273,21 +273,43 @@ size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *
     float result_error = 0.0, target_error = 0.01f + 0.02f * lod;
     unsigned int *idx32;
 
+    /* first, try 50% */
     idx32 = mesh_idx_to_idx32(mesh);
     nr_idx = meshopt_simplify(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
                               target, target_error, 0, &result_error);
 
+    if (nr_idx <= target)
+        goto out;
+
+    /* then, try 75% */
+    target += orig_idx / (1 << (lod + 2));
+    mem_free(idx32);
+    idx32 = mesh_idx_to_idx32(mesh);
+    nr_idx = meshopt_simplify(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
+                              target, target_error, 0, &result_error);
+
+    if (nr_idx <= target)
+        goto out;
+
+    /* then, try 87.5% */
+    target += orig_idx / (1 << (lod + 3));
+    mem_free(idx32);
+    idx32 = mesh_idx_to_idx32(mesh);
+    nr_idx = meshopt_simplify(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
+                              target, target_error, 0, &result_error);
+
+    if (nr_idx <= target)
+        goto out;
+
+    /* then, fall back to slappy */
+    mem_free(idx32);
+    idx32 = mesh_idx_to_idx32(mesh);
+    nr_idx = meshopt_simplifySloppy(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
+                                    target, target_error, &result_error);
+    result_error = -result_error;
+
+out:
     *error = result_error;
-#define goodenough(_new, _orig) ((_new) * 11 / 10 < (_orig))
-    if (!goodenough(nr_idx, target)) {
-        mem_free(idx32);
-        idx32 = mesh_idx_to_idx32(mesh);
-        nr_idx = meshopt_simplifySloppy(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
-                                        target, target_error * 0.1, &result_error);
-
-        *error = -result_error;
-    }
-
     *idx = idx32_to_idx(idx32, nr_idx);
     mem_free(idx32);
 
