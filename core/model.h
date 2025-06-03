@@ -47,6 +47,7 @@ typedef struct model3d {
     sfx_container       sfxc;
     unsigned int        nr_vertices;
     unsigned int        nr_faces[LOD_MAX];
+    float               lod_errors[LOD_MAX];
     bool                skip_aabb;
     struct model_joint  *joints;
     /* Collision mesh, if needed */

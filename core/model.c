@@ -28,12 +28,12 @@
 static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
 {
     unsigned short *lod = NULL;
-    ssize_t nr_idx;
+    size_t nr_idx, prev_nr_idx = mesh_nr_idx(mesh);
     int level;
 
-    for (level = 0, nr_idx = mesh_nr_idx(mesh); level < LOD_MAX - 1; level++) {
-        nr_idx = mesh_idx_to_lod(mesh, level, &lod, nr_idx);
-        if (nr_idx < 0)
+    for (level = 0; level < LOD_MAX - 1; level++) {
+        nr_idx = mesh_idx_to_lod(mesh, level, &lod, &m->lod_errors[m->nr_lods]);
+        if (nr_idx >= prev_nr_idx)
             break;
         cerr err = buffer_init(&m->index[m->nr_lods],
                                .type       = BUF_ELEMENT_ARRAY,

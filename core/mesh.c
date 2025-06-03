@@ -265,9 +265,10 @@ void mesh_optimize(struct mesh *mesh)
     mesh_idx_from_idx32(mesh, idx32);
 }
 
-ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t orig_idx)
+size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *error)
 {
     struct mesh_attr *vxa = mesh_attr(mesh, MESH_VX);
+    size_t orig_idx = mesh_nr_idx(mesh);
     size_t nr_idx, target = orig_idx / (1 << (lod + 1));
     float result_error = 0.0, target_error = 0.01f + 0.02f * lod;
     unsigned int *idx32;
@@ -276,10 +277,13 @@ ssize_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, size_t
     nr_idx = meshopt_simplify(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
                               target, target_error, 0, &result_error);
 
+    *error = result_error;
 #define goodenough(_new, _orig) ((_new) * 11 / 10 < (_orig))
     if (!goodenough(nr_idx, target)) {
         nr_idx = meshopt_simplifySloppy(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
                                         target, target_error * 0.1, &result_error);
+
+        *error = -result_error;
     }
 
     *idx = idx32_to_idx(idx32, nr_idx);
