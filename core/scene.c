@@ -411,6 +411,10 @@ static void scene_entity_inspector_debug(struct scene *scene)
         if (ui_igSliderFloat("rz", &rz, -180.0, 180.0, "%.02f", 0))
             entity3d_rotate_Z(e, to_radians(rz));
 
+        int lod = e->cur_lod;
+        int nr_lods = max(e->txmodel->model->nr_lods - 1, 0);
+        if (ui_igSliderInt("LOD", &lod, 0, nr_lods, "%u", 0))
+            entity3d_set_lod(e, lod, true);
         igEndTable();
 
         model3d *m = e->txmodel->model;
