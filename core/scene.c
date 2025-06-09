@@ -457,6 +457,28 @@ static int scene_debug_draw(struct message *m, void *data)
     );
 
     switch (dd->shape) {
+        case DEBUG_DRAW_TEXT:
+            {
+                vec4 v0;
+                vec3_dup(v0, dd->v0);
+                v0[3] = 1.0;
+
+                mat4x4_mul_vec4_post(v0, mvp, v0);
+
+                if (v0[3] > 1e-3) {
+                    vec3_scale(v0, v0, 1.0 / v0[3]);
+
+                    ImVec2 p0 = {
+                        .x = ((v0[0] + 1.0) / 2.0) * s->width / io->DisplayFramebufferScale.x,
+                        .y = ((1.0 - v0[1]) / 2.0) * s->height / io->DisplayFramebufferScale.y,
+                    };
+
+                    ImDrawList_AddText_Vec2(draw, p0, color, dd->text, NULL);
+                }
+                mem_free(dd->text);
+            }
+            break;
+
         case DEBUG_DRAW_CIRCLE:
             {
                 vec4 v0;
