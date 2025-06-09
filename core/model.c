@@ -33,7 +33,8 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
 
     for (level = 0; level < LOD_MAX - 1; level++) {
         nr_idx = mesh_idx_to_lod(mesh, level, &lod, &m->lod_errors[m->nr_lods]);
-        if (nr_idx >= prev_nr_idx) {
+        /* Sloppy LODs are not useful at the moment, don't waste space on them */
+        if (nr_idx >= prev_nr_idx || m->lod_errors[m->nr_lods] < 0.0) {
             mem_free(lod);
             break;
         }
