@@ -33,8 +33,11 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
 
     for (level = 0; level < LOD_MAX - 1; level++) {
         nr_idx = mesh_idx_to_lod(mesh, level, &lod, &m->lod_errors[m->nr_lods]);
-        if (nr_idx >= prev_nr_idx)
+        if (nr_idx >= prev_nr_idx) {
+            mem_free(lod);
             break;
+        }
+
         cerr err = buffer_init(&m->index[m->nr_lods],
                                .type       = BUF_ELEMENT_ARRAY,
                                .usage      = BUF_STATIC,
