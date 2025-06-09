@@ -611,6 +611,24 @@ int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
     return 0;
 }
 
+void entity3d_set_lod(entity3d *e, int lod, bool force)
+{
+    model3d *m = e->txmodel->model;
+
+    if (force) {
+        if (lod < 0) {
+            e->force_lod = -1;
+            lod = 0;
+        } else {
+            e->force_lod = lod = clamp(lod, 0, m->nr_lods - 1);
+        }
+    } else if (e->force_lod >= 0) {
+        lod = model3d_validate_lod(m, e->force_lod);
+    }
+
+    e->cur_lod = model3d_validate_lod(m, lod);
+}
+
 static void model3d_prepare(model3d *m, struct shader_prog *p)
 {
     vertex_array_bind(&m->vao);
@@ -896,19 +914,23 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             }
 
             if (camera && camera->ch) {
-                vec3 pos;
+                if (e->force_lod >= 0) {
+                    e->cur_lod = e->force_lod;
+                } else {
+                    vec3 pos;
 
-                vec3_dup(pos, camera->ch->entity->pos);
+                    vec3_dup(pos, camera->ch->entity->pos);
 
-                /* only apply LOD when the camera is outside the AABB */
-                if (!aabb_point_is_inside(e->aabb, pos)) {
-                    vec3 dist;
+                    /* only apply LOD when the camera is outside the AABB */
+                    if (!aabb_point_is_inside(e->aabb, pos)) {
+                        vec3 dist;
 
-                    vec3_sub(dist, e->aabb_center, pos);
-                    float side = entity3d_aabb_avg_edge(e);
-                    /* microoptimization: squaring things is faster than sqrt() */
-                    float scale = fabsf(vec3_mul_inner(dist, dist) - side * side) / 3600.0;
-                    e->cur_lod = model3d_validate_lod(model, (int)scale);
+                        vec3_sub(dist, e->aabb_center, pos);
+                        float side = entity3d_aabb_avg_edge(e);
+                        /* microoptimization: squaring things is faster than sqrt() */
+                        float scale = fabsf(vec3_mul_inner(dist, dist) - side * side) / 3600.0;
+                        entity3d_set_lod(e, (int)scale, false);
+                    }
                 }
             }
             if (e->cur_lod != lod) {
@@ -1447,6 +1469,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     darray_init(e->aniq);
     e->animation = -1;
     e->light_idx = -1;
+    e->force_lod = -1;
     e->scale     = 1.0;
     e->visible   = 1;
     e->update    = default_update;

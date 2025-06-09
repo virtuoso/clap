@@ -243,6 +243,7 @@ typedef struct entity3d {
     float   scale;
     int     light_idx;
     int     cur_lod;
+    int     force_lod;
     int     updated;
     bool    skip_culling;
     bool    ani_cleared;
@@ -315,6 +316,8 @@ void entity3d_update(entity3d *e, void *data);
 void entity3d_delete(entity3d *e);
 bool entity3d_matches(entity3d *e, entity3d_flags flags);
 
+/* Set entity's LOD */
+void entity3d_set_lod(entity3d *e, int lod, bool force);
 /* Set entity's color override mode and color */
 void entity3d_color(entity3d *e, int color_pt, vec4 color);
 
