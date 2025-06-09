@@ -48,8 +48,15 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
 
         dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
         m->nr_faces[m->nr_lods] = nr_idx;
+        if (m->lod_errors[m->nr_lods] > 0.0)
+            m->lod_max++;
         m->nr_lods++;
     }
+}
+
+static int model3d_validate_lod(model3d *m, int lod)
+{
+    return clamp(lod, m->lod_min, m->lod_max);
 }
 
 static cerr model3d_make(struct ref *ref, void *_opts)
@@ -182,7 +189,6 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog);
 
-    m->cur_lod = -1;
     m->nr_vertices = vxsz / sizeof(*vx) / 3;
     m->nr_faces[0] = idxsz / sizeof(*idx);
 
@@ -605,23 +611,9 @@ int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
     return 0;
 }
 
-static void model3d_set_lod(model3d *m, unsigned int lod)
-{
-    if (lod >= m->nr_lods)
-        lod = max(0, m->nr_lods - 1);
-
-    if (lod == m->cur_lod)
-        return;
-
-    buffer_bind(&m->index[lod], -1);
-    m->cur_lod = lod;
-}
-
 static void model3d_prepare(model3d *m, struct shader_prog *p)
 {
     vertex_array_bind(&m->vao);
-    if (m->cur_lod >= 0)
-        buffer_bind(&m->index[m->cur_lod], -1);
     shader_plug_attribute(p, ATTR_POSITION, &m->vertex);
     shader_plug_attribute(p, ATTR_NORMAL, &m->norm);
     shader_plug_attribute(p, ATTR_TANGENT, &m->tangent);
@@ -647,12 +639,12 @@ static void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
     shader_plug_texture(p, UNIFORM_SHADOW_MAP, txm->shadow);
 }
 
-static void model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int nr_instances)
+static void model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int lod, unsigned int nr_instances)
 {
     model3d *m = txm->model;
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    renderer_draw(r, m->draw_type, m->nr_faces[m->cur_lod], DT_USHORT, nr_instances);
+    renderer_draw(r, m->draw_type, m->nr_faces[lod], DT_USHORT, nr_instances);
 }
 
 static void model3d_done(model3d *m, struct shader_prog *p)
@@ -666,10 +658,7 @@ static void model3d_done(model3d *m, struct shader_prog *p)
         shader_unplug_attribute(p, ATTR_WEIGHTS, &m->weights);
     }
 
-    if (m->cur_lod >= 0)
-        buffer_unbind(&m->index[m->cur_lod], -1);
     vertex_array_unbind(&m->vao);
-    m->cur_lod = -1;
 }
 
 static void model3dtx_done(model3dtx *txm, struct shader_prog *p)
@@ -785,7 +774,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         struct shader_prog *model_prog = opts->shader_override ? : model->prog;
 
-        model->cur_lod = 0;
+        int lod = -1;
 
         cull_face cull = CULL_FACE_NONE;
         if (model->cull_face)
@@ -907,14 +896,26 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             }
 
             if (camera && camera->ch) {
-                unsigned int lod;
-                vec3 dist;
+                vec3 pos;
 
-                vec3_dup(dist, e->pos);
+                vec3_dup(pos, camera->ch->entity->pos);
 
-                vec3_sub(dist, dist, camera->ch->entity->pos);
-                lod = false ? vec3_len(dist) / 80 : 0;
-                model3d_set_lod(model, lod);
+                /* only apply LOD when the camera is outside the AABB */
+                if (!aabb_point_is_inside(e->aabb, pos)) {
+                    vec3 dist;
+
+                    vec3_sub(dist, e->aabb_center, pos);
+                    float side = entity3d_aabb_avg_edge(e);
+                    /* microoptimization: squaring things is faster than sqrt() */
+                    float scale = fabsf(vec3_mul_inner(dist, dist) - side * side) / 3600.0;
+                    e->cur_lod = model3d_validate_lod(model, (int)scale);
+                }
+            }
+            if (e->cur_lod != lod) {
+                if (lod >= 0)
+                    buffer_unbind(&model->index[lod], -1);
+                buffer_bind(&model->index[e->cur_lod], -1);
+                lod = e->cur_lod;
             }
 
             shader_set_var_int(prog, UNIFORM_OUTLINE_EXCLUDE, e->outline_exclude);
@@ -947,9 +948,13 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             }
 
             shader_var_blocks_update(prog);
-            model3dtx_draw(r, txmodel, nr_instances);
+            model3dtx_draw(r, txmodel, e->cur_lod, nr_instances);
             nr_ents++;
         }
+
+        if (lod >= 0)
+            buffer_unbind(&model->index[lod], -1);
+
         model3dtx_done(txmodel, prog);
         nr_txms++;
     }

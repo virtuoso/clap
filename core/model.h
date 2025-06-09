@@ -32,7 +32,8 @@ typedef struct model3d {
     unsigned int        nr_joints;
     unsigned int        root_joint;
     unsigned int        nr_lods;
-    int                 cur_lod;
+    unsigned int        lod_min;
+    unsigned int        lod_max;
     float               aabb[6];
     darray(struct animation, anis);
     mat4x4              root_pose;
@@ -241,6 +242,7 @@ typedef struct entity3d {
     float   rx, ry, rz;
     float   scale;
     int     light_idx;
+    int     cur_lod;
     int     updated;
     bool    skip_culling;
     bool    ani_cleared;
