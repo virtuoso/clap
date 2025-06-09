@@ -559,8 +559,34 @@ static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
         message_send(&dm);
     }
 }
+
+static void entity3d_debug(entity3d *e)
+{
+    struct message dm = {
+        .type       = MT_DEBUG_DRAW,
+        .debug_draw = (struct message_debug_draw) {
+            .shape  = DEBUG_DRAW_TEXT,
+            .color  = { 1.0, 1.0, 0.0, 1.0 },
+        }
+    };
+    vec3_dup(dm.debug_draw.v0, e->aabb_center);
+    CRES_RET(
+        mem_asprintf(
+            &dm.debug_draw.text,
+            "%s\npos: %.02f,%.02f,%.02f\nrx: %.02f ry: %.02f rz: %.02f\nscale: %.02f\nLOD %d",
+            entity_name(e),
+            e->pos[0], e->pos[1], e->pos[2],
+            to_degrees(e->rx), to_degrees(e->ry), to_degrees(e->rz),
+            e->scale,
+            e->cur_lod
+        ),
+        return
+    );
+    message_send(&dm);
+}
 #else
 static inline void entity3d_aabb_draw(entity3d *e, bool entity, bool model) {}
+static inline void entity3d_debug(entity3d *e) {}
 #endif /* CONFIG_FINAL */
 
 int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
@@ -1452,6 +1478,8 @@ static int default_update(entity3d *e, void *data)
         animated_update(e, scene);
     if (e->phys_body)
         phys_debug_draw(scene, e->phys_body);
+    if (scene->render_options.overlay_draws_enabled)
+        entity3d_debug(e);
 
     return 0;
 }

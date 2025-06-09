@@ -196,6 +196,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             igSameLine(0.0, 0.0);
             igRadioButton_IntPtr("5x5", &scene->render_options.laplace_kernel, 5);
         }
+        igCheckbox("overlay draws", &scene->render_options.overlay_draws_enabled);
         if (igCheckbox("debug draws", &scene->render_options.debug_draws_enabled))
             phys_capsules_debug_enable(clap_get_phys(scene->clap_ctx), scene->render_options.debug_draws_enabled);
         if (igCheckbox("collision draws", &scene->render_options.collision_draws_enabled))
