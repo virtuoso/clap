@@ -58,7 +58,7 @@ void main()
         // FragColor = vec4(clamp(mapped + highlight_color, vec3(0.0), vec3(1.0)), 1.0);
         // FragColor = vec4(mapped, 1.0);
 
-        hdr_color = mix(hdr_color, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
+        hdr_color = mix(mapped, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
         FragColor = vec4(hdr_color + highlight_color * 2.0, 1.0);
     } else {
         tex_color = mix(tex_color, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
