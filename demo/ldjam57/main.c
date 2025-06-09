@@ -331,6 +331,11 @@ static void process_scene(struct scene *s)
         cobj->e->connect_priv = cobj;
 }
 
+static void switcher_onclick(struct ui_element *uie, float x, float y)
+{
+    character_obj_next(uie->priv);
+}
+
 static void startup(struct scene *s)
 {
     cerr err;
@@ -394,6 +399,8 @@ static void startup(struct scene *s)
         return;
     }
     switcher = res.val;
+    switcher->on_click = switcher_onclick;
+    switcher->priv = s;
 }
 
 static void cleanup(struct scene *s)
