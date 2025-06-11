@@ -625,13 +625,6 @@ static void scene_camera_calc(struct scene *s, int camera)
     /* only the first light source get to cast shadows for now */
     view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, !s->render_options.shadow_vsm);
     view_calc_frustum(&s->light.view[0]);
-#ifndef CONFIG_FINAL
-    if (!(s->frames_total & 0xf) && camera == 0)
-        display_title("One Hand Clap @%d FPS camera0 [%f,%f,%f] [%f/%f]",
-                      clap_get_fps_coarse(s->clap_ctx),
-                      cam_pos[0], cam_pos[1], cam_pos[2],
-                      cam->pitch, cam->yaw);
-#endif
 }
 
 void scene_cameras_calc(struct scene *s)

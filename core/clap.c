@@ -266,7 +266,6 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     imgui_render();
     display_swap_buffers();
 
-    scene->frames_total += frame_count;
     ui->frames_total    += frame_count;
     mem_frame_end();
 }

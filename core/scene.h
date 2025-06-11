@@ -39,8 +39,6 @@ struct scene {
     struct camera       cameras[NR_CAMERAS_MAX];
     struct light        light;
     sfx_container       sfxc;
-    /* FPS calculation -- very important! */
-    unsigned long       frames_total;
     struct clap_context *clap_ctx;
     JsonNode            *json_root;
     char                *file_name;
