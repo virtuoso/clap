@@ -10,7 +10,7 @@ void profiler_show(struct profile *first)
         return;
 
     if (dbgm->unfolded) {
-        ui_igVecTableHeader("profile", 1);
+        ui_igTableHeader("profile", (const char *[]) { "stage", "time" }, 2);
 
         struct profile *prof, *last;
         for (prof = first->next; prof; prof = prof->next) {
