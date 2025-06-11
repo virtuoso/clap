@@ -1293,7 +1293,7 @@ static void animation_next(entity3d *e, struct scene *s)
         /* randomize phase, should probably be in instantiate instead */
         qa = ani_current(e);
         an = &model->anis.x[qa->animation];
-        e->ani_time = (long)s->frames_total - an->time_end * drand48();
+        e->ani_time = clap_get_current_time(s->clap_ctx) +  an->time_end * drand48();
         return;
     }
     qa = ani_current(e);
