@@ -32,7 +32,6 @@ struct scene {
     pipeline            *pl;
     struct list         characters;
     struct list         instor;
-    entity3d            *focus;
     entity3d            *control;
     struct motionctl    mctl;
     struct list         shaders;

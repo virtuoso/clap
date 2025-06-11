@@ -50,62 +50,6 @@ void scene_control_next(struct scene *s)
     dbg("scene control at: '%s'\n", entity_name(s->control));
 }
 
-#ifndef CONFIG_FINAL
-static void scene_focus_next(struct scene *s)
-{
-    model3dtx *next_txm;
-
-    if (!s->focus) {
-        next_txm = mq_nonempty_txm_next(&s->mq, NULL, true);
-        /* nothing to focus on */
-        if (!next_txm)
-            return;
-
-        goto first_entry;
-    }
-
-    if (s->focus != list_last_entry(&s->focus->txmodel->entities, entity3d, entry)) {
-        s->focus = list_next_entry(s->focus, entry);
-        return;
-    }
-
-    next_txm = mq_nonempty_txm_next(&s->mq, s->focus->txmodel, true);
-    if (!next_txm)
-        return;
-
-first_entry:
-    s->focus = list_first_entry(&next_txm->entities, entity3d, entry);
-}
-
-static void scene_focus_prev(struct scene *s)
-{
-    model3dtx *next_txm;
-
-    if (!s->focus) {
-        next_txm = mq_nonempty_txm_next(&s->mq, NULL, false);
-        if (!next_txm)
-            return;
-        goto last_entry;
-    }
-
-    if (s->focus != list_first_entry(&s->focus->txmodel->entities, entity3d, entry)) {
-        s->focus = list_prev_entry(s->focus, entry);
-        return;
-    }
-
-    next_txm = mq_nonempty_txm_next(&s->mq, s->focus->txmodel, false);
-    if (!next_txm)
-        return;
-last_entry:
-    s->focus = list_last_entry(&next_txm->entities, entity3d, entry);
-}
-
-static void scene_focus_cancel(struct scene *s)
-{
-    s->focus = NULL;
-}
-#endif /* CONFIG_FINAL */
-
 bool scene_camera_follows(struct scene *s, struct character *ch)
 {
     return scene_control_character(s) == ch && ch != s->camera->ch;
@@ -752,12 +696,6 @@ static int scene_handle_input(struct message *m, void *data)
 #ifndef CONFIG_FINAL
     if (m->input.tab || m->input.stick_r)
         scene_control_next(s);
-    if (m->input.focus_next)
-        scene_focus_next(s);
-    if (m->input.focus_prev)
-        scene_focus_prev(s);
-    if (m->input.focus_cancel)
-        scene_focus_cancel(s);
 #endif
     if (m->input.resize)
         display_resize(m->input.x, m->input.y);
