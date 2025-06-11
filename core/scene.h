@@ -34,7 +34,6 @@ struct scene {
     struct list         instor;
     entity3d            *control;
     struct motionctl    mctl;
-    struct list         shaders;
     render_options      render_options;
     struct camera       *camera;
     struct camera       cameras[NR_CAMERAS_MAX];

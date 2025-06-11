@@ -420,7 +420,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     struct terrain *t;
     model3d *model;
     model3dtx *txm;
-    struct shader_prog *prog = shader_prog_find(&s->shaders, "terrain"); /* XXX */
+    struct shader_prog *prog = CRES_RET(pipeline_shader_find_get(s->pl, "terrain"), return NULL);
     unsigned long total = nr_v * nr_v, it;
     size_t vxsz, txsz, idxsz;
     float *vx, *norm, *tx;

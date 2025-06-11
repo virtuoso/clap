@@ -784,7 +784,6 @@ cerr scene_init(struct scene *scene)
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);
     list_init(&scene->instor);
-    list_init(&scene->shaders);
     sfx_container_init(&scene->sfxc);
 
     int i;
@@ -1423,10 +1422,4 @@ void scene_done(struct scene *scene)
     sfx_container_clearout(&scene->sfxc);
 
     mq_release(&scene->mq);
-
-    /*
-     * clean up the shaders that weren't freed by model3d_drop()
-     * via mq_release()
-     */
-    shaders_free(&scene->shaders);
 }
