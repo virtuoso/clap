@@ -877,9 +877,6 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
 {
     /*
-     * the first skip_frames is relative to ui::frames_total;
-     * the subsequent ones are relative to the previous skip_frame.
-     *
      * 1 second to fade in, 2 seconds to stay, 1 second to fade out,
      * 1 second until the next one == 5 seconds per element.
      */

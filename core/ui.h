@@ -114,7 +114,6 @@ struct ui {
     struct ui_widget   *inventory;
     struct list        widgets;
     struct list        widget_cleanup;
-    unsigned long      frames_total;
     double             time;
     clap_context       *clap_ctx;
     int width, height;

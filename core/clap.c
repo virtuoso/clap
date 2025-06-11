@@ -229,8 +229,6 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(move, start)
 
-    unsigned long frame_count = max((unsigned long)display_refresh_rate() / clap_get_fps_fine(ctx), 1);
-
     double dt = ctx->fps.ts_delta.tv_nsec / (double)NSEC_PER_SEC;
     phys_step(clap_get_phys(ctx), dt);
 
@@ -266,7 +264,6 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     imgui_render();
     display_swap_buffers();
 
-    ui->frames_total    += frame_count;
     mem_frame_end();
 }
 
