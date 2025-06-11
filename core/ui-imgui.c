@@ -202,14 +202,19 @@ bool ui_igTableHeader(const char *str_id, const char **labels, int n)
     return true;
 }
 
+/*
+ * Set up a vector table header
+ * @str_id:     table ID
+ * @n:          number vector components (3 for vec3 etc)
+ */
 bool ui_igVecTableHeader(const char *str_id, int n)
 {
     if (n > 4)
         return false;
 
-    const char *labels[] = { "vector", "X", "Y", "Z", "W" };
+    const char *labels[] = { str_id, "X", "Y", "Z", "W" };
 
-    return ui_igTableHeader(str_id, labels, n);
+    return ui_igTableHeader(str_id, labels, n + 1);
 }
 
 void ui_igTableRow(const char *key, const char *fmt, ...)
