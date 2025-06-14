@@ -19,6 +19,7 @@
 #include "messagebus.h"
 #include "librarian.h"
 #include "loading-screen.h"
+#include "lut.h"
 #include "model.h"
 #include "shader.h"
 #include "terrain.h"
@@ -352,6 +353,9 @@ static void startup(struct scene *s)
     s->render_options.bloom_threshold = 0.3;
     s->render_options.bloom_exposure = 2.5;
     s->render_options.shadow_outline = false;
+    s->render_options.lighting_operator = 1.0;
+    s->render_options.contrast = 0.4;
+    s->render_options.lighting_exposure = 1.1;
 
     /* pixel textures for everyday use */
     err = texture_pixel_init(&platform_emission_purple, (float[]){ 0.5, 0.3, 0.5, 1 });
@@ -572,6 +576,11 @@ int main(int argc, char **argv, char **envp)
         .resize_cb      = resize_cb,
         .callback_data  = &scene,
         .default_font_name  = "ofl/Unbounded-Regular.ttf",
+#ifdef CONFIG_FINAL
+        .lut_presets    = (lut_preset[]){ LUT_ORANGE_BLUE_FILMIC },
+#else
+        .lut_presets    = lut_presets_all,
+#endif /* CONFIG_FINAL */
     };
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
@@ -647,6 +656,11 @@ int main(int argc, char **argv, char **envp)
 
     display_get_sizes(&scene.width, &scene.height);
 
+    scene.render_options.lighting_lut = CRES_RET(
+        clap_lut_find(scene.clap_ctx, "orange blue filmic"),
+        goto exit_sound
+    );
+
     build_main_pl(&scene.pl);
 
     fuzzer_input_init();
@@ -672,6 +686,9 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
+exit_sound:
+    if (intro_sound)
+        ref_put(intro_sound);
 exit_scene:
     cleanup(&scene);
 
@@ -679,6 +696,7 @@ exit_scene:
     ref_put(scene.pl);
     clap_done(scene.clap_ctx, 0);
 #else
+exit_sound:
 exit_scene:
     if (IS_CERR(err))
         imgui_render();
