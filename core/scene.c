@@ -583,7 +583,9 @@ static void scene_camera_calc(struct scene *s, int camera)
     struct camera *cam = &s->cameras[camera];
 
     if (s->proj_update) {
-        view_update_perspective_projection(&cam->view, s->width, s->height);
+        /* XXX: parameterize zoom value */
+        view_update_perspective_projection(&cam->view, s->width, s->height,
+                                           cam->zoom ? 0.5 : 1.0);
         s->proj_update = 0;
     }
 
@@ -713,9 +715,18 @@ static int scene_handle_input(struct message *m, void *data)
         message_send(&m);
     }
 #endif
-
     if (s->ui_is_on)
         return 0;
+
+    if (m->input.zoom == 1) {
+        if (!s->camera->zoom)
+            s->proj_update++;
+        s->camera->zoom = 1;
+    } else if (m->input.zoom == 2) {
+        if (s->camera->zoom)
+            s->proj_update++;
+        s->camera->zoom = 0;
+    }
 
     motion_parse_input(&s->mctl, m);
 

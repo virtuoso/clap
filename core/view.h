@@ -24,7 +24,7 @@ struct view {
 };
 
 typedef struct entity3d entity3d;
-void view_update_perspective_projection(struct view *view, int width, int height);
+void view_update_perspective_projection(struct view *view, int width, int height, float zoom);
 void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll);
 void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse);
 void view_calc_frustum(struct view *view);

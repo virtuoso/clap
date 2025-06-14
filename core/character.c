@@ -82,8 +82,6 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x) &&
         ch->state != CS_JUMPING && ch->state != CS_JUMP_START)
         ch->jump = true;
-
-    s->camera->zoom = !!(m->input.zoom);
 }
 
 static void character_idle(struct scene *s, void *priv)

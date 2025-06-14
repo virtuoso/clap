@@ -207,10 +207,15 @@ void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw
     view_update_perspective_subviews(view);
 }
 
-void view_update_perspective_projection(struct view *view, int width, int height)
+void view_update_perspective_projection(struct view *view, int width, int height, float zoom)
 {
     view->aspect = (float)width / (float)height;
-    mat4x4_perspective(view->main.proj_mx, view->fov, view->aspect,
+    /*
+     * Note: view::fov doesn't actually change, so subviews don't see it; not
+     *       necessarily a problem, as those only matter for the light frusta
+     *       calculations, and we don't actually want shadows to change
+     */
+    mat4x4_perspective(view->main.proj_mx, view->fov * zoom, view->aspect,
                        view->main.near_plane, view->main.far_plane);
 }
 
