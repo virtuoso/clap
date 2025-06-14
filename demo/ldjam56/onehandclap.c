@@ -18,6 +18,7 @@
 #include "messagebus.h"
 #include "librarian.h"
 #include "loading-screen.h"
+#include "lut.h"
 #include "model.h"
 #include "shader.h"
 #include "terrain.h"
@@ -191,6 +192,11 @@ int main(int argc, char **argv, char **envp)
         .resize_cb      = resize_cb,
         .callback_data  = &scene,
         .default_font_name  = "ofl/Unbounded-Regular.ttf",
+#ifdef CONFIG_FINAL
+        .lut_presets    = (lut_preset[]){ LUT_SCIFI_NEON },
+#else
+        .lut_presets    = lut_presets_all,
+#endif /* CONFIG_FINAL */
     };
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
@@ -272,6 +278,11 @@ int main(int argc, char **argv, char **envp)
 
     display_get_sizes(&scene.width, &scene.height);
 
+    scene.render_options.lighting_lut = CRES_RET(
+        clap_lut_find(scene.clap_ctx, "scifi neon"),
+        goto exit_sound
+    );
+
     build_main_pl(&scene.pl);
 
     fuzzer_input_init();
@@ -290,8 +301,12 @@ int main(int argc, char **argv, char **envp)
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = 70.0;
-    scene.render_options.fog_near = 80.0;
-    scene.render_options.fog_far = 120.0;
+    scene.camera->view.main.far_plane = 700.0;
+    scene.render_options.fog_near = 200.0;
+    scene.render_options.fog_far = 300.0;
+    scene.render_options.lighting_operator = 1.0;
+    scene.render_options.contrast = 0.15;
+    scene.render_options.lighting_exposure = 1.0;
     scene_cameras_calc(&scene);
 
     imgui_render();
@@ -300,11 +315,15 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
+exit_sound:
+    if (intro_sound)
+        ref_put(intro_sound);
 exit_scene:
     scene_done(&scene);
     ref_put(scene.pl); /* XXX: scene_init()/scene_done() */
     clap_done(scene.clap_ctx, 0);
 #else
+exit_sound:
 exit_scene:
     if (IS_CERR(err))
         imgui_render();
