@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+#ifndef CONFIG_BROWSER
 #include <GLFW/glfw3.h>
+#endif /* CONFIG_BROWSER */
 #include "messagebus.h"
 #include "input.h"
 #include "input-keyboard.h"
