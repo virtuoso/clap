@@ -2,6 +2,7 @@
 #ifndef __CLAP_CLAP_H__
 #define __CLAP_CLAP_H__
 
+#include "lut.h"
 #include "render.h"
 
 struct fps_data;
@@ -40,6 +41,10 @@ struct timespec clap_get_fps_delta(struct clap_context *ctx);
 unsigned long clap_get_fps_fine(struct clap_context *ctx);
 unsigned long clap_get_fps_coarse(struct clap_context *ctx);
 
+struct list *clap_lut_list(clap_context *ctx);
+cresp(lut) clap_lut_find(clap_context *ctx, const char *name);
+cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side);
+
 struct clap_config {
     unsigned long   debug       : 1,
                     quiet       : 1,
@@ -60,6 +65,7 @@ struct clap_config {
     void            *callback_data;
     void            (*settings_cb)(struct settings *rs, void *data);
     void            *settings_cb_data;
+    lut_preset      *lut_presets;
 };
 
 cresp_struct_ret(clap_context);

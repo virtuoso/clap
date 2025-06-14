@@ -8,6 +8,7 @@
 #include "clap.h"
 #include "common.h"
 #include "input.h"
+#include "lut.h"
 #include "font.h"
 #include "networking.h"
 #include "profiler.h"
@@ -62,6 +63,7 @@ typedef struct clap_context {
     struct settings     *settings;
     renderer_t          renderer;
     shader_context      *shaders;
+    struct list         luts;
     struct ui           ui;
     int                 argc;
 } clap_context;
@@ -300,11 +302,45 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
     touch_input_set_size(width, height);
 }
 
+/****************************************************************************
+ * Color grading LUT API
+ ****************************************************************************/
+
+struct list *clap_lut_list(clap_context *ctx)
+{
+    return &ctx->luts;
+}
+
+cresp(lut) clap_lut_find(clap_context *ctx, const char *name)
+{
+    return lut_find(&ctx->luts, name);
+}
+
+cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side)
+{
+    if (!ctx->cfg.graphics)
+        return CERR_INVALID_OPERATION;
+
+    if (!presets)
+        return CERR_INVALID_ARGUMENTS;
+
+    for (int i = 0; presets[i] < LUT_MAX; i++) {
+        CRES_RET(
+            lut_generate(&ctx->luts, presets[i], side),
+            { luts_done(&ctx->luts); return cerr_error_cres(__resp); }
+        );
+    }
+
+    return CERR_OK;
+}
+
 static bool clap_config_is_valid(struct clap_config *cfg)
 {
     if (cfg->graphics && (!cfg->frame_cb || !cfg->resize_cb || !cfg->title))
         return false;
     if (cfg->ui && !cfg->graphics)
+        return false;
+    if (cfg->lut_presets && !cfg->graphics)
         return false;
 
     return true;
@@ -399,6 +435,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (!ctx)
         return cresp_error(clap_context, CERR_NOMEM);
 
+    list_init(&ctx->luts);
+
     CERR_RET_T(clap_os_init(ctx), clap_context);
 
     mesh_init();
@@ -438,6 +476,11 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
         textures_init();
         ctx->shaders = CRES_RET_T(shader_vars_init(), clap_context);
+
+        lut_preset *lut_presets = ctx->cfg.lut_presets;
+        if (!lut_presets)
+            lut_presets = (lut_preset[]){ LUT_IDENTITY, LUT_MAX };
+        CERR_RET_T(clap_lut_generate(ctx, lut_presets, 32), clap_context);
     }
     if (ctx->cfg.input)
         (void)input_init(); /* XXX: error handling */
@@ -461,6 +504,7 @@ void clap_done(struct clap_context *ctx, int status)
         phys_done(ctx->phys);
     if (ctx->cfg.graphics) {
         shader_vars_done(ctx->shaders);
+        luts_done(&ctx->luts);
         textures_done();
         display_done();
     }
