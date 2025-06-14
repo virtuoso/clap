@@ -142,21 +142,54 @@ LINMATH_H_FUNC void vec4_reflect(vec4 r, vec4 v, vec4 n)
 		r[i] = v[i] - p*n[i];
 }
 
-typedef vec4 mat4x4[4];
-LINMATH_H_FUNC void mat4x4_identity(mat4x4 M)
-{
-	int i, j;
-	for(i=0; i<4; ++i)
-		for(j=0; j<4; ++j)
-			M[i][j] = i==j ? 1.f : 0.f;
+#define LINMATH_DEFINE_MAT(n) \
+typedef vec## n mat## n ## x ## n[n]; \
+LINMATH_H_FUNC void mat## n ## x ## n ##_identity(mat## n ## x ## n  M) \
+{ \
+	int i, j; \
+	for(i=0; i<n; ++i) \
+		for(j=0; j<n; ++j) \
+			M[i][j] = i==j ? 1.f : 0.f; \
+} \
+LINMATH_H_FUNC void mat## n ## x ## n ##_dup(mat## n ## x ## n  M, mat## n ## x ## n  N) \
+{ \
+	int i, j; \
+	for(i=0; i<n; ++i) \
+		for(j=0; j<n; ++j) \
+			M[i][j] = N[i][j]; \
+} \
+LINMATH_H_FUNC void mat## n ## x ## n ##_transpose(mat## n ## x ## n M, mat## n ## x ## n N) \
+{ \
+	int i, j; \
+	mat## n ##x## n temp = {}; \
+	for(j=0; j<n; ++j) \
+		for(i=0; i<n; ++i) \
+			temp[i][j] = N[j][i]; \
+	mat## n ##x## n ##_dup(M, temp); \
+} \
+LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n(vec## n r, mat## n ## x ## n M, vec## n v) \
+{ \
+	int i, j; \
+	for(j=0; j<n; ++j) { \
+		r[j] = 0.f; \
+		for(i=0; i<n; ++i) \
+			r[j] += M[i][j] * v[i]; \
+	} \
+} \
+ \
+LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n ##_post(vec## n r, mat## n ## x ## n M, vec## n v) \
+{ \
+	vec4 temp; \
+    for (int i = 0; i < n; ++i) { \
+        temp[i] = M[0][i]*v[0] + M[1][i]*v[1] + M[2][i]*v[2]; \
+		if (n == 4) temp[i] += M[3][i]*v[3]; \
+	} \
+	vec## n ##_dup(r, temp); \
 }
-LINMATH_H_FUNC void mat4x4_dup(mat4x4 M, mat4x4 N)
-{
-	int i, j;
-	for(i=0; i<4; ++i)
-		for(j=0; j<4; ++j)
-			M[i][j] = N[i][j];
-}
+
+LINMATH_DEFINE_MAT(3);
+LINMATH_DEFINE_MAT(4);
+
 LINMATH_H_FUNC void mat4x4_row(vec4 r, mat4x4 M, int i)
 {
 	int k;
@@ -168,13 +201,6 @@ LINMATH_H_FUNC void mat4x4_col(vec4 r, mat4x4 M, int i)
 	int k;
 	for(k=0; k<4; ++k)
 		r[k] = M[i][k];
-}
-LINMATH_H_FUNC void mat4x4_transpose(mat4x4 M, mat4x4 N)
-{
-	int i, j;
-	for(j=0; j<4; ++j)
-		for(i=0; i<4; ++i)
-			M[i][j] = N[j][i];
 }
 LINMATH_H_FUNC void mat4x4_add(mat4x4 M, mat4x4 a, mat4x4 b)
 {
@@ -215,24 +241,6 @@ LINMATH_H_FUNC void mat4x4_mul(mat4x4 M, mat4x4 a, mat4x4 b)
 	}
 	mat4x4_dup(M, temp);
 }
-LINMATH_H_FUNC void mat4x4_mul_vec4(vec4 r, mat4x4 M, vec4 v)
-{
-	int i, j;
-	for(j=0; j<4; ++j) {
-		r[j] = 0.f;
-		for(i=0; i<4; ++i)
-			r[j] += M[i][j] * v[i];
-	}
-}
-
-LINMATH_H_FUNC void mat4x4_mul_vec4_post(vec4 r, mat4x4 M, vec4 v)
-{
-	vec4 temp;
-    for (int i = 0; i < 4; ++i)
-        temp[i] = M[0][i]*v[0] + M[1][i]*v[1] + M[2][i]*v[2] + M[3][i]*v[3];
-	vec4_dup(r, temp);
-}
-
 LINMATH_H_FUNC void mat4x4_translate(mat4x4 T, float x, float y, float z)
 {
 	mat4x4_identity(T);
