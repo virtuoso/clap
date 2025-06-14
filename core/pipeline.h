@@ -6,6 +6,8 @@
 #include "shader.h"
 
 typedef struct render_pass render_pass;
+cresp_ret(render_pass);
+
 typedef struct pipeline pipeline;
 
 typedef struct render_options {
@@ -139,6 +141,7 @@ cresp(shader_prog) pipeline_shader_find_get(pipeline *pl, const char *name);
 struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
 #define pipeline_add_pass(_pl, args...) \
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })
+cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name);
 void pipeline_render(struct pipeline *pl, unsigned int checkpoint);
 texture_t *pipeline_pass_get_texture(struct render_pass *pass, fbo_attachment attachment);
 float pipeline_pass_get_scale(render_pass *pass);

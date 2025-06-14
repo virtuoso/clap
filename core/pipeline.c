@@ -382,6 +382,17 @@ err_free:
     return NULL;
 }
 
+cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name)
+{
+    render_pass *pass;
+
+    list_for_each_entry(pass, &pl->passes, entry)
+        if (!strcmp(pass->name, name))
+            return cresp_val(render_pass, pass);
+
+    return cresp_error_cerr(render_pass, CERR_NOT_FOUND);
+}
+
 /*
  * Copy in stuff that needs copying from source passes, return mq if
  * one of the sources has it.
