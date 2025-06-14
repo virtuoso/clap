@@ -78,6 +78,18 @@ LINMATH_H_FUNC void vec##n##_add_scaled(vec##n r, vec##n const a, vec##n const b
 	int i; \
 	for(i=0; i<n; ++i) \
 		r[i] = a[i] * sa + b[i] * sb; \
+} \
+LINMATH_H_FUNC void vec##n##_pow(vec##n r, vec##n const a, const float exp) \
+{ \
+	int i; \
+	for(i=0; i<n; ++i) \
+		r[i] = powf(a[i], exp); \
+} \
+LINMATH_H_FUNC void vec##n##_pow_vec##n(vec##n r, vec##n const a, vec##n const exp) \
+{ \
+	int i; \
+	for(i=0; i<n; ++i) \
+		r[i] = powf(a[i], exp[i]); \
 }
 
 LINMATH_H_DEFINE_VEC(2)
