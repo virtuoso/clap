@@ -44,6 +44,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_TEX(UNIFORM_SHADOW_MAP1,         "shadow_map1",          5),
     SHADER_TEX(UNIFORM_SHADOW_MAP2,         "shadow_map2",          6),
     SHADER_TEX(UNIFORM_SHADOW_MAP3,         "shadow_map3",          7),
+    SHADER_TEX(UNIFORM_LUT_TEX,             "lut_tex",              5),
     SHADER_VAR(UNIFORM_WIDTH,               "width",                DT_FLOAT),
     SHADER_VAR(UNIFORM_HEIGHT,              "height",               DT_FLOAT),
     SHADER_VAR(UNIFORM_NEAR_PLANE,          "near_plane",           DT_FLOAT),
