@@ -4,6 +4,7 @@
 
 #include "camera.h"
 #include "clap.h"
+#include "lut.h"
 #include "shader.h"
 
 typedef struct render_pass render_pass;
@@ -12,6 +13,7 @@ cresp_ret(render_pass);
 typedef struct pipeline pipeline;
 
 typedef struct render_options {
+    lut     *lighting_lut;
     float   bloom_exposure;
     float   bloom_intensity;
     float   bloom_threshold;
