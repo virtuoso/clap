@@ -2,6 +2,7 @@
 #include "clap.h"
 #include "camera.h"
 #include "light.h"
+#include "lut.h"
 #include "pipeline.h"
 #include "pipeline-builder.h"
 #include "render.h"
@@ -138,6 +139,16 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
         return NULL;
 
     bool ssao = opts->pl_opts->render_options->ssao;
+
+    /*
+     * No LUT in render_options, but one is required; pick the first one
+     * from the list, bail if the list is empty
+     */
+    if (!opts->pl_opts->render_options->lighting_lut)
+        opts->pl_opts->render_options->lighting_lut = CRES_RET(
+            lut_first(clap_lut_list(opts->pl_opts->clap_ctx)),
+            return NULL
+        );
 
     static ssao_state ssao_state = {};
     if (ssao)
@@ -388,6 +399,7 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
             ssao ?
                 (render_source){ .pass = ssao_hblur_pass, .attachment = FBO_COLOR_TEXTURE(0), .method = RM_USE, .sampler = UNIFORM_SHADOW_MAP } :
                 (render_source){ .tex = black_pixel(), .method = RM_PLUG, .sampler = UNIFORM_SHADOW_MAP },
+            { .tex = lut_tex(opts->pl_opts->render_options->lighting_lut), .method = RM_PLUG, .sampler = UNIFORM_LUT_TEX },
             {}
         },
         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
