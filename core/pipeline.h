@@ -3,6 +3,7 @@
 #define __CLAP_PIPELINE_H__
 
 #include "camera.h"
+#include "clap.h"
 #include "shader.h"
 
 typedef struct render_pass render_pass;
