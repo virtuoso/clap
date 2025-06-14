@@ -38,4 +38,12 @@ cresp(lut) lut_load(struct list *list, const char *name);
 void luts_done(struct list *list);
 texture_t *lut_tex(lut *lut);
 
+struct scene;
+
+#ifndef CONFIG_FINAL
+void luts_debug(struct scene *scene);
+#else
+static inline void luts_debug(struct scene *scene) {}
+#endif /* CONFIG_FINAL */
+
 #endif /* __CLAP_LUT_H__ */

@@ -319,6 +319,31 @@ out:
     ref_put(h);
 }
 
+#ifndef CONFIG_FINAL
+void luts_debug(struct scene *scene)
+{
+    render_pass *pass = CRES_RET(pipeline_find_pass(scene->pl, "combine"), return);
+    render_options *ropts = &scene->render_options;
+    struct list *luts = clap_lut_list(scene->clap_ctx);
+    const char *preview_value = ropts->lighting_lut ? ropts->lighting_lut->name : NULL;
+
+    ui_igControlTableHeader("color grading", "LUT");
+    if (ui_igBeginCombo("LUT", preview_value, ImGuiComboFlags_HeightLargest)) {
+        lut *lut;
+        list_for_each_entry(lut, luts, entry) {
+            bool selected = lut == ropts->lighting_lut;
+            if (igSelectable_Bool(lut->name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){})) {
+                igSetItemDefaultFocus();
+                ropts->lighting_lut = lut;
+                render_pass_plug_texture(pass, UNIFORM_LUT_TEX, &lut->tex);
+            }
+        }
+        ui_igEndCombo();
+    }
+    igEndTable();
+}
+#endif /* CONFIG_FINAL */
+
 cresp(lut) lut_first(struct list *list)
 {
     if (!list || list_empty(list))

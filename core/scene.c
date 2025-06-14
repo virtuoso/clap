@@ -9,6 +9,7 @@
 #include "primitives.h"
 #include "shader.h"
 #include "loading-screen.h"
+#include "lut.h"
 #include "model.h"
 #include "scene.h"
 #include "sound.h"
@@ -123,6 +124,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             cam->view.fov = to_radians(fov);
             scene->proj_update++;
         }
+
+        luts_debug(scene);
 
         igCheckbox("shadow outline", &scene->render_options.shadow_outline);
         if (scene->render_options.shadow_outline)
