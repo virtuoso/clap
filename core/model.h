@@ -137,11 +137,13 @@ typedef struct model3dtx {
     texture_t      _emission;
     texture_t      _sobel;
     texture_t      _shadow;
+    texture_t      _lut;
     texture_t      *texture;
     texture_t      *normals;
     texture_t      *emission;
     texture_t      *sobel;
     texture_t      *shadow;
+    texture_t      *lut;
     float          metallic;
     float          roughness;
     struct ref     ref;
