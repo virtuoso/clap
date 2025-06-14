@@ -80,6 +80,8 @@ void pipeline_clearout(pipeline *pl)
                         txm->sobel = &txm->_sobel;
                     if (txm->shadow == tex)
                         txm->shadow = &txm->_shadow;
+                    if (txm->lut == tex)
+                        txm->lut = &txm->_lut;
                 }
             }
 
