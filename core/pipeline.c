@@ -393,6 +393,17 @@ cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name)
     return cresp_error_cerr(render_pass, CERR_NOT_FOUND);
 }
 
+void render_pass_plug_texture(render_pass *pass, enum shader_vars sampler, texture_t *tex)
+{
+    for (int i = 0; i < pass->nr_sources; i++) {
+        if (pass->source[i].sampler == sampler && pass->source[i].method == RM_PLUG) {
+            pass->source[i].tex = tex;
+            model3dtx_set_texture(pass->quad->txmodel, sampler, tex);
+            return;
+        }
+    }
+}
+
 /*
  * Copy in stuff that needs copying from source passes, return mq if
  * one of the sources has it.
