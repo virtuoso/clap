@@ -1,5 +1,13 @@
 #include "light.h"
 
+cres(int) light_get(struct light *light)
+{
+    if (light->nr_lights == LIGHTS_MAX)
+        return cres_error(int, CERR_TOO_LARGE);
+
+    return cres_val(int, light->nr_lights++);
+}
+
 void light_set_pos(struct light *light, int idx, float pos[3])
 {
     int i;

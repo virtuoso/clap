@@ -212,7 +212,7 @@ static void light_debug(struct scene *scene)
         return;
 
     if (dbgm->unfolded) {
-        for (int idx = 0; idx < scene->nr_lights; idx++) {
+        for (int idx = 0; idx < scene->light.nr_lights; idx++) {
             igPushID_Int(idx);
             ui_igControlTableHeader("light %d", "pos", idx);
 
@@ -746,14 +746,6 @@ int scene_add_model(struct scene *s, model3dtx *txm)
     return 0;
 }
 
-int scene_get_light(struct scene *scene)
-{
-    if (scene->nr_lights == LIGHTS_MAX)
-        return -1;
-
-    return scene->nr_lights++;
-}
-
 void scene_update(struct scene *scene)
 {
     scene_parameters_debug(scene, 0);
@@ -1139,9 +1131,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             double _light_color[3];
             jpos = json_find_member(it, "light_color");
             if (jpos && jpos->tag == JSON_ARRAY) {
-                e->light_idx = scene_get_light(scene);
-                if (e->light_idx < 0)
-                    goto light_done;
+                e->light_idx = CRES_RET(light_get(&scene->light), goto light_done);
 
                 if (json_double_array(jpos, _light_color, 3))
                     goto light_done;
@@ -1268,9 +1258,7 @@ static int scene_add_light_from_json(struct scene *s, JsonNode *light)
         json_double_array(jcolor, color, 3))
         return -1;
 
-    int idx = scene_get_light(s);
-    if (idx < 0)
-        return -1;
+    int idx = CRES_RET(light_get(&s->light), return -1);
 
     float fpos[3] = { pos[0], pos[1], pos[2] };
     float fcolor[3] = { color[0], color[1], color[2] };

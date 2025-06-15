@@ -47,7 +47,6 @@ struct scene {
     float               ang_speed;
     float               limbo_height;
     float               auto_yoffset;
-    int                 nr_lights;
     int                 nr_cameras;
     int                 fullscreen;
     int                 proj_update;
