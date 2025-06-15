@@ -17,6 +17,8 @@ layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
     vec3 light_color[LIGHTS_MAX];
     vec3 light_dir[LIGHTS_MAX];
     vec3 attenuation[LIGHTS_MAX];
+    bool light_directional[LIGHTS_MAX];
+    int  nr_lights;
 };
 
 layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
@@ -263,7 +265,7 @@ void main()
     vec3 total_diffuse = vec3(0.0);
     vec3 total_specular = vec3(0.0);
 
-    for (int i = 0; i < LIGHTS_MAX; i++) {
+    for (int i = 0; i < nr_lights; i++) {
         float distance = length(to_light_vector[i]);
         float att_fac = attenuation[i].x + (attenuation[i].y * distance) + (attenuation[i].z * distance * distance);
         vec3 unit_to_light_vector = normalize(to_light_vector[i]);

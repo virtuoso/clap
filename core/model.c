@@ -877,6 +877,8 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_COLOR, LIGHTS_MAX, light->color);
                 shader_set_var_ptr(prog, UNIFORM_ATTENUATION, LIGHTS_MAX, light->attenuation);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIR, LIGHTS_MAX, light->dir);
+                shader_set_var_ptr(prog, UNIFORM_LIGHT_DIRECTIONAL, LIGHTS_MAX, light->is_dir);
+                shader_set_var_int(prog, UNIFORM_NR_LIGHTS, light->nr_lights);
                 if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
                     mat4x4 mvp[CASCADES_MAX];
                     int i;
