@@ -113,6 +113,7 @@ static void *callback_data;
 EMSCRIPTEN_KEEPALIVE void display_resize(int w, int h)
 {
     resize_fn(callback_data, w, h);
+    emscripten_set_canvas_element_size("#canvas", w, h);
     width = w;
     height = h;
 }
