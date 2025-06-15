@@ -51,7 +51,6 @@ uniform float shine_damper;
 uniform float reflectivity;
 uniform bool sobel_solid;
 uniform float sobel_solid_id;
-uniform vec4 highlight_color;
 uniform bool use_msaa;
 uniform bool outline_exclude;
 uniform bool use_hdr;
@@ -241,11 +240,6 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos)
 
 void main()
 {
-    if (highlight_color.w != 0.0) {
-        FragColor = highlight_color;
-        return;
-    }
-
     vec3 normal_vec, unit_normal;
 
     if (do_use_normals > 0.5) {

@@ -61,7 +61,6 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_NR_LIGHTS,           "nr_lights",            DT_INT),
     SHADER_VAR(UNIFORM_SHINE_DAMPER,        "shine_damper",         DT_FLOAT),
     SHADER_VAR(UNIFORM_REFLECTIVITY,        "reflectivity",         DT_FLOAT),
-    SHADER_VAR(UNIFORM_HIGHLIGHT_COLOR,     "highlight_color",      DT_VEC4),
     SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             DT_VEC4),
     SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    DT_INT),
     SHADER_VAR(UNIFORM_SHADOW_VSM,          "shadow_vsm",           DT_INT),
