@@ -789,6 +789,7 @@ cerr scene_init(struct scene *scene)
     for (i = 0; i < LIGHTS_MAX; i++) {
         float attenuation[3] = { 1, 0, 0 };
         light_set_attenuation(&scene->light, i, attenuation);
+        light_set_directional(&scene->light, i, true);
     }
 
     scene->render_options.shadow_vsm = true;
@@ -1157,6 +1158,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 if (!json_double_array(jpos, _light_attenuation, 3)) {
                     float light_attenuation[3] = { _light_attenuation[0], _light_attenuation[1], _light_attenuation[2] };
                     light_set_attenuation(&scene->light, e->light_idx, light_attenuation);
+                    light_set_directional(&scene->light, e->light_idx, false);
                 }
             }
 

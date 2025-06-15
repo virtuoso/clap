@@ -31,3 +31,8 @@ void light_set_attenuation(struct light *light, int idx, float attenuation[3])
     for (i = 0; i < 3; i++)
         light->attenuation[idx * 3 + i] = attenuation[i];
 }
+
+void light_set_directional(struct light *light, int idx, bool is_directional)
+{
+    light->is_dir[idx] = is_directional;
+}
