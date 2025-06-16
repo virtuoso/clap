@@ -238,6 +238,8 @@ typedef struct entity3d {
 
     struct phys_body *phys_body;
     particle_system  *particles;
+    float   bloom_intensity;
+    float   bloom_threshold;
     float   color[4];
     int     color_pt;
     vec3    pos;

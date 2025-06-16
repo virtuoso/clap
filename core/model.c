@@ -856,8 +856,6 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_SSAO_RADIUS, ropts->ssao_radius);
                 shader_set_var_float(prog, UNIFORM_SSAO_WEIGHT, ropts->ssao_weight);
                 shader_set_var_float(prog, UNIFORM_BLOOM_EXPOSURE, ropts->bloom_exposure);
-                shader_set_var_float(prog, UNIFORM_BLOOM_INTENSITY, ropts->bloom_intensity);
-                shader_set_var_float(prog, UNIFORM_BLOOM_THRESHOLD, ropts->bloom_threshold);
                 shader_set_var_float(prog, UNIFORM_BLOOM_OPERATOR, ropts->bloom_operator);
                 shader_set_var_float(prog, UNIFORM_LIGHTING_EXPOSURE, ropts->lighting_exposure);
                 shader_set_var_float(prog, UNIFORM_LIGHTING_OPERATOR, ropts->lighting_operator);
@@ -975,6 +973,16 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 buffer_bind(&model->index[e->cur_lod], -1);
                 lod = e->cur_lod;
             }
+
+            if (fabsf(e->bloom_intensity) > 1e-3)
+                shader_set_var_float(prog, UNIFORM_BLOOM_INTENSITY, e->bloom_intensity);
+            else if (ropts)
+                shader_set_var_float(prog, UNIFORM_BLOOM_INTENSITY, ropts->bloom_intensity);
+
+            if (fabsf(e->bloom_threshold) > 1e-3)
+                shader_set_var_float(prog, UNIFORM_BLOOM_THRESHOLD, e->bloom_threshold);
+            else if (ropts)
+                shader_set_var_float(prog, UNIFORM_BLOOM_THRESHOLD, ropts->bloom_threshold);
 
             shader_set_var_int(prog, UNIFORM_OUTLINE_EXCLUDE, e->outline_exclude);
             if (e->priv && mq->nr_characters) {  /* e->priv now points to character */
