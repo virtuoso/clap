@@ -280,8 +280,8 @@ void main()
     FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
     EdgeDepthMask = gl_FragCoord.z;
 
-    vec3 emission = texture(emission_map, pass_tex).rgb;
-    emission = max(emission - bloom_threshold, vec3(0.0)) * bloom_intensity;
+    vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, pass_tex).rgb : texture_sample.rgb;
+    emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
     ViewPosition = view_pos;
 
