@@ -359,6 +359,9 @@ static void scene_entity_inspector_debug(struct scene *scene)
         if (ui_igSliderFloat("rz", &rz, -180.0, 180.0, "%.02f", 0))
             entity3d_rotate_Z(e, to_radians(rz));
 
+        ui_igSliderFloat("bloom thr", &e->bloom_threshold, 0.0, 1.0, "%.02f", 0);
+        ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);
+
         int lod = e->cur_lod;
         int nr_lods = max(e->txmodel->model->nr_lods - 1, 0);
         if (ui_igSliderInt("LOD", &lod, 0, nr_lods, "%u", 0))
