@@ -1163,6 +1163,14 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             }
 
 light_done:
+            jpos = json_find_member(it, "bloom_intensity");
+            if (jpos && jpos->tag == JSON_NUMBER)
+                e->bloom_intensity = jpos->number_;
+
+            jpos = json_find_member(it, "bloom_threshold");
+            if (jpos && jpos->tag == JSON_NUMBER)
+                e->bloom_threshold = jpos->number_;
+
             if (terrain_clamp)
                 phys_ground_entity(clap_get_phys(scene->clap_ctx), e);
 
