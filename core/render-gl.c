@@ -1470,11 +1470,16 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
      * an array; compound types are aligned to a 16 bype boundary even if
      * they follow non-padded scalars
      */
-    if (storage_size < 16 && count > 1) {
+    if (storage_size < 16 && count > 1)
         storage_size = 16;
-    } else if (storage_size >= 16 && *offset % 16) {
+
+    /*
+     * non-arrayed scalars have maximum storage size of 4, if something
+     * larger is following a non-padded offset, it needs to be padded first
+     */
+    if (storage_size > 4 && *offset % 16)
         *offset = round_up(*offset, 16);
-    }
+
     *size = *offset;
 
     /*
