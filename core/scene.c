@@ -328,6 +328,11 @@ static void scene_entity_inspector_debug(struct scene *scene)
             e = scene->control;
         }
 
+        igSameLine(0.0, 4.0);
+
+        if (igButton("terrain clamp", (ImVec2){}))
+            phys_ground_entity(clap_get_phys(scene->clap_ctx), e);
+
         static bool draw_aabb;
 
         ui_igCheckbox("draw aabb", &draw_aabb);
