@@ -8,10 +8,9 @@ layout (location=2) in vec3 to_light_vector;
 layout (location=3) in vec3 to_camera_vector;
 
 #include "ubo_lighting.glsl"
+#include "ubo_material.glsl"
 
 uniform sampler2D model_tex;
-uniform float shine_damper;
-uniform float reflectivity;
 
 layout (location=0) out vec4 FragColor;
 

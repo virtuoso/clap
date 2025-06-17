@@ -150,6 +150,9 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_JOINT_TRANSFORMS),
     DEFINE_SHADER_VAR_BLOCK(particles, SHADER_STAGE_VERTEX_BIT,
                             UNIFORM_PARTICLE_POS),
+    DEFINE_SHADER_VAR_BLOCK(material, SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_REFLECTIVITY,
+                            UNIFORM_SHINE_DAMPER),
 };
 
 /* Runtime shader context */

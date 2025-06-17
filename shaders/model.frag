@@ -14,6 +14,7 @@ layout (location=9) in vec4 world_pos;
 
 #include "shadow.glsl"
 #include "ubo_lighting.glsl"
+#include "ubo_material.glsl"
 
 layout (std140, binding = UBO_BINDING_projview) uniform projview {
     mat4 proj;
@@ -26,8 +27,7 @@ uniform sampler2D normal_map;
 uniform sampler2D emission_map;
 
 uniform bool shadow_vsm; /* XXX: move to shadow UBO */
-uniform float shine_damper;
-uniform float reflectivity;
+
 uniform bool sobel_solid;
 uniform float sobel_solid_id;
 uniform bool use_msaa;
