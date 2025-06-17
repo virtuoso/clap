@@ -1274,36 +1274,36 @@ light_done:
     return CERR_OK;
 }
 
-static int scene_add_light_from_json(struct scene *s, JsonNode *light)
+static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
 {
     if (light->tag != JSON_OBJECT)
-        return -1;
+        return CERR_INVALID_FORMAT;
 
     JsonNode *jambient = json_find_member(light, "ambient_color");
     if (jambient) {
         if (jambient->tag != JSON_ARRAY)
-            return -1;
+            return CERR_INVALID_FORMAT;
 
         double color[3];
         if (json_double_array(jambient, color, 3))
-            return -1;
+            return CERR_INVALID_FORMAT;
 
         light_set_ambient(&s->light, (float[]){ color[0], color[1], color[2] });
 
-        return 0;
+        return CERR_OK;
     }
 
     JsonNode *jpos = json_find_member(light, "position");
     JsonNode *jcolor = json_find_member(light, "color");
     if (!jpos || jpos->tag != JSON_ARRAY || !jcolor || jcolor->tag != JSON_ARRAY)
-        return -1;
+        return CERR_INVALID_FORMAT;
 
     double pos[3], color[3];
     if (json_double_array(jpos, pos, 3) ||
         json_double_array(jcolor, color, 3))
-        return -1;
+        return CERR_INVALID_FORMAT;
 
-    int idx = CRES_RET(light_get(&s->light), return -1);
+    int idx = CRES_RET_CERR(light_get(&s->light));
 
     float fpos[3] = { pos[0], pos[1], pos[2] };
     float fcolor[3] = { color[0], color[1], color[2] };
@@ -1314,7 +1314,7 @@ static int scene_add_light_from_json(struct scene *s, JsonNode *light)
     vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
     view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !s->render_options.shadow_vsm);
 
-    return 0;
+    return CERR_OK;
 }
 
 static void scene_onload(struct lib_handle *h, void *buf)
@@ -1368,7 +1368,7 @@ static void scene_onload(struct lib_handle *h, void *buf)
             JsonNode *light;
 
             for (light = p->children.head; light; light = light->next)
-                scene_add_light_from_json(scene, light);
+                CERR_RET(scene_add_light_from_json(scene, light), goto err);
         } else if (!strcmp(p->key, "sfx") && p->tag == JSON_OBJECT) {
             JsonNode *sfx;
 
