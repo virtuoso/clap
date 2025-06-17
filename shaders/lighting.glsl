@@ -32,14 +32,62 @@ lighting_result compute_blinn_phong(int idx, vec3 unit_normal, vec3 to_light_vec
     return lighting_result(diffuse, specular);
 }
 
-lighting_result compute_total_lighting(vec3 unit_normal, vec3 to_light_vector[LIGHTS_MAX], vec3 view_dir)
+#define PI 3.1415926538
+
+lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_vector, vec3 view_dir,
+                                      vec3 base_color)
+{
+    float distance = light_directional[idx] ? 1.0 : length(to_light_vector);
+    float att_fac = light_directional[idx] ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
+    vec3 l = normalize(light_directional[idx] ? -light_dir[idx] : to_light_vector);
+
+    vec3 h = normalize(l + view_dir);
+
+    float n_dot_l = max(dot(unit_normal, l), 0.0);
+    float n_dot_v = max(dot(unit_normal, view_dir), 0.0);
+    float n_dot_h = max(dot(unit_normal, h), 0.0);
+    float v_dot_h = max(dot(view_dir, h), 0.0);
+
+    float alpha = roughness * roughness;
+
+    /* GGX normal distribution */
+    float alpha_2 = alpha * alpha;
+    float denom = n_dot_h * n_dot_h * (alpha_2 - 1.0) + 1.0;
+    float d = alpha_2 / (PI * denom * denom);
+
+    /* Schlick Fresnel approximation */
+    vec3 f0 = mix(vec3(0.04), base_color, metallic);
+    vec3 f = f0 + (1.0 - f0) * pow(1.0 - v_dot_h, 5.0);
+
+    /* Smith-GGX geometry function */
+    float k = (alpha + 1.0) * (alpha + 1.0) / 8.0;
+    float g_v = n_dot_v / (n_dot_v * (1.0 - k) + k);
+    float g_l = n_dot_l / (n_dot_l * (1.0 - k) + k);
+    float g = g_v * g_l;
+
+    vec3 numerator = d * g * f;
+    float denominator = 4.0 * max(n_dot_l * n_dot_v, 0.001);
+    vec3 specular = numerator / denominator;
+
+    /* Energy conservation: scale diffuse by (1 - specular reflectance) */
+    vec3 kd = (1.0 - f) * (1.0 - metallic);
+    vec3 diffuse = kd * base_color / PI;
+
+    lighting_result ret;
+    ret.diffuse = diffuse * n_dot_l * light_color[idx] * att_fac;
+    ret.specular = specular * n_dot_l * light_color[idx] * att_fac;
+
+    return ret;
+}
+
+lighting_result compute_total_lighting(vec3 unit_normal, vec3 to_light_vector[LIGHTS_MAX], vec3 view_dir,
+                                       vec3 base_color)
 {
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
-    // vec3 total_diffuse = vec3(0.0);
-    // vec3 total_specular = vec3(0.0);
 
     for (int i = 0; i < nr_lights; i++) {
-        lighting_result l = compute_blinn_phong(i, unit_normal, to_light_vector[i], view_dir);
+        // lighting_result l = compute_blinn_phong(i, unit_normal, to_light_vector[i], view_dir);
+        lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector[i], view_dir, base_color);
         r.specular += l.specular;
         r.diffuse += l.diffuse;
     }

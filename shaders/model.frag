@@ -61,7 +61,7 @@ void main()
 
     float shadow_factor = shadow_factor_calc(unit_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
 
-    lighting_result r = compute_total_lighting(unit_normal, to_light_vector, view_dir);
+    lighting_result r = compute_total_lighting(unit_normal, to_light_vector, view_dir, texture_sample.rgb);
 
     vec3 shadow_tint = light_color[0] * vec3(0.4, 0.3, 0.3); /* XXX: parameterize me */
     r.diffuse = mix(r.diffuse, shadow_tint, 1.0 - shadow_factor);
