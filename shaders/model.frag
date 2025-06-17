@@ -13,8 +13,7 @@ layout (location=8) in vec3 to_camera_vector;
 layout (location=9) in vec4 world_pos;
 
 #include "shadow.glsl"
-#include "ubo_lighting.glsl"
-#include "ubo_material.glsl"
+#include "lighting.glsl"
 
 layout (std140, binding = UBO_BINDING_projview) uniform projview {
     mat4 proj;
@@ -56,35 +55,18 @@ void main()
         unit_normal = normalize(surface_normal);
     }
 
-    vec3 unit_to_camera_vector = normalize(to_camera_vector);
+    vec3 view_dir = normalize(to_camera_vector);
     vec4 texture_sample = texture(model_tex, pass_tex);
     vec4 view_pos = view * world_pos;
 
     float shadow_factor = shadow_factor_calc(unit_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
 
-    vec3 total_diffuse = vec3(0.0);
-    vec3 total_specular = vec3(0.0);
+    lighting_result r = compute_total_lighting(unit_normal, to_light_vector, view_dir);
 
-    for (int i = 0; i < nr_lights; i++) {
-        float distance = length(to_light_vector[i]);
-        float att_fac = attenuation[i].x + (attenuation[i].y * distance) + (attenuation[i].z * distance * distance);
-        vec3 unit_to_light_vector = normalize(to_light_vector[i]);
-        float n_dot1 = dot(unit_normal, unit_to_light_vector);
-        float brightness = max(n_dot1, 0.0);
-        vec3 light_direction = -unit_to_light_vector;
-        vec3 reflected_light_direction = reflect(light_direction, unit_normal);
-        float specular_factor = dot(reflected_light_direction, unit_to_camera_vector);
-        specular_factor = max(specular_factor, 0.2);
-        float damped_factor = pow(specular_factor, shine_damper);
-        total_specular = total_specular + damped_factor * reflectivity * light_color[i] / att_fac;
-        total_diffuse = total_diffuse + brightness * light_color[i] / att_fac;
-    }
-
-    total_diffuse += light_ambient;
     vec3 shadow_tint = light_color[0] * vec3(0.4, 0.3, 0.3); /* XXX: parameterize me */
-    total_diffuse = mix(total_diffuse, shadow_tint, 1.0 - shadow_factor);
+    r.diffuse = mix(r.diffuse, shadow_tint, 1.0 - shadow_factor);
 
-    FragColor = vec4(total_diffuse, 1.0) * texture_sample + vec4(total_specular, 1.0);
+    FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
     EdgeDepthMask = gl_FragCoord.z;
 
     vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, pass_tex).rgb : texture_sample.rgb;
