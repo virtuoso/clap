@@ -1279,6 +1279,20 @@ static int scene_add_light_from_json(struct scene *s, JsonNode *light)
     if (light->tag != JSON_OBJECT)
         return -1;
 
+    JsonNode *jambient = json_find_member(light, "ambient_color");
+    if (jambient) {
+        if (jambient->tag != JSON_ARRAY)
+            return -1;
+
+        double color[3];
+        if (json_double_array(jambient, color, 3))
+            return -1;
+
+        light_set_ambient(&s->light, (float[]){ color[0], color[1], color[2] });
+
+        return 0;
+    }
+
     JsonNode *jpos = json_find_member(light, "position");
     JsonNode *jcolor = json_find_member(light, "color");
     if (!jpos || jpos->tag != JSON_ARRAY || !jcolor || jcolor->tag != JSON_ARRAY)
