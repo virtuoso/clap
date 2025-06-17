@@ -1407,6 +1407,9 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
     if (ubo->data || ubo->size)
         return CERR_INVALID_OPERATION;
 
+    /* If a UBO ends on a non-padded scalar, the UBO size needs to be padded */
+    size = round_up(size, 16);
+
     ubo->data = mem_alloc(size, .zero = 1);
     if (!ubo->data)
         return CERR_NOMEM;

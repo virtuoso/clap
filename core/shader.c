@@ -220,8 +220,6 @@ cresp(shader_context) shader_vars_init(void)
             ctx->vars[var].var_in_block_idx = j;
         }
 
-        /* If a UBO ends on a non-padded scalar, the UBO size needs to be padded */
-        size = round_up(size, 16);
         err = uniform_buffer_data_alloc(ub, size);
         if (IS_CERR(err))
             goto error_ub_done;
