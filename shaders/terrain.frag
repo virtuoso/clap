@@ -14,6 +14,7 @@ layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
     vec3 attenuation[LIGHTS_MAX];
     bool light_directional[LIGHTS_MAX];
     int  nr_lights;
+    vec3 light_ambient;
 };
 
 uniform sampler2D model_tex;
