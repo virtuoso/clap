@@ -226,7 +226,14 @@ static void light_debug(struct scene *scene)
             igPushID_Int(idx);
             ui_igControlTableHeader("light %d", "pos", idx);
 
-            ui_igSliderFloat3("pos", &scene->light.dir[3 * idx], -500, 500, "%.02f", 0);
+            ui_igCheckbox("directional", (bool *)&scene->light.is_dir[idx]);
+            if (ui_igSliderFloat3("pos", &scene->light.pos[3 * idx], -500, 500, "%.02f", 0) &&
+                scene->light.is_dir[idx])
+                vec3_sub(&scene->light.dir[3 * idx], (vec3){}, &scene->light.pos[3 * idx]);
+            if (ui_igSliderFloat3("dir", &scene->light.dir[3 * idx], -500, 500, "%.02f", 0) &&
+                scene->light.is_dir[idx])
+                vec3_sub(&scene->light.pos[3 * idx], (vec3){}, &scene->light.dir[3 * idx]);
+            ui_igSliderFloat3("att", &scene->light.attenuation[3 * idx], 0.0001, 10.0, "%.04f", 0);
 
             ui_igColorEdit3(
                 "color",
