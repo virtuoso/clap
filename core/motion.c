@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "camera.h"
 #include "messagebus.h"
 #include "motion.h"
 #include "scene.h"
@@ -86,10 +87,27 @@ static void motion_compute_rs(struct motionctl *mctl)
         mctl->rs_dy = mctl->rs_down - mctl->rs_up;
 }
 
-void motion_compute(struct motionctl *mctl)
+static void motion_get(struct motionctl *mctl, struct camera *cam, float lin_speed)
+{
+    float delta_x = mctl->ls_dx * lin_speed;
+    float delta_z = mctl->ls_dy * lin_speed;
+
+    if (cam) {
+        float yawcos = cos(to_radians(cam->yaw));
+        float yawsin = sin(to_radians(cam->yaw));
+        mctl->dx = delta_x * yawcos - delta_z * yawsin;
+        mctl->dz = delta_x * yawsin + delta_z * yawcos;
+    } else {
+        mctl->dx = delta_x;
+        mctl->dz = delta_z;
+    }
+}
+
+void motion_compute(struct motionctl *mctl, struct camera *cam, float lin_speed)
 {
     motion_compute_ls(mctl);
     motion_compute_rs(mctl);
+    motion_get(mctl, cam, lin_speed);
 }
 
 void motion_reset(struct motionctl *mctl, struct scene *s)

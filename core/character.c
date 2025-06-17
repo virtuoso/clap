@@ -356,7 +356,6 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
 void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
-    struct character *control = scene_control_character(s);
     struct character *cam = s->camera->ch;
 
     ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
@@ -374,25 +373,14 @@ void character_move(struct character *ch, struct scene *s)
         ch->old_collision = ch->collision;
     }
 
-    if (control == ch) {
-        float delta_x = s->mctl.ls_dx * ch->lin_speed;
-        float delta_z = s->mctl.ls_dy * ch->lin_speed;
-        float yawcos = cos(to_radians(s->camera->yaw));
-        float yawsin = sin(to_radians(s->camera->yaw));
-        float dx = delta_x * yawcos - delta_z * yawsin;
-        float dz = delta_x * yawsin + delta_z * yawcos;
+    struct motionctl *mctl = &s->mctl;
+    ch->motion[0] = mctl->dx;
+    if (!scene_character_is_camera(s, ch))
+        ch->motion[1] = 0.0;
+    ch->motion[2] = mctl->dz;
 
-        ch->motion[0] = dx;
-        if (!scene_character_is_camera(s, ch))
-            ch->motion[1] = 0.0;
-        ch->motion[2] = dz;
-
-        if (ch->jump)
-            if (character_jump(ch, s, dx, dz))
-                goto out;
-    } else if (ch->state == CS_START) {
+    if (ch->jump && character_jump(ch, s, mctl->dx, mctl->dz))
         goto out;
-    }
 
     if (vec3_len(ch->motion)) {
         vec3 newx, newy, newz;

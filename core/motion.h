@@ -19,10 +19,12 @@ struct motionctl {
     float   rs_down;
     float   rs_dx;
     float   rs_dy;
+    float   dx;
+    float   dz;
 };
 
 void motion_parse_input(struct motionctl *mctl, struct message *m);
-void motion_compute(struct motionctl *mctl);
+void motion_compute(struct motionctl *mctl, struct camera *cam, float lin_speed);
 void motion_reset(struct motionctl *mctl, struct scene *s);
 
 #endif /* __CLAP_MOTION_H__ */

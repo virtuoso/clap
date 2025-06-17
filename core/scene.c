@@ -666,13 +666,28 @@ void scene_cameras_calc(struct scene *s)
 
 void scene_characters_move(struct scene *s)
 {
-    struct character *ch;
+    struct character *ch, *current = scene_control_character(s);
+    float lin_speed;
+
+    if (current) {
+        lin_speed = current->lin_speed;
+    } else {
+        double dt = clap_get_fps_delta(s->clap_ctx).tv_nsec / (double)NSEC_PER_SEC;
+        lin_speed = s->lin_speed * dt;
+    }
 
     /* Always compute the active inputs in the frame */
-    motion_compute(&s->mctl);
+    motion_compute(&s->mctl, s->camera, lin_speed);
+
+    if (!current) {
+        entity3d_move(s->control, (vec3){ s->mctl.dx, 0.0, s->mctl.dz });
+        s->camera->ch->moved++;
+        return;
+    }
+
     list_for_each_entry(ch, &s->characters, entry) {
         /* But only apply them to the active character */
-        if (scene_control_character(s) == ch)
+        if (current == ch)
             character_move(ch, s);
     }
 }
