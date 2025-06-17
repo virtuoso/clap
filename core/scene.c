@@ -794,6 +794,7 @@ cerr scene_init(struct scene *scene)
         light_set_attenuation(&scene->light, i, attenuation);
         light_set_directional(&scene->light, i, true);
     }
+    light_set_ambient(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
 
     scene->render_options.shadow_vsm = true;
     scene->render_options.shadow_msaa = false;
