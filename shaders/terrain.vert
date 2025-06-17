@@ -7,15 +7,7 @@ layout (location=1) in vec2 tex;
 layout (location=2) in vec3 normal;
 layout (location=3) in vec4 tangent;
 
-layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
-    vec3 light_pos[LIGHTS_MAX];
-    vec3 light_color[LIGHTS_MAX];
-    vec3 light_dir[LIGHTS_MAX];
-    vec3 attenuation[LIGHTS_MAX];
-    bool light_directional[LIGHTS_MAX];
-    int  nr_lights;
-    vec3 light_ambient;
-};
+#include "ubo_lighting.glsl"
 
 layout (std140, binding = UBO_BINDING_transform) uniform transform {
     mat4 trans;

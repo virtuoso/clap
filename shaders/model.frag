@@ -12,22 +12,8 @@ layout (location=4) in vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) in vec3 to_camera_vector;
 layout (location=9) in vec4 world_pos;
 
-layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
-    vec3 light_pos[LIGHTS_MAX];
-    vec3 light_color[LIGHTS_MAX];
-    vec3 light_dir[LIGHTS_MAX];
-    vec3 attenuation[LIGHTS_MAX];
-    bool light_directional[LIGHTS_MAX];
-    int  nr_lights;
-    vec3 light_ambient;
-};
-
-layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
-    mat4 shadow_mvp[CASCADES_MAX];
-    float cascade_distances[CASCADES_MAX];
-    bool shadow_outline;
-    float shadow_outline_threshold;
-};
+#include "ubo_shadow.glsl"
+#include "ubo_lighting.glsl"
 
 layout (std140, binding = UBO_BINDING_projview) uniform projview {
     mat4 proj;

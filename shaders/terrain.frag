@@ -7,15 +7,7 @@ layout (location=1) in vec3 surface_normal;
 layout (location=2) in vec3 to_light_vector;
 layout (location=3) in vec3 to_camera_vector;
 
-layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
-    vec3 light_pos[LIGHTS_MAX];
-    vec3 light_color[LIGHTS_MAX];
-    vec3 light_dir[LIGHTS_MAX];
-    vec3 attenuation[LIGHTS_MAX];
-    bool light_directional[LIGHTS_MAX];
-    int  nr_lights;
-    vec3 light_ambient;
-};
+#include "ubo_lighting.glsl"
 
 uniform sampler2D model_tex;
 uniform float shine_damper;

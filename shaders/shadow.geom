@@ -5,12 +5,7 @@
 layout(triangles, invocations = CASCADES_MAX) in;
 layout(triangle_strip, max_vertices = 3) out;
 
-layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
-    mat4 shadow_mvp[CASCADES_MAX];
-    float cascade_distances[CASCADES_MAX];
-    bool shadow_outline;
-    float shadow_outline_threshold;
-};
+#include "ubo_shadow.glsl"
 
 void main()
 {
