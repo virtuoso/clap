@@ -62,6 +62,8 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_LIGHT_AMBIENT,       "light_ambient",        DT_VEC3),
     SHADER_VAR(UNIFORM_SHINE_DAMPER,        "shine_damper",         DT_FLOAT),
     SHADER_VAR(UNIFORM_REFLECTIVITY,        "reflectivity",         DT_FLOAT),
+    SHADER_VAR(UNIFORM_ROUGHNESS,           "roughness",            DT_FLOAT),
+    SHADER_VAR(UNIFORM_METALLIC,            "metallic",             DT_FLOAT),
     SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             DT_VEC4),
     SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    DT_INT),
     SHADER_VAR(UNIFORM_SHADOW_VSM,          "shadow_vsm",           DT_INT),
@@ -152,7 +154,9 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_PARTICLE_POS),
     DEFINE_SHADER_VAR_BLOCK(material, SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_REFLECTIVITY,
-                            UNIFORM_SHINE_DAMPER),
+                            UNIFORM_SHINE_DAMPER,
+                            UNIFORM_ROUGHNESS,
+                            UNIFORM_METALLIC),
 };
 
 /* Runtime shader context */

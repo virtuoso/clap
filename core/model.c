@@ -926,8 +926,8 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
 
-        shader_set_var_float(prog, UNIFORM_SHINE_DAMPER, txmodel->roughness);
-        shader_set_var_float(prog, UNIFORM_REFLECTIVITY, txmodel->metallic);
+        shader_set_var_float(prog, UNIFORM_ROUGHNESS, txmodel->roughness);
+        shader_set_var_float(prog, UNIFORM_METALLIC, txmodel->metallic);
 
         unsigned int nr_characters = 0;
         entity3d *e;
