@@ -1382,7 +1382,7 @@ static void scene_onload(struct lib_handle *h, void *buf)
             }
 
             for (m = p->children.head; m; m = m->next) {
-                model_new_from_json(scene, m);
+                CERR_RET(model_new_from_json(scene, m), goto err);
             }
         } else if (!strcmp(p->key, "light") && p->tag == JSON_ARRAY) {
             JsonNode *light;
