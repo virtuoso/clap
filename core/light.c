@@ -1,5 +1,10 @@
 #include "light.h"
 
+void light_set_ambient(struct light *light, float *color)
+{
+    vec3_dup(light->ambient, color);
+}
+
 cres(int) light_get(struct light *light)
 {
     if (light->nr_lights == LIGHTS_MAX)
