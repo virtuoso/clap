@@ -212,6 +212,16 @@ static void light_debug(struct scene *scene)
         return;
 
     if (dbgm->unfolded) {
+        ui_igControlTableHeader("ambient light", "color");
+        ui_igColorEdit3(
+            "color",
+            scene->light.ambient,
+            ImGuiColorEditFlags_NoInputs |
+            ImGuiColorEditFlags_NoLabel  |
+            ImGuiColorEditFlags_NoTooltip
+        );
+        igEndTable();
+
         for (int idx = 0; idx < scene->light.nr_lights; idx++) {
             igPushID_Int(idx);
             ui_igControlTableHeader("light %d", "pos", idx);
