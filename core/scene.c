@@ -972,7 +972,8 @@ unsigned int total_models, nr_models;
 
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
-    double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0, geom_length = 1.0, speed = 0.75;
+    double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0;
+    double geom_length = 1.0, speed = 0.75, roughness = -1.0, metallic = -1.0;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
     bool outline_exclude = false, fix_origin = false;
@@ -1021,6 +1022,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             motion_segments = p->number_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "fix_origin"))
             fix_origin = p->bool_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "metallic"))
+            metallic = p->number_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "roughness"))
+            roughness = p->number_;
     }
 
     if (!name || !gltf) {
@@ -1072,6 +1077,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     txm = mq_model_last(&scene->mq);
     txm->model->cull_face = cull_face;
     txm->model->alpha_blend = alpha_blend;
+    if (roughness >= 0.0)
+        txm->roughness = clampd(roughness, 0.0, 1.0);
+    if (metallic >= 0.0)
+        txm->metallic = clampd(metallic, 0.0, 1.0);
 
     model3d_set_name(txm->model, name);
 
