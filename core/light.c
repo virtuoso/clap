@@ -5,6 +5,11 @@ void light_set_ambient(struct light *light, float *color)
     vec3_dup(light->ambient, color);
 }
 
+void light_set_shadow_tint(struct light *light, float *color)
+{
+    vec3_dup(light->shadow_tint, color);
+}
+
 cres(int) light_get(struct light *light)
 {
     if (light->nr_lights == LIGHTS_MAX)
