@@ -311,7 +311,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
          */
         igPushItemWidth(-1.0);
 
-        ui_igControlTableHeader("entity", "actions");
+        ui_igControlTableHeader("entity", "roughness");
 
         if (ui_igBeginCombo("entity", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
             mq_for_each_matching(&scene->mq, ENTITY3D_ALIVE, dropdown_entity, scene);
@@ -383,6 +383,9 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         ui_igSliderFloat("bloom thr", &e->bloom_threshold, 0.0, 1.0, "%.02f", 0);
         ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);
+
+        ui_igSliderFloat("metallic", &e->txmodel->metallic, 0.0, 1.0, "%.04f", 0);
+        ui_igSliderFloat("roughness", &e->txmodel->roughness, 0.0, 1.0, "%.04f", 0);
 
         int lod = e->cur_lod;
         int nr_lods = max(e->txmodel->model->nr_lods - 1, 0);
