@@ -63,8 +63,8 @@ void main()
 
     lighting_result r = compute_total_lighting(unit_normal, to_light_vector, view_dir, texture_sample.rgb);
 
-    vec3 shadow_tint = light_color[0] * vec3(0.4, 0.3, 0.3); /* XXX: parameterize me */
-    r.diffuse = mix(r.diffuse, shadow_tint, 1.0 - shadow_factor);
+    vec3 shadow_tinted = light_color[0] * shadow_tint;
+    r.diffuse = mix(r.diffuse, shadow_tinted, 1.0 - shadow_factor);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
     EdgeDepthMask = gl_FragCoord.z;
