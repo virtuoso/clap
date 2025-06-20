@@ -1,11 +1,11 @@
 #include "light.h"
 
-void light_set_ambient(struct light *light, float *color)
+void light_set_ambient(struct light *light, const float *color)
 {
     vec3_dup(light->ambient, color);
 }
 
-void light_set_shadow_tint(struct light *light, float *color)
+void light_set_shadow_tint(struct light *light, const float *color)
 {
     vec3_dup(light->shadow_tint, color);
 }
@@ -18,7 +18,7 @@ cres(int) light_get(struct light *light)
     return cres_val(int, light->nr_lights++);
 }
 
-void light_set_pos(struct light *light, int idx, float pos[3])
+void light_set_pos(struct light *light, int idx, const float pos[3])
 {
     int i;
 
@@ -26,7 +26,7 @@ void light_set_pos(struct light *light, int idx, float pos[3])
         light->pos[idx * 3 + i] = pos[i];
 }
 
-void light_set_color(struct light *light, int idx, float color[3])
+void light_set_color(struct light *light, int idx, const float color[3])
 {
     int i;
 
@@ -34,7 +34,7 @@ void light_set_color(struct light *light, int idx, float color[3])
         light->color[idx * 3 + i] = color[i];
 }
 
-void light_set_attenuation(struct light *light, int idx, float attenuation[3])
+void light_set_attenuation(struct light *light, int idx, const float attenuation[3])
 {
     int i;
 
