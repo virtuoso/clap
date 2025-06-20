@@ -222,6 +222,16 @@ static void light_debug(struct scene *scene)
         );
         igEndTable();
 
+        ui_igControlTableHeader("shadow tint", "color");
+        ui_igColorEdit3(
+            "color",
+            scene->light.shadow_tint,
+            ImGuiColorEditFlags_NoInputs |
+            ImGuiColorEditFlags_NoLabel  |
+            ImGuiColorEditFlags_NoTooltip
+        );
+        igEndTable();
+
         for (int idx = 0; idx < scene->light.nr_lights; idx++) {
             igPushID_Int(idx);
             ui_igControlTableHeader("light %d", "pos", idx);
