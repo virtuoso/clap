@@ -381,15 +381,15 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         float rx = to_degrees(e->rx);
         if (ui_igSliderFloat("rx", &rx, -180.0, 180.0, "%.02f", 0))
-            entity3d_rotate_X(e, to_radians(rx));
+            entity3d_rotate(e, to_radians(rx), 0, 0);
 
         float ry = to_degrees(e->ry);
         if (ui_igSliderFloat("ry", &ry, -180.0, 180.0, "%.02f", 0))
-            entity3d_rotate_Y(e, to_radians(ry));
+            entity3d_rotate(e, 0, to_radians(ry), 0);
 
         float rz = to_degrees(e->rz);
         if (ui_igSliderFloat("rz", &rz, -180.0, 180.0, "%.02f", 0))
-            entity3d_rotate_Z(e, to_radians(rz));
+            entity3d_rotate(e, 0, 0, to_radians(rz));
 
         ui_igSliderFloat("bloom thr", &e->bloom_threshold, 0.0, 1.0, "%.02f", 0);
         ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);
@@ -1168,7 +1168,6 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 continue;
 
             vec3 e_pos = {};
-            float ry = 0;
 
             pos = jpos->children.head;
             if (pos->tag != JSON_NUMBER)
@@ -1191,8 +1190,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             /* rotation: optional */
             pos = pos->next;
             if (pos && pos->tag == JSON_NUMBER)
-                ry = to_radians(pos->number_);
-            entity3d_rotate_Y(e, ry);
+                entity3d_rotate(e, 0, to_radians(pos->number_), 0);
 
             double _light_color[3];
             jpos = json_find_member(it, "light_color");

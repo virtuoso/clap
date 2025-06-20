@@ -193,7 +193,7 @@ static void character_apply_velocity(struct character *ch)
     else
         transform_move(&e->xform, ch->velocity);
 
-    entity3d_rotate_Y(ch->entity, atan2f(ch->angle[0], ch->angle[2]));
+    entity3d_rotate(ch->entity, 0, atan2f(ch->angle[0], ch->angle[2]), 0);
 }
 
 static void character_set_state(struct character *ch, struct scene *s, character_state state)
@@ -436,7 +436,6 @@ void character_move(struct character *ch, struct scene *s)
             }
         }
 
-        // entity3d_rotate_Z(ch->entity, atan2f(ch->angle[1], ch->velocity[1]));
         character_set_state(ch, s, CS_MOVING);
     } else if (!ch->airborne) {
         ch->angle[0] = 0;

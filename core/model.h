@@ -337,14 +337,9 @@ void entity3d_position(entity3d *e, vec3 pos);
 /* Set entity's visibility */
 void entity3d_visible(entity3d *e, unsigned int visible);
 
-/* Set entity's rotation aronud X axis */
-void entity3d_rotate_X(entity3d *e, float rx);
+/* Set entity's rotation */
+void entity3d_rotate(entity3d *e, float rx, float ry, float rz);
 
-/* Set entity's rotation aronud Y axis */
-void entity3d_rotate_Y(entity3d *e, float ry);
-
-/* Set entity's rotation aronud Z axis */
-void entity3d_rotate_Z(entity3d *e, float rz);
 void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
 void animation_start(entity3d *e, struct scene *scene, int ani);

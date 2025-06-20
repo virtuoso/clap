@@ -1577,20 +1577,10 @@ void entity3d_visible(entity3d *e, unsigned int visible)
     e->visible = visible;
 }
 
-void entity3d_rotate_X(entity3d *e, float rx)
+void entity3d_rotate(entity3d *e, float rx, float ry, float rz)
 {
     e->rx = rx;
-    e->updated++;
-}
-
-void entity3d_rotate_Y(entity3d *e, float ry)
-{
     e->ry = ry;
-    e->updated++;
-}
-
-void entity3d_rotate_Z(entity3d *e, float rz)
-{
     e->rz = rz;
     e->updated++;
 }
@@ -1637,7 +1627,7 @@ entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,
     entity3d *e = ref_new(entity3d, .txmodel = txm);
     entity3d_position(e, (vec3){ instor->dx, instor->dy, instor->dz });
     if (randomize_yrot)
-        entity3d_rotate_Y(e, drand48() * 360);
+        entity3d_rotate(e, 0, drand48() * M_PI * 2, 0);
     if (randomize_scale)
         entity3d_scale(e, 1 + randomize_scale * (1 - drand48() * 2));
     default_update(e, scene);
