@@ -94,10 +94,10 @@ void phys_body_rotation(struct phys_body *body, quat rot)
 
     dGeomGetQuaternion(body->geom, _rot);
 
-    rot[0] = _rot[0];
-    rot[1] = _rot[1];
-    rot[2] = _rot[2];
-    rot[3] = _rot[3];
+    rot[0] = _rot[1];
+    rot[1] = _rot[2];
+    rot[2] = _rot[3];
+    rot[3] = _rot[0];
 }
 
 void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs)
