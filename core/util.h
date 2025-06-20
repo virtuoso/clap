@@ -56,11 +56,11 @@ static inline float to_degrees(float radians)
     return radians / M_PI * 180.0;
 }
 
-void aabb_center(float *aabb, float *center);
+void aabb_center(const float *aabb, float *center);
 void vertex_array_aabb_calc(float *aabb, float *vx, size_t vxsz);
 void vertex_array_fix_origin(float *vx, size_t vxsz, float *aabb);
 
-static inline bool aabb_point_is_inside(float *aabb, float *point)
+static inline bool aabb_point_is_inside(const float *aabb, const float *point)
 {
     if (point[0] >= aabb[0] && point[0] <= aabb[1] &&
         point[1] >= aabb[2] && point[1] <= aabb[3] &&

@@ -18,7 +18,7 @@ DEFINE_CLEANUP(void, mem_free(*p))
 DEFINE_CLEANUP(char, mem_free(*p))
 DEFINE_CLEANUP(uchar, mem_free(*p))
 
-void aabb_center(float *aabb, float *center)
+void aabb_center(const float *aabb, float *center)
 {
     vec3 minv = { aabb[0], aabb[2], aabb[4] };
     vec3 maxv = { aabb[1], aabb[3], aabb[5] };
