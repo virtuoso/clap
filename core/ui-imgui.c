@@ -234,7 +234,7 @@ void ui_igTableRow(const char *key, const char *fmt, ...)
     igText(buf);
 }
 
-void ui_igVecRow(float *v, int n, const char *fmt, ...)
+void ui_igVecRow(const float *v, int n, const char *fmt, ...)
 {
     char buf[128];
     va_list va;
@@ -257,7 +257,7 @@ void ui_igVecRow(float *v, int n, const char *fmt, ...)
     }
 }
 
-bool ui_igMat4x4(mat4x4 m, const char *name)
+bool ui_igMat4x4(const mat4x4 m, const char *name)
 {
     if (!igBeginTable(name, 4, ImGuiTableFlags_Borders, (ImVec2){0,0}, 0))
         return false;
