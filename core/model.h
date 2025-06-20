@@ -257,7 +257,6 @@ typedef struct entity3d {
     vec3                aabb_center;
     float               light_off[3];
     int                 (*update)(entity3d *e, void *data);
-    int                 (*contact)(entity3d *e1, entity3d *e2);
     void                (*connect)(entity3d *e, entity3d *connection, void *data);
     void                (*disconnect)(entity3d *e, entity3d *connection, void *data);
     void                *connect_priv;
