@@ -164,7 +164,7 @@ static void camera_target(struct camera *c, entity3d *entity)
 
     if (entity->priv) {
         /* for characters, assume origin is between their feet */
-        vec3_dup(c->target, entity->pos);
+        transform_pos(&entity->xform, c->target);
         /* look at three quarters their height (XXX: parameterize) */
         height = entity3d_aabb_Y(entity) * 3 / 4;
         c->target[1] += height;

@@ -577,12 +577,14 @@ static void entity3d_debug(entity3d *e)
         }
     };
     vec3_dup(dm.debug_draw.v0, e->aabb_center);
+
+    float *pos = transform_pos(&e->xform, NULL);
     CRES_RET(
         mem_asprintf(
             &dm.debug_draw.text,
             "%s\npos: %.02f,%.02f,%.02f\nrx: %.02f ry: %.02f rz: %.02f\nscale: %.02f\nLOD %d",
             entity_name(e),
-            e->pos[0], e->pos[1], e->pos[2],
+            pos[0], pos[1], pos[2],
             to_degrees(e->rx), to_degrees(e->ry), to_degrees(e->rz),
             e->scale,
             e->cur_lod
@@ -953,9 +955,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 if (e->force_lod >= 0) {
                     e->cur_lod = e->force_lod;
                 } else {
-                    vec3 pos;
-
-                    vec3_dup(pos, camera->ch->entity->pos);
+                    float *pos = transform_pos(&camera->ch->entity->xform, NULL);
 
                     /* only apply LOD when the camera is outside the AABB */
                     if (!aabb_point_is_inside(e->aabb, pos)) {
@@ -1454,7 +1454,7 @@ static int default_update(entity3d *e, void *data)
 
     if (needs_update(e)) {
         mat4x4_identity(e->mx);
-        mat4x4_translate_in_place(e->mx, e->pos[0], e->pos[1], e->pos[2]);
+        transform_translate(&e->xform, e->mx);
         mat4x4_rotate_X(e->mx, e->mx, e->rx);
         mat4x4_rotate_Y(e->mx, e->mx, e->ry);
         mat4x4_rotate_Z(e->mx, e->mx, e->rz);
@@ -1470,8 +1470,7 @@ static int default_update(entity3d *e, void *data)
             phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
 
         if (scene && e->light_idx >= 0) {
-            float pos[3];
-            vec3_add(pos, e->pos, e->light_off);
+            float *pos = transform_move(&e->xform, e->light_off);
             light_set_pos(&scene->light, e->light_idx, pos);
         }
     }
@@ -1483,8 +1482,8 @@ static int default_update(entity3d *e, void *data)
      * Find the biggest bounding volume that contains camera or the character
      */
     struct camera *cam = scene->camera;
-    if ((aabb_point_is_inside(e->aabb, cam->ch->entity->pos) ||
-         aabb_point_is_inside(e->aabb, scene->control->pos)) &&
+    if ((aabb_point_is_inside(e->aabb, transform_pos(&cam->ch->entity->xform, NULL)) ||
+         aabb_point_is_inside(e->aabb, transform_pos(&scene->control->xform, NULL))) &&
          e != cam->ch->entity && e != scene->control) {
         float volume = entity3d_aabb_X(e) * entity3d_aabb_Y(e) * entity3d_aabb_Z(e);
 
@@ -1605,17 +1604,17 @@ void entity3d_scale(entity3d *e, float scale)
 void entity3d_position(entity3d *e, vec3 pos)
 {
     e->updated++;
-    vec3_dup(e->pos, pos);
+    transform_set_pos(&e->xform, pos);
     if (e->phys_body)
-        phys_body_set_position(e->phys_body, e->pos);
+        phys_body_set_position(e->phys_body, pos);
 }
 
 void entity3d_move(entity3d *e, vec3 off)
 {
     e->updated++;
-    vec3_add(e->pos, e->pos, off);
+    float *pos = transform_move(&e->xform, off);
     if (e->phys_body)
-        phys_body_set_position(e->phys_body, e->pos);
+        phys_body_set_position(e->phys_body, pos);
 }
 
 void entity3d_color(entity3d *e, int color_pt, vec4 color)

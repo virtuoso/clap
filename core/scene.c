@@ -372,7 +372,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
         }
 
         vec3 pos;
-        vec3_dup(pos, e->pos);
+        transform_pos(&e->xform, pos);
 
         if (ui_igSliderFloat3("pos", pos, -500.0, 500.0, "%.02f", 0)) {
             entity3d_position(e, pos);
@@ -635,7 +635,8 @@ static void scene_camera_calc(struct scene *s, int camera)
     if (!cam->ch->moved && current == cam->ch)
         return;
 
-    float *cam_pos = cam->ch->entity->pos;
+    vec3 cam_pos;
+    transform_pos(&cam->ch->entity->xform, cam_pos);
     view_update_from_angles(&cam->view, cam_pos, cam->pitch, cam->yaw, cam->roll);
     view_calc_frustum(&cam->view);
 
@@ -1241,7 +1242,7 @@ light_done:
             if (c)
                 c->speed  = speed;
 
-            mat4x4_translate_in_place(e->mx, e->pos[0], e->pos[1], e->pos[2]);
+            transform_translate(&e->xform, e->mx);
             mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
             if (phys) {

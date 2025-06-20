@@ -494,7 +494,7 @@ entity3d *phys_ray_cast(entity3d *e, vec3 start, vec3 dir, double *pdist)
 void phys_ground_entity(struct phys *phys, entity3d *e)
 {
     entity3d *collision;
-    float *start = e->pos;
+    float *start = transform_pos(&e->xform, NULL);
     vec3 dir = { 0, -1, 0 };
     double dist = 1e6;
 
@@ -858,7 +858,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     body->class = class;
 
     dRSetIdentity(rot);
-    phys_body_set_position(body, entity->pos);
+    phys_body_set_position(body, transform_pos(&entity->xform, NULL));
     if (has_body) {
         dBodySetRotation(body->body, rot);
         dGeomSetBody(body->geom, body->body);

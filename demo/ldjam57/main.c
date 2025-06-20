@@ -208,7 +208,7 @@ static int character_obj_update(entity3d *e, void *data)
 
     if (scene_camera_follows(s, c)) {
         if (spores)
-            particle_system_position(spores, s->control->pos);
+            particle_system_position(spores, transform_pos(&s->control->xform, NULL));
 
         if (c != control)
             update++;
@@ -227,7 +227,11 @@ static int character_obj_update(entity3d *e, void *data)
                 continue;
 
             vec3 dist;
-            vec3_sub(dist, target->e->pos, cobj->e->pos);
+            vec3_sub(
+                dist,
+                transform_pos(&target->e->xform, NULL),
+                transform_pos(&cobj->e->xform, NULL)
+            );
             target->distance_to_active = vec3_mul_inner(dist, dist);
             if (target->distance_to_active < target->my_distance) {
                 target->connected = true;
@@ -239,7 +243,8 @@ static int character_obj_update(entity3d *e, void *data)
     if (update)
         switcher_update(s);
 
-    if (e->pos[1] <= game_over_start_height) {
+    float *pos = transform_pos(&e->xform, NULL);
+    if (pos[1] <= game_over_start_height) {
         static int once = 0;
 
         if (!once++) {
@@ -264,7 +269,7 @@ static void process_entity(entity3d *e, void *data)
     if ((substr = strstr(name, ".platform"))) {
         platform_obj *pobj = darray_add(pobjs);
         pobj->e = e;
-        vec3_dup(pobj->pos, e->pos);
+        transform_pos(&e->xform, pobj->pos);
 
         pobj->sw_name = strndup(name, substr - name);
 

@@ -149,8 +149,9 @@ static void character_debug(struct character *ch)
         return;
 
     if (dbgm->unfolded) {
+        float *pos = transform_pos(&ch->entity->xform, NULL);
         ui_igVecTableHeader("vectors", 3);
-        ui_igVecRow(ch->entity->pos, 3, "position");
+        ui_igVecRow(pos, 3, "position");
         ui_igVecRow(ch->angle, 3, "angle");
         ui_igVecRow(ch->motion, 3, "motion");
         ui_igVecRow(ch->velocity, 3, "velocity");
@@ -190,7 +191,7 @@ static void character_apply_velocity(struct character *ch)
     if (e->phys_body)
         phys_body_set_motor_velocity(e->phys_body, body_also, ch->velocity);
     else
-        vec3_add(e->pos, e->pos, ch->velocity);
+        transform_move(&e->xform, ch->velocity);
 
     entity3d_rotate_Y(ch->entity, atan2f(ch->angle[0], ch->angle[2]));
 }
@@ -462,7 +463,7 @@ static void history_push(struct character *c)
     if (c->airborne)
         return;
 
-    vec3_dup(c->history.pos[c->history.head++], c->entity->pos);
+    transform_pos(&c->entity->xform, c->history.pos[c->history.head++]);
     c->history.head %= POS_HISTORY_MAX;
 
     if (!c->history.wrapped && !c->history.head)
@@ -505,7 +506,8 @@ static int character_update(entity3d *e, void *data)
      */
     vec3 last;
     history_newest(c, last);
-    if (vec3_mul_inner(last, last) > 0.0 && fabsf(e->pos[1] - last[1]) >= s->limbo_height) {
+    float *pos = transform_pos(&e->xform, NULL);
+    if (vec3_mul_inner(last, last) > 0.0 && fabsf(pos[1] - last[1]) >= s->limbo_height) {
         vec3 pos;
         history_fetch(c, pos);
         entity3d_position(e, pos);

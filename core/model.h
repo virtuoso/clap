@@ -12,6 +12,7 @@
 #include "shader.h"
 #include "sound.h"
 #include "ssao.h"
+#include "transform.h"
 
 struct scene;
 struct light;
@@ -242,7 +243,7 @@ typedef struct entity3d {
     float               bloom_threshold;
     float               color[4];
     int                 color_pt;
-    vec3                pos;
+    transform_t         xform;
     float               rx, ry, rz;
     float               scale;
     int                 light_idx;

@@ -63,7 +63,7 @@ static void particle_spawn(particle_system *ps)
     if (!p)
         return;
 
-    random_point_sphere(p->pos, ps->e->pos, ps->radius, ps->dist);
+    random_point_sphere(p->pos, transform_pos(&ps->e->xform, NULL), ps->radius, ps->dist);
     list_append(&ps->particles, &p->entry);
     particle_set_velocity(p);
 }
@@ -83,18 +83,19 @@ static int particles_update(entity3d *e, void *data)
     vec3_dup(e->mx[0], (vec3){ mx[0][0], mx[1][0], mx[2][0] });
     vec3_dup(e->mx[1], (vec3){ mx[0][1], mx[1][1], mx[2][1] });
     vec3_dup(e->mx[2], (vec3){ mx[0][2], mx[1][2], mx[2][2] });
-    vec3_dup(e->mx[3], e->pos);
+    transform_pos(&e->xform, e->mx[3]);
     // entity3d_aabb_update(e);
 
     particle_system *ps = e->particles;
     particle *p;
     int i = 0;
     list_for_each_entry(p, &ps->particles, entry) {
-        vec3 dist;
+        vec3 dist, pos;
 
-        vec3_sub(dist, p->pos, ps->e->pos);
+        transform_pos(&ps->e->xform, pos);
+        vec3_sub(dist, p->pos, pos);
         if (vec3_mul_inner(dist, dist) > ps->radius_squared) {
-            random_point_sphere(p->pos, ps->e->pos, ps->radius, ps->dist);
+            random_point_sphere(p->pos, pos, ps->radius, ps->dist);
             particle_set_velocity(p);
         }
 
@@ -117,7 +118,7 @@ unsigned int particle_system_count(particle_system *ps)
 
 void particle_system_position(particle_system *ps, vec3 center)
 {
-    vec3_dup(ps->e->pos, center);
+    transform_set_pos(&ps->e->xform, center);
 }
 
 static cerr particle_system_make(struct ref *ref, void *_opts)
