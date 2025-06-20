@@ -9,7 +9,7 @@ TYPE(transform,
     vec3    pos;
 );
 
-void transform_set_pos(transform_t *xform, vec3 pos);
+void transform_set_pos(transform_t *xform, const vec3 pos);
 float *transform_move(transform_t *xform, vec3 off);
 float *transform_pos(transform_t *xform, float *pos);
 void transform_translate(transform_t *xform, mat4x4 m);

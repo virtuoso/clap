@@ -3,7 +3,7 @@
 #include "transform.h"
 #undef IMPLEMENTOR
 
-void transform_set_pos(transform_t *xform, vec3 pos)
+void transform_set_pos(transform_t *xform, const vec3 pos)
 {
     vec3_dup(xform->pos, pos);
 }
