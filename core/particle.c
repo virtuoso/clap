@@ -22,7 +22,7 @@ typedef struct particle_system {
     unsigned int    count;
 } particle_system;
 
-static void random_point_sphere(vec3 pos, vec3 center, float radius, particle_dist dist)
+static void random_point_sphere(vec3 pos, const vec3 center, float radius, particle_dist dist)
 {
     vec3 dir;
     dir[0] = drand48() * 2.0 - 1.0;
@@ -116,7 +116,7 @@ unsigned int particle_system_count(particle_system *ps)
     return ps->count;
 }
 
-void particle_system_position(particle_system *ps, vec3 center)
+void particle_system_position(particle_system *ps, const vec3 center)
 {
     transform_set_pos(&ps->e->xform, center);
 }

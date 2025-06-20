@@ -32,7 +32,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(particle_system,
 DECLARE_REFCLASS(particle_system);
 
 // void particle_system_position(particle_system *ps, vec3 center, float rx, float ry, float rz);
-void particle_system_position(particle_system *ps, vec3 center);
+void particle_system_position(particle_system *ps, const vec3 center);
 void particle_system_upload(particle_system *ps, struct shader_prog *prog);
 unsigned int particle_system_count(particle_system *ps);
 
