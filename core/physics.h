@@ -77,12 +77,12 @@ void phys_ground_add(entity3d *e);
  * will be written to *pdist. Entity @e must have a phys_body. If it doesn't,
  * use phys_ray_cast2(), which instead requires a struct phys pointer.
  */
-entity3d *phys_ray_cast(entity3d *e, vec3 start, vec3 dir, double *pdist);
+entity3d *phys_ray_cast(entity3d *e, const vec3 start, const vec3 dir, double *pdist);
 /*
  * Same as phys_ray_cast() for the entities that don't have a phys_body, so it
  * requires a pointer to the physics state (struct phys).
  */
-entity3d *phys_ray_cast2(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
+entity3d *phys_ray_cast2(struct phys *phys, entity3d *e, const vec3 start, const vec3 dir,
                          double *pdist);
 /* Check if phys_body has a body (true) or just a geometry (false) */
 bool phys_body_has_body(struct phys_body *body);
@@ -99,7 +99,7 @@ int phys_body_update(entity3d *e);
 void phys_body_done(struct phys_body *body);
 void phys_body_attach_motor(struct phys_body *body, bool attach);
 /* Set body's body or geometry's position, taking into account body::yoffset */
-void phys_body_set_position(struct phys_body *body, vec3 pos);
+void phys_body_set_position(struct phys_body *body, const vec3 pos);
 /* Set body's rotation from 4x4 TRS matrix */
 void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs);
 /* Enable/disable a body */

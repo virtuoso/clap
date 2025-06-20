@@ -175,7 +175,7 @@ static bool entity_and_other_by_class(dContactGeom *geom, int class, entity3d **
     return false;
 }
 
-void phys_body_set_position(struct phys_body *body, vec3 pos)
+void phys_body_set_position(struct phys_body *body, const vec3 pos)
 {
     /*
      * If pos comes from dBodyGetPosition(), no need to update it
@@ -423,7 +423,7 @@ static void got_contact(void *data, dGeomID o1, dGeomID o2)
 }
 
 static entity3d *
-__phys_ray_cast(struct phys *phys, entity3d *e, vec3 start, vec3 dir,
+__phys_ray_cast(struct phys *phys, entity3d *e, const vec3 start, const vec3 dir,
                 double *pdist, dContact *contact)
 {
     entity3d *target = NULL, *ret = NULL;
@@ -477,13 +477,13 @@ out:
     return ret;
 }
 
-entity3d *phys_ray_cast2(struct phys *phys, entity3d *e, vec3 start,
-                         vec3 dir, double *pdist)
+entity3d *phys_ray_cast2(struct phys *phys, entity3d *e, const vec3 start,
+                         const vec3 dir, double *pdist)
 {
     return __phys_ray_cast(phys, e, start, dir, pdist, NULL);
 }
 
-entity3d *phys_ray_cast(entity3d *e, vec3 start, vec3 dir, double *pdist)
+entity3d *phys_ray_cast(entity3d *e, const vec3 start, const vec3 dir, double *pdist)
 {
     if (!e->phys_body)
         return NULL;
