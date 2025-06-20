@@ -25,8 +25,6 @@ uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform sampler2D emission_map;
 
-uniform bool shadow_vsm; /* XXX: move to shadow UBO */
-
 uniform bool sobel_solid;
 uniform float sobel_solid_id;
 uniform bool use_msaa;
