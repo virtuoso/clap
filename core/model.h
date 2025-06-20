@@ -222,47 +222,47 @@ struct queued_animation {
 };
 
 typedef struct entity3d {
-    model3dtx        *txmodel;
-    mat4x4           mx;
-    struct ref       ref;
-    struct list      entry;     /* link to txmodel->entities */
-    entity3d_flags   flags;
-    unsigned int     visible;
-    int              animation;
-    double           ani_time;
-    char             *name;
+    model3dtx           *txmodel;
+    mat4x4              mx;
+    struct ref          ref;
+    struct list         entry;     /* link to txmodel->entities */
+    entity3d_flags      flags;
+    unsigned int        visible;
+    int                 animation;
+    double              ani_time;
+    char                *name;
     darray(struct queued_animation, aniq);
     /* these both have model->nr_joints elements */
-    struct joint     *joints;
-    mat4x4           *joint_transforms;
+    struct joint        *joints;
+    mat4x4              *joint_transforms;
 
-    struct phys_body *phys_body;
-    particle_system  *particles;
-    float   bloom_intensity;
-    float   bloom_threshold;
-    float   color[4];
-    int     color_pt;
-    vec3    pos;
-    float   rx, ry, rz;
-    float   scale;
-    int     light_idx;
-    int     cur_lod;
-    int     force_lod;
-    int     updated;
-    bool    skip_culling;
-    bool    ani_cleared;
-    bool    outline_exclude;
+    struct phys_body    *phys_body;
+    particle_system     *particles;
+    float               bloom_intensity;
+    float               bloom_threshold;
+    float               color[4];
+    int                 color_pt;
+    vec3                pos;
+    float               rx, ry, rz;
+    float               scale;
+    int                 light_idx;
+    int                 cur_lod;
+    int                 force_lod;
+    int                 updated;
+    bool                skip_culling;
+    bool                ani_cleared;
+    bool                outline_exclude;
     /* 1 byte hole */
-    float   aabb[6];
-    vec3    aabb_center;
-    float   light_off[3];
-    int (*update)(entity3d *e, void *data);
-    int (*contact)(entity3d *e1, entity3d *e2);
-    void (*connect)(entity3d *e, entity3d *connection, void *data);
-    void (*disconnect)(entity3d *e, entity3d *connection, void *data);
-    void *connect_priv;
-    void (*destroy)(entity3d *e);
-    void *priv;
+    float               aabb[6];
+    vec3                aabb_center;
+    float               light_off[3];
+    int                 (*update)(entity3d *e, void *data);
+    int                 (*contact)(entity3d *e1, entity3d *e2);
+    void                (*connect)(entity3d *e, entity3d *connection, void *data);
+    void                (*disconnect)(entity3d *e, entity3d *connection, void *data);
+    void                *connect_priv;
+    void                (*destroy)(entity3d *e);
+    void                *priv;
 } entity3d;
 
 DEFINE_REFCLASS_INIT_OPTIONS(entity3d,
