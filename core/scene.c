@@ -1326,6 +1326,20 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
         return CERR_OK;
     }
 
+    JsonNode *jtint = json_find_member(light, "shadow_tint");
+    if (jtint) {
+        if (jtint->tag != JSON_ARRAY)
+            return CERR_INVALID_FORMAT;
+
+        double color[3];
+        if (json_double_array(jtint, color, 3))
+            return CERR_INVALID_FORMAT;
+
+        light_set_shadow_tint(&s->light, (float[]){ color[0], color[1], color[2] });
+
+        return CERR_OK;
+    }
+
     JsonNode *jpos = json_find_member(light, "position");
     JsonNode *jcolor = json_find_member(light, "color");
     if (!jpos || jpos->tag != JSON_ARRAY || !jcolor || jcolor->tag != JSON_ARRAY)
