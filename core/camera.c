@@ -97,7 +97,7 @@ static void camera_calc_rays(struct camera *c, float dist)
 }
 
 static bool camera_position_is_good(struct camera *c, entity3d *entity,
-                                    float dist, struct scene *s, double *next_distance)
+                                    float dist, double *next_distance)
 {
     double scale = 0;
     double min_scale;
@@ -191,7 +191,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
 
     // Searching for camera distance that is good enough.
     while (dist > 0.1) {
-        if (camera_position_is_good(c, entity, dist, scene, &next_distance))
+        if (camera_position_is_good(c, entity, dist, &next_distance))
             break;
         dist = next_distance;
     }
