@@ -24,8 +24,8 @@ void camera_move(struct camera *c, unsigned long fps)
 static void camera_position(struct camera *c)
 {
     // Calculate position of the camera with respect to the character.
-    entity3d_position(
-        c->ch->entity,
+    transform_set_pos(
+        &c->xform,
         (vec3) {
             c->target[0] + c->dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch)),
             c->target[1] + c->dist * sin(to_radians(c->pitch)),
@@ -38,9 +38,6 @@ void camera_reset_movement(struct camera *c)
 {
     c->pitch_delta = 0;
     c->yaw_delta = 0;
-    vec3_dup(c->ch->motion, (vec3){});
-    vec3_dup(c->ch->angle, (vec3){});
-    vec3_dup(c->ch->velocity, (vec3){});
 }
 
 void camera_add_pitch(struct camera *c, float delta)
@@ -180,23 +177,17 @@ static void camera_target(struct camera *c, entity3d *entity)
 
 void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
 {
-    struct character *current = scene_control_character(scene);
     double dist, next_distance;
 
     /* circle the entity s->control, unless it's camera */
     if (!camera_has_moved(c))
         goto out;
 
-    if (current == c->ch) {
-        camera_reset_movement(c);
-        goto out;
-    }
-
     camera_target(c, scene->control);
     dist = c->dist;
 
     camera_reset_movement(c);
-    c->ch->moved = 0;
+    transform_clear_updated(&c->xform);
 
     // Searching for camera distance that is good enough.
     while (dist > 0.1) {
@@ -206,7 +197,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
     }
 
     if (c->dist != dist)
-        character_set_moved(c->ch);
+        transform_set_updated(&c->xform);
 
     c->dist = dist;
     camera_position(c);
@@ -217,5 +208,5 @@ out:
 
 bool camera_has_moved(struct camera *c)
 {
-    return (c->yaw_delta || c->pitch_delta || c->ch->moved);
+    return (c->yaw_delta || c->pitch_delta || transform_is_updated(&c->xform));
 }

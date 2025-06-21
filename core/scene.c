@@ -53,45 +53,17 @@ void scene_control_next(struct scene *s)
 
 bool scene_camera_follows(struct scene *s, struct character *ch)
 {
-    return scene_control_character(s) == ch && ch != s->camera->ch;
+    return scene_control_character(s) == ch;
 }
 
 cres(int) scene_camera_add(struct scene *s)
 {
-    struct shader_prog *prog = CRES_RET(
-        pipeline_shader_find_get(s->pl, "model"),
-        return cres_error_cerr(int, __resp)
-    );
-
-    model3d *m = model3d_new_cube(ref_pass(prog), true);
-    if (!m)
-        return cres_error(int, CERR_NOMEM);
-
-    model3d_set_name(m, "camera");
-
-    model3dtx *txm = CRES_RET(
-        ref_new_checked(model3dtx, .model = ref_pass(m), .tex = transparent_pixel()),
-        return cres_error_cerr(int, __resp)
-    );
-
-    struct character *ch = CRES_RET(
-        ref_new_checked(character, .txmodel = txm, .scene = s),
-        { ref_put(txm); return cres_error_cerr(int, __resp); }
-    );
-
     s->camera = &s->cameras[s->nr_cameras];
     s->camera->view.main.near_plane  = 0.1;
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
-    s->camera->ch = ch;
-    entity3d *entity = character_entity(s->camera->ch);
-    entity3d_visible(entity, 0);
-    s->control = entity;
-    scene_add_model(s, entity->txmodel);
-    ref_put(entity->txmodel);
-
-    character_set_moved(s->camera->ch);
     s->camera->dist = 10;
+    transform_set_updated(&s->camera->xform);
 
     return cres_val(int, s->nr_cameras++);
 }
@@ -297,7 +269,7 @@ static void dropdown_entity(entity3d *e, void *data)
     if (igSelectable_Bool(entity_name(e), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
         igSetItemDefaultFocus();
         scene->control = e;
-        character_set_moved(scene->camera->ch);
+        transform_set_updated(&scene->camera->xform);
     }
     igPopID();
 }
@@ -376,7 +348,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         if (ui_igSliderFloat3("pos", pos, -500.0, 500.0, "%.02f", 0)) {
             entity3d_position(e, pos);
-            character_set_moved(scene->camera->ch);
+            transform_set_updated(&scene->camera->xform);
         }
 
         int rotated = 0;
@@ -623,7 +595,6 @@ static inline void scene_debug_frusta(struct view *view) {}
 
 static void scene_camera_calc(struct scene *s, int camera)
 {
-    struct character *current = scene_control_character(s);
     struct camera *cam = &s->cameras[camera];
 
     if (s->proj_update) {
@@ -635,11 +606,8 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     camera_update(s->camera, s, s->control);
 
-    if (!cam->ch->moved && current == cam->ch)
-        return;
-
     vec3 cam_pos;
-    transform_pos(&cam->ch->entity->xform, cam_pos);
+    transform_pos(&cam->xform, cam_pos);
     view_update_from_angles(&cam->view, cam_pos, cam->pitch, cam->yaw, cam->roll);
     view_calc_frustum(&cam->view);
 
@@ -703,7 +671,7 @@ void scene_characters_move(struct scene *s)
 
     if (!current) {
         entity3d_move(s->control, (vec3){ s->mctl.dx, 0.0, s->mctl.dz });
-        s->camera->ch->moved++;
+        transform_set_updated(&s->camera->xform);
         return;
     }
 
@@ -815,12 +783,12 @@ void scene_update(struct scene *scene)
         float delta = scene->mctl.rs_dy * scene->ang_speed;
 
         camera_add_pitch(scene->camera, delta);
-        character_set_moved(scene->camera->ch);
+        transform_set_updated(&scene->camera->xform);
     }
     if (scene->mctl.rs_dx) {
         /* XXX: need a better way to represend horizontal rotational speed */
         camera_add_yaw(scene->camera, scene->mctl.rs_dx * scene->ang_speed * 1.5);
-        character_set_moved(scene->camera->ch);
+        transform_set_updated(&scene->camera->xform);
     }
 
     camera_move(scene->camera, clap_get_fps_fine(scene->clap_ctx));

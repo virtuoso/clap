@@ -151,13 +151,9 @@ static void character_obj_next(struct scene *s)
     character_obj *cobj;
     
     do {
-        struct character *ch;
+        scene_control_next(s);
 
-        do {
-            scene_control_next(s);
-
-            ch = scene_control_character(s);
-        } while (ch == s->camera->ch);
+        struct character *ch = scene_control_character(s);
 
         cobj = ch->entity->connect_priv;
     } while (!cobj->connected);
@@ -220,9 +216,6 @@ static int character_obj_update(entity3d *e, void *data)
 
         character_obj *target;
         darray_for_each(target, cobjs) {
-            if (target->e->priv == s->camera->ch)
-                continue;
-
             if (target == cobj)
                 continue;
 
@@ -253,7 +246,7 @@ static int character_obj_update(entity3d *e, void *data)
         }
 
         s->camera->yaw += 90 / fabsf(game_over_end_height - game_over_start_height);
-        character_set_moved(s->camera->ch);
+        transform_set_updated(&s->camera->xform);
     }
 
     return cobj->orig_update(e, data);

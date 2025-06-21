@@ -953,11 +953,11 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 continue;
             }
 
-            if (camera && camera->ch) {
+            if (camera) {
                 if (e->force_lod >= 0) {
                     e->cur_lod = e->force_lod;
                 } else {
-                    const float *pos = transform_pos(&camera->ch->entity->xform, NULL);
+                    const float *pos = transform_pos(&camera->xform, NULL);
 
                     /* only apply LOD when the camera is outside the AABB */
                     if (!aabb_point_is_inside(e->aabb, pos)) {
@@ -1482,9 +1482,9 @@ static int default_update(entity3d *e, void *data)
      * Find the biggest bounding volume that contains camera or the character
      */
     struct camera *cam = scene->camera;
-    if ((aabb_point_is_inside(e->aabb, transform_pos(&cam->ch->entity->xform, NULL)) ||
+    if ((aabb_point_is_inside(e->aabb, transform_pos(&cam->xform, NULL)) ||
          aabb_point_is_inside(e->aabb, transform_pos(&scene->control->xform, NULL))) &&
-         e != cam->ch->entity && e != scene->control) {
+         e != scene->control) {
         float volume = entity3d_aabb_X(e) * entity3d_aabb_Y(e) * entity3d_aabb_Z(e);
 
         if (!cam->bv || volume > cam->bv_volume) {

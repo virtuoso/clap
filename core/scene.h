@@ -54,6 +54,8 @@ struct scene {
     bool                ui_is_on;
 };
 
+struct character;
+
 int scene_get_light(struct scene *scene);
 cres(int) scene_camera_add(struct scene *s);
 void scene_cameras_calc(struct scene *s);
@@ -66,11 +68,6 @@ void scene_update(struct scene *scene);
 bool scene_camera_follows(struct scene *s, struct character *ch);
 void scene_characters_move(struct scene *s);
 void scene_control_next(struct scene *s);
-
-static inline bool scene_character_is_camera(struct scene *s, struct character *ch)
-{
-    return s->camera->ch == ch;
-}
 
 static inline struct character *scene_control_character(struct scene *s)
 {

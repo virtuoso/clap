@@ -41,14 +41,14 @@ static void character_motion_reset(struct character *ch, struct scene *s)
         timespec_diff(&ch->dash_started, &now, &diff);
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1) {
-            ch->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+            ch->lin_speed = character_lin_speed(ch);
             animation_set_speed(ch->entity, s, 1.0);
         }
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
             ch->dash_started.tv_sec = ch->dash_started.tv_nsec = 0;
     } else {
-        ch->lin_speed = scene_character_is_camera(s, ch) ? 0.1 : character_lin_speed(ch);
+        ch->lin_speed = character_lin_speed(ch);
     }
 
     /*
@@ -59,13 +59,10 @@ static void character_motion_reset(struct character *ch, struct scene *s)
      * done.
      */
     ch->jump = false;
-    ch->rs_height = false;
 }
 
 void character_handle_input(struct character *ch, struct scene *s, struct message *m)
 {
-    struct character *control = scene_control_character(s);
-
 #ifndef CONFIG_FINAL
     if (m->input.trigger_r)
         ch->lin_speed *= (m->input.trigger_r + 1) * 3;
@@ -76,10 +73,7 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     if (m->input.dash || m->input.pad_rb)
         character_dash(ch, s);
 
-    if (scene_character_is_camera(s, control) && m->input.trigger_l)
-        ch->rs_height = true;
-
-    if (!scene_character_is_camera(s, control) && (m->input.space || m->input.pad_x) &&
+    if ((m->input.space || m->input.pad_x) &&
         ch->state != CS_JUMPING && ch->state != CS_JUMP_START)
         ch->jump = true;
 }
@@ -125,7 +119,7 @@ void character_set_moved(struct character *c)
 {
     c->moved++;
     if (c->camera)
-        c->camera->ch->moved++;
+        transform_set_updated(&c->camera->xform);
 }
 
 #ifndef CONFIG_FINAL
@@ -357,7 +351,6 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
 void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
-    struct character *cam = s->camera->ch;
 
     ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
 
@@ -375,10 +368,7 @@ void character_move(struct character *ch, struct scene *s)
     }
 
     struct motionctl *mctl = &s->mctl;
-    ch->motion[0] = mctl->dx;
-    if (!scene_character_is_camera(s, ch))
-        ch->motion[1] = 0.0;
-    ch->motion[2] = mctl->dz;
+    vec3_dup(ch->motion, (vec3){ mctl->dx, 0.0, mctl->dz });
 
     if (ch->jump && character_jump(ch, s, mctl->dx, mctl->dz))
         goto out;
@@ -404,14 +394,6 @@ void character_move(struct character *ch, struct scene *s)
 
             /* watch out for Y and Z swapping places */
             vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
-        } else {
-            if (ch != cam) {
-                err("no normal vector: is there collision?\n");
-                goto out;
-            }
-
-            vec3_dup(ch->angle, ch->motion);
-            vec3_dup(ch->velocity, ch->motion);
         }
 
         vec3_norm(ch->angle, ch->angle);

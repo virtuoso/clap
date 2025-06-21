@@ -6,7 +6,7 @@
 #include "view.h"
 
 struct camera {
-    struct character    *ch;
+    transform_t         xform;
     struct view         view;
     entity3d            *bv;
     float               bv_volume;
