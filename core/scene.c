@@ -379,17 +379,20 @@ static void scene_entity_inspector_debug(struct scene *scene)
             character_set_moved(scene->camera->ch);
         }
 
-        float rx = to_degrees(e->rx);
-        if (ui_igSliderFloat("rx", &rx, -180.0, 180.0, "%.02f", 0))
-            entity3d_rotate(e, to_radians(rx), 0, 0);
+        int rotated = 0;
+        float angles[3];
+        transform_rotation(&e->xform, angles, true);
+        if (ui_igSliderFloat("rx", &angles[0], -180.0, 180.0, "%.02f", 0))
+            rotated++;
 
-        float ry = to_degrees(e->ry);
-        if (ui_igSliderFloat("ry", &ry, -180.0, 180.0, "%.02f", 0))
-            entity3d_rotate(e, 0, to_radians(ry), 0);
+        if (ui_igSliderFloat("ry", &angles[1], -180.0, 180.0, "%.02f", 0))
+            rotated++;
 
-        float rz = to_degrees(e->rz);
-        if (ui_igSliderFloat("rz", &rz, -180.0, 180.0, "%.02f", 0))
-            entity3d_rotate(e, 0, 0, to_radians(rz));
+        if (ui_igSliderFloat("rz", &angles[2], -180.0, 180.0, "%.02f", 0))
+            rotated++;
+
+        if (rotated)
+            transform_set_angles(&e->xform, angles, true);
 
         ui_igSliderFloat("bloom thr", &e->bloom_threshold, 0.0, 1.0, "%.02f", 0);
         ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);

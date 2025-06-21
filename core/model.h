@@ -244,7 +244,6 @@ typedef struct entity3d {
     float               color[4];
     int                 color_pt;
     transform_t         xform;
-    float               rx, ry, rz;
     float               scale;
     int                 light_idx;
     int                 cur_lod;

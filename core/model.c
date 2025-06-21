@@ -579,13 +579,15 @@ static void entity3d_debug(entity3d *e)
     vec3_dup(dm.debug_draw.v0, e->aabb_center);
 
     const float *pos = transform_pos(&e->xform, NULL);
+    float angles[3];
+    transform_rotation(&e->xform, angles, true);
     CRES_RET(
         mem_asprintf(
             &dm.debug_draw.text,
             "%s\npos: %.02f,%.02f,%.02f\nrx: %.02f ry: %.02f rz: %.02f\nscale: %.02f\nLOD %d",
             entity_name(e),
             pos[0], pos[1], pos[2],
-            to_degrees(e->rx), to_degrees(e->ry), to_degrees(e->rz),
+            angles[0], angles[1], angles[2],
             e->scale,
             e->cur_lod
         ),
@@ -1455,9 +1457,7 @@ static int default_update(entity3d *e, void *data)
     if (needs_update(e)) {
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);
-        mat4x4_rotate_X(e->mx, e->mx, e->rx);
-        mat4x4_rotate_Y(e->mx, e->mx, e->ry);
-        mat4x4_rotate_Z(e->mx, e->mx, e->rz);
+        transform_rotate_mat4x4(&e->xform, e->mx);
 
         mat4x4 tr_no_scale;
         mat4x4_dup(tr_no_scale, e->mx);
@@ -1579,9 +1579,7 @@ void entity3d_visible(entity3d *e, unsigned int visible)
 
 void entity3d_rotate(entity3d *e, float rx, float ry, float rz)
 {
-    e->rx = rx;
-    e->ry = ry;
-    e->rz = rz;
+    transform_set_angles(&e->xform, (float[3]){ rx, ry, rz }, false);
     e->updated++;
 }
 
