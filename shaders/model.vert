@@ -56,11 +56,13 @@ void main()
         }
 
         gl_Position = proj * view * trans * total_local_pos;
-        our_normal = trans * total_normal;
+        our_normal = total_normal;
     } else {
         gl_Position = proj * view * trans * vec4(position, 1.0);
     }
     pass_tex = tex;
+
+    mat3 trans_rot = mat3(trans);
 
     // this is still needed in frag
     if (use_normals != 0) {
@@ -81,7 +83,7 @@ void main()
         }
         to_camera_vector = to_tangent_space * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
-        surface_normal = our_normal.xyz;
+        surface_normal = trans_rot * our_normal.xyz;
 
         for (int i = 0; i < LIGHTS_MAX; i++) {
             to_light_vector[i] = light_pos[i] - world_pos.xyz;
