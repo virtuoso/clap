@@ -1240,7 +1240,7 @@ light_done:
             if (c)
                 c->speed  = speed;
 
-            transform_translate(&e->xform, e->mx);
+            transform_translate_mat4x4(&e->xform, e->mx);
             mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
             if (phys) {

@@ -1454,7 +1454,7 @@ static int default_update(entity3d *e, void *data)
 
     if (needs_update(e)) {
         mat4x4_identity(e->mx);
-        transform_translate(&e->xform, e->mx);
+        transform_translate_mat4x4(&e->xform, e->mx);
         mat4x4_rotate_X(e->mx, e->mx, e->rx);
         mat4x4_rotate_Y(e->mx, e->mx, e->ry);
         mat4x4_rotate_Z(e->mx, e->mx, e->rz);

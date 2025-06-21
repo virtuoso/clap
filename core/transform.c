@@ -23,7 +23,7 @@ const float *transform_pos(transform_t *xform, float *pos)
     return xform->pos;
 }
 
-void transform_translate(transform_t *xform, mat4x4 m)
+void transform_translate_mat4x4(transform_t *xform, mat4x4 m)
 {
     mat4x4_translate_in_place(m, xform->pos[0], xform->pos[1], xform->pos[2]);
 }
