@@ -17,6 +17,7 @@ void display_main_loop(void);
 void display_done(void);
 void display_swap_buffers(void);
 void display_get_sizes(int *widthp, int *heightp);
+float display_get_scale(void);
 void display_title(const char *fmt, ...);
 void display_request_exit(void);
 void display_resize(int w, int h);

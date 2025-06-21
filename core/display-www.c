@@ -103,6 +103,11 @@ void display_get_window_pos_size(int *x, int *y, int *w, int *h)
     *x = *y = *w = *h = -1;
 }
 
+float display_get_scale(void)
+{
+    return 1.0;
+}
+
 void display_main_loop(void)
 {
 }

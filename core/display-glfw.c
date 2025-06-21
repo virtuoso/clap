@@ -20,6 +20,7 @@
 
 static GLFWwindow *window;
 static int width, height;
+static float scale_x, scale_y;
 static renderer_t *renderer;
 static display_update_cb update_fn;
 static display_resize_cb resize_fn;
@@ -88,6 +89,7 @@ static void __move_cb(GLFWwindow *window, int x, int y)
 void display_get_sizes(int *widthp, int *heightp)
 {
     glfwGetFramebufferSize(window, &width, &height);
+    glfwGetWindowContentScale(window, &scale_x, &scale_y);
 
     renderer_viewport(renderer, 0, 0, width, height);
 
@@ -96,6 +98,11 @@ void display_get_sizes(int *widthp, int *heightp)
     if (heightp)
         *heightp = height;
     __resize_cb(window, width, height);
+}
+
+float display_get_scale(void)
+{
+    return fminf(scale_x, scale_y);
 }
 
 void display_resize(int w, int h)
@@ -261,6 +268,7 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
     if (IS_CERR(err))
         return err;
 
+    glfwGetWindowContentScale(window, &scale_x, &scale_y);
     glfwSetWindowPosCallback(window, __move_cb);
     glfwSetFramebufferSizeCallback(window, __resize_cb);
 
