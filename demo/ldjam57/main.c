@@ -659,6 +659,10 @@ int main(int argc, char **argv, char **envp)
         goto exit_sound
     );
 
+    scene_camera_add(&scene);
+    scene.camera = &scene.cameras[0];
+    scene_cameras_calc(&scene);
+
     build_main_pl(&scene.pl);
 
     fuzzer_input_init();
@@ -666,17 +670,12 @@ int main(int argc, char **argv, char **envp)
     if (fullscreen)
         display_enter_fullscreen();
 
-    scene_camera_add(&scene);
-    scene.camera = &scene.cameras[0];
-
     scene_load(&scene, "scene.json");
 
     startup(&scene);
     process_scene(&scene);
 
     loading_screen_done(scene.ls);
-
-    scene_cameras_calc(&scene);
 
     imgui_render();
     display_main_loop();

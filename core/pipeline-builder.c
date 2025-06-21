@@ -16,15 +16,26 @@
 #define DEFAULT_SHADOW_SIZE 1024
 static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, unsigned int *pheight)
 {
+    int side = max(*pwidth, *pheight);
+
+    if (params->camera) {
+        struct view *view = &params->camera->view;
+        struct subview *sv = &view->main;
+        float c0_depth = view->divider[0] - sv->near_plane;
+        float fov_tan = tanf(view->fov / 2);
+        float ws_width = 2.0 * c0_depth * fov_tan;
+        float texel_size = ws_width / (float)*pwidth;
+        side = (int)((ws_width / cos(M_PI_4)) / texel_size);
+    }
+
     if (*pwidth == *pheight && !(*pwidth & (*pwidth - 1)))
         return true;
 
-    int side = max(*pwidth, *pheight);
     int order = fls(side);
 
-    if (!order)
-        order = DEFAULT_SHADOW_SIZE;
-    *pwidth = *pheight = 1 << order;
+    *pwidth = *pheight = clamp(1 << order, DEFAULT_SHADOW_SIZE,
+        renderer_query_limits(params->renderer, RENDER_LIMIT_MAX_TEXTURE_SIZE)
+    );
 
     return true;
 }

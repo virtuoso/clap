@@ -283,16 +283,17 @@ int main(int argc, char **argv, char **envp)
         goto exit_sound
     );
 
+    scene_camera_add(&scene);
+    scene.camera = &scene.cameras[0];
+    scene.camera->view.main.far_plane = 700.0;
+    scene_cameras_calc(&scene);
+
     build_main_pl(&scene.pl);
 
     fuzzer_input_init();
 
     if (fullscreen)
         display_enter_fullscreen();
-
-    scene_camera_add(&scene);
-    scene.camera = &scene.cameras[0];
-    // scene_camera_add(&scene);
 
     scene_load(&scene, "scene.json");
 
@@ -301,13 +302,11 @@ int main(int argc, char **argv, char **envp)
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = 70.0;
-    scene.camera->view.main.far_plane = 700.0;
     scene.render_options.fog_near = 200.0;
     scene.render_options.fog_far = 300.0;
     scene.render_options.lighting_operator = 1.0;
     scene.render_options.contrast = 0.15;
     scene.render_options.lighting_exposure = 2.2;
-    scene_cameras_calc(&scene);
 
     imgui_render();
     display_main_loop();
