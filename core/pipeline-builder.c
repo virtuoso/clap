@@ -24,7 +24,8 @@ static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, 
         float c0_depth = view->divider[0] - sv->near_plane;
         float fov_tan = tanf(view->fov / 2);
         float ws_width = 2.0 * c0_depth * fov_tan;
-        float texel_size = ws_width / (float)*pwidth;
+        float width = (float)*pwidth / display_get_scale();
+        float texel_size = ws_width / width;
         side = (int)((ws_width / cos(M_PI_4)) / texel_size);
     }
 
