@@ -6,22 +6,22 @@
 #include "view.h"
 
 struct camera {
-    struct character *ch;
-    struct view view;
-    entity3d    *bv;
-    float  bv_volume;
-    float  pitch;
-    float  yaw;
-    float  roll;
-    vec3   target;
-    unsigned int zoom;
-    float   dist;
-    float   yaw_delta;
-    float   pitch_delta;
-    vec4    frustum_corner[4];
+    struct character    *ch;
+    struct view         view;
+    entity3d            *bv;
+    float               bv_volume;
+    float               pitch;
+    float               yaw;
+    float               roll;
+    vec3                target;
+    unsigned int        zoom;
+    float               dist;
+    float               yaw_delta;
+    float               pitch_delta;
+    vec4                frustum_corner[4];
 #ifndef CONFIG_FINAL
-    vec3    debug_corner[4];
-    vec3    debug_target;
+    vec3                debug_corner[4];
+    vec3                debug_target;
 #endif /* CONFIG_FINAL */
 };
 
