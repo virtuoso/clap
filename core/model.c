@@ -1307,7 +1307,9 @@ static void animation_next(entity3d *e, struct scene *s)
         model3d *model = e->txmodel->model;
         struct animation *an;
 
-        animation_push_by_name(e, s, "idle", true, true);
+        if (!animation_push_by_name(e, s, "idle", true, true))
+            return;
+
         /* randomize phase, should probably be in instantiate instead */
         qa = ani_current(e);
         an = &model->anis.x[qa->animation];
