@@ -243,7 +243,7 @@ static int character_obj_update(entity3d *e, void *data)
     if (update)
         switcher_update(s);
 
-    float *pos = transform_pos(&e->xform, NULL);
+    const float *pos = transform_pos(&e->xform, NULL);
     if (pos[1] <= game_over_start_height) {
         static int once = 0;
 

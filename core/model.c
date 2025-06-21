@@ -578,7 +578,7 @@ static void entity3d_debug(entity3d *e)
     };
     vec3_dup(dm.debug_draw.v0, e->aabb_center);
 
-    float *pos = transform_pos(&e->xform, NULL);
+    const float *pos = transform_pos(&e->xform, NULL);
     CRES_RET(
         mem_asprintf(
             &dm.debug_draw.text,
@@ -955,7 +955,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 if (e->force_lod >= 0) {
                     e->cur_lod = e->force_lod;
                 } else {
-                    float *pos = transform_pos(&camera->ch->entity->xform, NULL);
+                    const float *pos = transform_pos(&camera->ch->entity->xform, NULL);
 
                     /* only apply LOD when the camera is outside the AABB */
                     if (!aabb_point_is_inside(e->aabb, pos)) {
@@ -1470,7 +1470,7 @@ static int default_update(entity3d *e, void *data)
             phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
 
         if (scene && e->light_idx >= 0) {
-            float *pos = transform_move(&e->xform, e->light_off);
+            const float *pos = transform_move(&e->xform, e->light_off);
             light_set_pos(&scene->light, e->light_idx, pos);
         }
     }
@@ -1602,7 +1602,7 @@ void entity3d_position(entity3d *e, vec3 pos)
 void entity3d_move(entity3d *e, vec3 off)
 {
     e->updated++;
-    float *pos = transform_move(&e->xform, off);
+    const float *pos = transform_move(&e->xform, off);
     if (e->phys_body)
         phys_body_set_position(e->phys_body, pos);
 }

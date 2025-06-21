@@ -494,7 +494,7 @@ entity3d *phys_ray_cast(entity3d *e, const vec3 start, const vec3 dir, double *p
 void phys_ground_entity(struct phys *phys, entity3d *e)
 {
     entity3d *collision;
-    float *start = transform_pos(&e->xform, NULL);
+    const float *start = transform_pos(&e->xform, NULL);
     vec3 dir = { 0, -1, 0 };
     double dist = 1e6;
 

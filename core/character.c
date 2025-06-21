@@ -149,7 +149,7 @@ static void character_debug(struct character *ch)
         return;
 
     if (dbgm->unfolded) {
-        float *pos = transform_pos(&ch->entity->xform, NULL);
+        const float *pos = transform_pos(&ch->entity->xform, NULL);
         ui_igVecTableHeader("vectors", 3);
         ui_igVecRow(pos, 3, "position");
         ui_igVecRow(ch->angle, 3, "angle");
@@ -505,7 +505,7 @@ static int character_update(entity3d *e, void *data)
      */
     vec3 last;
     history_newest(c, last);
-    float *pos = transform_pos(&e->xform, NULL);
+    const float *pos = transform_pos(&e->xform, NULL);
     if (vec3_mul_inner(last, last) > 0.0 && fabsf(pos[1] - last[1]) >= s->limbo_height) {
         vec3 pos;
         history_fetch(c, pos);

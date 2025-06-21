@@ -8,14 +8,14 @@ void transform_set_pos(transform_t *xform, const vec3 pos)
     vec3_dup(xform->pos, pos);
 }
 
-float *transform_move(transform_t *xform, vec3 off)
+const float *transform_move(transform_t *xform, const vec3 off)
 {
     vec3_add(xform->pos, xform->pos, off);
 
     return xform->pos;
 }
 
-float *transform_pos(transform_t *xform, float *pos)
+const float *transform_pos(transform_t *xform, float *pos)
 {
     if (pos)
         vec3_dup(pos, xform->pos);
