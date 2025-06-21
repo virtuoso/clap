@@ -8,8 +8,12 @@
 TYPE(transform,
     vec3    pos;
     float   angles[3];
+    bool    updated;
 );
 
+void transform_set_updated(transform_t *xform);
+void transform_clear_updated(transform_t *xform);
+bool transform_is_updated(transform_t *xform);
 void transform_set_pos(transform_t *xform, const vec3 pos);
 const float *transform_move(transform_t *xform, const vec3 off);
 const float *transform_pos(transform_t *xform, float *pos);

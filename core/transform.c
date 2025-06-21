@@ -5,14 +5,31 @@
 
 #include "util.h"
 
+void transform_set_updated(transform_t *xform)
+{
+    xform->updated = true;
+}
+
+void transform_clear_updated(transform_t *xform)
+{
+    xform->updated = false;
+}
+
+bool transform_is_updated(transform_t *xform)
+{
+    return xform->updated;
+}
+
 void transform_set_pos(transform_t *xform, const vec3 pos)
 {
     vec3_dup(xform->pos, pos);
+    transform_set_updated(xform);
 }
 
 const float *transform_move(transform_t *xform, const vec3 off)
 {
     vec3_add(xform->pos, xform->pos, off);
+    transform_set_updated(xform);
 
     return xform->pos;
 }
@@ -40,6 +57,8 @@ void transform_set_angles(transform_t *xform, const float angles[3], bool degree
             to_radians(angles[2])
         } : angles
     );
+
+    transform_set_updated(xform);
 }
 
 void transform_rotation(transform_t *xform, float angles[3], bool degrees)
