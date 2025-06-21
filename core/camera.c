@@ -175,9 +175,12 @@ static void camera_target(struct camera *c, entity3d *entity)
     c->dist = fminf(height * 3, fminf(dist_cap, c->view.main.far_plane - 10.0));
 }
 
-void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
+void camera_update(struct camera *c, struct scene *scene)
 {
     double dist, next_distance;
+
+    if (!scene->control)
+        return;
 
     /* circle the entity s->control, unless it's camera */
     if (!camera_has_moved(c))
@@ -191,7 +194,7 @@ void camera_update(struct camera *c, struct scene *scene, entity3d *entity)
 
     // Searching for camera distance that is good enough.
     while (dist > 0.1) {
-        if (camera_position_is_good(c, entity, dist, &next_distance))
+        if (camera_position_is_good(c, scene->control, dist, &next_distance))
             break;
         dist = next_distance;
     }

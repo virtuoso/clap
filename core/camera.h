@@ -29,7 +29,7 @@ void camera_move(struct camera *c, unsigned long fps);
 void camera_reset_movement(struct camera *c);
 void camera_add_pitch(struct camera *c, float delta);
 void camera_add_yaw(struct camera *c, float delta);
-void camera_update(struct camera *c, struct scene *s, entity3d *entity);
+void camera_update(struct camera *c, struct scene *s);
 bool camera_has_moved(struct camera *c);
 #ifndef CONFIG_FINAL
 void debug_camera_action(struct camera *c);

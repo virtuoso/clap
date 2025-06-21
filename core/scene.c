@@ -604,7 +604,7 @@ static void scene_camera_calc(struct scene *s, int camera)
         s->proj_update = 0;
     }
 
-    camera_update(s->camera, s, s->control);
+    camera_update(s->camera, s);
 
     vec3 cam_pos;
     transform_pos(&cam->xform, cam_pos);
