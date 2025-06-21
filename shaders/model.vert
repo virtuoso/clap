@@ -35,6 +35,7 @@ layout (location=3) out vec3 orig_normal;
 layout (location=4) out vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) out vec3 to_camera_vector;
 layout (location=9) out vec4 world_pos;
+layout (location=10) out mat3 tbn;
 
 void main()
 {
@@ -67,21 +68,22 @@ void main()
     // this is still needed in frag
     if (use_normals != 0) {
         do_use_normals = use_normals;
-        surface_normal = (view * vec4(our_normal.xyz, 0.0)).xyz;
+        surface_normal = our_normal.xyz;
 
-        vec3 N = normalize(surface_normal);
-        vec3 T = normalize(view * vec4(tangent.xyz, 0)).xyz;
-        vec3 B = normalize(cross(N, T));
-        mat3 to_tangent_space = mat3(
-            T.x, B.x, N.x,
-            T.y, B.y, N.y,
-            T.z, B.z, N.z
-        );
+        vec3 N = normalize(trans_rot * surface_normal);
+        vec3 T = normalize(trans_rot * tangent.xyz).xyz;
+        vec3 B = normalize(cross(N, T) * tangent.w);
+
+        mat3 view_rot = mat3(view);
+        T = normalize(view_rot * T);
+        B = normalize(view_rot * B);
+        N = normalize(view_rot * N);
+        tbn = mat3(T, B, N);
 
         for (int i = 0; i < LIGHTS_MAX; i++) {
-            to_light_vector[i] = to_tangent_space * (light_pos[i] - world_pos.xyz);
+            to_light_vector[i] = tbn * (light_pos[i] - world_pos.xyz);
         }
-        to_camera_vector = to_tangent_space * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
+        to_camera_vector = tbn * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
         surface_normal = trans_rot * our_normal.xyz;
 

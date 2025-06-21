@@ -11,6 +11,7 @@ layout (location=3) in vec3 orig_normal;
 layout (location=4) in vec3 to_light_vector[LIGHTS_MAX];
 layout (location=8) in vec3 to_camera_vector;
 layout (location=9) in vec4 world_pos;
+layout (location=10) in mat3 tbn;
 
 #include "shadow.glsl"
 #include "lighting.glsl"
@@ -47,7 +48,7 @@ void main()
 
     if (do_use_normals > 0.5) {
         normal_vec = texture(normal_map, pass_tex).xyz * 2.0 - 1.0;
-        unit_normal = normalize(normal_vec.xyz);
+        unit_normal = normalize(tbn * normal_vec.xyz);
     } else {
         normal_vec = surface_normal;
         unit_normal = normalize(surface_normal);
