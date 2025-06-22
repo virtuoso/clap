@@ -119,6 +119,19 @@ static const render_pass_ops postproc_ops = {
     .prepare    = postproc_prepare,
 };
 
+static void apply_constraints(pipeline_builder_opts *opts)
+{
+    clap_context *clap_ctx = opts->pl_opts->clap_ctx;
+    if (clap_ctx && clap_ges_os(clap_ctx)->mobile) {
+        /*
+         * On iOS and iPadOS as of today, webgl silently doesn't render
+         * to non-8bit MRTs. It does render the DEPTH32 by itself though,
+         * therefore, switch these targets to CSM shadows.
+         */
+        opts->pl_opts->render_options->shadow_vsm = false;
+    }
+}
+
 static texture_format get_hdr_format(pipeline_builder_opts *opts)
 {
     if (!opts->pl_opts->render_options->hdr)
@@ -149,6 +162,8 @@ pipeline *pipeline_build(pipeline_builder_opts *opts)
 {
     if (!opts->mq)
         return NULL;
+
+    apply_constraints(opts);
 
     bool ssao = opts->pl_opts->render_options->ssao;
 
