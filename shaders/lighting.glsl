@@ -48,7 +48,8 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     float n_dot_h = max(dot(unit_normal, h), 0.0);
     float v_dot_h = max(dot(view_dir, h), 0.0);
 
-    float alpha = roughness * roughness;
+    float perc_roughness = roughness;
+    float alpha = clamp(perc_roughness * perc_roughness, 0.05, 0.98);
 
     /* GGX normal distribution */
     float alpha_2 = alpha * alpha;
