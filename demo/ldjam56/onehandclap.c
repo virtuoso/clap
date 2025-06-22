@@ -306,7 +306,7 @@ int main(int argc, char **argv, char **envp)
     scene.render_options.fog_far = 300.0;
     scene.render_options.lighting_operator = 1.0;
     scene.render_options.contrast = 0.15;
-    scene.render_options.lighting_exposure = 2.2;
+    scene.render_options.lighting_exposure = 2.35;
 
     imgui_render();
     display_main_loop();
