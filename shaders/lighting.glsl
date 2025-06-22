@@ -53,18 +53,18 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
 
     /* GGX normal distribution */
     float alpha_2 = alpha * alpha;
-    float denom = n_dot_h * n_dot_h * (alpha_2 - 1.0) + 1.0;
+    float denom = max(n_dot_h * n_dot_h * (alpha_2 - 1.0) + 1.0, 1e-5);
     float d = alpha_2 / (PI * denom * denom);
 
     /* Schlick Fresnel approximation */
     vec3 f0 = mix(vec3(0.04), base_color, metallic);
-    vec3 f = f0 + (1.0 - f0) * pow(1.0 - v_dot_h, 5.0);
+    vec3 f = clamp(f0 + (1.0 - f0) * pow(1.0 - v_dot_h, 5.0), 1e-5, 1.0);
 
     /* Smith-GGX geometry function */
     float k = (alpha + 1.0) * (alpha + 1.0) / 8.0;
     float g_v = n_dot_v / (n_dot_v * (1.0 - k) + k);
     float g_l = n_dot_l / (n_dot_l * (1.0 - k) + k);
-    float g = g_v * g_l;
+    float g = max(g_v * g_l, 1e-5);
 
     vec3 numerator = d * g * f;
     float denominator = 4.0 * max(n_dot_l * n_dot_v, 0.001);
