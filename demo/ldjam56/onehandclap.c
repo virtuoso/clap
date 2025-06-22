@@ -193,7 +193,7 @@ int main(int argc, char **argv, char **envp)
         .callback_data  = &scene,
         .default_font_name  = "ofl/Unbounded-Regular.ttf",
 #ifdef CONFIG_FINAL
-        .lut_presets    = (lut_preset[]){ LUT_SCIFI_NEON },
+        .lut_presets    = (lut_preset[]){ LUT_TEAL_ORANGE },
 #else
         .lut_presets    = lut_presets_all,
 #endif /* CONFIG_FINAL */
@@ -279,7 +279,7 @@ int main(int argc, char **argv, char **envp)
     display_get_sizes(&scene.width, &scene.height);
 
     scene.render_options.lighting_lut = CRES_RET(
-        clap_lut_find(scene.clap_ctx, "scifi neon"),
+        clap_lut_find(scene.clap_ctx, "teal orange"),
         goto exit_sound
     );
 
@@ -306,7 +306,7 @@ int main(int argc, char **argv, char **envp)
     scene.render_options.fog_far = 300.0;
     scene.render_options.lighting_operator = 1.0;
     scene.render_options.contrast = 0.15;
-    scene.render_options.lighting_exposure = 2.35;
+    scene.render_options.lighting_exposure = 1.6;
 
     imgui_render();
     display_main_loop();
