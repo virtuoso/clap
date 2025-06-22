@@ -136,6 +136,7 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_ATTENUATION,
                             UNIFORM_LIGHT_DIRECTIONAL,
                             UNIFORM_NR_LIGHTS,
+                            UNIFORM_USE_NORMALS,
                             UNIFORM_LIGHT_AMBIENT),
     DEFINE_SHADER_VAR_BLOCK(shadow, SHADER_STAGE_GEOMETRY_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_SHADOW_MVP,

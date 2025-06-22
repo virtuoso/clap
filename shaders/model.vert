@@ -26,16 +26,13 @@ layout (std140, binding = UBO_BINDING_skinning) uniform skinning {
     mat4 joint_transforms[JOINTS_MAX];
 };
 
-uniform int use_normals;
-
-layout (location=0) flat out int do_use_normals;
-layout (location=1) out vec2 pass_tex;
-layout (location=2) out vec3 surface_normal;
-layout (location=3) out vec3 orig_normal;
-layout (location=4) out vec3 to_light_vector[LIGHTS_MAX];
-layout (location=8) out vec3 to_camera_vector;
-layout (location=9) out vec4 world_pos;
-layout (location=10) out mat3 tbn;
+layout (location=0) out vec2 pass_tex;
+layout (location=1) out vec3 surface_normal;
+layout (location=2) out vec3 orig_normal;
+layout (location=3) out vec3 to_light_vector[LIGHTS_MAX];
+layout (location=7) out vec3 to_camera_vector;
+layout (location=8) out vec4 world_pos;
+layout (location=9) out mat3 tbn;
 
 void main()
 {
@@ -66,8 +63,7 @@ void main()
     mat3 trans_rot = mat3(trans);
 
     // this is still needed in frag
-    if (use_normals != 0) {
-        do_use_normals = use_normals;
+    if (use_normals) {
         surface_normal = our_normal.xyz;
 
         vec3 N = normalize(trans_rot * surface_normal);

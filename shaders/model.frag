@@ -4,14 +4,13 @@
 #include "shader_constants.h"
 #include "texel_fetch.glsl"
 
-layout (location=0) flat in int do_use_normals;
-layout (location=1) in vec2 pass_tex;
-layout (location=2) in vec3 surface_normal;
-layout (location=3) in vec3 orig_normal;
-layout (location=4) in vec3 to_light_vector[LIGHTS_MAX];
-layout (location=8) in vec3 to_camera_vector;
-layout (location=9) in vec4 world_pos;
-layout (location=10) in mat3 tbn;
+layout (location=0) in vec2 pass_tex;
+layout (location=1) in vec3 surface_normal;
+layout (location=2) in vec3 orig_normal;
+layout (location=3) in vec3 to_light_vector[LIGHTS_MAX];
+layout (location=7) in vec3 to_camera_vector;
+layout (location=8) in vec4 world_pos;
+layout (location=9) in mat3 tbn;
 
 #include "shadow.glsl"
 #include "lighting.glsl"
@@ -46,7 +45,7 @@ void main()
 {
     vec3 normal_vec, unit_normal;
 
-    if (do_use_normals > 0.5) {
+    if (use_normals) {
         normal_vec = texture(normal_map, pass_tex).xyz * 2.0 - 1.0;
         unit_normal = normalize(tbn * normal_vec.xyz);
     } else {
