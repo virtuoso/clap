@@ -119,6 +119,7 @@ void mesh_push(float *vx, float *tx, float *norm, unsigned short *idx,
                float *src_vx, float *src_tx, float *src_norm, unsigned short *src_idx,
                size_t nr_src_vx, size_t nr_src_idx,
                float x, float y, float z, float scale);
+void mesh_aabb_calc(struct mesh *mesh);
 void mesh_optimize(struct mesh *mesh);
 size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *error);
 void mesh_init(void);

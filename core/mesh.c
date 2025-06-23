@@ -85,6 +85,14 @@ int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t strid
     return 0;
 }
 
+void mesh_aabb_calc(struct mesh *mesh)
+{
+    if (!mesh_vx(mesh) || !mesh_vx_sz(mesh))
+        return;
+
+    vertex_array_aabb_calc(mesh->aabb, mesh_vx(mesh), mesh_vx_sz(mesh));
+}
+
 static unsigned int *idx_to_idx32(unsigned short *idx, size_t nr_idx)
 {
     unsigned int *idx32;
