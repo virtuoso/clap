@@ -70,10 +70,12 @@ void pipeline_clearout(pipeline *pl)
                 if (source->pass) {
                     texture_t *tex = pass->use_tex[i] ?
                         pass->use_tex[i] :
-                        fbo_texture(source->pass->fbo, FBO_COLOR_TEXTURE(0));
+                        fbo_texture(source->pass->fbo, source->attachment);
 
                     if (txm->texture == tex)
                         txm->texture = &txm->_texture;
+                    if (txm->normals == tex)
+                        txm->normals = &txm->_normals;
                     if (txm->emission == tex)
                         txm->emission = &txm->_emission;
                     if (txm->sobel == tex)
@@ -161,18 +163,18 @@ void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int heigh
     pl->height = height;
 }
 
-struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg)
+cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg)
 {
     if (!cfg->source || !cfg->ops || !cfg->ops->resize || !cfg->ops->prepare)
-        return NULL;
+        return cresp_error(render_pass, CERR_INVALID_ARGUMENTS);
 
     /* Either shader or shader_override must be present, but not together */
     if (cfg->shader && cfg->shader_override)
-        return NULL;
+        return cresp_error(render_pass, CERR_INVALID_ARGUMENTS);
 
     render_pass *pass = mem_alloc(sizeof(*pass), .zero = 1);
     if (!pass)
-        return NULL;
+        return cresp_error(render_pass, CERR_NOMEM);
 
     list_append(&pl->passes, &pass->entry);
 
@@ -181,10 +183,13 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
          pass->nr_sources++)
         ;
 
+
     /* Must have at least one source */
+    cerr err = CERR_INVALID_ARGUMENTS;
     if (!pass->nr_sources)
         goto err_free;
 
+    err = CERR_NOMEM;
     pass->source = memdup(cfg->source, sizeof(render_source) * pass->nr_sources);
     if (!pass->source)
         goto err_free;
@@ -205,18 +210,20 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
     RENDER_PASS_OPS_PARAMS(pl, pass);
     pass->ops->resize(&params, &width, &height);
 
-    cresp(fbo_t) res = fbo_new(.width               = width,
-                               .height              = height,
-                               .layers              = cfg->layers,
-                               .color_format        = cfg->color_format,
-                               .depth_format        = cfg->depth_format,
-                               .multisampled        = cfg->multisampled,
-                               .attachment_config   = cfg->attachment_config);
-    if (IS_CERR(res))
-        goto err_source;
+    pass->fbo = CRES_RET(
+        fbo_new(
+            .width               = width,
+            .height              = height,
+            .layers              = cfg->layers,
+            .color_format        = cfg->color_format,
+            .depth_format        = cfg->depth_format,
+            .multisampled        = cfg->multisampled,
+            .attachment_config   = cfg->attachment_config
+        ),
+        { err = cerr_error_cres(__resp); goto err_source; }
+    );
 
-    pass->fbo = res.val;
-
+    err = CERR_NOMEM;
     pass->blit_fbo = mem_alloc(sizeof(fbo_t *), .nr = pass->nr_sources);
     if (!pass->blit_fbo)
         goto err_fbo;
@@ -225,6 +232,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
     if (!pass->use_tex)
         goto err_blit_fbo;
 
+    err = CERR_INVALID_ARGUMENTS;
     int nr_blits = 0, nr_renders = 0, nr_uses = 0, nr_plugs = 0;
     for (int i = 0; i < pass->nr_sources; i++) {
         render_source *rsrc = &pass->source[i];
@@ -239,30 +247,35 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
                 goto err_use_tex;
 
             if (rsrc->attachment.depth_buffer || rsrc->attachment.depth_texture) {
-                res = fbo_new(.width                = fbo_width(src_pass->fbo),
-                              .height               = fbo_height(src_pass->fbo),
-                              .attachment_config    = { .depth_texture = 1 },
-                              .multisampled         = fbo_is_multisampled(pass->fbo),
-                              .depth_format         = fbo_texture_format(src_pass->fbo, rsrc->attachment));
+                pass->blit_fbo[i] = CRES_RET(
+                    fbo_new(
+                        .width                = fbo_width(src_pass->fbo),
+                        .height               = fbo_height(src_pass->fbo),
+                        .attachment_config    = { .depth_texture = 1 },
+                        .multisampled         = fbo_is_multisampled(pass->fbo),
+                        .depth_format         = fbo_texture_format(src_pass->fbo, rsrc->attachment)
+                    ),
+                    { err = cerr_error_cres(__resp); goto err_use_tex; }
+                );
             } else if (rsrc->attachment.color_buffers || rsrc->attachment.color_textures) {
                 if (!fbo_attachment_valid(src_pass->fbo, rsrc->attachment))
                     goto err_use_tex;
 
-                res = fbo_new(.width                = fbo_width(src_pass->fbo),
-                              .height               = fbo_height(src_pass->fbo),
-                              .multisampled         = fbo_is_multisampled(pass->fbo),
-                              .attachment_config    = { .color_texture0 = 1 },
-                              .color_format         = (texture_format[]) {
-                                    fbo_texture_format(src_pass->fbo, rsrc->attachment)
-                              });
+                pass->blit_fbo[i] = CRES_RET(
+                    fbo_new(
+                        .width                = fbo_width(src_pass->fbo),
+                        .height               = fbo_height(src_pass->fbo),
+                        .multisampled         = fbo_is_multisampled(pass->fbo),
+                        .attachment_config    = { .color_texture0 = 1 },
+                        .color_format         = (texture_format[]) {
+                            fbo_texture_format(src_pass->fbo, rsrc->attachment)
+                        }
+                    ),
+                    { err = cerr_error_cres(__resp); goto err_use_tex; }
+                );
             } else {
                 goto err_use_tex;
             }
-
-            if (IS_CERR(res))
-                goto err_use_tex;
-
-            pass->blit_fbo[i] = res.val;
 
             nr_blits++;
         } else if (rsrc->method == RM_RENDER) {
@@ -298,22 +311,20 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
         if (!nr_renders)
             goto err_use_tex;
 
-        cresp(shader_prog) prog_res = shader_prog_find_get(pl->shader_ctx, &pl->shaders,
-                                                           cfg->shader_override);
-        if (IS_CERR(prog_res))
-            goto err_use_tex;
-
-        pass->prog_override = prog_res.val;
+        pass->prog_override = CRES_RET(
+            shader_prog_find_get(pl->shader_ctx, &pl->shaders, cfg->shader_override),
+            { err = cerr_error_cres(__resp); goto err_use_tex; }
+        );
     } else if (cfg->shader) {
         if (!nr_blits && !nr_uses && !nr_plugs)
             goto err_use_tex;
 
-        cresp(shader_prog) prog_res = shader_prog_find_get(pl->shader_ctx, &pl->shaders,
-                                                           cfg->shader);
-        if (IS_CERR(prog_res))
-            goto err_override;
+        prog = CRES_RET(
+            shader_prog_find_get(pl->shader_ctx, &pl->shaders, cfg->shader),
+            { err = cerr_error_cres(__resp); goto err_override; }
+        );
 
-        prog = prog_res.val;
+        err = CERR_NOMEM;
         m = model3d_new_quad(prog, -1, 1, 0, 2, -2);
         if (!m)
             goto err_prog;
@@ -321,9 +332,10 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
         m->depth_testing = false;
         m->alpha_blend = false;
 
-        txm = ref_new(model3dtx, .model = ref_pass(m));//, .tex = fbo_texture(pass->fbo));
-        if (!txm)
-            goto err_model;
+        txm = CRES_RET(
+            ref_new_checked(model3dtx, .model = ref_pass(m)),
+            { err = cerr_error_cres(__resp); goto err_model; }
+        );
 
         for (int i = 0; i < pass->nr_sources; i++) {
             render_source *rsrc = &pass->source[i];
@@ -343,9 +355,10 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
          * hand, it's a 1:1 between this quad and this txmodel, so make the quad hold
          * the only reference to the txmodel so it gets freed on ref_put(pass->quad).
          */
-        pass->quad = ref_new(entity3d, .txmodel = ref_pass(txm));
-        if (!pass->quad)
-            goto err_txmodel;
+        pass->quad = CRES_RET(
+            ref_new_checked(entity3d, .txmodel = ref_pass(txm)),
+            { err = cerr_error_cres(__resp); goto err_txmodel; }
+        );
 
         pass->quad->skip_culling = true;
         mat4x4_identity(pass->quad->mx);
@@ -354,7 +367,7 @@ struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_
 
     pipeline_dropdown_push(pl, pass);
 
-    return pass;
+    return cresp_val(render_pass, pass);
 
 err_txmodel:
     ref_put_last(txm);
@@ -379,7 +392,7 @@ err_source:
 err_free:
     list_del(&pass->entry);
     mem_free(pass);
-    return NULL;
+    return cresp_error_cerr(render_pass, err);
 }
 
 cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name)

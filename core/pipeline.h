@@ -141,7 +141,7 @@ DECLARE_REFCLASS(pipeline);
 void pipeline_clearout(pipeline *pl);
 void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height);
 cresp(shader_prog) pipeline_shader_find_get(pipeline *pl, const char *name);
-struct render_pass *_pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
+cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
 #define pipeline_add_pass(_pl, args...) \
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })
 cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name);

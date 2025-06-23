@@ -42,19 +42,22 @@ static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = tru
 
 static void build_main_pl(struct pipeline **pl)
 {
-    *pl = pipeline_build(&(pipeline_builder_opts) {
-        .pl_opts = &(pipeline_init_options) {
-                  .width            = scene.width,
-                  .height           = scene.height,
-                  .clap_ctx         = scene.clap_ctx,
-                  .light            = &scene.light,
-                  .camera           = &scene.cameras[0],
-                  .render_options   = &scene.render_options,
-                  .name             = "main"
-        },
-        .mq     = &scene.mq,
-        .pl     = scene.pl
-    });
+    *pl = CRES_RET(
+        pipeline_build(&(pipeline_builder_opts) {
+            .pl_opts    = &(pipeline_init_options) {
+                .width            = scene.width,
+                .height           = scene.height,
+                .clap_ctx         = scene.clap_ctx,
+                .light            = &scene.light,
+                .camera           = &scene.cameras[0],
+                .render_options   = &scene.render_options,
+                .name             = "main"
+            },
+            .mq         = &scene.mq,
+            .pl         = scene.pl
+        }),
+        return
+    );
 }
 
 static const char *intro_osd[] = {

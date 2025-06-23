@@ -10,6 +10,6 @@ typedef struct pipeline_builder_opts {
     pipeline                *pl;
 } pipeline_builder_opts;
 
-pipeline *pipeline_build(pipeline_builder_opts *opts);
+cresp(pipeline) pipeline_build(pipeline_builder_opts *opts);
 
 #endif /* __CLAP_PIPELINE_BUILDER_H__ */
