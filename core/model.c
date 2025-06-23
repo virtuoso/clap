@@ -464,8 +464,8 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
 
     model3dtx_add_fake_sobel(txm);
 
-    txm->roughness = 0.65;
-    txm->metallic = 0.45;
+    txm->roughness = opts->roughness;
+    txm->metallic = opts->metallic;
 
     return CERR_OK;
 

@@ -170,6 +170,8 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
     int         normal_height;
     int         emission_width;
     int         emission_height;
+    float       metallic;
+    float       roughness;
     bool        texture_has_alpha;
     bool        buffers_png;
 );
