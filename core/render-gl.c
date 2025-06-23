@@ -1216,6 +1216,9 @@ static void fbo_drop(struct ref *ref)
 
     mem_free(fbo->color_format);
 
+   if (texture_loaded(&fbo->depth_tex))
+        texture_deinit(&fbo->depth_tex);
+
     if (fbo->depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
 }
