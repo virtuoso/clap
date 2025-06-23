@@ -147,6 +147,7 @@ model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, flo
         prim_emit_triangle(triangle, .mesh = cylinder_mesh);
     }
 
+    mesh_aabb_calc(cylinder_mesh);
     mesh_optimize(cylinder_mesh);
 
     model3d *cylinder;
