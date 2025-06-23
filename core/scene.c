@@ -453,6 +453,9 @@ static int scene_debug_draw(struct message *m, void *data)
                 mat4x4_mul_vec4_post(v0, mvp, v0);
                 vec3_scale(v0, v0, 1.0 / v0[3]);
 
+                if (v0[3] < 1e-3)
+                    break;
+
                 ImVec2 p0 = {
                     .x = ((v0[0] + 1.0) / 2.0) * s->width / io->DisplayFramebufferScale.x,
                     .y = ((1.0 - v0[1]) / 2.0) * s->height / io->DisplayFramebufferScale.y,
