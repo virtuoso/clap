@@ -72,19 +72,14 @@ static int particles_update(entity3d *e, void *data)
 {
     struct scene *s = data;
 
-    mat4x4 mx;
-    mat4x4_dup(mx, s->camera->view.main.view_mx);
+    mat4x4_dup(e->mx, s->camera->view.main.view_mx);
 
-    mat4x4_identity(e->mx);
     /*
      * billboard the particles: undo the view_mx's rotation so that
      * particles always face the camera
      */
-    vec3_dup(e->mx[0], (vec3){ mx[0][0], mx[1][0], mx[2][0] });
-    vec3_dup(e->mx[1], (vec3){ mx[0][1], mx[1][1], mx[2][1] });
-    vec3_dup(e->mx[2], (vec3){ mx[0][2], mx[1][2], mx[2][2] });
+    mat4x4_transpose_mat3x3(e->mx);
     transform_pos(&e->xform, e->mx[3]);
-    // entity3d_aabb_update(e);
 
     particle_system *ps = e->particles;
     particle *p;
