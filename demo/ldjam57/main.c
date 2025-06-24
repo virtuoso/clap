@@ -627,7 +627,6 @@ int main(int argc, char **argv, char **envp)
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
     scene.clap_ctx = clap_res.val;
-    scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
 
     cerr err;
 #ifndef CONFIG_FINAL
@@ -647,6 +646,9 @@ int main(int argc, char **argv, char **envp)
     if (IS_CERR(err))
         goto exit_scene;
 
+    display_get_sizes(&scene.width, &scene.height);
+    scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
+
     // intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
     if (intro_sound) {
         float intro_gain = settings_get_num(clap_get_settings(scene.clap_ctx), NULL, "music_volume");
@@ -654,8 +656,6 @@ int main(int argc, char **argv, char **envp)
         sound_set_looping(intro_sound, true);
         sound_play(intro_sound);
     }
-
-    display_get_sizes(&scene.width, &scene.height);
 
     scene.render_options.lighting_lut = CRES_RET(
         clap_lut_find(scene.clap_ctx, "orange blue filmic"),
