@@ -190,6 +190,15 @@ LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n ##_post(vec## n r, mat## n 
 LINMATH_DEFINE_MAT(3);
 LINMATH_DEFINE_MAT(4);
 
+LINMATH_H_FUNC void mat4x4_transpose_mat3x3(mat4x4 m)
+{
+    mat4x4 r;
+    mat4x4_dup(r, m);
+    vec3_dup(r[0], (vec3){ m[0][0], m[1][0], m[2][0] });
+    vec3_dup(r[1], (vec3){ m[0][1], m[1][1], m[2][1] });
+    vec3_dup(r[2], (vec3){ m[0][2], m[1][2], m[2][2] });
+    mat4x4_dup(m, r);
+}
 LINMATH_H_FUNC void mat4x4_row(vec4 r, mat4x4 M, int i)
 {
 	int k;
