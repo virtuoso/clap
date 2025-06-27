@@ -251,8 +251,9 @@ void pipeline_debug(struct pipeline *pl)
                 avail.x = 512;
             }
             double aspect = (double)height / width;
-            igImage((ImTextureID)texture_id(pass_tex), (ImVec2){avail.x, avail.x * aspect},
-                    (ImVec2){1,1}, (ImVec2){0,0});
+            ImTextureRef *tex_ref = ImTextureRef_ImTextureRef_TextureID((ImTextureID)texture_id(pass_tex));
+            igImage(*tex_ref, (ImVec2){avail.x, avail.x * aspect}, (ImVec2){1,1}, (ImVec2){0,0});
+            ImTextureRef_destroy(tex_ref);
             igEnd();
         } else {
             igEnd();
