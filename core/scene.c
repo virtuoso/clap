@@ -196,8 +196,13 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             scene->render_options.fog_near = scene->camera->view.main.far_plane;
             scene->render_options.fog_far = scene->camera->view.main.far_plane;
         }
-        igSliderFloat("fog near", &scene->render_options.fog_near, 1.0, 100.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("fog far", &scene->render_options.fog_far, scene->render_options.fog_near, 200.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igDragFloatRange2(
+            "fog near/far",
+            &scene->render_options.fog_near,
+            &scene->render_options.fog_far,
+            1.0, 1.0, scene->camera->view.main.far_plane,
+            "near: %.02f", "far: %.02f", 0
+        );
         igColorEdit3(
             "fog_color",
             scene->render_options.fog_color,
