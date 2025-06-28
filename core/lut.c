@@ -238,6 +238,7 @@ typedef struct lut {
     const char      *name;
     struct list     entry;
     struct ref      ref;
+    lut_fn          fn;
     float           exposure;
     float           contrast;
 } lut;
@@ -251,6 +252,9 @@ static cerr lut_make(struct ref *ref, void *_opts)
 
     lut *lut = container_of(ref, struct lut, ref);
     lut->name = opts->name;
+    lut->exposure = 1.0;
+    lut->contrast = 0.15;
+    lut->fn = __identity;
     list_append(opts->list, &lut->entry);
 
     return CERR_OK;
@@ -304,6 +308,7 @@ cresp(lut) lut_generate(struct list *list, lut_preset preset, int sz)
     lut *lut = CRES_RET_T(ref_new_checked(lut, .name = lut_presets[preset].name, .list = list), lut);
     lut->exposure = lut_presets[preset].exposure;
     lut->contrast = lut_presets[preset].contrast;
+    lut->fn = lut_presets[preset].fn;
 
     for (int z = 0; z < sz; z++)
         for (int y = 0; y < sz; y++)
