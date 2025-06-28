@@ -385,6 +385,20 @@ out:
     ref_put(h);
 }
 
+#ifndef CONFIG_FINAL
+static void lut_osd_element_cb(struct ui_element *uie, unsigned int i)
+{
+    /*
+     * 1 second to fade in, 2 seconds to stay, 1 second to fade out,
+     */
+    uia_set_visible(uie, 1);
+    uia_lin_float(uie, ui_element_set_alpha, 0, 1, true, 1.0);
+    uia_skip_duration(uie, 2.0);
+    uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, 1.0);
+    uia_set_visible(uie, 0);
+}
+#endif /* CONFIG_FINAL */
+
 void lut_apply(struct scene *scene, lut *lut)
 {
     render_pass *pass = CRES_RET(pipeline_find_pass(scene->pl, "combine"), return);
@@ -397,7 +411,16 @@ void lut_apply(struct scene *scene, lut *lut)
 
 #ifndef CONFIG_FINAL
     struct ui *ui = clap_get_ui(scene->clap_ctx);
-    ui_osd_new(ui, NULL, (const char *[]){ lut->name }, 1);
+    ui_osd_new(ui, &(struct ui_widget_builder) {
+            .affinity       = UI_AF_TOP | UI_AF_HCENTER,
+            .el_affinity    = UI_AF_CENTER,
+            .w              = 500,
+            .h              = 0.3,
+            .el_cb          = lut_osd_element_cb,
+            .text_color     = { 0.8, 0.6, 0.0, 1.0 },
+        },
+        (const char *[]){ lut->name }, 1
+    );
 #endif
 }
 
