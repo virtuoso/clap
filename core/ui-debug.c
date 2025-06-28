@@ -73,6 +73,8 @@ void ui_debug_set_settings(struct settings *rs)
 
     debug_selector = settings_get_bool(settings, debug_group, "debug_selector");
 
+    imgui_set_style(settings_get_num(settings, debug_group, "imgui_style"));
+
     int i;
     for (i = 0; i < DEBUG_MODULES_MAX; i++) {
         debug_enabled[i].display = settings_get_bool(settings, debug_group, debug_enabled[i].name);

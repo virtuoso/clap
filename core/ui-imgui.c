@@ -33,6 +33,10 @@ void imgui_set_settings(struct settings *rs)
     if (!debug_group)
         return;
 
+    JsonNode *jimstyle = settings_find_get(rs, debug_group, "imgui_style", JSON_NUMBER);
+    if (jimstyle && jimstyle->tag == JSON_NUMBER)
+        imgui_set_style((enum imgui_style)jimstyle->tag);
+
     const char *ini = settings_get_str(settings, debug_group, "imgui_config");
     if (!ini)
         return;
@@ -302,8 +306,16 @@ void imgui_style_switcher(void)
 
     if (igRadioButton_IntPtr("Maroon", (int *)&imstyle, IMSTYLE_MAROON) ||
         igRadioButton_IntPtr("Matrix", (int *)&imstyle, IMSTYLE_MATRIX) ||
-        igRadioButton_IntPtr("Teal", (int *)&imstyle, IMSTYLE_TEAL))
+        igRadioButton_IntPtr("Teal", (int *)&imstyle, IMSTYLE_TEAL)) {
         imgui_set_style(imstyle);
+
+        if (!settings)
+            return;
+
+        JsonNode *debug_group = settings_find_get(settings, NULL, "debug", JSON_OBJECT);
+        if (debug_group)
+            settings_set_num(settings, debug_group, "imgui_style", (double)imstyle);
+    }
 }
 
 void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
