@@ -213,7 +213,7 @@ void pipeline_debug(struct pipeline *pl)
     int depth_log2;
 
     if (!dbgm->unfolded)
-        return;
+        goto ui_ig_end;
 
     pipeline_passes_dropdown(pl, &pass_preview, &pass_tex, &pass);
     if (pass_tex) {
@@ -240,6 +240,8 @@ void pipeline_debug(struct pipeline *pl)
             igText("texture resolution: %d x %d", width, height);
         }
     }
+
+ui_ig_end:
     ui_igEnd(DEBUG_PIPELINE_SELECTOR);
 
     if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
