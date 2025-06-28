@@ -23,6 +23,15 @@ struct ui;
 #define IM_COL32(R,G,B,A) (((A)<<24) | ((B)<<16) | ((G)<<8) | (R))
 #endif
 
+typedef enum imgui_style {
+    IMSTYLE_MAROON = 0,
+    IMSTYLE_TEAL,
+    IMSTYLE_MATRIX,
+    IMSTYLE_MAX,
+} imgui_style;
+
+void imgui_set_style(imgui_style style);
+
 bool __ui_mouse_event_propagate(void);
 void imgui_init(struct clap_context *ctx, void *data, int width, int height);
 void imgui_set_settings(struct settings *rs);

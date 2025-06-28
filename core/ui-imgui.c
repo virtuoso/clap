@@ -17,6 +17,7 @@
 static struct settings *settings;
 static struct ImGuiContext *ctx;
 static struct ImGuiIO *io;
+static imgui_style imstyle;
 
 bool __ui_mouse_event_propagate(void)
 {
@@ -78,20 +79,133 @@ static void imgui_free(void *ptr, __unused void *user_data)
     mem_free(ptr);
 }
 
-void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
+static void imgui_style_enemymouse(ImGuiStyle *style)
 {
-    igSetAllocatorFunctions(imgui_alloc, imgui_free, NULL);
-    ctx = igCreateContext(NULL);
-    io = igGetIO_ContextPtr(ctx);
+    style->Alpha = 1.0;
+    style->ChildRounding = 3;
+    style->WindowRounding = 3;
+    style->GrabRounding = 1;
+    style->GrabMinSize = 20;
+    style->FrameRounding = 3;
 
-    io->IniFilename = NULL;
-    io->LogFilename = NULL;
-    io->DisplaySize.x = width;
-    io->DisplaySize.y = height;
 
-    /* XXX: -> clap config callback */
-    ImGuiStyle *style = igGetStyle();
+    style->Colors[ImGuiCol_Text]                    = (ImVec4) { 0.00f, 1.00f, 1.00f, 1.00f };
+    style->Colors[ImGuiCol_TextDisabled]            = (ImVec4) { 0.00f, 0.40f, 0.41f, 1.00f };
+    style->Colors[ImGuiCol_WindowBg]                = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.70f };
+    style->Colors[ImGuiCol_ChildBg]                 = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_Border]                  = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.65f };
+    style->Colors[ImGuiCol_BorderShadow]            = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_FrameBg]                 = (ImVec4) { 0.44f, 0.80f, 0.80f, 0.18f };
+    style->Colors[ImGuiCol_FrameBgHovered]          = (ImVec4) { 0.44f, 0.80f, 0.80f, 0.27f };
+    style->Colors[ImGuiCol_FrameBgActive]           = (ImVec4) { 0.44f, 0.81f, 0.86f, 0.66f };
+    style->Colors[ImGuiCol_TitleBg]                 = (ImVec4) { 0.14f, 0.28f, 0.31f, 0.80f };
+    style->Colors[ImGuiCol_TitleBgCollapsed]        = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.54f };
+    style->Colors[ImGuiCol_TitleBgActive]           = (ImVec4) { 0.00f, 0.45f, 0.45f, 0.70f };
+    style->Colors[ImGuiCol_MenuBarBg]               = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.20f };
+    style->Colors[ImGuiCol_ScrollbarBg]             = (ImVec4) { 0.22f, 0.29f, 0.30f, 0.71f };
+    style->Colors[ImGuiCol_ScrollbarGrab]           = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.44f };
+    style->Colors[ImGuiCol_ScrollbarGrabHovered]    = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.74f };
+    style->Colors[ImGuiCol_ScrollbarGrabActive]     = (ImVec4) { 0.00f, 1.00f, 1.00f, 1.00f };
+    // style->Colors[ImGuiCol_ComboBg]                 = (ImVec4) { 0.16f, 0.24f, 0.22f, 0.60f };
+    style->Colors[ImGuiCol_CheckMark]               = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.68f };
+    style->Colors[ImGuiCol_SliderGrab]              = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.36f };
+    style->Colors[ImGuiCol_SliderGrabActive]        = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.76f };
+    style->Colors[ImGuiCol_Button]                  = (ImVec4) { 0.00f, 0.65f, 0.65f, 0.46f };
+    style->Colors[ImGuiCol_ButtonHovered]           = (ImVec4) { 0.01f, 1.00f, 1.00f, 0.43f };
+    style->Colors[ImGuiCol_ButtonActive]            = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.62f };
+    style->Colors[ImGuiCol_Header]                  = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.33f };
+    style->Colors[ImGuiCol_HeaderHovered]           = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.42f };
+    style->Colors[ImGuiCol_HeaderActive]            = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.54f };
 
+    style->Colors[ImGuiCol_Separator]               = (ImVec4){ 0.00f, 0.10f, 0.10f, 0.80f };
+    style->Colors[ImGuiCol_SeparatorActive]         = (ImVec4){ 0.00f, 0.10f, 0.10f, 1.00f };
+    style->Colors[ImGuiCol_SeparatorHovered]        = (ImVec4){ 0.00f, 0.10f, 0.10f, 0.90f };
+
+    style->Colors[ImGuiCol_TableHeaderBg]           = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.40f };
+    style->Colors[ImGuiCol_TableBorderStrong]       = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.80f };
+    style->Colors[ImGuiCol_TableBorderLight]        = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.60f };
+    style->Colors[ImGuiCol_TableRowBg]              = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_TableRowBgAlt]           = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.07f };
+
+    style->Colors[ImGuiCol_ResizeGrip]              = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.54f };
+    style->Colors[ImGuiCol_ResizeGripHovered]       = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.74f };
+    style->Colors[ImGuiCol_ResizeGripActive]        = (ImVec4) { 0.00f, 1.00f, 1.00f, 1.00f };
+    style->Colors[ImGuiCol_PlotLines]               = (ImVec4) { 0.00f, 1.00f, 1.00f, 1.00f };
+    style->Colors[ImGuiCol_PlotLinesHovered]        = (ImVec4) { 0.00f, 1.00f, 1.00f, 1.00f };
+    style->Colors[ImGuiCol_PlotHistogram]           = (ImVec4) { 0.00f, 1.00f, 1.00f, 1.00f };
+    style->Colors[ImGuiCol_PlotHistogramHovered]    = (ImVec4) { 0.00f, 1.00f, 1.00f, 1.00f };
+    style->Colors[ImGuiCol_TextSelectedBg]          = (ImVec4) { 0.00f, 1.00f, 1.00f, 0.22f };
+}
+
+static void imgui_style_matrix(ImGuiStyle *style)
+{
+    // Corners
+    style->WindowRounding = 4.0f;
+    style->ChildRounding = 4.0f;
+    style->FrameRounding = 3.0f;
+    style->PopupRounding = 3.0f;
+    style->ScrollbarRounding = 3.0f;
+    style->GrabRounding = 3.0f;
+    style->TabRounding = 3.0f;
+
+    style->Colors[ImGuiCol_Text]                   = (ImVec4){ 0.30f, 1.00f, 0.30f, 1.00f };
+    style->Colors[ImGuiCol_TextDisabled]           = (ImVec4){ 0.10f, 0.50f, 0.10f, 1.00f };
+    style->Colors[ImGuiCol_WindowBg]               = (ImVec4){ 0.00f, 0.05f, 0.00f, 0.85f };
+    style->Colors[ImGuiCol_ChildBg]                = (ImVec4){ 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_PopupBg]                = (ImVec4){ 0.00f, 0.10f, 0.00f, 0.92f };
+    style->Colors[ImGuiCol_Border]                 = (ImVec4){ 0.20f, 0.80f, 0.20f, 0.50f };
+    style->Colors[ImGuiCol_BorderShadow]           = (ImVec4){ 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_FrameBg]                = (ImVec4){ 0.00f, 0.30f, 0.00f, 0.39f };
+    style->Colors[ImGuiCol_FrameBgHovered]         = (ImVec4){ 0.00f, 0.60f, 0.00f, 0.40f };
+    style->Colors[ImGuiCol_FrameBgActive]          = (ImVec4){ 0.00f, 0.80f, 0.00f, 0.69f };
+    style->Colors[ImGuiCol_TitleBg]                = (ImVec4){ 0.00f, 0.20f, 0.00f, 0.80f };
+    style->Colors[ImGuiCol_TitleBgActive]          = (ImVec4){ 0.00f, 0.40f, 0.00f, 0.90f };
+    style->Colors[ImGuiCol_TitleBgCollapsed]       = (ImVec4){ 0.00f, 0.30f, 0.00f, 0.20f };
+    style->Colors[ImGuiCol_MenuBarBg]              = (ImVec4){ 0.00f, 0.10f, 0.00f, 0.80f };
+    style->Colors[ImGuiCol_ScrollbarBg]            = (ImVec4){ 0.00f, 0.10f, 0.00f, 0.60f };
+    style->Colors[ImGuiCol_ScrollbarGrab]          = (ImVec4){ 0.00f, 0.80f, 0.00f, 0.30f };
+    style->Colors[ImGuiCol_ScrollbarGrabHovered]   = (ImVec4){ 0.20f, 1.00f, 0.20f, 0.40f };
+    style->Colors[ImGuiCol_ScrollbarGrabActive]    = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.60f };
+    style->Colors[ImGuiCol_CheckMark]              = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.90f };
+    style->Colors[ImGuiCol_SliderGrab]             = (ImVec4){ 0.20f, 1.00f, 0.20f, 0.40f };
+    style->Colors[ImGuiCol_SliderGrabActive]       = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.70f };
+    style->Colors[ImGuiCol_Button]                 = (ImVec4){ 0.00f, 0.40f, 0.00f, 0.62f };
+    style->Colors[ImGuiCol_ButtonHovered]          = (ImVec4){ 0.00f, 0.60f, 0.00f, 0.79f };
+    style->Colors[ImGuiCol_ButtonActive]           = (ImVec4){ 0.00f, 0.80f, 0.00f, 1.00f };
+    style->Colors[ImGuiCol_Header]                 = (ImVec4){ 0.00f, 0.30f, 0.00f, 0.45f };
+    style->Colors[ImGuiCol_HeaderHovered]          = (ImVec4){ 0.00f, 0.50f, 0.00f, 1.00f };
+    style->Colors[ImGuiCol_HeaderActive]           = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.80f };
+    style->Colors[ImGuiCol_Separator]              = (ImVec4){ 0.20f, 0.60f, 0.20f, 0.60f };
+    style->Colors[ImGuiCol_SeparatorHovered]       = (ImVec4){ 0.40f, 1.00f, 0.40f, 1.00f };
+    style->Colors[ImGuiCol_SeparatorActive]        = (ImVec4){ 0.50f, 1.00f, 0.50f, 1.00f };
+    style->Colors[ImGuiCol_ResizeGrip]             = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.20f };
+    style->Colors[ImGuiCol_ResizeGripHovered]      = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.70f };
+    style->Colors[ImGuiCol_ResizeGripActive]       = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.90f };
+    style->Colors[ImGuiCol_Tab]                    = (ImVec4){ 0.00f, 0.30f, 0.00f, 0.79f };
+    style->Colors[ImGuiCol_TabHovered]             = (ImVec4){ 0.00f, 0.60f, 0.00f, 0.80f };
+    style->Colors[ImGuiCol_TabSelected]            = (ImVec4){ 0.00f, 0.80f, 0.00f, 1.00f };
+    style->Colors[ImGuiCol_TabSelectedOverline]    = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.40f };
+    style->Colors[ImGuiCol_TabDimmed]              = (ImVec4){ 0.00f, 0.10f, 0.00f, 0.83f };
+    style->Colors[ImGuiCol_TabDimmedSelected]      = (ImVec4){ 0.00f, 0.10f, 0.00f, 0.83f };
+    style->Colors[ImGuiCol_TabDimmedSelectedOverline] = (ImVec4){ 0.30f, 1.00f, 0.30f, 1.00f };
+    style->Colors[ImGuiCol_PlotLines]              = (ImVec4){ 0.00f, 1.00f, 0.00f, 1.00f };
+    style->Colors[ImGuiCol_PlotLinesHovered]       = (ImVec4){ 0.50f, 1.00f, 0.50f, 1.00f };
+    style->Colors[ImGuiCol_PlotHistogram]          = (ImVec4){ 0.40f, 1.00f, 0.40f, 1.00f };
+    style->Colors[ImGuiCol_PlotHistogramHovered]   = (ImVec4){ 0.60f, 1.00f, 0.60f, 1.00f };
+    style->Colors[ImGuiCol_TableHeaderBg]          = (ImVec4){ 0.00f, 0.30f, 0.00f, 0.45f };
+    style->Colors[ImGuiCol_TableBorderStrong]      = (ImVec4){ 0.00f, 0.80f, 0.00f, 0.80f };
+    style->Colors[ImGuiCol_TableBorderLight]       = (ImVec4){ 0.10f, 0.30f, 0.10f, 1.00f };
+    style->Colors[ImGuiCol_TableRowBg]             = (ImVec4){ 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_TableRowBgAlt]          = (ImVec4){ 0.00f, 1.00f, 0.00f, 0.05f };
+    style->Colors[ImGuiCol_TextSelectedBg]         = (ImVec4){ 0.00f, 1.00f, 0.00f, 0.35f };
+    style->Colors[ImGuiCol_DragDropTarget]         = (ImVec4){ 1.00f, 1.00f, 0.00f, 0.90f };
+    style->Colors[ImGuiCol_NavWindowingHighlight]  = (ImVec4){ 0.30f, 1.00f, 0.30f, 0.70f };
+    style->Colors[ImGuiCol_NavWindowingDimBg]      = (ImVec4){ 0.00f, 0.20f, 0.00f, 0.20f };
+    style->Colors[ImGuiCol_ModalWindowDimBg]       = (ImVec4){ 0.00f, 0.20f, 0.00f, 0.35f };
+}
+
+static void imgui_style_maroon(ImGuiStyle *style)
+{
     // Corners
     style->WindowRounding = 4.0f;
     style->ChildRounding = 4.0f;
@@ -159,6 +273,45 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
     style->Colors[ImGuiCol_NavWindowingHighlight]  = (ImVec4){ 1.00f, 1.00f, 1.00f, 0.70f };
     style->Colors[ImGuiCol_NavWindowingDimBg]      = (ImVec4){ 0.80f, 0.80f, 0.80f, 0.20f };
     style->Colors[ImGuiCol_ModalWindowDimBg]       = (ImVec4){ 0.20f, 0.20f, 0.20f, 0.35f };
+}
+
+void imgui_set_style(imgui_style style)
+{
+    ImGuiStyle *igstyle = igGetStyle();
+
+    switch (style) {
+        case IMSTYLE_MATRIX:
+            imgui_style_matrix(igstyle);
+            imstyle = style;
+            break;
+        case IMSTYLE_TEAL:
+            imgui_style_enemymouse(igstyle);
+            imstyle = style;
+            break;
+        default:
+        case IMSTYLE_MAROON:
+            imgui_style_maroon(igstyle);
+            imstyle = IMSTYLE_MAROON;
+            break;
+    }
+}
+
+void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
+{
+    igSetAllocatorFunctions(imgui_alloc, imgui_free, NULL);
+    ctx = igCreateContext(NULL);
+    io = igGetIO_ContextPtr(ctx);
+
+    io->IniFilename = NULL;
+    io->LogFilename = NULL;
+    io->DisplaySize.x = width;
+    io->DisplaySize.y = height;
+
+    imgui_set_style(IMSTYLE_MAROON);
+
+#ifdef __APPLE__
+    io->ConfigMacOSXBehaviors = true;
+#endif /* __APPLE__ */
 
 #ifndef __EMSCRIPTEN__
     GLFWwindow *win = data;
