@@ -394,6 +394,11 @@ void lut_apply(struct scene *scene, lut *lut)
     ropts->lighting_exposure = lut->exposure;
     ropts->contrast = lut->contrast;
     render_pass_plug_texture(pass, UNIFORM_LUT_TEX, &lut->tex);
+
+#ifndef CONFIG_FINAL
+    struct ui *ui = clap_get_ui(scene->clap_ctx);
+    ui_osd_new(ui, (const char *[]){ lut->name }, 1);
+#endif
 }
 
 #ifndef CONFIG_FINAL
