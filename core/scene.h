@@ -50,6 +50,8 @@ struct scene {
     int                 nr_cameras;
     int                 fullscreen;
     int                 proj_update;
+    int                 lut_autoswitch;
+    clap_timer          *lut_timer;
     bool                initialized;
     bool                ui_is_on;
 };
@@ -73,5 +75,11 @@ static inline struct character *scene_control_character(struct scene *s)
 {
     return s->control ? s->control->priv : NULL;
 }
+
+#ifndef CONFIG_FINAL
+void scene_lut_autoswitch_set(struct scene *scene);
+#else
+static inline void scene_lut_autoswitch_set(struct scene *scene) {}
+#endif /* CONFIG_FINAL */
 
 #endif /* __CLAP_SCENE_H__ */

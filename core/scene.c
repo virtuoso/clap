@@ -74,6 +74,44 @@ static int input_text_callback(ImGuiInputTextCallbackData *data)
     return 0;
 }
 
+static void scene_lut_autoswitch(void *data)
+{
+    struct scene *scene = data;
+    clap_context *ctx = scene->clap_ctx;
+    struct list *list = clap_lut_list(ctx);
+    lut *lut = scene->render_options.lighting_lut;
+
+    if (!scene->lut_autoswitch && scene->lut_timer) {
+        /*
+         * If the timer doesn't get re-armed, it'll get automatically
+         * deleted by the clap_timer code. Clear the pointer here.
+         */
+        scene->lut_timer = NULL;
+        return;
+    }
+
+    if (list_empty(list) || !lut)
+        return;
+
+    lut = CRES_RET(lut_next(list, lut), return);
+    lut_apply(scene, lut);
+
+    clap_timer_set(ctx, (double)scene->lut_autoswitch, scene->lut_timer, scene_lut_autoswitch, scene);
+}
+
+void scene_lut_autoswitch_set(struct scene *scene)
+{
+    if (scene->lut_timer) {
+        clap_timer_cancel(scene->clap_ctx, scene->lut_timer);
+        scene->lut_timer = NULL;
+    }
+
+    scene->lut_timer = CRES_RET(clap_timer_set(
+        scene->clap_ctx, (double)scene->lut_autoswitch, scene->lut_timer,
+        scene_lut_autoswitch, scene
+    ), {});
+}
+
 static void scene_parameters_debug(struct scene *scene, int cam_idx)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_SCENE_PARAMETERS, ImGuiWindowFlags_AlwaysAutoResize);
@@ -98,6 +136,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         }
 
         luts_debug(scene);
+
+        if (igSliderInt("lut autoswitch", &scene->lut_autoswitch, 0, 60, "%d", 0))
+            scene_lut_autoswitch_set(scene);
 
         igCheckbox("shadow outline", &scene->render_options.shadow_outline);
         if (scene->render_options.shadow_outline)
