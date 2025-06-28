@@ -46,7 +46,7 @@ struct profile {
 #define PROF_SHOW(_n) \
     dbg("PROFILER: '%s': %lu.%09lu\n", __stringify(_n), prof_ ## _n.diff.tv_sec, prof_ ## _n.diff.tv_nsec);
 
-void profiler_show(struct profile *first);
+void profiler_show(struct profile *first, unsigned long fps);
 
 #else
 struct profile;
@@ -58,7 +58,7 @@ struct profile;
 #define PROF_STEP(x,y)
 #define PROF_SHOW(x)
 #define PROF_STRUCT(x)
-static inline void profiler_show(struct profile *first) {}
+static inline void profiler_show(struct profile *first, unsigned long fps) {}
 #endif
 
 #endif /* __CLAP_PROFILER_H__ */

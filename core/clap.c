@@ -356,7 +356,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(ui_render, callback);
 
-    profiler_show(PROF_PTR(start));
+    profiler_show(PROF_PTR(start), ctx->fps.fps_fine);
     renderer_debug(&ctx->renderer);
     input_debug();
 
