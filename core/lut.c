@@ -385,10 +385,20 @@ out:
     ref_put(h);
 }
 
+void lut_apply(struct scene *scene, lut *lut)
+{
+    render_pass *pass = CRES_RET(pipeline_find_pass(scene->pl, "combine"), return);
+    render_options *ropts = &scene->render_options;
+
+    ropts->lighting_lut = lut;
+    ropts->lighting_exposure = lut->exposure;
+    ropts->contrast = lut->contrast;
+    render_pass_plug_texture(pass, UNIFORM_LUT_TEX, &lut->tex);
+}
+
 #ifndef CONFIG_FINAL
 void luts_debug(struct scene *scene)
 {
-    render_pass *pass = CRES_RET(pipeline_find_pass(scene->pl, "combine"), return);
     render_options *ropts = &scene->render_options;
     struct list *luts = clap_lut_list(scene->clap_ctx);
     const char *preview_value = ropts->lighting_lut ? ropts->lighting_lut->name : NULL;
@@ -400,8 +410,7 @@ void luts_debug(struct scene *scene)
             bool selected = lut == ropts->lighting_lut;
             if (igSelectable_Bool(lut->name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){})) {
                 igSetItemDefaultFocus();
-                ropts->lighting_lut = lut;
-                render_pass_plug_texture(pass, UNIFORM_LUT_TEX, &lut->tex);
+                lut_apply(scene, lut);
             }
         }
         ui_igEndCombo();

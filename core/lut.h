@@ -30,11 +30,13 @@ DEFINE_REFCLASS_INIT_OPTIONS(lut,
 DECLARE_REFCLASS(lut);
 
 typedef struct lut lut;
+struct scene;
 
 cresp(lut) lut_generate(struct list *list, lut_preset preset, int sz);
 cresp(lut) lut_first(struct list *list);
 cresp(lut) lut_find(struct list *list, const char *name);
 cresp(lut) lut_load(struct list *list, const char *name);
+void lut_apply(struct scene *scene, lut *lut);
 void luts_done(struct list *list);
 texture_t *lut_tex(lut *lut);
 
