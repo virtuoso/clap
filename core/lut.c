@@ -138,19 +138,81 @@ typedef void (*lut_fn)(vec3, vec3);
 static struct {
     const char  *name;
     lut_fn      fn;
+    float       exposure;
+    float       contrast;
 } lut_presets[LUT_MAX] = {
-    [LUT_IDENTITY]              = { .name = "identity", .fn = __identity },
-    [LUT_ORANGE_BLUE_FILMIC]    = { .name = "orange blue filmic", .fn = __orange_blue_filmic },
-    [LUT_COMIC_RED]             = { .name = "comic red", .fn = __comic_red },
-    [LUT_COMIC_GREEN]           = { .name = "comic green", .fn = __comic_green },
-    [LUT_COMIC_BLUE]            = { .name = "comic blue", .fn = __comic_blue },
-    [LUT_SUNSET_WARM]           = { .name = "sunset warm", .fn = __sunset_warm },
-    [LUT_HYPER_SUNSET]          = { .name = "hyper sunset", .fn = __hyper_sunset },
-    [LUT_GREEN_MATRIX]          = { .name = "green matrix", .fn = __green_matrix },
-    [LUT_SCIFI_BLUEGREEN]       = { .name = "scifi bluegreen", .fn = __scifi_bluegreen },
-    [LUT_SCIFI_NEON]            = { .name = "scifi neon", .fn = __scifi_neon },
-    [LUT_MAD_MAX_BLEACH]        = { .name = "mad max bleach", .fn = __mad_max_bleach },
-    [LUT_TEAL_ORANGE]           = { .name = "teal orange", .fn = __teal_orange },
+    [LUT_IDENTITY]              = {
+        .name       = "identity",
+        .fn         = __identity,
+        .exposure   = 2.0,
+        .contrast   = 0.25,
+    },
+    [LUT_ORANGE_BLUE_FILMIC]    = {
+        .name       = "orange blue filmic",
+        .fn         = __orange_blue_filmic,
+        .exposure   = 2.2,
+        .contrast   = 0.15,
+    },
+    [LUT_COMIC_RED]             = {
+        .name       = "comic red",
+        .fn         = __comic_red,
+        .exposure   = 2.4,
+        .contrast   = 0.3,
+    },
+    [LUT_COMIC_GREEN]           = {
+        .name       = "comic green",
+        .fn         = __comic_green,
+        .exposure   = 2.4,
+        .contrast   = 0.3,
+    },
+    [LUT_COMIC_BLUE]            = {
+        .name       = "comic blue",
+        .fn         = __comic_blue,
+        .exposure   = 2.4,
+        .contrast   = 0.3,
+    },
+    [LUT_SUNSET_WARM]           = {
+        .name       = "sunset warm",
+        .fn         = __sunset_warm,
+        .exposure   = 2.2,
+        .contrast   = 0.4,
+    },
+    [LUT_HYPER_SUNSET]          = {
+        .name       = "hyper sunset",
+        .fn         = __hyper_sunset,
+        .exposure   = 1.8,
+        .contrast   = 0.35,
+    },
+    [LUT_GREEN_MATRIX]          = {
+        .name       = "green matrix",
+        .fn         = __green_matrix,
+        .exposure   = 2.6,
+        .contrast   = 0.2,
+    },
+    [LUT_SCIFI_BLUEGREEN]       = {
+        .name       = "scifi bluegreen",
+        .fn         = __scifi_bluegreen,
+        .exposure   = 2.5,
+        .contrast   = 0.2,
+    },
+    [LUT_SCIFI_NEON]            = {
+        .name       = "scifi neon",
+        .fn         = __scifi_neon,
+        .exposure   = 2.35,
+        .contrast   = 0.15,
+    },
+    [LUT_MAD_MAX_BLEACH]        = {
+        .name       = "mad max bleach",
+        .fn         = __mad_max_bleach,
+        .exposure   = 2.2,
+        .contrast   = 0.15,
+    },
+    [LUT_TEAL_ORANGE]           = {
+        .name       = "teal orange",
+        .fn         = __teal_orange,
+        .exposure   = 2.2,
+        .contrast   = 0.15,
+    },
 };
 
 lut_preset lut_presets_all[LUT_MAX + 1] = {
@@ -176,6 +238,8 @@ typedef struct lut {
     const char      *name;
     struct list     entry;
     struct ref      ref;
+    float           exposure;
+    float           contrast;
 } lut;
 
 static cerr lut_make(struct ref *ref, void *_opts)
@@ -238,6 +302,8 @@ cresp(lut) lut_generate(struct list *list, lut_preset preset, int sz)
     LOCAL_SET(uchar, arr) = mem_alloc(1, .nr = sz * sz * sz * 3);
 
     lut *lut = CRES_RET_T(ref_new_checked(lut, .name = lut_presets[preset].name, .list = list), lut);
+    lut->exposure = lut_presets[preset].exposure;
+    lut->contrast = lut_presets[preset].contrast;
 
     for (int z = 0; z < sz; z++)
         for (int y = 0; y < sz; y++)
