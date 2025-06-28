@@ -37,6 +37,14 @@ struct settings *clap_get_settings(struct clap_context *ctx) __nonnull_params((1
 struct timespec clap_get_current_timespec(struct clap_context *ctx) __nonnull_params((1));
 double clap_get_current_time(struct clap_context *ctx) __nonnull_params((1));
 
+typedef void (*clap_timer_fn)(void *data);
+typedef struct clap_timer clap_timer;
+cresp_ret(clap_timer);
+
+cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer,
+                                 clap_timer_fn fn, void *data);
+void clap_timer_cancel(clap_context *ctx, clap_timer *timer);
+
 struct timespec clap_get_fps_delta(struct clap_context *ctx);
 unsigned long clap_get_fps_fine(struct clap_context *ctx);
 unsigned long clap_get_fps_coarse(struct clap_context *ctx);

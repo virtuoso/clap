@@ -50,6 +50,13 @@ struct fps_data {
     unsigned long   fps_fine, fps_coarse, seconds, count;
 };
 
+typedef struct clap_timer {
+    struct list     entry;
+    clap_timer_fn   fn;
+    void            *priv;
+    double          time;
+} clap_timer;
+
 typedef struct clap_context {
     struct clap_config  cfg;
     struct fps_data     fps;
@@ -64,6 +71,7 @@ typedef struct clap_context {
     renderer_t          renderer;
     shader_context      *shaders;
     struct list         luts;
+    struct list         timers;
     struct ui           ui;
     int                 argc;
 } clap_context;
@@ -179,6 +187,94 @@ unsigned long clap_get_fps_coarse(struct clap_context *ctx)
 }
 
 /****************************************************************************
+ * Timers API
+ ****************************************************************************/
+
+/*
+ * Set a timer at a given interval @dt (seconds) to call function @fn with
+ * parameter @data. If @timer is non-NULL, a new timer is allocated, otherwise
+ * the existing one will be reused.
+ */
+cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer,
+                                 clap_timer_fn fn, void *data)
+{
+    if (!ctx || dt < 0.0 || !fn)
+        return cresp_error(clap_timer, CERR_INVALID_ARGUMENTS);
+
+    if (!timer) {
+        timer = mem_alloc(sizeof(clap_timer));
+        if (!timer)
+            return cresp_error(clap_timer, CERR_NOMEM);
+    }
+
+    double end = clap_get_current_time(ctx) + dt;
+
+    clap_timer *iter = NULL;
+    /* Keep the list of timers sorted by time */
+    list_for_each_entry(iter, &ctx->timers, entry)
+        if (iter->time > end)
+            break;
+
+    if (list_empty(&ctx->timers) || iter == list_first_entry(&ctx->timers, clap_timer, entry))
+        list_prepend(&ctx->timers, &timer->entry);
+    else
+        list_prepend(&iter->entry, &timer->entry);
+    timer->fn = fn;
+    timer->priv = data;
+    timer->time = end;
+
+    return cresp_val(clap_timer, timer);
+}
+
+/* Cancel a given timer */
+void clap_timer_cancel(clap_context *ctx, clap_timer *timer)
+{
+    if (!ctx || !timer || list_empty(&timer->entry)) {
+        err("deleting nonexistent timer %p\n", timer);
+        return;
+    }
+
+    list_del(&timer->entry);
+    mem_free(timer);
+}
+
+static void clap_timers_run(clap_context *ctx)
+{
+    double time = clap_get_current_time(ctx);
+    clap_timer *timer, *iter;
+    DECLARE_LIST(fire);
+
+    /*
+     * Move timers that are going off to a local list before running
+     * their callbacks, as they're likely to re-arm themselves, which
+     * will re-insert them into ctx::timers; this avoids the potential
+     * runaway iterator, if that happens.
+     */
+    list_for_each_entry_iter(timer, iter, &ctx->timers, entry)
+        if (timer->time <= time) {
+            list_del(&timer->entry);
+            list_append(&fire, &timer->entry);
+        } else {
+            break;
+        }
+
+    list_for_each_entry_iter(timer, iter, &fire, entry) {
+        timer->fn(timer->priv);
+        /* Didn't re-arm itself, remove it */
+        if (timer->time <= time)
+            clap_timer_cancel(ctx, timer);
+    }
+}
+
+static void clap_timers_done(clap_context *ctx)
+{
+    clap_timer *timer, *iter;
+
+    list_for_each_entry_iter(timer, iter, &ctx->timers, entry)
+        clap_timer_cancel(ctx, timer);
+}
+
+/****************************************************************************
  * Main callbacks
  ****************************************************************************/
 
@@ -210,6 +306,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     mem_frame_begin();
     clap_fps_calc(ctx, &ctx->fps);
+    clap_timers_run(ctx);
 
     int width, height;
     renderer_get_viewport(&ctx->renderer, NULL, NULL, &width, &height);
@@ -436,6 +533,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         return cresp_error(clap_context, CERR_NOMEM);
 
     list_init(&ctx->luts);
+    list_init(&ctx->timers);
 
     CERR_RET_T(clap_os_init(ctx), clap_context);
 
@@ -514,6 +612,7 @@ void clap_done(struct clap_context *ctx, int status)
         settings_done(ctx->settings);
     messagebus_done();
     free(ctx->os_info.name);
+    clap_timers_done(ctx);
     mem_free(ctx);
     exit_cleanup_run(status);
 }
