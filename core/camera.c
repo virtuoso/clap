@@ -3,35 +3,37 @@
 #include "character.h"
 #include "ui-debug.h"
 
+/*
+ * Apply pitch_delta, while keeping the total pitch within [-90, 90].
+ * The price of dealing in quaternions is that one can't simply clamp
+ * the pitch to a range, some trickery is required.
+ */
+static void camera_apply_pitch(struct camera *c, float delta)
+{
+    if (delta == 0.0)
+        return;
+
+    transform_t xform;
+    transform_clone(&xform, &c->xform);
+    transform_rotate_axis(&xform, (vec3){ 1.0, 0.0, 0.0 }, delta, true);
+
+    vec3 up = { 0.0, 1.0, 0.0 };
+    transform_rotate_vec3(&xform, up);
+    if (up[1] < 0.0)
+        return;
+
+    transform_clone(&c->xform, &xform);
+}
+
 void camera_move(struct camera *c, unsigned long fps)
 {
     /* XXX: clap_ctx->ts_delta */
     if (!fps)
         return;
 
-    // Add delta and clamp pitch between -90 and 90.
-    c->pitch += c->pitch_delta / (float)fps;
-    c->pitch = clampf(c->pitch, -90, 90);
+    camera_apply_pitch(c, -c->pitch_delta / (float)fps);
 
-    // Add delta and make sure yaw is between -180 and 180.
-    c->yaw += c->yaw_delta / (float)fps;
-    if (c->yaw > 180)
-        c->yaw -= 360;
-    else if (c->yaw <= -180)
-        c->yaw += 360;
-}
-
-static void camera_position(struct camera *c)
-{
-    // Calculate position of the camera with respect to the character.
-    transform_set_pos(
-        &c->xform,
-        (vec3) {
-            c->target[0] + c->dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch)),
-            c->target[1] + c->dist * sin(to_radians(c->pitch)),
-            c->target[2] + c->dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch))
-        }
-    );
+    transform_rotate_axis(&c->xform, (vec3){ 0.0, 1.0, 0.0 }, -c->yaw_delta / (float)fps, true);
 }
 
 void camera_reset_movement(struct camera *c)
@@ -71,18 +73,14 @@ static void camera_calc_rays(struct camera *c, float dist)
 {
     mat4x4 m;
     mat4x4 m_inverse;
-    float c_position[3];
     float w = c->view.main.near_plane;
     float h = c->view.main.near_plane / c->view.aspect;
     vec4 r = { 0.0, 0.0, 0.0, 1.0 };
 
-    mat4x4_identity(m);
-    mat4x4_rotate_X(m, m, to_radians(c->pitch));
-    mat4x4_rotate_Y(m, m, to_radians(c->yaw));
-    c_position[0] = c->target[0] + dist * sin(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
-    c_position[1] = c->target[1] + dist * sin(to_radians(c->pitch));
-    c_position[2] = c->target[2] + dist * cos(to_radians(-c->yaw)) * cos(to_radians(c->pitch));
-    mat4x4_translate_in_place(m, -c_position[0], -c_position[1], -c_position[2]);
+    transform_t xform;
+    transform_clone(&xform, &c->xform);
+    transform_orbit(&xform, c->target, dist);
+    transform_view_mat4x4(&xform, m);
     mat4x4_invert(m_inverse, m);
 
     // test four corners.
@@ -126,7 +124,7 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
 static void debug_draw_camera(struct scene *scene, struct camera *c)
 {
     if (likely(!clap_get_render_options(scene->clap_ctx)->debug_draws_enabled))
-        return;
+        goto debug_ui;
 
     struct message dm = {
         .type       = MT_DEBUG_DRAW,
@@ -143,6 +141,28 @@ static void debug_draw_camera(struct scene *scene, struct camera *c)
         vec3_dup(dm.debug_draw.v1, c->debug_corner[i]);
         message_send(scene->clap_ctx, &dm);
     }
+
+debug_ui:
+    debug_module *dbgm = ui_igBegin_name(DEBUG_CAMERA, ImGuiWindowFlags_AlwaysAutoResize, "camera");
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        const float *pos = transform_pos(&c->xform, NULL);
+        vec3 angles;
+        transform_rotation(&c->xform, angles, true);
+        ui_igVecTableHeader("camera", 3);
+        ui_igVecRow(pos, 3, "pos");
+        ui_igVecRow(angles, 3, "angles");
+        igEndTable();
+
+        ui_igVecTableHeader("rotation", 4);
+        ui_igVecRow(transform_rotation_quat(&c->xform), 4, "quat");
+        igEndTable();
+    }
+
+    ui_igEnd(DEBUG_CAMERA);
 }
 
 void debug_camera_action(struct camera *c)
@@ -208,8 +228,11 @@ void camera_update(struct camera *c, struct scene *scene)
     if (c->dist != dist)
         transform_set_updated(&c->xform);
 
+    // const float *rot = transform_rotation_quat(&c->xform);
+    // igText("camera quat: %f %f %f %f", rot[0], rot[1], rot[2], rot[3]);
+
     c->dist = dist;
-    camera_position(c);
+    transform_orbit(&c->xform, c->target, c->dist);
 
 out:
     debug_draw_camera(scene, c);

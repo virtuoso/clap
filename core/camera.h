@@ -10,9 +10,6 @@ struct camera {
     struct view         view;
     entity3d            *bv;
     float               bv_volume;
-    float               pitch;
-    float               yaw;
-    float               roll;
     vec3                target;
     unsigned int        zoom;
     float               dist;

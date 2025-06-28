@@ -393,6 +393,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
         ctx->cfg.settings_cb(rs, ctx->cfg.settings_cb_data);
 }
 
+#include "loading-screen.h"
 EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 {
     struct clap_context *ctx = data;

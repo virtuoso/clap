@@ -836,6 +836,52 @@ LINMATH_H_FUNC void quat_identity(quat q)
 	q[0] = q[1] = q[2] = 0.f;
 	q[3] = 1.f;
 }
+LINMATH_H_FUNC void quat_from_axis_angle(quat r, vec3 axis, float angle)
+{
+	float l = vec3_mul_inner(axis, axis);
+	if (l > 0.0) {
+	    float half = angle * 0.5f;
+	    l = sinf(half) / sqrtf(l);
+
+	    r[0] = axis[0] * l;
+	    r[1] = axis[1] * l;
+	    r[2] = axis[2] * l;
+	    r[3] = cosf(half);
+	} else {
+		r[0] = r[1] = r[2] = 0.0;
+		r[3] = 1.0;
+	}
+}
+LINMATH_H_FUNC void quat_from_euler_xyz(quat q, float x, float y, float z)
+{
+    float cx = cosf(x * 0.5f);
+    float sx = sinf(x * 0.5f);
+    float cy = cosf(y * 0.5f);
+    float sy = sinf(y * 0.5f);
+    float cz = cosf(z * 0.5f);
+    float sz = sinf(z * 0.5f);
+
+    q[0] = sx * cy * cz - cx * sy * sz;
+    q[1] = cx * sy * cz + sx * cy * sz;
+    q[2] = cx * cy * sz - sx * sy * cz;
+    q[3] = cx * cy * cz + sx * sy * sz;
+}
+LINMATH_H_FUNC void quat_to_euler_xyz(const quat q, float *x, float *y, float *z)
+{
+    float sinr_cosp = 2.0f * (q[3]*q[0] + q[1]*q[2]);
+    float cosr_cosp = 1.0f - 2.0f * (q[0]*q[0] + q[1]*q[1]);
+    *x = atan2f(sinr_cosp, cosr_cosp); // X
+
+    float sinp = 2.0f * (q[3]*q[1] - q[2]*q[0]);
+    if (fabsf(sinp) >= 1.0f)
+        *y = copysignf(M_PI / 2.0f, sinp); // Y
+    else
+        *y = asinf(sinp); // Y
+
+    float siny_cosp = 2.0f * (q[3]*q[2] + q[0]*q[1]);
+    float cosy_cosp = 1.0f - 2.0f * (q[1]*q[1] + q[2]*q[2]);
+    *z = atan2f(siny_cosp, cosy_cosp); // Z
+}
 LINMATH_H_FUNC void quat_add(quat r, quat a, quat b)
 {
 	int i;

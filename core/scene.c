@@ -66,6 +66,7 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.fov              = to_radians(70);
     s->camera->view.proj_update      = true;
     s->camera->dist = 10;
+    transform_init(&s->camera->xform);
     transform_set_updated(&s->camera->xform);
     CERR_RET(debug_draw_install(s->clap_ctx, s->camera), err_cerr(__cerr, "failed to initialize debug draw"));
 
@@ -883,9 +884,7 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     camera_update(s->camera, s);
 
-    vec3 cam_pos;
-    transform_pos(&cam->xform, cam_pos);
-    view_update_from_angles(&cam->view, cam_pos, cam->pitch, cam->yaw, cam->roll);
+    view_update_from_angles(&cam->view, &cam->xform);
     view_calc_frustum(&cam->view);
 
     entity3d *env = cam->bv;

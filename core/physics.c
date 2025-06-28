@@ -92,9 +92,12 @@ void phys_body_position(struct phys_body *body, vec3 pos)
 
 void phys_body_rotation(struct phys_body *body, quat rot)
 {
-    dQuaternion _rot;
+    if (!phys_body_has_body(body)) {
+        quat_identity(rot);
+        return;
+    }
 
-    dGeomGetQuaternion(body->geom, _rot);
+    const dReal *_rot = dBodyGetQuaternion(body->body);
 
     rot[0] = _rot[1];
     rot[1] = _rot[2];
@@ -114,6 +117,17 @@ void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs)
         dBodySetRotation(body->body, r);
     else
         dGeomSetRotation(body->geom, r);
+}
+
+void phys_body_rotate_xform(struct phys_body *body, transform_t *xform)
+{
+    const float *rot = transform_rotation_quat(xform);
+    const dReal _rot[] = { rot[3], rot[0], rot[1], rot[2] };
+
+    if (phys_body_has_body(body))
+        dBodySetQuaternion(body->body, _rot);
+    else
+        dGeomSetQuaternion(body->geom, _rot);
 }
 
 /*
@@ -680,6 +694,11 @@ int phys_body_update(entity3d *e)
     e->phys_body->updated++;
     entity3d_position(e, (vec3){ pos[0], pos[1] - e->phys_body->yoffset, pos[2] });
     vel = dBodyGetLinearVel(e->phys_body->body);
+    if (!e->priv) {
+        quat rot;
+        phys_body_rotation(e->phys_body, rot);
+        transform_set_quat(&e->xform, rot);
+    }
 
     return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;
 }
