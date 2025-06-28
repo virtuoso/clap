@@ -5,13 +5,16 @@
 #include <sys/time.h>
 #include <time.h>
 
+#ifndef CONFIG_FINAL
+
+#include "ui-debug.h"
+
 struct profile {
     struct timespec ts, diff;
     struct profile  *next;
     const char      *name;
+    debug_plot      plot;
 };
-
-#ifndef CONFIG_FINAL
 
 #define PROFILER
 
@@ -20,7 +23,14 @@ struct profile {
 #define PROF_PTR(_n) (&(prof_ ## _n))
 
 #define DECLARE_PROF(_n) \
-    struct profile PROF_NAME(_n) = { .name = __stringify(_n) }
+    static struct profile PROF_NAME(_n) = { \
+        .name = "##" # _n, \
+        .plot = (debug_plot) { \
+            .fmt        = # _n " avg: %f", \
+            .scale_max  = 1.0, \
+            .size       = { 200.0, 40.0 }, \
+        }, \
+    }
 
 #define PROF_FIRST(_n) \
     DECLARE_PROF(_n); \
@@ -30,7 +40,8 @@ struct profile {
     DECLARE_PROF(_n); \
     clock_gettime(CLOCK_MONOTONIC, &PROF_PTR(_n)->ts); \
     PROF_PTR(_prev)->next = &prof_ ## _n; \
-    timespec_diff(&PROF_PTR(_prev)->ts, &PROF_PTR(_n)->ts, &PROF_PTR(_n)->diff);
+    timespec_diff(&PROF_PTR(_prev)->ts, &PROF_PTR(_n)->ts, &PROF_PTR(_n)->diff); \
+    debug_plot_push(&PROF_PTR(_n)->plot, (float)PROF_PTR(_n)->diff.tv_nsec / NSEC_PER_SEC);
 
 #define PROF_SHOW(_n) \
     dbg("PROFILER: '%s': %lu.%09lu\n", __stringify(_n), prof_ ## _n.diff.tv_sec, prof_ ## _n.diff.tv_nsec);
@@ -38,6 +49,8 @@ struct profile {
 void profiler_show(struct profile *first);
 
 #else
+struct profile;
+
 #define DECLARE_PROF(x)
 #define PROF_NAME(x)
 #define PROF_PTR(x) NULL

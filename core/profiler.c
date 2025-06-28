@@ -4,33 +4,29 @@
 
 void profiler_show(struct profile *first)
 {
+    static debug_plot frame_total = {
+        .fmt        = "total avg: %f",
+        .scale_max  = 1.0,
+        .size       = { 200.0, 40.0 },
+    };
+
     debug_module *dbgm = ui_igBegin(DEBUG_FRAME_PROFILER, ImGuiWindowFlags_AlwaysAutoResize);
 
     if (!dbgm->display)
         return;
 
     if (dbgm->unfolded) {
-        ui_igTableHeader("profile", (const char *[]) { "stage", "time" }, 2);
-
         struct profile *prof, *last;
         for (prof = first->next; prof; prof = prof->next) {
-            igTableNextRow(0, 0);
-            igTableNextColumn();
-            igText(prof->name);
-
-            igTableNextColumn();
-            igText("%" PRItvsec ".%09lu", prof->diff.tv_sec, prof->diff.tv_nsec);
+            ui_igDebugPlotLines(prof->name, &prof->plot);
             last = prof;
         }
+
         struct timespec total;
         timespec_diff(&first->ts, &last->ts, &total);
-        igTableNextRow(0, 0);
-        igTableNextColumn();
-        igText("total");
+        debug_plot_push(&frame_total, (float)total.tv_nsec / NSEC_PER_SEC);
+        ui_igDebugPlotLines("##total", &frame_total);
 
-        igTableNextColumn();
-        igText("%" PRItvsec ".%09lu", total.tv_sec, total.tv_nsec);
-        igEndTable();
     }
 
     ui_igEnd(DEBUG_FRAME_PROFILER);
