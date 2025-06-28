@@ -93,10 +93,19 @@ static void motion_get(struct motionctl *mctl, struct camera *cam, float lin_spe
     float delta_z = mctl->ls_dy * lin_speed;
 
     if (cam) {
-        float yawcos = cos(to_radians(cam->yaw));
-        float yawsin = sin(to_radians(cam->yaw));
-        mctl->dx = delta_x * yawcos - delta_z * yawsin;
-        mctl->dz = delta_x * yawsin + delta_z * yawcos;
+        mctl->dx = mctl->dz = 0;
+
+        vec3 dir = { delta_x, 0.0, delta_z };
+        if (vec3_mul_inner(dir, dir) < 1e-5)    return;
+
+        transform_rotate_vec3(&cam->xform, dir);
+        vec2 dir2d = { dir[0], dir[2] };
+        if (vec2_mul_inner(dir2d, dir2d) > 0.0f) {
+            vec2_norm(dir2d, dir2d);
+            vec2_scale(dir2d, dir2d, lin_speed);
+            mctl->dx = dir2d[0];
+            mctl->dz = dir2d[1];
+        }
     } else {
         mctl->dx = delta_x;
         mctl->dz = delta_z;

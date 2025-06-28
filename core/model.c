@@ -1376,8 +1376,15 @@ static void animated_update(entity3d *e, struct scene *s)
 static int default_update(entity3d *e, void *data)
 {
     struct scene *scene = data;
+    
+    if (e->phys_body && !e->priv) {
+        quat rot;
+        phys_body_rotation(e->phys_body, rot);
+        transform_set_quat(&e->xform, rot);
+    }
 
     if (transform_is_updated(&e->xform)) {
+        transform_clear_updated(&e->xform);
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);
         transform_rotate_mat4x4(&e->xform, e->mx);
@@ -1390,8 +1397,11 @@ static int default_update(entity3d *e, void *data)
 
         entity3d_aabb_update(e);
 
-        if (e->phys_body)
-            phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
+        if (e->phys_body) {
+            if (e->priv)
+                phys_body_rotate_xform(e->phys_body, &e->xform);
+        }
+            // phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
 
         if (scene && e->light_idx >= 0) {
             vec3 pos;
@@ -1439,6 +1449,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     rc_init_opts(entity3d) *opts = _opts;
     entity3d *e = container_of(ref, entity3d, ref);
 
+    transform_init(&e->xform);
     darray_init(e->aniq);
     e->animation = -1;
     e->light_idx = -1;

@@ -237,8 +237,8 @@ static int character_obj_update(entity3d *e, void *data)
             s->limbo_height = fabsf(game_over_end_height - game_over_start_height) + 10;
         }
 
-        s->camera->yaw += 90 / fabsf(game_over_end_height - game_over_start_height);
-        transform_set_updated(&s->camera->xform);
+        float delta = 90 / fabsf(game_over_end_height - game_over_start_height);
+        transform_rotate_axis(&s->camera->xform, (vec3){ 0.0, 1.0, 0.0 }, -delta, true);
     }
 
     return cobj->orig_update(e, data);

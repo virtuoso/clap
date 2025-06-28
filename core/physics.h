@@ -8,6 +8,7 @@
 #define dDOUBLE
 #endif
 #include "linmath.h"
+#include "transform.h"
 
 /**
  * enum phys_type - physics body's type
@@ -280,8 +281,16 @@ void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs);
  *
  * Enable/disable phys_body's body. Needs to be PHYS_BODY.
  */
-
 void phys_body_enable(struct phys_body *body, bool enable);
+
+/**
+ * phys_body_rotate_xform() - set body's transform rotation
+ * @body:   phys_body object
+ * @xform:  transform to apply to the body
+ *
+ * Set the @body transform to @xform.
+ */
+void phys_body_rotate_xform(struct phys_body *body, transform_t *xform);
 
 /**
  * phys_body_get_velocity() - get the physical body's linear velocity

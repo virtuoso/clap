@@ -185,6 +185,13 @@ static void character_apply_velocity(struct character *ch)
         transform_move(&e->xform, ch->velocity);
 
     entity3d_rotate(ch->entity, 0, atan2f(ch->motion[0], ch->motion[2]), 0);
+    // XXX can't do this, because it's incremental
+    // transform_rotate_axis(
+    //     &ch->entity->xform,
+    //     (vec3){ 0.0, 1.0, 0.0 },
+    //     atan2f(ch->angle[0], ch->angle[2]),
+    //     false
+    // );
 }
 
 static void character_set_state(struct character *ch, struct scene *s, character_state state)

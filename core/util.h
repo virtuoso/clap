@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
@@ -56,6 +57,16 @@ static inline float to_radians(float degrees)
 static inline float to_degrees(float radians)
 {
     return radians / M_PI * 180.0;
+}
+
+static inline float clamp_radians(float angle)
+{
+    return fabsf(angle) <= M_PI ? angle : (angle - copysignf(M_PI * 2.0, angle));
+}
+
+static inline float clamp_degrees(float angle)
+{
+    return fabsf(angle) <= 180.0 ? angle : (angle - copysignf(360.0, angle));
 }
 
 /**

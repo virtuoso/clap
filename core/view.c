@@ -164,21 +164,16 @@ static void view_projection_update(struct view *view, struct view *src, float ne
     view_calc_frustum(view);
 }
 
-static void subview_update_from_angles(struct subview *sv, vec3 eye, float pitch, float yaw, float roll)
+static void subview_update_from_angles(struct subview *sv, transform_t *xform)
 {
-    mat4x4_identity(sv->view_mx);
-    mat4x4_rotate_X(sv->view_mx, sv->view_mx, to_radians(pitch));
-    mat4x4_rotate_Y(sv->view_mx, sv->view_mx, to_radians(yaw));
-    mat4x4_rotate_Z(sv->view_mx, sv->view_mx, to_radians(roll));
-    mat4x4_translate_in_place(sv->view_mx, -eye[0], -eye[1], -eye[2]);
-
+    transform_view_mat4x4(xform, sv->view_mx);
     mat4x4_invert(sv->inv_view_mx, sv->view_mx);
 }
 
-void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll)
+void view_update_from_angles(struct view *view, transform_t *xform)
 {
     /* XXX: do the main subview first and just mat4x4_dup() them into subviews */
-    subview_update_from_angles(&view->main, eye, pitch, yaw, roll);
+    subview_update_from_angles(&view->main, xform);
     view_update_perspective_subviews(view);
 }
 
