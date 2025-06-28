@@ -82,9 +82,13 @@ void pipeline_clearout(pipeline *pl)
                         txm->sobel = &txm->_sobel;
                     if (txm->shadow == tex)
                         txm->shadow = &txm->_shadow;
-                    if (txm->lut == tex)
-                        txm->lut = &txm->_lut;
                 }
+                /*
+                 * model3dtx_drop() will unload model3dtx::lut, which should
+                 * not happen, as LUTs are maintained globally. Prevent this
+                 * from happening.
+                 */
+                txm->lut = &txm->_lut;
             }
 
             ref_put_last(pass->quad);
