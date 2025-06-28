@@ -415,6 +415,9 @@ void lut_apply(struct scene *scene, lut *lut)
     render_pass_plug_texture(pass, UNIFORM_LUT_TEX, &lut->tex);
 
 #ifndef CONFIG_FINAL
+    vec3 osd_color_in = { 0.8, 0.6, 0.0 }, osd_color;
+    lut->fn(osd_color_in, osd_color);
+
     struct ui *ui = clap_get_ui(scene->clap_ctx);
     ui_osd_new(ui, &(struct ui_widget_builder) {
             .affinity       = UI_AF_TOP | UI_AF_HCENTER,
@@ -422,7 +425,7 @@ void lut_apply(struct scene *scene, lut *lut)
             .w              = 500,
             .h              = 0.3,
             .el_cb          = lut_osd_element_cb,
-            .text_color     = { 0.8, 0.6, 0.0, 1.0 },
+            .text_color     = { osd_color[0], osd_color[1], osd_color[2], 1.0 },
         },
         (const char *[]){ lut->name }, 1
     );
