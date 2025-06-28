@@ -427,6 +427,17 @@ cresp(lut) lut_first(struct list *list)
     return cresp_val(lut, list_first_entry(list, lut, entry));
 }
 
+cresp(lut) lut_next(struct list *list, lut *lut)
+{
+    if (!list || list_empty(list))
+        return cresp_error(lut, CERR_INVALID_ARGUMENTS);
+
+    if (!lut || lut == list_last_entry(list, struct lut, entry))
+        return lut_first(list);
+
+    return cresp_val(lut, list_next_entry(lut, entry));
+}
+
 cresp(lut) lut_find(struct list *list, const char *name)
 {
     lut *lut;

@@ -34,6 +34,7 @@ struct scene;
 
 cresp(lut) lut_generate(struct list *list, lut_preset preset, int sz);
 cresp(lut) lut_first(struct list *list);
+cresp(lut) lut_next(struct list *list, lut *lut);
 cresp(lut) lut_find(struct list *list, const char *name);
 cresp(lut) lut_load(struct list *list, const char *name);
 void lut_apply(struct scene *scene, lut *lut);
