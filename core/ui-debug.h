@@ -30,6 +30,7 @@ typedef enum imgui_style {
     IMSTYLE_MAX,
 } imgui_style;
 
+void imgui_style_switcher(void);
 void imgui_set_style(imgui_style style);
 
 bool __ui_mouse_event_propagate(void);

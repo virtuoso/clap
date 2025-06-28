@@ -296,6 +296,16 @@ void imgui_set_style(imgui_style style)
     }
 }
 
+void imgui_style_switcher(void)
+{
+    igSeparatorText("ImGui style");
+
+    if (igRadioButton_IntPtr("Maroon", (int *)&imstyle, IMSTYLE_MAROON) ||
+        igRadioButton_IntPtr("Matrix", (int *)&imstyle, IMSTYLE_MATRIX) ||
+        igRadioButton_IntPtr("Teal", (int *)&imstyle, IMSTYLE_TEAL))
+        imgui_set_style(imstyle);
+}
+
 void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
 {
     igSetAllocatorFunctions(imgui_alloc, imgui_free, NULL);

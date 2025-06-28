@@ -56,6 +56,8 @@ void ui_debug_selector(void)
     int i;
     for (i = 0; i < DEBUG_MODULES_MAX; i++)
         igCheckbox(debug_enabled[i].name, &debug_enabled[i].display);
+
+    imgui_style_switcher();
     igEnd();
 }
 
