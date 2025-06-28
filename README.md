@@ -5,6 +5,8 @@
 ![macos-build](https://github.com/virtuoso/clap/actions/workflows/macos-build.yml/badge.svg?branch=main)
 ![windows-build](https://github.com/virtuoso/clap/actions/workflows/windows-build.yml/badge.svg?branch=main)
 
+![Clap practice room in comic red](docs/clap-comic-red.png)
+
 # Index
 
 - [Live demos and executables](#live-demos-and-executables)
