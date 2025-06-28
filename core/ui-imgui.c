@@ -279,6 +279,24 @@ bool ui_igMat4x4(const mat4x4 m, const char *name)
     return true;
 }
 
+void ui_igDebugPlotLines(const char *label, debug_plot *plot)
+{
+    float avg = 0.0;
+    for (int i = 0; i < array_size(plot->history); i++)
+        avg += plot->history[i];
+    avg /= array_size(plot->history);
+
+    char text[128];
+    snprintf(text, sizeof(text), plot->fmt, avg);
+
+    igPlotLines_FloatPtr(
+        label, plot->history, array_size(plot->history), plot->off, text,
+        plot->scale_min, plot->scale_max,
+        (ImVec2){ plot->size[0], plot->size[1] },
+        sizeof(float)
+    );
+}
+
 static const float left_padding = 4;
 
 bool ui_igControlTableHeader(const char *str_id_fmt, const char *longest_label, ...)

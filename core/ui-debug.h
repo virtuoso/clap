@@ -67,6 +67,25 @@ static inline debug_module *ui_igBegin(enum debug_modules mod, ImGuiWindowFlags 
 
 void ui_igEnd(enum debug_modules mod);
 
+#define NR_PLOT_HISTORY 40
+typedef struct debug_plot {
+    float           history[NR_PLOT_HISTORY];
+    unsigned int    off;
+    const char      *fmt;
+    float           scale_min;
+    float           scale_max;
+    vec2            size;
+} debug_plot;
+
+static inline void debug_plot_push(debug_plot *plot, float val)
+{
+    plot->history[plot->off++] = val;
+    if (plot->off == array_size(plot->history))
+        plot->off = 0;
+}
+
+void ui_igDebugPlotLines(const char *label, debug_plot *plot);
+
 bool ui_igTableHeader(const char *str_id, const char **labels, int n);
 void ui_igTableRow(const char *key, const char *fmt, ...);
 bool ui_igVecTableHeader(const char *str_id, int n);
