@@ -397,7 +397,7 @@ void lut_apply(struct scene *scene, lut *lut)
 
 #ifndef CONFIG_FINAL
     struct ui *ui = clap_get_ui(scene->clap_ctx);
-    ui_osd_new(ui, (const char *[]){ lut->name }, 1);
+    ui_osd_new(ui, NULL, (const char *[]){ lut->name }, 1);
 #endif
 }
 

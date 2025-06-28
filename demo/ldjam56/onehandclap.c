@@ -83,7 +83,7 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     if (main_state == MS_STARTING) {
         main_state++;
-        ui_osd_new(ui, intro_osd, array_size(intro_osd));
+        ui_osd_new(ui, NULL, intro_osd, array_size(intro_osd));
     }
 
     pipeline_render(scene.pl, ui->modal ? 1 : 0);

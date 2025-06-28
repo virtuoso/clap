@@ -886,8 +886,6 @@ static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
     uia_skip_duration(uie, 2.0);
     uia_lin_float(uie, ui_element_set_alpha, 1.0, 0.0, true, 1.0);
     uia_set_visible(uie, 0);
-    if (i == uie->widget->nr_uies - 1)
-        ui_widget_schedule_deletion(uie);
 }
 
 static struct ui_widget *
@@ -908,6 +906,8 @@ ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, u
 
         if (uwb->el_cb)
             uwb->el_cb(osd->uies[i], i);
+        if (i == nr_items - 1)
+            ui_widget_schedule_deletion(osd->uies[i]);
 
         CHECK(tui = ui_printf(ui, uwb->font, osd->uies[i], uwb->text_color, 0, "%s", items[i]));
         ui_element_set_visibility(osd->uies[i], 0);
@@ -916,10 +916,11 @@ ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, u
     return osd;
 }
 
-struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_items)
+struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
+                             const char **items, unsigned int nr_items)
 {
-    struct ui_widget *osd;
-    struct ui_widget_builder uwb = {
+    /* Defaults, if the caller didn't provide a @uwb */
+    struct ui_widget_builder _uwb = {
         .el_affinity  = UI_AF_CENTER,
         .affinity   = UI_AF_BOTTOM | UI_AF_HCENTER,
         .el_x_off   = 10,
@@ -936,12 +937,15 @@ struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_
         .text_color = { 0.8, 0.8, 0.8, 1.0 },
     };
 
-    uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
-    if (!uwb.font)
+    if (uwb)
+        memcpy(&_uwb, uwb, sizeof(_uwb));
+
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
+    if (!_uwb.font)
         return NULL;
 
-    osd = ui_osd_build(ui, &uwb, items, nr_items);
-    font_put(uwb.font);
+    struct ui_widget *osd = ui_osd_build(ui, &_uwb, items, nr_items);
+    font_put(_uwb.font);
 
     return osd;
 }

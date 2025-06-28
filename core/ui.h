@@ -127,7 +127,8 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
                              __printf(6, 7) __nonnull_params((1, 2, 4, 6));
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
 struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items);
-struct ui_widget *ui_osd_new(struct ui *ui, const char **items, unsigned int nr_items);
+struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
+                             const char **items, unsigned int nr_items);
 
 typedef struct progress_bar_options {
     float           width;
