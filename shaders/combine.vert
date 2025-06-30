@@ -5,9 +5,7 @@
 layout (location=0) in vec3 position;
 layout (location=1) in vec2 tex;
 
-layout (std140, binding = UBO_BINDING_transform) uniform transform {
-    mat4 trans;
-};
+#include "ubo_transform.glsl"
 
 layout(location = 0) out vec2 pass_tex;
 

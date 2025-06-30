@@ -11,9 +11,7 @@ layout (std140, binding = UBO_BINDING_particles) uniform particles {
     vec3 particle_pos[PARTICLES_MAX];
 };
 
-layout (std140, binding = UBO_BINDING_transform) uniform transform {
-    mat4 trans;
-};
+#include "ubo_transform.glsl"
 
 layout (std140, binding = UBO_BINDING_projview) uniform projview {
     mat4 proj;

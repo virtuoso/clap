@@ -8,9 +8,7 @@ layout (location=1) in vec2 tex;
 layout (location=2) in vec4 joints;
 layout (location=3) in vec4 weights;
 
-layout (std140, binding = UBO_BINDING_transform) uniform transform {
-    mat4 trans;
-};
+#include "ubo_transform.glsl"
 
 layout (std140, binding = UBO_BINDING_projview) uniform projview {
     mat4 proj;
