@@ -10,11 +10,7 @@ layout (location=3) in vec4 weights;
 
 #include "ubo_transform.glsl"
 #include "ubo_projview.glsl"
-
-layout (std140, binding = UBO_BINDING_skinning) uniform skinning {
-    int use_skinning;
-    mat4 joint_transforms[JOINTS_MAX];
-};
+#include "ubo_skinning.glsl"
 
 void main()
 {
