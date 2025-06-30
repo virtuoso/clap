@@ -7,10 +7,7 @@ layout (location=0) in vec2 pass_tex;
 
 uniform sampler2D model_tex;
 
-layout (std140, binding = UBO_BINDING_color_pt) uniform color_pt {
-    vec4 in_color;
-    int color_passthrough;
-};
+#include "ubo_color_pt.glsl"
 
 void main()
 {

@@ -1,12 +1,9 @@
 #version 460 core
 
 #include "shader_constants.h"
+#include "ubo_color_pt.glsl"
 
 uniform sampler2D model_tex;
-layout (std140, binding = UBO_BINDING_color_pt) uniform color_pt {
-    vec4 in_color;
-    int color_passthrough;
-};
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;
