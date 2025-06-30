@@ -9,12 +9,7 @@ layout (location=2) in vec4 joints;
 layout (location=3) in vec4 weights;
 
 #include "ubo_transform.glsl"
-
-layout (std140, binding = UBO_BINDING_projview) uniform projview {
-    mat4 proj;
-    mat4 view;
-    mat4 inverse_view;
-};
+#include "ubo_projview.glsl"
 
 layout (std140, binding = UBO_BINDING_skinning) uniform skinning {
     int use_skinning;

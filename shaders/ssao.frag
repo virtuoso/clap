@@ -9,11 +9,7 @@ uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform sampler2D sobel_tex;
 
-layout (std140, binding = UBO_BINDING_projview) uniform projview {
-    mat4 proj;
-    mat4 view;
-    mat4 inverse_view;
-};
+#include "ubo_projview.glsl"
 
 uniform vec3 ssao_kernel[SSAO_KERNEL_SIZE];
 uniform vec2 ssao_noise_scale;

@@ -9,12 +9,7 @@ layout (location=3) in vec4 tangent;
 
 #include "ubo_lighting.glsl"
 #include "ubo_transform.glsl"
-
-layout (std140, binding = UBO_BINDING_projview) uniform projview {
-    mat4 proj;
-    mat4 view;
-    mat4 inverse_view;
-};
+#include "ubo_projview.glsl"
 
 layout (location=0) out vec2 pass_tex;
 layout (location=1) out vec3 surface_normal;

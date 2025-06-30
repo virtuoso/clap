@@ -12,12 +12,7 @@ layout (std140, binding = UBO_BINDING_particles) uniform particles {
 };
 
 #include "ubo_transform.glsl"
-
-layout (std140, binding = UBO_BINDING_projview) uniform projview {
-    mat4 proj;
-    mat4 view;
-    mat4 inverse_view;
-};
+#include "ubo_projview.glsl"
 
 void main()
 {

@@ -4,12 +4,7 @@
 
 layout (location=0) in vec3 position;
 
-layout (std140, binding = UBO_BINDING_projview) uniform projview {
-    mat4 proj;
-    mat4 view;
-    mat4 inverse_view;
-};
-
+#include "ubo_projview.glsl"
 #include "ubo_transform.glsl"
 
 void main()

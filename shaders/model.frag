@@ -14,12 +14,7 @@ layout (location=9) in mat3 tbn;
 
 #include "shadow.glsl"
 #include "lighting.glsl"
-
-layout (std140, binding = UBO_BINDING_projview) uniform projview {
-    mat4 proj;
-    mat4 view;
-    mat4 inverse_view;
-};
+#include "ubo_projview.glsl"
 
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
