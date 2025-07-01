@@ -54,10 +54,20 @@ void main()
 
     float shadow_factor = shadow_factor_calc(unit_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
 
-    lighting_result r = compute_total_lighting(unit_normal, to_light_vector, view_dir, texture_sample.rgb);
-
-    vec3 shadow_tinted = light_color[0] * shadow_tint;
-    r.diffuse = mix(r.diffuse, shadow_tinted, 1.0 - shadow_factor);
+    /*
+     * XXX: Both diffuse and spcular components are affected by the shadow_factor;
+     * the problem is that shadow_factor is only derived from the light source 0,
+     * whereas lighting_result r is sum total of diffuse and specular influences
+     * from all light sources. IOW, shadow_factor_calc() will have to move inside
+     * compute_total_lighting() and shadow UBO will likely become an extension of
+     * lighting UBO.
+     *
+     * *However*, as it stands today, there is only one shadow casting light source
+     * and changing that would involve VRAM footprint and GPU performance hit that
+     * we just don't need yet. Once this becomes less critical, the above change
+     * will have to be made.
+     */
+    lighting_result r = compute_total_lighting(unit_normal, to_light_vector, view_dir, texture_sample.rgb, shadow_factor);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
     EdgeDepthMask = gl_FragCoord.z;
