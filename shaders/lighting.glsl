@@ -3,6 +3,8 @@
 
 #include "ubo_lighting.glsl"
 #include "ubo_material.glsl"
+#include "ubo_transform.glsl"
+#include "noise.glsl"
 
 struct lighting_result {
     vec3    diffuse;
@@ -48,7 +50,17 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     float n_dot_h = max(dot(unit_normal, h), 0.0);
     float v_dot_h = max(dot(view_dir, h), 0.0);
 
-    float perc_roughness = roughness;
+    mat4 inv_trans = inverse(trans);
+    vec4 local_pos = inv_trans * world_pos;
+    float perc_roughness = roughness_oct > 0 ?
+        mix(roughness, roughness_ceil,
+            fbm(local_pos.xyz * roughness_scale, roughness_amp, roughness_oct)) :
+        roughness;
+    float perc_metallic = metallic_oct > 0 ?
+        mix(metallic, metallic_ceil,
+            fbm(local_pos.xyz * metallic_scale, metallic_amp, metallic_oct)) :
+        metallic;
+
     float alpha = clamp(perc_roughness * perc_roughness, 0.05, 0.98);
 
     /* GGX normal distribution */
@@ -57,7 +69,7 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     float d = alpha_2 / (PI * denom * denom);
 
     /* Schlick Fresnel approximation */
-    vec3 f0 = mix(vec3(0.04), base_color, metallic);
+    vec3 f0 = mix(vec3(0.04), base_color, perc_metallic);
     vec3 f = clamp(f0 + (1.0 - f0) * pow(1.0 - v_dot_h, 5.0), 1e-5, 1.0);
 
     /* Smith-GGX geometry function */
