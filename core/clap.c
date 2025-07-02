@@ -198,7 +198,7 @@ unsigned long clap_get_fps_coarse(struct clap_context *ctx)
 cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer,
                                  clap_timer_fn fn, void *data)
 {
-    if (!ctx || dt < 0.0 || !fn)
+    if (dt < 0.0 || !fn)
         return cresp_error(clap_timer, CERR_INVALID_ARGUMENTS);
 
     if (!timer) {
@@ -229,8 +229,8 @@ cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer
 /* Cancel a given timer */
 void clap_timer_cancel(clap_context *ctx, clap_timer *timer)
 {
-    if (!ctx || !timer || list_empty(&timer->entry)) {
-        err("deleting nonexistent timer %p\n", timer);
+    if (list_empty(&timer->entry)) {
+        err("deleting timer while timer list is empty\n");
         return;
     }
 
