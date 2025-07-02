@@ -39,7 +39,7 @@ endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     if (NOT MINGW)
-        set(DEBUG_LIBRARIES "-fsanitize=address")
+        set(DEBUG_LIBRARIES "-fsanitize=address -fsanitize=undefined")
     endif ()
 else ()
     set(DEBUG_LIBRARIES "-flto")
