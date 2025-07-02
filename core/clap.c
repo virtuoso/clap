@@ -126,7 +126,7 @@ font_context *clap_get_font(clap_context *ctx)
     return ctx->font;
 }
 
-clap_os_info *clap_ges_os(clap_context *ctx)
+clap_os_info *clap_get_os(clap_context *ctx)
 {
     return &ctx->os_info;
 }

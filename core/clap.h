@@ -20,7 +20,7 @@ typedef struct clap_os_info {
 } clap_os_info;
 
 /* Get OS info */
-clap_os_info *clap_ges_os(clap_context *ctx);
+clap_os_info *clap_get_os(clap_context *ctx);
 /* Get the clap's physics handle */
 struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
 /* Get clap's config structure */

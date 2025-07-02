@@ -122,7 +122,7 @@ static const render_pass_ops postproc_ops = {
 static void apply_constraints(pipeline_builder_opts *opts)
 {
     clap_context *clap_ctx = opts->pl_opts->clap_ctx;
-    if (clap_ctx && clap_ges_os(clap_ctx)->mobile) {
+    if (clap_ctx && clap_get_os(clap_ctx)->mobile) {
         /*
          * On iOS and iPadOS as of today, webgl silently doesn't render
          * to non-8bit MRTs. It does render the DEPTH32 by itself though,
@@ -138,7 +138,7 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
         return TEX_FMT_RGBA8;
 
     clap_context *clap_ctx = opts->pl_opts->clap_ctx;
-    if (clap_ctx && clap_ges_os(clap_ctx)->mobile)
+    if (clap_ctx && clap_get_os(clap_ctx)->mobile)
         return TEX_FMT_RGBA8;
 
     texture_format hdr_fmts[] = {
