@@ -474,6 +474,22 @@ void ui_igDebugPlotLines(const char *label, debug_plot *plot)
 
 static const float left_padding = 4;
 
+/*
+ * Add a "(?)" mark with the given tooltip text
+ * Lifted from imgui_demo.cpp::HelpMarker()
+ */
+void ui_igHelpTooltip(const char *text)
+{
+    igSameLine(0.0, left_padding);
+    igTextDisabled("(?)");
+    if (igBeginItemTooltip()) {
+        igPushTextWrapPos(igGetFontSize() * 35.0f);
+        igTextUnformatted(text, NULL);
+        igPopTextWrapPos();
+        igEndTooltip();
+    }
+}
+
 bool ui_igControlTableHeader(const char *str_id_fmt, const char *longest_label, ...)
 {
     char buf[128];

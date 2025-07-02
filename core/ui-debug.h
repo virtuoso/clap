@@ -101,6 +101,7 @@ void ui_igTableRow(const char *key, const char *fmt, ...);
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(const float *v, int n, const char *fmt, ...);
 bool ui_igMat4x4(const mat4x4 m, const char *name);
+void ui_igHelpTooltip(const char *text);
 bool ui_igControlTableHeader(const char *str_id_fmt, const char *longest_label, ...);
 bool ui_igCheckbox(const char *label, bool *v);
 void ui_igLabel(const char *label);
