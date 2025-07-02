@@ -416,8 +416,37 @@ static void scene_entity_inspector_debug(struct scene *scene)
         ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);
 
         material *mat = &e->txmodel->mat;
-        ui_igSliderFloat("metallic", &mat->metallic, 0.0, 1.0, "%.04f", 0);
-        ui_igSliderFloat("roughness", &mat->roughness, 0.0, 1.0, "%.04f", 0);
+        bool noisy_metallic = mat->metallic_oct > 0;
+        if (ui_igCheckbox("noisy metallic", &noisy_metallic))
+            mat->metallic_oct = noisy_metallic ? 1 : 0;
+
+        if (noisy_metallic) {
+            igPushID_Str("metallic noise");
+            ui_igSliderFloat("-> scale", &mat->metallic_scale, 0.0, 100.0, "%.02f", 0);
+            ui_igSliderFloat("-> floor", &mat->metallic, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderFloat("-> ceil", &mat->metallic_ceil, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderFloat("-> amp", &mat->metallic_amp, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderInt("-> oct", &mat->metallic_oct, 1, 10, "%d", 0);
+            igPopID();
+        } else {
+            ui_igSliderFloat("metallic", &mat->metallic, 0.0, 1.0, "%.04f", 0);
+        }
+
+        bool noisy_roughness = mat->roughness_oct > 0;
+        if (ui_igCheckbox("noisy roughness", &noisy_roughness))
+            mat->roughness_oct = noisy_roughness ? 1 : 0;
+
+        if (noisy_roughness) {
+            igPushID_Str("roughness noise");
+            ui_igSliderFloat("-> scale", &mat->roughness_scale, 0.0, 100.0, "%.02f", 0);
+            ui_igSliderFloat("-> floor", &mat->roughness, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderFloat("-> ceil", &mat->roughness_ceil, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderFloat("-> amp", &mat->roughness_amp, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderInt("-> oct", &mat->roughness_oct, 1, 10, "%d", 0);
+            igPopID();
+        } else {
+            ui_igSliderFloat("roughness", &mat->roughness, 0.0, 1.0, "%.04f", 0);
+        }
 
         int lod = e->cur_lod;
         int nr_lods = max(e->txmodel->model->nr_lods - 1, 0);
