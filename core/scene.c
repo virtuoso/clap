@@ -888,8 +888,11 @@ static int scene_handle_input(struct message *m, void *data)
     if (m->input.tab || m->input.stick_r)
         scene_control_next(s);
 #endif
-    if (m->input.resize)
-        display_resize(m->input.x, m->input.y);
+    if (m->input.resize) {
+        s->width = m->input.x;
+        s->height = m->input.y;
+        s->proj_update++;
+    }
     if (m->input.fullscreen) {
         if (s->fullscreen)
             display_leave_fullscreen();

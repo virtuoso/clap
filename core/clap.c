@@ -388,10 +388,14 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
     ui->width  = width;
     ui->height = height;
 
-    struct scene *scene = ctx->cfg.callback_data;
-    scene->width = width;
-    scene->height = height;
-    scene->proj_update++;
+    message_input_send(
+        &(struct message_input) {
+            .resize = 1,
+            .x      = width,
+            .y      = height,
+        },
+        NULL
+    );
 
     if (ctx->cfg.resize_cb)
         ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
