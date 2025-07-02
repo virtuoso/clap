@@ -331,16 +331,6 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         ui_igControlTableHeader("model", "model");
 
-        ui_igCheckbox("switch scene control", &ei->switch_control);
-        igSetItemTooltip(
-            "Switch scene control to the selected model / entity.\n"
-            "You can move the entity with motion controls only\n"
-            "when it's the controlled entity"
-        );
-
-        ui_igCheckbox("follow scene control", &ei->follow_control);
-        igSetItemTooltip("Automatically switched to the control entity");
-
         if (ui_igBeginCombo("model", txmodel_name(ei->entity->txmodel),
                             ImGuiComboFlags_HeightLargest)) {
             model3dtx *txm;
@@ -380,6 +370,17 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
             ui_igEndCombo();
         }
+
+        ui_igCheckbox("switch scene control", &ei->switch_control);
+        ui_igHelpTooltip(
+                "Switch scene control to the selected model / entity. "
+                "You can move the entity with motion controls only"
+                "when it's the controlled entity"
+        );
+
+        ui_igCheckbox("follow scene control", &ei->follow_control);
+        ui_igHelpTooltip("Automatically switched to the control entity");
+
         igEndTable();
 
         model3dtx *txm = ei->entity->txmodel;
