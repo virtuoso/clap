@@ -132,8 +132,32 @@ struct animation *animation_new(model3d *model, const char *name, unsigned int n
 int animation_by_name(model3d *m, const char *name);
 
 typedef struct material {
+    /*
+     * Roughness or roughness floor, in case of procedurally generated
+     * roughness
+     */
     float   roughness;
+    /* Procedural roughness ceiling */
+    float   roughness_ceil;
+    /* Procedural roughness: FBM amplitude scale per octave */
+    float   roughness_amp;
+    /* Procedural roughness: number of FBM octaves */
+    int     roughness_oct;
+    /* Procedural roughness: vertex coordinate scale */
+    float   roughness_scale;
+    /*
+     * Metallic or metallic floor, in case of procedurally generated
+     * metallic
+     */
     float   metallic;
+    /* Procedural metallic ceiling */
+    float   metallic_ceil;
+    /* Procedural metallic: FBM amplitude scale per octave */
+    float   metallic_amp;
+    /* Procedural metallic: number of FBM octaves */
+    int     metallic_oct;
+    /* Procedural metallic: vertex coordinate scale */
+    float   metallic_scale;
 } material;
 
 typedef struct model3dtx {

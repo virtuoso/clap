@@ -932,7 +932,20 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
 
         shader_set_var_float(prog, UNIFORM_ROUGHNESS, txmodel->mat.roughness);
+        shader_set_var_int(prog, UNIFORM_ROUGHNESS_OCT, txmodel->mat.roughness_oct);
+        if (txmodel->mat.roughness_oct > 0) {
+            shader_set_var_float(prog, UNIFORM_ROUGHNESS_SCALE, txmodel->mat.roughness_scale);
+            shader_set_var_float(prog, UNIFORM_ROUGHNESS_CEIL, txmodel->mat.roughness_ceil);
+            shader_set_var_float(prog, UNIFORM_ROUGHNESS_AMP, txmodel->mat.roughness_amp);
+        }
+
         shader_set_var_float(prog, UNIFORM_METALLIC, txmodel->mat.metallic);
+        shader_set_var_int(prog, UNIFORM_METALLIC_OCT, txmodel->mat.metallic_oct);
+        if (txmodel->mat.metallic_oct > 0) {
+            shader_set_var_float(prog, UNIFORM_METALLIC_SCALE, txmodel->mat.metallic_scale);
+            shader_set_var_float(prog, UNIFORM_METALLIC_CEIL, txmodel->mat.metallic_ceil);
+            shader_set_var_float(prog, UNIFORM_METALLIC_AMP, txmodel->mat.metallic_amp);
+        }
 
         unsigned int nr_characters = 0;
         entity3d *e;
