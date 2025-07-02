@@ -487,6 +487,15 @@ cresp(lut) clap_lut_find(clap_context *ctx, const char *name)
     return lut_find(&ctx->luts, name);
 }
 
+cerr clap_set_lighting_lut(clap_context *ctx, const char *name)
+{
+    clap_get_render_options(ctx)->lighting_lut = CRES_RET_CERR(
+        clap_lut_find(ctx, name)
+    );
+
+    return CERR_OK;
+}
+
 static cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side)
 {
     if (!ctx->cfg.graphics)
