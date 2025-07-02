@@ -779,8 +779,6 @@ static void scene_camera_calc(struct scene *s, int camera)
     view_update_from_angles(&cam->view, cam_pos, cam->pitch, cam->yaw, cam->roll);
     view_calc_frustum(&cam->view);
 
-    light_debug(s);
-
     entity3d *env = cam->bv;
     cam->bv = NULL;
 
@@ -947,6 +945,7 @@ void scene_update(struct scene *scene)
     scene_parameters_debug(scene, 0);
     scene_characters_debug(scene);
     scene_entity_inspector_debug(scene);
+    light_debug(scene);
 
     mq_update(&scene->mq);
 
