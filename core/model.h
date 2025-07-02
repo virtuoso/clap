@@ -158,6 +158,15 @@ typedef struct material {
     int     metallic_oct;
     /* Procedural metallic: vertex coordinate scale */
     float   metallic_scale;
+    /*
+     * Procedural metallic noise mode:
+     * - MAT_METALLIC_INDEPENDENT: independent,
+     * - MAT_METALLIC_ROUGHNESS: == roughness,
+     * - MAT_METALLIC_ONE_MINUS_ROUGHNESS: == 1 - roughness
+     */
+    int     metallic_mode;
+    /* Procedural metallic: use the same scale as roughness */
+    bool    shared_scale;
 } material;
 
 typedef struct model3dtx {

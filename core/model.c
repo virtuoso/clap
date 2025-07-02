@@ -941,6 +941,8 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         shader_set_var_float(prog, UNIFORM_METALLIC, txmodel->mat.metallic);
         shader_set_var_int(prog, UNIFORM_METALLIC_OCT, txmodel->mat.metallic_oct);
+        shader_set_var_int(prog, UNIFORM_METALLIC_MODE, txmodel->mat.metallic_mode);
+        shader_set_var_int(prog, UNIFORM_SHARED_SCALE, txmodel->mat.shared_scale);
         if (txmodel->mat.metallic_oct > 0) {
             shader_set_var_float(prog, UNIFORM_METALLIC_SCALE, txmodel->mat.metallic_scale);
             shader_set_var_float(prog, UNIFORM_METALLIC_CEIL, txmodel->mat.metallic_ceil);
