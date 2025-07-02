@@ -487,7 +487,7 @@ cresp(lut) clap_lut_find(clap_context *ctx, const char *name)
     return lut_find(&ctx->luts, name);
 }
 
-cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side)
+static cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side)
 {
     if (!ctx->cfg.graphics)
         return CERR_INVALID_OPERATION;

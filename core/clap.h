@@ -57,7 +57,6 @@ unsigned long clap_get_fps_coarse(struct clap_context *ctx) __nonnull_params((1)
 
 struct list *clap_lut_list(clap_context *ctx) __nonnull_params((1));
 cresp(lut) clap_lut_find(clap_context *ctx, const char *name) __nonnull_params((1, 2));
-cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side) __nonnull_params((1));
 
 struct clap_config {
     unsigned long   debug       : 1,
