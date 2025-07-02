@@ -15,6 +15,8 @@ layout (std140, binding = UBO_BINDING_material) uniform material {
     float metallic_amp;
     int   metallic_oct;
     float metallic_scale;
+    int   metallic_mode;
+    bool  shared_scale;
 };
 
 #endif /* SHADERS_UBO_MATERIAL_GLSL */

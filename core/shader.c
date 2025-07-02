@@ -72,6 +72,8 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_METALLIC_AMP,        "metallic_amp",         DT_FLOAT),
     SHADER_VAR(UNIFORM_METALLIC_OCT,        "metallic_oct",         DT_INT),
     SHADER_VAR(UNIFORM_METALLIC_SCALE,      "metallic_scale",       DT_FLOAT),
+    SHADER_VAR(UNIFORM_METALLIC_MODE,       "metallic_mode",        DT_INT),
+    SHADER_VAR(UNIFORM_SHARED_SCALE,        "shared_scale",         DT_INT),
     SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             DT_VEC4),
     SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    DT_INT),
     SHADER_VAR(UNIFORM_SHADOW_VSM,          "shadow_vsm",           DT_INT),
@@ -176,7 +178,9 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_METALLIC_CEIL,
                             UNIFORM_METALLIC_AMP,
                             UNIFORM_METALLIC_OCT,
-                            UNIFORM_METALLIC_SCALE),
+                            UNIFORM_METALLIC_SCALE,
+                            UNIFORM_METALLIC_MODE,
+                            UNIFORM_SHARED_SCALE),
 };
 
 /* Runtime shader context */
