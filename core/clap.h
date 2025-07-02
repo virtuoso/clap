@@ -27,11 +27,11 @@ struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull 
 /* Get clap's renderer */
 renderer_t *clap_get_renderer(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 /* Get clap's shaders context */
-shader_context *clap_get_shaders(struct clap_context *ctx);
+shader_context *clap_get_shaders(struct clap_context *ctx) __nonnull_params((1));
 /* Get clap's UI handle */
-struct ui *clap_get_ui(clap_context *ctx);
+struct ui *clap_get_ui(clap_context *ctx) __returns_nonnull __nonnull_params((1));
 /* Get clap's font handle */
-font_context *clap_get_font(clap_context *ctx);
+font_context *clap_get_font(clap_context *ctx) __nonnull_params((1));
 sound_context *clap_get_sound(struct clap_context *ctx) __nonnull_params((1));
 struct settings *clap_get_settings(struct clap_context *ctx) __nonnull_params((1));
 struct timespec clap_get_current_timespec(struct clap_context *ctx) __nonnull_params((1));
@@ -45,13 +45,13 @@ cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer
                                  clap_timer_fn fn, void *data) __nonnull_params((1));
 void clap_timer_cancel(clap_context *ctx, clap_timer *timer) __nonnull_params((1, 2));
 
-struct timespec clap_get_fps_delta(struct clap_context *ctx);
-unsigned long clap_get_fps_fine(struct clap_context *ctx);
-unsigned long clap_get_fps_coarse(struct clap_context *ctx);
+struct timespec clap_get_fps_delta(struct clap_context *ctx) __nonnull_params((1));
+unsigned long clap_get_fps_fine(struct clap_context *ctx) __nonnull_params((1));
+unsigned long clap_get_fps_coarse(struct clap_context *ctx) __nonnull_params((1));
 
-struct list *clap_lut_list(clap_context *ctx);
-cresp(lut) clap_lut_find(clap_context *ctx, const char *name);
-cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side);
+struct list *clap_lut_list(clap_context *ctx) __nonnull_params((1));
+cresp(lut) clap_lut_find(clap_context *ctx, const char *name) __nonnull_params((1, 2));
+cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned int side) __nonnull_params((1));
 
 struct clap_config {
     unsigned long   debug       : 1,
