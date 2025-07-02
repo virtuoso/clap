@@ -659,10 +659,7 @@ int main(int argc, char **argv, char **envp)
         sound_play(intro_sound);
     }
 
-    clap_get_render_options(scene.clap_ctx)->lighting_lut = CRES_RET(
-        clap_lut_find(scene.clap_ctx, "orange blue filmic"),
-        goto exit_sound
-    );
+    CERR_RET(clap_set_lighting_lut(scene.clap_ctx, "orange blue filmic"), goto exit_sound);
 
     scene_camera_add(&scene);
     scene.camera = &scene.cameras[0];
