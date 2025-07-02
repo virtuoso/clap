@@ -45,6 +45,35 @@ const char *__asan_default_options() {
 }
 #endif /* HAVE_ASAN */
 
+#if defined(__has_feature)
+# if __has_feature(undefined_behavior_sanitizer)
+#  define UBSAN_ENABLED 1
+# else /* __has_feature(undefined_behavior_sanitizer) */
+#  define UBSAN_ENABLED 0
+# endif /* !__has_feature(undefined_behavior_sanitizer) */
+#else /* __has_feature */
+# ifdef _WIN32
+#  define UBSAN_ENABLED 0
+# else /* _WIN32 */
+void weak __ubsan_handle_builtin_unreachable(void *x);
+#  define UBSAN_ENABLED (!!&__ubsan_handle_builtin_unreachable)
+# endif /* !_WIN32 */
+#endif /* !__has_feature */
+
+const char *clap_build_options(void)
+{
+    static char str[128];
+
+    snprintf(str, sizeof(str),
+#ifdef HAVE_ASAN
+        "[asan]"
+#endif /* HAVE_ASAN */
+        "%s", UBSAN_ENABLED ? "[ubsan]" : ""
+    );
+
+    return str;
+}
+
 struct fps_data {
     struct timespec ts_prev, ts_delta;
     unsigned long   fps_fine, fps_coarse, seconds, count;

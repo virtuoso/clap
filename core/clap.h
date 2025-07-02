@@ -5,6 +5,9 @@
 #include "lut.h"
 #include "render.h"
 
+/* Clap build options string */
+const char *clap_build_options(void);
+
 struct fps_data;
 typedef struct clap_context clap_context;
 struct phys;
