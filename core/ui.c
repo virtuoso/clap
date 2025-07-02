@@ -1745,7 +1745,8 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     uie1->on_click = build_onclick;
 
 #ifndef CONFIG_FINAL
-    build_uit = ui_printf(ui, font, uie1, (vec4){ 0.7, 0.7, 0.7, 1.0 }, 0, "%s @%s", clap_version, build_date);
+    build_uit = ui_printf(ui, font, uie1, (vec4){ 0.7, 0.7, 0.7, 1.0 }, 0, "%s @%s %s",
+                          clap_version, build_date, clap_build_options());
 #endif
 
     const char *pocket_textures[] = { "apple.png", "mushroom thumb.png" };
