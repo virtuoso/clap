@@ -452,15 +452,11 @@ static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, 
     return true;
 }
 
+extern void www_call_resize(int w, int h);
+
 static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e, void *userData)
 {
-    struct message_input mi;
-    memset(&mi, 0, sizeof(mi));
-    mi.resize = 1;
-    mi.x      = e->windowInnerWidth;
-    mi.y      = e->windowInnerHeight;
-
-    message_input_send(&mi, &keyboard_source); /* XXX: source */
+    www_call_resize(e->windowInnerWidth, e->windowInnerHeight);
 
     return 0;
 }

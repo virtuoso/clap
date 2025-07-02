@@ -115,6 +115,12 @@ void display_main_loop(void)
 static display_resize_cb resize_fn;
 static void *callback_data;
 
+/* XXX: this is private between display-www.c and input-www.c */
+EMSCRIPTEN_KEEPALIVE void www_call_resize(int w, int h)
+{
+    resize_fn(callback_data, w, h);
+}
+
 EMSCRIPTEN_KEEPALIVE void display_resize(int w, int h)
 {
     resize_fn(callback_data, w, h);
