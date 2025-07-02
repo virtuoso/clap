@@ -599,8 +599,8 @@ static int scene_debug_draw(struct message *m, void *data)
                     vec3_scale(v0, v0, 1.0 / v0[3]);
 
                     ImVec2 p0 = {
-                        .x = ((v0[0] + 1.0) / 2.0) * s->width / io->DisplayFramebufferScale.x,
-                        .y = ((1.0 - v0[1]) / 2.0) * s->height / io->DisplayFramebufferScale.y,
+                        .x = ((v0[0] + 1.0) / 2.0) * io->DisplaySize.x,
+                        .y = ((1.0 - v0[1]) / 2.0) * io->DisplaySize.y,
                     };
 
                     ImDrawList_AddText_Vec2(draw, p0, color, dd->text, NULL);
@@ -622,8 +622,8 @@ static int scene_debug_draw(struct message *m, void *data)
                     break;
 
                 ImVec2 p0 = {
-                    .x = ((v0[0] + 1.0) / 2.0) * s->width / io->DisplayFramebufferScale.x,
-                    .y = ((1.0 - v0[1]) / 2.0) * s->height / io->DisplayFramebufferScale.y,
+                    .x = ((v0[0] + 1.0) / 2.0) * io->DisplaySize.x,
+                    .y = ((1.0 - v0[1]) / 2.0) * io->DisplaySize.y,
                 };
 
                 ImDrawList_AddCircleFilled(draw, p0, dd->radius, color, 16);
@@ -646,13 +646,13 @@ static int scene_debug_draw(struct message *m, void *data)
                     break;
 
                 ImVec2 p0 = {
-                    .x = ((v0[0] + 1.0) / 2.0) * s->width / io->DisplayFramebufferScale.x,
-                    .y = ((1.0 - v0[1]) / 2.0) * s->height / io->DisplayFramebufferScale.y,
+                    .x = ((v0[0] + 1.0) / 2.0) * io->DisplaySize.x,
+                    .y = ((1.0 - v0[1]) / 2.0) * io->DisplaySize.y,
                 };
 
                 ImVec2 p1 = {
-                    .x = ((v1[0] + 1.0) / 2.0) * s->width / io->DisplayFramebufferScale.x,
-                    .y = ((1.0 - v1[1]) / 2.0) * s->height / io->DisplayFramebufferScale.y,
+                    .x = ((v1[0] + 1.0) / 2.0) * io->DisplaySize.x,
+                    .y = ((1.0 - v1[1]) / 2.0) * io->DisplaySize.y,
                 };
 
                 ImDrawList_AddLine(draw, p0, p1, color, dd->thickness);
@@ -698,13 +698,13 @@ static int scene_debug_draw(struct message *m, void *data)
                     vec3_scale(b, b, 1.0 / b[3]);
 
                     ImVec2 p0 = {
-                        .x = ((a[0] + 1.0f) / 2.0f) * s->width / io->DisplayFramebufferScale.x,
-                        .y = ((1.0f - a[1]) / 2.0f) * s->height / io->DisplayFramebufferScale.y
+                        .x = ((a[0] + 1.0f) / 2.0f) * io->DisplaySize.x,
+                        .y = ((1.0f - a[1]) / 2.0f) * io->DisplaySize.y
                     };
 
                     ImVec2 p1 = {
-                        .x = ((b[0] + 1.0f) / 2.0f) * s->width / io->DisplayFramebufferScale.x,
-                        .y = ((1.0f - b[1]) / 2.0f) * s->height / io->DisplayFramebufferScale.y
+                        .x = ((b[0] + 1.0f) / 2.0f) * io->DisplaySize.x,
+                        .y = ((1.0f - b[1]) / 2.0f) * io->DisplaySize.y
                     };
 
                     ImDrawList_AddLine(draw, p0, p1, color, dd->thickness);
