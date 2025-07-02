@@ -13,6 +13,10 @@
 #define COLOR_PT_ALPHA 1
 #define COLOR_PT_ALL 2
 
+#define MAT_METALLIC_INDEPENDENT            0
+#define MAT_METALLIC_ROUGHNESS              1
+#define MAT_METALLIC_ONE_MINUS_ROUGHNESS    2
+
 /* UBO binding locations */
 #define UBO_BINDING_color_pt    0
 #define UBO_BINDING_lighting    1

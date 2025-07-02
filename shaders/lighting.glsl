@@ -52,13 +52,29 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
 
     mat4 inv_trans = inverse(trans);
     vec4 local_pos = inv_trans * world_pos;
+    vec3 roughness_noise_src = local_pos.xyz * roughness_scale;
+    vec3 metallic_noise_src = shared_scale ? roughness_noise_src : local_pos.xyz * metallic_scale;
+
+    float roughness_noise = fbm(roughness_noise_src, roughness_amp, roughness_oct);
+    float metallic_noise = 0.0;
+    switch (metallic_mode) {
+        case MAT_METALLIC_ROUGHNESS:
+            metallic_noise = roughness_noise;
+            break;
+        case MAT_METALLIC_ONE_MINUS_ROUGHNESS:
+            metallic_noise = 1.0 - roughness_noise;
+            break;
+        default:
+        case MAT_METALLIC_INDEPENDENT:
+            metallic_noise = fbm(metallic_noise_src, metallic_amp, metallic_oct);
+            break;
+    }
+
     float perc_roughness = roughness_oct > 0 ?
-        mix(roughness, roughness_ceil,
-            fbm(local_pos.xyz * roughness_scale, roughness_amp, roughness_oct)) :
+        mix(roughness, roughness_ceil, roughness_noise) :
         roughness;
     float perc_metallic = metallic_oct > 0 ?
-        mix(metallic, metallic_ceil,
-            fbm(local_pos.xyz * metallic_scale, metallic_amp, metallic_oct)) :
+        mix(metallic, metallic_ceil, metallic_noise) :
         metallic;
 
     float alpha = clamp(perc_roughness * perc_roughness, 0.05, 0.98);
