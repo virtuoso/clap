@@ -306,27 +306,17 @@ static void scene_characters_debug(struct scene *scene)
     ui_igEnd(DEBUG_CHARACTERS);
 }
 
-static void dropdown_entity(entity3d *e, void *data)
-{
-    struct scene *scene = data;
-    bool selected = scene->control == e;
-
-    igPushID_Ptr(e);
-    if (igSelectable_Bool(entity_name(e), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
-        igSetItemDefaultFocus();
-        scene->control = e;
-        transform_set_updated(&scene->camera->xform);
-    }
-    igPopID();
-}
-
 static void scene_entity_inspector_debug(struct scene *scene)
 {
+    entity_inspector *ei = &scene->entity_inspector;
+    if (!ei->entity || ei->follow_control)
+        ei->entity = scene->control;
+
     debug_module *dbgm = ui_igBegin_name(
         DEBUG_ENTITY_INSPECTOR,
         0,
         "entity '%s'",
-        entity_name(scene->control)
+        entity_name(ei->entity)
     );
 
     if (!dbgm->display)
@@ -339,21 +329,94 @@ static void scene_entity_inspector_debug(struct scene *scene)
          */
         igPushItemWidth(-1.0);
 
+        ui_igControlTableHeader("model", "model");
+
+        ui_igCheckbox("switch scene control", &ei->switch_control);
+        igSetItemTooltip(
+            "Switch scene control to the selected model / entity.\n"
+            "You can move the entity with motion controls only\n"
+            "when it's the controlled entity"
+        );
+
+        ui_igCheckbox("follow scene control", &ei->follow_control);
+        igSetItemTooltip("Automatically switched to the control entity");
+
+        if (ui_igBeginCombo("model", txmodel_name(ei->entity->txmodel),
+                            ImGuiComboFlags_HeightLargest)) {
+            model3dtx *txm;
+            list_for_each_entry(txm, &scene->mq.txmodels, entry) {
+                bool selected = false;
+
+                if (ei->entity->txmodel == txm)
+                    selected = true;
+
+                igPushID_Ptr(txm);
+                if (igSelectable_Bool(txmodel_name(txm), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
+                    igSetItemDefaultFocus();
+
+                    /*
+                     * list_empty(&txm->entities) should never be empty:
+                     * removing the last entity should remove the txmodel
+                     */
+                    if (list_empty(&txm->entities)) {
+                        if (igBeginErrorTooltip()) {
+                            igText("model '%s' has no entities", txmodel_name(txm));
+                            igEndTooltip();
+                        }
+                        err("model '%s' has no entities", txmodel_name(txm));
+                        igPopID();
+                        continue;
+                    }
+
+                    ei->entity = list_first_entry(&txm->entities, entity3d, entry);
+
+                    if (ei->switch_control) {
+                        scene->control = ei->entity;
+                        transform_set_updated(&scene->camera->xform);
+                    }
+                }
+                igPopID();
+            }
+
+            ui_igEndCombo();
+        }
+        igEndTable();
+
         ui_igControlTableHeader("entity", "roughness");
 
-        if (ui_igBeginCombo("entity", entity_name(scene->control), ImGuiComboFlags_HeightLargest)) {
-            mq_for_each_matching(&scene->mq, ENTITY3D_ALIVE, dropdown_entity, scene);
+        if (ui_igBeginCombo("entity", entity_name(ei->entity), ImGuiComboFlags_HeightLargest)) {
+            model3dtx *txm = ei->entity->txmodel;
+            entity3d *e;
+            list_for_each_entry(e, &txm->entities, entry) {
+                if (!entity3d_matches(e, ENTITY3D_ALIVE))
+                    continue;
+
+                bool selected = ei->entity == e;
+
+                igPushID_Ptr(e);
+                if (igSelectable_Bool(entity_name(e), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
+                    igSetItemDefaultFocus();
+
+                    ei->entity = e;
+                    if (ei->switch_control) {
+                        scene->control = e;
+                        transform_set_updated(&scene->camera->xform);
+                    }
+                }
+                igPopID();
+            }
             ui_igEndCombo();
         }
 
         ui_igLabel("actions");
         igTableNextColumn();
 
-        entity3d *e = scene->control;
+        entity3d *e = ei->entity;
         if (igButton("delete", (ImVec2){})) {
-            scene_control_next(scene);
+            if (e == scene->control)
+                scene_control_next(scene);
             entity3d_delete(e);
-            e = scene->control;
+            ei->entity = e = scene->control;
         }
 
         igSameLine(0.0, 4.0);

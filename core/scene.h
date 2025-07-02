@@ -23,6 +23,14 @@ struct instantiator {
     float           dx, dy, dz;
 };
 
+#ifndef CONFIG_FINAL
+typedef struct entity_inspector {
+    entity3d    *entity;
+    bool        switch_control;
+    bool        follow_control;
+} entity_inspector;
+#endif /* CONFIG_FINAL */
+
 #define SCENE_NAME_MAX 128
 struct scene {
     char                name[SCENE_NAME_MAX];
@@ -40,6 +48,9 @@ struct scene {
     struct light        light;
     sfx_container       sfxc;
     struct clap_context *clap_ctx;
+#ifndef CONFIG_FINAL
+    entity_inspector    entity_inspector;
+#endif /* CONFIG_FINAL */
     JsonNode            *json_root;
     char                *file_name;
     loading_screen      *ls;
