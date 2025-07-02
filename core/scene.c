@@ -382,6 +382,79 @@ static void scene_entity_inspector_debug(struct scene *scene)
         }
         igEndTable();
 
+        model3dtx *txm = ei->entity->txmodel;
+        model3d *m = txm->model;
+        igSeparatorText("LODs");
+        igText("vertices: %u", m->nr_vertices);
+        ui_igTableHeader("lod", (const char *[]){ "LOD", "faces", "edges", "error" }, 4);
+        for (int i = 0; i < m->nr_lods; i++) {
+            igTableNextRow(0, 0);
+            igTableNextColumn();
+            igText("%d", i);
+            igTableNextColumn();
+            igText("%u", m->nr_faces[i]);
+            igTableNextColumn();
+            igText("%u", m->nr_faces[i] * 3);
+            igTableNextColumn();
+            igText("%f", m->lod_errors[i]);
+        }
+        igEndTable();
+
+        ui_igControlTableHeader("material", "roughness");
+        material *mat = &txm->mat;
+        bool noisy_roughness = mat->roughness_oct > 0;
+        if (ui_igCheckbox("noisy roughness", &noisy_roughness))
+            mat->roughness_oct = noisy_roughness ? 1 : 0;
+
+        if (noisy_roughness) {
+            igPushID_Str("roughness noise");
+            ui_igSliderFloat("-> scale", &mat->roughness_scale, 0.0, 100.0, "%.02f", 0);
+            ui_igSliderFloat("-> floor", &mat->roughness, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderFloat("-> ceil", &mat->roughness_ceil, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderFloat("-> amp", &mat->roughness_amp, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderInt("-> oct", &mat->roughness_oct, 1, 10, "%d", 0);
+            igPopID();
+        } else {
+            ui_igSliderFloat("roughness", &mat->roughness, 0.0, 1.0, "%.04f", 0);
+            mat->metallic_mode = MAT_METALLIC_INDEPENDENT;
+        }
+
+        bool noisy_metallic = mat->metallic_oct > 0;
+        if (ui_igCheckbox("noisy metallic", &noisy_metallic))
+            mat->metallic_oct = noisy_metallic ? 1 : 0;
+
+        if (noisy_metallic) {
+            igPushID_Str("metallic noise");
+            if (noisy_roughness)
+                ui_igCheckbox("shared scale", &mat->shared_scale);
+            else
+                mat->shared_scale = false;
+
+            if (!mat->shared_scale)
+                ui_igSliderFloat("-> scale", &mat->metallic_scale, 0.0, 100.0, "%.02f", 0);
+            ui_igSliderFloat("-> floor", &mat->metallic, 0.0, 1.0, "%.04f", 0);
+            ui_igSliderFloat("-> ceil", &mat->metallic_ceil, 0.0, 1.0, "%.04f", 0);
+
+            ui_igLabel("mode");
+            igTableNextColumn();
+            igRadioButton_IntPtr("independent", &mat->metallic_mode, MAT_METALLIC_INDEPENDENT);
+            if (noisy_roughness) {
+                igSameLine(0.0, 4.0);
+                igRadioButton_IntPtr("roughness", &mat->metallic_mode, MAT_METALLIC_ROUGHNESS);
+                igSameLine(0.0, 4.0);
+                igRadioButton_IntPtr("1-roughness", &mat->metallic_mode, MAT_METALLIC_ONE_MINUS_ROUGHNESS);
+            }
+
+            if (mat->metallic_mode == MAT_METALLIC_INDEPENDENT) {
+                ui_igSliderFloat("-> amp", &mat->metallic_amp, 0.0, 1.0, "%.04f", 0);
+                ui_igSliderInt("-> oct", &mat->metallic_oct, 1, 10, "%d", 0);
+            }
+            igPopID();
+        } else {
+            ui_igSliderFloat("metallic", &mat->metallic, 0.0, 1.0, "%.04f", 0);
+        }
+        igEndTable();
+
         ui_igControlTableHeader("entity", "roughness");
 
         if (ui_igBeginCombo("entity", entity_name(ei->entity), ImGuiComboFlags_HeightLargest)) {
@@ -478,80 +551,12 @@ static void scene_entity_inspector_debug(struct scene *scene)
         ui_igSliderFloat("bloom thr", &e->bloom_threshold, 0.0, 1.0, "%.02f", 0);
         ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);
 
-        material *mat = &e->txmodel->mat;
-        bool noisy_roughness = mat->roughness_oct > 0;
-        if (ui_igCheckbox("noisy roughness", &noisy_roughness))
-            mat->roughness_oct = noisy_roughness ? 1 : 0;
-
-        if (noisy_roughness) {
-            igPushID_Str("roughness noise");
-            ui_igSliderFloat("-> scale", &mat->roughness_scale, 0.0, 100.0, "%.02f", 0);
-            ui_igSliderFloat("-> floor", &mat->roughness, 0.0, 1.0, "%.04f", 0);
-            ui_igSliderFloat("-> ceil", &mat->roughness_ceil, 0.0, 1.0, "%.04f", 0);
-            ui_igSliderFloat("-> amp", &mat->roughness_amp, 0.0, 1.0, "%.04f", 0);
-            ui_igSliderInt("-> oct", &mat->roughness_oct, 1, 10, "%d", 0);
-            igPopID();
-        } else {
-            ui_igSliderFloat("roughness", &mat->roughness, 0.0, 1.0, "%.04f", 0);
-            mat->metallic_mode = MAT_METALLIC_INDEPENDENT;
-        }
-
-        bool noisy_metallic = mat->metallic_oct > 0;
-        if (ui_igCheckbox("noisy metallic", &noisy_metallic))
-            mat->metallic_oct = noisy_metallic ? 1 : 0;
-
-        if (noisy_metallic) {
-            igPushID_Str("metallic noise");
-            if (noisy_roughness)
-                ui_igCheckbox("shared scale", &mat->shared_scale);
-            else
-                mat->shared_scale = false;
-
-            if (!mat->shared_scale)
-                ui_igSliderFloat("-> scale", &mat->metallic_scale, 0.0, 100.0, "%.02f", 0);
-            ui_igSliderFloat("-> floor", &mat->metallic, 0.0, 1.0, "%.04f", 0);
-            ui_igSliderFloat("-> ceil", &mat->metallic_ceil, 0.0, 1.0, "%.04f", 0);
-
-            ui_igLabel("mode");
-            igTableNextColumn();
-            igRadioButton_IntPtr("independent", &mat->metallic_mode, MAT_METALLIC_INDEPENDENT);
-            if (noisy_roughness) {
-                igSameLine(0.0, 4.0);
-                igRadioButton_IntPtr("roughness", &mat->metallic_mode, MAT_METALLIC_ROUGHNESS);
-                igSameLine(0.0, 4.0);
-                igRadioButton_IntPtr("1-roughness", &mat->metallic_mode, MAT_METALLIC_ONE_MINUS_ROUGHNESS);
-            }
-
-            if (mat->metallic_mode == MAT_METALLIC_INDEPENDENT) {
-                ui_igSliderFloat("-> amp", &mat->metallic_amp, 0.0, 1.0, "%.04f", 0);
-                ui_igSliderInt("-> oct", &mat->metallic_oct, 1, 10, "%d", 0);
-            }
-            igPopID();
-        } else {
-            ui_igSliderFloat("metallic", &mat->metallic, 0.0, 1.0, "%.04f", 0);
-        }
-
         int lod = e->cur_lod;
         int nr_lods = max(e->txmodel->model->nr_lods - 1, 0);
         if (ui_igSliderInt("LOD", &lod, 0, nr_lods, "%u", 0))
             entity3d_set_lod(e, lod, true);
         igEndTable();
 
-        model3d *m = e->txmodel->model;
-        igText("vertices: %u", m->nr_vertices);
-        ui_igTableHeader("lod", (const char *[]){ "LOD", "faces", "edges", "error" }, 4);
-        for (int i = 0; i < m->nr_lods; i++) {
-            igTableNextRow(0, 0);
-            igTableNextColumn();
-            igText("%d", i);
-            igTableNextColumn();
-            igText("%u", m->nr_faces[i]);
-            igTableNextColumn();
-            igText("%u", m->nr_faces[i] * 3);
-            igTableNextColumn();
-            igText("%f", m->lod_errors[i]);
-        }
-        igEndTable();
         igPopItemWidth();
     }
 
