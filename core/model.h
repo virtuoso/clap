@@ -131,6 +131,11 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
 struct animation *animation_new(model3d *model, const char *name, unsigned int nr_channels);
 int animation_by_name(model3d *m, const char *name);
 
+typedef struct material {
+    float   roughness;
+    float   metallic;
+} material;
+
 typedef struct model3dtx {
     model3d        *model;
     texture_t      _texture;
@@ -145,8 +150,7 @@ typedef struct model3dtx {
     texture_t      *sobel;
     texture_t      *shadow;
     texture_t      *lut;
-    float          metallic;
-    float          roughness;
+    material       mat;
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
     struct list    entities;           /* links entity3d->entry */

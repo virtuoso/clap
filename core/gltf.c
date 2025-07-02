@@ -1288,8 +1288,8 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         }
     }
 no_skinning:
-    txm->metallic = clampf(gltf_material(gd, mesh)->metallic, 0.0, 1.0);
-    txm->roughness = clampf(gltf_material(gd, mesh)->roughness, 0.0, 1.0);
+    txm->mat.metallic = clampf(gltf_material(gd, mesh)->metallic, 0.0, 1.0);
+    txm->mat.roughness = clampf(gltf_material(gd, mesh)->roughness, 0.0, 1.0);
 
     mq_add_model(gd->mq, txm);
 

@@ -464,8 +464,8 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
 
     model3dtx_add_fake_sobel(txm);
 
-    txm->roughness = opts->roughness;
-    txm->metallic = opts->metallic;
+    txm->mat.roughness = opts->roughness;
+    txm->mat.metallic = opts->metallic;
 
     return CERR_OK;
 
@@ -931,8 +931,8 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
 
-        shader_set_var_float(prog, UNIFORM_ROUGHNESS, txmodel->roughness);
-        shader_set_var_float(prog, UNIFORM_METALLIC, txmodel->metallic);
+        shader_set_var_float(prog, UNIFORM_ROUGHNESS, txmodel->mat.roughness);
+        shader_set_var_float(prog, UNIFORM_METALLIC, txmodel->mat.metallic);
 
         unsigned int nr_characters = 0;
         entity3d *e;

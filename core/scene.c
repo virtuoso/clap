@@ -415,8 +415,9 @@ static void scene_entity_inspector_debug(struct scene *scene)
         ui_igSliderFloat("bloom thr", &e->bloom_threshold, 0.0, 1.0, "%.02f", 0);
         ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);
 
-        ui_igSliderFloat("metallic", &e->txmodel->metallic, 0.0, 1.0, "%.04f", 0);
-        ui_igSliderFloat("roughness", &e->txmodel->roughness, 0.0, 1.0, "%.04f", 0);
+        material *mat = &e->txmodel->mat;
+        ui_igSliderFloat("metallic", &mat->metallic, 0.0, 1.0, "%.04f", 0);
+        ui_igSliderFloat("roughness", &mat->roughness, 0.0, 1.0, "%.04f", 0);
 
         int lod = e->cur_lod;
         int nr_lods = max(e->txmodel->model->nr_lods - 1, 0);
@@ -1113,9 +1114,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     txm->model->cull_face = cull_face;
     txm->model->alpha_blend = alpha_blend;
     if (roughness >= 0.0)
-        txm->roughness = clampd(roughness, 0.0, 1.0);
+        txm->mat.roughness = clampd(roughness, 0.0, 1.0);
     if (metallic >= 0.0)
-        txm->metallic = clampd(metallic, 0.0, 1.0);
+        txm->mat.metallic = clampd(metallic, 0.0, 1.0);
 
     model3d_set_name(txm->model, name);
 
