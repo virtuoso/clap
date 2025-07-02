@@ -69,6 +69,7 @@ typedef struct clap_context {
     struct phys         *phys;
     struct settings     *settings;
     renderer_t          renderer;
+    render_options      render_options;
     shader_context      *shaders;
     struct list         luts;
     struct list         timers;
@@ -88,6 +89,11 @@ struct clap_config *clap_get_config(struct clap_context *ctx)
 renderer_t *clap_get_renderer(struct clap_context *ctx)
 {
     return &ctx->renderer;
+}
+
+render_options *clap_get_render_options(struct clap_context *ctx)
+{
+    return &ctx->render_options;
 }
 
 shader_context *clap_get_shaders(struct clap_context *ctx)
@@ -184,6 +190,41 @@ unsigned long clap_get_fps_fine(struct clap_context *ctx)
 unsigned long clap_get_fps_coarse(struct clap_context *ctx)
 {
     return ctx->fps.fps_coarse;
+}
+
+/****************************************************************************
+ * Render options' defaults
+ ****************************************************************************/
+
+static void clap_init_render_options(struct clap_context *ctx)
+{
+    ctx->render_options.shadow_vsm = true;
+    ctx->render_options.shadow_msaa = false;
+    ctx->render_options.laplace_kernel = 3;
+    ctx->render_options.edge_antialiasing = true;
+    ctx->render_options.shadow_outline = true;
+    ctx->render_options.shadow_outline_threshold = 0.4;
+    ctx->render_options.hdr = true;
+    /*
+     * Apple Silicon's GL driver can't handle this much postprocessing
+     * without driving FPS into single digits and heating up like a frying
+     * pan. Disable it until Metal renderer is ready.
+     */
+#if !defined(__APPLE__) && !defined(__arm64__)
+    ctx->render_options.ssao = true;
+#endif /* __APPLE__ && __arm64__ */
+    ctx->render_options.ssao_radius = 0.3;
+    ctx->render_options.ssao_weight = 0.85;
+    ctx->render_options.bloom_exposure = 1.7;
+    ctx->render_options.bloom_intensity = 2.0;
+    ctx->render_options.bloom_threshold = 0.27;
+    ctx->render_options.bloom_operator = 1.0;
+    ctx->render_options.lighting_exposure = 1.3;
+    ctx->render_options.lighting_operator = 0.0;
+    ctx->render_options.contrast = 0.15;
+    ctx->render_options.fog_near = 5.0;
+    ctx->render_options.fog_far = 80.0;
+    vec3_dup(ctx->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
 }
 
 /****************************************************************************
@@ -568,6 +609,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (ctx->cfg.phys)
         CHECK(ctx->phys = phys_init());
     if (ctx->cfg.graphics) {
+        clap_init_render_options(ctx);
+
         /*
          * XXX: it will get initialized in display_init(), but the pointer
          * is valid here. display_init() will call display_get_sizes(), which

@@ -125,7 +125,7 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
 #ifndef CONFIG_FINAL
 static void debug_draw_camera(struct scene *scene, struct camera *c)
 {
-    if (likely(!scene->render_options.debug_draws_enabled))
+    if (likely(!clap_get_render_options(scene->clap_ctx)->debug_draws_enabled))
         return;
 
     struct message dm = {

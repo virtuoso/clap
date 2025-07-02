@@ -12,6 +12,7 @@ struct settings;
 typedef struct sound_context sound_context;
 typedef struct font_context font_context;
 typedef struct shader_context shader_context;
+typedef struct render_options render_options;
 
 typedef struct clap_os_info {
     char    *name;
@@ -26,6 +27,8 @@ struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
 struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 /* Get clap's renderer */
 renderer_t *clap_get_renderer(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
+/* Get clap's render options (mutable) */
+render_options *clap_get_render_options(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 /* Get clap's shaders context */
 shader_context *clap_get_shaders(struct clap_context *ctx) __nonnull_params((1));
 /* Get clap's UI handle */

@@ -1514,7 +1514,7 @@ static int default_update(entity3d *e, void *data)
         animated_update(e, scene);
     if (e->phys_body)
         phys_debug_draw(scene, e->phys_body);
-    if (scene->render_options.overlay_draws_enabled)
+    if (clap_get_render_options(scene->clap_ctx)->overlay_draws_enabled)
         entity3d_debug(e);
 
     return 0;

@@ -50,7 +50,7 @@ static void build_main_pl(struct pipeline **pl)
                 .clap_ctx         = scene.clap_ctx,
                 .light            = &scene.light,
                 .camera           = &scene.cameras[0],
-                .render_options   = &scene.render_options,
+                .render_options   = clap_get_render_options(scene.clap_ctx),
                 .name             = "main"
             },
             .mq         = &scene.mq,
@@ -88,18 +88,19 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     pipeline_render(scene.pl, ui->modal ? 1 : 0);
 
-    if (shadow_msaa != s->render_options.shadow_msaa ||
-        model_msaa != s->render_options.model_msaa ||
-        edge_sobel != s->render_options.edge_sobel ||
-        ssao != s->render_options.ssao ||
-        vsm != s->render_options.shadow_vsm ||
-        edge_aa != s->render_options.edge_antialiasing) {
-        shadow_msaa = s->render_options.shadow_msaa;
-        model_msaa = s->render_options.model_msaa;
-        edge_sobel = s->render_options.edge_sobel;
-        edge_aa = s->render_options.edge_antialiasing;
-        ssao = s->render_options.ssao;
-        vsm = s->render_options.shadow_vsm;
+    render_options *ropts = clap_get_render_options(s->clap_ctx);
+    if (shadow_msaa != ropts->shadow_msaa ||
+        model_msaa != ropts->model_msaa ||
+        edge_sobel != ropts->edge_sobel ||
+        ssao != ropts->ssao ||
+        vsm != ropts->shadow_vsm ||
+        edge_aa != ropts->edge_antialiasing) {
+        shadow_msaa = ropts->shadow_msaa;
+        model_msaa = ropts->model_msaa;
+        edge_sobel = ropts->edge_sobel;
+        edge_aa = ropts->edge_antialiasing;
+        ssao = ropts->ssao;
+        vsm = ropts->shadow_vsm;
         pipeline_clearout(scene.pl);
         build_main_pl(&scene.pl);
     }
@@ -281,7 +282,7 @@ int main(int argc, char **argv, char **envp)
         sound_play(intro_sound);
     }
 
-    scene.render_options.lighting_lut = CRES_RET(
+    clap_get_render_options(scene.clap_ctx)->lighting_lut = CRES_RET(
         clap_lut_find(scene.clap_ctx, "teal orange"),
         goto exit_sound
     );
@@ -305,11 +306,12 @@ int main(int argc, char **argv, char **envp)
     scene.lin_speed = 2.0;
     scene.ang_speed = 45.0;
     scene.limbo_height = 70.0;
-    scene.render_options.fog_near = 200.0;
-    scene.render_options.fog_far = 300.0;
-    scene.render_options.lighting_operator = 1.0;
-    scene.render_options.contrast = 0.15;
-    scene.render_options.lighting_exposure = 1.6;
+    render_options *ropts = clap_get_render_options(scene.clap_ctx);
+    ropts->fog_near = 200.0;
+    ropts->fog_far = 300.0;
+    ropts->lighting_operator = 1.0;
+    ropts->contrast = 0.15;
+    ropts->lighting_exposure = 1.6;
 
     imgui_render();
     display_main_loop();

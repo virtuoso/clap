@@ -407,7 +407,7 @@ static void lut_osd_element_cb(struct ui_element *uie, unsigned int i)
 void lut_apply(struct scene *scene, lut *lut)
 {
     render_pass *pass = CRES_RET(pipeline_find_pass(scene->pl, "combine"), return);
-    render_options *ropts = &scene->render_options;
+    render_options *ropts = clap_get_render_options(scene->clap_ctx);
 
     ropts->lighting_lut = lut;
     ropts->lighting_exposure = lut->exposure;
@@ -435,7 +435,7 @@ void lut_apply(struct scene *scene, lut *lut)
 #ifndef CONFIG_FINAL
 void luts_debug(struct scene *scene)
 {
-    render_options *ropts = &scene->render_options;
+    render_options *ropts = clap_get_render_options(scene->clap_ctx);
     struct list *luts = clap_lut_list(scene->clap_ctx);
     const char *preview_value = ropts->lighting_lut ? ropts->lighting_lut->name : NULL;
 

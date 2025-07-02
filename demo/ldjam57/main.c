@@ -347,13 +347,14 @@ static void startup(struct scene *s)
     s->lin_speed = 2.0;
     s->ang_speed = 90.0;
     s->limbo_height = 70.0;
-    s->render_options.bloom_intensity = 1.1;
-    s->render_options.bloom_threshold = 0.3;
-    s->render_options.bloom_exposure = 2.5;
-    s->render_options.shadow_outline = false;
-    s->render_options.lighting_operator = 1.0;
-    s->render_options.contrast = 0.4;
-    s->render_options.lighting_exposure = 1.1;
+    render_options *ropts = clap_get_render_options(scene.clap_ctx);
+    ropts->bloom_intensity = 1.1;
+    ropts->bloom_threshold = 0.3;
+    ropts->bloom_exposure = 2.5;
+    ropts->shadow_outline = false;
+    ropts->lighting_operator = 1.0;
+    ropts->contrast = 0.4;
+    ropts->lighting_exposure = 1.1;
 
     /* pixel textures for everyday use */
     err = texture_pixel_init(&platform_emission_purple, (float[]){ 0.5, 0.3, 0.5, 1 });
@@ -432,7 +433,7 @@ static void build_main_pl(struct pipeline **pl)
                 .clap_ctx       = scene.clap_ctx,
                 .light          = &scene.light,
                 .camera         = &scene.cameras[0],
-                .render_options = &scene.render_options,
+                .render_options = clap_get_render_options(scene.clap_ctx),
                 .name           = "main"
             },
             .mq         = &scene.mq,
@@ -467,18 +468,19 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 
     pipeline_render(scene.pl, ui->modal ? 1 : 0);
 
-    if (shadow_msaa != s->render_options.shadow_msaa ||
-        model_msaa != s->render_options.model_msaa ||
-        edge_sobel != s->render_options.edge_sobel ||
-        ssao != s->render_options.ssao ||
-        vsm != s->render_options.shadow_vsm ||
-        edge_aa != s->render_options.edge_antialiasing) {
-        shadow_msaa = s->render_options.shadow_msaa;
-        model_msaa = s->render_options.model_msaa;
-        edge_sobel = s->render_options.edge_sobel;
-        edge_aa = s->render_options.edge_antialiasing;
-        ssao = s->render_options.ssao;
-        vsm = s->render_options.shadow_vsm;
+    render_options *ropts = clap_get_render_options(s->clap_ctx);
+    if (shadow_msaa != ropts->shadow_msaa ||
+        model_msaa != ropts->model_msaa ||
+        edge_sobel != ropts->edge_sobel ||
+        ssao != ropts->ssao ||
+        vsm != ropts->shadow_vsm ||
+        edge_aa != ropts->edge_antialiasing) {
+        shadow_msaa = ropts->shadow_msaa;
+        model_msaa = ropts->model_msaa;
+        edge_sobel = ropts->edge_sobel;
+        edge_aa = ropts->edge_antialiasing;
+        ssao = ropts->ssao;
+        vsm = ropts->shadow_vsm;
         pipeline_clearout(scene.pl);
         build_main_pl(&scene.pl);
     }
@@ -657,7 +659,7 @@ int main(int argc, char **argv, char **envp)
         sound_play(intro_sound);
     }
 
-    scene.render_options.lighting_lut = CRES_RET(
+    clap_get_render_options(scene.clap_ctx)->lighting_lut = CRES_RET(
         clap_lut_find(scene.clap_ctx, "orange blue filmic"),
         goto exit_sound
     );

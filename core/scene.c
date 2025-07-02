@@ -79,7 +79,7 @@ static void scene_lut_autoswitch(void *data)
     struct scene *scene = data;
     clap_context *ctx = scene->clap_ctx;
     struct list *list = clap_lut_list(ctx);
-    lut *lut = scene->render_options.lighting_lut;
+    lut *lut = clap_get_render_options(ctx)->lighting_lut;
 
     if (!scene->lut_autoswitch && scene->lut_timer) {
         /*
@@ -140,38 +140,39 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         if (igSliderInt("lut autoswitch", &scene->lut_autoswitch, 0, 60, "%d", 0))
             scene_lut_autoswitch_set(scene);
 
-        igCheckbox("shadow outline", &scene->render_options.shadow_outline);
-        if (scene->render_options.shadow_outline)
-            igSliderFloat("shadow outline threshold", &scene->render_options.shadow_outline_threshold,
+        render_options *ropts = clap_get_render_options(scene->clap_ctx);
+        igCheckbox("shadow outline", &ropts->shadow_outline);
+        if (ropts->shadow_outline)
+            igSliderFloat("shadow outline threshold", &ropts->shadow_outline_threshold,
                           0.0, 1.0, "%.02f", ImGuiSliderFlags_ClampOnInput);
-        igCheckbox("VSM shadows", &scene->render_options.shadow_vsm);
-        igCheckbox("shadow msaa", &scene->render_options.shadow_msaa);
-        igCheckbox("model msaa", &scene->render_options.model_msaa);
-        igCheckbox("edge sobel", &scene->render_options.edge_sobel);
-        igCheckbox("edge antialiasing", &scene->render_options.edge_antialiasing);
-        if (!scene->render_options.edge_sobel) {
+        igCheckbox("VSM shadows", &ropts->shadow_vsm);
+        igCheckbox("shadow msaa", &ropts->shadow_msaa);
+        igCheckbox("model msaa", &ropts->model_msaa);
+        igCheckbox("edge sobel", &ropts->edge_sobel);
+        igCheckbox("edge antialiasing", &ropts->edge_antialiasing);
+        if (!ropts->edge_sobel) {
             igText("Laplace kernel size");
             igSameLine(0.0, 0.0);
-            igRadioButton_IntPtr("3x3", &scene->render_options.laplace_kernel, 3);
+            igRadioButton_IntPtr("3x3", &ropts->laplace_kernel, 3);
             igSameLine(0.0, 0.0);
-            igRadioButton_IntPtr("5x5", &scene->render_options.laplace_kernel, 5);
+            igRadioButton_IntPtr("5x5", &ropts->laplace_kernel, 5);
         }
-        igCheckbox("overlay draws", &scene->render_options.overlay_draws_enabled);
-        if (igCheckbox("debug draws", &scene->render_options.debug_draws_enabled))
-            phys_capsules_debug_enable(clap_get_phys(scene->clap_ctx), scene->render_options.debug_draws_enabled);
-        if (igCheckbox("collision draws", &scene->render_options.collision_draws_enabled))
-            phys_contacts_debug_enable(clap_get_phys(scene->clap_ctx), scene->render_options.collision_draws_enabled);
-        igCheckbox("camera frusta draws", &scene->render_options.camera_frusta_draws_enabled);
-        igCheckbox("light frusta draws", &scene->render_options.light_frusta_draws_enabled);
-        igCheckbox("aabb draws", &scene->render_options.aabb_draws_enabled);
-        igCheckbox("use SSAO", &scene->render_options.ssao);
-        igSliderFloat("SSAO radius", &scene->render_options.ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("SSAO weight", &scene->render_options.ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
-        igCheckbox("use HDR", &scene->render_options.hdr);
-        igSliderFloat("bloom exposure", &scene->render_options.bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("bloom intensity", &scene->render_options.bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("bloom threshold", &scene->render_options.bloom_threshold, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        int bop = (int)scene->render_options.bloom_operator;
+        igCheckbox("overlay draws", &ropts->overlay_draws_enabled);
+        if (igCheckbox("debug draws", &ropts->debug_draws_enabled))
+            phys_capsules_debug_enable(clap_get_phys(scene->clap_ctx), ropts->debug_draws_enabled);
+        if (igCheckbox("collision draws", &ropts->collision_draws_enabled))
+            phys_contacts_debug_enable(clap_get_phys(scene->clap_ctx), ropts->collision_draws_enabled);
+        igCheckbox("camera frusta draws", &ropts->camera_frusta_draws_enabled);
+        igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
+        igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
+        igCheckbox("use SSAO", &ropts->ssao);
+        igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("SSAO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
+        igCheckbox("use HDR", &ropts->hdr);
+        igSliderFloat("bloom exposure", &ropts->bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("bloom intensity", &ropts->bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("bloom threshold", &ropts->bloom_threshold, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        int bop = (int)ropts->bloom_operator;
         igText("bloom tonemapping op:");
         igSameLine(0.0, 0.0);
         igPushID_Str("bop");
@@ -179,9 +180,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igSameLine(0.0, 0.0);
         igRadioButton_IntPtr("ACES", &bop, 1);
         igPopID();
-        scene->render_options.bloom_operator = (float)bop;
-        igSliderFloat("lighting exposure", &scene->render_options.lighting_exposure, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        int lop = (int)scene->render_options.lighting_operator;
+        ropts->bloom_operator = (float)bop;
+        igSliderFloat("lighting exposure", &ropts->lighting_exposure, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        int lop = (int)ropts->lighting_operator;
         igText("lighting tonemapping op:");
         igSameLine(0.0, 0.0);
         igPushID_Str("lop");
@@ -189,23 +190,23 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igSameLine(0.0, 0.0);
         igRadioButton_IntPtr("ACES", &lop, 1);
         igPopID();
-        scene->render_options.lighting_operator = (float)lop;
-        igSliderFloat("contrast", &scene->render_options.contrast, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        ropts->lighting_operator = (float)lop;
+        igSliderFloat("contrast", &ropts->contrast, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSeparator();
         if (igButton("disable fog", (ImVec2){})) {
-            scene->render_options.fog_near = scene->camera->view.main.far_plane;
-            scene->render_options.fog_far = scene->camera->view.main.far_plane;
+            ropts->fog_near = scene->camera->view.main.far_plane;
+            ropts->fog_far = scene->camera->view.main.far_plane;
         }
         igDragFloatRange2(
             "fog near/far",
-            &scene->render_options.fog_near,
-            &scene->render_options.fog_far,
+            &ropts->fog_near,
+            &ropts->fog_far,
             1.0, 1.0, scene->camera->view.main.far_plane,
             "near: %.02f", "far: %.02f", 0
         );
         igColorEdit3(
             "fog_color",
-            scene->render_options.fog_color,
+            ropts->fog_color,
             ImGuiColorEditFlags_NoInputs |
             ImGuiColorEditFlags_NoLabel  |
             ImGuiColorEditFlags_NoTooltip
@@ -804,7 +805,8 @@ static void scene_camera_calc(struct scene *s, int camera)
         );
     }
     /* only the first light source get to cast shadows for now */
-    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, !s->render_options.shadow_vsm);
+    bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
+    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, !shadow_vsm);
     view_calc_frustum(&s->light.view[0]);
 }
 
@@ -961,11 +963,12 @@ void scene_update(struct scene *scene)
         transform_set_updated(&scene->camera->xform);
     }
 
-    camera_move(scene->camera, clap_get_fps_fine(scene->clap_ctx));
+    clap_context *ctx = scene->clap_ctx;
+    camera_move(scene->camera, clap_get_fps_fine(ctx));
 
-    if (scene->render_options.camera_frusta_draws_enabled)
+    if (clap_get_render_options(ctx)->camera_frusta_draws_enabled)
         scene_debug_frusta(&scene->camera->view);
-    if (scene->render_options.light_frusta_draws_enabled)
+    if (clap_get_render_options(ctx)->light_frusta_draws_enabled)
         scene_debug_frusta(&scene->light.view[0]);
 
     motion_reset(&scene->mctl, scene);
@@ -988,34 +991,6 @@ cerr scene_init(struct scene *scene)
     }
     light_set_ambient(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
     light_set_shadow_tint(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
-
-    scene->render_options.shadow_vsm = true;
-    scene->render_options.shadow_msaa = false;
-    scene->render_options.laplace_kernel = 3;
-    scene->render_options.edge_antialiasing = true;
-    scene->render_options.shadow_outline = true;
-    scene->render_options.shadow_outline_threshold = 0.4;
-    scene->render_options.hdr = true;
-    /*
-     * Apple Silicon's GL driver can't handle this much postprocessing
-     * without driving FPS into single digits and heating up like a frying
-     * pan. Disable it until Metal renderer is ready.
-     */
-#if !defined(__APPLE__) && !defined(__arm64__)
-    scene->render_options.ssao = true;
-#endif /* __APPLE__ && __arm64__ */
-    scene->render_options.ssao_radius = 0.3;
-    scene->render_options.ssao_weight = 0.85;
-    scene->render_options.bloom_exposure = 1.7;
-    scene->render_options.bloom_intensity = 2.0;
-    scene->render_options.bloom_threshold = 0.27;
-    scene->render_options.bloom_operator = 1.0;
-    scene->render_options.lighting_exposure = 1.3;
-    scene->render_options.lighting_operator = 0.0;
-    scene->render_options.contrast = 0.15;
-    scene->render_options.fog_near = 5.0;
-    scene->render_options.fog_far = 80.0;
-    vec3_dup(scene->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
 
     /* messagebus_done() will "unsubscribe" (free) these */
     CERR_RET(subscribe(MT_INPUT, scene_handle_input, scene), return __cerr);
@@ -1507,9 +1482,10 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
     light_set_pos(&s->light, idx, fpos);
     light_set_color(&s->light, idx, fcolor);
 
+    bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
     vec3 center = {};
     vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
-    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !s->render_options.shadow_vsm);
+    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
 
     return CERR_OK;
 }
