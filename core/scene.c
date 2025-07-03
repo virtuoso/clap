@@ -384,7 +384,8 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         igEndTable();
 
-        model3dtx *txm = ei->entity->txmodel;
+        /* Hold the txm reference for the remainder of the function */
+        model3dtx *txm = ref_get(ei->entity->txmodel);
         model3d *m = txm->model;
         igSeparatorText("LODs");
         igText("vertices: %u", m->nr_vertices);
@@ -460,7 +461,6 @@ static void scene_entity_inspector_debug(struct scene *scene)
         ui_igControlTableHeader("entity", "roughness");
 
         if (ui_igBeginCombo("entity", entity_name(ei->entity), ImGuiComboFlags_HeightLargest)) {
-            model3dtx *txm = ei->entity->txmodel;
             entity3d *e;
             list_for_each_entry(e, &txm->entities, entry) {
                 if (!entity3d_matches(e, ENTITY3D_ALIVE))
@@ -490,8 +490,26 @@ static void scene_entity_inspector_debug(struct scene *scene)
         if (igButton("delete", (ImVec2){})) {
             if (e == scene->control)
                 scene_control_next(scene);
+
             entity3d_delete(e);
-            ei->entity = e = scene->control;
+
+            /*
+             * entity3d_delete() doesn't delete txm as well, because we're
+             * holding a reference to it, so dereferencing it is safe
+             */
+            if (!list_empty(&txm->entities)) {
+                ei->entity = e = list_first_entry(&txm->entities, entity3d, entry);
+            } else {
+                /*
+                 * Switching to a different model, it's safe to drop the
+                 * reference here
+                 */
+                ei->entity = e = scene->control;
+                ref_put(txm);
+
+                /* Get a reference to the new txmodel */
+                txm = ref_get(e->txmodel);
+            }
         }
 
         igSameLine(0.0, 4.0);
@@ -554,12 +572,14 @@ static void scene_entity_inspector_debug(struct scene *scene)
         ui_igSliderFloat("bloom int", &e->bloom_intensity, -10.0, 10.0, "%.04f", 0);
 
         int lod = e->cur_lod;
-        int nr_lods = max(e->txmodel->model->nr_lods - 1, 0);
+        int nr_lods = max(txm->model->nr_lods - 1, 0);
         if (ui_igSliderInt("LOD", &lod, 0, nr_lods, "%u", 0))
             entity3d_set_lod(e, lod, true);
         igEndTable();
 
         igPopItemWidth();
+
+        ref_put(txm);
     }
 
     ui_igEnd(DEBUG_ENTITY_INSPECTOR);
