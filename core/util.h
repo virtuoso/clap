@@ -247,7 +247,10 @@ void _darray_clearout(struct darray *da);
 
 /* Iterate through the elements of an array */
 #define darray_for_each(_el, _da) \
-    for (_el = &(_da).x[0]; _el != &(_da).x[(_da).da.nr_el]; _el++)
+    for (_el = darray_get((_da), 0); \
+         _el && _el != &(_da).x[(_da).da.nr_el]; \
+         _el++ \
+        )
 
 struct list {
     struct list *prev, *next;
