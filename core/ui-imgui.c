@@ -44,6 +44,24 @@ void imgui_set_settings(struct settings *rs)
     igLoadIniSettingsFromMemory(ini, strlen(ini));
 }
 
+static void debug_debugger(void)
+{
+    debug_module *dbgm = ui_igBegin_name(DEBUG_DEBUGGER, ImGuiWindowFlags_AlwaysAutoResize, "debugger");
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        static bool show_demo;
+
+        igCheckbox("ImGui Demo Window", &show_demo);
+        if (show_demo)
+            igShowDemoWindow(NULL);
+    }
+
+    ui_igEnd(DEBUG_DEBUGGER);
+}
+
 void imgui_render_begin(int width, int height)
 {
     io->DisplaySize.x = width;
@@ -60,6 +78,8 @@ void imgui_render_begin(int width, int height)
 
 void imgui_render(void)
 {
+    debug_debugger();
+
     igRender();
     ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
 
