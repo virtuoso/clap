@@ -1455,6 +1455,10 @@ void uniform_buffer_update(uniform_buffer_t *ubo)
     ubo->dirty = false;
 }
 
+/*
+ * Calculate uniform @offset within a UBO, its total @size and set its @value
+ * if @value is not NULL
+ */
 cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
                         unsigned int count, const void *value)
 {
@@ -1466,8 +1470,9 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
     if (!elem_size || !storage_size)
         return CERR_INVALID_ARGUMENTS;
 
+    /* These are only used if @value is set */
     const char *src = (const char *)value;
-    char *dst = (char *)ubo->data + *offset;
+    char *dst = src ? (char *)ubo->data + *offset : NULL;
 
     *offset = *size;
 
