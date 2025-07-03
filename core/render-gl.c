@@ -979,7 +979,7 @@ bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
         return true;
 
     int bidx = fbo_attachment_color(attachment);
-    if (bidx <= fbo_attachment_color(attachment) &&
+    if (bidx <= fbo_attachment_color(fbo->attachment_config) &&
         fbo->color_buf[bidx])
         return true;
 
