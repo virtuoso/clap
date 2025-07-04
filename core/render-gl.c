@@ -207,12 +207,12 @@ void buffer_deinit(buffer_t *buf)
     buf->loaded = false;
 }
 
-static inline void _buffer_bind(buffer_t *buf, int loc)
+static inline void _buffer_bind(buffer_t *buf, uniform_t loc)
 {
     GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE, 0, (void *)0));
 }
 
-void buffer_bind(buffer_t *buf, int loc)
+void buffer_bind(buffer_t *buf, uniform_t loc)
 {
     if (!buf->loaded)
         return;
@@ -225,7 +225,7 @@ void buffer_bind(buffer_t *buf, int loc)
     GL(glEnableVertexAttribArray(loc));
 }
 
-void buffer_unbind(buffer_t *buf, int loc)
+void buffer_unbind(buffer_t *buf, uniform_t loc)
 {
     if (!buf->loaded)
         return;
@@ -237,7 +237,7 @@ void buffer_unbind(buffer_t *buf, int loc)
     GL(glDisableVertexAttribArray(loc));
 }
 
-void buffer_load(buffer_t *buf, void *data, size_t sz, int loc)
+void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
 {
     GL(glGenBuffers(1, &buf->id));
     GL(glBindBuffer(buf->type, buf->id));

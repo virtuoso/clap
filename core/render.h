@@ -69,6 +69,9 @@ typedef enum buffer_usage {
     BUF_DYNAMIC
 } buffer_usage;
 
+typedef int uniform_t;
+typedef int attr_t;
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(buffer,
     struct ref  ref;
@@ -94,9 +97,9 @@ typedef struct buffer_init_options {
     _buffer_init((_b), &(buffer_init_options){ args })
 cerr_check _buffer_init(buffer_t *buf, const buffer_init_options *opts);
 void buffer_deinit(buffer_t *buf);
-void buffer_bind(buffer_t *buf, int loc);
-void buffer_unbind(buffer_t *buf, int loc);
-void buffer_load(buffer_t *buf, void *data, size_t sz, int loc);
+void buffer_bind(buffer_t *buf, uniform_t loc);
+void buffer_unbind(buffer_t *buf, uniform_t loc);
+void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc);
 bool buffer_loaded(buffer_t *buf);
 
 #ifdef CONFIG_RENDERER_OPENGL
@@ -388,9 +391,6 @@ TYPE(shader,
     GLuint  prog;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
-
-typedef int uniform_t;
-typedef int attr_t;
 
 cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, const char *fragment);
 void shader_done(shader_t *shader);
