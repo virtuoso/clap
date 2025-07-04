@@ -15,6 +15,7 @@ layout (location=9) in mat3 tbn;
 #include "shadow.glsl"
 #include "lighting.glsl"
 #include "ubo_projview.glsl"
+#include "ubo_render_common.glsl"
 
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
@@ -22,12 +23,9 @@ uniform sampler2D emission_map;
 
 uniform bool sobel_solid;
 uniform float sobel_solid_id;
-uniform bool use_msaa;
 uniform bool outline_exclude;
-uniform bool use_hdr;
 uniform float bloom_threshold;
 uniform float bloom_intensity;
-
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 EdgeNormal;

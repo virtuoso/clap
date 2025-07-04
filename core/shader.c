@@ -90,9 +90,10 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_ARR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4, JOINTS_MAX),
     /* "particles" uniform buffer */
     SHADER_ARR(UNIFORM_PARTICLE_POS,        "particle_pos",         DT_VEC3, PARTICLES_MAX),
-    /* unsorted uniforms */
+    /* "render_common" uniform buffer */
     SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),
     SHADER_VAR(UNIFORM_USE_HDR,             "use_hdr",              DT_INT),
+    /* unsorted uniforms */
     SHADER_VAR(UNIFORM_OUTLINE_EXCLUDE,     "outline_exclude",      DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID,         "sobel_solid",          DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID_ID,      "sobel_solid_id",       DT_FLOAT),
@@ -190,6 +191,9 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_METALLIC_SCALE,
                             UNIFORM_METALLIC_MODE,
                             UNIFORM_SHARED_SCALE),
+    DEFINE_SHADER_VAR_BLOCK(render_common, SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_USE_MSAA,
+                            UNIFORM_USE_HDR),
 };
 
 /* Runtime shader context */

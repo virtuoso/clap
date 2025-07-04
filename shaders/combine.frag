@@ -1,5 +1,6 @@
 #version 460 core
 
+#include "shader_constants.h"
 #include "tonemap.glsl"
 #include "lut.glsl"
 
@@ -16,16 +17,14 @@ uniform sampler3D lut_tex;
 uniform float bloom_intensity;
 uniform float bloom_exposure;
 uniform float bloom_operator;
-
 uniform float lighting_exposure;
 uniform float lighting_operator;
-uniform bool use_hdr;
 uniform bool use_ssao;
 uniform float ssao_weight;
-
 uniform float fog_near;
 uniform float fog_far;
 uniform vec3 fog_color;
+#include "ubo_render_common.glsl"
 
 float radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 {
