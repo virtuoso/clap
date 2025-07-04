@@ -307,86 +307,73 @@ static void scene_characters_debug(struct scene *scene)
     ui_igEnd(DEBUG_CHARACTERS);
 }
 
-static void scene_entity_inspector_debug(struct scene *scene)
+static void model_picker(struct scene *scene)
 {
     entity_inspector *ei = &scene->entity_inspector;
-    if (!ei->entity || ei->follow_control)
-        ei->entity = scene->control;
 
-    debug_module *dbgm = ui_igBegin_name(
-        DEBUG_ENTITY_INSPECTOR,
-        0,
-        "entity '%s'",
-        entity_name(ei->entity)
-    );
+    ui_igControlTableHeader("model", "model");
 
-    if (!dbgm->display)
-        return;
+    if (ui_igBeginCombo("model", txmodel_name(ei->entity->txmodel),
+                        ImGuiComboFlags_HeightLargest)) {
+        model3dtx *txm;
+        list_for_each_entry(txm, &scene->mq.txmodels, entry) {
+            bool selected = false;
 
-    if (dbgm->unfolded) {
-        /*
-         * Stretch all following widgets horizontally to fill the window,
-         * unless told otherwis.
-         */
-        igPushItemWidth(-1.0);
+            if (ei->entity->txmodel == txm)
+                selected = true;
 
-        ui_igControlTableHeader("model", "model");
+            igPushID_Ptr(txm);
+            if (igSelectable_Bool(txmodel_name(txm), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
+                igSetItemDefaultFocus();
 
-        if (ui_igBeginCombo("model", txmodel_name(ei->entity->txmodel),
-                            ImGuiComboFlags_HeightLargest)) {
-            model3dtx *txm;
-            list_for_each_entry(txm, &scene->mq.txmodels, entry) {
-                bool selected = false;
-
-                if (ei->entity->txmodel == txm)
-                    selected = true;
-
-                igPushID_Ptr(txm);
-                if (igSelectable_Bool(txmodel_name(txm), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
-                    igSetItemDefaultFocus();
-
-                    /*
-                     * list_empty(&txm->entities) should never be empty:
-                     * removing the last entity should remove the txmodel
-                     */
-                    if (list_empty(&txm->entities)) {
-                        if (igBeginErrorTooltip()) {
-                            igText("model '%s' has no entities", txmodel_name(txm));
-                            igEndTooltip();
-                        }
-                        err("model '%s' has no entities", txmodel_name(txm));
-                        igPopID();
-                        continue;
+                /*
+                 * list_empty(&txm->entities) should never be empty:
+                 * removing the last entity should remove the txmodel
+                 */
+                if (list_empty(&txm->entities)) {
+                    if (igBeginErrorTooltip()) {
+                        igText("model '%s' has no entities", txmodel_name(txm));
+                        igEndTooltip();
                     }
-
-                    ei->entity = list_first_entry(&txm->entities, entity3d, entry);
-
-                    if (ei->switch_control) {
-                        scene->control = ei->entity;
-                        transform_set_updated(&scene->camera->xform);
-                    }
+                    err("model '%s' has no entities", txmodel_name(txm));
+                    igPopID();
+                    continue;
                 }
-                igPopID();
-            }
 
-            ui_igEndCombo();
+                ei->entity = list_first_entry(&txm->entities, entity3d, entry);
+
+                if (ei->switch_control) {
+                    scene->control = ei->entity;
+                    transform_set_updated(&scene->camera->xform);
+                }
+            }
+            igPopID();
         }
 
-        ui_igCheckbox("switch scene control", &ei->switch_control);
-        ui_igHelpTooltip(
-                "Switch scene control to the selected model / entity. "
-                "You can move the entity with motion controls only"
-                "when it's the controlled entity"
-        );
+        ui_igEndCombo();
+    }
 
-        ui_igCheckbox("follow scene control", &ei->follow_control);
-        ui_igHelpTooltip("Automatically switched to the control entity");
+    ui_igCheckbox("switch scene control", &ei->switch_control);
+    ui_igHelpTooltip(
+            "Switch scene control to the selected model / entity. "
+            "You can move the entity with motion controls only"
+            "when it's the controlled entity"
+    );
 
-        igEndTable();
+    ui_igCheckbox("follow scene control", &ei->follow_control);
+    ui_igHelpTooltip("Automatically switched to the control entity");
 
-        /* Hold the txm reference for the remainder of the function */
-        model3dtx *txm = ref_get(ei->entity->txmodel);
-        model3d *m = txm->model;
+    igEndTable();
+}
+
+static void model_tabs(model3dtx *txm)
+{
+    if (!igBeginTabBar("model properties", 0))
+        return;
+
+    model3d *m = txm->model;
+
+    if (igBeginTabItem("LODs", NULL, 0)) {
         igSeparatorText("LODs");
         igText("vertices: %u", m->nr_vertices);
         ui_igTableHeader("lod", (const char *[]){ "LOD", "faces", "edges", "error" }, 4);
@@ -402,7 +389,10 @@ static void scene_entity_inspector_debug(struct scene *scene)
             igText("%f", m->lod_errors[i]);
         }
         igEndTable();
+        igEndTabItem();
+    }
 
+    if (igBeginTabItem("material", NULL, 0)) {
         ui_igControlTableHeader("material", "roughness");
         material *mat = &txm->mat;
         bool noisy_roughness = mat->roughness_oct > 0;
@@ -457,8 +447,44 @@ static void scene_entity_inspector_debug(struct scene *scene)
             ui_igSliderFloat("metallic", &mat->metallic, 0.0, 1.0, "%.04f", 0);
         }
         igEndTable();
+        igEndTabItem();
+    }
 
-        ui_igControlTableHeader("entity", "roughness");
+    igEndTabBar();
+    igSeparator();
+}
+
+static void scene_entity_inspector_debug(struct scene *scene)
+{
+    entity_inspector *ei = &scene->entity_inspector;
+    if (!ei->entity || ei->follow_control)
+        ei->entity = scene->control;
+
+    debug_module *dbgm = ui_igBegin_name(
+        DEBUG_ENTITY_INSPECTOR,
+        0,
+        "entity '%s'",
+        entity_name(ei->entity)
+    );
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        /*
+         * Stretch all following widgets horizontally to fill the window,
+         * unless told otherwis.
+         */
+        igPushItemWidth(-1.0);
+
+        model_picker(scene);
+
+        /* Hold the txm reference for the remainder of the function */
+        model3dtx *txm = ref_get(ei->entity->txmodel);
+
+        model_tabs(txm);
+
+        ui_igControlTableHeader("entity", "bloom thr");
 
         if (ui_igBeginCombo("entity", entity_name(ei->entity), ImGuiComboFlags_HeightLargest)) {
             entity3d *e;
