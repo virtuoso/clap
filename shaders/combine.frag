@@ -14,9 +14,6 @@ uniform sampler2D normal_map;
 uniform sampler2D shadow_map;
 uniform sampler3D lut_tex;
 
-uniform float bloom_intensity;
-uniform float bloom_exposure;
-uniform float bloom_operator;
 uniform float lighting_exposure;
 uniform float lighting_operator;
 uniform bool use_ssao;
@@ -25,6 +22,7 @@ uniform float fog_near;
 uniform float fog_far;
 uniform vec3 fog_color;
 #include "ubo_render_common.glsl"
+#include "ubo_bloom.glsl"
 
 float radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 {

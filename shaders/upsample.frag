@@ -8,9 +8,8 @@ layout (location=0) in vec2 pass_tex;
 uniform sampler2D model_tex;
 uniform sampler2D emission_map;
 
-uniform float bloom_intensity;
-uniform float bloom_exposure;
 #include "ubo_render_common.glsl"
+#include "ubo_bloom.glsl"
 
 void main()
 {

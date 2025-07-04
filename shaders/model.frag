@@ -17,13 +17,12 @@ layout (location=9) in mat3 tbn;
 #include "ubo_projview.glsl"
 #include "ubo_render_common.glsl"
 #include "ubo_outline.glsl"
+#include "ubo_bloom.glsl"
 
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 uniform sampler2D emission_map;
 
-uniform float bloom_threshold;
-uniform float bloom_intensity;
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 EdgeNormal;

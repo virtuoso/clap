@@ -97,11 +97,12 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_OUTLINE_EXCLUDE,     "outline_exclude",      DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID,         "sobel_solid",          DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID_ID,      "sobel_solid_id",       DT_FLOAT),
-    /* unsorted uniforms */
+    /* "bloom" uniform buffer */
     SHADER_VAR(UNIFORM_BLOOM_EXPOSURE,      "bloom_exposure",       DT_FLOAT),
     SHADER_VAR(UNIFORM_BLOOM_INTENSITY,     "bloom_intensity",      DT_FLOAT),
     SHADER_VAR(UNIFORM_BLOOM_THRESHOLD,     "bloom_threshold",      DT_FLOAT),
     SHADER_VAR(UNIFORM_BLOOM_OPERATOR,      "bloom_operator",       DT_FLOAT),
+    /* unsorted uniforms */
     SHADER_VAR(UNIFORM_WIDTH,               "width",                DT_FLOAT),
     SHADER_VAR(UNIFORM_HEIGHT,              "height",               DT_FLOAT),
     SHADER_VAR(UNIFORM_NEAR_PLANE,          "near_plane",           DT_FLOAT),
@@ -199,6 +200,11 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_OUTLINE_EXCLUDE,
                             UNIFORM_SOBEL_SOLID,
                             UNIFORM_SOBEL_SOLID_ID),
+    DEFINE_SHADER_VAR_BLOCK(bloom, SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_BLOOM_EXPOSURE,
+                            UNIFORM_BLOOM_INTENSITY,
+                            UNIFORM_BLOOM_THRESHOLD,
+                            UNIFORM_BLOOM_OPERATOR),
 };
 
 /* Runtime shader context */
