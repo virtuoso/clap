@@ -27,6 +27,7 @@
 #define UBO_BINDING_particles   6
 #define UBO_BINDING_material    7
 #define UBO_BINDING_render_common 8
+#define UBO_BINDING_outline     9
 
 #endif /* CLAP_SHADER_CONSTANTS_H */
 

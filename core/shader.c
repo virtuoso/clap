@@ -93,10 +93,11 @@ static const struct shader_var_desc shader_var_desc[] = {
     /* "render_common" uniform buffer */
     SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),
     SHADER_VAR(UNIFORM_USE_HDR,             "use_hdr",              DT_INT),
-    /* unsorted uniforms */
+    /* "outline" uniform buffer */
     SHADER_VAR(UNIFORM_OUTLINE_EXCLUDE,     "outline_exclude",      DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID,         "sobel_solid",          DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID_ID,      "sobel_solid_id",       DT_FLOAT),
+    /* unsorted uniforms */
     SHADER_VAR(UNIFORM_BLOOM_EXPOSURE,      "bloom_exposure",       DT_FLOAT),
     SHADER_VAR(UNIFORM_BLOOM_INTENSITY,     "bloom_intensity",      DT_FLOAT),
     SHADER_VAR(UNIFORM_BLOOM_THRESHOLD,     "bloom_threshold",      DT_FLOAT),
@@ -194,6 +195,10 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
     DEFINE_SHADER_VAR_BLOCK(render_common, SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_USE_MSAA,
                             UNIFORM_USE_HDR),
+    DEFINE_SHADER_VAR_BLOCK(outline, SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_OUTLINE_EXCLUDE,
+                            UNIFORM_SOBEL_SOLID,
+                            UNIFORM_SOBEL_SOLID_ID),
 };
 
 /* Runtime shader context */
