@@ -416,34 +416,30 @@ void ui_igTableRow(const char *key, const char *fmt, ...)
 {
     igTableNextRow(0, 0);
     igTableNextColumn();
-    igText(key);
+    igTextUnformatted(key, NULL);
 
-    char buf[128];
     va_list va;
 
     va_start(va, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, va);
-    va_end(va);
-
     igTableNextColumn();
-    igText(buf);
+    igTextV(fmt, va);
+    va_end(va);
 }
 
 void ui_igVecRow(const float *v, int n, const char *fmt, ...)
 {
-    char buf[128];
     va_list va;
 
     if (n > 4)
         return;
 
-    va_start(va, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, va);
-    va_end(va);
-
     igTableNextRow(0, 0);
     igTableNextColumn();
-    igText(buf);
+
+    va_start(va, fmt);
+    igTextV(fmt, va);
+    va_end(va);
+
 
     int i;
     for (i = 0; i < n; i++) {
