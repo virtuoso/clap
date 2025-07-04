@@ -8,8 +8,7 @@ layout (location=0) in vec2 pass_tex;
 uniform sampler2D model_tex;
 
 #include "ubo_color_pt.glsl"
-
-uniform float contrast;
+#include "ubo_postproc.glsl"
 
 void main()
 {

@@ -8,9 +8,7 @@ layout (location=0) in vec2 pass_tex;
 uniform sampler2D model_tex;
 uniform sampler2D normal_map;
 
-uniform float near_plane;
-uniform float far_plane;
-uniform int laplace_kernel;
+#include "ubo_postproc.glsl"
 
 layout (location=0) out vec4 FragColor;
 

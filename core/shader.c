@@ -102,7 +102,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_BLOOM_INTENSITY,     "bloom_intensity",      DT_FLOAT),
     SHADER_VAR(UNIFORM_BLOOM_THRESHOLD,     "bloom_threshold",      DT_FLOAT),
     SHADER_VAR(UNIFORM_BLOOM_OPERATOR,      "bloom_operator",       DT_FLOAT),
-    /* unsorted uniforms */
+    /* "postproc" uniform buffer */
     SHADER_VAR(UNIFORM_WIDTH,               "width",                DT_FLOAT),
     SHADER_VAR(UNIFORM_HEIGHT,              "height",               DT_FLOAT),
     SHADER_VAR(UNIFORM_NEAR_PLANE,          "near_plane",           DT_FLOAT),
@@ -205,6 +205,23 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_BLOOM_INTENSITY,
                             UNIFORM_BLOOM_THRESHOLD,
                             UNIFORM_BLOOM_OPERATOR),
+    DEFINE_SHADER_VAR_BLOCK(postproc, SHADER_STAGE_FRAGMENT_BIT,
+                            UNIFORM_WIDTH,
+                            UNIFORM_HEIGHT,
+                            UNIFORM_NEAR_PLANE,
+                            UNIFORM_FAR_PLANE,
+                            UNIFORM_SSAO_KERNEL,
+                            UNIFORM_SSAO_NOISE_SCALE,
+                            UNIFORM_SSAO_RADIUS,
+                            UNIFORM_SSAO_WEIGHT,
+                            UNIFORM_USE_SSAO,
+                            UNIFORM_LAPLACE_KERNEL,
+                            UNIFORM_CONTRAST,
+                            UNIFORM_LIGHTING_EXPOSURE,
+                            UNIFORM_LIGHTING_OPERATOR,
+                            UNIFORM_FOG_COLOR,
+                            UNIFORM_FOG_NEAR,
+                            UNIFORM_FOG_FAR),
 };
 
 /* Runtime shader context */

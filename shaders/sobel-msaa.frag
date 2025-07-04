@@ -10,8 +10,7 @@ uniform sampler2DMS normal_map;
 layout (location=0) in vec2 pass_tex;
 layout (location=0) out vec4 FragColor;
 
-uniform float near_plane;
-uniform float far_plane;
+#include "ubo_postproc.glsl"
 
 const ivec2 offsets[8] = ivec2[](
     ivec2(-1,  1), ivec2( 0,  1), ivec2( 1,  1),

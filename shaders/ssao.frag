@@ -10,13 +10,7 @@ uniform sampler2D normal_map;
 uniform sampler2D sobel_tex;
 
 #include "ubo_projview.glsl"
-
-uniform vec3 ssao_kernel[SSAO_KERNEL_SIZE];
-uniform vec2 ssao_noise_scale;
-uniform float ssao_radius;
-uniform float ssao_bias;
-uniform float near_plane;
-uniform float far_plane;
+#include "ubo_postproc.glsl"
 
 // Linearize z-buffer depth (view space)
 float linearize_depth(float depth)
