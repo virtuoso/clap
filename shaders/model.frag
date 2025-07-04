@@ -25,7 +25,6 @@ uniform float sobel_solid_id;
 uniform bool use_msaa;
 uniform bool outline_exclude;
 uniform bool use_hdr;
-uniform float bloom_scene;
 uniform float bloom_threshold;
 uniform float bloom_intensity;
 
