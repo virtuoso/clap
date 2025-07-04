@@ -196,8 +196,86 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
         buffer_load(buf, opts->data, opts->size,
                     buf->type == GL_ELEMENT_ARRAY_BUFFER ? -1 : 0);
 
+#ifndef CONFIG_FINAL
+    memcpy(&buf->opts, opts, sizeof(*opts));
+#endif /* CONFIG_FINAL */
+
     return CERR_OK;
 }
+
+#ifndef CONFIG_FINAL
+#include "ui-debug.h"
+
+static const char *buffer_type_str(buffer_type type)
+{
+    switch (type) {
+        case BUF_ARRAY:         return "array";
+        case BUF_ELEMENT_ARRAY: return "element array";
+        default:                break;
+    }
+
+    return "<invalid type>";
+};
+
+static const char *buffer_usage_str(buffer_usage usage)
+{
+    switch (usage) {
+        case BUF_STATIC:        return "static";
+        case BUF_DYNAMIC:       return "dynamic";
+        default:                break;
+    }
+
+    return "<invalid usage>";
+};
+
+static const char *data_type_str[] = {
+    [DT_BYTE]   = "byte",
+    [DT_SHORT]  = "short",
+    [DT_USHORT] = "ushort",
+    [DT_INT]    = "int",
+    [DT_FLOAT]  = "float",
+    [DT_IVEC2]  = "ivec2",
+    [DT_IVEC3]  = "ivec3",
+    [DT_IVEC4]  = "ivec4",
+    [DT_VEC2]   = "vec2",
+    [DT_VEC3]   = "vec3",
+    [DT_VEC4]   = "vec4",
+    [DT_MAT2]   = "mat2",
+    [DT_MAT3]   = "mat3",
+    [DT_MAT4]   = "mat4",
+};
+
+void buffer_debug_header(void)
+{
+    ui_igTableHeader(
+        "buffers",
+        (const char *[]) { "attribute", "binding", "size", "type", "usage", "comp" },
+        6
+    );
+}
+
+void buffer_debug(buffer_t *buf, const char *name)
+{
+    buffer_init_options *opts = &buf->opts;
+    size_t comp_size = gl_comp_size[opts->comp_type];
+    int comp_count = opts->comp_count ? : 1;
+
+    ui_igTableCell(true, "%s", name);
+    ui_igTableCell(false, "%d", buf->loc);
+    ui_igTableCell(false, "%zu", opts->size);
+    ui_igTooltip(
+        "elements: %zu\ncomponents: %zu",
+        opts->size / comp_size,
+        opts->size / (comp_size * comp_count)
+    );
+    ui_igTableCell(false, "%s", buffer_type_str(opts->type));
+    ui_igTableCell(false, "%s", buffer_usage_str(opts->usage));
+    ui_igTableCell(false, "%s (%d) x %d",
+                   data_type_str[opts->comp_type],
+                   gl_comp_size[opts->comp_type],
+                   opts->comp_count);
+}
+#endif /* CONFIG_FINAL */
 
 void buffer_deinit(buffer_t *buf)
 {
@@ -218,6 +296,11 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
         return;
 
     GL(glBindBuffer(buf->type, buf->id));
+
+#ifndef CONFIG_FINAL
+    buf->loc = loc;
+#endif /* CONFIG_FINAL */
+
     if (loc < 0)
         return;
 
@@ -242,6 +325,10 @@ void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
     GL(glGenBuffers(1, &buf->id));
     GL(glBindBuffer(buf->type, buf->id));
     GL(glBufferData(buf->type, sz, data, buf->usage));
+#ifndef CONFIG_FINAL
+    buf->opts.size = sz;
+    buf->loc = loc;
+#endif /* CONFIG_FINAL */
 
     if (loc >= 0)
         _buffer_bind(buf, loc);
@@ -1828,8 +1915,6 @@ void renderer_init(renderer_t *renderer)
 }
 
 #ifndef CONFIG_FINAL
-#include "ui-debug.h"
-
 static const char *gl_limit_names[RENDER_LIMIT_MAX] = {
     [RENDER_LIMIT_MAX_TEXTURE_SIZE]             = "max texture size",
     [RENDER_LIMIT_MAX_TEXTURE_UNITS]            = "max texture units",

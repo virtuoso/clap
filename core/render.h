@@ -72,6 +72,16 @@ typedef enum buffer_usage {
 typedef int uniform_t;
 typedef int attr_t;
 
+typedef struct buffer_init_options {
+    buffer_type         type;
+    buffer_usage        usage;
+    data_type           comp_type;
+    unsigned int        comp_count;
+    uniform_t           loc;
+    void                *data;
+    size_t              size;
+} buffer_init_options;
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(buffer,
     struct ref  ref;
@@ -81,17 +91,12 @@ TYPE(buffer,
     GLuint      comp_type;
     GLuint      comp_count;
     bool        loaded;
+#ifndef CONFIG_FINAL
+    buffer_init_options opts;
+    uniform_t           loc;
+#endif /* CONFIG_FINAL */
 );
 #endif /* CONFIG_RENDERER_OPENGL */
-
-typedef struct buffer_init_options {
-    buffer_type         type;
-    buffer_usage        usage;
-    data_type           comp_type;
-    unsigned int        comp_count;
-    void                *data;
-    size_t              size;
-} buffer_init_options;
 
 #define buffer_init(_b, args...) \
     _buffer_init((_b), &(buffer_init_options){ args })
@@ -465,8 +470,12 @@ void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 
 #ifndef CONFIG_FINAL
+void buffer_debug_header(void);
+void buffer_debug(buffer_t *buf, const char *name);
 void renderer_debug(renderer_t *r);
 #else
+static inline void buffer_debug_header(void) {}
+static inline void buffer_debug(buffer_t *buf) {}
 static inline void renderer_debug(renderer_t *r) {}
 #endif /* CONFIG_FINAL */
 
