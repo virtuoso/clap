@@ -158,6 +158,18 @@ typedef enum texture_format {
     TEX_FMT_MAX,
 } texture_format;
 
+typedef struct texture_init_options {
+    unsigned int        target;
+    texture_type        type;
+    texture_wrap        wrap;
+    texture_filter      min_filter;
+    texture_filter      mag_filter;
+    texture_format      format;
+    unsigned int        layers;
+    bool                multisampled;
+    float               *border;
+} texture_init_options;
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(texture,
     struct ref      ref;
@@ -176,6 +188,9 @@ TYPE(texture,
     unsigned int    width;
     unsigned int    height;
     float           border[4];
+#ifndef CONFIG_FINAL
+    texture_init_options    opts;
+#endif /* CONFIG_FINAL */
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -184,18 +199,6 @@ typedef enum fbo_attachment_type {
     FBO_ATTACHMENT_STENCIL,
     FBO_ATTACHMENT_COLOR0,
 } fbo_attachment_type;
-
-typedef struct texture_init_options {
-    unsigned int        target;
-    texture_type        type;
-    texture_wrap        wrap;
-    texture_filter      min_filter;
-    texture_filter      mag_filter;
-    texture_format      format;
-    unsigned int        layers;
-    bool                multisampled;
-    float               *border;
-} texture_init_options;
 
 typedef int texid_t;
 
@@ -472,6 +475,8 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
 #ifndef CONFIG_FINAL
 void buffer_debug_header(void);
 void buffer_debug(buffer_t *buf, const char *name);
+void texture_debug_header(void);
+void texture_debug(texture_t *tex, const char *name);
 void renderer_debug(renderer_t *r);
 #else
 static inline void buffer_debug_header(void) {}

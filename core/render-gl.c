@@ -612,8 +612,58 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
     GL(glActiveTexture(tex->target));
     GL(glGenTextures(1, &tex->id));
 
+#ifndef CONFIG_FINAL
+    memcpy(&tex->opts, opts, sizeof(*opts));
+#endif /* CONFIG_FINAL */
+
     return CERR_OK;
 }
+
+#ifndef CONFIG_FINAL
+static const char *texture_type_str[] = {
+    [TEX_2D]        = "2D",
+    [TEX_2D_ARRAY]  = "2D array",
+    [TEX_3D]        = "3D",
+};
+
+static const char *texture_wrap_str[] = {
+    [TEX_CLAMP_TO_EDGE]         = "clamp edge",
+    [TEX_CLAMP_TO_BORDER]       = "clamp border",
+    [TEX_WRAP_REPEAT]           = "repeat",
+    [TEX_WRAP_MIRRORED_REPEAT]  = "mirrored repeat",
+};
+
+static const char *texture_filter_str[] = {
+    [TEX_FLT_LINEAR]    = "linear",
+    [TEX_FLT_NEAREST]   = "nearest",
+};
+
+void texture_debug_header(void)
+{
+    ui_igTableHeader(
+        "buffers",
+        (const char *[]) { "name", "type", "format", "size", "wrap", "min", "mag", "ms" },
+        8
+    );
+}
+
+void texture_debug(texture_t *tex, const char *name)
+{
+    texture_init_options *opts = &tex->opts;
+
+    ui_igTableCell(true, name);
+    ui_igTableCell(false, texture_type_str[opts->type]);
+    ui_igTableCell(false, texture_format_string[opts->format]);
+    if (tex->layers)
+        ui_igTableCell(false, "%d x %d x %d", tex->width, tex->height, tex->layers);
+    else
+        ui_igTableCell(false, "%d x %d", tex->width, tex->height);
+    ui_igTableCell(false, texture_wrap_str[opts->wrap]);
+    ui_igTableCell(false, texture_filter_str[opts->min_filter]);
+    ui_igTableCell(false, texture_filter_str[opts->mag_filter]);
+    ui_igTableCell(false, "%s", tex->multisampled ? "ms" : "");
+}
+#endif /* CONFIG_FINAL */
 
 texture_t *texture_clone(texture_t *tex)
 {
