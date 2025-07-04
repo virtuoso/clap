@@ -325,32 +325,6 @@ static cerr model3dtx_add_texture_at(model3dtx *txm, enum shader_vars var, const
     return err;
 }
 
-static void model3dtx_add_fake_emission(model3dtx *txm)
-{
-    model3d *model = txm->model;
-    uint8_t fake_emission[4] = { 0, 0, 0, 255 };
-
-    shader_prog_use(model->prog);
-    cerr err = load_gl_texture_buffer(model->prog, fake_emission, 1, 1, true, UNIFORM_EMISSION_MAP,
-                                      txm->emission);
-    shader_prog_done(model->prog);
-
-    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
-}
-
-static void model3dtx_add_fake_sobel(model3dtx *txm)
-{
-    model3d *model = txm->model;
-    uint8_t fake_sobel[4] = { 255, 255, 255, 255 };
-
-    shader_prog_use(model->prog);
-    cerr err = load_gl_texture_buffer(model->prog, fake_sobel, 1, 1, true, UNIFORM_SOBEL_TEX,
-                                      txm->sobel);
-    shader_prog_done(model->prog);
-
-    warn_on(IS_CERR(err), "%s failed: %d\n", __func__, CERR_CODE(err));
-}
-
 static bool model3dtx_tex_is_ext(model3dtx *txm)
 {
     return txm->texture != &txm->_texture;
@@ -458,11 +432,7 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
 
         if (IS_CERR(err))
             goto drop_txm;
-    } else {
-        model3dtx_add_fake_emission(txm);
     }
-
-    model3dtx_add_fake_sobel(txm);
 
     txm->mat.roughness = opts->roughness;
     txm->mat.metallic = opts->metallic;
