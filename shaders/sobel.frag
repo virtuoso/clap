@@ -1,8 +1,10 @@
 #version 460 core
 
+#include "shader_constants.h"
+
 layout (location=0) in vec2 pass_tex;
-uniform sampler2D model_tex;
-uniform sampler2D normal_map;
+layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
 
 layout (location=0) out vec4 FragColor;
 

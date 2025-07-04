@@ -10,7 +10,7 @@ layout (location=3) in vec3 to_camera_vector;
 #include "ubo_lighting.glsl"
 #include "ubo_material.glsl"
 
-uniform sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 
 layout (location=0) out vec4 FragColor;
 

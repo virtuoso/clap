@@ -23,8 +23,8 @@ struct shader_var_desc {
     [_c] = { .name = (_n), .type = (_t), .texture_slot = -1, .elem_count = 1 }
 #define SHADER_ARR(_c, _n, _t, _el) \
     [_c] = { .name = (_n), .type = (_t), .texture_slot = -1, .elem_count = (_el) }
-#define SHADER_TEX(_c, _n, _slot) \
-    [_c] = { .name = (_n), .type = DT_INT, .texture_slot = (_slot) }
+#define SHADER_TEX(_c, _n) \
+    [_c] = { .name = __stringify(_n), .type = DT_INT, .texture_slot = (SAMPLER_BINDING_ ## _n) }
 #define SHADER_ATTR(_c, _n, _t, _count) \
     [_c] = { .name = (_n), .type = (_t), .attr_count = (_count), .texture_slot = -1 }
 
@@ -35,16 +35,17 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_ATTR(ATTR_TANGENT,               "tangent",              DT_FLOAT, 4),
     SHADER_ATTR(ATTR_JOINTS,                "joints",               DT_BYTE,  4),
     SHADER_ATTR(ATTR_WEIGHTS,               "weights",              DT_FLOAT, 4),
-    SHADER_TEX(UNIFORM_MODEL_TEX,           "model_tex",            0),
-    SHADER_TEX(UNIFORM_NORMAL_MAP,          "normal_map",           1),
-    SHADER_TEX(UNIFORM_EMISSION_MAP,        "emission_map",         2),
-    SHADER_TEX(UNIFORM_SOBEL_TEX,           "sobel_tex",            3),
-    SHADER_TEX(UNIFORM_SHADOW_MAP,          "shadow_map",           4),
-    SHADER_TEX(UNIFORM_SHADOW_MAP_MS,       "shadow_map_ms",        5),
-    SHADER_TEX(UNIFORM_SHADOW_MAP1,         "shadow_map1",          5),
-    SHADER_TEX(UNIFORM_SHADOW_MAP2,         "shadow_map2",          6),
-    SHADER_TEX(UNIFORM_SHADOW_MAP3,         "shadow_map3",          7),
-    SHADER_TEX(UNIFORM_LUT_TEX,             "lut_tex",              5),
+    /* texture bindings */
+    SHADER_TEX(UNIFORM_MODEL_TEX,           model_tex),
+    SHADER_TEX(UNIFORM_NORMAL_MAP,          normal_map),
+    SHADER_TEX(UNIFORM_EMISSION_MAP,        emission_map),
+    SHADER_TEX(UNIFORM_SOBEL_TEX,           sobel_tex),
+    SHADER_TEX(UNIFORM_SHADOW_MAP,          shadow_map),
+    SHADER_TEX(UNIFORM_SHADOW_MAP_MS,       shadow_map_ms),
+    SHADER_TEX(UNIFORM_SHADOW_MAP1,         shadow_map1),
+    SHADER_TEX(UNIFORM_SHADOW_MAP2,         shadow_map2),
+    SHADER_TEX(UNIFORM_SHADOW_MAP3,         shadow_map3),
+    SHADER_TEX(UNIFORM_LUT_TEX,             lut_tex),
     /* "projview" uniform buffer */
     SHADER_VAR(UNIFORM_PROJ,                "proj",                 DT_MAT4),
     SHADER_VAR(UNIFORM_VIEW,                "view",                 DT_MAT4),

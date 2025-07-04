@@ -1,5 +1,7 @@
 #version 460 core
 
+#include "shader_constants.h"
+
 layout (location = 0) out vec4 FragColor;
 layout (location = 1) out vec4 EmissiveColor;
 layout (location = 2) out vec4 EdgeNormal;
@@ -9,8 +11,8 @@ layout (location = 5) out vec4 Normal;
 
 layout(location = 0) in vec2 pass_tex;
 
-uniform sampler2D model_tex;
-uniform sampler2D emission_map;
+layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 
 void main()
 {

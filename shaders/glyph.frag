@@ -3,7 +3,7 @@
 #include "shader_constants.h"
 #include "ubo_color_pt.glsl"
 
-uniform sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;

@@ -19,9 +19,9 @@ layout (location=9) in mat3 tbn;
 #include "ubo_outline.glsl"
 #include "ubo_bloom.glsl"
 
-uniform sampler2D model_tex;
-uniform sampler2D normal_map;
-uniform sampler2D emission_map;
+layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
+layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;

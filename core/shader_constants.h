@@ -31,5 +31,16 @@
 #define UBO_BINDING_bloom       10
 #define UBO_BINDING_postproc    11
 
+#define SAMPLER_BINDING_model_tex       0
+#define SAMPLER_BINDING_normal_map      1
+#define SAMPLER_BINDING_emission_map    2
+#define SAMPLER_BINDING_sobel_tex       3
+#define SAMPLER_BINDING_shadow_map      4
+#define SAMPLER_BINDING_shadow_map_ms   5
+#define SAMPLER_BINDING_shadow_map1     5
+#define SAMPLER_BINDING_shadow_map2     6
+#define SAMPLER_BINDING_shadow_map3     7
+#define SAMPLER_BINDING_lut_tex         5
+
 #endif /* CLAP_SHADER_CONSTANTS_H */
 

@@ -5,13 +5,13 @@
 #include "ubo_shadow.glsl"
 
 #ifdef CONFIG_GLES
-uniform sampler2D shadow_map;
-uniform sampler2D shadow_map1;
-uniform sampler2D shadow_map2;
-uniform sampler2D shadow_map3;
+layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
+layout (binding=SAMPLER_BINDING_shadow_map1) uniform sampler2D shadow_map1;
+layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
+layout (binding=SAMPLER_BINDING_shadow_map3) uniform sampler2D shadow_map3;
 #else
-uniform sampler2DArray shadow_map;
-uniform sampler2DMSArray shadow_map_ms;
+layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2DArray shadow_map;
+layout (binding=SAMPLER_BINDING_shadow_map_ms) uniform sampler2DMSArray shadow_map_ms;
 #endif /* CONFIG_GLES */
 
 float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
