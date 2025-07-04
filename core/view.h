@@ -21,6 +21,7 @@ struct view {
     float                   divider[CASCADES_MAX];
     float                   fov;
     float                   aspect;
+    bool                    proj_update;
 };
 
 typedef struct entity3d entity3d;

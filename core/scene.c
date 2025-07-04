@@ -62,6 +62,7 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.main.near_plane  = 0.1;
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
+    s->camera->view.proj_update      = true;
     s->camera->dist = 10;
     transform_set_updated(&s->camera->xform);
 
@@ -123,16 +124,16 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
     if (dbgm->unfolded) {
         if (igSliderFloat("near plane", &cam->view.main.near_plane, 0.1, 10.0, "%f",
             ImGuiSliderFlags_ClampOnInput))
-            scene->proj_update++;
+            cam->view.proj_update = true;
 
         if (igSliderFloat("far plane", &cam->view.main.far_plane, 10.0, 1000.0, "%f",
             ImGuiSliderFlags_ClampOnInput))
-            scene->proj_update++;
+            cam->view.proj_update = true;
 
         float fov = to_degrees(cam->view.fov);
         if (igSliderFloat("FOV", &fov, 30.0, 120.0, "%f", ImGuiSliderFlags_ClampOnInput)) {
             cam->view.fov = to_radians(fov);
-            scene->proj_update++;
+            cam->view.proj_update = true;
         }
 
         luts_debug(scene);
@@ -853,13 +854,8 @@ static inline void scene_debug_frusta(struct view *view) {}
 static void scene_camera_calc(struct scene *s, int camera)
 {
     struct camera *cam = &s->cameras[camera];
-
-    if (s->proj_update) {
-        /* XXX: parameterize zoom value */
-        view_update_perspective_projection(&cam->view, s->width, s->height,
-                                           cam->zoom ? 0.5 : 1.0);
-        s->proj_update = 0;
-    }
+    view_update_perspective_projection(&cam->view, s->width, s->height,
+                                       cam->zoom ? 0.5 : 1.0);
 
     camera_update(s->camera, s);
 
@@ -979,7 +975,8 @@ static int scene_handle_input(struct message *m, void *data)
     if (m->input.resize) {
         s->width = m->input.x;
         s->height = m->input.y;
-        s->proj_update++;
+        if (s->camera)
+            s->camera->view.proj_update = true;
     }
     if (m->input.fullscreen) {
         if (s->fullscreen)
@@ -1007,11 +1004,11 @@ static int scene_handle_input(struct message *m, void *data)
 
     if (m->input.zoom == 1) {
         if (!s->camera->zoom)
-            s->proj_update++;
+            s->camera->view.proj_update = true;
         s->camera->zoom = 1;
     } else if (m->input.zoom == 2) {
         if (s->camera->zoom)
-            s->proj_update++;
+            s->camera->view.proj_update = true;
         s->camera->zoom = 0;
     }
 

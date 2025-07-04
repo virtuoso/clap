@@ -209,6 +209,10 @@ void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw
 
 void view_update_perspective_projection(struct view *view, int width, int height, float zoom)
 {
+    if (!view->proj_update)
+        return;
+
+    view->proj_update = false;
     view->aspect = (float)width / (float)height;
     /*
      * Note: view::fov doesn't actually change, so subviews don't see it; not

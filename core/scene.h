@@ -59,7 +59,6 @@ struct scene {
     float               auto_yoffset;
     int                 nr_cameras;
     int                 fullscreen;
-    int                 proj_update;
     int                 lut_autoswitch;
     clap_timer          *lut_timer;
     bool                initialized;
