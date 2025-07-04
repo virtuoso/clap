@@ -373,6 +373,29 @@ static void model_tabs(model3dtx *txm)
 
     model3d *m = txm->model;
 
+    if (igBeginTabItem("buffers", NULL, 0)) {
+        buffer_debug_header();
+
+        for (int i = 0; i < m->nr_lods; i++)
+            if (buffer_loaded(&m->index[i]))
+                buffer_debug(&m->index[i], "index");
+        if (buffer_loaded(&m->vertex))
+            buffer_debug(&m->vertex, "vertex");
+        if (buffer_loaded(&m->tex))
+            buffer_debug(&m->tex, "UV");
+        if (buffer_loaded(&m->norm))
+            buffer_debug(&m->norm, "normals");
+        if (buffer_loaded(&m->tangent))
+            buffer_debug(&m->tangent, "tangents");
+        if (buffer_loaded(&m->vjoints))
+            buffer_debug(&m->vjoints, "joints");
+        if (buffer_loaded(&m->weights))
+            buffer_debug(&m->weights, "joint weights");
+
+        igEndTable();
+        igEndTabItem();
+    }
+
     if (igBeginTabItem("LODs", NULL, 0)) {
         igSeparatorText("LODs");
         igText("vertices: %u", m->nr_vertices);
