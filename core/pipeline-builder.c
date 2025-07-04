@@ -119,6 +119,11 @@ static const render_pass_ops postproc_ops = {
     .prepare    = postproc_prepare,
 };
 
+static inline render_options *get_ropts(pipeline_builder_opts *opts)
+{
+    return clap_get_render_options(opts->pl_opts->clap_ctx);
+}
+
 static void apply_constraints(pipeline_builder_opts *opts)
 {
     clap_context *clap_ctx = opts->pl_opts->clap_ctx;
@@ -128,13 +133,13 @@ static void apply_constraints(pipeline_builder_opts *opts)
          * to non-8bit MRTs. It does render the DEPTH32 by itself though,
          * therefore, switch these targets to CSM shadows.
          */
-        opts->pl_opts->render_options->shadow_vsm = false;
+        get_ropts(opts)->shadow_vsm = false;
     }
 }
 
 static texture_format get_hdr_format(pipeline_builder_opts *opts)
 {
-    if (!opts->pl_opts->render_options->hdr)
+    if (!get_ropts(opts)->hdr)
         return TEX_FMT_RGBA8;
 
     clap_context *clap_ctx = opts->pl_opts->clap_ctx;
@@ -165,14 +170,15 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 
     apply_constraints(opts);
 
-    bool ssao = opts->pl_opts->render_options->ssao;
+    render_options *ropts = get_ropts(opts);
+    bool ssao = ropts->ssao;
 
     /*
      * No LUT in render_options, but one is required; pick the first one
      * from the list, bail if the list is empty
      */
-    if (!opts->pl_opts->render_options->lighting_lut)
-        opts->pl_opts->render_options->lighting_lut = CRES_RET_T(
+    if (!ropts->lighting_lut)
+        ropts->lighting_lut = CRES_RET_T(
             lut_first(clap_lut_list(opts->pl_opts->clap_ctx)),
             pipeline
         );
@@ -183,20 +189,20 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     else
         ssao_done(&ssao_state);
 
-    bool edge_aa = opts->pl_opts->render_options->edge_antialiasing;
+    bool edge_aa = ropts->edge_antialiasing;
     bool model_pass_msaa =
 #ifdef CONFIG_BROWSER
         false;
 #else
-        opts->pl_opts->render_options->model_msaa;
+        ropts->model_msaa;
 #endif /* CONFIG_BROWSER */
 
     render_method model_pass_method = model_pass_msaa ? RM_BLIT : RM_USE;
 
-    bool edge_sobel = opts->pl_opts->render_options->edge_sobel;
+    bool edge_sobel = ropts->edge_sobel;
     const char *edge_msaa_shader = edge_sobel ? "sobel-msaa" : "laplace";
     const char *edge_shader = edge_sobel ? "sobel" : "laplace";
-    bool vsm = opts->pl_opts->render_options->shadow_vsm;
+    bool vsm = ropts->shadow_vsm;
 
     pipeline *pl = opts->pl ? : CRES_RET_T(
         ref_new_checked(
@@ -206,7 +212,6 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .light            = opts->pl_opts->light,
             .camera           = opts->pl_opts->camera,
             .clap_ctx         = opts->pl_opts->clap_ctx,
-            .render_options   = opts->pl_opts->render_options,
             .ssao_state       = &ssao_state,
             .name             = opts->pl_opts->name
         ),
@@ -221,7 +226,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             pipeline_add_pass(pl,
                 .source               = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
                 .ops                  = vsm ? &shadow_vsm_ops : &shadow_ops,
-                .multisampled         = opts->pl_opts->render_options->shadow_msaa,
+                .multisampled         = ropts->shadow_msaa,
                 .attachment_config    = vsm ? FBO_COLOR_DEPTH_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
                 .color_format         = (texture_format[]) { TEX_FMT_RG32F },
                 .cascade              = i,
@@ -238,7 +243,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline_add_pass(pl,
             .source             = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
             .ops                = vsm ? &shadow_vsm_ops : &shadow_ops,
-            .multisampled       = opts->pl_opts->render_options->shadow_msaa,
+            .multisampled       = ropts->shadow_msaa,
             .color_format       = (texture_format[]) { TEX_FMT_RG32F },
             .attachment_config  = vsm ? FBO_COLOR_DEPTH_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
             .layers             = CASCADES_MAX,
@@ -545,7 +550,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                         .sampler    = UNIFORM_SHADOW_MAP
                     },
                 {
-                    .tex        = lut_tex(opts->pl_opts->render_options->lighting_lut),
+                    .tex        = lut_tex(ropts->lighting_lut),
                     .method     = RM_PLUG,
                     .sampler    = UNIFORM_LUT_TEX
                 },

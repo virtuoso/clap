@@ -28,7 +28,7 @@ static cerr pipeline_make(struct ref *ref, void *_opts)
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
     list_init(&pl->passes);
     list_init(&pl->shaders);
-    pl->render_options  = opts->render_options;
+    pl->render_options  = clap_get_render_options(opts->clap_ctx);
     pl->renderer        = clap_get_renderer(opts->clap_ctx);
     pl->shader_ctx      = clap_get_shaders(opts->clap_ctx);
     pl->camera          = opts->camera;

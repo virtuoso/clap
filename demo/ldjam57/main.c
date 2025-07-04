@@ -433,7 +433,6 @@ static void build_main_pl(struct pipeline **pl)
                 .clap_ctx       = scene.clap_ctx,
                 .light          = &scene.light,
                 .camera         = &scene.cameras[0],
-                .render_options = clap_get_render_options(scene.clap_ctx),
                 .name           = "main"
             },
             .mq         = &scene.mq,
