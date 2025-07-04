@@ -49,7 +49,7 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
         OUTPUT "${SPIRV_DIR}/${shader}.spv"
         DEPENDS make-shader-ir-dir${PREPROCESS_SHADERS_TARGET} "${SHADER_SOURCE_DIR}/${shader}" "${implicit_depends}"
         COMMAND "${GLSLC}"
-        ARGS -MD -fauto-map-locations --target-env=opengl -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core -o ${SPIRV_DIR}/${shader}.spv -c ${SHADER_SOURCE_DIR}/${shader}
+        ARGS -MD -fauto-map-locations -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core -o ${SPIRV_DIR}/${shader}.spv -c ${SHADER_SOURCE_DIR}/${shader}
     )
 
     # Command to build the final ${shader}

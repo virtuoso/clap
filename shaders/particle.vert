@@ -17,9 +17,9 @@ layout (std140, binding = UBO_BINDING_particles) uniform particles {
 void main()
 {
     mat4 _trans = trans;
-    _trans[3][0] = particle_pos[gl_InstanceID][0];
-    _trans[3][1] = particle_pos[gl_InstanceID][1];
-    _trans[3][2] = particle_pos[gl_InstanceID][2];
+    _trans[3][0] = particle_pos[gl_InstanceIndex][0];
+    _trans[3][1] = particle_pos[gl_InstanceIndex][1];
+    _trans[3][2] = particle_pos[gl_InstanceIndex][2];
     gl_Position = proj * view * _trans * vec4(position, 1.0);
     pass_tex = tex;
 }
