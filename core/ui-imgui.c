@@ -412,6 +412,19 @@ bool ui_igVecTableHeader(const char *str_id, int n)
     return ui_igTableHeader(str_id, labels, n + 1);
 }
 
+void ui_igTableCell(bool new_row, const char *fmt, ...)
+{
+    if (new_row)
+        igTableNextRow(0, 0);
+
+    va_list va;
+
+    va_start(va, fmt);
+    igTableNextColumn();
+    igTextV(fmt, va);
+    va_end(va);
+}
+
 void ui_igTableRow(const char *key, const char *fmt, ...)
 {
     igTableNextRow(0, 0);

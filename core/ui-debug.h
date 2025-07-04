@@ -98,6 +98,7 @@ static inline void debug_plot_push(debug_plot *plot, float val)
 void ui_igDebugPlotLines(const char *label, debug_plot *plot);
 
 bool ui_igTableHeader(const char *str_id, const char **labels, int n);
+void ui_igTableCell(bool new_row, const char *fmt, ...);
 void ui_igTableRow(const char *key, const char *fmt, ...);
 bool ui_igVecTableHeader(const char *str_id, int n);
 void ui_igVecRow(const float *v, int n, const char *fmt, ...);
