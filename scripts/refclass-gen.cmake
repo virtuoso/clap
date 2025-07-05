@@ -34,6 +34,9 @@ foreach (src ${sources})
     endif ()
 endforeach ()
 
+# Multiple renderers declare the same types
+list(REMOVE_DUPLICATES decls)
+
 # Declare the ref* obtaining functions defined in DEFINE_REFCLASS*()
 foreach (decl ${decls})
     set(new_content "${new_content}struct ref *${decl}_ref(void *x);\n")
