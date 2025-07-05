@@ -508,6 +508,9 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
 
 void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
 {
+    if (!pl || list_empty(&pl->passes))
+        return;
+
     struct render_pass *last_pass = list_last_entry(&pl->passes, struct render_pass, entry);
     struct render_pass *pass;
     struct mq *mq = NULL;
