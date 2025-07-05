@@ -594,6 +594,8 @@ int renderer_query_limits(renderer_t *renderer, render_limit limit);
 
 typedef struct renderer_init_options {
 #ifdef CONFIG_RENDERER_METAL
+    void    *device;
+    void    *layer;
 #endif /* CONFIG_RENDERER_METAL */
 } renderer_init_options;
 
@@ -606,6 +608,7 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
 
 static inline void renderer_frame_begin(renderer_t *renderer) {}
 static inline void renderer_frame_end(renderer_t *renderer) {}
+static inline void renderer_done(renderer_t *renderer) {}
 
 #ifndef CONFIG_FINAL
 void buffer_debug_header(void);

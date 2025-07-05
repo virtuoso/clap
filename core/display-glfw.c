@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "config.h"
-#ifdef CONFIG_RENDERER_OPENGL
+#if defined(CONFIG_RENDERER_OPENGL)
 #include <GL/glew.h>
-#endif /* CONFIG_RENDERER_OPENGL */
+#elif defined(CONFIG_RENDERER_METAL)
+#define GLFW_INCLUDE_NONE
+#endif
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -240,8 +242,10 @@ restart:
 
     return CERR_OK;
 }
+#elif defined(CONFIG_RENDERER_METAL)
+cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow);
 #else
-static inline cerr display_gl_init(struct clap_context *ctx) { return CERR_NOT_SUPPORTED; }
+#error "Unsupported renderer"
 #endif /* CONFIG_RENDERER_OPENGL */
 
 cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, display_resize_cb resize_cb)
@@ -264,7 +268,14 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
 
     glfwSetErrorCallback(__error_cb);
 
+#ifdef CONFIG_RENDERER_OPENGL
     cerr err = display_gl_init(ctx);
+#elif defined(CONFIG_RENDERER_METAL)
+    cerr err = display_metal_init(ctx, &window);
+#else
+    return CERR_INITIALIZATION_FAILED;
+#endif
+
     if (IS_CERR(err))
         return err;
 
@@ -295,6 +306,7 @@ void display_main_loop(void)
 void display_done(void)
 {
     imgui_done();
+    renderer_done(renderer);
     glfwDestroyWindow(window);
     glfwTerminate();
 }
@@ -455,7 +467,9 @@ int platform_input_init(void)
 
 void display_swap_buffers(void)
 {
+#ifndef CONFIG_RENDERER_METAL
     glfwSwapBuffers(window);
+#endif /* CONFIG_RENDERER_METAL */
     glfwPollEvents();
     /* XXX: move to the start of frame code? */
     glfw_joysticks_poll();

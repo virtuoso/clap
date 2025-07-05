@@ -90,8 +90,8 @@ if (CONFIG_RENDERER_OPENGL)
     set(RENDERER_SRC "render-gl.c")
     set(RENDERER_LIBRARIES ${OPENGL_LIBRARIES})
 elseif (CONFIG_RENDERER_METAL)
-    set(RENDERER_SRC render-mtl.m)
-    set(RENDERER_LIBRARIES "-framework Metal" "-framework QuartzCore")
+    set(RENDERER_SRC render-mtl.m display-glfw-metal.m)
+    set(RENDERER_LIBRARIES "-framework Metal" "-framework MetalKit" "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework QuartzCore")
 else ()
     message(FATAL_ERROR "Unsupported renderer")
 endif ()
@@ -219,6 +219,8 @@ FOREACH(src ${ENGINE_SRC})
         )
     endif ()
 ENDFOREACH ()
+
+set_source_files_properties(render-mtl.m COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-availability -fno-objc-arc")
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builddate.c" FORCE_REGEN
