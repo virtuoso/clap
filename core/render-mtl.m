@@ -616,6 +616,29 @@ void renderer_frame_end(renderer_t *r)
     r->frame_pool = nil;
 }
 
+/*
+ * The following accessors are private between render-mtl.m and ui-imgui-metal.m
+ */
+void *renderer_device(renderer_t *r)
+{
+    return r->device;
+}
+
+void *renderer_cmd_buffer(renderer_t *r)
+{
+    return r->cmd_buffer;
+}
+
+void *renderer_cmd_encoder(renderer_t *r)
+{
+    return r->cmd_encoder;
+}
+
+void *renderer_screen_desc(renderer_t *r)
+{
+    return r->screen_desc;
+}
+
 #ifndef CONFIG_FINAL
 void renderer_debug(renderer_t *r)
 {
