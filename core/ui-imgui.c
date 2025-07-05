@@ -12,7 +12,13 @@
 #include "imgui_impl_glfw.h"
 #endif
 
+#ifdef CONFIG_RENDERER_OPENGL
 #include "imgui_impl_opengl3.h"
+#elif defined(CONFIG_RENDERER_METAL)
+#include "ui-imgui-metal.h"
+#else
+#error "Unsupported renderer"
+#endif
 
 static struct settings *settings;
 static struct ImGuiContext *ctx;
@@ -67,7 +73,12 @@ void imgui_render_begin(int width, int height)
     io->DisplaySize.x = width;
     io->DisplaySize.y = height;
 
+#ifdef CONFIG_RENDERER_OPENGL
     ImGui_ImplOpenGL3_NewFrame();
+#elif defined(CONFIG_RENDERER_METAL)
+    ui_imgui_metal_new_frame();
+#endif
+
 #ifdef __EMSCRIPTEN__
     ui_ig_new_frame();
 #else
@@ -81,7 +92,11 @@ void imgui_render(void)
     debug_debugger();
 
     igRender();
+#ifdef CONFIG_RENDERER_OPENGL
     ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
+#elif defined(CONFIG_RENDERER_METAL)
+    ui_imgui_metal_render_draw_data(igGetDrawData());
+#endif
 
     if (io->WantSaveIniSettings && settings) {
         JsonNode *debug_group = settings_find_get(settings, NULL, "debug", JSON_OBJECT);
@@ -357,19 +372,33 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
 
 #ifndef __EMSCRIPTEN__
     GLFWwindow *win = data;
+# ifdef CONFIG_RENDERER_OPENGL
     ImGui_ImplGlfw_InitForOpenGL(win, true);
     const char *glsl_version = "#version 410";
+# elif defined(CONFIG_RENDERER_METAL)
+    ImGui_ImplGlfw_InitForOther(win, true);
+# endif
 #else
     ui_ig_init_for_emscripten(clap_ctx, ctx, io);
     const char *glsl_version = "#version 300 es";
 #endif
 
+#ifdef CONFIG_RENDERER_OPENGL
     ImGui_ImplOpenGL3_Init(glsl_version);
+#elif defined(CONFIG_RENDERER_METAL)
+    ui_imgui_metal_init(clap_ctx);
+#endif
+
+    igStyleColorsDark(NULL);
 }
 
 void imgui_done(void)
 {
+#ifdef CONFIG_RENDERER_OPENGL
     ImGui_ImplOpenGL3_Shutdown();
+#elif defined(CONFIG_RENDERER_METAL)
+    ui_imgui_metal_shutdown();
+#endif
 #ifndef __EMSCRIPTEN__
     ImGui_ImplGlfw_Shutdown();
 #endif
