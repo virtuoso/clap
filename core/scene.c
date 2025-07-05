@@ -314,7 +314,7 @@ static void model_picker(struct scene *scene)
 
     ui_igControlTableHeader("model", "model");
 
-    if (ui_igBeginCombo("model", txmodel_name(ei->entity->txmodel),
+    if (ui_igBeginCombo("model", ei->entity ? txmodel_name(ei->entity->txmodel) : "<none>",
                         ImGuiComboFlags_HeightLargest)) {
         model3dtx *txm;
         list_for_each_entry(txm, &scene->mq.txmodels, entry) {
@@ -522,6 +522,11 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         model_picker(scene);
 
+        if (!ei->entity) {
+            igPopItemWidth();
+            goto out;
+        }
+
         /* Hold the txm reference for the remainder of the function */
         model3dtx *txm = ref_get(ei->entity->txmodel);
 
@@ -651,6 +656,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
         ref_put(txm);
     }
 
+out:
     ui_igEnd(DEBUG_ENTITY_INSPECTOR);
 }
 
