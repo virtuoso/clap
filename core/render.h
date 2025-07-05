@@ -102,6 +102,11 @@ TYPE(buffer,
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(buffer,
     struct ref      ref;
+    bool            loaded;
+#ifndef CONFIG_FINAL
+    buffer_init_options opts;
+    uniform_t           loc;
+#endif /* CONFIG_FINAL */
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -206,6 +211,13 @@ TYPE(texture,
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(texture,
     struct ref      ref;
+    int             width;
+    int             height;
+    int             id;
+    bool            loaded;
+#ifndef CONFIG_FINAL
+    texture_init_options    opts;
+#endif /* CONFIG_FINAL */
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -296,7 +308,68 @@ typedef union fbo_attachment {
                                                       .depth_buffers = 1 }
 #define FBO_COLOR_ATTACHMENTS_MAX 8
 
-const char *fbo_attachment_string(fbo_attachment attachment);
+static inline unsigned int fa_nr_color_buffer(fbo_attachment attachment)
+{
+    return fls(attachment.color_buffers);
+}
+
+static inline unsigned int fa_nr_color_texture(fbo_attachment attachment)
+{
+    return fls(attachment.color_textures);
+}
+
+static inline bool fbo_attachment_is_buffers(fbo_attachment attachment)
+{
+    return attachment.color_buffers ||
+           attachment.depth_buffer  ||
+           attachment.stencil_buffer;
+}
+
+static inline const char *fbo_attachment_string(fbo_attachment attachment)
+{
+    if (attachment.color_buffers)
+        switch (fa_nr_color_buffer(attachment)) {
+            case 0:  return "color buffer0";
+            case 1:  return "color buffer1";
+            case 2:  return "color buffer2";
+            case 3:  return "color buffer3";
+            case 4:  return "color buffer4";
+            case 5:  return "color buffer5";
+            case 6:  return "color buffer6";
+            case 7:  return "color buffer7";
+            default: break;
+        }
+
+    if (attachment.color_textures)
+        switch (fa_nr_color_texture(attachment)) {
+            case 0:  return "color texture0";
+            case 1:  return "color texture1";
+            case 2:  return "color texture2";
+            case 3:  return "color texture3";
+            case 4:  return "color texture4";
+            case 5:  return "color texture5";
+            case 6:  return "color texture6";
+            case 7:  return "color texture7";
+            default: break;
+        }
+
+    if (attachment.depth_buffer)
+        return "depth buffer";
+    if (attachment.depth_texture)
+        return "depth texture";
+
+    return "implement me";
+}
+
+static inline int fbo_attachment_color(fbo_attachment attachment)
+{
+    return (fa_nr_color_buffer(attachment) ? : fa_nr_color_texture(attachment)) - 1;
+}
+
+#define fa_for_each(_it, _fa, _kind) \
+    for (fbo_attachment _it = { .color_ ## _kind ## s = 1 }; \
+         fa_nr_color_ ## _kind(_it) <= fa_nr_color_ ## _kind(_fa); \
+         _it.color_ ## _kind ## s = _it.color_ ## _kind ## s * 2 + 1)
 
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(fbo,
@@ -317,6 +390,14 @@ TYPE(fbo,
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(fbo,
     struct ref      ref;
+    texture_t       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
+    texture_t       depth_tex;
+    unsigned int    width;
+    unsigned int    height;
+    unsigned int    layers;
+    fbo_attachment  attachment_config;
+    texture_format  *color_format;
+    texture_format  depth_format;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -370,7 +451,7 @@ typedef enum {
 #define SHADER_STAGE_GEOMETRY_BIT   (1 << SHADER_STAGE_GEOMETRY)
 #define SHADER_STAGE_COMPUTE_BIT    (1 << SHADER_STAGE_COMPUTE)
 
-#ifdef CONFIG_RENDERER_OPENGL
+#if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_METAL)
 TYPE(binding_points,
     int binding;
 );
@@ -386,6 +467,13 @@ TYPE(uniform_buffer,
     GLsizeiptr  size;     /* Size in bytes */
     GLuint      id;       /* GL buffer object */
     GLuint      binding;  /* UBO binding point */
+    void        *data;    /* CPU-side shadow buffer */
+    bool        dirty;    /* Flag for updates */
+);
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(uniform_buffer,
+    struct ref  ref;
+    size_t      size;     /* Size in bytes */
     void        *data;    /* CPU-side shadow buffer */
     bool        dirty;    /* Flag for updates */
 );
@@ -489,7 +577,16 @@ TYPE(renderer,
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(renderer,
-    struct ref      ref;
+    struct ref          ref;
+    int                 major;
+    int                 minor;
+    renderer_profile    profile;
+    vec4                clear_color;
+    int                 x;
+    int                 y;
+    int                 width;
+    int                 height;
+    bool                depth_test;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 

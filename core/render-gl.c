@@ -937,64 +937,6 @@ bool fbo_texture_supported(texture_format format)
     return _fbo_texture_supported[format];
 }
 
-static unsigned int fa_nr_color_buffer(fbo_attachment attachment)
-{
-    return fls(attachment.color_buffers);
-}
-
-static unsigned int fa_nr_color_texture(fbo_attachment attachment)
-{
-    return fls(attachment.color_textures);
-}
-
-static bool fbo_attachment_is_buffers(fbo_attachment attachment)
-{
-    return attachment.color_buffers ||
-           attachment.depth_buffer  ||
-           attachment.stencil_buffer;
-}
-
-const char *fbo_attachment_string(fbo_attachment attachment)
-{
-    if (attachment.color_buffers)
-        switch (fa_nr_color_buffer(attachment)) {
-            case 0:  return "color buffer0";
-            case 1:  return "color buffer1";
-            case 2:  return "color buffer2";
-            case 3:  return "color buffer3";
-            case 4:  return "color buffer4";
-            case 5:  return "color buffer5";
-            case 6:  return "color buffer6";
-            case 7:  return "color buffer7";
-            default: break;
-        }
-
-    if (attachment.color_textures)
-        switch (fa_nr_color_texture(attachment)) {
-            case 0:  return "color texture0";
-            case 1:  return "color texture1";
-            case 2:  return "color texture2";
-            case 3:  return "color texture3";
-            case 4:  return "color texture4";
-            case 5:  return "color texture5";
-            case 6:  return "color texture6";
-            case 7:  return "color texture7";
-            default: break;
-        }
-
-    if (attachment.depth_buffer)
-        return "depth buffer";
-    if (attachment.depth_texture)
-        return "depth texture";
-
-    return "implement me";
-}
-
-static inline int fbo_attachment_color(fbo_attachment attachment)
-{
-    return (fa_nr_color_buffer(attachment) ? : fa_nr_color_texture(attachment)) - 1;
-}
-
 static int fbo_create(void)
 {
     unsigned int fbo;
@@ -1003,11 +945,6 @@ static int fbo_create(void)
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
     return fbo;
 }
-
-#define fa_for_each(_it, _fa, _kind) \
-    for (fbo_attachment _it = { .color_ ## _kind ## s = 1 }; \
-         fa_nr_color_ ## _kind(_it) <= fa_nr_color_ ## _kind(_fa); \
-         _it.color_ ## _kind ## s = _it.color_ ## _kind ## s * 2 + 1)
 
 texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
