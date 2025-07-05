@@ -24,10 +24,14 @@ jobs:
           echo opts=\"--parallel 4\" >> build_config
           echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos\" >> build_config
           ./configure.sh
+          cmake --preset=mtltest
+          cmake --preset=mtldebug
       - name: build
         run: |
           cd ${{ github.workspace }}
           ./build.sh
+          cmake --build build/mtltest --parallel 4
+          cmake --build build/mtldebug --parallel 4
           cmake --install build/rel
           git config --global --unset url."https://github.com/".insteadOf
       - name: Deploy to Server
