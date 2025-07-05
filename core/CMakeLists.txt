@@ -86,15 +86,23 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     add_test(${TEST_BIN} ${TEST_BIN})
 endif ()
 
+if (CONFIG_RENDERER_OPENGL)
+    set(RENDERER_SRC "render-gl.c")
+elseif (CONFIG_RENDERER_METAL)
+    set(RENDERER_SRC render-mtl.m)
+else ()
+    message(FATAL_ERROR "Unsupported renderer")
+endif ()
+
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c logger.c input.c messagebus.c primitives.c motion.c
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
-    gltf.c input-joystick.c render-gl.c mesh.c pipeline.c pipeline-builder.c
+    gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c
-    ${PLATFORM_SRC})
+    ${PLATFORM_SRC} ${RENDERER_SRC})
 
 # Mac OS X has deprecated OpenAL and is very vocal about it
 set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-unknown-pragmas")
