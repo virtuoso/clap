@@ -77,6 +77,28 @@
             }
         },
         {
+            "name": "mtldebug",
+            "displayName": "Native Metal Debug",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/mtldebug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS":true,
+                "LDJAM56_BUILD_IN_ASSETS":true,
+                "CLAP_RENDERER":"Metal"
+            }
+        },
+        {
+            "name": "mtltest",
+            "inherits": ["mtldebug"],
+            "displayName": "Native Metal Test",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/mtltest",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"RelWithDebInfo"
+            }
+        },
+        {
             "name": "w32debug-cross",
             "displayName": "win32 debug with (mingw, cross)",
             "binaryDir": "build/w32debug",
