@@ -1697,10 +1697,12 @@ cerr scene_load(struct scene *scene, const char *name)
 
     struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
 
-    err_on(lh->state != RES_LOADED);
+    cerr ret = CERR_OK;
+    if (lh->state != RES_LOADED)
+        ret = CERR_SCENE_NOT_LOADED;
     ref_put_last(lh);
 
-    return CERR_OK;
+    return ret;
 }
 
 void scene_done(struct scene *scene)
