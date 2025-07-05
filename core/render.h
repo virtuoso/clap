@@ -33,6 +33,9 @@ typedef unsigned int GLuint;
 typedef unsigned short GLushort;
 typedef ptrdiff_t GLsizeiptr;
 # endif /* IMPLEMENTOR */
+#elif defined(CONFIG_RENDERER_METAL)
+# ifdef IMPLEMENTOR
+# endif /* IMPLEMENTOR */
 #else
 # error "Unsupported renderer"
 #endif
@@ -96,6 +99,10 @@ TYPE(buffer,
     uniform_t           loc;
 #endif /* CONFIG_FINAL */
 );
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(buffer,
+    struct ref      ref;
+);
 #endif /* CONFIG_RENDERER_OPENGL */
 
 #define buffer_init(_b, args...) \
@@ -111,6 +118,10 @@ bool buffer_loaded(buffer_t *buf);
 TYPE(vertex_array,
     struct ref  ref;
     GLuint      vao;
+);
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(vertex_array,
+    struct ref      ref;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -191,6 +202,10 @@ TYPE(texture,
 #ifndef CONFIG_FINAL
     texture_init_options    opts;
 #endif /* CONFIG_FINAL */
+);
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(texture,
+    struct ref      ref;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -299,6 +314,10 @@ TYPE(fbo,
     int             depth_buf;
     unsigned int    nr_samples;
 );
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(fbo,
+    struct ref      ref;
+);
 #endif /* CONFIG_RENDERER_OPENGL */
 
 cresp_ret(fbo_t);
@@ -398,6 +417,10 @@ TYPE(shader,
     GLuint  geom;
     GLuint  prog;
 );
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(shader,
+    struct ref      ref;
+);
 #endif /* CONFIG_RENDERER_OPENGL */
 
 cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, const char *fragment);
@@ -463,6 +486,10 @@ TYPE(renderer,
     bool                depth_test;
     bool                wireframe;
     bool                mac_amd_quirk;
+);
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(renderer,
+    struct ref      ref;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
