@@ -35,6 +35,30 @@ typedef ptrdiff_t GLsizeiptr;
 # endif /* IMPLEMENTOR */
 #elif defined(CONFIG_RENDERER_METAL)
 # ifdef IMPLEMENTOR
+/*
+ * XXX: "weak" clashes with something in the guts of Metal, rename it in
+ * the tree
+ */
+#  undef weak
+#  import <Metal/Metal.h>
+#  import <QuartzCore/CoreAnimation.h>
+typedef id<MTLDevice> mtl_device_t;
+typedef id<MTLCommandQueue> mtl_command_queue_t;
+typedef id<MTLCommandBuffer> mtl_command_buffer_t;
+typedef id<MTLRenderCommandEncoder> mtl_render_command_encoder_t;
+typedef MTLRenderPassDescriptor *mtl_render_pass_descriptor_t;
+typedef id<CAMetalDrawable> mtl_ca_drawable_t;
+typedef CAMetalLayer *mtl_ca_layer_t;
+typedef NSAutoreleasePool *ns_autorelease_pool_t;
+# else
+typedef void *mtl_device_t;
+typedef void *mtl_command_queue_t;
+typedef void *mtl_command_buffer_t;
+typedef void *mtl_render_command_encoder_t;
+typedef void *mtl_render_pass_descriptor_t;
+typedef void *mtl_ca_drawable_t;
+typedef void *mtl_ca_layer_t;
+typedef void *ns_autorelease_pool_t;
 # endif /* IMPLEMENTOR */
 #else
 # error "Unsupported renderer"
@@ -577,16 +601,24 @@ TYPE(renderer,
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(renderer,
-    struct ref          ref;
-    int                 major;
-    int                 minor;
-    renderer_profile    profile;
-    vec4                clear_color;
-    int                 x;
-    int                 y;
-    int                 width;
-    int                 height;
-    bool                depth_test;
+    struct ref                      ref;
+    ns_autorelease_pool_t           frame_pool;
+    mtl_device_t                    device;
+    mtl_command_queue_t             cmd_queue;
+    mtl_command_buffer_t            cmd_buffer;
+    mtl_render_command_encoder_t    cmd_encoder;
+    mtl_render_pass_descriptor_t    screen_desc;
+    mtl_ca_layer_t                  layer;
+    mtl_ca_drawable_t               drawable;
+    int                             major;
+    int                             minor;
+    renderer_profile                profile;
+    vec4                            clear_color;
+    int                             x;
+    int                             y;
+    int                             width;
+    int                             height;
+    bool                            depth_test;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -606,9 +638,15 @@ void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_p
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 
+#ifdef CONFIG_RENDERER_METAL
+void renderer_done(renderer_t *r);
+void renderer_frame_begin(renderer_t *renderer);
+void renderer_frame_end(renderer_t *renderer);
+#else
 static inline void renderer_frame_begin(renderer_t *renderer) {}
 static inline void renderer_frame_end(renderer_t *renderer) {}
 static inline void renderer_done(renderer_t *renderer) {}
+#endif /* CONFIG_RENDERER_METAL */
 
 #ifndef CONFIG_FINAL
 void buffer_debug_header(void);

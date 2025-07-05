@@ -277,7 +277,6 @@ void textures_done(void)
  * Framebuffer
  ****************************************************************************/
 
-/* XXX: common */
 texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_texture)
@@ -565,8 +564,56 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
  * Renderer context
  ****************************************************************************/
 
-void _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
+void _renderer_init(renderer_t *r, const renderer_init_options *opts)
 {
+    r->device = opts->device;
+    r->layer = opts->layer;
+    [r->layer retain];
+
+    r->cmd_queue = [r->device newCommandQueue];
+
+    /* One global render pass descritpor for rendering to the screen */
+    r->screen_desc = [[MTLRenderPassDescriptor alloc] init];
+    r->screen_desc.colorAttachments[0].loadAction = MTLLoadActionClear;
+    r->screen_desc.colorAttachments[0].storeAction = MTLStoreActionStore;
+    r->screen_desc.colorAttachments[0].clearColor = MTLClearColorMake(
+        r->clear_color[0], r->clear_color[1], r->clear_color[2], r->clear_color[3]
+    );
+}
+
+void renderer_done(renderer_t *r)
+{
+    [r->screen_desc release];
+    [r->cmd_queue release];
+    [r->layer release];
+    [r->device release];
+}
+
+void renderer_frame_begin(renderer_t *r)
+{
+    r->frame_pool = [[NSAutoreleasePool alloc] init];
+
+    r->layer.drawableSize = CGSizeMake(r->width, r->height);
+
+    r->drawable = [r->layer nextDrawable];
+    r->cmd_buffer = [r->cmd_queue commandBuffer];
+
+    r->screen_desc.colorAttachments[0].texture = r->drawable.texture;
+
+    r->cmd_encoder = [r->cmd_buffer renderCommandEncoderWithDescriptor:r->screen_desc];
+}
+
+void renderer_frame_end(renderer_t *r)
+{
+    [r->cmd_encoder endEncoding];
+
+    [r->cmd_buffer presentDrawable:r->drawable];
+    [r->cmd_buffer commit];
+
+    r->drawable = nil;
+
+    [r->frame_pool drain];
+    r->frame_pool = nil;
 }
 
 #ifndef CONFIG_FINAL
