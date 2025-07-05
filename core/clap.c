@@ -378,6 +378,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     clap_fps_calc(ctx, &ctx->fps);
     clap_timers_run(ctx);
 
+    renderer_frame_begin(&ctx->renderer);
+
     int width, height;
     renderer_get_viewport(&ctx->renderer, NULL, NULL, &width, &height);
 
@@ -431,6 +433,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     input_debug();
 
     imgui_render();
+    renderer_frame_end(&ctx->renderer);
     display_swap_buffers();
 
     mem_frame_end();

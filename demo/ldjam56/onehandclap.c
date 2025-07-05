@@ -244,6 +244,12 @@ int main(int argc, char **argv, char **envp)
         return EXIT_FAILURE;
     }
 
+    /*
+     * XXX: this doesn't belong here, same as imgui_render_begin()
+     * and any error paths past this point must call the corresponding
+     * renderer_frame_end() etc
+     */
+    renderer_frame_begin(clap_get_renderer(clap_res.val));
     imgui_render_begin(cfg.width, cfg.height);
     scene_init(&scene);
     scene.clap_ctx = clap_res.val;
@@ -310,6 +316,7 @@ int main(int argc, char **argv, char **envp)
     ropts->lighting_exposure = 1.6;
 
     imgui_render();
+    renderer_frame_end(clap_get_renderer(clap_res.val));
     display_main_loop();
 
     dbg("exiting peacefully\n");

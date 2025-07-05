@@ -604,6 +604,9 @@ void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_p
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 
+static inline void renderer_frame_begin(renderer_t *renderer) {}
+static inline void renderer_frame_end(renderer_t *renderer) {}
+
 #ifndef CONFIG_FINAL
 void buffer_debug_header(void);
 void buffer_debug(buffer_t *buf, const char *name);
