@@ -1,16 +1,21 @@
 # Shader compilation
 
 # Set up common variables
-if (CONFIG_GLES)
-    set(SHADER_TYPE "glsl-es")
-    set(SPIRV_CROSS_ARGS --es --version 300)
-else ()
-    set(SHADER_TYPE "glsl")
-    if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        set(SPIRV_CROSS_ARGS --no-es --no-420pack-extension --version 410)
+if (CONFIG_RENDERER_OPENGL)
+    if (CONFIG_GLES)
+        set(SHADER_TYPE "glsl-es")
+        set(SPIRV_CROSS_ARGS --es --version 300)
     else ()
-        set(SPIRV_CROSS_ARGS --no-es --version 410)
+        set(SHADER_TYPE "glsl")
+        if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+            set(SPIRV_CROSS_ARGS --no-es --no-420pack-extension --version 410)
+        else ()
+            set(SPIRV_CROSS_ARGS --no-es --version 410)
+        endif ()
     endif ()
+elseif (CONFIG_RENDERER_METAL)
+    set(SHADER_TYPE "msl")
+    set(SPIRV_CROSS_ARGS --msl --msl-version 20100 --msl-decoration-binding)
 endif ()
 
 # Shader output directory
