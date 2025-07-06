@@ -1445,6 +1445,7 @@ static int default_update(entity3d *e, void *data)
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);
         transform_rotate_mat4x4(&e->xform, e->mx);
+        transform_clear_updated(&e->xform);
 
         mat4x4 tr_no_scale;
         mat4x4_dup(tr_no_scale, e->mx);
