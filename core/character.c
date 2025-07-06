@@ -157,6 +157,10 @@ static void character_debug(struct character *ch)
         igText("collision %s", entity_name(ch->collision));
         igText("state %s", character_state_string[ch->state]);
         igCheckbox("airborne", &ch->airborne);
+        bool moved = transform_is_updated(&ch->entity->xform);
+        igBeginDisabled(true);
+        igCheckbox("moved", &moved);
+        igEndDisabled();
         if (igButton("disable body", (ImVec2){}))
             phys_body_enable(ch->entity->phys_body, false);
     }
