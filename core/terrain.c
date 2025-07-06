@@ -516,18 +516,22 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
             idx[it++] = bottom_left;
             idx[it++] = bottom_right;
         }
-    
+
+    struct mesh mesh = {
+        .ref    = REF_STATIC(mesh),
+        .name   = "terrain",
+        .attr   = {
+            [MESH_VX] = { .data = vx, .nr = total, .stride = sizeof(float) * 3 },
+            [MESH_TX] = { .data = tx, .nr = total, .stride = sizeof(float) * 2 },
+            [MESH_NORM] = { .data = norm, .nr = total, .stride = sizeof(float) * 3 },
+            [MESH_IDX] = { .data = idx, .nr = idxsz / sizeof(unsigned short), .stride = sizeof(unsigned short) },
+        }
+    };
+
     model = ref_new(model3d,
                     .name   = "terrain",
                     .prog   = ref_pass(prog),
-                    .vx     = vx,
-                    .vxsz   = vxsz,
-                    .idx    = idx,
-                    .idxsz  = idxsz,
-                    .tx     = tx,
-                    .txsz   = txsz,
-                    .norm   = norm,
-                    .normsz = vxsz);
+                    .mesh   = &mesh);
     mem_free(tx);
     mem_free(norm);
 
