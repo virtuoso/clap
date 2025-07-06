@@ -301,12 +301,7 @@ model3d *model3d_new_cube(struct shader_prog *p, bool skip_aabb)
     return ref_new(model3d,
                    .name        = "cube",
                    .prog        = p,
-                   .vx          = cube_vx,
-                   .vxsz        = sizeof(cube_vx),
-                   .idx         = cube_idx,
-                   .idxsz       = sizeof(cube_idx),
-                   .tx          = cube_tx,
-                   .txsz        = sizeof(cube_tx),
+                   .mesh        = &cube_mesh,
                    .skip_aabb   = skip_aabb);
 }
 
@@ -316,16 +311,20 @@ model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, floa
     float quad_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
+    struct mesh quad_mesh = {
+        .ref    = REF_STATIC(mesh),
+        .name   = "quad",
+        .attr   = {
+            [MESH_VX] = { .data = quad_vx, .nr = array_size(quad_vx) / 3, .stride = sizeof(float) * 3 },
+            [MESH_TX] = { .data = quad_tx, .nr = array_size(quad_tx) / 2, .stride = sizeof(float) * 2 },
+            [MESH_IDX] = { .data = quad_idx, .nr = array_size(quad_idx), .stride = sizeof(unsigned short) },
+        }
+    };
 
     return ref_new(model3d,
                    .name        = "quad",
                    .prog        = p,
-                   .vx          = quad_vx,
-                   .vxsz        = sizeof(quad_vx),
-                   .idx         = quad_idx,
-                   .idxsz       = sizeof(quad_idx),
-                   .tx          = quad_tx,
-                   .txsz        = sizeof(quad_tx),
+                   .mesh        = &quad_mesh,
                    .skip_aabb   = true);
 }
 
@@ -335,16 +334,20 @@ model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, f
     float quad_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
+    struct mesh quad_mesh = {
+        .ref    = REF_STATIC(mesh),
+        .name   = "quad",
+        .attr   = {
+            [MESH_VX] = { .data = quad_vx, .nr = array_size(quad_vx) / 3, .stride = sizeof(float) * 3 },
+            [MESH_TX] = { .data = quad_tx, .nr = array_size(quad_tx) / 2, .stride = sizeof(float) * 2 },
+            [MESH_IDX] = { .data = quad_idx, .nr = array_size(quad_idx), .stride = sizeof(unsigned short) },
+        }
+    };
 
     return ref_new(model3d,
                    .name        = "quad",
                    .prog        = p,
-                   .vx          = quad_vx,
-                   .vxsz        = sizeof(quad_vx),
-                   .idx         = quad_idx,
-                   .idxsz       = sizeof(quad_idx),
-                   .tx          = quad_tx,
-                   .txsz        = sizeof(quad_tx),
+                   .mesh        = &quad_mesh,
                    .skip_aabb   = true);
 }
 
@@ -371,15 +374,19 @@ model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, flo
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
         x + t, y + h - t, z, x + t, y + t, z, x + w - t, y + t, z, x + w - t, y + h - t, z,
     };
+    struct mesh frame_mesh = {
+        .ref    = REF_STATIC(mesh),
+        .name   = "quad",
+        .attr   = {
+            [MESH_VX] = { .data = frame_vx, .nr = array_size(frame_vx) / 3, .stride = sizeof(float) * 3 },
+            [MESH_TX] = { .data = frame_tx, .nr = array_size(frame_tx) / 2, .stride = sizeof(float) * 2 },
+            [MESH_IDX] = { .data = frame_idx, .nr = array_size(frame_idx), .stride = sizeof(unsigned short) },
+        }
+    };
 
     return ref_new(model3d,
         .name       = "frame",
         .prog       = p,
-        .vx         = frame_vx,
-        .vxsz       = sizeof(frame_vx),
-        .idx        = frame_idx,
-        .idxsz      = sizeof(frame_idx),
-        .tx         = frame_tx,
-        .txsz       = sizeof(frame_tx),
+        .mesh       = &frame_mesh,
         .skip_aabb  = true);
 }
