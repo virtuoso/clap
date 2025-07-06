@@ -206,8 +206,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
 );
 DECLARE_REFCLASS(model3dtx);
 
-int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
-                         float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs);
+int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs);
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
 float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);

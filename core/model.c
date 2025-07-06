@@ -166,6 +166,37 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             goto tangent_done;
     }
 
+    if (opts->mesh && mesh_nr_joints(opts->mesh)) {
+        /* check incoming joints against JOINTS_MAX */
+        unsigned char *joints = mesh_joints(opts->mesh);
+        for (int v = 0, jmax = 0; v < m->nr_vertices * 4; v++) {
+            jmax = max(jmax, joints[v]);
+            if (jmax >= JOINTS_MAX)
+                goto tangent_done;
+        }
+
+        err = shader_setup_attribute(opts->prog, ATTR_JOINTS, &m->vjoints,
+            .type       = BUF_ARRAY,
+            .usage      = BUF_STATIC,
+            .comp_type  = DT_BYTE,
+            .comp_count = 4,
+            .data       = mesh_joints(opts->mesh),
+            .size       = mesh_joints_sz(opts->mesh));
+        if (IS_CERR(err))
+            goto joints_done;
+    }
+
+    if (opts->mesh && mesh_nr_weights(opts->mesh)) {
+        err = shader_setup_attribute(opts->prog, ATTR_WEIGHTS, &m->weights,
+            .type       = BUF_ARRAY,
+            .usage      = BUF_STATIC,
+            .comp_type  = DT_VEC4,
+            .data       = mesh_weights(opts->mesh),
+            .size       = mesh_weights_sz(opts->mesh));
+        if (IS_CERR(err))
+            goto weights_done;
+    }
+
     model3d_lods_from_mesh(m, opts->mesh);
 
     vertex_array_unbind(&m->vao);
@@ -176,6 +207,10 @@ static cerr model3d_make(struct ref *ref, void *_opts)
 
     return CERR_OK;
 
+weights_done:
+    buffer_deinit(&m->weights);
+joints_done:
+    buffer_deinit(&m->vjoints);
 tangent_done:
     buffer_deinit(&m->tangent);
 norm_done:
@@ -548,49 +583,13 @@ static inline void entity3d_aabb_draw(entity3d *e, bool entity, bool model) {}
 static inline void entity3d_debug(entity3d *e) {}
 #endif /* CONFIG_FINAL */
 
-int model3d_add_skinning(model3d *m, unsigned char *joints, size_t jointssz,
-                         float *weights, size_t weightssz, size_t nr_joints, mat4x4 *invmxs)
+int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
 {
-    int v, j, jmax = 0;
-
-    if (jointssz != m->nr_vertices * 4 ||
-        weightssz != m->nr_vertices * 4 * sizeof(float)) {
-        err("wrong amount of joints or weights: %zu <> %d, %zu <> %zu\n",
-            jointssz, m->nr_vertices * 4, weightssz, m->nr_vertices * 4 * sizeof(float));
-        return -1;
-    }
-
-    /* incoming ivec4 joints and vec4 weights */
-    for (v = 0; v < m->nr_vertices * 4; v++) {
-        jmax = max(jmax, joints[v]);
-        if (jmax >= JOINTS_MAX)
-            return -1;
-    }
-
     m->joints = mem_alloc(sizeof(struct model_joint), .nr = nr_joints, .fatal_fail = 1);
-    for (j = 0; j < nr_joints; j++) {
+    for (int j = 0; j < nr_joints; j++) {
         memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
         darray_init(m->joints[j].children);
     }
-
-    shader_prog_use(m->prog);
-    vertex_array_bind(&m->vao);
-    shader_setup_attribute(m->prog, ATTR_JOINTS, &m->vjoints,
-                           .type       = BUF_ARRAY,
-                           .usage      = BUF_STATIC,
-                           .comp_type  = DT_BYTE,
-                           .comp_count = 4,
-                           .data       = joints,
-                           .size       = jointssz);
-    shader_setup_attribute(m->prog, ATTR_WEIGHTS, &m->weights,
-                           .type       = BUF_ARRAY,
-                           .usage      = BUF_STATIC,
-                           .comp_type  = DT_FLOAT,
-                           .comp_count = 4,
-                           .data       = weights,
-                           .size       = weightssz);
-    vertex_array_unbind(&m->vao);
-    shader_prog_done(m->prog);
 
     m->nr_joints = nr_joints;
     return 0;

@@ -1206,9 +1206,7 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         mat4x4 root_pose;
         int err, i;
 
-        err = model3d_add_skinning(txm->model,
-                                   mesh_joints(me), mesh_joints_sz(me),
-                                   mesh_weights(me), mesh_weights_sz(me), s->nr_joints, s->invmxs);
+        err = model3d_add_skinning(txm->model, s->nr_joints, s->invmxs);
         if (err)
             goto no_skinning;
 
