@@ -159,10 +159,6 @@ model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, flo
         return NULL;
 
     cylinder = res.val;
-    cylinder->collision_vx = memdup(mesh_vx(cylinder_mesh), mesh_vx_sz(cylinder_mesh));
-    cylinder->collision_vxsz = mesh_vx_sz(cylinder_mesh);
-    cylinder->collision_idx = memdup(mesh_idx(cylinder_mesh), mesh_idx_sz(cylinder_mesh));
-    cylinder->collision_idxsz = mesh_idx_sz(cylinder_mesh);
 
     return cylinder;
 }
