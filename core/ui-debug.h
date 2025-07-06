@@ -27,6 +27,7 @@ typedef enum imgui_style {
     IMSTYLE_MAROON = 0,
     IMSTYLE_TEAL,
     IMSTYLE_MATRIX,
+    IMSTYLE_SOLARIZED,
     IMSTYLE_MAX,
 } imgui_style;
 

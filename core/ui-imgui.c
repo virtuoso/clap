@@ -118,6 +118,63 @@ static void imgui_free(void *ptr, __unused void *user_data)
     mem_free(ptr);
 }
 
+static void imgui_style_solarized(ImGuiStyle *style)
+{
+    style->Alpha = 1.0;
+    style->ChildRounding = 3;
+    style->WindowRounding = 3;
+    style->GrabRounding = 1;
+    style->GrabMinSize = 20;
+    style->FrameRounding = 3;
+
+    ImVec4 bg_dark          = { 0.00f, 0.17f, 0.21f, 1.00f };
+    ImVec4 bg_light         = { 0.03f, 0.21f, 0.26f, 1.00f };
+    ImVec4 fg_base          = { 0.61f, 0.68f, 0.69f, 1.00f };
+    ImVec4 fg_dim           = { 0.40f, 0.47f, 0.48f, 1.00f };
+    ImVec4 accent_blue      = { 0.12f, 0.42f, 0.65f, 1.00f };
+    ImVec4 accent_cyan      = { 0.103f, 0.425f, 0.05f, 1.00f };
+    ImVec4 accent_red       = { 0.86f, 0.20f, 0.18f, 1.00f };
+    ImVec4 accent_green     = { 0.44f, 0.50f, 0.00f, 1.00f };
+    ImVec4 grab             = { 0.03f, 0.21f, 0.26f, 0.74f };
+    ImVec4 grab_hovered     = { 0.00f, 0.40f, 0.50f, 0.74f };
+    ImVec4 grab_active      = { 0.00f, 0.40f, 0.50f, 1.00f };
+
+    style->Colors[ImGuiCol_Text]            = fg_base;
+    style->Colors[ImGuiCol_TextSelectedBg]  = accent_green;
+    style->Colors[ImGuiCol_TextDisabled]    = fg_dim;
+    style->Colors[ImGuiCol_WindowBg]         = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.70f };
+    style->Colors[ImGuiCol_ChildBg]         = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_PopupBg]         = bg_light;
+    style->Colors[ImGuiCol_Border]          = (ImVec4) {0.20f, 0.28f, 0.30f, 0.60f };
+    style->Colors[ImGuiCol_BorderShadow]    = (ImVec4) { 0.00f, 0.00f, 0.00f, 0.00f };
+    style->Colors[ImGuiCol_FrameBg]         = (ImVec4) {0.05f, 0.25f, 0.30f, 0.60f };
+    style->Colors[ImGuiCol_FrameBgHovered]  = bg_dark;
+    style->Colors[ImGuiCol_FrameBgActive]   = accent_cyan;
+    style->Colors[ImGuiCol_TitleBg]         = bg_light;
+    style->Colors[ImGuiCol_TitleBgActive]   = accent_blue;
+    style->Colors[ImGuiCol_Button]          = (ImVec4) {0.10f, 0.30f, 0.34f, 0.70f };
+    style->Colors[ImGuiCol_ButtonHovered]   = bg_dark;
+    style->Colors[ImGuiCol_ButtonActive]    = accent_cyan;
+    style->Colors[ImGuiCol_Header]          = (ImVec4) {0.10f, 0.30f, 0.34f, 0.70f };
+    style->Colors[ImGuiCol_HeaderHovered]   = bg_dark;
+    style->Colors[ImGuiCol_HeaderActive]    = accent_cyan;
+    style->Colors[ImGuiCol_CheckMark]       = accent_blue;
+    style->Colors[ImGuiCol_SliderGrab]      = accent_blue;
+    style->Colors[ImGuiCol_SliderGrabActive] = grab_active;
+    style->Colors[ImGuiCol_Separator]       = (ImVec4) {0.20f, 0.28f, 0.30f, 0.60f };
+    style->Colors[ImGuiCol_ResizeGrip]      = bg_dark;
+    style->Colors[ImGuiCol_ResizeGripHovered] = accent_blue;
+    style->Colors[ImGuiCol_ResizeGripActive] = accent_red;
+    style->Colors[ImGuiCol_Tab]             = bg_light;
+    style->Colors[ImGuiCol_TabHovered]      = bg_dark;
+    style->Colors[ImGuiCol_TabSelected]     = accent_blue;
+    style->Colors[ImGuiCol_TableHeaderBg]   = accent_blue;
+    style->Colors[ImGuiCol_ScrollbarBg]             = (ImVec4) { 0.20f, 0.20f, 0.30f, 0.71f };
+    style->Colors[ImGuiCol_ScrollbarGrabHovered]    = grab_hovered;
+    style->Colors[ImGuiCol_ScrollbarGrab]           = grab;
+    style->Colors[ImGuiCol_ScrollbarGrabActive]     = grab_active;
+}
+
 static void imgui_style_enemymouse(ImGuiStyle *style)
 {
     style->Alpha = 1.0;
@@ -327,6 +384,10 @@ void imgui_set_style(imgui_style style)
             imgui_style_enemymouse(igstyle);
             imstyle = style;
             break;
+        case IMSTYLE_SOLARIZED:
+            imgui_style_solarized(igstyle);
+            imstyle = style;
+            break;
         default:
         case IMSTYLE_MAROON:
             imgui_style_maroon(igstyle);
@@ -339,9 +400,10 @@ void imgui_style_switcher(void)
 {
     igSeparatorText("ImGui style");
 
-    if (igRadioButton_IntPtr("Maroon", (int *)&imstyle, IMSTYLE_MAROON) ||
-        igRadioButton_IntPtr("Matrix", (int *)&imstyle, IMSTYLE_MATRIX) ||
-        igRadioButton_IntPtr("Teal", (int *)&imstyle, IMSTYLE_TEAL)) {
+    if (igRadioButton_IntPtr("Maroon",      (int *)&imstyle, IMSTYLE_MAROON) ||
+        igRadioButton_IntPtr("Matrix",      (int *)&imstyle, IMSTYLE_MATRIX) ||
+        igRadioButton_IntPtr("Teal",        (int *)&imstyle, IMSTYLE_TEAL)   ||
+        igRadioButton_IntPtr("Solarized",   (int *)&imstyle, IMSTYLE_SOLARIZED)) {
         imgui_set_style(imstyle);
 
         if (!settings)
