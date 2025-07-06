@@ -93,10 +93,8 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     m->prog = ref_get(opts->prog);
     m->alpha_blend = false;
     m->skip_aabb = opts->skip_aabb;
-    if (opts->mesh) {
+    if (!m->skip_aabb) {
         memcpy(m->aabb, opts->mesh->aabb, sizeof(m->aabb));
-    } else if (!m->skip_aabb) {
-        vertex_array_aabb_calc(m->aabb, vx, vxsz);
         if (opts->fix_origin)
             vertex_array_fix_origin(vx, vxsz, m->aabb);
     }
