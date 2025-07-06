@@ -117,7 +117,6 @@ static void character_jump_frame_callback(struct queued_animation *qa, entity3d 
 
 void character_set_moved(struct character *c)
 {
-    c->moved++;
     if (c->camera)
         transform_set_updated(&c->camera->xform);
 }
@@ -158,7 +157,6 @@ static void character_debug(struct character *ch)
         igText("collision %s", entity_name(ch->collision));
         igText("state %s", character_state_string[ch->state]);
         igCheckbox("airborne", &ch->airborne);
-        igCheckbox("moved", (bool *)&ch->moved);
         if (igButton("disable body", (ImVec2){}))
             phys_body_enable(ch->entity->phys_body, false);
     }

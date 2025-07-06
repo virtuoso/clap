@@ -44,7 +44,6 @@ struct character {
         unsigned int    head;
         bool            wrapped;
     } history;
-    int     moved;
     bool    jump;
     bool    airborne;
     bool    can_dash;
