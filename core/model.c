@@ -1457,7 +1457,9 @@ static int default_update(entity3d *e, void *data)
             phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
 
         if (scene && e->light_idx >= 0) {
-            const float *pos = transform_move(&e->xform, e->light_off);
+            vec3 pos;
+            transform_pos(&e->xform, pos);
+            vec3_add(pos, pos, e->light_off);
             light_set_pos(&scene->light, e->light_idx, pos);
         }
     }
