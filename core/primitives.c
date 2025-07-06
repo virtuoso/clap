@@ -80,22 +80,19 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
     _prim_emit_triangle(triangle2, opts);
 }
 
-model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
+cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
 {
     /*
      * a triangle per each segment at the top and bottom, plus 2 triangles (quad)
      * for each side: 4 triangles (12 vertices) per segment
      */
     int nr_vert = nr_serments * 12;
-    LOCAL_SET(mesh_t, cylinder_mesh) = ref_new(mesh, .name = "cylinder");
+    LOCAL_SET(mesh_t, cylinder_mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cylinder"), model3d);
 
-    if (!cylinder_mesh)
-        return NULL;
-
-    mesh_attr_alloc(cylinder_mesh, MESH_VX, sizeof(float) * 3, nr_vert);
-    mesh_attr_alloc(cylinder_mesh, MESH_TX, sizeof(float) * 2, nr_vert);
-    mesh_attr_alloc(cylinder_mesh, MESH_NORM, sizeof(float) * 3, nr_vert);
-    mesh_attr_alloc(cylinder_mesh, MESH_IDX, sizeof(unsigned short), nr_vert);
+    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_VX, sizeof(float) * 3, nr_vert), model3d);
+    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_TX, sizeof(float) * 2, nr_vert), model3d);
+    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_NORM, sizeof(float) * 3, nr_vert), model3d);
+    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_IDX, sizeof(unsigned short), nr_vert), model3d);
 
     int seg;
     for (seg = 0; seg < nr_serments; seg++) {
@@ -150,17 +147,12 @@ model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, flo
     mesh_aabb_calc(cylinder_mesh);
     mesh_optimize(cylinder_mesh);
 
-    model3d *cylinder;
-    cresp(model3d) res = ref_new_checked(model3d,
-                                         .name = "cylinder",
-                                         .prog = p,
-                                         .mesh = cylinder_mesh);
-    if (IS_CERR(res))
-        return NULL;
-
-    cylinder = res.val;
-
-    return cylinder;
+    return ref_new_checked(
+        model3d,
+        .name = "cylinder",
+        .prog = p,
+        .mesh = cylinder_mesh
+    );
 }
 
 /*

@@ -40,6 +40,6 @@ model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, flo
  * @radius: cylinder radius
  * @nr_segments: number of the segments of horizontal faces' circumference
  */
-model3d *model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments);
+cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments);
 
 #endif /* __CLAP_PRIMITIVES_H__ */

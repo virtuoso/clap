@@ -45,10 +45,10 @@ static inline bool attr_is_valid(struct mesh *mesh, unsigned int attr, size_t nr
     return true;
 }
 
-int mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr)
+cerr mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr)
 {
     if (attr >= MESH_MAX && attr_is_valid(mesh, attr, nr))
-        return -1;
+        return CERR_INVALID_ARGUMENTS;
 
     mesh->attr[attr].data = data;
     mesh->attr[attr].stride = stride;
@@ -59,13 +59,13 @@ int mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t strid
         vertex_array_aabb_calc(mesh->aabb, data, nr * stride);
     /* @data doesn't belong to us, mesh->fix_origin does not apply */
 
-    return 0;
+    return CERR_OK;
 }
 
-int mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t nr)
+cerr mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t nr)
 {
     if (attr >= MESH_MAX && attr_is_valid(mesh, attr, nr))
-        return -1;
+        return CERR_INVALID_ARGUMENTS;
 
     mem_free(mesh->attr[attr].data);
     mesh->attr[attr].data = mem_alloc(stride, .nr = nr, .fatal_fail = 1);
@@ -73,13 +73,12 @@ int mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t 
     mesh->attr[attr].nr = 0;
     mesh->attr[attr].type = attr;
 
-    return 0;
+    return CERR_OK;
 }
 
-int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr)
+cerr mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr)
 {
-    if (mesh_attr_alloc(mesh, attr, stride, nr) < 0)
-        return -1;
+    CERR_RET(mesh_attr_alloc(mesh, attr, stride, nr), return __cerr);
 
     memcpy(mesh->attr[attr].data, data, stride * nr);
     mesh->attr[attr].nr = nr;
@@ -90,7 +89,7 @@ int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t strid
             vertex_array_fix_origin(mesh_vx(mesh), nr * stride, mesh->aabb);
     }
 
-    return 0;
+    return CERR_OK;
 }
 
 void mesh_aabb_calc(struct mesh *mesh)

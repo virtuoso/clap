@@ -108,9 +108,9 @@ ATTR_ACCESSORS(joints, JOINTS, unsigned char);
 ATTR_ACCESSORS(weights, WEIGHTS, float);
 ATTR_ACCESSORS(idx, IDX, unsigned short);
 
-int mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
-int mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t nr);
-int mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
+cerr_check mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
+cerr_check mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t nr);
+cerr_check mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
 void mesh_push_mesh(struct mesh *mesh, struct mesh *src,
                     float x, float y, float z, float scale);
 
