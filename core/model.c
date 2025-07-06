@@ -1424,24 +1424,11 @@ static void animated_update(entity3d *e, struct scene *s)
         animation_next(e, s);
 }
 
-/*
- * If entity's position/rotation/scale (TRS) haven't been updated, this avoids
- * needlessly updating its model matrix (entity3d::mx).
- */
-static bool needs_update(entity3d *e)
-{
-    if (e->updated) {
-        e->updated = 0;
-        return true;
-    }
-    return false;
-}
-
 static int default_update(entity3d *e, void *data)
 {
     struct scene *scene = data;
 
-    if (needs_update(e)) {
+    if (transform_is_updated(&e->xform)) {
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);
         transform_rotate_mat4x4(&e->xform, e->mx);
@@ -1570,18 +1557,17 @@ void entity3d_visible(entity3d *e, unsigned int visible)
 void entity3d_rotate(entity3d *e, float rx, float ry, float rz)
 {
     transform_set_angles(&e->xform, (float[3]){ rx, ry, rz }, false);
-    e->updated++;
 }
 
 void entity3d_scale(entity3d *e, float scale)
 {
     e->scale = scale;
-    e->updated++;
+    /* XXX: scale -> transform */
+    transform_set_updated(&e->xform);
 }
 
 void entity3d_position(entity3d *e, vec3 pos)
 {
-    e->updated++;
     transform_set_pos(&e->xform, pos);
     if (e->phys_body)
         phys_body_set_position(e->phys_body, pos);
@@ -1589,7 +1575,6 @@ void entity3d_position(entity3d *e, vec3 pos)
 
 void entity3d_move(entity3d *e, vec3 off)
 {
-    e->updated++;
     const float *pos = transform_move(&e->xform, off);
     if (e->phys_body)
         phys_body_set_position(e->phys_body, pos);

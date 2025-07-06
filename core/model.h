@@ -287,7 +287,6 @@ typedef struct entity3d {
     int                 light_idx;
     int                 cur_lod;
     int                 force_lod;
-    int                 updated;
     bool                skip_culling;
     bool                ani_cleared;
     bool                outline_exclude;
