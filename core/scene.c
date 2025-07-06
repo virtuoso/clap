@@ -66,6 +66,7 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.proj_update      = true;
     s->camera->dist = 10;
     transform_set_updated(&s->camera->xform);
+    CERR_RET(debug_draw_install(s->camera), err_cerr(__cerr, "failed to initialize debug draw"));
 
     return cres_val(int, s->nr_cameras++);
 }
@@ -929,7 +930,6 @@ cerr scene_init(struct scene *scene)
     CERR_RET(subscribe(MT_INPUT, scene_handle_input, scene), return __cerr);
     CERR_RET(subscribe(MT_COMMAND, scene_handle_command, scene), return __cerr);
 
-    CERR_RET(debug_draw_install(scene->camera), err_cerr(__cerr, "failed to initialize debug draw"));
     scene->initialized = true;
 
     return CERR_OK;
