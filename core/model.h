@@ -63,14 +63,6 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     const char          *name;
     struct shader_prog  *prog;
     struct mesh         *mesh;
-    float               *vx;
-    float               *tx;
-    float               *norm;
-    unsigned short      *idx;
-    size_t              vxsz;
-    size_t              idxsz;
-    size_t              txsz;
-    size_t              normsz;
     bool                fix_origin;
     bool                skip_aabb;
 );

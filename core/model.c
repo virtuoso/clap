@@ -67,39 +67,21 @@ static cerr model3d_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(model3d) *opts = _opts;
 
-    if (!opts->prog)
+    if (!opts->prog || !opts->mesh)
         return CERR_INVALID_ARGUMENTS;
 
     float *vx, *tx, *norm;
     unsigned short *idx;
     size_t vxsz, txsz, normsz, idxsz;
 
-    if (!opts->mesh) {
-        if (!opts->idx || !opts->idxsz || !opts->vx || !opts->vxsz)
-            return CERR_INVALID_ARGUMENTS;
-
-        vx      = opts->vx;
-        vxsz    = opts->vxsz;
-        idx     = opts->idx;
-        idxsz   = opts->idxsz;
-        tx      = opts->tx;
-        txsz    = opts->txsz;
-        norm    = opts->norm;
-        normsz  = opts->normsz;
-    } else {
-        if (opts->idx || opts->idxsz || opts->vx || opts->vxsz ||
-            opts->tx || opts->txsz || opts->norm || opts->normsz)
-            return CERR_INVALID_ARGUMENTS;
-
-        vx      = mesh_vx(opts->mesh);
-        vxsz    = mesh_vx_sz(opts->mesh);
-        idx     = mesh_idx(opts->mesh);
-        idxsz   = mesh_idx_sz(opts->mesh);
-        tx      = mesh_tx(opts->mesh);
-        txsz    = mesh_tx_sz(opts->mesh);
-        norm    = mesh_norm(opts->mesh);
-        normsz  = mesh_norm_sz(opts->mesh);
-    }
+    vx      = mesh_vx(opts->mesh);
+    vxsz    = mesh_vx_sz(opts->mesh);
+    idx     = mesh_idx(opts->mesh);
+    idxsz   = mesh_idx_sz(opts->mesh);
+    tx      = mesh_tx(opts->mesh);
+    txsz    = mesh_tx_sz(opts->mesh);
+    norm    = mesh_norm(opts->mesh);
+    normsz  = mesh_norm_sz(opts->mesh);
 
     model3d *m = container_of(ref, model3d, ref);
 
@@ -187,8 +169,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             goto tangent_done;
     }
 
-    if (opts->mesh)
-        model3d_lods_from_mesh(m, opts->mesh);
+    model3d_lods_from_mesh(m, opts->mesh);
 
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog);
