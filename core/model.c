@@ -116,8 +116,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     err = shader_setup_attribute(opts->prog, ATTR_POSITION, &m->vertex,
                                  .type           = BUF_ARRAY,
                                  .usage          = BUF_STATIC,
-                                 .comp_type      = DT_FLOAT,
-                                 .comp_count     = 3,
+                                 .comp_type      = DT_VEC3,
                                  .data           = vx,
                                  .size           = vxsz);
     if (IS_CERR(err))
@@ -138,8 +137,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
         err = shader_setup_attribute(opts->prog, ATTR_TEX, &m->tex,
                                      .type           = BUF_ARRAY,
                                      .usage          = BUF_STATIC,
-                                     .comp_type      = DT_FLOAT,
-                                     .comp_count     = 2,
+                                     .comp_type      = DT_VEC2,
                                      .data           = tx,
                                      .size           = txsz);
         if (IS_CERR(err))
@@ -150,8 +148,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
         err = shader_setup_attribute(opts->prog, ATTR_NORMAL, &m->norm,
                                      .type           = BUF_ARRAY,
                                      .usage          = BUF_STATIC,
-                                     .comp_type      = DT_FLOAT,
-                                     .comp_count     = 3,
+                                     .comp_type      = DT_VEC3,
                                      .data           = norm,
                                      .size           = normsz);
         if (IS_CERR(err))
@@ -162,7 +159,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
         err = shader_setup_attribute(opts->prog, ATTR_TANGENT, &m->tangent,
             .type       = BUF_ARRAY,
             .usage      = BUF_STATIC,
-            .comp_type  = DT_FLOAT,
+            .comp_type  = DT_VEC4,
             .data       = mesh_tangent(opts->mesh),
             .size       = mesh_tangent_sz(opts->mesh));
         if (IS_CERR(err))
