@@ -2,11 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
-#include <errno.h>
 #include "shader_constants.h"
-#include "librarian.h"
 #include "clap.h"
-#include "common.h"
 #include "interp.h"
 #include "render.h"
 #include "util.h"
@@ -18,7 +15,6 @@
 #include "shader.h"
 #include "scene.h"
 #include "sound.h"
-#include "ui-debug.h"
 
 /****************************************************************************
  * model3d
