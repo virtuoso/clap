@@ -129,7 +129,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                                      .data           = mesh_tx(opts->mesh),
                                      .size           = mesh_tx_sz(opts->mesh));
         if (IS_CERR(err))
-            goto tex_done;
+            goto idx_done;
     }
 
     if (mesh_nr_norm(opts->mesh)) {
@@ -140,7 +140,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                                      .data           = mesh_norm(opts->mesh),
                                      .size           = mesh_norm_sz(opts->mesh));
         if (IS_CERR(err))
-            goto norm_done;
+            goto tex_done;
     }
 
     if (mesh_nr_tangent(opts->mesh)) {
@@ -151,7 +151,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             .data       = mesh_tangent(opts->mesh),
             .size       = mesh_tangent_sz(opts->mesh));
         if (IS_CERR(err))
-            goto tangent_done;
+            goto norm_done;
     }
 
     if (mesh_nr_joints(opts->mesh)) {
@@ -171,7 +171,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             .data       = mesh_joints(opts->mesh),
             .size       = mesh_joints_sz(opts->mesh));
         if (IS_CERR(err))
-            goto joints_done;
+            goto tangent_done;
     }
 
     if (mesh_nr_weights(opts->mesh)) {
@@ -182,7 +182,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             .data       = mesh_weights(opts->mesh),
             .size       = mesh_weights_sz(opts->mesh));
         if (IS_CERR(err))
-            goto weights_done;
+            goto joints_done;
     }
 
     model3d_lods_from_mesh(m, opts->mesh);
@@ -203,6 +203,8 @@ norm_done:
     buffer_deinit(&m->norm);
 tex_done:
     buffer_deinit(&m->tex);
+idx_done:
+    buffer_deinit(&m->index[0]);
 pos_done:
     buffer_deinit(&m->vertex);
 vao_done:
