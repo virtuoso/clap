@@ -70,18 +70,8 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     if (!opts->prog || !opts->mesh)
         return CERR_INVALID_ARGUMENTS;
 
-    float *vx, *tx, *norm;
-    unsigned short *idx;
-    size_t vxsz, txsz, normsz, idxsz;
-
-    vx      = mesh_vx(opts->mesh);
-    vxsz    = mesh_vx_sz(opts->mesh);
-    idx     = mesh_idx(opts->mesh);
-    idxsz   = mesh_idx_sz(opts->mesh);
-    tx      = mesh_tx(opts->mesh);
-    txsz    = mesh_tx_sz(opts->mesh);
-    norm    = mesh_norm(opts->mesh);
-    normsz  = mesh_norm_sz(opts->mesh);
+    if (!mesh_nr_vx(opts->mesh) || !mesh_nr_idx(opts->mesh))
+        return CERR_INVALID_ARGUMENTS;
 
     model3d *m = container_of(ref, model3d, ref);
 
@@ -96,12 +86,12 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     if (!m->skip_aabb) {
         memcpy(m->aabb, opts->mesh->aabb, sizeof(m->aabb));
         if (opts->fix_origin)
-            vertex_array_fix_origin(vx, vxsz, m->aabb);
+            vertex_array_fix_origin(mesh_vx(opts->mesh), mesh_vx_sz(opts->mesh), m->aabb);
     }
-    m->collision_vx = memdup(vx, vxsz);
-    m->collision_vxsz = vxsz;
-    m->collision_idx = memdup(idx, idxsz);
-    m->collision_idxsz = idxsz;
+    m->collision_vx = memdup(mesh_vx(opts->mesh), mesh_vx_sz(opts->mesh));
+    m->collision_vxsz = mesh_vx_sz(opts->mesh);
+    m->collision_idx = memdup(mesh_idx(opts->mesh), mesh_idx_sz(opts->mesh));
+    m->collision_idxsz = mesh_idx_sz(opts->mesh);
     darray_init(m->anis);
     sfx_container_init(&m->sfxc);
 
@@ -115,8 +105,8 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                                  .type           = BUF_ARRAY,
                                  .usage          = BUF_STATIC,
                                  .comp_type      = DT_VEC3,
-                                 .data           = vx,
-                                 .size           = vxsz);
+                                 .data           = mesh_vx(opts->mesh),
+                                 .size           = mesh_vx_sz(opts->mesh));
     if (IS_CERR(err))
         goto vao_done;
 
@@ -124,36 +114,36 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                       .type       = BUF_ELEMENT_ARRAY,
                       .usage      = BUF_STATIC,
                       .comp_type  = DT_SHORT,
-                      .data       = idx,
-                      .size       = idxsz);
+                      .data       = mesh_idx(opts->mesh),
+                      .size       = mesh_idx_sz(opts->mesh));
     if (IS_CERR(err))
         goto pos_done;
 
     m->nr_lods++;
 
-    if (tx) {
+    if (mesh_nr_tx(opts->mesh)) {
         err = shader_setup_attribute(opts->prog, ATTR_TEX, &m->tex,
                                      .type           = BUF_ARRAY,
                                      .usage          = BUF_STATIC,
                                      .comp_type      = DT_VEC2,
-                                     .data           = tx,
-                                     .size           = txsz);
+                                     .data           = mesh_tx(opts->mesh),
+                                     .size           = mesh_tx_sz(opts->mesh));
         if (IS_CERR(err))
             goto tex_done;
     }
 
-    if (normsz) {
+    if (mesh_nr_norm(opts->mesh)) {
         err = shader_setup_attribute(opts->prog, ATTR_NORMAL, &m->norm,
                                      .type           = BUF_ARRAY,
                                      .usage          = BUF_STATIC,
                                      .comp_type      = DT_VEC3,
-                                     .data           = norm,
-                                     .size           = normsz);
+                                     .data           = mesh_norm(opts->mesh),
+                                     .size           = mesh_norm_sz(opts->mesh));
         if (IS_CERR(err))
             goto norm_done;
     }
 
-    if (opts->mesh && mesh_nr_tangent(opts->mesh)) {
+    if (mesh_nr_tangent(opts->mesh)) {
         err = shader_setup_attribute(opts->prog, ATTR_TANGENT, &m->tangent,
             .type       = BUF_ARRAY,
             .usage      = BUF_STATIC,
@@ -164,7 +154,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             goto tangent_done;
     }
 
-    if (opts->mesh && mesh_nr_joints(opts->mesh)) {
+    if (mesh_nr_joints(opts->mesh)) {
         /* check incoming joints against JOINTS_MAX */
         unsigned char *joints = mesh_joints(opts->mesh);
         for (int v = 0, jmax = 0; v < m->nr_vertices * 4; v++) {
@@ -184,7 +174,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             goto joints_done;
     }
 
-    if (opts->mesh && mesh_nr_weights(opts->mesh)) {
+    if (mesh_nr_weights(opts->mesh)) {
         err = shader_setup_attribute(opts->prog, ATTR_WEIGHTS, &m->weights,
             .type       = BUF_ARRAY,
             .usage      = BUF_STATIC,
@@ -200,13 +190,11 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog);
 
-    m->nr_vertices = vxsz / sizeof(*vx) / 3;
-    m->nr_faces[0] = idxsz / sizeof(*idx);
+    m->nr_vertices = mesh_nr_vx(opts->mesh);
+    m->nr_faces[0] = mesh_nr_idx(opts->mesh);
 
     return CERR_OK;
 
-weights_done:
-    buffer_deinit(&m->weights);
 joints_done:
     buffer_deinit(&m->vjoints);
 tangent_done:
