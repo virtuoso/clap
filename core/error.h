@@ -132,6 +132,8 @@ typedef struct cerr {
 
 /* Declare cres with int value */
 cres_ret(int);
+/* Declare cres with size_t value */
+cres_ret(size_t);
 /* Declare cres with void pointer value */
 cresp_ret(void);
 
