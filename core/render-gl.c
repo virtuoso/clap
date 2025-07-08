@@ -88,7 +88,7 @@ static const size_t gl_comp_size[] = {
     [DT_MAT4]   = sizeof(GLfloat),
 };
 
-static inline size_t gl_type_size(data_type type)
+size_t data_type_size(data_type type)
 {
     if (unlikely(type >= array_size(gl_comp_size)))
         return 0;
@@ -99,7 +99,7 @@ static inline size_t gl_type_size(data_type type)
 /* Get std140 storage size for a given type */
 static inline size_t gl_type_storage_size(data_type type)
 {
-    size_t storage_size = gl_type_size(type);
+    size_t storage_size = data_type_size(type);
     if (!storage_size) {
         clap_unreachable();
         return 0;
@@ -108,10 +108,10 @@ static inline size_t gl_type_storage_size(data_type type)
     /* Matrices are basically arrays of vec4 (technically, vecN padded to 16 bytes) */
     switch (type) {
         case DT_MAT2:
-            storage_size = 2 * gl_type_size(DT_VEC4); /* vec2 padded to vec4 */
+            storage_size = 2 * data_type_size(DT_VEC4); /* vec2 padded to vec4 */
             break;
         case DT_MAT3:
-            storage_size = 3 * gl_type_size(DT_VEC4); /* vec3 padded to vec4 */
+            storage_size = 3 * data_type_size(DT_VEC4); /* vec3 padded to vec4 */
             break;
         /* And what's left is mat4, which is perfect as it is */
         default:
@@ -1536,7 +1536,7 @@ void uniform_buffer_update(uniform_buffer_t *ubo)
 cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
                         unsigned int count, const void *value)
 {
-    size_t elem_size = gl_type_size(type);            /* C ABI element size */
+    size_t elem_size = data_type_size(type);          /* C ABI element size */
     size_t storage_size = gl_type_storage_size(type); /* std140-aligned size */
     bool dirty = ubo->dirty;
     cerr err = CERR_OK;
@@ -1585,7 +1585,7 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
                 bool is_mat3 = type == DT_MAT2;
                 int rows = is_mat3 ? 3 : 2;
                 /* Source row: DT_VEC2 or DT_VEC3 */
-                size_t row_size = gl_type_size(is_mat3 ? DT_VEC3 : DT_VEC2);
+                size_t row_size = data_type_size(is_mat3 ? DT_VEC3 : DT_VEC2);
                 /* Destination row: DT_VEC4 */
                 size_t row_stride = gl_type_storage_size(DT_VEC4);
 

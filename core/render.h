@@ -86,6 +86,8 @@ typedef enum data_type {
     DT_MAT4,
 } data_type;
 
+size_t data_type_size(data_type type);
+
 typedef enum buffer_type {
     BUF_ARRAY,
     BUF_ELEMENT_ARRAY,
