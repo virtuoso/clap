@@ -554,6 +554,11 @@ void uniform_buffer_update(uniform_buffer_t *ubo)
     ubo->dirty = false;
 }
 
+cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name)
+{
+    return cres_error(size_t, CERR_NOT_FOUND);
+}
+
 /*
  * Calculate uniform @offset within a UBO, its total @size and set its @value
  * if @value is not NULL

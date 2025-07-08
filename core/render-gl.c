@@ -1529,6 +1529,21 @@ void uniform_buffer_update(uniform_buffer_t *ubo)
     ubo->dirty = false;
 }
 
+cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name)
+{
+    char fqname[128];
+    snprintf(fqname, sizeof(fqname), "%s.%s", ubo_name, var_name);
+
+    GLuint index;
+    GL(glGetUniformIndices(shader->prog, 1, (const char *[]) { fqname }, &index));
+    if (index == -1u)
+        return cres_error(size_t, CERR_NOT_FOUND);
+
+    GLint offset;
+    GL(glGetActiveUniformsiv(shader->prog, 1, &index, GL_UNIFORM_OFFSET, &offset));
+    return cres_val(size_t, offset);
+}
+
 /*
  * Calculate uniform @offset within a UBO, its total @size and set its @value
  * if @value is not NULL
