@@ -552,14 +552,40 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
 
     p->ctx = opts->ctx;
 
+#ifndef CONFIG_FINAL
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
         struct shader_var_block *var_block = &p->ctx->var_blocks[i];
         const struct shader_var_block_desc *desc = var_block->desc;
 
         err = shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name);
-        if (!IS_CERR(err))
+        if (!IS_CERR(err)) {
             p->var_blocks[desc->binding] = var_block;
+            for (int j = 0; j < darray_count(var_block->offsets); j++) {
+                enum shader_vars var = var_block->desc->vars[j];
+                int idx = p->ctx->vars[var].var_in_block_idx;
+
+                size_t prog_off = CRES_RET(
+                    shader_uniform_offset_query(
+                        &p->shader,
+                        var_block->desc->name,
+                        shader_get_var_name(var)
+                    ),
+                    continue;
+                );
+                size_t my_off = *DA(var_block->offsets, idx);
+
+                if (prog_off >= 0 && prog_off != my_off) {
+                    err("prog[%s] UBO[%s] var[%s] offsets don't match: %zu vs %zu\n",
+                        p->name, var_block->desc->name, shader_get_var_name(var),
+                        my_off, prog_off);
+#ifndef CLAP_DEBUG
+                    *DA(var_block->offsets, idx) = prog_off;
+#endif /* CLAP_DEBUG */
+                }
+            }
+        }
     }
+#endif /* CONFIG_FINAL */
 
     return CERR_OK;
 }
