@@ -189,7 +189,7 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
 
     buf->type = gl_buffer_type(opts->type);
     buf->usage = gl_buffer_usage(opts->usage);
-    buf->comp_type = gl_comp_type[opts->comp_type];
+    buf->comp_type = gl_comp_type[comp_type];
     buf->comp_count = comp_count;
 
     if (opts->data && opts->size)
