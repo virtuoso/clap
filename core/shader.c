@@ -2,14 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "common.h"
 #include "error.h"
 #include "render.h"
 #include "util.h"
 #include "object.h"
 #include "shader.h"
+#include "shader_constants.h"
 #include "librarian.h"
-#include "scene.h"
 
 struct shader_var_desc {
     const char              *name;
