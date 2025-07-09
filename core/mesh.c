@@ -37,7 +37,7 @@ DEFINE_REFCLASS2(mesh);
 
 DEFINE_CLEANUP(mesh_t, if (*p) ref_put(*p))
 
-static inline bool attr_is_valid(struct mesh *mesh, unsigned int attr, size_t nr)
+static inline bool attr_is_valid(struct mesh *mesh, enum mesh_attrs attr, size_t nr)
 {
     if (attr != MESH_VX && attr != MESH_IDX && mesh->attr[MESH_VX].nr != nr)
         return false;
@@ -45,7 +45,7 @@ static inline bool attr_is_valid(struct mesh *mesh, unsigned int attr, size_t nr
     return true;
 }
 
-cerr mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr)
+cerr mesh_attr_add(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr)
 {
     if (attr >= MESH_MAX && attr_is_valid(mesh, attr, nr))
         return CERR_INVALID_ARGUMENTS;
@@ -62,7 +62,7 @@ cerr mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stri
     return CERR_OK;
 }
 
-cerr mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t nr)
+cerr mesh_attr_alloc(struct mesh *mesh, enum mesh_attrs attr, size_t stride, size_t nr)
 {
     if (attr >= MESH_MAX && attr_is_valid(mesh, attr, nr))
         return CERR_INVALID_ARGUMENTS;
@@ -76,7 +76,7 @@ cerr mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t
     return CERR_OK;
 }
 
-cerr mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr)
+cerr mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr)
 {
     CERR_RET(mesh_attr_alloc(mesh, attr, stride, nr), return __cerr);
 
