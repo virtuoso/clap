@@ -450,7 +450,10 @@ cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer
     if (!__shader_has_var(p, var))
         return CERR_OK;
 
-    return _buffer_init(buf, opts);
+    buffer_init_options _opts;
+    memcpy(&_opts, opts, sizeof(_opts));
+    _opts.loc = p->vars[var];
+    return _buffer_init(buf, &_opts);
 }
 
 void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
