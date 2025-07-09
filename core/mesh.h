@@ -6,7 +6,7 @@
 #include "logger.h"
 #include "object.h"
 
-enum {
+enum mesh_attrs {
     MESH_VX = 0,
     MESH_TX,
     MESH_NORM,
@@ -38,7 +38,7 @@ struct mesh_attr {
     void            *data;
     size_t          nr;
     unsigned int    stride;
-    unsigned int    type;
+    enum mesh_attrs type;
 };
 
 struct mesh {
@@ -58,25 +58,25 @@ DEFINE_REFCLASS_INIT_OPTIONS(mesh,
 DECLARE_REFCLASS(mesh);
 DECLARE_CLEANUP(mesh_t);
 
-static inline struct mesh_attr *mesh_attr(struct mesh *mesh, unsigned int attr)
+static inline struct mesh_attr *mesh_attr(struct mesh *mesh, enum mesh_attrs attr)
 {
     err_on(attr >= MESH_MAX);
     return &mesh->attr[attr];
 }
 
-static inline size_t mesh_nr(struct mesh *mesh, unsigned int attr)
+static inline size_t mesh_nr(struct mesh *mesh, enum mesh_attrs attr)
 {
     err_on(attr >= MESH_MAX);
     return mesh->attr[attr].nr;
 }
 
-static inline size_t mesh_stride(struct mesh *mesh, unsigned int attr)
+static inline size_t mesh_stride(struct mesh *mesh, enum mesh_attrs attr)
 {
     err_on(attr >= MESH_MAX);
     return mesh->attr[attr].stride;
 }
 
-static inline size_t mesh_sz(struct mesh *mesh, int attr)
+static inline size_t mesh_sz(struct mesh *mesh, enum mesh_attrs attr)
 {
     err_on(attr >= MESH_MAX);
     return mesh->attr[attr].nr * mesh->attr[attr].stride;
@@ -108,9 +108,9 @@ ATTR_ACCESSORS(joints, JOINTS, unsigned char);
 ATTR_ACCESSORS(weights, WEIGHTS, float);
 ATTR_ACCESSORS(idx, IDX, unsigned short);
 
-cerr_check mesh_attr_add(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
-cerr_check mesh_attr_alloc(struct mesh *mesh, unsigned int attr, size_t stride, size_t nr);
-cerr_check mesh_attr_dup(struct mesh *mesh, unsigned int attr, void *data, size_t stride, size_t nr);
+cerr_check mesh_attr_add(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr);
+cerr_check mesh_attr_alloc(struct mesh *mesh, enum mesh_attrs attr, size_t stride, size_t nr);
+cerr_check mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr);
 void mesh_push_mesh(struct mesh *mesh, struct mesh *src,
                     float x, float y, float z, float scale);
 
