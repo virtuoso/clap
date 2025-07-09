@@ -2,12 +2,12 @@
 
 #include "shader_constants.h"
 
-layout (location=0) in vec3 position;
-layout (location=1) in vec2 tex;
-layout (location=2) in vec3 normal;
-layout (location=3) in vec4 tangent;
-layout (location=4) in vec4 joints;
-layout (location=5) in vec4 weights;
+layout (location=ATTR_LOC_POSITION) in vec3 position;
+layout (location=ATTR_LOC_TEX) in vec2 tex;
+layout (location=ATTR_LOC_NORMAL) in vec3 normal;
+layout (location=ATTR_LOC_TANGENT) in vec4 tangent;
+layout (location=ATTR_LOC_JOINTS) in vec4 joints;
+layout (location=ATTR_LOC_WEIGHTS) in vec4 weights;
 
 #include "ubo_lighting.glsl"
 #include "ubo_transform.glsl"

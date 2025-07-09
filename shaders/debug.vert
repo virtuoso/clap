@@ -2,7 +2,7 @@
 
 #include "shader_constants.h"
 
-layout (location=0) in vec3 position;
+layout (location=ATTR_LOC_POSITION) in vec3 position;
 
 #include "ubo_projview.glsl"
 #include "ubo_transform.glsl"

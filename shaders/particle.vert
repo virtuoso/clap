@@ -2,8 +2,8 @@
 
 #include "shader_constants.h"
 
-layout(location = 0) in vec3 position;
-layout(location = 1) in vec2 tex;
+layout(location = ATTR_LOC_POSITION) in vec3 position;
+layout(location = ATTR_LOC_TEX) in vec2 tex;
 
 layout(location = 0) out vec2 pass_tex;
 

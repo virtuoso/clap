@@ -2,16 +2,17 @@
 #ifndef __CLAP_SHADER_H__
 #define __CLAP_SHADER_H__
 
+#include "shader_constants.h"
 #include "object.h"
 #include "render.h"
 
 enum shader_vars {
-    ATTR_POSITION = 0,
-    ATTR_NORMAL,
-    ATTR_TEX,
-    ATTR_TANGENT,
-    ATTR_JOINTS,
-    ATTR_WEIGHTS,
+    ATTR_POSITION   = ATTR_LOC_POSITION,
+    ATTR_TEX        = ATTR_LOC_TEX,
+    ATTR_NORMAL     = ATTR_LOC_NORMAL,
+    ATTR_TANGENT    = ATTR_LOC_TANGENT,
+    ATTR_JOINTS     = ATTR_LOC_JOINTS,
+    ATTR_WEIGHTS    = ATTR_LOC_WEIGHTS,
     ATTR_MAX,
     UNIFORM_MODEL_TEX = ATTR_MAX,
     UNIFORM_NORMAL_MAP,

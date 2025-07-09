@@ -3,10 +3,10 @@
 #include "config.h"
 #include "shader_constants.h"
 
-layout (location=0) in vec3 position;
-layout (location=1) in vec2 tex;
-layout (location=2) in vec4 joints;
-layout (location=3) in vec4 weights;
+layout (location=ATTR_LOC_POSITION) in vec3 position;
+layout (location=ATTR_LOC_TEX) in vec2 tex;
+layout (location=ATTR_LOC_JOINTS) in vec4 joints;
+layout (location=ATTR_LOC_WEIGHTS) in vec4 weights;
 
 #include "ubo_transform.glsl"
 #include "ubo_projview.glsl"

@@ -17,6 +17,14 @@
 #define MAT_METALLIC_ROUGHNESS              1
 #define MAT_METALLIC_ONE_MINUS_ROUGHNESS    2
 
+/* Attribute locations */
+#define ATTR_LOC_POSITION   0
+#define ATTR_LOC_TEX        1
+#define ATTR_LOC_NORMAL     2
+#define ATTR_LOC_TANGENT    3
+#define ATTR_LOC_JOINTS     4
+#define ATTR_LOC_WEIGHTS    5
+
 /* UBO binding locations */
 #define UBO_BINDING_color_pt    0
 #define UBO_BINDING_lighting    1
