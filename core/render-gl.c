@@ -194,7 +194,7 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
 
     if (opts->data && opts->size)
         buffer_load(buf, opts->data, opts->size,
-                    buf->type == GL_ELEMENT_ARRAY_BUFFER ? -1 : 0);
+                    buf->type == GL_ELEMENT_ARRAY_BUFFER ? -1 : opts->loc);
 
 #ifndef CONFIG_FINAL
     memcpy(&buf->opts, opts, sizeof(*opts));
@@ -304,7 +304,6 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
     if (loc < 0)
         return;
 
-    _buffer_bind(buf, loc);
     GL(glEnableVertexAttribArray(loc));
 }
 
