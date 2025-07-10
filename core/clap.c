@@ -7,6 +7,7 @@
 #include <time.h>
 #include "clap.h"
 #include "common.h"
+#include "display.h"
 #include "input.h"
 #include "lut.h"
 #include "font.h"

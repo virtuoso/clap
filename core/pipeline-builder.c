@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "clap.h"
 #include "camera.h"
+#include "display.h"
 #include "light.h"
 #include "lut.h"
 #include "pipeline.h"

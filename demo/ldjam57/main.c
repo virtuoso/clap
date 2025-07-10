@@ -14,6 +14,7 @@
 #include "shader_constants.h"
 #include "object.h"
 #include "common.h"
+#include "display.h"
 #include "input.h"
 #include "font.h"
 #include "messagebus.h"

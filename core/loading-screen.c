@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "clap.h"
+#include "display.h"
 #include "font.h"
 #include "object.h"
 #include "loading-screen.h"

@@ -3,7 +3,6 @@
 #define __CLAP_RENDER_H__
 
 #include <stdlib.h>
-#include "display.h"
 #include "error.h"
 #include "linmath.h"
 #include "logger.h"

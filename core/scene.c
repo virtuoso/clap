@@ -4,6 +4,7 @@
 #include "character.h"
 #include "clap.h"
 #include "debug_draw.h"
+#include "display.h"
 #include "gltf.h"
 #include "interp.h"
 #include "physics.h"
