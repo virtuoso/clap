@@ -289,4 +289,10 @@ static inline void _ref_put(struct ref *ref)
     __obj; \
 })
 
+#if !defined(CONFIG_FINAL) && !defined(CLAP_TESTS)
+void memory_debug(void);
+#else
+static inline void memory_debug(void) {}
+#endif /* CONFIG_FINAL || CLAP_TESTS */
+
 #endif /* __CLAP_OBJECT_H__ */

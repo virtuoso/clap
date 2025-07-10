@@ -2,39 +2,38 @@
 #include <stdarg.h>
 #include "common.h"
 #include "object.h"
-#include "json.h"
 
 static DECLARE_LIST(ref_classes);
-static char ref_classes_string[4096];
-static bool ref_classes_updated;
 
-static void ref_classes_update(void)
+#if !defined(CONFIG_FINAL) && !defined(CLAP_TESTS)
+#include "ui-debug.h"
+
+void memory_debug(void)
 {
-    size_t size, total = 0;
-    struct ref_class *rc;
-    unsigned long counter = 0;
+    debug_module *dbgm = ui_igBegin_name(DEBUG_MEMORY, ImGuiWindowFlags_AlwaysAutoResize, "memory");
 
-    list_for_each_entry(rc, &ref_classes, entry) {
-        size = snprintf(&ref_classes_string[total], sizeof(ref_classes_string) - total,
-                        " -> '%s': %lu\n", rc->name, rc->nr_active);
-        if (total + size >= sizeof(ref_classes_string))
-            break;
-        total += size;
-        counter++;
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        ui_igTableHeader("refclasses", (const char *[]) { "refclass", "objects"}, 2);
+
+        unsigned int total = 0;
+        struct ref_class *rc;
+        list_for_each_entry(rc, &ref_classes, entry) {
+            ui_igTableCell(true, "%s", rc->name);
+            ui_igTableCell(false, "%lu", rc->nr_active);
+            total++;
+        }
+
+        igEndTable();
+
+        igText("total: %u", total);
     }
 
-    size = snprintf(&ref_classes_string[total], sizeof(ref_classes_string) - total,
-                    " total: %lu", counter);
-    ref_classes_string[total+size] = 0;
-    ref_classes_updated = false;
+    ui_igEnd(DEBUG_MEMORY);
 }
-
-const char *ref_classes_get_string(void)
-{
-    if (ref_classes_updated)
-        ref_classes_update();
-    return ref_classes_string;
-}
+#endif /* CONFIG_FINAL && CLAP_TESTS */
 
 static bool ref_class_needs_init(struct ref_class *rc)
 {
@@ -57,14 +56,12 @@ void ref_class_add(struct ref *ref)
 
     if (!ref_is_static(ref))
         rc->nr_active++;
-    ref_classes_updated = true;
 }
 
 void ref_class_unuse(struct ref *ref)
 {
     /* not deleting the class itself */
     ref->refclass->nr_active--;
-    ref_classes_updated = true;
 }
 
 void _ref_drop(struct ref *ref)

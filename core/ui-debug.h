@@ -54,6 +54,7 @@ enum debug_modules {
     DEBUG_FRAME_PROFILER,
     DEBUG_RENDERER,
     DEBUG_DEBUGGER,
+    DEBUG_MEMORY,
     DEBUG_MODULES_MAX,
 };
 

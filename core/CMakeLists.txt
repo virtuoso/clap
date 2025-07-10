@@ -81,6 +81,7 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
 
     add_executable(${TEST_BIN} ${TEST_SRC})
     add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate)
+    target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
     win32_executable(${TEST_BIN})
 
     add_test(${TEST_BIN} ${TEST_BIN})
