@@ -7,6 +7,7 @@
 #include "linmath.h"
 #include "logger.h"
 #include "object.h"
+#include "datatypes.h"
 #include "typedef.h"
 #include "config.h"
 
@@ -66,26 +67,6 @@ typedef void *ns_autorelease_pool_t;
 #ifdef CONFIG_BROWSER
 #define GL_CLAMP_TO_BORDER GL_CLAMP_TO_EDGE
 #endif /* CONFIG_BROWSER */
-
-typedef enum data_type {
-    DT_NONE = 0,
-    DT_BYTE,
-    DT_SHORT,
-    DT_USHORT,
-    DT_INT,
-    DT_FLOAT,
-    DT_IVEC2,
-    DT_IVEC3,
-    DT_IVEC4,
-    DT_VEC2,
-    DT_VEC3,
-    DT_VEC4,
-    DT_MAT2,
-    DT_MAT3,
-    DT_MAT4,
-} data_type;
-
-size_t data_type_size(data_type type);
 
 typedef enum buffer_type {
     BUF_ARRAY,

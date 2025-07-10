@@ -4,50 +4,6 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
-/* These 2 arrays should be common */
-static const unsigned int comp_count[] = {
-    [DT_BYTE]   = 1,
-    [DT_SHORT]  = 1,
-    [DT_USHORT] = 1,
-    [DT_INT]    = 1,
-    [DT_FLOAT]  = 1,
-    [DT_IVEC2]  = 2,
-    [DT_IVEC3]  = 3,
-    [DT_IVEC4]  = 4,
-    [DT_VEC2]   = 2,
-    [DT_VEC3]   = 3,
-    [DT_VEC4]   = 4,
-    [DT_MAT2]   = 4,
-    [DT_MAT3]   = 9,
-    [DT_MAT4]   = 16,
-};
-
-static const size_t comp_size[] = {
-    [DT_BYTE]   = sizeof(uchar),
-    [DT_SHORT]  = sizeof(short),
-    [DT_USHORT] = sizeof(ushort),
-    [DT_INT]    = sizeof(int),
-    [DT_FLOAT]  = sizeof(float),
-    [DT_IVEC2]  = sizeof(int),
-    [DT_IVEC3]  = sizeof(int),
-    [DT_IVEC4]  = sizeof(int),
-    [DT_VEC2]   = sizeof(float),
-    [DT_VEC3]   = sizeof(float),
-    [DT_VEC4]   = sizeof(float),
-    [DT_MAT2]   = sizeof(float),
-    [DT_MAT3]   = sizeof(float),
-    [DT_MAT4]   = sizeof(float),
-};
-
-/* This is also a common function */
-size_t data_type_size(data_type type)
-{
-    if (unlikely(type >= array_size(comp_size)))
-        return 0;
-
-    return comp_size[type] * comp_count[type];
-}
-
 /****************************************************************************
  * Buffer
  ****************************************************************************/

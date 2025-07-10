@@ -54,48 +54,6 @@ static const GLuint gl_comp_type[] = {
     [DT_MAT4]   = GL_FLOAT,
 };
 
-static const unsigned int gl_comp_count[] = {
-    [DT_BYTE]   = 1,
-    [DT_SHORT]  = 1,
-    [DT_USHORT] = 1,
-    [DT_INT]    = 1,
-    [DT_FLOAT]  = 1,
-    [DT_IVEC2]  = 2,
-    [DT_IVEC3]  = 3,
-    [DT_IVEC4]  = 4,
-    [DT_VEC2]   = 2,
-    [DT_VEC3]   = 3,
-    [DT_VEC4]   = 4,
-    [DT_MAT2]   = 4,
-    [DT_MAT3]   = 9,
-    [DT_MAT4]   = 16,
-};
-
-static const size_t gl_comp_size[] = {
-    [DT_BYTE]   = sizeof(GLbyte),
-    [DT_SHORT]  = sizeof(GLshort),
-    [DT_USHORT] = sizeof(GLushort),
-    [DT_INT]    = sizeof(GLint),
-    [DT_FLOAT]  = sizeof(GLfloat),
-    [DT_IVEC2]  = sizeof(GLint),
-    [DT_IVEC3]  = sizeof(GLint),
-    [DT_IVEC4]  = sizeof(GLint),
-    [DT_VEC2]   = sizeof(GLfloat),
-    [DT_VEC3]   = sizeof(GLfloat),
-    [DT_VEC4]   = sizeof(GLfloat),
-    [DT_MAT2]   = sizeof(GLfloat),
-    [DT_MAT3]   = sizeof(GLfloat),
-    [DT_MAT4]   = sizeof(GLfloat),
-};
-
-size_t data_type_size(data_type type)
-{
-    if (unlikely(type >= array_size(gl_comp_size)))
-        return 0;
-
-    return gl_comp_size[type] * gl_comp_count[type];
-}
-
 /* Get std140 storage size for a given type */
 static inline size_t gl_type_storage_size(data_type type)
 {
@@ -185,7 +143,7 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
 
     unsigned int comp_count = opts->comp_count;
     if (!comp_count)
-        comp_count = gl_comp_count[comp_type];
+        comp_count = data_comp_count(comp_type);
 
     buf->type = gl_buffer_type(opts->type);
     buf->usage = gl_buffer_usage(opts->usage);
@@ -228,23 +186,6 @@ static const char *buffer_usage_str(buffer_usage usage)
     return "<invalid usage>";
 };
 
-static const char *data_type_str[] = {
-    [DT_BYTE]   = "byte",
-    [DT_SHORT]  = "short",
-    [DT_USHORT] = "ushort",
-    [DT_INT]    = "int",
-    [DT_FLOAT]  = "float",
-    [DT_IVEC2]  = "ivec2",
-    [DT_IVEC3]  = "ivec3",
-    [DT_IVEC4]  = "ivec4",
-    [DT_VEC2]   = "vec2",
-    [DT_VEC3]   = "vec3",
-    [DT_VEC4]   = "vec4",
-    [DT_MAT2]   = "mat2",
-    [DT_MAT3]   = "mat3",
-    [DT_MAT4]   = "mat4",
-};
-
 void buffer_debug_header(void)
 {
     ui_igTableHeader(
@@ -257,7 +198,7 @@ void buffer_debug_header(void)
 void buffer_debug(buffer_t *buf, const char *name)
 {
     buffer_init_options *opts = &buf->opts;
-    size_t comp_size = gl_comp_size[opts->comp_type];
+    size_t comp_size = data_comp_size(opts->comp_type);
     int comp_count = opts->comp_count ? : 1;
 
     ui_igTableCell(true, "%s", name);
@@ -271,8 +212,8 @@ void buffer_debug(buffer_t *buf, const char *name)
     ui_igTableCell(false, "%s", buffer_type_str(opts->type));
     ui_igTableCell(false, "%s", buffer_usage_str(opts->usage));
     ui_igTableCell(false, "%s (%d) x %d",
-                   data_type_str[opts->comp_type],
-                   gl_comp_size[opts->comp_type],
+                   data_type_name(opts->comp_type),
+                   data_comp_size(opts->comp_type),
                    opts->comp_count);
 }
 #endif /* CONFIG_FINAL */
