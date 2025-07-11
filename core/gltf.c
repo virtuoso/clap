@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include "base64.h"
 #include "common.h"
+#include "datatypes.h"
 #include "json.h"
 #include "librarian.h"
 #include "model.h"
@@ -20,65 +21,42 @@ struct gltf_bufview {
     size_t       length;
 };
 
-enum {
-    T_VEC2 = 0,
-    T_VEC3,
-    T_VEC4,
-    T_MAT4,
-    T_SCALAR,
-};
+static size_t gltf_type_size(unsigned int gltf_type)
+{
+    /* these correspond to GL_* macros */
+    switch (gltf_type) {
+        case 0x1400: /* byte */
+        case 0x1401: /* unsigned byte */
+            return 1;
+        case 0x1402: /* short */
+        case 0x1403: /* unsigned short */
+            return 2;
+        case 0x1404: /* int */
+        case 0x1405: /* unsigned int */
+        case 0x1406: /* float */
+            return 4;
+        case 0x1407: /* 2 bytes */
+            return 2;
+        case 0x1408: /* 3 bytes */
+            return 3;
+        case 0x1409: /* 4 bytes */
+            return 4;
+        case 0x140a: /* double */
+            return 8;
+        default:
+            break;
+    }
 
-static const char *types[] = {
-    [T_VEC2]   = "VEC2",
-    [T_VEC3]   = "VEC3",
-    [T_VEC4]   = "VEC4",
-    [T_MAT4]   = "MAT4",
-    [T_SCALAR] = "SCALAR"
-};
+    clap_unreachable();
 
-static const size_t typesz[] = {
-    [T_VEC2]   = 2,
-    [T_VEC3]   = 3,
-    [T_VEC4]   = 4,
-    [T_MAT4]   = 16,
-    [T_SCALAR] = 1,
-};
-
-/* these correspond to GL_* macros */
-enum {
-    COMP_BYTE           = 0x1400,
-    COMP_UNSIGNED_BYTE  = 0x1401,
-    COMP_SHORT          = 0x1402,
-    COMP_UNSIGNED_SHORT = 0x1403,
-    COMP_INT            = 0x1404,
-    COMP_UNSIGNED_INT   = 0x1405,
-    COMP_FLOAT          = 0x1406,
-    COMP_2_BYTES        = 0x1407,
-    COMP_3_BYTES        = 0x1408,
-    COMP_4_BYTES        = 0x1409,
-    COMP_DOUBLE         = 0x140A,
-};
-
-/* XXX: this is wasteful for a lookup table, use a switch instead */
-static const size_t comp_sizes[] = {
-    [COMP_BYTE]           = 1,
-    [COMP_UNSIGNED_BYTE]  = 1,
-    [COMP_SHORT]          = 2,
-    [COMP_UNSIGNED_SHORT] = 2,
-    [COMP_INT]            = 4,
-    [COMP_UNSIGNED_INT]   = 4,
-    [COMP_FLOAT]          = 4,
-    [COMP_2_BYTES]        = 2,
-    [COMP_3_BYTES]        = 3,
-    [COMP_4_BYTES]        = 4,
-    [COMP_DOUBLE]         = 8,
-};
+    return 0;
+}
 
 struct gltf_accessor {
     unsigned int bufview;
     unsigned int comptype;
     unsigned int count;
-    unsigned int type;
+    data_type    type;
     size_t       offset;
 };
 
@@ -288,7 +266,7 @@ size_t gltf_accessor_stride(struct gltf_data *gd, int accr)
 {
     struct gltf_accessor *ga = gltf_accessor(gd, accr);
 
-    return typesz[ga->type] * comp_sizes[ga->comptype];
+    return data_comp_count(ga->type) * gltf_type_size(ga->comptype);
 }
 
 size_t gltf_accessor_nr(struct gltf_data *gd, int accr)
@@ -348,7 +326,7 @@ void *gltf_accessor_element(struct gltf_data *gd, int accr, size_t el)
         return NULL;
 
     buf = *DA(gd->buffers, bv->buffer) + ga->offset + bv->offset;
-    elsz = comp_sizes[ga->comptype];
+    elsz = gltf_type_size(ga->comptype);
 
     return buf + elsz * el;
 }
@@ -844,7 +822,6 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     for (n = accrs->children.head; n; n = n->next) {
         JsonNode *jbufvw, *jcount, *jtype, *jcomptype, *joffset;
         struct gltf_accessor *ga;
-        int i;
         
         jbufvw = json_find_member(n, "bufferView");
         joffset = json_find_member(n, "byteOffset");
@@ -857,18 +834,15 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (jbufvw->number_ >= gd->bufvws.da.nr_el)
             continue;
         
-        for (i = 0; i < array_size(types); i++)
-            if (!strcmp(types[i], jtype->string_))
-                break;
-        
-        if (i == array_size(types))
+        data_type type = data_type_by_name(jtype->string_);
+        if (type == DT_NONE)
             continue;
 
         CHECK(ga = darray_add(gd->accrs));
         ga->bufview = jbufvw->number_;
         ga->comptype = jcomptype->number_;
         ga->count = jcount->number_;
-        ga->type = i;
+        ga->type = type;
         if (joffset && joffset->tag == JSON_NUMBER)
             ga->offset = joffset->number_;
 
