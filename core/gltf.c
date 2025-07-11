@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <errno.h>
 #include <inttypes.h>
 #include "base64.h"
-#include "common.h"
 #include "datatypes.h"
 #include "json.h"
 #include "librarian.h"
 #include "model.h"
 #include "object.h"
-#include "pngloader.h"
 #include "scene.h"
 #include "shader.h"
 #include "gltf.h"
