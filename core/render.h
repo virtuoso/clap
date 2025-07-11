@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include "error.h"
 #include "linmath.h"
-#include "logger.h"
 #include "object.h"
 #include "datatypes.h"
 #include "typedef.h"
