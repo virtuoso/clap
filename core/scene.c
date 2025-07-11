@@ -8,7 +8,6 @@
 #include "gltf.h"
 #include "interp.h"
 #include "physics.h"
-#include "primitives.h"
 #include "shader.h"
 #include "loading-screen.h"
 #include "lut.h"
