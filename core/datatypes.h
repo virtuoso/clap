@@ -21,6 +21,7 @@ typedef enum data_type {
 } data_type;
 
 const char *data_type_name(data_type type);
+data_type data_type_by_name(const char *name);
 unsigned int data_comp_count(data_type type);
 size_t data_comp_size(data_type type);
 size_t data_type_size(data_type type);

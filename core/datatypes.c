@@ -29,6 +29,18 @@ const char *data_type_name(data_type type)
     return type_name[type];
 }
 
+data_type data_type_by_name(const char *name)
+{
+    for (data_type t = DT_BYTE; t < array_size(type_name); t++)
+        if (!strcasecmp(type_name[t], name))
+            return t;
+
+    if (!strcasecmp(name, "scalar"))
+        return DT_FLOAT;
+
+    return DT_NONE;
+}
+
 static const unsigned int comp_count[] = {
     [DT_BYTE]   = 1,
     [DT_SHORT]  = 1,
