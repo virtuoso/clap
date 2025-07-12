@@ -3,7 +3,6 @@
 
 #include <sys/types.h>
 #include "error.h"
-#include "logger.h"
 #include "object.h"
 
 enum mesh_attrs {

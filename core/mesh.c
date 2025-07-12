@@ -1,7 +1,6 @@
 #include <meshoptimizer.h>
 #include <stdlib.h>
 #include <limits.h>
-#include "common.h"
 #include "mesh.h"
 
 static cerr mesh_make(struct ref *ref, void *_opts)
