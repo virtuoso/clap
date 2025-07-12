@@ -80,12 +80,20 @@ typedef enum buffer_usage {
 typedef int uniform_t;
 typedef int attr_t;
 
+TYPE_FORWARD(buffer);
+
 typedef struct buffer_init_options {
     buffer_type         type;
     buffer_usage        usage;
     data_type           comp_type;
     unsigned int        comp_count;
     uniform_t           loc;
+    /* offset of the attribute in an interleaved buffer */
+    unsigned int        off;
+    /* bytes until the next element of the attribute */
+    unsigned int        stride;
+    /* the buffer that contains all interleaved attributes */
+    buffer_t            *main;
     void                *data;
     size_t              size;
 } buffer_init_options;
@@ -93,11 +101,15 @@ typedef struct buffer_init_options {
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(buffer,
     struct ref  ref;
+    buffer_t    *main;
     GLenum      type;
     GLenum      usage;
     GLuint      id;
     GLuint      comp_type;
     GLuint      comp_count;
+    GLuint      off;
+    GLsizei     stride;
+    int         use_count;
     bool        loaded;
 #ifndef CONFIG_FINAL
     buffer_init_options opts;

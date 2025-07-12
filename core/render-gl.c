@@ -141,14 +141,29 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
     if (comp_type == DT_NONE)
         comp_type = DT_FLOAT;
 
+    /*
+     * If comp_count is not specified, it's derived from the component type;
+     * if component type is non-scalar, the comp_count should be the number
+     * of scalars in that type, because GL only understands scalars. IOW, for
+     * DT_VEC3, comp_count should be 3, even though the caller implies "one
+     * vec3". It would become slightly more interesting if we ever need to
+     * specify multiples of compound elements, but that's for later.
+     */
     unsigned int comp_count = opts->comp_count;
-    if (!comp_count)
+    if (comp_count < data_comp_count(comp_type))
         comp_count = data_comp_count(comp_type);
 
     buf->type = gl_buffer_type(opts->type);
     buf->usage = gl_buffer_usage(opts->usage);
     buf->comp_type = gl_comp_type[comp_type];
     buf->comp_count = comp_count;
+    buf->off = opts->off;
+    buf->stride = opts->stride;
+    buf->use_count = 1;
+    /* Not doing a ref_get(opts->main) here, see the comment in buffer_deinit() */
+    buf->main = opts->main;
+    if (buf->main)
+        buf->main->use_count++;
 
     if (opts->data && opts->size)
         buffer_load(buf, opts->data, opts->size,
@@ -222,13 +237,24 @@ void buffer_deinit(buffer_t *buf)
 {
     if (!buf->loaded)
         return;
-    GL(glDeleteBuffers(1, &buf->id));
+
+    /*
+     * This is safe, because at the moment all buffer_t objects are static;
+     * normally one would do a ref_get(main)/ref_put(main) to make sure that
+     * main is still around, but with static objects it doesn't work before
+     * https://github.com/virtuoso/clap/issues/94 is properly addressed.
+     */
+    buffer_t *main = buf->main ? : buf;
+    if (!--main->use_count)
+        GL(glDeleteBuffers(1, &buf->id));
+
     buf->loaded = false;
 }
 
 static inline void _buffer_bind(buffer_t *buf, uniform_t loc)
 {
-    GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE, 0, (void *)0));
+    GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE,
+                             buf->stride, (void *)0 + buf->off));
 }
 
 void buffer_bind(buffer_t *buf, uniform_t loc)
@@ -236,14 +262,21 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
     if (!buf->loaded)
         return;
 
-    GL(glBindBuffer(buf->type, buf->id));
-
 #ifndef CONFIG_FINAL
     buf->loc = loc;
 #endif /* CONFIG_FINAL */
 
-    if (loc < 0)
+    /*
+     * glEnableVertexAttribArray() only needs a vertex array object to be
+     * bound, which the caller should have done. Binding VBO for this is
+     * redundant.
+     * This may or may not implode on real GLES (e.g., RPi) where VAOs are
+     * not supported at all, leave this for the future.
+     */
+    if (buf->type == GL_ELEMENT_ARRAY_BUFFER) {
+        GL(glBindBuffer(buf->type, buf->id));
         return;
+    }
 
     GL(glEnableVertexAttribArray(loc));
 }
@@ -253,18 +286,25 @@ void buffer_unbind(buffer_t *buf, uniform_t loc)
     if (!buf->loaded)
         return;
 
-    GL(glBindBuffer(buf->type, 0));
-    if (loc < 0)
+    if (buf->type == GL_ELEMENT_ARRAY_BUFFER) {
+        GL(glBindBuffer(buf->type, 0));
         return;
+    }
 
     GL(glDisableVertexAttribArray(loc));
 }
 
 void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
 {
-    GL(glGenBuffers(1, &buf->id));
+    if (buf->main)
+        buf->id = buf->main->id;
+    else
+        GL(glGenBuffers(1, &buf->id));
+
     GL(glBindBuffer(buf->type, buf->id));
-    GL(glBufferData(buf->type, sz, data, buf->usage));
+
+    if (!buf->main)
+        GL(glBufferData(buf->type, sz, data, buf->usage));
 #ifndef CONFIG_FINAL
     buf->opts.size = sz;
     buf->loc = loc;
