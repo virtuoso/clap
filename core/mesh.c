@@ -1,6 +1,7 @@
 #include <meshoptimizer.h>
 #include <stdlib.h>
 #include <limits.h>
+#include "datatypes.h"
 #include "mesh.h"
 
 static cerr mesh_make(struct ref *ref, void *_opts)
@@ -42,6 +43,34 @@ static inline bool attr_is_valid(struct mesh *mesh, enum mesh_attrs attr, size_t
         return false;
 
     return true;
+}
+
+static const data_type attr_comp_type[MESH_MAX] = {
+    [MESH_VX]       = DT_VEC3,
+    [MESH_TX]       = DT_VEC2,
+    [MESH_NORM]     = DT_VEC3,
+    [MESH_TANGENTS] = DT_VEC4,
+    [MESH_WEIGHTS]  = DT_VEC4,
+    [MESH_JOINTS]   = DT_BYTE,
+};
+
+static const unsigned int attr_comp_count[MESH_MAX] = {
+    [MESH_VX]       = 1,
+    [MESH_TX]       = 1,
+    [MESH_NORM]     = 1,
+    [MESH_TANGENTS] = 1,
+    [MESH_WEIGHTS]  = 1,
+    [MESH_JOINTS]   = 4,
+};
+
+data_type mesh_attr_type(enum mesh_attrs a)
+{
+    return attr_comp_type[a];
+}
+
+unsigned int mesh_attr_comp_count(enum mesh_attrs a)
+{
+    return attr_comp_count[a];
 }
 
 cerr mesh_attr_add(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr)

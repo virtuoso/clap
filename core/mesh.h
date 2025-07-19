@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include "error.h"
 #include "object.h"
+#include "datatypes.h"
 
 enum mesh_attrs {
     MESH_VX = 0,
@@ -32,6 +33,28 @@ enum mesh_attrs {
     MESH_WEIGHTS_BIT |\
     MESH_JOINTS_BIT \
 )
+
+/**
+ * mesh_attr_type() - get the data type of a mesh attribute
+ * @a:  mesh (vertex) attribute
+ *
+ * Get a data type of a mesh attribute element for a given vertex attribute.
+ * Return: data type
+ */
+data_type mesh_attr_type(enum mesh_attrs a);
+
+/**
+ * mesh_attr_comp_count() - get the number of components of a vertex attribute
+ * @a:  mesh (vertex) attribute
+ *
+ * Get the number of components in a mesh attribute element, corresponding to
+ * the data_type returned by mesh_attr_type(). For vectors it would be 1. For
+ * joints it would be 4. A vector can be represented by either multiple scalar
+ * of a certain type (DT_FLOAT) or a single vector (DT_VEC*). Joints is an
+ * exception, because it's a 4-component vector of DT_BYTEs.
+ * Return: the number of components
+ */
+unsigned int mesh_attr_comp_count(enum mesh_attrs a);
 
 struct mesh_attr {
     void            *data;
