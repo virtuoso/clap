@@ -309,6 +309,42 @@ void mesh_optimize(struct mesh *mesh)
     mesh_idx_from_idx32(mesh, idx32);
 }
 
+static inline void *mesh_attr_element(struct mesh *mesh, enum mesh_attrs attr, size_t el)
+{
+    struct mesh_attr *ma = mesh_attr(mesh, attr);
+
+    if (!ma || ma->nr <= el)
+        return NULL;
+
+    return ma->data + ma->stride * el;
+}
+
+cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs, size_t *sizes,
+                         size_t *offs, unsigned int nr_attrs, unsigned int stride)
+{
+    size_t total_size = stride * mesh_nr_vx(mesh);
+
+    LOCAL_SET(void, flat) = mem_alloc(total_size, .zero = 1);
+    if (!flat)
+        return cresp_error(void, CERR_NOMEM);
+
+    for (size_t el = 0; el < mesh_nr(mesh, MESH_VX); el++) {
+        for (int i = 0; i < nr_attrs; i++) {
+            enum mesh_attrs attr = attrs[i];
+            void *dest = flat + stride * el + offs[i];
+
+            struct mesh_attr *ma = mesh_attr(mesh, attr);
+            if (ma && ma->data) {
+                void *src = mesh_attr_element(mesh, attr, el);
+                err_on(!src, "mesh[%s] attr[%d] el[%zu]\n", mesh->name, attr, el);
+                memcpy(dest, src, ma->stride);
+            }
+        }
+    }
+
+    return cresp_val(void, NOCU(flat));
+}
+
 size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *error)
 {
     struct mesh_attr *vxa = mesh_attr(mesh, MESH_VX);

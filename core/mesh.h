@@ -138,6 +138,24 @@ void mesh_push_mesh(struct mesh *mesh, struct mesh *src,
 
 void mesh_aabb_calc(struct mesh *mesh);
 void mesh_optimize(struct mesh *mesh);
+
+/**
+ * mesh_flatten() - produce a contiguous buffer with multiple mesh attributes interleaved
+ * @mesh:       source of the attributes
+ * @attrs:      array of attributes as enum mesh_attrs
+ * @sizes:      element size per attribute
+ * @offs:       element offset from the beginning of a stride per attribute
+ * @nr_attrs:   number of attributes
+ * @stride:     total length of a vertex stride
+ *
+ * Most of the above, except for @attrs itself, can be calculated here, but
+ * these are shader properties, calculated once at shader load time, and this
+ * function runs for every model3d creation.
+ *
+ * Return: void * of the interleaved buffer on success, CERR on failure
+ */
+cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs, size_t *sizes,
+                         size_t *offs, unsigned int nr_attrs, unsigned int stride);
 size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *error);
 void mesh_init(void);
 
