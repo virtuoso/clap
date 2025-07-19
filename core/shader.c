@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include "error.h"
+#include "mesh.h"
 #include "render.h"
 #include "util.h"
 #include "object.h"
@@ -328,6 +329,20 @@ struct shader_prog {
     const char              *name;
     uniform_t               vars[SHADER_VAR_MAX];
     shader_t                shader;
+
+    /*
+     * mesh attributes (enum mesh_attrs) and their corresponding offsets within
+     * a combined vertex element of a flat buffer with all attributes interleaved
+     *
+     * mesh_attrs[] needs one extra slot for terminator
+     * stride is the total size of all attributes of one vertex
+     */
+    enum mesh_attrs         mesh_attrs[ATTR_MAX + 1];
+    size_t                  attr_sizes[ATTR_MAX];
+    size_t                  attr_offs[ATTR_MAX];
+    unsigned int            stride;
+    unsigned int            nr_attrs;
+
     struct ref              ref;
     struct list             entry;
 };
@@ -456,6 +471,104 @@ cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer
     return _buffer_init(buf, &_opts);
 }
 
+static enum mesh_attrs attr_to_mesh_map[ATTR_MAX] = {
+    [ATTR_POSITION] = MESH_VX,
+    [ATTR_TEX]      = MESH_TX,
+    [ATTR_NORMAL]   = MESH_NORM,
+    [ATTR_TANGENT]  = MESH_TANGENTS,
+    [ATTR_JOINTS]   = MESH_JOINTS,
+    [ATTR_WEIGHTS]  = MESH_WEIGHTS,
+};
+
+static enum shader_vars mesh_to_attr_map[MESH_MAX] = {
+    [MESH_VX]       = ATTR_POSITION,
+    [MESH_TX]       = ATTR_TEX,
+    [MESH_NORM]     = ATTR_NORMAL,
+    [MESH_TANGENTS] = ATTR_TANGENT,
+    [MESH_JOINTS]   = ATTR_JOINTS,
+    [MESH_WEIGHTS]  = ATTR_WEIGHTS,
+};
+
+static void shader_setup_mesh_attrs(struct shader_prog *p)
+{
+    p->attr_offs[0] = 0;
+
+    size_t prev_type_size = 0;
+    enum shader_vars v;
+    int i;
+    for (i = 0, v = 0; v < ATTR_MAX; v++) {
+        if (!shader_has_var(p, v))
+            continue;
+
+        enum mesh_attrs ma = attr_to_mesh_map[v];
+        p->mesh_attrs[i] = ma;
+
+        /*
+         * calculate the total stride for all attributes of one vertex; there's no
+         * mesh at this point, so we have to rely on static type information
+         * relating mesh attributes
+         */
+        p->attr_sizes[i] = data_type_size(mesh_attr_type(ma)) * mesh_attr_comp_count(ma);
+        p->stride += p->attr_sizes[i];
+
+        if (i)
+            p->attr_offs[i] = p->attr_offs[i - 1] + prev_type_size;
+
+        prev_type_size = p->attr_sizes[i];
+        i++;
+    }
+    p->mesh_attrs[i] = MESH_MAX;
+    p->nr_attrs = i;
+}
+
+cerr shader_setup_attributes(struct shader_prog *p, buffer_t *buf, struct mesh *mesh)
+{
+    size_t total_size = p->stride * mesh_nr_vx(mesh);
+
+    void *flat = CRES_RET(
+        mesh_flatten(mesh, p->mesh_attrs, p->attr_sizes, p->attr_offs, p->nr_attrs, p->stride),
+        return CERR_NOMEM
+    );
+
+    cerr err = CERR_OK;
+    buffer_t *main = NULL;
+    int i;
+    for (i = 0; p->mesh_attrs[i] < MESH_MAX; i++) {
+        enum mesh_attrs ma = p->mesh_attrs[i];
+
+        CERR_RET(
+            buffer_init(&buf[mesh_to_attr_map[ma]],
+                .loc            = mesh_to_attr_map[ma],
+                .type           = BUF_ARRAY,
+                .usage          = BUF_STATIC,
+                .comp_type      = mesh_attr_type(ma),
+                .comp_count     = mesh_attr_comp_count(ma),
+                .off            = p->attr_offs[i],
+                .stride         = p->stride,
+                .data           = flat,
+                .size           = total_size,
+                .main           = main,
+            ),
+            { err = __cerr; goto attr_error; }
+        );
+
+        if (p->mesh_attrs[i] == MESH_VX)
+            main = &buf[mesh_to_attr_map[ma]];
+    }
+
+    mem_free(flat);
+
+    return CERR_OK;
+
+attr_error:
+    for (int u = i; u >= 0; u--)
+        buffer_deinit(&buf[u]);
+
+    mem_free(flat);
+
+    return err;
+}
+
 void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
     if (!__shader_has_var(p, var) || !buf)
@@ -466,10 +579,22 @@ void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t
 
 void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
-    if (!__shader_has_var(p, var))
+    if (!__shader_has_var(p, var) || !buf)
         return;
 
     buffer_unbind(buf, p->vars[var]);
+}
+
+void shader_plug_attributes(struct shader_prog *p, buffer_t *buf)
+{
+    for (enum shader_vars v = 0; v < ATTR_MAX; v++)
+        shader_plug_attribute(p, v, &buf[v]);
+}
+
+void shader_unplug_attributes(struct shader_prog *p, buffer_t *buf)
+{
+    for (enum shader_vars v = 0; v < ATTR_MAX; v++)
+        shader_unplug_attribute(p, v, &buf[v]);
 }
 
 int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)
@@ -588,6 +713,8 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         }
     }
 #endif /* CONFIG_FINAL */
+
+    shader_setup_mesh_attrs(p);
 
     return CERR_OK;
 }

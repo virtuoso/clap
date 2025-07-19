@@ -2,6 +2,7 @@
 #ifndef __CLAP_SHADER_H__
 #define __CLAP_SHADER_H__
 
+#include "mesh.h"
 #include "shader_constants.h"
 #include "object.h"
 #include "render.h"
@@ -118,6 +119,38 @@ cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer
                              const buffer_init_options *opts);
 void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf);
 void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf);
+
+/**
+ * shader_setup_attributes() - set up multiple attribute buffers for a mesh
+ * @p:      shader program
+ * @buf:    array of ATTR_MAX butter_t buffers to be configured and loaded
+ * @mesh:   mesh with vertex attributes from which to load the buffers
+ *
+ * Load multiple vertex attributes from a mesh into a contiguous buffer (main)
+ * and set up the rest of the buffers with offsets and sizes and a link to the
+ * main buffer, so they can be bound all at once to a single binding point.
+ *
+ * Return: CERR_OK on success or a error code otherwise.
+ */
+cerr shader_setup_attributes(struct shader_prog *p, buffer_t *buf, struct mesh *mesh);
+
+/**
+ * shader_plug_attributes() - plug vertex attributes from a buffer array
+ * @p:      shader program
+ * @buf:    array of ATTR_MAX buffer_t buffers to be bound
+ *
+ * Bind vertex attribute buffers to a shader program before drawing.
+ */
+void shader_plug_attributes(struct shader_prog *p, buffer_t *buf);
+
+/**
+ * shader_unplug_attributes() - unplug vertex attributes from a buffer array
+ * @p:      shader program
+ * @buf:    array of ATTR_MAX buffer_t buffers to be bound
+ *
+ * Unbind vertex attribute buffers after drawing.
+ */
+void shader_unplug_attributes(struct shader_prog *p, buffer_t *buf);
 int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var);
 void shader_set_texture(struct shader_prog *p, enum shader_vars var);
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex);
