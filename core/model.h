@@ -39,13 +39,8 @@ typedef struct model3d {
     darray(struct animation, anis);
     mat4x4              root_pose;
     vertex_array_t      vao;
-    buffer_t            vertex;
+    buffer_t            attr[ATTR_MAX];
     buffer_t            index[LOD_MAX];
-    buffer_t            tex;
-    buffer_t            norm;
-    buffer_t            tangent;
-    buffer_t            vjoints;
-    buffer_t            weights;
     sfx_container       sfxc;
     unsigned int        nr_vertices;
     unsigned int        nr_faces[LOD_MAX];

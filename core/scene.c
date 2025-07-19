@@ -369,6 +369,15 @@ static void model_picker(struct scene *scene)
     igEndTable();
 }
 
+static const char *attr_names[ATTR_MAX] = {
+    [ATTR_POSITION] = "vertex",
+    [ATTR_TEX]      = "UV",
+    [ATTR_NORMAL]   = "normals",
+    [ATTR_TANGENT]  = "tangents",
+    [ATTR_JOINTS]   = "joints",
+    [ATTR_WEIGHTS]  = "joint weights",
+};
+
 static void model_tabs(model3dtx *txm)
 {
     if (!igBeginTabBar("model properties", 0))
@@ -382,18 +391,10 @@ static void model_tabs(model3dtx *txm)
         for (int i = 0; i < m->nr_lods; i++)
             if (buffer_loaded(&m->index[i]))
                 buffer_debug(&m->index[i], "index");
-        if (buffer_loaded(&m->vertex))
-            buffer_debug(&m->vertex, "vertex");
-        if (buffer_loaded(&m->tex))
-            buffer_debug(&m->tex, "UV");
-        if (buffer_loaded(&m->norm))
-            buffer_debug(&m->norm, "normals");
-        if (buffer_loaded(&m->tangent))
-            buffer_debug(&m->tangent, "tangents");
-        if (buffer_loaded(&m->vjoints))
-            buffer_debug(&m->vjoints, "joints");
-        if (buffer_loaded(&m->weights))
-            buffer_debug(&m->weights, "joint weights");
+        for (enum shader_vars v = 0; v < ATTR_MAX; v++) {
+            if (buffer_loaded(&m->attr[v]))
+                buffer_debug(&m->attr[v], attr_names[v]);
+        }
 
         igEndTable();
         igEndTabItem();

@@ -93,93 +93,27 @@ static cerr model3d_make(struct ref *ref, void *_opts)
 
     shader_prog_use(opts->prog);
 
-    cerr err = vertex_array_init(&m->vao);
-    if (IS_CERR(err))
-        goto unbind;
+    cerr err = CERR_OK;
 
-    err = shader_setup_attribute(opts->prog, ATTR_POSITION, &m->vertex,
-                                 .type           = BUF_ARRAY,
-                                 .usage          = BUF_STATIC,
-                                 .comp_type      = DT_VEC3,
-                                 .data           = mesh_vx(opts->mesh),
-                                 .size           = mesh_vx_sz(opts->mesh));
-    if (IS_CERR(err))
-        goto vao_done;
+    CERR_RET(vertex_array_init(&m->vao), { err = __cerr; goto shader_done; });
+    CERR_RET(
+        shader_setup_attributes(opts->prog, m->attr, opts->mesh),
+        { err = __cerr; goto vao_done; }
+    );
 
-    err = buffer_init(&m->index[0],
-                      .type       = BUF_ELEMENT_ARRAY,
-                      .usage      = BUF_STATIC,
-                      .comp_type  = DT_SHORT,
-                      .data       = mesh_idx(opts->mesh),
-                      .size       = mesh_idx_sz(opts->mesh));
-    if (IS_CERR(err))
-        goto pos_done;
+    CERR_RET(
+        buffer_init(
+            &m->index[0],
+            .type       = BUF_ELEMENT_ARRAY,
+            .usage      = BUF_STATIC,
+            .comp_type  = DT_SHORT,
+            .data       = mesh_idx(opts->mesh),
+            .size       = mesh_idx_sz(opts->mesh)
+        ),
+        { err = __cerr; goto attrs_done; }
+    );
 
     m->nr_lods++;
-
-    if (mesh_nr_tx(opts->mesh)) {
-        err = shader_setup_attribute(opts->prog, ATTR_TEX, &m->tex,
-                                     .type           = BUF_ARRAY,
-                                     .usage          = BUF_STATIC,
-                                     .comp_type      = DT_VEC2,
-                                     .data           = mesh_tx(opts->mesh),
-                                     .size           = mesh_tx_sz(opts->mesh));
-        if (IS_CERR(err))
-            goto idx_done;
-    }
-
-    if (mesh_nr_norm(opts->mesh)) {
-        err = shader_setup_attribute(opts->prog, ATTR_NORMAL, &m->norm,
-                                     .type           = BUF_ARRAY,
-                                     .usage          = BUF_STATIC,
-                                     .comp_type      = DT_VEC3,
-                                     .data           = mesh_norm(opts->mesh),
-                                     .size           = mesh_norm_sz(opts->mesh));
-        if (IS_CERR(err))
-            goto tex_done;
-    }
-
-    if (mesh_nr_tangent(opts->mesh)) {
-        err = shader_setup_attribute(opts->prog, ATTR_TANGENT, &m->tangent,
-            .type       = BUF_ARRAY,
-            .usage      = BUF_STATIC,
-            .comp_type  = DT_VEC4,
-            .data       = mesh_tangent(opts->mesh),
-            .size       = mesh_tangent_sz(opts->mesh));
-        if (IS_CERR(err))
-            goto norm_done;
-    }
-
-    if (mesh_nr_joints(opts->mesh)) {
-        /* check incoming joints against JOINTS_MAX */
-        unsigned char *joints = mesh_joints(opts->mesh);
-        for (int v = 0, jmax = 0; v < m->nr_vertices * 4; v++) {
-            jmax = max(jmax, joints[v]);
-            if (jmax >= JOINTS_MAX)
-                goto tangent_done;
-        }
-
-        err = shader_setup_attribute(opts->prog, ATTR_JOINTS, &m->vjoints,
-            .type       = BUF_ARRAY,
-            .usage      = BUF_STATIC,
-            .comp_type  = DT_BYTE,
-            .comp_count = 4,
-            .data       = mesh_joints(opts->mesh),
-            .size       = mesh_joints_sz(opts->mesh));
-        if (IS_CERR(err))
-            goto tangent_done;
-    }
-
-    if (mesh_nr_weights(opts->mesh)) {
-        err = shader_setup_attribute(opts->prog, ATTR_WEIGHTS, &m->weights,
-            .type       = BUF_ARRAY,
-            .usage      = BUF_STATIC,
-            .comp_type  = DT_VEC4,
-            .data       = mesh_weights(opts->mesh),
-            .size       = mesh_weights_sz(opts->mesh));
-        if (IS_CERR(err))
-            goto joints_done;
-    }
 
     model3d_lods_from_mesh(m, opts->mesh);
 
@@ -191,23 +125,13 @@ static cerr model3d_make(struct ref *ref, void *_opts)
 
     return CERR_OK;
 
-joints_done:
-    buffer_deinit(&m->vjoints);
-tangent_done:
-    buffer_deinit(&m->tangent);
-norm_done:
-    buffer_deinit(&m->norm);
-tex_done:
-    buffer_deinit(&m->tex);
-idx_done:
-    buffer_deinit(&m->index[0]);
-pos_done:
-    buffer_deinit(&m->vertex);
+attrs_done:
+    for (enum shader_vars v = 0; v < ATTR_MAX; v++)
+        buffer_deinit(&m->attr[v]);
 vao_done:
-    vertex_array_done(&m->vao);
-
-unbind:
     vertex_array_unbind(&m->vao);
+    vertex_array_done(&m->vao);
+shader_done:
     shader_prog_done(opts->prog);
     ref_put(m->prog);
 
@@ -220,16 +144,10 @@ static void model3d_drop(struct ref *ref)
     int i;
 
     /* delete gl buffers */
-    buffer_deinit(&m->vertex);
     for (i = 0; i < m->nr_lods; i++)
         buffer_deinit(&m->index[i]);
-    buffer_deinit(&m->tangent);
-    buffer_deinit(&m->norm);
-    buffer_deinit(&m->tex);
-    if (m->nr_joints) {
-        buffer_deinit(&m->vjoints);
-        buffer_deinit(&m->weights);
-    }
+    for (enum shader_vars v = 0; v < ATTR_MAX; v++)
+        buffer_deinit(&m->attr[v]);
     vertex_array_done(&m->vao);
     ref_put(m->prog);
     trace("dropping model '%s'\n", m->name);
@@ -600,23 +518,12 @@ void entity3d_set_lod(entity3d *e, int lod, bool force)
 static void model3d_prepare(model3d *m, struct shader_prog *p)
 {
     vertex_array_bind(&m->vao);
-    shader_plug_attribute(p, ATTR_POSITION, &m->vertex);
-    shader_plug_attribute(p, ATTR_NORMAL, &m->norm);
-    shader_plug_attribute(p, ATTR_TANGENT, &m->tangent);
-
-    if (m->nr_joints) {
-        shader_plug_attribute(p, ATTR_JOINTS, &m->vjoints);
-        shader_plug_attribute(p, ATTR_WEIGHTS, &m->weights);
-    }
+    shader_plug_attributes(p, m->attr);
 }
 
 static void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
 {
-    model3d *m = txm->model;
-
     model3d_prepare(txm->model, p);
-
-    shader_plug_attribute(p, ATTR_TEX, &m->tex);
 
     shader_plug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
     shader_plug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
@@ -636,24 +543,13 @@ static void model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int lod, unsi
 
 static void model3d_done(model3d *m, struct shader_prog *p)
 {
-    shader_unplug_attribute(p, ATTR_POSITION, &m->vertex);
-    shader_unplug_attribute(p, ATTR_NORMAL, &m->norm);
-    shader_unplug_attribute(p, ATTR_TANGENT, &m->tangent);
-
-    if (m->nr_joints) {
-        shader_unplug_attribute(p, ATTR_JOINTS, &m->vjoints);
-        shader_unplug_attribute(p, ATTR_WEIGHTS, &m->weights);
-    }
+    shader_unplug_attributes(p, m->attr);
 
     vertex_array_unbind(&m->vao);
 }
 
 static void model3dtx_done(model3dtx *txm, struct shader_prog *p)
 {
-    if (buffer_loaded(&txm->model->tex)) {
-        shader_unplug_attribute(p, ATTR_TEX, &txm->model->tex);
-        shader_unplug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
-    }
     shader_unplug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
     shader_unplug_texture(p, UNIFORM_EMISSION_MAP, txm->emission);
     shader_unplug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
