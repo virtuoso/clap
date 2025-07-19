@@ -205,27 +205,22 @@ void buffer_debug_header(void)
 {
     ui_igTableHeader(
         "buffers",
-        (const char *[]) { "attribute", "binding", "size", "type", "usage", "comp" },
-        6
+        (const char *[]) { "attribute", "binding", "size", "type", "usage", "offset", "size", "comp" },
+        8
     );
 }
 
 void buffer_debug(buffer_t *buf, const char *name)
 {
     buffer_init_options *opts = &buf->opts;
-    size_t comp_size = data_comp_size(opts->comp_type);
-    int comp_count = opts->comp_count ? : 1;
 
     ui_igTableCell(true, "%s", name);
     ui_igTableCell(false, "%d", buf->loc);
     ui_igTableCell(false, "%zu", opts->size);
-    ui_igTooltip(
-        "elements: %zu\ncomponents: %zu",
-        opts->size / comp_size,
-        opts->size / (comp_size * comp_count)
-    );
     ui_igTableCell(false, "%s", buffer_type_str(opts->type));
     ui_igTableCell(false, "%s", buffer_usage_str(opts->usage));
+    ui_igTableCell(false, "%u", buf->off);
+    ui_igTableCell(false, "%u", buf->comp_count * data_comp_size(opts->comp_type));
     ui_igTableCell(false, "%s (%d) x %d",
                    data_type_name(opts->comp_type),
                    data_comp_size(opts->comp_type),
