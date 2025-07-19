@@ -459,18 +459,6 @@ void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value)
     shader_set_var_ptr(p, var, 1, &value);
 }
 
-cerr _shader_setup_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf,
-                             const buffer_init_options *opts)
-{
-    if (!__shader_has_var(p, var))
-        return CERR_OK;
-
-    buffer_init_options _opts;
-    memcpy(&_opts, opts, sizeof(_opts));
-    _opts.loc = p->vars[var];
-    return _buffer_init(buf, &_opts);
-}
-
 static enum mesh_attrs attr_to_mesh_map[ATTR_MAX] = {
     [ATTR_POSITION] = MESH_VX,
     [ATTR_TEX]      = MESH_TX,
