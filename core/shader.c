@@ -557,7 +557,7 @@ attr_error:
     return err;
 }
 
-void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
+static void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
     if (!__shader_has_var(p, var) || !buf)
         return;
@@ -565,7 +565,7 @@ void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t
     buffer_bind(buf, p->vars[var]);
 }
 
-void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
+static void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf)
 {
     if (!__shader_has_var(p, var) || !buf)
         return;

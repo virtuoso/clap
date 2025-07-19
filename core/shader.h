@@ -113,8 +113,6 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
                         unsigned int count, void *value);
 void shader_set_var_float(struct shader_prog *p, enum shader_vars var, float value);
 void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value);
-void shader_plug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf);
-void shader_unplug_attribute(struct shader_prog *p, enum shader_vars var, buffer_t *buf);
 
 /**
  * shader_setup_attributes() - set up multiple attribute buffers for a mesh
