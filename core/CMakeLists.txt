@@ -222,7 +222,6 @@ FOREACH(src ${ENGINE_SRC})
     string(REPLACE "NOTFOUND" "" CFLAGS ${CFLAGS})
     set_source_files_properties(${src} PROPERTIES
                                 COMPILE_DEFINITIONS "${ENGINE_COMPILE_DEFINITIONS}"
-                                INCLUDE_DIRECTORIES "${WLIBC_INCLUDE_DIR}"
     )
     if (NOT WIN32)
         set_source_files_properties(${src} PROPERTIES
