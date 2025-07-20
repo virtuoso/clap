@@ -2,6 +2,8 @@
 #ifndef __CLAP_INPUT_KEYBOARD_H__
 #define __CLAP_INPUT_KEYBOARD_H__
 
+#include "messagebus.h"
+
 enum {
     KEY_NONE = 0,
     KEY_PRESS,

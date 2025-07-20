@@ -1,6 +1,10 @@
 #ifndef __CLAP_PRIMITIVES_H__
 #define __CLAP_PRIMITIVES_H__
 
+#include "linmath.h"
+#include "model.h"
+#include "shader.h"
+
 extern struct mesh cube_mesh;
 
 /*

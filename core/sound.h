@@ -2,6 +2,9 @@
 #ifndef __CLAP_SOUND_H__
 #define __CLAP_SOUND_H__
 
+#include "object.h"
+#include "util.h"
+
 typedef struct sound_context sound_context;
 typedef struct sound sound;
 typedef struct sfx sfx;

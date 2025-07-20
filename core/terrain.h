@@ -2,6 +2,7 @@
 #ifndef __CLAP_TERRAIN_H__
 #define __CLAP_TERRAIN_H__
 
+#include "model.h"
 #include "object.h"
 
 struct terrain {

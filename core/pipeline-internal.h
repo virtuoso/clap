@@ -2,6 +2,8 @@
 #ifndef __CLAP_PIPELINE_INTERNAL_H__
 #define __CLAP_PIPELINE_INTERNAL_H__
 
+#include "pipeline.h"
+#include "pipeline-debug.h"
 #include "render.h"
 #include "ssao.h"
 

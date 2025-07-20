@@ -2,6 +2,8 @@
 #ifndef __CLAP_GLTF_H__
 #define __CLAP_GLTF_H__
 
+#include "pipeline.h"
+
 struct gltf_data;
 
 typedef struct gltf_load_options {

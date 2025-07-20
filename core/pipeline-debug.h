@@ -2,6 +2,7 @@
 #ifndef __CLAP_PIPELINE_DEBUG_H__
 #define __CLAP_PIPELINE_DEBUG_H__
 
+#include "pipeline.h"
 #include "render.h"
 
 #ifndef CONFIG_FINAL

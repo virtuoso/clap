@@ -2,6 +2,7 @@
 #ifndef __CLAP_VIEW_H__
 #define __CLAP_VIEW_H__
 
+#include "linmath.h"
 #include "shader_constants.h"
 
 struct view {

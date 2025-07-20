@@ -2,6 +2,7 @@
 #ifndef __CLAP_DEBUG_DRAW_H__
 #define __CLAP_DEBUG_DRAW_H__
 
+#include "camera.h"
 #include "error.h"
 
 #ifndef CONFIG_FINAL

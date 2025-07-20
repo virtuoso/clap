@@ -2,6 +2,8 @@
 #ifndef __CLAP_RENDER_H__
 #define __CLAP_RENDER_H__
 
+#include "util.h"
+#include <stddef.h>
 #include <stdlib.h>
 #include "error.h"
 #include "linmath.h"

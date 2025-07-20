@@ -1,6 +1,8 @@
 #ifndef __CLAP_UI_IMGUI_WWW__
 #define __CLAP_UI_IMGUI_WWW__
 
+#include "clap.h"
+
 struct ImGuiContext;
 struct ImGuiIO;
 

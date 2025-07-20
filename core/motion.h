@@ -3,6 +3,8 @@
 #define __CLAP_MOTION_H__
 
 #include <stdbool.h>
+#include "camera.h"
+#include "messagebus.h"
 
 struct scene;
 

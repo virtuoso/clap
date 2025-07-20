@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "linmath.h"
 #include "render.h"
+#include "shader.h"
 #include "shader_constants.h"
 
 typedef struct ssao_state {
