@@ -7,10 +7,11 @@
 #include <stdint.h>
 
 /**
- * sixbit_to_b64 - maps a 6-bit value to the base64 alphabet
- * @param map A base 64 map (see base64_init_map)
- * @param sixbit Six-bit value to map
- * @return a base 64 character
+ * sixbit_to_b64() - maps a 6-bit value to the base64 alphabet
+ * @maps:	A base 64 map (see base64_init_map)
+ * @sixbit:	Six-bit value to map
+ *
+ * Return: a base 64 character
  */
 static char sixbit_to_b64(const base64_maps_t *maps, const uint8_t sixbit)
 {
@@ -20,10 +21,11 @@ static char sixbit_to_b64(const base64_maps_t *maps, const uint8_t sixbit)
 }
 
 /**
- * sixbit_from_b64 - maps a base64-alphabet character to its 6-bit value
- * @param maps A base 64 maps structure (see base64_init_maps)
- * @param sixbit Six-bit value to map
- * @return a six-bit value
+ * sixbit_from_b64() - maps a base64-alphabet character to its 6-bit value
+ * @maps:		A base 64 maps structure (see base64_init_maps)
+ * @b64letter:	Six-bit value to map
+ *
+ * Return: a six-bit value
  */
 static int8_t sixbit_from_b64(const base64_maps_t *maps,
 			      const unsigned char b64letter)
