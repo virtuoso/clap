@@ -7,6 +7,95 @@
 #include "object.h"
 #include "render.h"
 
+/**
+ * enum shader_vars - uniforms and attributes
+ * @ATTR_POSITION:                      position vertex attribute
+ * @ATTR_TEX:                           texture coordinates vertex attribute
+ * @ATTR_NORMAL:                        normal vector vertex attribute
+ * @ATTR_TANGENT:                       tangent vector vertex attribute
+ * @ATTR_JOINTS:                        influencing joints' indices vertex attribute
+ * @ATTR_WEIGHTS:                       influencing joints' weights vertex attribute
+ * @ATTR_MAX:                           attribute sentinel
+ * @UNIFORM_MODEL_TEX:                  model texture
+ * @UNIFORM_NORMAL_MAP:                 normal map texture
+ * @UNIFORM_SOBEL_TEX:                  sobel texture
+ * @UNIFORM_SHADOW_MAP:                 shadow map array or cascade 0 texture
+ * @UNIFORM_SHADOW_MAP1:                shadow map cascade 1 texture
+ * @UNIFORM_SHADOW_MAP2:                shadow map cascade 2 texture
+ * @UNIFORM_SHADOW_MAP3:                shadow map cascade 3 texture
+ * @UNIFORM_SHADOW_MAP_MS:              shadow multisampled array texture
+ * @UNIFORM_EMISSION_MAP:               emission texture
+ * @UNIFORM_LUT_TEX:                    LUT texture
+ * @UNIFORM_WIDTH:                      FBO width (should be useless by now)
+ * @UNIFORM_HEIGHT:                     FBO height (should be useless by now)
+ * @UNIFORM_NEAR_PLANE:                 view frustum's near_plane
+ * @UNIFORM_FAR_PLANE:                  view frustum's far_plane
+ * @UNIFORM_PROJ:                       projection matrix
+ * @UNIFORM_VIEW:                       view matrix
+ * @UNIFORM_TRANS:                      model TRS matrix
+ * @UNIFORM_INVERSE_VIEW:               inverse view matrix
+ * @UNIFORM_LIGHT_POS:                  array of light position vectors
+ * @UNIFORM_LIGHT_COLOR:                array of light color vectors
+ * @UNIFORM_LIGHT_DIR:                  array of light direction vectors
+ * @UNIFORM_LIGHT_DIRECTIONAL:          array of "is light directional" booleans
+ * @UNIFORM_NR_LIGHTS:                  number of light sources
+ * @UNIFORM_LIGHT_AMBIENT:              ambient light color
+ * @UNIFORM_ATTENUATION:                array of non-directional light attenuations
+ * @UNIFORM_SHINE_DAMPER:               specular shine damper for Blinn-Phong lighting
+ * @UNIFORM_REFLECTIVITY:               reflectivity for Blinn-Phong lighting
+ * @UNIFORM_ROUGHNESS:                  roughness for Cook-Torrance lighting
+ * @UNIFORM_METALLIC:                   metallic far Cook-Torrance lighting
+ * @UNIFORM_ROUGHNESS_CEIL:             roughness ceiling for procedural roughness
+ * @UNIFORM_ROUGHNESS_AMP:              roughness per-octave amplitude multiplier
+ * @UNIFORM_ROUGHNESS_OCT:              number of octaves for procedural roughness
+ * @UNIFORM_ROUGHNESS_SCALE:            fragment coords scale for seeding
+ * @UNIFORM_METALLIC_CEIL:              metallic ceiling for procedural metallic
+ * @UNIFORM_METALLIC_AMP:               metallic per-octave amplitude multiplier
+ * @UNIFORM_METALLIC_OCT:               number of octaves for procedural metallic
+ * @UNIFORM_METALLIC_SCALE:             fragment coords scale for seeding
+ * @UNIFORM_METALLIC_MODE:              0: metallic=roughness, 1: metallic=1-roughness,
+ *                                      2: independent
+ * @UNIFORM_SHARED_SCALE:               boolean: metallic noise seed is roughness seed
+ * @UNIFORM_IN_COLOR:                   override color
+ * @UNIFORM_COLOR_PASSTHROUGH:          COLOR_PT_NONE: no override;
+ *                                      COLOR_PT_ALPHA: override alpha;
+ *                                      COLOR_PT_ALL: override all color components
+ * @UNIFORM_SHADOW_VSM:                 use Variance Shadow Mapping (otherwise CSM)
+ * @UNIFORM_SHADOW_MVP:                 array of proj * view matrices for shadow cascades
+ * @UNIFORM_CASCADE_DISTANCES:          array of cascade distances from the camera
+ * @UNIFORM_SHADOW_TINT:                color of the shadow tint
+ * @UNIFORM_SHADOW_OUTLINE:             boolean: outline edges of shadows
+ * @UNIFORM_SHADOW_OUTLINE_THRESHOLD:   shadow edge outline cutoff threshold
+ * @UNIFORM_OUTLINE_EXCLUDE:            boolean: exclude model from edge detection
+ * @UNIFORM_LAPLACE_KERNEL:             Laplace kernel size: 3x3 or 5x5
+ * @UNIFORM_SOBEL_SOLID_ID:             unique value for solid-color outlines
+ * @UNIFORM_USE_NORMALS:                model uses a normal map
+ * @UNIFORM_USE_SKINNING:               model uses skeletal animotion (joint, weights, joint_transform)
+ * @UNIFORM_USE_MSAA:                   [ropt] use multisampled textures
+ * @UNIFORM_USE_HDR:                    [ropt] use half-float or float components for colors
+ *                                      in intermediate postprocessing render passes
+ * @UNIFORM_USE_SSAO:                   [ropt] use screen space ambient occlusion
+ * @UNIFORM_SSAO_KERNEL:                [ropt] SSAO kernel size
+ * @UNIFORM_SSAO_NOISE_SCALE:           [ropt] UV scale for SSAO noise sampling
+ * @UNIFORM_SSAO_RADIUS:                [ropt] SSAO radius
+ * @UNIFORM_SSAO_WEIGHT:                [ropt] SSAO influence
+ * @UNIFORM_SOBEL_SOLID:                boolean: use diffuse colors for edge detection
+ *                                      instead of normal vectors
+ * @UNIFORM_JOINT_TRANSFORMS:           array of joint transform TRS matrices
+ * @UNIFORM_BLOOM_EXPOSURE:             [ropt] bloom exposure
+ * @UNIFORM_BLOOM_INTENSITY:            [ropt] >0: emission map's bloom intensity;
+ *                                      <0: diffuse color's bloom intensity
+ * @UNIFORM_BLOOM_THRESHOLD:            [ropt] emission cutoff
+ * @UNIFORM_BLOOM_OPERATOR:             [ropt] HDR bloom tonemapping operator
+ * @UNIFORM_LIGHTING_EXPOSURE:          [ropt] lighting exposure
+ * @UNIFORM_LIGHTING_OPERATOR:          [ropt] HDR lighting tonemapping operator
+ * @UNIFORM_CONTRAST:                   [ropt] contrast
+ * @UNIFORM_FOG_NEAR:                   [ropt] radial fog's near distance
+ * @UNIFORM_FOG_FAR:                    [ropt] radial fog's far distance
+ * @UNIFORM_FOG_COLOR:                  [ropt] radial fog color
+ * @UNIFORM_PARTICLE_POS:               array of particle position vertices
+ * @SHADER_VAR_MAX:                     sentinel
+ */
 enum shader_vars {
     ATTR_POSITION   = ATTR_LOC_POSITION,
     ATTR_TEX        = ATTR_LOC_TEX,
@@ -104,14 +193,85 @@ DEFINE_REFCLASS_INIT_OPTIONS(shader_prog,
 );
 DECLARE_REFCLASS(shader_prog);
 
+/**
+ * shader_name() - get shader name string
+ * @p:  shader program
+ * Return: shader program's name
+ */
 const char *shader_name(struct shader_prog *p);
+
+/**
+ * shader_prog_use() - bind a shader program
+ * @p:  shader program
+ *
+ * Take a shader program into use. Needs a matching shader_prog_done().
+ * Context: rendering, resource loading
+ */
 void shader_prog_use(struct shader_prog *p);
+
+/**
+ * shader_prog_done() - unbind a shader program
+ * @p:  shader program
+ *
+ * Stop using a shader program. Matches a preceding shader_prog_done().
+ * Context: rendering, resource loading
+ */
 void shader_prog_done(struct shader_prog *p);
+
+/**
+ * shader_get_var_name() - get a shader variable name string
+ * @var:    shader variable (attribute/uniform)
+ * Context: anywhere
+ * Return: name string
+ */
 const char *shader_get_var_name(enum shader_vars var);
+
+/**
+ * shader_has_var() - check if shader program uses a variable
+ * @p:      shader program
+ * @var:    shader variable (attribute/uniform)
+ *
+ * Return:
+ * * true: it does
+ * * false: it doesn't
+ */
 bool shader_has_var(struct shader_prog *p, enum shader_vars var);
+
+/**
+ * shader_set_var_ptr() - set/fill an array uniform
+ * @p:      shader program
+ * @var:    uniform shader variable
+ * @count:  number of elements
+ * @value:  data
+ *
+ * The @data is treated as an array of uniform's data type (shader_var_desc[var].type),
+ * @count is the number of elements of that type.
+ * Context: shader program must be in use for standalone non-opaque uniforms (which don't
+ * exist any more), otherwise virtually anywhere.
+ */
 void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
                         unsigned int count, void *value);
+
+/**
+ * shader_set_var_float() - set a float uniform
+ * @p:      shader program
+ * @var:    uniform shader variable
+ * @value:  target value
+ *
+ * Set a value for a single float uniform, same as `shader_set_var_ptr(p, var, 1, &value);`
+ * Context: same as shader_set_var_ptr()
+ */
 void shader_set_var_float(struct shader_prog *p, enum shader_vars var, float value);
+
+/**
+ * shader_set_var_int() - set an integer uniform
+ * @p:      shader program
+ * @var:    uniform shader variable
+ * @value:  target value
+ *
+ * Set a value for a single integer uniform, same as `shader_set_var_ptr(p, var, 1, &value);`
+ * Context: same as shader_set_var_ptr()
+ */
 void shader_set_var_int(struct shader_prog *p, enum shader_vars var, int value);
 
 /**
@@ -145,6 +305,19 @@ void shader_plug_attributes(struct shader_prog *p, buffer_t *buf);
  * Unbind vertex attribute buffers after drawing.
  */
 void shader_unplug_attributes(struct shader_prog *p, buffer_t *buf);
+
+/**
+ * shader_get_texture_slot() - get assigned texture binding slot
+ * @p:      shader program
+ * @var:    texture uniform shader variable
+ *
+ * Obtain an assigned texture slot (shader_var_desc[var].texture_slot) for a
+ * texture uniform @var, if the shader program recognizes it
+ * Context: anywhere
+ * Return:
+ * * >= 0: texture slot
+ * * -1: if shader doesn't use this texture or if @var is not a texture uniform
+ */
 int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var);
 void shader_set_texture(struct shader_prog *p, enum shader_vars var);
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex);
