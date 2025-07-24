@@ -319,7 +319,6 @@ void shader_unplug_attributes(struct shader_prog *p, buffer_t *buf);
  * * -1: if shader doesn't use this texture or if @var is not a texture uniform
  */
 int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var);
-void shader_set_texture(struct shader_prog *p, enum shader_vars var);
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex);
 void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
                                       enum shader_vars tex_var, enum shader_vars ms_var,

@@ -593,16 +593,6 @@ int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)
     return shader_var_desc[var].texture_slot;
 }
 
-void shader_set_texture(struct shader_prog *p, enum shader_vars var)
-{
-    const struct shader_var_desc *desc = &shader_var_desc[var];
-
-    if (!__shader_has_var(p, var))
-        return;
-
-    uniform_set_ptr(p->vars[var], desc->type, 1, &desc->texture_slot);
-}
-
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
 {
     if (!__shader_has_var(p, var) || !texture_loaded(tex))
@@ -611,7 +601,7 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
     const struct shader_var_desc *desc = &shader_var_desc[var];
 
     texture_bind(tex, desc->texture_slot);
-    shader_set_texture(p, var);
+    uniform_set_ptr(p->vars[var], desc->type, 1, &desc->texture_slot);
 }
 
 void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
