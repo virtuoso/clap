@@ -191,8 +191,6 @@ static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int widt
     if (IS_CERR(err))
         return err;
 
-    shader_set_texture(p, var);
-
     return CERR_OK;
 }
 
