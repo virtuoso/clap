@@ -44,7 +44,7 @@ struct ref_class {
 
 /* Define a refclass (in a compilation unit) */
 #define DEFINE_REFCLASS_MAKE_DROP(struct_name, makefn, dropfn) \
-    struct ref_class ref_class_ ## struct_name = { \
+    struct ref_class REFCLASS_NAME(struct_name) = { \
         .name   = __stringify(struct struct_name), \
         .make   = makefn, \
         .drop   = dropfn, \
@@ -235,7 +235,7 @@ static inline void _ref_put(struct ref *ref)
 
 /* Dynamically allocate an object and return cresp(struct_name) */
 #define ref_new_checked(struct_name, args...) ({ \
-    struct ref_class *__rc = &ref_class_ ## struct_name; \
+    struct ref_class *__rc = &REFCLASS_NAME(struct_name); \
     struct struct_name *__v = mem_alloc(__rc->size, .zero = 1); \
     cresp(struct_name) __res = cresp_val(struct_name, __v); \
     if (__v) { \
@@ -267,7 +267,7 @@ static inline void _ref_put(struct ref *ref)
 
 /* Initialize a static/embedded object and return cresp(struct_name) */
 #define ref_embed(struct_name, _obj, args...) ({ \
-    struct ref_class *__rc = &ref_class_ ## struct_name; \
+    struct ref_class *__rc = &REFCLASS_NAME(struct_name); \
     typeof (_obj) __v = (_obj); \
     memset(__v, 0, __rc->size); \
     __v->ref.refclass = __rc; \
