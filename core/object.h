@@ -19,8 +19,8 @@ typedef void (*drop_t)(struct ref *ref);
 #define _REF_STATIC	    (-1)
 #define _REF_EMBEDDED	(-2)
 
-/*
- * Class descriptor
+/**
+ * struct ref_class - class descriptor
  * @entry:      on global list of classes; not thread-safe at the moment
  * @name:       class name
  * @make:       constructor
@@ -28,6 +28,9 @@ typedef void (*drop_t)(struct ref *ref);
  * @size:       object size
  * @offset:     offset of struct ref in an object (see ref_obj())
  * @nr_active:  nr of active objects; not thread-safe
+ *
+ * A very simple type descriptor with a constructor, destructor and some
+ * bits of auxiliary info about the type.
  */
 struct ref_class {
     struct list     entry;
@@ -83,11 +86,14 @@ struct ref_class {
     extern struct ref *struct_name ## _ref(void *obj); \
     cresp_struct_ret(struct_name)
 
-/*
- * Reference counting
+/**
+ * struct ref - reference counting
  * @refclass:   class aka type descriptor
  * @count:      the number of active references
  * @consume:    set by ref_pass() so that next ref_get() gets caller's reference
+ *
+ * Embeddable structure that turns other structures into refcounted types with
+ * optional constructor (make), destructor (drop) and some accounting.
  */
 struct ref {
     struct ref_class    *refclass;
