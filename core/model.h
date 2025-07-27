@@ -104,23 +104,6 @@ enum chan_path {
     PATH_NONE,
 };
 
-struct joint {
-    vec3    translation;
-    quat    rotation;
-    vec3    scale;
-    mat4x4  global;
-    int     off[PATH_NONE];
-};
-
-struct channel {
-    float           *time;
-    float           *data;
-    unsigned int    nr;
-    unsigned int    stride;
-    unsigned int    target;
-    unsigned int    path;
-};
-
 struct queued_animation;
 typedef void (*frame_fn)(struct queued_animation *qa, entity3d *e, struct scene *s, double time);
 
