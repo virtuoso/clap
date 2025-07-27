@@ -407,7 +407,7 @@ float model3d_aabb_Z(model3d *m)
     return fabs(m->aabb[5] - m->aabb[4]);
 }
 
-void model3d_aabb_center(model3d *m, vec3 center)
+static void model3d_aabb_center(model3d *m, vec3 center)
 {
     aabb_center(m->aabb, center);
 }
