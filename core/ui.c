@@ -1306,8 +1306,9 @@ static cres(int) ui_widget_within(struct ui_widget *uiw, int x, int y)
  * @x:      global x coordinate
  * @y:      global y coordinate
  *
- * If pointer hovers over any of the widget's elements, set it to "focus"
- * and unfocus the previously focused one.
+ * If pointer hovers over any of the widget's elements, set it to focused
+ * state, call its ->on_focus() method and likewise unfocus the previously
+ * focused one.
  */
 static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
 {
@@ -1317,11 +1318,15 @@ static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
     if (n == uiw->focus)    return;
 
     focus = n;
-    uia_lin_move(uiw->uies[n], UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
+    auto child = uiw->uies[n];
+    child->on_focus(child, true);
 
 unfocus:
-    if (uiw->focus >= 0)
-        uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 20, 1, false, 1.0 / 6.0);
+    if (uiw->focus >= 0) {
+        auto prev_child = uiw->uies[uiw->focus];
+        prev_child->on_focus(prev_child, false);
+    }
+
     uiw->focus = focus;
 }
 
