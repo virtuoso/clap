@@ -1486,7 +1486,7 @@ static void ui_element_match(entity3d *e, void *data)
         sd->match = e->priv;
 }
 
-static bool ui_element_click(struct ui *ui, uivec uivec)
+bool ui_element_click(struct ui *ui, uivec uivec)
 {
     struct ui_element_match_struct sd = { .uivec = uivec };
 

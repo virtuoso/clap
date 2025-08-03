@@ -71,6 +71,18 @@ struct ui_element {
     float            actual_h;
 };
 
+/**
+ * ui_element_click() - dispatch a pointer click to a ui element
+ * @ui:     ui context
+ * @uivec:  ui coordinates
+ *
+ * Scan through ui elements and deliver a pointer click to a matching
+ * element, if a match exists, but calling its ->on_click().
+ *
+ * Return: true an hit, false if no element matched click coordinates.
+ */
+bool ui_element_click(struct ui *ui, uivec uivec);
+
 struct ui_widget_builder {
     unsigned long   affinity;
     float           x_off, y_off, w, h;
