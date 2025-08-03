@@ -16,9 +16,6 @@
 
 model3dtx *ui_quadtx;
 
-static texture_t *ui_fbo_tex; /* XXX */
-static model3dtx *ui_pip;
-
 /****************************************************************************
  * ui_element
  ****************************************************************************/
@@ -1578,38 +1575,6 @@ static struct ui_element *build_uit;
 
 struct ui_element *uie0, *uie1, *pocket, **pocket_text;
 static int pocket_buckets, *pocket_count, *pocket_total;
-
-void ui_pip_update(struct ui *ui, fbo_t *fbo)
-{
-    model3d *m;
-
-    ui_fbo_tex = fbo_texture(fbo, FBO_COLOR_TEXTURE(0));
-
-    if (ui_pip)
-        ref_put(ui_pip);
-    if (uie0)
-        ref_put(uie0);
-
-    m = ui_quad_new(ui->ui_prog, 0, 1, 1, -1);
-    ui_pip = ref_new(model3dtx, .model = ref_pass(m), .tex = ui_fbo_tex);
-    ui_add_model_tail(ui, ui_pip);
-    dbg("### ui_pip tex: %d width: %d height: %d\n", texture_id(ui_fbo_tex), fbo_width(fbo), fbo_height(fbo));
-    if (fbo_width(fbo) < fbo_height(fbo))
-        uie0 = ref_new(ui_element,
-                       .ui          = ui,
-                       .txmodel     = ui_pip,
-                       .affinity    = UI_AF_VCENTER | UI_AF_LEFT,
-                       .width       = fbo_width(fbo),
-                       .height      = fbo_height(fbo));
-    else
-        uie0 = ref_new(ui_element,
-                       .ui          = ui,
-                       .txmodel     = ui_pip,
-                       .affinity    = UI_AF_TOP | UI_AF_HCENTER,
-                       .width       = fbo_width(fbo),
-                       .height      = fbo_height(fbo));
-    entity3d_color(uie0->entity, COLOR_PT_NONE, (vec4){});
-}
 
 /****************************************************************************
  * ui_pocket
