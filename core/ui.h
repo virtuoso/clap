@@ -125,6 +125,18 @@ DEFINE_REFCLASS_INIT_OPTIONS(ui_widget,
 );
 DECLARE_REFCLASS(ui_widget);
 
+/**
+ * ui_widget_click() - dispatch a pointer click within a widget
+ * @uiw:    widget
+ * @uivec:  UI coordinates
+ *
+ * Find an element within a widget where a pointer click lands and call its
+ * on_click() method.
+ *
+ * Return: true if click landed, false if there's no element at [x, y].
+ */
+bool ui_widget_click(struct ui_widget *uiw, uivec uivec);
+
 typedef struct clap_context clap_context;
 
 struct ui {
