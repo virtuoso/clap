@@ -704,6 +704,7 @@ static cerr ui_widget_make(struct ref *ref, void *_opts)
 
     uiw->root->widget = uiw;
     uiw->nr_uies = opts->nr_items;
+    uiw->input_event = opts->uwb->input_event;
     list_append(&opts->ui->widgets, &uiw->entry);
 
     return CERR_OK;
@@ -1153,6 +1154,43 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     return menu;
 }
 
+static void ui_menu_click(struct ui_widget *uiw, uivec uivec)
+{
+    if (ui_widget_click(uiw, uivec)) return;
+
+    /* miss: cancel modality, destroy menu */
+    ui_menu_done(uiw->root->ui);
+}
+
+static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
+{
+    uivec uivec = uivec_from_input(ui, m);
+    if (m->input.mouse_move)
+        ui_widget_hover(uiw, uivec);
+
+    /* UI owns the inputs */
+    ui->mod_y += m->input.delta_ly;
+    if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -10) {
+        /* select previous */
+        ui->mod_y = 0;
+        ui_widget_pick_rel(uiw, -1);
+    } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 10) {
+        /* select next */
+        ui->mod_y = 0;
+        ui_widget_pick_rel(uiw, 1);
+    } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
+        /* go back */
+        ui_menu_done(ui);
+        ui->modal = false;
+        ui->menu = NULL;
+    } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
+        /* enter */
+        ui_widget_on_click(uiw, uiw->focus, uivec);
+    }
+
+    return true;
+}
+
 struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb,
                               const char **items, unsigned int nr_items)
 {
@@ -1176,6 +1214,7 @@ struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb
     };
 
     if (uwb)                memcpy(&_uwb, uwb, sizeof(_uwb));
+    if (!_uwb.input_event)  _uwb.input_event = ui_menu_input;
 
     _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
     if (!_uwb.font)         return NULL;
@@ -1258,6 +1297,46 @@ static void inv_onfocus(struct ui_element *uie, bool focus)
     }
 }
 
+void ui_inventory_done(struct ui *ui)
+{
+    dbg("bai\n");
+    ui_modality_send();
+    ref_put(ui->inventory);
+    ui->inventory = NULL;
+    if (!ui->menu)
+        ui->modal = false;
+}
+
+static bool ui_inventory_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
+{
+    uivec uivec = uivec_from_input(ui, m);
+    /* UI owns the inputs */
+    ui->mod_y += m->input.delta_ly;
+    ui->mod_x += m->input.delta_lx;
+    if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -100) {
+        // up
+        ui->mod_y = 0;
+        ui_widget_pick_rel(ui->inventory, -3);
+    } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 100) {
+        // down
+        ui->mod_y = 0;
+        ui_widget_pick_rel(ui->inventory, 3);
+    } else if (m->input.left == 1 || m->input.yaw_left == 1 || ui->mod_x < 0) {
+        // left
+        ui->mod_x = 0;
+        ui_widget_pick_rel(ui->inventory, -1);
+    } else if (m->input.right == 1 || m->input.yaw_right == 1 || ui->mod_x > 0) {
+        // right
+        ui->mod_x = 0;
+        ui_widget_pick_rel(ui->inventory, 1);
+    } else if (m->input.pad_y) {
+        ui_widget_on_click(ui->menu, ui->menu->focus, uivec);
+        ui_inventory_done(ui);
+    }
+
+    return true;
+}
+
 void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
                        void (*on_click)(struct ui_element *uie, float x, float y))
 {
@@ -1277,6 +1356,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
                         .nr_items   = nr_items,
                         .uwb        = &(struct ui_widget_builder) {
                             .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
+                            .input_event= ui_inventory_input,
                             .w          = 0.3,
                             .h          = 0.3
                         }));
@@ -1403,24 +1483,6 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
     ui->modal = true;
 }
 
-void ui_inventory_done(struct ui *ui)
-{
-    dbg("bai\n");
-    ui_modality_send();
-    ref_put(ui->inventory);
-    ui->inventory = NULL;
-    if (!ui->menu)
-        ui->modal = false;
-}
-
-static void ui_menu_click(struct ui_widget *uiw, uivec uivec)
-{
-    if (ui_widget_click(uiw, uivec)) return;
-
-    /* miss: cancel modality, destroy menu */
-    ui_menu_done(uiw->root->ui);
-}
-
 static int ui_handle_command(struct message *m, void *data)
 {
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
@@ -1517,52 +1579,9 @@ static int ui_handle_input(struct message *m, void *data)
         return MSG_HANDLED;
 
     if (ui->menu) {
-        if (m->input.mouse_move)
-            ui_widget_hover(ui->menu, uivec);
-        
-        /* UI owns the inputs */
-        ui->mod_y += m->input.delta_ly;
-        if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -10) {
-            // select previous
-            ui->mod_y = 0;
-            ui_widget_pick_rel(ui->menu, -1);
-        } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 10) {
-            // select next
-            ui->mod_y = 0;
-            ui_widget_pick_rel(ui->menu, 1);
-        } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
-            // go back
-            ui_menu_done(ui);
-        } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
-            // enter
-            if (ui->menu->focus >= 0)
-                ui->menu->uies[ui->menu->focus]->on_click(ui->menu->uies[ui->menu->focus], 0, 0);
-        }
+        ui->menu->input_event(ui, ui->menu, m);
     } else if (ui->inventory) {
-        /* UI owns the inputs */
-        ui->mod_y += m->input.delta_ly;
-        ui->mod_x += m->input.delta_lx;
-        if (m->input.up == 1 || m->input.pitch_up == 1 || ui->mod_y <= -100) {
-            // up
-            ui->mod_y = 0;
-            ui_widget_pick_rel(ui->inventory, -3);
-        } else if (m->input.down == 1 || m->input.pitch_down == 1 || ui->mod_y >= 100) {
-            // down
-            ui->mod_y = 0;
-            ui_widget_pick_rel(ui->inventory, 3);
-        } else if (m->input.left == 1 || m->input.yaw_left == 1 || ui->mod_x < 0) {
-            // left
-            ui->mod_x = 0;
-            ui_widget_pick_rel(ui->inventory, -1);
-        } else if (m->input.right == 1 || m->input.yaw_right == 1 || ui->mod_x > 0) {
-            // right
-            ui->mod_x = 0;
-            ui_widget_pick_rel(ui->inventory, 1);            
-        } else if (m->input.pad_y) {
-            if (ui->inventory->focus >= 0)
-                ui->inventory->uies[ui->inventory->focus]->on_click(ui->inventory->uies[ui->inventory->focus], 0, 0);
-            ui_inventory_done(ui);
-        }            
+        ui->inventory->input_event(ui, ui->inventory, m);
     }
     return MSG_STOP;
 }

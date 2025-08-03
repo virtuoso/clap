@@ -94,6 +94,7 @@ struct ui_element {
  */
 bool ui_element_click(struct ui *ui, uivec uivec);
 
+typedef bool (*input_event_fn)(struct ui *ui, struct ui_widget *uiw, struct message *m);
 struct ui_widget_builder {
     unsigned long   affinity;
     float           x_off, y_off, w, h;
@@ -105,6 +106,7 @@ struct ui_widget_builder {
     void            (*el_cb)(struct ui_element *uie, unsigned int i);
     on_click_fn     el_on_click;
     on_focus_fn     el_on_focus;
+    input_event_fn  input_event;
 };
 
 DEFINE_REFCLASS_INIT_OPTIONS(ui_element,
@@ -124,6 +126,7 @@ DECLARE_REFCLASS(ui_element);
 struct ui_widget {
     struct ui_element  *root;
     struct ui_element  **uies;
+    input_event_fn     input_event;
     struct ref         ref;
     unsigned int       nr_uies;
     int                focus;
