@@ -3,6 +3,7 @@
 #define __CLAP_UI_H__
 
 #include "object.h"
+#include "messagebus.h"
 #include "model.h"
 
 /* alignment affinity */
@@ -28,6 +29,7 @@ enum uie_mv {
 
 struct ui_element;
 struct ui_widget;
+struct ui;
 
 /**
  * struct uivec - UI coordinates
@@ -38,6 +40,15 @@ typedef struct uivec {
     unsigned int    x;
     unsigned int    y;
 } uivec;
+
+/**
+ * uivec_from_input() - obtain UI coordinates from an input message
+ * @ui: ui context
+ * @m:  input message
+ *
+ * Return: uivec with coordinates in UI coordinate system
+ */
+uivec uivec_from_input(struct ui *ui, struct message *m);
 
 typedef void (*on_click_fn)(struct ui_element *uie, float x, float y);
 typedef void (*on_focus_fn)(struct ui_element *uie, bool focus);

@@ -1489,7 +1489,7 @@ bool ui_element_click(struct ui *ui, uivec uivec)
     return false;
 }
 
-static uivec uivec_from_input(struct ui *ui, struct message *m)
+uivec uivec_from_input(struct ui *ui, struct message *m)
 {
     return (uivec){ m->input.x, (unsigned int)ui->height - m->input.y };
 }
