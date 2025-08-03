@@ -1512,10 +1512,6 @@ static int ui_handle_command(struct message *m, void *data)
         bottom_uit = ui_printf(ui, font, bottom_element, color, UI_AF_RIGHT,
                                "FPS: %d\nTime: %d:%02d", m->cmd.fps,
                                m->cmd.sys_seconds / 60, m->cmd.sys_seconds % 60);
-    } else if (m->cmd.menu_enter) {
-        ui_menu_init(ui);
-    } else if (m->cmd.menu_exit) {
-        ui_menu_done(ui);
     }
     font_put(font);
 

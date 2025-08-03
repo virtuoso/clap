@@ -83,9 +83,7 @@ struct message_input {
 };
 
 struct message_command {
-    unsigned int    menu_enter  : 1,
-                    menu_exit   : 1,
-                    toggle_modality : 1,
+    unsigned int    toggle_modality : 1,
                     global_exit : 1,
                     status      : 1,
                     connect     : 1,
