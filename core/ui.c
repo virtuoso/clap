@@ -19,6 +19,10 @@ model3dtx *ui_quadtx;
 static texture_t *ui_fbo_tex; /* XXX */
 static model3dtx *ui_pip;
 
+/****************************************************************************
+ * ui_element
+ ****************************************************************************/
+
 static bool __ui_element_is_visible(struct ui_element *uie, struct ui *ui)
 {
     if (uie->affinity & UI_SZ_NORES)
@@ -162,6 +166,19 @@ static void ui_element_destroy(entity3d *e)
     struct ui_element *uie = e->priv;
 
     ref_put(uie);
+}
+
+/**
+ * ui_element_within() - check if a point is within element's bounds
+ * @x:  global x coordinate
+ * @y:  global y coordinate
+ *
+ * Return: true on hit, false on miss
+ */
+static bool ui_element_within(struct ui_element *e, int x, int y)
+{
+    return x >= e->actual_x && x < e->actual_x + e->actual_w &&
+           y >= e->actual_y && y < e->actual_y + e->actual_h;
 }
 
 static cerr ui_element_make(struct ref *ref, void *_opts)
@@ -1270,12 +1287,6 @@ void ui_inventory_done(struct ui *ui)
     ui->inventory = NULL;
     if (!ui->menu)
         ui->modal = false;
-}
-
-static bool ui_element_within(struct ui_element *e, int x, int y)
-{
-    return x >= e->actual_x && x < e->actual_x + e->actual_w &&
-           y >= e->actual_y && y < e->actual_y + e->actual_h;
 }
 
 /**
