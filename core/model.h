@@ -616,7 +616,7 @@ void entity3d_position(entity3d *e, vec3 pos);
 void entity3d_visible(entity3d *e, unsigned int visible);
 
 /**
- * entity3d_rotate - set entity's rotation by Euler's angles
+ * entity3d_rotate() - set entity's rotation by Euler's angles
  * @e:  entity object
  * @rx: rotation around X axis (pitch)
  * @ry: rotation around Y axis (yaw)
