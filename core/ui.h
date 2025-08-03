@@ -39,6 +39,9 @@ typedef struct uivec {
     unsigned int    y;
 } uivec;
 
+typedef void (*on_click_fn)(struct ui_element *uie, float x, float y);
+typedef void (*on_focus_fn)(struct ui_element *uie, bool focus);
+
 struct ui_element {
     struct ref       ref;
     entity3d         *entity;
@@ -50,8 +53,8 @@ struct ui_element {
     unsigned long    affinity;
     struct ui_widget *widget;
     void             *priv;
-    void             (*on_click)(struct ui_element *uie, float x, float y);
-    void             (*on_focus)(struct ui_element *uie, bool focus);
+    on_click_fn      on_click;
+    on_focus_fn      on_focus;
     bool             prescaled;
     bool             force_hidden;
     /* 2-byte hole */
