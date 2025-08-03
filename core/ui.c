@@ -638,31 +638,6 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
     ui_element_for_each_child(uie, __set_alpha, &alpha);
 }
 
-static void inv_onfocus(struct ui_element *uie, bool focus)
-{
-    int j;
-    struct ui_element *current_item, *x;
-    struct ui_widget *inv = uie->ui->inventory;
-    long focused = (intptr_t)uie->priv;
-    float focus_color[] = { 1.0, 0.0, 0.0, 1.0 };
-    float non_focus_color[] = { 1.0, 1.0, 1.0, 1.0 };
-    float *color;
-    
-    for (int i = 0; i < inv->nr_uies; i++) {
-        current_item = inv->uies[i];
-        if (i == focused)
-            color = focus_color;
-        else
-            color = non_focus_color;
-        j = 0;
-        list_for_each_entry(x, &current_item->children, child_entry) {
-            if (j == 0) // hack: frame is the first child.
-                memcpy(x->entity->color, color, sizeof(focus_color));
-            j++;
-        }
-    }
-}
-
 static void ui_element_children(struct ui_element *uie, struct list *list)
 {
     struct ui_element *child, *iter;
@@ -1216,6 +1191,31 @@ static void ui_menu_done(struct ui *ui)
 static void inv_onclick(struct ui_element *uie, float x, float y)
 {
     dbg("ignoring click on '%s'\n", entity_name(uie->entity));
+}
+
+static void inv_onfocus(struct ui_element *uie, bool focus)
+{
+    int j;
+    struct ui_element *current_item, *x;
+    struct ui_widget *inv = uie->ui->inventory;
+    long focused = (intptr_t)uie->priv;
+    float focus_color[] = { 1.0, 0.0, 0.0, 1.0 };
+    float non_focus_color[] = { 1.0, 1.0, 1.0, 1.0 };
+    float *color;
+
+    for (int i = 0; i < inv->nr_uies; i++) {
+        current_item = inv->uies[i];
+        if (i == focused)
+            color = focus_color;
+        else
+            color = non_focus_color;
+        j = 0;
+        list_for_each_entry(x, &current_item->children, child_entry) {
+            if (j == 0) // hack: frame is the first child.
+                memcpy(x->entity->color, color, sizeof(focus_color));
+            j++;
+        }
+    }
 }
 
 void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
