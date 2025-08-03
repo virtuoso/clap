@@ -8,6 +8,7 @@ include (FindPkgConfig)
 option(CLAP_BUILD_WITH_GLES BOOL OFF)
 option(CLAP_BUILD_FINAL BOOL OFF)
 option(CLAP_BUILD_NETWORKING BOOL OFF)
+option(CLAP_BUILD_DOCS BOOL OFF)
 option(CLAP_USE_UBSAN BOOL OFF)
 option(CLAP_USE_ASAN BOOL OFF)
 set(CLAP_SERVER_IP "127.0.0.1" CACHE STRING "Server IP address")
@@ -136,9 +137,13 @@ add_dependencies(libode ode)
 set_property(TARGET libode PROPERTY IMPORTED_LOCATION "${ODE_LIBRARY}")
 set(ODE_INCLUDE "${ODE_ROOT}/include")
 
+include(scripts/clap-doc.cmake)
+
 add_subdirectory(core)
 add_subdirectory(demo/ldjam56)
 add_subdirectory(demo/ldjam57)
+
+add_clapdoc_target(libonehandclap core)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     ExternalProject_Add(compat-host

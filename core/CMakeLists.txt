@@ -80,7 +80,7 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     endif ()
 
     add_executable(${TEST_BIN} ${TEST_SRC})
-    add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate)
+    add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate ${CLAP_DOC_DEP})
     target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
     win32_executable(${TEST_BIN})
 
@@ -225,12 +225,15 @@ FOREACH(src ${ENGINE_SRC})
     )
     if (NOT WIN32)
         set_source_files_properties(${src} PROPERTIES
-                                    COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CFLAGS}"
+            COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CFLAGS} ${CLAP_DOC_OPT}"
         )
+    endif ()
+    if (CLAP_BUILD_DOCS)
+        set_source_files_properties(${src} PROPERTIES OBJECT_OUTPUTS ${CLAP_DOC_API_DIR}/${src}.json)
     endif ()
 ENDFOREACH ()
 
-set_source_files_properties(render-mtl.m COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-availability -fno-objc-arc")
+set_source_files_properties(render-mtl.m COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-availability -fno-objc-arc ${CFLAGS} ${CLAP_DOC_OPT}")
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builddate.c" FORCE_REGEN
@@ -245,7 +248,7 @@ add_custom_target(
 )
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shaders.c)
-add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen force_builddate)
+add_dependencies(${ENGINE_LIB} ode ${CLAP_DOC_DEP} refclasses_gen cerrs_gen force_builddate)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${RENDERER_LIBRARIES})

@@ -56,7 +56,7 @@ if (CONFIG_RENDERER_METAL)
     list(APPEND CIMGUI_SRC "ui-imgui-metal.m")
     set_source_files_properties("ui-imgui-metal.m" PROPERTIES
         COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ "
-        COMPILE_FLAGS "-Wno-nontrivial-memaccess -Wno-deprecated-declarations"
+        COMPILE_FLAGS "-Wno-nontrivial-memaccess -Wno-deprecated-declarations ${CLAP_DOC_OPT}"
     )
 endif ()
 

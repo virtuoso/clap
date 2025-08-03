@@ -7,7 +7,9 @@
 #include <sys/types.h>
 
 /**
- * base64_maps_t - structure to hold maps for encode/decode
+ * typedef base64_maps_t - structure to hold maps for encode/decode
+ * @encode_map: encode map
+ * @decode_map: decode map
  */
 typedef struct {
 	char encode_map[64];
