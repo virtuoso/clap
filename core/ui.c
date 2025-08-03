@@ -1325,16 +1325,33 @@ unfocus:
     uiw->focus = focus;
 }
 
-static void ui_menu_click(struct ui_widget *uiw, int x, int y)
+/**
+ * ui_widget_click() - dispatch a pointer click within a widget
+ * @uiw:    widget
+ * @x:      global x coordinate
+ * @y:      global y coordinate
+ *
+ * Find an element within a widget where a pointer click lands and call its
+ * on_click() method.
+ *
+ * Return: true if click landed, false if there's no element at [x, y].
+ */
+static bool ui_widget_click(struct ui_widget *uiw, int x, int y)
 {
-    int n = CRES_RET(
-        ui_widget_within(uiw, x, y),
-        /* miss: cancel modality, destroy menu */
-        { ui_menu_done(uiw->root->ui); return; }
-    );
+    int n = CRES_RET(ui_widget_within(uiw, x, y), return false);
 
     auto child = uiw->uies[n];
     child->on_click(child, (float)x - child->actual_x, (float)y - child->actual_y);
+
+    return true;
+}
+
+static void ui_menu_click(struct ui_widget *uiw, int x, int y)
+{
+    if (ui_widget_click(uiw, x, y)) return;
+
+    /* miss: cancel modality, destroy menu */
+    ui_menu_done(uiw->root->ui);
 }
 
 static int ui_handle_command(struct message *m, void *data)
