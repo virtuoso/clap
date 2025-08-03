@@ -63,7 +63,7 @@ typedef struct phys_contact_params {
 } phys_contact_params;
 
 /**
- * phys_body_set_contact_params - set body's contact parameters
+ * define phys_body_set_contact_params - set body's contact parameters
  * @_b:     phys_body object
  * @args:   comma-separated list of contact parameters' initializers
  *          (see &struct phys_contact_params)
@@ -75,7 +75,7 @@ typedef struct phys_contact_params {
     _phys_body_set_contact_params((_b), &(phys_contact_params){ args })
 
 /**
- * _phys_body_set_contact_params - set body's contact parameters
+ * _phys_body_set_contact_params() - set body's contact parameters
  * @body:   phys_body object
  * @params: contact parameters (see &struct phys_contact_params)
  *
