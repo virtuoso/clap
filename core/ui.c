@@ -1109,8 +1109,6 @@ static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
     uia_set_visible(uie, 1);
     uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, 0.5);
     uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 0.5, 1.0, 0.0);
-    if (i == uie->widget->nr_uies - 1)
-        uia_action(uie, ui_menu_preselect);
 }
 
 static struct ui_widget *
@@ -1142,6 +1140,7 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
         ui_element_set_visibility(menu->uies[i], 0);
 
         if (uwb->el_cb)         uwb->el_cb(menu->uies[i], i);
+        if (i == nr_items - 1)  uia_action(menu->uies[i], ui_menu_preselect);
     }
 
     for (i = 0; i < nr_items; i++) {
