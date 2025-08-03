@@ -457,12 +457,15 @@ bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 fbo_attachment_type fbo_get_attachment(fbo_t *fbo);
 texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
 
+/**
+ * typedef shader_stage - shader stages
+ */
 typedef enum {
-    SHADER_STAGE_VERTEX,
-    SHADER_STAGE_FRAGMENT,
-    SHADER_STAGE_GEOMETRY,
-    SHADER_STAGE_COMPUTE,
-    SHADER_STAGES_MAX,
+    SHADER_STAGE_VERTEX,    /** vertex shader */
+    SHADER_STAGE_FRAGMENT,  /** fragment shader */
+    SHADER_STAGE_GEOMETRY,  /** geometry shader */
+    SHADER_STAGE_COMPUTE,   /** compute shader */
+    SHADER_STAGES_MAX,      /** sentinel */
 } shader_stage;
 
 #define SHADER_STAGE_VERTEX_BIT     (1 << SHADER_STAGE_VERTEX)
