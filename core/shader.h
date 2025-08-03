@@ -9,174 +9,109 @@
 
 /**
  * enum shader_vars - uniforms and attributes
- * @ATTR_POSITION:                      position vertex attribute
- * @ATTR_TEX:                           texture coordinates vertex attribute
- * @ATTR_NORMAL:                        normal vector vertex attribute
- * @ATTR_TANGENT:                       tangent vector vertex attribute
- * @ATTR_JOINTS:                        influencing joints' indices vertex attribute
- * @ATTR_WEIGHTS:                       influencing joints' weights vertex attribute
- * @ATTR_MAX:                           attribute sentinel
- * @UNIFORM_MODEL_TEX:                  model texture
- * @UNIFORM_NORMAL_MAP:                 normal map texture
- * @UNIFORM_SOBEL_TEX:                  sobel texture
- * @UNIFORM_SHADOW_MAP:                 shadow map array or cascade 0 texture
- * @UNIFORM_SHADOW_MAP1:                shadow map cascade 1 texture
- * @UNIFORM_SHADOW_MAP2:                shadow map cascade 2 texture
- * @UNIFORM_SHADOW_MAP3:                shadow map cascade 3 texture
- * @UNIFORM_SHADOW_MAP_MS:              shadow multisampled array texture
- * @UNIFORM_EMISSION_MAP:               emission texture
- * @UNIFORM_LUT_TEX:                    LUT texture
- * @UNIFORM_WIDTH:                      FBO width (should be useless by now)
- * @UNIFORM_HEIGHT:                     FBO height (should be useless by now)
- * @UNIFORM_NEAR_PLANE:                 view frustum's near_plane
- * @UNIFORM_FAR_PLANE:                  view frustum's far_plane
- * @UNIFORM_PROJ:                       projection matrix
- * @UNIFORM_VIEW:                       view matrix
- * @UNIFORM_TRANS:                      model TRS matrix
- * @UNIFORM_INVERSE_VIEW:               inverse view matrix
- * @UNIFORM_LIGHT_POS:                  array of light position vectors
- * @UNIFORM_LIGHT_COLOR:                array of light color vectors
- * @UNIFORM_LIGHT_DIR:                  array of light direction vectors
- * @UNIFORM_LIGHT_DIRECTIONAL:          array of "is light directional" booleans
- * @UNIFORM_NR_LIGHTS:                  number of light sources
- * @UNIFORM_LIGHT_AMBIENT:              ambient light color
- * @UNIFORM_ATTENUATION:                array of non-directional light attenuations
- * @UNIFORM_SHINE_DAMPER:               specular shine damper for Blinn-Phong lighting
- * @UNIFORM_REFLECTIVITY:               reflectivity for Blinn-Phong lighting
- * @UNIFORM_ROUGHNESS:                  roughness for Cook-Torrance lighting
- * @UNIFORM_METALLIC:                   metallic far Cook-Torrance lighting
- * @UNIFORM_ROUGHNESS_CEIL:             roughness ceiling for procedural roughness
- * @UNIFORM_ROUGHNESS_AMP:              roughness per-octave amplitude multiplier
- * @UNIFORM_ROUGHNESS_OCT:              number of octaves for procedural roughness
- * @UNIFORM_ROUGHNESS_SCALE:            fragment coords scale for seeding
- * @UNIFORM_METALLIC_CEIL:              metallic ceiling for procedural metallic
- * @UNIFORM_METALLIC_AMP:               metallic per-octave amplitude multiplier
- * @UNIFORM_METALLIC_OCT:               number of octaves for procedural metallic
- * @UNIFORM_METALLIC_SCALE:             fragment coords scale for seeding
- * @UNIFORM_METALLIC_MODE:              0: metallic=roughness, 1: metallic=1-roughness,
- *                                      2: independent
- * @UNIFORM_SHARED_SCALE:               boolean: metallic noise seed is roughness seed
- * @UNIFORM_IN_COLOR:                   override color
- * @UNIFORM_COLOR_PASSTHROUGH:          COLOR_PT_NONE: no override;
- *                                      COLOR_PT_ALPHA: override alpha;
- *                                      COLOR_PT_ALL: override all color components
- * @UNIFORM_SHADOW_VSM:                 use Variance Shadow Mapping (otherwise CSM)
- * @UNIFORM_SHADOW_MVP:                 array of proj * view matrices for shadow cascades
- * @UNIFORM_CASCADE_DISTANCES:          array of cascade distances from the camera
- * @UNIFORM_SHADOW_TINT:                color of the shadow tint
- * @UNIFORM_SHADOW_OUTLINE:             boolean: outline edges of shadows
- * @UNIFORM_SHADOW_OUTLINE_THRESHOLD:   shadow edge outline cutoff threshold
- * @UNIFORM_OUTLINE_EXCLUDE:            boolean: exclude model from edge detection
- * @UNIFORM_LAPLACE_KERNEL:             Laplace kernel size: 3x3 or 5x5
- * @UNIFORM_SOBEL_SOLID_ID:             unique value for solid-color outlines
- * @UNIFORM_USE_NORMALS:                model uses a normal map
- * @UNIFORM_USE_SKINNING:               model uses skeletal animotion (joint, weights, joint_transform)
- * @UNIFORM_USE_MSAA:                   [ropt] use multisampled textures
- * @UNIFORM_USE_HDR:                    [ropt] use half-float or float components for colors
- *                                      in intermediate postprocessing render passes
- * @UNIFORM_USE_SSAO:                   [ropt] use screen space ambient occlusion
- * @UNIFORM_SSAO_KERNEL:                [ropt] SSAO kernel size
- * @UNIFORM_SSAO_NOISE_SCALE:           [ropt] UV scale for SSAO noise sampling
- * @UNIFORM_SSAO_RADIUS:                [ropt] SSAO radius
- * @UNIFORM_SSAO_WEIGHT:                [ropt] SSAO influence
- * @UNIFORM_SOBEL_SOLID:                boolean: use diffuse colors for edge detection
- *                                      instead of normal vectors
- * @UNIFORM_JOINT_TRANSFORMS:           array of joint transform TRS matrices
- * @UNIFORM_BLOOM_EXPOSURE:             [ropt] bloom exposure
- * @UNIFORM_BLOOM_INTENSITY:            [ropt] >0: emission map's bloom intensity;
- *                                      <0: diffuse color's bloom intensity
- * @UNIFORM_BLOOM_THRESHOLD:            [ropt] emission cutoff
- * @UNIFORM_BLOOM_OPERATOR:             [ropt] HDR bloom tonemapping operator
- * @UNIFORM_LIGHTING_EXPOSURE:          [ropt] lighting exposure
- * @UNIFORM_LIGHTING_OPERATOR:          [ropt] HDR lighting tonemapping operator
- * @UNIFORM_CONTRAST:                   [ropt] contrast
- * @UNIFORM_FOG_NEAR:                   [ropt] radial fog's near distance
- * @UNIFORM_FOG_FAR:                    [ropt] radial fog's far distance
- * @UNIFORM_FOG_COLOR:                  [ropt] radial fog color
- * @UNIFORM_PARTICLE_POS:               array of particle position vertices
- * @SHADER_VAR_MAX:                     sentinel
+ *
+ * Map shaders' attributes and uniforms to named constants.
  */
 enum shader_vars {
-    ATTR_POSITION   = ATTR_LOC_POSITION,
-    ATTR_TEX        = ATTR_LOC_TEX,
-    ATTR_NORMAL     = ATTR_LOC_NORMAL,
-    ATTR_TANGENT    = ATTR_LOC_TANGENT,
-    ATTR_JOINTS     = ATTR_LOC_JOINTS,
-    ATTR_WEIGHTS    = ATTR_LOC_WEIGHTS,
-    ATTR_MAX,
-    UNIFORM_MODEL_TEX = ATTR_MAX,
-    UNIFORM_NORMAL_MAP,
-    UNIFORM_SOBEL_TEX,
-    UNIFORM_SHADOW_MAP,
-    UNIFORM_SHADOW_MAP1,
-    UNIFORM_SHADOW_MAP2,
-    UNIFORM_SHADOW_MAP3,
-    UNIFORM_SHADOW_MAP_MS,
-    UNIFORM_EMISSION_MAP,
-    UNIFORM_LUT_TEX,
-    UNIFORM_WIDTH,
-    UNIFORM_HEIGHT,
-    UNIFORM_NEAR_PLANE,
-    UNIFORM_FAR_PLANE,
-    UNIFORM_PROJ,
-    UNIFORM_VIEW,
-    UNIFORM_TRANS,
-    UNIFORM_INVERSE_VIEW,
-    UNIFORM_LIGHT_POS,
-    UNIFORM_LIGHT_COLOR,
-    UNIFORM_LIGHT_DIR,
-    UNIFORM_LIGHT_DIRECTIONAL,
-    UNIFORM_NR_LIGHTS,
-    UNIFORM_LIGHT_AMBIENT,
-    UNIFORM_ATTENUATION,
-    UNIFORM_SHINE_DAMPER,
-    UNIFORM_REFLECTIVITY,
-    UNIFORM_ROUGHNESS,
-    UNIFORM_METALLIC,
-    UNIFORM_ROUGHNESS_CEIL,
-    UNIFORM_ROUGHNESS_AMP,
-    UNIFORM_ROUGHNESS_OCT,
-    UNIFORM_ROUGHNESS_SCALE,
-    UNIFORM_METALLIC_CEIL,
-    UNIFORM_METALLIC_AMP,
-    UNIFORM_METALLIC_OCT,
-    UNIFORM_METALLIC_SCALE,
-    UNIFORM_METALLIC_MODE,
-    UNIFORM_SHARED_SCALE,
-    UNIFORM_IN_COLOR,
-    UNIFORM_COLOR_PASSTHROUGH,
-    UNIFORM_SHADOW_VSM,
-    UNIFORM_SHADOW_MVP,
-    UNIFORM_CASCADE_DISTANCES,
-    UNIFORM_SHADOW_TINT,
-    UNIFORM_SHADOW_OUTLINE,
-    UNIFORM_SHADOW_OUTLINE_THRESHOLD,
-    UNIFORM_OUTLINE_EXCLUDE,
-    UNIFORM_LAPLACE_KERNEL,
-    UNIFORM_SOBEL_SOLID_ID,
-    UNIFORM_USE_NORMALS,
-    UNIFORM_USE_SKINNING,
-    UNIFORM_USE_MSAA,
-    UNIFORM_USE_HDR,
-    UNIFORM_USE_SSAO,
-    UNIFORM_SSAO_KERNEL,
-    UNIFORM_SSAO_NOISE_SCALE,
-    UNIFORM_SSAO_RADIUS,
-    UNIFORM_SSAO_WEIGHT,
-    UNIFORM_SOBEL_SOLID,
-    UNIFORM_JOINT_TRANSFORMS,
-    UNIFORM_BLOOM_EXPOSURE,
-    UNIFORM_BLOOM_INTENSITY,
-    UNIFORM_BLOOM_THRESHOLD,
-    UNIFORM_BLOOM_OPERATOR,
-    UNIFORM_LIGHTING_EXPOSURE,
-    UNIFORM_LIGHTING_OPERATOR,
-    UNIFORM_CONTRAST,
-    UNIFORM_FOG_NEAR,
-    UNIFORM_FOG_FAR,
-    UNIFORM_FOG_COLOR,
-    UNIFORM_PARTICLE_POS,
-    SHADER_VAR_MAX
+    ATTR_POSITION   = ATTR_LOC_POSITION,    /** position vertex attribute */
+    ATTR_TEX        = ATTR_LOC_TEX,         /** texture coordinates vertex attribute */
+    ATTR_NORMAL     = ATTR_LOC_NORMAL,      /** normal vector vertex attribute */
+    ATTR_TANGENT    = ATTR_LOC_TANGENT,     /** tangent vector vertex attribute */
+    ATTR_JOINTS     = ATTR_LOC_JOINTS,      /** influencing joints' indices vertex attribute */
+    ATTR_WEIGHTS    = ATTR_LOC_WEIGHTS,     /** influencing joints' weights vertex attribute */
+    ATTR_MAX,                               /** attribute sentinel */
+    UNIFORM_MODEL_TEX = ATTR_MAX,           /** model texture */
+    UNIFORM_NORMAL_MAP,                     /** normal map texture */
+    UNIFORM_SOBEL_TEX,                      /** sobel texture */
+    UNIFORM_SHADOW_MAP,                     /** shadow map array or cascade 0 texture */
+    UNIFORM_SHADOW_MAP1,                    /** shadow map cascade 1 texture */
+    UNIFORM_SHADOW_MAP2,                    /** shadow map cascade 2 texture */
+    UNIFORM_SHADOW_MAP3,                    /** shadow map cascade 3 texture */
+    UNIFORM_SHADOW_MAP_MS,                  /** shadow multisampled array texture */
+    UNIFORM_EMISSION_MAP,                   /** emission texture */
+    UNIFORM_LUT_TEX,                        /** LUT texture */
+    UNIFORM_WIDTH,                          /** FBO width (should be useless by now) */
+    UNIFORM_HEIGHT,                         /** FBO height (should be useless by now) */
+    UNIFORM_NEAR_PLANE,                     /** view frustum's near_plane */
+    UNIFORM_FAR_PLANE,                      /** view frustum's far_plane */
+    UNIFORM_PROJ,                           /** projection matrix */
+    UNIFORM_VIEW,                           /** view matrix */
+    UNIFORM_TRANS,                          /** model TRS matrix */
+    UNIFORM_INVERSE_VIEW,                   /** inverse view matrix */
+    UNIFORM_LIGHT_POS,                      /** array of light position vectors */
+    UNIFORM_LIGHT_COLOR,                    /** array of light color vectors */
+    UNIFORM_LIGHT_DIR,                      /** array of light direction vectors */
+    UNIFORM_LIGHT_DIRECTIONAL,              /** array of "is light directional" booleans */
+    UNIFORM_NR_LIGHTS,                      /** number of light sources */
+    UNIFORM_LIGHT_AMBIENT,                  /** ambient light color */
+    UNIFORM_ATTENUATION,                    /** array of non-directional light attenuations */
+    UNIFORM_SHINE_DAMPER,                   /** specular shine damper for Blinn-Phong lighting */
+    UNIFORM_REFLECTIVITY,                   /** reflectivity for Blinn-Phong lighting */
+    UNIFORM_ROUGHNESS,                      /** roughness for Cook-Torrance lighting */
+    UNIFORM_METALLIC,                       /** metallic far Cook-Torrance lighting */
+    UNIFORM_ROUGHNESS_CEIL,                 /** roughness ceiling for procedural roughness */
+    UNIFORM_ROUGHNESS_AMP,                  /** roughness per-octave amplitude multiplier */
+    UNIFORM_ROUGHNESS_OCT,                  /** number of octaves for procedural roughness */
+    UNIFORM_ROUGHNESS_SCALE,                /** fragment coords scale for seeding */
+    UNIFORM_METALLIC_CEIL,                  /** metallic ceiling for procedural metallic */
+    UNIFORM_METALLIC_AMP,                   /** metallic per-octave amplitude multiplier */
+    UNIFORM_METALLIC_OCT,                   /** number of octaves for procedural metallic */
+    UNIFORM_METALLIC_SCALE,                 /** fragment coords scale for seeding */
+
+    UNIFORM_METALLIC_MODE,                  /**
+                                             * 0: metallic=roughness,
+                                             * 1: metallic=1-roughness,
+                                             * 2: independent
+                                             */
+    UNIFORM_SHARED_SCALE,                   /** boolean: metallic noise seed is roughness seed */
+    UNIFORM_IN_COLOR,                       /** override color */
+    UNIFORM_COLOR_PASSTHROUGH,              /**
+                                             * COLOR_PT_NONE: no override;
+                                             * COLOR_PT_ALPHA: override alpha;
+                                             * COLOR_PT_ALL: override all color components
+                                             */
+    UNIFORM_SHADOW_VSM,                     /** use Variance Shadow Mapping (otherwise CSM) */
+    UNIFORM_SHADOW_MVP,                     /** array of proj * view matrices for shadow cascades */
+    UNIFORM_CASCADE_DISTANCES,              /** array of cascade distances from the camera */
+    UNIFORM_SHADOW_TINT,                    /** color of the shadow tint */
+    UNIFORM_SHADOW_OUTLINE,                 /** boolean: outline edges of shadows */
+    UNIFORM_SHADOW_OUTLINE_THRESHOLD,       /** shadow edge outline cutoff threshold */
+    UNIFORM_OUTLINE_EXCLUDE,                /** boolean: exclude model from edge detection */
+    UNIFORM_LAPLACE_KERNEL,                 /** Laplace kernel size: 3x3 or 5x5 */
+    UNIFORM_SOBEL_SOLID_ID,                 /** unique value for solid-color outlines */
+    UNIFORM_USE_NORMALS,                    /** model uses a normal map */
+    UNIFORM_USE_SKINNING,                   /** model uses skeletal animotion (joint, weights, joint_transform) */
+    UNIFORM_USE_MSAA,                       /** [ropt] use multisampled textures */
+    UNIFORM_USE_HDR,                        /**
+                                             * [ropt] use half-float or float components for colors
+                                             * in intermediate postprocessing render passes
+                                             */
+    UNIFORM_USE_SSAO,                       /** [ropt] use screen space ambient occlusion */
+    UNIFORM_SSAO_KERNEL,                    /** [ropt] SSAO kernel size */
+    UNIFORM_SSAO_NOISE_SCALE,               /** [ropt] UV scale for SSAO noise sampling */
+    UNIFORM_SSAO_RADIUS,                    /** [ropt] SSAO radius */
+    UNIFORM_SSAO_WEIGHT,                    /** [ropt] SSAO influence */
+    UNIFORM_SOBEL_SOLID,                    /**
+                                             * boolean: use diffuse colors for edge detection
+                                             * instead of normal vectors
+                                             */
+    UNIFORM_JOINT_TRANSFORMS,               /** array of joint transform TRS matrices */
+    UNIFORM_BLOOM_EXPOSURE,                 /** [ropt] bloom exposure */
+    UNIFORM_BLOOM_INTENSITY,                /**
+                                             * [ropt]
+                                             * >0: emission map's bloom intensity;
+                                             * <0: diffuse color's bloom intensity
+                                             */
+    UNIFORM_BLOOM_THRESHOLD,                /** [ropt] emission cutoff */
+    UNIFORM_BLOOM_OPERATOR,                 /** [ropt] HDR bloom tonemapping operator */
+    UNIFORM_LIGHTING_EXPOSURE,              /** [ropt] lighting exposure */
+    UNIFORM_LIGHTING_OPERATOR,              /** [ropt] HDR lighting tonemapping operator */
+    UNIFORM_CONTRAST,                       /** [ropt] contrast */
+    UNIFORM_FOG_NEAR,                       /** [ropt] radial fog's near distance */
+    UNIFORM_FOG_FAR,                        /** [ropt] radial fog's far distance */
+    UNIFORM_FOG_COLOR,                      /** [ropt] radial fog color */
+    UNIFORM_PARTICLE_POS,                   /** array of particle position vertices */
+    SHADER_VAR_MAX                          /** sentinel */
 };
 
 typedef struct shader_context shader_context;
