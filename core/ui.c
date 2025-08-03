@@ -1043,13 +1043,13 @@ static void menu_onclick(struct ui_element *uie, float x, float y)
 
     if (!strcmp(str, "Help")) {
         ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, help_items, array_size(help_items));
+        ui->menu = ui_menu_new(ui, NULL, help_items, array_size(help_items));
     } else if (!strcmp(str, "Exit")) {
         ui_menu_done(ui);
         display_request_exit();
     } else if (!strcmp(str, "HUD")) {
         ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
+        ui->menu = ui_menu_new(ui, NULL, hud_items, array_size(hud_items));
     } else if (!strcmp(str, "Fullscreen")) {
         struct message_input mi;
         memset(&mi, 0, sizeof(mi));
@@ -1153,34 +1153,35 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     return menu;
 }
 
-struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr_items)
+struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb,
+                              const char **items, unsigned int nr_items)
 {
-    struct ui_widget *menu;
-    struct ui_widget_builder uwb = {
-        .el_affinity  = UI_AF_TOP | UI_AF_RIGHT,
-        .affinity   = UI_AF_VCENTER | UI_AF_RIGHT,
-        .el_x_off   = 10,
-        .el_y_off   = 10,
-        .el_w       = 300,
-        .el_h       = 100,
-        .el_margin  = 4,
-        .x_off      = 10,
-        .y_off      = 10,
-        .w          = 500,
-        .h          = 0.8,
-        .el_cb      = ui_menu_element_cb,
-        .el_on_click= menu_onclick,
-        .el_on_focus= menu_onfocus,
-        .el_color   = { 0.52f, 0.12f, 0.12f, 1.0f },
-        .text_color = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
+    struct ui_widget_builder _uwb = {
+        .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
+        .affinity       = UI_AF_VCENTER | UI_AF_RIGHT,
+        .el_x_off       = 10,
+        .el_y_off       = 10,
+        .el_w           = 300,
+        .el_h           = 100,
+        .el_margin      = 4,
+        .x_off          = 10,
+        .y_off          = 10,
+        .w              = 500,
+        .h              = 0.8,
+        .el_cb          = ui_menu_element_cb,
+        .el_on_click    = menu_onclick,
+        .el_on_focus    = menu_onfocus,
+        .el_color       = { 0.52f, 0.12f, 0.12f, 1.0f },
+        .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
     };
 
-    uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
-    if (!uwb.font)
-        return NULL;
+    if (uwb)                memcpy(&_uwb, uwb, sizeof(_uwb));
 
-    menu = ui_menu_build(ui, &uwb, items, nr_items);
-    font_put(uwb.font);
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
+    if (!_uwb.font)         return NULL;
+
+    auto menu = ui_menu_build(ui, &_uwb, items, nr_items);
+    font_put(_uwb.font);
 
     return menu;
 }
@@ -1209,7 +1210,7 @@ static const char *menu_items[] = {
 static void ui_menu_init(struct ui *ui)
 {
     ui_modality_send();
-    ui->menu = ui_menu_new(ui, menu_items, array_size(menu_items));
+    ui->menu = ui_menu_new(ui, NULL, menu_items, array_size(menu_items));
     /* XXX: should send a message to others that the UI owns inputs now */
     ui->modal = true;
 }
