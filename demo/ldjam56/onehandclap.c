@@ -4,33 +4,22 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include <string.h>
-#include <errno.h>
 #include <sys/time.h>
-#include <time.h>
-//#include <linux/time.h> /* XXX: for intellisense */
-#include <math.h>
 #include <unistd.h>
-#include "shader_constants.h"
 #include "object.h"
 #include "common.h"
 #include "display.h"
 #include "input.h"
 #include "messagebus.h"
-#include "librarian.h"
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
-#include "shader.h"
-#include "terrain.h"
 #include "ui.h"
 #include "scene.h"
 #include "sound.h"
 #include "pipeline-builder.h"
 #include "physics.h"
-#include "primitives.h"
 #include "networking.h"
-#include "profiler.h"
 #include "settings.h"
 #include "ui-debug.h"
 
