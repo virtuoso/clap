@@ -755,6 +755,26 @@ void ui_widget_schedule_deletion(struct ui_element *uie)
     uia_action(uie, __widget_delete_action);
 }
 
+static inline void ui_widget_on_click(struct ui_widget *uiw, int idx, float x, float y)
+{
+    if (idx < 0 || idx >= uiw->nr_uies) return;
+
+    auto child = uiw->uies[idx];
+    if (!child->on_click)               return;
+
+    child->on_click(child, (float)x - child->actual_x, (float)y - child->actual_y);
+}
+
+static inline void ui_widget_on_focus(struct ui_widget *uiw, int idx, bool focus)
+{
+    if (idx < 0 || idx >= uiw->nr_uies) return;
+
+    auto child = uiw->uies[idx];
+    if (!child->on_focus)               return;
+
+    child->on_focus(child, focus);
+}
+
 /**
  * ui_widget_pick_rel() - focus widget's element relative to currently focused
  * @uiw:    widget
@@ -768,14 +788,8 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
 {
     if (!dpos)  return;
 
-    struct ui_element *uie;
-
     /* out-of-focus animation */
-    if (uiw->focus >= 0) {
-        uie = uiw->uies[uiw->focus];
-        if (uie->on_focus)
-            uie->on_focus(uie, false);
-    }
+    ui_widget_on_focus(uiw, uiw->focus, false);
 
     int new_focus = dpos + uiw->focus;
     if (new_focus < 0)
@@ -785,9 +799,7 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
     uiw->focus = new_focus;
 
     /* in-focus-animation */
-    uie = uiw->uies[uiw->focus];
-    if (uie->on_focus)
-        uie->on_focus(uie, true);
+    ui_widget_on_focus(uiw, uiw->focus, true);
 }
 
 /**
@@ -830,14 +842,11 @@ static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
     if (n == uiw->focus)    return;
 
     focus = n;
-    auto child = uiw->uies[n];
-    child->on_focus(child, true);
+    ui_widget_on_focus(uiw, n, true);
 
 unfocus:
-    if (uiw->focus >= 0) {
-        auto prev_child = uiw->uies[uiw->focus];
-        prev_child->on_focus(prev_child, false);
-    }
+    if (uiw->focus >= 0)
+        ui_widget_on_focus(uiw, uiw->focus, false);
 
     uiw->focus = focus;
 }
@@ -857,8 +866,7 @@ static bool ui_widget_click(struct ui_widget *uiw, int x, int y)
 {
     int n = CRES_RET(ui_widget_within(uiw, x, y), return false);
 
-    auto child = uiw->uies[n];
-    child->on_click(child, (float)x - child->actual_x, (float)y - child->actual_y);
+    ui_widget_on_click(uiw, n, x, y);
 
     return true;
 }
