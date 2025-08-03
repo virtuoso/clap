@@ -638,61 +638,6 @@ void ui_element_set_alpha(struct ui_element *uie, float alpha)
     ui_element_for_each_child(uie, __set_alpha, &alpha);
 }
 
-static void ui_menu_done(struct ui *ui);
-
-static const char *help_items[] = { "...license", "...help", "...credits" };
-static const char *hud_items[] = { "FPS", };
-static void menu_onclick(struct ui_element *uie, float x, float y)
-{
-    const char *str = uie->priv;
-    struct ui *ui = uie->ui;
-
-    if (!strcmp(str, "Help")) {
-        ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, help_items, array_size(help_items));
-    } else if (!strcmp(str, "Exit")) {
-        ui_menu_done(ui);
-        display_request_exit();
-    } else if (!strcmp(str, "HUD")) {
-        ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
-    } else if (!strcmp(str, "Fullscreen")) {
-        struct message_input mi;
-        memset(&mi, 0, sizeof(mi));
-        mi.fullscreen = 1;
-        message_input_send(&mi, NULL);
-    } else if (!strcmp(str, "FPS")) {
-        if (display_fps) {
-            display_fps = false;
-            ref_put_last(bottom_uit);
-            ref_put_last(bottom_element);
-            bottom_uit = NULL;
-        } else {
-            display_fps = true;
-        }
-        ui_menu_done(ui);
-    } else if (!strcmp(str, "Devel")) {
-        ui_toggle_debug_selector();
-        ui_menu_done(ui); /* cancels modality */
-    } else if (!strcmp(str, "...license")) {
-        ui_roll_init(ui);
-        ui_menu_done(ui); /* cancels modality */
-    } else {
-        ui_menu_done(ui);
-    }
-}
-
-static void menu_onfocus(struct ui_element *uie, bool focus)
-{
-    ui_element_set_visibility(uie, 1);
-    ui_element_set_alpha(uie, 1.0);
-
-    if (focus)
-        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
-    else
-        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, false, 1.0 / 6.0);
-}
-
 static void inv_onfocus(struct ui_element *uie, bool focus)
 {
     int j;
@@ -885,6 +830,9 @@ static bool ui_widget_click(struct ui_widget *uiw, int x, int y)
     return true;
 }
 
+static void default_onclick(struct ui_element *uie, float x, float y) {}
+static void default_onfocus(struct ui_element *uie, bool focus) {}
+
 /*
  * TODO: move widgets into a separate compilation unit
  */
@@ -943,8 +891,8 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
                                            .affinity    = affs[i],
                                            .width       = 300,
                                            .height      = 100);
-        wheel->uies[i]->on_click = menu_onclick;
-        wheel->uies[i]->on_focus = menu_onfocus;
+        wheel->uies[i]->on_click = default_onclick;
+        wheel->uies[i]->on_focus = default_onfocus;
         wheel->uies[i]->priv     = (void *)(uintptr_t)i;
 
         entity3d_color(wheel->uies[i]->entity, COLOR_PT_ALL, quad_color);
@@ -1042,6 +990,65 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
     font_put(_uwb.font);
 
     return osd;
+}
+
+/****************************************************************************
+ * ui_menu
+ ****************************************************************************/
+
+static void ui_menu_done(struct ui *ui);
+
+static const char *help_items[] = { "...license", "...help", "...credits" };
+static const char *hud_items[] = { "FPS", };
+static void menu_onclick(struct ui_element *uie, float x, float y)
+{
+    const char *str = uie->priv;
+    struct ui *ui = uie->ui;
+
+    if (!strcmp(str, "Help")) {
+        ref_put_last(ui->menu);
+        ui->menu = ui_menu_new(ui, help_items, array_size(help_items));
+    } else if (!strcmp(str, "Exit")) {
+        ui_menu_done(ui);
+        display_request_exit();
+    } else if (!strcmp(str, "HUD")) {
+        ref_put_last(ui->menu);
+        ui->menu = ui_menu_new(ui, hud_items, array_size(hud_items));
+    } else if (!strcmp(str, "Fullscreen")) {
+        struct message_input mi;
+        memset(&mi, 0, sizeof(mi));
+        mi.fullscreen = 1;
+        message_input_send(&mi, NULL);
+    } else if (!strcmp(str, "FPS")) {
+        if (display_fps) {
+            display_fps = false;
+            ref_put_last(bottom_uit);
+            ref_put_last(bottom_element);
+            bottom_uit = NULL;
+        } else {
+            display_fps = true;
+        }
+        ui_menu_done(ui);
+    } else if (!strcmp(str, "Devel")) {
+        ui_toggle_debug_selector();
+        ui_menu_done(ui); /* cancels modality */
+    } else if (!strcmp(str, "...license")) {
+        ui_roll_init(ui);
+        ui_menu_done(ui); /* cancels modality */
+    } else {
+        ui_menu_done(ui);
+    }
+}
+
+static void menu_onfocus(struct ui_element *uie, bool focus)
+{
+    ui_element_set_visibility(uie, 1);
+    ui_element_set_alpha(uie, 1.0);
+
+    if (focus)
+        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
+    else
+        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, false, 1.0 / 6.0);
 }
 
 static void ui_menu_preselect(struct ui_animation *ua)
