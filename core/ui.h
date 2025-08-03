@@ -158,7 +158,23 @@ void ui_add_model_tail(struct ui *ui, model3dtx *txmodel);
 void ui_element_animations_done(struct ui_element *uie);
 void ui_element_animations_skip(struct ui_element *uie);
 int ui_element_update(entity3d *e, void *data);
+
+/**
+ * ui_element_set_visibility() - set visibility for an element and all its children
+ * @uie:        ui element to start with
+ * @visible:    1: visible, 0: not
+ *
+ * Set visibility value for a given UI element and all its children.
+ */
 void ui_element_set_visibility(struct ui_element *uie, int visible);
+
+/**
+ * ui_element_set_alpha() - set alpha for an element and all its children
+ * @uie:    ui element to start with
+ * @alpha:  alpha channel value [0.0, 1.0]
+ *
+ * Set alpha channel value for a given UI element and all its children.
+ */
 void ui_element_set_alpha(struct ui_element *uie, float alpha);
 
 /* animations */

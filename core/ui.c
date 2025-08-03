@@ -181,6 +181,72 @@ static bool ui_element_within(struct ui_element *e, int x, int y)
            y >= e->actual_y && y < e->actual_y + e->actual_h;
 }
 
+/**
+ * ui_element_for_each_child() - run a callback for an element and all its children
+ * @uie:    ui element to start with
+ * @cb:     callback function to run
+ * @data:   private data for the callback
+ *
+ * Run a callback function for an element and all its children. For example,
+ * set their visibility or alpha channel value.
+ */
+static void ui_element_for_each_child(struct ui_element *uie, void (*cb)(struct ui_element *x, void *data), void *data)
+{
+    struct ui_element *child, *itc;
+
+    list_for_each_entry_iter(child, itc, &uie->children, child_entry) {
+        ui_element_for_each_child(child, cb, data);
+    }
+    cb(uie, data);
+}
+
+static void __set_visibility(struct ui_element *uie, void *data)
+{
+    uie->entity->visible = !!*(int *)data;
+    uie->force_hidden = !*(int *)data;
+}
+
+void ui_element_set_visibility(struct ui_element *uie, int visible)
+{
+    ui_element_for_each_child(uie, __set_visibility, &visible);
+}
+
+static void __set_alpha(struct ui_element *uie, void *data)
+{
+    uie->entity->color[3] = *(float *)data;
+}
+
+void ui_element_set_alpha_one(struct ui_element *uie, float alpha)
+{
+    __set_alpha(uie, &alpha);
+}
+
+void ui_element_set_alpha(struct ui_element *uie, float alpha)
+{
+    ui_element_for_each_child(uie, __set_alpha, &alpha);
+}
+
+/**
+ * ui_element_children() - build a list of element's children
+ * @uie:    ui element to start with
+ * @list:   list head
+ *
+ * Build a list of all of element's children, including itself, return it
+ * via @list.
+ */
+static void ui_element_children(struct ui_element *uie, struct list *list)
+{
+    struct ui_element *child, *iter;
+
+    if (!uie)
+        return;
+
+    list_for_each_entry_iter(child, iter, &uie->children, child_entry)
+        ui_element_children(child, list);
+    list_del(&uie->child_entry);
+    list_append(list, &uie->child_entry);
+}
+
 static cerr ui_element_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(ui_element) *opts = _opts;
@@ -601,55 +667,6 @@ static void ui_roll_init(struct ui *ui)
 static bool display_fps;
 static struct ui_element *bottom_uit;
 static struct ui_element *bottom_element;
-
-static void ui_element_for_each_child(struct ui_element *uie, void (*cb)(struct ui_element *x, void *data), void *data)
-{
-    struct ui_element *child, *itc;
-
-    list_for_each_entry_iter(child, itc, &uie->children, child_entry) {
-        ui_element_for_each_child(child, cb, data);
-    }
-    cb(uie, data);
-}
-
-static void __set_visibility(struct ui_element *uie, void *data)
-{
-    uie->entity->visible = !!*(int *)data;
-    uie->force_hidden = !*(int *)data;
-}
-
-void ui_element_set_visibility(struct ui_element *uie, int visible)
-{
-    ui_element_for_each_child(uie, __set_visibility, &visible);
-}
-
-static void __set_alpha(struct ui_element *uie, void *data)
-{
-    uie->entity->color[3] = *(float *)data;
-}
-
-void ui_element_set_alpha_one(struct ui_element *uie, float alpha)
-{
-    __set_alpha(uie, &alpha);
-}
-
-void ui_element_set_alpha(struct ui_element *uie, float alpha)
-{
-    ui_element_for_each_child(uie, __set_alpha, &alpha);
-}
-
-static void ui_element_children(struct ui_element *uie, struct list *list)
-{
-    struct ui_element *child, *iter;
-
-    if (!uie)
-        return;
-
-    list_for_each_entry_iter(child, iter, &uie->children, child_entry)
-        ui_element_children(child, list);
-    list_del(&uie->child_entry);
-    list_append(list, &uie->child_entry);
-}
 
 /****************************************************************************
  * ui_widget
