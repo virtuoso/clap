@@ -731,6 +731,10 @@ static void ui_element_children(struct ui_element *uie, struct list *list)
     list_append(list, &uie->child_entry);
 }
 
+/****************************************************************************
+ * ui_widget
+ ****************************************************************************/
+
 static cerr ui_widget_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(ui_widget) *opts = _opts;
@@ -806,6 +810,79 @@ static void __widget_delete_action(struct ui_animation *ua)
 void ui_widget_schedule_deletion(struct ui_element *uie)
 {
     uia_action(uie, __widget_delete_action);
+}
+
+/**
+ * ui_widget_within() - check if a pointer click matches any widget's element
+ * @uiw:    widget
+ * @x:      global x coordinate
+ * @y:      global y coordinate
+ *
+ * Find an element within a widget that matches [x, y] and return its index.
+ *
+ * Return: ui_element's index within the widget or CERR_OUT_OF_BOUNDS on miss.
+ */
+static cres(int) ui_widget_within(struct ui_widget *uiw, int x, int y)
+{
+    for (int i = 0; i < uiw->nr_uies; i++) {
+        auto child = uiw->uies[i];
+
+        if (ui_element_within(child, x, y))
+            return cres_val(int, i);
+    }
+
+    return cres_error(int, CERR_OUT_OF_BOUNDS);
+}
+
+/**
+ * ui_widget_hover() - focus hovered-over element of a widget
+ * @uiw:    widget
+ * @x:      global x coordinate
+ * @y:      global y coordinate
+ *
+ * If pointer hovers over any of the widget's elements, set it to focused
+ * state, call its ->on_focus() method and likewise unfocus the previously
+ * focused one.
+ */
+static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
+{
+    int focus = -1;
+
+    int n = CRES_RET(ui_widget_within(uiw, x, y), goto unfocus);
+    if (n == uiw->focus)    return;
+
+    focus = n;
+    auto child = uiw->uies[n];
+    child->on_focus(child, true);
+
+unfocus:
+    if (uiw->focus >= 0) {
+        auto prev_child = uiw->uies[uiw->focus];
+        prev_child->on_focus(prev_child, false);
+    }
+
+    uiw->focus = focus;
+}
+
+/**
+ * ui_widget_click() - dispatch a pointer click within a widget
+ * @uiw:    widget
+ * @x:      global x coordinate
+ * @y:      global y coordinate
+ *
+ * Find an element within a widget where a pointer click lands and call its
+ * on_click() method.
+ *
+ * Return: true if click landed, false if there's no element at [x, y].
+ */
+static bool ui_widget_click(struct ui_widget *uiw, int x, int y)
+{
+    int n = CRES_RET(ui_widget_within(uiw, x, y), return false);
+
+    auto child = uiw->uies[n];
+    child->on_click(child, (float)x - child->actual_x, (float)y - child->actual_y);
+
+    return true;
 }
 
 /*
@@ -1287,79 +1364,6 @@ void ui_inventory_done(struct ui *ui)
     ui->inventory = NULL;
     if (!ui->menu)
         ui->modal = false;
-}
-
-/**
- * ui_widget_within() - check if a pointer click matches any widget's element
- * @uiw:    widget
- * @x:      global x coordinate
- * @y:      global y coordinate
- *
- * Find an element within a widget that matches [x, y] and return its index.
- *
- * Return: ui_element's index within the widget or CERR_OUT_OF_BOUNDS on miss.
- */
-static cres(int) ui_widget_within(struct ui_widget *uiw, int x, int y)
-{
-    for (int i = 0; i < uiw->nr_uies; i++) {
-        auto child = uiw->uies[i];
-
-        if (ui_element_within(child, x, y))
-            return cres_val(int, i);
-    }
-
-    return cres_error(int, CERR_OUT_OF_BOUNDS);
-}
-
-/**
- * ui_widget_hover() - focus hovered-over element of a widget
- * @uiw:    widget
- * @x:      global x coordinate
- * @y:      global y coordinate
- *
- * If pointer hovers over any of the widget's elements, set it to focused
- * state, call its ->on_focus() method and likewise unfocus the previously
- * focused one.
- */
-static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
-{
-    int focus = -1;
-
-    int n = CRES_RET(ui_widget_within(uiw, x, y), goto unfocus);
-    if (n == uiw->focus)    return;
-
-    focus = n;
-    auto child = uiw->uies[n];
-    child->on_focus(child, true);
-
-unfocus:
-    if (uiw->focus >= 0) {
-        auto prev_child = uiw->uies[uiw->focus];
-        prev_child->on_focus(prev_child, false);
-    }
-
-    uiw->focus = focus;
-}
-
-/**
- * ui_widget_click() - dispatch a pointer click within a widget
- * @uiw:    widget
- * @x:      global x coordinate
- * @y:      global y coordinate
- *
- * Find an element within a widget where a pointer click lands and call its
- * on_click() method.
- *
- * Return: true if click landed, false if there's no element at [x, y].
- */
-static bool ui_widget_click(struct ui_widget *uiw, int x, int y)
-{
-    int n = CRES_RET(ui_widget_within(uiw, x, y), return false);
-
-    auto child = uiw->uies[n];
-    child->on_click(child, (float)x - child->actual_x, (float)y - child->actual_y);
-
-    return true;
 }
 
 static void ui_menu_click(struct ui_widget *uiw, int x, int y)
