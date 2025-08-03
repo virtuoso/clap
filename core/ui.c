@@ -733,6 +733,41 @@ void ui_widget_schedule_deletion(struct ui_element *uie)
 }
 
 /**
+ * ui_widget_pick_rel() - focus widget's element relative to currently focused
+ * @uiw:    widget
+ * @dpos:   delta index relative to uiw->focus
+ *
+ * Focus an element in the widget with index @dpos away from the currently
+ * focused one. Wrap around at both ends of the element array. For example, go
+ * one menu item up (@dpos == -1) or down (@dpos == 1).
+ */
+static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
+{
+    if (!dpos)  return;
+
+    struct ui_element *uie;
+
+    /* out-of-focus animation */
+    if (uiw->focus >= 0) {
+        uie = uiw->uies[uiw->focus];
+        if (uie->on_focus)
+            uie->on_focus(uie, false);
+    }
+
+    int new_focus = dpos + uiw->focus;
+    if (new_focus < 0)
+        new_focus = uiw->nr_uies - 1;
+    else if (new_focus >= uiw->nr_uies)
+        new_focus -= uiw->nr_uies;
+    uiw->focus = new_focus;
+
+    /* in-focus-animation */
+    uie = uiw->uies[uiw->focus];
+    if (uie->on_focus)
+        uie->on_focus(uie, true);
+}
+
+/**
  * ui_widget_within() - check if a pointer click matches any widget's element
  * @uiw:    widget
  * @x:      global x coordinate
@@ -1122,32 +1157,6 @@ struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr
     font_put(uwb.font);
 
     return menu;
-}
-
-static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
-{
-    struct ui_element *uie;
-    int new_focus;
-    if (!dpos)
-        return;
-
-    /* out-of-focus animation */
-    if (uiw->focus >= 0) {
-        uie = uiw->uies[uiw->focus];
-        if (uie->on_focus)
-            uie->on_focus(uie, false);
-    }
-    new_focus = dpos + uiw->focus;
-    if (new_focus < 0)
-        new_focus = uiw->nr_uies - 1;
-    else if (new_focus >= uiw->nr_uies)
-        new_focus -= uiw->nr_uies;
-    uiw->focus = new_focus;
-
-    /* in-focus-animation */
-    uie = uiw->uies[uiw->focus];
-    if (uie->on_focus)
-        uie->on_focus(uie, true);
 }
 
 static void ui_modality_send(void)
