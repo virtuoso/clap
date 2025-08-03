@@ -369,6 +369,10 @@ model3dtx *ui_quadtx_get(void)
     return ui_quadtx;
 }
 
+/****************************************************************************
+ * ui_printf() infrastructure
+ ****************************************************************************/
+
 struct ui_text {
     struct font         *font;
     const char          *str;
@@ -608,6 +612,11 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
 }
 
 static const char *menu_font = "ofl/Unbounded-Regular.ttf";
+
+/****************************************************************************
+ * ui_roll
+ ****************************************************************************/
+
 static struct ui_element *ui_roll_element;
 
 static void ui_roll_done(void)
@@ -1602,6 +1611,10 @@ void ui_pip_update(struct ui *ui, fbo_t *fbo)
     entity3d_color(uie0->entity, COLOR_PT_NONE, (vec4){});
 }
 
+/****************************************************************************
+ * ui_pocket
+ ****************************************************************************/
+
 struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
 {
     model3d *model;
@@ -1708,6 +1721,10 @@ void pocket_total_set(struct ui *ui, int kind, int total)
     pocket_total[kind] = total;
     pocket_update(ui);
 }
+
+/****************************************************************************
+ * ui_progress_bar
+ ****************************************************************************/
 
 cresp(ui_widget) _ui_progress_bar_new(struct ui *ui, const progress_bar_options *opts)
 {
