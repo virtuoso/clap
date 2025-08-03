@@ -5,16 +5,24 @@
 #include "linmath.h"
 #include "shader_constants.h"
 
+/**
+ * struct subview - a slice of a view frustum
+ *
+ * View frustum (slice or whole) representation with translation/projection
+ * matrices, frustum planes/corners and near/far planes.
+ */
+struct subview {
+    mat4x4  view_mx;            /** view matrix */
+    mat4x4  inv_view_mx;        /** inverse view matrix */
+    mat4x4  proj_mx;            /** projection matrix */
+    vec4    frustum_planes[6];  /** view frustum planes */
+    vec4    frustum_corners[8]; /** view frustum corners */
+    float   near_plane;         /** near plane */
+    float   far_plane;          /** far plane */
+};
+
 struct view {
-    struct subview {
-        mat4x4              view_mx;
-        mat4x4              inv_view_mx;
-        mat4x4              proj_mx;
-        vec4                frustum_planes[6];
-        vec4                frustum_corners[8];
-        float               near_plane;
-        float               far_plane;
-    } main;
+    struct subview          main;
     struct subview          subview[CASCADES_MAX];
 #ifndef CONFIG_FINAL
     struct subview          debug_subview[CASCADES_MAX];
