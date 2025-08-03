@@ -1099,7 +1099,7 @@ static void ui_menu_preselect(struct ui_animation *ua)
         return;
 
     ui_element_animations_skip(uie);
-    menu_onfocus(uiw->uies[uiw->focus], true);
+    ui_widget_on_focus(uiw, uiw->focus, true);
 }
 
 static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
@@ -1129,8 +1129,8 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
                                           .parent   = menu->root,
                                           .txmodel  = ui_quadtx,
                                           .uwb      = uwb);
-        menu->uies[i]->on_click = menu_onclick;
-        menu->uies[i]->on_focus = menu_onfocus;
+        menu->uies[i]->on_click = uwb->el_on_click;
+        menu->uies[i]->on_focus = uwb->el_on_focus;
         menu->uies[i]->priv     = (void *)items[i];
 
         entity3d_color(menu->uies[i]->entity, COLOR_PT_ALL, uwb->el_color);
@@ -1171,6 +1171,8 @@ struct ui_widget *ui_menu_new(struct ui *ui, const char **items, unsigned int nr
         .w          = 500,
         .h          = 0.8,
         .el_cb      = ui_menu_element_cb,
+        .el_on_click= menu_onclick,
+        .el_on_focus= menu_onfocus,
         .el_color   = { 0.52f, 0.12f, 0.12f, 1.0f },
         .text_color = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
     };

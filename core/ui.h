@@ -103,6 +103,8 @@ struct ui_widget_builder {
     float           el_color[4];
     float           text_color[4];
     void            (*el_cb)(struct ui_element *uie, unsigned int i);
+    on_click_fn     el_on_click;
+    on_focus_fn     el_on_focus;
 };
 
 DEFINE_REFCLASS_INIT_OPTIONS(ui_element,
