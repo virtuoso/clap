@@ -1135,14 +1135,13 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
 
         entity3d_color(menu->uies[i]->entity, COLOR_PT_ALL, uwb->el_color);
 
-        if (uwb->el_cb)
-            uwb->el_cb(menu->uies[i], i);
-
         CHECK(tui = ui_printf(ui, uwb->font, menu->uies[i], uwb->text_color, 0, "%s", items[i]));
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
         off += menu->uies[i]->height + uwb->el_margin;
         ui_element_set_visibility(menu->uies[i], 0);
+
+        if (uwb->el_cb)         uwb->el_cb(menu->uies[i], i);
     }
 
     for (i = 0; i < nr_items; i++) {
