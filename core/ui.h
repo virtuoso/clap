@@ -4,7 +4,6 @@
 
 #include "object.h"
 #include "model.h"
-#include "sound.h"
 
 /* alignment affinity */
 #define UI_AF_TOP    0x1
@@ -109,7 +108,6 @@ struct ui {
     struct shader_prog *ui_prog;
     struct shader_prog *glyph_prog;
     renderer_t         *renderer;
-    struct sound       *click;
     struct ui_widget   *menu;
     struct ui_widget   *inventory;
     struct list        widgets;
