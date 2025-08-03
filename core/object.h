@@ -42,10 +42,27 @@ struct ref_class {
     unsigned long   nr_active;
 };
 
-/* Extrapolate a refclass name from struct name */
+/**
+ * define REFCLASS_NAME - extrapolate a refclass name from struct name
+ * @struct_name:    name of the struct for which a refclass is inferred
+ *
+ * The macro serves 2 purposes: to avoid repetition and to make potential
+ * refactoring easier.
+ */
 #define REFCLASS_NAME(struct_name) ref_class_ ## struct_name
 
-/* Define a refclass (in a compilation unit) */
+/**
+ * define DEFINE_REFCLASS_MAKE_DROP - define a refclass (in a compilation unit)
+ * @struct_name:    name of the struct for which a refclass is being defined
+ * @makefn:         refclass constructor
+ * @dropfn:         refclass destructor
+ *
+ * This defines and initializes the refclass object for a given structure, its
+ * struct ref * getter and a cresp(struct_name) type. This goes in a compilation
+ * unit where said struct is defined and its constructor/destructor and the rest
+ * of its functions are implemented, to allow the structure itself to remain
+ * local to the compilation unit. For header files, use DECLARE_REFCLASS().
+ */
 #define DEFINE_REFCLASS_MAKE_DROP(struct_name, makefn, dropfn) \
     struct ref_class REFCLASS_NAME(struct_name) = { \
         .name   = __stringify(struct struct_name), \
@@ -62,25 +79,67 @@ struct ref_class {
     } \
     typedef struct cresp(struct_name) cresp(struct_name)
 
-/* Extrapolate constructor options type name from struct name */
+/**
+ * define rc_init_opts - extrapolate constructor options type name from struct name
+ * @struct_name:    struct name
+ *
+ * This again serves 2 purposes: to avoid repetition and make refactoring
+ * slightly easier. And requires less typing. The value of this macro is the
+ * name of the structure that's passed from ref_new*() to this structure's
+ * refclass makefn(), that is, constructor options.
+ */
 #define rc_init_opts(struct_name) struct_name ## _init_options
 
-/* Define constructor options for a constructor of a struct name */
+/**
+ * define DEFINE_REFCLASS_INIT_OPTIONS - define constructor options for struct name
+ * @struct_name:    struct name, for which constructor options are being defined
+ * @args:           an open-ended list of constructor options
+ *
+ * See &struct model3dtx_init_options for an example. @args are of the form
+ * `.field0 = initializer0, .field1 = initializer1`.
+ */
 #define DEFINE_REFCLASS_INIT_OPTIONS(struct_name, args...) \
     typedef struct rc_init_opts(struct_name) { args } rc_init_opts(struct_name)
 
-/* Define a refclass with just a drop method */
+/**
+ * define DEFINE_REFCLASS_DROP - define a refclass with just a drop method
+ * @struct_name:    name of the struct for which a refclass is being defined
+ * @dropfn:         refclass destructor
+ *
+ * Same as DEFINE_REFCLASS_MAKE_DROP(), but without makefn. Should not be used
+ * in the wild; its more compact version DEFINE_REFCLASS() should also rarely
+ * be used.
+ */
 #define DEFINE_REFCLASS_DROP(struct_name, dropfn) \
     DEFINE_REFCLASS_MAKE_DROP(struct_name, NULL, dropfn)
 
-/* Define a refclass with just a drop method named <struct_name>_drop() */
+/**
+ * define DEFINE_REFCLASS - define a refclass with just a drop method named <struct_name>_drop()
+ * @struct_name:    name of the struct for which a refclass is being defined
+ *
+ * Wrapper around DEFINE_REFCLASS_DROP() with dropfn inferred from struct_name
+ * as <struct_name>_drop().
+ */
 #define DEFINE_REFCLASS(struct_name)   DEFINE_REFCLASS_DROP(struct_name, struct_name ## _drop)
 
-/* Define a refclass with drop and make methods */
+/**
+ * define DEFINE_REFCLASS2 - define a refclass with drop and make methods
+ * @struct_name:    name of the struct for which a refclass is being defined
+ *
+ * Wrapper around DEFINE_REFCLASS_MAKE_DROP() with makefn and dropfn inferred
+ * from struct_name as <struct_name>_make() and <struct_name>_drop(). Should
+ * be the most common variant.
+ */
 #define DEFINE_REFCLASS2(struct_name) \
     DEFINE_REFCLASS_MAKE_DROP(struct_name, struct_name ## _make, struct_name ## _drop)
 
-/* Declare a refclass for a struct name (in a header file)*/
+/**
+ * define DECLARE_REFCLASS - declare a refclass for a struct name (in a header file)
+ * @struct_name:    name of the struct for which a refclass is being declared
+ *
+ * Use in a header file. Declare stuff that DEFINE_REFCLASS_MAKE_DROP() defined
+ * for the use outside of its compilation unit.
+ */
 #define DECLARE_REFCLASS(struct_name) \
     extern struct ref_class REFCLASS_NAME(struct_name); \
     extern struct ref *struct_name ## _ref(void *obj); \
