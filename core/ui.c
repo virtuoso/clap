@@ -167,15 +167,14 @@ static void ui_element_destroy(entity3d *e)
 
 /**
  * ui_element_within() - check if a point is within element's bounds
- * @x:  global x coordinate
- * @y:  global y coordinate
+ * @uivec:  UI coordinates
  *
  * Return: true on hit, false on miss
  */
-static bool ui_element_within(struct ui_element *e, int x, int y)
+static bool ui_element_within(struct ui_element *e, uivec uivec)
 {
-    return x >= e->actual_x && x < e->actual_x + e->actual_w &&
-           y >= e->actual_y && y < e->actual_y + e->actual_h;
+    return uivec.x >= e->actual_x && uivec.x < e->actual_x + e->actual_w &&
+           uivec.y >= e->actual_y && uivec.y < e->actual_y + e->actual_h;
 }
 
 /**
@@ -755,14 +754,14 @@ void ui_widget_schedule_deletion(struct ui_element *uie)
     uia_action(uie, __widget_delete_action);
 }
 
-static inline void ui_widget_on_click(struct ui_widget *uiw, int idx, float x, float y)
+static inline void ui_widget_on_click(struct ui_widget *uiw, int idx, uivec uivec)
 {
     if (idx < 0 || idx >= uiw->nr_uies) return;
 
     auto child = uiw->uies[idx];
     if (!child->on_click)               return;
 
-    child->on_click(child, (float)x - child->actual_x, (float)y - child->actual_y);
+    child->on_click(child, (float)uivec.x - child->actual_x, (float)uivec.y - child->actual_y);
 }
 
 static inline void ui_widget_on_focus(struct ui_widget *uiw, int idx, bool focus)
@@ -805,19 +804,18 @@ static void ui_widget_pick_rel(struct ui_widget *uiw, int dpos)
 /**
  * ui_widget_within() - check if a pointer click matches any widget's element
  * @uiw:    widget
- * @x:      global x coordinate
- * @y:      global y coordinate
+ * @uivec:  UI coordinates
  *
- * Find an element within a widget that matches [x, y] and return its index.
+ * Find an element within a widget that matches uivec.xy and return its index.
  *
  * Return: ui_element's index within the widget or CERR_OUT_OF_BOUNDS on miss.
  */
-static cres(int) ui_widget_within(struct ui_widget *uiw, int x, int y)
+static cres(int) ui_widget_within(struct ui_widget *uiw, uivec uivec)
 {
     for (int i = 0; i < uiw->nr_uies; i++) {
         auto child = uiw->uies[i];
 
-        if (ui_element_within(child, x, y))
+        if (ui_element_within(child, uivec))
             return cres_val(int, i);
     }
 
@@ -827,18 +825,17 @@ static cres(int) ui_widget_within(struct ui_widget *uiw, int x, int y)
 /**
  * ui_widget_hover() - focus hovered-over element of a widget
  * @uiw:    widget
- * @x:      global x coordinate
- * @y:      global y coordinate
+ * @uivec:  UI coordinates
  *
  * If pointer hovers over any of the widget's elements, set it to focused
  * state, call its ->on_focus() method and likewise unfocus the previously
  * focused one.
  */
-static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
+static void ui_widget_hover(struct ui_widget *uiw, uivec uivec)
 {
     int focus = -1;
 
-    int n = CRES_RET(ui_widget_within(uiw, x, y), goto unfocus);
+    int n = CRES_RET(ui_widget_within(uiw, uivec), goto unfocus);
     if (n == uiw->focus)    return;
 
     focus = n;
@@ -854,19 +851,18 @@ unfocus:
 /**
  * ui_widget_click() - dispatch a pointer click within a widget
  * @uiw:    widget
- * @x:      global x coordinate
- * @y:      global y coordinate
+ * @uivec:  UI coordinates
  *
  * Find an element within a widget where a pointer click lands and call its
  * on_click() method.
  *
  * Return: true if click landed, false if there's no element at [x, y].
  */
-static bool ui_widget_click(struct ui_widget *uiw, int x, int y)
+static bool ui_widget_click(struct ui_widget *uiw, uivec uivec)
 {
-    int n = CRES_RET(ui_widget_within(uiw, x, y), return false);
+    int n = CRES_RET(ui_widget_within(uiw, uivec), return false);
 
-    ui_widget_on_click(uiw, n, x, y);
+    ui_widget_on_click(uiw, n, uivec);
 
     return true;
 }
@@ -1426,9 +1422,9 @@ void ui_inventory_done(struct ui *ui)
         ui->modal = false;
 }
 
-static void ui_menu_click(struct ui_widget *uiw, int x, int y)
+static void ui_menu_click(struct ui_widget *uiw, uivec uivec)
 {
-    if (ui_widget_click(uiw, x, y)) return;
+    if (ui_widget_click(uiw, uivec)) return;
 
     /* miss: cancel modality, destroy menu */
     ui_menu_done(uiw->root->ui);
@@ -1475,7 +1471,7 @@ static int ui_handle_command(struct message *m, void *data)
 
 struct ui_element_match_struct {
     struct ui_element   *match;
-    int                 x, y;
+    uivec               uivec;
 };
 
 static void ui_element_match(entity3d *e, void *data)
@@ -1486,29 +1482,32 @@ static void ui_element_match(entity3d *e, void *data)
     if (sd->match)
         return;
 
-    if (ui_element_within(uie, sd->x, sd->y))
+    if (ui_element_within(uie, sd->uivec))
         sd->match = e->priv;
 }
 
-static bool ui_element_click(struct ui *ui, int x, int y)
+static bool ui_element_click(struct ui *ui, uivec uivec)
 {
-    struct ui_element_match_struct sd = {
-        .x = x,
-        .y = (int)ui->height - y,
-    };
+    struct ui_element_match_struct sd = { .uivec = uivec };
 
     mq_for_each(&ui->mq, ui_element_match, &sd);
     if (sd.match && sd.match->on_click) {
-        sd.match->on_click(sd.match, x - sd.match->x_off, y - sd.match->y_off);
+        sd.match->on_click(sd.match, uivec.x - sd.match->x_off, uivec.y - sd.match->y_off);
         return true;
     }
 
     return false;
 }
 
+static uivec uivec_from_input(struct ui *ui, struct message *m)
+{
+    return (uivec){ m->input.x, (unsigned int)ui->height - m->input.y };
+}
+
 static int ui_handle_input(struct message *m, void *data)
 {
     struct ui *ui = data;
+    uivec uivec = uivec_from_input(ui, m);
 
     if (m->input.menu_toggle) {
         if (ui->menu)
@@ -1517,10 +1516,10 @@ static int ui_handle_input(struct message *m, void *data)
             ui_menu_init(ui);
     } else if (m->input.mouse_click) {
         if (!ui->menu) {
-            if (!ui_element_click(ui, m->input.x, m->input.y))
+            if (!ui_element_click(ui, uivec))
                 ui_menu_init(ui);
         } else
-            ui_menu_click(ui->menu, m->input.x, (int)ui->height - m->input.y);
+            ui_menu_click(ui->menu, uivec);
     }
 
     if (!ui->modal)
@@ -1528,7 +1527,7 @@ static int ui_handle_input(struct message *m, void *data)
 
     if (ui->menu) {
         if (m->input.mouse_move)
-            ui_widget_hover(ui->menu, m->input.x, (int)ui->height - m->input.y);
+            ui_widget_hover(ui->menu, uivec);
         
         /* UI owns the inputs */
         ui->mod_y += m->input.delta_ly;

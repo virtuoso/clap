@@ -29,6 +29,16 @@ enum uie_mv {
 struct ui_element;
 struct ui_widget;
 
+/**
+ * struct uivec - UI coordinates
+ * @x:  x coordinate in UI coordinate system
+ * @y:  y coordinate in UI coordinate system
+ */
+typedef struct uivec {
+    unsigned int    x;
+    unsigned int    y;
+} uivec;
+
 struct ui_element {
     struct ref       ref;
     entity3d         *entity;
