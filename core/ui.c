@@ -846,6 +846,11 @@ static void default_onfocus(struct ui_element *uie, bool focus) {}
 /*
  * TODO: move widgets into a separate compilation unit
  */
+
+/****************************************************************************
+ * ui_wheel
+ ****************************************************************************/
+
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 {
     float quad_color[] = { 0.0, 0.3, 0.1, 1.0 };
@@ -925,6 +930,10 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 
     return wheel;
 }
+
+/****************************************************************************
+ * ui_osd
+ ****************************************************************************/
 
 static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
 {
@@ -1196,6 +1205,10 @@ static void ui_menu_done(struct ui *ui)
     if (!ui->inventory)
         ui->modal = false;
 }
+
+/****************************************************************************
+ * ui_inventory
+ ****************************************************************************/
 
 static void inv_onclick(struct ui_element *uie, float x, float y)
 {
