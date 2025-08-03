@@ -21,37 +21,40 @@ struct shader_prog;
 typedef struct render_options render_options;
 
 #define LOD_MAX 4
+/**
+ * struct model3d - base model object
+ */
 typedef struct model3d {
-    char                *name;
-    struct ref          ref;
-    struct shader_prog  *prog;
-    bool                cull_face;
-    bool                alpha_blend;
-    bool                depth_testing;
-    bool                skip_shadow;
-    unsigned int        draw_type;
-    unsigned int        nr_joints;
-    unsigned int        root_joint;
-    unsigned int        nr_lods;
-    unsigned int        lod_min;
-    unsigned int        lod_max;
-    float               aabb[6];
-    darray(struct animation, anis);
-    mat4x4              root_pose;
-    vertex_array_t      vao;
-    buffer_t            attr[ATTR_MAX];
-    buffer_t            index[LOD_MAX];
-    sfx_container       sfxc;
-    unsigned int        nr_vertices;
-    unsigned int        nr_faces[LOD_MAX];
-    float               lod_errors[LOD_MAX];
-    bool                skip_aabb;
-    struct model_joint  *joints;
+    char                *name;                  /** model's name */
+    struct ref          ref;                    /** reference counter*/
+    struct shader_prog  *prog;                  /** shader program */
+    bool                cull_face;              /** enable (back) face culling */
+    bool                alpha_blend;            /** enable alpha blending */
+    bool                depth_testing;          /** enable depth testing */
+    bool                skip_shadow;            /** skip shadow render pass */
+    unsigned int        draw_type;              /** draw primitive type (see &enum draw_type) */
+    unsigned int        nr_joints;              /** number of joints in the armature */
+    unsigned int        root_joint;             /** root joint index */
+    unsigned int        nr_lods;                /** number of LOD levels */
+    unsigned int        lod_min;                /** lower bound for LOD levels */
+    unsigned int        lod_max;                /** upper bound for LOD levels */
+    float               aabb[6];                /** AABB box */
+    darray(struct animation, anis);             /** array of animations */
+    mat4x4              root_pose;              /** armature root pos TRS */
+    vertex_array_t      vao;                    /** vertex array object (see vertex_array_t) */
+    buffer_t            attr[ATTR_MAX];         /** vertex attributes' buffers */
+    buffer_t            index[LOD_MAX];         /** LOD index buffer array */
+    sfx_container       sfxc;                   /** SFX container */
+    unsigned int        nr_vertices;            /** number of vertices */
+    unsigned int        nr_faces[LOD_MAX];      /** number of faces per LOD */
+    float               lod_errors[LOD_MAX];    /** simplification errors per LOD */
+    bool                skip_aabb;              /** skip AABB calculation */
+    struct model_joint  *joints;                /** array of joints */
     /* Collision mesh, if needed */
-    float               *collision_vx;
-    size_t              collision_vxsz;
-    unsigned short      *collision_idx;
-    size_t              collision_idxsz;
+    float               *collision_vx;          /** collision mesh: vertices */
+    size_t              collision_vxsz;         /** collision mesh: size of vertex array in bytes */
+    unsigned short      *collision_idx;         /** collision mesh: indices */
+    size_t              collision_idxsz;        /** collision mesh: size of index array in bytes */
 } model3d;
 
 /**
@@ -79,6 +82,13 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3d,
 );
 DECLARE_REFCLASS(model3d);
 
+/**
+ * struct model_joint - armature joint descriptor
+ * @children:   array of child joint IDs
+ * @name:       joint name
+ * @invmx:      inverse TRS matrix
+ * @id:         joint id
+ */
 struct model_joint {
     darray(int, children);
     char        *name;
@@ -189,28 +199,32 @@ typedef struct model3dtx {
     struct list    entities;           /* links entity3d->entry */
 } model3dtx;
 
+/**
+ * struct model3dtx_init_options - model3dtx constructor parameters
+ */
 DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
-    model3d     *model;
-    texture_t   *tex;
-    const char  *texture_file_name;
-    const char  *normal_file_name;
-    const char  *emission_file_name;
-    void        *texture_buffer;
-    void        *normal_buffer;
-    void        *emission_buffer;
-    size_t      texture_size;
-    size_t      normal_size;
-    size_t      emission_size;
-    int         texture_width;
-    int         texture_height;
-    int         normal_width;
-    int         normal_height;
-    int         emission_width;
-    int         emission_height;
-    float       metallic;
-    float       roughness;
-    bool        texture_has_alpha;
-    bool        buffers_png;
+    model3d     *model;                 /** model3d object */
+    texture_t   *tex;                   /** texture_t object to use as diffuse texture */
+    const char  *texture_file_name;     /** file to load diffuse texture from */
+    const char  *normal_file_name;      /** file to load normal map from */
+    const char  *emission_file_name;    /** file to load emission texture from */
+    void        *texture_buffer;        /** pointer to diffuse texture buffer contents */
+    void        *normal_buffer;         /** pointer to normal map buffer contents */
+    void        *emission_buffer;       /** pointer to emission texture buffer contents */
+    size_t      texture_size;           /** size of the diffuse texture buffer, if @texture_buffer */
+    size_t      normal_size;            /** size of the normal map buffer, if @normal_buffer */
+    size_t      emission_size;          /** size of the emission texture buffer, if @emission_buffer */
+    darray(int, blah);                  /** array of blahs */
+    int         texture_width;          /** diffuse texture width, if @texture_buffer && !@buffers_png */
+    int         texture_height;         /** diffuse texture height, if @texture_buffer && !@buffers_png */
+    int         normal_width;           /** normal map width, if @normal_buffer && !@buffers_png */
+    int         normal_height;          /** normal map height, if @normal_buffer && !@buffers_png */
+    int         emission_width;         /** emission texture width, if @emission_buffer && !@buffers_png */
+    int         emission_height;        /** emission texture height, if @emission_buffer && !@buffers_png */
+    float       metallic;               /** metallic material parameter for PBR lighting */
+    float       roughness;              /** roughness material parameter for PBR lighting */
+    bool        texture_has_alpha;      /** true if @texture_buffer has alpha component and !@buffers_png */
+    bool        buffers_png;            /** true: supplied buffers are png-encoded, false: raw */
 );
 DECLARE_REFCLASS(model3dtx);
 
