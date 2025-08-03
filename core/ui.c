@@ -1278,46 +1278,62 @@ static bool ui_element_within(struct ui_element *e, int x, int y)
            y >= e->actual_y && y < e->actual_y + e->actual_h;
 }
 
-static int ui_widget_within(struct ui_widget *uiw, int x, int y)
+/**
+ * ui_widget_within() - check if a pointer click matches any widget's element
+ * @uiw:    widget
+ * @x:      global x coordinate
+ * @y:      global y coordinate
+ *
+ * Find an element within a widget that matches [x, y] and return its index.
+ *
+ * Return: ui_element's index within the widget or CERR_OUT_OF_BOUNDS on miss.
+ */
+static cres(int) ui_widget_within(struct ui_widget *uiw, int x, int y)
 {
-    struct ui_element *child;
-    int i;
-
-    for (i = 0; i < uiw->nr_uies; i++) {
-        child = uiw->uies[i];
+    for (int i = 0; i < uiw->nr_uies; i++) {
+        auto child = uiw->uies[i];
 
         if (ui_element_within(child, x, y))
-            return i;
+            return cres_val(int, i);
     }
 
-    return -1;
+    return cres_error(int, CERR_OUT_OF_BOUNDS);
 }
 
+/**
+ * ui_widget_hover() - focus hovered-over element of a widget
+ * @uiw:    widget
+ * @x:      global x coordinate
+ * @y:      global y coordinate
+ *
+ * If pointer hovers over any of the widget's elements, set it to "focus"
+ * and unfocus the previously focused one.
+ */
 static void ui_widget_hover(struct ui_widget *uiw, int x, int y)
 {
-    int n = ui_widget_within(uiw, x, y);
+    int focus = -1;
 
-    if (n == uiw->focus)
-        return;
+    int n = CRES_RET(ui_widget_within(uiw, x, y), goto unfocus);
+    if (n == uiw->focus)    return;
 
+    focus = n;
+    uia_lin_move(uiw->uies[n], UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
+
+unfocus:
     if (uiw->focus >= 0)
         uia_lin_move(uiw->uies[uiw->focus], UIE_MV_X_OFF, 20, 1, false, 1.0 / 6.0);
-    if (n >= 0)
-        uia_lin_move(uiw->uies[n], UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
-    uiw->focus = n;
+    uiw->focus = focus;
 }
 
 static void ui_menu_click(struct ui_widget *uiw, int x, int y)
 {
-    int n = ui_widget_within(uiw, x, y);
-    struct ui_element *child;
+    int n = CRES_RET(
+        ui_widget_within(uiw, x, y),
+        /* miss: cancel modality, destroy menu */
+        { ui_menu_done(uiw->root->ui); return; }
+    );
 
-    if (n < 0) {
-        ui_menu_done(uiw->root->ui); /* cancels modality */
-        return;
-    }
-
-    child = uiw->uies[n];
+    auto child = uiw->uies[n];
     child->on_click(child, (float)x - child->actual_x, (float)y - child->actual_y);
 }
 
