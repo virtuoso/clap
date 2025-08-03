@@ -128,41 +128,44 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
 struct animation *animation_new(model3d *model, const char *name, unsigned int nr_channels);
 int animation_by_name(model3d *m, const char *name);
 
+/**
+ * struct material - material parameters
+ */
 typedef struct material {
-    /*
+    /**
      * Roughness or roughness floor, in case of procedurally generated
      * roughness
      */
     float   roughness;
-    /* Procedural roughness ceiling */
+    /** Procedural roughness ceiling */
     float   roughness_ceil;
-    /* Procedural roughness: FBM amplitude scale per octave */
+    /** Procedural roughness: FBM amplitude scale per octave */
     float   roughness_amp;
-    /* Procedural roughness: number of FBM octaves */
+    /** Procedural roughness: number of FBM octaves */
     int     roughness_oct;
-    /* Procedural roughness: vertex coordinate scale */
+    /** Procedural roughness: vertex coordinate scale */
     float   roughness_scale;
-    /*
+    /**
      * Metallic or metallic floor, in case of procedurally generated
      * metallic
      */
     float   metallic;
-    /* Procedural metallic ceiling */
+    /** Procedural metallic ceiling */
     float   metallic_ceil;
-    /* Procedural metallic: FBM amplitude scale per octave */
+    /** Procedural metallic: FBM amplitude scale per octave */
     float   metallic_amp;
-    /* Procedural metallic: number of FBM octaves */
+    /** Procedural metallic: number of FBM octaves */
     int     metallic_oct;
-    /* Procedural metallic: vertex coordinate scale */
+    /** Procedural metallic: vertex coordinate scale */
     float   metallic_scale;
-    /*
+    /**
      * Procedural metallic noise mode:
      * - MAT_METALLIC_INDEPENDENT: independent,
      * - MAT_METALLIC_ROUGHNESS: == roughness,
      * - MAT_METALLIC_ONE_MINUS_ROUGHNESS: == 1 - roughness
      */
     int     metallic_mode;
-    /* Procedural metallic: use the same scale as roughness */
+    /** Procedural metallic: use the same scale as roughness */
     bool    shared_scale;
 } material;
 
