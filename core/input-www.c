@@ -68,10 +68,6 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
             mi.focus_next = 1;*/
         mi.space = 1;
         break;
-    case 77: /* m */
-        if (press == 1)
-            mi.menu_toggle = 1;
-        break;
     default:
         key_event(&keyboard_source, e->keyCode, e->code, mods, press);
         /* don't send empty messages */

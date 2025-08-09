@@ -349,9 +349,6 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
         else
             mi.space = 1;
         break;
-    case GLFW_KEY_ESCAPE:
-        mi.menu_toggle = press == KEY_PRESS;
-        break;
     default:
         key_event(&keyboard_source, key, NULL, mods, press);
         return;
