@@ -641,7 +641,7 @@ static int ui_roll_update(entity3d *e, void *data)
     return 0;
 }
 
-static void ui_roll_init(struct ui *ui)
+static __unused void ui_roll_init(struct ui *ui)
 {
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
     LOCAL(lib_handle, lh);
@@ -1035,59 +1035,6 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
 
 static void ui_menu_done(struct ui *ui);
 
-static const char *help_items[] = { "...license", "...help", "...credits" };
-static const char *hud_items[] = { "FPS", };
-static void menu_onclick(struct ui_element *uie, float x, float y)
-{
-    const char *str = uie->priv;
-    struct ui *ui = uie->ui;
-
-    if (!strcmp(str, "Help")) {
-        ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, NULL, help_items, array_size(help_items));
-    } else if (!strcmp(str, "Exit")) {
-        ui_menu_done(ui);
-        display_request_exit();
-    } else if (!strcmp(str, "HUD")) {
-        ref_put_last(ui->menu);
-        ui->menu = ui_menu_new(ui, NULL, hud_items, array_size(hud_items));
-    } else if (!strcmp(str, "Fullscreen")) {
-        struct message_input mi;
-        memset(&mi, 0, sizeof(mi));
-        mi.fullscreen = 1;
-        message_input_send(&mi, NULL);
-    } else if (!strcmp(str, "FPS")) {
-        if (display_fps) {
-            display_fps = false;
-            ref_put_last(bottom_uit);
-            ref_put_last(bottom_element);
-            bottom_uit = NULL;
-        } else {
-            display_fps = true;
-        }
-        ui_menu_done(ui);
-    } else if (!strcmp(str, "Devel")) {
-        ui_toggle_debug_selector();
-        ui_menu_done(ui); /* cancels modality */
-    } else if (!strcmp(str, "...license")) {
-        ui_roll_init(ui);
-        ui_menu_done(ui); /* cancels modality */
-    } else {
-        ui_menu_done(ui);
-    }
-}
-
-static void menu_onfocus(struct ui_element *uie, bool focus)
-{
-    ui_element_set_visibility(uie, 1);
-    ui_element_set_alpha(uie, 1.0);
-
-    if (focus)
-        uia_lin_move(uie, UIE_MV_X_OFF, 1, 20, false, 1.0 / 6.0);
-    else
-        uia_lin_move(uie, UIE_MV_X_OFF, 20, 1, false, 1.0 / 6.0);
-}
-
 static void ui_menu_preselect(struct ui_animation *ua)
 {
     struct ui_element *uie = ui_animation_element(ua);
@@ -1207,8 +1154,6 @@ struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb
         .w              = 500,
         .h              = 0.8,
         .el_cb          = ui_menu_element_cb,
-        .el_on_click    = menu_onclick,
-        .el_on_focus    = menu_onfocus,
         .el_color       = { 0.52f, 0.12f, 0.12f, 1.0f },
         .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
     };
