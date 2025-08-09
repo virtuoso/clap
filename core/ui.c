@@ -1100,14 +1100,6 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
     return menu;
 }
 
-static void ui_menu_click(struct ui_widget *uiw, uivec uivec)
-{
-    if (ui_widget_click(uiw, uivec)) return;
-
-    /* miss: cancel modality, destroy menu */
-    ui_menu_done(uiw->root->ui);
-}
-
 static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
 {
     uivec uivec = uivec_from_input(ui, m);
@@ -1177,25 +1169,6 @@ void ui_modality_send(void)
     m.type = MT_COMMAND;
     m.cmd.toggle_modality = 1;
     message_send(&m);
-}
-
-static const char *menu_items[] = {
-    "HUD",
-#ifndef CONFIG_FINAL
-    "Devel",
-    "Fullscreen",
-#endif
-    "Help",
-#ifndef CONFIG_BROWSER
-    "Exit"
-#endif
-};
-static void ui_menu_init(struct ui *ui)
-{
-    ui_modality_send();
-    ui->menu = ui_menu_new(ui, NULL, menu_items, array_size(menu_items));
-    /* XXX: should send a message to others that the UI owns inputs now */
-    ui->modal = true;
 }
 
 static void ui_menu_done(struct ui *ui)
@@ -1497,35 +1470,6 @@ uivec uivec_from_input(struct ui *ui, struct message *m)
     return (uivec){ m->input.x, (unsigned int)ui->height - m->input.y };
 }
 
-static int ui_handle_input(struct message *m, void *data)
-{
-    struct ui *ui = data;
-    uivec uivec = uivec_from_input(ui, m);
-
-    if (m->input.menu_toggle) {
-        if (ui->menu)
-            ui_menu_done(ui);
-        else
-            ui_menu_init(ui);
-    } else if (m->input.mouse_click) {
-        if (!ui->menu) {
-            if (!ui_element_click(ui, uivec))
-                ui_menu_init(ui);
-        } else
-            ui_menu_click(ui->menu, uivec);
-    }
-
-    if (!ui->modal)
-        return MSG_HANDLED;
-
-    if (ui->menu) {
-        ui->menu->input_event(ui, ui->menu, m);
-    } else if (ui->inventory) {
-        ui->inventory->input_event(ui, ui->inventory, m);
-    }
-    return MSG_STOP;
-}
-
 #ifndef CONFIG_FINAL
 static struct ui_element *build_uit;
 #endif /* CONFIG_FINAL */
@@ -1792,9 +1736,6 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     font_put(font);
 
     ret = subscribe(MT_COMMAND, ui_handle_command, ui);
-    if (IS_CERR(ret))
-        goto err;
-    ret = subscribe(MT_INPUT, ui_handle_input, ui);
     if (IS_CERR(ret))
         goto err;
 
