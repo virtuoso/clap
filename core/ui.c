@@ -1048,15 +1048,6 @@ static void ui_menu_preselect(struct ui_animation *ua)
     ui_widget_on_focus(uiw, uiw->focus, true);
 }
 
-static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
-{
-    /* XXX^5: animations hardcoded */
-    uia_skip_duration(uie, 0.12 * i);
-    uia_set_visible(uie, 1);
-    uia_lin_float(uie, ui_element_set_alpha, 0, 1.0, true, 0.5);
-    uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 0.5, 1.0, 0.0);
-}
-
 static void ui_menu_on_click(struct ui_element *uie, float x, float y)
 {
     const ui_menu_item *item = uie->priv;
@@ -1163,7 +1154,6 @@ struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root)
         .y_off          = 10,
         .w              = 500,
         .h              = 0.8,
-        .el_cb          = ui_menu_element_cb,
         .el_color       = { 0.52f, 0.12f, 0.12f, 1.0f },
         .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
     };
