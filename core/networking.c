@@ -597,24 +597,24 @@ static void log_f_open(struct network_node *n)
 
 static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, size_t size)
 {
-    struct message_command *mcmd;
+    struct message_command mcmd;
 
-    if (size < sizeof(*mcmd)) {
+    if (size < sizeof(mcmd)) {
         /* not an error, cache and wait for more */
         // n->state = ST_ERROR;
-        dbg("short handshake: %zu <> %lu\n", size, sizeof(*mcmd));
+        dbg("short handshake: %zu <> %lu\n", size, sizeof(mcmd));
         return -1;
     }
 
-    mcmd = (void *)buf;
-    if (!mcmd->connect) {
+    memcpy(&mcmd, buf, sizeof(mcmd));
+    if (!mcmd.connect) {
         /* is this an actual error? protocol is not really defined */
         n->state = ST_ERROR;
-        dbg("connect not set: %d\n", mcmd->connect);
-        return sizeof(*mcmd);
+        dbg("connect not set: %d\n", mcmd.connect);
+        return sizeof(mcmd);
     }
 
-    timespec_from_64(&n->remote_time, &mcmd->time);
+    timespec_from_64(&n->remote_time, &mcmd.time);
     clock_gettime(CLOCK_REALTIME, &n->local_time);
     timespec_diff(&n->local_time, &n->remote_time, &n->remote_delta);
     n->state = ST_RUNNING;
@@ -625,16 +625,16 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
         n->remote_delta.tv_sec, n->remote_delta.tv_nsec);
     if (n->log_f)
         setbuf(n->log_f, NULL);
-    if (mcmd->restart) {
+    if (mcmd.restart) {
         fprintf(stderr, "broadcasting restart right away\n");
         networking_broadcast_restart();
     }
-    if (mcmd->log_follows) {
+    if (mcmd.log_follows) {
         struct message_log *ml;
         size_t ret;
 
-        ml = (void *)buf + sizeof(*mcmd);
-        ret = sizeof(*mcmd) + sizeof(*ml) + ml->length;
+        ml = (void *)buf + sizeof(mcmd);
+        ret = sizeof(mcmd) + sizeof(*ml) + ml->length;
         if (ret > size)
             return -1;
 
@@ -644,7 +644,7 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
         return ret;
     }
 
-    return sizeof(*mcmd);
+    return sizeof(mcmd);
 }
 
 /*
@@ -652,30 +652,30 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
  */
 static ssize_t handle_server_command(struct network_node *n, uint8_t *buf, size_t size)
 {
-    struct message_command *mcmd;
+    struct message_command mcmd;
     struct message         m;
-    size_t ret = sizeof(*mcmd);
+    size_t ret = sizeof(mcmd);
 
-    if (size < sizeof(*mcmd)) {
+    if (size < sizeof(mcmd)) {
         /* short read is not an error, cache and wait for more */
         //n->state = ST_ERROR;
         return -1;
     }
 
-    mcmd = (void *)buf;
-    if (mcmd->restart) {
+    memcpy(&mcmd, buf, sizeof(mcmd));
+    if (mcmd.restart) {
         fprintf(stderr, "broadcasting restart\n");
         networking_broadcast_restart();
-        ret = sizeof(*mcmd);
+        ret = sizeof(mcmd);
     }
-    if (mcmd->log_follows) {
+    if (mcmd.log_follows) {
         struct message_log *ml;
 
-        if (size < sizeof(*mcmd) + sizeof(*ml))
+        if (size < sizeof(mcmd) + sizeof(*ml))
             return -1;
 
-        ml = (void *)buf + sizeof(*mcmd);
-        ret = sizeof(*mcmd) + sizeof(*ml) + ml->length;
+        ml = (void *)buf + sizeof(mcmd);
+        ret = sizeof(mcmd) + sizeof(*ml) + ml->length;
         if (ret > size)
             return -1;
 
@@ -688,10 +688,10 @@ static ssize_t handle_server_command(struct network_node *n, uint8_t *buf, size_
      * This is for the future; the condition needs to be
      * "if (acceptable_external_command(&mcmd)) ..."
      */
-    if (!mcmd->log_follows) {
+    if (!mcmd.log_follows) {
         m.type   = MT_COMMAND;
         m.source = n->src;
-        memcpy(&m.cmd, mcmd, sizeof(m.cmd));
+        memcpy(&m.cmd, &mcmd, sizeof(m.cmd));
         message_send(&m);
     }
 
