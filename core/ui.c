@@ -1244,8 +1244,7 @@ static bool ui_inventory_input(struct ui *ui, struct ui_widget *uiw, struct mess
     return true;
 }
 
-void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[],
-                       void (*on_click)(struct ui_element *uie, float x, float y))
+void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], on_click_fn on_click)
 {
     unsigned int rows = 3, cols = 3, nr_items = rows * cols, i;
     float color[] = { 0.5, 0.5, 0.4, 1.0 };
