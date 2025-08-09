@@ -1057,9 +1057,27 @@ static void ui_menu_element_cb(struct ui_element *uie, unsigned int i)
     uia_cos_move(uie, UIE_MV_X_OFF, 200, 1, false, 0.5, 1.0, 0.0);
 }
 
-static struct ui_widget *
-ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, unsigned int nr_items)
+static void ui_menu_on_click(struct ui_element *uie, float x, float y)
 {
+    const ui_menu_item *item = uie->priv;
+    if (!item)  return;
+
+    auto ui = uie->ui;
+    if (!item->items && item->fn)   { item->fn(ui, item); return; }
+
+    ref_put(uie->widget);
+    ui->menu = ui_menu_new(ui, item);
+}
+
+static inline bool is_item_valid(const ui_menu_item *item)  { return item->items || item->fn; }
+
+static struct ui_widget *
+ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const ui_menu_item *root)
+{
+    unsigned int nr_items;
+    for (nr_items = 0; is_item_valid(&root->items[nr_items]); nr_items++)
+        ;
+
     struct ui_widget *menu = ref_new(ui_widget, .ui = ui, .uwb = uwb, .nr_items = nr_items);
     struct ui_element *tui;
     float off, width, height;
@@ -1073,13 +1091,14 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
                                           .parent   = menu->root,
                                           .txmodel  = ui_quadtx,
                                           .uwb      = uwb);
-        menu->uies[i]->on_click = uwb->el_on_click;
+        menu->uies[i]->on_click = ui_menu_on_click;
         menu->uies[i]->on_focus = uwb->el_on_focus;
-        menu->uies[i]->priv     = (void *)items[i];
+        menu->uies[i]->priv     = (void *)&root->items[i];
 
         entity3d_color(menu->uies[i]->entity, COLOR_PT_ALL, uwb->el_color);
 
-        CHECK(tui = ui_printf(ui, uwb->font, menu->uies[i], uwb->text_color, 0, "%s", items[i]));
+        CHECK(tui = ui_printf(ui, uwb->font, menu->uies[i], uwb->text_color, 0,
+                              "%s", root->items[i].name));
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
         off += menu->uies[i]->height + uwb->el_margin;
@@ -1128,9 +1147,10 @@ static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *
     return true;
 }
 
-struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb,
-                              const char **items, unsigned int nr_items)
+struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root)
 {
+    if (!root || !root->items) return NULL;
+
     struct ui_widget_builder _uwb = {
         .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
         .affinity       = UI_AF_VCENTER | UI_AF_RIGHT,
@@ -1148,13 +1168,13 @@ struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb
         .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
     };
 
-    if (uwb)                memcpy(&_uwb, uwb, sizeof(_uwb));
+    if (root->uwb)          memcpy(&_uwb, root->uwb, sizeof(_uwb));
     if (!_uwb.input_event)  _uwb.input_event = ui_menu_input;
 
     _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
     if (!_uwb.font)         return NULL;
 
-    auto menu = ui_menu_build(ui, &_uwb, items, nr_items);
+    auto menu = ui_menu_build(ui, &_uwb, root);
     font_put(_uwb.font);
 
     return menu;

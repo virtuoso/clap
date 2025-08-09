@@ -183,8 +183,61 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
                              float *color, unsigned long flags, const char *fmt, ...)
                              __printf(6, 7) __nonnull_params((1, 2, 4, 6));
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
-struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb,
-                              const char **items, unsigned int nr_items);
+
+typedef struct ui_menu_item ui_menu_item;
+typedef void (*ui_menu_item_fn)(struct ui *ui, const ui_menu_item *item);
+
+/**
+ * struct ui_menu_item - menu item definition
+ * @name:   name that appears in the menu
+ * @uwb:    widget builder pointer
+ * @fn:     function to call for leaf items
+ * @items:  array of child items, NULL-terminated
+ *
+ * An item can be either a "group" (@items != NULL) or an "item"
+ * (leaf, @fn != NULL). For groups, @uwb should point to a widget
+ * builder structure. All nodes except the root need a valid @name.
+ */
+typedef struct ui_menu_item {
+    const char                      *name;
+    const struct ui_widget_builder  *uwb;
+    ui_menu_item_fn                 fn;
+    struct ui_menu_item             *items;
+} ui_menu_item;
+
+/**
+ * define UI_MENU_GROUP - define a group menu entry
+ * @_label: item text
+ * @_uwb:   widget builder pointer
+ * @_items: a list of child items (UI_MENU_GROUP, UI_MENU_ITEM, UI_MENU_END)
+ */
+#define UI_MENU_GROUP(_label, _uwb, _items...) \
+    { \
+        .name       = _label, \
+        .uwb        = _uwb, \
+        .items      = (ui_menu_item[]) { _items } \
+    }
+
+/**
+ * define UI_MENU_ITEM - define a (leaf) menu item entry
+ * @_label: item text
+ * @_fn:    function to call for a leaf item
+ */
+#define UI_MENU_ITEM(_label, _fn)   { .name = _label, .fn = _fn }
+
+/**
+ * define UI_MENU_GROUP - item list terminator
+ */
+#define UI_MENU_END {}
+
+/**
+ * ui_menu_new() - create a menu widget
+ * @ui:     ui context
+ * @root:   root of the menu item tree
+ *
+ * Return: ui_widget pointer or NULL on error
+ */
+struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root);
 struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
                              const char **items, unsigned int nr_items);
 
