@@ -105,6 +105,7 @@ typedef struct clap_context {
     struct list         timers;
     struct ui           ui;
     int                 argc;
+    bool                paused;
 } clap_context;
 
 /****************************************************************************
@@ -220,6 +221,11 @@ unsigned long clap_get_fps_fine(struct clap_context *ctx)
 unsigned long clap_get_fps_coarse(struct clap_context *ctx)
 {
     return ctx->fps.fps_coarse;
+}
+
+bool clap_is_paused(clap_context *ctx)
+{
+    return ctx->paused;
 }
 
 /****************************************************************************
@@ -589,6 +595,16 @@ static cerr clap_os_init(struct clap_context *ctx)
  * Main API
  ****************************************************************************/
 
+static int clap_handle_command(struct message *m, void *data)
+{
+    if (m->type != MT_COMMAND)  return MSG_HANDLED;
+
+    clap_context *ctx = data;
+    if (m->cmd.toggle_modality) ctx->paused = !ctx->paused;
+
+    return MSG_HANDLED;
+}
+
 cres(int) clap_restart(struct clap_context *ctx)
 {
     int argc = ctx->argc;
@@ -640,6 +656,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     ctx->envp = envp;
 
     CERR_RET_T(messagebus_init(), clap_context);
+
+    CERR_RET_T(subscribe(MT_COMMAND, clap_handle_command, ctx), clap_context);
 
     /* XXX: handle initialization errors */
     log_init(log_flags);

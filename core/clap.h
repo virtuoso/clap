@@ -148,6 +148,17 @@ struct timespec clap_get_current_timespec(struct clap_context *ctx) __nonnull_pa
  */
 double clap_get_current_time(struct clap_context *ctx) __nonnull_params((1));
 
+/**
+ * clap_is_paused() - tell if clap is paused
+ * @ctx:    clap_context
+ *
+ * This is a more generalized version of "is UI modality on?", which signals
+ * interested subsystem to act differently, suspend themselves, etc.
+ *
+ * Return: true if paused, false otherwise
+ */
+bool clap_is_paused(clap_context *ctx);
+
 typedef void (*clap_timer_fn)(void *data);
 typedef struct clap_timer clap_timer;
 cresp_ret(clap_timer);
