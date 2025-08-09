@@ -172,6 +172,13 @@ struct ui {
     float mod_x, mod_y;
 };
 
+/**
+ * ui_modality_send() - send a modality toggle message
+ *
+ * Send a command message to toggle UI modality state.
+ */
+void ui_modality_send(void);
+
 struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element *parent,
                              float *color, unsigned long flags, const char *fmt, ...)
                              __printf(6, 7) __nonnull_params((1, 2, 4, 6));

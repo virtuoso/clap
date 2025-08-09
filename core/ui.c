@@ -1169,7 +1169,7 @@ struct ui_widget *ui_menu_new(struct ui *ui, const struct ui_widget_builder *uwb
     return menu;
 }
 
-static void ui_modality_send(void)
+void ui_modality_send(void)
 {
     struct message m;
 
