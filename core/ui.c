@@ -1128,7 +1128,6 @@ static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *
         /* go back */
         ref_put(ui->menu);
         ui_modality_send();
-        ui->modal = false;
         ui->menu = NULL;
     } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
         /* enter */
@@ -1210,8 +1209,6 @@ void ui_inventory_done(struct ui *ui)
     ui_modality_send();
     ref_put(ui->inventory);
     ui->inventory = NULL;
-    if (!ui->menu)
-        ui->modal = false;
 }
 
 static bool ui_inventory_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
@@ -1386,7 +1383,6 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
     inv->root->height = width * rows + 10 * (cols - 1);
     font_put(font);
     ui->inventory = inv;
-    ui->modal = true;
 }
 
 static int ui_handle_command(struct message *m, void *data)

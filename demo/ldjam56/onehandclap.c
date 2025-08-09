@@ -75,7 +75,7 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         ui_osd_new(ui, NULL, intro_osd, array_size(intro_osd));
     }
 
-    pipeline_render(scene.pl, ui->modal ? 1 : 0);
+    pipeline_render(scene.pl, clap_is_paused(s->clap_ctx) ? 1 : 0);
 
     render_options *ropts = clap_get_render_options(s->clap_ctx);
     if (shadow_msaa != ropts->shadow_msaa ||

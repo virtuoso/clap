@@ -168,7 +168,6 @@ struct ui {
     double             time;
     clap_context       *clap_ctx;
     int width, height;
-    bool modal;
     float mod_x, mod_y;
 };
 
