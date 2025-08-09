@@ -1770,7 +1770,3 @@ void ui_done(struct ui *ui)
      */
     shaders_free(&ui->shaders);
 }
-
-void ui_show(struct ui *ui)
-{
-}
