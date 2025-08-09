@@ -1033,8 +1033,6 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
  * ui_menu
  ****************************************************************************/
 
-static void ui_menu_done(struct ui *ui);
-
 static void ui_menu_preselect(struct ui_animation *ua)
 {
     struct ui_element *uie = ui_animation_element(ua);
@@ -1118,7 +1116,8 @@ static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *
         ui_widget_pick_rel(uiw, 1);
     } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
         /* go back */
-        ui_menu_done(ui);
+        ref_put(ui->menu);
+        ui_modality_send();
         ui->modal = false;
         ui->menu = NULL;
     } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
@@ -1169,15 +1168,6 @@ void ui_modality_send(void)
     m.type = MT_COMMAND;
     m.cmd.toggle_modality = 1;
     message_send(&m);
-}
-
-static void ui_menu_done(struct ui *ui)
-{
-    ui_modality_send();
-    ref_put(ui->menu);
-    ui->menu = NULL;
-    if (!ui->inventory)
-        ui->modal = false;
 }
 
 /****************************************************************************
@@ -1748,8 +1738,6 @@ err:
 
 void ui_done(struct ui *ui)
 {
-    if (ui->menu)
-        ui_menu_done(ui);
     if (ui->inventory)
         ui_inventory_done(ui);
 
