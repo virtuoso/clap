@@ -1085,7 +1085,6 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, 
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
         off += menu->uies[i]->height + uwb->el_margin;
-        ui_element_set_visibility(menu->uies[i], 0);
 
         if (uwb->el_cb)         uwb->el_cb(menu->uies[i], i);
         if (i == nr_items - 1)  uia_action(menu->uies[i], ui_menu_preselect);
