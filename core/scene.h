@@ -62,7 +62,6 @@ struct scene {
     int                 lut_autoswitch;
     clap_timer          *lut_timer;
     bool                initialized;
-    bool                ui_is_on;
 };
 
 struct character;

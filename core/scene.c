@@ -784,23 +784,6 @@ void scene_characters_move(struct scene *s)
     }
 }
 
-static int scene_handle_command(struct message *m, void *data)
-{
-    struct scene *s = data;
-    int ret = 0;
-
-    if (m->cmd.toggle_modality) {
-        s->ui_is_on = !s->ui_is_on;
-        ret = MSG_HANDLED;
-    }
-
-    if (s->ui_is_on)
-        goto out;
-
-out:
-    return ret;
-}
-
 static int scene_handle_input(struct message *m, void *data)
 {
     struct scene *s = data;
@@ -849,8 +832,7 @@ static int scene_handle_input(struct message *m, void *data)
         message_send(&m);
     }
 #endif
-    if (s->ui_is_on)
-        return 0;
+    if (clap_is_paused(s->clap_ctx))    return 0;
 
     if (m->input.zoom == 1) {
         if (!s->camera->zoom)
@@ -929,7 +911,6 @@ cerr scene_init(struct scene *scene)
 
     /* messagebus_done() will "unsubscribe" (free) these */
     CERR_RET(subscribe(MT_INPUT, scene_handle_input, scene), return __cerr);
-    CERR_RET(subscribe(MT_COMMAND, scene_handle_command, scene), return __cerr);
 
     scene->initialized = true;
 
