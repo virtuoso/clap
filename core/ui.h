@@ -177,7 +177,15 @@ struct ui {
  *
  * Send a command message to toggle UI modality state.
  */
-void ui_modality_send(void);
+static inline void ui_modality_send(void)
+{
+    message_send(
+        &(struct message) {
+            .type   = MT_COMMAND,
+            .cmd    = (struct message_command) { .toggle_modality = 1 }
+        }
+    );
+}
 
 struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element *parent,
                              float *color, unsigned long flags, const char *fmt, ...)

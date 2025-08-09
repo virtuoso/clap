@@ -1170,16 +1170,6 @@ struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root)
     return menu;
 }
 
-void ui_modality_send(void)
-{
-    struct message m;
-
-    memset(&m, 0, sizeof(m));
-    m.type = MT_COMMAND;
-    m.cmd.toggle_modality = 1;
-    message_send(&m);
-}
-
 /****************************************************************************
  * ui_inventory
  ****************************************************************************/
