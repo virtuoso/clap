@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-#include "common.h"
 #include "linmath.h"
 #include "mesh.h"
 #include "model.h"
