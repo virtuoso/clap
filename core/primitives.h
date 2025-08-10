@@ -29,6 +29,16 @@ typedef struct prim_emit_opts {
 void _prim_calc_normals(size_t vx_idx, const prim_emit_opts *opts);
 void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts);
 void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts);
+
+/**
+ * _prim_emit_triangle3() - emit a triangle from 3 separate vertices
+ * @v0:     first vertex
+ * @v1:     second vertex
+ * @v2:     third vertex
+ *
+ * Same as _prim_emit_triangle(), but takes 3 separate vertices.
+ */
+void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts);
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 
 /**
@@ -46,6 +56,17 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 /* Append a triangle to a mesh */
 #define prim_emit_triangle(_t, args...) \
     _prim_emit_triangle((_t), &(prim_emit_opts){ args })
+
+/**
+ * define prim_emit_triangle3 - emit a triangle from 3 separate vertices
+ * @v0:     first vertex
+ * @v1:     second vertex
+ * @v2:     third vertex
+ *
+ * Syntax sugar for _prim_emit_triangle3().
+ */
+#define prim_emit_triangle3(_v0, _v1, _v2, args...) \
+    _prim_emit_triangle3((_v0), (_v1), (_v2), &(prim_emit_opts){ args })
 /* Append a quad to a mesh */
 #define prim_emit_quad(_t, args...) \
     _prim_emit_quad((_t), &(prim_emit_opts){ args })

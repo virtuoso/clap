@@ -72,19 +72,17 @@ void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts)
     _prim_emit_vertex(triangle[2], opts);
 }
 
+void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts)
+{
+    _prim_emit_vertex(v0, opts);
+    _prim_emit_vertex(v1, opts);
+    _prim_emit_vertex(v2, opts);
+}
+
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
 {
-    vec3 triangle1[3];
-    vec3 triangle2[3];
-    vec3_dup(triangle1[0], quad[0]);
-    vec3_dup(triangle1[1], quad[3]);
-    vec3_dup(triangle1[2], quad[1]);
-    vec3_dup(triangle2[0], quad[3]);
-    vec3_dup(triangle2[1], quad[2]);
-    vec3_dup(triangle2[2], quad[1]);
-
-    _prim_emit_triangle(triangle1, opts);
-    _prim_emit_triangle(triangle2, opts);
+    _prim_emit_triangle3(quad[0], quad[3], quad[1], opts);
+    _prim_emit_triangle3(quad[3], quad[2], quad[1], opts);
 }
 
 cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
