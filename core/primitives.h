@@ -7,10 +7,10 @@
 
 extern struct mesh cube_mesh;
 
-/*
- * Vertex emitting options:
- * @mesh: mesh, to which the vertices will be appended
- * @uv: optional texture coordinates per vertex
+/**
+ * struct prim_emit_opts - vertex/primitive emitting options
+ * @mesh:   mesh, to which the vertices will be appended
+ * @uv:     optional texture coordinates per vertex
  */
 typedef struct prim_emit_opts {
     struct mesh     *mesh;
