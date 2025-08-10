@@ -4,6 +4,28 @@
 #include "model.h"
 #include "primitives.h"
 
+void _prim_calc_normals(size_t vx_idx, const prim_emit_opts *opts)
+{
+    if (vx_idx % 3) return;
+
+    vec3 triangle[3];
+    for (int i = 0; i < 3; i++)
+        vec3_dup(triangle[i], &mesh_vx(opts->mesh)[(vx_idx + i) * 3]);
+
+    vec3 a, b, norm;
+    vec3_sub(a, triangle[0], triangle[1]);
+    vec3_sub(b, triangle[0], triangle[2]);
+    vec3_mul_cross(norm, a, b);
+    vec3_norm(norm, norm);
+
+    float *mesh_norm_array = mesh_norm(opts->mesh);
+    for (int i = 0; i < 3; i++) {
+        mesh_norm_array[(vx_idx + i) * 3 + 0] = norm[0];
+        mesh_norm_array[(vx_idx + i) * 3 + 1] = norm[1];
+        mesh_norm_array[(vx_idx + i) * 3 + 2] = norm[2];
+    }
+}
+
 void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
 {
     /*
@@ -14,7 +36,7 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
     if (!mesh_vx(opts->mesh) || !mesh_idx(opts->mesh))
         return;
 
-    unsigned int vx_idx = mesh_nr_vx(opts->mesh);
+    size_t vx_idx = mesh_nr_vx(opts->mesh);
     mesh_vx(opts->mesh)[vx_idx * 3 + 0] = pos[0];
     mesh_vx(opts->mesh)[vx_idx * 3 + 1] = pos[1];
     mesh_vx(opts->mesh)[vx_idx * 3 + 2] = pos[2];
@@ -32,26 +54,12 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
     mesh_attr(opts->mesh, MESH_TX)->nr = vx_idx;
     mesh_attr(opts->mesh, MESH_IDX)->nr = idx_idx;
 
-    float *mesh_norm_array = mesh_norm(opts->mesh);
     size_t norm_idx = mesh_nr_norm(opts->mesh);
-    if (mesh_norm(opts->mesh) && vx_idx && !(vx_idx % 3)) {
-        vec3 triangle[3];
-        vec3 a, b, norm;
+    if (mesh_norm(opts->mesh) && !(vx_idx % 3)) {
+        /* 3 new vertices added, normals should be 3 behind */
+        err_on(norm_idx != vx_idx - 3, "norm_idx != vx_idx - 3: %zu, %zu\n", norm_idx, vx_idx);
 
-        int i;
-        for (i = 0; i < 3; i++)
-            vec3_dup(triangle[i], &mesh_vx(opts->mesh)[(vx_idx - 3 + i) * 3]);
-
-        vec3_sub(a, triangle[0], triangle[1]);
-        vec3_sub(b, triangle[0], triangle[2]);
-        vec3_mul_cross(norm, a, b);
-        vec3_norm(norm, norm);
-
-        for (i = 0; i < 3; i++) {
-            mesh_norm_array[(norm_idx + i) * 3 + 0] = norm[0];
-            mesh_norm_array[(norm_idx + i) * 3 + 1] = norm[1];
-            mesh_norm_array[(norm_idx + i) * 3 + 2] = norm[2];
-        }
+        _prim_calc_normals(norm_idx, opts);
 
         mesh_attr(opts->mesh, MESH_NORM)->nr = norm_idx + 3;
     }

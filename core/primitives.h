@@ -17,10 +17,29 @@ typedef struct prim_emit_opts {
     float           *uv;
 } prim_emit_opts;
 
+/**
+ * _prim_calc_normals() - calculate normal vectors for a triangle
+ * @vx_idx: first vertex of a triangle
+ * @opts:   primitive emitter options
+ *
+ * For an emitted triangle, calculate normal vectors of its vertices.
+ * Assumes that all 3 triangle vertices are back-to-back and start, as
+ * the rest of the triangles in the mesh, at a multiple of 3.
+ */
+void _prim_calc_normals(size_t vx_idx, const prim_emit_opts *opts);
 void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts);
 void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts);
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 
+/**
+ * define prim_calc_normals - calculate normal vectors for a triangle
+ * @vx_idx: first vertex of a triangle
+ * @args:   list of primitive emitter options
+ *
+ * Syntax sugar for _prim_calc_normals().
+ */
+#define prim_calc_normals(_p, args...) \
+    _prim_calc_normals((_p), &(prim_emit_opts){ args })
 /* Append a vertex to a mesh */
 #define prim_emit_vertex(_p, args...) \
     _prim_emit_vertex((_p), &(prim_emit_opts){ args })
