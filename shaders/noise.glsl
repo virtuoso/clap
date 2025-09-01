@@ -50,4 +50,18 @@ float fbm(vec3 p, float amplitude, int octaves, float lacunarity)
     return sum;
 }
 
+/* FBM gradient; eps: epsilon */
+vec3 fbm_grad(vec3 p, float eps, float amplitude, int octaves, float lacunarity) {
+    vec3 ex = vec3(eps, 0, 0);
+    vec3 ey = vec3(0, eps, 0);
+    vec3 ez = vec3(0, 0, eps);
+    float fx1 = fbm(p + ex, amplitude, octaves, lacunarity);
+    float fx0 = fbm(p - ex, amplitude, octaves, lacunarity);
+    float fy1 = fbm(p + ey, amplitude, octaves, lacunarity);
+    float fy0 = fbm(p - ey, amplitude, octaves, lacunarity);
+    float fz1 = fbm(p + ez, amplitude, octaves, lacunarity);
+    float fz0 = fbm(p - ez, amplitude, octaves, lacunarity);
+    return vec3(fx1 - fx0, fy1 - fy0, fz1 - fz0) / (2.0 * eps);
+}
+
 #endif /* SHADERS_NOISE_GLSL */
