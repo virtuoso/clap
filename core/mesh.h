@@ -133,6 +133,19 @@ ATTR_ACCESSORS(idx, IDX, unsigned short);
 cerr_check mesh_attr_add(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr);
 cerr_check mesh_attr_alloc(struct mesh *mesh, enum mesh_attrs attr, size_t stride, size_t nr);
 cerr_check mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr);
+
+/**
+ * mesh_attr_resize() - resize a given attribute in a mesh
+ * @mesh:   mesh
+ * @attr:   attribute
+ * @nr:     new number of elements
+ *
+ * Resize attribute's backing buffer and set the number of elements
+ * accordingly. If allocation fails, the attribute stays the same
+ * as before the resize call.
+ * Return: CERR_OK on success or CERR_NOMEM on failure to allocate.
+ */
+cerr mesh_attr_resize(struct mesh *mesh, enum mesh_attrs attr, size_t nr);
 void mesh_push_mesh(struct mesh *mesh, struct mesh *src,
                     float x, float y, float z, float scale);
 

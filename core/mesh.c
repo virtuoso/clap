@@ -1,3 +1,6 @@
+#include "cerrs.h"
+#include "logger.h"
+#include "memory.h"
 #include <meshoptimizer.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -116,6 +119,18 @@ cerr mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t s
         if (mesh->fix_origin)
             vertex_array_fix_origin(mesh_vx(mesh), nr * stride, mesh->aabb);
     }
+
+    return CERR_OK;
+}
+
+cerr mesh_attr_resize(struct mesh *mesh, enum mesh_attrs attr, size_t nr)
+{
+    auto ma = &mesh->attr[attr];
+    auto resized = mem_realloc_array(ma->data, nr, ma->stride);
+    if (!resized)   return CERR_NOMEM;
+
+    ma->data = resized;
+    ma->nr = min(ma->nr, nr);
 
     return CERR_OK;
 }
@@ -279,8 +294,11 @@ void mesh_optimize(struct mesh *mesh)
         
         meshopt_remapVertexBuffer(ma->data, ma->data, ma->nr, ma->stride, remap);
         if (nr_new_vx < ma->nr) {
-            ma->data = mem_realloc_array(ma->data, nr_new_vx, ma->stride, .fatal_fail = 1);
-            ma->nr = nr_new_vx;
+            /* Failure to shrink is not fatal, it's safe to proceed */
+            CERR_RET(
+                mesh_attr_resize(mesh, attr, nr_new_vx),
+                err_cerr(__cerr, "mesh '%s' attr %d resize failed\n", mesh->name, attr);
+            );
         }
     }
     mem_free(remap);
@@ -300,8 +318,11 @@ void mesh_optimize(struct mesh *mesh)
         
         meshopt_remapVertexBuffer(ma->data, ma->data, ma->nr, ma->stride, remap);
         if (nr_new_vx < ma->nr) {
-            ma->data = mem_realloc_array(ma->data, nr_new_vx, ma->stride, .fatal_fail = 1);
-            ma->nr = nr_new_vx;
+            /* Failure to shrink is not fatal, it's safe to proceed */
+            CERR_RET(
+                mesh_attr_resize(mesh, attr, nr_new_vx),
+                err_cerr(__cerr, "mesh '%s' attr %d resize failed\n", mesh->name, attr);
+            );
         }
     }
     mem_free(remap);
