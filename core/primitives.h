@@ -9,12 +9,14 @@ extern struct mesh cube_mesh;
 
 /**
  * struct prim_emit_opts - vertex/primitive emitting options
- * @mesh:   mesh, to which the vertices will be appended
- * @uv:     optional texture coordinates per vertex
+ * @mesh:       mesh, to which the vertices will be appended
+ * @uv:         optional texture coordinates per vertex
+ * @clockwise:  emit vertices in left-handed winding order
  */
 typedef struct prim_emit_opts {
     struct mesh     *mesh;
     float           *uv;
+    bool            clockwise;
 } prim_emit_opts;
 
 /**

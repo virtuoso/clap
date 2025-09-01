@@ -68,15 +68,25 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
 void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts)
 {
     _prim_emit_vertex(triangle[0], opts);
-    _prim_emit_vertex(triangle[1], opts);
-    _prim_emit_vertex(triangle[2], opts);
+    if (opts->clockwise) {
+        _prim_emit_vertex(triangle[2], opts);
+        _prim_emit_vertex(triangle[1], opts);
+    } else {
+        _prim_emit_vertex(triangle[1], opts);
+        _prim_emit_vertex(triangle[2], opts);
+    }
 }
 
 void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts)
 {
     _prim_emit_vertex(v0, opts);
-    _prim_emit_vertex(v1, opts);
-    _prim_emit_vertex(v2, opts);
+    if (opts->clockwise) {
+        _prim_emit_vertex(v2, opts);
+        _prim_emit_vertex(v1, opts);
+    } else {
+        _prim_emit_vertex(v1, opts);
+        _prim_emit_vertex(v2, opts);
+    }
 }
 
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
