@@ -31,13 +31,12 @@ layout (location=5) out vec4 Normal;
 
 void main()
 {
-    vec3 normal_vec, unit_normal;
+    vec3 unit_normal;
 
     if (use_normals) {
-        normal_vec = texture(normal_map, pass_tex).xyz * 2.0 - 1.0;
-        unit_normal = normalize(tbn * normal_vec.xyz);
+        vec3 normal_sample = texture(normal_map, pass_tex).xyz * 2.0 - 1.0;
+        unit_normal = normalize(tbn * normal_sample);
     } else {
-        normal_vec = surface_normal;
         unit_normal = normalize(surface_normal);
     }
 
@@ -70,8 +69,8 @@ void main()
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
     ViewPosition = view_pos;
 
-    vec3 world_normal = mat3(view) * normal_vec;
-    Normal = vec4(world_normal * 0.5 + 0.5, 1.0);
+    vec3 view_normal = mat3(view) * orig_normal;
+    Normal = vec4(view_normal * 0.5 + 0.5, 1.0);
 
     if (sobel_solid) {
         EdgeNormal = vec4(texture_sample.rgb, sobel_solid_id);
