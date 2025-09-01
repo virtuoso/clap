@@ -621,6 +621,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
             };
             message_send(&dm_aabb_center);
         }
+        ui_igCheckbox("outline exclude", &e->outline_exclude);
 
         vec3 pos;
         transform_pos(&e->xform, pos);
