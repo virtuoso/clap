@@ -38,13 +38,13 @@ float noise(vec3 p)
 }
 
 /* Fractal Brownian Motion */
-float fbm(vec3 p, float amplitude, int octaves)
+float fbm(vec3 p, float amplitude, int octaves, float lacunarity)
 {
     float sum = 0.0;
     float amp = amplitude;
     for (int i = 0; i < octaves; i++) {
         sum += amp * noise(p);
-        p *= 2.0;
+        p *= lacunarity;
         amp *= amplitude;
     }
     return sum;

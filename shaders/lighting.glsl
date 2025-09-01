@@ -55,7 +55,7 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     vec3 roughness_noise_src = local_pos.xyz * roughness_scale;
     vec3 metallic_noise_src = shared_scale ? roughness_noise_src : local_pos.xyz * metallic_scale;
 
-    float roughness_noise = fbm(roughness_noise_src, roughness_amp, roughness_oct);
+    float roughness_noise = fbm(roughness_noise_src, roughness_amp, roughness_oct, 2.0);
     float metallic_noise = 0.0;
     switch (metallic_mode) {
         case MAT_METALLIC_ROUGHNESS:
@@ -66,7 +66,7 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
             break;
         default:
         case MAT_METALLIC_INDEPENDENT:
-            metallic_noise = fbm(metallic_noise_src, metallic_amp, metallic_oct);
+            metallic_noise = fbm(metallic_noise_src, metallic_amp, metallic_oct, 2.0);
             break;
     }
 
