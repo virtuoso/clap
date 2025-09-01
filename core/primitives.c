@@ -95,24 +95,33 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
     _prim_emit_triangle3(quad[3], quad[2], quad[1], opts);
 }
 
-cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
+void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)
 {
+    struct mesh *mesh = opts->mesh;
+    if (!mesh)  return;
+
     /*
      * a triangle per each segment at the top and bottom, plus 2 triangles (quad)
      * for each side: 4 triangles (12 vertices) per segment
      */
     int nr_vert = nr_serments * 12;
-    LOCAL_SET(mesh_t, cylinder_mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cylinder"), model3d);
-
-    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_VX, sizeof(float) * 3, nr_vert), model3d);
-    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_TX, sizeof(float) * 2, nr_vert), model3d);
-    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_NORM, sizeof(float) * 3, nr_vert), model3d);
-    CERR_RET_T(mesh_attr_alloc(cylinder_mesh, MESH_IDX, sizeof(unsigned short), nr_vert), model3d);
+    if (!mesh->attr[MESH_VX].data) {
+        CERR_RET(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert), return);
+        CERR_RET(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), return);
+        CERR_RET(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), return);
+        CERR_RET(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), return);
+    } else {
+        nr_vert += mesh_nr_vx(mesh);
+        CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vert), return);
+        CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vert), return);
+        CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vert), return);
+        CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_vert), return);
+    }
 
     int seg;
     for (seg = 0; seg < nr_serments; seg++) {
-        err_on(mesh_nr_vx(cylinder_mesh) >= nr_vert,
-               "last_vert: %zu nr_vert: %d\n", mesh_nr_vx(cylinder_mesh), nr_vert);
+        err_on(mesh_nr_vx(mesh) >= nr_vert,
+               "last_vert: %zu nr_vert: %d\n", mesh_nr_vx(mesh), nr_vert);
         vec3 triangle[3];
 
         vec2 seg_vert1, seg_vert2;
@@ -129,7 +138,7 @@ cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float heigh
         triangle[2][0] = seg_vert2[0];
         triangle[2][1] = org[1];
         triangle[2][2] = seg_vert2[1];
-        prim_emit_triangle(triangle, .mesh = cylinder_mesh);
+        _prim_emit_triangle(triangle, opts);
 
         /* side quad */
         vec3 quad[4];
@@ -145,7 +154,7 @@ cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float heigh
         quad[3][0] = seg_vert1[0];
         quad[3][1] = org[1] + height;
         quad[3][2] = seg_vert1[1];
-        prim_emit_quad(quad, .mesh = cylinder_mesh);
+        _prim_emit_quad(quad, opts);
 
         /* top */
         vec3_dup(triangle[0], org);
@@ -156,8 +165,15 @@ cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float heigh
         triangle[2][0] = seg_vert1[0];
         triangle[2][1] = org[1] + height;
         triangle[2][2] = seg_vert1[1];
-        prim_emit_triangle(triangle, .mesh = cylinder_mesh);
+        _prim_emit_triangle(triangle, opts);
     }
+}
+
+cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
+{
+    LOCAL_SET(mesh_t, cylinder_mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cylinder"), model3d);
+
+    _prim_emit_cylinder(org, height, radius, nr_serments, &(const prim_emit_opts) { .mesh = cylinder_mesh });
 
     mesh_aabb_calc(cylinder_mesh);
     mesh_optimize(cylinder_mesh);

@@ -44,6 +44,17 @@ void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts)
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 
 /**
+ * _prim_emit_cylinder() - emit a cylinder
+ * @org:            origin point
+ * @height:         height
+ * @radius:         radius
+ * @nr_segments:    number of "sides"
+ *
+ * Append a cylinder to a mesh.
+ */
+void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts);
+
+/**
  * define prim_calc_normals - calculate normal vectors for a triangle
  * @vx_idx: first vertex of a triangle
  * @args:   list of primitive emitter options
@@ -72,6 +83,18 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 /* Append a quad to a mesh */
 #define prim_emit_quad(_t, args...) \
     _prim_emit_quad((_t), &(prim_emit_opts){ args })
+
+/**
+ * define prim_emit_cylinder - emit a cylinder
+ * @_o: origin point
+ * @_h: height
+ * @_r: radius
+ * @_s: number of "sides"
+ *
+ * Syntax sugar for _prim_emit_cylinder().
+ */
+#define prim_emit_cylinder(_o, _h, _r, _s, args...) \
+    _prim_emit_cylinder((_o), (_h), (_r), (_s), &(prim_emit_opts){ args })
 
 model3d *model3d_new_cube(struct shader_prog *p, bool skip_aabb);
 model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
