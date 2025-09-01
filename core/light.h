@@ -2,7 +2,6 @@
 #ifndef __CLAP_LIGHT_H__
 #define __CLAP_LIGHT_H__
 
-#include "common.h"
 #include "render.h"
 #include "render.h"
 #include "shader_constants.h"
