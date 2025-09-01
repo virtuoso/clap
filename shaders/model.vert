@@ -13,14 +13,14 @@ layout (location=ATTR_LOC_WEIGHTS) in vec4 weights;
 #include "ubo_transform.glsl"
 #include "ubo_projview.glsl"
 #include "ubo_skinning.glsl"
+#include "ubo_material.glsl"
 
 layout (location=0) out vec2 pass_tex;
 layout (location=1) out vec3 surface_normal;
 layout (location=2) out vec3 orig_normal;
-layout (location=3) out vec3 to_light_vector[LIGHTS_MAX];
-layout (location=7) out vec3 to_camera_vector;
-layout (location=8) out vec4 world_pos;
-layout (location=9) out mat3 tbn;
+layout (location=3) out vec3 to_camera_vector;
+layout (location=4) out vec4 world_pos;
+layout (location=5) out mat3 tbn;
 
 void main()
 {
@@ -64,16 +64,10 @@ void main()
         N = normalize(view_rot * N);
         tbn = mat3(T, B, N);
 
-        for (int i = 0; i < LIGHTS_MAX; i++) {
-            to_light_vector[i] = tbn * (light_pos[i] - world_pos.xyz);
-        }
         to_camera_vector = tbn * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
         surface_normal = trans_rot * our_normal.xyz;
 
-        for (int i = 0; i < LIGHTS_MAX; i++) {
-            to_light_vector[i] = light_pos[i] - world_pos.xyz;
-        }
         to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     }
 }

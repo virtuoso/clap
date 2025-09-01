@@ -7,10 +7,9 @@
 layout (location=0) in vec2 pass_tex;
 layout (location=1) in vec3 surface_normal;
 layout (location=2) in vec3 orig_normal;
-layout (location=3) in vec3 to_light_vector[LIGHTS_MAX];
-layout (location=7) in vec3 to_camera_vector;
-layout (location=8) in vec4 world_pos;
-layout (location=9) in mat3 tbn;
+layout (location=3) in vec3 to_camera_vector;
+layout (location=4) in vec4 world_pos;
+layout (location=5) in mat3 tbn;
 
 #include "shadow.glsl"
 #include "lighting.glsl"
@@ -61,7 +60,7 @@ void main()
      * we just don't need yet. Once this becomes less critical, the above change
      * will have to be made.
      */
-    lighting_result r = compute_total_lighting(unit_normal, to_light_vector, view_dir, texture_sample.rgb, shadow_factor);
+    lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
     EdgeDepthMask = gl_FragCoord.z;

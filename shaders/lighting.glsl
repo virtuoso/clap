@@ -109,15 +109,16 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     return ret;
 }
 
-lighting_result compute_total_lighting(vec3 unit_normal, vec3 to_light_vector[LIGHTS_MAX], vec3 view_dir,
-                                       vec3 base_color, float shadow_factor)
+lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 base_color, float shadow_factor)
 {
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
     vec3 shadow_tinted = light_color[0] * shadow_tint;
 
     for (int i = 0; i < nr_lights; i++) {
-        // lighting_result l = compute_blinn_phong(i, unit_normal, to_light_vector[i], view_dir);
-        lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector[i], view_dir, base_color);
+        vec3 to_light_vector = light_pos[i] - world_pos.xyz;
+        if (use_normals)    to_light_vector = tbn * to_light_vector;
+
+        lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector, view_dir, base_color);
 
         /* XXX: shadow casting light source is 0 */
         if (i == 0) {
