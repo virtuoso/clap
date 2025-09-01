@@ -3,7 +3,7 @@
 
 #define JOINTS_MAX 200
 #define PARTICLES_MAX 1024
-#define LIGHTS_MAX 4
+#define LIGHTS_MAX 32
 #define CASCADES_MAX 4
 #define MSAA_SAMPLES 4
 #define SSAO_KERNEL_SIZE 64

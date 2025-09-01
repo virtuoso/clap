@@ -5,9 +5,8 @@
 #include "common.h"
 #include "render.h"
 #include "render.h"
+#include "shader_constants.h"
 #include "view.h"
-
-#define LIGHTS_MAX 4
 
 struct light {
     float pos[3 * LIGHTS_MAX];
