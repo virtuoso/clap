@@ -264,10 +264,6 @@ int main(int argc, char **argv, char **envp)
     display_get_sizes(&scene.width, &scene.height);
     scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
 
-    /*
-     * Need to write vorbis callbacks for this
-     * lib_request(RES_ASSET, "morning.ogg", opening_sound_load, &intro_sound);
-     */
     intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
     if (intro_sound) {
         float intro_gain = settings_get_num(clap_get_settings(scene.clap_ctx), NULL, "music_volume");
