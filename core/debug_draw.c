@@ -20,10 +20,10 @@ static int debug_draw(struct message *m, void *data)
     mat4x4_mul(mvp, sv->proj_mx, sv->view_mx);
 
     ImU32 color = IM_COL32(
-        (int)(dd->color[0] * 255),
-        (int)(dd->color[1] * 255),
-        (int)(dd->color[2] * 255),
-        (int)(dd->color[3] * 255)
+        (unsigned int)(dd->color[0] * 255),
+        (unsigned int)(dd->color[1] * 255),
+        (unsigned int)(dd->color[2] * 255),
+        (unsigned int)(dd->color[3] * 255)
     );
 
     switch (dd->shape) {
