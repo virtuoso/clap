@@ -196,7 +196,7 @@ static void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
     f->count += 1;
 
     /* More stable FPS calculation */
-    f->fps_fine = f->ts_delta.tv_sec ? 1 : (NSEC_PER_SEC / f->ts_delta.tv_nsec);
+    f->fps_fine = f->ts_delta.tv_sec ? 1 : f->ts_delta.tv_nsec ? (NSEC_PER_SEC / f->ts_delta.tv_nsec) : 1;
 
     if (status) {
         memset(&m, 0, sizeof(m));
