@@ -50,12 +50,16 @@ static int debug_draw(struct message *m, void *data)
             break;
 
         case DEBUG_DRAW_CIRCLE:
+        case DEBUG_DRAW_DISC:
             {
-                vec4 v0;
+                vec4 center, v0;
                 vec3_dup(v0, dd->v0);
                 v0[3] = 1.0;
 
-                mat4x4_mul_vec4_post(v0, mvp, v0);
+                mat4x4_mul_vec4_post(center, sv->view_mx, v0);
+                center[3] = 1.0;
+
+                mat4x4_mul_vec4_post(v0, sv->proj_mx, center);
                 vec3_scale(v0, v0, 1.0 / v0[3]);
 
                 if (v0[3] < 1e-3)
@@ -66,7 +70,14 @@ static int debug_draw(struct message *m, void *data)
                     .y = ((1.0 - v0[1]) / 2.0) * io->DisplaySize.y,
                 };
 
-                ImDrawList_AddCircleFilled(draw, p0, dd->radius, color, 16);
+                if (dd->shape == DEBUG_DRAW_DISC) {
+                    /* Draw discs with a constant radius */
+                    ImDrawList_AddCircleFilled(draw, p0, dd->radius, color, 16);
+                } else {
+                    float fx = sv->proj_mx[0][0];
+                    float radius = dd->radius * fx / -center[2] * io->DisplaySize.x / 2;
+                    ImDrawList_AddCircle(draw, p0, radius, color, 64,  max(dd->thickness, 0.1));
+                }
             }
             break;
 
