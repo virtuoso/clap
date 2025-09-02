@@ -615,7 +615,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
                 .debug_draw     = (struct message_debug_draw) {
                     .color      = { 1.0, 0.0, 0.0, 1.0 },
                     .radius     = 10.0,
-                    .shape      = DEBUG_DRAW_CIRCLE,
+                    .shape      = DEBUG_DRAW_DISC,
                     .v0         = { e->aabb_center[0], e->aabb_center[1], e->aabb_center[2] },
                 }
             };
