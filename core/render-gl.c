@@ -1882,14 +1882,17 @@ void _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 
         _texture_format_supported[i] = true;
 
-        cerr err = texture_init(&tex);
+        texture_filter filter = TEX_FLT_LINEAR;
+        if (i == TEX_FMT_R32UI || i == TEX_FMT_RG32UI || i == TEX_FMT_RGBA32UI)
+            filter = TEX_FLT_NEAREST;
+
+        cerr err = texture_init(&tex, .format = i, .wrap = TEX_CLAMP_TO_EDGE, .min_filter = filter, .mag_filter = filter);
         if (!IS_CERR(err)) {
             err = texture_load(&tex, i, 1, 1, &buf);
             if (IS_CERR(err))
                 _texture_format_supported[i] = false;
-
-            texture_deinit(&tex);
         }
+        texture_deinit(&tex);
     }
 
     for (i = 0; i < TEX_FMT_MAX; i++) {
