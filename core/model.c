@@ -569,7 +569,7 @@ struct channel {
     unsigned int    nr;
     unsigned int    stride;
     unsigned int    target;
-    unsigned int    path;
+    enum chan_path  path;
 };
 
 struct animation *animation_new(model3d *model, const char *name, unsigned int nr_channels)
@@ -1054,6 +1054,7 @@ static void channel_transform(entity3d *e, struct channel *chan, float time)
         vec3_interp(joint->scale, *p_scale, *n_scale, fac);
         break;
     }
+    default:
     }
 }
 
