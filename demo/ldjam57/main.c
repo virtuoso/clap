@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include "object.h"
 #include "common.h"
+#include "character.h"
 #include "display.h"
 #include "input.h"
 #include "font.h"

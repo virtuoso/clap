@@ -2,7 +2,6 @@
 #ifndef __CLAP_SCENE_H__
 #define __CLAP_SCENE_H__
 
-#include "character.h"
 #include "model.h"
 #include "motion.h"
 #include "light.h"
