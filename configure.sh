@@ -13,12 +13,12 @@ if [ -n "$use_gles" ]; then
 	CLAP_OPTS="$CLAP_OPTS -DCLAP_BUILD_WITH_GLES=ON"
 fi
 if [ -n "$server_ip" ]; then
-	CLAP_OPTS="$CLAP_OPTS -DCLAP_SERVER_IP=$server_ip -DCLAP_BUILD_NETWORKING=ON"
+	CLAP_OPTS_NATIVE="$CLAP_OPTS -DCLAP_SERVER_IP=$server_ip -DCLAP_BUILD_NETWORKING=ON"
 fi
 
-cmake --preset=rel $CLAP_OPTS
-cmake --preset=test $CLAP_OPTS
-cmake --preset=debug $CLAP_OPTS
+cmake --preset=rel $CLAP_OPTS_NATIVE
+cmake --preset=test $CLAP_OPTS_NATIVE
+cmake --preset=debug $CLAP_OPTS_NATIVE
 
 if which emcmake 1>/dev/null 2>&1; then
 	cmake --preset=emrel $CLAP_OPTS "$www_dir"
