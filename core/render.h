@@ -190,6 +190,9 @@ typedef enum texture_format {
     TEX_FMT_RG8,
     TEX_FMT_RG16F,
     TEX_FMT_RG32F,
+    TEX_FMT_R32UI,
+    TEX_FMT_RG32UI,
+    TEX_FMT_RGBA32UI,
     TEX_FMT_MAX,
 } texture_format;
 

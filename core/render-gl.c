@@ -455,6 +455,9 @@ static __unused const char *texture_format_string[TEX_FMT_MAX] = {
         [TEX_FMT_RGB16F]    = "RGB16F",
         [TEX_FMT_RGBA32F]   = "RGBA32F",
         [TEX_FMT_RGB32F]    = "RGB32F",
+        [TEX_FMT_R32UI]     = "R32UI",
+        [TEX_FMT_RG32UI]    = "RG32UI",
+        [TEX_FMT_RGBA32UI]  = "RGBA32UI",
         [TEX_FMT_DEPTH32F]  = "DEPTH32F",
         [TEX_FMT_DEPTH24F]  = "DEPTH24F",
         [TEX_FMT_DEPTH16F]  = "DEPTH16F",
@@ -463,12 +466,15 @@ static __unused const char *texture_format_string[TEX_FMT_MAX] = {
 static GLenum gl_texture_format(texture_format format)
 {
     switch (format) {
+        case TEX_FMT_R32UI:     return GL_RED_INTEGER;
         case TEX_FMT_R32F:
         case TEX_FMT_R16F:
         case TEX_FMT_R8:        return GL_RED;
+        case TEX_FMT_RG32UI:    return GL_RG_INTEGER;
         case TEX_FMT_RG32F:
         case TEX_FMT_RG16F:
         case TEX_FMT_RG8:       return GL_RG;
+        case TEX_FMT_RGBA32UI:  return GL_RGBA_INTEGER;
         case TEX_FMT_RGBA32F:
         case TEX_FMT_RGBA16F:
         case TEX_FMT_RGBA8:     return GL_RGBA;
@@ -501,6 +507,9 @@ static GLenum gl_texture_internal_format(texture_format fmt)
         case TEX_FMT_RGBA16F:   return GL_RGBA16F;
         case TEX_FMT_RGB32F:    return GL_RGB32F;
         case TEX_FMT_RGB16F:    return GL_RGB16F;
+        case TEX_FMT_R32UI:     return GL_R32UI;
+        case TEX_FMT_RG32UI:    return GL_RG32UI;
+        case TEX_FMT_RGBA32UI:  return GL_RGBA32UI;
         case TEX_FMT_DEPTH32F:  return GL_DEPTH_COMPONENT32F;
         case TEX_FMT_DEPTH24F:  return GL_DEPTH_COMPONENT24;
         case TEX_FMT_DEPTH16F:  return GL_DEPTH_COMPONENT16;
@@ -532,6 +541,9 @@ static GLenum gl_texture_component_type(texture_format fmt)
         case TEX_FMT_RGB32F:
         case TEX_FMT_RGBA32F:   return GL_FLOAT;
         case TEX_FMT_DEPTH32F:  return GL_FLOAT;
+        case TEX_FMT_R32UI:
+        case TEX_FMT_RG32UI:
+        case TEX_FMT_RGBA32UI:
         case TEX_FMT_DEPTH24F:  return GL_UNSIGNED_INT;
 #ifdef CONFIG_GLES
         case TEX_FMT_DEPTH16F:  return GL_UNSIGNED_SHORT;
