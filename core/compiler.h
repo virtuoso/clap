@@ -26,6 +26,14 @@
 #define __returns_nonnull __attribute__((__returns_nonnull__))
 #endif /* __returns_nonnull */
 
+/**
+ * define noubsan - disable undefined behavior sanitizer locally
+ *
+ * UBSAN has false positives, so it is sometimes beneficial to
+ * be able to disable it for a function.
+ */
+#define noubsan __attribute__((no_sanitize("undefined")))
+
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
