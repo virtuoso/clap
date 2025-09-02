@@ -982,6 +982,7 @@ struct phys *phys_init(void)
     phys->character_space = dHashSpaceCreate(phys->space);
     phys->ground_space = dHashSpaceCreate(phys->space);
     phys->contact = dJointGroupCreate(0);
+    phys->time_acc = 0.0;
     phys->draw_capsules = false;
     phys->draw_contacts = false;
     dWorldSetGravity(phys->world, 0, -9.8, 0);
