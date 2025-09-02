@@ -13,7 +13,7 @@
 #include "pipeline.h"
 #include "camera.h"
 #include "sound.h"
-
+#include "json.h"
 
 #define NR_CAMERAS_MAX 4
 

@@ -9,7 +9,6 @@
 #include "memory.h"
 #include "util.h"
 #include "logger.h"
-#include "json.h" /* XXX: factor out ser/deser code */
 #include "refclasses.h"
 
 struct ref;
