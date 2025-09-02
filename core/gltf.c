@@ -6,7 +6,6 @@
 #include "librarian.h"
 #include "model.h"
 #include "object.h"
-#include "scene.h"
 #include "shader.h"
 #include "gltf.h"
 
