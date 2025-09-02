@@ -1024,6 +1024,11 @@ static void channel_transform(entity3d *e, struct channel *chan, float time)
         return;
 
     channel_time_to_idx(chan, time, joint->off[chan->path], &prev, &next);
+
+    size_t p_off, n_off;
+    if (mul_overflow(prev, chan->stride, &p_off))   { warn_once("animation index overflow: %d\n", prev); return; }
+    if (mul_overflow(next, chan->stride, &n_off))   { warn_once("animation index overflow: %d\n", next); return; }
+
     joint->off[chan->path] = min(prev, next);
 
     p_time = chan->time[prev];
@@ -1033,8 +1038,8 @@ static void channel_transform(entity3d *e, struct channel *chan, float time)
     else if (p_time < n_time)
         fac = (time - p_time) / (n_time - p_time);
 
-    p_data = (void *)chan->data + prev * chan->stride;
-    n_data = (void *)chan->data + next * chan->stride;
+    p_data = (void *)chan->data + p_off;
+    n_data = (void *)chan->data + n_off;
 
     switch (chan->path) {
     case PATH_TRANSLATION: {
