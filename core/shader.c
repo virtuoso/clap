@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include "error.h"
 #include "mesh.h"
 #include "render.h"
