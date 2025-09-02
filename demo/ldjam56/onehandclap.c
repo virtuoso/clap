@@ -67,7 +67,6 @@ static enum main_state main_state;
 static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
     struct scene *s = data;
-    renderer_t *r = clap_get_renderer(s->clap_ctx);
     struct ui *ui = clap_get_ui(s->clap_ctx);
 
     if (main_state == MS_STARTING) {
@@ -191,16 +190,16 @@ int main(int argc, char **argv, char **envp)
         .lut_presets    = lut_presets_all,
 #endif /* CONFIG_FINAL */
     };
+#ifndef CONFIG_FINAL
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
         .server_port   = 21044,
         .server_wsport = 21045,
         .logger        = 1,
     };
+#endif /* CONFIG_FINAL */
     int c, option_index;
     unsigned int fullscreen = 0;
-    struct render_pass *pass;
-    //struct lib_handle *lh;
 
     for (;;) {
         c = getopt_long(argc, argv, short_options, long_options, &option_index);
