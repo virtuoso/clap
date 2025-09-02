@@ -35,7 +35,7 @@ static struct scene scene;
 static texture_t platform_emission_purple;
 static texture_t platform_emission_teal;
 static texture_t platform_emission_peach;
-static texture_t platform_emission_orange;
+static texture_t platform_emission_orange __unused;
 
 static particle_system *spores;
 
@@ -96,7 +96,6 @@ static int platform_entity_update(entity3d *e, void *data)
 
 static void switch_connect(entity3d *e, entity3d *connection, void *data)
 {
-    struct character *c = connection->priv;
     switch_obj *sobj = data;
     if (!sobj)
         return;
@@ -118,7 +117,6 @@ static void switch_connect(entity3d *e, entity3d *connection, void *data)
 
 static void switch_disconnect(entity3d *e, entity3d *connection, void *data)
 {
-    struct character *c = connection->priv;
     switch_obj *sobj = data;
     if (!sobj)
         return;
@@ -158,7 +156,6 @@ static void switcher_update(struct scene *s)
     static char buf[512];
     character_obj *cobj;
     size_t len = 0;
-    int i = 0;
 
     darray_for_each(cobj, cobjs) {
         if (!cobj->connected)
@@ -293,8 +290,6 @@ static void process_entity(entity3d *e, void *data)
 
 static void process_scene(struct scene *s)
 {
-    model3dtx *txm;
-
     mq_for_each(&s->mq, process_entity, NULL);
 
     /*
@@ -400,6 +395,7 @@ static void startup(struct scene *s)
     switcher->priv = s;
 }
 
+#ifndef CONFIG_BROWSER
 static void cleanup(struct scene *s)
 {
     if (switcher_text)
@@ -414,6 +410,7 @@ static void cleanup(struct scene *s)
     darray_clearout(sobjs);
     darray_clearout(cobjs);
 }
+#endif /* !CONFIG_BROWSER */
 
 static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = true;
 
@@ -448,7 +445,6 @@ static const char *outro_osd[] = { "Thank you for playing!", "The End" };
 static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
 {
     struct scene *s = data;
-    renderer_t *r = clap_get_renderer(s->clap_ctx);
     struct ui *ui = clap_get_ui(s->clap_ctx);
 
     if (main_state == MS_STARTING) {
@@ -578,12 +574,14 @@ int main(int argc, char **argv, char **envp)
         .lut_presets    = lut_presets_all,
 #endif /* CONFIG_FINAL */
     };
+#ifndef CONFIG_FINAL
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
         .server_port   = 21044,
         .server_wsport = 21045,
         .logger        = 1,
     };
+#endif /* CONFIG_FINAL */
     int c, option_index;
     unsigned int fullscreen = 0;
 
