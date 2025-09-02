@@ -108,6 +108,7 @@ typedef enum debug_draw_shape {
     DEBUG_DRAW_CIRCLE,
     DEBUG_DRAW_TEXT,
     DEBUG_DRAW_DISC,
+    DEBUG_DRAW_GRID,
 } debug_draw_shape;
 
 struct message_debug_draw {
@@ -117,6 +118,7 @@ struct message_debug_draw {
     vec4                color;
     float               thickness;
     union {
+        unsigned int    cell;
         float           radius;
         char            *text;
     };
