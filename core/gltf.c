@@ -170,6 +170,7 @@ struct gltf_data {
     unsigned int         *texs;
     void                 *bin;
     int                  root_node;
+    unsigned int         warned;
     unsigned int nr_texs;
     unsigned int texid;
     bool         fix_origin;
@@ -1249,8 +1250,9 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
                 int joint = gltf_skin_node_to_joint(gd, skin, chan->node);
                 if (joint < 0) {
-                    warn("animation '%s' channel %d references a non-existent joint %d in skin '%s'\n",
-                         an->name, an->cur_channel, chan->node, DA(gd->skins, skin)->name);
+                    if (!gd->warned++)
+                        warn("animation '%s' channel %d references a non-existent joint %d in skin '%s'\n",
+                             an->name, an->cur_channel, chan->node, DA(gd->skins, skin)->name);
                     continue;
                 }
 
