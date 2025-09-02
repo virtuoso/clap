@@ -42,6 +42,11 @@ foreach (decl ${decls})
     set(new_content "${new_content}struct ref *${decl}_ref(void *x);\n")
 endforeach ()
 
+# Forward declare all the used structs
+foreach (decl ${decls})
+    set(new_content "${new_content}struct ${decl};\n")
+endforeach ()
+
 # Define a macro _Generic over the give type to select the ref* obtaining
 # function appropriate to the type and call it
 set(new_content "${new_content}\n#define __obj_ref(_obj) (_Generic((_obj), \\\n")
