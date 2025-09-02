@@ -246,7 +246,7 @@ void buffer_deinit(buffer_t *buf)
     buf->loaded = false;
 }
 
-static inline void _buffer_bind(buffer_t *buf, uniform_t loc)
+static inline noubsan void _buffer_bind(buffer_t *buf, uniform_t loc)
 {
     GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE,
                              buf->stride, (void *)0 + buf->off));
