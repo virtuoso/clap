@@ -595,12 +595,12 @@ int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)
 
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
 {
-    if (!__shader_has_var(p, var) || !texture_loaded(tex))
+    if (!__shader_has_var(p, var))
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
 
-    texture_bind(tex, desc->texture_slot);
+    if (texture_loaded(tex))    texture_bind(tex, desc->texture_slot);
     uniform_set_ptr(p->vars[var], desc->type, 1, &desc->texture_slot);
 }
 
