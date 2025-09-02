@@ -9,6 +9,7 @@ test
 test.js
 test.html
 compile_commands.json
+.cache
 .vscode
 .DS_Store
 build/
