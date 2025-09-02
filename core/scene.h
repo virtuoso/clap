@@ -2,8 +2,6 @@
 #ifndef __CLAP_SCENE_H__
 #define __CLAP_SCENE_H__
 
-#include <time.h>
-#include "common.h"
 #include "character.h"
 #include "model.h"
 #include "motion.h"
