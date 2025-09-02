@@ -656,7 +656,9 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
 
     p->ctx = opts->ctx;
 
-#ifndef CONFIG_FINAL
+    /*
+     * Binding uniform buffers to binding points is not optional
+     */
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
         struct shader_var_block *var_block = &p->ctx->var_blocks[i];
         const struct shader_var_block_desc *desc = var_block->desc;
@@ -664,6 +666,13 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         err = shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name);
         if (!IS_CERR(err)) {
             p->var_blocks[desc->binding] = var_block;
+
+            /*
+             * This bit is entirely optional though: making sure that
+             * our own UBO offset calculations match what the shader
+             * introspection reports.
+             */
+#ifndef CONFIG_FINAL
             for (int j = 0; j < darray_count(var_block->offsets); j++) {
                 enum shader_vars var = var_block->desc->vars[j];
                 int idx = p->ctx->vars[var].var_in_block_idx;
@@ -674,7 +683,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
                         var_block->desc->name,
                         shader_get_var_name(var)
                     ),
-                    continue;
+                    { err("uniform %s not found in %s\n", shader_get_var_name(var), desc->name); continue; }
                 );
                 size_t my_off = *DA(var_block->offsets, idx);
 
@@ -682,14 +691,15 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
                     err("prog[%s] UBO[%s] var[%s] offsets don't match: %zu vs %zu\n",
                         p->name, var_block->desc->name, shader_get_var_name(var),
                         my_off, prog_off);
+                    /* In a non-debug situation, fix up the offset */
 #ifndef CLAP_DEBUG
                     *DA(var_block->offsets, idx) = prog_off;
 #endif /* CLAP_DEBUG */
                 }
             }
+#endif /* !CONFIG_FINAL */
         }
     }
-#endif /* CONFIG_FINAL */
 
     shader_setup_mesh_attrs(p);
 
