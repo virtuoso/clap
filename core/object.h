@@ -48,8 +48,8 @@ struct ref_class {
 #define DEFINE_REFCLASS_MAKE_DROP(struct_name, makefn, dropfn) \
     struct ref_class REFCLASS_NAME(struct_name) = { \
         .name   = __stringify(struct struct_name), \
-        .make   = makefn, \
-        .drop   = dropfn, \
+        .make   = (makefn), \
+        .drop   = (dropfn), \
         .size   = sizeof(struct struct_name), \
         .offset = offsetof(struct struct_name, ref), \
         .entry  = EMPTY_LIST(REFCLASS_NAME(struct_name).entry), \
@@ -288,7 +288,7 @@ static inline void _ref_put(struct ref *ref)
  */
 #define ref_pass(obj) ({ \
     typeof (obj) __obj = (obj); \
-    obj = NULL; \
+    (obj) = NULL; \
     struct ref *__ref = __obj_ref(__obj); \
     __ref->consume = true; \
     __obj; \
