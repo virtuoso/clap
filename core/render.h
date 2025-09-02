@@ -388,9 +388,9 @@ static inline int fbo_attachment_color(fbo_attachment attachment)
 }
 
 #define fa_for_each(_it, _fa, _kind) \
-    for (fbo_attachment _it = { .color_ ## _kind ## s = 1 }; \
-         fa_nr_color_ ## _kind(_it) <= fa_nr_color_ ## _kind(_fa); \
-         _it.color_ ## _kind ## s = _it.color_ ## _kind ## s * 2 + 1)
+    for (fbo_attachment (_it) = { .color_ ## _kind ## s = 1 }; \
+         fa_nr_color_ ## _kind((_it)) <= fa_nr_color_ ## _kind(_fa); \
+         (_it).color_ ## _kind ## s = (_it).color_ ## _kind ## s * 2 + 1)
 
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(fbo,
