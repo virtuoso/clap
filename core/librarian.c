@@ -103,8 +103,10 @@ static const char *builtin_file_contents(enum res_type type, const char *name, s
     if (type == RES_SHADER) {
         const char *_name = str_basename(name);
         for (i = 0; i < nr_builtin_shaders; i++)
-            if (!strcmp(_name, builtin_shaders[i].name))
+            if (!strcmp(_name, builtin_shaders[i].name)) {
+                *psize = builtin_shaders[i].size;
                 return builtin_shaders[i].contents;
+            }
     }
 
     struct builtin_file *file;
