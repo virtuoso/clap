@@ -757,10 +757,8 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (!jlen)
             continue;
         /* GLB bin buffer can't have uri, otherwise it must */
-        if (!darray_count(gd->buffers) && gd->bin && juri)
-            continue;
-        else if ((darray_count(gd->buffers) || !gd->bin) && !juri)
-            continue;
+        if (!darray_count(gd->buffers) && gd->bin && juri)      continue;
+        if ((darray_count(gd->buffers) || !gd->bin) && !juri)   continue;
 
         len = jlen->number_;
         if (juri) {
