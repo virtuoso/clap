@@ -6,6 +6,21 @@
 #include "linmath.h"
 #include "util.h"
 
+/* Smooth easing / Hermite interpolation */
+#define DEFINE_SMOOTHSTEP(_type, _suffix) \
+static inline _type smooth  ## _suffix(_type x) \
+{ \
+    return x * x * (3.0 - 2.0 * x); \
+} \
+static inline _type smoothstep  ## _suffix(_type a, _type b, _type blend) \
+{ \
+    _type x = clamp ## _suffix((blend - a) / (b - a), 0.0, 1.0); \
+    return x * x * (3.0 - 2.0 * x); \
+}
+
+DEFINE_SMOOTHSTEP(float, f);
+DEFINE_SMOOTHSTEP(double, d); /* double version in util.h is called clampd() */
+
 /* Linear interpolation between 2 values of type (float, double, long double) */
 #define DEFINE_LIN_INTERP(_type, _suffix) \
 static inline _type lin  ## _suffix ## _interp(_type a, _type b, _type blend) \
