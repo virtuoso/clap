@@ -531,11 +531,7 @@ static GLenum gl_texture_component_type(texture_format fmt)
         case TEX_FMT_R16F:
         case TEX_FMT_RG16F:
         case TEX_FMT_RGB16F:
-#ifdef CONFIG_GLES
-        case TEX_FMT_RGBA16F:   return GL_UNSIGNED_SHORT;
-#else
         case TEX_FMT_RGBA16F:   return GL_HALF_FLOAT;
-#endif /* CONFIG_GLES */
         case TEX_FMT_R32F:
         case TEX_FMT_RG32F:
         case TEX_FMT_RGB32F:
