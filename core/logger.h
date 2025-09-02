@@ -59,6 +59,7 @@ void logg(int level, const char *mod, int line, const char *func, const char *fm
 #define warn(args...) \
     logg(WARN, MODNAME, __LINE__, __func__, ## args);
 #define warn_on(_c, args...) do { if ((_c)) warn("condition '" # _c "': " args); } while (0)
+#define warn_once(args...) do { static int __printed = 0; if (!__printed++) warn(args) } while (0)
 #define err(args...) \
     logg(ERR, MODNAME, __LINE__, __func__, ## args);
 #define err_cerr(_cerr, _fmt, args...) do { \
