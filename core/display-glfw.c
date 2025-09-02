@@ -365,8 +365,8 @@ static void pointer_cb(struct GLFWwindow *window, double x, double y)
 
     memset(&mi, 0, sizeof(mi));
     mi.mouse_move = 1;
-    mi.x = x;
-    mi.y = y;
+    mi.x = max(x, 0.0);
+    mi.y = max(y, 0.0);
     message_input_send(&mi, &keyboard_source);
 }
 
@@ -385,8 +385,8 @@ void click_cb(GLFWwindow *window, int button, int action, int mods)
 
     memset(&mi, 0, sizeof(mi));
     mi.mouse_click = 1;
-    mi.x = x;
-    mi.y = y;
+    mi.x = max(x, 0.0);
+    mi.y = max(y, 0.0);
     message_input_send(&mi, &keyboard_source);
 }
 
