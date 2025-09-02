@@ -1489,6 +1489,7 @@ void mq_init(struct mq *mq, void *priv)
 {
     list_init(&mq->txmodels);
     mq->priv = priv;
+    mq->nr_characters = 0;
 }
 
 void mq_release(struct mq *mq)
