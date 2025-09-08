@@ -26,7 +26,10 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
         list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=0"
                                     "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307")
     else ()
-        list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=1"
+        list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=2"
+                                    # "-s ABORTING_MALLOC=0"
+                                    # "-s MALLOC=dlmalloc"
+                                    # "-s SAFE_HEAP=1"
                                     "-s EXCEPTION_DEBUG=1")
     endif ()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FREETYPE_LIBRARIES} ${PNG_LIBRARY}")
@@ -119,7 +122,7 @@ set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c fs-ops-posix.c logger.c input.c messagebus.c primitives.c motion.c
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c
-    terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c
+    terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c noise.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
     gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c

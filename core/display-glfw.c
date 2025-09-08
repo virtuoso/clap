@@ -449,6 +449,8 @@ int platform_input_init(struct clap_context *ctx)
 
     glfwSetKeyCallback(window, key_cb);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    // XXX: This goes into mouse capture mode
+    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     if (glfwRawMouseMotionSupported())
         glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     glfwSetCursorPosCallback(window, pointer_cb);

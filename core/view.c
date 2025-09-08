@@ -11,14 +11,14 @@ static void subview_calc_frustum(struct subview *subview);
 static void view_update_perspective_subviews(struct view *view)
 {
     static const float dividers[CASCADES_MAX - 1] = { 25, 70, 150 };
-    int max = array_size(view->subview);
-    int i;
+    int max = view->nr_cascades ? : array_size(view->subview);
+    int i = 0;
 
     view->subview[0].near_plane = view->main.near_plane;
     for (i = 0; i < max - 1; i++) {
         struct subview *sv = &view->subview[i];
 
-        view->divider[i] = dividers[i];
+        view->divider[i] = view->nr_cascades == 1 ? 50.0 : dividers[i];
         sv->far_plane    = view->divider[i];
         view->subview[i + 1].near_plane = sv->far_plane;
     }
@@ -160,7 +160,7 @@ static void view_projection_update(struct view *view, struct view *src, float ne
     view_calc_frustum(view);
 }
 
-static void subview_update_from_angles(struct subview *sv, vec3 eye, float pitch, float yaw, float roll)
+static void subview_update_from_angles(struct subview *sv, const vec3 eye, float pitch, float yaw, float roll)
 {
     mat4x4_identity(sv->view_mx);
     mat4x4_rotate_X(sv->view_mx, sv->view_mx, to_radians(pitch));
@@ -171,7 +171,7 @@ static void subview_update_from_angles(struct subview *sv, vec3 eye, float pitch
     mat4x4_invert(sv->inv_view_mx, sv->view_mx);
 }
 
-void view_update_from_angles(struct view *view, vec3 eye, float pitch, float yaw, float roll)
+void view_update_from_angles(struct view *view, const vec3 eye, float pitch, float yaw, float roll)
 {
     /* XXX: do the main subview first and just mat4x4_dup() them into subviews */
     subview_update_from_angles(&view->main, eye, pitch, yaw, roll);

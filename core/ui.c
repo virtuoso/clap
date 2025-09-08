@@ -608,7 +608,12 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     return uit.uietex;
 }
 
-static const char *menu_font = "ofl/Unbounded-Regular.ttf";
+// static const char *menu_font = "ofl/Unbounded-Regular.ttf";
+// static const char *menu_font = "ofl/Chivo[wght].ttf";
+// static const char *menu_font = "ofl/Raleway[wght].ttf";
+static const char *menu_font = "ofl/ZillaSlab-Bold.ttf";
+// static const char *menu_font = "ofl/DMSerifDisplay-Regular.ttf";
+// static const char *menu_font = "ofl/CrimsonPro[wght].ttf";
 
 /****************************************************************************
  * ui_roll
@@ -706,6 +711,7 @@ static cerr ui_widget_make(struct ref *ref, void *_opts)
     uiw->root->widget = uiw;
     uiw->nr_uies = opts->nr_items;
     uiw->input_event = opts->uwb->input_event;
+    uiw->on_create = opts->uwb->on_create;
     list_append(&opts->ui->widgets, &uiw->entry);
 
     return CERR_OK;
@@ -870,6 +876,16 @@ static void default_onfocus(struct ui_element *uie, bool focus) {}
  * ui_wheel
  ****************************************************************************/
 
+// const char diag_font[] = "ofl/JetBrainsMono-Thin.ttf";
+// const char diag_font[] = "ofl/Chivo[wght].ttf";
+// const char diag_font[] = "ofl/ChivoMono[wght].ttf";
+// const char diag_font[] = "ofl/IBMPlexMono-Thin.ttf";
+// const char diag_font[] = "ofl/CutiveMono-Regular.ttf";
+// good ones
+// const char diag_font[] = "ofl/KodeMono[wght].ttf";
+// const char diag_font[] = "ofl/KodeMono[wght].ttf";
+const char diag_font[] = "ofl/OverpassMono[wght].ttf";
+
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 {
     float quad_color[] = { 0.0, 0.3, 0.1, 1.0 };
@@ -910,7 +926,7 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
     wheel->focus   = -1;
 
     /* XXX^2: font global/hardcoded */
-    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 48);
+    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = diag_font, .size = 48);
     if (!font) {
         ref_put_last(wheel);
         return NULL;
@@ -1012,6 +1028,8 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
         .y_off      = 0,
         .w          = 500,
         .h          = 0.3,
+        .font_name  = menu_font,
+        .font_size  = 32,
         .el_cb      = ui_osd_element_cb,
         .el_color   = { 0.0, 0.0, 0.0, 0.0 },
         .text_color = { 0.8, 0.8, 0.8, 1.0 },
@@ -1020,7 +1038,7 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
     if (uwb)
         memcpy(&_uwb, uwb, sizeof(_uwb));
 
-    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = _uwb.font_name, .size = _uwb.font_size);
     if (!_uwb.font)
         return NULL;
 
@@ -1057,8 +1075,14 @@ static void ui_menu_on_click(struct ui_element *uie, float x, float y)
     auto ui = uie->ui;
     if (!item->items && item->fn)   { item->fn(ui, item); return; }
 
-    ref_put(uie->widget);
-    ui->menu = ui_menu_new(ui, item);
+    auto uiw = uie->widget;
+    auto on_create = uiw->on_create;
+
+    void *priv = uiw->priv;
+    ref_put(uiw);
+    uiw = ui_menu_new(ui, item);
+    uiw->priv = priv;
+    if (on_create)                  on_create(ui, uiw);
 }
 
 static inline bool is_item_valid(const ui_menu_item *item)  { return item->items || item->fn; }
@@ -1127,9 +1151,10 @@ static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *
         ui_widget_pick_rel(uiw, 1);
     } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
         /* go back */
-        ref_put(ui->menu);
+        auto on_create = uiw->on_create;
+        ref_put(uiw);
         ui_modality_send(ui);
-        ui->menu = NULL;
+        if (on_create)  on_create(ui, NULL);
     } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
         /* enter */
         ui_widget_on_click(uiw, uiw->focus, uivec);
@@ -1235,7 +1260,7 @@ static bool ui_inventory_input(struct ui *ui, struct ui_widget *uiw, struct mess
         ui->mod_x = 0;
         ui_widget_pick_rel(ui->inventory, 1);
     } else if (m->input.pad_y) {
-        ui_widget_on_click(ui->menu, ui->menu->focus, uivec);
+        ui_widget_on_click(ui->inventory, ui->inventory->focus, uivec);
         ui_inventory_done(ui);
     }
 
@@ -1474,7 +1499,7 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     struct ui_element *p, *t;
     struct font *font = ref_new(font,
                                 .ctx  = clap_get_font(ui->clap_ctx),
-                                .name = "ProggyTiny.ttf",
+                                .name = diag_font,
                                 .size = 48);
     int i;
 
@@ -1545,7 +1570,7 @@ void pocket_update(struct ui *ui)
     float color[4] = { 1, 1, 1, 1 };
     struct font *font = ref_new(font,
                                 .ctx  = clap_get_font(ui->clap_ctx),
-                                .name = "ProggyTiny.ttf",
+                                .name = diag_font,
                                 .size = 48);
     int i;
 
@@ -1694,7 +1719,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
         goto err;
     }
 
-    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 16);
+    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = diag_font, .size = 12);
     if (!font) {
         ret = CERR_FONT_NOT_LOADED;
         goto err;
@@ -1716,10 +1741,6 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     build_uit = ui_printf(ui, font, uie1, (vec4){ 0.7, 0.7, 0.7, 1.0 }, 0, "%s @%s %s",
                           clap_version, build_date, clap_build_options());
 #endif
-
-    const char *pocket_textures[] = { "apple.png", "mushroom thumb.png" };
-    pocket = ui_pocket_new(ui, pocket_textures, array_size(pocket_textures));
-    font_put(font);
 
     ret = subscribe(clap_ctx, MT_COMMAND, ui_handle_command, ui);
     if (IS_CERR(ret))

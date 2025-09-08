@@ -18,6 +18,7 @@ struct pipeline {
     struct camera       *camera;
     struct light        *light;
     ssao_state          *ssao_state;
+    unsigned int        nr_cascades;
     int                 width;
     int                 height;
 

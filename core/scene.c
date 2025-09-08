@@ -66,6 +66,11 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.fov              = to_radians(70);
     s->camera->view.proj_update      = true;
     s->camera->dist = 10;
+    if (light_is_spotlight(&s->light, 0))
+        s->camera->view.nr_cascades = 1;
+    else
+        s->camera->view.nr_cascades = CASCADES_MAX;
+
     transform_set_updated(&s->camera->xform);
     CERR_RET(debug_draw_install(s->clap_ctx, s->camera), err_cerr(__cerr, "failed to initialize debug draw"));
 
@@ -212,6 +217,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             phys_contacts_debug_enable(clap_get_phys(scene->clap_ctx), ropts->collision_draws_enabled);
         igCheckbox("camera frusta draws", &ropts->camera_frusta_draws_enabled);
         igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
+        igCheckbox("light draws", &ropts->light_draws_enabled);
         igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
         igCheckbox("use SSAO", &ropts->ssao);
         igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
@@ -310,7 +316,20 @@ static void light_debug(struct scene *scene)
             if (ui_igSliderFloat3("dir", &scene->light.dir[3 * idx], -500, 500, "%.02f", 0) &&
                 scene->light.is_dir[idx])
                 vec3_sub(&scene->light.pos[3 * idx], (vec3){}, &scene->light.dir[3 * idx]);
-            ui_igSliderFloat3("att", &scene->light.attenuation[3 * idx], 0.0001, 10.0, "%.04f", 0);
+            // ui_igSliderFloat3("att", &scene->light.attenuation[3 * idx], 0.0001, 10.0, "%.04f", 0);
+            ui_igSliderFloat("C", &scene->light.attenuation[3 * idx + 0], 0.0001, 1.0, "%.04f", 0);
+            ui_igSliderFloat("L", &scene->light.attenuation[3 * idx + 1], 0.0001, 0.1, "%.04f", 0);
+            ui_igSliderFloat("Q", &scene->light.attenuation[3 * idx + 2], 0.0001, 0.1, "%.04f", 0);
+
+            float cutoff_deg = to_degrees(scene->light.cutoff[idx]);
+            if (ui_igSliderFloat("cutoff", &cutoff_deg, 0.0, 90.0, "%.02f", 0))
+                light_set_cutoff(&scene->light, idx, to_radians(cutoff_deg));
+
+            if (!light_is_directional(&scene->light, idx)) {
+                ui_igLabel("radius");
+                igTableNextColumn();
+                igText("%.06f", light_get_radius(&scene->light, idx));
+            }
 
             ui_igColorEdit3(
                 "color",
@@ -527,6 +546,32 @@ static void model_tabs(model3dtx *txm)
     if (igBeginTabItem("material", NULL, 0)) {
         ui_igControlTableHeader("material", "roughness");
         material *mat = &txm->mat;
+        // ui_igCheckbox("noise normals", &mat->use_noise_normals);
+        ui_igLabel("normals");
+        igTableNextColumn();
+        igText("noise:");
+        igSameLine(0.0, 0.0);
+        igPushID_Str("nono");
+        igRadioButton_IntPtr("off", &mat->use_noise_normals, NOISE_NORMALS_NONE);
+        igSameLine(0.0, 0.0);
+        igRadioButton_IntPtr("GPU", &mat->use_noise_normals, NOISE_NORMALS_GPU);
+        igSameLine(0.0, 0.0);
+        igRadioButton_IntPtr("3D", &mat->use_noise_normals, NOISE_NORMALS_3D);
+        igPopID();
+
+        if (mat->use_noise_normals) {
+            ui_igSliderFloat("-> scale", &mat->noise_normals_scale, 0.01, 5.0, "%.04f", 0);
+            ui_igSliderFloat("-> amp", &mat->noise_normals_amp, 0.1, 1.0, "%.04f", 0);
+        }
+
+        ui_igCheckbox("use 3D fog", &mat->use_3d_fog);
+        if (mat->use_3d_fog) {
+            ui_igSliderFloat("-> scale", &mat->fog_3d_scale, 0.0, 1.0, "%.06f", 0);
+            ui_igSliderFloat("-> amp", &mat->fog_3d_amp, 0.0, 2.0, "%.06f", 0);
+        }
+
+        ui_igCheckbox("noise emission", &mat->use_noise_emission);
+
         bool noisy_roughness = mat->roughness_oct > 0;
         if (ui_igCheckbox("noisy roughness", &noisy_roughness))
             mat->roughness_oct = noisy_roughness ? 1 : 0;
@@ -908,9 +953,11 @@ static void scene_camera_calc(struct scene *s, int camera)
         );
     }
     /* only the first light source get to cast shadows for now */
-    bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
-    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, !shadow_vsm);
-    view_calc_frustum(&s->light.view[0]);
+    if (!light_is_spotlight(&s->light, 0)) {
+        bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
+        view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, !shadow_vsm);
+        view_calc_frustum(&s->light.view[0]);
+    }
 }
 
 void scene_cameras_calc(struct scene *s)
@@ -1047,11 +1094,14 @@ void scene_update(struct scene *scene)
 
     clap_context *ctx = scene->clap_ctx;
     camera_move(scene->camera, clap_get_fps_fine(ctx));
+    light_grid_compute(&scene->light, &scene->camera->view);
 
     if (clap_get_render_options(ctx)->camera_frusta_draws_enabled)
         scene_debug_frusta(scene, &scene->camera->view);
     if (clap_get_render_options(ctx)->light_frusta_draws_enabled)
         scene_debug_frusta(scene, &scene->light.view[0]);
+    if (clap_get_render_options(ctx)->light_draws_enabled)
+        light_draw(ctx, &scene->light);
 
     motion_reset(&scene->mctl, scene);
 }
@@ -1066,12 +1116,8 @@ cerr scene_init(struct scene *scene, struct clap_context *ctx)
     list_init(&scene->instor);
     sfx_container_init(&scene->sfxc);
 
-    int i;
-    for (i = 0; i < LIGHTS_MAX; i++) {
-        float attenuation[3] = { 1, 0, 0 };
-        light_set_attenuation(&scene->light, i, attenuation);
-        light_set_directional(&scene->light, i, true);
-    }
+    light_init(ctx, &scene->light);
+
     light_set_ambient(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
     light_set_shadow_tint(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
 
@@ -1417,6 +1463,25 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 }
             }
 
+            jpos = json_find_member(it, "light_cutoff");
+            if (jpos && jpos->tag == JSON_NUMBER) {
+                light_set_cutoff(&scene->light, e->light_idx, to_radians(jpos->number_));
+                light_set_directional(&scene->light, e->light_idx, true);
+                if (!e->light_idx) {
+                    scene->light.view[0].nr_cascades = 1;
+                    scene->light.view[0].main.near_plane  = 0.1;
+                    scene->light.view[0].main.far_plane   = 200.0;
+                    scene->light.view[0].fov              = scene->light.cutoff[0];
+                    scene->light.view[0].proj_update      = true;
+
+                    vec3 angles;
+                    transform_rotation(&e->xform, angles, true);
+                    view_update_perspective_projection(&scene->light.view[0], scene->width, scene->height, 1.0);
+                    view_update_from_angles(&scene->light.view[0], transform_pos(&e->xform, NULL), angles[0], angles[1], angles[2]);
+                    view_calc_frustum(&scene->light.view[0]);
+                }
+            }
+
 light_done:
             jpos = json_find_member(it, "bloom_intensity");
             if (jpos && jpos->tag == JSON_NUMBER)
@@ -1558,10 +1623,12 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
     light_set_pos(&s->light, idx, fpos);
     light_set_color(&s->light, idx, fcolor);
 
-    bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
-    vec3 center = {};
-    vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
-    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
+    if (!light_is_spotlight(&s->light, idx)) {
+        bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
+        vec3 center = {};
+        vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
+        view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
+    }
 
     return CERR_OK;
 }
@@ -1700,6 +1767,8 @@ void scene_done(struct scene *scene)
 
     free(scene->file_name);
     scene->file_name = NULL;
+
+    light_done(scene->clap_ctx, &scene->light);
 
     list_for_each_entry_iter(ch, iter, &scene->characters, entry)
         ref_put_last(ch);

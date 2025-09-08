@@ -14,6 +14,16 @@
 #include "linmath.h"
 #include "logger.h"
 
+#define __ONE_COMMA 0,
+#define __ARG2(_zero_or_val, _val, ...) _val
+/*
+ * Macro trickery:
+ * - if _val is empty, _zero_or_val is `0,`, expanding __ARG2(_val, 0) to 0
+ * - otherwise, _zero_or_val is `0,_val`, expanding __ARG2(_val, 0) to _val
+ */
+#define __IS_DEFINED(_val)  __ARG2(__ONE_COMMA##val 1, 0)
+#define IS_DEFINED(x)       __IS_DEFINED(x)
+
 typedef unsigned char uchar;
 
 #define DECLARE_CLEANUP(t) void cleanup__## t ## p(t **p)
@@ -200,6 +210,7 @@ static inline double drand48()
 
 static inline void __noreturn clap_unreachable(void)
 {
+    abort();
     unreachable();
 }
 

@@ -165,10 +165,23 @@ typedef struct material {
     int     metallic_mode;
     /* Procedural metallic: use the same scale as roughness */
     bool    shared_scale;
+    /* Procedural normals */
+    int     use_noise_normals;
+    /* Amplitude for procedural normals */
+    float   noise_normals_amp;
+    /* Scale for procedural normals */
+    float   noise_normals_scale;
+    /* Procedural emission */
+    bool    use_noise_emission;
+    /* Procedural fog */
+    bool    use_3d_fog;
+    float   fog_3d_amp;
+    float   fog_3d_scale;
 } material;
 
 typedef struct model3dtx {
     model3d        *model;
+    darray(texture_t, own_textures);
     texture_t      _texture;
     texture_t      _normals;
     texture_t      _emission;
@@ -329,6 +342,7 @@ typedef struct models_render_options {
     unsigned int        width;
     unsigned int        height;
     int                 cascade;
+    unsigned int        nr_cascades;
     float               near_plane;
     float               far_plane;
 } models_render_options;

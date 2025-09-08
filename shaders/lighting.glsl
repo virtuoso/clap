@@ -36,12 +36,39 @@ lighting_result compute_blinn_phong(int idx, vec3 unit_normal, vec3 to_light_vec
 
 #define PI 3.1415926538
 
-lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_vector, vec3 view_dir,
+lighting_result compute_cook_torrance(uint idx, vec3 unit_normal, vec3 to_light_vector, vec3 view_dir,
                                       vec3 base_color)
 {
-    float distance = light_directional[idx] ? 1.0 : length(to_light_vector);
-    float att_fac = light_directional[idx] ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
-    vec3 l = normalize(light_directional[idx] ? -light_dir[idx] : to_light_vector);
+    mat4 inv_trans = inverse(trans);
+    vec4 local_pos = inv_trans * world_pos;
+
+    if (use_noise_normals == NOISE_NORMALS_GPU)
+        unit_normal = noise_normal(world_pos.xyz, unit_normal, noise_normals_amp, noise_normals_scale, 1.0);
+    else if (use_noise_normals == NOISE_NORMALS_3D)
+        unit_normal = noise_normal(local_pos.xyz, unit_normal, noise_normals_amp, noise_normals_scale);
+
+    float cutoff = light_cutoff[idx];
+    bool spotlight = cutoff > 0.0 && light_directional[idx];
+    float distance = light_directional[idx] && !spotlight ? 1.0 : length(to_light_vector);
+    float att_fac = light_directional[idx] && !spotlight ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
+    vec3 l = normalize(light_directional[idx] && !spotlight ? -light_dir[idx] : to_light_vector);
+
+    float cutoff_intensity = 1.0;
+    if (spotlight) {
+        const float soft = radians(5.0);
+        const float outer_cutoff = cutoff - (5 * PI / 180.0);
+
+        // float cos_angle = (dot(light_dir[idx], -l) + 1.0) / 2.0;
+        float cos_angle = dot(light_dir[idx], -l);
+        // float eps = cutoff - outer_cutoff;
+        float cos_inner = cos(cutoff);
+        float cos_outer = cos(cutoff + soft);
+
+        float t = (cos_angle - cos_outer) / max(cos_inner - cos_outer, 1e-4);
+        cutoff_intensity = smoothstep(0.0, 1.0, t);
+
+        // cutoff_intensity = clamp(pow(max(cos_angle - cos(outer_cutoff), 0.0) / cos(eps), 0.5), 0.0, 1.0);
+    }
 
     vec3 h = normalize(l + view_dir);
 
@@ -50,8 +77,6 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     float n_dot_h = max(dot(unit_normal, h), 0.0);
     float v_dot_h = max(dot(view_dir, h), 0.0);
 
-    mat4 inv_trans = inverse(trans);
-    vec4 local_pos = inv_trans * world_pos;
     vec3 roughness_noise_src = local_pos.xyz * roughness_scale;
     vec3 metallic_noise_src = shared_scale ? roughness_noise_src : local_pos.xyz * metallic_scale;
 
@@ -103,10 +128,30 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     vec3 diffuse = kd * base_color / PI;
 
     lighting_result ret;
-    ret.diffuse = diffuse * n_dot_l * light_color[idx] * att_fac;
-    ret.specular = specular * n_dot_l * light_color[idx] * att_fac;
+    ret.diffuse = diffuse * n_dot_l * light_color[idx] * att_fac * cutoff_intensity;
+    ret.specular = specular * n_dot_l * light_color[idx] * att_fac * cutoff_intensity;
 
     return ret;
+}
+
+float light_heatmap()
+{
+    /* XXX */
+    uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
+
+    uint off;
+    float heat = 0.0; // there's always at least light source 0, so this won't cause a multiplication by zero
+    for (uint c = 0, off = 0; c < 4; c++, off = 0) {
+        uint q = mask[c];
+        while (q != 0 && off < 32) {
+            if ((q & 1u) != 0)
+                heat += 0.2;
+            q >>= 1u;
+            off++;
+        }
+    }
+
+    return heat;
 }
 
 lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 base_color, float shadow_factor)
@@ -114,22 +159,52 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
     vec3 shadow_tinted = light_color[0] * shadow_tint;
 
-    for (int i = 0; i < nr_lights; i++) {
-        vec3 to_light_vector = light_pos[i] - world_pos.xyz;
-        if (use_normals)    to_light_vector = tbn * to_light_vector;
+    uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
 
-        lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector, view_dir, base_color);
+    // for (int i = 0; i < nr_lights; i++) {
 
-        /* XXX: shadow casting light source is 0 */
-        if (i == 0) {
-            l.diffuse = mix(l.diffuse, shadow_tinted, 1.0 - shadow_factor);
-            if (shadow_factor < 1.0)
-                l.specular = vec3(0.0);
+    for (uint c = 0, off = 0; c < 4; c++) {
+        while (mask[c] != 0u) {
+// #ifndef CONFIG_BROWSER
+//             uint lsb_mask = mask[c] & (~mask[c] + 1u);
+//             uint idx = uint(bitCount(lsb_mask - 1u));
+//             uint i = c * 32 + idx;
+//             mask[c] ^= lsb_mask;
+// #else
+            bool set = (mask[c] & 1u) == 1;
+            mask[c] >>= 1;
+            uint i = off++;
+            if (!set)   continue;
+// #endif /* CONFIG_BROWSER */
+
+            vec3 to_light_vector = light_pos[i] - world_pos.xyz;
+            if (use_normals)    to_light_vector = tbn * to_light_vector;
+
+            lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector, view_dir, base_color);
+
+            /* XXX: shadow casting light source is 0 */
+            if (i == 0) {
+                if (length(l.diffuse) > length(shadow_tinted))
+                    l.diffuse = mix(l.diffuse, shadow_tinted, 1.0 - shadow_factor);
+                if (shadow_factor < 1.0)
+                    l.specular = vec3(0.0);
+            }
+
+            r.specular += l.specular;
+            r.diffuse += l.diffuse;
+
+            // if (use_3d_fog) r.diffuse *= fog_cloud(world_pos.xyz, unit_normal, 0.5, 0.3);
+            if (use_3d_fog) {
+                // const float fog_freq = 0.005;
+                // const float fog_amp = 2.0;
+
+                r.diffuse = mix(r.diffuse, vec3(0.4, 0.4, 0.4), fog_cloud(world_pos.xyz, fog_3d_amp, fog_3d_scale)) *
+                    cloud_mask(pass_tex.xy, fog_3d_amp, fog_3d_scale) * /*saturate(gl_FragCoord.z) **/ fog_3d_scale;
+            }
         }
-
-        r.specular += l.specular;
-        r.diffuse += l.diffuse;
     }
+
+    // }
 
     r.diffuse += mix(light_ambient, shadow_tinted, 1.0 - shadow_factor);
 

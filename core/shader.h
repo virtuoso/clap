@@ -26,6 +26,7 @@
  * @UNIFORM_SHADOW_MAP_MS:              shadow multisampled array texture
  * @UNIFORM_EMISSION_MAP:               emission texture
  * @UNIFORM_LUT_TEX:                    LUT texture
+ * @UNIFORM_NOISE3D_TEX:                3D noise texture
  * @UNIFORM_TEX_MAX:                    texture/sampler uniform sentinel
  * @UNIFORM_NR_TEX:                     number of texture/sampler uniforms
  * @UNIFORM_WIDTH:                      FBO width (should be useless by now)
@@ -58,6 +59,7 @@
  * @UNIFORM_METALLIC_MODE:              0: metallic=roughness, 1: metallic=1-roughness,
  *                                      2: independent
  * @UNIFORM_SHARED_SCALE:               boolean: metallic noise seed is roughness seed
+ * @UNIFORM_USE_NOISE_NORMALS:          boolean: generate per-fragment normals in the shader
  * @UNIFORM_IN_COLOR:                   override color
  * @UNIFORM_COLOR_PASSTHROUGH:          COLOR_PT_NONE: no override;
  *                                      COLOR_PT_ALPHA: override alpha;
@@ -116,6 +118,8 @@ enum shader_vars {
     UNIFORM_SHADOW_MAP_MS,
     UNIFORM_EMISSION_MAP,
     UNIFORM_LUT_TEX,
+    UNIFORM_NOISE3D_TEX,
+    UNIFORM_LIGHT_MAP,
     UNIFORM_TEX_MAX,
     UNIFORM_NR_TEX = UNIFORM_TEX_MAX - ATTR_MAX,
     UNIFORM_WIDTH = UNIFORM_TEX_MAX,
@@ -130,6 +134,7 @@ enum shader_vars {
     UNIFORM_LIGHT_COLOR,
     UNIFORM_LIGHT_DIR,
     UNIFORM_LIGHT_DIRECTIONAL,
+    UNIFORM_LIGHT_CUTOFF,
     UNIFORM_NR_LIGHTS,
     UNIFORM_LIGHT_AMBIENT,
     UNIFORM_ATTENUATION,
@@ -147,6 +152,13 @@ enum shader_vars {
     UNIFORM_METALLIC_SCALE,
     UNIFORM_METALLIC_MODE,
     UNIFORM_SHARED_SCALE,
+    UNIFORM_USE_NOISE_NORMALS,
+    UNIFORM_NOISE_NORMALS_AMP,
+    UNIFORM_NOISE_NORMALS_SCALE,
+    UNIFORM_USE_NOISE_EMISSION,
+    UNIFORM_USE_3D_FOG,
+    UNIFORM_FOG_3D_AMP,
+    UNIFORM_FOG_3D_SCALE,
     UNIFORM_IN_COLOR,
     UNIFORM_COLOR_PASSTHROUGH,
     UNIFORM_SHADOW_VSM,
@@ -155,6 +167,7 @@ enum shader_vars {
     UNIFORM_SHADOW_TINT,
     UNIFORM_SHADOW_OUTLINE,
     UNIFORM_SHADOW_OUTLINE_THRESHOLD,
+    UNIFORM_NR_CASCADES,
     UNIFORM_OUTLINE_EXCLUDE,
     UNIFORM_LAPLACE_KERNEL,
     UNIFORM_SOBEL_SOLID_ID,

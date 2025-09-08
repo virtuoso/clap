@@ -8,6 +8,7 @@ layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
     bool shadow_vsm;
     bool shadow_outline;
     float shadow_outline_threshold;
+    int nr_cascades;
 };
 
 #endif /* SHADERS_UBO_SHADOW_GLSL */

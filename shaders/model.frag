@@ -11,16 +11,19 @@ layout (location=3) in vec3 to_camera_vector;
 layout (location=4) in vec4 world_pos;
 layout (location=5) in mat3 tbn;
 
-#include "shadow.glsl"
-#include "lighting.glsl"
 #include "ubo_projview.glsl"
 #include "ubo_render_common.glsl"
 #include "ubo_outline.glsl"
 #include "ubo_bloom.glsl"
+#include "ubo_postproc.glsl" // for width and height
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
+layout (binding=SAMPLER_BINDING_light_map) uniform usampler2D light_map;
+
+#include "shadow.glsl"
+#include "lighting.glsl"
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
@@ -62,9 +65,21 @@ void main()
     lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
+    // FragColor.r += light_heatmap();
+    // FragColor = vec4(vec3(shadow_factor), 1.0);
     EdgeDepthMask = gl_FragCoord.z;
 
-    vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, pass_tex).rgb : texture_sample.rgb;
+    vec3 emission;
+    if (use_noise_emission) {
+        vec4 local_pos = inverse(trans) * world_pos;
+        float ln = noise(local_pos.xyz);
+        vec3 grad = sample_noise3d(local_pos.xyz * ln, noise_normals_scale);
+        vec3 t = grad - unit_normal * dot(normalize(grad), unit_normal);
+        float fac = clamp(length(t), 0.0, 1.0);
+        emission = vec3(0.0, 1.0, 1.0) * min(pow(fac, 0.3), 1.0);
+    } else {
+        emission = bloom_intensity > 0.0 ? texture(emission_map, pass_tex).rgb : texture_sample.rgb;
+    }
     emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
     ViewPosition = view_pos;

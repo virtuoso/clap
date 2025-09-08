@@ -4,11 +4,15 @@
 #include "primitives.h"
 #include "scene.h"
 #include "error.h"
+#include "util.h"
+
+typedef struct particle_system particle_system;
 
 typedef struct particle {
-    struct list entry;
-    vec3        pos;
-    vec3        velocity;
+    struct list     entry;
+    vec3            pos;
+    vec3            velocity;
+    particle_system *ps;
 } particle;
 
 typedef struct particle_system {
@@ -17,12 +21,19 @@ typedef struct particle_system {
     struct list     particles;
     vec3            *pos_array;
     double          radius;
+    double          min_radius;
     double          radius_squared;
+    double          velocity;
     particle_dist   dist;
     unsigned int    count;
 } particle_system;
 
-static void random_point_sphere(vec3 pos, const vec3 center, float radius, particle_dist dist)
+entity3d *particle_system_entity(particle_system *ps)
+{
+    return ps->e;
+}
+
+static void random_point_sphere(vec3 pos, const vec3 center, float radius, float min_radius, particle_dist dist)
 {
     vec3 dir;
     dir[0] = drand48() * 2.0 - 1.0;
@@ -46,15 +57,16 @@ static void random_point_sphere(vec3 pos, const vec3 center, float radius, parti
             r = radius * drand48();
             break;
     }
+    r = min_radius + r;// / (radius - min_radius);
 
     vec3_add_scaled(pos, center, dir, 1.0, r);
 }
 
 static void particle_set_velocity(particle *p)
 {
-    p->velocity[0] = (drand48() * 2.0 - 1.0) * 0.005;
-    p->velocity[1] = (drand48() * 2.0 - 1.0) * 0.005;
-    p->velocity[2] = (drand48() * 2.0 - 1.0) * 0.005;
+    p->velocity[0] = (drand48() * 2.0 - 1.0) * p->ps->velocity;
+    p->velocity[1] = (drand48() * 2.0 - 1.0) * p->ps->velocity;
+    p->velocity[2] = (drand48() * 2.0 - 1.0) * p->ps->velocity;
 }
 
 static void particle_spawn(particle_system *ps)
@@ -63,7 +75,8 @@ static void particle_spawn(particle_system *ps)
     if (!p)
         return;
 
-    random_point_sphere(p->pos, transform_pos(&ps->e->xform, NULL), ps->radius, ps->dist);
+    p->ps = ps;
+    random_point_sphere(p->pos, transform_pos(&ps->e->xform, NULL), ps->radius, ps->min_radius, ps->dist);
     list_append(&ps->particles, &p->entry);
     particle_set_velocity(p);
 }
@@ -90,7 +103,7 @@ static int particles_update(entity3d *e, void *data)
         transform_pos(&ps->e->xform, pos);
         vec3_sub(dist, p->pos, pos);
         if (vec3_mul_inner(dist, dist) > ps->radius_squared) {
-            random_point_sphere(p->pos, pos, ps->radius, ps->dist);
+            random_point_sphere(p->pos, pos, ps->radius, ps->min_radius, ps->dist);
             particle_set_velocity(p);
         }
 
@@ -113,7 +126,17 @@ unsigned int particle_system_count(particle_system *ps)
 
 void particle_system_position(particle_system *ps, const vec3 center)
 {
+    vec3 prev;
+    transform_pos(&ps->e->xform, prev);
+    vec3_sub(prev, center, prev);
+    if (vec3_mul_inner(prev, prev) == 0.0)
+        return;
+
     transform_set_pos(&ps->e->xform, center);
+
+    particle *p;
+    list_for_each_entry(p, &ps->particles, entry)
+        vec3_add(p->pos, p->pos, prev);
 }
 
 static cerr particle_system_make(struct ref *ref, void *_opts)
@@ -135,10 +158,10 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
 
     double scale = opts->scale ? : 0.01;
     vec3 quad[4];
-    vec3_dup(quad[0], (vec3){ -scale, -scale, 0.0 });
-    vec3_dup(quad[1], (vec3){ -scale,  scale, 0.0 });
-    vec3_dup(quad[2], (vec3){  scale,  scale, 0.0 });
-    vec3_dup(quad[3], (vec3){  scale, -scale, 0.0 });
+    vec3_dup(quad[0], (vec3){ -scale * 2.0, -scale, 0.0 });
+    vec3_dup(quad[1], (vec3){ -scale * 2.0,  scale, 0.0 });
+    vec3_dup(quad[2], (vec3){  scale * 2.0,  scale, 0.0 });
+    vec3_dup(quad[3], (vec3){  scale * 2.0, -scale, 0.0 });
     prim_emit_quad(quad, .mesh = particle_mesh);
 
     cresp(model3d) mres = ref_new_checked(model3d,
@@ -170,12 +193,16 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
 
     /* particle system should hold the reference to the entity */
     ps->e = eres.val;
+    ps->e->bloom_intensity = opts->bloom_intensity ? : 1.0;
+    ps->e->outline_exclude = true;
     ps->e->particles = ps;
     /* ps->e's AABB should cover a sphere with ps->radius, until then, disable culling */
     ps->e->skip_culling = true;
     ps->e->update = particles_update;
     ps->count = opts->count > PARTICLES_MAX ? PARTICLES_MAX : opts->count;
     ps->radius = opts->radius;
+    ps->min_radius = opts->min_radius;
+    ps->velocity = opts->velocity ? : 0.005;
     ps->radius_squared = opts->radius * opts->radius;
 
     ps->pos_array = mem_alloc(sizeof(vec3), .nr = ps->count);

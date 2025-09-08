@@ -23,15 +23,19 @@ DEFINE_REFCLASS_INIT_OPTIONS(particle_system,
     struct mq           *mq;
     vec3                center;
     double              radius;
+    double              min_radius;
     double              scale;
+    double              velocity;
     unsigned int        count;
     particle_dist       dist;
     texture_t           *tex;
     texture_t           *emit;
+    float               bloom_intensity;
 );
 DECLARE_REFCLASS(particle_system);
 
 // void particle_system_position(particle_system *ps, vec3 center, float rx, float ry, float rz);
+entity3d *particle_system_entity(particle_system *ps);
 void particle_system_position(particle_system *ps, const vec3 center);
 void particle_system_upload(particle_system *ps, struct shader_prog *prog);
 unsigned int particle_system_count(particle_system *ps);

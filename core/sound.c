@@ -862,7 +862,7 @@ cresp(sfx) sfx_new(sfx_container *sfxc, const char *name, const char *file, soun
     sfx->sound = CRES_RET_T(ref_new_checked(sound, .name = file, .ctx = ctx), sfx);
 
 found:
-    sound_set_gain(sfx->sound, 1.0);
+    sound_set_gain(sfx->sound, 0.4);
     sfx_container_add(sfxc, sfx);
 
     return cresp_val(sfx, NOCU(sfx));

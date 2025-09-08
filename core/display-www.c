@@ -147,6 +147,11 @@ void display_leave_fullscreen(void)
     emscripten_exit_fullscreen();
 }
 
+bool webglcontext_callback(int eventType, const void *reserved, void *userData) {
+    dbg("event type: %d\n", eventType);
+    return false;
+}
+
 cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, display_resize_cb rfn)
 {
     EmscriptenWebGLContextAttributes attr;
@@ -167,6 +172,7 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, d
     context = emscripten_webgl_create_context("#canvas", &attr);
 
     emscripten_webgl_make_context_current(context);
+    emscripten_set_webglcontextlost_callback("#canvas", 0, 1, webglcontext_callback);
 
     renderer_t *renderer = clap_get_renderer(ctx);
     renderer_init(renderer);

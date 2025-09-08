@@ -669,7 +669,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     }
 
     if (view) {
-        if (opts->cascade >= 0 && opts->cascade < CASCADES_MAX) {
+        if (opts->cascade >= 0 && opts->cascade < opts->nr_cascades) {
             subview = &view->subview[opts->cascade];
             proj = &subview->proj_mx;
         } else {
@@ -718,6 +718,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (ropts) {
                 shader_set_var_int(prog, UNIFORM_SHADOW_VSM, ropts->shadow_vsm);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, ropts->shadow_outline);
+                shader_set_var_int(prog, UNIFORM_NR_CASCADES, view->nr_cascades);
                 shader_set_var_float(prog, UNIFORM_SHADOW_OUTLINE_THRESHOLD, ropts->shadow_outline_threshold);
                 shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
                 shader_set_var_int(prog, UNIFORM_LAPLACE_KERNEL, ropts->laplace_kernel);
@@ -746,6 +747,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_ATTENUATION, LIGHTS_MAX, light->attenuation);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIR, LIGHTS_MAX, light->dir);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_DIRECTIONAL, LIGHTS_MAX, light->is_dir);
+                shader_set_var_ptr(prog, UNIFORM_LIGHT_CUTOFF, LIGHTS_MAX, light->cutoff);
                 shader_set_var_int(prog, UNIFORM_NR_LIGHTS, light->nr_lights);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_AMBIENT, 1, light->ambient);
                 shader_set_var_ptr(prog, UNIFORM_SHADOW_TINT, 1, light->shadow_tint);
@@ -753,16 +755,16 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                     mat4x4 mvp[CASCADES_MAX];
                     int i;
 
-                    for (i = 0; i < CASCADES_MAX; i++) {
+                    for (i = 0; i < opts->nr_cascades; i++) {
                         struct subview *light_sv = &light->view[0].subview[i];
                         mat4x4_mul(mvp[i], light_sv->proj_mx, light_sv->view_mx);
                     }
-                    shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
+                    shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, opts->nr_cascades, mvp);
                 }
             }
 
             if (view)
-                shader_set_var_ptr(prog, UNIFORM_CASCADE_DISTANCES, CASCADES_MAX, view->divider);
+                shader_set_var_ptr(prog, UNIFORM_CASCADE_DISTANCES, opts->nr_cascades, view->divider);
 
             shader_set_var_float(prog, UNIFORM_NEAR_PLANE, near_plane);
             shader_set_var_float(prog, UNIFORM_FAR_PLANE, far_plane);
@@ -775,6 +777,9 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (proj)
                 shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj);
         }
+
+        if (light)
+                model3dtx_set_texture(txmodel, UNIFORM_LIGHT_MAP, &light->grid.tex);
 
         /* Set temporary shadow maps */
         if (light && light->shadow[0][0]) {
@@ -803,6 +808,16 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         auto normals_res = model3dtx_loaded_texture(txmodel, UNIFORM_NORMAL_MAP);
         shader_set_var_int(prog, UNIFORM_USE_NORMALS, !IS_CERR(normals_res));
+
+        shader_set_var_int(prog, UNIFORM_USE_NOISE_NORMALS, txmodel->mat.use_noise_normals);
+        shader_set_var_float(prog, UNIFORM_NOISE_NORMALS_AMP, txmodel->mat.noise_normals_amp);
+        shader_set_var_float(prog, UNIFORM_NOISE_NORMALS_SCALE, txmodel->mat.noise_normals_scale);
+
+        shader_set_var_int(prog, UNIFORM_USE_NOISE_EMISSION, txmodel->mat.use_noise_emission);
+
+        shader_set_var_int(prog, UNIFORM_USE_3D_FOG, txmodel->mat.use_3d_fog);
+        shader_set_var_float(prog, UNIFORM_FOG_3D_AMP, txmodel->mat.fog_3d_amp);
+        shader_set_var_float(prog, UNIFORM_FOG_3D_SCALE, txmodel->mat.fog_3d_scale);
 
         shader_set_var_float(prog, UNIFORM_ROUGHNESS, txmodel->mat.roughness);
         shader_set_var_int(prog, UNIFORM_ROUGHNESS_OCT, txmodel->mat.roughness_oct);
@@ -914,6 +929,9 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             buffer_unbind(&model->index[lod], -1);
 
         model3dtx_done(txmodel, prog);
+
+        if (light)
+                model3dtx_set_texture(txmodel, UNIFORM_LIGHT_MAP, &light->grid.tex);
 
         /* Remove the temporary shadow maps */
         if (light && light->shadow[0][0]) {
@@ -1381,9 +1399,26 @@ static int default_update(entity3d *e, void *data)
             phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
 
         if (scene && e->light_idx >= 0) {
+            struct light *light = &scene->light;
+
             vec3 pos;
             transform_pos(&e->xform, pos);
             vec3_add(pos, pos, e->light_off);
+            if (light_is_spotlight(light, e->light_idx)) {
+                vec3 angles;
+                /* view_upate_from_angles() expects degrees, for some reason */
+                transform_rotation(&e->xform, angles, true);
+                vec3 dir = { sin(to_radians(angles[1])), 0.0, cos(to_radians(angles[1])) };
+
+                vec3_norm_safe(dir, dir);
+                vec3_add_scaled(pos, pos, dir, 1.0, 0.1);
+
+                light_set_direction(light, e->light_idx, dir);
+                view_update_perspective_projection(&light->view[0], scene->width, scene->height, 1.0);
+                view_update_from_angles(&light->view[0], &light->pos[e->light_idx * 3], angles[0], 180.0 - angles[1], angles[2]);
+                view_calc_frustum(&light->view[0]);
+            }
+
             light_set_pos(&scene->light, e->light_idx, pos);
         }
     }
