@@ -7,6 +7,7 @@ layout (std140, binding = UBO_BINDING_lighting) uniform lighting {
     vec3 light_dir[LIGHTS_MAX];
     vec3 attenuation[LIGHTS_MAX];
     bool light_directional[LIGHTS_MAX];
+    float light_cutoff[LIGHTS_MAX];
     int  nr_lights;
     bool use_normals;
     vec3 light_ambient;

@@ -42,6 +42,7 @@ typedef struct render_options {
     bool    camera_frusta_draws_enabled;
     bool    light_frusta_draws_enabled;
     bool    overlay_draws_enabled;
+    bool    light_draws_enabled;
 } render_options;
 
 typedef enum {
@@ -132,6 +133,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
     struct light    *light;
     struct camera   *camera;
     ssao_state      *ssao_state;
+    unsigned int    nr_cascades;
     unsigned int    width;
     unsigned int    height;
 );

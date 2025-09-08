@@ -204,6 +204,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     const char *edge_msaa_shader = edge_sobel ? "sobel-msaa" : "laplace";
     const char *edge_shader = edge_sobel ? "sobel" : "laplace";
     bool vsm = ropts->shadow_vsm;
+    unsigned int nr_cascades = min(opts->pl_opts->nr_cascades, CASCADES_MAX) ? : CASCADES_MAX;
 
     pipeline *pl = opts->pl ? : CRES_RET_T(
         ref_new_checked(
@@ -213,6 +214,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .light            = opts->pl_opts->light,
             .camera           = opts->pl_opts->camera,
             .clap_ctx         = opts->pl_opts->clap_ctx,
+            .nr_cascades      = nr_cascades,
             .ssao_state       = &ssao_state,
             .name             = opts->pl_opts->name
         ),
@@ -222,8 +224,9 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     struct render_pass *shadow_pass[CASCADES_MAX];
 
 #ifdef CONFIG_GLES
-    for (int i = 0; i < CASCADES_MAX; i++) {
-        shadow_pass[i] = CRES_RET_T(
+    /* XXX: one FBO with 4 color attachments, do shadow_mvp[layer] * pos in frag */
+    for (int i = 0; i < nr_cascades; i++) {
+        shadow_pass[i] = CRES_RET(
             pipeline_add_pass(pl,
                 .source               = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
                 .ops                  = vsm ? &shadow_vsm_ops : &shadow_ops,
@@ -233,7 +236,8 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 .cascade              = i,
                 .shader_override      = vsm ? "shadow_vsm" : "shadow"
             ),
-            pipeline
+            { shadow_pass[i] = NULL; continue; }
+            // pipeline
         );
         opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(
             shadow_pass[i], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
@@ -247,7 +251,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .multisampled       = ropts->shadow_msaa,
             .color_format       = (texture_format[]) { TEX_FMT_RG32F },
             .attachment_config  = vsm ? FBO_COLOR_DEPTH_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
-            .layers             = CASCADES_MAX,
+            .layers             = nr_cascades,
             .cascade            = -1,
             .shader_override    = vsm ? "shadow_vsm" : "shadow"
         ),
@@ -260,46 +264,63 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 
     texture_format hdr_fmt = get_hdr_format(opts);
 
+    unsigned int nr_model_cascades = IS_DEFINED(CONFIG_GLES) ? nr_cascades : 1;
+    render_source *model_sources = mem_alloc(sizeof(render_source), .nr = nr_cascades + 2);
+    model_sources[0] = (render_source) { .mq = opts->mq, .method = RM_RENDER, };
+    for (unsigned int i = 0; i < nr_model_cascades; i++)
+        model_sources[i + 1] = (render_source) {
+            .pass       = shadow_pass[i],
+            .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+            .method     = RM_USE,
+            .sampler    = UNIFORM_SHADOW_MAP + i
+        };
+
     struct render_pass *model_pass = CRES_RET_T(
         pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                { .mq = opts->mq, .method = RM_RENDER, },
-#ifdef CONFIG_GLES
-                {
-                    .pass       = shadow_pass[0],
-                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_SHADOW_MAP
-                },
-                {
-                    .pass       = shadow_pass[1],
-                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_SHADOW_MAP1
-                },
-                {
-                    .pass       = shadow_pass[2],
-                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_SHADOW_MAP2
-                },
-                {
-                    .pass       = shadow_pass[3],
-                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_SHADOW_MAP3
-                },
-                {}
-#else
-                {
-                    .pass       = shadow_pass[0],
-                    .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_SHADOW_MAP
-                },
-                {}
-#endif /* CONFIG_GLES */
-            },
+            .source             = model_sources,
+            // .source             = (render_source[]) {
+            //     { .mq = opts->mq, .method = RM_RENDER, },
+            //     {}
+            // },
+//             .source             = (render_source[]) {
+//                 { .mq = opts->mq, .method = RM_RENDER, },
+//                 // { .tex  = &opts->pl_opts->light->grid.tex, .method = RM_PLUG, .sampler = UNIFORM_LIGHT_MAP },
+// #ifdef CONFIG_GLES
+//                 {
+//                     .pass       = shadow_pass[0],
+//                     .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+//                     .method     = RM_USE,
+//                     .sampler    = UNIFORM_SHADOW_MAP
+//                 },
+//                 {
+//                     .pass       = shadow_pass[1],
+//                     .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+//                     .method     = RM_USE,
+//                     .sampler    = UNIFORM_SHADOW_MAP1
+//                 },
+//                 {
+//                     .pass       = shadow_pass[2],
+//                     .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+//                     .method     = RM_USE,
+//                     .sampler    = UNIFORM_SHADOW_MAP2
+//                 },
+//                 {
+//                     .pass       = shadow_pass[3],
+//                     .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+//                     .method     = RM_USE,
+//                     .sampler    = UNIFORM_SHADOW_MAP3
+//                 },
+//                 {}
+// #else
+//                 {
+//                     .pass       = shadow_pass[0],
+//                     .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
+//                     .method     = RM_USE,
+//                     .sampler    = UNIFORM_SHADOW_MAP
+//                 },
+//                 {}
+// #endif /* CONFIG_GLES */
+//             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
             .attachment_config  = FBO_COLOR_DEPTH_TEXTURE(5),

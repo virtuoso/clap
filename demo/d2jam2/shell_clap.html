@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-touch-icon" content="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=ZillaSlab-Bold@200..900&display=swap" rel="stylesheet">
+    <title>Cave Gathering</title>
+    <style>
+      .emscripten { padding-right: 0; margin-left: 0px; margin-right: 0px; display: block; }
+      textarea.emscripten { font-family: monospace; width: 100vw; height: 20vh; background-color: darkolivegreen; }
+      div.emscripten { text-align: center; color: wheat;}
+      div.container_screen {
+        background-image: url("background.png");
+        height: 100%;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        position: relative;
+        text-align: center;
+      }
+      div.emscripten_border { border: 0px solid black; }
+      /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+      canvas.emscripten { border: 0px none; background-color: black; width: 100vw; }
+      .canvas {
+        -webkit-touch-callout: none;   /* disable long-press menu */
+        -webkit-user-select: none;     /* disable selection */
+        user-select: none;             /* same for non-webkit */
+        touch-action: none;            /* disable pinch/double-tap zoom etc */
+        width: 100vw;
+        height: 80vh;
+      }
+      body {
+        margin: 0px;
+        height: 100vh;
+        overscroll-behavior-x: none;
+      }
+      html {
+        height: 100vh;
+        width: 100vw;
+        margin: 0px;
+        overscroll-behavior-x: none;
+        font-family: "ZillaSlab-Bold", sans-serif;
+        font-optical-sizing: auto;
+        font-weight: 400;
+        font-style: normal;
+      }
+      .game_title {
+        position: absolute;
+        top: 20%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: xx-large;
+        color: wheat;
+      }
+    </style>
+  </head>
+  <body style="overflow:hidden;position:fixed;touch-action:none;">
+    <div class="container_screen">
+    <div class="emscripten" id="status">Downloading...</div>
+    <div class="emscripten">
+      <progress value="0" max="100" id="progress" hidden=1></progress>
+    </div>
+    <div class="game_title">Cave Gathering</div>
+    <div class="emscripten_border">
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1  style="display: none;"></canvas>
+    </div>
+    </div>
+    <textarea class="emscripten" id="output"></textarea>
+    <script type='text/javascript'>
+      Error.stackTraceLimit = Infinity;
+      var statusElement = document.getElementById('status');
+      var progressElement = document.getElementById('progress');
+      var runtime_ready = false;
+
+      var Module = {
+        noAudioDecoding: true,
+        onRuntimeInitialized: function() {
+          document.getElementsByClassName('game_title')[0].hidden = true;
+          var canvas = document.getElementById('canvas');
+          canvas.style.display = 'block';
+        },
+        preRun: [],
+        postRun: [],
+        print: (function() {
+          var element = document.getElementById('output');
+          if (element) element.value = ''; // clear browser cache
+          return function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            // These replacements are necessary if you render to raw HTML
+            //text = text.replace(/&/g, "&amp;");
+            //text = text.replace(/</g, "&lt;");
+            //text = text.replace(/>/g, "&gt;");
+            //text = text.replace('\n', '<br>', 'g');
+            console.log(text);
+            if (element) {
+              element.value += text + "\n";
+              element.scrollTop = element.scrollHeight; // focus on bottom
+            }
+          };
+        })(),
+        printErr: function(text) {
+          if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+          console.error(text);
+        },
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
+          // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+          // application robust, you may want to override this behavior before shipping!
+          // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+          canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
+
+          return canvas;
+        })(),
+        setStatus: function(text) {
+          if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+          if (text === Module.setStatus.last.text) return;
+          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+          var now = Date.now();
+          if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
+          Module.setStatus.last.time = now;
+          Module.setStatus.last.text = text;
+          if (m) {
+            text = m[1];
+            progressElement.value = parseInt(m[2])*100;
+            progressElement.max = parseInt(m[4])*100;
+            progressElement.hidden = false;
+          } else {
+            progressElement.value = null;
+            progressElement.max = null;
+            progressElement.hidden = true;
+          }
+          statusElement.innerHTML = text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          if (left) {
+             Module.setStatus('Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')');
+          } else {
+            Module.setStatus('All downloads complete.');
+          }
+        }
+      };
+      Module.noAudioDecoding = true;
+      Module.fs_syncing = false;
+      Module.setStatus('Downloading...');
+      window.onresize = function() {
+        var canvas = document.getElementById('canvas');
+        var html = document.getElementsByTagName('body')[0];
+        var height = html.clientHeight;//Math.floor(html.clientHeight * 0.8);
+        canvas.width = html.clientWidth;
+        canvas.height = height;
+	      if (runtime_ready)
+          ccall("display_resize", 'void', ['int', 'int'], [canvas.clientWidth, canvas.clientHeight]);
+      }
+      window.onerror = function() {
+        Module.setStatus('Exception thrown, see JavaScript console');
+        Module.setStatus = function(text) {
+          if (text) Module.printErr('[post-exception status] ' + text);
+        };
+      };
+      document.addEventListener('touchstart', function (event) {
+	      event.preventDefault();
+      }, { passive: false });
+      document.addEventListener('touchmove', function (event) {
+	      event.preventDefault();
+      }, { passive: false });
+      document.addEventListener('mousewheel', function (event) {
+	      // if (event.originalEvent.wheelDeltaX !== 0) {event.preventDefault(); }
+        event.preventDefault();
+      }, false);
+      function offerFileAsDownload(filename, mime) {
+        mime = mime || "application/octet-stream";
+
+        let content = Module.FS.readFile(filename);
+
+        var a = document.createElement('a');
+        a.download = filename.replace(/^.*[\\\/]/, '');
+        a.href = URL.createObjectURL(new Blob([content], {type: mime}));
+        a.style.display = 'none';
+
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+        }, 2000);
+      }
+    </script>
+    {{{ SCRIPT }}}
+
+  </body>
+</html>

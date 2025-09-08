@@ -11,7 +11,6 @@ static struct backend_data {
 bool __ui_set_mouse_position(unsigned int x, unsigned int y)
 {
     ImGuiIO_AddMousePosEvent(bd.io, x, y);
-
     return false;
 }
 
