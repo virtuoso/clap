@@ -9,6 +9,8 @@ layout(triangle_strip, max_vertices = 3) out;
 
 void main()
 {
+    if (gl_InvocationID >= nr_cascades) return;
+
     for (int i = 0; i < gl_in.length(); i++) {
         gl_Position = shadow_mvp[gl_InvocationID] * gl_in[i].gl_Position;
         gl_Layer = gl_InvocationID;

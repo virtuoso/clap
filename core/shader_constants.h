@@ -3,11 +3,13 @@
 
 #define JOINTS_MAX 200
 #define PARTICLES_MAX 1024
-#define LIGHTS_MAX 32
+#define LIGHTS_MAX 128
 #define CASCADES_MAX 4
 #define MSAA_SAMPLES 4
-#define SSAO_KERNEL_SIZE 64
+#define SSAO_KERNEL_SIZE 16
 #define SSAO_NOISE_DIM 16
+
+#define TILE_WIDTH      64
 
 #define COLOR_PT_NONE 0
 #define COLOR_PT_SET_RGB        0x01
@@ -20,6 +22,10 @@
 #define MAT_METALLIC_INDEPENDENT            0
 #define MAT_METALLIC_ROUGHNESS              1
 #define MAT_METALLIC_ONE_MINUS_ROUGHNESS    2
+
+#define NOISE_NORMALS_NONE  0
+#define NOISE_NORMALS_GPU   1
+#define NOISE_NORMALS_3D    2
 
 /* Attribute locations */
 #define ATTR_LOC_POSITION   0
@@ -53,6 +59,8 @@
 #define SAMPLER_BINDING_shadow_map2     6
 #define SAMPLER_BINDING_shadow_map3     7
 #define SAMPLER_BINDING_lut_tex         5
+#define SAMPLER_BINDING_noise3d         8
+#define SAMPLER_BINDING_light_map       9
 
 #endif /* CLAP_SHADER_CONSTANTS_H */
 

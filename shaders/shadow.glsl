@@ -127,6 +127,12 @@ float shadow_factor_vsm(in sampler2DArray map, in vec4 pos, in int layer)
     return shadow_factor_vsm_calc(moments, pos.z);
 }
 
+float linearize_depth(float depth, float near_plane, float far_plane)
+{
+    float linear_depth = near_plane * far_plane / (far_plane + depth * (near_plane - far_plane));
+    return (linear_depth - near_plane) / (far_plane - near_plane);
+}
+
 float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_dir,
                          in bool use_vsm, in bool use_msaa)
 {
@@ -138,20 +144,21 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
 
     int layer = -1;
 
-    for (int i = 0; i < CASCADES_MAX; i++) {
+    for (int i = 0; i < nr_cascades; i++) {
         if (-view_pos.z < cascade_distances[i]) {
             layer = i;
             break;
         }
     }
 
-    if (layer < 0)
-        layer = CASCADES_MAX - 1;
+    // if (layer < 0)
+    layer = clamp(layer, 0, nr_cascades - 1);
 
     vec4 shadow_pos = shadow_mvp[layer] * world_pos;
     vec4 proj_coords = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
     proj_coords = proj_coords * 0.5 + 0.5;
     proj_coords.xy = convert_pass_tex(proj_coords.xy);
+    // proj_coords.z = linearize_depth(proj_coords.z, near_plane, far_plane);
 
     float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
 #ifndef CONFIG_SHADOW_MAP_ARRAY
@@ -187,7 +194,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
             shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
 #endif /* CONFIG_SHADOW_MAP_ARRAY */
 
-    return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.3));
+    return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.5));
 }
 
 #endif /* SHADERS_SHADOW_GLSL */

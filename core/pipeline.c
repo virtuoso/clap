@@ -37,6 +37,7 @@ static cerr pipeline_make(struct ref *ref, void *_opts)
     pl->width           = opts->width;
     pl->height          = opts->height;
     pl->ssao_state      = opts->ssao_state;
+    pl->nr_cascades     = opts->nr_cascades;
 
     pipeline_debug_init(pl);
 
@@ -476,6 +477,7 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
                       .width            = fbo_width(pass->fbo),
                       .height           = fbo_height(pass->fbo),
                       .cascade          = pass->cascade,
+                      .nr_cascades      = pl->nr_cascades,
                       .entity_count     = &count,
                       .culled_count     = &culled);
     } else {
@@ -493,6 +495,7 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
                       .height           = fbo_height(pass->fbo),
                       .ssao_state       = pl->ssao_state,
                       .cascade          = -1,
+                      .nr_cascades      = pl->nr_cascades,
                       .entity_count     = &count);
         list_del(&pass->quad->txmodel->entry);
     }

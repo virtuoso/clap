@@ -1,6 +1,8 @@
 #ifndef SHADERS_NOISE_GLSL
 #define SHADERS_NOISE_GLSL
 
+layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
+
 /* Simple hash-based 3D noise using value noise */
 float hash(vec3 p)
 {
@@ -62,6 +64,71 @@ vec3 fbm_grad(vec3 p, float eps, float amplitude, int octaves, float lacunarity)
     float fz1 = fbm(p + ez, amplitude, octaves, lacunarity);
     float fz0 = fbm(p - ez, amplitude, octaves, lacunarity);
     return vec3(fx1 - fx0, fy1 - fy0, fz1 - fz0) / (2.0 * eps);
+}
+
+vec3 safe_normalize(vec3 v)
+{
+    float l2 = dot(v, v);
+    return v * inversesqrt(max(l2, 1e-12));
+}
+
+vec3 noise_normal(vec3 world_pos, vec3 geom_normal, float amp, float freq, float mask)
+{
+    float flatness = max(dot(geom_normal, vec3(0.0, 1.0, 0.0)), 0.0);
+    freq *= 1.2 - flatness;
+    /* scale space; eps proportional to frequency for stable gradients */
+    vec3 p = world_pos * freq;
+    float eps = 0.5 / freq;
+
+    vec3 g = fbm_grad(p, eps, amp, /*octaves*/3, /*lacunarity*/2.0);
+
+    float ndot = dot(safe_normalize(g), geom_normal);
+
+    /* keep only tangent component so we don't shrink/expand along normal */
+    vec3 tgrad = safe_normalize(g - geom_normal * abs(ndot));
+
+    /* perturb — amp is small (e.g. 0.2..0.5), mask gates the effect */
+    mask *= max(1.0 - flatness, 0.2);
+    vec3 n = safe_normalize(geom_normal - (amp * mask) * tgrad);
+
+    return n;
+}
+
+vec3 sample_noise3d(vec3 world_pos, float freq)
+{
+    vec3 uvw = fract(world_pos * freq); /* TEX_FLT_REPEAT */
+    return texture(noise3d, uvw).xyz * 2.0 - 1.0;
+}
+
+// project to tangent plane and tilt the normal; robust & cheap
+vec3 noise_normal(vec3 world_pos, vec3 geom_normal, float amp, float freq)
+{
+    const float max_tilt = 0.6;
+    vec3 grad = sample_noise3d(world_pos * noise(world_pos), freq);
+    // vec3 grad = sample_noise3d(world_pos + 0.15 * noise(world_pos * 0.8), freq);
+    // n = normalize(n);
+    vec3 t = grad - geom_normal * dot(grad, geom_normal);           // tangent component only
+    float tl = length(t);
+    if (tl < 1e-5) return geom_normal;
+    vec3 tdir = t / tl;
+    float s = min(amp, max_tilt);               // e.g., amp=0.25..0.35, tilt<=0.6
+    return normalize(geom_normal - s * tdir);
+}
+
+float saturate(float x) { return clamp(x, 0.0, 1.0); }
+
+float fog_cloud(vec3 pos, float amp, float freq)
+{
+    float fog = length(sample_noise3d(pos + noise(pos), freq));
+    return mix(0.6, 1.0, mix(0.0, 1.0, fog)) * amp;
+}
+
+float cloud_mask(vec2 luv, float amp, float freq)
+{
+    float r = length(luv);
+    float radial = 1.0 - smoothstep(0.6, 1.0, r);
+    float n = fog_cloud(vec3(luv * 2.5, radial), amp, freq);
+    return saturate(radial * mix(0.6, 1.0, n));
 }
 
 #endif /* SHADERS_NOISE_GLSL */

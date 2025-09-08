@@ -17,6 +17,13 @@ layout (std140, binding = UBO_BINDING_material) uniform material {
     float metallic_scale;
     int   metallic_mode;
     bool  shared_scale;
+    int   use_noise_normals;
+    float noise_normals_amp;
+    float noise_normals_scale;
+    bool  use_noise_emission;
+    bool  use_3d_fog;
+    float fog_3d_amp;
+    float fog_3d_scale;
 };
 
 #endif /* SHADERS_UBO_MATERIAL_GLSL */

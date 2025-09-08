@@ -103,17 +103,22 @@ struct ui_element {
 bool ui_element_click(struct ui *ui, uivec uivec);
 
 typedef bool (*input_event_fn)(struct ui *ui, struct ui_widget *uiw, struct message *m);
+typedef void (*on_create_fn)(struct ui *ui, struct ui_widget *uiw);
+
 struct ui_widget_builder {
     unsigned long   affinity;
     float           x_off, y_off, w, h;
     unsigned long   el_affinity;
     float           el_x_off, el_y_off, el_w, el_h, el_margin;
+    unsigned int    font_size;
+    const char      *font_name;
     struct font     *font;
     float           el_color[4];
     float           text_color[4];
     void            (*el_cb)(struct ui_element *uie, unsigned int i);
     on_click_fn     el_on_click;
     on_focus_fn     el_on_focus;
+    on_create_fn    on_create;
     input_event_fn  input_event;
 };
 
@@ -135,6 +140,7 @@ struct ui_widget {
     struct ui_element  *root;
     struct ui_element  **uies;
     input_event_fn     input_event;
+    on_create_fn       on_create;
     struct ref         ref;
     unsigned int       nr_uies;
     int                focus;
@@ -169,12 +175,13 @@ struct ui {
     struct shader_prog *ui_prog;
     struct shader_prog *glyph_prog;
     renderer_t         *renderer;
-    struct ui_widget   *menu;
+    // struct ui_widget   *menu;   // XXX
     struct ui_widget   *inventory;
     struct list        widgets;
     struct list        widget_cleanup;
     double             time;
     clap_context       *clap_ctx;
+    void               *priv;
     int width, height;
     float mod_x, mod_y;
 };
