@@ -54,7 +54,9 @@ jobs:
           cmake --build build/w32debug --parallel 4
           cmake --build build/w32test --parallel 4
           cmake --build build/w32rel --parallel 4
-          cmake --install build/rel
+          cmake --install build/rel --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/rel"
+          cmake --install build/test --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/test"
+          cmake --install build/debug --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/debug"
           cmake --install build/w32debug
           cmake --install build/w32test
           cmake --install build/w32rel
@@ -63,7 +65,7 @@ jobs:
         if: ${{ env.remote_host }}
         with:
           SSH_PRIVATE_KEY: ${{ secrets.REMOTE_DEPLOY_KEY }}
-          ARGS: "-rlgoDzvc -i"
+          ARGS: "-rlzvc -i"
           SOURCE: "clap/"
           REMOTE_HOST: ${{ secrets.REMOTE_DEPLOY_HOST }}
           REMOTE_USER: ${{ secrets.REMOTE_DEPLOY_USER }}
