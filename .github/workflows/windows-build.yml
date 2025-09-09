@@ -57,9 +57,9 @@ jobs:
           cmake --preset w32debug -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32debug
       - name: build
         run: |
-          cmake --build build/rel --parallel 4 && cmake --install build/rel
-          cmake --build build/test --parallel 4 && cmake --install build/test
-          cmake --build build/debug --parallel 4 && cmake --install build/debug
+          cmake --build build/rel --parallel 4 && cmake --install build/rel --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/windows/rel"
+          cmake --build build/test --parallel 4 && cmake --install build/test --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/windows/test"
+          cmake --build build/debug --parallel 4 && cmake --install build/debug --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/windows/debug"
       - name: test
         run: |
           ctest --test-dir build/test
