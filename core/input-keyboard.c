@@ -113,6 +113,7 @@ found:
 
     unsigned char *val = (void *)&mi + key_map[i].offset;
     *val = key_map[i].setter(press);
+    mi.keyboard = 1;
     message_input_send(&mi, src);
 }
 
