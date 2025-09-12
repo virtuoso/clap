@@ -1213,6 +1213,7 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
             node = DA(gd->nodes, s->joints[i]);
             txm->model->joints[i].name = strdup(node->name);
+            txm->model->joints[i].id   = node->id;
 
             for (ch = 0; ch < node->nr_children; ch++) {
                 int *pchild = darray_add(txm->model->joints[i].children);
