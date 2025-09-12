@@ -17,7 +17,10 @@ float linearize_depth(vec3 pixel, float near_plane, float far_plane)
 
 float depth_linear(sampler2D map, vec2 uv, ivec2 off, float near_plane, float far_plane)
 {
-    return linearize_depth(texel_fetch_2d(map, uv, off).r, near_plane, far_plane);
+    float depth = texel_fetch_2d(map, uv, off).r;
+    // if (depth < 0.0) return 0.0;
+
+    return linearize_depth(depth, near_plane, far_plane);
 }
 
 vec3 normals_fetch(sampler2D tex, vec2 tex_coords, ivec2 off)
@@ -49,6 +52,9 @@ float laplace_float(sampler2D normals, vec2 tex_coords, int kernel)
 
 float laplace_float(sampler2D depths, vec2 tex_coords, int kernel, float near_plane, float far_plane)
 {
+    // float depth = texel_fetch_2d(depths, tex_coords, ivec2(0)).r;
+    // if (depth < 0.0) return 0.0;
+
     int side = (kernel - 1) / 2;
     vec3 sum = kernel * 2 * vec3(depth_linear(depths, tex_coords, ivec2(0), near_plane, far_plane));
 

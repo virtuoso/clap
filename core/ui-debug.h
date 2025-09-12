@@ -11,6 +11,12 @@
 struct settings;
 struct ui;
 
+typedef struct ui_list {
+    char    *(*get_item)(struct ui_list *);
+    void    *priv;
+    size_t  selected;
+} ui_list;
+
 #ifndef CONFIG_FINAL
 
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
@@ -51,6 +57,7 @@ enum debug_modules {
     DEBUG_CHARACTERS,
     DEBUG_CHARACTER_MOTION,
     DEBUG_INPUT,
+    DEBUG_CONTROLLERS,
     DEBUG_FRAME_PROFILER,
     DEBUG_RENDERER,
     DEBUG_DEBUGGER,
@@ -136,6 +143,7 @@ bool ui_igSliderFloat3(const char *label, float *v, float min, float max, const 
 bool ui_igBeginCombo(const char *label, const char *preview_value, ImGuiComboFlags flags);
 void ui_igEndCombo(void);
 bool ui_igColorEdit3(const char *label, float *color, ImGuiColorEditFlags flags);
+bool ui_ig_file_dialog(const char *title, bool *popen, ui_list *list);
 
 #else
 
@@ -150,6 +158,7 @@ static inline void imgui_set_settings(struct settings *rs) {}
 static inline void imgui_done(void) {}
 static inline void imgui_render_begin(int width, int height) {}
 static inline void imgui_render(void) {}
+static inline bool ui_ig_file_dialog(const char *title, bool *popen) { return false; }
 
 
 #endif /* CONFIG_FINAL */

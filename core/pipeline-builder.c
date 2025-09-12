@@ -4,6 +4,7 @@
 #include "display.h"
 #include "light.h"
 #include "lut.h"
+#include "noise.h"
 #include "pipeline.h"
 #include "pipeline-builder.h"
 #include "render.h"
@@ -189,6 +190,10 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         ssao_init(&ssao_state);
     else
         ssao_done(&ssao_state);
+
+    static texture_t grain_tex;
+    if (!texture_loaded(&grain_tex))
+        blue_noise2d_tex(&grain_tex, 64);
 
     bool edge_aa = ropts->edge_antialiasing;
     bool model_pass_msaa =
@@ -528,10 +533,26 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                         .method     = RM_PLUG,
                         .sampler    = UNIFORM_SHADOW_MAP
                     },
+                // ropts->film_grain ?
+                    (render_source) {
+                        .tex        = &grain_tex,
+                        .method     = RM_PLUG,
+                        .sampler    = UNIFORM_GRAIN_TEX,
+                    // } :
+                    // (render_source) {
+                    //     .tex        = white_pixel(),
+                    //     .method     = RM_PLUG,
+                    //     .sampler    = UNIFORM_GRAIN_TEX,
+                    },
                 {
                     .tex        = lut_tex(ropts->lighting_lut),
                     .method     = RM_PLUG,
                     .sampler    = UNIFORM_LUT_TEX
+                },
+                {
+                    .tex        = opts->pl_opts->noise3d,
+                    .method     = RM_PLUG,
+                    .sampler    = UNIFORM_NOISE3D_TEX
                 },
                 {}
             },
@@ -539,6 +560,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .ops                = &postproc_ops,
             .attachment_config  = FBO_COLOR_TEXTURE(0),
             .shader             = "combine",
+            .checkpoint         = edge_aa ? 0 : 1,
         ),
         pipeline
     );
@@ -565,36 +587,37 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .attachment_config  = FBO_COLOR_TEXTURE(0),
             .name               = "smaa-blend",
             .shader             = "smaa-neighborhood-blend",
+            .checkpoint         = 1,
         ),
         pipeline
     ) : NULL;
 
-    render_pass *contrast_pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = edge_aa ? smaa_blend_pass : combine_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
-            .ops                = &postproc_ops,
-            .attachment_config  = FBO_COLOR_TEXTURE(0),
-            .shader             = "contrast",
-            .checkpoint         = 1,
-        ),
-        pipeline
-    );
+    // render_pass *contrast_pass = CRES_RET_T(
+    //     pipeline_add_pass(pl,
+    //         .source             = (render_source[]) {
+    //             {
+    //                 .pass       = edge_aa ? smaa_blend_pass : combine_pass,
+    //                 .attachment = FBO_COLOR_TEXTURE(0),
+    //                 .method     = RM_USE,
+    //                 .sampler    = UNIFORM_MODEL_TEX
+    //             },
+    //             {}
+    //         },
+    //         .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+    //         .ops                = &postproc_ops,
+    //         .attachment_config  = FBO_COLOR_TEXTURE(0),
+    //         .shader             = "contrast",
+    //         .checkpoint         = 1,
+    //     ),
+    //     pipeline
+    // );
 
     /* Extra blur for the menu */
     pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
-                    .pass       = contrast_pass,
+                    .pass       = edge_aa ? smaa_blend_pass : combine_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
                     .sampler    = UNIFORM_MODEL_TEX

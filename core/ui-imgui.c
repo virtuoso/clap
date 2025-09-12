@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <float.h>
 #include "clap.h"
 #include "common.h"
 #include "settings.h"
@@ -442,6 +443,8 @@ void imgui_style_switcher(void)
     }
 }
 
+// static ImFont *my_font;
+
 void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height)
 {
     igSetAllocatorFunctions(imgui_alloc, imgui_free, NULL);
@@ -453,6 +456,11 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
     io->DisplaySize.x = width;
     io->DisplaySize.y = height;
 
+    // auto font_atlas = ImFontAtlas_ImFontAtlas();
+    // ImFontConfig font_config = {};//{ .MergeMode = true };
+    // my_font = ImFontAtlas_AddFontFromFileTTF(io->Fonts, "ofl/OverpassMono[wght].ttf", 12.0, &font_config, NULL);
+    // igPushFont(font, 12.0);
+    // ImFontAtlas
     imgui_set_style(IMSTYLE_MAROON);
 
 #ifdef __APPLE__
@@ -784,6 +792,61 @@ bool ui_igColorEdit3(const char *label, float *color, ImGuiColorEditFlags flags)
         (unsigned int)(color[2] * 255.0),
         color[0], color[1], color[2]
     );
+
+    return ret;
+}
+
+bool ui_ig_file_dialog(const char *title, bool *popen, ui_list *list)
+{
+    bool ret = *popen;
+
+    igOpenPopup_Str(title, 0);
+
+    auto style = igGetStyle();
+    ImVec2 center = igGetIO_Nil()->DisplaySize;
+    center.x *= 0.5;
+    center.y *= 0.5;
+
+    igSetNextWindowPos(center, ImGuiCond_Appearing, (ImVec2) { 0.5, 0.5 });
+    igSetNextWindowSize((ImVec2) { 400.0f, 400.0f }, ImGuiCond_Once);
+    if (igBeginPopupModal(title, popen, 0)) {
+        ImVec2 v = igGetContentRegionAvail();
+        v.x *= 0.5;
+
+        igPushStyleVar_Float(ImGuiStyleVar_ChildRounding, 5.0);
+        if (igBeginChild_Str("main child", (ImVec2) {}, 0, 0)) {
+            if (igBeginListBox("##files", v)) {
+                for (size_t i = 0; i < 8; i++) {
+                    // char buf[128];
+                    // snprintf(buf, sizeof(buf), "file %d.glb", i);
+                    char *item = list->get_item(list);
+                    igSelectable_Bool(item, false, i == list->selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2) {});
+                }
+
+                igEndListBox();
+            }
+
+            igSameLine(0, style->FramePadding.x);
+
+            if (igBeginChild_Str("other", v, ImGuiChildFlags_Borders, 0)) {
+                if (igButton("Open", (ImVec2) {})) {
+                    *popen = false;
+                    igCloseCurrentPopup();
+                }
+
+                if (igButton("Close", (ImVec2) {})) {
+                    *popen = false;
+                    igCloseCurrentPopup();
+                }
+
+                igEndChild();
+            }
+            igPopStyleVar(1);
+
+            igEndChild();
+        }
+        igEndPopup();
+    }
 
     return ret;
 }

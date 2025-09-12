@@ -11,6 +11,12 @@ int input_init(void);
 void fuzzer_input_step(void);
 void fuzzer_input_init(void);
 
+#ifndef CONFIG_FINAL
+void controllers_debug(void);
+#else
+static inline void controllers_debug(void) {}
+#endif /* CONFIG_FINAL */
+
 #if !defined(CONFIG_FINAL) && defined(CONFIG_BROWSER)
 void input_debug(void);
 #else

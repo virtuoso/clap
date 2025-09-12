@@ -11,11 +11,13 @@ extern struct mesh cube_mesh;
  * struct prim_emit_opts - vertex/primitive emitting options
  * @mesh:       mesh, to which the vertices will be appended
  * @uv:         optional texture coordinates per vertex
+ * @skip_mask:  sides/faces to skip
  * @clockwise:  emit vertices in left-handed winding order
  */
 typedef struct prim_emit_opts {
     struct mesh     *mesh;
-    float           *uv;
+    vec2            *uv;
+    uint64_t        skip_mask;
     bool            clockwise;
 } prim_emit_opts;
 
@@ -65,7 +67,7 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
     _prim_calc_normals((_p), &(prim_emit_opts){ args })
 /* Append a vertex to a mesh */
 #define prim_emit_vertex(_p, args...) \
-    _prim_emit_vertex((_p), &(prim_emit_opts){ args })
+    _prim_emit_vertex((_p), NULL, &(prim_emit_opts){ args })
 /* Append a triangle to a mesh */
 #define prim_emit_triangle(_t, args...) \
     _prim_emit_triangle((_t), &(prim_emit_opts){ args })

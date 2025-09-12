@@ -49,7 +49,8 @@
                 "CLAP_USE_ASAN":true,
                 "CLAP_USE_UBSAN":true,
                 "LDJAM56_BUILD_IN_ASSETS":false,
-                "LDJAM57_BUILD_IN_ASSETS":false
+                "LDJAM57_BUILD_IN_ASSETS":false,
+                "D2JAM2_BUILD_IN_ASSETS":false
             }
         },
         {

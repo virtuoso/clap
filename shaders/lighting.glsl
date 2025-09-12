@@ -59,7 +59,7 @@ lighting_result compute_cook_torrance(uint idx, vec3 unit_normal, vec3 to_light_
         const float outer_cutoff = cutoff - (5 * PI / 180.0);
 
         // float cos_angle = (dot(light_dir[idx], -l) + 1.0) / 2.0;
-        float cos_angle = dot(light_dir[idx], -l);
+        float cos_angle = dot(light_dir[idx], l);
         // float eps = cutoff - outer_cutoff;
         float cos_inner = cos(cutoff);
         float cos_outer = cos(cutoff + soft);
@@ -159,8 +159,9 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
     vec3 shadow_tinted = light_color[0] * shadow_tint;
 
-    uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
+    uvec4 _mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
 
+    uint mask[4] = { _mask.x, _mask.y, _mask.z, _mask.w };
     // for (int i = 0; i < nr_lights; i++) {
 
     for (uint c = 0, off = 0; c < 4; c++) {
@@ -194,13 +195,13 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
             r.diffuse += l.diffuse;
 
             // if (use_3d_fog) r.diffuse *= fog_cloud(world_pos.xyz, unit_normal, 0.5, 0.3);
-            if (use_3d_fog) {
-                // const float fog_freq = 0.005;
-                // const float fog_amp = 2.0;
+            // if (use_3d_fog) {
+            //     // const float fog_freq = 0.005;
+            //     // const float fog_amp = 2.0;
 
-                r.diffuse = mix(r.diffuse, vec3(0.4, 0.4, 0.4), fog_cloud(world_pos.xyz, fog_3d_amp, fog_3d_scale)) *
-                    cloud_mask(pass_tex.xy, fog_3d_amp, fog_3d_scale) * /*saturate(gl_FragCoord.z) **/ fog_3d_scale;
-            }
+            //     r.diffuse = mix(r.diffuse, fog_color, fog_cloud(world_pos.xyz, fog_3d_amp, fog_3d_scale)) *
+            //         cloud_mask(pass_tex.xy, fog_3d_amp, fog_3d_scale) * /*saturate(gl_FragCoord.z) **/ fog_3d_scale;
+            // }
         }
     }
 

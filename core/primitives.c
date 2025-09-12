@@ -45,8 +45,8 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
     mesh_idx(opts->mesh)[idx_idx++] = vx_idx;
 
     if (mesh_tx(opts->mesh)) {
-        mesh_tx(opts->mesh)[vx_idx * 2 + 0] = opts->uv ? opts->uv[0] : 0.0;
-        mesh_tx(opts->mesh)[vx_idx * 2 + 1] = opts->uv ? opts->uv[1] : 0.0;
+        mesh_tx(opts->mesh)[vx_idx * 2 + 0] = opts->uv ? opts->uv[0][0] : 0.0;
+        mesh_tx(opts->mesh)[vx_idx * 2 + 1] = opts->uv ? opts->uv[0][1] : 0.0;
     }
 
     vx_idx++;
@@ -67,32 +67,69 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
 
 void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts)
 {
-    _prim_emit_vertex(triangle[0], opts);
-    if (opts->clockwise) {
-        _prim_emit_vertex(triangle[2], opts);
-        _prim_emit_vertex(triangle[1], opts);
+    prim_emit_opts _opts = *opts;
+    vec2 uv[] = { { 0.0, 0.0 }, { 0.0, 1.0 }, { 1.0, 0.0 } };
+    if (!_opts.uv)  _opts.uv = uv;
+
+    _opts.uv = opts->uv ? &opts->uv[0] : &uv[0];
+    _prim_emit_vertex(triangle[0], &_opts);
+    if (_opts.clockwise) {
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(triangle[2], &_opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(triangle[1], &_opts);
     } else {
-        _prim_emit_vertex(triangle[1], opts);
-        _prim_emit_vertex(triangle[2], opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(triangle[1], &_opts);
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(triangle[2], &_opts);
     }
 }
 
 void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts)
 {
-    _prim_emit_vertex(v0, opts);
-    if (opts->clockwise) {
-        _prim_emit_vertex(v2, opts);
-        _prim_emit_vertex(v1, opts);
+    prim_emit_opts _opts = *opts;
+    vec2 uv[] = { { 0.0, 0.0 }, { 0.0, 1.0 }, { 1.0, 0.0 } };
+    if (!_opts.uv)  _opts.uv = uv;
+
+    _opts.uv = opts->uv ? &opts->uv[0] : &uv[0];
+    _prim_emit_vertex(v0, &_opts);
+    if (_opts.clockwise) {
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(v2, &_opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(v1, &_opts);
     } else {
-        _prim_emit_vertex(v1, opts);
-        _prim_emit_vertex(v2, opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(v1, &_opts);
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(v2, &_opts);
     }
 }
 
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
 {
-    _prim_emit_triangle3(quad[0], quad[3], quad[1], opts);
-    _prim_emit_triangle3(quad[3], quad[2], quad[1], opts);
+    prim_emit_opts _opts = *opts;
+    vec2 uv[] = { { 0.0, 0.0 }, { 1.0, 0.0 }, { 1.0, 1.0 }, { 0.0, 1.0 } };
+    bool uv_default = !_opts.uv;
+    // if (!_opts.uv)  _opts.uv = uv;
+
+    vec2 tri0_uv[3], tri1_uv[3];
+    // if (!_opts.uv)  _opts.uv = tri_uv;
+
+    if (uv_default) {
+        vec2_dup(tri0_uv[0], uv[0]); vec2_dup(tri0_uv[1], uv[3]); vec2_dup(tri0_uv[2], uv[1]);
+        _opts.uv = tri0_uv;
+    }
+
+    _prim_emit_triangle3(quad[0], quad[3], quad[1], &_opts);
+
+    if (uv_default) {
+        vec2_dup(tri1_uv[0], uv[3]); vec2_dup(tri1_uv[1], uv[2]); vec2_dup(tri1_uv[2], uv[1]);
+        _opts.uv = tri1_uv;
+    }
+
+    _prim_emit_triangle3(quad[3], quad[2], quad[1], &_opts);
 }
 
 void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)
@@ -105,6 +142,10 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
      * for each side: 4 triangles (12 vertices) per segment
      */
     int nr_vert = nr_serments * 12;
+
+    prim_emit_opts _opts = *opts;
+    // if (!_opts.uv)  _opts.uv = mem_alloc(sizeof(vec2), .nr = nr_vert);
+
     if (!mesh->attr[MESH_VX].data) {
         CERR_RET(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert), return);
         CERR_RET(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), return);
@@ -131,42 +172,50 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
         seg_vert2[1] = org[2] + radius * sin(M_PI * 2 * (seg + 1) / nr_serments);
 
         /* bottom */
-        vec3_dup(triangle[0], org);
-        triangle[1][0] = seg_vert1[0];
-        triangle[1][1] = org[1];
-        triangle[1][2] = seg_vert1[1];
-        triangle[2][0] = seg_vert2[0];
-        triangle[2][1] = org[1];
-        triangle[2][2] = seg_vert2[1];
-        _prim_emit_triangle(triangle, opts);
+        if (!(_opts.skip_mask & (1ull << 0))) {
+            vec3_dup(triangle[0], org);
+            triangle[1][0] = seg_vert1[0];
+            triangle[1][1] = org[1];
+            triangle[1][2] = seg_vert1[1];
+            triangle[2][0] = seg_vert2[0];
+            triangle[2][1] = org[1];
+            triangle[2][2] = seg_vert2[1];
+            _prim_emit_triangle(triangle, &_opts);
+        }
 
         /* side quad */
-        vec3 quad[4];
-        quad[0][0] = seg_vert1[0];
-        quad[0][1] = org[1];
-        quad[0][2] = seg_vert1[1];
-        quad[1][0] = seg_vert2[0];
-        quad[1][1] = org[1];
-        quad[1][2] = seg_vert2[1];
-        quad[2][0] = seg_vert2[0];
-        quad[2][1] = org[1] + height;
-        quad[2][2] = seg_vert2[1];
-        quad[3][0] = seg_vert1[0];
-        quad[3][1] = org[1] + height;
-        quad[3][2] = seg_vert1[1];
-        _prim_emit_quad(quad, opts);
+        if (!(_opts.skip_mask & (1ull << (seg + 2)))) {
+            vec3 quad[4];
+            quad[0][0] = seg_vert1[0];
+            quad[0][1] = org[1];
+            quad[0][2] = seg_vert1[1];
+            quad[1][0] = seg_vert2[0];
+            quad[1][1] = org[1];
+            quad[1][2] = seg_vert2[1];
+            quad[2][0] = seg_vert2[0];
+            quad[2][1] = org[1] + height;
+            quad[2][2] = seg_vert2[1];
+            quad[3][0] = seg_vert1[0];
+            quad[3][1] = org[1] + height;
+            quad[3][2] = seg_vert1[1];
+            _prim_emit_quad(quad, &_opts);
+        }
 
         /* top */
-        vec3_dup(triangle[0], org);
-        triangle[0][1] = org[1] + height;
-        triangle[1][0] = seg_vert2[0];
-        triangle[1][1] = org[1] + height;
-        triangle[1][2] = seg_vert2[1];
-        triangle[2][0] = seg_vert1[0];
-        triangle[2][1] = org[1] + height;
-        triangle[2][2] = seg_vert1[1];
-        _prim_emit_triangle(triangle, opts);
+        if (!(_opts.skip_mask & (1ull << 1))) {
+            vec3_dup(triangle[0], org);
+            triangle[0][1] = org[1] + height;
+            triangle[1][0] = seg_vert2[0];
+            triangle[1][1] = org[1] + height;
+            triangle[1][2] = seg_vert2[1];
+            triangle[2][0] = seg_vert1[0];
+            triangle[2][1] = org[1] + height;
+            triangle[2][2] = seg_vert1[1];
+            _prim_emit_triangle(triangle, &_opts);
+        }
     }
+
+    // if (!opts->uv)  mem_free(_opts.uv);
 }
 
 cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)

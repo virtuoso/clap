@@ -11,6 +11,8 @@
 
 #define TILE_WIDTH      64
 
+#define FILM_GRAIN_SIZE 64
+
 #define COLOR_PT_NONE 0
 #define COLOR_PT_SET_RGB        0x01
 #define COLOR_PT_REPLACE_RGB    0x02
@@ -61,6 +63,7 @@
 #define SAMPLER_BINDING_lut_tex         5
 #define SAMPLER_BINDING_noise3d         8
 #define SAMPLER_BINDING_light_map       9
+#define SAMPLER_BINDING_grain_tex       10
 
 #endif /* CLAP_SHADER_CONSTANTS_H */
 

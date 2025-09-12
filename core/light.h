@@ -23,6 +23,9 @@ struct light {
     float ambient[3];
     float shadow_tint[3];
     int nr_lights;
+#ifndef CONFIG_FINAL
+    bool draw_direction[LIGHTS_MAX];
+#endif /* !CONFIG_FINAL */
     struct light_grid {
         ui32vec4        *tiles;
         texture_t       tex;

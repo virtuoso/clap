@@ -13,6 +13,8 @@ option(CLAP_USE_ASAN BOOL OFF)
 set(CLAP_SERVER_IP "127.0.0.1" CACHE STRING "Server IP address")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+include(ProcessorCount)
+ProcessorCount(nproc)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     if (CLAP_USE_ASAN)
@@ -34,9 +36,24 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(W32LIBSUFFIX "")
     endif ()
 else ()
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_C_FLAGS "-flto=full")
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_CXX_FLAGS "-flto=full")
-    add_link_options("-flto=full")
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        add_link_options("-flto=full")
+    else ()
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+            add_link_options("-flto=full")
+        else ()
+            # Apple's linker doesn't seem to support this
+            add_link_options(
+                "-Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/thinlto-cache"
+                "-Wl,--thinlto-cache-policy,cache_size_bytes=4294967296"
+                "-Wl,--thinlto-jobs=${nproc}"
+                "-Wl,--lto-O1"
+                "-Wl,--threads=${nproc}"
+            )
+        endif ()
+    endif ()
     set(CARGO_RELEASE_FLAG "--release" CACHE INTERNAL "")
     set(TARGET_DIR "release" CACHE INTERNAL "")
 endif ()
@@ -75,6 +92,13 @@ set(MESHOPT_BUILD_TOOLS OFF CACHE BOOL "")
 set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "")
 add_subdirectory(deps/src/meshoptimizer EXCLUDE_FROM_ALL)
 set_property(TARGET meshoptimizer PROPERTY FOLDER "ThirdPartyLibraries")
+
+set(KISSFFT_STATIC ON CACHE BOOL "")
+set(KISSFFT_TEST OFF CACHE BOOL "")
+set(KISSFFT_TOOLS OFF CACHE BOOL "")
+add_subdirectory(deps/src/kissfft EXCLUDE_FROM_ALL)
+set_property(TARGET kissfft PROPERTY FOLDER "ThirdPartyLibraries")
+set(KISSFFT_INCLUDE "${CMAKE_SOURCE_DIR}/deps/src/kissfft")
 
 set(ODE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ode")
 
