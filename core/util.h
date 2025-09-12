@@ -520,6 +520,15 @@ struct bitmap {
     size_t          size;
 };
 
+#define bitmap_static_size(_bits)  ((_bits) / BITS_PER_LONG + 1)
+
+#define bitmap_init_onstack(_b, _bits) \
+    static_assert(__builtin_constant_p(bitmap_static_size(_bits))); \
+    struct bitmap _b = { \
+        .mask = (unsigned long [bitmap_static_size(_bits)]) {}, \
+        .size = bitmap_static_size(_bits) \
+    }
+
 void bitmap_init(struct bitmap *b, size_t bits);
 void bitmap_done(struct bitmap *b);
 void bitmap_set(struct bitmap *b, unsigned int bit);
