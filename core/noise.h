@@ -39,4 +39,6 @@ cresp(void) noise_grad3d_bake_rgb8(size_t size, int octaves, float lacunarity, f
 cerr noise_grad3d_bake_rgb8_tex(texture_t *tex, int size, int octaves, float lacunarity, float gain,
                                 float period_units, uint32_t seed);
 
+cerr blue_noise2d_tex(texture_t *tex, int size);
+
 #endif /* __CLAP_NOISE_H__ */

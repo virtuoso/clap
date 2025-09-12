@@ -1,4 +1,6 @@
 #version 460 core
+precision highp float;
+precision highp int;
 
 #include "config.h"
 #include "shader_constants.h"
@@ -17,9 +19,9 @@ layout (location=5) in mat3 tbn;
 #include "ubo_bloom.glsl"
 #include "ubo_postproc.glsl" // for width and height
 
-layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
-layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
-layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
+layout (binding=SAMPLER_BINDING_model_tex) uniform lowp sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_normal_map) uniform lowp sampler2D normal_map;
+layout (binding=SAMPLER_BINDING_emission_map) uniform lowp sampler2D emission_map;
 layout (binding=SAMPLER_BINDING_light_map) uniform usampler2D light_map;
 
 #include "shadow.glsl"
@@ -28,7 +30,7 @@ layout (binding=SAMPLER_BINDING_light_map) uniform usampler2D light_map;
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 EdgeNormal;
-layout (location=3) out float EdgeDepthMask;
+layout (location=3) out vec4 EdgeDepthMask;
 layout (location=4) out vec4 ViewPosition;
 layout (location=5) out vec4 Normal;
 
@@ -47,7 +49,9 @@ void main()
     vec4 texture_sample = texture(model_tex, pass_tex);
     vec4 view_pos = view * world_pos;
 
-    float shadow_factor = shadow_factor_calc(unit_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
+    float shadow_factor = /*light_cutoff[0] > 0.0 && light_directional[0] ?
+        shadow_factor_calc(unit_normal, view_pos, -light_dir[0], shadow_vsm, use_msaa) :*/
+        shadow_factor_calc(unit_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
 
     /*
      * XXX: Both diffuse and spcular components are affected by the shadow_factor;
@@ -64,10 +68,10 @@ void main()
      */
     lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor);
 
-    FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
+    FragColor = vec4(r.diffuse, 1.0) * vec4(texture_sample.rgb, 1.0) + vec4(r.specular, 1.0);// + vec4(pass_tex.xy, 0.0, 0.0);
     // FragColor.r += light_heatmap();
     // FragColor = vec4(vec3(shadow_factor), 1.0);
-    EdgeDepthMask = gl_FragCoord.z;
+    EdgeDepthMask = vec4(gl_FragCoord.z, 0.0, 0.0, 1.0);
 
     vec3 emission;
     if (use_noise_emission) {
@@ -91,8 +95,8 @@ void main()
     if (sobel_solid) {
         EdgeNormal = vec4(texture_sample.rgb, sobel_solid_id);
     } else if (outline_exclude) {
-        EdgeNormal = vec4(vec3(0.0), 1.0);
-        EdgeDepthMask = 1.0;
+        EdgeNormal = vec4(vec3(0.0), 0.0);
+        EdgeDepthMask = vec4(0.0);//1.0;
     } else {
         vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
         EdgeNormal = vec4(pos_normal * (shadow_outline && shadow_factor < shadow_outline_threshold ? 0.0 : 1.0), 1.0);

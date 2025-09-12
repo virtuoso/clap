@@ -103,6 +103,13 @@ set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "")
 add_subdirectory(deps/src/meshoptimizer EXCLUDE_FROM_ALL)
 set_property(TARGET meshoptimizer PROPERTY FOLDER "ThirdPartyLibraries")
 
+set(KISSFFT_STATIC ON CACHE BOOL "")
+set(KISSFFT_TEST OFF CACHE BOOL "")
+set(KISSFFT_TOOLS OFF CACHE BOOL "")
+add_subdirectory(deps/src/kissfft EXCLUDE_FROM_ALL)
+set_property(TARGET kissfft PROPERTY FOLDER "ThirdPartyLibraries")
+set(KISSFFT_INCLUDE "${CMAKE_SOURCE_DIR}/deps/src/kissfft")
+
 set(ODE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ode")
 
 if (WIN32)

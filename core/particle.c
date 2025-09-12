@@ -81,6 +81,22 @@ static void particle_spawn(particle_system *ps)
     particle_set_velocity(p);
 }
 
+#if defined(__APPLE__) || defined(_WIN32)
+static int cmp_camera_dist(void *data, const void *a, const void *b)
+#else /* !__APPLE__ && !_WIN32 */
+static int cmp_camera_dist(const void *a, const void *b, void *data)
+#endif /* !__APPLE__ && !_WIN32 */
+{
+    struct scene *s = data;
+    const float *pos_a = a, *pos_b = b;
+
+    vec3 dist_a, dist_b;
+    vec3_sub(dist_a, pos_a, transform_pos(&s->camera->xform, NULL));
+    vec3_sub(dist_b, pos_b, transform_pos(&s->camera->xform, NULL));
+
+    return (int)(vec3_mul_inner(dist_a, dist_a) - vec3_mul_inner(dist_b, dist_b));
+}
+
 static int particles_update(entity3d *e, void *data)
 {
     struct scene *s = data;
@@ -111,6 +127,17 @@ static int particles_update(entity3d *e, void *data)
         vec3_dup(ps->pos_array[i++], p->pos);
     }
 
+    /*
+     * A quick and dirty workaround for divergent signatures of qsort_r()
+     * and its comparator signature.
+     */
+#if defined(__APPLE__)
+    qsort_r(ps->pos_array, ps->count, sizeof(ps->pos_array[0]), s, cmp_camera_dist);
+#elif defined(_WIN32)
+    qsort_s(ps->pos_array, ps->count, sizeof(ps->pos_array[0]), cmp_camera_dist, s);
+#else /* !__APPLE__ && !_WIN32 */
+    qsort_r(ps->pos_array, ps->count, sizeof(ps->pos_array[0]), cmp_camera_dist, s);
+#endif /* !__APPLE__ */
     return 0;
 }
 
@@ -184,7 +211,7 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
 
     model3dtx_set_texture(txres.val, UNIFORM_EMISSION_MAP, opts->emit ? : white_pixel());
 
-    mq_add_model_tail(opts->mq, txres.val);
+    mq_add_model(opts->mq, txres.val);
 
     cresp(entity3d) eres = ref_new_checked(entity3d, .txmodel = ref_pass(txres.val));
 

@@ -265,6 +265,9 @@ struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root);
 struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
                              const char **items, unsigned int nr_items);
 
+void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], on_click_fn on_click);
+void ui_inventory_done(struct ui *ui);
+
 typedef struct progress_bar_options {
     float           width;
     float           height;

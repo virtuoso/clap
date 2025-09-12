@@ -5,6 +5,7 @@
 #include "input.h"
 #include "memory.h"
 #include "messagebus.h"
+#include "ui-debug.h"
 #include "util.h"
 #include "ui.h"
 
@@ -50,6 +51,7 @@ static void __unused __menu_hud_fps(struct ui *ui, const ui_menu_item *item)
 #ifndef CONFIG_FINAL
 static void __unused __menu_devel(struct ui *ui, const ui_menu_item *item)
 {
+    ui_toggle_debug_selector();
     main_menu_done(ui->priv);
 }
 #endif /* CONFIG_FINAL */
@@ -145,6 +147,8 @@ static int game_ui_handle_input(struct clap_context *clap_ctx, struct message *m
     if (m->input.menu_toggle) {
         if (gui->menu)  main_menu_done(gui);
         else            main_menu_init(gui);
+    } else if (m->input.inv_toggle) {
+        (void)ui_inventory_init(ui, 4, (float[12]){ 1.0, 0.8, 0.6, 0.4 }, NULL);
     } else if (m->input.mouse_click) {
         /* No menu + click miss: open main menu */
         if (!gui->menu && !ui_element_click(ui, uivec))             main_menu_init(gui);

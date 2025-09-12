@@ -267,6 +267,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         );
         igSameLine(0, 0);
         igText("fog color");
+        igCheckbox("film grain", &ropts->film_grain);
+        igSliderFloat("film grain factor", &ropts->film_grain_factor, -1.0, 1.0, "%.02f", 0);
+        igSliderFloat("film grain power", &ropts->film_grain_power, 0.1, 2.0, "%.01f", 0);
         igSeparator();
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
                     input_text_callback, NULL);
@@ -338,6 +341,25 @@ static void light_debug(struct scene *scene)
                 ImGuiColorEditFlags_NoLabel  |
                 ImGuiColorEditFlags_NoTooltip
             );
+
+            if (scene->light.is_dir[idx])
+                ui_igCheckbox("draw direction", &scene->light.draw_direction[idx]);
+
+            if (scene->light.draw_direction[idx])
+                    message_send(scene->clap_ctx, &(struct message) {
+                        .type   = MT_DEBUG_DRAW,
+                        .debug_draw     = (struct message_debug_draw) {
+                            .color      = { 1.0, 0.0, 0.0, 1.0 },
+                            .thickness  = 4.0,
+                            .shape      = DEBUG_DRAW_LINE,
+                            .v0         = { scene->light.pos[idx * 3 + 0], scene->light.pos[idx * 3 + 1], scene->light.pos[idx * 3 + 2] },
+                            .v1         = {
+                                scene->light.pos[idx * 3 + 0] + scene->light.dir[idx * 3 + 0],
+                                scene->light.pos[idx * 3 + 1] + scene->light.dir[idx * 3 + 1],
+                                scene->light.pos[idx * 3 + 2] + scene->light.dir[idx * 3 + 2]
+                            },
+                        }
+                    });
 
             igEndTable();
             igPopID();
@@ -557,12 +579,12 @@ static void model_tabs(model3dtx *txm)
         igRadioButton_IntPtr("GPU", &mat->use_noise_normals, NOISE_NORMALS_GPU);
         igSameLine(0.0, 0.0);
         igRadioButton_IntPtr("3D", &mat->use_noise_normals, NOISE_NORMALS_3D);
-        igPopID();
 
         if (mat->use_noise_normals) {
             ui_igSliderFloat("-> scale", &mat->noise_normals_scale, 0.01, 5.0, "%.04f", 0);
             ui_igSliderFloat("-> amp", &mat->noise_normals_amp, 0.1, 1.0, "%.04f", 0);
         }
+        igPopID();
 
         ui_igCheckbox("use 3D fog", &mat->use_3d_fog);
         if (mat->use_3d_fog) {
@@ -631,6 +653,17 @@ static void model_tabs(model3dtx *txm)
     igSeparator();
 }
 
+#include <dirent.h>
+typedef struct dir_read {
+    struct dirent   **entries;
+    size_t          nr_entries;
+} dir_read;
+
+static char *file_get_item(ui_list *list)
+{
+    return "<file.glb>";
+}
+
 static void scene_entity_inspector_debug(struct scene *scene)
 {
     entity_inspector *ei = &scene->entity_inspector;
@@ -650,6 +683,21 @@ static void scene_entity_inspector_debug(struct scene *scene)
         return;
 
     if (dbgm->unfolded) {
+        static bool open_open;
+
+        if (igButton("open", (ImVec2){}))
+            open_open = !open_open;
+
+        if (open_open) {
+            ui_list list = {
+                .get_item   = file_get_item,
+                // .priv       = &,
+                .selected   = 0,
+            };
+
+            ui_ig_file_dialog("open", &open_open, &list);
+        }
+
         /*
          * Stretch all following widgets horizontally to fill the window,
          * unless told otherwis.
@@ -850,6 +898,9 @@ static void scene_entity_inspector_debug(struct scene *scene)
         int nr_lods = max(txm->model->nr_lods - 1, 0);
         if (ui_igSliderInt("LOD", &lod, 0, nr_lods, "%u", 0))
             entity3d_set_lod(e, lod, true);
+        ui_igLabel("light idx");
+        igTableNextColumn();
+        igText("%d", e->light_idx);
         igEndTable();
 
         if (txm->model->nr_joints) {
@@ -1221,6 +1272,34 @@ static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode 
     return CERR_OK;
 }
 
+static const char *joint_type_str[JOINT_TYPE_MAX] = {
+    [JOINT_HEAD]        = "head",
+    [JOINT_FOOT_LEFT]   = "foot_left",
+    [JOINT_FOOT_RIGHT]  = "foot_right",
+    [JOINT_HAND_LEFT]   = "hand_left",
+    [JOINT_HAND_RIGHT]  = "hand_right",
+};
+
+cres_ret(joint_type);
+
+static cres(joint_type) joint_by_type_name(const char *type)
+{
+    for (joint_type i = JOINT_NONE; i < JOINT_TYPE_MAX; i++) {
+        if (!joint_type_str[i]) continue;
+
+        if (!strcmp(joint_type_str[i], type))   return cres_val(joint_type, i);
+    }
+
+    return cres_error(joint_type, CERR_NOT_FOUND);
+}
+
+static cres(int) model3d_joint_by_type(model3d *m, const char *type)
+{
+    auto jt = CRES_RET(joint_by_type_name(type), return cres_error_cerr(int, __res));
+
+    return cres_val(int, m->joint_types[jt]);
+}
+
 unsigned int total_models, nr_models;
 
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
@@ -1367,6 +1446,25 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         }
     }
 
+    auto model = txm->model;
+    JsonNode *armature = json_find_member(node, "armature");
+    if (armature && armature->tag == JSON_OBJECT) {
+        for (unsigned int i = JOINT_NONE; i < JOINT_TYPE_MAX; i++) {
+            if (!joint_type_str[i]) continue;
+
+            JsonNode *jj = json_find_member(armature, joint_type_str[i]);
+            if (jj && jj->tag == JSON_STRING) {
+                auto joint_name = jj->string_;
+
+                for (unsigned int j = 0; j < model->nr_joints; j++)
+                    if (!strcmp(joint_name, model->joints[j].name)) {
+                        model->joint_types[i] = j;
+                        break;
+                    }
+            }
+        }
+    }
+
     if (sfx)
         for (p = sfx->children.head; p; p = p->next)
             sfx_add_from_json(&txm->model->sfxc, clap_get_sound(scene->clap_ctx), p);
@@ -1401,8 +1499,23 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             if (jpos && jpos->tag == JSON_STRING)
                 e->name = strdup(jpos->string_);
 
+            jpos = json_find_member(it, "attach");
+            if (jpos && jpos->tag == JSON_STRING)
+                e->parent = CRES_RET(mq_find_entity(&scene->mq, jpos->string_), continue);
+
+            jpos = json_find_member(it, "attach_joint");
+            if (jpos && jpos->tag == JSON_STRING && e->parent)
+                e->parent_joint = CRES_RET(model3d_joint_by_type(e->parent->txmodel->model, jpos->string_), continue);
+
+            jpos = json_find_member(it, "rotate");
+            if (jpos && jpos->tag == JSON_ARRAY) {
+                vec3 angles;
+                json_float_array(jpos, angles, 3);
+                transform_set_angles(&e->xform, angles, true);
+            }
+
             jpos = json_find_member(it, "position");
-            if (jpos->tag != JSON_ARRAY)
+            if (!jpos || jpos->tag != JSON_ARRAY)
                 continue;
 
             vec3 e_pos = {};
@@ -1480,6 +1593,12 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                     view_update_from_angles(&scene->light.view[0], transform_pos(&e->xform, NULL), angles[0], angles[1], angles[2]);
                     view_calc_frustum(&scene->light.view[0]);
                 }
+            } else {
+                scene->light.view[0].nr_cascades = CASCADES_MAX;
+                scene->light.view[0].main.near_plane  = 0.1;
+                scene->light.view[0].main.far_plane   = 200.0;
+                scene->light.view[0].fov              = 70.0;
+                scene->light.view[0].proj_update      = true;
             }
 
 light_done:
@@ -1566,9 +1685,9 @@ light_done:
 
     dbg("loaded model '%s'\n", name);
 
+    nr_models++;
     if (scene->ls)
         loading_screen_progress(scene->ls, (float)nr_models / (float)total_models);
-    nr_models++;
 
     return CERR_OK;
 }
@@ -1617,11 +1736,37 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
         return CERR_INVALID_FORMAT;
 
     int idx = CRES_RET_CERR(light_get(&s->light));
+    light_set_directional(&s->light, idx, true);
 
     float fpos[3] = { pos[0], pos[1], pos[2] };
     float fcolor[3] = { color[0], color[1], color[2] };
     light_set_pos(&s->light, idx, fpos);
     light_set_color(&s->light, idx, fcolor);
+
+    double fdir[3];
+    jpos = json_find_member(light, "direction");
+    if (jpos && jpos->tag == JSON_ARRAY) {
+        if (!json_double_array(jpos, fdir, 3)) {
+            float dir[3] = { fdir[0], fdir[1], fdir[2] };
+            light_set_direction(&s->light, idx, dir);
+        }
+    }
+
+    double _light_attenuation[3];
+    jpos = json_find_member(light, "attenuation");
+    if (jpos && jpos->tag == JSON_ARRAY) {
+        if (!json_double_array(jpos, _light_attenuation, 3)) {
+            float light_attenuation[3] = { _light_attenuation[0], _light_attenuation[1], _light_attenuation[2] };
+            light_set_attenuation(&s->light, idx, light_attenuation);
+            light_set_directional(&s->light, idx, false);
+        }
+    }
+
+    jpos = json_find_member(light, "cutoff");
+    if (jpos && jpos->tag == JSON_NUMBER) {
+        light_set_cutoff(&s->light, idx, jpos->number_);
+        light_set_directional(&s->light, idx, true);
+    }
 
     if (!light_is_spotlight(&s->light, idx)) {
         bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
@@ -1688,8 +1833,10 @@ static void scene_onload(struct lib_handle *h, void *buf)
         } else if (!strcmp(p->key, "sfx") && p->tag == JSON_OBJECT) {
             JsonNode *sfx;
 
-            for (sfx = p->children.head; sfx; sfx = sfx->next)
-                sfx_add_from_json(&scene->sfxc, clap_get_sound(scene->clap_ctx), sfx);
+            for (sfx = p->children.head; sfx; sfx = sfx->next) {
+                auto err = sfx_add_from_json(&scene->sfxc, clap_get_sound(scene->clap_ctx), sfx);
+                if (IS_CERR(err)) err_cerr(err, "failed to load sound %s\n", sfx->string_);
+            }
         }
     }
     dbg("loaded scene: '%s'\n", scene->name);

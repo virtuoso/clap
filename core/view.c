@@ -18,7 +18,7 @@ static void view_update_perspective_subviews(struct view *view)
     for (i = 0; i < max - 1; i++) {
         struct subview *sv = &view->subview[i];
 
-        view->divider[i] = view->nr_cascades == 1 ? 50.0 : dividers[i];
+        view->divider[i] = view->nr_cascades == 1 ? 20.0 : dividers[i];
         sv->far_plane    = view->divider[i];
         view->subview[i + 1].near_plane = sv->far_plane;
     }
@@ -150,7 +150,7 @@ static void view_projection_update(struct view *view, struct view *src, float ne
     int v;
 
     view_debug_begin(near_backup);
-    for (v = 0; v < array_size(view->subview); v++) {
+    for (v = 0; v < view->nr_cascades; v++) {
         view_frustum_debug(src, v);
         subview_projection_update(&view->subview[v], &src->subview[v], near_backup, z_reverse);
     }
@@ -244,7 +244,17 @@ void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, flo
     vec3 target = { -dir[0], -dir[1], -dir[2] };
 
     view_update_from_target(view, src, target, near_backup);
-    view_projection_update(view, src, near_backup, z_reverse);
+    // if (near_backup >= 0.0)
+        view_projection_update(view, src, near_backup, z_reverse);
+    // else {
+    //     view->aspect = src->aspect;
+    //     view->proj_update = false;
+    //     view->fov = src->fov;
+    //     view->main.near_plane = src->main.near_plane;
+    //     view->main.far_plane = src->main.far_plane;
+    //     mat4x4_dup(view->main.proj_mx, src->main.proj_mx);
+    //     view_update_perspective_subviews(view);
+    // }
 }
 
 static void subview_calc_frustum(struct subview *subview)

@@ -10,6 +10,7 @@ layout(location = 0) out vec2 pass_tex;
 layout (location = 1) out vec3 surface_normal;
 layout (location = 2) out vec3 to_camera_vector;
 layout (location = 3) out vec4 world_pos;
+layout (location = 4) out flat int instance_id;
 
 layout (std140, binding = UBO_BINDING_particles) uniform particles {
     vec3 particle_pos[PARTICLES_MAX];
@@ -25,6 +26,7 @@ void main()
     _trans[3][1] = particle_pos[gl_InstanceIndex][1];
     _trans[3][2] = particle_pos[gl_InstanceIndex][2];
 
+    instance_id = gl_InstanceIndex;
     world_pos = _trans * vec4(position, 1.0);
     gl_Position = proj * view * world_pos;
 

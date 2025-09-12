@@ -20,6 +20,16 @@ struct camera;
 struct shader_prog;
 typedef struct render_options render_options;
 
+typedef enum joint_type {
+    JOINT_NONE,
+    JOINT_HEAD,
+    JOINT_FOOT_LEFT,
+    JOINT_FOOT_RIGHT,
+    JOINT_HAND_LEFT,
+    JOINT_HAND_RIGHT,
+    JOINT_TYPE_MAX,
+} joint_type;
+
 #define LOD_MAX 4
 typedef struct model3d {
     char                *name;
@@ -47,6 +57,7 @@ typedef struct model3d {
     float               lod_errors[LOD_MAX];
     bool                skip_aabb;
     struct model_joint  *joints;
+    int                 joint_types[JOINT_TYPE_MAX];
     /* Collision mesh, if needed */
     float               *collision_vx;
     size_t              collision_vxsz;
@@ -86,6 +97,8 @@ struct model_joint {
     mat4x4      bind;
     int         id;
 };
+
+cres(int) model3d_get_joint(model3d *m, joint_type type);
 
 /**
  * enum chan_path - animation channel "path"
@@ -299,6 +312,8 @@ typedef struct entity3d {
     struct joint        *joints;
     mat4x4              *joint_transforms;
 
+    entity3d            *parent;
+    joint_type          parent_joint;
     struct phys_body    *phys_body;
     particle_system     *particles;
     float               bloom_intensity;
@@ -346,6 +361,16 @@ typedef struct models_render_options {
     float               near_plane;
     float               far_plane;
 } models_render_options;
+
+/**
+ * mq_find_entity() - find an entity by name
+ * @mq:     model queue
+ * @name:   entity name
+ *
+ * Find an entity3d object matching the given name.
+ * Return: entity3d or CERR_NOT_FOUND.
+ */
+cresp(entity3d) mq_find_entity(struct mq *mq, const char *name);
 
 /**
  * define models_render - wrapper for _models_render()

@@ -14,6 +14,7 @@ typedef struct pipeline pipeline;
 
 typedef struct render_options {
     lut     *lighting_lut;
+    double  time;
     float   bloom_exposure;
     float   bloom_intensity;
     float   bloom_threshold;
@@ -32,11 +33,14 @@ typedef struct render_options {
     bool    debug_draws_enabled;
     float   shadow_outline_threshold;
     int     laplace_kernel;
+    float   film_grain_factor;
+    float   film_grain_power;
     bool    edge_antialiasing;
     bool    edge_sobel;
     bool    ssao;
     bool    shadow_vsm;
     bool    hdr;
+    bool    film_grain;
     bool    collision_draws_enabled;
     bool    aabb_draws_enabled;
     bool    camera_frusta_draws_enabled;
@@ -133,6 +137,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
     struct light    *light;
     struct camera   *camera;
     ssao_state      *ssao_state;
+    texture_t       *noise3d;
     unsigned int    nr_cascades;
     unsigned int    width;
     unsigned int    height;

@@ -112,6 +112,13 @@ static cerr do_sound_make(sound *sound, sound_context *ctx)
 
     ma_decoder_uninit(&decoder);
 
+    // auto sound_config = ma_sound_config_init();
+    // sound_config.flags = MA_SOUND_FLAG_DECODE;
+    // sound_config.pDataSource = cb_data.buf;
+    // sound_config.p
+    // ma_data_source *data_source;
+    // ma_data_source_config src_config = ma_data_source_config();
+    // ma_data_source_init(src_config, data_source);
     result = ma_sound_init_from_data_source(
         &ctx->engine,
         &sound->buffer,
@@ -201,8 +208,48 @@ void sound_play(sound *sound)
 
 static void do_sound_init(sound_context *ctx)
 {
+    // auto resmng_config = ma_resource_manager_config_init();
+    // resmng_config.decodedFormat = ma_format_f32;
+    // resmng_config.decodedChannels = 0;
+    // resmng_config.decodedSampleRate = 48000;//44100;
+
+    // ma_resource_manager resmng;
+    // auto result = ma_resource_manager_init(&resmng_config, &resmng);
+    // if (result != MA_SUCCESS)   return cresp_error(sound_context, CERR_SOUND_NOT_LOADED); // XXX CERR_
+
+    // result = ma_context_init(NULL, 0, NULL, &ctx->context);
+    // if (result != MA_SUCCESS)   goto err_resmgr;
+
+    // ma_device_info *device_infos;
+    // ma_uint32 device_count;
+    // result = ma_context_get_devices(&ctx->context, &device_infos, &device_count, NULL, NULL);
+    // if (result != MA_SUCCESS)   goto err_context;
+
+    // ma_device_id *dev_id = &device_infos[0].id;
+    // for (ma_uint32 i = 0; i < device_count; i++) {
+    //     dbg(" -> device%u: %s\n", i, device_infos[i].name);
+    //     if (device_infos[i].isDefault)  dev_id = &device_infos[i].id;
+    // }
+
+    // auto dev_config = ma_device_config_init(ma_device_type_playback);
+    // dev_config.playback.pDeviceID   = dev_id;
+    // dev_config.playback.format      = resmng.config.decodedFormat;
+    // dev_config.playback.channels    = 0;
+    // dev_config.sampleRate           = resmng.config.decodedSampleRate;
+
+    // result = ma_device_init(&ctx->context, &dev_config, &ctx->device);
+    // if (result != MA_SUCCESS)   goto err_devices;
+
+    // ma_engine_config config = ma_engine_config_init();
+    // config.channels = 2;
+    // config.sampleRate = 44100;
+    // config.pDevice          = &ctx->device;
+    // config.pResourceManager = &resmng;
+    // config.noAutoStart      = MA_TRUE;
+
+    // result = ma_engine_init(&config, &ctx->engine);
     auto result = ma_engine_init(NULL, &ctx->engine);
-    if (result != MA_SUCCESS)   return;
+    if (result != MA_SUCCESS)   goto err_engine;//err_device;
 
     result = ma_engine_start(&ctx->engine);
     if (result != MA_SUCCESS)   goto err_engine;
@@ -227,6 +274,14 @@ static void do_sound_init(sound_context *ctx)
 
 err_engine:
     ma_engine_uninit(&ctx->engine);
+// err_device:
+//     ma_device_uninit(&ctx->device);
+// err_devices:
+//     free(device_infos);
+// err_context:
+//     ma_context_uninit(&ctx->context);
+// err_resmgr:
+//     ma_resource_manager_uninit(&resmng);
 }
 
 #ifdef CONFIG_BROWSER

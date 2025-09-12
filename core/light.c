@@ -254,8 +254,8 @@ void light_set_directional(struct light *light, int idx, bool is_directional)
 void light_set_direction(struct light *light, int idx, vec3 dir)
 {
     if (!light_is_valid(light, idx))    return;
-    // vec3_sub(dir, (vec3){}, dir);
-    vec3_dup(&light->dir[idx * 3], dir);
+    vec3_sub(&light->dir[idx * 3], (vec3){}, dir);
+    // vec3_dup(&light->dir[idx * 3], dir);
 }
 
 bool light_is_directional(struct light *light, int idx)

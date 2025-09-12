@@ -199,12 +199,13 @@ void joystick_name_update(int joy, const char *name)
 #endif
 
 struct joy_map {
-    int         offset;
     unsigned int (*setter)(int state);
+    const char  *name;
+    int         offset;
 };
 
 #define JOY_MAP(_setter, _field) \
-    { .setter = _setter, .offset = offsetof(struct message_input, _field) }
+    { .setter = _setter, .name = __stringify(_field), .offset = offsetof(struct message_input, _field) }
 
 struct joy_map joy_map[] = {
     [BTN_LEFT]  = JOY_MAP(to_press_release, left),
@@ -225,6 +226,46 @@ struct joy_map joy_map[] = {
     [BTN_STICKL] = JOY_MAP(to_press_hold,   stick_l),
     [BTN_STICKR] = JOY_MAP(to_press,        stick_r),
 };
+
+#ifndef CONFIG_FINAL
+void controllers_debug(void)
+{
+    debug_module *dbgm = ui_igBegin(DEBUG_CONTROLLERS, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        for (unsigned int i = 0; i < NR_JOYS; i++) {
+            if (!joystick_present(i))    continue;
+
+            igPushID_Int(i);
+
+            struct joystick *j = &joys[i];
+
+            char label[BUFSIZ];
+            snprintf(label, BUFSIZ, "[%d] %s", i, j->name);
+            igSeparatorText(label);
+
+            igTextUnformatted("axes", NULL);
+            for (unsigned int axis = 0; axis < j->nr_axes; axis++)
+                igText("%d:\t%lf", axis, j->axes[axis]);
+
+            igTextUnformatted("analog buttons", NULL);
+            for (unsigned int abtn = 0; abtn < j->nr_axes; abtn++)
+                igText("%d:\t%lf", abtn, j->abuttons[abtn]);
+
+            igTextUnformatted("buttons", NULL);
+            for (unsigned int btn = 0; btn < j->nr_buttons; btn++)
+                igText("%s:\t%d", joy_map[btn].name, (int)j->buttons[btn]);
+
+            igPopID();
+        }
+    }
+
+    ui_igEnd(DEBUG_CONTROLLERS);
+}
+#endif /* CONFIG_FINAL */
 
 void joysticks_poll(struct clap_context *ctx)
 {

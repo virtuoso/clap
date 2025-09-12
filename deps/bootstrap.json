@@ -27,5 +27,13 @@
         "file": "miniaudio-stb_vorbis.patch",
         "pnum": 1
     }
+},
+{
+    "name": "kissfft",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/mborgerding/kissfft.git",
+        "revision": "origin/master"
+    }
 }
 ]

@@ -75,7 +75,7 @@ vec3 safe_normalize(vec3 v)
 vec3 noise_normal(vec3 world_pos, vec3 geom_normal, float amp, float freq, float mask)
 {
     float flatness = max(dot(geom_normal, vec3(0.0, 1.0, 0.0)), 0.0);
-    freq *= 1.2 - flatness;
+    freq *= 1.3 - flatness;
     /* scale space; eps proportional to frequency for stable gradients */
     vec3 p = world_pos * freq;
     float eps = 0.5 / freq;
@@ -119,16 +119,20 @@ float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
 float fog_cloud(vec3 pos, float amp, float freq)
 {
-    float fog = length(sample_noise3d(pos + noise(pos), freq));
-    return mix(0.6, 1.0, mix(0.0, 1.0, fog)) * amp;
+    float fog = length(sample_noise3d(pos + noise(pos.zxy), freq));
+    return mix(0.0, 1.0, mix(0.0, 1.0, fog)) * amp;
 }
 
 float cloud_mask(vec2 luv, float amp, float freq)
 {
+    // luv = luv * 0.5 + 0.5;
+    luv = luv * 2.0 - 1.0;
+    // float r = dot(luv, luv);//length(luv);
     float r = length(luv);
-    float radial = 1.0 - smoothstep(0.6, 1.0, r);
+    float radial = smoothstep(1.0, 0.0, r);
+    // return radial;
     float n = fog_cloud(vec3(luv * 2.5, radial), amp, freq);
-    return saturate(radial * mix(0.6, 1.0, n));
+    return saturate(radial * mix(0.0, 1.0, n));
 }
 
 #endif /* SHADERS_NOISE_GLSL */

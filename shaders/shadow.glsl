@@ -139,9 +139,19 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
 {
     float shadow_factor = 1.0;
 
-    float light_dot = dot(unit_normal, normalize(-light_dir));
+    bool spotlight = light_directional[0] && light_cutoff[0] > 0.0;
+    float light_dot = dot(unit_normal, normalize(spotlight ? light_dir : -light_dir));
     if (light_dot < 0)
         return shadow_factor;
+
+    // XXX
+    if (spotlight) {
+        vec3 to_world_pos = normalize(world_pos.xyz - light_pos[0].xyz);
+        float world_dot = dot(to_world_pos, normalize(-light_dir));
+        if (world_dot < 0)
+            return abs(world_dot);//shadow_factor;
+        // light_dot = 1.0 - light_dot;
+    }
 
     int layer = -1;
 
@@ -153,9 +163,14 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     }
 
     // if (layer < 0)
-    layer = clamp(layer, 0, nr_cascades - 1);
+    layer = clamp(layer, 0, max(nr_cascades - 1, 0));
 
     vec4 shadow_pos = shadow_mvp[layer] * world_pos;
+
+    /* cull crazy projections */
+    if (shadow_pos.w < 1e-3)
+        return shadow_factor;
+
     vec4 proj_coords = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
     proj_coords.xy = convert_pass_tex(proj_coords.xy * 0.5 + 0.5);
     proj_coords.z = convert_from_ndc_z(proj_coords.z);
@@ -194,6 +209,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
             shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
 #endif /* CONFIG_SHADOW_MAP_ARRAY */
 
+    // return shadow_factor;//mix(shadow_factor, 1.0, max(pow(1 - light_dot, 1.5), 1.0));
     return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.5));
 }
 

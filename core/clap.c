@@ -278,6 +278,9 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.fog_near = 5.0;
     ctx->render_options.fog_far = 80.0;
     vec3_dup(ctx->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
+    ctx->render_options.film_grain = true;
+    ctx->render_options.film_grain_factor = 0.2;
+    ctx->render_options.film_grain_power = 0.5;
 }
 
 /****************************************************************************
@@ -400,6 +403,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     mem_frame_begin();
     clap_fps_calc(ctx, &ctx->fps);
+    static const typeof(ctx->current_time.tv_nsec) nsec_per_24fps = NSEC_PER_SEC / 24;
+    ctx->render_options.time = (double)(ctx->current_time.tv_nsec / nsec_per_24fps) / 24.0;
     clap_timers_run(ctx);
 
     renderer_frame_begin(&ctx->renderer);
@@ -409,6 +414,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     imgui_render_begin(width, height);
     fuzzer_input_step(ctx);
+    // igText("grain time: %lf\nframes: %lu", ctx->render_options.time, ctx->current_time.tv_nsec / nsec_per_24fps);
     input_events_dispatch();
 
     PROF_FIRST(start);
@@ -464,6 +470,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     profiler_show(PROF_PTR(start), ctx->fps.fps_fine);
     renderer_debug(&ctx->renderer);
     input_debug();
+    controllers_debug();
     memory_debug();
 
     imgui_render();

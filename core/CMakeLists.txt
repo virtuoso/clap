@@ -51,7 +51,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(DEBUG_LIBRARIES ${ASAN_FLAG};${UBSAN_FLAG})
     endif ()
 else ()
-    set(DEBUG_LIBRARIES "-flto")
+    set(DEBUG_LIBRARIES "-flto -Wl,--no-merge-data-segments")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -flto")
 endif ()
 
@@ -121,6 +121,7 @@ set(MA_DIR ${CMAKE_SOURCE_DIR}/deps/src/miniaudio)
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c fs-ops-posix.c logger.c input.c messagebus.c primitives.c motion.c
+    object.c util.c logger.c input.c messagebus.c primitives.c motion.c graph.c
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c noise.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
@@ -275,10 +276,11 @@ set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${RENDERER_LIBRARIES})
 target_link_libraries(${ENGINE_LIB} PRIVATE ${PNG_LIBRARY})
-target_link_libraries(${ENGINE_LIB} PRIVATE libode meshoptimizer)
+target_link_libraries(${ENGINE_LIB} PRIVATE libode meshoptimizer kissfft)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${EXTRA_LIBRARIES})
 target_link_options(${ENGINE_LIB} PRIVATE ${DEBUG_LIBRARIES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${MA_DIR})
+target_include_directories(${ENGINE_LIB} PRIVATE ${KISSFFT_INCLUDE})
 target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
 target_include_directories(${ENGINE_LIB} PRIVATE ${GLEW_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})

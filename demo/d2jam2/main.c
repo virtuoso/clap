@@ -14,6 +14,7 @@
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
+#include "noise.h"
 #include "ui.h"
 #include "scene.h"
 #include "sound.h"
@@ -32,6 +33,8 @@ static struct scene scene; /* XXX */
 
 static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao = true, vsm = true;
 
+static texture_t fog_noise3d;
+
 static void build_main_pl(struct pipeline **pl)
 {
     *pl = CRES_RET(
@@ -42,6 +45,7 @@ static void build_main_pl(struct pipeline **pl)
                 .clap_ctx         = scene.clap_ctx,
                 .light            = &scene.light,
                 .camera           = &scene.cameras[0],
+                .noise3d          = &fog_noise3d,
                 .nr_cascades      = 1,
                 .name             = "main"
             },
@@ -55,15 +59,16 @@ static void build_main_pl(struct pipeline **pl)
 static particle_system *swarm;
 static particle_system *fog;
 static int (*orig_update)(entity3d *, void *);
+static int swarm_joint = -1;
 
 static int particles_update(entity3d *e, void *data)
 {
     if (!swarm) goto out;
-    // struct scene *scene = data;
 
     vec3 pos;
-    transform_pos(&e->xform, pos);
-    vec3_add(pos, pos, (vec3) { 0.0, 1.75, 0.0 });
+    auto joint = &e->joints[swarm_joint];
+    vec3_dup(pos, joint->pos);
+
     if (swarm)  particle_system_position(swarm, pos);
     /* fog doesn't really move with the character */
     // if (fog)    particle_system_position(fog, pos);
@@ -72,13 +77,18 @@ out:
     return orig_update(e, data);
 }
 
-static void swarm_init(struct scene *scene)
+static __unused void swarm_init(struct scene *scene)
 {
+    auto e = scene->control;
+    auto m = e->txmodel->model;
+
+    swarm_joint = CRES_RET(model3d_get_joint(m, JOINT_HEAD), return);
+
     auto prog = CRES_RET(pipeline_shader_find_get(scene->pl, "particle"), return);
     swarm = CRES_RET(
         ref_new_checked(particle_system,
             .name       = "swarm",
-            .prog       = prog,
+            .prog       = ref_pass(prog),
             .mq         = &scene->mq,
             .dist       = PART_DIST_CBRT,
             .emit       = white_pixel(),
@@ -92,7 +102,6 @@ static void swarm_init(struct scene *scene)
         ),
     );
 
-    auto e = scene->control;
     orig_update = e->update;
     e->update = particles_update;
 }
@@ -102,17 +111,29 @@ static __unused void swarm_done(void)
     ref_put(swarm);
 }
 
-static texture_t fog_noise3d;
-#include "noise.h"
+static cerr fog_noise3d_init(texture_t *tex)
+{
+    if (!tex)   return CERR_INVALID_ARGUMENTS;
+    if (!texture_loaded(tex))
+        CERR_RET(
+            noise_grad3d_bake_rgb8_tex(
+                tex, /*side*/32, /*octaves*/1, /*lacunarity*/2.0, /*gain*/0.25, /*period*/32, /*seed*/7
+            ),
+            return __cerr
+        );
+
+    return CERR_OK;
+}
+
 static __unused void fog_init(struct scene *scene)
 {
-    CERR_RET(noise_grad3d_bake_rgb8_tex(&fog_noise3d, /*side*/32, /*octaves*/4, /*lacunarity*/2.0, /*gain*/0.25, /*period*/32, /*seed*/7), return);
+    // CERR_RET(noise_grad3d_bake_rgb8_tex(&fog_noise3d, /*side*/32, /*octaves*/1, /*lacunarity*/2.0, /*gain*/0.25, /*period*/32, /*seed*/7), return);
 
     auto prog = CRES_RET(pipeline_shader_find_get(scene->pl, "particle"), return);
     fog = CRES_RET(
         ref_new_checked(particle_system,
             .name       = "fog",
-            .prog       = prog,
+            .prog       = ref_pass(prog),
             .mq         = &scene->mq,
             .dist       = PART_DIST_CBRT,
             .emit       = transparent_pixel(),
@@ -121,15 +142,20 @@ static __unused void fog_init(struct scene *scene)
             .radius     = 50.0,
             .min_radius = 10.0,
             .scale      = 2.0,
-            .velocity   = 0.05,
+            .velocity   = 0.03,
             .bloom_intensity    = 0.0,
         ),
     );
 
     auto e = particle_system_entity(fog);
     e->txmodel->mat.use_3d_fog = true;
-    e->txmodel->mat.fog_3d_amp   = 0.8;//0.38;//1.6;
-    e->txmodel->mat.fog_3d_scale = 0.09;//0.9;
+    e->txmodel->mat.fog_3d_amp   = 0.7;//4.0;//0.8;//0.38;//1.6;
+    e->txmodel->mat.fog_3d_scale = 0.05;//0.06;//0.09;//0.9;
+    e->txmodel->mat.use_noise_normals = NOISE_NORMALS_NONE;
+    e->txmodel->mat.noise_normals_amp   = 0.36;//4.0;//0.8;//0.38;//1.6;
+    e->txmodel->mat.noise_normals_scale = 1.24;//0.06;//0.09;//0.9;
+    e->txmodel->mat.metallic = 0.0;
+    e->txmodel->mat.roughness = 1.0;
     model3dtx_set_texture(e->txmodel, UNIFORM_NOISE3D_TEX, &fog_noise3d);
     e->txmodel->model->alpha_blend = true;
 }
@@ -333,7 +359,7 @@ int main(int argc, char **argv, char **envp)
         .callback_data  = &scene,
         .default_font_name  = "ofl/Chivo[wght].ttf",
 #ifdef CONFIG_FINAL
-        .lut_presets    = (lut_preset[]){ LUT_SCIFI_BLUEGREEN },
+        .lut_presets    = (lut_preset[]){ LUT_SCIFI_BLUEGREEN, LUT_DEEP_SEA_ABYSS, LUT_BLOODVEIL_CRIMSON },
 #else
         .lut_presets    = lut_presets_all,
 #endif /* CONFIG_FINAL */
@@ -413,23 +439,26 @@ int main(int argc, char **argv, char **envp)
     display_get_sizes(&scene.width, &scene.height);
     scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
 
-    intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
-    if (intro_sound) {
-        float intro_gain = settings_get_num(clap_get_settings(scene.clap_ctx), NULL, "music_volume");
-        sound_set_gain(intro_sound, intro_gain);
-        sound_set_looping(intro_sound, true);
-        sound_play(intro_sound);
-    }
+    // intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
+    // if (intro_sound) {
+    //     float intro_gain = settings_get_num(clap_get_settings(scene.clap_ctx), NULL, "music_volume");
+    //     sound_set_gain(intro_sound, intro_gain);
+    //     sound_set_looping(intro_sound, true);
+    //     sound_play(intro_sound);
+    // }
 
     title_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "brass attack.ogg");
     if (title_sound)    sound_set_gain(title_sound, 0.1);
 
-    CERR_RET(clap_set_lighting_lut(scene.clap_ctx, "scifi bluegreen"), goto exit_sound);
+    // CERR_RET(clap_set_lighting_lut(scene.clap_ctx, "bloodveil crimson"), goto exit_sound);
+    CERR_RET(clap_set_lighting_lut(scene.clap_ctx, "deep sea abyss"), goto exit_sound);
 
     scene_camera_add(&scene);
     scene.camera = &scene.cameras[0];
     scene.camera->view.main.far_plane = 700.0;
     scene_cameras_calc(&scene);
+
+    fog_noise3d_init(&fog_noise3d);
 
     build_main_pl(&scene.pl);
 
@@ -442,8 +471,8 @@ int main(int argc, char **argv, char **envp)
     scene_load(&scene, "cave.json");
     noisy_mesh(&scene);
 
-    swarm_init(&scene);
-    // fog_init(&scene);
+    // swarm_init(&scene);
+    fog_init(&scene);
 
     loading_screen_done(scene.ls);
 
@@ -451,12 +480,17 @@ int main(int argc, char **argv, char **envp)
     scene.ang_speed = 45.0;
     scene.limbo_height = 70.0;
     render_options *ropts = clap_get_render_options(scene.clap_ctx);
-    ropts->fog_near = 200.0;
-    ropts->fog_far = 300.0;
+    ropts->fog_near = 10.0;
+    ropts->fog_far = 200.0;
+    vec3_dup(ropts->fog_color, (vec3) { 0.0, 0.35, 0.605});
     ropts->lighting_operator = 1.0;
-    ropts->contrast = 0.15;
-    ropts->lighting_exposure = 2.4;
+    ropts->contrast = 0.1;
+    ropts->lighting_exposure = 2.6;
+    ropts->bloom_threshold = 0.7;
+    ropts->bloom_exposure = 2.6;
+    ropts->bloom_intensity = 2.4;
     // ropts->light_drqaws_enabled = true;
+    ropts->film_grain = true;
 
     imgui_render();
     renderer_frame_end(clap_get_renderer(clap_res.val));
@@ -465,11 +499,11 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
-    swarm_done();
-    // fog_done();
+    //swarm_done();
+    fog_done();
 exit_sound:
-    if (intro_sound)
-        ref_put(intro_sound);
+    // if (intro_sound)
+    //     ref_put(intro_sound);
 exit_scene:
     scene_done(&scene);
     ref_put(scene.pl); /* XXX: scene_init()/scene_done() */

@@ -47,6 +47,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_TEX(UNIFORM_SHADOW_MAP3,         shadow_map3),
     SHADER_TEX(UNIFORM_LUT_TEX,             lut_tex),
     SHADER_TEX(UNIFORM_NOISE3D_TEX,         noise3d),
+    SHADER_TEX(UNIFORM_GRAIN_TEX,           grain_tex),
     SHADER_TEX(UNIFORM_LIGHT_MAP,           light_map),
     /* "projview" uniform buffer */
     SHADER_VAR(UNIFORM_PROJ,                "proj",                 DT_MAT4),
@@ -131,6 +132,10 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_FOG_NEAR,            "fog_near",             DT_FLOAT),
     SHADER_VAR(UNIFORM_FOG_FAR,             "fog_far",              DT_FLOAT),
     SHADER_VAR(UNIFORM_FOG_COLOR,           "fog_color",            DT_VEC3),
+    SHADER_VAR(UNIFORM_FILM_GRAIN,          "film_grain",           DT_INT),
+    SHADER_VAR(UNIFORM_FILM_GRAIN_SHIFT,    "film_grain_shift",     DT_FLOAT),
+    SHADER_VAR(UNIFORM_FILM_GRAIN_FACTOR,   "film_grain_factor",    DT_FLOAT),
+    SHADER_VAR(UNIFORM_FILM_GRAIN_POWER,    "film_grain_power",     DT_FLOAT),
 };
 
 /* Runtime handle for a variable block (uniform buffer) */
@@ -242,7 +247,11 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_LIGHTING_OPERATOR,
                             UNIFORM_FOG_COLOR,
                             UNIFORM_FOG_NEAR,
-                            UNIFORM_FOG_FAR),
+                            UNIFORM_FOG_FAR,
+                            UNIFORM_FILM_GRAIN,
+                            UNIFORM_FILM_GRAIN_SHIFT,
+                            UNIFORM_FILM_GRAIN_FACTOR,
+                            UNIFORM_FILM_GRAIN_POWER)
 };
 
 /* Runtime shader context */

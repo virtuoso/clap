@@ -1275,7 +1275,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
     model3dtx *apple_txm = NULL, *frame_txm, *bar_txm = NULL;
     model3d *apple_m, *frame_m, *bar_m;
     struct ui_element *frame, *bar, *tui;
-    struct font *font = font_get_default(clap_get_font(ui->clap_ctx));
+    struct font *font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 16);//font_get_default(clap_get_font(ui->clap_ctx));
     float xoff = 0, yoff = 0, width = 0;
 
     ui_modality_send(ui);
@@ -1299,7 +1299,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
     if (number_of_apples > 0) {
         apple_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
         model3d_set_name(apple_m, "inventory apple");
-        apple_txm = ref_new(model3dtx, .model = ref_pass(apple_m), .texture_file_name = "apple.png");
+        apple_txm = ref_new(model3dtx, .model = ref_pass(apple_m), .texture_file_name = "mushroom thumb.png");
         ui_add_model(ui, apple_txm);
     }
     if (number_of_immature_apples > 0) {
@@ -1309,7 +1309,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
         bar_txm = ref_new(model3dtx, .model = ref_pass(bar_m), .tex = white_pixel());
         ui_add_model(ui, bar_txm);
     }
-    frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0.01, 1, 1, 0.02);
+    frame_m = model3d_new_frame(ui->ui_prog, 0, 0, 0.01, 1, 1, 0.04);
     model3d_set_name(frame_m, "inventory item frame");
     frame_m->alpha_blend = false;
     frame_txm = ref_new(model3dtx, .model = ref_pass(frame_m), .tex = white_pixel());
@@ -1359,12 +1359,12 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
             inv->uies[i]->priv = (void *)(uintptr_t)i;
             if (apple_ages[i] < 1.0) {
                 // immature apple
-                entity3d_color(inv->uies[i]->entity, COLOR_PT_SET_ALPHA, (vec4){ 0.1, 0.5, 0.9, 0.3 });
+                entity3d_color(inv->uies[i]->entity, COLOR_PT_SET_ALPHA, (vec4){ 0.1, 0.5, 0.9, apple_ages[i] });
             } else {
                 // mature apple
                 entity3d_color(inv->uies[i]->entity, COLOR_PT_NONE, (vec4){});
             }
-            CHECK(tui = ui_printf(ui, font, inv->uies[i], color, 0, "apple"));
+            CHECK(tui = ui_printf(ui, font, inv->uies[i], color, 0, "mushroom"));
         } else {
             inv->uies[i]->on_click = inv_onclick;
             inv->uies[i]->on_focus = inv_onfocus;

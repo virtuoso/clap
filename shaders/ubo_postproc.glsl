@@ -18,6 +18,10 @@ layout (std140, binding = UBO_BINDING_postproc) uniform postproc {
     vec3    fog_color;
     float   fog_near;
     float   fog_far;
+    bool    film_grain;
+    float   film_grain_shift;
+    float   film_grain_factor;
+    float   film_grain_power;
 };
 
 #endif /* SHADERS_UBO_POSTPROC_GLSL */

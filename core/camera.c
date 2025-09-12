@@ -163,15 +163,27 @@ static void camera_target(struct camera *c, entity3d *entity)
         /* for characters, assume origin is between their feet */
         transform_pos(&entity->xform, c->target);
         /* look at three quarters their height (XXX: parameterize) */
-        height = entity3d_aabb_Y(entity) * 3 / 4;
-        c->target[1] += height;
+        // height = entity3d_aabb_Y(entity) * 3 / 4;
+        // c->target[1] += height;
+
+        height = entity3d_aabb_Y(entity);// * 3 / 4;
+
+        auto jres = model3d_get_joint(entity->txmodel->model, JOINT_HEAD);
+        if (IS_CERR(jres)) {
+            c->target[1] += height;
+        } else {
+            auto joint = &entity->joints[jres.val];
+            // vec3_dup(c->target, joint->pos);
+            vec3_add(c->target, joint->pos, (vec3) { 0.0, height * 0.2, 0.0 });
+        }
     } else {
         /* otherwise, origin can't be trusted at all; look at dead center */
         vec3_dup(c->target, entity->aabb_center);
         height = entity3d_aabb_Y(entity) / 2;
     }
 
-    float dist_cap = fmaxf(10.0, entity3d_aabb_avg_edge(entity));
+    // float dist_cap = fmaxf(10.0, entity3d_aabb_avg_edge(entity));
+    float dist_cap = fmaxf(3.0, entity3d_aabb_avg_edge(entity));
     c->dist = fminf(height * 3, fminf(dist_cap, c->view.main.far_plane - 10.0));
 }
 

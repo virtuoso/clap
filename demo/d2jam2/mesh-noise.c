@@ -86,7 +86,9 @@ static texture_t cave_pixel;
 static cresp(entity3d) make_crystal(struct scene *scene)
 {
     if (!texture_loaded(&crystal_pixel))
-        CERR_RET_T(texture_pixel_init(&crystal_pixel, (float[]){ 0.3, 0.5, 0.5, 1 }), entity3d);
+        CERR_RET_T(texture_pixel_init(&crystal_pixel, (float[]){ 0.6, 1.0, 1.0, 1 }), entity3d);
+        // CERR_RET_T(texture_pixel_init(&crystal_pixel, (float[]){ 0.3, 0.5, 0.5, 1 }), entity3d);
+
         // CERR_RET_T(texture_pixel_init(&crystal_pixel, (float[]){ 0.6, 0.30, 0.5, 1 }), entity3d);
 
     LOCAL_SET(mesh_t, mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "crystal"), entity3d);
@@ -396,6 +398,52 @@ static cresp(entity3d) make_pillar(struct scene *scene, unsigned int idx)
     return cresp_val(entity3d, entity);
 }
 
+static const room_params corridor_params = {
+    .radius         = 6.0,
+    .height         = 32.0,
+    .nr_segments    = 4,
+};
+
+cresp(entity3d) make_corridor(struct scene *scene, const room_params *_params)
+{
+    const room_params *params = _params ? : &corridor_params;
+
+    LOCAL_SET(mesh_t, mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cave"), entity3d);
+
+    prim_emit_cylinder((vec3){}, params->height, params->radius, params->nr_segments, .mesh = mesh, .clockwise = true, .skip_mask = 3);
+    prim_emit_cylinder((vec3){}, params->height, params->radius + 0.1, params->nr_segments, .mesh = mesh, .clockwise = false, .skip_mask = 3);
+
+    mesh_aabb_calc(mesh);
+    mesh_optimize(mesh);
+
+    LOCAL_SET(shader_prog, prog) = CRES_RET_T(pipeline_shader_find_get(scene->pl, "model"), entity3d);
+    LOCAL_SET(model3d, model) = CRES_RET_T(ref_new_checked(model3d, .prog = prog, .mesh = mesh, .name = "corridor"), entity3d);
+
+    LOCAL_SET(model3dtx, txm) = CRES_RET_T(
+        ref_new_checked(
+            model3dtx,
+            .model      = ref_pass(model),
+            // .tex        = &cave_pixel,
+            // .texture_file_name = "apple.png",
+            .texture_file_name = "dnd-wall.png",
+            // .normal_file_name  = "dnd-wall.png",
+            .metallic   = 1.0,
+            .roughness  = 0.6
+        ),
+        entity3d
+    );
+
+    scene_add_model(scene, txm);
+    auto entity = CRES_RET_T(ref_new_checked(entity3d, .txmodel = ref_pass(txm)), entity3d);
+    entity3d_position(entity, (vec3) { 90, 4.6, 5 });
+    entity3d_rotate(entity, M_PI_2, M_PI_4, 0.0);
+
+    auto phys = clap_get_phys(scene->clap_ctx);
+    entity3d_add_physics(entity, phys, 0.0, GEOM_TRIMESH, PHYS_GEOM, 0, 0, 0);
+
+    return cresp_val(entity3d, entity);
+}
+
 static const room_params cave_params = {
     .radius         = 120.0,
     .height         = 24.0,
@@ -405,7 +453,6 @@ static const room_params cave_params = {
 cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
 {
     const room_params *params = _params ? : &cave_params;
-    if (!params)    params = &cave_params;
 
     if (!texture_loaded(&cave_pixel))
         CERR_RET_T(texture_pixel_init(&cave_pixel, (float[]){ 0.31, 0.30, 0.33, 1 }), entity3d);
@@ -475,8 +522,8 @@ cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
     // if (!model3dtx_loaded_texture(txm, UNIFORM_EMISSION_MAP))
     //     model3dtx_set_texture(txm, UNIFORM_EMISSION_MAP, black_pixel());
 
-    txm->mat.roughness              = 0.3;
-    txm->mat.roughness_ceil         = 1.0;
+    txm->mat.roughness              = 0.0;
+    txm->mat.roughness_ceil         = 0.4;
     txm->mat.roughness_amp          = 0.5;
     txm->mat.roughness_scale        = 0.7;
     txm->mat.roughness_oct          = 3;
@@ -488,8 +535,8 @@ cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
     txm->mat.metallic_mode          = MAT_METALLIC_ONE_MINUS_ROUGHNESS;
     txm->mat.shared_scale           = true;
     txm->mat.use_noise_normals      = NOISE_NORMALS_GPU;
-    txm->mat.noise_normals_amp      = 0.9;//0.5;
-    txm->mat.noise_normals_scale    = 3.5;//0.03;
+    txm->mat.noise_normals_amp      = 0.7;//0.8;//0.5;
+    txm->mat.noise_normals_scale    = 3.5;//3.0;//0.03;
     // txm->mat.use_noise_emission     = true;
 
     scene_add_model(scene, txm);
@@ -533,6 +580,8 @@ cerr noisy_mesh(struct scene *scene)
     for (int i = 0; i < 32; i++)
         make_crystal(scene);
         // CRES_RET_CERR(make_crystal(scene));
+
+    make_corridor(scene, NULL);
 
     // for (size_t tri = 0; tri < mesh_nr_idx(mesh))
 

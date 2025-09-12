@@ -185,8 +185,8 @@ static cerr load_texture_buffer(struct shader_prog *p, void *buffer, int width, 
             tex,
             .target       = shader_get_texture_slot(p, var),
             .wrap         = TEX_WRAP_REPEAT,
-            .min_filter   = TEX_FLT_NEAREST,
-            .mag_filter   = TEX_FLT_NEAREST
+            .min_filter   = /*TEX_FLT_NEAREST*/TEX_FLT_LINEAR,
+            .mag_filter   = /*TEX_FLT_NEAREST*/TEX_FLT_LINEAR
         ),
         return __cerr
     );
@@ -507,6 +507,9 @@ static inline void entity3d_debug(struct scene *scene, entity3d *e) {}
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
 {
+    for (int i = 0; i < JOINT_TYPE_MAX; i++)
+        m->joint_types[i] = -1;
+
     m->joints = mem_alloc(sizeof(struct model_joint), .nr = nr_joints, .fatal_fail = 1);
     for (int j = 0; j < nr_joints; j++) {
         memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
@@ -516,6 +519,13 @@ int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
 
     m->nr_joints = nr_joints;
     return 0;
+}
+
+cres(int) model3d_get_joint(model3d *m, joint_type type)
+{
+    if (type >= JOINT_TYPE_MAX) return cres_error(int, CERR_INVALID_ARGUMENTS);
+
+    return m->joint_types[type] >= 0 ? cres_val(int, m->joint_types[type]) : cres_error(int, CERR_NOT_FOUND);
 }
 
 void entity3d_set_lod(entity3d *e, int lod, bool force)
@@ -734,6 +744,11 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_FOG_NEAR, ropts->fog_near);
                 shader_set_var_float(prog, UNIFORM_FOG_FAR, ropts->fog_far);
                 shader_set_var_ptr(prog, UNIFORM_FOG_COLOR, 1, ropts->fog_color);
+                shader_set_var_int(prog, UNIFORM_FILM_GRAIN, ropts->film_grain);
+                // float time = ropts->time - floor(ropts->time);
+                shader_set_var_float(prog, UNIFORM_FILM_GRAIN_SHIFT, (float)ropts->time);
+                shader_set_var_float(prog, UNIFORM_FILM_GRAIN_FACTOR, ropts->film_grain_factor);
+                shader_set_var_float(prog, UNIFORM_FILM_GRAIN_POWER, ropts->film_grain_power);
             }
 
             if (opts->width)
@@ -1382,7 +1397,24 @@ static int default_update(entity3d *e, void *data)
 {
     struct scene *scene = data;
 
-    if (transform_is_updated(&e->xform)) {
+    auto parent = e->parent;
+    if (parent) {
+        auto pmodel = parent->txmodel->model;
+
+        mat4x4 trs, mx;
+        mat4x4_identity(mx);
+        transform_translate_mat4x4(&e->xform, mx);
+        mat4x4_scale_aniso(mx, mx, e->scale, e->scale, e->scale);
+        transform_rotate_mat4x4(&e->xform, mx);
+        
+        mat4x4_mul(trs, parent->joint_transforms[e->parent_joint], pmodel->joints[e->parent_joint].bind);
+        mat4x4_mul(e->mx, trs, mx);
+
+        mat4x4_mul(e->mx, parent->mx, e->mx);
+
+        /* move after the condition */
+        entity3d_aabb_update(e);
+    } else if (transform_is_updated(&e->xform)) {
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);
         transform_rotate_mat4x4(&e->xform, e->mx);
@@ -1404,18 +1436,36 @@ static int default_update(entity3d *e, void *data)
             vec3 pos;
             transform_pos(&e->xform, pos);
             vec3_add(pos, pos, e->light_off);
-            if (light_is_spotlight(light, e->light_idx)) {
-                vec3 angles;
+            if (light_is_spotlight(light, e->light_idx) && e->priv) {
+                // vec4 angles = { 0.0, 0.0, 0.0, 1.0 };
                 /* view_upate_from_angles() expects degrees, for some reason */
-                transform_rotation(&e->xform, angles, true);
-                vec3 dir = { sin(to_radians(angles[1])), 0.0, cos(to_radians(angles[1])) };
+                // transform_rotation(&e->xform, angles, true);
+                auto subview = &scene->camera->view.main;
+                vec4 dir;// = { sin(to_radians(angles[1])), 0.0, cos(to_radians(angles[1])) };
+                mat4x4 mvp, invmvp;//, view_mx;
+                mat4x4_mul(mvp, subview->proj_mx, subview->view_mx);
+                mat4x4_invert(invmvp, mvp);
+                // mat4x4_dup(view_mx, subview->view_mx);
+                // mat4x4_mul_vec4_post(dir, invmvp, angles);
+                mat4x4_mul_vec4_post(dir, invmvp, (vec4) { 0.0, 0.0, 1.0, 1.0 });
+                vec3_scale(dir, dir, 1.0f / dir[3]);
 
                 vec3_norm_safe(dir, dir);
-                vec3_add_scaled(pos, pos, dir, 1.0, 0.1);
+                vec3_add_scaled(pos, pos, dir, 1.0, 0.2);
 
+                // light_set_direction(light, e->light_idx, dir);
                 light_set_direction(light, e->light_idx, dir);
-                view_update_perspective_projection(&light->view[0], scene->width, scene->height, 1.0);
-                view_update_from_angles(&light->view[0], &light->pos[e->light_idx * 3], angles[0], 180.0 - angles[1], angles[2]);
+                // view_update_from_angles(
+                //     &light->view[0],
+                //     &light->pos[e->light_idx * 3],
+                //     angles[0], 180.0f - angles[1], angles[2]
+                // );
+                view_update_from_frustum(&light->view[0], &scene->camera->view, dir, -1.0, true);
+                // view_update_perspective_projection(&light->view[0], scene->width, scene->height, 1.0);
+                // vec3_dup(light->view[0].main.view_mx[3], pos);
+                mat4x4_translate_in_place(light->view[0].main.view_mx, pos[0], pos[1], pos[2]);
+                // mat4x4_dup(light->view[0].main.view_mx, view_mx);
+                mat4x4_invert(light->view[0].main.inv_view_mx, light->view[0].main.view_mx);
                 view_calc_frustum(&light->view[0]);
             }
 
@@ -1431,7 +1481,7 @@ static int default_update(entity3d *e, void *data)
      */
     struct camera *cam = scene->camera;
     if ((aabb_point_is_inside(e->aabb, transform_pos(&cam->xform, NULL)) ||
-         aabb_point_is_inside(e->aabb, transform_pos(&scene->control->xform, NULL))) &&
+         (scene->control && aabb_point_is_inside(e->aabb, transform_pos(&scene->control->xform, NULL)))) &&
          e != scene->control) {
         float volume = entity3d_aabb_X(e) * entity3d_aabb_Y(e) * entity3d_aabb_Z(e);
 
@@ -1688,4 +1738,26 @@ model3dtx *mq_nonempty_txm_next(struct mq *mq, model3dtx *txm, bool fwd)
     } while (list_empty(&next_txm->entities) && next_txm != txm);
 
     return list_empty(&next_txm->entities) ? NULL : next_txm;
+}
+
+struct mq_entity_match {
+    const char  *name;
+    entity3d    *e;
+};
+
+static void mq_entity_match(entity3d *e, void *data)
+{
+    struct mq_entity_match *mem = data;
+
+    if (!strcmp(entity_name(e), mem->name)) mem->e = e;
+}
+
+cresp(entity3d) mq_find_entity(struct mq *mq, const char *name)
+{
+    struct mq_entity_match mem = { .name = name };
+
+    mq_for_each(mq, mq_entity_match, &mem);
+    if (!mem.e) return cresp_error(entity3d, CERR_NOT_FOUND);
+
+    return cresp_val(entity3d, mem.e);
 }

@@ -111,6 +111,39 @@ static void __scifi_neon(vec3 in, vec3 out)
     out[2] = clampf(out[2], 0.0, 1.0);
 }
 
+static inline __unused float filmic_curve(float x)
+{
+    // Simple Hable-inspired curve
+    float A = 0.15f;
+    float B = 0.50f;
+    float C = 0.10f;
+    float D = 0.20f;
+    float E = 0.02f;
+    float F = 0.30f;
+    return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F)) - E/F;
+}
+
+static inline float abyss_curve(float x, float boost, float thresh)
+{
+    // Shifted gamma-ish curve: keeps highs brighter
+    float y = powf(x + boost, 1.3f) - thresh;
+    return clampf(y, 0.0f, 1.0f);
+}
+
+static void __deep_sea_abyss(vec3 in, vec3 out)
+{
+    out[0] = abyss_curve(clampf(in[0] * 0.3f + in[2] * 0.25, 0.0, 1.0), 0.1, 0.03);
+    out[1] = abyss_curve(clampf(in[1] * 0.5f + in[2] * 0.15, 0.0, 1.0), 0.1, 0.03);
+    out[2] = abyss_curve(clampf(in[2] * 1.3f, 0.0, 1.0), 0.1, 0.03);
+}
+
+static void __bloodveil_crimson(vec3 in, vec3 out)
+{
+    out[0] = abyss_curve(clampf(in[0] * 1.6f, 0.0, 1.0), 0.1, 0.03);
+    out[1] = abyss_curve(clampf(in[1] * 0.3f + in[0] * 0.1, 0.0, 1.0), 0.1, 0.03);
+    out[2] = abyss_curve(clampf(in[2] * 0.3f + in[0] * 0.1, 0.0, 1.0), 0.1, 0.03);
+}
+
 static void __mad_max_bleach(vec3 in, vec3 out)
 {
     float luma = vec3_mul_inner(in, (vec3){ 0.3f, 0.59f, 0.11f });
@@ -201,6 +234,18 @@ static struct {
         .exposure   = 4.6,
         .contrast   = 0.2,
     },
+    [LUT_DEEP_SEA_ABYSS]        = {
+        .name       = "deep sea abyss",
+        .fn         = __deep_sea_abyss,
+        .exposure   = 2.4,
+        .contrast   = 0.1,
+    },
+    [LUT_BLOODVEIL_CRIMSON]        = {
+        .name       = "bloodveil crimson",
+        .fn         = __bloodveil_crimson,
+        .exposure   = 2.4,
+        .contrast   = 0.1,
+    },
     [LUT_MAD_MAX_BLEACH]        = {
         .name       = "mad max bleach",
         .fn         = __mad_max_bleach,
@@ -226,6 +271,8 @@ lut_preset lut_presets_all[LUT_MAX + 1] = {
     LUT_GREEN_MATRIX,
     LUT_SCIFI_BLUEGREEN,
     LUT_SCIFI_NEON,
+    LUT_DEEP_SEA_ABYSS,
+    LUT_BLOODVEIL_CRIMSON,
     LUT_MAD_MAX_BLEACH,
     LUT_TEAL_ORANGE,
     LUT_MAX,
