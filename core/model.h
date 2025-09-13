@@ -261,6 +261,14 @@ struct queued_animation {
     frame_fn        frame_cb;
 };
 
+struct joint {
+    vec3    translation;
+    quat    rotation;
+    vec3    scale;
+    mat4x4  global;
+    int     off[PATH_NONE];
+};
+
 typedef struct entity3d {
     model3dtx           *txmodel;
     mat4x4              mx;
