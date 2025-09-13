@@ -570,14 +570,6 @@ static void model3dtx_done(model3dtx *txm, struct shader_prog *p)
     model3d_done(txm->model, p);
 }
 
-struct joint {
-    vec3    translation;
-    quat    rotation;
-    vec3    scale;
-    mat4x4  global;
-    int     off[PATH_NONE];
-};
-
 struct channel {
     float           *time;
     float           *data;

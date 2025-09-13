@@ -378,6 +378,39 @@ static const char *attr_names[ATTR_MAX] = {
     [ATTR_WEIGHTS]  = "joint weights",
 };
 
+static void model_joint_subtree(model3d *m, unsigned int idx, ImGuiTreeNodeFlags flags)
+{
+    auto joint = &m->joints[idx];
+    if (!igTreeNodeEx_StrStr(joint->name, flags, "%s (id: %d/%u)", joint->name, joint->id, idx))
+        return;
+
+    int *child;
+    darray_for_each(child, joint->children)
+        model_joint_subtree(m, *child, flags);
+
+    igTreePop();
+}
+
+static void entity_joint_subtree(entity3d *e, unsigned int idx, ImGuiTreeNodeFlags flags)
+{
+    auto m = e->txmodel->model;
+    auto joint = &m->joints[idx];
+    if (!igTreeNodeEx_StrStr(joint->name, flags, "%s (id: %d/%u)", joint->name, joint->id, idx))
+        return;
+
+    ui_igTableHeader("joint TRS", (const char *[]) { "transform", "X", "Y", "Z", "W "}, 5);
+    ui_igVecRow(e->joints[idx].translation, 3, "translation");
+    ui_igVecRow(e->joints[idx].rotation, 4, "rotation");
+    igEndTable();
+    ui_igMat4x4(e->joint_transforms[idx], joint->name);
+
+    int *child;
+    darray_for_each(child, joint->children)
+        entity_joint_subtree(e, *child, flags);
+
+    igTreePop();
+}
+
 static void model_tabs(model3dtx *txm)
 {
     if (!igBeginTabBar("model properties", 0))
@@ -429,6 +462,21 @@ static void model_tabs(model3dtx *txm)
 
         igEndTable();
         igEndTabItem();
+    }
+
+    if (m->nr_joints) {
+        if (igBeginTabItem("joints", NULL, 0)) {
+            if (igBeginChild_Str("joints", (ImVec2){}, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY, 0)) {
+                /*
+                 * XXX: ImGuiTreeNodeFlags_DrawLinesToNodes looks nicer, but
+                 * requires fixing on the ImGui sidea
+                 */
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DrawLinesFull | ImGuiTreeNodeFlags_DefaultOpen;
+                model_joint_subtree(m, m->root_joint, flags);
+            }
+            igEndChild();
+            igEndTabItem();
+        }
     }
 
     if (igBeginTabItem("material", NULL, 0)) {
@@ -660,6 +708,18 @@ static void scene_entity_inspector_debug(struct scene *scene)
         if (ui_igSliderInt("LOD", &lod, 0, nr_lods, "%u", 0))
             entity3d_set_lod(e, lod, true);
         igEndTable();
+
+        if (txm->model->nr_joints) {
+            if (igBeginChild_Str("joints", (ImVec2){}, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY, 0)) {
+                /*
+                 * XXX: ImGuiTreeNodeFlags_DrawLinesToNodes looks nicer, but
+                 * requires fixing on the ImGui sidea
+                 */
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DrawLinesFull;
+                entity_joint_subtree(e, txm->model->root_joint, flags);
+            }
+            igEndChild();
+        }
 
         igPopItemWidth();
 
