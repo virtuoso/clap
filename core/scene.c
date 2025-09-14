@@ -637,6 +637,54 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
         ui_igCheckbox("skip shadow", &txm->model->skip_shadow);
 
+        static bool draw_armature;
+
+        ui_igCheckbox("draw armature", &draw_armature);
+
+        if (draw_armature) {
+            auto m = e->txmodel->model;
+            static int hl = -1;
+
+            if (ui_igBeginCombo("joint", hl >= 0 ? m->joints[hl].name : "<none>", ImGuiComboFlags_HeightLargest)) {
+                for (unsigned int j = 0; j < m->nr_joints; j++) {
+                    bool selected = hl == j;
+
+                    igPushID_Int(j);
+                    if (igSelectable_Bool(m->joints[j].name, selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
+                        igSetItemDefaultFocus();
+                        hl = j;
+                    }
+                    igPopID();
+                }
+                igEndCombo();
+            }
+
+            for (unsigned i = 0; i < m->nr_joints; i++) {
+                message_send(&(struct message) {
+                    .type   = MT_DEBUG_DRAW,
+                    .debug_draw     = (struct message_debug_draw) {
+                        .color      = { hl == i ? 1.0 : 0.0, hl == i ? 0.0 : 1.0, 0.0, 1.0 },
+                        .radius     = hl == i ? 8.0 : 2.0,
+                        .shape      = DEBUG_DRAW_DISC,
+                        .v0         = { e->joints[i].pos[0], e->joints[i].pos[1], e->joints[i].pos[2] },
+                    }
+                });
+
+                int *j;
+                darray_for_each(j, m->joints[i].children)
+                    message_send(&(struct message) {
+                        .type   = MT_DEBUG_DRAW,
+                        .debug_draw     = (struct message_debug_draw) {
+                            .color      = { 0.5, 0.5, 0.0, 1.0 },
+                            .thickness  = 2.0,
+                            .shape      = DEBUG_DRAW_LINE,
+                            .v0         = { e->joints[i].pos[0], e->joints[i].pos[1], e->joints[i].pos[2] },
+                            .v1         = { e->joints[*j].pos[0], e->joints[*j].pos[1], e->joints[*j].pos[2] },
+                        }
+                    });
+            }
+        }
+
         static bool draw_aabb;
 
         ui_igCheckbox("draw aabb", &draw_aabb);
