@@ -83,6 +83,7 @@ struct model_joint {
     darray(int, children);
     char        *name;
     mat4x4      invmx;
+    mat4x4      bind;
     int         id;
 };
 
@@ -266,6 +267,7 @@ struct joint {
     quat    rotation;
     vec3    scale;
     mat4x4  global;
+    vec4    pos;
     int     off[PATH_NONE];
 };
 

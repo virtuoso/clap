@@ -494,6 +494,7 @@ int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
     m->joints = mem_alloc(sizeof(struct model_joint), .nr = nr_joints, .fatal_fail = 1);
     for (int j = 0; j < nr_joints; j++) {
         memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
+        mat4x4_invert(m->joints[j].bind, invmxs[j]);
         darray_init(m->joints[j].children);
     }
 
@@ -1137,6 +1138,17 @@ static void one_joint_transform(entity3d *e, int joint, int parent)
      * joint_transform = invglobal * jt
      */
     mat4x4_mul(e->joint_transforms[joint], *jt, *invglobal);
+
+    /* translate to model space */
+    mat4x4 trs;
+    mat4x4_mul(trs, e->joint_transforms[joint], model->joints[joint].bind);
+
+    /* model space position */
+    vec4 mpos;
+    mat4x4_mul_vec4_post(mpos, trs, (vec4) { 0.0f, 0.0f, 0.0f, 1.0f });
+
+    /* world space position */
+    mat4x4_mul_vec4_post(j->pos, e->mx, mpos);
 
     darray_for_each(child, model->joints[joint].children)
         one_joint_transform(e, *child, joint);
