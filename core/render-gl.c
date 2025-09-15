@@ -591,7 +591,12 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
     tex->internal_format    = gl_texture_internal_format(opts->format);
     tex->layers             = opts->layers;
     tex->multisampled       = multisampled;
-    tex->updated            = true;
+    /*
+     * we don't have dedicated samplers yet; this is to signal
+     * texture_setup_begin() that sampler parameters need to be
+     * configured, to avoid doing it at each texture_load()
+     */
+    tex->sampler_updated    = true;
     if (opts->border)
         memcpy(tex->border, opts->border, sizeof(tex->border));
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
@@ -669,7 +674,7 @@ texture_t *texture_clone(texture_t *tex)
         ret->format             = tex->format;
         ret->internal_format    = tex->internal_format;
         ret->loaded             = tex->loaded;
-        ret->updated            = true;
+        ret->sampler_updated    = true;
         tex->loaded             = false;
     }
 
@@ -708,8 +713,6 @@ static cerr texture_storage(texture_t *tex, void *buf)
     if (err != GL_NO_ERROR)
         return CERR_NOT_SUPPORTED;
 
-    tex->updated = false;
-
     return CERR_OK;
 }
 
@@ -732,7 +735,6 @@ cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 
     tex->width = width;
     tex->height = height;
-    tex->updated = true;
     GL(glBindTexture(tex->type, tex->id));
     cerr err = texture_storage(tex, NULL);
     GL(glBindTexture(tex->type, 0));
@@ -745,7 +747,7 @@ static cerr texture_setup_begin(texture_t *tex, void *buf)
     GL(glActiveTexture(tex->target));
     GL(glBindTexture(tex->type, tex->id));
 
-    if (!tex->updated)   goto out;
+    if (!tex->sampler_updated)   goto out;
 
     if (tex->type != GL_TEXTURE_2D_MULTISAMPLE &&
         tex->type != GL_TEXTURE_2D_MULTISAMPLE_ARRAY) {
@@ -760,6 +762,9 @@ static cerr texture_setup_begin(texture_t *tex, void *buf)
             GL(glTexParameterfv(tex->type, GL_TEXTURE_BORDER_COLOR, tex->border));
 #endif /* CONFIG_GLES */
     }
+
+    tex->sampler_updated = false;
+
 out:
     return texture_storage(tex, buf);
 }
@@ -778,20 +783,12 @@ cerr_check texture_load(texture_t *tex, texture_format format,
     if (!texture_format_supported(format))
         return CERR_NOT_SUPPORTED;
 
-    GLuint gl_format = gl_texture_format(format);
+    tex->format             = gl_texture_format(format);
+    tex->internal_format    = gl_texture_internal_format(format);
+    tex->component_type     = gl_texture_component_type(format);
 
-    if (gl_format != tex->format) {
-        tex->format             = gl_texture_format(format);
-        tex->internal_format    = gl_texture_internal_format(format);
-        tex->component_type     = gl_texture_component_type(format);
-        tex->updated            = true;
-    }
-
-    if (tex->width != width || tex->height != height) {
-        tex->width      = width;
-        tex->height     = height;
-        tex->updated    = true;
-    }
+    tex->width      = width;
+    tex->height     = height;
 
     cerr err = texture_setup_begin(tex, buf);
     if (IS_CERR(err))
@@ -812,16 +809,12 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
     if (!fbo_texture_supported(format))
         return CERR_NOT_SUPPORTED;
 
-    GLuint gl_format = gl_texture_format(format);
+    tex->format             = gl_texture_format(format);
+    tex->internal_format    = gl_texture_internal_format(format);
+    tex->component_type     = gl_texture_component_type(format);
 
-    if (gl_format != tex->format) {
-        tex->format             = gl_texture_format(format);
-        tex->internal_format    = gl_texture_internal_format(format);
-        tex->component_type     = gl_texture_component_type(format);
-    }
     tex->width  = width;
     tex->height = height;
-    tex->updated = true;
 
     cerr err = texture_setup_begin(tex, NULL);
     if (IS_CERR(err))

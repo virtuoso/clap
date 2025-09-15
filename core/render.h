@@ -225,7 +225,7 @@ TYPE(texture,
     GLsizei         layers;
     bool            loaded;
     bool            multisampled;
-    bool            updated;
+    bool            sampler_updated;
     unsigned int    width;
     unsigned int    height;
     float           border[4];
