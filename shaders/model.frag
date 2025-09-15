@@ -69,7 +69,8 @@ void main()
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
     ViewPosition = view_pos;
 
-    vec3 view_normal = mat3(view) * orig_normal;
+    /* surface_normal is in world space */
+    vec3 view_normal = mat3(view) * surface_normal;
     Normal = vec4(view_normal * 0.5 + 0.5, 1.0);
 
     if (sobel_solid) {
