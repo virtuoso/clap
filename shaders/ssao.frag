@@ -1,8 +1,10 @@
 #version 460 core
 
 #include "shader_constants.h"
+#include "pass-tex.glsl"
+#include "ndc-z.glsl"
 
-layout (location=0) out vec4 FragColor;
+layout (location=0) out float FragColor;
 layout (location=0) in vec2 pass_tex;
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
@@ -15,7 +17,7 @@ layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 // Linearize z-buffer depth (view space)
 float linearize_depth(float depth)
 {
-    float z = depth * 2.0 - 1.0; // NDC
+    float z = convert_ndc_z(depth);
     return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
 }
 
@@ -23,14 +25,15 @@ void main()
 {
     // View-space position reconstruction
     float depth = texture(model_tex, pass_tex).r;
-    float ndc_z = 2.0 * depth - 1.0;
+    float ndc_z = convert_ndc_z(depth);
     float view_depth = linearize_depth(depth);
 
     vec2 noise_uv = pass_tex * ssao_noise_scale;
-    vec3 random_vec = normalize(texture(sobel_tex, noise_uv).xyz * 2.0 - 1.0);
+    vec3 random_vec = vec3(normalize(texture(sobel_tex, noise_uv).xy), 0.0);
 
-    vec3 normal = normalize(texture(normal_map, pass_tex).rgb * 2.0 - 1.0);
-    vec4 clip_space = vec4(pass_tex * 2.0 - 1.0, ndc_z, 1.0);
+    vec3 normal_sample = texture(normal_map, pass_tex).xyz;
+    vec3 normal = normalize(normal_sample * 2.0 - 1.0);
+    vec4 clip_space = vec4(convert_pass_tex(pass_tex) * 2.0 - 1.0, ndc_z, 1.0);
     vec4 view_pos = inverse(proj) * clip_space;
     view_pos /= view_pos.w;
     vec3 pos = view_pos.xyz;
@@ -56,8 +59,8 @@ void main()
         offset.xyz /= offset.w;
         offset.xyz = offset.xyz * 0.5 + 0.5;
 
-        float sample_depth = texture(model_tex, offset.xy).r;
-        float sample_ndc_z = sample_depth * 2.0 - 1.0;
+        float sample_depth = texture(model_tex, convert_pass_tex(offset.xy)).r;
+        float sample_ndc_z = convert_ndc_z(sample_depth);
         vec4 sample_clip = vec4(offset.xy * 2.0 - 1.0, sample_ndc_z, 1.0);
         vec4 sample_view = inverse(proj) * sample_clip;
         sample_view /= sample_view.w;
@@ -67,6 +70,5 @@ void main()
             occlusion += range_check;
     }
 
-    occlusion = 1.0 - (occlusion / float(SSAO_KERNEL_SIZE));
-    FragColor = vec4(vec3(occlusion), 1.0);
+    FragColor = 1.0 - (occlusion / float(SSAO_KERNEL_SIZE));
 }
