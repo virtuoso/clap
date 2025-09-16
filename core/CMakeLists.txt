@@ -73,6 +73,7 @@ endif ()
 
 if (CONFIG_RENDERER_METAL OR CONFIG_RENDERER_VULKAN OR CONFIG_RENDERER_D3D12)
     set(CONFIG_ORIGIN_TOP_LEFT 1)
+    set(CONFIG_NDC_ZERO_ONE 1)
 endif ()
 configure_file(config.h.in config.h)
 
