@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <stdlib.h>
+#include "interp.h"
 #include "shader.h"
 #include "ssao.h"
 
@@ -10,7 +11,7 @@ static void ssao_kernel_init(ssao_state *ssao)
         vec3_norm_safe(sample, sample);
 
         float scale = (float)i / SSAO_KERNEL_SIZE;
-        scale = 0.1f + 0.9f * (scale * scale);
+        scale = linf_interp(0.1f, 1.0f, scale * scale);
         vec3_scale(sample, sample, scale);
         vec3_dup(ssao->kernel[i], sample);
     }
