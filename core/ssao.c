@@ -19,11 +19,11 @@ static void ssao_kernel_init(ssao_state *ssao)
 
 static cerr ssao_noise_init(ssao_state *ssao)
 {
-    vec4 noise[SSAO_NOISE_DIM * SSAO_NOISE_DIM];
+    vec2 noise[SSAO_NOISE_DIM * SSAO_NOISE_DIM];
 
     for (int i = 0; i < SSAO_NOISE_DIM * SSAO_NOISE_DIM; i++) {
-        vec4_dup(noise[i], (vec4){ drand48() * 2.0 - 1.0, drand48() * 2.0 - 1.0, 0.0, 0.0 });
-        vec4_norm_safe(noise[i], noise[i]);
+        vec2_dup(noise[i], (vec2){ drand48() * 2.0 - 1.0, drand48() * 2.0 - 1.0 });
+        vec2_norm_safe(noise[i], noise[i]);
     }
 
     cerr err = texture_init(&ssao->noise,
@@ -34,7 +34,7 @@ static cerr ssao_noise_init(ssao_state *ssao)
     if (IS_CERR(err))
         return err;
 
-    err = texture_load(&ssao->noise, TEX_FMT_RGBA32F, SSAO_NOISE_DIM, SSAO_NOISE_DIM, noise);
+    err = texture_load(&ssao->noise, TEX_FMT_RG32F, SSAO_NOISE_DIM, SSAO_NOISE_DIM, noise);
     if (IS_CERR(err)) {
         texture_deinit(&ssao->noise);
         return err;
