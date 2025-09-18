@@ -19,43 +19,44 @@ DEFINE_CLEANUP(void, mem_free(*p))
 DEFINE_CLEANUP(char, mem_free(*p))
 DEFINE_CLEANUP(uchar, mem_free(*p))
 
-void aabb_center(const float *aabb, float *center)
+void aabb_center(const vec3 aabb[2], vec3 center)
 {
-    vec3 minv = { aabb[0], aabb[2], aabb[4] };
-    vec3 maxv = { aabb[1], aabb[3], aabb[5] };
-
-    vec3_sub(center, maxv, minv);
+    vec3_sub(center, aabb[1], aabb[0]);
     vec3_scale(center, center, 0.5);
-    vec3_add(center, center, minv);
+    vec3_add(center, center, aabb[0]);
 }
 
-void vertex_array_aabb_calc(float *aabb, float *vx, size_t vxsz)
+void vertex_array_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride)
 {
-    int i;
-
+    if (!stride)    stride = sizeof(float) * 3;
+    stride /= sizeof(float);
     vxsz /= sizeof(float);
-    aabb[0] = aabb[2] = aabb[4] = INFINITY;
-    aabb[1] = aabb[3] = aabb[5] = -INFINITY;
-    for (i = 0; i < vxsz; i += 3) {
-        aabb[0] = min(vx[i + 0], aabb[0]);
-        aabb[1] = max(vx[i + 0], aabb[1]);
-        aabb[2] = min(vx[i + 1], aabb[2]);
-        aabb[3] = max(vx[i + 1], aabb[3]);
-        aabb[4] = min(vx[i + 2], aabb[4]);
-        aabb[5] = max(vx[i + 2], aabb[5]);
+
+    aabb[0][0] = aabb[0][1] = aabb[0][2] = INFINITY;
+    aabb[1][0] = aabb[1][1] = aabb[1][2] = -INFINITY;
+
+    for (int i = 0; i < vxsz; i += stride) {
+        aabb[0][0] = min(vx[i + 0], aabb[0][0]);
+        aabb[1][0] = max(vx[i + 0], aabb[1][0]);
+        aabb[0][1] = min(vx[i + 1], aabb[0][1]);
+        aabb[1][1] = max(vx[i + 1], aabb[1][1]);
+        aabb[0][2] = min(vx[i + 2], aabb[0][2]);
+        aabb[1][2] = max(vx[i + 2], aabb[1][2]);
     }
 }
 
-void vertex_array_fix_origin(float *vx, size_t vxsz, float *aabb)
+void vertex_array_fix_origin(float *vx, size_t vxsz, size_t stride, vec3 aabb[2])
 {
     vec3 center;
     aabb_center(aabb, center);
-    center[1] = aabb[2];
+    center[1] = aabb[0][1];
 
-    for (int v = 0; v < vxsz / sizeof(float); v += 3)
+    if (!stride)    stride = sizeof(float) * 3;
+
+    for (int v = 0; v < vxsz / sizeof(float); v += stride / sizeof(float))
         vec3_sub(&vx[v], &vx[v], center);
 
-    vertex_array_aabb_calc(aabb, vx, vxsz);
+    vertex_array_aabb_calc(aabb, vx, vxsz, 0);
 }
 
 void *memdup(const void *x, size_t size)

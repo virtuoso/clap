@@ -10,6 +10,7 @@
 #include <time.h>
 #include "compiler.h"
 #include "error.h"
+#include "linmath.h"
 #include "logger.h"
 
 typedef unsigned char uchar;
@@ -56,15 +57,50 @@ static inline float to_degrees(float radians)
     return radians / M_PI * 180.0;
 }
 
-void aabb_center(const float *aabb, float *center);
-void vertex_array_aabb_calc(float *aabb, float *vx, size_t vxsz);
-void vertex_array_fix_origin(float *vx, size_t vxsz, float *aabb);
+/**
+ * aabb_center() - calculate AABB's center
+ * @aabb:   AABB box
+ * @center: center
+ *
+ * Write @aabb's center to @center.
+ */
+void aabb_center(const vec3 aabb[2], vec3 center);
 
-static inline bool aabb_point_is_inside(const float *aabb, const float *point)
+/**
+ * vertex_array_aabb_calc() - calculate AABB from a vertex array
+ * @aabb:   AABB box output
+ * @vx:     vertex array
+ * @vxsz:   vertex array size in bytes
+ * @stride: vertex array element stride (0 means 12 aka 3 * sizeof(float))
+ *
+ * Calculate an AABB box from the vertex array @vx and write it to @aabb.
+ */
+void vertex_array_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride);
+
+/**
+ * vertex_array_fix_origin() - fix vertex array's origin point
+ * @vx:     vertex array
+ * @vxsz:   vertex array size
+ * @stride: vertex array element stride (0 means 12 aka 3 * sizeof(float))
+ * @aabb:   precalculated AABB box
+ *
+ * Rebuild a vertex array so that the origin point is the center of the
+ * bottom side of the precalculated AABB box.
+ */
+void vertex_array_fix_origin(float *vx, size_t vxsz, size_t stride, vec3 aabb[2]);
+
+/**
+ * aabb_point_is_inside() - check if a point is inside of an AABB box
+ * @aabb:   AABB box
+ * @point:  point to test
+ *
+ * Return: true if @point is inside @aabb, false otherwise.
+ */
+static inline bool aabb_point_is_inside(const vec3 aabb[2], const vec3 point)
 {
-    if (point[0] >= aabb[0] && point[0] <= aabb[1] &&
-        point[1] >= aabb[2] && point[1] <= aabb[3] &&
-        point[2] >= aabb[4] && point[2] <= aabb[5])
+    if (point[0] >= aabb[0][0] && point[0] <= aabb[1][0] &&
+        point[1] >= aabb[0][1] && point[1] <= aabb[1][1] &&
+        point[2] >= aabb[0][2] && point[2] <= aabb[1][2])
         return true;
 
     return false;

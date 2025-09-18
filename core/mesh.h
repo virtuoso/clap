@@ -68,7 +68,7 @@ struct mesh {
     const char          *name;
     size_t              idxsz;
     struct mesh_attr    attr[MESH_MAX];
-    float               aabb[6];
+    vec3                aabb[2];
     bool                fix_origin;
 };
 typedef struct mesh mesh_t;

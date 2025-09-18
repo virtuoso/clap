@@ -35,7 +35,7 @@ typedef struct model3d {
     unsigned int        nr_lods;
     unsigned int        lod_min;
     unsigned int        lod_max;
-    float               aabb[6];
+    vec3                aabb[2];
     darray(struct animation, anis);
     mat4x4              root_pose;
     vertex_array_t      vao;
@@ -301,7 +301,7 @@ typedef struct entity3d {
     bool                ani_cleared;
     bool                outline_exclude;
     /* 1 byte hole */
-    float               aabb[6];
+    vec3                aabb[2];
     vec3                aabb_center;
     float               light_off[3];
     int                 (*update)(entity3d *e, void *data);

@@ -87,7 +87,7 @@ cerr mesh_attr_add(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t s
     mesh->attr[attr].type = attr;
 
     if (attr == MESH_VX)
-        vertex_array_aabb_calc(mesh->aabb, data, nr * stride);
+        vertex_array_aabb_calc(mesh->aabb, data, nr * stride, stride);
     /* @data doesn't belong to us, mesh->fix_origin does not apply */
 
     return CERR_OK;
@@ -115,9 +115,9 @@ cerr mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t s
     mesh->attr[attr].nr = nr;
 
     if (attr == MESH_VX) {
-        vertex_array_aabb_calc(mesh->aabb, data, nr * stride);
+        vertex_array_aabb_calc(mesh->aabb, data, nr * stride, stride);
         if (mesh->fix_origin)
-            vertex_array_fix_origin(mesh_vx(mesh), nr * stride, mesh->aabb);
+            vertex_array_fix_origin(mesh_vx(mesh), nr * stride, stride, mesh->aabb);
     }
 
     return CERR_OK;
@@ -140,7 +140,7 @@ void mesh_aabb_calc(struct mesh *mesh)
     if (!mesh_vx(mesh) || !mesh_vx_sz(mesh))
         return;
 
-    vertex_array_aabb_calc(mesh->aabb, mesh_vx(mesh), mesh_vx_sz(mesh));
+    vertex_array_aabb_calc(mesh->aabb, mesh_vx(mesh), mesh_vx_sz(mesh), mesh_vx_stride(mesh));
 }
 
 static unsigned int *idx_to_idx32(unsigned short *idx, size_t nr_idx)

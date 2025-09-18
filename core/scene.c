@@ -695,10 +695,10 @@ static void scene_entity_inspector_debug(struct scene *scene)
                     .color      = { 1.0, 0.0, 0.0, 1.0 },
                     .thickness  = 4.0,
                     .shape      = DEBUG_DRAW_AABB,
-                    .v0         = { e->aabb[0], e->aabb[2], e->aabb[4] },
-                    .v1         = { e->aabb[1], e->aabb[3], e->aabb[5] },
                 }
             };
+            entity3d_aabb_min(e, dm_aabb.debug_draw.v0);
+            entity3d_aabb_max(e, dm_aabb.debug_draw.v1);
             message_send(&dm_aabb);
 
             struct message dm_aabb_center = {

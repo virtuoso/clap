@@ -82,7 +82,12 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     if (!m->skip_aabb) {
         memcpy(m->aabb, opts->mesh->aabb, sizeof(m->aabb));
         if (opts->fix_origin)
-            vertex_array_fix_origin(mesh_vx(opts->mesh), mesh_vx_sz(opts->mesh), m->aabb);
+            vertex_array_fix_origin(
+                mesh_vx(opts->mesh),
+                mesh_vx_sz(opts->mesh),
+                mesh_vx_stride(opts->mesh),
+                m->aabb
+            );
     }
     m->collision_vx = memdup(mesh_vx(opts->mesh), mesh_vx_sz(opts->mesh));
     m->collision_vxsz = mesh_vx_sz(opts->mesh);
@@ -400,17 +405,17 @@ cres(int) model3d_set_name(model3d *m, const char *fmt, ...)
 
 float model3d_aabb_X(model3d *m)
 {
-    return fabs(m->aabb[1] - m->aabb[0]);
+    return fabs(m->aabb[1][0] - m->aabb[0][0]);
 }
 
 float model3d_aabb_Y(model3d *m)
 {
-    return fabs(m->aabb[3] - m->aabb[2]);
+    return fabs(m->aabb[1][1] - m->aabb[0][1]);
 }
 
 float model3d_aabb_Z(model3d *m)
 {
-    return fabs(m->aabb[5] - m->aabb[4]);
+    return fabs(m->aabb[1][2] - m->aabb[0][2]);
 }
 
 static void model3d_aabb_center(model3d *m, vec3 center)
@@ -428,17 +433,17 @@ static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
                 .color      = { 1.0, 1.0, 0.0, 1.0 },
                 .thickness  = 1.0,
                 .shape      = DEBUG_DRAW_AABB,
-                .v0         = { e->aabb[0], e->aabb[2], e->aabb[4] },
-                .v1         = { e->aabb[1], e->aabb[3], e->aabb[5] },
             }
         };
+        entity3d_aabb_min(e, dm.debug_draw.v0);
+        entity3d_aabb_max(e, dm.debug_draw.v1);
         message_send(&dm);
     }
 
     if (model) {
         model3d *m = e->txmodel->model;
-        vec4 v0 = { m->aabb[0], m->aabb[2], m->aabb[4], 1.0 };
-        vec4 v1 = { m->aabb[1], m->aabb[3], m->aabb[5], 1.0 };
+        vec4 v0 = { m->aabb[0][0], m->aabb[0][1], m->aabb[0][2], 1.0 };
+        vec4 v1 = { m->aabb[1][0], m->aabb[1][1], m->aabb[1][2], 1.0 };
         mat4x4_mul_vec4_post(v0, e->mx, v0);
         mat4x4_mul_vec4_post(v1, e->mx, v1);
 
@@ -958,28 +963,29 @@ void entity3d_aabb_update(entity3d *e)
         return;
 
     vec4 corners[] = {
-        { m->aabb[0], m->aabb[2], m->aabb[4], 1.0 },
-        { m->aabb[0], m->aabb[3], m->aabb[4], 1.0 },
-        { m->aabb[0], m->aabb[2], m->aabb[5], 1.0 },
-        { m->aabb[0], m->aabb[3], m->aabb[5], 1.0 },
-        { m->aabb[1], m->aabb[2], m->aabb[4], 1.0 },
-        { m->aabb[1], m->aabb[3], m->aabb[4], 1.0 },
-        { m->aabb[1], m->aabb[2], m->aabb[5], 1.0 },
-        { m->aabb[1], m->aabb[3], m->aabb[5], 1.0 },
+        { m->aabb[0][0], m->aabb[0][1], m->aabb[0][2], 1.0 },
+        { m->aabb[0][0], m->aabb[1][1], m->aabb[0][2], 1.0 },
+        { m->aabb[0][0], m->aabb[0][1], m->aabb[1][2], 1.0 },
+        { m->aabb[0][0], m->aabb[1][1], m->aabb[1][2], 1.0 },
+        { m->aabb[1][0], m->aabb[0][1], m->aabb[0][2], 1.0 },
+        { m->aabb[1][0], m->aabb[1][1], m->aabb[0][2], 1.0 },
+        { m->aabb[1][0], m->aabb[0][1], m->aabb[1][2], 1.0 },
+        { m->aabb[1][0], m->aabb[1][1], m->aabb[1][2], 1.0 },
     };
     vec4 v;
     int i;
 
-    e->aabb[0] = e->aabb[2] = e->aabb[4] = INFINITY;
-    e->aabb[1] = e->aabb[3] = e->aabb[5] = -INFINITY;
+    e->aabb[0][0] = e->aabb[0][1] = e->aabb[0][2] = INFINITY;
+    e->aabb[1][0] = e->aabb[1][1] = e->aabb[1][2] = -INFINITY;
     for (i = 0; i < array_size(corners); i++) {
         mat4x4_mul_vec4_post(v, e->mx, corners[i]);
-        e->aabb[0] = min(v[0], e->aabb[0]);
-        e->aabb[1] = max(v[0], e->aabb[1]);
-        e->aabb[2] = min(v[1], e->aabb[2]);
-        e->aabb[3] = max(v[1], e->aabb[3]);
-        e->aabb[4] = min(v[2], e->aabb[4]);
-        e->aabb[5] = max(v[2], e->aabb[5]);
+        e->aabb[0][0] = min(v[0], e->aabb[0][0]);
+        e->aabb[1][0] = max(v[0], e->aabb[1][0]);
+        e->aabb[0][1] = min(v[1], e->aabb[0][1]);
+        e->aabb[1][1] = max(v[1], e->aabb[1][1]);
+        e->aabb[0][2] = min(v[2], e->aabb[0][2]);
+        e->aabb[1][2] = max(v[2], e->aabb[1][2]);
+
     }
 
     aabb_center(e->aabb, e->aabb_center);
@@ -987,21 +993,22 @@ void entity3d_aabb_update(entity3d *e)
 
 void entity3d_aabb_min(entity3d *e, vec3 min)
 {
-    min[0] = e->aabb[0];
-    min[1] = e->aabb[2];
-    min[2] = e->aabb[4];
+    min[0] = e->aabb[0][0];
+    min[1] = e->aabb[0][1];
+    min[2] = e->aabb[0][2];
 }
 
 void entity3d_aabb_max(entity3d *e, vec3 max)
 {
-    max[0] = e->aabb[1];
-    max[1] = e->aabb[3];
-    max[2] = e->aabb[5];
+    max[0] = e->aabb[1][0];
+    max[1] = e->aabb[1][1];
+    max[2] = e->aabb[1][2];
 }
 
 void entity3d_aabb_center(entity3d *e, vec3 center)
 {
-    vec3 minv = { e->txmodel->model->aabb[0], e->txmodel->model->aabb[2], e->txmodel->model->aabb[4] };
+    vec3 minv;
+    vec3_dup(minv, e->txmodel->model->aabb[0]);
     // center[0] = entity3d_aabb_X(e) + e->dx;
     // center[1] = entity3d_aabb_Y(e) + e->dy;
     // center[2] = entity3d_aabb_Z(e) + e->dz;
