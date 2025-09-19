@@ -67,6 +67,19 @@ static inline float to_degrees(float radians)
 void aabb_center(const vec3 aabb[2], vec3 center);
 
 /**
+ * vertex_array_xlate_aabb_calc() - calculate AABB from a vertex array
+ * @aabb:   AABB box output
+ * @vx:     vertex array
+ * @vxsz:   vertex array size in bytes
+ * @stride: vertex array element stride (0 means 12 aka 3 * sizeof(float))
+ * @xlate:  optional vertex translation matrix to apply before AABB calculation
+ *
+ * Calculate an AABB box from the vertex array @vx translated by a given
+ * matrix and write it to @aabb.
+ */
+void vertex_array_xlate_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride, mat4x4 *xlate);
+
+/**
  * vertex_array_aabb_calc() - calculate AABB from a vertex array
  * @aabb:   AABB box output
  * @vx:     vertex array
@@ -75,7 +88,10 @@ void aabb_center(const vec3 aabb[2], vec3 center);
  *
  * Calculate an AABB box from the vertex array @vx and write it to @aabb.
  */
-void vertex_array_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride);
+static inline void vertex_array_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride)
+{
+    vertex_array_xlate_aabb_calc(aabb, vx, vxsz, stride, NULL);
+}
 
 /**
  * vertex_array_fix_origin() - fix vertex array's origin point

@@ -26,7 +26,7 @@ void aabb_center(const vec3 aabb[2], vec3 center)
     vec3_add(center, center, aabb[0]);
 }
 
-void vertex_array_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride)
+void vertex_array_xlate_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride, mat4x4 *xlate)
 {
     if (!stride)    stride = sizeof(float) * 3;
     stride /= sizeof(float);
@@ -36,12 +36,14 @@ void vertex_array_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride)
     aabb[1][0] = aabb[1][1] = aabb[1][2] = -INFINITY;
 
     for (int i = 0; i < vxsz; i += stride) {
-        aabb[0][0] = min(vx[i + 0], aabb[0][0]);
-        aabb[1][0] = max(vx[i + 0], aabb[1][0]);
-        aabb[0][1] = min(vx[i + 1], aabb[0][1]);
-        aabb[1][1] = max(vx[i + 1], aabb[1][1]);
-        aabb[0][2] = min(vx[i + 2], aabb[0][2]);
-        aabb[1][2] = max(vx[i + 2], aabb[1][2]);
+        vec4 v = { vx[i], vx[i + 1], vx[i + 2], 1.0f };
+
+        if (xlate)   mat4x4_mul_vec4_post(v, *xlate, v);
+
+        for (int j = 0; j < 3; j++) {
+            aabb[0][j] = min(v[j], aabb[0][j]);
+            aabb[1][j] = max(v[j], aabb[1][j]);
+        }
     }
 }
 
