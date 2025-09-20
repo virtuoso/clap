@@ -17,7 +17,7 @@ layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 // Linearize z-buffer depth (view space)
 float linearize_depth(float depth)
 {
-    float z = convert_ndc_z(depth);
+    float z = convert_to_ndc_z(depth);
     return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
 }
 
@@ -25,7 +25,7 @@ void main()
 {
     // View-space position reconstruction
     float depth = texture(model_tex, pass_tex).r;
-    float ndc_z = convert_ndc_z(depth);
+    float ndc_z = convert_to_ndc_z(depth);
     float view_depth = linearize_depth(depth);
 
     vec2 noise_uv = pass_tex * ssao_noise_scale;
@@ -60,7 +60,7 @@ void main()
         offset.xyz = offset.xyz * 0.5 + 0.5;
 
         float sample_depth = texture(model_tex, convert_pass_tex(offset.xy)).r;
-        float sample_ndc_z = convert_ndc_z(sample_depth);
+        float sample_ndc_z = convert_to_ndc_z(sample_depth);
         vec4 sample_clip = vec4(offset.xy * 2.0 - 1.0, sample_ndc_z, 1.0);
         vec4 sample_view = inverse(proj) * sample_clip;
         sample_view /= sample_view.w;
