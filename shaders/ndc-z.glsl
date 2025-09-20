@@ -5,8 +5,10 @@
 
 #ifdef CONFIG_NDC_ZERO_ONE
 float convert_to_ndc_z(float z)     { return clamp(z, 0.0, 1.0); }
+float convert_from_ndc_z(float z)   { return clamp(z, 0.0, 1.0); }
 #else
 float convert_to_ndc_z(float z)     { return clamp(z * 2.0 - 1.0, -1.0, 1.0); }
+float convert_from_ndc_z(float z)   { return clamp(z * 0.5 + 0.5, 0.0, 1.0); }
 #endif /* !CONFIG_NDC_ZERO_ONE */
 
 #endif /* SHADERS_NDC_Z_GLSL */

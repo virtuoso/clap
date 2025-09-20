@@ -4,6 +4,7 @@
 #include "ubo_lighting.glsl"
 #include "ubo_shadow.glsl"
 #include "pass-tex.glsl"
+#include "ndc-z.glsl"
 
 #ifndef CONFIG_SHADOW_MAP_ARRAY
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
@@ -150,8 +151,8 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
 
     vec4 shadow_pos = shadow_mvp[layer] * world_pos;
     vec4 proj_coords = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
-    proj_coords = proj_coords * 0.5 + 0.5;
-    proj_coords.xy = convert_pass_tex(proj_coords.xy);
+    proj_coords.xy = convert_pass_tex(proj_coords.xy * 0.5 + 0.5);
+    proj_coords.z = convert_from_ndc_z(proj_coords.z);
 
     float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
 #ifndef CONFIG_SHADOW_MAP_ARRAY
