@@ -67,7 +67,7 @@ static void shadow_vsm_prepare(render_pass_ops_params *params)
      */
     renderer_cleardepth(params->renderer, 1.0);
     renderer_depth_func(params->renderer, DEPTH_FN_LESS);
-    renderer_clearcolor(params->renderer, (vec4){ 0, 0, 0, 1 });
+    renderer_clearcolor(params->renderer, (vec4){ 1, 1, 1, 1 });
     renderer_clear(params->renderer, true, true, false);
     params->camera = NULL;
 }
