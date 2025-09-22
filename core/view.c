@@ -251,12 +251,21 @@ static void subview_calc_frustum(struct subview *subview)
 {
     /* They're not really MVPs, since there's no M matrices involved */
     mat4x4 mvp, trans, invmvp;
+#ifdef CONFIG_NDC_ZERO_ONE
+    vec4 corners[] = {
+        { -1, -1, 0, 1 }, { 1, -1, 0, 1 },
+        { 1, 1, 0, 1 }, { -1, 1, 0, 1 },
+        { -1, -1, 1, 1 }, { 1, -1, 1, 1 },
+        { 1, 1, 1, 1 }, { -1, 1, 1, 1 }
+    };
+#else
     vec4 corners[] = {
         { -1, -1, -1, 1 }, { 1, -1, -1, 1 },
         { 1, 1, -1, 1 }, { -1, 1, -1, 1 },
         { -1, -1, 1, 1 }, { 1, -1, 1, 1 },
         { 1, 1, 1, 1 }, { -1, 1, 1, 1 }
     };
+#endif /* !CONFIG_NDC_ZERO_ONE */
     int i = 0;
 
     mat4x4_mul(mvp, subview->proj_mx, subview->view_mx);
