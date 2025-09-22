@@ -4,14 +4,7 @@
 #include "shader.h"
 #include "ui-debug.h"
 
-static float near_factor = 1.0, far_factor = 1.0;
-/*
- * Margins around the frustum AABB box; there're 2 of them, because they
- * don't need to be uniform in all directions, but they do need to be as
- * small as possible without clipping.
- */
-static float aabb_margin_xy = 0.0;
-static float aabb_margin_z = 0.0;
+static float far_factor = 1.0;
 
 static void subview_calc_frustum(struct subview *subview);
 
@@ -51,20 +44,36 @@ static void view_debug_begin(float near_backup)
         return;
 
     igText("near_backup: %.02f", near_backup);
-    igSliderFloat("near plane", &near_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
     igSliderFloat("far plane", &far_factor, -10.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
-    igSliderFloat("aabb margin XY", &aabb_margin_xy, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
-    igSliderFloat("aabb margin Z", &aabb_margin_z, 0.0, 10.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
 }
 
-static void subview_debug(struct subview *dst, float *light_pos, float *light_dir,
-                          float *_aabb_min, float *_aabb_max,
-                          float *aabb_min, float *aabb_max)
+static void subview_debug(struct subview *dst, struct subview *src, float *aabb_min, float *aabb_max)
 {
     debug_module *dbgm = ui_debug_module(DEBUG_FRUSTUM_VIEW);
 
     if (!dbgm->display || !dbgm->unfolded)
         return;
+
+    auto flags = ImGuiTreeNodeFlags_DrawLinesFull;
+
+    if (!igTreeNodeEx_Ptr(dst, flags, "subview %.02f..%.02f", dst->near_plane, dst->far_plane))
+        return;
+
+    vec3 world_aabb[2];
+    vertex_array_aabb_calc(world_aabb, (float *)src->frustum_corners, sizeof(src->frustum_corners),
+                           sizeof(src->frustum_corners[0]));
+    vec4 light_dir = {
+        -dst->view_mx[2][0],
+        -dst->view_mx[2][1],
+        -dst->view_mx[2][2],
+        1
+    };
+    vec4 light_pos = {
+        -dst->view_mx[3][0],
+        -dst->view_mx[3][1],
+        -dst->view_mx[3][2],
+        1
+    };
 
     vec4 light_pos_world;
     mat4x4_mul_vec4_post(light_pos_world, dst->inv_view_mx, light_pos);
@@ -78,11 +87,12 @@ static void subview_debug(struct subview *dst, float *light_pos, float *light_di
     ui_igVecRow(light_dir, 4, "light dir");
     ui_igVecRow(light_pos, 4, "light pos");
     ui_igVecRow(light_pos_world, 4, "light pos world");
-    ui_igVecRow(_aabb_min, 4, "_aabb_min");
-    ui_igVecRow(_aabb_max, 4, "_aabb_max");
-    ui_igVecRow(aabb_min, 4, "aabb_min");
-    ui_igVecRow(aabb_max, 4, "aabb_max");
+    ui_igVecRow(world_aabb[0], 3, "world_aabb_min");
+    ui_igVecRow(world_aabb[1], 3, "world_aabb_max");
+    ui_igVecRow(aabb_min, 3, "aabb_min");
+    ui_igVecRow(aabb_max, 3, "aabb_max");
     igEndTable();
+    igTreePop();
 }
 
 static void view_frustum_debug(struct view *src, int idx)
@@ -110,68 +120,29 @@ static void view_debug_end(void)
 }
 #else
 static inline void view_debug_begin(float near_backup) {}
-static inline  void subview_debug(struct subview *dst, float *light_pos, float *light_dir,
-                                  float *_aabb_min, float *_aabb_max,
-                                  float *aabb_min, float *aabb_max) {}
+static inline  void subview_debug(struct subview *dst, struct subview *src, float *aabb_min, float *aabb_max) {}
 static inline void view_frustum_debug(struct view *src, int idx) {}
 static inline void view_debug_end(void) {}
 #endif /* CONFIG_FINAL */
 
 static void subview_projection_update(struct subview *dst, struct subview *src, float near_backup, bool z_reverse)
 {
-    vec4 _aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, _aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
-    int i, j;
+    vec3 aabb[2];
+    vertex_array_xlate_aabb_calc(aabb, (float *)src->frustum_corners, sizeof(src->frustum_corners),
+                                 sizeof(src->frustum_corners[0]), &dst->view_mx);
 
-    for (i = 0; i < 8; i++) {
-        vec4 corner;
-        mat4x4_mul_vec4_post(corner, dst->view_mx, src->frustum_corners[i]);
-
-        /* Add some padding to the AABB to avoid precision issues */
-        for (j = 0; j < 2; j++) {
-            _aabb_min[j] = fminf(_aabb_min[j], corner[j]) - aabb_margin_xy;
-            _aabb_max[j] = fmaxf(_aabb_max[j], corner[j]) + aabb_margin_xy;
-        }
-        _aabb_min[j] = fminf(_aabb_min[j], corner[j]) - aabb_margin_z;
-        _aabb_max[j] = fmaxf(_aabb_max[j], corner[j]) + aabb_margin_z;
-    }
-
-    vec4 light_pos = { 0, 0, 0, 1 };
-    vec3_add(light_pos, _aabb_min, _aabb_max);
-    vec3_scale(light_pos, light_pos, 0.5);
-
-    vec4 light_dir = {
-        -dst->view_mx[2][0],
-        -dst->view_mx[2][1],
-        -dst->view_mx[2][2],
-        1.0
-    };
-
-    vec3_norm_safe(light_dir, light_dir);
-
-    mat4x4_translate_in_place(dst->view_mx, light_pos[0], light_pos[1], light_pos[2]);
-    mat4x4_invert(dst->inv_view_mx, dst->view_mx);
-
-    vec4 aabb_min = { INFINITY, INFINITY, INFINITY, 1 }, aabb_max = { -INFINITY, -INFINITY, -INFINITY, 1 };
-
-    for (i = 0; i < 8; i++) {
-        vec4 corner;
-        mat4x4_mul_vec4_post(corner, dst->view_mx, src->frustum_corners[i]);
-
-        for (j = 0; j < 3; j++) {
-            aabb_min[j] = fminf(aabb_min[j], corner[j]);
-            aabb_max[j] = fmaxf(aabb_max[j], corner[j]);
-        }
-    }
-
+    dst->near_plane = 0.1;
+    dst->far_plane = -aabb[0][2] * far_factor;
     if (z_reverse)
-        mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
-                     fmaxf(aabb_max[2] * far_factor, 0.0), aabb_min[2] * near_factor - near_backup);
+        mat4x4_ortho(dst->proj_mx, aabb[0][0], aabb[1][0], aabb[0][1], aabb[1][1],
+                     dst->far_plane, dst->near_plane);
     else
-        mat4x4_ortho(dst->proj_mx, aabb_min[0], aabb_max[0], aabb_min[1], aabb_max[1],
-                     aabb_min[2] * near_factor - near_backup, fmaxf(aabb_max[2] * far_factor, 0.0));
+        mat4x4_ortho(dst->proj_mx, aabb[0][0], aabb[1][0], aabb[0][1], aabb[1][1],
+                     dst->near_plane, dst->far_plane);
 
     subview_calc_frustum(dst);
-    subview_debug(dst, light_pos, light_dir, _aabb_min, _aabb_max, aabb_min, aabb_max);
+
+    subview_debug(dst, src, aabb[0], aabb[1]);
 }
 
 static void view_projection_update(struct view *view, struct view *src, float near_backup, bool z_reverse)
@@ -223,39 +194,56 @@ void view_update_perspective_projection(struct view *view, int width, int height
                        view->main.near_plane, view->main.far_plane);
 }
 
-static void subview_update_from_target(struct subview *subview, struct subview *src, vec3 target)
+static void subview_update_from_target(struct subview *subview, struct subview *src, vec3 target, float near_backup)
 {
-    vec3 up = { 0.0, 1.0, 0.0 };
+    vec3 world_aabb[2];
+    vertex_array_aabb_calc(world_aabb, (float *)src->frustum_corners, sizeof(src->frustum_corners), sizeof(src->frustum_corners[0]));
 
-    vec3 light_pos = {};
-    for (int i = 0; i < 8; i++)
-        vec3_add(light_pos, light_pos, src->frustum_corners[i]);
-    vec3_scale(light_pos, light_pos, 1.0 / 8.0);
+    /* Light looks at the center of the bottom side of the camera frustum's AABB */
+    vec3 light_pos;
+    aabb_center(world_aabb, light_pos);
+    light_pos[1] = world_aabb[0][1];
 
     vec3 light_dir_norm;
     vec3_norm_safe(light_dir_norm, target);
+    near_backup = fmaxf(near_backup, 1.0f);
+    vec3_scale(light_dir_norm, light_dir_norm, near_backup);
 
+    /* First, build a view_mx backed up by near_backup */
     vec3 light_eye;
-    vec3_sub(light_eye, light_pos, light_dir_norm);
-    mat4x4_look_at_safe(subview->view_mx, light_eye, light_pos, up);
+    vec3_add(light_eye, light_dir_norm, light_pos);
+    mat4x4_look_at_safe(subview->view_mx, light_eye, light_pos, (vec3) { 0.0, 1.0, 0.0 });
+
+    /* AABB needs to be in light space to get the correct its Z depth */
+    vec3 light_aabb[2];
+    vertex_array_xlate_aabb_calc(light_aabb, (float *)src->frustum_corners, sizeof(src->frustum_corners), sizeof(src->frustum_corners[0]),
+        &subview->view_mx);
+
+    /* Pull light_eye back further by AABB Z depth */
+    auto aabb_length = fabsf(light_aabb[0][2] - light_aabb[1][2]);
+    vec3_scale(light_dir_norm, light_dir_norm, (near_backup + aabb_length) / near_backup);
+    vec3_add(light_eye, light_dir_norm, light_pos);
+
+    /* Build the final view_mx */
+    mat4x4_look_at_safe(subview->view_mx, light_eye, light_pos, (vec3) { 0.0, 1.0, 0.0 });
     mat4x4_invert(subview->inv_view_mx, subview->view_mx);
 }
 
-static void view_update_from_target(struct view *view, struct view *src, vec3 target)
+static void view_update_from_target(struct view *view, struct view *src, vec3 target, float near_backup)
 {
     int i;
 
     for (i = 0; i < array_size(view->subview); i++)
-        subview_update_from_target(&view->subview[i], &src->subview[i], target);
+        subview_update_from_target(&view->subview[i], &src->subview[i], target, near_backup);
 
-    subview_update_from_target(&view->main, &src->main, target);
+    subview_update_from_target(&view->main, &src->main, target, near_backup);
 }
 
 void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse)
 {
     vec3 target = { -dir[0], -dir[1], -dir[2] };
 
-    view_update_from_target(view, src, target);
+    view_update_from_target(view, src, target, near_backup);
     view_projection_update(view, src, near_backup, z_reverse);
 }
 
