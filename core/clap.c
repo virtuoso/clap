@@ -169,6 +169,13 @@ struct timespec clap_get_current_timespec(struct clap_context *ctx)
 
 double clap_get_current_time(struct clap_context *ctx)
 {
+    /*
+     * If clap_timer_set() is called before ctx->current time is first set,
+     * it'll go off immediately. Prevent that.
+     */
+    if (unlikely(!ctx->current_time.tv_nsec && !ctx->current_time.tv_sec))
+        clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
+
     return (double)ctx->current_time.tv_sec + (double)ctx->current_time.tv_nsec / NSEC_PER_SEC;
 }
 
