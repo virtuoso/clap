@@ -630,7 +630,16 @@ static void scene_entity_inspector_debug(struct scene *scene)
         vec3 pos;
         transform_pos(&e->xform, pos);
 
-        if (ui_igSliderFloat3("pos", pos, -500.0, 500.0, "%.02f", 0)) {
+        ui_igLabel("pos");
+        igTableNextColumn();
+        auto moved = igDragFloat3(
+            "##pos",
+            pos,
+            0.1, -500.0, 500.0,
+            "%.02f", 0
+        );
+
+        if (moved) {
             entity3d_position(e, pos);
             transform_set_updated(&scene->camera->xform);
         }
