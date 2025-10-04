@@ -306,12 +306,12 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .name               = "model",
             .cascade            = -1,
             .color_format       = (texture_format[]) {
-                                    hdr_fmt,
-                                    hdr_fmt,
-                                    TEX_FMT_RGBA8,
-                                    TEX_FMT_R32F,
-                                    hdr_fmt,
-                                    TEX_FMT_RGBA8,
+                                    /* FragColor */     hdr_fmt,
+                                    /* EmissiveColor */ hdr_fmt,
+                                    /* EdgeNormal */    TEX_FMT_RGBA8,
+                                    /* EdgeDepthMask */ TEX_FMT_R32F,
+                                    /* ViewPosition */  hdr_fmt,
+                                    /* Normal */        TEX_FMT_RGBA8,
                                 },
             .depth_format       = TEX_FMT_DEPTH32F
         ),
