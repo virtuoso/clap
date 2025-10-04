@@ -431,7 +431,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     .pass       = edge_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
+                    .method     = model_pass_method,
                     .sampler    = UNIFORM_MODEL_TEX
                 },
                 {}
@@ -451,7 +451,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     .pass       = model_pass,
                     .attachment = FBO_DEPTH_TEXTURE(0),
-                    .method     = model_pass_method,
+                    .method     = RM_USE,
                     .sampler    = UNIFORM_MODEL_TEX
                 },
                 {
@@ -477,7 +477,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     .pass       = ssao_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = model_pass_method,
+                    .method     = RM_USE,
                     .sampler    = UNIFORM_MODEL_TEX
                 },
                 {}
@@ -497,7 +497,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     .pass       = ssao_vblur_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = model_pass_method,
+                    .method     = RM_USE,
                     .sampler    = UNIFORM_MODEL_TEX
                 },
                 {}
