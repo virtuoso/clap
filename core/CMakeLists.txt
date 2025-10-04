@@ -15,7 +15,14 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
                             "-s MAX_WEBGL_VERSION=2"
                             "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
                             "-s EXPORTED_RUNTIME_METHODS=FS"
+                            "-s AUDIO_WORKLET=1"
+                            "-s WASM_WORKERS=1"
+                            "-s SHARED_MEMORY=1"
+                            "-s ASYNCIFY"
+                            "-s USE_PTHREADS=1"
+                            "-s PTHREAD_POOL_SIZE=4"
     )
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s WASM_WORKERS=1 -s SHARED_MEMORY=1")
     if (CLAP_BUILD_FINAL)
         list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=0"
                                     "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307")
@@ -45,6 +52,8 @@ else ()
     set(DEBUG_LIBRARIES "-flto")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -flto")
 endif ()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
 
 if (CLAP_BUILD_WITH_GLES)
     set(CONFIG_GLES 1)
@@ -97,6 +106,8 @@ else ()
     message(FATAL_ERROR "Unsupported renderer")
 endif ()
 
+set(MA_DIR ${CMAKE_SOURCE_DIR}/deps/src/miniaudio)
+
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c logger.c input.c messagebus.c primitives.c motion.c
@@ -105,10 +116,11 @@ set(ENGINE_SRC
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
     gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c
-    ${PLATFORM_SRC} ${RENDERER_SRC})
+    ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
 
-# Mac OS X has deprecated OpenAL and is very vocal about it
-set_source_files_properties(sound.c PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-unknown-pragmas")
+set_source_files_properties(${MA_DIR}/miniaudio.c PROPERTIES COMPILE_FLAGS
+    "-DMA_ENABLE_AUDIO_WORKLETS -DSTB_VORBIS_HEADER_ONLY -include ${MA_DIR}/extras/stb_vorbis.c"
+)
 
 set(CERRS_H "${CMAKE_CURRENT_BINARY_DIR}/cerrs.h")
 
@@ -253,6 +265,7 @@ target_link_libraries(${ENGINE_LIB} PRIVATE ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${V
 target_link_libraries(${ENGINE_LIB} PRIVATE libode meshoptimizer)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${EXTRA_LIBRARIES})
 target_link_options(${ENGINE_LIB} PRIVATE ${DEBUG_LIBRARIES})
+target_include_directories(${ENGINE_LIB} PRIVATE ${MA_DIR})
 target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
 target_include_directories(${ENGINE_LIB} PRIVATE ${GLEW_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})

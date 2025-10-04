@@ -1,0 +1,29 @@
+From 62ef96b51622818201867bcb657ee9e4326dc30d Mon Sep 17 00:00:00 2001
+From: Alexander Shishkin <alex@ash.works>
+Date: Fri, 26 Sep 2025 17:41:02 +0300
+Subject: [PATCH] std_vorbis: Remove a redundant pointer comparison
+
+The check for `ptr + unsigned int < ptr` is always false, and the
+compilers are starting to catch up. Remove it.
+
+Signed-off-by: Alexander Shishkin <alex@ash.works>
+---
+ extras/stb_vorbis.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/extras/stb_vorbis.c b/extras/stb_vorbis.c
+index 3e5c250..07e2a17 100644
+--- a/extras/stb_vorbis.c
++++ b/extras/stb_vorbis.c
+@@ -1401,7 +1401,7 @@ static int set_file_offset(stb_vorbis *f, unsigned int loc)
+    #endif
+    f->eof = 0;
+    if (USE_MEMORY(f)) {
+-      if (f->stream_start + loc >= f->stream_end || f->stream_start + loc < f->stream_start) {
++      if (f->stream_start + loc >= f->stream_end) {
+          f->stream = f->stream_end;
+          f->eof = 1;
+          return 0;
+-- 
+2.48.1
+

@@ -666,7 +666,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         ctx->font = CRES_RET_T(font_init(ctx->cfg.default_font_name), clap_context);
 
     if (ctx->cfg.sound)
-        CHECK(ctx->sound = sound_init());
+        ctx->sound = CRES_RET_T(sound_init(), clap_context);
     if (ctx->cfg.phys)
         CHECK(ctx->phys = phys_init());
     if (ctx->cfg.graphics) {
