@@ -1087,7 +1087,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         dbg("json: name '%s' or gltf '%s' missing\n", name, gltf);
         return CERR_PARSE_FAILED;
     }
-    
+
     gd = gltf_load(
         .mq         = &scene->mq,
         .pipeline   = scene->pl,
@@ -1213,7 +1213,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             if (pos->tag != JSON_NUMBER)
                 continue; /* XXX */
             e_pos[0] = pos->number_;
-            pos = pos->next;      
+            pos = pos->next;
             if (!pos || pos->tag != JSON_NUMBER)
                 continue; /* XXX */
             e_pos[1] = pos->number_;
