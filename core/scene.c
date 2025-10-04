@@ -594,6 +594,8 @@ static void scene_entity_inspector_debug(struct scene *scene)
         if (igButton("terrain clamp", (ImVec2){}))
             phys_ground_entity(clap_get_phys(scene->clap_ctx), e);
 
+        ui_igCheckbox("skip shadow", &txm->model->skip_shadow);
+
         static bool draw_aabb;
 
         ui_igCheckbox("draw aabb", &draw_aabb);
