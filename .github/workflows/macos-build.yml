@@ -16,7 +16,7 @@ jobs:
           git submodule update --init --recursive --depth 1
       - name: install-deps
         run: |
-          brew install glew zlib libogg libvorbis glfw shaderc spirv-cross
+          brew install glew zlib glfw shaderc spirv-cross
       - name: configure
         run: |
           cd ${{ github.workspace }}

@@ -18,7 +18,7 @@ jobs:
       - name: Download dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+          sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libpng-dev zlib1g-dev glslc spirv-cross gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
           git clone --depth 1 git@github.com:virtuoso/vcpkg-mingw.git
           cd vcpkg-mingw
           ./bootstrap-vcpkg.sh -disableMetrics
@@ -36,7 +36,7 @@ jobs:
       - name: Build dependencies
         run: |
           cd vcpkg-mingw
-          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw glew:x64-mingw freetype:x64-mingw openal-soft:x64-mingw libogg:x64-mingw libvorbis:x64-mingw
+          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw glew:x64-mingw freetype:x64-mingw
       - name: configure
         run: |
           cd ${{ github.workspace }}

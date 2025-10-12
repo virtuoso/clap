@@ -43,7 +43,7 @@ jobs:
       - name: Build dependencies
         run: |
           cd vcpkg-mingw
-          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw glew:x64-mingw freetype:x64-mingw openal-soft:x64-mingw libogg:x64-mingw libvorbis:x64-mingw shaderc spirv-cross
+          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw glew:x64-mingw freetype:x64-mingw shaderc spirv-cross
       # - name: Install Ninja
       #   run: |
       #     curl -L -o ninja.zip https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip
