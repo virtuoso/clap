@@ -55,7 +55,7 @@ target_include_directories(${LDJAM57_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUD
 set_target_properties(${LDJAM57_BIN} PROPERTIES COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror")
 set_target_properties(${LDJAM57_BIN} PROPERTIES LINK_DEPENDS "${ASSETS};${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html")
 target_link_libraries(${LDJAM57_BIN} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
-target_link_libraries(${LDJAM57_BIN} PRIVATE ${PNG_LIBRARY} ${OPENAL_LIBRARY} ${VORBISFILE_LIBRARY})
+target_link_libraries(${LDJAM57_BIN} PRIVATE ${PNG_LIBRARY})
 target_link_libraries(${LDJAM57_BIN} PRIVATE libode meshoptimizer)
 target_link_libraries(${LDJAM57_BIN} PRIVATE ${EXTRA_LIBRARIES})
 target_link_libraries(${LDJAM57_BIN} PRIVATE ${ENGINE_LIB})
