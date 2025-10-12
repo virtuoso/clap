@@ -736,7 +736,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                     shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
                 }
                 if (light->shadow[0][0]) {
-#ifdef CONFIG_GLES
+#ifndef CONFIG_SHADOW_MAP_ARRAY
                     shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[0][0]);
                     shader_plug_texture(prog, UNIFORM_SHADOW_MAP1, light->shadow[0][1] ? light->shadow[0][1] : white_pixel());
                     shader_plug_texture(prog, UNIFORM_SHADOW_MAP2, light->shadow[0][2] ? light->shadow[0][2] : white_pixel());
@@ -750,7 +750,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                     } else {
                         shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
                     }
-#endif /* CONFIG_GLES */
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
                 }
             }
 

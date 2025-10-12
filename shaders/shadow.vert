@@ -28,9 +28,9 @@ void main()
     } else {
         total_pos = trans * vec4(position, 1.0);
     }
-#ifdef CONFIG_GLES
+#ifndef CONFIG_SHADOW_MAP_ARRAY
     gl_Position = proj * view * total_pos;
 #else
     gl_Position = total_pos;
-#endif /* CONFIG_GLES */
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
 }

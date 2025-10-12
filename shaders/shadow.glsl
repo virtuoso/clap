@@ -4,7 +4,7 @@
 #include "ubo_lighting.glsl"
 #include "ubo_shadow.glsl"
 
-#ifdef CONFIG_GLES
+#ifndef CONFIG_SHADOW_MAP_ARRAY
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map1) uniform sampler2D shadow_map1;
 layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
@@ -12,7 +12,7 @@ layout (binding=SAMPLER_BINDING_shadow_map3) uniform sampler2D shadow_map3;
 #else
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2DArray shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map_ms) uniform sampler2DMSArray shadow_map_ms;
-#endif /* CONFIG_GLES */
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
 
 float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
 {
@@ -152,7 +152,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     proj_coords = proj_coords * 0.5 + 0.5;
 
     float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
-#ifdef CONFIG_GLES
+#ifndef CONFIG_SHADOW_MAP_ARRAY
     switch (layer) {
         case 0:
             shadow_factor = use_vsm ?
@@ -183,7 +183,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
         shadow_factor = use_vsm ?
             shadow_factor_vsm(shadow_map, proj_coords, layer) :
             shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
-#endif /* CONFIG_GLES */
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
 
     return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.3));
 }

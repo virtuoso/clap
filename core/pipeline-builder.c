@@ -221,7 +221,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 
     struct render_pass *shadow_pass[CASCADES_MAX];
 
-#ifdef CONFIG_GLES
+#ifndef CONFIG_SHADOW_MAP_ARRAY
     for (int i = 0; i < CASCADES_MAX; i++) {
         shadow_pass[i] = CRES_RET_T(
             pipeline_add_pass(pl,
@@ -256,7 +256,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     opts->pl_opts->light->shadow[0][0] = pipeline_pass_get_texture(
         shadow_pass[0], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
     );
-#endif /* CONFIG_GLES */
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
 
     texture_format hdr_fmt = get_hdr_format(opts);
 
@@ -264,7 +264,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 { .mq = opts->mq, .method = RM_RENDER, },
-#ifdef CONFIG_GLES
+#ifndef CONFIG_SHADOW_MAP_ARRAY
                 {
                     .pass       = shadow_pass[0],
                     .attachment = vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
@@ -298,7 +298,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .sampler    = UNIFORM_SHADOW_MAP
                 },
                 {}
-#endif /* CONFIG_GLES */
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,

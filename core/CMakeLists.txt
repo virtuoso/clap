@@ -67,6 +67,9 @@ if (CLAP_SERVER_IP)
     set(CONFIG_SERVER_IP ${CLAP_SERVER_IP})
 endif ()
 
+if (CONFIG_RENDERER_OPENGL AND NOT CONFIG_GLES)
+    set(CONFIG_SHADOW_MAP_ARRAY 1)
+endif ()
 configure_file(config.h.in config.h)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
