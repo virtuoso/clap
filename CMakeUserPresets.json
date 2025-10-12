@@ -108,6 +108,7 @@
                 "CMAKE_BUILD_TYPE":"Debug",
                 "CMAKE_SYSTEM_PROCESSOR": "AMD64",
                 "CMAKE_SYSTEM_NAME": "Windows",
+                "CMAKE_EXPORT_COMPILE_COMMANDS":true,
                 "CMAKE_C_COMPILER_FRONTEND_VARIANT": "GNU",
                 "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "GNU",
                 "CMAKE_C_COMPILER": "x86_64-w64-mingw32-gcc",
