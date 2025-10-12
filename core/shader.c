@@ -401,7 +401,7 @@ static void shader_prog_link(struct shader_prog *p)
         const struct shader_var_desc *desc = &shader_var_desc[i];
 
         if (i < ATTR_MAX)
-            p->vars[i] = shader_attribute(&p->shader, desc->name);
+            p->vars[i] = shader_attribute(&p->shader, desc->name, i);
         else
             p->vars[i] = shader_uniform(&p->shader, desc->name);
     }

@@ -533,9 +533,10 @@ void shader_done(shader_t *shader)
 {
 }
 
-attr_t shader_attribute(shader_t *shader, const char *name)
+attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
-    return 0;
+    /* attribute locations are shared between core and shaders */
+    return attr;
 }
 
 uniform_t shader_uniform(shader_t *shader, const char *name)

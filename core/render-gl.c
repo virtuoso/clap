@@ -1747,7 +1747,7 @@ cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const c
     return CERR_OK;
 }
 
-attr_t shader_attribute(shader_t *shader, const char *name)
+attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
     return glGetAttribLocation(shader->prog, name);
 }

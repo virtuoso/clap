@@ -536,7 +536,7 @@ cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, con
 void shader_done(shader_t *shader);
 int shader_id(shader_t *shader);
 cerr_check shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
-attr_t shader_attribute(shader_t *shader, const char *name);
+attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr);
 uniform_t shader_uniform(shader_t *shader, const char *name);
 void shader_use(shader_t *shader);
 void shader_unuse(shader_t *shader);
