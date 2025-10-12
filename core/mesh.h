@@ -156,7 +156,6 @@ void mesh_optimize(struct mesh *mesh);
  * mesh_flatten() - produce a contiguous buffer with multiple mesh attributes interleaved
  * @mesh:       source of the attributes
  * @attrs:      array of attributes as enum mesh_attrs
- * @sizes:      element size per attribute
  * @offs:       element offset from the beginning of a stride per attribute
  * @nr_attrs:   number of attributes
  * @stride:     total length of a vertex stride
@@ -167,7 +166,7 @@ void mesh_optimize(struct mesh *mesh);
  *
  * Return: void * of the interleaved buffer on success, CERR on failure
  */
-cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs, size_t *sizes,
+cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs,
                          size_t *offs, unsigned int nr_attrs, unsigned int stride);
 size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *error);
 void mesh_init(void);

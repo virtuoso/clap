@@ -513,7 +513,7 @@ cerr shader_setup_attributes(struct shader_prog *p, buffer_t *buf, struct mesh *
     size_t total_size = p->stride * mesh_nr_vx(mesh);
 
     void *flat = CRES_RET(
-        mesh_flatten(mesh, p->mesh_attrs, p->attr_sizes, p->attr_offs, p->nr_attrs, p->stride),
+        mesh_flatten(mesh, p->mesh_attrs, p->attr_offs, p->nr_attrs, p->stride),
         return CERR_NOMEM
     );
 

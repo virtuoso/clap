@@ -340,7 +340,7 @@ static inline void *mesh_attr_element(struct mesh *mesh, enum mesh_attrs attr, s
     return ma->data + ma->stride * el;
 }
 
-cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs, size_t *sizes,
+cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs,
                          size_t *offs, unsigned int nr_attrs, unsigned int stride)
 {
     size_t total_size = stride * mesh_nr_vx(mesh);
