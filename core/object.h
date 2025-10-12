@@ -270,17 +270,23 @@ static inline void _ref_put(struct ref *ref)
     __v; \
 })
 
-/* Initialize a static/embedded object and return cresp(struct_name) */
-#define ref_embed(struct_name, _obj, args...) ({ \
+/* Initialize a static/embedded object with options pointer */
+#define ref_embed_opts(struct_name, _obj, _opts) ({ \
     struct ref_class *__rc = &REFCLASS_NAME(struct_name); \
     typeof (_obj) __v = (_obj); \
     memset(__v, 0, __rc->size); \
     __v->ref.refclass = __rc; \
     _ref_embed(&__v->ref); \
     cerr err = __rc->make ? \
-        __rc->make(&__v->ref, &(rc_init_opts(struct_name)){ args }) : \
+        __rc->make(&__v->ref, (void *)(_opts)) : \
         CERR_OK; \
     err; \
+})
+
+/* Initialize a static/embedded object and return cresp(struct_name) */
+#define ref_embed(struct_name, _obj, args...) ({ \
+    const rc_init_opts(struct_name) *__opts = &(rc_init_opts(struct_name)){ args }; \
+    ref_embed_opts(struct_name, _obj, __opts); \
 })
 
 /*
