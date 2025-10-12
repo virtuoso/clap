@@ -337,7 +337,6 @@ struct shader_prog {
      * stride is the total size of all attributes of one vertex
      */
     enum mesh_attrs         mesh_attrs[ATTR_MAX + 1];
-    size_t                  attr_sizes[ATTR_MAX];
     size_t                  attr_offs[ATTR_MAX];
     unsigned int            stride;
     unsigned int            nr_attrs;
@@ -480,7 +479,7 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
 {
     p->attr_offs[0] = 0;
 
-    size_t prev_type_size = 0;
+    size_t type_size = 0, prev_type_size = 0;
     enum shader_vars v;
     int i;
     for (i = 0, v = 0; v < ATTR_MAX; v++) {
@@ -495,13 +494,13 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
          * mesh at this point, so we have to rely on static type information
          * relating mesh attributes
          */
-        p->attr_sizes[i] = data_type_size(mesh_attr_type(ma)) * mesh_attr_comp_count(ma);
-        p->stride += p->attr_sizes[i];
+        type_size = data_type_size(mesh_attr_type(ma)) * mesh_attr_comp_count(ma);
+        p->stride += type_size;
 
         if (i)
             p->attr_offs[i] = p->attr_offs[i - 1] + prev_type_size;
 
-        prev_type_size = p->attr_sizes[i];
+        prev_type_size = type_size;
         i++;
     }
     p->mesh_attrs[i] = MESH_MAX;
