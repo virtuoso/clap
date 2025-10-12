@@ -6,9 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-touch-icon" content="data:,">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@200..900&display=swap" rel="stylesheet">
     <title>Towards the Light</title>
     <style>
       .emscripten { padding-right: 0; margin-left: 0px; margin-right: 0px; display: block; }
@@ -34,6 +31,13 @@
         width: 100vw;
         height: 80vh;
       }
+      @font-face {
+        font-family: "Unbounded";
+        src: url("Unbounded-Regular.ttf") format("truetype");
+        font-weight: 200 900;
+        font-style: normal;
+        font-display: swap;
+      }
       body {
         margin: 0px;
         height: 100vh;
@@ -47,7 +51,6 @@
         font-family: "Unbounded", sans-serif;
         font-optical-sizing: auto;
         font-weight: 400;
-        font-style: normal;
       }
       .game_title {
         position: absolute;
