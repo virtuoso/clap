@@ -58,11 +58,6 @@ void buffer_unbind(buffer_t *buf, int loc)
         return;
 }
 
-void buffer_load(buffer_t *buf, void *data, size_t sz, int loc)
-{
-    buf->loaded = true;
-}
-
 #ifndef CONFIG_FINAL
 void buffer_debug_header(void)
 {

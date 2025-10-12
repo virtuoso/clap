@@ -131,6 +131,8 @@ bool buffer_loaded(buffer_t *buf)
     return buf->loaded;
 }
 
+static void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc);
+
 cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
     cerr err = ref_embed(buffer, buf);
@@ -289,7 +291,7 @@ void buffer_unbind(buffer_t *buf, uniform_t loc)
     GL(glDisableVertexAttribArray(loc));
 }
 
-void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
+static void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
 {
     if (buf->main)
         buf->id = buf->main->id;

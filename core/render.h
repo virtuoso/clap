@@ -134,7 +134,6 @@ cerr_check _buffer_init(buffer_t *buf, const buffer_init_options *opts);
 void buffer_deinit(buffer_t *buf);
 void buffer_bind(buffer_t *buf, uniform_t loc);
 void buffer_unbind(buffer_t *buf, uniform_t loc);
-void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc);
 bool buffer_loaded(buffer_t *buf);
 
 #ifdef CONFIG_RENDERER_OPENGL
