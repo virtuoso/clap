@@ -128,10 +128,10 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
     list_init(&ps->particles);
 
     LOCAL_SET(mesh_t, particle_mesh) = ref_new(mesh, .name = "particle");
-    CERR_RET(mesh_attr_alloc(particle_mesh, MESH_VX, sizeof(float) * 3, 6), return __cerr);
-    CERR_RET(mesh_attr_alloc(particle_mesh, MESH_TX, sizeof(float) * 2, 6), return __cerr);
-    CERR_RET(mesh_attr_alloc(particle_mesh, MESH_NORM, sizeof(float) * 3, 6), return __cerr);
-    CERR_RET(mesh_attr_alloc(particle_mesh, MESH_IDX, sizeof(unsigned short), 6), return __cerr);
+    CERR_RET_CERR(mesh_attr_alloc(particle_mesh, MESH_VX, sizeof(float) * 3, 6));
+    CERR_RET_CERR(mesh_attr_alloc(particle_mesh, MESH_TX, sizeof(float) * 2, 6));
+    CERR_RET_CERR(mesh_attr_alloc(particle_mesh, MESH_NORM, sizeof(float) * 3, 6));
+    CERR_RET_CERR(mesh_attr_alloc(particle_mesh, MESH_IDX, sizeof(unsigned short), 6));
 
     double scale = opts->scale ? : 0.01;
     vec3 quad[4];

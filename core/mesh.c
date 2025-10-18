@@ -109,7 +109,7 @@ cerr mesh_attr_alloc(struct mesh *mesh, enum mesh_attrs attr, size_t stride, siz
 
 cerr mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr)
 {
-    CERR_RET(mesh_attr_alloc(mesh, attr, stride, nr), return __cerr);
+    CERR_RET_CERR(mesh_attr_alloc(mesh, attr, stride, nr));
 
     memcpy(mesh->attr[attr].data, data, stride * nr);
     mesh->attr[attr].nr = nr;

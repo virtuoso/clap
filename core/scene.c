@@ -924,7 +924,7 @@ cerr scene_init(struct scene *scene)
     light_set_shadow_tint(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
 
     /* messagebus_done() will "unsubscribe" (free) these */
-    CERR_RET(subscribe(MT_INPUT, scene_handle_input, scene), return __cerr);
+    CERR_RET_CERR(subscribe(MT_INPUT, scene_handle_input, scene));
 
     scene->initialized = true;
 

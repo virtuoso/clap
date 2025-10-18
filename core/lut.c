@@ -365,7 +365,7 @@ static cerr cube_parse(lut *lut, void *buf, size_t size)
     if (x != 0 || y != 0 || z != sz)
         return CERR_INVALID_FORMAT;
 
-    CERR_RET(lut_setup(lut, arr, sz), return __cerr);
+    CERR_RET_CERR(lut_setup(lut, arr, sz));
 
     return CERR_OK;
 }
