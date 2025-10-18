@@ -160,6 +160,9 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
         __ret; \
 })
 
+/* Check if cerr is an error and return cerr from the enclosing function if it is */
+#define CERR_RET_CERR(__x)  CERR_RET((__x), return __cerr)
+
 /* Check if cerr is an error and return cresp(__t) if it is */
 #define CERR_RET_T(__x, __t) CERR_RET(__x, return cresp_error_cerr(__t, __cerr))
 
