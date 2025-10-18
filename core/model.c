@@ -190,7 +190,7 @@ static cerr load_texture_buffer(struct shader_prog *p, void *buffer, int width, 
 }
 
 static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars var, void *input,
-                                              int width, int height, int has_alpha)
+                                              int width, int height, texture_format color_format)
 {
     texture_t *targets[] = { txm->texture, txm->normals, txm->emission, txm->sobel, txm->shadow, txm->lut };
     struct shader_prog *prog = txm->model->prog;
@@ -200,8 +200,6 @@ static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars v
     slot = shader_get_texture_slot(prog, var);
     if (slot < 0)
         return CERR_INVALID_ARGUMENTS;
-
-    texture_format color_format = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
 
     shader_prog_use(prog);
     err = load_texture_buffer(prog, input, width, height, color_format, var, targets[slot]);
@@ -217,7 +215,8 @@ static cerr_check model3dtx_add_texture_from_png_buffer(model3dtx *txm, enum sha
     unsigned char *buffer;
 
     buffer = decode_png(input, length, &width, &height, &has_alpha);
-    cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
+    texture_format color_format = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
+    cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, color_format);
     mem_free(buffer);
 
     return err;
@@ -228,7 +227,8 @@ static cerr model3dtx_add_texture_at(model3dtx *txm, enum shader_vars var, const
     int width = 0, height = 0, has_alpha = 0;
     unsigned char *buffer = fetch_png(name, &width, &height, &has_alpha);
 
-    cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, has_alpha);
+    texture_format color_format = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
+    cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, color_format);
     mem_free(buffer);
 
     return err;
@@ -297,7 +297,7 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
         else
             err = model3dtx_add_texture_from_buffer(txm, UNIFORM_MODEL_TEX, opts->texture_buffer,
                                                     opts->texture_width, opts->texture_height,
-                                                    opts->texture_has_alpha);
+                                                    opts->texture_color_format);
         if (IS_CERR(err))
             goto drop_txm;
     } else if (opts->texture_file_name) {
@@ -315,7 +315,7 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
                                                         opts->normal_size);
         else
             err = model3dtx_add_texture_from_buffer(txm, UNIFORM_NORMAL_MAP, opts->normal_buffer,
-                                                    opts->normal_width, opts->normal_height, false);
+                                                    opts->normal_width, opts->normal_height, TEX_FMT_RGB8);
         if (IS_CERR(err))
             goto drop_txm;
     } else if (opts->normal_file_name) {
@@ -333,7 +333,7 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
                                                         opts->emission_size);
         else
             err = model3dtx_add_texture_from_buffer(txm, UNIFORM_EMISSION_MAP, opts->emission_buffer,
-                                                    opts->emission_width, opts->emission_height, false);
+                                                    opts->emission_width, opts->emission_height, TEX_FMT_RGB8);
         if (IS_CERR(err))
             goto drop_txm;
     } else if (opts->emission_file_name) {
