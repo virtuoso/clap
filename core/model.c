@@ -169,29 +169,24 @@ DEFINE_REFCLASS2(model3d);
 
 DEFINE_CLEANUP(model3d, if (*p) ref_put(*p))
 
-static cerr load_gl_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
-                                   int has_alpha, enum shader_vars var, texture_t *tex)
+static cerr load_texture_buffer(struct shader_prog *p, void *buffer, int width, int height,
+                                texture_format color_type, enum shader_vars var, texture_t *tex)
 {
-    texture_format color_type = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
-    if (!buffer)
-        return CERR_INVALID_ARGUMENTS;
+    if (!buffer)                    return CERR_INVALID_ARGUMENTS;
+    if (!shader_has_var(p, var))    return CERR_OK;
 
-    if (!shader_has_var(p, var))
-        return CERR_OK;
+    CERR_RET(
+        texture_init(
+            tex,
+            .target       = shader_get_texture_slot(p, var),
+            .wrap         = TEX_WRAP_REPEAT,
+            .min_filter   = TEX_FLT_NEAREST,
+            .mag_filter   = TEX_FLT_NEAREST
+        ),
+        return __cerr
+    );
 
-    cerr err = texture_init(tex,
-                            .target       = shader_get_texture_slot(p, var),
-                            .wrap         = TEX_WRAP_REPEAT,
-                            .min_filter   = TEX_FLT_NEAREST,
-                            .mag_filter   = TEX_FLT_NEAREST);
-    if (IS_CERR(err))
-        return err;
-
-    err = texture_load(tex, color_type, width, height, buffer);
-    if (IS_CERR(err))
-        return err;
-
-    return CERR_OK;
+    return texture_load(tex, color_type, width, height, buffer);
 }
 
 static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars var, void *input,
@@ -206,9 +201,10 @@ static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars v
     if (slot < 0)
         return CERR_INVALID_ARGUMENTS;
 
+    texture_format color_format = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
+
     shader_prog_use(prog);
-    err = load_gl_texture_buffer(prog, input, width, height, has_alpha, var,
-                                 targets[slot]);
+    err = load_texture_buffer(prog, input, width, height, color_format, var, targets[slot]);
     shader_prog_done(prog);
     dbg("loaded texture%d %d %dx%d\n", slot, texture_id(txm->texture), width, height);
 
