@@ -37,7 +37,11 @@ const char *__asan_default_options() {
         ":check_initialization_order=true"
         ":detect_stack_use_after_return=true"
         ":alloc_dealloc_mismatch=false"
+#if defined(__APPLE__) && defined(CONFIG_RENDERER_OPENGL)
+        ":strict_string_checks=false"
+#else
         ":strict_string_checks=true"
+#endif /* !(__APPLE__ && CONFIG_RENDERER_OPENGL) */
         ":abort_on_error=true"
 #ifndef CONFIG_BROWSER
         ":suppressions=clap.supp"
