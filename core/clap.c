@@ -36,7 +36,7 @@ const char *__asan_default_options() {
         "verbosity=0"
         ":check_initialization_order=true"
         ":detect_stack_use_after_return=true"
-	    ":alloc_dealloc_mismatch=false"
+        ":alloc_dealloc_mismatch=false"
         ":strict_string_checks=true"
         ":abort_on_error=true"
 #ifndef CONFIG_BROWSER
