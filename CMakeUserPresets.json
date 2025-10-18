@@ -15,7 +15,8 @@
             "installDir": "$env{WWW_INSTALL_DIR}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Debug",
-                "CMAKE_EXPORT_COMPILE_COMMANDS":true
+                "CMAKE_EXPORT_COMPILE_COMMANDS":true,
+                "CLAP_BUILD_NETWORKING": false
             }
         },
         {
