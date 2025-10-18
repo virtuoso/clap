@@ -1111,28 +1111,24 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         return CERR_INVALID_ARGUMENTS;
 
     LOCAL_SET(mesh_t, me) = ref_new(mesh, .name = gltf_mesh_name(gd, mesh), .fix_origin = gd->fix_origin);
-    CERR_RET(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)), return __cerr);
-    CERR_RET(mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh)), return __cerr);
-    CERR_RET(mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh)), return __cerr);
+    CERR_RET_CERR(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)));
+    CERR_RET_CERR(mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh)));
+    CERR_RET_CERR(mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh)));
     if (gltf_has_norm(gd, mesh))
-        CERR_RET(
-            mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh)),
-            return __cerr
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh))
         );
     if (gltf_has_joints(gd, mesh))
-        CERR_RET(
-            mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh), gltf_nr_joints(gd, mesh)),
-            return __cerr
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh), gltf_nr_joints(gd, mesh))
         );
     if (gltf_has_weights(gd, mesh))
-        CERR_RET(
-            mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh), gltf_nr_weights(gd, mesh)),
-            return __cerr
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh), gltf_nr_weights(gd, mesh))
         );
     if (gltf_has_tangent(gd, mesh))
-        CERR_RET(
-            mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh), gltf_nr_tangent(gd, mesh)),
-            return __cerr
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh), gltf_nr_tangent(gd, mesh))
         );
     mesh_optimize(me);
 
