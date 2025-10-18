@@ -4,5 +4,6 @@
 
 #cmakedefine HAVE_FFS @HAVE_FFS@
 #cmakedefine HAVE_FLS @HAVE_FLS@
+#cmakedefine HAVE_CLOCK_GETTIME @HAVE_CLOCK_GETTIME@
 
 #endif /* __CLAP_COMPAT_CONFIG_H__ */

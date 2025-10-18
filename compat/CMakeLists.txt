@@ -10,6 +10,26 @@ include(CheckSymbolExists)
 check_symbol_exists(ffs "strings.h" HAVE_FFS)
 check_symbol_exists(fls "strings.h" HAVE_FLS)
 
+if(MINGW)
+  list(APPEND CMAKE_REQUIRED_LIBRARIES winpthread)
+endif()
+
+include(CheckCSourceCompiles)
+
+check_c_source_compiles("
+  #include <time.h>
+  #if defined(__has_include)
+  # if __has_include(<pthread_time.h>)
+  #  include <pthread_time.h>
+  # endif
+  #endif
+  int main(void){
+    struct timespec ts;
+    return clock_gettime(0, &ts);  // compile+link probe
+  }"
+  HAVE_CLOCK_GETTIME
+)
+
 configure_file(compat_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/compat_config.h)
 
 target_compile_definitions(clap_compat INTERFACE -D_GNU_SOURCE)

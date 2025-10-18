@@ -2,6 +2,7 @@
 #include <sys/time.h>
 #include <windows.h>
 
+#ifndef HAVE_CLOCK_GETTIME
 int clock_gettime(clockid_t id, struct timespec *ts)
 {
     LARGE_INTEGER epoch = {};
@@ -20,3 +21,4 @@ int clock_gettime(clockid_t id, struct timespec *ts)
 
     return 0;
 }
+#endif /* !HAVE_CLOCK_GETTIME*/
