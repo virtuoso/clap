@@ -152,6 +152,7 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 #define CERR_CODE(__x) (*((cerr_enum *)&(__x)))
 /* Is cerr or cres (or any compound type that has cerr at offset 0) an error */
 #define IS_CERR(__x) (CERR_CODE(__x) != _CERR_OK)
+#define IS_CERR_CODE(__x, __e) (CERR_CODE((__x)) == _ ## __e)
 
 /* Check if cerr is an error and execute @__ret statement if it is */
 #define CERR_RET(__x, __ret) ({ \
