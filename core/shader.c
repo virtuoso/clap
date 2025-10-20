@@ -682,7 +682,11 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
                         var_block->desc->name,
                         shader_get_var_name(var)
                     ),
-                    { err("uniform %s not found in %s\n", shader_get_var_name(var), desc->name); continue; }
+                    {
+                        if (IS_CERR_CODE(__resp, CERR_NOT_FOUND))
+                            err("uniform %s not found in %s\n", shader_get_var_name(var), desc->name);
+                        continue;
+                    }
                 );
                 size_t my_off = *DA(var_block->offsets, idx);
 
