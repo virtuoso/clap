@@ -350,6 +350,9 @@ static int bitmap_test0(void)
         !bitmap_is_set(&b0, 2))
         return EXIT_FAILURE;
 
+    auto pos = CRES_RET(bitmap_set_lowest(&b0), return EXIT_FAILURE);
+    if (pos != 3 || !bitmap_is_set(&b0, 3)) return EXIT_FAILURE;
+
     bitmap_set(&b1, 0);
     bitmap_set(&b1, 2);
     if (!bitmap_includes(&b0, &b1))
@@ -357,6 +360,19 @@ static int bitmap_test0(void)
 
     if (bitmap_includes(&b1, &b0))
         return EXIT_FAILURE;
+
+    pos = CRES_RET(bitmap_find_first_unset(&b1), return EXIT_FAILURE);
+    if (pos != 1)   return EXIT_FAILURE;
+
+    bitmap_clear(&b1, 0);
+    bitmap_clear(&b1, 2);
+    if (bitmap_is_set(&b1, 0) || bitmap_is_set(&b1, 2))
+        return EXIT_FAILURE;
+
+    bitmap_set(&b1, 120);
+
+    pos = CRES_RET(bitmap_find_first_set(&b1), return EXIT_FAILURE);
+    if (pos != 120)   return EXIT_FAILURE;
 
     bitmap_done(&b0);
     bitmap_done(&b1);
