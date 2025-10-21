@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -305,10 +306,47 @@ void bitmap_set(struct bitmap *b, unsigned int bit)
     b->mask[idx] |= 1ul << (bit % BITS_PER_LONG);
 }
 
+void bitmap_clear(struct bitmap *b, unsigned int bit)
+{
+    unsigned int idx = bit / BITS_PER_LONG;
+    b->mask[idx] &= ~(1ul << (bit % BITS_PER_LONG));
+}
+
 bool bitmap_is_set(struct bitmap *b, unsigned int bit)
 {
     unsigned int idx = bit / BITS_PER_LONG;
     return !!(b->mask[idx] & (1ul << (bit % BITS_PER_LONG)));
+}
+
+cres(int) bitmap_find_first_set(struct bitmap *b)
+{
+    for (int i = 0; i < b->size; i++)
+        if (b->mask[i]) {
+            auto pos = ffsl(b->mask[i]);
+            /* if (!pos)   return cres_error(int, CERR_NOT_FOUND); */
+            return cres_val(int, i * BITS_PER_LONG + pos - 1);
+        }
+
+    return cres_error(int, CERR_NOT_FOUND);
+}
+
+cres(int) bitmap_find_first_unset(struct bitmap *b)
+{
+    for (int i = 0; i < b->size; i++)
+        if (b->mask[i] != ULONG_MAX) {
+            auto pos = ffsl(ULONG_MAX ^ b->mask[i]);
+            /* if (!pos)   return cres_error(int, CERR_NOT_FOUND); */
+            return cres_val(int, i * BITS_PER_LONG + pos - 1);
+        }
+
+    return cres_error(int, CERR_NOT_FOUND);
+}
+
+cres(int) bitmap_set_lowest(struct bitmap *b)
+{
+    auto pos = CRES_RET(bitmap_find_first_unset(b), return cres_error_cerr(int, __resp));
+    bitmap_set(b, pos);
+    return cres_val(int, pos);
 }
 
 bool bitmap_includes(struct bitmap *b, struct bitmap *subset)

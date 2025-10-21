@@ -337,7 +337,11 @@ struct bitmap {
 void bitmap_init(struct bitmap *b, size_t bits);
 void bitmap_done(struct bitmap *b);
 void bitmap_set(struct bitmap *b, unsigned int bit);
+void bitmap_clear(struct bitmap *b, unsigned int bit);
 bool bitmap_is_set(struct bitmap *b, unsigned int bit);
+cres(int) bitmap_find_first_set(struct bitmap *b);
+cres(int) bitmap_find_first_unset(struct bitmap *b);
+cres(int) bitmap_set_lowest(struct bitmap *b);
 bool bitmap_includes(struct bitmap *b, struct bitmap *subset);
 
 void *memdup(const void *x, size_t size);
