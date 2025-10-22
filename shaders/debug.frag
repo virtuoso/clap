@@ -1,21 +1,11 @@
 #version 460 core
 
 #include "shader_constants.h"
-#include "ubo_color_pt.glsl"
+#include "color_pt.glsl"
 
 layout (location=0) out vec4 FragColor;
 
 void main()
 {
-    vec4 tex_color;
-
-    if (color_passthrough == COLOR_PT_ALL) {
-        tex_color = in_color;
-    } else {
-        tex_color = vec4(1.0, 0.0, 0.0, 1.0);
-        if (color_passthrough >= COLOR_PT_ALPHA)
-            tex_color.w = in_color.w;
-    }
-
-    FragColor = tex_color;
+    FragColor = color_override(vec4(0.0));
 }

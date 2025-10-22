@@ -562,7 +562,7 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
                           .height   = glyph->height);
         ref_only(uies[i]->entity);
         ref_only(uies[i]);
-        entity3d_color(uies[i]->entity, COLOR_PT_ALL, color);
+        entity3d_color(uies[i]->entity, COLOR_PT_REPLACE_RGB | COLOR_PT_BLEND_ALPHA, color);
 
         uies[i]->prescaled = true;
         
@@ -601,7 +601,7 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
                          .affinity  = parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
                          .width     = fbo_ui.width,
                          .height    = fbo_ui.height);
-    entity3d_color(uit.uietex->entity, COLOR_PT_ALPHA, (vec4){ 0, 0, 0, 1 });
+    entity3d_color(uit.uietex->entity, COLOR_PT_REPLACE_RGB | COLOR_PT_BLEND_ALPHA, color);
     ref_only(uit.uietex->entity);
     ref_only(uit.uietex);
 
@@ -1334,7 +1334,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
             inv->uies[i]->priv = (void *)(uintptr_t)i;
             if (apple_ages[i] < 1.0) {
                 // immature apple
-                entity3d_color(inv->uies[i]->entity, COLOR_PT_ALPHA, (vec4){ 0.1, 0.5, 0.9, 0.3 });
+                entity3d_color(inv->uies[i]->entity, COLOR_PT_SET_ALPHA, (vec4){ 0.1, 0.5, 0.9, 0.3 });
             } else {
                 // mature apple
                 entity3d_color(inv->uies[i]->entity, COLOR_PT_NONE, (vec4){});

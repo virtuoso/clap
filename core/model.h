@@ -552,13 +552,18 @@ void entity3d_set_lod(entity3d *e, int lod, bool force);
 /**
  * entity3d_color() - set entity's color override mode and color
  * @e:          entity3d object
- * @color_pt:   "color passthrough" mode
+ * @color_pt:   bitmask of "color passthrough" COLOR_PT_* modes
  * @color:      override color
  *
- * Depending on @color_pt setting, do one of the 3 things:
- * * COLOR_PT_NONE:     use model3dtx's diffuse texture (default)
- * * COLOR_PT_ALPHA:    override the alpha channel with @color[3]
- * * COLOR_PT_ALL:      override all color channels with @color
+ * Depending on @color_pt setting, do one of the following. Only one alpha
+ * and one RGB mode are allowed:
+ * * COLOR_PT_NONE:             use model3dtx's diffuse texture (default)
+ * * COLOR_PT_SET_RGB:          use @color unconditionally
+ * * COLOR_PT_REPLACE_RGB:      replace non-black pixels with @color
+ * * COLOR_PT_SET_ALPHA:        override the alpha channel with @color[3]
+ * * COLOR_PT_REPLACE_ALPHA:    replace non-zero alpha with @color[3]
+ * * COLOR_PT_BLEND_ALPHA:      multiply alpha channel by @color[3]
+ * * COLOR_PT_ALL:              everything with @color
  * Context: anywhere
  */
 void entity3d_color(entity3d *e, int color_pt, vec4 color);

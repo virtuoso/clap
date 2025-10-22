@@ -1494,18 +1494,23 @@ void entity3d_move(entity3d *e, vec3 off)
         phys_body_set_position(e->phys_body, pos);
 }
 
+#define COLOR_PT_ALPHA_ALL  (COLOR_PT_SET_ALPHA | COLOR_PT_REPLACE_ALPHA | COLOR_PT_BLEND_ALPHA)
+#define COLOR_PT_RGB_ALL    (COLOR_PT_SET_RGB | COLOR_PT_REPLACE_RGB)
 void entity3d_color(entity3d *e, int color_pt, vec4 color)
 {
-    switch (color_pt) {
-        case COLOR_PT_ALPHA:
-        case COLOR_PT_ALL:
-            vec4_dup(e->color, color);
-        case COLOR_PT_NONE:
-            e->color_pt = color_pt;
-            break;
-        default:
-            break;
+    if (color_pt == COLOR_PT_NONE)  { e->color_pt = color_pt; return; }
+
+    int alpha_mask = color_pt & COLOR_PT_ALPHA_ALL;
+    int rgb_mask = color_pt & COLOR_PT_RGB_ALL;
+
+    /* only one alpha and one RGB action are allowed */
+    if (alpha_mask & (alpha_mask - 1) || rgb_mask & (rgb_mask - 1)) {
+        err("invalid color_pt setting: %02x\n", color_pt);
+        return;
     }
+
+    vec4_dup(e->color, color);
+    e->color_pt = color_pt;
 }
 
 entity3d *instantiate_entity(model3dtx *txm, struct instantiator *instor,

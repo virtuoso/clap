@@ -10,8 +10,12 @@
 #define SSAO_NOISE_DIM 16
 
 #define COLOR_PT_NONE 0
-#define COLOR_PT_ALPHA 1
-#define COLOR_PT_ALL 2
+#define COLOR_PT_SET_RGB        0x01
+#define COLOR_PT_REPLACE_RGB    0x02
+#define COLOR_PT_SET_ALPHA      0x04
+#define COLOR_PT_REPLACE_ALPHA  0x08
+#define COLOR_PT_BLEND_ALPHA    0x10
+#define COLOR_PT_ALL            (COLOR_PT_SET_RGB | COLOR_PT_SET_ALPHA)
 
 #define MAT_METALLIC_INDEPENDENT            0
 #define MAT_METALLIC_ROUGHNESS              1
