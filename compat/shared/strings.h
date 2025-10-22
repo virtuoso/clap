@@ -9,6 +9,13 @@ static inline int ffs(int x)
 }
 #endif /* HAVE_FFS */
 
+#ifndef HAVE_FFSL
+static inline int ffsl(long x)
+{
+    return __builtin_ffsl(x);
+}
+#endif /* HAVE_FFSL */
+
 /* matching ffs*(), count bit positions from 1; 0 means no bits are set */
 #ifndef HAVE_FLS
 static inline int fls(int x)

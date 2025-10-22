@@ -8,6 +8,7 @@ add_library(clap_compat INTERFACE)
 include(CheckSymbolExists)
 
 check_symbol_exists(ffs "strings.h" HAVE_FFS)
+check_symbol_exists(ffsl "strings.h" HAVE_FFSL)
 check_symbol_exists(fls "strings.h" HAVE_FLS)
 
 if(MINGW)
