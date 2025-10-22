@@ -474,7 +474,8 @@ static model3dtx *ui_txm_find_by_texture(struct ui *ui, texture_t *tex)
          * reference is already taken, the next ui element
          * to use it needs only its own reference.
          */
-        if (texture_id(txmodel->texture) == texture_id(tex))
+        auto glyph_tex = CRES_RET(model3dtx_texture(txmodel, UNIFORM_MODEL_TEX), continue);
+        if (texture_id(glyph_tex) == texture_id(tex))
             return txmodel;
     }
 

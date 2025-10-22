@@ -72,23 +72,17 @@ void pipeline_clearout(pipeline *pl)
                         pass->use_tex[i] :
                         fbo_texture(source->pass->fbo, source->attachment);
 
-                    if (txm->texture == tex)
-                        txm->texture = &txm->_texture;
-                    if (txm->normals == tex)
-                        txm->normals = &txm->_normals;
-                    if (txm->emission == tex)
-                        txm->emission = &txm->_emission;
-                    if (txm->sobel == tex)
-                        txm->sobel = &txm->_sobel;
-                    if (txm->shadow == tex)
-                        txm->shadow = &txm->_shadow;
+                    for (enum shader_vars v = ATTR_MAX; v < UNIFORM_TEX_MAX; v++) {
+                        auto txm_tex = CRES_RET(model3dtx_texture(txm, v), continue);
+                        if (txm_tex == tex) model3dtx_set_texture(txm, v, NULL);
+                    }
                 }
                 /*
                  * model3dtx_drop() will unload model3dtx::lut, which should
                  * not happen, as LUTs are maintained globally. Prevent this
                  * from happening.
                  */
-                txm->lut = &txm->_lut;
+                model3dtx_set_texture(txm, UNIFORM_LUT_TEX, NULL);
             }
 
             ref_put_last(pass->quad);

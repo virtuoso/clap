@@ -171,15 +171,7 @@ typedef struct model3dtx {
     texture_t      _texture;
     texture_t      _normals;
     texture_t      _emission;
-    texture_t      _sobel;
-    texture_t      _shadow;
-    texture_t      _lut;
-    texture_t      *texture;
-    texture_t      *normals;
-    texture_t      *emission;
-    texture_t      *sobel;
-    texture_t      *shadow;
-    texture_t      *lut;
+    texture_t      *textures[UNIFORM_NR_TEX];
     material       mat;
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
@@ -217,6 +209,11 @@ float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);
 float model3d_aabb_Z(model3d *m);
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex);
+
+cresp_ret(texture_t);
+
+cresp(texture_t) model3dtx_texture(model3dtx *txm, enum shader_vars var);
+cresp(texture_t) model3dtx_loaded_texture(model3dtx *txm, enum shader_vars var);
 
 static inline const char *txmodel_name(model3dtx *txm)
 {
