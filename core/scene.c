@@ -421,18 +421,11 @@ static void model_tabs(model3dtx *txm)
 
     if (igBeginTabItem("textures", NULL, 0)) {
         texture_debug_header();
-        if (texture_loaded(txm->texture))
-            texture_debug(txm->texture, "texture");
-        if (texture_loaded(txm->normals))
-            texture_debug(txm->normals, "normals");
-        if (texture_loaded(txm->emission))
-            texture_debug(txm->emission, "emission");
-        if (texture_loaded(txm->sobel))
-            texture_debug(txm->sobel, "sobel");
-        if (texture_loaded(txm->shadow))
-            texture_debug(txm->shadow, "shadow");
-        if (texture_loaded(txm->lut))
-            texture_debug(txm->lut, "lut");
+
+        for (enum shader_vars v = ATTR_MAX; v < UNIFORM_TEX_MAX; v++) {
+            auto tex = CRES_RET(model3dtx_texture(txm, v), continue);
+            texture_debug(tex, shader_get_var_name(v));
+        }
 
         igEndTable();
         igEndTabItem();

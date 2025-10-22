@@ -189,10 +189,24 @@ static cerr load_texture_buffer(struct shader_prog *p, void *buffer, int width, 
     return texture_load(tex, color_type, width, height, buffer);
 }
 
+#define TEXIDX(_tex)    ((_tex) - ATTR_MAX)
+
+cresp(texture_t) model3dtx_texture(model3dtx *txm, enum shader_vars var)
+{
+    if (var < ATTR_MAX || var >= UNIFORM_TEX_MAX)   return cresp_error(texture_t, CERR_NOT_FOUND);
+    return cresp_val(texture_t, txm->textures[var - ATTR_MAX]);
+}
+
+cresp(texture_t) model3dtx_loaded_texture(model3dtx *txm, enum shader_vars var)
+{
+    auto tex = CRES_RET_T(model3dtx_texture(txm, var), texture_t);
+    if (!tex || !texture_loaded(tex))   return cresp_error(texture_t, CERR_TEXTURE_NOT_LOADED);
+    return cresp_val(texture_t, tex);
+}
+
 static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars var, void *input,
                                               int width, int height, texture_format color_format)
 {
-    texture_t *targets[] = { txm->texture, txm->normals, txm->emission, txm->sobel, txm->shadow, txm->lut };
     struct shader_prog *prog = txm->model->prog;
     int slot;
     cerr err;
@@ -201,10 +215,12 @@ static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars v
     if (slot < 0)
         return CERR_INVALID_ARGUMENTS;
 
+    auto tex = CRES_RET_CERR(model3dtx_texture(txm, var));
+
     shader_prog_use(prog);
-    err = load_texture_buffer(prog, input, width, height, color_format, var, targets[slot]);
+    err = load_texture_buffer(prog, input, width, height, color_format, var, tex);
     shader_prog_done(prog);
-    dbg("loaded texture%d %d %dx%d\n", slot, texture_id(txm->texture), width, height);
+    dbg("loaded texture%d %d %dx%d\n", slot, texture_id(tex), width, height);
 
     return err;
 }
@@ -234,9 +250,15 @@ static cerr model3dtx_add_texture_at(model3dtx *txm, enum shader_vars var, const
     return err;
 }
 
-static bool model3dtx_tex_is_ext(model3dtx *txm)
+static bool model3dtx_tex_is_ext(model3dtx *txm, enum shader_vars var)
 {
-    return txm->texture != &txm->_texture;
+    switch (var) {
+        case UNIFORM_MODEL_TEX:     return txm->textures[TEXIDX(var)] != &txm->_texture;
+        case UNIFORM_NORMAL_MAP:    return txm->textures[TEXIDX(var)] != &txm->_normals;
+        case UNIFORM_EMISSION_MAP:  return txm->textures[TEXIDX(var)] != &txm->_emission;
+        default:                    break;
+    }
+    return false;
 }
 
 static void model3dtx_drop(struct ref *ref)
@@ -246,21 +268,15 @@ static void model3dtx_drop(struct ref *ref)
 
     trace("dropping model3dtx [%s]\n", name);
     list_del(&txm->entry);
-    /* XXX this is a bit XXX */
-    if (model3dtx_tex_is_ext(txm))
-        texture_done(txm->texture);
-    else
-        texture_deinit(txm->texture);
-    if (txm->normals)
-        texture_deinit(txm->normals);
-    if (txm->emission)
-        texture_deinit(txm->emission);
-    if (txm->sobel)
-        texture_deinit(txm->sobel);
-    if (txm->shadow)
-        texture_deinit(txm->shadow);
-    if (txm->lut)
-        texture_deinit(txm->lut);
+
+    for (size_t i = 0; i < array_size(txm->textures); i++) {
+        if (!txm->textures[i])  continue;
+
+        if (model3dtx_tex_is_ext(txm, ATTR_MAX + i))
+            texture_done(txm->textures[i]);
+        else
+            texture_deinit(txm->textures[i]);
+    }
     ref_put(txm->model);
 }
 
@@ -272,12 +288,9 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
         return CERR_INVALID_ARGUMENTS;
 
     model3dtx *txm  = container_of(ref, model3dtx, ref);
-    txm->texture    = &txm->_texture;
-    txm->normals    = &txm->_normals;
-    txm->emission   = &txm->_emission;
-    txm->sobel      = &txm->_sobel;
-    txm->shadow     = &txm->_shadow;
-    txm->lut        = &txm->_lut;
+    txm->textures[TEXIDX(UNIFORM_MODEL_TEX)]    = &txm->_texture;
+    txm->textures[TEXIDX(UNIFORM_NORMAL_MAP)]   = &txm->_normals;
+    txm->textures[TEXIDX(UNIFORM_EMISSION_MAP)] = &txm->_emission;
     list_init(&txm->entities);
     list_init(&txm->entry);
 
@@ -289,7 +302,7 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
         if (opts->texture_buffer || opts->texture_file_name)
             goto drop_txm;
 
-        txm->texture = opts->tex;
+        model3dtx_set_texture(txm, UNIFORM_MODEL_TEX, opts->tex);
     } else if (opts->texture_buffer) {
         if (opts->buffers_png)
             err = model3dtx_add_texture_from_png_buffer(txm, UNIFORM_MODEL_TEX, opts->texture_buffer,
@@ -361,19 +374,16 @@ DEFINE_CLEANUP(model3dtx, if (*p) ref_put(*p))
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
 {
     struct shader_prog *prog = txm->model->prog;
-    texture_t **targets[] = { &txm->texture, &txm->normals, &txm->emission, &txm->sobel, &txm->shadow, &txm->lut };
     int slot = shader_get_texture_slot(prog, var);
 
     if (slot < 0) {
-        dbg("program '%s' doesn't have texture %s or it's not a texture\n", shader_name(prog),
-            shader_get_var_name(var));
+        if (tex)
+            dbg("program '%s' doesn't have texture %s or it's not a texture\n", shader_name(prog),
+                shader_get_var_name(var));
         return;
     }
 
-    if (slot >= array_size(targets))
-        return;
-
-    *targets[slot] = tex;
+    txm->textures[TEXIDX(var)] = tex;
 }
 
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...)
@@ -519,12 +529,15 @@ static void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
 {
     model3d_prepare(txm->model, p);
 
-    shader_plug_texture(p, UNIFORM_MODEL_TEX, txm->texture);
-    shader_plug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
-    shader_plug_texture(p, UNIFORM_EMISSION_MAP, txm->emission);
-    shader_plug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
-    shader_plug_texture(p, UNIFORM_SHADOW_MAP, txm->shadow);
-    shader_plug_texture(p, UNIFORM_LUT_TEX, txm->lut);
+    for (enum shader_vars v = ATTR_MAX; v < UNIFORM_TEX_MAX; v++) {
+        auto tex_res = model3dtx_loaded_texture(txm, v);
+        if (IS_CERR(tex_res)) {
+            if (shader_has_var(p, v))
+                shader_plug_texture(p, v, black_pixel());
+            continue;
+        }
+        shader_plug_texture(p, v, tex_res.val);
+    }
 }
 
 static void model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int lod, unsigned int nr_instances)
@@ -544,9 +557,15 @@ static void model3d_done(model3d *m, struct shader_prog *p)
 
 static void model3dtx_done(model3dtx *txm, struct shader_prog *p)
 {
-    shader_unplug_texture(p, UNIFORM_NORMAL_MAP, txm->normals);
-    shader_unplug_texture(p, UNIFORM_EMISSION_MAP, txm->emission);
-    shader_unplug_texture(p, UNIFORM_SOBEL_TEX, txm->sobel);
+    for (enum shader_vars v = ATTR_MAX; v < UNIFORM_TEX_MAX; v++) {
+        auto tex_res = model3dtx_loaded_texture(txm, v);
+        if (IS_CERR(tex_res)) {
+            if (shader_has_var(p, v))
+                shader_unplug_texture(p, v, black_pixel());
+            continue;
+        }
+        shader_unplug_texture(p, v, tex_res.val);
+    }
 
     model3d_done(txm->model, p);
 }
@@ -731,23 +750,6 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                     }
                     shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
                 }
-                if (light->shadow[0][0]) {
-#ifndef CONFIG_SHADOW_MAP_ARRAY
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP, light->shadow[0][0]);
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP1, light->shadow[0][1] ? light->shadow[0][1] : white_pixel());
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP2, light->shadow[0][2] ? light->shadow[0][2] : white_pixel());
-                    shader_plug_texture(prog, UNIFORM_SHADOW_MAP3, light->shadow[0][3] ? light->shadow[0][3] : white_pixel());
-                    shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
-#else
-                    if (shader_has_var(prog, UNIFORM_SHADOW_MAP_MS)) {
-                        shader_plug_textures_multisample(prog, ropts ? ropts->shadow_msaa : false,
-                                                         UNIFORM_SHADOW_MAP, UNIFORM_SHADOW_MAP_MS,
-                                                         light->shadow[0][0]);
-                    } else {
-                        shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
-                    }
-#endif /* CONFIG_SHADOW_MAP_ARRAY */
-                }
             }
 
             if (view)
@@ -765,9 +767,33 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj);
         }
 
+        /* Set temporary shadow maps */
+        if (light && light->shadow[0][0]) {
+#ifndef CONFIG_SHADOW_MAP_ARRAY
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, light->shadow[0][0]);
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP1, light->shadow[0][1] ? light->shadow[0][1] : white_pixel());
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP2, light->shadow[0][2] ? light->shadow[0][2] : white_pixel());
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP3, light->shadow[0][3] ? light->shadow[0][3] : white_pixel());
+            shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
+#else
+            if (shader_has_var(prog, UNIFORM_SHADOW_MAP_MS)) {
+                if (ropts ? ropts->shadow_msaa : false) {
+                    model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, white_pixel());
+                    model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP_MS, light->shadow[0][0]);
+                } else {
+                    model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, light->shadow[0][0]);
+                    model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP_MS, white_pixel());
+                }
+            } else {
+                shader_set_var_int(prog, UNIFORM_USE_MSAA, false);
+            }
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
+        }
+
         model3dtx_prepare(txmodel, prog);
 
-        shader_set_var_int(prog, UNIFORM_USE_NORMALS, texture_loaded(txmodel->normals));
+        auto normals_res = model3dtx_loaded_texture(txmodel, UNIFORM_NORMAL_MAP);
+        shader_set_var_int(prog, UNIFORM_USE_NORMALS, !IS_CERR(normals_res));
 
         shader_set_var_float(prog, UNIFORM_ROUGHNESS, txmodel->mat.roughness);
         shader_set_var_int(prog, UNIFORM_ROUGHNESS_OCT, txmodel->mat.roughness_oct);
@@ -879,6 +905,20 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             buffer_unbind(&model->index[lod], -1);
 
         model3dtx_done(txmodel, prog);
+
+        /* Remove the temporary shadow maps */
+        if (light && light->shadow[0][0]) {
+#ifndef CONFIG_SHADOW_MAP_ARRAY
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, NULL);
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP1, NULL);
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP2, NULL);
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP3, NULL);
+#else
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, NULL);
+            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP_MS, NULL);
+#endif /* CONFIG_SHADOW_MAP_ARRAY */
+        }
+
         nr_txms++;
     }
 

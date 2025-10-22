@@ -263,8 +263,9 @@ static void process_entity(entity3d *e, void *data)
         entity3d_move(e, (vec3){ 0, 100, 0 });
 
         model3dtx *txm = e->txmodel;
-        if (!permanent && texture_loaded(txm->emission) && txm->emission != &platform_emission_peach) {
-            texture_deinit(txm->emission);
+        auto em_res = model3dtx_texture(txm, UNIFORM_EMISSION_MAP);
+        if (!permanent && !IS_CERR(em_res) && em_res.val != &platform_emission_peach) {
+            texture_deinit(em_res.val);
             model3dtx_set_texture(txm, UNIFORM_EMISSION_MAP, &platform_emission_peach);
         }
     } else if ((substr = strstr(name, ".switch"))) {
@@ -284,7 +285,8 @@ static void process_entity(entity3d *e, void *data)
         cobj->my_distance = entity3d_aabb_Y(e) * 3.0;
         cobj->my_distance *= cobj->my_distance;
     } else if (!strncmp(name, "glowing spheres around", 22)) {
-        texture_deinit(e->txmodel->emission);
+        auto em_res = model3dtx_texture(e->txmodel, UNIFORM_EMISSION_MAP);
+        if (!IS_CERR(em_res))   texture_deinit(em_res.val);
         model3dtx_set_texture(e->txmodel, UNIFORM_EMISSION_MAP, &platform_emission_peach);
     }
 }

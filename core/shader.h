@@ -26,6 +26,8 @@
  * @UNIFORM_SHADOW_MAP_MS:              shadow multisampled array texture
  * @UNIFORM_EMISSION_MAP:               emission texture
  * @UNIFORM_LUT_TEX:                    LUT texture
+ * @UNIFORM_TEX_MAX:                    texture/sampler uniform sentinel
+ * @UNIFORM_NR_TEX:                     number of texture/sampler uniforms
  * @UNIFORM_WIDTH:                      FBO width (should be useless by now)
  * @UNIFORM_HEIGHT:                     FBO height (should be useless by now)
  * @UNIFORM_NEAR_PLANE:                 view frustum's near_plane
@@ -114,7 +116,9 @@ enum shader_vars {
     UNIFORM_SHADOW_MAP_MS,
     UNIFORM_EMISSION_MAP,
     UNIFORM_LUT_TEX,
-    UNIFORM_WIDTH,
+    UNIFORM_TEX_MAX,
+    UNIFORM_NR_TEX = UNIFORM_TEX_MAX - ATTR_MAX,
+    UNIFORM_WIDTH = UNIFORM_TEX_MAX,
     UNIFORM_HEIGHT,
     UNIFORM_NEAR_PLANE,
     UNIFORM_FAR_PLANE,
