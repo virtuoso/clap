@@ -1,6 +1,7 @@
 #version 460 core
 
 #include "shader_constants.h"
+#include "pass-tex.glsl"
 
 layout (location=ATTR_LOC_POSITION) in vec3 position;
 layout (location=ATTR_LOC_TEX) in vec2 tex;
@@ -22,7 +23,7 @@ void main()
 
     vec4 our_normal = vec4(normal, 0);
     gl_Position = proj * view * trans * vec4(position, 1.0);
-    pass_tex = tex;
+    pass_tex = convert_pass_tex(tex);
 
     // this is still needed in frag
     surface_normal = (trans * vec4(our_normal.xyz, 0.0)).xyz;
