@@ -60,10 +60,10 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
         parent_height = uie->parent->actual_h;
     }
 
-    x_off = uie->x_off < 1.0 && uie->x_off > 0 ? uie->x_off * parent_width : uie->x_off;
-    y_off = uie->y_off < 1.0 && uie->y_off > 0 ? uie->y_off * parent_height : uie->y_off;
-    uie->actual_w = uie->width < 1.0 ? uie->width * parent_width : uie->width;
-    uie->actual_h = uie->height < 1.0 ? uie->height * parent_height : uie->height;
+    x_off = uie->affinity & UI_XOFF_FRAC ? uie->x_off * parent_width : uie->x_off;
+    y_off = uie->affinity & UI_YOFF_FRAC ? uie->y_off * parent_height : uie->y_off;
+    uie->actual_w = uie->affinity & UI_SZ_WIDTH_FRAC ? uie->width * parent_width : uie->width;
+    uie->actual_h = uie->affinity & UI_SZ_HEIGHT_FRAC ? uie->height * parent_height : uie->height;
     if (uie->parent && !(uie->affinity & UI_SZ_NORES)) {
         /* clamp child's w/h to parent's */
         uie->actual_w = min(uie->actual_w, parent_width - x_off);
@@ -1002,7 +1002,7 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
     /* Defaults, if the caller didn't provide a @uwb */
     struct ui_widget_builder _uwb = {
         .el_affinity  = UI_AF_CENTER,
-        .affinity   = UI_AF_BOTTOM | UI_AF_HCENTER,
+        .affinity   = UI_AF_BOTTOM | UI_AF_HCENTER | UI_SZ_HEIGHT_FRAC,
         .el_x_off   = 10,
         .el_y_off   = 10,
         .el_w       = 500,
@@ -1144,7 +1144,7 @@ struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root)
 
     struct ui_widget_builder _uwb = {
         .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
-        .affinity       = UI_AF_VCENTER | UI_AF_RIGHT,
+        .affinity       = UI_AF_VCENTER | UI_AF_RIGHT | UI_SZ_HEIGHT_FRAC,
         .el_x_off       = 10,
         .el_y_off       = 10,
         .el_w           = 300,
@@ -1259,7 +1259,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
                         .ui         = ui,
                         .nr_items   = nr_items,
                         .uwb        = &(struct ui_widget_builder) {
-                            .affinity   = UI_AF_VCENTER | UI_AF_HCENTER,
+                            .affinity   = UI_AF_VCENTER | UI_AF_HCENTER | UI_SZ_FRAC,
                             .input_event= ui_inventory_input,
                             .w          = 0.3,
                             .h          = 0.3
@@ -1405,7 +1405,7 @@ static int ui_handle_command(struct message *m, void *data)
             bottom_element = ref_new(ui_element,
                                      .ui        = ui,
                                      .txmodel   = ui_quadtx,
-                                     .affinity  = UI_AF_BOTTOM | UI_AF_RIGHT,
+                                     .affinity  = UI_AF_BOTTOM | UI_AF_RIGHT | UI_XOFF_FRAC,
                                      .x_off     = 0.01,
                                      .y_off     = 50,
                                      .width     = 400,

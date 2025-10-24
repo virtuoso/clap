@@ -383,7 +383,7 @@ static void startup(struct scene *s)
     cresp(ui_element) res = ref_new_checked(ui_element,
         .ui         = ui,
         .txmodel    = ui_quadtx_get(),
-        .affinity   = UI_AF_BOTTOM | UI_AF_RIGHT,
+        .affinity   = UI_AF_BOTTOM | UI_AF_RIGHT | UI_XOFF_FRAC,
         .x_off      = 0.05,
         .y_off      = 5,
         .width      = 300,

@@ -19,6 +19,14 @@
 #define UI_SZ_NOVRES 0x20
 #define UI_SZ_NORES (UI_SZ_NOHRES | UI_SZ_NOVRES)
 
+/* offsets/dimensions are fractions of parent's as opposed to absolute */
+#define UI_SZ_WIDTH_FRAC    0x40
+#define UI_SZ_HEIGHT_FRAC   0x80
+#define UI_SZ_FRAC          (UI_SZ_WIDTH_FRAC | UI_SZ_HEIGHT_FRAC)
+#define UI_XOFF_FRAC        0x100
+#define UI_YOFF_FRAC        0x200
+#define UI_OFF_FRAC         (UI_XOFF_FRAC | UI_YOFF_FRAC)
+
 enum uie_mv {
     UIE_MV_X_OFF = 0,
     UIE_MV_Y_OFF,
