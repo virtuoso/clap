@@ -33,9 +33,9 @@ loading_screen *loading_screen_init(struct ui *ui)
         ret->background = ref_new(ui_element,
             .ui         = ui,
             .txmodel    = bg_txm,
-            .affinity   = UI_AF_BOTTOM | UI_AF_LEFT,
-            .width      = ui->width,
-            .height     = ui->height,
+            .affinity   = UI_AF_BOTTOM | UI_AF_LEFT | UI_SZ_FRAC,
+            .width      = 1.0,
+            .height     = 1.0,
         );
     }
 
