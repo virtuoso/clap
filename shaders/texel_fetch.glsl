@@ -6,7 +6,7 @@ vec4 texel_fetch_2d(in sampler2D map, in vec2 pos, in ivec2 tex_off)
     float texel_size_x = 1.0 / float(textureSize(map, 0).x);
     float texel_size_y = 1.0 / float(textureSize(map, 0).y);
     vec2 off = vec2(float(tex_off.x) * texel_size_x, float(tex_off.y) * texel_size_y);
-    return texture(map, vec2(pos.xy + off), 0.0);
+    return textureLod(map, vec2(pos.xy + off), 0.0);
 }
 
 vec4 texel_fetch_2darray(in sampler2DArray map, in vec3 pos, in ivec2 tex_off)
@@ -14,7 +14,7 @@ vec4 texel_fetch_2darray(in sampler2DArray map, in vec3 pos, in ivec2 tex_off)
     float texel_size_x = 1.0 / float(textureSize(map, 0).x);
     float texel_size_y = 1.0 / float(textureSize(map, 0).y);
     vec2 off = vec2(float(tex_off.x) * texel_size_x, float(tex_off.y) * texel_size_y);
-    return texture(map, vec3(pos.xy + off, pos.z), 0.0);
+    return textureLod(map, vec3(pos.xy + off, pos.z), 0.0);
 }
 
 #ifndef CONFIG_GLES
