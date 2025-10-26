@@ -167,7 +167,7 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_SHADOW_VSM,
                             UNIFORM_SHADOW_OUTLINE,
                             UNIFORM_SHADOW_OUTLINE_THRESHOLD),
-    DEFINE_SHADER_VAR_BLOCK(transform, SHADER_STAGE_VERTEX_BIT,
+    DEFINE_SHADER_VAR_BLOCK(transform, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_TRANS),
     DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_PROJ,
