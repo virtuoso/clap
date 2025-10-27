@@ -43,6 +43,9 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
 
     LIST(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${shader}")
     LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}")
+    if (NOT CONFIG_RENDERER_OPENGL)
+        LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}.json")
+    endif ()
 
     if (EXISTS "${SPIRV_DIR}/${shader}.spv.d")
         file(READ "${SPIRV_DIR}/${shader}.spv.d" implicit_depends)
@@ -65,6 +68,15 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
         COMMAND "${SPIRV_CROSS}"
         ARGS ${SPIRV_CROSS_ARGS} ${SPIRV_DIR}/${shader}.spv --output ${SHADER_DIR}/${shader}
     )
+
+    if (NOT CONFIG_RENDERER_OPENGL)
+        add_custom_command(
+            OUTPUT "${SHADER_DIR}/${shader}.json"
+            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_DIR}/${shader}.spv"
+            COMMAND "${SPIRV_CROSS}"
+            ARGS ${SPIRV_DIR}/${shader}.spv --reflect --output ${SHADER_DIR}/${shader}.json
+        )
+    endif ()
 
     # Propagate sources and outputs to the outer scope
     set(SHADER_SRCS "${SHADER_SRCS}" PARENT_SCOPE)
