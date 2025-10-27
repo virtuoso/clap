@@ -1,5 +1,6 @@
 # Shader compilation
 
+set (GLSLC_ARGS -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core)
 # Set up common variables
 if (CONFIG_RENDERER_OPENGL)
     if (CONFIG_GLES)
@@ -54,7 +55,7 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
         OUTPUT "${SPIRV_DIR}/${shader}.spv"
         DEPENDS make-shader-ir-dir${PREPROCESS_SHADERS_TARGET} "${SHADER_SOURCE_DIR}/${shader}" "${implicit_depends}"
         COMMAND "${GLSLC}"
-        ARGS -MD -fshader-stage=${stage} -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core -o ${SPIRV_DIR}/${shader}.spv -c ${SHADER_SOURCE_DIR}/${shader}
+        ARGS -MD -fshader-stage=${stage} ${GLSLC_ARGS} -o ${SPIRV_DIR}/${shader}.spv -c ${SHADER_SOURCE_DIR}/${shader}
     )
 
     # Command to build the final ${shader}
