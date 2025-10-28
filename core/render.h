@@ -81,6 +81,11 @@ typedef enum buffer_usage {
 typedef int uniform_t;
 typedef int attr_t;
 
+enum {
+    UA_UNKNOWN     = -2,
+    UA_NOT_PRESENT = -1,
+};
+
 TYPE_FORWARD(buffer);
 
 typedef struct buffer_init_options {

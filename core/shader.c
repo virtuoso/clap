@@ -327,6 +327,7 @@ struct shader_prog {
     shader_context          *ctx;
     const char              *name;
     uniform_t               vars[SHADER_VAR_MAX];
+    bool                    var_cached[SHADER_VAR_MAX];
     shader_t                shader;
 
     /*
@@ -393,18 +394,25 @@ const char *shader_get_var_name(enum shader_vars var)
     return shader_var_desc[var].name;
 }
 
+static void shader_fetch_var(struct shader_prog *p, enum shader_vars var)
+{
+    if (p->var_cached[var])         return;
+    if (p->vars[var] > UA_UNKNOWN)  return;
+
+    const struct shader_var_desc *desc = &shader_var_desc[var];
+
+    if (var < ATTR_MAX)
+        p->vars[var] = shader_attribute(&p->shader, desc->name, var);
+    else
+        p->vars[var] = shader_uniform(&p->shader, desc->name);
+
+    if (p->vars[var] != UA_UNKNOWN)  p->var_cached[var] = true;
+}
+
 static void shader_prog_link(struct shader_prog *p)
 {
-    int i;
-
-    for (i = 0; i < SHADER_VAR_MAX; i++) {
-        const struct shader_var_desc *desc = &shader_var_desc[i];
-
-        if (i < ATTR_MAX)
-            p->vars[i] = shader_attribute(&p->shader, desc->name, i);
-        else
-            p->vars[i] = shader_uniform(&p->shader, desc->name);
-    }
+    for (enum shader_vars i = 0; i < SHADER_VAR_MAX; i++)
+        shader_fetch_var(p, i);
 }
 
 /* Check if shader has a standalone variable or an attribute */
@@ -412,6 +420,8 @@ static inline bool __shader_has_var(struct shader_prog *p, enum shader_vars var)
 {
     if (var >= SHADER_VAR_MAX)
         return false;
+
+    shader_fetch_var(p, var);
 
     return p->vars[var] >= 0;
 }
@@ -644,6 +654,10 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         return cerr_error_cres(err);
     }
 
+    p->ctx = opts->ctx;
+    for (enum shader_vars v = 0; v < SHADER_VAR_MAX; v++)
+        p->vars[v] = UA_UNKNOWN;
+
     shader_prog_use(p);
     shader_prog_link(p);
     shader_prog_done(p);
@@ -665,6 +679,11 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         err = shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name);
         if (!IS_CERR(err)) {
             p->var_blocks[desc->binding] = var_block;
+            for (int j = 0; j < darray_count(var_block->offsets); j++) {
+                enum shader_vars var = desc->vars[j];
+                p->vars[var] = UA_NOT_PRESENT;
+                p->var_cached[var] = true;
+            }
 
             /*
              * This bit is entirely optional though: making sure that
