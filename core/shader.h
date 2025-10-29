@@ -194,6 +194,9 @@ DEFINE_REFCLASS_INIT_OPTIONS(shader_prog,
     const char      *vert_text;
     const char      *geom_text;
     const char      *frag_text;
+    const char      *vert_ref_text;
+    const char      *geom_ref_text;
+    const char      *frag_ref_text;
 );
 DECLARE_REFCLASS(shader_prog);
 

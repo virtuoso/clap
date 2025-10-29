@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "error.h"
+#include "json.h"
 #include "mesh.h"
 #include "render.h"
 #include "util.h"
@@ -635,6 +636,85 @@ void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
     }
 }
 
+static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
+{
+    auto root = json_decode(text);
+
+    auto array = json_find_member(root, "textures");
+    if (array && array->tag == JSON_ARRAY) {
+        for (JsonNode *it = array->children.head; it; it = it->next) {
+            auto jtype = json_find_member(it, "type");
+            auto jname = json_find_member(it, "name");
+            auto jbind = json_find_member(it, "binding");
+            if (!jtype || jtype->tag != JSON_STRING ||
+                !jname || jname->tag != JSON_STRING ||
+                !jbind || jbind->tag != JSON_NUMBER)
+                continue;
+
+            const char *type = jtype->string_, *name = jname->string_;
+            int bind = jbind->number_;
+
+            for (enum shader_vars i = 0; i < SHADER_VAR_MAX; i++) {
+                auto desc = &shader_var_desc[i];
+                if (desc->texture_slot < 0)     continue;
+                if (strcmp(name, desc->name))   continue;
+
+                if (desc->texture_slot != bind) {
+                    err("tex '%s' (%s) bindings don't match: %d <> %d\n", name, type, desc->texture_slot, bind);
+                    continue;
+                }
+
+                p->vars[i] = bind;
+                p->var_cached[i] = true;
+                break;
+            }
+        }
+    }
+
+    array = json_find_member(root, "ubos");
+    if (array && array->tag == JSON_ARRAY) {
+        for (JsonNode *it = array->children.head; it; it = it->next) {
+            auto jname = json_find_member(it, "name");
+            auto jbind = json_find_member(it, "binding");
+            if (!jname || jname->tag != JSON_STRING ||
+                !jbind || jbind->tag != JSON_NUMBER)
+                continue;
+
+            const char *name = jname->string_;
+            int bind = jbind->number_;
+
+            /* XXX: UBOs start at 1, see above */
+            for (size_t i = 0; i < array_size(shader_var_block_desc); i++) {
+                auto desc = &shader_var_block_desc[i];
+                if (!desc->name || strcmp(name, desc->name))    continue;
+
+                if (desc->binding != bind) {
+                    err("ubo '%s' bindings don't match: %d <> %d\n", name, desc->binding, bind);
+                    continue;
+                }
+
+                struct shader_var_block *var_block = &p->ctx->var_blocks[i];
+
+                /* If UBO was bound from reflection scanner, skip it */
+                if (p->var_blocks[desc->binding])   continue;
+
+                CERR_RET(shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name), continue);
+                p->var_blocks[desc->binding] = var_block;
+
+                for (size_t i = 0; desc->vars[i] != SHADER_VAR_MAX; i++) {
+                    enum shader_vars var = desc->vars[i];
+                    p->var_cached[var] = true;
+                    p->vars[var] = UA_NOT_PRESENT;
+                }
+
+                break;
+            }
+        }
+    }
+
+    return CERR_OK;
+}
+
 static cerr shader_prog_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(shader_prog) *opts = _opts;
@@ -660,6 +740,15 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
 
     shader_prog_use(p);
     shader_prog_link(p);
+
+    cerr vert_ref_err = CERR_OK;
+    cerr geom_ref_err = CERR_OK;
+    cerr frag_ref_err = CERR_OK;
+
+    if (opts->vert_ref_text)    vert_ref_err = shader_reflection_apply(p, opts->vert_ref_text);
+    if (opts->geom_ref_text)    geom_ref_err = shader_reflection_apply(p, opts->geom_ref_text);
+    if (opts->frag_ref_text)    frag_ref_err = shader_reflection_apply(p, opts->frag_ref_text);
+
     shader_prog_done(p);
     if (!__shader_has_var(p, ATTR_POSITION)) {
         err("program '%s' doesn't have position attribute\n", p->name);
@@ -667,7 +756,10 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         return CERR_INVALID_SHADER;
     }
 
-    p->ctx = opts->ctx;
+    if (opts->vert_ref_text && !IS_CERR(vert_ref_err) &&
+        opts->frag_ref_text && !IS_CERR(frag_ref_err) &&
+        (!opts->geom_text || (opts->geom_ref_text && !IS_CERR(geom_ref_err))))
+        goto out;
 
     /*
      * Binding uniform buffers to binding points is not optional
@@ -675,6 +767,9 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
         struct shader_var_block *var_block = &p->ctx->var_blocks[i];
         const struct shader_var_block_desc *desc = var_block->desc;
+
+        /* If UBO was bound from reflection scanner, skip it */
+        if (p->var_blocks[desc->binding])   continue;
 
         err = shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name);
         if (!IS_CERR(err)) {
@@ -723,6 +818,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         }
     }
 
+out:
     shader_setup_mesh_attrs(p);
 
     return CERR_OK;
@@ -772,25 +868,41 @@ void shaders_free(struct list *shaders)
 cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *shaders)
 {
     LOCAL(lib_handle, hv);
+    LOCAL(lib_handle, hvref);
     LOCAL(lib_handle, hf);
+    LOCAL(lib_handle, hfref);
     LOCAL(lib_handle, hg);
+    LOCAL(lib_handle, hgref);
     LOCAL(char, nvert);
+    LOCAL(char, nvertref);
     LOCAL(char, nfrag);
+    LOCAL(char, nfragref);
     LOCAL(char, ngeom);
+    LOCAL(char, ngeomref);
     char *vert;
+    char *vertref;
     char *frag;
+    char *fragref;
     char *geom;
-    size_t vsz, fsz, gsz;
+    char *geomref;
+    size_t vsz, fsz, gsz, vrefsz, frefsz, grefsz;
 
     cres(int) vres = mem_asprintf(&nvert, "%s.vert", name);
     cres(int) fres = mem_asprintf(&nfrag, "%s.frag", name);
     cres(int) gres = mem_asprintf(&ngeom, "%s.geom", name);
-    if (IS_CERR(vres) || IS_CERR(fres) || IS_CERR(gres))
+    cres(int) vresref = mem_asprintf(&nvertref, "%s.vert.json", name);
+    cres(int) fresref = mem_asprintf(&nfragref, "%s.frag.json", name);
+    cres(int) gresref = mem_asprintf(&ngeomref, "%s.geom.json", name);
+    if (IS_CERR(vres) || IS_CERR(fres) || IS_CERR(gres) ||
+        IS_CERR(vresref) || IS_CERR(fresref) || IS_CERR(gresref))
         return CERR_NOMEM;
 
     hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
     hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
     hg = lib_read_file(RES_SHADER, ngeom, (void **)&geom, &gsz);
+    hvref = lib_read_file(RES_SHADER, nvertref, (void **)&vertref, &vrefsz);
+    hfref = lib_read_file(RES_SHADER, nfragref, (void **)&fragref, &frefsz);
+    hgref = lib_read_file(RES_SHADER, ngeomref, (void **)&geomref, &grefsz);
 
     if (!hv || !hf)
         return CERR_SHADER_NOT_LOADED;
@@ -800,7 +912,11 @@ cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *sha
                                              .name      = name,
                                              .vert_text = vert,
                                              .geom_text = hg ? geom : NULL,
-                                             .frag_text = frag);
+                                             .frag_text = frag,
+                                             .vert_ref_text = hvref ? vertref : NULL,
+                                             .geom_ref_text = hgref ? geomref : NULL,
+                                             .frag_ref_text = hfref ? fragref : NULL,
+                                            );
     if (IS_CERR(res))
         return cerr_error_cres(res);
 
