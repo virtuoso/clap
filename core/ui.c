@@ -1666,7 +1666,7 @@ void ui_progress_bar_set_color(struct ui_widget *bar, vec4 color)
 
 static void build_onclick(struct ui_element *uie, float x, float y)
 {
-    dbg("build onclick\n");
+    ui_toggle_debug_selector();
 }
 
 static __unused const char *wheel_items[] = { "^", ">", "v", "<" };
