@@ -432,17 +432,23 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
     io->ConfigMacOSXBehaviors = true;
 #endif /* __APPLE__ */
 
+#ifdef CONFIG_RENDERER_OPENGL
+# ifdef CONFIG_GLES
+    const char *glsl_version = "#version 300 es";
+# else
+    const char *glsl_version = "#version 410";
+# endif /* !CONFIG_GLES */
+#endif /* CONFIG_RENDERER_OPENGL */
+
 #ifndef __EMSCRIPTEN__
     GLFWwindow *win = data;
 # ifdef CONFIG_RENDERER_OPENGL
     ImGui_ImplGlfw_InitForOpenGL(win, true);
-    const char *glsl_version = "#version 410";
 # elif defined(CONFIG_RENDERER_METAL)
     ImGui_ImplGlfw_InitForOther(win, true);
 # endif
 #else
     ui_ig_init_for_emscripten(clap_ctx, ctx, io);
-    const char *glsl_version = "#version 300 es";
 #endif
 
 #ifdef CONFIG_RENDERER_OPENGL
