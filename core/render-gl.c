@@ -1670,7 +1670,7 @@ cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, con
 {
     shader->vert = load_shader(GL_VERTEX_SHADER, vertex);
     shader->geom =
-#ifndef CONFIG_BROWSER
+#ifndef CONFIG_GLES
         geometry ? load_shader(GL_GEOMETRY_SHADER, geometry) : 0;
 #else
         0;
