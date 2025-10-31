@@ -43,7 +43,7 @@ void rb_sink_del(void *data) __nonnull_params();
 void hexdump(unsigned char *buf, size_t size) __nonnull_params();
 void log_init(unsigned int flags);
 void vlogg(int level, const char *mod, int line, const char *func, const char *fmt, va_list va)
-    __nonnull_params((5,6));
+    __nonnull_params((5));
 void logg(int level, const char *mod, int line, const char *func, const char *fmt, ...)
     __printf(5, 6) __nonnull_params((5));
 #define trace(args...) \
