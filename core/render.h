@@ -18,6 +18,9 @@
 #   include <EGL/egl.h>
 #   define GL_GLEXT_PROTOTYPES
 #   include <GLES2/gl2ext.h>
+#   ifndef GL_CLAMP_TO_BORDER
+#    define GL_CLAMP_TO_BORDER GL_CLAMP_TO_EDGE
+#   endif /* !GL_CLAMP_TO_BORDER */
 #  else /* Full GL */
 #   ifdef __APPLE__
 #    define GL_SILENCE_DEPRECATION 1
@@ -63,10 +66,6 @@ typedef void *ns_autorelease_pool_t;
 #else
 # error "Unsupported renderer"
 #endif
-
-#ifdef CONFIG_BROWSER
-#define GL_CLAMP_TO_BORDER GL_CLAMP_TO_EDGE
-#endif /* CONFIG_BROWSER */
 
 typedef enum buffer_type {
     BUF_ARRAY,
