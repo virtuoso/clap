@@ -423,7 +423,7 @@ static void model_tabs(model3dtx *txm)
         texture_debug_header();
 
         for (enum shader_vars v = ATTR_MAX; v < UNIFORM_TEX_MAX; v++) {
-            auto tex = CRES_RET(model3dtx_texture(txm, v), continue);
+            auto tex = CRES_RET(model3dtx_loaded_texture(txm, v), continue);
             texture_debug(tex, shader_get_var_name(v));
         }
 
