@@ -246,8 +246,7 @@ ui_ig_end:
 
     if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
         if (igBegin("Render pass preview", NULL, 0)) {
-            ImVec2 avail;
-            igGetContentRegionAvail(&avail);
+            ImVec2 avail = igGetContentRegionAvail();
             if (avail.x < 512) {
                 igPushItemWidth(512);
                 avail.x = 512;

@@ -640,8 +640,7 @@ bool ui_igControlTableHeader(const char *str_id_fmt, const char *longest_label, 
     if (!igBeginTable(buf, 2, ImGuiTableFlags_SizingFixedFit, (ImVec2){0,0}, 0))
         return false;
 
-    ImVec2 size;
-    igCalcTextSize(&size, longest_label, NULL, true, 0);
+    ImVec2 size = igCalcTextSize(longest_label, NULL, true, 0);
 
     igPushID_Str(buf);
     igTableSetupColumn("key", ImGuiTableColumnFlags_WidthFixed, size.x + left_padding, 0);
@@ -665,8 +664,7 @@ void ui_igLabel(const char *label)
     igTableNextRow(0, 0);
     igTableNextColumn();
 
-    ImVec2 size;
-    igCalcTextSize(&size, label, NULL, true, 0);
+    ImVec2 size = igCalcTextSize(label, NULL, true, 0);
     igSetCursorPosX(igGetCursorPosX() + fabsf(igGetColumnWidth(0) - size.x - left_padding));
     igTextUnformatted(label, NULL);
 }
