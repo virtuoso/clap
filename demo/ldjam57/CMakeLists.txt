@@ -1,5 +1,3 @@
-option(LDJAM57_BUILD_IN_ASSETS BOOL ON)
-
 set(CMAKE_C_STANDARD 23)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -12,5 +10,5 @@ clap_executable(
     "${CMAKE_CURRENT_SOURCE_DIR}/asset"
     ""
     "ofl/Unbounded-Regular.ttf"
-    ${LDJAM57_BUILD_IN_ASSETS}
+    ${CLAP_DEMOS_BUILD_IN_ASSETS}
 )

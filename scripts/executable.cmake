@@ -9,6 +9,7 @@
 #
 # Web builds will install into a directory named @executable name with the actual compiler
 # generated files named index.{html,js,wasm}. Windows builds will have .exe suffix.
+# Web builds have assets automatically packed in, so @build_in_assets is ignored there.
 function (clap_executable executable_name sources ASSET_DIR assets font_file build_in_assets)
     set(ENGINE_SRC "${CMAKE_SOURCE_DIR}/core")
     set(ENGINE_INCLUDE "${ENGINE_SRC}" "${clap_BINARY_DIR}/core")

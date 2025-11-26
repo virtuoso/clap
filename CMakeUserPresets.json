@@ -48,8 +48,7 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS":true,
                 "CLAP_USE_ASAN":true,
                 "CLAP_USE_UBSAN":true,
-                "LDJAM56_BUILD_IN_ASSETS":false,
-                "LDJAM57_BUILD_IN_ASSETS":false
+                "CLAP_DEMOS_BUILD_IN_ASSETS":false
             }
         },
         {
@@ -59,9 +58,7 @@
             "generator": "Unix Makefiles",
             "binaryDir": "${sourceDir}/build/test",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":"RelWithDebInfo",
-                "LDJAM56_BUILD_IN_ASSETS":true,
-                "LDJAM57_BUILD_IN_ASSETS":true
+                "CMAKE_BUILD_TYPE":"RelWithDebInfo"
             }
         },
         {
@@ -72,9 +69,7 @@
             "binaryDir": "${sourceDir}/build/rel",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Release",
-                "CLAP_BUILD_FINAL": true,
-                "LDJAM56_BUILD_IN_ASSETS":true,
-                "LDJAM57_BUILD_IN_ASSETS":true
+                "CLAP_BUILD_FINAL": true
             }
         },
         {
@@ -85,7 +80,6 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS":true,
-                "LDJAM56_BUILD_IN_ASSETS":true,
                 "CLAP_RENDERER":"Metal"
             }
         },
@@ -121,9 +115,7 @@
                 "VCPKG_LOAD_VCVARS_ENV": true,
                 "VCPKG_TARGET_TRIPLET": "x64-mingw",
                 "VCPKG_APPLOCAL_DEPS": false,
-                "CLAP_BUILD_NETWORKING": false,
-                "LDJAM56_BUILD_IN_ASSETS":true,
-                "LDJAM57_BUILD_IN_ASSETS":true
+                "CLAP_BUILD_NETWORKING": false
             }
         },
         {
