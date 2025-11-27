@@ -253,7 +253,10 @@ set_source_files_properties(render-mtl.m COMPILE_FLAGS "-Wno-deprecated-declarat
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builddate.c" FORCE_REGEN
-    COMMAND ${CMAKE_COMMAND} -P "${CMAKE_SOURCE_DIR}/scripts/builddate-gen.cmake"
+    COMMAND ${CMAKE_COMMAND}
+    ARGS
+        -DGIT_VERSION="${GIT_VERSION}"
+        -P "${CMAKE_SOURCE_DIR}/scripts/builddate-gen.cmake"
     COMMENT "Generating builddate.c with actual build-time timestamp"
 )
 
