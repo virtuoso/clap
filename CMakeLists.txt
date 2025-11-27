@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
-project(clap)
+
+include(scripts/git-version.cmake)
+
+project(
+    clap
+    VERSION "${GIT_SOVERSION}"
+)
 
 enable_language(C)
 
