@@ -55,7 +55,21 @@ function (clap_executable executable_name sources ASSET_DIR assets font_file bui
     set(ENGINE_MAIN ${sources})
     set(ENGINE_LIB libonehandclap)
 
-    add_executable(${executable_name} ${ENGINE_MAIN} ${ENGINE_ASSETS})
+    if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(MACOSX_BUNDLE ON)
+        add_executable(${executable_name} MACOSX_BUNDLE ${ENGINE_MAIN} ${ENGINE_ASSETS})
+
+        set_target_properties(${executable_name} PROPERTIES
+            MACOSX_BUNDLE ON
+            MACOSX_BUNDLE_GUI_IDENTIFIER works.ash.clap.${executable_name}
+            MACOSX_BUNDLE_BUNDLE_NAME ${executable_name}
+            MACOSX_BUNDLE_BUNDLE_VERSION "${GIT_VERSION}"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "${GIT_SHORT_VERSION}"
+        )
+
+    else ()
+        add_executable(${executable_name} ${ENGINE_MAIN} ${ENGINE_ASSETS})
+    endif()
 
     add_dependencies(${executable_name} ${ENGINE_LIB} meshoptimizer)
     target_include_directories(${executable_name} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
@@ -101,7 +115,9 @@ function (clap_executable executable_name sources ASSET_DIR assets font_file bui
                 install(FILES ${ASSET_DIR}/${font_file} DESTINATION ${executable_name}test)
             endif ()
         endif ()
+    elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        install(TARGETS ${executable_name} BUNDLE DESTINATION . COMPONENT ${executable_name})
     else ()
-        install(TARGETS ${executable_name} BUNDLE DESTINATION macos)
+        install(TARGETS ${executable_name} DESTINATION bin)
     endif ()
 endfunction ()
