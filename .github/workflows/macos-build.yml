@@ -5,6 +5,7 @@ jobs:
     runs-on: macos-15
     env:
       remote_host: ${{ secrets.REMOTE_DEPLOY_HOST }}
+      team_id: ${{ secrets.MACOS_DEV_TEAM_ID }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -14,6 +15,15 @@ jobs:
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git submodule update --init --recursive --depth 1
+      - name: install-cert
+        if: ${{ env.team_id }}
+        run: |
+          echo "${{ secrets.MACOS_DEV_ID_P12 }}" | base64 --decode > clap_dev_id.p12
+          security create-keychain -p temp_pass build.keychain
+          security import clap_dev_id.p12 -k build.keychain -P "${{ secrets.MACOS_DEV_ID_P12_PASSWORD }}" -T /usr/bin/codesign
+          security list-keychains -d user -s build.keychain login.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p temp_pass build.keychain
       - name: install-deps
         run: |
           brew install glew zlib glfw shaderc spirv-cross
@@ -22,8 +32,14 @@ jobs:
           cd ${{ github.workspace }}
           touch build_config
           echo opts=\"--parallel 4\" >> build_config
-          echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos\" >> build_config
-          ./configure.sh
+          if [ -n "${{ env.team_id }}" ]; then
+            echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos -DCLAP_MACOS_DEV_TEAM_ID=${{ env.team_id }}\" >> build_config
+            cat build_config
+          else
+            echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos\" >> build_config
+            echo "No team_id"
+          fi
+          sh -x ./configure.sh
           cmake --preset=mtltest
           cmake --preset=mtldebug
       - name: build
