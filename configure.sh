@@ -12,6 +12,8 @@ fi
 if [ -n "$use_gles" ]; then
 	CLAP_OPTS="$CLAP_OPTS -DCLAP_BUILD_WITH_GLES=ON"
 fi
+
+CLAP_OPTS_NATIVE="$CLAP_OPTS"
 if [ -n "$server_ip" ]; then
 	CLAP_OPTS_NATIVE="$CLAP_OPTS -DCLAP_SERVER_IP=$server_ip -DCLAP_BUILD_NETWORKING=ON"
 fi
