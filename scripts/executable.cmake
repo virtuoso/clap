@@ -66,7 +66,6 @@ function (clap_executable executable_name sources ASSET_DIR assets font_file bui
             MACOSX_BUNDLE_BUNDLE_VERSION "${GIT_VERSION}"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "${GIT_SHORT_VERSION}"
         )
-
     else ()
         add_executable(${executable_name} ${ENGINE_MAIN} ${ENGINE_ASSETS})
     endif()
@@ -117,6 +116,20 @@ function (clap_executable executable_name sources ASSET_DIR assets font_file bui
         endif ()
     elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         install(TARGETS ${executable_name} BUNDLE DESTINATION . COMPONENT ${executable_name})
+        if (NOT ${CLAP_MACOS_DEV_TEAM_ID} STREQUAL "")
+            install(CODE
+                    "execute_process(
+                        COMMAND
+                            codesign
+                                --deep
+                                --force
+                                --options runtime
+                                --timestamp
+                                -s \"${CLAP_MACOS_DEV_TEAM_ID}\"
+                                \"${CMAKE_INSTALL_PREFIX}/${executable_name}.app\"
+                    )"
+            )
+        endif ()
     else ()
         install(TARGETS ${executable_name} DESTINATION bin)
     endif ()
