@@ -165,8 +165,12 @@ void sound_set_looping(sound *sound, bool looping)
 
 void sound_play(sound *sound)
 {
-    if (sound->ctx->started)
+    if (sound->ctx->started) {
+        if (ma_sound_is_playing(&sound->sound)) {
+            ma_sound_seek_to_pcm_frame(&sound->sound, 0);
+        }
         ma_sound_start(&sound->sound);
+    }
 }
 
 static void do_sound_init(sound_context *ctx)
