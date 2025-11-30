@@ -321,11 +321,194 @@ struct sound_effect {
 };
 
 /****************************************************************************
+ * Sound effects: reverb
+ ****************************************************************************/
+
+static const struct {
+    size_t  nr_combs;
+    size_t  *comb_sizes;
+    size_t  *allpass_sizes;
+} reverb_types[] = {
+    [REVERB_SMALL_ROOM] = {
+        .nr_combs       = 4,
+        .comb_sizes     = (size_t[]){ 1200, 1433, 1597, 1759 },
+        .allpass_sizes  = (size_t[]){ 149, 211 },
+    },
+    [REVERB_HALL] = {
+        .nr_combs       = 6,
+        .comb_sizes     = (size_t[]){ 1723, 1999, 2239, 2503, 2801, 3203 },
+        .allpass_sizes  = (size_t[]){ 173, 263 }
+    }
+};
+
+/**
+ * struct reverb_comb - comb filter for reverb
+ * @buffer:         circular delay buffer; size = max hall comb pass size
+ * @size:           buffer size in samples
+ * @pos:            current position in buffer
+ * @feedback:       feedback amount (controls decay time)
+ * @filterstore:    last output for damping filter
+ * @damp1:          damping coefficient
+ * @damp2:          damping coefficient (1 - damp1)
+ */
+typedef struct reverb_comb {
+    float   buffer[3203];
+    int     size;
+    int     pos;
+    float   feedback;
+    float   filterstore;
+    float   damp1;
+    float   damp2;
+} reverb_comb;
+
+/**
+ * struct reverb_allpass - allpass filter for reverb
+ * @buffer: circular delay buffer
+ * @size:   buffer size in samples
+ * @pos:    current position in buffer
+ */
+typedef struct reverb_allpass {
+    float   buffer[556];
+    int     size;
+    int     pos;
+} reverb_allpass;
+
+/**
+ * struct reverb_data - reverb effect state
+ * @comb:           array of comb filters (creates early reflections)
+ * @allpass:        array of allpass filters (diffuses reflections)
+ * @wet:            wet signal level (0.0-1.0)
+ * @dry:            dry signal level (0.0-1.0)
+ * @sample_rate:    audio sample rate
+ */
+typedef struct reverb_data {
+    reverb_comb     comb[6];
+    reverb_allpass  allpass[2];
+    float           wet;
+    float           dry;
+    unsigned int    sample_rate;
+    reverb_type     type;
+} reverb_data;
+
+/*
+ * Comb filter: delays input and feeds it back with gain < 1, creating
+ * exponentially decaying echoes at intervals of the delay time. Multiple
+ * comb filters with different delay times create the dense early reflections
+ * characteristic of room reverberation.
+ */
+static float reverb_comb_process(reverb_comb *comb, float input)
+{
+    float output = comb->buffer[comb->pos];
+    /* One-pole lowpass filter dampens high frequencies in the feedback */
+    comb->filterstore = (output * comb->damp2) + (comb->filterstore * comb->damp1);
+    comb->buffer[comb->pos] = input + (comb->filterstore * comb->feedback);
+    comb->pos = (comb->pos + 1) % comb->size;
+    return output;
+}
+
+/*
+ * Allpass filter: delays input and mixes it with feedback/feedforward to create
+ * dense, diffuse reflections without coloring the frequency response. Used after
+ * comb filters to smooth out the reverb tail and eliminate metallic artifacts.
+ */
+static float reverb_allpass_process(reverb_allpass *allpass, float input)
+{
+    float buffered = allpass->buffer[allpass->pos];
+    float output = buffered - input;
+    allpass->buffer[allpass->pos] = input + (buffered * 0.5f);
+    allpass->pos = (allpass->pos + 1) % allpass->size;
+    return output;
+}
+
+/*
+ * Schroeder reverb algorithm (1962): parallel comb filters summed, then
+ * cascaded allpass filters for diffusion. Classic, computationally efficient
+ * artificial reverb, though simpler than modern algorithms like FDN or convolution.
+ */
+static void reverb_process(sound_effect *effect, float *buffer,
+                           unsigned int frames, unsigned int channels)
+{
+    reverb_data *reverb = effect->data;
+    auto rtype = &reverb_types[reverb->type];
+
+    for (unsigned int i = 0; i < frames; i++) {
+        for (unsigned int ch = 0; ch < channels; ch++) {
+            float input = buffer[i * channels + ch];
+            float output = 0.0f;
+
+            /* Sum parallel comb filters (early reflections) */
+            for (int c = 0; c < rtype->nr_combs; c++)
+                output += reverb_comb_process(&reverb->comb[c], input);
+
+            output /= (float)rtype->nr_combs;
+
+            /* Cascade allpass filters (diffusion/smoothing) */
+            for (int a = 0; a < array_size(reverb->allpass); a++)
+                output = reverb_allpass_process(&reverb->allpass[a], output);
+
+            /* Mix dry and wet signals */
+            buffer[i * channels + ch] = input * reverb->dry + output * reverb->wet;
+        }
+    }
+}
+
+static cerr reverb_init(sound_effect *effect, rc_init_opts(sound_effect) *opts)
+{
+    if (opts->reverb_type >= array_size(reverb_types))
+        return CERR_INVALID_ARGUMENTS;
+    if (opts->room_size < 0.0f || opts->room_size > 1.0f)
+        return CERR_INVALID_ARGUMENTS;
+    if (opts->damping < 0.0f || opts->damping > 1.0f)
+        return CERR_INVALID_ARGUMENTS;
+    if (opts->wet_dry < 0.0f || opts->wet_dry > 1.0f)
+        return CERR_INVALID_ARGUMENTS;
+
+    reverb_data *reverb = mem_alloc(sizeof(*reverb), .zero = 1);
+    if (!reverb)    return CERR_NOMEM;
+
+    reverb->type = opts->reverb_type;
+    reverb->sample_rate = ma_engine_get_sample_rate(&opts->ctx->engine);
+    reverb->wet = opts->wet_dry;
+    reverb->dry = 1.0f - opts->wet_dry;
+
+    auto rtype = &reverb_types[reverb->type];
+
+    for (int i = 0; i < rtype->nr_combs; i++) {
+        int size = (int)(rtype->comb_sizes[i] * opts->room_size);
+        reverb->comb[i].size = size;
+        reverb->comb[i].pos = 0;
+        reverb->comb[i].feedback = 0.84f; /* XXX: parameterize decay */
+        reverb->comb[i].filterstore = 0.0f;
+        reverb->comb[i].damp1 = opts->damping;
+        reverb->comb[i].damp2 = 1.0f - opts->damping;
+    }
+
+    for (int i = 0; i < array_size(reverb->allpass); i++) {
+        int size = (int)(rtype->allpass_sizes[i] * opts->room_size);
+        reverb->allpass[i].size = size;
+        reverb->allpass[i].pos = 0;
+    }
+
+    effect->data = reverb;
+    return CERR_OK;
+}
+
+static void reverb_done(sound_effect *effect)
+{
+    mem_free(effect->data);
+}
+
+/****************************************************************************
  * Sound effects: core
  ****************************************************************************/
 
 static const sound_effect_desc sound_effect_descs[] = {
-    [SOUND_EFFECT_REVERB] = {},
+    [SOUND_EFFECT_REVERB] = {
+        .name       = "reverb",
+        .init       = reverb_init,
+        .done       = reverb_done,
+        .process    = reverb_process,
+    },
     [SOUND_EFFECT_EQ] = {},
     [SOUND_EFFECT_COMPRESSOR] = {},
     [SOUND_EFFECT_DELAY] = {},

@@ -51,9 +51,18 @@ typedef enum {
     SOUND_EFFECT_DELAY,
 } sound_effect_type;
 
+typedef enum reverb_type {
+    REVERB_SMALL_ROOM,
+    REVERB_HALL,
+} reverb_type;
+
 DEFINE_REFCLASS_INIT_OPTIONS(sound_effect,
     sound_context       *ctx;
     sound_effect_type   type;
+    reverb_type         reverb_type;
+    float               room_size;
+    float               damping;
+    float               wet_dry;
 );
 DECLARE_REFCLASS(sound_effect);
 
