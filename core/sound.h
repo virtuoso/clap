@@ -15,6 +15,8 @@ cresp_ret(sound_context);
 
 typedef struct sfx_container {
     struct list list;
+    void        (*on_add)(sound *, void *);
+    void        *data;
 } sfx_container;
 
 DEFINE_REFCLASS_INIT_OPTIONS(sound,

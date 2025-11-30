@@ -767,10 +767,29 @@ void sound_set_effect_chain(sound *sound, sound_effect_chain *chain)
  ****************************************************************************/
 
 typedef struct sfx {
-    sound       *sound;
-    char        *action;
-    struct list entry;
+    sound           *sound;
+    char            *action;
+    struct list     entry;
+    sfx_container   *sfxc;
 } sfx;
+
+static int sfx_handle_command(struct message *m, void *data)
+{
+    if (!m->cmd.sound_ready)        return MSG_HANDLED;
+
+    sfx_container *sfxc = data;
+    if (list_empty(&sfxc->list))    return MSG_HANDLED;
+    if (!sfxc->on_add)              return MSG_HANDLED;
+
+    sfx *sfx = list_first_entry(&sfxc->list, struct sfx, entry);
+    /* should not happen on sound_ready event, but to be safe */
+    if (!sfx->sound->ctx->started)  return MSG_STOP;
+
+    list_for_each_entry(sfx, &sfxc->list, entry)
+        sfxc->on_add(sfx->sound, sfxc->data);
+
+    return MSG_HANDLED;
+}
 
 void sfx_container_init(sfx_container *sfxc)
 {
@@ -779,7 +798,19 @@ void sfx_container_init(sfx_container *sfxc)
 
 static void sfx_container_add(sfx_container *sfxc, sfx *sfx)
 {
+    if (list_empty(&sfxc->list))
+        subscribe(MT_COMMAND, sfx_handle_command, sfxc);
+
     list_append(&sfxc->list, &sfx->entry);
+    sfx->sfxc = sfxc;
+
+    /*
+     * if sound engine has started, run sfxc->on_add(), otherwise
+     * sfx_handle_command() will call it on everything
+     */
+    auto ctx = sfx->sound->ctx;
+    if (ctx->started && sfxc->on_add)
+        sfxc->on_add(sfx->sound, sfxc->data);
 }
 
 static void sfx_done(sfx *sfx)
@@ -794,6 +825,10 @@ static void sfx_done(sfx *sfx)
 
 void sfx_container_clearout(sfx_container *sfxc)
 {
+    if (list_empty(&sfxc->list))    return;
+
+    unsubscribe(MT_COMMAND, sfxc);
+
     while (!list_empty(&sfxc->list)) {
         sfx *sfx = list_first_entry(&sfxc->list, struct sfx, entry);
         sfx_done(sfx);
