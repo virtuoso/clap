@@ -2,6 +2,8 @@
 *.o
 *.wasm
 *.a
+asset.S
+asset.cpio
 onehandclap
 onehandclap.js
 onehandclap.html
@@ -12,6 +14,7 @@ compile_commands.json
 .cache
 .vscode
 .DS_Store
+patches/
 build/
 deps/src/
 *~
