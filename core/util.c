@@ -19,13 +19,6 @@ DEFINE_CLEANUP(void, mem_free(*p))
 DEFINE_CLEANUP(char, mem_free(*p))
 DEFINE_CLEANUP(uchar, mem_free(*p))
 
-void aabb_center(const vec3 aabb[2], vec3 center)
-{
-    vec3_sub(center, aabb[1], aabb[0]);
-    vec3_scale(center, center, 0.5);
-    vec3_add(center, center, aabb[0]);
-}
-
 void vertex_array_xlate_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride, mat4x4 *xlate)
 {
     if (!stride)    stride = sizeof(float) * 3;

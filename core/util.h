@@ -64,7 +64,12 @@ static inline float to_degrees(float radians)
  *
  * Write @aabb's center to @center.
  */
-void aabb_center(const vec3 aabb[2], vec3 center);
+static inline void aabb_center(vec3 const aabb[2], vec3 center)
+{
+    vec3_sub(center, aabb[1], aabb[0]);
+    vec3_scale(center, center, 0.5);
+    vec3_add(center, center, aabb[0]);
+}
 
 /**
  * vertex_array_xlate_aabb_calc() - calculate AABB from a vertex array
