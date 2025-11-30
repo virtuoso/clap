@@ -191,6 +191,12 @@ static void do_sound_init(sound_context *ctx)
         ma_sound_set_min_gain(&s->sound, s->gain);
         ma_sound_set_max_gain(&s->sound, s->gain);
     }
+    message_send(
+        &(struct message) {
+            .type   = MT_COMMAND,
+            .cmd    = { .sound_ready = 1 },
+        }
+    );
 
     return;
 
