@@ -9,6 +9,7 @@ You contributions are welcome and appreciated! This document is here to help wit
   - [More specifically](#more-specifically)
 - [I get build errors](#i-get-build-errors)
 - [Coding style](#coding-style)
+  - [Object Lifetime Management](#object-lifetime-management)
 - [Pull requests](#pull-requests)
 
 ## Where do I start?
@@ -77,7 +78,6 @@ If you're suddenly getting build errors, [check here](https://github.com/virtuos
 There's a .clang-format file at the top, unfortunately, as of this writing clang-format still isn't quite able to align pointers on the right the way that it's done in the code, so either fix up after it or just format the code by hand.
 
 - Indentation is 4 spaces
-- There's no hard line length limit, but 100 characters should be enough for everybody; statements spanning multiple lines are completely ok
 - There's a space between a control statement and whatever follows
 - Curly brackets go on the same line as the control statement it belongs to
 - Curly bracket at the start of a function goes on a new line, though, unless it's a short inline function that can entirely fit in one line, then it's a judgement call
@@ -95,11 +95,43 @@ void endless_loop(void)
 }
 ```
 - Comments are good: both /* C */ and // C++ style
+- SPDX license headers: multiline comments in header files (/* SPDX... */) and single-line in C/C++/ObjC files (// SPDX...)
+- Declare variables at assignment site instead of the top of the function
 - Self-evident code is better
 - In conditional expressions:
     - constants go on the right: no "if (5 == number)" and suchlike; your compiler should warn you if you accidentally write an assignment in a conditional expression
     - no need for spelling out the obvious: "if (x == NULL)" => "if (!x)", "if (b == true)" => "if (b)" etc
 - Vertical alignment of things is encouraged, but not always necessary; it's good if it improves readability, which is, of course, subjective
+- Structure members should be right-aligned for improved readability
+- Line length soft limit: 120 columns (statements can span multiple lines when needed)
+- Naming conventions:
+    - Use snake_case throughout (C and ObjC code)
+    - Avoid Hungarian notation prefixes like `p` for pointers or `pp` for pointer-to-pointer
+    - Choose clear, descriptive names over terse abbreviations
+
+### Object Lifetime Management
+
+Clap uses a ref-counted object system (see object.h/object.c) for managing object lifetimes. When implementing new types that need reference counting:
+
+- Use `DEFINE_REFCLASS_INIT_OPTIONS()` to define constructor options structures
+- Use `DECLARE_REFCLASS()` in headers to expose the refclass
+- Use `DEFINE_REFCLASS2()` in implementation to define both make and drop functions
+- Constructor functions (`_make`) should:
+    - Return `cerr` for error handling
+    - Validate parameters at the beginning
+    - Initialize any embedded structures
+    - Use `container_of(ref, struct_name, ref)` to get the object pointer
+- Destructor functions (`_drop`) should:
+    - Clean up any resources (uninit nodes, free buffers, etc.)
+    - Release any held references with `ref_put()`
+    - Not free the object itself (handled by refclass infrastructure)
+- Effect-specific code should use callbacks (init/done/process) stored in descriptor structures
+- Use static const descriptor arrays indexed by type enums for polymorphic behavior
+- APIs that add objects to containers should `ref_get()` them
+- APIs that remove objects from containers should `ref_put()` them
+- Create objects with `ref_new_checked()` which returns a `cresp()` for proper error handling
+
+This approach keeps layering clean, decouples implementations, and ensures proper memory management without manual malloc/free tracking.
 
 Also, check out existing commits in the tree to get a good idea of code/commit style etc.
 
