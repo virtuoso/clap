@@ -20,20 +20,41 @@ typedef struct sound_context {
     ma_engine   engine;
     bool        started;
     struct list sounds;
+    struct list chains;
 } sound_context;
 
 typedef struct sound {
-    char            *name;
-    sound_context   *ctx;
-    ma_sound        sound;
-    ma_audio_buffer buffer;
-    float           *pcm;
-    unsigned int    nr_channels;
-    float           gain;
-    bool            looping;
-    struct list     entry;
-    struct ref      ref;
+    char                *name;
+    sound_context       *ctx;
+    ma_sound            sound;
+    ma_audio_buffer     buffer;
+    float               *pcm;
+    unsigned int        nr_channels;
+    float               gain;
+    bool                looping;
+    sound_effect_chain  *effect_chain;
+    struct list         entry;
+    struct list         chain_entry;
+    struct ref          ref;
 } sound;
+
+/**
+ * struct sound_effect_chain - sound effect chain
+ * @node:       miniaudio's node
+ * @effects:    list of effects in the chain
+ * @sounds:     list of sounds sending to the chain
+ * @enabled:    chain enabled/disabled
+ * @ref:        lifetime management
+ * @entry:      link to sound_context::chains
+ */
+struct sound_effect_chain {
+    ma_node_base    node;
+    struct list     effects;
+    struct list     sounds;
+    bool            enabled;
+    struct ref      ref;
+    struct list     entry;
+};
 
  typedef struct ov_cb_data {
     void    *buf;
@@ -143,6 +164,8 @@ static void sound_drop(struct ref *ref)
     sound *sound = container_of(ref, struct sound, ref);
 
     if (sound->ctx->started) {
+        if (sound->effect_chain)
+            sound_set_effect_chain(sound, NULL);
         ma_audio_buffer_uninit(&sound->buffer);
         ma_sound_uninit(&sound->sound);
         mem_free(sound->pcm);
@@ -226,6 +249,7 @@ cresp(sound_context) sound_init(void)
     if (!ctx)   return cresp_error(sound_context, CERR_NOMEM);
 
     list_init(&ctx->sounds);
+    list_init(&ctx->chains);
 
 #ifdef CONFIG_BROWSER
     subscribe(MT_INPUT, sound_handle_input, ctx);
@@ -244,6 +268,11 @@ void sound_done(sound_context *ctx)
         ref_put(sound);
     }
 
+    sound_effect_chain *chain, *itc;
+
+    list_for_each_entry_iter(chain, itc, &ctx->chains, entry)
+        ref_put(chain);
+
     if (ctx->started) {
         ma_engine_stop(&ctx->engine);
         ma_engine_uninit(&ctx->engine);
@@ -253,6 +282,209 @@ void sound_done(sound_context *ctx)
 
     mem_free(ctx);
 }
+
+/****************************************************************************
+ * Sound effects (audio post processing)
+ ****************************************************************************/
+
+typedef cerr (*sound_effect_init_fn)(sound_effect *effect, rc_init_opts(sound_effect) *opts);
+typedef void (*sound_effect_done_fn)(sound_effect *effect);
+typedef void (*sound_effect_process_fn)(sound_effect *effect, float *buffer,
+                                        unsigned int frames, unsigned int channels);
+
+/**
+ * struct sound_effect_desc - sound effect descriptor
+ * @name:       effect name (e.g. "reverb")
+ * @init:       effect instance initializer
+ * @done:       effect instance destructor
+ * @process:    signal processing function
+ */
+typedef struct sound_effect_desc {
+    const char              *name;
+    sound_effect_init_fn    init;
+    sound_effect_done_fn    done;
+    sound_effect_process_fn process;
+} sound_effect_desc;
+
+/**
+ * struct sound_effect - sound effect instance
+ * @desc:   pointer to effect descriptor
+ * @data:   effect's private data
+ * @entry:  entry to effect chain's list
+ * @ref:    lifetime management
+ */
+struct sound_effect {
+    const sound_effect_desc *desc;
+    void                    *data;
+    struct list             entry;
+    struct ref              ref;
+};
+
+/****************************************************************************
+ * Sound effects: core
+ ****************************************************************************/
+
+static const sound_effect_desc sound_effect_descs[] = {
+    [SOUND_EFFECT_REVERB] = {},
+    [SOUND_EFFECT_EQ] = {},
+    [SOUND_EFFECT_COMPRESSOR] = {},
+    [SOUND_EFFECT_DELAY] = {},
+};
+
+static cerr sound_effect_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(sound_effect) *opts = _opts;
+    auto effect = container_of(ref, sound_effect, ref);
+
+    if (opts->type >= array_size(sound_effect_descs) || !sound_effect_descs[opts->type].process)
+        return CERR_INVALID_ARGUMENTS;
+
+    effect->desc = &sound_effect_descs[opts->type];
+    list_init(&effect->entry);
+
+    if (effect->desc->init)
+        return effect->desc->init(effect, opts);
+
+    return CERR_OK;
+}
+
+static void sound_effect_drop(struct ref *ref)
+{
+    auto effect = container_of(ref, sound_effect, ref);
+
+    if (effect->desc && effect->desc->done)
+        effect->desc->done(effect);
+
+    list_del(&effect->entry);
+}
+
+DEFINE_REFCLASS2(sound_effect);
+
+DEFINE_CLEANUP(sound_effect, if (*p) ref_put(*p))
+
+static void sound_effect_chain_process_pcm_frames(ma_node *node, const float **frames_in,
+                                                  ma_uint32 *frame_count_in, float **frames_out,
+                                                  ma_uint32 *frame_count_out)
+{
+    sound_effect_chain *chain = (sound_effect_chain *)node;
+    ma_uint32 channels = ma_node_get_output_channels(node, 0);
+
+    if (!chain->enabled || list_empty(&chain->effects)) {
+        ma_copy_pcm_frames(frames_out[0], frames_in[0], *frame_count_out,
+                           ma_format_f32, channels);
+        return;
+    }
+
+    ma_copy_pcm_frames(frames_out[0], frames_in[0], *frame_count_out, ma_format_f32, channels);
+
+    sound_effect *effect;
+    list_for_each_entry(effect, &chain->effects, entry) {
+        if (effect->desc && effect->desc->process)
+            effect->desc->process(effect, frames_out[0], *frame_count_out, channels);
+    }
+}
+
+static const ma_node_vtable sound_effect_chain_vtable = {
+    .onProcess = sound_effect_chain_process_pcm_frames,
+    .onGetRequiredInputFrameCount = NULL,
+    .inputBusCount = 1,
+    .outputBusCount = 1,
+};
+
+static cerr sound_effect_chain_make(struct ref *ref, void *_opts)
+{
+    sound_effect_chain *chain = container_of(ref, sound_effect_chain, ref);
+    rc_init_opts(sound_effect_chain) *opts = _opts;
+
+    if (!opts->ctx || !opts->ctx->started)
+        return CERR_INVALID_ARGUMENTS;
+
+    list_init(&chain->effects);
+    list_init(&chain->sounds);
+    chain->enabled = true;
+
+    ma_uint32 channels = ma_engine_get_channels(&opts->ctx->engine);
+    ma_node_config node_config = ma_node_config_init();
+    node_config.vtable = &sound_effect_chain_vtable;
+    node_config.pInputChannels = &channels;
+    node_config.pOutputChannels = &channels;
+
+    ma_result result = ma_node_init(ma_engine_get_node_graph(&opts->ctx->engine),
+                                    &node_config, NULL, &chain->node);
+    if (result != MA_SUCCESS)   return CERR_SOUND_NOT_LOADED;
+
+    result = ma_node_attach_output_bus(&chain->node, 0, ma_engine_get_endpoint(&opts->ctx->engine), 0);
+    if (result != MA_SUCCESS) {
+        ma_node_uninit(&chain->node, NULL);
+        return CERR_SOUND_NOT_LOADED;
+    }
+
+    list_append(&opts->ctx->chains, &chain->entry);
+
+    return CERR_OK;
+}
+
+static void sound_effect_chain_drop(struct ref *ref)
+{
+    sound_effect_chain *chain = container_of(ref, sound_effect_chain, ref);
+
+    while (!list_empty(&chain->sounds)) {
+        auto s = list_first_entry(&chain->sounds, sound, chain_entry);
+        sound_set_effect_chain(s, NULL);
+    }
+
+    while (!list_empty(&chain->effects)) {
+        sound_effect *effect = list_first_entry(&chain->effects, sound_effect, entry);
+        ref_put(effect);
+    }
+
+    ma_node_uninit(&chain->node, NULL);
+    list_del(&chain->entry);
+}
+
+DEFINE_REFCLASS2(sound_effect_chain);
+
+DEFINE_CLEANUP(sound_effect_chain, if (*p) ref_put(*p))
+
+void sound_effect_chain_enable(sound_effect_chain *chain, bool enable)
+{
+    if (chain)  chain->enabled = enable;
+}
+
+void sound_effect_chain_add(sound_effect_chain *chain, sound_effect *effect)
+{
+    if (!chain || !effect)  return;
+    list_append(&chain->effects, &effect->entry);
+    ref_get(effect);
+}
+
+void sound_effect_chain_remove(sound_effect_chain *chain, sound_effect *effect)
+{
+    if (!chain || !effect)  return;
+    list_del(&effect->entry);
+    ref_put(effect);
+}
+
+void sound_set_effect_chain(sound *sound, sound_effect_chain *chain)
+{
+    if (!sound) return;
+
+    sound->effect_chain = chain;
+
+    if (chain) {
+        /* plug sound into chain */
+        ma_node_attach_output_bus(&sound->sound, 0, &chain->node, 0);
+        list_append(&chain->sounds, &sound->chain_entry);
+    } else {
+        /* plug sound directly into engine's endpoint */
+        ma_node_attach_output_bus(&sound->sound, 0, ma_engine_get_endpoint(&sound->ctx->engine), 0);
+        list_del(&sound->chain_entry);
+    }
+}
+
+/****************************************************************************
+ * Effect sounds (SFX)
+ ****************************************************************************/
 
 typedef struct sfx {
     sound       *sound;
