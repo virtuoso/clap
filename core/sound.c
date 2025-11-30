@@ -158,7 +158,7 @@ DEFINE_CLEANUP(sound, if (*p) ref_put(*p))
 
 void sound_set_looping(sound *sound, bool looping)
 {
-    sound->looping = true;
+    sound->looping = looping;
 
     if (!sound->ctx->started)   return;
 
