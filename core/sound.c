@@ -44,10 +44,11 @@ typedef struct sound {
 void sound_set_gain(sound *sound, float gain)
 {
     sound->gain = gain;
-    if (sound->ctx->started) {
-        ma_sound_set_min_gain(&sound->sound, gain);
-        ma_sound_set_max_gain(&sound->sound, gain);
-    }
+
+    if (!sound->ctx->started)   return;
+
+    ma_sound_set_min_gain(&sound->sound, gain);
+    ma_sound_set_max_gain(&sound->sound, gain);
 }
 
 float sound_get_gain(sound *sound)
@@ -159,18 +160,19 @@ void sound_set_looping(sound *sound, bool looping)
 {
     sound->looping = true;
 
-    if (sound->ctx->started)
-        ma_sound_set_looping(&sound->sound, looping);
+    if (!sound->ctx->started)   return;
+
+    ma_sound_set_looping(&sound->sound, looping);
 }
 
 void sound_play(sound *sound)
 {
-    if (sound->ctx->started) {
-        if (ma_sound_is_playing(&sound->sound)) {
-            ma_sound_seek_to_pcm_frame(&sound->sound, 0);
-        }
-        ma_sound_start(&sound->sound);
-    }
+    if (!sound->ctx->started)   return;
+
+    if (ma_sound_is_playing(&sound->sound))
+        ma_sound_seek_to_pcm_frame(&sound->sound, 0);
+
+    ma_sound_start(&sound->sound);
 }
 
 static void do_sound_init(sound_context *ctx)
