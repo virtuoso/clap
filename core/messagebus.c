@@ -22,6 +22,22 @@ cerr subscribe(enum message_type type, subscriber_fn fn, void *data)
     return CERR_OK;
 }
 
+cerr unsubscribe(enum message_type type, void *data)
+{
+    if (type >= MT_MAX) return CERR_INVALID_ARGUMENTS;
+
+    struct subscriber *s, *it;
+    list_for_each_entry_iter(s, it, &subscriber[type], entry)
+        if (s->data == data) {
+            list_del(&s->entry);
+            mem_free(s);
+
+            return CERR_OK;
+        }
+
+    return CERR_NOT_FOUND;
+}
+
 int message_send(struct message *m)
 {
     struct subscriber *s;

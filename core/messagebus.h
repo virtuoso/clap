@@ -153,6 +153,19 @@ struct subscriber {
 };
 
 cerr subscribe(enum message_type type, subscriber_fn fn, void *data);
+
+/**
+ * unsubscribe() - remove a subscriber
+ * @type:   message type
+ * @data:   subscriber's private data
+ *
+ * Unsubscribe a subscriber that's identified by its @data pointer.
+ * Return:
+ * * CERR_OK on success
+ * * CERR_INVALID_ARGUMENTS if @type is invalid
+ * * CERR_NOT_FOUND if the subscriber was not found
+ */
+cerr unsubscribe(enum message_type type, void *data);
 int message_send(struct message *m);
 cerr_check messagebus_init(void);
 void messagebus_done(void);
