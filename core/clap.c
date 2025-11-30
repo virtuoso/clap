@@ -257,7 +257,7 @@ static void clap_init_render_options(struct clap_context *ctx)
      * without driving FPS into single digits and heating up like a frying
      * pan. Disable it until Metal renderer is ready.
      */
-#if !defined(__APPLE__) && !defined(__arm64__)
+#if !(defined(__APPLE__) && defined(CONFIG_RENDERER_OPENGL))
     ctx->render_options.ssao = true;
 #endif /* __APPLE__ && __arm64__ */
     ctx->render_options.ssao_radius = 0.3;
