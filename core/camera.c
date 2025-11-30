@@ -179,8 +179,14 @@ void camera_update(struct camera *c, struct scene *scene)
 {
     double dist, next_distance;
 
-    if (!scene->control)
+    if (!scene->control) {
+        /*
+         * camera not bound to a target, no further calculation are necessary,
+         * reset the motion controller and drop out early
+         */
+        camera_reset_movement(c);
         return;
+    }
 
     /* circle the entity s->control, unless it's camera */
     if (!camera_has_moved(c))

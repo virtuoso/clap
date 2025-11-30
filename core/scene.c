@@ -138,6 +138,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             cam->view.proj_update = true;
         }
 
+        if (igButton("Detach camera", (ImVec2){}))  scene->control = NULL;
+
         luts_debug(scene);
 
         if (igSliderInt("lut autoswitch", &scene->lut_autoswitch, 0, 60, "%d", 0))

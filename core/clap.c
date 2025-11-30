@@ -414,6 +414,15 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
          * for the physics step's dynamics simulation (dWorldStep())
          */
         scene_characters_move(scene);
+    } else {
+        double dt = clap_get_fps_delta(scene->clap_ctx).tv_nsec / (double)NSEC_PER_SEC;
+        float lin_speed = scene->lin_speed * dt;
+
+        /* Always compute the active inputs in the frame */
+        motion_compute(&scene->mctl, scene->camera, lin_speed * 4.0);
+
+        transform_move(&scene->camera->xform, (vec3){ scene->mctl.dx, 0.0, scene->mctl.dz });
+        transform_set_updated(&scene->camera->xform);
     }
 
     PROF_STEP(move, start)
