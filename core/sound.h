@@ -63,6 +63,8 @@ DEFINE_REFCLASS_INIT_OPTIONS(sound_effect,
     float               room_size;
     float               damping;
     float               wet_dry;
+    float               delay_ms[2];
+    float               feedback;
 );
 DECLARE_REFCLASS(sound_effect);
 

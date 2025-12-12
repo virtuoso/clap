@@ -499,6 +499,98 @@ static void reverb_done(sound_effect *effect)
 }
 
 /****************************************************************************
+ * Sound effects: delay
+ ****************************************************************************/
+
+/*
+ * We assume a max sample rate of 48kHz and max delay of 2 seconds.
+ * This gives a buffer of 2 * 48000 = 96000 samples per channel.
+ */
+#define DELAY_BUFFER_MAX_SAMPLES 96000
+
+/**
+ * struct delay_data - delay effect state
+ * @buffer:         delayed sample ring buffer (x2 for stereo)
+ * @size:           actual buffer size in samples
+ * @write_pos:      write position in the ring buffer
+ * @delay_samples:  per-channel delay in samples
+ * @feedback:       amount of feedback [0.0f, 1.0f]
+ * @wet:            amount of wet signal [0.0f, 1.0f]
+ * @dry:            amount of dry signal (1 - wet)
+ * @sample_rate:    audio sample rate
+ */
+typedef struct delay_data {
+    float           buffer[DELAY_BUFFER_MAX_SAMPLES * 2];
+    unsigned int    size;
+    unsigned int    write_pos;
+    unsigned int    delay_samples[2];
+    float           feedback;
+    float           wet;
+    float           dry;
+    unsigned int    sample_rate;
+} delay_data;
+
+static void delay_process(sound_effect *effect, float *buffer,
+                          unsigned int frames, unsigned int channels)
+{
+    delay_data *delay = effect->data;
+    if (channels != 2 || !delay->size) return;
+
+    for (unsigned int i = 0; i < frames; i++) {
+        for (unsigned int ch = 0; ch < channels; ch++) {
+            unsigned int read_pos = (delay->write_pos + delay->size - delay->delay_samples[ch]) % delay->size;
+
+            float delayed   = delay->buffer[read_pos * channels + ch];
+            float input     = buffer[i * channels + ch];
+            float output    = input * delay->dry + delayed * delay->wet;
+
+            delay->buffer[delay->write_pos * channels + ch] = input + delayed * delay->feedback;
+
+            buffer[i * channels + ch] = output;
+        }
+
+        delay->write_pos = (delay->write_pos + 1) % delay->size;
+    }
+}
+
+static cerr delay_init(sound_effect *effect, rc_init_opts(sound_effect) *opts)
+{
+    if (opts->delay_ms[0] < 0.0f || opts->delay_ms[1] < 0.0f)
+        return CERR_INVALID_ARGUMENTS;
+    if (opts->feedback < 0.0f || opts->feedback > 1.0f)
+        return CERR_INVALID_ARGUMENTS;
+    if (opts->wet_dry < 0.0f || opts->wet_dry > 1.0f)
+        return CERR_INVALID_ARGUMENTS;
+
+    delay_data *delay = mem_alloc(sizeof(*delay), .zero = 1);
+    if (!delay) return CERR_NOMEM;
+
+    delay->sample_rate = ma_engine_get_sample_rate(&opts->ctx->engine);
+    delay->wet = opts->wet_dry;
+    delay->dry = 1.0f - opts->wet_dry;
+    delay->feedback = opts->feedback;
+
+    delay->delay_samples[0] = (unsigned int)((opts->delay_ms[0] / 1000.0f) * delay->sample_rate);
+    delay->delay_samples[1] = (unsigned int)((opts->delay_ms[1] / 1000.0f) * delay->sample_rate);
+
+    unsigned int max_delay_samples = max(delay->delay_samples[0], delay->delay_samples[1]);
+
+    if (max_delay_samples > DELAY_BUFFER_MAX_SAMPLES) {
+        mem_free(delay);
+        return CERR_INVALID_ARGUMENTS;
+    }
+
+    delay->size = max_delay_samples;
+    effect->data = delay;
+    return CERR_OK;
+}
+
+static void delay_done(sound_effect *effect)
+{
+    mem_free(effect->data);
+}
+
+/****************************************************************************
  * Sound effects: core
  ****************************************************************************/
 
@@ -511,7 +603,12 @@ static const sound_effect_desc sound_effect_descs[] = {
     },
     [SOUND_EFFECT_EQ] = {},
     [SOUND_EFFECT_COMPRESSOR] = {},
-    [SOUND_EFFECT_DELAY] = {},
+    [SOUND_EFFECT_DELAY] = {
+        .name       = "delay",
+        .init       = delay_init,
+        .done       = delay_done,
+        .process    = delay_process,
+    },
 };
 
 static cerr sound_effect_make(struct ref *ref, void *_opts)
