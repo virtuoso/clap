@@ -290,6 +290,43 @@ static inline bool path_has_parent(const char *path)
 }
 
 /**
+ * path_parent() - computes the parent path
+ * @dst:    buffer to write the parent path to
+ * @size:   size of the buffer
+ * @path:   path to compute parent for
+ *
+ * Calculates the parent path of @path and writes it to @dst.
+ * Trailing slashes in @path are ignored.
+ *
+ * Return: CERR_OK on success, CERR_NOT_FOUND if no parent found, error code otherwise.
+ */
+static inline cerr path_parent(char *dst, size_t size, const char *path)
+{
+    if (!dst || !size || !path)
+        return CERR_INVALID_ARGUMENTS;
+
+    int n = snprintf(dst, size, "%s", path);
+    if (n < 0 || (size_t)n >= size)
+        return CERR_TOO_LARGE;
+
+    str_trim_slashes(dst);
+
+    char *slash = strrchr(dst, PATH_DELIM_OS);
+    if (!slash)
+        return CERR_NOT_FOUND;
+
+    if (slash == dst && !slash[1])
+        return CERR_NOT_FOUND;
+
+    if (slash == dst)
+        slash[1] = 0;
+    else
+        *slash = 0;
+
+    return CERR_OK;
+}
+
+/**
  * path_joinv() - join multiple path components with PATH_DELIM_OS
  * @dst:           output buffer
  * @size:          output buffer size
