@@ -265,6 +265,28 @@ static int darray_test2(void)
     return EXIT_SUCCESS;
 }
 
+static int str_endswith_test0(void)
+{
+    if (!str_endswith("foo.txt", ".txt"))
+        return EXIT_FAILURE;
+
+    if (str_endswith("foo.TXT", ".txt"))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int str_endswith_nocase_test0(void)
+{
+    if (!str_endswith_nocase("foo.TXT", ".txt"))
+        return EXIT_FAILURE;
+
+    if (str_endswith_nocase("foo.txt", ".bin"))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static int hashmap_test0(void)
 {
     int ret = EXIT_FAILURE;
@@ -502,6 +524,8 @@ static struct test {
     { .name = "darray basic", .test = darray_test0 },
     { .name = "darray insert", .test = darray_test1 },
     { .name = "darray delete", .test = darray_test2 },
+    { .name = "str_endswith", .test = str_endswith_test0 },
+    { .name = "str_endswith_nocase", .test = str_endswith_nocase_test0 },
     { .name = "hashmap basic", .test = hashmap_test0 },
     { .name = "hashmap for each", .test = hashmap_test1 },
     { .name = "bitmap basic", .test = bitmap_test0 },
