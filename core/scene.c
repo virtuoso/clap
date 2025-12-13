@@ -16,6 +16,7 @@
 #include "sound.h"
 #include "json.h"
 #include "ui-debug.h"
+#include "ui-debug-fs.h"
 #include "ui.h"
 
 void scene_control_next(struct scene *s)
@@ -113,6 +114,48 @@ void scene_lut_autoswitch_set(struct scene *scene)
         scene->clap_ctx, (double)scene->lut_autoswitch, scene->lut_timer,
         scene_lut_autoswitch, scene
     ), {});
+}
+
+static ui_debug_fs_dialog model_fs_dialog;
+
+static const char * const model_picker_exts[] = {
+    ".gltf",
+    ".glb",
+    NULL,
+};
+
+static void model_picker_accept(const char *cwd, const char *selected_name, bool selected_is_dir, __unused void *data)
+{
+    if (!selected_name || !*selected_name)
+        return;
+
+    char full[PATH_MAX];
+    CERR_RET(path_join(full, sizeof(full), cwd, selected_name), return);
+
+    dbg("will open '%s'\n", full);
+}
+
+static void model_picker_properties(const char *cwd, const char *sel, bool is_dir, void *data)
+{
+    igText("dir:\t%s\nitem:\t%s", cwd, sel);
+}
+
+static void scene_open_model_dialog(struct scene *scene)
+{
+    struct ui_debug_fs_config cfg = {
+        .title              = "Select a GLB/glTF model",
+        .modal              = true,
+        .action_label       = "Open",
+        .select_mode        = UI_DEBUG_FS_SELECT_FILE,
+        .draw_right_panel   = model_picker_properties,
+        .extensions         = model_picker_exts,
+        .on_accept          = model_picker_accept,
+        .data               = scene,
+    };
+
+    cerr err = ui_debug_fs_open(&model_fs_dialog, &cfg, NULL);
+    if (IS_CERR(err))
+        err_cerr(err, "failed to open filesystem dialog");
 }
 
 static void scene_parameters_debug(struct scene *scene, int cam_idx)
@@ -556,6 +599,8 @@ static void scene_entity_inspector_debug(struct scene *scene)
         entity_name(ei->entity)
     );
 
+    ui_debug_fs_draw(&model_fs_dialog);
+
     if (!dbgm->display)
         return;
 
@@ -567,6 +612,9 @@ static void scene_entity_inspector_debug(struct scene *scene)
         igPushItemWidth(-1.0);
 
         model_picker(scene);
+
+        if (igButton("browse glTF...", (ImVec2){}))
+            scene_open_model_dialog(scene);
 
         if (!ei->entity) {
             igPopItemWidth();
