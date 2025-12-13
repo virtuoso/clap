@@ -36,6 +36,7 @@ typedef enum cerr_enum {
     _CERR_LUT_NOT_LOADED         = -24,
     _CERR_SCENE_NOT_LOADED       = -25,
     _CERR_OUT_OF_BOUNDS          = -26,
+    _CERR_EOF                    = -27,
 } cerr_enum;
 
 /****************************************************************************

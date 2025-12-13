@@ -174,7 +174,7 @@ if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
 endif ()
 
 if (NOT CLAP_BUILD_FINAL)
-    list(APPEND ENGINE_SRC debug_draw.c)
+    list(APPEND ENGINE_SRC debug_draw.c ui-debug-fs.c)
 endif ()
 
 ##########################################################################
