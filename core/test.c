@@ -336,6 +336,30 @@ static int path_join_test0(void)
     return EXIT_SUCCESS;
 }
 
+static int path_has_parent_test0(void)
+{
+    /* XXX: this will fail on windows, anyone is free to fix */
+#ifndef _WIN32
+    if (path_has_parent("foo"))
+        return EXIT_FAILURE;
+
+    if (!path_has_parent("foo/bar"))
+        return EXIT_FAILURE;
+
+    if (path_has_parent("/"))
+        return EXIT_FAILURE;
+
+    if (!path_has_parent("/foo"))
+        return EXIT_FAILURE;
+
+    /* trailing slashes are ignored */
+    if (!path_has_parent("foo/bar/"))
+        return EXIT_FAILURE;
+#endif /* _WIN32 */
+
+    return EXIT_SUCCESS;
+}
+
 static int hashmap_test0(void)
 {
     int ret = EXIT_FAILURE;
@@ -577,6 +601,7 @@ static struct test {
     { .name = "str_endswith_nocase", .test = str_endswith_nocase_test0 },
     { .name = "str_trim_slashes", .test = str_trim_slashes_test0 },
     { .name = "path_join", .test = path_join_test0 },
+    { .name = "path_has_parent", .test = path_has_parent_test0 },
     { .name = "hashmap basic", .test = hashmap_test0 },
     { .name = "hashmap for each", .test = hashmap_test1 },
     { .name = "bitmap basic", .test = bitmap_test0 },
