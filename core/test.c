@@ -360,6 +360,47 @@ static int path_has_parent_test0(void)
     return EXIT_SUCCESS;
 }
 
+static int path_parent_test0(void)
+{
+    /* XXX: this will fail on windows, anyone is free to fix */
+#ifndef _WIN32
+    char buf[64];
+    cerr err;
+
+    /* Basic parent calculation */
+    CERR_RET(path_parent(buf, sizeof(buf), "foo/bar"), return EXIT_FAILURE);
+    if (strcmp(buf, "foo"))
+        return EXIT_FAILURE;
+
+    /* Root should not have a parent */
+    err = path_parent(buf, sizeof(buf), "/");
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND))
+        return EXIT_FAILURE;
+
+    /* Simple file should not have a parent */
+    err = path_parent(buf, sizeof(buf), "foo");
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND))
+        return EXIT_FAILURE;
+
+    /* Trailing slashes should be ignored */
+    CERR_RET(path_parent(buf, sizeof(buf), "foo/bar/"), return EXIT_FAILURE);
+    if (strcmp(buf, "foo"))
+        return EXIT_FAILURE;
+
+    /* Absolute path parent */
+    CERR_RET(path_parent(buf, sizeof(buf), "/foo"), return EXIT_FAILURE);
+    if (strcmp(buf, "/"))
+        return EXIT_FAILURE;
+
+    /* Buffer too small (implementation copies full path first) */
+    err = path_parent(buf, 4, "/foo");
+    if (!IS_CERR_CODE(err, CERR_TOO_LARGE))
+        return EXIT_FAILURE;
+#endif /* _WIN32 */
+
+    return EXIT_SUCCESS;
+}
+
 static int hashmap_test0(void)
 {
     int ret = EXIT_FAILURE;
@@ -602,6 +643,7 @@ static struct test {
     { .name = "str_trim_slashes", .test = str_trim_slashes_test0 },
     { .name = "path_join", .test = path_join_test0 },
     { .name = "path_has_parent", .test = path_has_parent_test0 },
+    { .name = "path_parent", .test = path_parent_test0 },
     { .name = "hashmap basic", .test = hashmap_test0 },
     { .name = "hashmap for each", .test = hashmap_test1 },
     { .name = "bitmap basic", .test = bitmap_test0 },
