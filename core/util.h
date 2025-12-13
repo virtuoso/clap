@@ -226,6 +226,20 @@ static inline bool str_endswith(const char *str, const char *sfx)
     return false;
 }
 
+static inline bool str_endswith_nocase(const char *str, const char *sfx)
+{
+    size_t sfxlen = strlen(sfx);
+    size_t len = strlen(str);
+
+    if (len < sfxlen)
+        return false;
+
+    if (!strncasecmp(str + len - sfxlen, sfx, sfxlen))
+        return true;
+
+    return false;
+}
+
 static inline const char *str_basename(const char *str)
 {
     const char *p = strrchr(str, PATH_DELIM_OS);
