@@ -269,6 +269,27 @@ static inline void str_trim_slashes(char *path)
 }
 
 /**
+ * path_has_parent() - check if path has a parent directory
+ * @path: path to check
+ *
+ * Return: true if @path has a parent directory, false otherwise.
+ */
+static inline bool path_has_parent(const char *path)
+{
+    if (!path || !*path)
+        return false;
+
+    const char *slash = strrchr(path, PATH_DELIM_OS);
+    if (!slash)
+        return false;
+
+    if (slash == path && !slash[1])
+        return false;
+
+    return true;
+}
+
+/**
  * path_joinv() - join multiple path components with PATH_DELIM_OS
  * @dst:           output buffer
  * @size:          output buffer size
