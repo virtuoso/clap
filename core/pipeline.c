@@ -82,6 +82,7 @@ void pipeline_clearout(pipeline *pl)
                  * not happen, as LUTs are maintained globally. Prevent this
                  * from happening.
                  */
+                // txm->lut = &txm->_lut;
                 model3dtx_set_texture(txm, UNIFORM_LUT_TEX, NULL);
             }
 
@@ -210,13 +211,15 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
 
     pass->fbo = CRES_RET(
         fbo_new(
+            .name                = pass->name,
             .width               = width,
             .height              = height,
             .layers              = cfg->layers,
             .color_format        = cfg->color_format,
             .depth_format        = cfg->depth_format,
             .multisampled        = cfg->multisampled,
-            .attachment_config   = cfg->attachment_config
+            .attachment_config   = cfg->attachment_config,
+            .load_clear          = !cfg->shader
         ),
         { err = cerr_error_cres(__resp); goto err_source; }
     );
@@ -289,12 +292,14 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             if (!pass->use_tex[i])
                 goto err_use_tex;
 
+            texture_set_name(pass->use_tex[i], "%s:%s [rt]", pass->name, shader_get_var_name(rsrc->sampler));
             nr_uses++;
         } else if (rsrc->method == RM_PLUG) {
             if (!rsrc->tex)
                 goto err_use_tex;
 
             pass->use_tex[i] = rsrc->tex;
+            texture_set_name(pass->use_tex[i], "%s:%s", pass->name, shader_get_var_name(rsrc->sampler));
             nr_plugs++;
         } else {
             goto err_use_tex;
@@ -536,6 +541,7 @@ void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
         pass = last_pass;
 
     /* render the last pass to the screen */
+    renderer_swapchain_begin(pl->renderer);
     pass_render(pl, pass, mq);
 
     pipeline_debug_end(pl);

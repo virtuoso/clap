@@ -351,7 +351,7 @@ static cerr ui_model_init(struct ui *ui)
 {
     model3d *ui_quad = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     ui_quad->alpha_blend = true;
-    model3d_set_name(ui_quad, "ui_quad");
+    model3d_set_name(ui_quad, "ui_quad:main");
     ui_quadtx = ref_new(model3dtx, .model = ref_pass(ui_quad), .tex = transparent_pixel());
     if (!ui_quadtx)
         return CERR_INITIALIZATION_FAILED;
@@ -520,7 +520,10 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     fbo_ui.width = uit.width + uit.margin_x * 2;
     fbo_ui.height = uit.height + uit.margin_y * 2;
     mq_init(&fbo_ui.mq, &fbo_ui);
-    fbo = CRES_RET(fbo_new(fbo_ui.width, fbo_ui.height), return NULL);
+    renderer_depth_test(ui->renderer, false);
+    renderer_clearcolor(ui->renderer, (vec4){});
+    renderer_clear(ui->renderer, true, true, false);
+    fbo = CRES_RET(fbo_new(.width = fbo_ui.width, .height = fbo_ui.height, .load_clear = true, .name = "ui_printf"), return NULL);
 
     if (parent) {
         parent->width = uit.width + uit.margin_x * 2;
@@ -546,7 +549,7 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
         glyph   = font_get_glyph(uit.font, str[i]);
         txm = ui_txm_find_by_texture(&fbo_ui, &glyph->tex);
         if (!txm) {
-            m = ui_quad_new(ui->glyph_prog, 0, 0, glyph->width, glyph->height);
+            m = ui_quad_new(ui->ui_prog, 0, 0, glyph->width, glyph->height);
             model3d_set_name(m, "glyph_%s_%c", font_name(uit.font), str[i]);
             txm = ref_new(model3dtx, .model = ref_pass(m), .tex = &glyph->tex);
             ui_add_model(&fbo_ui, txm);
@@ -573,9 +576,6 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     }
 
     fbo_prepare(fbo);
-    renderer_depth_test(ui->renderer, false);
-    renderer_clearcolor(ui->renderer, (vec4){});
-    renderer_clear(ui->renderer, true, true, false);
     models_render(ui->renderer, &fbo_ui.mq);
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);
@@ -1757,8 +1757,8 @@ void ui_done(struct ui *ui)
     mq_release(&ui->mq);
 
     /* these match shader_prog_find() in ui_init() */
-    shader_prog_done(ui->ui_prog);
-    shader_prog_done(ui->glyph_prog);
+    shader_prog_done(ui->ui_prog, false);
+    shader_prog_done(ui->glyph_prog, false);
 
     /*
      * clean up the shaders that weren't freed by model3d_drop()

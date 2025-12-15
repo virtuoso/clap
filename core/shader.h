@@ -151,6 +151,7 @@ enum shader_vars {
     UNIFORM_COLOR_PASSTHROUGH,
     UNIFORM_SHADOW_VSM,
     UNIFORM_SHADOW_MVP,
+    UNIFORM_LIGHT_FAR,
     UNIFORM_CASCADE_DISTANCES,
     UNIFORM_SHADOW_TINT,
     UNIFORM_SHADOW_OUTLINE,
@@ -209,21 +210,39 @@ const char *shader_name(struct shader_prog *p);
 
 /**
  * shader_prog_use() - bind a shader program
- * @p:  shader program
+ * @p:      shader program
+ * @draw:   use shader for drawing
  *
  * Take a shader program into use. Needs a matching shader_prog_done().
- * Context: rendering, resource loading
+ * Context: rendering [@draw==%true], resource loading [@draw==%false]
  */
-void shader_prog_use(struct shader_prog *p);
+void shader_prog_use(struct shader_prog *p, bool draw);
 
 /**
  * shader_prog_done() - unbind a shader program
- * @p:  shader program
+ * @p:      shader program
+ * @draw:   used shader for drawing
  *
  * Stop using a shader program. Matches a preceding shader_prog_done().
- * Context: rendering, resource loading
+ * Context: rendering [@draw==%true], resource loading [@draw==%false]
  */
-void shader_prog_done(struct shader_prog *p);
+void shader_prog_done(struct shader_prog *p, bool draw);
+
+/**
+ * shader_prog_renderer() - get shader's renderer
+ * @p:  shader program
+ *
+ * Return: pointer to renderer_t object, non-NULL
+ */
+renderer_t *shader_prog_renderer(struct shader_prog *p);
+
+/**
+ * shader_prog_shader() - get shader's low-level shader object
+ * @p:  shader program
+ *
+ * Return: pointer to shader_t object, non-NULL
+ */
+shader_t *shader_prog_shader(struct shader_prog *p);
 
 /**
  * shader_get_var_name() - get a shader variable name string
@@ -336,7 +355,7 @@ void shaders_free(struct list *shaders);
 cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *shaders);
 cresp(shader_prog) shader_prog_find_get(shader_context *ctx, struct list *shaders, const char *name);
 
-must_check cresp(shader_context) shader_vars_init(void);
+must_check cresp(shader_context) shader_vars_init(renderer_t *renderer);
 void shader_vars_done(shader_context *ctx);
 void shader_var_blocks_update(struct shader_prog *p);
 

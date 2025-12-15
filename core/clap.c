@@ -457,6 +457,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(callback, updates);
 
+    renderer_swapchain_begin(&ctx->renderer);
     models_render(ui->renderer, &ui->mq);
 
     PROF_STEP(ui_render, callback);
@@ -467,8 +468,9 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     memory_debug();
 
     imgui_render();
-    renderer_frame_end(&ctx->renderer);
+    renderer_swapchain_end(&ctx->renderer);
     display_swap_buffers();
+    renderer_frame_end(&ctx->renderer);
 
     mem_frame_end();
 }
@@ -714,7 +716,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         CERR_RET_T(display_init(ctx, clap_frame, clap_resize), clap_context);
 
         textures_init();
-        ctx->shaders = CRES_RET_T(shader_vars_init(), clap_context);
+        ctx->shaders = CRES_RET_T(shader_vars_init(&ctx->renderer), clap_context);
 
         lut_preset *lut_presets = ctx->cfg.lut_presets;
         if (!lut_presets)

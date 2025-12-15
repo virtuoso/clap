@@ -11,6 +11,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(EXTRA_LIBRARIES     "-lidbfs.js"
                             "-s WASM=1"
                             "-s ALLOW_MEMORY_GROWTH"
+                            "-s STACK_SIZE=131072"
                             "-s MAX_WEBGL_VERSION=2"
                             "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
                             "-s EXPORTED_RUNTIME_METHODS=FS"

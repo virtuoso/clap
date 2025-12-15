@@ -214,8 +214,10 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
         igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
         igCheckbox("use SSAO", &ropts->ssao);
-        igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("SSAO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
+        if (ropts->ssao) {
+            igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("SSAO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
+        }
         igCheckbox("use HDR", &ropts->hdr);
         igSliderFloat("bloom exposure", &ropts->bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom intensity", &ropts->bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
@@ -845,6 +847,7 @@ static void scene_debug_frusta(struct scene *scene, struct view *view)
 
     for (int v = 0; v < CASCADES_MAX; v++) {
         struct subview *src = &view->debug_subview[v];
+        if (view->subview[v].debug_hide)    continue;
 
         for (int i = 0; i < 12; ++i) {
             struct message dm = {
@@ -901,11 +904,13 @@ static void scene_camera_calc(struct scene *s, int camera)
             entity3d_aabb_X(env),
             fabsf(vec3_mul_inner(light_dir, (vec3){ 1.0, 0.0, 0.0 }))
         );
-        near_backup = linf_interp(
-            xz_mix,
-            entity3d_aabb_Y(env),
-            fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 }))
-        );
+        // near_backup = linf_interp(
+        //     xz_mix,
+        //     entity3d_aabb_Y(env),
+        //     fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 }))
+        // );
+        float ycos = fmaxf(fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 })), 0.2);
+        near_backup = min(xz_mix / ycos, entity3d_aabb_avg_edge(env));
     }
     /* only the first light source get to cast shadows for now */
     bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
@@ -1290,6 +1295,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         txm->mat.metallic = clampd(metallic, 0.0, 1.0);
 
     model3d_set_name(txm->model, name);
+
+    txm->model->sfxc.on_add = scene->sfxc.on_add;
+    txm->model->sfxc.data = scene->sfxc.data;
 
     if (phys) {
         for (p = phys->children.head; p; p = p->next) {
