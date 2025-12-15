@@ -6,7 +6,7 @@ include(${CMAKE_SOURCE_DIR}/scripts/executable.cmake)
 
 clap_executable(
     clap
-    "onehandclap.c"
+    "onehandclap.c;ui.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset"
     ""
     "ofl/Unbounded-Regular.ttf"
