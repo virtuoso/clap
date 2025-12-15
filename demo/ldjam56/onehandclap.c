@@ -29,6 +29,11 @@ static int exit_timeout = -1;
 static struct scene scene; /* XXX */
 
 static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = true;
+typedef struct game_ui game_ui;
+cresp_struct_ret(game_ui);
+
+cresp(game_ui) game_ui_init(struct ui *ui);
+void game_ui_done(game_ui *game_ui);
 
 static void build_main_pl(struct pipeline **pl)
 {
@@ -241,6 +246,8 @@ int main(int argc, char **argv, char **envp)
         return EXIT_FAILURE;
     }
 
+    __unused auto gui = CRES_RET(game_ui_init(clap_get_ui(clap_res.val)), return EXIT_FAILURE);
+
     /*
      * XXX: this doesn't belong here, same as imgui_render_begin()
      * and any error paths past this point must call the corresponding
@@ -263,7 +270,6 @@ int main(int argc, char **argv, char **envp)
     err = subscribe(scene.clap_ctx, MT_INPUT, handle_input, &scene);
     if (IS_CERR(err))
         goto exit_scene;
-
 
     display_get_sizes(&scene.width, &scene.height);
     scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
@@ -317,6 +323,7 @@ exit_sound:
 exit_scene:
     scene_done(&scene);
     ref_put(scene.pl); /* XXX: scene_init()/scene_done() */
+    game_ui_done(gui);
     clap_done(scene.clap_ctx, 0);
 #else
 exit_sound:
