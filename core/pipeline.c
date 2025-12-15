@@ -197,6 +197,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
     pass->fbo = CRES_RET(
         fbo_new(
             .renderer            = pl->renderer,
+            .name                = pass->name,
             .width               = width,
             .height              = height,
             .layers              = cfg->layers,
@@ -204,6 +205,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             .depth_format        = cfg->depth_format,
             .multisampled        = cfg->multisampled,
             .layout              = cfg->layout,
+            .load_clear          = !cfg->shader
         ),
         { err = cerr_error_cres(__resp); goto err_source; }
     );
@@ -278,12 +280,14 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             if (!pass->use_tex[i])
                 goto err_use_tex;
 
+            texture_set_name(pass->use_tex[i], "%s:%s [rt]", pass->name, shader_get_var_name(rsrc->sampler));
             nr_uses++;
         } else if (rsrc->method == RM_PLUG) {
             if (!rsrc->tex)
                 goto err_use_tex;
 
             pass->use_tex[i] = rsrc->tex;
+            texture_set_name(pass->use_tex[i], "%s:%s", pass->name, shader_get_var_name(rsrc->sampler));
             nr_plugs++;
         } else {
             goto err_use_tex;
@@ -460,6 +464,8 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         models_render(pl->renderer, mq,
                       .shader_override  = pass->prog_override,
                       .render_options   = pl->render_options,
+                      .near_plane       = params.near_plane,
+                      .far_plane        = params.far_plane,
                       .light            = params.light,
                       .camera           = params.camera,
                       .width            = fbo_width(pass->fbo),
@@ -525,6 +531,7 @@ void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
         pass = last_pass;
 
     /* render the last pass to the screen */
+    renderer_swapchain_begin(pl->renderer);
     pass_render(pl, pass, mq);
 
     pipeline_debug_end(pl);

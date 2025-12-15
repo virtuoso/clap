@@ -68,7 +68,7 @@ void vertex_array_xlate_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t s
     for (int i = 0; i < vxsz; i += stride) {
         vec4 v = { vx[i], vx[i + 1], vx[i + 2], 1.0f };
 
-        if (xlate)   mat4x4_mul_vec4_post(v, *xlate, v);
+        if (xlate)   { mat4x4_mul_vec4_post(v, *xlate, v); vec3_scale(v, v, 1.0f / v[3]); }
 
         for (int j = 0; j < 3; j++) {
             aabb[0][j] = min(v[j], aabb[0][j]);

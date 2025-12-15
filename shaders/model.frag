@@ -11,6 +11,8 @@ layout (location=3) in vec3 to_camera_vector;
 layout (location=4) in vec4 world_pos;
 layout (location=5) in mat3 tbn;
 
+layout (location=6) out float VSMDebug;
+
 #include "shadow.glsl"
 #include "lighting.glsl"
 #include "ubo_projview.glsl"
