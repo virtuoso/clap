@@ -4,6 +4,7 @@
 layout (std140, binding = UBO_BINDING_shadow) uniform shadow {
     mat4 shadow_mvp[CASCADES_MAX];
     float cascade_distances[CASCADES_MAX];
+    float light_far[CASCADES_MAX];
     vec3 shadow_tint;
     bool shadow_vsm;
     bool shadow_outline;

@@ -93,10 +93,26 @@ float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int l
 }
 #endif /* CONFIG_GLES */
 
-float shadow_factor_vsm_calc(in vec2 moments, in float d)
+// XXX
+float linearize_depth(float depth, float near_plane, float far_plane)
 {
-    float m1 = moments.x;
-    float m2 = moments.y;
+    float z = convert_to_ndc_z(depth);
+#ifdef CONFIG_NDC_ZERO_ONE
+    return near_plane * far_plane / (far_plane - z * (far_plane - near_plane));
+#else /* !CONFIG_NDC_ZERO_ONE */
+    return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
+#endif /* !CONFIG_NDC_ZERO_ONE */
+}
+
+float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
+{
+    if (moments.y < 0.0)    return 1.0;
+
+    float far_plane = light_far[layer];
+    d = linearize_depth(d, 0.1, far_plane);
+
+    float m1 = moments.x;//clamp(moments.x, 0.0, 1.0);
+    float m2 = max(moments.y, m1 * m1);
 
     /* Early out if fully lit */
     if (d < m1)
@@ -105,27 +121,30 @@ float shadow_factor_vsm_calc(in vec2 moments, in float d)
     float distance = d - m1;
     float variance = max(m2 - m1 * m1, 1e-6);
 
+    VSMDebug = distance;
+
     /* Chebyshev upper bound */
     float p_max = variance / (variance + distance * distance);
 
-    const float light_bleed_reduction = 0.8; /* XXX: parameterize me */
+    const float light_bleed_reduction = 0.4; /* XXX: parameterize me */
     p_max = clamp((p_max - light_bleed_reduction) / (1.0 - light_bleed_reduction), 0.0, 1.0);
 
+    // return p_max;
     return smoothstep(0.15, 0.95, clamp(p_max, 0.0, 1.0));
-}
-
-float shadow_factor_vsm(in sampler2D map, in vec4 pos)
-{
-    vec2 moments = texel_fetch_2d(map, pos.xy, ivec2(0)).rg;
-
-    return shadow_factor_vsm_calc(moments, pos.z);
 }
 
 float shadow_factor_vsm(in sampler2DArray map, in vec4 pos, in int layer)
 {
     vec2 moments = texel_fetch_2darray(map, vec3(pos.xy, float(layer)), ivec2(0)).rg;
 
-    return shadow_factor_vsm_calc(moments, pos.z);
+    return shadow_factor_vsm_calc(moments, pos.z, layer);
+}
+
+float shadow_factor_vsm(in sampler2D map, in vec4 pos, in int layer)
+{
+    vec2 moments = texel_fetch_2d(map, pos.xy, ivec2(0)).rg;
+
+    return shadow_factor_vsm_calc(moments, pos.z, layer);
 }
 
 float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_dir,
@@ -159,24 +178,27 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     switch (layer) {
         case 0:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map, proj_coords) :
+                shadow_factor_vsm(shadow_map, proj_coords, 0) :
                 shadow_factor_pcf(shadow_map, proj_coords, bias);
             break;
         case 1:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map1, proj_coords) :
+                shadow_factor_vsm(shadow_map1, proj_coords, 1) :
                 shadow_factor_pcf(shadow_map1, proj_coords, bias);
+            // EmissiveColor = vec4(1.0, 0.0, 0.0, 0.0);
             break;
         case 2:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map2, proj_coords) :
+                shadow_factor_vsm(shadow_map2, proj_coords, 2) :
                 shadow_factor_pcf(shadow_map2, proj_coords, bias);
+            // EmissiveColor = vec4(0.0, 1.0, 0.0, 0.0);
             break;
         default:
         case 3:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map3, proj_coords) :
+                shadow_factor_vsm(shadow_map3, proj_coords, 3) :
                 shadow_factor_pcf(shadow_map3, proj_coords, bias);
+            // EmissiveColor = vec4(0.0, 0.0, 1.0, 0.0);
             break;
     }
 #else

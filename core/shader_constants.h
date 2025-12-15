@@ -1,7 +1,7 @@
 #ifndef CLAP_SHADER_CONSTANTS_H
 #define CLAP_SHADER_CONSTANTS_H
 
-#define JOINTS_MAX 200
+#define JOINTS_MAX 62
 #define PARTICLES_MAX 1024
 #define LIGHTS_MAX 32
 #define CASCADES_MAX 4
@@ -30,7 +30,6 @@
 #define ATTR_LOC_WEIGHTS    5
 
 /* UBO binding locations */
-#define UBO_BINDING_color_pt    0
 #define UBO_BINDING_lighting    1
 #define UBO_BINDING_shadow      2
 #define UBO_BINDING_transform   3
@@ -42,6 +41,7 @@
 #define UBO_BINDING_outline     9
 #define UBO_BINDING_bloom       10
 #define UBO_BINDING_postproc    11
+#define UBO_BINDING_color_pt    12
 
 #define SAMPLER_BINDING_model_tex       0
 #define SAMPLER_BINDING_normal_map      1

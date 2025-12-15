@@ -29,8 +29,8 @@ static cerr ssao_noise_init(ssao_state *ssao)
     cerr err = texture_init(&ssao->noise,
         .renderer   = ssao->renderer,
         .wrap       = TEX_WRAP_REPEAT,
-        .min_filter = TEX_FLT_NEAREST,
-        .mag_filter = TEX_FLT_NEAREST,
+        .min_filter = TEX_FLT_LINEAR,//NEAREST,
+        .mag_filter = TEX_FLT_LINEAR,//NEAREST,
     );
     if (IS_CERR(err))
         return err;

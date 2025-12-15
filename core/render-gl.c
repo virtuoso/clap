@@ -253,10 +253,10 @@ static void vertex_array_drop(struct ref *ref)
     vertex_array_done(va);
 }
 
-DEFINE_REFCLASS_INIT_OPTIONS(vertex_array);
+// DEFINE_REFCLASS_INIT_OPTIONS(vertex_array);
 DEFINE_REFCLASS(vertex_array);
 
-cerr vertex_array_init(vertex_array_t *va)
+cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
     cerr err = ref_embed(vertex_array, va);
     if (IS_CERR(err))
@@ -376,6 +376,9 @@ static GLenum gl_texture_format(texture_format format)
         case TEX_FMT_RG16F:
         case TEX_FMT_RG8:       return GL_RG;
         case TEX_FMT_RGBA32UI:  return GL_RGBA_INTEGER;
+        case TEX_FMT_BGRA8:     /* Keep OpenGL's swapchain RGB */
+        case TEX_FMT_BGR10A2:
+        case TEX_FMT_BGRA10XR:
         case TEX_FMT_RGBA32F:
         case TEX_FMT_RGBA16F:
         case TEX_FMT_RGBA8_SRGB:
@@ -384,6 +387,9 @@ static GLenum gl_texture_format(texture_format format)
         case TEX_FMT_RGB16F:
         case TEX_FMT_RGB8_SRGB:
         case TEX_FMT_RGB8:      return GL_RGB;
+        // case TEX_FMT_BGRA8:
+        // case TEX_FMT_BGRA10XR:
+        // case TEX_FMT_BGR10A2:   return GL_BGRA;
         case TEX_FMT_DEPTH16F:
         case TEX_FMT_DEPTH24F:
         case TEX_FMT_DEPTH32F:  return GL_DEPTH_COMPONENT;
@@ -415,6 +421,10 @@ static GLenum gl_texture_internal_format(texture_format fmt)
         case TEX_FMT_R32UI:     return GL_R32UI;
         case TEX_FMT_RG32UI:    return GL_RG32UI;
         case TEX_FMT_RGBA32UI:  return GL_RGBA32UI;
+        // case TEX_FMT_BGRA8:     return GL_BGRA;
+        case TEX_FMT_BGRA8:     return GL_RGBA8;
+        case TEX_FMT_BGRA10XR:  return GL_RGBA16F;
+        case TEX_FMT_BGR10A2:   return GL_RGBA16F;
         case TEX_FMT_DEPTH32F:  return GL_DEPTH_COMPONENT32F;
         case TEX_FMT_DEPTH24F:  return GL_DEPTH_COMPONENT24;
         case TEX_FMT_DEPTH16F:  return GL_DEPTH_COMPONENT16;
@@ -434,7 +444,10 @@ static GLenum gl_texture_component_type(texture_format fmt)
         case TEX_FMT_RGB8:
         case TEX_FMT_RGBA8:
         case TEX_FMT_RGB8_SRGB:
-        case TEX_FMT_RGBA8_SRGB:return GL_UNSIGNED_BYTE;
+        case TEX_FMT_RGBA8_SRGB:
+        case TEX_FMT_BGRA8:     return GL_UNSIGNED_BYTE;
+        case TEX_FMT_BGR10A2:   /* keep OpenGL's swapchain RGB */
+        case TEX_FMT_BGRA10XR:
         case TEX_FMT_R16F:
         case TEX_FMT_RG16F:
         case TEX_FMT_RGB16F:
@@ -1054,6 +1067,23 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
     return CERR_OK;
 }
 
+#if defined(CONFIG_GLES) && 0
+static void fbo_invalidate(fbo_t *fbo)
+{
+    // if (fbo->invalidate)    return;
+
+    /* TODO: also depth (and stencil) attachments */
+    GLenum attachments[FBO_COLOR_ATTACHMENTS_MAX];
+    size_t nr_attachments = 0;
+    fa_for_each(fa, fbo->attachment_config, texture) {
+        attachments[nr_attachments++] = GL_COLOR_ATTACHMENT0 + fa_nr_color_texture(fa) - 1;
+    }
+    GL(glInvalidateFrameBuffer(GL_DRAW_FRAMEBUFFER, nr_attachments, attachments));
+}
+#else
+static inline void fbo_invalidate(fbo_t *fbo) {}
+#endif /* CONFIG_GLES */
+
 #define NR_TARGETS FBO_COLOR_ATTACHMENTS_MAX
 void fbo_prepare(fbo_t *fbo)
 {
@@ -1082,6 +1112,7 @@ void fbo_prepare(fbo_t *fbo)
 
 void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
+    fbo_invalidate(fbo);
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, width, height));
 }
@@ -1318,7 +1349,7 @@ static void uniform_buffer_drop(struct ref *ref)
 }
 DEFINE_REFCLASS2(uniform_buffer);
 
-cerr_check uniform_buffer_init(uniform_buffer_t *ubo, int binding)
+cerr_check uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding)
 {
     return ref_embed(uniform_buffer, ubo, .binding = binding);
 }
@@ -1370,7 +1401,7 @@ cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points
     return CERR_OK;
 }
 
-void uniform_buffer_update(uniform_buffer_t *ubo)
+void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     if (!ubo->dirty)
         return;
@@ -1430,7 +1461,7 @@ static GLuint load_shader(GLenum type, const char *source)
     return shader;
 }
 
-cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
+cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
 {
     shader->vert = load_shader(GL_VERTEX_SHADER, vertex);
     shader->geom =
@@ -1489,6 +1520,12 @@ void shader_done(shader_t *shader)
         GL(glDeleteShader(shader->geom));
 }
 
+void shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                             size_t *offs, data_type *types, size_t *comp_counts,
+                             unsigned int nr_attrs)
+{
+}
+
 int shader_id(shader_t *shader)
 {
     return shader->prog;
@@ -1521,12 +1558,12 @@ uniform_t shader_uniform(shader_t *shader, const char *name)
     return glGetUniformLocation(shader->prog, name);
 }
 
-void shader_use(shader_t *shader)
+void shader_use(shader_t *shader, bool draw)
 {
     GL(glUseProgram(shader->prog));
 }
 
-void shader_unuse(shader_t *shader)
+void shader_unuse(shader_t *shader, bool draw)
 {
     GL(glUseProgram(0));
 }

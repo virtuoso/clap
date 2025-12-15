@@ -12,6 +12,7 @@ struct pipeline {
     struct list         passes;
     const char          *name;
     renderer_t          *renderer;
+    clap_context        *clap_ctx;
     render_options      *render_options;
     struct list         shaders;
     shader_context      *shader_ctx;
