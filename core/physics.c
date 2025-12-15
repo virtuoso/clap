@@ -22,6 +22,7 @@ struct phys {
     double      time_acc;
     bool        draw_contacts;
     bool        draw_capsules;
+    struct clap_context *clap_ctx;
 };
 
 /*
@@ -375,7 +376,7 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
                         .v0     = { contact[i].geom.pos[0], contact[i].geom.pos[1], contact[i].geom.pos[2] },
                     }
                 };
-                message_send(&dm);
+                message_send(phys->clap_ctx, &dm);
             }
 
             b1 = dGeomGetBody(g1);
@@ -961,7 +962,7 @@ static void ode_free(void *ptr, dsizeint size)
     mem_free(ptr, .size = size);
 }
 
-struct phys *phys_init(void)
+struct phys *phys_init(struct clap_context *ctx)
 {
     struct phys *phys;
 
@@ -969,6 +970,7 @@ struct phys *phys_init(void)
     if (!phys)
         return NULL;
 
+    phys->clap_ctx = ctx;
     dInitODE2(0);
     dSetAllocHandler(ode_alloc);
     dSetReallocHandler(ode_realloc);
@@ -1043,17 +1045,17 @@ void phys_debug_draw(struct scene *scene, struct phys_body *body)
     };
     vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] - r, pos[1]  - len / 2 - r, pos[2] - r });
     vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] + r, pos[1]  + len / 2 + r, pos[2] + r });
-    message_send(&dm);
+    message_send(body->phys->clap_ctx, &dm);
 
     vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] + r, pos[1] - len / 2 - r, pos[2] + r });
     vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] - r, pos[1] + len / 2 + r, pos[2] - r });
-    message_send(&dm);
+    message_send(body->phys->clap_ctx, &dm);
 
     vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] - r, pos[1] - len / 2 - r, pos[2] + r });
     vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] + r, pos[1] + len / 2 + r, pos[2] - r });
-    message_send(&dm);
+    message_send(body->phys->clap_ctx, &dm);
 
     vec3_dup(dm.debug_draw.v0, (vec3){ pos[0] + r, pos[1] - len / 2 - r, pos[2] - r });
     vec3_dup(dm.debug_draw.v1, (vec3){ pos[0] - r, pos[1] + len / 2 + r, pos[2] + r });
-    message_send(&dm);
+    message_send(body->phys->clap_ctx, &dm);
 }

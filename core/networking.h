@@ -25,13 +25,13 @@ struct networking_config {
 };
 
 #ifdef CONFIG_NETWORKING
-cerr_check networking_init(struct networking_config *cfg, enum mode mode);
+cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode);
 void networking_poll(void);
 void networking_done(void);
 void networking_broadcast_restart(void);
 void networking_broadcast(int mode, void *data, size_t size);
 #else
-static inline cerr_check networking_init(struct networking_config *cfg, enum mode mode) { return CERR_NOT_SUPPORTED; }
+static inline cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode) { return CERR_NOT_SUPPORTED; }
 static inline void networking_poll(void) {}
 static inline void networking_done(void) {}
 static inline void networking_broadcast_restart(void) {}

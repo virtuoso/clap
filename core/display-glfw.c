@@ -27,6 +27,7 @@ static renderer_t *renderer;
 static display_update_cb update_fn;
 static display_resize_cb resize_fn;
 static void *update_fn_data;
+static struct clap_context *clap_ctx;
 static int refresh_rate;
 
 static int __display_refresh_rate(void)
@@ -257,6 +258,7 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
     height = cfg->height;
     update_fn = update_cb;
     update_fn_data = ctx;
+    clap_ctx = ctx;
     resize_fn = resize_cb;
 
     if (!glfwInit()) {
@@ -350,10 +352,10 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
             mi.space = 1;
         break;
     default:
-        key_event(&keyboard_source, key, NULL, mods, press);
+        key_event(clap_ctx, &keyboard_source, key, NULL, mods, press);
         return;
     };
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
 static void pointer_cb(struct GLFWwindow *window, double x, double y)
@@ -367,7 +369,7 @@ static void pointer_cb(struct GLFWwindow *window, double x, double y)
     mi.mouse_move = 1;
     mi.x = max(x, 0.0);
     mi.y = max(y, 0.0);
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
 void click_cb(GLFWwindow *window, int button, int action, int mods)
@@ -387,7 +389,7 @@ void click_cb(GLFWwindow *window, int button, int action, int mods)
     mi.mouse_click = 1;
     mi.x = max(x, 0.0);
     mi.y = max(y, 0.0);
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
 static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
@@ -402,7 +404,7 @@ static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
     memset(&mi, 0, sizeof(mi));
     mi.delta_lx = xoff;
     mi.delta_ly = yoff;
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
 static void glfw_joysticks_poll(void)
@@ -439,7 +441,7 @@ static void glfw_joysticks_poll(void)
 }
 
 #include "librarian.h"
-int platform_input_init(void)
+int platform_input_init(struct clap_context *ctx)
 {
     LOCAL(lib_handle, lh);
     char *cdb;
@@ -470,5 +472,5 @@ void display_swap_buffers(void)
     glfwPollEvents();
     /* XXX: move to the start of frame code? */
     glfw_joysticks_poll();
-    joysticks_poll();
+    joysticks_poll(clap_ctx);
 }

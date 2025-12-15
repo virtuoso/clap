@@ -11,6 +11,8 @@ typedef struct sfx sfx;
 typedef struct sound_effect sound_effect;
 typedef struct sound_effect_chain sound_effect_chain;
 
+struct clap_context;
+
 cresp_ret(sound_context);
 
 typedef struct sfx_container {
@@ -25,7 +27,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(sound,
 );
 DECLARE_REFCLASS(sound);
 
-cresp(sound_context) sound_init(void);
+cresp(sound_context) sound_init(struct clap_context *clap_ctx);
 void sound_done(sound_context *ctx);
 float sound_get_gain(sound *sound);
 void sound_set_gain(sound *sound, float gain);

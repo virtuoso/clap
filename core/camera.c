@@ -141,7 +141,7 @@ static void debug_draw_camera(struct scene *scene, struct camera *c)
 
     for (int i = 0; i < array_size(c->debug_corner); i++) {
         vec3_dup(dm.debug_draw.v1, c->debug_corner[i]);
-        message_send(&dm);
+        message_send(scene->clap_ctx, &dm);
     }
 }
 

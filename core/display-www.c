@@ -134,7 +134,7 @@ void display_swap_buffers(void)
 {
     emscripten_webgl_commit_frame();
     www_joysticks_poll();
-    joysticks_poll();
+    joysticks_poll((clap_context *)callback_data);
 }
 
 void display_enter_fullscreen(void)

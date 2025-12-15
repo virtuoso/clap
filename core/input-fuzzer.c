@@ -14,7 +14,7 @@ static struct message_source fuzzer_source = {
 static unsigned long paused;
 static bool enabled;
 
-void fuzzer_input_step(void)
+void fuzzer_input_step(struct clap_context *ctx)
 {
     int mode, bit, off, count;
     struct message_input mi;
@@ -87,17 +87,17 @@ void fuzzer_input_step(void)
     }
 
     mi.focus_next = mi.focus_prev = mi.verboser = mi.volume_up = mi.resize = mi.fullscreen = mi.exit = 0;
-    message_input_send(&mi, &fuzzer_source);
+    message_input_send(ctx, &mi, &fuzzer_source);
 }
 
-static int fuzzer_handle_command(struct message *m, void *data)
+static int fuzzer_handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
     if (m->cmd.toggle_fuzzer)
         enabled = true;
     return 0;
 }
 
-void fuzzer_input_init(void)
+void fuzzer_input_init(struct clap_context *ctx)
 {
-    subscribe(MT_COMMAND, fuzzer_handle_command, NULL);
+    subscribe(ctx, MT_COMMAND, fuzzer_handle_command, NULL);
 }

@@ -4,11 +4,13 @@
 
 #define NR_JOYS 16
 
+struct clap_context;
+
 void joystick_name_update(int joy, const char *name);
 void joystick_axes_update(int joy, const double *axes, int nr_axes);
 void joystick_faxes_update(int joy, const float *axes, int nr_axes);
 void joystick_buttons_update(int joy, const unsigned char *buttons, int nr_buttons);
 void joystick_abuttons_update(int joy, const double *abtns, int nr_buttons);
-void joysticks_poll(void);
+void joysticks_poll(struct clap_context *ctx);
 
 #endif /* __CLAP_INPUT_JOYSTICK_H__ */

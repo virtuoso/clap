@@ -4,12 +4,12 @@
 
 #include "messagebus.h"
 
-int platform_input_init(void);
-int message_input_send(struct message_input *mi, struct message_source *src);
+int platform_input_init(struct clap_context *ctx);
+int message_input_send(struct clap_context *ctx, struct message_input *mi, struct message_source *src);
 
-int input_init(void);
-void fuzzer_input_step(void);
-void fuzzer_input_init(void);
+int input_init(struct clap_context *ctx);
+void fuzzer_input_step(struct clap_context *ctx);
+void fuzzer_input_init(struct clap_context *ctx);
 
 #if !defined(CONFIG_FINAL) && defined(CONFIG_BROWSER)
 void input_debug(void);

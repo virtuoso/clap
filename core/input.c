@@ -5,7 +5,7 @@
 #include "messagebus.h"
 #include "input.h"
 
-int message_input_send(struct message_input *mi, struct message_source *src)
+int message_input_send(struct clap_context *ctx, struct message_input *mi, struct message_source *src)
 {
     struct message m = {
         .type   = MT_INPUT,
@@ -13,13 +13,13 @@ int message_input_send(struct message_input *mi, struct message_source *src)
     };
 
     memcpy(&m.input, mi, sizeof(m.input));
-    message_send(&m);
+    message_send(ctx, &m);
 
     return true;
 }
 
-int input_init(void)
+int input_init(struct clap_context *ctx)
 {
-    fuzzer_input_init();
-    return platform_input_init();
+    fuzzer_input_init(ctx);
+    return platform_input_init(ctx);
 }

@@ -94,7 +94,7 @@ static struct key_map key_map_wasd[] = {
 static struct key_map *key_map = key_map_wasd; 
 static size_t key_map_nr = array_size(key_map_wasd);
 
-void key_event(struct message_source *src, unsigned int key_code, const char *key,
+void key_event(struct clap_context *ctx, struct message_source *src, unsigned int key_code, const char *key,
                unsigned int mods, unsigned int press)
 {
     struct message_input mi;
@@ -114,6 +114,6 @@ found:
     unsigned char *val = (void *)&mi + key_map[i].offset;
     *val = key_map[i].setter(press);
     mi.keyboard = 1;
-    message_input_send(&mi, src);
+    message_input_send(ctx, &mi, src);
 }
 

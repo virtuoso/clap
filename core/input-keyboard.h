@@ -11,7 +11,7 @@ enum {
     KEY_RELEASE,
 };
 
-void key_event(struct message_source *src, unsigned int key_code, const char *key,
+void key_event(struct clap_context *ctx, struct message_source *src, unsigned int key_code, const char *key,
                unsigned int mods, unsigned int press);
 
 #endif /* __CLAP_INPUT_KEYBOARD_H__ */

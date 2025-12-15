@@ -41,7 +41,8 @@ cerr rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int
 void rb_sink_del(void *data) __nonnull_params();
 
 void hexdump(unsigned char *buf, size_t size) __nonnull_params();
-void log_init(unsigned int flags);
+struct clap_context;
+void log_init(struct clap_context *ctx, unsigned int flags);
 void vlogg(int level, const char *mod, int line, const char *func, const char *fmt, va_list va)
     __nonnull_params((5));
 void logg(int level, const char *mod, int line, const char *func, const char *fmt, ...)

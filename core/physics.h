@@ -95,13 +95,16 @@ void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_pa
  */
 void phys_step(struct phys *phys, double dt);
 
+struct clap_context;
+
 /**
  * phys_init() - initialize physics
+ * @ctx:    clap context
  *
  * Initialize global physics state for clap.
  * Return: global physics handle object
  */
-struct phys *phys_init(void);
+struct phys *phys_init(struct clap_context *ctx);
 
 /**
  * phys_done() - deinitialize physics

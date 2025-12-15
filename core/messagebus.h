@@ -144,7 +144,9 @@ struct message {
     };
 };
 
-typedef int (*subscriber_fn)(struct message *m, void *data);
+typedef struct clap_context clap_context;
+
+typedef int (*subscriber_fn)(struct clap_context *ctx, struct message *m, void *data);
 
 struct subscriber {
     subscriber_fn       handle;
@@ -152,10 +154,15 @@ struct subscriber {
     struct list         entry;
 };
 
-cerr subscribe(enum message_type type, subscriber_fn fn, void *data);
+typedef struct messagebus {
+    struct list subscriber[MT_MAX];
+} messagebus;
+
+cerr subscribe(struct clap_context *ctx, enum message_type type, subscriber_fn fn, void *data);
 
 /**
  * unsubscribe() - remove a subscriber
+ * @ctx:    clap context
  * @type:   message type
  * @data:   subscriber's private data
  *
@@ -165,9 +172,9 @@ cerr subscribe(enum message_type type, subscriber_fn fn, void *data);
  * * CERR_INVALID_ARGUMENTS if @type is invalid
  * * CERR_NOT_FOUND if the subscriber was not found
  */
-cerr unsubscribe(enum message_type type, void *data);
-int message_send(struct message *m);
-cerr_check messagebus_init(void);
-void messagebus_done(void);
+cerr unsubscribe(struct clap_context *ctx, enum message_type type, void *data);
+int message_send(struct clap_context *ctx, struct message *m);
+cerr_check messagebus_init(struct clap_context *ctx);
+void messagebus_done(struct clap_context *ctx);
 
 #endif /* __CLAP_MESSAGEBUS_H__ */

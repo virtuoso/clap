@@ -226,7 +226,7 @@ struct joy_map joy_map[] = {
     [BTN_STICKR] = JOY_MAP(to_press,        stick_r),
 };
 
-void joysticks_poll(void)
+void joysticks_poll(struct clap_context *ctx)
 {
     struct message_input mi;
     int i, t;
@@ -316,7 +316,7 @@ void joysticks_poll(void)
 
         if (count) {
             /* TODO: display this in input debug UI if necessary */
-            message_input_send(&mi, &j->msg_src);
+            message_input_send(ctx, &mi, &j->msg_src);
         }
     }
 }

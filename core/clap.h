@@ -55,6 +55,14 @@ struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
 struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
+ * clap_get_messagebus() - get clap's message bus
+ * @ctx:    clap_context
+ *
+ * Return: messagebus pointer (nonnull).
+ */
+struct messagebus *clap_get_messagebus(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
+
+/**
  * clap_get_renderer() - get clap's renderer
  * @ctx:    clap_context
  *

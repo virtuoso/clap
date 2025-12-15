@@ -500,7 +500,7 @@ static void ohc_ground_contact(void *priv, float x, float y, float z)
         scene.auto_yoffset = y;
 }
 
-static int handle_input(struct message *m, void *data)
+static int handle_input(struct clap_context *ctx, struct message *m, void *data)
 {
     struct scene *scene = data;
     bool  store = false;
@@ -530,7 +530,7 @@ static int handle_input(struct message *m, void *data)
     return 0;
 }
 
-static int handle_command(struct message *m, void *data)
+static int handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
     if (m->cmd.status && exit_timeout >= 0) {
         if (!exit_timeout--)
@@ -627,24 +627,23 @@ int main(int argc, char **argv, char **envp)
      */
     renderer_frame_begin(clap_get_renderer(clap_res.val));
     imgui_render_begin(cfg.width, cfg.height);
-    scene_init(&scene);
-    scene.clap_ctx = clap_res.val;
+    scene_init(&scene, clap_res.val);
 
     cerr err;
 #ifndef CONFIG_FINAL
     ncfg.clap = clap_res.val;
-    err = networking_init(&ncfg, CLIENT);
+    err = networking_init(clap_res.val, &ncfg, CLIENT);
     if (IS_CERR(err))
         err_cerr(err, "failed to initialize networking\n");
 #endif
 
     phys_set_ground_contact(clap_get_phys(scene.clap_ctx), ohc_ground_contact);
 
-    err = subscribe(MT_INPUT, handle_input, &scene);
+    err = subscribe(scene.clap_ctx, MT_INPUT, handle_input, &scene);
     if (IS_CERR(err))
         goto exit_scene;
 
-    err = subscribe(MT_COMMAND, handle_command, &scene);
+    err = subscribe(scene.clap_ctx, MT_COMMAND, handle_command, &scene);
     if (IS_CERR(err))
         goto exit_scene;
 
@@ -667,7 +666,7 @@ int main(int argc, char **argv, char **envp)
 
     build_main_pl(&scene.pl);
 
-    fuzzer_input_init();
+    fuzzer_input_init(scene.clap_ctx);
 
     if (fullscreen)
         display_enter_fullscreen();

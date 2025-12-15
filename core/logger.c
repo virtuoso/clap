@@ -266,7 +266,7 @@ static int log_floor =
 #endif
 ;
 
-static int log_command_handler(struct message *m, void *data)
+static int log_command_handler(struct clap_context *ctx, struct message *m, void *data)
 {
     if (m->cmd.toggle_noise)
         log_floor = log_floor == VDBG ? DBG : VDBG;
@@ -274,14 +274,14 @@ static int log_command_handler(struct message *m, void *data)
     return 0;
 }
 
-void notrace log_init(unsigned int flags)
-{
-    if (log_up)
-        return;
+static bool log_cmd_subscribed;
 
-    cerr err = subscribe(MT_COMMAND, log_command_handler, NULL);
-    if (IS_CERR(err))
-        return;
+void notrace log_init(struct clap_context *ctx, unsigned int flags)
+{
+    if (ctx && !log_cmd_subscribed) {
+        CERR_RET(subscribe(ctx, MT_COMMAND, log_command_handler, NULL), log_cmd_subscribed = true);
+        if (log_up) return;
+    }
 
     if (flags & LOG_STDIO)
         logger_append(&logger_stdio);
@@ -312,7 +312,7 @@ notrace void vlogg(int level, const char *mod, int line, const char *func, const
     LOCAL(char, buf);
 
     if (unlikely(!log_up))
-        log_init(LOG_FULL);
+        log_init(NULL, LOG_FULL);
 
     /* Filter noisy stuff on the way in */
     if (level < log_floor)

@@ -181,12 +181,14 @@ struct ui {
 
 /**
  * ui_modality_send() - send a modality toggle message
+ * @ui:     ui context
  *
  * Send a command message to toggle UI modality state.
  */
-static inline void ui_modality_send(void)
+static inline void ui_modality_send(struct ui *ui)
 {
     message_send(
+        ui->clap_ctx,
         &(struct message) {
             .type   = MT_COMMAND,
             .cmd    = (struct message_command) { .toggle_modality = 1 }

@@ -30,7 +30,7 @@ void server_run(void)
         networking_poll();
 }
 
-static int handle_command(struct message *m, void *data)
+static int handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
     if (m->cmd.restart) {
         exit_server_loop = true;
@@ -93,7 +93,7 @@ int main(int argc, char **argv, char **envp)
     cerr err;
 
     if (do_restart) {
-        err = networking_init(&ncfg, CLIENT);
+        err = networking_init(clap_res.val, &ncfg, CLIENT);
         if (IS_CERR(err)) {
             err_cerr(err, "Failed to initialize client connection for restarting\n");
             goto exit_clap;
@@ -106,13 +106,13 @@ int main(int argc, char **argv, char **envp)
         goto exit_clap;
     }
 
-    err = networking_init(&ncfg, SERVER);
+    err = networking_init(clap_res.val, &ncfg, SERVER);
     if (IS_CERR(err)) {
         err_cerr(err, "Failed to initialize server\n");
         goto exit_clap;
     }
 
-    subscribe(MT_COMMAND, handle_command, NULL);
+    subscribe(clap_res.val, MT_COMMAND, handle_command, NULL);
     server_run();
     networking_done();
     if (restart_server) {

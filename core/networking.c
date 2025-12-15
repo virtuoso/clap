@@ -88,6 +88,7 @@ struct network_node {
 
 
 static struct networking_config  *_ncfg;
+static struct clap_context       *clap_ctx;
 static struct pollfd *pollfds;
 static unsigned int  nr_nodes;
 static unsigned int  need_polling_alloc;
@@ -692,7 +693,7 @@ static ssize_t handle_server_command(struct network_node *n, uint8_t *buf, size_
         m.type   = MT_COMMAND;
         m.source = n->src;
         memcpy(&m.cmd, &mcmd, sizeof(m.cmd));
-        message_send(&m);
+        message_send(clap_ctx, &m);
     }
 
     return ret;
@@ -1018,11 +1019,12 @@ static void socket_callback(int fd, void *data)
 }
 #endif /* __EMSCRIPTEN__ */
 
-cerr networking_init(struct networking_config *cfg, enum mode mode)
+cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode)
 {
     struct network_node *n;
     cresp(network_node) res;
 
+    clap_ctx = ctx;
     _ncfg = memdup(cfg, sizeof(*cfg));
     switch (mode) {
     case CLIENT:

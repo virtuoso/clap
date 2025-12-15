@@ -21,6 +21,7 @@ typedef struct sound_context {
     bool        started;
     struct list sounds;
     struct list chains;
+    clap_context *clap_ctx;
 } sound_context;
 
 typedef struct sound {
@@ -215,6 +216,7 @@ static void do_sound_init(sound_context *ctx)
         ma_sound_set_max_gain(&s->sound, s->gain);
     }
     message_send(
+        ctx->clap_ctx,
         &(struct message) {
             .type   = MT_COMMAND,
             .cmd    = { .sound_ready = 1 },
@@ -228,7 +230,7 @@ err_engine:
 }
 
 #ifdef CONFIG_BROWSER
-static int sound_handle_input(struct message *m, void *data)
+static int sound_handle_input(struct clap_context *clap_ctx, struct message *m, void *data)
 {
     sound_context *ctx = data;
 
@@ -243,16 +245,17 @@ static int sound_handle_input(struct message *m, void *data)
 
 DEFINE_CLEANUP(sound_context, if (*p) mem_free(*p))
 
-cresp(sound_context) sound_init(void)
+cresp(sound_context) sound_init(clap_context *clap_ctx)
 {
     LOCAL_SET(sound_context, ctx) = mem_alloc(sizeof(*ctx), .zero = 1);
     if (!ctx)   return cresp_error(sound_context, CERR_NOMEM);
 
+    ctx->clap_ctx = clap_ctx;
     list_init(&ctx->sounds);
     list_init(&ctx->chains);
 
 #ifdef CONFIG_BROWSER
-    subscribe(MT_INPUT, sound_handle_input, ctx);
+    subscribe(ctx->clap_ctx, MT_INPUT, sound_handle_input, ctx);
 #else
     do_sound_init(ctx);
 #endif /* !CONFIG_BROWSER */
@@ -773,7 +776,7 @@ typedef struct sfx {
     sfx_container   *sfxc;
 } sfx;
 
-static int sfx_handle_command(struct message *m, void *data)
+static int sfx_handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
     if (!m->cmd.sound_ready)        return MSG_HANDLED;
 
@@ -799,7 +802,7 @@ void sfx_container_init(sfx_container *sfxc)
 static void sfx_container_add(sfx_container *sfxc, sfx *sfx)
 {
     if (list_empty(&sfxc->list))
-        subscribe(MT_COMMAND, sfx_handle_command, sfxc);
+        subscribe(sfx->sound->ctx->clap_ctx, MT_COMMAND, sfx_handle_command, sfxc);
 
     list_append(&sfxc->list, &sfx->entry);
     sfx->sfxc = sfxc;
@@ -827,11 +830,12 @@ void sfx_container_clearout(sfx_container *sfxc)
 {
     if (list_empty(&sfxc->list))    return;
 
-    unsubscribe(MT_COMMAND, sfxc);
+    sfx *s = list_first_entry(&sfxc->list, struct sfx, entry);
+    unsubscribe(s->sound->ctx->clap_ctx, MT_COMMAND, sfxc);
 
     while (!list_empty(&sfxc->list)) {
-        sfx *sfx = list_first_entry(&sfxc->list, struct sfx, entry);
-        sfx_done(sfx);
+        sfx *del = list_first_entry(&sfxc->list, struct sfx, entry);
+        sfx_done(del);
     }
 }
 

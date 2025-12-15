@@ -12,6 +12,15 @@
 #include "util.h"
 #include "xyarray.h"
 
+struct clap_context {
+    struct messagebus mb;
+};
+
+struct messagebus *clap_get_messagebus(struct clap_context *ctx)
+{
+    return &ctx->mb;
+}
+
 #define TEST_MAGIC0 0xdeadbeef
 
 static unsigned int verbose;
@@ -662,8 +671,9 @@ static const char short_options[] = "v";
 int main(int argc, char **argv, char **envp)
 {
     int ret, i, c, option_index;
+    struct clap_context ctx = {};
 
-    cerr err = messagebus_init();
+    cerr err = messagebus_init(&ctx);
     if (IS_CERR(err))
         return EXIT_FAILURE;
 
@@ -692,7 +702,7 @@ int main(int argc, char **argv, char **envp)
     }
 
 out:
-    messagebus_done();
+    messagebus_done(&ctx);
 
     return ret;
 }

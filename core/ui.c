@@ -1128,7 +1128,7 @@ static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *
     } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
         /* go back */
         ref_put(ui->menu);
-        ui_modality_send();
+        ui_modality_send(ui);
         ui->menu = NULL;
     } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
         /* enter */
@@ -1207,7 +1207,7 @@ static void inv_onfocus(struct ui_element *uie, bool focus)
 void ui_inventory_done(struct ui *ui)
 {
     dbg("bai\n");
-    ui_modality_send();
+    ui_modality_send(ui);
     ref_put(ui->inventory);
     ui->inventory = NULL;
 }
@@ -1253,7 +1253,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
     struct font *font = font_get_default(clap_get_font(ui->clap_ctx));
     float xoff = 0, yoff = 0, width = 0;
 
-    ui_modality_send();
+    ui_modality_send(ui);
 
     CHECK(inv = ref_new(ui_widget,
                         .ui         = ui,
@@ -1386,7 +1386,7 @@ void ui_inventory_init(struct ui *ui, int number_of_apples, float apple_ages[], 
     ui->inventory = inv;
 }
 
-static int ui_handle_command(struct message *m, void *data)
+static int ui_handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
     float color[] = { 0.7, 0.7, 0.7, 1.0 };
     struct ui *ui = data;
@@ -1721,7 +1721,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
     pocket = ui_pocket_new(ui, pocket_textures, array_size(pocket_textures));
     font_put(font);
 
-    ret = subscribe(MT_COMMAND, ui_handle_command, ui);
+    ret = subscribe(clap_ctx, MT_COMMAND, ui_handle_command, ui);
     if (IS_CERR(ret))
         goto err;
 

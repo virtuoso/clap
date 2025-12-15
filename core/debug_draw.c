@@ -4,7 +4,7 @@
 #include "ui-debug.h"
 #include "view.h"
 
-static int debug_draw(struct message *m, void *data)
+static int debug_draw(struct clap_context *ctx, struct message *m, void *data)
 {
     struct message_debug_draw *dd = &m->debug_draw;
     struct camera *cam = data;
@@ -181,7 +181,7 @@ static int debug_draw(struct message *m, void *data)
     return MSG_HANDLED;
 }
 
-cerr debug_draw_install(struct camera *cam)
+cerr debug_draw_install(struct clap_context *ctx, struct camera *cam)
 {
-    return subscribe(MT_DEBUG_DRAW, debug_draw, cam);
+    return subscribe(ctx, MT_DEBUG_DRAW, debug_draw, cam);
 }

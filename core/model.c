@@ -424,7 +424,7 @@ static void model3d_aabb_center(model3d *m, vec3 center)
 }
 
 #ifndef CONFIG_FINAL
-static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
+static void entity3d_aabb_draw(struct scene *scene, entity3d *e, bool entity, bool model)
 {
     if (entity) {
         struct message dm = {
@@ -437,7 +437,7 @@ static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
         };
         entity3d_aabb_min(e, dm.debug_draw.v0);
         entity3d_aabb_max(e, dm.debug_draw.v1);
-        message_send(&dm);
+        message_send(scene->clap_ctx, &dm);
     }
 
     if (model) {
@@ -457,11 +457,11 @@ static void entity3d_aabb_draw(entity3d *e, bool entity, bool model)
                 .v1         = { v1[0], v1[1], v1[2] },
             }
         };
-        message_send(&dm);
+        message_send(scene->clap_ctx, &dm);
     }
 }
 
-static void entity3d_debug(entity3d *e)
+static void entity3d_debug(struct scene *scene, entity3d *e)
 {
     struct message dm = {
         .type       = MT_DEBUG_DRAW,
@@ -487,11 +487,11 @@ static void entity3d_debug(entity3d *e)
         ),
         return
     );
-    message_send(&dm);
+    message_send(scene->clap_ctx, &dm);
 }
 #else
-static inline void entity3d_aabb_draw(entity3d *e, bool entity, bool model) {}
-static inline void entity3d_debug(entity3d *e) {}
+static inline void entity3d_aabb_draw(struct scene *scene, entity3d *e, bool entity, bool model) {}
+static inline void entity3d_debug(struct scene *scene, entity3d *e) {}
 #endif /* CONFIG_FINAL */
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
@@ -819,7 +819,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 continue;
 
             if (unlikely(ropts && ropts->aabb_draws_enabled && !model->skip_aabb))
-                entity3d_aabb_draw(e, true, true);
+                entity3d_aabb_draw(mq->priv, e, true, true);
 
             if (!e->visible)
                 continue;
@@ -1400,7 +1400,7 @@ static int default_update(entity3d *e, void *data)
     if (e->phys_body)
         phys_debug_draw(scene, e->phys_body);
     if (clap_get_render_options(scene->clap_ctx)->overlay_draws_enabled)
-        entity3d_debug(e);
+        entity3d_debug(scene, e);
 
     return 0;
 }

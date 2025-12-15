@@ -17,6 +17,8 @@ static struct message_source keyboard_source = {
     .type   = MST_KEYBOARD,
 };
 
+static struct clap_context *clap_ctx;
+
 static inline const char *emscripten_event_type_to_string(int eventType)
 {
     const char *events[] = {"(invalid)", "(none)", "keypress", "keydown", "keyup", "click", "mousedown", "mouseup", "dblclick", "mousemove", "wheel", "resize",
@@ -69,12 +71,12 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
         mi.space = 1;
         break;
     default:
-        key_event(&keyboard_source, e->keyCode, e->code, mods, press);
+        key_event(clap_ctx, &keyboard_source, e->keyCode, e->code, mods, press);
         /* don't send empty messages */
         return true;
     };
 
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 
     return true;
 }
@@ -211,7 +213,7 @@ static EM_BOOL touchend_callback(int type, const EmscriptenTouchEvent *e, void *
             mi.mouse_click = 1;
             mi.x = pt->x;
             mi.y = pt->y;
-            message_input_send(&mi, &keyboard_source);
+            message_input_send(clap_ctx, &mi, &keyboard_source);
         }
 
         pt->pop = true;
@@ -330,7 +332,7 @@ void input_events_dispatch(void)
             mi.delta_ry = (float)(pt->y - pt->orig_y) / touch.h * 4;
         }
     }
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
 void www_joysticks_poll(void)
@@ -385,7 +387,7 @@ static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent *e, void
         mi.delta_lx = e->deltaX;
         mi.delta_ly = e->deltaY;
     }
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 
     return true;
 }
@@ -422,7 +424,7 @@ static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void
         mi.zoom = 1;
     mi.x = e->targetX;
     mi.y = e->targetY;
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 
     return true;
 }
@@ -443,7 +445,7 @@ static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, 
     mi.mouse_move = 1;
     mi.x = e->targetX;
     mi.y = e->targetY;
-    message_input_send(&mi, &keyboard_source);
+    message_input_send(clap_ctx, &mi, &keyboard_source);
 
     return true;
 }
@@ -463,8 +465,9 @@ void touch_input_set_size(int width, int height)
     touch.h = height;
 }
 
-int platform_input_init(void)
+int platform_input_init(struct clap_context *ctx)
 {
+    clap_ctx = ctx;
     list_init(&touch.head);
     touch.used_mask = 0;
     CHECK0(emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, key_callback));

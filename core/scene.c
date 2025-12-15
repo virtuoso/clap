@@ -67,7 +67,7 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.proj_update      = true;
     s->camera->dist = 10;
     transform_set_updated(&s->camera->xform);
-    CERR_RET(debug_draw_install(s->camera), err_cerr(__cerr, "failed to initialize debug draw"));
+    CERR_RET(debug_draw_install(s->clap_ctx, s->camera), err_cerr(__cerr, "failed to initialize debug draw"));
 
     return cres_val(int, s->nr_cameras++);
 }
@@ -710,7 +710,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
             }
 
             for (unsigned i = 0; i < m->nr_joints; i++) {
-                message_send(&(struct message) {
+                message_send(scene->clap_ctx, &(struct message) {
                     .type   = MT_DEBUG_DRAW,
                     .debug_draw     = (struct message_debug_draw) {
                         .color      = { hl == i ? 1.0 : 0.0, hl == i ? 0.0 : 1.0, 0.0, 1.0 },
@@ -722,7 +722,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
 
                 int *j;
                 darray_for_each(j, m->joints[i].children)
-                    message_send(&(struct message) {
+                    message_send(scene->clap_ctx, &(struct message) {
                         .type   = MT_DEBUG_DRAW,
                         .debug_draw     = (struct message_debug_draw) {
                             .color      = { 0.5, 0.5, 0.0, 1.0 },
@@ -749,7 +749,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
             };
             entity3d_aabb_min(e, dm_aabb.debug_draw.v0);
             entity3d_aabb_max(e, dm_aabb.debug_draw.v1);
-            message_send(&dm_aabb);
+            message_send(scene->clap_ctx, &dm_aabb);
 
             struct message dm_aabb_center = {
                 .type   = MT_DEBUG_DRAW,
@@ -760,7 +760,7 @@ static void scene_entity_inspector_debug(struct scene *scene)
                     .v0         = { e->aabb_center[0], e->aabb_center[1], e->aabb_center[2] },
                 }
             };
-            message_send(&dm_aabb_center);
+            message_send(scene->clap_ctx, &dm_aabb_center);
         }
         ui_igCheckbox("outline exclude", &e->outline_exclude);
 
@@ -828,7 +828,7 @@ out:
     ui_igEnd(DEBUG_ENTITY_INSPECTOR);
 }
 
-static void scene_debug_frusta(struct view *view)
+static void scene_debug_frusta(struct scene *scene, struct view *view)
 {
     static const uint8_t frustum_edges[12][2] = {
         { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, // near plane edges
@@ -857,7 +857,7 @@ static void scene_debug_frusta(struct view *view)
             vec3_dup(dm.debug_draw.v0, src->frustum_corners[frustum_edges[i][0]]);
             vec3_dup(dm.debug_draw.v1, src->frustum_corners[frustum_edges[i][1]]);
             vec4_dup(dm.debug_draw.color, color_for_cascade[v]);
-            message_send(&dm);
+            message_send(scene->clap_ctx, &dm);
         }
     }
 }
@@ -867,7 +867,7 @@ static inline void scene_parameters_debug(struct scene *scene, int cam_idx) {}
 static inline void light_debug(struct scene *scene) {}
 static inline void scene_characters_debug(struct scene *scene) {}
 static inline void scene_entity_inspector_debug(struct scene *scene) {}
-static inline void scene_debug_frusta(struct view *view) {}
+static inline void scene_debug_frusta(struct scene *scene, struct view *view) {}
 #endif /* CONFIG_FINAL */
 
 static void scene_camera_calc(struct scene *s, int camera)
@@ -949,7 +949,7 @@ void scene_characters_move(struct scene *s)
     }
 }
 
-static int scene_handle_input(struct message *m, void *data)
+static int scene_handle_input(struct clap_context *ctx, struct message *m, void *data)
 {
     struct scene *s = data;
 
@@ -994,7 +994,7 @@ static int scene_handle_input(struct message *m, void *data)
         memset(&m, 0, sizeof(m));
         m.type = MT_COMMAND;
         m.cmd.toggle_noise = 1;
-        message_send(&m);
+        message_send(ctx, &m);
     }
 #endif
     if (clap_is_paused(s->clap_ctx))    return 0;
@@ -1049,16 +1049,17 @@ void scene_update(struct scene *scene)
     camera_move(scene->camera, clap_get_fps_fine(ctx));
 
     if (clap_get_render_options(ctx)->camera_frusta_draws_enabled)
-        scene_debug_frusta(&scene->camera->view);
+        scene_debug_frusta(scene, &scene->camera->view);
     if (clap_get_render_options(ctx)->light_frusta_draws_enabled)
-        scene_debug_frusta(&scene->light.view[0]);
+        scene_debug_frusta(scene, &scene->light.view[0]);
 
     motion_reset(&scene->mctl, scene);
 }
 
-cerr scene_init(struct scene *scene)
+cerr scene_init(struct scene *scene, struct clap_context *ctx)
 {
     memset(scene, 0, sizeof(*scene));
+    scene->clap_ctx = ctx;
     scene->auto_yoffset = 4.0;
     mq_init(&scene->mq, scene);
     list_init(&scene->characters);
@@ -1075,7 +1076,7 @@ cerr scene_init(struct scene *scene)
     light_set_shadow_tint(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
 
     /* messagebus_done() will "unsubscribe" (free) these */
-    CERR_RET_CERR(subscribe(MT_INPUT, scene_handle_input, scene));
+    CERR_RET_CERR(subscribe(ctx, MT_INPUT, scene_handle_input, scene));
 
     scene->initialized = true;
 

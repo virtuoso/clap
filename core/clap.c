@@ -108,6 +108,7 @@ typedef struct clap_context {
     struct list         luts;
     struct list         timers;
     struct ui           ui;
+    messagebus          mb;
     int                 argc;
     bool                paused;
 } clap_context;
@@ -119,6 +120,11 @@ typedef struct clap_context {
 struct clap_config *clap_get_config(struct clap_context *ctx)
 {
     return &ctx->cfg;
+}
+
+messagebus *clap_get_messagebus(struct clap_context *ctx)
+{
+    return &ctx->mb;
 }
 
 renderer_t *clap_get_renderer(struct clap_context *ctx)
@@ -215,7 +221,7 @@ static void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
         m.cmd.status      = 1;
         m.cmd.fps         = f->fps_fine;
         m.cmd.sys_seconds = f->ts_prev.tv_sec;
-        message_send(&m);
+        message_send(ctx, &m);
     }
 }
 
@@ -402,7 +408,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     renderer_get_viewport(&ctx->renderer, NULL, NULL, &width, &height);
 
     imgui_render_begin(width, height);
-    fuzzer_input_step();
+    fuzzer_input_step(ctx);
     input_events_dispatch();
 
     PROF_FIRST(start);
@@ -490,6 +496,7 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
     ui->height = height;
 
     message_input_send(
+        ctx,
         &(struct message_input) {
             .resize = 1,
             .x      = width,
@@ -615,11 +622,10 @@ static cerr clap_os_init(struct clap_context *ctx)
  * Main API
  ****************************************************************************/
 
-static int clap_handle_command(struct message *m, void *data)
+static int clap_handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
     if (m->type != MT_COMMAND)  return MSG_HANDLED;
 
-    clap_context *ctx = data;
     if (m->cmd.toggle_modality) ctx->paused = !ctx->paused;
 
     return MSG_HANDLED;
@@ -675,20 +681,24 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     ctx->argv = argv;
     ctx->envp = envp;
 
-    CERR_RET_T(messagebus_init(), clap_context);
+    CERR_RET_T(messagebus_init(ctx), clap_context);
 
-    CERR_RET_T(subscribe(MT_COMMAND, clap_handle_command, ctx), clap_context);
+    CERR_RET_T(subscribe(ctx, MT_COMMAND, clap_handle_command, ctx), clap_context);
 
     /* XXX: handle initialization errors */
-    log_init(log_flags);
+    log_init(ctx, log_flags);
     (void)librarian_init(ctx->cfg.base_url);
     if (ctx->cfg.font)
         ctx->font = CRES_RET_T(font_init(ctx->cfg.default_font_name), clap_context);
 
     if (ctx->cfg.sound)
-        ctx->sound = CRES_RET_T(sound_init(), clap_context);
+        /*
+         * XXX: chicken an egg: start message sent, but ctx->sound is still NULL;
+         * embed sound into ctx instead
+         */
+        ctx->sound = CRES_RET_T(sound_init(ctx), clap_context);
     if (ctx->cfg.phys)
-        CHECK(ctx->phys = phys_init());
+        CHECK(ctx->phys = phys_init(ctx));
     if (ctx->cfg.graphics) {
         clap_init_render_options(ctx);
 
@@ -709,7 +719,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         CERR_RET_T(clap_lut_generate(ctx, lut_presets, 32), clap_context);
     }
     if (ctx->cfg.input)
-        (void)input_init(); /* XXX: error handling */
+        (void)input_init(ctx); /* XXX: error handling */
     if (ctx->cfg.ui)
         CERR_RET_T(ui_init(&ctx->ui, ctx, ctx->cfg.width, ctx->cfg.height), clap_context);
     if (ctx->cfg.graphics && ctx->cfg.input)
@@ -738,7 +748,7 @@ void clap_done(struct clap_context *ctx, int status)
         font_done(ctx->font);
     if (ctx->settings)
         settings_done(ctx->settings);
-    messagebus_done();
+    messagebus_done(ctx);
     free(ctx->os_info.name);
     clap_timers_done(ctx);
     mem_free(ctx);
