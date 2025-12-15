@@ -271,7 +271,6 @@ int main(int argc, char **argv, char **envp)
     if (IS_CERR(err))
         goto exit_scene;
 
-
     display_get_sizes(&scene.width, &scene.height);
     scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
 

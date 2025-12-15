@@ -59,7 +59,7 @@ static void __unused __menu_devel(struct ui *ui, const ui_menu_item *item)
 static void __menu_fullscreen(struct ui *ui, const ui_menu_item *item)
 {
     main_menu_done(ui->priv);
-    message_input_send(&(struct message_input){ .fullscreen = 1 }, NULL);
+    message_input_send(ui->clap_ctx, &(struct message_input){ .fullscreen = 1 }, NULL);
 }
 
 static void __unused __menu_help_license(struct ui *ui, const ui_menu_item *item)
@@ -117,18 +117,18 @@ static const ui_menu_item main_menu_root = UI_MENU_GROUP(
 
 static void main_menu_init(game_ui *gui)
 {
-    ui_modality_send();
+    ui_modality_send(gui->ui);
     gui->menu = ui_menu_new(gui->ui, &main_menu_root);
 }
 
 static void main_menu_done(game_ui *gui)
 {
-    ui_modality_send();
+    ui_modality_send(gui->ui);
     ref_put(gui->menu);
     gui->menu = NULL;
 }
 
-static int game_ui_handle_input(struct message *m, void *data)
+static int game_ui_handle_input(struct clap_context *ctx, struct message *m, void *data)
 {
     game_ui *gui = data;
     auto ui = gui->ui;
@@ -159,7 +159,7 @@ cresp(game_ui) game_ui_init(struct ui *ui)
     if (!game_ui)   return cresp_error(game_ui, CERR_NOMEM);
 
     game_ui->ui = ui;
-    CERR_RET_T(subscribe(MT_INPUT, game_ui_handle_input, game_ui), game_ui);
+    CERR_RET_T(subscribe(ui->clap_ctx, MT_INPUT, game_ui_handle_input, game_ui), game_ui);
 
     ui->priv = game_ui;
     return cresp_val(game_ui, NOCU(game_ui));
