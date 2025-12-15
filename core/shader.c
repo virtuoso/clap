@@ -83,6 +83,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_SHADOW_VSM,          "shadow_vsm",           DT_INT),
     SHADER_ARR(UNIFORM_SHADOW_MVP,          "shadow_mvp",           DT_MAT4, CASCADES_MAX),
     SHADER_ARR(UNIFORM_CASCADE_DISTANCES,   "cascade_distances",    DT_FLOAT, CASCADES_MAX),
+    SHADER_ARR(UNIFORM_LIGHT_FAR,           "light_far",            DT_FLOAT, CASCADES_MAX),
     SHADER_VAR(UNIFORM_SHADOW_TINT,         "shadow_tint",          DT_VEC3),
     SHADER_VAR(UNIFORM_SHADOW_OUTLINE,      "shadow_outline",       DT_INT),
     SHADER_VAR(UNIFORM_SHADOW_OUTLINE_THRESHOLD, "shadow_outline_threshold", DT_FLOAT),
@@ -150,10 +151,12 @@ struct shader_var_block_desc {
 
 /* Variable block table */
 static const struct shader_var_block_desc shader_var_block_desc[] = {
-    DEFINE_SHADER_VAR_BLOCK(color_pt, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(color_pt,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_IN_COLOR,
                             UNIFORM_COLOR_PASSTHROUGH),
-    DEFINE_SHADER_VAR_BLOCK(lighting, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(lighting,
+                            SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_LIGHT_POS,
                             UNIFORM_LIGHT_COLOR,
                             UNIFORM_LIGHT_DIR,
@@ -162,25 +165,32 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_NR_LIGHTS,
                             UNIFORM_USE_NORMALS,
                             UNIFORM_LIGHT_AMBIENT),
-    DEFINE_SHADER_VAR_BLOCK(shadow, SHADER_STAGE_GEOMETRY_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(shadow,
+                            SHADER_STAGE_GEOMETRY_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_SHADOW_MVP,
                             UNIFORM_CASCADE_DISTANCES,
+                            UNIFORM_LIGHT_FAR,
                             UNIFORM_SHADOW_TINT,
                             UNIFORM_SHADOW_VSM,
                             UNIFORM_SHADOW_OUTLINE,
                             UNIFORM_SHADOW_OUTLINE_THRESHOLD),
-    DEFINE_SHADER_VAR_BLOCK(transform, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(transform,
+                            SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_TRANS),
-    DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(projview,
+                            SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_PROJ,
                             UNIFORM_VIEW,
                             UNIFORM_INVERSE_VIEW),
-    DEFINE_SHADER_VAR_BLOCK(skinning, SHADER_STAGE_VERTEX_BIT,
+    DEFINE_SHADER_VAR_BLOCK(skinning,
+                            SHADER_STAGE_VERTEX_BIT,
                             UNIFORM_USE_SKINNING,
                             UNIFORM_JOINT_TRANSFORMS),
-    DEFINE_SHADER_VAR_BLOCK(particles, SHADER_STAGE_VERTEX_BIT,
+    DEFINE_SHADER_VAR_BLOCK(particles,
+                            SHADER_STAGE_VERTEX_BIT,
                             UNIFORM_PARTICLE_POS),
-    DEFINE_SHADER_VAR_BLOCK(material, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(material,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_REFLECTIVITY,
                             UNIFORM_SHINE_DAMPER,
                             UNIFORM_ROUGHNESS,
@@ -195,20 +205,24 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_METALLIC_SCALE,
                             UNIFORM_METALLIC_MODE,
                             UNIFORM_SHARED_SCALE),
-    DEFINE_SHADER_VAR_BLOCK(render_common, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(render_common,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_USE_MSAA,
                             UNIFORM_USE_EDGE_AA,
                             UNIFORM_USE_HDR),
-    DEFINE_SHADER_VAR_BLOCK(outline, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(outline,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_OUTLINE_EXCLUDE,
                             UNIFORM_SOBEL_SOLID,
                             UNIFORM_SOBEL_SOLID_ID),
-    DEFINE_SHADER_VAR_BLOCK(bloom, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(bloom,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_BLOOM_EXPOSURE,
                             UNIFORM_BLOOM_INTENSITY,
                             UNIFORM_BLOOM_THRESHOLD,
                             UNIFORM_BLOOM_OPERATOR),
-    DEFINE_SHADER_VAR_BLOCK(postproc, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(postproc,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_WIDTH,
                             UNIFORM_HEIGHT,
                             UNIFORM_NEAR_PLANE,
@@ -262,7 +276,8 @@ cresp(shader_context) shader_vars_init(renderer_t *renderer)
     int i, j;
 
     /* Instantiate shader variable blocks */
-    for (i = 0; i < array_size(shader_var_block_desc); i++) {
+    /* XXX: UBOs start at 1; 0 is vertex buffer */
+    for (i = 1; i < array_size(shader_var_block_desc); i++) {
         const struct shader_var_block_desc *desc = &shader_var_block_desc[i];
         struct shader_var_block *var_block = &ctx->var_blocks[i];
         size_t size = 0;
@@ -272,7 +287,7 @@ cresp(shader_context) shader_vars_init(renderer_t *renderer)
 
         /* Initialize the uniform buffer */
         uniform_buffer_t *ub = &var_block->ub;
-        err = uniform_buffer_init(ub, desc->binding);
+        err = uniform_buffer_init(renderer, ub, desc->name, desc->binding);
         if (IS_CERR(err))
             goto error;
 
@@ -323,7 +338,8 @@ error:
 
 void shader_vars_done(shader_context *ctx)
 {
-    for (int i = 0; i < array_size(shader_var_block_desc); i++)
+    /* XXX: UBOs start at 1, see shader_vars_init() */
+    for (int i = 1; i < array_size(shader_var_block_desc); i++)
         shader_var_block_done(ctx, i);
 
     mem_free(ctx);
@@ -361,7 +377,8 @@ const char *shader_name(struct shader_prog *p)
 static struct shader_var_block *
 shader_get_var_block_by_binding(struct shader_prog *p, int binding)
 {
-    if (binding < 0 || binding >= array_size(shader_var_block_desc))
+    /* XXX: UBOs start at index 1, see above */
+    if (binding < 1 || binding >= array_size(shader_var_block_desc))
         return NULL;
 
     return p->var_blocks[binding];
@@ -382,14 +399,15 @@ shader_get_var_block_by_var(struct shader_prog *p, enum shader_vars var)
 
 void shader_var_blocks_update(struct shader_prog *p)
 {
-    for (int i = 0; i < array_size(shader_var_block_desc); i++) {
+    /* XXX: UBOs start at index 1, see above */
+    for (int i = 1; i < array_size(shader_var_block_desc); i++) {
         struct shader_var_block *var_block = shader_get_var_block_by_binding(p, i);
 
         /* Don't update uniform buffer on the GPU if current shader is not using it */
         if (!var_block)
             continue;
 
-        uniform_buffer_update(&var_block->ub);
+        uniform_buffer_update(&var_block->ub, &var_block->binding_points);
     }
 }
 
@@ -497,6 +515,8 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
     p->attr_offs[0] = 0;
 
     size_t type_size = 0, prev_type_size = 0;
+    size_t attr_comp_count[ATTR_MAX];
+    data_type attr_types[ATTR_MAX];
     enum shader_vars v;
     int i;
     for (i = 0, v = 0; v < ATTR_MAX; v++) {
@@ -511,7 +531,9 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
          * mesh at this point, so we have to rely on static type information
          * relating mesh attributes
          */
-        type_size = data_type_size(mesh_attr_type(ma)) * mesh_attr_comp_count(ma);
+        attr_types[i] = mesh_attr_type(ma);
+        attr_comp_count[i] = mesh_attr_comp_count(ma);
+        type_size = data_type_size(attr_types[i]) * attr_comp_count[i];
         p->stride += type_size;
 
         if (i)
@@ -520,6 +542,8 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
         prev_type_size = type_size;
         i++;
     }
+
+    shader_set_vertex_attrs(&p->shader, p->stride, p->attr_offs, attr_types, attr_comp_count, v);
     p->mesh_attrs[i] = MESH_MAX;
     p->nr_attrs = i;
 }
@@ -541,6 +565,7 @@ cerr shader_setup_attributes(struct shader_prog *p, buffer_t *buf, struct mesh *
 
         CERR_RET(
             buffer_init(&buf[mesh_to_attr_map[ma]],
+                .renderer       = p->ctx->renderer,
                 .loc            = mesh_to_attr_map[ma],
                 .type           = BUF_ARRAY,
                 .usage          = BUF_STATIC,
@@ -555,8 +580,10 @@ cerr shader_setup_attributes(struct shader_prog *p, buffer_t *buf, struct mesh *
             { err = __cerr; goto attr_error; }
         );
 
-        if (p->mesh_attrs[i] == MESH_VX)
+        if (p->mesh_attrs[i] == MESH_VX) {
             main = &buf[mesh_to_attr_map[ma]];
+            buffer_set_name(main, "%s:vx", mesh->name);
+        }
     }
 
     mem_free(flat);
@@ -733,7 +760,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
     list_init(&p->entry);
     p->name = opts->name;
-    cerr err = shader_init(&p->shader, opts->vert_text, opts->geom_text, opts->frag_text);
+    cerr err = shader_init(opts->ctx->renderer, &p->shader, opts->vert_text, opts->geom_text, opts->frag_text);
     if (IS_CERR(err)) {
         err("couldn't create program '%s'\n", opts->name);
         ref_put(p);
@@ -744,7 +771,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     for (enum shader_vars v = 0; v < SHADER_VAR_MAX; v++)
         p->vars[v] = UA_UNKNOWN;
 
-    shader_prog_use(p);
+    shader_prog_use(p, false);
     shader_prog_link(p);
 
     cerr vert_ref_err = CERR_OK;
@@ -755,7 +782,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     if (opts->geom_ref_text)    geom_ref_err = shader_reflection_apply(p, opts->geom_ref_text);
     if (opts->frag_ref_text)    frag_ref_err = shader_reflection_apply(p, opts->frag_ref_text);
 
-    shader_prog_done(p);
+    shader_prog_done(p, false);
     if (!__shader_has_var(p, ATTR_POSITION)) {
         err("program '%s' doesn't have position attribute\n", p->name);
         ref_put_last(p);
@@ -770,7 +797,8 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     /*
      * Binding uniform buffers to binding points is not optional
      */
-    for (int i = 0; i < array_size(shader_var_block_desc); i++) {
+    /* XXX: UBOs start at 1, see above */
+    for (int i = 1; i < array_size(shader_var_block_desc); i++) {
         struct shader_var_block *var_block = &p->ctx->var_blocks[i];
         const struct shader_var_block_desc *desc = var_block->desc;
 
@@ -845,15 +873,20 @@ renderer_t *shader_prog_renderer(struct shader_prog *p)
     return p->ctx->renderer;
 }
 
-void shader_prog_use(struct shader_prog *p)
+shader_t *shader_prog_shader(struct shader_prog *p)
 {
-    ref_get(p);
-    shader_use(&p->shader);
+    return &p->shader;
 }
 
-void shader_prog_done(struct shader_prog *p)
+void shader_prog_use(struct shader_prog *p, bool draw)
 {
-    shader_unuse(&p->shader);
+    ref_get(p);
+    shader_use(&p->shader, draw);
+}
+
+void shader_prog_done(struct shader_prog *p, bool draw)
+{
+    shader_unuse(&p->shader, draw);
     ref_put(p);
 }
 

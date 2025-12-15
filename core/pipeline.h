@@ -77,6 +77,7 @@ typedef struct render_pass_ops_params {
     float           render_scale;
     float           near_plane;
     float           far_plane;
+    int             cascade;
 } render_pass_ops_params;
 
 #define RENDER_PASS_OPS_PARAMS(_pl, _pass) \
@@ -87,6 +88,7 @@ typedef struct render_pass_ops_params {
         .near_plane     = (_pl)->camera->view.main.near_plane, \
         .far_plane      = (_pl)->camera->view.main.far_plane, \
         .render_scale   = (_pass)->scale, \
+        .cascade        = (_pass)->cascade, \
     };
 
 typedef struct render_pass_ops {

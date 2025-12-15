@@ -11,9 +11,9 @@ extern model3dtx *ui_quadtx;
 loading_screen *loading_screen_init(struct ui *ui)
 {
     cresp(ui_widget) res = ui_progress_bar_new(ui,
-        .width          = ui->width / 3,
+        .width          = ui->width / 3.0,//0.3,
         .height         = 21,
-        .border         = 1,
+        .border         = 2,
         .y_off          = 100,
         .affinity       = UI_AF_BOTTOM | UI_AF_HCENTER,
         .bar_color      = (vec4){ 0, 0, 1, 1 },
@@ -67,6 +67,9 @@ loading_screen *loading_screen_init(struct ui *ui)
 
 void loading_screen_done(loading_screen *ls)
 {
+    renderer_frame_begin(ls->ui->renderer);
+    renderer_swapchain_begin(ls->ui->renderer);
+
     ref_put(ls->uit);
     ref_put(ls->uie);
     ref_put(ls->progress);
@@ -79,12 +82,15 @@ void loading_screen_progress(loading_screen *ls, float progress)
 {
 #ifndef CONFIG_BROWSER
     renderer_t *r = clap_get_renderer(ls->ui->clap_ctx);
-    renderer_viewport(r, 0, 0, ls->ui->width, ls->ui->height);
+    // renderer_viewport(r, 0, 0, ls->ui->width, ls->ui->height);
     renderer_clear(r, true, false, false);
     ui_progress_bar_set_progress(ls->progress, progress);
 
     ui_update(ls->ui);
+    renderer_frame_begin(ls->ui->renderer);
+    renderer_swapchain_begin(ls->ui->renderer);
     models_render(ls->ui->renderer, &ls->ui->mq);
     display_swap_buffers();
+    renderer_frame_end(ls->ui->renderer);
 #endif /* CONFIG_BROWSER */
 }

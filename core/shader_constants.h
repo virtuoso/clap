@@ -30,7 +30,6 @@
 #define ATTR_LOC_WEIGHTS    5
 
 /* UBO binding locations */
-#define UBO_BINDING_color_pt    0
 #define UBO_BINDING_lighting    1
 #define UBO_BINDING_shadow      2
 #define UBO_BINDING_transform   3
@@ -42,6 +41,7 @@
 #define UBO_BINDING_outline     9
 #define UBO_BINDING_bloom       10
 #define UBO_BINDING_postproc    11
+#define UBO_BINDING_color_pt    12
 
 #define SAMPLER_BINDING_model_tex       0
 #define SAMPLER_BINDING_normal_map      1

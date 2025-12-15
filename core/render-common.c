@@ -41,8 +41,8 @@ static inline size_t type_storage_size(data_type type)
  * Calculate uniform @offset within a UBO, its total @size and set its @value
  * if @value is not NULL
  */
-cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
-                        unsigned int count, const void *value)
+cerr _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                         unsigned int count, const void *value)
 {
     size_t elem_size = data_type_size(type);       /* C ABI element size */
     size_t storage_size = type_storage_size(type); /* Metal-aligned size */
@@ -67,10 +67,15 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
         storage_size = 16;
 
     /*
-     * vec2 is aligned on 8-bype boundary;
+     * vec2 is aligned on 8-bype boundary [Metal];
      * non-arrayed scalars have maximum storage size of 4, if something
      * larger is following a non-padded offset, it needs to be padded first
      */
+#ifdef CONFIG_RENDERER_METAL
+    if (storage_size == 8 && *offset % 8)
+        *offset = round_up(*offset, 8);
+    else
+#endif /* CONFIG_RENDERER_METAL */
     if (storage_size > 4 && *offset % 16)
         *offset = round_up(*offset, 16);
 
@@ -197,10 +202,8 @@ void buffer_debug(buffer_t *buf, const char *name)
     ui_igTableCell(false, "%zu", opts->size);
     ui_igTableCell(false, "%s", buffer_type_str(opts->type));
     ui_igTableCell(false, "%s", buffer_usage_str(opts->usage));
-#ifndef CONFIG_RENDERER_METAL
     ui_igTableCell(false, "%u", buf->off);
     ui_igTableCell(false, "%u", buf->comp_count * data_comp_size(opts->comp_type));
-#endif /* CONFIG_RENDERER_METAL */
     ui_igTableCell(false, "%s (%d) x %d",
                    data_type_name(opts->comp_type),
                    data_comp_size(opts->comp_type),
@@ -241,17 +244,13 @@ void texture_debug(texture_t *tex, const char *name)
     ui_igTableCell(true, name);
     ui_igTableCell(false, texture_type_str[opts->type]);
     ui_igTableCell(false, texture_format_strings[opts->format]);
-#ifndef CONFIG_RENDERER_METAL
     if (tex->layers)
         ui_igTableCell(false, "%d x %d x %d", tex->width, tex->height, tex->layers);
     else
         ui_igTableCell(false, "%d x %d", tex->width, tex->height);
-#endif /* CONFIG_RENDERER_METAL */
     ui_igTableCell(false, texture_wrap_str[opts->wrap]);
     ui_igTableCell(false, texture_filter_str[opts->min_filter]);
     ui_igTableCell(false, texture_filter_str[opts->mag_filter]);
-#ifndef CONFIG_RENDERER_METAL
     ui_igTableCell(false, "%s", tex->multisampled ? "ms" : "");
-#endif /* CONFIG_RENDERER_METAL */
 }
 #endif /* !CONFIG_FINAL */
