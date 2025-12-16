@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -18,6 +19,42 @@ DEFINE_CLEANUP(FILE, if (*p) fclose(*p))
 DEFINE_CLEANUP(void, mem_free(*p))
 DEFINE_CLEANUP(char, mem_free(*p))
 DEFINE_CLEANUP(uchar, mem_free(*p))
+
+cerr path_joinv(char *dst, size_t size, const char *const comps[])
+{
+    if (!dst || !size)  return CERR_INVALID_ARGUMENTS;
+
+    dst[0] = 0;
+    size_t len = 0;
+
+    for (size_t i = 0; comps[i]; i++) {
+        const char *comp = comps[i];
+
+        if (!*comp) continue;
+
+        if (len && dst[len - 1] != PATH_DELIM_OS) {
+            if (len + 1 >= size)    goto err_overflow;
+            dst[len++] = PATH_DELIM_OS;
+            dst[len] = 0;
+        }
+
+        while (*comp == PATH_DELIM_OS && len)   comp++;
+
+        size_t clen = strlen(comp);
+        if (clen >= size - len)     goto err_overflow;
+
+        memcpy(dst + len, comp, clen + 1);
+        len += clen;
+    }
+
+    if (len)    str_trim_slashes(dst);
+
+    return CERR_OK;
+
+err_overflow:
+    dst[0] = 0;
+    return CERR_TOO_LARGE;
+}
 
 void vertex_array_xlate_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, size_t stride, mat4x4 *xlate)
 {

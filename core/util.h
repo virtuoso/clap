@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
@@ -249,6 +250,51 @@ static inline const char *str_basename(const char *str)
 
     return str;
 }
+
+/**
+ * str_trim_slashes() - remove trailing path delimiters
+ * @path: string to trim
+ *
+ * Remove trailing PATH_DELIM_OS characters while keeping a single leading
+ * delimiter intact ("/" stays "/", "//" becomes "/").
+ */
+static inline void str_trim_slashes(char *path)
+{
+    if (!path || !*path)    return;
+
+    for (size_t len = strlen(path);
+         len > 1 && path[len - 1] == PATH_DELIM_OS;
+         path[len - 1] = 0, len--)
+        ;
+}
+
+/**
+ * path_joinv() - join multiple path components with PATH_DELIM_OS
+ * @dst:           output buffer
+ * @size:          output buffer size
+ * @comps:         NULL-terminated array of const char * components
+ *
+ * Build a path in @dst from the provided components, inserting a single
+ * PATH_DELIM_OS between them. Leading delimiters in subsequent components
+ * are skipped to avoid "//". Trailing delimiters are trimmed on the result,
+ * except for the root path.
+ *
+ * Return: CERR_OK on success, CERR_INVALID_ARGUMENTS on bad parameters,
+ *         CERR_TOO_LARGE on overflow.
+ */
+cerr path_joinv(char *dst, size_t size, const char *const comps[]);
+
+/**
+ * define path_join - join multiple path components with PATH_DELIM_OS
+ * @dst:    output buffer
+ * @size:   outbut buffer size
+ * @...:    comma-delimited components
+ *
+ * This is a wrapper around path_joinv() that does the typecasting behind
+ * the scenes.
+ */
+#define path_join(dst, size, ...) \
+    path_joinv((dst), (size), (const char *const[]) { __VA_ARGS__, NULL })
 
 struct darray {
     void            *array;
