@@ -287,6 +287,55 @@ static int str_endswith_nocase_test0(void)
     return EXIT_SUCCESS;
 }
 
+static int str_trim_slashes_test0(void)
+{
+    /* XXX: this will fail on windows, anyone is free to fix */
+#ifndef _WIN32
+    char buf[64] = "foo/bar///";
+
+    str_trim_slashes(buf);
+    if (strcmp(buf, "foo/bar"))
+        return EXIT_FAILURE;
+
+    strcpy(buf, "/");
+    str_trim_slashes(buf);
+    if (strcmp(buf, "/"))
+        return EXIT_FAILURE;
+
+    strcpy(buf, "//");
+    str_trim_slashes(buf);
+    if (strcmp(buf, "/"))
+        return EXIT_FAILURE;
+#endif /* _WIN32 */
+
+    return EXIT_SUCCESS;
+}
+
+static int path_join_test0(void)
+{
+    /* XXX: this will fail on windows, anyone is free to fix */
+#ifndef _WIN32
+    char buf[64];
+
+    cerr err = path_join(buf, sizeof(buf), "foo", "bar", "baz");
+    if (IS_CERR(err))
+        return EXIT_FAILURE;
+
+    /* XXX: this will fail on windows, anyone is free to fix */
+    if (strcmp(buf, "foo/bar/baz"))
+        return EXIT_FAILURE;
+
+    err = path_join(buf, sizeof(buf),  "/", "foo", "bar");
+    if (IS_CERR(err))
+        return EXIT_FAILURE;
+
+    if (strcmp(buf, "/foo/bar"))
+        return EXIT_FAILURE;
+#endif /* _WIN32 */
+
+    return EXIT_SUCCESS;
+}
+
 static int hashmap_test0(void)
 {
     int ret = EXIT_FAILURE;
@@ -526,6 +575,8 @@ static struct test {
     { .name = "darray delete", .test = darray_test2 },
     { .name = "str_endswith", .test = str_endswith_test0 },
     { .name = "str_endswith_nocase", .test = str_endswith_nocase_test0 },
+    { .name = "str_trim_slashes", .test = str_trim_slashes_test0 },
+    { .name = "path_join", .test = path_join_test0 },
     { .name = "hashmap basic", .test = hashmap_test0 },
     { .name = "hashmap for each", .test = hashmap_test1 },
     { .name = "bitmap basic", .test = bitmap_test0 },
