@@ -540,6 +540,13 @@ static int handle_command(struct clap_context *ctx, struct message *m, void *dat
     return 0;
 }
 
+static cerr early_init(clap_context *ctx, void *data)
+{
+    struct scene *scene = data;
+
+    return subscribe(ctx, MT_COMMAND, handle_command, scene);
+}
+
 static struct option long_options[] = {
     { "fullscreen", no_argument,        0, 'F' },
     { "exitafter",  required_argument,  0, 'e' },
@@ -567,6 +574,7 @@ int main(int argc, char **argv, char **envp)
 #endif
         .width          = 1280,
         .height         = 720,
+        .early_init     = early_init,
         .frame_cb       = render_frame,
         .resize_cb      = resize_cb,
         .callback_data  = &scene,
@@ -640,10 +648,6 @@ int main(int argc, char **argv, char **envp)
     phys_set_ground_contact(clap_get_phys(scene.clap_ctx), ohc_ground_contact);
 
     err = subscribe(scene.clap_ctx, MT_INPUT, handle_input, &scene);
-    if (IS_CERR(err))
-        goto exit_scene;
-
-    err = subscribe(scene.clap_ctx, MT_COMMAND, handle_command, &scene);
     if (IS_CERR(err))
         goto exit_scene;
 
