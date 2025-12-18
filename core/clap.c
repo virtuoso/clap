@@ -685,6 +685,9 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
     CERR_RET_T(subscribe(ctx, MT_COMMAND, clap_handle_command, ctx), clap_context);
 
+    if (ctx->cfg.early_init)
+        CERR_RET_T(ctx->cfg.early_init(ctx, ctx->cfg.callback_data), clap_context);
+
     /* XXX: handle initialization errors */
     log_init(ctx, log_flags);
     (void)librarian_init(ctx->cfg.base_url);

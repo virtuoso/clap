@@ -284,6 +284,7 @@ cerr clap_set_lighting_lut(clap_context *ctx, const char *name) __nonnull_params
  * @default_font_name:  default font for clap's UI
  * @width:              initial window width
  * @height:             initial window height
+ * @early_init:         optional early init callback, called after messagebus_init(); allowed to faila
  * @frame_cb:           callback to run every frame after model updates, but before rendering
  * @resize_cb:          window resize callback
  * @callback_data:      data to be passed into @frame_cb and @resize_cb
@@ -307,6 +308,7 @@ struct clap_config {
     const char      *default_font_name;
     unsigned int    width;
     unsigned int    height;
+    cerr            (*early_init)(clap_context *ctx, void *data);
     void            (*frame_cb)(void *data);
     void            (*resize_cb)(void *data, int width, int height);
     void            *callback_data;
