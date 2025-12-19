@@ -236,7 +236,18 @@ static cerr_check model3dtx_add_texture_from_png_buffer(model3dtx *txm, enum sha
     unsigned char *buffer;
 
     buffer = decode_png(input, length, &width, &height, &has_alpha);
-    texture_format color_format = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
+    texture_format color_format;
+
+    switch (var) {
+        case UNIFORM_MODEL_TEX:
+        case UNIFORM_EMISSION_MAP:
+            color_format = has_alpha ? TEX_FMT_RGBA8_SRGB : TEX_FMT_RGB8_SRGB;
+            break;
+        default:
+            color_format = has_alpha ? TEX_FMT_RGBA8 : TEX_FMT_RGB8;
+            break;
+    }
+
     cerr err = model3dtx_add_texture_from_buffer(txm, var, buffer, width, height, color_format);
     mem_free(buffer);
 
