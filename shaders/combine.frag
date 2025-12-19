@@ -1,8 +1,10 @@
 #version 460 core
 
+#include "config.h"
 #include "shader_constants.h"
 #include "tonemap.glsl"
 #include "lut.glsl"
+#include "oetf.glsl"
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;
@@ -61,4 +63,9 @@ void main()
     float factor = sobel.x;
     FragColor = vec4(mix(FragColor.xyz, vec3(0.0), 1 - factor), 1.0);
     FragColor = vec4(applyLUT(lut_tex, FragColor.xyz), 1.0);
+#ifdef CONFIG_RENDERER_OPENGL
+    FragColor.rgb = scene_linear_to_srgb(FragColor.rgb);
+#else
+    FragColor.rgb = scene_linear_to_pq(FragColor.rgb, 200.0f);
+#endif
 }
