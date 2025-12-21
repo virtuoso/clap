@@ -111,7 +111,7 @@ typedef struct pipeline_pass_config {
     const char              *name;
     /*
      * Array of color formats, one for each of the FBO attachments specified by
-     * render_pass::attachment_config
+     * render_pass::layout
      */
     texture_format          *color_format;
     /* Color format for the depth buffer */
@@ -119,7 +119,7 @@ typedef struct pipeline_pass_config {
     /* Make FBO attachment texture an array of [layers] textures */
     unsigned int            layers;
     /* Determines the number and types of attachments of the pass' FBO */
-    fbo_attachment          attachment_config;
+    fbo_attachment          layout;
     unsigned int            checkpoint;
     float                   scale;
     int                     cascade;
