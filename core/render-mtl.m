@@ -278,7 +278,7 @@ texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
         return &fbo->depth_tex;
 
     int idx = fbo_attachment_color(attachment);
-    if (idx >= fa_nr_color_texture(fbo->attachment_config))
+    if (idx >= fa_nr_color_texture(fbo->layout))
         return NULL;
 
     return &fbo->color_tex[idx];
@@ -314,11 +314,11 @@ texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
     int tidx = fbo_attachment_color(attachment);
-    if (tidx >= 0 && tidx <= fbo_attachment_color(fbo->attachment_config) &&
+    if (tidx >= 0 && tidx <= fbo_attachment_color(fbo->layout) &&
         texture_loaded(&fbo->color_tex[tidx]))
         return true;
 
-    if (attachment.depth_texture && fbo->attachment_config.depth_texture)
+    if (attachment.depth_texture && fbo->layout.depth_texture)
         return true;
 
     return false;
@@ -360,7 +360,7 @@ static void fbo_drop(struct ref *ref)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
-    fa_for_each(fa, fbo->attachment_config, texture)
+    fa_for_each(fa, fbo->layout, texture)
         texture_deinit(&fbo->color_tex[fbo_attachment_color(fa)]);
 
    if (texture_loaded(&fbo->depth_tex))
@@ -415,13 +415,13 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     fbo->height       = opts->height;
     fbo->layers       = opts->layers;
     fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
-    fbo->attachment_config = opts->attachment_config;
+    fbo->layout = opts->layout;
     /* for compatibility */
-    if (!fbo->attachment_config.mask)
-        fbo->attachment_config.color_texture0 = 1;
+    if (!fbo->layout.mask)
+        fbo->layout.color_texture0 = 1;
 
-    int nr_color_formats = fa_nr_color_buffer(fbo->attachment_config) ? :
-                           fa_nr_color_texture(fbo->attachment_config);
+    int nr_color_formats = fa_nr_color_buffer(fbo->layout) ? :
+                           fa_nr_color_texture(fbo->layout);
 
     size_t size = nr_color_formats * sizeof(texture_format);
     fbo->color_format = memdup(opts->color_format ? : (texture_format[]){ TEX_FMT_DEFAULT }, size);
