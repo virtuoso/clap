@@ -202,7 +202,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             .color_format        = cfg->color_format,
             .depth_format        = cfg->depth_format,
             .multisampled        = cfg->multisampled,
-            .attachment_config   = cfg->attachment_config
+            .layout              = cfg->attachment_config,
         ),
         { err = cerr_error_cres(__resp); goto err_source; }
     );
@@ -235,7 +235,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
                     fbo_new(
                         .width                = fbo_width(src_pass->fbo),
                         .height               = fbo_height(src_pass->fbo),
-                        .attachment_config    = { .depth_texture = 1 },
+                        .layout               = FBO_DEPTH_TEXTURE(0),
                         .multisampled         = fbo_is_multisampled(pass->fbo),
                         .depth_format         = fbo_texture_format(src_pass->fbo, rsrc->attachment)
                     ),
@@ -250,7 +250,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
                         .width                = fbo_width(src_pass->fbo),
                         .height               = fbo_height(src_pass->fbo),
                         .multisampled         = fbo_is_multisampled(pass->fbo),
-                        .attachment_config    = { .color_texture0 = 1 },
+                        .layout               = FBO_COLOR_TEXTURE(0),
                         .color_format         = (texture_format[]) {
                             fbo_texture_format(src_pass->fbo, rsrc->attachment)
                         }

@@ -405,7 +405,7 @@ TYPE(fbo,
     unsigned int    height;
     unsigned int    layers;
     unsigned int    fbo;
-    fbo_attachment  attachment_config;
+    fbo_attachment  layout;
     texture_format  *color_format;
     texture_format  depth_format;
     texture_t       depth_tex;
@@ -422,7 +422,7 @@ TYPE(fbo,
     unsigned int    width;
     unsigned int    height;
     unsigned int    layers;
-    fbo_attachment  attachment_config;
+    fbo_attachment  layout;
     texture_format  *color_format;
     texture_format  depth_format;
 );
@@ -438,7 +438,7 @@ typedef struct fbo_init_options {
     unsigned int    width;
     unsigned int    height;
     unsigned int    layers;
-    fbo_attachment  attachment_config;
+    fbo_attachment  layout;
     unsigned int    nr_samples;
     texture_format  *color_format;
     texture_format  depth_format;
