@@ -202,7 +202,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             .color_format        = cfg->color_format,
             .depth_format        = cfg->depth_format,
             .multisampled        = cfg->multisampled,
-            .layout              = cfg->attachment_config,
+            .layout              = cfg->layout,
         ),
         { err = cerr_error_cres(__resp); goto err_source; }
     );
