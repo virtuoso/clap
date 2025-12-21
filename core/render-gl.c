@@ -892,7 +892,7 @@ texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
         return &fbo->depth_tex;
 
     int idx = fbo_attachment_color(attachment);
-    if (idx >= fa_nr_color_texture(fbo->attachment_config))
+    if (idx >= fa_nr_color_texture(fbo->layout))
         return NULL;
 
     return &fbo->color_tex[idx];
@@ -901,19 +901,19 @@ texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
     int tidx = fbo_attachment_color(attachment);
-    if (tidx >= 0 && tidx <= fbo_attachment_color(fbo->attachment_config) &&
+    if (tidx >= 0 && tidx <= fbo_attachment_color(fbo->layout) &&
         texture_loaded(&fbo->color_tex[tidx]))
         return true;
 
     int bidx = fbo_attachment_color(attachment);
-    if (bidx >= 0 && bidx <= fbo_attachment_color(fbo->attachment_config) &&
+    if (bidx >= 0 && bidx <= fbo_attachment_color(fbo->layout) &&
         fbo->color_buf[bidx])
         return true;
 
-    if (attachment.depth_texture && fbo->attachment_config.depth_texture)
+    if (attachment.depth_texture && fbo->layout.depth_texture)
         return true;
 
-    if (attachment.depth_buffer && fbo->attachment_config.depth_buffer)
+    if (attachment.depth_buffer && fbo->layout.depth_buffer)
         return true;
 
     return false;
@@ -941,13 +941,13 @@ int fbo_height(fbo_t *fbo)
 
 fbo_attachment_type fbo_get_attachment(fbo_t *fbo)
 {
-    if (fbo_attachment_color(fbo->attachment_config))
+    if (fbo_attachment_color(fbo->layout))
         return FBO_ATTACHMENT_COLOR0;
 
-    if (fbo->attachment_config.depth_buffer)
+    if (fbo->layout.depth_buffer)
         return FBO_ATTACHMENT_DEPTH;
 
-    if (fbo->attachment_config.stencil_buffer)
+    if (fbo->layout.stencil_buffer)
         return FBO_ATTACHMENT_STENCIL;
 
     clap_unreachable();
@@ -1013,7 +1013,7 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
     GL(glFinish());
 
     cerr err = CERR_OK;
-    fa_for_each(fa, fbo->attachment_config, texture) {
+    fa_for_each(fa, fbo->layout, texture) {
         texture_t *tex = &fbo->color_tex[fa_nr_color_texture(fa) - 1];
         if (texture_loaded(tex))
             err = texture_resize(tex, width, height);
@@ -1039,7 +1039,7 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
     fbo->width = width;
     fbo->height = height;
 
-    fa_for_each(fa, fbo->attachment_config, buffer) {
+    fa_for_each(fa, fbo->layout, buffer) {
         GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->color_buf[fbo_attachment_color(fa)]));
         __fbo_color_buffer_setup(fbo, fa);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
@@ -1063,11 +1063,11 @@ void fbo_prepare(fbo_t *fbo)
     GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
 
-    if (fbo_attachment_is_buffers(fbo->attachment_config)) {
-        fa_for_each(fa, fbo->attachment_config, buffer)
+    if (fbo_attachment_is_buffers(fbo->layout)) {
+        fa_for_each(fa, fbo->layout, buffer)
             buffers[target++] = fbo_gl_attachment(fa);
     } else {
-        fa_for_each(fa, fbo->attachment_config, texture)
+        fa_for_each(fa, fbo->layout, texture)
             buffers[target++] = fbo_gl_attachment(fa);
     }
 
@@ -1135,10 +1135,10 @@ static void fbo_drop(struct ref *ref)
 
     GL(glDeleteFramebuffers(1, &fbo->fbo));
     /* if the texture was cloned, its ->loaded==false making this a nop */
-    fa_for_each(fa, fbo->attachment_config, texture)
+    fa_for_each(fa, fbo->layout, texture)
         texture_deinit(&fbo->color_tex[fbo_attachment_color(fa)]);
 
-    fa_for_each(fa, fbo->attachment_config, buffer)
+    fa_for_each(fa, fbo->layout, buffer)
         glDeleteRenderbuffers(1, (const GLuint *)&fbo->color_buf[fbo_attachment_color(fa)]);
 
     mem_free(fbo->color_format);
@@ -1153,7 +1153,7 @@ DEFINE_REFCLASS2(fbo);
 DECLARE_REFCLASS(fbo);
 
 /*
- * attachment_config:
+ * layout:
  *  FBO_DEPTH_TEXTURE: depth texture
  *  FBO_COLOR_TEXTURE: color texture
  *  FBO_COLOR_BUFFERn: n color buffer attachments
@@ -1164,14 +1164,14 @@ static cerr_check fbo_init(fbo_t *fbo)
 
     fbo->fbo = fbo_create();
 
-    if (fbo->attachment_config.depth_texture) {
+    if (fbo->layout.depth_texture) {
         err = fbo_depth_texture_init(fbo);
     }
-    if (fbo->attachment_config.color_textures) {
-        err = fbo_textures_init(fbo, fbo->attachment_config);
-    } else if (fbo->attachment_config.color_buffers) {
-        /* "<="" meaning "up to and including attachment_config color buffer"*/
-        fa_for_each(fa, fbo->attachment_config, buffer) {
+    if (fbo->layout.color_textures) {
+        err = fbo_textures_init(fbo, fbo->layout);
+    } else if (fbo->layout.color_buffers) {
+        /* "<="" meaning "up to and including layout color buffer" */
+        fa_for_each(fa, fbo->layout, buffer) {
             cres(int) res = fbo_color_buffer(fbo, fa);
             if (IS_CERR(res))
                 goto err;
@@ -1183,7 +1183,7 @@ static cerr_check fbo_init(fbo_t *fbo)
     if (IS_CERR(err))
         goto err;
 
-    if (fbo->attachment_config.depth_buffer)
+    if (fbo->layout.depth_buffer)
         fbo->depth_buf = fbo_depth_buffer(fbo);
 
     int fb_err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -1196,7 +1196,7 @@ static cerr_check fbo_init(fbo_t *fbo)
     return err;
 
 err:
-    fa_for_each(fa, fbo->attachment_config, buffer) {
+    fa_for_each(fa, fbo->layout, buffer) {
         int color_buf = fbo->color_buf[fbo_attachment_color(fa)];
         if (color_buf)
             glDeleteRenderbuffers(1, (const GLuint *)&color_buf);
@@ -1227,13 +1227,13 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     fbo->height       = opts->height;
     fbo->layers       = opts->layers;
     fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
-    fbo->attachment_config = opts->attachment_config;
+    fbo->layout       = opts->layout;
     /* for compatibility */
-    if (!fbo->attachment_config.mask)
-        fbo->attachment_config.color_texture0 = 1;
+    if (!fbo->layout.mask)
+        fbo->layout.color_texture0 = 1;
 
-    int nr_color_formats = fa_nr_color_buffer(fbo->attachment_config) ? :
-                           fa_nr_color_texture(fbo->attachment_config);
+    int nr_color_formats = fa_nr_color_buffer(fbo->layout) ? :
+                           fa_nr_color_texture(fbo->layout);
 
     size_t size = nr_color_formats * sizeof(texture_format);
     fbo->color_format = memdup(opts->color_format ? : (texture_format[]){ TEX_FMT_DEFAULT }, size);
@@ -1668,7 +1668,7 @@ void _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 
         if (gl_texture_format(i) == GL_DEPTH_COMPONENT) {
             res = fbo_new(.width = 1, .height = 1, .depth_format = i,
-                          .attachment_config = { .depth_texture = 1 });
+                          .layout = FBO_DEPTH_TEXTURE(0));
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
             else
