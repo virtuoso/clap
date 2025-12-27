@@ -8,6 +8,7 @@
 #include "primitives.h"
 #include "shader.h"
 #include "ui-debug.h"
+#include "util.h"
 
 texture_t *pipeline_pass_get_texture(struct render_pass *pass, fbo_attachment attachment)
 {
@@ -43,53 +44,38 @@ static cerr pipeline_make(struct ref *ref, void *_opts)
     return CERR_OK;
 }
 
+static void pass_free_quad(render_pass *pass)
+{
+    auto txm = pass->quad->txmodel;
+
+    // Detach all external textures (RM_USE/RM_PLUG) either from other
+    // passes, where they will be released by their ref_put(pass->quad),
+    // or from other external sources that will manage their textures'
+    // lifetimes themselves, like color grading LUTs.
+    for (int i = 0; i < pass->nr_sources; i++) {
+        render_source *source = &pass->source[i];
+
+        switch (source->method) {
+            case RM_USE:
+            case RM_PLUG:
+                model3dtx_set_texture(txm, source->sampler, NULL);
+                break;
+            default:        continue;
+        }
+    }
+
+    ref_put_last(pass->quad);
+}
+
 void pipeline_clearout(pipeline *pl)
 {
     struct render_pass *pass, *iter;
 
     pipeline_debug_done(pl);
 
-    /*
-     * We need 2 passes, because @pass sources reference elements behind itself
-     * in the list, and in order to undo this relationship, we need the source
-     * element to not be freed
-     */
-    list_for_each_entry(pass, &pl->passes, entry) {
-        /*
-         * Depth/color attachments don't have quad models,
-         * so the below would cause a massive memory violation
-         * that for some reason no ASAN can catch, so naturally
-         * skip it if the mq list is empty
-         */
-        if (pass->quad) {
-            model3dtx *txm = pass->quad->txmodel;
-
-            for (int i = 0; i < pass->nr_sources; i++) {
-                render_source *source = &pass->source[i];
-
-                if (source->pass) {
-                    texture_t *tex = pass->use_tex[i] ?
-                        pass->use_tex[i] :
-                        fbo_texture(source->pass->fbo, source->attachment);
-
-                    for (enum shader_vars v = ATTR_MAX; v < UNIFORM_TEX_MAX; v++) {
-                        auto txm_tex = CRES_RET(model3dtx_texture(txm, v), continue);
-                        if (txm_tex == tex) model3dtx_set_texture(txm, v, NULL);
-                    }
-                }
-                /*
-                 * model3dtx_drop() will unload model3dtx::lut, which should
-                 * not happen, as LUTs are maintained globally. Prevent this
-                 * from happening.
-                 */
-                model3dtx_set_texture(txm, UNIFORM_LUT_TEX, NULL);
-            }
-
-            ref_put_last(pass->quad);
-        }
-    }
-
     list_for_each_entry_iter(pass, iter, &pl->passes, entry) {
+        if (pass->quad) pass_free_quad(pass);
+
         for (int i = 0; i < pass->nr_sources; i++)
             if (pass->blit_fbo[i])
                 fbo_put(pass->blit_fbo[i]);
