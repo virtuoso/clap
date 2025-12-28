@@ -5,7 +5,7 @@
 # but we still want ref_get() and ref_put() to work
 
 list(APPEND decls "")
-file(GLOB sources "${dir}/*.h" "${dir}/*.c")
+file(GLOB sources "${dir}/*.h" "${dir}/*.c" "${dir}/*.m")
 
 # Read the existing file (if it exists)
 set(existing_content "")
