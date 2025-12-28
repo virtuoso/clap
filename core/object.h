@@ -205,7 +205,7 @@ static inline void _ref_put(struct ref *ref)
         } \
     } while (0)
 
-#define ref_put_passed(obj) ref_put_passed_ref(&(obj)->ref)
+#define ref_put_passed(obj) ref_put_passed_ref(__obj_ref(obj))
 
 #define ref_put_last_ref(r) do { \
         ref_dbg("ref_put_last_ref(%s): %d\n", _ref_name(r), (r)->count - 1); \
@@ -213,7 +213,7 @@ static inline void _ref_put(struct ref *ref)
         _ref_drop((r)); \
     } while (0)
 
-#define ref_put_last(obj) ref_put_last_ref(&(obj)->ref)
+#define ref_put_last(obj) ref_put_last_ref(__obj_ref(obj))
 
 /*
  * Expect object to have reference count @c
