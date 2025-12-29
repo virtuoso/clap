@@ -81,9 +81,6 @@ void loading_screen_done(loading_screen *ls)
 void loading_screen_progress(loading_screen *ls, float progress)
 {
 #ifndef CONFIG_BROWSER
-    renderer_t *r = clap_get_renderer(ls->ui->clap_ctx);
-    // renderer_viewport(r, 0, 0, ls->ui->width, ls->ui->height);
-    renderer_clear(r, true, false, false);
     ui_progress_bar_set_progress(ls->progress, progress);
 
     ui_update(ls->ui);

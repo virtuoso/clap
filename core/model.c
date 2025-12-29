@@ -714,7 +714,8 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         renderer_blend(r, model->alpha_blend, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
 
         /* TODO: add a separate property for depth test control */
-        renderer_depth_test(r, model->depth_testing);
+        // renderer_depth_test(r, model->depth_testing);
+        // renderer_depth_test(r, model->depth_testing);
 
         if (model_prog != prog) {
             if (prog)

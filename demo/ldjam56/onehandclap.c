@@ -28,7 +28,7 @@ static struct sound *intro_sound;
 static int exit_timeout = -1;
 static struct scene scene; /* XXX */
 
-static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = true;
+static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao = true, vsm = true;
 typedef struct game_ui game_ui;
 cresp_struct_ret(game_ui);
 
@@ -286,7 +286,7 @@ int main(int argc, char **argv, char **envp)
 
     scene_camera_add(&scene);
     scene.camera = &scene.cameras[0];
-    scene.camera->view.main.far_plane = 700.0;
+    scene.camera->view.main.far_plane = 300.0;
     scene_cameras_calc(&scene);
 
     build_main_pl(&scene.pl);
