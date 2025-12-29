@@ -832,7 +832,7 @@ static int fbo_create(void)
 texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_buffer || attachment.depth_texture)
-        return fbo->depth_format;
+        return fbo->depth_config.format;
 
     int target = fbo_attachment_color(attachment);
 
@@ -842,8 +842,8 @@ texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
      * internally correct code shouldn't violate it; otherwise it's better to
      * crash than to be unwittingly stuck with the wrong texture format
      */
-    if (fbo->color_format)
-        return fbo->color_format[target];
+    if (fbo->color_config)
+        return fbo->color_config[target].format;
 
     return TEX_FMT_DEFAULT;
 }
@@ -899,7 +899,7 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
     cerr err = texture_init(&fbo->depth_tex,
                             .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
-                            .format        = fbo->depth_format,
+                            .format        = fbo->depth_config.format,
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_BORDER,
                             .border        = border,
@@ -908,7 +908,7 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
     if (IS_CERR(err))
         return err;
 
-    err = texture_fbo(&fbo->depth_tex, GL_DEPTH_ATTACHMENT, fbo->depth_format,
+    err = texture_fbo(&fbo->depth_tex, GL_DEPTH_ATTACHMENT, fbo->depth_config.format,
                       fbo->width, fbo->height);
     if (IS_CERR(err))
         return err;
@@ -956,7 +956,7 @@ texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
         return TEX_FMT_MAX;
     }
 
-    return fbo->color_format[fbo_attachment_color(attachment)];
+    return fbo->color_config[fbo_attachment_color(attachment)].format;
 }
 
 int fbo_width(fbo_t *fbo)
@@ -1014,7 +1014,7 @@ static cres(int) fbo_color_buffer(fbo_t *fbo, fbo_attachment attachment)
 
 static void __fbo_depth_buffer_setup(fbo_t *fbo)
 {
-    GLenum gl_internal_format = gl_texture_internal_format(fbo->depth_format);
+    GLenum gl_internal_format = gl_texture_internal_format(fbo->depth_config.format);
     if (fbo_is_multisampled(fbo))
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples,
                                             gl_internal_format, fbo->width, fbo->height));
@@ -1093,6 +1093,8 @@ static void fbo_invalidate(fbo_t *fbo)
     GLenum attachments[FBO_COLOR_ATTACHMENTS_MAX];
     size_t nr_attachments = 0;
     fa_for_each(fa, fbo->attachment_config, texture) {
+        if (fbo->color_config[nr_attachments].store_action != FBOSTORE_DONTCARE)
+            continue;
         attachments[nr_attachments++] = GL_COLOR_ATTACHMENT0 + fa_nr_color_texture(fa) - 1;
     }
     GL(glInvalidateFrameBuffer(GL_DRAW_FRAMEBUFFER, nr_attachments, attachments));
@@ -1100,6 +1102,45 @@ static void fbo_invalidate(fbo_t *fbo)
 #else
 static inline void fbo_invalidate(fbo_t *fbo) {}
 #endif /* CONFIG_GLES */
+
+static GLenum gl_depth_func(depth_func fn)
+{
+    switch (fn) {
+        case DEPTH_FN_NEVER:
+            return GL_NEVER;
+        case DEPTH_FN_LESS:
+            return GL_LESS;
+        case DEPTH_FN_EQUAL:
+            return GL_EQUAL;
+        case DEPTH_FN_LESS_OR_EQUAL:
+            return GL_LEQUAL;
+        case DEPTH_FN_GREATER:
+            return GL_GREATER;
+        case DEPTH_FN_NOT_EQUAL:
+            return GL_NOTEQUAL;
+        case DEPTH_FN_GREATER_OR_EQUAL:
+            return GL_GEQUAL;
+        case DEPTH_FN_ALWAYS:
+            return GL_ALWAYS;
+        default:    break;
+    }
+
+    clap_unreachable();
+
+    return GL_NONE;
+}
+
+static void renderer_depth_test(renderer_t *r, bool enable)
+{
+    if (r->depth_test == enable)
+        return;
+
+    r->depth_test = enable;
+    if (enable)
+        GL(glEnable(GL_DEPTH_TEST));
+    else
+        GL(glDisable(GL_DEPTH_TEST));
+}
 
 #define NR_TARGETS FBO_COLOR_ATTACHMENTS_MAX
 void fbo_prepare(fbo_t *fbo)
@@ -1125,6 +1166,23 @@ void fbo_prepare(fbo_t *fbo)
     }
 
     GL(glDrawBuffers(target, buffers));
+
+    bool depth_test = false;
+    for (int i = 0; i < target; i++)
+        if (fbo->color_config[i].load_action == FBOLOAD_CLEAR)
+            GL(glClearBufferfv(GL_COLOR, i, fbo->color_config[i].clear_color));
+
+    if (fbo->layout.depth_buffers || fbo->layout.depth_textures) {
+        if (fbo->depth_config.load_action == FBOLOAD_CLEAR) {
+            float clear_depth = fbo->depth_config.clear_depth;
+            GL(glClearBufferfv(GL_DEPTH, 0, &clear_depth));
+        }
+
+        GL(glDepthFunc(gl_depth_func(fbo->depth_config.depth_func)));
+        if (fbo->depth_config.depth_func != DEPTH_FN_ALWAYS)    depth_test = true;
+    }
+
+    renderer_depth_test(fbo->renderer, depth_test);
 }
 
 void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
@@ -1189,7 +1247,7 @@ static void fbo_drop(struct ref *ref)
     fa_for_each(fa, fbo->layout, buffer)
         glDeleteRenderbuffers(1, (const GLuint *)&fbo->color_buf[fbo_attachment_color(fa)]);
 
-    mem_free(fbo->color_format);
+    mem_free(fbo->color_config);
 
    if (texture_loaded(&fbo->depth_tex))
         texture_deinit(&fbo->depth_tex);
@@ -1271,20 +1329,21 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     if (!fbo)
         return cresp_error(fbo_t, CERR_NOMEM);
 
+    fbo->renderer     = opts->renderer;
     fbo->width        = opts->width;
     fbo->height       = opts->height;
     fbo->layers       = opts->layers;
-    fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
+    fbo->depth_config = opts->depth_config;
     fbo->layout       = opts->layout;
     /* for compatibility */
     if (!fbo->layout.mask)
         fbo->layout.color_texture0 = 1;
 
-    int nr_color_formats = fa_nr_color_buffer(fbo->layout) ? :
+    int nr_color_configs = fa_nr_color_buffer(fbo->layout) ? :
                            fa_nr_color_texture(fbo->layout);
 
-    size_t size = nr_color_formats * sizeof(texture_format);
-    fbo->color_format = memdup(opts->color_format ? : (texture_format[]){ TEX_FMT_DEFAULT }, size);
+    size_t size = nr_color_configs * sizeof(fbo_attconfig);
+    fbo->color_config = memdup(opts->color_config ? : &(fbo_attconfig){ .format = TEX_FMT_DEFAULT }, size);
 
 #ifdef CONFIG_GLES
     fbo->nr_samples = 0;
@@ -1699,9 +1758,6 @@ void _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
     GL(glDisable(GL_BLEND));
     renderer_blend(renderer, false, BLEND_NONE, BLEND_NONE);
     GL(glEnable(GL_DEPTH_TEST));
-    renderer_depth_test(renderer, true);
-    renderer_depth_func(renderer, DEPTH_FN_LESS);
-    renderer_cleardepth(renderer, 1.0);
 #ifndef EGL_EGL_PROTOTYPES
     GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
 #endif /* EGL_EGL_PROTOTYPES */
@@ -1732,15 +1788,15 @@ void _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
         _fbo_texture_supported[i] = true;
 
         if (gl_texture_format(i) == GL_DEPTH_COMPONENT) {
-            res = fbo_new(.width = 1, .height = 1, .depth_format = i,
+            res = fbo_new(.width = 1, .height = 1, .depth_config.format = i,
                           .layout = FBO_DEPTH_TEXTURE(0));
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
             else
                 fbo_put(res.val);
         } else {
-            res = fbo_new(.width = 1, .height = 1,
-                          .color_format = (texture_format *)&i);
+            res = fbo_new(.width = 1, .height = 1, .layout = FBO_COLOR_TEXTURE(0),
+                          .color_config = (fbo_attconfig[]){ { .format = i } });
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
             else
@@ -1931,18 +1987,6 @@ void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
     GL(glBlendFunc(r->blend_sfactor, r->blend_dfactor));
 }
 
-void renderer_depth_test(renderer_t *r, bool enable)
-{
-    if (r->depth_test == enable)
-        return;
-
-    r->depth_test = enable;
-    if (enable)
-        GL(glEnable(GL_DEPTH_TEST));
-    else
-        GL(glDisable(GL_DEPTH_TEST));
-}
-
 void renderer_wireframe(renderer_t *r, bool enable)
 {
     if (r->wireframe == enable)
@@ -2012,34 +2056,7 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, da
         GL(glFlush());
 }
 
-static GLenum gl_depth_func(depth_func fn)
-{
-    switch (fn) {
-        case DEPTH_FN_NEVER:
-            return GL_NEVER;
-        case DEPTH_FN_LESS:
-            return GL_LESS;
-        case DEPTH_FN_EQUAL:
-            return GL_EQUAL;
-        case DEPTH_FN_LESS_OR_EQUAL:
-            return GL_LEQUAL;
-        case DEPTH_FN_GREATER:
-            return GL_GREATER;
-        case DEPTH_FN_NOT_EQUAL:
-            return GL_NOTEQUAL;
-        case DEPTH_FN_GREATER_OR_EQUAL:
-            return GL_GEQUAL;
-        case DEPTH_FN_ALWAYS:
-            return GL_ALWAYS;
-        default:    break;
-    }
-
-    clap_unreachable();
-
-    return GL_NONE;
-}
-
-void renderer_depth_func(renderer_t *r, depth_func fn)
+static void renderer_depth_func(renderer_t *r, depth_func fn)
 {
     GLenum _fn = gl_depth_func(fn);
 
@@ -2050,7 +2067,7 @@ void renderer_depth_func(renderer_t *r, depth_func fn)
     GL(glDepthFunc(r->depth_func));
 }
 
-void renderer_cleardepth(renderer_t *r, double depth)
+static void renderer_cleardepth(renderer_t *r, double depth)
 {
     if (r->clear_depth == depth)
         return;
@@ -2072,7 +2089,7 @@ void renderer_clearcolor(renderer_t *r, vec4 color)
     GL(glClearColor(color[0], color[1], color[2], color[3]));
 }
 
-void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
+static void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
 {
     GLbitfield flags = 0;
 
@@ -2084,4 +2101,14 @@ void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
         flags |= GL_STENCIL_BUFFER_BIT;
 
     GL(glClear(flags));
+}
+
+void renderer_swapchain_begin(renderer_t *renderer)
+{
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+    GL(glViewport(0, 0, renderer->width, renderer->height));
+    renderer_cleardepth(renderer, 0.0);
+    renderer_clear(renderer, false, true, false);
+    renderer_depth_func(renderer, DEPTH_FN_ALWAYS);
+    renderer_depth_test(renderer, false);
 }

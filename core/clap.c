@@ -457,7 +457,6 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(callback, updates);
 
-    renderer_swapchain_begin(&ctx->renderer);
     models_render(ui->renderer, &ui->mq);
 
     PROF_STEP(ui_render, callback);
@@ -470,8 +469,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     imgui_render();
     renderer_swapchain_end(&ctx->renderer);
-    display_swap_buffers();
     renderer_frame_end(&ctx->renderer);
+    display_swap_buffers();
 
     mem_frame_end();
 }

@@ -562,6 +562,12 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
             .width      = fbo_ui.width,
             .height     = fbo_ui.height,
             .layout     = FBO_COLOR_TEXTURE(0),
+            .color_config = (fbo_attconfig[]) {
+                {
+                    .format         = TEX_FMT_RGBA8,
+                    .load_action    = FBOLOAD_CLEAR,
+                }
+            },
         ),
         return NULL
     );
