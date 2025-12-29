@@ -201,11 +201,10 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             .width               = width,
             .height              = height,
             .layers              = cfg->layers,
-            .color_format        = cfg->color_format,
-            .depth_format        = cfg->depth_format,
+            .color_config        = cfg->color_config,
+            .depth_config        = cfg->depth_config,
             .multisampled        = cfg->multisampled,
             .layout              = cfg->layout,
-            .load_clear          = !cfg->shader
         ),
         { err = cerr_error_cres(__resp); goto err_source; }
     );
@@ -241,7 +240,11 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
                         .height               = fbo_height(src_pass->fbo),
                         .layout               = FBO_DEPTH_TEXTURE(0),
                         .multisampled         = fbo_is_multisampled(pass->fbo),
-                        .depth_format         = fbo_texture_format(src_pass->fbo, rsrc->attachment)
+                        .depth_config         = {
+                            .format           = fbo_texture_format(src_pass->fbo, rsrc->attachment),
+                            .load_action      = FBOLOAD_DONTCARE,
+                            .depth_func       = DEPTH_FN_NEVER
+                        }
                     ),
                     { err = cerr_error_cres(__resp); goto err_use_tex; }
                 );
@@ -256,8 +259,11 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
                         .height               = fbo_height(src_pass->fbo),
                         .multisampled         = fbo_is_multisampled(pass->fbo),
                         .layout               = FBO_COLOR_TEXTURE(0),
-                        .color_format         = (texture_format[]) {
-                            fbo_texture_format(src_pass->fbo, rsrc->attachment)
+                        .color_config         = (fbo_attconfig[]) {
+                            {
+                                .format       = fbo_texture_format(src_pass->fbo, rsrc->attachment),
+                                .load_action  = FBOLOAD_DONTCARE
+                            }
                         }
                     ),
                     { err = cerr_error_cres(__resp); goto err_use_tex; }
