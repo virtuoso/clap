@@ -291,6 +291,8 @@ static cerr lut_setup(lut *lut, uchar *arr, int side)
         return CERR_TEXTURE_NOT_LOADED
     );
 
+    texture_set_name(&lut->tex, "lut:%s", lut->name);
+
     return CERR_OK;
 }
 

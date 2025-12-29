@@ -414,12 +414,8 @@ mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, textur
         desc.colorAttachments[i].writeMask       = MTLColorWriteMaskAll;
         desc.colorAttachments[i].blendingEnabled = use_blending;
         if (use_blending) {
-            desc.colorAttachments[i].alphaBlendOperation    = MTLBlendOperationAdd;//MTLBlendOperationAdd;
-            desc.colorAttachments[i].rgbBlendOperation      = MTLBlendOperationAdd;//MTLBlendOperationMax;
-            // desc.colorAttachments[i].sourceAlphaBlendFactor = MTLBlendFactorOne;
-            // desc.colorAttachments[i].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-            // desc.colorAttachments[i].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-            // desc.colorAttachments[i].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+            desc.colorAttachments[i].alphaBlendOperation    = MTLBlendOperationAdd;
+            desc.colorAttachments[i].rgbBlendOperation      = MTLBlendOperationAdd;
             desc.colorAttachments[i].sourceAlphaBlendFactor      = MTLBlendFactorOne;
             desc.colorAttachments[i].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
             desc.colorAttachments[i].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
@@ -468,14 +464,15 @@ static MTLCompareFunction mtl_compare_function(depth_func func)
 cres_ret(mtl_depth_stencil_state_t);
 
 static cres(mtl_depth_stencil_state_t)
-mtl_depth_stencil_new(renderer_t *r)
+mtl_depth_stencil_new(fbo_t *fbo)
 {
     auto desc = [[MTLDepthStencilDescriptor alloc] init];
     if (!desc)  return cres_error(mtl_depth_stencil_state_t, CERR_NOMEM);
 
-    desc.depthCompareFunction = mtl_compare_function(r->depth_func);
+    desc.depthCompareFunction = mtl_compare_function(fbo->depth_config.depth_func);
     desc.depthWriteEnabled = YES;
 
+    auto r = fbo->renderer;
     auto ds = [r->device newDepthStencilStateWithDescriptor:desc];
     [desc release];
 
@@ -496,23 +493,23 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
         // mtl_render_pipeline_reflection_t reflection;
         auto fbo = opts->fbo;
         if (fbo) {
-            texture_format color_formats[FBO_COLOR_ATTACHMENTS_MAX], depth_format = fbo->depth_format;
+            texture_format color_formats[FBO_COLOR_ATTACHMENTS_MAX], depth_format = fbo->depth_config.format;
             fbo_attachment fa;
             size_t i = 0;
 
             fa_for_each(fa, fbo->layout, texture) {
-                color_formats[i] = fbo->color_format[fa_nr_color_texture(fa) - 1];
+                color_formats[i] = fbo->color_config[fa_nr_color_texture(fa) - 1].format;
                 i++;
             }
 
             bool use_depth = fbo->layout.depth_texture;
             dc->pipeline[pl] = CRES_RET_CERR(
                 mtl_pipeline_new(
-                    dc->renderer, opts->shader, color_formats, fbo->depth_format, i, use_depth, !!pl, NULL//&reflection
+                    dc->renderer, opts->shader, color_formats, depth_format, i, use_depth, !!pl, NULL//&reflection
                 )
             );
 
-            if (use_depth)  dc->depth_stencil = CRES_RET_CERR(mtl_depth_stencil_new(dc->renderer));
+            if (use_depth)  dc->depth_stencil = CRES_RET_CERR(mtl_depth_stencil_new(fbo));
         } else {
             texture_format color_format = mtl_texture_format_from_pixel_format(dc->renderer->layer.pixelFormat);
             dc->pipeline[pl] = CRES_RET_CERR(
@@ -729,9 +726,10 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
 #ifndef CONFIG_FINAL
 cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
 {
+    mem_free(tex->name);
+
     va_list ap;
 
-    mem_free(tex->name);
     va_start(ap, fmt);
     cres(int) res = mem_vasprintf(&tex->name, fmt, ap);
     va_end(ap);
@@ -782,6 +780,8 @@ void texture_deinit(texture_t *tex)
 
     if (tex->texture)   [tex->texture release];
     tex->loaded = false;
+    mem_free(tex->name);
+    tex->name = NULL;
 }
 
 cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
@@ -902,13 +902,12 @@ cerr_check texture_load(texture_t *tex, texture_format format,
                     }
         }
 
-        for (int layer = 0; layer < tex->layers; layer++)
-            [tex->texture replaceRegion:region
-                mipmapLevel:0
-                slice:layer
-                withBytes:dest_buf ? : buf
-                bytesPerRow:bytes_per_row
-                bytesPerImage:bytes_per_layer];
+        [tex->texture replaceRegion:region
+            mipmapLevel:0
+            slice:0
+            withBytes:dest_buf ? : buf
+            bytesPerRow:bytes_per_row
+            bytesPerImage:bytes_per_layer];
     }
 
     tex->loaded = true;
@@ -1038,7 +1037,7 @@ bool fbo_texture_supported(texture_format format)
 texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_texture)
-        return fbo->depth_format;
+        return fbo->depth_config.format;
 
     int target = fbo_attachment_color(attachment);
 
@@ -1048,8 +1047,8 @@ texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
      * internally correct code shouldn't violate it; otherwise it's better to
      * crash than to be unwittingly stuck with the wrong texture format
      */
-    if (fbo->color_format)
-        return fbo->color_format[target];
+    if (fbo->color_config)
+        return fbo->color_config[target].format;
 
     return TEX_FMT_DEFAULT;
 }
@@ -1067,6 +1066,8 @@ bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
     return false;
 }
 
+// XXX: unused
+// XXX: exactly the same as fbo_texture_format plus validation
 texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (!fbo_attachment_valid(fbo, attachment)) {
@@ -1075,9 +1076,9 @@ texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
     }
 
     if (attachment.depth_texture && fbo->layout.depth_texture)
-        return fbo->depth_format;
+        return fbo->depth_config.format;
 
-    return fbo->color_format[fbo_attachment_color(attachment)];
+    return fbo->color_config[fbo_attachment_color(attachment)].format;
 }
 
 /* XXX: common */
@@ -1128,7 +1129,7 @@ static void fbo_drop(struct ref *ref)
 
     dc_hash_fbo_drop(fbo->renderer, fbo);
     bitmap_clear(&fbo->renderer->fbo_ids, fbo->id);
-    mem_free(fbo->color_format);
+    mem_free(fbo->color_config);
 }
 DEFINE_REFCLASS(fbo);
 DECLARE_REFCLASS(fbo);
@@ -1150,14 +1151,13 @@ static void mtl_cmd_buffer(renderer_t *r)
     if (!r->cmd_buffer) {
         r->cmd_buffer = [r->cmd_queue commandBuffer];
         [r->cmd_buffer enqueue];
+
+        [r->cmd_buffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
+            if (cb.error)
+                err("MTL error (%s): %s\n", [[cb.label localizedLowercaseString] UTF8String], [[cb.error localizedDescription] UTF8String]);
+            // dispatch_semaphore_signal();
+        }];
     }
-
-    [r->cmd_buffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
-        if (cb.error)
-            err("MTL error (%s): %s\n", [[cb.label localizedLowercaseString] UTF8String], [[cb.error localizedDescription] UTF8String]);
-        // dispatch_semaphore_signal();
-    }];
-
 }
 
 void fbo_prepare(fbo_t *fbo)
@@ -1210,6 +1210,34 @@ bool fbo_is_multisampled(fbo_t *fbo)
     return fbo->nr_samples > 1;
 }
 
+static MTLLoadAction mtl_load_action(fbo_load_action action)
+{
+    switch (action) {
+        case FBOLOAD_LOAD:      return MTLLoadActionLoad;
+        case FBOLOAD_CLEAR:     return MTLLoadActionClear;
+        case FBOLOAD_DONTCARE:  return MTLLoadActionDontCare;
+        default:                break;
+    }
+
+    clap_unreachable();
+
+    return MTLLoadActionDontCare;
+}
+
+static MTLStoreAction mtl_store_action(fbo_store_action action, bool ms)
+{
+    switch (action) {
+        case FBOSTORE_STORE:     return ms ? MTLStoreActionStoreAndMultisampleResolve : MTLStoreActionStore;
+        case FBOSTORE_MS_RESOLVE:return MTLStoreActionMultisampleResolve;
+        case FBOSTORE_DONTCARE:  return MTLStoreActionDontCare;
+        default:                break;
+    }
+
+    clap_unreachable();
+
+    return MTLStoreActionDontCare;
+}
+
 static cerr fbo_depth_texture_init(fbo_t *fbo)
 {
     float border[4] = {};
@@ -1220,7 +1248,7 @@ static cerr fbo_depth_texture_init(fbo_t *fbo)
             .renderer       = fbo->renderer,
             .type           = fbo->layers > 1 ? TEX_2D_ARRAY : TEX_2D,
             .layers         = fbo->layers,
-            .format         = fbo->depth_format,
+            .format         = fbo->depth_config.format,
             .multisampled   = fbo_is_multisampled(fbo),
             .render_target  = true,
             .wrap           = TEX_CLAMP_TO_BORDER,
@@ -1232,12 +1260,13 @@ static cerr fbo_depth_texture_init(fbo_t *fbo)
 
     texture_set_name(&fbo->depth_tex, "%s:depth", fbo->name);
 
-    CERR_RET_CERR(texture_load(&fbo->depth_tex, fbo->depth_format, fbo->width, fbo->height, NULL));
+    CERR_RET_CERR(texture_load(&fbo->depth_tex, fbo->depth_config.format, fbo->width, fbo->height, NULL));
 
+    // bool do_clear_depth = fbo->load_clear || fbo->renderer->do_clear_depth;
     fbo->desc.depthAttachment.texture = fbo->depth_tex.texture;
-    fbo->desc.depthAttachment.loadAction = MTLLoadActionClear;
-    fbo->desc.depthAttachment.storeAction = MTLStoreActionStore;
-    fbo->desc.depthAttachment.clearDepth = fbo->renderer->clear_depth;
+    fbo->desc.depthAttachment.loadAction = mtl_load_action(fbo->depth_config.load_action);
+    fbo->desc.depthAttachment.storeAction = mtl_store_action(fbo->depth_config.store_action, fbo_is_multisampled(fbo));
+    fbo->desc.depthAttachment.clearDepth = fbo->depth_config.clear_depth;
 
     return CERR_OK;
 }
@@ -1273,10 +1302,13 @@ static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment attachment)
 
         auto i = fa_nr_color_texture(fa) - 1;
         fbo->desc.colorAttachments[i].texture = fbo->color_tex[i].texture;
-        fbo->desc.colorAttachments[i].loadAction = fbo->load_clear ? MTLLoadActionClear : MTLLoadActionDontCare;
-        fbo->desc.colorAttachments[i].storeAction = MTLStoreActionStore;
+        fbo->desc.colorAttachments[i].loadAction = mtl_load_action(fbo->color_config[i].load_action);
+        fbo->desc.colorAttachments[i].storeAction = mtl_store_action(fbo->color_config[i].store_action, fbo_is_multisampled(fbo));
         fbo->desc.colorAttachments[i].clearColor = MTLClearColorMake(
-            r->clear_color[0], r->clear_color[1], r->clear_color[2], r->clear_color[3]
+            fbo->color_config[i].clear_color[0],
+            fbo->color_config[i].clear_color[1],
+            fbo->color_config[i].clear_color[2],
+            fbo->color_config[i].clear_color[3]
         );
     }
 
@@ -1299,22 +1331,21 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     fbo->width        = opts->width;
     fbo->height       = opts->height;
     fbo->layers       = opts->layers ? : 1;
-    fbo->depth_format = opts->depth_format ? : TEX_FMT_DEPTH32F;
+    fbo->depth_config = opts->depth_config;
     fbo->nr_samples   = opts->nr_samples ? : 1;
     fbo->layout       = opts->layout;
-    fbo->load_clear   = opts->load_clear;
     fbo->name         = opts->name ? : "<unset>";
     /* for compatibility */
     if (!fbo->layout.mask)
         fbo->layout.color_texture0 = 1;
 
-    int nr_color_formats = fa_nr_color_buffer(fbo->layout) ? :
+    int nr_color_configs = fa_nr_color_buffer(fbo->layout) ? :
                            fa_nr_color_texture(fbo->layout);
 
     fbo->id = CRES_RET(bitmap_find_first_unset(&fbo->renderer->fbo_ids), return cresp_error_cerr(fbo_t, __resp));
     bitmap_set(&fbo->renderer->fbo_ids, fbo->id);
-    size_t size = nr_color_formats * sizeof(texture_format);
-    fbo->color_format = memdup(opts->color_format ? : (texture_format[]){ TEX_FMT_DEFAULT }, size);
+    size_t size = nr_color_configs * sizeof(fbo_attconfig);
+    fbo->color_config = memdup(opts->color_config ? : &(fbo_attconfig){ .format = TEX_FMT_DEFAULT }, size);
 
     fbo->desc = [[MTLRenderPassDescriptor alloc] init];
     if (!fbo->desc) return cresp_error(fbo_t, CERR_NOMEM);
@@ -1593,7 +1624,7 @@ void shader_use(shader_t *shader, bool draw)
     auto dc = dc_hash_find_get(r, fbo, shader);
     if (!dc)    return;
 
-    if (!r->fbo)    fbo_prepare(r->screen_fbo);
+    // if (!r->fbo)    fbo_prepare(r->screen_fbo);
 
     draw_control_bind(dc);
 }
@@ -1604,7 +1635,7 @@ void shader_unuse(shader_t *shader, bool draw)
 
     auto r = shader->renderer;
     if (r->dc)  draw_control_unbind(r->dc);
-    if (r->fbo && r->fbo == r->screen_fbo)  fbo_done(r->fbo, r->width, r->height);
+    // if (r->fbo && r->fbo == r->screen_fbo)  fbo_done(r->fbo, r->width, r->height);
 }
 
 void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value)
@@ -1614,6 +1645,9 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
 /****************************************************************************
  * Renderer context
  ****************************************************************************/
+
+static inline mtl_cull_mode_t from_mtl_cull_mode(MTLCullMode mtl_cull_mode) { return (mtl_cull_mode_t)mtl_cull_mode; }
+static inline MTLCullMode to_mtl_cull_mode(mtl_cull_mode_t cull_mode) { return (MTLCullMode)cull_mode; }
 
 void _renderer_init(renderer_t *r, const renderer_init_options *opts)
 {
@@ -1691,7 +1725,7 @@ void renderer_frame_begin(renderer_t *r)
 void renderer_swapchain_begin(renderer_t *r)
 {
     // if (r->fbo) return; // XXX
-    // fbo_prepare(r->screen_fbo);
+    fbo_prepare(r->screen_fbo);
 }
 
 void renderer_swapchain_end(renderer_t *r)
@@ -1703,6 +1737,7 @@ void renderer_swapchain_end(renderer_t *r)
 void renderer_frame_end(renderer_t *r)
 {
     // fbo_done(r->screen_fbo, r->width, r->height);
+    if (r->fbo) fbo_done(r->fbo, r->width, r->height);
 
     [r->cmd_buffer presentDrawable:r->drawable];
     [r->cmd_buffer commit];
@@ -1787,9 +1822,9 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
 void renderer_cull_face(renderer_t *r, cull_face cull)
 {
     switch (cull) {
-        case CULL_FACE_NONE:    r->cull_mode = MTLCullModeNone;
-        case CULL_FACE_FRONT:   r->cull_mode = MTLCullModeFront;
-        case CULL_FACE_BACK:    r->cull_mode = MTLCullModeBack;
+        case CULL_FACE_NONE:    r->cull_mode = from_mtl_cull_mode(MTLCullModeNone);
+        case CULL_FACE_FRONT:   r->cull_mode = from_mtl_cull_mode(MTLCullModeFront);
+        case CULL_FACE_BACK:    r->cull_mode = from_mtl_cull_mode(MTLCullModeBack);
         default:                return;
     }
 }
@@ -1799,13 +1834,13 @@ void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
     r->blend = _blend;
 }
 
-void renderer_depth_test(renderer_t *r, bool enable)
-{
-    if (r->depth_test == enable)
-        return;
+// void renderer_depth_test(renderer_t *r, bool enable)
+// {
+//     if (r->depth_test == enable)
+//         return;
 
-    r->depth_test = enable;
-}
+//     r->depth_test = enable;
+// }
 
 void renderer_wireframe(renderer_t *r, bool enable)
 {
@@ -1857,7 +1892,7 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
     unsigned int _idx_type = mtl_idx_type(idx_type);
 
     // [r->cmd_encoder setRenderPipelineState:r->dc->pipeline];
-    [cmd_encoder(r) setCullMode:r->cull_mode];
+    [cmd_encoder(r) setCullMode:to_mtl_cull_mode(r->cull_mode)];
     [cmd_encoder(r) setFrontFacingWinding:MTLWindingCounterClockwise];
     [cmd_encoder(r) drawIndexedPrimitives:_draw_type
                     indexCount:_idx_count
@@ -1867,24 +1902,24 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                     instanceCount:nr_instances];
 }
 
-void renderer_depth_func(renderer_t *r, depth_func fn)
-{
-    r->depth_func = fn;
-}
+// void renderer_depth_func(renderer_t *r, depth_func fn)
+// {
+//     r->depth_func = fn;
+// }
 
-void renderer_cleardepth(renderer_t *r, double depth)
-{
-    r->clear_depth = depth;
-}
+// void renderer_cleardepth(renderer_t *r, double depth)
+// {
+//     r->clear_depth = depth;
+// }
 
-void renderer_clearcolor(renderer_t *r, vec4 color)
-{
-    if (!memcmp(r->clear_color, color, sizeof(vec4)))
-        return;
+// void renderer_clearcolor(renderer_t *r, vec4 color)
+// {
+//     if (!memcmp(r->clear_color, color, sizeof(vec4)))
+//         return;
 
-    vec4_dup(r->clear_color, color);
-}
+//     vec4_dup(r->clear_color, color);
+// }
 
-void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
-{
-}
+// void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
+// {
+// }

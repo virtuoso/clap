@@ -45,9 +45,6 @@ static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, 
 
 static void shadow_prepare(render_pass_ops_params *params)
 {
-    renderer_cleardepth(params->renderer, 0.0);
-    renderer_depth_func(params->renderer, DEPTH_FN_GREATER);
-    renderer_clear(params->renderer, false, true, false);
     auto cascade = params->cascade;
     if (cascade >= 0) {
         params->near_plane = params->light->view[0].subview[cascade].near_plane;
@@ -64,28 +61,6 @@ static const render_pass_ops shadow_ops = {
     .prepare    = shadow_prepare,
 };
 
-static void shadow_vsm_prepare(render_pass_ops_params *params)
-{
-    /*
-     * VSM needs the depth values to not be reversed, so that gl_FragCoords.z
-     * that gets written into shadow maps does not require additional reversal
-     * in sampling and to avoid potential precision issues.
-     *
-     * Unlike the "regular" CSM shadow pass, it also uses a color attachment
-     * for its output, which needs to be cleared.qs
-     */
-    renderer_cleardepth(params->renderer, 1.0);
-    renderer_depth_func(params->renderer, DEPTH_FN_LESS);
-    renderer_clearcolor(params->renderer, (vec4){ -1, -1, -1, 1 });
-    renderer_clear(params->renderer, true, true, false);
-    params->camera = NULL;
-}
-
-static const render_pass_ops shadow_vsm_ops = {
-    .resize     = shadow_resize,
-    .prepare    = shadow_vsm_prepare,
-};
-
 /****************************************************************************
  * model render pass operations
  ****************************************************************************/
@@ -97,10 +72,6 @@ static bool model_resize(render_pass_ops_params *params, unsigned int *pwidth, u
 
 static void model_prepare(render_pass_ops_params *params)
 {
-    renderer_cleardepth(params->renderer, 1.0);
-    renderer_depth_func(params->renderer, DEPTH_FN_LESS);
-    renderer_clearcolor(params->renderer, (vec4){ 0, 0, 0, 1 });
-    renderer_clear(params->renderer, true, true, false);
 }
 
 static const render_pass_ops model_ops = {
@@ -182,7 +153,7 @@ static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, text
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { format },
+            .color_config       = (fbo_attconfig[]) { { .format = format, .load_action = FBOLOAD_DONTCARE } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .scale              = scale,
@@ -201,7 +172,7 @@ static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, text
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { format },
+            .color_config       = (fbo_attconfig[]) { { .format = format, .load_action = FBOLOAD_DONTCARE } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .scale              = scale,
@@ -280,10 +251,24 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         shadow_pass[i] = CRES_RET_T(
             pipeline_add_pass(pl,
                 .source               = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
-                .ops                  = vsm ? &shadow_vsm_ops : &shadow_ops,
+                .ops                  = &shadow_ops,
                 .multisampled         = ropts->shadow_msaa,
                 .layout               = vsm ? FBO_COLOR_DEPTH_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
-                .color_format         = (texture_format[]) { TEX_FMT_RG32F },
+                .color_config         = (fbo_attconfig[]) {
+                    {
+                        .format         = TEX_FMT_RG32F,
+                        .load_action    = FBOLOAD_CLEAR,
+                        .clear_color    = { -1, -1, -1, 1 },
+                    }
+                },
+                .depth_config         = {
+                    /* regular shadow maps use 1/z depth; VSM use regular depth */
+                    .format           = TEX_FMT_DEPTH32F,
+                    .load_action      = FBOLOAD_CLEAR,
+                    .store_action     = vsm ? FBOSTORE_DONTCARE : FBOSTORE_STORE,
+                    .clear_depth      = vsm ? 1.0 : 0.0,
+                    .depth_func       = vsm ? DEPTH_FN_LESS : DEPTH_FN_GREATER,
+                },
                 .cascade              = i,
                 .shader_override      = vsm ? "shadow_vsm" : "shadow"
             ),
@@ -298,9 +283,23 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     shadow_pass[0] = CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]){ { .mq = opts->mq, .method = RM_RENDER, }, {} },
-            .ops                = vsm ? &shadow_vsm_ops : &shadow_ops,
+            .ops                = &shadow_ops,
             .multisampled       = ropts->shadow_msaa,
-            .color_format       = (texture_format[]) { TEX_FMT_RG32F },
+            .color_config         = (fbo_attconfig[]) {
+                {
+                    .format         = TEX_FMT_RG32F,
+                    .load_action    = FBOLOAD_CLEAR,
+                    .clear_color    = { -1, -1, -1, 1 },
+                }
+            },
+            .depth_config         = {
+                /* regular shadow maps use 1/z depth; VSM use regular depth */
+                .format           = TEX_FMT_DEPTH32F,
+                .load_action      = FBOLOAD_CLEAR,
+                .store_action     = vsm ? FBOSTORE_DONTCARE : FBOSTORE_STORE,
+                .clear_depth      = vsm ? 1.0 : 0.0,
+                .depth_func       = vsm ? DEPTH_FN_LESS : DEPTH_FN_GREATER,
+            },
             .layout             = vsm ? FBO_COLOR_DEPTH_TEXTURE(0) : FBO_DEPTH_TEXTURE(0),
             .layers             = CASCADES_MAX,
             .cascade            = -1,
@@ -360,16 +359,51 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .layout             = FBO_COLOR_DEPTH_TEXTURE(6),
             .name               = "model",
             .cascade            = -1,
-            .color_format       = (texture_format[]) {
-                                    /* FragColor */     hdr_fmt,
-                                    /* EmissiveColor */ hdr_fmt,
-                                    /* EdgeNormal */    TEX_FMT_RGBA8,
-                                    /* EdgeDepthMask */ TEX_FMT_R32F,
-                                    /* ViewPosition */  hdr_fmt,
-                                    /* Normal */        TEX_FMT_RGBA8,
-                                    /* VSMDebug */      TEX_FMT_R32F,
-                                },
-            .depth_format       = TEX_FMT_DEPTH32F
+            .color_config       = (fbo_attconfig[]) {
+                {
+                    /* FragColor */
+                    .format         = hdr_fmt,
+                    .load_action    = FBOLOAD_CLEAR,
+                    .clear_color    = { 0.0f, 0.0f, 0.0f, 1.0f }
+                },
+                {
+                    /* EmissiveColor */
+                    .format         = hdr_fmt,
+                    .load_action    = FBOLOAD_CLEAR,
+                    .clear_color    = { 0.0f, 0.0f, 0.0f, 1.0f }
+                },
+                {
+                    /* EdgeNormal */
+                    .format         = TEX_FMT_RGBA8,
+                    .load_action    = FBOLOAD_CLEAR,
+                },
+                {
+                    /* EdgeDepthMask */
+                    .format         = TEX_FMT_R32F,
+                    .load_action    = FBOLOAD_CLEAR,
+                },
+                {
+                    /* ViewPosition */
+                    .format         = hdr_fmt,
+                    .load_action    = FBOLOAD_CLEAR,
+                },
+                {
+                    /* Normal */
+                    .format         = TEX_FMT_RGBA8,
+                    .load_action    = FBOLOAD_CLEAR,
+                },
+                {
+                    /* VSMDebug */
+                    .format         = TEX_FMT_R32F,
+                    .load_action    = FBOLOAD_CLEAR,
+                },
+            },
+            .depth_config       = {
+                .format         = TEX_FMT_DEPTH32F,
+                .load_action    = FBOLOAD_CLEAR,
+                .clear_depth    = 1.0,
+                .depth_func     = DEPTH_FN_LESS,
+            },
         ),
         pipeline
     );
@@ -385,7 +419,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { hdr_fmt },
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .shader             = "downsample",
@@ -406,7 +440,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     //             },
     //             {}
     //         },
-    //         .color_format       = (texture_format[]) { hdr_fmt },
+    //         .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE } },
     //         .layout             = FBO_COLOR_TEXTURE(0),
     //         .ops                = &postproc_ops,
     //         .scale              = 0.25,
@@ -425,7 +459,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     //             },
     //             {}
     //         },
-    //         .color_format       = (texture_format[]) { hdr_fmt },
+    //         .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE } },
     //         .layout             = FBO_COLOR_TEXTURE(0),
     //         .ops                = &postproc_ops,
     //         .scale              = 0.25,
@@ -450,7 +484,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { hdr_fmt },
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .shader             = "upsample",
@@ -474,7 +508,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_R8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .name               = "edge",
@@ -493,7 +527,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .name               = "smaa-weights",
@@ -520,7 +554,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 { .tex  = &ssao_state.noise, .method = RM_PLUG, .sampler = UNIFORM_SOBEL_TEX },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_R8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "ssao",
@@ -540,7 +574,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_R8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "vblur",
@@ -560,7 +594,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_R8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "hblur",
@@ -615,7 +649,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { hdr_fmt },
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "combine",
@@ -640,7 +674,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { hdr_fmt },
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .name               = "smaa-blend",
@@ -662,10 +696,11 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             },
 #ifdef CONFIG_RENDERER_METAL
             // .color_format       = (texture_format[]) { hdr_fmt },
-            .color_format       = (texture_format[]) { TEX_FMT_BGRA10XR },
+            // .color_format       = (texture_format[]) { TEX_FMT_BGRA10XR },
             // .color_format       = (texture_format[]) { TEX_FMT_BGR10A2 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_BGRA10XR, .load_action = FBOLOAD_DONTCARE, } },
 #else
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
 #endif /* !CONFIG_RENDERER_METAL*/
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
@@ -688,7 +723,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .shader             = "downsample",
@@ -707,7 +742,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .scale              = 0.25,
@@ -726,7 +761,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .scale              = 0.25,
@@ -745,7 +780,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
             .shader             = "contrast",

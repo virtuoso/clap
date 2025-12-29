@@ -115,9 +115,11 @@ typedef struct pipeline_pass_config {
      * Array of color formats, one for each of the FBO attachments specified by
      * render_pass::layout
      */
-    texture_format          *color_format;
+    fbo_attconfig           *color_config;
+    // texture_format          *color_format;
     /* Color format for the depth buffer */
-    texture_format          depth_format;
+    fbo_attconfig           depth_config;
+    // texture_format          depth_format;
     /* Make FBO attachment texture an array of [layers] textures */
     unsigned int            layers;
     /* Determines the number and types of attachments of the pass' FBO */
