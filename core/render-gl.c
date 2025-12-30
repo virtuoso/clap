@@ -13,11 +13,13 @@ static inline const char *gluErrorString(int err) { return "not implemented"; }
 #endif
 
 #ifdef CLAP_DEBUG
+static bool validate_gl_calls;
+
 static inline bool __gl_check_error(const char *str)
 {
-    GLenum err;
+    if (!validate_gl_calls) return false;
 
-    err = glGetError();
+    GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
         err("%s: GL error: 0x%04X: %s\n", str ? str : "<>", err, gluErrorString(err));
         abort();
@@ -1947,6 +1949,10 @@ void renderer_debug(renderer_t *r)
         return;
 
     if (dbgm->unfolded) {
+#ifdef CLAP_DEBUG
+        igCheckbox("validate GL calls", &validate_gl_calls);
+#endif /* CLAP_DEBUG */
+
         igSeparatorText("GL limits");
         ui_igTableHeader("renderer", (const char *[]){ "limit", "value"}, 2);
 
