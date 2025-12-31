@@ -86,6 +86,7 @@ enum {
 };
 
 TYPE_FORWARD(buffer);
+TYPE_FORWARD(renderer);
 
 typedef struct buffer_init_options {
     buffer_type         type;
@@ -436,6 +437,7 @@ cresp_ret(fbo_t);
  * so the old users won't need to be converted.
  */
 typedef struct fbo_init_options {
+    renderer_t      *renderer;
     unsigned int    width;
     unsigned int    height;
     unsigned int    layers;

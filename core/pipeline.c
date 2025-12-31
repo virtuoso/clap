@@ -196,6 +196,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
 
     pass->fbo = CRES_RET(
         fbo_new(
+            .renderer            = pl->renderer,
             .width               = width,
             .height              = height,
             .layers              = cfg->layers,
@@ -233,6 +234,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             if (rsrc->attachment.depth_buffer || rsrc->attachment.depth_texture) {
                 pass->blit_fbo[i] = CRES_RET(
                     fbo_new(
+                        .renderer             = pl->renderer,
                         .width                = fbo_width(src_pass->fbo),
                         .height               = fbo_height(src_pass->fbo),
                         .layout               = FBO_DEPTH_TEXTURE(0),
@@ -247,6 +249,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
 
                 pass->blit_fbo[i] = CRES_RET(
                     fbo_new(
+                        .renderer             = pl->renderer,
                         .width                = fbo_width(src_pass->fbo),
                         .height               = fbo_height(src_pass->fbo),
                         .multisampled         = fbo_is_multisampled(pass->fbo),

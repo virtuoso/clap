@@ -554,7 +554,16 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     fbo_ui.width = uit.width + uit.margin_x * 2;
     fbo_ui.height = uit.height + uit.margin_y * 2;
     mq_init(&fbo_ui.mq, &fbo_ui);
-    fbo = CRES_RET(fbo_new(fbo_ui.width, fbo_ui.height), return NULL);
+
+    fbo = CRES_RET(
+        fbo_new(
+            .renderer   = ui->renderer,
+            .width      = fbo_ui.width,
+            .height     = fbo_ui.height,
+            .layout     = FBO_COLOR_TEXTURE(0),
+        ),
+        return NULL
+    );
 
     if (parent) {
         parent->width = uit.width + uit.margin_x * 2;
