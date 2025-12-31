@@ -1953,28 +1953,34 @@ void renderer_debug(renderer_t *r)
         igCheckbox("validate GL calls", &validate_gl_calls);
 #endif /* CLAP_DEBUG */
 
-        igSeparatorText("GL limits");
-        ui_igTableHeader("renderer", (const char *[]){ "limit", "value"}, 2);
+        if (igTreeNode_Str("GL limits")) {
+            ui_igTableHeader("renderer", (const char *[]){ "limit", "value"}, 2);
 
-        for (int i = 0; i < array_size(gl_limits); i++)
-            ui_igTableRow(gl_limit_names[i], "%d", gl_limits[i]);
-        igEndTable();
+            for (int i = 0; i < array_size(gl_limits); i++)
+                ui_igTableRow(gl_limit_names[i], "%d", gl_limits[i]);
+            igEndTable();
+            igTreePop();
+        }
 
-        igSeparatorText("texture color formats");
-        ui_igTableHeader("color formats", (const char *[]){ "format", "supported"}, 2);
+        if (igTreeNode_Str("texture color formats")) {
+            ui_igTableHeader("color formats", (const char *[]){ "format", "supported"}, 2);
 
-        for (int i = 0; i < array_size(_texture_format_supported); i++)
-            ui_igTableRow(texture_format_string[i], "%s",
-                          texture_format_supported(i) ? "supported" : "");
-        igEndTable();
+            for (int i = 0; i < array_size(_texture_format_supported); i++)
+                ui_igTableRow(texture_format_string[i], "%s",
+                              texture_format_supported(i) ? "supported" : "");
+            igEndTable();
+            igTreePop();
+        }
 
-        igSeparatorText("FBO color formats");
-        ui_igTableHeader("color formats", (const char *[]){ "format", "supported"}, 2);
+        if (igTreeNode_Str("FBO color formats")) {
+            ui_igTableHeader("color formats", (const char *[]){ "format", "supported"}, 2);
 
-        for (int i = 0; i < array_size(_texture_format_supported); i++)
-            ui_igTableRow(texture_format_string[i], "%s",
-                          fbo_texture_supported(i) ? "supported" : "");
-        igEndTable();
+            for (int i = 0; i < array_size(_texture_format_supported); i++)
+                ui_igTableRow(texture_format_string[i], "%s",
+                              fbo_texture_supported(i) ? "supported" : "");
+            igEndTable();
+            igTreePop();
+        }
     }
 
     ui_igEnd(DEBUG_RENDERER);
