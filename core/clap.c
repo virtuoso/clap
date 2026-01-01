@@ -545,7 +545,7 @@ static cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned i
 
     for (int i = 0; presets[i] < LUT_MAX; i++) {
         CRES_RET(
-            lut_generate(&ctx->luts, presets[i], side),
+            lut_generate(&ctx->renderer, &ctx->luts, presets[i], side),
             { luts_done(&ctx->luts); return cerr_error_cres(__resp); }
         );
     }
@@ -692,8 +692,6 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     /* XXX: handle initialization errors */
     log_init(ctx, log_flags);
     (void)librarian_init(ctx->cfg.base_url);
-    if (ctx->cfg.font)
-        ctx->font = CRES_RET_T(font_init(ctx->cfg.default_font_name), clap_context);
 
     if (ctx->cfg.sound)
         /*
@@ -714,7 +712,10 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
          */
         CERR_RET_T(display_init(ctx, clap_frame, clap_resize), clap_context);
 
-        textures_init();
+        if (ctx->cfg.font)
+            ctx->font = CRES_RET_T(font_init(&ctx->renderer, ctx->cfg.default_font_name), clap_context);
+
+        textures_init(&ctx->renderer);
         ctx->shaders = CRES_RET_T(shader_vars_init(&ctx->renderer), clap_context);
 
         lut_preset *lut_presets = ctx->cfg.lut_presets;

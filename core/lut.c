@@ -238,6 +238,7 @@ typedef struct lut {
     const char      *name;
     struct list     entry;
     struct ref      ref;
+    renderer_t      *renderer;
     lut_fn          fn;
     float           exposure;
     float           contrast;
@@ -247,11 +248,12 @@ static cerr lut_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(lut) *opts = _opts;
 
-    if (!opts->name || !opts->list || !opts->list->prev || !opts->list->next)
+    if (!opts->renderer || !opts->name || !opts->list || !opts->list->prev || !opts->list->next)
         return CERR_INVALID_ARGUMENTS;
 
     lut *lut = container_of(ref, struct lut, ref);
     lut->name = opts->name;
+    lut->renderer = opts->renderer;
     lut->exposure = 1.0;
     lut->contrast = 0.15;
     lut->fn = __identity;
@@ -273,6 +275,7 @@ static cerr lut_setup(lut *lut, uchar *arr, int side)
     CERR_RET(
         texture_init(
             &lut->tex,
+            .renderer   = lut->renderer,
             .type       = TEX_3D,
             .format     = TEX_FMT_RGB8,
             .layers     = side,
@@ -298,14 +301,22 @@ static inline void arr_set(uchar *arr, int sz, int x, int y, int z, vec3 rgb)
     arr[z * sz * sz * 3 + y * sz * 3 + x * 3 + 2] = (unsigned char)(clampf(rgb[2], 0.0, 1.0) * 255.0);
 }
 
-cresp(lut) lut_generate(struct list *list, lut_preset preset, int sz)
+cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset preset, int sz)
 {
     if (preset >= LUT_MAX)
         return cresp_error_cerr(lut, CERR_INVALID_ARGUMENTS);
 
     LOCAL_SET(uchar, arr) = mem_alloc(1, .nr = sz * sz * sz * 3);
 
-    lut *lut = CRES_RET_T(ref_new_checked(lut, .name = lut_presets[preset].name, .list = list), lut);
+    lut *lut = CRES_RET_T(
+        ref_new_checked(
+            lut,
+            .renderer   = renderer,
+            .name       = lut_presets[preset].name,
+            .list       = list
+        ),
+        lut
+    );
     lut->exposure = lut_presets[preset].exposure;
     lut->contrast = lut_presets[preset].contrast;
     lut->fn = lut_presets[preset].fn;

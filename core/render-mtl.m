@@ -225,9 +225,9 @@ bool texture_loaded(struct texture *tex)
 }
 
 /* XXX: common */
-cerr_check texture_pixel_init(texture_t *tex, float color[4])
+cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[4])
 {
-    cerr err = texture_init(tex);
+    cerr err = texture_init(tex, .renderer = renderer);
     if (IS_CERR(err))
         return err;
 
@@ -245,16 +245,16 @@ texture_t *black_pixel(void) { return &_black_pixel; }
 texture_t *transparent_pixel(void) { return &_transparent_pixel; }
 
 /* XXX: common */
-void textures_init(void)
+void textures_init(renderer_t *renderer)
 {
     cerr werr, berr, terr;
 
     float white[] = { 1, 1, 1, 1 };
-    werr = texture_pixel_init(&_white_pixel, white);
+    werr = texture_pixel_init(renderer, &_white_pixel, white);
     float black[] = { 0, 0, 0, 1 };
-    berr = texture_pixel_init(&_black_pixel, black);
+    berr = texture_pixel_init(renderer, &_black_pixel, black);
     float transparent[] = { 0, 0, 0, 0 };
-    terr = texture_pixel_init(&_transparent_pixel, transparent);
+    terr = texture_pixel_init(renderer, &_transparent_pixel, transparent);
 
     err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr), "failed: %d/%d/%d\n",
            CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr));

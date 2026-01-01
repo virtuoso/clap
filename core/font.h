@@ -27,7 +27,7 @@ DECLARE_REFCLASS(font);
 
 cresp_ret(font_context);
 
-cresp(font_context) font_init(const char *default_font_name);
+cresp(font_context) font_init(renderer_t *renderer, const char *default_font_name);
 void font_done(font_context *ctx);
 const char *font_name(struct font *font);
 void         font_put(struct font *font);

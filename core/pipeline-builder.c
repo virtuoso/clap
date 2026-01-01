@@ -184,9 +184,10 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             pipeline
         );
 
+    auto renderer = clap_get_renderer(opts->pl_opts->clap_ctx);
     static ssao_state ssao_state = {};
     if (ssao)
-        ssao_init(&ssao_state);
+        ssao_init(renderer, &ssao_state);
     else
         ssao_done(&ssao_state);
 
