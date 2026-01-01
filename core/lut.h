@@ -26,13 +26,14 @@ extern lut_preset lut_presets_all[LUT_MAX + 1];
 DEFINE_REFCLASS_INIT_OPTIONS(lut,
     const char  *name;
     struct list *list;
+    renderer_t  *renderer;
 );
 DECLARE_REFCLASS(lut);
 
 typedef struct lut lut;
 struct scene;
 
-cresp(lut) lut_generate(struct list *list, lut_preset preset, int sz);
+cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset preset, int sz);
 cresp(lut) lut_first(struct list *list);
 cresp(lut) lut_next(struct list *list, lut *lut);
 cresp(lut) lut_find(struct list *list, const char *name);

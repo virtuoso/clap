@@ -11,10 +11,11 @@
 typedef struct ssao_state {
     vec3        kernel[SSAO_KERNEL_SIZE];
     texture_t   noise;
+    renderer_t  *renderer;
     bool        initialized;
 } ssao_state;
 
-void ssao_init(ssao_state *ssao);
+void ssao_init(renderer_t *renderer, ssao_state *ssao);
 void ssao_done(ssao_state *ssao);
 void ssao_upload(ssao_state *ssao, struct shader_prog *prog, unsigned int width, unsigned int height);
 
