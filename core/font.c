@@ -15,10 +15,12 @@ struct font {
     FT_Face      face;
     struct glyph g[256];
     struct ref   ref;
+    renderer_t   *renderer;
 };
 
 typedef struct font_context {
     FT_Library  ft;
+    renderer_t  *renderer;
     struct font *default_font;
 } font_context;
 
@@ -60,7 +62,7 @@ static void font_load_glyph(struct font *font, unsigned char c)
     }
 #undef _AT
 #undef _GAT
-    CERR_RET(texture_init(&font->g[c].tex), return);
+    CERR_RET(texture_init(&font->g[c].tex, .renderer = font->renderer), return);
 
     CERR_RET(
         texture_load(&font->g[c].tex, TEX_FMT_RGBA8, glyph->bitmap.width, glyph->bitmap.rows, buf),
@@ -99,6 +101,7 @@ static cerr font_make(struct ref *ref, void *_opts)
 
     font->buf = NOCU(_buf);
     font->face = face;
+    font->renderer = opts->ctx->renderer;
     FT_Set_Pixel_Sizes(font->face, opts->size, opts->size);
 
     return CERR_OK;
@@ -149,7 +152,7 @@ void font_put(struct font *font)
 DEFINE_CLEANUP(font_context, if (*p) mem_free(*p))
 
 #define DEFAULT_FONT_NAME "ofl/Unbounded-Regular.ttf"
-cresp(font_context) font_init(const char *default_font_name)
+cresp(font_context) font_init(renderer_t *renderer, const char *default_font_name)
 {
     LOCAL_SET(font_context, ctx) = mem_alloc(sizeof(*ctx));
     if (!ctx)
@@ -162,6 +165,7 @@ cresp(font_context) font_init(const char *default_font_name)
     if (!default_font_name)
         default_font_name = DEFAULT_FONT_NAME;
 
+    ctx->renderer = renderer;
     ctx->default_font = CRES_RET(
         ref_new_checked(font, .ctx = ctx, .name = default_font_name, .size = 32),
         { err("couldn't load default font\n"); return cresp_error_cerr(font_context, __resp); }
