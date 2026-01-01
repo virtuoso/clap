@@ -27,6 +27,7 @@ static cerr ssao_noise_init(ssao_state *ssao)
     }
 
     cerr err = texture_init(&ssao->noise,
+        .renderer   = ssao->renderer,
         .wrap       = TEX_WRAP_REPEAT,
         .min_filter = TEX_FLT_NEAREST,
         .mag_filter = TEX_FLT_NEAREST,
@@ -53,10 +54,12 @@ void ssao_upload(ssao_state *ssao, struct shader_prog *prog, unsigned int width,
     shader_set_var_ptr(prog, UNIFORM_SSAO_NOISE_SCALE, 1, noise_scale);
 }
 
-void ssao_init(ssao_state *ssao)
+void ssao_init(renderer_t *renderer, ssao_state *ssao)
 {
     if (ssao->initialized)
         return;
+
+    ssao->renderer = renderer;
 
     cerr err = ssao_noise_init(ssao);
     if (IS_CERR(err)) {
