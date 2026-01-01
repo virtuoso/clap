@@ -202,6 +202,7 @@ typedef enum texture_format {
 } texture_format;
 
 typedef struct texture_init_options {
+    renderer_t          *renderer;
     unsigned int        target;
     texture_type        type;
     texture_wrap        wrap;
@@ -275,8 +276,8 @@ bool texture_loaded(texture_t *tex);
 bool texture_is_array(texture_t *tex);
 bool texture_is_multisampled(texture_t *tex);
 texture_t *texture_clone(texture_t *tex);
-cerr_check texture_pixel_init(texture_t *tex, float color[4]);
-void textures_init(void);
+cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[4]);
+void textures_init(renderer_t *renderer);
 void textures_done(void);
 texture_t *white_pixel(void);
 texture_t *black_pixel(void);

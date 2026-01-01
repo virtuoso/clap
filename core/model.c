@@ -183,6 +183,7 @@ static cerr load_texture_buffer(struct shader_prog *p, void *buffer, int width, 
     CERR_RET(
         texture_init(
             tex,
+            .renderer     = shader_prog_renderer(p),
             .target       = shader_get_texture_slot(p, var),
             .wrap         = TEX_WRAP_REPEAT,
             .min_filter   = TEX_FLT_NEAREST,

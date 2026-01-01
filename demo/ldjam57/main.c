@@ -348,14 +348,15 @@ static void startup(struct scene *s)
     ropts->contrast = 0.4;
     ropts->lighting_exposure = 1.1;
 
+    auto renderer = clap_get_renderer(s->clap_ctx);
     /* pixel textures for everyday use */
-    err = texture_pixel_init(&platform_emission_purple, (float[]){ 0.5, 0.3, 0.5, 1 });
+    err = texture_pixel_init(renderer, &platform_emission_purple, (float[]){ 0.5, 0.3, 0.5, 1 });
     if (IS_CERR(err))
         err_cerr(err, "couldn't initialize pixel texture\n");
-    err = texture_pixel_init(&platform_emission_teal, (float[]){ 0.3, 0.5, 0.5, 1 });
+    err = texture_pixel_init(renderer, &platform_emission_teal, (float[]){ 0.3, 0.5, 0.5, 1 });
     if (IS_CERR(err))
         err_cerr(err, "couldn't initialize pixel texture\n");
-    err = texture_pixel_init(&platform_emission_peach, (float[]){ 0.5, 0.375, 0.3, 1 });
+    err = texture_pixel_init(renderer, &platform_emission_peach, (float[]){ 0.5, 0.375, 0.3, 1 });
     if (IS_CERR(err))
         err_cerr(err, "couldn't initialize pixel texture\n");
 
