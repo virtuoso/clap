@@ -126,10 +126,12 @@ www_dir=${HOME}/src/game/www
 
 ### Run local web server
 
-For example, using python3 embedded httpd server:
+To serve wasm builds, you'll need https capable server, because otherwise the browsers refuse (among other thing) to spawn web workers, which are now required for audio.
+There is a tiny http server in the source tree that will generate a self-signed SSL certificate and use it to serve wasm builds.
+It can be run like this:
 
 ```sh
-python3 -m http.server -d ${HOME}/src/game/www
+tools/httpd/httpd.py --autocert --dir ${HOME}/src/game/www
 ```
 
 ## Windows build
