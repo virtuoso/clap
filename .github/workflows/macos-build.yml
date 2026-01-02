@@ -31,7 +31,7 @@ jobs:
         run: |
           cd ${{ github.workspace }}
           touch build_config
-          echo opts=\"--parallel 4\" >> build_config
+          echo opts=\"--parallel 3\" >> build_config
           if [ -n "${{ env.team_id }}" ]; then
             echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos -DCLAP_MACOS_DEV_TEAM_ID=${{ env.team_id }}\" >> build_config
             cat build_config
@@ -46,8 +46,8 @@ jobs:
         run: |
           cd ${{ github.workspace }}
           ./build.sh
-          cmake --build build/mtltest --parallel 4
-          cmake --build build/mtldebug --parallel 4
+          cmake --build build/mtltest --parallel 3
+          cmake --build build/mtldebug --parallel 3
           cmake --install build/rel --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/macos/rel"
           cmake --install build/test --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/macos/test"
           cmake --install build/debug --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/macos/debug"
