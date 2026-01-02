@@ -37,7 +37,7 @@ typedef unsigned short GLushort;
 typedef ptrdiff_t GLsizeiptr;
 # endif /* IMPLEMENTOR */
 #elif defined(CONFIG_RENDERER_METAL)
-# ifdef IMPLEMENTOR
+# if defined(IMPLEMENTOR) && defined(__OBJC__)
 /*
  * XXX: "weak" clashes with something in the guts of Metal, rename it in
  * the tree
@@ -53,7 +53,7 @@ typedef MTLRenderPassDescriptor *mtl_render_pass_descriptor_t;
 typedef id<CAMetalDrawable> mtl_ca_drawable_t;
 typedef CAMetalLayer *mtl_ca_layer_t;
 typedef NSAutoreleasePool *ns_autorelease_pool_t;
-# else
+# else /* !IMPLEMENTOR || !__OBJC__ */
 typedef void *mtl_device_t;
 typedef void *mtl_command_queue_t;
 typedef void *mtl_command_buffer_t;
@@ -62,7 +62,7 @@ typedef void *mtl_render_pass_descriptor_t;
 typedef void *mtl_ca_drawable_t;
 typedef void *mtl_ca_layer_t;
 typedef void *ns_autorelease_pool_t;
-# endif /* IMPLEMENTOR */
+# endif /* !IMPLEMENTOR || !__OBJC__ */
 #else
 # error "Unsupported renderer"
 #endif
@@ -257,6 +257,7 @@ typedef enum fbo_attachment_type {
 typedef int texid_t;
 
 bool texture_format_supported(texture_format format);
+const char *texture_format_string(texture_format fmt);
 cerr_check _texture_init(texture_t *tex, const texture_init_options *opts);
 #define texture_init(_t, args...) \
     _texture_init((_t), &(texture_init_options){ args })
