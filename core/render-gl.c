@@ -1601,7 +1601,7 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
 
             if (type == DT_MAT2 || type == DT_MAT3) {
                 /* Manually copy row-by-row with padding */
-                bool is_mat3 = type == DT_MAT2;
+                bool is_mat3 = type == DT_MAT3;
                 int rows = is_mat3 ? 3 : 2;
                 /* Source row: DT_VEC2 or DT_VEC3 */
                 size_t row_size = data_type_size(is_mat3 ? DT_VEC3 : DT_VEC2);
