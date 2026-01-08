@@ -715,7 +715,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         CERR_RET_T(display_init(ctx, clap_frame, clap_resize), clap_context);
 
         textures_init();
-        ctx->shaders = CRES_RET_T(shader_vars_init(), clap_context);
+        ctx->shaders = CRES_RET_T(shader_vars_init(&ctx->renderer), clap_context);
 
         lut_preset *lut_presets = ctx->cfg.lut_presets;
         if (!lut_presets)

@@ -229,6 +229,8 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
 
 /* Runtime shader context */
 typedef struct shader_context {
+    /* Renderer object to pass on to shader_init() */
+    renderer_t                  *renderer;
     /* Dynamically calculated uniform block parameters */
     struct shader_var_block     var_blocks[array_size(shader_var_block_desc)];
     /* Per-variable array of their respective blocks */
@@ -250,7 +252,7 @@ static void shader_var_block_done(shader_context *ctx, int var_idx)
 }
 
 /* Initialize a shader context */
-cresp(shader_context) shader_vars_init(void)
+cresp(shader_context) shader_vars_init(renderer_t *renderer)
 {
     LOCAL_SET(shader_context, ctx) = mem_alloc(sizeof(*ctx), .zero = 1);
     if (!ctx)
@@ -305,6 +307,8 @@ cresp(shader_context) shader_vars_init(void)
         if (IS_CERR(err))
             goto error_ub_done;
     }
+
+    ctx->renderer = renderer;
 
     return cresp_val(shader_context, NOCU(ctx));
 
@@ -835,6 +839,11 @@ static void shader_prog_drop(struct ref *ref)
 }
 
 DEFINE_REFCLASS2(shader_prog);
+
+renderer_t *shader_prog_renderer(struct shader_prog *p)
+{
+    return p->ctx->renderer;
+}
 
 void shader_prog_use(struct shader_prog *p)
 {
