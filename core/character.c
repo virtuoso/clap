@@ -34,6 +34,11 @@ static void character_motion_reset(struct character *ch, struct scene *s)
     if (scene_control_character(s) != ch)
         return;
 
+    if (ch->state == CS_IDLE) {
+        ch->dash_started.tv_sec = 0;
+        ch->dash_started.tv_nsec = 0;
+    }
+
     if (timespec_nonzero(&ch->dash_started)) {
         struct timespec diff, now;
 
