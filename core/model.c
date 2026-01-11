@@ -1396,7 +1396,7 @@ static int default_update(entity3d *e, void *data)
      */
     struct camera *cam = scene->camera;
     if ((aabb_point_is_inside(e->aabb, transform_pos(&cam->xform, NULL)) ||
-         aabb_point_is_inside(e->aabb, transform_pos(&scene->control->xform, NULL))) &&
+         (scene->control && aabb_point_is_inside(e->aabb, transform_pos(&scene->control->xform, NULL)))) &&
          e != scene->control) {
         float volume = entity3d_aabb_X(e) * entity3d_aabb_Y(e) * entity3d_aabb_Z(e);
 
