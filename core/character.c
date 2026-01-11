@@ -150,7 +150,6 @@ static void character_debug(struct character *ch)
         const float *pos = transform_pos(&ch->entity->xform, NULL);
         ui_igVecTableHeader("vectors", 3);
         ui_igVecRow(pos, 3, "position");
-        ui_igVecRow(ch->angle, 3, "angle");
         ui_igVecRow(ch->motion, 3, "motion");
         ui_igVecRow(ch->velocity, 3, "velocity");
         ui_igVecRow(ch->normal, 3, "normal");
@@ -195,7 +194,7 @@ static void character_apply_velocity(struct character *ch)
     else
         transform_move(&e->xform, ch->velocity);
 
-    entity3d_rotate(ch->entity, 0, atan2f(ch->angle[0], ch->angle[2]), 0);
+    entity3d_rotate(ch->entity, 0, atan2f(ch->motion[0], ch->motion[2]), 0);
 }
 
 static void character_set_state(struct character *ch, struct scene *s, character_state state)
@@ -387,6 +386,8 @@ void character_move(struct character *ch, struct scene *s)
 
         vec3_dup(newy, ch->normal);
         if (likely(vec3_len(newy) > 0.0)) {
+            float motion_coefficient;
+
             vec3_mul_cross(newz, oldx, newy);
             vec3_mul_cross(newx, newy, newz);
 
@@ -396,15 +397,13 @@ void character_move(struct character *ch, struct scene *s)
 
             /* XXX: apply this in character_apply_velocity() */
             if (ch->state == CS_MOVING)
-                vec3_dup(ch->angle, ch->motion);
+                motion_coefficient = 1.0f;
             else
-                vec3_scale(ch->angle, ch->motion, 0.3); /* XXX: parameterize me */
+                motion_coefficient = 0.3f;
 
             /* watch out for Y and Z swapping places */
-            vec3_add_scaled(ch->velocity, newx, newz, ch->angle[0], ch->angle[2]);
+            vec3_add_scaled(ch->velocity, newx, newz, ch->motion[0] * motion_coefficient, ch->motion[2] * motion_coefficient);
         }
-
-        vec3_norm(ch->angle, ch->angle);
 
         if (body && phys_body_has_body(body)) {
             // To determine the orientation of the body,
@@ -420,17 +419,11 @@ void character_move(struct character *ch, struct scene *s)
                 vec3 velocity = { vel[0], vel[1], vel[2] };
                 vec3_norm_safe(velocity, velocity);
                 vec3_scale(velocity, velocity, velocity_vs_direction_coefficient);
-
-                // ch->angle is already normalized, so we can just add those two.
-                vec3_add(ch->angle, velocity, ch->angle);
             }
         }
 
         character_set_state(ch, s, CS_MOVING);
     } else if (!ch->airborne) {
-        ch->angle[0] = 0;
-        ch->angle[1] = 0;
-        ch->angle[2] = 0;
         character_set_state(ch, s, CS_IDLE);
     }
 
