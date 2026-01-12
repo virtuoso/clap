@@ -405,23 +405,6 @@ void character_move(struct character *ch, struct scene *s)
             vec3_add_scaled(ch->velocity, newx, newz, ch->motion[0] * motion_coefficient, ch->motion[2] * motion_coefficient);
         }
 
-        if (body && phys_body_has_body(body)) {
-            // To determine the orientation of the body,
-            // we calculate an average of our motion requested by input and actual velocity.
-            vec3 vel;
-            phys_body_get_velocity(body, vel);
-
-            // Only change orientation if the velocity is non-zero
-            // (to avoid flickering when the body is stopped).
-            if (vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2] > 0.01)
-            {
-                float velocity_vs_direction_coefficient = 0.2; // direction from input is more important.
-                vec3 velocity = { vel[0], vel[1], vel[2] };
-                vec3_norm_safe(velocity, velocity);
-                vec3_scale(velocity, velocity, velocity_vs_direction_coefficient);
-            }
-        }
-
         character_set_state(ch, s, CS_MOVING);
     } else if (!ch->airborne) {
         character_set_state(ch, s, CS_IDLE);
