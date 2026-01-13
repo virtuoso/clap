@@ -740,6 +740,7 @@ static cerr ui_widget_make(struct ref *ref, void *_opts)
     uiw->root->widget = uiw;
     uiw->nr_uies = opts->nr_items;
     uiw->input_event = opts->uwb->input_event;
+    uiw->on_create = opts->uwb->on_create;
     list_append(&opts->ui->widgets, &uiw->entry);
 
     return CERR_OK;
@@ -1112,8 +1113,14 @@ static void ui_menu_on_click(struct ui_element *uie, float x, float y)
     auto ui = uie->ui;
     if (!item->items && item->fn)   { item->fn(ui, item); return; }
 
-    ref_put(uie->widget);
-    ui->menu = ui_menu_new(ui, item);
+    auto uiw = uie->widget;
+    auto on_create = uiw->on_create;
+
+    void *priv = uiw->priv;
+    ref_put(uiw);
+    uiw = ui_menu_new(ui, item);
+    uiw->priv = priv;
+    if (on_create)                  on_create(ui, uiw);
 }
 
 static inline bool is_item_valid(const ui_menu_item *item)  { return item->items || item->fn; }
@@ -1184,9 +1191,10 @@ static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *
         ui_widget_pick_rel(uiw, 1);
     } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
         /* go back */
-        ref_put(ui->menu);
+        auto on_create = uiw->on_create;
+        ref_put(uiw);
         ui_modality_send(ui);
-        ui->menu = NULL;
+        if (on_create)  on_create(ui, NULL);
     } else if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99 || m->input.enter) {
         /* enter */
         ui_widget_on_click(uiw, uiw->focus, uivec);
@@ -1292,7 +1300,7 @@ static bool ui_inventory_input(struct ui *ui, struct ui_widget *uiw, struct mess
         ui->mod_x = 0;
         ui_widget_pick_rel(ui->inventory, 1);
     } else if (m->input.pad_y) {
-        ui_widget_on_click(ui->menu, ui->menu->focus, uivec);
+        ui_widget_on_click(ui->inventory, ui->inventory->focus, uivec);
         ui_inventory_done(ui);
     }
 
