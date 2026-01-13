@@ -38,6 +38,40 @@ static bool __ui_element_is_visible(struct ui_element *uie, struct ui *ui)
     return true;
 }
 
+static inline float ui_element_parent_width(struct ui_element *uie)
+{
+    return uie->parent ? uie->parent->actual_w : uie->ui->width;
+}
+
+static inline float ui_element_parent_height(struct ui_element *uie)
+{
+    return uie->parent ? uie->parent->actual_h : uie->ui->height;
+}
+
+static inline float ui_element_x_off(struct ui_element *uie)
+{
+    float parent_width = ui_element_parent_width(uie);
+    return uie->affinity & UI_XOFF_FRAC ? uie->x_off * parent_width : uie->x_off;
+}
+
+static inline float ui_element_y_off(struct ui_element *uie)
+{
+    float parent_height = ui_element_parent_height(uie);
+    return uie->affinity & UI_YOFF_FRAC ? uie->y_off * parent_height : uie->y_off;
+}
+
+static inline float ui_element_width(struct ui_element *uie)
+{
+    float parent_width = ui_element_parent_width(uie);
+    return uie->affinity & UI_SZ_WIDTH_FRAC ? uie->width * parent_width : uie->width;
+}
+
+static inline float ui_element_height(struct ui_element *uie)
+{
+    float parent_height = ui_element_parent_height(uie);
+    return uie->affinity & UI_SZ_HEIGHT_FRAC ? uie->height * parent_height : uie->height;
+}
+
 static void ui_element_position(struct ui_element *uie, struct ui *ui)
 {
     entity3d *e = uie->entity;
@@ -60,10 +94,10 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
         parent_height = uie->parent->actual_h;
     }
 
-    x_off = uie->affinity & UI_XOFF_FRAC ? uie->x_off * parent_width : uie->x_off;
-    y_off = uie->affinity & UI_YOFF_FRAC ? uie->y_off * parent_height : uie->y_off;
-    uie->actual_w = uie->affinity & UI_SZ_WIDTH_FRAC ? uie->width * parent_width : uie->width;
-    uie->actual_h = uie->affinity & UI_SZ_HEIGHT_FRAC ? uie->height * parent_height : uie->height;
+    x_off = ui_element_x_off(uie);
+    y_off = ui_element_y_off(uie);
+    uie->actual_w = ui_element_width(uie);
+    uie->actual_h = ui_element_height(uie);
     if (uie->parent && !(uie->affinity & UI_SZ_NORES)) {
         /* clamp child's w/h to parent's */
         uie->actual_w = min(uie->actual_w, parent_width - x_off);
@@ -731,6 +765,33 @@ static void ui_widget_drop(struct ref *ref)
 
 DEFINE_REFCLASS2(ui_widget);
 
+static void ui_widget_finalize(struct ui_widget *uiw, struct ui_widget_builder *uwb)
+{
+    float width = 0.0f, height = 0.0f;
+
+    for (size_t i = 0; i < uiw->nr_uies; i++) {
+        auto uie = uiw->uies[i];
+
+        width   = fmaxf(ui_element_width(uie) + ui_element_x_off(uie), width);
+        height  = fmaxf(ui_element_height(uie) + ui_element_y_off(uie), height);
+    }
+
+    bool do_reset = false;
+    if (uiw->root->width < width) {
+        uiw->root->width = width;
+        uiw->root->affinity &= ~UI_SZ_WIDTH_FRAC;
+        do_reset = true;
+    }
+
+    if (uiw->root->height < height) {
+        uiw->root->height = height;
+        uiw->root->affinity &= ~UI_SZ_HEIGHT_FRAC;
+        do_reset = true;
+    }
+
+    if (do_reset)   ui_reset_positioning(uiw->root->entity, NULL);
+}
+
 void ui_widget_delete(struct ui_widget *widget)
 {
     struct ui *ui = widget->root->ui;
@@ -993,6 +1054,8 @@ ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, u
         ui_element_set_visibility(osd->uies[i], 0);
     }
 
+    ui_widget_finalize(osd, uwb);
+
     return osd;
 }
 
@@ -1002,16 +1065,8 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
     /* Defaults, if the caller didn't provide a @uwb */
     struct ui_widget_builder _uwb = {
         .el_affinity  = UI_AF_CENTER,
-        .affinity   = UI_AF_BOTTOM | UI_AF_HCENTER | UI_SZ_HEIGHT_FRAC,
-        .el_x_off   = 10,
-        .el_y_off   = 10,
-        .el_w       = 500,
-        .el_h       = 100,
-        .el_margin  = 4,
-        .x_off      = 0,
-        .y_off      = 0,
-        .w          = 500,
-        .h          = 0.3,
+        .affinity   = UI_AF_BOTTOM | UI_AF_HCENTER | UI_YOFF_FRAC,
+        .y_off      = 0.05,
         .el_cb      = ui_osd_element_cb,
         .el_color   = { 0.0, 0.0, 0.0, 0.0 },
         .text_color = { 0.8, 0.8, 0.8, 1.0 },
@@ -1105,6 +1160,8 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const ui_menu_item *
         if (i > 0)
             menu->uies[i]->y_off = uwb->el_y_off + (uwb->el_margin + height) * i;
     }
+
+    ui_widget_finalize(menu, uwb);
 
     return menu;
 }
