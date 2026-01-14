@@ -5,6 +5,11 @@
 #include <math.h>
 #include <string.h>
 
+#if defined(__ARM_NEON) || defined(__EMSCRIPTEN__)
+#include <arm_neon.h>
+#define USE_SIMD 1
+#endif /* __ARM_NEON || __EMSCRIPTEN__ */
+
 #ifdef LINMATH_NO_INLINE
 #define LINMATH_H_FUNC static
 #else
@@ -167,16 +172,6 @@ LINMATH_H_FUNC void mat## n ## x ## n ##_transpose(mat## n ## x ## n M, mat## n 
 			temp[i][j] = N[j][i]; \
 	mat## n ##x## n ##_dup(M, temp); \
 } \
-LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n(vec## n r, mat## n ## x ## n M, vec## n v) \
-{ \
-	int i, j; \
-	for(j=0; j<n; ++j) { \
-		r[j] = 0.f; \
-		for(i=0; i<n; ++i) \
-			r[j] += M[i][j] * v[i]; \
-	} \
-} \
- \
 LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n ##_post(vec## n r, mat## n ## x ## n M, vec## n v) \
 { \
 	vec4 temp; \
@@ -187,9 +182,48 @@ LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n ##_post(vec## n r, mat## n 
 	vec## n ##_dup(r, temp); \
 }
 
+#define LINMATH_DEFINE_MAT_MUL(n) \
+LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n(vec## n r, mat## n ## x ## n M, vec## n v) \
+{ \
+	int i, j; \
+	for(j=0; j<n; ++j) { \
+		r[j] = 0.f; \
+		for(i=0; i<n; ++i) \
+			r[j] += M[i][j] * v[i]; \
+	} \
+}
+
 LINMATH_DEFINE_MAT(2);
 LINMATH_DEFINE_MAT(3);
 LINMATH_DEFINE_MAT(4);
+LINMATH_DEFINE_MAT_MUL(2);
+LINMATH_DEFINE_MAT_MUL(3);
+
+#ifdef USE_SIMD
+LINMATH_H_FUNC void mat4x4_mul_vec4(vec4 r, mat4x4 M, vec4 v) {
+    float32x4_t v0;
+    float32x4_t w;
+    float32x4_t m0, m1, m2, m3;
+
+    w = vmovq_n_f32(0);
+
+    v0 = vld1q_f32(v);
+
+    m0 = vld1q_f32(M[0]);
+    m1 = vld1q_f32(M[1]);
+    m2 = vld1q_f32(M[2]);
+    m3 = vld1q_f32(M[3]);
+
+    w = vfmaq_laneq_f32(w, m0, v0, 0);
+    w = vfmaq_laneq_f32(w, m1, v0, 1);
+    w = vfmaq_laneq_f32(w, m2, v0, 2);
+    w = vfmaq_laneq_f32(w, m3, v0, 3);
+
+    vst1q_f32(r, w);
+}
+#else /* USE_SIMD */
+LINMATH_DEFINE_MAT_MUL(4);
+#endif /* USE_SIMD */
 
 LINMATH_H_FUNC void mat4x4_transpose_mat3x3(mat4x4 m)
 {
@@ -240,6 +274,54 @@ LINMATH_H_FUNC void mat4x4_scale_aniso(mat4x4 M, mat4x4 a, float x, float y, flo
 		M[3][i] = a[3][i];
 	}
 }
+#ifdef USE_SIMD
+LINMATH_H_FUNC void mat4x4_mul(mat4x4 M, mat4x4 a, mat4x4 b)
+{
+    float32x4_t a0, a1, a2, a3;
+    float32x4_t b0, b1, b2, b3;
+    float32x4_t c0, c1, c2, c3;
+
+    c0 = vmovq_n_f32(0);
+    c1 = vmovq_n_f32(0);
+    c2 = vmovq_n_f32(0);
+    c3 = vmovq_n_f32(0);
+
+    a0 = vld1q_f32(a[0]);
+    a1 = vld1q_f32(a[1]);
+    a2 = vld1q_f32(a[2]);
+    a3 = vld1q_f32(a[3]);
+
+    b0 = vld1q_f32(b[0]);
+    b1 = vld1q_f32(b[1]);
+    b2 = vld1q_f32(b[2]);
+    b3 = vld1q_f32(b[3]);
+
+    c0 = vfmaq_laneq_f32(c0, a0, b0, 0);
+    c0 = vfmaq_laneq_f32(c0, a1, b0, 1);
+    c0 = vfmaq_laneq_f32(c0, a2, b0, 2);
+    c0 = vfmaq_laneq_f32(c0, a3, b0, 3);
+
+    c1 = vfmaq_laneq_f32(c1, a0, b1, 0);
+    c1 = vfmaq_laneq_f32(c1, a1, b1, 1);
+    c1 = vfmaq_laneq_f32(c1, a2, b1, 2);
+    c1 = vfmaq_laneq_f32(c1, a3, b1, 3);
+
+    c2 = vfmaq_laneq_f32(c2, a0, b2, 0);
+    c2 = vfmaq_laneq_f32(c2, a1, b2, 1);
+    c2 = vfmaq_laneq_f32(c2, a2, b2, 2);
+    c2 = vfmaq_laneq_f32(c2, a3, b2, 3);
+
+    c3 = vfmaq_laneq_f32(c3, a0, b3, 0);
+    c3 = vfmaq_laneq_f32(c3, a1, b3, 1);
+    c3 = vfmaq_laneq_f32(c3, a2, b3, 2);
+    c3 = vfmaq_laneq_f32(c3, a3, b3, 3);
+
+    vst1q_f32(M[0], c0);
+    vst1q_f32(M[1], c1);
+    vst1q_f32(M[2], c2);
+    vst1q_f32(M[3], c3);
+}
+#else /* !USE_SIMD */
 LINMATH_H_FUNC void mat4x4_mul(mat4x4 M, mat4x4 a, mat4x4 b)
 {
 	mat4x4 temp;
@@ -251,6 +333,7 @@ LINMATH_H_FUNC void mat4x4_mul(mat4x4 M, mat4x4 a, mat4x4 b)
 	}
 	mat4x4_dup(M, temp);
 }
+#endif /* !USE_SIMD */
 LINMATH_H_FUNC void mat4x4_translate(mat4x4 T, float x, float y, float z)
 {
 	mat4x4_identity(T);
