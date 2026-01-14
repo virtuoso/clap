@@ -642,55 +642,22 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                         .method     = RM_PLUG,
                         .sampler    = UNIFORM_SHADOW_MAP
                     },
+                edge_aa ?
+                    (render_source) {
+                        .pass       = smaa_weights_pass,
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_SHADOW_MAP2
+                    } :
+                    (render_source) {
+                        .tex        = white_pixel(),
+                        .method     = RM_PLUG,
+                        .sampler    = UNIFORM_SHADOW_MAP2
+                    },
                 {
                     .tex        = lut_tex(ropts->lighting_lut),
                     .method     = RM_PLUG,
                     .sampler    = UNIFORM_LUT_TEX
-                },
-                {}
-            },
-            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
-            .ops                = &postproc_ops,
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "combine",
-        ),
-        pipeline
-    );
-
-    render_pass *smaa_blend_pass = edge_aa ? CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = combine_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {
-                    .pass       = smaa_weights_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_NORMAL_MAP
-                },
-                {}
-            },
-            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
-            .ops                = &postproc_ops,
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .name               = "smaa-blend",
-            .shader             = "smaa-neighborhood-blend",
-        ),
-        pipeline
-    ) : NULL;
-
-    render_pass *contrast_pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = edge_aa ? smaa_blend_pass : combine_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
                 },
                 {}
             },
@@ -702,7 +669,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 #endif /* !CONFIG_RENDERER_METAL*/
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "contrast",
+            .shader             = "combine",
             .checkpoint         = 1,
         ),
         pipeline
@@ -713,7 +680,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
-                    .pass       = contrast_pass,
+                    .pass       = combine_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
                     .sampler    = UNIFORM_MODEL_TEX
