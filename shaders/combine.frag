@@ -5,6 +5,7 @@
 #include "tonemap.glsl"
 #include "lut.glsl"
 #include "oetf.glsl"
+#include "smaa-neighborhood-blend.glsl"
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;
@@ -14,11 +15,17 @@ layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
+layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
 layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
 
 #include "ubo_render_common.glsl"
 #include "ubo_bloom.glsl"
 #include "ubo_postproc.glsl"
+
+vec3 apply_contrast(vec3 color, float contrast)
+{
+    return (color.rgb - 0.5) * (1.0 + contrast) + 0.5;
+}
 
 float radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 {
@@ -29,9 +36,10 @@ float radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 
 void main()
 {
-    vec3 tex_color = texture(model_tex, pass_tex).rgb;
+    vec3 tex_color = use_edge_aa ?
+        smaa_blend(model_tex, sobel_tex, shadow_map2, pass_tex) :
+        apply_edge(model_tex, sobel_tex, 1.0, pass_tex, ivec2(0));
     vec3 highlight_color = texture(emission_map, pass_tex).rgb;
-    vec4 sobel = texture(sobel_tex, pass_tex);
     float ao = texture(shadow_map, pass_tex).r;
 
     if (use_ssao)
@@ -62,8 +70,7 @@ void main()
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
     }
 
-    float factor = sobel.x;
-    FragColor = vec4(mix(FragColor.xyz, vec3(0.0), 1 - factor), 1.0);
+    FragColor = vec4(apply_contrast(FragColor.rgb, contrast), 1.0);
     FragColor = vec4(applyLUT(lut_tex, FragColor.xyz), 1.0);
 #ifdef CONFIG_RENDERER_OPENGL
     FragColor.rgb = scene_linear_to_srgb(FragColor.rgb);
