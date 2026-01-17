@@ -132,18 +132,26 @@ struct shader_var_block {
     const struct shader_var_block_desc *desc;
 };
 
+enum var_block_usage {
+    USAGE_PER_FRAME = 0,
+    USAGE_PER_TXMODEL,
+    USAGE_PER_ENTITY,
+};
+
 /* Static variable block (uniform buffer) descriptor */
 struct shader_var_block_desc {
     const char          *name;
     int                 binding;
     unsigned int        stages;
     enum shader_vars    *vars;
+    enum var_block_usage    usage;
 };
 
 /* Define a variable block: name, shader stages, a list of uniforms */
-#define DEFINE_SHADER_VAR_BLOCK(_n, _stages, args...) \
+#define DEFINE_SHADER_VAR_BLOCK(_n, _usage, _stages, args...) \
     [UBO_BINDING_ ## _n] = { \
         .name       = __stringify(_n), \
+        .usage      = (USAGE_PER_ ## _usage), \
         .binding    = (UBO_BINDING_ ## _n), \
         .stages     = (_stages), \
         .vars       = (enum shader_vars[]){ args, SHADER_VAR_MAX }, \
@@ -151,10 +159,12 @@ struct shader_var_block_desc {
 
 /* Variable block table */
 static const struct shader_var_block_desc shader_var_block_desc[] = {
-    DEFINE_SHADER_VAR_BLOCK(color_pt, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(color_pt, ENTITY,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_IN_COLOR,
                             UNIFORM_COLOR_PASSTHROUGH),
-    DEFINE_SHADER_VAR_BLOCK(lighting, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(lighting, FRAME,
+                            SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_LIGHT_POS,
                             UNIFORM_LIGHT_COLOR,
                             UNIFORM_LIGHT_DIR,
@@ -163,7 +173,8 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_NR_LIGHTS,
                             UNIFORM_USE_NORMALS,
                             UNIFORM_LIGHT_AMBIENT),
-    DEFINE_SHADER_VAR_BLOCK(shadow, SHADER_STAGE_GEOMETRY_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(shadow, FRAME,
+                            SHADER_STAGE_GEOMETRY_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_SHADOW_MVP,
                             UNIFORM_CASCADE_DISTANCES,
                             UNIFORM_LIGHT_FAR,
@@ -171,18 +182,23 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_SHADOW_VSM,
                             UNIFORM_SHADOW_OUTLINE,
                             UNIFORM_SHADOW_OUTLINE_THRESHOLD),
-    DEFINE_SHADER_VAR_BLOCK(transform, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(transform, ENTITY,
+                            SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_TRANS),
-    DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(projview, FRAME,
+                            SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_PROJ,
                             UNIFORM_VIEW,
                             UNIFORM_INVERSE_VIEW),
-    DEFINE_SHADER_VAR_BLOCK(skinning, SHADER_STAGE_VERTEX_BIT,
+    DEFINE_SHADER_VAR_BLOCK(skinning, ENTITY,
+                            SHADER_STAGE_VERTEX_BIT,
                             UNIFORM_USE_SKINNING,
                             UNIFORM_JOINT_TRANSFORMS),
-    DEFINE_SHADER_VAR_BLOCK(particles, SHADER_STAGE_VERTEX_BIT,
+    DEFINE_SHADER_VAR_BLOCK(particles, ENTITY,
+                            SHADER_STAGE_VERTEX_BIT,
                             UNIFORM_PARTICLE_POS),
-    DEFINE_SHADER_VAR_BLOCK(material, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(material, ENTITY,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_REFLECTIVITY,
                             UNIFORM_SHINE_DAMPER,
                             UNIFORM_ROUGHNESS,
@@ -197,20 +213,24 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_METALLIC_SCALE,
                             UNIFORM_METALLIC_MODE,
                             UNIFORM_SHARED_SCALE),
-    DEFINE_SHADER_VAR_BLOCK(render_common, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(render_common, FRAME,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_USE_MSAA,
                             UNIFORM_USE_EDGE_AA,
                             UNIFORM_USE_HDR),
-    DEFINE_SHADER_VAR_BLOCK(outline, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(outline, ENTITY,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_OUTLINE_EXCLUDE,
                             UNIFORM_SOBEL_SOLID,
                             UNIFORM_SOBEL_SOLID_ID),
-    DEFINE_SHADER_VAR_BLOCK(bloom, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(bloom, ENTITY,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_BLOOM_EXPOSURE,
                             UNIFORM_BLOOM_INTENSITY,
                             UNIFORM_BLOOM_THRESHOLD,
                             UNIFORM_BLOOM_OPERATOR),
-    DEFINE_SHADER_VAR_BLOCK(postproc, SHADER_STAGE_FRAGMENT_BIT,
+    DEFINE_SHADER_VAR_BLOCK(postproc, FRAME,
+                            SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_WIDTH,
                             UNIFORM_HEIGHT,
                             UNIFORM_NEAR_PLANE,
