@@ -132,6 +132,15 @@ void phys_contacts_debug_enable(struct phys *phys, bool enable);
  */
 void phys_capsules_debug_enable(struct phys *phys, bool enable);
 
+/**
+ * phys_velocities_debug_enable() - enable debug draw of body's velocity
+ * @phys:   core physics handle
+ * @enable: enable/disable debug draws
+ *
+ * Enable/disable debug drawing of a body's velocity.
+ */
+void phys_velocities_debug_enable(struct phys *phys, bool enable);
+
 /* XXX: remove these 2 */
 void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact);
 void phys_ground_add(entity3d *e);

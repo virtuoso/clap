@@ -210,6 +210,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             phys_capsules_debug_enable(clap_get_phys(scene->clap_ctx), ropts->debug_draws_enabled);
         if (igCheckbox("collision draws", &ropts->collision_draws_enabled))
             phys_contacts_debug_enable(clap_get_phys(scene->clap_ctx), ropts->collision_draws_enabled);
+        if (igCheckbox("velocity draws", &ropts->velocity_draws_enabled))
+            phys_velocities_debug_enable(clap_get_phys(scene->clap_ctx), ropts->velocity_draws_enabled);
         igCheckbox("camera frusta draws", &ropts->camera_frusta_draws_enabled);
         igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
         igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
