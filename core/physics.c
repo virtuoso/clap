@@ -298,12 +298,12 @@ static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, 
     for (i = 0; i < nc; i++) {
         memset(&contact[i], 0, sizeof(dContact));
         contact[i].surface.mode = /*dContactBounce | */dContactSoftCFM | dContactSoftERP;
-        contact[i].surface.mu = /*bounce != 0 ? dInfinity : */0;
+        contact[i].surface.mu = /*bounce != 0 ? dInfinity : */100.0;
         contact[i].surface.mu2 = 0;
         contact[i].surface.bounce = 0.01;
         contact[i].surface.bounce_vel = 10.0;
         contact[i].surface.soft_cfm = 0.01;
-        contact[i].surface.soft_erp = 0;
+        contact[i].surface.soft_erp = 0.2;
     }
 }
 
@@ -400,19 +400,19 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             phys_body_update(e2);
             j = dJointCreateContact(phys->world, phys->contact, &contact[i]);
             dJointAttach(j, b1, b2);
-            if (phys_body_has_body(e1->phys_body) && phys_body_has_body(e2->phys_body)) {
-                entity_pen_push(e1, &contact[i], pen);
-                entity_pen_push(e2, &contact[i], pen);
-            } else if (!phys_body_has_body(e1->phys_body)) {
-                entity_pen_push(e2, &contact[i], pen);
-            } else if (!phys_body_has_body(e2->phys_body)) {
-                entity_pen_push(e1, &contact[i], pen);
-            } else {
+            // if (phys_body_has_body(e1->phys_body) && phys_body_has_body(e2->phys_body)) {
+            //     entity_pen_push(e1, &contact[i], pen);
+            //     entity_pen_push(e2, &contact[i], pen);
+            // } else if (!phys_body_has_body(e1->phys_body)) {
+            //     entity_pen_push(e2, &contact[i], pen);
+            // } else if (!phys_body_has_body(e2->phys_body)) {
+            //     entity_pen_push(e1, &contact[i], pen);
+            // } else {
                 if (e1->priv)
                     entity_pen_push(e1, &contact[i], pen);
                 else if (e2->priv)
                     entity_pen_push(e2, &contact[i], pen);
-            }
+            // }
         }
     }
 }
