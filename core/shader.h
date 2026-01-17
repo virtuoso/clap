@@ -74,6 +74,7 @@
  * @UNIFORM_USE_NORMALS:                model uses a normal map
  * @UNIFORM_USE_SKINNING:               model uses skeletal animotion (joint, weights, joint_transform)
  * @UNIFORM_USE_MSAA:                   [ropt] use multisampled textures
+ * @UNIFORM_USE_EDGE_AA:                [ropt] use edge antialiasing
  * @UNIFORM_USE_HDR:                    [ropt] use half-float or float components for colors
  *                                      in intermediate postprocessing render passes
  * @UNIFORM_USE_SSAO:                   [ropt] use screen space ambient occlusion
@@ -161,6 +162,7 @@ enum shader_vars {
     UNIFORM_USE_NORMALS,
     UNIFORM_USE_SKINNING,
     UNIFORM_USE_MSAA,
+    UNIFORM_USE_EDGE_AA,
     UNIFORM_USE_HDR,
     UNIFORM_USE_SSAO,
     UNIFORM_SSAO_KERNEL,
