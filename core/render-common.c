@@ -160,6 +160,9 @@ void textures_init(renderer_t *renderer)
 
     err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr), "failed: %d/%d/%d\n",
            CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr));
+    texture_set_name(&_white_pixel, "white pixel");
+    texture_set_name(&_black_pixel, "black pixel");
+    texture_set_name(&_transparent_pixel, "transparent pixel");
 }
 
 void textures_done(void)
