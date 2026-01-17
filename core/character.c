@@ -178,19 +178,9 @@ static inline void character_debug(struct character *ch) {}
 static void character_apply_velocity(struct character *ch)
 {
     entity3d *e = ch->entity;
-    bool body_also = false;
-    vec3 old_motion, motion;
-
-    /* Get rid of drift */
-    vec3_norm_safe(motion, ch->motion);
-    vec3_norm_safe(old_motion, ch->old_motion);
-    if (fabsf(vec3_mul_inner(old_motion, motion) - 1) >= 1e-3)
-        body_also = true;
-
-    vec3_dup(ch->old_motion, ch->motion);
 
     if (e->phys_body)
-        phys_body_set_motor_velocity(e->phys_body, body_also, ch->velocity);
+        phys_body_set_motor_velocity(e->phys_body, true, ch->velocity);
     else
         transform_move(&e->xform, ch->velocity);
 
@@ -418,7 +408,6 @@ out:
 void character_stop(struct character *c, struct scene *s)
 {
     vec3_dup(c->motion, (vec3){});
-    vec3_dup(c->old_motion, (vec3){});
     vec3_dup(c->velocity, (vec3){});
     character_set_state(c, s, CS_IDLE);
 }
