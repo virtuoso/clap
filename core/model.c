@@ -1457,6 +1457,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     }
 
     list_append(&e->txmodel->entities, &e->entry);
+    e->txmodel->nr_entities++;
     e->flags |= ENTITY3D_ALIVE;
 
     return CERR_OK;
@@ -1634,12 +1635,16 @@ void mq_add_model(struct mq *mq, model3dtx *txmodel)
 {
     txmodel = ref_pass(txmodel);
     list_append(&mq->txmodels, &txmodel->entry);
+    mq->nr_txmodels++;
+    mq->nr_entities += txmodel->nr_entities;
 }
 
 void mq_add_model_tail(struct mq *mq, model3dtx *txmodel)
 {
     txmodel = ref_pass(txmodel);
     list_prepend(&mq->txmodels, &txmodel->entry);
+    mq->nr_txmodels++;
+    mq->nr_entities += txmodel->nr_entities;
 }
 
 model3dtx *mq_nonempty_txm_next(struct mq *mq, model3dtx *txm, bool fwd)

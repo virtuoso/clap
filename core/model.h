@@ -178,6 +178,7 @@ typedef struct model3dtx {
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
     struct list    entities;           /* links entity3d->entry */
+    size_t         nr_entities;
 } model3dtx;
 
 DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
@@ -239,7 +240,9 @@ typedef enum entity3d_flags {
 struct mq {
     struct list     txmodels;
     void            *priv;
-    unsigned int    nr_characters;
+    size_t          nr_txmodels;
+    size_t          nr_entities;
+    size_t          nr_characters;
 };
 
 void mq_init(struct mq *mq, void *priv);
