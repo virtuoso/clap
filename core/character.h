@@ -27,7 +27,6 @@ struct character {
     struct camera *camera;
     struct timespec dash_started;
     vec3    motion;
-    vec3    old_motion;
     vec3    velocity;
     vec3    normal;
     float   speed;
