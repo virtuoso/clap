@@ -22,6 +22,7 @@ struct phys {
     double      time_acc;
     bool        draw_contacts;
     bool        draw_capsules;
+    bool        draw_velocities;
     struct clap_context *clap_ctx;
 };
 
@@ -987,6 +988,7 @@ struct phys *phys_init(struct clap_context *ctx)
     phys->time_acc = 0.0;
     phys->draw_capsules = false;
     phys->draw_contacts = false;
+    phys->draw_velocities = false;
     dWorldSetGravity(phys->world, 0, -9.8, 0);
     dWorldSetMaxAngularSpeed(phys->world, 0);
     // dWorldSetCFM(phys->world, 1e-5);
@@ -1019,8 +1021,43 @@ void phys_capsules_debug_enable(struct phys *phys, bool enable)
     phys->draw_capsules = enable;
 }
 
+void phys_velocities_debug_enable(struct phys *phys, bool enable)
+{
+    phys->draw_velocities = enable;
+}
+
+static void phys_debug_draw_velocity(struct phys_body *body)
+{
+    if (likely(!body->phys->draw_velocities))   return;
+    if (likely(!phys_body_has_body(body)))      return;
+
+    const dReal *vel = dBodyGetLinearVel(body->body);
+    if (likely(dLENGTHSQUARED(vel) < 1e-3))     return;
+
+    dVector3 dvel = { vel[0], vel[1], vel[2] };
+    dNormalize3(dvel);
+
+    const dReal *spos = dBodyGetPosition(body->body);
+    dVector3 dpos;
+
+    dAddVectors3(dpos, spos, dvel);
+
+    message_send(body->phys->clap_ctx, &(struct message) {
+        .type           = MT_DEBUG_DRAW,
+        .debug_draw     = (struct message_debug_draw) {
+            .color      = { 0.0, 1.0, 0.0, 1.0 },
+            .thickness  = 2.0,
+            .shape      = DEBUG_DRAW_LINE,
+            .v0         = { spos[0], spos[1], spos[2] },
+            .v1         = { dpos[0], dpos[1], dpos[2] },
+        }
+    });
+}
+
 void phys_debug_draw(struct scene *scene, struct phys_body *body)
 {
+    phys_debug_draw_velocity(body);
+
     if (likely(!body->phys->draw_capsules))
         return;
 
