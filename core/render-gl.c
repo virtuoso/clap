@@ -766,46 +766,6 @@ bool texture_loaded(struct texture *tex)
     return tex->loaded;
 }
 
-cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[4])
-{
-    cerr err = texture_init(tex);
-    if (IS_CERR(err))
-        return err;
-
-    uint8_t _color[4] = { color[0] * 255, color[1] * 255, color[2] * 255, color[3] * 255 };
-    return texture_load(tex, TEX_FMT_RGBA8, 1, 1, _color);
-}
-
-static texture_t _white_pixel;
-static texture_t _black_pixel;
-static texture_t _transparent_pixel;
-
-texture_t *white_pixel(void) { return &_white_pixel; }
-texture_t *black_pixel(void) { return &_black_pixel; }
-texture_t *transparent_pixel(void) { return &_transparent_pixel; }
-
-void textures_init(renderer_t *renderer)
-{
-    cerr werr, berr, terr;
-
-    float white[] = { 1, 1, 1, 1 };
-    werr = texture_pixel_init(renderer, &_white_pixel, white);
-    float black[] = { 0, 0, 0, 1 };
-    berr = texture_pixel_init(renderer, &_black_pixel, black);
-    float transparent[] = { 0, 0, 0, 0 };
-    terr = texture_pixel_init(renderer, &_transparent_pixel, transparent);
-
-    err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr), "failed: %d/%d/%d\n",
-           CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr));
-}
-
-void textures_done(void)
-{
-    texture_done(&_white_pixel);
-    texture_done(&_black_pixel);
-    texture_done(&_transparent_pixel);
-}
-
 /****************************************************************************
  * Framebuffer
  ****************************************************************************/
