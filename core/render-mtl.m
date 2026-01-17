@@ -921,53 +921,6 @@ bool texture_loaded(struct texture *tex)
     return tex->loaded;
 }
 
-/* XXX: common */
-cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[4])
-{
-    cerr err = texture_init(tex, .renderer = renderer);
-    if (IS_CERR(err))
-        return err;
-
-    return texture_load(tex, TEX_FMT_RGBA8, 1, 1, color);
-}
-
-/* XXX: common */
-static texture_t _white_pixel;
-static texture_t _black_pixel;
-static texture_t _transparent_pixel;
-
-/* XXX: common */
-texture_t *white_pixel(void) { return &_white_pixel; }
-texture_t *black_pixel(void) { return &_black_pixel; }
-texture_t *transparent_pixel(void) { return &_transparent_pixel; }
-
-/* XXX: common */
-void textures_init(renderer_t *renderer)
-{
-    cerr werr, berr, terr;
-
-    float white[] = { 1, 1, 1, 1 };
-    werr = texture_pixel_init(renderer, &_white_pixel, white);
-    float black[] = { 0, 0, 0, 1 };
-    berr = texture_pixel_init(renderer, &_black_pixel, black);
-    float transparent[] = { 0, 0, 0, 0 };
-    terr = texture_pixel_init(renderer, &_transparent_pixel, transparent);
-
-    err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr), "failed: %d/%d/%d\n",
-           CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr));
-    texture_set_name(&_white_pixel, "white pixel");
-    texture_set_name(&_black_pixel, "black pixel");
-    texture_set_name(&_transparent_pixel, "transparent pixel");
-}
-
-/* XXX: common */
-void textures_done(void)
-{
-    texture_done(&_white_pixel);
-    texture_done(&_black_pixel);
-    texture_done(&_transparent_pixel);
-}
-
 /****************************************************************************
  * Framebuffer
  ****************************************************************************/
