@@ -3,6 +3,7 @@
 
 layout (std140, binding = UBO_BINDING_render_common) uniform render_common {
     bool use_msaa;
+    bool use_edge_aa;
     bool use_hdr;
 };
 
