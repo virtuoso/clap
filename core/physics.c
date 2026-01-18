@@ -690,7 +690,6 @@ static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, 
     float r = 0.0, length = 0.0, off = 0.0, X, Y, Z;
     int direction;
     dGeomID g;
-    dMass m;
 
     X = entity3d_aabb_X(e);
     Y = entity3d_aabb_Y(e);
@@ -744,10 +743,10 @@ static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, 
     if (phys_body_has_body(body)) {
         dMassSetZero(&body->mass);
         if (length)
-            dMassSetCapsuleTotal(&m, mass, direction, r, length);
+            dMassSetCapsuleTotal(&body->mass, mass, direction, r, length);
         else
-            dMassSetSphereTotal(&m, mass, r);
-        dBodySetMass(body->body, &m);
+            dMassSetSphereTotal(&body->mass, mass, r);
+        dBodySetMass(body->body, &body->mass);
     }
 
     return g;
