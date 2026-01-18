@@ -891,14 +891,18 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     dGeomSetData(body->geom, entity);
 
     if (has_body) {
+        /* XXX: not all bodies need the motor */
         body->lmotor = dJointCreateLMotor(phys->world, 0);
         dJointSetLMotorNumAxes(body->lmotor, 3);
         dJointSetLMotorAxis(body->lmotor, 0, 0, 1, 0, 0);
         dJointSetLMotorAxis(body->lmotor, 1, 0, 0, 1, 0);
         dJointSetLMotorAxis(body->lmotor, 2, 0, 0, 0, 1);
-        dJointSetLMotorParam(body->lmotor, dParamFMax1, 50);
-        dJointSetLMotorParam(body->lmotor, dParamFMax2, 5);
-        dJointSetLMotorParam(body->lmotor, dParamFMax3, 50);
+
+        /* lmotor's force constraint: fmax = mass * accel */
+        dReal fmax = body->mass.mass * /* max speed */10.0 / /* acceleration time*/0.1;
+        dJointSetLMotorParam(body->lmotor, dParamFMax1, fmax);
+        dJointSetLMotorParam(body->lmotor, dParamFMax2, fmax);
+        dJointSetLMotorParam(body->lmotor, dParamFMax3, fmax);
         phys_body_attach_motor(body, true);
     }
 
