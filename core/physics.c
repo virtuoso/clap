@@ -244,6 +244,7 @@ void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, vec3 v
     dJointSetLMotorParam(body->lmotor, dParamVel3, vel[2]);
     if (body_also)
         phys_body_set_velocity(body, vel);
+    dBodySetAngularVel(body->body, 0.0, 0.0, 0.0);
 }
 
 void phys_body_stop(struct phys_body *body)
@@ -252,7 +253,6 @@ void phys_body_stop(struct phys_body *body)
         return;
 
     phys_body_set_motor_velocity(body, true, (vec3){ 0, 0, 0 });
-    dBodySetMaxAngularSpeed(body->body, 0);
     dBodySetLinearDampingThreshold(body->body, 0.001);
 }
 
@@ -990,7 +990,6 @@ struct phys *phys_init(struct clap_context *ctx)
     phys->draw_contacts = false;
     phys->draw_velocities = false;
     dWorldSetGravity(phys->world, 0, -9.8, 0);
-    dWorldSetMaxAngularSpeed(phys->world, 0);
     // dWorldSetCFM(phys->world, 1e-5);
     // dWorldSetERP(phys->world, 0.8);
     //dWorldSetContactSurfaceLayer(phys->world, 0.001);
