@@ -99,7 +99,137 @@ LINMATH_H_FUNC void vec##n##_pow_vec##n(vec##n r, vec##n const a, vec##n const e
 
 LINMATH_H_DEFINE_VEC(2)
 LINMATH_H_DEFINE_VEC(3)
+#ifdef USE_SIMD
+typedef float vec4[4];
+LINMATH_H_FUNC void vec4_add(vec4 r, vec4 const a, vec4 const b)
+{
+    float32x4_t a0, b0, r0;
+
+    a0 = vld1q_f32(a);
+    b0 = vld1q_f32(b);
+    
+    r0 = vaddq_f32(a0, b0);
+
+    vst1q_f32(r, r0);
+}
+
+LINMATH_H_FUNC void vec4_sub(vec4 r, vec4 const a, vec4 const b)
+{
+    float32x4_t a0, b0, r0;
+
+    a0 = vld1q_f32(a);
+    b0 = vld1q_f32(b);
+    
+    r0 = vsubq_f32(a0, b0);
+
+    vst1q_f32(r, r0);
+}
+
+LINMATH_H_FUNC void vec4_scale(vec4 r, vec4 const v, float const s)
+{
+    float32x4_t v0, r0;
+
+    v0 = vld1q_f32(v);
+
+    r0 = vmulq_n_f32(v0, s);
+
+    vst1q_f32(r, r0);
+}
+
+LINMATH_H_FUNC float vec4_mul_inner(vec4 const a, vec4 const b)
+{
+    float32x4_t a0, b0, r0;
+
+    a0 = vld1q_f32(a);
+    b0 = vld1q_f32(b);
+
+    r0 = vmulq_f32(a0, b0);
+
+    return vaddvq_f32(r0);
+}
+
+LINMATH_H_FUNC float vec4_len(vec4 const v)
+{
+    return sqrtf(vec4_mul_inner(v,v));
+}
+
+LINMATH_H_FUNC void vec4_dup(vec4 r, vec4 const v)
+{
+    float32x4_t v0;
+
+    v0 = vld1q_f32(v);
+    vst1q_f32(r, v0);
+}
+
+LINMATH_H_FUNC void vec4_norm(vec4 r, vec4 const v)
+{
+    float k = 1.0 / vec4_len(v);
+    vec4_scale(r, v, k);
+}
+
+LINMATH_H_FUNC void vec4_norm_safe(vec4 r, vec4 const v)
+{
+    if (vec4_len(v))
+        vec4_norm(r, v);
+    else
+        vec4_dup(r, v);
+}
+
+LINMATH_H_FUNC void vec4_min(vec4 r, vec4 const a, vec4 const b)
+{
+    float32x4_t a0, b0, r0;
+
+    a0 = vld1q_f32(a);
+    b0 = vld1q_f32(b);
+    
+    r0 = vminq_f32(a0, b0);
+
+    vst1q_f32(r, r0);
+}
+
+LINMATH_H_FUNC void vec4_max(vec4 r, vec4 const a, vec4 const b)
+{
+    float32x4_t a0, b0, r0;
+
+    a0 = vld1q_f32(a);
+    b0 = vld1q_f32(b);
+    
+    r0 = vmaxq_f32(a0, b0);
+
+    vst1q_f32(r, r0);
+}
+
+LINMATH_H_FUNC void vec4_add_scaled(vec4 r, vec4 const a, vec4 const b, float const sa, float const sb)
+{
+    float32x4_t a0, b0, r0;
+
+    a0 = vld1q_f32(a);
+    b0 = vld1q_f32(b);
+    r0 = vdupq_n_f32(0);
+
+    r0 = vfmaq_n_f32(r0, a0, sa);
+    r0 = vfmaq_n_f32(r0, b0, sb);
+
+    vst1q_f32(r, r0);
+}
+
+LINMATH_H_FUNC void vec4_pow(vec4 r, vec4 const a, const float exp)
+{
+    int i;
+    for (i = 0; i < 4; ++i)
+        r[i] = powf(a[i], exp);
+}
+
+LINMATH_H_FUNC void vec4_pow_vec4(vec4 r, vec4 const a, vec4 const exp)
+{
+    int i;
+    for (i = 0; i < 4; ++i)
+        r[i] = powf(a[i], exp[i]);
+}
+#else /* USE_SIMD */
 LINMATH_H_DEFINE_VEC(4)
+#endif /* USE_SIMD */
+
 
 LINMATH_H_FUNC void vec3_setup(vec3 v, float x, float y, float z)
 {
@@ -163,15 +293,6 @@ LINMATH_H_FUNC void mat## n ## x ## n ##_dup(mat## n ## x ## n  M, mat## n ## x 
 		for(j=0; j<n; ++j) \
 			M[i][j] = N[i][j]; \
 } \
-LINMATH_H_FUNC void mat## n ## x ## n ##_transpose(mat## n ## x ## n M, mat## n ## x ## n N) \
-{ \
-	int i, j; \
-	mat## n ##x## n temp = {}; \
-	for(j=0; j<n; ++j) \
-		for(i=0; i<n; ++i) \
-			temp[i][j] = N[j][i]; \
-	mat## n ##x## n ##_dup(M, temp); \
-} \
 LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n ##_post(vec## n r, mat## n ## x ## n M, vec## n v) \
 { \
 	vec4 temp; \
@@ -191,6 +312,15 @@ LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n(vec## n r, mat## n ## x ## 
 		for(i=0; i<n; ++i) \
 			r[j] += M[i][j] * v[i]; \
 	} \
+} \
+LINMATH_H_FUNC void mat## n ## x ## n ##_transpose(mat## n ## x ## n M, mat## n ## x ## n N) \
+{ \
+	int i, j; \
+	mat## n ##x## n temp = {}; \
+	for(j=0; j<n; ++j) \
+		for(i=0; i<n; ++i) \
+			temp[i][j] = N[j][i]; \
+	mat## n ##x## n ##_dup(M, temp); \
 }
 
 LINMATH_DEFINE_MAT(2);
@@ -221,10 +351,59 @@ LINMATH_H_FUNC void mat4x4_mul_vec4(vec4 r, mat4x4 M, vec4 v) {
 
     vst1q_f32(r, w);
 }
+LINMATH_H_FUNC void mat4x4_transpose(mat4x4 M, mat4x4 N)
+{
+    float32x4_t m0, m1, m2, m3;
+    float32x4_t n0, n1, n2, n3;
+    float32x4_t a, b, c, d;
+
+    n0 = vld1q_f32(N[0]);
+    n1 = vld1q_f32(N[1]);
+    n2 = vld1q_f32(N[2]);
+    n3 = vld1q_f32(N[3]);
+
+    a = vtrn1q_f32(n0, n1);
+    b = vtrn2q_f32(n0, n1);
+    c = vtrn1q_f32(n2, n3);
+    d = vtrn2q_f32(n2, n3);
+
+    m0 = vtrn1q_f64(a, c);
+    m1 = vtrn1q_f64(b, d);
+    m2 = vtrn2q_f64(a, c);
+    m3 = vtrn2q_f64(b, d);
+
+    vst1q_f32(M[0], m0);
+    vst1q_f32(M[1], m1);
+    vst1q_f32(M[2], m2);
+    vst1q_f32(M[3], m3);
+}
 #else /* USE_SIMD */
 LINMATH_DEFINE_MAT_MUL(4);
 #endif /* USE_SIMD */
 
+#ifdef USE_SIMD
+LINMATH_H_FUNC void mat4x4_transpose_mat3x3(mat4x4 m)
+{
+    uint8x16x3_t a;
+    uint8x16_t idx0, idx1, idx2;
+    uint8x16_t r0, r1, r2;
+
+    a.val[0] = vreinterpretq_u8_f32(vld1q_f32(m[0]));
+    a.val[1] = vreinterpretq_u8_f32(vld1q_f32(m[1]));
+    a.val[2] = vreinterpretq_u8_f32(vld1q_f32(m[2]));
+    idx0 = vcombine_u8(vcreate_u8(0x1312111003020100), vcreate_u8(0x0f0e0d0c23222120));
+    idx1 = vcombine_u8(vcreate_u8(0x1716151407060504), vcreate_u8(0x1f1e1d1c27262524));
+    idx2 = vcombine_u8(vcreate_u8(0x1b1a19180b0a0908), vcreate_u8(0x2f2e2d2c2b2a2928));
+
+    r0 = vqtbl3q_u8(a, idx0);
+    r1 = vqtbl3q_u8(a, idx1);
+    r2 = vqtbl3q_u8(a, idx2);
+
+    vst1q_f32(m[0], vreinterpretq_f32_u8(r0));
+    vst1q_f32(m[1], vreinterpretq_f32_u8(r1));
+    vst1q_f32(m[2], vreinterpretq_f32_u8(r2));
+}
+#else /* USE_SIMD */
 LINMATH_H_FUNC void mat4x4_transpose_mat3x3(mat4x4 m)
 {
     mat4x4 r;
@@ -234,6 +413,7 @@ LINMATH_H_FUNC void mat4x4_transpose_mat3x3(mat4x4 m)
     vec3_dup(r[2], (vec3){ m[0][2], m[1][2], m[2][2] });
     mat4x4_dup(m, r);
 }
+#endif /* USE_SIMD */
 LINMATH_H_FUNC void mat4x4_row(vec4 r, mat4x4 M, int i)
 {
 	int k;
