@@ -464,6 +464,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     profiler_show(PROF_PTR(start), ctx->fps.fps_fine);
     renderer_debug(&ctx->renderer);
     input_debug();
+    controllers_debug();
     memory_debug();
 
     imgui_render();
