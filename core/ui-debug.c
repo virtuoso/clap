@@ -17,6 +17,7 @@ static struct debug_module debug_enabled[DEBUG_MODULES_MAX] = {
     [DEBUG_CHARACTERS]          = { .name = "characters" },
     [DEBUG_CHARACTER_MOTION]    = { .name = "character motion" },
     [DEBUG_INPUT]               = { .name = "input" },
+    [DEBUG_CONTROLLERS]         = { .name = "controllers" },
     [DEBUG_FRAME_PROFILER]      = { .name = "frame profiler" },
     [DEBUG_RENDERER]            = { .name = "renderer" },
     [DEBUG_DEBUGGER]            = { .name = "debugger" },
