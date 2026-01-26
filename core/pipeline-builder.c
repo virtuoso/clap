@@ -558,7 +558,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "ssao",
-            // .scale              = 0.5,
+            .scale              = 0.25,
         ),
         pipeline
     ) : NULL;
