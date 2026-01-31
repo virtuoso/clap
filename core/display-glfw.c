@@ -407,7 +407,11 @@ static void scroll_cb(struct GLFWwindow *window, double xoff, double yoff)
     message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
-static void glfw_joysticks_poll(void)
+#ifdef __APPLE__
+extern void apple_input_poll(void);
+static inline void platform_joysticks_poll() { apple_input_poll(); }
+#else /* !__APPLE__ */
+static void platform_joysticks_poll(void)
 {
     int i;
 
@@ -439,6 +443,7 @@ static void glfw_joysticks_poll(void)
         }
     }
 }
+#endif /* !__APPLE__ */
 
 #include "librarian.h"
 int platform_input_init(struct clap_context *ctx)
@@ -471,6 +476,6 @@ void display_swap_buffers(void)
 #endif /* CONFIG_RENDERER_METAL */
     glfwPollEvents();
     /* XXX: move to the start of frame code? */
-    glfw_joysticks_poll();
+    platform_joysticks_poll();
     joysticks_poll(clap_ctx);
 }

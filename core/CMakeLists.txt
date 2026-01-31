@@ -177,6 +177,11 @@ if (NOT CLAP_BUILD_FINAL)
     list(APPEND ENGINE_SRC debug_draw.c ui-debug-fs.c)
 endif ()
 
+if (APPLE)
+    list(APPEND ENGINE_SRC input-apple.m)
+    list(APPEND EXTRA_LIBRARIES "-framework GameController" "-framework Foundation" "-framework Cocoa")
+endif ()
+
 ##########################################################################
 # Convert engine shaders
 ##########################################################################
@@ -250,6 +255,7 @@ FOREACH(src ${ENGINE_SRC})
 ENDFOREACH ()
 
 set_source_files_properties(render-mtl.m COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-availability -fno-objc-arc")
+set_source_files_properties(input-apple.m COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-availability -fno-objc-arc")
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builddate.c" FORCE_REGEN
