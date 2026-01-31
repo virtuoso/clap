@@ -78,7 +78,7 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     if (m->input.dash || m->input.pad_rb)
         character_dash(ch, s);
 
-    if ((m->input.space || m->input.pad_x) &&
+    if ((m->input.space || m->input.pad_y) &&
         ch->state != CS_JUMPING && ch->state != CS_JUMP_START)
         ch->jump = true;
 }
