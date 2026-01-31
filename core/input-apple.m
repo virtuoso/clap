@@ -7,6 +7,53 @@
 #error "MacOS older than 11.0 is not supported"
 #endif
 
+static void apple_motion_poll(int i, GCController *c)
+{
+    joystick_set_motion(i, c.motion != nil);
+
+    if (!c.motion)
+        return;
+
+    if (c.motion.sensorsRequireManualActivation)
+        c.motion.sensorsActive = joystick_get_sensors_enabled(i);
+
+    if (!joystick_get_sensors_enabled(i))
+        return;
+
+    float accel[3], gyro[3];
+    quat attitude;
+    float *paccel = NULL, *pgyro = NULL, *pattitude = NULL;
+
+    /*
+     * GCController separates gravity and user acceleration, but we
+     * want the raw accelerometer data which includes both.
+     */
+    if (c.motion.hasGravityAndUserAcceleration) {
+        accel[0] = c.motion.gravity.x + c.motion.userAcceleration.x;
+        accel[1] = c.motion.gravity.y + c.motion.userAcceleration.y;
+        accel[2] = c.motion.gravity.z + c.motion.userAcceleration.z;
+        paccel = accel;
+    }
+
+    if (c.motion.hasRotationRate) {
+        gyro[0] = c.motion.rotationRate.x;
+        gyro[1] = c.motion.rotationRate.y;
+        gyro[2] = c.motion.rotationRate.z;
+        pgyro = gyro;
+    }
+
+    if (c.motion.hasAttitude) {
+        attitude[0] = c.motion.attitude.x;
+        attitude[1] = c.motion.attitude.y;
+        attitude[2] = c.motion.attitude.z;
+        attitude[3] = c.motion.attitude.w;
+        pattitude = attitude;
+    }
+
+    if (paccel || pgyro || pattitude)
+        joystick_motion_update(i, paccel, pgyro, pattitude);
+}
+
 void apple_input_poll(void)
 {
     NSArray<GCController *> *controllers = [GCController controllers];
@@ -71,5 +118,7 @@ void apple_input_poll(void)
             buttons[CLAP_JOY_BTN_RBACK] = !!((GCControllerButtonInput *)e).pressed;
 
         joystick_buttons_update(i, buttons, array_size(buttons));
+
+        apple_motion_poll(i, c);
     }
 }
