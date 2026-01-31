@@ -13,4 +13,37 @@ void joystick_buttons_update(int joy, const unsigned char *buttons, int nr_butto
 void joystick_abuttons_update(int joy, const double *abtns, int nr_buttons);
 void joysticks_poll(struct clap_context *ctx);
 
+/*
+ * Standard gamepad mapping (based on GLFW/Xbox 360)
+ */
+#define CLAP_JOY_AXIS_LX        0
+#define CLAP_JOY_AXIS_LY        1
+#define CLAP_JOY_AXIS_RX        2
+#define CLAP_JOY_AXIS_RY        3
+#define CLAP_JOY_AXIS_LT        4
+#define CLAP_JOY_AXIS_RT        5
+
+#define CLAP_JOY_BTN_A          0
+#define CLAP_JOY_BTN_B          1
+#define CLAP_JOY_BTN_X          2
+#define CLAP_JOY_BTN_Y          3
+#define CLAP_JOY_BTN_LB         4
+#define CLAP_JOY_BTN_RB         5
+#define CLAP_JOY_BTN_BACK       6
+#define CLAP_JOY_BTN_START      7
+#define CLAP_JOY_BTN_GUIDE      8
+#define CLAP_JOY_BTN_LTHUMB     9
+#define CLAP_JOY_BTN_RTHUMB     10
+#define CLAP_JOY_BTN_DPAD_UP    11
+#define CLAP_JOY_BTN_DPAD_RIGHT 12
+#define CLAP_JOY_BTN_DPAD_DOWN  13
+#define CLAP_JOY_BTN_DPAD_LEFT  14
+
+/* Virtual buttons for triggers (mainly for browser support) */
+#define CLAP_JOY_BTN_LT         15
+#define CLAP_JOY_BTN_RT         16
+
+#define CLAP_JOY_AXIS_COUNT     6
+#define CLAP_JOY_BTN_COUNT      17
+
 #endif /* __CLAP_INPUT_JOYSTICK_H__ */

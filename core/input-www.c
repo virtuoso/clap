@@ -347,18 +347,79 @@ void www_joysticks_poll(void)
 
     for (i = 0; i < nr_joys; i++) {
         EmscriptenGamepadEvent ge;
-        unsigned char btn[64];
-        int b;
+        double axes[CLAP_JOY_AXIS_COUNT];
+        unsigned char buttons[CLAP_JOY_BTN_COUNT];
+        int ret;
 
         ret = emscripten_get_gamepad_status(i, &ge);
         if (ret)
             continue;
 
-        for (b = 0; b < ge.numButtons; b++)
-            btn[b] = !!ge.digitalButton[b];
-        joystick_axes_update(i, ge.axis, ge.numAxes);
-        joystick_buttons_update(i, btn, ge.numButtons);
-        joystick_abuttons_update(i, ge.analogButton, ge.numButtons);
+        memset(axes, 0, sizeof(axes));
+        memset(buttons, 0, sizeof(buttons));
+
+        /* Standard mapping assumed for browser Gamepad API */
+        /* TODO: Check ge.mapping (usually "standard") */
+
+        if (ge.numAxes > 0) axes[CLAP_JOY_AXIS_LX] = ge.axis[0];
+        if (ge.numAxes > 1) axes[CLAP_JOY_AXIS_LY] = ge.axis[1];
+        if (ge.numAxes > 2) axes[CLAP_JOY_AXIS_RX] = ge.axis[2];
+        if (ge.numAxes > 3) axes[CLAP_JOY_AXIS_RY] = ge.axis[3];
+        /*
+         * Emscripten/Browser doesn't usually have axes for triggers in the
+         * axis array for standard mapping, they are often buttons 6 and 7
+         * (analog)
+         */
+
+        /*
+         * standard mapping buttons:
+         * 0: A
+         * 1: B
+         * 2: X
+         * 3: Y
+         * 4: LB
+         * 5: RB
+         * 6: LT (analog)
+         * 7: RT (analog)
+         * 8: Back
+         * 9: Start
+         * 10: LThumb
+         * 11: RThumb
+         * 12: Dpad Up
+         * 13: Dpad Down
+         * 14: Dpad Left
+         * 15: Dpad Right
+         * 16: Home
+         */
+
+        if (ge.numButtons > 0) buttons[CLAP_JOY_BTN_A]          = !!ge.digitalButton[0];
+        if (ge.numButtons > 1) buttons[CLAP_JOY_BTN_B]          = !!ge.digitalButton[1];
+        if (ge.numButtons > 2) buttons[CLAP_JOY_BTN_X]          = !!ge.digitalButton[2];
+        if (ge.numButtons > 3) buttons[CLAP_JOY_BTN_Y]          = !!ge.digitalButton[3];
+        if (ge.numButtons > 4) buttons[CLAP_JOY_BTN_LB]         = !!ge.digitalButton[4];
+        if (ge.numButtons > 5) buttons[CLAP_JOY_BTN_RB]         = !!ge.digitalButton[5];
+
+        /* Triggers as axes */
+        if (ge.numButtons > 6) axes[CLAP_JOY_AXIS_LT] = ge.analogButton[6];
+        if (ge.numButtons > 7) axes[CLAP_JOY_AXIS_RT] = ge.analogButton[7];
+
+        /* Triggers as buttons */
+        if (ge.numButtons > 6) buttons[CLAP_JOY_BTN_LT] = !!ge.digitalButton[6];
+        if (ge.numButtons > 7) buttons[CLAP_JOY_BTN_RT] = !!ge.digitalButton[7];
+
+        if (ge.numButtons > 8) buttons[CLAP_JOY_BTN_BACK]       = !!ge.digitalButton[8];
+        if (ge.numButtons > 9) buttons[CLAP_JOY_BTN_START]      = !!ge.digitalButton[9];
+        if (ge.numButtons > 10) buttons[CLAP_JOY_BTN_LTHUMB]    = !!ge.digitalButton[10];
+        if (ge.numButtons > 11) buttons[CLAP_JOY_BTN_RTHUMB]    = !!ge.digitalButton[11];
+        if (ge.numButtons > 12) buttons[CLAP_JOY_BTN_DPAD_UP]   = !!ge.digitalButton[12];
+        if (ge.numButtons > 13) buttons[CLAP_JOY_BTN_DPAD_DOWN] = !!ge.digitalButton[13];
+        if (ge.numButtons > 14) buttons[CLAP_JOY_BTN_DPAD_LEFT] = !!ge.digitalButton[14];
+        if (ge.numButtons > 15) buttons[CLAP_JOY_BTN_DPAD_RIGHT] = !!ge.digitalButton[15];
+        if (ge.numButtons > 16) buttons[CLAP_JOY_BTN_GUIDE]     = !!ge.digitalButton[16];
+
+        joystick_axes_update(i, axes, CLAP_JOY_AXIS_COUNT);
+        joystick_buttons_update(i, buttons, CLAP_JOY_BTN_COUNT);
+        /* joystick_abuttons_update not really needed if we map triggers to axes */
     }
 }
 

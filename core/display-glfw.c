@@ -417,29 +417,63 @@ static void platform_joysticks_poll(void)
 
     for (i = GLFW_JOYSTICK_1; i < GLFW_JOYSTICK_16; i++) {
         const char *name = glfwGetJoystickName(i);
-        int nr_axes, nr_buttons;
-        const unsigned char *buttons;
-        const float *axes;
+        float axes[CLAP_JOY_AXIS_COUNT];
+        unsigned char buttons[CLAP_JOY_BTN_COUNT];
 
         joystick_name_update(i - GLFW_JOYSTICK_1, name);
 
         if (!name)
             continue;
 
+        memset(axes, 0, sizeof(axes));
+        memset(buttons, 0, sizeof(buttons));
+
         if (glfwJoystickIsGamepad(i)) {
             GLFWgamepadstate state;
 
-            glfwGetGamepadState(i, &state);
-            state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER] = (state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER] + 1) / 2;
-            state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER] = (state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER] + 1) / 2;
-            joystick_faxes_update(i - GLFW_JOYSTICK_1, state.axes, array_size(state.axes));
-            joystick_buttons_update(i - GLFW_JOYSTICK_1, state.buttons, array_size(state.buttons));
-        } else {
-            axes = glfwGetJoystickAxes(i, &nr_axes);
-            joystick_faxes_update(i - GLFW_JOYSTICK_1, axes, nr_axes);
+            if (glfwGetGamepadState(i, &state)) {
+                axes[CLAP_JOY_AXIS_LX] = state.axes[GLFW_GAMEPAD_AXIS_LEFT_X];
+                axes[CLAP_JOY_AXIS_LY] = state.axes[GLFW_GAMEPAD_AXIS_LEFT_Y];
+                axes[CLAP_JOY_AXIS_RX] = state.axes[GLFW_GAMEPAD_AXIS_RIGHT_X];
+                axes[CLAP_JOY_AXIS_RY] = state.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y];
+                axes[CLAP_JOY_AXIS_LT] = state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER];
+                axes[CLAP_JOY_AXIS_RT] = state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER];
 
-            buttons = glfwGetJoystickButtons(i, &nr_buttons);
-            joystick_buttons_update(i - GLFW_JOYSTICK_1, buttons, nr_buttons);
+                /* remap triggers from -1..1 to 0..1 */
+                axes[CLAP_JOY_AXIS_LT] = (axes[CLAP_JOY_AXIS_LT] + 1) / 2;
+                axes[CLAP_JOY_AXIS_RT] = (axes[CLAP_JOY_AXIS_RT] + 1) / 2;
+
+                buttons[CLAP_JOY_BTN_A]          = state.buttons[GLFW_GAMEPAD_BUTTON_A];
+                buttons[CLAP_JOY_BTN_B]          = state.buttons[GLFW_GAMEPAD_BUTTON_B];
+                buttons[CLAP_JOY_BTN_X]          = state.buttons[GLFW_GAMEPAD_BUTTON_X];
+                buttons[CLAP_JOY_BTN_Y]          = state.buttons[GLFW_GAMEPAD_BUTTON_Y];
+                buttons[CLAP_JOY_BTN_LB]         = state.buttons[GLFW_GAMEPAD_BUTTON_LEFT_BUMPER];
+                buttons[CLAP_JOY_BTN_RB]         = state.buttons[GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER];
+                buttons[CLAP_JOY_BTN_BACK]       = state.buttons[GLFW_GAMEPAD_BUTTON_BACK];
+                buttons[CLAP_JOY_BTN_START]      = state.buttons[GLFW_GAMEPAD_BUTTON_START];
+                buttons[CLAP_JOY_BTN_GUIDE]      = state.buttons[GLFW_GAMEPAD_BUTTON_GUIDE];
+                buttons[CLAP_JOY_BTN_LTHUMB]     = state.buttons[GLFW_GAMEPAD_BUTTON_LEFT_THUMB];
+                buttons[CLAP_JOY_BTN_RTHUMB]     = state.buttons[GLFW_GAMEPAD_BUTTON_RIGHT_THUMB];
+                buttons[CLAP_JOY_BTN_DPAD_UP]    = state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_UP];
+                buttons[CLAP_JOY_BTN_DPAD_RIGHT] = state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_RIGHT];
+                buttons[CLAP_JOY_BTN_DPAD_DOWN]  = state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_DOWN];
+                buttons[CLAP_JOY_BTN_DPAD_LEFT]  = state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_LEFT];
+
+                /* Virtual buttons for triggers */
+                buttons[CLAP_JOY_BTN_LT] = axes[CLAP_JOY_AXIS_LT] > 0.5;
+                buttons[CLAP_JOY_BTN_RT] = axes[CLAP_JOY_AXIS_RT] > 0.5;
+
+                joystick_faxes_update(i - GLFW_JOYSTICK_1, axes, array_size(axes));
+                joystick_buttons_update(i - GLFW_JOYSTICK_1, buttons, array_size(buttons));
+            }
+        } else {
+            int nr_axes, nr_buttons;
+            const float *raw_axes = glfwGetJoystickAxes(i, &nr_axes);
+            const unsigned char *raw_buttons = glfwGetJoystickButtons(i, &nr_buttons);
+
+            /* Pass through for non-gamepad joysticks, hope for the best or just clamp */
+            joystick_faxes_update(i - GLFW_JOYSTICK_1, raw_axes, nr_axes);
+            joystick_buttons_update(i - GLFW_JOYSTICK_1, raw_buttons, nr_buttons);
         }
     }
 }
