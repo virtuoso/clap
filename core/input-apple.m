@@ -3,8 +3,8 @@
 #include "common.h"
 #include "input-joystick.h"
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED < 101500
-#error "MacOS older than 10.15 is not supported"
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < 110000
+#error "MacOS older than 11.0 is not supported"
 #endif
 
 void apple_input_poll(void)
@@ -58,6 +58,17 @@ void apple_input_poll(void)
         /* Virtual buttons for triggers */
         buttons[CLAP_JOY_BTN_LT] = !!gp.leftTrigger.pressed;
         buttons[CLAP_JOY_BTN_RT] = !!gp.rightTrigger.pressed;
+
+        GCControllerElement *e;
+        e = [c.physicalInputProfile.elements objectForKey:@"Button Paddle1"];
+        if (!e) e = [c.physicalInputProfile.elements objectForKey:@"Left Paddle"];
+        if (e && [e isKindOfClass:[GCControllerButtonInput class]])
+            buttons[CLAP_JOY_BTN_LBACK] = !!((GCControllerButtonInput *)e).pressed;
+
+        e = [c.physicalInputProfile.elements objectForKey:@"Button Paddle2"];
+        if (!e) e = [c.physicalInputProfile.elements objectForKey:@"Right Paddle"];
+        if (e && [e isKindOfClass:[GCControllerButtonInput class]])
+            buttons[CLAP_JOY_BTN_RBACK] = !!((GCControllerButtonInput *)e).pressed;
 
         joystick_buttons_update(i, buttons, array_size(buttons));
     }

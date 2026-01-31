@@ -173,6 +173,8 @@ struct joy_map joy_map[CLAP_JOY_BTN_COUNT] = {
     [CLAP_JOY_BTN_GUIDE]      = JOY_MAP(to_press_hold,    pad_home),
     [CLAP_JOY_BTN_LTHUMB]     = JOY_MAP(to_press_hold,    stick_l),
     [CLAP_JOY_BTN_RTHUMB]     = JOY_MAP(to_press,         stick_r),
+    [CLAP_JOY_BTN_LBACK]      = JOY_MAP(to_press,         pad_lback),
+    [CLAP_JOY_BTN_RBACK]      = JOY_MAP(to_press,         pad_rback),
 };
 
 #ifndef CONFIG_FINAL
