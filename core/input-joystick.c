@@ -21,6 +21,11 @@ struct joystick {
     double              abuttons[JOY_THINGS_MAX];
     double              axes[JOY_THINGS_MAX];
     double              axes_init[JOY_THINGS_MAX];
+    float               accel[3];
+    float               gyro[3];
+    quat                attitude;
+    bool                has_motion;
+    bool                sensors_enabled;
     struct message_source msg_src;
 };
 
@@ -129,6 +134,19 @@ void joystick_buttons_update(int joy, const unsigned char *buttons, int nr_butto
     memcpy(joys[joy].buttons, buttons, nr_buttons);
 }
 
+void joystick_motion_update(int joy, const float *accel, const float *gyro, const quat attitude)
+{
+    if (!joystick_present(joy))
+        return;
+
+    if (accel)
+        memcpy(joys[joy].accel, accel, sizeof(joys[joy].accel));
+    if (gyro)
+        memcpy(joys[joy].gyro, gyro, sizeof(joys[joy].gyro));
+    if (attitude)
+        memcpy(joys[joy].attitude, attitude, sizeof(joys[joy].attitude));
+}
+
 /* empty string or NULL disables the joystick */
 void joystick_name_update(int joy, const char *name)
 {
@@ -144,6 +162,41 @@ void joystick_name_update(int joy, const char *name)
     joys[joy].msg_src.type = -1;
     joys[joy].msg_src.desc = joys[joy].name;
     joys[joy].msg_src.name = joys[joy].name;
+    joys[joy].has_motion = false;
+    joys[joy].sensors_enabled = false;
+}
+
+void joystick_set_motion(int joy, bool has_motion)
+{
+    if (joy < NR_JOYS)
+        joys[joy].has_motion = has_motion;
+}
+
+bool joystick_has_motion(int joy)
+{
+    if (joy < NR_JOYS)
+        return joys[joy].has_motion;
+    return false;
+}
+
+void joystick_set_sensors(int joy, bool enabled)
+{
+    if (joy >= NR_JOYS || !joys[joy].has_motion)    return;
+
+    joys[joy].sensors_enabled = enabled;
+    if (enabled)    return;
+
+    /* clear sensors' data on disable */
+    memset(joys[joy].accel, 0, sizeof(joys[joy].accel));
+    memset(joys[joy].gyro, 0, sizeof(joys[joy].gyro));
+    quat_identity(joys[joy].attitude);
+}
+
+bool joystick_get_sensors_enabled(int joy)
+{
+    if (joy < NR_JOYS)
+        return joys[joy].sensors_enabled;
+    return false;
 }
 
 struct joy_map {
@@ -209,6 +262,19 @@ void controllers_debug(void)
                 for (unsigned int btn = 0; btn < j->nr_buttons; btn++)
                     if (btn < array_size(joy_map) && joy_map[btn].name)
                         igText("%s:\t%d", joy_map[btn].name, (int)j->buttons[btn]);
+
+                if (j->has_motion) {
+                    bool enabled = j->sensors_enabled;
+                    if (igCheckbox("Sensors Enabled", &enabled))
+                        joystick_set_sensors(i, enabled);
+
+                    if (ui_igVecTableHeader("motion", 4)) {
+                        ui_igVecRow(j->accel, 3, "accel");
+                        ui_igVecRow(j->gyro, 3, "gyro");
+                        ui_igVecRow(j->attitude, 4, "attitude");
+                        igEndTable();
+                    }
+                }
 
                 igTreePop();
             }
@@ -308,6 +374,13 @@ void joysticks_poll(struct clap_context *ctx)
             if (state != JB_NONE)
                 count++;
         }
+
+        memcpy(mi.accel, j->accel, sizeof(mi.accel));
+        memcpy(mi.gyro, j->gyro, sizeof(mi.gyro));
+        memcpy(mi.attitude, j->attitude, sizeof(mi.attitude));
+        /* always send motion data if available */
+        if (mi.accel[0] || mi.accel[1] || mi.accel[2] || mi.gyro[0] || mi.gyro[1] || mi.gyro[2])
+            count++;
 
         if (count) {
             /* TODO: display this in input debug UI if necessary */

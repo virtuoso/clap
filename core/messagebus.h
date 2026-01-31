@@ -82,6 +82,9 @@ struct message_input {
     float           delta_ry;
     float           trigger_l;
     float           trigger_r;
+    float           accel[3];
+    float           gyro[3];
+    quat            attitude;
     unsigned int    x, y;
 };
 
