@@ -43,7 +43,10 @@ void joysticks_poll(struct clap_context *ctx);
 #define CLAP_JOY_BTN_LT         15
 #define CLAP_JOY_BTN_RT         16
 
+#define CLAP_JOY_BTN_LBACK      17
+#define CLAP_JOY_BTN_RBACK      18
+
 #define CLAP_JOY_AXIS_COUNT     6
-#define CLAP_JOY_BTN_COUNT      17
+#define CLAP_JOY_BTN_COUNT      19
 
 #endif /* __CLAP_INPUT_JOYSTICK_H__ */
