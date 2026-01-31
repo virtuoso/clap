@@ -9,8 +9,13 @@ struct clap_context;
 void joystick_name_update(int joy, const char *name);
 void joystick_axes_update(int joy, const double *axes, int nr_axes);
 void joystick_faxes_update(int joy, const float *axes, int nr_axes);
+void joystick_motion_update(int joy, const float *accel, const float *gyro, const quat attitude);
 void joystick_buttons_update(int joy, const unsigned char *buttons, int nr_buttons);
 void joystick_abuttons_update(int joy, const double *abtns, int nr_buttons);
+void joystick_set_motion(int joy, bool has_motion);
+bool joystick_has_motion(int joy);
+void joystick_set_sensors(int joy, bool enabled);
+bool joystick_get_sensors_enabled(int joy);
 void joysticks_poll(struct clap_context *ctx);
 
 /*
