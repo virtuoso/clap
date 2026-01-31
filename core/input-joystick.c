@@ -146,58 +146,6 @@ void joystick_name_update(int joy, const char *name)
     joys[joy].msg_src.name = joys[joy].name;
 }
 
-/* XXX big fat XXX */
-#ifdef CONFIG_BROWSER
-#define AXIS_LX 0
-#define AXIS_LY 1
-#define AXIS_RX 2
-#define AXIS_RY 3
-#define AXIS_LT 4
-#define AXIS_RT 5
-#define BTN_LEFT  14
-#define BTN_RIGHT 15
-#define BTN_DOWN  13
-#define BTN_UP    12
-#define BTN_PADB  0
-#define BTN_PADA  1
-#define BTN_PADX  3
-#define BTN_PADY  2
-#define BTN_PADLB 4
-#define BTN_PADRB 5
-#define BTN_PADLT 6
-#define BTN_PADRT 7
-#define BTN_MINUS 8
-#define BTN_PLUS  9
-#define BTN_HOME  16
-#define BTN_STICKL 10
-#define BTN_STICKR 11
-#else
-#include <GLFW/glfw3.h>
-#define AXIS_LX GLFW_GAMEPAD_AXIS_LEFT_X
-#define AXIS_LY GLFW_GAMEPAD_AXIS_LEFT_Y
-#define AXIS_RX GLFW_GAMEPAD_AXIS_RIGHT_X
-#define AXIS_RY GLFW_GAMEPAD_AXIS_RIGHT_Y
-#define AXIS_LT GLFW_GAMEPAD_AXIS_LEFT_TRIGGER
-#define AXIS_RT GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER
-#define BTN_LEFT  GLFW_GAMEPAD_BUTTON_DPAD_LEFT
-#define BTN_RIGHT GLFW_GAMEPAD_BUTTON_DPAD_RIGHT
-#define BTN_DOWN  GLFW_GAMEPAD_BUTTON_DPAD_DOWN
-#define BTN_UP    GLFW_GAMEPAD_BUTTON_DPAD_UP
-#define BTN_PADB  GLFW_GAMEPAD_BUTTON_A
-#define BTN_PADA  GLFW_GAMEPAD_BUTTON_B
-#define BTN_PADX  GLFW_GAMEPAD_BUTTON_Y
-#define BTN_PADY  GLFW_GAMEPAD_BUTTON_X
-#define BTN_PADLB GLFW_GAMEPAD_BUTTON_LEFT_BUMPER
-#define BTN_PADRB GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER
-#define BTN_PADLT 15
-#define BTN_PADRT 16
-#define BTN_MINUS GLFW_GAMEPAD_BUTTON_BACK
-#define BTN_PLUS  GLFW_GAMEPAD_BUTTON_START
-#define BTN_HOME  GLFW_GAMEPAD_BUTTON_GUIDE
-#define BTN_STICKL GLFW_GAMEPAD_BUTTON_LEFT_THUMB
-#define BTN_STICKR GLFW_GAMEPAD_BUTTON_RIGHT_THUMB
-#endif
-
 struct joy_map {
     unsigned int (*setter)(int state);
     const char  *name;
@@ -207,24 +155,24 @@ struct joy_map {
 #define JOY_MAP(_setter, _field) \
     { .setter = _setter, .name = __stringify(_field), .offset = offsetof(struct message_input, _field) }
 
-struct joy_map joy_map[] = {
-    [BTN_LEFT]  = JOY_MAP(to_press_release, left),
-    [BTN_RIGHT] = JOY_MAP(to_press_release, right),
-    [BTN_UP]    = JOY_MAP(to_press_release, up),
-    [BTN_DOWN]  = JOY_MAP(to_press_release, down),
-    [BTN_PADB]  = JOY_MAP(to_press,         pad_b),
-    [BTN_PADA]  = JOY_MAP(to_press,         pad_a),
-    [BTN_PADX]  = JOY_MAP(to_press,         pad_x),
-    [BTN_PADY]  = JOY_MAP(to_press,         pad_y),
-    [BTN_PADLB] = JOY_MAP(to_press_hold,    pad_lb),
-    [BTN_PADRB] = JOY_MAP(to_press,         pad_rb),
-    [BTN_PADLT] = JOY_MAP(to_press_hold,    pad_lt),
-    [BTN_PADRT] = JOY_MAP(to_press_hold,    pad_rt),
-    [BTN_MINUS] = JOY_MAP(to_press_hold,    pad_min),
-    [BTN_PLUS]  = JOY_MAP(to_press_hold,    pad_plus),
-    [BTN_HOME]  = JOY_MAP(to_press_hold,    pad_home),
-    [BTN_STICKL] = JOY_MAP(to_press_hold,   stick_l),
-    [BTN_STICKR] = JOY_MAP(to_press,        stick_r),
+struct joy_map joy_map[CLAP_JOY_BTN_COUNT] = {
+    [CLAP_JOY_BTN_DPAD_LEFT]  = JOY_MAP(to_press_release, left),
+    [CLAP_JOY_BTN_DPAD_RIGHT] = JOY_MAP(to_press_release, right),
+    [CLAP_JOY_BTN_DPAD_UP]    = JOY_MAP(to_press_release, up),
+    [CLAP_JOY_BTN_DPAD_DOWN]  = JOY_MAP(to_press_release, down),
+    [CLAP_JOY_BTN_A]          = JOY_MAP(to_press,         pad_a),
+    [CLAP_JOY_BTN_B]          = JOY_MAP(to_press,         pad_b),
+    [CLAP_JOY_BTN_X]          = JOY_MAP(to_press,         pad_x),
+    [CLAP_JOY_BTN_Y]          = JOY_MAP(to_press,         pad_y),
+    [CLAP_JOY_BTN_LB]         = JOY_MAP(to_press_hold,    pad_lb),
+    [CLAP_JOY_BTN_RB]         = JOY_MAP(to_press,         pad_rb),
+    [CLAP_JOY_BTN_LT]         = JOY_MAP(to_press_hold,    pad_lt),
+    [CLAP_JOY_BTN_RT]         = JOY_MAP(to_press_hold,    pad_rt),
+    [CLAP_JOY_BTN_BACK]       = JOY_MAP(to_press_hold,    pad_min),
+    [CLAP_JOY_BTN_START]      = JOY_MAP(to_press_hold,    pad_plus),
+    [CLAP_JOY_BTN_GUIDE]      = JOY_MAP(to_press_hold,    pad_home),
+    [CLAP_JOY_BTN_LTHUMB]     = JOY_MAP(to_press_hold,    stick_l),
+    [CLAP_JOY_BTN_RTHUMB]     = JOY_MAP(to_press,         stick_r),
 };
 
 #ifndef CONFIG_FINAL
@@ -293,22 +241,22 @@ void joysticks_poll(struct clap_context *ctx)
                     continue;
 
                 switch (t) {
-                case AXIS_LX:
+                case CLAP_JOY_AXIS_LX:
                     mi.delta_lx = j->axes[t] - j->axes_init[t];
                     break;
-                case AXIS_LY:
+                case CLAP_JOY_AXIS_LY:
                     mi.delta_ly = j->axes[t] - j->axes_init[t];
                     break;
-                case AXIS_RX:
+                case CLAP_JOY_AXIS_RX:
                     mi.delta_rx = j->axes[t] - j->axes_init[t];
                     break;
-                case AXIS_RY:
+                case CLAP_JOY_AXIS_RY:
                     mi.delta_ry = j->axes[t] - j->axes_init[t];
                     break;
-                case AXIS_LT:
+                case CLAP_JOY_AXIS_LT:
                     mi.trigger_l = j->axes[t] - j->axes_init[t];
                     break;
-                case AXIS_RT:
+                case CLAP_JOY_AXIS_RT:
                     mi.trigger_r = j->axes[t] - j->axes_init[t];
                     break;
                 }
@@ -342,10 +290,10 @@ void joysticks_poll(struct clap_context *ctx)
                 *val = joy_map[t].setter(state);
             }
 
-            if (mi.pad_lt && j->abuttons[BTN_PADLT])
-                mi.trigger_l = j->abuttons[BTN_PADLT];
-            if (mi.pad_rt && j->abuttons[BTN_PADRT])
-                mi.trigger_r = j->abuttons[BTN_PADRT];
+            if (mi.pad_lt && j->abuttons[CLAP_JOY_BTN_LT])
+                mi.trigger_l = j->abuttons[CLAP_JOY_BTN_LT];
+            if (mi.pad_rt && j->abuttons[CLAP_JOY_BTN_RT])
+                mi.trigger_r = j->abuttons[CLAP_JOY_BTN_RT];
 
             if (mi.pad_plus && to_press(state))
                 mi.menu_toggle = 1;

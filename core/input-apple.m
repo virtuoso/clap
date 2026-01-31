@@ -23,37 +23,41 @@ void apple_input_poll(void)
 
         joystick_name_update(i, [c.vendorName UTF8String]);
 
-        float axes[6];
-        axes[GLFW_GAMEPAD_AXIS_LEFT_X] = gp.leftThumbstick.xAxis.value;
-        axes[GLFW_GAMEPAD_AXIS_LEFT_Y] = -gp.leftThumbstick.yAxis.value;
-        axes[GLFW_GAMEPAD_AXIS_RIGHT_X] = gp.rightThumbstick.xAxis.value;
-        axes[GLFW_GAMEPAD_AXIS_RIGHT_Y] = -gp.rightThumbstick.yAxis.value;
-        axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER] = gp.leftTrigger.value;
-        axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER] = gp.rightTrigger.value;
+        float axes[CLAP_JOY_AXIS_COUNT];
+        axes[CLAP_JOY_AXIS_LX] = gp.leftThumbstick.xAxis.value;
+        axes[CLAP_JOY_AXIS_LY] = -gp.leftThumbstick.yAxis.value;
+        axes[CLAP_JOY_AXIS_RX] = gp.rightThumbstick.xAxis.value;
+        axes[CLAP_JOY_AXIS_RY] = -gp.rightThumbstick.yAxis.value;
+        axes[CLAP_JOY_AXIS_LT] = gp.leftTrigger.value;
+        axes[CLAP_JOY_AXIS_RT] = gp.rightTrigger.value;
 
         joystick_faxes_update(i, axes, array_size(axes));
 
-        unsigned char buttons[15];
+        unsigned char buttons[CLAP_JOY_BTN_COUNT];
         memset(buttons, 0, sizeof(buttons));
 
-        buttons[GLFW_GAMEPAD_BUTTON_A] = !!gp.buttonA.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_B] = !!gp.buttonB.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_X] = !!gp.buttonX.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_Y] = !!gp.buttonY.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_LEFT_BUMPER] = !!gp.leftShoulder.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER] = !!gp.rightShoulder.pressed;
+        buttons[CLAP_JOY_BTN_A] = !!gp.buttonA.pressed;
+        buttons[CLAP_JOY_BTN_B] = !!gp.buttonB.pressed;
+        buttons[CLAP_JOY_BTN_X] = !!gp.buttonX.pressed;
+        buttons[CLAP_JOY_BTN_Y] = !!gp.buttonY.pressed;
+        buttons[CLAP_JOY_BTN_LB] = !!gp.leftShoulder.pressed;
+        buttons[CLAP_JOY_BTN_RB] = !!gp.rightShoulder.pressed;
         
-        buttons[GLFW_GAMEPAD_BUTTON_BACK] = !!gp.buttonOptions.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_START] = !!gp.buttonMenu.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_GUIDE] = !!gp.buttonHome.pressed;
+        buttons[CLAP_JOY_BTN_BACK] = !!gp.buttonOptions.pressed;
+        buttons[CLAP_JOY_BTN_START] = !!gp.buttonMenu.pressed;
+        buttons[CLAP_JOY_BTN_GUIDE] = !!gp.buttonHome.pressed;
 
-        buttons[GLFW_GAMEPAD_BUTTON_LEFT_THUMB] = !!gp.leftThumbstickButton.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_RIGHT_THUMB] = !!gp.rightThumbstickButton.pressed;
+        buttons[CLAP_JOY_BTN_LTHUMB] = !!gp.leftThumbstickButton.pressed;
+        buttons[CLAP_JOY_BTN_RTHUMB] = !!gp.rightThumbstickButton.pressed;
 
-        buttons[GLFW_GAMEPAD_BUTTON_DPAD_UP] = !!gp.dpad.up.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_DPAD_RIGHT] = !!gp.dpad.right.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_DPAD_DOWN] = !!gp.dpad.down.pressed;
-        buttons[GLFW_GAMEPAD_BUTTON_DPAD_LEFT] = !!gp.dpad.left.pressed;
+        buttons[CLAP_JOY_BTN_DPAD_UP] = !!gp.dpad.up.pressed;
+        buttons[CLAP_JOY_BTN_DPAD_RIGHT] = !!gp.dpad.right.pressed;
+        buttons[CLAP_JOY_BTN_DPAD_DOWN] = !!gp.dpad.down.pressed;
+        buttons[CLAP_JOY_BTN_DPAD_LEFT] = !!gp.dpad.left.pressed;
+
+        /* Virtual buttons for triggers */
+        buttons[CLAP_JOY_BTN_LT] = !!gp.leftTrigger.pressed;
+        buttons[CLAP_JOY_BTN_RT] = !!gp.rightTrigger.pressed;
 
         joystick_buttons_update(i, buttons, array_size(buttons));
     }
