@@ -10,7 +10,8 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(OPENGL_LIBRARIES    "-s USE_WEBGL2=1 -s FULL_ES3=1")
     set(EXTRA_LIBRARIES     "-lidbfs.js"
                             "-s WASM=1"
-                            "-s ALLOW_MEMORY_GROWTH"
+                            "-s ALLOW_MEMORY_GROWTH=0"
+                            "-s INITIAL_MEMORY=268435456"
                             "-s MAX_WEBGL_VERSION=2"
                             "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
                             "-s EXPORTED_RUNTIME_METHODS=FS"
