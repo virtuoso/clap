@@ -165,13 +165,12 @@ static void sound_drop(struct ref *ref)
 {
     sound *sound = container_of(ref, struct sound, ref);
 
-    if (sound->ctx->started) {
-        if (sound->effect_chain)
-            sound_set_effect_chain(sound, NULL);
-        ma_audio_buffer_uninit(&sound->buffer);
-        ma_sound_uninit(&sound->sound);
-        mem_free(sound->pcm);
-    }
+    if (sound->effect_chain)
+        sound_set_effect_chain(sound, NULL);
+
+    ma_audio_buffer_uninit(&sound->buffer);
+    ma_sound_uninit(&sound->sound);
+    mem_free(sound->pcm);
 
     list_del(&sound->entry);
     free(sound->name);
@@ -206,21 +205,28 @@ void sound_play(sound *sound)
 
 static void do_sound_init(sound_context *ctx)
 {
-    auto result = ma_engine_init(NULL, &ctx->engine);
+    auto config = ma_engine_config_init();
+    config.noAutoStart = true;
+
+    auto result = ma_engine_init(&config, &ctx->engine);
     if (result != MA_SUCCESS)   return;
+
+    sound *s;
+    list_for_each_entry(s, &ctx->sounds, entry) {
+        CERR_RET(do_sound_make(s, ctx), continue);
+        ma_sound_set_looping(&s->sound, s->looping);
+        ma_sound_set_min_gain(&s->sound, s->gain);
+        ma_sound_set_max_gain(&s->sound, s->gain);
+    }
 
     result = ma_engine_start(&ctx->engine);
     if (result != MA_SUCCESS)   goto err_engine;
 
     ctx->started = true;
-    sound *s;
-    list_for_each_entry(s, &ctx->sounds, entry) {
-        do_sound_make(s, ctx);
-        ma_sound_set_looping(&s->sound, s->looping);
-        ma_sound_set_min_gain(&s->sound, s->gain);
-        ma_sound_set_max_gain(&s->sound, s->gain);
+
+    list_for_each_entry(s, &ctx->sounds, entry)
         if (s->deferred_play) sound_play(s);
-    }
+
     message_send(
         ctx->clap_ctx,
         &(struct message) {
