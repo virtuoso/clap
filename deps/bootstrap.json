@@ -20,7 +20,7 @@
     "source": {
         "type": "git",
         "url": "https://github.com/mackron/miniaudio.git",
-        "revision": "0.11.22"
+        "revision": "0.11.24"
     },
     "postprocess": {
         "type": "patch",
