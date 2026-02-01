@@ -33,6 +33,7 @@ typedef struct sound {
     unsigned int        nr_channels;
     float               gain;
     bool                looping;
+    bool                deferred_play;
     sound_effect_chain  *effect_chain;
     struct list         entry;
     struct list         chain_entry;
@@ -191,8 +192,12 @@ void sound_set_looping(sound *sound, bool looping)
 
 void sound_play(sound *sound)
 {
-    if (!sound->ctx->started)   return;
+    if (!sound->ctx->started) {
+        sound->deferred_play = true;
+        return;
+    }
 
+    sound->deferred_play = false;
     if (ma_sound_is_playing(&sound->sound))
         ma_sound_seek_to_pcm_frame(&sound->sound, 0);
 
@@ -214,6 +219,7 @@ static void do_sound_init(sound_context *ctx)
         ma_sound_set_looping(&s->sound, s->looping);
         ma_sound_set_min_gain(&s->sound, s->gain);
         ma_sound_set_max_gain(&s->sound, s->gain);
+        if (s->deferred_play) sound_play(s);
     }
     message_send(
         ctx->clap_ctx,
