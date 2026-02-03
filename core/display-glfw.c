@@ -70,12 +70,27 @@ static void __error_cb(int error, const char *desc)
     abort();
 }
 
+static void get_content_scale(void)
+{
+#ifdef CONFIG_RENDERER_METAL
+    /*
+     * On Metal, apply the actual content scale to the width and height,
+     * leave as-is for OpenGL.
+     */
+    glfwGetWindowContentScale(window, &scale_x, &scale_y);
+#else
+    scale_x = scale_y = 1.0;
+#endif /* CONFIG_RENDERER_METAL */
+}
+
 static void __resize_cb(GLFWwindow *window, int w, int h)
 {
-    width = w;
-    height = h;
+    glfwGetFramebufferSize(window, &width, &height);
+    get_content_scale();
+    width /= scale_x;
+    height /= scale_y;
     refresh_rate = __display_refresh_rate();
-    resize_fn(update_fn_data, w, h);
+    resize_fn(update_fn_data, width, height);
 }
 
 static void __move_cb(GLFWwindow *window, int x, int y)
@@ -89,10 +104,21 @@ static void __move_cb(GLFWwindow *window, int x, int y)
     display_get_sizes(NULL, NULL);
 }
 
+static void __scale_cb(GLFWwindow *window, float sx, float sy)
+{
+    width *= scale_x / sx;
+    height *= scale_y / sy;
+    scale_x = sx;
+    scale_y = sy;
+}
+
 void display_get_sizes(int *widthp, int *heightp)
 {
     glfwGetFramebufferSize(window, &width, &height);
-    glfwGetWindowContentScale(window, &scale_x, &scale_y);
+    get_content_scale();
+
+    width /= scale_x;
+    height /= scale_y;
 
     renderer_viewport(renderer, 0, 0, width, height);
 
@@ -124,9 +150,10 @@ void display_enter_fullscreen(void)
                          primary_monitor_mode->height,
                          primary_monitor_mode->refreshRate
                          );
+    get_content_scale();
     saved_width = width;
     saved_height = height;
-    display_resize(primary_monitor_mode->width, primary_monitor_mode->height);
+    display_resize(primary_monitor_mode->width / scale_x, primary_monitor_mode->height / scale_y);
 }
 
 void display_leave_fullscreen(void)
@@ -281,9 +308,10 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
     if (IS_CERR(err))
         return err;
 
-    glfwGetWindowContentScale(window, &scale_x, &scale_y);
+    get_content_scale();
     glfwSetWindowPosCallback(window, __move_cb);
     glfwSetFramebufferSizeCallback(window, __resize_cb);
+    glfwSetWindowContentScaleCallback(window, __scale_cb);
 
     return CERR_OK;
 }

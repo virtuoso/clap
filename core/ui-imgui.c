@@ -84,6 +84,15 @@ void imgui_render_begin(int width, int height)
 #else
     ImGui_ImplGlfw_NewFrame();
 #endif
+    /*
+     * The engine determines the rendering scale, which for now is the reported
+     * contents scale, so ImGui doesn't have to perform its own scaling on top
+     * of that. This will change once there's an option to choose the rendering
+     * scale.
+     */
+#ifdef CONFIG_RENDERER_METAL
+    io->DisplayFramebufferScale = (ImVec2){ 1.0f, 1.0f };
+#endif /* CONFIG_RENDERER_METAL */
     igNewFrame();
 }
 
