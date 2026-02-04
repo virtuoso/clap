@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#include "display.h"
 #define IMPLEMENTOR
 #include "render.h"
 #undef IMPLEMENTOR
@@ -1716,6 +1717,18 @@ void renderer_frame_begin(renderer_t *r)
     r->frame_pool = [[NSAutoreleasePool alloc] init];
 
     r->layer.drawableSize = CGSizeMake(r->width, r->height);
+
+    /*
+     * XXX: This assumption is fragile and not future-proof;
+     * 120Hz + 2:1 scale: assume MB retina display: 60 FPS should be enough
+     * This is currently only exposed via renderer's debug UI slider, but
+     * needs to be an API that the regular UI can call
+     */
+    auto refresh_rate = display_refresh_rate();
+    if (refresh_rate == 120 && display_get_scale() == 2)
+        r->fps_cap = 60;
+    else
+        r->fps_cap = refresh_rate;
 
     /* HDR output */
     r->layer.wantsExtendedDynamicRangeContent = YES;
