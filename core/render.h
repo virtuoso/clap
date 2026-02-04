@@ -830,6 +830,7 @@ TYPE(renderer,
     int                                 cmdbuf_count;
     int                                 frame_idx;
     bool                                blend;
+    bool                                hdr;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -848,6 +849,12 @@ void _renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+
+#ifdef CONFIG_RENDERER_OPENGL
+static inline void renderer_hdr_enable(renderer_t *r, bool enable) {}
+#else /* !CONFIG_RENDERER_OPENGL */
+void renderer_hdr_enable(renderer_t *r, bool enable);
+#endif /* !CONFIG_RENDERER_OPENGL */
 
 void renderer_swapchain_begin(renderer_t *renderer);
 

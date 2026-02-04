@@ -1694,12 +1694,8 @@ void _renderer_init(renderer_t *r, const renderer_init_options *opts)
     r->device = opts->device;
     r->layer = opts->layer;
     [r->layer retain];
-    r->layer.pixelFormat = mtl_texture_format(TEX_FMT_BGRA10XR);
-    // r->layer.pixelFormat = mtl_texture_format(TEX_FMT_BGR10A2);
 
     r->cmd_queue = [r->device newCommandQueue];
-
-    r->colorspace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
 
     r->cull_mode = from_mtl_cull_mode(MTLCullModeBack);
 }
@@ -1717,7 +1713,9 @@ void renderer_done(renderer_t *r)
     [r->sem release];
 
     [r->layer release];
-    CGColorSpaceRelease(r->colorspace);
+
+    if (r->colorspace)  CGColorSpaceRelease(r->colorspace);
+
     [r->device release];
 
     bitmap_done(&r->fbo_ids);
@@ -1725,8 +1723,38 @@ void renderer_done(renderer_t *r)
     err_on(!list_empty(&r->ubos), "UBO list not empty\n");
 }
 
+void renderer_hdr_enable(renderer_t *r, bool enable)
+{
+    r->hdr = enable;
+}
+
 void renderer_frame_begin(renderer_t *r)
 {
+    if (display_supports_edr() && r->hdr) {
+        /* HDR output */
+        if (!r->colorspace)
+            r->colorspace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
+        r->layer.wantsExtendedDynamicRangeContent = YES;
+        r->layer.colorspace = r->colorspace;
+        r->layer.pixelFormat = mtl_texture_format(TEX_FMT_BGR10A2);
+        if (r->screen_fbo && r->screen_fbo->color_config[0].format == TEX_FMT_BGRA8) {
+            ref_put(r->screen_fbo);
+            r->screen_fbo = NULL;
+        }
+    } else {
+        r->layer.wantsExtendedDynamicRangeContent = NO;
+        r->layer.pixelFormat = mtl_texture_format(TEX_FMT_BGRA8);
+        if (r->colorspace)  CGColorSpaceRelease(r->colorspace);
+        if (r->screen_fbo &&
+            (r->screen_fbo->color_config[0].format == TEX_FMT_BGR10A2  ||
+             r->screen_fbo->color_config[0].format == TEX_FMT_BGRA10XR ||
+             r->screen_fbo->color_config[0].format == TEX_FMT_RGBA16F  ||
+             r->screen_fbo->color_config[0].format == TEX_FMT_RGBA32F)) {
+            ref_put(r->screen_fbo);
+            r->screen_fbo = NULL;
+        }
+    }
+
     /* One global render pass descriptor for rendering to the screen */
     if (!r->screen_fbo)
         r->screen_fbo = CRES_RET(
@@ -1762,10 +1790,6 @@ void renderer_frame_begin(renderer_t *r)
         r->fps_cap = 60;
     else
         r->fps_cap = refresh_rate;
-
-    /* HDR output */
-    r->layer.wantsExtendedDynamicRangeContent = YES;
-    r->layer.colorspace = r->colorspace;
 
     mtl_cmd_buffer(r);
 }
