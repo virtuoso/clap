@@ -17,6 +17,12 @@ unsigned int metal_refresh_rate(GLFWwindow *window)
     return nswindow.screen.maximumFramesPerSecond;
 }
 
+bool metal_supports_edr(GLFWwindow *window)
+{
+    NSWindow *nswindow = glfwGetCocoaWindow(window);
+    return nswindow.screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1.0;
+}
+
 cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow)
 {
     const id<MTLDevice> gpu = MTLCreateSystemDefaultDevice();
