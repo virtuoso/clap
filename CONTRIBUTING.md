@@ -69,6 +69,20 @@ A short tour of core/:
 
 Another useful tool is git grep. Also, build configurations generate compile_commands.json that can be plugged into your favorite IDE. Having done that, you'll be able to inspect the code much more efficiently.
 
+### Adding uniforms
+
+To add a new uniform, the bare minimum checklist is:
+- shader.h: first, add it to `enum shader_vars`
+- shader_constants.h: if it's a texture, it also needs a corresponding binding point like `SHADER_BINDING_*`
+- shader.c: second, add it to the uniform descriptor table `static const struct shader_var_desc shader_var_desc[]`
+- shader.c: third, either add it to one of the var_block (UBO) descriptors in `static const struct shader_var_block_desc shader_var_block_desc[]` or add a new var_block descriptor to the table, in which case, you'll also need a corresponding `UBO_BINDING_*` in shader_constants.h
+- shaders/ubo_*.glsl: add it to the shader-side UBO if it's non-opaque or a sampler whereever you need it in shader/* if it's a texture; here's the part to pay attention to: the order of uniforms in the var_block descriptor has to match exactly the order of uniforms in the shader
+- anywhere: have a property or somesuch that this uniform will be uploading to the shader (e.g. `render_options::contrast`)
+- model.c: carefully add shader_set_var_*() of this uniform to `_models_render()`, where it gets set to the above
+- (optional, but often useful): add a debug UI checkbox/slider/color picker/etc so you can set this uniform manually if you need to
+- shaders/*: use the new uniform in the shader code (making sure to include corresponding `ubo_*.glsl`).
+That's it.
+
 ## I get build errors
 
 If you're suddenly getting build errors, [check here](https://github.com/virtuoso/clap/tree/main/docs/build-errors.md). Otherwise, [report an issue](https://github.com/virtuoso/clap/issues/new) and/or send a pull request.
