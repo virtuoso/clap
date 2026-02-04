@@ -20,7 +20,7 @@ unsigned int metal_refresh_rate(GLFWwindow *window)
 bool metal_supports_edr(GLFWwindow *window)
 {
     NSWindow *nswindow = glfwGetCocoaWindow(window);
-    return nswindow.screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1.0;
+    return nswindow.screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 2.0;
 }
 
 cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow)
