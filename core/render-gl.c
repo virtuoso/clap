@@ -170,8 +170,21 @@ void buffer_deinit(buffer_t *buf)
 
 static inline noubsan void _buffer_bind(buffer_t *buf, uniform_t loc)
 {
-    GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE,
-                             buf->stride, (void *)0 + buf->off));
+    switch (buf->comp_type) {
+        case GL_BYTE:
+        case GL_UNSIGNED_BYTE:
+        case GL_SHORT:
+        case GL_UNSIGNED_SHORT:
+        case GL_INT:
+        case GL_UNSIGNED_INT:
+            GL(glVertexAttribIPointer(loc, buf->comp_count, buf->comp_type,
+                                      buf->stride, (void *)0 + buf->off));
+            break;
+        default:
+            GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE,
+                                     buf->stride, (void *)0 + buf->off));
+            break;
+    }
 }
 
 void buffer_bind(buffer_t *buf, uniform_t loc)
