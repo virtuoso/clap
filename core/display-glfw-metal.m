@@ -11,6 +11,12 @@
 #include "error.h"
 #include "util.h"
 
+unsigned int metal_refresh_rate(GLFWwindow *window)
+{
+    NSWindow *nswindow = glfwGetCocoaWindow(window);
+    return nswindow.screen.maximumFramesPerSecond;
+}
+
 cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow)
 {
     const id<MTLDevice> gpu = MTLCreateSystemDefaultDevice();
