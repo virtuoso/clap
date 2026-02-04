@@ -13,6 +13,7 @@ typedef void (*display_resize_cb)(void *data, int w, int h);
 cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, display_resize_cb resize_cb);
 void display_debug_ui_init(struct clap_context *ctx);
 int display_refresh_rate(void);
+bool display_supports_edr(void);
 void display_main_loop(void);
 void display_done(void);
 void display_swap_buffers(void);

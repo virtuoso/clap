@@ -19,6 +19,15 @@ int display_refresh_rate(void)
     return refresh_rate;
 }
 
+bool display_supports_edr()
+{
+#ifdef CONFIG_RENDERER_OPENGL
+    return false;
+#else /* !CONFIG_RENDERER_OPENGL */
+    return false;
+#endif /* !CONFIG_RENDERER_OPENGL */
+}
+
 struct calc_refresh_rate_priv {
     display_update_cb   update_fn;
     void                *update_data;
