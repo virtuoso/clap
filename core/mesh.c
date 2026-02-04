@@ -54,7 +54,7 @@ static const data_type attr_comp_type[MESH_MAX] = {
     [MESH_NORM]     = DT_VEC3,
     [MESH_TANGENTS] = DT_VEC4,
     [MESH_WEIGHTS]  = DT_VEC4,
-    [MESH_JOINTS]   = DT_BYTE,
+    [MESH_JOINTS]   = DT_UVEC4,
 };
 
 static const unsigned int attr_comp_count[MESH_MAX] = {
@@ -63,7 +63,7 @@ static const unsigned int attr_comp_count[MESH_MAX] = {
     [MESH_NORM]     = 1,
     [MESH_TANGENTS] = 1,
     [MESH_WEIGHTS]  = 1,
-    [MESH_JOINTS]   = 4,
+    [MESH_JOINTS]   = 1,
 };
 
 data_type mesh_attr_type(enum mesh_attrs a)
@@ -109,9 +109,19 @@ cerr mesh_attr_alloc(struct mesh *mesh, enum mesh_attrs attr, size_t stride, siz
 
 cerr mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr)
 {
-    CERR_RET_CERR(mesh_attr_alloc(mesh, attr, stride, nr));
+    if (attr == MESH_JOINTS && stride == 4) {
+        CERR_RET_CERR(mesh_attr_alloc(mesh, attr, stride * data_type_size(DT_INT), nr));
 
-    memcpy(mesh->attr[attr].data, data, stride * nr);
+        unsigned char *src = data;
+        unsigned int *dst = mesh->attr[attr].data;
+        for (size_t i = 0; i < nr; i++)
+            for (size_t j = 0; j < stride; j++)
+                dst[i * stride + j] = src[i * stride + j];
+    } else {
+        CERR_RET_CERR(mesh_attr_alloc(mesh, attr, stride, nr));
+        memcpy(mesh->attr[attr].data, data, stride * nr);
+    }
+
     mesh->attr[attr].nr = nr;
 
     if (attr == MESH_VX) {

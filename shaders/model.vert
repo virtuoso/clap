@@ -6,7 +6,7 @@ layout (location=ATTR_LOC_POSITION) in vec3 position;
 layout (location=ATTR_LOC_TEX) in vec2 tex;
 layout (location=ATTR_LOC_NORMAL) in vec3 normal;
 layout (location=ATTR_LOC_TANGENT) in vec4 tangent;
-layout (location=ATTR_LOC_JOINTS) in vec4 joints;
+layout (location=ATTR_LOC_JOINTS) in uvec4 joints;
 layout (location=ATTR_LOC_WEIGHTS) in vec4 weights;
 
 #include "ubo_lighting.glsl"
@@ -33,7 +33,7 @@ void main()
     vec4 total_normal = vec4(0, 0, 0, 0);
     if (use_skinning != 0) {
         for (int i = 0; i < 4; i++) {
-            mat4 joint_transform = joint_transforms[int(joints[i])];
+            mat4 joint_transform = joint_transforms[joints[i]];
             vec4 local_pos = joint_transform * vec4(position, 1.0);
             total_local_pos += local_pos * weights[i];
 
