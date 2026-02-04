@@ -30,6 +30,14 @@ static void *update_fn_data;
 static struct clap_context *clap_ctx;
 static int refresh_rate;
 
+#ifdef CONFIG_RENDERER_METAL
+unsigned int metal_refresh_rate(GLFWwindow *window);
+
+static int __display_refresh_rate(void)
+{
+    return metal_refresh_rate(window);
+}
+#else
 static int __display_refresh_rate(void)
 {
     GLFWmonitor *monitor = glfwGetWindowMonitor(window);
@@ -42,6 +50,7 @@ static int __display_refresh_rate(void)
     refresh_rate = glfwGetVideoMode(monitor)->refreshRate;
     return refresh_rate;
 }
+#endif /* !CONFIG_RENDERER_METAL */
 
 int display_refresh_rate(void)
 {
