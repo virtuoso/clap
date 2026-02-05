@@ -37,6 +37,11 @@ typedef enum cerr_enum {
     _CERR_SCENE_NOT_LOADED       = -25,
     _CERR_OUT_OF_BOUNDS          = -26,
     _CERR_EOF                    = -27,
+    _CERR_ACCESS_DENIED          = -28,
+    _CERR_NOT_A_DIRECTORY        = -29,
+    _CERR_TOO_MANY_OPEN_FILES    = -30,
+    _CERR_NAME_TOO_LONG          = -31,
+    _CERR_UNKNOWN_ERROR          = -32,
 } cerr_enum;
 
 /****************************************************************************

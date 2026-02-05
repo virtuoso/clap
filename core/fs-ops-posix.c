@@ -4,12 +4,38 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 #include "fs-ops.h"
+
+static cerr errno_to_cerr(int err)
+{
+    switch (err) {
+    case 0:
+        return CERR_OK;
+    case ENOMEM:
+        return CERR_NOMEM;
+    case EACCES:
+        return CERR_ACCESS_DENIED;
+    case ENOENT:
+        return CERR_NOT_FOUND;
+    case ENOTDIR:
+        return CERR_NOT_A_DIRECTORY;
+    case EMFILE:
+    case ENFILE:
+        return CERR_TOO_MANY_OPEN_FILES;
+    case ENAMETOOLONG:
+        return CERR_NAME_TOO_LONG;
+    case EINVAL:
+        return CERR_INVALID_ARGUMENTS;
+    default:
+        return CERR_UNKNOWN_ERROR;
+    }
+}
 
 static cerr fs_posix_get_cwd(char out_path[PATH_MAX])
 {
     if (!getcwd(out_path, PATH_MAX))
-        return CERR_INVALID_OPERATION;
+        return errno_to_cerr(errno);
 
     return CERR_OK;
 }
@@ -19,17 +45,21 @@ static cresp(void) fs_posix_open_dir(const char *path)
     DIR *dir = opendir(path);
 
     if (!dir)
-        return cresp_error(void, CERR_INVALID_ARGUMENTS);
+        return cresp_error_cerr(void, errno_to_cerr(errno));
 
     return cresp_val(void, dir);
 }
 
 static cerr fs_posix_read_dir(void *dir, struct fs_dirent *out)
 {
+    errno = 0;
     struct dirent *de = readdir(dir);
 
-    if (!de)
+    if (!de) {
+        if (errno != 0)
+            return errno_to_cerr(errno);
         return CERR_EOF;
+    }
 
     snprintf(out->name, sizeof(out->name), "%s", de->d_name);
 
