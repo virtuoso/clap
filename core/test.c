@@ -6,6 +6,7 @@
 #include "ca2d.h"
 #include "ca3d.h"
 #include "cpio.h"
+#include "fs-ops.h"
 #include "object.h"
 #include "common.h"
 #include "messagebus.h"
@@ -635,6 +636,155 @@ static int cpio_test0(void)
     return cbd.count == 2 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+static const struct fs_ops *fs_test_ops = &fs_ops_posix;
+static char fs_test_dir[PATH_MAX];
+
+static int fs_test_setup(void)
+{
+    char cwd[PATH_MAX];
+    CERR_RET(fs_get_cwd(fs_test_ops, cwd), return EXIT_FAILURE);
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    srand48(ts.tv_nsec);
+
+    char test_file[PATH_MAX];
+    snprintf(test_file, sizeof(test_file), "fs_test_%ld", lrand48());
+    path_join(fs_test_dir, sizeof(fs_test_dir), cwd, test_file);
+
+    {
+        cerr err = fs_remove_dir(fs_test_ops, fs_test_dir);
+        if (!IS_CERR(err)) return EXIT_FAILURE;
+    }
+    CERR_RET(fs_make_dir(fs_test_ops, fs_test_dir), return EXIT_FAILURE);
+    return EXIT_SUCCESS;
+}
+
+static int fs_test_dir_iter(void)
+{
+    LOCAL_SET(fs_dir, dir) = CRES_RET(fs_open_dir(fs_test_ops, fs_test_dir), return EXIT_FAILURE);
+    struct fs_dirent ent;
+    int count = 0;
+    for (;;) {
+        cerr r = fs_read_dir(dir, &ent);
+        if (IS_CERR_CODE(r, CERR_EOF)) break;
+        CERR_RET(r, return EXIT_FAILURE);
+        count++;
+    }
+    return EXIT_SUCCESS;
+}
+
+static int fs_test_text_rw(void)
+{
+    char file[PATH_MAX];
+    path_join(file, sizeof(file), fs_test_dir, "test_text.txt");
+    const char *text = "Hello World\nLine 2";
+
+    /* Write text */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_WRITE, true, false, false), return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, text, strlen(text)), return EXIT_FAILURE) != strlen(text)) return EXIT_FAILURE;
+    }
+
+    /* Read text */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_READ, false, false, false), return EXIT_FAILURE);
+        char buf[64] = {0};
+        size_t sz = CRES_RET(fs_read(f, buf, sizeof(buf) - 1), return EXIT_FAILURE);
+        if (sz != strlen(text)) return EXIT_FAILURE;
+        if (strcmp(buf, text)) return EXIT_FAILURE;
+    }
+    remove(file);
+    return EXIT_SUCCESS;
+}
+
+static int fs_test_append(void)
+{
+    char file[PATH_MAX];
+    path_join(file, sizeof(file), fs_test_dir, "test_append.txt");
+    const char *text = "Base";
+    const char *app = "Append";
+
+    /* Write base */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_WRITE, true, false, false), return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, text, strlen(text)), return EXIT_FAILURE) != strlen(text)) return EXIT_FAILURE;
+    }
+    /* Append */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_APPEND, false, false, false), return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, app, strlen(app)), return EXIT_FAILURE) != strlen(app)) return EXIT_FAILURE;
+    }
+    /* Read verify */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_READ, false, false, false), return EXIT_FAILURE);
+        char buf[64] = {0};
+        size_t sz = CRES_RET(fs_read(f, buf, sizeof(buf) - 1), return EXIT_FAILURE);
+        if (sz != strlen(text) + strlen(app)) return EXIT_FAILURE;
+        if (strncmp(buf, "BaseAppend", 10)) return EXIT_FAILURE;
+    }
+    remove(file);
+    return EXIT_SUCCESS;
+}
+
+static int fs_test_binary_rw(void)
+{
+    char file[PATH_MAX];
+    path_join(file, sizeof(file), fs_test_dir, "test_bin.bin");
+    unsigned char data[] = { 0x00, 0xFF, 0x10, 0x0A, 0x0D };
+
+    /* Write binary */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_WRITE, true, false, true), return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, data, sizeof(data)), return EXIT_FAILURE) != sizeof(data)) return EXIT_FAILURE;
+    }
+    /* Read binary */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_READ, false, false, true), return EXIT_FAILURE);
+        unsigned char buf[64];
+        size_t sz = CRES_RET(fs_read(f, buf, sizeof(buf)), return EXIT_FAILURE);
+        if (sz != sizeof(data)) return EXIT_FAILURE;
+        if (memcmp(buf, data, sizeof(data))) return EXIT_FAILURE;
+    }
+    remove(file);
+    return EXIT_SUCCESS;
+}
+
+static int fs_test_seek(void)
+{
+    char file[PATH_MAX];
+    path_join(file, sizeof(file), fs_test_dir, "test_seek.txt");
+
+    /* Write and seek */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_BOTH, true, false, false), return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, "0123456789", 10), return EXIT_FAILURE) != 10) return EXIT_FAILURE;
+
+        CERR_RET(fs_seek(f, 0, FS_SEEK_SET), return EXIT_FAILURE);
+        char buf[5];
+        if (CRES_RET(fs_read(f, buf, 5), return EXIT_FAILURE) != 5) return EXIT_FAILURE;
+        if (strncmp(buf, "01234", 5)) return EXIT_FAILURE;
+
+        CERR_RET(fs_seek(f, 2, FS_SEEK_SET), return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, "AB", 2), return EXIT_FAILURE) != 2) return EXIT_FAILURE;
+    }
+    /* Read verify */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_READ, false, false, false), return EXIT_FAILURE);
+        char buf[64] = {0};
+        CRES_RET(fs_read(f, buf, sizeof(buf) - 1), return EXIT_FAILURE);
+        if (strncmp(buf, "01AB456789", 10)) return EXIT_FAILURE;
+    }
+    remove(file);
+    return EXIT_SUCCESS;
+}
+
+static int fs_test_teardown(void)
+{
+    CERR_RET(fs_remove_dir(fs_test_ops, fs_test_dir), return EXIT_FAILURE);
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -659,6 +809,13 @@ static struct test {
     { .name = "ca2d basic", .test = ca2d_test0 },
     { .name = "ca3d basic", .test = ca3d_test0 },
     { .name = "cpio basic", .test = cpio_test0 },
+    { .name = "fs test setup", .test = fs_test_setup },
+    { .name = "fs test dir iter", .test = fs_test_dir_iter },
+    { .name = "fs test text rw", .test = fs_test_text_rw },
+    { .name = "fs test append", .test = fs_test_append },
+    { .name = "fs test binary rw", .test = fs_test_binary_rw },
+    { .name = "fs test seek", .test = fs_test_seek },
+    { .name = "fs test teardown", .test = fs_test_teardown },
 };
 
 static struct option long_options[] = {
