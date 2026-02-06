@@ -69,7 +69,8 @@ static cerr fs_posix_read_dir(void *dir, struct fs_dirent *out)
      */
 #ifdef _WIN32
     struct stat st;
-    stat(out->name, &st);
+    if (stat(out->name, &st) != 0)
+        return errno_to_cerr(errno);
     out->is_dir = S_ISDIR(st.st_mode);
 #else /* !_WIN32 */
     out->is_dir = de->d_type == DT_DIR;
