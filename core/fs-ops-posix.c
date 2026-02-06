@@ -191,12 +191,34 @@ static cerr fs_posix_seek(void *handle, long offset, enum fs_seek_origin origin)
     return CERR_OK;
 }
 
+static cerr fs_posix_make_dir(const char *path)
+{
+#ifdef _WIN32
+    if (mkdir(path) != 0)
+#else
+    if (mkdir(path, 0755) != 0)
+#endif
+        return errno_to_cerr(errno);
+
+    return CERR_OK;
+}
+
+static cerr fs_posix_remove_dir(const char *path)
+{
+    if (rmdir(path) != 0)
+        return errno_to_cerr(errno);
+
+    return CERR_OK;
+}
+
 const struct fs_ops fs_ops_posix = {
     .get_cwd    = fs_posix_get_cwd,
     .open_dir   = fs_posix_open_dir,
     .read_dir   = fs_posix_read_dir,
     .close_dir  = fs_posix_close_dir,
     .dirent_cmp = fs_posix_dirent_cmp,
+    .make_dir   = fs_posix_make_dir,
+    .remove_dir = fs_posix_remove_dir,
     .open       = fs_posix_open,
     .close      = fs_posix_close,
     .read       = fs_posix_read,
