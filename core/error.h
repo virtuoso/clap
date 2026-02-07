@@ -45,7 +45,7 @@ typedef enum cerr_enum {
 } cerr_enum;
 
 /****************************************************************************
- * Returning errors std::optional<T> style
+ * Returning errors std::expected<T, E>/llvm::ErrorOr<T> style
  *
  * Functions that return int to indicate error can return cerr. Values of
  * this type can be tested for a error condition with IS_CERR() and the exact
