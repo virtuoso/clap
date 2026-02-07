@@ -145,6 +145,7 @@ static void scene_open_model_dialog(struct scene *scene)
     struct ui_debug_fs_config cfg = {
         .title              = "Select a GLB/glTF model",
         .modal              = true,
+        .input_field        = "File name:",
         .action_label       = "Open",
         .select_mode        = UI_DEBUG_FS_SELECT_FILE,
         .draw_right_panel   = model_picker_properties,
