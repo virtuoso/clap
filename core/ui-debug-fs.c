@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <dirent.h>
+#include <float.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -229,6 +230,40 @@ cerr ui_debug_fs_open(ui_debug_fs_dialog *dlg, const struct ui_debug_fs_config *
     return load_directory(dlg, dir);
 }
 
+static int partial_cmp(const void *a, const void *b)
+{
+    const struct fs_dirent *ea = a;
+    const struct fs_dirent *eb = b;
+    size_t minlen = min(strlen(ea->name), strlen(eb->name));
+
+    return strncasecmp(ea->name, eb->name, minlen);
+}
+
+static int input_text_callback(ImGuiInputTextCallbackData *data)
+{
+    ui_debug_fs_dialog *dlg = data->UserData;
+
+    if (data->EventFlag == ImGuiInputTextFlags_CallbackCompletion) {
+        struct fs_dirent entry = { .is_dir = true }, *best_dir, *best_file;
+        strncpy(entry.name, data->Buf, sizeof(entry.name));
+
+        best_dir = bsearch(&entry, dlg->dirs.x, darray_count(dlg->dirs), sizeof(*dlg->dirs.x), partial_cmp);
+        best_file = bsearch(&entry, dlg->files.x, darray_count(dlg->files), sizeof(*dlg->files.x), partial_cmp);
+
+        size_t dir_len = best_dir ? strlen(best_dir->name) : 0;
+        size_t file_len = best_file ? strlen(best_file->name) : 0;
+
+        if (dir_len > file_len) {
+            ImGuiInputTextCallbackData_InsertChars(data, data->CursorPos, &best_dir->name[data->CursorPos], NULL);
+            set_selection(dlg, best_dir->name, true);
+        } else if (file_len > 0) {
+            ImGuiInputTextCallbackData_InsertChars(data, data->CursorPos, &best_file->name[data->CursorPos], NULL);
+            set_selection(dlg, best_file->name, false);
+        }
+    }
+    return 0;
+}
+
 void ui_debug_fs_draw(ui_debug_fs_dialog *dlg)
 {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar;
@@ -269,6 +304,9 @@ void ui_debug_fs_draw(ui_debug_fs_dialog *dlg)
     left = (ImVec2){ dlg->cfg.draw_right_panel ? avail.x * 0.55f : avail.x,
                      avail.y - igGetFrameHeightWithSpacing() };
 
+    if (dlg->cfg.input_field)
+        left.y -= igGetFrameHeightWithSpacing();
+
     if (igBeginChild_Str("fs_entries", left, ImGuiChildFlags_Borders, 0))
         draw_entries(dlg);
     igEndChild();
@@ -284,6 +322,16 @@ void ui_debug_fs_draw(ui_debug_fs_dialog *dlg)
     }
 
     igSpacing();
+
+    if (dlg->cfg.input_field) {
+        igTextUnformatted(dlg->cfg.input_field, NULL);
+        igSameLine(0.0f, 4.0f);
+
+        igPushItemWidth(-FLT_MIN);
+        igInputText("##input_field", dlg->selection, sizeof(dlg->selection), ImGuiInputTextFlags_CallbackCompletion,
+                    input_text_callback, dlg);
+        igPopItemWidth();
+    }
 
     if (igButton("Cancel", (ImVec2){}))
         cleanup(dlg);

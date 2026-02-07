@@ -22,6 +22,7 @@ enum ui_debug_fs_select_mode {
  * struct ui_debug_fs_config - filesystem dialog configuration
  * @title:            window title (defaults to "Filesystem")
  * @modal:            render as modal popup when true
+ * @input_field:      text input field name or NULL to hide
  * @action_label:     label for the action button (defaults to "Open")
  * @select_mode:      selection mode (files or directories)
  * @start_dir:        initial directory (NULL => current working directory)
@@ -34,6 +35,7 @@ enum ui_debug_fs_select_mode {
 struct ui_debug_fs_config {
     const char  *title;
     bool        modal;
+    const char  *input_field;
     const char  *action_label;
     enum ui_debug_fs_select_mode select_mode;
     const char  *start_dir;
