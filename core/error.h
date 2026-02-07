@@ -118,21 +118,24 @@ typedef struct cerr {
         __type      val; \
     } cres(__type)
 
-/* Declare a cres with value type pointer to __type */
-#define cresp_ret(__type) \
+/*
+ * Declare a cres with value type pointer to __type
+ * Additional arguments are prepended to the __type name in the declaration,
+ * like 'struct' or 'const' or both.
+ */
+#define cresp_ret(__type, ...) \
     typedef struct cresp(__type) { \
         cerr_enum   err; \
         __cerr_debug_fields \
-        __type      *val; \
+        __VA_ARGS__ __type  *val; \
     } cresp(__type)
 
-/* Declare a cres with value type pointer to struct __struct */
-#define cresp_struct_ret(__struct) \
-    typedef struct cresp(__struct) { \
-        cerr_enum       err; \
-        __cerr_debug_fields \
-        struct __struct *val; \
-    } cresp(__struct)
+/*
+ * Declare a cres with value type pointer to struct __struct
+ * Note: it is now the same as cresp_ret(__type, struct), IOW, became redundant
+ * TODO: replace existing cresp_struct_ret() instances and delete this
+ */
+#define cresp_struct_ret(__struct, ...) cresp_ret(__struct, __VA_ARGS__ struct)
 
 #define cres_check(__type) cres(__type) must_check
 #define cresp_check(__type) cresp(__type) must_check
