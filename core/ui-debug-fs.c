@@ -117,6 +117,13 @@ static bool update_can_accept(ui_debug_fs_dialog *dlg)
     return dlg->can_accept;
 }
 
+static void cleanup(ui_debug_fs_dialog *dlg)
+{
+    darray_clearout(dlg->dirs);
+    darray_clearout(dlg->files);
+    dlg->active = false;
+}
+
 static void do_accept(ui_debug_fs_dialog *dlg)
 {
     if (!dlg->can_accept)
@@ -124,11 +131,7 @@ static void do_accept(ui_debug_fs_dialog *dlg)
 
     dlg->cfg.on_accept(dlg->cwd, dlg->selection, dlg->selection_is_dir, dlg->cfg.data);
 
-    darray_clearout(dlg->dirs);
-    darray_clearout(dlg->files);
-    dlg->active = false;
-    if (dlg->modal)
-        igCloseCurrentPopup();
+    cleanup(dlg);
 }
 
 static cerr load_parent(ui_debug_fs_dialog *dlg)
@@ -251,11 +254,11 @@ void ui_debug_fs_draw(ui_debug_fs_dialog *dlg)
         visible = igBegin(dlg->cfg.title, &open, flags);
 
     if (!visible) {
-        if (!open)
-            dlg->active = false;
+        cleanup(dlg);
 
         if (!dlg->modal)
             igEnd();
+
         return;
     }
 
@@ -282,11 +285,8 @@ void ui_debug_fs_draw(ui_debug_fs_dialog *dlg)
 
     igSpacing();
 
-    if (igButton("Cancel", (ImVec2){})) {
-        dlg->active = false;
-        if (dlg->modal)
-            igCloseCurrentPopup();
-    }
+    if (igButton("Cancel", (ImVec2){}))
+        cleanup(dlg);
 
     igSameLine(0.0f, 8.0f);
 
@@ -301,8 +301,12 @@ void ui_debug_fs_draw(ui_debug_fs_dialog *dlg)
     if (!dlg->can_accept)
         igEndDisabled();
 
-    if (dlg->modal)
+    if (dlg->modal) {
+        if (!dlg->active)
+            igCloseCurrentPopup();
+
         igEndPopup();
-    else
+    } else {
         igEnd();
+    }
 }
