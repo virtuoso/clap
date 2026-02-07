@@ -349,6 +349,9 @@ static struct message_source keyboard_source = {
 
 static void key_cb(struct GLFWwindow *window, int key, int scancode, int action, int mods)
 {
+    if (__ui_mouse_event_propagate())
+        return;
+
     struct message_input mi;
     unsigned int press;
 
