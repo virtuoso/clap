@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 #include <assert.h>
+#include <errno.h>
 #include "compiler.h"
 #include "config.h"
 
@@ -256,6 +257,25 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
         .val = (__val), \
     }; \
     __res; \
+})
+
+#define errno_to_cerr(_errno) \
+({ \
+    cerr __err; \
+    switch ((_errno)) { \
+    case 0:             __err = CERR_OK; break; \
+    case ENOMEM:        __err = CERR_NOMEM; break; \
+    case EACCES:        __err = CERR_ACCESS_DENIED; break; \
+    case ENOENT:        __err = CERR_NOT_FOUND; break; \
+    case ENOTDIR:       __err = CERR_NOT_A_DIRECTORY; break; \
+    case EMFILE: \
+    case ENFILE:        __err = CERR_TOO_MANY_OPEN_FILES; break; \
+    case ENAMETOOLONG:  __err = CERR_NAME_TOO_LONG; break; \
+    case ENOTSUP:       __err = CERR_NOT_SUPPORTED; break; \
+    case EINVAL:        __err = CERR_INVALID_ARGUMENTS; break; \
+    default:            __err = CERR_UNKNOWN_ERROR; break; \
+    } \
+    __err; \
 })
 
 /* Error code to text mapping */
