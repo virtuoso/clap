@@ -43,6 +43,7 @@ typedef enum cerr_enum {
     _CERR_TOO_MANY_OPEN_FILES    = -30,
     _CERR_NAME_TOO_LONG          = -31,
     _CERR_UNKNOWN_ERROR          = -32,
+    _CERR_PERMISSION_DENIED      = -33,
 } cerr_enum;
 
 /****************************************************************************
@@ -266,6 +267,7 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
     case 0:             __err = CERR_OK; break; \
     case ENOMEM:        __err = CERR_NOMEM; break; \
     case EACCES:        __err = CERR_ACCESS_DENIED; break; \
+    case EPERM:         __err = CERR_PERMISSION_DENIED; break; \
     case ENOENT:        __err = CERR_NOT_FOUND; break; \
     case ENOTDIR:       __err = CERR_NOT_A_DIRECTORY; break; \
     case EMFILE: \

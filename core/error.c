@@ -40,6 +40,7 @@ const char *cerr_str(cerr_enum err)
         case _CERR_TOO_MANY_OPEN_FILES:     return "too many open files";
         case _CERR_NAME_TOO_LONG:           return "name too long";
         case _CERR_UNKNOWN_ERROR:           return "unknown error";
+        case _CERR_PERMISSION_DENIED:       return "permission denied";
         default:                            break;
     }
 
