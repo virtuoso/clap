@@ -21,13 +21,23 @@ static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, 
 
     if (params->camera) {
         struct view *view = &params->camera->view;
-        struct subview *sv = &view->main;
-        float c0_depth = view->divider[0] - sv->near_plane;
-        float fov_tan = tanf(view->fov / 2);
-        float ws_width = 2.0 * c0_depth * fov_tan;
+        auto sv = &view->subview[0];
+        mat4x4 pv, inv_pv;
+        mat4x4_mul(pv, sv->proj_mx, sv->view_mx);
+        mat4x4_invert(inv_pv, pv);
+
+        vec4 vs_left, vs_right;
+        float ndc_z = IS_DEFINED(CONFIG_NDC_ZERO_ONE) ? 0.0f : -1.0f;
+        mat4x4_mul_vec4_post(vs_left, inv_pv, (vec4) { -1.0, 0.0, ndc_z, 1.0 });
+        mat4x4_mul_vec4_post(vs_right, inv_pv, (vec4) { 1.0, 0.0, ndc_z, 1.0 });
+
+        vec3_scale(vs_left, vs_left, 1.0f / vs_left[3]);
+        vec3_scale(vs_right, vs_right, 1.0f / vs_right[3]);
+
+        float vs_span = fabsf(vs_right[0] - vs_left[0]) / cos(M_PI_4);
         float width = (float)*pwidth / display_get_scale();
-        float texel_size = ws_width / width;
-        side = (int)((ws_width / cos(M_PI_4)) / texel_size);
+        float texel_size = vs_span / width;
+        side = (int)((params->cascade > 0 ? 0.5 : 1.0f) / texel_size);
     }
 
     if (*pwidth == *pheight && !(*pwidth & (*pwidth - 1)))
