@@ -22,7 +22,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
                             "-s USE_PTHREADS=1"
                             "-s PTHREAD_POOL_SIZE=4"
     )
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s WASM_WORKERS=1 -s SHARED_MEMORY=1")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s WASM_WORKERS=1 -s SHARED_MEMORY=1 -s USE_PTHREADS=1")
     if (CLAP_BUILD_FINAL)
         list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=0"
                                     "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307")
@@ -119,7 +119,7 @@ set(MA_DIR ${CMAKE_SOURCE_DIR}/deps/src/miniaudio)
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c fs-ops.c fs-ops-posix.c logger.c input.c messagebus.c primitives.c motion.c
-    model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c
+    model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
     gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c
