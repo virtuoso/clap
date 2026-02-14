@@ -30,6 +30,16 @@ const char *cerr_str(cerr_enum err)
         case _CERR_BUFFER_OVERRUN:          return "buffer overrun";
         case _CERR_BUFFER_INCOMPLETE:       return "buffer incomplete";
         case _CERR_INVALID_INDEX:           return "invalid index";
+        case _CERR_NOT_FOUND:               return "not found";
+        case _CERR_LUT_NOT_LOADED:          return "LUT is not loaded";
+        case _CERR_SCENE_NOT_LOADED:        return "scene is not loaded";
+        case _CERR_OUT_OF_BOUNDS:           return "out of bounds";
+        case _CERR_EOF:                     return "end of file";
+        case _CERR_ACCESS_DENIED:           return "access denied";
+        case _CERR_NOT_A_DIRECTORY:         return "not a directory";
+        case _CERR_TOO_MANY_OPEN_FILES:     return "too many open files";
+        case _CERR_NAME_TOO_LONG:           return "name too long";
+        case _CERR_UNKNOWN_ERROR:           return "unknown error";
         default:                            break;
     }
 
