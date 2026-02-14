@@ -6,13 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-touch-icon" content="data:,">
-    <title>Towards the Light</title>
+    <title>@SHELL_PAGE_TITLE@</title>
     <style>
       .emscripten { padding-right: 0; margin-left: 0px; margin-right: 0px; display: block; }
       textarea.emscripten { font-family: monospace; width: 100vw; height: 20vh; background-color: darkolivegreen; }
       div.emscripten { text-align: center; color: wheat;}
       div.container_screen {
-        background-image: url("background.jpg");
+        background-image: url("@SHELL_BACKGROUND_IMAGE@");
         height: 100%;
         background-position: center;
         background-repeat: no-repeat;
@@ -32,8 +32,8 @@
         height: 80vh;
       }
       @font-face {
-        font-family: "Unbounded";
-        src: url("Unbounded-Regular.ttf") format("truetype");
+        font-family: "@SHELL_FONT_FAMILY@";
+        src: url("@SHELL_FONT_FILE@") format("truetype");
         font-weight: 200 900;
         font-style: normal;
         font-display: swap;
@@ -48,7 +48,7 @@
         width: 100vw;
         margin: 0px;
         overscroll-behavior-x: none;
-        font-family: "Unbounded", sans-serif;
+        font-family: "@SHELL_FONT_FAMILY@", sans-serif;
         font-optical-sizing: auto;
         font-weight: 400;
       }
@@ -68,7 +68,7 @@
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>
     </div>
-    <div class="game_title">Towards the Light</div>
+    <div class="game_title">@SHELL_PAGE_TITLE@</div>
     <div class="emscripten_border">
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1  style="display: none;"></canvas>
     </div>
@@ -155,7 +155,7 @@
       window.onresize = function() {
         var canvas = document.getElementById('canvas');
         var html = document.getElementsByTagName('body')[0];
-        var height = html.clientHeight;//Math.floor(html.clientHeight * 0.8);
+        var height = html.clientHeight;
         canvas.width = html.clientWidth;
         canvas.height = height;
 	      if (runtime_ready)

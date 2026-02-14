@@ -1,35 +1,44 @@
 # Produce a clap executable for any supported platform (what used do be demo/*/CMakeLists.txt)
 # @executable_name: cmake target name, also an executable name on most platforms
+# @title:           executable title
 # @sources:         list of source files
 # @ASSET_DIR:       asset source directory
 # @assets:          list of assets @executable_name depends on and JSON files that reference
 #                   other assets (GLTF files, SFX files)
+# @background_file: background image file
 # @font_file:       font file name for the web build, relative to @ASSET_DIR
+# @font_family:     font family
 # @build_in_assets: TRUE to use asset packer to build assets into the final executable
 #
 # Web builds will install into a directory named @executable name with the actual compiler
 # generated files named index.{html,js,wasm}. Windows builds will have .exe suffix.
 # Web builds have assets automatically packed in, so @build_in_assets is ignored there.
-function (clap_executable executable_name sources ASSET_DIR assets font_file build_in_assets)
+function (clap_executable executable_name title sources ASSET_DIR assets background_file font_file font_family build_in_assets)
     set(ENGINE_SRC "${CMAKE_SOURCE_DIR}/core")
     set(ENGINE_INCLUDE "${ENGINE_SRC}" "${clap_BINARY_DIR}/core")
     # set(ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/asset")
 
     get_directory_property(CONFIG_GLES
-        DIRECTORY "${CMAKE_SOURCE_DIR}/core"
+        DIRECTORY "${ENGINE_SRC}"
         DEFINITION CONFIG_GLES)
     get_directory_property(CIMGUI_DIR
-        DIRECTORY "${CMAKE_SOURCE_DIR}/core"
+        DIRECTORY "${ENGINE_SRC}"
         DEFINITION CIMGUI_DIR)
     get_directory_property(CMAKE_C_FLAGS
-        DIRECTORY "${CMAKE_SOURCE_DIR}/core"
+        DIRECTORY "${ENGINE_SRC}"
         DEFINITION CMAKE_C_FLAGS)
 
     include(${CMAKE_SOURCE_DIR}/scripts/pack-assets.cmake)
 
     if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-        # set(EMSDK_SHELL "${CMAKE_CURRENT_BINARY_DIR}/shell_clap.html")
-        set(EMSDK_SHELL "${CMAKE_CURRENT_SOURCE_DIR}/shell_clap.html")
+        set(SHELL_PAGE_TITLE "${title}")
+        set(SHELL_FONT_FAMILY "${font_family}")
+        cmake_path(GET background_file FILENAME SHELL_BACKGROUND_IMAGE)
+        cmake_path(GET font_file FILENAME SHELL_FONT_FILE)
+
+        set(EMSDK_SHELL "${CMAKE_CURRENT_BINARY_DIR}/shell.html")
+        configure_file("${ENGINE_SRC}/shell.html.in" "${EMSDK_SHELL}")
+
         set(EXTRA_LIBRARIES     "--shell-file=${EMSDK_SHELL}"
                                 "--preload-file=${ASSET_DIR}@/asset")
 
