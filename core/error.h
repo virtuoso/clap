@@ -61,6 +61,13 @@ typedef enum cerr_enum {
  * cresp_error(T, error) or copied from cerr with cresp_error_cerr(T, cerr_error)
  ****************************************************************************/
 
+typedef struct cerr_reason {
+    const char  *fmt;
+    const void  *arg0;
+    const void  *arg1;
+    const void  *arg2;
+} cerr_reason;
+
 /*
  * This is a stand-in for return type int in functions that use int to only indicate
  * success (0) / error (< 0), so it can actually be replaced with:
@@ -75,6 +82,7 @@ typedef enum cerr_enum {
  */
 typedef struct cerr {
     cerr_enum   err;
+    cerr_reason reason;
 #ifndef CONFIG_FINAL
     int         line;
     char        *mod;
@@ -116,6 +124,7 @@ typedef struct cerr {
 #define cres_ret(__type) \
     typedef struct cres(__type) { \
         cerr_enum   err; \
+        cerr_reason reason; \
         __cerr_debug_fields \
         __type      val; \
     } cres(__type)
@@ -128,6 +137,7 @@ typedef struct cerr {
 #define cresp_ret(__type, ...) \
     typedef struct cresp(__type) { \
         cerr_enum   err; \
+        cerr_reason reason; \
         __cerr_debug_fields \
         __VA_ARGS__ __type  *val; \
     } cresp(__type)
@@ -150,13 +160,14 @@ cres_ret(size_t);
 cresp_ret(void);
 
 /*
- * Make sure that cerr and cres(T) have err, mod and line at same offsets, so
- * both can be typecast to cerr and passed into cerr_strbuf()
+ * Make sure that cerr and cres(T) have err, reason, mod and line at same
+ * offsets, so both can be typecast to cerr and passed into cerr_strbuf();
  * additionally, everything depends on {cerr,cres}::err being the first
  * member.
  */
 static_assert(offsetof(cerr, err)  == 0,  "cerr::err is not the first member");
 static_assert(offsetof(cerr, err)  == offsetof(cres(int), err),  "cerr/cres::err don't match");
+static_assert(offsetof(cerr, reason)  == offsetof(cres(int), reason),  "cerr/cres::reason don't match");
 #ifndef CONFIG_FINAL
 static_assert(offsetof(cerr, mod)  == offsetof(cres(int), mod),  "cerr/cres::mod don't match");
 static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::line don't match");
@@ -196,18 +207,20 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 #define CRES_RET_CERR(__x) CRES_RET(__x, return cerr_error_cres(__resp))
 
 /* Return an error */
-#define cres_error(__type, __err) ({ \
+#define cres_error(__type, __err, ...) ({ \
     cres(__type) __res = { \
         .err = (_ ## __err), \
+        .reason = { __VA_ARGS__ }, \
         __cerr_debug_data \
     }; \
     __res; \
 })
 
 /* Return an error */
-#define cresp_error(__type, __err) ({ \
+#define cresp_error(__type, __err, ...) ({ \
     cresp(__type) __res = { \
         .err = (_ ## __err), \
+        .reason = { __VA_ARGS__ }, \
         __cerr_debug_data \
     }; \
     __res; \
@@ -217,6 +230,7 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 #define cres_error_cerr(__type, __err) ({ \
     cres(__type) __res = { \
         .err = (__err).err, \
+        .reason = (__err).reason, \
         __cerr_debug_copy(__err) \
     }; \
     __res; \
@@ -226,6 +240,7 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 #define cresp_error_cerr(__type, __err) ({ \
     cresp(__type) __res = { \
         .err = (__err).err, \
+        .reason = (__err).reason, \
         __cerr_debug_copy(__err) \
     }; \
     __res; \
@@ -235,6 +250,7 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 #define cerr_error_cres(__err) ({ \
     cerr __res = { \
         .err = (__err).err, \
+        .reason = (__err).reason, \
         __cerr_debug_copy(__err) \
     }; \
     __res; \

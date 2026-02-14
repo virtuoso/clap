@@ -59,5 +59,10 @@ int cerr_strbuf(char *buf, size_t size, void *_err)
 #endif /* CONFIG_FINAL */
 
     const char *basename = str_basename(mod);
-    return snprintf(buf, size, "%s at %s:%d", cerr_str(err->err), basename, line);
+    auto r = &err->reason;
+    size_t len = snprintf(buf, size, "%s at %s:%d%s", cerr_str(err->err), basename, line, r->fmt ? " reason: " : "");
+    if (r->fmt && len < size)
+        len += snprintf(buf + len, size - len, r->fmt, r->arg0, r->arg1, r->arg2);
+
+    return len;
 }
