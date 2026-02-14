@@ -1027,22 +1027,6 @@ int fbo_height(fbo_t *fbo)
     return fbo->height;
 }
 
-fbo_attachment_type fbo_get_attachment(fbo_t *fbo)
-{
-    if (fbo_attachment_color(fbo->layout))
-        return FBO_ATTACHMENT_COLOR0;
-
-    if (fbo->layout.depth_buffer)
-        return FBO_ATTACHMENT_DEPTH;
-
-    if (fbo->layout.stencil_buffer)
-        return FBO_ATTACHMENT_STENCIL;
-
-    clap_unreachable();
-
-    return 0;
-}
-
 static void fbo_attachments_deinit(fbo_t *fbo)
 {
     fa_for_each(fa, fbo->layout, texture)

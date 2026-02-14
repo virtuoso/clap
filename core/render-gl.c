@@ -933,22 +933,6 @@ int fbo_height(fbo_t *fbo)
     return fbo->height;
 }
 
-fbo_attachment_type fbo_get_attachment(fbo_t *fbo)
-{
-    if (fbo_attachment_color(fbo->layout))
-        return FBO_ATTACHMENT_COLOR0;
-
-    if (fbo->layout.depth_buffer)
-        return FBO_ATTACHMENT_DEPTH;
-
-    if (fbo->layout.stencil_buffer)
-        return FBO_ATTACHMENT_STENCIL;
-
-    clap_unreachable();
-
-    return GL_NONE;
-}
-
 static void __fbo_color_buffer_setup(fbo_t *fbo, fbo_attachment attachment)
 {
     GLenum gl_internal_format = gl_texture_internal_format(fbo_texture_format(fbo, attachment));
