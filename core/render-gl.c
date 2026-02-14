@@ -497,7 +497,11 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
 #endif /* CONFIG_GLES */
 
     if (!texture_format_supported(opts->format))
-        return CERR_NOT_SUPPORTED;
+        return CERR_NOT_SUPPORTED_REASON(
+            .fmt = "format %s (%ld) not supported",
+            .arg0 = texture_format_string(opts->format),
+            .arg1 = (const void *)opts->format
+        );
 
     cerr err = ref_embed(texture, tex);
     if (IS_CERR(err))
