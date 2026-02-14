@@ -360,12 +360,6 @@ TYPE(texture,
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
-typedef enum fbo_attachment_type {
-    FBO_ATTACHMENT_DEPTH,
-    FBO_ATTACHMENT_STENCIL,
-    FBO_ATTACHMENT_COLOR0,
-} fbo_attachment_type;
-
 typedef uint64_t texid_t;
 
 bool texture_format_supported(texture_format format);
@@ -629,7 +623,6 @@ int fbo_width(fbo_t *fbo);
 int fbo_height(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
-fbo_attachment_type fbo_get_attachment(fbo_t *fbo);
 texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
 
 typedef enum {
