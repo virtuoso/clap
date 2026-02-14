@@ -133,7 +133,7 @@ int main(int argc, char **argv, char **envp)
         .graphics       = 1,
         .ui             = 1,
         .settings       = 1,
-        .title          = "When the Mountain Wakes",
+        .title          = CLAP_EXECUTABLE_TITLE,
 #ifndef CONFIG_BROWSER
         .base_url       = "demo/ldjam56/",
 #endif
@@ -142,7 +142,7 @@ int main(int argc, char **argv, char **envp)
         .early_init     = early_init,
         .graphics_init  = graphics_init,
         .frame_cb       = render_frame,
-        .default_font_name  = "ofl/Unbounded-Regular.ttf",
+        .default_font_name  = CLAP_FONT_FILE,
 #ifdef CONFIG_FINAL
         .lut_presets    = (lut_preset[]){ LUT_TEAL_ORANGE },
 #else

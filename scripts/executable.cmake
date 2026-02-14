@@ -85,6 +85,7 @@ function (clap_executable executable_name title sources ASSET_DIR assets backgro
     add_dependencies(${executable_name} ${ENGINE_LIB} meshoptimizer)
     target_include_directories(${executable_name} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
     set_target_properties(${executable_name} PROPERTIES COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CMAKE_C_FLAGS}")
+    set_target_properties(${executable_name} PROPERTIES COMPILE_DEFINITIONS "CLAP_EXECUTABLE_TITLE=\"${title}\";CLAP_FONT_FILE=\"${font_file}\"")
     set_target_properties(${executable_name} PROPERTIES LINK_DEPENDS "${ASSETS};${EMSDK_SHELL}")
     target_link_libraries(${executable_name} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
     target_link_libraries(${executable_name} PRIVATE ${PNG_LIBRARY})
