@@ -10,6 +10,7 @@ struct ImGuiIO;
 
 bool __ui_set_mouse_click(unsigned int button, bool down);
 bool __ui_set_mouse_position(unsigned int x, unsigned int y);
+bool __ui_mouse_event_wheel(double dx, double dy);
 
 void ui_ig_new_frame(void);
 void ui_ig_init_for_emscripten(struct clap_context *clap_ctx, struct ImGuiContext *igctx,
@@ -19,6 +20,7 @@ void ui_ig_init_for_emscripten(struct clap_context *clap_ctx, struct ImGuiContex
 
 static inline bool __ui_set_mouse_click(unsigned int button, bool down) { return false; }
 static inline bool __ui_set_mouse_position(unsigned int x, unsigned int y) { return false; }
+static inline bool __ui_mouse_event_wheel(double dx, double dy) { return false; }
 
 static inline void ui_ig_new_frame(void) {}
 static inline void ui_ig_init_for_emscripten(struct clap_context *ctx, struct ImGuiContext *igctx,

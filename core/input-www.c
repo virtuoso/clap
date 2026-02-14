@@ -431,6 +431,9 @@ static __unused EM_BOOL scroll_callback(int eventType, const EmscriptenUiEvent *
 
 static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent *e, void *userData)
 {
+    if (__ui_mouse_event_wheel(e->deltaX, -e->deltaY))
+        return true;
+
     struct message_input mi;
 
     memset(&mi, 0, sizeof(mi));

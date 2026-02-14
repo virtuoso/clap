@@ -22,6 +22,15 @@ bool __ui_set_mouse_click(unsigned int button, bool down)
     return false;
 }
 
+bool __ui_mouse_event_wheel(double dx, double dy)
+{
+    if (!__ui_mouse_event_propagate())  return false;
+
+    ImGuiIO_AddMouseWheelEvent(bd.io, (float)dx, (float)dy);
+
+    return true;
+}
+
 void ui_ig_new_frame(void)
 {
     struct timespec delta = clap_get_fps_delta(bd.ctx);
