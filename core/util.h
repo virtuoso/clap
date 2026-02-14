@@ -14,6 +14,23 @@
 #include "linmath.h"
 #include "logger.h"
 
+/*
+ * To cut down on #ifdefs, use IS_DEFINED(x) that, given x is either 1 or
+ * undefined, evaluates to 1 or 0 respectively
+ */
+#define __ZERO_COMMA1 0,
+#define __ARG2(_zero_or_val, _val, ...) _val
+/*
+ * Macro trickery:
+ * - pasting __ZERO_COMMA ## 1 => __ZERO_COMMA1 => 0,
+ * - pasting __ZERO_COMMA ## <undefined> => __ZERO_COMMA => <undefined>
+ * - if _val is undefined, _zero_or_val is undefined, expanding to __ARG2(_val 1, 0) => __ARG2(1, 0) => 0
+ * - otherwise, _zero_or_val is `0,1`, expanding to __ARG2(0, 1, 0) -> 1
+ */
+#define IS_DEFINED(x)       _IS_DEFINED(x)
+#define _IS_DEFINED(x)      __IS_DEFINED(__ZERO_COMMA##x)
+#define __IS_DEFINED(_val)  __ARG2(_val 1, 0)
+
 typedef unsigned char uchar;
 
 #define DECLARE_CLEANUP(t) void cleanup__## t ## p(t **p)
