@@ -51,6 +51,9 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
             break;
     }
 
+    if (__ui_set_key(e->keyCode, e->key, press == KEY_PRESS || press == KEY_HOLD))
+        return true;
+
     memset(&mi, 0, sizeof(mi));
     trace("%s, key: \"%s\", code: \"%s\", location: %u,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %u, keyCode: %u, which: %u\n",
           emscripten_event_type_to_string(eventType), e->key, e->code, e->location,
