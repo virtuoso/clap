@@ -6,13 +6,16 @@ Subject: [PATCH] std_vorbis: Remove a redundant pointer comparison
 The check for `ptr + unsigned int < ptr` is always false, and the
 compilers are starting to catch up. Remove it.
 
+Also, update replace emscripten's deprecated version macros with the
+current ones.
+
 Signed-off-by: Alexander Shishkin <alex@ash.works>
 ---
  extras/stb_vorbis.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/extras/stb_vorbis.c b/extras/stb_vorbis.c
-index 3e5c250..07e2a17 100644
+index 3e5c2504..07e2a17a 100644
 --- a/extras/stb_vorbis.c
 +++ b/extras/stb_vorbis.c
 @@ -1401,7 +1401,7 @@ static int set_file_offset(stb_vorbis *f, unsigned int loc)
@@ -24,6 +27,24 @@ index 3e5c250..07e2a17 100644
           f->stream = f->stream_end;
           f->eof = 1;
           return 0;
+diff --git a/miniaudio.h b/miniaudio.h
+index 24e676bb..441f8de6 100644
+--- a/miniaudio.h
++++ b/miniaudio.h
+@@ -41495,11 +41495,11 @@ Web Audio Backend
+ #ifdef MA_HAS_WEBAUDIO
+ #include <emscripten/emscripten.h>
+ 
+-#if (__EMSCRIPTEN_major__ > 3) || (__EMSCRIPTEN_major__ == 3 && (__EMSCRIPTEN_minor__ > 1 || (__EMSCRIPTEN_minor__ == 1 && __EMSCRIPTEN_tiny__ >= 32)))
++#if (__EMSCRIPTEN_MAJOR__ > 3) || (__EMSCRIPTEN_MAJOR__ == 3 && (__EMSCRIPTEN_MINOR__ > 1 || (__EMSCRIPTEN_MINOR__ == 1 && __EMSCRIPTEN_TINY__ >= 32)))
+     #include <emscripten/webaudio.h>
+     #define MA_SUPPORT_AUDIO_WORKLETS
+ 
+-    #if (__EMSCRIPTEN_major__ > 3) || (__EMSCRIPTEN_major__ == 3 && (__EMSCRIPTEN_minor__ > 1 || (__EMSCRIPTEN_minor__ == 1 && __EMSCRIPTEN_tiny__ >= 70)))
++    #if (__EMSCRIPTEN_MAJOR__ > 3) || (__EMSCRIPTEN_MAJOR__ == 3 && (__EMSCRIPTEN_MINOR__ > 1 || (__EMSCRIPTEN_MINOR__ == 1 && __EMSCRIPTEN_TINY__ >= 70)))
+         #define MA_SUPPORT_AUDIO_WORKLETS_VARIABLE_BUFFER_SIZE
+     #endif
+ #endif
 -- 
 2.48.1
 
