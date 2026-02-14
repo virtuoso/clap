@@ -21,6 +21,9 @@ function (clap_executable executable_name sources ASSET_DIR assets font_file bui
     get_directory_property(CIMGUI_DIR
         DIRECTORY "${CMAKE_SOURCE_DIR}/core"
         DEFINITION CIMGUI_DIR)
+    get_directory_property(CMAKE_C_FLAGS
+        DIRECTORY "${CMAKE_SOURCE_DIR}/core"
+        DEFINITION CMAKE_C_FLAGS)
 
     include(${CMAKE_SOURCE_DIR}/scripts/pack-assets.cmake)
 
@@ -72,7 +75,7 @@ function (clap_executable executable_name sources ASSET_DIR assets font_file bui
 
     add_dependencies(${executable_name} ${ENGINE_LIB} meshoptimizer)
     target_include_directories(${executable_name} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
-    set_target_properties(${executable_name} PROPERTIES COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror")
+    set_target_properties(${executable_name} PROPERTIES COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CMAKE_C_FLAGS}")
     set_target_properties(${executable_name} PROPERTIES LINK_DEPENDS "${ASSETS};${EMSDK_SHELL}")
     target_link_libraries(${executable_name} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
     target_link_libraries(${executable_name} PRIVATE ${PNG_LIBRARY})
