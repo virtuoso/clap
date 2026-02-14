@@ -150,7 +150,10 @@ cresp_ret(void);
 /*
  * Make sure that cerr and cres(T) have err, mod and line at same offsets, so
  * both can be typecast to cerr and passed into cerr_strbuf()
+ * additionally, everything depends on {cerr,cres}::err being the first
+ * member.
  */
+static_assert(offsetof(cerr, err)  == 0,  "cerr::err is not the first member");
 static_assert(offsetof(cerr, err)  == offsetof(cres(int), err),  "cerr/cres::err don't match");
 #ifndef CONFIG_FINAL
 static_assert(offsetof(cerr, mod)  == offsetof(cres(int), mod),  "cerr/cres::mod don't match");
