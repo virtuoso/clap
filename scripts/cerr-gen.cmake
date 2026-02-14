@@ -15,10 +15,13 @@ file(READ "${dir}/error.h" error_src)
 # Convert error constants into tricky struct types
 string(REGEX REPLACE "^.*typedef enum cerr_enum {(.*)} cerr_enum.*$" "\\1" error_out ${error_src})
 string(REGEX REPLACE " *_([A-Z_]*)[- =0-9]+,\n"
-                     "#define \\1 ((const cerr){ .err = _\\1,${debug_info} })\n" error_out ${error_out})
+                     "#define \\1 ((const cerr){ .err = _\\1,${debug_info} })\n" error_out_plain ${error_out})
+string(REGEX REPLACE " *_([A-Z_]*)[- =0-9]+,\n"
+                     "#define \\1_REASON(...) ((const cerr){ .err = _\\1, .reason = { __VA_ARGS__ },${debug_info} })\n" error_out_reason ${error_out})
 set(new_content "#ifndef __CLAP_CERRS_H__\n")
 set(new_content "${new_content}#define __CLAP_CERRS_H__\n")
-set(new_content "${new_content}${error_out}\n")
+set(new_content "${new_content}${error_out_plain}\n")
+set(new_content "${new_content}${error_out_reason}\n")
 set(new_content "${new_content}#endif /* __CLAP_CERRS_H__ */\n")
 
 # Only write to the file if the content has changed
