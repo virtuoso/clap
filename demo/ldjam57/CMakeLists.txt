@@ -10,7 +10,7 @@ clap_executable(
     "main.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset"
     ""
-    "background.jpg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/background.jpg"
     "ofl/Unbounded-Regular.ttf"
     "Unbounded"
     ${CLAP_DEMOS_BUILD_IN_ASSETS}
