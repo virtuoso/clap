@@ -131,8 +131,20 @@ cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[
     if (IS_CERR(err))
         return err;
 
-    uchar _color[] = { color[0] * 255.0, color[1] * 255.0, color[2] * 255.0, color[3] * 255.0 };
-    return texture_load(tex, TEX_FMT_RGBA8, 1, 1, _color);
+    texture_format fmt = TEX_FMT_RGBA8;
+    if (texture_format_supported(TEX_FMT_RGBA32F))
+        for (size_t i = 0; i < 4; i++)
+            if (color[i] > 1.0f) {
+                fmt = TEX_FMT_RGBA32F;
+                break;
+            }
+
+    if (fmt == TEX_FMT_RGBA8) {
+        uchar _color[] = { color[0] * 255.0, color[1] * 255.0, color[2] * 255.0, color[3] * 255.0 };
+        return texture_load(tex, fmt, 1, 1, _color);
+    }
+
+    return texture_load(tex, fmt, 1, 1, color);
 }
 
 static texture_t _white_pixel;
