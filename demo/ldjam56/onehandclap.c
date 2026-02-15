@@ -113,12 +113,6 @@ static void resize_cb(void *data, int width, int height)
         pipeline_resize(scene->pl, width, height);
 }
 
-static void ohc_ground_contact(void *priv, float x, float y, float z)
-{
-    if (scene.auto_yoffset < y)
-        scene.auto_yoffset = y;
-}
-
 static int handle_input(struct clap_context *ctx, struct message *m, void *data)
 {
     struct scene *scene = data;
@@ -262,8 +256,6 @@ int main(int argc, char **argv, char **envp)
     if (IS_CERR(err))
         err_cerr(err, "failed to initialize networking\n");
 #endif
-
-    phys_set_ground_contact(clap_get_phys(scene.clap_ctx), ohc_ground_contact);
 
     err = subscribe(scene.clap_ctx, MT_INPUT, handle_input, &scene);
     if (IS_CERR(err))
