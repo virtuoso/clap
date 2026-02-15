@@ -129,6 +129,7 @@ messagebus *clap_get_messagebus(struct clap_context *ctx)
 
 renderer_t *clap_get_renderer(struct clap_context *ctx)
 {
+    if (!ctx->cfg.graphics) return NULL;
     return &ctx->renderer;
 }
 

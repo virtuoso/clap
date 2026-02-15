@@ -69,7 +69,7 @@ struct messagebus *clap_get_messagebus(struct clap_context *ctx) __returns_nonnu
  * If graphics was initialized, return graphics renderer's main object.
  * Return: renderer_t pointer or NULL if graphics is not used.
  */
-renderer_t *clap_get_renderer(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
+renderer_t *clap_get_renderer(struct clap_context *ctx) __nonnull_params((1));
 
 /**
  * clap_get_viewport() - get clap's viewport
