@@ -72,6 +72,19 @@ struct messagebus *clap_get_messagebus(struct clap_context *ctx) __returns_nonnu
 renderer_t *clap_get_renderer(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
+ * clap_get_viewport() - get clap's viewport
+ * @ctx:    clap_context
+ * @px:     X coordinate receiver or NULL
+ * @py:     Y coordinate receiver or NULL
+ * @pw:     width receiver or NULL
+ * @ph:     height receiver or NULL
+ *
+ * If graphics was initialized, return viewport's position and size in the
+ * non-NULL pointers, leave them unchanged otherwise.
+ */
+void clap_get_viewport(struct clap_context *ctx, int *px, int *py, int *pw, int *ph);
+
+/**
  * clap_get_render_options() - get clap's render options (mutable)
  * @ctx:    clap_context
  *

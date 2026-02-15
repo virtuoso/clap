@@ -132,6 +132,12 @@ renderer_t *clap_get_renderer(struct clap_context *ctx)
     return &ctx->renderer;
 }
 
+void clap_get_viewport(struct clap_context *ctx, int *px, int *py, int *pw, int *ph)
+{
+    if (!ctx->cfg.graphics) return;
+    renderer_get_viewport(&ctx->renderer, px, py, pw, ph);
+}
+
 render_options *clap_get_render_options(struct clap_context *ctx)
 {
     return &ctx->render_options;
