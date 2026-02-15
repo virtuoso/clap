@@ -105,6 +105,7 @@ typedef struct clap_context {
     struct settings     *settings;
     renderer_t          renderer;
     render_options      render_options;
+    render_options      render_options_current;
     shader_context      *shaders;
     struct scene        scene;
     pipeline            *pl;
@@ -393,6 +394,19 @@ static void clap_timers_done(clap_context *ctx)
  * Rendering pipeline
  ****************************************************************************/
 
+/* Table of boolean settings that if changed require a pipeline rebuild */
+static const struct rebuild_reason {
+    const char  *name;
+    size_t      offset;
+} rebuild_reason[] = {
+    { .name = "shadow_msaa",        .offset = offsetof(render_options, shadow_msaa) },
+    { .name = "model_msaa",         .offset = offsetof(render_options, model_msaa) },
+    { .name = "edge_sobel",         .offset = offsetof(render_options, edge_sobel) },
+    { .name = "ssao",               .offset = offsetof(render_options, ssao) },
+    { .name = "shadow_vsm",         .offset = offsetof(render_options, shadow_vsm) },
+    { .name = "edge_antialiasing",  .offset = offsetof(render_options, edge_antialiasing) },
+};
+
 static cerr build_main_pl(clap_context *ctx)
 {
     auto scene = clap_get_scene(ctx);
@@ -408,6 +422,32 @@ static cerr build_main_pl(clap_context *ctx)
             .pl         = ctx->pl
         })
     );
+
+    memcpy(&ctx->render_options_current, &ctx->render_options, sizeof(render_options));
+
+    return CERR_OK;
+}
+
+static cerr rebuild_pl_if_needed(clap_context *ctx)
+{
+    render_options *ropts = &ctx->render_options;
+    render_options *ropts_current = &ctx->render_options_current;
+
+    bool rebuild_pl = false;
+    for (size_t i = 0; i < array_size(rebuild_reason); i++) {
+        bool *a = (bool *)((void *)ropts + rebuild_reason[i].offset);
+        bool *b = (bool *)((void *)ropts_current + rebuild_reason[i].offset);
+        if (*a != *b) {
+            rebuild_pl = true;
+            dbg("pipeline rebuild reason: %s: %d -> %d\n", rebuild_reason[i].name, *b, *a);
+            *b = *a;
+        }
+    }
+
+    if (rebuild_pl) {
+         pipeline_clearout(ctx->pl);
+        return build_main_pl(ctx);
+    }
 
     return CERR_OK;
 }
@@ -502,6 +542,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     PROF_STEP(callback, updates);
 
     pipeline_render(ctx->pl, clap_is_paused(ctx) ? 1 : 0);
+    rebuild_pl_if_needed(ctx);
 
     PROF_STEP(scene_render, callback);
 
