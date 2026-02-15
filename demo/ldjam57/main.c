@@ -423,8 +423,6 @@ static void build_main_pl(struct pipeline **pl)
     *pl = CRES_RET(
         pipeline_build(&(pipeline_builder_opts) {
             .pl_opts    = &(pipeline_init_options) {
-                .width          = scene.width,
-                .height         = scene.height,
                 .clap_ctx       = scene.clap_ctx,
                 .light          = &scene.light,
                 .camera         = &scene.cameras[0],
@@ -652,7 +650,7 @@ int main(int argc, char **argv, char **envp)
     if (IS_CERR(err))
         goto exit_scene;
 
-    display_get_sizes(&scene.width, &scene.height);
+    display_get_sizes(NULL, NULL);
     scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
 
     // intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");

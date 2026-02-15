@@ -209,8 +209,6 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     pipeline *pl = opts->pl ? : CRES_RET_T(
         ref_new_checked(
             pipeline,
-            .width            = opts->pl_opts->width,
-            .height           = opts->pl_opts->height,
             .light            = opts->pl_opts->light,
             .camera           = opts->pl_opts->camera,
             .clap_ctx         = opts->pl_opts->clap_ctx,

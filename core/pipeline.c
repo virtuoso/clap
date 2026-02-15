@@ -23,7 +23,7 @@ float pipeline_pass_get_scale(render_pass *pass)
 static cerr pipeline_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(pipeline) *opts = _opts;
-    if (!opts->name || !opts->clap_ctx || !opts->width || !opts->height)
+    if (!opts->name || !opts->clap_ctx)
         return CERR_INVALID_ARGUMENTS;
 
     struct pipeline *pl = container_of(ref, struct pipeline, ref);
@@ -35,9 +35,9 @@ static cerr pipeline_make(struct ref *ref, void *_opts)
     pl->camera          = opts->camera;
     pl->light           = opts->light;
     pl->name            = opts->name;
-    pl->width           = opts->width;
-    pl->height          = opts->height;
     pl->ssao_state      = opts->ssao_state;
+
+    clap_get_viewport(opts->clap_ctx, NULL, NULL, &pl->width, &pl->height);
 
     pipeline_debug_init(pl);
 

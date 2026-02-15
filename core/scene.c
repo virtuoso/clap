@@ -875,8 +875,11 @@ static inline void scene_debug_frusta(struct scene *scene, struct view *view) {}
 
 static void scene_camera_calc(struct scene *s, int camera)
 {
+    int width, height;
+    clap_get_viewport(s->clap_ctx, NULL, NULL, &width, &height);
+
     struct camera *cam = &s->cameras[camera];
-    view_update_perspective_projection(&cam->view, s->width, s->height,
+    view_update_perspective_projection(&cam->view, width, height,
                                        cam->zoom ? 0.5 : 1.0);
 
     camera_update(s->camera, s);
@@ -974,8 +977,6 @@ static int scene_handle_input(struct clap_context *ctx, struct message *m, void 
         scene_control_next(s);
 #endif
     if (m->input.resize) {
-        s->width = m->input.x;
-        s->height = m->input.y;
         if (s->camera)
             s->camera->view.proj_update = true;
     }

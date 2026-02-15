@@ -31,8 +31,6 @@ typedef struct entity_inspector {
 #define SCENE_NAME_MAX 128
 struct scene {
     char                name[SCENE_NAME_MAX];
-    int                 width;
-    int                 height;
     struct mq           mq;
     pipeline            *pl;
     struct list         characters;
