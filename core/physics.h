@@ -45,8 +45,6 @@ typedef enum geom_class {
 
 struct phys_body;
 
-typedef void (*ground_contact_fn)(void *priv, float x, float y, float z);
-
 struct phys;
 typedef struct entity3d entity3d;
 
@@ -140,10 +138,6 @@ void phys_capsules_debug_enable(struct phys *phys, bool enable);
  * Enable/disable debug drawing of a body's velocity.
  */
 void phys_velocities_debug_enable(struct phys *phys, bool enable);
-
-/* XXX: remove these 2 */
-void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact);
-void phys_ground_add(entity3d *e);
 
 /**
  * phys_ray_cast() - cast a ray from

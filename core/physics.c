@@ -18,7 +18,6 @@ struct phys {
     dSpaceID    ground_space;
     dSpaceID    collision;
     dJointGroupID contact;
-    ground_contact_fn ground_contact;
     double      time_acc;
     bool        draw_contacts;
     bool        draw_capsules;
@@ -944,11 +943,6 @@ static void ode_debug(int errnum, const char *msg, va_list ap)
 static void ode_message(int errnum, const char *msg, va_list ap)
 {
     vlogg(NORMAL, "ODE", -1, "\n", msg, ap);
-}
-
-void phys_set_ground_contact(struct phys *phys, ground_contact_fn ground_contact)
-{
-    phys->ground_contact = ground_contact;
 }
 
 static void *ode_alloc(dsizeint size)
