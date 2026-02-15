@@ -784,6 +784,9 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         scene_camera_add(&ctx->scene);
         scene_cameras_calc(&ctx->scene);
 
+        if (ctx->cfg.graphics_init)
+            ctx->cfg.graphics_init(ctx, ctx->cfg.callback_data);
+
         CERR_RET_T(build_main_pl(ctx), clap_context);
     }
     if (ctx->cfg.input)

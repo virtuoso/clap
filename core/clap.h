@@ -317,6 +317,7 @@ cerr clap_set_lighting_lut(clap_context *ctx, const char *name) __nonnull_params
  * @width:              initial window width
  * @height:             initial window height
  * @early_init:         optional early init callback, called after messagebus_init(); allowed to faila
+ * @graphics_init:      optional callback called before the pipeline is built
  * @frame_cb:           callback to run every frame after model updates, but before rendering
  * @resize_cb:          window resize callback
  * @callback_data:      data to be passed into @frame_cb and @resize_cb
@@ -341,6 +342,7 @@ struct clap_config {
     unsigned int    width;
     unsigned int    height;
     cerr            (*early_init)(clap_context *ctx, void *data);
+    void            (*graphics_init)(clap_context *ctx, void *data);
     void            (*frame_cb)(clap_context *ctx, void *data);
     void            (*resize_cb)(clap_context *ctx, void *data, int width, int height);
     void            *callback_data;
