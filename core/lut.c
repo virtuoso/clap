@@ -417,7 +417,8 @@ static void lut_osd_element_cb(struct ui_element *uie, unsigned int i)
 
 void lut_apply(struct scene *scene, lut *lut)
 {
-    render_pass *pass = CRES_RET(pipeline_find_pass(scene->pl, "combine"), return);
+    pipeline *pl = clap_get_pipeline(scene->clap_ctx);
+    render_pass *pass = CRES_RET(pipeline_find_pass(pl, "combine"), return);
     render_options *ropts = clap_get_render_options(scene->clap_ctx);
 
     ropts->lighting_lut = lut;

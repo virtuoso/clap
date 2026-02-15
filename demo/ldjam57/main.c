@@ -31,7 +31,6 @@
 
 static struct sound *intro_sound;
 static int exit_timeout = -1;
-static struct scene scene;
 
 static texture_t platform_emission_purple;
 static texture_t platform_emission_teal;
@@ -339,7 +338,7 @@ static void startup(struct scene *s)
     s->lin_speed = 2.0;
     s->ang_speed = 90.0;
     s->limbo_height = 70.0;
-    render_options *ropts = clap_get_render_options(scene.clap_ctx);
+    render_options *ropts = clap_get_render_options(s->clap_ctx);
     ropts->bloom_intensity = 1.1;
     ropts->bloom_threshold = 0.3;
     ropts->bloom_exposure = 2.5;
@@ -360,7 +359,8 @@ static void startup(struct scene *s)
     if (IS_CERR(err))
         err_cerr(err, "couldn't initialize pixel texture\n");
 
-    cresp(shader_prog) prog_res = pipeline_shader_find_get(s->pl, "particle");
+    auto pl = clap_get_pipeline(s->clap_ctx);
+    cresp(shader_prog) prog_res = pipeline_shader_find_get(pl, "particle");
     if (IS_CERR(prog_res)) {
         err_cerr(prog_res, "can't load spore shader\n");
     } else {
@@ -416,25 +416,6 @@ static void cleanup(struct scene *s)
 }
 #endif /* !CONFIG_BROWSER */
 
-static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = true;
-
-static void build_main_pl(struct pipeline **pl)
-{
-    *pl = CRES_RET(
-        pipeline_build(&(pipeline_builder_opts) {
-            .pl_opts    = &(pipeline_init_options) {
-                .clap_ctx       = scene.clap_ctx,
-                .light          = &scene.light,
-                .camera         = &scene.cameras[0],
-                .name           = "main"
-            },
-            .mq         = &scene.mq,
-            .pl         = scene.pl
-        }),
-        return
-    );
-}
-
 static const char *intro_osd[] = {
     "Arrows to move the camera",
     "WASD to move the character",
@@ -444,9 +425,9 @@ static const char *intro_osd[] = {
 
 static const char *outro_osd[] = { "Thank you for playing!", "The End" };
 
-static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
+static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
 {
-    struct scene *s = data;
+    struct scene *s = clap_get_scene(ctx);
     struct ui *ui = clap_get_ui(s->clap_ctx);
 
     if (main_state == MS_STARTING) {
@@ -456,41 +437,6 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
         main_state++;
         ui_osd_new(ui, NULL, outro_osd, array_size(outro_osd));
     }
-
-    pipeline_render(scene.pl, clap_is_paused(s->clap_ctx) ? 1 : 0);
-
-    render_options *ropts = clap_get_render_options(s->clap_ctx);
-    if (shadow_msaa != ropts->shadow_msaa ||
-        model_msaa != ropts->model_msaa ||
-        edge_sobel != ropts->edge_sobel ||
-        ssao != ropts->ssao ||
-        vsm != ropts->shadow_vsm ||
-        edge_aa != ropts->edge_antialiasing) {
-        shadow_msaa = ropts->shadow_msaa;
-        model_msaa = ropts->model_msaa;
-        edge_sobel = ropts->edge_sobel;
-        edge_aa = ropts->edge_antialiasing;
-        ssao = ropts->ssao;
-        vsm = ropts->shadow_vsm;
-        pipeline_clearout(scene.pl);
-        build_main_pl(&scene.pl);
-    }
-    pipeline_debug(scene.pl);
-}
-
-/*
- * XXX: this should be a message
- * cmd.resize
- */
-static void resize_cb(void *data, int width, int height)
-{
-    struct scene *scene = data;
-
-    if (!scene->initialized)
-        return;
-
-    if (scene->pl)
-        pipeline_resize(scene->pl, width, height);
 }
 
 static int handle_input(struct clap_context *ctx, struct message *m, void *data)
@@ -569,8 +515,6 @@ int main(int argc, char **argv, char **envp)
         .height         = 720,
         .early_init     = early_init,
         .frame_cb       = render_frame,
-        .resize_cb      = resize_cb,
-        .callback_data  = &scene,
         .default_font_name  = "ofl/Unbounded-Regular.ttf",
 #ifdef CONFIG_FINAL
         .lut_presets    = (lut_preset[]){ LUT_ORANGE_BLUE_FILMIC },
@@ -628,7 +572,6 @@ int main(int argc, char **argv, char **envp)
      */
     renderer_frame_begin(clap_get_renderer(clap_res.val));
     imgui_render_begin(cfg.width, cfg.height);
-    scene_init(&scene, clap_res.val);
 
     cerr err;
 #ifndef CONFIG_FINAL
@@ -638,40 +581,34 @@ int main(int argc, char **argv, char **envp)
         err_cerr(err, "failed to initialize networking\n");
 #endif
 
-    err = subscribe(scene.clap_ctx, MT_INPUT, handle_input, &scene);
+    auto scene = clap_get_scene(clap_res.val);
+    err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
     if (IS_CERR(err))
         goto exit_scene;
 
-    display_get_sizes(NULL, NULL);
-    scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
+    scene->ls = loading_screen_init(clap_get_ui(clap_res.val));
 
     // intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
     if (intro_sound) {
-        float intro_gain = settings_get_num(clap_get_settings(scene.clap_ctx), NULL, "music_volume");
+        float intro_gain = settings_get_num(clap_get_settings(scene->clap_ctx), NULL, "music_volume");
         sound_set_gain(intro_sound, intro_gain);
         sound_set_looping(intro_sound, true);
         sound_play(intro_sound);
     }
 
-    CERR_RET(clap_set_lighting_lut(scene.clap_ctx, "orange blue filmic"), goto exit_sound);
+    CERR_RET(clap_set_lighting_lut(clap_res.val, "orange blue filmic"), goto exit_sound);
 
-    scene_camera_add(&scene);
-    scene.camera = &scene.cameras[0];
-    scene_cameras_calc(&scene);
-
-    build_main_pl(&scene.pl);
-
-    fuzzer_input_init(scene.clap_ctx);
+    fuzzer_input_init(clap_res.val);
 
     if (fullscreen)
         display_enter_fullscreen();
 
-    scene_load(&scene, "scene.json");
+    scene_load(scene, "scene.json");
 
-    startup(&scene);
-    process_scene(&scene);
+    startup(scene);
+    process_scene(scene);
 
-    loading_screen_done(scene.ls);
+    loading_screen_done(scene->ls);
 
     imgui_render();
     renderer_frame_end(clap_get_renderer(clap_res.val));
@@ -684,11 +621,9 @@ exit_sound:
     if (intro_sound)
         ref_put(intro_sound);
 exit_scene:
-    cleanup(&scene);
+    cleanup(scene);
 
-    scene_done(&scene);
-    ref_put(scene.pl);
-    clap_done(scene.clap_ctx, 0);
+    clap_done(clap_res.val, 0);
 #else
 exit_sound:
 exit_scene:

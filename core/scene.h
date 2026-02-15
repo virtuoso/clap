@@ -32,7 +32,6 @@ typedef struct entity_inspector {
 struct scene {
     char                name[SCENE_NAME_MAX];
     struct mq           mq;
-    pipeline            *pl;
     struct list         characters;
     struct list         instor;
     entity3d            *control;

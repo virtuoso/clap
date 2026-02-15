@@ -1246,7 +1246,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 
     gd = gltf_load(
         .mq         = &scene->mq,
-        .pipeline   = scene->pl,
+        .pipeline   = clap_get_pipeline(scene->clap_ctx),
         .name       = gltf,
         .fix_origin = fix_origin
     );

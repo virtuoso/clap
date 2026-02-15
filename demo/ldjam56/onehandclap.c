@@ -26,31 +26,12 @@
 /* XXX just note for the future */
 static struct sound *intro_sound;
 static int exit_timeout = -1;
-static struct scene scene; /* XXX */
 
-static bool shadow_msaa, model_msaa, edge_aa = true, edge_sobel, ssao, vsm = true;
 typedef struct game_ui game_ui;
 cresp_struct_ret(game_ui);
 
 cresp(game_ui) game_ui_init(struct ui *ui);
 void game_ui_done(game_ui *game_ui);
-
-static void build_main_pl(struct pipeline **pl)
-{
-    *pl = CRES_RET(
-        pipeline_build(&(pipeline_builder_opts) {
-            .pl_opts    = &(pipeline_init_options) {
-                .clap_ctx         = scene.clap_ctx,
-                .light            = &scene.light,
-                .camera           = &scene.cameras[0],
-                .name             = "main"
-            },
-            .mq         = &scene.mq,
-            .pl         = scene.pl
-        }),
-        return
-    );
-}
 
 static const char *intro_osd[] = {
     "WASD to move the character",
@@ -67,50 +48,15 @@ enum main_state {
 
 static enum main_state main_state;
 
-static EMSCRIPTEN_KEEPALIVE void render_frame(void *data)
+static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
 {
-    struct scene *s = data;
+    struct scene *s = clap_get_scene(ctx);
     struct ui *ui = clap_get_ui(s->clap_ctx);
 
     if (main_state == MS_STARTING) {
         main_state++;
         ui_osd_new(ui, NULL, intro_osd, array_size(intro_osd));
     }
-
-    pipeline_render(scene.pl, clap_is_paused(s->clap_ctx) ? 1 : 0);
-
-    render_options *ropts = clap_get_render_options(s->clap_ctx);
-    if (shadow_msaa != ropts->shadow_msaa ||
-        model_msaa != ropts->model_msaa ||
-        edge_sobel != ropts->edge_sobel ||
-        ssao != ropts->ssao ||
-        vsm != ropts->shadow_vsm ||
-        edge_aa != ropts->edge_antialiasing) {
-        shadow_msaa = ropts->shadow_msaa;
-        model_msaa = ropts->model_msaa;
-        edge_sobel = ropts->edge_sobel;
-        edge_aa = ropts->edge_antialiasing;
-        ssao = ropts->ssao;
-        vsm = ropts->shadow_vsm;
-        pipeline_clearout(scene.pl);
-        build_main_pl(&scene.pl);
-    }
-    pipeline_debug(scene.pl);
-}
-
-/*
- * XXX: this should be a message
- * cmd.resize
- */
-static void resize_cb(void *data, int width, int height)
-{
-    struct scene *scene = data;
-
-    if (!scene->initialized)
-        return;
-
-    if (scene->pl)
-        pipeline_resize(scene->pl, width, height);
 }
 
 static int handle_input(struct clap_context *ctx, struct message *m, void *data)
@@ -186,8 +132,6 @@ int main(int argc, char **argv, char **envp)
         .height         = 720,
         .early_init     = early_init,
         .frame_cb       = render_frame,
-        .resize_cb      = resize_cb,
-        .callback_data  = &scene,
         .default_font_name  = "ofl/Unbounded-Regular.ttf",
 #ifdef CONFIG_FINAL
         .lut_presets    = (lut_preset[]){ LUT_TEAL_ORANGE },
@@ -247,7 +191,6 @@ int main(int argc, char **argv, char **envp)
      */
     renderer_frame_begin(clap_get_renderer(clap_res.val));
     imgui_render_begin(cfg.width, cfg.height);
-    scene_init(&scene, clap_res.val);
 
     cerr err;
 #ifndef CONFIG_FINAL
@@ -257,43 +200,36 @@ int main(int argc, char **argv, char **envp)
         err_cerr(err, "failed to initialize networking\n");
 #endif
 
-    err = subscribe(scene.clap_ctx, MT_INPUT, handle_input, &scene);
+    auto scene = clap_get_scene(clap_res.val);
+    err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
     if (IS_CERR(err))
         goto exit_scene;
 
-    display_get_sizes(NULL, NULL);
-    scene.ls = loading_screen_init(clap_get_ui(clap_res.val));
+    scene->ls = loading_screen_init(clap_get_ui(clap_res.val));
 
-    intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
+    intro_sound = ref_new(sound, .ctx = clap_get_sound(clap_res.val), .name = "morning.ogg");
     if (intro_sound) {
-        float intro_gain = settings_get_num(clap_get_settings(scene.clap_ctx), NULL, "music_volume");
+        float intro_gain = settings_get_num(clap_get_settings(clap_res.val), NULL, "music_volume");
         sound_set_gain(intro_sound, intro_gain);
         sound_set_looping(intro_sound, true);
         sound_play(intro_sound);
     }
 
-    CERR_RET(clap_set_lighting_lut(scene.clap_ctx, "teal orange"), goto exit_sound);
+    CERR_RET(clap_set_lighting_lut(clap_res.val, "teal orange"), goto exit_sound);
 
-    scene_camera_add(&scene);
-    scene.camera = &scene.cameras[0];
-    scene.camera->view.main.far_plane = 700.0;
-    scene_cameras_calc(&scene);
-
-    build_main_pl(&scene.pl);
-
-    fuzzer_input_init(scene.clap_ctx);
+    fuzzer_input_init(clap_res.val);
 
     if (fullscreen)
         display_enter_fullscreen();
 
-    scene_load(&scene, "scene.json");
+    scene_load(scene, "scene.json");
 
-    loading_screen_done(scene.ls);
+    loading_screen_done(scene->ls);
 
-    scene.lin_speed = 2.0;
-    scene.ang_speed = 45.0;
-    scene.limbo_height = 70.0;
-    render_options *ropts = clap_get_render_options(scene.clap_ctx);
+    scene->lin_speed = 2.0;
+    scene->ang_speed = 45.0;
+    scene->limbo_height = 70.0;
+    render_options *ropts = clap_get_render_options(clap_res.val);
     ropts->fog_near = 200.0;
     ropts->fog_far = 300.0;
     ropts->lighting_operator = 1.0;
@@ -311,10 +247,8 @@ exit_sound:
     if (intro_sound)
         ref_put(intro_sound);
 exit_scene:
-    scene_done(&scene);
-    ref_put(scene.pl); /* XXX: scene_init()/scene_done() */
     game_ui_done(gui);
-    clap_done(scene.clap_ctx, 0);
+    clap_done(clap_res.val, 0);
 #else
 exit_sound:
 exit_scene:

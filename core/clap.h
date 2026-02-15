@@ -16,6 +16,7 @@ typedef struct sound_context sound_context;
 typedef struct font_context font_context;
 typedef struct shader_context shader_context;
 typedef struct render_options render_options;
+typedef struct pipeline pipeline;
 
 /**
  * struct clap_os_info - static OS information
@@ -85,6 +86,15 @@ renderer_t *clap_get_renderer(struct clap_context *ctx) __nonnull_params((1));
 void clap_get_viewport(struct clap_context *ctx, int *px, int *py, int *pw, int *ph);
 
 /**
+ * clap_get_scene() - get clap's scene
+ * @ctx:    clap_context
+ *
+ * If graphics was initialized, return the scene object.
+ * Return: struct scene pointer or NULL if graphics is not used.
+ */
+struct scene *clap_get_scene(struct clap_context *ctx)  __nonnull_params((1));
+
+/**
  * clap_get_render_options() - get clap's render options (mutable)
  * @ctx:    clap_context
  *
@@ -105,6 +115,15 @@ render_options *clap_get_render_options(struct clap_context *ctx) __returns_nonn
  * Return: struct shader_context pointer or NULL if graphics is not used.
  */
 shader_context *clap_get_shaders(struct clap_context *ctx) __nonnull_params((1));
+
+/**
+ * clap_get_pipeline() - get clap's rendering pipeline
+ * @ctx:    clap_context
+ *
+ * If graphics was initialized, return the rendering pipeline.
+ * Return: pipeline pointer or NULL if graphics is not used.
+ */
+pipeline *clap_get_pipeline(struct clap_context *ctx) __nonnull_params((1));
 
 /**
  * clap_get_ui() - get clap's UI handle
@@ -322,10 +341,10 @@ struct clap_config {
     unsigned int    width;
     unsigned int    height;
     cerr            (*early_init)(clap_context *ctx, void *data);
-    void            (*frame_cb)(void *data);
-    void            (*resize_cb)(void *data, int width, int height);
+    void            (*frame_cb)(clap_context *ctx, void *data);
+    void            (*resize_cb)(clap_context *ctx, void *data, int width, int height);
     void            *callback_data;
-    void            (*settings_cb)(struct settings *rs, void *data);
+    void            (*settings_cb)(clap_context *ctx, struct settings *rs, void *data);
     void            *settings_cb_data;
     lut_preset      *lut_presets;
 };

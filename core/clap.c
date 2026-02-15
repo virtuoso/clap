@@ -12,6 +12,7 @@
 #include "lut.h"
 #include "font.h"
 #include "networking.h"
+#include "pipeline-builder.h"
 #include "profiler.h"
 #include "render.h"
 #include "scene.h"
@@ -105,6 +106,8 @@ typedef struct clap_context {
     renderer_t          renderer;
     render_options      render_options;
     shader_context      *shaders;
+    struct scene        scene;
+    pipeline            *pl;
     struct list         luts;
     struct list         timers;
     struct ui           ui;
@@ -139,6 +142,12 @@ void clap_get_viewport(struct clap_context *ctx, int *px, int *py, int *pw, int 
     renderer_get_viewport(&ctx->renderer, px, py, pw, ph);
 }
 
+struct scene *clap_get_scene(struct clap_context *ctx)
+{
+    if (!ctx->cfg.graphics) return NULL;
+    return &ctx->scene;
+}
+
 render_options *clap_get_render_options(struct clap_context *ctx)
 {
     return &ctx->render_options;
@@ -147,6 +156,11 @@ render_options *clap_get_render_options(struct clap_context *ctx)
 shader_context *clap_get_shaders(struct clap_context *ctx)
 {
     return ctx->shaders;
+}
+
+pipeline *clap_get_pipeline(struct clap_context *ctx)
+{
+    return ctx->pl;
 }
 
 struct ui *clap_get_ui(clap_context *ctx)
@@ -376,6 +390,29 @@ static void clap_timers_done(clap_context *ctx)
 }
 
 /****************************************************************************
+ * Rendering pipeline
+ ****************************************************************************/
+
+static cerr build_main_pl(clap_context *ctx)
+{
+    auto scene = clap_get_scene(ctx);
+    ctx->pl = CRES_RET_CERR(
+        pipeline_build(&(pipeline_builder_opts) {
+            .pl_opts    = &(pipeline_init_options) {
+                .clap_ctx       = ctx,
+                .light          = &scene->light,
+                .camera         = &scene->cameras[0],
+                .name           = "main"
+            },
+            .mq         = &scene->mq,
+            .pl         = ctx->pl
+        })
+    );
+
+    return CERR_OK;
+}
+
+/****************************************************************************
  * Main callbacks
  ****************************************************************************/
 
@@ -397,7 +434,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
     ui_debug_set_settings(rs);
 
     if (ctx->cfg.settings_cb)
-        ctx->cfg.settings_cb(rs, ctx->cfg.settings_cb_data);
+        ctx->cfg.settings_cb(ctx, rs, ctx->cfg.settings_cb_data);
 }
 
 EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
@@ -420,7 +457,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_FIRST(start);
 
-    struct scene *scene = ctx->cfg.callback_data;
+    struct scene *scene = clap_get_scene(ctx);
     if (scene->control) {
         /*
          * calls into character_move(): handle inputs, adjust velocities etc
@@ -428,7 +465,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
          */
         scene_characters_move(scene);
     } else {
-        double dt = clap_get_fps_delta(scene->clap_ctx).tv_nsec / (double)NSEC_PER_SEC;
+        double dt = clap_get_fps_delta(ctx).tv_nsec / (double)NSEC_PER_SEC;
         float lin_speed = scene->lin_speed * dt;
 
         /* Always compute the active inputs in the frame */
@@ -460,16 +497,21 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     PROF_STEP(updates, net);
 
     if (ctx->cfg.frame_cb)
-        ctx->cfg.frame_cb(ctx->cfg.callback_data);
+        ctx->cfg.frame_cb(ctx, ctx->cfg.callback_data);
 
     PROF_STEP(callback, updates);
 
+    pipeline_render(ctx->pl, clap_is_paused(ctx) ? 1 : 0);
+
+    PROF_STEP(scene_render, callback);
+
     models_render(ui->renderer, &ui->mq);
 
-    PROF_STEP(ui_render, callback);
+    PROF_STEP(ui_render, scene_render);
 
     profiler_show(PROF_PTR(start), ctx->fps.fps_fine);
     renderer_debug(&ctx->renderer);
+    pipeline_debug(ctx->pl);
     input_debug();
     controllers_debug();
     memory_debug();
@@ -513,8 +555,10 @@ EMSCRIPTEN_KEEPALIVE void clap_resize(void *data, int width, int height)
         NULL
     );
 
+    if (ctx->pl)    pipeline_resize(ctx->pl, width, height);
+
     if (ctx->cfg.resize_cb)
-        ctx->cfg.resize_cb(ctx->cfg.callback_data, width, height);
+        ctx->cfg.resize_cb(ctx, ctx->cfg.callback_data, width, height);
 
     touch_input_set_size(width, height);
 }
@@ -562,7 +606,7 @@ static cerr clap_lut_generate(clap_context *ctx, lut_preset *presets, unsigned i
 
 static bool clap_config_is_valid(struct clap_config *cfg)
 {
-    if (cfg->graphics && (!cfg->frame_cb || !cfg->resize_cb || !cfg->title))
+    if (cfg->graphics && (!cfg->frame_cb || !cfg->title))
         return false;
     if (cfg->ui && !cfg->graphics)
         return false;
@@ -708,6 +752,9 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         ctx->sound = CRES_RET_T(sound_init(ctx), clap_context);
     if (ctx->cfg.phys)
         CHECK(ctx->phys = phys_init(ctx));
+
+    int width = ctx->cfg.width, height = ctx->cfg.height;
+
     if (ctx->cfg.graphics) {
         clap_init_render_options(ctx);
 
@@ -719,6 +766,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
          */
         CERR_RET_T(display_init(ctx, clap_frame, clap_resize), clap_context);
 
+        display_get_sizes(&width, &height);
+
         if (ctx->cfg.font)
             ctx->font = CRES_RET_T(font_init(&ctx->renderer, ctx->cfg.default_font_name), clap_context);
 
@@ -729,11 +778,18 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         if (!lut_presets)
             lut_presets = (lut_preset[]){ LUT_IDENTITY, LUT_MAX };
         CERR_RET_T(clap_lut_generate(ctx, lut_presets, 32), clap_context);
+
+        CERR_RET_T(scene_init(&ctx->scene, ctx), clap_context);
+
+        scene_camera_add(&ctx->scene);
+        scene_cameras_calc(&ctx->scene);
+
+        CERR_RET_T(build_main_pl(ctx), clap_context);
     }
     if (ctx->cfg.input)
         (void)input_init(ctx); /* XXX: error handling */
     if (ctx->cfg.ui)
-        CERR_RET_T(ui_init(&ctx->ui, ctx, ctx->cfg.width, ctx->cfg.height), clap_context);
+        CERR_RET_T(ui_init(&ctx->ui, ctx, width, height), clap_context);
     if (ctx->cfg.graphics && ctx->cfg.input)
         display_debug_ui_init(ctx);
     if (ctx->cfg.settings)
@@ -746,16 +802,18 @@ void clap_done(struct clap_context *ctx, int status)
 {
     if (ctx->cfg.ui)
         ui_done(&ctx->ui);
-    if (ctx->cfg.sound)
-        sound_done(ctx->sound);
-    if (ctx->cfg.phys)
-        phys_done(ctx->phys);
     if (ctx->cfg.graphics) {
+        scene_done(&ctx->scene);
+        ref_put(ctx->pl);
         shader_vars_done(ctx->shaders);
         luts_done(&ctx->luts);
         textures_done();
         display_done();
     }
+    if (ctx->cfg.phys)
+        phys_done(ctx->phys);
+    if (ctx->cfg.sound)
+        sound_done(ctx->sound);
     if (ctx->cfg.font)
         font_done(ctx->font);
     if (ctx->settings)
