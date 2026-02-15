@@ -103,6 +103,15 @@ static cerr early_init(clap_context *ctx, void *data)
     return subscribe(ctx, MT_COMMAND, handle_command, scene);
 }
 
+static void graphics_init(clap_context *ctx, void *data)
+{
+    auto ropts = clap_get_render_options(ctx);
+    ropts->fog_near = 200.0;
+    ropts->fog_far = 300.0;
+    ropts->contrast = 0.15;
+    ropts->lighting_exposure = 1.6;
+}
+
 static struct option long_options[] = {
     { "fullscreen", no_argument,        0, 'F' },
     { "exitafter",  required_argument,  0, 'e' },
@@ -131,6 +140,7 @@ int main(int argc, char **argv, char **envp)
         .width          = 1280,
         .height         = 720,
         .early_init     = early_init,
+        .graphics_init  = graphics_init,
         .frame_cb       = render_frame,
         .default_font_name  = "ofl/Unbounded-Regular.ttf",
 #ifdef CONFIG_FINAL

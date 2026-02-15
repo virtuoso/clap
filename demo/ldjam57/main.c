@@ -338,14 +338,6 @@ static void startup(struct scene *s)
     s->lin_speed = 2.0;
     s->ang_speed = 90.0;
     s->limbo_height = 70.0;
-    render_options *ropts = clap_get_render_options(s->clap_ctx);
-    ropts->bloom_intensity = 1.1;
-    ropts->bloom_threshold = 0.3;
-    ropts->bloom_exposure = 2.5;
-    ropts->shadow_outline = false;
-    ropts->lighting_operator = 1.0;
-    ropts->contrast = 0.4;
-    ropts->lighting_exposure = 1.1;
 
     auto renderer = clap_get_renderer(s->clap_ctx);
     /* pixel textures for everyday use */
@@ -486,6 +478,18 @@ static cerr early_init(clap_context *ctx, void *data)
     return subscribe(ctx, MT_COMMAND, handle_command, scene);
 }
 
+static void graphics_init(clap_context *ctx, void *data)
+{
+    auto ropts = clap_get_render_options(ctx);
+    ropts->bloom_intensity = 1.1;
+    ropts->bloom_threshold = 0.3;
+    ropts->bloom_exposure = 2.5;
+    ropts->shadow_outline = false;
+    ropts->lighting_operator = 1.0;
+    ropts->contrast = 0.4;
+    ropts->lighting_exposure = 1.1;
+}
+
 static struct option long_options[] = {
     { "fullscreen", no_argument,        0, 'F' },
     { "exitafter",  required_argument,  0, 'e' },
@@ -514,6 +518,7 @@ int main(int argc, char **argv, char **envp)
         .width          = 1280,
         .height         = 720,
         .early_init     = early_init,
+        .graphics_init  = graphics_init,
         .frame_cb       = render_frame,
         .default_font_name  = "ofl/Unbounded-Regular.ttf",
 #ifdef CONFIG_FINAL
