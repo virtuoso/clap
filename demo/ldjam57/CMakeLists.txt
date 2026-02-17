@@ -9,7 +9,7 @@ clap_executable(
     "Towards the Light"
     "main.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset"
-    ""
+    "scene.json;ProggyTiny.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/background.jpg"
     "ofl/Unbounded-Regular.ttf"
     "Unbounded"

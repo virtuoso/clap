@@ -1,11 +1,10 @@
 # Generate a cpio archive with assets and an assembly file that includes it
-function(asset_pack asset_dir asset)
+function(asset_pack asset_dir asset assets)
     set(asset_asm ${asset}.S)
     set(asset_cpio ${asset}.cpio)
     set(asset_list_file ${CMAKE_CURRENT_BINARY_DIR}/asset.txt)
-    file(GLOB_RECURSE assets ${asset_dir}/asset/*)
     string(REPLACE ";" "\n" asset_list "${assets}")
-    string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" asset_list "${asset_list}")
+    string(REPLACE "${CMAKE_CURRENT_BINARY_DIR}/" "" asset_list "${asset_list}")
     file(WRITE ${asset_list_file} ${asset_list})
 
     # Instead of relying on platforms having their own unique tools
