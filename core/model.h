@@ -78,6 +78,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     bool                skip_aabb;
 );
 DECLARE_REFCLASS(model3d);
+DECLARE_CLEANUP(model3d);
 
 struct model_joint {
     darray(int, children);
@@ -203,6 +204,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
     bool            buffers_png;
 );
 DECLARE_REFCLASS(model3dtx);
+DECLARE_CLEANUP(model3dtx);
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs);
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
