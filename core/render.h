@@ -260,6 +260,8 @@ typedef int texid_t;
 
 bool texture_format_supported(texture_format format);
 const char *texture_format_string(texture_format fmt);
+size_t texture_format_comp_size(texture_format fmt);
+size_t texture_format_nr_comps(texture_format fmt);
 cerr_check _texture_init(texture_t *tex, const texture_init_options *opts);
 #define texture_init(_t, args...) \
     _texture_init((_t), &(texture_init_options){ args })

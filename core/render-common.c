@@ -125,33 +125,49 @@ out:
     return err;
 }
 
-static const char *texture_format_strings[TEX_FMT_MAX] = {
-        [TEX_FMT_R8]        = "R8",
-        [TEX_FMT_R16F]      = "R16F",
-        [TEX_FMT_R32F]      = "R32F",
-        [TEX_FMT_RG8]       = "RG8",
-        [TEX_FMT_RG16F]     = "RG16F",
-        [TEX_FMT_RG32F]     = "RG32F",
-        [TEX_FMT_RGBA8]     = "RGBA8",
-        [TEX_FMT_RGB8]      = "RGB8",
-        [TEX_FMT_RGBA8_SRGB]= "RGBA8_sRGB",
-        [TEX_FMT_RGB8_SRGB] = "RGB8_sRGB",
-        [TEX_FMT_RGBA16F]   = "RGBA16F",
-        [TEX_FMT_RGB16F]    = "RGB16F",
-        [TEX_FMT_RGBA32F]   = "RGBA32F",
-        [TEX_FMT_RGB32F]    = "RGB32F",
-        [TEX_FMT_R32UI]     = "R32UI",
-        [TEX_FMT_RG32UI]    = "RG32UI",
-        [TEX_FMT_RGBA32UI]  = "RGBA32UI",
-        [TEX_FMT_DEPTH32F]  = "DEPTH32F",
-        [TEX_FMT_DEPTH24F]  = "DEPTH24F",
-        [TEX_FMT_DEPTH16F]  = "DEPTH16F",
+static const struct {
+    const char  *name;
+    size_t      comp_sz;
+    size_t      nr_comps;
+} texture_format_desc[TEX_FMT_MAX] = {
+    [TEX_FMT_R8]        = { .name = "R8",           .comp_sz = 1, .nr_comps = 1 },
+    [TEX_FMT_R16F]      = { .name = "R16F",         .comp_sz = 2, .nr_comps = 1 },
+    [TEX_FMT_R32F]      = { .name = "R32F",         .comp_sz = 4, .nr_comps = 1 },
+    [TEX_FMT_RG8]       = { .name = "RG8",          .comp_sz = 1, .nr_comps = 2 },
+    [TEX_FMT_RG16F]     = { .name = "RG16F",        .comp_sz = 2, .nr_comps = 2 },
+    [TEX_FMT_RG32F]     = { .name = "RG32F",        .comp_sz = 4, .nr_comps = 2 },
+    [TEX_FMT_RGBA8]     = { .name = "RGBA8",        .comp_sz = 1, .nr_comps = 4 },
+    [TEX_FMT_RGB8]      = { .name = "RGB8",         .comp_sz = 1, .nr_comps = 3 },
+    [TEX_FMT_RGBA8_SRGB]= { .name = "RGBA8_sRGB",   .comp_sz = 1, .nr_comps = 4 },
+    [TEX_FMT_RGB8_SRGB] = { .name = "RGB8_sRGB",    .comp_sz = 1, .nr_comps = 3 },
+    [TEX_FMT_RGBA16F]   = { .name = "RGBA16F",      .comp_sz = 2, .nr_comps = 4 },
+    [TEX_FMT_RGB16F]    = { .name = "RGB16F",       .comp_sz = 2, .nr_comps = 3 },
+    [TEX_FMT_RGBA32F]   = { .name = "RGBA32F",      .comp_sz = 4, .nr_comps = 4 },
+    [TEX_FMT_RGB32F]    = { .name = "RGB32F",       .comp_sz = 4, .nr_comps = 3 },
+    [TEX_FMT_R32UI]     = { .name = "R32UI",        .comp_sz = 4, .nr_comps = 1 },
+    [TEX_FMT_RG32UI]    = { .name = "RG32UI",       .comp_sz = 4, .nr_comps = 2 },
+    [TEX_FMT_RGBA32UI]  = { .name = "RGBA32UI",     .comp_sz = 4, .nr_comps = 4 },
+    [TEX_FMT_DEPTH32F]  = { .name = "DEPTH32F",     .comp_sz = 4, .nr_comps = 1 },
+    [TEX_FMT_DEPTH24F]  = { .name = "DEPTH24F",     .comp_sz = 3, .nr_comps = 1 },
+    [TEX_FMT_DEPTH16F]  = { .name = "DEPTH16F",     .comp_sz = 2, .nr_comps = 1 },
 };
 
 const char *texture_format_string(texture_format fmt)
 {
     if (fmt >= TEX_FMT_MAX) return "<invalid>";
-    return texture_format_strings[fmt];
+    return texture_format_desc[fmt].name;
+}
+
+size_t texture_format_comp_size(texture_format fmt)
+{
+    if (fmt >= TEX_FMT_MAX) return 0;
+    return texture_format_desc[fmt].comp_sz;
+}
+
+size_t texture_format_nr_comps(texture_format fmt)
+{
+    if (fmt >= TEX_FMT_MAX) return 0;
+    return texture_format_desc[fmt].nr_comps;
 }
 
 #ifndef CONFIG_FINAL
@@ -240,7 +256,7 @@ void texture_debug(texture_t *tex, const char *name)
 
     ui_igTableCell(true, name);
     ui_igTableCell(false, texture_type_str[opts->type]);
-    ui_igTableCell(false, texture_format_strings[opts->format]);
+    ui_igTableCell(false, texture_format_string(opts->format));
 #ifndef CONFIG_RENDERER_METAL
     if (tex->layers)
         ui_igTableCell(false, "%d x %d x %d", tex->width, tex->height, tex->layers);
