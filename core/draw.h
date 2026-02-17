@@ -35,4 +35,10 @@ void canvas_write(canvas *c, unsigned int x, unsigned int y, vec4 color);
 void canvas_read(canvas *c, unsigned int x, unsigned int y, vec4 color);
 void canvas_blit(canvas *dst, canvas *src, unsigned int x, unsigned int y, float *color);
 
+cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, float *color, unsigned long flags, const char *str);
+cresp(canvas) canvas_printf(struct font *font, texture_format tex_fmt, float *color, unsigned long flags, const char *fmt, ...);
+
+cerr tex_print(texture_t *tex, struct font *font, texture_format tex_fmt, float *color, unsigned long flags, const char *str);
+cerr tex_printf(texture_t *tex, struct font *font, texture_format tex_fmt, float *color, unsigned long flags, const char *fmt, ...);
+
 #endif /* __CLAP_DRAW_H__ */
