@@ -120,7 +120,7 @@ set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c fs-ops.c fs-ops-posix.c logger.c input.c messagebus.c primitives.c motion.c
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c thread-pthread.c
-    terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c
+    terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c draw.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
     gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c
