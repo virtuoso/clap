@@ -45,8 +45,8 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
     mesh_idx(opts->mesh)[idx_idx++] = vx_idx;
 
     if (mesh_tx(opts->mesh)) {
-        mesh_tx(opts->mesh)[vx_idx * 2 + 0] = opts->uv ? opts->uv[0] : 0.0;
-        mesh_tx(opts->mesh)[vx_idx * 2 + 1] = opts->uv ? opts->uv[1] : 0.0;
+        mesh_tx(opts->mesh)[vx_idx * 2 + 0] = opts->uv ? opts->uv[0][0] : 0.0;
+        mesh_tx(opts->mesh)[vx_idx * 2 + 1] = opts->uv ? opts->uv[0][1] : 0.0;
     }
 
     vx_idx++;
@@ -67,32 +67,67 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
 
 void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts)
 {
-    _prim_emit_vertex(triangle[0], opts);
-    if (opts->clockwise) {
-        _prim_emit_vertex(triangle[2], opts);
-        _prim_emit_vertex(triangle[1], opts);
+    prim_emit_opts _opts = *opts;
+    vec2 uv[] = { { 0.0, 0.0 }, { 0.0, 1.0 }, { 1.0, 0.0 } };
+    if (!_opts.uv)  _opts.uv = uv;
+
+    _opts.uv = opts->uv ? &opts->uv[0] : &uv[0];
+    _prim_emit_vertex(triangle[0], &_opts);
+    if (_opts.clockwise) {
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(triangle[2], &_opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(triangle[1], &_opts);
     } else {
-        _prim_emit_vertex(triangle[1], opts);
-        _prim_emit_vertex(triangle[2], opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(triangle[1], &_opts);
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(triangle[2], &_opts);
     }
 }
 
 void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts)
 {
-    _prim_emit_vertex(v0, opts);
-    if (opts->clockwise) {
-        _prim_emit_vertex(v2, opts);
-        _prim_emit_vertex(v1, opts);
+    prim_emit_opts _opts = *opts;
+    vec2 uv[] = { { 0.0, 0.0 }, { 0.0, 1.0 }, { 1.0, 0.0 } };
+    if (!_opts.uv)  _opts.uv = uv;
+
+    _opts.uv = opts->uv ? &opts->uv[0] : &uv[0];
+    _prim_emit_vertex(v0, &_opts);
+    if (_opts.clockwise) {
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(v2, &_opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(v1, &_opts);
     } else {
-        _prim_emit_vertex(v1, opts);
-        _prim_emit_vertex(v2, opts);
+        _opts.uv = opts->uv ? &opts->uv[1] : &uv[1];
+        _prim_emit_vertex(v1, &_opts);
+        _opts.uv = opts->uv ? &opts->uv[2] : &uv[2];
+        _prim_emit_vertex(v2, &_opts);
     }
 }
 
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
 {
-    _prim_emit_triangle3(quad[0], quad[3], quad[1], opts);
-    _prim_emit_triangle3(quad[3], quad[2], quad[1], opts);
+    prim_emit_opts _opts = *opts;
+    vec2 uv[] = { { 0.0, 0.0 }, { 1.0, 0.0 }, { 1.0, 1.0 }, { 0.0, 1.0 } };
+    bool uv_default = !_opts.uv;
+
+    vec2 tri0_uv[3], tri1_uv[3];
+
+    if (uv_default) {
+        vec2_dup(tri0_uv[0], uv[0]); vec2_dup(tri0_uv[1], uv[3]); vec2_dup(tri0_uv[2], uv[1]);
+        _opts.uv = tri0_uv;
+    }
+
+    _prim_emit_triangle3(quad[0], quad[3], quad[1], &_opts);
+
+    if (uv_default) {
+        vec2_dup(tri1_uv[0], uv[3]); vec2_dup(tri1_uv[1], uv[2]); vec2_dup(tri1_uv[2], uv[1]);
+        _opts.uv = tri1_uv;
+    }
+
+    _prim_emit_triangle3(quad[3], quad[2], quad[1], &_opts);
 }
 
 void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)

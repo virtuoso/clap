@@ -15,7 +15,7 @@ extern struct mesh cube_mesh;
  */
 typedef struct prim_emit_opts {
     struct mesh     *mesh;
-    float           *uv;
+    vec2            *uv;
     bool            clockwise;
 } prim_emit_opts;
 
