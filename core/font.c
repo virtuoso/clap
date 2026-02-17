@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <stdio.h>
 #include "common.h"
+#include "draw.h"
 #include "logger.h"
 #include "render.h"
 #include "librarian.h"
@@ -33,40 +34,30 @@ static void font_load_glyph(struct font *font, unsigned char c)
 {
     FT_GlyphSlot glyph;
     unsigned int x, y;
-    LOCAL(uchar, buf);
 
     if (FT_Load_Char(font->face, c, FT_LOAD_RENDER)) {
         err("failed to load glyph %c\n", c);
         return;
     }
 
-#define RGBA_SZ (sizeof(unsigned char) * 4)
-#define _AT(_x, _y, _c) ((_y) * glyph->bitmap.width * RGBA_SZ + (_x) * RGBA_SZ + (_c))
-#define _GAT(_x, _y) ((_y) * glyph->bitmap.width + (_x))
     glyph = font->face->glyph;
-    font->g[c].width = glyph->bitmap.width;
-    font->g[c].height = glyph->bitmap.rows;
-    //dbg("glyph '%c': %ux%u\n", c, glyph->bitmap.width, glyph->bitmap.rows);
-    //hexdump(glyph->bitmap.buffer, glyph->bitmap.width * glyph->bitmap.rows);
-    buf = mem_alloc(glyph->bitmap.width * glyph->bitmap.rows * RGBA_SZ, .zero = 1);
-    for (y = 0; y < glyph->bitmap.rows; y++) {
+    auto g = &font->g[c];
+    g->width = glyph->bitmap.width;
+    g->height = glyph->bitmap.rows;
+    g->canvas = CRES_RET(canvas_new(TEX_FMT_RGBA8, g->width, g->height), return);
+#define _GAT(_x, _y) ((_y) * glyph->bitmap.width + (_x))
+    for (y = 0; y < glyph->bitmap.rows; y++)
         for (x = 0; x < glyph->bitmap.width; x++) {
             unsigned int factor = glyph->bitmap.buffer[_GAT(x, y)];
-            if (factor) {
-                buf[_AT(x, y, 0)] = 255;
-                buf[_AT(x, y, 1)] = 255;
-                buf[_AT(x, y, 2)] = 255;
-                buf[_AT(x, y, 3)] = factor;
-            }
+            if (factor)
+                canvas_write(g->canvas, x, y, (vec4) { 1.0f, 1.0f, 1.0f, (float)factor / 255.0f });
         }
-    }
-#undef _AT
 #undef _GAT
     CERR_RET(texture_init(&font->g[c].tex, .renderer = font->renderer), return);
 
     CERR_RET(
-        texture_load(&font->g[c].tex, TEX_FMT_RGBA8, glyph->bitmap.width, glyph->bitmap.rows, buf),
-        { texture_done(&font->g[c].tex); return; }
+        texture_load(&font->g[c].tex, TEX_FMT_RGBA8, glyph->bitmap.width, glyph->bitmap.rows, g->canvas->data),
+        { texture_done(&font->g[c].tex); canvas_free(g->canvas); g->canvas = NULL; return; }
     );
 
     font->g[c].advance_x = glyph->advance.x;
@@ -112,8 +103,10 @@ static void font_drop(struct ref *ref)
     struct font *font = container_of(ref, struct font, ref);
     unsigned int i;
 
-    for (i = 0; i < array_size(font->g); i++)
+    for (i = 0; i < array_size(font->g); i++) {
         texture_deinit(&font->g[i].tex);
+        canvas_free(font->g[i].canvas);
+    }
     mem_free(font->name);
     FT_Done_Face(font->face);
     mem_free(font->buf);

@@ -2,10 +2,12 @@
 #ifndef __CLAP_FONT_H__
 #define __CLAP_FONT_H__
 
+#include "draw.h"
 #include "render.h"
 
 struct glyph {
     texture_t       tex;
+    canvas          *canvas;
     unsigned int width;
     unsigned int height;
     int     bearing_x;
