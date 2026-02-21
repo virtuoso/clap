@@ -903,8 +903,6 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         if (!jwut || jwut->tag != JSON_OBJECT)
             continue;
 
-        if (!jwut || jwut->tag != JSON_OBJECT)
-            continue;
         jwut = json_find_member(jwut, "index");
         if (jwut->tag != JSON_NUMBER || jwut->number_ >= gd->nr_texs)
             continue;
