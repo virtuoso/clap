@@ -204,6 +204,130 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
     }
 }
 
+static inline void _prim_sphere_vx(vec3 out, vec3 org, float radius, float theta, float phi)
+{
+    float sin_theta = sin(theta);
+
+    out[0] = org[0] + radius * sin_theta * cos(phi);
+    out[1] = org[1] + radius * cos(theta);
+    out[2] = org[2] + radius * sin_theta * sin(phi);
+}
+
+static inline void _prim_sphere_uv(vec2 out, float theta, float phi)
+{
+    out[0] = phi / (M_PI * 2);
+    out[1] = theta / M_PI;
+}
+
+static inline void _prim_emit_triangle3_uv(vec3 v0, vec3 v1, vec3 v2,
+                                           vec2 uv0, vec2 uv1, vec2 uv2,
+                                           const prim_emit_opts *opts)
+{
+    if (opts->uv) {
+        _prim_emit_triangle3(v0, v1, v2, opts);
+        return;
+    }
+
+    prim_emit_opts _opts = *opts;
+    vec2 uv[3];
+
+    vec2_dup(uv[0], uv0);
+    vec2_dup(uv[1], uv1);
+    vec2_dup(uv[2], uv2);
+    _opts.uv = uv;
+
+    _prim_emit_triangle3(v0, v1, v2, &_opts);
+}
+
+static inline void _prim_sphere_smooth_normals(vec3 org, const prim_emit_opts *opts)
+{
+    struct mesh *mesh = opts->mesh;
+    if (!mesh || !mesh_norm(mesh) || mesh_nr_vx(mesh) < 3)
+        return;
+
+    size_t base_vx = mesh_nr_vx(mesh) - 3;
+    for (size_t i = 0; i < 3; i++) {
+        size_t vx_idx = base_vx + i;
+        vec3 p, n;
+
+        p[0] = mesh_vx(mesh)[vx_idx * 3 + 0];
+        p[1] = mesh_vx(mesh)[vx_idx * 3 + 1];
+        p[2] = mesh_vx(mesh)[vx_idx * 3 + 2];
+
+        vec3_sub(n, p, org);
+        vec3_norm(n, n);
+
+        mesh_norm(mesh)[vx_idx * 3 + 0] = n[0];
+        mesh_norm(mesh)[vx_idx * 3 + 1] = n[1];
+        mesh_norm(mesh)[vx_idx * 3 + 2] = n[2];
+    }
+}
+
+void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_opts *opts)
+{
+    struct mesh *mesh = opts->mesh;
+    if (!mesh)  return;
+
+    if (nr_serments < 3)
+        nr_serments = 3;
+
+    int nr_stacks = nr_serments / 2;
+    if (nr_stacks < 2)
+        nr_stacks = 2;
+
+    int nr_vert = nr_serments * 6 * (nr_stacks - 1);
+    if (!mesh->attr[MESH_VX].data) {
+        CERR_RET(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert), return);
+        CERR_RET(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), return);
+        CERR_RET(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), return);
+        CERR_RET(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), return);
+    } else {
+        nr_vert += mesh_nr_vx(mesh);
+        CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vert), return);
+        CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vert), return);
+        CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vert), return);
+        CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_vert), return);
+    }
+
+    for (int stack = 0; stack < nr_stacks; stack++) {
+        float theta0 = M_PI * stack / nr_stacks;
+        float theta1 = M_PI * (stack + 1) / nr_stacks;
+
+        for (int seg = 0; seg < nr_serments; seg++) {
+            err_on(mesh_nr_vx(mesh) >= nr_vert,
+                   "last_vert: %zu nr_vert: %d\n", mesh_nr_vx(mesh), nr_vert);
+
+            float phi0 = M_PI * 2 * seg / nr_serments;
+            float phi1 = M_PI * 2 * (seg + 1) / nr_serments;
+            vec3 v0, v1, v2, v3;
+            vec2 uv0, uv1, uv2, uv3;
+
+            _prim_sphere_vx(v0, org, radius, theta0, phi0);
+            _prim_sphere_vx(v1, org, radius, theta1, phi0);
+            _prim_sphere_vx(v2, org, radius, theta1, phi1);
+            _prim_sphere_vx(v3, org, radius, theta0, phi1);
+
+            _prim_sphere_uv(uv0, theta0, phi0);
+            _prim_sphere_uv(uv1, theta1, phi0);
+            _prim_sphere_uv(uv2, theta1, phi1);
+            _prim_sphere_uv(uv3, theta0, phi1);
+
+            if (!stack) {
+                _prim_emit_triangle3_uv(v0, v2, v1, uv0, uv2, uv1, opts);
+                _prim_sphere_smooth_normals(org, opts);
+            } else if (stack == nr_stacks - 1) {
+                _prim_emit_triangle3_uv(v0, v3, v1, uv0, uv3, uv1, opts);
+                _prim_sphere_smooth_normals(org, opts);
+            } else {
+                _prim_emit_triangle3_uv(v0, v2, v1, uv0, uv2, uv1, opts);
+                _prim_sphere_smooth_normals(org, opts);
+                _prim_emit_triangle3_uv(v0, v3, v2, uv0, uv3, uv2, opts);
+                _prim_sphere_smooth_normals(org, opts);
+            }
+        }
+    }
+}
+
 cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
 {
     LOCAL_SET(mesh_t, cylinder_mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cylinder"), model3d);
