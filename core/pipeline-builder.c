@@ -160,6 +160,50 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
     return hdr_fmt;
 }
 
+static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, texture_format format, float scale)
+{
+    auto pass = CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = src,
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_MODEL_TEX
+                },
+                {}
+            },
+            .color_format       = (texture_format[]) { format },
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .ops                = &postproc_ops,
+            .scale              = scale,
+            .shader             = "vblur",
+        ),
+        render_pass
+    );
+    pass = CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = pass,
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_MODEL_TEX
+                },
+                {}
+            },
+            .color_format       = (texture_format[]) { format },
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .ops                = &postproc_ops,
+            .scale              = scale,
+            .shader             = "hblur",
+        ),
+        render_pass
+    );
+
+    return cresp_val(render_pass, pass);
+}
+
 /****************************************************************************
  * pipeline builder
  ****************************************************************************/
@@ -337,44 +381,8 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline
     );
 
-    pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_format       = (texture_format[]) { hdr_fmt },
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .ops                = &postproc_ops,
-            .scale              = 0.25,
-            .shader             = "vblur",
-        ),
-        pipeline
-    );
-    pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_format       = (texture_format[]) { hdr_fmt },
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .ops                = &postproc_ops,
-            .scale              = 0.25,
-            .shader             = "hblur",
-        ),
-        pipeline
-    );
+    pass = CRES_RET_T(add_blur_subchain(pl, pass, hdr_fmt, 0.25), pipeline);
+
     struct render_pass *bloom_pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
@@ -466,49 +474,14 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "ssao",
+            // .scale              = 0.5,
         ),
         pipeline
     ) : NULL;
 
-    render_pass *ssao_vblur_pass = ssao ? CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = ssao_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_format       = (texture_format[]) { TEX_FMT_R8 },
-            .ops                = &postproc_ops,
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "vblur",
-            .scale              = 0.25,
-        ),
-        pipeline
-    ) : NULL;
-
-    render_pass *ssao_hblur_pass = ssao ? CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = ssao_vblur_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_format       = (texture_format[]) { TEX_FMT_R8 },
-            .ops                = &postproc_ops,
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "hblur",
-            .scale              = 0.25,
-        ),
-        pipeline
-    ) : NULL;
+    render_pass *ssao_blur_pass = ssao
+        ? CRES_RET_T(add_blur_subchain(pl, ssao_pass, TEX_FMT_R8, 0.25), pipeline)
+        : NULL;
 
     render_pass *combine_pass = CRES_RET_T(
         pipeline_add_pass(pl,
@@ -539,7 +512,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 ssao ?
                     (render_source) {
-                        .pass       = ssao_hblur_pass,
+                        .pass       = ssao_blur_pass,
                         .attachment = FBO_COLOR_TEXTURE(0),
                         .method     = RM_USE,
                         .sampler    = UNIFORM_SHADOW_MAP
@@ -630,44 +603,9 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         ),
         pipeline
     );
-    pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .ops                = &postproc_ops,
-            .scale              = 0.25,
-            .shader             = "vblur",
-        ),
-        pipeline
-    );
-    pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .ops                = &postproc_ops,
-            .scale              = 0.25,
-            .shader             = "hblur",
-        ),
-        pipeline
-    );
+
+    pass = CRES_RET_T(add_blur_subchain(pl, pass, TEX_FMT_RGBA8, 0.25), pipeline);
+
     pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
