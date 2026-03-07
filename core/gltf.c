@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include "base64.h"
 #include "datatypes.h"
+#include "draw.h"
 #include "json.h"
 #include "librarian.h"
 #include "model.h"
@@ -152,6 +153,8 @@ struct gltf_material {
     int    emission_tex;
     double metallic;
     double roughness;
+    canvas *base_canvas;
+    canvas *emit_canvas;
 };
 
 struct gltf_data {
@@ -174,6 +177,7 @@ struct gltf_data {
     unsigned int nr_texs;
     unsigned int texid;
     bool         fix_origin;
+    bool         textures_png;
 };
 
 void gltf_free(struct gltf_data *gd)
@@ -196,6 +200,13 @@ void gltf_free(struct gltf_data *gd)
 
     for (i = 0; i < gd->meshes.da.nr_el; i++)
         free((void *)DA(gd->meshes, i)->name);
+
+    struct gltf_material *mat;
+    darray_for_each(mat, gd->mats) {
+        if (mat->base_canvas)   canvas_free(mat->base_canvas);
+        if (mat->emit_canvas)   canvas_free(mat->emit_canvas);
+    }
+
     darray_for_each(node, gd->nodes) {
         free((void *)node->name);
         free(node->ch_arr);
@@ -703,8 +714,6 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     GLTF_CHECK_PROP(nodes,  "nodes",        JSON_ARRAY);
     GLTF_CHECK_PROP(mats,   "materials",    JSON_ARRAY);
     GLTF_CHECK_PROP(meshes, "meshes",       JSON_ARRAY);
-    GLTF_CHECK_PROP(texs,   "textures",     JSON_ARRAY);
-    GLTF_CHECK_PROP(imgs,   "images",       JSON_ARRAY);
     GLTF_CHECK_PROP(accrs,  "accessors",    JSON_ARRAY);
     GLTF_CHECK_PROP(bufvws, "bufferViews",  JSON_ARRAY);
     GLTF_CHECK_PROP(bufs,   "buffers",      JSON_ARRAY);
@@ -905,21 +914,42 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     for (n = mats->children.head; n; n = n->next) {
         struct gltf_material *mat;
         JsonNode *jwut, *jpbr, *jem;
+        LOCAL(canvas, base_canvas);
 
         jpbr = json_find_member(n, "pbrMetallicRoughness");
         if (!jpbr || jpbr->tag != JSON_OBJECT)
             continue;
 
         jwut = json_find_member(jpbr, "baseColorTexture");
-        if (!jwut || jwut->tag != JSON_OBJECT)
-            continue;
+        if (!jwut) {
+            JsonNode *jcolor = json_find_member(jpbr, "baseColorFactor");
+            if (!jcolor || jcolor->tag != JSON_ARRAY)
+                continue;
 
-        jwut = json_find_member(jwut, "index");
-        if (jwut->tag != JSON_NUMBER || jwut->number_ >= gd->nr_texs)
+            float base_color[4];
+            if (json_float_array(jcolor, base_color, array_size(base_color)))
+                continue;
+
+            /* XXX: hardcoded color format */
+            base_canvas = CRES_RET(canvas_new(TEX_FMT_RGBA8, 1, 1), continue);
+            canvas_write(base_canvas, 0, 0, base_color);
+        } else if (jwut->tag != JSON_OBJECT) {
             continue;
+        } else {
+            /* XXX: model3dtx::buffers_png applies to all textures: break it up */
+            gd->textures_png = true;
+        }
+
+        /* index is a texture property; no texture, no index */
+        if (jwut) {
+            jwut = json_find_member(jwut, "index");
+            if (jwut->tag != JSON_NUMBER || jwut->number_ >= gd->nr_texs)
+                continue;
+        }
 
         CHECK(mat = darray_add(gd->mats));
-        mat->base_tex = jwut->number_;
+        if (base_canvas)    mat->base_canvas    = NOCU(base_canvas);
+        else                mat->base_tex       = jwut->number_;
         mat->normal_tex = -1;
         mat->emission_tex = -1;
 
@@ -928,6 +958,19 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             JsonNode *jemidx = json_find_member(jem, "index");
             if (jemidx && jemidx->tag == JSON_NUMBER)
                 mat->emission_tex = jemidx->number_;
+        } else if (!jem) {
+            JsonNode *jemcolor = json_find_member(n, "emissiveFactor");
+            if (jemcolor && jemcolor->tag == JSON_ARRAY) {
+                /* XXX: hardcoded color format */
+                auto cres = canvas_new(TEX_FMT_RGBA8, 1, 1);
+                if (!IS_CERR(cres)) {
+                    float emit_color[4] = {};
+                    json_float_array(jemcolor, emit_color, 3);
+
+                    mat->emit_canvas = cres.val;
+                    canvas_write(mat->emit_canvas, 0, 0, emit_color);
+                }
+            }
         }
 
         if (jpbr) {
@@ -1160,17 +1203,22 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
     }
 
+    auto mat = gltf_material(gd, mesh);
     model3dtx *txm = CRES_RET(
         ref_new_checked(
             model3dtx,
             .model            = ref_pass(m),
-            .buffers_png      = true,
-            .texture_buffer   = gltf_tex(gd, mesh),
-            .texture_size     = gltf_texsz(gd, mesh),
+            .buffers_png      = gd->textures_png, /* XXX: one switch for all texture buffers */
+            .texture_buffer   = mat->base_canvas ? canvas_data(mat->base_canvas) : gltf_tex(gd, mesh),
+            .texture_size     = mat->base_canvas ? canvas_size(mat->base_canvas) : gltf_texsz(gd, mesh), /* XXX: need texture*/
+            .texture_width    = mat->base_canvas ? 1 : 0,
+            .texture_height   = mat->base_canvas ? 1 : 0,
             .normal_buffer    = gltf_nmap(gd, mesh),
             .normal_size      = gltf_nmapsz(gd, mesh),
-            .emission_buffer  = gltf_em(gd, mesh),
-            .emission_size    = gltf_emsz(gd, mesh)
+            .emission_buffer  = mat->emit_canvas ? canvas_data(mat->emit_canvas) : gltf_em(gd, mesh),
+            .emission_size    = mat->emit_canvas ? canvas_size(mat->emit_canvas) : gltf_emsz(gd, mesh),
+            .emission_width   = mat->base_canvas ? 1 : 0,
+            .emission_height  = mat->base_canvas ? 1 : 0
         ),
         {
             /*
