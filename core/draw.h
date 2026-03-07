@@ -31,6 +31,8 @@ DECLARE_CLEANUP(canvas);
 
 cresp(canvas) canvas_new(texture_format fmt, unsigned int width, unsigned int height);
 void canvas_free(canvas *c);
+size_t canvas_size(canvas *c);
+void *canvas_data(canvas *c);
 void canvas_write(canvas *c, unsigned int x, unsigned int y, vec4 color);
 void canvas_read(canvas *c, unsigned int x, unsigned int y, vec4 color);
 void canvas_blit(canvas *dst, canvas *src, unsigned int x, unsigned int y, float *color);

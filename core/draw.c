@@ -49,6 +49,16 @@ void canvas_free(canvas *c)
     mem_free(c);
 }
 
+void *canvas_data(canvas *c)
+{
+    return c->data;
+}
+
+size_t canvas_size(canvas *c)
+{
+    return c->width * c->height * texture_format_comp_size(c->fmt) * texture_format_nr_comps(c->fmt);
+}
+
 void canvas_write(canvas *c, unsigned int x, unsigned int y, vec4 color)
 {
     size_t nr_comps = texture_format_nr_comps(c->fmt);
