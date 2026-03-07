@@ -606,6 +606,52 @@ static void gltf_load_skins(struct gltf_data *gd, JsonNode *skins)
     }
 }
 
+/* XXX: return cerr */
+static void gltf_load_images(struct gltf_data *gd, JsonNode *imgs)
+{
+    for (JsonNode *n = imgs->children.head; n; n = n->next) {
+        JsonNode *jbufvw, *jmime, *jname;
+        bool supported = true;
+
+        jbufvw = json_find_member(n, "bufferView");
+        jmime = json_find_member(n, "mimeType");
+        jname = json_find_member(n, "name");
+        if (!jbufvw || !jmime || !jname)
+            continue;
+
+        if (strcmp(jmime->string_, "image/png")) {
+            warn("image '%s' as it's '%s' and not image/png\n", jname->string_, jmime->string_);
+            supported = false;
+        }
+
+        if (jbufvw->number_ >= gd->bufvws.da.nr_el)
+            continue;
+
+        int *img = darray_add(gd->imgs);
+        *img = supported ? jbufvw->number_ : -1;
+        dbg("image %zu: bufferView: %d\n", darray_count(gd->imgs), *img);
+    }
+}
+
+/* XXX: return cerr */
+static void gltf_load_textures(struct gltf_data *gd, JsonNode *texs)
+{
+    for (JsonNode *n = texs->children.head; n; n = n->next) {
+        JsonNode *jsrc; // mipmapping: *jsampler
+
+        //jsampler = json_find_member(n, "sampler");
+        jsrc = json_find_member(n, "source");
+        if (!jsrc)
+            continue;
+        if (jsrc->number_ >= darray_count(gd->imgs))
+            continue;
+
+        gd->texs = mem_realloc_array(gd->texs, (gd->nr_texs + 1), sizeof(unsigned int), .fatal_fail = 1);
+        gd->texs[gd->nr_texs] = jsrc->number_;
+        gd->nr_texs++;
+    }
+}
+
 static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
 {
     JsonNode *nodes, *mats, *meshes, *texs, *imgs, *accrs, *bufvws, *bufs;
@@ -850,45 +896,10 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     gltf_load_skins(gd, skins);
 
     /* Images */
-    for (n = imgs->children.head; n; n = n->next) {
-        JsonNode *jbufvw, *jmime, *jname;
-        bool supported = true;
-
-        jbufvw = json_find_member(n, "bufferView");
-        jmime = json_find_member(n, "mimeType");
-        jname = json_find_member(n, "name");
-        if (!jbufvw || !jmime || !jname)
-            continue;
-        
-        if (strcmp(jmime->string_, "image/png")) {
-            warn("image '%s' as it's '%s' and not image/png\n", jname->string_, jmime->string_);
-            supported = false;
-        }
-
-        if (jbufvw->number_ >= gd->bufvws.da.nr_el)
-            continue;
-
-        int *img = darray_add(gd->imgs);
-        *img = supported ? jbufvw->number_ : -1;
-        dbg("image %zu: bufferView: %d\n", darray_count(gd->imgs), *img);
-    }
+    if (imgs)   gltf_load_images(gd, imgs);
 
     /* Textures */
-    for (n = texs->children.head; n; n = n->next) {
-        JsonNode *jsrc; // mipmapping: *jsampler
-
-        //jsampler = json_find_member(n, "sampler");
-        jsrc = json_find_member(n, "source");
-        if (!jsrc)
-            continue;
-        if (jsrc->number_ >= darray_count(gd->imgs))
-            continue;
-
-        gd->texs = mem_realloc_array(gd->texs, (gd->nr_texs + 1), sizeof(unsigned int), .fatal_fail = 1);
-        gd->texs[gd->nr_texs] = jsrc->number_;
-        // dbg("texture %d: source: %d\n", gd->nr_texs, gd->texs[gd->nr_texs]);
-        gd->nr_texs++;
-    }
+    if (texs)   gltf_load_textures(gd, texs);
 
     /* Materials */
     for (n = mats->children.head; n; n = n->next) {
