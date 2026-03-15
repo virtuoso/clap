@@ -120,7 +120,7 @@ static bool camera_position_is_good(struct camera *c, entity3d *entity,
 static void debug_draw_camera(struct scene *scene, struct camera *c)
 {
     if (likely(!clap_get_render_options(scene->clap_ctx)->debug_draws_enabled))
-        return;
+        goto debug_ui;
 
     struct message dm = {
         .type       = MT_DEBUG_DRAW,
@@ -137,6 +137,28 @@ static void debug_draw_camera(struct scene *scene, struct camera *c)
         vec3_dup(dm.debug_draw.v1, c->debug_corner[i]);
         message_send(scene->clap_ctx, &dm);
     }
+
+debug_ui:
+    debug_module *dbgm = ui_igBegin_name(DEBUG_CAMERA, ImGuiWindowFlags_AlwaysAutoResize, "camera");
+
+    if (!dbgm->display)
+        return;
+
+    if (dbgm->unfolded) {
+        const float *pos = transform_pos(&c->xform, NULL);
+        vec3 angles;
+        transform_rotation(&c->xform, angles, true);
+        ui_igVecTableHeader("camera", 3);
+        ui_igVecRow(pos, 3, "pos");
+        ui_igVecRow(angles, 3, "angles");
+        igEndTable();
+
+        ui_igVecTableHeader("rotation", 4);
+        ui_igVecRow(transform_rotation_quat(&c->xform), 4, "quat");
+        igEndTable();
+    }
+
+    ui_igEnd(DEBUG_CAMERA);
 }
 
 void debug_camera_action(struct camera *c)
