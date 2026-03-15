@@ -58,16 +58,6 @@ void buffer_unbind(buffer_t *buf, int loc)
         return;
 }
 
-#ifndef CONFIG_FINAL
-void buffer_debug_header(void)
-{
-}
-
-void buffer_debug(buffer_t *buf, const char *name)
-{
-}
-#endif /* CONFIG_FINAL */
-
 /****************************************************************************
  * Vertex Array Object
  ****************************************************************************/
@@ -134,16 +124,6 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
 
     return CERR_OK;
 }
-
-#ifndef CONFIG_FINAL
-void texture_debug_header(void)
-{
-}
-
-void texture_debug(texture_t *tex, const char *name)
-{
-}
-#endif /* CONFIG_FINAL */
 
 texture_t *texture_clone(texture_t *tex)
 {
