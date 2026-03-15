@@ -313,7 +313,7 @@ static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, 
         contact[i].surface.bounce = 0.01;
         contact[i].surface.bounce_vel = 10.0;
         contact[i].surface.soft_cfm = 0.01;
-        contact[i].surface.soft_erp = 0;
+        contact[i].surface.soft_erp = 0.2;
     }
 }
 
