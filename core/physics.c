@@ -411,18 +411,19 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             phys_body_update(e2);
             j = dJointCreateContact(phys->world, phys->contact, &contact[i]);
             dJointAttach(j, b1, b2);
+            /*
+             * Manual penetration correction for characters only.
+             * Non-character dynamic bodies rely on contact joints
+             * and ERP for penetration resolution; manual correction
+             * fights with ODE's solver and causes jitter.
+             */
             if (phys_body_has_body(e1->phys_body) && phys_body_has_body(e2->phys_body)) {
-                entity_pen_push(e1, &contact[i], pen);
-                entity_pen_push(e2, &contact[i], pen);
+                if (entity3d_matches(e1, ENTITY3D_IS_CHARACTER)) entity_pen_push(e1, &contact[i], pen);
+                if (entity3d_matches(e2, ENTITY3D_IS_CHARACTER)) entity_pen_push(e2, &contact[i], pen);
             } else if (!phys_body_has_body(e1->phys_body)) {
-                entity_pen_push(e2, &contact[i], pen);
+                if (entity3d_matches(e2, ENTITY3D_IS_CHARACTER)) entity_pen_push(e2, &contact[i], pen);
             } else if (!phys_body_has_body(e2->phys_body)) {
-                entity_pen_push(e1, &contact[i], pen);
-            } else {
-                if (entity3d_matches(e1, ENTITY3D_IS_CHARACTER))
-                    entity_pen_push(e1, &contact[i], pen);
-                else if (entity3d_matches(e2, ENTITY3D_IS_CHARACTER))
-                    entity_pen_push(e2, &contact[i], pen);
+                if (entity3d_matches(e1, ENTITY3D_IS_CHARACTER)) entity_pen_push(e1, &contact[i], pen);
             }
         }
     }
