@@ -15,7 +15,11 @@ function(win32_executable target)
         target_link_options(${target} PRIVATE
             -static-libgcc
             -static-libstdc++
-            -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
+        )
+        target_link_libraries(${target} PRIVATE
+            "-Wl,--push-state,-Bstatic"
+            winpthread
+            "-Wl,--pop-state"
         )
     endif ()
 endfunction ()

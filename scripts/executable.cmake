@@ -165,16 +165,22 @@ function (clap_executable executable_name title sources asset_dir assets backgro
     endif()
 
     add_dependencies(${executable_name} ${ENGINE_LIB} meshoptimizer)
-    target_include_directories(${executable_name} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE} ${CIMGUI_DIR})
+    target_include_directories(${executable_name} PRIVATE
+        ${ENGINE_INCLUDE}
+        ${ODE_INCLUDE}
+        ${CIMGUI_DIR}
+        ${CLAP_DEPENDENCY_INCLUDE_DIRS}
+        ${CLAP_RENDERER_INCLUDE_DIRS}
+    )
     set_target_properties(${executable_name} PROPERTIES COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CMAKE_C_FLAGS}")
     set_target_properties(${executable_name} PROPERTIES COMPILE_DEFINITIONS "CLAP_EXECUTABLE_TITLE=\"${title}\";CLAP_FONT_FILE=\"${font_file}\"")
     set_target_properties(${executable_name} PROPERTIES LINK_DEPENDS "${ASSETS};${EMSDK_SHELL}")
-    target_link_libraries(${executable_name} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
-    target_link_libraries(${executable_name} PRIVATE ${PNG_LIBRARY})
+    target_link_libraries(${executable_name} PRIVATE ${CLAP_DEPENDENCY_LIBRARIES})
+    target_link_libraries(${executable_name} PRIVATE ${CLAP_RENDERER_LIBRARIES})
     target_link_libraries(${executable_name} PRIVATE libode meshoptimizer)
     target_link_libraries(${executable_name} PRIVATE ${EXTRA_LIBRARIES})
     target_link_libraries(${executable_name} PRIVATE ${ENGINE_LIB})
-    target_link_options(${executable_name} PRIVATE ${DEBUG_LIBRARIES})
+    target_link_options(${executable_name} PRIVATE ${CLAP_EXECUTABLE_LINK_OPTIONS} ${DEBUG_LIBRARIES})
     win32_executable(${executable_name})
 
     if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))

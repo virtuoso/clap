@@ -5,32 +5,11 @@ include (${CMAKE_SOURCE_DIR}/scripts/renderer-switch.cmake)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
-    set(FREETYPE_LIBRARIES  "-s USE_FREETYPE=1")
-    set(PNG_LIBRARY         "-s USE_LIBPNG=1")
-    set(OPENGL_LIBRARIES    "-s USE_WEBGL2=1 -s FULL_ES3=1")
-    set(EXTRA_LIBRARIES     "-lidbfs.js"
-                            "-s WASM=1"
-                            "-s ALLOW_MEMORY_GROWTH=0"
-                            "-s INITIAL_MEMORY=268435456"
-                            "-s MAX_WEBGL_VERSION=2"
-                            "-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$ccall"
-                            "-s EXPORTED_RUNTIME_METHODS=FS"
-                            "-s AUDIO_WORKLET=1"
-                            "-s WASM_WORKERS=1"
-                            "-s SHARED_MEMORY=1"
-                            "-s ASYNCIFY"
-                            "-s USE_PTHREADS=1"
-                            "-s PTHREAD_POOL_SIZE=4"
+    string(JOIN " " emscripten_compile_flags
+        ${CLAP_EMSCRIPTEN_COMPILE_OPTIONS}
+        ${CLAP_EMSCRIPTEN_COMPILE_LIBRARIES}
     )
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s WASM_WORKERS=1 -s SHARED_MEMORY=1 -s USE_PTHREADS=1")
-    if (CLAP_BUILD_FINAL)
-        list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=0"
-                                    "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307")
-    else ()
-        list(APPEND EXTRA_LIBRARIES "-s ASSERTIONS=1"
-                                    "-s EXCEPTION_DEBUG=1")
-    endif ()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FREETYPE_LIBRARIES} ${PNG_LIBRARY}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${emscripten_compile_flags}")
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
     else ()
@@ -99,6 +78,7 @@ if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     add_executable(${TEST_BIN} ${TEST_SRC})
     add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate)
     target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
+    target_link_options(${TEST_BIN} PRIVATE ${CLAP_LINK_OPTIONS} ${DEBUG_LIBRARIES})
     win32_executable(${TEST_BIN})
 
     add_test(${TEST_BIN} ${TEST_BIN})
@@ -106,10 +86,8 @@ endif ()
 
 if (CONFIG_RENDERER_OPENGL)
     set(RENDERER_SRC "render-gl.c")
-    set(RENDERER_LIBRARIES ${OPENGL_LIBRARIES})
 elseif (CONFIG_RENDERER_METAL)
     set(RENDERER_SRC render-mtl.m display-glfw-metal.m)
-    set(RENDERER_LIBRARIES "-framework Metal" "-framework MetalKit" "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework QuartzCore")
 else ()
     message(FATAL_ERROR "Unsupported renderer")
 endif ()
@@ -277,16 +255,15 @@ add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shader
 add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen force_builddate)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
-target_link_libraries(${ENGINE_LIB} PRIVATE ${FREETYPE_LIBRARIES} glfw ${GLEW_LIBRARIES} ${RENDERER_LIBRARIES})
-target_link_libraries(${ENGINE_LIB} PRIVATE ${PNG_LIBRARY})
+target_link_libraries(${ENGINE_LIB} PRIVATE ${CLAP_DEPENDENCY_LIBRARIES})
+target_link_libraries(${ENGINE_LIB} PRIVATE ${CLAP_RENDERER_LIBRARIES})
 target_link_libraries(${ENGINE_LIB} PRIVATE libode meshoptimizer)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${EXTRA_LIBRARIES})
 target_link_options(${ENGINE_LIB} PRIVATE ${DEBUG_LIBRARIES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${MA_DIR})
 target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
-target_include_directories(${ENGINE_LIB} PRIVATE ${GLEW_INCLUDE_DIRS})
-target_include_directories(${ENGINE_LIB} PRIVATE ${FREETYPE_INCLUDE_DIRS})
+target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_DEPENDENCY_INCLUDE_DIRS})
+target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_RENDERER_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR}/imgui)
-target_include_directories(${ENGINE_LIB} PRIVATE ${GLFW_INCLUDES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR} ${CMAKE_BINARY_DIR})
 win32_library(${ENGINE_LIB} FALSE)
