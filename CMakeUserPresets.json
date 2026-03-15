@@ -73,6 +73,26 @@
             }
         },
         {
+            "name": "test-ship",
+            "displayName": "Native Test (Ship)",
+            "inherits":["test"],
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/test-ship",
+            "cacheVariables": {
+                "CLAP_SHIP": true
+            }
+        },
+        {
+            "name": "rel-ship",
+            "displayName": "Native Release (Ship)",
+            "inherits":["rel"],
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/rel-ship",
+            "cacheVariables": {
+                "CLAP_SHIP": true
+            }
+        },
+        {
             "name": "mtldebug",
             "displayName": "Native Metal Debug",
             "generator": "Unix Makefiles",
@@ -200,6 +220,16 @@
         {
             "name": "Rel",
             "configurePreset": "rel",
+            "configuration": "Release"
+        },
+        {
+            "name": "TestShip",
+            "configurePreset": "test-ship",
+            "configuration": "Release"
+        },
+        {
+            "name": "RelShip",
+            "configurePreset": "rel-ship",
             "configuration": "Release"
         },
         {
