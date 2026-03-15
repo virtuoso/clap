@@ -1428,6 +1428,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     rc_init_opts(entity3d) *opts = _opts;
     entity3d *e = container_of(ref, entity3d, ref);
 
+    transform_init(&e->xform);
     darray_init(e->aniq);
     e->animation = -1;
     e->light_idx = -1;

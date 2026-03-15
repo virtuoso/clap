@@ -11,6 +11,8 @@ TYPE(transform,
     bool    updated;
 );
 
+void transform_init(transform_t *xform);
+void transform_clone(transform_t *dest, transform_t *src);
 void transform_set_updated(transform_t *xform);
 void transform_clear_updated(transform_t *xform);
 bool transform_is_updated(transform_t *xform);

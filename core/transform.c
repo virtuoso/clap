@@ -5,6 +5,17 @@
 
 #include "util.h"
 
+void transform_init(transform_t *xform)
+{
+    memset(xform, 0, sizeof(*xform));
+}
+
+void transform_clone(transform_t *dest, transform_t *src)
+{
+    memcpy(dest, src, sizeof(*dest));
+    transform_set_updated(dest);
+}
+
 void transform_set_updated(transform_t *xform)
 {
     xform->updated = true;
