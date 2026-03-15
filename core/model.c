@@ -1405,6 +1405,16 @@ static int default_update(entity3d *e, void *data)
 {
     struct scene *scene = data;
 
+    /*
+     * Dynamic non-character bodies are driven by physics simulation
+     * (phys_step() runs before entity updates). Sync their position
+     * and rotation from ODE before rebuilding the transform matrix.
+     * Characters do this in character_update() instead.
+     * Entity flags (ENTITY3D_IS_CHARACTER) will replace e->priv here.
+     */
+    if (e->phys_body && phys_body_has_body(e->phys_body) && !e->priv)
+        phys_body_update(e);
+
     if (transform_is_updated(&e->xform)) {
         transform_clear_updated(&e->xform);
         mat4x4_identity(e->mx);
