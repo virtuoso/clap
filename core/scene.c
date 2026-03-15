@@ -218,8 +218,10 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
         igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
         igCheckbox("use SSAO", &ropts->ssao);
-        igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-        igSliderFloat("SSAO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
+        if (ropts->ssao) {
+            igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("SSAO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
+        }
         igCheckbox("use HDR", &ropts->hdr);
         igSliderFloat("bloom exposure", &ropts->bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom intensity", &ropts->bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
