@@ -52,6 +52,7 @@ struct phys_body {
     /* contact.surface parameters */
     dReal       bounce;
     dReal       bounce_vel;
+    dReal       mu;
     /* not sure we even need to store the mass */
     dMass       mass;
     struct list entry;
@@ -75,6 +76,7 @@ void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_pa
 {
     body->bounce = params->bounce;
     body->bounce_vel = params->bounce_vel;
+    body->mu = params->mu;
 }
 
 entity3d *phys_body_entity(struct phys_body *body)
@@ -302,17 +304,36 @@ static void phys_body_stick(struct phys_body *body, dContact *contact)
     dJointAttach(j, body->body, NULL);
 }
 
+/*
+ * Set contact surface parameters from per-body contact params.
+ * Between two bodies, parameters are combined:
+ *  - bounce: max (bouncier body wins)
+ *  - bounce_vel: average
+ *  - mu (friction): geometric mean -- sqrt(mu1 * mu2),
+ *    so zero if either is frictionless
+ *
+ * Does not touch contact[].geom, only sets contact[].surface.
+ */
 static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, int nc)
 {
-    int i;
+    dReal bounce = 0, bounce_vel = 0, mu = 0;
 
-    for (i = 0; i < nc; i++) {
-        memset(&contact[i], 0, sizeof(dContact));
-        contact[i].surface.mode = /*dContactBounce | */dContactSoftCFM | dContactSoftERP;
-        contact[i].surface.mu = /*bounce != 0 ? dInfinity : */0;
+    if (e1 && e1->phys_body && e2 && e2->phys_body) {
+        struct phys_body *b1 = e1->phys_body, *b2 = e2->phys_body;
+
+        bounce = fmax(b1->bounce, b2->bounce);
+        bounce_vel = (b1->bounce_vel + b2->bounce_vel) * 0.5;
+        mu = sqrt(b1->mu * b2->mu);
+    }
+
+    for (int i = 0; i < nc; i++) {
+        contact[i].surface.mode = dContactSoftCFM | dContactSoftERP;
+        if (bounce > 0)
+            contact[i].surface.mode |= dContactBounce;
+        contact[i].surface.mu = mu;
         contact[i].surface.mu2 = 0;
-        contact[i].surface.bounce = 0.01;
-        contact[i].surface.bounce_vel = 10.0;
+        contact[i].surface.bounce = bounce;
+        contact[i].surface.bounce_vel = bounce_vel;
         contact[i].surface.soft_cfm = 0.01;
         contact[i].surface.soft_erp = 0.2;
     }
@@ -369,14 +390,12 @@ static void entity_pen_push(entity3d *e, dContact *contact, struct list *pen)
  */
 static void near_callback(void *data, dGeomID o1, dGeomID o2)
 {
-    dContact contact[MAX_CONTACTS];
+    dContact contact[MAX_CONTACTS] = {};
     dBodyID b1 = dGeomGetBody(o1);
     dBodyID b2 = dGeomGetBody(o2);
     struct list *pen = data;
     dJointID j;
     int i, nc;
-
-    phys_contact_surface(NULL, NULL, contact, MAX_CONTACTS);
 
     /*
      * There might be a reason to handle subspaces here, like got_contact does,
@@ -391,6 +410,8 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             entity3d *e1 = dGeomGetData(g1);
             entity3d *e2 = dGeomGetData(g2);
             struct phys *phys = e1->phys_body->phys;
+
+            phys_contact_surface(e1, e2, &contact[i], 1);
 
             if (unlikely(phys->draw_contacts)) {
                 struct message dm = {
@@ -870,6 +891,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     body = mem_alloc(sizeof(*body), .zero = 1, .fatal_fail = 1);
     list_init(&body->pen_entry);
     body->phys = phys;
+    body->mu = 1.0;
 
     if (has_body)
         body->body = dBodyCreate(phys->world);
