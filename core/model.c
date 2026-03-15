@@ -1650,6 +1650,20 @@ static int default_update(entity3d *e, void *data)
 {
     struct scene *scene = data;
 
+    /*
+     * Dynamic non-character bodies are driven by physics simulation
+     * (phys_step() runs before entity updates). Sync their position
+     * and rotation from ODE before rebuilding the transform matrix.
+     * Characters do this in character_update() instead.
+     */
+    if (entity3d_is(e,
+            &E3DQ(
+                .all_of     = ENTITY3D_HAS_PHYSICS | ENTITY3D_PHYS_IS_BODY,
+                .none_of    = ENTITY3D_IS_CHARACTER
+            )
+        ))
+        phys_body_update(e);
+
     if (!parent_transform_apply(e) && transform_is_updated(&e->xform)) {
         transform_clear_updated(&e->xform);
         e->seq++;
