@@ -908,11 +908,8 @@ static void scene_camera_calc(struct scene *s, int camera)
             entity3d_aabb_X(env),
             fabsf(vec3_mul_inner(light_dir, (vec3){ 1.0, 0.0, 0.0 }))
         );
-        near_backup = linf_interp(
-            xz_mix,
-            entity3d_aabb_Y(env),
-            fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 }))
-        );
+        float ycos = fmaxf(fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 })), 0.2);
+        near_backup = min(xz_mix / ycos, entity3d_aabb_avg_edge(env));
     }
     /* only the first light source get to cast shadows for now */
     bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
