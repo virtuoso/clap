@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "config.h"
 #if defined(CONFIG_RENDERER_OPENGL)
-#include <GL/glew.h>
+# ifdef __APPLE__
+#  define GL_SILENCE_DEPRECATION 1
+#  include <OpenGL/gl3.h>
+#  include <OpenGL/gl3ext.h>
+# else
+#  include <GL/glew.h>
+# endif
 #elif defined(CONFIG_RENDERER_METAL)
 #define GLFW_INCLUDE_NONE
 #endif
@@ -179,7 +185,11 @@ static cerr display_gl_init(struct clap_context *ctx)
 {
     const unsigned char *vendor, *renderer, *glver, *shlangver;
     struct clap_config *cfg = clap_get_config(ctx);
+#ifndef __APPLE__
     int glew_ret = -1, minor, major;
+#else
+    int minor, major;
+#endif
     bool core_profile;
 
 #ifdef CONFIG_GLES
@@ -210,6 +220,7 @@ restart:
 
     glfwMakeContextCurrent(window);
 
+#ifndef __APPLE__
     if (glew_ret) {
         glewExperimental = GL_TRUE;
         glew_ret = glewInit();
@@ -218,6 +229,7 @@ restart:
             return CERR_NOMEM;
         }
     }
+#endif
 
     if (glfwExtensionSupported("WGL_EXT_swap_control_tear") ||
         glfwExtensionSupported("GLX_EXT_swap_control_tear"))
