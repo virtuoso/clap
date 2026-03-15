@@ -920,8 +920,12 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     }
     dGeomSetData(body->geom, entity);
 
-    if (has_body) {
-        /* XXX: not all bodies need the motor */
+    if (has_body && entity->priv) {
+        /*
+         * Characters need a linear motor for movement control.
+         * Non-character bodies participate in dynamics freely.
+         * Entity flags (ENTITY3D_IS_CHARACTER) will replace e->priv here.
+         */
         body->lmotor = dJointCreateLMotor(phys->world, 0);
         dJointSetLMotorNumAxes(body->lmotor, 3);
         dJointSetLMotorAxis(body->lmotor, 0, 0, 1, 0, 0);
