@@ -55,10 +55,13 @@ typedef struct entity3d entity3d;
  *              bouncy at all, 1.0: maximum bounciness
  * @bounce_vel: minimal incoming velocity necessary to bounce, below this bounce
  *              is zero
+ * @mu:         Coulomb friction coefficient [0.0, dInfinity]: 0.0: frictionless,
+ *              dInfinity: never slides
  */
 typedef struct phys_contact_params {
     float   bounce;
     float   bounce_vel;
+    float   mu;
 } phys_contact_params;
 
 /**
