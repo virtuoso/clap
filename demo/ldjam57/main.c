@@ -475,13 +475,15 @@ static cerr early_init(clap_context *ctx, void *data)
 static void graphics_init(clap_context *ctx, void *data)
 {
     auto ropts = clap_get_render_options(ctx);
-    ropts->bloom_intensity = 1.1;
+    ropts->bloom_intensity = 3.0;
     ropts->bloom_threshold = 0.3;
-    ropts->bloom_exposure = 2.5;
+    ropts->bloom_exposure = 5.0;
     ropts->shadow_outline = false;
     ropts->lighting_operator = 1.0;
-    ropts->contrast = 0.4;
+    ropts->contrast = 0.05;
     ropts->lighting_exposure = 1.1;
+    ropts->fog_near = ropts->fog_far = 300.0f;
+
 
     CERR_RET(
         clap_set_lighting_lut(ctx, "orange blue filmic"),

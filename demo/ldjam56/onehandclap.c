@@ -99,14 +99,20 @@ static cerr early_init(clap_context *ctx, void *data)
 static void graphics_init(clap_context *ctx, void *data)
 {
     auto ropts = clap_get_render_options(ctx);
-    ropts->fog_near = 200.0;
-    ropts->fog_far = 300.0;
-    ropts->contrast = 0.15;
+    ropts->fog_near = 20.0;
+    ropts->fog_far = 90.0;
+    vec3_dup(ropts->fog_color, (vec3){ 0.043, 0.356, 0.369 });
     ropts->lighting_operator = 1.0;
-    ropts->lighting_exposure = 1.6;
+    ropts->contrast = 0.08;
+    ropts->bloom_exposure = 10.0;
+    ropts->bloom_intensity = 3.0;
+    ropts->lighting_exposure = 1.94;
+    ropts->edge_sobel = true;
+    ropts->edge_antialiasing = false;
+    ropts->shadow_outline = false;
 
     CERR_RET(
-        clap_set_lighting_lut(ctx, "teal orange"),
+        clap_set_lighting_lut(ctx, "scifi bluegreen"),
         err_cerr(__cerr, "failed to set LUT\n")
     );
 }
@@ -141,7 +147,7 @@ int main(int argc, char **argv, char **envp)
         .frame_cb       = render_frame,
         .default_font_name  = CLAP_FONT_FILE,
 #ifdef CONFIG_FINAL
-        .lut_presets    = (lut_preset[]){ LUT_TEAL_ORANGE },
+        .lut_presets    = (lut_preset[]){ LUT_SCIFI_BLUEGREEN },
 #else
         .lut_presets    = lut_presets_all,
 #endif /* CONFIG_FINAL */
