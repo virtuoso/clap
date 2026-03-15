@@ -97,6 +97,11 @@ void vertex_array_unbind(vertex_array_t *va)
  * Texture
  ****************************************************************************/
 
+bool texture_format_supported(texture_format format)
+{
+    return false;
+}
+
 /* XXX: common */
 static void texture_drop(struct ref *ref)
 {
