@@ -885,9 +885,7 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     camera_update(s->camera, s);
 
-    vec3 cam_pos;
-    transform_pos(&cam->xform, cam_pos);
-    view_update_from_angles(&cam->view, cam_pos, cam->pitch, cam->yaw, cam->roll);
+    view_update_from_angles(&cam->view, &cam->xform);
     view_calc_frustum(&cam->view);
 
     entity3d *env = cam->bv;

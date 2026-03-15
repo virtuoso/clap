@@ -1367,20 +1367,20 @@ static int default_update(entity3d *e, void *data)
     struct scene *scene = data;
 
     if (transform_is_updated(&e->xform)) {
+        transform_clear_updated(&e->xform);
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);
         transform_rotate_mat4x4(&e->xform, e->mx);
         transform_clear_updated(&e->xform);
 
-        mat4x4 tr_no_scale;
-        mat4x4_dup(tr_no_scale, e->mx);
-
         mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
         entity3d_aabb_update(e);
 
-        if (e->phys_body)
-            phys_body_rotate_mat4x4(e->phys_body, tr_no_scale);
+        if (e->phys_body) {
+            if (e->priv)
+                phys_body_rotate_xform(e->phys_body, &e->xform);
+        }
 
         if (scene && e->light_idx >= 0) {
             vec3 pos;
