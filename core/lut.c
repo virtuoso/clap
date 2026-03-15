@@ -154,31 +154,31 @@ static struct {
         .name       = "identity",
         .fn         = __identity,
         .exposure   = 2.0,
-        .contrast   = 0.1,
+        .contrast   = 0.05,
     },
     [LUT_ORANGE_BLUE_FILMIC]    = {
         .name       = "orange blue filmic",
         .fn         = __orange_blue_filmic,
         .exposure   = 1.8,
-        .contrast   = 0.1,
+        .contrast   = 0.05,
     },
     [LUT_COMIC_RED]             = {
         .name       = "comic red",
         .fn         = __comic_red,
         .exposure   = 2.4,
-        .contrast   = 0.1,
+        .contrast   = 0.05,
     },
     [LUT_COMIC_GREEN]           = {
         .name       = "comic green",
         .fn         = __comic_green,
         .exposure   = 2.4,
-        .contrast   = 0.3,
+        .contrast   = 0.05,
     },
     [LUT_COMIC_BLUE]            = {
         .name       = "comic blue",
         .fn         = __comic_blue,
         .exposure   = 2.4,
-        .contrast   = 0.3,
+        .contrast   = 0.05,
     },
     [LUT_SUNSET_WARM]           = {
         .name       = "sunset warm",
@@ -189,20 +189,20 @@ static struct {
     [LUT_HYPER_SUNSET]          = {
         .name       = "hyper sunset",
         .fn         = __hyper_sunset,
-        .exposure   = 0.7,
+        .exposure   = 1.0,
         .contrast   = 0.05,
     },
     [LUT_GREEN_MATRIX]          = {
         .name       = "green matrix",
         .fn         = __green_matrix,
-        .exposure   = 2.2,
-        .contrast   = 0.15,
+        .exposure   = 2.0,
+        .contrast   = 0.05,
     },
     [LUT_SCIFI_BLUEGREEN]       = {
         .name       = "scifi bluegreen",
         .fn         = __scifi_bluegreen,
-        .exposure   = 1.4,
-        .contrast   = 0.1,
+        .exposure   = 2.0,
+        .contrast   = 0.05,
     },
     [LUT_SCIFI_NEON]            = {
         .name       = "scifi neon",
@@ -214,13 +214,13 @@ static struct {
         .name       = "mad max bleach",
         .fn         = __mad_max_bleach,
         .exposure   = 2.0,
-        .contrast   = 0.15,
+        .contrast   = 0.05,
     },
     [LUT_TEAL_ORANGE]           = {
         .name       = "teal orange",
         .fn         = __teal_orange,
         .exposure   = 2.0,
-        .contrast   = 0.1,
+        .contrast   = 0.05,
     },
 };
 
