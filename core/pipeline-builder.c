@@ -34,6 +34,7 @@ static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, 
         return true;
 
     int order = fls(side);
+    // if (!params->cascade)   order++;
 
     *pwidth = *pheight = clamp(1 << order, DEFAULT_SHADOW_SIZE,
         renderer_query_limits(params->renderer, RENDER_LIMIT_MAX_TEXTURE_SIZE)
@@ -47,6 +48,14 @@ static void shadow_prepare(render_pass_ops_params *params)
     renderer_cleardepth(params->renderer, 0.0);
     renderer_depth_func(params->renderer, DEPTH_FN_GREATER);
     renderer_clear(params->renderer, false, true, false);
+    auto cascade = params->cascade;
+    if (cascade >= 0) {
+        params->near_plane = params->light->view[0].subview[cascade].near_plane;
+        params->far_plane = params->light->view[0].subview[cascade].far_plane;
+    } else {
+        params->near_plane = params->light->view[0].main.near_plane;
+        params->far_plane = params->light->view[0].main.far_plane;
+    }
     params->camera = NULL;
 }
 
@@ -67,7 +76,7 @@ static void shadow_vsm_prepare(render_pass_ops_params *params)
      */
     renderer_cleardepth(params->renderer, 1.0);
     renderer_depth_func(params->renderer, DEPTH_FN_LESS);
-    renderer_clearcolor(params->renderer, (vec4){ 1, 1, 1, 1 });
+    renderer_clearcolor(params->renderer, (vec4){ -1, -1, -1, 1 });
     renderer_clear(params->renderer, true, true, false);
     params->camera = NULL;
 }
@@ -278,6 +287,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             ),
             pipeline
         );
+        // if (!i) shadow_pass[i] = CRES_RET_T(add_blur_subchain(pl, shadow_pass[i], TEX_FMT_RG32F, 1.0), pipeline);
         opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(
             shadow_pass[i], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
         );
@@ -345,7 +355,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .layout             = FBO_COLOR_DEPTH_TEXTURE(5),
+            .layout             = FBO_COLOR_DEPTH_TEXTURE(6),
             .name               = "model",
             .cascade            = -1,
             .color_format       = (texture_format[]) {
@@ -355,6 +365,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                                     /* EdgeDepthMask */ TEX_FMT_R32F,
                                     /* ViewPosition */  hdr_fmt,
                                     /* Normal */        TEX_FMT_RGBA8,
+                                    /* VSMDebug */      TEX_FMT_R32F,
                                 },
             .depth_format       = TEX_FMT_DEPTH32F
         ),
@@ -529,7 +540,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_format       = (texture_format[]) { hdr_fmt },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "combine",
@@ -554,7 +565,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+            .color_format       = (texture_format[]) { hdr_fmt },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .name               = "smaa-blend",
@@ -574,7 +585,13 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
+#ifdef CONFIG_RENDERER_METAL
+            // .color_format       = (texture_format[]) { hdr_fmt },
+            .color_format       = (texture_format[]) { TEX_FMT_BGRA10XR },
+            // .color_format       = (texture_format[]) { TEX_FMT_BGR10A2 },
+#else
             .color_format       = (texture_format[]) { TEX_FMT_RGBA8 },
+#endif /* !CONFIG_RENDERER_METAL*/
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "contrast",

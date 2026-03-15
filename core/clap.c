@@ -555,6 +555,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(scene_render, callback);
 
+    renderer_swapchain_begin(&ctx->renderer);
     models_render(ui->renderer, &ui->mq);
 
     PROF_STEP(ui_render, scene_render);
@@ -567,8 +568,9 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     memory_debug();
 
     imgui_render();
-    renderer_frame_end(&ctx->renderer);
+    renderer_swapchain_end(&ctx->renderer);
     display_swap_buffers();
+    renderer_frame_end(&ctx->renderer);
 
     mem_frame_end();
 }

@@ -851,6 +851,7 @@ static void scene_debug_frusta(struct scene *scene, struct view *view)
 
     for (int v = 0; v < CASCADES_MAX; v++) {
         struct subview *src = &view->debug_subview[v];
+        if (view->subview[v].debug_hide)    continue;
 
         for (int i = 0; i < 12; ++i) {
             struct message dm = {
@@ -1292,6 +1293,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         txm->mat.metallic = clampd(metallic, 0.0, 1.0);
 
     model3d_set_name(txm->model, name);
+
+    txm->model->sfxc.on_add = scene->sfxc.on_add;
+    txm->model->sfxc.data = scene->sfxc.data;
 
     if (phys) {
         for (p = phys->children.head; p; p = p->next) {

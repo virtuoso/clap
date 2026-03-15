@@ -55,6 +55,7 @@ static void subview_debug(struct subview *dst, struct subview *src, float *aabb_
         return;
 
     auto flags = ImGuiTreeNodeFlags_DrawLinesFull;
+    // if (dst->near_plane < 1.0f) flags |= ImGuiTreeNodeFlags_DefaultOpen;
 
     if (!igTreeNodeEx_Ptr(dst, flags, "subview %.02f..%.02f", dst->near_plane, dst->far_plane))
         return;
@@ -77,6 +78,9 @@ static void subview_debug(struct subview *dst, struct subview *src, float *aabb_
 
     vec4 light_pos_world;
     mat4x4_mul_vec4_post(light_pos_world, dst->inv_view_mx, light_pos);
+
+    igCheckbox("debug UI hide", &dst->debug_hide);
+    src->debug_hide = dst->debug_hide;
 
     igText("projection matrix");
     ui_igMat4x4(dst->proj_mx, "projection");

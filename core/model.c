@@ -36,6 +36,7 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
         }
 
         cerr err = buffer_init(&m->index[m->nr_lods],
+                               .renderer   = shader_prog_renderer(m->prog),
                                .type       = BUF_ELEMENT_ARRAY,
                                .usage      = BUF_STATIC,
                                .comp_type  = DT_SHORT,
@@ -45,6 +46,8 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
 
         if (IS_CERR(err))
             continue;
+
+        buffer_set_name(&m->index[m->nr_lods], "%s:index%d", m->name, m->nr_lods);
 
         dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
         m->nr_faces[m->nr_lods] = nr_idx;
@@ -69,6 +72,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     if (!mesh_nr_vx(opts->mesh) || !mesh_nr_idx(opts->mesh))
         return CERR_INVALID_ARGUMENTS;
 
+    auto r = shader_prog_renderer(opts->prog);
     model3d *m = container_of(ref, model3d, ref);
 
     m->depth_testing = true;
@@ -96,11 +100,11 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     darray_init(m->anis);
     sfx_container_init(&m->sfxc);
 
-    shader_prog_use(opts->prog);
+    shader_prog_use(opts->prog, false);
 
     cerr err = CERR_OK;
 
-    CERR_RET(vertex_array_init(&m->vao), { err = __cerr; goto shader_done; });
+    CERR_RET(vertex_array_init(&m->vao, r), { err = __cerr; goto shader_done; });
     CERR_RET(
         shader_setup_attributes(opts->prog, m->attr, opts->mesh),
         { err = __cerr; goto vao_done; }
@@ -109,6 +113,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     CERR_RET(
         buffer_init(
             &m->index[0],
+            .renderer   = r,
             .type       = BUF_ELEMENT_ARRAY,
             .usage      = BUF_STATIC,
             .comp_type  = DT_SHORT,
@@ -118,12 +123,14 @@ static cerr model3d_make(struct ref *ref, void *_opts)
         { err = __cerr; goto attrs_done; }
     );
 
+    buffer_set_name(&m->index[m->nr_lods], "%s:index%d", m->name, m->nr_lods);
+
     m->nr_lods++;
 
     model3d_lods_from_mesh(m, opts->mesh);
 
     vertex_array_unbind(&m->vao);
-    shader_prog_done(opts->prog);
+    shader_prog_done(opts->prog, false);
 
     m->nr_vertices = mesh_nr_vx(opts->mesh);
     m->nr_faces[0] = mesh_nr_idx(opts->mesh);
@@ -137,7 +144,7 @@ vao_done:
     vertex_array_unbind(&m->vao);
     vertex_array_done(&m->vao);
 shader_done:
-    shader_prog_done(opts->prog);
+    shader_prog_done(opts->prog, false);
     ref_put(m->prog);
 
     return err;
@@ -223,10 +230,10 @@ static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars v
 
     auto tex = CRES_RET_CERR(model3dtx_texture(txm, var));
 
-    shader_prog_use(prog);
+    // shader_prog_use(prog);
     err = load_texture_buffer(prog, input, width, height, color_format, var, tex);
-    shader_prog_done(prog);
-    dbg("loaded texture%d %d %dx%d\n", slot, texture_id(tex), width, height);
+    // shader_prog_done(prog);
+    dbg("loaded texture%d %d %dx%d\n", slot, (int)texture_id(tex), width, height);
 
     return err;
 }
@@ -711,10 +718,10 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         if (model_prog != prog) {
             if (prog)
-                shader_prog_done(prog);
+                shader_prog_done(prog, true);
 
             prog = model_prog;
-            shader_prog_use(prog);
+            shader_prog_use(prog, true);
 
             if (ropts) {
                 shader_set_var_int(prog, UNIFORM_SHADOW_VSM, ropts->shadow_vsm);
@@ -752,14 +759,17 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_AMBIENT, 1, light->ambient);
                 shader_set_var_ptr(prog, UNIFORM_SHADOW_TINT, 1, light->shadow_tint);
                 if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
+                    float light_far[CASCADES_MAX];
                     mat4x4 mvp[CASCADES_MAX];
                     int i;
 
                     for (i = 0; i < CASCADES_MAX; i++) {
                         struct subview *light_sv = &light->view[0].subview[i];
                         mat4x4_mul(mvp[i], light_sv->proj_mx, light_sv->view_mx);
+                        light_far[i] = light_sv->far_plane;
                     }
                     shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
+                    shader_set_var_ptr(prog, UNIFORM_LIGHT_FAR, CASCADES_MAX, light_far);
                 }
             }
 
@@ -940,7 +950,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     if (opts->culled_count)
         *opts->culled_count = culled;
     if (prog)
-        shader_prog_done(prog);
+        shader_prog_done(prog, true);
 }
 
 /****************************************************************************
@@ -1390,7 +1400,7 @@ static int default_update(entity3d *e, void *data)
         }
     }
 
-    if (!scene)
+    if (!scene || !scene->control)
         return 0;
 
     /*
