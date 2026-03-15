@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "primitives.h"
 #include <sched.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -54,6 +55,34 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
     if (main_state == MS_STARTING) {
         main_state++;
         ui_osd_new(ui, NULL, intro_osd, array_size(intro_osd));
+    }
+}
+
+static texture_t pillar_pixel;
+static void make_pillar(struct scene *scene)
+{
+    auto r = clap_get_renderer(scene->clap_ctx);
+    cerr err = texture_pixel_init(r, &pillar_pixel, (float[]){ 0.31, 0.30, 0.33, 1 });
+    if (IS_CERR(err))
+        err_cerr(err, "couldn't initialize pixel texture\n");
+
+    pipeline *pl = clap_get_pipeline(scene->clap_ctx);
+    struct shader_prog *prog = CRES_RET(pipeline_shader_find_get(pl, "model"), return);
+    model3d *pillar_model = CRES_RET(model3d_new_cylinder(prog, (vec3){}, 0.99, 1.0, 6), return);
+    model3dtx *txpillar = ref_new(
+        model3dtx,
+        .model      = ref_pass(pillar_model),
+        .tex        = &pillar_pixel,
+        .metallic   = 1.0,
+        .roughness  = 0.6,
+    );
+    scene_add_model(scene, txpillar);
+    for (int i = 0; i < 2; i++) {
+        entity3d *e = ref_new(entity3d, .txmodel = txpillar);
+        // entity3d_position(e, (vec3) { 0.0, 0.0 + 1.0 * (float)i, -23});
+        entity3d_position(e, (vec3){ 0 + 0.5*cos(drand48() * M_PI * 2), -0.5 + 1.0 * (float)i, -23 + 0.5*sin(drand48() * M_PI * 2) });
+        entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), 20, GEOM_TRIMESH, PHYS_BODY, 0, 0, 0);
+        phys_body_enable(e->phys_body, true);
     }
 }
 
@@ -180,6 +209,7 @@ int main(int argc, char **argv, char **envp)
 
     loading_screen_done(scene->ls);
 
+    make_pillar(scene);
     scene->lin_speed = 2.0;
     scene->ang_speed = 45.0;
     scene->limbo_height = 70.0;
