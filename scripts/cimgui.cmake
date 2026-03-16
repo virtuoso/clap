@@ -42,7 +42,7 @@ ENDFOREACH ()
 # so, do it here, but in a less intrusive way
 FOREACH(src ${CIMGUI_SRC})
     set_source_files_properties(${src} PROPERTIES
-        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\";GLFW_RESIZE_NESW_CURSOR"
+        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\""
         COMPILE_FLAGS "-Wno-nontrivial-memaccess -Wno-deprecated-declarations ${BACKEND_CFLAGS}"
     )
 ENDFOREACH ()
