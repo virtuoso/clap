@@ -64,11 +64,12 @@
         {
             "name": "rel",
             "displayName": "Native Release",
-            "inherits":["debug"],
+            "inherits":["test"],
             "generator": "Unix Makefiles",
             "binaryDir": "${sourceDir}/build/rel",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Release",
+                "CLAP_DEMOS_BUILD_IN_ASSETS":true,
                 "CLAP_BUILD_FINAL": true
             }
         },
@@ -79,6 +80,7 @@
             "generator": "Unix Makefiles",
             "binaryDir": "${sourceDir}/build/test-ship",
             "cacheVariables": {
+                "CLAP_DEMOS_BUILD_IN_ASSETS":true,
                 "CLAP_SHIP": true
             }
         },
@@ -121,6 +123,7 @@
             "toolchainFile": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"Debug",
+                "CLAP_DEMOS_BUILD_IN_ASSETS":false,
                 "CMAKE_SYSTEM_PROCESSOR": "AMD64",
                 "CMAKE_SYSTEM_NAME": "Windows",
                 "CMAKE_EXPORT_COMPILE_COMMANDS":true,
@@ -143,6 +146,7 @@
             "displayName": "win32 test/release-with-debug-info (mingw, cross)",
             "inherits": "w32debug-cross",
             "cacheVariables": {
+              "CLAP_DEMOS_BUILD_IN_ASSETS":true,
               "CMAKE_BUILD_TYPE": "RelWithDebInfo"
             },
             "binaryDir": "build/w32test"
@@ -152,6 +156,7 @@
             "displayName": "win32 release (mingw, cross)",
             "inherits": "w32debug-cross",
             "cacheVariables": {
+              "CLAP_DEMOS_BUILD_IN_ASSETS":true,
               "CMAKE_BUILD_TYPE": "Release"
             },
             "binaryDir": "build/w32rel"
@@ -163,6 +168,7 @@
             "inherits": "w32debug-cross",
             "generator": "Ninja",
             "cacheVariables": {
+                "CLAP_DEMOS_BUILD_IN_ASSETS":false,
                 "CMAKE_C_COMPILER": "gcc.exe",
                 "CMAKE_CXX_COMPILER": "g++.exe",
                 "CMAKE_AR": "ar.exe",
@@ -178,6 +184,7 @@
             "binaryDir": "build/test",
             "inherits": "w32debug",
             "cacheVariables": {
+                "CLAP_DEMOS_BUILD_IN_ASSETS":true,
                 "CMAKE_BUILD_TYPE":"RelWithDebInfo"
             }
         },
@@ -187,6 +194,7 @@
             "binaryDir": "build/rel",
             "inherits": "w32debug",
             "cacheVariables": {
+                "CLAP_DEMOS_BUILD_IN_ASSETS":true,
                 "CMAKE_BUILD_TYPE":"Release"
             }
         }
@@ -200,7 +208,7 @@
         {
             "name": "EMTest",
             "configurePreset": "emtest",
-            "configuration": "Release"
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "EMRel",
@@ -215,7 +223,7 @@
         {
             "name": "Test",
             "configurePreset": "test",
-            "configuration": "Release"
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "Rel",
@@ -225,7 +233,7 @@
         {
             "name": "TestShip",
             "configurePreset": "test-ship",
-            "configuration": "Release"
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "RelShip",
@@ -240,7 +248,7 @@
         {
             "name": "W32Test",
             "configurePreset": "w32test",
-            "configuration": "Debug"
+            "configuration": "RelWithDebInfo"
         }
     ]
 }
