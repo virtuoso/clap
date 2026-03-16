@@ -1,0 +1,39 @@
+From 0e056aaae2ef8ed9c6612d712d2ef17f437f50cf Mon Sep 17 00:00:00 2001
+From: Alexander Shishkin <alex@ash.works>
+Date: Mon, 16 Mar 2026 23:17:10 +0200
+Subject: [PATCH] Fix text mode file reading on windows
+
+Signed-off-by: Alexander Shishkin <alex@ash.works>
+---
+ glad/__main__.py | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 014057d..324686e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.0)
++cmake_minimum_required(VERSION 3.21)
+ 
+ # Silence warning about PROJECT_VERSION
+ cmake_policy(SET CMP0048 NEW)
+diff --git a/glad/__main__.py b/glad/__main__.py
+index 4b01eb1..fbaf1ae 100644
+--- a/glad/__main__.py
++++ b/glad/__main__.py
+@@ -40,7 +40,10 @@ def main():
+         if reproducible:
+             logger.info('reproducible build, using packaged specification: \'%s.xml\'', value)
+             try:
+-                return spec_cls.from_file(glad.files.open_local(value + '.xml'))
++                # Open the packaged XML in binary mode so ElementTree handles the
++                # UTF-8 BOM itself even when pkg_resources is unavailable and
++                # glad falls back to a direct filesystem open on Windows.
++                return spec_cls.from_file(glad.files.open_local(value + '.xml', 'rb'))
+             except IOError:
+                 raise ValueError('unable to open reproducible copy of {}.xml, '
+                                  'try dropping --reproducible'.format(value))
+-- 
+2.48.1
+

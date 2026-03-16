@@ -21,6 +21,11 @@
         "type": "git",
         "url": "https://github.com/Dav1dde/glad.git",
         "revision": "v0.1.36"
+    },
+    "postprocess": {
+        "type": "patch",
+        "file": "glad-windows.patch",
+        "pnum": 1
     }
 },
 {
