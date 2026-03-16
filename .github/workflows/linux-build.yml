@@ -18,7 +18,7 @@ jobs:
       - name: Download dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfreetype-dev libglfw3-dev libpng-dev zlib1g-dev glslc spirv-cross gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+          sudo apt-get install -y libfreetype-dev libglfw3-dev libpng-dev zlib1g-dev glslc spirv-cross gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
           git clone --depth 1 git@github.com:virtuoso/vcpkg-mingw.git
           cd vcpkg-mingw
           ./bootstrap-vcpkg.sh -disableMetrics
@@ -36,26 +36,28 @@ jobs:
       - name: Build dependencies
         run: |
           cd vcpkg-mingw
-          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw freetype:x64-mingw
+          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw freetype:x64-mingw glfw3:x64-linux
       - name: configure
         run: |
           cd ${{ github.workspace }}
-          touch build_config
-          echo opts=\"--parallel 4\" >> build_config
-          echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/linux\" >> build_config
-          ./configure.sh
+          cmake --preset=debug
+          cmake --preset=test-ship
+          cmake --preset=rel-ship
           cmake --preset=w32debug-cross -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32debug
           cmake --preset=w32test-cross -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32test
           cmake --preset=w32rel-cross -DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/w32rel
       - name: build
         run: |
           cd ${{ github.workspace }}
-          ./build.sh
+          cmake --build build/debug --parallel 4
+          cmake --build build/test-ship --parallel 4
+          cmake --build build/rel-ship --parallel 4
+          ctest --test-dir build/debug --output-on-failure
           cmake --build build/w32debug --parallel 4
           cmake --build build/w32test --parallel 4
           cmake --build build/w32rel --parallel 4
-          cmake --install build/rel --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/rel"
-          cmake --install build/test --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/test"
+          cmake --install build/rel-ship --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/rel"
+          cmake --install build/test-ship --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/test"
           cmake --install build/debug --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/linux/debug"
           cmake --install build/w32debug
           cmake --install build/w32test
