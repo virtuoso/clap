@@ -66,7 +66,7 @@ git submodule update --init --recursive
 ### Install dependencies
 
 ```sh
-brew install cmake glew zlib libpng libogg libvorbis freetype glfw shaderc spirv-cross pkg-config
+brew install cmake zlib libpng libogg libvorbis freetype glfw shaderc spirv-cross pkg-config
 ```
 
 ### Build
@@ -94,7 +94,7 @@ build/test/demo/ldjam56/ldjam56
 
 Install dependencies (see also the simple-build.yml in case this goes out of date):
 ```sh
-sudo apt-get install -y libfreetype-dev libglew-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross
+sudo apt-get install -y libfreetype-dev libglfw3-dev libogg-dev libopenal-dev libpng-dev libvorbis-dev zlib1g-dev glslc spirv-cross
 ```
 
 The rest is the same as the [Mac OS build instructions](#local-build-macos)
@@ -157,7 +157,7 @@ Note: everything up to this point is preinstalled in github runners, so windows-
 
 Then, install all the dependencies using vcpkg:
 ```sh
-$VCPKG_INSTALLATION_ROOT/vcpkg.exe libpng:x64-windows-static glfw3:x64-windows-static glew:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
+$VCPKG_INSTALLATION_ROOT/vcpkg.exe libpng:x64-windows-static glfw3:x64-windows-static freetype:x64-windows-static openal-soft:x64-windows-static libogg:x64-windows-static libvorbis:x64-windows-static shaderc spirv-cross
 ```
 
 Then, in the root of the clap directory, configure and build using cmake. Use --parallel X option with cmake --build commands to speed things up.

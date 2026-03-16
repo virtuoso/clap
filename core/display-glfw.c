@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "config.h"
 #if defined(CONFIG_RENDERER_OPENGL)
-# ifdef __APPLE__
+# define GLFW_INCLUDE_NONE
+# if defined(CONFIG_GLES)
+#  include <GLES3/gl3.h>
+# elif defined(__APPLE__)
 #  define GL_SILENCE_DEPRECATION 1
 #  include <OpenGL/gl3.h>
 #  include <OpenGL/gl3ext.h>
 # else
-#  include <GL/glew.h>
+#  include <glad/glad.h>
 # endif
 #elif defined(CONFIG_RENDERER_METAL)
 #define GLFW_INCLUDE_NONE
@@ -185,11 +188,7 @@ static cerr display_gl_init(struct clap_context *ctx)
 {
     const unsigned char *vendor, *renderer, *glver, *shlangver;
     struct clap_config *cfg = clap_get_config(ctx);
-#ifndef __APPLE__
-    int glew_ret = -1, minor, major;
-#else
     int minor, major;
-#endif
     bool core_profile;
 
 #ifdef CONFIG_GLES
@@ -220,14 +219,10 @@ restart:
 
     glfwMakeContextCurrent(window);
 
-#ifndef __APPLE__
-    if (glew_ret) {
-        glewExperimental = GL_TRUE;
-        glew_ret = glewInit();
-        if (glew_ret != GLEW_OK) {
-            err("failed to initialize GLEW: %s\n", glewGetErrorString(glew_ret));
-            return CERR_NOMEM;
-        }
+#if !defined(__APPLE__) && !defined(CONFIG_GLES)
+    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
+        err("failed to initialize glad\n");
+        return CERR_INITIALIZATION_FAILED;
     }
 #endif
 

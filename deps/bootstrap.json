@@ -16,6 +16,14 @@
     }
 },
 {
+    "name": "glad",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/Dav1dde/glad.git",
+        "revision": "v0.1.36"
+    }
+},
+{
     "name": "miniaudio",
     "source": {
         "type": "git",

@@ -27,7 +27,7 @@
 #    include <OpenGL/gl3.h>
 #    include <OpenGL/gl3ext.h>
 #   else
-#    include <GL/glew.h>
+#    include <glad/glad.h>
 #   endif /* __APPLE__ */
 #  endif
 # else
