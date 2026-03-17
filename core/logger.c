@@ -260,7 +260,7 @@ static notrace void logger_append(struct logger *lg)
 
 static int log_floor =
 #ifdef CONFIG_FINAL
-    WARN
+    NORMAL
 #else
     DBG
 #endif
