@@ -64,9 +64,11 @@ void logg(int level, const char *mod, int line, const char *func, const char *fm
 #define err(args...) \
     logg(ERR, MODNAME, __LINE__, __func__, ## args);
 #define err_cerr(_cerr, _fmt, args...) do { \
-    char __buf[512]; \
-    cerr_strbuf(__buf, sizeof(__buf), &(_cerr)); \
-    logg(ERR, MODNAME, __LINE__, __func__, "[%s] " _fmt, __buf, ## args); \
+    if (!IS_CERR_CODE((_cerr), CERR_REQUEST_EXIT)) { \
+        char __buf[512]; \
+        cerr_strbuf(__buf, sizeof(__buf), &(_cerr)); \
+        logg(ERR, MODNAME, __LINE__, __func__, "[%s] " _fmt, __buf, ## args); \
+    } \
 } while (0)
 
 /*

@@ -44,6 +44,7 @@ typedef enum cerr_enum {
     _CERR_NAME_TOO_LONG          = -31,
     _CERR_UNKNOWN_ERROR          = -32,
     _CERR_PERMISSION_DENIED      = -33,
+    _CERR_REQUEST_EXIT           = -34,
 } cerr_enum;
 
 /****************************************************************************
@@ -178,6 +179,9 @@ static_assert(offsetof(cerr, line) == offsetof(cres(int), line), "cerr/cres::lin
 /* Is cerr or cres (or any compound type that has cerr at offset 0) an error */
 #define IS_CERR(__x) (CERR_CODE(__x) != _CERR_OK)
 #define IS_CERR_CODE(__x, __e) (CERR_CODE((__x)) == _ ## __e)
+
+#define CERR_TO_EXIT(__x) \
+    (IS_CERR((__x)) && IS_CERR_CODE((__x), CERR_REQUEST_EXIT) ? EXIT_SUCCESS : EXIT_FAILURE)
 
 /* Check if cerr is an error and execute @__ret statement if it is */
 #define CERR_RET(__x, __ret) ({ \
