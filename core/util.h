@@ -231,6 +231,18 @@ static inline void __noreturn clap_unreachable(void)
     unreachable();
 }
 
+static inline bool strtobool(const char *str)
+{
+    if (!str || !*str)  return false;
+
+    if (*str > '0' && *str <= '9')      return true;
+    if (!strcasecmp(str, "on"))         return true;
+    if (!strcasecmp(str, "yes"))        return true;
+    if (!strcasecmp(str, "true"))       return true;
+
+    return false;
+}
+
 static inline void str_chomp(char *str)
 {
     if (!*str)
