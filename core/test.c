@@ -275,6 +275,22 @@ static int darray_test2(void)
     return EXIT_SUCCESS;
 }
 
+static int strtobool_test0(void)
+{
+    if (!strtobool("on"))   return EXIT_FAILURE;
+    if (!strtobool("ON"))   return EXIT_FAILURE;
+    if (!strtobool("yes"))  return EXIT_FAILURE;
+    if (!strtobool("YES"))  return EXIT_FAILURE;
+    if (!strtobool("true")) return EXIT_FAILURE;
+    if (!strtobool("TRUE")) return EXIT_FAILURE;
+    if (!strtobool("42"))   return EXIT_FAILURE;
+    if (strtobool("0"))     return EXIT_FAILURE;
+    if (strtobool("blah"))  return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+
 static int str_endswith_test0(void)
 {
     if (!str_endswith("foo.txt", ".txt"))
@@ -797,6 +813,7 @@ static struct test {
     { .name = "darray basic", .test = darray_test0 },
     { .name = "darray insert", .test = darray_test1 },
     { .name = "darray delete", .test = darray_test2 },
+    { .name = "strtobool", .test = strtobool_test0 },
     { .name = "str_endswith", .test = str_endswith_test0 },
     { .name = "str_endswith_nocase", .test = str_endswith_nocase_test0 },
     { .name = "str_trim_slashes", .test = str_trim_slashes_test0 },
