@@ -850,36 +850,36 @@ next:
             auto desc = &clap_cli_options_desc[i];
             if (c != desc->short_name)  continue;
 
-            if (!desc->arg_required && desc->type != CLI_BOOL)  goto out_malformed;
-
             if (desc->handle) {
                 CERR_RET_CERR(desc->handle(ctx, desc->arg_required ? optarg : nullptr));
                 goto next;
-            } else {
-                void *ptr = desc->ptr;
-                if (!ptr)   ptr = (void *)ctx + desc->ctx_offset;
+            }
 
-                switch (desc->type) {
-                    case CLI_BOOL:
-                        *(bool *)ptr = desc->arg_required ? strtobool(optarg) : true;
-                        goto next;
+            if (!desc->arg_required && desc->type != CLI_BOOL)  goto out_malformed;
 
-                    case CLI_INT:
-                        *(int *)ptr = atoi(optarg);
-                        goto next;
+            void *ptr = desc->ptr;
+            if (!ptr)   ptr = (void *)ctx + desc->ctx_offset;
 
-                    case CLI_LONG:
-                        *(long *)ptr = strtol(optarg, NULL, 10);
-                        goto next;
+            switch (desc->type) {
+                case CLI_BOOL:
+                    *(bool *)ptr = desc->arg_required ? strtobool(optarg) : true;
+                    goto next;
 
-                    case CLI_STR:
-                        *(char **)ptr = optarg;
-                        goto next;
+                case CLI_INT:
+                    *(int *)ptr = atoi(optarg);
+                    goto next;
 
-                    case CLI_NONE:
-                    default:
-                        break;
-                }
+                case CLI_LONG:
+                    *(long *)ptr = strtol(optarg, NULL, 10);
+                    goto next;
+
+                case CLI_STR:
+                    *(char **)ptr = optarg;
+                    goto next;
+
+                case CLI_NONE:
+                default:
+                    break;
             }
 
 out_malformed:
