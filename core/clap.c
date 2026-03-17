@@ -888,6 +888,7 @@ static cerr clap_cli_opts_process(clap_context *ctx)
 
     int option_index;
 
+    opterr = 0;
     for (;;) {
 next:
         int c = getopt_long(ctx->argc, ctx->argv, short_options, long_options, &option_index);
