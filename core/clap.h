@@ -296,6 +296,31 @@ cresp(lut) clap_lut_find(clap_context *ctx, const char *name) __nonnull_params((
  */
 cerr clap_set_lighting_lut(clap_context *ctx, const char *name) __nonnull_params((1, 2));
 
+enum clap_cli_opt_bits {
+    CLAP_CLI_FULLSCREEN_BIT,
+    CLAP_CLI_EXITAFTER_BIT,
+    CLAP_CLI_ABORT_ON_ERROR_BIT,
+    CLAP_CLI_SERVER_ADDR_BIT,
+    CLAP_CLI_SENTINEL
+};
+
+typedef enum clap_cli_opts {
+    CLAP_CLI_FULLSCREEN     = (1u << CLAP_CLI_FULLSCREEN_BIT),
+    CLAP_CLI_EXITAFTER      = (1u << CLAP_CLI_EXITAFTER_BIT),
+    CLAP_CLI_ABORT_ON_ERROR = (1u << CLAP_CLI_ABORT_ON_ERROR_BIT),
+    CLAP_CLI_SERVER_ADDR    = (1u << CLAP_CLI_SERVER_ADDR_BIT),
+#ifdef CONFIG_FINAL
+    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN,
+#else /* !CONFIG_FINAL */
+    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN       |
+                              CLAP_CLI_EXITAFTER        |
+                              CLAP_CLI_ABORT_ON_ERROR   |
+                              CLAP_CLI_SERVER_ADDR,
+#endif /* !CONFIG_FINAL */
+} clap_cli_opts;
+
+const char *clap_get_argv(clap_context *ctx, int idx);
+
 /**
  * struct clap_config - engine configuration for clap_init()
  * @debug:              enable debug functionality; currently used in the logger
@@ -314,6 +339,7 @@ cerr clap_set_lighting_lut(clap_context *ctx, const char *name) __nonnull_params
  * @title:              application/window title
  * @base_url:           base URL/path where librarian will look for files
  * @default_font_name:  default font for clap's UI
+ * @networking:         networking configuration (NULL to disable)
  * @width:              initial window width
  * @height:             initial window height
  * @early_init:         optional early init callback, called after messagebus_init(); allowed to faila
@@ -325,6 +351,8 @@ cerr clap_set_lighting_lut(clap_context *ctx, const char *name) __nonnull_params
  * @settings_cb_data:   data to be passed into the @settings_cb
  * @lut_presets:        a LUT_MAX-terminated array of lut_preset constants to generate on
  *                      initialization
+ * @cli_opt_cb:         callback to handle unrecognized command line options
+ * @cli_opts:           command line options parsed by the engine
  */
 struct clap_config {
     unsigned long   debug       : 1,
@@ -339,6 +367,7 @@ struct clap_config {
     const char      *title;
     const char      *base_url;
     const char      *default_font_name;
+    struct networking_config    *networking;
     unsigned int    width;
     unsigned int    height;
     cerr            (*early_init)(clap_context *ctx, void *data);
@@ -349,6 +378,8 @@ struct clap_config {
     void            (*settings_cb)(clap_context *ctx, struct settings *rs, void *data);
     void            *settings_cb_data;
     lut_preset      *lut_presets;
+    cerr            (*cli_opt_cb)(clap_context *ctx, void *data, int *pos);
+    clap_cli_opts   cli_opts;
 };
 
 cresp_struct_ret(clap_context);

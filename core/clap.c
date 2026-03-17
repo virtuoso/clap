@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <string.h>
 #include <stdbool.h>
+#include <getopt.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -114,6 +115,8 @@ typedef struct clap_context {
     struct ui           ui;
     messagebus          mb;
     int                 argc;
+    int                 exit_after;
+    bool                fullscreen;
     bool                paused;
 } clap_context;
 
@@ -486,6 +489,11 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     clap_fps_calc(ctx, &ctx->fps);
     clap_timers_run(ctx);
 
+    if (ctx->fullscreen) {
+        ctx->fullscreen = false;
+        display_enter_fullscreen();
+    }
+
     renderer_frame_begin(&ctx->renderer);
 
     int width, height;
@@ -522,9 +530,9 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(phys, move);
 
-#ifndef CONFIG_FINAL
-    networking_poll();
-#endif
+#ifdef CONFIG_NETWORKING
+    if (ctx->cfg.networking)    networking_poll();
+#endif /* CONFIG_NETWORKING */
 
     PROF_STEP(net, phys);
 
@@ -721,6 +729,9 @@ static int clap_handle_command(struct clap_context *ctx, struct message *m, void
 
     if (m->cmd.toggle_modality) ctx->paused = !ctx->paused;
 
+    if (m->cmd.status && ctx->exit_after >= 0 && !--ctx->exit_after)
+        display_request_exit();
+
     return MSG_HANDLED;
 }
 
@@ -739,6 +750,151 @@ cres(int) clap_restart(struct clap_context *ctx)
 #else
     return cres_val(int, execve(program_invocation_name, argv, envp));
 #endif
+}
+
+static cerr handle_server_opt(clap_context *ctx, const char *optarg)
+{
+    if (!ctx->cfg.networking)
+        return CERR_NOT_SUPPORTED_REASON(.fmt = "server option with networking disabled");
+
+    ctx->cfg.networking->server_ip = optarg;
+
+    return CERR_OK;
+}
+
+const char *clap_get_argv(clap_context *ctx, int idx)
+{
+    if (ctx->argc <= idx)   return NULL;
+    return ctx->argv[idx];
+}
+
+typedef enum {
+    CLI_NONE = 0,
+    CLI_BOOL,
+    CLI_INT,
+    CLI_LONG,
+    CLI_STR,
+} cli_opt_type;
+
+static const struct clap_cli_options_desc {
+    const char      *long_name;
+    char            short_name;
+    bool            arg_required;
+    cli_opt_type    type;
+    size_t          ctx_offset;
+    void            *ptr;
+    cerr            (*handle)(clap_context *ctx, const char *optarg);
+} clap_cli_options_desc[CLAP_CLI_SENTINEL] = {
+    [CLAP_CLI_FULLSCREEN_BIT] = {
+        .long_name      = "fullscreen",
+        .short_name     = 'F',
+        .type           = CLI_BOOL,
+        .ctx_offset     = offsetof(clap_context, fullscreen)
+    },
+    [CLAP_CLI_EXITAFTER_BIT] = {
+        .long_name      = "exitafter",
+        .short_name     = 'e',
+        .arg_required   = true,
+        .type           = CLI_INT,
+        .ctx_offset     = offsetof(clap_context, exit_after)
+    },
+    [CLAP_CLI_ABORT_ON_ERROR_BIT] = {
+        .long_name      = "aoe",
+        .short_name     = 'E',
+        .type           = CLI_BOOL,
+        .ptr            = &abort_on_error
+    },
+    [CLAP_CLI_SERVER_ADDR_BIT] = {
+        .long_name      = "server",
+        .short_name     = 'S',
+        .arg_required   = true,
+        .type           = CLI_STR,
+        .handle         = handle_server_opt
+    },
+};
+
+static cerr clap_cli_opts_process(clap_context *ctx)
+{
+    struct option long_options[CLAP_CLI_SENTINEL + 1];
+    char short_options[CLAP_CLI_SENTINEL * 2 + 1];
+
+    size_t lopts_idx = 0, sopts_idx = 0;
+
+    /* set up getopt's arrays */
+    for (int i = 0; i < CLAP_CLI_SENTINEL; i++) {
+        if (!(ctx->cfg.cli_opts & (1u << i)))   continue;
+
+        auto desc = &clap_cli_options_desc[i];
+        long_options[lopts_idx++] = (struct option) {
+            desc->long_name,
+            desc->arg_required ? required_argument : no_argument,
+            NULL,
+            desc->short_name
+        };
+
+        short_options[sopts_idx++] = desc->short_name;
+        if (desc->arg_required) short_options[sopts_idx++] = ':';
+    }
+
+    long_options[lopts_idx] = (struct option) {};
+    short_options[sopts_idx] = 0;
+
+    int option_index;
+
+    for (;;) {
+next:
+        int c = getopt_long(ctx->argc, ctx->argv, short_options, long_options, &option_index);
+        if (c == -1)    return CERR_OK;
+
+        for (size_t i = 0; i < array_size(clap_cli_options_desc); i++) {
+            auto desc = &clap_cli_options_desc[i];
+            if (c != desc->short_name)  continue;
+
+            if (!desc->arg_required && desc->type != CLI_BOOL)  goto out_malformed;
+
+            if (desc->handle) {
+                CERR_RET_CERR(desc->handle(ctx, desc->arg_required ? optarg : nullptr));
+                goto next;
+            } else {
+                void *ptr = desc->ptr;
+                if (!ptr)   ptr = (void *)ctx + desc->ctx_offset;
+
+                switch (desc->type) {
+                    case CLI_BOOL:
+                        *(bool *)ptr = desc->arg_required ? strtobool(optarg) : true;
+                        goto next;
+
+                    case CLI_INT:
+                        *(int *)ptr = atoi(optarg);
+                        goto next;
+
+                    case CLI_LONG:
+                        *(long *)ptr = strtol(optarg, NULL, 10);
+                        goto next;
+
+                    case CLI_STR:
+                        *(char **)ptr = optarg;
+                        goto next;
+
+                    case CLI_NONE:
+                    default:
+                        break;
+                }
+            }
+
+out_malformed:
+            return CERR_INVALID_ARGUMENTS_REASON(
+                .fmt    = "malformed option '%s' / '%-1s'",
+                .arg0   = desc->long_name ? : "<no-long-name>",
+                .arg1   = &desc->short_name
+            );
+        }
+
+        if (ctx->cfg.cli_opt_cb)
+            CERR_RET_CERR(ctx->cfg.cli_opt_cb(ctx, ctx->cfg.callback_data, &option_index));
+    }
+
+    return CERR_OK;
 }
 
 DEFINE_CLEANUP(clap_context, if (*p) mem_free(*p))
@@ -765,18 +921,37 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (cfg)
         memcpy(&ctx->cfg, cfg, sizeof(ctx->cfg));
 
-    if (ctx->cfg.debug)
-        log_flags = LOG_FULL;
-    if (ctx->cfg.quiet)
-        log_flags |= LOG_QUIET;
+    ctx->exit_after = -1;
+
+    if (cfg->networking) {
+        ctx->cfg.networking = memdup(cfg->networking, sizeof(*cfg->networking));
+        ctx->cfg.networking->clap = ctx;
+    }
+
+    if (!ctx->cfg.cli_opts) ctx->cfg.cli_opts = CLAP_CLI_DEFAULT;
 
     ctx->argc = argc;
     ctx->argv = argv;
     ctx->envp = envp;
 
+    CERR_RET_T(clap_cli_opts_process(ctx), clap_context);
+
+    if (ctx->cfg.debug)
+        log_flags = LOG_FULL;
+    if (ctx->cfg.quiet)
+        log_flags |= LOG_QUIET;
+
     CERR_RET_T(messagebus_init(ctx), clap_context);
 
     CERR_RET_T(subscribe(ctx, MT_COMMAND, clap_handle_command, ctx), clap_context);
+
+#ifdef CONFIG_NETWORKING
+    if (ctx->cfg.networking)
+        CERR_RET(
+            networking_init(ctx, ctx->cfg.networking, CLIENT),
+            err_cerr(__cerr, "failed to initialize networking\n")
+        );
+#endif /* CONFIG_NETWORKING */
 
     if (ctx->cfg.early_init)
         CERR_RET_T(ctx->cfg.early_init(ctx, ctx->cfg.callback_data), clap_context);
@@ -862,6 +1037,8 @@ void clap_done(struct clap_context *ctx, int status)
         font_done(ctx->font);
     if (ctx->settings)
         settings_done(ctx->settings);
+    if (ctx->cfg.networking)
+        mem_free(ctx->cfg.networking);
     messagebus_done(ctx);
     free(ctx->os_info.name);
     clap_timers_done(ctx);
