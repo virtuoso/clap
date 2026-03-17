@@ -144,7 +144,7 @@ int main(int argc, char **argv, char **envp)
     cresp(clap_context) clap_res = clap_init(&cfg, argc, argv, envp);
     if (IS_CERR(clap_res)) {
         err_cerr(clap_res, "failed to initialize clap\n");
-        return EXIT_FAILURE;
+        return CERR_TO_EXIT(clap_res);
     }
 
     __unused auto gui = CRES_RET(game_ui_init(clap_get_ui(clap_res.val)), return EXIT_FAILURE);

@@ -297,6 +297,7 @@ cresp(lut) clap_lut_find(clap_context *ctx, const char *name) __nonnull_params((
 cerr clap_set_lighting_lut(clap_context *ctx, const char *name) __nonnull_params((1, 2));
 
 enum clap_cli_opt_bits {
+    CLAP_CLI_HELP_BIT,
     CLAP_CLI_FULLSCREEN_BIT,
     CLAP_CLI_EXITAFTER_BIT,
     CLAP_CLI_ABORT_ON_ERROR_BIT,
@@ -305,14 +306,16 @@ enum clap_cli_opt_bits {
 };
 
 typedef enum clap_cli_opts {
+    CLAP_CLI_HELP           = (1u << CLAP_CLI_HELP_BIT),
     CLAP_CLI_FULLSCREEN     = (1u << CLAP_CLI_FULLSCREEN_BIT),
     CLAP_CLI_EXITAFTER      = (1u << CLAP_CLI_EXITAFTER_BIT),
     CLAP_CLI_ABORT_ON_ERROR = (1u << CLAP_CLI_ABORT_ON_ERROR_BIT),
     CLAP_CLI_SERVER_ADDR    = (1u << CLAP_CLI_SERVER_ADDR_BIT),
 #ifdef CONFIG_FINAL
-    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN,
+    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN | CLAP_CLI_HELP,
 #else /* !CONFIG_FINAL */
-    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN       |
+    CLAP_CLI_DEFAULT        = CLAP_CLI_HELP             |
+                              CLAP_CLI_FULLSCREEN       |
                               CLAP_CLI_EXITAFTER        |
                               CLAP_CLI_ABORT_ON_ERROR   |
                               CLAP_CLI_SERVER_ADDR,

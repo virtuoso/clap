@@ -762,6 +762,8 @@ static cerr handle_server_opt(clap_context *ctx, const char *optarg)
     return CERR_OK;
 }
 
+static cerr handle_help_opt(clap_context *ctx, const char *optarg);
+
 const char *clap_get_argv(clap_context *ctx, int idx)
 {
     if (ctx->argc <= idx)   return NULL;
@@ -777,6 +779,8 @@ typedef enum {
 } cli_opt_type;
 
 static const struct clap_cli_options_desc {
+    const char      *help;
+    const char      *arg_help;
     const char      *long_name;
     char            short_name;
     bool            arg_required;
@@ -785,15 +789,24 @@ static const struct clap_cli_options_desc {
     void            *ptr;
     cerr            (*handle)(clap_context *ctx, const char *optarg);
 } clap_cli_options_desc[CLAP_CLI_SENTINEL] = {
+    [CLAP_CLI_HELP_BIT] = {
+        .long_name      = "help",
+        .short_name     = 'h',
+        .help           = "print this help message",
+        .handle         = handle_help_opt
+    },
     [CLAP_CLI_FULLSCREEN_BIT] = {
         .long_name      = "fullscreen",
         .short_name     = 'F',
+        .help           = "start in fullscreen",
         .type           = CLI_BOOL,
         .ctx_offset     = offsetof(clap_context, fullscreen)
     },
     [CLAP_CLI_EXITAFTER_BIT] = {
         .long_name      = "exitafter",
         .short_name     = 'e',
+        .help           = "exit after <seconds>",
+        .arg_help       = "seconds",
         .arg_required   = true,
         .type           = CLI_INT,
         .ctx_offset     = offsetof(clap_context, exit_after)
@@ -801,17 +814,51 @@ static const struct clap_cli_options_desc {
     [CLAP_CLI_ABORT_ON_ERROR_BIT] = {
         .long_name      = "aoe",
         .short_name     = 'E',
+        .help           = "abort on error",
         .type           = CLI_BOOL,
         .ptr            = &abort_on_error
     },
     [CLAP_CLI_SERVER_ADDR_BIT] = {
         .long_name      = "server",
         .short_name     = 'S',
+        .help           = "IP address of the server to use",
+        .arg_help       = "IP",
         .arg_required   = true,
         .type           = CLI_STR,
         .handle         = handle_server_opt
     },
 };
+
+#define HELP_OPT_PFX "  "
+static cerr handle_help_opt(clap_context *ctx, const char *optarg)
+{
+    if (optarg) err("Unrecognized option '%s'\n", optarg);
+
+    msg("Usage: %s [OPTIONS]\n\nOptions:\n", str_basename(ctx->argv[0]));
+    for (size_t i = 0; i < array_size(clap_cli_options_desc); i++) {
+        if (!(ctx->cfg.cli_opts & (1u << i)))   continue;
+
+        auto desc = &clap_cli_options_desc[i];
+
+        char help[256];
+        size_t len = 0;
+
+        if (desc->short_name)
+            len += snprintf(help + len, sizeof(help) - len, "%s-%c", HELP_OPT_PFX, desc->short_name);
+        if (desc->arg_help)
+            len += snprintf(help + len, sizeof(help) - len, " <%s>", desc->arg_help);
+        if (desc->long_name)
+            len += snprintf(help + len, sizeof(help) - len, "%s--%s", len ? ", " : HELP_OPT_PFX, desc->long_name);
+        if (desc->arg_help)
+            len += snprintf(help + len, sizeof(help) - len, " <%s>", desc->arg_help);
+        if (desc->help)
+            len += snprintf(help + len, sizeof(help) - len, "\n%s%s%s", HELP_OPT_PFX, HELP_OPT_PFX, desc->help);
+
+        msg("%s\n\n", help);
+    }
+
+    return optarg ? CERR_INVALID_ARGUMENTS : CERR_REQUEST_EXIT;
+}
 
 static cerr clap_cli_opts_process(clap_context *ctx)
 {
@@ -890,8 +937,11 @@ out_malformed:
             );
         }
 
+        const char *opt = optind >= 0 ? ctx->argv[optind - 1] : "";
         if (ctx->cfg.cli_opt_cb)
             CERR_RET_CERR(ctx->cfg.cli_opt_cb(ctx, ctx->cfg.callback_data, &option_index));
+        else
+            return handle_help_opt(ctx, opt);
     }
 
     return CERR_OK;
