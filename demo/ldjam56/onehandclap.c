@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <getopt.h>
 #include <sched.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -25,7 +24,6 @@
 
 /* XXX just note for the future */
 static struct sound *intro_sound;
-static int exit_timeout = -1;
 
 typedef struct game_ui game_ui;
 cresp_struct_ret(game_ui);
@@ -88,11 +86,6 @@ static int handle_input(struct clap_context *ctx, struct message *m, void *data)
 
 static int handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
-    if (m->cmd.status && exit_timeout >= 0) {
-        if (!exit_timeout--)
-            display_request_exit();
-    }
-
     return 0;
 }
 
@@ -112,16 +105,6 @@ static void graphics_init(clap_context *ctx, void *data)
     ropts->lighting_exposure = 1.6;
 }
 
-static struct option long_options[] = {
-    { "fullscreen", no_argument,        0, 'F' },
-    { "exitafter",  required_argument,  0, 'e' },
-    { "aoe",        no_argument,        0, 'E' },
-    { "server",     required_argument,  0, 'S'},
-    {}
-};
-
-static const char short_options[] = "e:EFS:";
-
 int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
@@ -139,6 +122,14 @@ int main(int argc, char **argv, char **envp)
 #endif
         .width          = 1280,
         .height         = 720,
+#ifndef CONFIG_FINAL
+        .networking = &(struct networking_config) {
+            .server_ip     = CONFIG_SERVER_IP,
+            .server_port   = 21044,
+            .server_wsport = 21045,
+            .logger        = 1,
+        },
+#endif /* CONFIG_FINAL */
         .early_init     = early_init,
         .graphics_init  = graphics_init,
         .frame_cb       = render_frame,
@@ -149,42 +140,6 @@ int main(int argc, char **argv, char **envp)
         .lut_presets    = lut_presets_all,
 #endif /* CONFIG_FINAL */
     };
-#ifndef CONFIG_FINAL
-    struct networking_config ncfg = {
-        .server_ip     = CONFIG_SERVER_IP,
-        .server_port   = 21044,
-        .server_wsport = 21045,
-        .logger        = 1,
-    };
-#endif /* CONFIG_FINAL */
-    int c, option_index;
-    unsigned int fullscreen = 0;
-
-    for (;;) {
-        c = getopt_long(argc, argv, short_options, long_options, &option_index);
-        if (c == -1)
-            break;
-
-        switch (c) {
-        case 'F':
-            fullscreen++;
-            break;
-#ifndef CONFIG_FINAL
-        case 'e':
-            exit_timeout = atoi(optarg);
-            break;
-        case 'E':
-            abort_on_error++;
-            break;
-        case 'S':
-            ncfg.server_ip = optarg;
-            break;
-#endif /* CONFIG_FINAL */
-        default:
-            fprintf(stderr, "invalid option %x\n", c);
-            exit(EXIT_FAILURE);
-        }
-    }
 
     cresp(clap_context) clap_res = clap_init(&cfg, argc, argv, envp);
     if (IS_CERR(clap_res)) {
@@ -202,16 +157,8 @@ int main(int argc, char **argv, char **envp)
     renderer_frame_begin(clap_get_renderer(clap_res.val));
     imgui_render_begin(cfg.width, cfg.height);
 
-    cerr err;
-#ifndef CONFIG_FINAL
-    ncfg.clap = clap_res.val;
-    err = networking_init(clap_res.val, &ncfg, CLIENT);
-    if (IS_CERR(err))
-        err_cerr(err, "failed to initialize networking\n");
-#endif
-
     auto scene = clap_get_scene(clap_res.val);
-    err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
+    cerr err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
     if (IS_CERR(err))
         goto exit_scene;
 
@@ -228,9 +175,6 @@ int main(int argc, char **argv, char **envp)
     CERR_RET(clap_set_lighting_lut(clap_res.val, "teal orange"), goto exit_sound);
 
     fuzzer_input_init(clap_res.val);
-
-    if (fullscreen)
-        display_enter_fullscreen();
 
     scene_load(scene, "scene.json");
 
