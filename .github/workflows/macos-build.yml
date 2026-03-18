@@ -6,6 +6,9 @@ jobs:
     env:
       remote_host: ${{ secrets.REMOTE_DEPLOY_HOST }}
       team_id: ${{ secrets.MACOS_DEV_TEAM_ID }}
+      notary_apple_id: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+      notary_password: ${{ secrets.MACOS_NOTARY_APP_PASSWORD }}
+      notary_profile: clap-notarytool
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -20,10 +23,22 @@ jobs:
         run: |
           echo "${{ secrets.MACOS_DEV_ID_P12 }}" | base64 --decode > clap_dev_id.p12
           security create-keychain -p temp_pass build.keychain
-          security import clap_dev_id.p12 -k build.keychain -P "${{ secrets.MACOS_DEV_ID_P12_PASSWORD }}" -T /usr/bin/codesign
+          security -q import clap_dev_id.p12 -k build.keychain -P "${{ secrets.MACOS_DEV_ID_P12_PASSWORD }}" -T /usr/bin/codesign
           security list-keychains -d user -s build.keychain login.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p temp_pass build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          if ! security -q set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temp_pass build.keychain >/tmp/clap-security.log 2>&1; then
+            cat /tmp/clap-security.log
+            exit 1
+          fi
+      - name: install-notarytool-profile
+        if: ${{ env.notary_apple_id && env.notary_password && env.team_id }}
+        run: |
+          xcrun notarytool store-credentials "${{ env.notary_profile }}" \
+            --apple-id "${{ env.notary_apple_id }}" \
+            --password "${{ env.notary_password }}" \
+            --team-id "${{ env.team_id }}"
       - name: install-deps
         run: |
           brew install zlib glfw shaderc spirv-cross
@@ -32,14 +47,16 @@ jobs:
           cd ${{ github.workspace }}
           touch build_config
           echo opts=\"--parallel 3\" >> build_config
-          if [ -n "${{ env.team_id }}" ]; then
-            echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos -DCLAP_MACOS_DEV_TEAM_ID=${{ env.team_id }}\" >> build_config
-            cat build_config
-          else
-            echo CLAP_OPTS=\"-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos\" >> build_config
-            echo "No team_id"
+          codesign_identity=$(security find-identity -v -p codesigning build.keychain 2>/dev/null | awk '/Developer ID Application:/ {print $2; exit}')
+          clap_opts="-DCMAKE_INSTALL_PREFIX:FILEPATH=./clap/${GITHUB_REF##*/}/macos -DCLAP_DEMOS_BUILD_IN_ASSETS:BOOL=ON"
+          if [ -n "$codesign_identity" ]; then
+            clap_opts="$clap_opts -DCLAP_MACOS_CODESIGN_IDENTITY=$codesign_identity"
           fi
-          sh -x ./configure.sh
+          if [ -n "$codesign_identity" ] && [ -n "${{ env.notary_apple_id }}" ] && [ -n "${{ env.notary_password }}" ] && [ -n "${{ env.team_id }}" ]; then
+            clap_opts="$clap_opts -DCLAP_MACOS_NOTARYTOOL_PROFILE=${{ env.notary_profile }}"
+          fi
+          printf 'CLAP_OPTS="%s"\n' "$clap_opts" >> build_config
+          ./configure.sh
           cmake --preset=mtltest
           cmake --preset=mtldebug
       - name: build
@@ -57,8 +74,8 @@ jobs:
         if: ${{ env.remote_host }}
         with:
           SSH_PRIVATE_KEY: ${{ secrets.REMOTE_DEPLOY_KEY }}
-          ARGS: "-rlzvc -i"
-          SOURCE: "clap/"
+          ARGS: "-rlzvc -i --delete"
+          SOURCE: "clap/${{ github.ref_name }}/macos"
           REMOTE_HOST: ${{ secrets.REMOTE_DEPLOY_HOST }}
           REMOTE_USER: ${{ secrets.REMOTE_DEPLOY_USER }}
-          TARGET: ${{ secrets.REMOTE_DEPLOY_TARGET }}
+          TARGET: "${{ secrets.REMOTE_DEPLOY_TARGET }}/${{ github.ref_name }}"
