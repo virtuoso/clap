@@ -60,6 +60,8 @@ function (assets_install asset_dir asset_build_dir assets)
     endforeach ()
 endfunction ()
 
+include(${CMAKE_SOURCE_DIR}/scripts/executable-macos.cmake)
+
 # Produce a clap executable for any supported platform (what used do be demo/*/CMakeLists.txt)
 # @executable_name: cmake target name, also an executable name on most platforms
 # @title:           executable title
@@ -219,20 +221,8 @@ function (clap_executable executable_name title sources asset_dir assets backgro
         endif ()
     elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         install(TARGETS ${executable_name} BUNDLE DESTINATION . COMPONENT ${executable_name})
-        if (NOT ${CLAP_MACOS_DEV_TEAM_ID} STREQUAL "")
-            install(CODE
-                    "execute_process(
-                        COMMAND
-                            codesign
-                                --deep
-                                --force
-                                --options runtime
-                                --timestamp
-                                -s \"${CLAP_MACOS_DEV_TEAM_ID}\"
-                                \"${CMAKE_INSTALL_PREFIX}/${executable_name}.app\"
-                    )"
-            )
-        endif ()
+        clap_macos_install_bundle(${executable_name}
+            "works.ash.clap.${executable_name}")
     else ()
         install(TARGETS ${executable_name} DESTINATION bin)
     endif ()
