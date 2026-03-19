@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "logger.h"
 #include "memory.h"
+#include "str.h"
 #include "xyarray.h"
 
 struct xyzarray *xyzarray_new(ivec3 dim)
@@ -114,12 +115,12 @@ void xyarray_print(unsigned char *arr)
     int height = xyz->dim[1];
     int width = xyz->dim[0];
     char str[2048];
-    int i, j, p;
+    declare_sv(str);
+    int i, j;
 
     for (j = 0; j < height; j++) {
-        for (i = 0, p = 0; i < width; i++)
-            p += snprintf(str + p, sizeof(str) - p, "%c ",
-                          ch[xyarray_get(arr, i, j)]);
+        for (i = 0; i < width; i++)
+            sv_append(&sv(str), "%c ", ch[xyarray_get(arr, i, j)]);
         dbg("arr[%02d]: %s\n", j, str);
     }
 }
