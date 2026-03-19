@@ -19,6 +19,7 @@
 #include "lut.h"
 #include "model.h"
 #include "shader.h"
+#include "str.h"
 #include "ui.h"
 #include "scene.h"
 #include "sound.h"
@@ -152,8 +153,8 @@ static void character_obj_next(struct scene *s)
 static void switcher_update(struct scene *s)
 {
     static char buf[512];
+    declare_sv(buf);
     character_obj *cobj;
-    size_t len = 0;
 
     darray_for_each(cobj, cobjs) {
         if (!cobj->connected)
@@ -162,8 +163,8 @@ static void switcher_update(struct scene *s)
         bool brackets = scene_camera_follows(s, cobj->e->priv);
         if (brackets)
             control = cobj->e->priv;
-        len += snprintf(buf + len, sizeof(buf) - len, "%s%s%s%s", len ? "\n" : "",
-                        brackets ? "> " : "", entity_name(cobj->e), brackets ? " <" : "");
+        sv_append(&sv(buf), "%s%s%s%s", sv_len(&sv(buf)) ? "\n" : "",
+                  brackets ? "> " : "", entity_name(cobj->e), brackets ? " <" : "");
     }
 
     if (switcher_text)
