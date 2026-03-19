@@ -11,7 +11,7 @@ jobs:
       notary_profile: clap-notarytool
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Fetch tags
         run: git fetch --force --prune --unshallow --tags
       - name: submodules
