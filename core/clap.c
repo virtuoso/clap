@@ -18,6 +18,7 @@
 #include "render.h"
 #include "scene.h"
 #include "sound.h"
+#include "str.h"
 #include "mesh.h"
 #include "messagebus.h"
 #include "librarian.h"
@@ -841,18 +842,18 @@ static cerr handle_help_opt(clap_context *ctx, const char *optarg)
         auto desc = &clap_cli_options_desc[i];
 
         char help[256];
-        size_t len = 0;
+        declare_sv(help);
 
         if (desc->short_name)
-            len += snprintf(help + len, sizeof(help) - len, "%s-%c", HELP_OPT_PFX, desc->short_name);
+            sv_append(&sv(help), "%s-%c", HELP_OPT_PFX, desc->short_name);
         if (desc->arg_help)
-            len += snprintf(help + len, sizeof(help) - len, " <%s>", desc->arg_help);
+            sv_append(&sv(help), " <%s>", desc->arg_help);
         if (desc->long_name)
-            len += snprintf(help + len, sizeof(help) - len, "%s--%s", len ? ", " : HELP_OPT_PFX, desc->long_name);
+            sv_append(&sv(help), "%s--%s", sv_len(&sv(help)) ? ", " : HELP_OPT_PFX, desc->long_name);
         if (desc->arg_help)
-            len += snprintf(help + len, sizeof(help) - len, " <%s>", desc->arg_help);
+            sv_append(&sv(help), " <%s>", desc->arg_help);
         if (desc->help)
-            len += snprintf(help + len, sizeof(help) - len, "\n%s%s%s", HELP_OPT_PFX, HELP_OPT_PFX, desc->help);
+            sv_append(&sv(help), "\n%s%s%s", HELP_OPT_PFX, HELP_OPT_PFX, desc->help);
 
         msg("%s\n\n", help);
     }
