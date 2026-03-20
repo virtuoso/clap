@@ -102,6 +102,7 @@ static void graphics_init(clap_context *ctx, void *data)
     ropts->fog_near = 200.0;
     ropts->fog_far = 300.0;
     ropts->contrast = 0.15;
+    ropts->lighting_operator = 1.0;
     ropts->lighting_exposure = 1.6;
 }
 
@@ -183,12 +184,6 @@ int main(int argc, char **argv, char **envp)
     scene->lin_speed = 2.0;
     scene->ang_speed = 45.0;
     scene->limbo_height = 70.0;
-    render_options *ropts = clap_get_render_options(clap_res.val);
-    ropts->fog_near = 200.0;
-    ropts->fog_far = 300.0;
-    ropts->lighting_operator = 1.0;
-    ropts->contrast = 0.15;
-    ropts->lighting_exposure = 1.6;
 
     imgui_render();
     renderer_frame_end(clap_get_renderer(clap_res.val));
