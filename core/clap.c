@@ -398,17 +398,26 @@ static void clap_timers_done(clap_context *ctx)
  * Rendering pipeline
  ****************************************************************************/
 
+#define REBUILD_REASON_FIELD(_field) \
+    { \
+        .name   = __stringify(_field), \
+        .offset = offsetof(render_options, _field), \
+        .size   = field_sizeof(render_options, _field) \
+    }
+
 /* Table of boolean settings that if changed require a pipeline rebuild */
 static const struct rebuild_reason {
     const char  *name;
     size_t      offset;
+    size_t      size;
 } rebuild_reason[] = {
-    { .name = "shadow_msaa",        .offset = offsetof(render_options, shadow_msaa) },
-    { .name = "model_msaa",         .offset = offsetof(render_options, model_msaa) },
-    { .name = "edge_sobel",         .offset = offsetof(render_options, edge_sobel) },
-    { .name = "ssao",               .offset = offsetof(render_options, ssao) },
-    { .name = "shadow_vsm",         .offset = offsetof(render_options, shadow_vsm) },
-    { .name = "edge_antialiasing",  .offset = offsetof(render_options, edge_antialiasing) },
+    REBUILD_REASON_FIELD(shadow_msaa),
+    REBUILD_REASON_FIELD(model_msaa),
+    REBUILD_REASON_FIELD(edge_sobel),
+    REBUILD_REASON_FIELD(ssao),
+    REBUILD_REASON_FIELD(shadow_vsm),
+    REBUILD_REASON_FIELD(edge_antialiasing),
+    REBUILD_REASON_FIELD(lighting_lut),
 };
 
 static cerr build_main_pl(clap_context *ctx)
@@ -439,12 +448,11 @@ static cerr rebuild_pl_if_needed(clap_context *ctx)
 
     bool rebuild_pl = false;
     for (size_t i = 0; i < array_size(rebuild_reason); i++) {
-        bool *a = (bool *)((void *)ropts + rebuild_reason[i].offset);
-        bool *b = (bool *)((void *)ropts_current + rebuild_reason[i].offset);
-        if (*a != *b) {
+        void *a = (void *)((void *)ropts + rebuild_reason[i].offset);
+        void *b = (void *)((void *)ropts_current + rebuild_reason[i].offset);
+        if (memcmp(a, b, rebuild_reason[i].size)) {
             rebuild_pl = true;
-            dbg("pipeline rebuild reason: %s: %d -> %d\n", rebuild_reason[i].name, *b, *a);
-            *b = *a;
+            dbg("pipeline rebuild reason: %s\n", rebuild_reason[i].name);
         }
     }
 
