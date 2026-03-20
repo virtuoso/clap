@@ -105,6 +105,19 @@ struct scene *clap_get_scene(struct clap_context *ctx)  __nonnull_params((1));
 render_options *clap_get_render_options(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
+ * clap_sync_render_options() - get clap's render options (mutable)
+ * @ctx:            clap_context
+ * @may_rebuild:    if sync is allowed to trigger a pipeline rebuild
+ *
+ * Sync active and cached render options. Use @may_rebuild==%false only when
+ * absolutely sure that the changes applied do not require a rebuild. Add a
+ * comment at the call site explaining why.
+ * On the other hand, if a rebuild may be required, skip this altogether and
+ * let the clap_frame() take care of it automatically.
+ */
+void clap_sync_render_options(clap_context *ctx, bool may_rebuild) __nonnull_params((1));
+
+/**
  * clap_get_shaders() - get clap's shaders context
  * @ctx:    clap_context
  *

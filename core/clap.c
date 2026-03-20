@@ -460,7 +460,7 @@ static cerr build_main_pl(clap_context *ctx)
         })
     );
 
-    memcpy(&ctx->render_options_current, &ctx->render_options, sizeof(render_options));
+    clap_sync_render_options(ctx, false);
 
     return CERR_OK;
 }
@@ -486,6 +486,19 @@ static cerr rebuild_pl_if_needed(clap_context *ctx)
     }
 
     return CERR_OK;
+}
+
+void clap_sync_render_options(clap_context *ctx, bool may_rebuild)
+{
+    /* No pipeline: the sync will happen at the end of build_main_pl() */
+    if (!ctx->pl)   return;
+
+    if (!may_rebuild) {
+        memcpy(&ctx->render_options_current, &ctx->render_options, sizeof(render_options));
+        return;
+    }
+
+    rebuild_pl_if_needed(ctx);
 }
 
 /****************************************************************************
