@@ -104,6 +104,11 @@ static void graphics_init(clap_context *ctx, void *data)
     ropts->contrast = 0.15;
     ropts->lighting_operator = 1.0;
     ropts->lighting_exposure = 1.6;
+
+    CERR_RET(
+        clap_set_lighting_lut(ctx, "teal orange"),
+        err_cerr(__cerr, "failed to set LUT\n")
+    );
 }
 
 int main(int argc, char **argv, char **envp)
@@ -173,8 +178,6 @@ int main(int argc, char **argv, char **envp)
         sound_play(intro_sound);
     }
 
-    CERR_RET(clap_set_lighting_lut(clap_res.val, "teal orange"), goto exit_sound);
-
     fuzzer_input_init(clap_res.val);
 
     scene_load(scene, "scene.json");
@@ -192,14 +195,12 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
-exit_sound:
     if (intro_sound)
         ref_put(intro_sound);
 exit_scene:
     game_ui_done(gui);
     clap_done(clap_res.val, 0);
 #else
-exit_sound:
 exit_scene:
     if (IS_CERR(err))
         imgui_render();
