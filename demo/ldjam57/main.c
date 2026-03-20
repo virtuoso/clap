@@ -482,6 +482,11 @@ static void graphics_init(clap_context *ctx, void *data)
     ropts->lighting_operator = 1.0;
     ropts->contrast = 0.4;
     ropts->lighting_exposure = 1.1;
+
+    CERR_RET(
+        clap_set_lighting_lut(ctx, "orange blue filmic"),
+        err_cerr(__cerr, "failed to set LUT\n")
+    );
 }
 
 int main(int argc, char **argv, char **envp)
@@ -549,8 +554,6 @@ int main(int argc, char **argv, char **envp)
         sound_play(intro_sound);
     }
 
-    CERR_RET(clap_set_lighting_lut(clap_res.val, "orange blue filmic"), goto exit_sound);
-
     fuzzer_input_init(clap_res.val);
 
     scene_load(scene, "scene.json");
@@ -567,7 +570,6 @@ int main(int argc, char **argv, char **envp)
     dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
-exit_sound:
     if (intro_sound)
         ref_put(intro_sound);
 exit_scene:
@@ -575,7 +577,6 @@ exit_scene:
 
     clap_done(clap_res.val, 0);
 #else
-exit_sound:
 exit_scene:
     if (IS_CERR(err))
         imgui_render();
