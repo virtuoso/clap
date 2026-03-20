@@ -481,7 +481,7 @@ static cerr rebuild_pl_if_needed(clap_context *ctx)
     }
 
     if (rebuild_pl) {
-         pipeline_clearout(ctx->pl);
+        pipeline_clearout(ctx->pl);
         return build_main_pl(ctx);
     }
 
