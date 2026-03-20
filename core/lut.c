@@ -426,6 +426,12 @@ void lut_apply(struct scene *scene, lut *lut)
     ropts->contrast = lut->contrast;
     render_pass_plug_texture(pass, UNIFORM_LUT_TEX, &lut->tex);
 
+    /*
+     * render_pass_plug_texture() above installs the new LUT texture directly
+     * into the pipeline, so a rebuild is unnecessary
+     */
+    clap_sync_render_options(scene->clap_ctx, false);
+
 #ifndef CONFIG_FINAL
     vec3 osd_color_in = { 0.8, 0.6, 0.0 }, osd_color;
     lut->fn(osd_color_in, osd_color);
