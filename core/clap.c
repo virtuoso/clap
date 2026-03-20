@@ -117,6 +117,7 @@ typedef struct clap_context {
     messagebus          mb;
     int                 argc;
     int                 exit_after;
+    double              paused_time;
     bool                fullscreen;
     bool                paused;
 } clap_context;
@@ -358,8 +359,31 @@ void clap_timer_cancel(clap_context *ctx, clap_timer *timer)
     mem_free(timer);
 }
 
+static void clap_timers_pause(clap_context *ctx, bool pause)
+{
+    double dt;
+    clap_timer *timer;
+
+    if (pause) {
+        ctx->paused_time = clap_get_current_time(ctx);
+        return;
+    }
+
+    if (!ctx->paused_time)  return;
+
+    dt = clap_get_current_time(ctx) - ctx->paused_time;
+    ctx->paused_time = 0.0;
+
+    if (dt <= 0.0)  return;
+
+    list_for_each_entry(timer, &ctx->timers, entry)
+        timer->time += dt;
+}
+
 static void clap_timers_run(clap_context *ctx)
 {
+    if (ctx->paused)    return;
+
     double time = clap_get_current_time(ctx);
     clap_timer *timer, *iter;
     DECLARE_LIST(fire);
@@ -736,7 +760,10 @@ static int clap_handle_command(struct clap_context *ctx, struct message *m, void
 {
     if (m->type != MT_COMMAND)  return MSG_HANDLED;
 
-    if (m->cmd.toggle_modality) ctx->paused = !ctx->paused;
+    if (m->cmd.toggle_modality) {
+        ctx->paused = !ctx->paused;
+        clap_timers_pause(ctx, ctx->paused);
+    }
 
     if (m->cmd.status && ctx->exit_after >= 0 && !--ctx->exit_after)
         display_request_exit();
