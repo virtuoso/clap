@@ -54,6 +54,8 @@ DECLARE_CLEANUP(uchar);
 #define array_size(x) (sizeof(x) / sizeof(*x))
 #define container_of(node, type, field) ((type *)((void *)(node)-offsetof(type, field)))
 
+#define field_sizeof(_class, _field)    sizeof(((_class *)0)->_field)
+
 #define __stringify(x) (# x)
 
 #ifndef M_PI
