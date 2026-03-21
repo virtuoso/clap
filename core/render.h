@@ -48,24 +48,54 @@ typedef ptrdiff_t GLsizeiptr;
 #  undef weak
 #  import <Metal/Metal.h>
 #  import <QuartzCore/CoreAnimation.h>
+#  import <CoreGraphics/CGColorSpace.h>
 typedef id<MTLDevice> mtl_device_t;
+typedef id<MTLLibrary> mtl_library_t;
+typedef id<MTLFunction> mtl_function_t;
 typedef id<MTLCommandQueue> mtl_command_queue_t;
 typedef id<MTLCommandBuffer> mtl_command_buffer_t;
 typedef id<MTLRenderCommandEncoder> mtl_render_command_encoder_t;
 typedef MTLRenderPassDescriptor *mtl_render_pass_descriptor_t;
+typedef MTLRenderPipelineDescriptor *mtl_render_pipeline_descriptor_t;
+typedef MTLRenderPipelineReflection *mtl_render_pipeline_reflection_t;
+typedef MTLDepthStencilDescriptor *mtl_depth_stencil_descriptor_t;
+typedef id<MTLDepthStencilState> mtl_depth_stencil_state_t;
+typedef id<MTLRenderPipelineState> mtl_render_pipeline_state_t;
+typedef MTLVertexDescriptor *mtl_vertex_descriptor_t;
 typedef id<CAMetalDrawable> mtl_ca_drawable_t;
+typedef id<MTLSamplerState> mtl_sampler_state_t;
+typedef id<MTLTexture> mtl_texture_t;
 typedef CAMetalLayer *mtl_ca_layer_t;
+typedef id<MTLBuffer> mtl_buffer_t;
+typedef CGColorSpaceRef cg_colorspace_ref_t;
 typedef NSAutoreleasePool *ns_autorelease_pool_t;
 # else /* !IMPLEMENTOR || !__OBJC__ */
 typedef void *mtl_device_t;
+typedef void *mtl_library_t;
+typedef void *mtl_function_t;
 typedef void *mtl_command_queue_t;
 typedef void *mtl_command_buffer_t;
 typedef void *mtl_render_command_encoder_t;
 typedef void *mtl_render_pass_descriptor_t;
+typedef void *mtl_render_pipeline_descriptor_t;
+typedef void *mtl_render_pipeline_reflection_t;
+typedef void *mtl_depth_stencil_descriptor_t;
+typedef void *mtl_depth_stencil_state_t;
+typedef void *mtl_render_pipeline_state_t;
+typedef void *mtl_vertex_descriptor_t;
 typedef void *mtl_ca_drawable_t;
 typedef void *mtl_ca_layer_t;
+typedef void *mtl_texture_t;
+typedef void *mtl_sampler_state_t;
+typedef void *mtl_buffer_t;
+typedef void *cg_colorspace_ref_t;
 typedef void *ns_autorelease_pool_t;
+# ifndef __OBJC__
+typedef void *dispatch_semaphore_t;
+# endif /* !__OBJC__ */
 # endif /* !IMPLEMENTOR || !__OBJC__ */
+// Metal's integral types are landmines between C and ObjC
+typedef uint64_t mtl_cull_mode_t;
 #else
 # error "Unsupported renderer"
 #endif
@@ -89,8 +119,6 @@ enum {
 };
 
 TYPE_FORWARD(buffer);
-TYPE_FORWARD(renderer);
-
 TYPE_FORWARD(renderer);
 
 typedef struct buffer_init_options {
@@ -132,10 +160,18 @@ TYPE(buffer,
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(buffer,
     struct ref      ref;
+    renderer_t      *renderer;
+    mtl_buffer_t    buf;
+    size_t          off;
+    size_t          stride;
+    size_t          size;
+    data_type       comp_type;
+    unsigned int    comp_count;
+    char            *name;
     bool            loaded;
+    uniform_t       loc;
 #ifndef CONFIG_FINAL
     buffer_init_options opts;
-    uniform_t           loc;
 #endif /* CONFIG_FINAL */
 );
 #endif /* CONFIG_RENDERER_OPENGL */
@@ -147,7 +183,15 @@ void buffer_deinit(buffer_t *buf);
 void buffer_bind(buffer_t *buf, uniform_t loc);
 void buffer_unbind(buffer_t *buf, uniform_t loc);
 bool buffer_loaded(buffer_t *buf);
+#ifdef CONFIG_RENDERER_OPENGL
 static inline cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...) { return cres_error(int, CERR_NOT_SUPPORTED); }
+#else
+# ifdef CONFIG_FINAL
+static inline cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...) { return cres_val(int, 0); }
+# else /* !CONFIG_FINAL */
+cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...);
+# endif /* !CONFIG_FINAL */
+#endif /* !CONFIG_FINAL */
 
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(vertex_array,
@@ -156,7 +200,9 @@ TYPE(vertex_array,
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(vertex_array,
-    struct ref      ref;
+    struct ref  ref;
+    renderer_t  *renderer;
+    buffer_t    *index;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -169,10 +215,46 @@ void vertex_array_done(vertex_array_t *va);
 void vertex_array_bind(vertex_array_t *va);
 void vertex_array_unbind(vertex_array_t *va);
 
+TYPE_FORWARD(shader);
+TYPE_FORWARD(fbo);
+
+DEFINE_REFCLASS_INIT_OPTIONS(draw_control,
+    renderer_t  *renderer;
+    shader_t    *shader;
+    fbo_t       *fbo;
+    const char  *name;
+);
+
+#ifdef CONFIG_RENDERER_OPENGL
+TYPE(draw_control,
+    struct ref  ref;
+);
+#elif defined(CONFIG_RENDERER_METAL)
+TYPE(draw_control,
+    struct ref                          ref;
+    renderer_t                          *renderer;
+    struct list                         shader_entry;
+    struct list                         hash_entry;
+    shader_t                            *shader;
+    fbo_t                               *fbo;
+    mtl_depth_stencil_state_t           depth_stencil;
+    mtl_render_pipeline_state_t         pipeline[2];
+    mtl_render_pipeline_reflection_t    reflection;
+);
+#endif /* CONFIG_RENDERER_OPENGL */
+
+#define draw_control_init(_dc, args...) \
+    _draw_control_init((_dc), &(draw_control_init_options){ args })
+cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opts);
+void draw_control_done(draw_control_t *dc);
+void draw_control_bind(draw_control_t *dc);
+void draw_control_unbind(draw_control_t *dc);
+
 typedef enum texture_type {
-    TEX_2D,
+    TEX_2D,         /* default comes first */
     TEX_2D_ARRAY,
     TEX_3D,
+    TEX_1D,
 } texture_type;
 
 typedef enum texture_wrap {
@@ -210,6 +292,11 @@ typedef enum texture_format {
     TEX_FMT_R32UI,
     TEX_FMT_RG32UI,
     TEX_FMT_RGBA32UI,
+#ifndef CONFIG_RENDERER_OPENGL
+    TEX_FMT_BGRA8,
+    TEX_FMT_BGR10A2,
+    TEX_FMT_BGRA10XR,
+#endif /* !CONFIG_RENDERER_OPENGL */
     TEX_FMT_MAX,
 } texture_format;
 
@@ -223,6 +310,7 @@ typedef struct texture_init_options {
     texture_format      format;
     unsigned int        layers;
     bool                multisampled;
+    bool                render_target;
     float               *border;
     const char          *name;
 } texture_init_options;
@@ -252,11 +340,20 @@ TYPE(texture,
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(texture,
-    struct ref      ref;
-    int             width;
-    int             height;
-    int             id;
-    bool            loaded;
+    struct ref          ref;
+    renderer_t          *renderer;
+    mtl_texture_t       texture;
+    mtl_sampler_state_t sampler;
+    texture_type        type;
+    texture_format      format;
+    int                 target;
+    int                 width;
+    int                 height;
+    unsigned int        layers;
+    bool                loaded;
+    bool                multisampled;
+    bool                render_target;
+    char                *name;
 #ifndef CONFIG_FINAL
     texture_init_options    opts;
 #endif /* CONFIG_FINAL */
@@ -269,7 +366,7 @@ typedef enum fbo_attachment_type {
     FBO_ATTACHMENT_COLOR0,
 } fbo_attachment_type;
 
-typedef int texid_t;
+typedef uint64_t texid_t;
 
 bool texture_format_supported(texture_format format);
 const char *texture_format_string(texture_format fmt);
@@ -297,7 +394,16 @@ void textures_done(void);
 texture_t *white_pixel(void);
 texture_t *black_pixel(void);
 texture_t *transparent_pixel(void);
+#ifdef CONFIG_RENDERER_OPENGL
 static inline cres(int) texture_set_name(texture_t *tex, const char *fmt, ...) { return cres_error(int, CERR_NOT_SUPPORTED); }
+#else
+# ifdef CONFIG_FINAL
+static inline cres(int) texture_set_name(texture_t *tex, const char *fmt, ...) { return cres_val(int, 0); }
+# else /* !CONFIG_FINAL */
+cres(int) texture_set_name(texture_t *tex, const char *fmt, ...);
+# endif /* !CONFIG_FINAL */
+#endif /* !CONFIG_FINAL */
+
 
 /*
  * fbo_attachment describes both individual attachments
@@ -469,15 +575,21 @@ TYPE(fbo,
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(fbo,
-    struct ref      ref;
-    texture_t       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
-    texture_t       depth_tex;
-    unsigned int    width;
-    unsigned int    height;
-    unsigned int    layers;
-    fbo_attachment  layout;
-    fbo_attconfig   *color_config;
-    fbo_attconfig   depth_config;
+    struct ref                      ref;
+    renderer_t                      *renderer;
+    texture_t                       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
+    texture_t                       depth_tex;
+    mtl_render_pass_descriptor_t    desc;
+    mtl_render_command_encoder_t    cmd_encoder;
+    unsigned int                    width;
+    unsigned int                    height;
+    unsigned int                    layers;
+    unsigned int                    nr_samples;
+    fbo_attachment                  layout;
+    fbo_attconfig                   *color_config;
+    fbo_attconfig                   depth_config;
+    unsigned int                    id;
+    const char                      *name;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -536,12 +648,15 @@ typedef enum {
 #if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_METAL)
 TYPE(binding_points,
     int binding;
+    int stages;
 );
 #endif
 
 void binding_points_init(binding_points_t *bps);
 void binding_points_done(binding_points_t *bps);
 void binding_points_add(binding_points_t *bps, shader_stage stage, int binding);
+
+#define MTL_INFLIGHT_FRAMES 3
 
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(uniform_buffer,
@@ -554,10 +669,19 @@ TYPE(uniform_buffer,
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(uniform_buffer,
-    struct ref  ref;
-    size_t      size;     /* Size in bytes */
-    void        *data;    /* CPU-side shadow buffer */
-    bool        dirty;    /* Flag for updates */
+    struct ref              ref;
+    renderer_t              *renderer;
+    mtl_buffer_t            buf[MTL_INFLIGHT_FRAMES];
+    const char              *name;
+    size_t                  size;     /* Size in bytes */
+    size_t                  total_size;
+    void                    *data;    /* CPU-side shadow buffer */
+    void                    *prev;    /* previous shadow buffer */
+    size_t                  item;
+    struct list             entry;
+    int                     binding;  /* UBO binding point */
+    bool                    advance;
+    bool                    dirty;    /* Flag for updates */
 );
 #endif
 
@@ -592,7 +716,14 @@ TYPE(shader,
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(shader,
-    struct ref      ref;
+    renderer_t                          *renderer;
+    struct list                         dc_list;
+    mtl_function_t                      vert;
+    mtl_function_t                      frag;
+    mtl_vertex_descriptor_t             vdesc;
+    mtl_render_pipeline_reflection_t    reflection;
+    const char                          *name;
+    unsigned int                        id;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -636,6 +767,8 @@ typedef enum render_limit {
     RENDER_LIMIT_MAX,
 } render_limit;
 
+#define SLOTS_MAX   32
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(renderer,
     GLenum              cull_face;
@@ -657,25 +790,46 @@ TYPE(renderer,
     bool                mac_amd_quirk;
 );
 #elif defined(CONFIG_RENDERER_METAL)
+#define FBOS_MAX 1024
+#define SHADERS_MAX 1024
 TYPE(renderer,
-    struct ref                      ref;
-    ns_autorelease_pool_t           frame_pool;
-    mtl_device_t                    device;
-    mtl_command_queue_t             cmd_queue;
-    mtl_command_buffer_t            cmd_buffer;
-    mtl_render_command_encoder_t    cmd_encoder;
-    mtl_render_pass_descriptor_t    screen_desc;
-    mtl_ca_layer_t                  layer;
-    mtl_ca_drawable_t               drawable;
-    int                             major;
-    int                             minor;
-    renderer_profile                profile;
-    vec4                            clear_color;
-    int                             x;
-    int                             y;
-    int                             width;
-    int                             height;
-    bool                            depth_test;
+    struct ref                          ref;
+    ns_autorelease_pool_t               frame_pool;
+    mtl_device_t                        device;
+    mtl_command_queue_t                 cmd_queue;
+    mtl_command_buffer_t                cmd_buffer;
+    dispatch_semaphore_t                sem;
+    mtl_ca_layer_t                      layer;
+    mtl_ca_drawable_t                   drawable;
+    vertex_array_t                      *va;
+    draw_control_t                      *dc;
+    fbo_t                               *screen_fbo;
+    fbo_t                               *fbo;
+    void                                *vbuffer_cache[SLOTS_MAX];
+    void                                *fbuffer_cache[SLOTS_MAX];
+    size_t                              voffset_cache[SLOTS_MAX];
+    size_t                              foffset_cache[SLOTS_MAX];
+    void                                *texture_cache[SLOTS_MAX];
+    void                                *sampler_cache[SLOTS_MAX];
+    struct bitmap                       fbo_ids;
+    struct bitmap                       shader_ids;
+    struct list                         dc_hash[256];
+    struct list                         ubos;
+    cg_colorspace_ref_t                 colorspace;
+    int                                 major;
+    int                                 minor;
+    int                                 fps_cap;
+    renderer_profile                    profile;
+    int                                 x;
+    int                                 y;
+    int                                 width;
+    int                                 height;
+    mtl_cull_mode_t                     cull_mode;
+    size_t                              nr_draws;
+    double                              cmdbuf_time;
+    int                                 cmdbuf_count;
+    int                                 frame_idx;
+    bool                                blend;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -695,16 +849,16 @@ void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_p
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 
+void renderer_swapchain_begin(renderer_t *renderer);
+
 #ifdef CONFIG_RENDERER_METAL
 void renderer_done(renderer_t *r);
 void renderer_frame_begin(renderer_t *renderer);
-static inline void renderer_swapchain_begin(renderer_t *renderer) {}
-static inline void renderer_swapchain_end(renderer_t *renderer) {}
+void renderer_swapchain_end(renderer_t *r);
 void renderer_frame_end(renderer_t *renderer);
 #else
 static inline void renderer_frame_begin(renderer_t *renderer) {}
 static inline void renderer_frame_end(renderer_t *renderer) {}
-void renderer_swapchain_begin(renderer_t *renderer);
 static inline void renderer_swapchain_end(renderer_t *renderer) {}
 static inline void renderer_done(renderer_t *renderer) {}
 #endif /* CONFIG_RENDERER_METAL */

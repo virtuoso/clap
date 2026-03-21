@@ -231,7 +231,7 @@ static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars v
     auto tex = CRES_RET_CERR(model3dtx_texture(txm, var));
 
     err = load_texture_buffer(prog, input, width, height, color_format, var, tex);
-    dbg("loaded texture%d %d %dx%d\n", slot, texture_id(tex), width, height);
+    dbg("loaded texture%d %d %dx%d\n", slot, (int)texture_id(tex), width, height);
 
     return err;
 }
