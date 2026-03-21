@@ -3,6 +3,7 @@
 #include "shader_constants.h"
 #include "pass-tex.glsl"
 #include "ndc-z.glsl"
+#include "linearize-depth.glsl"
 
 layout (location=0) out float FragColor;
 layout (location=0) in vec2 pass_tex;
@@ -14,19 +15,12 @@ layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 #include "ubo_projview.glsl"
 #include "ubo_postproc.glsl"
 
-// Linearize z-buffer depth (view space)
-float linearize_depth(float depth)
-{
-    float z = convert_to_ndc_z(depth);
-    return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
-}
-
 void main()
 {
     // View-space position reconstruction
     float depth = texture(model_tex, pass_tex).r;
     float ndc_z = convert_to_ndc_z(depth);
-    float view_depth = linearize_depth(depth);
+    float view_depth = linearize_depth_ndc(ndc_z, near_plane, far_plane);
 
     vec2 noise_uv = pass_tex * ssao_noise_scale;
     vec3 random_vec = vec3(normalize(texture(sobel_tex, noise_uv).xy), 0.0);
