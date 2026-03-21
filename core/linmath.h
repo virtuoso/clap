@@ -188,6 +188,7 @@ LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n ##_post(vec## n r, mat## n 
 	vec## n ##_dup(r, temp); \
 }
 
+LINMATH_DEFINE_MAT(2);
 LINMATH_DEFINE_MAT(3);
 LINMATH_DEFINE_MAT(4);
 
