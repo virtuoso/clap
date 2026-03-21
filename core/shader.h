@@ -64,6 +64,7 @@
  *                                      COLOR_PT_ALL: override all color components
  * @UNIFORM_SHADOW_VSM:                 use Variance Shadow Mapping (otherwise CSM)
  * @UNIFORM_SHADOW_MVP:                 array of proj * view matrices for shadow cascades
+ * @UNIFORM_LIGHT_FAR:                  array of far plane distances of shadow cascades
  * @UNIFORM_CASCADE_DISTANCES:          array of cascade distances from the camera
  * @UNIFORM_SHADOW_TINT:                color of the shadow tint
  * @UNIFORM_SHADOW_OUTLINE:             boolean: outline edges of shadows
@@ -152,6 +153,7 @@ enum shader_vars {
     UNIFORM_COLOR_PASSTHROUGH,
     UNIFORM_SHADOW_VSM,
     UNIFORM_SHADOW_MVP,
+    UNIFORM_LIGHT_FAR,
     UNIFORM_CASCADE_DISTANCES,
     UNIFORM_SHADOW_TINT,
     UNIFORM_SHADOW_OUTLINE,

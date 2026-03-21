@@ -750,14 +750,17 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_AMBIENT, 1, light->ambient);
                 shader_set_var_ptr(prog, UNIFORM_SHADOW_TINT, 1, light->shadow_tint);
                 if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
+                    float light_far[CASCADES_MAX];
                     mat4x4 mvp[CASCADES_MAX];
                     int i;
 
                     for (i = 0; i < CASCADES_MAX; i++) {
                         struct subview *light_sv = &light->view[0].subview[i];
                         mat4x4_mul(mvp[i], light_sv->proj_mx, light_sv->view_mx);
+                        light_far[i] = light_sv->far_plane;
                     }
                     shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
+                    shader_set_var_ptr(prog, UNIFORM_LIGHT_FAR, CASCADES_MAX, light_far);
                 }
             }
 
