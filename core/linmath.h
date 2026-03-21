@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <string.h>
+#include "config.h"
 
 #ifdef LINMATH_NO_INLINE
 #define LINMATH_H_FUNC static
@@ -423,7 +424,8 @@ LINMATH_H_FUNC void mat4x4_frustum(mat4x4 M, float l, float r, float b, float t,
 	M[3][2] = -2.f*(f*n)/(f-n);
 	M[3][0] = M[3][1] = M[3][3] = 0.f;
 }
-LINMATH_H_FUNC void mat4x4_ortho(mat4x4 M, float l, float r, float b, float t, float n, float f)
+/* NDC Z is [-1.0, 1.0] */
+LINMATH_H_FUNC void mat4x4_ortho_ndc_z_2(mat4x4 M, float l, float r, float b, float t, float n, float f)
 {
 	M[0][0] = 2.f/(r-l);
 	M[0][1] = M[0][2] = M[0][3] = 0.f;
@@ -439,7 +441,8 @@ LINMATH_H_FUNC void mat4x4_ortho(mat4x4 M, float l, float r, float b, float t, f
 	M[3][2] = -(f+n)/(f-n);
 	M[3][3] = 1.f;
 }
-LINMATH_H_FUNC void mat4x4_perspective(mat4x4 m, float y_fov, float aspect, float n, float f)
+/* NDC Z is [-1.0, 1.0] */
+LINMATH_H_FUNC void mat4x4_perspective_ndc_z_2(mat4x4 m, float y_fov, float aspect, float n, float f)
 {
 	/* NOTE: Degrees are an unhandy unit to work with.
 	 * linmath.h uses radians for everything! */
@@ -464,6 +467,64 @@ LINMATH_H_FUNC void mat4x4_perspective(mat4x4 m, float y_fov, float aspect, floa
 	m[3][1] = 0.f;
 	m[3][2] = -((2.f * f * n) / (f - n));
 	m[3][3] = 0.f;
+}
+/* NDC Z is [0.0, 1.0] */
+LINMATH_H_FUNC void mat4x4_ortho_ndc_z_1(mat4x4 M, float l, float r, float b, float t, float n, float f)
+{
+	M[0][0] = 2.f/(r-l);
+	M[0][1] = M[0][2] = M[0][3] = 0.f;
+
+	M[1][1] = 2.f/(t-b);
+	M[1][0] = M[1][2] = M[1][3] = 0.f;
+
+	M[2][2] = -1.f/(f-n);
+	M[2][0] = M[2][1] = M[2][3] = 0.f;
+
+	M[3][0] = -(r+l)/(r-l);
+	M[3][1] = -(t+b)/(t-b);
+	M[3][2] = -(n)/(f-n);
+	M[3][3] = 1.f;
+}
+/* NDC Z is [0.0, 1.0] */
+LINMATH_H_FUNC void mat4x4_perspective_ndc_z_1(mat4x4 m, float y_fov, float aspect, float n, float f)
+{
+	float const a = 1.f / tan(y_fov / 2.f);
+
+	m[0][0] = a / aspect;
+	m[0][1] = 0.f;
+	m[0][2] = 0.f;
+	m[0][3] = 0.f;
+
+	m[1][0] = 0.f;
+	m[1][1] = a;
+	m[1][2] = 0.f;
+	m[1][3] = 0.f;
+
+	m[2][0] = 0.f;
+	m[2][1] = 0.f;
+	m[2][2] = -((f) / (f - n));
+	m[2][3] = -1.f;
+
+	m[3][0] = 0.f;
+	m[3][1] = 0.f;
+	m[3][2] = -((f * n) / (f - n));
+	m[3][3] = 0.f;
+}
+LINMATH_H_FUNC void mat4x4_ortho(mat4x4 M, float l, float r, float b, float t, float n, float f)
+{
+#ifdef CONFIG_NDC_ZERO_ONE
+	mat4x4_ortho_ndc_z_1(M, l, r, b, t, n, f);
+#else /* !CONFIG_NDC_ZERO_ONE */
+	mat4x4_ortho_ndc_z_2(M, l, r, b, t, n, f);
+#endif /* !CONFIG_NDC_ZERO_ONE */
+}
+LINMATH_H_FUNC void mat4x4_perspective(mat4x4 m, float y_fov, float aspect, float n, float f)
+{
+#ifdef CONFIG_NDC_ZERO_ONE
+	mat4x4_perspective_ndc_z_1(m, y_fov, aspect, n, f);
+#else /* !CONFIG_NDC_ZERO_ONE */
+	mat4x4_perspective_ndc_z_2(m, y_fov, aspect, n, f);
+#endif /* !CONFIG_NDC_ZERO_ONE */
 }
 LINMATH_H_FUNC void mat4x4_look_at(mat4x4 m, vec3 eye, vec3 center, vec3 up)
 {
