@@ -562,6 +562,12 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
             .width      = fbo_ui.width,
             .height     = fbo_ui.height,
             .layout     = FBO_COLOR_TEXTURE(0),
+            .color_config = (fbo_attconfig[]) {
+                {
+                    .format         = TEX_FMT_RGBA8,
+                    .load_action    = FBOLOAD_CLEAR,
+                }
+            },
         ),
         return NULL
     );
@@ -617,9 +623,6 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     }
 
     fbo_prepare(fbo);
-    renderer_depth_test(ui->renderer, false);
-    renderer_clearcolor(ui->renderer, (vec4){});
-    renderer_clear(ui->renderer, true, true, false);
     models_render(ui->renderer, &fbo_ui.mq);
     mq_release(&fbo_ui.mq);
     fbo_done(fbo, ui->width, ui->height);

@@ -417,16 +417,50 @@ static inline int fbo_attachment_color(fbo_attachment attachment)
          fa_nr_color_ ## _kind((_it)) <= fa_nr_color_ ## _kind(_fa); \
          (_it).color_ ## _kind ## s = (_it).color_ ## _kind ## s * 2 + 1)
 
+typedef enum fbo_load_action {
+    FBOLOAD_LOAD = 0,
+    FBOLOAD_CLEAR,
+    FBOLOAD_DONTCARE,
+} fbo_load_action;
+
+typedef enum fbo_store_action {
+    FBOSTORE_STORE = 0,
+    FBOSTORE_MS_RESOLVE,
+    FBOSTORE_DONTCARE,
+} fbo_store_action;
+
+typedef enum {
+    DEPTH_FN_ALWAYS,
+    DEPTH_FN_NEVER,
+    DEPTH_FN_LESS,
+    DEPTH_FN_EQUAL,
+    DEPTH_FN_LESS_OR_EQUAL,
+    DEPTH_FN_GREATER,
+    DEPTH_FN_NOT_EQUAL,
+    DEPTH_FN_GREATER_OR_EQUAL,
+} depth_func;
+
+typedef struct fbo_attconfig {
+    texture_format      format;
+    fbo_load_action     load_action;
+    fbo_store_action    store_action;
+    depth_func          depth_func;
+    vec4                clear_color;
+    double              clear_depth;
+    uint32_t            clear_stencil;
+} fbo_attconfig;
+
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(fbo,
     struct ref      ref;
+    renderer_t      *renderer;
     unsigned int    width;
     unsigned int    height;
     unsigned int    layers;
     unsigned int    fbo;
     fbo_attachment  layout;
-    texture_format  *color_format;
-    texture_format  depth_format;
+    fbo_attconfig   *color_config;
+    fbo_attconfig   depth_config;
     texture_t       depth_tex;
     int             color_buf[FBO_COLOR_ATTACHMENTS_MAX];
     texture_t       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
@@ -442,8 +476,8 @@ TYPE(fbo,
     unsigned int    height;
     unsigned int    layers;
     fbo_attachment  layout;
-    texture_format  *color_format;
-    texture_format  depth_format;
+    fbo_attconfig   *color_config;
+    fbo_attconfig   depth_config;
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -460,8 +494,8 @@ typedef struct fbo_init_options {
     unsigned int    layers;
     fbo_attachment  layout;
     unsigned int    nr_samples;
-    texture_format  *color_format;
-    texture_format  depth_format;
+    fbo_attconfig   *color_config;
+    fbo_attconfig   depth_config;
     bool            multisampled;
     const char      *name;
 } fbo_init_options;
@@ -584,17 +618,6 @@ typedef enum {
     RENDERER_ANY_PROFILE,
 } renderer_profile;
 
-typedef enum {
-    DEPTH_FN_NEVER,
-    DEPTH_FN_LESS,
-    DEPTH_FN_EQUAL,
-    DEPTH_FN_LESS_OR_EQUAL,
-    DEPTH_FN_GREATER,
-    DEPTH_FN_NOT_EQUAL,
-    DEPTH_FN_GREATER_OR_EQUAL,
-    DEPTH_FN_ALWAYS,
-} depth_func;
-
 typedef enum render_limit {
     RENDER_LIMIT_MAX_TEXTURE_SIZE,
     RENDER_LIMIT_MAX_TEXTURE_UNITS,
@@ -681,7 +704,7 @@ void renderer_frame_end(renderer_t *renderer);
 #else
 static inline void renderer_frame_begin(renderer_t *renderer) {}
 static inline void renderer_frame_end(renderer_t *renderer) {}
-static inline void renderer_swapchain_begin(renderer_t *renderer) {}
+void renderer_swapchain_begin(renderer_t *renderer);
 static inline void renderer_swapchain_end(renderer_t *renderer) {}
 static inline void renderer_done(renderer_t *renderer) {}
 #endif /* CONFIG_RENDERER_METAL */
@@ -713,12 +736,7 @@ typedef enum {
 } blend;
 
 void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
-void renderer_depth_func(renderer_t *r, depth_func fn);
-void renderer_cleardepth(renderer_t *r, double depth);
-void renderer_depth_test(renderer_t *r, bool enable);
 void renderer_wireframe(renderer_t *r, bool enable);
-void renderer_clearcolor(renderer_t *r, vec4 color);
-void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil);
 
 typedef enum {
     DRAW_TYPE_POINTS = 0,
