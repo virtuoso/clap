@@ -40,6 +40,8 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
     set(SHADER_DIR "${SHADER_DIR}${PREPROCESS_SHADERS_TARGET}")
     # Intermediate directory with the suffix
     set(SPIRV_DIR "${SPIRV_DIR}${PREPROCESS_SHADERS_TARGET}")
+    set(SPIRV_OUTPUT "${SPIRV_DIR}/${shader}.spv")
+    set(SPIRV_DEPFILE "${SPIRV_OUTPUT}.d")
 
     LIST(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${shader}")
     LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}")
@@ -47,34 +49,42 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
         LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}.json")
     endif ()
 
-    if (EXISTS "${SPIRV_DIR}/${shader}.spv.d")
-        file(READ "${SPIRV_DIR}/${shader}.spv.d" implicit_depends)
-        string(REPLACE "${SPIRV_DIR}/${shader}.spv: " "" implicit_depends ${implicit_depends})
-        string(REPLACE " " ";" implicit_depends ${implicit_depends})
+    set(shader_depfile_args "")
+    if (CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
+        list(APPEND shader_depfile_args DEPFILE "${SPIRV_DEPFILE}")
     endif ()
 
     # Command to build an intermediate representation of ${shader}
     add_custom_command(
-        OUTPUT "${SPIRV_DIR}/${shader}.spv"
-        DEPENDS make-shader-ir-dir${PREPROCESS_SHADERS_TARGET} "${SHADER_SOURCE_DIR}/${shader}" "${implicit_depends}"
+        OUTPUT "${SPIRV_OUTPUT}"
+        BYPRODUCTS "${SPIRV_DEPFILE}"
+        DEPENDS make-shader-ir-dir${PREPROCESS_SHADERS_TARGET} "${SHADER_SOURCE_DIR}/${shader}"
         COMMAND "${GLSLC}"
-        ARGS -MD -fshader-stage=${stage} ${GLSLC_ARGS} -o ${SPIRV_DIR}/${shader}.spv -c ${SHADER_SOURCE_DIR}/${shader}
+        ARGS
+            -MD
+            -MF "${SPIRV_DEPFILE}"
+            -MT "${SPIRV_OUTPUT}"
+            -fshader-stage=${stage}
+            ${GLSLC_ARGS}
+            -o "${SPIRV_OUTPUT}"
+            -c "${SHADER_SOURCE_DIR}/${shader}"
+        ${shader_depfile_args}
     )
 
     # Command to build the final ${shader}
     add_custom_command(
         OUTPUT "${SHADER_DIR}/${shader}"
-        DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_DIR}/${shader}.spv"
+        DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}"
         COMMAND "${SPIRV_CROSS}"
-        ARGS ${SPIRV_CROSS_ARGS} ${SPIRV_DIR}/${shader}.spv --output ${SHADER_DIR}/${shader}
+        ARGS ${SPIRV_CROSS_ARGS} "${SPIRV_OUTPUT}" --output "${SHADER_DIR}/${shader}"
     )
 
     if (NOT CONFIG_RENDERER_OPENGL)
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${shader}.json"
-            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_DIR}/${shader}.spv"
+            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}"
             COMMAND "${SPIRV_CROSS}"
-            ARGS ${SPIRV_DIR}/${shader}.spv --reflect --output ${SHADER_DIR}/${shader}.json
+            ARGS "${SPIRV_OUTPUT}" --reflect --output "${SHADER_DIR}/${shader}.json"
         )
     endif ()
 
