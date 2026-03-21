@@ -91,7 +91,10 @@ enum {
 TYPE_FORWARD(buffer);
 TYPE_FORWARD(renderer);
 
+TYPE_FORWARD(renderer);
+
 typedef struct buffer_init_options {
+    renderer_t          *renderer;
     buffer_type         type;
     buffer_usage        usage;
     data_type           comp_type;
@@ -105,6 +108,7 @@ typedef struct buffer_init_options {
     buffer_t            *main;
     void                *data;
     size_t              size;
+    const char          *name;
 } buffer_init_options;
 
 #ifdef CONFIG_RENDERER_OPENGL
@@ -143,6 +147,7 @@ void buffer_deinit(buffer_t *buf);
 void buffer_bind(buffer_t *buf, uniform_t loc);
 void buffer_unbind(buffer_t *buf, uniform_t loc);
 bool buffer_loaded(buffer_t *buf);
+static inline cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...) { return cres_error(int, CERR_NOT_SUPPORTED); }
 
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(vertex_array,
@@ -155,7 +160,11 @@ TYPE(vertex_array,
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
-cerr_check vertex_array_init(vertex_array_t *va);
+DEFINE_REFCLASS_INIT_OPTIONS(vertex_array,
+    renderer_t  *renderer;
+);
+
+cerr_check vertex_array_init(vertex_array_t *va, renderer_t *r);
 void vertex_array_done(vertex_array_t *va);
 void vertex_array_bind(vertex_array_t *va);
 void vertex_array_unbind(vertex_array_t *va);
@@ -215,6 +224,7 @@ typedef struct texture_init_options {
     unsigned int        layers;
     bool                multisampled;
     float               *border;
+    const char          *name;
 } texture_init_options;
 
 #ifdef CONFIG_RENDERER_OPENGL
@@ -287,6 +297,7 @@ void textures_done(void);
 texture_t *white_pixel(void);
 texture_t *black_pixel(void);
 texture_t *transparent_pixel(void);
+static inline cres(int) texture_set_name(texture_t *tex, const char *fmt, ...) { return cres_error(int, CERR_NOT_SUPPORTED); }
 
 /*
  * fbo_attachment describes both individual attachments
@@ -452,6 +463,7 @@ typedef struct fbo_init_options {
     texture_format  *color_format;
     texture_format  depth_format;
     bool            multisampled;
+    const char      *name;
 } fbo_init_options;
 
 bool fbo_texture_supported(texture_format format);
@@ -516,13 +528,16 @@ TYPE(uniform_buffer,
 #endif
 
 DEFINE_REFCLASS_INIT_OPTIONS(uniform_buffer,
-    int     binding;
+    renderer_t              *renderer;
+    const char              *name;
+    int                     binding;
 );
 
-cerr_check uniform_buffer_init(uniform_buffer_t *ubo, int binding);
+cerr_check uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
+                               int binding);
 cerr_check uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
 void uniform_buffer_done(uniform_buffer_t *ubo);
-void uniform_buffer_update(uniform_buffer_t *ubo);
+void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points);
 cerr_check uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points);
 
 /*
@@ -547,14 +562,19 @@ TYPE(shader,
 );
 #endif /* CONFIG_RENDERER_OPENGL */
 
-cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, const char *fragment);
+cerr shader_init(renderer_t *r, shader_t *shader,
+                 const char *vertex, const char *geometry, const char *fragment);
+void shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                             size_t *offs, data_type *types, size_t *comp_counts,
+                             unsigned int nr_attrs);
 void shader_done(shader_t *shader);
 int shader_id(shader_t *shader);
 cerr_check shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
 attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr);
 uniform_t shader_uniform(shader_t *shader, const char *name);
-void shader_use(shader_t *shader);
-void shader_unuse(shader_t *shader);
+
+void shader_use(shader_t *shader, bool draw);
+void shader_unuse(shader_t *shader, bool draw);
 /* Query a uniform offset within a uniform block as expected by the shader */
 cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
 void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value);
@@ -655,10 +675,14 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
 #ifdef CONFIG_RENDERER_METAL
 void renderer_done(renderer_t *r);
 void renderer_frame_begin(renderer_t *renderer);
+static inline void renderer_swapchain_begin(renderer_t *renderer) {}
+static inline void renderer_swapchain_end(renderer_t *renderer) {}
 void renderer_frame_end(renderer_t *renderer);
 #else
 static inline void renderer_frame_begin(renderer_t *renderer) {}
 static inline void renderer_frame_end(renderer_t *renderer) {}
+static inline void renderer_swapchain_begin(renderer_t *renderer) {}
+static inline void renderer_swapchain_end(renderer_t *renderer) {}
 static inline void renderer_done(renderer_t *renderer) {}
 #endif /* CONFIG_RENDERER_METAL */
 

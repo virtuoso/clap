@@ -270,10 +270,9 @@ static void vertex_array_drop(struct ref *ref)
     vertex_array_done(va);
 }
 
-DEFINE_REFCLASS_INIT_OPTIONS(vertex_array);
 DEFINE_REFCLASS(vertex_array);
 
-cerr vertex_array_init(vertex_array_t *va)
+cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
     cerr err = ref_embed(vertex_array, va);
     if (IS_CERR(err))
@@ -1299,7 +1298,8 @@ static void uniform_buffer_drop(struct ref *ref)
 }
 DEFINE_REFCLASS2(uniform_buffer);
 
-cerr_check uniform_buffer_init(uniform_buffer_t *ubo, int binding)
+cerr_check uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
+                               int binding)
 {
     return ref_embed(uniform_buffer, ubo, .binding = binding);
 }
@@ -1310,6 +1310,16 @@ void uniform_buffer_done(uniform_buffer_t *ubo)
         ref_put_last(ubo);
     else
         uniform_buffer_drop(&ubo->ref);
+}
+
+cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                               unsigned int count, const void *value);
+
+cerr_check
+uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                   unsigned int count, const void *value)
+{
+    return _uniform_buffer_set(ubo, type, offset, size, count, value);
 }
 
 cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
@@ -1351,7 +1361,7 @@ cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points
     return CERR_OK;
 }
 
-void uniform_buffer_update(uniform_buffer_t *ubo)
+void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     if (!ubo->dirty)
         return;
@@ -1411,7 +1421,7 @@ static GLuint load_shader(GLenum type, const char *source)
     return shader;
 }
 
-cerr shader_init(shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
+cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
 {
     shader->vert = load_shader(GL_VERTEX_SHADER, vertex);
     shader->geom =
@@ -1470,6 +1480,12 @@ void shader_done(shader_t *shader)
         GL(glDeleteShader(shader->geom));
 }
 
+void shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                             size_t *offs, data_type *types, size_t *comp_counts,
+                             unsigned int nr_attrs)
+{
+}
+
 int shader_id(shader_t *shader)
 {
     return shader->prog;
@@ -1502,12 +1518,12 @@ uniform_t shader_uniform(shader_t *shader, const char *name)
     return glGetUniformLocation(shader->prog, name);
 }
 
-void shader_use(shader_t *shader)
+void shader_use(shader_t *shader, bool draw)
 {
     GL(glUseProgram(shader->prog));
 }
 
-void shader_unuse(shader_t *shader)
+void shader_unuse(shader_t *shader, bool draw)
 {
     GL(glUseProgram(0));
 }

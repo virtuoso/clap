@@ -67,6 +67,9 @@ loading_screen *loading_screen_init(struct ui *ui)
 
 void loading_screen_done(loading_screen *ls)
 {
+    renderer_frame_begin(ls->ui->renderer);
+    renderer_swapchain_begin(ls->ui->renderer);
+
     ref_put(ls->uit);
     ref_put(ls->uie);
     ref_put(ls->progress);
@@ -84,7 +87,10 @@ void loading_screen_progress(loading_screen *ls, float progress)
     ui_progress_bar_set_progress(ls->progress, progress);
 
     ui_update(ls->ui);
+    renderer_frame_begin(ls->ui->renderer);
+    renderer_swapchain_begin(ls->ui->renderer);
     models_render(ls->ui->renderer, &ls->ui->mq);
+    renderer_frame_end(ls->ui->renderer);
     display_swap_buffers();
 #endif /* CONFIG_BROWSER */
 }

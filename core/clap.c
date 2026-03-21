@@ -612,6 +612,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     memory_debug();
 
     imgui_render();
+    renderer_swapchain_end(&ctx->renderer);
     renderer_frame_end(&ctx->renderer);
     display_swap_buffers();
 

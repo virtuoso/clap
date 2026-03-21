@@ -274,7 +274,7 @@ cresp(shader_context) shader_vars_init(renderer_t *renderer)
 
         /* Initialize the uniform buffer */
         uniform_buffer_t *ub = &var_block->ub;
-        err = uniform_buffer_init(ub, desc->binding);
+        err = uniform_buffer_init(renderer, ub, desc->name, desc->binding);
         if (IS_CERR(err))
             goto error;
 
@@ -391,7 +391,7 @@ void shader_var_blocks_update(struct shader_prog *p)
         if (!var_block)
             continue;
 
-        uniform_buffer_update(&var_block->ub);
+        uniform_buffer_update(&var_block->ub, &var_block->binding_points);
     }
 }
 
@@ -499,6 +499,8 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
     p->attr_offs[0] = 0;
 
     size_t type_size = 0, prev_type_size = 0;
+    size_t attr_comp_count[ATTR_MAX];
+    data_type attr_types[ATTR_MAX];
     enum shader_vars v;
     int i;
     for (i = 0, v = 0; v < ATTR_MAX; v++) {
@@ -513,7 +515,9 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
          * mesh at this point, so we have to rely on static type information
          * relating mesh attributes
          */
-        type_size = data_type_size(mesh_attr_type(ma)) * mesh_attr_comp_count(ma);
+        attr_types[i] = mesh_attr_type(ma);
+        attr_comp_count[i] = mesh_attr_comp_count(ma);
+        type_size = data_type_size(attr_types[i]) * attr_comp_count[i];
         p->stride += type_size;
 
         if (i)
@@ -522,6 +526,8 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
         prev_type_size = type_size;
         i++;
     }
+
+    shader_set_vertex_attrs(&p->shader, p->stride, p->attr_offs, attr_types, attr_comp_count, v);
     p->mesh_attrs[i] = MESH_MAX;
     p->nr_attrs = i;
 }
@@ -543,6 +549,7 @@ cerr shader_setup_attributes(struct shader_prog *p, buffer_t *buf, struct mesh *
 
         CERR_RET(
             buffer_init(&buf[mesh_to_attr_map[ma]],
+                .renderer       = p->ctx->renderer,
                 .loc            = mesh_to_attr_map[ma],
                 .type           = BUF_ARRAY,
                 .usage          = BUF_STATIC,
@@ -557,8 +564,10 @@ cerr shader_setup_attributes(struct shader_prog *p, buffer_t *buf, struct mesh *
             { err = __cerr; goto attr_error; }
         );
 
-        if (p->mesh_attrs[i] == MESH_VX)
+        if (p->mesh_attrs[i] == MESH_VX) {
             main = &buf[mesh_to_attr_map[ma]];
+            buffer_set_name(main, "%s:vx", mesh->name);
+        }
     }
 
     mem_free(flat);
@@ -735,7 +744,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
     list_init(&p->entry);
     p->name = opts->name;
-    cerr err = shader_init(&p->shader, opts->vert_text, opts->geom_text, opts->frag_text);
+    cerr err = shader_init(opts->ctx->renderer, &p->shader, opts->vert_text, opts->geom_text, opts->frag_text);
     if (IS_CERR(err)) {
         err("couldn't create program '%s'\n", opts->name);
         ref_put(p);
@@ -746,7 +755,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     for (enum shader_vars v = 0; v < SHADER_VAR_MAX; v++)
         p->vars[v] = UA_UNKNOWN;
 
-    shader_prog_use(p);
+    shader_prog_use(p, false);
     shader_prog_link(p);
 
     cerr vert_ref_err = CERR_OK;
@@ -757,7 +766,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     if (opts->geom_ref_text)    geom_ref_err = shader_reflection_apply(p, opts->geom_ref_text);
     if (opts->frag_ref_text)    frag_ref_err = shader_reflection_apply(p, opts->frag_ref_text);
 
-    shader_prog_done(p);
+    shader_prog_done(p, false);
     if (!__shader_has_var(p, ATTR_POSITION)) {
         err("program '%s' doesn't have position attribute\n", p->name);
         ref_put_last(p);
@@ -847,15 +856,20 @@ renderer_t *shader_prog_renderer(struct shader_prog *p)
     return p->ctx->renderer;
 }
 
-void shader_prog_use(struct shader_prog *p)
+shader_t *shader_prog_shader(struct shader_prog *p)
 {
-    ref_get(p);
-    shader_use(&p->shader);
+    return &p->shader;
 }
 
-void shader_prog_done(struct shader_prog *p)
+void shader_prog_use(struct shader_prog *p, bool draw)
 {
-    shader_unuse(&p->shader);
+    ref_get(p);
+    shader_use(&p->shader, draw);
+}
+
+void shader_prog_done(struct shader_prog *p, bool draw)
+{
+    shader_unuse(&p->shader, draw);
     ref_put(p);
 }
 
