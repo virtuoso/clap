@@ -1293,6 +1293,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 
     model3d_set_name(txm->model, name);
 
+    txm->model->sfxc.on_add = scene->sfxc.on_add;
+    txm->model->sfxc.data = scene->sfxc.data;
+
     if (phys) {
         for (p = phys->children.head; p; p = p->next) {
             if (p->tag == JSON_NUMBER && !strcmp(p->key, "bounce"))
