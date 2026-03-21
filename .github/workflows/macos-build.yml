@@ -57,14 +57,10 @@ jobs:
           fi
           printf 'CLAP_OPTS="%s"\n' "$clap_opts" >> build_config
           ./configure.sh
-          cmake --preset=mtltest
-          cmake --preset=mtldebug
       - name: build
         run: |
           cd ${{ github.workspace }}
           ./build.sh
-          cmake --build build/mtltest --parallel 3
-          cmake --build build/mtldebug --parallel 3
           cmake --install build/rel --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/macos/rel"
           cmake --install build/test --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/macos/test"
           cmake --install build/debug --prefix="$GITHUB_WORKSPACE/clap/${{ github.ref_name }}/macos/debug"
