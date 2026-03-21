@@ -266,6 +266,8 @@ cresp(shader_context) shader_vars_init(renderer_t *renderer)
     /* Instantiate shader variable blocks */
     for (i = 0; i < array_size(shader_var_block_desc); i++) {
         const struct shader_var_block_desc *desc = &shader_var_block_desc[i];
+        if (!desc->name)    continue;
+
         struct shader_var_block *var_block = &ctx->var_blocks[i];
         size_t size = 0;
 
@@ -325,8 +327,10 @@ error:
 
 void shader_vars_done(shader_context *ctx)
 {
-    for (int i = 0; i < array_size(shader_var_block_desc); i++)
+    for (int i = 0; i < array_size(shader_var_block_desc); i++) {
+        if (!shader_var_block_desc[i].name) continue;
         shader_var_block_done(ctx, i);
+    }
 
     mem_free(ctx);
 }
@@ -363,7 +367,7 @@ const char *shader_name(struct shader_prog *p)
 static struct shader_var_block *
 shader_get_var_block_by_binding(struct shader_prog *p, int binding)
 {
-    if (binding < 0 || binding >= array_size(shader_var_block_desc))
+    if (!shader_var_block_desc[binding].name || binding >= array_size(shader_var_block_desc))
         return NULL;
 
     return p->var_blocks[binding];
@@ -385,6 +389,8 @@ shader_get_var_block_by_var(struct shader_prog *p, enum shader_vars var)
 void shader_var_blocks_update(struct shader_prog *p)
 {
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
+        if (!shader_var_block_desc[i].name) continue;
+
         struct shader_var_block *var_block = shader_get_var_block_by_binding(p, i);
 
         /* Don't update uniform buffer on the GPU if current shader is not using it */
@@ -700,7 +706,6 @@ static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
             const char *name = jname->string_;
             int bind = jbind->number_;
 
-            /* XXX: UBOs start at 1, see above */
             for (size_t i = 0; i < array_size(shader_var_block_desc); i++) {
                 auto desc = &shader_var_block_desc[i];
                 if (!desc->name || strcmp(name, desc->name))    continue;
@@ -782,6 +787,8 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
      * Binding uniform buffers to binding points is not optional
      */
     for (int i = 0; i < array_size(shader_var_block_desc); i++) {
+        if (!shader_var_block_desc[i].name) continue;
+
         struct shader_var_block *var_block = &p->ctx->var_blocks[i];
         const struct shader_var_block_desc *desc = var_block->desc;
 
