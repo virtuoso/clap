@@ -223,9 +223,7 @@ static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars v
 
     auto tex = CRES_RET_CERR(model3dtx_texture(txm, var));
 
-    shader_prog_use(prog);
     err = load_texture_buffer(prog, input, width, height, color_format, var, tex);
-    shader_prog_done(prog);
     dbg("loaded texture%d %d %dx%d\n", slot, texture_id(tex), width, height);
 
     return err;
