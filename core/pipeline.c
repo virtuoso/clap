@@ -460,6 +460,8 @@ static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         models_render(pl->renderer, mq,
                       .shader_override  = pass->prog_override,
                       .render_options   = pl->render_options,
+                      .near_plane       = params.near_plane,
+                      .far_plane        = params.far_plane,
                       .light            = params.light,
                       .camera           = params.camera,
                       .width            = fbo_width(pass->fbo),
