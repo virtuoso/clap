@@ -1,5 +1,9 @@
 # Use -DCLAP_RENDERER to select a renderer
-set(CLAP_RENDERER "OpenGL" CACHE STRING "Graphics renderer")
+if (APPLE)
+    set(CLAP_RENDERER "Metal" CACHE STRING "Graphics renderer")
+else ()
+    set(CLAP_RENDERER "OpenGL" CACHE STRING "Graphics renderer")
+endif ()
 
 if (${CLAP_RENDERER} STREQUAL "OpenGL")
     set(CONFIG_RENDERER_OPENGL 1)
@@ -18,3 +22,5 @@ endif ()
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten") AND NOT CONFIG_RENDERER_OPENGL)
     message(FATAL_ERROR "Emscripten build only supports OpenGL renderer")
 endif ()
+
+message(STATUS "Rendering backend: ${CLAP_RENDERER}")
