@@ -1089,14 +1089,6 @@ static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
     return r->cmd_buffer;
 }
 
-cresp(fbo_blit_config)
-fbo_attachment_blit(fbo_t *fbo, fbo_attachment attachment, fbo_blit_complete_fn complete)
-{
-    }];
-
-    return r->cmd_buffer;
-}
-
 void fbo_prepare(fbo_t *fbo)
 {
     auto r = fbo->renderer;

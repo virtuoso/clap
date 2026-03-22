@@ -540,6 +540,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
         display_enter_fullscreen();
     }
 
+    ctx->render_options.hdr_output = display_supports_edr();
+
     renderer_frame_begin(&ctx->renderer);
 
     int width, height;

@@ -96,6 +96,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),
     SHADER_VAR(UNIFORM_USE_EDGE_AA,         "use_edge_aa",          DT_INT),
     SHADER_VAR(UNIFORM_USE_HDR,             "use_hdr",              DT_INT),
+    SHADER_VAR(UNIFORM_HDR_OUTPUT,          "hdr_output",           DT_INT),
     /* "outline" uniform buffer */
     SHADER_VAR(UNIFORM_OUTLINE_EXCLUDE,     "outline_exclude",      DT_INT),
     SHADER_VAR(UNIFORM_SOBEL_SOLID,         "sobel_solid",          DT_INT),
@@ -200,7 +201,8 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
     DEFINE_SHADER_VAR_BLOCK(render_common, SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_USE_MSAA,
                             UNIFORM_USE_EDGE_AA,
-                            UNIFORM_USE_HDR),
+                            UNIFORM_USE_HDR,
+                            UNIFORM_HDR_OUTPUT),
     DEFINE_SHADER_VAR_BLOCK(outline, SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_OUTLINE_EXCLUDE,
                             UNIFORM_SOBEL_SOLID,

@@ -72,9 +72,8 @@ void main()
 
     FragColor = vec4(apply_contrast(FragColor.rgb, contrast), 1.0);
     FragColor = vec4(applyLUT(lut_tex, FragColor.xyz), 1.0);
-#ifdef CONFIG_RENDERER_OPENGL
-    FragColor.rgb = scene_linear_to_srgb(FragColor.rgb);
-#else
-    FragColor.rgb = scene_linear_to_pq(FragColor.rgb, 200.0f);
-#endif
+    if (hdr_output)
+        FragColor.rgb = scene_linear_to_pq(FragColor.rgb, 200.0f);
+    else
+        FragColor.rgb = scene_linear_to_srgb(FragColor.rgb);
 }
