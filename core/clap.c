@@ -943,6 +943,7 @@ static cerr clap_cli_opts_process(clap_context *ctx)
 next:
         int c = getopt_long(ctx->argc, ctx->argv, short_options, long_options, &option_index);
         if (c == -1)    return CERR_OK;
+        if (c == '?')   goto handle_or_bail;
 
         for (size_t i = 0; i < array_size(clap_cli_options_desc); i++) {
             auto desc = &clap_cli_options_desc[i];
@@ -988,7 +989,11 @@ out_malformed:
             );
         }
 
-        const char *opt = optind >= 0 ? ctx->argv[optind - 1] : "";
+handle_or_bail:
+        const char *opt = nullptr;
+        if (c == '?' && option_index >= 0 && option_index < ctx->argc)  opt = ctx->argv[option_index];
+        if (!opt)   opt = optind >= 0 ? ctx->argv[optind - 1] : "";
+
         if (ctx->cfg.cli_opt_cb)
             CERR_RET_CERR(ctx->cfg.cli_opt_cb(ctx, ctx->cfg.callback_data, &option_index));
         else
