@@ -38,6 +38,7 @@ typedef struct render_options {
     bool    shadow_vsm;
     bool    hdr;
     bool    hdr_output;
+    bool    hdr_output_enabled;
     bool    collision_draws_enabled;
     bool    velocity_draws_enabled;
     bool    aabb_draws_enabled;

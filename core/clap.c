@@ -285,6 +285,7 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.shadow_outline = true;
     ctx->render_options.shadow_outline_threshold = 0.4;
     ctx->render_options.hdr = true;
+    ctx->render_options.hdr_output_enabled = true;
     /*
      * Apple Silicon's GL driver can't handle this much postprocessing
      * without driving FPS into single digits and heating up like a frying
@@ -540,7 +541,9 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
         display_enter_fullscreen();
     }
 
-    ctx->render_options.hdr_output = display_supports_edr();
+    ctx->render_options.hdr_output = ctx->render_options.hdr_output_enabled
+        ? display_supports_edr()
+        : false;
 
     renderer_frame_begin(&ctx->renderer);
 
@@ -1110,6 +1113,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
         if (ctx->cfg.graphics_init)
             ctx->cfg.graphics_init(ctx, ctx->cfg.callback_data);
+
+        renderer_hdr_enable(&ctx->renderer, ctx->render_options.hdr_output_enabled);
 
         CERR_RET_T(build_main_pl(ctx), clap_context);
     }

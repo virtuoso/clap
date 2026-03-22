@@ -222,7 +222,10 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
             igSliderFloat("SSAO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
         }
-        igCheckbox("use HDR", &ropts->hdr);
+        igCheckbox("use HDR pipeline", &ropts->hdr);
+        if (igCheckbox("enable HDR output", &ropts->hdr_output_enabled))
+            renderer_hdr_enable(clap_get_renderer(scene->clap_ctx), ropts->hdr_output_enabled);
+
         igSliderFloat("bloom exposure", &ropts->bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom intensity", &ropts->bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom threshold", &ropts->bloom_threshold, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
