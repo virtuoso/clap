@@ -3,10 +3,15 @@
 
 #include "texel_fetch.glsl"
 
-vec3 apply_edge(in sampler2D tex, in sampler2D edges, in float blend, in vec2 uv, in ivec2 off)
+vec3 apply_edge(in vec3 color, in sampler2D edges, in float blend, in vec2 uv, in ivec2 off)
 {
     float factor = 1.0 - texel_fetch_2d(edges, uv, off).r;
-    return mix(texel_fetch_2d(tex, uv, off).rgb, vec3(0.0), factor * blend);
+    return mix(color, vec3(0.0), factor * blend);
+}
+
+vec3 apply_edge(in sampler2D tex, in sampler2D edges, in float blend, in vec2 uv, in ivec2 off)
+{
+    return apply_edge(texel_fetch_2d(tex, uv, ivec2(0)).rgb, edges, blend, uv, off);
 }
 
 vec3 smaa_blend(in sampler2D tex, in sampler2D edges, in sampler2D smaa, in vec2 uv)

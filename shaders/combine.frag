@@ -39,6 +39,7 @@ void main()
     vec3 tex_color = use_edge_aa ?
         smaa_blend(model_tex, sobel_tex, shadow_map2, pass_tex) :
         apply_edge(model_tex, sobel_tex, 1.0, pass_tex, ivec2(0));
+    float fog_factor = radial_fog_factor(normal_map, pass_tex, fog_near, fog_far);
     vec3 highlight_color = texture(emission_map, pass_tex).rgb;
     float ao = texture(shadow_map, pass_tex).r;
 
@@ -46,29 +47,31 @@ void main()
         tex_color = tex_color * mix(1.0, ao, ssao_weight);
 
     if (use_hdr) {
-        vec3 hdr_color = tex_color * lighting_exposure;
-        highlight_color = mix(reinhard_tonemap(highlight_color), aces_tonemap(highlight_color), bloom_operator);
-
-        vec3 mapped;
-        if (hdr_output) {
-            mapped = hdr_display_map(hdr_color + highlight_color,
-                                     hdr_white_nits,
-                                     hdr_peak_nits,
-                                     hdr_compress_knee,
-                                     hdr_knee_softness);
-        } else {
-            mapped = mix(reinhard_tonemap(hdr_color), aces_tonemap(hdr_color), lighting_operator);
-            mapped += highlight_color;
+        /* lighting exposure + bloom exposure */
+        vec3 hdr_color = tex_color * lighting_exposure + highlight_color * (1.0 - fog_factor);
+        /* fog */
+        hdr_color = mix(hdr_color, fog_color, fog_factor);
+        /* contrast */
+        hdr_color = apply_contrast(hdr_color, contrast);
+        /* color grading */
+        hdr_color = apply_lut(lut_tex, hdr_color);
+        /* tonemapping */
+        if (hdr_output)
+            hdr_color = hdr_display_map(hdr_color, hdr_white_nits, hdr_peak_nits, hdr_compress_knee, hdr_knee_softness);
+        else
+            hdr_color = mix(reinhard_tonemap(hdr_color), aces_tonemap(hdr_color), lighting_operator);
+        float edge_blend = 1.0 - fog_factor;
+        if (use_edge_aa) {
+            vec4 blend = texture(shadow_map2, pass_tex);
+            edge_blend = max(edge_blend - (blend.x + blend.y + blend.z + blend.w) * 0.125, 0.0);
         }
-
-        FragColor.rgb = mix(mapped, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
+        hdr_color = apply_edge(hdr_color, sobel_tex, edge_blend, pass_tex, ivec2(0));
+        FragColor = vec4(hdr_color, 1.0);
     } else {
         tex_color = mix(tex_color, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
     }
 
-    FragColor = vec4(apply_contrast(FragColor.rgb, contrast), 1.0);
-    FragColor = vec4(apply_lut(lut_tex, FragColor.xyz), 1.0);
     if (hdr_output)
         FragColor.rgb = scene_linear_to_pq(FragColor.rgb, hdr_white_nits);
     else
