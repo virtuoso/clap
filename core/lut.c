@@ -23,14 +23,23 @@ static void __identity(vec3 color, vec3 out)
     mat3x3_mul_vec3(out, mat, color);
 }
 
+static inline float lut_clampf(float x)
+{
+#ifdef CONFIG_RENDERER_METAL
+    return x;
+#else /* !CONFIG_RENDERER_METAL */
+    return clampf(x, 0.0f, 1.0f);
+#endif /* !CONFIG_RENDERER_METAL */
+}
+
 static void __orange_blue_filmic(vec3 color, vec3 out)
 {
     vec3 powed;
     vec3_pow_vec3(powed, color, (vec3){ 0.9f, 0.95f, 1.1f });
     vec3_dup(out, (vec3){
-        clampf(powed[0] * 1.6f - powed[1] * 0.2f, 0.0, 1.0),
-        clampf(powed[1], 0.0, 1.0),
-        clampf(powed[2] * 1.3f - powed[0] * 0.3f, 0.0, 1.0)
+        lut_clampf(powed[0] * 1.6f - powed[1] * 0.2f),
+        lut_clampf(powed[1]),
+        lut_clampf(powed[2] * 1.3f - powed[0] * 0.3f)
     });
 }
 
@@ -69,16 +78,16 @@ static void __comic_blue(vec3 color, vec3 out)
 
 static void __sunset_warm(vec3 color, vec3 out)
 {
-    out[0] = clampf(color[0] * 1.15 + 0.05, 0.0, 1.0);
+    out[0] = lut_clampf(color[0] * 1.15 + 0.05);
     out[1] = color[1];
     out[2] = color[2] * 0.85;
 }
 
 static void __hyper_sunset(vec3 color, vec3 out)
 {
-    out[0] = clampf(color[0] * 1.5, 0.0, 1.0);
-    out[1] = clampf(color[1] * 1.2, 0.0, 1.0);
-    out[2] = clampf(color[2] * 0.7, 0.0, 1.0);
+    out[0] = lut_clampf(color[0] * 1.5);
+    out[1] = lut_clampf(color[1] * 1.2);
+    out[2] = lut_clampf(color[2] * 0.7);
     vec3_pow(out, out, 0.85);
 }
 
@@ -95,9 +104,9 @@ static void __green_matrix(vec3 color, vec3 out)
 
 static void __scifi_bluegreen(vec3 in, vec3 out)
 {
-    out[0] = clampf(in[0] * 0.3f, 0.0, 1.0);
-    out[1] = clampf(in[1] * 1.4f, 0.0, 1.0);
-    out[2] = clampf(in[2] * 1.6f, 0.0, 1.0);
+    out[0] = lut_clampf(in[0] * 0.3f);
+    out[1] = lut_clampf(in[1] * 1.4f);
+    out[2] = lut_clampf(in[2] * 1.6f);
 }
 
 static void __scifi_neon(vec3 in, vec3 out)
@@ -106,9 +115,9 @@ static void __scifi_neon(vec3 in, vec3 out)
     vec3_sub(out, out, (vec3){ 0.5, 0.5, 0.5 });
     vec3_scale(out, out, 1.6);
     vec3_add(out, out, (vec3){ 0.5, 0.5, 0.5 });
-    out[0] = clampf(out[0], 0.0, 1.0);
-    out[1] = clampf(out[1], 0.0, 1.0);
-    out[2] = clampf(out[2], 0.0, 1.0);
+    out[0] = lut_clampf(out[0]);
+    out[1] = lut_clampf(out[1]);
+    out[2] = lut_clampf(out[2]);
 }
 
 static void __mad_max_bleach(vec3 in, vec3 out)
@@ -126,11 +135,11 @@ static void __teal_orange(vec3 color, vec3 out)
     vec3_pow_vec3(powed, color, (vec3){ 0.9f, 1.0f, 1.1f });
 
     // R: boost for skin tones, suppress blue spill
-    out[0] = clampf(powed[0] * 1.3f - powed[2] * 0.2f, 0.0f, 1.0f);
+    out[0] = lut_clampf(powed[0] * 1.3f - powed[2] * 0.2f);
     // G: slight lift
-    out[1] = clampf(powed[1] * 1.0f + powed[2] * 0.05f, 0.0f, 1.0f);
+    out[1] = lut_clampf(powed[1] * 1.0f + powed[2] * 0.05f);
     // B: boost mids, darken overall
-    out[2] = clampf(powed[2] * 1.1f - powed[0] * 0.2f - powed[1] * 0.1f, 0.0f, 1.0f);
+    out[2] = lut_clampf(powed[2] * 1.1f - powed[0] * 0.2f - powed[1] * 0.1f);
 }
 
 typedef void (*lut_fn)(vec3, vec3);
@@ -270,14 +279,14 @@ static void lut_drop(struct ref *ref)
 }
 DEFINE_REFCLASS2(lut);
 
-static cerr lut_setup(lut *lut, uchar *arr, int side)
+static cerr lut_setup(lut *lut, void *arr, int side)
 {
     CERR_RET(
         texture_init(
             &lut->tex,
             .renderer   = lut->renderer,
             .type       = TEX_3D,
-            .format     = TEX_FMT_RGB8,
+            .format     = TEX_FMT_RGBA32F,
             .layers     = side,
             .min_filter = TEX_FLT_LINEAR,
             .mag_filter = TEX_FLT_LINEAR,
@@ -287,7 +296,7 @@ static cerr lut_setup(lut *lut, uchar *arr, int side)
     );
 
     CERR_RET(
-        texture_load(&lut->tex, TEX_FMT_RGB8, side, side, arr),
+        texture_load(&lut->tex, TEX_FMT_RGBA32F, side, side, arr),
         return CERR_TEXTURE_NOT_LOADED
     );
 
@@ -296,19 +305,34 @@ static cerr lut_setup(lut *lut, uchar *arr, int side)
     return CERR_OK;
 }
 
-static inline void arr_set(uchar *arr, int sz, int x, int y, int z, vec3 rgb)
+static inline void arr_set(float *arr, int sz, int x, int y, int z, vec3 rgb)
 {
-    arr[z * sz * sz * 3 + y * sz * 3 + x * 3 + 0] = (unsigned char)(clampf(rgb[0], 0.0, 1.0) * 255.0);
-    arr[z * sz * sz * 3 + y * sz * 3 + x * 3 + 1] = (unsigned char)(clampf(rgb[1], 0.0, 1.0) * 255.0);
-    arr[z * sz * sz * 3 + y * sz * 3 + x * 3 + 2] = (unsigned char)(clampf(rgb[2], 0.0, 1.0) * 255.0);
+    arr[z * sz * sz * 4 + y * sz * 4 + x * 4 + 0] = clampf(rgb[0], 0.0, 1.0);
+    arr[z * sz * sz * 4 + y * sz * 4 + x * 4 + 1] = clampf(rgb[1], 0.0, 1.0);
+    arr[z * sz * sz * 4 + y * sz * 4 + x * 4 + 2] = clampf(rgb[2], 0.0, 1.0);
 }
+
+/* must match exactly its counterpart in lut.glsl */
+static inline float linear_to_lut(float x)
+{
+    x = fmaxf(x, 0.0);
+    return clampf(log2f(1 + HDR_LUT_K * x) / log2(1 + HDR_LUT_K * HDR_LUT_MAX), 0.0, 1.0);
+}
+
+/* must match exactly its counterpart in lut.glsl */
+static inline float lut_to_linear(float u)
+{
+    return (powf(2.0f, u * log2f(1.0f + HDR_LUT_K * HDR_LUT_MAX)) - 1.0) / HDR_LUT_K;
+}
+
+DEFINE_CLEANUP(float, if (*p) mem_free(*p);)
 
 cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset preset, int sz)
 {
     if (preset >= LUT_MAX)
         return cresp_error_cerr(lut, CERR_INVALID_ARGUMENTS);
 
-    LOCAL_SET(uchar, arr) = mem_alloc(1, .nr = sz * sz * sz * 3);
+    LOCAL_SET(float, arr) = mem_alloc(1, .nr = sz * sz * sz * sizeof(vec4));
 
     lut *lut = CRES_RET_T(
         ref_new_checked(
@@ -329,8 +353,21 @@ cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset pres
                 vec3 color_in = { (float)x / (sz - 1), (float)y / (sz - 1), (float)z / (sz - 1) };
                 vec3 color_out;
 
-                lut_presets[preset].fn(color_in, color_out);
-                arr_set(arr, sz, x, y, z, color_out);
+                vec3 linear_color_in = {
+                    lut_to_linear(color_in[0]),
+                    lut_to_linear(color_in[1]),
+                    lut_to_linear(color_in[2]),
+                };
+
+                lut_presets[preset].fn(linear_color_in, color_out);
+
+                vec3 lut_color_out = {
+                    linear_to_lut(color_out[0]),
+                    linear_to_lut(color_out[1]),
+                    linear_to_lut(color_out[2]),
+                };
+
+                arr_set(arr, sz, x, y, z, lut_color_out);
             }
 
     CERR_RET(lut_setup(lut, arr, sz), { ref_put_last(lut); return cresp_error_cerr(lut, __cerr); });
@@ -341,7 +378,7 @@ cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset pres
 static cerr cube_parse(lut *lut, void *buf, size_t size)
 {
     /* A horrible format gets a horrible parser */
-    LOCAL(uchar, arr);
+    LOCAL(float, arr);
     const char *p = buf;
     float r, g, b;
     int x = 0, y = 0, z = 0, sz = 0;
@@ -355,7 +392,7 @@ static cerr cube_parse(lut *lut, void *buf, size_t size)
             p = skip_space(p + 11);
             if (sscanf(p, "%d", &sz) != 1 || sz < 32)
                 return CERR_NOT_SUPPORTED;
-            arr = mem_alloc(1, .nr = sz * sz * sz * 3);
+            arr = mem_alloc(1, .nr = sz * sz * sz * sizeof(vec4));
             if (!arr)
                 return CERR_NOMEM;
         } else if ((isdigit(*p) || *p == '-') && sscanf(p, "%f %f %f", &r, &g, &b) == 3) {

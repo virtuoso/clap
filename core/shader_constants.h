@@ -9,6 +9,9 @@
 #define SSAO_KERNEL_SIZE 64
 #define SSAO_NOISE_DIM 16
 
+#define HDR_LUT_K   1.0f
+#define HDR_LUT_MAX 16.0f
+
 #define COLOR_PT_NONE 0
 #define COLOR_PT_SET_RGB        0x01
 #define COLOR_PT_REPLACE_RGB    0x02

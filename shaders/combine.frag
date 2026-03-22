@@ -68,7 +68,7 @@ void main()
     }
 
     FragColor = vec4(apply_contrast(FragColor.rgb, contrast), 1.0);
-    FragColor = vec4(applyLUT(lut_tex, FragColor.xyz), 1.0);
+    FragColor = vec4(apply_lut(lut_tex, FragColor.xyz), 1.0);
     if (hdr_output)
         FragColor.rgb = scene_linear_to_pq(FragColor.rgb, hdr_white_nits);
     else
