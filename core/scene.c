@@ -240,14 +240,21 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         ropts->bloom_operator = (float)bop;
         igSliderFloat("lighting exposure", &ropts->lighting_exposure, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         int lop = (int)ropts->lighting_operator;
-        igText("lighting tonemapping op:");
-        igSameLine(0.0, 0.0);
-        igPushID_Str("lop");
-        igRadioButton_IntPtr("Reinhard", &lop, 0);
-        igSameLine(0.0, 0.0);
-        igRadioButton_IntPtr("ACES", &lop, 1);
-        igPopID();
-        ropts->lighting_operator = (float)lop;
+        if (ropts->hdr_output) {
+            igSliderFloat("peak nits", &ropts->hdr_peak_nits, 1.0, 20000.0, "%.1f", 0);
+            igSliderFloat("white nits", &ropts->hdr_white_nits, 1.0, ropts->hdr_peak_nits, "%.1f", 0);
+            igSliderFloat("compress knee", &ropts->hdr_compress_knee, 0.1, 10.0, "%.1f", 0);
+            igSliderFloat("knee softness", &ropts->hdr_knee_softness, 1.0, 64.0, "%.1f", 0);
+        } else {
+            igText("lighting tonemapping op:");
+            igSameLine(0.0, 0.0);
+            igPushID_Str("lop");
+            igRadioButton_IntPtr("Reinhard", &lop, 0);
+            igSameLine(0.0, 0.0);
+            igRadioButton_IntPtr("ACES", &lop, 1);
+            igPopID();
+            ropts->lighting_operator = (float)lop;
+        }
         igSliderFloat("contrast", &ropts->contrast, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSeparator();
         if (igButton("disable fog", (ImVec2){})) {

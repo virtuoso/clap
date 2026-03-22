@@ -47,24 +47,21 @@ void main()
 
     if (use_hdr) {
         vec3 hdr_color = tex_color * lighting_exposure;
-        // highlight_color = highlight_color / (highlight_color + vec3(1.0));
-        // highlight_color = highlight_color / (highlight_color + vec3(0.3));
-        // highlight_color = pow(highlight_color, vec3(0.8));
         highlight_color = mix(reinhard_tonemap(highlight_color), aces_tonemap(highlight_color), bloom_operator);
 
-        // hdr_color += highlight_color;
-
-        vec3 reinhard = reinhard_tonemap(hdr_color);
-        vec3 aces = aces_tonemap(hdr_color);
-        // vec3 mapped = hdr_color;//mix(reinhard, aces, lighting_operator);
-        vec3 mapped = mix(reinhard, aces, lighting_operator);
-        mapped += highlight_color;
-
-        // FragColor = vec4(clamp(mapped + highlight_color, vec3(0.0), vec3(1.0)), 1.0);
-        // FragColor = vec4(mapped, 1.0);
+        vec3 mapped;
+        if (hdr_output) {
+            mapped = hdr_display_map(hdr_color + highlight_color,
+                                     hdr_white_nits,
+                                     hdr_peak_nits,
+                                     hdr_compress_knee,
+                                     hdr_knee_softness);
+        } else {
+            mapped = mix(reinhard_tonemap(hdr_color), aces_tonemap(hdr_color), lighting_operator);
+            mapped += highlight_color;
+        }
 
         FragColor.rgb = mix(mapped, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
-        // FragColor = vec4(hdr_color + highlight_color * 2.0, 1.0);
     } else {
         tex_color = mix(tex_color, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
@@ -73,7 +70,7 @@ void main()
     FragColor = vec4(apply_contrast(FragColor.rgb, contrast), 1.0);
     FragColor = vec4(applyLUT(lut_tex, FragColor.xyz), 1.0);
     if (hdr_output)
-        FragColor.rgb = scene_linear_to_pq(FragColor.rgb, 200.0f);
+        FragColor.rgb = scene_linear_to_pq(FragColor.rgb, hdr_white_nits);
     else
         FragColor.rgb = scene_linear_to_srgb(FragColor.rgb);
 }

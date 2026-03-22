@@ -26,6 +26,10 @@ typedef struct render_options {
     float   fog_near;
     float   fog_far;
     vec3    fog_color;
+    float   hdr_white_nits;
+    float   hdr_peak_nits;
+    float   hdr_compress_knee;
+    float   hdr_knee_softness;
     bool    shadow_outline;
     bool    shadow_msaa;
     bool    model_msaa;

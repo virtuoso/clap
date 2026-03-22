@@ -123,6 +123,10 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_FOG_NEAR,            "fog_near",             DT_FLOAT),
     SHADER_VAR(UNIFORM_FOG_FAR,             "fog_far",              DT_FLOAT),
     SHADER_VAR(UNIFORM_FOG_COLOR,           "fog_color",            DT_VEC3),
+    SHADER_VAR(UNIFORM_HDR_WHITE_NITS,      "hdr_white_nits",       DT_FLOAT),
+    SHADER_VAR(UNIFORM_HDR_PEAK_NITS,       "hdr_peak_nits",        DT_FLOAT),
+    SHADER_VAR(UNIFORM_HDR_COMPRESS_KNEE,   "hdr_compress_knee",    DT_FLOAT),
+    SHADER_VAR(UNIFORM_HDR_KNEE_SOFTNESS,   "hdr_knee_softness",    DT_FLOAT),
 };
 
 /* Runtime handle for a variable block (uniform buffer) */
@@ -202,7 +206,11 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_USE_MSAA,
                             UNIFORM_USE_EDGE_AA,
                             UNIFORM_USE_HDR,
-                            UNIFORM_HDR_OUTPUT),
+                            UNIFORM_HDR_OUTPUT,
+                            UNIFORM_HDR_WHITE_NITS,
+                            UNIFORM_HDR_PEAK_NITS,
+                            UNIFORM_HDR_COMPRESS_KNEE,
+                            UNIFORM_HDR_KNEE_SOFTNESS),
     DEFINE_SHADER_VAR_BLOCK(outline, SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_OUTLINE_EXCLUDE,
                             UNIFORM_SOBEL_SOLID,
