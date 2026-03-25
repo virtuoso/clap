@@ -35,6 +35,7 @@
  * @UNIFORM_PROJ:                       projection matrix
  * @UNIFORM_VIEW:                       view matrix
  * @UNIFORM_TRANS:                      model TRS matrix
+ * @UNIFORM_INVERSE_TRS:                inverted TRS matrix
  * @UNIFORM_INVERSE_VIEW:               inverse view matrix
  * @UNIFORM_LIGHT_POS:                  array of light position vectors
  * @UNIFORM_LIGHT_COLOR:                array of light color vectors
@@ -127,6 +128,7 @@ enum shader_vars {
     UNIFORM_PROJ,
     UNIFORM_VIEW,
     UNIFORM_TRANS,
+    UNIFORM_INVERSE_TRS,
     UNIFORM_INVERSE_VIEW,
     UNIFORM_INVERSE_PROJ,
     UNIFORM_LIGHT_POS,

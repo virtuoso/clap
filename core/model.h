@@ -276,6 +276,7 @@ struct joint {
 typedef struct entity3d {
     model3dtx           *txmodel;
     mat4x4              mx;
+    mat4x4              inverse_mx;
     struct ref          ref;
     struct list         entry;     /* link to txmodel->entities */
     entity3d_flags      flags;

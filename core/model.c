@@ -919,6 +919,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             }
 
             shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx);
+            shader_set_var_ptr(prog, UNIFORM_INVERSE_TRS, 1, e->inverse_mx);
 
             if (opts->ssao_state)
                 ssao_upload(opts->ssao_state, prog, opts->width, opts->height);
@@ -1396,6 +1397,7 @@ static int default_update(entity3d *e, void *data)
         transform_clear_updated(&e->xform);
 
         mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
+        mat4x4_invert(e->inverse_mx, e->mx);
 
         entity3d_aabb_update(e);
 
@@ -1451,6 +1453,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     entity3d *e = container_of(ref, entity3d, ref);
 
     transform_init(&e->xform);
+    mat4x4_identity(e->inverse_mx);
     darray_init(e->aniq);
     e->animation = -1;
     e->light_idx = -1;
