@@ -31,6 +31,7 @@ static void view_update_perspective_subviews(struct view *view)
         mat4x4_dup(sv->view_mx, view->main.view_mx);
         mat4x4_dup(sv->inv_view_mx, view->main.inv_view_mx);
         mat4x4_perspective(sv->proj_mx, view->fov, view->aspect, sv->near_plane, sv->far_plane);
+        mat4x4_invert(sv->inv_proj_mx, sv->proj_mx);
         subview_calc_frustum(sv);
     }
 }
@@ -140,6 +141,7 @@ static void subview_projection_update(struct subview *dst, struct subview *src, 
         mat4x4_ortho(dst->proj_mx, aabb[0][0], aabb[1][0], aabb[0][1], aabb[1][1],
                      dst->near_plane, dst->far_plane);
 
+    mat4x4_invert(dst->inv_proj_mx, dst->proj_mx);
     subview_calc_frustum(dst);
 
     subview_debug(dst, src, aabb[0], aabb[1]);
@@ -187,6 +189,7 @@ void view_update_perspective_projection(struct view *view, int width, int height
      */
     mat4x4_perspective(view->main.proj_mx, view->fov * zoom, view->aspect,
                        view->main.near_plane, view->main.far_plane);
+    mat4x4_invert(view->main.inv_proj_mx, view->main.proj_mx);
 }
 
 static void subview_update_from_target(struct subview *subview, struct subview *src, vec3 target, float near_backup)

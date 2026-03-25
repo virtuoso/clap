@@ -11,6 +11,7 @@ struct view {
         mat4x4              view_mx;
         mat4x4              inv_view_mx;
         mat4x4              proj_mx;
+        mat4x4              inv_proj_mx;
         vec4                frustum_planes[6];
         vec4                frustum_corners[8];
         float               near_plane;
