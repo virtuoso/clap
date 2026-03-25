@@ -2,7 +2,7 @@
 
 #include "shader_constants.h"
 #include "pass-tex.glsl"
-#include "ndc-z.glsl"
+#include "view_pos.glsl"
 
 layout (location=0) out float FragColor;
 layout (location=0) in vec2 pass_tex;
@@ -16,19 +16,14 @@ layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 
 void main()
 {
-    // View-space position reconstruction
-    float depth = texture(model_tex, pass_tex).r;
-    // Assume depth map is 0.0 <= z <= 1.0
-    float ndc_z = convert_to_ndc_z(depth);
-
     vec2 noise_uv = pass_tex * ssao_noise_scale;
     vec3 random_vec = vec3(normalize(texture(sobel_tex, noise_uv).xy), 0.0);
 
     vec3 normal_sample = texture(normal_map, pass_tex).xyz;
     vec3 normal = normalize(normal_sample * 2.0 - 1.0);
-    vec4 clip_space = vec4(convert_pass_tex(pass_tex) * 2.0 - 1.0, ndc_z, 1.0);
-    vec4 view_pos = inverse(proj) * clip_space;
-    vec3 pos = view_pos.xyz / view_pos.w;
+    vec3 pos = view_pos_from_depth(model_tex, inverse_proj, pass_tex);
+    FragColor = 1.0;
+    if (pos.z > 0.0)    return;
 
     // Create TBN
     vec3 tangent = normalize(random_vec - normal * dot(random_vec, normal));
@@ -52,11 +47,8 @@ void main()
         offset.xyz /= offset.w;
         offset.xyz = offset.xyz * 0.5 + 0.5;
 
-        float sample_depth = texture(model_tex, convert_pass_tex(offset.xy)).r;
-        float sample_ndc_z = convert_to_ndc_z(sample_depth);
-        vec4 sample_clip = vec4(offset.xy * 2.0 - 1.0, sample_ndc_z, 1.0);
-        vec4 sample_view = inverse(proj) * sample_clip;
-        sample_view /= sample_view.w;
+        vec3 sample_view = view_pos_from_depth(model_tex, inverse_proj, convert_pass_tex(offset.xy));
+        if (sample_view.z > 0.0)    continue;
 
         float range_check = smoothstep(0.0, 1.0, actual_radius / abs(pos.z - sample_view.z));
         if (sample_view.z >= sample_pos.z + bias)
