@@ -12,6 +12,6 @@ layout (location=0) out vec2 pass_tex;
 
 void main()
 {
-    gl_Position = /*proj * */trans * vec4(position, 1.0);
+    gl_Position = /*proj * */trs * vec4(position, 1.0);
     pass_tex = convert_pass_tex(tex);
 }

@@ -918,7 +918,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_int(prog, UNIFORM_USE_SKINNING, 0);
             }
 
-            shader_set_var_ptr(prog, UNIFORM_TRANS, 1, e->mx);
+            shader_set_var_ptr(prog, UNIFORM_TRS, 1, e->mx);
             shader_set_var_ptr(prog, UNIFORM_INVERSE_TRS, 1, e->inverse_mx);
 
             if (opts->ssao_state)

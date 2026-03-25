@@ -9,5 +9,5 @@ layout (location=ATTR_LOC_POSITION) in vec3 position;
 
 void main()
 {
-    gl_Position = proj * view * trans * vec4(position, 1.0);
+    gl_Position = proj * view * trs * vec4(position, 1.0);
 }

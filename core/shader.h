@@ -34,7 +34,7 @@
  * @UNIFORM_FAR_PLANE:                  view frustum's far_plane
  * @UNIFORM_PROJ:                       projection matrix
  * @UNIFORM_VIEW:                       view matrix
- * @UNIFORM_TRANS:                      model TRS matrix
+ * @UNIFORM_TRS:                        model TRS matrix
  * @UNIFORM_INVERSE_TRS:                inverted TRS matrix
  * @UNIFORM_INVERSE_VIEW:               inverse view matrix
  * @UNIFORM_LIGHT_POS:                  array of light position vectors
@@ -127,7 +127,7 @@ enum shader_vars {
     UNIFORM_FAR_PLANE,
     UNIFORM_PROJ,
     UNIFORM_VIEW,
-    UNIFORM_TRANS,
+    UNIFORM_TRS,
     UNIFORM_INVERSE_TRS,
     UNIFORM_INVERSE_VIEW,
     UNIFORM_INVERSE_PROJ,

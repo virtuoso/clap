@@ -24,7 +24,7 @@ layout (location=5) out mat3 tbn;
 
 void main()
 {
-    world_pos = trans * vec4(position, 1.0);
+    world_pos = trs * vec4(position, 1.0);
 
     vec4 our_normal = vec4(normal, 0);
     orig_normal = our_normal.xyz;
@@ -41,21 +41,21 @@ void main()
             total_normal += world_normal * weights[i];
         }
 
-        gl_Position = proj * view * trans * total_local_pos;
+        gl_Position = proj * view * trs * total_local_pos;
         our_normal = total_normal;
     } else {
-        gl_Position = proj * view * trans * vec4(position, 1.0);
+        gl_Position = proj * view * trs * vec4(position, 1.0);
     }
     pass_tex = tex;
 
-    mat3 trans_rot = mat3(trans);
+    mat3 trs_rot = mat3(trs);
 
     // this is still needed in frag
     if (use_normals) {
         surface_normal = our_normal.xyz;
 
-        vec3 N = normalize(trans_rot * surface_normal);
-        vec3 T = normalize(trans_rot * tangent.xyz).xyz;
+        vec3 N = normalize(trs_rot * surface_normal);
+        vec3 T = normalize(trs_rot * tangent.xyz).xyz;
         vec3 B = normalize(cross(N, T) * tangent.w);
 
         mat3 view_rot = mat3(view);
@@ -66,7 +66,7 @@ void main()
 
         to_camera_vector = tbn * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     } else {
-        surface_normal = trans_rot * our_normal.xyz;
+        surface_normal = trs_rot * our_normal.xyz;
 
         to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     }

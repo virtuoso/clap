@@ -2,7 +2,7 @@
 #define SHADERS_UBO_TRANSFORM_GLSL
 
 layout (std140, binding = UBO_BINDING_transform) uniform transform {
-    mat4 trans;
+    mat4 trs;
     mat4 inverse_trs;
 };
 

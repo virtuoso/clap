@@ -19,14 +19,14 @@ layout (location=3) out vec3 to_camera_vector;
 
 void main()
 {
-    vec4 world_pos = trans * vec4(position, 1.0);
+    vec4 world_pos = trs * vec4(position, 1.0);
 
     vec4 our_normal = vec4(normal, 0);
-    gl_Position = proj * view * trans * vec4(position, 1.0);
+    gl_Position = proj * view * trs * vec4(position, 1.0);
     pass_tex = convert_pass_tex(tex);
 
     // this is still needed in frag
-    surface_normal = (trans * vec4(our_normal.xyz, 0.0)).xyz;
+    surface_normal = (trs * vec4(our_normal.xyz, 0.0)).xyz;
 
     /* XXX: factor out lighting from the model shader into a common file */
     to_light_vector = light_pos[0] - world_pos.xyz;

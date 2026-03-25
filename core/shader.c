@@ -52,7 +52,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_INVERSE_VIEW,        "inverse_view",         DT_MAT4),
     SHADER_VAR(UNIFORM_INVERSE_PROJ,        "inverse_proj",         DT_MAT4),
     /* "transform" uniform buffer */
-    SHADER_VAR(UNIFORM_TRANS,               "trans",                DT_MAT4),
+    SHADER_VAR(UNIFORM_TRS,                 "trs",                  DT_MAT4),
     SHADER_VAR(UNIFORM_INVERSE_TRS,         "inverse_trs",          DT_MAT4),
     /* "lighting" uniform buffer */
     SHADER_ARR(UNIFORM_LIGHT_POS,           "light_pos",            DT_VEC3, LIGHTS_MAX),
@@ -179,7 +179,7 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
                             UNIFORM_SHADOW_OUTLINE,
                             UNIFORM_SHADOW_OUTLINE_THRESHOLD),
     DEFINE_SHADER_VAR_BLOCK(transform, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_TRANS,
+                            UNIFORM_TRS,
                             UNIFORM_INVERSE_TRS),
     DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_PROJ,

@@ -24,9 +24,9 @@ void main()
             total_local_pos += local_pos * weights[i];
         }
 
-        total_pos = trans * total_local_pos;
+        total_pos = trs * total_local_pos;
     } else {
-        total_pos = trans * vec4(position, 1.0);
+        total_pos = trs * vec4(position, 1.0);
     }
 #ifndef CONFIG_SHADOW_MAP_ARRAY
     gl_Position = proj * view * total_pos;
