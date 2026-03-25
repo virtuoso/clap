@@ -664,20 +664,24 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     struct subview *subview = NULL;
     float near_plane, far_plane;
     struct view *view = NULL;
+    mat4x4 *inv_proj = NULL;
     mat4x4 *proj = NULL;
 
     if (camera) {
         view = &camera->view;
         proj = &camera->view.main.proj_mx;
+        inv_proj = &camera->view.main.inv_proj_mx;
     } else if (light) {
         view = &light->view[0];
         proj = &light->view[0].main.proj_mx;
+        inv_proj = &light->view[0].main.inv_proj_mx;
     }
 
     if (view) {
         if (opts->cascade >= 0 && opts->cascade < CASCADES_MAX) {
             subview = &view->subview[opts->cascade];
             proj = &subview->proj_mx;
+            inv_proj = &subview->inv_proj_mx;
         } else {
             subview = &view->main;
         }
@@ -790,8 +794,10 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_INVERSE_VIEW, 1, subview->inv_view_mx);
             }
 
-            if (proj)
+            if (proj && inv_proj) {
                 shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj);
+                shader_set_var_ptr(prog, UNIFORM_INVERSE_PROJ, 1, inv_proj);
+            }
         }
 
         /* Set temporary shadow maps */

@@ -50,6 +50,7 @@ static const struct shader_var_desc shader_var_desc[] = {
     SHADER_VAR(UNIFORM_PROJ,                "proj",                 DT_MAT4),
     SHADER_VAR(UNIFORM_VIEW,                "view",                 DT_MAT4),
     SHADER_VAR(UNIFORM_INVERSE_VIEW,        "inverse_view",         DT_MAT4),
+    SHADER_VAR(UNIFORM_INVERSE_PROJ,        "inverse_proj",         DT_MAT4),
     /* "transform" uniform buffer */
     SHADER_VAR(UNIFORM_TRANS,               "trans",                DT_MAT4),
     /* "lighting" uniform buffer */
@@ -181,7 +182,8 @@ static const struct shader_var_block_desc shader_var_block_desc[] = {
     DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
                             UNIFORM_PROJ,
                             UNIFORM_VIEW,
-                            UNIFORM_INVERSE_VIEW),
+                            UNIFORM_INVERSE_VIEW,
+                            UNIFORM_INVERSE_PROJ),
     DEFINE_SHADER_VAR_BLOCK(skinning, SHADER_STAGE_VERTEX_BIT,
                             UNIFORM_USE_SKINNING,
                             UNIFORM_JOINT_TRANSFORMS),
