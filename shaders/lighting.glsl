@@ -50,8 +50,7 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     float n_dot_h = max(dot(unit_normal, h), 0.0);
     float v_dot_h = max(dot(view_dir, h), 0.0);
 
-    mat4 inv_trans = inverse(trans);
-    vec4 local_pos = inv_trans * world_pos;
+    vec4 local_pos = inverse_trs * world_pos;
     vec3 roughness_noise_src = local_pos.xyz * roughness_scale;
     vec3 metallic_noise_src = shared_scale ? roughness_noise_src : local_pos.xyz * metallic_scale;
 
