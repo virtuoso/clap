@@ -362,7 +362,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .layout             = FBO_COLOR_DEPTH_TEXTURE(5),
+            .layout             = FBO_COLOR_DEPTH_TEXTURE(4),
             .name               = "model",
             .cascade            = -1,
             .color_config       = (fbo_attconfig[]) {
@@ -386,11 +386,6 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     /* EdgeDepthMask */
                     .format         = TEX_FMT_R32F,
-                    .load_action    = FBOLOAD_CLEAR,
-                },
-                {
-                    /* ViewPosition */
-                    .format         = hdr_fmt,
                     .load_action    = FBOLOAD_CLEAR,
                 },
                 {
@@ -511,7 +506,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(5),
+                    .attachment = FBO_COLOR_TEXTURE(4),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },
@@ -554,7 +549,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(4),
+                    .attachment = FBO_DEPTH_TEXTURE(0),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },

@@ -6,6 +6,7 @@
 #include "lut.glsl"
 #include "oetf.glsl"
 #include "smaa-neighborhood-blend.glsl"
+#include "view_pos.glsl"
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;
@@ -21,6 +22,7 @@ layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
 #include "ubo_render_common.glsl"
 #include "ubo_bloom.glsl"
 #include "ubo_postproc.glsl"
+#include "ubo_projview.glsl"
 
 vec3 apply_contrast(vec3 color, float contrast)
 {
@@ -29,7 +31,8 @@ vec3 apply_contrast(vec3 color, float contrast)
 
 float radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 {
-    vec3 view_pos = texture(tex, uv, 0.0).rgb;
+    vec3 view_pos = view_pos_from_depth(tex, inverse_proj, uv);
+    if (view_pos.z > 0.0)   return 0;
     float dist = length(view_pos);
     return clamp((dist - near_fog) / (far_fog - near_fog), 0.0, 1.0);
 }

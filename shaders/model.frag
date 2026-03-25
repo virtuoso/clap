@@ -17,6 +17,7 @@ layout (location=5) in mat3 tbn;
 #include "ubo_render_common.glsl"
 #include "ubo_outline.glsl"
 #include "ubo_bloom.glsl"
+#include "ubo_postproc.glsl"
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
@@ -26,8 +27,7 @@ layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 EdgeNormal;
 layout (location=3) out float EdgeDepthMask;
-layout (location=4) out vec4 ViewPosition;
-layout (location=5) out vec4 Normal;
+layout (location=4) out vec4 Normal;
 
 void main()
 {
@@ -67,7 +67,6 @@ void main()
     vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, pass_tex).rgb : texture_sample.rgb;
     emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
     EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
-    ViewPosition = view_pos;
 
     /* surface_normal is in world space */
     vec3 view_normal = mat3(view) * surface_normal;
