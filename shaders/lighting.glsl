@@ -11,6 +11,43 @@ struct lighting_result {
     vec3    specular;
 };
 
+struct lighting_material {
+    float   metallic;
+    float   roughness;
+};
+
+lighting_material noise_material()
+{
+    vec4 local_pos = inverse_trs * world_pos;
+    vec3 roughness_noise_src = local_pos.xyz * roughness_scale;
+    vec3 metallic_noise_src = shared_scale ? roughness_noise_src : local_pos.xyz * metallic_scale;
+
+    float roughness_noise = fbm(roughness_noise_src, roughness_amp, roughness_oct, 2.0);
+    float metallic_noise = 0.0;
+    switch (metallic_mode) {
+        case MAT_METALLIC_ROUGHNESS:
+            metallic_noise = roughness_noise;
+            break;
+        case MAT_METALLIC_ONE_MINUS_ROUGHNESS:
+            metallic_noise = 1.0 - roughness_noise;
+            break;
+        default:
+        case MAT_METALLIC_INDEPENDENT:
+            metallic_noise = fbm(metallic_noise_src, metallic_amp, metallic_oct, 2.0);
+            break;
+    }
+
+    lighting_material ret;
+    ret.roughness = roughness_oct > 0 ?
+        mix(roughness, roughness_ceil, roughness_noise) :
+        roughness;
+    ret.metallic = metallic_oct > 0 ?
+        mix(metallic, metallic_ceil, metallic_noise) :
+        metallic;
+
+    return ret;
+}
+
 lighting_result compute_blinn_phong(int idx, vec3 unit_normal, vec3 to_light_vector, vec3 view_dir)
 {
     float distance = light_directional[idx] ? 1.0 : length(to_light_vector);
@@ -37,7 +74,7 @@ lighting_result compute_blinn_phong(int idx, vec3 unit_normal, vec3 to_light_vec
 #define PI 3.1415926538
 
 lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_vector, vec3 view_dir,
-                                      vec3 base_color)
+                                      vec3 base_color, lighting_material mat)
 {
     float distance = light_directional[idx] ? 1.0 : length(to_light_vector);
     float att_fac = light_directional[idx] ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
@@ -50,33 +87,7 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     float n_dot_h = max(dot(unit_normal, h), 0.0);
     float v_dot_h = max(dot(view_dir, h), 0.0);
 
-    vec4 local_pos = inverse_trs * world_pos;
-    vec3 roughness_noise_src = local_pos.xyz * roughness_scale;
-    vec3 metallic_noise_src = shared_scale ? roughness_noise_src : local_pos.xyz * metallic_scale;
-
-    float roughness_noise = fbm(roughness_noise_src, roughness_amp, roughness_oct, 2.0);
-    float metallic_noise = 0.0;
-    switch (metallic_mode) {
-        case MAT_METALLIC_ROUGHNESS:
-            metallic_noise = roughness_noise;
-            break;
-        case MAT_METALLIC_ONE_MINUS_ROUGHNESS:
-            metallic_noise = 1.0 - roughness_noise;
-            break;
-        default:
-        case MAT_METALLIC_INDEPENDENT:
-            metallic_noise = fbm(metallic_noise_src, metallic_amp, metallic_oct, 2.0);
-            break;
-    }
-
-    float perc_roughness = roughness_oct > 0 ?
-        mix(roughness, roughness_ceil, roughness_noise) :
-        roughness;
-    float perc_metallic = metallic_oct > 0 ?
-        mix(metallic, metallic_ceil, metallic_noise) :
-        metallic;
-
-    float alpha = clamp(perc_roughness * perc_roughness, 0.05, 0.98);
+    float alpha = clamp(mat.roughness * mat.roughness, 0.05, 0.98);
 
     /* GGX normal distribution */
     float alpha_2 = alpha * alpha;
@@ -84,7 +95,7 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     float d = alpha_2 / (PI * denom * denom);
 
     /* Schlick Fresnel approximation */
-    vec3 f0 = mix(vec3(0.04), base_color, perc_metallic);
+    vec3 f0 = mix(vec3(0.04), base_color, mat.metallic);
     vec3 f = clamp(f0 + (1.0 - f0) * pow(1.0 - v_dot_h, 5.0), 1e-5, 1.0);
 
     /* Smith-GGX geometry function */
@@ -108,7 +119,8 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     return ret;
 }
 
-lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 base_color, float shadow_factor)
+lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 base_color, float shadow_factor,
+                                       lighting_material mat)
 {
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
     vec3 shadow_tinted = light_color[0] * shadow_tint;
@@ -117,7 +129,7 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
         vec3 to_light_vector = light_pos[i] - world_pos.xyz;
         if (use_normals)    to_light_vector = tbn * to_light_vector;
 
-        lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector, view_dir, base_color);
+        lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector, view_dir, base_color, mat);
 
         /* XXX: shadow casting light source is 0 */
         if (i == 0) {

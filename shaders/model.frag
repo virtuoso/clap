@@ -40,6 +40,8 @@ void main()
         unit_normal = normalize(surface_normal);
     }
 
+    lighting_material mat = noise_material();
+
     vec3 view_dir = normalize(to_camera_vector);
     vec4 texture_sample = texture(model_tex, pass_tex);
     vec4 view_pos = view * world_pos;
@@ -59,7 +61,7 @@ void main()
      * we just don't need yet. Once this becomes less critical, the above change
      * will have to be made.
      */
-    lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor);
+    lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor, mat);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
     EdgeDepthMask = gl_FragCoord.z;
