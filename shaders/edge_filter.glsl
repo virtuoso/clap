@@ -2,18 +2,7 @@
 #define SOBEL_FILTER_GLSL
 
 #include "texel_fetch.glsl"
-
-float linearize_depth(float depth, float near_plane, float far_plane)
-{
-    float linear_depth = near_plane * far_plane / (far_plane + depth * (near_plane - far_plane));
-    return (linear_depth - near_plane) / (far_plane - near_plane) * 500.0;
-}
-
-float linearize_depth(vec3 pixel, float near_plane, float far_plane)
-{
-    float linear_depth = near_plane * far_plane / (far_plane + length(pixel) * (near_plane - far_plane));
-    return (linear_depth - near_plane) / (far_plane - near_plane) * 500.0;
-}
+#include "linearize-depth.glsl"
 
 float depth_linear(sampler2D map, vec2 uv, ivec2 off, float near_plane, float far_plane)
 {
