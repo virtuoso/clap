@@ -24,6 +24,11 @@ float depth_fetch(sampler2DMS map, vec2 coords, float near_plane, float far_plan
 }
 
 void main() {
+    vec4 center = texel_fetch_2dms(normal_map, pass_tex);
+
+    FragColor = vec4(1.0);
+    if (edge_exclude_get(center))   return;
+
     ivec2 texSize = textureSize(normal_map);
     ivec2 texelCoord = ivec2(pass_tex.x * texSize.x, pass_tex.y * texSize.y); // Integer texel coordinates
 

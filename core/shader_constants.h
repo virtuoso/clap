@@ -57,5 +57,13 @@
 #define SAMPLER_BINDING_shadow_map3     7
 #define SAMPLER_BINDING_lut_tex         5
 
+/* Edge filter controls bits */
+#define EDGE_EXCLUDE            (1u << 7)
+#define EDGE_SOLID_LUMA_OFFSET  (4u)
+#define EDGE_LUMA_WIDTH         (3u)
+#define EDGE_LUMA_MAX           ((1u << EDGE_LUMA_WIDTH) - 1u)
+#define EDGE_SOLID_MASK         ((1u << EDGE_SOLID_LUMA_OFFSET) - 1u)
+#define EDGE_SOLID_OFFSET       (0u)
+
 #endif /* CLAP_SHADER_CONSTANTS_H */
 

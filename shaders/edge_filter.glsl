@@ -9,11 +9,49 @@ float depth_linear(sampler2D map, vec2 uv, ivec2 off, float near_plane, float fa
     return linearize_depth(texel_fetch_2d(map, uv, off).r, near_plane, far_plane);
 }
 
-vec3 normals_fetch(sampler2D tex, vec2 tex_coords, ivec2 off)
+// Extract edge_mask from texel's alpha channel, assuming RGBA8 format
+uint edge_mask_get(vec4 texel)
 {
-    vec4 texel = texel_fetch_2d(tex, tex_coords, off);
+    // Assumes RGBA8 unorm
+    return uint(texel.a * 255.0 + 0.5);
+}
 
-    return texel.xyz / texel.w;
+// Get outline_exclude bit's value from texel's alpha channel directly
+bool edge_exclude_get(vec4 texel)
+{
+    return (edge_mask_get(texel) & EDGE_EXCLUDE) != 0;
+}
+
+// Get solid body id from edge mask (EDGE_SOLID_LUMA_OFFSET bits);
+// these use encoded luma values instead of normal vectors for edge detection
+uint edge_solid_id_get(uint edge_mask)
+{
+    return edge_mask & EDGE_SOLID_MASK;
+}
+
+// Get luma value from edge_mask (EDGE_LUMA_WIDTH bits)
+float edge_luma_get(uint edge_mask)
+{
+    uint luma_packed = (edge_mask >> (EDGE_SOLID_LUMA_OFFSET)) & EDGE_LUMA_MAX;
+    return float(luma_packed * (256 / (EDGE_LUMA_MAX + 1)));
+}
+
+vec3 normals_fetch(sampler2D tex, vec2 tex_coords, ivec2 off, vec4 center)
+{
+    vec4 texel = off == ivec2(0) ? center : texel_fetch_2d(tex, tex_coords, off);
+
+    uint edge_mask = edge_mask_get(texel);
+    uint edge_solid_id = edge_solid_id_get(edge_mask);
+    float luma = edge_luma_get(edge_mask);
+
+    if (edge_solid_id != 0) {
+        texel = vec4(luma);
+        return texel.rgb * edge_solid_id;
+    }
+
+    if (luma > 0.0) return texel.rgb * luma;
+
+    return texel.rgb;
 }
 
 float normals_fetch(sampler2DMS tex, vec2 tex_coords)
@@ -23,15 +61,15 @@ float normals_fetch(sampler2DMS tex, vec2 tex_coords)
     return dot(texel.xyz / texel.w, normalize(vec3(0.299, 0.587, 0.114)) / texel.w); // Grayscale;
 }
 
-float laplace_float(sampler2D normals, vec2 tex_coords, int kernel)
+float laplace_float(sampler2D normals, vec2 tex_coords, int kernel, vec4 center)
 {
     int side = (kernel - 1) / 2;
-    vec3 sum = kernel * 2 * normals_fetch(normals, tex_coords, ivec2(0)).rgb;
+    vec3 sum = kernel * 2 * normals_fetch(normals, tex_coords, ivec2(0), center).rgb;
 
     for (int x = -side; x <= side; x++)
-        sum -= normals_fetch(normals, tex_coords, ivec2(x, 0)).rgb;
+        sum -= normals_fetch(normals, tex_coords, ivec2(x, 0), center).rgb;
     for (int y = -side; y <= side; y++)
-        sum -= normals_fetch(normals, tex_coords, ivec2(0, y)).rgb;
+        sum -= normals_fetch(normals, tex_coords, ivec2(0, y), center).rgb;
 
     return length(sum);
 }
@@ -49,18 +87,18 @@ float laplace_float(sampler2D depths, vec2 tex_coords, int kernel, float near_pl
     return clamp(abs(sum), 0.0, 1.0);
 }
 
-vec3 sobel_filter_2d(sampler2D tex, vec2 tex_coords)
+vec3 sobel_filter_2d(sampler2D tex, vec2 tex_coords, vec4 center)
 {
-    vec3 tl = normals_fetch(tex, tex_coords, ivec2(-1,  1)).rgb;
-    vec3 tr = normals_fetch(tex, tex_coords, ivec2( 1,  1)).rgb;
-    vec3 bl = normals_fetch(tex, tex_coords, ivec2(-1, -1)).rgb;
-    vec3 br = normals_fetch(tex, tex_coords, ivec2( 1, -1)).rgb;
+    vec3 tl = normals_fetch(tex, tex_coords, ivec2(-1,  1), center).rgb;
+    vec3 tr = normals_fetch(tex, tex_coords, ivec2( 1,  1), center).rgb;
+    vec3 bl = normals_fetch(tex, tex_coords, ivec2(-1, -1), center).rgb;
+    vec3 br = normals_fetch(tex, tex_coords, ivec2( 1, -1), center).rgb;
 
-    vec3 gx = tr + 2.0 * normals_fetch(tex, tex_coords, ivec2( 1, 0)).rgb + br
-            - (tl + 2.0 * normals_fetch(tex, tex_coords, ivec2(-1, 0)).rgb + bl);
+    vec3 gx = tr + 2.0 * normals_fetch(tex, tex_coords, ivec2( 1, 0), center).rgb + br
+            - (tl + 2.0 * normals_fetch(tex, tex_coords, ivec2(-1, 0), center).rgb + bl);
 
-    vec3 gy = bl + 2.0 * normals_fetch(tex, tex_coords, ivec2( 0, -1)).rgb + br
-            - (tl + 2.0 * normals_fetch(tex, tex_coords, ivec2( 0,  1)).rgb + tr);
+    vec3 gy = bl + 2.0 * normals_fetch(tex, tex_coords, ivec2( 0, -1), center).rgb + br
+            - (tl + 2.0 * normals_fetch(tex, tex_coords, ivec2( 0,  1), center).rgb + tr);
 
     return sqrt(gx * gx + gy * gy);
 }

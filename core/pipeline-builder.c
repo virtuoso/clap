@@ -362,7 +362,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .layout             = FBO_COLOR_DEPTH_TEXTURE(3),
+            .layout             = FBO_COLOR_DEPTH_TEXTURE(2),
             .name               = "model",
             .cascade            = -1,
             .color_config       = (fbo_attconfig[]) {
@@ -376,12 +376,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     /* EmissiveColor */
                     .format         = hdr_fmt,
                     .load_action    = FBOLOAD_CLEAR,
-                    .clear_color    = { 0.0f, 0.0f, 0.0f, 1.0f }
-                },
-                {
-                    /* EdgeNormal */
-                    .format         = TEX_FMT_RGBA8,
-                    .load_action    = FBOLOAD_CLEAR,
+                    .clear_color    = { 0.0f, 0.0f, 0.0f, 0.0f }
                 },
                 {
                     /* Normal */
@@ -460,12 +455,6 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .method     = edge_sobel ? RM_USE : model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },
-                {
-                    .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(1),
-                    .method     = edge_sobel ? RM_USE : model_pass_method,
-                    .sampler    = UNIFORM_EMISSION_MAP
-                },
                 {}
             },
             .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },
@@ -507,7 +496,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(3),
+                    .attachment = FBO_COLOR_TEXTURE(2),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },

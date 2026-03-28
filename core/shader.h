@@ -70,9 +70,8 @@
  * @UNIFORM_SHADOW_TINT:                color of the shadow tint
  * @UNIFORM_SHADOW_OUTLINE:             boolean: outline edges of shadows
  * @UNIFORM_SHADOW_OUTLINE_THRESHOLD:   shadow edge outline cutoff threshold
- * @UNIFORM_OUTLINE_EXCLUDE:            boolean: exclude model from edge detection
+ * @UNIFORM_EDGE_MODE:                  bitmask of edge filtering parameters
  * @UNIFORM_LAPLACE_KERNEL:             Laplace kernel size: 3x3 or 5x5
- * @UNIFORM_SOBEL_SOLID_ID:             unique value for solid-color outlines
  * @UNIFORM_USE_NORMALS:                model uses a normal map
  * @UNIFORM_USE_SKINNING:               model uses skeletal animotion (joint, weights, joint_transform)
  * @UNIFORM_USE_MSAA:                   [ropt] use multisampled textures
@@ -84,8 +83,6 @@
  * @UNIFORM_SSAO_NOISE_SCALE:           [ropt] UV scale for SSAO noise sampling
  * @UNIFORM_SSAO_RADIUS:                [ropt] SSAO radius
  * @UNIFORM_SSAO_WEIGHT:                [ropt] SSAO influence
- * @UNIFORM_SOBEL_SOLID:                boolean: use diffuse colors for edge detection
- *                                      instead of normal vectors
  * @UNIFORM_JOINT_TRANSFORMS:           array of joint transform TRS matrices
  * @UNIFORM_BLOOM_EXPOSURE:             [ropt] bloom exposure
  * @UNIFORM_BLOOM_INTENSITY:            [ropt] >0: emission map's bloom intensity;
@@ -161,9 +158,8 @@ enum shader_vars {
     UNIFORM_SHADOW_TINT,
     UNIFORM_SHADOW_OUTLINE,
     UNIFORM_SHADOW_OUTLINE_THRESHOLD,
-    UNIFORM_OUTLINE_EXCLUDE,
+    UNIFORM_EDGE_MODE,
     UNIFORM_LAPLACE_KERNEL,
-    UNIFORM_SOBEL_SOLID_ID,
     UNIFORM_USE_NORMALS,
     UNIFORM_USE_SKINNING,
     UNIFORM_USE_MSAA,
@@ -175,7 +171,6 @@ enum shader_vars {
     UNIFORM_SSAO_NOISE_SCALE,
     UNIFORM_SSAO_RADIUS,
     UNIFORM_SSAO_WEIGHT,
-    UNIFORM_SOBEL_SOLID,
     UNIFORM_JOINT_TRANSFORMS,
     UNIFORM_BLOOM_EXPOSURE,
     UNIFORM_BLOOM_INTENSITY,

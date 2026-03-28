@@ -900,14 +900,13 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             else if (ropts)
                 shader_set_var_float(prog, UNIFORM_BLOOM_THRESHOLD, ropts->bloom_threshold);
 
-            shader_set_var_int(prog, UNIFORM_OUTLINE_EXCLUDE, e->outline_exclude);
+            uint32_t edge_mode = 0;
+            if (e->outline_exclude) edge_mode |= EDGE_EXCLUDE;
             if (e->priv && mq->nr_characters) {  /* e->priv now points to character */
                 nr_characters++;
-                shader_set_var_int(prog, UNIFORM_SOBEL_SOLID, 1);
-                shader_set_var_float(prog, UNIFORM_SOBEL_SOLID_ID, (float)nr_characters / (float)mq->nr_characters);
-            } else {
-                shader_set_var_int(prog, UNIFORM_SOBEL_SOLID, 0);
+                edge_mode |= (nr_characters & EDGE_SOLID_MASK) << EDGE_SOLID_OFFSET;
             }
+            shader_set_var_int(prog, UNIFORM_EDGE_MODE, edge_mode);
             shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);
             shader_set_var_int(prog, UNIFORM_COLOR_PASSTHROUGH, e->color_pt);
 

@@ -3,6 +3,7 @@
 #include "config.h"
 #include "shader_constants.h"
 #include "texel_fetch.glsl"
+#include "color-utils.glsl"
 
 layout (location=0) in vec2 pass_tex;
 layout (location=1) in vec3 surface_normal;
@@ -25,8 +26,7 @@ layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
-layout (location=2) out vec4 EdgeNormal;
-layout (location=3) out vec4 Normal;
+layout (location=2) out vec4 Normal;
 
 void main()
 {
@@ -72,17 +72,22 @@ void main()
 
     /* surface_normal is in world space */
     vec3 view_normal = mat3(view) * surface_normal;
-    Normal = vec4(view_normal * 0.5 + 0.5, 1.0);
+    Normal = vec4(view_normal * 0.5 + 0.5, 0.0);
 
-    if (sobel_solid) {
-        /* sobel_solid_id is always > 0.0 if sobel_solid==true */
-        EdgeNormal = vec4(texture_sample.rgb, sobel_solid_id);
-        EmissiveColor.a = sobel_solid_id;
-    } else if (outline_exclude) {
-        EdgeNormal = vec4(vec3(0.0), 1.0);
-        EmissiveColor.a = -1.0;
-    } else {
-        vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
-        EdgeNormal = vec4(pos_normal * (shadow_outline && shadow_factor < shadow_outline_threshold ? 0.0 : 1.0), 1.0);
+    uint final_edge_mode = edge_mode;
+    if ((edge_mode & EDGE_SOLID_MASK) != 0) {
+        float luma = luma(texture_sample.rgb);
+        final_edge_mode |= (uint(luma * EDGE_LUMA_MAX) << (EDGE_SOLID_LUMA_OFFSET));
     }
+
+    if (shadow_outline && shadow_factor > shadow_outline_threshold) {
+        if ((edge_mode & EDGE_SOLID_MASK) != 0) {
+            final_edge_mode ^= EDGE_LUMA_MAX << EDGE_SOLID_LUMA_OFFSET;
+        } else {
+            float luma = luma(view_normal.xyz);
+            final_edge_mode = (uint(luma * EDGE_LUMA_MAX) << (EDGE_SOLID_LUMA_OFFSET));
+        }
+    }
+
+    Normal.a = float(final_edge_mode & 0xff) / 255.0;
 }
