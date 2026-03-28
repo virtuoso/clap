@@ -3,6 +3,7 @@
 
 #include "texel_fetch.glsl"
 #include "linearize-depth.glsl"
+#include "half.glsl"
 
 float depth_linear(sampler2D map, vec2 uv, ivec2 off, float near_plane, float far_plane)
 {
@@ -10,7 +11,7 @@ float depth_linear(sampler2D map, vec2 uv, ivec2 off, float near_plane, float fa
 }
 
 // Extract edge_mask from texel's alpha channel, assuming RGBA8 format
-uint edge_mask_get(vec4 texel)
+uint edge_mask_get(f16vec4 texel)
 {
     // Assumes RGBA8 unorm
     return uint(texel.a * 255.0 + 0.5);
@@ -19,7 +20,7 @@ uint edge_mask_get(vec4 texel)
 // Get outline_exclude bit's value from texel's alpha channel directly
 bool edge_exclude_get(vec4 texel)
 {
-    return (edge_mask_get(texel) & EDGE_EXCLUDE) != 0;
+    return (edge_mask_get(HVEC4(texel)) & EDGE_EXCLUDE) != 0;
 }
 
 // Get solid body id from edge mask (EDGE_SOLID_LUMA_OFFSET bits);
@@ -30,23 +31,23 @@ uint edge_solid_id_get(uint edge_mask)
 }
 
 // Get luma value from edge_mask (EDGE_LUMA_WIDTH bits)
-float edge_luma_get(uint edge_mask)
+float16_t edge_luma_get(uint edge_mask)
 {
     uint luma_packed = (edge_mask >> (EDGE_SOLID_LUMA_OFFSET)) & EDGE_LUMA_MAX;
-    return float(luma_packed * (256 / (EDGE_LUMA_MAX + 1)));
+    return H(luma_packed) * (H(256) / H(EDGE_LUMA_MAX + 1));
 }
 
-vec3 normals_fetch(sampler2D tex, vec2 tex_coords, ivec2 off, vec4 center)
+f16vec3 normals_fetch(sampler2D tex, vec2 tex_coords, ivec2 off, vec4 center)
 {
-    vec4 texel = off == ivec2(0) ? center : texel_fetch_2d(tex, tex_coords, off);
+    f16vec4 texel = off == ivec2(0) ? HVEC4(center) : HVEC4(texel_fetch_2d(tex, tex_coords, off));
 
     uint edge_mask = edge_mask_get(texel);
     uint edge_solid_id = edge_solid_id_get(edge_mask);
-    float luma = edge_luma_get(edge_mask);
+    float16_t luma = edge_luma_get(edge_mask);
 
     if (edge_solid_id != 0) {
-        texel = vec4(luma);
-        return texel.rgb * edge_solid_id;
+        texel = HVEC4(luma);
+        return texel.rgb * H(edge_solid_id);
     }
 
     if (luma > 0.0) return texel.rgb * luma;
@@ -64,7 +65,7 @@ float normals_fetch(sampler2DMS tex, vec2 tex_coords)
 float laplace_float(sampler2D normals, vec2 tex_coords, int kernel, vec4 center)
 {
     int side = (kernel - 1) / 2;
-    vec3 sum = kernel * 2 * normals_fetch(normals, tex_coords, ivec2(0), center).rgb;
+    f16vec3 sum = H(kernel * 2) * normals_fetch(normals, tex_coords, ivec2(0), center).rgb;
 
     for (int x = -side; x <= side; x++)
         sum -= normals_fetch(normals, tex_coords, ivec2(x, 0), center).rgb;
@@ -89,16 +90,16 @@ float laplace_float(sampler2D depths, vec2 tex_coords, int kernel, float near_pl
 
 vec3 sobel_filter_2d(sampler2D tex, vec2 tex_coords, vec4 center)
 {
-    vec3 tl = normals_fetch(tex, tex_coords, ivec2(-1,  1), center).rgb;
-    vec3 tr = normals_fetch(tex, tex_coords, ivec2( 1,  1), center).rgb;
-    vec3 bl = normals_fetch(tex, tex_coords, ivec2(-1, -1), center).rgb;
-    vec3 br = normals_fetch(tex, tex_coords, ivec2( 1, -1), center).rgb;
+    f16vec3 tl = normals_fetch(tex, tex_coords, ivec2(-1,  1), center).rgb;
+    f16vec3 tr = normals_fetch(tex, tex_coords, ivec2( 1,  1), center).rgb;
+    f16vec3 bl = normals_fetch(tex, tex_coords, ivec2(-1, -1), center).rgb;
+    f16vec3 br = normals_fetch(tex, tex_coords, ivec2( 1, -1), center).rgb;
 
-    vec3 gx = tr + 2.0 * normals_fetch(tex, tex_coords, ivec2( 1, 0), center).rgb + br
-            - (tl + 2.0 * normals_fetch(tex, tex_coords, ivec2(-1, 0), center).rgb + bl);
+    f16vec3 gx = tr + H(2.0) * normals_fetch(tex, tex_coords, ivec2( 1, 0), center).rgb + br
+            - (tl + H(2.0) * normals_fetch(tex, tex_coords, ivec2(-1, 0), center).rgb + bl);
 
-    vec3 gy = bl + 2.0 * normals_fetch(tex, tex_coords, ivec2( 0, -1), center).rgb + br
-            - (tl + 2.0 * normals_fetch(tex, tex_coords, ivec2( 0,  1), center).rgb + tr);
+    f16vec3 gy = bl + H(2.0) * normals_fetch(tex, tex_coords, ivec2( 0, -1), center).rgb + br
+            - (tl + H(2.0) * normals_fetch(tex, tex_coords, ivec2( 0,  1), center).rgb + tr);
 
     return sqrt(gx * gx + gy * gy);
 }
