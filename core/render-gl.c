@@ -657,7 +657,11 @@ cerr_check texture_load(texture_t *tex, texture_format format,
                         unsigned int width, unsigned int height, void *buf)
 {
     if (!texture_size_valid(width, height))
-        return CERR_INVALID_TEXTURE_SIZE;
+        return CERR_INVALID_TEXTURE_SIZE_REASON(
+            .fmt    = "requested size %u x %u",
+            .arg0   = (void *)(uintptr_t)width,
+            .arg1   = (void *)(uintptr_t)height
+        );
 
     if (!texture_format_supported(format))
         return CERR_NOT_SUPPORTED;
@@ -683,7 +687,11 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
                               unsigned int width, unsigned int height)
 {
     if (!texture_size_valid(width, height))
-        return CERR_INVALID_TEXTURE_SIZE;
+        return CERR_INVALID_TEXTURE_SIZE_REASON(
+            .fmt    = "requested size %u x %u",
+            .arg0   = (void *)(uintptr_t)width,
+            .arg1   = (void *)(uintptr_t)height
+        );
 
     if (!fbo_texture_supported(format))
         return CERR_NOT_SUPPORTED;
