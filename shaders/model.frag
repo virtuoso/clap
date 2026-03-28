@@ -24,9 +24,9 @@ layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 
-layout (location=0) out vec4 FragColor;
-layout (location=1) out vec4 EmissiveColor;
-layout (location=2) out vec4 Normal;
+layout (location=RT_MODEL_LIGHTING)     out vec4 FragColor;
+layout (location=RT_MODEL_EMISSION)     out vec4 EmissiveColor;
+layout (location=RT_MODEL_VIEW_NORMALS) out vec4 Normal;
 
 void main()
 {

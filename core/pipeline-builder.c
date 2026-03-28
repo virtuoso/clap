@@ -362,23 +362,23 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .layout             = FBO_COLOR_DEPTH_TEXTURE(2),
+            .layout             = FBO_COLOR_DEPTH_TEXTURE(RT_MODEL_LAST),
             .name               = "model",
             .cascade            = -1,
             .color_config       = (fbo_attconfig[]) {
-                {
+                [RT_MODEL_LIGHTING] = {
                     /* FragColor */
                     .format         = hdr_fmt,
                     .load_action    = FBOLOAD_CLEAR,
                     .clear_color    = { 0.0f, 0.0f, 0.0f, 1.0f }
                 },
-                {
+                [RT_MODEL_EMISSION] = {
                     /* EmissiveColor */
                     .format         = hdr_fmt,
                     .load_action    = FBOLOAD_CLEAR,
                     .clear_color    = { 0.0f, 0.0f, 0.0f, 0.0f }
                 },
-                {
+                [RT_MODEL_VIEW_NORMALS] = {
                     /* Normal */
                     .format         = TEX_FMT_RGBA8,
                     .load_action    = FBOLOAD_CLEAR,
@@ -399,7 +399,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .source             = (render_source[]) {
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(1),
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_EMISSION),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_MODEL_TEX
                 },
@@ -427,7 +427,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(1),
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_EMISSION),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_EMISSION_MAP
                 },
@@ -451,7 +451,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(2),
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_VIEW_NORMALS),
                     .method     = edge_sobel ? RM_USE : model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },
@@ -496,7 +496,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(2),
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_VIEW_NORMALS),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },
@@ -521,7 +521,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .source            = (render_source[]) {
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_LIGHTING),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_MODEL_TEX
                 },

@@ -65,5 +65,11 @@
 #define EDGE_SOLID_MASK         ((1u << EDGE_SOLID_LUMA_OFFSET) - 1u)
 #define EDGE_SOLID_OFFSET       (0u)
 
+/* Render targets */
+#define RT_MODEL_LIGHTING       0
+#define RT_MODEL_EMISSION       1
+#define RT_MODEL_VIEW_NORMALS   2
+#define RT_MODEL_LAST           RT_MODEL_VIEW_NORMALS
+
 #endif /* CLAP_SHADER_CONSTANTS_H */
 
