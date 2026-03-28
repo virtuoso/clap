@@ -128,7 +128,7 @@ static inline void ui_debug_selector(void) {}
 static inline void ui_toggle_debug_selector(void) {}
 static inline void ui_debug_set_settings(struct settings *rs) {}
 
-static inline bool __ui_mouse_event_propagate(void) { return true; }
+static inline bool __ui_mouse_event_propagate(void) { return false; }
 static inline void imgui_init(struct clap_context *ctx, void *data, int width, int height) {}
 static inline void imgui_set_settings(struct settings *rs) {}
 static inline void imgui_done(void) {}
