@@ -362,7 +362,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             },
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .layout             = FBO_COLOR_DEPTH_TEXTURE(4),
+            .layout             = FBO_COLOR_DEPTH_TEXTURE(3),
             .name               = "model",
             .cascade            = -1,
             .color_config       = (fbo_attconfig[]) {
@@ -381,11 +381,6 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     /* EdgeNormal */
                     .format         = TEX_FMT_RGBA8,
-                    .load_action    = FBOLOAD_CLEAR,
-                },
-                {
-                    /* EdgeDepthMask */
-                    .format         = TEX_FMT_R32F,
                     .load_action    = FBOLOAD_CLEAR,
                 },
                 {
@@ -455,7 +450,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .source             = (render_source[]) {
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(3),
+                    .attachment = FBO_DEPTH_TEXTURE(0),
                     .method     = edge_sobel ? RM_USE : model_pass_method,
                     .sampler    = UNIFORM_MODEL_TEX
                 },
@@ -464,6 +459,12 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .attachment = FBO_COLOR_TEXTURE(2),
                     .method     = edge_sobel ? RM_USE : model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
+                },
+                {
+                    .pass       = model_pass,
+                    .attachment = FBO_COLOR_TEXTURE(1),
+                    .method     = edge_sobel ? RM_USE : model_pass_method,
+                    .sampler    = UNIFORM_EMISSION_MAP
                 },
                 {}
             },
@@ -506,7 +507,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {
                     .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(4),
+                    .attachment = FBO_COLOR_TEXTURE(3),
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },

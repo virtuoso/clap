@@ -7,6 +7,7 @@
 layout (location=0) in vec2 pass_tex;
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
+layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 
 #include "ubo_postproc.glsl"
 
@@ -14,6 +15,11 @@ layout (location=0) out vec4 FragColor;
 
 void main(void)
 {
+    float mode = texture(emission_map, pass_tex).a;
+
+    FragColor = vec4(1.0);
+    if (mode < 0.0)	return;
+
     float laplacian_normal_edge = laplace_float(normal_map, pass_tex, laplace_kernel);
     float laplacian_depth_edge = laplace_float(model_tex, pass_tex, laplace_kernel,
                                                near_plane, far_plane);

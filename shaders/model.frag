@@ -26,8 +26,7 @@ layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 layout (location=0) out vec4 FragColor;
 layout (location=1) out vec4 EmissiveColor;
 layout (location=2) out vec4 EdgeNormal;
-layout (location=3) out float EdgeDepthMask;
-layout (location=4) out vec4 Normal;
+layout (location=3) out vec4 Normal;
 
 void main()
 {
@@ -64,21 +63,24 @@ void main()
     lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor, mat);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
-    EdgeDepthMask = gl_FragCoord.z;
 
     vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, pass_tex).rgb : texture_sample.rgb;
     emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
-    EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 1.0);
+
+    /* EmissiveColor.a encodes outline properties */
+    EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 0.0);
 
     /* surface_normal is in world space */
     vec3 view_normal = mat3(view) * surface_normal;
     Normal = vec4(view_normal * 0.5 + 0.5, 1.0);
 
     if (sobel_solid) {
+        /* sobel_solid_id is always > 0.0 if sobel_solid==true */
         EdgeNormal = vec4(texture_sample.rgb, sobel_solid_id);
+        EmissiveColor.a = sobel_solid_id;
     } else if (outline_exclude) {
         EdgeNormal = vec4(vec3(0.0), 1.0);
-        EdgeDepthMask = 1.0;
+        EmissiveColor.a = -1.0;
     } else {
         vec3 pos_normal = (normalize(orig_normal) + vec3(1.0, 1.0, 1.0)) / 2.0;
         EdgeNormal = vec4(pos_normal * (shadow_outline && shadow_factor < shadow_outline_threshold ? 0.0 : 1.0), 1.0);
