@@ -39,14 +39,14 @@ float laplace_float(sampler2D normals, vec2 tex_coords, int kernel)
 float laplace_float(sampler2D depths, vec2 tex_coords, int kernel, float near_plane, float far_plane)
 {
     int side = (kernel - 1) / 2;
-    vec3 sum = kernel * 2 * vec3(depth_linear(depths, tex_coords, ivec2(0), near_plane, far_plane));
+    float sum = kernel * 2 * depth_linear(depths, tex_coords, ivec2(0), near_plane, far_plane);
 
     for (int x = -side; x <= side; x++)
-        sum -= vec3(depth_linear(depths, tex_coords, ivec2(x, 0), near_plane, far_plane));
+        sum -= depth_linear(depths, tex_coords, ivec2(x, 0), near_plane, far_plane);
     for (int y = -side; y <= side; y++)
-        sum -= vec3(depth_linear(depths, tex_coords, ivec2(0, y), near_plane, far_plane));
+        sum -= depth_linear(depths, tex_coords, ivec2(0, y), near_plane, far_plane);
 
-    return length(sum);
+    return clamp(abs(sum), 0.0, 1.0);
 }
 
 vec3 sobel_filter_2d(sampler2D tex, vec2 tex_coords)
