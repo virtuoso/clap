@@ -8,6 +8,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include "compiler.h"
@@ -588,6 +589,35 @@ static inline double clampd(double x, double floor, double ceil)
     else if (x < floor)
         return floor;
     return x;
+}
+
+static inline uint16_t float_to_half(float f)
+{
+    uint32_t x;
+    memcpy(&x, &f, 4);
+    uint32_t sign   = (x >> 16) & 0x8000;
+    int32_t exp     = ((x >> 23) & 0xff) - 127 + 15;
+    uint32_t mant   = (x >> 13) & 0x3ff;
+
+    if (exp <= 0)   return sign;
+    if (exp >= 31)  return sign | 0x7c00;
+    return sign | (exp << 10) | mant;
+}
+
+static inline float half_to_float(uint16_t h)
+{
+    uint32_t x      = (h & 0x8000) << 16;
+    int32_t  exp    = ((h >> 10) & 0x1f);
+    uint32_t mant   = (h & 0x3ff) << 13;
+
+    if (exp == 0)   goto out;
+    if (exp >= 255) { x |= 0x7f800000; goto out; }
+    x |= ((exp - 15 + 127) << 23) | mant;
+
+out:
+    float f;
+    memcpy(&f, &x, 4);
+    return f;
 }
 
 #ifndef NSEC_PER_SEC
