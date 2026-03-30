@@ -286,7 +286,7 @@ static cerr lut_setup(lut *lut, void *arr, int side)
             &lut->tex,
             .renderer   = lut->renderer,
             .type       = TEX_3D,
-            .format     = TEX_FMT_RGBA32F,
+            .format     = TEX_FMT_RGBA16F,
             .layers     = side,
             .min_filter = TEX_FLT_LINEAR,
             .mag_filter = TEX_FLT_LINEAR,
@@ -296,7 +296,7 @@ static cerr lut_setup(lut *lut, void *arr, int side)
     );
 
     CERR_RET(
-        texture_load(&lut->tex, TEX_FMT_RGBA32F, side, side, arr),
+        texture_load(&lut->tex, TEX_FMT_RGBA16F, side, side, arr),
         return CERR_TEXTURE_NOT_LOADED
     );
 
@@ -305,11 +305,10 @@ static cerr lut_setup(lut *lut, void *arr, int side)
     return CERR_OK;
 }
 
-static inline void arr_set(float *arr, int sz, int x, int y, int z, vec3 rgb)
+static inline void arr_set(uint16_t *arr, int sz, int x, int y, int z, vec3 rgb)
 {
-    arr[z * sz * sz * 4 + y * sz * 4 + x * 4 + 0] = clampf(rgb[0], 0.0, 1.0);
-    arr[z * sz * sz * 4 + y * sz * 4 + x * 4 + 1] = clampf(rgb[1], 0.0, 1.0);
-    arr[z * sz * sz * 4 + y * sz * 4 + x * 4 + 2] = clampf(rgb[2], 0.0, 1.0);
+    for (size_t i = 0; i < 3; i++)
+        arr[(z * sz * sz + y * sz + x) * 4 + i] = float_to_half(clampf(rgb[i], 0.0, 1.0));
 }
 
 /* must match exactly its counterpart in lut.glsl */
@@ -325,14 +324,14 @@ static inline float lut_to_linear(float u)
     return (powf(2.0f, u * log2f(1.0f + HDR_LUT_K * HDR_LUT_MAX)) - 1.0) / HDR_LUT_K;
 }
 
-DEFINE_CLEANUP(float, if (*p) mem_free(*p);)
+DEFINE_CLEANUP(uint16_t, if (*p) mem_free(*p);)
 
 cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset preset, int sz)
 {
     if (preset >= LUT_MAX)
         return cresp_error_cerr(lut, CERR_INVALID_ARGUMENTS);
 
-    LOCAL_SET(float, arr) = mem_alloc(1, .nr = sz * sz * sz * sizeof(vec4));
+    LOCAL_SET(uint16_t, arr) = mem_alloc(1, .nr = sz * sz * sz * sizeof(*arr) * 4);
 
     lut *lut = CRES_RET_T(
         ref_new_checked(
@@ -378,7 +377,7 @@ cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset pres
 static cerr cube_parse(lut *lut, void *buf, size_t size)
 {
     /* A horrible format gets a horrible parser */
-    LOCAL(float, arr);
+    LOCAL(uint16_t, arr);
     const char *p = buf;
     float r, g, b;
     int x = 0, y = 0, z = 0, sz = 0;
@@ -392,7 +391,7 @@ static cerr cube_parse(lut *lut, void *buf, size_t size)
             p = skip_space(p + 11);
             if (sscanf(p, "%d", &sz) != 1 || sz < 32)
                 return CERR_NOT_SUPPORTED;
-            arr = mem_alloc(1, .nr = sz * sz * sz * sizeof(vec4));
+            arr = mem_alloc(1, .nr = sz * sz * sz * sizeof(*arr) * 4);
             if (!arr)
                 return CERR_NOMEM;
         } else if ((isdigit(*p) || *p == '-') && sscanf(p, "%f %f %f", &r, &g, &b) == 3) {
