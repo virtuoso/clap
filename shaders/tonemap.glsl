@@ -1,14 +1,14 @@
 #ifndef CLAP_TONEMAP_GLSL
 #define CLAP_TONEMAP_GLSL
 
-vec3 reinhard_tonemap(vec3 hdr_color)
+f16vec3 reinhard_tonemap(f16vec3 hdr_color)
 {
-    return 1.0 - exp(-hdr_color);
+    return H(1.0) - exp(-hdr_color);
 }
 
-vec3 aces_tonemap(vec3 hdr_color)
+f16vec3 aces_tonemap(f16vec3 hdr_color)
 {
-    return hdr_color * (hdr_color + 0.25) / (hdr_color * (hdr_color + 0.5) + 0.1);
+    return hdr_color * (hdr_color + H(0.25)) / (hdr_color * (hdr_color + H(0.5)) + H(0.1));
 }
 
 float compress_knee(float x, float knee, float max_x, float s)

@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "shader_constants.h"
+#include "half.glsl"
 #include "tonemap.glsl"
 #include "lut.glsl"
 #include "oetf.glsl"
@@ -24,45 +25,45 @@ layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
 #include "ubo_postproc.glsl"
 #include "ubo_projview.glsl"
 
-vec3 apply_contrast(vec3 color, float contrast)
+f16vec3 apply_contrast(f16vec3 color, float16_t contrast)
 {
-    return (color.rgb - 0.5) * (1.0 + contrast) + 0.5;
+    return (color.rgb - H(0.5)) * (H(1.0) + contrast) + H(0.5);
 }
 
-float radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
+float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 {
-    vec3 view_pos = view_pos_from_depth(tex, inverse_proj, uv);
-    if (view_pos.z > 0.0)   return 0;
-    float dist = length(view_pos);
-    return clamp((dist - near_fog) / (far_fog - near_fog), 0.0, 1.0);
+    f16vec3 view_pos = HVEC3(view_pos_from_depth(tex, inverse_proj, uv));
+    if (view_pos.z > 0.0)   return H(0.0);
+    float16_t dist = length(view_pos);
+    return clamp((dist - H(near_fog)) / H(far_fog - near_fog), H(0.0), H(1.0));
 }
 
 void main()
 {
-    vec3 tex_color = use_edge_aa ?
+    f16vec3 tex_color = use_edge_aa ?
         smaa_blend(model_tex, sobel_tex, shadow_map2, pass_tex) :
-        apply_edge(model_tex, sobel_tex, 1.0, pass_tex, ivec2(0));
-    float fog_factor = radial_fog_factor(normal_map, pass_tex, fog_near, fog_far);
-    vec3 highlight_color = texture(emission_map, pass_tex).rgb;
-    float ao = texture(shadow_map, pass_tex).r;
+        apply_edge(model_tex, sobel_tex, H(1.0), pass_tex, ivec2(0));
+    float16_t fog_factor = radial_fog_factor(normal_map, pass_tex, fog_near, fog_far);
+    f16vec3 highlight_color = HVEC3(texture(emission_map, pass_tex).rgb);
+    float16_t ao = H(texture(shadow_map, pass_tex).r);
 
     if (use_ssao)
-        tex_color = tex_color * mix(1.0, ao, ssao_weight);
+        tex_color = tex_color * mix(H(1.0), ao, H(ssao_weight));
 
     if (use_hdr) {
         /* lighting exposure + bloom exposure */
-        vec3 hdr_color = tex_color * lighting_exposure + highlight_color * (1.0 - fog_factor);
+        f16vec3 hdr_color = tex_color * H(lighting_exposure) + highlight_color * (H(1.0) - fog_factor);
         /* fog */
-        hdr_color = mix(hdr_color, fog_color, fog_factor);
+        hdr_color = mix(hdr_color, HVEC3(fog_color), fog_factor);
         /* contrast */
-        hdr_color = apply_contrast(hdr_color, contrast);
+        hdr_color = apply_contrast(hdr_color, H(contrast));
         /* color grading */
-        hdr_color = apply_lut(lut_tex, hdr_color);
+        hdr_color = HVEC3(apply_lut(lut_tex, hdr_color));
         /* tonemapping */
         if (hdr_output)
-            hdr_color = hdr_display_map(hdr_color, hdr_white_nits, hdr_peak_nits, hdr_compress_knee, hdr_knee_softness);
+            hdr_color = HVEC3(hdr_display_map(hdr_color, hdr_white_nits, hdr_peak_nits, hdr_compress_knee, hdr_knee_softness));
         else
-            hdr_color = mix(reinhard_tonemap(hdr_color), aces_tonemap(hdr_color), lighting_operator);
+            hdr_color = mix(reinhard_tonemap(hdr_color), aces_tonemap(hdr_color), H(lighting_operator));
         float edge_blend = 1.0 - fog_factor;
         if (use_edge_aa) {
             vec4 blend = texture(shadow_map2, pass_tex);
@@ -71,7 +72,7 @@ void main()
         hdr_color = apply_edge(hdr_color, sobel_tex, edge_blend, pass_tex, ivec2(0));
         FragColor = vec4(hdr_color, 1.0);
     } else {
-        tex_color = mix(tex_color, fog_color, radial_fog_factor(normal_map, pass_tex, fog_near, fog_far));
+        tex_color = mix(tex_color, HVEC3(fog_color), fog_factor);
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
     }
 
