@@ -20,12 +20,31 @@
             }
         },
         {
+            "name": "wgpudebug",
+            "displayName": "Emscripten + WebGPU Debug",
+            "inherits": [ "emdebug" ],
+            "binaryDir": "${sourceDir}/build/wgpudebug",
+            "cacheVariables": {
+                "CLAP_RENDERER":"WebGPU"
+            }
+        },
+        {
             "name": "emtest",
             "displayName": "Emscripten Test",
             "inherits": [ "emdebug" ],
             "binaryDir": "${sourceDir}/build/emtest",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE":"RelWithDebInfo"
+            }
+        },
+        {
+            "name": "wgputest",
+            "displayName": "Emscripten + WebGPU Test",
+            "inherits": [ "emdebug" ],
+            "binaryDir": "${sourceDir}/build/wgputest",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE":"RelWithDebInfo",
+                "CLAP_RENDERER":"WebGPU"
             }
         },
         {
@@ -185,8 +204,18 @@
             "configuration": "Debug"
         },
         {
+            "name": "WGPUDebug",
+            "configurePreset": "wgpudebug",
+            "configuration": "Debug"
+        },
+        {
             "name": "EMTest",
             "configurePreset": "emtest",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "WGPUTest",
+            "configurePreset": "wgputest",
             "configuration": "RelWithDebInfo"
         },
         {
