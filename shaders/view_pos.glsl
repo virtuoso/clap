@@ -15,7 +15,7 @@ vec2 convert_to_ndc_xy(in vec2 uv)
 vec3 view_pos_from_depth(in sampler2D depth_map, in mat4 inv_proj, in vec2 uv)
 {
     // View-space position reconstruction
-    float depth = texture(depth_map, uv).r;
+    float depth = textureLod(depth_map, uv, 0.0).r;
     if (depth >= 1.0)   return vec3(0.0, 0.0, 1.0); // positive Z -> empty texel
 
     // Assume depth map is 0.0 <= z <= 1.0
