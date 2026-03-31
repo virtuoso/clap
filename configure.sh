@@ -26,5 +26,6 @@ if which emcmake 1>/dev/null 2>&1; then
 	cmake --preset=emrel $CLAP_OPTS "$www_dir"
 	cmake --preset=emtest $CLAP_OPTS "$www_dir"
 	cmake --preset=emdebug $CLAP_OPTS "$www_dir"
+	cmake --preset=wgpudebug $CLAP_OPTS "$www_dir"
 fi
 

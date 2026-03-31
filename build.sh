@@ -16,9 +16,11 @@ if [ -n "$www_dir" ]; then
 	cmake --build build/emrel $VERBOSE $OPTS
 	cmake --build build/emtest $VERBOSE $OPTS
 	cmake --build build/emdebug $VERBOSE $OPTS
+	cmake --build build/wgpudebug $VERBOSE $OPTS
 	cmake --install build/emrel $VERBOSE
 	cmake --install build/emtest $VERBOSE
 	cmake --install build/emdebug $VERBOSE
+	cmake --install build/wgpudebug $VERBOSE
 fi
 
 #cp build/emrel/core/onehandclap.{data,html,js,wasm} /var/www/html/cclap
