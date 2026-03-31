@@ -14,6 +14,7 @@
 
 #ifdef CONFIG_RENDERER_OPENGL
 #include "imgui_impl_opengl3.h"
+#elif defined(CONFIG_RENDERER_WGPU)
 #elif defined(CONFIG_RENDERER_METAL)
 #include "ui-imgui-metal.h"
 #else
