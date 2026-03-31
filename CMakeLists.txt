@@ -89,6 +89,17 @@ set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS "")
 set(CLAP_EMSCRIPTEN_COMPILE_LIBRARIES "")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    if (CONFIG_RENDERER_WGPU)
+        bootstrap_deps("bootstrap-wgpu.json")
+    endif ()
+
+    if (CONFIG_RENDERER_OPENGL)
+        set(CLAP_RENDERER_LIBRARIES
+            "-s USE_WEBGL2=1"
+            "-s FULL_ES3=1"
+        )
+    endif ()
+
     set(CLAP_EMSCRIPTEN_COMPILE_LIBRARIES
         "-s USE_FREETYPE=1"
         "-s USE_LIBPNG=1"
@@ -109,10 +120,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         "-s ASYNCIFY"
         "-s USE_PTHREADS=1"
         "-s PTHREAD_POOL_SIZE=4"
-    )
-    set(CLAP_RENDERER_LIBRARIES
-        "-s USE_WEBGL2=1"
-        "-s FULL_ES3=1"
     )
     set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS
         "-s WASM_WORKERS=1"

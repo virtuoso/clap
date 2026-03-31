@@ -1,0 +1,10 @@
+[
+{
+    "name": "tint-extract",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/virtuoso/tint-extract",
+        "revision": "main"
+    }
+}
+]
