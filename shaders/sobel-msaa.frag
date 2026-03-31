@@ -1,61 +1,45 @@
 #version 460 core
+#extension GL_EXT_samplerless_texture_functions : require
 
 #include "shader_constants.h"
-#include "texel_fetch.glsl"
-#include "edge_filter.glsl"
-
-layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2DMS model_tex;
-layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2DMS normal_map;
 
 layout (location=0) in vec2 pass_tex;
+layout (binding=SAMPLER_BINDING_model_tex) uniform texture2DMS model_tex;
+layout (binding=SAMPLER_BINDING_normal_map) uniform texture2DMS normal_map;
+
 layout (location=0) out vec4 FragColor;
 
+#include "edge_filter.glsl"
 #include "ubo_postproc.glsl"
 
-const ivec2 offsets[8] = ivec2[](
-    ivec2(-1,  1), ivec2( 0,  1), ivec2( 1,  1),
-    ivec2(-1,  0),               ivec2( 1,  0),
-    ivec2(-1, -1), ivec2( 0, -1), ivec2( 1, -1)
-);
-
-float depth_fetch(sampler2DMS map, vec2 coords, float near_plane, float far_plane)
+/*
+ * Workaround for a tint SPIR-V reader ICE in lower/texture.cc when an MS
+ * texture is accessed through call chains of differing depths. Both
+ * laplace_float() and sobel_filter_2d() reach texel_fetch_2dms() three
+ * levels deep, so route the center fetch through the same depth.
+ */
+vec4 fetch_center_inner(texture2DMS tex, vec2 uv)
 {
-    return linearize_depth(texel_fetch_2dms(map, coords).r, near_plane, far_plane);
+    return texel_fetch_2dms(tex, uv);
 }
 
-void main() {
-    vec4 center = texel_fetch_2dms(normal_map, pass_tex);
+vec4 fetch_center(texture2DMS tex, vec2 uv)
+{
+    return fetch_center_inner(tex, uv);
+}
+
+void main(void)
+{
+    vec4 center = fetch_center(normal_map, pass_tex);
 
     FragColor = vec4(1.0);
     if (edge_exclude_get(center))   return;
 
-    ivec2 texSize = textureSize(normal_map);
-    ivec2 texelCoord = ivec2(pass_tex.x * texSize.x, pass_tex.y * texSize.y); // Integer texel coordinates
+    float depth_edge = laplace_float(model_tex, pass_tex, 3, near_plane, far_plane);
+    depth_edge = max(depth_edge - 0.1, 0.0); // Excessive noise
 
-    // Ensure we're not sampling out-of-bounds
-    texelCoord = clamp(texelCoord, ivec2(1), texSize - ivec2(2));
+    float normal_edge = sobel_filter_2d(normal_map, pass_tex);
+    float mixed_edge = max(normal_edge, depth_edge);
 
-    float laplacian_edge =
-        4.0 * depth_fetch(model_tex, pass_tex, near_plane, far_plane) -
-        depth_fetch(model_tex, pass_tex + ivec2(1, 0) / vec2(texSize), near_plane, far_plane) -
-        depth_fetch(model_tex, pass_tex + ivec2(-1, 0) / vec2(texSize), near_plane, far_plane) -
-        depth_fetch(model_tex, pass_tex + ivec2(0, 1) / vec2(texSize), near_plane, far_plane) -
-        depth_fetch(model_tex, pass_tex + ivec2(0, -1) / vec2(texSize), near_plane, far_plane);
-    laplacian_edge = pow(laplacian_edge, 0.9);
-
-    // Fetch averaged colors for Sobel
-    float kernel[9];
-    for (int i = 0; i < 8; i++) {
-        kernel[i] = normals_fetch(normal_map, pass_tex + offsets[i] / vec2(texSize));
-    }
-    kernel[4] = normals_fetch(normal_map, pass_tex); // Center pixel
-
-    // Sobel operator
-    float edgeX = kernel[2] + 2.0 * kernel[4] + kernel[7] - (kernel[0] + 2.0 * kernel[3] + kernel[5]);
-    float edgeY = kernel[0] + 2.0 * kernel[1] + kernel[2] - (kernel[5] + 2.0 * kernel[6] + kernel[7]);
-
-    float edge = sqrt(edgeX * edgeX + edgeY * edgeY);
-    float final_edge = max(edge, laplacian_edge);
-
-    FragColor = vec4(1.0 - vec3(final_edge), 1.0);
+    FragColor = vec4(vec3(1.0 - mixed_edge), 1.0);
 }

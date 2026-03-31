@@ -55,11 +55,50 @@ f16vec3 normals_fetch(sampler2D tex, vec2 tex_coords, ivec2 off, vec4 center)
     return texel.rgb;
 }
 
-float normals_fetch(sampler2DMS tex, vec2 tex_coords)
+float normals_fetch(texture2DMS tex, vec2 tex_coords)
 {
     vec4 texel = texel_fetch_2dms(tex, tex_coords);
 
     return dot(texel.xyz / texel.w, normalize(vec3(0.299, 0.587, 0.114)) / texel.w); // Grayscale;
+}
+
+// MSAA depth sample; offset is expressed in UV space because sampler-less
+// texelFetch() on multisampled textures has no offset parameter
+float depth_linear(texture2DMS map, vec2 uv, vec2 uv_off, float near_plane, float far_plane)
+{
+    return linearize_depth(texel_fetch_2dms(map, uv + uv_off).r, near_plane, far_plane);
+}
+
+float laplace_float(texture2DMS depths, vec2 tex_coords, int kernel, float near_plane, float far_plane)
+{
+    vec2 texel_size = 1.0 / vec2(textureSize(depths));
+    int side = (kernel - 1) / 2;
+    float sum = float(kernel * 2) * depth_linear(depths, tex_coords, vec2(0.0), near_plane, far_plane);
+
+    for (int x = -side; x <= side; x++)
+        sum -= depth_linear(depths, tex_coords, vec2(float(x), 0.0) * texel_size, near_plane, far_plane);
+    for (int y = -side; y <= side; y++)
+        sum -= depth_linear(depths, tex_coords, vec2(0.0, float(y)) * texel_size, near_plane, far_plane);
+
+    return clamp(abs(sum), 0.0, 1.0);
+}
+
+float sobel_filter_2d(texture2DMS tex, vec2 tex_coords)
+{
+    vec2 texel_size = 1.0 / vec2(textureSize(tex));
+
+    float tl = normals_fetch(tex, tex_coords + vec2(-1.0,  1.0) * texel_size);
+    float tr = normals_fetch(tex, tex_coords + vec2( 1.0,  1.0) * texel_size);
+    float bl = normals_fetch(tex, tex_coords + vec2(-1.0, -1.0) * texel_size);
+    float br = normals_fetch(tex, tex_coords + vec2( 1.0, -1.0) * texel_size);
+
+    float gx = tr + 2.0 * normals_fetch(tex, tex_coords + vec2( 1.0, 0.0) * texel_size) + br
+           - (tl + 2.0 * normals_fetch(tex, tex_coords + vec2(-1.0, 0.0) * texel_size) + bl);
+
+    float gy = bl + 2.0 * normals_fetch(tex, tex_coords + vec2( 0.0, -1.0) * texel_size) + br
+           - (tl + 2.0 * normals_fetch(tex, tex_coords + vec2( 0.0,  1.0) * texel_size) + tr);
+
+    return sqrt(gx * gx + gy * gy);
 }
 
 float laplace_float(sampler2D normals, vec2 tex_coords, int kernel, vec4 center)
