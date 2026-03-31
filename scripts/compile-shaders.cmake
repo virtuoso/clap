@@ -17,6 +17,8 @@ if (CONFIG_RENDERER_OPENGL)
             set(SPIRV_CROSS_ARGS --no-es --version 410)
         endif ()
     endif ()
+elseif (CONFIG_RENDERER_WGPU)
+    set(SHADER_TYPE "wgsl")
 elseif (CONFIG_RENDERER_METAL)
     set(SHADER_TYPE "msl")
     set(SPIRV_CROSS_ARGS --msl --msl-version 20100 --msl-decoration-binding)
@@ -75,12 +77,21 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
     )
 
     # Command to build the final ${shader}
-    add_custom_command(
-        OUTPUT "${SHADER_DIR}/${shader}"
-        DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}"
-        COMMAND "${SPIRV_CROSS}"
-        ARGS ${SPIRV_CROSS_ARGS} "${SPIRV_OUTPUT}" --output "${SHADER_DIR}/${shader}"
-    )
+    if (CONFIG_RENDERER_WGPU)
+        add_custom_command(
+            OUTPUT "${SHADER_DIR}/${shader}"
+            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}" "${TINT_BIN_PATH}"
+            COMMAND "${TINT_BIN_PATH}"
+            ARGS --format wgsl -o "${SHADER_DIR}/${shader}" "${SPIRV_OUTPUT}"
+        )
+    else ()
+        add_custom_command(
+            OUTPUT "${SHADER_DIR}/${shader}"
+            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}"
+            COMMAND "${SPIRV_CROSS}"
+            ARGS ${SPIRV_CROSS_ARGS} "${SPIRV_OUTPUT}" --output "${SHADER_DIR}/${shader}"
+        )
+    endif ()
 
     if (NOT CONFIG_RENDERER_OPENGL)
         add_custom_command(
