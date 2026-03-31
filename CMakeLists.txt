@@ -88,9 +88,34 @@ set(CLAP_EXECUTABLE_LINK_OPTIONS "")
 set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS "")
 set(CLAP_EMSCRIPTEN_COMPILE_LIBRARIES "")
 
+include(ExternalProject)
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     if (CONFIG_RENDERER_WGPU)
         bootstrap_deps("bootstrap-wgpu.json")
+
+        include(scripts/host-compiler.cmake)
+
+        set(TINT_HOST_BUILD_DIR "${CMAKE_BINARY_DIR}/tint-host")
+        set(TINT_BIN_PATH "${TINT_HOST_BUILD_DIR}/tint")
+
+        ExternalProject_Add(tint_host
+            SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/src/tint-extract"
+            BINARY_DIR "${TINT_HOST_BUILD_DIR}"
+            CMAKE_ARGS
+                -DCMAKE_C_COMPILER=${HOST_C_COMPILER}
+                -DCMAKE_CXX_COMPILER=${HOST_CXX_COMPILER}
+                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_TOOLCHAIN_FILE=
+            BUILD_BYPRODUCTS "${TINT_BIN_PATH}"
+            INSTALL_COMMAND ""
+            USES_TERMINAL_BUILD TRUE
+            STEP_TARGETS build
+        )
+
+        add_executable(tint IMPORTED GLOBAL)
+        set_target_properties(tint PROPERTIES IMPORTED_LOCATION "${TINT_BIN_PATH}")
+        add_dependencies(tint tint_host)
     endif ()
 
     if (CONFIG_RENDERER_OPENGL)
@@ -305,7 +330,6 @@ else ()
 set(ODE_LIBRARY "${ODE_ROOT}/lib/libode.a")
 endif ()
 
-include(ExternalProject)
 ExternalProject_Add(ode
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/deps/ode
     CMAKE_ARGS
