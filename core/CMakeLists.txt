@@ -208,7 +208,7 @@ set(SHADER_BASE "${CMAKE_BINARY_DIR}")
 include("${CMAKE_SOURCE_DIR}/scripts/compile-shaders.cmake")
 
 set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
-set(SHADERS ui glyph model contrast sobel sobel-msaa laplace
+set(SHADERS ui glyph model contrast sobel laplace sobel-msaa
     smaa-blend-weights smaa-neighborhood-blend combine shadow
     debug hblur vblur downsample upsample terrain particle ssao
     shadow_vsm)

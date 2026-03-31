@@ -1,6 +1,8 @@
 #ifndef CLAP_TEXEL_FETCH_GLSL
 #define CLAP_TEXEL_FETCH_GLSL
 
+#extension GL_EXT_samplerless_texture_functions : enable
+
 vec4 texel_fetch_2d(in sampler2D map, in vec2 pos, in ivec2 tex_off)
 {
     float texel_size_x = 1.0 / float(textureSize(map, 0).x);
@@ -17,7 +19,7 @@ vec4 texel_fetch_2darray(in sampler2DArray map, in vec3 pos, in ivec2 tex_off)
     return textureLod(map, vec3(pos.xy + off, pos.z), 0.0);
 }
 
-vec4 texel_fetch_2dms_sample(in sampler2DMS map, in vec2 pos, in int idx)
+vec4 texel_fetch_2dms_sample(in texture2DMS map, in vec2 pos, in int idx)
 {
     float texel_size_x = textureSize(map).x;
     float texel_size_y = textureSize(map).y;
@@ -32,7 +34,7 @@ vec4 texel_fetch_2dms_array_sample(in sampler2DMSArray map, in vec3 pos, in int 
 }
 
 /* MSAA resolving algorithms */
-vec3 weighted_msaa(in sampler2DMS map, vec2 pos)
+vec3 weighted_msaa(in texture2DMS map, vec2 pos)
 {
     vec3 sum = vec3(0.0);
     float weightSum = 0.0;
@@ -66,7 +68,7 @@ vec3 weighted_msaa(in sampler2DMS map, vec2 pos)
     return sum / weightSum;
 }
 
-vec3 tent_msaa(in sampler2DMS map, vec2 pos)
+vec3 tent_msaa(in texture2DMS map, vec2 pos)
 {
     float weights[4] = float[](0.125, 0.375, 0.375, 0.125); // 4x MSAA tent weights
     vec3 sum = vec3(0.0);
@@ -77,7 +79,7 @@ vec3 tent_msaa(in sampler2DMS map, vec2 pos)
     return sum;
 }
 
-vec3 clamped_msaa(in sampler2DMS map, vec2 pos)
+vec3 clamped_msaa(in texture2DMS map, vec2 pos)
 {
     vec3 center = texel_fetch_2dms_sample(map, pos, 0).rgb;
     vec3 sum = vec3(0.0);
@@ -93,7 +95,7 @@ vec3 clamped_msaa(in sampler2DMS map, vec2 pos)
     return sum / weightSum;
 }
 
-vec3 box_msaa(in sampler2DMS map, in vec2 pos)
+vec3 box_msaa(in texture2DMS map, in vec2 pos)
 {
     vec3 pixel = vec3(0.0);
 
@@ -104,7 +106,7 @@ vec3 box_msaa(in sampler2DMS map, in vec2 pos)
     return pixel;
 }
 
-vec4 texel_fetch_2dms(in sampler2DMS map, in vec2 pos)
+vec4 texel_fetch_2dms(in texture2DMS map, in vec2 pos)
 {
     /* XXX: parameterize selection of algorithms */
     return vec4(weighted_msaa(map, pos), 1.0);
