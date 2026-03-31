@@ -96,6 +96,51 @@ typedef void *dispatch_semaphore_t;
 # endif /* !IMPLEMENTOR || !__OBJC__ */
 // Metal's integral types are landmines between C and ObjC
 typedef uint64_t mtl_cull_mode_t;
+#elif defined(CONFIG_RENDERER_WGPU)
+# include <stdatomic.h>
+# include "bindings/render-bindings.h" /* for BINDING_TEXTURE_MAX / BINDING_UBO_MAX */
+enum { WGPU_VERTEX_ATTRIBUTE_SIZE = 24, WGPU_VERTEX_ATTRIBUTE_ALIGN = 8 };
+# ifdef IMPLEMENTOR
+#  include <webgpu/webgpu.h>
+typedef WGPUInstance wgpu_instance_t;
+typedef WGPUAdapter wgpu_adapter_t;
+typedef WGPUDevice wgpu_device_t;
+typedef WGPUQueue wgpu_queue_t;
+typedef WGPURenderPassEncoder wgpu_render_pass_encoder_t;
+typedef WGPUSurface wgpu_surface_t;
+typedef WGPUSurfaceTexture wgpu_surface_texture_t;
+typedef WGPUTexture wgpu_texture_t;
+typedef WGPUTextureView wgpu_texture_view_t;
+typedef WGPUCommandEncoder wgpu_command_encoder_t;
+typedef WGPUTextureFormat wgpu_texture_format_t;
+static_assert(sizeof(wgpu_texture_format_t) == sizeof(int), "WGPUTextureFormat width mismatch");
+typedef WGPUShaderModule wgpu_shader_module_t;
+typedef WGPUBuffer wgpu_buffer_t;
+typedef WGPUSampler wgpu_sampler_t;
+typedef WGPURenderPipeline wgpu_render_pipeline_t;
+typedef WGPUVertexAttribute wgpu_vertex_attribute_t;
+static_assert(sizeof(WGPUVertexAttribute) == WGPU_VERTEX_ATTRIBUTE_SIZE,
+              "WGPUVertexAttribute size mismatch");
+static_assert(_Alignof(WGPUVertexAttribute) == WGPU_VERTEX_ATTRIBUTE_ALIGN,
+              "WGPUVertexAttribute align mismatch");
+# else /* !IMPLEMENTOR */
+typedef void *wgpu_instance_t;
+typedef void *wgpu_adapter_t;
+typedef void *wgpu_device_t;
+typedef void *wgpu_queue_t;
+typedef void *wgpu_render_pass_encoder_t;
+typedef void *wgpu_surface_t;
+typedef void *wgpu_surface_texture_t;
+typedef void *wgpu_texture_t;
+typedef void *wgpu_texture_view_t;
+typedef void *wgpu_command_encoder_t;
+typedef int wgpu_texture_format_t;
+typedef void *wgpu_shader_module_t;
+typedef void *wgpu_buffer_t;
+typedef void *wgpu_sampler_t;
+typedef void *wgpu_render_pipeline_t;
+typedef struct { _Alignas(WGPU_VERTEX_ATTRIBUTE_ALIGN) char _[WGPU_VERTEX_ATTRIBUTE_SIZE]; } wgpu_vertex_attribute_t;
+# endif /* !IMPLEMENTOR */
 #else
 # error "Unsupported renderer"
 #endif
@@ -157,6 +202,22 @@ TYPE(buffer,
     uniform_t           loc;
 #endif /* CONFIG_FINAL */
 );
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(buffer,
+    struct ref      ref;
+    renderer_t      *renderer;
+    buffer_t        *main;
+    wgpu_buffer_t   buf;
+    size_t          off;
+    size_t          size;
+    unsigned int    comp_count;
+    buffer_type     type;
+    uniform_t       loc;
+    bool            loaded;
+#ifndef CONFIG_FINAL
+    buffer_init_options opts;
+#endif /* CONFIG_FINAL */
+);
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(buffer,
     struct ref      ref;
@@ -198,6 +259,13 @@ TYPE(vertex_array,
     struct ref  ref;
     GLuint      vao;
 );
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(vertex_array,
+    struct ref      ref;
+    renderer_t      *renderer;
+    buffer_t        *index;
+    buffer_t        *vbuf;
+);
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(vertex_array,
     struct ref  ref;
@@ -228,6 +296,17 @@ DEFINE_REFCLASS_INIT_OPTIONS(draw_control,
 #ifdef CONFIG_RENDERER_OPENGL
 TYPE(draw_control,
     struct ref  ref;
+);
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(draw_control,
+    struct ref                  ref;
+    renderer_t                  *renderer;
+    shader_t                    *shader;
+    struct list                 cache_entry;
+    wgpu_render_pipeline_t      pipeline[2]; /* [0] no blend, [1] blend */
+    wgpu_texture_format_t       color_format;
+    unsigned int                nr_color_targets;
+    bool                        has_depth;
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(draw_control,
@@ -334,6 +413,25 @@ TYPE(texture,
     unsigned int    width;
     unsigned int    height;
     float           border[4];
+#ifndef CONFIG_FINAL
+    texture_init_options    opts;
+#endif /* CONFIG_FINAL */
+);
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(texture,
+    struct ref          ref;
+    renderer_t          *renderer;
+    wgpu_texture_t      texture;
+    wgpu_texture_view_t view;
+    wgpu_sampler_t      sampler;
+    texture_type        type;
+    texture_format      format;
+    int                 width;
+    int                 height;
+    unsigned int        layers;
+    bool                multisampled;
+    bool                render_target;
+    bool                loaded;
 #ifndef CONFIG_FINAL
     texture_init_options    opts;
 #endif /* CONFIG_FINAL */
@@ -571,6 +669,22 @@ TYPE(fbo,
     int             depth_buf;
     unsigned int    nr_samples;
 );
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(fbo,
+    struct ref                          ref;
+    renderer_t                          *renderer;
+    texture_t                           color_tex[FBO_COLOR_ATTACHMENTS_MAX];
+    texture_t                           depth_tex;
+    unsigned int                        width;
+    unsigned int                        height;
+    unsigned int                        layers;
+    unsigned int                        nr_samples;
+    fbo_attachment                      layout;
+    fbo_attconfig                       *color_config;
+    fbo_attconfig                       depth_config;
+    unsigned int                        id;
+    const char                          *name;
+);
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(fbo,
     struct ref                      ref;
@@ -642,7 +756,7 @@ typedef enum {
 #define SHADER_STAGE_GEOMETRY_BIT   (1 << SHADER_STAGE_GEOMETRY)
 #define SHADER_STAGE_COMPUTE_BIT    (1 << SHADER_STAGE_COMPUTE)
 
-#if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_METAL)
+#if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_WGPU) || defined(CONFIG_RENDERER_METAL)
 TYPE(binding_points,
     int binding;
     int stages;
@@ -663,6 +777,22 @@ TYPE(uniform_buffer,
     GLuint      binding;  /* UBO binding point */
     void        *data;    /* CPU-side shadow buffer */
     bool        dirty;    /* Flag for updates */
+);
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(uniform_buffer,
+    struct ref              ref;
+    renderer_t              *renderer;
+    wgpu_buffer_t           buf;        /* GPU-side uniform buffer (large, multi-slot) */
+    size_t                  size;       /* Single slot size in bytes (16-byte aligned) */
+    size_t                  slot_size;  /* 256-byte aligned slot stride */
+    size_t                  total_size; /* Total GPU buffer size */
+    void                    *data;      /* CPU-side shadow: current slot */
+    void                    *prev;      /* Previous slot pointer (for COW) */
+    size_t                  item;       /* Current slot index */
+    struct list             entry;      /* Link into renderer->ubos */
+    int                     binding;    /* WGPU binding point */
+    bool                    advance;    /* Next write should advance to new slot */
+    bool                    dirty;      /* Flag for updates */
 );
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(uniform_buffer,
@@ -711,6 +841,17 @@ TYPE(shader,
     GLuint  geom;
     GLuint  prog;
 );
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(shader,
+    renderer_t                          *renderer;
+    wgpu_shader_module_t                vert;
+    wgpu_shader_module_t                frag;
+    wgpu_vertex_attribute_t             vertex_attrs[6];
+    unsigned int                        nr_vertex_attrs;
+    size_t                              vertex_stride;
+    uint64_t                            binding_mask;
+    char                                *name;
+);
 #elif defined(CONFIG_RENDERER_METAL)
 TYPE(shader,
     renderer_t                          *renderer;
@@ -734,6 +875,12 @@ int shader_id(shader_t *shader);
 cerr_check shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
 attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr);
 uniform_t shader_uniform(shader_t *shader, const char *name);
+
+#ifdef CONFIG_RENDERER_WGPU
+void shader_set_name(shader_t *shader, const char *name);
+#else /* !CONFIG_RENDERER_WGPU */
+static inline void shader_set_name(shader_t *shader, const char *name) {}
+#endif /* !CONFIG_RENDERER_WGPU */
 
 cerr_check shader_use(shader_t *shader, bool draw);
 void shader_unuse(shader_t *shader, bool draw);
@@ -785,6 +932,35 @@ TYPE(renderer,
     bool                depth_test;
     bool                wireframe;
     bool                mac_amd_quirk;
+);
+#elif defined(CONFIG_RENDERER_WGPU)
+TYPE(renderer,
+    struct ref                          ref;
+    wgpu_instance_t                     instance;
+    wgpu_adapter_t                      adapter;
+    wgpu_device_t                       device;
+    wgpu_queue_t                        queue;
+    wgpu_command_encoder_t              cmd_encoder;
+    wgpu_surface_t                      surface;
+    wgpu_surface_texture_t              surface_texture;
+    wgpu_texture_t                      texture;
+    wgpu_texture_view_t                 texture_view;
+    wgpu_render_pass_encoder_t          pass_encoder;
+    fbo_t                               *fbo;
+    vertex_array_t                      *va;
+    draw_control_t                      *dc;
+    struct list                         dc_cache;
+    struct list                         ubos;
+    texture_t                           *bound_textures[BINDING_TEXTURE_MAX];
+    uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
+    int                                 width;
+    int                                 height;
+    bool                                hdr;
+    bool                                edr_supported;
+    bool                                blend;
+    int                                 limits[RENDER_LIMIT_MAX];
+    atomic_uint                         error;
+    char                                wgpu_message[128];
 );
 #elif defined(CONFIG_RENDERER_METAL)
 #define FBOS_MAX 1024
@@ -855,17 +1031,17 @@ void renderer_hdr_enable(renderer_t *r, bool enable);
 
 void renderer_swapchain_begin(renderer_t *renderer);
 
-#ifdef CONFIG_RENDERER_METAL
-void renderer_done(renderer_t *r);
-void renderer_frame_begin(renderer_t *renderer);
-void renderer_swapchain_end(renderer_t *r);
-void renderer_frame_end(renderer_t *renderer);
-#else
+#ifdef CONFIG_RENDERER_OPENGL
 static inline void renderer_frame_begin(renderer_t *renderer) {}
 static inline void renderer_frame_end(renderer_t *renderer) {}
 static inline void renderer_swapchain_end(renderer_t *renderer) {}
 static inline void renderer_done(renderer_t *renderer) {}
-#endif /* CONFIG_RENDERER_METAL */
+#else
+void renderer_done(renderer_t *r);
+void renderer_frame_begin(renderer_t *renderer);
+void renderer_swapchain_end(renderer_t *r);
+void renderer_frame_end(renderer_t *renderer);
+#endif /* !CONFIG_RENDERER_OPENGL */
 
 #ifndef CONFIG_FINAL
 void buffer_debug_header(void);
