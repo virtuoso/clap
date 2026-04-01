@@ -429,7 +429,7 @@ static inline void *_darray_get(struct darray *da, size_t el)
 {
     if (el >= da->nr_el)
         return NULL;
-    return da->array + da->elsz * el;
+    return (uchar *)da->array + da->elsz * el;
 }
 
 /* Get an element of an array */
