@@ -113,7 +113,7 @@ static inline const char *_ref_name(struct ref *ref)
 
 static inline void *ref_obj(struct ref *ref)
 {
-    return (void *)ref - ref->refclass->offset;
+    return (uchar *)ref - ref->refclass->offset;
 }
 
 static inline void ref_init(struct ref *ref)
