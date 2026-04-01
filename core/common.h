@@ -13,7 +13,7 @@
 #endif
 
 #ifndef MODNAME
-#define MODNAME __BASE_FILE__
+#define MODNAME (const char *)__BASE_FILE__
 #endif
 
 #include "config.h"
