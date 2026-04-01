@@ -86,7 +86,7 @@ typedef struct cerr {
     cerr_reason reason;
 #ifndef CONFIG_FINAL
     int         line;
-    char        *mod;
+    const char  *mod;
 #endif /* CONFIG_FINAL */
 } cerr;
 
@@ -108,7 +108,7 @@ typedef struct cerr {
 #ifndef CONFIG_FINAL
 #define __cerr_debug_fields \
     int         line;       \
-    char        *mod;
+    const char  *mod;
 #define __cerr_debug_data \
     .line   = __LINE__,   \
     .mod    = MODNAME,
