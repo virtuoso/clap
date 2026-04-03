@@ -532,6 +532,7 @@ static void append_node(JsonNode *parent, JsonNode *child)
 	else
 		parent->children.head = child;
 	parent->children.tail = child;
+	parent->children.count++;
 }
 
 static void prepend_node(JsonNode *parent, JsonNode *child)
@@ -545,6 +546,7 @@ static void prepend_node(JsonNode *parent, JsonNode *child)
 	else
 		parent->children.tail = child;
 	parent->children.head = child;
+	parent->children.count++;
 }
 
 static void append_member(JsonNode *object, char *key, JsonNode *value)
@@ -591,6 +593,7 @@ void json_remove_from_parent(JsonNode *node)
 	JsonNode *parent = node->parent;
 	
 	if (parent != NULL) {
+		parent->children.count--;
 		if (node->prev != NULL)
 			node->prev->next = node->next;
 		else
@@ -1368,22 +1371,6 @@ bool json_check(const JsonNode *node, char errmsg[256])
 	#undef problem
 }
 
-int json_arraysz(JsonNode *node)
-{
-    JsonNode *p, *n;
-	int i;
-
-	if (node->tag != JSON_ARRAY)
-		return -1;
-
-    for (i = 0, p = node->children.head, n = p ? p->next : NULL;
-		 p;
-		 p = n, n = n ? n->next : NULL, i++)
-		;
-
-	return i;
-}
-
 #define JSON_ARRAY_DECL(_type) \
 int json_ ## _type ## _array(JsonNode *node,  _type *array, unsigned int nr_el) \
 { \
@@ -1407,24 +1394,24 @@ int json_ ## _type ## _array(JsonNode *node,  _type *array, unsigned int nr_el) 
  \
 _type *json_ ## _type ##_array_alloc(JsonNode *node, unsigned int *psz) \
 { \
-	int size = json_arraysz(node), ret; \
+	int ret; \
 	_type *array; \
  \
-	if (size <= 0) \
+	if (node->children.count <= 0) \
 		return NULL; \
 	 \
-	array = mem_alloc(sizeof(_type), .nr = size); \
+	array = mem_alloc(sizeof(_type), .nr = node->children.count); \
 	if (!array) \
 		return NULL; \
 	 \
-	ret = json_ ## _type ## _array(node, array, size); \
+	ret = json_ ## _type ## _array(node, array, node->children.count); \
 	if (ret) { \
 		free(array); \
 		return NULL; \
 	} \
  \
 	if (psz) \
-		*psz = size; \
+		*psz = node->children.count; \
  \
 	return array; \
 }

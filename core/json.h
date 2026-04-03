@@ -63,6 +63,7 @@ struct JsonNode
 		/* JSON_OBJECT */
 		struct {
 			JsonNode *head, *tail;
+			size_t count;
 		} children;
 	};
 };
@@ -83,6 +84,8 @@ JsonNode   *json_find_element   (JsonNode *array, int index);
 JsonNode   *json_find_member    (JsonNode *object, const char *key);
 
 JsonNode   *json_first_child    (const JsonNode *node);
+
+static inline size_t json_nr_children(JsonNode *node) { return node->children.count; }
 
 #define json_foreach(i, object_or_array)            \
 	for ((i) = json_first_child(object_or_array);   \
