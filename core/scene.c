@@ -1187,7 +1187,7 @@ static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode 
     return CERR_OK;
 }
 
-unsigned int total_models, nr_models;
+unsigned int nr_models;
 
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
@@ -1517,7 +1517,7 @@ light_done:
     dbg("loaded model '%s'\n", name);
 
     if (scene->ls)
-        loading_screen_progress(scene->ls, (float)nr_models / (float)total_models);
+        loading_screen_progress(scene->ls, (float)nr_models / (float)json_nr_children(node));
     nr_models++;
 
     return CERR_OK;
@@ -1609,8 +1609,6 @@ static void scene_onload(struct lib_handle *h, void *buf)
     }
 
     p = json_find_member(scene->json_root, "model");
-    for (JsonNode *m = p->children.head; m; m = m->next)
-        total_models++;
 
     for (p = scene->json_root->children.head; p; p = p->next) {
         if (!strcmp(p->key, "name")) {
