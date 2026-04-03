@@ -44,7 +44,12 @@
 #define UBO_BINDING_outline     9
 #define UBO_BINDING_bloom       10
 #define UBO_BINDING_postproc    11
+/* Lowest binding becomes highest when UBOs share namespace with vertex buffers */
+#ifdef CONFIG_RENDERER_OPENGL
+#define UBO_BINDING_color_pt    0
+#else /* !CONFIG_RENDERER_OPENGL */
 #define UBO_BINDING_color_pt    12
+#endif /* !CONFIG_RENDERER_OPENGL */
 
 #define SAMPLER_BINDING_model_tex       0
 #define SAMPLER_BINDING_normal_map      1
