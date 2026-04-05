@@ -1,0 +1,177 @@
+{
+    "vertex_attributes": [
+        { "name": "position",   "type": "DT_VEC3" },
+        { "name": "tex",        "type": "DT_VEC2" },
+        { "name": "normal",     "type": "DT_VEC3" },
+        { "name": "tangent",    "type": "DT_VEC4" },
+        { "name": "joints",     "type": "DT_UVEC4" },
+        { "name": "weights",    "type": "DT_VEC4" }
+    ],
+    "textures": [
+        { "name": "model_tex",      "binding": 0, "symbol": "UNIFORM_MODEL_TEX" },
+        { "name": "normal_map",     "binding": 1, "symbol": "UNIFORM_NORMAL_MAP" },
+        { "name": "emission_map",   "binding": 2, "symbol": "UNIFORM_EMISSION_MAP" },
+        { "name": "sobel_tex",      "binding": 3, "symbol": "UNIFORM_SOBEL_TEX" },
+        { "name": "shadow_map",     "binding": 4, "symbol": "UNIFORM_SHADOW_MAP" },
+        { "name": "shadow_map_ms",  "binding": 5, "symbol": "UNIFORM_SHADOW_MAP_MS" },
+        { "name": "shadow_map1",    "binding": 5, "symbol": "UNIFORM_SHADOW_MAP1" },
+        { "name": "lut_tex",        "binding": 5, "symbol": "UNIFORM_LUT_TEX" },
+        { "name": "shadow_map2",    "binding": 6, "symbol": "UNIFORM_SHADOW_MAP2" },
+        { "name": "shadow_map3",    "binding": 7, "symbol": "UNIFORM_SHADOW_MAP3" }
+    ],
+    "ubos": [
+        {
+            "name": "lighting",
+            "stages": [ "vertex", "fragment" ],
+            "binding": 0,
+            "uniforms": [
+                { "name": "light_pos", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_POS", "array_size": "LIGHTS_MAX", "discription": "array of light position vectors (LIGHTS_MAX entries)" },
+                { "name": "light_color", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_COLOR", "array_size": "LIGHTS_MAX", "discription": "array of light color vectors (LIGHTS_MAX entries)" },
+                { "name": "light_dir", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_DIR", "array_size": "LIGHTS_MAX", "discription": "array of light direction vectors (LIGHTS_MAX entries)" },
+                { "name": "attenuation", "type": "DT_VEC3", "symbol": "UNIFORM_ATTENUATION", "array_size": "LIGHTS_MAX", "discription": "array of non-directional light attenuations (LIGHTS_MAX entries)" },
+                { "name": "light_directional", "type": "DT_INT", "symbol": "UNIFORM_LIGHT_DIRECTIONAL", "array_size": "LIGHTS_MAX", "discription": "array of \"is light directional\" booleans (LIGHTS_MAX entries)" },
+                { "name": "nr_lights", "type": "DT_INT", "symbol": "UNIFORM_NR_LIGHTS", "discription": "number of light sources" },
+                { "name": "use_normals", "type": "DT_INT", "symbol": "UNIFORM_USE_NORMALS", "discription": "model uses a normal map" },
+                { "name": "light_ambient", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_AMBIENT", "discription": "ambient light color" }
+            ]
+        },
+        {
+            "name": "shadow",
+            "stages": [ "geometry", "fragment" ],
+            "binding": 1,
+            "uniforms": [
+                { "name": "shadow_mvp", "type": "DT_MAT4", "symbol": "UNIFORM_SHADOW_MVP", "array_size": "CASCADES_MAX", "discription": "array of proj * view matrices for shadow cascades (CASCADES_MAX entries)" },
+                { "name": "cascade_distances", "type": "DT_FLOAT", "symbol": "UNIFORM_CASCADE_DISTANCES", "array_size": "CASCADES_MAX", "discription": "array of cascade distances from the camera (CASCADES_MAX entries)" },
+                { "name": "light_far", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHT_FAR", "array_size": "CASCADES_MAX", "discription": "array of far plane distances of shadow cascades (CASCADES_MAX entries)" },
+                { "name": "shadow_tint", "type": "DT_VEC3", "symbol": "UNIFORM_SHADOW_TINT", "discription": "color of the shadow tint" },
+                { "name": "shadow_vsm", "type": "DT_INT", "symbol": "UNIFORM_SHADOW_VSM", "discription": "use Variance Shadow Mapping (otherwise CSM)" },
+                { "name": "shadow_outline", "type": "DT_INT", "symbol": "UNIFORM_SHADOW_OUTLINE", "discription": "outline edges of shadows" },
+                { "name": "shadow_outline_threshold", "type": "DT_FLOAT", "symbol": "UNIFORM_SHADOW_OUTLINE_THRESHOLD", "discription": "shadow edge outline cutoff threshold" }
+            ]
+        },
+        {
+            "name": "transform",
+            "stages": [ "vertex", "fragment" ],
+            "binding": 2,
+            "uniforms": [
+                { "name": "trs", "type": "DT_MAT4", "symbol": "UNIFORM_TRS", "discription": "model TRS matrix" },
+                { "name": "inverse_trs", "type": "DT_MAT4", "symbol": "UNIFORM_INVERSE_TRS", "discription": "inverted TRS matrix" }
+            ]
+        },
+        {
+            "name": "projview",
+            "stages": [ "vertex", "fragment" ],
+            "binding": 3,
+            "uniforms": [
+                { "name": "proj", "type": "DT_MAT4", "symbol": "UNIFORM_PROJ", "discription": "projection matrix" },
+                { "name": "view", "type": "DT_MAT4", "symbol": "UNIFORM_VIEW", "discription": "view matrix" },
+                { "name": "inverse_view", "type": "DT_MAT4", "symbol": "UNIFORM_INVERSE_VIEW", "discription": "inverse view matrix" },
+                { "name": "inverse_proj", "type": "DT_MAT4", "symbol": "UNIFORM_INVERSE_PROJ", "discription": "inverse projection matrix for view-space position reconstruction" }
+            ]
+        },
+        {
+            "name": "skinning",
+            "stages": [ "vertex" ],
+            "binding": 4,
+            "uniforms": [
+                { "name": "use_skinning", "type": "DT_INT", "symbol": "UNIFORM_USE_SKINNING", "discription": "model uses skeletal animation (joints, weights, joint_transforms)" },
+                { "name": "joint_transforms", "type": "DT_MAT4", "symbol": "UNIFORM_JOINT_TRANSFORMS", "array_size": "JOINTS_MAX", "discription": "array of joint transform TRS matrices (JOINTS_MAX entries)" }
+            ]
+        },
+        {
+            "name": "particles",
+            "stages": [ "vertex" ],
+            "binding": 5,
+            "uniforms": [
+                { "name": "particle_pos", "type": "DT_VEC3", "symbol": "UNIFORM_PARTICLE_POS", "array_size": "PARTICLES_MAX", "discription": "array of particle instance positions (PARTICLES_MAX entries)" }
+            ]
+        },
+        {
+            "name": "material",
+            "stages": [ "fragment" ],
+            "binding": 6,
+            "uniforms": [
+                { "name": "reflectivity", "type": "DT_FLOAT", "symbol": "UNIFORM_REFLECTIVITY", "discription": "reflectivity for Blinn-Phong lighting" },
+                { "name": "shine_damper", "type": "DT_FLOAT", "symbol": "UNIFORM_SHINE_DAMPER", "discription": "specular shine damper for Blinn-Phong lighting" },
+                { "name": "roughness", "type": "DT_FLOAT", "symbol": "UNIFORM_ROUGHNESS", "discription": "roughness for Cook-Torrance lighting" },
+                { "name": "metallic", "type": "DT_FLOAT", "symbol": "UNIFORM_METALLIC", "discription": "metallic for Cook-Torrance lighting" },
+                { "name": "roughness_ceil", "type": "DT_FLOAT", "symbol": "UNIFORM_ROUGHNESS_CEIL", "discription": "roughness ceiling for procedural roughness" },
+                { "name": "roughness_amp", "type": "DT_FLOAT", "symbol": "UNIFORM_ROUGHNESS_AMP", "discription": "roughness per-octave amplitude multiplier" },
+                { "name": "roughness_oct", "type": "DT_INT", "symbol": "UNIFORM_ROUGHNESS_OCT", "discription": "number of octaves for procedural roughness" },
+                { "name": "roughness_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_ROUGHNESS_SCALE", "discription": "local-position scale for procedural roughness noise" },
+                { "name": "metallic_ceil", "type": "DT_FLOAT", "symbol": "UNIFORM_METALLIC_CEIL", "discription": "metallic ceiling for procedural metallic" },
+                { "name": "metallic_amp", "type": "DT_FLOAT", "symbol": "UNIFORM_METALLIC_AMP", "discription": "metallic per-octave amplitude multiplier" },
+                { "name": "metallic_oct", "type": "DT_INT", "symbol": "UNIFORM_METALLIC_OCT", "discription": "number of octaves for procedural metallic" },
+                { "name": "metallic_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_METALLIC_SCALE", "discription": "local-position scale for procedural metallic noise" },
+                { "name": "metallic_mode", "type": "DT_INT", "symbol": "UNIFORM_METALLIC_MODE", "discription": "MAT_METALLIC_* mode selecting independent, roughness, or 1-roughness metallic noise" },
+                { "name": "shared_scale", "type": "DT_INT", "symbol": "UNIFORM_SHARED_SCALE", "discription": "reuse the roughness noise seed for metallic noise" }
+            ]
+        },
+        {
+            "name": "render_common",
+            "stages": [ "fragment" ],
+            "binding": 7,
+            "uniforms": [
+                { "name": "use_msaa", "type": "DT_INT", "symbol": "UNIFORM_USE_MSAA", "discription": "use multisampled textures" },
+                { "name": "use_edge_aa", "type": "DT_INT", "symbol": "UNIFORM_USE_EDGE_AA", "discription": "use edge antialiasing" },
+                { "name": "use_hdr", "type": "DT_INT", "symbol": "UNIFORM_USE_HDR", "discription": "use half-float or float components for colors in intermediate postprocessing render passes" },
+                { "name": "hdr_output", "type": "DT_INT", "symbol": "UNIFORM_HDR_OUTPUT", "discription": "output PQ-encoded HDR instead of SDR tonemapped color" },
+                { "name": "hdr_white_nits", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_WHITE_NITS", "discription": "HDR reference white level in nits" },
+                { "name": "hdr_peak_nits", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_PEAK_NITS", "discription": "HDR peak luminance in nits" },
+                { "name": "hdr_compress_knee", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_COMPRESS_KNEE", "discription": "HDR highlight compression knee" },
+                { "name": "hdr_knee_softness", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_KNEE_SOFTNESS", "discription": "HDR highlight compression knee softness" }
+            ]
+        },
+        {
+            "name": "outline",
+            "stages": [ "fragment" ],
+            "binding": 8,
+            "uniforms": [
+                { "name": "edge_mode", "type": "DT_UINT", "symbol": "UNIFORM_EDGE_MODE", "discription": "bitmask of edge filtering parameters" }
+            ]
+        },
+        {
+            "name": "bloom",
+            "stages": [ "fragment" ],
+            "binding": 9,
+            "uniforms": [
+                { "name": "bloom_exposure", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_EXPOSURE", "discription": "bloom exposure" },
+                { "name": "bloom_intensity", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_INTENSITY", "discription": ">0: emission map bloom intensity; <0: diffuse color bloom intensity" },
+                { "name": "bloom_threshold", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_THRESHOLD", "discription": "emission cutoff" },
+                { "name": "bloom_operator", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_OPERATOR", "discription": "HDR bloom tonemapping operator" }
+            ]
+        },
+        {
+            "name": "postproc",
+            "stages": [ "fragment" ],
+            "binding": 10,
+            "uniforms": [
+                { "name": "width", "type": "DT_FLOAT", "symbol": "UNIFORM_WIDTH", "discription": "FBO width" },
+                { "name": "height", "type": "DT_FLOAT", "symbol": "UNIFORM_HEIGHT", "discription": "FBO height" },
+                { "name": "near_plane", "type": "DT_FLOAT", "symbol": "UNIFORM_NEAR_PLANE", "discription": "view frustum near plane" },
+                { "name": "far_plane", "type": "DT_FLOAT", "symbol": "UNIFORM_FAR_PLANE", "discription": "view frustum far plane" },
+                { "name": "ssao_kernel", "type": "DT_VEC3", "symbol": "UNIFORM_SSAO_KERNEL", "array_size": "SSAO_KERNEL_SIZE", "discription": "array of SSAO sample kernel vectors (SSAO_KERNEL_SIZE entries)" },
+                { "name": "ssao_noise_scale", "type": "DT_VEC2", "symbol": "UNIFORM_SSAO_NOISE_SCALE", "discription": "UV scale for SSAO noise sampling" },
+                { "name": "ssao_radius", "type": "DT_FLOAT", "symbol": "UNIFORM_SSAO_RADIUS", "discription": "SSAO radius" },
+                { "name": "ssao_weight", "type": "DT_FLOAT", "symbol": "UNIFORM_SSAO_WEIGHT", "discription": "SSAO influence" },
+                { "name": "use_ssao", "type": "DT_INT", "symbol": "UNIFORM_USE_SSAO", "discription": "use screen space ambient occlusion" },
+                { "name": "laplace_kernel", "type": "DT_INT", "symbol": "UNIFORM_LAPLACE_KERNEL", "discription": "Laplace kernel size: 3x3 or 5x5" },
+                { "name": "contrast", "type": "DT_FLOAT", "symbol": "UNIFORM_CONTRAST", "discription": "contrast" },
+                { "name": "lighting_exposure", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHTING_EXPOSURE", "discription": "lighting exposure" },
+                { "name": "lighting_operator", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHTING_OPERATOR", "discription": "HDR lighting tonemapping operator" },
+                { "name": "fog_color", "type": "DT_VEC3", "symbol": "UNIFORM_FOG_COLOR", "discription": "radial fog color" },
+                { "name": "fog_near", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_NEAR", "discription": "radial fog near distance" },
+                { "name": "fog_far", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_FAR", "discription": "radial fog far distance" }
+            ]
+        },
+        {
+            "name": "color_pt",
+            "stages": [ "fragment" ],
+            "binding": 11,
+            "uniforms": [
+                { "name": "in_color", "type": "DT_VEC4", "symbol": "UNIFORM_IN_COLOR", "discription": "override color" },
+                { "name": "color_passthrough", "type": "DT_INT", "symbol": "UNIFORM_COLOR_PASSTHROUGH", "discription": "COLOR_PT_* bitmask controlling RGB/alpha override and blend behavior" }
+            ]
+        }
+    ]
+}

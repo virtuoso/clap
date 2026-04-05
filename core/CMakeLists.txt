@@ -133,6 +133,42 @@ add_custom_command(
 
 add_custom_target(refclasses_gen DEPENDS "${REFCLASSES_H}")
 
+set(RENDER_BINDINGS_DIR "${CMAKE_CURRENT_BINARY_DIR}/bindings")
+set(RENDER_BINDINGS_H "${RENDER_BINDINGS_DIR}/render-bindings.h")
+set(RENDER_BINDINGS_C "${RENDER_BINDINGS_DIR}/render-bindings.c")
+set(RENDER_BINDINGS_COMMON_H "${RENDER_BINDINGS_DIR}/render-bindings-common.h")
+set(RENDER_BINDINGS_GL_H "${RENDER_BINDINGS_DIR}/render-bindings-gl.h")
+set(RENDER_BINDINGS_METAL_H "${RENDER_BINDINGS_DIR}/render-bindings-metal.h")
+set(RENDER_BINDINGS_WGPU_H "${RENDER_BINDINGS_DIR}/render-bindings-wgpu.h")
+
+add_custom_command(
+    COMMENT "Generating render bindings"
+    OUTPUT
+        "${RENDER_BINDINGS_H}"
+        "${RENDER_BINDINGS_C}"
+        "${RENDER_BINDINGS_COMMON_H}"
+        "${RENDER_BINDINGS_GL_H}"
+        "${RENDER_BINDINGS_METAL_H}"
+        "${RENDER_BINDINGS_WGPU_H}"
+    DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/render-bindings.json"
+        "${CMAKE_SOURCE_DIR}/scripts/render-bindings-gen.cmake"
+    COMMAND
+        ${CMAKE_COMMAND}
+            -Dinput="${CMAKE_CURRENT_SOURCE_DIR}/render-bindings.json"
+            -Doutput_dir="${RENDER_BINDINGS_DIR}"
+            -P "${CMAKE_SOURCE_DIR}/scripts/render-bindings-gen.cmake"
+)
+
+add_custom_target(render_bindings_gen DEPENDS
+    "${RENDER_BINDINGS_H}"
+    "${RENDER_BINDINGS_C}"
+    "${RENDER_BINDINGS_COMMON_H}"
+    "${RENDER_BINDINGS_GL_H}"
+    "${RENDER_BINDINGS_METAL_H}"
+    "${RENDER_BINDINGS_WGPU_H}"
+)
+
 if (NOT CLAP_BUILD_FINAL)
     list(APPEND ENGINE_SRC profiler.c pipeline-debug.c)
 endif ()
@@ -169,6 +205,7 @@ set(SHADERS ui glyph model contrast sobel sobel-msaa laplace
     shadow_vsm)
 
 compile_shaders("${SHADERS}" "_core")
+add_dependencies(preprocess_shaders_core render_bindings_gen)
 
 ##########################################################################
 # Convert engine shaders into C string array to build them in statically
@@ -246,7 +283,7 @@ add_custom_target(
 )
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shaders.c)
-add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen force_builddate)
+add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen force_builddate render_bindings_gen)
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${CLAP_DEPENDENCY_LIBRARIES})
