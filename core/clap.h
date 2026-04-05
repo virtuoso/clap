@@ -2,6 +2,7 @@
 #ifndef __CLAP_CLAP_H__
 #define __CLAP_CLAP_H__
 
+#include "api.h"
 #include "lut.h"
 #include "render.h"
 
@@ -35,6 +36,7 @@ typedef struct clap_os_info {
  * Get information about the platform/OS where this code is running.
  * Return: struct clap_os_info pointer (nonnull).
  */
+CLAP_API
 clap_os_info *clap_get_os(clap_context *ctx);
 
 /**
@@ -44,6 +46,7 @@ clap_os_info *clap_get_os(clap_context *ctx);
  * If physics engine was initialized, get a physics handle (struct phys *).
  * Return: struct phys pointer or NULL if physics was not initialized.
  */
+CLAP_API
 struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -53,6 +56,7 @@ struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
  * Get clap configuration with which clap_init() was initialized.
  * Return: struct clap_config pointer (nonnull).
  */
+CLAP_API
 struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
@@ -61,6 +65,7 @@ struct clap_config *clap_get_config(struct clap_context *ctx) __returns_nonnull 
  *
  * Return: messagebus pointer (nonnull).
  */
+CLAP_API
 struct messagebus *clap_get_messagebus(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
@@ -70,6 +75,7 @@ struct messagebus *clap_get_messagebus(struct clap_context *ctx) __returns_nonnu
  * If graphics was initialized, return graphics renderer's main object.
  * Return: renderer_t pointer or NULL if graphics is not used.
  */
+CLAP_API
 renderer_t *clap_get_renderer(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -83,6 +89,7 @@ renderer_t *clap_get_renderer(struct clap_context *ctx) __nonnull_params((1));
  * If graphics was initialized, return viewport's position and size in the
  * non-NULL pointers, leave them unchanged otherwise.
  */
+CLAP_API
 void clap_get_viewport(struct clap_context *ctx, int *px, int *py, int *pw, int *ph);
 
 /**
@@ -92,6 +99,7 @@ void clap_get_viewport(struct clap_context *ctx, int *px, int *py, int *pw, int 
  * If graphics was initialized, return the scene object.
  * Return: struct scene pointer or NULL if graphics is not used.
  */
+CLAP_API
 struct scene *clap_get_scene(struct clap_context *ctx)  __nonnull_params((1));
 
 /**
@@ -102,6 +110,7 @@ struct scene *clap_get_scene(struct clap_context *ctx)  __nonnull_params((1));
  * in the model rendering pipeline.
  * Return: struct render_options pointer (nonnull).
  */
+CLAP_API
 render_options *clap_get_render_options(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
@@ -115,6 +124,7 @@ render_options *clap_get_render_options(struct clap_context *ctx) __returns_nonn
  * On the other hand, if a rebuild may be required, skip this altogether and
  * let the clap_frame() take care of it automatically.
  */
+CLAP_API
 void clap_sync_render_options(clap_context *ctx, bool may_rebuild) __nonnull_params((1));
 
 /**
@@ -127,6 +137,7 @@ void clap_sync_render_options(clap_context *ctx, bool may_rebuild) __nonnull_par
  * in core/shader.c for details.
  * Return: struct shader_context pointer or NULL if graphics is not used.
  */
+CLAP_API
 shader_context *clap_get_shaders(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -136,6 +147,7 @@ shader_context *clap_get_shaders(struct clap_context *ctx) __nonnull_params((1))
  * If graphics was initialized, return the rendering pipeline.
  * Return: pipeline pointer or NULL if graphics is not used.
  */
+CLAP_API
 pipeline *clap_get_pipeline(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -146,6 +158,7 @@ pipeline *clap_get_pipeline(struct clap_context *ctx) __nonnull_params((1));
  * or UI were initialized.
  * Return: struct ui pointer (nonnull).
  */
+CLAP_API
 struct ui *clap_get_ui(clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
@@ -155,6 +168,7 @@ struct ui *clap_get_ui(clap_context *ctx) __returns_nonnull __nonnull_params((1)
  * If font subsystem was initialized, return its handle object.
  * Return: struct font_context pointer or NULL if fonts are not used.
  */
+CLAP_API
 font_context *clap_get_font(clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -164,6 +178,7 @@ font_context *clap_get_font(clap_context *ctx) __nonnull_params((1));
  * If sound subsystem was initialized, return its context handle.
  * Return: struct sound_context pointer or NULL if sound is not used.
  */
+CLAP_API
 sound_context *clap_get_sound(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -173,6 +188,7 @@ sound_context *clap_get_sound(struct clap_context *ctx) __nonnull_params((1));
  * If settings subsystem was initialized, return its context handle.
  * Return: struct settings pointer or NULL if settings are not used.
  */
+CLAP_API
 struct settings *clap_get_settings(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -187,6 +203,7 @@ struct settings *clap_get_settings(struct clap_context *ctx) __nonnull_params((1
  * undefined.
  * Return: current time in struct timespec.
  */
+CLAP_API
 struct timespec clap_get_current_timespec(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -199,6 +216,7 @@ struct timespec clap_get_current_timespec(struct clap_context *ctx) __nonnull_pa
  * undefined.
  * Return: current time as double.
  */
+CLAP_API
 double clap_get_current_time(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -210,6 +228,7 @@ double clap_get_current_time(struct clap_context *ctx) __nonnull_params((1));
  *
  * Return: true if paused, false otherwise
  */
+CLAP_API
 bool clap_is_paused(clap_context *ctx);
 
 typedef void (*clap_timer_fn)(void *data);
@@ -233,7 +252,8 @@ cresp_ret(clap_timer);
  * * CERR_NOMEM on allocation failure
  * * CERR_INVALID_ARGUMENTS if @dt is negative or @fn is NULL
  */
- cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer,
+CLAP_API
+cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer,
                                  clap_timer_fn fn, void *data) __nonnull_params((1));
 
 /**
@@ -244,6 +264,7 @@ cresp_ret(clap_timer);
  * Cancel a timer.
  * Context: inside the frame path.
  */
+CLAP_API
 void clap_timer_cancel(clap_context *ctx, clap_timer *timer) __nonnull_params((1, 2));
 
 /**
@@ -254,6 +275,7 @@ void clap_timer_cancel(clap_context *ctx, clap_timer *timer) __nonnull_params((1
  * Context: inside the frame path.
  * Return: time delta since the previous frame as timespec.
  */
+CLAP_API
 struct timespec clap_get_fps_delta(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -264,6 +286,7 @@ struct timespec clap_get_fps_delta(struct clap_context *ctx) __nonnull_params((1
  * Context: inside the frame path.
  * Return: FPS value as a number of frames.
  */
+CLAP_API
 unsigned long clap_get_fps_fine(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -275,6 +298,7 @@ unsigned long clap_get_fps_fine(struct clap_context *ctx) __nonnull_params((1));
  * Context: inside the frame path.
  * Return: FPS value as a number of frames.
  */
+CLAP_API
 unsigned long clap_get_fps_coarse(struct clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -284,6 +308,7 @@ unsigned long clap_get_fps_coarse(struct clap_context *ctx) __nonnull_params((1)
  * Get the clap_context's internal LUT list head. TODO: phase out.
  * Return: LUT list head pointer.
  */
+CLAP_API
 struct list *clap_lut_list(clap_context *ctx) __nonnull_params((1));
 
 /**
@@ -295,6 +320,7 @@ struct list *clap_lut_list(clap_context *ctx) __nonnull_params((1));
  * * struct lut pointer on success
  * * CERR_NOT_FOUND on failure to find LUT
  */
+CLAP_API
 cresp(lut) clap_lut_find(clap_context *ctx, const char *name) __nonnull_params((1, 2));
 
 /**
@@ -307,6 +333,7 @@ cresp(lut) clap_lut_find(clap_context *ctx, const char *name) __nonnull_params((
  * * CERR_OK on success
  * * CERR_NOT_FOUND on failure to find LUT
  */
+CLAP_API
 cerr clap_set_lighting_lut(clap_context *ctx, const char *name) __nonnull_params((1, 2));
 
 enum clap_cli_opt_bits {
@@ -335,6 +362,7 @@ typedef enum clap_cli_opts {
 #endif /* !CONFIG_FINAL */
 } clap_cli_opts;
 
+CLAP_API
 const char *clap_get_argv(clap_context *ctx, int idx);
 
 /**
@@ -410,6 +438,7 @@ cresp_struct_ret(clap_context);
  * Initialize the engine with subsystems enabled in @cfg, see struct clap_config.
  * Return: clap_context pointer on success or a CERR code on error.
  */
+CLAP_API
 cresp_check(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, char **envp);
 
 /**
@@ -419,6 +448,7 @@ cresp_check(clap_context) clap_init(struct clap_config *cfg, int argc, char **ar
  *
  * Deinitialize subsystems enabled by clap_init().
  */
+CLAP_API
 void clap_done(struct clap_context *ctx, int status) __nonnull_params((1));
 
 /**
@@ -431,6 +461,7 @@ void clap_done(struct clap_context *ctx, int status) __nonnull_params((1));
  * * an integer exec*() syscall return code, if it fails
  * * on success, does not return
  */
+CLAP_API
 cres(int) clap_restart(struct clap_context *ctx) __nonnull_params((1));
 
 #endif /* __CLAP_CLAP_H__ */
