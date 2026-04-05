@@ -577,18 +577,6 @@ static void dc_hash_fbo_drop(renderer_t *r, fbo_t *fbo)
  * Texture
  ****************************************************************************/
 
-static bool texture_format_needs_alpha(texture_format format)
-{
-    switch (format) {
-        case TEX_FMT_RGB32F:
-        case TEX_FMT_RGB16F:
-        case TEX_FMT_RGB8:
-        case TEX_FMT_RGB8_SRGB: return true;
-        default:                break;
-    }
-
-    return false;
-}
 
 static MTLTextureType mtl_texture_type(texture_type type)
 {
@@ -850,35 +838,19 @@ cerr_check texture_load(texture_t *tex, texture_format format,
         auto bytes_per_row = mtl_row_bytes(format, width);
         auto bytes_per_layer = bytes_per_row * height;
 
-        LOCAL_SET(uchar, dest_buf) = NULL;
+        LOCAL_SET(void, dest_buf) = NULL;
 
-        /* XXX: only works for 8-bit 3-component textures */
         if (texture_format_needs_alpha(format)) {
-            size_t comp_size = mtl_row_bytes(format, 1);
-
-            /* only RGB8 to RGBA8 supported at the moment */
-            if (comp_size != 4) return CERR_NOT_SUPPORTED;
-
-            dest_buf = mem_alloc(comp_size, .nr = width * height * tex->layers);
+            dest_buf = texture_rgb_to_rgba(format, buf, (size_t)width * height * tex->layers, NULL);
             if (!dest_buf) {
                 [tex->texture release];
                 return CERR_NOMEM;
             }
 
-            auto bytes_per_src_row = width * 3;
-            auto bytes_per_src_layer = bytes_per_src_row * height;
-            for (int layer = 0; layer < tex->layers; layer++)
-                for (int row = 0; row < height; row++)
-                    for (int col = 0; col < width; col++) {
-                        uchar *rgb_src = buf + layer * bytes_per_src_layer + row * bytes_per_src_row + col * 3;
-                        uchar *rgba_dest = dest_buf + layer * bytes_per_layer + row * bytes_per_row + col * 4;
-                        rgba_dest[0] = rgb_src[0];
-                        rgba_dest[1] = rgb_src[1];
-                        rgba_dest[2] = rgb_src[2];
-                        rgba_dest[3] = 255;
-                    }
-
-            tex->format = TEX_FMT_RGBA8;
+            format = texture_format_add_alpha(format);
+            tex->format = format;
+            bytes_per_row = mtl_row_bytes(format, width);
+            bytes_per_layer = bytes_per_row * height;
         }
 
         [tex->texture replaceRegion:region

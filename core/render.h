@@ -366,6 +366,10 @@ bool texture_format_supported(texture_format format);
 const char *texture_format_string(texture_format fmt);
 size_t texture_format_comp_size(texture_format fmt);
 size_t texture_format_nr_comps(texture_format fmt);
+bool texture_format_needs_alpha(texture_format format);
+texture_format texture_format_add_alpha(texture_format format);
+void *texture_rgb_to_rgba(texture_format format, const void *buf,
+                          size_t nr_pixels, size_t *out_size);
 cerr_check _texture_init(texture_t *tex, const texture_init_options *opts);
 #define texture_init(_t, args...) \
     _texture_init((_t), &(texture_init_options){ args })
