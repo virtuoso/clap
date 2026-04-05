@@ -9,12 +9,23 @@ typedef struct string_view {
     size_t  cap;
 } string_view;
 
+#define type_as_expr(...) (*(typeof(__VA_ARGS__) *)nullptr)
+
+#define str_is_ptr(x) _Generic(type_as_expr(&(x)), \
+    char **:    true, \
+    default:    false \
+)
+
 #define sv(_str)    (_str ## _sv)
-#define declare_sv(_str) \
-    string_view sv(_str) = { \
+
+#define declare_sv_from(_sv, _str) \
+    string_view sv(_sv) = { \
         .data   = (_str), \
-        .cap    = sizeof((_str)), \
+        .cap    = str_is_ptr((_str)) ? 0 : sizeof((_str)), \
+        .end    = str_is_ptr((_str)) ? strlen((_str)) : sizeof((_str)) - 1, \
     }
+
+#define declare_sv(_str)    declare_sv_from(_str, _str)
 
 #include <stdarg.h>
 #include "common.h"
