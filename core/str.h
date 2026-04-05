@@ -33,6 +33,8 @@ typedef struct string_view {
 
 static inline size_t sv_len(string_view *sv)    { return sv->end - sv->start; }
 
+static inline void sv_reset(string_view *sv)    { sv->end = 0; }
+
 static inline cres(size_t) sv_append(string_view *sv, const char *fmt, ...)
 {
     if (sv->end >= sv->cap - 1) {
