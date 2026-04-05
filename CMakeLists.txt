@@ -116,6 +116,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         add_executable(tint IMPORTED GLOBAL)
         set_target_properties(tint PROPERTIES IMPORTED_LOCATION "${TINT_BIN_PATH}")
         add_dependencies(tint tint_host)
+        set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS "--use-port=emdawnwebgpu")
+        set(CLAP_EMSCRIPTEN_COMPILE_LIBRARIES "--use-port=emdawnwebgpu")
     endif ()
 
     if (CONFIG_RENDERER_OPENGL)
@@ -126,6 +128,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     endif ()
 
     set(CLAP_EMSCRIPTEN_COMPILE_LIBRARIES
+        ${CLAP_EMSCRIPTEN_COMPILE_LIBRARIES}
         "-s USE_FREETYPE=1"
         "-s USE_LIBPNG=1"
     )
@@ -147,6 +150,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         "-s PTHREAD_POOL_SIZE=4"
     )
     set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS
+        ${CLAP_EMSCRIPTEN_COMPILE_OPTIONS}
         "-s WASM_WORKERS=1"
         "-s SHARED_MEMORY=1"
         "-s USE_PTHREADS=1"
