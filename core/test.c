@@ -8,6 +8,7 @@
 #include "cpio.h"
 #include "fs-ops.h"
 #include "object.h"
+#include "str.h"
 #include "common.h"
 #include "messagebus.h"
 #include "util.h"
@@ -333,6 +334,75 @@ static int str_trim_slashes_test0(void)
     if (strcmp(buf, "/"))
         return EXIT_FAILURE;
 #endif /* _WIN32 */
+
+    return EXIT_SUCCESS;
+}
+
+static int string_view_test0(void)
+{
+    const char test_const_arr[] = "const array", *test_const_ptr = "const pointer";
+    char *empty = "";
+
+    if (!str_is_const(test_const_ptr) ||
+        !str_is_const(test_const_arr) ||
+        !str_is_const("blah") ||
+        str_is_const(empty))                        return EXIT_FAILURE;
+
+    declare_sv(test_const_arr);
+    if (sv(test_const_arr).end != strlen(test_const_arr) ||
+        sv(test_const_arr).cap != 0)
+        return EXIT_FAILURE;
+
+    auto res = sv_append(&sv(test_const_arr), "clobber");
+    if (!IS_CERR_CODE(res, CERR_INVALID_OPERATION)) return EXIT_FAILURE;
+
+    declare_sv(test_const_ptr);
+    if (sv(test_const_ptr).end != strlen(test_const_ptr) ||
+        sv(test_const_ptr).cap != 0)
+        return EXIT_FAILURE;
+
+    res = sv_append(&sv(test_const_ptr), "clobber");
+    if (!IS_CERR_CODE(res, CERR_INVALID_OPERATION)) return EXIT_FAILURE;
+
+    declare_sv(empty);
+    res = sv_append(&sv(empty), "clobber");
+    if (!IS_CERR_CODE(res, CERR_TOO_LARGE))         return EXIT_FAILURE;
+
+    char test_arr[] = "array";
+    declare_sv(test_arr);
+    if (sv(test_arr).end != strlen(test_arr) ||
+        sv(test_arr).cap != sizeof(test_arr))       return EXIT_FAILURE;
+
+    res = sv_append(&sv(test_arr), "ARRGH");
+    if (!IS_CERR_CODE(res, CERR_TOO_LARGE))         return EXIT_FAILURE;
+
+    sv_reset(&sv(test_arr));
+    res = sv_append(&sv(test_arr), "ARRGH");
+    if (IS_CERR(res) || strcmp(test_arr, "ARRGH"))  return EXIT_FAILURE;
+
+    char *test_ptr = "pointer";
+    declare_sv(test_ptr);
+    if (sv(test_ptr).end != strlen(test_ptr) ||
+        sv(test_ptr).cap != strlen(test_ptr) + 1)   return EXIT_FAILURE;
+
+    res = sv_append(&sv(test_ptr), "ptr");
+    if (!IS_CERR_CODE(res, CERR_TOO_LARGE))         return EXIT_FAILURE;
+
+    // test_ptr is not const, but still points to rodata, therefore
+    // not attempting a write that'd otherwise succeed
+
+    LOCAL_SET(char, test_dyn) = strdup(test_ptr);
+    declare_sv(test_dyn);
+    if (sv(test_dyn).end != strlen(test_dyn) ||
+        sv(test_dyn).cap != strlen(test_dyn) + 1)
+        return EXIT_FAILURE;
+
+    res = sv_append(&sv(test_dyn), "ptr");
+    if (!IS_CERR_CODE(res, CERR_TOO_LARGE))         return EXIT_FAILURE;
+
+    sv_reset(&sv(test_dyn));
+    res = sv_append(&sv(test_dyn), "ptr");
+    if (IS_CERR(res) || strcmp(test_dyn, "ptr"))    return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
@@ -817,6 +887,7 @@ static struct test {
     { .name = "str_endswith", .test = str_endswith_test0 },
     { .name = "str_endswith_nocase", .test = str_endswith_nocase_test0 },
     { .name = "str_trim_slashes", .test = str_trim_slashes_test0 },
+    { .name = "string_view basic", .test = string_view_test0 },
     { .name = "path_join", .test = path_join_test0 },
     { .name = "path_has_parent", .test = path_has_parent_test0 },
     { .name = "path_parent", .test = path_parent_test0 },
