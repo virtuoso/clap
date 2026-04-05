@@ -1217,6 +1217,66 @@ static int canvas_test_blend_none(void)
     return EXIT_SUCCESS;
 }
 
+static int tex_fmt_needs_alpha_test(void)
+{
+    if (!texture_format_needs_alpha(TEX_FMT_RGB8))      return EXIT_FAILURE;
+    if (!texture_format_needs_alpha(TEX_FMT_RGB8_SRGB)) return EXIT_FAILURE;
+    if (!texture_format_needs_alpha(TEX_FMT_RGB16F))    return EXIT_FAILURE;
+    if (!texture_format_needs_alpha(TEX_FMT_RGB32F))    return EXIT_FAILURE;
+    if (texture_format_needs_alpha(TEX_FMT_RGBA8))      return EXIT_FAILURE;
+    if (texture_format_needs_alpha(TEX_FMT_R8))         return EXIT_FAILURE;
+    if (texture_format_needs_alpha(TEX_FMT_DEPTH32F))   return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
+
+static int tex_fmt_add_alpha_test(void)
+{
+    if (texture_format_add_alpha(TEX_FMT_RGB8)      != TEX_FMT_RGBA8)      return EXIT_FAILURE;
+    if (texture_format_add_alpha(TEX_FMT_RGB8_SRGB) != TEX_FMT_RGBA8_SRGB) return EXIT_FAILURE;
+    if (texture_format_add_alpha(TEX_FMT_RGB16F)    != TEX_FMT_RGBA16F)    return EXIT_FAILURE;
+    if (texture_format_add_alpha(TEX_FMT_RGB32F)    != TEX_FMT_RGBA32F)    return EXIT_FAILURE;
+    if (texture_format_add_alpha(TEX_FMT_RGBA8)     != TEX_FMT_RGBA8)      return EXIT_FAILURE;
+    if (texture_format_add_alpha(TEX_FMT_R8)        != TEX_FMT_R8)         return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
+
+static int tex_rgb_to_rgba_8bit_test(void)
+{
+    uint8_t rgb[] = { 0xFF, 0x00, 0x80, 0x10, 0x20, 0x30 }; /* 2 pixels */
+    size_t out_size;
+    LOCAL_SET(void, rgba) = texture_rgb_to_rgba(TEX_FMT_RGB8, rgb, 2, &out_size);
+    if (!rgba || out_size != 8)                     return EXIT_FAILURE;
+    uint8_t *p = rgba;
+    if (p[0] != 0xFF || p[1] != 0x00 || p[2] != 0x80 || p[3] != 0xFF) return EXIT_FAILURE;
+    if (p[4] != 0x10 || p[5] != 0x20 || p[6] != 0x30 || p[7] != 0xFF) return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
+
+static int tex_rgb_to_rgba_32f_test(void)
+{
+    float rgb[] = { 1.0f, 0.5f, 0.25f, 0.1f, 0.2f, 0.3f }; /* 2 pixels */
+    size_t out_size;
+    LOCAL_SET(void, rgba) = texture_rgb_to_rgba(TEX_FMT_RGB32F, rgb, 2, &out_size);
+    if (!rgba || out_size != 32)                    return EXIT_FAILURE;
+    float *p = rgba;
+    if (p[0] != 1.0f || p[1] != 0.5f || p[2] != 0.25f || p[3] != 1.0f) return EXIT_FAILURE;
+    if (p[4] != 0.1f || p[5] != 0.2f || p[6] != 0.3f  || p[7] != 1.0f) return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
+
+static int tex_rgb_to_rgba_16f_test(void)
+{
+    /* 0x3C00 = half-float 1.0, 0x0000 = 0.0, 0x3800 = 0.5 */
+    uint16_t rgb[] = { 0x3C00, 0x0000, 0x3800, 0x3C00, 0x3C00, 0x3C00 }; /* 2 pixels */
+    size_t out_size;
+    LOCAL_SET(void, rgba) = texture_rgb_to_rgba(TEX_FMT_RGB16F, rgb, 2, &out_size);
+    if (!rgba || out_size != 16)                    return EXIT_FAILURE;
+    uint16_t *p = rgba;
+    if (p[0] != 0x3C00 || p[1] != 0x0000 || p[2] != 0x3800 || p[3] != 0x3C00) return EXIT_FAILURE;
+    if (p[4] != 0x3C00 || p[5] != 0x3C00 || p[6] != 0x3C00 || p[7] != 0x3C00) return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -1267,6 +1327,11 @@ static struct test {
     { .name = "canvas blend write", .test = canvas_test_blend_write },
     { .name = "canvas blend fill", .test = canvas_test_blend_fill },
     { .name = "canvas blend none", .test = canvas_test_blend_none },
+    { .name = "tex fmt needs alpha", .test = tex_fmt_needs_alpha_test },
+    { .name = "tex fmt add alpha", .test = tex_fmt_add_alpha_test },
+    { .name = "tex rgb to rgba 8bit", .test = tex_rgb_to_rgba_8bit_test },
+    { .name = "tex rgb to rgba 32f", .test = tex_rgb_to_rgba_32f_test },
+    { .name = "tex rgb to rgba 16f", .test = tex_rgb_to_rgba_16f_test },
 };
 
 static struct option long_options[] = {
