@@ -1,6 +1,8 @@
 #ifndef CLAP_SHADER_CONSTANTS_H
 #define CLAP_SHADER_CONSTANTS_H
 
+#include "config.h"
+
 #define JOINTS_MAX 200
 #define PARTICLES_MAX 1024
 #define LIGHTS_MAX 32
@@ -32,35 +34,16 @@
 #define ATTR_LOC_JOINTS     4
 #define ATTR_LOC_WEIGHTS    5
 
-/* UBO binding locations */
-#define UBO_BINDING_lighting    1
-#define UBO_BINDING_shadow      2
-#define UBO_BINDING_transform   3
-#define UBO_BINDING_projview    4
-#define UBO_BINDING_skinning    5
-#define UBO_BINDING_particles   6
-#define UBO_BINDING_material    7
-#define UBO_BINDING_render_common 8
-#define UBO_BINDING_outline     9
-#define UBO_BINDING_bloom       10
-#define UBO_BINDING_postproc    11
-/* Lowest binding becomes highest when UBOs share namespace with vertex buffers */
-#ifdef CONFIG_RENDERER_OPENGL
-#define UBO_BINDING_color_pt    0
-#else /* !CONFIG_RENDERER_OPENGL */
-#define UBO_BINDING_color_pt    12
-#endif /* !CONFIG_RENDERER_OPENGL */
-
-#define SAMPLER_BINDING_model_tex       0
-#define SAMPLER_BINDING_normal_map      1
-#define SAMPLER_BINDING_emission_map    2
-#define SAMPLER_BINDING_sobel_tex       3
-#define SAMPLER_BINDING_shadow_map      4
-#define SAMPLER_BINDING_shadow_map_ms   5
-#define SAMPLER_BINDING_shadow_map1     5
-#define SAMPLER_BINDING_shadow_map2     6
-#define SAMPLER_BINDING_shadow_map3     7
-#define SAMPLER_BINDING_lut_tex         5
+/* Renderer-specific binding locations */
+#if defined(CONFIG_RENDERER_OPENGL)
+#include "bindings/render-bindings-gl.h"
+#elif defined(CONFIG_RENDERER_METAL)
+#include "bindings/render-bindings-metal.h"
+#elif defined(CONFIG_RENDERER_WGPU)
+#include "bindings/render-bindings-wgpu.h"
+#else
+#error "Unsupported renderer"
+#endif
 
 /* Edge filter controls bits */
 #define EDGE_EXCLUDE            (1u << 7)

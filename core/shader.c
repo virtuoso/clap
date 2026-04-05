@@ -19,116 +19,6 @@ struct shader_var_desc {
     unsigned int            elem_count;
 };
 
-#define SHADER_VAR(_c, _n, _t) \
-    [_c] = { .name = (_n), .type = (_t), .texture_slot = -1, .elem_count = 1 }
-#define SHADER_ARR(_c, _n, _t, _el) \
-    [_c] = { .name = (_n), .type = (_t), .texture_slot = -1, .elem_count = (_el) }
-#define SHADER_TEX(_c, _n) \
-    [_c] = { .name = __stringify(_n), .type = DT_INT, .texture_slot = (SAMPLER_BINDING_ ## _n) }
-#define SHADER_ATTR(_c, _n, _t, _count) \
-    [_c] = { .name = (_n), .type = (_t), .attr_count = (_count), .texture_slot = -1 }
-
-static const struct shader_var_desc shader_var_desc[] = {
-    SHADER_ATTR(ATTR_POSITION,              "position",             DT_FLOAT, 3),
-    SHADER_ATTR(ATTR_NORMAL,                "normal",               DT_FLOAT, 3),
-    SHADER_ATTR(ATTR_TEX,                   "tex",                  DT_FLOAT, 2),
-    SHADER_ATTR(ATTR_TANGENT,               "tangent",              DT_FLOAT, 4),
-    SHADER_ATTR(ATTR_JOINTS,                "joints",               DT_BYTE,  4),
-    SHADER_ATTR(ATTR_WEIGHTS,               "weights",              DT_FLOAT, 4),
-    /* texture bindings */
-    SHADER_TEX(UNIFORM_MODEL_TEX,           model_tex),
-    SHADER_TEX(UNIFORM_NORMAL_MAP,          normal_map),
-    SHADER_TEX(UNIFORM_EMISSION_MAP,        emission_map),
-    SHADER_TEX(UNIFORM_SOBEL_TEX,           sobel_tex),
-    SHADER_TEX(UNIFORM_SHADOW_MAP,          shadow_map),
-    SHADER_TEX(UNIFORM_SHADOW_MAP_MS,       shadow_map_ms),
-    SHADER_TEX(UNIFORM_SHADOW_MAP1,         shadow_map1),
-    SHADER_TEX(UNIFORM_SHADOW_MAP2,         shadow_map2),
-    SHADER_TEX(UNIFORM_SHADOW_MAP3,         shadow_map3),
-    SHADER_TEX(UNIFORM_LUT_TEX,             lut_tex),
-    /* "projview" uniform buffer */
-    SHADER_VAR(UNIFORM_PROJ,                "proj",                 DT_MAT4),
-    SHADER_VAR(UNIFORM_VIEW,                "view",                 DT_MAT4),
-    SHADER_VAR(UNIFORM_INVERSE_VIEW,        "inverse_view",         DT_MAT4),
-    SHADER_VAR(UNIFORM_INVERSE_PROJ,        "inverse_proj",         DT_MAT4),
-    /* "transform" uniform buffer */
-    SHADER_VAR(UNIFORM_TRS,                 "trs",                  DT_MAT4),
-    SHADER_VAR(UNIFORM_INVERSE_TRS,         "inverse_trs",          DT_MAT4),
-    /* "lighting" uniform buffer */
-    SHADER_ARR(UNIFORM_LIGHT_POS,           "light_pos",            DT_VEC3, LIGHTS_MAX),
-    SHADER_ARR(UNIFORM_LIGHT_COLOR,         "light_color",          DT_VEC3, LIGHTS_MAX),
-    SHADER_ARR(UNIFORM_LIGHT_DIR,           "light_dir",            DT_VEC3, LIGHTS_MAX),
-    SHADER_ARR(UNIFORM_ATTENUATION,         "attenuation",          DT_VEC3, LIGHTS_MAX),
-    SHADER_ARR(UNIFORM_LIGHT_DIRECTIONAL,   "light_directional",    DT_INT, LIGHTS_MAX),
-    SHADER_VAR(UNIFORM_NR_LIGHTS,           "nr_lights",            DT_INT),
-    SHADER_VAR(UNIFORM_LIGHT_AMBIENT,       "light_ambient",        DT_VEC3),
-    SHADER_VAR(UNIFORM_USE_NORMALS,         "use_normals",          DT_INT),
-    /* "material" uniform buffer */
-    SHADER_VAR(UNIFORM_SHINE_DAMPER,        "shine_damper",         DT_FLOAT),
-    SHADER_VAR(UNIFORM_REFLECTIVITY,        "reflectivity",         DT_FLOAT),
-    SHADER_VAR(UNIFORM_ROUGHNESS,           "roughness",            DT_FLOAT),
-    SHADER_VAR(UNIFORM_METALLIC,            "metallic",             DT_FLOAT),
-    SHADER_VAR(UNIFORM_ROUGHNESS_CEIL,      "roughness_ceil",       DT_FLOAT),
-    SHADER_VAR(UNIFORM_ROUGHNESS_AMP,       "roughness_amp",        DT_FLOAT),
-    SHADER_VAR(UNIFORM_ROUGHNESS_OCT,       "roughness_oct",        DT_INT),
-    SHADER_VAR(UNIFORM_ROUGHNESS_SCALE,     "roughness_scale",      DT_FLOAT),
-    SHADER_VAR(UNIFORM_METALLIC_CEIL,       "metallic_ceil",        DT_FLOAT),
-    SHADER_VAR(UNIFORM_METALLIC_AMP,        "metallic_amp",         DT_FLOAT),
-    SHADER_VAR(UNIFORM_METALLIC_OCT,        "metallic_oct",         DT_INT),
-    SHADER_VAR(UNIFORM_METALLIC_SCALE,      "metallic_scale",       DT_FLOAT),
-    SHADER_VAR(UNIFORM_METALLIC_MODE,       "metallic_mode",        DT_INT),
-    SHADER_VAR(UNIFORM_SHARED_SCALE,        "shared_scale",         DT_INT),
-    /* "color_pt" uniform buffer */
-    SHADER_VAR(UNIFORM_IN_COLOR,            "in_color",             DT_VEC4),
-    SHADER_VAR(UNIFORM_COLOR_PASSTHROUGH,   "color_passthrough",    DT_INT),
-    /* "shadow" uniform buffer */
-    SHADER_VAR(UNIFORM_SHADOW_VSM,          "shadow_vsm",           DT_INT),
-    SHADER_ARR(UNIFORM_SHADOW_MVP,          "shadow_mvp",           DT_MAT4, CASCADES_MAX),
-    SHADER_ARR(UNIFORM_CASCADE_DISTANCES,   "cascade_distances",    DT_FLOAT, CASCADES_MAX),
-    SHADER_ARR(UNIFORM_LIGHT_FAR,           "light_far",            DT_FLOAT, CASCADES_MAX),
-    SHADER_VAR(UNIFORM_SHADOW_TINT,         "shadow_tint",          DT_VEC3),
-    SHADER_VAR(UNIFORM_SHADOW_OUTLINE,      "shadow_outline",       DT_INT),
-    SHADER_VAR(UNIFORM_SHADOW_OUTLINE_THRESHOLD, "shadow_outline_threshold", DT_FLOAT),
-    /* "skinning" uniform buffer */
-    SHADER_VAR(UNIFORM_USE_SKINNING,        "use_skinning",         DT_INT),
-    SHADER_ARR(UNIFORM_JOINT_TRANSFORMS,    "joint_transforms",     DT_MAT4, JOINTS_MAX),
-    /* "particles" uniform buffer */
-    SHADER_ARR(UNIFORM_PARTICLE_POS,        "particle_pos",         DT_VEC3, PARTICLES_MAX),
-    /* "render_common" uniform buffer */
-    SHADER_VAR(UNIFORM_USE_MSAA,            "use_msaa",             DT_INT),
-    SHADER_VAR(UNIFORM_USE_EDGE_AA,         "use_edge_aa",          DT_INT),
-    SHADER_VAR(UNIFORM_USE_HDR,             "use_hdr",              DT_INT),
-    SHADER_VAR(UNIFORM_HDR_OUTPUT,          "hdr_output",           DT_INT),
-    /* "outline" uniform buffer */
-    SHADER_VAR(UNIFORM_EDGE_MODE,           "edge_mode",            DT_UINT),
-    /* "bloom" uniform buffer */
-    SHADER_VAR(UNIFORM_BLOOM_EXPOSURE,      "bloom_exposure",       DT_FLOAT),
-    SHADER_VAR(UNIFORM_BLOOM_INTENSITY,     "bloom_intensity",      DT_FLOAT),
-    SHADER_VAR(UNIFORM_BLOOM_THRESHOLD,     "bloom_threshold",      DT_FLOAT),
-    SHADER_VAR(UNIFORM_BLOOM_OPERATOR,      "bloom_operator",       DT_FLOAT),
-    /* "postproc" uniform buffer */
-    SHADER_VAR(UNIFORM_WIDTH,               "width",                DT_FLOAT),
-    SHADER_VAR(UNIFORM_HEIGHT,              "height",               DT_FLOAT),
-    SHADER_VAR(UNIFORM_NEAR_PLANE,          "near_plane",           DT_FLOAT),
-    SHADER_VAR(UNIFORM_FAR_PLANE,           "far_plane",            DT_FLOAT),
-    SHADER_VAR(UNIFORM_LAPLACE_KERNEL,      "laplace_kernel",       DT_INT),
-    SHADER_VAR(UNIFORM_USE_SSAO,            "use_ssao",             DT_INT),
-    SHADER_ARR(UNIFORM_SSAO_KERNEL,         "ssao_kernel",          DT_VEC3, SSAO_KERNEL_SIZE),
-    SHADER_VAR(UNIFORM_SSAO_NOISE_SCALE,    "ssao_noise_scale",     DT_VEC2),
-    SHADER_VAR(UNIFORM_SSAO_RADIUS,         "ssao_radius",          DT_FLOAT),
-    SHADER_VAR(UNIFORM_SSAO_WEIGHT,         "ssao_weight",          DT_FLOAT),
-    SHADER_VAR(UNIFORM_LIGHTING_EXPOSURE,   "lighting_exposure",    DT_FLOAT),
-    SHADER_VAR(UNIFORM_LIGHTING_OPERATOR,   "lighting_operator",    DT_FLOAT),
-    SHADER_VAR(UNIFORM_CONTRAST,            "contrast",             DT_FLOAT),
-    SHADER_VAR(UNIFORM_FOG_NEAR,            "fog_near",             DT_FLOAT),
-    SHADER_VAR(UNIFORM_FOG_FAR,             "fog_far",              DT_FLOAT),
-    SHADER_VAR(UNIFORM_FOG_COLOR,           "fog_color",            DT_VEC3),
-    SHADER_VAR(UNIFORM_HDR_WHITE_NITS,      "hdr_white_nits",       DT_FLOAT),
-    SHADER_VAR(UNIFORM_HDR_PEAK_NITS,       "hdr_peak_nits",        DT_FLOAT),
-    SHADER_VAR(UNIFORM_HDR_COMPRESS_KNEE,   "hdr_compress_knee",    DT_FLOAT),
-    SHADER_VAR(UNIFORM_HDR_KNEE_SOFTNESS,   "hdr_knee_softness",    DT_FLOAT),
-};
-
 /* Runtime handle for a variable block (uniform buffer) */
 struct shader_var_block {
     uniform_buffer_t    ub;
@@ -145,99 +35,7 @@ struct shader_var_block_desc {
     enum shader_vars    *vars;
 };
 
-/* Define a variable block: name, shader stages, a list of uniforms */
-#define DEFINE_SHADER_VAR_BLOCK(_n, _stages, args...) \
-    [UBO_BINDING_ ## _n] = { \
-        .name       = __stringify(_n), \
-        .binding    = (UBO_BINDING_ ## _n), \
-        .stages     = (_stages), \
-        .vars       = (enum shader_vars[]){ args, SHADER_VAR_MAX }, \
-    }
-
-/* Variable block table */
-static const struct shader_var_block_desc shader_var_block_desc[] = {
-    DEFINE_SHADER_VAR_BLOCK(color_pt, SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_IN_COLOR,
-                            UNIFORM_COLOR_PASSTHROUGH),
-    DEFINE_SHADER_VAR_BLOCK(lighting, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_LIGHT_POS,
-                            UNIFORM_LIGHT_COLOR,
-                            UNIFORM_LIGHT_DIR,
-                            UNIFORM_ATTENUATION,
-                            UNIFORM_LIGHT_DIRECTIONAL,
-                            UNIFORM_NR_LIGHTS,
-                            UNIFORM_USE_NORMALS,
-                            UNIFORM_LIGHT_AMBIENT),
-    DEFINE_SHADER_VAR_BLOCK(shadow, SHADER_STAGE_GEOMETRY_BIT | SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_SHADOW_MVP,
-                            UNIFORM_CASCADE_DISTANCES,
-                            UNIFORM_LIGHT_FAR,
-                            UNIFORM_SHADOW_TINT,
-                            UNIFORM_SHADOW_VSM,
-                            UNIFORM_SHADOW_OUTLINE,
-                            UNIFORM_SHADOW_OUTLINE_THRESHOLD),
-    DEFINE_SHADER_VAR_BLOCK(transform, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_TRS,
-                            UNIFORM_INVERSE_TRS),
-    DEFINE_SHADER_VAR_BLOCK(projview, SHADER_STAGE_VERTEX_BIT | SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_PROJ,
-                            UNIFORM_VIEW,
-                            UNIFORM_INVERSE_VIEW,
-                            UNIFORM_INVERSE_PROJ),
-    DEFINE_SHADER_VAR_BLOCK(skinning, SHADER_STAGE_VERTEX_BIT,
-                            UNIFORM_USE_SKINNING,
-                            UNIFORM_JOINT_TRANSFORMS),
-    DEFINE_SHADER_VAR_BLOCK(particles, SHADER_STAGE_VERTEX_BIT,
-                            UNIFORM_PARTICLE_POS),
-    DEFINE_SHADER_VAR_BLOCK(material, SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_REFLECTIVITY,
-                            UNIFORM_SHINE_DAMPER,
-                            UNIFORM_ROUGHNESS,
-                            UNIFORM_METALLIC,
-                            UNIFORM_ROUGHNESS_CEIL,
-                            UNIFORM_ROUGHNESS_AMP,
-                            UNIFORM_ROUGHNESS_OCT,
-                            UNIFORM_ROUGHNESS_SCALE,
-                            UNIFORM_METALLIC_CEIL,
-                            UNIFORM_METALLIC_AMP,
-                            UNIFORM_METALLIC_OCT,
-                            UNIFORM_METALLIC_SCALE,
-                            UNIFORM_METALLIC_MODE,
-                            UNIFORM_SHARED_SCALE),
-    DEFINE_SHADER_VAR_BLOCK(render_common, SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_USE_MSAA,
-                            UNIFORM_USE_EDGE_AA,
-                            UNIFORM_USE_HDR,
-                            UNIFORM_HDR_OUTPUT,
-                            UNIFORM_HDR_WHITE_NITS,
-                            UNIFORM_HDR_PEAK_NITS,
-                            UNIFORM_HDR_COMPRESS_KNEE,
-                            UNIFORM_HDR_KNEE_SOFTNESS),
-    DEFINE_SHADER_VAR_BLOCK(outline, SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_EDGE_MODE),
-    DEFINE_SHADER_VAR_BLOCK(bloom, SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_BLOOM_EXPOSURE,
-                            UNIFORM_BLOOM_INTENSITY,
-                            UNIFORM_BLOOM_THRESHOLD,
-                            UNIFORM_BLOOM_OPERATOR),
-    DEFINE_SHADER_VAR_BLOCK(postproc, SHADER_STAGE_FRAGMENT_BIT,
-                            UNIFORM_WIDTH,
-                            UNIFORM_HEIGHT,
-                            UNIFORM_NEAR_PLANE,
-                            UNIFORM_FAR_PLANE,
-                            UNIFORM_SSAO_KERNEL,
-                            UNIFORM_SSAO_NOISE_SCALE,
-                            UNIFORM_SSAO_RADIUS,
-                            UNIFORM_SSAO_WEIGHT,
-                            UNIFORM_USE_SSAO,
-                            UNIFORM_LAPLACE_KERNEL,
-                            UNIFORM_CONTRAST,
-                            UNIFORM_LIGHTING_EXPOSURE,
-                            UNIFORM_LIGHTING_OPERATOR,
-                            UNIFORM_FOG_COLOR,
-                            UNIFORM_FOG_NEAR,
-                            UNIFORM_FOG_FAR),
-};
+#include "bindings/render-bindings.c"
 
 /* Runtime shader context */
 typedef struct shader_context {
@@ -253,6 +51,42 @@ typedef struct shader_context {
 } shader_context;
 
 DEFINE_CLEANUP(shader_context, if (*p) mem_free(*p));
+
+static inline enum shader_binding_renderers shader_binding_current_backend(void)
+{
+#if defined(CONFIG_RENDERER_OPENGL)
+    return RENDERER_OPENGL;
+#elif defined(CONFIG_RENDERER_METAL)
+    return RENDERER_METAL;
+#elif defined(CONFIG_RENDERER_WGPU)
+    return RENDERER_WGPU;
+#else
+#error "Unsupported renderer"
+#endif
+}
+
+static inline int shader_binding_lookup(enum shader_binding_renderers backend,
+                                        enum shader_binding_classes binding_class,
+                                        int binding)
+{
+    return shader_bindings[backend][binding_class][binding];
+}
+
+static inline int shader_binding_lookup_current(enum shader_binding_classes binding_class,
+                                                int binding)
+{
+    return shader_binding_lookup(shader_binding_current_backend(), binding_class, binding);
+}
+
+static inline int shader_ubo_binding(int binding)
+{
+    return shader_binding_lookup_current(BC_UBO, binding);
+}
+
+static inline int shader_texture_binding(int binding)
+{
+    return shader_binding_lookup_current(BC_TEXTURE, binding);
+}
 
 static void shader_var_block_done(shader_context *ctx, int var_idx)
 {
@@ -286,7 +120,8 @@ cresp(shader_context) shader_vars_init(renderer_t *renderer)
 
         /* Initialize the uniform buffer */
         uniform_buffer_t *ub = &var_block->ub;
-        err = uniform_buffer_init(renderer, ub, desc->name, desc->binding);
+        int binding = shader_ubo_binding(desc->binding);
+        err = uniform_buffer_init(renderer, ub, desc->name, binding);
         if (IS_CERR(err))
             goto error;
 
@@ -294,7 +129,7 @@ cresp(shader_context) shader_vars_init(renderer_t *renderer)
         binding_points_init(&var_block->binding_points);
         for (int stage = 0; stage < SHADER_STAGES_MAX; stage++)
             if (desc->stages & (1 << stage))
-                binding_points_add(&var_block->binding_points, stage, desc->binding);
+                binding_points_add(&var_block->binding_points, stage, binding);
 
         /* Attach uniforms to a variable block */
         for (j = 0; desc->vars[j] < SHADER_VAR_MAX; j++) {
@@ -632,7 +467,7 @@ int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)
     if (!__shader_has_var(p, var))
         return -1;
 
-    return shader_var_desc[var].texture_slot;
+    return shader_texture_binding(shader_var_desc[var].texture_slot);
 }
 
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
@@ -641,9 +476,10 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
+    int texture_slot = shader_texture_binding(desc->texture_slot);
 
-    if (texture_loaded(tex))    texture_bind(tex, desc->texture_slot);
-    uniform_set_ptr(p->vars[var], desc->type, 1, &desc->texture_slot);
+    if (texture_loaded(tex))    texture_bind(tex, texture_slot);
+    uniform_set_ptr(p->vars[var], desc->type, 1, &texture_slot);
 }
 
 void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
@@ -652,8 +488,9 @@ void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
+    int texture_slot = shader_texture_binding(desc->texture_slot);
 
-    texture_unbind(tex, desc->texture_slot);
+    texture_unbind(tex, texture_slot);
 }
 
 void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
@@ -691,9 +528,10 @@ static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
                 auto desc = &shader_var_desc[i];
                 if (desc->texture_slot < 0)     continue;
                 if (strcmp(name, desc->name))   continue;
+                int texture_slot = shader_texture_binding(desc->texture_slot);
 
-                if (desc->texture_slot != bind) {
-                    err("tex '%s' (%s) bindings don't match: %d <> %d\n", name, type, desc->texture_slot, bind);
+                if (texture_slot != bind) {
+                    err("tex '%s' (%s) bindings don't match: %d <> %d\n", name, type, texture_slot, bind);
                     continue;
                 }
 
@@ -719,9 +557,10 @@ static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
             for (size_t i = 0; i < array_size(shader_var_block_desc); i++) {
                 auto desc = &shader_var_block_desc[i];
                 if (!desc->name || strcmp(name, desc->name))    continue;
+                int expected_binding = shader_ubo_binding(desc->binding);
 
-                if (desc->binding != bind) {
-                    err("ubo '%s' bindings don't match: %d <> %d\n", name, desc->binding, bind);
+                if (expected_binding != bind) {
+                    err("ubo '%s' bindings don't match: %d <> %d\n", name, expected_binding, bind);
                     continue;
                 }
 
