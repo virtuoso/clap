@@ -218,8 +218,6 @@ cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, float *col
 
     LOCAL_SET(canvas, c) = CRES_RET_T(canvas_new(tex_fmt, width, height), canvas);
 
-    canvas_fill(c, (vec4) { 0.3f, 0.3f, 0.3f, 0.3f });
-
     unsigned int y = t.margin_y + t.y_off;
     dbg_on(y < 0, "y: %d, height: %d y_off: %d, margin_y: %d\n",
            y, t.height, t.y_off, t.margin_y);
