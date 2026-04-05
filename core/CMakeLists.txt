@@ -1,4 +1,6 @@
 set(CMAKE_C_STANDARD 23)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -8,6 +10,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
         ${CLAP_EMSCRIPTEN_COMPILE_LIBRARIES}
     )
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${emscripten_compile_flags}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${emscripten_compile_flags}")
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
     else ()

@@ -15,6 +15,7 @@
 #ifdef CONFIG_RENDERER_OPENGL
 #include "imgui_impl_opengl3.h"
 #elif defined(CONFIG_RENDERER_WGPU)
+#include "ui-imgui-wgpu.h"
 #elif defined(CONFIG_RENDERER_METAL)
 #include "ui-imgui-metal.h"
 #else
@@ -78,6 +79,8 @@ void imgui_render_begin(int width, int height)
     ImGui_ImplOpenGL3_NewFrame();
 #elif defined(CONFIG_RENDERER_METAL)
     ui_imgui_metal_new_frame();
+#elif defined(CONFIG_RENDERER_WGPU)
+    ui_imgui_wgpu_new_frame();
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -104,6 +107,8 @@ void imgui_render(void)
     igRender();
 #ifdef CONFIG_RENDERER_OPENGL
     ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
+#elif defined(CONFIG_RENDERER_WGPU)
+    ui_imgui_wgpu_render_draw_data(igGetDrawData());
 #elif defined(CONFIG_RENDERER_METAL)
     ui_imgui_metal_render_draw_data(igGetDrawData());
 #endif
@@ -459,6 +464,10 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
 # endif
 #else
     ui_ig_init_for_emscripten(clap_ctx, ctx, io);
+
+# ifdef CONFIG_RENDERER_WGPU
+    ui_imgui_wgpu_init(clap_ctx);
+# endif /* CONFIG_RENDERER_WGPU */
 #endif
 
 #ifdef CONFIG_RENDERER_OPENGL

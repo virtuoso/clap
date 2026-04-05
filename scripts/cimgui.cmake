@@ -63,6 +63,10 @@ if (CONFIG_RENDERER_METAL)
     )
 endif ()
 
+if (CONFIG_RENDERER_WGPU)
+    list(APPEND ENGINE_SRC ui-imgui-wgpu.cpp)
+endif ()
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     list(APPEND ENGINE_SRC ui-imgui-www.c)
 endif ()
