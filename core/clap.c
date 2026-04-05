@@ -604,7 +604,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(callback, updates);
 
-    pipeline_render(ctx->pl, clap_is_paused(ctx) ? 1 : 0);
+    if (ctx->pl)    pipeline_render(ctx->pl, clap_is_paused(ctx) ? 1 : 0);
+    else            renderer_swapchain_begin(&ctx->renderer);
     rebuild_pl_if_needed(ctx);
 
     PROF_STEP(scene_render, callback);
