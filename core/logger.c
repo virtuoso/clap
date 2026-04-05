@@ -40,7 +40,7 @@ void __asan_error_report()
 # endif /* __has_feature(address_sanitizer) */
 #endif /* __has_feature */
 
-static thread_local unsigned long submit_failures = 0;
+static thread_local __unused unsigned long submit_failures = 0;
 
 /*
  * Chain multiple log sinks together, so that we can have
