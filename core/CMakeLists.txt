@@ -134,6 +134,7 @@ add_custom_command(
 add_custom_target(refclasses_gen DEPENDS "${REFCLASSES_H}")
 
 set(RENDER_BINDINGS_DIR "${CMAKE_CURRENT_BINARY_DIR}/bindings")
+set(GLSL_UBO_DIR "${CMAKE_BINARY_DIR}/glsl-ubos")
 set(RENDER_BINDINGS_H "${RENDER_BINDINGS_DIR}/render-bindings.h")
 set(RENDER_BINDINGS_C "${RENDER_BINDINGS_DIR}/render-bindings.c")
 set(RENDER_BINDINGS_COMMON_H "${RENDER_BINDINGS_DIR}/render-bindings-common.h")
@@ -157,6 +158,7 @@ add_custom_command(
         ${CMAKE_COMMAND}
             -Dinput="${CMAKE_CURRENT_SOURCE_DIR}/render-bindings.json"
             -Doutput_dir="${RENDER_BINDINGS_DIR}"
+            -Dglsl_ubo_dir="${GLSL_UBO_DIR}"
             -P "${CMAKE_SOURCE_DIR}/scripts/render-bindings-gen.cmake"
 )
 

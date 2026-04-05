@@ -29,9 +29,9 @@
                 { "name": "light_color", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_COLOR", "array_size": "LIGHTS_MAX", "discription": "array of light color vectors (LIGHTS_MAX entries)" },
                 { "name": "light_dir", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_DIR", "array_size": "LIGHTS_MAX", "discription": "array of light direction vectors (LIGHTS_MAX entries)" },
                 { "name": "attenuation", "type": "DT_VEC3", "symbol": "UNIFORM_ATTENUATION", "array_size": "LIGHTS_MAX", "discription": "array of non-directional light attenuations (LIGHTS_MAX entries)" },
-                { "name": "light_directional", "type": "DT_INT", "symbol": "UNIFORM_LIGHT_DIRECTIONAL", "array_size": "LIGHTS_MAX", "discription": "array of \"is light directional\" booleans (LIGHTS_MAX entries)" },
+                { "name": "light_directional", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_LIGHT_DIRECTIONAL", "array_size": "LIGHTS_MAX", "discription": "array of \"is light directional\" booleans (LIGHTS_MAX entries)" },
                 { "name": "nr_lights", "type": "DT_INT", "symbol": "UNIFORM_NR_LIGHTS", "discription": "number of light sources" },
-                { "name": "use_normals", "type": "DT_INT", "symbol": "UNIFORM_USE_NORMALS", "discription": "model uses a normal map" },
+                { "name": "use_normals", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_NORMALS", "discription": "model uses a normal map" },
                 { "name": "light_ambient", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_AMBIENT", "discription": "ambient light color" }
             ]
         },
@@ -44,8 +44,8 @@
                 { "name": "cascade_distances", "type": "DT_FLOAT", "symbol": "UNIFORM_CASCADE_DISTANCES", "array_size": "CASCADES_MAX", "discription": "array of cascade distances from the camera (CASCADES_MAX entries)" },
                 { "name": "light_far", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHT_FAR", "array_size": "CASCADES_MAX", "discription": "array of far plane distances of shadow cascades (CASCADES_MAX entries)" },
                 { "name": "shadow_tint", "type": "DT_VEC3", "symbol": "UNIFORM_SHADOW_TINT", "discription": "color of the shadow tint" },
-                { "name": "shadow_vsm", "type": "DT_INT", "symbol": "UNIFORM_SHADOW_VSM", "discription": "use Variance Shadow Mapping (otherwise CSM)" },
-                { "name": "shadow_outline", "type": "DT_INT", "symbol": "UNIFORM_SHADOW_OUTLINE", "discription": "outline edges of shadows" },
+                { "name": "shadow_vsm", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHADOW_VSM", "discription": "use Variance Shadow Mapping (otherwise CSM)" },
+                { "name": "shadow_outline", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHADOW_OUTLINE", "discription": "outline edges of shadows" },
                 { "name": "shadow_outline_threshold", "type": "DT_FLOAT", "symbol": "UNIFORM_SHADOW_OUTLINE_THRESHOLD", "discription": "shadow edge outline cutoff threshold" }
             ]
         },
@@ -104,7 +104,7 @@
                 { "name": "metallic_oct", "type": "DT_INT", "symbol": "UNIFORM_METALLIC_OCT", "discription": "number of octaves for procedural metallic" },
                 { "name": "metallic_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_METALLIC_SCALE", "discription": "local-position scale for procedural metallic noise" },
                 { "name": "metallic_mode", "type": "DT_INT", "symbol": "UNIFORM_METALLIC_MODE", "discription": "MAT_METALLIC_* mode selecting independent, roughness, or 1-roughness metallic noise" },
-                { "name": "shared_scale", "type": "DT_INT", "symbol": "UNIFORM_SHARED_SCALE", "discription": "reuse the roughness noise seed for metallic noise" }
+                { "name": "shared_scale", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHARED_SCALE", "discription": "reuse the roughness noise seed for metallic noise" }
             ]
         },
         {
@@ -112,10 +112,10 @@
             "stages": [ "fragment" ],
             "binding": 7,
             "uniforms": [
-                { "name": "use_msaa", "type": "DT_INT", "symbol": "UNIFORM_USE_MSAA", "discription": "use multisampled textures" },
-                { "name": "use_edge_aa", "type": "DT_INT", "symbol": "UNIFORM_USE_EDGE_AA", "discription": "use edge antialiasing" },
-                { "name": "use_hdr", "type": "DT_INT", "symbol": "UNIFORM_USE_HDR", "discription": "use half-float or float components for colors in intermediate postprocessing render passes" },
-                { "name": "hdr_output", "type": "DT_INT", "symbol": "UNIFORM_HDR_OUTPUT", "discription": "output PQ-encoded HDR instead of SDR tonemapped color" },
+                { "name": "use_msaa", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_MSAA", "discription": "use multisampled textures" },
+                { "name": "use_edge_aa", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_EDGE_AA", "discription": "use edge antialiasing" },
+                { "name": "use_hdr", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_HDR", "discription": "use half-float or float components for colors in intermediate postprocessing render passes" },
+                { "name": "hdr_output", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_HDR_OUTPUT", "discription": "output PQ-encoded HDR instead of SDR tonemapped color" },
                 { "name": "hdr_white_nits", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_WHITE_NITS", "discription": "HDR reference white level in nits" },
                 { "name": "hdr_peak_nits", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_PEAK_NITS", "discription": "HDR peak luminance in nits" },
                 { "name": "hdr_compress_knee", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_COMPRESS_KNEE", "discription": "HDR highlight compression knee" },
@@ -154,7 +154,7 @@
                 { "name": "ssao_noise_scale", "type": "DT_VEC2", "symbol": "UNIFORM_SSAO_NOISE_SCALE", "discription": "UV scale for SSAO noise sampling" },
                 { "name": "ssao_radius", "type": "DT_FLOAT", "symbol": "UNIFORM_SSAO_RADIUS", "discription": "SSAO radius" },
                 { "name": "ssao_weight", "type": "DT_FLOAT", "symbol": "UNIFORM_SSAO_WEIGHT", "discription": "SSAO influence" },
-                { "name": "use_ssao", "type": "DT_INT", "symbol": "UNIFORM_USE_SSAO", "discription": "use screen space ambient occlusion" },
+                { "name": "use_ssao", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_SSAO", "discription": "use screen space ambient occlusion" },
                 { "name": "laplace_kernel", "type": "DT_INT", "symbol": "UNIFORM_LAPLACE_KERNEL", "discription": "Laplace kernel size: 3x3 or 5x5" },
                 { "name": "contrast", "type": "DT_FLOAT", "symbol": "UNIFORM_CONTRAST", "discription": "contrast" },
                 { "name": "lighting_exposure", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHTING_EXPOSURE", "discription": "lighting exposure" },

@@ -1,6 +1,9 @@
 # Shader compilation
 
 set (GLSLC_ARGS -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core)
+if (DEFINED GLSL_UBO_DIR)
+    list(APPEND GLSLC_ARGS -I${GLSL_UBO_DIR})
+endif ()
 # Set up common variables
 if (CONFIG_RENDERER_OPENGL)
     if (CONFIG_GLES)
