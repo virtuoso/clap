@@ -508,7 +508,7 @@ void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
 
 static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
 {
-    auto root = json_decode(text);
+    LOCAL_SET(JsonNode, root) = json_decode(text);
 
     auto array = json_find_member(root, "textures");
     if (array && array->tag == JSON_ARRAY) {
