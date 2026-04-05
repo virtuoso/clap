@@ -39,6 +39,10 @@ typedef unsigned char uchar;
 #define DEFINE_CLEANUP(t, fn) \
 DECLARE_CLEANUP(t) { fn; }
 
+#define DECLARE_CLEANUP_EXACT(t) void cleanup__## t ## p(t *p)
+#define DEFINE_CLEANUP_EXACT(t, fn) \
+DECLARE_CLEANUP_EXACT(t) { fn; }
+
 void cleanup__fd(int *fd);
 DECLARE_CLEANUP(FILE);
 DECLARE_CLEANUP(void);
@@ -49,8 +53,9 @@ DECLARE_CLEANUP(uchar);
 #define CUX(x) CU(x) = NULL
 #define LOCAL_(t, ts, x) t *x CUX(ts ## p)
 #define LOCAL(t, x) LOCAL_(t, t, x)
-#define LOCAL_SET_(t, ts, x) t *x CU(ts ## p)
-#define LOCAL_SET(t, x) LOCAL_SET_(t, t, x)
+#define LOCAL_SET_(t, ts, x) t x CU(ts ## p)
+#define LOCAL_SET(t, x) LOCAL_SET_(t *, t, x)
+#define LOCAL_SET_EXACT(t, x) LOCAL_SET_(t, t, x)
 
 #define array_size(x) (sizeof(x) / sizeof(*x))
 #define container_of(node, type, field) ((type *)((void *)(node)-offsetof(type, field)))
