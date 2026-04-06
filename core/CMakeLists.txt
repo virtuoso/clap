@@ -54,7 +54,8 @@ configure_file(config.h.in config.h)
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(TEST_BIN tests)
     set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
-        ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c)
+        ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c
+        render-texture.c)
 
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
@@ -92,7 +93,7 @@ set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c fs-ops.c fs-ops-posix.c logger.c input.c messagebus.c primitives.c motion.c
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c thread-pthread.c
-    terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c draw.c
+    terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
     physics.c ui-animations.c input-fuzzer.c character.c settings.c error.c
     gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c
