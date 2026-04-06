@@ -17,6 +17,16 @@ static void f32_to_u8(void *dst, void *v)
     *(uchar *)dst = (uchar)clampf(*(float *)v * 255.0f, 0.0f, 255.0f);
 }
 
+static void f16_to_f32(void *dst, void *v)
+{
+    *(float *)dst = half_to_float(*(uint16_t *)v);
+}
+
+static void f32_to_f16(void *dst, void *v)
+{
+    *(uint16_t *)dst = float_to_half(*(float *)v);
+}
+
 static void f32_to_f32(void *dst, void *v)
 {
     *(float *)dst = *(float *)v;
@@ -38,6 +48,7 @@ cresp(canvas) canvas_new(texture_format fmt, unsigned int width, unsigned int he
 
     switch (comp_sz) {
         case 1:     c->conv_write = f32_to_u8; c->conv_read = u8_to_f32; break;
+        case 2:     c->conv_write = f32_to_f16; c->conv_read = f16_to_f32; break;
         case 4:     c->conv_write = c->conv_read = f32_to_f32; break;
         default:    return cresp_error(canvas, CERR_INVALID_FORMAT);
     }
