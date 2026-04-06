@@ -9,7 +9,7 @@
 
 static void u8_to_f32(void *dst, void *v)
 {
-    *(float *)dst = (uchar)clampf((float)*(uchar *)v / 255.0f, 0.0f, 255.0f);
+    *(float *)dst = clampf((float)*(uchar *)v / 255.0f, 0.0f, 1.0f);
 }
 
 static void f32_to_u8(void *dst, void *v)
