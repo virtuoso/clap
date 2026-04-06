@@ -35,6 +35,7 @@ size_t canvas_size(canvas *c);
 void *canvas_data(canvas *c);
 void canvas_write(canvas *c, unsigned int x, unsigned int y, vec4 color);
 void canvas_read(canvas *c, unsigned int x, unsigned int y, vec4 color);
+void canvas_fill(canvas *c, vec4 color);
 void canvas_blit(canvas *dst, canvas *src, unsigned int x, unsigned int y, float *color);
 
 cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, float *color, unsigned long flags, const char *str);
