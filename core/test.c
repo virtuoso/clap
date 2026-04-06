@@ -6,6 +6,8 @@
 #include "ca2d.h"
 #include "ca3d.h"
 #include "cpio.h"
+#include "draw.h"
+#include "font.h"
 #include "fs-ops.h"
 #include "object.h"
 #include "str.h"
@@ -871,6 +873,179 @@ static int fs_test_teardown(void)
     return EXIT_SUCCESS;
 }
 
+/*
+ * Stubs for draw.c symbols that are only reachable from canvas_print/tex_print,
+ * which are not under test here.
+ */
+struct glyph *font_get_glyph(struct font *font __attribute__((unused)),
+                              unsigned char c __attribute__((unused)))
+{
+    return NULL;
+}
+
+cerr texture_load(texture_t *tex __attribute__((unused)),
+                  texture_format format __attribute__((unused)),
+                  unsigned int width __attribute__((unused)),
+                  unsigned int height __attribute__((unused)),
+                  void *buf __attribute__((unused)))
+{
+    return CERR_OK;
+}
+
+static bool vec4_eq(vec4 a, vec4 b, float eps)
+{
+    for (int i = 0; i < 4; i++)
+        if (fabsf(a[i] - b[i]) > eps)
+            return false;
+    return true;
+}
+
+#define VEC4_EQ_F32(a, b) vec4_eq(a, b, 1e-5f)
+#define VEC4_EQ_U8(a, b)  vec4_eq(a, b, 1.0f / 255.0f + 1e-5f)
+
+static int canvas_test_new(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 4, 4), return EXIT_FAILURE);
+    if (c->width != 4 || c->height != 4)
+        return EXIT_FAILURE;
+    if (canvas_size(c) != 4 * 4 * 4)
+        return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_write_read_rgba8(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 4, 4), return EXIT_FAILURE);
+    vec4 color = { 1.0f, 0.5f, 0.25f, 1.0f };
+    canvas_write(c, 2, 3, color);
+
+    vec4 out = {};
+    canvas_read(c, 2, 3, out);
+    if (!VEC4_EQ_U8(color, out))
+        return EXIT_FAILURE;
+
+    /* untouched pixel should be zero */
+    canvas_read(c, 0, 0, out);
+    vec4 zero = {};
+    if (!VEC4_EQ_U8(zero, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_write_read_rgba32f(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 4, 4), return EXIT_FAILURE);
+    vec4 color = { 2.0f, 0.5f, 0.125f, 1.0f };
+    canvas_write(c, 1, 1, color);
+
+    vec4 out = {};
+    canvas_read(c, 1, 1, out);
+    if (!VEC4_EQ_F32(color, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_fill(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 3, 3), return EXIT_FAILURE);
+    vec4 color = { 0.0f, 1.0f, 0.0f, 1.0f };
+    canvas_fill(c, color);
+
+    for (unsigned int y = 0; y < 3; y++)
+        for (unsigned int x = 0; x < 3; x++) {
+            vec4 out = {};
+            canvas_read(c, x, y, out);
+            if (!VEC4_EQ_U8(color, out))
+                return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_fill_rgba32f(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 3, 3), return EXIT_FAILURE);
+    vec4 color = { 3.0f, 1.5f, 0.0f, 1.0f };
+    canvas_fill(c, color);
+
+    for (unsigned int y = 0; y < 3; y++)
+        for (unsigned int x = 0; x < 3; x++) {
+            vec4 out = {};
+            canvas_read(c, x, y, out);
+            if (!VEC4_EQ_F32(color, out))
+                return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blit(void)
+{
+    LOCAL_SET(canvas, dst) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 8, 8), return EXIT_FAILURE);
+    LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 2, 2), return EXIT_FAILURE);
+
+    vec4 red = { 1.0f, 0.0f, 0.0f, 1.0f };
+    canvas_fill(src, red);
+    canvas_blit(dst, src, 3, 3, NULL);
+
+    /* blitted region should be red */
+    for (unsigned int y = 3; y < 5; y++)
+        for (unsigned int x = 3; x < 5; x++) {
+            vec4 out = {};
+            canvas_read(dst, x, y, out);
+            if (!VEC4_EQ_U8(red, out))
+                return EXIT_FAILURE;
+        }
+
+    /* outside the blitted region should be zero */
+    vec4 zero = {};
+    vec4 out = {};
+    canvas_read(dst, 0, 0, out);
+    if (!VEC4_EQ_U8(zero, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blit_color(void)
+{
+    LOCAL_SET(canvas, dst) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 4, 4), return EXIT_FAILURE);
+    LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 2, 2), return EXIT_FAILURE);
+
+    vec4 white = { 1.0f, 1.0f, 1.0f, 1.0f };
+    canvas_fill(src, white);
+
+    float tint[] = { 1.0f, 0.5f, 0.0f, 1.0f };
+    canvas_blit(dst, src, 0, 0, tint);
+
+    vec4 expected = { 1.0f, 0.5f, 0.0f, 1.0f };
+    vec4 out = {};
+    canvas_read(dst, 0, 0, out);
+    if (!VEC4_EQ_U8(expected, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blit_cross_format(void)
+{
+    LOCAL_SET(canvas, dst) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 4, 4), return EXIT_FAILURE);
+    LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 2, 2), return EXIT_FAILURE);
+
+    vec4 color = { 0.5f, 0.25f, 0.75f, 1.0f };
+    canvas_fill(src, color);
+    canvas_blit(dst, src, 1, 1, NULL);
+
+    vec4 out = {};
+    canvas_read(dst, 1, 1, out);
+    if (!VEC4_EQ_U8(color, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -904,6 +1079,14 @@ static struct test {
     { .name = "fs test binary rw", .test = fs_test_binary_rw },
     { .name = "fs test seek", .test = fs_test_seek },
     { .name = "fs test teardown", .test = fs_test_teardown },
+    { .name = "canvas new", .test = canvas_test_new },
+    { .name = "canvas write/read rgba8", .test = canvas_test_write_read_rgba8 },
+    { .name = "canvas write/read rgba32f", .test = canvas_test_write_read_rgba32f },
+    { .name = "canvas fill rgba8", .test = canvas_test_fill },
+    { .name = "canvas fill rgba32f", .test = canvas_test_fill_rgba32f },
+    { .name = "canvas blit", .test = canvas_test_blit },
+    { .name = "canvas blit color", .test = canvas_test_blit_color },
+    { .name = "canvas blit cross format", .test = canvas_test_blit_cross_format },
 };
 
 static struct option long_options[] = {
