@@ -1587,9 +1587,10 @@ uniform_t shader_uniform(shader_t *shader, const char *name)
     return glGetUniformLocation(shader->prog, name);
 }
 
-void shader_use(shader_t *shader, bool draw)
+cerr shader_use(shader_t *shader, bool draw)
 {
     GL(glUseProgram(shader->prog));
+    return CERR_OK;
 }
 
 void shader_unuse(shader_t *shader, bool draw)

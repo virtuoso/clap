@@ -735,7 +735,7 @@ cerr_check shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, c
 attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr);
 uniform_t shader_uniform(shader_t *shader, const char *name);
 
-void shader_use(shader_t *shader, bool draw);
+cerr_check shader_use(shader_t *shader, bool draw);
 void shader_unuse(shader_t *shader, bool draw);
 /* Query a uniform offset within a uniform block as expected by the shader */
 cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);

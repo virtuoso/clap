@@ -544,22 +544,22 @@ void draw_control_unbind(draw_control_t *dc)
         r->vbuffer_cache[i] = r->fbuffer_cache[i] = NULL;
 }
 
-static draw_control_t *dc_hash_find_get(renderer_t *r, fbo_t *fbo, shader_t *shader)
+static cresp(draw_control) dc_hash_find_get(renderer_t *r, fbo_t *fbo, shader_t *shader)
 {
     auto bucket = &r->dc_hash[dc_hash(fbo, shader)];
     draw_control_t *dc;
     list_for_each_entry(dc, bucket, hash_entry)
-        if (dc->fbo == fbo && dc->shader == shader)  return dc;
+        if (dc->fbo == fbo && dc->shader == shader)  return cresp_val(draw_control, dc);
 
     dc = CRES_RET(
         ref_new_checked(draw_control, .renderer = r, .fbo = fbo, .shader = shader),
         {
             err("couldn't create draw control for fbo%d + shader%d\n", fbo->id, shader->id);
-            return NULL;
+            return cresp_error_cerr(draw_control, __resp);
         }
     );
 
-    return dc;
+    return cresp_val(draw_control, dc);
 }
 
 static void dc_hash_fbo_drop(renderer_t *r, fbo_t *fbo)
@@ -1595,19 +1595,25 @@ cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const c
     return CERR_OK;
 }
 
-void shader_use(shader_t *shader, bool draw)
+cerr shader_use(shader_t *shader, bool draw)
 {
-    if (!draw)  return;
+    if (!draw)  return CERR_OK;
 
     auto r = shader->renderer;
     auto fbo = r->fbo ? : r->screen_fbo;
-    if (!fbo)    return;
-    if (!shader->vert || !shader->frag || !shader->vdesc)   return;
+    if (!fbo)   return CERR_OK;
+    if (!shader->vert || !shader->frag || !shader->vdesc)
+        return CERR_INVALID_SHADER_REASON(
+            .fmt    = "vert: %p frag: %p vdesc: %p",
+            .arg0   = shader->vert,
+            .arg1   = shader->frag,
+            .arg2   = shader->vdesc
+        );
 
-    auto dc = dc_hash_find_get(r, fbo, shader);
-    if (!dc)    return;
-
+    auto dc = CRES_RET_CERR(dc_hash_find_get(r, fbo, shader));
     draw_control_bind(dc);
+
+    return CERR_OK;
 }
 
 void shader_unuse(shader_t *shader, bool draw)

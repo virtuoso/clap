@@ -609,7 +609,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     for (enum shader_vars v = 0; v < SHADER_VAR_MAX; v++)
         p->vars[v] = UA_UNKNOWN;
 
-    shader_prog_use(p, false);
+    CERR_RET(shader_prog_use(p, false), { shader_done(&p->shader); return __cerr; });
     shader_prog_link(p);
 
     cerr vert_ref_err = CERR_OK;
@@ -717,10 +717,14 @@ shader_t *shader_prog_shader(struct shader_prog *p)
     return &p->shader;
 }
 
-void shader_prog_use(struct shader_prog *p, bool draw)
+cerr shader_prog_use(struct shader_prog *p, bool draw)
 {
     ref_get(p);
-    shader_use(&p->shader, draw);
+
+    cerr ret = shader_use(&p->shader, draw);
+    if (IS_CERR(ret))   ref_put(p);
+
+    return ret;
 }
 
 void shader_prog_done(struct shader_prog *p, bool draw)

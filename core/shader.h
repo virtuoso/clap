@@ -39,8 +39,9 @@ const char *shader_name(struct shader_prog *p);
  *
  * Take a shader program into use. Needs a matching shader_prog_done().
  * Context: rendering [@draw==%true], resource loading [@draw==%false]
+ * Return: error from the rendering backend or CERR_OK
  */
-void shader_prog_use(struct shader_prog *p, bool draw);
+cerr shader_prog_use(struct shader_prog *p, bool draw);
 
 /**
  * shader_prog_done() - unbind a shader program
