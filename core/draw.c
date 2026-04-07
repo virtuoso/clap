@@ -70,11 +70,38 @@ size_t canvas_size(canvas *c)
     return c->width * c->height * texture_format_comp_size(c->fmt) * texture_format_nr_comps(c->fmt);
 }
 
+static float blend_factor(blend mode, float src_alpha)
+{
+    switch (mode) {
+        case BLEND_SRC_ALPHA:               return src_alpha;
+        case BLEND_ONE_MINUS_SRC_ALPHA:     return 1.0f - src_alpha;
+        default:                            return 0.0f;
+    }
+}
+
 void _canvas_write(canvas *c, const canvas_address *addr)
 {
     size_t nr_comps = texture_format_nr_comps(c->fmt);
     size_t comp_sz = texture_format_comp_size(c->fmt);
     size_t txsz = comp_sz * nr_comps;
+
+    if ((addr->src_blend || addr->dst_blend) && nr_comps == 4) {
+        vec4 dst;
+        canvas_read(c, addr->x, addr->y, dst);
+
+        float sf = blend_factor(addr->src_blend, addr->color[3]);
+        float df = blend_factor(addr->dst_blend, addr->color[3]);
+
+        vec4 out;
+        for (size_t i = 0; i < 4; i++)
+            out[i] = addr->color[i] * sf + dst[i] * df;
+
+        for (size_t i = 0; i < 4; i++) {
+            void *p = c->data + txsz * (addr->y * c->width + addr->x) + comp_sz * i;
+            c->conv_write(p, &out[i]);
+        }
+        return;
+    }
 
     for (size_t i = 0; i < nr_comps; i++) {
         void *p = c->data + txsz * (addr->y * c->width + addr->x) + comp_sz * i;
@@ -98,7 +125,10 @@ void _canvas_fill(canvas *c, const canvas_address *addr)
 {
     for (unsigned int y = 0; y < c->height; y++)
         for (unsigned int x = 0; x < c->width; x++)
-            _canvas_write(c, &(canvas_address){ .x = x, .y = y, .color = addr->color });
+            _canvas_write(c, &(canvas_address){
+                .x = x, .y = y, .color = addr->color,
+                .src_blend = addr->src_blend, .dst_blend = addr->dst_blend,
+            });
 }
 
 void _canvas_blit(canvas *dst, canvas *src, const canvas_address *addr)
@@ -117,7 +147,10 @@ void _canvas_blit(canvas *dst, canvas *src, const canvas_address *addr)
                 for (size_t i = 0; i < nr_comps; i++)
                     texel[i] *= addr->color[i];
 
-            _canvas_write(dst, &(canvas_address){ .x = dx, .y = dy, .color = texel });
+            _canvas_write(dst, &(canvas_address){
+                .x = dx, .y = dy, .color = texel,
+                .src_blend = addr->src_blend, .dst_blend = addr->dst_blend,
+            });
         }
 }
 
