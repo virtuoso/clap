@@ -10,6 +10,7 @@
 #include "messagebus.h"
 #include "input.h"
 #include "ui.h"
+#include "draw.h"
 #include "font.h"
 #include "render.h"
 #include "ui-debug.h"
@@ -399,123 +400,6 @@ model3dtx *ui_quadtx_get(void)
     return ui_quadtx;
 }
 
-/****************************************************************************
- * ui_printf() infrastructure
- ****************************************************************************/
-
-struct ui_text {
-    struct font         *font;
-    const char          *str;
-    struct ui_element   *uietex;
-    unsigned long       flags;
-    unsigned int        nr_uies;
-    unsigned int        nr_lines;
-    /* total width of all glyphs in each line, not counting whitespace */
-    unsigned int        *line_w; /* array of int x nr_lines */
-    /* width of one whitespace for each line */
-    unsigned int        *line_ws; /* likewise */
-    /* number of words in each line */
-    unsigned int        *line_nrw; /* likewise */
-    int                 width, height, y_off;
-    int                 margin_x, margin_y;
-};
-
-/*
- * TODO:
- *  + optional reflow
- */
-static void ui_text_measure(struct ui_text *uit)
-{
-    unsigned int i, w = 0, nr_words = 0, nonws_w = 0, ws_w;
-    int h_top = 0, h_bottom = 0;
-    size_t len = strlen(uit->str);
-    struct glyph *glyph;
-
-    mem_free(uit->line_nrw);
-    mem_free(uit->line_ws);
-    mem_free(uit->line_w);
-
-    glyph = font_get_glyph(uit->font, '-');
-    ws_w = glyph->width;
-    for (i = 0; i <= len; i++) {
-        if (uit->str[i] == '\n' || !uit->str[i]) { /* end of line */
-            nr_words++;
-
-            uit->line_w = mem_realloc_array(uit->line_w, uit->nr_lines + 1, sizeof(*uit->line_w), .fatal_fail = 1);
-            uit->line_ws = mem_realloc_array(uit->line_ws, uit->nr_lines + 1, sizeof(*uit->line_ws), .fatal_fail = 1);
-            uit->line_nrw = mem_realloc_array(uit->line_nrw, uit->nr_lines + 1, sizeof(*uit->line_nrw), .fatal_fail = 1);
-            uit->line_w[uit->nr_lines] = nonws_w;// + ws_w * (nr_words - 1);
-            uit->line_nrw[uit->nr_lines] = nr_words - 1;
-            w = max(w, nonws_w + ws_w * (nr_words - 1));
-            uit->nr_lines++;
-            nonws_w = nr_words = 0;
-            continue;
-        }
-
-        if (isspace(uit->str[i])) {
-            nr_words++;
-            continue;
-        }
-
-        glyph = font_get_glyph(uit->font, uit->str[i]);
-        nonws_w += glyph->advance_x >> 6;
-        if (glyph->bearing_y < 0) {
-            h_top = max(h_top, (int)glyph->height + glyph->bearing_y);
-            h_bottom = max(h_bottom, -glyph->bearing_y);
-        } else {
-            h_top = max(h_top, glyph->bearing_y);
-            h_bottom = max(h_bottom, max((int)glyph->height - glyph->bearing_y, 0));
-        }
-    }
-
-    for (i = 0; i < uit->nr_lines; i++)
-        if ((uit->flags & UI_AF_VCENTER) == UI_AF_VCENTER)
-            uit->line_ws[i] = uit->line_nrw[i] ? (w - uit->line_w[i]) / uit->line_nrw[i] : 0;
-        else
-            uit->line_ws[i] = ws_w;
-
-    uit->width  = w;
-    uit->y_off = h_top;
-    uit->height = (h_top + h_bottom) * uit->nr_lines;
-}
-
-static inline int x_off(struct ui_text *uit, unsigned int line)
-{
-    int x = uit->margin_x;
-
-    if (uit->flags & UI_AF_RIGHT) {
-        if (uit->flags & UI_AF_LEFT) {
-            if (uit->line_w[line])
-               x += (uit->width - uit->line_w[line]) / 2;
-        } else {
-            x = uit->width + uit->margin_x - uit->line_w[line] -
-                uit->line_ws[line] * uit->line_nrw[line];
-        }
-    }
-
-    return x;
-}
-
-static model3dtx *ui_txm_find_by_texture(struct ui *ui, texture_t *tex)
-{
-    model3dtx *txmodel;
-
-    /* XXX: need trees for better search, these lists are actually long */
-    /* XXX^2: struct mq */
-    list_for_each_entry(txmodel, &ui->mq.txmodels, entry) {
-        /*
-         * Since it's already on the list, the "extra" list
-         * reference is already taken, the next ui element
-         * to use it needs only its own reference.
-         */
-        auto glyph_tex = CRES_RET(model3dtx_texture(txmodel, UNIFORM_MODEL_TEX), continue);
-        if (texture_id(glyph_tex) == texture_id(tex))
-            return txmodel;
-    }
-
-    return NULL;
-}
-
 struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element *parent,
                              float *color, unsigned long flags, const char *fmt, ...)
 {
@@ -529,130 +413,45 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     if (IS_CERR(str_res))
         return NULL;
 
-    size_t              len = str_res.val;
-    struct ui           fbo_ui;
-    struct ui_element   **uies;
-    model3dtx           *txm, *txmtex;
-    fbo_t               *fbo;
-    struct ui_text      uit = {};
-    struct glyph        *glyph;
-    model3d             *m;
-    unsigned int        i, line;
-    float               x, y;
+    texture_t _tex;
+    CERR_RET(texture_init(&_tex, .renderer = ui->renderer), return NULL);
+    cerr err = tex_print(&_tex, font, TEX_FMT_RGBA8, color, flags, str);
+    if (IS_CERR(err)) {
+        texture_done(&_tex);
+        return NULL;
+    }
 
-    if (!flags)
-        flags = UI_AF_VCENTER;
+    unsigned int width, height;
+    texture_get_dimesnions(&_tex, &width, &height);
 
-    uit.flags      = flags;
-    uit.margin_x   = 10;
-    uit.margin_y   = 10;
-    uit.str = str;
-    uit.font       = font;
-
-    ui_text_measure(&uit);
-
-    fbo_ui.width = uit.width + uit.margin_x * 2;
-    fbo_ui.height = uit.height + uit.margin_y * 2;
-    mq_init(&fbo_ui.mq, &fbo_ui);
-
-    fbo = CRES_RET(
-        fbo_new(
-            .renderer   = ui->renderer,
-            .name       = "ui_printf",
-            .width      = fbo_ui.width,
-            .height     = fbo_ui.height,
-            .layout     = FBO_COLOR_TEXTURE(0),
-            .color_config = (fbo_attconfig[]) {
-                {
-                    .format         = TEX_FMT_RGBA8,
-                    .load_action    = FBOLOAD_CLEAR,
-                }
-            },
-        ),
-        return NULL
-    );
+    texture_t *tex = texture_clone(&_tex);
+    texture_done(&_tex);
+    if (!tex)
+        return NULL;
 
     if (parent) {
-        parent->width = uit.width + uit.margin_x * 2;
-        parent->height = uit.height + uit.margin_y * 2;
+        parent->width = width;
+        parent->height = height;
         ui_element_position(parent, ui);
     }
-    y = (float)uit.margin_y + uit.y_off;
-    dbg_on(y < 0, "y: %f, height: %d y_off: %d, margin_y: %d\n",
-           y, uit.height, uit.y_off, uit.margin_y);
-    uies = mem_alloc(sizeof(struct ui_element *), .nr = len, .fatal_fail = 1);
-    uit.nr_uies = len;
-    for (line = 0, i = 0, x = x_off(&uit, line); i < len; i++) {
-        if (str[i] == '\n') {
-            line++;
-            y += (uit.height / uit.nr_lines);
-            x = x_off(&uit, line);
-            continue;
-        }
-        if (isspace(str[i])) {
-            x += uit.line_ws[line];
-            continue;
-        }
-        glyph   = font_get_glyph(uit.font, str[i]);
-        txm = ui_txm_find_by_texture(&fbo_ui, &glyph->tex);
-        if (!txm) {
-            m = ui_quad_new(ui->ui_prog, 0, 0, glyph->width, glyph->height);
-            model3d_set_name(m, "glyph_%s_%c", font_name(uit.font), str[i]);
-            txm = ref_new(model3dtx, .model = ref_pass(m), .tex = &glyph->tex);
-            ui_add_model(&fbo_ui, txm);
-        }
-        /* uies[i] consumes (holds the only reference to) txm */
-        uies[i] = ref_new(ui_element,
-                          .ui       = &fbo_ui,
-                          .txmodel  = txm,
-                          .affinity = UI_AF_TOP | UI_AF_LEFT,
-                          .x_off    = x + glyph->bearing_x,
-                          .y_off    = y - glyph->bearing_y,
-                          .width    = glyph->width,
-                          .height   = glyph->height);
-        ref_only(uies[i]->entity);
-        ref_only(uies[i]);
-        entity3d_color(uies[i]->entity, COLOR_PT_REPLACE_RGB | COLOR_PT_BLEND_ALPHA, color);
 
-        uies[i]->prescaled = true;
-        
-        /* XXX: to trigger ui_element_position() XXX */
-        uies[i]->actual_x = uies[i]->actual_y = -1;
-        entity3d_update(uies[i]->entity, &fbo_ui);
-        x += glyph->advance_x >> 6;
-    }
-
-    fbo_prepare(fbo);
-    models_render(ui->renderer, &fbo_ui.mq);
-    mq_release(&fbo_ui.mq);
-    fbo_done(fbo, ui->width, ui->height);
-
-    mem_free(uies);
-    mem_free(uit.line_nrw);
-    mem_free(uit.line_ws);
-    mem_free(uit.line_w);
-
-    m = model3d_new_quad(ui->glyph_prog, 0, 1, 0, 1, -1);
+    model3d *m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     model3d_set_name(m, "ui_text: '%s'", str);
-    m->depth_testing = false;
-    m->alpha_blend = true;
-    txmtex = ref_new(model3dtx, .model = ref_pass(m),
-                     .tex = texture_clone(fbo_texture(fbo, FBO_COLOR_TEXTURE(0))));
-    fbo_put_last(fbo);
+    model3dtx *txmtex = ref_new(model3dtx, .model = ref_pass(m), .tex = tex);
     ui_add_model(ui, txmtex);
 
-    uit.uietex = ref_new(ui_element,
-                         .ui        = ui,
-                         .parent    = parent,
-                         .txmodel   = ref_pass(txmtex),
-                         .affinity  = parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
-                         .width     = fbo_ui.width,
-                         .height    = fbo_ui.height);
-    entity3d_color(uit.uietex->entity, COLOR_PT_REPLACE_RGB | COLOR_PT_BLEND_ALPHA, color);
-    ref_only(uit.uietex->entity);
-    ref_only(uit.uietex);
+    struct ui_element *uie = ref_new(ui_element,
+                                     .ui        = ui,
+                                     .parent    = parent,
+                                     .txmodel   = ref_pass(txmtex),
+                                     .affinity  = parent ? UI_AF_CENTER : UI_AF_HCENTER | UI_AF_BOTTOM,
+                                     .width     = width,
+                                     .height    = height);
+    entity3d_color(uie->entity, COLOR_PT_REPLACE_RGB | COLOR_PT_BLEND_ALPHA, color);
+    ref_only(uie->entity);
+    ref_only(uie);
 
-    return uit.uietex;
+    return uie;
 }
 
 static const char *menu_font = "ofl/Unbounded-Regular.ttf";
