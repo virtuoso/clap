@@ -932,7 +932,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
 
             /* XXX: hardcoded color format */
             base_canvas = CRES_RET(canvas_new(TEX_FMT_RGBA8, 1, 1), continue);
-            canvas_write(base_canvas, 0, 0, base_color);
+            canvas_write(base_canvas, .color = base_color);
         } else if (jwut->tag != JSON_OBJECT) {
             continue;
         } else {
@@ -968,7 +968,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
                     json_float_array(jemcolor, emit_color, 3);
 
                     mat->emit_canvas = cres.val;
-                    canvas_write(mat->emit_canvas, 0, 0, emit_color);
+                    canvas_write(mat->emit_canvas, .color = emit_color);
                 }
             }
         }

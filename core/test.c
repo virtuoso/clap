@@ -917,7 +917,7 @@ static int canvas_test_write_read_rgba8(void)
 {
     LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 4, 4), return EXIT_FAILURE);
     vec4 color = { 1.0f, 0.5f, 0.25f, 1.0f };
-    canvas_write(c, 2, 3, color);
+    canvas_write(c, .x = 2, .y = 3, .color = color);
 
     vec4 out = {};
     canvas_read(c, 2, 3, out);
@@ -937,7 +937,7 @@ static int canvas_test_write_read_rgba32f(void)
 {
     LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 4, 4), return EXIT_FAILURE);
     vec4 color = { 2.0f, 0.5f, 0.125f, 1.0f };
-    canvas_write(c, 1, 1, color);
+    canvas_write(c, .x = 1, .y = 1, .color = color);
 
     vec4 out = {};
     canvas_read(c, 1, 1, out);
@@ -951,7 +951,7 @@ static int canvas_test_fill(void)
 {
     LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 3, 3), return EXIT_FAILURE);
     vec4 color = { 0.0f, 1.0f, 0.0f, 1.0f };
-    canvas_fill(c, color);
+    canvas_fill(c, .color = color);
 
     for (unsigned int y = 0; y < 3; y++)
         for (unsigned int x = 0; x < 3; x++) {
@@ -968,7 +968,7 @@ static int canvas_test_fill_rgba32f(void)
 {
     LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 3, 3), return EXIT_FAILURE);
     vec4 color = { 3.0f, 1.5f, 0.0f, 1.0f };
-    canvas_fill(c, color);
+    canvas_fill(c, .color = color);
 
     for (unsigned int y = 0; y < 3; y++)
         for (unsigned int x = 0; x < 3; x++) {
@@ -987,8 +987,8 @@ static int canvas_test_blit(void)
     LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 2, 2), return EXIT_FAILURE);
 
     vec4 red = { 1.0f, 0.0f, 0.0f, 1.0f };
-    canvas_fill(src, red);
-    canvas_blit(dst, src, 3, 3, NULL);
+    canvas_fill(src, .color = red);
+    canvas_blit(dst, src, .x = 3, .y = 3);
 
     /* blitted region should be red */
     for (unsigned int y = 3; y < 5; y++)
@@ -1015,10 +1015,10 @@ static int canvas_test_blit_color(void)
     LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 2, 2), return EXIT_FAILURE);
 
     vec4 white = { 1.0f, 1.0f, 1.0f, 1.0f };
-    canvas_fill(src, white);
+    canvas_fill(src, .color = white);
 
     float tint[] = { 1.0f, 0.5f, 0.0f, 1.0f };
-    canvas_blit(dst, src, 0, 0, tint);
+    canvas_blit(dst, src, .color = tint);
 
     vec4 expected = { 1.0f, 0.5f, 0.0f, 1.0f };
     vec4 out = {};
@@ -1035,8 +1035,8 @@ static int canvas_test_blit_cross_format(void)
     LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 2, 2), return EXIT_FAILURE);
 
     vec4 color = { 0.5f, 0.25f, 0.75f, 1.0f };
-    canvas_fill(src, color);
-    canvas_blit(dst, src, 1, 1, NULL);
+    canvas_fill(src, .color = color);
+    canvas_blit(dst, src, .x = 1, .y = 1);
 
     vec4 out = {};
     canvas_read(dst, 1, 1, out);
@@ -1050,7 +1050,7 @@ static int canvas_test_write_read_rgba16f(void)
 {
     LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 4, 4), return EXIT_FAILURE);
     vec4 color = { 2.0f, 0.5f, 0.125f, 1.0f };
-    canvas_write(c, 1, 2, color);
+    canvas_write(c, .x = 1, .y = 2, .color = color);
 
     vec4 out = {};
     canvas_read(c, 1, 2, out);
@@ -1070,7 +1070,7 @@ static int canvas_test_fill_rgba16f(void)
 {
     LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 3, 3), return EXIT_FAILURE);
     vec4 color = { 1.5f, 0.25f, 0.0f, 1.0f };
-    canvas_fill(c, color);
+    canvas_fill(c, .color = color);
 
     for (unsigned int y = 0; y < 3; y++)
         for (unsigned int x = 0; x < 3; x++) {
@@ -1089,8 +1089,8 @@ static int canvas_test_blit_rgba16f_to_rgba8(void)
     LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 2, 2), return EXIT_FAILURE);
 
     vec4 color = { 0.5f, 0.25f, 0.75f, 1.0f };
-    canvas_fill(src, color);
-    canvas_blit(dst, src, 0, 0, NULL);
+    canvas_fill(src, .color = color);
+    canvas_blit(dst, src);
 
     vec4 out = {};
     canvas_read(dst, 0, 0, out);
@@ -1106,8 +1106,8 @@ static int canvas_test_blit_rgba8_to_rgba16f(void)
     LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 2, 2), return EXIT_FAILURE);
 
     vec4 color = { 1.0f, 0.0f, 0.5f, 1.0f };
-    canvas_fill(src, color);
-    canvas_blit(dst, src, 1, 1, NULL);
+    canvas_fill(src, .color = color);
+    canvas_blit(dst, src, .x = 1, .y = 1);
 
     vec4 out = {};
     canvas_read(dst, 1, 1, out);
@@ -1123,8 +1123,8 @@ static int canvas_test_blit_rgba16f_to_rgba32f(void)
     LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 2, 2), return EXIT_FAILURE);
 
     vec4 color = { 2.0f, 0.5f, 0.125f, 1.0f };
-    canvas_fill(src, color);
-    canvas_blit(dst, src, 0, 0, NULL);
+    canvas_fill(src, .color = color);
+    canvas_blit(dst, src);
 
     vec4 out = {};
     canvas_read(dst, 0, 0, out);
@@ -1140,8 +1140,8 @@ static int canvas_test_blit_rgba32f_to_rgba16f(void)
     LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 2, 2), return EXIT_FAILURE);
 
     vec4 color = { 1.5f, 0.25f, 0.75f, 1.0f };
-    canvas_fill(src, color);
-    canvas_blit(dst, src, 0, 0, NULL);
+    canvas_fill(src, .color = color);
+    canvas_blit(dst, src);
 
     vec4 out = {};
     canvas_read(dst, 0, 0, out);

@@ -50,7 +50,7 @@ static void font_load_glyph(struct font *font, unsigned char c)
         for (x = 0; x < glyph->bitmap.width; x++) {
             unsigned int factor = glyph->bitmap.buffer[_GAT(x, y)];
             if (factor)
-                canvas_write(g->canvas, x, y, (vec4) { 1.0f, 1.0f, 1.0f, (float)factor / 255.0f });
+                canvas_write(g->canvas, .x = x, .y = y, .color = (vec4){ 1.0f, 1.0f, 1.0f, (float)factor / 255.0f });
         }
 #undef _GAT
     CERR_RET(texture_init(&font->g[c].tex, .renderer = font->renderer), return);

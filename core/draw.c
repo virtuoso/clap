@@ -70,15 +70,15 @@ size_t canvas_size(canvas *c)
     return c->width * c->height * texture_format_comp_size(c->fmt) * texture_format_nr_comps(c->fmt);
 }
 
-void canvas_write(canvas *c, unsigned int x, unsigned int y, vec4 color)
+void _canvas_write(canvas *c, const canvas_address *addr)
 {
     size_t nr_comps = texture_format_nr_comps(c->fmt);
     size_t comp_sz = texture_format_comp_size(c->fmt);
     size_t txsz = comp_sz * nr_comps;
 
     for (size_t i = 0; i < nr_comps; i++) {
-        void *p = c->data + txsz * (y * c->width + x) + comp_sz * i;
-        c->conv_write(p, &color[i]);
+        void *p = c->data + txsz * (addr->y * c->width + addr->x) + comp_sz * i;
+        c->conv_write(p, &addr->color[i]);
     }
 }
 
@@ -94,30 +94,30 @@ void canvas_read(canvas *c, unsigned int x, unsigned int y, vec4 color)
     }
 }
 
-void canvas_fill(canvas *c, vec4 color)
+void _canvas_fill(canvas *c, const canvas_address *addr)
 {
     for (unsigned int y = 0; y < c->height; y++)
         for (unsigned int x = 0; x < c->width; x++)
-            canvas_write(c, x, y, color);
+            _canvas_write(c, &(canvas_address){ .x = x, .y = y, .color = addr->color });
 }
 
-void canvas_blit(canvas *dst, canvas *src, unsigned int x, unsigned int y, float *color)
+void _canvas_blit(canvas *dst, canvas *src, const canvas_address *addr)
 {
     size_t nr_comps = min(texture_format_nr_comps(src->fmt), texture_format_nr_comps(dst->fmt));
     unsigned int dx, dy;
 
-    for (dy = y; dy < min(y + src->height, dst->height); dy++)
-        for (dx = x; dx < min(x + src->width, dst->width); dx++) {
+    for (dy = addr->y; dy < min(addr->y + src->height, dst->height); dy++)
+        for (dx = addr->x; dx < min(addr->x + src->width, dst->width); dx++) {
             vec4 texel;
-            canvas_read(src, dx - x, dy - y, texel);
+            canvas_read(src, dx - addr->x, dy - addr->y, texel);
 
             if (vec4_mul_inner(texel, texel) < 1e-5)    continue;
 
-            if (color)
+            if (addr->color)
                 for (size_t i = 0; i < nr_comps; i++)
-                    texel[i] *= color[i];
+                    texel[i] *= addr->color[i];
 
-            canvas_write(dst, dx, dy, texel);
+            _canvas_write(dst, &(canvas_address){ .x = dx, .y = dy, .color = texel });
         }
 }
 
@@ -210,7 +210,7 @@ static inline int x_off(struct draw_text *t, unsigned int line)
     return x;
 }
 
-cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, float *color, unsigned long flags, const char *str)
+cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, const canvas_address *addr, unsigned long flags, const char *str)
 {
     if (!flags) flags = DRAW_AF_VCENTER;
 
@@ -247,7 +247,9 @@ cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, float *col
 
         auto glyph = font_get_glyph(t.font, str[i]);
 
-        canvas_blit(c, glyph->canvas, x + glyph->bearing_x, y - glyph->bearing_y, color);
+        _canvas_blit(c, glyph->canvas, &(canvas_address){
+            .x = x + glyph->bearing_x, .y = y - glyph->bearing_y, .color = addr->color
+        });
         x += glyph->advance_x >> 6;
     }
 
@@ -256,7 +258,7 @@ cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, float *col
     return cresp_val(canvas, NOCU(c));
 }
 
-cresp(canvas) canvas_printf(struct font *font, texture_format tex_fmt, float *color, unsigned long flags, const char *fmt, ...)
+cresp(canvas) canvas_printf(struct font *font, texture_format tex_fmt, const canvas_address *addr, unsigned long flags, const char *fmt, ...)
 {
     va_list ap;
     LOCAL(char, str);
@@ -265,13 +267,14 @@ cresp(canvas) canvas_printf(struct font *font, texture_format tex_fmt, float *co
     CRES_RET_T(mem_vasprintf(&str, fmt, ap), canvas);
     va_end(ap);
 
-    return canvas_print(font, tex_fmt, color, flags, fmt);
+    return canvas_print(font, tex_fmt, addr, flags, fmt);
 }
 
 cerr tex_print(texture_t *tex, struct font *font, texture_format tex_fmt, float *color,
                unsigned long flags, const char *str)
 {
-    LOCAL_SET(canvas, c) = CRES_RET_CERR(canvas_print(font, tex_fmt, color, flags, str));
+    LOCAL_SET(canvas, c) = CRES_RET_CERR(canvas_print(font, tex_fmt,
+        &(canvas_address){ .color = color }, flags, str));
     CERR_RET_CERR(texture_load(tex, tex_fmt, c->width, c->height, c->data));
 
     return CERR_OK;
