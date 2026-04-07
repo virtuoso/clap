@@ -1046,6 +1046,111 @@ static int canvas_test_blit_cross_format(void)
     return EXIT_SUCCESS;
 }
 
+static int canvas_test_write_read_rgba16f(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 4, 4), return EXIT_FAILURE);
+    vec4 color = { 2.0f, 0.5f, 0.125f, 1.0f };
+    canvas_write(c, 1, 2, color);
+
+    vec4 out = {};
+    canvas_read(c, 1, 2, out);
+    if (!VEC4_EQ_F32(color, out))
+        return EXIT_FAILURE;
+
+    /* untouched pixel should be zero */
+    canvas_read(c, 0, 0, out);
+    vec4 zero = {};
+    if (!VEC4_EQ_F32(zero, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_fill_rgba16f(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 3, 3), return EXIT_FAILURE);
+    vec4 color = { 1.5f, 0.25f, 0.0f, 1.0f };
+    canvas_fill(c, color);
+
+    for (unsigned int y = 0; y < 3; y++)
+        for (unsigned int x = 0; x < 3; x++) {
+            vec4 out = {};
+            canvas_read(c, x, y, out);
+            if (!VEC4_EQ_F32(color, out))
+                return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blit_rgba16f_to_rgba8(void)
+{
+    LOCAL_SET(canvas, dst) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 4, 4), return EXIT_FAILURE);
+    LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 2, 2), return EXIT_FAILURE);
+
+    vec4 color = { 0.5f, 0.25f, 0.75f, 1.0f };
+    canvas_fill(src, color);
+    canvas_blit(dst, src, 0, 0, NULL);
+
+    vec4 out = {};
+    canvas_read(dst, 0, 0, out);
+    if (!VEC4_EQ_U8(color, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blit_rgba8_to_rgba16f(void)
+{
+    LOCAL_SET(canvas, dst) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 4, 4), return EXIT_FAILURE);
+    LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA8, 2, 2), return EXIT_FAILURE);
+
+    vec4 color = { 1.0f, 0.0f, 0.5f, 1.0f };
+    canvas_fill(src, color);
+    canvas_blit(dst, src, 1, 1, NULL);
+
+    vec4 out = {};
+    canvas_read(dst, 1, 1, out);
+    if (!VEC4_EQ_U8(color, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blit_rgba16f_to_rgba32f(void)
+{
+    LOCAL_SET(canvas, dst) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 4, 4), return EXIT_FAILURE);
+    LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 2, 2), return EXIT_FAILURE);
+
+    vec4 color = { 2.0f, 0.5f, 0.125f, 1.0f };
+    canvas_fill(src, color);
+    canvas_blit(dst, src, 0, 0, NULL);
+
+    vec4 out = {};
+    canvas_read(dst, 0, 0, out);
+    if (!VEC4_EQ_F32(color, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blit_rgba32f_to_rgba16f(void)
+{
+    LOCAL_SET(canvas, dst) = CRES_RET(canvas_new(TEX_FMT_RGBA16F, 4, 4), return EXIT_FAILURE);
+    LOCAL_SET(canvas, src) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 2, 2), return EXIT_FAILURE);
+
+    vec4 color = { 1.5f, 0.25f, 0.75f, 1.0f };
+    canvas_fill(src, color);
+    canvas_blit(dst, src, 0, 0, NULL);
+
+    vec4 out = {};
+    canvas_read(dst, 0, 0, out);
+    if (!VEC4_EQ_F32(color, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -1087,6 +1192,12 @@ static struct test {
     { .name = "canvas blit", .test = canvas_test_blit },
     { .name = "canvas blit color", .test = canvas_test_blit_color },
     { .name = "canvas blit cross format", .test = canvas_test_blit_cross_format },
+    { .name = "canvas write/read rgba16f", .test = canvas_test_write_read_rgba16f },
+    { .name = "canvas fill rgba16f", .test = canvas_test_fill_rgba16f },
+    { .name = "canvas blit rgba16f->rgba8", .test = canvas_test_blit_rgba16f_to_rgba8 },
+    { .name = "canvas blit rgba8->rgba16f", .test = canvas_test_blit_rgba8_to_rgba16f },
+    { .name = "canvas blit rgba16f->rgba32f", .test = canvas_test_blit_rgba16f_to_rgba32f },
+    { .name = "canvas blit rgba32f->rgba16f", .test = canvas_test_blit_rgba32f_to_rgba16f },
 };
 
 static struct option long_options[] = {
