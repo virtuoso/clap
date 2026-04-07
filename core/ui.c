@@ -365,7 +365,7 @@ DEFINE_REFCLASS2(ui_element);
 
 model3d *ui_quad_new(struct shader_prog *p, float x, float y, float w, float h)
 {
-    model3d *model = model3d_new_quadrev(p, x, y, 0, w, h);
+    model3d *model = model3d_new_quad(p, x, y, 0, w, h);
     model->depth_testing = false;
     model->alpha_blend = true;
     return model;

@@ -487,9 +487,24 @@ model3d *model3d_new_cube(struct shader_prog *p, bool skip_aabb)
                    .skip_aabb   = skip_aabb);
 }
 
+/**
+ * model3d_new_quad() - create a front-facing (CCW) textured quad
+ * @p:          shader program
+ * @x, @y:     origin corner position
+ * @z:         depth
+ * @w, @h:     size (may be negative to flip along that axis)
+ *
+ * Vertices span from (x, y) to (x+w, y+h); UVs map (0,0)..(1,1)
+ * accordingly. Winding is always CCW (front-facing) regardless of
+ * the signs of w and h.
+ */
 model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h)
 {
-    static unsigned short quad_idx[] = {0, 3, 1, 3, 2, 1};
+    /* CCW when w*h > 0; flip to CW (which reads as CCW after the axis flip) when w*h < 0 */
+    static unsigned short ccw_idx[] = {0, 1, 3, 3, 1, 2};
+    static unsigned short cw_idx[]  = {0, 3, 1, 3, 2, 1};
+    unsigned short *idx = (w * h >= 0) ? ccw_idx : cw_idx;
+
     float quad_vx[] = {
         x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
     };
@@ -499,30 +514,7 @@ model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, floa
         .attr   = {
             [MESH_VX] = { .data = quad_vx, .nr = array_size(quad_vx) / 3, .stride = sizeof(float) * 3 },
             [MESH_TX] = { .data = quad_tx, .nr = array_size(quad_tx) / 2, .stride = sizeof(float) * 2 },
-            [MESH_IDX] = { .data = quad_idx, .nr = array_size(quad_idx), .stride = sizeof(unsigned short) },
-        }
-    };
-
-    return ref_new(model3d,
-                   .name        = "quad",
-                   .prog        = p,
-                   .mesh        = &quad_mesh,
-                   .skip_aabb   = true);
-}
-
-model3d *model3d_new_quadrev(struct shader_prog *p, float x, float y, float z, float w, float h)
-{
-    static unsigned short quad_idx[] = {0, 1, 3, 3, 1, 2};
-    float quad_vx[] = {
-        x, y + h, z, x, y, z, x + w, y, z, x + w, y + h, z,
-    };
-    struct mesh quad_mesh = {
-        .ref    = REF_STATIC(mesh),
-        .name   = "quad",
-        .attr   = {
-            [MESH_VX] = { .data = quad_vx, .nr = array_size(quad_vx) / 3, .stride = sizeof(float) * 3 },
-            [MESH_TX] = { .data = quad_tx, .nr = array_size(quad_tx) / 2, .stride = sizeof(float) * 2 },
-            [MESH_IDX] = { .data = quad_idx, .nr = array_size(quad_idx), .stride = sizeof(unsigned short) },
+            [MESH_IDX] = { .data = idx, .nr = 6, .stride = sizeof(unsigned short) },
         }
     };
 
