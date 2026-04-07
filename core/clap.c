@@ -1101,7 +1101,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         display_get_sizes(&width, &height);
 
         if (ctx->cfg.font)
-            ctx->font = CRES_RET_T(font_init(&ctx->renderer, ctx->cfg.default_font_name), clap_context);
+            ctx->font = CRES_RET_T(font_init(ctx->cfg.default_font_name), clap_context);
 
         textures_init(&ctx->renderer);
         ctx->shaders = CRES_RET_T(shader_vars_init(&ctx->renderer), clap_context);
