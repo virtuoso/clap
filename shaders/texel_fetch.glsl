@@ -17,8 +17,6 @@ vec4 texel_fetch_2darray(in sampler2DArray map, in vec3 pos, in ivec2 tex_off)
     return textureLod(map, vec3(pos.xy + off, pos.z), 0.0);
 }
 
-#ifndef CONFIG_GLES
-
 vec4 texel_fetch_2dms_sample(in sampler2DMS map, in vec2 pos, in int idx)
 {
     float texel_size_x = textureSize(map).x;
@@ -125,7 +123,5 @@ vec4 texel_fetch_2dmsarray(in sampler2DMSArray map, in vec3 pos)
 
     return pixel;
 }
-
-#endif
 
 #endif /* CLAP_TEXEL_FETCH_GLSL */
