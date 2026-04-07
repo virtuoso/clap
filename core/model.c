@@ -147,6 +147,10 @@ shader_done:
     shader_prog_done(opts->prog, false);
     ref_put(m->prog);
 
+    free(m->name);
+    free(m->collision_vx);
+    free(m->collision_idx);
+
     return err;
 }
 
