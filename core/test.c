@@ -1151,6 +1151,72 @@ static int canvas_test_blit_rgba32f_to_rgba16f(void)
     return EXIT_SUCCESS;
 }
 
+static int canvas_test_blend_write(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 2, 2), return EXIT_FAILURE);
+
+    /* write opaque red background */
+    vec4 bg = { 1.0f, 0.0f, 0.0f, 1.0f };
+    canvas_write(c, .color = bg);
+
+    /* blend 50% alpha green on top: src*src_alpha + dst*(1-src_alpha) */
+    vec4 fg = { 0.0f, 1.0f, 0.0f, 0.5f };
+    canvas_write(c, .color = fg,
+        .src_blend = BLEND_SRC_ALPHA, .dst_blend = BLEND_ONE_MINUS_SRC_ALPHA);
+
+    vec4 expected = { 0.5f, 0.5f, 0.0f, 0.75f };
+    vec4 out = {};
+    canvas_read(c, 0, 0, out);
+    if (!VEC4_EQ_F32(expected, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blend_fill(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 3, 3), return EXIT_FAILURE);
+
+    /* fill with opaque blue */
+    vec4 bg = { 0.0f, 0.0f, 1.0f, 1.0f };
+    canvas_fill(c, .color = bg);
+
+    /* blend-fill with 50% alpha white */
+    vec4 fg = { 1.0f, 1.0f, 1.0f, 0.5f };
+    canvas_fill(c, .color = fg,
+        .src_blend = BLEND_SRC_ALPHA, .dst_blend = BLEND_ONE_MINUS_SRC_ALPHA);
+
+    vec4 expected = { 0.5f, 0.5f, 1.0f, 0.75f };
+    for (unsigned int y = 0; y < 3; y++)
+        for (unsigned int x = 0; x < 3; x++) {
+            vec4 out = {};
+            canvas_read(c, x, y, out);
+            if (!VEC4_EQ_F32(expected, out))
+                return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
+static int canvas_test_blend_none(void)
+{
+    LOCAL_SET(canvas, c) = CRES_RET(canvas_new(TEX_FMT_RGBA32F, 2, 2), return EXIT_FAILURE);
+
+    /* write red, then overwrite with green (no blending) */
+    vec4 red = { 1.0f, 0.0f, 0.0f, 1.0f };
+    canvas_write(c, .color = red);
+
+    vec4 green = { 0.0f, 1.0f, 0.0f, 1.0f };
+    canvas_write(c, .color = green);
+
+    vec4 out = {};
+    canvas_read(c, 0, 0, out);
+    if (!VEC4_EQ_F32(green, out))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -1198,6 +1264,9 @@ static struct test {
     { .name = "canvas blit rgba8->rgba16f", .test = canvas_test_blit_rgba8_to_rgba16f },
     { .name = "canvas blit rgba16f->rgba32f", .test = canvas_test_blit_rgba16f_to_rgba32f },
     { .name = "canvas blit rgba32f->rgba16f", .test = canvas_test_blit_rgba32f_to_rgba16f },
+    { .name = "canvas blend write", .test = canvas_test_blend_write },
+    { .name = "canvas blend fill", .test = canvas_test_blend_fill },
+    { .name = "canvas blend none", .test = canvas_test_blend_none },
 };
 
 static struct option long_options[] = {
