@@ -7,7 +7,7 @@
 layout (location=0) out float FragColor;
 layout (location=0) in vec2 pass_tex;
 
-layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
 layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 
@@ -21,7 +21,7 @@ void main()
 
     vec3 normal_sample = texture(normal_map, pass_tex).xyz;
     vec3 normal = normalize(normal_sample * 2.0 - 1.0);
-    vec3 pos = view_pos_from_depth(model_tex, inverse_proj, pass_tex);
+    vec3 pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
     FragColor = 1.0;
     if (pos.z > 0.0)    return;
 
@@ -47,7 +47,7 @@ void main()
         offset.xyz /= offset.w;
         offset.xyz = offset.xyz * 0.5 + 0.5;
 
-        vec3 sample_view = view_pos_from_depth(model_tex, inverse_proj, convert_pass_tex(offset.xy));
+        vec3 sample_view = view_pos_from_depth(depth_tex, inverse_proj, convert_pass_tex(offset.xy));
         if (sample_view.z > 0.0)    continue;
 
         float range_check = smoothstep(0.0, 1.0, actual_radius / abs(pos.z - sample_view.z));

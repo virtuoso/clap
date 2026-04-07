@@ -15,7 +15,7 @@ layout (location=0) in vec2 pass_tex;
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
-layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
+layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
 layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
@@ -43,7 +43,7 @@ void main()
     f16vec3 tex_color = use_edge_aa ?
         smaa_blend(model_tex, sobel_tex, shadow_map2, pass_tex) :
         apply_edge(model_tex, sobel_tex, H(1.0), pass_tex, ivec2(0));
-    float16_t fog_factor = radial_fog_factor(normal_map, pass_tex, fog_near, fog_far);
+    float16_t fog_factor = radial_fog_factor(depth_tex, pass_tex, fog_near, fog_far);
     f16vec3 highlight_color = HVEC3(texture(emission_map, pass_tex).rgb);
     float16_t ao = H(texture(shadow_map, pass_tex).r);
 

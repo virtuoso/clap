@@ -447,7 +447,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .pass       = model_pass,
                     .attachment = FBO_DEPTH_TEXTURE(0),
                     .method     = edge_sobel ? RM_USE : model_pass_method,
-                    .sampler    = UNIFORM_MODEL_TEX
+                    .sampler    = UNIFORM_DEPTH_TEX
                 },
                 {
                     .pass       = model_pass,
@@ -492,7 +492,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .pass       = model_pass,
                     .attachment = FBO_DEPTH_TEXTURE(0),
                     .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
+                    .sampler    = UNIFORM_DEPTH_TEX
                 },
                 {
                     .pass       = model_pass,
@@ -541,7 +541,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .pass       = model_pass,
                     .attachment = FBO_DEPTH_TEXTURE(0),
                     .method     = model_pass_method,
-                    .sampler    = UNIFORM_NORMAL_MAP
+                    .sampler    = UNIFORM_DEPTH_TEX
                 },
                 ssao ?
                     (render_source) {
