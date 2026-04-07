@@ -598,12 +598,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
     list_init(&p->entry);
     p->name = opts->name;
-    cerr err = shader_init(opts->ctx->renderer, &p->shader, opts->vert_text, opts->geom_text, opts->frag_text);
-    if (IS_CERR(err)) {
-        err("couldn't create program '%s'\n", opts->name);
-        ref_put(p);
-        return cerr_error_cres(err);
-    }
+    CERR_RET_CERR(shader_init(opts->ctx->renderer, &p->shader, opts->vert_text, opts->geom_text, opts->frag_text));
 
     p->ctx = opts->ctx;
     for (enum shader_vars v = 0; v < SHADER_VAR_MAX; v++)
@@ -644,7 +639,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
         /* If UBO was bound from reflection scanner, skip it */
         if (p->var_blocks[desc->binding])   continue;
 
-        err = shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name);
+        auto err = shader_uniform_buffer_bind(&p->shader, &var_block->binding_points, desc->name);
         if (!IS_CERR(err)) {
             p->var_blocks[desc->binding] = var_block;
             for (int j = 0; j < darray_count(var_block->offsets); j++) {
