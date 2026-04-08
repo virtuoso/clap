@@ -47,7 +47,8 @@
                 { "name": "shadow_tint", "type": "DT_VEC3", "symbol": "UNIFORM_SHADOW_TINT", "discription": "color of the shadow tint" },
                 { "name": "shadow_vsm", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHADOW_VSM", "discription": "use Variance Shadow Mapping (otherwise CSM)" },
                 { "name": "shadow_outline", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHADOW_OUTLINE", "discription": "outline edges of shadows" },
-                { "name": "shadow_outline_threshold", "type": "DT_FLOAT", "symbol": "UNIFORM_SHADOW_OUTLINE_THRESHOLD", "discription": "shadow edge outline cutoff threshold" }
+                { "name": "shadow_outline_threshold", "type": "DT_FLOAT", "symbol": "UNIFORM_SHADOW_OUTLINE_THRESHOLD", "discription": "shadow edge outline cutoff threshold" },
+                { "name": "nr_cascades", "type": "DT_INT", "symbol": "UNIFORM_NR_CASCADES", "discription": "number of active shadow cascades" }
             ]
         },
         {
