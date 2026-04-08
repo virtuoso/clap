@@ -41,7 +41,7 @@ const char *shader_name(struct shader_prog *p);
  * Context: rendering [@draw==%true], resource loading [@draw==%false]
  * Return: error from the rendering backend or CERR_OK
  */
-cerr shader_prog_use(struct shader_prog *p, bool draw);
+cerr_check shader_prog_use(struct shader_prog *p, bool draw);
 
 /**
  * shader_prog_done() - unbind a shader program

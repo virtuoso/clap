@@ -364,8 +364,9 @@ typedef struct models_render_options {
  *
  * Don't call this one directly, instead use ``models_render()`` wrapper.
  * Context: inside the frame function path
+ * Return: errors from the rendering backend or CERR_OK
  */
-void _models_render(renderer_t *r, struct mq *mq, const models_render_options *opts);
+cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *opts);
 
 /**
  * entity_name() - get entity3d's name

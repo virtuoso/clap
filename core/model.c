@@ -100,9 +100,9 @@ static cerr model3d_make(struct ref *ref, void *_opts)
     darray_init(m->anis);
     sfx_container_init(&m->sfxc);
 
-    shader_prog_use(opts->prog, false);
-
     cerr err = CERR_OK;
+
+    CERR_RET(shader_prog_use(opts->prog, false), { err = __cerr; goto init_done; });
 
     CERR_RET(vertex_array_init(&m->vao, r), { err = __cerr; goto shader_done; });
     CERR_RET(
@@ -145,6 +145,7 @@ vao_done:
     vertex_array_done(&m->vao);
 shader_done:
     shader_prog_done(opts->prog, false);
+init_done:
     ref_put(m->prog);
 
     free(m->name);
@@ -661,7 +662,7 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
     an->time_end = max(an->time_end, time[frames - 1]/* + time[1] - time[0]*/);
 }
 
-void _models_render(renderer_t *r, struct mq *mq, const models_render_options *opts)
+cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *opts)
 {
     struct camera *camera = opts->camera;
     struct light *light = opts->light;
@@ -727,7 +728,7 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_prog_done(prog, true);
 
             prog = model_prog;
-            shader_prog_use(prog, true);
+            CERR_RET_CERR(shader_prog_use(prog, true));
 
             if (ropts) {
                 shader_set_var_int(prog, UNIFORM_SHADOW_VSM, ropts->shadow_vsm);
@@ -967,6 +968,8 @@ void _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         *opts->culled_count = culled;
     if (prog)
         shader_prog_done(prog, true);
+
+    return CERR_OK;
 }
 
 /****************************************************************************
