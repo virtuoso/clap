@@ -141,6 +141,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
     struct light    *light;
     struct camera   *camera;
     ssao_state      *ssao_state;
+    unsigned int    nr_cascades;
 );
 DECLARE_REFCLASS(pipeline);
 

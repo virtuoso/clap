@@ -36,6 +36,7 @@ static cerr pipeline_make(struct ref *ref, void *_opts)
     pl->light           = opts->light;
     pl->name            = opts->name;
     pl->ssao_state      = opts->ssao_state;
+    pl->nr_cascades     = opts->nr_cascades;
 
     clap_get_viewport(opts->clap_ctx, NULL, NULL, &pl->width, &pl->height);
 
@@ -479,6 +480,7 @@ static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
                             .width            = fbo_width(pass->fbo),
                             .height           = fbo_height(pass->fbo),
                             .cascade          = pass->cascade,
+                            .nr_cascades      = pl->nr_cascades,
                             .entity_count     = &count,
                             .culled_count     = &culled);
     } else {
@@ -496,6 +498,7 @@ static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
                             .height           = fbo_height(pass->fbo),
                             .ssao_state       = pl->ssao_state,
                             .cascade          = -1,
+                            .nr_cascades      = pl->nr_cascades,
                             .entity_count     = &count);
         list_del(&pass->quad->txmodel->entry);
     }
