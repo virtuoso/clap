@@ -1982,7 +1982,7 @@ static GLenum gl_draw_type(draw_type draw_type)
     return GL_NONE;
 }
 
-void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type,
+cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type,
                    unsigned int nr_instances)
 {
     err_on(idx_type >= array_size(gl_comp_type), "invalid draw type %u\n", idx_type);
@@ -1997,6 +1997,8 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, da
     /* Fix frame stutter on macOS + AMD (forces frame submission) */
     if (r->mac_amd_quirk)
         GL(glFlush());
+
+    return CERR_OK;
 }
 
 static void renderer_depth_func(renderer_t *r, depth_func fn)

@@ -1939,13 +1939,18 @@ static unsigned int mtl_idx_type(data_type idx_type)
     return 0;
 }
 
-void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                    data_type idx_type, unsigned int nr_instances)
 {
-    if (!r->va || !r->va->index)    return;
+    if (!r->va || !r->va->index)
+        return CERR_INVALID_OPERATION_REASON(
+            .fmt = "%s not bound",
+            .arg0   = !r->va ? "vertex attribute" : "index buffer"
+        );
 
     auto index = r->va->index;
-    if (!buffer_loaded(index))      return;
+    if (!buffer_loaded(index))
+        return CERR_INVALID_OPERATION_REASON(.fmt = "index buffer not loaded");
 
     size_t _idx_count = index->size / data_comp_size(idx_type);
     unsigned int _draw_type = mtl_draw_type(draw_type);
@@ -1961,4 +1966,6 @@ void renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                     instanceCount:nr_instances];
 
     r->nr_draws++;
+
+    return CERR_OK;
 }
