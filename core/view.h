@@ -22,6 +22,7 @@ struct view {
     struct subview          debug_subview[CASCADES_MAX];
 #endif /* CONFIG_FINAL */
     float                   divider[CASCADES_MAX];
+    unsigned int            nr_cascades;
     float                   fov;
     float                   aspect;
     bool                    proj_update;
