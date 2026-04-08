@@ -684,7 +684,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     }
 
     if (view) {
-        if (opts->cascade >= 0 && opts->cascade < CASCADES_MAX) {
+        if (opts->cascade >= 0 && opts->cascade < (int)opts->nr_cascades) {
             subview = &view->subview[opts->cascade];
             proj = &subview->proj_mx;
             inv_proj = &subview->inv_proj_mx;
@@ -734,6 +734,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (ropts) {
                 shader_set_var_int(prog, UNIFORM_SHADOW_VSM, ropts->shadow_vsm);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, ropts->shadow_outline);
+                shader_set_var_int(prog, UNIFORM_NR_CASCADES, opts->nr_cascades);
                 shader_set_var_float(prog, UNIFORM_SHADOW_OUTLINE_THRESHOLD, ropts->shadow_outline_threshold);
                 shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
                 shader_set_var_int(prog, UNIFORM_USE_EDGE_AA, ropts->edge_antialiasing);
@@ -779,18 +780,18 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                     mat4x4 mvp[CASCADES_MAX];
                     int i;
 
-                    for (i = 0; i < CASCADES_MAX; i++) {
+                    for (i = 0; i < (int)opts->nr_cascades; i++) {
                         struct subview *light_sv = &light->view[0].subview[i];
                         mat4x4_mul(mvp[i], light_sv->proj_mx, light_sv->view_mx);
                         light_far[i] = light_sv->far_plane;
                     }
-                    shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, CASCADES_MAX, mvp);
-                    shader_set_var_ptr(prog, UNIFORM_LIGHT_FAR, CASCADES_MAX, light_far);
+                    shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, opts->nr_cascades, mvp);
+                    shader_set_var_ptr(prog, UNIFORM_LIGHT_FAR, opts->nr_cascades, light_far);
                 }
             }
 
             if (view)
-                shader_set_var_ptr(prog, UNIFORM_CASCADE_DISTANCES, CASCADES_MAX, view->divider);
+                shader_set_var_ptr(prog, UNIFORM_CASCADE_DISTANCES, opts->nr_cascades, view->divider);
 
             shader_set_var_float(prog, UNIFORM_NEAR_PLANE, near_plane);
             shader_set_var_float(prog, UNIFORM_FAR_PLANE, far_plane);

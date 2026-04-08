@@ -334,6 +334,7 @@ typedef struct models_render_options {
     unsigned int        width;
     unsigned int        height;
     int                 cascade;
+    unsigned int        nr_cascades;
     float               near_plane;
     float               far_plane;
 } models_render_options;
