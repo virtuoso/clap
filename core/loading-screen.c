@@ -86,7 +86,10 @@ void loading_screen_progress(loading_screen *ls, float progress)
     ui_update(ls->ui);
     renderer_frame_begin(ls->ui->renderer);
     renderer_swapchain_begin(ls->ui->renderer);
-    models_render(ls->ui->renderer, &ls->ui->mq);
+    CERR_RET(
+        models_render(ls->ui->renderer, &ls->ui->mq),
+        { err_cerr(__cerr, "failed to render loading screen UI\n"); mq_release(&ls->ui->mq); }
+    );
     renderer_frame_end(ls->ui->renderer);
     display_swap_buffers();
 #endif /* CONFIG_BROWSER */
