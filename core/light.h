@@ -22,6 +22,8 @@ struct light {
 
 void light_set_ambient(struct light *light, const float *color);
 void light_set_shadow_tint(struct light *light, const float *color);
+bool light_is_valid(struct light *light, int idx);
+bool light_is_directional(struct light *light, int idx);
 cres(int) light_get(struct light *light);
 void light_set_pos(struct light *light, int idx, const float pos[3]);
 void light_set_color(struct light *light, int idx, const float color[3]);

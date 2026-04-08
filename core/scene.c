@@ -1080,12 +1080,6 @@ cerr scene_init(struct scene *scene, struct clap_context *ctx)
     list_init(&scene->instor);
     sfx_container_init(&scene->sfxc);
 
-    int i;
-    for (i = 0; i < LIGHTS_MAX; i++) {
-        float attenuation[3] = { 1, 0, 0 };
-        light_set_attenuation(&scene->light, i, attenuation);
-        light_set_directional(&scene->light, i, true);
-    }
     light_set_ambient(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
     light_set_shadow_tint(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
 
