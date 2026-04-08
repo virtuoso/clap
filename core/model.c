@@ -568,12 +568,12 @@ static void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
     }
 }
 
-static void model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int lod, unsigned int nr_instances)
+static cerr_check model3dtx_draw(renderer_t *r, model3dtx *txm, unsigned int lod, unsigned int nr_instances)
 {
     model3d *m = txm->model;
 
     /* GL_UNSIGNED_SHORT == typeof *indices */
-    renderer_draw(r, m->draw_type, m->nr_faces[lod], DT_USHORT, nr_instances);
+    return renderer_draw(r, m->draw_type, m->nr_faces[lod], DT_USHORT, nr_instances);
 }
 
 static void model3d_done(model3d *m, struct shader_prog *p)
@@ -935,7 +935,14 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             }
 
             shader_var_blocks_update(prog);
-            model3dtx_draw(r, txmodel, e->cur_lod, nr_instances);
+            CERR_RET(
+                model3dtx_draw(r, txmodel, e->cur_lod, nr_instances),
+                {
+                    err_cerr(__cerr, "failed to draw %s/%s\n", txmodel->model->name, entity_name(e));
+                    /* for now, just skip to the next model */
+                    break;
+                }
+            );
             nr_ents++;
         }
 
