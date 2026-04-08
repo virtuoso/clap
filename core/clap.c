@@ -610,7 +610,14 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(scene_render, callback);
 
-    models_render(ui->renderer, &ui->mq);
+    // In case of rendering failure, report the error and destroy
+    // the ui object, which for this purpose means ui->mq becomes
+    // an empty list and subsequent calls to models_render() on it
+    // are effectively NOPs
+    CERR_RET(
+        models_render(&ctx->renderer, &ui->mq),
+        { ui_done(ui); err_cerr(__cerr, "UI rendering failed\n"); }
+    );
 
     PROF_STEP(ui_render, scene_render);
 
