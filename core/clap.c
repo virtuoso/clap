@@ -118,6 +118,7 @@ typedef struct clap_context {
     int                 argc;
     int                 exit_after;
     double              paused_time;
+    cerr                pipeline_error;
     bool                fullscreen;
     bool                paused;
 } clap_context;
@@ -604,8 +605,16 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     PROF_STEP(callback, updates);
 
-    if (ctx->pl)    pipeline_render(ctx->pl, clap_is_paused(ctx) ? 1 : 0);
-    else            renderer_swapchain_begin(&ctx->renderer);
+    if (ctx->pl && !IS_CERR(ctx->pipeline_error)) {
+        cerr err = pipeline_render(ctx->pl, clap_is_paused(ctx) ? 1 : 0);
+        if (IS_CERR(err)) {
+            err_cerr(err, "pipeline failed to render\n");
+            ctx->pipeline_error = err;
+        }
+    } else {
+        renderer_swapchain_begin(&ctx->renderer);
+    }
+
     rebuild_pl_if_needed(ctx);
 
     PROF_STEP(scene_render, callback);

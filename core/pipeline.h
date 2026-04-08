@@ -152,7 +152,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })
 cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name);
 void render_pass_plug_texture(render_pass *pass, enum shader_vars sampler, texture_t *tex);
-cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint);
+cerr_check pipeline_render(struct pipeline *pl, unsigned int checkpoint);
 texture_t *pipeline_pass_get_texture(struct render_pass *pass, fbo_attachment attachment);
 float pipeline_pass_get_scale(render_pass *pass);
 #ifndef CONFIG_FINAL
