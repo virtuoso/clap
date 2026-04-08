@@ -8,7 +8,7 @@
 #define LIGHTS_MAX 32
 #define CASCADES_MAX 4
 #define MSAA_SAMPLES 4
-#define SSAO_KERNEL_SIZE 64
+#define SSAO_KERNEL_SIZE 16
 #define SSAO_NOISE_DIM 16
 
 #define HDR_LUT_K   1.0f
