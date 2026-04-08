@@ -155,6 +155,11 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     layer = clamp(layer, 0, max(nr_cascades - 1, 0));
 
     vec4 shadow_pos = shadow_mvp[layer] * world_pos;
+
+    /* w near zero means the fragment can't be projected -- bail before the perspective divide */
+    if (shadow_pos.w < 1e-3)
+        return shadow_factor;
+
     vec4 proj_coords = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
     proj_coords.xy = convert_pass_tex(proj_coords.xy * 0.5 + 0.5);
     proj_coords.z = convert_from_ndc_z(proj_coords.z);
