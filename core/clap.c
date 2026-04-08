@@ -459,6 +459,7 @@ static cerr build_main_pl(clap_context *ctx)
                 .clap_ctx       = ctx,
                 .light          = &scene->light,
                 .camera         = &scene->cameras[0],
+                .nr_cascades    = scene->cameras[0].view.nr_cascades,
                 .name           = "main"
             },
             .mq         = &scene->mq,

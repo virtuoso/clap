@@ -64,6 +64,7 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.main.near_plane  = 0.1;
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
+    s->camera->view.nr_cascades      = CASCADES_MAX;
     s->camera->view.proj_update      = true;
     s->camera->dist = 10;
     transform_init(&s->camera->xform);
