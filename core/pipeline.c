@@ -458,53 +458,60 @@ static struct mq *pass_resolve_sources(pipeline *pl, render_pass *pass)
  * Render one pass either to its framebuffer (the caller does fbo_prepare()/fbo_done())
  * or to the screen.
  */
-static void pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
+static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
 {
     unsigned long count = 0, culled = 0;
     RENDER_PASS_OPS_PARAMS(pl, pass);
 
     pass->ops->prepare(&params);
 
+    cerr ret = CERR_OK;
+
     if (mq) {
         /* Render render_source::mq models */
-        models_render(pl->renderer, mq,
-                      .shader_override  = pass->prog_override,
-                      .render_options   = pl->render_options,
-                      .near_plane       = params.near_plane,
-                      .far_plane        = params.far_plane,
-                      .light            = params.light,
-                      .camera           = params.camera,
-                      .width            = fbo_width(pass->fbo),
-                      .height           = fbo_height(pass->fbo),
-                      .cascade          = pass->cascade,
-                      .entity_count     = &count,
-                      .culled_count     = &culled);
+        ret = models_render(pl->renderer, mq,
+                            .shader_override  = pass->prog_override,
+                            .render_options   = pl->render_options,
+                            .near_plane       = params.near_plane,
+                            .far_plane        = params.far_plane,
+                            .light            = params.light,
+                            .camera           = params.camera,
+                            .width            = fbo_width(pass->fbo),
+                            .height           = fbo_height(pass->fbo),
+                            .cascade          = pass->cascade,
+                            .entity_count     = &count,
+                            .culled_count     = &culled);
     } else {
         /* Render our postprocessing quad */
         struct mq _mq; /* XXX: -> pass->mq, then mq_release() on drop */
 
         mq_init(&_mq, NULL);
         mq_add_model(&_mq, pass->quad->txmodel);
-        models_render(pl->renderer, &_mq,
-                      .camera           = params.camera,
-                      .near_plane       = params.near_plane,
-                      .far_plane        = params.far_plane,
-                      .render_options   = pl->render_options,
-                      .width            = fbo_width(pass->fbo),
-                      .height           = fbo_height(pass->fbo),
-                      .ssao_state       = pl->ssao_state,
-                      .cascade          = -1,
-                      .entity_count     = &count);
+        ret = models_render(pl->renderer, &_mq,
+                            .camera           = params.camera,
+                            .near_plane       = params.near_plane,
+                            .far_plane        = params.far_plane,
+                            .render_options   = pl->render_options,
+                            .width            = fbo_width(pass->fbo),
+                            .height           = fbo_height(pass->fbo),
+                            .ssao_state       = pl->ssao_state,
+                            .cascade          = -1,
+                            .entity_count     = &count);
         list_del(&pass->quad->txmodel->entry);
     }
 
     pipeline_pass_debug_end(pl, count, culled);
+
+    return ret;
 }
 
-void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
+cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
 {
     if (!pl || list_empty(&pl->passes))
-        return;
+        return CERR_INVALID_ARGUMENTS_REASON(
+            .fmt    = "invalid pipeline state: %s",
+            .arg0   = !pl ? "pl==NULL" : "no render passes"
+        );
 
     struct render_pass *last_pass = list_last_entry(&pl->passes, struct render_pass, entry);
     struct render_pass *pass;
@@ -512,6 +519,8 @@ void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
     bool stop = false;
 
     pipeline_debug_begin(pl);
+
+    cerr ret = CERR_OK;
 
     list_for_each_entry(pass, &pl->passes, entry) {
         /* Prepare to render from pass' sources */
@@ -529,8 +538,13 @@ void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
         }
 
         fbo_prepare(pass->fbo);
-        pass_render(pl, pass, mq);
+        ret = pass_render(pl, pass, mq);
         fbo_done(pass->fbo, pl->width, pl->height);
+
+        if (IS_CERR(ret)) {
+            err_cerr(ret, "failed to render pass '%s'\n", pass->name);
+            continue;
+        }
     }
 
     if (!stop)
@@ -538,7 +552,9 @@ void pipeline_render(struct pipeline *pl, unsigned int checkpoint)
 
     /* render the last pass to the screen */
     renderer_swapchain_begin(pl->renderer);
-    pass_render(pl, pass, mq);
+    ret = pass_render(pl, pass, mq);
 
     pipeline_debug_end(pl);
+
+    return ret;
 }
