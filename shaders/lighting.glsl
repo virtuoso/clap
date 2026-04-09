@@ -49,11 +49,28 @@ lighting_material noise_material()
     return ret;
 }
 
+bool light_is_spotlight(int idx)
+{
+    return light_cutoff[idx] > 0.0 && light_directional[idx];
+}
+
+float spotlight_intensity(int idx, vec3 l)
+{
+    const float soft = radians(5.0);
+    float cutoff = light_cutoff[idx];
+    float cos_angle = dot(light_dir[idx], l);
+    float cos_inner = cos(cutoff);
+    float cos_outer = cos(cutoff + soft);
+    float t = (cos_angle - cos_outer) / max(cos_inner - cos_outer, 1e-4);
+    return smoothstep(0.0, 1.0, t);
+}
+
 lighting_result compute_blinn_phong(int idx, vec3 unit_normal, vec3 to_light_vector, vec3 view_dir)
 {
-    float distance = light_directional[idx] ? 1.0 : length(to_light_vector);
-    float att_fac = light_directional[idx] ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
-    vec3 unit_light_dir = normalize(light_directional[idx] ? -light_dir[idx] : to_light_vector);
+    bool directional = light_directional[idx] && !light_is_spotlight(idx);
+    float distance = directional ? 1.0 : length(to_light_vector);
+    float att_fac = directional ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
+    vec3 unit_light_dir = normalize(directional ? -light_dir[idx] : to_light_vector);
 
     vec3 half_vector = normalize(unit_light_dir + view_dir);
     vec3 specular = vec3(0.0), diffuse = vec3(0.0);
@@ -77,9 +94,10 @@ lighting_result compute_blinn_phong(int idx, vec3 unit_normal, vec3 to_light_vec
 lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_vector, vec3 view_dir,
                                       vec3 base_color, lighting_material mat)
 {
-    float distance = light_directional[idx] ? 1.0 : length(to_light_vector);
-    float att_fac = light_directional[idx] ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
-    vec3 l = normalize(light_directional[idx] ? -light_dir[idx] : to_light_vector);
+    bool directional = light_directional[idx] && !light_is_spotlight(idx);
+    float distance = directional ? 1.0 : length(to_light_vector);
+    float att_fac = directional ? 1.0 : 1.0 / max(attenuation[idx].x + (attenuation[idx].y * distance) + (attenuation[idx].z * distance * distance), 0.001);
+    vec3 l = normalize(directional ? -light_dir[idx] : to_light_vector);
 
     vec3 h = normalize(l + view_dir);
 
@@ -156,6 +174,12 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
             if (use_normals)    to_light_vector = tbn * to_light_vector;
 
             lighting_result l = compute_cook_torrance(int(i), unit_normal, to_light_vector, view_dir, base_color, mat);
+
+            if (light_is_spotlight(int(i))) {
+                float si = spotlight_intensity(int(i), normalize(to_light_vector));
+                l.diffuse *= si;
+                l.specular *= si;
+            }
 
             /* XXX: shadow casting light source is 0 */
             if (i == 0) {

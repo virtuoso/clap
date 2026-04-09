@@ -32,6 +32,7 @@
                 { "name": "light_dir", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_DIR", "array_size": "LIGHTS_MAX", "discription": "array of light direction vectors (LIGHTS_MAX entries)" },
                 { "name": "attenuation", "type": "DT_VEC3", "symbol": "UNIFORM_ATTENUATION", "array_size": "LIGHTS_MAX", "discription": "array of non-directional light attenuations (LIGHTS_MAX entries)" },
                 { "name": "light_directional", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_LIGHT_DIRECTIONAL", "array_size": "LIGHTS_MAX", "discription": "array of \"is light directional\" booleans (LIGHTS_MAX entries)" },
+                { "name": "light_cutoff", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHT_CUTOFF", "array_size": "LIGHTS_MAX", "discription": "array of spotlight cutoff angles in radians (LIGHTS_MAX entries)" },
                 { "name": "nr_lights", "type": "DT_INT", "symbol": "UNIFORM_NR_LIGHTS", "discription": "number of light sources" },
                 { "name": "use_normals", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_NORMALS", "discription": "model uses a normal map" },
                 { "name": "light_ambient", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_AMBIENT", "discription": "ambient light color" }
