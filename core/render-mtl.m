@@ -1635,7 +1635,7 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
 static inline mtl_cull_mode_t from_mtl_cull_mode(MTLCullMode mtl_cull_mode) { return (mtl_cull_mode_t)mtl_cull_mode; }
 static inline MTLCullMode to_mtl_cull_mode(mtl_cull_mode_t cull_mode) { return (MTLCullMode)cull_mode; }
 
-void _renderer_init(renderer_t *r, const renderer_init_options *opts)
+cerr _renderer_init(renderer_t *r, const renderer_init_options *opts)
 {
     bitmap_init(&r->fbo_ids, FBOS_MAX);
     bitmap_init(&r->shader_ids, SHADERS_MAX);
@@ -1652,6 +1652,8 @@ void _renderer_init(renderer_t *r, const renderer_init_options *opts)
     r->cmd_queue = [r->device newCommandQueue];
 
     r->cull_mode = from_mtl_cull_mode(MTLCullModeBack);
+
+    return CERR_OK;
 }
 
 void renderer_done(renderer_t *r)

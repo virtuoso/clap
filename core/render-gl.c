@@ -1630,7 +1630,7 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
  * Renderer context
  ****************************************************************************/
 
-void _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
+cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 {
     static_assert(sizeof(GLint) == sizeof(int), "GLint doesn't match int");
     static_assert(sizeof(GLenum) == sizeof(unsigned int), "GLenum doesn't match unsigned int");
@@ -1746,6 +1746,8 @@ void _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
                 fbo_put(res.val);
         }
     }
+
+    return CERR_OK;
 }
 
 #ifndef CONFIG_FINAL

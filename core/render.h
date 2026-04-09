@@ -1018,7 +1018,7 @@ typedef struct renderer_init_options {
 
 #define renderer_init(_r, args...) \
     _renderer_init((_r), &(renderer_init_options){ args })
-void _renderer_init(renderer_t *renderer, const renderer_init_options *opts);
+cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
