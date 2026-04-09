@@ -5,13 +5,14 @@
 
 #define JOINTS_MAX 200
 #define PARTICLES_MAX 1024
-#define LIGHTS_MAX 32
+#define LIGHTS_MAX 128
 #define CASCADES_MAX 4
 #define MSAA_SAMPLES 4
 #define SSAO_KERNEL_SIZE 16
 #define SSAO_NOISE_DIM 16
 
 #define LIGHT_CUTOFF    (1.0f / 256.0f)
+#define TILE_WIDTH      64
 
 #define HDR_LUT_K   1.0f
 #define HDR_LUT_MAX 16.0f
