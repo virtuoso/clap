@@ -521,6 +521,8 @@ cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
     pipeline_debug_begin(pl);
 
     cerr ret = CERR_OK;
+    uint64_t failure_mask = 0;
+    size_t idx = 0;
 
     list_for_each_entry(pass, &pl->passes, entry) {
         /* Prepare to render from pass' sources */
@@ -543,8 +545,12 @@ cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
 
         if (IS_CERR(ret)) {
             err_cerr(ret, "failed to render pass '%s'\n", pass->name);
+            failure_mask |= 1llu << idx;
+            idx++;
             continue;
         }
+
+        idx++;
     }
 
     if (!stop)
@@ -553,8 +559,25 @@ cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
     /* render the last pass to the screen */
     renderer_swapchain_begin(pl->renderer);
     ret = pass_render(pl, pass, mq);
+    if (IS_CERR(ret)) {
+        failure_mask |= 1ull << idx;
+        idx++;
+    }
 
     pipeline_debug_end(pl);
 
-    return ret;
+    if (failure_mask) {
+        if ((failure_mask & ((1ull << idx) - 1)) == failure_mask)
+            return CERR_INVALID_OPERATION_REASON(
+                .fmt    = "all %zu passes failed",
+                .arg0   = (void *)idx
+            );
+        else
+            return CERR_PARTIAL_FAILURE_REASON(
+                .fmt    = "%zu passes failed, mask: %016x",
+                .arg0   = (void *)failure_mask
+            );
+    }
+
+    return CERR_OK;
 }
