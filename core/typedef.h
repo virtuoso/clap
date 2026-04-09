@@ -17,7 +17,7 @@
 # else
 #define TYPE(__type, __def) \
     struct __type ## _impl { __def }; \
-    typedef struct __type { char __res[ sizeof(struct { __def }) ]; } __type ## _t \
+    typedef struct __type { char __res[ sizeof(struct __type ## _impl) ]; } __type ## _t \
         __attribute__((aligned(__alignof__(struct __type ## _impl)))); \
     static_assert(sizeof(struct __type ## _impl) == sizeof(__type ## _t), \
                   # __type "_t doesn't match implementation");
