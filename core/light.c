@@ -327,3 +327,27 @@ void light_set_directional(struct light *light, int idx, bool is_directional)
 
     light->is_dir[idx] = is_directional;
 }
+
+void light_set_direction(struct light *light, int idx, vec3 dir)
+{
+    if (!light_is_valid(light, idx))
+        return;
+
+    vec3_sub(&light->dir[idx * 3], (vec3){}, dir);
+}
+
+bool light_is_spotlight(struct light *light, int idx)
+{
+    if (!light_is_valid(light, idx))
+        return false;
+
+    return light->is_dir[idx] && light->cutoff[idx] > 0.0;
+}
+
+void light_set_cutoff(struct light *light, int idx, float cutoff)
+{
+    if (!light_is_valid(light, idx))
+        return;
+
+    light->cutoff[idx] = cutoff;
+}
