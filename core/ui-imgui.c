@@ -28,6 +28,26 @@ static struct ImGuiContext *ctx;
 static struct ImGuiIO *io;
 static imgui_style imstyle;
 
+static ui_hover_fn ui_hover_cb;
+static void *ui_hover_data;
+
+static void ui_call_hover_cb(float x, float y)
+{
+    /* If not hovering over any ImGui window, call ui_hover_cb() */
+    if (!igIsWindowHovered(
+        ImGuiHoveredFlags_ChildWindows |
+        ImGuiHoveredFlags_RootWindow   |
+        ImGuiHoveredFlags_AnyWindow)   &&
+        ui_hover_cb
+    )   ui_hover_cb(x, y, ui_hover_data);
+}
+
+void ui_debug_set_hover(ui_hover_fn cb, void *data)
+{
+    ui_hover_cb = cb;
+    ui_hover_data = data;
+}
+
 bool __ui_mouse_event_propagate(void)
 {
     struct ImGuiIO *io = igGetIO_ContextPtr(ctx);
@@ -137,6 +157,8 @@ void imgui_render_begin(int width, int height)
 void imgui_render(void)
 {
     debug_debugger();
+
+    ui_call_hover_cb(io->MousePos.x, io->MousePos.y);
 
     igRender();
     if (renderer == RENDER_OPENGL) {

@@ -68,6 +68,18 @@ typedef struct debug_module {
     bool        prev;       /* previous display value */
 } debug_module;
 
+typedef void (*ui_hover_fn)(float x, float y, void *data);
+
+/**
+ * ui_debug_set_hover() - set a callback for hovering over nothing
+ * @cb:     callback
+ * @data:   private data to pass to the callback
+ *
+ * Register (or unregister, if @cb == NULL) a callback to run when ImGui sees
+ * a mouse cursor hovering over none of its windows, that is, non-debug-ui
+ * parts of the viewport.
+ */
+void ui_debug_set_hover(ui_hover_fn cb, void *data);
 void ui_toggle_debug_selector(void);
 void ui_debug_selector(void);
 void ui_debug_set_settings(struct settings *rs);
@@ -124,6 +136,7 @@ bool ui_igColorEdit3(const char *label, float *color, ImGuiColorEditFlags flags)
 
 #else
 
+static inline void ui_debug_set_hover(void *cb, void *data) {}
 static inline void ui_debug_selector(void) {}
 static inline void ui_toggle_debug_selector(void) {}
 static inline void ui_debug_set_settings(struct settings *rs) {}
