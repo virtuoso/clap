@@ -10,6 +10,14 @@ float depth_linear(sampler2D map, vec2 uv, ivec2 off, float near_plane, float fa
     return linearize_depth(texel_fetch_2d(map, uv, off).r, near_plane, far_plane);
 }
 
+// texelFetch variant for depth buffer textures (no filtering sampler required)
+// XXX: texel_fetch_*() APIs are a misnomer and should really be texture_sample_*()
+float depth_linear_fetch(sampler2D map, vec2 uv, ivec2 off, float near_plane, float far_plane)
+{
+    ivec2 tc = ivec2(uv * vec2(textureSize(map, 0))) + off;
+    return linearize_depth(texelFetch(map, tc, 0).r, near_plane, far_plane);
+}
+
 // Extract edge_mask from texel's alpha channel, assuming RGBA8 format
 uint edge_mask_get(f16vec4 texel)
 {
@@ -123,6 +131,20 @@ float laplace_float(sampler2D depths, vec2 tex_coords, int kernel, float near_pl
         sum -= depth_linear(depths, tex_coords, ivec2(x, 0), near_plane, far_plane);
     for (int y = -side; y <= side; y++)
         sum -= depth_linear(depths, tex_coords, ivec2(0, y), near_plane, far_plane);
+
+    return clamp(abs(sum), 0.0, 1.0);
+}
+
+// texelFetch variant for depth buffer textures (no filtering sampler required)
+float laplace_depth_fetch(sampler2D depths, vec2 tex_coords, int kernel, float near_plane, float far_plane)
+{
+    int side = (kernel - 1) / 2;
+    float sum = kernel * 2 * depth_linear_fetch(depths, tex_coords, ivec2(0), near_plane, far_plane);
+
+    for (int x = -side; x <= side; x++)
+        sum -= depth_linear_fetch(depths, tex_coords, ivec2(x, 0), near_plane, far_plane);
+    for (int y = -side; y <= side; y++)
+        sum -= depth_linear_fetch(depths, tex_coords, ivec2(0, y), near_plane, far_plane);
 
     return clamp(abs(sum), 0.0, 1.0);
 }

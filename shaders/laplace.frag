@@ -20,8 +20,8 @@ void main(void)
     if (edge_exclude_get(center))   return;
 
     float laplacian_normal_edge = laplace_float(normal_map, pass_tex, laplace_kernel, center);
-    float laplacian_depth_edge = laplace_float(depth_tex, pass_tex, laplace_kernel,
-                                               near_plane, far_plane);
+    float laplacian_depth_edge = laplace_depth_fetch(depth_tex, pass_tex, laplace_kernel,
+                                                    near_plane, far_plane);
     laplacian_depth_edge = max(laplacian_depth_edge - 0.1, 0.0); // Excessive noise
 
     float mixed_edge = max(laplacian_normal_edge, laplacian_depth_edge);
