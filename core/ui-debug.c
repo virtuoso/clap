@@ -30,6 +30,16 @@ debug_module *ui_debug_module(enum debug_modules mod)
     if (mod >= DEBUG_MODULES_MAX)
         return NULL;
 
+#ifdef CONFIG_RENDERER_WGPU
+    // A special howdy-doodle from WGPU + ImGui:
+    // The latter will render textures of any pixel format without any kind
+    // of conversion/mapping, which most backends allow, but on WGPU, the
+    // texture's pixel format has to match that of the swapchain exactly,
+    // otherwise it aborts. Doesn't return an error and/or forgo rendering
+    // such a texture -- instant kaboom.
+    if (mod == DEBUG_PIPELINE_SELECTOR) debug_enabled[mod].display = false;
+#endif /* CONFIG_RENDERER_WGPU */
+
     return &debug_enabled[mod];
 }
 
