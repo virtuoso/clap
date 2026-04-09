@@ -45,6 +45,8 @@ typedef enum cerr_enum {
     _CERR_UNKNOWN_ERROR          = -32,
     _CERR_PERMISSION_DENIED      = -33,
     _CERR_REQUEST_EXIT           = -34,
+    _CERR_PREVIOUS_ERRORS        = -35,
+    _CERR_PARTIAL_FAILURE        = -36,
 } cerr_enum;
 
 /****************************************************************************
