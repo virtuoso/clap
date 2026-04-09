@@ -4,6 +4,7 @@
 #include "ubo_lighting.glsl"
 #include "ubo_material.glsl"
 #include "ubo_transform.glsl"
+#include "ubo_postproc.glsl"
 #include "noise.glsl"
 
 struct lighting_result {
@@ -119,27 +120,54 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     return ret;
 }
 
+float light_heatmap()
+{
+    uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
+
+    float heat = 0.0;
+    for (uint c = 0; c < 4; c++) {
+        uint q = mask[c];
+        while (q != 0u) {
+            if ((q & 1u) != 0u)
+                heat += 0.2;
+            q >>= 1u;
+        }
+    }
+
+    return heat;
+}
+
 lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 base_color, float shadow_factor,
                                        lighting_material mat)
 {
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
     vec3 shadow_tinted = light_color[0] * shadow_tint;
 
-    for (int i = 0; i < nr_lights; i++) {
-        vec3 to_light_vector = light_pos[i] - world_pos.xyz;
-        if (use_normals)    to_light_vector = tbn * to_light_vector;
+    uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
 
-        lighting_result l = compute_cook_torrance(i, unit_normal, to_light_vector, view_dir, base_color, mat);
+    for (uint c = 0, off = 0; c < 4; c++) {
+        while (mask[c] != 0u) {
+            bool set = (mask[c] & 1u) == 1;
+            mask[c] >>= 1;
+            uint i = off++;
+            if (!set)   continue;
 
-        /* XXX: shadow casting light source is 0 */
-        if (i == 0) {
-            l.diffuse = mix(l.diffuse, shadow_tinted, 1.0 - shadow_factor);
-            if (shadow_factor < 1.0)
-                l.specular = vec3(0.0);
+            vec3 to_light_vector = light_pos[i] - world_pos.xyz;
+            if (use_normals)    to_light_vector = tbn * to_light_vector;
+
+            lighting_result l = compute_cook_torrance(int(i), unit_normal, to_light_vector, view_dir, base_color, mat);
+
+            /* XXX: shadow casting light source is 0 */
+            if (i == 0) {
+                if (length(l.diffuse) > length(shadow_tinted))
+                    l.diffuse = mix(l.diffuse, shadow_tinted, 1.0 - shadow_factor);
+                if (shadow_factor < 1.0)
+                    l.specular = vec3(0.0);
+            }
+
+            r.specular += l.specular;
+            r.diffuse += l.diffuse;
         }
-
-        r.specular += l.specular;
-        r.diffuse += l.diffuse;
     }
 
     r.diffuse += mix(light_ambient, shadow_tinted, 1.0 - shadow_factor);

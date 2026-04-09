@@ -11,8 +11,6 @@ layout (location=3) in vec3 to_camera_vector;
 layout (location=4) in vec4 world_pos;
 layout (location=5) in mat3 tbn;
 
-#include "shadow.glsl"
-#include "lighting.glsl"
 #include "ubo_projview.glsl"
 #include "ubo_render_common.glsl"
 #include "ubo_outline.glsl"
@@ -21,6 +19,10 @@ layout (location=5) in mat3 tbn;
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
+layout (binding=SAMPLER_BINDING_light_map) uniform usampler2D light_map;
+
+#include "shadow.glsl"
+#include "lighting.glsl"
 
 layout (location=RT_MODEL_LIGHTING)     out vec4 FragColor;
 layout (location=RT_MODEL_EMISSION)     out vec4 EmissiveColor;
