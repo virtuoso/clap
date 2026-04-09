@@ -21,7 +21,6 @@ layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
 layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
 
 #include "ubo_render_common.glsl"
-#include "ubo_bloom.glsl"
 #include "ubo_postproc.glsl"
 #include "ubo_projview.glsl"
 
