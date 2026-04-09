@@ -18,7 +18,8 @@
         { "name": "lut_tex",        "binding": 5, "symbol": "UNIFORM_LUT_TEX" },
         { "name": "shadow_map2",    "binding": 6, "symbol": "UNIFORM_SHADOW_MAP2" },
         { "name": "shadow_map3",    "binding": 7, "symbol": "UNIFORM_SHADOW_MAP3" },
-        { "name": "depth_tex",      "binding": 8, "symbol": "UNIFORM_DEPTH_TEX" }
+        { "name": "depth_tex",      "binding": 8, "symbol": "UNIFORM_DEPTH_TEX" },
+        { "name": "light_map",      "binding": 9, "symbol": "UNIFORM_LIGHT_MAP" }
     ],
     "ubos": [
         {

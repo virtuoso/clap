@@ -217,6 +217,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             phys_velocities_debug_enable(clap_get_phys(scene->clap_ctx), ropts->velocity_draws_enabled);
         igCheckbox("camera frusta draws", &ropts->camera_frusta_draws_enabled);
         igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
+        igCheckbox("light draws", &ropts->light_draws_enabled);
         igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
         igCheckbox("use SSAO", &ropts->ssao);
         if (ropts->ssao) {
@@ -1061,11 +1062,14 @@ void scene_update(struct scene *scene)
 
     clap_context *ctx = scene->clap_ctx;
     camera_move(scene->camera, clap_get_fps_fine(ctx));
+    light_grid_compute(&scene->light, &scene->camera->view);
 
     if (clap_get_render_options(ctx)->camera_frusta_draws_enabled)
         scene_debug_frusta(scene, &scene->camera->view);
     if (clap_get_render_options(ctx)->light_frusta_draws_enabled)
         scene_debug_frusta(scene, &scene->light.view[0]);
+    if (clap_get_render_options(ctx)->light_draws_enabled)
+        light_draw(ctx, &scene->light);
 
     motion_reset(&scene->mctl, scene);
 }
@@ -1079,6 +1083,8 @@ cerr scene_init(struct scene *scene, struct clap_context *ctx)
     list_init(&scene->characters);
     list_init(&scene->instor);
     sfx_container_init(&scene->sfxc);
+
+    light_init(ctx, &scene->light);
 
     light_set_ambient(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
     light_set_shadow_tint(&scene->light, (float[]){ 0.1, 0.1, 0.1 });
@@ -1709,6 +1715,8 @@ void scene_done(struct scene *scene)
 
     free(scene->file_name);
     scene->file_name = NULL;
+
+    light_done(scene->clap_ctx, &scene->light);
 
     list_for_each_entry_iter(ch, iter, &scene->characters, entry)
         ref_put_last(ch);

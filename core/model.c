@@ -807,6 +807,9 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             }
         }
 
+        if (light)
+            model3dtx_set_texture(txmodel, UNIFORM_LIGHT_MAP, &light->grid.tex);
+
         /* Set temporary shadow maps */
         if (light && light->shadow[0][0]) {
 #ifndef CONFIG_SHADOW_MAP_ARRAY
@@ -955,17 +958,20 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         model3dtx_done(txmodel, prog);
 
-        /* Remove the temporary shadow maps */
-        if (light && light->shadow[0][0]) {
+        if (light) {
+            model3dtx_set_texture(txmodel, UNIFORM_LIGHT_MAP, NULL);
+            /* Remove the temporary shadow maps */
+            if (light->shadow[0][0]) {
 #ifndef CONFIG_SHADOW_MAP_ARRAY
-            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, NULL);
-            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP1, NULL);
-            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP2, NULL);
-            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP3, NULL);
+                model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, NULL);
+                model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP1, NULL);
+                model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP2, NULL);
+                model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP3, NULL);
 #else
-            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, NULL);
-            model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP_MS, NULL);
+                model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP, NULL);
+                model3dtx_set_texture(txmodel, UNIFORM_SHADOW_MAP_MS, NULL);
 #endif /* CONFIG_SHADOW_MAP_ARRAY */
+            }
         }
 
         nr_txms++;
