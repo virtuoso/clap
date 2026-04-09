@@ -1533,7 +1533,7 @@ cresp(ui_widget) _ui_progress_bar_new(struct ui *ui, const progress_bar_options 
 void ui_progress_bar_set_progress(struct ui_widget *bar, float progress)
 {
     float total_width = (float)(uintptr_t)bar->priv;
-    bar->uies[0]->width = total_width * progress;
+    bar->uies[0]->width = total_width * clampf(progress, 0.0, 1.0);
 }
 
 void ui_progress_bar_set_color(struct ui_widget *bar, vec4 color)
