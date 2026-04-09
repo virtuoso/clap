@@ -687,6 +687,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     }
 
 out:
+    shader_set_name(&p->shader, p->name);
     shader_setup_mesh_attrs(p);
 
     return CERR_OK;
