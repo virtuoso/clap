@@ -19,7 +19,7 @@ void main(void)
     FragColor = vec4(1.0);
     if (edge_exclude_get(center))   return;
 
-    float depth_edge = laplace_float(depth_tex, pass_tex, 3, near_plane, far_plane);
+    float depth_edge = laplace_depth_fetch(depth_tex, pass_tex, 3, near_plane, far_plane);
     depth_edge = max(depth_edge - 0.1, 0.0); // Excessive noise
 
     vec3 normal_sobel = sobel_filter_2d(normal_map, pass_tex, center);
