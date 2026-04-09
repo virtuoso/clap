@@ -26,17 +26,17 @@ jobs:
           . ./emsdk/emsdk_env.sh
           export WWW_INSTALL_DIR="${{ github.workspace }}/www/${GITHUB_REF##*/}"
           cmake --preset emrel -B build/emrel
-          cmake --preset emtest -B build/emtest
-          cmake --preset emdebug -B build/emdebug
+          cmake --preset wgputest -B build/wgputest
+          cmake --preset wgpudebug -B build/wgpudebug
       - name: build
         run: |
           cd ${{ github.workspace }}
           cmake --build build/emrel --parallel 4
-          cmake --build build/emtest --parallel 4
-          cmake --build build/emdebug --parallel 4
+          cmake --build build/wgputest --parallel 4
+          cmake --build build/wgpudebug --parallel 4
           cmake --install build/emrel
-          cmake --install build/emtest
-          cmake --install build/emdebug
+          cmake --install build/wgputest
+          cmake --install build/wgpudebug
       - name: Deploy to Server
         uses: easingthemes/ssh-deploy@main
         if: ${{ env.remote_host }}
