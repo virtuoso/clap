@@ -3,7 +3,7 @@
 
 #include "config.h"
 
-#ifdef CONFIG_RENDERER_OPENGL
+#if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_WGPU)
 # ifdef CONFIG_BROWSER
 // At a superficial glance, WebGL doesn't handle mediump float well at all
 // Needs proper profiling
