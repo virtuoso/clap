@@ -18,7 +18,6 @@ layout (location=5) in mat3 tbn;
 #include "ubo_render_common.glsl"
 #include "ubo_outline.glsl"
 #include "ubo_bloom.glsl"
-#include "ubo_postproc.glsl"
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
