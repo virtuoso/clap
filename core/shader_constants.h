@@ -11,6 +11,8 @@
 #define SSAO_KERNEL_SIZE 16
 #define SSAO_NOISE_DIM 16
 
+#define LIGHT_CUTOFF    (1.0f / 256.0f)
+
 #define HDR_LUT_K   1.0f
 #define HDR_LUT_MAX 16.0f
 

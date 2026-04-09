@@ -23,6 +23,16 @@ bool light_is_directional(struct light *light, int idx)
     return light->is_dir[idx];
 }
 
+float light_get_radius(struct light *light, unsigned int idx)
+{
+    if (light->is_dir[idx]) return 0.0f;
+
+    float *color = &light->color[idx * 3];
+    float comp_max = max3(color[0], color[1], color[2]);
+    float *att = &light->attenuation[idx * 3];
+    return (-att[1] + sqrtf(att[1] * att[1] - 4.0f * att[2] * (att[0] - comp_max / LIGHT_CUTOFF))) / (2.0f * att[2]);
+}
+
 cres(int) light_get(struct light *light)
 {
     if (light->nr_lights == LIGHTS_MAX)
