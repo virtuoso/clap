@@ -41,6 +41,7 @@ const char *cerr_str(cerr_enum err)
         case _CERR_NAME_TOO_LONG:           return "name too long";
         case _CERR_UNKNOWN_ERROR:           return "unknown error";
         case _CERR_PERMISSION_DENIED:       return "permission denied";
+        case _CERR_REQUEST_EXIT:            return "exit requested";
         case _CERR_PREVIOUS_ERRORS:         return "previous errors";
         case _CERR_PARTIAL_FAILURE:         return "partial failure";
         default:                            break;
