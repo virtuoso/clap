@@ -20,6 +20,7 @@ layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 layout (binding=SAMPLER_BINDING_light_map) uniform usampler2D light_map;
+layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
 
 #include "shadow.glsl"
 #include "lighting.glsl"
@@ -30,6 +31,14 @@ layout (location=RT_MODEL_VIEW_NORMALS) out vec4 Normal;
 
 void main()
 {
+    /*
+     * Keep the geometric (unperturbed) normal around for shadow sampling:
+     * tangent-space normal maps and noise-based perturbations both wiggle
+     * the shading normal, which would make shadow_factor_calc()'s
+     * light_dot-based early-out and slope bias wiggle with it and produce
+     * flicker on near-terminator fragments when the camera moves.
+     */
+    vec3 geom_normal = normalize(surface_normal);
     vec3 unit_normal;
 
     vec2 uv = pass_tex * uv_factor;
@@ -37,8 +46,15 @@ void main()
         vec3 normal_sample = texture(normal_map, uv).xyz * 2.0 - 1.0;
         unit_normal = normalize(tbn * normal_sample);
     } else {
-        unit_normal = normalize(surface_normal);
+        unit_normal = geom_normal;
     }
+
+    if (use_noise_normals == NOISE_NORMALS_GPU)
+        unit_normal = noise_normal_gpu(world_pos.xyz, unit_normal,
+                                       noise_normals_amp, noise_normals_scale);
+    else if (use_noise_normals == NOISE_NORMALS_3D)
+        unit_normal = noise_normal_3d(noise3d, world_pos.xyz, unit_normal,
+                                      noise_normals_amp, noise_normals_scale);
 
     lighting_material mat = noise_material();
 
@@ -46,7 +62,7 @@ void main()
     vec4 texture_sample = texture(model_tex, uv);
     vec4 view_pos = view * world_pos;
 
-    float shadow_factor = shadow_factor_calc(unit_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
+    float shadow_factor = shadow_factor_calc(geom_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
 
     /*
      * XXX: Both diffuse and spcular components are affected by the shadow_factor;
