@@ -369,6 +369,44 @@ void light_update_from_entity(struct light *light, int idx, void *data)
     light_set_pos(light, idx, pos);
 }
 
+/*
+ * Track a camera's pose: copy position, derive the forward direction from
+ * the camera transform, and (for spotlights) update the light's shadow view
+ * to match. Intended for game-side hookups like a flashlight attached to the
+ * active camera; no user in core today.
+ */
+void light_update_from_camera(struct light *light, int idx, void *data)
+{
+    struct scene *scene = container_of(light, struct scene, light);
+    struct camera *cam = data;
+    vec3 pos, dir = { 0.0f, 0.0f, -1.0f };
+
+    transform_pos(&cam->xform, pos);
+    light_set_pos(light, idx, pos);
+
+    transform_rotate_vec3(&cam->xform, dir);
+    light_set_direction(light, idx, dir);
+
+    if (!light_is_spotlight(light, idx))
+        return;
+
+    struct view *lv = &light->view[idx];
+    lv->nr_cascades       = 1;
+    lv->fov               = light->cutoff[idx];
+    lv->main.near_plane   = 0.1f;
+    lv->main.far_plane    = 200.0f;
+    lv->proj_update       = true;
+    /* aspect of 1.0 → square shadow map */
+    view_update_perspective_projection(scene->clap_ctx, lv, 1, 1, 1.0f);
+    view_update_from_angles(scene->clap_ctx, lv, &cam->xform);
+    view_calc_frustum(scene->clap_ctx, lv);
+
+    for (int i = 1; i < CASCADES_MAX; i++) {
+        lv->subview[i] = lv->subview[0];
+        lv->divider[i] = lv->divider[0];
+    }
+}
+
 void light_update(struct light *light)
 {
     for (int idx = 0; idx < light->nr_lights; idx++) {

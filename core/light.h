@@ -67,6 +67,7 @@ void light_set_update(struct light *light, int idx, light_update_fn fn,
                       void *data, transform_t *track, light_cleanup_fn cleanup);
 void light_update(struct light *light);
 void light_update_from_entity(struct light *light, int idx, void *data);
+void light_update_from_camera(struct light *light, int idx, void *data);
 void light_set_pos(struct light *light, int idx, const float pos[3]);
 void light_set_color(struct light *light, int idx, const float color[3]);
 void light_set_attenuation(struct light *light, int idx, const float attenuation[3]);
