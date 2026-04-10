@@ -324,6 +324,7 @@ static void light_debug(struct scene *scene)
             ui_igControlTableHeader("light %d", "pos", idx);
 
             ui_igCheckbox("directional", (bool *)&scene->light.is_dir[idx]);
+            ui_igCheckbox("draw direction", &scene->light.draw_direction[idx]);
             if (ui_igSliderFloat3("pos", &scene->light.pos[3 * idx], -500, 500, "%.02f", 0) &&
                 scene->light.is_dir[idx])
                 vec3_sub(&scene->light.dir[3 * idx], (vec3){}, &scene->light.pos[3 * idx]);
@@ -1082,6 +1083,7 @@ void scene_update(struct scene *scene)
         scene_debug_frusta(scene, &scene->light.view[0]);
     if (clap_get_render_options(ctx)->light_draws_enabled)
         light_draw(ctx, &scene->light);
+    light_draw_directions(ctx, &scene->light);
 
     motion_reset(&scene->mctl, scene);
 }

@@ -229,6 +229,29 @@ void light_done(struct clap_context *ctx, struct light *light)
 }
 
 #ifndef CONFIG_FINAL
+void light_draw_directions(struct clap_context *ctx, struct light *light)
+{
+    for (unsigned int idx = 0; idx < (unsigned int)light->nr_lights; idx++) {
+        if (!bitmap_is_set(&light->active, idx)) continue;
+        if (!light->draw_direction[idx]) continue;
+
+        float *pos = &light->pos[idx * 3];
+        float *dir = &light->dir[idx * 3];
+        /* light->dir is stored negated; tip points the way the light shines */
+        struct message dm_dir = {
+            .type   = MT_DEBUG_DRAW,
+            .debug_draw = (struct message_debug_draw) {
+                .color      = { 1.0, 1.0, 0.0, 1.0 },
+                .shape      = DEBUG_DRAW_LINE,
+                .thickness  = 0.2,
+                .v0         = { pos[0], pos[1], pos[2] },
+                .v1         = { pos[0] - dir[0], pos[1] - dir[1], pos[2] - dir[2] },
+            }
+        };
+        message_send(ctx, &dm_dir);
+    }
+}
+
 void light_draw(struct clap_context *ctx, struct light *light)
 {
     /* Here we go */

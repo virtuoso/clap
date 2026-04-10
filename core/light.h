@@ -43,6 +43,9 @@ struct light {
     light_cleanup_fn    update_cleanup[LIGHTS_MAX];
     void                *update_data[LIGHTS_MAX];
     transform_t         *update_track[LIGHTS_MAX];
+#ifndef CONFIG_FINAL
+    bool                draw_direction[LIGHTS_MAX];
+#endif /* CONFIG_FINAL */
     int nr_lights;
     struct light_grid {
         ui32vec4        *tiles;
@@ -80,8 +83,10 @@ void light_done(struct clap_context *ctx, struct light *light);
 
 #ifdef CONFIG_FINAL
 static inline void light_draw(struct clap_context *ctx, struct light *light) {}
+static inline void light_draw_directions(struct clap_context *ctx, struct light *light) {}
 #else
 void light_draw(struct clap_context *ctx, struct light *light);
+void light_draw_directions(struct clap_context *ctx, struct light *light);
 #endif /* CONFIG_FINAL */
 
 #endif /* __CLAP_LIGHT_H__ */
