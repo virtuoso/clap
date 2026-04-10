@@ -858,6 +858,19 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         }
 
         shader_set_var_float(prog, UNIFORM_UV_FACTOR, txmodel->mat.uv_factor);
+        shader_set_var_int(prog, UNIFORM_USE_NOISE_NORMALS, txmodel->mat.use_noise_normals);
+        if (txmodel->mat.use_noise_normals != NOISE_NORMALS_NONE) {
+            shader_set_var_float(prog, UNIFORM_NOISE_NORMALS_AMP, txmodel->mat.noise_normals_amp);
+            shader_set_var_float(prog, UNIFORM_NOISE_NORMALS_SCALE, txmodel->mat.noise_normals_scale);
+        }
+
+        shader_set_var_int(prog, UNIFORM_USE_NOISE_EMISSION, txmodel->mat.use_noise_emission);
+
+        shader_set_var_int(prog, UNIFORM_USE_3D_FOG, txmodel->mat.use_3d_fog);
+        if (txmodel->mat.use_3d_fog) {
+            shader_set_var_float(prog, UNIFORM_FOG_3D_AMP, txmodel->mat.fog_3d_amp);
+            shader_set_var_float(prog, UNIFORM_FOG_3D_SCALE, txmodel->mat.fog_3d_scale);
+        }
 
         unsigned int nr_characters = 0;
         entity3d *e;
