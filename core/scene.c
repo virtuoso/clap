@@ -1434,6 +1434,12 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 }
             }
 
+            jpos = json_find_member(it, "light_cutoff");
+            if (jpos && jpos->tag == JSON_NUMBER && e->light_idx >= 0) {
+                light_set_cutoff(&scene->light, e->light_idx, to_radians(jpos->number_));
+                light_set_directional(&scene->light, e->light_idx, true);
+            }
+
 light_done:
             jpos = json_find_member(it, "bloom_intensity");
             if (jpos && jpos->tag == JSON_NUMBER)
@@ -1569,16 +1575,49 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
         return CERR_INVALID_FORMAT;
 
     int idx = CRES_RET_CERR(light_get(&s->light));
+    light_set_directional(&s->light, idx, true);
 
     float fpos[3] = { pos[0], pos[1], pos[2] };
     float fcolor[3] = { color[0], color[1], color[2] };
     light_set_pos(&s->light, idx, fpos);
     light_set_color(&s->light, idx, fcolor);
 
-    bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
-    vec3 center = {};
-    vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
-    view_update_from_frustum(s->clap_ctx, &s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
+    double fdir[3];
+    jpos = json_find_member(light, "direction");
+    if (jpos && jpos->tag == JSON_ARRAY) {
+        if (!json_double_array(jpos, fdir, 3)) {
+            float dir[3] = { fdir[0], fdir[1], fdir[2] };
+            light_set_direction(&s->light, idx, dir);
+        }
+    }
+
+    double _light_attenuation[3];
+    jpos = json_find_member(light, "attenuation");
+    if (jpos && jpos->tag == JSON_ARRAY) {
+        if (!json_double_array(jpos, _light_attenuation, 3)) {
+            float light_attenuation[3] = { _light_attenuation[0], _light_attenuation[1], _light_attenuation[2] };
+            light_set_attenuation(&s->light, idx, light_attenuation);
+            light_set_directional(&s->light, idx, false);
+        }
+    }
+
+    jpos = json_find_member(light, "cutoff");
+    if (jpos && jpos->tag == JSON_NUMBER) {
+        light_set_cutoff(&s->light, idx, jpos->number_);
+        light_set_directional(&s->light, idx, true);
+    }
+
+    /*
+     * Seed the CSM frustum for the first non-spotlight directional light;
+     * scene_cameras_calc() will refresh it per-frame. Spotlights that cast
+     * shadows get their view from a light_update_*() callback when hooked up.
+     */
+    if (idx == 0 && !light_is_spotlight(&s->light, idx)) {
+        bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
+        vec3 center = {};
+        vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
+        view_update_from_frustum(s->clap_ctx, &s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
+    }
 
     return CERR_OK;
 }
