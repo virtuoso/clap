@@ -11,6 +11,11 @@ typedef struct {
     uint32_t    v[4];
 } ui32vec4;
 
+struct light;
+
+typedef void (*light_update_fn)(struct light *light, int idx, void *data);
+typedef void (*light_cleanup_fn)(void *data);
+
 struct light {
     float pos[3 * LIGHTS_MAX];
     float color[3 * LIGHTS_MAX];
@@ -27,7 +32,17 @@ struct light {
      * kept for shader upload range; individual slots within [0, nr_lights)
      * may be unset if previously released via light_put().
      */
-    struct bitmap active;
+    struct bitmap       active;
+    /*
+     * Per-slot update callback. Fires from light_update() when the tracked
+     * transform has changed since the last update. update_cleanup, if set,
+     * runs on update_data at light_put() / light_done() time and is the
+     * escape hatch for releasing references held by the callback owner.
+     */
+    light_update_fn     update[LIGHTS_MAX];
+    light_cleanup_fn    update_cleanup[LIGHTS_MAX];
+    void                *update_data[LIGHTS_MAX];
+    transform_t         *update_track[LIGHTS_MAX];
     int nr_lights;
     struct light_grid {
         ui32vec4        *tiles;
@@ -48,6 +63,9 @@ bool light_is_directional(struct light *light, int idx);
 float light_get_radius(struct light *light, unsigned int idx);
 cres(int) light_get(struct light *light);
 void light_put(struct light *light, int idx);
+void light_set_update(struct light *light, int idx, light_update_fn fn,
+                      void *data, transform_t *track, light_cleanup_fn cleanup);
+void light_update(struct light *light);
 void light_set_pos(struct light *light, int idx, const float pos[3]);
 void light_set_color(struct light *light, int idx, const float color[3]);
 void light_set_attenuation(struct light *light, int idx, const float attenuation[3]);

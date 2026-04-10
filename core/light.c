@@ -216,6 +216,12 @@ void light_init(struct clap_context *ctx, struct light *light)
 
 void light_done(struct clap_context *ctx, struct light *light)
 {
+    for (int idx = 0; idx < light->nr_lights; idx++) {
+        if (!bitmap_is_set(&light->active, idx)) continue;
+        if (light->update_cleanup[idx])
+            light->update_cleanup[idx](light->update_data[idx]);
+    }
+
     unsubscribe(ctx, MT_INPUT, light);
     mem_free(light->grid.tiles);
     texture_deinit(&light->grid.tex);
@@ -301,6 +307,10 @@ cres(int) light_get(struct light *light)
     light->dir[idx * 3 + 2]     = 0;
     light->cutoff[idx]          = 0;
     light->is_dir[idx]          = true;
+    light->update[idx]          = NULL;
+    light->update_cleanup[idx]  = NULL;
+    light->update_data[idx]     = NULL;
+    light->update_track[idx]    = NULL;
 
     return cres_val(int, idx);
 }
@@ -309,6 +319,13 @@ void light_put(struct light *light, int idx)
 {
     if (!light_is_valid(light, idx))
         return;
+
+    if (light->update_cleanup[idx])
+        light->update_cleanup[idx](light->update_data[idx]);
+    light->update[idx]          = NULL;
+    light->update_cleanup[idx]  = NULL;
+    light->update_data[idx]     = NULL;
+    light->update_track[idx]    = NULL;
 
     /*
      * Zero the slot so the shader sees no contribution from it on subsequent
@@ -325,6 +342,32 @@ void light_put(struct light *light, int idx)
 
     while (light->nr_lights > 0 && !bitmap_is_set(&light->active, light->nr_lights - 1))
         light->nr_lights--;
+}
+
+void light_set_update(struct light *light, int idx, light_update_fn fn,
+                      void *data, transform_t *track, light_cleanup_fn cleanup)
+{
+    if (!light_is_valid(light, idx))
+        return;
+
+    if (light->update_cleanup[idx])
+        light->update_cleanup[idx](light->update_data[idx]);
+
+    light->update[idx]          = fn;
+    light->update_cleanup[idx]  = cleanup;
+    light->update_data[idx]     = data;
+    light->update_track[idx]    = track;
+}
+
+void light_update(struct light *light)
+{
+    for (int idx = 0; idx < light->nr_lights; idx++) {
+        if (!bitmap_is_set(&light->active, idx)) continue;
+        if (!light->update[idx] || !light->update_track[idx]) continue;
+        if (!transform_is_updated(light->update_track[idx])) continue;
+
+        light->update[idx](light, idx, light->update_data[idx]);
+    }
 }
 
 void light_set_pos(struct light *light, int idx, const float pos[3])

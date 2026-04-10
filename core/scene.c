@@ -1053,6 +1053,11 @@ void scene_update(struct scene *scene)
     scene_entity_inspector_debug(scene);
     light_debug(scene);
 
+    /*
+     * Fire per-light update callbacks before mq_update() so they observe
+     * transform_is_updated() before default_update() clears it.
+     */
+    light_update(&scene->light);
     mq_update(&scene->mq);
 
     if (scene->mctl.rs_dy) {
