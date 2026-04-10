@@ -64,4 +64,16 @@ vec3 fbm_grad(vec3 p, float eps, float amplitude, int octaves, float lacunarity)
     return vec3(fx1 - fx0, fy1 - fy0, fz1 - fz0) / (2.0 * eps);
 }
 
+/*
+ * Sample a baked periodic fBm gradient texture at @world_pos scaled by @freq.
+ * The 3D noise is stored as the normalized gradient of periodic fBm packed to
+ * RGB8, so the return value is a signed unit-ish vector in [-1, 1]^3 and the
+ * texture's REPEAT wrap mode tiles cleanly across the period bound at bake
+ * time (see core/noise.c).
+ */
+vec3 sample_noise3d(sampler3D tex, vec3 world_pos, float freq)
+{
+    return texture(tex, world_pos * freq).xyz * 2.0 - 1.0;
+}
+
 #endif /* SHADERS_NOISE_GLSL */
