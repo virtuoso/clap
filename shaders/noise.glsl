@@ -76,4 +76,58 @@ vec3 sample_noise3d(sampler3D tex, vec3 world_pos, float freq)
     return texture(tex, world_pos * freq).xyz * 2.0 - 1.0;
 }
 
+vec3 safe_normalize(vec3 v)
+{
+    float l2 = dot(v, v);
+    return v * inversesqrt(max(l2, 1e-12));
+}
+
+/*
+ * On-the-fly fBm gradient normal perturbation. Expensive (6 fbm() calls
+ * per pixel), but non-periodic — the only mode that produces convincing
+ * stone-surface detail without visible tiling, at the cost of aliasing
+ * on distant samples. @amp scales the tilt, @freq scales the sampling
+ * space (smaller == smoother).
+ */
+vec3 noise_normal_gpu(vec3 world_pos, vec3 geom_normal, float amp, float freq)
+{
+    // flatness was once used to reduce the frequency of the floor-ish
+    // surfaces, but it has to be parameterized to be generally useful
+    // float flatness = max(dot(geom_normal, vec3(0.0, 1.0, 0.0)), 0.0);
+    float flatness = 0.0;
+    freq *= 1.3 - flatness;
+    /* eps proportional to frequency for stable central-difference gradients */
+    vec3 p = world_pos * freq;
+    float eps = 0.5 / freq;
+
+    vec3 g = fbm_grad(p, eps, amp, /*octaves*/3, /*lacunarity*/2.0);
+
+    /* keep only the tangent component so we don't shrink/expand along normal */
+    float ndot = dot(safe_normalize(g), geom_normal);
+    vec3 tgrad = safe_normalize(g - geom_normal * abs(ndot));
+
+    /* perturbation is stronger on steep surfaces, clamped at 20% on flat ground */
+    float mask = max(1.0 - flatness, 0.2);
+    return safe_normalize(geom_normal - (amp * mask) * tgrad);
+}
+
+/*
+ * Baked periodic fBm gradient normal perturbation. Cheap, tileable
+ * alternative to noise_normal_gpu(): good for large-scale diffuse
+ * surface variation, but the texture's period can become visible on
+ * highly specular materials.
+ */
+vec3 noise_normal_3d(sampler3D tex, vec3 world_pos, vec3 geom_normal, float amp, float freq)
+{
+    const float max_tilt = 0.6;
+    /* jitter sampling position by a scalar hash to blur the tiling period */
+    vec3 grad = sample_noise3d(tex, world_pos * noise(world_pos), freq);
+    vec3 t = grad - geom_normal * dot(grad, geom_normal);
+    float tl = length(t);
+    if (tl < 1e-5) return geom_normal;
+    vec3 tdir = t / tl;
+    float s = min(amp, max_tilt);
+    return safe_normalize(geom_normal - s * tdir);
+}
+
 #endif /* SHADERS_NOISE_GLSL */
