@@ -22,6 +22,12 @@ struct light {
     texture_t *shadow[LIGHTS_MAX][CASCADES_MAX];
     float ambient[3];
     float shadow_tint[3];
+    /*
+     * Active slots bitmap. nr_lights is the highest allocated index + 1,
+     * kept for shader upload range; individual slots within [0, nr_lights)
+     * may be unset if previously released via light_put().
+     */
+    struct bitmap active;
     int nr_lights;
     struct light_grid {
         ui32vec4        *tiles;
@@ -41,6 +47,7 @@ bool light_is_valid(struct light *light, int idx);
 bool light_is_directional(struct light *light, int idx);
 float light_get_radius(struct light *light, unsigned int idx);
 cres(int) light_get(struct light *light);
+void light_put(struct light *light, int idx);
 void light_set_pos(struct light *light, int idx, const float pos[3]);
 void light_set_color(struct light *light, int idx, const float color[3]);
 void light_set_attenuation(struct light *light, int idx, const float attenuation[3]);

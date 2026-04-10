@@ -17,7 +17,10 @@ void light_set_shadow_tint(struct light *light, const float *color)
 
 bool light_is_valid(struct light *light, int idx)
 {
-    return idx >= 0 && idx < light->nr_lights;
+    if (idx < 0 || idx >= light->nr_lights)
+        return false;
+
+    return bitmap_is_set(&light->active, idx);
 }
 
 bool light_is_directional(struct light *light, int idx)
@@ -96,6 +99,7 @@ void light_grid_compute(struct light *light, struct view *view)
     mat4x4_mul(mvp, subview->proj_mx, subview->view_mx);
 
     for (unsigned int idx = 0; idx < (unsigned int)light->nr_lights; idx++) {
+        if (!bitmap_is_set(&light->active, idx)) continue;
         /* Directional light(s) always apply */
         if (light->is_dir[idx]) goto grid;
 
@@ -187,6 +191,8 @@ static void light_hover(float x, float y, void *data)
 
 void light_init(struct clap_context *ctx, struct light *light)
 {
+    bitmap_init(&light->active, LIGHTS_MAX);
+
     light_grid_update(light);
 
     CERR_RET(
@@ -213,6 +219,7 @@ void light_done(struct clap_context *ctx, struct light *light)
     unsubscribe(ctx, MT_INPUT, light);
     mem_free(light->grid.tiles);
     texture_deinit(&light->grid.tex);
+    bitmap_done(&light->active);
 }
 
 #ifndef CONFIG_FINAL
@@ -220,6 +227,7 @@ void light_draw(struct clap_context *ctx, struct light *light)
 {
     /* Here we go */
     for (unsigned int idx = 0; idx < (unsigned int)light->nr_lights; idx++) {
+        if (!bitmap_is_set(&light->active, idx)) continue;
         if (light->is_dir[idx]) continue;
         float radius = light_get_radius(light, idx);
         float *center = &light->pos[idx * 3];
@@ -273,24 +281,50 @@ float light_get_radius(struct light *light, unsigned int idx)
 
 cres(int) light_get(struct light *light)
 {
-    if (light->nr_lights == LIGHTS_MAX)
-        return cres_error(int, CERR_TOO_LARGE);
+    int idx = CRES_RET(bitmap_set_lowest(&light->active),
+                       return cres_error(int, CERR_TOO_LARGE));
 
-    int idx = light->nr_lights++;
-    float attenuation[3] = { 1, 0, 0 };
+    if (idx >= light->nr_lights)
+        light->nr_lights = idx + 1;
 
-    light->pos[idx * 3]     = 0;
-    light->pos[idx * 3 + 1] = 0;
-    light->pos[idx * 3 + 2] = 0;
-    light->color[idx * 3]     = 0;
-    light->color[idx * 3 + 1] = 0;
-    light->color[idx * 3 + 2] = 0;
-    light->attenuation[idx * 3]     = attenuation[0];
-    light->attenuation[idx * 3 + 1] = attenuation[1];
-    light->attenuation[idx * 3 + 2] = attenuation[2];
-    light->is_dir[idx] = true;
+    light->pos[idx * 3]         = 0;
+    light->pos[idx * 3 + 1]     = 0;
+    light->pos[idx * 3 + 2]     = 0;
+    light->color[idx * 3]       = 0;
+    light->color[idx * 3 + 1]   = 0;
+    light->color[idx * 3 + 2]   = 0;
+    light->attenuation[idx * 3]     = 1;
+    light->attenuation[idx * 3 + 1] = 0;
+    light->attenuation[idx * 3 + 2] = 0;
+    light->dir[idx * 3]         = 0;
+    light->dir[idx * 3 + 1]     = 0;
+    light->dir[idx * 3 + 2]     = 0;
+    light->cutoff[idx]          = 0;
+    light->is_dir[idx]          = true;
 
     return cres_val(int, idx);
+}
+
+void light_put(struct light *light, int idx)
+{
+    if (!light_is_valid(light, idx))
+        return;
+
+    /*
+     * Zero the slot so the shader sees no contribution from it on subsequent
+     * uploads. nr_lights stays as a high-water mark; only shrink it if the
+     * released slot was the topmost one, to keep upload range tight.
+     */
+    light->color[idx * 3]       = 0;
+    light->color[idx * 3 + 1]   = 0;
+    light->color[idx * 3 + 2]   = 0;
+    light->is_dir[idx]          = false;
+    light->cutoff[idx]          = 0;
+
+    bitmap_clear(&light->active, idx);
+
+    while (light->nr_lights > 0 && !bitmap_is_set(&light->active, light->nr_lights - 1))
+        light->nr_lights--;
 }
 
 void light_set_pos(struct light *light, int idx, const float pos[3])

@@ -318,6 +318,8 @@ static void light_debug(struct scene *scene)
         igEndTable();
 
         for (int idx = 0; idx < scene->light.nr_lights; idx++) {
+            if (!light_is_valid(&scene->light, idx))
+                continue;
             igPushID_Int(idx);
             ui_igControlTableHeader("light %d", "pos", idx);
 
