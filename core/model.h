@@ -168,6 +168,23 @@ typedef struct material {
     int     metallic_mode;
     /* Procedural metallic: use the same scale as roughness */
     bool    shared_scale;
+    /*
+     * Procedural normal perturbation mode:
+     * - NOISE_NORMALS_NONE: off,
+     * - NOISE_NORMALS_GPU:  on-the-fly fBm gradient (expensive, non-periodic),
+     * - NOISE_NORMALS_3D:   baked periodic fBm gradient texture (cheap, tileable)
+     */
+    int     use_noise_normals;
+    /* Tilt amplitude for procedural normals */
+    float   noise_normals_amp;
+    /* Sampling frequency for procedural normals */
+    float   noise_normals_scale;
+    /* Procedurally modulate the emission map with 3D noise */
+    bool    use_noise_emission;
+    /* Apply volumetric 3D fog to the lit result */
+    bool    use_3d_fog;
+    float   fog_3d_amp;
+    float   fog_3d_scale;
 } material;
 
 typedef struct model3dtx {

@@ -29,6 +29,10 @@
 #define MAT_METALLIC_ROUGHNESS              1
 #define MAT_METALLIC_ONE_MINUS_ROUGHNESS    2
 
+#define NOISE_NORMALS_NONE                  0
+#define NOISE_NORMALS_GPU                   1
+#define NOISE_NORMALS_3D                    2
+
 /* Attribute locations */
 #define ATTR_LOC_POSITION   0
 #define ATTR_LOC_TEX        1
