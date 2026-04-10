@@ -110,7 +110,14 @@
                 { "name": "metallic_oct", "type": "DT_INT", "symbol": "UNIFORM_METALLIC_OCT", "discription": "number of octaves for procedural metallic" },
                 { "name": "metallic_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_METALLIC_SCALE", "discription": "local-position scale for procedural metallic noise" },
                 { "name": "metallic_mode", "type": "DT_INT", "symbol": "UNIFORM_METALLIC_MODE", "discription": "MAT_METALLIC_* mode selecting independent, roughness, or 1-roughness metallic noise" },
-                { "name": "shared_scale", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHARED_SCALE", "discription": "reuse the roughness noise seed for metallic noise" }
+                { "name": "shared_scale", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHARED_SCALE", "discription": "reuse the roughness noise seed for metallic noise" },
+                { "name": "use_noise_normals", "type": "DT_INT", "symbol": "UNIFORM_USE_NOISE_NORMALS", "discription": "NOISE_NORMALS_* mode selecting off, on-the-fly fBm (GPU), or baked 3D noise normal perturbation" },
+                { "name": "noise_normals_amp", "type": "DT_FLOAT", "symbol": "UNIFORM_NOISE_NORMALS_AMP", "discription": "tilt amplitude for procedural normal perturbation" },
+                { "name": "noise_normals_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_NOISE_NORMALS_SCALE", "discription": "sampling frequency for procedural normal perturbation" },
+                { "name": "use_noise_emission", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_NOISE_EMISSION", "discription": "modulate the emission map with 3D noise" },
+                { "name": "use_3d_fog", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_3D_FOG", "discription": "apply volumetric 3D fog to the lit result" },
+                { "name": "fog_3d_amp", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_3D_AMP", "discription": "3D fog density amplitude" },
+                { "name": "fog_3d_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_3D_SCALE", "discription": "3D fog sampling frequency" }
             ]
         },
         {
