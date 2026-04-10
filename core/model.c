@@ -1429,13 +1429,6 @@ static int default_update(entity3d *e, void *data)
             if (e->priv)
                 phys_body_rotate_xform(e->phys_body, &e->xform);
         }
-
-        if (scene && e->light_idx >= 0) {
-            vec3 pos;
-            transform_pos(&e->xform, pos);
-            vec3_add(pos, pos, e->light_off);
-            light_set_pos(&scene->light, e->light_idx, pos);
-        }
     }
 
     if (!scene)
@@ -1480,6 +1473,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     mat4x4_identity(e->inverse_mx);
     darray_init(e->aniq);
     e->animation = -1;
+    e->light     = NULL;
     e->light_idx = -1;
     e->force_lod = -1;
     e->scale     = 1.0;
@@ -1504,6 +1498,8 @@ static void entity3d_drop(struct ref *ref)
 {
     entity3d *e = container_of(ref, entity3d, ref);
     trace("dropping entity3d\n");
+    if (e->light && e->light_idx >= 0)
+        light_put(e->light, e->light_idx);
     list_del(&e->entry);
     ref_put(e->txmodel);
 

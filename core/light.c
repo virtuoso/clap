@@ -359,6 +359,16 @@ void light_set_update(struct light *light, int idx, light_update_fn fn,
     light->update_track[idx]    = track;
 }
 
+void light_update_from_entity(struct light *light, int idx, void *data)
+{
+    entity3d *e = data;
+    vec3 pos;
+
+    transform_pos(&e->xform, pos);
+    vec3_add(pos, pos, e->light_off);
+    light_set_pos(light, idx, pos);
+}
+
 void light_update(struct light *light)
 {
     for (int idx = 0; idx < light->nr_lights; idx++) {

@@ -1453,6 +1453,13 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             }
 
 light_done:
+            if (e->light_idx >= 0) {
+                e->light = &scene->light;
+                light_set_update(&scene->light, e->light_idx,
+                                 light_update_from_entity, e, &e->xform, NULL);
+                light_update_from_entity(&scene->light, e->light_idx, e);
+            }
+
             jpos = json_find_member(it, "bloom_intensity");
             if (jpos && jpos->tag == JSON_NUMBER)
                 e->bloom_intensity = jpos->number_;
