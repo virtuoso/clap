@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "common.h"
+#include "clap.h"
 #include "messagebus.h"
 #include "input.h"
+#include "scene.h"
 
 static struct message_source fuzzer_source = {
     .name = "fuzzer",
@@ -100,4 +103,112 @@ static int fuzzer_handle_command(struct clap_context *ctx, struct message *m, vo
 void fuzzer_input_init(struct clap_context *ctx)
 {
     subscribe(ctx, MT_COMMAND, fuzzer_handle_command, NULL);
+}
+
+/*
+ * Input motion setters: deterministic alternatives to the random fuzzer.
+ * --run-to=<cardinal>   drives the left stick in a fixed direction
+ * --run-circle=<radius> rotates the left stick direction over time
+ */
+
+enum motion_mode {
+    MOTION_NONE,
+    MOTION_RUN_TO,
+    MOTION_RUN_CIRCLE,
+};
+
+static struct {
+    enum motion_mode    mode;
+    float               dx, dy;     /* run-to: fixed direction */
+    float               radius;     /* run-circle: signed radius */
+    double              angle;      /* run-circle: current angle */
+} motion_state;
+
+static struct message_source motion_source = {
+    .name = "motion",
+    .desc = "deterministic input motion setter",
+    .type = MST_FUZZER,
+};
+
+struct cardinal_dir {
+    const char  *name;
+    float       dx, dy;
+};
+
+static const struct cardinal_dir cardinal_dirs[] = {
+    { "n",  0,           -1          },
+    { "s",  0,            1          },
+    { "e",  1,            0          },
+    { "w", -1,            0          },
+    { "ne", M_SQRT1_2,   -M_SQRT1_2 },
+    { "nw", -M_SQRT1_2,  -M_SQRT1_2 },
+    { "se", M_SQRT1_2,    M_SQRT1_2  },
+    { "sw", -M_SQRT1_2,   M_SQRT1_2  },
+};
+
+cerr input_motion_set_run_to(const char *cardinal)
+{
+    for (size_t i = 0; i < array_size(cardinal_dirs); i++) {
+        if (!strcasecmp(cardinal, cardinal_dirs[i].name)) {
+            motion_state = (typeof(motion_state)) {
+                .mode = MOTION_RUN_TO,
+                .dx   = cardinal_dirs[i].dx,
+                .dy   = cardinal_dirs[i].dy,
+            };
+            return CERR_OK;
+        }
+    }
+    return CERR_INVALID_ARGUMENTS_REASON(
+        .fmt  = "unknown cardinal direction '%s'",
+        .arg0 = cardinal
+    );
+}
+
+cerr input_motion_set_run_circle(float radius)
+{
+    motion_state = (typeof(motion_state)) {
+        .mode   = MOTION_RUN_CIRCLE,
+        .radius = radius,
+        .angle  = 0.0,
+    };
+    return CERR_OK;
+}
+
+void input_motion_step(struct clap_context *ctx)
+{
+    if (motion_state.mode == MOTION_NONE || clap_is_paused(ctx))
+        return;
+
+    struct message_input mi;
+    memset(&mi, 0, sizeof(mi));
+
+    switch (motion_state.mode) {
+    case MOTION_RUN_TO:
+        mi.delta_lx = motion_state.dx;
+        mi.delta_ly = motion_state.dy;
+        break;
+
+    case MOTION_RUN_CIRCLE: {
+        struct scene *scene = clap_get_scene(ctx);
+        if (!scene)
+            return;
+
+        double dt = clap_get_fps_delta(ctx).tv_nsec / (double)NSEC_PER_SEC;
+        double omega = scene->lin_speed / fabs(motion_state.radius);
+
+        if (motion_state.radius > 0)
+            motion_state.angle -= omega * dt;
+        else
+            motion_state.angle += omega * dt;
+
+        mi.delta_lx = cos(motion_state.angle);
+        mi.delta_ly = sin(motion_state.angle);
+        break;
+    }
+
+    default:
+        return;
+    }
+
+    message_input_send(ctx, &mi, &motion_source);
 }

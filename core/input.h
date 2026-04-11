@@ -10,6 +10,9 @@ int message_input_send(struct clap_context *ctx, struct message_input *mi, struc
 int input_init(struct clap_context *ctx);
 void fuzzer_input_step(struct clap_context *ctx);
 void fuzzer_input_init(struct clap_context *ctx);
+cerr input_motion_set_run_to(const char *cardinal);
+cerr input_motion_set_run_circle(float radius);
+void input_motion_step(struct clap_context *ctx);
 
 #ifndef CONFIG_FINAL
 void controllers_debug(void);
