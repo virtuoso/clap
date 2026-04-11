@@ -520,6 +520,9 @@ static inline void entity3d_debug(struct scene *scene, entity3d *e) {}
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
 {
+    for (int i = 0; i < JOINT_TYPE_MAX; i++)
+        m->joint_types[i] = -1;
+
     m->joints = mem_alloc(sizeof(struct model_joint), .nr = nr_joints, .fatal_fail = 1);
     for (int j = 0; j < nr_joints; j++) {
         memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
@@ -529,6 +532,16 @@ int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
 
     m->nr_joints = nr_joints;
     return 0;
+}
+
+cres(int) model3d_get_joint(model3d *m, joint_type type)
+{
+    if (type >= JOINT_TYPE_MAX)
+        return cres_error(int, CERR_INVALID_ARGUMENTS);
+
+    return m->joint_types[type] >= 0
+        ? cres_val(int, m->joint_types[type])
+        : cres_error(int, CERR_NOT_FOUND);
 }
 
 void entity3d_set_lod(entity3d *e, int lod, bool force)

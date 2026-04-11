@@ -20,6 +20,22 @@ struct camera;
 struct shader_prog;
 typedef struct render_options render_options;
 
+/*
+ * Semantic joint identifiers that callers can resolve to the actual
+ * per-model joint index via model3d_get_joint(). Gives camera and
+ * attachment code a stable name for "the head joint" etc. without
+ * hardcoding skeleton-specific indices.
+ */
+typedef enum joint_type {
+    JOINT_NONE,
+    JOINT_HEAD,
+    JOINT_FOOT_LEFT,
+    JOINT_FOOT_RIGHT,
+    JOINT_HAND_LEFT,
+    JOINT_HAND_RIGHT,
+    JOINT_TYPE_MAX,
+} joint_type;
+
 #define LOD_MAX 4
 typedef struct model3d {
     char                *name;
@@ -47,6 +63,8 @@ typedef struct model3d {
     float               lod_errors[LOD_MAX];
     bool                skip_aabb;
     struct model_joint  *joints;
+    /* Index into joints[] keyed by joint_type; -1 when unmapped. */
+    int                 joint_types[JOINT_TYPE_MAX];
     /* Collision mesh, if needed */
     float               *collision_vx;
     size_t              collision_vxsz;
@@ -228,6 +246,7 @@ DECLARE_REFCLASS(model3dtx);
 DECLARE_CLEANUP(model3dtx);
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs);
+cres(int) model3d_get_joint(model3d *m, joint_type type);
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
 float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);
