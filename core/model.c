@@ -1456,8 +1456,35 @@ static void animated_update(entity3d *e, struct scene *s)
 static int default_update(entity3d *e, void *data)
 {
     struct scene *scene = data;
+    entity3d *parent = e->parent;
 
-    if (transform_is_updated(&e->xform)) {
+    if (parent) {
+        /*
+         * Parent-attached: our world matrix has to be rebuilt every
+         * frame, not only when our own xform is dirty, because the
+         * parent's joint might be animating underneath us. The joint
+         * transform is in skinning (pre-bind) space, so multiply by
+         * the joint's bind pose to get a plain joint → model-space
+         * matrix, then chain through the parent's world mx.
+         */
+        model3d *pmodel = parent->txmodel->model;
+
+        mat4x4 local;
+        mat4x4_identity(local);
+        transform_translate_mat4x4(&e->xform, local);
+        transform_rotate_mat4x4(&e->xform, local);
+        mat4x4_scale_aniso(local, local, e->scale, e->scale, e->scale);
+
+        mat4x4 joint_mx;
+        mat4x4_mul(joint_mx,
+                   parent->joint_transforms[e->parent_joint],
+                   pmodel->joints[e->parent_joint].bind);
+        mat4x4_mul(e->mx, joint_mx, local);
+        mat4x4_mul(e->mx, parent->mx, e->mx);
+
+        mat4x4_invert(e->inverse_mx, e->mx);
+        entity3d_aabb_update(e);
+    } else if (transform_is_updated(&e->xform)) {
         transform_clear_updated(&e->xform);
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);

@@ -329,6 +329,17 @@ typedef struct entity3d {
     struct joint        *joints;
     mat4x4              *joint_transforms;
 
+    /*
+     * Optional parent attachment: when set, default_update() rebuilds
+     * this entity's world matrix every frame from the parent entity's
+     * joint_transforms[parent_joint] (+ the joint's bind pose) so the
+     * child rides the parent's animated skeleton. parent_joint is the
+     * resolved joint index into parent->joint_transforms, not a
+     * joint_type enum — callers look it up via model3d_get_joint() at
+     * attachment time.
+     */
+    entity3d            *parent;
+    int                 parent_joint;
     struct phys_body    *phys_body;
     particle_system     *particles;
     float               bloom_intensity;
