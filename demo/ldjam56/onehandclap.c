@@ -77,11 +77,15 @@ static void make_pillar(struct scene *scene)
         .roughness  = 0.6,
     );
     scene_add_model(scene, txpillar);
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 8; i++) {
         entity3d *e = ref_new(entity3d, .txmodel = txpillar);
         // entity3d_position(e, (vec3) { 0.0, 0.0 + 1.0 * (float)i, -23});
-        entity3d_position(e, (vec3){ 0 + 0.5*cos(drand48() * M_PI * 2), -0.5 + 1.0 * (float)i, -23 + 0.5*sin(drand48() * M_PI * 2) });
+        entity3d_position(e, (vec3){ 0 + 1.0*cos(drand48() * M_PI * 2), -0.5 + 1.0 * (float)i, -23 + 1.0*sin(drand48() * M_PI * 2) });
         entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), 20, GEOM_TRIMESH, PHYS_BODY, 0, 0, 0);
+        phys_body_set_contact_params(e->phys_body,
+                                     .bounce = 0.5,
+                                     .bounce_vel = 0.5,
+                                     .mu = 1.0);
         phys_body_enable(e->phys_body, true);
     }
 }
