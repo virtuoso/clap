@@ -342,6 +342,8 @@ DEFINE_REFCLASS_INIT_OPTIONS(entity3d,
 );
 DECLARE_REFCLASS(entity3d);
 
+cresp(entity3d) mq_find_entity(struct mq *mq, const char *name);
+
 typedef struct models_render_options {
     struct shader_prog  *shader_override;
     struct light        *light;

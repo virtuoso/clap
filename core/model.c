@@ -1680,6 +1680,30 @@ void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data)
     mq_for_each_matching(mq, ENTITY3D_ANY, cb, data);
 }
 
+struct mq_entity_match {
+    const char  *name;
+    entity3d    *e;
+};
+
+static void mq_entity_match(entity3d *e, void *data)
+{
+    struct mq_entity_match *mem = data;
+
+    if (!strcmp(entity_name(e), mem->name))
+        mem->e = e;
+}
+
+cresp(entity3d) mq_find_entity(struct mq *mq, const char *name)
+{
+    struct mq_entity_match mem = { .name = name };
+
+    mq_for_each(mq, mq_entity_match, &mem);
+    if (!mem.e)
+        return cresp_error(entity3d, CERR_NOT_FOUND);
+
+    return cresp_val(entity3d, mem.e);
+}
+
 void mq_update(struct mq *mq)
 {
     mq_for_each_matching(mq, ENTITY3D_ALIVE, entity3d_update, mq->priv);
