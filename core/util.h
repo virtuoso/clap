@@ -73,6 +73,9 @@ DECLARE_CLEANUP(uchar);
 #ifndef M_PI_4
 #define M_PI_4 0.785398163397448309615660845819875721
 #endif
+#ifndef M_SQRT1_2
+#define M_SQRT1_2 0.70710678118654752440084436210484904
+#endif
 
 static inline float to_radians(float degrees)
 {
