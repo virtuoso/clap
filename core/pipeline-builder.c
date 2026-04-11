@@ -15,39 +15,26 @@
  ****************************************************************************/
 
 #define DEFAULT_SHADOW_SIZE 1024
+#define SHADOW_CAP          4096
+#define SHADOW_CASCADE_MIN  512
+
 static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, unsigned int *pheight)
 {
-    int side = max(*pwidth, *pheight);
+    int max_tex = renderer_query_limits(params->renderer, RENDER_LIMIT_MAX_TEXTURE_SIZE);
+    int cap = min(SHADOW_CAP, max_tex);
 
-    if (params->camera) {
-        struct view *view = &params->camera->view;
-        auto sv = &view->subview[0];
-        mat4x4 pv, inv_pv;
-        mat4x4_mul(pv, sv->proj_mx, sv->view_mx);
-        mat4x4_invert(inv_pv, pv);
+    int screen_side = (int)((float)max(*pwidth, *pheight) / display_get_scale());
+    int size = clamp(1 << fls(screen_side - 1), DEFAULT_SHADOW_SIZE, cap);
 
-        vec4 vs_left, vs_right;
-        float ndc_z = renderer_get_caps(params->renderer)->ndc_z_zero_one ? 0.0f : -1.0f;
-        mat4x4_mul_vec4_post(vs_left, inv_pv, (vec4) { -1.0, 0.0, ndc_z, 1.0 });
-        mat4x4_mul_vec4_post(vs_right, inv_pv, (vec4) { 1.0, 0.0, ndc_z, 1.0 });
+    /*
+     * Coarser cascades cover more world per texel, so halve each step down.
+     * CONFIG_SHADOW_MAP_ARRAY packs all cascades in one texture (cascade == -1)
+     * and must keep a single size for every layer.
+     */
+    if (params->cascade > 0)
+        size = max(size >> params->cascade, SHADOW_CASCADE_MIN);
 
-        vec3_scale(vs_left, vs_left, 1.0f / vs_left[3]);
-        vec3_scale(vs_right, vs_right, 1.0f / vs_right[3]);
-
-        float vs_span = fabsf(vs_right[0] - vs_left[0]) / cos(M_PI_4);
-        float width = (float)*pwidth / display_get_scale();
-        float texel_size = vs_span / width;
-        side = (int)((params->cascade > 0 ? 0.5 : 1.0f) / texel_size);
-    }
-
-    if (*pwidth == *pheight && !(*pwidth & (*pwidth - 1)))
-        return true;
-
-    int order = fls(side);
-
-    *pwidth = *pheight = clamp(1 << order, DEFAULT_SHADOW_SIZE,
-        renderer_query_limits(params->renderer, RENDER_LIMIT_MAX_TEXTURE_SIZE)
-    );
+    *pwidth = *pheight = size;
 
     return true;
 }
