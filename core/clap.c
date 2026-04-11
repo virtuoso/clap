@@ -918,6 +918,7 @@ static cerr handle_help_opt(clap_context *ctx, const char *optarg)
 
         char help[256];
         declare_sv(help);
+        sv_reset(&sv(help)); // XXX: fix str.h: the reset here should not be needed
 
         if (desc->short_name)
             sv_append(&sv(help), "%s-%c", HELP_OPT_PFX, desc->short_name);
