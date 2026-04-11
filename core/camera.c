@@ -173,22 +173,36 @@ static inline void debug_draw_camera(struct scene *scene, struct camera *c) {}
 
 static void camera_target(struct camera *c, entity3d *entity)
 {
-    double height;
+    float height;
 
     if (entity->priv) {
         /* for characters, assume origin is between their feet */
         transform_pos(&entity->xform, c->target);
-        /* look at three quarters their height (XXX: parameterize) */
-        height = entity3d_aabb_Y(entity) * 3 / 4;
-        c->target[1] += height;
+        height = entity3d_aabb_Y(entity);
+
+        /*
+         * If the character's skeleton exposes a head joint, aim
+         * slightly above it so the camera frames the face rather
+         * than the chest. XXX: This needs to be calculated and/or
+         * parameterized.
+         * Without a head joint we fall back to
+         * three-quarter height above the feet (XXX: parameterize).
+         */
+        cres(int) jres = model3d_get_joint(entity->txmodel->model, JOINT_HEAD);
+        if (IS_CERR(jres)) {
+            c->target[1] += height * 0.75f;
+        } else {
+            struct joint *j = &entity->joints[jres.val];
+            vec3_add(c->target, j->pos, (vec3){ 0.0f, height * 0.2f, 0.0f });
+        }
     } else {
         /* otherwise, origin can't be trusted at all; look at dead center */
         vec3_dup(c->target, entity->aabb_center);
-        height = entity3d_aabb_Y(entity) / 2;
+        height = entity3d_aabb_Y(entity) / 2.0f;
     }
 
-    float dist_cap = fmaxf(10.0, entity3d_aabb_avg_edge(entity));
-    c->dist = fminf(height * 3, fminf(dist_cap, c->view.main.far_plane - 10.0));
+    float dist_cap = fmaxf(10.0f, entity3d_aabb_avg_edge(entity));
+    c->dist = fminf(height * 3.0f, fminf(dist_cap, c->view.main.far_plane - 10.0f));
 }
 
 void camera_update(struct camera *c, struct scene *scene)
