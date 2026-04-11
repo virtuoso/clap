@@ -858,7 +858,7 @@ static const struct clap_cli_options_desc {
     const char      *help;
     const char      *arg_help;
     const char      *long_name;
-    char            short_name;
+    int             short_name;
     bool            arg_required;
     cli_opt_type    type;
     size_t          ctx_offset;
@@ -949,15 +949,18 @@ static cerr clap_cli_opts_process(clap_context *ctx)
         if (!(ctx->cfg.cli_opts & (1u << i)))   continue;
 
         auto desc = &clap_cli_options_desc[i];
+        int val = desc->short_name ? desc->short_name : (256 + i);
         long_options[lopts_idx++] = (struct option) {
             desc->long_name,
             desc->arg_required ? required_argument : no_argument,
             NULL,
-            desc->short_name
+            val
         };
 
-        short_options[sopts_idx++] = desc->short_name;
-        if (desc->arg_required) short_options[sopts_idx++] = ':';
+        if (desc->short_name) {
+            short_options[sopts_idx++] = desc->short_name;
+            if (desc->arg_required) short_options[sopts_idx++] = ':';
+        }
     }
 
     long_options[lopts_idx] = (struct option) {};
@@ -974,7 +977,8 @@ next:
 
         for (size_t i = 0; i < array_size(clap_cli_options_desc); i++) {
             auto desc = &clap_cli_options_desc[i];
-            if (c != desc->short_name)  continue;
+            int val = desc->short_name ? desc->short_name : (256 + (int)i);
+            if (c != val)  continue;
 
             if (desc->handle) {
                 CERR_RET_CERR(desc->handle(ctx, desc->arg_required ? optarg : nullptr));
