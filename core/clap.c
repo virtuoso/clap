@@ -557,6 +557,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     imgui_render_begin(width, height);
     fuzzer_input_step(ctx);
+    input_motion_step(ctx);
     input_events_dispatch();
 
     PROF_FIRST(start);
@@ -840,6 +841,19 @@ static cerr handle_server_opt(clap_context *ctx, const char *optarg)
 
 static cerr handle_help_opt(clap_context *ctx, const char *optarg);
 
+static cerr handle_run_to_opt(clap_context *ctx, const char *optarg)
+{
+    return input_motion_set_run_to(optarg);
+}
+
+static cerr handle_run_circle_opt(clap_context *ctx, const char *optarg)
+{
+    float radius = strtof(optarg, NULL);
+    if (radius == 0.0f)
+        return CERR_INVALID_ARGUMENTS_REASON(.fmt = "run-circle radius must be nonzero");
+    return input_motion_set_run_circle(radius);
+}
+
 const char *clap_get_argv(clap_context *ctx, int idx)
 {
     if (ctx->argc <= idx)   return NULL;
@@ -902,6 +916,20 @@ static const struct clap_cli_options_desc {
         .arg_required   = true,
         .type           = CLI_STR,
         .handle         = handle_server_opt
+    },
+    [CLAP_CLI_RUN_TO_BIT] = {
+        .long_name      = "run-to",
+        .help           = "run in a cardinal direction (n,s,e,w,ne,nw,se,sw)",
+        .arg_help       = "cardinal",
+        .arg_required   = true,
+        .handle         = handle_run_to_opt
+    },
+    [CLAP_CLI_RUN_CIRCLE_BIT] = {
+        .long_name      = "run-circle",
+        .help           = "run in a circle (negative radius = counterclockwise)",
+        .arg_help       = "radius",
+        .arg_required   = true,
+        .handle         = handle_run_circle_opt
     },
 };
 
