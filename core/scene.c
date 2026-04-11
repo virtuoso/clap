@@ -549,6 +549,40 @@ static void model_tabs(model3dtx *txm)
     if (igBeginTabItem("material", NULL, 0)) {
         ui_igControlTableHeader("material", "roughness");
         material *mat = &txm->mat;
+
+        ui_igLabel("normals");
+        igTableNextColumn();
+        igText("noise:");
+        igSameLine(0.0, 0.0);
+        igPushID_Str("nono");
+        igRadioButton_IntPtr("off", &mat->use_noise_normals, NOISE_NORMALS_NONE);
+        igSameLine(0.0, 0.0);
+        igRadioButton_IntPtr("GPU", &mat->use_noise_normals, NOISE_NORMALS_GPU);
+        igSameLine(0.0, 0.0);
+        igRadioButton_IntPtr("3D", &mat->use_noise_normals, NOISE_NORMALS_3D);
+
+        if (mat->use_noise_normals) {
+            ui_igSliderFloat("-> scale", &mat->noise_normals_scale, 0.01, 5.0, "%.04f", 0);
+            ui_igSliderFloat("-> amp", &mat->noise_normals_amp, 0.1, 1.0, "%.04f", 0);
+        }
+        igPopID();
+
+        ui_igCheckbox("use 3D fog", &mat->use_3d_fog);
+        if (mat->use_3d_fog) {
+            igPushID_Str("fog");
+            ui_igSliderFloat("-> scale", &mat->fog_3d_scale, 0.0, 1.0, "%.06f", 0);
+            ui_igSliderFloat("-> amp", &mat->fog_3d_amp, 0.0, 2.0, "%.06f", 0);
+            igPopID();
+        }
+
+        ui_igCheckbox("noise emission", &mat->use_noise_emission);
+        if (mat->use_noise_emission)
+            ui_igColorEdit3("color", mat->noise_emission_color,
+                ImGuiColorEditFlags_NoInputs |
+                ImGuiColorEditFlags_NoLabel  |
+                ImGuiColorEditFlags_NoTooltip
+            );
+
         bool noisy_roughness = mat->roughness_oct > 0;
         if (ui_igCheckbox("noisy roughness", &noisy_roughness))
             mat->roughness_oct = noisy_roughness ? 1 : 0;
