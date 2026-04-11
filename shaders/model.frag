@@ -81,7 +81,22 @@ void main()
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
 
-    vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, uv).rgb : texture_sample.rgb;
+    vec3 emission;
+    if (use_noise_emission) {
+        /*
+         * Tangential fBm-gradient glow: sample the baked 3D noise at a
+         * jittered local-space position, take the component tangential
+         * to the surface normal and map its magnitude to a cyan glow.
+         */
+        vec4 local_pos = inverse_trs * world_pos;
+        float ln = noise(local_pos.xyz);
+        vec3 grad = sample_noise3d(noise3d, local_pos.xyz * ln, noise_normals_scale);
+        vec3 t = grad - unit_normal * dot(normalize(grad), unit_normal);
+        float fac = clamp(length(t), 0.0, 1.0);
+        emission = noise_emission_color * min(pow(fac, 0.3), 1.0);
+    } else {
+        emission = bloom_intensity > 0.0 ? texture(emission_map, uv).rgb : texture_sample.rgb;
+    }
     emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
 
     /* EmissiveColor.a encodes outline properties */

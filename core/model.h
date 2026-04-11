@@ -185,6 +185,8 @@ typedef struct material {
     bool    use_3d_fog;
     float   fog_3d_amp;
     float   fog_3d_scale;
+    /* In case of noise emission*/
+    vec3    noise_emission_color;
 } material;
 
 typedef struct model3dtx {

@@ -115,6 +115,7 @@
                 { "name": "noise_normals_amp", "type": "DT_FLOAT", "symbol": "UNIFORM_NOISE_NORMALS_AMP", "discription": "tilt amplitude for procedural normal perturbation" },
                 { "name": "noise_normals_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_NOISE_NORMALS_SCALE", "discription": "sampling frequency for procedural normal perturbation" },
                 { "name": "use_noise_emission", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_NOISE_EMISSION", "discription": "modulate the emission map with 3D noise" },
+                { "name": "noise_emission_color", "type": "DT_VEC3", "symbol": "UNIFORM_NOISE_EMISSION_COLOR", "discription": "color of the noise-generated emission map" },
                 { "name": "use_3d_fog", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_3D_FOG", "discription": "apply volumetric 3D fog to the lit result" },
                 { "name": "fog_3d_amp", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_3D_AMP", "discription": "3D fog density amplitude" },
                 { "name": "fog_3d_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_3D_SCALE", "discription": "3D fog sampling frequency" }
