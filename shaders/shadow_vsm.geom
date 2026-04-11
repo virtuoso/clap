@@ -12,9 +12,15 @@ void main()
     if (gl_InvocationID >= nr_cascades) return;
 
     for (int i = 0; i < gl_in.length(); i++) {
+#ifdef SHADER_SHADOW_MAP_ARRAY
         gl_Position = shadow_mvp[gl_InvocationID] * gl_in[i].gl_Position;
         gl_Layer = gl_InvocationID;
+#else /* !SHADER_SHADOW_MAP_ARRAY */
+        gl_Position = gl_in[i].gl_Position;
+        gl_Layer = 0;
+#endif /* !SHADER_SHADOW_MAP_ARRAY */
         EmitVertex();
     }
+
     EndPrimitive();
 }
