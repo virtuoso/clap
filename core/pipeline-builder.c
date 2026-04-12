@@ -27,7 +27,7 @@ static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, 
         mat4x4_invert(inv_pv, pv);
 
         vec4 vs_left, vs_right;
-        float ndc_z = IS_DEFINED(CONFIG_NDC_ZERO_ONE) ? 0.0f : -1.0f;
+        float ndc_z = renderer_get_caps(params->renderer)->ndc_z_zero_one ? 0.0f : -1.0f;
         mat4x4_mul_vec4_post(vs_left, inv_pv, (vec4) { -1.0, 0.0, ndc_z, 1.0 });
         mat4x4_mul_vec4_post(vs_right, inv_pv, (vec4) { 1.0, 0.0, ndc_z, 1.0 });
 

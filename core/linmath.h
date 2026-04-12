@@ -774,22 +774,6 @@ LINMATH_H_FUNC void mat4x4_perspective_ndc_z_1(mat4x4 m, float y_fov, float aspe
 	m[3][2] = -((f * n) / (f - n));
 	m[3][3] = 0.f;
 }
-LINMATH_H_FUNC void mat4x4_ortho(mat4x4 M, float l, float r, float b, float t, float n, float f)
-{
-#ifdef CONFIG_NDC_ZERO_ONE
-	mat4x4_ortho_ndc_z_1(M, l, r, b, t, n, f);
-#else /* !CONFIG_NDC_ZERO_ONE */
-	mat4x4_ortho_ndc_z_2(M, l, r, b, t, n, f);
-#endif /* !CONFIG_NDC_ZERO_ONE */
-}
-LINMATH_H_FUNC void mat4x4_perspective(mat4x4 m, float y_fov, float aspect, float n, float f)
-{
-#ifdef CONFIG_NDC_ZERO_ONE
-	mat4x4_perspective_ndc_z_1(m, y_fov, aspect, n, f);
-#else /* !CONFIG_NDC_ZERO_ONE */
-	mat4x4_perspective_ndc_z_2(m, y_fov, aspect, n, f);
-#endif /* !CONFIG_NDC_ZERO_ONE */
-}
 LINMATH_H_FUNC void mat4x4_look_at(mat4x4 m, vec3 eye, vec3 center, vec3 up)
 {
 	/* Adapted from Android's OpenGL Matrix.java.                        */

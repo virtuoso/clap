@@ -28,10 +28,11 @@ struct view {
 };
 
 typedef struct entity3d entity3d;
-void view_update_perspective_projection(struct view *view, int width, int height, float zoom);
-void view_update_from_angles(struct view *view, transform_t *xform);
-void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse);
-void view_calc_frustum(struct view *view);
+typedef struct clap_context clap_context;
+void view_update_perspective_projection(clap_context *clap_ctx, struct view *view, int width, int height, float zoom);
+void view_update_from_angles(clap_context *clap_ctx, struct view *view, transform_t *xform);
+void view_update_from_frustum(clap_context *clap_ctx, struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse);
+void view_calc_frustum(clap_context *clap_ctx, struct view *view);
 bool view_entity_in_frustum(struct view *view, entity3d *e);
 
 #endif /* __CLAP_VIEW_H__ */

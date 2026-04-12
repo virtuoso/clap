@@ -154,7 +154,7 @@ int ui_element_update(entity3d *e, void *data)
         return 0;
 
     mat4x4_identity(p);
-    mat4x4_ortho(p, 0, (float)ui->width, 0, (float)ui->height, 1.0, -1.0);
+    renderer_mat4x4_ortho(ui->renderer, p, 0, (float)ui->width, 0, (float)ui->height, 1.0, -1.0);
     mat4x4_mul(e->mx, p, e->mx);
 
     return 0;

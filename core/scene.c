@@ -892,13 +892,13 @@ static void scene_camera_calc(struct scene *s, int camera)
     clap_get_viewport(s->clap_ctx, NULL, NULL, &width, &height);
 
     struct camera *cam = &s->cameras[camera];
-    view_update_perspective_projection(&cam->view, width, height,
+    view_update_perspective_projection(s->clap_ctx, &cam->view, width, height,
                                        cam->zoom ? 0.5 : 1.0);
 
     camera_update(s->camera, s);
 
-    view_update_from_angles(&cam->view, &cam->xform);
-    view_calc_frustum(&cam->view);
+    view_update_from_angles(s->clap_ctx, &cam->view, &cam->xform);
+    view_calc_frustum(s->clap_ctx, &cam->view);
 
     entity3d *env = cam->bv;
     cam->bv = NULL;
@@ -923,8 +923,8 @@ static void scene_camera_calc(struct scene *s, int camera)
     }
     /* only the first light source get to cast shadows for now */
     bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
-    view_update_from_frustum(&s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, !shadow_vsm);
-    view_calc_frustum(&s->light.view[0]);
+    view_update_from_frustum(s->clap_ctx, &s->light.view[0], &cam->view, &s->light.dir[0 * 3], near_backup, !shadow_vsm);
+    view_calc_frustum(s->clap_ctx, &s->light.view[0]);
 }
 
 void scene_cameras_calc(struct scene *s)
@@ -1576,7 +1576,7 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
     bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
     vec3 center = {};
     vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
-    view_update_from_frustum(&s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
+    view_update_from_frustum(s->clap_ctx, &s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
 
     return CERR_OK;
 }

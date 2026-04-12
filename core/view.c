@@ -6,9 +6,9 @@
 
 static float far_factor = 1.0;
 
-static void subview_calc_frustum(struct subview *subview);
+static void subview_calc_frustum(struct subview *subview, renderer_t *r);
 
-static void view_update_perspective_subviews(struct view *view)
+static void view_update_perspective_subviews(struct view *view, renderer_t *r)
 {
     static const float dividers[CASCADES_MAX - 1] = { 25, 70, 150 };
     int max = array_size(view->subview);
@@ -30,9 +30,9 @@ static void view_update_perspective_subviews(struct view *view)
 
         mat4x4_dup(sv->view_mx, view->main.view_mx);
         mat4x4_dup(sv->inv_view_mx, view->main.inv_view_mx);
-        mat4x4_perspective(sv->proj_mx, view->fov, view->aspect, sv->near_plane, sv->far_plane);
+        renderer_mat4x4_perspective(r, sv->proj_mx, view->fov, view->aspect, sv->near_plane, sv->far_plane);
         mat4x4_invert(sv->inv_proj_mx, sv->proj_mx);
-        subview_calc_frustum(sv);
+        subview_calc_frustum(sv, r);
     }
 }
 
@@ -126,7 +126,7 @@ static inline void view_frustum_debug(struct view *src, int idx) {}
 static inline void view_debug_end(void) {}
 #endif /* CONFIG_FINAL */
 
-static void subview_projection_update(struct subview *dst, struct subview *src, float near_backup, bool z_reverse)
+static void subview_projection_update(struct subview *dst, struct subview *src, float near_backup, bool z_reverse, renderer_t *r)
 {
     vec3 aabb[2];
     vertex_array_xlate_aabb_calc(aabb, (float *)src->frustum_corners, sizeof(src->frustum_corners),
@@ -135,31 +135,31 @@ static void subview_projection_update(struct subview *dst, struct subview *src, 
     dst->near_plane = 0.1;
     dst->far_plane = -aabb[0][2] * far_factor;
     if (z_reverse)
-        mat4x4_ortho(dst->proj_mx, aabb[0][0], aabb[1][0], aabb[0][1], aabb[1][1],
-                     dst->far_plane, dst->near_plane);
+        renderer_mat4x4_ortho(r, dst->proj_mx, aabb[0][0], aabb[1][0], aabb[0][1], aabb[1][1],
+                              dst->far_plane, dst->near_plane);
     else
-        mat4x4_ortho(dst->proj_mx, aabb[0][0], aabb[1][0], aabb[0][1], aabb[1][1],
-                     dst->near_plane, dst->far_plane);
+        renderer_mat4x4_ortho(r, dst->proj_mx, aabb[0][0], aabb[1][0], aabb[0][1], aabb[1][1],
+                              dst->near_plane, dst->far_plane);
 
     mat4x4_invert(dst->inv_proj_mx, dst->proj_mx);
-    subview_calc_frustum(dst);
+    subview_calc_frustum(dst, r);
 
     subview_debug(dst, src, aabb[0], aabb[1]);
 }
 
-static void view_projection_update(struct view *view, struct view *src, float near_backup, bool z_reverse)
+static void view_projection_update(struct view *view, struct view *src, float near_backup, bool z_reverse, clap_context *clap_ctx)
 {
     int v;
 
     view_debug_begin(near_backup);
     for (v = 0; v < array_size(view->subview); v++) {
         view_frustum_debug(src, v);
-        subview_projection_update(&view->subview[v], &src->subview[v], near_backup, z_reverse);
+        subview_projection_update(&view->subview[v], &src->subview[v], near_backup, z_reverse, clap_get_renderer(clap_ctx));
     }
 
     view_debug_end();
 
-    view_calc_frustum(view);
+    view_calc_frustum(clap_ctx, view);
 }
 
 static void subview_update_from_angles(struct subview *sv, transform_t *xform)
@@ -168,14 +168,14 @@ static void subview_update_from_angles(struct subview *sv, transform_t *xform)
     mat4x4_invert(sv->inv_view_mx, sv->view_mx);
 }
 
-void view_update_from_angles(struct view *view, transform_t *xform)
+void view_update_from_angles(clap_context *clap_ctx, struct view *view, transform_t *xform)
 {
     /* XXX: do the main subview first and just mat4x4_dup() them into subviews */
     subview_update_from_angles(&view->main, xform);
-    view_update_perspective_subviews(view);
+    view_update_perspective_subviews(view, clap_get_renderer(clap_ctx));
 }
 
-void view_update_perspective_projection(struct view *view, int width, int height, float zoom)
+void view_update_perspective_projection(clap_context *clap_ctx, struct view *view, int width, int height, float zoom)
 {
     if (!view->proj_update)
         return;
@@ -187,8 +187,8 @@ void view_update_perspective_projection(struct view *view, int width, int height
      *       necessarily a problem, as those only matter for the light frusta
      *       calculations, and we don't actually want shadows to change
      */
-    mat4x4_perspective(view->main.proj_mx, view->fov * zoom, view->aspect,
-                       view->main.near_plane, view->main.far_plane);
+    renderer_mat4x4_perspective(clap_get_renderer(clap_ctx), view->main.proj_mx, view->fov * zoom, view->aspect,
+                                view->main.near_plane, view->main.far_plane);
     mat4x4_invert(view->main.inv_proj_mx, view->main.proj_mx);
 }
 
@@ -237,33 +237,34 @@ static void view_update_from_target(struct view *view, struct view *src, vec3 ta
     subview_update_from_target(&view->main, &src->main, target, near_backup);
 }
 
-void view_update_from_frustum(struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse)
+void view_update_from_frustum(clap_context *clap_ctx, struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse)
 {
     vec3 target = { -dir[0], -dir[1], -dir[2] };
 
     view_update_from_target(view, src, target, near_backup);
-    view_projection_update(view, src, near_backup, z_reverse);
+    view_projection_update(view, src, near_backup, z_reverse, clap_ctx);
 }
 
-static void subview_calc_frustum(struct subview *subview)
+static void subview_calc_frustum(struct subview *subview, renderer_t *r)
 {
     /* They're not really MVPs, since there's no M matrices involved */
     mat4x4 mvp, trans, invmvp;
-#ifdef CONFIG_NDC_ZERO_ONE
-    vec4 corners[] = {
-        { -1, -1, 0, 1 }, { 1, -1, 0, 1 },
-        { 1, 1, 0, 1 }, { -1, 1, 0, 1 },
-        { -1, -1, 1, 1 }, { 1, -1, 1, 1 },
-        { 1, 1, 1, 1 }, { -1, 1, 1, 1 }
+    vec4 corners[2][8] = {
+        {
+            { -1, -1, 0, 1 }, { 1, -1, 0, 1 },
+            { 1, 1, 0, 1 }, { -1, 1, 0, 1 },
+            { -1, -1, 1, 1 }, { 1, -1, 1, 1 },
+            { 1, 1, 1, 1 }, { -1, 1, 1, 1 }
+        },
+        {
+            { -1, -1, -1, 1 }, { 1, -1, -1, 1 },
+            { 1, 1, -1, 1 }, { -1, 1, -1, 1 },
+            { -1, -1, 1, 1 }, { 1, -1, 1, 1 },
+            { 1, 1, 1, 1 }, { -1, 1, 1, 1 }
+        }
     };
-#else
-    vec4 corners[] = {
-        { -1, -1, -1, 1 }, { 1, -1, -1, 1 },
-        { 1, 1, -1, 1 }, { -1, 1, -1, 1 },
-        { -1, -1, 1, 1 }, { 1, -1, 1, 1 },
-        { 1, 1, 1, 1 }, { -1, 1, 1, 1 }
-    };
-#endif /* !CONFIG_NDC_ZERO_ONE */
+
+    int ndc_z = renderer_get_caps(r)->ndc_z_zero_one ? 0 : 1;
     int i = 0;
 
     mat4x4_mul(mvp, subview->proj_mx, subview->view_mx);
@@ -282,14 +283,14 @@ static void subview_calc_frustum(struct subview *subview)
     for (i = 0; i < 8; i++) {
         vec4 q;
 
-        mat4x4_mul_vec4_post(q, invmvp, corners[i]);
+        mat4x4_mul_vec4_post(q, invmvp, corners[ndc_z][i]);
         vec4_scale(subview->frustum_corners[i], q, 1.f / q[3]);
     }
 }
 
-void view_calc_frustum(struct view *view)
+void view_calc_frustum(clap_context *clap_ctx, struct view *view)
 {
-    return subview_calc_frustum(&view->main);
+    return subview_calc_frustum(&view->main, clap_get_renderer(clap_ctx));
 }
 
 bool view_entity_in_frustum(struct view *view, entity3d *e)

@@ -253,11 +253,12 @@ ui_ig_end:
             }
             double aspect = (double)height / width;
             ImTextureRef *tex_ref = ImTextureRef_ImTextureRef_TextureID((ImTextureID)texture_id(pass_tex));
-#ifdef CONFIG_ORIGIN_TOP_LEFT
-            igImage(*tex_ref, (ImVec2){avail.x, avail.x * aspect}, (ImVec2){0,0}, (ImVec2){1,1});
-#else
-            igImage(*tex_ref, (ImVec2){avail.x, avail.x * aspect}, (ImVec2){0,1}, (ImVec2){1,0});
-#endif /* !CONFIG_ORIGIN_TOP_LEFT */
+
+            if (renderer_get_caps(pl->renderer)->origin_top_left)
+                igImage(*tex_ref, (ImVec2){avail.x, avail.x * aspect}, (ImVec2){0,0}, (ImVec2){1,1});
+            else
+                igImage(*tex_ref, (ImVec2){avail.x, avail.x * aspect}, (ImVec2){0,1}, (ImVec2){1,0});
+
             ImTextureRef_destroy(tex_ref);
             igEnd();
         } else {
