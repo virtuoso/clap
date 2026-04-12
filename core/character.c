@@ -175,15 +175,55 @@ static void character_debug(struct character *ch)
 static inline void character_debug(struct character *ch) {}
 #endif /* CONFIG_FINAL */
 
-static void character_apply_velocity(struct character *ch)
+static void character_apply_velocity(struct character *ch, struct scene *s)
 {
     entity3d *e = ch->entity;
 
-    if (e->phys_body)
-        phys_body_set_motor_velocity(e->phys_body, true, ch->velocity);
-    else
+    if (!e->phys_body) {
         transform_move(&e->xform, ch->velocity);
+        goto rotate;
+    }
 
+    /*
+     * Kinematic sweep-and-slide: compute per-frame delta from velocity,
+     * then iteratively sweep the capsule and slide along contact surfaces.
+     */
+    double dt_sec = clap_get_fps_delta(s->clap_ctx).tv_nsec / (double)NSEC_PER_SEC;
+    if (dt_sec < 1e-6)
+        goto rotate;
+
+    vec3 delta;
+    vec3_scale(delta, ch->velocity, dt_sec);
+
+    for (int iter = 0; iter < 3; iter++) {
+        if (vec3_len(delta) < 1e-6f)
+            break;
+
+        vec3 normal;
+        entity3d *hit = NULL;
+        float frac = phys_body_sweep_capsule(e->phys_body, delta, normal, &hit);
+
+        if (frac > 0) {
+            vec3 step;
+            vec3_scale(step, delta, frac);
+            phys_body_move(e->phys_body, step);
+        }
+
+        if (frac >= 1.0f)
+            break;
+
+        /* Project remaining delta onto the contact plane */
+        vec3 remaining;
+        vec3_scale(remaining, delta, 1.0f - frac);
+        float dot = vec3_mul_inner(remaining, normal);
+        vec3_scale(delta, normal, dot);
+        vec3_sub(delta, remaining, delta);
+    }
+
+    /* Zero body velocity so ODE dynamics don't fight the sweep */
+    phys_body_set_velocity(e->phys_body, (vec3){ 0, 0, 0 });
+
+rotate:
     entity3d_rotate(ch->entity, 0, atan2f(ch->motion[0], ch->motion[2]), 0);
 }
 
@@ -228,7 +268,7 @@ fail_fallback:
 
         case CS_MOVING:
             /* velocity vector may have changed, always apply it */
-            character_apply_velocity(ch);
+            character_apply_velocity(ch, s);
             character_set_moved(ch);
 
             if (ch->state == CS_IDLE) {

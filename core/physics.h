@@ -262,6 +262,17 @@ void phys_body_attach_motor(struct phys_body *body, bool attach);
 void phys_body_set_position(struct phys_body *body, const vec3 pos);
 
 /**
+ * phys_body_move() - move body by a delta vector
+ * @body:   phys_body object
+ * @delta:  movement vector to add to current position
+ *
+ * Move phys_body's body or geometry by @delta relative to its current
+ * position. Unlike phys_body_set_position(), this bypasses the update
+ * guard and always applies the movement.
+ */
+void phys_body_move(struct phys_body *body, const vec3 delta);
+
+/**
  * phys_body_rotate_mat3x3() - set body's rotation from 3x3 rotation matrix
  * @body:   phys_body object
  * @rot:    3x3 rotation matrix

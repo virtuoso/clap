@@ -222,6 +222,21 @@ void phys_body_set_position(struct phys_body *body, const vec3 pos)
         dGeomSetPosition(body->geom, pos[0], pos[1] + body->yoffset, pos[2]);
 }
 
+void phys_body_move(struct phys_body *body, const vec3 delta)
+{
+    const dReal *pos;
+
+    if (phys_body_has_body(body)) {
+        pos = dBodyGetPosition(body->body);
+        dBodySetPosition(body->body, pos[0] + delta[0],
+                         pos[1] + delta[1], pos[2] + delta[2]);
+    } else {
+        pos = dGeomGetPosition(body->geom);
+        dGeomSetPosition(body->geom, pos[0] + delta[0],
+                         pos[1] + delta[1], pos[2] + delta[2]);
+    }
+}
+
 void phys_body_enable(struct phys_body *body, bool enable)
 {
     if (!phys_body_has_body(body))
@@ -254,6 +269,9 @@ void phys_body_set_velocity(struct phys_body *body, vec3 vel)
 
 void phys_body_attach_motor(struct phys_body *body, bool attach)
 {
+    if (!body->lmotor)
+        return;
+
     dJointAttach(body->lmotor, attach ? body->body : NULL, NULL);
 }
 
@@ -261,6 +279,12 @@ void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, vec3 v
 {
     if (!phys_body_has_body(body))
         return;
+
+    if (!body->lmotor) {
+        if (body_also)
+            phys_body_set_velocity(body, vel);
+        return;
+    }
 
     if (!dJointGetBody(body->lmotor, 0))
         phys_body_attach_motor(body, true);
@@ -374,6 +398,10 @@ static void entity_pen_push(entity3d *e, dContact *contact, struct list *pen)
     vec3 norm = { contact->geom.normal[0], contact->geom.normal[1], contact->geom.normal[2] };
 
     if (!e->phys_body)
+        return;
+
+    /* Kinematic bodies are positioned by the character controller */
+    if (dBodyIsKinematic(e->phys_body->body))
         return;
 
     e->phys_body->pen_depth += contact->geom.depth;
@@ -998,22 +1026,13 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
 
     if (has_body && entity->priv) {
         /*
-         * Characters need a linear motor for movement control.
-         * Non-character bodies participate in dynamics freely.
-         * Entity flags (ENTITY3D_IS_CHARACTER) will replace e->priv here.
+         * Characters use kinematic movement (sweep-and-slide).
+         * The body is set to kinematic so ODE's dynamics solver
+         * doesn't move it -- only the character controller does.
+         * Contact joints with dynamic bodies still push those
+         * bodies, but the character itself is immune to forces.
          */
-        body->lmotor = dJointCreateLMotor(phys->world, 0);
-        dJointSetLMotorNumAxes(body->lmotor, 3);
-        dJointSetLMotorAxis(body->lmotor, 0, 0, 1, 0, 0);
-        dJointSetLMotorAxis(body->lmotor, 1, 0, 0, 1, 0);
-        dJointSetLMotorAxis(body->lmotor, 2, 0, 0, 0, 1);
-
-        /* lmotor's force constraint: fmax = mass * accel */
-        dReal fmax = body->mass.mass * /* max speed */10.0 / /* acceleration time*/0.1;
-        dJointSetLMotorParam(body->lmotor, dParamFMax1, fmax);
-        dJointSetLMotorParam(body->lmotor, dParamFMax2, fmax);
-        dJointSetLMotorParam(body->lmotor, dParamFMax3, fmax);
-        phys_body_attach_motor(body, true);
+        dBodySetKinematic(body->body);
     }
 
     return body;
