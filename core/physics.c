@@ -306,26 +306,6 @@ void phys_body_stop(struct phys_body *body)
     dBodySetLinearDampingThreshold(body->body, 0.001);
 }
 
-static void phys_body_stick(struct phys_body *body, dContact *contact)
-{
-    entity3d *e = phys_body_entity(body);
-    struct phys *phys = body->phys;
-    struct character *c = e->priv;
-    dJointID j;
-
-    /* should also warn */
-    if (!phys_body_has_body(body))
-        return;
-
-    if (c) {
-        c->normal[0] = contact->geom.normal[0];
-        c->normal[1] = contact->geom.normal[1];
-        c->normal[2] = contact->geom.normal[2];
-    }
-
-    j = dJointCreateContact(phys->world, phys->contact, contact);
-    dJointAttach(j, body->body, NULL);
-}
 
 /*
  * Set contact surface parameters from per-body contact params.
@@ -643,111 +623,41 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
     dReal epsilon = 1e-3;
     dReal ray_len = body->yoffset - body->ray_off + epsilon;
     struct character *ch = e->priv;
-    struct contact c = {};
-    const dReal *pos;
-    bool ret = false;
 
     if (!phys_body_has_body(body))
         return true;
 
-    phys_contact_surface(NULL, NULL, c.contact, array_size(c.contact));
     ch->collision = NULL;
 
-    /*
-     * Check if our capsule intersects with anything
-     */
-    dSpaceCollide2(body->geom, (dGeomID)phys->ground_space, &c, got_contact);
-    int i;
-    for (i = 0; i < c.nc; i++) {
-        dVector3 up = { 0, 1, 0 };
-        dReal upness = dDot(c.contact[i].geom.normal, up, 3);
-
-        entity_and_other_by_class(&c.contact[i].geom, dCapsuleClass,
-                                  NULL, &ch->collision);
-        /*
-         * if the bottom of the capsule collides (almost) vertically,
-         * our legs are under the ground, shouldn't happen, but if it
-         * does, correct the height; if the angle with the normal is
-         * greater than that, we ran into an obstacle, either way,
-         * stop the body
-         */
-        if (upness > 0.95) {
-            entity3d_move(e, (vec3){ 0, ray_len + c.contact->geom.depth, 0 });
-            ret = true;
-        }
-
-        phys_body_stop(body);
-        break;
-    }
-
-    pos = dGeomGetPosition(body->geom);
-
-    /*
-     * Cast a longer ray than the capsule offset to correct for the motion
-     * resulting in character leaving the ground, which is the side effect
-     * of the velocity vector pointing in the correct direction, but the
-     * terrain being uneven and the character ending up airborne.
-     *
-     * ray_len * 2 might not be enough, but works well for the moment.
-     */
+    const dReal *pos = dGeomGetPosition(body->geom);
     dContact contact;
     double dist = ray_len * 2;
-    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0], pos[1] - body->ray_off, pos[2] },
+
+    /*
+     * Single downward ray from capsule bottom.  The ray length covers
+     * twice the expected leg distance so we can detect both "sinking
+     * into ground" and "slightly floating above ground" cases.
+     */
+    ch->collision = __phys_ray_cast(phys, e,
+                                    (vec3){ pos[0], pos[1] - body->ray_off, pos[2] },
                                     (vec3){ 0, -1, 0 }, &dist, &contact);
-    if (ch->collision)
-        goto got_it;
-
-    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0] + body->radius, pos[1] - body->ray_off, pos[2] },
-                                    (vec3){ 0, -1, 0 }, &dist, &contact);
-    if (ch->collision)
-        goto got_it;
-
-    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0] - body->radius, pos[1] - body->ray_off, pos[2] },
-                                    (vec3){ 0, -1, 0 }, &dist, &contact);
-    if (ch->collision)
-        goto got_it;
-
-    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0], pos[1] - body->ray_off, pos[2] + body->radius },
-                                    (vec3){ 0, -1, 0 }, &dist, &contact);
-    if (ch->collision)
-        goto got_it;
-
-    ch->collision = __phys_ray_cast(phys, e, (vec3){ pos[0], pos[1] - body->ray_off, pos[2] - body->radius},
-                                    (vec3){ 0, -1, 0 }, &dist, &contact);
-    if (ch->collision)
-        goto got_it;
-
-    return ret;
-
-got_it:
-    if (grounded && (dist > ray_len)) {
-        /*
-         * correct for temporary raising above ground due to uneven
-         * terrain / stairs: move down
-         */
-        goto move;
-    } else if (dist < ray_len) {
-        /*
-         * correct for temporarily going below ground due to dynamics
-         * being faster than the frame rate: move up
-         */
-        goto move;
-    } else if (dist > ray_len) {
-        /*
-         * above ground, airborne, do nothing
-         */
+    if (!ch->collision)
         return false;
-    } else {
-        /*
-         * on the ground, stick, don't correct height
-         */
-        goto stick;
-    }
 
-move:
-    entity3d_move(e, (vec3){ 0, ray_len - dist, 0 });
-stick:
-    phys_body_stick(body, &contact);
+    ch->normal[0] = contact.geom.normal[0];
+    ch->normal[1] = contact.geom.normal[1];
+    ch->normal[2] = contact.geom.normal[2];
+
+    if (grounded && (dist > ray_len)) {
+        /* Was grounded, slightly above ground (uneven terrain): move down */
+        phys_body_move(body, (vec3){ 0, -(dist - ray_len), 0 });
+    } else if (dist < ray_len) {
+        /* Sinking into ground: move up */
+        phys_body_move(body, (vec3){ 0, ray_len - dist, 0 });
+    } else if (dist > ray_len) {
+        /* Above ground and wasn't grounded: airborne */
+        return false;
+    }
 
     return true;
 }
