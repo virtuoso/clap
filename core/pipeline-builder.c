@@ -273,6 +273,9 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(
             shadow_pass[i], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
         );
+        unsigned int sw, sh;
+        texture_get_dimesnions(opts->pl_opts->light->shadow[0][i], &sw, &sh);
+        opts->pl_opts->light->view[0].subview[i].shadow_resolution = sw;
     }
 #else
     shadow_pass[0] = CRES_RET_T(

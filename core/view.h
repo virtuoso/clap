@@ -16,6 +16,7 @@ struct view {
         vec4                frustum_corners[8];
         float               near_plane;
         float               far_plane;
+        int                 shadow_resolution;
     } main;
     struct subview          subview[CASCADES_MAX];
 #ifndef CONFIG_FINAL

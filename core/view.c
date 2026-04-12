@@ -10,7 +10,7 @@ static void subview_calc_frustum(struct subview *subview, renderer_t *r);
 
 static void view_update_perspective_subviews(struct view *view, renderer_t *r)
 {
-    static const float dividers[CASCADES_MAX - 1] = { 25, 70, 150 };
+    static const float dividers[CASCADES_MAX - 1] = { 15, 50, 150 };
     int max = array_size(view->subview);
     int i;
 
@@ -131,6 +131,36 @@ static void subview_projection_update(struct subview *dst, struct subview *src, 
     vec3 aabb[2];
     vertex_array_xlate_aabb_calc(aabb, (float *)src->frustum_corners, sizeof(src->frustum_corners),
                                  sizeof(src->frustum_corners[0]), &dst->view_mx);
+
+    /*
+     * Square the ortho box and snap it to texel boundaries.
+     *
+     * Squaring: the shadow map is always square, so a non-square AABB wastes
+     * texels along the shorter axis.  Worse, rotating the camera swaps which
+     * axis is shorter, making the shadow quality oscillate.  Using the max
+     * extent for both axes gives uniform texel density at the cost of slightly
+     * looser coverage.
+     *
+     * Texel snap: without snapping, the ortho box slides continuously with the
+     * camera, causing the shadow texel grid to shift sub-texel amounts each
+     * frame — visible as edge crawl/shimmer.  Rounding the box edges to whole
+     * texel boundaries locks the grid in world space.
+     */
+    float extent = max(aabb[1][0] - aabb[0][0], aabb[1][1] - aabb[0][1]);
+    float cx = (aabb[0][0] + aabb[1][0]) * 0.5f;
+    float cy = (aabb[0][1] + aabb[1][1]) * 0.5f;
+    aabb[0][0] = cx - extent * 0.5f;
+    aabb[1][0] = cx + extent * 0.5f;
+    aabb[0][1] = cy - extent * 0.5f;
+    aabb[1][1] = cy + extent * 0.5f;
+
+    if (dst->shadow_resolution > 0) {
+        float texel = extent / (float)dst->shadow_resolution;
+        for (int axis = 0; axis < 2; axis++) {
+            aabb[0][axis] = floorf(aabb[0][axis] / texel) * texel;
+            aabb[1][axis] = aabb[0][axis] + ceilf(extent / texel) * texel;
+        }
+    }
 
     dst->near_plane = 0.1;
     dst->far_plane = -aabb[0][2] * far_factor;
