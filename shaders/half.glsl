@@ -1,10 +1,8 @@
 #ifndef SHADERS_HALF_GLSL
 #define SHADERS_HALF_GLSL
 
-#include "config.h"
-
-#if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_WGPU)
-# ifdef CONFIG_BROWSER
+#if defined(SHADER_RENDERER_OPENGL) || defined(SHADER_RENDERER_WGPU)
+# ifdef SHADER_BROWSER
 // At a superficial glance, WebGL doesn't handle mediump float well at all
 // Needs proper profiling
 #  define float16_t float
@@ -14,7 +12,7 @@
 #  define H(x)    float(x)
 #  define HVEC3(x) vec3(x)
 #  define HVEC4(x) vec4(x)
-# else /* !CONFIG_BROWSER */
+# else /* !SHADER_BROWSER */
 #  define float16_t mediump float
 #  define f16vec2 mediump vec2
 #  define f16vec3 mediump vec3
@@ -22,13 +20,13 @@
 #  define H(x)    float(x)
 #  define HVEC3(x) vec3(x)
 #  define HVEC4(x) vec4(x)
-# endif /* !CONFIG_BROWSER */
-#else /* !CONFIG_RENDERER_OPENGL */
+# endif /* !SHADER_BROWSER */
+#else /* !SHADER_RENDERER_OPENGL */
 #extension GL_EXT_shader_explicit_arithmetic_types: require
 #define H(x)        float16_t(x)
 #define HVEC3(x)    f16vec3(x)
 #define HVEC4(x)    f16vec4(x)
-#endif /* !CONFIG_RENDERER_OPENGL */
+#endif /* !SHADER_RENDERER_OPENGL */
 precision highp float;
 precision highp int;
 

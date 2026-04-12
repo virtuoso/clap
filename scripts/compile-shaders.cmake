@@ -1,57 +1,105 @@
 # Shader compilation
+#
+# Compiles GLSL shaders to backend-specific formats (WGSL, MSL, GLSL/GLES)
+# via an intermediate SPIR-V representation.
+#
+# Each backend gets its own SPIR-V intermediate directory (because the
+# force-included per-backend shader config header produces different
+# preprocessor output) and its own final output directory.
+#
+# Usage from CMakeLists.txt:
+#   include(compile-shaders.cmake)
+#   compile_shaders_for_backend("wgpu" "${SHADERS}" "_core")
+#   compile_shaders_for_backend("gl"   "${SHADERS}" "_core")
 
-set (GLSLC_ARGS -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core)
+set(GLSLC_ARGS -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core)
 if (DEFINED GLSL_UBO_DIR)
     list(APPEND GLSLC_ARGS -I${GLSL_UBO_DIR})
 endif ()
-# Set up common variables
-if (CONFIG_RENDERER_OPENGL)
-    if (CONFIG_GLES)
-        set(SHADER_TYPE "glsl-es")
-        set(SPIRV_CROSS_ARGS --es --version 300)
-    else ()
-        set(SHADER_TYPE "glsl")
-        if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-            set(SPIRV_CROSS_ARGS --no-es --no-420pack-extension --version 410)
-        else ()
-            set(SPIRV_CROSS_ARGS --no-es --version 410)
-        endif ()
-    endif ()
-elseif (CONFIG_RENDERER_WGPU)
-    set(SHADER_TYPE "wgsl")
-elseif (CONFIG_RENDERER_METAL)
-    set(SHADER_TYPE "msl")
-    set(SPIRV_CROSS_ARGS --msl --msl-version 20100 --msl-decoration-binding)
-endif ()
-
-# Shader output directory
-set(SHADER_DIR "${SHADER_BASE}/${SHADER_TYPE}")
-
-# Intermediate SPIR-V directory
-set(SPIRV_DIR "${clap_BINARY_DIR}/spirv")
 
 # GLSL compiler
 find_program(GLSLC glslc HINTS "${GLSLC_HINT}")
 # SPIR-V decompiler
 find_program(SPIRV_CROSS spirv-cross HINTS "${SPIRV_CROSS_HINT}")
 
-# Compile a shader
-# @shader: shader name ("model.vert")
-# @SHADER_SRCS: list of source files for dependencies
-# @SHADER_OPTS: list of output files for dependencies
-# @PREPROCESS_SHADER_TARGET: directory/target name prefix
-function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET)
-    # Output directory with the suffix
-    set(SHADER_DIR "${SHADER_DIR}${PREPROCESS_SHADERS_TARGET}")
-    # Intermediate directory with the suffix
-    set(SPIRV_DIR "${SPIRV_DIR}${PREPROCESS_SHADERS_TARGET}")
+# Resolve backend properties.
+# Sets in PARENT_SCOPE:
+#   _SHADER_TYPE        — output directory prefix ("wgsl", "msl", "glsl", "glsl-es")
+#   _SPIRV_CROSS_ARGS   — backend-specific spirv-cross flags
+#   _GLSLC_BACKEND_ARGS — per-backend glslc flags (-include, -D)
+#   _USE_TINT           — TRUE if this backend uses tint instead of spirv-cross
+#   _HAS_REFLECTION     — TRUE if this backend emits .json reflection files
+#   _SKIP_GEOM          — TRUE if geometry shaders are not supported
+function(_shader_backend_props backend)
+    set(_USE_TINT FALSE PARENT_SCOPE)
+    set(_HAS_REFLECTION TRUE PARENT_SCOPE)
+    set(_SKIP_GEOM FALSE PARENT_SCOPE)
+    set(_SPIRV_CROSS_ARGS "" PARENT_SCOPE)
+
+    # glslc doesn't support -include; pass per-backend macros as -D flags.
+    # The corresponding shader-config-*.h files in shaders/ document what each
+    # backend defines, but the actual mechanism is command-line -D.
+    set(backend_args "")
+
+    if (backend STREQUAL "gl")
+        list(APPEND backend_args -DSHADER_RENDERER_OPENGL=1)
+        if (CONFIG_GLES)
+            set(_SHADER_TYPE "glsl-es" PARENT_SCOPE)
+            set(_SPIRV_CROSS_ARGS --es --version 300 PARENT_SCOPE)
+            set(_SKIP_GEOM TRUE PARENT_SCOPE)
+            list(APPEND backend_args -DSHADER_GLES=1)
+            if (CONFIG_BROWSER)
+                list(APPEND backend_args -DSHADER_BROWSER=1)
+            endif ()
+        else ()
+            set(_SHADER_TYPE "glsl" PARENT_SCOPE)
+            if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+                set(_SPIRV_CROSS_ARGS --no-es --no-420pack-extension --version 410 PARENT_SCOPE)
+            else ()
+                set(_SPIRV_CROSS_ARGS --no-es --version 410 PARENT_SCOPE)
+            endif ()
+        endif ()
+        set(_HAS_REFLECTION FALSE PARENT_SCOPE)
+    elseif (backend STREQUAL "wgpu")
+        list(APPEND backend_args
+            -DSHADER_RENDERER_WGPU=1
+            -DSHADER_ORIGIN_TOP_LEFT=1
+            -DSHADER_NDC_ZERO_ONE=1
+            -DSHADER_NDC_Y_DOWN=1
+        )
+        set(_SHADER_TYPE "wgsl" PARENT_SCOPE)
+        set(_USE_TINT TRUE PARENT_SCOPE)
+        set(_SKIP_GEOM TRUE PARENT_SCOPE)
+        if (CONFIG_BROWSER)
+            list(APPEND backend_args -DSHADER_BROWSER=1)
+        endif ()
+    elseif (backend STREQUAL "metal")
+        list(APPEND backend_args
+            -DSHADER_RENDERER_METAL=1
+            -DSHADER_ORIGIN_TOP_LEFT=1
+            -DSHADER_NDC_ZERO_ONE=1
+        )
+        set(_SHADER_TYPE "msl" PARENT_SCOPE)
+        set(_SPIRV_CROSS_ARGS --msl --msl-version 20100 --msl-decoration-binding PARENT_SCOPE)
+    else ()
+        message(FATAL_ERROR "Unknown shader backend: ${backend}")
+    endif ()
+
+    set(_GLSLC_BACKEND_ARGS ${backend_args} PARENT_SCOPE)
+endfunction()
+
+# Compile a single shader stage for a given backend.
+# All _BACKEND_* variables must be set before calling.
+function(_compile_shader_for_backend shader stage backend SHADER_SRCS SHADER_OUTS suffix)
+    set(SPIRV_DIR "${SHADER_BASE}/spirv-${backend}${suffix}")
+    set(SHADER_DIR "${SHADER_BASE}/${_SHADER_TYPE}${suffix}")
     set(SPIRV_OUTPUT "${SPIRV_DIR}/${shader}.spv")
     set(SPIRV_DEPFILE "${SPIRV_OUTPUT}.d")
 
-    LIST(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${shader}")
-    LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}")
-    if (NOT CONFIG_RENDERER_OPENGL)
-        LIST(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}.json")
+    list(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${shader}")
+    list(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}")
+    if (_HAS_REFLECTION)
+        list(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}.json")
     endif ()
 
     set(shader_depfile_args "")
@@ -59,11 +107,11 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
         list(APPEND shader_depfile_args DEPFILE "${SPIRV_DEPFILE}")
     endif ()
 
-    # Command to build an intermediate representation of ${shader}
+    # SPIR-V intermediate
     add_custom_command(
         OUTPUT "${SPIRV_OUTPUT}"
         BYPRODUCTS "${SPIRV_DEPFILE}"
-        DEPENDS make-shader-ir-dir${PREPROCESS_SHADERS_TARGET} "${SHADER_SOURCE_DIR}/${shader}"
+        DEPENDS make-shader-ir-dir-${backend}${suffix} "${SHADER_SOURCE_DIR}/${shader}"
         COMMAND "${GLSLC}"
         ARGS
             -MD
@@ -71,73 +119,108 @@ function(compile_shader shader SHADER_SRCS SHADER_OUTS PREPROCESS_SHADERS_TARGET
             -MT "${SPIRV_OUTPUT}"
             -fshader-stage=${stage}
             ${GLSLC_ARGS}
+            ${_GLSLC_BACKEND_ARGS}
             -o "${SPIRV_OUTPUT}"
             -c "${SHADER_SOURCE_DIR}/${shader}"
         ${shader_depfile_args}
     )
 
-    # Command to build the final ${shader}
-    if (CONFIG_RENDERER_WGPU)
+    # Backend-specific output
+    if (_USE_TINT)
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${shader}"
-            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}" "${TINT_BIN_PATH}"
+            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_OUTPUT}" "${TINT_BIN_PATH}"
             COMMAND "${TINT_BIN_PATH}"
             ARGS --format wgsl -o "${SHADER_DIR}/${shader}" "${SPIRV_OUTPUT}"
         )
     else ()
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${shader}"
-            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}"
+            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_OUTPUT}"
             COMMAND "${SPIRV_CROSS}"
-            ARGS ${SPIRV_CROSS_ARGS} "${SPIRV_OUTPUT}" --output "${SHADER_DIR}/${shader}"
+            ARGS ${_SPIRV_CROSS_ARGS} "${SPIRV_OUTPUT}" --output "${SHADER_DIR}/${shader}"
         )
     endif ()
 
-    if (NOT CONFIG_RENDERER_OPENGL)
+    # JSON reflection (non-GL backends)
+    if (_HAS_REFLECTION)
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${shader}.json"
-            DEPENDS make-shader-output-dir${PREPROCESS_SHADERS_TARGET} "${SPIRV_OUTPUT}"
+            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_OUTPUT}"
             COMMAND "${SPIRV_CROSS}"
             ARGS "${SPIRV_OUTPUT}" --reflect --output "${SHADER_DIR}/${shader}.json"
         )
     endif ()
 
-    # Propagate sources and outputs to the outer scope
     set(SHADER_SRCS "${SHADER_SRCS}" PARENT_SCOPE)
     set(SHADER_OUTS "${SHADER_OUTS}" PARENT_SCOPE)
 endfunction()
 
-# Compile all shaders on the list
-# For each shader compile ${shader}.vert, ${shader}.frag and optionally ${shader}.geom
-# @SHADERS: list of shader names
-# @PREPROCESS_SHADER_TARGET: directory/target name prefix
-function(compile_shaders SHADERS PREPROCESS_SHADERS_TARGET)
-    # Make a directory for the intermediate SPIR-Vs
-    add_custom_target(make-shader-ir-dir${PREPROCESS_SHADERS_TARGET}
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIRV_DIR}${PREPROCESS_SHADERS_TARGET}"
+# Compile all shaders for a specific backend.
+#
+# @backend: "gl", "wgpu", or "metal"
+# @SHADERS: list of shader base names (e.g. "model;ui;combine")
+# @suffix:  target/directory suffix (e.g. "_core")
+#
+# Creates targets: preprocess_shaders_${backend}${suffix}
+# Propagates: SHADER_OUTS_${backend} to parent scope
+function(compile_shaders_for_backend backend SHADERS suffix)
+    _shader_backend_props(${backend})
+
+    set(SPIRV_DIR "${SHADER_BASE}/spirv-${backend}${suffix}")
+    set(SHADER_DIR "${SHADER_BASE}/${_SHADER_TYPE}${suffix}")
+
+    # Create intermediate and output directories
+    add_custom_target(make-shader-ir-dir-${backend}${suffix}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIRV_DIR}"
     )
-    # Make a directory for the output shaders
-    add_custom_target(make-shader-output-dir${PREPROCESS_SHADERS_TARGET}
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_DIR}${PREPROCESS_SHADERS_TARGET}"
+    add_custom_target(make-shader-output-dir-${backend}${suffix}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_DIR}"
     )
 
-    FOREACH(s ${SHADERS})
-        FOREACH(stage vert frag geom)
-            # Geometry shaders are optional in GL and not supported in GL ES
+    foreach(s ${SHADERS})
+        foreach(stage vert frag geom)
             if (stage STREQUAL "geom")
-                if (NOT EXISTS "${SHADER_SOURCE_DIR}/${s}.${stage}" OR CONFIG_GLES)
+                if (NOT EXISTS "${SHADER_SOURCE_DIR}/${s}.${stage}" OR _SKIP_GEOM)
                     continue ()
                 endif ()
             endif ()
-            compile_shader("${s}.${stage}" "${SHADER_SRCS}" "${SHADER_OUTS}" "${PREPROCESS_SHADERS_TARGET}")
-        ENDFOREACH ()
-    ENDFOREACH()
+            _compile_shader_for_backend(
+                "${s}.${stage}" "${stage}" "${backend}"
+                "${SHADER_SRCS}" "${SHADER_OUTS}" "${suffix}")
+        endforeach ()
+    endforeach()
 
-    set(SHADER_OUTS "${SHADER_OUTS}" PARENT_SCOPE)
-
-    # Create a preprocess_shaders target with a suffix
-    add_custom_target(preprocess_shaders${PREPROCESS_SHADERS_TARGET}
+    add_custom_target(preprocess_shaders_${backend}${suffix}
         DEPENDS ${SHADER_OUTS}
-        COMMENT "Preprocessing shaders"
+        COMMENT "Preprocessing ${backend} shaders"
     )
+
+    set(SHADER_OUTS_${backend} "${SHADER_OUTS}" PARENT_SCOPE)
+endfunction()
+
+# Backward-compatible wrapper: compile shaders for the currently active backend.
+# This preserves the old API so existing CMakeLists.txt can transition gradually.
+function(compile_shaders SHADERS PREPROCESS_SHADERS_TARGET)
+    if (CONFIG_RENDERER_WGPU)
+        set(_backend "wgpu")
+    elseif (CONFIG_RENDERER_METAL)
+        set(_backend "metal")
+    elseif (CONFIG_RENDERER_OPENGL)
+        set(_backend "gl")
+    else ()
+        message(FATAL_ERROR "No renderer configured")
+    endif ()
+
+    compile_shaders_for_backend(${_backend} "${SHADERS}" "${PREPROCESS_SHADERS_TARGET}")
+
+    # Propagate outputs under the old variable name for backward compat
+    set(SHADER_OUTS "${SHADER_OUTS_${_backend}}" PARENT_SCOPE)
+
+    # Create the old-style target name as an alias
+    if (NOT TARGET preprocess_shaders${PREPROCESS_SHADERS_TARGET})
+        add_custom_target(preprocess_shaders${PREPROCESS_SHADERS_TARGET}
+            DEPENDS preprocess_shaders_${_backend}${PREPROCESS_SHADERS_TARGET}
+        )
+    endif ()
 endfunction()

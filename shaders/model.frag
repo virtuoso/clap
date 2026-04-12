@@ -1,6 +1,5 @@
 #version 460 core
 
-#include "config.h"
 #include "shader_constants.h"
 #include "texel_fetch.glsl"
 #include "color-utils.glsl"

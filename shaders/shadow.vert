@@ -1,6 +1,5 @@
 #version 460 core
 
-#include "config.h"
 #include "shader_constants.h"
 
 layout (location=ATTR_LOC_POSITION) in vec3 position;
@@ -28,9 +27,9 @@ void main()
     } else {
         total_pos = trs * vec4(position, 1.0);
     }
-#ifndef CONFIG_SHADOW_MAP_ARRAY
+#ifndef SHADER_SHADOW_MAP_ARRAY
     gl_Position = proj * view * total_pos;
 #else
     gl_Position = total_pos;
-#endif /* CONFIG_SHADOW_MAP_ARRAY */
+#endif /* SHADER_SHADOW_MAP_ARRAY */
 }

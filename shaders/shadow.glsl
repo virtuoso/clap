@@ -7,7 +7,7 @@
 #include "ndc-z.glsl"
 #include "linearize-depth.glsl"
 
-#ifndef CONFIG_SHADOW_MAP_ARRAY
+#ifndef SHADER_SHADOW_MAP_ARRAY
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map1) uniform sampler2D shadow_map1;
 layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
@@ -15,7 +15,7 @@ layout (binding=SAMPLER_BINDING_shadow_map3) uniform sampler2D shadow_map3;
 #else
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2DArray shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map_ms) uniform sampler2DMSArray shadow_map_ms;
-#endif /* CONFIG_SHADOW_MAP_ARRAY */
+#endif /* SHADER_SHADOW_MAP_ARRAY */
 
 float shadow_factor_pcf(in sampler2DArray map, in vec4 pos, in int layer, in float bias)
 {
@@ -49,7 +49,7 @@ float shadow_factor_pcf(in sampler2D map, in vec4 pos, in float bias)
     return 1.0 - total / pcf_total_texels * pos.w;
 }
 
-#ifndef CONFIG_GLES
+#ifndef SHADER_GLES
 float shadow_factor_msaa(in sampler2DMSArray map, in vec4 pos, in int layer, in float bias)
 {
     float total = 0.0;
@@ -92,7 +92,7 @@ float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int l
 
     return 1.0 - total * pos.w;
 }
-#endif /* CONFIG_GLES */
+#endif /* SHADER_GLES */
 
 float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
 {
@@ -161,7 +161,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     proj_coords.z = convert_from_ndc_z(proj_coords.z);
 
     float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
-#ifndef CONFIG_SHADOW_MAP_ARRAY
+#ifndef SHADER_SHADOW_MAP_ARRAY
     switch (layer) {
         case 0:
             shadow_factor = use_vsm ?
@@ -192,7 +192,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
         shadow_factor = use_vsm ?
             shadow_factor_vsm(shadow_map, proj_coords, layer) :
             shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
-#endif /* CONFIG_SHADOW_MAP_ARRAY */
+#endif /* SHADER_SHADOW_MAP_ARRAY */
 
     return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.3));
 }
