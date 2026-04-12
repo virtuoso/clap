@@ -555,6 +555,59 @@ void phys_ground_entity(struct phys *phys, entity3d *e)
     entity3d_move(e, (vec3){ 0, -dist, 0 });
 }
 
+
+float phys_body_sweep_capsule(struct phys_body *body, const vec3 delta,
+                              vec3 normal, entity3d **hit_entity)
+{
+    struct phys *phys = body->phys;
+    entity3d *self = phys_body_entity(body);
+    float delta_len = vec3_len(delta);
+
+    vec3_dup(normal, (vec3){ 0, 1, 0 });
+    if (hit_entity)
+        *hit_entity = NULL;
+
+    if (delta_len < 1e-6f)
+        return 1.0f;
+
+    /*
+     * Cast a ray from the capsule center in the movement direction.
+     * The ray length is extended by the capsule radius to account for
+     * the capsule's width (fat ray approximation).
+     */
+    const dReal *pos = dGeomGetPosition(body->geom);
+    vec3 dir;
+    vec3_scale(dir, delta, 1.0f / delta_len);
+
+    double ray_len = delta_len + body->radius;
+    double dist = ray_len;
+    dContact contact;
+
+    entity3d *hit = __phys_ray_cast(phys, self,
+                                    (vec3){ pos[0], pos[1], pos[2] },
+                                    dir, &dist, &contact);
+    if (!hit)
+        return 1.0f;
+
+    /* Safe travel: ray hit minus the capsule radius margin */
+    float safe_dist = (float)dist - body->radius;
+    if (safe_dist < 0)
+        safe_dist = 0;
+
+    float fraction = safe_dist / delta_len;
+    if (fraction > 1.0f)
+        fraction = 1.0f;
+
+    normal[0] = contact.geom.normal[0];
+    normal[1] = contact.geom.normal[1];
+    normal[2] = contact.geom.normal[2];
+
+    if (hit_entity)
+        *hit_entity = hit;
+
+    return fraction;
+}
+
 bool phys_body_ground_collide(struct phys_body *body, bool grounded)
 {
     entity3d *e = phys_body_entity(body);
