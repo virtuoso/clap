@@ -96,9 +96,6 @@ float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int l
 
 float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
 {
-    float far_plane = light_far[layer];
-    d = linearize_depth(d, 0.1, far_plane);
-
     float m1 = moments.x;
     float m2 = max(moments.y, m1 * m1);
 
@@ -108,7 +105,8 @@ float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
      * (gl_FragCoord.z → linearize_depth) and the model pass (shadow_mvp →
      * linearize_depth) that otherwise cause moiré on some backends.
      */
-    if (d < m1 + 0.01)
+    float vsm_bias = 0.02 / max(light_far[layer], 1.0);
+    if (d < m1 + vsm_bias)
         return 1.0;
 
     float distance = d - m1;
@@ -137,6 +135,31 @@ float shadow_factor_vsm(in sampler2D map, in vec4 pos, in int layer)
     return shadow_factor_vsm_calc(moments, pos.z, layer);
 }
 
+#ifndef CONFIG_SHADOW_MAP_ARRAY
+float shadow_sample_cascade(in int cascade, in vec4 proj_coords, in bool use_vsm, in float bias)
+{
+    switch (cascade) {
+        case 0: return use_vsm ? shadow_factor_vsm(shadow_map, proj_coords, 0)
+                               : shadow_factor_pcf(shadow_map, proj_coords, bias);
+        case 1: return use_vsm ? shadow_factor_vsm(shadow_map1, proj_coords, 1)
+                               : shadow_factor_pcf(shadow_map1, proj_coords, bias);
+        case 2: return use_vsm ? shadow_factor_vsm(shadow_map2, proj_coords, 2)
+                               : shadow_factor_pcf(shadow_map2, proj_coords, bias);
+        default: return use_vsm ? shadow_factor_vsm(shadow_map3, proj_coords, 3)
+                                : shadow_factor_pcf(shadow_map3, proj_coords, bias);
+    }
+}
+#endif
+
+vec4 shadow_proj_coords(in int cascade)
+{
+    vec4 shadow_pos = shadow_mvp[cascade] * world_pos;
+    vec4 pc = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
+    pc.xy = convert_pass_tex(pc.xy * 0.5 + 0.5);
+    pc.z = convert_from_ndc_z(pc.z);
+    return pc;
+}
+
 float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_dir,
                          in bool use_vsm, in bool use_msaa)
 {
@@ -158,36 +181,11 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     if (layer < 0)
         layer = CASCADES_MAX - 1;
 
-    vec4 shadow_pos = shadow_mvp[layer] * world_pos;
-    vec4 proj_coords = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
-    proj_coords.xy = convert_pass_tex(proj_coords.xy * 0.5 + 0.5);
-    proj_coords.z = convert_from_ndc_z(proj_coords.z);
-
+    vec4 proj_coords = shadow_proj_coords(layer);
     float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
-#ifndef SHADER_SHADOW_MAP_ARRAY
-    switch (layer) {
-        case 0:
-            shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map, proj_coords, 0) :
-                shadow_factor_pcf(shadow_map, proj_coords, bias);
-            break;
-        case 1:
-            shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map1, proj_coords, 1) :
-                shadow_factor_pcf(shadow_map1, proj_coords, bias);
-            break;
-        case 2:
-            shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map2, proj_coords, 2) :
-                shadow_factor_pcf(shadow_map2, proj_coords, bias);
-            break;
-        default:
-        case 3:
-            shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map3, proj_coords, 3) :
-                shadow_factor_pcf(shadow_map3, proj_coords, bias);
-            break;
-    }
+
+#ifndef CONFIG_SHADOW_MAP_ARRAY
+    shadow_factor = shadow_sample_cascade(layer, proj_coords, use_vsm, bias);
 #else
     if (use_msaa)
         shadow_factor = shadow_factor_msaa_weighted(shadow_map_ms, proj_coords, layer, bias);

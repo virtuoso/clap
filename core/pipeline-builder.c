@@ -300,7 +300,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     {
                         .format         = TEX_FMT_RG32F,
                         .load_action    = FBOLOAD_CLEAR,
-                        .clear_color    = { 1e4, 1e8, 0, 0 },
+                        .clear_color    = { 1, 1, 0, 0 },
                     }
                 },
                 .depth_config         = {
@@ -335,7 +335,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     .format         = TEX_FMT_RG32F,
                     .load_action    = FBOLOAD_CLEAR,
-                    .clear_color    = { 1e4, 1e8, 0, 0 },
+                    .clear_color    = { 1, 1, 0, 0 },
                 }
             },
             .depth_config         = {
