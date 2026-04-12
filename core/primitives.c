@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <limits.h>
 #include "linmath.h"
 #include "mesh.h"
 #include "model.h"
@@ -330,6 +331,71 @@ void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
                 _prim_emit_triangle3_uv(v0, v3, v2, uv0, uv3, uv2, opts);
                 _prim_sphere_smooth_normals(org, opts);
             }
+        }
+    }
+}
+
+static void triangle_split(struct mesh *mesh, size_t tri, float off)
+{
+    size_t nr_vx = mesh_nr_vx(mesh);
+    size_t nr_idx = mesh_nr_idx(mesh);
+
+#ifdef CONFIG_RENDERER_OPENGL
+    if (mesh_nr_vx(mesh) + 6 > USHRT_MAX)  return;
+#endif
+
+    CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vx + 6), return);
+    CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vx + 6), return);
+    CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vx + 6), return);
+    CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_idx + 6), return);
+
+    size_t idx = tri * 3;
+    size_t vx_a = mesh_idx(mesh)[idx + 0];
+    size_t vx_b = mesh_idx(mesh)[idx + 1];
+    size_t vx_c = mesh_idx(mesh)[idx + 2];
+    vec3 a, b, c, center;
+    vec3_dup(a, &mesh_vx(mesh)[vx_a * 3]);
+    vec3_dup(b, &mesh_vx(mesh)[vx_b * 3]);
+    vec3_dup(c, &mesh_vx(mesh)[vx_c * 3]);
+
+    vec3 norm;
+    vec3_dup(norm, &mesh_norm(mesh)[vx_a * 3]);
+
+    vec3_add(center, a, b);
+    vec3_add(center, center, c);
+    vec3_scale(center, center, 1.0 / 3.0);
+    vec3_add_scaled(center, center, norm, 1.0, off);
+
+    /* replace c with center in the original triangle: a -> b -> center */
+    vec3_dup(&mesh_vx(mesh)[vx_c * 3], center);
+    _prim_calc_normals(vx_a, &(prim_emit_opts){ .mesh = mesh });
+
+    /* new triangle: b -> c -> center */
+    _prim_emit_triangle3(b, c, center, &(prim_emit_opts){ .mesh = mesh });
+    /* new triangle: c -> a -> center */
+    _prim_emit_triangle3(c, a, center, &(prim_emit_opts){ .mesh = mesh });
+}
+
+void mesh_tessellate(struct mesh *mesh, int total_depth, mesh_tess_fn fn, void *data)
+{
+    mesh_tess_params params = {
+        .mesh        = mesh,
+        .total_depth = total_depth,
+    };
+
+    for (int depth = 0; depth < total_depth; depth++) {
+        size_t nr_tris = mesh_nr_idx(mesh) / 3;
+
+        params.depth = depth;
+
+        for (size_t i = 0; i < nr_tris; i++) {
+            size_t vx_a = mesh_idx(mesh)[i * 3];
+            vec3_dup(params.normal, &mesh_norm(mesh)[vx_a * 3]);
+            params.tri = i;
+
+            float off = fn(&params, data);
+            if (off != 0.0f)
+                triangle_split(mesh, i, off);
         }
     }
 }

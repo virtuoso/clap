@@ -122,6 +122,44 @@ void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
 #define prim_emit_sphere(_o, _r, _s, args...) \
     _prim_emit_sphere((_o), (_r), (_s), &(prim_emit_opts){ args })
 
+/**
+ * struct mesh_tess_params - tessellation callback parameters
+ * @mesh:        the mesh being tessellated
+ * @tri:         triangle index (into the index buffer, tri * 3 = first index)
+ * @normal:      face normal of the triangle
+ * @depth:       current subdivision pass (0-based)
+ * @total_depth: total number of subdivision passes
+ */
+typedef struct mesh_tess_params {
+    struct mesh     *mesh;
+    size_t          tri;
+    vec3            normal;
+    int             depth;
+    int             total_depth;
+} mesh_tess_params;
+
+/**
+ * mesh_tess_fn - tessellation displacement callback
+ *
+ * Return the displacement of the new center vertex along the face normal.
+ * Return 0 to skip (do not subdivide) the triangle.
+ */
+typedef float (*mesh_tess_fn)(const mesh_tess_params *params, void *data);
+
+/**
+ * mesh_tessellate() - subdivide mesh triangles with caller-driven displacement
+ * @mesh:        mesh to tessellate in place
+ * @total_depth: number of subdivision passes
+ * @fn:          per-triangle displacement callback
+ * @data:        opaque pointer forwarded to @fn
+ *
+ * Each pass iterates over the triangles that existed at the start of that
+ * pass.  For every triangle, @fn is called; if it returns non-zero, the
+ * triangle is split into three by inserting a center vertex displaced
+ * along the face normal by the returned amount.
+ */
+void mesh_tessellate(struct mesh *mesh, int total_depth, mesh_tess_fn fn, void *data);
+
 model3d *model3d_new_cube(struct shader_prog *p, bool skip_aabb);
 model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);
 model3d *model3d_new_frame(struct shader_prog *p, float x, float y, float z, float w, float h, float t);
