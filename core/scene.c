@@ -281,6 +281,10 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igSameLine(0, 0);
         igText("fog color");
         igSeparator();
+        igCheckbox("film grain", &ropts->film_grain);
+        igSliderFloat("grain factor", &ropts->film_grain_factor, 0.0, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("grain power", &ropts->film_grain_power, 0.0, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSeparator();
         igInputText("scene name", scene->name, sizeof(scene->name), ImGuiInputFlags_Tooltip,
                     input_text_callback, NULL);
         if (igButton("save level", (ImVec2){}))
