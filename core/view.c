@@ -133,20 +133,34 @@ static void subview_projection_update(struct subview *dst, struct subview *src, 
                                  sizeof(src->frustum_corners[0]), &dst->view_mx);
 
     /*
-     * Square the ortho box and snap it to texel boundaries.
+     * Stabilize the ortho box extent and snap it to texel boundaries.
      *
-     * Squaring: the shadow map is always square, so a non-square AABB wastes
-     * texels along the shorter axis.  Worse, rotating the camera swaps which
-     * axis is shorter, making the shadow quality oscillate.  Using the max
-     * extent for both axes gives uniform texel density at the cost of slightly
-     * looser coverage.
+     * The light-space AABB changes size as the camera rotates (the frustum's
+     * projection into light space reshapes).  This makes the shadow alternate
+     * between fat/coarse and thin/sharp depending on camera angle.
      *
-     * Texel snap: without snapping, the ortho box slides continuously with the
-     * camera, causing the shadow texel grid to shift sub-texel amounts each
-     * frame — visible as edge crawl/shimmer.  Rounding the box edges to whole
-     * texel boundaries locks the grid in world space.
+     * Fix: use the frustum's 3D bounding sphere diameter as the ortho extent.
+     * The sphere radius is rotation-invariant (rigid body), so the ortho box
+     * always covers the same world area regardless of camera or light angle.
+     * For a tight cascade (15m), the sphere is only ~3% larger than the
+     * worst-case AABB, so the resolution cost is minimal.
+     *
+     * Texel snap: round the box edges to whole texel boundaries so the shadow
+     * texel grid stays locked in world space as the camera moves.
      */
-    float extent = max(aabb[1][0] - aabb[0][0], aabb[1][1] - aabb[0][1]);
+    vec3 centroid = {0, 0, 0};
+    for (int i = 0; i < 8; i++)
+        for (int j = 0; j < 3; j++)
+            centroid[j] += src->frustum_corners[i][j];
+    vec3_scale(centroid, centroid, 1.0f / 8.0f);
+
+    float max_dist_sq = 0;
+    for (int i = 0; i < 8; i++) {
+        vec3 d;
+        vec3_sub(d, src->frustum_corners[i], centroid);
+        max_dist_sq = max(max_dist_sq, vec3_mul_inner(d, d));
+    }
+    float extent = 2.0f * sqrtf(max_dist_sq);
     float cx = (aabb[0][0] + aabb[1][0]) * 0.5f;
     float cy = (aabb[0][1] + aabb[1][1]) * 0.5f;
     aabb[0][0] = cx - extent * 0.5f;
