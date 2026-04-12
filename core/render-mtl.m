@@ -175,17 +175,17 @@ static cerr buffer_make(struct ref *ref, void *_opts)
 
     LOCAL_SET(buffer_t, buf) = container_of(ref, struct buffer, ref);
 
-    buf->renderer = opts->renderer;
-    buf->size = opts->size;
+    buf->mtl.renderer = opts->renderer;
+    buf->mtl.size = opts->size;
     buf->off = opts->off;
-    buf->stride = opts->stride;
+    buf->mtl.stride = opts->stride;
 
     if (!opts->main) {
-        buf->buf = mtl_buffer_new(buf->renderer, opts->data, opts->size, true, false);
-        if (!buf->buf)  return CERR_NOMEM;
+        buf->mtl.buf = mtl_buffer_new(buf->mtl.renderer, opts->data, opts->size, true, false);
+        if (!buf->mtl.buf)  return CERR_NOMEM;
 
         if (opts->type == BUF_ELEMENT_ARRAY) {
-            buf->renderer->va->index = buf;
+            buf->mtl.renderer->va->index = buf;
             buf->loc = -1;
         } else {
             buf->loc = opts->loc;
@@ -227,7 +227,7 @@ void buffer_deinit(buffer_t *buf)
     if (!buf->loaded)
         return;
 
-    if (buf->buf != nil)    [buf->buf release];
+    if (buf->mtl.buf != nil)    [buf->mtl.buf release];
 
     buf->loaded = false;
 }
@@ -238,15 +238,15 @@ void buffer_bind(buffer_t *buf, int loc)
         return;
 
     if (loc < 0) {
-        if (buf->renderer->va)
-            buf->renderer->va->index = buf;
+        if (buf->mtl.renderer->va)
+            buf->mtl.renderer->va->index = buf;
         return;
     }
 
-    if (!buf->buf)
+    if (!buf->mtl.buf)
         return;
 
-    [cmd_encoder(buf->renderer) setVertexBuffer:buf->buf offset:0 atIndex:0];
+    [cmd_encoder(buf->mtl.renderer) setVertexBuffer:buf->mtl.buf offset:0 atIndex:0];
 }
 
 void buffer_unbind(buffer_t *buf, int loc)
@@ -255,8 +255,8 @@ void buffer_unbind(buffer_t *buf, int loc)
         return;
 
     if (loc < 0) {
-        if (buf->renderer->va)
-            buf->renderer->va->index = NULL;
+        if (buf->mtl.renderer->va)
+            buf->mtl.renderer->va->index = NULL;
         return;
     }
 }
@@ -266,12 +266,12 @@ cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...)
 {
     va_list ap;
 
-    mem_free(buf->name);
+    mem_free(buf->mtl.name);
     va_start(ap, fmt);
-    cres(int) res = mem_vasprintf(&buf->name, fmt, ap);
+    cres(int) res = mem_vasprintf(&buf->mtl.name, fmt, ap);
     va_end(ap);
 
-    [buf->buf setLabel:[NSString stringWithUTF8String:buf->name]];
+    [buf->mtl.buf setLabel:[NSString stringWithUTF8String:buf->mtl.name]];
 
     return res;
 }
@@ -1954,7 +1954,7 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
     if (!buffer_loaded(index))
         return CERR_INVALID_OPERATION_REASON(.fmt = "index buffer not loaded");
 
-    size_t _idx_count = index->size / data_comp_size(idx_type);
+    size_t _idx_count = index->mtl.size / data_comp_size(idx_type);
     unsigned int _draw_type = mtl_draw_type(draw_type);
     unsigned int _idx_type = mtl_idx_type(idx_type);
 
@@ -1963,7 +1963,7 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
     [cmd_encoder(r) drawIndexedPrimitives:_draw_type
                     indexCount:_idx_count
                     indexType:_idx_type
-                    indexBuffer:index->buf
+                    indexBuffer:index->mtl.buf
                     indexBufferOffset:0
                     instanceCount:nr_instances];
 

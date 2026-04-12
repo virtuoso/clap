@@ -30,7 +30,7 @@
 #    include <glad/glad.h>
 #   endif /* __APPLE__ */
 #  endif
-# else
+# else /* !IMPLEMENTOR */
 typedef int GLint;
 typedef int GLsizei;
 typedef float GLfloat;
@@ -38,8 +38,10 @@ typedef unsigned int GLenum;
 typedef unsigned int GLuint;
 typedef unsigned short GLushort;
 typedef ptrdiff_t GLsizeiptr;
-# endif /* IMPLEMENTOR */
-#elif defined(CONFIG_RENDERER_METAL)
+# endif /* !IMPLEMENTOR */
+#endif /* CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_METAL
 # if defined(IMPLEMENTOR) && defined(__OBJC__)
 /*
  * XXX: "weak" clashes with something in the guts of Metal, rename it in
@@ -90,13 +92,15 @@ typedef void *mtl_sampler_state_t;
 typedef void *mtl_buffer_t;
 typedef void *cg_colorspace_ref_t;
 typedef void *ns_autorelease_pool_t;
-# ifndef __OBJC__
+#  ifndef __OBJC__
 typedef void *dispatch_semaphore_t;
-# endif /* !__OBJC__ */
+#  endif /* !__OBJC__ */
 # endif /* !IMPLEMENTOR || !__OBJC__ */
 // Metal's integral types are landmines between C and ObjC
 typedef uint64_t mtl_cull_mode_t;
-#elif defined(CONFIG_RENDERER_WGPU)
+#endif /* CONFIG_RENDERER_METAL */
+
+#ifdef CONFIG_RENDERER_WGPU
 # include <stdatomic.h>
 # include "bindings/render-bindings.h" /* for BINDING_TEXTURE_MAX / BINDING_UBO_MAX */
 enum { WGPU_VERTEX_ATTRIBUTE_SIZE = 24, WGPU_VERTEX_ATTRIBUTE_ALIGN = 8 };
@@ -141,9 +145,7 @@ typedef void *wgpu_sampler_t;
 typedef void *wgpu_render_pipeline_t;
 typedef struct { _Alignas(WGPU_VERTEX_ATTRIBUTE_ALIGN) char _[WGPU_VERTEX_ATTRIBUTE_SIZE]; } wgpu_vertex_attribute_t;
 # endif /* !IMPLEMENTOR */
-#else
-# error "Unsupported renderer"
-#endif
+#endif /* CONFIG_RENDERER_WGPU */
 
 typedef enum buffer_type {
     BUF_ARRAY,
@@ -184,58 +186,47 @@ typedef struct buffer_init_options {
     const char          *name;
 } buffer_init_options;
 
+TYPE(buffer,
+    struct ref          ref;
+    buffer_t            *main;
+    size_t              off;
+    unsigned int        comp_count;
 #ifdef CONFIG_RENDERER_OPENGL
-TYPE(buffer,
-    struct ref  ref;
-    buffer_t    *main;
-    GLenum      type;
-    GLenum      usage;
-    GLuint      id;
-    GLuint      comp_type;
-    GLuint      comp_count;
-    GLuint      off;
-    GLsizei     stride;
-    int         use_count;
-    bool        loaded;
-#ifndef CONFIG_FINAL
-    buffer_init_options opts;
-    uniform_t           loc;
-#endif /* CONFIG_FINAL */
-);
-#elif defined(CONFIG_RENDERER_WGPU)
-TYPE(buffer,
-    struct ref      ref;
-    renderer_t      *renderer;
-    buffer_t        *main;
-    wgpu_buffer_t   buf;
-    size_t          off;
-    size_t          size;
-    unsigned int    comp_count;
-    buffer_type     type;
-    uniform_t       loc;
-    bool            loaded;
-#ifndef CONFIG_FINAL
-    buffer_init_options opts;
-#endif /* CONFIG_FINAL */
-);
-#elif defined(CONFIG_RENDERER_METAL)
-TYPE(buffer,
-    struct ref      ref;
-    renderer_t      *renderer;
-    mtl_buffer_t    buf;
-    size_t          off;
-    size_t          stride;
-    size_t          size;
-    data_type       comp_type;
-    unsigned int    comp_count;
-    char            *name;
-    bool            loaded;
-    uniform_t       loc;
-#ifndef CONFIG_FINAL
-    buffer_init_options opts;
-#endif /* CONFIG_FINAL */
-);
+    struct {
+        GLenum          type;
+        GLenum          usage;
+        GLuint          id;
+        GLuint          comp_type;
+        // GLuint          comp_count;
+        // GLuint          off;
+        GLsizei         stride;
+    } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        renderer_t      *renderer;
+        wgpu_buffer_t   buf;
+        size_t          size;
+        buffer_type     type;
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        renderer_t      *renderer;
+        mtl_buffer_t    buf;
+        size_t          stride;
+        size_t          size;
+        data_type       comp_type;
+        char            *name;
+    } mtl;
+#endif  /* CONFIG_RENDERER_METAL */
+    uniform_t           loc;
+    int                 use_count;
+    bool                loaded;
+#ifndef CONFIG_FINAL
+    buffer_init_options opts;
+#endif /* CONFIG_FINAL */
+);
 
 #define buffer_init(_b, args...) \
     _buffer_init((_b), &(buffer_init_options){ args })

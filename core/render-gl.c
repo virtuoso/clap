@@ -131,12 +131,12 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
     if (comp_count < data_comp_count(comp_type))
         comp_count = data_comp_count(comp_type);
 
-    buf->type = gl_buffer_type(opts->type);
-    buf->usage = gl_buffer_usage(opts->usage);
-    buf->comp_type = gl_comp_type[comp_type];
+    buf->gl.type = gl_buffer_type(opts->type);
+    buf->gl.usage = gl_buffer_usage(opts->usage);
+    buf->gl.comp_type = gl_comp_type[comp_type];
     buf->comp_count = comp_count;
     buf->off = opts->off;
-    buf->stride = opts->stride;
+    buf->gl.stride = opts->stride;
     buf->use_count = 1;
     /* Not doing a ref_get(opts->main) here, see the comment in buffer_deinit() */
     buf->main = opts->main;
@@ -145,7 +145,7 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
 
     if (opts->data && opts->size)
         buffer_load(buf, opts->data, opts->size,
-                    buf->type == GL_ELEMENT_ARRAY_BUFFER ? -1 : opts->loc);
+                    buf->gl.type == GL_ELEMENT_ARRAY_BUFFER ? -1 : opts->loc);
 
 #ifndef CONFIG_FINAL
     memcpy(&buf->opts, opts, sizeof(*opts));
@@ -167,26 +167,26 @@ void buffer_deinit(buffer_t *buf)
      */
     buffer_t *main = buf->main ? : buf;
     if (!--main->use_count)
-        GL(glDeleteBuffers(1, &buf->id));
+        GL(glDeleteBuffers(1, &buf->gl.id));
 
     buf->loaded = false;
 }
 
 static inline noubsan void _buffer_bind(buffer_t *buf, uniform_t loc)
 {
-    switch (buf->comp_type) {
+    switch (buf->gl.comp_type) {
         case GL_BYTE:
         case GL_UNSIGNED_BYTE:
         case GL_SHORT:
         case GL_UNSIGNED_SHORT:
         case GL_INT:
         case GL_UNSIGNED_INT:
-            GL(glVertexAttribIPointer(loc, buf->comp_count, buf->comp_type,
-                                      buf->stride, (void *)0 + buf->off));
+            GL(glVertexAttribIPointer(loc, buf->comp_count, buf->gl.comp_type,
+                                      buf->gl.stride, (void *)0 + buf->off));
             break;
         default:
-            GL(glVertexAttribPointer(loc, buf->comp_count, buf->comp_type, GL_FALSE,
-                                     buf->stride, (void *)0 + buf->off));
+            GL(glVertexAttribPointer(loc, buf->comp_count, buf->gl.comp_type, GL_FALSE,
+                                     buf->gl.stride, (void *)0 + buf->off));
             break;
     }
 }
@@ -207,8 +207,8 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
      * This may or may not implode on real GLES (e.g., RPi) where VAOs are
      * not supported at all, leave this for the future.
      */
-    if (buf->type == GL_ELEMENT_ARRAY_BUFFER) {
-        GL(glBindBuffer(buf->type, buf->id));
+    if (buf->gl.type == GL_ELEMENT_ARRAY_BUFFER) {
+        GL(glBindBuffer(buf->gl.type, buf->gl.id));
         return;
     }
 
@@ -220,8 +220,8 @@ void buffer_unbind(buffer_t *buf, uniform_t loc)
     if (!buf->loaded)
         return;
 
-    if (buf->type == GL_ELEMENT_ARRAY_BUFFER) {
-        GL(glBindBuffer(buf->type, 0));
+    if (buf->gl.type == GL_ELEMENT_ARRAY_BUFFER) {
+        GL(glBindBuffer(buf->gl.type, 0));
         return;
     }
 
@@ -231,14 +231,14 @@ void buffer_unbind(buffer_t *buf, uniform_t loc)
 static void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
 {
     if (buf->main)
-        buf->id = buf->main->id;
+        buf->gl.id = buf->main->gl.id;
     else
-        GL(glGenBuffers(1, &buf->id));
+        GL(glGenBuffers(1, &buf->gl.id));
 
-    GL(glBindBuffer(buf->type, buf->id));
+    GL(glBindBuffer(buf->gl.type, buf->gl.id));
 
     if (!buf->main)
-        GL(glBufferData(buf->type, sz, data, buf->usage));
+        GL(glBufferData(buf->gl.type, sz, data, buf->gl.usage));
 #ifndef CONFIG_FINAL
     buf->opts.size = sz;
     buf->loc = loc;
@@ -247,7 +247,7 @@ static void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
     if (loc >= 0)
         _buffer_bind(buf, loc);
 
-    GL(glBindBuffer(buf->type, 0));
+    GL(glBindBuffer(buf->gl.type, 0));
     buf->loaded = true;
 }
 

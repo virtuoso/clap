@@ -77,27 +77,27 @@ static void buffer_load(buffer_t *buf, renderer_t *r, const char *name,
                          void *data, size_t sz)
 {
     if (buf->main) {
-        buf->buf = buf->main->buf;
+        buf->wgpu.buf = buf->main->wgpu.buf;
     } else {
         size_t gpu_sz = round_up(sz, 4);
-        buf->buf = wgpu_create_buffer(r, name, wgpu_buffer_usage(buf->type), gpu_sz);
-        if (!buf->buf)
+        buf->wgpu.buf = wgpu_create_buffer(r, name, wgpu_buffer_usage(buf->wgpu.type), gpu_sz);
+        if (!buf->wgpu.buf)
             return;
 
         if (gpu_sz == sz) {
-            wgpuQueueWriteBuffer(r->queue, buf->buf, 0, data, sz);
+            wgpuQueueWriteBuffer(r->queue, buf->wgpu.buf, 0, data, sz);
         } else {
             /* WGPU requires write size to be a multiple of 4; zero-pad the tail */
             void *padded = mem_alloc(gpu_sz, .zero = 1);
             if (padded) {
                 memcpy(padded, data, sz);
-                wgpuQueueWriteBuffer(r->queue, buf->buf, 0, padded, gpu_sz);
+                wgpuQueueWriteBuffer(r->queue, buf->wgpu.buf, 0, padded, gpu_sz);
                 mem_free(padded);
             }
         }
     }
 
-    buf->size = sz;
+    buf->wgpu.size = sz;
     buf->loaded = true;
 }
 
@@ -129,8 +129,8 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
     if (comp_type == DT_NONE)
         comp_type = DT_FLOAT;
 
-    buf->renderer = opts->renderer;
-    buf->type = opts->type;
+    buf->wgpu.renderer = opts->renderer;
+    buf->wgpu.type = opts->type;
     buf->off = opts->off;
     buf->comp_count = max(opts->comp_count, data_comp_count(comp_type));
     buf->loc = opts->loc;
@@ -152,12 +152,12 @@ void buffer_deinit(buffer_t *buf)
     if (!buf)
         return;
 
-    if (buf->buf && !buf->main)
-        wgpuBufferRelease(buf->buf);
+    if (buf->wgpu.buf && !buf->main)
+        wgpuBufferRelease(buf->wgpu.buf);
 
-    buf->buf = NULL;
+    buf->wgpu.buf = NULL;
     buf->off = 0;
-    buf->size = 0;
+    buf->wgpu.size = 0;
     buf->comp_count = 0;
     buf->loc = 0;
     buf->loaded = false;
@@ -173,7 +173,7 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
 
     buf->loc = loc;
 
-    renderer_t *r = buf->renderer;
+    renderer_t *r = buf->wgpu.renderer;
     if (!r || !r->va)
         return;
 
@@ -200,9 +200,9 @@ cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...)
     vsnprintf(label, sizeof(label), fmt, ap);
     va_end(ap);
 
-    if (buf->buf) {
+    if (buf->wgpu.buf) {
         WGPUStringView sv = { label, strlen(label) };
-        wgpuBufferSetLabel(buf->buf, sv);
+        wgpuBufferSetLabel(buf->wgpu.buf, sv);
     }
 
     return cres_val(int, 0);
@@ -2259,12 +2259,12 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type,
         );
     }
 
-    wgpuRenderPassEncoderSetVertexBuffer(enc, 0, vbuf->buf, 0, vbuf->size);
+    wgpuRenderPassEncoderSetVertexBuffer(enc, 0, vbuf->wgpu.buf, 0, vbuf->wgpu.size);
 
     /* Set index buffer */
-    size_t idx_count = index->size / data_comp_size(idx_type);
-    wgpuRenderPassEncoderSetIndexBuffer(enc, index->buf,
-                                         wgpu_index_format(idx_type), 0, index->size);
+    size_t idx_count = index->wgpu.size / data_comp_size(idx_type);
+    wgpuRenderPassEncoderSetIndexBuffer(enc, index->wgpu.buf,
+                                         wgpu_index_format(idx_type), 0, index->wgpu.size);
 
     wgpuRenderPassEncoderDrawIndexed(enc, idx_count, max(nr_instances, 1u), 0, 0, 0);
 
