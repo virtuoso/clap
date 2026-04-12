@@ -934,93 +934,89 @@ void renderer_mat4x4_perspective(renderer_t *renderer, mat4x4 m, float y_fov, fl
 
 TYPE(renderer,
     const renderer_ops  *ops;
-#ifdef CONFIG_RENDERER_OPENGL
-    GLenum              cull_face;
-    GLenum              blend_sfactor;
-    GLenum              blend_dfactor;
-    GLenum              depth_func;
-    vec4                clear_color;
-    double              clear_depth;
-    int                 major;
-    int                 minor;
-    renderer_profile    profile;
     int                 x;
     int                 y;
     int                 width;
     int                 height;
     bool                blend;
-    bool                depth_test;
-    bool                wireframe;
-    bool                mac_amd_quirk;
-#elif defined(CONFIG_RENDERER_WGPU)
-    struct ref                          ref;
-    wgpu_instance_t                     instance;
-    wgpu_adapter_t                      adapter;
-    wgpu_device_t                       device;
-    wgpu_queue_t                        queue;
-    wgpu_command_encoder_t              cmd_encoder;
-    wgpu_surface_t                      surface;
-    wgpu_surface_texture_t              surface_texture;
-    wgpu_texture_t                      texture;
-    wgpu_texture_view_t                 texture_view;
-    wgpu_render_pass_encoder_t          pass_encoder;
-    fbo_t                               *fbo;
-    vertex_array_t                      *va;
-    draw_control_t                      *dc;
-    struct list                         dc_cache;
-    struct list                         ubos;
-    texture_t                           *bound_textures[BINDING_TEXTURE_MAX];
-    uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
-    int                                 width;
-    int                                 height;
-    bool                                hdr;
-    bool                                edr_supported;
-    bool                                blend;
-    unsigned int                        swapchain_format_gen;
-    int                                 limits[RENDER_LIMIT_MAX];
-    atomic_uint                         error;
-    char                                wgpu_message[128];
-#elif defined(CONFIG_RENDERER_METAL)
+#ifdef CONFIG_RENDERER_OPENGL
+    struct {
+        GLenum              cull_face;
+        GLenum              blend_sfactor;
+        GLenum              blend_dfactor;
+        GLenum              depth_func;
+        double              clear_depth;
+        int                 major;
+        int                 minor;
+        renderer_profile    profile;
+        bool                depth_test;
+        bool                wireframe;
+        bool                mac_amd_quirk;
+    } gl;
+#endif /* CONFIG_RENDERER_OPENGL */
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        wgpu_instance_t                     instance;
+        wgpu_adapter_t                      adapter;
+        wgpu_device_t                       device;
+        wgpu_queue_t                        queue;
+        wgpu_command_encoder_t              cmd_encoder;
+        wgpu_surface_t                      surface;
+        wgpu_surface_texture_t              surface_texture;
+        wgpu_texture_t                      texture;
+        wgpu_texture_view_t                 texture_view;
+        wgpu_render_pass_encoder_t          pass_encoder;
+        fbo_t                               *fbo;
+        vertex_array_t                      *va;
+        draw_control_t                      *dc;
+        struct list                         dc_cache;
+        struct list                         ubos;
+        texture_t                           *bound_textures[BINDING_TEXTURE_MAX];
+        uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
+        bool                                hdr;
+        bool                                edr_supported;
+        unsigned int                        swapchain_format_gen;
+        int                                 limits[RENDER_LIMIT_MAX];
+        atomic_uint                         error;
+        char                                wgpu_message[128];
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_METAL
 #define FBOS_MAX 1024
 #define SHADERS_MAX 1024
-    struct ref                          ref;
-    ns_autorelease_pool_t               frame_pool;
-    mtl_device_t                        device;
-    mtl_command_queue_t                 cmd_queue;
-    mtl_command_buffer_t                cmd_buffer;
-    dispatch_semaphore_t                sem;
-    mtl_ca_layer_t                      layer;
-    mtl_ca_drawable_t                   drawable;
-    vertex_array_t                      *va;
-    draw_control_t                      *dc;
-    fbo_t                               *screen_fbo;
-    fbo_t                               *fbo;
-    void                                *vbuffer_cache[SLOTS_MAX];
-    void                                *fbuffer_cache[SLOTS_MAX];
-    size_t                              voffset_cache[SLOTS_MAX];
-    size_t                              foffset_cache[SLOTS_MAX];
-    void                                *texture_cache[SLOTS_MAX];
-    void                                *sampler_cache[SLOTS_MAX];
-    struct bitmap                       fbo_ids;
-    struct bitmap                       shader_ids;
-    struct list                         dc_hash[256];
-    struct list                         ubos;
-    cg_colorspace_ref_t                 colorspace;
-    int                                 major;
-    int                                 minor;
-    int                                 fps_cap;
-    renderer_profile                    profile;
-    int                                 x;
-    int                                 y;
-    int                                 width;
-    int                                 height;
-    mtl_cull_mode_t                     cull_mode;
-    size_t                              nr_draws;
-    double                              cmdbuf_time;
-    int                                 cmdbuf_count;
-    int                                 frame_idx;
-    bool                                blend;
-    bool                                hdr;
+    struct {
+        ns_autorelease_pool_t               frame_pool;
+        mtl_device_t                        device;
+        mtl_command_queue_t                 cmd_queue;
+        mtl_command_buffer_t                cmd_buffer;
+        dispatch_semaphore_t                sem;
+        mtl_ca_layer_t                      layer;
+        mtl_ca_drawable_t                   drawable;
+        vertex_array_t                      *va;
+        draw_control_t                      *dc;
+        fbo_t                               *screen_fbo;
+        fbo_t                               *fbo;
+        void                                *vbuffer_cache[SLOTS_MAX];
+        void                                *fbuffer_cache[SLOTS_MAX];
+        size_t                              voffset_cache[SLOTS_MAX];
+        size_t                              foffset_cache[SLOTS_MAX];
+        void                                *texture_cache[SLOTS_MAX];
+        void                                *sampler_cache[SLOTS_MAX];
+        struct bitmap                       fbo_ids;
+        struct bitmap                       shader_ids;
+        struct list                         dc_hash[256];
+        struct list                         ubos;
+        cg_colorspace_ref_t                 colorspace;
+        int                                 major;
+        int                                 minor;
+        int                                 fps_cap;
+        mtl_cull_mode_t                     cull_mode;
+        size_t                              nr_draws;
+        double                              cmdbuf_time;
+        int                                 cmdbuf_count;
+        int                                 frame_idx;
+        bool                                hdr;
+    } mtl;
 #endif /* CONFIG_RENDERER_METAL */
 );
 

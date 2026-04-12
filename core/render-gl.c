@@ -1087,10 +1087,10 @@ static GLenum gl_depth_func(depth_func fn)
 
 static void renderer_depth_test(renderer_t *r, bool enable)
 {
-    if (r->depth_test == enable)
+    if (r->gl.depth_test == enable)
         return;
 
-    r->depth_test = enable;
+    r->gl.depth_test = enable;
     if (enable)
         GL(glEnable(GL_DEPTH_TEST));
     else
@@ -1669,7 +1669,7 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
     const char *renderer_str = (const char *)glGetString(GL_RENDERER);
     /* A quirk to fix frame stutter on mac OS with AMD graphics */
     if (renderer_str && !strncmp(renderer_str, "AMD", 3))
-        renderer->mac_amd_quirk = true;
+        renderer->gl.mac_amd_quirk = true;
 #endif /* __APPLE__ */
 
 
@@ -1841,9 +1841,9 @@ int renderer_query_limits(renderer_t *renderer, render_limit limit)
 
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
 {
-    renderer->major     = major;
-    renderer->minor     = minor;
-    renderer->profile   = profile;
+    renderer->gl.major      = major;
+    renderer->gl.minor      = minor;
+    renderer->gl.profile    = profile;
 }
 
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height)
@@ -1891,10 +1891,10 @@ void renderer_cull_face(renderer_t *r, cull_face cull)
 {
     GLenum gl_cull = gl_cull_face(cull);
 
-    if (r->cull_face == gl_cull)
+    if (r->gl.cull_face == gl_cull)
         return;
 
-    r->cull_face = gl_cull;
+    r->gl.cull_face = gl_cull;
 
     if (gl_cull != GL_NONE) {
         GL(glEnable(GL_CULL_FACE));
@@ -1903,7 +1903,7 @@ void renderer_cull_face(renderer_t *r, cull_face cull)
         return;
     }
 
-    GL(glCullFace(r->cull_face));
+    GL(glCullFace(r->gl.cull_face));
 }
 
 static GLenum gl_blend(blend blend)
@@ -1940,19 +1940,19 @@ void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
         return;
     }
 
-    if (r->blend_sfactor != _sfactor || r->blend_dfactor != _dfactor) {
-        r->blend_sfactor = _sfactor;
-        r->blend_dfactor = _dfactor;
+    if (r->gl.blend_sfactor != _sfactor || r->gl.blend_dfactor != _dfactor) {
+        r->gl.blend_sfactor = _sfactor;
+        r->gl.blend_dfactor = _dfactor;
     }
-    GL(glBlendFunc(r->blend_sfactor, r->blend_dfactor));
+    GL(glBlendFunc(r->gl.blend_sfactor, r->gl.blend_dfactor));
 }
 
 void renderer_wireframe(renderer_t *r, bool enable)
 {
-    if (r->wireframe == enable)
+    if (r->gl.wireframe == enable)
         return;
 
-    r->wireframe = enable;
+    r->gl.wireframe = enable;
 
 #ifndef EGL_EGL_PROTOTYPES
     if (enable)
@@ -2012,7 +2012,7 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, da
         GL(glDrawElementsInstanced(_draw_type, nr_faces, _idx_type, 0, nr_instances));
 
     /* Fix frame stutter on macOS + AMD (forces frame submission) */
-    if (r->mac_amd_quirk)
+    if (r->gl.mac_amd_quirk)
         GL(glFlush());
 
     return CERR_OK;
@@ -2022,23 +2022,23 @@ static void renderer_depth_func(renderer_t *r, depth_func fn)
 {
     GLenum _fn = gl_depth_func(fn);
 
-    if (r->depth_func == _fn)
+    if (r->gl.depth_func == _fn)
         return;
 
-    r->depth_func = _fn;
-    GL(glDepthFunc(r->depth_func));
+    r->gl.depth_func = _fn;
+    GL(glDepthFunc(r->gl.depth_func));
 }
 
 static void renderer_cleardepth(renderer_t *r, double depth)
 {
-    if (r->clear_depth == depth)
+    if (r->gl.clear_depth == depth)
         return;
 
-    r->clear_depth = depth;
+    r->gl.clear_depth = depth;
 #ifdef CONFIG_GLES
-    GL(glClearDepthf((float)r->clear_depth));
+    GL(glClearDepthf((float)r->gl.clear_depth));
 #else
-    GL(glClearDepth(r->clear_depth));
+    GL(glClearDepth(r->gl.clear_depth));
 #endif /* CONFIG_GLES */
 }
 

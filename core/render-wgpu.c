@@ -42,7 +42,7 @@ static WGPUTextureFormat wgpu_texture_format(texture_format format);
 
 static inline cerr wgpu_previous_errors(renderer_t *r)
 {
-    auto error = atomic_load_explicit(&r->error, memory_order_acquire);
+    auto error = atomic_load_explicit(&r->wgpu.error, memory_order_acquire);
     if (error)
         return CERR_PREVIOUS_ERRORS_REASON(
             .fmt    = "previous errors reported: %u",
@@ -86,7 +86,7 @@ static WGPUBuffer wgpu_create_buffer(renderer_t *r, const char *label,
     if (label)
         desc.label = (WGPUStringView){ label, strlen(label) };
 
-    return wgpuDeviceCreateBuffer(r->device, &desc);
+    return wgpuDeviceCreateBuffer(r->wgpu.device, &desc);
 }
 
 static void buffer_load(buffer_t *buf, renderer_t *r, const char *name,
@@ -101,13 +101,13 @@ static void buffer_load(buffer_t *buf, renderer_t *r, const char *name,
             return;
 
         if (gpu_sz == sz) {
-            wgpuQueueWriteBuffer(r->queue, buf->wgpu.buf, 0, data, sz);
+            wgpuQueueWriteBuffer(r->wgpu.queue, buf->wgpu.buf, 0, data, sz);
         } else {
             /* WGPU requires write size to be a multiple of 4; zero-pad the tail */
             void *padded = mem_alloc(gpu_sz, .zero = 1);
             if (padded) {
                 memcpy(padded, data, sz);
-                wgpuQueueWriteBuffer(r->queue, buf->wgpu.buf, 0, padded, gpu_sz);
+                wgpuQueueWriteBuffer(r->wgpu.queue, buf->wgpu.buf, 0, padded, gpu_sz);
                 mem_free(padded);
             }
         }
@@ -190,16 +190,16 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
     buf->loc = loc;
 
     renderer_t *r = buf->wgpu.renderer;
-    if (!r || !r->va)
+    if (!r || !r->wgpu.va)
         return;
 
     if (loc < 0) {
         /* index buffer */
-        r->va->index = buf;
+        r->wgpu.va->index = buf;
     } else if (loc == 0) {
         /* first vertex attribute — record the interleaved vertex buffer */
         buffer_t *vbuf = buf->main ? buf->main : buf;
-        r->va->vbuf = vbuf;
+        r->wgpu.va->vbuf = vbuf;
     }
 }
 
@@ -255,13 +255,13 @@ void vertex_array_done(vertex_array_t *va)
 void vertex_array_bind(vertex_array_t *va)
 {
     if (va && va->renderer)
-        va->renderer->va = va;
+        va->renderer->wgpu.va = va;
 }
 
 void vertex_array_unbind(vertex_array_t *va)
 {
     if (va && va->renderer)
-        va->renderer->va = NULL;
+        va->renderer->wgpu.va = NULL;
 }
 
 /****************************************************************************
@@ -399,13 +399,13 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
         .label      = to_wgpu_stringview(shader->name),
     };
 
-    return wgpuDeviceCreateRenderPipeline(r->device, &desc);
+    return wgpuDeviceCreateRenderPipeline(r->wgpu.device, &desc);
 }
 
 static WGPUTextureFormat wgpu_current_color_format(renderer_t *r)
 {
-    if (r->fbo) {
-        texture_format fmt = fbo_texture_format(r->fbo, FBO_COLOR_TEXTURE(0));
+    if (r->wgpu.fbo) {
+        texture_format fmt = fbo_texture_format(r->wgpu.fbo, FBO_COLOR_TEXTURE(0));
         return wgpu_texture_format(fmt);
     }
     return wgpu_swapchain_format(r);
@@ -424,10 +424,10 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     WGPUTextureFormat color_formats[FBO_COLOR_ATTACHMENTS_MAX];
     unsigned int nr_color_targets = 0;
 
-    if (r->fbo) {
-        fa_for_each(fa, r->fbo->layout, texture) {
+    if (r->wgpu.fbo) {
+        fa_for_each(fa, r->wgpu.fbo->layout, texture) {
             int idx = fbo_attachment_color(fa);
-            color_formats[nr_color_targets++] = wgpu_texture_format(r->fbo->color_config[idx].format);
+            color_formats[nr_color_targets++] = wgpu_texture_format(r->wgpu.fbo->color_config[idx].format);
         }
     }
     if (!nr_color_targets) {
@@ -438,12 +438,12 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     dc->color_format = color_formats[0];
     dc->nr_color_targets = nr_color_targets;
 
-    bool has_depth = r->fbo && r->fbo->layout.depth_texture;
+    bool has_depth = r->wgpu.fbo && r->wgpu.fbo->layout.depth_texture;
     WGPUTextureFormat depth_fmt = WGPUTextureFormat_Depth32Float;
     WGPUCompareFunction depth_cmp = WGPUCompareFunction_Always;
     if (has_depth) {
-        depth_fmt = wgpu_texture_format(r->fbo->depth_config.format);
-        depth_cmp = wgpu_compare_function(r->fbo->depth_config.depth_func);
+        depth_fmt = wgpu_texture_format(r->wgpu.fbo->depth_config.format);
+        depth_cmp = wgpu_compare_function(r->wgpu.fbo->depth_config.depth_func);
     }
 
     dc->has_depth = has_depth;
@@ -470,7 +470,7 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
             .arg1 = has_depth ? "yes" : "no"
         );
 
-    list_append(&opts->renderer->dc_cache, &dc->cache_entry);
+    list_append(&opts->renderer->wgpu.dc_cache, &dc->cache_entry);
 
     return CERR_OK;
 }
@@ -505,10 +505,10 @@ void draw_control_done(draw_control_t *dc)
 void draw_control_bind(draw_control_t *dc)
 {
     renderer_t *r = dc->renderer;
-    r->dc = dc;
+    r->wgpu.dc = dc;
 
-    if (r->pass_encoder)
-        wgpuRenderPassEncoderSetPipeline(r->pass_encoder, dc->pipeline[r->blend ? 1 : 0]);
+    if (r->wgpu.pass_encoder)
+        wgpuRenderPassEncoderSetPipeline(r->wgpu.pass_encoder, dc->pipeline[r->blend ? 1 : 0]);
 }
 
 void draw_control_unbind(draw_control_t *dc)
@@ -675,7 +675,7 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
     sampler_desc.addressModeW = wgpu_address_mode(opts->wrap);
     sampler_desc.minFilter = wgpu_filter_mode(opts->min_filter);
     sampler_desc.magFilter = wgpu_filter_mode(opts->mag_filter);
-    tex->sampler = wgpuDeviceCreateSampler(opts->renderer->device, &sampler_desc);
+    tex->sampler = wgpuDeviceCreateSampler(opts->renderer->wgpu.device, &sampler_desc);
 
 #ifndef CONFIG_FINAL
     tex->opts = *opts;
@@ -762,7 +762,7 @@ static cerr wgpu_texture_create(texture_t *tex, unsigned int width, unsigned int
     /* release previous, if resizing */
     wgpu_texture_release(tex);
 
-    tex->texture = wgpuDeviceCreateTexture(r->device, &desc);
+    tex->texture = wgpuDeviceCreateTexture(r->wgpu.device, &desc);
     if (!tex->texture)
         return CERR_INITIALIZATION_FAILED_REASON(.fmt = "wgpuDeviceCreateTexture failed");
 
@@ -809,7 +809,7 @@ cerr texture_load(texture_t *tex, texture_format format, unsigned int width, uns
             .rowsPerImage   = height,
         };
         WGPUExtent3D extent = { width, height, max(tex->layers, 1u) };
-        wgpuQueueWriteTexture(tex->renderer->queue, &dest, buf,
+        wgpuQueueWriteTexture(tex->renderer->wgpu.queue, &dest, buf,
                               (size_t)width * height * max(tex->layers, 1u) * bpp,
                               &layout, &extent);
     }
@@ -842,8 +842,8 @@ void texture_bind(texture_t *tex, unsigned int target)
     unsigned int slot = target / 2;
     if (slot >= BINDING_TEXTURE_MAX)    return;
 
-    r->bound_textures[slot] = tex;
-    r->dc->shader->binding_mask |= 3ull << target;
+    r->wgpu.bound_textures[slot] = tex;
+    r->wgpu.dc->shader->binding_mask |= 3ull << target;
 }
 
 void texture_unbind(texture_t *tex, unsigned int target)
@@ -1079,7 +1079,7 @@ void fbo_prepare(fbo_t *fbo)
 {
     renderer_t *r = fbo->renderer;
 
-    if (!r->cmd_encoder) {
+    if (!r->wgpu.cmd_encoder) {
         err("fbo_prepare: no command encoder\n");
         return;
     }
@@ -1128,26 +1128,26 @@ void fbo_prepare(fbo_t *fbo)
         .depthStencilAttachment     = has_depth ? &depth_att : NULL,
     };
 
-    r->pass_encoder = wgpuCommandEncoderBeginRenderPass(r->cmd_encoder, &desc);
-    r->fbo = fbo;
+    r->wgpu.pass_encoder = wgpuCommandEncoderBeginRenderPass(r->wgpu.cmd_encoder, &desc);
+    r->wgpu.fbo = fbo;
 }
 
 void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     renderer_t *r = fbo->renderer;
 
-    if (r->fbo != fbo) {
+    if (r->wgpu.fbo != fbo) {
         err("fbo_done: wrong fbo: %s (%p)\n", fbo->name, fbo);
         return;
     }
 
-    if (r->pass_encoder) {
-        wgpuRenderPassEncoderEnd(r->pass_encoder);
-        wgpuRenderPassEncoderRelease(r->pass_encoder);
-        r->pass_encoder = NULL;
+    if (r->wgpu.pass_encoder) {
+        wgpuRenderPassEncoderEnd(r->wgpu.pass_encoder);
+        wgpuRenderPassEncoderRelease(r->wgpu.pass_encoder);
+        r->wgpu.pass_encoder = NULL;
     }
 
-    r->fbo = NULL;
+    r->wgpu.fbo = NULL;
 }
 
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
@@ -1288,7 +1288,7 @@ cerr uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
 
     ubo->renderer = r;
     ubo->binding = binding;
-    list_append(&r->ubos, &ubo->entry);
+    list_append(&r->wgpu.ubos, &ubo->entry);
     return CERR_OK;
 }
 
@@ -1352,7 +1352,7 @@ void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_poin
     size_t offset = wgpu_ubo_offset(ubo);
 
     /* Upload the current slot to the GPU */
-    wgpuQueueWriteBuffer(r->queue, ubo->buf, offset, ubo->data, ubo->size);
+    wgpuQueueWriteBuffer(r->wgpu.queue, ubo->buf, offset, ubo->data, ubo->size);
 
     ubo->advance = true;
     ubo->dirty = false;
@@ -1360,7 +1360,7 @@ void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_poin
     /* Track this UBO for bind group creation at draw time */
     int slot = ubo->binding - WGPU_BINDING_UBO_BASE;
     if (slot >= 0 && slot < BINDING_UBO_MAX)
-        r->bound_ubos[slot] = ubo;
+        r->wgpu.bound_ubos[slot] = ubo;
 }
 
 cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
@@ -1419,7 +1419,7 @@ static cres(wgpu_shader_module_t) wgpu_create_shader_module(renderer_t *r, const
         .label          = { label, strlen(label) },
     };
 
-    WGPUShaderModule module = wgpuDeviceCreateShaderModule(r->device, &desc);
+    WGPUShaderModule module = wgpuDeviceCreateShaderModule(r->wgpu.device, &desc);
     if (!module)
         return cres_error(wgpu_shader_module_t,
             CERR_INVALID_SHADER,
@@ -1534,11 +1534,11 @@ uniform_t shader_uniform(shader_t *shader, const char *name)
 static cresp(draw_control) wgpu_dc_find_or_create(renderer_t *r, shader_t *shader)
 {
     WGPUTextureFormat fmt = wgpu_current_color_format(r);
-    bool has_depth = r->fbo && r->fbo->layout.depth_texture;
-    unsigned int nr_targets = r->fbo ? fa_nr_color_texture(r->fbo->layout) : 1;
+    bool has_depth = r->wgpu.fbo && r->wgpu.fbo->layout.depth_texture;
+    unsigned int nr_targets = r->wgpu.fbo ? fa_nr_color_texture(r->wgpu.fbo->layout) : 1;
     draw_control_t *dc;
 
-    list_for_each_entry(dc, &r->dc_cache, cache_entry)
+    list_for_each_entry(dc, &r->wgpu.dc_cache, cache_entry)
         if (dc->shader == shader && dc->color_format == fmt &&
             dc->nr_color_targets == nr_targets && dc->has_depth == has_depth)
             return cresp_val(draw_control, dc);
@@ -1558,8 +1558,8 @@ cerr shader_use(shader_t *shader, bool draw)
     // Clear per-draw binding state so only resources bound for this
     // shader contribute to the bind group (auto layout only contains
     // bindings the shader actually declares).
-    memset(r->bound_textures, 0, sizeof(r->bound_textures));
-    memset(r->bound_ubos, 0, sizeof(r->bound_ubos));
+    memset(r->wgpu.bound_textures, 0, sizeof(r->wgpu.bound_textures));
+    memset(r->wgpu.bound_ubos, 0, sizeof(r->wgpu.bound_ubos));
 
     auto dc = CRES_RET_CERR(wgpu_dc_find_or_create(r, shader));
     draw_control_bind(dc);
@@ -1592,12 +1592,12 @@ int renderer_query_limits(renderer_t *renderer, render_limit limit)
     if (limit >= RENDER_LIMIT_MAX)
         return 0;
 
-    return renderer->limits[limit];
+    return renderer->wgpu.limits[limit];
 }
 
 static void wgpu_message_save(renderer_t *r, WGPUStringView str)
 {
-    declare_sv_from(msg, r->wgpu_message);
+    declare_sv_from(msg, r->wgpu.wgpu_message);
     sv_reset(&sv(msg));
     sv_append(&sv(msg), "%-*s", (int)str.length, str.data);
 }
@@ -1610,7 +1610,7 @@ static cerr_check wgpu_wait(renderer_t *r, WGPUFuture future)
 {
     WGPUFutureWaitInfo future_info = { .future = future };
 
-    auto status = wgpuInstanceWaitAny(r->instance, 1, &future_info, UINT64_MAX);
+    auto status = wgpuInstanceWaitAny(r->wgpu.instance, 1, &future_info, UINT64_MAX);
     if (status != WGPUWaitStatus_Success) {
         return CERR_INITIALIZATION_FAILED_REASON(
             .fmt    = "wait status: %d",
@@ -1637,14 +1637,14 @@ static void request_adapter_cb(WGPURequestAdapterStatus status, WGPUAdapter adap
         wgpu_message_save(cd->r, message);
         cd->status = CERR_INITIALIZATION_FAILED_REASON(
             .fmt    = "wgpu request adapter failed with '%s'",
-            .arg0   = cd->r->wgpu_message,
+            .arg0   = cd->r->wgpu.wgpu_message,
         );
 
         return;
     }
 
     cd->status = CERR_OK;
-    cd->r->adapter = adapter;
+    cd->r->wgpu.adapter = adapter;
 }
 
 static void request_device_cb(WGPURequestDeviceStatus status, WGPUDevice device,
@@ -1655,14 +1655,14 @@ static void request_device_cb(WGPURequestDeviceStatus status, WGPUDevice device,
         wgpu_message_save(cd->r, message);
         cd->status = CERR_INITIALIZATION_FAILED_REASON(
             .fmt    = "wgpu request device failed with '%s'",
-            .arg0   = cd->r->wgpu_message,
+            .arg0   = cd->r->wgpu.wgpu_message,
         );
 
         return;
     }
 
     cd->status = CERR_OK;
-    cd->r->device = device;
+    cd->r->wgpu.device = device;
 }
 
 static cerr_check wgpu_request_adapter(renderer_t *r)
@@ -1672,8 +1672,8 @@ static cerr_check wgpu_request_adapter(renderer_t *r)
         .requiredFeatures       = features,
         .requiredFeatureCount   = array_size(features),
     };
-    r->instance = wgpuCreateInstance(&desc);
-    if (!r->instance)  return CERR_INITIALIZATION_FAILED_REASON(.fmt = "wgpuCreateInstance() failed");
+    r->wgpu.instance = wgpuCreateInstance(&desc);
+    if (!r->wgpu.instance)  return CERR_INITIALIZATION_FAILED_REASON(.fmt = "wgpuCreateInstance() failed");
 
     struct wgpu_callback_data cd = { .r = r };
     WGPURequestAdapterCallbackInfo adapter_cb = {
@@ -1685,7 +1685,7 @@ static cerr_check wgpu_request_adapter(renderer_t *r)
         .powerPreference    = WGPUPowerPreference_HighPerformance,
     };
 
-    auto af = wgpuInstanceRequestAdapter(r->instance, &adapter_opts, adapter_cb);
+    auto af = wgpuInstanceRequestAdapter(r->wgpu.instance, &adapter_opts, adapter_cb);
 
     CERR_RET_CERR(wgpu_wait(r, af));
 
@@ -1701,7 +1701,7 @@ static void wgpu_uncaptured_log(WGPUDevice const *device, WGPUErrorType type,
 
     renderer_t *r = data1;
     err("### '%-*s'\n", (int)message.length, message.data);
-    atomic_fetch_add_explicit(&r->error, 1, memory_order_release);
+    atomic_fetch_add_explicit(&r->wgpu.error, 1, memory_order_release);
 }
 
 static cerr_check wgpu_request_device(renderer_t *r)
@@ -1727,7 +1727,7 @@ static cerr_check wgpu_request_device(renderer_t *r)
         }
     };
 
-    auto df = wgpuAdapterRequestDevice(r->adapter, &desc, device_cb);
+    auto df = wgpuAdapterRequestDevice(r->wgpu.adapter, &desc, device_cb);
 
     CERR_RET_CERR(wgpu_wait(r, df));
 
@@ -1771,7 +1771,7 @@ static inline bool wgpu_ok(WGPUStatus status)   { return status == WGPUStatus_Su
 static void wgpu_query_device(renderer_t *r)
 {
     WGPUAdapterInfo info = WGPU_ADAPTER_INFO_INIT;
-    auto status = wgpuDeviceGetAdapterInfo(r->device, &info);
+    auto status = wgpuDeviceGetAdapterInfo(r->wgpu.device, &info);
     if (!wgpu_ok(status)) {
         err("failed to get adapter info\n");
         return;
@@ -1787,7 +1787,7 @@ static void wgpu_query_device(renderer_t *r)
 
     // wgpuDeviceHasFeature(r->device, WGPUFeatureName_RG11B10UfloatRenderable)
     WGPUSupportedFeatures features = WGPU_SUPPORTED_FEATURES_INIT;
-    wgpuAdapterGetFeatures(r->adapter, &features);
+    wgpuAdapterGetFeatures(r->wgpu.adapter, &features);
 
     // TODO: store this in renderer_t under !CONFIG_FINAL for debug UI
     for (size_t i = 0; i < features.featureCount; i++)
@@ -1805,30 +1805,30 @@ static void wgpu_query_device(renderer_t *r)
     //
     // Initial r->hdr is left to renderer_hdr_enable() which gets called from
     // clap_init() / scene UI based on the user's render_options.
-    r->edr_supported = display_supports_edr();
-    r->hdr           = r->edr_supported;
+    r->wgpu.edr_supported = display_supports_edr();
+    r->wgpu.hdr           = r->wgpu.edr_supported;
 
     WGPULimits limits = WGPU_LIMITS_INIT;
-    status = wgpuDeviceGetLimits(r->device, &limits);
+    status = wgpuDeviceGetLimits(r->wgpu.device, &limits);
     if (!wgpu_ok(status)) {
         err("failed to get device limits\n");
         return;
     }
 
-    r->limits[RENDER_LIMIT_MAX_TEXTURE_SIZE]            = limits.maxTextureDimension2D; // Existing users mean 2D when they query this; XXX: split
-    r->limits[RENDER_LIMIT_MAX_TEXTURE_UNITS]           = limits.maxSampledTexturesPerShaderStage; // Close enough; nothing is querying this at the moment
-    r->limits[RENDER_LIMIT_MAX_TEXTURE_ARRAY_LAYERS]    = limits.maxTextureArrayLayers;
-    r->limits[RENDER_LIMIT_MAX_COLOR_ATTACHMENTS]       = limits.maxColorAttachments;
-    r->limits[RENDER_LIMIT_MAX_COLOR_TEXTURE_SAMPLES]   = WGPU_MSAA_SAMPLES;
-    r->limits[RENDER_LIMIT_MAX_DEPTH_TEXTURE_SAMPLES]   = WGPU_MSAA_SAMPLES;
-    r->limits[RENDER_LIMIT_MAX_SAMPLES]                 = WGPU_MSAA_SAMPLES;
-    r->limits[RENDER_LIMIT_MAX_DRAW_BUFFERS]            = 8;
-    r->limits[RENDER_LIMIT_MAX_ANISOTROPY]              = 1;
-    r->limits[RENDER_LIMIT_MAX_UBO_SIZE]                = limits.maxUniformBufferBindingSize;
-    r->limits[RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS]   =
-    r->limits[RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS] =
-    r->limits[RENDER_LIMIT_MAX_UBO_BINDINGS]            = limits.maxUniformBuffersPerShaderStage;
-    r->limits[RENDER_LIMIT_MAX_GEOMETRY_UNIFORM_BLOCKS] = 0;
+    r->wgpu.limits[RENDER_LIMIT_MAX_TEXTURE_SIZE]            = limits.maxTextureDimension2D; // Existing users mean 2D when they query this; XXX: split
+    r->wgpu.limits[RENDER_LIMIT_MAX_TEXTURE_UNITS]           = limits.maxSampledTexturesPerShaderStage; // Close enough; nothing is querying this at the moment
+    r->wgpu.limits[RENDER_LIMIT_MAX_TEXTURE_ARRAY_LAYERS]    = limits.maxTextureArrayLayers;
+    r->wgpu.limits[RENDER_LIMIT_MAX_COLOR_ATTACHMENTS]       = limits.maxColorAttachments;
+    r->wgpu.limits[RENDER_LIMIT_MAX_COLOR_TEXTURE_SAMPLES]   = WGPU_MSAA_SAMPLES;
+    r->wgpu.limits[RENDER_LIMIT_MAX_DEPTH_TEXTURE_SAMPLES]   = WGPU_MSAA_SAMPLES;
+    r->wgpu.limits[RENDER_LIMIT_MAX_SAMPLES]                 = WGPU_MSAA_SAMPLES;
+    r->wgpu.limits[RENDER_LIMIT_MAX_DRAW_BUFFERS]            = 8;
+    r->wgpu.limits[RENDER_LIMIT_MAX_ANISOTROPY]              = 1;
+    r->wgpu.limits[RENDER_LIMIT_MAX_UBO_SIZE]                = limits.maxUniformBufferBindingSize;
+    r->wgpu.limits[RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS]   =
+    r->wgpu.limits[RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS] =
+    r->wgpu.limits[RENDER_LIMIT_MAX_UBO_BINDINGS]            = limits.maxUniformBuffersPerShaderStage;
+    r->wgpu.limits[RENDER_LIMIT_MAX_GEOMETRY_UNIFORM_BLOCKS] = 0;
 }
 
 static inline wgpu_texture_format_t wgpu_swapchain_format(renderer_t *r)
@@ -1837,7 +1837,7 @@ static inline wgpu_texture_format_t wgpu_swapchain_format(renderer_t *r)
     // mandated by core WebGPU. The compositor scans linear values out to the
     // display in extended sRGB, so the value range above 1.0 maps to nits
     // beyond SDR white. SDR path stays on BGRA8Unorm for cheap composition.
-    return r->hdr
+    return r->wgpu.hdr
         ? WGPUTextureFormat_RGBA16Float
         : WGPUTextureFormat_BGRA8Unorm;
 }
@@ -1845,7 +1845,7 @@ static inline wgpu_texture_format_t wgpu_swapchain_format(renderer_t *r)
 static void wgpu_configure_surface(renderer_t *r)
 {
     WGPUSurfaceConfiguration config = {
-        .device         = r->device,
+        .device         = r->wgpu.device,
         .format         = wgpu_swapchain_format(r),
         .usage          = WGPUTextureUsage_RenderAttachment,
         .width          = r->width,
@@ -1858,13 +1858,13 @@ static void wgpu_configure_surface(renderer_t *r)
     // compositor doesn't clamp values >1.0 to SDR white. Only attached when
     // HDR is on; otherwise default sRGB / Standard tone mapping is fine.
     WGPUSurfaceColorManagement color_mgmt = WGPU_SURFACE_COLOR_MANAGEMENT_INIT;
-    if (r->hdr) {
+    if (r->wgpu.hdr) {
         color_mgmt.colorSpace      = WGPUPredefinedColorSpace_DisplayP3;
         color_mgmt.toneMappingMode = WGPUToneMappingMode_Extended;
         config.nextInChain         = &color_mgmt.chain;
     }
 
-    wgpuSurfaceConfigure(r->surface, &config);
+    wgpuSurfaceConfigure(r->wgpu.surface, &config);
 }
 
 static WGPUEmscriptenSurfaceSourceCanvasHTMLSelector html_selector = {
@@ -1877,11 +1877,11 @@ static cerr wgpu_create_surface(renderer_t *r)
     WGPUSurfaceDescriptor desc = WGPU_SURFACE_DESCRIPTOR_INIT;
     desc.nextInChain = &html_selector.chain;
     desc.label = literal_to_wgpu_stringview("main surface");
-    r->surface = wgpuInstanceCreateSurface(r->instance, &desc);
+    r->wgpu.surface = wgpuInstanceCreateSurface(r->wgpu.instance, &desc);
 #ifdef __EMSCRIPTEN__
     if (!r->width || !r->height) {
         emscripten_get_canvas_element_size("canvas", &r->width, &r->height);
-        dbg("### surface: %p sizes: %ux%u\n", r->surface, r->width, r->height);
+        dbg("### surface: %p sizes: %ux%u\n", r->wgpu.surface, r->width, r->height);
     }
 #endif /* __EMSCRIPTEN__ */
 
@@ -1892,10 +1892,10 @@ static cerr wgpu_create_surface(renderer_t *r)
 
 static cerr wgpu_create_texture_view(renderer_t *r)
 {
-    wgpuSurfaceGetCurrentTexture(r->surface, &r->surface_texture);
-    if (!r->surface_texture.texture) return CERR_INITIALIZATION_FAILED_REASON(.fmt = "surface texture == NULL");
+    wgpuSurfaceGetCurrentTexture(r->wgpu.surface, &r->wgpu.surface_texture);
+    if (!r->wgpu.surface_texture.texture) return CERR_INITIALIZATION_FAILED_REASON(.fmt = "surface texture == NULL");
 
-    if (r->surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal)
+    if (r->wgpu.surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal)
         dbg("suboptimal surface texture: handle me\n");
 
     WGPUTextureViewDescriptor view_desc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
@@ -1905,13 +1905,13 @@ static cerr wgpu_create_texture_view(renderer_t *r)
     view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
     view_desc.aspect = WGPUTextureAspect_All;
 
-    r->texture_view = wgpuTextureCreateView(r->surface_texture.texture, &view_desc);
-    return r->texture_view ? CERR_OK : CERR_INVALID_OPERATION_REASON(.fmt = "failed to create surface texture view");
+    r->wgpu.texture_view = wgpuTextureCreateView(r->wgpu.surface_texture.texture, &view_desc);
+    return r->wgpu.texture_view ? CERR_OK : CERR_INVALID_OPERATION_REASON(.fmt = "failed to create surface texture view");
 }
 
 static cerr wgpu_create_render_pass(renderer_t *r)
 {
-    if (!r->cmd_encoder)    return CERR_INVALID_OPERATION_REASON(.fmt = "no command encoder");
+    if (!r->wgpu.cmd_encoder)    return CERR_INVALID_OPERATION_REASON(.fmt = "no command encoder");
 
     vec4 clear_color = {};
 
@@ -1920,23 +1920,23 @@ static cerr wgpu_create_render_pass(renderer_t *r)
     color_attachments.loadOp = WGPULoadOp_Clear;
     color_attachments.storeOp = WGPUStoreOp_Store;
     color_attachments.clearValue = (WGPUColor){ clear_color[0] * clear_color[3], clear_color[1] * clear_color[3], clear_color[2] * clear_color[3], clear_color[3] };
-    color_attachments.view = r->texture_view;
+    color_attachments.view = r->wgpu.texture_view;
 
     WGPURenderPassDescriptor render_pass_desc = {};
     render_pass_desc.colorAttachmentCount = 1;
     render_pass_desc.colorAttachments = &color_attachments;
     render_pass_desc.depthStencilAttachment = nullptr;
 
-    r->pass_encoder = wgpuCommandEncoderBeginRenderPass(r->cmd_encoder, &render_pass_desc);
+    r->wgpu.pass_encoder = wgpuCommandEncoderBeginRenderPass(r->wgpu.cmd_encoder, &render_pass_desc);
 
-    return r->pass_encoder ? CERR_OK : CERR_INVALID_OPERATION_REASON(.fmt = "failed to kick off render pass");
+    return r->wgpu.pass_encoder ? CERR_OK : CERR_INVALID_OPERATION_REASON(.fmt = "failed to kick off render pass");
 }
 
 static cerr wgpu_create_cmd_encoder(renderer_t *r)
 {
     WGPUCommandEncoderDescriptor enc_desc = {};
-    r->cmd_encoder = wgpuDeviceCreateCommandEncoder(r->device, &enc_desc);
-    return r->cmd_encoder ? CERR_OK : CERR_INITIALIZATION_FAILED_REASON(.fmt = "failed to create command encoder");
+    r->wgpu.cmd_encoder = wgpuDeviceCreateCommandEncoder(r->wgpu.device, &enc_desc);
+    return r->wgpu.cmd_encoder ? CERR_OK : CERR_INITIALIZATION_FAILED_REASON(.fmt = "failed to create command encoder");
 }
 
 static void work_done_cb(WGPUQueueWorkDoneStatus status, WGPUStringView message, void *data1, void *data2)
@@ -1947,23 +1947,23 @@ static void work_done_cb(WGPUQueueWorkDoneStatus status, WGPUStringView message,
 
 static cerr wgpu_get_queue(renderer_t *r)
 {
-    r->queue = wgpuDeviceGetQueue(r->device);
-    if (!r->queue)  return CERR_INITIALIZATION_FAILED_REASON(.fmt = "failed to get device queue\n");
+    r->wgpu.queue = wgpuDeviceGetQueue(r->wgpu.device);
+    if (!r->wgpu.queue) return CERR_INITIALIZATION_FAILED_REASON(.fmt = "failed to get device queue\n");
 
     WGPUQueueWorkDoneCallbackInfo info = {
         .callback   = work_done_cb,
         .mode       = WGPUCallbackMode_AllowSpontaneous, // XXX: check this
     };
-    wgpuQueueOnSubmittedWorkDone(r->queue, info);
+    wgpuQueueOnSubmittedWorkDone(r->wgpu.queue, info);
 
     return CERR_OK;
 }
 
 cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 {
-    atomic_init(&renderer->error, 0);
-    list_init(&renderer->dc_cache);
-    list_init(&renderer->ubos);
+    atomic_init(&renderer->wgpu.error, 0);
+    list_init(&renderer->wgpu.dc_cache);
+    list_init(&renderer->wgpu.ubos);
 
     CERR_RET_CERR(wgpu_request_adapter(renderer));
     CERR_RET_CERR(wgpu_request_device(renderer));
@@ -1979,18 +1979,18 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 }
 
 void renderer_done(renderer_t *r) {
-    wgpuSurfaceUnconfigure(r->surface);
-    wgpuSurfaceRelease(r->surface);
-    wgpuQueueRelease(r->queue);
-    wgpuDeviceRelease(r->device);
-    wgpuAdapterRelease(r->adapter);
-    wgpuInstanceRelease(r->instance);
+    wgpuSurfaceUnconfigure(r->wgpu.surface);
+    wgpuSurfaceRelease(r->wgpu.surface);
+    wgpuQueueRelease(r->wgpu.queue);
+    wgpuDeviceRelease(r->wgpu.device);
+    wgpuAdapterRelease(r->wgpu.adapter);
+    wgpuInstanceRelease(r->wgpu.instance);
 }
 
 static void renderer_frame_advance(renderer_t *r)
 {
     uniform_buffer_t *ubo;
-    list_for_each_entry(ubo, &r->ubos, entry) {
+    list_for_each_entry(ubo, &r->wgpu.ubos, entry) {
         void *prev_data = ubo->data;
         char *base = wgpu_ubo_shadow_base(ubo);
 
@@ -2020,50 +2020,49 @@ void renderer_swapchain_begin(renderer_t *r)
 
 void renderer_swapchain_end(renderer_t *r)
 {
-    if (!r->pass_encoder)
+    if (!r->wgpu.pass_encoder)
         return;
 
-    wgpuRenderPassEncoderEnd(r->pass_encoder);
-    wgpuRenderPassEncoderRelease(r->pass_encoder);
-    r->pass_encoder = NULL;
+    wgpuRenderPassEncoderEnd(r->wgpu.pass_encoder);
+    wgpuRenderPassEncoderRelease(r->wgpu.pass_encoder);
+    r->wgpu.pass_encoder = NULL;
 }
 
 void renderer_frame_end(renderer_t *r)
 {
-    if (!r->cmd_encoder) {
+    if (!r->wgpu.cmd_encoder) {
         err("renderer_frame_end: no command encoder\n");
         return;
     }
 
     WGPUCommandBufferDescriptor desc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
-    auto cmd_buffer = wgpuCommandEncoderFinish(r->cmd_encoder, &desc);
-    wgpuQueueSubmit(r->queue, 1, &cmd_buffer);
+    auto cmd_buffer = wgpuCommandEncoderFinish(r->wgpu.cmd_encoder, &desc);
+    wgpuQueueSubmit(r->wgpu.queue, 1, &cmd_buffer);
 
 #ifndef __EMSCRIPTEN__
     wgpuSurfacePresent(r->surface);
 #endif /* !__EMSCRIPTEN__ */
 
-    if (r->texture_view)
-        wgpuTextureViewRelease(r->texture_view);
-    if (r->surface_texture.texture)
-        wgpuTextureRelease(r->surface_texture.texture);
-    wgpuCommandEncoderRelease(r->cmd_encoder);
+    if (r->wgpu.texture_view)
+        wgpuTextureViewRelease(r->wgpu.texture_view);
+    if (r->wgpu.surface_texture.texture)
+        wgpuTextureRelease(r->wgpu.surface_texture.texture);
+    wgpuCommandEncoderRelease(r->wgpu.cmd_encoder);
     wgpuCommandBufferRelease(cmd_buffer);
 
-    r->cmd_encoder = NULL;
-    r->texture_view = NULL;
-    r->surface_texture.texture = NULL;
+    r->wgpu.cmd_encoder = NULL;
+    r->wgpu.texture_view = NULL;
+    r->wgpu.surface_texture.texture = NULL;
 }
 
 wgpu_device_t renderer_device(renderer_t *r)
 {
-    return r->device;
+    return r->wgpu.device;
 }
 
 wgpu_render_pass_encoder_t renderer_pass_encoder(renderer_t *r)
 {
-    // return r->screen_fbo->encoder;
-    return r->pass_encoder;
+    return r->wgpu.pass_encoder;
 }
 
 wgpu_texture_format_t renderer_swapchain_format(renderer_t *r)
@@ -2073,7 +2072,7 @@ wgpu_texture_format_t renderer_swapchain_format(renderer_t *r)
 
 unsigned int renderer_swapchain_format_gen(renderer_t *r)
 {
-    return r->swapchain_format_gen;
+    return r->wgpu.swapchain_format_gen;
 }
 
 void renderer_set_version(renderer_t *renderer, int major, int minor,
@@ -2103,15 +2102,15 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
 
 void renderer_hdr_enable(renderer_t *r, bool enable)
 {
-    bool want = r->edr_supported && enable;
-    if (want == r->hdr) return;
+    bool want = r->wgpu.edr_supported && enable;
+    if (want == r->wgpu.hdr) return;
 
-    r->hdr = want;
+    r->wgpu.hdr = want;
 
     // Bump generation so any consumer of the swapchain format (notably ImGui's
     // WGPU backend, whose pipeline bakes the render-target format at init time)
     // can notice the change and reinitialize.
-    r->swapchain_format_gen++;
+    r->wgpu.swapchain_format_gen++;
     wgpu_configure_surface(r);
 }
 
@@ -2148,7 +2147,7 @@ void renderer_debug(renderer_t *r)
         // XXX: likewise, make this common
         ui_igTableHeader("renderer", (const char *[]){ "limit", "value"}, 2);
         for (size_t i = 0; i < array_size(limit_names); i++)
-                ui_igTableRow(limit_names[i], "%d", r->limits[i]);
+                ui_igTableRow(limit_names[i], "%d", r->wgpu.limits[i]);
         igEndTable();
     }
 
@@ -2188,32 +2187,32 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type,
 {
     CERR_RET_CERR(wgpu_previous_errors(r));
 
-    if (!r->pass_encoder || !r->dc || !r->va || !r->va->index)
+    if (!r->wgpu.pass_encoder || !r->wgpu.dc || !r->wgpu.va || !r->wgpu.va->index)
         return CERR_INVALID_OPERATION_REASON(
             .fmt    = "pass encoder(%p)/draw_control(%p)/index buffer(%p) not bound",
-            .arg0   = r->pass_encoder,
-            .arg1   = r->dc,
-            .arg2   = r->va ? r->va->index : nullptr
+            .arg0   = r->wgpu.pass_encoder,
+            .arg1   = r->wgpu.dc,
+            .arg2   = r->wgpu.va ? r->wgpu.va->index : nullptr
         );
 
-    buffer_t *index = r->va->index;
+    buffer_t *index = r->wgpu.va->index;
     if (!buffer_loaded(index))
         return CERR_INVALID_OPERATION_REASON(.fmt = "index buffer not loaded");
 
-    WGPURenderPassEncoder enc = r->pass_encoder;
-    WGPURenderPipeline pipeline = r->dc->pipeline[r->blend ? 1 : 0];
+    WGPURenderPassEncoder enc = r->wgpu.pass_encoder;
+    WGPURenderPipeline pipeline = r->wgpu.dc->pipeline[r->blend ? 1 : 0];
 
     // Re-set pipeline in case blend state changed since shader_use()
     wgpuRenderPassEncoderSetPipeline(enc, pipeline);
 
     // Build bind group from currently bound resources, filtered by the shader's
     // binding mask so we only include entries the pipeline layout expects
-    uint64_t mask = r->dc->shader->binding_mask;
+    uint64_t mask = r->wgpu.dc->shader->binding_mask;
     WGPUBindGroupEntry entries[BINDING_TEXTURE_MAX * 2 + BINDING_UBO_MAX];
     unsigned int n = 0;
 
     for (unsigned int i = 0; i < BINDING_TEXTURE_MAX; i++) {
-        texture_t *tex = r->bound_textures[i];
+        texture_t *tex = r->wgpu.bound_textures[i];
         if (!tex || !texture_loaded(tex))
             continue;
 
@@ -2232,7 +2231,7 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type,
     }
 
     for (unsigned int i = 0; i < BINDING_UBO_MAX; i++) {
-        uniform_buffer_t *ubo = r->bound_ubos[i];
+        uniform_buffer_t *ubo = r->wgpu.bound_ubos[i];
         if (!ubo || !ubo->buf)
             continue;
 
@@ -2253,12 +2252,12 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type,
         return CERR_INVALID_OPERATION_REASON(.fmt = "wgpuRenderPipelineGetBindGroupLayout() failed");
 
     WGPUBindGroupDescriptor bg_desc = {
-        .label      = to_wgpu_stringview(r->dc->shader->name),
+        .label      = to_wgpu_stringview(r->wgpu.dc->shader->name),
         .layout     = layout,
         .entryCount = n,
         .entries    = entries,
     };
-    WGPUBindGroup bg = wgpuDeviceCreateBindGroup(r->device, &bg_desc);
+    WGPUBindGroup bg = wgpuDeviceCreateBindGroup(r->wgpu.device, &bg_desc);
 
     wgpuBindGroupLayoutRelease(layout);
 
@@ -2268,7 +2267,7 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type,
     wgpuRenderPassEncoderSetBindGroup(enc, 0, bg, 0, NULL);
 
     // Set vertex buffer (tracked from buffer_bind at loc 0)
-    buffer_t *vbuf = r->va->vbuf;
+    buffer_t *vbuf = r->wgpu.va->vbuf;
     if (!vbuf || !buffer_loaded(vbuf)) {
         wgpuBindGroupRelease(bg);
         return CERR_INVALID_OPERATION_REASON(
