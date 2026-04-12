@@ -407,8 +407,8 @@ void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
 
     if (slot < 0) {
         if (tex)
-            dbg("program '%s' doesn't have texture %s or it's not a texture\n", shader_name(prog),
-                shader_get_var_name(var));
+            dbg_once("program '%s' doesn't have texture %s or it's not a texture\n",
+                     shader_name(prog), shader_get_var_name(var));
         return;
     }
 
