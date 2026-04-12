@@ -26,14 +26,6 @@ static bool shadow_resize(render_pass_ops_params *params, unsigned int *pwidth, 
     int screen_side = (int)((float)max(*pwidth, *pheight) / display_get_scale());
     int size = clamp(1 << fls(screen_side - 1), DEFAULT_SHADOW_SIZE, cap);
 
-    /*
-     * Coarser cascades cover more world per texel, so halve each step down.
-     * CONFIG_SHADOW_MAP_ARRAY packs all cascades in one texture (cascade == -1)
-     * and must keep a single size for every layer.
-     */
-    if (params->cascade > 0)
-        size = max(size >> params->cascade, SHADOW_CASCADE_MIN);
-
     *pwidth = *pheight = size;
 
     return true;

@@ -40,6 +40,7 @@ typedef struct render_options {
     bool    edge_sobel;
     bool    ssao;
     bool    shadow_vsm;
+    bool    shadow_cascade_taper;
     bool    hdr;
     bool    hdr_output;
     bool    hdr_output_enabled;
