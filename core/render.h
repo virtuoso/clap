@@ -11,6 +11,25 @@
 #include "typedef.h"
 #include "config.h"
 
+/*
+ * These are separate from shader_binding_renderers, because:
+ * - these nothing to do with shader bindings
+ * - shader binding constants only exist if corresponding renderer is enabled
+ */
+typedef enum {
+    RENDER_OPENGL,
+    RENDER_METAL,
+    RENDER_WGPU,
+    RENDER_MAX
+} render_backend;
+
+typedef struct renderer_caps {
+    render_backend  renderer;
+    bool            ndc_y_down;
+    bool            ndc_z_zero_one;
+    bool            origin_top_left;
+} renderer_caps;
+
 #ifdef CONFIG_RENDERER_OPENGL
 # ifdef IMPLEMENTOR
 #  if defined(CONFIG_BROWSER) || defined(CONFIG_GLES)
@@ -904,8 +923,13 @@ typedef enum render_limit {
 
 #define SLOTS_MAX   32
 
-#ifdef CONFIG_RENDERER_OPENGL
+typedef struct renderer_ops {
+    const renderer_caps *(*get_caps)(void);
+} renderer_ops;
+
 TYPE(renderer,
+    const renderer_ops  *ops;
+#ifdef CONFIG_RENDERER_OPENGL
     GLenum              cull_face;
     GLenum              blend_sfactor;
     GLenum              blend_dfactor;
@@ -923,9 +947,7 @@ TYPE(renderer,
     bool                depth_test;
     bool                wireframe;
     bool                mac_amd_quirk;
-);
 #elif defined(CONFIG_RENDERER_WGPU)
-TYPE(renderer,
     struct ref                          ref;
     wgpu_instance_t                     instance;
     wgpu_adapter_t                      adapter;
@@ -953,11 +975,9 @@ TYPE(renderer,
     int                                 limits[RENDER_LIMIT_MAX];
     atomic_uint                         error;
     char                                wgpu_message[128];
-);
 #elif defined(CONFIG_RENDERER_METAL)
 #define FBOS_MAX 1024
 #define SHADERS_MAX 1024
-TYPE(renderer,
     struct ref                          ref;
     ns_autorelease_pool_t               frame_pool;
     mtl_device_t                        device;
@@ -996,8 +1016,8 @@ TYPE(renderer,
     int                                 frame_idx;
     bool                                blend;
     bool                                hdr;
+#endif /* CONFIG_RENDERER_METAL */
 );
-#endif /* CONFIG_RENDERER_OPENGL */
 
 int renderer_query_limits(renderer_t *renderer, render_limit limit);
 
@@ -1011,6 +1031,7 @@ typedef struct renderer_init_options {
 #define renderer_init(_r, args...) \
     _renderer_init((_r), &(renderer_init_options){ args })
 cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts);
+const renderer_caps *renderer_get_caps(renderer_t *r);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);

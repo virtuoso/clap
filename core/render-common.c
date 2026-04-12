@@ -3,6 +3,11 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+const renderer_caps *renderer_get_caps(renderer_t *r)
+{
+    return r->ops->get_caps();
+}
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/

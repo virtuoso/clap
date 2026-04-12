@@ -5,6 +5,21 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+const renderer_caps mtl_renderer_caps = {
+    .renderer           = RENDER_METAL,
+    .ndc_z_zero_one     = true,
+    .origin_top_left    = true,
+};
+
+static const renderer_caps *mtl_renderer_get_caps(void)
+{
+    return &mtl_renderer_caps;
+}
+
+static const renderer_ops mtl_renderer_ops = {
+    .get_caps       = mtl_renderer_get_caps,
+};
+
 /****************************************************************************
  * Data sizes, component counts and strides
  ****************************************************************************/
@@ -1652,6 +1667,7 @@ cerr _renderer_init(renderer_t *r, const renderer_init_options *opts)
     r->cmd_queue = [r->device newCommandQueue];
 
     r->cull_mode = from_mtl_cull_mode(MTLCullModeBack);
+    r->ops = &mtl_renderer_ops;
 
     return CERR_OK;
 }

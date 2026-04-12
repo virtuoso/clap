@@ -9,6 +9,22 @@
 #include "bindings/render-bindings-common.h"
 #include "str.h"
 
+const renderer_caps wgpu_renderer_caps = {
+    .renderer           = RENDER_WGPU,
+    .ndc_y_down         = true,
+    .ndc_z_zero_one     = true,
+    .origin_top_left    = true,
+};
+
+static const renderer_caps *wgpu_renderer_get_caps(void)
+{
+    return &wgpu_renderer_caps;
+}
+
+static const renderer_ops wgpu_renderer_ops = {
+    .get_caps       = wgpu_renderer_get_caps,
+};
+
 enum {
     WGPU_MSAA_SAMPLES = 4,
 };
@@ -1956,6 +1972,8 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 
     CERR_RET_CERR(wgpu_get_queue(renderer));
     CERR_RET_CERR(wgpu_create_surface(renderer));
+
+    renderer->ops = &wgpu_renderer_ops;
 
     return CERR_OK;
 }

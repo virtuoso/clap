@@ -8,6 +8,19 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+const renderer_caps gl_renderer_caps = {
+    .renderer           = RENDER_OPENGL,
+};
+
+static const renderer_caps *gl_renderer_get_caps(void)
+{
+    return &gl_renderer_caps;
+}
+
+static const renderer_ops gl_renderer_ops = {
+    .get_caps       = gl_renderer_get_caps,
+};
+
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
 static inline const char *gluErrorString(int err) { return "not implemented"; }
 #endif
@@ -1746,6 +1759,8 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
                 fbo_put(res.val);
         }
     }
+
+    renderer->ops = &gl_renderer_ops;
 
     return CERR_OK;
 }
