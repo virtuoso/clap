@@ -20,7 +20,7 @@ void main()
     vec2 t0 = texture(model_tex, pass_tex + vec2(0.0, -pixsz)).rg;
     vec2 t1 = texture(model_tex, pass_tex + vec2(0.0,  pixsz)).rg;
 
-    float depth_thresh = 0.02;
+    float depth_thresh = 0.1;
     float w0 = abs(t0.x - c.x) < depth_thresh ? 0.25 : 0.0;
     float w1 = abs(t1.x - c.x) < depth_thresh ? 0.25 : 0.0;
     float wc = 1.0 - w0 - w1;

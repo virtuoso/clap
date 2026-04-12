@@ -135,7 +135,8 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
     return hdr_fmt;
 }
 
-static cresp(render_pass) add_vsm_blur_subchain(pipeline *pl, render_pass *src, int cascade)
+static cresp(render_pass) add_vsm_blur_subchain(pipeline *pl, render_pass *src, int cascade,
+                                                const char *vshader, const char *hshader)
 {
     auto pass = CRES_RET_T(
         pipeline_add_pass(pl,
@@ -154,7 +155,7 @@ static cresp(render_pass) add_vsm_blur_subchain(pipeline *pl, render_pass *src, 
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &vsm_blur_ops,
             .cascade            = cascade,
-            .shader             = "vsm-vblur",
+            .shader             = vshader,
         ),
         render_pass
     );
@@ -175,7 +176,7 @@ static cresp(render_pass) add_vsm_blur_subchain(pipeline *pl, render_pass *src, 
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &vsm_blur_ops,
             .cascade            = cascade,
-            .shader             = "vsm-hblur",
+            .shader             = hshader,
         ),
         render_pass
     );
@@ -316,8 +317,11 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             ),
             pipeline
         );
-        if (i < vsm_blur_last)
-            shadow_pass[i] = CRES_RET_T(add_vsm_blur_subchain(pl, shadow_pass[i], i), pipeline);
+        if (i < vsm_blur_last) {
+            const char *vb = i == 0 ? "vsm-vblur5" : "vsm-vblur";
+            const char *hb = i == 0 ? "vsm-hblur5" : "vsm-hblur";
+            shadow_pass[i] = CRES_RET_T(add_vsm_blur_subchain(pl, shadow_pass[i], i, vb, hb), pipeline);
+        }
         opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(
             shadow_pass[i], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
         );
