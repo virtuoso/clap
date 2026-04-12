@@ -927,6 +927,7 @@ typedef struct renderer_ops {
     const renderer_caps *(*get_caps)(void);
     void                (*mat4x4_ortho)(mat4x4 M, float l, float r, float b, float t, float n, float f);
     void                (*mat4x4_perspective)(mat4x4 m, float y_fov, float aspect, float n, float f);
+    int                 (*query_limits)(renderer_t *renderer, render_limit limit);
 } renderer_ops;
 
 void renderer_mat4x4_ortho(renderer_t *renderer, mat4x4 M, float l, float r, float b, float t, float n, float f);

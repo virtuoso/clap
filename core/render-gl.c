@@ -17,8 +17,11 @@ static const renderer_caps *gl_renderer_get_caps(void)
     return &gl_renderer_caps;
 }
 
+static int gl_renderer_query_limits(renderer_t *renderer, render_limit limit);
+
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
+    .query_limits   = gl_renderer_query_limits,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -1831,7 +1834,7 @@ void renderer_debug(renderer_t *r)
 }
 #endif /* CONFIG_FINAL */
 
-int renderer_query_limits(renderer_t *renderer, render_limit limit)
+static int gl_renderer_query_limits(renderer_t *renderer, render_limit limit)
 {
     if (limit >= RENDER_LIMIT_MAX)
         return 0;

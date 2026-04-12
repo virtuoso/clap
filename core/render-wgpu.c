@@ -21,8 +21,11 @@ static const renderer_caps *wgpu_renderer_get_caps(void)
     return &wgpu_renderer_caps;
 }
 
+static int wgpu_renderer_query_limits(renderer_t *renderer, render_limit limit);
+
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
+    .query_limits   = wgpu_renderer_query_limits,
 };
 
 enum {
@@ -1587,7 +1590,7 @@ void uniform_set_ptr(uniform_t uniform, data_type type,
  * Renderer
  ****************************************************************************/
 
-int renderer_query_limits(renderer_t *renderer, render_limit limit)
+static int wgpu_renderer_query_limits(renderer_t *renderer, render_limit limit)
 {
     if (limit >= RENDER_LIMIT_MAX)
         return 0;

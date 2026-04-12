@@ -16,8 +16,11 @@ static const renderer_caps *mtl_renderer_get_caps(void)
     return &mtl_renderer_caps;
 }
 
+static int mtl_renderer_query_limits(renderer_t *renderer, render_limit limit);
+
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
+    .query_limits   = mtl_renderer_query_limits,
 };
 
 /****************************************************************************
@@ -1860,7 +1863,7 @@ void renderer_debug(renderer_t *r)
 }
 #endif /* CONFIG_FINAL */
 
-int renderer_query_limits(renderer_t *renderer, render_limit limit)
+static int mtl_renderer_query_limits(renderer_t *renderer, render_limit limit)
 {
     switch (limit) {
         case RENDER_LIMIT_MAX_TEXTURE_SIZE: return 8192;

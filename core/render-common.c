@@ -24,6 +24,11 @@ void renderer_mat4x4_perspective(renderer_t *renderer, mat4x4 m, float y_fov, fl
 	    : mat4x4_perspective_ndc_z_2(m, y_fov, aspect, n, f);
 }
 
+int renderer_query_limits(renderer_t *renderer, render_limit limit)
+{
+    return renderer->ops->query_limits(renderer, limit);
+}
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/
