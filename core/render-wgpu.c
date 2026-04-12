@@ -2053,6 +2053,11 @@ wgpu_texture_format_t renderer_swapchain_format(renderer_t *r)
     return wgpu_swapchain_format(r);
 }
 
+unsigned int renderer_swapchain_format_gen(renderer_t *r)
+{
+    return r->swapchain_format_gen;
+}
+
 void renderer_set_version(renderer_t *renderer, int major, int minor,
                           renderer_profile profile)
 {
@@ -2085,6 +2090,10 @@ void renderer_hdr_enable(renderer_t *r, bool enable)
 
     r->hdr = want;
 
+    // Bump generation so any consumer of the swapchain format (notably ImGui's
+    // WGPU backend, whose pipeline bakes the render-target format at init time)
+    // can notice the change and reinitialize.
+    r->swapchain_format_gen++;
     wgpu_configure_surface(r);
 }
 

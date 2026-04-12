@@ -958,6 +958,7 @@ TYPE(renderer,
     bool                                hdr;
     bool                                edr_supported;
     bool                                blend;
+    unsigned int                        swapchain_format_gen;
     int                                 limits[RENDER_LIMIT_MAX];
     atomic_uint                         error;
     char                                wgpu_message[128];
