@@ -870,6 +870,59 @@ static void scene_entity_inspector_debug(struct scene *scene)
         }
         igEndTable();
 
+        /*
+         * Attachment group: shows parent linkage and the entity's
+         * xform interpreted as an offset from the parent (joint or
+         * world). These read from the same e->xform the "entity"
+         * table does, but are editable here in attachment-local
+         * terms so it's obvious which numbers came from the scene
+         * file's "attach"/"rotate"/"position" entries.
+         */
+        if (e->parent && ui_igControlTableHeader("attachment", "parent joint")) {
+            ui_igLabel("parent");
+            igTableNextColumn();
+            igText("%s", entity_name(e->parent));
+
+            ui_igLabel("parent joint");
+            igTableNextColumn();
+            if (e->parent_joint == JOINT_TYPE_MAX) {
+                igText("<world>");
+            } else {
+                model3d *pm = e->parent->txmodel->model;
+                igText("%d (%s)", e->parent_joint,
+                       (unsigned)e->parent_joint < pm->nr_joints
+                           ? pm->joints[e->parent_joint].name
+                           : "<invalid>");
+            }
+
+            vec3 local_pos;
+            transform_pos(&e->xform, local_pos);
+            ui_igLabel("local pos");
+            igTableNextColumn();
+            if (igDragFloat3("##att_pos", local_pos, 0.01, -500.0, 500.0,
+                             "%.03f", 0))
+                entity3d_position(e, local_pos);
+
+            int att_rotated = 0;
+            float att_angles[3];
+            transform_rotation(&e->xform, att_angles, true);
+            if (ui_igSliderFloat("local rx", &att_angles[0], -180.0, 180.0,
+                                 "%.02f", 0))
+                att_rotated++;
+            if (ui_igSliderFloat("local ry", &att_angles[1], -180.0, 180.0,
+                                 "%.02f", 0))
+                att_rotated++;
+            if (ui_igSliderFloat("local rz", &att_angles[2], -180.0, 180.0,
+                                 "%.02f", 0))
+                att_rotated++;
+            if (att_rotated)
+                transform_set_angles(&e->xform, att_angles, true);
+
+            ui_igSliderFloat("scale", &e->scale, 0.01, 10.0, "%.03f", 0);
+
+            igEndTable();
+        }
+
         if (txm->model->nr_joints) {
             if (igBeginChild_Str("joints", (ImVec2){}, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY, 0)) {
                 /*
