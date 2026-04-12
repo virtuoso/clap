@@ -335,7 +335,13 @@ typedef struct entity3d {
     mat4x4              *joint_transforms;
 
     /*
-     * Optional parent attachment: when set, default_update() rebuilds
+     * Optional parent attachment comes in 2 flavors: attachment to a
+     * parent's joint (->parent_joint) or the parent's world transform
+     * (->parent_joint==JOINT_TYPE_MAX).
+     * This is handled by parent_transform_apply(). For jointless
+     * attachment, we keep track of parent's updates via seq and parent_seq
+     * (if they match, no need to update the child).
+     * For joint attachments, parent_transform_apply() has to rebuild
      * this entity's world matrix every frame from the parent entity's
      * joint_transforms[parent_joint] (+ the joint's bind pose) so the
      * child rides the parent's animated skeleton. parent_joint is the
@@ -345,6 +351,8 @@ typedef struct entity3d {
      */
     entity3d            *parent;
     int                 parent_joint;
+    uint16_t            seq;
+    uint16_t            parent_seq;
     struct phys_body    *phys_body;
     particle_system     *particles;
     float               bloom_intensity;

@@ -1496,27 +1496,46 @@ static void animated_update(entity3d *e, struct scene *s)
         animation_next(e, s);
 }
 
-static int default_update(entity3d *e, void *data)
+static bool parent_transform_apply(entity3d *e)
 {
-    struct scene *scene = data;
-    entity3d *parent = e->parent;
+    auto parent = e->parent;
 
-    if (parent) {
+    if (!parent)    return false;
+
+    bool xform_dirty = transform_is_updated(&e->xform);
+
+    /*
+     * Jointless attachment can skip recalculation when neither our
+     * own xform nor the parent's world matrix have changed since the
+     * last update — tracked via seq/parent_seq. Joint attachments
+     * have to recalculate every frame because the joint may be
+     * animating underneath us.
+     */
+    if (e->parent_joint == JOINT_TYPE_MAX &&
+        e->parent_seq == parent->seq && !xform_dirty)
+        return true;
+
+    e->parent_seq = parent->seq;
+    if (xform_dirty)
+        transform_clear_updated(&e->xform);
+    e->seq++;
+
+    mat4x4 local;
+    mat4x4_identity(local);
+    transform_translate_mat4x4(&e->xform, local);
+    transform_rotate_mat4x4(&e->xform, local);
+    mat4x4_scale_aniso(local, local, e->scale, e->scale, e->scale);
+
+    if (e->parent_joint == JOINT_TYPE_MAX) {
+        mat4x4_mul(e->mx, parent->mx, local);
+    } else {
         /*
-         * Parent-attached: our world matrix has to be rebuilt every
-         * frame, not only when our own xform is dirty, because the
-         * parent's joint might be animating underneath us. The joint
-         * transform is in skinning (pre-bind) space, so multiply by
-         * the joint's bind pose to get a plain joint → model-space
-         * matrix, then chain through the parent's world mx.
+         * Joint-attached: the joint transform is in skinning
+         * (pre-bind) space, so multiply by the joint's bind pose to
+         * get a plain joint → model-space matrix, then chain through
+         * the parent's world mx.
          */
         model3d *pmodel = parent->txmodel->model;
-
-        mat4x4 local;
-        mat4x4_identity(local);
-        transform_translate_mat4x4(&e->xform, local);
-        transform_rotate_mat4x4(&e->xform, local);
-        mat4x4_scale_aniso(local, local, e->scale, e->scale, e->scale);
 
         mat4x4 joint_mx;
         mat4x4_mul(joint_mx,
@@ -1524,11 +1543,21 @@ static int default_update(entity3d *e, void *data)
                    pmodel->joints[e->parent_joint].bind);
         mat4x4_mul(e->mx, joint_mx, local);
         mat4x4_mul(e->mx, parent->mx, e->mx);
+    }
 
-        mat4x4_invert(e->inverse_mx, e->mx);
-        entity3d_aabb_update(e);
-    } else if (transform_is_updated(&e->xform)) {
+    mat4x4_invert(e->inverse_mx, e->mx);
+    entity3d_aabb_update(e);
+
+    return true;
+}
+
+static int default_update(entity3d *e, void *data)
+{
+    struct scene *scene = data;
+
+    if (!parent_transform_apply(e) && transform_is_updated(&e->xform)) {
         transform_clear_updated(&e->xform);
+        e->seq++;
         mat4x4_identity(e->mx);
         transform_translate_mat4x4(&e->xform, e->mx);
         transform_rotate_mat4x4(&e->xform, e->mx);
@@ -1593,6 +1622,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     e->scale     = 1.0;
     e->visible   = 1;
     e->update    = default_update;
+    e->parent_joint = JOINT_TYPE_MAX;
 
     model3d *model = opts->txmodel->model;
     e->txmodel = ref_get(opts->txmodel);
