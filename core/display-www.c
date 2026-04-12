@@ -24,7 +24,14 @@ bool display_supports_edr()
 #ifdef CONFIG_RENDERER_OPENGL
     return false;
 #else /* !CONFIG_RENDERER_OPENGL */
-    return false;
+    /*
+     * CSS media query (dynamic-range: high) is the canonical way to ask the
+     * browser whether the current display can present HDR content. Returns
+     * 1 on HDR-capable monitors (e.g. Apple XDR, recent OLEDs), 0 otherwise.
+     */
+    return EM_ASM_INT({
+        return (window.matchMedia && window.matchMedia('(dynamic-range: high)').matches) ? 1 : 0;
+    });
 #endif /* !CONFIG_RENDERER_OPENGL */
 }
 
