@@ -392,4 +392,22 @@ struct scene;
  */
 void phys_debug_draw(struct scene *scene, struct phys_body *body);
 
+/**
+ * phys_body_sweep_capsule() - sweep a capsule along a delta vector
+ * @body:       phys_body of the character (capsule)
+ * @delta:      movement vector to sweep along
+ * @normal:     [out] contact normal of the blocking surface
+ * @hit_entity: [out] entity that was hit, can be NULL
+ *
+ * Temporarily move the capsule to the target position (current + @delta),
+ * test for collisions against all physics spaces, and compute the fraction
+ * of @delta that can be safely traveled before hitting something.
+ *
+ * The returned @normal points away from the obstacle, toward the capsule.
+ *
+ * Return: fraction [0.0, 1.0] of @delta that is unobstructed
+ */
+float phys_body_sweep_capsule(struct phys_body *body, const vec3 delta,
+                              vec3 normal, entity3d **hit_entity);
+
 #endif /* __CLAP_PHYSICS_H__ */
