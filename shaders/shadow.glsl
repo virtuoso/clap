@@ -96,16 +96,19 @@ float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int l
 
 float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
 {
-    if (moments.y < 0.0)    return 1.0;
-
     float far_plane = light_far[layer];
     d = linearize_depth(d, 0.1, far_plane);
 
     float m1 = moments.x;
     float m2 = max(moments.y, m1 * m1);
 
-    /* Early out if fully lit */
-    if (d < m1)
+    /*
+     * Early out if the receiver is in front of (or on) the occluder surface.
+     * The bias absorbs float precision differences between the shadow pass
+     * (gl_FragCoord.z → linearize_depth) and the model pass (shadow_mvp →
+     * linearize_depth) that otherwise cause moiré on some backends.
+     */
+    if (d < m1 + 0.01)
         return 1.0;
 
     float distance = d - m1;

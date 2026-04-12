@@ -96,6 +96,11 @@ static const render_pass_ops postproc_ops = {
     .prepare    = postproc_prepare,
 };
 
+static const render_pass_ops vsm_blur_ops = {
+    .resize     = shadow_resize,
+    .prepare    = postproc_prepare,
+};
+
 static inline render_options *get_ropts(pipeline_builder_opts *opts)
 {
     return clap_get_render_options(opts->pl_opts->clap_ctx);
@@ -136,6 +141,54 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
         }
 
     return hdr_fmt;
+}
+
+static cresp(render_pass) add_vsm_blur_subchain(pipeline *pl, render_pass *src, int cascade)
+{
+    auto pass = CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = src,
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_MODEL_TEX
+                },
+                {}
+            },
+            .color_config       = (fbo_attconfig[]) {
+                { .format = TEX_FMT_RG32F, .load_action = FBOLOAD_DONTCARE }
+            },
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .ops                = &vsm_blur_ops,
+            .cascade            = cascade,
+            .shader             = "vsm-vblur",
+        ),
+        render_pass
+    );
+    pass = CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = pass,
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_MODEL_TEX
+                },
+                {}
+            },
+            .color_config       = (fbo_attconfig[]) {
+                { .format = TEX_FMT_RG32F, .load_action = FBOLOAD_DONTCARE }
+            },
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .ops                = &vsm_blur_ops,
+            .cascade            = cascade,
+            .shader             = "vsm-hblur",
+        ),
+        render_pass
+    );
+
+    return cresp_val(render_pass, pass);
 }
 
 static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, texture_format format, float scale)
@@ -243,6 +296,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     struct render_pass *shadow_pass[CASCADES_MAX];
 
 #ifndef CONFIG_SHADOW_MAP_ARRAY
+    const int vsm_blur_last = vsm ? 2 : 0;
     for (int i = 0; i < CASCADES_MAX; i++) {
         shadow_pass[i] = CRES_RET_T(
             pipeline_add_pass(pl,
@@ -254,7 +308,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     {
                         .format         = TEX_FMT_RG32F,
                         .load_action    = FBOLOAD_CLEAR,
-                        .clear_color    = { -1, -1, -1, 1 },
+                        .clear_color    = { 1e4, 1e8, 0, 0 },
                     }
                 },
                 .depth_config         = {
@@ -270,6 +324,8 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             ),
             pipeline
         );
+        if (i < vsm_blur_last)
+            shadow_pass[i] = CRES_RET_T(add_vsm_blur_subchain(pl, shadow_pass[i], i), pipeline);
         opts->pl_opts->light->shadow[0][i] = pipeline_pass_get_texture(
             shadow_pass[i], vsm ? FBO_COLOR_TEXTURE(0) : FBO_DEPTH_TEXTURE(0)
         );
@@ -287,7 +343,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {
                     .format         = TEX_FMT_RG32F,
                     .load_action    = FBOLOAD_CLEAR,
-                    .clear_color    = { -1, -1, -1, 1 },
+                    .clear_color    = { 1e4, 1e8, 0, 0 },
                 }
             },
             .depth_config         = {
