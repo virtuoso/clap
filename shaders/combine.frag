@@ -76,7 +76,13 @@ void main()
     }
 
     if (hdr_output)
+        // TODO: This should be a uniform: extended_p3/pq/extended_srgb
+        // For now, this should be enough
+#ifdef CONFIG_RENDERER_WGPU
+        FragColor.rgb = scene_linear_to_extended_p3(FragColor.rgb, hdr_white_nits);
+#else /* !CONFIG_RENDERER_WGPU */
         FragColor.rgb = scene_linear_to_pq(FragColor.rgb, hdr_white_nits);
+#endif /* !CONFIG_RENDERER_WGPU */
     else
         FragColor.rgb = scene_linear_to_srgb(FragColor.rgb);
 }
