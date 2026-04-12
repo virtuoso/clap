@@ -23,11 +23,42 @@ static const renderer_caps *wgpu_renderer_get_caps(void)
 
 static int wgpu_renderer_query_limits(renderer_t *renderer, render_limit limit);
 static cerr wgpu_renderer_init(renderer_t *renderer, const renderer_init_options *opts);
+static void wgpu_renderer_done(renderer_t *r);
+static void wgpu_renderer_set_version(renderer_t *r, int major, int minor, renderer_profile profile);
+static void wgpu_renderer_viewport(renderer_t *r, int x, int y, int width, int height);
+static void wgpu_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable);
+static void wgpu_renderer_swapchain_begin(renderer_t *r);
+static void wgpu_renderer_frame_begin(renderer_t *r);
+static void wgpu_renderer_frame_end(renderer_t *r);
+static void wgpu_renderer_swapchain_end(renderer_t *r);
+#ifndef CONFIG_FINAL
+static void wgpu_renderer_debug(renderer_t *r);
+#endif
+static void wgpu_renderer_cull_face(renderer_t *r, cull_face cull);
+static void wgpu_renderer_blend(renderer_t *r, bool enable, blend sfactor, blend dfactor);
+static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+                               data_type idx_type, unsigned int nr_instances);
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
     .query_limits   = wgpu_renderer_query_limits,
     .init           = wgpu_renderer_init,
+    .done           = wgpu_renderer_done,
+    .set_version    = wgpu_renderer_set_version,
+    .viewport       = wgpu_renderer_viewport,
+    .get_viewport   = wgpu_renderer_get_viewport,
+    .hdr_enable     = wgpu_renderer_hdr_enable,
+    .swapchain_begin = wgpu_renderer_swapchain_begin,
+    .frame_begin    = wgpu_renderer_frame_begin,
+    .frame_end      = wgpu_renderer_frame_end,
+    .swapchain_end  = wgpu_renderer_swapchain_end,
+#ifndef CONFIG_FINAL
+    .debug          = wgpu_renderer_debug,
+#endif
+    .cull_face      = wgpu_renderer_cull_face,
+    .blend          = wgpu_renderer_blend,
+    .draw           = wgpu_renderer_draw,
 };
 
 enum {
@@ -1988,7 +2019,8 @@ static cerr wgpu_renderer_init(renderer_t *renderer, const renderer_init_options
     return CERR_OK;
 }
 
-void renderer_done(renderer_t *r) {
+static void wgpu_renderer_done(renderer_t *r)
+{
     wgpuSurfaceUnconfigure(r->wgpu.surface);
     wgpuSurfaceRelease(r->wgpu.surface);
     wgpuQueueRelease(r->wgpu.queue);
@@ -2014,7 +2046,7 @@ static void renderer_frame_advance(renderer_t *r)
     }
 }
 
-void renderer_frame_begin(renderer_t *r)
+static void wgpu_renderer_frame_begin(renderer_t *r)
 {
     renderer_frame_advance(r);
 
@@ -2022,13 +2054,13 @@ void renderer_frame_begin(renderer_t *r)
     CERR_RET(wgpu_create_cmd_encoder(r), err_cerr(__cerr, "create command encoder failed\n"));
 }
 
-void renderer_swapchain_begin(renderer_t *r)
+static void wgpu_renderer_swapchain_begin(renderer_t *r)
 {
     CERR_RET(wgpu_create_texture_view(r), err_cerr(__cerr, "texture view from surface failed\n"));
     CERR_RET(wgpu_create_render_pass(r), err_cerr(__cerr, "create render pass failed\n"));
 }
 
-void renderer_swapchain_end(renderer_t *r)
+static void wgpu_renderer_swapchain_end(renderer_t *r)
 {
     if (!r->wgpu.pass_encoder)
         return;
@@ -2038,7 +2070,7 @@ void renderer_swapchain_end(renderer_t *r)
     r->wgpu.pass_encoder = NULL;
 }
 
-void renderer_frame_end(renderer_t *r)
+static void wgpu_renderer_frame_end(renderer_t *r)
 {
     if (!r->wgpu.cmd_encoder) {
         err("renderer_frame_end: no command encoder\n");
@@ -2085,20 +2117,20 @@ unsigned int renderer_swapchain_format_gen(renderer_t *r)
     return r->wgpu.swapchain_format_gen;
 }
 
-void renderer_set_version(renderer_t *renderer, int major, int minor,
-                          renderer_profile profile)
+static void wgpu_renderer_set_version(renderer_t *renderer, int major, int minor,
+                                      renderer_profile profile)
 {
 }
 
-void renderer_viewport(renderer_t *r, int x, int y,
-                       int width, int height)
+static void wgpu_renderer_viewport(renderer_t *r, int x, int y,
+                                   int width, int height)
 {
     r->width = width;
     r->height = height;
     wgpu_configure_surface(r);
 }
 
-void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
+static void wgpu_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
 {
     if (px)
         *px = 0;
@@ -2110,7 +2142,7 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
         *pheight = r->height;
 }
 
-void renderer_hdr_enable(renderer_t *r, bool enable)
+static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable)
 {
     bool want = r->wgpu.edr_supported && enable;
     if (want == r->wgpu.hdr) return;
@@ -2146,7 +2178,7 @@ static const char *limit_names[RENDER_LIMIT_MAX] = {
     [RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS]  = "max fragment uniform blocks",
 };
 
-void renderer_debug(renderer_t *r)
+static void wgpu_renderer_debug(renderer_t *r)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_RENDERER, ImGuiWindowFlags_AlwaysAutoResize);
 
@@ -2165,18 +2197,14 @@ void renderer_debug(renderer_t *r)
 }
 #endif /* CONFIG_FINAL */
 
-void renderer_cull_face(renderer_t *r, cull_face cull)
+static void wgpu_renderer_cull_face(renderer_t *r, cull_face cull)
 {
 }
 
-void renderer_blend(renderer_t *r, bool enable, blend sfactor,
-                    blend dfactor)
+static void wgpu_renderer_blend(renderer_t *r, bool enable, blend sfactor,
+                                blend dfactor)
 {
     r->blend = enable;
-}
-
-void renderer_wireframe(renderer_t *r, bool enable)
-{
 }
 
 static WGPUIndexFormat wgpu_index_format(data_type type)
@@ -2191,9 +2219,9 @@ static WGPUIndexFormat wgpu_index_format(data_type type)
     return WGPUIndexFormat_Uint16;
 }
 
-cerr renderer_draw(renderer_t *r, draw_type draw_type,
-                   unsigned int nr_faces, data_type idx_type,
-                   unsigned int nr_instances)
+static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
+                               unsigned int nr_faces, data_type idx_type,
+                               unsigned int nr_instances)
 {
     CERR_RET_CERR(wgpu_previous_errors(r));
 

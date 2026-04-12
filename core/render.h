@@ -946,7 +946,6 @@ TYPE(renderer,
         int                 minor;
         renderer_profile    profile;
         bool                depth_test;
-        bool                wireframe;
         bool                mac_amd_quirk;
     } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
@@ -1029,42 +1028,33 @@ typedef struct renderer_init_options {
 #define renderer_init(_r, args...) \
     _renderer_init((_r), &(renderer_init_options){ args })
 cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts);
+void renderer_done(renderer_t *r);
 const renderer_caps *renderer_get_caps(renderer_t *r);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 
-#ifdef CONFIG_RENDERER_OPENGL
-static inline void renderer_hdr_enable(renderer_t *r, bool enable) {}
-#else /* !CONFIG_RENDERER_OPENGL */
 void renderer_hdr_enable(renderer_t *r, bool enable);
-#endif /* !CONFIG_RENDERER_OPENGL */
 
 void renderer_swapchain_begin(renderer_t *renderer);
 
-#ifdef CONFIG_RENDERER_OPENGL
-static inline void renderer_frame_begin(renderer_t *renderer) {}
-static inline void renderer_frame_end(renderer_t *renderer) {}
-static inline void renderer_swapchain_end(renderer_t *renderer) {}
-static inline void renderer_done(renderer_t *renderer) {}
-#else
-void renderer_done(renderer_t *r);
 void renderer_frame_begin(renderer_t *renderer);
-void renderer_swapchain_end(renderer_t *r);
+
 void renderer_frame_end(renderer_t *renderer);
-#endif /* !CONFIG_RENDERER_OPENGL */
+
+void renderer_swapchain_end(renderer_t *r);
 
 #ifndef CONFIG_FINAL
 void buffer_debug_header(void);
 void buffer_debug(buffer_t *buf, const char *name);
 void texture_debug_header(void);
 void texture_debug(texture_t *tex, const char *name);
-void renderer_debug(renderer_t *r);
 #else
 static inline void buffer_debug_header(void) {}
 static inline void buffer_debug(buffer_t *buf) {}
-static inline void renderer_debug(renderer_t *r) {}
 #endif /* CONFIG_FINAL */
+
+void renderer_debug(renderer_t *r);
 
 typedef enum {
     CULL_FACE_NONE = 0,
@@ -1081,7 +1071,7 @@ typedef enum {
 } blend;
 
 void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
-void renderer_wireframe(renderer_t *r, bool enable);
+
 
 typedef enum {
     DRAW_TYPE_POINTS = 0,
@@ -1135,6 +1125,20 @@ typedef struct renderer_ops {
     void                (*mat4x4_perspective)(mat4x4 m, float y_fov, float aspect, float n, float f);
     int                 (*query_limits)(renderer_t *renderer, render_limit limit);
     cerr                (*init)(renderer_t *renderer, const renderer_init_options *opts);
+    void                (*done)(renderer_t *r);
+    void                (*set_version)(renderer_t *r, int major, int minor, renderer_profile profile);
+    void                (*viewport)(renderer_t *r, int x, int y, int width, int height);
+    void                (*get_viewport)(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+    void                (*hdr_enable)(renderer_t *r, bool enable);
+    void                (*swapchain_begin)(renderer_t *r);
+    void                (*frame_begin)(renderer_t *r);
+    void                (*frame_end)(renderer_t *r);
+    void                (*swapchain_end)(renderer_t *r);
+    void                (*debug)(renderer_t *r);
+    void                (*cull_face)(renderer_t *r, cull_face cull);
+    void                (*blend)(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
+    cerr                (*draw)(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+                                data_type idx_type, unsigned int nr_instances);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 

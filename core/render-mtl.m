@@ -18,11 +18,42 @@ static const renderer_caps *mtl_renderer_get_caps(void)
 
 static int mtl_renderer_query_limits(renderer_t *renderer, render_limit limit);
 static cerr mtl_renderer_init(renderer_t *renderer, const renderer_init_options *opts);
+static void mtl_renderer_done(renderer_t *r);
+static void mtl_renderer_set_version(renderer_t *r, int major, int minor, renderer_profile profile);
+static void mtl_renderer_viewport(renderer_t *r, int x, int y, int width, int height);
+static void mtl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+static void mtl_renderer_hdr_enable(renderer_t *r, bool enable);
+static void mtl_renderer_swapchain_begin(renderer_t *r);
+static void mtl_renderer_frame_begin(renderer_t *r);
+static void mtl_renderer_frame_end(renderer_t *r);
+static void mtl_renderer_swapchain_end(renderer_t *r);
+#ifndef CONFIG_FINAL
+static void mtl_renderer_debug(renderer_t *r);
+#endif
+static void mtl_renderer_cull_face(renderer_t *r, cull_face cull);
+static void mtl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
+static cerr mtl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+                              data_type idx_type, unsigned int nr_instances);
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
     .query_limits   = mtl_renderer_query_limits,
     .init           = mtl_renderer_init,
+    .done           = mtl_renderer_done,
+    .set_version    = mtl_renderer_set_version,
+    .viewport       = mtl_renderer_viewport,
+    .get_viewport   = mtl_renderer_get_viewport,
+    .hdr_enable     = mtl_renderer_hdr_enable,
+    .swapchain_begin = mtl_renderer_swapchain_begin,
+    .frame_begin    = mtl_renderer_frame_begin,
+    .frame_end      = mtl_renderer_frame_end,
+    .swapchain_end  = mtl_renderer_swapchain_end,
+#ifndef CONFIG_FINAL
+    .debug          = mtl_renderer_debug,
+#endif
+    .cull_face      = mtl_renderer_cull_face,
+    .blend          = mtl_renderer_blend,
+    .draw           = mtl_renderer_draw,
 };
 
 /****************************************************************************
@@ -1682,7 +1713,7 @@ static cerr mtl_renderer_init(renderer_t *r, const renderer_init_options *opts)
     return CERR_OK;
 }
 
-void renderer_done(renderer_t *r)
+static void mtl_renderer_done(renderer_t *r)
 {
     fbo_put_last(r->mtl.screen_fbo);
 
@@ -1705,12 +1736,12 @@ void renderer_done(renderer_t *r)
     err_on(!list_empty(&r->mtl.ubos), "UBO list not empty\n");
 }
 
-void renderer_hdr_enable(renderer_t *r, bool enable)
+static void mtl_renderer_hdr_enable(renderer_t *r, bool enable)
 {
     r->mtl.hdr = enable;
 }
 
-void renderer_frame_begin(renderer_t *r)
+static void mtl_renderer_frame_begin(renderer_t *r)
 {
     if (display_supports_edr() && r->mtl.hdr) {
         /* HDR output */
@@ -1776,7 +1807,7 @@ void renderer_frame_begin(renderer_t *r)
     mtl_cmd_buffer(r);
 }
 
-void renderer_swapchain_begin(renderer_t *r)
+static void mtl_renderer_swapchain_begin(renderer_t *r)
 {
     r->mtl.drawable = [r->mtl.layer nextDrawable];
     r->mtl.screen_fbo->desc.colorAttachments[0].texture = r->mtl.drawable.texture;
@@ -1784,7 +1815,7 @@ void renderer_swapchain_begin(renderer_t *r)
     fbo_prepare(r->mtl.screen_fbo);
 }
 
-void renderer_swapchain_end(renderer_t *r)
+static void mtl_renderer_swapchain_end(renderer_t *r)
 {
 }
 
@@ -1806,7 +1837,7 @@ static void renderer_frame_advance(renderer_t *r)
     }
 }
 
-void renderer_frame_end(renderer_t *r)
+static void mtl_renderer_frame_end(renderer_t *r)
 {
     if (r->mtl.fbo) fbo_done(r->mtl.fbo, r->width, r->height);
 
@@ -1851,7 +1882,7 @@ void *renderer_screen_desc(renderer_t *r)
 
 #ifndef CONFIG_FINAL
 #include "ui-debug.h"
-void renderer_debug(renderer_t *r)
+static void mtl_renderer_debug(renderer_t *r)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_RENDERER, ImGuiWindowFlags_AlwaysAutoResize);
 
@@ -1879,14 +1910,13 @@ static int mtl_renderer_query_limits(renderer_t *renderer, render_limit limit)
     return 0;
 }
 
-/* XXX: common? */
-void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
+static void mtl_renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
 {
     renderer->mtl.major     = major;
     renderer->mtl.minor     = minor;
 }
 
-void renderer_viewport(renderer_t *r, int x, int y, int width, int height)
+static void mtl_renderer_viewport(renderer_t *r, int x, int y, int width, int height)
 {
     if (r->x == x && r->y == y && r->width == width && r->height == height)
         return;
@@ -1901,8 +1931,7 @@ void renderer_viewport(renderer_t *r, int x, int y, int width, int height)
     r->height = height;
 }
 
-/* XXX: common? */
-void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
+static void mtl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
 {
     if (px)
         *px      = r->x;
@@ -1914,7 +1943,7 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
         *pheight = r->height;
 }
 
-void renderer_cull_face(renderer_t *r, cull_face cull)
+static void mtl_renderer_cull_face(renderer_t *r, cull_face cull)
 {
     switch (cull) {
         case CULL_FACE_NONE:    r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeNone);
@@ -1924,13 +1953,9 @@ void renderer_cull_face(renderer_t *r, cull_face cull)
     }
 }
 
-void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
+static void mtl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
 {
     r->blend = _blend;
-}
-
-void renderer_wireframe(renderer_t *r, bool enable)
-{
 }
 
 static unsigned int mtl_draw_type(draw_type draw_type)
@@ -1966,8 +1991,8 @@ static unsigned int mtl_idx_type(data_type idx_type)
     return 0;
 }
 
-cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
-                   data_type idx_type, unsigned int nr_instances)
+static cerr mtl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+                              data_type idx_type, unsigned int nr_instances)
 {
     if (!r->mtl.va || !r->mtl.va->index)
         return CERR_INVALID_OPERATION_REASON(

@@ -65,6 +65,79 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
     return renderer->ops->init(renderer, opts);
 }
 
+void renderer_done(renderer_t *renderer)
+{
+    if (!renderer->ops->done)   return;
+    renderer->ops->done(renderer);
+}
+
+void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
+{
+    if (!renderer->ops->set_version)    return;
+    renderer->ops->set_version(renderer, major, minor, profile);
+}
+
+void renderer_viewport(renderer_t *r, int x, int y, int width, int height)
+{
+    r->ops->viewport(r, x, y, width, height);
+}
+
+void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
+{
+    r->ops->get_viewport(r, px, py, pwidth, pheight);
+}
+
+void renderer_hdr_enable(renderer_t *r, bool enable)
+{
+    if (!r->ops->hdr_enable)    return;
+    r->ops->hdr_enable(r, enable);
+}
+
+void renderer_swapchain_begin(renderer_t *r)
+{
+    r->ops->swapchain_begin(r);
+}
+
+void renderer_frame_begin(renderer_t *r)
+{
+    if (!r->ops->frame_begin)   return;
+    r->ops->frame_begin(r);
+}
+
+void renderer_frame_end(renderer_t *r)
+{
+    if (!r->ops->frame_end) return;
+    r->ops->frame_end(r);
+}
+
+void renderer_swapchain_end(renderer_t *r)
+{
+    if (!r->ops->swapchain_end) return;
+    r->ops->swapchain_end(r);
+}
+
+void renderer_debug(renderer_t *r)
+{
+    if (!r->ops->debug) return;
+    r->ops->debug(r);
+}
+
+void renderer_cull_face(renderer_t *r, cull_face cull)
+{
+    r->ops->cull_face(r, cull);
+}
+
+void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
+{
+    r->ops->blend(r, _blend, sfactor, dfactor);
+}
+
+cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+                   data_type idx_type, unsigned int nr_instances)
+{
+    return r->ops->draw(r, draw_type, nr_faces, idx_type, nr_instances);
+}
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/

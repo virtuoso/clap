@@ -20,10 +20,32 @@ static const renderer_caps *gl_renderer_get_caps(void)
 static int gl_renderer_query_limits(renderer_t *renderer, render_limit limit);
 static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 
+static void gl_renderer_set_version(renderer_t *r, int major, int minor, renderer_profile profile);
+static void gl_renderer_viewport(renderer_t *r, int x, int y, int width, int height);
+static void gl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+static void gl_renderer_swapchain_begin(renderer_t *r);
+#ifndef CONFIG_FINAL
+static void gl_renderer_debug(renderer_t *r);
+#endif
+static void gl_renderer_cull_face(renderer_t *r, cull_face cull);
+static void gl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
+static cerr gl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+                             data_type idx_type, unsigned int nr_instances);
+
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
     .query_limits   = gl_renderer_query_limits,
     .init           = gl_renderer_init,
+    .set_version    = gl_renderer_set_version,
+    .viewport       = gl_renderer_viewport,
+    .get_viewport   = gl_renderer_get_viewport,
+    .swapchain_begin = gl_renderer_swapchain_begin,
+#ifndef CONFIG_FINAL
+    .debug          = gl_renderer_debug,
+#endif
+    .cull_face      = gl_renderer_cull_face,
+    .blend          = gl_renderer_blend,
+    .draw           = gl_renderer_draw,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -1728,7 +1750,6 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
 #ifndef EGL_EGL_PROTOTYPES
     GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
 #endif /* EGL_EGL_PROTOTYPES */
-    renderer_wireframe(renderer, false);
 
     for (i = 0; i < TEX_FMT_MAX; i++) {
         float buf[4] = {};
@@ -1794,7 +1815,7 @@ static const char *gl_limit_names[RENDER_LIMIT_MAX] = {
     [RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS]  = "max fragment uniform blocks",
 };
 
-void renderer_debug(renderer_t *r)
+static void gl_renderer_debug(renderer_t *r)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_RENDERER, ImGuiWindowFlags_AlwaysAutoResize);
 
@@ -1848,14 +1869,14 @@ static int gl_renderer_query_limits(renderer_t *renderer, render_limit limit)
     return gl_limits[limit];
 }
 
-void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
+static void gl_renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile)
 {
     renderer->gl.major      = major;
     renderer->gl.minor      = minor;
     renderer->gl.profile    = profile;
 }
 
-void renderer_viewport(renderer_t *r, int x, int y, int width, int height)
+static void gl_renderer_viewport(renderer_t *r, int x, int y, int width, int height)
 {
     if (r->x == x && r->y == y && r->width == width && r->height == height)
         return;
@@ -1867,7 +1888,7 @@ void renderer_viewport(renderer_t *r, int x, int y, int width, int height)
     GL(glViewport(x, y, width, height));
 }
 
-void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
+static void gl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight)
 {
     if (px)
         *px      = r->x;
@@ -1896,7 +1917,7 @@ static GLenum gl_cull_face(cull_face cull)
     return GL_NONE;
 }
 
-void renderer_cull_face(renderer_t *r, cull_face cull)
+static void gl_renderer_cull_face(renderer_t *r, cull_face cull)
 {
     GLenum gl_cull = gl_cull_face(cull);
 
@@ -1932,7 +1953,7 @@ static GLenum gl_blend(blend blend)
     return GL_NONE;
 }
 
-void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
+static void gl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
 {
     GLenum _sfactor = gl_blend(sfactor);
     GLenum _dfactor = gl_blend(dfactor);
@@ -1954,21 +1975,6 @@ void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
         r->gl.blend_dfactor = _dfactor;
     }
     GL(glBlendFunc(r->gl.blend_sfactor, r->gl.blend_dfactor));
-}
-
-void renderer_wireframe(renderer_t *r, bool enable)
-{
-    if (r->gl.wireframe == enable)
-        return;
-
-    r->gl.wireframe = enable;
-
-#ifndef EGL_EGL_PROTOTYPES
-    if (enable)
-        GL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
-    else
-        GL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
-#endif /* EGL_EGL_PROTOTYPES */
 }
 
 static GLenum gl_draw_type(draw_type draw_type)
@@ -2008,8 +2014,8 @@ static GLenum gl_draw_type(draw_type draw_type)
     return GL_NONE;
 }
 
-cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type,
-                   unsigned int nr_instances)
+static cerr gl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces, data_type idx_type,
+                             unsigned int nr_instances)
 {
     err_on(idx_type >= array_size(gl_comp_type), "invalid draw type %u\n", idx_type);
 
@@ -2065,7 +2071,7 @@ static void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
     GL(glClear(flags));
 }
 
-void renderer_swapchain_begin(renderer_t *renderer)
+static void gl_renderer_swapchain_begin(renderer_t *renderer)
 {
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, renderer->width, renderer->height));
