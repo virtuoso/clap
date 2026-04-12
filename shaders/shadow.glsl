@@ -164,7 +164,8 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     proj_coords.xy = convert_pass_tex(proj_coords.xy * 0.5 + 0.5);
     proj_coords.z = convert_from_ndc_z(proj_coords.z);
 
-    float bias = max(0.0005 * (1.0 - light_dot), 0.0008);
+    float slope_bias = 0.0005 * (1.0 - light_dot);
+    float bias = max(slope_bias, 0.0008) * max(proj_coords.w * 0.02, 1.0);
 #ifndef SHADER_SHADOW_MAP_ARRAY
     switch (layer) {
         case 0:
