@@ -111,7 +111,7 @@ function(_compile_shader_for_backend shader stage backend SHADER_SRCS SHADER_OUT
     add_custom_command(
         OUTPUT "${SPIRV_OUTPUT}"
         BYPRODUCTS "${SPIRV_DEPFILE}"
-        DEPENDS make-shader-ir-dir-${backend}${suffix} "${SHADER_SOURCE_DIR}/${shader}"
+        DEPENDS render_bindings_gen make-shader-ir-dir-${backend}${suffix} "${SHADER_SOURCE_DIR}/${shader}"
         COMMAND "${GLSLC}"
         ARGS
             -MD
