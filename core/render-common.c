@@ -3,9 +3,25 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+#include "linmath.h"
+
 const renderer_caps *renderer_get_caps(renderer_t *r)
 {
     return r->ops->get_caps();
+}
+
+void renderer_mat4x4_ortho(renderer_t *renderer, mat4x4 M, float l, float r, float b, float t, float n, float f)
+{
+    renderer_get_caps(renderer)->ndc_z_zero_one
+        ? mat4x4_ortho_ndc_z_1(M, l, r, b, t, n, f)
+        : mat4x4_ortho_ndc_z_2(M, l, r, b, t, n, f);
+}
+
+void renderer_mat4x4_perspective(renderer_t *renderer, mat4x4 m, float y_fov, float aspect, float n, float f)
+{
+    renderer_get_caps(renderer)->ndc_z_zero_one
+	    ? mat4x4_perspective_ndc_z_1(m, y_fov, aspect, n, f)
+	    : mat4x4_perspective_ndc_z_2(m, y_fov, aspect, n, f);
 }
 
 /****************************************************************************
