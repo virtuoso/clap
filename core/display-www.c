@@ -183,17 +183,10 @@ static cerr_check display_init_webgl(struct clap_context *ctx)
     emscripten_webgl_make_context_current(context);
 
     renderer_t *renderer = clap_get_renderer(ctx);
-    renderer_init(renderer);
+    CERR_RET_CERR(renderer_init(renderer, .backend = RENDER_OPENGL));
     renderer_set_version(renderer, 3, 0, RENDERER_ANY_PROFILE);
 
     return CERR_OK;
-}
-
-static cerr_check display_init_wgpu(struct clap_context *ctx)
-{
-    return IS_DEFINED(CONFIG_RENDERER_WGPU)
-        ? renderer_init(clap_get_renderer(ctx))
-        : CERR_NOT_SUPPORTED_REASON(.fmt = "WebGPU renderer is not compiled in");
 }
 
 cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, display_resize_cb rfn)
@@ -202,7 +195,7 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, d
     callback_data = ctx;
 
     /* try WebGPU, then fall back to WebGL */
-    cerr err = display_init_wgpu(ctx);
+    cerr err = renderer_init(clap_get_renderer(ctx), .backend = RENDER_WGPU);
     if (IS_CERR(err)) {
         err_cerr(err, "wgpu initialization failed\n");
         CERR_RET_CERR(display_init_webgl(ctx));

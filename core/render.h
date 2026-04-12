@@ -923,12 +923,7 @@ typedef enum render_limit {
 
 #define SLOTS_MAX   32
 
-typedef struct renderer_ops {
-    const renderer_caps *(*get_caps)(void);
-    void                (*mat4x4_ortho)(mat4x4 M, float l, float r, float b, float t, float n, float f);
-    void                (*mat4x4_perspective)(mat4x4 m, float y_fov, float aspect, float n, float f);
-    int                 (*query_limits)(renderer_t *renderer, render_limit limit);
-} renderer_ops;
+typedef struct renderer_ops renderer_ops;
 
 void renderer_mat4x4_ortho(renderer_t *renderer, mat4x4 M, float l, float r, float b, float t, float n, float f);
 void renderer_mat4x4_perspective(renderer_t *renderer, mat4x4 m, float y_fov, float aspect, float n, float f);
@@ -1024,6 +1019,7 @@ TYPE(renderer,
 int renderer_query_limits(renderer_t *renderer, render_limit limit);
 
 typedef struct renderer_init_options {
+    render_backend  backend;
 #ifdef CONFIG_RENDERER_METAL
     void    *device;
     void    *layer;
@@ -1104,5 +1100,42 @@ typedef enum {
 
 cerr_check renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                          data_type idx_type, unsigned int nr_instances);
+
+#ifdef IMPLEMENTOR
+#ifdef CONFIG_RENDERER_OPENGL
+cerr gl_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts);
+#else /* !CONFIG_RENDERER_OPENGL */
+static inline cerr gl_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts)
+{
+    return CERR_NOT_SUPPORTED_REASON(.fmt = "OpenGL support is not compiled in");
+}
+#endif /* !CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_METAL
+cerr mtl_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts);
+#else /* !CONFIG_RENDERER_METAL */
+static inline cerr mtl_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts)
+{
+    return CERR_NOT_SUPPORTED_REASON(.fmt = "Metal support is not compiled in");
+}
+#endif /* !CONFIG_RENDERER_METAL */
+
+#ifdef CONFIG_RENDERER_WGPU
+cerr wgpu_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts);
+#else /* !CONFIG_RENDERER_WGPU */
+static inline cerr wgpu_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts)
+{
+    return CERR_NOT_SUPPORTED_REASON(.fmt = "WebGPU support is not compiled in");
+}
+#endif /* !CONFIG_RENDERER_WGPU */
+
+typedef struct renderer_ops {
+    const renderer_caps *(*get_caps)(void);
+    void                (*mat4x4_ortho)(mat4x4 M, float l, float r, float b, float t, float n, float f);
+    void                (*mat4x4_perspective)(mat4x4 m, float y_fov, float aspect, float n, float f);
+    int                 (*query_limits)(renderer_t *renderer, render_limit limit);
+    cerr                (*init)(renderer_t *renderer, const renderer_init_options *opts);
+} renderer_ops;
+#endif /* IMPLEMENTOR */
 
 #endif /* __CLAP_RENDER_H__ */

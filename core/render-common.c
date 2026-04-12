@@ -5,6 +5,12 @@
 
 #include "linmath.h"
 
+static const char *render_str[RENDER_MAX] = {
+    [RENDER_OPENGL] = "OpenGL",
+    [RENDER_METAL]  = "Metal",
+    [RENDER_WGPU]   = "WebGPU",
+};
+
 const renderer_caps *renderer_get_caps(renderer_t *r)
 {
     return r->ops->get_caps();
@@ -27,6 +33,36 @@ void renderer_mat4x4_perspective(renderer_t *renderer, mat4x4 m, float y_fov, fl
 int renderer_query_limits(renderer_t *renderer, render_limit limit)
 {
     return renderer->ops->query_limits(renderer, limit);
+}
+
+cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
+{
+    if (!renderer || !opts)
+        return CERR_INVALID_ARGUMENTS_REASON(
+            .fmt    = "renderer: %p opts: %p",
+            .arg0   = renderer,
+            .arg1   = (void *)opts
+        );
+
+    if ((unsigned)opts->backend >= RENDER_MAX)
+        return CERR_NOT_SUPPORTED_REASON(
+            .fmt    = "requested rendering backend %d does not exist",
+            .arg0   = (void *)(uintptr_t)opts->backend
+        );
+
+    memset(renderer, 0, sizeof(*renderer));
+
+    switch (opts->backend) {
+        case RENDER_OPENGL:     CERR_RET_CERR(gl_renderer_setup(renderer, opts));   break;
+        case RENDER_METAL:      CERR_RET_CERR(mtl_renderer_setup(renderer, opts));  break;
+        case RENDER_WGPU:       CERR_RET_CERR(wgpu_renderer_setup(renderer, opts)); break;
+        default:                return CERR_NOT_SUPPORTED_REASON(
+                                    .fmt    = "requested rendering backend %s is not supported",
+                                    .arg0   = render_str[opts->backend]
+                                );
+    }
+
+    return renderer->ops->init(renderer, opts);
 }
 
 /****************************************************************************

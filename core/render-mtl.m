@@ -17,10 +17,12 @@ static const renderer_caps *mtl_renderer_get_caps(void)
 }
 
 static int mtl_renderer_query_limits(renderer_t *renderer, render_limit limit);
+static cerr mtl_renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
     .query_limits   = mtl_renderer_query_limits,
+    .init           = mtl_renderer_init,
 };
 
 /****************************************************************************
@@ -1653,7 +1655,13 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
 static inline mtl_cull_mode_t from_mtl_cull_mode(MTLCullMode mtl_cull_mode) { return (mtl_cull_mode_t)mtl_cull_mode; }
 static inline MTLCullMode to_mtl_cull_mode(mtl_cull_mode_t cull_mode) { return (MTLCullMode)cull_mode; }
 
-cerr _renderer_init(renderer_t *r, const renderer_init_options *opts)
+cerr mtl_renderer_setup(renderer_t *r, const renderer_init_options *opts)
+{
+    r->ops = &mtl_renderer_ops;
+    return CERR_OK;
+}
+
+static cerr mtl_renderer_init(renderer_t *r, const renderer_init_options *opts)
 {
     bitmap_init(&r->mtl.fbo_ids, FBOS_MAX);
     bitmap_init(&r->mtl.shader_ids, SHADERS_MAX);
@@ -1670,7 +1678,6 @@ cerr _renderer_init(renderer_t *r, const renderer_init_options *opts)
     r->mtl.cmd_queue = [r->mtl.device newCommandQueue];
 
     r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeBack);
-    r->ops = &mtl_renderer_ops;
 
     return CERR_OK;
 }

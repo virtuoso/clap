@@ -18,10 +18,12 @@ static const renderer_caps *gl_renderer_get_caps(void)
 }
 
 static int gl_renderer_query_limits(renderer_t *renderer, render_limit limit);
+static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
     .query_limits   = gl_renderer_query_limits,
+    .init           = gl_renderer_init,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -1646,7 +1648,13 @@ void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, cons
  * Renderer context
  ****************************************************************************/
 
-cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
+cerr gl_renderer_setup(renderer_t *renderer, const renderer_init_options *opts)
+{
+    renderer->ops = &gl_renderer_ops;
+    return CERR_OK;
+}
+
+static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 {
     static_assert(sizeof(GLint) == sizeof(int), "GLint doesn't match int");
     static_assert(sizeof(GLenum) == sizeof(unsigned int), "GLenum doesn't match unsigned int");
@@ -1732,7 +1740,7 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
         if (i == TEX_FMT_R32UI || i == TEX_FMT_RG32UI || i == TEX_FMT_RGBA32UI)
             filter = TEX_FLT_NEAREST;
 
-        cerr err = texture_init(&tex, .format = i, .wrap = TEX_CLAMP_TO_EDGE, .min_filter = filter, .mag_filter = filter);
+        cerr err = texture_init(&tex, .renderer = renderer, .format = i, .wrap = TEX_CLAMP_TO_EDGE, .min_filter = filter, .mag_filter = filter);
         if (!IS_CERR(err)) {
             err = texture_load(&tex, i, 1, 1, &buf);
             if (IS_CERR(err))
@@ -1747,14 +1755,14 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
         _fbo_texture_supported[i] = true;
 
         if (gl_texture_format(i) == GL_DEPTH_COMPONENT) {
-            res = fbo_new(.width = 1, .height = 1, .depth_config.format = i,
+            res = fbo_new(.renderer = renderer, .width = 1, .height = 1, .depth_config.format = i,
                           .layout = FBO_DEPTH_TEXTURE(0));
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
             else
                 fbo_put(res.val);
         } else {
-            res = fbo_new(.width = 1, .height = 1, .layout = FBO_COLOR_TEXTURE(0),
+            res = fbo_new(.renderer = renderer, .width = 1, .height = 1, .layout = FBO_COLOR_TEXTURE(0),
                           .color_config = (fbo_attconfig[]){ { .format = i } });
             if (IS_CERR(res))
                 _fbo_texture_supported[i] = false;
@@ -1762,8 +1770,6 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
                 fbo_put(res.val);
         }
     }
-
-    renderer->ops = &gl_renderer_ops;
 
     return CERR_OK;
 }

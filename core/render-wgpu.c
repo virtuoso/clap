@@ -22,10 +22,12 @@ static const renderer_caps *wgpu_renderer_get_caps(void)
 }
 
 static int wgpu_renderer_query_limits(renderer_t *renderer, render_limit limit);
+static cerr wgpu_renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
     .query_limits   = wgpu_renderer_query_limits,
+    .init           = wgpu_renderer_init,
 };
 
 enum {
@@ -1962,7 +1964,7 @@ static cerr wgpu_get_queue(renderer_t *r)
     return CERR_OK;
 }
 
-cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
+cerr wgpu_renderer_setup(renderer_t *renderer, const renderer_init_options *opts)
 {
     atomic_init(&renderer->wgpu.error, 0);
     list_init(&renderer->wgpu.dc_cache);
@@ -1978,6 +1980,11 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 
     renderer->ops = &wgpu_renderer_ops;
 
+    return CERR_OK;
+}
+
+static cerr wgpu_renderer_init(renderer_t *renderer, const renderer_init_options *opts)
+{
     return CERR_OK;
 }
 

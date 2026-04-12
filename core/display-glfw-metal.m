@@ -44,7 +44,7 @@ cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow)
     nswindow.contentView.wantsLayer = YES;
 
     renderer_t *renderer = clap_get_renderer(ctx);
-    renderer_init(renderer, .device = gpu, .layer = layer);
+    renderer_init(renderer, .backend = RENDER_METAL, .device = gpu, .layer = layer);
 
     return CERR_OK;
 }

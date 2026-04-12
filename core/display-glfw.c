@@ -291,7 +291,7 @@ restart:
     dbg("GLFW: %d.%d %s profile\n", major, minor, core_profile ? "Core" : "Any");
 
     renderer_t *r = clap_get_renderer(ctx);
-    renderer_init(r);
+    renderer_init(r, .backend = RENDER_OPENGL);
     renderer_set_version(r, major, minor,
                          core_profile ? RENDERER_CORE_PROFILE : RENDERER_ANY_PROFILE);
 
