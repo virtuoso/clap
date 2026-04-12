@@ -166,41 +166,47 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
         seg_vert2[1] = org[2] + radius * sin(M_PI * 2 * (seg + 1) / nr_serments);
 
         /* bottom */
-        vec3_dup(triangle[0], org);
-        triangle[1][0] = seg_vert1[0];
-        triangle[1][1] = org[1];
-        triangle[1][2] = seg_vert1[1];
-        triangle[2][0] = seg_vert2[0];
-        triangle[2][1] = org[1];
-        triangle[2][2] = seg_vert2[1];
-        _prim_emit_triangle(triangle, opts);
+        if (!(opts->skip_mask & (1ull << 0))) {
+            vec3_dup(triangle[0], org);
+            triangle[1][0] = seg_vert1[0];
+            triangle[1][1] = org[1];
+            triangle[1][2] = seg_vert1[1];
+            triangle[2][0] = seg_vert2[0];
+            triangle[2][1] = org[1];
+            triangle[2][2] = seg_vert2[1];
+            _prim_emit_triangle(triangle, opts);
+        }
 
         /* side quad */
-        vec3 quad[4];
-        quad[0][0] = seg_vert1[0];
-        quad[0][1] = org[1];
-        quad[0][2] = seg_vert1[1];
-        quad[1][0] = seg_vert2[0];
-        quad[1][1] = org[1];
-        quad[1][2] = seg_vert2[1];
-        quad[2][0] = seg_vert2[0];
-        quad[2][1] = org[1] + height;
-        quad[2][2] = seg_vert2[1];
-        quad[3][0] = seg_vert1[0];
-        quad[3][1] = org[1] + height;
-        quad[3][2] = seg_vert1[1];
-        _prim_emit_quad(quad, opts);
+        if (!(opts->skip_mask & (1ull << (seg + 2)))) {
+            vec3 quad[4];
+            quad[0][0] = seg_vert1[0];
+            quad[0][1] = org[1];
+            quad[0][2] = seg_vert1[1];
+            quad[1][0] = seg_vert2[0];
+            quad[1][1] = org[1];
+            quad[1][2] = seg_vert2[1];
+            quad[2][0] = seg_vert2[0];
+            quad[2][1] = org[1] + height;
+            quad[2][2] = seg_vert2[1];
+            quad[3][0] = seg_vert1[0];
+            quad[3][1] = org[1] + height;
+            quad[3][2] = seg_vert1[1];
+            _prim_emit_quad(quad, opts);
+        }
 
         /* top */
-        vec3_dup(triangle[0], org);
-        triangle[0][1] = org[1] + height;
-        triangle[1][0] = seg_vert2[0];
-        triangle[1][1] = org[1] + height;
-        triangle[1][2] = seg_vert2[1];
-        triangle[2][0] = seg_vert1[0];
-        triangle[2][1] = org[1] + height;
-        triangle[2][2] = seg_vert1[1];
-        _prim_emit_triangle(triangle, opts);
+        if (!(opts->skip_mask & (1ull << 1))) {
+            vec3_dup(triangle[0], org);
+            triangle[0][1] = org[1] + height;
+            triangle[1][0] = seg_vert2[0];
+            triangle[1][1] = org[1] + height;
+            triangle[1][2] = seg_vert2[1];
+            triangle[2][0] = seg_vert1[0];
+            triangle[2][1] = org[1] + height;
+            triangle[2][2] = seg_vert1[1];
+            _prim_emit_triangle(triangle, opts);
+        }
     }
 }
 
