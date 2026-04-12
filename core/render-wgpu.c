@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #define IMPLEMENTOR
+#include "display.h"
 #include "render.h"
 #undef IMPLEMENTOR
 
@@ -1778,8 +1779,18 @@ static void wgpu_query_device(renderer_t *r)
 
     wgpuSupportedFeaturesFreeMembers(features);
 
-    r->hdr = r->edr_supported =
-        wgpuAdapterHasFeature(r->adapter, WGPUFeatureName_RG11B10UfloatRenderable);
+    // EDR (HDR display output) needs two things:
+    //  1) the display itself can present extended-range content — asked via
+    //     display_supports_edr() (CSS '(dynamic-range: high)' on the web).
+    //  2) the renderer can produce a half-float swapchain. RGBA16Float is
+    //     mandatory in core WebGPU, so the renderer side is always satisfied;
+    //     we don't gate on RG11B10UfloatRenderable (that's an alternative
+    //     compact HDR format we may opt into later).
+    //
+    // Initial r->hdr is left to renderer_hdr_enable() which gets called from
+    // clap_init() / scene UI based on the user's render_options.
+    r->edr_supported = display_supports_edr();
+    r->hdr           = r->edr_supported;
 
     WGPULimits limits = WGPU_LIMITS_INIT;
     status = wgpuDeviceGetLimits(r->device, &limits);
@@ -1806,8 +1817,12 @@ static void wgpu_query_device(renderer_t *r)
 
 static inline wgpu_texture_format_t wgpu_swapchain_format(renderer_t *r)
 {
+    // HDR output uses RGBA16Float — the only HDR-capable swapchain format
+    // mandated by core WebGPU. The compositor scans linear values out to the
+    // display in extended sRGB, so the value range above 1.0 maps to nits
+    // beyond SDR white. SDR path stays on BGRA8Unorm for cheap composition.
     return r->hdr
-        ? WGPUTextureFormat_BGRA8Unorm//WGPUTextureFormat_RGBA16Float
+        ? WGPUTextureFormat_RGBA16Float
         : WGPUTextureFormat_BGRA8Unorm;
 }
 
@@ -1822,6 +1837,17 @@ static void wgpu_configure_surface(renderer_t *r)
         .presentMode    = WGPUPresentMode_Fifo,
         .alphaMode      = WGPUCompositeAlphaMode_Auto
     };
+
+    // SurfaceColorManagement chains an Extended tone mapping mode so the
+    // compositor doesn't clamp values >1.0 to SDR white. Only attached when
+    // HDR is on; otherwise default sRGB / Standard tone mapping is fine.
+    WGPUSurfaceColorManagement color_mgmt = WGPU_SURFACE_COLOR_MANAGEMENT_INIT;
+    if (r->hdr) {
+        color_mgmt.colorSpace      = WGPUPredefinedColorSpace_DisplayP3;
+        color_mgmt.toneMappingMode = WGPUToneMappingMode_Extended;
+        config.nextInChain         = &color_mgmt.chain;
+    }
+
     wgpuSurfaceConfigure(r->surface, &config);
 }
 
@@ -2054,7 +2080,12 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
 
 void renderer_hdr_enable(renderer_t *r, bool enable)
 {
-    r->hdr = r->edr_supported && enable;
+    bool want = r->edr_supported && enable;
+    if (want == r->hdr) return;
+
+    r->hdr = want;
+
+    wgpu_configure_surface(r);
 }
 
 #ifndef CONFIG_FINAL
