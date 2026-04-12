@@ -310,6 +310,15 @@ void phys_body_enable(struct phys_body *body, bool enable);
 void phys_body_rotate_xform(struct phys_body *body, transform_t *xform);
 
 /**
+ * phys_body_get_gravity() - get the world's gravitational acceleration
+ * @body:       phys_body object
+ * @gravity:    receiver for the gravity vector
+ *
+ * Retrieve the gravitational acceleration configured on the ODE world.
+ */
+void phys_body_get_gravity(struct phys_body *body, vec3 gravity);
+
+/**
  * phys_body_get_velocity() - get the physical body's linear velocity
  * @body:   phys_body object
  * @vel:    receiver for the velocity vector

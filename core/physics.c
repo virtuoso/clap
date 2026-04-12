@@ -248,6 +248,15 @@ void phys_body_enable(struct phys_body *body, bool enable)
         dBodyDisable(body->body);
 }
 
+void phys_body_get_gravity(struct phys_body *body, vec3 gravity)
+{
+    dVector3 g;
+    dWorldGetGravity(body->phys->world, g);
+    gravity[0] = g[0];
+    gravity[1] = g[1];
+    gravity[2] = g[2];
+}
+
 void phys_body_get_velocity(struct phys_body *body, vec3 vel)
 {
     if (!phys_body_has_body(body))
@@ -380,7 +389,7 @@ static void entity_pen_push(entity3d *e, dContact *contact, struct list *pen)
         return;
 
     /* Kinematic bodies are positioned by the character controller */
-    if (dBodyIsKinematic(e->phys_body->body))
+    if (e->phys_body->body && dBodyIsKinematic(e->phys_body->body))
         return;
 
     e->phys_body->pen_depth += contact->geom.depth;
@@ -478,7 +487,8 @@ static void got_contact(void *data, dGeomID o1, dGeomID o2)
     if (dGeomIsSpace(o1) || dGeomIsSpace(o2))
         dSpaceCollide2(o1, o2, c, got_contact);
     else
-        c->nc += dCollide(o1, o2, 1, &c->contact[c->nc].geom, sizeof(dContact));
+        c->nc += dCollide(o1, o2, array_size(c->contact) - c->nc,
+                          &c->contact[c->nc].geom, sizeof(dContact));
 }
 
 static entity3d *
@@ -582,41 +592,102 @@ float phys_body_sweep_capsule(struct phys_body *body, const vec3 delta,
         return 1.0f;
 
     /*
-     * Cast a ray from the capsule center in the movement direction.
-     * The ray length is extended by the capsule radius to account for
-     * the capsule's width (fat ray approximation).
+     * Create a probe capsule outside any space hierarchy and march it
+     * along the movement path.  At each step, dSpaceCollide2 tests
+     * real capsule-vs-geometry overlap -- no rays, no gaps in coverage.
+     * The probe is outside all spaces, avoiding ODE broadphase issues.
      */
-    const dReal *pos = dGeomGetPosition(body->geom);
-    vec3 dir;
-    vec3_scale(dir, delta, 1.0f / delta_len);
-
-    double ray_len = delta_len + body->radius;
-    double dist = ray_len;
-    dContact contact;
-
-    entity3d *hit = __phys_ray_cast(phys, self,
-                                    (vec3){ pos[0], pos[1], pos[2] },
-                                    dir, &dist, &contact);
-    if (!hit)
+    int class = dGeomGetClass(body->geom);
+    dGeomID probe = NULL;
+    if (class == dCapsuleClass) {
+        dReal pr, pl;
+        dGeomCapsuleGetParams(body->geom, &pr, &pl);
+        probe = dCreateCapsule(0, pr, pl);
+    } else if (class == dSphereClass) {
+        probe = dCreateSphere(0, body->radius);
+    }
+    if (!probe)
         return 1.0f;
 
-    /* Safe travel: ray hit minus the capsule radius margin */
-    float safe_dist = (float)dist - body->radius;
-    if (safe_dist < 0)
-        safe_dist = 0;
+    const dReal *rot = dGeomGetRotation(body->geom);
+    dGeomSetRotation(probe, rot);
 
-    float fraction = safe_dist / delta_len;
-    if (fraction > 1.0f)
-        fraction = 1.0f;
+    const dReal *geom_pos = dGeomGetPosition(body->geom);
+    vec3 dir;
+    vec3_norm(dir, delta);
 
-    normal[0] = contact.geom.normal[0];
-    normal[1] = contact.geom.normal[1];
-    normal[2] = contact.geom.normal[2];
+    int nsteps = (int)ceilf(delta_len / (body->radius * 0.5f));
+    if (nsteps < 2)
+        nsteps = 2;
 
-    if (hit_entity)
-        *hit_entity = hit;
+    float best_frac = 1.0f;
+    vec3 best_normal = { 0, 1, 0 };
+    dGeomID best_hit_geom = NULL;
 
-    return fraction;
+    for (int s = 1; s <= nsteps; s++) {
+        float t = (float)s / nsteps;
+
+        dGeomSetPosition(probe,
+                         geom_pos[0] + delta[0] * t,
+                         geom_pos[1] + delta[1] * t,
+                         geom_pos[2] + delta[2] * t);
+
+        struct contact c = {};
+        dSpaceCollide2(probe, (dGeomID)phys->space, &c, got_contact);
+
+        for (int i = 0; i < c.nc; i++) {
+            dContactGeom *cg = &c.contact[i].geom;
+
+            entity3d *e1 = dGeomGetData(cg->g1);
+            entity3d *e2 = dGeomGetData(cg->g2);
+            int other = (!e1 || e1 == self) ? 2 : 1;
+            entity3d *obstacle = (other == 1) ? e1 : e2;
+
+            if (!obstacle || obstacle == self)
+                continue;
+
+            /*
+             * Normal: ODE points it "into g1".  We need it pointing
+             * away from the obstacle, toward the probe.  If the
+             * obstacle is g1, the normal points into the obstacle
+             * and must be flipped.
+             */
+            vec3 cnorm = { cg->normal[0], cg->normal[1], cg->normal[2] };
+            if (other == 1)
+                vec3_scale(cnorm, cnorm, -1);
+
+            if (unlikely(phys->draw_contacts))
+                phys_contact_debug_draw(phys, cg, (vec4){ 0.5, 0.0, 1.0, 1.0 });
+
+            float ndot = vec3_mul_inner(dir, cnorm);
+            if (ndot > -0.1f)
+                continue;
+
+            float backup = cg->depth / -ndot;
+            float step_dist = t * delta_len;
+            float safe_dist = step_dist - backup;
+            if (safe_dist < 0)
+                safe_dist = 0;
+            float frac = safe_dist / delta_len;
+
+            if (frac < best_frac) {
+                best_frac = frac;
+                vec3_dup(best_normal, cnorm);
+                best_hit_geom = other == 1 ? cg->g1 : cg->g2;
+            }
+        }
+
+        if (best_frac < t)
+            break;
+    }
+
+    dGeomDestroy(probe);
+
+    vec3_dup(normal, best_normal);
+    if (hit_entity && best_hit_geom)
+        *hit_entity = dGeomGetData(best_hit_geom);
+
+    return best_frac;
 }
 
 bool phys_body_ground_collide(struct phys_body *body, bool grounded)
