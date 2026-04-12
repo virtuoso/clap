@@ -175,6 +175,68 @@ static void character_debug(struct character *ch)
 static inline void character_debug(struct character *ch) {}
 #endif /* CONFIG_FINAL */
 
+/*
+ * character_sweep_delta() - move body by delta via sweep-and-slide
+ * @body:           character's phys_body
+ * @delta:          desired movement vector (modified during slide iterations)
+ * @min_normal_y:   ignore contacts whose Y normal is below this (e.g. 0.5
+ *                  for vertical sweeps to skip edge/wall contacts)
+ * @stop_on_block:  if true, stop immediately when frac <= 0 (character is
+ *                  pressed against geometry).  Set for grounded/horizontal
+ *                  sweeps to prevent slide-creep through meshes.  Clear for
+ *                  vertical sweeps so the character slides off corners
+ *                  instead of hanging.
+ *
+ * Returns the fraction from the first sweep iteration (< 1.0 means
+ * something was hit on the primary movement).
+ */
+static float character_sweep_delta(struct phys_body *body, vec3 delta,
+                                   float min_normal_y, bool stop_on_block)
+{
+    float first_frac = 1.0f;
+
+    for (int iter = 0; iter < 3; iter++) {
+        if (vec3_len(delta) < 1e-6f)
+            break;
+
+        vec3 normal;
+        entity3d *hit = NULL;
+        float frac = phys_body_sweep_capsule(body, delta, normal, &hit);
+
+        /*
+         * Filter by normal direction: for vertical sweeps, only
+         * floor-like contacts (normal[1] >= min_normal_y) should
+         * block; edges and walls are ignored so the character
+         * slides off corners instead of catching on them.
+         */
+        if (frac < 1.0f && normal[1] < min_normal_y)
+            frac = 1.0f;
+
+        if (iter == 0)
+            first_frac = frac;
+
+        if (frac > 0) {
+            vec3 step;
+            vec3_scale(step, delta, frac);
+            phys_body_move(body, step);
+        }
+
+        if (frac >= 1.0f)
+            break;
+        if (frac <= 0.0f && stop_on_block)
+            break;
+
+        /* Project remaining delta onto the contact plane */
+        vec3 remaining;
+        vec3_scale(remaining, delta, 1.0f - frac);
+        float dot = vec3_mul_inner(remaining, normal);
+        vec3_scale(delta, normal, dot);
+        vec3_sub(delta, remaining, delta);
+    }
+
+    return first_frac;
+}
+
 static void character_apply_velocity(struct character *ch, struct scene *s)
 {
     entity3d *e = ch->entity;
@@ -186,38 +248,38 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
 
     /*
      * Kinematic sweep-and-slide: compute per-frame delta from velocity,
-     * then iteratively sweep the capsule and slide along contact surfaces.
+     * then sweep the capsule and slide along contact surfaces.
      */
     double dt_sec = clap_get_fps_delta(s->clap_ctx).tv_nsec / (double)NSEC_PER_SEC;
     if (dt_sec < 1e-6)
         goto rotate;
+    /* Clamp to prevent oversized deltas on frame spikes */
+    if (dt_sec > 1.0 / 30.0)
+        dt_sec = 1.0 / 30.0;
 
-    vec3 delta;
-    vec3_scale(delta, ch->velocity, dt_sec);
-
-    for (int iter = 0; iter < 3; iter++) {
-        if (vec3_len(delta) < 1e-6f)
-            break;
-
-        vec3 normal;
-        entity3d *hit = NULL;
-        float frac = phys_body_sweep_capsule(e->phys_body, delta, normal, &hit);
-
-        if (frac > 0) {
-            vec3 step;
-            vec3_scale(step, delta, frac);
-            phys_body_move(e->phys_body, step);
-        }
-
-        if (frac >= 1.0f)
-            break;
-
-        /* Project remaining delta onto the contact plane */
-        vec3 remaining;
-        vec3_scale(remaining, delta, 1.0f - frac);
-        float dot = vec3_mul_inner(remaining, normal);
-        vec3_scale(delta, normal, dot);
-        vec3_sub(delta, remaining, delta);
+    if (ch->airborne) {
+        /*
+         * Airborne: sweep vertical and horizontal independently.
+         * This prevents the "fall of shame" -- blocking horizontal
+         * movement against a wall doesn't stop gravity from pulling
+         * the character down.
+         */
+        vec3 v_delta = { 0, ch->velocity[1] * dt_sec, 0 };
+        vec3 h_delta = { ch->velocity[0] * dt_sec, 0, ch->velocity[2] * dt_sec };
+        float v_moved = character_sweep_delta(e->phys_body, v_delta, 0.5f, false);
+        character_sweep_delta(e->phys_body, h_delta, -1.0f, true);
+        /*
+         * If the vertical sweep was blocked, the character hit
+         * something below (or above).  Zero vertical velocity so
+         * gravity doesn't accumulate while the character is stuck
+         * at the surface waiting for ground_collide to ground it.
+         */
+        if (v_moved < 1.0f)
+            ch->velocity[1] = 0;
+    } else {
+        vec3 delta;
+        vec3_scale(delta, ch->velocity, dt_sec);
+        character_sweep_delta(e->phys_body, delta, -1.0f, true);
     }
 
     /* Zero body velocity so ODE dynamics don't fight the sweep */
@@ -392,6 +454,24 @@ void character_move(struct character *ch, struct scene *s)
     ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
 
     if (ch->airborne) {
+        /*
+         * Apply gravity and move via sweep-and-slide.  The sweep's
+         * slide projection naturally preserves the vertical component
+         * on near-vertical surfaces while redirecting the horizontal
+         * one, so horizontal and vertical don't need separate handling.
+         *
+         * Disable rollback while airborne so the character can land on
+         * geometry.  The grounded path keeps rollback for wall collision.
+         */
+        double dt_sec = clap_get_fps_delta(s->clap_ctx).tv_nsec / (double)NSEC_PER_SEC;
+        if (dt_sec > 1e-6) {
+            vec3 gravity;
+            phys_body_get_gravity(body, gravity);
+            ch->velocity[1] += gravity[1] * dt_sec;
+            character_apply_velocity(ch, s);
+            character_set_moved(ch);
+        }
+
         character_set_state(ch, s, CS_FALLING);
         goto out;
     }
