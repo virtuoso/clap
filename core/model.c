@@ -1417,10 +1417,16 @@ static int default_update(entity3d *e, void *data)
 
         entity3d_aabb_update(e);
 
-        if (e->phys_body) {
-            if (e->priv)
-                phys_body_rotate_xform(e->phys_body, &e->xform);
-        }
+        /*
+         * Push entity rotation to the physics body for characters
+         * (e->priv) and static colliders (PHYS_GEOM). Dynamic bodies
+         * (PHYS_BODY) get their rotation from the simulation instead
+         * (see phys_body_update()). Entity flags will replace the
+         * e->priv check here.
+         */
+        if (e->phys_body &&
+            (e->priv || !phys_body_has_body(e->phys_body)))
+            phys_body_rotate_xform(e->phys_body, &e->xform);
 
         if (scene && e->light_idx >= 0) {
             vec3 pos;
