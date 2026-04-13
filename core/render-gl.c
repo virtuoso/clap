@@ -53,6 +53,13 @@ static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment atta
 static cerr gl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
 static bool gl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 static texture_format gl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
+static cerr gl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
+static void gl_uniform_buffer_done(uniform_buffer_t *ubo);
+static cerr gl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
+static cerr gl_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points);
+static void gl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points);
+static cerr gl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
+                                  size_t *size, unsigned int count, const void *value);
 
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
@@ -89,6 +96,12 @@ static const renderer_ops gl_renderer_ops = {
     .fbo_resize   = gl_fbo_resize,
     .fbo_attachment_valid  = gl_fbo_attachment_valid,
     .fbo_attachment_format = gl_fbo_attachment_format,
+    .ubo_init       = gl_uniform_buffer_init,
+    .ubo_done       = gl_uniform_buffer_done,
+    .ubo_data_alloc = gl_uniform_buffer_data_alloc,
+    .ubo_bind       = gl_uniform_buffer_bind,
+    .ubo_update     = gl_uniform_buffer_update,
+    .ubo_set        = gl_uniform_buffer_set,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -1387,13 +1400,13 @@ static void uniform_buffer_drop(struct ref *ref)
 }
 DEFINE_REFCLASS2(uniform_buffer);
 
-cerr_check uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
-                               int binding)
+static cerr_check gl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
+                                         int binding)
 {
     return ref_embed(uniform_buffer, ubo, .binding = binding);
 }
 
-void uniform_buffer_done(uniform_buffer_t *ubo)
+static void gl_uniform_buffer_done(uniform_buffer_t *ubo)
 {
     if (!ref_is_static(&ubo->ref))
         ref_put_last(ubo);
@@ -1404,14 +1417,14 @@ void uniform_buffer_done(uniform_buffer_t *ubo)
 cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
                                unsigned int count, const void *value);
 
-cerr_check
-uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
-                   unsigned int count, const void *value)
+static cerr_check
+gl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                      unsigned int count, const void *value)
 {
     return _uniform_buffer_set(ubo, type, offset, size, count, value);
 }
 
-cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
+static cerr gl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
 {
     /* There's no reason to ever want to reallocate a UBO */
     if (ubo->data || ubo->size)
@@ -1434,7 +1447,7 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
     return CERR_OK;
 }
 
-cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
+static cerr gl_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     if (binding_points->binding < 0)
         return CERR_INVALID_ARGUMENTS;
@@ -1450,7 +1463,7 @@ cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points
     return CERR_OK;
 }
 
-void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
+static void gl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     if (!ubo->dirty)
         return;

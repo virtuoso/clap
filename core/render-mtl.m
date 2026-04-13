@@ -62,6 +62,13 @@ static void mtl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
 static cerr mtl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
 static bool mtl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 static texture_format mtl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
+static cerr mtl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
+static void mtl_uniform_buffer_done(uniform_buffer_t *ubo);
+static cerr mtl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
+static cerr mtl_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points);
+static void mtl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points);
+static cerr mtl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
+                                   size_t *size, unsigned int count, const void *value);
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
@@ -111,6 +118,12 @@ static const renderer_ops mtl_renderer_ops = {
     .fbo_resize     = mtl_fbo_resize,
     .fbo_attachment_valid  = mtl_fbo_attachment_valid,
     .fbo_attachment_format = mtl_fbo_attachment_format,
+    .ubo_init       = mtl_uniform_buffer_init,
+    .ubo_done       = mtl_uniform_buffer_done,
+    .ubo_data_alloc = mtl_uniform_buffer_data_alloc,
+    .ubo_bind       = mtl_uniform_buffer_bind,
+    .ubo_update     = mtl_uniform_buffer_update,
+    .ubo_set        = mtl_uniform_buffer_set,
 };
 
 /****************************************************************************
@@ -1362,8 +1375,8 @@ static void uniform_buffer_drop(struct ref *ref)
 }
 DEFINE_REFCLASS2(uniform_buffer);
 
-cerr_check uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
-                               int binding)
+static cerr_check mtl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
+                                          int binding)
 {
     CERR_RET(
         ref_embed(
@@ -1378,7 +1391,7 @@ cerr_check uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char 
     return CERR_OK;
 }
 
-void uniform_buffer_done(uniform_buffer_t *ubo)
+static void mtl_uniform_buffer_done(uniform_buffer_t *ubo)
 {
     if (!ref_is_static(&ubo->ref))
         ref_put_last(ubo);
@@ -1400,8 +1413,8 @@ static inline void *mtl_ubo_data(uniform_buffer_t *ubo)
 cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
                                unsigned int count, const void *value);
 
-cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
-                              unsigned int count, const void *value)
+static cerr_check mtl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                                         unsigned int count, const void *value)
 {
     if (!value) goto out;
 
@@ -1422,7 +1435,7 @@ out:
     return _uniform_buffer_set(ubo, type, offset, size, count, value);
 }
 
-cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
+static cerr mtl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
 {
     /* There's no reason to ever want to reallocate a UBO */
     if (ubo->data || ubo->size)
@@ -1446,7 +1459,7 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
     return CERR_OK;
 }
 
-cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
+static cerr mtl_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     if (binding_points->binding < 0)
         return CERR_INVALID_ARGUMENTS;
@@ -1461,7 +1474,7 @@ cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points
     return CERR_OK;
 }
 
-void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
+static void mtl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     renderer_t *r = ubo->renderer;
     size_t offset = mtl_ubo_offset(ubo);

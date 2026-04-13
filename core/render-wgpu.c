@@ -67,6 +67,13 @@ static void wgpu_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
 static cerr wgpu_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
 static bool wgpu_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 static texture_format wgpu_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
+static cerr wgpu_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
+static void wgpu_uniform_buffer_done(uniform_buffer_t *ubo);
+static cerr wgpu_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
+static cerr wgpu_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points);
+static void wgpu_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points);
+static cerr wgpu_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
+                                    size_t *size, unsigned int count, const void *value);
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
@@ -116,6 +123,12 @@ static const renderer_ops wgpu_renderer_ops = {
     .fbo_resize     = wgpu_fbo_resize,
     .fbo_attachment_valid  = wgpu_fbo_attachment_valid,
     .fbo_attachment_format = wgpu_fbo_attachment_format,
+    .ubo_init       = wgpu_uniform_buffer_init,
+    .ubo_done       = wgpu_uniform_buffer_done,
+    .ubo_data_alloc = wgpu_uniform_buffer_data_alloc,
+    .ubo_bind       = wgpu_uniform_buffer_bind,
+    .ubo_update     = wgpu_uniform_buffer_update,
+    .ubo_set        = wgpu_uniform_buffer_set,
 };
 
 enum {
@@ -1265,12 +1278,12 @@ static cerr uniform_buffer_make(struct ref *ref, void *_opts)
 static void uniform_buffer_drop(struct ref *ref)
 {
     uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
-    uniform_buffer_done(ubo);
+    wgpu_uniform_buffer_done(ubo);
 }
 
 DEFINE_REFCLASS2(uniform_buffer);
 
-cerr uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding)
+static cerr wgpu_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding)
 {
     cerr err = ref_embed(uniform_buffer, ubo, .renderer = r, .name = name, .binding = binding);
     if (IS_CERR(err))
@@ -1287,7 +1300,7 @@ static inline size_t wgpu_ubo_offset(uniform_buffer_t *ubo)
     return ubo->wgpu.slot_size * ubo->wgpu.item;
 }
 
-cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
+static cerr wgpu_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
 {
     /* There's no reason to ever want to reallocate a UBO */
     if (ubo->data || ubo->size)
@@ -1316,7 +1329,7 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
     return CERR_OK;
 }
 
-void uniform_buffer_done(uniform_buffer_t *ubo)
+static void wgpu_uniform_buffer_done(uniform_buffer_t *ubo)
 {
     if (ubo->wgpu.buf) {
         wgpuBufferRelease(ubo->wgpu.buf);
@@ -1333,7 +1346,7 @@ void uniform_buffer_done(uniform_buffer_t *ubo)
     ubo->wgpu.advance = false;
 }
 
-void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
+static void wgpu_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     if (!ubo || !ubo->data || !ubo->size || !ubo->wgpu.buf)
         return;
@@ -1353,7 +1366,7 @@ void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_poin
         r->wgpu.bound_ubos[slot] = ubo;
 }
 
-cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
+static cerr wgpu_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
     return CERR_OK;
 }
@@ -1367,8 +1380,8 @@ static inline void *wgpu_ubo_shadow_base(uniform_buffer_t *ubo)
     return (char *)ubo->data - ubo->wgpu.item * ubo->wgpu.slot_size;
 }
 
-cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
-                        unsigned int count, const void *value)
+static cerr wgpu_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                                    unsigned int count, const void *value)
 {
     if (!value)
         goto out;

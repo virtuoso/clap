@@ -1125,6 +1125,13 @@ typedef struct renderer_ops {
     cerr                (*fbo_resize)(fbo_t *fbo, unsigned int width, unsigned int height);
     bool                (*fbo_attachment_valid)(fbo_t *fbo, fbo_attachment attachment);
     texture_format      (*fbo_attachment_format)(fbo_t *fbo, fbo_attachment attachment);
+    cerr                (*ubo_init)(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
+    void                (*ubo_done)(uniform_buffer_t *ubo);
+    cerr                (*ubo_data_alloc)(uniform_buffer_t *ubo, size_t size);
+    cerr                (*ubo_bind)(uniform_buffer_t *ubo, binding_points_t *binding_points);
+    void                (*ubo_update)(uniform_buffer_t *ubo, binding_points_t *binding_points);
+    cerr                (*ubo_set)(uniform_buffer_t *ubo, data_type type, size_t *offset,
+                                   size_t *size, unsigned int count, const void *value);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 

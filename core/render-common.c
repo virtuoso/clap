@@ -413,6 +413,28 @@ void binding_points_add(binding_points_t *bps, shader_stage stage, int binding)
 }
 
 /****************************************************************************
+ * Uniform buffers
+ ****************************************************************************/
+
+cerr uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding)
+{
+    cerr err = r->ops->ubo_init(r, ubo, name, binding);
+    ubo->renderer = r;
+    return err;
+}
+
+void uniform_buffer_done(uniform_buffer_t *ubo) { if (!ubo->renderer) return; ubo->renderer->ops->ubo_done(ubo); }
+cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size) { return ubo->renderer->ops->ubo_data_alloc(ubo, size); }
+cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points) { return ubo->renderer->ops->ubo_bind(ubo, binding_points); }
+void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points) { ubo->renderer->ops->ubo_update(ubo, binding_points); }
+
+cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
+                        unsigned int count, const void *value)
+{
+    return ubo->renderer->ops->ubo_set(ubo, type, offset, size, count, value);
+}
+
+/****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/
 
