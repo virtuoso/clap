@@ -376,7 +376,6 @@ typedef struct entity3d {
     struct ref          ref;
     struct list         entry;     /* link to txmodel->entities */
     entity3d_flags      flags;
-    unsigned int        visible;
     int                 animation;
     double              ani_time;
     char                *name;

@@ -825,7 +825,9 @@ static void scene_entity_inspector_debug(struct scene *scene)
         }
         ui_igCheckbox("outline exclude", &e->outline_exclude);
 
-        ui_igCheckbox("visible", (bool *)&e->visible);
+        bool visible = entity3d_matches(e, ENTITY3D_VISIBLE);
+        if (ui_igCheckbox("visible", &visible))
+            entity3d_visible(e, visible);
 
         vec3 pos;
         transform_pos(&e->xform, pos);

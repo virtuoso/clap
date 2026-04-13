@@ -133,7 +133,7 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
     }
 
     /* We might want force_invisible also */
-    e->visible = __ui_element_is_visible(uie, ui) ? 1 : 0;
+    entity3d_visible(e, __ui_element_is_visible(uie, ui));
     /*trace("VIEWPORT %fx%f; xywh: %f %f %f %f\n", parent_width, parent_height,
           uie->actual_x, uie->actual_y, uie->actual_w, uie->actual_h);*/
     mat4x4_identity(e->mx);
@@ -150,7 +150,7 @@ int ui_element_update(entity3d *e, void *data)
     mat4x4 p;
 
     ui_element_position(uie, ui);
-    if (!e->visible)
+    if (!entity3d_matches(e, ENTITY3D_VISIBLE))
         return 0;
 
     mat4x4_identity(p);
@@ -233,7 +233,7 @@ static void ui_element_for_each_child(struct ui_element *uie, void (*cb)(struct 
 
 static void __set_visibility(struct ui_element *uie, void *data)
 {
-    uie->entity->visible = !!*(int *)data;
+    entity3d_visible(uie->entity, !!*(int *)data);
     uie->force_hidden = !*(int *)data;
 }
 
@@ -331,7 +331,6 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
 
     uie->entity->update  = ui_element_update;
     uie->entity->priv    = uie;
-    uie->entity->visible = 1;
     entity3d_color(uie->entity, COLOR_PT_NONE, (vec4){});
 
     ui_element_position(uie, opts->ui);

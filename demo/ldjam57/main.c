@@ -88,7 +88,7 @@ static int platform_entity_update(entity3d *e, void *data)
     /* here is where would animate the appearance of a platform */
     e->update = pobj->orig_update;
     entity3d_position(e, pobj->pos);
-    e->visible = 1;
+    entity3d_set(e, ENTITY3D_VISIBLE, NULL);
 
     return pobj->orig_update(e, data);
 }
@@ -110,7 +110,7 @@ static void switch_connect(entity3d *e, entity3d *connection, void *data)
             pobj->e->update = platform_entity_update;
             pobj->e->connect_priv = pobj;
         }
-        pobj->e->visible = 1;
+        entity3d_set(pobj->e, ENTITY3D_VISIBLE, NULL);
     }
 }
 
@@ -132,7 +132,7 @@ static void switch_disconnect(entity3d *e, entity3d *connection, void *data)
         vec3 pos;
         vec3_add(pos, pobj->pos, (vec3){ 0, 100, 0 });
         entity3d_position(pobj->e, pos);
-        pobj->e->visible = 0;
+        entity3d_clear(pobj->e, ENTITY3D_VISIBLE);
         pobj->e->update = pobj->orig_update;
     }
 }
@@ -257,7 +257,7 @@ static void process_entity(entity3d *e, void *data)
         pobj->sw_name = strndup(name, substr - name);
 
         /* hide the platform */
-        e->visible = 0;
+        entity3d_clear(e, ENTITY3D_VISIBLE);
         entity3d_move(e, (vec3){ 0, 100, 0 });
 
         model3dtx *txm = e->txmodel;

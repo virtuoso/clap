@@ -963,7 +963,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (unlikely(ropts && ropts->aabb_draws_enabled && !model->skip_aabb))
                 entity3d_aabb_draw(mq->priv, e, true, true);
 
-            if (!e->visible)
+            if (!entity3d_matches(e, ENTITY3D_VISIBLE))
                 continue;
 
             if (!e->skip_culling &&
@@ -1714,7 +1714,6 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     e->light_idx = -1;
     e->force_lod = -1;
     e->scale     = 1.0;
-    e->visible   = 1;
     e->update    = default_update;
     e->parent_joint = JOINT_TYPE_MAX;
 
@@ -1727,7 +1726,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     }
 
     list_append(&e->txmodel->entities, &e->entry);
-    e->flags |= ENTITY3D_ALIVE;
+    e->flags |= ENTITY3D_ALIVE | ENTITY3D_VISIBLE;
 
     return CERR_OK;
 }
@@ -1773,7 +1772,10 @@ void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class
 
 void entity3d_visible(entity3d *e, unsigned int visible)
 {
-    e->visible = visible;
+    if (visible)
+        entity3d_set(e, ENTITY3D_VISIBLE, NULL);
+    else
+        entity3d_clear(e, ENTITY3D_VISIBLE);
 }
 
 void entity3d_rotate(entity3d *e, float rx, float ry, float rz)
