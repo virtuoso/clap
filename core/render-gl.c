@@ -321,8 +321,8 @@ cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
     if (!gl_does_vao())
         return CERR_OK;
 
-    GL(glGenVertexArrays(1, &va->vao));
-    GL(glBindVertexArray(va->vao));
+    GL(glGenVertexArrays(1, &va->gl.vao));
+    GL(glBindVertexArray(va->gl.vao));
 
     return CERR_OK;
 }
@@ -330,13 +330,13 @@ cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
 void vertex_array_done(vertex_array_t *va)
 {
     if (gl_does_vao())
-        GL(glDeleteVertexArrays(1, &va->vao));
+        GL(glDeleteVertexArrays(1, &va->gl.vao));
 }
 
 void vertex_array_bind(vertex_array_t *va)
 {
     if (gl_does_vao())
-        GL(glBindVertexArray(va->vao));
+        GL(glBindVertexArray(va->gl.vao));
 }
 
 void vertex_array_unbind(vertex_array_t *va)

@@ -264,25 +264,21 @@ cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...);
 # endif /* !CONFIG_FINAL */
 #endif /* !CONFIG_FINAL */
 
-#ifdef CONFIG_RENDERER_OPENGL
 TYPE(vertex_array,
     struct ref  ref;
-    GLuint      vao;
-);
-#elif defined(CONFIG_RENDERER_WGPU)
-TYPE(vertex_array,
-    struct ref      ref;
     renderer_t      *renderer;
     buffer_t        *index;
-    buffer_t        *vbuf;
-);
-#elif defined(CONFIG_RENDERER_METAL)
-TYPE(vertex_array,
-    struct ref  ref;
-    renderer_t  *renderer;
-    buffer_t    *index;
-);
+#ifdef CONFIG_RENDERER_OPENGL
+    struct {
+        GLuint      vao;
+    } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        buffer_t        *vbuf;
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+);
 
 DEFINE_REFCLASS_INIT_OPTIONS(vertex_array,
     renderer_t  *renderer;

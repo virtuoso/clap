@@ -235,7 +235,7 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
     } else if (loc == 0) {
         /* first vertex attribute — record the interleaved vertex buffer */
         buffer_t *vbuf = buf->main ? buf->main : buf;
-        r->wgpu.va->vbuf = vbuf;
+        r->wgpu.va->wgpu.vbuf = vbuf;
     }
 }
 
@@ -2305,7 +2305,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
     wgpuRenderPassEncoderSetBindGroup(enc, 0, bg, 0, NULL);
 
     // Set vertex buffer (tracked from buffer_bind at loc 0)
-    buffer_t *vbuf = r->wgpu.va->vbuf;
+    buffer_t *vbuf = r->wgpu.va->wgpu.vbuf;
     if (!vbuf || !buffer_loaded(vbuf)) {
         wgpuBindGroupRelease(bg);
         return CERR_INVALID_OPERATION_REASON(
