@@ -817,7 +817,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
         vec4 pos = { vx[i + 0], vx[i + 1], vx[i + 2], 1 };
         vec4 res;
         mat4x4_identity(trans);
-        /* Not baking rotation into the mesh any more, using phys_body_rotate_mat4x4() instead */
+        /* Rotation is applied to the geom, not baked into the mesh */
         mat4x4_scale_aniso(trans, trans, e->scale, e->scale, e->scale);
         mat4x4_mul_vec4(res, trans, pos);
         vec3_scale(res, res, 1.0f / res[3]);
