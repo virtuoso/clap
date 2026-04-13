@@ -47,6 +47,10 @@ static cerr wgpu_vertex_array_init(vertex_array_t *va, renderer_t *r);
 static void wgpu_vertex_array_done(vertex_array_t *va);
 static void wgpu_vertex_array_bind(vertex_array_t *va);
 static void wgpu_vertex_array_unbind(vertex_array_t *va);
+static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts);
+static void wgpu_draw_control_done(draw_control_t *dc);
+static void wgpu_draw_control_bind(draw_control_t *dc);
+static void wgpu_draw_control_unbind(draw_control_t *dc);
 #ifndef CONFIG_FINAL
 static void wgpu_buffer_set_name(buffer_t *buf, const char *name);
 #endif
@@ -81,6 +85,10 @@ static const renderer_ops wgpu_renderer_ops = {
     .va_done    = wgpu_vertex_array_done,
     .va_bind    = wgpu_vertex_array_bind,
     .va_unbind  = wgpu_vertex_array_unbind,
+    .dc_init    = wgpu_draw_control_init,
+    .dc_done    = wgpu_draw_control_done,
+    .dc_bind    = wgpu_draw_control_bind,
+    .dc_unbind  = wgpu_draw_control_unbind,
 };
 
 enum {
@@ -525,12 +533,12 @@ static void draw_control_drop(struct ref *ref)
 DEFINE_REFCLASS2(draw_control);
 cresp_struct_ret(draw_control);
 
-cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
+static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
 {
     return ref_embed_opts(draw_control, dc, opts);
 }
 
-void draw_control_done(draw_control_t *dc)
+static void wgpu_draw_control_done(draw_control_t *dc)
 {
     if (dc->wgpu.pipeline[0]) {
         wgpuRenderPipelineRelease(dc->wgpu.pipeline[0]);
@@ -543,7 +551,7 @@ void draw_control_done(draw_control_t *dc)
     list_del(&dc->wgpu.cache_entry);
 }
 
-void draw_control_bind(draw_control_t *dc)
+static void wgpu_draw_control_bind(draw_control_t *dc)
 {
     renderer_t *r = dc->renderer;
     r->wgpu.dc = dc;
@@ -552,7 +560,7 @@ void draw_control_bind(draw_control_t *dc)
         wgpuRenderPassEncoderSetPipeline(r->wgpu.pass_encoder, dc->wgpu.pipeline[r->blend ? 1 : 0]);
 }
 
-void draw_control_unbind(draw_control_t *dc)
+static void wgpu_draw_control_unbind(draw_control_t *dc)
 {
 }
 

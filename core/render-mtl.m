@@ -42,6 +42,10 @@ static cerr mtl_vertex_array_init(vertex_array_t *va, renderer_t *r);
 static void mtl_vertex_array_done(vertex_array_t *va);
 static void mtl_vertex_array_bind(vertex_array_t *va);
 static void mtl_vertex_array_unbind(vertex_array_t *va);
+static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts);
+static void mtl_draw_control_done(draw_control_t *dc);
+static void mtl_draw_control_bind(draw_control_t *dc);
+static void mtl_draw_control_unbind(draw_control_t *dc);
 #ifndef CONFIG_FINAL
 static void mtl_buffer_set_name(buffer_t *buf, const char *name);
 #endif
@@ -76,6 +80,10 @@ static const renderer_ops mtl_renderer_ops = {
     .va_done    = mtl_vertex_array_done,
     .va_bind    = mtl_vertex_array_bind,
     .va_unbind  = mtl_vertex_array_unbind,
+    .dc_init    = mtl_draw_control_init,
+    .dc_done    = mtl_draw_control_done,
+    .dc_bind    = mtl_draw_control_bind,
+    .dc_unbind  = mtl_draw_control_unbind,
 };
 
 /****************************************************************************
@@ -573,12 +581,12 @@ static void draw_control_drop(struct ref *ref)
 DEFINE_REFCLASS2(draw_control);
 DECLARE_REFCLASS(draw_control);
 
-cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
+static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
 {
     return ref_embed_opts(draw_control, dc, opts);
 }
 
-void draw_control_done(draw_control_t *dc)
+static void mtl_draw_control_done(draw_control_t *dc)
 {
     [dc->mtl.pipeline[0] release];
     [dc->mtl.pipeline[1] release];
@@ -588,7 +596,7 @@ void draw_control_done(draw_control_t *dc)
     list_del(&dc->mtl.hash_entry);
 }
 
-void draw_control_bind(draw_control_t *dc)
+static void mtl_draw_control_bind(draw_control_t *dc)
 {
     auto r = dc->renderer;
     r->mtl.dc = dc;
@@ -597,7 +605,7 @@ void draw_control_bind(draw_control_t *dc)
     [cmd_encoder(r) setRenderPipelineState:dc->mtl.pipeline[r->blend ? 1 : 0]];
 }
 
-void draw_control_unbind(draw_control_t *dc)
+static void mtl_draw_control_unbind(draw_control_t *dc)
 {
     auto r = dc->renderer;
     r->mtl.dc = NULL;

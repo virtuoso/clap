@@ -212,6 +212,32 @@ void vertex_array_unbind(vertex_array_t *va)
     va->renderer->ops->va_unbind(va);
 }
 
+cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
+{
+    renderer_t *r = opts->renderer;
+    cerr err = r->ops->dc_init(dc, opts);
+    dc->renderer = r;
+    return err;
+}
+
+void draw_control_done(draw_control_t *dc)
+{
+    if (!dc->renderer || !dc->renderer->ops->dc_done)    return;
+    dc->renderer->ops->dc_done(dc);
+}
+
+void draw_control_bind(draw_control_t *dc)
+{
+    if (!dc->renderer || !dc->renderer->ops->dc_bind)    return;
+    dc->renderer->ops->dc_bind(dc);
+}
+
+void draw_control_unbind(draw_control_t *dc)
+{
+    if (!dc->renderer || !dc->renderer->ops->dc_unbind)  return;
+    dc->renderer->ops->dc_unbind(dc);
+}
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/

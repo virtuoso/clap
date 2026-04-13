@@ -1110,6 +1110,10 @@ typedef struct renderer_ops {
     void                (*va_done)(vertex_array_t *va);
     void                (*va_bind)(vertex_array_t *va);
     void                (*va_unbind)(vertex_array_t *va);
+    cerr                (*dc_init)(draw_control_t *dc, const draw_control_init_options *opts);
+    void                (*dc_done)(draw_control_t *dc);
+    void                (*dc_bind)(draw_control_t *dc);
+    void                (*dc_unbind)(draw_control_t *dc);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 
