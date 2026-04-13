@@ -1247,22 +1247,6 @@ static texture_format wgpu_fbo_attachment_format(fbo_t *fbo, fbo_attachment atta
  * Binding points
  ****************************************************************************/
 
-void binding_points_init(binding_points_t *bps)
-{
-    bps->binding = -1;
-    bps->stages = 0;
-}
-
-void binding_points_done(binding_points_t *bps)
-{
-    binding_points_init(bps);
-}
-
-void binding_points_add(binding_points_t *bps, shader_stage stage, int binding)
-{
-    bps->binding = binding;
-    bps->stages |= 1 << stage;
-}
 
 /****************************************************************************
  * UBOs

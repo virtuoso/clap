@@ -1356,20 +1356,6 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
  * Binding points
  ****************************************************************************/
 
-void binding_points_init(binding_points_t *bps)
-{
-    bps->binding = -1;
-}
-
-void binding_points_done(binding_points_t *bps)
-{
-    bps->binding = -1;
-}
-
-void binding_points_add(binding_points_t *bps, shader_stage stage, int binding)
-{
-    bps->binding = binding;
-}
 
 /****************************************************************************
  * UBOs
