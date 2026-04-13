@@ -14,14 +14,15 @@
 
 #ifdef CONFIG_RENDERER_OPENGL
 #include "imgui_impl_opengl3.h"
-#elif defined(CONFIG_RENDERER_WGPU)
+#endif /* CONFIG_RENDERER_OPENGL */
+#ifdef CONFIG_RENDERER_WGPU
 #include "ui-imgui-wgpu.h"
-#elif defined(CONFIG_RENDERER_METAL)
+#endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_METAL
 #include "ui-imgui-metal.h"
-#else
-#error "Unsupported renderer"
-#endif
+#endif /* CONFIG_RENDERER_METAL */
 
+static render_backend renderer = RENDER_MAX;
 static struct settings *settings;
 static struct ImGuiContext *ctx;
 static struct ImGuiIO *io;
@@ -70,18 +71,52 @@ static void debug_debugger(void)
     ui_igEnd(DEBUG_DEBUGGER);
 }
 
+#ifdef CONFIG_RENDERER_OPENGL
+# ifndef __EMSCRIPTEN__
+static inline void ui_imgui_init_glfw_for_opengl(void *window, bool do_callbacks) { ImGui_ImplGlfw_InitForOpenGL(window, do_callbacks); }
+# else /* !__EMSCRIPTEN__ */
+static inline void __unused ui_imgui_init_glfw_for_opengl(void *window, bool do_callbacks) {}
+# endif /* !__EMSCRIPTEN__ */
+static inline void ui_imgui_opengl_init(const char *glsl_version) { ImGui_ImplOpenGL3_Init(glsl_version); }
+static inline void ui_imgui_opengl_new_frame(void) { ImGui_ImplOpenGL3_NewFrame(); }
+static inline void ui_imgui_opengl_render_draw_data(ImDrawData *draw) { ImGui_ImplOpenGL3_RenderDrawData(draw); }
+static inline void ui_imgui_opengl_shutdown(void) { ImGui_ImplOpenGL3_Shutdown(); }
+#else /* !CONFIG_RENDERER_OPENGL */
+static inline void __unused ui_imgui_init_glfw_for_opengl(void *window, bool do_callbacks) {}
+static inline void ui_imgui_opengl_init(const char *glsl_version) {}
+static inline void ui_imgui_opengl_new_frame(void) {}
+static inline void ui_imgui_opengl_render_draw_data(ImDrawData *draw) {}
+static inline void __unused ui_imgui_opengl_shutdown(void) {}
+#endif /* !CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_METAL
+static inline void ui_imgui_init_glfw_for_other(void *window, bool do_callbacks) { ImGui_ImplGlfw_InitForOther(window, do_callbacks); }
+#else /* !CONFIG_RENDERER_METAL */
+static inline void __unused ui_imgui_init_glfw_for_other(void *window, bool do_callbacks) {}
+static inline void ui_imgui_metal_init(clap_context *clap_ctx) {}
+static inline void ui_imgui_metal_new_frame(void) {}
+static inline void ui_imgui_metal_render_draw_data(ImDrawData *draw) {}
+static inline void __unused ui_imgui_metal_shutdown(void) {}
+#endif /* !CONFIG_RENDERER_METAL */
+
+#ifndef CONFIG_RENDERER_WGPU
+static inline void ui_imgui_wgpu_init(clap_context *clap_ctx) {}
+static inline void ui_imgui_wgpu_new_frame(void) {}
+static inline void ui_imgui_wgpu_render_draw_data(ImDrawData *draw) {}
+#endif /* CONFIG_RENDERER_WGPU */
+
 void imgui_render_begin(int width, int height)
 {
     io->DisplaySize.x = width;
     io->DisplaySize.y = height;
 
-#ifdef CONFIG_RENDERER_OPENGL
-    ImGui_ImplOpenGL3_NewFrame();
-#elif defined(CONFIG_RENDERER_METAL)
-    ui_imgui_metal_new_frame();
-#elif defined(CONFIG_RENDERER_WGPU)
-    ui_imgui_wgpu_new_frame();
-#endif
+    if (renderer == RENDER_OPENGL) {
+        ui_imgui_opengl_new_frame();
+    } else if (renderer == RENDER_METAL) {
+        ui_imgui_metal_new_frame();
+    } else if (renderer == RENDER_WGPU) {
+        ui_imgui_wgpu_new_frame();
+    }
 
 #ifdef __EMSCRIPTEN__
     ui_ig_new_frame();
@@ -94,9 +129,8 @@ void imgui_render_begin(int width, int height)
      * of that. This will change once there's an option to choose the rendering
      * scale.
      */
-#ifdef CONFIG_RENDERER_METAL
-    io->DisplayFramebufferScale = (ImVec2){ 1.0f, 1.0f };
-#endif /* CONFIG_RENDERER_METAL */
+    if (renderer == RENDER_METAL)
+        io->DisplayFramebufferScale = (ImVec2){ 1.0f, 1.0f };
     igNewFrame();
 }
 
@@ -105,13 +139,13 @@ void imgui_render(void)
     debug_debugger();
 
     igRender();
-#ifdef CONFIG_RENDERER_OPENGL
-    ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
-#elif defined(CONFIG_RENDERER_WGPU)
-    ui_imgui_wgpu_render_draw_data(igGetDrawData());
-#elif defined(CONFIG_RENDERER_METAL)
-    ui_imgui_metal_render_draw_data(igGetDrawData());
-#endif
+    if (renderer == RENDER_OPENGL) {
+        ui_imgui_opengl_render_draw_data(igGetDrawData());
+    } else if (renderer == RENDER_WGPU) {
+        ui_imgui_wgpu_render_draw_data(igGetDrawData());
+    } else if (renderer == RENDER_METAL) {
+        ui_imgui_metal_render_draw_data(igGetDrawData());
+    }
 
     if (io->WantSaveIniSettings && settings) {
         JsonNode *debug_group = settings_find_get(settings, NULL, "debug", JSON_OBJECT);
@@ -447,45 +481,44 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
     io->ConfigMacOSXBehaviors = true;
 #endif /* __APPLE__ */
 
-#ifdef CONFIG_RENDERER_OPENGL
-# ifdef CONFIG_GLES
-    const char *glsl_version = "#version 300 es";
-# else
-    const char *glsl_version = "#version 410";
-# endif /* !CONFIG_GLES */
-#endif /* CONFIG_RENDERER_OPENGL */
+    auto r = clap_get_renderer(clap_ctx);
+    renderer = renderer_get_caps(r)->renderer;
 
-#ifndef __EMSCRIPTEN__
-    GLFWwindow *win = data;
-# ifdef CONFIG_RENDERER_OPENGL
-    ImGui_ImplGlfw_InitForOpenGL(win, true);
-# elif defined(CONFIG_RENDERER_METAL)
-    ImGui_ImplGlfw_InitForOther(win, true);
-# endif
-#else
+#ifdef __EMSCRIPTEN__
     ui_ig_init_for_emscripten(clap_ctx, ctx, io);
+#else /* !__EMSCRIPTEN__ */
+    if (renderer == RENDER_OPENGL) {
+        ui_imgui_init_glfw_for_opengl(data, true);
+    } else if (renderer == RENDER_METAL) {
+        ui_imgui_init_glfw_for_other(data, true);
+    }
+#endif /* !__EMSCRIPTEN__ */
 
-# ifdef CONFIG_RENDERER_WGPU
-    ui_imgui_wgpu_init(clap_ctx);
-# endif /* CONFIG_RENDERER_WGPU */
-#endif
-
-#ifdef CONFIG_RENDERER_OPENGL
-    ImGui_ImplOpenGL3_Init(glsl_version);
-#elif defined(CONFIG_RENDERER_METAL)
-    ui_imgui_metal_init(clap_ctx);
-#endif
+    if (renderer == RENDER_OPENGL) {
+        ui_imgui_opengl_init(IS_DEFINED(CONFIG_GLES) ? "#version 300 es" : "#version 410");
+    } else if (renderer == RENDER_METAL) {
+        ui_imgui_metal_init(clap_ctx);
+    } else if (renderer == RENDER_WGPU) {
+        ui_imgui_wgpu_init(clap_ctx);
+    }
 
     igStyleColorsDark(NULL);
 }
 
 void imgui_done(void)
 {
+    if (renderer == RENDER_OPENGL) {
 #ifdef CONFIG_RENDERER_OPENGL
-    ImGui_ImplOpenGL3_Shutdown();
-#elif defined(CONFIG_RENDERER_METAL)
-    ui_imgui_metal_shutdown();
-#endif
+        ui_imgui_opengl_shutdown();
+#endif /* CONFIG_RENDERER_OPENGL */
+    } else if (renderer == RENDER_METAL) {
+#ifdef CONFIG_RENDERER_METAL
+        ui_imgui_metal_shutdown();
+#endif /* CONFIG_RENDERER_METAL */
+    }
+
+    // XXX: need to shut down wgpu backend as well
+
 #ifndef __EMSCRIPTEN__
     ImGui_ImplGlfw_Shutdown();
 #endif
