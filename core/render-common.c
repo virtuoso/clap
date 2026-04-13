@@ -11,6 +11,17 @@ static const char *render_str[RENDER_MAX] = {
     [RENDER_WGPU]   = "WebGPU",
 };
 
+static const char *render_shader_ext[RENDER_MAX] = {
+    [RENDER_OPENGL] = ".glsl",
+    [RENDER_METAL]  = ".msl",
+    [RENDER_WGPU]   = ".wgsl",
+};
+
+const char *renderer_shader_ext(renderer_t *r)
+{
+    return render_shader_ext[renderer_get_caps(r)->renderer];
+}
+
 const renderer_caps *renderer_get_caps(renderer_t *r)
 {
     return r->ops->get_caps();

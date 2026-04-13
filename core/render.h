@@ -985,6 +985,7 @@ typedef struct renderer_init_options {
 cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 void renderer_done(renderer_t *r);
 const renderer_caps *renderer_get_caps(renderer_t *r);
+const char *renderer_shader_ext(renderer_t *r);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
