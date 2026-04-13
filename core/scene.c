@@ -54,6 +54,15 @@ void scene_control_next(struct scene *s)
     dbg("scene control at: '%s'\n", entity_name(s->control));
 }
 
+struct character *scene_control_character(struct scene *s)
+{
+    if (!s->control)
+        return NULL;
+
+    cresp(character) cres = entity3d_character(s->control);
+    return IS_CERR(cres) ? NULL : cres.val;
+}
+
 bool scene_camera_follows(struct scene *s, struct character *ch)
 {
     return scene_control_character(s) == ch;
@@ -1213,10 +1222,11 @@ cerr scene_init(struct scene *scene, struct clap_context *ctx)
 
 static sfx *scene_get_sfx(struct scene *s, entity3d *e, const char *name)
 {
-    struct character *c = e->priv;
+    cresp(character) cres = entity3d_character(e);
     sfx *sfx = NULL;
 
-    if (c && !c->airborne) {
+    if (!IS_CERR(cres) && !cres.val->airborne) {
+        struct character *c = cres.val;
         if (c->collision)
             sfx = sfx_get(&c->collision->txmodel->model->sfxc, name);
         if (!sfx)

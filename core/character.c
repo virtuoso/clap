@@ -112,7 +112,7 @@ static void character_any_to_jump(struct scene *s, void *priv)
 
 static void character_jump_frame_callback(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
 {
-    struct character *ch = e->priv;
+    struct character *ch = CRES_RET(entity3d_character(e), return);
 
     if (time >= 0.5) {
         phys_body_set_velocity(ch->entity->phys_body, ch->velocity);
@@ -451,7 +451,7 @@ static void history_newest(struct character *c, vec3 pos)
 /* data is struct scene */
 static int character_update(entity3d *e, void *data)
 {
-    struct character *c = e->priv;
+    struct character *c = CRES_RET(entity3d_character(e), return -1);
     struct scene     *s = data;
 
     /*
@@ -489,7 +489,7 @@ static cerr character_make(struct ref *ref, void *_opts)
     struct character *c = container_of(ref, struct character, ref);
 
     c->entity = CRES_RET_CERR(ref_new_checked(entity3d, .txmodel = opts->txmodel));
-    c->entity->priv = c;
+    entity3d_set(c->entity, ENTITY3D_IS_CHARACTER, c);
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
     c->state = CS_AWAKE;

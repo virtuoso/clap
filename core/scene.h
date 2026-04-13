@@ -73,10 +73,7 @@ bool scene_camera_follows(struct scene *s, struct character *ch);
 void scene_characters_move(struct scene *s);
 void scene_control_next(struct scene *s);
 
-static inline struct character *scene_control_character(struct scene *s)
-{
-    return s->control ? s->control->priv : NULL;
-}
+struct character *scene_control_character(struct scene *s);
 
 #ifndef CONFIG_FINAL
 void scene_lut_autoswitch_set(struct scene *scene);

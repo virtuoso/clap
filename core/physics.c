@@ -273,14 +273,15 @@ static void phys_body_stick(struct phys_body *body, dContact *contact)
 {
     entity3d *e = phys_body_entity(body);
     struct phys *phys = body->phys;
-    struct character *c = e->priv;
     dJointID j;
 
     /* should also warn */
     if (!phys_body_has_body(body))
         return;
 
-    if (c) {
+    cresp(character) cres = entity3d_character(e);
+    if (!IS_CERR(cres)) {
+        struct character *c = cres.val;
         c->normal[0] = contact->geom.normal[0];
         c->normal[1] = contact->geom.normal[1];
         c->normal[2] = contact->geom.normal[2];
@@ -407,9 +408,9 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             } else if (!phys_body_has_body(e2->phys_body)) {
                 entity_pen_push(e1, &contact[i], pen);
             } else {
-                if (e1->priv)
+                if (entity3d_matches(e1, ENTITY3D_IS_CHARACTER))
                     entity_pen_push(e1, &contact[i], pen);
-                else if (e2->priv)
+                else if (entity3d_matches(e2, ENTITY3D_IS_CHARACTER))
                     entity_pen_push(e2, &contact[i], pen);
             }
         }
@@ -528,7 +529,7 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
     struct phys *phys = body->phys;
     dReal epsilon = 1e-3;
     dReal ray_len = body->yoffset - body->ray_off + epsilon;
-    struct character *ch = e->priv;
+    struct character *ch = CRES_RET(entity3d_character(e), return true);
     struct contact c = {};
     const dReal *pos;
     bool ret = false;
@@ -693,7 +694,11 @@ int phys_body_update(entity3d *e)
     e->phys_body->updated++;
     entity3d_position(e, (vec3){ pos[0], pos[1] - e->phys_body->yoffset, pos[2] });
     vel = dBodyGetLinearVel(e->phys_body->body);
-    if (!e->priv) {
+    /*
+     * Set entity's rotation from the physics body, unless it's a character;
+     * character capsules are always upright
+     */
+    if (!entity3d_matches(e, ENTITY3D_IS_CHARACTER)) {
         quat rot;
         phys_body_rotation(e->phys_body, rot);
         transform_set_quat(&e->xform, rot);
@@ -908,8 +913,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     }
     dGeomSetData(body->geom, entity);
 
-    if (has_body) {
-        /* XXX: not all bodies need the motor */
+    if (has_body && entity3d_matches(entity, ENTITY3D_IS_CHARACTER)) {
         body->lmotor = dJointCreateLMotor(phys->world, 0);
         dJointSetLMotorNumAxes(body->lmotor, 3);
         dJointSetLMotorAxis(body->lmotor, 0, 0, 1, 0, 0);

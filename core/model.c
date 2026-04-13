@@ -1009,7 +1009,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             uint32_t edge_mode = 0;
             if (e->outline_exclude) edge_mode |= EDGE_EXCLUDE;
-            if (e->priv && mq->nr_characters) {  /* e->priv now points to character */
+            if (entity3d_matches(e, ENTITY3D_IS_CHARACTER) && mq->nr_characters) {
                 nr_characters++;
                 edge_mode |= (nr_characters & EDGE_SOLID_MASK) << EDGE_SOLID_OFFSET;
             }
@@ -1662,10 +1662,8 @@ static int default_update(entity3d *e, void *data)
 
         entity3d_aabb_update(e);
 
-        if (e->phys_body) {
-            if (e->priv)
-                phys_body_rotate_xform(e->phys_body, &e->xform);
-        }
+        if (e->phys_body && entity3d_matches(e, ENTITY3D_IS_CHARACTER))
+            phys_body_rotate_xform(e->phys_body, &e->xform);
     }
 
     if (!scene)

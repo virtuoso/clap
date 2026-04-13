@@ -175,7 +175,7 @@ static void camera_target(struct camera *c, entity3d *entity)
 {
     float height;
 
-    if (entity->priv) {
+    if (entity3d_matches(entity, ENTITY3D_IS_CHARACTER)) {
         /* for characters, assume origin is between their feet */
         transform_pos(&entity->xform, c->target);
         height = entity3d_aabb_Y(entity);

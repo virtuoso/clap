@@ -160,9 +160,10 @@ static void switcher_update(struct scene *s)
         if (!cobj->connected)
             continue;
 
-        bool brackets = scene_camera_follows(s, cobj->e->priv);
+        struct character *ch = CRES_RET(entity3d_character(cobj->e), continue);
+        bool brackets = scene_camera_follows(s, ch);
         if (brackets)
-            control = cobj->e->priv;
+            control = ch;
         sv_append(&sv(buf), "%s%s%s%s", sv_len(&sv(buf)) ? "\n" : "",
                   brackets ? "> " : "", entity_name(cobj->e), brackets ? " <" : "");
     }
@@ -187,7 +188,7 @@ static int character_obj_update(entity3d *e, void *data)
     if (!cobj)
         return -1;
 
-    struct character *c = cobj->e->priv;
+    struct character *c = CRES_RET(entity3d_character(cobj->e), return -1);
     struct scene *s = data;
 
     unsigned int update = 0;
