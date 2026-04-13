@@ -769,9 +769,10 @@ cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *sha
     char *geomref;
     size_t vsz, fsz, gsz, vrefsz, frefsz, grefsz;
 
-    cres(int) vres = mem_asprintf(&nvert, "%s.vert", name);
-    cres(int) fres = mem_asprintf(&nfrag, "%s.frag", name);
-    cres(int) gres = mem_asprintf(&ngeom, "%s.geom", name);
+    const char *ext = renderer_shader_ext(ctx->renderer);
+    cres(int) vres = mem_asprintf(&nvert, "%s.vert%s", name, ext);
+    cres(int) fres = mem_asprintf(&nfrag, "%s.frag%s", name, ext);
+    cres(int) gres = mem_asprintf(&ngeom, "%s.geom%s", name, ext);
     cres(int) vresref = mem_asprintf(&nvertref, "%s.vert.json", name);
     cres(int) fresref = mem_asprintf(&nfragref, "%s.frag.json", name);
     cres(int) gresref = mem_asprintf(&ngeomref, "%s.geom.json", name);
