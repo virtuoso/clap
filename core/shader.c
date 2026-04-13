@@ -301,9 +301,9 @@ void shader_set_var_ptr(struct shader_prog *p, enum shader_vars var,
 {
     const struct shader_var_desc *desc = &shader_var_desc[var];
 
-    /* If a shader has a uniform @var, set it directly */
+    /* If @var is a standalone non-opaque uniform, scream loudly and bail */
     if (__shader_has_var(p, var)) {
-        uniform_set_ptr(p->vars[var], desc->type, count, value);
+        err("shader '%s' has a non-opaque uniform '%s'\n", p->name, shader_get_var_name(var));
         return;
     }
 
