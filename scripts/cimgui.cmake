@@ -9,7 +9,6 @@ file(GLOB
     "${CIMGUI_DIR}/imgui/*.cpp"
 )
 
-set(BACKEND_CFLAGS "")
 FOREACH(backend ${CIMGUI_BACKENDS})
     if (${backend} STREQUAL "metal")
         set(backend_sfx "mm")
@@ -17,15 +16,21 @@ FOREACH(backend ${CIMGUI_BACKENDS})
         set(backend_sfx "cpp")
     endif ()
     set(backend_file "${CIMGUI_DIR}/imgui/backends/imgui_impl_${backend}.${backend_sfx}")
-    if (${backend} STREQUAL "metal")
-        # Enable ARC for imgui_impl_metal.mm
-        set(BACKEND_CFLAGS "-fobjc-arc")
-    endif ()
-    if (${backend} STREQUAL "wgpu")
-        set(BACKEND_CFLAGS "--use-port=emdawnwebgpu")
-    endif ()
     list(APPEND CIMGUI_SRC "${backend_file}")
     list(APPEND CIMGUI_BACKEND_HEADERS "imgui_impl_${backend}.h")
+
+    # Per-backend compile flags
+    set(per_backend_cflags "")
+    if (${backend} STREQUAL "metal")
+        set(per_backend_cflags "-fobjc-arc")
+    endif ()
+    if (${backend} STREQUAL "wgpu")
+        set(per_backend_cflags "--use-port=emdawnwebgpu")
+    endif ()
+    set_source_files_properties("${backend_file}" PROPERTIES
+        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\""
+        COMPILE_FLAGS "-Wno-nontrivial-memaccess -Wno-deprecated-declarations ${per_backend_cflags}"
+    )
 ENDFOREACH()
 
 # ImGui's backend headers require a bit of hackery to work with C
@@ -43,11 +48,17 @@ ENDFOREACH ()
 # silence the warning:
 # https://github.com/ocornut/imgui/commit/419a9ada16eb9b6d84ead4911b9c2a32820cfffb
 # so, do it here, but in a less intrusive way
+#
+# Backend source files already have their flags set above; this loop only
+# touches the core cimgui/imgui sources.
 FOREACH(src ${CIMGUI_SRC})
-    set_source_files_properties(${src} PROPERTIES
-        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\""
-        COMPILE_FLAGS "-Wno-nontrivial-memaccess -Wno-deprecated-declarations ${BACKEND_CFLAGS}"
-    )
+    get_source_file_property(_already ${src} COMPILE_FLAGS)
+    if (_already STREQUAL "NOTFOUND" OR _already STREQUAL "")
+        set_source_files_properties(${src} PROPERTIES
+            COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\""
+            COMPILE_FLAGS "-Wno-nontrivial-memaccess -Wno-deprecated-declarations"
+        )
+    endif ()
 ENDFOREACH ()
 
 list(APPEND ENGINE_COMPILE_DEFINITIONS "IMGUI_IMPL_API=\ ")
