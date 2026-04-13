@@ -1655,34 +1655,6 @@ static void gl_shader_unuse(shader_t *shader, bool draw)
     GL(glUseProgram(0));
 }
 
-void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value)
-{
-    switch (type) {
-        case DT_FLOAT: {
-            GL(glUniform1fv(uniform, count, value));
-            break;
-        }
-        case DT_INT: {
-            GL(glUniform1iv(uniform, count, value));
-            break;
-        }
-        case DT_VEC3: {
-            GL(glUniform3fv(uniform, count, value));
-            break;
-        }
-        case DT_VEC4: {
-            GL(glUniform4fv(uniform, count, value));
-            break;
-        }
-        case DT_MAT4: {
-            GL(glUniformMatrix4fv(uniform, count, GL_FALSE, value));
-            break;
-        }
-        default:
-            break;
-    }
-}
-
 /****************************************************************************
  * Renderer context
  ****************************************************************************/

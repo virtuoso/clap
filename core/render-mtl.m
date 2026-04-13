@@ -1680,10 +1680,6 @@ static void mtl_shader_unuse(shader_t *shader, bool draw)
     if (r->mtl.dc)  draw_control_unbind(r->mtl.dc);
 }
 
-void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value)
-{
-}
-
 /****************************************************************************
  * Renderer context
  ****************************************************************************/

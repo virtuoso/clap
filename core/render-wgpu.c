@@ -1606,11 +1606,6 @@ wgpu_shader_uniform_offset_query(shader_t *shader, const char *ubo_name,
     return cres_error(size_t, CERR_NOT_FOUND);
 }
 
-void uniform_set_ptr(uniform_t uniform, data_type type,
-                     unsigned int count, const void *value)
-{
-}
-
 /****************************************************************************
  * Renderer
  ****************************************************************************/

@@ -851,7 +851,6 @@ cerr_check shader_use(shader_t *shader, bool draw);
 void shader_unuse(shader_t *shader, bool draw);
 /* Query a uniform offset within a uniform block as expected by the shader */
 cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
-void uniform_set_ptr(uniform_t uniform, data_type type, unsigned int count, const void *value);
 
 typedef enum {
     RENDERER_CORE_PROFILE,
