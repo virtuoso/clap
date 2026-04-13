@@ -31,6 +31,10 @@ static void gl_renderer_cull_face(renderer_t *r, cull_face cull);
 static void gl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
 static cerr gl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                              data_type idx_type, unsigned int nr_instances);
+static cerr gl_buffer_init(buffer_t *buf, const buffer_init_options *opts);
+static void gl_buffer_deinit(buffer_t *buf);
+static void gl_buffer_bind(buffer_t *buf, uniform_t loc);
+static void gl_buffer_unbind(buffer_t *buf, uniform_t loc);
 
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
@@ -46,6 +50,10 @@ static const renderer_ops gl_renderer_ops = {
     .cull_face      = gl_renderer_cull_face,
     .blend          = gl_renderer_blend,
     .draw           = gl_renderer_draw,
+    .buf_init   = gl_buffer_init,
+    .buf_deinit = gl_buffer_deinit,
+    .buf_bind   = gl_buffer_bind,
+    .buf_unbind = gl_buffer_unbind,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -142,14 +150,11 @@ static GLenum gl_buffer_usage(buffer_usage usage)
     return GL_NONE;
 }
 
-bool buffer_loaded(buffer_t *buf)
-{
-    return buf->loaded;
-}
+
 
 static void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc);
 
-cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
+static cerr gl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
     cerr err = ref_embed(buffer, buf);
     if (IS_CERR(err))
@@ -194,7 +199,7 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
     return CERR_OK;
 }
 
-void buffer_deinit(buffer_t *buf)
+static void gl_buffer_deinit(buffer_t *buf)
 {
     if (!buf->loaded)
         return;
@@ -231,7 +236,7 @@ static inline noubsan void _buffer_bind(buffer_t *buf, uniform_t loc)
     }
 }
 
-void buffer_bind(buffer_t *buf, uniform_t loc)
+static void gl_buffer_bind(buffer_t *buf, uniform_t loc)
 {
     if (!buf->loaded)
         return;
@@ -255,7 +260,7 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
     GL(glEnableVertexAttribArray(loc));
 }
 
-void buffer_unbind(buffer_t *buf, uniform_t loc)
+static void gl_buffer_unbind(buffer_t *buf, uniform_t loc)
 {
     if (!buf->loaded)
         return;

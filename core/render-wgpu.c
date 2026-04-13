@@ -39,6 +39,13 @@ static void wgpu_renderer_cull_face(renderer_t *r, cull_face cull);
 static void wgpu_renderer_blend(renderer_t *r, bool enable, blend sfactor, blend dfactor);
 static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                                data_type idx_type, unsigned int nr_instances);
+static cerr wgpu_buffer_init(buffer_t *buf, const buffer_init_options *opts);
+static void wgpu_buffer_deinit(buffer_t *buf);
+static void wgpu_buffer_bind(buffer_t *buf, uniform_t loc);
+static void wgpu_buffer_unbind(buffer_t *buf, uniform_t loc);
+#ifndef CONFIG_FINAL
+static void wgpu_buffer_set_name(buffer_t *buf, const char *name);
+#endif
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
@@ -59,6 +66,13 @@ static const renderer_ops wgpu_renderer_ops = {
     .cull_face      = wgpu_renderer_cull_face,
     .blend          = wgpu_renderer_blend,
     .draw           = wgpu_renderer_draw,
+    .buf_init   = wgpu_buffer_init,
+    .buf_deinit = wgpu_buffer_deinit,
+    .buf_bind   = wgpu_buffer_bind,
+    .buf_unbind = wgpu_buffer_unbind,
+#ifndef CONFIG_FINAL
+    .buf_set_name = wgpu_buffer_set_name,
+#endif
 };
 
 enum {
@@ -166,12 +180,9 @@ static void buffer_drop(struct ref *ref)
 
 DEFINE_REFCLASS2(buffer);
 
-bool buffer_loaded(buffer_t *buf)
-{
-    return buf->loaded;
-}
 
-cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
+
+static cerr wgpu_buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
     cerr err = ref_embed(buffer, buf);
     if (IS_CERR(err))
@@ -181,7 +192,6 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
     if (comp_type == DT_NONE)
         comp_type = DT_FLOAT;
 
-    buf->wgpu.renderer = opts->renderer;
     buf->wgpu.type = opts->type;
     buf->off = opts->off;
     buf->comp_count = max(opts->comp_count, data_comp_count(comp_type));
@@ -199,7 +209,7 @@ cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
     return CERR_OK;
 }
 
-void buffer_deinit(buffer_t *buf)
+static void wgpu_buffer_deinit(buffer_t *buf)
 {
     if (!buf)
         return;
@@ -218,14 +228,14 @@ void buffer_deinit(buffer_t *buf)
 #endif /* CONFIG_FINAL */
 }
 
-void buffer_bind(buffer_t *buf, uniform_t loc)
+static void wgpu_buffer_bind(buffer_t *buf, uniform_t loc)
 {
     if (!buf || !buf->loaded)
         return;
 
     buf->loc = loc;
 
-    renderer_t *r = buf->wgpu.renderer;
+    renderer_t *r = buf->renderer;
     if (!r || !r->wgpu.va)
         return;
 
@@ -239,25 +249,17 @@ void buffer_bind(buffer_t *buf, uniform_t loc)
     }
 }
 
-void buffer_unbind(buffer_t *buf, uniform_t loc)
+static void wgpu_buffer_unbind(buffer_t *buf, uniform_t loc)
 {
 }
 
 #ifndef CONFIG_FINAL
-cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...)
+static void wgpu_buffer_set_name(buffer_t *buf, const char *name)
 {
-    va_list ap;
-    va_start(ap, fmt);
-    char label[128];
-    vsnprintf(label, sizeof(label), fmt, ap);
-    va_end(ap);
-
     if (buf->wgpu.buf) {
-        WGPUStringView sv = { label, strlen(label) };
+        WGPUStringView sv = { name, strlen(name) };
         wgpuBufferSetLabel(buf->wgpu.buf, sv);
     }
-
-    return cres_val(int, 0);
 }
 #endif /* CONFIG_FINAL */
 

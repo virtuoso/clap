@@ -138,6 +138,55 @@ cerr renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
     return r->ops->draw(r, draw_type, nr_faces, idx_type, nr_instances);
 }
 
+cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
+{
+    renderer_t *r = opts->renderer;
+    cerr err = r->ops->buf_init(buf, opts);
+    buf->renderer = r;
+    return err;
+}
+
+void buffer_deinit(buffer_t *buf)
+{
+    if (!buf->renderer)   return;
+    buf->renderer->ops->buf_deinit(buf);
+}
+
+void buffer_bind(buffer_t *buf, uniform_t loc)
+{
+    if (!buf->renderer)   return;
+    buf->renderer->ops->buf_bind(buf, loc);
+}
+
+void buffer_unbind(buffer_t *buf, uniform_t loc)
+{
+    if (!buf->renderer)   return;
+    buf->renderer->ops->buf_unbind(buf, loc);
+}
+
+bool buffer_loaded(buffer_t *buf)
+{
+    return buf->loaded;
+}
+
+#ifndef CONFIG_FINAL
+cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...)
+{
+    if (!buf->renderer || !buf->renderer->ops->buf_set_name)
+        return cres_val(int, 0);
+
+    va_list ap;
+    va_start(ap, fmt);
+    char label[128];
+    vsnprintf(label, sizeof(label), fmt, ap);
+    va_end(ap);
+
+    buf->renderer->ops->buf_set_name(buf, label);
+
+    return cres_val(int, 0);
+}
+#endif /* CONFIG_FINAL */
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/

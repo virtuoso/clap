@@ -34,6 +34,13 @@ static void mtl_renderer_cull_face(renderer_t *r, cull_face cull);
 static void mtl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
 static cerr mtl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                               data_type idx_type, unsigned int nr_instances);
+static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts);
+static void mtl_buffer_deinit(buffer_t *buf);
+static void mtl_buffer_bind(buffer_t *buf, uniform_t loc);
+static void mtl_buffer_unbind(buffer_t *buf, uniform_t loc);
+#ifndef CONFIG_FINAL
+static void mtl_buffer_set_name(buffer_t *buf, const char *name);
+#endif
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
@@ -54,6 +61,13 @@ static const renderer_ops mtl_renderer_ops = {
     .cull_face      = mtl_renderer_cull_face,
     .blend          = mtl_renderer_blend,
     .draw           = mtl_renderer_draw,
+    .buf_init   = mtl_buffer_init,
+    .buf_deinit = mtl_buffer_deinit,
+    .buf_bind   = mtl_buffer_bind,
+    .buf_unbind = mtl_buffer_unbind,
+#ifndef CONFIG_FINAL
+    .buf_set_name = mtl_buffer_set_name,
+#endif
 };
 
 /****************************************************************************
@@ -226,17 +240,16 @@ static cerr buffer_make(struct ref *ref, void *_opts)
 
     LOCAL_SET(buffer_t, buf) = container_of(ref, struct buffer, ref);
 
-    buf->mtl.renderer = opts->renderer;
     buf->mtl.size = opts->size;
     buf->off = opts->off;
     buf->mtl.stride = opts->stride;
 
     if (!opts->main) {
-        buf->mtl.buf = mtl_buffer_new(buf->mtl.renderer, opts->data, opts->size, true, false);
+        buf->mtl.buf = mtl_buffer_new(buf->renderer, opts->data, opts->size, true, false);
         if (!buf->mtl.buf)  return CERR_NOMEM;
 
         if (opts->type == BUF_ELEMENT_ARRAY) {
-            buf->mtl.renderer->mtl.va->index = buf;
+            buf->renderer->mtl.va->index = buf;
             buf->loc = -1;
         } else {
             buf->loc = opts->loc;
@@ -262,18 +275,14 @@ static void buffer_drop(struct ref *ref)
 DEFINE_REFCLASS2(buffer);
 DECLARE_REFCLASS(buffer);
 
-cerr _buffer_init(buffer_t *buf, const buffer_init_options *opts)
+static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
     return ref_embed_opts(buffer, buf, opts);
 }
 
-/* XXX: common */
-bool buffer_loaded(buffer_t *buf)
-{
-    return buf->loaded;
-}
 
-void buffer_deinit(buffer_t *buf)
+
+static void mtl_buffer_deinit(buffer_t *buf)
 {
     if (!buf->loaded)
         return;
@@ -283,48 +292,41 @@ void buffer_deinit(buffer_t *buf)
     buf->loaded = false;
 }
 
-void buffer_bind(buffer_t *buf, int loc)
+static void mtl_buffer_bind(buffer_t *buf, uniform_t loc)
 {
     if (!buf->loaded)
         return;
 
     if (loc < 0) {
-        if (buf->mtl.renderer->mtl.va)
-            buf->mtl.renderer->mtl.va->index = buf;
+        if (buf->renderer->mtl.va)
+            buf->renderer->mtl.va->index = buf;
         return;
     }
 
     if (!buf->mtl.buf)
         return;
 
-    [cmd_encoder(buf->mtl.renderer) setVertexBuffer:buf->mtl.buf offset:0 atIndex:0];
+    [cmd_encoder(buf->renderer) setVertexBuffer:buf->mtl.buf offset:0 atIndex:0];
 }
 
-void buffer_unbind(buffer_t *buf, int loc)
+static void mtl_buffer_unbind(buffer_t *buf, uniform_t loc)
 {
     if (!buf->loaded)
         return;
 
     if (loc < 0) {
-        if (buf->mtl.renderer->mtl.va)
-            buf->mtl.renderer->mtl.va->index = NULL;
+        if (buf->renderer->mtl.va)
+            buf->renderer->mtl.va->index = NULL;
         return;
     }
 }
 
 #ifndef CONFIG_FINAL
-cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...)
+static void mtl_buffer_set_name(buffer_t *buf, const char *name)
 {
-    va_list ap;
-
     mem_free(buf->mtl.name);
-    va_start(ap, fmt);
-    cres(int) res = mem_vasprintf(&buf->mtl.name, fmt, ap);
-    va_end(ap);
-
+    mem_asprintf(&buf->mtl.name, "%s", name);
     [buf->mtl.buf setLabel:[NSString stringWithUTF8String:buf->mtl.name]];
-
-    return res;
 }
 #endif /* CONFIG_FINAL */
 

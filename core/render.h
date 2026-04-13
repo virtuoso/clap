@@ -207,6 +207,7 @@ typedef struct buffer_init_options {
 
 TYPE(buffer,
     struct ref          ref;
+    renderer_t          *renderer;
     buffer_t            *main;
     size_t              off;
     unsigned int        comp_count;
@@ -223,7 +224,6 @@ TYPE(buffer,
 #endif /* CONFIG_RENDERER_OPENGL */
 #ifdef CONFIG_RENDERER_WGPU
     struct {
-        renderer_t      *renderer;
         wgpu_buffer_t   buf;
         size_t          size;
         buffer_type     type;
@@ -231,7 +231,6 @@ TYPE(buffer,
 #endif /* CONFIG_RENDERER_WGPU */
 #ifdef CONFIG_RENDERER_METAL
     struct {
-        renderer_t      *renderer;
         mtl_buffer_t    buf;
         size_t          stride;
         size_t          size;
@@ -254,14 +253,10 @@ void buffer_deinit(buffer_t *buf);
 void buffer_bind(buffer_t *buf, uniform_t loc);
 void buffer_unbind(buffer_t *buf, uniform_t loc);
 bool buffer_loaded(buffer_t *buf);
-#ifdef CONFIG_RENDERER_OPENGL
-static inline cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...) { return cres_error(int, CERR_NOT_SUPPORTED); }
-#else
-# ifdef CONFIG_FINAL
+#ifdef CONFIG_FINAL
 static inline cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...) { return cres_val(int, 0); }
-# else /* !CONFIG_FINAL */
+#else
 cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...);
-# endif /* !CONFIG_FINAL */
 #endif /* !CONFIG_FINAL */
 
 TYPE(vertex_array,
@@ -1106,6 +1101,11 @@ typedef struct renderer_ops {
     void                (*blend)(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
     cerr                (*draw)(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                                 data_type idx_type, unsigned int nr_instances);
+    cerr                (*buf_init)(buffer_t *buf, const buffer_init_options *opts);
+    void                (*buf_deinit)(buffer_t *buf);
+    void                (*buf_bind)(buffer_t *buf, uniform_t loc);
+    void                (*buf_unbind)(buffer_t *buf, uniform_t loc);
+    void                (*buf_set_name)(buffer_t *buf, const char *name);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 
