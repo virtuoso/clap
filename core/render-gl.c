@@ -1491,12 +1491,12 @@ cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name,
     snprintf(fqname, sizeof(fqname), "%s.%s", ubo_name, var_name);
 
     GLuint index;
-    GL(glGetUniformIndices(shader->prog, 1, (const char *[]) { fqname }, &index));
+    GL(glGetUniformIndices(shader->gl.prog, 1, (const char *[]) { fqname }, &index));
     if (index == -1u)
         return cres_error(size_t, CERR_NOT_FOUND);
 
     GLint offset;
-    GL(glGetActiveUniformsiv(shader->prog, 1, &index, GL_UNIFORM_OFFSET, &offset));
+    GL(glGetActiveUniformsiv(shader->gl.prog, 1, &index, GL_UNIFORM_OFFSET, &offset));
     return cres_val(size_t, offset);
 }
 
@@ -1535,47 +1535,47 @@ static GLuint load_shader(GLenum type, const char *source)
 
 cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
 {
-    shader->vert = load_shader(GL_VERTEX_SHADER, vertex);
-    shader->geom =
+    shader->gl.vert = load_shader(GL_VERTEX_SHADER, vertex);
+    shader->gl.geom =
 #ifndef CONFIG_GLES
         geometry ? load_shader(GL_GEOMETRY_SHADER, geometry) : 0;
 #else
         0;
 #endif
-    shader->frag = load_shader(GL_FRAGMENT_SHADER, fragment);
-    shader->prog = glCreateProgram();
+    shader->gl.frag = load_shader(GL_FRAGMENT_SHADER, fragment);
+    shader->gl.prog = glCreateProgram();
     GLint linkStatus = GL_FALSE;
     cerr ret = CERR_INVALID_SHADER;
 
-    if (!shader->vert || (geometry && !shader->geom) || !shader->frag || !shader->prog) {
+    if (!shader->gl.vert || (geometry && !shader->gl.geom) || !shader->gl.frag || !shader->gl.prog) {
         err("vshader: %d gshader: %d fshader: %d program: %d\n",
-            shader->vert, shader->geom, shader->frag, shader->prog);
+            shader->gl.vert, shader->gl.geom, shader->gl.frag, shader->gl.prog);
         return ret;
     }
 
-    GL(glAttachShader(shader->prog, shader->vert));
-    GL(glAttachShader(shader->prog, shader->frag));
-    if (shader->geom)
-        GL(glAttachShader(shader->prog, shader->geom));
-    GL(glLinkProgram(shader->prog));
-    GL(glGetProgramiv(shader->prog, GL_LINK_STATUS, &linkStatus));
+    GL(glAttachShader(shader->gl.prog, shader->gl.vert));
+    GL(glAttachShader(shader->gl.prog, shader->gl.frag));
+    if (shader->gl.geom)
+        GL(glAttachShader(shader->gl.prog, shader->gl.geom));
+    GL(glLinkProgram(shader->gl.prog));
+    GL(glGetProgramiv(shader->gl.prog, GL_LINK_STATUS, &linkStatus));
     if (linkStatus != GL_TRUE) {
         GLint bufLength = 0;
-        GL(glGetProgramiv(shader->prog, GL_INFO_LOG_LENGTH, &bufLength));
+        GL(glGetProgramiv(shader->gl.prog, GL_INFO_LOG_LENGTH, &bufLength));
         if (bufLength) {
             char *buf = mem_alloc(bufLength);
             if (buf) {
-                GL(glGetProgramInfoLog(shader->prog, bufLength, NULL, buf));
+                GL(glGetProgramInfoLog(shader->gl.prog, bufLength, NULL, buf));
                 err("Could not link program:\n%s\n", buf);
                 mem_free(buf);
-                GL(glDeleteShader(shader->vert));
-                GL(glDeleteShader(shader->frag));
-                if (shader->geom)
-                    GL(glDeleteShader(shader->geom));
+                GL(glDeleteShader(shader->gl.vert));
+                GL(glDeleteShader(shader->gl.frag));
+                if (shader->gl.geom)
+                    GL(glDeleteShader(shader->gl.geom));
             }
         }
-        GL(glDeleteProgram(shader->prog));
-        shader->prog = 0;
+        GL(glDeleteProgram(shader->gl.prog));
+        shader->gl.prog = 0;
     } else {
         ret = CERR_OK;
     }
@@ -1585,11 +1585,11 @@ cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char
 
 void shader_done(shader_t *shader)
 {
-    GL(glDeleteProgram(shader->prog));
-    GL(glDeleteShader(shader->vert));
-    GL(glDeleteShader(shader->frag));
-    if (shader->geom)
-        GL(glDeleteShader(shader->geom));
+    GL(glDeleteProgram(shader->gl.prog));
+    GL(glDeleteShader(shader->gl.vert));
+    GL(glDeleteShader(shader->gl.frag));
+    if (shader->gl.geom)
+        GL(glDeleteShader(shader->gl.geom));
 }
 
 void shader_set_vertex_attrs(shader_t *shader, size_t stride,
@@ -1600,12 +1600,12 @@ void shader_set_vertex_attrs(shader_t *shader, size_t stride,
 
 int shader_id(shader_t *shader)
 {
-    return shader->prog;
+    return shader->gl.prog;
 }
 
 static cres(int) shader_uniform_block_index(shader_t *shader, const char *name)
 {
-    GLuint index = glGetUniformBlockIndex(shader->prog, name);
+    GLuint index = glGetUniformBlockIndex(shader->gl.prog, name);
     return index == GL_INVALID_INDEX ? cres_error(int, CERR_INVALID_INDEX) : cres_val(int, index);
 }
 
@@ -1615,24 +1615,24 @@ cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const c
     if (IS_CERR(res))
         return cerr_error_cres(res);
 
-    GL(glUniformBlockBinding(shader->prog, res.val, bpt->binding));
+    GL(glUniformBlockBinding(shader->gl.prog, res.val, bpt->binding));
 
     return CERR_OK;
 }
 
 attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
-    return glGetAttribLocation(shader->prog, name);
+    return glGetAttribLocation(shader->gl.prog, name);
 }
 
 uniform_t shader_uniform(shader_t *shader, const char *name)
 {
-    return glGetUniformLocation(shader->prog, name);
+    return glGetUniformLocation(shader->gl.prog, name);
 }
 
 cerr shader_use(shader_t *shader, bool draw)
 {
-    GL(glUseProgram(shader->prog));
+    GL(glUseProgram(shader->gl.prog));
     return CERR_OK;
 }
 

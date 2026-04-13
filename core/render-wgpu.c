@@ -371,10 +371,10 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
                                                WGPUCompareFunction depth_compare)
 {
     WGPUVertexBufferLayout vbuf_layout = {
-        .arrayStride    = shader->vertex_stride,
+        .arrayStride    = shader->wgpu.vertex_stride,
         .stepMode       = WGPUVertexStepMode_Vertex,
-        .attributeCount = shader->nr_vertex_attrs,
-        .attributes     = shader->vertex_attrs,
+        .attributeCount = shader->wgpu.nr_vertex_attrs,
+        .attributes     = shader->wgpu.vertex_attrs,
     };
 
     WGPUBlendState blend_state = {
@@ -401,7 +401,7 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
     }
 
     WGPUFragmentState frag_state = {
-        .module         = shader->frag,
+        .module         = shader->wgpu.frag,
         .entryPoint     = literal_to_wgpu_stringview("main"),
         .targetCount    = nr_color_targets,
         .targets        = color_targets,
@@ -415,7 +415,7 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
 
     WGPURenderPipelineDescriptor desc = {
         .vertex = {
-            .module         = shader->vert,
+            .module         = shader->wgpu.vert,
             .entryPoint     = literal_to_wgpu_stringview("main"),
             .bufferCount    = 1,
             .buffers        = &vbuf_layout,
@@ -432,7 +432,7 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
             .mask   = ~0u,
         },
         .fragment   = &frag_state,
-        .label      = to_wgpu_stringview(shader->name),
+        .label      = to_wgpu_stringview(shader->wgpu.name),
     };
 
     return wgpuDeviceCreateRenderPipeline(r->wgpu.device, &desc);
@@ -879,7 +879,7 @@ void texture_bind(texture_t *tex, unsigned int target)
     if (slot >= BINDING_TEXTURE_MAX)    return;
 
     r->wgpu.bound_textures[slot] = tex;
-    r->wgpu.dc->wgpu.shader->binding_mask |= 3ull << target;
+    r->wgpu.dc->wgpu.shader->wgpu.binding_mask |= 3ull << target;
 }
 
 void texture_unbind(texture_t *tex, unsigned int target)
@@ -1469,14 +1469,14 @@ static cres(wgpu_shader_module_t) wgpu_create_shader_module(renderer_t *r, const
 cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex,
                  const char *geometry, const char *fragment)
 {
-    shader->renderer = r;
-    shader->binding_mask = 0;
+    shader->wgpu.renderer = r;
+    shader->wgpu.binding_mask = 0;
 
     LOCAL_SET_EXACT(wgpu_shader_module_t, vert) = CRES_RET_CERR(wgpu_create_shader_module(r, "vert", vertex));
     LOCAL_SET_EXACT(wgpu_shader_module_t, frag) = CRES_RET_CERR(wgpu_create_shader_module(r, "frag", fragment));
 
-    shader->vert = NOCU(vert);
-    shader->frag = NOCU(frag);
+    shader->wgpu.vert = NOCU(vert);
+    shader->wgpu.frag = NOCU(frag);
 
     return CERR_OK;
 }
@@ -1509,12 +1509,12 @@ void shader_set_vertex_attrs(shader_t *shader, size_t stride,
                              size_t *offs, data_type *types,
                              size_t *comp_counts, unsigned int nr_attrs)
 {
-    shader->vertex_stride = stride;
-    shader->nr_vertex_attrs = nr_attrs;
+    shader->wgpu.vertex_stride = stride;
+    shader->wgpu.nr_vertex_attrs = nr_attrs;
 
     for (unsigned int i = 0; i < nr_attrs; i++) {
         WGPUVertexFormat fmt = wgpu_vertex_format(types[i]);
-        shader->vertex_attrs[i] = (WGPUVertexAttribute){
+        shader->wgpu.vertex_attrs[i] = (WGPUVertexAttribute){
             .format         = fmt,
             .offset         = offs[i],
             .shaderLocation = i,
@@ -1525,21 +1525,21 @@ void shader_set_vertex_attrs(shader_t *shader, size_t stride,
 
 void shader_set_name(shader_t *shader, const char *name)
 {
-    free(shader->name);
-    shader->name = strdup(name);
+    free(shader->wgpu.name);
+    shader->wgpu.name = strdup(name);
 }
 
 void shader_done(shader_t *shader)
 {
-    free(shader->name);
+    free(shader->wgpu.name);
 
-    if (shader->frag) {
-        wgpuShaderModuleRelease(shader->frag);
-        shader->frag = NULL;
+    if (shader->wgpu.frag) {
+        wgpuShaderModuleRelease(shader->wgpu.frag);
+        shader->wgpu.frag = NULL;
     }
-    if (shader->vert) {
-        wgpuShaderModuleRelease(shader->vert);
-        shader->vert = NULL;
+    if (shader->wgpu.vert) {
+        wgpuShaderModuleRelease(shader->wgpu.vert);
+        shader->wgpu.vert = NULL;
     }
 }
 
@@ -1551,7 +1551,7 @@ int shader_id(shader_t *shader)
 cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt,
                                 const char *name)
 {
-    shader->binding_mask |= 1ull << bpt->binding;
+    shader->wgpu.binding_mask |= 1ull << bpt->binding;
     return CERR_OK;
 }
 
@@ -1588,7 +1588,7 @@ cerr shader_use(shader_t *shader, bool draw)
 {
     if (!draw)  return CERR_OK;
 
-    renderer_t *r = shader->renderer;
+    renderer_t *r = shader->wgpu.renderer;
     CERR_RET_CERR(wgpu_previous_errors(r));
 
     // Clear per-draw binding state so only resources bound for this
@@ -2245,7 +2245,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
 
     // Build bind group from currently bound resources, filtered by the shader's
     // binding mask so we only include entries the pipeline layout expects
-    uint64_t mask = r->wgpu.dc->wgpu.shader->binding_mask;
+    uint64_t mask = r->wgpu.dc->wgpu.shader->wgpu.binding_mask;
     WGPUBindGroupEntry entries[BINDING_TEXTURE_MAX * 2 + BINDING_UBO_MAX];
     unsigned int n = 0;
 
@@ -2290,7 +2290,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
         return CERR_INVALID_OPERATION_REASON(.fmt = "wgpuRenderPipelineGetBindGroupLayout() failed");
 
     WGPUBindGroupDescriptor bg_desc = {
-        .label      = to_wgpu_stringview(r->wgpu.dc->wgpu.shader->name),
+        .label      = to_wgpu_stringview(r->wgpu.dc->wgpu.shader->wgpu.name),
         .layout     = layout,
         .entryCount = n,
         .entries    = entries,

@@ -378,7 +378,7 @@ void vertex_array_unbind(vertex_array_t *va)
 
 static size_t dc_hash(fbo_t *fbo, shader_t *shader)
 {
-    return fbo->mtl.id ^ (shader->id << 4);
+    return fbo->mtl.id ^ (shader->mtl.id << 4);
 }
 
 cres_ret(mtl_render_pipeline_state_t);
@@ -437,11 +437,11 @@ mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, textur
         }
     }
 
-    desc.vertexDescriptor = shader->vdesc;
-    desc.vertexFunction = shader->vert;
-    desc.fragmentFunction = shader->frag;
+    desc.vertexDescriptor = shader->mtl.vdesc;
+    desc.vertexFunction = shader->mtl.vert;
+    desc.fragmentFunction = shader->mtl.frag;
 #ifndef CONFIG_FINAL
-    desc.label = [NSString stringWithFormat:@"pls:%s/%s", shader->name, r->mtl.fbo ? r->mtl.fbo->mtl.name : "<invalid>"];
+    desc.label = [NSString stringWithFormat:@"pls:%s/%s", shader->mtl.name, r->mtl.fbo ? r->mtl.fbo->mtl.name : "<invalid>"];
 #endif /* !CONFIG_FINAL */
 
     NSError *err;
@@ -537,7 +537,7 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
         }
     }
 
-    list_append(&opts->shader->dc_list, &dc->mtl.shader_entry);
+    list_append(&opts->shader->mtl.dc_list, &dc->mtl.shader_entry);
     if (opts->fbo) {
         auto idx = dc_hash(opts->fbo, opts->shader);
         list_append(&dc->renderer->mtl.dc_hash[idx], &dc->mtl.hash_entry);
@@ -546,8 +546,8 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     dc->mtl.shader  = opts->shader;
     dc->mtl.fbo     = opts->fbo;
 
-    // if (!opts->shader->reflection) {
-    //     opts->shader->reflection = reflection;
+    // if (!opts->shader->mtl.reflection) {
+    //     opts->shader->mtl.reflection = reflection;
     //     mtl_reflection_print(reflection);
     // }
 
@@ -605,7 +605,7 @@ static cresp(draw_control) dc_hash_find_get(renderer_t *r, fbo_t *fbo, shader_t 
     dc = CRES_RET(
         ref_new_checked(draw_control, .renderer = r, .fbo = fbo, .shader = shader),
         {
-            err("couldn't create draw control for fbo%d + shader%d\n", fbo->mtl.id, shader->id);
+            err("couldn't create draw control for fbo%d + shader%d\n", fbo->mtl.id, shader->mtl.id);
             return cresp_error_cerr(draw_control, __resp);
         }
     );
@@ -1575,16 +1575,16 @@ static cres(mtl_function_t) mtl_function_create(renderer_t *r, const char *sourc
 cerr shader_init(renderer_t *r, shader_t *shader,
                  const char *vertex, const char *geometry, const char *fragment)
 {
-    shader->id = CRES_RET_CERR(bitmap_find_first_unset(&r->mtl.shader_ids));
-    bitmap_set(&r->mtl.shader_ids, shader->id);
-    shader->vert = CRES_RET_CERR(mtl_function_create(r, vertex));
-    shader->frag = CRES_RET(
+    shader->mtl.id = CRES_RET_CERR(bitmap_find_first_unset(&r->mtl.shader_ids));
+    bitmap_set(&r->mtl.shader_ids, shader->mtl.id);
+    shader->mtl.vert = CRES_RET_CERR(mtl_function_create(r, vertex));
+    shader->mtl.frag = CRES_RET(
         mtl_function_create(r, fragment),
-        { [shader->vert release]; return cerr_error_cres(__resp); }
+        { [shader->mtl.vert release]; return cerr_error_cres(__resp); }
     );
 
-    shader->renderer = r;
-    list_init(&shader->dc_list);
+    shader->mtl.renderer = r;
+    list_init(&shader->mtl.dc_list);
 
     return CERR_OK;
 }
@@ -1593,31 +1593,31 @@ void shader_set_vertex_attrs(shader_t *shader, size_t stride,
                              size_t *offs, data_type *types, size_t *comp_counts,
                              unsigned int nr_attrs)
 {
-    shader->vdesc = [[MTLVertexDescriptor alloc] init];
-    shader->vdesc = [shader->vdesc retain];
+    shader->mtl.vdesc = [[MTLVertexDescriptor alloc] init];
+    shader->mtl.vdesc = [shader->mtl.vdesc retain];
 
     for (unsigned int v = 0; v < nr_attrs; v++) {
-        shader->vdesc.attributes[v].format = mtl_data_type[types[v]];
-        shader->vdesc.attributes[v].bufferIndex = 0;     /* main0_in: all vertex attributes */
-        shader->vdesc.attributes[v].offset = offs[v];
+        shader->mtl.vdesc.attributes[v].format = mtl_data_type[types[v]];
+        shader->mtl.vdesc.attributes[v].bufferIndex = 0;     /* main0_in: all vertex attributes */
+        shader->mtl.vdesc.attributes[v].offset = offs[v];
     }
 
-    shader->vdesc.layouts[0].stride = stride;
-    shader->vdesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+    shader->mtl.vdesc.layouts[0].stride = stride;
+    shader->mtl.vdesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
 }
 
 void shader_done(shader_t *shader)
 {
-    auto r = shader->renderer;
-    bitmap_clear(&r->mtl.shader_ids, shader->id);
+    auto r = shader->mtl.renderer;
+    bitmap_clear(&r->mtl.shader_ids, shader->mtl.id);
 
     draw_control_t *dc, *it;
-    list_for_each_entry_iter(dc, it, &shader->dc_list, mtl.shader_entry)
+    list_for_each_entry_iter(dc, it, &shader->mtl.dc_list, mtl.shader_entry)
         ref_put_last(dc);
 
-    [shader->vdesc release];
-    [shader->vert release];
-    [shader->frag release];
+    [shader->mtl.vdesc release];
+    [shader->mtl.vert release];
+    [shader->mtl.frag release];
 }
 
 attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
@@ -1628,10 +1628,10 @@ attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
 
 uniform_t shader_uniform(shader_t *shader, const char *name)
 {
-    if (!shader->reflection)                    return UA_UNKNOWN;
-    if (!shader->reflection.fragmentBindings)   return UA_UNKNOWN;
+    if (!shader->mtl.reflection)                    return UA_UNKNOWN;
+    if (!shader->mtl.reflection.fragmentBindings)   return UA_UNKNOWN;
 
-    for (MTLArgument *arg in shader->reflection.fragmentBindings) {
+    for (MTLArgument *arg in shader->mtl.reflection.fragmentBindings) {
         auto arg_name = [[arg.name localizedLowercaseString] UTF8String];
         if (!strcmp(name, arg_name))            return arg.index;
     }
@@ -1641,7 +1641,7 @@ uniform_t shader_uniform(shader_t *shader, const char *name)
 
 cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
 {
-    renderer_t *r = shader->renderer;
+    renderer_t *r = shader->mtl.renderer;
 
     return CERR_OK;
 }
@@ -1650,15 +1650,15 @@ cerr shader_use(shader_t *shader, bool draw)
 {
     if (!draw)  return CERR_OK;
 
-    auto r = shader->renderer;
+    auto r = shader->mtl.renderer;
     auto fbo = r->mtl.fbo ? : r->mtl.screen_fbo;
     if (!fbo)   return CERR_OK;
-    if (!shader->vert || !shader->frag || !shader->vdesc)
+    if (!shader->mtl.vert || !shader->mtl.frag || !shader->mtl.vdesc)
         return CERR_INVALID_SHADER_REASON(
             .fmt    = "vert: %p frag: %p vdesc: %p",
-            .arg0   = shader->vert,
-            .arg1   = shader->frag,
-            .arg2   = shader->vdesc
+            .arg0   = shader->mtl.vert,
+            .arg1   = shader->mtl.frag,
+            .arg2   = shader->mtl.vdesc
         );
 
     auto dc = CRES_RET_CERR(dc_hash_find_get(r, fbo, shader));
@@ -1671,7 +1671,7 @@ void shader_unuse(shader_t *shader, bool draw)
 {
     if (!draw)  return;
 
-    auto r = shader->renderer;
+    auto r = shader->mtl.renderer;
     if (r->mtl.dc)  draw_control_unbind(r->mtl.dc);
 }
 

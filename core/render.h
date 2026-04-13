@@ -805,36 +805,42 @@ cerr_check uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_
 cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
                               unsigned int count, const void *value);
 
+TYPE(shader,
 #ifdef CONFIG_RENDERER_OPENGL
-TYPE(shader,
-    GLuint  vert;
-    GLuint  frag;
-    GLuint  geom;
-    GLuint  prog;
-);
-#elif defined(CONFIG_RENDERER_WGPU)
-TYPE(shader,
-    renderer_t                          *renderer;
-    wgpu_shader_module_t                vert;
-    wgpu_shader_module_t                frag;
-    wgpu_vertex_attribute_t             vertex_attrs[6];
-    unsigned int                        nr_vertex_attrs;
-    size_t                              vertex_stride;
-    uint64_t                            binding_mask;
-    char                                *name;
-);
-#elif defined(CONFIG_RENDERER_METAL)
-TYPE(shader,
-    renderer_t                          *renderer;
-    struct list                         dc_list;
-    mtl_function_t                      vert;
-    mtl_function_t                      frag;
-    mtl_vertex_descriptor_t             vdesc;
-    mtl_render_pipeline_reflection_t    reflection;
-    const char                          *name;
-    unsigned int                        id;
-);
+    struct {
+        GLuint  vert;
+        GLuint  frag;
+        GLuint  geom;
+        GLuint  prog;
+    } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        renderer_t                          *renderer;
+        wgpu_shader_module_t                vert;
+        wgpu_shader_module_t                frag;
+        wgpu_vertex_attribute_t             vertex_attrs[6];
+        unsigned int                        nr_vertex_attrs;
+        size_t                              vertex_stride;
+        uint64_t                            binding_mask;
+        char                                *name;
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        renderer_t                          *renderer;
+        struct list                         dc_list;
+        mtl_function_t                      vert;
+        mtl_function_t                      frag;
+        mtl_vertex_descriptor_t             vdesc;
+        mtl_render_pipeline_reflection_t    reflection;
+        const char                          *name;
+        unsigned int                        id;
+    } mtl;
+#endif /* CONFIG_RENDERER_METAL */
+);
 
 cerr shader_init(renderer_t *r, shader_t *shader,
                  const char *vertex, const char *geometry, const char *fragment);
