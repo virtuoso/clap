@@ -1663,9 +1663,21 @@ static int default_update(entity3d *e, void *data)
 
         entity3d_aabb_update(e);
 
-        if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS) &&
-            entity3d_matches(e, ENTITY3D_IS_CHARACTER))
+        /*
+         * Push entity rotation to the physics body for characters and static
+         * colliders. Dynamic bodies  get their rotation from the simulation
+         * instead (see phys_body_update()).
+         */
+        if (entity3d_is(e, &E3DQ(.all_of = ENTITY3D_HAS_PHYSICS | ENTITY3D_IS_CHARACTER)) ||
+            entity3d_is(e, &E3DQ(.all_of = ENTITY3D_HAS_PHYSICS, .none_of = ENTITY3D_PHYS_IS_BODY)))
             phys_body_rotate_xform(e->phys_body, &e->xform);
+
+        if (scene && e->light_idx >= 0) {
+            vec3 pos;
+            transform_pos(&e->xform, pos);
+            vec3_add(pos, pos, e->light_off);
+            light_set_pos(&scene->light, e->light_idx, pos);
+        }
     }
 
     if (!scene)
