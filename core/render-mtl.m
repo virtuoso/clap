@@ -38,6 +38,10 @@ static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts);
 static void mtl_buffer_deinit(buffer_t *buf);
 static void mtl_buffer_bind(buffer_t *buf, uniform_t loc);
 static void mtl_buffer_unbind(buffer_t *buf, uniform_t loc);
+static cerr mtl_vertex_array_init(vertex_array_t *va, renderer_t *r);
+static void mtl_vertex_array_done(vertex_array_t *va);
+static void mtl_vertex_array_bind(vertex_array_t *va);
+static void mtl_vertex_array_unbind(vertex_array_t *va);
 #ifndef CONFIG_FINAL
 static void mtl_buffer_set_name(buffer_t *buf, const char *name);
 #endif
@@ -68,6 +72,10 @@ static const renderer_ops mtl_renderer_ops = {
 #ifndef CONFIG_FINAL
     .buf_set_name = mtl_buffer_set_name,
 #endif
+    .va_init    = mtl_vertex_array_init,
+    .va_done    = mtl_vertex_array_done,
+    .va_bind    = mtl_vertex_array_bind,
+    .va_unbind  = mtl_vertex_array_unbind,
 };
 
 /****************************************************************************
@@ -355,21 +363,21 @@ static void vertex_array_drop(struct ref *ref)
 DEFINE_REFCLASS2(vertex_array);
 DECLARE_REFCLASS(vertex_array);
 
-cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
+static cerr mtl_vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
     return ref_embed(vertex_array, va, .renderer = r);
 }
 
-void vertex_array_done(vertex_array_t *va)
+static void mtl_vertex_array_done(vertex_array_t *va)
 {
 }
 
-void vertex_array_bind(vertex_array_t *va)
+static void mtl_vertex_array_bind(vertex_array_t *va)
 {
     va->renderer->mtl.va = va;
 }
 
-void vertex_array_unbind(vertex_array_t *va)
+static void mtl_vertex_array_unbind(vertex_array_t *va)
 {
     va->renderer->mtl.va = NULL;
 }

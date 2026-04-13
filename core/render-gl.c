@@ -35,6 +35,10 @@ static cerr gl_buffer_init(buffer_t *buf, const buffer_init_options *opts);
 static void gl_buffer_deinit(buffer_t *buf);
 static void gl_buffer_bind(buffer_t *buf, uniform_t loc);
 static void gl_buffer_unbind(buffer_t *buf, uniform_t loc);
+static cerr gl_vertex_array_init(vertex_array_t *va, renderer_t *r);
+static void gl_vertex_array_done(vertex_array_t *va);
+static void gl_vertex_array_bind(vertex_array_t *va);
+static void gl_vertex_array_unbind(vertex_array_t *va);
 
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
@@ -54,6 +58,10 @@ static const renderer_ops gl_renderer_ops = {
     .buf_deinit = gl_buffer_deinit,
     .buf_bind   = gl_buffer_bind,
     .buf_unbind = gl_buffer_unbind,
+    .va_init    = gl_vertex_array_init,
+    .va_done    = gl_vertex_array_done,
+    .va_bind    = gl_vertex_array_bind,
+    .va_unbind  = gl_vertex_array_unbind,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -317,7 +325,7 @@ static void vertex_array_drop(struct ref *ref)
 
 DEFINE_REFCLASS(vertex_array);
 
-cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
+static cerr gl_vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
     cerr err = ref_embed(vertex_array, va);
     if (IS_CERR(err))
@@ -332,19 +340,19 @@ cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
     return CERR_OK;
 }
 
-void vertex_array_done(vertex_array_t *va)
+static void gl_vertex_array_done(vertex_array_t *va)
 {
     if (gl_does_vao())
         GL(glDeleteVertexArrays(1, &va->gl.vao));
 }
 
-void vertex_array_bind(vertex_array_t *va)
+static void gl_vertex_array_bind(vertex_array_t *va)
 {
     if (gl_does_vao())
         GL(glBindVertexArray(va->gl.vao));
 }
 
-void vertex_array_unbind(vertex_array_t *va)
+static void gl_vertex_array_unbind(vertex_array_t *va)
 {
     if (gl_does_vao())
         GL(glBindVertexArray(0));

@@ -1106,6 +1106,10 @@ typedef struct renderer_ops {
     void                (*buf_bind)(buffer_t *buf, uniform_t loc);
     void                (*buf_unbind)(buffer_t *buf, uniform_t loc);
     void                (*buf_set_name)(buffer_t *buf, const char *name);
+    cerr                (*va_init)(vertex_array_t *va, renderer_t *r);
+    void                (*va_done)(vertex_array_t *va);
+    void                (*va_bind)(vertex_array_t *va);
+    void                (*va_unbind)(vertex_array_t *va);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 

@@ -187,6 +187,31 @@ cres(int) buffer_set_name(buffer_t *buf, const char *fmt, ...)
 }
 #endif /* CONFIG_FINAL */
 
+cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
+{
+    cerr err = r->ops->va_init(va, r);
+    va->renderer = r;
+    return err;
+}
+
+void vertex_array_done(vertex_array_t *va)
+{
+    if (!va->renderer || !va->renderer->ops->va_done)    return;
+    va->renderer->ops->va_done(va);
+}
+
+void vertex_array_bind(vertex_array_t *va)
+{
+    if (!va->renderer || !va->renderer->ops->va_bind)    return;
+    va->renderer->ops->va_bind(va);
+}
+
+void vertex_array_unbind(vertex_array_t *va)
+{
+    if (!va->renderer || !va->renderer->ops->va_unbind)  return;
+    va->renderer->ops->va_unbind(va);
+}
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/

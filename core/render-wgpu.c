@@ -43,6 +43,10 @@ static cerr wgpu_buffer_init(buffer_t *buf, const buffer_init_options *opts);
 static void wgpu_buffer_deinit(buffer_t *buf);
 static void wgpu_buffer_bind(buffer_t *buf, uniform_t loc);
 static void wgpu_buffer_unbind(buffer_t *buf, uniform_t loc);
+static cerr wgpu_vertex_array_init(vertex_array_t *va, renderer_t *r);
+static void wgpu_vertex_array_done(vertex_array_t *va);
+static void wgpu_vertex_array_bind(vertex_array_t *va);
+static void wgpu_vertex_array_unbind(vertex_array_t *va);
 #ifndef CONFIG_FINAL
 static void wgpu_buffer_set_name(buffer_t *buf, const char *name);
 #endif
@@ -73,6 +77,10 @@ static const renderer_ops wgpu_renderer_ops = {
 #ifndef CONFIG_FINAL
     .buf_set_name = wgpu_buffer_set_name,
 #endif
+    .va_init    = wgpu_vertex_array_init,
+    .va_done    = wgpu_vertex_array_done,
+    .va_bind    = wgpu_vertex_array_bind,
+    .va_unbind  = wgpu_vertex_array_unbind,
 };
 
 enum {
@@ -275,28 +283,23 @@ static void vertex_array_drop(struct ref *ref)
 
 DEFINE_REFCLASS(vertex_array);
 
-cerr vertex_array_init(vertex_array_t *va, renderer_t *r)
+static cerr wgpu_vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
-    cerr err = ref_embed(vertex_array, va, .renderer = r);
-    if (IS_CERR(err))
-        return err;
-
-    va->renderer = r;
-    return CERR_OK;
+    return ref_embed(vertex_array, va, .renderer = r);
 }
 
-void vertex_array_done(vertex_array_t *va)
+static void wgpu_vertex_array_done(vertex_array_t *va)
 {
     va->index = NULL;
 }
 
-void vertex_array_bind(vertex_array_t *va)
+static void wgpu_vertex_array_bind(vertex_array_t *va)
 {
     if (va && va->renderer)
         va->renderer->wgpu.va = va;
 }
 
-void vertex_array_unbind(vertex_array_t *va)
+static void wgpu_vertex_array_unbind(vertex_array_t *va)
 {
     if (va && va->renderer)
         va->renderer->wgpu.va = NULL;
