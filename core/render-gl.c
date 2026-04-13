@@ -519,8 +519,8 @@ static GLenum gl_texture_component_type(texture_format fmt)
 
 bool texture_is_array(texture_t *tex)
 {
-    return tex->type == GL_TEXTURE_2D_ARRAY ||
-           tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
+    return tex->gl.type == GL_TEXTURE_2D_ARRAY ||
+           tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
 }
 
 bool texture_is_multisampled(texture_t *tex)
@@ -546,14 +546,14 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
     if (IS_CERR(err))
         return err;
 
-    tex->component_type     = gl_texture_component_type(opts->format);
-    tex->wrap               = gl_texture_wrap(opts->wrap);
-    tex->min_filter         = gl_texture_filter(opts->min_filter);
-    tex->mag_filter         = gl_texture_filter(opts->mag_filter);
-    tex->target             = GL_TEXTURE0 + opts->target;
-    tex->type               = gl_texture_type(opts->type, multisampled);
-    tex->format             = gl_texture_format(opts->format);
-    tex->internal_format    = gl_texture_internal_format(opts->format);
+    tex->gl.component_type  = gl_texture_component_type(opts->format);
+    tex->gl.wrap            = gl_texture_wrap(opts->wrap);
+    tex->gl.min_filter      = gl_texture_filter(opts->min_filter);
+    tex->gl.mag_filter      = gl_texture_filter(opts->mag_filter);
+    tex->gl.target          = GL_TEXTURE0 + opts->target;
+    tex->gl.type            = gl_texture_type(opts->type, multisampled);
+    tex->gl.format          = gl_texture_format(opts->format);
+    tex->gl.internal_format = gl_texture_internal_format(opts->format);
     tex->layers             = opts->layers;
     tex->multisampled       = multisampled;
     /*
@@ -561,12 +561,12 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
      * texture_setup_begin() that sampler parameters need to be
      * configured, to avoid doing it at each texture_load()
      */
-    tex->sampler_updated    = true;
+    tex->gl.sampler_updated = true;
     if (opts->border)
-        memcpy(tex->border, opts->border, sizeof(tex->border));
+        memcpy(tex->gl.border, opts->border, sizeof(tex->gl.border));
     GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
-    GL(glActiveTexture(tex->target));
-    GL(glGenTextures(1, &tex->id));
+    GL(glActiveTexture(tex->gl.target));
+    GL(glGenTextures(1, &tex->gl.id));
 
 #ifndef CONFIG_FINAL
     memcpy(&tex->opts, opts, sizeof(*opts));
@@ -580,20 +580,21 @@ texture_t *texture_clone(texture_t *tex)
     texture_t *ret = ref_new(texture);
 
     if (ret) {
-        ret->id                 = tex->id;
-        ret->wrap               = tex->wrap;
-        ret->component_type     = tex->component_type;
-        ret->type               = tex->type;
-        ret->target             = tex->target;
-        ret->min_filter         = tex->min_filter;
-        ret->mag_filter         = tex->mag_filter;
+        ret->renderer           = tex->renderer;
+        ret->gl.id              = tex->gl.id;
+        ret->gl.wrap            = tex->gl.wrap;
+        ret->gl.component_type  = tex->gl.component_type;
+        ret->gl.type            = tex->gl.type;
+        ret->gl.target          = tex->gl.target;
+        ret->gl.min_filter      = tex->gl.min_filter;
+        ret->gl.mag_filter      = tex->gl.mag_filter;
         ret->width              = tex->width;
         ret->height             = tex->height;
         ret->layers             = tex->layers;
-        ret->format             = tex->format;
-        ret->internal_format    = tex->internal_format;
+        ret->gl.format          = tex->gl.format;
+        ret->gl.internal_format = tex->gl.internal_format;
         ret->loaded             = tex->loaded;
-        ret->sampler_updated    = true;
+        ret->gl.sampler_updated = true;
         tex->loaded             = false;
     }
 
@@ -604,28 +605,28 @@ void texture_deinit(texture_t *tex)
 {
     if (!tex->loaded)
         return;
-    GL(glDeleteTextures(1, &tex->id));
+    GL(glDeleteTextures(1, &tex->gl.id));
     tex->loaded = false;
 }
 
 static cerr texture_storage(texture_t *tex, void *buf)
 {
-    if (tex->type == GL_TEXTURE_2D)
-        glTexImage2D(tex->type, 0, tex->internal_format, tex->width, tex->height,
-                     0, tex->format, tex->component_type, buf);
-    else if (tex->type == GL_TEXTURE_2D_ARRAY || tex->type == GL_TEXTURE_3D)
-        glTexImage3D(tex->type, 0, tex->internal_format, tex->width, tex->height, tex->layers,
-                     0, tex->format, tex->component_type, buf);
+    if (tex->gl.type == GL_TEXTURE_2D)
+        glTexImage2D(tex->gl.type, 0, tex->gl.internal_format, tex->width, tex->height,
+                     0, tex->gl.format, tex->gl.component_type, buf);
+    else if (tex->gl.type == GL_TEXTURE_2D_ARRAY || tex->gl.type == GL_TEXTURE_3D)
+        glTexImage3D(tex->gl.type, 0, tex->gl.internal_format, tex->width, tex->height, tex->layers,
+                     0, tex->gl.format, tex->gl.component_type, buf);
 #ifdef CONFIG_GLES
-    else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE ||
-             tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+    else if (tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE ||
+             tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
          return CERR_NOT_SUPPORTED;
 #else
-    else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE)
-        glTexImage2DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
+    else if (tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE)
+        glTexImage2DMultisample(tex->gl.type, 4, tex->gl.internal_format, tex->width, tex->height,
                                 GL_TRUE);
-    else if (tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
-        glTexImage3DMultisample(tex->type, 4, tex->internal_format, tex->width, tex->height,
+    else if (tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+        glTexImage3DMultisample(tex->gl.type, 4, tex->gl.internal_format, tex->width, tex->height,
                                 tex->layers, GL_TRUE);
 #endif /* CONFIG_GLES */
     auto err = glGetError();
@@ -654,35 +655,35 @@ cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 
     tex->width = width;
     tex->height = height;
-    GL(glBindTexture(tex->type, tex->id));
+    GL(glBindTexture(tex->gl.type, tex->gl.id));
     cerr err = texture_storage(tex, NULL);
-    GL(glBindTexture(tex->type, 0));
+    GL(glBindTexture(tex->gl.type, 0));
 
     return err;
 }
 
 static cerr texture_setup_begin(texture_t *tex, void *buf)
 {
-    GL(glActiveTexture(tex->target));
-    GL(glBindTexture(tex->type, tex->id));
+    GL(glActiveTexture(tex->gl.target));
+    GL(glBindTexture(tex->gl.type, tex->gl.id));
 
-    if (!tex->sampler_updated)   goto out;
+    if (!tex->gl.sampler_updated)   goto out;
 
-    if (tex->type != GL_TEXTURE_2D_MULTISAMPLE &&
-        tex->type != GL_TEXTURE_2D_MULTISAMPLE_ARRAY) {
-        GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_S, tex->wrap));
-        GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_T, tex->wrap));
-        if (tex->type == TEX_3D)
-            GL(glTexParameteri(tex->type, GL_TEXTURE_WRAP_R, tex->wrap));
-        GL(glTexParameteri(tex->type, GL_TEXTURE_MIN_FILTER, tex->min_filter));
-        GL(glTexParameteri(tex->type, GL_TEXTURE_MAG_FILTER, tex->mag_filter));
+    if (tex->gl.type != GL_TEXTURE_2D_MULTISAMPLE &&
+        tex->gl.type != GL_TEXTURE_2D_MULTISAMPLE_ARRAY) {
+        GL(glTexParameteri(tex->gl.type, GL_TEXTURE_WRAP_S, tex->gl.wrap));
+        GL(glTexParameteri(tex->gl.type, GL_TEXTURE_WRAP_T, tex->gl.wrap));
+        if (tex->gl.type == TEX_3D)
+            GL(glTexParameteri(tex->gl.type, GL_TEXTURE_WRAP_R, tex->gl.wrap));
+        GL(glTexParameteri(tex->gl.type, GL_TEXTURE_MIN_FILTER, tex->gl.min_filter));
+        GL(glTexParameteri(tex->gl.type, GL_TEXTURE_MAG_FILTER, tex->gl.mag_filter));
 #ifndef CONFIG_GLES
-        if (tex->wrap == GL_CLAMP_TO_BORDER)
-            GL(glTexParameterfv(tex->type, GL_TEXTURE_BORDER_COLOR, tex->border));
+        if (tex->gl.wrap == GL_CLAMP_TO_BORDER)
+            GL(glTexParameterfv(tex->gl.type, GL_TEXTURE_BORDER_COLOR, tex->gl.border));
 #endif /* CONFIG_GLES */
     }
 
-    tex->sampler_updated = false;
+    tex->gl.sampler_updated = false;
 
 out:
     return texture_storage(tex, buf);
@@ -690,7 +691,7 @@ out:
 
 static void texture_setup_end(texture_t *tex)
 {
-    GL(glBindTexture(tex->type, 0));
+    GL(glBindTexture(tex->gl.type, 0));
 }
 
 cerr_check texture_load(texture_t *tex, texture_format format,
@@ -706,9 +707,9 @@ cerr_check texture_load(texture_t *tex, texture_format format,
     if (!texture_format_supported(format))
         return CERR_NOT_SUPPORTED;
 
-    tex->format             = gl_texture_format(format);
-    tex->internal_format    = gl_texture_internal_format(format);
-    tex->component_type     = gl_texture_component_type(format);
+    tex->gl.format          = gl_texture_format(format);
+    tex->gl.internal_format = gl_texture_internal_format(format);
+    tex->gl.component_type  = gl_texture_component_type(format);
 
     tex->width      = width;
     tex->height     = height;
@@ -736,9 +737,9 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
     if (!fbo_texture_supported(format))
         return CERR_NOT_SUPPORTED;
 
-    tex->format             = gl_texture_format(format);
-    tex->internal_format    = gl_texture_internal_format(format);
-    tex->component_type     = gl_texture_component_type(format);
+    tex->gl.format             = gl_texture_format(format);
+    tex->gl.internal_format    = gl_texture_internal_format(format);
+    tex->gl.component_type     = gl_texture_component_type(format);
 
     tex->width  = width;
     tex->height = height;
@@ -747,18 +748,18 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
     if (IS_CERR(err))
         return err;
 
-    if (tex->type == GL_TEXTURE_2D ||
-        tex->type == GL_TEXTURE_2D_MULTISAMPLE)
-        GL(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0));
+    if (tex->gl.type == GL_TEXTURE_2D ||
+        tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE)
+        GL(glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, tex->gl.type, tex->gl.id, 0));
 #ifdef CONFIG_GLES
     else
         return CERR_NOT_SUPPORTED;
 #else
-    else if (tex->type == GL_TEXTURE_2D_ARRAY ||
-             tex->type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
-        GL(glFramebufferTexture(GL_FRAMEBUFFER, attachment, tex->id, 0));
+    else if (tex->gl.type == GL_TEXTURE_2D_ARRAY ||
+             tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+        GL(glFramebufferTexture(GL_FRAMEBUFFER, attachment, tex->gl.id, 0));
     else
-        GL(glFramebufferTexture3D(GL_FRAMEBUFFER, attachment, tex->type, tex->id, 0, 0));
+        GL(glFramebufferTexture3D(GL_FRAMEBUFFER, attachment, tex->gl.type, tex->gl.id, 0, 0));
 #endif
     texture_setup_end(tex);
     tex->loaded = true;
@@ -768,16 +769,16 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
 
 void texture_bind(texture_t *tex, unsigned int target)
 {
-    /* XXX: make tex->target useful for this instead */
+    /* XXX: make tex->gl.target useful for this instead */
     GL(glActiveTexture(GL_TEXTURE0 + target));
-    GL(glBindTexture(tex->type, tex->id));
+    GL(glBindTexture(tex->gl.type, tex->gl.id));
 }
 
 void texture_unbind(texture_t *tex, unsigned int target)
 {
-    /* XXX: make tex->target useful for this instead */
+    /* XXX: make tex->gl.target useful for this instead */
     GL(glActiveTexture(GL_TEXTURE0 + target));
-    GL(glBindTexture(tex->type, 0));
+    GL(glBindTexture(tex->gl.type, 0));
 }
 
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
@@ -796,7 +797,7 @@ texid_t texture_id(struct texture *tex)
 {
     if (!tex)
         return 0;
-    return tex->id;
+    return tex->gl.id;
 }
 
 bool texture_loaded(struct texture *tex)

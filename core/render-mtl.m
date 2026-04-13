@@ -677,12 +677,12 @@ static cerr texture_make(struct ref *ref, void *_opts)
     struct texture *tex = container_of(ref, struct texture, ref);
     rc_init_opts(texture) *opts = _opts;
 
-    tex->renderer       = opts->renderer;
-    tex->type           = opts->type;
-    tex->format         = opts->format;
-    tex->layers         = opts->layers ? : 1;
-    tex->target         = opts->target;
-    tex->render_target  = opts->render_target;
+    tex->renderer           = opts->renderer;
+    tex->mtl.type           = opts->type;
+    tex->mtl.format         = opts->format;
+    tex->layers             = opts->layers ? : 1;
+    tex->mtl.target         = opts->target;
+    tex->mtl.render_target  = opts->render_target;
 
     auto sdesc = [[MTLSamplerDescriptor alloc] init];
     sdesc.minFilter             = mtl_filter(opts->min_filter);
@@ -695,11 +695,11 @@ static cerr texture_make(struct ref *ref, void *_opts)
     sdesc.normalizedCoordinates = YES;
     sdesc.compareFunction       = MTLCompareFunctionAlways;
 
-    tex->sampler = [tex->renderer->mtl.device newSamplerStateWithDescriptor:sdesc];
+    tex->mtl.sampler = [tex->renderer->mtl.device newSamplerStateWithDescriptor:sdesc];
 
     [sdesc release];
 
-    if (!tex->sampler)  return CERR_NOMEM;
+    if (!tex->mtl.sampler)  return CERR_NOMEM;
 
     return CERR_OK;
 }
@@ -715,7 +715,7 @@ DECLARE_REFCLASS(texture);
 
 bool texture_is_array(texture_t *tex)
 {
-    return tex->type == TEX_2D_ARRAY;
+    return tex->mtl.type == TEX_2D_ARRAY;
 }
 
 bool texture_is_multisampled(texture_t *tex)
@@ -733,12 +733,12 @@ cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
 {
     va_list ap;
 
-    mem_free(tex->name);
+    mem_free(tex->mtl.name);
     va_start(ap, fmt);
-    cres(int) res = mem_vasprintf(&tex->name, fmt, ap);
+    cres(int) res = mem_vasprintf(&tex->mtl.name, fmt, ap);
     va_end(ap);
 
-    [tex->texture setLabel:[NSString stringWithUTF8String:tex->name]];
+    [tex->mtl.texture setLabel:[NSString stringWithUTF8String:tex->mtl.name]];
 
     return res;
 }
@@ -753,22 +753,22 @@ texture_t *texture_clone(texture_t *tex)
     ref_init(&ret->ref);
 
     if (ret) {
-        ret->name           = tex->name;
+        ret->mtl.name       = tex->mtl.name;
         ret->loaded         = tex->loaded;
         ret->renderer       = tex->renderer;
-        ret->texture        = tex->texture;
-        ret->sampler        = tex->sampler;
-        ret->type           = tex->type;
-        ret->format         = tex->format;
-        ret->target         = tex->target;
+        ret->mtl.texture    = tex->mtl.texture;
+        ret->mtl.sampler    = tex->mtl.sampler;
+        ret->mtl.type       = tex->mtl.type;
+        ret->mtl.format     = tex->mtl.format;
+        ret->mtl.target     = tex->mtl.target;
         ret->width          = tex->width;
         ret->height         = tex->height;
         ret->layers         = tex->layers;
         ret->multisampled   = tex->multisampled;
         tex->loaded         = false;
-        tex->texture        = nil;
-        tex->sampler        = nil;
-        tex->name           = NULL;
+        tex->mtl.texture    = nil;
+        tex->mtl.sampler    = nil;
+        tex->mtl.name       = NULL;
     }
 
     return ret;
@@ -776,21 +776,21 @@ texture_t *texture_clone(texture_t *tex)
 
 void texture_deinit(texture_t *tex)
 {
-    if (tex->sampler && !tex->loaded)   err("unloaded texture has a sampler: '%s'\n", tex->name);
-    if (tex->sampler)   [tex->sampler release];
+    if (tex->mtl.sampler && !tex->loaded)   err("unloaded texture has a sampler: '%s'\n", tex->mtl.name);
+    if (tex->mtl.sampler)   [tex->mtl.sampler release];
 
     if (!tex->loaded)
         return;
 
-    if (tex->texture)   [tex->texture release];
+    if (tex->mtl.texture)   [tex->mtl.texture release];
     tex->loaded = false;
-    mem_free(tex->name);
-    tex->name = NULL;
+    mem_free(tex->mtl.name);
+    tex->mtl.name = NULL;
 }
 
 cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
-    mem_free(tex->name);
+    mem_free(tex->mtl.name);
 
     if (!tex->loaded)
         return CERR_TEXTURE_NOT_LOADED;
@@ -844,21 +844,21 @@ cerr_check texture_load(texture_t *tex, texture_format format,
 {
     tex->width  = width;
     tex->height = height;
-    tex->format = format;
+    tex->mtl.format = format;
 
     auto tdesc = [[MTLTextureDescriptor alloc] init];
-    tdesc.textureType       = mtl_texture_type(tex->type);
-    tdesc.pixelFormat       = mtl_texture_format(tex->format);
+    tdesc.textureType       = mtl_texture_type(tex->mtl.type);
+    tdesc.pixelFormat       = mtl_texture_format(tex->mtl.format);
     tdesc.sampleCount       = tex->multisampled ? 4 : 1;
     tdesc.width             = width;
     tdesc.height            = height;
-    tdesc.usage             = MTLTextureUsageShaderRead | (tex->render_target ? MTLTextureUsageRenderTarget : 0);
-    tdesc.storageMode       = tex->render_target ? MTLStorageModePrivate : MTLStorageModeShared;
+    tdesc.usage             = MTLTextureUsageShaderRead | (tex->mtl.render_target ? MTLTextureUsageRenderTarget : 0);
+    tdesc.storageMode       = tex->mtl.render_target ? MTLStorageModePrivate : MTLStorageModeShared;
 
     texture_format actual_format = mtl_texture_format_from_pixel_format(tdesc.pixelFormat);
 
     MTLRegion region;
-    switch (tex->type) {
+    switch (tex->mtl.type) {
         case TEX_3D:
             region = MTLRegionMake3D(0, 0, 0, width, height, tex->layers);
             tdesc.depth         = tex->layers;
@@ -877,13 +877,13 @@ cerr_check texture_load(texture_t *tex, texture_format format,
             return CERR_INVALID_ARGUMENTS;
     }
 
-    tex->texture = [tex->renderer->mtl.device newTextureWithDescriptor:tdesc];
+    tex->mtl.texture = [tex->renderer->mtl.device newTextureWithDescriptor:tdesc];
 
     [tdesc release];
 
-    if (!tex->texture)  return CERR_NOMEM;
+    if (!tex->mtl.texture)  return CERR_NOMEM;
 
-    if (tex->name)  [tex->texture setLabel:[NSString stringWithUTF8String:tex->name]];
+    if (tex->mtl.name)  [tex->mtl.texture setLabel:[NSString stringWithUTF8String:tex->mtl.name]];
 
     if (buf) {
         auto bytes_per_row = mtl_row_bytes(format, width);
@@ -894,24 +894,24 @@ cerr_check texture_load(texture_t *tex, texture_format format,
         if (texture_format_needs_alpha(format)) {
             dest_buf = texture_rgb_to_rgba(format, buf, (size_t)width * height * tex->layers, NULL);
             if (!dest_buf) {
-                [tex->texture release];
+                [tex->mtl.texture release];
                 return CERR_NOMEM;
             }
 
             format = texture_format_add_alpha(format);
-            tex->format = format;
+            tex->mtl.format = format;
             bytes_per_row = mtl_row_bytes(format, width);
             bytes_per_layer = bytes_per_row * height;
         }
 
-        [tex->texture replaceRegion:region
+        [tex->mtl.texture replaceRegion:region
             mipmapLevel:0
             slice:0
             withBytes:dest_buf ? : buf
             bytesPerRow:bytes_per_row
             bytesPerImage:bytes_per_layer];
     } else {
-        tex->format = actual_format;
+        tex->mtl.format = actual_format;
     }
 
     tex->loaded = true;
@@ -923,14 +923,14 @@ void texture_bind(texture_t *tex, unsigned int target)
 {
     auto r = tex->renderer;
 
-    if (r->mtl.sampler_cache[target] != tex->sampler) {
-        [cmd_encoder(tex->renderer) setFragmentSamplerState:tex->sampler atIndex:target];
-        r->mtl.sampler_cache[target] = tex->sampler;
+    if (r->mtl.sampler_cache[target] != tex->mtl.sampler) {
+        [cmd_encoder(tex->renderer) setFragmentSamplerState:tex->mtl.sampler atIndex:target];
+        r->mtl.sampler_cache[target] = tex->mtl.sampler;
     }
 
-    if (r->mtl.texture_cache[target] != tex->texture) {
-        [cmd_encoder(tex->renderer) setFragmentTexture:tex->texture atIndex:target];
-        r->mtl.texture_cache[target] = tex->texture;
+    if (r->mtl.texture_cache[target] != tex->mtl.texture) {
+        [cmd_encoder(tex->renderer) setFragmentTexture:tex->mtl.texture atIndex:target];
+        r->mtl.texture_cache[target] = tex->mtl.texture;
     }
 }
 
@@ -957,7 +957,7 @@ texid_t texture_id(struct texture *tex)
     if (!tex)
         return 0;
 
-    return (texid_t)tex->texture;
+    return (texid_t)tex->mtl.texture;
 }
 
 /* XXX: common */
@@ -1195,7 +1195,7 @@ static cerr fbo_depth_texture_init(fbo_t *fbo)
 
     CERR_RET_CERR(texture_load(&fbo->depth_tex, fbo->depth_config.format, fbo->width, fbo->height, NULL));
 
-    fbo->desc.depthAttachment.texture = fbo->depth_tex.texture;
+    fbo->desc.depthAttachment.texture = fbo->depth_tex.mtl.texture;
     fbo->desc.depthAttachment.loadAction = mtl_load_action(fbo->depth_config.load_action);
     fbo->desc.depthAttachment.storeAction = mtl_store_action(fbo->depth_config.store_action, fbo_is_multisampled(fbo));
     fbo->desc.depthAttachment.clearDepth = fbo->depth_config.clear_depth;
@@ -1223,7 +1223,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
     texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->name, idx);
 
     err = texture_load(&fbo->color_tex[idx], fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
-    fbo->color_config[idx].format = fbo->color_tex[idx].format;
+    fbo->color_config[idx].format = fbo->color_tex[idx].mtl.format;
 
     return err;
 }
@@ -1236,7 +1236,7 @@ static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment attachment)
         CERR_RET(fbo_texture_init(fbo, fa), return __cerr);
 
         auto i = fa_nr_color_texture(fa) - 1;
-        fbo->desc.colorAttachments[i].texture = fbo->color_tex[i].texture;
+        fbo->desc.colorAttachments[i].texture = fbo->color_tex[i].mtl.texture;
         fbo->desc.colorAttachments[i].loadAction = mtl_load_action(fbo->color_config[i].load_action);
         fbo->desc.colorAttachments[i].storeAction = mtl_store_action(fbo->color_config[i].store_action, fbo_is_multisampled(fbo));
         fbo->desc.colorAttachments[i].clearColor = MTLClearColorMake(

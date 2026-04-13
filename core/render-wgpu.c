@@ -696,13 +696,13 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
         return err;
 
     tex->renderer = opts->renderer;
-    tex->type = opts->type;
-    tex->format = opts->format;
+    tex->wgpu.type = opts->type;
+    tex->wgpu.format = opts->format;
     tex->width = 0;
     tex->height = 0;
     tex->layers = opts->layers;
     tex->multisampled = opts->multisampled;
-    tex->render_target = opts->render_target;
+    tex->wgpu.render_target = opts->render_target;
 
     /* create sampler at init time — sampler state is immutable in WGPU */
     WGPUSamplerDescriptor sampler_desc = WGPU_SAMPLER_DESCRIPTOR_INIT;
@@ -711,7 +711,7 @@ cerr _texture_init(texture_t *tex, const texture_init_options *opts)
     sampler_desc.addressModeW = wgpu_address_mode(opts->wrap);
     sampler_desc.minFilter = wgpu_filter_mode(opts->min_filter);
     sampler_desc.magFilter = wgpu_filter_mode(opts->mag_filter);
-    tex->sampler = wgpuDeviceCreateSampler(opts->renderer->wgpu.device, &sampler_desc);
+    tex->wgpu.sampler = wgpuDeviceCreateSampler(opts->renderer->wgpu.device, &sampler_desc);
 
 #ifndef CONFIG_FINAL
     tex->opts = *opts;
@@ -730,18 +730,18 @@ texture_t *texture_clone(texture_t *tex)
         return NULL;
 
     clone->renderer = tex->renderer;
-    clone->type = tex->type;
-    clone->format = tex->format;
+    clone->wgpu.type = tex->wgpu.type;
+    clone->wgpu.format = tex->wgpu.format;
     clone->width = tex->width;
     clone->height = tex->height;
     clone->layers = tex->layers;
     clone->multisampled = tex->multisampled;
-    clone->render_target = false;
+    clone->wgpu.render_target = false;
     clone->loaded = tex->loaded;
     /* share the GPU objects */
-    clone->texture = tex->texture;
-    clone->view = tex->view;
-    clone->sampler = tex->sampler;
+    clone->wgpu.texture = tex->wgpu.texture;
+    clone->wgpu.view = tex->wgpu.view;
+    clone->wgpu.sampler = tex->wgpu.sampler;
 #ifndef CONFIG_FINAL
     clone->opts = tex->opts;
     clone->opts.render_target = false;
@@ -752,13 +752,13 @@ texture_t *texture_clone(texture_t *tex)
 
 static void wgpu_texture_release(texture_t *tex)
 {
-    if (tex->view) {
-        wgpuTextureViewRelease(tex->view);
-        tex->view = NULL;
+    if (tex->wgpu.view) {
+        wgpuTextureViewRelease(tex->wgpu.view);
+        tex->wgpu.view = NULL;
     }
-    if (tex->texture) {
-        wgpuTextureRelease(tex->texture);
-        tex->texture = NULL;
+    if (tex->wgpu.texture) {
+        wgpuTextureRelease(tex->wgpu.texture);
+        tex->wgpu.texture = NULL;
     }
 }
 
@@ -768,9 +768,9 @@ void texture_deinit(texture_t *tex)
         return;
 
     wgpu_texture_release(tex);
-    if (tex->sampler) {
-        wgpuSamplerRelease(tex->sampler);
-        tex->sampler = NULL;
+    if (tex->wgpu.sampler) {
+        wgpuSamplerRelease(tex->wgpu.sampler);
+        tex->wgpu.sampler = NULL;
     }
 
     tex->width = 0;
@@ -783,32 +783,32 @@ void texture_deinit(texture_t *tex)
 static cerr wgpu_texture_create(texture_t *tex, unsigned int width, unsigned int height)
 {
     renderer_t *r = tex->renderer;
-    WGPUTextureFormat wfmt = wgpu_texture_format(tex->format);
+    WGPUTextureFormat wfmt = wgpu_texture_format(tex->wgpu.format);
 
     WGPUTextureDescriptor desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
     desc.size = (WGPUExtent3D){ width, height, max(tex->layers, 1u) };
     desc.format = wfmt;
-    desc.dimension = wgpu_texture_dimension(tex->type);
+    desc.dimension = wgpu_texture_dimension(tex->wgpu.type);
     desc.mipLevelCount = 1;
     desc.sampleCount = tex->multisampled ? WGPU_MSAA_SAMPLES : 1;
     desc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
-    if (tex->render_target)
+    if (tex->wgpu.render_target)
         desc.usage |= WGPUTextureUsage_RenderAttachment;
 
     /* release previous, if resizing */
     wgpu_texture_release(tex);
 
-    tex->texture = wgpuDeviceCreateTexture(r->wgpu.device, &desc);
-    if (!tex->texture)
+    tex->wgpu.texture = wgpuDeviceCreateTexture(r->wgpu.device, &desc);
+    if (!tex->wgpu.texture)
         return CERR_INITIALIZATION_FAILED_REASON(.fmt = "wgpuDeviceCreateTexture failed");
 
     WGPUTextureViewDescriptor view_desc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
     view_desc.format = wfmt;
-    view_desc.dimension = wgpu_texture_view_dimension(tex->type);
+    view_desc.dimension = wgpu_texture_view_dimension(tex->wgpu.type);
     view_desc.mipLevelCount = 1;
-    view_desc.arrayLayerCount = tex->type == TEX_2D_ARRAY ? tex->layers : 1;
-    tex->view = wgpuTextureCreateView(tex->texture, &view_desc);
-    if (!tex->view)
+    view_desc.arrayLayerCount = tex->wgpu.type == TEX_2D_ARRAY ? tex->layers : 1;
+    tex->wgpu.view = wgpuTextureCreateView(tex->wgpu.texture, &view_desc);
+    if (!tex->wgpu.view)
         return CERR_INITIALIZATION_FAILED_REASON(.fmt = "wgpuTextureCreateView failed");
 
     return CERR_OK;
@@ -828,7 +828,7 @@ cerr texture_load(texture_t *tex, texture_format format, unsigned int width, uns
         format = texture_format_add_alpha(format);
     }
 
-    tex->format = format;
+    tex->wgpu.format = format;
     tex->width = width;
     tex->height = height;
 
@@ -837,7 +837,7 @@ cerr texture_load(texture_t *tex, texture_format format, unsigned int width, uns
     if (buf) {
         unsigned int bpp = texture_format_comp_size(format) * texture_format_nr_comps(format);
         WGPUTexelCopyTextureInfo dest = {
-            .texture    = tex->texture,
+            .texture    = tex->wgpu.texture,
             .mipLevel   = 0,
         };
         WGPUTexelCopyBufferLayout layout = {
@@ -908,7 +908,7 @@ texid_t texture_id(texture_t *tex)
     if (!texture_loaded(tex))
         return 0;
 
-    if (tex->render_target)
+    if (tex->wgpu.render_target)
         return 0;
 
     return (texid_t)(uintptr_t)tex;
@@ -928,9 +928,9 @@ cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
     vsnprintf(label, sizeof(label), fmt, ap);
     va_end(ap);
 
-    if (tex->texture) {
+    if (tex->wgpu.texture) {
         WGPUStringView sv = { label, strlen(label) };
-        wgpuTextureSetLabel(tex->texture, sv);
+        wgpuTextureSetLabel(tex->wgpu.texture, sv);
     }
 
     return cres_val(int, 0);
@@ -1032,7 +1032,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
     texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->name, idx);
 
     err = texture_load(&fbo->color_tex[idx], fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
-    fbo->color_config[idx].format = fbo->color_tex[idx].format;
+    fbo->color_config[idx].format = fbo->color_tex[idx].wgpu.format;
 
     return err;
 }
@@ -1128,11 +1128,11 @@ void fbo_prepare(fbo_t *fbo)
         int idx = fbo_attachment_color(fa);
         texture_t *tex = &fbo->color_tex[idx];
 
-        if (!tex->view)
+        if (!tex->wgpu.view)
             continue;
 
         color_atts[nr_colors] = (WGPURenderPassColorAttachment){
-            .view           = tex->view,
+            .view           = tex->wgpu.view,
             .depthSlice     = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp         = wgpu_load_op(fbo->color_config[idx].load_action),
             .storeOp        = wgpu_store_op(fbo->color_config[idx].store_action),
@@ -1147,11 +1147,11 @@ void fbo_prepare(fbo_t *fbo)
     }
 
     WGPURenderPassDepthStencilAttachment depth_att = {};
-    bool has_depth = fbo->layout.depth_texture && fbo->depth_tex.view;
+    bool has_depth = fbo->layout.depth_texture && fbo->depth_tex.wgpu.view;
 
     if (has_depth) {
         depth_att = (WGPURenderPassDepthStencilAttachment){
-            .view               = fbo->depth_tex.view,
+            .view               = fbo->depth_tex.wgpu.view,
             .depthLoadOp        = wgpu_load_op(fbo->depth_config.load_action),
             .depthStoreOp       = wgpu_store_op(fbo->depth_config.store_action),
             .depthClearValue    = fbo->depth_config.clear_depth,
@@ -2260,11 +2260,11 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
 
         entries[n++] = (WGPUBindGroupEntry) {
             .binding        = image_binding,
-            .textureView    = tex->view,
+            .textureView    = tex->wgpu.view,
         };
         entries[n++] = (WGPUBindGroupEntry) {
             .binding        = image_binding + 1,
-            .sampler        = tex->sampler,
+            .sampler        = tex->wgpu.sampler,
         };
     }
 

@@ -397,69 +397,57 @@ typedef struct texture_init_options {
     const char          *name;
 } texture_init_options;
 
-#ifdef CONFIG_RENDERER_OPENGL
 TYPE(texture,
     struct ref      ref;
-    GLuint          id;
-    GLenum          format;
-    GLenum          internal_format;
-    GLenum          component_type;
-    GLenum          type;
-    GLint           wrap;
-    GLint           min_filter;
-    GLint           mag_filter;
-    GLint           target;
-    GLsizei         layers;
-    bool            loaded;
-    bool            multisampled;
-    bool            sampler_updated;
+    renderer_t      *renderer;
     unsigned int    width;
     unsigned int    height;
-    float           border[4];
-#ifndef CONFIG_FINAL
-    texture_init_options    opts;
-#endif /* CONFIG_FINAL */
-);
-#elif defined(CONFIG_RENDERER_WGPU)
-TYPE(texture,
-    struct ref          ref;
-    renderer_t          *renderer;
-    wgpu_texture_t      texture;
-    wgpu_texture_view_t view;
-    wgpu_sampler_t      sampler;
-    texture_type        type;
-    texture_format      format;
-    int                 width;
-    int                 height;
-    unsigned int        layers;
-    bool                multisampled;
-    bool                render_target;
-    bool                loaded;
-#ifndef CONFIG_FINAL
-    texture_init_options    opts;
-#endif /* CONFIG_FINAL */
-);
-#elif defined(CONFIG_RENDERER_METAL)
-TYPE(texture,
-    struct ref          ref;
-    renderer_t          *renderer;
-    mtl_texture_t       texture;
-    mtl_sampler_state_t sampler;
-    texture_type        type;
-    texture_format      format;
-    int                 target;
-    int                 width;
-    int                 height;
-    unsigned int        layers;
-    bool                loaded;
-    bool                multisampled;
-    bool                render_target;
-    char                *name;
-#ifndef CONFIG_FINAL
-    texture_init_options    opts;
-#endif /* CONFIG_FINAL */
-);
+    unsigned int    layers;
+    bool            loaded;
+    bool            multisampled;
+#ifdef CONFIG_RENDERER_OPENGL
+    struct {
+        GLuint          id;
+        GLenum          format;
+        GLenum          internal_format;
+        GLenum          component_type;
+        GLenum          type;
+        GLint           wrap;
+        GLint           min_filter;
+        GLint           mag_filter;
+        GLint           target;
+        bool            sampler_updated;
+        float           border[4];
+    } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        wgpu_texture_t      texture;
+        wgpu_texture_view_t view;
+        wgpu_sampler_t      sampler;
+        texture_type        type;
+        texture_format      format;
+        bool                render_target;
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        mtl_texture_t       texture;
+        mtl_sampler_state_t sampler;
+        texture_type        type;
+        texture_format      format;
+        int                 target;
+        bool                render_target;
+        char                *name;
+    } mtl;
+#endif /* CONFIG_RENDERER_METAL */
+
+#ifndef CONFIG_FINAL
+    texture_init_options    opts;
+#endif /* CONFIG_FINAL */
+);
 
 typedef uint64_t texid_t;
 
