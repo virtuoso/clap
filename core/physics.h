@@ -259,12 +259,21 @@ void phys_body_attach_motor(struct phys_body *body, bool attach);
 void phys_body_set_position(struct phys_body *body, const vec3 pos);
 
 /**
+ * phys_body_rotate_mat3x3() - set body's rotation from 3x3 rotation matrix
+ * @body:   phys_body object
+ * @rot:    3x3 rotation matrix
+ *
+ * Apply @rot to phys_body's body or geometry.
+ */
+void phys_body_rotate_mat3x3(struct phys_body *body, mat3x3 rot);
+
+/**
  * phys_body_rotate_mat4x4() - set body's rotation from 4x4 TRS matrix
  * @body:   phys_body object
  * @trs:    TRS matrix, from which the rotation is extracted
  *
- * Set body's rotation from @trs. Rotation itself in the 3x3 matrix, so
- * extract it from the 4x4 @trs and apply it to phys_body's body or geometry.
+ * Extract the 3x3 rotation from @trs and apply it to phys_body's body or
+ * geometry via phys_body_rotate_mat3x3().
  */
 void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs);
 
