@@ -202,25 +202,6 @@ function(compile_shaders_for_backend backend SHADERS suffix)
     )
 
     set(SHADER_OUTS_${backend} "${SHADER_OUTS}" PARENT_SCOPE)
-endfunction()
-
-# Backward-compatible wrapper: compile shaders for the currently active backend.
-# This preserves the old API so existing CMakeLists.txt can transition gradually.
-function(compile_shaders SHADERS PREPROCESS_SHADERS_TARGET)
-    if (CONFIG_RENDERER_WGPU)
-        set(_backend "wgpu")
-    elseif (CONFIG_RENDERER_METAL)
-        set(_backend "metal")
-    elseif (CONFIG_RENDERER_OPENGL)
-        set(_backend "gl")
-    else ()
-        message(FATAL_ERROR "No renderer configured")
-    endif ()
-
-    compile_shaders_for_backend(${_backend} "${SHADERS}" "${PREPROCESS_SHADERS_TARGET}")
-
-    # Propagate outputs under the old variable name for backward compat
-    set(SHADER_OUTS "${SHADER_OUTS_${_backend}}" PARENT_SCOPE)
 
     # Create the old-style target name as an alias
     if (NOT TARGET preprocess_shaders${PREPROCESS_SHADERS_TARGET})
@@ -228,4 +209,27 @@ function(compile_shaders SHADERS PREPROCESS_SHADERS_TARGET)
             DEPENDS preprocess_shaders_${_backend}${PREPROCESS_SHADERS_TARGET}
         )
     endif ()
+endfunction()
+
+# Backward-compatible wrapper: compile shaders for the currently active backend.
+# This preserves the old API so existing CMakeLists.txt can transition gradually.
+function(compile_shaders SHADERS PREPROCESS_SHADERS_TARGET)
+    if (CONFIG_RENDERER_WGPU)
+        set(_backend "wgpu")
+        compile_shaders_for_backend(${_backend} "${SHADERS}" "${PREPROCESS_SHADERS_TARGET}")
+        list(APPEND shader_outs ${SHADER_OUTS_${_backend}})
+    endif ()
+    if (CONFIG_RENDERER_METAL)
+        set(_backend "metal")
+        compile_shaders_for_backend(${_backend} "${SHADERS}" "${PREPROCESS_SHADERS_TARGET}")
+        list(APPEND shader_outs ${SHADER_OUTS_${_backend}})
+    endif ()
+    if (CONFIG_RENDERER_OPENGL)
+        set(_backend "gl")
+        compile_shaders_for_backend(${_backend} "${SHADERS}" "${PREPROCESS_SHADERS_TARGET}")
+        list(APPEND shader_outs ${SHADER_OUTS_${_backend}})
+    endif ()
+
+    # Propagate outputs under the old variable name for backward compat
+    set(SHADER_OUTS "${shader_outs}" PARENT_SCOPE)
 endfunction()
