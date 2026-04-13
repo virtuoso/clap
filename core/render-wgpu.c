@@ -62,6 +62,11 @@ static bool wgpu_texture_is_array(texture_t *tex);
 static void wgpu_texture_set_name(texture_t *tex, const char *name);
 static void wgpu_buffer_set_name(buffer_t *buf, const char *name);
 #endif
+static void wgpu_fbo_prepare(fbo_t *fbo);
+static void wgpu_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
+static cerr wgpu_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
+static bool wgpu_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
+static texture_format wgpu_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
@@ -106,6 +111,11 @@ static const renderer_ops wgpu_renderer_ops = {
 #ifndef CONFIG_FINAL
     .tex_set_name = wgpu_texture_set_name,
 #endif
+    .fbo_prepare    = wgpu_fbo_prepare,
+    .fbo_done       = wgpu_fbo_done,
+    .fbo_resize     = wgpu_fbo_resize,
+    .fbo_attachment_valid  = wgpu_fbo_attachment_valid,
+    .fbo_attachment_format = wgpu_fbo_attachment_format,
 };
 
 enum {
@@ -1088,22 +1098,8 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     return cresp_val(fbo_t, fbo);
 }
 
-fbo_t *fbo_get(fbo_t *fbo)
-{
-    return ref_get(fbo);
-}
 
-void fbo_put(fbo_t *fbo)
-{
-    ref_put(fbo);
-}
-
-void fbo_put_last(fbo_t *fbo)
-{
-    ref_put_last(fbo);
-}
-
-void fbo_prepare(fbo_t *fbo)
+static void wgpu_fbo_prepare(fbo_t *fbo)
 {
     renderer_t *r = fbo->renderer;
 
@@ -1160,7 +1156,7 @@ void fbo_prepare(fbo_t *fbo)
     r->wgpu.fbo = fbo;
 }
 
-void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
+static void wgpu_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     renderer_t *r = fbo->renderer;
 
@@ -1178,12 +1174,8 @@ void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
     r->wgpu.fbo = NULL;
 }
 
-void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
-{
-    /* XXX: implement via render pass or copy command */
-}
 
-cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
+static cerr_check wgpu_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     if (!fbo)
         return CERR_INVALID_ARGUMENTS;
@@ -1237,27 +1229,13 @@ texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
     return fbo_texture_fallback(attachment);
 }
 
-int fbo_width(fbo_t *fbo)
-{
-    return fbo->width;
-}
 
-int fbo_height(fbo_t *fbo)
-{
-    return fbo->height;
-}
-
-bool fbo_is_multisampled(fbo_t *fbo)
-{
-    return fbo->nr_samples > 1;
-}
-
-bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
+static bool wgpu_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
     return !!attachment.mask;
 }
 
-texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
+static texture_format wgpu_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (!attachment.mask)
         return TEX_FMT_MAX;

@@ -47,6 +47,12 @@ static cerr gl_texture_resize(texture_t *tex, unsigned int width, unsigned int h
 static void gl_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform);
 static void gl_texture_unbind(texture_t *tex, unsigned int target);
 static bool gl_texture_is_array(texture_t *tex);
+static void gl_fbo_prepare(fbo_t *fbo);
+static void gl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
+static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment);
+static cerr gl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
+static bool gl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
+static texture_format gl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
 
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
@@ -77,6 +83,12 @@ static const renderer_ops gl_renderer_ops = {
     .tex_bind   = gl_texture_bind,
     .tex_unbind = gl_texture_unbind,
     .tex_is_array = gl_texture_is_array,
+    .fbo_prepare  = gl_fbo_prepare,
+    .fbo_done     = gl_fbo_done,
+    .fbo_blit     = gl_fbo_blit_from_fbo,
+    .fbo_resize   = gl_fbo_resize,
+    .fbo_attachment_valid  = gl_fbo_attachment_valid,
+    .fbo_attachment_format = gl_fbo_attachment_format,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -938,7 +950,7 @@ texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
     return &fbo->color_tex[idx];
 }
 
-bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
+static bool gl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
     int tidx = fbo_attachment_color(attachment);
     if (tidx >= 0 && tidx <= fbo_attachment_color(fbo->layout) &&
@@ -959,7 +971,7 @@ bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
     return false;
 }
 
-texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
+static texture_format gl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (!fbo_attachment_valid(fbo, attachment)) {
         err("invalid attachment '%s'\n", fbo_attachment_string(attachment));
@@ -967,16 +979,6 @@ texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
     }
 
     return fbo->color_config[fbo_attachment_color(attachment)].format;
-}
-
-int fbo_width(fbo_t *fbo)
-{
-    return fbo->width;
-}
-
-int fbo_height(fbo_t *fbo)
-{
-    return fbo->height;
 }
 
 static void __fbo_color_buffer_setup(fbo_t *fbo, fbo_attachment attachment)
@@ -1029,7 +1031,7 @@ static int fbo_depth_buffer(fbo_t *fbo)
     return buf;
 }
 
-cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
+static cerr gl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     if (!fbo)
         return CERR_INVALID_ARGUMENTS;
@@ -1137,7 +1139,7 @@ static void renderer_depth_test(renderer_t *r, bool enable)
 }
 
 #define NR_TARGETS FBO_COLOR_ATTACHMENTS_MAX
-void fbo_prepare(fbo_t *fbo)
+static void gl_fbo_prepare(fbo_t *fbo)
 {
     GLenum buffers[NR_TARGETS];
     int target = 0;
@@ -1179,7 +1181,7 @@ void fbo_prepare(fbo_t *fbo)
     renderer_depth_test(fbo->renderer, depth_test);
 }
 
-void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
+static void gl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     fbo_invalidate(fbo);
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
@@ -1191,7 +1193,7 @@ void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
  * >= 0: color buffer
  *  < 0: depth buffer
  */
-void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
+static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
 {
     GLbitfield mask = GL_COLOR_BUFFER_BIT;
     GLuint gl_attachment;
@@ -1307,11 +1309,6 @@ err:
     return err;
 }
 
-bool fbo_is_multisampled(fbo_t *fbo)
-{
-    return !!fbo->nr_samples;
-}
-
 DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
 
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
@@ -1353,21 +1350,6 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
         return cresp_error_cerr(fbo_t, err);
 
     return cresp_val(fbo_t, NOCU(fbo));
-}
-
-fbo_t *fbo_get(fbo_t *fbo)
-{
-    return ref_get(fbo);
-}
-
-void fbo_put(fbo_t *fbo)
-{
-    ref_put(fbo);
-}
-
-void fbo_put_last(fbo_t *fbo)
-{
-    ref_put_last(fbo);
 }
 
 /****************************************************************************

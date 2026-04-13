@@ -1119,6 +1119,12 @@ typedef struct renderer_ops {
     void                (*tex_unbind)(texture_t *tex, unsigned int target);
     bool                (*tex_is_array)(texture_t *tex);
     void                (*tex_set_name)(texture_t *tex, const char *name);
+    void                (*fbo_prepare)(fbo_t *fbo);
+    void                (*fbo_done)(fbo_t *fbo, unsigned int width, unsigned int height);
+    void                (*fbo_blit)(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment);
+    cerr                (*fbo_resize)(fbo_t *fbo, unsigned int width, unsigned int height);
+    bool                (*fbo_attachment_valid)(fbo_t *fbo, fbo_attachment attachment);
+    texture_format      (*fbo_attachment_format)(fbo_t *fbo, fbo_attachment attachment);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 

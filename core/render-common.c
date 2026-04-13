@@ -325,6 +325,72 @@ void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *
         *pheight = tex ? tex->height : 0;
 }
 
+fbo_t *fbo_get(fbo_t *fbo)
+{
+    return ref_get(fbo);
+}
+
+void fbo_put(fbo_t *fbo)
+{
+    ref_put(fbo);
+}
+
+void fbo_put_last(fbo_t *fbo)
+{
+    ref_put_last(fbo);
+}
+
+int fbo_width(fbo_t *fbo)
+{
+    return fbo->width;
+}
+
+int fbo_height(fbo_t *fbo)
+{
+    return fbo->height;
+}
+
+bool fbo_is_multisampled(fbo_t *fbo)
+{
+    return fbo->nr_samples > 1;
+}
+
+void fbo_prepare(fbo_t *fbo)
+{
+    if (!fbo->renderer)   return;
+    fbo->renderer->ops->fbo_prepare(fbo);
+}
+
+void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
+{
+    if (!fbo->renderer)   return;
+    fbo->renderer->ops->fbo_done(fbo, width, height);
+}
+
+void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
+{
+    if (!fbo->renderer || !fbo->renderer->ops->fbo_blit)  return;
+    fbo->renderer->ops->fbo_blit(fbo, src_fbo, attachment);
+}
+
+cerr fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
+{
+    if (!fbo->renderer)   return CERR_INVALID_ARGUMENTS;
+    return fbo->renderer->ops->fbo_resize(fbo, width, height);
+}
+
+bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
+{
+    if (!fbo->renderer)   return false;
+    return fbo->renderer->ops->fbo_attachment_valid(fbo, attachment);
+}
+
+texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
+{
+    if (!fbo->renderer)   return 0;
+    return fbo->renderer->ops->fbo_attachment_format(fbo, attachment);
+}
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/

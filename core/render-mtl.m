@@ -57,6 +57,11 @@ static bool mtl_texture_is_array(texture_t *tex);
 static void mtl_texture_set_name(texture_t *tex, const char *name);
 static void mtl_buffer_set_name(buffer_t *buf, const char *name);
 #endif
+static void mtl_fbo_prepare(fbo_t *fbo);
+static void mtl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
+static cerr mtl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
+static bool mtl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
+static texture_format mtl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
@@ -101,6 +106,11 @@ static const renderer_ops mtl_renderer_ops = {
 #ifndef CONFIG_FINAL
     .tex_set_name = mtl_texture_set_name,
 #endif
+    .fbo_prepare    = mtl_fbo_prepare,
+    .fbo_done       = mtl_fbo_done,
+    .fbo_resize     = mtl_fbo_resize,
+    .fbo_attachment_valid  = mtl_fbo_attachment_valid,
+    .fbo_attachment_format = mtl_fbo_attachment_format,
 };
 
 /****************************************************************************
@@ -1009,7 +1019,7 @@ texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
     return TEX_FMT_DEFAULT;
 }
 
-bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
+static bool mtl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
     int tidx = fbo_attachment_color(attachment);
     if (tidx >= 0 && tidx <= fbo_attachment_color(fbo->layout) &&
@@ -1024,7 +1034,7 @@ bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 
 // XXX: unused
 // XXX: exactly the same as fbo_texture_format plus validation
-texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
+static texture_format mtl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (!fbo_attachment_valid(fbo, attachment)) {
         err("invalid attachment '%s'\n", fbo_attachment_string(attachment));
@@ -1037,17 +1047,6 @@ texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
     return fbo->color_config[fbo_attachment_color(attachment)].format;
 }
 
-/* XXX: common */
-int fbo_width(fbo_t *fbo)
-{
-    return fbo->width;
-}
-
-/* XXX: common */
-int fbo_height(fbo_t *fbo)
-{
-    return fbo->height;
-}
 
 static void fbo_attachments_deinit(fbo_t *fbo)
 {
@@ -1096,7 +1095,7 @@ static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
     return r->mtl.cmd_buffer;
 }
 
-void fbo_prepare(fbo_t *fbo)
+static void mtl_fbo_prepare(fbo_t *fbo)
 {
     auto r = fbo->renderer;
 
@@ -1115,7 +1114,7 @@ void fbo_prepare(fbo_t *fbo)
     [fbo->mtl.cmd_encoder setViewport:viewport];
 }
 
-void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
+static void mtl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     auto r = fbo->renderer;
 
@@ -1134,14 +1133,6 @@ void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
     fbo->mtl.cmd_encoder = nil;
 }
 
-void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
-{
-}
-
-bool fbo_is_multisampled(fbo_t *fbo)
-{
-    return fbo->nr_samples > 1;
-}
 
 static MTLLoadAction mtl_load_action(fbo_load_action action)
 {
@@ -1250,7 +1241,7 @@ static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment attachment)
     return CERR_OK;
 }
 
-cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
+static cerr_check mtl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     if (!fbo)
         return CERR_INVALID_ARGUMENTS;
@@ -1338,17 +1329,6 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     return cresp_val(fbo_t, NOCU(fbo));
 }
 
-/* XXX: common */
-void fbo_put(fbo_t *fbo)
-{
-    ref_put(fbo);
-}
-
-/* XXX: common */
-void fbo_put_last(fbo_t *fbo)
-{
-    ref_put_last(fbo);
-}
 
 /****************************************************************************
  * Binding points
