@@ -65,6 +65,15 @@ static inline const char *character_name(struct character *c)
     return entity_name(character_entity(c));
 }
 
+/**
+ * entity3d_character() - get character from entity3d
+ * @e:  entity3d object
+ *
+ * Context: anywhere
+ * Return: character pointer or CERR_INVALID_OPERATION
+ */
+cresp(character) entity3d_character(entity3d *e);
+
 void character_set_moved(struct character *c);
 void character_handle_input(struct character *ch, struct scene *s, struct message *m);
 void character_move(struct character *ch, struct scene *s);

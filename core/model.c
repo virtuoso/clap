@@ -10,6 +10,9 @@
 #include "object.h"
 #include "mesh.h"
 #include "model.h"
+#include "noise.h"
+#include "character.h"
+#include "ui.h"
 #include "pngloader.h"
 #include "physics.h"
 #include "shader.h"
@@ -1091,6 +1094,93 @@ bool entity3d_matches(entity3d *e, entity3d_flags flags)
     return !!(e->flags & flags);
 }
 
+bool entity3d_is(entity3d *e, entity3d_query *query)
+{
+    if ((e->flags & query->all_of) != query->all_of)    return false;
+    if (!!(e->flags & query->none_of))                  return false;
+    if (query->any_of && !(e->flags & query->any_of))   return false;
+
+    return true;
+}
+
+cerr entity3d_set(entity3d *e, entity3d_flags flags, void *priv)
+{
+    entity3d_flags type = flags & ENTITY3D_TYPE_MASK;
+
+    if (type) {
+        /* Mutually exclusive type flags: only one allowed at a time */
+        if (e->flags & ENTITY3D_TYPE_MASK & ~type)
+            return CERR_INVALID_OPERATION;
+        e->priv = priv;
+    }
+
+    e->flags |= flags;
+
+    return CERR_OK;
+}
+
+void entity3d_clear(entity3d *e, entity3d_flags flags)
+{
+    if (flags & ENTITY3D_TYPE_MASK)
+        e->priv = NULL;
+    e->flags &= ~flags;
+}
+
+cresp(character) entity3d_character(entity3d *e)
+{
+    if (!entity3d_matches(e, ENTITY3D_IS_CHARACTER))
+        return cresp_error(character, CERR_INVALID_OPERATION);
+    return cresp_val(character, e->priv);
+}
+
+cresp(ui_element) entity3d_ui_element(entity3d *e)
+{
+    if (!entity3d_matches(e, ENTITY3D_IS_UI))
+        return cresp_error(ui_element, CERR_INVALID_OPERATION);
+    return cresp_val(ui_element, e->priv);
+}
+
+cresp(particle_system) entity3d_particle_system(entity3d *e)
+{
+    if (!entity3d_matches(e, ENTITY3D_IS_PARTICLE))
+        return cresp_error(particle_system, CERR_INVALID_OPERATION);
+    return cresp_val(particle_system, e->priv);
+}
+
+cres(size_t) mq_for_each_query(struct mq *mq, entity3d_query *query, entity3d_callback cb, void *data)
+{
+    model3dtx *txmodel;
+    entity3d *ent, *itent;
+    size_t count = 0;
+
+    list_for_each_entry(txmodel, &mq->txmodels, entry) {
+        list_for_each_entry_iter(ent, itent, &txmodel->entities, entry) {
+            if (!entity3d_is(ent, query))
+                continue;
+
+            cb(ent, data);
+            count++;
+        }
+    }
+
+    return count ? cres_val(size_t, count) : cres_error(size_t, CERR_NOT_FOUND);
+}
+
+cresp(entity3d) mq_find_first(struct mq *mq, entity3d_query *query)
+{
+    model3dtx *txmodel;
+    entity3d *ent;
+
+    list_for_each_entry(txmodel, &mq->txmodels, entry) {
+        list_for_each_entry(ent, &txmodel->entities, entry) {
+            if (entity3d_is(ent, query))
+                return cresp_val(entity3d, ent);
+        }
+    }
+
+    return cresp_error(entity3d, CERR_NOT_FOUND);
+}
+
 float entity3d_aabb_X(entity3d *e)
 {
     return model3d_aabb_X(e->txmodel->model) * e->scale;
@@ -1665,7 +1755,7 @@ DEFINE_REFCLASS2(entity3d);
 
 void entity3d_delete(entity3d *e)
 {
-    e->flags &= ENTITY3D_DEAD;
+    entity3d_clear(e, ENTITY3D_ALIVE);
     ref_put(e);
 }
 
@@ -1779,7 +1869,7 @@ void mq_release(struct mq *mq)
     }
 }
 
-void mq_for_each_matching(struct mq *mq, entity3d_flags flags, void (*cb)(entity3d *, void *), void *data)
+void mq_for_each_matching(struct mq *mq, entity3d_flags flags, entity3d_callback cb, void *data)
 {
     model3dtx *txmodel;
     entity3d *ent, *itent;

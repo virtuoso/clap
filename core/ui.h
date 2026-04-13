@@ -134,6 +134,15 @@ DEFINE_REFCLASS_INIT_OPTIONS(ui_element,
 );
 DECLARE_REFCLASS(ui_element);
 
+/**
+ * entity3d_ui_element() - get ui_element from entity3d
+ * @e:  entity3d object
+ *
+ * Context: anywhere
+ * Return: ui_element pointer or CERR_INVALID_OPERATION
+ */
+cresp(ui_element) entity3d_ui_element(entity3d *e);
+
 struct ui_widget {
     struct ui_element  *root;
     struct ui_element  **uies;

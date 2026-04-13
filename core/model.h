@@ -3,6 +3,7 @@
 #define __CLAP_MODEL_H__
 
 #include "common.h"
+#include "error.h"
 #include "object.h"
 #include "librarian.h"
 #include "particle.h"
@@ -270,16 +271,65 @@ static inline const char *txmodel_name(model3dtx *txm)
 
 /**
  * enum entity3d_flags - entity flags
- * @ENTITY3D_ALIVE: entity is alive and functional
- * @ENTITY3D_DEAD:  entity is about to be destroyed
- * @ENTITY3D_ANY:   matches any entity
+ * @ENTITY3D_VISIBLE:       entity is visible
+ * @ENTITY3D_IS_CHARACTER:  entity is a character
+ * @ENTITY3D_IS_UI:         entity is a UI element
+ * @ENTITY3D_IS_PARTICLE:   entity is a particle system
+ * @ENTITY3D_HAS_PHYSICS:   entity has a phys_body
+ * @ENTITY3D_PHYS_IS_BODY:  entity's phys_body is a dynamic body (not just a geom)
+ * @ENTITY3D_HAS_AABB:      entity has an AABB
+ * @ENTITY3D_OCCLUDER:      entity is rendered in shadow passes
+ * @ENTITY3D_LIGHT_SOURCE:  entity is a light source
+ * @ENTITY3D_RENDERABLE:    entity is renderable
+ * @ENTITY3D_EDITOR_ONLY:   entity is editor related
+ * @ENTITY3D_IS_GAME_ITEM:  entity is a game item
+ * @ENTITY3D_HAS_ARMATURE:  entity has an armature (skeleton)
+ * @ENTITY3D_IS_ANIMATED:   entity has animations
+ * @ENTITY3D_SKIP_CULLING:  entity bypasses frustum culling
+ * @ENTITY3D_SKIP_UPDATE:   entity bypasses per-frame update
+ * @ENTITY3D_ALIVE:         entity is alive and functional
+ * @ENTITY3D_ANY:           matches any entity
  */
 typedef enum entity3d_flags {
-    ENTITY3D_ALIVE  = 1u << 31,
-    /* XXX: this matches any non-ALIVE flags, which is not what we want */
-    ENTITY3D_DEAD   = ~ENTITY3D_ALIVE,
-    ENTITY3D_ANY    = ~0u,
+    ENTITY3D_VISIBLE        = 1u << 0,
+    ENTITY3D_IS_CHARACTER   = 1u << 1,
+    ENTITY3D_IS_UI          = 1u << 2,
+    ENTITY3D_IS_PARTICLE    = 1u << 3,
+    ENTITY3D_HAS_PHYSICS    = 1u << 4,
+    ENTITY3D_PHYS_IS_BODY   = 1u << 5,
+    ENTITY3D_HAS_AABB       = 1u << 6,
+    ENTITY3D_OCCLUDER       = 1u << 7,
+    ENTITY3D_LIGHT_SOURCE   = 1u << 8,
+    ENTITY3D_RENDERABLE     = 1u << 9,
+    ENTITY3D_EDITOR_ONLY    = 1u << 10,
+    ENTITY3D_IS_GAME_ITEM   = 1u << 11,
+    ENTITY3D_HAS_ARMATURE   = 1u << 12,
+    ENTITY3D_IS_ANIMATED    = 1u << 13,
+    ENTITY3D_SKIP_CULLING   = 1u << 14,
+    ENTITY3D_SKIP_UPDATE    = 1u << 15,
+    ENTITY3D_ALIVE          = 1u << 31,
+    ENTITY3D_ANY            = ~0u,
 } entity3d_flags;
+
+/**
+ * Mutually exclusive entity type flags: an entity can be at most one of
+ * character, UI element, or particle system, because they all share the
+ * ->priv pointer for their back-reference.
+ */
+#define ENTITY3D_TYPE_MASK  (ENTITY3D_IS_CHARACTER | ENTITY3D_IS_UI | ENTITY3D_IS_PARTICLE)
+
+typedef void (*entity3d_callback)(entity3d *, void *);
+
+typedef struct entity3d_query {
+    entity3d_flags          all_of;
+    entity3d_flags          any_of;
+    entity3d_flags          none_of;
+} entity3d_query;
+
+#define E3DQ(args...)       (entity3d_query) { args }
+#define E3DQS(args...)      (entity3d_query[]) { args, {} }
+
+bool entity3d_is(entity3d *e, entity3d_query *query);
 
 struct mq {
     struct list     txmodels;
@@ -290,7 +340,8 @@ struct mq {
 void mq_init(struct mq *mq, void *priv);
 void mq_release(struct mq *mq);
 void mq_update(struct mq *mq);
-void mq_for_each_matching(struct mq *mq, entity3d_flags flags, void (*cb)(entity3d *, void *), void *data);
+void mq_for_each_matching(struct mq *mq, entity3d_flags flags, entity3d_callback cb, void *data);
+cres(size_t) mq_for_each_query(struct mq *mq, entity3d_query *query, entity3d_callback cb, void *data);
 void mq_for_each(struct mq *mq, void (*cb)(entity3d *, void *), void *data);
 model3dtx *mq_model_first(struct mq *mq);
 model3dtx *mq_model_last(struct mq *mq);
@@ -385,7 +436,11 @@ DEFINE_REFCLASS_INIT_OPTIONS(entity3d,
 );
 DECLARE_REFCLASS(entity3d);
 
+cerr entity3d_set(entity3d *e, entity3d_flags flags, void *priv);
+void entity3d_clear(entity3d *e, entity3d_flags flags);
+
 cresp(entity3d) mq_find_entity(struct mq *mq, const char *name);
+cresp(entity3d) mq_find_first(struct mq *mq, entity3d_query *query);
 
 typedef struct models_render_options {
     struct shader_prog  *shader_override;
@@ -615,6 +670,15 @@ void entity3d_delete(entity3d *e);
  * Return: true if any of the @flags is set in the entity3d, false otherwise
  */
 bool entity3d_matches(entity3d *e, entity3d_flags flags);
+
+/**
+ * entity3d_particle_system() - get particle_system from entity3d
+ * @e:  entity3d object
+ *
+ * Context: anywhere
+ * Return: particle_system pointer or CERR_INVALID_OPERATION
+ */
+cresp(particle_system) entity3d_particle_system(entity3d *e);
 
 /**
  * entity3d_set_lod() - Set entity's LOD (level-of-detail)
