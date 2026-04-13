@@ -60,6 +60,20 @@ static cerr gl_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *bind
 static void gl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points);
 static cerr gl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                   size_t *size, unsigned int count, const void *value);
+static cerr gl_shader_init(renderer_t *r, shader_t *shader,
+                           const char *vertex, const char *geometry, const char *fragment);
+static void gl_shader_done(shader_t *shader);
+static void gl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                                       size_t *offs, data_type *types,
+                                       size_t *comp_counts, unsigned int nr_attrs);
+static int gl_shader_id(shader_t *shader);
+static cerr gl_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
+static attr_t gl_shader_attribute(shader_t *shader, const char *name, attr_t attr);
+static uniform_t gl_shader_uniform(shader_t *shader, const char *name);
+static cerr gl_shader_use(shader_t *shader, bool draw);
+static void gl_shader_unuse(shader_t *shader, bool draw);
+static cres(size_t) gl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
+
 
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
@@ -102,6 +116,16 @@ static const renderer_ops gl_renderer_ops = {
     .ubo_bind       = gl_uniform_buffer_bind,
     .ubo_update     = gl_uniform_buffer_update,
     .ubo_set        = gl_uniform_buffer_set,
+    .shader_init    = gl_shader_init,
+    .shader_done    = gl_shader_done,
+    .shader_set_vertex_attrs = gl_shader_set_vertex_attrs,
+    .shader_id      = gl_shader_id,
+    .shader_ubo_bind = gl_shader_uniform_buffer_bind,
+    .shader_attribute = gl_shader_attribute,
+    .shader_uniform = gl_shader_uniform,
+    .shader_use     = gl_shader_use,
+    .shader_unuse   = gl_shader_unuse,
+    .shader_ubo_offset_query = gl_shader_uniform_offset_query,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -1475,7 +1499,7 @@ static void gl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *bi
     ubo->dirty = false;
 }
 
-cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name)
+static cres(size_t) gl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name)
 {
     char fqname[128];
     snprintf(fqname, sizeof(fqname), "%s.%s", ubo_name, var_name);
@@ -1523,7 +1547,7 @@ static GLuint load_shader(GLenum type, const char *source)
     return shader;
 }
 
-cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
+static cerr gl_shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
 {
     shader->gl.vert = load_shader(GL_VERTEX_SHADER, vertex);
     shader->gl.geom =
@@ -1573,7 +1597,7 @@ cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char
     return ret;
 }
 
-void shader_done(shader_t *shader)
+static void gl_shader_done(shader_t *shader)
 {
     GL(glDeleteProgram(shader->gl.prog));
     GL(glDeleteShader(shader->gl.vert));
@@ -1582,13 +1606,13 @@ void shader_done(shader_t *shader)
         GL(glDeleteShader(shader->gl.geom));
 }
 
-void shader_set_vertex_attrs(shader_t *shader, size_t stride,
-                             size_t *offs, data_type *types, size_t *comp_counts,
-                             unsigned int nr_attrs)
+static void gl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                                       size_t *offs, data_type *types, size_t *comp_counts,
+                                       unsigned int nr_attrs)
 {
 }
 
-int shader_id(shader_t *shader)
+static int gl_shader_id(shader_t *shader)
 {
     return shader->gl.prog;
 }
@@ -1599,7 +1623,7 @@ static cres(int) shader_uniform_block_index(shader_t *shader, const char *name)
     return index == GL_INVALID_INDEX ? cres_error(int, CERR_INVALID_INDEX) : cres_val(int, index);
 }
 
-cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
+static cerr gl_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
 {
     cres(int) res = shader_uniform_block_index(shader, name);
     if (IS_CERR(res))
@@ -1610,23 +1634,23 @@ cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const c
     return CERR_OK;
 }
 
-attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
+static attr_t gl_shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
     return glGetAttribLocation(shader->gl.prog, name);
 }
 
-uniform_t shader_uniform(shader_t *shader, const char *name)
+static uniform_t gl_shader_uniform(shader_t *shader, const char *name)
 {
     return glGetUniformLocation(shader->gl.prog, name);
 }
 
-cerr shader_use(shader_t *shader, bool draw)
+static cerr gl_shader_use(shader_t *shader, bool draw)
 {
     GL(glUseProgram(shader->gl.prog));
     return CERR_OK;
 }
 
-void shader_unuse(shader_t *shader, bool draw)
+static void gl_shader_unuse(shader_t *shader, bool draw)
 {
     GL(glUseProgram(0));
 }

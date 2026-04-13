@@ -797,6 +797,7 @@ cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *off
                               unsigned int count, const void *value);
 
 TYPE(shader,
+    renderer_t  *renderer;
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
         GLuint  vert;
@@ -844,11 +845,7 @@ cerr_check shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, c
 attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr);
 uniform_t shader_uniform(shader_t *shader, const char *name);
 
-#ifdef CONFIG_RENDERER_WGPU
 void shader_set_name(shader_t *shader, const char *name);
-#else /* !CONFIG_RENDERER_WGPU */
-static inline void shader_set_name(shader_t *shader, const char *name) {}
-#endif /* !CONFIG_RENDERER_WGPU */
 
 cerr_check shader_use(shader_t *shader, bool draw);
 void shader_unuse(shader_t *shader, bool draw);
@@ -1132,6 +1129,21 @@ typedef struct renderer_ops {
     void                (*ubo_update)(uniform_buffer_t *ubo, binding_points_t *binding_points);
     cerr                (*ubo_set)(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                    size_t *size, unsigned int count, const void *value);
+    cerr                (*shader_init)(renderer_t *r, shader_t *shader,
+                                      const char *vertex, const char *geometry, const char *fragment);
+    void                (*shader_done)(shader_t *shader);
+    void                (*shader_set_vertex_attrs)(shader_t *shader, size_t stride,
+                                                   size_t *offs, data_type *types,
+                                                   size_t *comp_counts, unsigned int nr_attrs);
+    int                 (*shader_id)(shader_t *shader);
+    cerr                (*shader_ubo_bind)(shader_t *shader, binding_points_t *bpt, const char *name);
+    attr_t              (*shader_attribute)(shader_t *shader, const char *name, attr_t attr);
+    uniform_t           (*shader_uniform)(shader_t *shader, const char *name);
+    cerr                (*shader_use)(shader_t *shader, bool draw);
+    void                (*shader_unuse)(shader_t *shader, bool draw);
+    cres(size_t)        (*shader_ubo_offset_query)(shader_t *shader, const char *ubo_name,
+                                                   const char *var_name);
+    void                (*shader_set_name)(shader_t *shader, const char *name);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 

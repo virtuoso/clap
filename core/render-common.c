@@ -435,6 +435,64 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
 }
 
 /****************************************************************************
+ * Shaders
+ ****************************************************************************/
+
+cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
+{
+    cerr err = r->ops->shader_init(r, shader, vertex, geometry, fragment);
+    shader->renderer = r;
+    return err;
+}
+
+void shader_done(shader_t *shader) { if (!shader->renderer) return; shader->renderer->ops->shader_done(shader); }
+
+void shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                             size_t *offs, data_type *types, size_t *comp_counts,
+                             unsigned int nr_attrs)
+{
+    if (!shader->renderer)   return;
+    shader->renderer->ops->shader_set_vertex_attrs(shader, stride, offs, types, comp_counts, nr_attrs);
+}
+
+int shader_id(shader_t *shader) { if (!shader->renderer) return -1; return shader->renderer->ops->shader_id(shader); }
+
+cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
+{
+    if (!shader->renderer)   return CERR_INVALID_ARGUMENTS;
+    return shader->renderer->ops->shader_ubo_bind(shader, bpt, name);
+}
+
+attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
+{
+    if (!shader->renderer)   return attr;
+    return shader->renderer->ops->shader_attribute(shader, name, attr);
+}
+
+uniform_t shader_uniform(shader_t *shader, const char *name)
+{
+    if (!shader->renderer)   return -1;
+    return shader->renderer->ops->shader_uniform(shader, name);
+}
+
+cerr shader_use(shader_t *shader, bool draw) { if (!shader->renderer) return CERR_INVALID_ARGUMENTS; return shader->renderer->ops->shader_use(shader, draw); }
+void shader_unuse(shader_t *shader, bool draw) { if (!shader->renderer) return; shader->renderer->ops->shader_unuse(shader, draw); }
+
+cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name)
+{
+    if (!shader->renderer)   return cres_error(size_t, CERR_INVALID_ARGUMENTS);
+    return shader->renderer->ops->shader_ubo_offset_query(shader, ubo_name, var_name);
+}
+
+void shader_set_name(shader_t *shader, const char *name)
+{
+    if (!shader->renderer || !shader->renderer->ops->shader_set_name)
+        return;
+    shader->renderer->ops->shader_set_name(shader, name);
+}
+
+
+/****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/
 

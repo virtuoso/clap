@@ -74,6 +74,20 @@ static cerr wgpu_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *bi
 static void wgpu_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points);
 static cerr wgpu_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                     size_t *size, unsigned int count, const void *value);
+static cerr wgpu_shader_init(renderer_t *r, shader_t *shader,
+                             const char *vertex, const char *geometry, const char *fragment);
+static void wgpu_shader_done(shader_t *shader);
+static void wgpu_shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                                         size_t *offs, data_type *types,
+                                         size_t *comp_counts, unsigned int nr_attrs);
+static int wgpu_shader_id(shader_t *shader);
+static cerr wgpu_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
+static attr_t wgpu_shader_attribute(shader_t *shader, const char *name, attr_t attr);
+static uniform_t wgpu_shader_uniform(shader_t *shader, const char *name);
+static cerr wgpu_shader_use(shader_t *shader, bool draw);
+static void wgpu_shader_unuse(shader_t *shader, bool draw);
+static cres(size_t) wgpu_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
+static void wgpu_shader_set_name(shader_t *shader, const char *name);
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
@@ -129,6 +143,17 @@ static const renderer_ops wgpu_renderer_ops = {
     .ubo_bind       = wgpu_uniform_buffer_bind,
     .ubo_update     = wgpu_uniform_buffer_update,
     .ubo_set        = wgpu_uniform_buffer_set,
+    .shader_init    = wgpu_shader_init,
+    .shader_done    = wgpu_shader_done,
+    .shader_set_vertex_attrs = wgpu_shader_set_vertex_attrs,
+    .shader_id      = wgpu_shader_id,
+    .shader_ubo_bind = wgpu_shader_uniform_buffer_bind,
+    .shader_attribute = wgpu_shader_attribute,
+    .shader_uniform = wgpu_shader_uniform,
+    .shader_use     = wgpu_shader_use,
+    .shader_unuse   = wgpu_shader_unuse,
+    .shader_ubo_offset_query = wgpu_shader_uniform_offset_query,
+    .shader_set_name = wgpu_shader_set_name,
 };
 
 enum {
@@ -1433,8 +1458,8 @@ static cres(wgpu_shader_module_t) wgpu_create_shader_module(renderer_t *r, const
     return cres_val(wgpu_shader_module_t, module);
 }
 
-cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex,
-                 const char *geometry, const char *fragment)
+static cerr wgpu_shader_init(renderer_t *r, shader_t *shader, const char *vertex,
+                             const char *geometry, const char *fragment)
 {
     shader->wgpu.renderer = r;
     shader->wgpu.binding_mask = 0;
@@ -1472,9 +1497,9 @@ static WGPUVertexFormat wgpu_vertex_format(data_type type)
     return WGPUVertexFormat_Force32;
 }
 
-void shader_set_vertex_attrs(shader_t *shader, size_t stride,
-                             size_t *offs, data_type *types,
-                             size_t *comp_counts, unsigned int nr_attrs)
+static void wgpu_shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                                         size_t *offs, data_type *types,
+                                         size_t *comp_counts, unsigned int nr_attrs)
 {
     shader->wgpu.vertex_stride = stride;
     shader->wgpu.nr_vertex_attrs = nr_attrs;
@@ -1490,13 +1515,13 @@ void shader_set_vertex_attrs(shader_t *shader, size_t stride,
     }
 }
 
-void shader_set_name(shader_t *shader, const char *name)
+static void wgpu_shader_set_name(shader_t *shader, const char *name)
 {
     free(shader->wgpu.name);
     shader->wgpu.name = strdup(name);
 }
 
-void shader_done(shader_t *shader)
+static void wgpu_shader_done(shader_t *shader)
 {
     free(shader->wgpu.name);
 
@@ -1510,24 +1535,24 @@ void shader_done(shader_t *shader)
     }
 }
 
-int shader_id(shader_t *shader)
+static int wgpu_shader_id(shader_t *shader)
 {
     return (int)(uintptr_t)shader;
 }
 
-cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt,
-                                const char *name)
+static cerr wgpu_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt,
+                                            const char *name)
 {
     shader->wgpu.binding_mask |= 1ull << bpt->binding;
     return CERR_OK;
 }
 
-attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
+static attr_t wgpu_shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
     return attr;
 }
 
-uniform_t shader_uniform(shader_t *shader, const char *name)
+static uniform_t wgpu_shader_uniform(shader_t *shader, const char *name)
 {
     /* WGPU has no runtime uniform location query; reflection JSON
      * populates p->vars[] directly via shader_reflection_apply(). */
@@ -1551,7 +1576,7 @@ static cresp(draw_control) wgpu_dc_find_or_create(renderer_t *r, shader_t *shade
     return cresp_val(draw_control, dc);
 }
 
-cerr shader_use(shader_t *shader, bool draw)
+static cerr wgpu_shader_use(shader_t *shader, bool draw)
 {
     if (!draw)  return CERR_OK;
 
@@ -1570,13 +1595,13 @@ cerr shader_use(shader_t *shader, bool draw)
     return CERR_OK;
 }
 
-void shader_unuse(shader_t *shader, bool draw)
+static void wgpu_shader_unuse(shader_t *shader, bool draw)
 {
 }
 
-cres(size_t)
-shader_uniform_offset_query(shader_t *shader, const char *ubo_name,
-                            const char *var_name)
+static cres(size_t)
+wgpu_shader_uniform_offset_query(shader_t *shader, const char *ubo_name,
+                                 const char *var_name)
 {
     return cres_error(size_t, CERR_NOT_FOUND);
 }

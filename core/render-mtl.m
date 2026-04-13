@@ -69,6 +69,19 @@ static cerr mtl_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *bin
 static void mtl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points);
 static cerr mtl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                    size_t *size, unsigned int count, const void *value);
+static cerr mtl_shader_init(renderer_t *r, shader_t *shader,
+                            const char *vertex, const char *geometry, const char *fragment);
+static void mtl_shader_done(shader_t *shader);
+static void mtl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                                        size_t *offs, data_type *types,
+                                        size_t *comp_counts, unsigned int nr_attrs);
+static cerr mtl_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
+static attr_t mtl_shader_attribute(shader_t *shader, const char *name, attr_t attr);
+static uniform_t mtl_shader_uniform(shader_t *shader, const char *name);
+static cerr mtl_shader_use(shader_t *shader, bool draw);
+static void mtl_shader_unuse(shader_t *shader, bool draw);
+static int mtl_shader_id(shader_t *shader);
+static cres(size_t) mtl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
@@ -124,6 +137,16 @@ static const renderer_ops mtl_renderer_ops = {
     .ubo_bind       = mtl_uniform_buffer_bind,
     .ubo_update     = mtl_uniform_buffer_update,
     .ubo_set        = mtl_uniform_buffer_set,
+    .shader_init    = mtl_shader_init,
+    .shader_done    = mtl_shader_done,
+    .shader_set_vertex_attrs = mtl_shader_set_vertex_attrs,
+    .shader_id      = mtl_shader_id,
+    .shader_ubo_bind = mtl_shader_uniform_buffer_bind,
+    .shader_attribute = mtl_shader_attribute,
+    .shader_uniform = mtl_shader_uniform,
+    .shader_use     = mtl_shader_use,
+    .shader_unuse   = mtl_shader_unuse,
+    .shader_ubo_offset_query = mtl_shader_uniform_offset_query,
 };
 
 /****************************************************************************
@@ -1505,7 +1528,7 @@ static void mtl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *b
     ubo->dirty = false;
 }
 
-cres(size_t) shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name)
+static cres(size_t) mtl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name)
 {
     return cres_error(size_t, CERR_NOT_FOUND);
 }
@@ -1549,8 +1572,8 @@ static cres(mtl_function_t) mtl_function_create(renderer_t *r, const char *sourc
     return cres_val(mtl_function_t, func);
 }
 
-cerr shader_init(renderer_t *r, shader_t *shader,
-                 const char *vertex, const char *geometry, const char *fragment)
+static cerr mtl_shader_init(renderer_t *r, shader_t *shader,
+                            const char *vertex, const char *geometry, const char *fragment)
 {
     shader->mtl.id = CRES_RET_CERR(bitmap_find_first_unset(&r->mtl.shader_ids));
     bitmap_set(&r->mtl.shader_ids, shader->mtl.id);
@@ -1566,9 +1589,9 @@ cerr shader_init(renderer_t *r, shader_t *shader,
     return CERR_OK;
 }
 
-void shader_set_vertex_attrs(shader_t *shader, size_t stride,
-                             size_t *offs, data_type *types, size_t *comp_counts,
-                             unsigned int nr_attrs)
+static void mtl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
+                                        size_t *offs, data_type *types, size_t *comp_counts,
+                                        unsigned int nr_attrs)
 {
     shader->mtl.vdesc = [[MTLVertexDescriptor alloc] init];
     shader->mtl.vdesc = [shader->mtl.vdesc retain];
@@ -1583,7 +1606,7 @@ void shader_set_vertex_attrs(shader_t *shader, size_t stride,
     shader->mtl.vdesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
 }
 
-void shader_done(shader_t *shader)
+static void mtl_shader_done(shader_t *shader)
 {
     auto r = shader->mtl.renderer;
     bitmap_clear(&r->mtl.shader_ids, shader->mtl.id);
@@ -1597,13 +1620,18 @@ void shader_done(shader_t *shader)
     [shader->mtl.frag release];
 }
 
-attr_t shader_attribute(shader_t *shader, const char *name, attr_t attr)
+static attr_t mtl_shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
     /* attribute locations are shared between core and shaders */
     return attr;
 }
 
-uniform_t shader_uniform(shader_t *shader, const char *name)
+static int mtl_shader_id(shader_t *shader)
+{
+    return shader->mtl.id;
+}
+
+static uniform_t mtl_shader_uniform(shader_t *shader, const char *name)
 {
     if (!shader->mtl.reflection)                    return UA_UNKNOWN;
     if (!shader->mtl.reflection.fragmentBindings)   return UA_UNKNOWN;
@@ -1616,14 +1644,14 @@ uniform_t shader_uniform(shader_t *shader, const char *name)
     return UA_NOT_PRESENT;
 }
 
-cerr shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
+static cerr mtl_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
 {
     renderer_t *r = shader->mtl.renderer;
 
     return CERR_OK;
 }
 
-cerr shader_use(shader_t *shader, bool draw)
+static cerr mtl_shader_use(shader_t *shader, bool draw)
 {
     if (!draw)  return CERR_OK;
 
@@ -1644,7 +1672,7 @@ cerr shader_use(shader_t *shader, bool draw)
     return CERR_OK;
 }
 
-void shader_unuse(shader_t *shader, bool draw)
+static void mtl_shader_unuse(shader_t *shader, bool draw)
 {
     if (!draw)  return;
 
