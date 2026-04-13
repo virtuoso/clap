@@ -463,7 +463,7 @@ cerr_check texture_load(texture_t *tex, texture_format format,
                         unsigned int width, unsigned int height, void *buf);
 cerr_check texture_resize(texture_t *tex, unsigned int width, unsigned int height);
 texid_t texture_id(texture_t *tex);
-void texture_bind(texture_t *tex, unsigned int target);
+void texture_bind(texture_t *tex, unsigned int target, uniform_t uniform);
 void texture_unbind(texture_t *tex, unsigned int target);
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight);
 bool texture_loaded(texture_t *tex);
@@ -476,15 +476,11 @@ void textures_done(void);
 texture_t *white_pixel(void);
 texture_t *black_pixel(void);
 texture_t *transparent_pixel(void);
-#ifdef CONFIG_RENDERER_OPENGL
-static inline cres(int) texture_set_name(texture_t *tex, const char *fmt, ...) { return cres_error(int, CERR_NOT_SUPPORTED); }
-#else
-# ifdef CONFIG_FINAL
+#ifdef CONFIG_FINAL
 static inline cres(int) texture_set_name(texture_t *tex, const char *fmt, ...) { return cres_val(int, 0); }
-# else /* !CONFIG_FINAL */
+#else
 cres(int) texture_set_name(texture_t *tex, const char *fmt, ...);
-# endif /* !CONFIG_FINAL */
-#endif /* !CONFIG_FINAL */
+#endif /* CONFIG_FINAL */
 
 
 /*
@@ -1114,6 +1110,15 @@ typedef struct renderer_ops {
     void                (*dc_done)(draw_control_t *dc);
     void                (*dc_bind)(draw_control_t *dc);
     void                (*dc_unbind)(draw_control_t *dc);
+    cerr                (*tex_init)(texture_t *tex, const texture_init_options *opts);
+    void                (*tex_deinit)(texture_t *tex);
+    cerr                (*tex_load)(texture_t *tex, texture_format format,
+                                    unsigned int width, unsigned int height, void *buf);
+    cerr                (*tex_resize)(texture_t *tex, unsigned int width, unsigned int height);
+    void                (*tex_bind)(texture_t *tex, unsigned int target, uniform_t uniform);
+    void                (*tex_unbind)(texture_t *tex, unsigned int target);
+    bool                (*tex_is_array)(texture_t *tex);
+    void                (*tex_set_name)(texture_t *tex, const char *name);
 } renderer_ops;
 #endif /* IMPLEMENTOR */
 

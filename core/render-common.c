@@ -238,6 +238,93 @@ void draw_control_unbind(draw_control_t *dc)
     dc->renderer->ops->dc_unbind(dc);
 }
 
+bool texture_loaded(texture_t *tex)
+{
+    return tex->loaded;
+}
+
+bool texture_is_multisampled(texture_t *tex)
+{
+    return tex && tex->multisampled;
+}
+
+cerr _texture_init(texture_t *tex, const texture_init_options *opts)
+{
+    renderer_t *r = opts->renderer;
+    cerr err = r->ops->tex_init(tex, opts);
+    tex->renderer = r;
+    return err;
+}
+
+void texture_deinit(texture_t *tex)
+{
+    if (!tex->renderer)   return;
+    tex->renderer->ops->tex_deinit(tex);
+}
+
+cerr texture_load(texture_t *tex, texture_format format,
+                  unsigned int width, unsigned int height, void *buf)
+{
+    if (!tex->renderer)   return CERR_INVALID_ARGUMENTS;
+    return tex->renderer->ops->tex_load(tex, format, width, height, buf);
+}
+
+cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
+{
+    if (!tex->renderer)   return CERR_INVALID_ARGUMENTS;
+    return tex->renderer->ops->tex_resize(tex, width, height);
+}
+
+void texture_bind(texture_t *tex, unsigned int target, uniform_t uniform)
+{
+    if (!tex->renderer)   return;
+    tex->renderer->ops->tex_bind(tex, target, uniform);
+}
+
+void texture_unbind(texture_t *tex, unsigned int target)
+{
+    if (!tex->renderer || !tex->renderer->ops->tex_unbind)    return;
+    tex->renderer->ops->tex_unbind(tex, target);
+}
+
+bool texture_is_array(texture_t *tex)
+{
+    if (!tex->renderer)   return false;
+    return tex->renderer->ops->tex_is_array(tex);
+}
+
+#ifndef CONFIG_FINAL
+cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
+{
+    if (!tex->renderer || !tex->renderer->ops->tex_set_name)
+        return cres_val(int, 0);
+
+    va_list ap;
+    va_start(ap, fmt);
+    char label[128];
+    vsnprintf(label, sizeof(label), fmt, ap);
+    va_end(ap);
+
+    tex->renderer->ops->tex_set_name(tex, label);
+
+    return cres_val(int, 0);
+}
+#endif /* CONFIG_FINAL */
+
+void texture_done(texture_t *tex)
+{
+    if (tex && !ref_is_static(&tex->ref))
+        ref_put_last(tex);
+}
+
+void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
+{
+    if (pwidth)
+        *pwidth = tex ? tex->width : 0;
+    if (pheight)
+        *pheight = tex ? tex->height : 0;
+}
+
 /****************************************************************************
  * UBO packing: std140 and the like
  ****************************************************************************/

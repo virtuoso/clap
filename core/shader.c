@@ -478,8 +478,7 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
     const struct shader_var_desc *desc = &shader_var_desc[var];
     int texture_slot = shader_texture_binding(desc->texture_slot);
 
-    if (texture_loaded(tex))    texture_bind(tex, texture_slot);
-    uniform_set_ptr(p->vars[var], desc->type, 1, &texture_slot);
+    if (texture_loaded(tex))    texture_bind(tex, texture_slot, p->vars[var]);
 }
 
 void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)

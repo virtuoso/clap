@@ -39,6 +39,14 @@ static cerr gl_vertex_array_init(vertex_array_t *va, renderer_t *r);
 static void gl_vertex_array_done(vertex_array_t *va);
 static void gl_vertex_array_bind(vertex_array_t *va);
 static void gl_vertex_array_unbind(vertex_array_t *va);
+static cerr gl_texture_init(texture_t *tex, const texture_init_options *opts);
+static void gl_texture_deinit(texture_t *tex);
+static cerr gl_texture_load(texture_t *tex, texture_format format,
+                            unsigned int width, unsigned int height, void *buf);
+static cerr gl_texture_resize(texture_t *tex, unsigned int width, unsigned int height);
+static void gl_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform);
+static void gl_texture_unbind(texture_t *tex, unsigned int target);
+static bool gl_texture_is_array(texture_t *tex);
 
 static const renderer_ops gl_renderer_ops = {
     .get_caps       = gl_renderer_get_caps,
@@ -62,6 +70,13 @@ static const renderer_ops gl_renderer_ops = {
     .va_done    = gl_vertex_array_done,
     .va_bind    = gl_vertex_array_bind,
     .va_unbind  = gl_vertex_array_unbind,
+    .tex_init   = gl_texture_init,
+    .tex_deinit = gl_texture_deinit,
+    .tex_load   = gl_texture_load,
+    .tex_resize = gl_texture_resize,
+    .tex_bind   = gl_texture_bind,
+    .tex_unbind = gl_texture_unbind,
+    .tex_is_array = gl_texture_is_array,
 };
 
 #if defined(CONFIG_BROWSER) || !(defined(__glu_h__) || defined(GLU_H))
@@ -530,18 +545,13 @@ static GLenum gl_texture_component_type(texture_format fmt)
     return GL_NONE;
 }
 
-bool texture_is_array(texture_t *tex)
+static bool gl_texture_is_array(texture_t *tex)
 {
     return tex->gl.type == GL_TEXTURE_2D_ARRAY ||
            tex->gl.type == GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
 }
 
-bool texture_is_multisampled(texture_t *tex)
-{
-    return tex->multisampled;
-}
-
-cerr _texture_init(texture_t *tex, const texture_init_options *opts)
+static cerr gl_texture_init(texture_t *tex, const texture_init_options *opts)
 {
     bool multisampled   = opts->multisampled;
 #ifdef CONFIG_GLES
@@ -614,7 +624,7 @@ texture_t *texture_clone(texture_t *tex)
     return ret;
 }
 
-void texture_deinit(texture_t *tex)
+static void gl_texture_deinit(texture_t *tex)
 {
     if (!tex->loaded)
         return;
@@ -655,7 +665,7 @@ static bool texture_size_valid(unsigned int width, unsigned int height)
            height < gl_limits[RENDER_LIMIT_MAX_TEXTURE_SIZE];
 }
 
-cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
+static cerr gl_texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
     if (!tex->loaded)
         return CERR_TEXTURE_NOT_LOADED;
@@ -707,8 +717,8 @@ static void texture_setup_end(texture_t *tex)
     GL(glBindTexture(tex->gl.type, 0));
 }
 
-cerr_check texture_load(texture_t *tex, texture_format format,
-                        unsigned int width, unsigned int height, void *buf)
+static cerr gl_texture_load(texture_t *tex, texture_format format,
+                            unsigned int width, unsigned int height, void *buf)
 {
     if (!texture_size_valid(width, height))
         return CERR_INVALID_TEXTURE_SIZE_REASON(
@@ -780,42 +790,28 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
     return CERR_OK;
 }
 
-void texture_bind(texture_t *tex, unsigned int target)
+static void gl_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform)
 {
     /* XXX: make tex->gl.target useful for this instead */
     GL(glActiveTexture(GL_TEXTURE0 + target));
     GL(glBindTexture(tex->gl.type, tex->gl.id));
+    if (uniform >= 0)
+        GL(glUniform1i(uniform, target));
 }
 
-void texture_unbind(texture_t *tex, unsigned int target)
+static void gl_texture_unbind(texture_t *tex, unsigned int target)
 {
     /* XXX: make tex->gl.target useful for this instead */
     GL(glActiveTexture(GL_TEXTURE0 + target));
     GL(glBindTexture(tex->gl.type, 0));
 }
 
-void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
-{
-    *pwidth = tex->width;
-    *pheight = tex->height;
-}
-
-void texture_done(struct texture *tex)
-{
-    if (!ref_is_static(&tex->ref))
-        ref_put_last(tex);
-}
 
 texid_t texture_id(struct texture *tex)
 {
     if (!tex)
         return 0;
     return tex->gl.id;
-}
-
-bool texture_loaded(struct texture *tex)
-{
-    return tex->loaded;
 }
 
 /****************************************************************************

@@ -46,7 +46,15 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
 static void mtl_draw_control_done(draw_control_t *dc);
 static void mtl_draw_control_bind(draw_control_t *dc);
 static void mtl_draw_control_unbind(draw_control_t *dc);
+static cerr mtl_texture_init(texture_t *tex, const texture_init_options *opts);
+static void mtl_texture_deinit(texture_t *tex);
+static cerr mtl_texture_load(texture_t *tex, texture_format format,
+                             unsigned int width, unsigned int height, void *buf);
+static cerr mtl_texture_resize(texture_t *tex, unsigned int width, unsigned int height);
+static void mtl_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform);
+static bool mtl_texture_is_array(texture_t *tex);
 #ifndef CONFIG_FINAL
+static void mtl_texture_set_name(texture_t *tex, const char *name);
 static void mtl_buffer_set_name(buffer_t *buf, const char *name);
 #endif
 
@@ -84,6 +92,15 @@ static const renderer_ops mtl_renderer_ops = {
     .dc_done    = mtl_draw_control_done,
     .dc_bind    = mtl_draw_control_bind,
     .dc_unbind  = mtl_draw_control_unbind,
+    .tex_init   = mtl_texture_init,
+    .tex_deinit = mtl_texture_deinit,
+    .tex_load   = mtl_texture_load,
+    .tex_resize = mtl_texture_resize,
+    .tex_bind   = mtl_texture_bind,
+    .tex_is_array = mtl_texture_is_array,
+#ifndef CONFIG_FINAL
+    .tex_set_name = mtl_texture_set_name,
+#endif
 };
 
 /****************************************************************************
@@ -731,34 +748,22 @@ static void texture_drop(struct ref *ref)
 DEFINE_REFCLASS2(texture);
 DECLARE_REFCLASS(texture);
 
-bool texture_is_array(texture_t *tex)
+static bool mtl_texture_is_array(texture_t *tex)
 {
     return tex->mtl.type == TEX_2D_ARRAY;
 }
 
-bool texture_is_multisampled(texture_t *tex)
-{
-    return tex->multisampled;
-}
-
-cerr _texture_init(texture_t *tex, const texture_init_options *opts)
+static cerr mtl_texture_init(texture_t *tex, const texture_init_options *opts)
 {
     return ref_embed_opts(texture, tex, opts);
 }
 
 #ifndef CONFIG_FINAL
-cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
+static void mtl_texture_set_name(texture_t *tex, const char *name)
 {
-    va_list ap;
-
     mem_free(tex->mtl.name);
-    va_start(ap, fmt);
-    cres(int) res = mem_vasprintf(&tex->mtl.name, fmt, ap);
-    va_end(ap);
-
-    [tex->mtl.texture setLabel:[NSString stringWithUTF8String:tex->mtl.name]];
-
-    return res;
+    mem_asprintf(&tex->mtl.name, "%s", name);
+    [tex->mtl.texture setLabel:[NSString stringWithUTF8String:name]];
 }
 #endif /* CONFIG_FINAL */
 
@@ -792,7 +797,7 @@ texture_t *texture_clone(texture_t *tex)
     return ret;
 }
 
-void texture_deinit(texture_t *tex)
+static void mtl_texture_deinit(texture_t *tex)
 {
     if (tex->mtl.sampler && !tex->loaded)   err("unloaded texture has a sampler: '%s'\n", tex->mtl.name);
     if (tex->mtl.sampler)   [tex->mtl.sampler release];
@@ -806,7 +811,7 @@ void texture_deinit(texture_t *tex)
     tex->mtl.name = NULL;
 }
 
-cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
+static cerr mtl_texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
     mem_free(tex->mtl.name);
 
@@ -857,8 +862,8 @@ static NSUInteger mtl_row_bytes(texture_format format, int width)
     return 0;
 }
 
-cerr_check texture_load(texture_t *tex, texture_format format,
-                        unsigned int width, unsigned int height, void *buf)
+static cerr mtl_texture_load(texture_t *tex, texture_format format,
+                             unsigned int width, unsigned int height, void *buf)
 {
     tex->width  = width;
     tex->height = height;
@@ -937,7 +942,7 @@ cerr_check texture_load(texture_t *tex, texture_format format,
     return CERR_OK;
 }
 
-void texture_bind(texture_t *tex, unsigned int target)
+static void mtl_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform)
 {
     auto r = tex->renderer;
 
@@ -952,23 +957,6 @@ void texture_bind(texture_t *tex, unsigned int target)
     }
 }
 
-void texture_unbind(texture_t *tex, unsigned int target)
-{
-}
-
-/* XXX: common */
-void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
-{
-    *pwidth = tex->width;
-    *pheight = tex->height;
-}
-
-/* XXX: common */
-void texture_done(struct texture *tex)
-{
-    if (!ref_is_static(&tex->ref))
-        ref_put_last(tex);
-}
 
 texid_t texture_id(struct texture *tex)
 {
@@ -976,12 +964,6 @@ texid_t texture_id(struct texture *tex)
         return 0;
 
     return (texid_t)tex->mtl.texture;
-}
-
-/* XXX: common */
-bool texture_loaded(struct texture *tex)
-{
-    return tex->loaded;
 }
 
 /****************************************************************************

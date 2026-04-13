@@ -51,7 +51,15 @@ static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_o
 static void wgpu_draw_control_done(draw_control_t *dc);
 static void wgpu_draw_control_bind(draw_control_t *dc);
 static void wgpu_draw_control_unbind(draw_control_t *dc);
+static cerr wgpu_texture_init(texture_t *tex, const texture_init_options *opts);
+static void wgpu_texture_deinit(texture_t *tex);
+static cerr wgpu_texture_load(texture_t *tex, texture_format format,
+                              unsigned int width, unsigned int height, void *buf);
+static cerr wgpu_texture_resize(texture_t *tex, unsigned int width, unsigned int height);
+static void wgpu_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform);
+static bool wgpu_texture_is_array(texture_t *tex);
 #ifndef CONFIG_FINAL
+static void wgpu_texture_set_name(texture_t *tex, const char *name);
 static void wgpu_buffer_set_name(buffer_t *buf, const char *name);
 #endif
 
@@ -89,6 +97,15 @@ static const renderer_ops wgpu_renderer_ops = {
     .dc_done    = wgpu_draw_control_done,
     .dc_bind    = wgpu_draw_control_bind,
     .dc_unbind  = wgpu_draw_control_unbind,
+    .tex_init   = wgpu_texture_init,
+    .tex_deinit = wgpu_texture_deinit,
+    .tex_load   = wgpu_texture_load,
+    .tex_resize = wgpu_texture_resize,
+    .tex_bind   = wgpu_texture_bind,
+    .tex_is_array = wgpu_texture_is_array,
+#ifndef CONFIG_FINAL
+    .tex_set_name = wgpu_texture_set_name,
+#endif
 };
 
 enum {
@@ -681,7 +698,7 @@ bool texture_format_supported(texture_format format)
     return format < TEX_FMT_MAX;
 }
 
-bool texture_is_array(texture_t *tex)
+static bool wgpu_texture_is_array(texture_t *tex)
 {
 #ifndef CONFIG_FINAL
     return tex && tex->opts.type == TEX_2D_ARRAY;
@@ -690,12 +707,7 @@ bool texture_is_array(texture_t *tex)
 #endif /* CONFIG_FINAL */
 }
 
-bool texture_is_multisampled(texture_t *tex)
-{
-    return tex && tex->multisampled;
-}
-
-cerr _texture_init(texture_t *tex, const texture_init_options *opts)
+static cerr wgpu_texture_init(texture_t *tex, const texture_init_options *opts)
 {
     if (!texture_format_supported(opts->format))
         return CERR_NOT_SUPPORTED_REASON(
@@ -775,7 +787,7 @@ static void wgpu_texture_release(texture_t *tex)
     }
 }
 
-void texture_deinit(texture_t *tex)
+static void wgpu_texture_deinit(texture_t *tex)
 {
     if (!tex)
         return;
@@ -827,8 +839,8 @@ static cerr wgpu_texture_create(texture_t *tex, unsigned int width, unsigned int
     return CERR_OK;
 }
 
-cerr texture_load(texture_t *tex, texture_format format, unsigned int width, unsigned int height,
-                  void *buf)
+static cerr wgpu_texture_load(texture_t *tex, texture_format format, unsigned int width, unsigned int height,
+                              void *buf)
 {
     LOCAL_SET(void, converted) = NULL;
 
@@ -871,7 +883,7 @@ cerr texture_load(texture_t *tex, texture_format format, unsigned int width, uns
     return CERR_OK;
 }
 
-cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
+static cerr wgpu_texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
     if (!texture_loaded(tex))
         return CERR_TEXTURE_NOT_LOADED;
@@ -882,7 +894,7 @@ cerr texture_resize(texture_t *tex, unsigned int width, unsigned int height)
     return wgpu_texture_create(tex, width, height);
 }
 
-void texture_bind(texture_t *tex, unsigned int target)
+static void wgpu_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform)
 {
     auto r = tex->renderer;
     if (!r) return;
@@ -895,26 +907,6 @@ void texture_bind(texture_t *tex, unsigned int target)
     r->wgpu.dc->wgpu.shader->wgpu.binding_mask |= 3ull << target;
 }
 
-void texture_unbind(texture_t *tex, unsigned int target)
-{
-}
-
-void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
-{
-    // XXX: tex NULL check is blergh
-    // crashing is better (ok, not in a browser, because it's impossible to debug)
-    // returning an error is better
-    if (pwidth)
-        *pwidth = tex ? tex->width : 0;
-    if (pheight)
-        *pheight = tex ? tex->height : 0;
-}
-
-void texture_done(texture_t *tex)
-{
-    if (tex && !ref_is_static(&tex->ref))
-        ref_put_last(tex);
-}
 
 texid_t texture_id(texture_t *tex)
 {
@@ -927,26 +919,13 @@ texid_t texture_id(texture_t *tex)
     return (texid_t)(uintptr_t)tex;
 }
 
-bool texture_loaded(texture_t *tex)
-{
-    return tex->loaded;
-}
-
 #ifndef CONFIG_FINAL
-cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
+static void wgpu_texture_set_name(texture_t *tex, const char *name)
 {
-    va_list ap;
-    va_start(ap, fmt);
-    char label[128];
-    vsnprintf(label, sizeof(label), fmt, ap);
-    va_end(ap);
-
     if (tex->wgpu.texture) {
-        WGPUStringView sv = { label, strlen(label) };
+        WGPUStringView sv = { name, strlen(name) };
         wgpuTextureSetLabel(tex->wgpu.texture, sv);
     }
-
-    return cres_val(int, 0);
 }
 #endif /* CONFIG_FINAL */
 
