@@ -47,6 +47,7 @@ static cerr gl_texture_resize(texture_t *tex, unsigned int width, unsigned int h
 static void gl_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform);
 static void gl_texture_unbind(texture_t *tex, unsigned int target);
 static bool gl_texture_is_array(texture_t *tex);
+static bool gl_texture_format_supported(renderer_t *r, texture_format format);
 static void gl_fbo_prepare(fbo_t *fbo);
 static void gl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
 static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment);
@@ -105,6 +106,7 @@ static const renderer_ops gl_renderer_ops = {
     .tex_bind   = gl_texture_bind,
     .tex_unbind = gl_texture_unbind,
     .tex_is_array = gl_texture_is_array,
+    .tex_format_supported = gl_texture_format_supported,
     .fbo_prepare  = gl_fbo_prepare,
     .fbo_done     = gl_fbo_done,
     .fbo_blit     = gl_fbo_blit_from_fbo,
@@ -491,7 +493,7 @@ static GLenum gl_texture_filter(texture_filter filter)
 
 static bool _texture_format_supported[TEX_FMT_MAX];
 
-bool texture_format_supported(texture_format format)
+static bool gl_texture_format_supported(renderer_t *r, texture_format format)
 {
     if (format >= TEX_FMT_MAX)
         return false;
@@ -609,7 +611,7 @@ static cerr gl_texture_init(texture_t *tex, const texture_init_options *opts)
     multisampled  = false;
 #endif /* CONFIG_GLES */
 
-    if (!texture_format_supported(opts->format))
+    if (!gl_texture_format_supported(opts->renderer, opts->format))
         return CERR_NOT_SUPPORTED_REASON(
             .fmt = "format %s (%ld) not supported",
             .arg0 = texture_format_string(opts->format),
@@ -778,7 +780,7 @@ static cerr gl_texture_load(texture_t *tex, texture_format format,
             .arg1   = (void *)(uintptr_t)height
         );
 
-    if (!texture_format_supported(format))
+    if (!gl_texture_format_supported(tex->renderer, format))
         return CERR_NOT_SUPPORTED;
 
     tex->gl.format          = gl_texture_format(format);
@@ -1832,7 +1834,7 @@ static void gl_renderer_debug(renderer_t *r)
 
             for (int i = 0; i < array_size(_texture_format_supported); i++)
                 ui_igTableRow(texture_format_string(i), "%s",
-                              texture_format_supported(i) ? "supported" : "");
+                              gl_texture_format_supported(r, i) ? "supported" : "");
             igEndTable();
             igTreePop();
         }

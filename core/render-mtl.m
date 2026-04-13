@@ -82,6 +82,7 @@ static cerr mtl_shader_use(shader_t *shader, bool draw);
 static void mtl_shader_unuse(shader_t *shader, bool draw);
 static int mtl_shader_id(shader_t *shader);
 static cres(size_t) mtl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
+static bool mtl_texture_format_supported(renderer_t *r, texture_format format);
 static bool mtl_fbo_texture_supported(renderer_t *r, texture_format format);
 
 static const renderer_ops mtl_renderer_ops = {
@@ -127,6 +128,7 @@ static const renderer_ops mtl_renderer_ops = {
 #ifndef CONFIG_FINAL
     .tex_set_name = mtl_texture_set_name,
 #endif
+    .tex_format_supported = mtl_texture_format_supported,
     .fbo_prepare    = mtl_fbo_prepare,
     .fbo_done       = mtl_fbo_done,
     .fbo_resize     = mtl_fbo_resize,
@@ -279,7 +281,7 @@ static texture_format mtl_texture_format_from_pixel_format(MTLPixelFormat pixel_
     return TEX_FMT_MAX;
 }
 
-bool texture_format_supported(texture_format format)
+static bool mtl_texture_format_supported(renderer_t *r, texture_format format)
 {
     return true;
 }

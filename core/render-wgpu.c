@@ -88,6 +88,7 @@ static cerr wgpu_shader_use(shader_t *shader, bool draw);
 static void wgpu_shader_unuse(shader_t *shader, bool draw);
 static cres(size_t) wgpu_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
 static void wgpu_shader_set_name(shader_t *shader, const char *name);
+static bool wgpu_texture_format_supported(renderer_t *r, texture_format format);
 static bool wgpu_fbo_texture_supported(renderer_t *r, texture_format format);
 
 static const renderer_ops wgpu_renderer_ops = {
@@ -133,6 +134,7 @@ static const renderer_ops wgpu_renderer_ops = {
 #ifndef CONFIG_FINAL
     .tex_set_name = wgpu_texture_set_name,
 #endif
+    .tex_format_supported = wgpu_texture_format_supported,
     .fbo_prepare    = wgpu_fbo_prepare,
     .fbo_done       = wgpu_fbo_done,
     .fbo_resize     = wgpu_fbo_resize,
@@ -729,21 +731,7 @@ static WGPUTextureViewDimension wgpu_texture_view_dimension(texture_type type)
     return WGPUTextureViewDimension_2D;
 }
 
-static cerr texture_make(struct ref *ref, void *opts)
-{
-    return CERR_OK;
-}
-
-static void texture_drop(struct ref *ref)
-{
-    texture_t *tex = container_of(ref, texture_t, ref);
-    texture_deinit(tex);
-}
-
-DEFINE_REFCLASS2(texture);
-cresp_struct_ret(texture);
-
-bool texture_format_supported(texture_format format)
+static bool wgpu_texture_format_supported(renderer_t *r, texture_format format)
 {
     return format < TEX_FMT_MAX;
 }
@@ -759,7 +747,7 @@ static bool wgpu_texture_is_array(texture_t *tex)
 
 static cerr wgpu_texture_init(texture_t *tex, const texture_init_options *opts)
 {
-    if (!texture_format_supported(opts->format))
+    if (!wgpu_texture_format_supported(opts->renderer, opts->format))
         return CERR_NOT_SUPPORTED_REASON(
             .fmt = "format %s (%ld) not supported",
             .arg0 = texture_format_string(opts->format),
@@ -985,7 +973,7 @@ static void wgpu_texture_set_name(texture_t *tex, const char *name)
 
 static bool wgpu_fbo_texture_supported(renderer_t *r, texture_format format)
 {
-    return texture_format_supported(format);
+    return wgpu_texture_format_supported(r, format);
 }
 
 texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)

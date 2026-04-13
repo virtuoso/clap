@@ -446,7 +446,7 @@ TYPE(texture,
 
 typedef uint64_t texid_t;
 
-bool texture_format_supported(texture_format format);
+bool texture_format_supported(renderer_t *r, texture_format format);
 const char *texture_format_string(texture_format fmt);
 size_t texture_format_comp_size(texture_format fmt);
 size_t texture_format_nr_comps(texture_format fmt);
@@ -1116,6 +1116,7 @@ typedef struct renderer_ops {
     void                (*tex_unbind)(texture_t *tex, unsigned int target);
     bool                (*tex_is_array)(texture_t *tex);
     void                (*tex_set_name)(texture_t *tex, const char *name);
+    bool                (*tex_format_supported)(renderer_t *r, texture_format format);
     void                (*fbo_prepare)(fbo_t *fbo);
     void                (*fbo_done)(fbo_t *fbo, unsigned int width, unsigned int height);
     void                (*fbo_blit)(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment);

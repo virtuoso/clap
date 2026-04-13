@@ -322,6 +322,11 @@ cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
 }
 #endif /* CONFIG_FINAL */
 
+bool texture_format_supported(renderer_t *r, texture_format format)
+{
+    return r->ops->tex_format_supported(r, format);
+}
+
 void texture_done(texture_t *tex)
 {
     if (tex && !ref_is_static(&tex->ref))
@@ -642,7 +647,7 @@ cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[
         return err;
 
     texture_format fmt = TEX_FMT_RGBA8;
-    if (texture_format_supported(TEX_FMT_RGBA32F))
+    if (texture_format_supported(renderer, TEX_FMT_RGBA32F))
         for (size_t i = 0; i < 4; i++)
             if (color[i] > 1.0f) {
                 fmt = TEX_FMT_RGBA32F;
