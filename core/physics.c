@@ -104,18 +104,29 @@ void phys_body_rotation(struct phys_body *body, quat rot)
     rot[3] = _rot[0];
 }
 
-void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs)
+void phys_body_rotate_mat3x3(struct phys_body *body, mat3x3 rot)
 {
     dMatrix3 r = {
-        trs[0][0], trs[1][0], trs[2][0], 0.0,
-        trs[0][1], trs[1][1], trs[2][1], 0.0,
-        trs[0][2], trs[1][2], trs[2][2], 0.0,
+        rot[0][0], rot[1][0], rot[2][0], 0.0,
+        rot[0][1], rot[1][1], rot[2][1], 0.0,
+        rot[0][2], rot[1][2], rot[2][2], 0.0,
     };
 
     if (phys_body_has_body(body))
         dBodySetRotation(body->body, r);
     else
         dGeomSetRotation(body->geom, r);
+}
+
+void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs)
+{
+    mat3x3 rot = {
+        { trs[0][0], trs[0][1], trs[0][2] },
+        { trs[1][0], trs[1][1], trs[1][2] },
+        { trs[2][0], trs[2][1], trs[2][2] },
+    };
+
+    phys_body_rotate_mat3x3(body, rot);
 }
 
 void phys_body_rotate_xform(struct phys_body *body, transform_t *xform)
