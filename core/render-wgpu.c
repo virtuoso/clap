@@ -452,8 +452,8 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     rc_init_opts(draw_control) *opts = _opts;
     draw_control_t *dc = container_of(ref, draw_control_t, ref);
 
-    dc->renderer = opts->renderer;
-    dc->shader = opts->shader;
+    dc->renderer    = opts->renderer;
+    dc->wgpu.shader = opts->shader;
 
     renderer_t *r = opts->renderer;
 
@@ -471,8 +471,8 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
         nr_color_targets = 1;
     }
 
-    dc->color_format = color_formats[0];
-    dc->nr_color_targets = nr_color_targets;
+    dc->wgpu.color_format       = color_formats[0];
+    dc->wgpu.nr_color_targets   = nr_color_targets;
 
     bool has_depth = r->wgpu.fbo && r->wgpu.fbo->layout.depth_texture;
     WGPUTextureFormat depth_fmt = WGPUTextureFormat_Depth32Float;
@@ -482,31 +482,31 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
         depth_cmp = wgpu_compare_function(r->wgpu.fbo->depth_config.depth_func);
     }
 
-    dc->has_depth = has_depth;
+    dc->wgpu.has_depth = has_depth;
 
-    dc->pipeline[0] = wgpu_create_pipeline(r, opts->shader,
+    dc->wgpu.pipeline[0] = wgpu_create_pipeline(r, opts->shader,
                                            color_formats, nr_color_targets,
                                            false,
                                            has_depth, depth_fmt, depth_cmp);
-    if (!dc->pipeline[0])
+    if (!dc->wgpu.pipeline[0])
         return CERR_INITIALIZATION_FAILED_REASON(
             .fmt  = "pipeline: %u color targets, depth=%s — no-blend variant failed",
             .arg0 = (void *)(uintptr_t)nr_color_targets,
             .arg1 = has_depth ? "yes" : "no"
         );
 
-    dc->pipeline[1] = wgpu_create_pipeline(r, opts->shader,
+    dc->wgpu.pipeline[1] = wgpu_create_pipeline(r, opts->shader,
                                            color_formats, nr_color_targets,
                                            true,
                                            has_depth, depth_fmt, depth_cmp);
-    if (!dc->pipeline[1])
+    if (!dc->wgpu.pipeline[1])
         return CERR_INITIALIZATION_FAILED_REASON(
             .fmt  = "pipeline: %u color targets, depth=%s — blend variant failed",
             .arg0 = (void *)(uintptr_t)nr_color_targets,
             .arg1 = has_depth ? "yes" : "no"
         );
 
-    list_append(&opts->renderer->wgpu.dc_cache, &dc->cache_entry);
+    list_append(&opts->renderer->wgpu.dc_cache, &dc->wgpu.cache_entry);
 
     return CERR_OK;
 }
@@ -527,15 +527,15 @@ cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opt
 
 void draw_control_done(draw_control_t *dc)
 {
-    if (dc->pipeline[0]) {
-        wgpuRenderPipelineRelease(dc->pipeline[0]);
-        dc->pipeline[0] = NULL;
+    if (dc->wgpu.pipeline[0]) {
+        wgpuRenderPipelineRelease(dc->wgpu.pipeline[0]);
+        dc->wgpu.pipeline[0] = NULL;
     }
-    if (dc->pipeline[1]) {
-        wgpuRenderPipelineRelease(dc->pipeline[1]);
-        dc->pipeline[1] = NULL;
+    if (dc->wgpu.pipeline[1]) {
+        wgpuRenderPipelineRelease(dc->wgpu.pipeline[1]);
+        dc->wgpu.pipeline[1] = NULL;
     }
-    list_del(&dc->cache_entry);
+    list_del(&dc->wgpu.cache_entry);
 }
 
 void draw_control_bind(draw_control_t *dc)
@@ -544,7 +544,7 @@ void draw_control_bind(draw_control_t *dc)
     r->wgpu.dc = dc;
 
     if (r->wgpu.pass_encoder)
-        wgpuRenderPassEncoderSetPipeline(r->wgpu.pass_encoder, dc->pipeline[r->blend ? 1 : 0]);
+        wgpuRenderPassEncoderSetPipeline(r->wgpu.pass_encoder, dc->wgpu.pipeline[r->blend ? 1 : 0]);
 }
 
 void draw_control_unbind(draw_control_t *dc)
@@ -879,7 +879,7 @@ void texture_bind(texture_t *tex, unsigned int target)
     if (slot >= BINDING_TEXTURE_MAX)    return;
 
     r->wgpu.bound_textures[slot] = tex;
-    r->wgpu.dc->shader->binding_mask |= 3ull << target;
+    r->wgpu.dc->wgpu.shader->binding_mask |= 3ull << target;
 }
 
 void texture_unbind(texture_t *tex, unsigned int target)
@@ -1574,9 +1574,9 @@ static cresp(draw_control) wgpu_dc_find_or_create(renderer_t *r, shader_t *shade
     unsigned int nr_targets = r->wgpu.fbo ? fa_nr_color_texture(r->wgpu.fbo->layout) : 1;
     draw_control_t *dc;
 
-    list_for_each_entry(dc, &r->wgpu.dc_cache, cache_entry)
-        if (dc->shader == shader && dc->color_format == fmt &&
-            dc->nr_color_targets == nr_targets && dc->has_depth == has_depth)
+    list_for_each_entry(dc, &r->wgpu.dc_cache, wgpu.cache_entry)
+        if (dc->wgpu.shader == shader && dc->wgpu.color_format == fmt &&
+            dc->wgpu.nr_color_targets == nr_targets && dc->wgpu.has_depth == has_depth)
             return cresp_val(draw_control, dc);
 
     dc = CRES_RET_T(ref_new_checked(draw_control, .renderer = r, .shader = shader), draw_control);
@@ -2238,14 +2238,14 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
         return CERR_INVALID_OPERATION_REASON(.fmt = "index buffer not loaded");
 
     WGPURenderPassEncoder enc = r->wgpu.pass_encoder;
-    WGPURenderPipeline pipeline = r->wgpu.dc->pipeline[r->blend ? 1 : 0];
+    WGPURenderPipeline pipeline = r->wgpu.dc->wgpu.pipeline[r->blend ? 1 : 0];
 
     // Re-set pipeline in case blend state changed since shader_use()
     wgpuRenderPassEncoderSetPipeline(enc, pipeline);
 
     // Build bind group from currently bound resources, filtered by the shader's
     // binding mask so we only include entries the pipeline layout expects
-    uint64_t mask = r->wgpu.dc->shader->binding_mask;
+    uint64_t mask = r->wgpu.dc->wgpu.shader->binding_mask;
     WGPUBindGroupEntry entries[BINDING_TEXTURE_MAX * 2 + BINDING_UBO_MAX];
     unsigned int n = 0;
 
@@ -2290,7 +2290,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
         return CERR_INVALID_OPERATION_REASON(.fmt = "wgpuRenderPipelineGetBindGroupLayout() failed");
 
     WGPUBindGroupDescriptor bg_desc = {
-        .label      = to_wgpu_stringview(r->wgpu.dc->shader->name),
+        .label      = to_wgpu_stringview(r->wgpu.dc->wgpu.shader->name),
         .layout     = layout,
         .entryCount = n,
         .entries    = entries,

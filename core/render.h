@@ -299,34 +299,31 @@ DEFINE_REFCLASS_INIT_OPTIONS(draw_control,
     const char  *name;
 );
 
-#ifdef CONFIG_RENDERER_OPENGL
 TYPE(draw_control,
     struct ref  ref;
-);
-#elif defined(CONFIG_RENDERER_WGPU)
-TYPE(draw_control,
-    struct ref                  ref;
     renderer_t                  *renderer;
-    shader_t                    *shader;
-    struct list                 cache_entry;
-    wgpu_render_pipeline_t      pipeline[2]; /* [0] no blend, [1] blend */
-    wgpu_texture_format_t       color_format;
-    unsigned int                nr_color_targets;
-    bool                        has_depth;
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        shader_t                    *shader;
+        struct list                 cache_entry;
+        wgpu_render_pipeline_t      pipeline[2]; /* [0] no blend, [1] blend */
+        wgpu_texture_format_t       color_format;
+        unsigned int                nr_color_targets;
+        bool                        has_depth;
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        struct list                         shader_entry;
+        struct list                         hash_entry;
+        shader_t                            *shader;
+        fbo_t                               *fbo;
+        mtl_depth_stencil_state_t           depth_stencil;
+        mtl_render_pipeline_state_t         pipeline[2];
+        mtl_render_pipeline_reflection_t    reflection;
+    } mtl;
+#endif /* CONFIG_RENDERER_METAL */
 );
-#elif defined(CONFIG_RENDERER_METAL)
-TYPE(draw_control,
-    struct ref                          ref;
-    renderer_t                          *renderer;
-    struct list                         shader_entry;
-    struct list                         hash_entry;
-    shader_t                            *shader;
-    fbo_t                               *fbo;
-    mtl_depth_stencil_state_t           depth_stencil;
-    mtl_render_pipeline_state_t         pipeline[2];
-    mtl_render_pipeline_reflection_t    reflection;
-);
-#endif /* CONFIG_RENDERER_OPENGL */
 
 #define draw_control_init(_dc, args...) \
     _draw_control_init((_dc), &(draw_control_init_options){ args })

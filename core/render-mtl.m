@@ -506,7 +506,7 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     draw_control_t *dc = container_of(ref, draw_control_t, ref);
     dc->renderer = opts->renderer;
 
-    for (size_t pl = 0; pl < array_size(dc->pipeline); pl++) {
+    for (size_t pl = 0; pl < array_size(dc->mtl.pipeline); pl++) {
         // mtl_render_pipeline_reflection_t reflection;
         auto fbo = opts->fbo;
         if (fbo) {
@@ -520,16 +520,16 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
             }
 
             bool use_depth = fbo->layout.depth_texture;
-            dc->pipeline[pl] = CRES_RET_CERR(
+            dc->mtl.pipeline[pl] = CRES_RET_CERR(
                 mtl_pipeline_new(
                     dc->renderer, opts->shader, color_formats, depth_format, i, use_depth, !!pl, NULL//&reflection
                 )
             );
 
-            if (use_depth)  dc->depth_stencil = CRES_RET_CERR(mtl_depth_stencil_new(fbo));
+            if (use_depth)  dc->mtl.depth_stencil = CRES_RET_CERR(mtl_depth_stencil_new(fbo));
         } else {
             texture_format color_format = mtl_texture_format_from_pixel_format(dc->renderer->mtl.layer.pixelFormat);
-            dc->pipeline[pl] = CRES_RET_CERR(
+            dc->mtl.pipeline[pl] = CRES_RET_CERR(
                 mtl_pipeline_new(
                     dc->renderer, opts->shader, &color_format, TEX_FMT_DEPTH32F, 1, false, !!pl, NULL//&reflection
                 )
@@ -537,14 +537,14 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
         }
     }
 
-    list_append(&opts->shader->dc_list, &dc->shader_entry);
+    list_append(&opts->shader->dc_list, &dc->mtl.shader_entry);
     if (opts->fbo) {
         auto idx = dc_hash(opts->fbo, opts->shader);
-        list_append(&dc->renderer->mtl.dc_hash[idx], &dc->hash_entry);
+        list_append(&dc->renderer->mtl.dc_hash[idx], &dc->mtl.hash_entry);
     }
 
-    dc->shader  = opts->shader;
-    dc->fbo     = opts->fbo;
+    dc->mtl.shader  = opts->shader;
+    dc->mtl.fbo     = opts->fbo;
 
     // if (!opts->shader->reflection) {
     //     opts->shader->reflection = reflection;
@@ -570,12 +570,12 @@ cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opt
 
 void draw_control_done(draw_control_t *dc)
 {
-    [dc->pipeline[0] release];
-    [dc->pipeline[1] release];
-    if (dc->depth_stencil)  [dc->depth_stencil release];
+    [dc->mtl.pipeline[0] release];
+    [dc->mtl.pipeline[1] release];
+    if (dc->mtl.depth_stencil)  [dc->mtl.depth_stencil release];
 
-    list_del(&dc->shader_entry);
-    list_del(&dc->hash_entry);
+    list_del(&dc->mtl.shader_entry);
+    list_del(&dc->mtl.hash_entry);
 }
 
 void draw_control_bind(draw_control_t *dc)
@@ -583,8 +583,8 @@ void draw_control_bind(draw_control_t *dc)
     auto r = dc->renderer;
     r->mtl.dc = dc;
 
-    if (dc->depth_stencil)  [cmd_encoder(r) setDepthStencilState:dc->depth_stencil];
-    [cmd_encoder(r) setRenderPipelineState:dc->pipeline[r->blend ? 1 : 0]];
+    if (dc->mtl.depth_stencil)  [cmd_encoder(r) setDepthStencilState:dc->mtl.depth_stencil];
+    [cmd_encoder(r) setRenderPipelineState:dc->mtl.pipeline[r->blend ? 1 : 0]];
 }
 
 void draw_control_unbind(draw_control_t *dc)
@@ -599,8 +599,8 @@ static cresp(draw_control) dc_hash_find_get(renderer_t *r, fbo_t *fbo, shader_t 
 {
     auto bucket = &r->mtl.dc_hash[dc_hash(fbo, shader)];
     draw_control_t *dc;
-    list_for_each_entry(dc, bucket, hash_entry)
-        if (dc->fbo == fbo && dc->shader == shader)  return cresp_val(draw_control, dc);
+    list_for_each_entry(dc, bucket, mtl.hash_entry)
+        if (dc->mtl.fbo == fbo && dc->mtl.shader == shader)  return cresp_val(draw_control, dc);
 
     dc = CRES_RET(
         ref_new_checked(draw_control, .renderer = r, .fbo = fbo, .shader = shader),
@@ -619,8 +619,8 @@ static void dc_hash_fbo_drop(renderer_t *r, fbo_t *fbo)
         auto bucket = &r->mtl.dc_hash[i];
 
         draw_control_t *dc, *iter;
-        list_for_each_entry_iter(dc, iter, bucket, hash_entry)
-            if (dc->fbo == fbo) ref_put_last(dc);
+        list_for_each_entry_iter(dc, iter, bucket, mtl.hash_entry)
+            if (dc->mtl.fbo == fbo) ref_put_last(dc);
     }
 }
 
@@ -1612,7 +1612,7 @@ void shader_done(shader_t *shader)
     bitmap_clear(&r->mtl.shader_ids, shader->id);
 
     draw_control_t *dc, *it;
-    list_for_each_entry_iter(dc, it, &shader->dc_list, shader_entry)
+    list_for_each_entry_iter(dc, it, &shader->dc_list, mtl.shader_entry)
         ref_put_last(dc);
 
     [shader->vdesc release];
