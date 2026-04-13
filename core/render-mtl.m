@@ -82,6 +82,7 @@ static cerr mtl_shader_use(shader_t *shader, bool draw);
 static void mtl_shader_unuse(shader_t *shader, bool draw);
 static int mtl_shader_id(shader_t *shader);
 static cres(size_t) mtl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
+static bool mtl_fbo_texture_supported(renderer_t *r, texture_format format);
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
@@ -131,6 +132,7 @@ static const renderer_ops mtl_renderer_ops = {
     .fbo_resize     = mtl_fbo_resize,
     .fbo_attachment_valid  = mtl_fbo_attachment_valid,
     .fbo_attachment_format = mtl_fbo_attachment_format,
+    .fbo_tex_supported = mtl_fbo_texture_supported,
     .ubo_init       = mtl_uniform_buffer_init,
     .ubo_done       = mtl_uniform_buffer_done,
     .ubo_data_alloc = mtl_uniform_buffer_data_alloc,
@@ -1028,7 +1030,7 @@ texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
     return &fbo->color_tex[idx];
 }
 
-bool fbo_texture_supported(texture_format format)
+static bool mtl_fbo_texture_supported(renderer_t *r, texture_format format)
 {
     if (format >= TEX_FMT_MAX)
         return false;

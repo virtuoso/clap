@@ -689,7 +689,7 @@ typedef struct fbo_init_options {
     const char      *name;
 } fbo_init_options;
 
-bool fbo_texture_supported(texture_format format);
+bool fbo_texture_supported(renderer_t *r, texture_format format);
 texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment);
 must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts);
 #define fbo_new(args...) \
@@ -1122,6 +1122,7 @@ typedef struct renderer_ops {
     cerr                (*fbo_resize)(fbo_t *fbo, unsigned int width, unsigned int height);
     bool                (*fbo_attachment_valid)(fbo_t *fbo, fbo_attachment attachment);
     texture_format      (*fbo_attachment_format)(fbo_t *fbo, fbo_attachment attachment);
+    bool                (*fbo_tex_supported)(renderer_t *r, texture_format format);
     cerr                (*ubo_init)(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
     void                (*ubo_done)(uniform_buffer_t *ubo);
     cerr                (*ubo_data_alloc)(uniform_buffer_t *ubo, size_t size);

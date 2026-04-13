@@ -402,6 +402,11 @@ texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
     return fbo->renderer->ops->fbo_attachment_format(fbo, attachment);
 }
 
+bool fbo_texture_supported(renderer_t *r, texture_format format)
+{
+    return r->ops->fbo_tex_supported(r, format);
+}
+
 /****************************************************************************
  * Binding points
  ****************************************************************************/

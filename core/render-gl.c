@@ -53,6 +53,7 @@ static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment atta
 static cerr gl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
 static bool gl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 static texture_format gl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
+static bool gl_fbo_texture_supported(renderer_t *r, texture_format format);
 static cerr gl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
 static void gl_uniform_buffer_done(uniform_buffer_t *ubo);
 static cerr gl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
@@ -110,6 +111,7 @@ static const renderer_ops gl_renderer_ops = {
     .fbo_resize   = gl_fbo_resize,
     .fbo_attachment_valid  = gl_fbo_attachment_valid,
     .fbo_attachment_format = gl_fbo_attachment_format,
+    .fbo_tex_supported = gl_fbo_texture_supported,
     .ubo_init       = gl_uniform_buffer_init,
     .ubo_done       = gl_uniform_buffer_done,
     .ubo_data_alloc = gl_uniform_buffer_data_alloc,
@@ -806,7 +808,7 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
             .arg1   = (void *)(uintptr_t)height
         );
 
-    if (!fbo_texture_supported(format))
+    if (!gl_fbo_texture_supported(tex->renderer, format))
         return CERR_NOT_SUPPORTED;
 
     tex->gl.format             = gl_texture_format(format);
@@ -869,7 +871,7 @@ texid_t texture_id(struct texture *tex)
 
 static bool _fbo_texture_supported[TEX_FMT_MAX];
 
-bool fbo_texture_supported(texture_format format)
+static bool gl_fbo_texture_supported(renderer_t *r, texture_format format)
 {
     if (format >= TEX_FMT_MAX)
         return false;
@@ -1840,7 +1842,7 @@ static void gl_renderer_debug(renderer_t *r)
 
             for (int i = 0; i < array_size(_texture_format_supported); i++)
                 ui_igTableRow(texture_format_string(i), "%s",
-                              fbo_texture_supported(i) ? "supported" : "");
+                              gl_fbo_texture_supported(r, i) ? "supported" : "");
             igEndTable();
             igTreePop();
         }

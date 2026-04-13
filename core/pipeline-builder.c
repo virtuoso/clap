@@ -139,9 +139,11 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
     texture_format hdr_fmts[] = {
         TEX_FMT_RGB16F, TEX_FMT_RGBA16F, TEX_FMT_RGB32F, TEX_FMT_RGBA32F
     };
+
+    auto r = clap_get_renderer(clap_ctx);
     texture_format hdr_fmt = TEX_FMT_RGBA8;
     for (int i = 0; i < array_size(hdr_fmts); i++)
-        if (fbo_texture_supported(hdr_fmts[i])) {
+        if (fbo_texture_supported(r, hdr_fmts[i])) {
             hdr_fmt = hdr_fmts[i];
             break;
         }

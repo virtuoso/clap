@@ -88,6 +88,7 @@ static cerr wgpu_shader_use(shader_t *shader, bool draw);
 static void wgpu_shader_unuse(shader_t *shader, bool draw);
 static cres(size_t) wgpu_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
 static void wgpu_shader_set_name(shader_t *shader, const char *name);
+static bool wgpu_fbo_texture_supported(renderer_t *r, texture_format format);
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
@@ -137,6 +138,7 @@ static const renderer_ops wgpu_renderer_ops = {
     .fbo_resize     = wgpu_fbo_resize,
     .fbo_attachment_valid  = wgpu_fbo_attachment_valid,
     .fbo_attachment_format = wgpu_fbo_attachment_format,
+    .fbo_tex_supported = wgpu_fbo_texture_supported,
     .ubo_init       = wgpu_uniform_buffer_init,
     .ubo_done       = wgpu_uniform_buffer_done,
     .ubo_data_alloc = wgpu_uniform_buffer_data_alloc,
@@ -981,7 +983,7 @@ static void wgpu_texture_set_name(texture_t *tex, const char *name)
  * FBO
  ****************************************************************************/
 
-bool fbo_texture_supported(texture_format format)
+static bool wgpu_fbo_texture_supported(renderer_t *r, texture_format format)
 {
     return texture_format_supported(format);
 }
