@@ -1006,7 +1006,7 @@ static cerr fbo_depth_texture_init(fbo_t *fbo)
         )
     );
 
-    texture_set_name(&fbo->depth_tex, "%s:depth", fbo->name);
+    texture_set_name(&fbo->depth_tex, "%s:depth", fbo->wgpu.name);
 
     CERR_RET_CERR(texture_load(&fbo->depth_tex, fbo->depth_config.format, fbo->width, fbo->height, NULL));
 
@@ -1029,7 +1029,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
     if (IS_CERR(err))
         return err;
 
-    texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->name, idx);
+    texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->wgpu.name, idx);
 
     err = texture_load(&fbo->color_tex[idx], fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
     fbo->color_config[idx].format = fbo->color_tex[idx].wgpu.format;
@@ -1078,7 +1078,7 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     fbo->depth_config = opts->depth_config;
     fbo->nr_samples   = opts->nr_samples ? : 1;
     fbo->layout       = opts->layout;
-    fbo->name         = opts->name ? : "<unset>";
+    fbo->wgpu.name    = opts->name ? : "<unset>";
 
     if (!fbo->layout.mask)
         fbo->layout.color_texture0 = 1;
@@ -1173,7 +1173,7 @@ void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
     renderer_t *r = fbo->renderer;
 
     if (r->wgpu.fbo != fbo) {
-        err("fbo_done: wrong fbo: %s (%p)\n", fbo->name, fbo);
+        err("fbo_done: wrong fbo: %s (%p)\n", fbo->wgpu.name, fbo);
         return;
     }
 

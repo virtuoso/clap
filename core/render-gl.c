@@ -863,6 +863,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
     int idx = fbo_attachment_color(attachment);
 
     cerr err = texture_init(&fbo->color_tex[idx],
+                            .renderer      = fbo->renderer,
                             .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
                             .format        = fbo_texture_format(fbo, attachment),
@@ -896,6 +897,7 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
 {
     float border[4] = {};
     cerr err = texture_init(&fbo->depth_tex,
+                            .renderer      = fbo->renderer,
                             .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
                             .format        = fbo->depth_config.format,
@@ -936,7 +938,7 @@ bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 
     int bidx = fbo_attachment_color(attachment);
     if (bidx >= 0 && bidx <= fbo_attachment_color(fbo->layout) &&
-        fbo->color_buf[bidx])
+        fbo->gl.color_buf[bidx])
         return true;
 
     if (attachment.depth_texture && fbo->layout.depth_texture)
@@ -1053,13 +1055,13 @@ cerr_check fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
     fbo->height = height;
 
     fa_for_each(fa, fbo->layout, buffer) {
-        GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->color_buf[fbo_attachment_color(fa)]));
+        GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->gl.color_buf[fbo_attachment_color(fa)]));
         __fbo_color_buffer_setup(fbo, fa);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
 
-    if (fbo->depth_buf >= 0) {
-        GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->depth_buf));
+    if (fbo->gl.depth_buf >= 0) {
+        GL(glBindRenderbuffer(GL_RENDERBUFFER, fbo->gl.depth_buf));
         __fbo_depth_buffer_setup(fbo);
         GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
     }
@@ -1131,7 +1133,7 @@ void fbo_prepare(fbo_t *fbo)
     GLenum buffers[NR_TARGETS];
     int target = 0;
 
-    GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->fbo));
+    GL(glBindFramebuffer(GL_FRAMEBUFFER, fbo->gl.fbo));
     GL(glViewport(0, 0, fbo->width, fbo->height));
 
     if (fbo_attachment_is_buffers(fbo->layout)) {
@@ -1201,8 +1203,8 @@ void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
         return;
     }
 
-    GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo->fbo));
-    GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo->fbo));
+    GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo->gl.fbo));
+    GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo->gl.fbo));
     GL(glReadBuffer(gl_attachment));
     GL(glBlitFramebuffer(0, 0, src_fbo->width, src_fbo->height,
                          0, 0, fbo->width, fbo->height,
@@ -1213,7 +1215,7 @@ static cerr fbo_make(struct ref *ref, void *_opts)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
-    fbo->depth_buf = -1;
+    fbo->gl.depth_buf = -1;
 
     return CERR_OK;
 }
@@ -1222,21 +1224,21 @@ static void fbo_drop(struct ref *ref)
 {
     fbo_t *fbo = container_of(ref, fbo_t, ref);
 
-    GL(glDeleteFramebuffers(1, &fbo->fbo));
+    GL(glDeleteFramebuffers(1, &fbo->gl.fbo));
     /* if the texture was cloned, its ->loaded==false making this a nop */
     fa_for_each(fa, fbo->layout, texture)
         texture_deinit(&fbo->color_tex[fbo_attachment_color(fa)]);
 
     fa_for_each(fa, fbo->layout, buffer)
-        glDeleteRenderbuffers(1, (const GLuint *)&fbo->color_buf[fbo_attachment_color(fa)]);
+        glDeleteRenderbuffers(1, (const GLuint *)&fbo->gl.color_buf[fbo_attachment_color(fa)]);
 
     mem_free(fbo->color_config);
 
    if (texture_loaded(&fbo->depth_tex))
         texture_deinit(&fbo->depth_tex);
 
-    if (fbo->depth_buf >= 0)
-        GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->depth_buf));
+    if (fbo->gl.depth_buf >= 0)
+        GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->gl.depth_buf));
 }
 DEFINE_REFCLASS2(fbo);
 DECLARE_REFCLASS(fbo);
@@ -1251,7 +1253,7 @@ static cerr_check fbo_init(fbo_t *fbo)
 {
     cerr err = CERR_OK;
 
-    fbo->fbo = fbo_create();
+    fbo->gl.fbo = fbo_create();
 
     if (fbo->layout.depth_texture) {
         err = fbo_depth_texture_init(fbo);
@@ -1265,7 +1267,7 @@ static cerr_check fbo_init(fbo_t *fbo)
             if (IS_CERR(res))
                 goto err;
 
-            fbo->color_buf[fbo_attachment_color(fa)] = res.val;
+            fbo->gl.color_buf[fbo_attachment_color(fa)] = res.val;
         }
     }
 
@@ -1273,7 +1275,7 @@ static cerr_check fbo_init(fbo_t *fbo)
         goto err;
 
     if (fbo->layout.depth_buffer)
-        fbo->depth_buf = fbo_depth_buffer(fbo);
+        fbo->gl.depth_buf = fbo_depth_buffer(fbo);
 
     int fb_err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (fb_err != GL_FRAMEBUFFER_COMPLETE) {
@@ -1286,12 +1288,12 @@ static cerr_check fbo_init(fbo_t *fbo)
 
 err:
     fa_for_each(fa, fbo->layout, buffer) {
-        int color_buf = fbo->color_buf[fbo_attachment_color(fa)];
+        int color_buf = fbo->gl.color_buf[fbo_attachment_color(fa)];
         if (color_buf)
             glDeleteRenderbuffers(1, (const GLuint *)&color_buf);
     }
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-    GL(glDeleteFramebuffers(1, &fbo->fbo));
+    GL(glDeleteFramebuffers(1, &fbo->gl.fbo));
 
     return err;
 }

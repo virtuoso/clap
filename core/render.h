@@ -643,58 +643,41 @@ typedef struct fbo_attconfig {
     uint32_t            clear_stencil;
 } fbo_attconfig;
 
-#ifdef CONFIG_RENDERER_OPENGL
 TYPE(fbo,
     struct ref      ref;
     renderer_t      *renderer;
+    unsigned int    nr_samples;
     unsigned int    width;
     unsigned int    height;
     unsigned int    layers;
-    unsigned int    fbo;
-    fbo_attachment  layout;
+    texture_t       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
+    texture_t       depth_tex;
     fbo_attconfig   *color_config;
     fbo_attconfig   depth_config;
-    texture_t       depth_tex;
-    int             color_buf[FBO_COLOR_ATTACHMENTS_MAX];
-    texture_t       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
-    int             depth_buf;
-    unsigned int    nr_samples;
-);
-#elif defined(CONFIG_RENDERER_WGPU)
-TYPE(fbo,
-    struct ref                          ref;
-    renderer_t                          *renderer;
-    texture_t                           color_tex[FBO_COLOR_ATTACHMENTS_MAX];
-    texture_t                           depth_tex;
-    unsigned int                        width;
-    unsigned int                        height;
-    unsigned int                        layers;
-    unsigned int                        nr_samples;
-    fbo_attachment                      layout;
-    fbo_attconfig                       *color_config;
-    fbo_attconfig                       depth_config;
-    unsigned int                        id;
-    const char                          *name;
-);
-#elif defined(CONFIG_RENDERER_METAL)
-TYPE(fbo,
-    struct ref                      ref;
-    renderer_t                      *renderer;
-    texture_t                       color_tex[FBO_COLOR_ATTACHMENTS_MAX];
-    texture_t                       depth_tex;
-    mtl_render_pass_descriptor_t    desc;
-    mtl_render_command_encoder_t    cmd_encoder;
-    unsigned int                    width;
-    unsigned int                    height;
-    unsigned int                    layers;
-    unsigned int                    nr_samples;
-    fbo_attachment                  layout;
-    fbo_attconfig                   *color_config;
-    fbo_attconfig                   depth_config;
-    unsigned int                    id;
-    const char                      *name;
-);
+    fbo_attachment  layout;
+#ifdef CONFIG_RENDERER_OPENGL
+    struct {
+        unsigned int    fbo;
+        int             color_buf[FBO_COLOR_ATTACHMENTS_MAX];
+        int             depth_buf;
+    } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        const char      *name;
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        mtl_render_pass_descriptor_t    desc;
+        mtl_render_command_encoder_t    cmd_encoder;
+        unsigned int                    id;
+        const char                      *name;
+    } mtl;
+#endif /* CONFIG_RENDERER_METAL */
+);
 
 cresp_ret(fbo_t);
 

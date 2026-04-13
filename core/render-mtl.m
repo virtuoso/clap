@@ -196,7 +196,7 @@ bool texture_format_supported(texture_format format)
 static inline mtl_render_command_encoder_t cmd_encoder(renderer_t *r)
 {
     auto fbo = r->mtl.fbo ? : r->mtl.screen_fbo;
-    return fbo ? fbo->cmd_encoder : NULL;//r->cmd_encoder;
+    return fbo ? fbo->mtl.cmd_encoder : NULL;//r->cmd_encoder;
 }
 
 static mtl_buffer_t mtl_buffer_new(renderer_t *r, void *data, size_t size, bool shared, bool wc)
@@ -378,7 +378,7 @@ void vertex_array_unbind(vertex_array_t *va)
 
 static size_t dc_hash(fbo_t *fbo, shader_t *shader)
 {
-    return fbo->id ^ (shader->id << 4);
+    return fbo->mtl.id ^ (shader->id << 4);
 }
 
 cres_ret(mtl_render_pipeline_state_t);
@@ -441,7 +441,7 @@ mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, textur
     desc.vertexFunction = shader->vert;
     desc.fragmentFunction = shader->frag;
 #ifndef CONFIG_FINAL
-    desc.label = [NSString stringWithFormat:@"pls:%s/%s", shader->name, r->mtl.fbo ? r->mtl.fbo->name : "<invalid>"];
+    desc.label = [NSString stringWithFormat:@"pls:%s/%s", shader->name, r->mtl.fbo ? r->mtl.fbo->mtl.name : "<invalid>"];
 #endif /* !CONFIG_FINAL */
 
     NSError *err;
@@ -605,7 +605,7 @@ static cresp(draw_control) dc_hash_find_get(renderer_t *r, fbo_t *fbo, shader_t 
     dc = CRES_RET(
         ref_new_checked(draw_control, .renderer = r, .fbo = fbo, .shader = shader),
         {
-            err("couldn't create draw control for fbo%d + shader%d\n", fbo->id, shader->id);
+            err("couldn't create draw control for fbo%d + shader%d\n", fbo->mtl.id, shader->id);
             return cresp_error_cerr(draw_control, __resp);
         }
     );
@@ -1063,11 +1063,11 @@ static void fbo_drop(struct ref *ref)
 
     fbo_attachments_deinit(fbo);
 
-    if (fbo->cmd_encoder)   [fbo->cmd_encoder release];
-    if (fbo->desc)          [fbo->desc release];
+    if (fbo->mtl.cmd_encoder)   [fbo->mtl.cmd_encoder release];
+    if (fbo->mtl.desc)          [fbo->mtl.desc release];
 
     dc_hash_fbo_drop(fbo->renderer, fbo);
-    bitmap_clear(&fbo->renderer->mtl.fbo_ids, fbo->id);
+    bitmap_clear(&fbo->renderer->mtl.fbo_ids, fbo->mtl.id);
     mem_free(fbo->color_config);
 }
 DEFINE_REFCLASS(fbo);
@@ -1105,14 +1105,14 @@ void fbo_prepare(fbo_t *fbo)
 
     mtl_cmd_buffer(r);
 
-    fbo->cmd_encoder = [r->mtl.cmd_buffer renderCommandEncoderWithDescriptor:fbo->desc];
-    if (!fbo->cmd_encoder)  return;
+    fbo->mtl.cmd_encoder = [r->mtl.cmd_buffer renderCommandEncoderWithDescriptor:fbo->mtl.desc];
+    if (!fbo->mtl.cmd_encoder)  return;
 
-    [fbo->cmd_encoder setLabel:[NSString stringWithUTF8String:fbo->name]];
+    [fbo->mtl.cmd_encoder setLabel:[NSString stringWithUTF8String:fbo->mtl.name]];
     r->mtl.fbo = fbo;
 
     MTLViewport viewport = { 0.0, 0.0, (double)fbo->width, (double)fbo->height, 0.0, 1.0 };
-    [fbo->cmd_encoder setViewport:viewport];
+    [fbo->mtl.cmd_encoder setViewport:viewport];
 }
 
 void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
@@ -1120,7 +1120,7 @@ void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
     auto r = fbo->renderer;
 
     if (r->mtl.fbo != fbo) {
-        err("wrong fbo: %d (%p)\n", fbo->id, fbo);
+        err("wrong fbo: %d (%p)\n", fbo->mtl.id, fbo);
         return;
     }
 
@@ -1128,10 +1128,10 @@ void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
         /*r->mtl.vbuffer_cache[i] = r->mtl.fbuffer_cache[i] = */r->mtl.texture_cache[i] = r->mtl.sampler_cache[i] = NULL;
 
     r->mtl.fbo = NULL;
-    if (!fbo->cmd_encoder)    return;
+    if (!fbo->mtl.cmd_encoder)    return;
 
-    [fbo->cmd_encoder endEncoding];
-    fbo->cmd_encoder = nil;
+    [fbo->mtl.cmd_encoder endEncoding];
+    fbo->mtl.cmd_encoder = nil;
 }
 
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
@@ -1191,14 +1191,14 @@ static cerr fbo_depth_texture_init(fbo_t *fbo)
         )
     );
 
-    texture_set_name(&fbo->depth_tex, "%s:depth", fbo->name);
+    texture_set_name(&fbo->depth_tex, "%s:depth", fbo->mtl.name);
 
     CERR_RET_CERR(texture_load(&fbo->depth_tex, fbo->depth_config.format, fbo->width, fbo->height, NULL));
 
-    fbo->desc.depthAttachment.texture = fbo->depth_tex.mtl.texture;
-    fbo->desc.depthAttachment.loadAction = mtl_load_action(fbo->depth_config.load_action);
-    fbo->desc.depthAttachment.storeAction = mtl_store_action(fbo->depth_config.store_action, fbo_is_multisampled(fbo));
-    fbo->desc.depthAttachment.clearDepth = fbo->depth_config.clear_depth;
+    fbo->mtl.desc.depthAttachment.texture = fbo->depth_tex.mtl.texture;
+    fbo->mtl.desc.depthAttachment.loadAction = mtl_load_action(fbo->depth_config.load_action);
+    fbo->mtl.desc.depthAttachment.storeAction = mtl_store_action(fbo->depth_config.store_action, fbo_is_multisampled(fbo));
+    fbo->mtl.desc.depthAttachment.clearDepth = fbo->depth_config.clear_depth;
 
     return CERR_OK;
 }
@@ -1220,7 +1220,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
     if (IS_CERR(err))
         return err;
 
-    texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->name, idx);
+    texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->mtl.name, idx);
 
     err = texture_load(&fbo->color_tex[idx], fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
     fbo->color_config[idx].format = fbo->color_tex[idx].mtl.format;
@@ -1236,10 +1236,10 @@ static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment attachment)
         CERR_RET(fbo_texture_init(fbo, fa), return __cerr);
 
         auto i = fa_nr_color_texture(fa) - 1;
-        fbo->desc.colorAttachments[i].texture = fbo->color_tex[i].mtl.texture;
-        fbo->desc.colorAttachments[i].loadAction = mtl_load_action(fbo->color_config[i].load_action);
-        fbo->desc.colorAttachments[i].storeAction = mtl_store_action(fbo->color_config[i].store_action, fbo_is_multisampled(fbo));
-        fbo->desc.colorAttachments[i].clearColor = MTLClearColorMake(
+        fbo->mtl.desc.colorAttachments[i].texture = fbo->color_tex[i].mtl.texture;
+        fbo->mtl.desc.colorAttachments[i].loadAction = mtl_load_action(fbo->color_config[i].load_action);
+        fbo->mtl.desc.colorAttachments[i].storeAction = mtl_store_action(fbo->color_config[i].store_action, fbo_is_multisampled(fbo));
+        fbo->mtl.desc.colorAttachments[i].clearColor = MTLClearColorMake(
             fbo->color_config[i].clear_color[0],
             fbo->color_config[i].clear_color[1],
             fbo->color_config[i].clear_color[2],
@@ -1312,7 +1312,7 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     fbo->depth_config = opts->depth_config;
     fbo->nr_samples   = opts->nr_samples ? : 1;
     fbo->layout       = opts->layout;
-    fbo->name         = opts->name ? : "<unset>";
+    fbo->mtl.name     = opts->name ? : "<unset>";
     /* for compatibility */
     if (!fbo->layout.mask)
         fbo->layout.color_texture0 = 1;
@@ -1320,15 +1320,15 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     int nr_color_configs = fa_nr_color_buffer(fbo->layout) ? :
                            fa_nr_color_texture(fbo->layout);
 
-    fbo->id = CRES_RET(bitmap_find_first_unset(&fbo->renderer->mtl.fbo_ids), return cresp_error_cerr(fbo_t, __resp));
-    bitmap_set(&fbo->renderer->mtl.fbo_ids, fbo->id);
+    fbo->mtl.id = CRES_RET(bitmap_find_first_unset(&fbo->renderer->mtl.fbo_ids), return cresp_error_cerr(fbo_t, __resp));
+    bitmap_set(&fbo->renderer->mtl.fbo_ids, fbo->mtl.id);
     size_t size = nr_color_configs * sizeof(fbo_attconfig);
     fbo->color_config = memdup(opts->color_config ? : &(fbo_attconfig){ .format = TEX_FMT_DEFAULT }, size);
 
-    fbo->desc = [[MTLRenderPassDescriptor alloc] init];
-    if (!fbo->desc) return cresp_error(fbo_t, CERR_NOMEM);
+    fbo->mtl.desc = [[MTLRenderPassDescriptor alloc] init];
+    if (!fbo->mtl.desc) return cresp_error(fbo_t, CERR_NOMEM);
 
-    fbo->desc.defaultRasterSampleCount = fbo->nr_samples;
+    fbo->mtl.desc.defaultRasterSampleCount = fbo->nr_samples;
 
     if (fbo->layout.depth_texture)
         CERR_RET_T(fbo_depth_texture_init(fbo), fbo_t);
@@ -1810,7 +1810,7 @@ static void mtl_renderer_frame_begin(renderer_t *r)
 static void mtl_renderer_swapchain_begin(renderer_t *r)
 {
     r->mtl.drawable = [r->mtl.layer nextDrawable];
-    r->mtl.screen_fbo->desc.colorAttachments[0].texture = r->mtl.drawable.texture;
+    r->mtl.screen_fbo->mtl.desc.colorAttachments[0].texture = r->mtl.drawable.texture;
 
     fbo_prepare(r->mtl.screen_fbo);
 }
@@ -1872,12 +1872,12 @@ void *renderer_cmd_buffer(renderer_t *r)
 
 void *renderer_cmd_encoder(renderer_t *r)
 {
-    return r->mtl.screen_fbo->cmd_encoder;
+    return r->mtl.screen_fbo->mtl.cmd_encoder;
 }
 
 void *renderer_screen_desc(renderer_t *r)
 {
-    return r->mtl.screen_fbo->desc;
+    return r->mtl.screen_fbo->mtl.desc;
 }
 
 #ifndef CONFIG_FINAL
