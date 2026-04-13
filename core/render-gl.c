@@ -1393,10 +1393,10 @@ static cerr uniform_buffer_make(struct ref *ref, void *_opts)
 
     uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
 
-    ubo->binding = opts->binding;
+    ubo->gl.binding = opts->binding;
     ubo->dirty   = true;
 
-    GL(glGenBuffers(1, &ubo->id));
+    GL(glGenBuffers(1, &ubo->gl.id));
 
     return CERR_OK;
 }
@@ -1406,7 +1406,7 @@ static void uniform_buffer_drop(struct ref *ref)
     uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
 
     mem_free(ubo->data);
-    GL(glDeleteBuffers(1, &ubo->id));
+    GL(glDeleteBuffers(1, &ubo->gl.id));
 }
 DEFINE_REFCLASS2(uniform_buffer);
 
@@ -1449,9 +1449,9 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
 
     ubo->size = size;
 
-    GL(glBindBuffer(GL_UNIFORM_BUFFER, ubo->id));
+    GL(glBindBuffer(GL_UNIFORM_BUFFER, ubo->gl.id));
     GL(glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_DYNAMIC_DRAW));
-    GL(glBindBufferBase(GL_UNIFORM_BUFFER, ubo->binding, ubo->id));
+    GL(glBindBufferBase(GL_UNIFORM_BUFFER, ubo->gl.binding, ubo->gl.id));
     GL(glBindBuffer(GL_UNIFORM_BUFFER, 0));
 
     return CERR_OK;
@@ -1468,7 +1468,7 @@ cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points
     if (unlikely(!ubo->data || !ubo->size))
         return CERR_BUFFER_INCOMPLETE;
 
-    GL(glBindBufferBase(GL_UNIFORM_BUFFER, binding_points->binding, ubo->id));
+    GL(glBindBufferBase(GL_UNIFORM_BUFFER, binding_points->binding, ubo->gl.id));
 
     return CERR_OK;
 }
@@ -1478,7 +1478,7 @@ void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_poin
     if (!ubo->dirty)
         return;
 
-    GL(glBindBuffer(GL_UNIFORM_BUFFER, ubo->id));
+    GL(glBindBuffer(GL_UNIFORM_BUFFER, ubo->gl.id));
     GL(glBufferSubData(GL_UNIFORM_BUFFER, 0, ubo->size, ubo->data));
     GL(glBindBuffer(GL_UNIFORM_BUFFER, 0));
 

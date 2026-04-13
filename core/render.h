@@ -743,48 +743,45 @@ void binding_points_add(binding_points_t *bps, shader_stage stage, int binding);
 
 #define MTL_INFLIGHT_FRAMES 3
 
-#ifdef CONFIG_RENDERER_OPENGL
 TYPE(uniform_buffer,
     struct ref  ref;
-    GLsizeiptr  size;     /* Size in bytes */
-    GLuint      id;       /* GL buffer object */
-    GLuint      binding;  /* UBO binding point */
+    renderer_t  *renderer;
+    size_t      size;     /* Single slot size in bytes (16-byte aligned) */
     void        *data;    /* CPU-side shadow buffer */
     bool        dirty;    /* Flag for updates */
+#ifdef CONFIG_RENDERER_OPENGL
+    struct {
+        GLuint      id;       /* GL buffer object */
+        GLuint      binding;  /* UBO binding point */
+    } gl;
+#endif /* CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        wgpu_buffer_t           buf;        /* GPU-side uniform buffer (large, multi-slot) */
+        size_t                  slot_size;  /* 256-byte aligned slot stride */
+        size_t                  total_size; /* Total GPU buffer size */
+        void                    *prev;      /* Previous slot pointer (for COW) */
+        size_t                  item;       /* Current slot index */
+        struct list             entry;      /* Link into renderer->ubos */
+        int                     binding;    /* WGPU binding point */
+        bool                    advance;    /* Next write should advance to new slot */
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        mtl_buffer_t            buf[MTL_INFLIGHT_FRAMES];
+        const char              *name;
+        size_t                  total_size;
+        void                    *prev;    /* previous shadow buffer */
+        size_t                  item;
+        struct list             entry;
+        int                     binding;  /* UBO binding point */
+        bool                    advance;
+    } mtl;
+#endif /* CONFIG_RENDERER_METAL */
 );
-#elif defined(CONFIG_RENDERER_WGPU)
-TYPE(uniform_buffer,
-    struct ref              ref;
-    renderer_t              *renderer;
-    wgpu_buffer_t           buf;        /* GPU-side uniform buffer (large, multi-slot) */
-    size_t                  size;       /* Single slot size in bytes (16-byte aligned) */
-    size_t                  slot_size;  /* 256-byte aligned slot stride */
-    size_t                  total_size; /* Total GPU buffer size */
-    void                    *data;      /* CPU-side shadow: current slot */
-    void                    *prev;      /* Previous slot pointer (for COW) */
-    size_t                  item;       /* Current slot index */
-    struct list             entry;      /* Link into renderer->ubos */
-    int                     binding;    /* WGPU binding point */
-    bool                    advance;    /* Next write should advance to new slot */
-    bool                    dirty;      /* Flag for updates */
-);
-#elif defined(CONFIG_RENDERER_METAL)
-TYPE(uniform_buffer,
-    struct ref              ref;
-    renderer_t              *renderer;
-    mtl_buffer_t            buf[MTL_INFLIGHT_FRAMES];
-    const char              *name;
-    size_t                  size;     /* Size in bytes */
-    size_t                  total_size;
-    void                    *data;    /* CPU-side shadow buffer */
-    void                    *prev;    /* previous shadow buffer */
-    size_t                  item;
-    struct list             entry;
-    int                     binding;  /* UBO binding point */
-    bool                    advance;
-    bool                    dirty;    /* Flag for updates */
-);
-#endif
 
 DEFINE_REFCLASS_INIT_OPTIONS(uniform_buffer,
     renderer_t              *renderer;

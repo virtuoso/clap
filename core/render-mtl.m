@@ -1380,11 +1380,11 @@ static cerr uniform_buffer_make(struct ref *ref, void *_opts)
     rc_init_opts(uniform_buffer) *opts = _opts;
     uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
 
-    ubo->renderer   = opts->renderer;
-    ubo->binding    = opts->binding;
-    ubo->dirty      = false;
-    ubo->name       = opts->name ? : "<unset>";
-    list_append(&ubo->renderer->mtl.ubos, &ubo->entry);
+    ubo->renderer       = opts->renderer;
+    ubo->mtl.binding    = opts->binding;
+    ubo->dirty          = false;
+    ubo->mtl.name       = opts->name ? : "<unset>";
+    list_append(&ubo->renderer->mtl.ubos, &ubo->mtl.entry);
 
     return CERR_OK;
 }
@@ -1393,8 +1393,8 @@ static void uniform_buffer_drop(struct ref *ref)
 {
     uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
     for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)
-        [ubo->buf[i] release];
-    list_del(&ubo->entry);
+        [ubo->mtl.buf[i] release];
+    list_del(&ubo->mtl.entry);
 }
 DEFINE_REFCLASS2(uniform_buffer);
 
@@ -1424,13 +1424,13 @@ void uniform_buffer_done(uniform_buffer_t *ubo)
 
 static inline size_t mtl_ubo_offset(uniform_buffer_t *ubo)
 {
-    return round_up(ubo->size, 256) * ubo->item;
+    return round_up(ubo->size, 256) * ubo->mtl.item;
 }
 
 static inline void *mtl_ubo_data(uniform_buffer_t *ubo)
 {
     auto r = ubo->renderer;
-    return [ubo->buf[r->mtl.frame_idx] contents] + mtl_ubo_offset(ubo);
+    return [ubo->mtl.buf[r->mtl.frame_idx] contents] + mtl_ubo_offset(ubo);
 }
 
 cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
@@ -1443,15 +1443,15 @@ cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *off
 
     auto r = ubo->renderer;
 
-    if (ubo->advance)   ubo->item++;
+    if (ubo->mtl.advance)   ubo->mtl.item++;
 
     ubo->data = mtl_ubo_data(ubo);
 
-    if (ubo->advance) {
-        if (ubo->prev)
-            memcpy(ubo->data, ubo->prev, ubo->size);
-        ubo->prev = ubo->data;
-        ubo->advance = false;
+    if (ubo->mtl.advance) {
+        if (ubo->mtl.prev)
+            memcpy(ubo->data, ubo->mtl.prev, ubo->size);
+        ubo->mtl.prev = ubo->data;
+        ubo->mtl.advance = false;
     }
 
 out:
@@ -1467,16 +1467,16 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
     ubo->size = round_up(size, 16);
     size_t slot_size = round_up(ubo->size, 256);
 
-    ubo->total_size = slot_size * 1024;
+    ubo->mtl.total_size = slot_size * 1024;
 
     auto r = ubo->renderer;
 
     for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++) {
-        ubo->buf[i] = mtl_buffer_new(ubo->renderer, NULL, ubo->total_size, true, true);
-        [ubo->buf[i] setLabel:[NSString stringWithFormat:@"ubo:%s.%d", ubo->name, i]];
+        ubo->mtl.buf[i] = mtl_buffer_new(ubo->renderer, NULL, ubo->mtl.total_size, true, true);
+        [ubo->mtl.buf[i] setLabel:[NSString stringWithFormat:@"ubo:%s.%d", ubo->mtl.name, i]];
 
-        ubo->data = [ubo->buf[i] contents];
-        memset(ubo->data, 0, ubo->total_size);
+        ubo->data = [ubo->mtl.buf[i] contents];
+        memset(ubo->data, 0, ubo->mtl.total_size);
     }
 
     return CERR_OK;
@@ -1487,11 +1487,11 @@ cerr uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points
     if (binding_points->binding < 0)
         return CERR_INVALID_ARGUMENTS;
 
-    if (unlikely(!ubo->total_size || !ubo->size))
+    if (unlikely(!ubo->mtl.total_size || !ubo->size))
         return CERR_BUFFER_INCOMPLETE;
 
     for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)
-        if (unlikely(!ubo->buf[i]))
+        if (unlikely(!ubo->mtl.buf[i]))
             return CERR_BUFFER_INCOMPLETE;
 
     return CERR_OK;
@@ -1501,30 +1501,30 @@ void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_poin
 {
     renderer_t *r = ubo->renderer;
     size_t offset = mtl_ubo_offset(ubo);
-    auto ubo_buf = ubo->buf[r->mtl.frame_idx];
+    auto ubo_buf = ubo->mtl.buf[r->mtl.frame_idx];
 
     if (binding_points->stages & (1 << SHADER_STAGE_VERTEX)) {
-        if (r->mtl.vbuffer_cache[ubo->binding] != ubo_buf || r->mtl.voffset_cache[ubo->binding] != offset) {
-            if (r->mtl.vbuffer_cache[ubo->binding] == ubo_buf)
-                [cmd_encoder(r) setVertexBufferOffset:offset atIndex:ubo->binding];
+        if (r->mtl.vbuffer_cache[ubo->mtl.binding] != ubo_buf || r->mtl.voffset_cache[ubo->mtl.binding] != offset) {
+            if (r->mtl.vbuffer_cache[ubo->mtl.binding] == ubo_buf)
+                [cmd_encoder(r) setVertexBufferOffset:offset atIndex:ubo->mtl.binding];
             else
-                [cmd_encoder(r) setVertexBuffer:ubo_buf offset:offset atIndex:ubo->binding];
-            r->mtl.vbuffer_cache[ubo->binding] = ubo_buf;
-            r->mtl.voffset_cache[ubo->binding] = offset;
+                [cmd_encoder(r) setVertexBuffer:ubo_buf offset:offset atIndex:ubo->mtl.binding];
+            r->mtl.vbuffer_cache[ubo->mtl.binding] = ubo_buf;
+            r->mtl.voffset_cache[ubo->mtl.binding] = offset;
         }
     }
     if (binding_points->stages & (1 << SHADER_STAGE_FRAGMENT)) {
-        if (r->mtl.fbuffer_cache[ubo->binding] != ubo_buf || r->mtl.foffset_cache[ubo->binding] != offset) {
-            if (r->mtl.fbuffer_cache[ubo->binding] == ubo_buf)
-                [cmd_encoder(r) setFragmentBufferOffset:offset atIndex:ubo->binding];
+        if (r->mtl.fbuffer_cache[ubo->mtl.binding] != ubo_buf || r->mtl.foffset_cache[ubo->mtl.binding] != offset) {
+            if (r->mtl.fbuffer_cache[ubo->mtl.binding] == ubo_buf)
+                [cmd_encoder(r) setFragmentBufferOffset:offset atIndex:ubo->mtl.binding];
             else
-                [cmd_encoder(r) setFragmentBuffer:ubo_buf offset:offset atIndex:ubo->binding];
-            r->mtl.fbuffer_cache[ubo->binding] = ubo_buf;
-            r->mtl.foffset_cache[ubo->binding] = offset;
+                [cmd_encoder(r) setFragmentBuffer:ubo_buf offset:offset atIndex:ubo->mtl.binding];
+            r->mtl.fbuffer_cache[ubo->mtl.binding] = ubo_buf;
+            r->mtl.foffset_cache[ubo->mtl.binding] = offset;
         }
     }
 
-    ubo->advance = true;
+    ubo->mtl.advance = true;
     ubo->dirty = false;
 }
 
@@ -1825,15 +1825,15 @@ static void renderer_frame_advance(renderer_t *r)
     r->mtl.frame_idx = (r->mtl.frame_idx + 1) % MTL_INFLIGHT_FRAMES;
 
     uniform_buffer_t *ubo;
-    list_for_each_entry(ubo, &r->mtl.ubos, entry) {
-        ubo->item = 0;
+    list_for_each_entry(ubo, &r->mtl.ubos, mtl.entry) {
+        ubo->mtl.item = 0;
         ubo->dirty = false;
-        ubo->advance = false;
+        ubo->mtl.advance = false;
 
         ubo->data = mtl_ubo_data(ubo);
-        if (ubo->prev)
-            memcpy(ubo->data, ubo->prev, ubo->size);
-        ubo->prev = ubo->data;
+        if (ubo->mtl.prev)
+            memcpy(ubo->data, ubo->mtl.prev, ubo->size);
+        ubo->mtl.prev = ubo->data;
     }
 }
 

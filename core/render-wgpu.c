@@ -1323,14 +1323,14 @@ cerr uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
         return err;
 
     ubo->renderer = r;
-    ubo->binding = binding;
-    list_append(&r->wgpu.ubos, &ubo->entry);
+    ubo->wgpu.binding = binding;
+    list_append(&r->wgpu.ubos, &ubo->wgpu.entry);
     return CERR_OK;
 }
 
 static inline size_t wgpu_ubo_offset(uniform_buffer_t *ubo)
 {
-    return ubo->slot_size * ubo->item;
+    return ubo->wgpu.slot_size * ubo->wgpu.item;
 }
 
 cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
@@ -1340,61 +1340,61 @@ cerr uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
         return CERR_INVALID_OPERATION;
 
     ubo->size = round_up(size, 16);
-    ubo->slot_size = round_up(ubo->size, 256);
-    ubo->total_size = ubo->slot_size * 1024;
+    ubo->wgpu.slot_size = round_up(ubo->size, 256);
+    ubo->wgpu.total_size = ubo->wgpu.slot_size * 1024;
 
     renderer_t *r = ubo->renderer;
 
     /* One large GPU buffer for all slots */
-    ubo->buf = wgpu_create_buffer(r, NULL,
+    ubo->wgpu.buf = wgpu_create_buffer(r, NULL,
                                    WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                                   ubo->total_size);
-    if (!ubo->buf)
+                                   ubo->wgpu.total_size);
+    if (!ubo->wgpu.buf)
         return CERR_NOMEM;
 
     /* CPU shadow covers the full allocation */
-    ubo->data = mem_alloc(ubo->total_size, .zero = 1);
+    ubo->data = mem_alloc(ubo->wgpu.total_size, .zero = 1);
     if (!ubo->data)
         return CERR_NOMEM;
 
-    ubo->prev = ubo->data;
+    ubo->wgpu.prev = ubo->data;
 
     return CERR_OK;
 }
 
 void uniform_buffer_done(uniform_buffer_t *ubo)
 {
-    if (ubo->buf) {
-        wgpuBufferRelease(ubo->buf);
-        ubo->buf = NULL;
+    if (ubo->wgpu.buf) {
+        wgpuBufferRelease(ubo->wgpu.buf);
+        ubo->wgpu.buf = NULL;
     }
-    list_del(&ubo->entry);
-    mem_free(ubo->data, .size = ubo->total_size);
+    list_del(&ubo->wgpu.entry);
+    mem_free(ubo->data, .size = ubo->wgpu.total_size);
     ubo->data = NULL;
-    ubo->prev = NULL;
+    ubo->wgpu.prev = NULL;
     ubo->size = 0;
-    ubo->total_size = 0;
-    ubo->item = 0;
+    ubo->wgpu.total_size = 0;
+    ubo->wgpu.item = 0;
     ubo->dirty = false;
-    ubo->advance = false;
+    ubo->wgpu.advance = false;
 }
 
 void uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
-    if (!ubo || !ubo->data || !ubo->size || !ubo->buf)
+    if (!ubo || !ubo->data || !ubo->size || !ubo->wgpu.buf)
         return;
 
     renderer_t *r = ubo->renderer;
     size_t offset = wgpu_ubo_offset(ubo);
 
     /* Upload the current slot to the GPU */
-    wgpuQueueWriteBuffer(r->wgpu.queue, ubo->buf, offset, ubo->data, ubo->size);
+    wgpuQueueWriteBuffer(r->wgpu.queue, ubo->wgpu.buf, offset, ubo->data, ubo->size);
 
-    ubo->advance = true;
+    ubo->wgpu.advance = true;
     ubo->dirty = false;
 
     /* Track this UBO for bind group creation at draw time */
-    int slot = ubo->binding - WGPU_BINDING_UBO_BASE;
+    int slot = ubo->wgpu.binding - WGPU_BINDING_UBO_BASE;
     if (slot >= 0 && slot < BINDING_UBO_MAX)
         r->wgpu.bound_ubos[slot] = ubo;
 }
@@ -1410,7 +1410,7 @@ cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *of
 /* data always points to shadow_base + item * slot_size */
 static inline void *wgpu_ubo_shadow_base(uniform_buffer_t *ubo)
 {
-    return (char *)ubo->data - ubo->item * ubo->slot_size;
+    return (char *)ubo->data - ubo->wgpu.item * ubo->wgpu.slot_size;
 }
 
 cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
@@ -1420,16 +1420,16 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
         goto out;
 
     /* Advance to a new slot on first write after uniform_buffer_update() */
-    if (ubo->advance) {
+    if (ubo->wgpu.advance) {
         char *base = wgpu_ubo_shadow_base(ubo);
         void *prev_data = ubo->data;
 
-        ubo->item++;
-        ubo->data = base + ubo->item * ubo->slot_size;
+        ubo->wgpu.item++;
+        ubo->data = base + ubo->wgpu.item * ubo->wgpu.slot_size;
 
         /* COW: seed the new slot from the previous one */
         memcpy(ubo->data, prev_data, ubo->size);
-        ubo->advance = false;
+        ubo->wgpu.advance = false;
     }
 
 out:
@@ -2032,14 +2032,14 @@ static void wgpu_renderer_done(renderer_t *r)
 static void renderer_frame_advance(renderer_t *r)
 {
     uniform_buffer_t *ubo;
-    list_for_each_entry(ubo, &r->wgpu.ubos, entry) {
+    list_for_each_entry(ubo, &r->wgpu.ubos, wgpu.entry) {
         void *prev_data = ubo->data;
         char *base = wgpu_ubo_shadow_base(ubo);
 
-        ubo->item = 0;
+        ubo->wgpu.item = 0;
         ubo->data = base;
         ubo->dirty = false;
-        ubo->advance = false;
+        ubo->wgpu.advance = false;
 
         if (prev_data != ubo->data)
             memcpy(ubo->data, prev_data, ubo->size);
@@ -2270,7 +2270,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
 
     for (unsigned int i = 0; i < BINDING_UBO_MAX; i++) {
         uniform_buffer_t *ubo = r->wgpu.bound_ubos[i];
-        if (!ubo || !ubo->buf)
+        if (!ubo || !ubo->wgpu.buf)
             continue;
 
         unsigned int binding = WGPU_BINDING_UBO_BASE + i;
@@ -2279,9 +2279,9 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
 
         entries[n++] = (WGPUBindGroupEntry){
             .binding    = binding,
-            .buffer     = ubo->buf,
+            .buffer     = ubo->wgpu.buf,
             .offset     = wgpu_ubo_offset(ubo),
-            .size       = ubo->slot_size,
+            .size       = ubo->wgpu.slot_size,
         };
     }
 
