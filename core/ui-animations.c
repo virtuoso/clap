@@ -58,7 +58,7 @@ static void ui_animation_run(struct ui_animation *ua)
 
 static int ui_animation_update(entity3d *e, void *data)
 {
-    struct ui_element   *uie = e->priv;
+    struct ui_element   *uie = CRES_RET(entity3d_ui_element(e), return 0);
     struct ui_animation *ua;
 
     if (list_empty(&uie->animation)) {

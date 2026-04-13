@@ -145,7 +145,7 @@ static void ui_element_position(struct ui_element *uie, struct ui *ui)
 
 int ui_element_update(entity3d *e, void *data)
 {
-    struct ui_element *uie = e->priv;
+    struct ui_element *uie = CRES_RET(entity3d_ui_element(e), return 0);
     struct ui *ui = uie->ui;
     mat4x4 p;
 
@@ -162,7 +162,7 @@ int ui_element_update(entity3d *e, void *data)
 
 static void ui_reset_positioning(entity3d *e, void *data)
 {
-    struct ui_element *uie = e->priv;
+    struct ui_element *uie = CRES_RET(entity3d_ui_element(e), return);
     /* XXX */
     uie->actual_x = uie->actual_y = uie->actual_w = uie->actual_h = -1.0;
 }
@@ -195,7 +195,7 @@ void ui_update(struct ui *ui)
 
 static void ui_element_destroy(entity3d *e)
 {
-    struct ui_element *uie = e->priv;
+    struct ui_element *uie = CRES_RET(entity3d_ui_element(e), return);
 
     ref_put(uie);
 }
@@ -330,7 +330,7 @@ static cerr ui_element_make(struct ref *ref, void *_opts)
     list_init(&uie->animation);
 
     uie->entity->update  = ui_element_update;
-    uie->entity->priv    = uie;
+    entity3d_set(uie->entity, ENTITY3D_IS_UI, uie);
     entity3d_color(uie->entity, COLOR_PT_NONE, (vec4){});
 
     ui_element_position(uie, opts->ui);
@@ -473,7 +473,7 @@ static void ui_roll_done(void)
 
 static int ui_roll_update(entity3d *e, void *data)
 {
-    struct ui_element *uie = e->priv;
+    struct ui_element *uie = CRES_RET(entity3d_ui_element(e), return 0);
     struct ui *ui = uie->ui;
 
     if (uie->y_off == ui->height + uie->height) {
@@ -1305,13 +1305,13 @@ struct ui_element_match_struct {
 static void ui_element_match(entity3d *e, void *data)
 {
     struct ui_element_match_struct *sd = data;
-    struct ui_element *uie = e->priv;
+    struct ui_element *uie = CRES_RET(entity3d_ui_element(e), return);
 
     if (sd->match)
         return;
 
     if (ui_element_within(uie, sd->uivec))
-        sd->match = e->priv;
+        sd->match = uie;
 }
 
 bool ui_element_click(struct ui *ui, uivec uivec)
