@@ -498,7 +498,7 @@ static bool gl_texture_format_supported(renderer_t *r, texture_format format)
     if (format >= TEX_FMT_MAX)
         return false;
 
-    return _texture_format_supported[format];
+    return r->gl.texture_format_supported[format];
 }
 
 static GLenum gl_texture_format(texture_format format)
@@ -871,14 +871,12 @@ texid_t texture_id(struct texture *tex)
  * Framebuffer
  ****************************************************************************/
 
-static bool _fbo_texture_supported[TEX_FMT_MAX];
-
 static bool gl_fbo_texture_supported(renderer_t *r, texture_format format)
 {
     if (format >= TEX_FMT_MAX)
         return false;
 
-    return _fbo_texture_supported[format];
+    return r->gl.fbo_texture_supported[format];
 }
 
 static int fbo_create(void)
@@ -1748,7 +1746,7 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
         float buf[4] = {};
         texture_t tex;
 
-        _texture_format_supported[i] = true;
+        renderer->gl.texture_format_supported[i] = true;
 
         texture_filter filter = TEX_FLT_LINEAR;
         if (i == TEX_FMT_R32UI || i == TEX_FMT_RG32UI || i == TEX_FMT_RGBA32UI)
@@ -1758,7 +1756,7 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
         if (!IS_CERR(err)) {
             err = texture_load(&tex, i, 1, 1, &buf);
             if (IS_CERR(err))
-                _texture_format_supported[i] = false;
+                renderer->gl.texture_format_supported[i] = false;
         }
         texture_deinit(&tex);
     }
@@ -1766,20 +1764,20 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
     for (i = 0; i < TEX_FMT_MAX; i++) {
         cresp(fbo_t) res;
 
-        _fbo_texture_supported[i] = true;
+        renderer->gl.fbo_texture_supported[i] = true;
 
         if (gl_texture_format(i) == GL_DEPTH_COMPONENT) {
             res = fbo_new(.renderer = renderer, .width = 1, .height = 1, .depth_config.format = i,
                           .layout = FBO_DEPTH_TEXTURE(0));
             if (IS_CERR(res))
-                _fbo_texture_supported[i] = false;
+                renderer->gl.fbo_texture_supported[i] = false;
             else
                 fbo_put(res.val);
         } else {
             res = fbo_new(.renderer = renderer, .width = 1, .height = 1, .layout = FBO_COLOR_TEXTURE(0),
                           .color_config = (fbo_attconfig[]){ { .format = i } });
             if (IS_CERR(res))
-                _fbo_texture_supported[i] = false;
+                renderer->gl.fbo_texture_supported[i] = false;
             else
                 fbo_put(res.val);
         }
@@ -1832,7 +1830,7 @@ static void gl_renderer_debug(renderer_t *r)
         if (igTreeNode_Str("texture color formats")) {
             ui_igTableHeader("color formats", (const char *[]){ "format", "supported"}, 2);
 
-            for (int i = 0; i < array_size(_texture_format_supported); i++)
+            for (int i = 0; i < array_size(r->gl.texture_format_supported); i++)
                 ui_igTableRow(texture_format_string(i), "%s",
                               gl_texture_format_supported(r, i) ? "supported" : "");
             igEndTable();
@@ -1842,7 +1840,7 @@ static void gl_renderer_debug(renderer_t *r)
         if (igTreeNode_Str("FBO color formats")) {
             ui_igTableHeader("color formats", (const char *[]){ "format", "supported"}, 2);
 
-            for (int i = 0; i < array_size(_texture_format_supported); i++)
+            for (int i = 0; i < array_size(r->gl.texture_format_supported); i++)
                 ui_igTableRow(texture_format_string(i), "%s",
                               gl_fbo_texture_supported(r, i) ? "supported" : "");
             igEndTable();

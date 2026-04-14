@@ -896,6 +896,8 @@ TYPE(renderer,
         GLenum              blend_dfactor;
         GLenum              depth_func;
         double              clear_depth;
+        bool                fbo_texture_supported[TEX_FMT_MAX];
+        bool                texture_format_supported[TEX_FMT_MAX];
         int                 major;
         int                 minor;
         renderer_profile    profile;
