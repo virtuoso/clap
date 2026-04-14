@@ -628,7 +628,12 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
 
     if (opts->vert_ref_text && !IS_CERR(vert_ref_err) &&
         opts->frag_ref_text && !IS_CERR(frag_ref_err) &&
-        (!opts->geom_text || (opts->geom_ref_text && !IS_CERR(geom_ref_err))))
+        (!opts->geom_text || (opts->geom_ref_text && !IS_CERR(geom_ref_err))) &&
+        // XXX: OpenGL pipeline doesn't generate reflections, don't try to load
+        // them; since they don't have the shading language suffix in the name,
+        // in combinations of OpenGL + WebGPU, this will load the latter's
+        // reflections. A proper fix is to fix that; this is a stopgap.
+        renderer_get_caps(p->ctx->renderer)->renderer != RENDER_OPENGL)
         goto out;
 
     /*
