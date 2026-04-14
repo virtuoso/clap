@@ -179,7 +179,7 @@ static void character_apply_velocity(struct character *ch)
 {
     entity3d *e = ch->entity;
 
-    if (e->phys_body)
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_body_set_motor_velocity(e->phys_body, true, ch->velocity);
     else
         transform_move(&e->xform, ch->velocity);
@@ -334,8 +334,7 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
     if (!ch->can_jump || ch->airborne)
         return false;
 
-    struct phys_body *body = ch->entity->phys_body;
-    if (!body || !phys_body_has_body(body))
+    if (!entity3d_matches(ch->entity, ENTITY3D_PHYS_IS_BODY))
         return false;
 
     vec3_dup(ch->velocity, (vec3){ dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward });
@@ -467,7 +466,7 @@ static int character_update(entity3d *e, void *data)
         entity3d_position(e, pos);
     }
 
-    if (e->phys_body) {
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS)) {
         if (phys_body_update(e)) {
             history_push(c);
             character_set_moved(c);

@@ -342,7 +342,7 @@ static void entity_pen_push(entity3d *e, dContact *contact, struct list *pen)
 {
     vec3 norm = { contact->geom.normal[0], contact->geom.normal[1], contact->geom.normal[2] };
 
-    if (!e->phys_body)
+    if (!entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         return;
 
     e->phys_body->pen_depth += contact->geom.depth;
@@ -446,7 +446,7 @@ __phys_ray_cast(struct phys *phys, entity3d *e, const vec3 start, const vec3 dir
     dGeomID ray = NULL;
     struct contact c = {};
     vec3 _start;
-    bool check_self = !!e->phys_body;
+    bool check_self = entity3d_matches(e, ENTITY3D_HAS_PHYSICS);
 
     vec3_dup(_start, start);
     ray = dCreateRay(phys->space, *pdist);
@@ -501,7 +501,7 @@ entity3d *phys_ray_cast2(struct phys *phys, entity3d *e, const vec3 start,
 
 entity3d *phys_ray_cast(entity3d *e, const vec3 start, const vec3 dir, double *pdist)
 {
-    if (!e->phys_body)
+    if (!entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         return NULL;
 
     return phys_ray_cast2(e->phys_body->phys, e, start, dir, pdist);
@@ -514,7 +514,7 @@ void phys_ground_entity(struct phys *phys, entity3d *e)
     vec3 dir = { 0, -1, 0 };
     double dist = 1e6;
 
-    if (e->phys_body)
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys = e->phys_body->phys;
     collision = phys_ray_cast2(phys, e, start, dir, &dist);
     if (!collision)
@@ -687,7 +687,7 @@ int phys_body_update(entity3d *e)
     const dReal *pos;
     const dReal *vel;
 
-    if (!e->phys_body || !phys_body_has_body(e->phys_body))
+    if (!entity3d_matches(e, ENTITY3D_PHYS_IS_BODY))
         return 0;
 
     pos = dGeomGetPosition(e->phys_body->geom);

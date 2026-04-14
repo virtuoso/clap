@@ -1663,7 +1663,8 @@ static int default_update(entity3d *e, void *data)
 
         entity3d_aabb_update(e);
 
-        if (e->phys_body && entity3d_matches(e, ENTITY3D_IS_CHARACTER))
+        if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS) &&
+            entity3d_matches(e, ENTITY3D_IS_CHARACTER))
             phys_body_rotate_xform(e->phys_body, &e->xform);
     }
 
@@ -1687,7 +1688,7 @@ static int default_update(entity3d *e, void *data)
 
     if (entity_animated(e))
         animated_update(e, scene);
-    if (e->phys_body)
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_debug_draw(scene, e->phys_body);
     if (clap_get_render_options(scene->clap_ctx)->overlay_draws_enabled)
         entity3d_debug(scene, e);
@@ -1740,9 +1741,10 @@ static void entity3d_drop(struct ref *ref)
     ref_put(e->txmodel);
 
     darray_clearout(e->aniq);
-    if (e->phys_body) {
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS)) {
         phys_body_done(e->phys_body);
         e->phys_body = NULL;
+        entity3d_clear(e, ENTITY3D_HAS_PHYSICS | ENTITY3D_PHYS_IS_BODY);
     }
     mem_free(e->joints);
     mem_free(e->joint_transforms);
@@ -1767,6 +1769,11 @@ void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class
                           int type, double geom_off, double geom_radius, double geom_length)
 {
     e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
+    if (e->phys_body) {
+        entity3d_set(e, ENTITY3D_HAS_PHYSICS, NULL);
+        if (phys_body_has_body(e->phys_body))
+            entity3d_set(e, ENTITY3D_PHYS_IS_BODY, NULL);
+    }
 }
 
 void entity3d_visible(entity3d *e, unsigned int visible)
@@ -1792,14 +1799,14 @@ void entity3d_scale(entity3d *e, float scale)
 void entity3d_position(entity3d *e, vec3 pos)
 {
     transform_set_pos(&e->xform, pos);
-    if (e->phys_body)
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_body_set_position(e->phys_body, pos);
 }
 
 void entity3d_move(entity3d *e, vec3 off)
 {
     const float *pos = transform_move(&e->xform, off);
-    if (e->phys_body)
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_body_set_position(e->phys_body, pos);
 }
 
