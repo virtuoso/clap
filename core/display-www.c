@@ -21,9 +21,6 @@ int display_refresh_rate(void)
 
 bool display_supports_edr()
 {
-#ifdef CONFIG_RENDERER_OPENGL
-    return false;
-#else /* !CONFIG_RENDERER_OPENGL */
     /*
      * CSS media query (dynamic-range: high) is the canonical way to ask the
      * browser whether the current display can present HDR content. Returns
@@ -32,7 +29,6 @@ bool display_supports_edr()
     return EM_ASM_INT({
         return (window.matchMedia && window.matchMedia('(dynamic-range: high)').matches) ? 1 : 0;
     });
-#endif /* !CONFIG_RENDERER_OPENGL */
 }
 
 struct calc_refresh_rate_priv {
