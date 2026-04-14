@@ -385,6 +385,7 @@ static cerr model3dtx_make(struct ref *ref, void *_opts)
 
     txm->mat.roughness = opts->roughness;
     txm->mat.metallic = opts->metallic;
+    txm->mat.uv_factor = 1.0f;
 
     return CERR_OK;
 
@@ -850,6 +851,8 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             shader_set_var_float(prog, UNIFORM_METALLIC_CEIL, txmodel->mat.metallic_ceil);
             shader_set_var_float(prog, UNIFORM_METALLIC_AMP, txmodel->mat.metallic_amp);
         }
+
+        shader_set_var_float(prog, UNIFORM_UV_FACTOR, txmodel->mat.uv_factor);
 
         unsigned int nr_characters = 0;
         entity3d *e;

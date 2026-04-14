@@ -92,6 +92,7 @@
             "stages": [ "fragment" ],
             "binding": 6,
             "uniforms": [
+                { "name": "uv_factor", "type": "DT_FLOAT", "symbol": "UNIFORM_UV_FACTOR", "discription": "texture sampling repetition multiplier" },
                 { "name": "reflectivity", "type": "DT_FLOAT", "symbol": "UNIFORM_REFLECTIVITY", "discription": "reflectivity for Blinn-Phong lighting" },
                 { "name": "shine_damper", "type": "DT_FLOAT", "symbol": "UNIFORM_SHINE_DAMPER", "discription": "specular shine damper for Blinn-Phong lighting" },
                 { "name": "roughness", "type": "DT_FLOAT", "symbol": "UNIFORM_ROUGHNESS", "discription": "roughness for Cook-Torrance lighting" },

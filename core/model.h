@@ -131,6 +131,8 @@ struct animation *animation_new(model3d *model, const char *name, unsigned int n
 int animation_by_name(model3d *m, const char *name);
 
 typedef struct material {
+    /* Repeat texture */
+    float   uv_factor;
     /*
      * Roughness or roughness floor, in case of procedurally generated
      * roughness

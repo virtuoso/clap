@@ -594,6 +594,7 @@ static void model_tabs(model3dtx *txm)
         } else {
             ui_igSliderFloat("metallic", &mat->metallic, 0.0, 1.0, "%.04f", 0);
         }
+        ui_igSliderFloat("UV factor", &mat->uv_factor, 1.0f, 200.0f, "%f", 0);
         igEndTable();
         igEndTabItem();
     }

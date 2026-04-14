@@ -30,8 +30,9 @@ void main()
 {
     vec3 unit_normal;
 
+    vec2 uv = pass_tex * uv_factor;
     if (use_normals) {
-        vec3 normal_sample = texture(normal_map, pass_tex).xyz * 2.0 - 1.0;
+        vec3 normal_sample = texture(normal_map, uv).xyz * 2.0 - 1.0;
         unit_normal = normalize(tbn * normal_sample);
     } else {
         unit_normal = normalize(surface_normal);
@@ -40,7 +41,7 @@ void main()
     lighting_material mat = noise_material();
 
     vec3 view_dir = normalize(to_camera_vector);
-    vec4 texture_sample = texture(model_tex, pass_tex);
+    vec4 texture_sample = texture(model_tex, uv);
     vec4 view_pos = view * world_pos;
 
     float shadow_factor = shadow_factor_calc(unit_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
@@ -62,7 +63,7 @@ void main()
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
 
-    vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, pass_tex).rgb : texture_sample.rgb;
+    vec3 emission = bloom_intensity > 0.0 ? texture(emission_map, uv).rgb : texture_sample.rgb;
     emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
 
     /* EmissiveColor.a encodes outline properties */
