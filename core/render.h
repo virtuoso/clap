@@ -369,11 +369,9 @@ typedef enum texture_format {
     TEX_FMT_R32UI,
     TEX_FMT_RG32UI,
     TEX_FMT_RGBA32UI,
-#if defined(CONFIG_RENDERER_METAL) || defined(CONFIG_RENDERER_WGPU)
     TEX_FMT_BGRA8,
     TEX_FMT_BGR10A2,
     TEX_FMT_BGRA10XR,
-#endif
     TEX_FMT_MAX,
 } texture_format;
 

@@ -1696,6 +1696,10 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
 #endif /* EGL_EGL_PROTOTYPES */
 
     for (i = 0; i < TEX_FMT_MAX; i++) {
+        /* Filter out BGRA textures */
+        auto name = texture_format_string(i);
+        if (name && name[0] == 'B') continue;
+
         float buf[4] = {};
         texture_t tex;
 
@@ -1715,6 +1719,10 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
     }
 
     for (i = 0; i < TEX_FMT_MAX; i++) {
+        /* Filter out BGRA textures */
+        auto name = texture_format_string(i);
+        if (name && name[0] == 'B') continue;
+
         cresp(fbo_t) res;
 
         renderer->gl.fbo_texture_supported[i] = true;

@@ -27,6 +27,9 @@ static const struct {
     [TEX_FMT_DEPTH32F]  = { .name = "DEPTH32F",     .comp_sz = 4, .nr_comps = 1, .add_alpha = TEX_FMT_MAX },
     [TEX_FMT_DEPTH24F]  = { .name = "DEPTH24F",     .comp_sz = 3, .nr_comps = 1, .add_alpha = TEX_FMT_MAX },
     [TEX_FMT_DEPTH16F]  = { .name = "DEPTH16F",     .comp_sz = 2, .nr_comps = 1, .add_alpha = TEX_FMT_MAX },
+    [TEX_FMT_BGRA8]     = { .name = "BGRA8",        .comp_sz = 1, .nr_comps = 4, .add_alpha = TEX_FMT_MAX },
+    [TEX_FMT_BGR10A2]   = { .name = "BGR10A2",      .comp_sz = 4, .nr_comps = 1, .add_alpha = TEX_FMT_MAX },
+    [TEX_FMT_BGRA10XR]  = { .name = "BGRA10XR",     .comp_sz = 2, .nr_comps = 4, .add_alpha = TEX_FMT_MAX },
 };
 
 const char *texture_format_string(texture_format fmt)
