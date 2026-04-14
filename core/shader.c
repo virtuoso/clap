@@ -52,17 +52,22 @@ typedef struct shader_context {
 
 DEFINE_CLEANUP(shader_context, if (*p) mem_free(*p));
 
-static inline enum shader_binding_renderers shader_binding_current_backend(void)
+static inline enum shader_binding_renderers shader_binding_current_backend(renderer_t *r)
 {
-#if defined(CONFIG_RENDERER_OPENGL)
-    return RENDERER_OPENGL;
-#elif defined(CONFIG_RENDERER_METAL)
-    return RENDERER_METAL;
-#elif defined(CONFIG_RENDERER_WGPU)
-    return RENDERER_WGPU;
-#else
-#error "Unsupported renderer"
-#endif
+    switch (renderer_get_caps(r)->renderer) {
+#ifdef CONFIG_RENDERER_OPENGL
+        case RENDER_OPENGL: return RENDERER_OPENGL;
+#endif /* CONFIG_RENDERER_OPENGL */
+#ifdef CONFIG_RENDERER_METAL
+        case RENDER_METAL:  return RENDERER_METAL;
+#endif /* CONFIG_RENDERER_METAL */
+#ifdef CONFIG_RENDERER_WGPU
+        case RENDER_WGPU:   return RENDERER_WGPU;
+#endif /* CONFIG_RENDERER_WGPU */
+        default:            clap_unreachable();
+    }
+
+    return RENDERER_MAX;
 }
 
 static inline int shader_binding_lookup(enum shader_binding_renderers backend,
@@ -72,20 +77,20 @@ static inline int shader_binding_lookup(enum shader_binding_renderers backend,
     return shader_bindings[backend][binding_class][binding];
 }
 
-static inline int shader_binding_lookup_current(enum shader_binding_classes binding_class,
+static inline int shader_binding_lookup_current(renderer_t *r, enum shader_binding_classes binding_class,
                                                 int binding)
 {
-    return shader_binding_lookup(shader_binding_current_backend(), binding_class, binding);
+    return shader_binding_lookup(shader_binding_current_backend(r), binding_class, binding);
 }
 
-static inline int shader_ubo_binding(int binding)
+static inline int shader_ubo_binding(renderer_t *r, int binding)
 {
-    return shader_binding_lookup_current(BC_UBO, binding);
+    return shader_binding_lookup_current(r, BC_UBO, binding);
 }
 
-static inline int shader_texture_binding(int binding)
+static inline int shader_texture_binding(renderer_t *r, int binding)
 {
-    return shader_binding_lookup_current(BC_TEXTURE, binding);
+    return shader_binding_lookup_current(r, BC_TEXTURE, binding);
 }
 
 static void shader_var_block_done(shader_context *ctx, int var_idx)
@@ -120,7 +125,7 @@ cresp(shader_context) shader_vars_init(renderer_t *renderer)
 
         /* Initialize the uniform buffer */
         uniform_buffer_t *ub = &var_block->ub;
-        int binding = shader_ubo_binding(desc->binding);
+        int binding = shader_ubo_binding(renderer, desc->binding);
         err = uniform_buffer_init(renderer, ub, desc->name, binding);
         if (IS_CERR(err))
             goto error;
@@ -467,7 +472,7 @@ int shader_get_texture_slot(struct shader_prog *p, enum shader_vars var)
     if (!__shader_has_var(p, var))
         return -1;
 
-    return shader_texture_binding(shader_var_desc[var].texture_slot);
+    return shader_texture_binding(p->ctx->renderer, shader_var_desc[var].texture_slot);
 }
 
 void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t *tex)
@@ -476,7 +481,7 @@ void shader_plug_texture(struct shader_prog *p, enum shader_vars var, texture_t 
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
-    int texture_slot = shader_texture_binding(desc->texture_slot);
+    int texture_slot = shader_texture_binding(p->ctx->renderer, desc->texture_slot);
 
     if (texture_loaded(tex))    texture_bind(tex, texture_slot, p->vars[var]);
 }
@@ -487,7 +492,7 @@ void shader_unplug_texture(struct shader_prog *p, enum shader_vars var, texture_
         return;
 
     const struct shader_var_desc *desc = &shader_var_desc[var];
-    int texture_slot = shader_texture_binding(desc->texture_slot);
+    int texture_slot = shader_texture_binding(p->ctx->renderer, desc->texture_slot);
 
     texture_unbind(tex, texture_slot);
 }
@@ -527,7 +532,7 @@ static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
                 auto desc = &shader_var_desc[i];
                 if (desc->texture_slot < 0)     continue;
                 if (strcmp(name, desc->name))   continue;
-                int texture_slot = shader_texture_binding(desc->texture_slot);
+                int texture_slot = shader_texture_binding(p->ctx->renderer, desc->texture_slot);
 
                 if (texture_slot != bind) {
                     err("tex '%s' (%s) bindings don't match: %d <> %d\n", name, type, texture_slot, bind);
@@ -556,7 +561,7 @@ static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
             for (size_t i = 0; i < array_size(shader_var_block_desc); i++) {
                 auto desc = &shader_var_block_desc[i];
                 if (!desc->name || strcmp(name, desc->name))    continue;
-                int expected_binding = shader_ubo_binding(desc->binding);
+                int expected_binding = shader_ubo_binding(p->ctx->renderer, desc->binding);
 
                 if (expected_binding != bind) {
                     err("ubo '%s' bindings don't match: %d <> %d\n", name, expected_binding, bind);
