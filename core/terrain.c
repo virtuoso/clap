@@ -547,7 +547,7 @@ struct terrain *terrain_init_square_landscape(struct scene *s, float x, float y,
     t->entity->txmodel->model->collision_idx = idx;
     t->entity->txmodel->model->collision_idxsz = idxsz;
     t->entity->update  = NULL;
-    t->entity->skip_culling = true;
+    entity3d_set(t->entity, ENTITY3D_SKIP_CULLING, NULL);
     entity3d_reset(t->entity);
     entity3d_add_physics(t->entity, clap_get_phys(s->clap_ctx), 0, GEOM_TRIMESH,
                          PHYS_GEOM, 0, 0, 0);

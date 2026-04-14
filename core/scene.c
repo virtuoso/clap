@@ -1508,7 +1508,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             if (ch) {
                 c = ref_new(character, .txmodel = txm, .scene = scene);
                 e = c->entity;
-                e->skip_culling = true;
+                entity3d_set(e, ENTITY3D_SKIP_CULLING, NULL);
                 c->can_dash = can_dash;
                 c->can_jump = can_jump;
             } else {

@@ -214,7 +214,7 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
     ps->e->outline_exclude = opts->outline_exclude;
     entity3d_set(ps->e, ENTITY3D_IS_PARTICLE, ps);
     /* ps->e's AABB should cover a sphere with ps->radius, until then, disable culling */
-    ps->e->skip_culling = true;
+    entity3d_set(ps->e, ENTITY3D_SKIP_CULLING, NULL);
     ps->e->update = particles_update;
     ps->count = opts->count > PARTICLES_MAX ? PARTICLES_MAX : opts->count;
     ps->radius = opts->radius;

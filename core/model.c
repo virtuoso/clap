@@ -966,7 +966,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (!entity3d_matches(e, ENTITY3D_VISIBLE))
                 continue;
 
-            if (!e->skip_culling &&
+            if (!entity3d_matches(e, ENTITY3D_SKIP_CULLING) &&
                 view && !view_entity_in_frustum(view, e)) {
                 culled++;
                 continue;

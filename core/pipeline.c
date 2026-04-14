@@ -358,7 +358,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             { err = cerr_error_cres(__resp); goto err_txmodel; }
         );
 
-        pass->quad->skip_culling = true;
+        entity3d_set(pass->quad, ENTITY3D_SKIP_CULLING, NULL);
         mat4x4_identity(pass->quad->mx);
         ref_put(prog);
     }
