@@ -1031,9 +1031,10 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 ssao_upload(opts->ssao_state, prog, opts->width, opts->height);
 
             unsigned int nr_instances = 1;
-            if (e->particles) {
-                particle_system_upload(e->particles, prog);
-                nr_instances = particle_system_count(e->particles);
+            if (entity3d_matches(e, ENTITY3D_IS_PARTICLE)) {
+                particle_system *ps = e->priv;
+                particle_system_upload(ps, prog);
+                nr_instances = particle_system_count(ps);
             }
 
             shader_var_blocks_update(prog);

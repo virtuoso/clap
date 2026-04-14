@@ -99,7 +99,7 @@ static int particles_update(entity3d *e, void *data)
     mat4x4_transpose_mat3x3(e->mx);
     transform_pos(&e->xform, e->mx[3]);
 
-    particle_system *ps = e->particles;
+    particle_system *ps = CRES_RET(entity3d_particle_system(e), return 0);
     particle *p;
     int i = 0;
     list_for_each_entry(p, &ps->particles, entry) {
@@ -212,7 +212,7 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
     ps->e = eres.val;
     ps->e->bloom_intensity = opts->bloom_intensity ? : 1.0f;
     ps->e->outline_exclude = opts->outline_exclude;
-    ps->e->particles = ps;
+    entity3d_set(ps->e, ENTITY3D_IS_PARTICLE, ps);
     /* ps->e's AABB should cover a sphere with ps->radius, until then, disable culling */
     ps->e->skip_culling = true;
     ps->e->update = particles_update;

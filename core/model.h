@@ -404,7 +404,6 @@ typedef struct entity3d {
     uint16_t            seq;
     uint16_t            parent_seq;
     struct phys_body    *phys_body;
-    particle_system     *particles;
     float               bloom_intensity;
     float               bloom_threshold;
     float               color[4];
