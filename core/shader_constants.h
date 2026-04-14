@@ -35,13 +35,13 @@
 #define ATTR_LOC_WEIGHTS    5
 
 /* Renderer-specific binding locations */
-#if defined(CONFIG_RENDERER_OPENGL)
+#if defined(SHADER_RENDERER_OPENGL)
 #include "bindings/render-bindings-gl.h"
-#elif defined(CONFIG_RENDERER_METAL)
+#elif defined(SHADER_RENDERER_METAL)
 #include "bindings/render-bindings-metal.h"
-#elif defined(CONFIG_RENDERER_WGPU)
+#elif defined(SHADER_RENDERER_WGPU)
 #include "bindings/render-bindings-wgpu.h"
-#else
+#elif !defined(__STDC__) && !defined(__OBJC__) && !defined(__cplusplus)
 #error "Unsupported renderer"
 #endif
 
