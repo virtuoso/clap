@@ -82,8 +82,15 @@ static cerr mtl_shader_use(shader_t *shader, bool draw);
 static void mtl_shader_unuse(shader_t *shader, bool draw);
 static int mtl_shader_id(shader_t *shader);
 static cres(size_t) mtl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
+static texture_t *mtl_texture_clone(texture_t *tex);
+static texid_t mtl_texture_id(texture_t *tex);
 static bool mtl_texture_format_supported(renderer_t *r, texture_format format);
+static texture_t *mtl_fbo_texture(fbo_t *fbo, fbo_attachment attachment);
+static texture_format mtl_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment);
 static bool mtl_fbo_texture_supported(renderer_t *r, texture_format format);
+static cresp(fbo_t) mtl_fbo_new(const fbo_init_options *opts);
+static void mtl_fbo_destroy(fbo_t *fbo);
+static void mtl_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 static const renderer_ops mtl_renderer_ops = {
     .get_caps       = mtl_renderer_get_caps,
@@ -128,15 +135,22 @@ static const renderer_ops mtl_renderer_ops = {
 #ifndef CONFIG_FINAL
     .tex_set_name = mtl_texture_set_name,
 #endif
+    .tex_clone  = mtl_texture_clone,
+    .tex_id     = mtl_texture_id,
     .tex_format_supported = mtl_texture_format_supported,
     .fbo_prepare    = mtl_fbo_prepare,
     .fbo_done       = mtl_fbo_done,
     .fbo_resize     = mtl_fbo_resize,
     .fbo_attachment_valid  = mtl_fbo_attachment_valid,
     .fbo_attachment_format = mtl_fbo_attachment_format,
+    .fbo_tex        = mtl_fbo_texture,
+    .fbo_tex_format = mtl_fbo_texture_format,
     .fbo_tex_supported = mtl_fbo_texture_supported,
+    .fbo_create     = mtl_fbo_new,
+    .fbo_destroy    = mtl_fbo_destroy,
     .ubo_init       = mtl_uniform_buffer_init,
     .ubo_done       = mtl_uniform_buffer_done,
+    .ubo_destroy    = mtl_uniform_buffer_destroy,
     .ubo_data_alloc = mtl_uniform_buffer_data_alloc,
     .ubo_bind       = mtl_uniform_buffer_bind,
     .ubo_update     = mtl_uniform_buffer_update,
@@ -311,17 +325,15 @@ static mtl_buffer_t mtl_buffer_new(renderer_t *r, void *data, size_t size, bool 
 
 DEFINE_CLEANUP(buffer_t, if (*p) buffer_deinit(*p));
 
-static cerr buffer_make(struct ref *ref, void *_opts)
+static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
-    rc_init_opts(buffer) *opts = _opts;
+    ref_embed_opts(buffer, buf, opts);
 
     if (!opts->renderer)
         return CERR_INVALID_ARGUMENTS;
 
     if (opts->type == BUF_ELEMENT_ARRAY && !opts->renderer->mtl.va)
         return CERR_INVALID_OPERATION;
-
-    LOCAL_SET(buffer_t, buf) = container_of(ref, struct buffer, ref);
 
     buf->mtl.size = opts->size;
     buf->off = opts->off;
@@ -344,23 +356,8 @@ static cerr buffer_make(struct ref *ref, void *_opts)
 #ifndef CONFIG_FINAL
     memcpy(&buf->opts, opts, sizeof(buf->opts));
 #endif /* CONFIG_FINAL */
-    buf = NULL;
 
     return CERR_OK;
-}
-
-/* XXX: common */
-static void buffer_drop(struct ref *ref)
-{
-    buffer_t *buf = container_of(ref, struct buffer, ref);
-    buffer_deinit(buf);
-}
-DEFINE_REFCLASS2(buffer);
-DECLARE_REFCLASS(buffer);
-
-static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
-{
-    return ref_embed_opts(buffer, buf, opts);
 }
 
 
@@ -408,7 +405,7 @@ static void mtl_buffer_unbind(buffer_t *buf, uniform_t loc)
 static void mtl_buffer_set_name(buffer_t *buf, const char *name)
 {
     mem_free(buf->mtl.name);
-    mem_asprintf(&buf->mtl.name, "%s", name);
+    CRES_RET(mem_asprintf(&buf->mtl.name, "%s", name), return);
     [buf->mtl.buf setLabel:[NSString stringWithUTF8String:buf->mtl.name]];
 }
 #endif /* CONFIG_FINAL */
@@ -417,30 +414,16 @@ static void mtl_buffer_set_name(buffer_t *buf, const char *name)
  * Vertex Array Object
  ****************************************************************************/
 
-static cerr vertex_array_make(struct ref *ref, void *_opts)
+static cerr mtl_vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
-    rc_init_opts(vertex_array) *opts = _opts;
-    if (!opts->renderer)    return CERR_INVALID_ARGUMENTS;
+    ref_embed(vertex_array, va, .renderer = r);
 
-    vertex_array_t *va = container_of(ref, vertex_array_t, ref);
-    va->renderer = opts->renderer;
+    if (!r)    return CERR_INVALID_ARGUMENTS;
+
+    va->renderer = r;
     vertex_array_bind(va);
 
     return CERR_OK;
-}
-
-static void vertex_array_drop(struct ref *ref)
-{
-    vertex_array_t *va = container_of(ref, vertex_array_t, ref);
-    vertex_array_done(va);
-}
-
-DEFINE_REFCLASS2(vertex_array);
-DECLARE_REFCLASS(vertex_array);
-
-static cerr mtl_vertex_array_init(vertex_array_t *va, renderer_t *r)
-{
-    return ref_embed(vertex_array, va, .renderer = r);
 }
 
 static void mtl_vertex_array_done(vertex_array_t *va)
@@ -583,13 +566,9 @@ mtl_depth_stencil_new(fbo_t *fbo)
     return cres_val(mtl_depth_stencil_state_t, ds);
 }
 
-static cerr draw_control_make(struct ref *ref, void *_opts)
+static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
 {
-    rc_init_opts(draw_control) *opts = _opts;
     if (!opts->renderer || !opts->shader)   return CERR_INVALID_ARGUMENTS;
-
-    draw_control_t *dc = container_of(ref, draw_control_t, ref);
-    dc->renderer = opts->renderer;
 
     for (size_t pl = 0; pl < array_size(dc->mtl.pipeline); pl++) {
         // mtl_render_pipeline_reflection_t reflection;
@@ -637,20 +616,6 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     // }
 
     return CERR_OK;
-}
-
-static void draw_control_drop(struct ref *ref)
-{
-    draw_control_t *dc = container_of(ref, draw_control_t, ref);
-    draw_control_done(dc);
-}
-
-DEFINE_REFCLASS2(draw_control);
-DECLARE_REFCLASS(draw_control);
-
-static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
-{
-    return ref_embed_opts(draw_control, dc, opts);
 }
 
 static void mtl_draw_control_done(draw_control_t *dc)
@@ -757,10 +722,14 @@ static MTLSamplerAddressMode mtl_wrap_mode(texture_wrap wrap)
     return MTLSamplerAddressModeRepeat;
 }
 
-static cerr texture_make(struct ref *ref, void *_opts)
+static bool mtl_texture_is_array(texture_t *tex)
 {
-    struct texture *tex = container_of(ref, struct texture, ref);
-    rc_init_opts(texture) *opts = _opts;
+    return tex->mtl.type == TEX_2D_ARRAY;
+}
+
+static cerr mtl_texture_init(texture_t *tex, const texture_init_options *opts)
+{
+    ref_embed_opts(texture, tex, opts);
 
     tex->renderer           = opts->renderer;
     tex->mtl.type           = opts->type;
@@ -789,35 +758,16 @@ static cerr texture_make(struct ref *ref, void *_opts)
     return CERR_OK;
 }
 
-/* XXX: common */
-static void texture_drop(struct ref *ref)
-{
-    struct texture *tex = container_of(ref, struct texture, ref);
-    texture_deinit(tex);
-}
-DEFINE_REFCLASS2(texture);
-DECLARE_REFCLASS(texture);
-
-static bool mtl_texture_is_array(texture_t *tex)
-{
-    return tex->mtl.type == TEX_2D_ARRAY;
-}
-
-static cerr mtl_texture_init(texture_t *tex, const texture_init_options *opts)
-{
-    return ref_embed_opts(texture, tex, opts);
-}
-
 #ifndef CONFIG_FINAL
 static void mtl_texture_set_name(texture_t *tex, const char *name)
 {
     mem_free(tex->mtl.name);
-    mem_asprintf(&tex->mtl.name, "%s", name);
+    CRES_RET(mem_asprintf(&tex->mtl.name, "%s", name), return);
     [tex->mtl.texture setLabel:[NSString stringWithUTF8String:name]];
 }
 #endif /* CONFIG_FINAL */
 
-texture_t *texture_clone(texture_t *tex)
+static texture_t *mtl_texture_clone(texture_t *tex)
 {
     texture_t *ret = mem_alloc(sizeof(*ret), .zero = 1);//ref_new(texture);
     if (!ret)   return NULL;
@@ -1008,7 +958,7 @@ static void mtl_texture_bind(texture_t *tex, unsigned int target, uniform_t unif
 }
 
 
-texid_t texture_id(struct texture *tex)
+static texid_t mtl_texture_id(struct texture *tex)
 {
     if (!tex)
         return 0;
@@ -1020,7 +970,7 @@ texid_t texture_id(struct texture *tex)
  * Framebuffer
  ****************************************************************************/
 
-texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
+static texture_t *mtl_fbo_texture(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_texture)
         return &fbo->depth_tex;
@@ -1040,7 +990,7 @@ static bool mtl_fbo_texture_supported(renderer_t *r, texture_format format)
     return true;
 }
 
-texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
+static texture_format mtl_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_texture)
         return fbo->depth_config.format;
@@ -1096,10 +1046,8 @@ static void fbo_attachments_deinit(fbo_t *fbo)
     texture_deinit(&fbo->depth_tex);
 }
 
-static void fbo_drop(struct ref *ref)
+static void mtl_fbo_destroy(fbo_t *fbo)
 {
-    fbo_t *fbo = container_of(ref, fbo_t, ref);
-
     fbo_attachments_deinit(fbo);
 
     if (fbo->mtl.cmd_encoder)   [fbo->mtl.cmd_encoder release];
@@ -1109,8 +1057,6 @@ static void fbo_drop(struct ref *ref)
     bitmap_clear(&fbo->renderer->mtl.fbo_ids, fbo->mtl.id);
     mem_free(fbo->color_config);
 }
-DEFINE_REFCLASS(fbo);
-DECLARE_REFCLASS(fbo);
 
 static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
 {
@@ -1242,7 +1188,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
                             .renderer      = fbo->renderer,
                             .type          = fbo->layers > 1 ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
-                            .format        = fbo_texture_format(fbo, attachment),
+                            .format        = mtl_fbo_texture_format(fbo, attachment),
                             .multisampled  = fbo_is_multisampled(fbo),
                             .render_target = true,
                             .wrap          = TEX_CLAMP_TO_EDGE,
@@ -1253,7 +1199,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
 
     texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->mtl.name, idx);
 
-    err = texture_load(&fbo->color_tex[idx], fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
+    err = texture_load(&fbo->color_tex[idx], mtl_fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
     fbo->color_config[idx].format = fbo->color_tex[idx].mtl.format;
 
     return err;
@@ -1327,7 +1273,7 @@ fail:
 /* XXX: common */
 DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
 
-must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
+static cresp(fbo_t) mtl_fbo_new(const fbo_init_options *opts)
 {
     if (!opts->width || !opts->height)
         return cresp_error(fbo_t, CERR_INVALID_ARGUMENTS);
@@ -1379,41 +1325,28 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
  * UBOs
  ****************************************************************************/
 
-static cerr uniform_buffer_make(struct ref *ref, void *_opts)
+static void mtl_uniform_buffer_destroy(uniform_buffer_t *ubo)
 {
-    rc_init_opts(uniform_buffer) *opts = _opts;
-    uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
-
-    ubo->renderer       = opts->renderer;
-    ubo->mtl.binding    = opts->binding;
-    ubo->dirty          = false;
-    ubo->mtl.name       = opts->name ? : "<unset>";
-    list_append(&ubo->renderer->mtl.ubos, &ubo->mtl.entry);
-
-    return CERR_OK;
-}
-
-static void uniform_buffer_drop(struct ref *ref)
-{
-    uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
     for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)
         [ubo->mtl.buf[i] release];
     list_del(&ubo->mtl.entry);
 }
-DEFINE_REFCLASS2(uniform_buffer);
 
 static cerr_check mtl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
                                           int binding)
 {
-    CERR_RET(
-        ref_embed(
-            uniform_buffer, ubo,
-            .renderer   = r,
-            .binding    = binding,
-            .name       = name
-        ),
-        return __cerr
+    ref_embed(
+        uniform_buffer, ubo,
+        .renderer   = r,
+        .binding    = binding,
+        .name       = name
     );
+
+    ubo->renderer       = r;
+    ubo->mtl.binding    = binding;
+    ubo->dirty          = false;
+    ubo->mtl.name       = name ? : "<unset>";
+    list_append(&ubo->renderer->mtl.ubos, &ubo->mtl.entry);
 
     return CERR_OK;
 }
@@ -1423,7 +1356,7 @@ static void mtl_uniform_buffer_done(uniform_buffer_t *ubo)
     if (!ref_is_static(&ubo->ref))
         ref_put_last(ubo);
     else
-        uniform_buffer_drop(&ubo->ref);
+        mtl_uniform_buffer_destroy(ubo);
 }
 
 static inline size_t mtl_ubo_offset(uniform_buffer_t *ubo)

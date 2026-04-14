@@ -3,7 +3,47 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+#include "object.h"
 #include "linmath.h"
+
+/****************************************************************************
+ * Refclass definitions for render types
+ *
+ * These must be defined exactly once; each backend's _make/_drop was
+ * previously its own static, causing duplicate-symbol errors in
+ * multirenderer builds.
+ ****************************************************************************/
+
+#define r_op(_o, _op) (_o)->renderer->ops->_op
+
+#define DEFINE_RENDERER_REFCLASS(_type, _init, _done) \
+static cerr _type ## _make(struct ref *ref, void *_opts) \
+{ \
+    _type ## _t *x = container_of(ref, _type ## _t, ref); \
+    rc_init_opts(_type) *opts = _opts; \
+ \
+    x->renderer = opts->renderer; \
+    _init; \
+    return CERR_OK; \
+} \
+ \
+static void _type ## _drop(struct ref *ref) \
+{ \
+    _type ## _t *x = container_of(ref, _type ## _t, ref); \
+    err_on(!x->renderer, "no renderer\n"); \
+    _done; \
+} \
+DEFINE_REFCLASS2(_type)
+
+DEFINE_RENDERER_REFCLASS(buffer,,       r_op(x, buf_deinit)(x));
+DEFINE_RENDERER_REFCLASS(vertex_array,, if (r_op(x, va_done)) r_op(x, va_done)(x));
+DEFINE_RENDERER_REFCLASS(draw_control,  r_op(x, dc_init)(x, opts), if (r_op(x, dc_done)) r_op(x, dc_done)(x));
+DEFINE_RENDERER_REFCLASS(texture,,      r_op(x, tex_deinit)(x));
+DEFINE_RENDERER_REFCLASS(fbo,,          r_op(x, fbo_destroy)(x));
+DEFINE_RENDERER_REFCLASS(uniform_buffer,
+    if (opts->binding < 0) return CERR_INVALID_ARGUMENTS,
+    r_op(x, ubo_destroy)(x)
+);
 
 static const char *render_str[RENDER_MAX] = {
     [RENDER_OPENGL] = "OpenGL",
@@ -322,6 +362,18 @@ cres(int) texture_set_name(texture_t *tex, const char *fmt, ...)
 }
 #endif /* CONFIG_FINAL */
 
+texture_t *texture_clone(texture_t *tex)
+{
+    if (!tex || !tex->renderer)     return NULL;
+    return tex->renderer->ops->tex_clone(tex);
+}
+
+texid_t texture_id(texture_t *tex)
+{
+    if (!tex || !tex->renderer)     return 0;
+    return tex->renderer->ops->tex_id(tex);
+}
+
 bool texture_format_supported(renderer_t *r, texture_format format)
 {
     return r->ops->tex_format_supported(r, format);
@@ -407,9 +459,28 @@ texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
     return fbo->renderer->ops->fbo_attachment_format(fbo, attachment);
 }
 
+texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
+{
+    if (!fbo || !fbo->renderer)   return NULL;
+    return fbo->renderer->ops->fbo_tex(fbo, attachment);
+}
+
+texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
+{
+    if (!fbo || !fbo->renderer)   return TEX_FMT_DEFAULT;
+    return fbo->renderer->ops->fbo_tex_format(fbo, attachment);
+}
+
 bool fbo_texture_supported(renderer_t *r, texture_format format)
 {
     return r->ops->fbo_tex_supported(r, format);
+}
+
+cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
+{
+    if (!opts || !opts->renderer)
+        return cresp_error(fbo_t, CERR_INVALID_ARGUMENTS);
+    return opts->renderer->ops->fbo_create(opts);
 }
 
 /****************************************************************************

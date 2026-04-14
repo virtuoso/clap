@@ -88,8 +88,15 @@ static cerr wgpu_shader_use(shader_t *shader, bool draw);
 static void wgpu_shader_unuse(shader_t *shader, bool draw);
 static cres(size_t) wgpu_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
 static void wgpu_shader_set_name(shader_t *shader, const char *name);
+static texture_t *wgpu_texture_clone(texture_t *tex);
+static texid_t wgpu_texture_id(texture_t *tex);
 static bool wgpu_texture_format_supported(renderer_t *r, texture_format format);
+static texture_t *wgpu_fbo_texture(fbo_t *fbo, fbo_attachment attachment);
+static texture_format wgpu_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment);
 static bool wgpu_fbo_texture_supported(renderer_t *r, texture_format format);
+static cresp(fbo_t) wgpu_fbo_new(const fbo_init_options *opts);
+static void wgpu_fbo_destroy(fbo_t *fbo);
+static void wgpu_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 static const renderer_ops wgpu_renderer_ops = {
     .get_caps       = wgpu_renderer_get_caps,
@@ -134,15 +141,22 @@ static const renderer_ops wgpu_renderer_ops = {
 #ifndef CONFIG_FINAL
     .tex_set_name = wgpu_texture_set_name,
 #endif
+    .tex_clone  = wgpu_texture_clone,
+    .tex_id     = wgpu_texture_id,
     .tex_format_supported = wgpu_texture_format_supported,
     .fbo_prepare    = wgpu_fbo_prepare,
     .fbo_done       = wgpu_fbo_done,
     .fbo_resize     = wgpu_fbo_resize,
     .fbo_attachment_valid  = wgpu_fbo_attachment_valid,
     .fbo_attachment_format = wgpu_fbo_attachment_format,
+    .fbo_tex        = wgpu_fbo_texture,
+    .fbo_tex_format = wgpu_fbo_texture_format,
     .fbo_tex_supported = wgpu_fbo_texture_supported,
+    .fbo_create     = wgpu_fbo_new,
+    .fbo_destroy    = wgpu_fbo_destroy,
     .ubo_init       = wgpu_uniform_buffer_init,
     .ubo_done       = wgpu_uniform_buffer_done,
+    .ubo_destroy    = wgpu_uniform_buffer_destroy,
     .ubo_data_alloc = wgpu_uniform_buffer_data_alloc,
     .ubo_bind       = wgpu_uniform_buffer_bind,
     .ubo_update     = wgpu_uniform_buffer_update,
@@ -252,19 +266,6 @@ static void buffer_load(buffer_t *buf, renderer_t *r, const char *name,
     buf->loaded = true;
 }
 
-static cerr buffer_make(struct ref *ref, void *opts)
-{
-    return CERR_OK;
-}
-
-static void buffer_drop(struct ref *ref)
-{
-    buffer_t *buf = container_of(ref, buffer_t, ref);
-    buffer_deinit(buf);
-}
-
-DEFINE_REFCLASS2(buffer);
-
 
 
 static cerr wgpu_buffer_init(buffer_t *buf, const buffer_init_options *opts)
@@ -351,14 +352,6 @@ static void wgpu_buffer_set_name(buffer_t *buf, const char *name)
 /****************************************************************************
  * Vertex array
  ****************************************************************************/
-
-static void vertex_array_drop(struct ref *ref)
-{
-    vertex_array_t *va = container_of(ref, vertex_array_t, ref);
-    vertex_array_done(va);
-}
-
-DEFINE_REFCLASS(vertex_array);
 
 static cerr wgpu_vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
@@ -523,18 +516,18 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
 static WGPUTextureFormat wgpu_current_color_format(renderer_t *r)
 {
     if (r->wgpu.fbo) {
-        texture_format fmt = fbo_texture_format(r->wgpu.fbo, FBO_COLOR_TEXTURE(0));
+        texture_format fmt = wgpu_fbo_texture_format(r->wgpu.fbo, FBO_COLOR_TEXTURE(0));
         return wgpu_texture_format(fmt);
     }
     return wgpu_swapchain_format(r);
 }
 
-static cerr draw_control_make(struct ref *ref, void *_opts)
+static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
 {
-    rc_init_opts(draw_control) *opts = _opts;
-    draw_control_t *dc = container_of(ref, draw_control_t, ref);
+    // cerr err = ref_embed_opts(draw_control, dc, opts);
+    // if (IS_CERR(err))
+    //     return err;
 
-    dc->renderer    = opts->renderer;
     dc->wgpu.shader = opts->shader;
 
     renderer_t *r = opts->renderer;
@@ -591,20 +584,6 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     list_append(&opts->renderer->wgpu.dc_cache, &dc->wgpu.cache_entry);
 
     return CERR_OK;
-}
-
-static void draw_control_drop(struct ref *ref)
-{
-    draw_control_t *dc = container_of(ref, draw_control_t, ref);
-    draw_control_done(dc);
-}
-
-DEFINE_REFCLASS2(draw_control);
-cresp_struct_ret(draw_control);
-
-static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
-{
-    return ref_embed_opts(draw_control, dc, opts);
 }
 
 static void wgpu_draw_control_done(draw_control_t *dc)
@@ -783,7 +762,7 @@ static cerr wgpu_texture_init(texture_t *tex, const texture_init_options *opts)
     return CERR_OK;
 }
 
-texture_t *texture_clone(texture_t *tex)
+static texture_t *wgpu_texture_clone(texture_t *tex)
 {
     if (!tex)
         return NULL;
@@ -946,7 +925,7 @@ static void wgpu_texture_bind(texture_t *tex, unsigned int target, uniform_t uni
 }
 
 
-texid_t texture_id(texture_t *tex)
+static texid_t wgpu_texture_id(texture_t *tex)
 {
     if (!texture_loaded(tex))
         return 0;
@@ -976,7 +955,7 @@ static bool wgpu_fbo_texture_supported(renderer_t *r, texture_format format)
     return wgpu_texture_format_supported(r, format);
 }
 
-texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
+static texture_format wgpu_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_texture || attachment.depth_buffer)
         return fbo ? fbo->depth_config.format : TEX_FMT_DEPTH32F;
@@ -1051,7 +1030,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
                             .renderer      = fbo->renderer,
                             .type          = fbo->layers > 1 ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
-                            .format        = fbo_texture_format(fbo, attachment),
+                            .format        = wgpu_fbo_texture_format(fbo, attachment),
                             .render_target = true,
                             .wrap          = TEX_CLAMP_TO_EDGE,
                             .min_filter    = TEX_FLT_LINEAR,
@@ -1061,7 +1040,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
 
     texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->wgpu.name, idx);
 
-    err = texture_load(&fbo->color_tex[idx], fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
+    err = texture_load(&fbo->color_tex[idx], wgpu_fbo_texture_format(fbo, attachment), fbo->width, fbo->height, NULL);
     fbo->color_config[idx].format = fbo->color_tex[idx].wgpu.format;
 
     return err;
@@ -1076,23 +1055,13 @@ static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment layout)
     return CERR_OK;
 }
 
-static cerr fbo_make(struct ref *ref, void *opts)
+static void wgpu_fbo_destroy(fbo_t *fbo)
 {
-    return CERR_OK;
-}
-
-static void fbo_drop(struct ref *ref)
-{
-    fbo_t *fbo = container_of(ref, fbo_t, ref);
-
     fbo_attachments_deinit(fbo);
     mem_free(fbo->color_config);
 }
 
-DEFINE_REFCLASS2(fbo);
-cresp_struct_ret(fbo);
-
-must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
+static cresp(fbo_t) wgpu_fbo_new(const fbo_init_options *opts)
 {
     if (!opts || !opts->width || !opts->height)
         return cresp_error(fbo_t, CERR_INVALID_ARGUMENTS);
@@ -1239,7 +1208,7 @@ fail:
     return CERR_NOMEM;
 }
 
-texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
+static texture_t *wgpu_fbo_texture(fbo_t *fbo, fbo_attachment attachment)
 {
     // XXX: fbo NULL check is blergh, return cresp_check(texture_t)
     if (!fbo)
@@ -1268,7 +1237,7 @@ static texture_format wgpu_fbo_attachment_format(fbo_t *fbo, fbo_attachment atta
     if (!attachment.mask)
         return TEX_FMT_MAX;
 
-    return fbo_texture_format(fbo, attachment);
+    return wgpu_fbo_texture_format(fbo, attachment);
 }
 
 /****************************************************************************
@@ -1280,23 +1249,10 @@ static texture_format wgpu_fbo_attachment_format(fbo_t *fbo, fbo_attachment atta
  * UBOs
  ****************************************************************************/
 
-static cerr uniform_buffer_make(struct ref *ref, void *_opts)
+static void wgpu_uniform_buffer_destroy(uniform_buffer_t *ubo)
 {
-    rc_init_opts(uniform_buffer) *opts = _opts;
-
-    if (opts->binding < 0)
-        return CERR_INVALID_ARGUMENTS;
-
-    return CERR_OK;
-}
-
-static void uniform_buffer_drop(struct ref *ref)
-{
-    uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
     wgpu_uniform_buffer_done(ubo);
 }
-
-DEFINE_REFCLASS2(uniform_buffer);
 
 static cerr wgpu_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding)
 {

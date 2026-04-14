@@ -369,11 +369,11 @@ typedef enum texture_format {
     TEX_FMT_R32UI,
     TEX_FMT_RG32UI,
     TEX_FMT_RGBA32UI,
-#ifndef CONFIG_RENDERER_OPENGL
+#if defined(CONFIG_RENDERER_METAL) || defined(CONFIG_RENDERER_WGPU)
     TEX_FMT_BGRA8,
     TEX_FMT_BGR10A2,
     TEX_FMT_BGRA10XR,
-#endif /* !CONFIG_RENDERER_OPENGL */
+#endif
     TEX_FMT_MAX,
 } texture_format;
 
@@ -1048,6 +1048,13 @@ typedef enum {
 cerr_check renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                          data_type idx_type, unsigned int nr_instances);
 
+DECLARE_REFCLASS(buffer);
+DECLARE_REFCLASS(vertex_array);
+DECLARE_REFCLASS(texture);
+DECLARE_REFCLASS(fbo);
+DECLARE_REFCLASS(uniform_buffer);
+DECLARE_REFCLASS(draw_control);
+
 #ifdef IMPLEMENTOR
 #ifdef CONFIG_RENDERER_OPENGL
 cerr gl_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts);
@@ -1118,6 +1125,8 @@ typedef struct renderer_ops {
     void                (*tex_unbind)(texture_t *tex, unsigned int target);
     bool                (*tex_is_array)(texture_t *tex);
     void                (*tex_set_name)(texture_t *tex, const char *name);
+    texture_t           *(*tex_clone)(texture_t *tex);
+    texid_t             (*tex_id)(texture_t *tex);
     bool                (*tex_format_supported)(renderer_t *r, texture_format format);
     void                (*fbo_prepare)(fbo_t *fbo);
     void                (*fbo_done)(fbo_t *fbo, unsigned int width, unsigned int height);
@@ -1125,9 +1134,14 @@ typedef struct renderer_ops {
     cerr                (*fbo_resize)(fbo_t *fbo, unsigned int width, unsigned int height);
     bool                (*fbo_attachment_valid)(fbo_t *fbo, fbo_attachment attachment);
     texture_format      (*fbo_attachment_format)(fbo_t *fbo, fbo_attachment attachment);
+    texture_t           *(*fbo_tex)(fbo_t *fbo, fbo_attachment attachment);
+    texture_format      (*fbo_tex_format)(fbo_t *fbo, fbo_attachment attachment);
     bool                (*fbo_tex_supported)(renderer_t *r, texture_format format);
+    cresp(fbo_t)        (*fbo_create)(const fbo_init_options *opts);
+    void                (*fbo_destroy)(fbo_t *fbo);
     cerr                (*ubo_init)(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
     void                (*ubo_done)(uniform_buffer_t *ubo);
+    void                (*ubo_destroy)(uniform_buffer_t *ubo);
     cerr                (*ubo_data_alloc)(uniform_buffer_t *ubo, size_t size);
     cerr                (*ubo_bind)(uniform_buffer_t *ubo, binding_points_t *binding_points);
     void                (*ubo_update)(uniform_buffer_t *ubo, binding_points_t *binding_points);

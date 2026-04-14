@@ -47,6 +47,8 @@ static cerr gl_texture_resize(texture_t *tex, unsigned int width, unsigned int h
 static void gl_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform);
 static void gl_texture_unbind(texture_t *tex, unsigned int target);
 static bool gl_texture_is_array(texture_t *tex);
+static texture_t *gl_texture_clone(texture_t *tex);
+static texid_t gl_texture_id(texture_t *tex);
 static bool gl_texture_format_supported(renderer_t *r, texture_format format);
 static void gl_fbo_prepare(fbo_t *fbo);
 static void gl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height);
@@ -54,7 +56,11 @@ static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment atta
 static cerr gl_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height);
 static bool gl_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 static texture_format gl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
+static texture_t *gl_fbo_texture(fbo_t *fbo, fbo_attachment attachment);
+static texture_format gl_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment);
 static bool gl_fbo_texture_supported(renderer_t *r, texture_format format);
+static cresp(fbo_t) gl_fbo_new(const fbo_init_options *opts);
+static void gl_fbo_destroy(fbo_t *fbo);
 static cerr gl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
 static void gl_uniform_buffer_done(uniform_buffer_t *ubo);
 static cerr gl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
@@ -75,6 +81,7 @@ static uniform_t gl_shader_uniform(shader_t *shader, const char *name);
 static cerr gl_shader_use(shader_t *shader, bool draw);
 static void gl_shader_unuse(shader_t *shader, bool draw);
 static cres(size_t) gl_shader_uniform_offset_query(shader_t *shader, const char *ubo_name, const char *var_name);
+static void gl_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 
 static const renderer_ops gl_renderer_ops = {
@@ -106,6 +113,8 @@ static const renderer_ops gl_renderer_ops = {
     .tex_bind   = gl_texture_bind,
     .tex_unbind = gl_texture_unbind,
     .tex_is_array = gl_texture_is_array,
+    .tex_clone  = gl_texture_clone,
+    .tex_id     = gl_texture_id,
     .tex_format_supported = gl_texture_format_supported,
     .fbo_prepare  = gl_fbo_prepare,
     .fbo_done     = gl_fbo_done,
@@ -113,9 +122,14 @@ static const renderer_ops gl_renderer_ops = {
     .fbo_resize   = gl_fbo_resize,
     .fbo_attachment_valid  = gl_fbo_attachment_valid,
     .fbo_attachment_format = gl_fbo_attachment_format,
+    .fbo_tex        = gl_fbo_texture,
+    .fbo_tex_format = gl_fbo_texture_format,
     .fbo_tex_supported = gl_fbo_texture_supported,
+    .fbo_create     = gl_fbo_new,
+    .fbo_destroy    = gl_fbo_destroy,
     .ubo_init       = gl_uniform_buffer_init,
     .ubo_done       = gl_uniform_buffer_done,
+    .ubo_destroy    = gl_uniform_buffer_destroy,
     .ubo_data_alloc = gl_uniform_buffer_data_alloc,
     .ubo_bind       = gl_uniform_buffer_bind,
     .ubo_update     = gl_uniform_buffer_update,
@@ -187,18 +201,6 @@ static const GLuint gl_comp_type[] = {
 /****************************************************************************
  * Buffer
  ****************************************************************************/
-
-static cerr buffer_make(struct ref *ref, void *opts)
-{
-    return CERR_OK;
-}
-
-static void buffer_drop(struct ref *ref)
-{
-    buffer_t *buf = container_of(ref, struct buffer, ref);
-    buffer_deinit(buf);
-}
-DEFINE_REFCLASS2(buffer);
 
 static GLenum gl_buffer_type(buffer_type type)
 {
@@ -385,14 +387,6 @@ static bool gl_does_vao(void)
 #endif
 }
 
-static void vertex_array_drop(struct ref *ref)
-{
-    vertex_array_t *va = container_of(ref, vertex_array_t, ref);
-    vertex_array_done(va);
-}
-
-DEFINE_REFCLASS(vertex_array);
-
 static cerr gl_vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
     cerr err = ref_embed(vertex_array, va);
@@ -429,20 +423,6 @@ static void gl_vertex_array_unbind(vertex_array_t *va)
 /****************************************************************************
  * Texture
  ****************************************************************************/
-
-static cerr texture_make(struct ref *ref, void *_opts)
-{
-    return CERR_OK;
-}
-
-static void texture_drop(struct ref *ref)
-{
-    struct texture *tex = container_of(ref, struct texture, ref);
-    texture_deinit(tex);
-}
-DEFINE_REFCLASS2(texture);
-
-cresp_struct_ret(texture);
 
 static GLenum gl_texture_type(texture_type type, bool multisampled)
 {
@@ -490,8 +470,6 @@ static GLenum gl_texture_filter(texture_filter filter)
 
     return GL_NONE;
 }
-
-static bool _texture_format_supported[TEX_FMT_MAX];
 
 static bool gl_texture_format_supported(renderer_t *r, texture_format format)
 {
@@ -651,7 +629,7 @@ static cerr gl_texture_init(texture_t *tex, const texture_init_options *opts)
     return CERR_OK;
 }
 
-texture_t *texture_clone(texture_t *tex)
+static texture_t *gl_texture_clone(texture_t *tex)
 {
     texture_t *ret = ref_new(texture);
 
@@ -860,7 +838,7 @@ static void gl_texture_unbind(texture_t *tex, unsigned int target)
 }
 
 
-texid_t texture_id(struct texture *tex)
+static texid_t gl_texture_id(texture_t *tex)
 {
     if (!tex)
         return 0;
@@ -888,7 +866,7 @@ static int fbo_create(void)
     return fbo;
 }
 
-texture_format fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
+static texture_format gl_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_buffer || attachment.depth_texture)
         return fbo->depth_config.format;
@@ -926,7 +904,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
                             .renderer      = fbo->renderer,
                             .type          = fbo->layers ? TEX_2D_ARRAY : TEX_2D,
                             .layers        = fbo->layers,
-                            .format        = fbo_texture_format(fbo, attachment),
+                            .format        = gl_fbo_texture_format(fbo, attachment),
                             .multisampled  = fbo_is_multisampled(fbo),
                             .wrap          = TEX_CLAMP_TO_EDGE,
                             .min_filter    = TEX_FLT_LINEAR,
@@ -935,7 +913,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
         return err;
 
     err = texture_fbo(&fbo->color_tex[idx], fbo_gl_attachment(attachment),
-                      fbo_texture_format(fbo, attachment), fbo->width, fbo->height);
+                      gl_fbo_texture_format(fbo, attachment), fbo->width, fbo->height);
     if (IS_CERR(err))
         return err;
 
@@ -977,7 +955,7 @@ static cerr_check fbo_depth_texture_init(fbo_t *fbo)
     return CERR_OK;
 }
 
-texture_t *fbo_texture(fbo_t *fbo, fbo_attachment attachment)
+static texture_t *gl_fbo_texture(fbo_t *fbo, fbo_attachment attachment)
 {
     if (attachment.depth_texture)
         return &fbo->depth_tex;
@@ -1022,7 +1000,7 @@ static texture_format gl_fbo_attachment_format(fbo_t *fbo, fbo_attachment attach
 
 static void __fbo_color_buffer_setup(fbo_t *fbo, fbo_attachment attachment)
 {
-    GLenum gl_internal_format = gl_texture_internal_format(fbo_texture_format(fbo, attachment));
+    GLenum gl_internal_format = gl_texture_internal_format(gl_fbo_texture_format(fbo, attachment));
     if (fbo_is_multisampled(fbo))
         GL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, fbo->nr_samples, gl_internal_format,
                                             fbo->width, fbo->height));
@@ -1261,19 +1239,8 @@ static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment atta
                          mask, gl_filter));
 }
 
-static cerr fbo_make(struct ref *ref, void *_opts)
+static void gl_fbo_destroy(fbo_t *fbo)
 {
-    fbo_t *fbo = container_of(ref, fbo_t, ref);
-
-    fbo->gl.depth_buf = -1;
-
-    return CERR_OK;
-}
-
-static void fbo_drop(struct ref *ref)
-{
-    fbo_t *fbo = container_of(ref, fbo_t, ref);
-
     GL(glDeleteFramebuffers(1, &fbo->gl.fbo));
     /* if the texture was cloned, its ->loaded==false making this a nop */
     fa_for_each(fa, fbo->layout, texture)
@@ -1290,8 +1257,6 @@ static void fbo_drop(struct ref *ref)
     if (fbo->gl.depth_buf >= 0)
         GL(glDeleteRenderbuffers(1, (GLuint *)&fbo->gl.depth_buf));
 }
-DEFINE_REFCLASS2(fbo);
-DECLARE_REFCLASS(fbo);
 
 /*
  * layout:
@@ -1350,7 +1315,7 @@ err:
 
 DEFINE_CLEANUP(fbo_t, if (*p) ref_put(*p))
 
-must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
+static cresp(fbo_t) gl_fbo_new(const fbo_init_options *opts)
 {
     if (!opts->width || !opts->height)
         return cresp_error(fbo_t, CERR_INVALID_ARGUMENTS);
@@ -1359,6 +1324,7 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     if (!fbo)
         return cresp_error(fbo_t, CERR_NOMEM);
 
+    fbo->gl.depth_buf = -1;
     fbo->renderer     = opts->renderer;
     fbo->width        = opts->width;
     fbo->height       = opts->height;
@@ -1400,36 +1366,23 @@ must_check cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
  * UBOs
  ****************************************************************************/
 
-static cerr uniform_buffer_make(struct ref *ref, void *_opts)
+static void gl_uniform_buffer_destroy(uniform_buffer_t *ubo)
 {
-    rc_init_opts(uniform_buffer) *opts = _opts;
-
-    if (opts->binding < 0)
-        return CERR_INVALID_ARGUMENTS;
-
-    uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
-
-    ubo->gl.binding = opts->binding;
-    ubo->dirty   = true;
-
-    GL(glGenBuffers(1, &ubo->gl.id));
-
-    return CERR_OK;
-}
-
-static void uniform_buffer_drop(struct ref *ref)
-{
-    uniform_buffer_t *ubo = container_of(ref, uniform_buffer_t, ref);
-
     mem_free(ubo->data);
     GL(glDeleteBuffers(1, &ubo->gl.id));
 }
-DEFINE_REFCLASS2(uniform_buffer);
 
 static cerr_check gl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
                                          int binding)
 {
-    return ref_embed(uniform_buffer, ubo, .binding = binding);
+    cerr err = ref_embed(uniform_buffer, ubo, .binding = binding);
+    if (IS_CERR(err))
+        return err;
+
+    ubo->gl.binding = binding;
+    ubo->dirty   = true;
+    GL(glGenBuffers(1, &ubo->gl.id));
+    return CERR_OK;
 }
 
 static void gl_uniform_buffer_done(uniform_buffer_t *ubo)
@@ -1437,7 +1390,7 @@ static void gl_uniform_buffer_done(uniform_buffer_t *ubo)
     if (!ref_is_static(&ubo->ref))
         ref_put_last(ubo);
     else
-        uniform_buffer_drop(&ubo->ref);
+        gl_uniform_buffer_destroy(ubo);
 }
 
 cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
