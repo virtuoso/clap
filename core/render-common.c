@@ -652,12 +652,10 @@ cerr _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, 
      * non-arrayed scalars have maximum storage size of 4, if something
      * larger is following a non-padded offset, it needs to be padded first
      */
-#ifdef CONFIG_RENDERER_METAL
-    if (storage_size == 8 && *offset % 8)
+    if (ubo->renderer->ops->get_caps()->renderer == RENDER_METAL &&
+        storage_size == 8 && *offset % 8)
         *offset = round_up(*offset, 8);
-    else
-#endif /* CONFIG_RENDERER_METAL */
-    if (storage_size > 4 && *offset % 16)
+    else if (storage_size > 4 && *offset % 16)
         *offset = round_up(*offset, 16);
 
     *size = *offset;
