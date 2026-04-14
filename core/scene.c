@@ -1625,6 +1625,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 light_done:
             if (e->light_idx >= 0) {
                 e->light = &scene->light;
+                entity3d_set(e, ENTITY3D_LIGHT_SOURCE, NULL);
                 light_set_update(&scene->light, e->light_idx,
                                  light_update_from_entity, e, &e->xform, NULL);
                 light_update_from_entity(&scene->light, e->light_idx, e);

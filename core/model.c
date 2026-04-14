@@ -1720,13 +1720,18 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     model3d *model = opts->txmodel->model;
     e->txmodel = ref_get(opts->txmodel);
     entity3d_aabb_update(e);
-    if (model->anis.da.nr_el) {
+
+    entity3d_flags init_flags = ENTITY3D_ALIVE | ENTITY3D_VISIBLE;
+    if (model->nr_joints) {
         e->joints = mem_alloc(sizeof(*e->joints), .nr = model->nr_joints, .fatal_fail = 1);
         e->joint_transforms = mem_alloc(sizeof(mat4x4), .nr = model->nr_joints, .fatal_fail = 1);
+        init_flags |= ENTITY3D_HAS_ARMATURE;
     }
+    if (model->anis.da.nr_el)
+        init_flags |= ENTITY3D_IS_ANIMATED;
 
     list_append(&e->txmodel->entities, &e->entry);
-    e->flags |= ENTITY3D_ALIVE | ENTITY3D_VISIBLE;
+    e->flags |= init_flags;
 
     return CERR_OK;
 }
