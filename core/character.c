@@ -105,7 +105,6 @@ static void character_any_to_jump(struct scene *s, void *priv)
     struct character *c = priv;
 
     c->airborne = true;
-    phys_body_attach_motor(c->entity->phys_body, false);
     phys_body_set_velocity(c->entity->phys_body, c->velocity);
     character_set_state(c, s, CS_JUMPING);
 }
@@ -331,7 +330,7 @@ fail_fallback:
             animation_push_by_name(ch->entity, s, "idle", false, true);
 
             if (body) {
-                phys_body_stop(body);
+                phys_body_set_velocity(body, (vec3){ 0, 0, 0 });
                 phys_body_enable(body, false);
             }
 
@@ -385,7 +384,6 @@ fail_fallback:
                     goto fail_fallback;
                 }
             } else if (ch->state == CS_MOVING) {
-                phys_body_attach_motor(body, false);
                 phys_body_set_velocity(body, ch->velocity);
                 ch->airborne = true;
 
@@ -415,12 +413,10 @@ fail_fallback:
 
         case CS_FALLING:
             if (ch->state == CS_MOVING) {
-                phys_body_set_motor_velocity(body, false, (vec3){ 0, 0, 0 });
-                phys_body_attach_motor(body, false);
+                phys_body_set_velocity(body, (vec3){ 0, 0, 0 });
             } else if (ch->state == CS_IDLE) {
                 /* ground disappeared */
                 phys_body_enable(body, true);
-                phys_body_attach_motor(body, false);
             } else if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
                 return;
             }
