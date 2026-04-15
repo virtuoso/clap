@@ -1456,7 +1456,8 @@ light_done:
                                      ptype, geom_off, geom_radius, geom_length);
                 phys_body_set_contact_params(e->phys_body,
                                              .bounce = bounce,
-                                             .bounce_vel = bounce_vel);
+                                             .bounce_vel = bounce_vel,
+                                             .mu = 1.0);
                 if (c)
                     phys_body_enable(e->phys_body, false);
             }

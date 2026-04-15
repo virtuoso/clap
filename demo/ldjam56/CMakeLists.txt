@@ -9,7 +9,7 @@ clap_executable(
     "When the Mountain Wakes"
     "onehandclap.c;ui.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset"
-    "scene.json;ProggyTiny.ttf"
+    "scene.json;ProggyTiny.ttf;ofl/ZillaSlab-SemiBold.ttf;ofl/Firjar-SimiBold.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset/background.png"
     "ofl/Unbounded-Regular.ttf"
     "Unbounded"

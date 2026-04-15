@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "draw.h"
+#include "font.h"
 #include "primitives.h"
+#include <float.h>
 #include <sched.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -33,11 +36,14 @@ cresp(game_ui) game_ui_init(struct ui *ui);
 void game_ui_done(game_ui *game_ui);
 
 static const char *intro_osd[] = {
-    "WASD to move the character",
-    "Space to jump",
-    "Shift to dash",
-    "Arrows to move the camera",
-    "Have fun"
+    "Oh noes!",
+    "I'm trapped!",
+    "WHAT AM I TO DO?!?!?!"
+    // "WASD to move the character",
+    // "Space to jump",
+    // "Shift to dash",
+    // "Arrows to move the camera",
+    // "Have fun"
 };
 
 enum main_state {
@@ -58,7 +64,7 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
     }
 }
 
-static texture_t pillar_pixel;
+static texture_t pillar_pixel, sphere_tex;
 static void make_pillar(struct scene *scene)
 {
     auto r = clap_get_renderer(scene->clap_ctx);
@@ -68,7 +74,8 @@ static void make_pillar(struct scene *scene)
 
     pipeline *pl = clap_get_pipeline(scene->clap_ctx);
     struct shader_prog *prog = CRES_RET(pipeline_shader_find_get(pl, "model"), return);
-    model3d *pillar_model = CRES_RET(model3d_new_cylinder(prog, (vec3){}, 0.99, 1.0, 6), return);
+    constexpr float height = 2.0;
+    model3d *pillar_model = CRES_RET(model3d_new_cylinder(prog, (vec3){}, height - 0.01, 1.0, 6), return);
     model3dtx *txpillar = ref_new(
         model3dtx,
         .model      = ref_pass(pillar_model),
@@ -77,16 +84,53 @@ static void make_pillar(struct scene *scene)
         .roughness  = 0.6,
     );
     scene_add_model(scene, txpillar);
-    for (int i = 0; i < 8; i++) {
+    constexpr float radius = 4.0;
+    constexpr int nr_segs = 16;
+    constexpr int nr_levels = 2;
+    for (int i = 0; i < nr_segs * nr_levels; i++) {
         entity3d *e = ref_new(entity3d, .txmodel = txpillar);
         // entity3d_position(e, (vec3) { 0.0, 0.0 + 1.0 * (float)i, -23});
-        entity3d_position(e, (vec3){ 0 + 1.0*cos(drand48() * M_PI * 2), -0.5 + 1.0 * (float)i, -23 + 1.0*sin(drand48() * M_PI * 2) });
-        entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), 20, GEOM_TRIMESH, PHYS_BODY, 0, 0, 0);
+        // entity3d_position(e, (vec3) { 0.0, 0.0 + 1.0 * (float)i, -23});
+        // entity3d_position(e, (vec3){ 0 + 1.0*cos(drand48() * M_PI * 2), -0.5 + 1.0 * (float)i, -23 + 1.0*sin(drand48() * M_PI * 2) });
+        float x = radius * cosf(((float)(i % nr_segs) / nr_segs) * M_PI * 2);
+        float y = height * (float)(i / nr_segs);
+        float z = radius * sinf(((float)(i % nr_segs) / nr_segs) * M_PI * 2);
+        entity3d_position(e, (vec3){ x, y, -23.0 + z });
+        entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), 1, GEOM_TRIMESH, PHYS_BODY, 0, 0, 0);
+        phys_ground_entity(clap_get_phys(scene->clap_ctx), e);
         phys_body_set_contact_params(e->phys_body,
-                                     .bounce = 0.5,
-                                     .bounce_vel = 0.5,
-                                     .mu = 1.0);
+                                     .bounce = 0.0,
+                                     .bounce_vel = 0.0,
+                                     .mu = 1.0,
+                                     .soft_cfm = 0.05,
+                                     .soft_erp = 0.05);
         phys_body_enable(e->phys_body, true);
+    }
+
+    auto font = CRES_RET(ref_new_checked(font, .ctx = clap_get_font(scene->clap_ctx), .name = "ofl/Firjar-SimiBold.ttf", .size = 32), return);
+    CERR_RET(texture_init(&sphere_tex, .wrap = TEX_WRAP_MIRRORED_REPEAT, .format = TEX_FMT_RGBA16F, .renderer = clap_get_renderer(scene->clap_ctx)), return);
+    tex_print(&sphere_tex, font, TEX_FMT_RGBA16F, (vec3){ 2.0, 0.0, 2.0 }, DRAW_AF_CENTER, "GET CLAP");
+    font_put(font);
+    LOCAL_SET(mesh_t, sphere_mesh) = CRES_RET(ref_new_checked(mesh, .name = "sphere"), return);
+    constexpr float sphere_radius = 2.0f;
+    prim_emit_sphere((vec3){}, sphere_radius, 20, .mesh = sphere_mesh);
+    auto sphere_model = CRES_RET(ref_new_checked(model3d, .mesh = sphere_mesh, .name = "sphere", .prog = prog), return);
+    auto sphere_txmodel = CRES_RET(ref_new_checked(model3dtx, .model = ref_pass(sphere_model), .tex = &sphere_tex), return);
+    sphere_txmodel->mat.uv_factor = 4.0;
+    scene_add_model(scene, sphere_txmodel);
+    for (int i = 0; i < 16; i++) {
+        auto sphere = CRES_RET(ref_new_checked(entity3d, .txmodel = sphere_txmodel), return);
+        sphere->bloom_intensity = -0.02;
+        entity3d_position(sphere, (vec3){ -10.0 + sphere_radius * cosf(M_PI * 2 * ((float)i / 16.0)), 2.0, 25.0 + sphere_radius * sinf(M_PI * 2 * ((float)i / 16.0)) });
+        entity3d_add_physics(sphere, clap_get_phys(scene->clap_ctx), 0.5, GEOM_CAPSULE, PHYS_BODY, 0, sphere_radius, 0);
+        phys_body_set_contact_params(sphere->phys_body,
+                                     .bounce = 2.8,
+                                     .bounce_vel = FLT_MIN,
+                                     .mu = 0.0,
+                                    //  .soft_cfm = 1.0,
+                                    //  .soft_erp = 0.8);
+        );
+        phys_body_enable(sphere->phys_body, true);
     }
 }
 
