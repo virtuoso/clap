@@ -691,6 +691,32 @@ float phys_body_sweep_capsule(struct phys_body *body, const vec3 delta,
     return best_frac;
 }
 
+float phys_body_get_mass(struct phys_body *body)
+{
+    return body->body ? body->mass.mass : 0;
+}
+
+void phys_body_push(entity3d *hit, const vec3 velocity, float pusher_mass)
+{
+    if (!hit || !hit->phys_body)
+        return;
+
+    struct phys_body *pb = hit->phys_body;
+    if (!pb->body)
+        return;
+
+    /*
+     * Apply an impulse-like force: F = pusher_mass * velocity.
+     * Scale up so the effect is visible at typical character speeds,
+     * since dBodyAddForce acts for one step (~1/60s) and the pillar
+     * has its own mass resisting the push.
+     */
+    dBodyAddForce(pb->body,
+                  pusher_mass * velocity[0],
+                  pusher_mass * velocity[1],
+                  pusher_mass * velocity[2]);
+}
+
 bool phys_body_ground_collide(struct phys_body *body, bool grounded)
 {
     entity3d *e = phys_body_entity(body);
