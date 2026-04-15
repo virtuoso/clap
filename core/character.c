@@ -105,18 +105,7 @@ static void character_any_to_jump(struct scene *s, void *priv)
     struct character *c = priv;
 
     c->airborne = true;
-    phys_body_set_velocity(c->entity->phys_body, c->velocity);
     character_set_state(c, s, CS_JUMPING);
-}
-
-static void character_jump_frame_callback(struct queued_animation *qa, entity3d *e, struct scene *s, double time)
-{
-    struct character *ch = CRES_RET(entity3d_character(e), return);
-
-    if (time >= 0.5) {
-        phys_body_set_velocity(ch->entity->phys_body, ch->velocity);
-        qa->frame_cb = NULL;
-    }
 }
 
 void character_set_moved(struct character *c)
@@ -310,8 +299,6 @@ static void character_set_state(struct character *ch, struct scene *s, character
         return;
     }
 
-    struct phys_body *body = ch->entity->phys_body;
-
 fail_fallback:
     switch (state) {
         case CS_IDLE:
@@ -328,11 +315,6 @@ fail_fallback:
                 return;
             }
             animation_push_by_name(ch->entity, s, "idle", false, true);
-
-            if (body) {
-                phys_body_set_velocity(body, (vec3){ 0, 0, 0 });
-                phys_body_enable(body, false);
-            }
 
             ch->state = state;
             break;
@@ -361,9 +343,6 @@ fail_fallback:
                 return;
             }
 
-            if (body)
-                phys_body_enable(body, true);
-
             if (!animation_push_by_name(ch->entity, s, "motion", false, true)) {
                 state = CS_IDLE;
                 goto fail_fallback;
@@ -373,18 +352,13 @@ fail_fallback:
 
         case CS_JUMP_START:
             if (ch->state == CS_IDLE) {
-                if (body)
-                    phys_body_enable(body, true);
-
                 if (animation_push_by_name(ch->entity, s, "idle_to_jump", true, false)) {
-                    animation_set_frame_callback(ch->entity, character_jump_frame_callback);
                     animation_set_end_callback(ch->entity, character_any_to_jump, ch);
                 } else {
                     state = CS_IDLE;
                     goto fail_fallback;
                 }
             } else if (ch->state == CS_MOVING) {
-                phys_body_set_velocity(body, ch->velocity);
                 ch->airborne = true;
 
                 if (animation_push_by_name(ch->entity, s, "motion_to_jump", true, false)) {
@@ -412,12 +386,7 @@ fail_fallback:
             goto fail_fallback;
 
         case CS_FALLING:
-            if (ch->state == CS_MOVING) {
-                phys_body_set_velocity(body, (vec3){ 0, 0, 0 });
-            } else if (ch->state == CS_IDLE) {
-                /* ground disappeared */
-                phys_body_enable(body, true);
-            } else if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
+            if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
                 return;
             }
             animation_push_by_name(ch->entity, s, "fall", true, true);
