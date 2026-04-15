@@ -413,6 +413,25 @@ struct scene;
 void phys_debug_draw(struct scene *scene, struct phys_body *body);
 
 /**
+ * phys_body_get_mass() - get the body's total mass
+ * @body:   phys_body object
+ *
+ * Return: the body's mass, or 0 if it has no dynamic body
+ */
+float phys_body_get_mass(struct phys_body *body);
+
+/**
+ * phys_body_push() - push a dynamic body with a force
+ * @hit:            entity that was hit
+ * @velocity:       velocity of the pusher at the time of contact
+ * @pusher_mass:    mass of the pusher (used to scale the force)
+ *
+ * If @hit has a dynamic phys_body, apply a force proportional to
+ * @pusher_mass * @velocity.  Has no effect on static geometries.
+ */
+void phys_body_push(entity3d *hit, const vec3 velocity, float pusher_mass);
+
+/**
  * phys_body_sweep_capsule() - sweep a capsule along a delta vector
  * @body:       phys_body of the character (capsule)
  * @delta:      movement vector to sweep along

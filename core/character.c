@@ -191,7 +191,8 @@ static inline void character_debug(struct character *ch) {}
  * something was hit on the primary movement).
  */
 static float character_sweep_delta(struct phys_body *body, vec3 delta,
-                                   float min_normal_y, bool stop_on_block)
+                                   float min_normal_y, bool stop_on_block,
+                                   const vec3 push_velocity, float push_mass)
 {
     float first_frac = 1.0f;
 
@@ -214,6 +215,10 @@ static float character_sweep_delta(struct phys_body *body, vec3 delta,
 
         if (iter == 0)
             first_frac = frac;
+
+        /* Push dynamic bodies on contact */
+        if (frac < 1.0f && hit)
+            phys_body_push(hit, push_velocity, push_mass);
 
         if (frac > 0) {
             vec3 step;
@@ -257,6 +262,8 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
     if (dt_sec > 1.0 / 30.0)
         dt_sec = 1.0 / 30.0;
 
+    float char_mass = phys_body_get_mass(e->phys_body);
+
     if (ch->airborne) {
         /*
          * Airborne: sweep vertical and horizontal independently.
@@ -266,8 +273,10 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
          */
         vec3 v_delta = { 0, ch->velocity[1] * dt_sec, 0 };
         vec3 h_delta = { ch->velocity[0] * dt_sec, 0, ch->velocity[2] * dt_sec };
-        float v_moved = character_sweep_delta(e->phys_body, v_delta, 0.5f, false);
-        character_sweep_delta(e->phys_body, h_delta, -1.0f, true);
+        float v_moved = character_sweep_delta(e->phys_body, v_delta, 0.5f, false,
+                                              ch->velocity, char_mass);
+        character_sweep_delta(e->phys_body, h_delta, -1.0f, true,
+                              ch->velocity, char_mass);
         /*
          * If the vertical sweep was blocked, the character hit
          * something below (or above).  Zero vertical velocity so
@@ -279,7 +288,8 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
     } else {
         vec3 delta;
         vec3_scale(delta, ch->velocity, dt_sec);
-        character_sweep_delta(e->phys_body, delta, -1.0f, true);
+        character_sweep_delta(e->phys_body, delta, -1.0f, true,
+                              ch->velocity, char_mass);
     }
 
     /* Zero body velocity so ODE dynamics don't fight the sweep */
