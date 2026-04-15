@@ -53,6 +53,8 @@ struct phys_body {
     dReal       bounce;
     dReal       bounce_vel;
     dReal       mu;
+    dReal       soft_erp;
+    dReal       soft_cfm;
     /* not sure we even need to store the mass */
     dMass       mass;
     struct list entry;
@@ -77,6 +79,8 @@ void _phys_body_set_contact_params(struct phys_body *body, const phys_contact_pa
     body->bounce = params->bounce;
     body->bounce_vel = params->bounce_vel;
     body->mu = params->mu;
+    body->soft_erp = params->soft_erp;
+    body->soft_cfm = params->soft_cfm;
 }
 
 entity3d *phys_body_entity(struct phys_body *body)
@@ -329,6 +333,7 @@ void phys_body_stop(struct phys_body *body)
 static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, int nc)
 {
     dReal bounce = 0, bounce_vel = 0, mu = 0;
+    dReal soft_erp = 0.05, soft_cfm = 0.01;
 
     if (e1 && e1->phys_body && e2 && e2->phys_body) {
         struct phys_body *b1 = e1->phys_body, *b2 = e2->phys_body;
@@ -336,6 +341,21 @@ static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, 
         bounce = fmax(b1->bounce, b2->bounce);
         bounce_vel = (b1->bounce_vel + b2->bounce_vel) * 0.5;
         mu = sqrt(b1->mu * b2->mu);
+
+        /* Per-body ERP/CFM overrides: use the smaller (softer) value */
+        if (b1->soft_erp > 0 && b2->soft_erp > 0)
+            soft_erp = fmin(b1->soft_erp, b2->soft_erp);
+        else if (b1->soft_erp > 0)
+            soft_erp = b1->soft_erp;
+        else if (b2->soft_erp > 0)
+            soft_erp = b2->soft_erp;
+
+        if (b1->soft_cfm > 0 && b2->soft_cfm > 0)
+            soft_cfm = fmax(b1->soft_cfm, b2->soft_cfm);
+        else if (b1->soft_cfm > 0)
+            soft_cfm = b1->soft_cfm;
+        else if (b2->soft_cfm > 0)
+            soft_cfm = b2->soft_cfm;
     }
 
     for (int i = 0; i < nc; i++) {
@@ -346,8 +366,8 @@ static void phys_contact_surface(entity3d *e1, entity3d *e2, dContact *contact, 
         contact[i].surface.mu2 = 0;
         contact[i].surface.bounce = bounce;
         contact[i].surface.bounce_vel = bounce_vel;
-        contact[i].surface.soft_cfm = 0.01;
-        contact[i].surface.soft_erp = 0.2;
+        contact[i].surface.soft_cfm = soft_cfm;
+        contact[i].surface.soft_erp = soft_erp;
     }
 }
 
