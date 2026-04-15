@@ -57,11 +57,19 @@ typedef struct entity3d entity3d;
  *              is zero
  * @mu:         Coulomb friction coefficient [0.0, dInfinity]: 0.0: frictionless,
  *              dInfinity: never slides
+ * @soft_erp:   per-body error reduction parameter override [0.0, 1.0]:
+ *              0 means use the default; lower values reduce penetration
+ *              correction force (helps prevent tall objects from bouncing
+ *              back upright)
+ * @soft_cfm:   per-body constraint force mixing override:
+ *              0 means use the default; higher values make contacts softer
  */
 typedef struct phys_contact_params {
     float   bounce;
     float   bounce_vel;
     float   mu;
+    float   soft_erp;
+    float   soft_cfm;
 } phys_contact_params;
 
 /**
