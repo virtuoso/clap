@@ -684,12 +684,9 @@ void phys_body_push(entity3d *hit, const vec3 velocity, float pusher_mass)
     if (!pb->body)
         return;
 
-    /*
-     * Apply an impulse-like force: F = pusher_mass * velocity.
-     * Scale up so the effect is visible at typical character speeds,
-     * since dBodyAddForce acts for one step (~1/60s) and the pillar
-     * has its own mass resisting the push.
-     */
+    /* Wake the body if auto-disabled so the force takes effect */
+    dBodyEnable(pb->body);
+
     dBodyAddForce(pb->body,
                   pusher_mass * velocity[0],
                   pusher_mass * velocity[1],
@@ -1019,10 +1016,22 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
          * Characters use kinematic movement (sweep-and-slide).
          * The body is set to kinematic so ODE's dynamics solver
          * doesn't move it -- only the character controller does.
-         * Contact joints with dynamic bodies still push those
-         * bodies, but the character itself is immune to forces.
+         * Disable the body so ODE skips it in the solver entirely;
+         * the character controller positions it directly via
+         * phys_body_move().
          */
         dBodySetKinematic(body->body);
+        dBodyDisable(body->body);
+    } else if (has_body) {
+        /*
+         * Dynamic bodies auto-disable when they come to rest,
+         * saving solver time.  ODE re-enables them automatically
+         * when another enabled body collides with them.
+         */
+        dBodySetAutoDisableFlag(body->body, 1);
+        dBodySetAutoDisableLinearThreshold(body->body, 0.05);
+        dBodySetAutoDisableAngularThreshold(body->body, 0.05);
+        dBodySetAutoDisableSteps(body->body, 30);
     }
 
     return body;
