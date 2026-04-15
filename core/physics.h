@@ -250,17 +250,6 @@ int phys_body_update(entity3d *e);
 void phys_body_done(struct phys_body *body);
 
 /**
- * phys_body_attach_motor() - attach phys_body to its linear motor
- * @body:   phys_body object
- * @attach: true to attach, false to detach
- *
- * Attach/detach a phys_body to/from its linear motor that facilitates, for example,
- * character movements. Typically, it a body is airborne (jumping or falling), it's
- * detached from the motor, and reattaches upon landing.
- */
-void phys_body_attach_motor(struct phys_body *body, bool attach);
-
-/**
  * phys_body_set_position() - set body's body or geometry's position
  * @body:   phys_body object
  * @pos:    new position
@@ -347,54 +336,16 @@ void phys_body_get_velocity(struct phys_body *body, vec3 vel);
 void phys_body_set_velocity(struct phys_body *body, vec3 vel);
 
 /**
- * phys_body_set_motor_velocity() - set phys_body's linear motor velocity
- * @body:       phys_body object
- * @body_also:  apply velocity directly to the boby as well
- * @vel:        linear velocity vector
- *
- * Set the @body's linear motor's velocity to @vel. If the body is not attached
- * to the motor, attach it first. If @body_also is true, also set the body's
- * linear velocity directly.
- */
-void phys_body_set_motor_velocity(struct phys_body *body, bool body_also, vec3 vel);
-
-/**
- * phys_body_stop() - stop the physical body
- * @body:   phys_body object
- *
- * Clear the @body's linear motor velocity.
- */
-void phys_body_stop(struct phys_body *body);
-
-/**
  * phys_body_ground_collide() - test if body is on/in the ground
  * @body:       phys_body object
  * @grounded:   true if the body was grounded before this call
  *
- * TODO: This does a whole lot of things and is ripe for refactoring.
+ * Cast a single downward ray from the capsule bottom against the full
+ * physics space.  If the ray hits within @body::yoffset distance, the
+ * character is grounded and the Y position is corrected to place the
+ * feet on the surface.  Sets the character's ground normal and
+ * collision entity.
  *
- * TODO: This is also the source of the "slow falling" when in contact
- * with the ground.
- *
- * The "ground" is anything in the phys::ground_space, which are collision
- * geometries and, strictly speaking, not necessarily "ground" in the literal
- * sense of the word.
- *
- * @body in this case is really a character, which is a capsule suspended at
- * about knee height that casts downwards rays to find its position relative
- * to the ground.
- *
- * What this function does:
- * * check if the body's @body (dBody) directly collides with the ground
- *   space, in which case it tests the angle of contact and if it's "vertical
- *   enough", adjusts the vertical position of the body by @body::yoffset aka
- *   "legs are in the ground", which shouldn't normally happen as later on
- *   this function performs height correction if the body is slightly sinking
- *   into the ground; if the angle of contact is "less vertical", it's considered
- *   running into an obstacle; in both cases the body is stopped
- * * cast downward rays to find the ground and, depending on the distance to
- *   the intersection, performs height adjustments one way or the other or
- *   leaves it be.
  * Return: true if @body is in contact with the ground, false otherwise.
  */
 bool phys_body_ground_collide(struct phys_body *body, bool grounded);
