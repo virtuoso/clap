@@ -92,30 +92,42 @@ include(ExternalProject)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     if (CONFIG_RENDERER_WGPU)
-        bootstrap_deps("bootstrap-wgpu.json")
+        set(CLAP_TINT_BIN "" CACHE FILEPATH
+            "Path to an external tint binary. If set, skips fetching/building tint-extract.")
 
-        include(scripts/host-compiler.cmake)
+        if (CLAP_TINT_BIN)
+            if (NOT EXISTS "${CLAP_TINT_BIN}")
+                message(FATAL_ERROR
+                    "CLAP_TINT_BIN is set to '${CLAP_TINT_BIN}' but the file does not exist")
+            endif ()
+            set(TINT_BIN_PATH "${CLAP_TINT_BIN}")
+            message(STATUS "tint: using external binary at ${TINT_BIN_PATH}")
+        else ()
+            bootstrap_deps("bootstrap-wgpu.json")
 
-        set(TINT_HOST_BUILD_DIR "${CMAKE_BINARY_DIR}/tint-host")
-        set(TINT_BIN_PATH "${TINT_HOST_BUILD_DIR}/tint")
+            include(scripts/host-compiler.cmake)
 
-        ExternalProject_Add(tint_host
-            SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/src/tint-extract"
-            BINARY_DIR "${TINT_HOST_BUILD_DIR}"
-            CMAKE_ARGS
-                -DCMAKE_C_COMPILER=${HOST_C_COMPILER}
-                -DCMAKE_CXX_COMPILER=${HOST_CXX_COMPILER}
-                -DCMAKE_BUILD_TYPE=Release
-                -DCMAKE_TOOLCHAIN_FILE=
-            BUILD_BYPRODUCTS "${TINT_BIN_PATH}"
-            INSTALL_COMMAND ""
-            USES_TERMINAL_BUILD TRUE
-            STEP_TARGETS build
-        )
+            set(TINT_HOST_BUILD_DIR "${CMAKE_BINARY_DIR}/tint-host")
+            set(TINT_BIN_PATH "${TINT_HOST_BUILD_DIR}/tint")
 
-        add_executable(tint IMPORTED GLOBAL)
-        set_target_properties(tint PROPERTIES IMPORTED_LOCATION "${TINT_BIN_PATH}")
-        add_dependencies(tint tint_host)
+            ExternalProject_Add(tint_host
+                SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/src/tint-extract"
+                BINARY_DIR "${TINT_HOST_BUILD_DIR}"
+                CMAKE_ARGS
+                    -DCMAKE_C_COMPILER=${HOST_C_COMPILER}
+                    -DCMAKE_CXX_COMPILER=${HOST_CXX_COMPILER}
+                    -DCMAKE_BUILD_TYPE=Release
+                    -DCMAKE_TOOLCHAIN_FILE=
+                BUILD_BYPRODUCTS "${TINT_BIN_PATH}"
+                INSTALL_COMMAND ""
+                USES_TERMINAL_BUILD TRUE
+                STEP_TARGETS build
+            )
+
+            add_executable(tint IMPORTED GLOBAL)
+            set_target_properties(tint PROPERTIES IMPORTED_LOCATION "${TINT_BIN_PATH}")
+            add_dependencies(tint tint_host)
+        endif ()
         set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS "--use-port=emdawnwebgpu")
         set(CLAP_EMSCRIPTEN_COMPILE_LIBRARIES "--use-port=emdawnwebgpu")
     endif ()
