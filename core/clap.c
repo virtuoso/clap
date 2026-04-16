@@ -854,6 +854,11 @@ static cerr handle_run_circle_opt(clap_context *ctx, const char *optarg)
     return input_motion_set_run_circle(radius);
 }
 
+static cerr handle_jump_opt(clap_context *ctx, const char *optarg)
+{
+    return input_motion_set_jump();
+}
+
 const char *clap_get_argv(clap_context *ctx, int idx)
 {
     if (ctx->argc <= idx)   return NULL;
@@ -930,6 +935,12 @@ static const struct clap_cli_options_desc {
         .arg_help       = "radius",
         .arg_required   = true,
         .handle         = handle_run_circle_opt
+    },
+    [CLAP_CLI_JUMP_BIT] = {
+        .long_name      = "jump",
+        .help           = "run in a circle (negative radius = counterclockwise)",
+        .arg_required   = false,
+        .handle         = handle_jump_opt
     },
 };
 

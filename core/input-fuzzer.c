@@ -122,6 +122,7 @@ static struct {
     float               dx, dy;     /* run-to: fixed direction */
     float               radius;     /* run-circle: signed radius */
     double              angle;      /* run-circle: current angle */
+    bool                jump;       /* always jump */
 } motion_state;
 
 static struct message_source motion_source = {
@@ -174,6 +175,12 @@ cerr input_motion_set_run_circle(float radius)
     return CERR_OK;
 }
 
+cerr input_motion_set_jump(void)
+{
+    motion_state.jump = true;
+    return CERR_OK;
+}
+
 void input_motion_step(struct clap_context *ctx)
 {
     if (motion_state.mode == MOTION_NONE || clap_is_paused(ctx))
@@ -210,5 +217,6 @@ void input_motion_step(struct clap_context *ctx)
         return;
     }
 
+    if (motion_state.jump)  mi.space = 1;
     message_input_send(ctx, &mi, &motion_source);
 }

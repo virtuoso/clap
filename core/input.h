@@ -12,6 +12,7 @@ void fuzzer_input_step(struct clap_context *ctx);
 void fuzzer_input_init(struct clap_context *ctx);
 cerr input_motion_set_run_to(const char *cardinal);
 cerr input_motion_set_run_circle(float radius);
+cerr input_motion_set_jump();
 void input_motion_step(struct clap_context *ctx);
 
 #ifndef CONFIG_FINAL
