@@ -390,6 +390,20 @@ static void entity_pen_push(entity3d *e, dContact *contact, struct list *pen)
     list_append(pen, &e->phys_body->pen_entry);
 }
 
+static void phys_contact_debug_draw(struct phys *phys, dContactGeom *geom, vec4 color)
+{
+    struct message dm = {
+        .type   = MT_DEBUG_DRAW,
+        .debug_draw = (struct message_debug_draw){
+            .color  = { color[0], color[1], color[2], color[3] },
+            .radius = 10.0,
+            .shape  = DEBUG_DRAW_DISC,
+            .v0     = { geom->pos[0], geom->pos[1], geom->pos[2] },
+        }
+    };
+    message_send(phys->clap_ctx, &dm);
+}
+
 /*
  * Get contact points between two potentially colliding geometries and if they
  * do, put them on the collision list, where they later get resolved in phys_step().
@@ -419,18 +433,8 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
 
             phys_contact_surface(e1, e2, &contact[i], 1);
 
-            if (unlikely(phys->draw_contacts)) {
-                struct message dm = {
-                    .type   = MT_DEBUG_DRAW,
-                    .debug_draw = (struct message_debug_draw){
-                        .color  = { 1.0, 0.0, 0.0, 1.0 },
-                        .radius = 10.0,
-                        .shape  = DEBUG_DRAW_DISC,
-                        .v0     = { contact[i].geom.pos[0], contact[i].geom.pos[1], contact[i].geom.pos[2] },
-                    }
-                };
-                message_send(phys->clap_ctx, &dm);
-            }
+            if (unlikely(phys->draw_contacts))
+                phys_contact_debug_draw(phys, &contact[i].geom, (vec4){ 1.0, 0.0, 0.0, 1.0 });
 
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
