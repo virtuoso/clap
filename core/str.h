@@ -39,7 +39,7 @@ typedef struct string_view {
     string_view sv(_sv) = { \
         .data   = (char *)(_str), \
         .cap    = str_is_const((_str)) ? 0 : (str_is_ptr((_str)) ? strlen((_str)) + 1 : sizeof((_str))), \
-        .end    = str_is_ptr((_str)) ? strlen((_str)) : sizeof((_str)) - 1, \
+        .end    = str_is_ptr((_str)) ? strlen((_str)) : strnlen((_str), sizeof((_str)) - 1), \
     }
 
 #define declare_sv(_str)    declare_sv_from(_str, _str)
