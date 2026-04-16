@@ -20,14 +20,48 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y glslc spirv-cross
+      - name: tint-rev
+        id: tint-rev
+        run: |
+          url=$(jq -r '.[0].source.url' deps/bootstrap-wgpu.json)
+          rev=$(jq -r '.[0].source.revision' deps/bootstrap-wgpu.json)
+          if [[ "$rev" =~ ^[0-9a-f]{40}$ ]]; then
+            sha=$rev
+          else
+            sha=$(git ls-remote "$url" "$rev" | cut -f1)
+          fi
+          if [[ -z "$sha" ]]; then
+            echo "failed to resolve tint-extract revision '$rev' at $url" >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: cache-tint
+        id: cache-tint
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/tint-build
+          key: tint-${{ runner.os }}-${{ steps.tint-rev.outputs.sha }}
+      - name: build-tint
+        if: steps.cache-tint.outputs.cache-hit != 'true'
+        run: |
+          src="${{ github.workspace }}/tint-src"
+          build="${{ github.workspace }}/tint-build"
+          git clone --recursive --filter=blob:none "${{ steps.tint-rev.outputs.url }}" "$src"
+          git -C "$src" checkout "${{ steps.tint-rev.outputs.sha }}"
+          git -C "$src" submodule update --init --recursive
+          cmake -S "$src" -B "$build" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$build" --parallel 4
       - name: configure
+        env:
+          CLAP_TINT_BIN: ${{ github.workspace }}/tint-build/tint
         run: |
           cd ${{ github.workspace }}
           . ./emsdk/emsdk_env.sh
           export WWW_INSTALL_DIR="${{ github.workspace }}/www/${GITHUB_REF##*/}"
-          cmake --preset emrel -B build/emrel
-          cmake --preset emtest -B build/emtest
-          cmake --preset emdebug -B build/emdebug
+          cmake --preset emrel -B build/emrel -DCLAP_TINT_BIN="$CLAP_TINT_BIN"
+          cmake --preset emtest -B build/emtest -DCLAP_TINT_BIN="$CLAP_TINT_BIN"
+          cmake --preset emdebug -B build/emdebug -DCLAP_TINT_BIN="$CLAP_TINT_BIN"
       - name: build
         run: |
           cd ${{ github.workspace }}
