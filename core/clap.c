@@ -916,7 +916,7 @@ static cerr handle_help_opt(clap_context *ctx, const char *optarg)
 
         auto desc = &clap_cli_options_desc[i];
 
-        char help[256];
+        char help[256] = {};
         declare_sv(help);
 
         if (desc->short_name)

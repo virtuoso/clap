@@ -114,7 +114,7 @@ void xyarray_print(unsigned char *arr)
     static const char ch[] = " .+oO############_^tTF";
     int height = xyz->dim[1];
     int width = xyz->dim[0];
-    char str[2048];
+    char str[2048] = {};
     declare_sv(str);
     int i, j;
 
