@@ -105,6 +105,18 @@ static void character_any_to_jump(struct scene *s, void *priv)
     struct character *c = priv;
 
     c->airborne = true;
+    /*
+     * Re-establish jump velocity at the moment of actual liftoff.
+     * During the "motion_to_jump" animation, the grounded motion code
+     * in character_move() overwrites ch->velocity with horizontal-only
+     * running velocity (via vec3_add_scaled), losing the jump_upward
+     * component that character_jump() originally set.
+     */
+    vec3_dup(c->velocity, (vec3){
+        c->motion[0] * c->jump_forward,
+        c->jump_upward,
+        c->motion[2] * c->jump_forward,
+    });
     character_set_state(c, s, CS_JUMPING);
 }
 
@@ -253,26 +265,40 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
     float char_mass = phys_body_get_mass(e->phys_body);
 
     if (ch->airborne) {
-        /*
-         * Airborne: sweep vertical and horizontal independently.
-         * This prevents the "fall of shame" -- blocking horizontal
-         * movement against a wall doesn't stop gravity from pulling
-         * the character down.
-         */
-        vec3 v_delta = { 0, ch->velocity[1] * dt_sec, 0 };
-        vec3 h_delta = { ch->velocity[0] * dt_sec, 0, ch->velocity[2] * dt_sec };
-        float v_moved = character_sweep_delta(e->phys_body, v_delta, 0.5f, false,
-                                              ch->velocity, char_mass);
-        character_sweep_delta(e->phys_body, h_delta, -1.0f, true,
-                              ch->velocity, char_mass);
-        /*
-         * If the vertical sweep was blocked, the character hit
-         * something below (or above).  Zero vertical velocity so
-         * gravity doesn't accumulate while the character is stuck
-         * at the surface waiting for ground_collide to ground it.
-         */
-        if (v_moved < 1.0f)
-            ch->velocity[1] = 0;
+        if (ch->velocity[1] > 0) {
+            /*
+             * Rising (jumping): combined sweep with all contacts
+             * blocking. The split vertical/horizontal path used
+             * while falling lets walls pass the vertical filter
+             * (so the character doesn't catch on edges), but
+             * during an upward sweep that same filter lets the
+             * character tunnel through wall top edges into the
+             * interior of a mesh. Combined sweep blocks any
+             * contact, which matches grounded motion behavior.
+             */
+            vec3 delta;
+            vec3_scale(delta, ch->velocity, dt_sec);
+            float moved = character_sweep_delta(e->phys_body, delta, -1.0f, true,
+                                                ch->velocity, char_mass);
+            if (moved < 1.0f)
+                ch->velocity[1] = 0;
+        } else {
+            /*
+             * Falling: split vertical and horizontal sweeps. The
+             * vertical sweep ignores wall/edge contacts so the
+             * character doesn't catch on edges ("fall of shame").
+             * Horizontal sweep blocks any contact, including
+             * walls, so the character slides along them.
+             */
+            vec3 v_delta = { 0, ch->velocity[1] * dt_sec, 0 };
+            vec3 h_delta = { ch->velocity[0] * dt_sec, 0, ch->velocity[2] * dt_sec };
+            float v_moved = character_sweep_delta(e->phys_body, v_delta, 0.5f, false,
+                                                  ch->velocity, char_mass);
+            character_sweep_delta(e->phys_body, h_delta, -1.0f, true,
+                                  ch->velocity, char_mass);
+            if (v_moved < 1.0f)
+                ch->velocity[1] = 0;
+        }
     } else {
         vec3 delta;
         vec3_scale(delta, ch->velocity, dt_sec);
@@ -426,6 +452,17 @@ void character_move(struct character *ch, struct scene *s)
     struct phys_body *body = ch->entity->phys_body;
 
     ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
+
+    /*
+     * Protect airborne state during the rising phase of a jump. The
+     * character just set velocity[1] = jump_upward and hasn't moved
+     * up yet, so ground_collide sees ground directly below and would
+     * wrongly mark us grounded; the state machine is the authority
+     * here. Once gravity brings velocity[1] to zero, ground_collide
+     * takes over for landing detection.
+     */
+    if (ch->state == CS_JUMPING && ch->velocity[1] > 0)
+        ch->airborne = true;
 
     if (ch->airborne) {
         /*

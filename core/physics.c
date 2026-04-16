@@ -697,7 +697,17 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
     entity3d *e = phys_body_entity(body);
     struct phys *phys = body->phys;
     dReal epsilon = 1e-3;
-    dReal ray_len = body->yoffset - body->ray_off + epsilon;
+    /*
+     * Lift the ray origin above the capsule bottom by a safety margin.
+     * At low framerates the sweep can leave the capsule bottom a few
+     * mm inside a platform's trimesh; ODE's ray-vs-trimesh from inside
+     * the mesh misses, which would wrongly report airborne and trigger
+     * a permanent fall-of-shame. The margin is small enough not to
+     * affect the natural jump-escape threshold of the original logic.
+     */
+    dReal safety = 0.05;
+    dReal ray_off = body->ray_off - safety;
+    dReal ray_len = body->yoffset - ray_off + epsilon;
     struct character *ch = CRES_RET(entity3d_character(e), return true);
 
     if (!phys_body_has_body(body))
@@ -709,13 +719,8 @@ bool phys_body_ground_collide(struct phys_body *body, bool grounded)
     dContact contact;
     double dist = ray_len * 2;
 
-    /*
-     * Single downward ray from capsule bottom.  The ray length covers
-     * twice the expected leg distance so we can detect both "sinking
-     * into ground" and "slightly floating above ground" cases.
-     */
     ch->collision = __phys_ray_cast(phys, e,
-                                    (vec3){ pos[0], pos[1] - body->ray_off, pos[2] },
+                                    (vec3){ pos[0], pos[1] - ray_off, pos[2] },
                                     (vec3){ 0, -1, 0 }, &dist, &contact);
     if (!ch->collision)
         return false;
