@@ -152,7 +152,7 @@ static void character_obj_next(struct scene *s)
 
 static void switcher_update(struct scene *s)
 {
-    static char buf[512];
+    char buf[512] = {};
     declare_sv(buf);
     character_obj *cobj;
 
