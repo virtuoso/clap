@@ -77,7 +77,7 @@ void main()
      * we just don't need yet. Once this becomes less critical, the above change
      * will have to be made.
      */
-    lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor, mat);
+    lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor, mat, noise3d);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
 

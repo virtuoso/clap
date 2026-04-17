@@ -156,7 +156,7 @@ float light_heatmap()
 }
 
 lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 base_color, float shadow_factor,
-                                       lighting_material mat)
+                                       lighting_material mat, sampler3D noise3d)
 {
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
     vec3 shadow_tinted = light_color[0] * shadow_tint;
@@ -195,6 +195,22 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
     }
 
     r.diffuse += mix(light_ambient, shadow_tinted, 1.0 - shadow_factor);
+
+    /*
+     * Material-level volumetric "fog": a per-fragment scalar density
+     * sampled from the baked 3D noise, blending the lit diffuse toward
+     * the ambient color and attenuating specular. This is a cheap
+     * surface-local effect, not a real depth-integrated fog — it's
+     * what lets stone/lava materials look dusty or steamy without a
+     * separate fog pass. fog_color comes from light_ambient by default;
+     * a dedicated uniform can be added when a material needs its own
+     * tint.
+     */
+    if (use_3d_fog) {
+        float density = fog_cloud(noise3d, world_pos.xyz, fog_3d_amp, fog_3d_scale);
+        r.diffuse = mix(r.diffuse, light_ambient, density);
+        r.specular *= 1.0 - density;
+    }
 
     return r;
 }

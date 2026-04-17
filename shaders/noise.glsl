@@ -130,4 +130,20 @@ vec3 noise_normal_3d(sampler3D tex, vec3 world_pos, vec3 geom_normal, float amp,
     return safe_normalize(geom_normal - s * tdir);
 }
 
+/*
+ * Sample the baked 3D noise texture as a scalar volumetric density in
+ * [0, 1]. The texture stores a normalized gradient (see core/noise.c)
+ * packed to RGB8, so a single channel read as unsigned [0, 1] gives a
+ * cheap spatially-varying scalar field. @amp scales the density,
+ * @freq scales the sampling space. A hash-based jitter of the sample
+ * position blurs the texture's period so the underlying 64^3 tile
+ * doesn't show up on large uniform regions.
+ */
+float fog_cloud(sampler3D tex, vec3 pos, float amp, float freq)
+{
+    vec3 p = pos + noise(pos.zxy);
+    float d = texture(tex, p * freq).x;
+    return clamp(d * amp, 0.0, 1.0);
+}
+
 #endif /* SHADERS_NOISE_GLSL */
