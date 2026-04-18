@@ -23,6 +23,9 @@ typedef struct render_options {
     float   contrast;
     float   ssao_radius;
     float   ssao_weight;
+    double  time;
+    float   film_grain_factor;
+    float   film_grain_power;
     float   fog_near;
     float   fog_far;
     vec3    fog_color;
@@ -40,6 +43,7 @@ typedef struct render_options {
     bool    edge_sobel;
     bool    ssao;
     bool    shadow_vsm;
+    bool    film_grain;
     bool    hdr;
     bool    hdr_output;
     bool    hdr_output_enabled;

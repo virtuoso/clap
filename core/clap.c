@@ -311,6 +311,9 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.fog_near = 5.0;
     ctx->render_options.fog_far = 80.0;
     vec3_dup(ctx->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
+    ctx->render_options.film_grain = true;
+    ctx->render_options.film_grain_factor = 0.02;
+    ctx->render_options.film_grain_power = 1.0;
     ctx->render_options.hdr_white_nits = 203.0f;
     ctx->render_options.hdr_peak_nits = 1000.0f;
     ctx->render_options.hdr_compress_knee = 1.0f;

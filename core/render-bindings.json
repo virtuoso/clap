@@ -20,7 +20,8 @@
         { "name": "shadow_map3",    "binding": 7, "symbol": "UNIFORM_SHADOW_MAP3" },
         { "name": "depth_tex",      "binding": 8, "symbol": "UNIFORM_DEPTH_TEX" },
         { "name": "light_map",      "binding": 9, "symbol": "UNIFORM_LIGHT_MAP" },
-        { "name": "noise3d",        "binding": 10, "symbol": "UNIFORM_NOISE3D_TEX" }
+        { "name": "noise3d",        "binding": 10, "symbol": "UNIFORM_NOISE3D_TEX" },
+        { "name": "grain_tex",      "binding": 11, "symbol": "UNIFORM_GRAIN_TEX" }
     ],
     "ubos": [
         {
@@ -175,7 +176,11 @@
                 { "name": "lighting_operator", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHTING_OPERATOR", "discription": "HDR lighting tonemapping operator" },
                 { "name": "fog_color", "type": "DT_VEC3", "symbol": "UNIFORM_FOG_COLOR", "discription": "radial fog color" },
                 { "name": "fog_near", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_NEAR", "discription": "radial fog near distance" },
-                { "name": "fog_far", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_FAR", "discription": "radial fog far distance" }
+                { "name": "fog_far", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_FAR", "discription": "radial fog far distance" },
+                { "name": "film_grain", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_FILM_GRAIN", "discription": "enable film grain" },
+                { "name": "film_grain_shift", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_SHIFT", "discription": "per-frame random seed for film grain UV offset" },
+                { "name": "film_grain_factor", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_FACTOR", "discription": "film grain intensity" },
+                { "name": "film_grain_power", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_POWER", "discription": "film grain luminance sensitivity exponent" }
             ]
         },
         {

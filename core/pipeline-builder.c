@@ -4,6 +4,7 @@
 #include "display.h"
 #include "light.h"
 #include "lut.h"
+#include "noise.h"
 #include "pipeline.h"
 #include "pipeline-builder.h"
 #include "render.h"
@@ -201,8 +202,13 @@ static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, text
 
 cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 {
+    static texture_t grain_tex;
+
     if (!opts->mq)
         return cresp_error(pipeline, CERR_NOMEM);
+
+    if (!texture_loaded(&grain_tex))
+        blue_noise2d_tex(clap_get_renderer(opts->pl_opts->clap_ctx), &grain_tex, FILM_GRAIN_SIZE);
 
     apply_constraints(opts);
 
@@ -551,6 +557,11 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                         .method     = RM_PLUG,
                         .sampler    = UNIFORM_SHADOW_MAP2
                     },
+                {
+                    .tex        = &grain_tex,
+                    .method     = RM_PLUG,
+                    .sampler    = UNIFORM_GRAIN_TEX,
+                },
                 {
                     .tex        = lut_tex(ropts->lighting_lut),
                     .method     = RM_PLUG,
