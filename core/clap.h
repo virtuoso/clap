@@ -39,6 +39,18 @@ typedef struct clap_os_info {
 CLAP_API
 clap_os_info *clap_get_os(clap_context *ctx);
 
+typedef struct noise3d noise3d;
+
+/**
+ * clap_get_os() - get OS information
+ * @ctx:    clap_context
+ *
+ * Get information about the platform/OS where this code is running.
+ * Return: struct clap_os_info pointer (nonnull).
+ */
+CLAP_API
+noise3d *clap_get_noise3d(clap_context *ctx) __nonnull_params((1)) __returns_nonnull;
+
 /**
  * clap_get_phys() - get the clap's physics handle
  * @ctx:    clap_context

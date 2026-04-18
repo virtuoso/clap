@@ -13,6 +13,7 @@
 #include "lut.h"
 #include "font.h"
 #include "networking.h"
+#include "noise.h"
 #include "pipeline-builder.h"
 #include "profiler.h"
 #include "render.h"
@@ -112,6 +113,7 @@ typedef struct clap_context {
     struct scene        scene;
     pipeline            *pl;
     struct list         luts;
+    noise3d             *noise3d;
     struct list         timers;
     struct ui           ui;
     messagebus          mb;
@@ -199,6 +201,8 @@ clap_os_info *clap_get_os(clap_context *ctx)
 {
     return &ctx->os_info;
 }
+
+noise3d *clap_get_noise3d(clap_context *ctx)    { return ctx->noise3d; }
 
 struct timespec clap_get_current_timespec(struct clap_context *ctx)
 {
@@ -1128,6 +1132,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
             lut_presets = (lut_preset[]){ LUT_IDENTITY, LUT_MAX };
         CERR_RET_T(clap_lut_generate(ctx, lut_presets, 32), clap_context);
 
+        ctx->noise3d = CRES_RET_T(ref_new_checked(noise3d, .renderer = &ctx->renderer), clap_context);
+
         CERR_RET_T(scene_init(&ctx->scene, ctx), clap_context);
 
         scene_camera_add(&ctx->scene);
@@ -1161,6 +1167,7 @@ void clap_done(struct clap_context *ctx, int status)
         ref_put(ctx->pl);
         shader_vars_done(ctx->shaders);
         luts_done(&ctx->luts);
+        ref_put_last(ctx->noise3d);
         textures_done();
         display_done();
     }
