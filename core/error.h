@@ -161,6 +161,9 @@ cres_ret(int);
 cres_ret(size_t);
 /* Declare cres with void pointer value */
 cresp_ret(void);
+/* Declare cres with const char pointer value */
+typedef const char const_char;
+cresp_ret(const_char);
 
 /*
  * Make sure that cerr and cres(T) have err, reason, mod and line at same
