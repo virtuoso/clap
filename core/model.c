@@ -283,6 +283,7 @@ static bool model3dtx_tex_is_ext(model3dtx *txm, enum shader_vars var)
         case UNIFORM_MODEL_TEX:     return txm->textures[TEXIDX(var)] != &txm->_texture;
         case UNIFORM_NORMAL_MAP:    return txm->textures[TEXIDX(var)] != &txm->_normals;
         case UNIFORM_EMISSION_MAP:  return txm->textures[TEXIDX(var)] != &txm->_emission;
+        case UNIFORM_NOISE3D_TEX:   return true; /* always externally supplied, not owned by the txm */
         default:                    break;
     }
     return false;
