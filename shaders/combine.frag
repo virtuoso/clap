@@ -17,6 +17,7 @@ layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
+layout (binding=SAMPLER_BINDING_grain_tex) uniform sampler2D grain_tex;
 layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
 
 #include "ubo_render_common.glsl"
@@ -36,6 +37,21 @@ float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fo
     return clamp((dist - H(near_fog)) / H(far_fog - near_fog), H(0.0), H(1.0));
 }
 
+vec3 grain_color(vec3 color, vec3 view_pos)
+{
+    vec2 uv = vec2(
+        fract(sin(film_grain_shift * 12.9898) * 43758.5453),
+        fract(cos(film_grain_shift * 78.233)  * 12345.6789)
+    );
+
+    float dist = length(view_pos);
+    vec3 noise = texture(grain_tex, (pass_tex + uv * dist) * FILM_GRAIN_SIZE).rgb;
+
+    float luma = dot(color, vec3(0.299, 0.587, 0.114));
+    float weight = 1.0 - pow(luma, film_grain_power);
+    return color + noise.rgb * weight * film_grain_factor;
+}
+
 void main()
 {
     f16vec3 tex_color = use_edge_aa ?
@@ -47,6 +63,8 @@ void main()
 
     if (use_ssao)
         tex_color = tex_color * mix(H(1.0), ao, H(ssao_weight));
+
+    vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
 
     if (use_hdr) {
         /* lighting exposure + bloom exposure */
@@ -73,6 +91,9 @@ void main()
         tex_color = mix(tex_color, HVEC3(fog_color), fog_factor);
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
     }
+
+    if (film_grain)
+        FragColor = vec4(grain_color(FragColor.rgb, view_pos), 1.0);
 
     if (hdr_output)
         // TODO: This should be a uniform: extended_p3/pq/extended_srgb
