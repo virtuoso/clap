@@ -39,7 +39,7 @@ static void random_point_sphere(vec3 pos, const vec3 center, float radius, parti
             r = radius * cbrt(drand48());
             break;
         case PART_DIST_SQRT:
-            r = sqrtf(drand48());
+            r = radius * sqrt(drand48());
             break;
         case PART_DIST_LIN:
         default:
