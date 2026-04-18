@@ -23,6 +23,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(particle_system,
     struct mq           *mq;
     vec3                center;
     double              radius;
+    double              min_radius;
     double              scale;
     unsigned int        count;
     particle_dist       dist;

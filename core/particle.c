@@ -17,12 +17,14 @@ typedef struct particle_system {
     struct list     particles;
     vec3            *pos_array;
     double          radius;
+    double          min_radius;
     double          radius_squared;
     particle_dist   dist;
     unsigned int    count;
 } particle_system;
 
-static void random_point_sphere(vec3 pos, const vec3 center, float radius, particle_dist dist)
+static void random_point_sphere(vec3 pos, const vec3 center, double radius, double min_radius,
+                                particle_dist dist)
 {
     vec3 dir;
     dir[0] = drand48() * 2.0 - 1.0;
@@ -30,22 +32,26 @@ static void random_point_sphere(vec3 pos, const vec3 center, float radius, parti
     dir[2] = drand48() * 2.0 - 1.0;
     vec3_norm_safe(dir, dir);
 
-    float r;
+    /* sample a normalized [0, 1] radius with the requested distribution */
+    double u;
     switch (dist) {
         case PART_DIST_POW075:
-            r = radius * powf(drand48(), 0.75);
+            u = pow(drand48(), 0.75);
             break;
         case PART_DIST_CBRT:
-            r = radius * cbrt(drand48());
+            u = cbrt(drand48());
             break;
         case PART_DIST_SQRT:
-            r = radius * sqrt(drand48());
+            u = sqrt(drand48());
             break;
         case PART_DIST_LIN:
         default:
-            r = radius * drand48();
+            u = drand48();
             break;
     }
+
+    /* map into the hollow shell between min_radius and radius */
+    float r = (float)(min_radius + (radius - min_radius) * u);
 
     vec3_add_scaled(pos, center, dir, 1.0, r);
 }
@@ -63,7 +69,8 @@ static void particle_spawn(particle_system *ps)
     if (!p)
         return;
 
-    random_point_sphere(p->pos, transform_pos(&ps->e->xform, NULL), ps->radius, ps->dist);
+    random_point_sphere(p->pos, transform_pos(&ps->e->xform, NULL),
+                        ps->radius, ps->min_radius, ps->dist);
     list_append(&ps->particles, &p->entry);
     particle_set_velocity(p);
 }
@@ -90,7 +97,7 @@ static int particles_update(entity3d *e, void *data)
         transform_pos(&ps->e->xform, pos);
         vec3_sub(dist, p->pos, pos);
         if (vec3_mul_inner(dist, dist) > ps->radius_squared) {
-            random_point_sphere(p->pos, pos, ps->radius, ps->dist);
+            random_point_sphere(p->pos, pos, ps->radius, ps->min_radius, ps->dist);
             particle_set_velocity(p);
         }
 
@@ -176,6 +183,7 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
     ps->e->update = particles_update;
     ps->count = opts->count > PARTICLES_MAX ? PARTICLES_MAX : opts->count;
     ps->radius = opts->radius;
+    ps->min_radius = opts->min_radius;
     ps->radius_squared = opts->radius * opts->radius;
 
     ps->pos_array = mem_alloc(sizeof(vec3), .nr = ps->count);
