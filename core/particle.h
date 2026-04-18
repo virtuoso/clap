@@ -29,6 +29,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(particle_system,
     particle_dist       dist;
     texture_t           *tex;
     texture_t           *emit;
+    float               bloom_intensity;
 );
 DECLARE_REFCLASS(particle_system);
 

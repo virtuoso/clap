@@ -177,6 +177,7 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
 
     /* particle system should hold the reference to the entity */
     ps->e = eres.val;
+    ps->e->bloom_intensity = opts->bloom_intensity ? : 1.0f;
     ps->e->particles = ps;
     /* ps->e's AABB should cover a sphere with ps->radius, until then, disable culling */
     ps->e->skip_culling = true;
