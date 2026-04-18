@@ -320,6 +320,13 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.hdr_knee_softness = 16.0f;
 }
 
+/* Per-frame render options update */
+static void clap_update_render_options(clap_context *ctx)
+{
+    static const typeof(ctx->current_time.tv_nsec) nsec_per_24fps = NSEC_PER_SEC / 24;
+    ctx->render_options.time = (double)(ctx->current_time.tv_nsec / nsec_per_24fps) / 24.0;
+}
+
 /****************************************************************************
  * Timers API
  ****************************************************************************/
@@ -547,6 +554,9 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     mem_frame_begin();
     clap_fps_calc(ctx, &ctx->fps);
+
+    clap_update_render_options(ctx);
+
     clap_timers_run(ctx);
 
     if (ctx->fullscreen) {
