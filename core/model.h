@@ -36,6 +36,8 @@ typedef enum joint_type {
     JOINT_TYPE_MAX,
 } joint_type;
 
+cres_ret(joint_type);
+
 #define LOD_MAX 4
 typedef struct model3d {
     char                *name;
@@ -246,7 +248,7 @@ DECLARE_REFCLASS(model3dtx);
 DECLARE_CLEANUP(model3dtx);
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs);
-cres(int) model3d_get_joint(model3d *m, joint_type type);
+cres(joint_type) model3d_get_joint(model3d *m, joint_type type);
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
 float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);

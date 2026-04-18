@@ -534,14 +534,14 @@ int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
     return 0;
 }
 
-cres(int) model3d_get_joint(model3d *m, joint_type type)
+cres(joint_type) model3d_get_joint(model3d *m, joint_type type)
 {
     if (type >= JOINT_TYPE_MAX)
-        return cres_error(int, CERR_INVALID_ARGUMENTS);
+        return cres_error(joint_type, CERR_INVALID_ARGUMENTS);
 
     return m->joint_types[type] >= 0
-        ? cres_val(int, m->joint_types[type])
-        : cres_error(int, CERR_NOT_FOUND);
+        ? cres_val(joint_type, m->joint_types[type])
+        : cres_error(joint_type, CERR_NOT_FOUND);
 }
 
 void entity3d_set_lod(entity3d *e, int lod, bool force)

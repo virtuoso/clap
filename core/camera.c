@@ -188,7 +188,7 @@ static void camera_target(struct camera *c, entity3d *entity)
          * Without a head joint we fall back to
          * three-quarter height above the feet (XXX: parameterize).
          */
-        cres(int) jres = model3d_get_joint(entity->txmodel->model, JOINT_HEAD);
+        cres(joint_type) jres = model3d_get_joint(entity->txmodel->model, JOINT_HEAD);
         if (IS_CERR(jres)) {
             c->target[1] += height * 0.75f;
         } else {
