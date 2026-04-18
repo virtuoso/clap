@@ -1396,6 +1396,32 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         }
     }
 
+    /*
+     * "armature": { "head": "<joint name>", ... } resolves gltf joint
+     * names to semantic joint_type slots. These are consumed by
+     * model3d_get_joint() (camera target, attach_joint, etc.) so
+     * scenes can refer to joints by role without caring about how the
+     * exporter named them.
+     */
+    model3d *model = txm->model;
+    JsonNode *armature = json_find_member(node, "armature");
+    if (armature && armature->tag == JSON_OBJECT) {
+        for (unsigned int i = JOINT_NONE; i < JOINT_TYPE_MAX; i++) {
+            auto jt_str = CRES_RET(joint_type_name(i), continue);
+
+            JsonNode *jj = json_find_member(armature, jt_str);
+            if (!jj || jj->tag != JSON_STRING)
+                continue;
+
+            const char *joint_name = jj->string_;
+            for (unsigned int j = 0; j < model->nr_joints; j++)
+                if (!strcmp(joint_name, model->joints[j].name)) {
+                    model->joint_types[i] = j;
+                    break;
+                }
+        }
+    }
+
     if (sfx)
         for (p = sfx->children.head; p; p = p->next)
             sfx_add_from_json(&txm->model->sfxc, clap_get_sound(scene->clap_ctx), p);
