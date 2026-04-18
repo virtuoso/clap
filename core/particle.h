@@ -25,6 +25,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(particle_system,
     double              radius;
     double              min_radius;
     double              scale;
+    double              velocity;
     unsigned int        count;
     particle_dist       dist;
     texture_t           *tex;

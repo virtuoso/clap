@@ -5,10 +5,13 @@
 #include "scene.h"
 #include "error.h"
 
+typedef struct particle_system particle_system;
+
 typedef struct particle {
-    struct list entry;
-    vec3        pos;
-    vec3        velocity;
+    struct list     entry;
+    vec3            pos;
+    vec3            velocity;
+    particle_system *ps;
 } particle;
 
 typedef struct particle_system {
@@ -19,6 +22,7 @@ typedef struct particle_system {
     double          radius;
     double          min_radius;
     double          radius_squared;
+    double          velocity;
     particle_dist   dist;
     unsigned int    count;
 } particle_system;
@@ -58,9 +62,9 @@ static void random_point_sphere(vec3 pos, const vec3 center, double radius, doub
 
 static void particle_set_velocity(particle *p)
 {
-    p->velocity[0] = (drand48() * 2.0 - 1.0) * 0.005;
-    p->velocity[1] = (drand48() * 2.0 - 1.0) * 0.005;
-    p->velocity[2] = (drand48() * 2.0 - 1.0) * 0.005;
+    p->velocity[0] = (drand48() * 2.0 - 1.0) * p->ps->velocity;
+    p->velocity[1] = (drand48() * 2.0 - 1.0) * p->ps->velocity;
+    p->velocity[2] = (drand48() * 2.0 - 1.0) * p->ps->velocity;
 }
 
 static void particle_spawn(particle_system *ps)
@@ -69,6 +73,7 @@ static void particle_spawn(particle_system *ps)
     if (!p)
         return;
 
+    p->ps = ps;
     random_point_sphere(p->pos, transform_pos(&ps->e->xform, NULL),
                         ps->radius, ps->min_radius, ps->dist);
     list_append(&ps->particles, &p->entry);
@@ -187,6 +192,7 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
     ps->radius = opts->radius;
     ps->min_radius = opts->min_radius;
     ps->radius_squared = opts->radius * opts->radius;
+    ps->velocity = opts->velocity ? : 0.005;
 
     ps->pos_array = mem_alloc(sizeof(vec3), .nr = ps->count);
     particle_system_position(ps, opts->center);
