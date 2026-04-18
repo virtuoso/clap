@@ -32,6 +32,13 @@ DEFINE_REFCLASS_INIT_OPTIONS(particle_system,
     texture_t           *emit;
     float               bloom_intensity;
     bool                outline_exclude;
+    /*
+     * If true, particle_system_position() translates existing
+     * particles along with the system so the cloud moves with its
+     * emitter. Defaults to false: the system position changes but
+     * the particles stay where they were spawned.
+     */
+    bool                attached;
 );
 DECLARE_REFCLASS(particle_system);
 

@@ -25,6 +25,7 @@ typedef struct particle_system {
     double          velocity;
     particle_dist   dist;
     unsigned int    count;
+    bool            attached;
 } particle_system;
 
 entity3d *particle_system_entity(particle_system *ps)
@@ -130,7 +131,29 @@ unsigned int particle_system_count(particle_system *ps)
 
 void particle_system_position(particle_system *ps, const vec3 center)
 {
+    if (!ps->attached) {
+        transform_set_pos(&ps->e->xform, center);
+        return;
+    }
+
+    vec3 delta;
+    transform_pos(&ps->e->xform, delta);
+    vec3_sub(delta, center, delta);
+
+    /* no motion — either first placement or a zero step */
+    if (vec3_mul_inner(delta, delta) == 0.0)
+        return;
+
     transform_set_pos(&ps->e->xform, center);
+
+    /*
+     * Carry existing particles along with the system instead of
+     * letting them stretch out toward the old origin until they
+     * leave the radius and respawn.
+     */
+    particle *p;
+    list_for_each_entry(p, &ps->particles, entry)
+        vec3_add(p->pos, p->pos, delta);
 }
 
 static cerr particle_system_make(struct ref *ref, void *_opts)
@@ -198,6 +221,7 @@ static cerr particle_system_make(struct ref *ref, void *_opts)
     ps->min_radius = opts->min_radius;
     ps->radius_squared = opts->radius * opts->radius;
     ps->velocity = opts->velocity ? : 0.005;
+    ps->attached = opts->attached;
 
     ps->pos_array = mem_alloc(sizeof(vec3), .nr = ps->count);
     particle_system_position(ps, opts->center);
