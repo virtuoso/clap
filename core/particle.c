@@ -27,6 +27,11 @@ typedef struct particle_system {
     unsigned int    count;
 } particle_system;
 
+entity3d *particle_system_entity(particle_system *ps)
+{
+    return ps->e;
+}
+
 static void random_point_sphere(vec3 pos, const vec3 center, double radius, double min_radius,
                                 particle_dist dist)
 {
