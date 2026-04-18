@@ -567,6 +567,11 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .method     = RM_PLUG,
                     .sampler    = UNIFORM_LUT_TEX
                 },
+                {
+                    .tex        = opts->pl_opts->noise3d,
+                    .method     = RM_PLUG,
+                    .sampler    = UNIFORM_NOISE3D_TEX
+                },
                 {}
             },
 #ifdef CONFIG_RENDERER_METAL

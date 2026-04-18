@@ -473,6 +473,7 @@ static cerr build_main_pl(clap_context *ctx)
                 .clap_ctx       = ctx,
                 .light          = &scene->light,
                 .camera         = &scene->cameras[0],
+                .noise3d        = noise3d_texture(clap_get_noise3d(ctx)),
                 .nr_cascades    = scene->cameras[0].view.nr_cascades,
                 .name           = "main"
             },
