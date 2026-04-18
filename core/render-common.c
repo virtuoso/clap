@@ -709,9 +709,9 @@ out:
     return err;
 }
 
-cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[4])
+cerr_check texture_pixel_init_type(renderer_t *renderer, texture_t *tex, texture_type type, float color[4])
 {
-    cerr err = texture_init(tex, .renderer = renderer);
+    cerr err = texture_init(tex, .renderer = renderer, .type = type);
     if (IS_CERR(err))
         return err;
 
@@ -731,17 +731,26 @@ cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[
     return texture_load(tex, fmt, 1, 1, color);
 }
 
+cerr_check texture_pixel_init(renderer_t *renderer, texture_t *tex, float color[4])
+{
+    return texture_pixel_init_type(renderer, tex, TEX_2D, color);
+}
+
 static texture_t _white_pixel;
 static texture_t _black_pixel;
 static texture_t _transparent_pixel;
+static texture_t _grey_3d_pixel;
+static texture_t _black_3d_pixel;
 
 texture_t *white_pixel(void) { return &_white_pixel; }
 texture_t *black_pixel(void) { return &_black_pixel; }
 texture_t *transparent_pixel(void) { return &_transparent_pixel; }
+texture_t *grey_3d_pixel(void) { return &_grey_3d_pixel; }
+texture_t *black_3d_pixel(void) { return &_black_3d_pixel; }
 
 void textures_init(renderer_t *renderer)
 {
-    cerr werr, berr, terr;
+    cerr werr, berr, terr, g3err, b3err;
 
     float white[] = { 1, 1, 1, 1 };
     werr = texture_pixel_init(renderer, &_white_pixel, white);
@@ -749,13 +758,19 @@ void textures_init(renderer_t *renderer)
     berr = texture_pixel_init(renderer, &_black_pixel, black);
     float transparent[] = { 0, 0, 0, 0 };
     terr = texture_pixel_init(renderer, &_transparent_pixel, transparent);
+    float grey[] = { 0.5, 0.5, 0.5, 1.0 };
+    g3err = texture_pixel_init_type(renderer, &_grey_3d_pixel, TEX_3D, grey);
+    b3err = texture_pixel_init_type(renderer, &_black_3d_pixel, TEX_3D, black);
 
-    err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr), "failed: %d/%d/%d\n",
-           CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr));
+    err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr) || IS_CERR(g3err) || IS_CERR(b3err),
+           "failed: %d/%d/%d/%d/%d\n",
+           CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr), CERR_CODE(g3err), CERR_CODE(b3err));
 
     texture_set_name(&_white_pixel, "white pixel");
     texture_set_name(&_black_pixel, "black pixel");
     texture_set_name(&_transparent_pixel, "transparent pixel");
+    texture_set_name(&_black_3d_pixel, "black 3D pixel");
+    texture_set_name(&_grey_3d_pixel, "grey 3D pixel");
 }
 
 void textures_done(void)
@@ -763,6 +778,8 @@ void textures_done(void)
     texture_done(&_white_pixel);
     texture_done(&_black_pixel);
     texture_done(&_transparent_pixel);
+    texture_done(&_black_3d_pixel);
+    texture_done(&_grey_3d_pixel);
 }
 
 
