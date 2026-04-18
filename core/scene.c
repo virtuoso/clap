@@ -1456,6 +1456,20 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             if (jpos && jpos->tag == JSON_STRING)
                 e->name = strdup(jpos->string_);
 
+            /*
+             * "attach": "<parent entity name>" makes this entity ride
+             * the parent's skeleton. "attach_joint" picks which joint
+             * (by semantic name) it binds to; without it, parent_joint
+             * defaults to 0 — the root joint.
+             */
+            jpos = json_find_member(it, "attach");
+            if (jpos && jpos->tag == JSON_STRING)
+                e->parent = CRES_RET(mq_find_entity(&scene->mq, jpos->string_), continue);
+
+            jpos = json_find_member(it, "attach_joint");
+            if (jpos && jpos->tag == JSON_STRING && e->parent)
+                e->parent_joint = CRES_RET(model3d_joint_by_type(e->parent->txmodel->model, jpos->string_), continue);
+
             jpos = json_find_member(it, "position");
             if (jpos->tag != JSON_ARRAY)
                 continue;
