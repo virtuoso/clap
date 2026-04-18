@@ -10,6 +10,7 @@
 #define MSAA_SAMPLES 4
 #define SSAO_KERNEL_SIZE 16
 #define SSAO_NOISE_DIM 16
+#define FILM_GRAIN_SIZE 64
 
 #define LIGHT_CUTOFF    (1.0f / 256.0f)
 #define TILE_WIDTH      64

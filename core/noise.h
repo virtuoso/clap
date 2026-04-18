@@ -38,4 +38,6 @@ typedef struct noise3d noise3d;
 
 texture_t *noise3d_texture(noise3d *n3d);
 
+cerr blue_noise2d_tex(renderer_t *renderer, texture_t *tex, int size);
+
 #endif /* __CLAP_NOISE_H__ */
