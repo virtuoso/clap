@@ -12,6 +12,7 @@
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
+#include "noise.h"
 #include "scene.h"
 #include "sound.h"
 #include "json.h"
@@ -1321,6 +1322,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 
     txm->model->sfxc.on_add = scene->sfxc.on_add;
     txm->model->sfxc.data = scene->sfxc.data;
+
+    auto n3d = clap_get_noise3d(scene->clap_ctx);
+    model3dtx_set_texture(txm, UNIFORM_NOISE3D_TEX, noise3d_texture(n3d));
 
     if (phys) {
         for (p = phys->children.head; p; p = p->next) {
