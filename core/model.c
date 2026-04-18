@@ -562,8 +562,23 @@ static void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
     for (enum shader_vars v = ATTR_MAX; v < UNIFORM_TEX_MAX; v++) {
         auto tex_res = model3dtx_loaded_texture(txm, v);
         if (IS_CERR(tex_res)) {
-            if (shader_has_var(p, v))
-                shader_plug_texture(p, v, black_pixel());
+            if (shader_has_var(p, v)) {
+                /*
+                 * If the shader expects a texture that the model does not have,
+                 * plug a 1-pixel texture in its place. For 3D textures: noise3d
+                 * plug is a grey 1x1x1 pixel texture (becomes (0,0,0) after
+                 * de-normalization), LUT is a black 1x1x1 pixel.
+                 */
+                texture_t *plug = black_pixel();
+
+                switch (v) {
+                    case UNIFORM_NOISE3D_TEX:   plug = grey_3d_pixel();     break;
+                    case UNIFORM_LUT_TEX:       plug = black_3d_pixel();    break;
+                    default:                    break;
+                }
+
+                shader_plug_texture(p, v, plug);
+            }
             continue;
         }
         shader_plug_texture(p, v, tex_res.val);
