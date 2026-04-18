@@ -1470,6 +1470,21 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             if (jpos && jpos->tag == JSON_STRING && e->parent)
                 e->parent_joint = CRES_RET(model3d_joint_by_type(e->parent->txmodel->model, jpos->string_), continue);
 
+            /*
+             * "rotate": [rx, ry, rz] in degrees — sets the entity's
+             * initial orientation. Applied before the parent-joint
+             * transform when the entity is attached, so it lives in
+             * the parent joint's local space in that case.
+             */
+            jpos = json_find_member(it, "rotate");
+            if (jpos && jpos->tag == JSON_ARRAY) {
+                double _angles[3];
+                if (!json_double_array(jpos, _angles, 3)) {
+                    vec3 angles = { _angles[0], _angles[1], _angles[2] };
+                    transform_set_angles(&e->xform, angles, true);
+                }
+            }
+
             jpos = json_find_member(it, "position");
             if (jpos->tag != JSON_ARRAY)
                 continue;
