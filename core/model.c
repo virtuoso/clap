@@ -544,6 +544,49 @@ cres(joint_type) model3d_get_joint(model3d *m, joint_type type)
         : cres_error(joint_type, CERR_NOT_FOUND);
 }
 
+static const char *joint_type_str[JOINT_TYPE_MAX] = {
+    [JOINT_HEAD]        = "head",
+    [JOINT_FOOT_LEFT]   = "foot_left",
+    [JOINT_FOOT_RIGHT]  = "foot_right",
+    [JOINT_HAND_LEFT]   = "hand_left",
+    [JOINT_HAND_RIGHT]  = "hand_right",
+};
+
+cresp(const_char) joint_type_name(joint_type type)
+{
+    if (type <= JOINT_NONE || type >= JOINT_TYPE_MAX)
+        return cresp_error(const_char, CERR_INVALID_ARGUMENTS);
+
+    return cresp_val(const_char, joint_type_str[type]);
+}
+
+cres(joint_type) joint_by_type_name(const char *type)
+{
+    for (joint_type i = JOINT_NONE; i < JOINT_TYPE_MAX; i++) {
+        if (!joint_type_str[i])
+            continue;
+
+        if (!strcmp(joint_type_str[i], type))
+            return cres_val(joint_type, i);
+    }
+
+    return cres_error(joint_type, CERR_NOT_FOUND);
+}
+
+/*
+ * String-keyed wrapper over model3d_get_joint(): looks up a semantic
+ * joint type by its JSON name ("head", "foot_left", ...) and returns
+ * the matching index into model->joints. Used by the scene loader for
+ * "armature"/"attach_joint" values.
+ */
+cres(joint_type) model3d_joint_by_type(model3d *m, const char *type)
+{
+    cres(joint_type) jt = joint_by_type_name(type);
+    if (IS_CERR(jt))    return cres_error_cerr(joint_type, jt);
+
+    return model3d_get_joint(m, jt.val);
+}
+
 void entity3d_set_lod(entity3d *e, int lod, bool force)
 {
     model3d *m = e->txmodel->model;

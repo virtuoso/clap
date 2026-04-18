@@ -249,6 +249,9 @@ DECLARE_CLEANUP(model3dtx);
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs);
 cres(joint_type) model3d_get_joint(model3d *m, joint_type type);
+cresp(const_char) joint_type_name(joint_type type);
+cres(joint_type) joint_by_type_name(const char *type);
+cres(joint_type) model3d_joint_by_type(model3d *m, const char *type);
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
 float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);
