@@ -132,3 +132,47 @@ cerr noise_grad3d_bake_rgba8_tex(renderer_t *r, texture_t *tex, int size, int oc
 
     return texture_load(tex, TEX_FMT_RGBA8, size, size, buf);
 }
+
+typedef struct noise3d {
+    texture_t               tex;
+    struct ref              ref;
+    noise3d_init_options    opts;
+} noise3d;
+
+static cerr noise3d_make(struct ref *ref, void *_opts)
+{
+    noise3d *n3d = container_of(ref, noise3d, ref);
+
+    n3d->opts = *((rc_init_opts(noise3d)*)_opts);
+    if (!n3d->opts.renderer)    return CERR_INVALID_ARGUMENTS_REASON(.fmt = "no renderer given");
+
+    if (!n3d->opts.size) {
+        /* apply defaults */
+        n3d->opts.size          = 64;
+        n3d->opts.octaves       = 4;
+        n3d->opts.lacunarity    = 2.0f;
+        n3d->opts.gain          = 0.5f;
+        n3d->opts.period_units  = 64.0f;
+        n3d->opts.seed          = 0xc14du;
+    }
+
+    return noise_grad3d_bake_rgba8_tex(
+        n3d->opts.renderer,
+        &n3d->tex,
+        n3d->opts.size,
+        n3d->opts.octaves,
+        n3d->opts.lacunarity,
+        n3d->opts.gain,
+        n3d->opts.period_units,
+        n3d->opts.seed
+    );
+}
+
+static void noise3d_drop(struct ref *ref)
+{
+    noise3d *n3d = container_of(ref, noise3d, ref);
+    texture_deinit(&n3d->tex);
+}
+DEFINE_REFCLASS2(noise3d);
+
+texture_t *noise3d_texture(noise3d *n3d)    { return &n3d->tex; }

@@ -22,4 +22,20 @@ cresp(void) noise_grad3d_bake_rgba8(size_t size, int octaves, float lacunarity, 
 cerr noise_grad3d_bake_rgba8_tex(renderer_t *r, texture_t *tex, int size, int octaves, float lacunarity,
                                  float gain, float period_units, uint32_t seed);
 
+DEFINE_REFCLASS_INIT_OPTIONS(noise3d,
+    texture_t   tex;
+    renderer_t  *renderer;
+    int         size;           /* side */
+    int         octaves;        /* fBm octaves */
+    float       lacunarity;     /* fBm lacunarity */
+    float       gain;           /* fBm gain */
+    float       period_units;   /* period */
+    uint32_t    seed;           /* RNG seed */
+);
+
+DECLARE_REFCLASS(noise3d);
+typedef struct noise3d noise3d;
+
+texture_t *noise3d_texture(noise3d *n3d);
+
 #endif /* __CLAP_NOISE_H__ */
