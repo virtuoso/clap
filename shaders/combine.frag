@@ -19,10 +19,13 @@ layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
 layout (binding=SAMPLER_BINDING_grain_tex) uniform sampler2D grain_tex;
 layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
+layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
 
 #include "ubo_render_common.glsl"
 #include "ubo_postproc.glsl"
 #include "ubo_projview.glsl"
+
+#include "noise.glsl"
 
 f16vec3 apply_contrast(f16vec3 color, float16_t contrast)
 {
@@ -35,6 +38,13 @@ float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fo
     if (view_pos.z > 0.0)   return H(0.0);
     float16_t dist = length(view_pos);
     return clamp((dist - H(near_fog)) / H(far_fog - near_fog), H(0.0), H(1.0));
+}
+
+vec3 radial_fog_color(vec3 view_pos)
+{
+    vec3 noise_vec = sample_noise3d(noise3d, view_pos + vec3(noise(view_pos)), 0.05) * 0.05;
+    float n = min(dot(noise_vec, noise_vec), 3.0) / 3.0;
+    return fog_color * (1.0 - n);
 }
 
 vec3 grain_color(vec3 color, vec3 view_pos)
@@ -70,7 +80,7 @@ void main()
         /* lighting exposure + bloom exposure */
         f16vec3 hdr_color = tex_color * H(lighting_exposure) + highlight_color * (H(1.0) - fog_factor);
         /* fog */
-        hdr_color = mix(hdr_color, HVEC3(fog_color), fog_factor);
+        hdr_color = mix(hdr_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
         /* contrast */
         hdr_color = apply_contrast(hdr_color, H(contrast));
         /* color grading */
@@ -88,7 +98,7 @@ void main()
         hdr_color = apply_edge(hdr_color, sobel_tex, edge_blend, pass_tex, ivec2(0));
         FragColor = vec4(hdr_color, 1.0);
     } else {
-        tex_color = mix(tex_color, HVEC3(fog_color), fog_factor);
+        tex_color = mix(tex_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
     }
 
