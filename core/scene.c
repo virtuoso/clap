@@ -862,6 +862,12 @@ static void scene_entity_inspector_debug(struct scene *scene)
         int nr_lods = max(txm->model->nr_lods - 1, 0);
         if (ui_igSliderInt("LOD", &lod, 0, nr_lods, "%u", 0))
             entity3d_set_lod(e, lod, true);
+
+        if (light_is_valid(&scene->light, e->light_idx)) {
+            ui_igLabel("light idx");
+            igTableNextColumn();
+            igText("%d", e->light_idx);
+        }
         igEndTable();
 
         if (txm->model->nr_joints) {
