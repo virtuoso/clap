@@ -7,3 +7,6 @@
 [submodule "demo/ldjam57/asset"]
 	path = demo/ldjam57/asset
 	url = git@github.com:virtuoso/ldjam57-asset.git
+[submodule "demo/ldjam59/asset"]
+	path = demo/ldjam59/asset
+	url = git@github.com:virtuoso/ldjam59-asset.git
