@@ -340,22 +340,32 @@ void input_events_dispatch(void)
 
 void www_joysticks_poll(void)
 {
-    int i, nr_joys, ret;
+    int i, ret;
 
     ret = emscripten_sample_gamepad_data();
     if (ret)
         return;
 
-    nr_joys = min(emscripten_get_num_gamepads(), NR_JOYS);
-
-    for (i = 0; i < nr_joys; i++) {
+    /*
+     * Iterate all NR_JOYS slots and reconcile joys[i].name with the
+     * browser's current state every poll. Mirrors the native
+     * platform_joysticks_poll() pattern: it calls glfwGetJoystickName(i)
+     * and joystick_name_update(i, name) (NULL on disconnect) unconditionally.
+     * gamepad_callback() alone is not enough because browsers fire it
+     * inconsistently, and a stale joys[i].name in a disconnected slot would
+     * make the "ANY" policy's scan return it instead of the connected one.
+     */
+    for (i = 0; i < NR_JOYS; i++) {
         EmscriptenGamepadEvent ge;
         double axes[CLAP_JOY_AXIS_COUNT];
         unsigned char buttons[CLAP_JOY_BTN_COUNT];
-        int ret;
+        const char *name = NULL;
 
         ret = emscripten_get_gamepad_status(i, &ge);
-        if (ret)
+        if (ret == 0 && ge.connected && ge.id[0])
+            name = ge.id;
+        joystick_name_update(i, name);
+        if (!name)
             continue;
 
         memset(axes, 0, sizeof(axes));

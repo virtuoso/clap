@@ -146,7 +146,6 @@ static void invert_y_label(char *buf, size_t n)
 }
 
 static void ic_select_none(struct ui *ui, const ui_menu_item *item);
-static void ic_select_any(struct ui *ui, const ui_menu_item *item);
 static void ic_select_named(struct ui *ui, const ui_menu_item *item);
 static void ic_toggle_mouse(struct ui *ui, const ui_menu_item *item);
 static void ic_cycle_sensitivity(struct ui *ui, const ui_menu_item *item);
@@ -178,7 +177,10 @@ static void ic_populate(void)
 
     gamepad_label(buf, sizeof(buf));
     ic_item(i++, IC_KIND_GAMEPAD_NONE, "Gamepad: None", NULL, ic_select_none);
-    ic_item(i++, IC_KIND_GAMEPAD_ANY, "Gamepad: Any", NULL, ic_select_any);
+    /* "Gamepad: Any" hidden for now: the policy resolves fine in native but
+     * the web build (input-www.c) doesn't route input from it. Revisit
+     * post-jam along with the Firefox pointer-lock item. */
+    /* ic_item(i++, IC_KIND_GAMEPAD_ANY, "Gamepad: Any", NULL, ic_select_any); */
     for (int j = 0; j < NR_JOYS && i < IC_ITEM_MAX - 2; j++) {
         const char *n = joystick_name_at(j);
         if (!n) continue;
@@ -271,11 +273,15 @@ static void ic_select_none(struct ui *ui, const ui_menu_item *item)
     ic_rebuild(ui);
 }
 
+/* paired with the commented-out "Gamepad: Any" entry in ic_populate(); keep
+ * both together so the revival is a single uncomment */
+#if 0
 static void ic_select_any(struct ui *ui, const ui_menu_item *item)
 {
     input_controls_set_gamepad(ui->clap_ctx, INPUT_GAMEPAD_ANY, NULL);
     ic_rebuild(ui);
 }
+#endif
 
 static void ic_select_named(struct ui *ui, const ui_menu_item *item)
 {
