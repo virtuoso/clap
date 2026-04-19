@@ -8,7 +8,7 @@
 
 extern model3dtx *ui_quadtx;
 
-loading_screen *loading_screen_init(struct ui *ui)
+loading_screen *_loading_screen_init(struct ui *ui, const loading_screen_options *opts)
 {
     cresp(ui_widget) res = ui_progress_bar_new(ui,
         .width          = ui->width / 3,
@@ -26,17 +26,19 @@ loading_screen *loading_screen_init(struct ui *ui)
     loading_screen *ret = mem_alloc(sizeof(*ret), .zero = 1);
     ret->progress = res.val;
 
-    model3d *bg_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
-    model3dtx *bg_txm = ref_new(model3dtx, .model = ref_pass(bg_m), .texture_file_name = "background.png");
-    if (bg_txm) {
-        ui_add_model_tail(ui, bg_txm);
-        ret->background = ref_new(ui_element,
-            .ui         = ui,
-            .txmodel    = bg_txm,
-            .affinity   = UI_AF_BOTTOM | UI_AF_LEFT | UI_SZ_FRAC,
-            .width      = 1.0,
-            .height     = 1.0,
-        );
+    if (!opts->skip_background) {
+        model3d *bg_m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
+        model3dtx *bg_txm = ref_new(model3dtx, .model = ref_pass(bg_m), .texture_file_name = "background.png");
+        if (bg_txm) {
+            ui_add_model_tail(ui, bg_txm);
+            ret->background = ref_new(ui_element,
+                .ui         = ui,
+                .txmodel    = bg_txm,
+                .affinity   = UI_AF_BOTTOM | UI_AF_LEFT | UI_SZ_FRAC,
+                .width      = 1.0,
+                .height     = 1.0,
+            );
+        }
     }
 
     struct clap_config *cfg = clap_get_config(ui->clap_ctx);
