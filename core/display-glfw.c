@@ -416,6 +416,9 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
     message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
+static double mouse_last_x, mouse_last_y;
+static bool mouse_captured;
+
 static void pointer_cb(struct GLFWwindow *window, double x, double y)
 {
     struct message_input mi;
@@ -424,10 +427,29 @@ static void pointer_cb(struct GLFWwindow *window, double x, double y)
         return;
 
     memset(&mi, 0, sizeof(mi));
-    mi.mouse_move = 1;
-    mi.x = max(x, 0.0);
-    mi.y = max(y, 0.0);
+    if (mouse_captured) {
+        mi.delta_rx = (float)(x - mouse_last_x);
+        mi.delta_ry = (float)(y - mouse_last_y);
+    } else {
+        mi.mouse_move = 1;
+        mi.x = max(x, 0.0);
+        mi.y = max(y, 0.0);
+    }
+    mouse_last_x = x;
+    mouse_last_y = y;
     message_input_send(clap_ctx, &mi, &keyboard_source);
+}
+
+void display_mouse_capture(bool on)
+{
+    if (on == mouse_captured)
+        return;
+
+    glfwSetInputMode(window, GLFW_CURSOR,
+                     on ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    /* Reset last position so the next callback doesn't emit a huge jump. */
+    glfwGetCursorPos(window, &mouse_last_x, &mouse_last_y);
+    mouse_captured = on;
 }
 
 void click_cb(GLFWwindow *window, int button, int action, int mods)
@@ -545,7 +567,7 @@ int platform_input_init(struct clap_context *ctx)
     size_t sz;
 
     glfwSetKeyCallback(window, key_cb);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     if (glfwRawMouseMotionSupported())
         glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     glfwSetCursorPosCallback(window, pointer_cb);

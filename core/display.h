@@ -27,4 +27,14 @@ void display_leave_fullscreen(void);
 void display_set_window_pos_size(int x, int y, int w, int h);
 void display_get_window_pos_size(int *x, int *y, int *w, int *h);
 
+/**
+ * display_mouse_capture() - capture/release the mouse cursor
+ * @on:     true to capture and hide the cursor, sending relative motion as
+ *          delta_rx/delta_ry on keyboard input events; false to release the
+ *          cursor, making it visible and resuming absolute x/y reporting.
+ *
+ * Idempotent within a platform; safe to call repeatedly.
+ */
+void display_mouse_capture(bool on);
+
 #endif /* __CLAP_DISPLAY_H__ */

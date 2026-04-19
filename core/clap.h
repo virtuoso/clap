@@ -244,6 +244,18 @@ double clap_get_current_time(struct clap_context *ctx) __nonnull_params((1));
 CLAP_API
 bool clap_is_paused(clap_context *ctx);
 
+/**
+ * clap_update_mouse_capture() - reconcile mouse capture with current state
+ * @ctx:    clap_context
+ *
+ * Reads the current pause state and the user's "use mouse for camera"
+ * preference and applies the matching cursor mode via display_mouse_capture().
+ * Called internally on pause toggles and from settings setters; callers can
+ * also invoke it after changing either input of the policy.
+ */
+CLAP_API
+void clap_update_mouse_capture(struct clap_context *ctx);
+
 typedef void (*clap_timer_fn)(void *data);
 typedef struct clap_timer clap_timer;
 cresp_ret(clap_timer);

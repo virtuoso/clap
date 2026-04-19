@@ -159,6 +159,20 @@ void display_leave_fullscreen(void)
     emscripten_exit_fullscreen();
 }
 
+extern void www_mouse_capture_set(bool on);
+static bool www_capture_on;
+void display_mouse_capture(bool on)
+{
+    if (on == www_capture_on)
+        return;
+    www_capture_on = on;
+    if (on)
+        emscripten_request_pointerlock("#canvas", 1);
+    else
+        emscripten_exit_pointerlock();
+    www_mouse_capture_set(on);
+}
+
 static cerr_check display_init_webgl(struct clap_context *ctx)
 {
     EmscriptenWebGLContextAttributes attr;
