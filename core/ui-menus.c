@@ -3,10 +3,12 @@
 #include "display.h"
 #include "error.h"
 #include "input.h"
+#include "input-controls.h"
 #include "messagebus.h"
 #include "ui.h"
 #include "ui-debug.h"
 #include "ui-menus.h"
+#include "ui-settings.h"
 
 static void menu_onfocus(struct ui_element *uie, bool focus)
 {
@@ -83,6 +85,14 @@ static void __menu_start_game(struct ui *ui, const ui_menu_item *item)
 {
     ui->state = UI_ST_LOADING;
     menu_close(ui);
+    /*
+     * Claim pointer lock from here rather than from the subsequent
+     * UI_ST_RUNNING transition: this path is synchronous in the click
+     * event handler, which Firefox and Safari require for PointerLock.
+     * Chrome tolerates a later request; they don't.
+     */
+    if (input_controls_use_mouse())
+        display_mouse_capture(true);
     /* Clap stays paused; the loading_cb (or the default below) sends the
      * modality toggle to unpause when loading is finished. */
     if (ui->menu.loading_cb)
@@ -126,7 +136,7 @@ static const ui_menu_item default_start_root = UI_MENU_GROUP(
     UI_MENU_ITEM("Devel",           __menu_devel),
 #endif /* CONFIG_FINAL */
     UI_MENU_GROUP("Settings",       &default_uwb,
-        UI_MENU_ITEM("Controls",    NULL),
+        UI_MENU_ITEM("Controls",    ui_settings_open_controls),
         UI_MENU_ITEM("Graphics",    NULL),
         UI_MENU_END
     ),
