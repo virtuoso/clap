@@ -6,6 +6,23 @@
 
 struct clap_context;
 
+/**
+ * joystick_name_at() - report the name of a present joystick slot
+ * @joy:    slot index, [0, NR_JOYS)
+ *
+ * Return: joystick name string (owned by the subsystem, valid until the
+ * next joystick_name_update() for the same slot) or NULL when the slot
+ * is empty or @joy is out of range.
+ */
+const char *joystick_name_at(int joy);
+
+/**
+ * joystick_count() - count present joysticks
+ *
+ * Return: number of slots with a non-empty name.
+ */
+int joystick_count(void);
+
 void joystick_name_update(int joy, const char *name);
 void joystick_axes_update(int joy, const double *axes, int nr_axes);
 void joystick_faxes_update(int joy, const float *axes, int nr_axes);

@@ -147,6 +147,24 @@ void joystick_motion_update(int joy, const float *accel, const float *gyro, cons
         memcpy(joys[joy].attitude, attitude, sizeof(joys[joy].attitude));
 }
 
+const char *joystick_name_at(int joy)
+{
+    if (joy < 0 || joy >= NR_JOYS)
+        return NULL;
+    if (!joystick_present(joy))
+        return NULL;
+    return joys[joy].name;
+}
+
+int joystick_count(void)
+{
+    int n = 0;
+    for (int i = 0; i < NR_JOYS; i++)
+        if (joystick_present(i))
+            n++;
+    return n;
+}
+
 /* empty string or NULL disables the joystick */
 void joystick_name_update(int joy, const char *name)
 {
