@@ -13,6 +13,7 @@
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
+#include "presets.h"
 #include "ui.h"
 #include "scene.h"
 #include "sound.h"
@@ -24,6 +25,7 @@
 
 /* XXX just note for the future */
 static struct sound *intro_sound;
+static noise_bg      menu_bg;
 
 static const char *intro_osd[] = {
     "WASD to move the character",
@@ -46,9 +48,20 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
     struct scene *s = clap_get_scene(ctx);
     struct ui *ui = clap_get_ui(s->clap_ctx);
 
+    /* Swirl the menu background while the start menu / loading screen is up. */
+    if (ui_state_get(ui) < UI_ST_RUNNING) {
+        double dt = clap_get_fps_delta(ctx).tv_nsec / (double)NSEC_PER_SEC;
+        clap_get_render_options(ctx)->noise_shift += (float)(dt * 0.5);
+    }
+
     if (s->ls && ui_state_get(ui) == UI_ST_LOADING) {
         if (frame++ < 400)  { loading_screen_progress(s->ls, (float)frame / 400.0); }
-        else                { loading_screen_done(s->ls); s->ls = nullptr; ui_state_set_running(ui); }
+        else                {
+            loading_screen_done(s->ls);
+            s->ls = nullptr;
+            noise_bg_done(s, &menu_bg);
+            ui_state_set_running(ui);
+        }
     }
 
     if (clap_is_paused(ctx))    return;
@@ -125,7 +138,39 @@ static void loading_start(clap_context *clap_ctx, void *data)
     auto ui = clap_get_ui(clap_ctx);
 
     scene->ls = loading_screen_init(ui);
-    dbg("### loading screen: %p\n", scene->ls);
+}
+
+static void make_menu_quad(struct scene *scene)
+{
+    auto ropts = clap_get_render_options(scene->clap_ctx);
+    ropts->film_grain = false;
+    ropts->contrast = 1.0f;
+    ropts->lighting_exposure = 1.34f;
+
+    cres(noise_bg) res = noise_bg_new(scene, &(noise_bg_opts){
+        .pos                = { 0.0f, 0.0f, 0.0f },
+        .extent             = 10.0f,
+        .emission           = { 1.0f, 0.0f, 1.0f },
+        .noise_scale        = 0.05f,
+        .noise_amp          = 0.8f,
+        .bloom_threshold    = 0.85f,
+        .bloom_intensity    = 0.34f,
+
+        .add_light          = true,
+        .light_pos          = { 0.0f, 2.5f, 0.0f },
+        .light_dir          = { 0.0f, 1.0f, 0.0f },
+        .light_color        = { 0.5f, 0.1f, 1.0f },
+
+        .reposition_camera  = true,
+        .camera_pos         = { 0.0f, 2.5f, 0.0f },
+        .camera_angles      = { -90.0f, 0.0f, 0.0f },
+    });
+    if (IS_CERR(res))   return;
+    menu_bg = res.val;
+
+    /* tweak the material roughness/metallic that the preset doesn't expose */
+    menu_bg.entity->txmodel->mat.roughness = 0.8f;
+    menu_bg.entity->txmodel->mat.metallic  = 0.8f;
 }
 
 int main(int argc, char **argv, char **envp)
@@ -176,6 +221,8 @@ int main(int argc, char **argv, char **envp)
     cerr err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
     if (IS_CERR(err))
         goto exit_scene;
+
+    make_menu_quad(scene);
 
     intro_sound = ref_new(sound, .ctx = clap_get_sound(clap_res.val), .name = "morning.ogg");
     if (intro_sound) {
