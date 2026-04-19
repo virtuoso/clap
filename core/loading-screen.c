@@ -67,8 +67,12 @@ loading_screen *loading_screen_init(struct ui *ui)
 
 void loading_screen_done(loading_screen *ls)
 {
-    renderer_frame_begin(ls->ui->renderer);
-    renderer_swapchain_begin(ls->ui->renderer);
+    if (ui_state_get(ls->ui) != UI_ST_LOADING) {
+#ifndef CONFIG_BROWSER
+        renderer_frame_begin(ls->ui->renderer);
+        renderer_swapchain_begin(ls->ui->renderer);
+#endif /* !CONFIG_BROWSER */
+    }
 
     ref_put(ls->uit);
     ref_put(ls->uie);
@@ -80,17 +84,19 @@ void loading_screen_done(loading_screen *ls)
 
 void loading_screen_progress(loading_screen *ls, float progress)
 {
-#ifndef CONFIG_BROWSER
     ui_progress_bar_set_progress(ls->progress, progress);
 
-    ui_update(ls->ui);
-    renderer_frame_begin(ls->ui->renderer);
-    renderer_swapchain_begin(ls->ui->renderer);
-    CERR_RET(
-        models_render(ls->ui->renderer, &ls->ui->mq),
-        { err_cerr(__cerr, "failed to render loading screen UI\n"); mq_release(&ls->ui->mq); }
-    );
-    renderer_frame_end(ls->ui->renderer);
-    display_swap_buffers();
-#endif /* CONFIG_BROWSER */
+    if (ui_state_get(ls->ui) != UI_ST_LOADING) {
+#ifndef CONFIG_BROWSER
+        ui_update(ls->ui);
+        renderer_frame_begin(ls->ui->renderer);
+        renderer_swapchain_begin(ls->ui->renderer);
+        CERR_RET(
+            models_render(ls->ui->renderer, &ls->ui->mq),
+            { err_cerr(__cerr, "failed to render loading screen UI\n"); mq_release(&ls->ui->mq); }
+        );
+        renderer_frame_end(ls->ui->renderer);
+        display_swap_buffers();
+#endif /* !CONFIG_BROWSER */
+    }
 }

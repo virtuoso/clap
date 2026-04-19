@@ -21,7 +21,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     set(PLATFORM_SRC display-www.c input-www.c)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 else ()
-    set(PLATFORM_SRC display-glfw.c loading-screen.c)
+    set(PLATFORM_SRC display-glfw.c)
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -100,7 +100,7 @@ set(ENGINE_SRC
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
     physics.c ui-animations.c ui-menus.c input-fuzzer.c character.c settings.c error.c
-    gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c
+    gltf.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c loading-screen.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
 
