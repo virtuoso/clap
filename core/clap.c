@@ -571,6 +571,10 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
         display_enter_fullscreen();
     }
 
+    /* no HDR output on GL even if display_supports_edr() == true */
+    if (renderer_get_caps(&ctx->renderer)->renderer == RENDER_OPENGL)
+        ctx->render_options.hdr_output_enabled = false;
+
     ctx->render_options.hdr_output = ctx->render_options.hdr_output_enabled
         ? display_supports_edr()
         : false;
