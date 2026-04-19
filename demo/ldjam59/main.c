@@ -25,6 +25,7 @@
 
 /* XXX just note for the future */
 static struct sound *intro_sound;
+static particle_system *spores;
 static noise_bg      menu_bg;
 
 static const char *intro_osd[] = {
@@ -173,6 +174,33 @@ static void make_menu_quad(struct scene *scene)
     menu_bg.entity->txmodel->mat.metallic  = 0.8f;
 }
 
+static cerr startup(struct scene *scene)
+{
+    auto prog = CRES_RET_CERR(pipeline_shader_find_get(clap_get_pipeline(scene->clap_ctx), "particle"));
+    spores = CRES_RET_CERR(
+        ref_new_checked(
+            particle_system,
+            .name   = "spores",
+            .prog   = ref_pass(prog),
+            .mq     = &scene->mq,
+            .dist   = PART_DIST_POW075,
+            .emit   = white_pixel(),
+            .count  = 512,
+            .radius = 100.0f,
+            .scale  = 0.08,
+            .bloom_intensity    = 0.1,
+            .min_radius         = 20.0f,
+        )
+    );
+
+    return CERR_OK;
+}
+
+static __unused void cleanup(struct scene *scene)
+{
+    ref_put_last(spores);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
@@ -221,6 +249,8 @@ int main(int argc, char **argv, char **envp)
     CERR_RET(subscribe(clap_res.val, MT_INPUT, handle_input, scene), goto exit_scene);
 
     make_menu_quad(scene);
+    cerr err = startup(scene);
+    err_cerr(err, "startup failed\n");
 
     intro_sound = ref_new(sound, .ctx = clap_get_sound(clap_res.val), .name = "morning.ogg");
     if (intro_sound) {
@@ -243,6 +273,7 @@ int main(int argc, char **argv, char **envp)
 #ifndef CONFIG_BROWSER
     if (intro_sound)
         ref_put(intro_sound);
+    cleanup(scene);
 exit_scene:
     clap_done(clap_res.val, 0);
 #else
