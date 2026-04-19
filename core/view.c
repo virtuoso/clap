@@ -10,7 +10,7 @@ static void subview_calc_frustum(struct subview *subview, renderer_t *r);
 
 static void view_update_perspective_subviews(struct view *view, renderer_t *r)
 {
-    static const float dividers[CASCADES_MAX - 1] = { 25, 70, 150 };
+    static const float dividers[CASCADES_MAX - 1] = { 15, 50, 150 };
     unsigned int max = view->nr_cascades ?: array_size(view->subview);
     unsigned int i = 0;
 
