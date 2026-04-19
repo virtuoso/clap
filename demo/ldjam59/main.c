@@ -39,11 +39,19 @@ enum main_state {
 };
 
 static enum main_state main_state;
+static unsigned long frame;
 
 static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
 {
     struct scene *s = clap_get_scene(ctx);
     struct ui *ui = clap_get_ui(s->clap_ctx);
+
+    if (s->ls && ui_state_get(ui) == UI_ST_LOADING) {
+        if (frame++ < 400)  { loading_screen_progress(s->ls, (float)frame / 400.0); }
+        else                { loading_screen_done(s->ls); s->ls = nullptr; ui_state_set_running(ui); }
+    }
+
+    if (clap_is_paused(ctx))    return;
 
     if (main_state == MS_STARTING) {
         main_state++;
@@ -111,6 +119,15 @@ static void graphics_init(clap_context *ctx, void *data)
     );
 }
 
+static void loading_start(clap_context *clap_ctx, void *data)
+{
+    auto scene = clap_get_scene(clap_ctx);
+    auto ui = clap_get_ui(clap_ctx);
+
+    scene->ls = loading_screen_init(ui);
+    dbg("### loading screen: %p\n", scene->ls);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
@@ -122,6 +139,7 @@ int main(int argc, char **argv, char **envp)
         .graphics       = 1,
         .ui             = 1,
         .ui_menu        = { .enable = true },
+        .ui_start_menu  = { .enable = true, .loading_cb = loading_start },
         .settings       = 1,
         .title          = CLAP_EXECUTABLE_TITLE,
 #ifndef CONFIG_BROWSER
@@ -154,20 +172,10 @@ int main(int argc, char **argv, char **envp)
         return CERR_TO_EXIT(clap_res);
     }
 
-    /*
-     * XXX: this doesn't belong here, same as imgui_render_begin()
-     * and any error paths past this point must call the corresponding
-     * renderer_frame_end() etc
-     */
-    renderer_frame_begin(clap_get_renderer(clap_res.val));
-    imgui_render_begin(cfg.width, cfg.height);
-
     auto scene = clap_get_scene(clap_res.val);
     cerr err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
     if (IS_CERR(err))
         goto exit_scene;
-
-    scene->ls = loading_screen_init(clap_get_ui(clap_res.val));
 
     intro_sound = ref_new(sound, .ctx = clap_get_sound(clap_res.val), .name = "morning.ogg");
     if (intro_sound) {
@@ -179,16 +187,10 @@ int main(int argc, char **argv, char **envp)
 
     fuzzer_input_init(clap_res.val);
 
-    scene_load(scene, "scene.json");
-
-    loading_screen_done(scene->ls);
-
     scene->lin_speed = 2.0;
     scene->ang_speed = 45.0;
     scene->limbo_height = 70.0;
 
-    imgui_render();
-    renderer_frame_end(clap_get_renderer(clap_res.val));
     display_main_loop();
 
     dbg("exiting peacefully\n");
@@ -200,8 +202,6 @@ exit_scene:
     clap_done(clap_res.val, 0);
 #else
 exit_scene:
-    if (IS_CERR(err))
-        imgui_render();
 #endif
 
     return EXIT_SUCCESS;
