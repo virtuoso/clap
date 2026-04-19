@@ -82,8 +82,15 @@ function (clap_executable executable_name title sources asset_dir assets backgro
     set(ENGINE_INCLUDE "${ENGINE_SRC}" "${clap_BINARY_DIR}/core")
     set(asset_build_dir "${CMAKE_CURRENT_BINARY_DIR}/asset")
 
+    # package background_file into assets as well
+    string(REGEX REPLACE "${asset_dir}/*" "" background_asset ${background_file})
+    if ("${background_asset}" STREQUAL "${background_file}")
+        # but if it's outside of asset_dir, don't bother
+        set(background_asset "")
+    endif()
+
     # Populate assets_full and assets_build_full
-    foreach (asset ${assets};${font_file})
+    foreach (asset ${assets};${font_file};${background_asset})
         if ("${asset}" MATCHES ".json$")
             assets_install_from_scene("${asset_dir}" "${asset_build_dir}" "${asset}")
             list(APPEND assets_full ${ASSETS_FULL})
