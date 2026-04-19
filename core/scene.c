@@ -6,6 +6,7 @@
 #include "debug_draw.h"
 #include "display.h"
 #include "gltf.h"
+#include "input-controls.h"
 #include "interp.h"
 #include "physics.h"
 #include "shader.h"
@@ -1131,21 +1132,44 @@ static int scene_handle_input(struct clap_context *ctx, struct message *m, void 
 #endif
     if (clap_is_paused(s->clap_ctx))    return 0;
 
-    if (m->input.zoom == 1) {
+    /*
+     * Input-source filter: drop motion/action messages from gamepads that
+     * aren't the active one (so a forgotten plugged-in drifting controller
+     * doesn't steer the character) and clamp or drop mouse deltas on the
+     * keyboard source based on use_mouse_for_camera / sensitivity / invert_y.
+     */
+    struct message filtered = *m;
+    if (m->source && m->source->type != MST_KEYBOARD) {
+        const char *active = input_controls_active_gamepad_name();
+        if (!active || !m->source->name || strcmp(m->source->name, active))
+            return 0;
+    } else if (m->source && m->source->type == MST_KEYBOARD) {
+        if (!input_controls_use_mouse()) {
+            filtered.input.delta_rx = 0;
+            filtered.input.delta_ry = 0;
+        } else {
+            float sens = input_controls_mouse_sensitivity();
+            float yflip = input_controls_invert_y() ? -1.0f : 1.0f;
+            filtered.input.delta_rx *= sens;
+            filtered.input.delta_ry *= sens * yflip;
+        }
+    }
+
+    if (filtered.input.zoom == 1) {
         if (!s->camera->zoom)
             s->camera->view.proj_update = true;
         s->camera->zoom = 1;
-    } else if (m->input.zoom == 2) {
+    } else if (filtered.input.zoom == 2) {
         if (s->camera->zoom)
             s->camera->view.proj_update = true;
         s->camera->zoom = 0;
     }
 
-    motion_parse_input(&s->mctl, m);
+    motion_parse_input(&s->mctl, &filtered);
 
     struct character *current = scene_control_character(s);
     if (current)
-        character_handle_input(current, s, m);
+        character_handle_input(current, s, &filtered);
 
     return 0;
 }
