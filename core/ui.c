@@ -1054,7 +1054,8 @@ struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root)
     if (root->uwb)          memcpy(&_uwb, root->uwb, sizeof(_uwb));
     if (!_uwb.input_event)  _uwb.input_event = ui_menu_input;
 
-    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
+    unsigned int fsize = _uwb.font_size ? _uwb.font_size : 32;
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = fsize);
     if (!_uwb.font)         return NULL;
 
     auto menu = ui_menu_build(ui, &_uwb, root);
