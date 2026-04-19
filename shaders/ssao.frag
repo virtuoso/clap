@@ -22,6 +22,7 @@ void main()
     vec3 normal_sample = texture(normal_map, pass_tex).xyz;
     vec3 normal = normalize(normal_sample * 2.0 - 1.0);
     vec3 pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
+    float dz = fwidth(pos.z);
     FragColor = 1.0;
     if (pos.z > 0.0)    return;
 
@@ -32,7 +33,8 @@ void main()
 
     // Z in view space is always negative
     float depth_scale = clamp(-pos.z / far_plane, 0.1, 1.0);
-    float bias = mix(0.01, 0.05, 1.0 - depth_scale);
+    float bias = max(0.002, 2.0 * dz);
+    bias *= mix(1.0, 4.0, 1.0 - abs(normal.z));
 
     float occlusion = 0.0;
 
@@ -50,7 +52,7 @@ void main()
         vec3 sample_view = view_pos_from_depth(depth_tex, inverse_proj, convert_pass_tex(offset.xy));
         if (sample_view.z > 0.0)    continue;
 
-        float range_check = smoothstep(0.0, 1.0, actual_radius / abs(pos.z - sample_view.z));
+        float range_check = 1.0 - clamp(abs(pos.z - sample_view.z) / scale, 0.0, 1.0);
         if (sample_view.z >= sample_pos.z + bias)
             occlusion += range_check;
     }
