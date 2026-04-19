@@ -991,7 +991,7 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const ui_menu_item *
     return menu;
 }
 
-static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
+bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
 {
     uivec uivec = uivec_from_input(ui, m);
     if (m->input.mouse_move)

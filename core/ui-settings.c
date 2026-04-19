@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include "clap.h"
@@ -18,8 +19,15 @@ enum ic_kind {
     IC_KIND_GAMEPAD_ANY,
     IC_KIND_GAMEPAD_NAMED,
     IC_KIND_USE_MOUSE,
+    IC_KIND_SENSITIVITY,
+    IC_KIND_INVERT_Y,
     IC_KIND_BACK,
 };
+
+static const float sensitivity_steps[] = {
+    0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f,
+};
+#define NR_SENS_STEPS  array_size(sensitivity_steps)
 
 static ui_menu_item ic_items[IC_ITEM_MAX + 1];
 static char         ic_labels[IC_ITEM_MAX][IC_LABEL_MAX];
@@ -50,6 +58,8 @@ static void settings_element_cb(struct ui_element *uie, unsigned int i)
     uia_cos_move(uie, UIE_MV_X_OFF, 80, 1, false, 0.3, 1.0, 0.0);
 }
 
+static bool settings_input(struct ui *ui, struct ui_widget *uiw, struct message *m);
+
 static const struct ui_widget_builder settings_uwb = {
     .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
     .affinity       = UI_AF_TOP | UI_AF_RIGHT | UI_YOFF_FRAC,
@@ -61,6 +71,7 @@ static const struct ui_widget_builder settings_uwb = {
     .on_create      = settings_on_create,
     .el_cb          = settings_element_cb,
     .el_on_focus    = settings_on_focus,
+    .input_event    = settings_input,
     .el_color       = { 0.25f, 0.25f, 0.28f, 1.0f },
     .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
 };
@@ -76,8 +87,22 @@ static void replace_widget(struct ui *ui, struct ui_widget *new_uiw)
     struct ui_widget *uiw = ui->menu.widget;
     on_create_fn on_create = uiw->on_create;
     void *priv = uiw->priv;
+    int focus = uiw->focus;
     ref_put(uiw);
     new_uiw->priv = priv;
+    /*
+     * Preserve focus across rebuilds so adjusting a setting via the keyboard
+     * doesn't bounce it back to the top. If the item list shrank (e.g. the
+     * mouse toggle flipped off and the sensitivity/invert rows disappeared),
+     * clamp to the last valid index.
+     */
+    if (focus >= 0 && new_uiw->nr_uies > 0) {
+        if (focus >= (int)new_uiw->nr_uies)
+            focus = (int)new_uiw->nr_uies - 1;
+        new_uiw->focus = focus;
+        if (new_uiw->uies[focus]->on_focus)
+            new_uiw->uies[focus]->on_focus(new_uiw->uies[focus], true);
+    }
     if (on_create)  on_create(ui, new_uiw);
 }
 
@@ -108,10 +133,24 @@ static void mouse_label(char *buf, size_t n)
              input_controls_use_mouse() ? "On" : "Off");
 }
 
+static void sensitivity_label(char *buf, size_t n)
+{
+    snprintf(buf, n, "  Mouse sensitivity: %.2fx  < >",
+             input_controls_mouse_sensitivity());
+}
+
+static void invert_y_label(char *buf, size_t n)
+{
+    snprintf(buf, n, "  Invert Y: %s",
+             input_controls_invert_y() ? "On" : "Off");
+}
+
 static void ic_select_none(struct ui *ui, const ui_menu_item *item);
 static void ic_select_any(struct ui *ui, const ui_menu_item *item);
 static void ic_select_named(struct ui *ui, const ui_menu_item *item);
 static void ic_toggle_mouse(struct ui *ui, const ui_menu_item *item);
+static void ic_cycle_sensitivity(struct ui *ui, const ui_menu_item *item);
+static void ic_toggle_invert_y(struct ui *ui, const ui_menu_item *item);
 static void ic_back(struct ui *ui, const ui_menu_item *item);
 
 static void ic_item(unsigned int idx, enum ic_kind kind, const char *label,
@@ -150,6 +189,13 @@ static void ic_populate(void)
     mouse_label(buf, sizeof(buf));
     ic_item(i++, IC_KIND_USE_MOUSE, buf, NULL, ic_toggle_mouse);
 
+    if (input_controls_use_mouse()) {
+        sensitivity_label(buf, sizeof(buf));
+        ic_item(i++, IC_KIND_SENSITIVITY, buf, NULL, ic_cycle_sensitivity);
+        invert_y_label(buf, sizeof(buf));
+        ic_item(i++, IC_KIND_INVERT_Y, buf, NULL, ic_toggle_invert_y);
+    }
+
     ic_item(i++, IC_KIND_BACK, "Back", NULL, ic_back);
 
     ic_items[i] = (ui_menu_item){};   /* terminator */
@@ -178,6 +224,14 @@ static void ic_recolor(struct ui_widget *uiw)
             break;
         case IC_KIND_USE_MOUSE:
             on = use_mouse;
+            break;
+        case IC_KIND_SENSITIVITY:
+            /* Non-toggle knob: keep neutral color. */
+            memcpy(c, color_off, sizeof(c));
+            entity3d_color(uiw->uies[i]->entity, COLOR_PT_ALL, c);
+            continue;
+        case IC_KIND_INVERT_Y:
+            on = input_controls_invert_y();
             break;
         case IC_KIND_BACK:
             memcpy(c, color_back, sizeof(c));
@@ -237,9 +291,76 @@ static void ic_toggle_mouse(struct ui *ui, const ui_menu_item *item)
     ic_rebuild(ui);
 }
 
+static unsigned int sens_step_index(float cur)
+{
+    /* Pick the step closest to the current value. */
+    unsigned int best = 0;
+    float best_diff = fabsf(sensitivity_steps[0] - cur);
+    for (unsigned int k = 1; k < NR_SENS_STEPS; k++) {
+        float diff = fabsf(sensitivity_steps[k] - cur);
+        if (diff < best_diff) { best_diff = diff; best = k; }
+    }
+    return best;
+}
+
+static void sens_step(struct ui *ui, int dir)
+{
+    unsigned int idx = sens_step_index(input_controls_mouse_sensitivity());
+    int next = (int)idx + dir;
+    if (next < 0) next = 0;
+    if (next >= (int)NR_SENS_STEPS) next = NR_SENS_STEPS - 1;
+    if ((unsigned int)next == idx) return;
+    input_controls_set_mouse_sensitivity(ui->clap_ctx, sensitivity_steps[next]);
+    ic_rebuild(ui);
+}
+
+static void ic_cycle_sensitivity(struct ui *ui, const ui_menu_item *item)
+{
+    /* Click / enter steps up; wraps at the top so mouse users can still
+     * reach lower values. Keyboard users should prefer left/right arrows
+     * for direct up/down stepping. */
+    unsigned int idx = sens_step_index(input_controls_mouse_sensitivity());
+    unsigned int next = (idx + 1) % NR_SENS_STEPS;
+    input_controls_set_mouse_sensitivity(ui->clap_ctx, sensitivity_steps[next]);
+    ic_rebuild(ui);
+}
+
+static void ic_toggle_invert_y(struct ui *ui, const ui_menu_item *item)
+{
+    input_controls_set_invert_y(ui->clap_ctx, !input_controls_invert_y());
+    ic_rebuild(ui);
+}
+
 static void ic_back(struct ui *ui, const ui_menu_item *item)
 {
     ui_menus_navigate_up(ui);
+}
+
+static bool settings_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
+{
+    int focus = uiw->focus;
+    if (focus >= 0 && focus < (int)uiw->nr_uies && focus < (int)ic_nr_items) {
+        enum ic_kind k = ic_kinds[focus];
+        if (k == IC_KIND_SENSITIVITY) {
+            bool left = m->input.left == 1 || m->input.yaw_left == 1 ||
+                        m->input.delta_lx < -0.99;
+            bool right = m->input.right == 1 || m->input.yaw_right == 1 ||
+                         m->input.delta_lx > 0.99;
+            if (left)   { sens_step(ui, -1); return true; }
+            if (right)  { sens_step(ui, +1); return true; }
+        } else if (k == IC_KIND_INVERT_Y) {
+            bool left = m->input.left == 1 || m->input.yaw_left == 1 ||
+                        m->input.delta_lx < -0.99;
+            bool right = m->input.right == 1 || m->input.yaw_right == 1 ||
+                         m->input.delta_lx > 0.99;
+            if (left || right) {
+                input_controls_set_invert_y(ui->clap_ctx, !input_controls_invert_y());
+                ic_rebuild(ui);
+                return true;
+            }
+        }
+    }
+    return ui_menu_input(ui, uiw, m);
 }
 
 void ui_settings_open_controls(struct ui *ui, const ui_menu_item *item)

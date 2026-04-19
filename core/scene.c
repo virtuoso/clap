@@ -1145,14 +1145,26 @@ static int scene_handle_input(struct clap_context *ctx, struct message *m, void 
         if (!active || !m->source->name || strcmp(m->source->name, active))
             return 0;
     } else if (m->source && m->source->type == MST_KEYBOARD) {
-        if (!input_controls_use_mouse()) {
-            filtered.input.delta_rx = 0;
-            filtered.input.delta_ry = 0;
-        } else {
-            float sens = input_controls_mouse_sensitivity();
+        /*
+         * Mouse deltas arrive in pixels, while scene_update() feeds rs_d*
+         * through ang_speed/fps assuming stick-sized (~[-1, 1]) values.
+         * Convert so one pixel at sens=1.0 yields MOUSE_BASELINE degrees of
+         * rotation per frame: rate = px * sens * BASELINE * fps / ang_speed
+         * produces rate * ang_speed / fps = px * sens * BASELINE deg/frame.
+         * The yaw path multiplies by an extra 1.5, so divide that out here.
+         */
+        if (input_controls_use_mouse() && s->ang_speed > 0.0f) {
+            const float MOUSE_BASELINE = 0.05f;
+            unsigned long fps = clap_get_fps_fine(s->clap_ctx);
+            float sens  = input_controls_mouse_sensitivity();
             float yflip = input_controls_invert_y() ? -1.0f : 1.0f;
-            filtered.input.delta_rx *= sens;
-            filtered.input.delta_ry *= sens * yflip;
+            float pitch_factor = sens * yflip * MOUSE_BASELINE * (float)fps / s->ang_speed;
+            float yaw_factor   = sens         * MOUSE_BASELINE * (float)fps / (s->ang_speed * 1.5f);
+            filtered.input.delta_ry *= pitch_factor;
+            filtered.input.delta_rx *= yaw_factor;
+        } else {
+            // filtered.input.delta_rx = 0;
+            // filtered.input.delta_ry = 0;
         }
     }
 

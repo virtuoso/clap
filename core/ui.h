@@ -301,6 +301,18 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
  * Return: ui_widget pointer or NULL on error
  */
 struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root);
+
+/**
+ * ui_menu_input() - default input handler for menu widgets
+ * @ui:     ui context
+ * @uiw:    menu widget
+ * @m:      input message
+ *
+ * Wired in as ui_widget_builder.input_event when none is provided. Exposed
+ * so a custom input_event can pre-empt specific keys for a focused row
+ * (e.g. to make left/right adjust a value) and then delegate the rest.
+ */
+bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *m);
 struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
                              const char **items, unsigned int nr_items);
 
