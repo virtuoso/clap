@@ -32,7 +32,6 @@ void main()
     mat3 TBN = mat3(tangent, bitangent, normal);
 
     // Z in view space is always negative
-    float depth_scale = clamp(-pos.z / far_plane, 0.1, 1.0);
     float bias = max(0.002, 2.0 * dz);
     bias *= mix(1.0, 4.0, 1.0 - abs(normal.z));
 
