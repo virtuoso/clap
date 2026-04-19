@@ -502,6 +502,7 @@ int main(int argc, char **argv, char **envp)
         .phys           = 1,
         .graphics       = 1,
         .ui             = 1,
+        .ui_menu        = { .enable = true },
         .settings       = 1,
         .title          = CLAP_EXECUTABLE_TITLE,
 #ifndef CONFIG_BROWSER

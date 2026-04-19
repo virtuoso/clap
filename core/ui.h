@@ -176,6 +176,40 @@ bool ui_widget_click(struct ui_widget *uiw, uivec uivec);
 
 typedef struct clap_context clap_context;
 
+typedef struct ui_menu_item ui_menu_item;
+typedef void (*ui_menu_item_fn)(struct ui *ui, const ui_menu_item *item);
+
+/**
+ * struct ui_menu_item - menu item definition
+ * @name:   name that appears in the menu
+ * @uwb:    widget builder pointer
+ * @fn:     function to call for leaf items
+ * @items:  array of child items, NULL-terminated
+ *
+ * An item can be either a "group" (@items != NULL) or an "item"
+ * (leaf, @fn != NULL). For groups, @uwb should point to a widget
+ * builder structure. All nodes except the root need a valid @name.
+ */
+typedef struct ui_menu_item {
+    const char                      *name;
+    const struct ui_widget_builder  *uwb;
+    ui_menu_item_fn                 fn;
+    struct ui_menu_item             *items;
+} ui_menu_item;
+
+/**
+ * struct ui_menu - in-game menu state embedded in &struct ui
+ * @widget:         current menu widget, NULL when the menu is closed
+ * @root:           root of the menu tree used to (re)open the menu
+ * @root_storage:   scratch slot for an override-patched copy of @root, used
+ *                  when ui_menu_config.uwb is set
+ */
+typedef struct ui_menu {
+    struct ui_widget    *widget;
+    const ui_menu_item  *root;
+    ui_menu_item        root_storage;
+} ui_menu;
+
 struct ui {
     struct mq          mq;
     struct list        shaders;
@@ -190,6 +224,7 @@ struct ui {
     void               *priv;
     int width, height;
     float mod_x, mod_y;
+    ui_menu            menu;
 };
 
 /**
@@ -213,27 +248,6 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
                              float *color, unsigned long flags, const char *fmt, ...)
                              __printf(6, 7) __nonnull_params((1, 2, 4, 6));
 struct ui_widget *ui_wheel_new(struct ui *ui, const char **items);
-
-typedef struct ui_menu_item ui_menu_item;
-typedef void (*ui_menu_item_fn)(struct ui *ui, const ui_menu_item *item);
-
-/**
- * struct ui_menu_item - menu item definition
- * @name:   name that appears in the menu
- * @uwb:    widget builder pointer
- * @fn:     function to call for leaf items
- * @items:  array of child items, NULL-terminated
- *
- * An item can be either a "group" (@items != NULL) or an "item"
- * (leaf, @fn != NULL). For groups, @uwb should point to a widget
- * builder structure. All nodes except the root need a valid @name.
- */
-typedef struct ui_menu_item {
-    const char                      *name;
-    const struct ui_widget_builder  *uwb;
-    ui_menu_item_fn                 fn;
-    struct ui_menu_item             *items;
-} ui_menu_item;
 
 /**
  * define UI_MENU_GROUP - define a group menu entry

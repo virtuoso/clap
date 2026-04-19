@@ -922,7 +922,10 @@ static void ui_menu_on_click(struct ui_element *uie, float x, float y)
     if (!item)  return;
 
     auto ui = uie->ui;
-    if (!item->items && item->fn)   { item->fn(ui, item); return; }
+    if (!item->items) {
+        if (item->fn)   item->fn(ui, item);
+        return;
+    }
 
     auto uiw = uie->widget;
     auto on_create = uiw->on_create;
@@ -934,7 +937,7 @@ static void ui_menu_on_click(struct ui_element *uie, float x, float y)
     if (on_create)                  on_create(ui, uiw);
 }
 
-static inline bool is_item_valid(const ui_menu_item *item)  { return item->items || item->fn; }
+static inline bool is_item_valid(const ui_menu_item *item)  { return item->name; }
 
 static struct ui_widget *
 ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const ui_menu_item *root)

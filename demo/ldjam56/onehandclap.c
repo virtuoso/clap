@@ -25,12 +25,6 @@
 /* XXX just note for the future */
 static struct sound *intro_sound;
 
-typedef struct game_ui game_ui;
-cresp_struct_ret(game_ui);
-
-cresp(game_ui) game_ui_init(struct ui *ui);
-void game_ui_done(game_ui *game_ui);
-
 static const char *intro_osd[] = {
     "WASD to move the character",
     "Space to jump",
@@ -127,6 +121,7 @@ int main(int argc, char **argv, char **envp)
         .phys           = 1,
         .graphics       = 1,
         .ui             = 1,
+        .ui_menu        = { .enable = true },
         .settings       = 1,
         .title          = CLAP_EXECUTABLE_TITLE,
 #ifndef CONFIG_BROWSER
@@ -158,8 +153,6 @@ int main(int argc, char **argv, char **envp)
         err_cerr(clap_res, "failed to initialize clap\n");
         return CERR_TO_EXIT(clap_res);
     }
-
-    __unused auto gui = CRES_RET(game_ui_init(clap_get_ui(clap_res.val)), return EXIT_FAILURE);
 
     /*
      * XXX: this doesn't belong here, same as imgui_render_begin()
@@ -204,7 +197,6 @@ int main(int argc, char **argv, char **envp)
     if (intro_sound)
         ref_put(intro_sound);
 exit_scene:
-    game_ui_done(gui);
     clap_done(clap_res.val, 0);
 #else
 exit_scene:

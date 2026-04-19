@@ -7,7 +7,7 @@ include(${CMAKE_SOURCE_DIR}/scripts/executable.cmake)
 clap_executable(
     ldjam59
     "Signal"
-    "main.c;ui.c"
+    "main.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset"
     "scene.json;ProggyTiny.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset/background.png"

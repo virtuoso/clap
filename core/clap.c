@@ -1162,8 +1162,10 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     }
     if (ctx->cfg.input)
         (void)input_init(ctx); /* XXX: error handling */
-    if (ctx->cfg.ui)
+    if (ctx->cfg.ui) {
         CERR_RET_T(ui_init(&ctx->ui, ctx, width, height), clap_context);
+        CERR_RET_T(ui_menus_init(&ctx->ui, &ctx->cfg.ui_menu), clap_context);
+    }
     if (ctx->cfg.graphics && ctx->cfg.input)
         display_debug_ui_init(ctx);
     if (ctx->cfg.settings)
@@ -1174,8 +1176,10 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
 void clap_done(struct clap_context *ctx, int status)
 {
-    if (ctx->cfg.ui)
+    if (ctx->cfg.ui) {
+        ui_menus_done(&ctx->ui);
         ui_done(&ctx->ui);
+    }
     if (ctx->cfg.graphics) {
         scene_done(&ctx->scene);
         ref_put(ctx->pl);
