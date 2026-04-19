@@ -131,6 +131,60 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
     _prim_emit_triangle3(quad[3], quad[2], quad[1], &_opts);
 }
 
+cresp(mesh) _prim_begin(size_t nr_vert, const prim_emit_opts *opts)
+{
+    auto mesh = opts->mesh;
+
+    if (!mesh)
+        mesh = CRES_RET_T(ref_new_checked(mesh, .name = opts->name), mesh);
+
+    if (!mesh->attr[MESH_VX].data) {
+        CERR_RET_T(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert), mesh);
+        CERR_RET_T(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), mesh);
+        CERR_RET_T(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), mesh);
+        CERR_RET_T(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), mesh);
+    } else {
+        nr_vert += mesh_nr_vx(mesh);
+        CERR_RET_T(mesh_attr_resize(mesh, MESH_VX, nr_vert), mesh);
+        CERR_RET_T(mesh_attr_resize(mesh, MESH_TX, nr_vert), mesh);
+        CERR_RET_T(mesh_attr_resize(mesh, MESH_NORM, nr_vert), mesh);
+        CERR_RET_T(mesh_attr_resize(mesh, MESH_IDX, nr_vert), mesh);
+    }
+
+    return cresp_val(mesh, mesh);
+}
+
+cresp(model3d) _prim_end_model3d(struct shader_prog *p, const prim_emit_opts *opts)
+{
+    auto mesh = opts->mesh;
+
+    if (!mesh)  return cresp_error(model3d, CERR_INVALID_ARGUMENTS);
+
+    const char *name = opts->name;
+    if (!name)  name = mesh->name;
+    if (!name)  return cresp_error(model3d, CERR_INVALID_ARGUMENTS);
+
+    mesh_aabb_calc(mesh);
+    mesh_optimize(mesh);
+
+    return ref_new_checked(
+        model3d,
+        .name = mesh->name,
+        .prog = p,
+        .mesh = mesh
+    );
+}
+
+cresp(model3dtx) _prim_end_model3dtx(struct shader_prog *p, texture_t *tex, struct mq *mq, const prim_emit_opts *opts)
+{
+    LOCAL_SET(model3d, m) = CRES_RET_T(_prim_end_model3d(p, opts), model3dtx);
+
+    auto txm = CRES_RET_T(ref_new_checked(model3dtx, .model = ref_pass(m), .tex = tex), model3dtx);
+    mq_add_model(mq, txm);
+
+    return cresp_val(model3dtx, txm);
+}
+
 void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)
 {
     struct mesh *mesh = opts->mesh;
