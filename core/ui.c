@@ -935,7 +935,10 @@ static void ui_menu_on_click(struct ui_element *uie, float x, float y)
     uiw = ui_menu_new(ui, item);
     uiw->priv = priv;
     if (on_create)                  on_create(ui, uiw);
-    ui->menu.depth++;
+    if (ui->menu.depth + 1 < UI_MENU_STACK_MAX) {
+        ui->menu.depth++;
+        ui->menu.stack[ui->menu.depth] = item;
+    }
 }
 
 static inline bool is_item_valid(const ui_menu_item *item)  { return item->name; }
@@ -1007,14 +1010,17 @@ static bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *
     } else if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99 || m->input.back) {
         /* go back */
         if (ui->menu.depth > 0) {
-            /* inside a submenu: go back to the root */
+            /* inside a submenu: pop one level up */
             auto on_create = uiw->on_create;
-            const ui_menu_item *root = ui->state == UI_ST_START_MENU
-                ? ui->menu.start_root : ui->menu.in_game_root;
-            ui->menu.depth = 0;
+            ui->menu.depth--;
+            const ui_menu_item *root = ui->menu.stack[ui->menu.depth];
+            void *priv = uiw->priv;
             ref_put(uiw);
             uiw = ui_menu_new(ui, root);
-            if (on_create)  on_create(ui, uiw);
+            if (uiw) {
+                uiw->priv = priv;
+                if (on_create)  on_create(ui, uiw);
+            }
         } else if (ui->state == UI_ST_RUNNING) {
             /* in-game menu at root: close and unpause */
             auto on_create = uiw->on_create;

@@ -61,6 +61,17 @@ cerr ui_menus_init(struct ui *ui,
 void ui_menus_done(struct ui *ui);
 
 /**
+ * ui_menus_navigate_up() - pop one level from the menu stack
+ * @ui:     ui context
+ *
+ * Drop the current menu widget and rebuild it from the parent root stored
+ * in &ui_menu.stack. If already at the top of the stack and the state is
+ * %UI_ST_RUNNING, close the in-game menu and unpause. At %UI_ST_START_MENU
+ * root the call is a no-op.
+ */
+void ui_menus_navigate_up(struct ui *ui);
+
+/**
  * ui_state_get() - read current UI state
  * @ui:     ui context
  */
