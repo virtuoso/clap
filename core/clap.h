@@ -411,6 +411,7 @@ const char *clap_get_argv(clap_context *ctx, int idx);
  * @cli_opt_cb:         callback to handle unrecognized command line options
  * @cli_opts:           command line options parsed by the engine
  * @ui_menu:            in-game menu configuration, see struct ui_menu_config
+ * @ui_start_menu:      start menu configuration, see struct ui_menu_config
  */
 struct clap_config {
     unsigned long   debug       : 1,
@@ -439,6 +440,7 @@ struct clap_config {
     cerr            (*cli_opt_cb)(clap_context *ctx, void *data, int *pos);
     clap_cli_opts   cli_opts;
     ui_menu_config  ui_menu;
+    ui_menu_config  ui_start_menu;
 };
 
 cresp_struct_ret(clap_context);

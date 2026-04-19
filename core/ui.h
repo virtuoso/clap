@@ -5,6 +5,7 @@
 #include "object.h"
 #include "messagebus.h"
 #include "model.h"
+#include "ui-menus.h"
 
 /* alignment affinity */
 #define UI_AF_TOP    0x1
@@ -198,16 +199,27 @@ typedef struct ui_menu_item {
 } ui_menu_item;
 
 /**
- * struct ui_menu - in-game menu state embedded in &struct ui
- * @widget:         current menu widget, NULL when the menu is closed
- * @root:           root of the menu tree used to (re)open the menu
- * @root_storage:   scratch slot for an override-patched copy of @root, used
- *                  when ui_menu_config.uwb is set
+ * struct ui_menu - menu state embedded in &struct ui
+ * @widget:             current menu widget, NULL when no menu is open
+ * @in_game_root:       resolved in-game menu tree root, NULL if not configured
+ * @start_root:         resolved start menu tree root, NULL if not configured
+ * @in_game_storage:    scratch slot for the uwb-override copy of the in-game
+ *                      root, used when the in-game ui_menu_config.uwb is set
+ * @start_storage:      scratch slot for the uwb-override copy of the start
+ *                      root, used when the start ui_menu_config.uwb is set
+ * @loading_cb:         callback fired on "Start Game" selection
+ * @loading_cb_data:    data pointer passed to @loading_cb
+ * @depth:              current menu navigation depth; 0 at the root
  */
 typedef struct ui_menu {
     struct ui_widget    *widget;
-    const ui_menu_item  *root;
-    ui_menu_item        root_storage;
+    const ui_menu_item  *in_game_root;
+    const ui_menu_item  *start_root;
+    ui_menu_item        in_game_storage;
+    ui_menu_item        start_storage;
+    void                (*loading_cb)(struct clap_context *ctx, void *data);
+    void                *loading_cb_data;
+    unsigned int        depth;
 } ui_menu;
 
 struct ui {
@@ -225,6 +237,7 @@ struct ui {
     int width, height;
     float mod_x, mod_y;
     ui_menu            menu;
+    ui_state           state;
 };
 
 /**

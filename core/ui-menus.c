@@ -32,41 +32,63 @@ static void main_menu_on_create(struct ui *ui, struct ui_widget *uiw)
     ui->menu.widget = uiw;
 }
 
-static void main_menu_init(struct ui *ui)
+static void menu_open(struct ui *ui, const ui_menu_item *root)
 {
-    ui_modality_send(ui);
-    ui->menu.widget = ui_menu_new(ui, ui->menu.root);
+    if (!root || ui->menu.widget)   return;
+    ui->menu.depth = 0;
+    ui->menu.widget = ui_menu_new(ui, root);
 }
 
-static void main_menu_done(struct ui *ui)
+static void menu_close(struct ui *ui)
 {
-    ui_modality_send(ui);
     if (ui->menu.widget)
         ref_put(ui->menu.widget);
     ui->menu.widget = NULL;
+    ui->menu.depth = 0;
 }
 
 #ifndef CONFIG_FINAL
 static void __menu_devel(struct ui *ui, const ui_menu_item *item)
 {
-    main_menu_done(ui);
+    /* In-game: close the menu + unpause so debug HUD can coexist with a
+     * live game. Start menu: keep the menu up; the debug selector is an
+     * imgui overlay on top. */
+    if (ui->state == UI_ST_RUNNING) {
+        menu_close(ui);
+        ui_modality_send(ui);
+    }
     ui_toggle_debug_selector();
 }
 #endif /* CONFIG_FINAL */
 
 static void __menu_fullscreen(struct ui *ui, const ui_menu_item *item)
 {
-    main_menu_done(ui);
+    menu_close(ui);
+    ui_modality_send(ui);
     message_input_send(ui->clap_ctx, &(struct message_input){ .fullscreen = 1 }, NULL);
 }
 
 #ifndef CONFIG_BROWSER
 static void __menu_exit(struct ui *ui, const ui_menu_item *item)
 {
-    main_menu_done(ui);
+    if (ui->state == UI_ST_RUNNING)
+        ui_modality_send(ui);
+    menu_close(ui);
     display_request_exit();
 }
 #endif /* CONFIG_BROWSER */
+
+static void __menu_start_game(struct ui *ui, const ui_menu_item *item)
+{
+    ui->state = UI_ST_LOADING;
+    menu_close(ui);
+    /* Clap stays paused; the loading_cb (or the default below) sends the
+     * modality toggle to unpause when loading is finished. */
+    if (ui->menu.loading_cb)
+        ui->menu.loading_cb(ui->clap_ctx, ui->menu.loading_cb_data);
+    else
+        ui_state_set_running(ui);
+}
 
 static const struct ui_widget_builder default_uwb = {
     .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
@@ -83,7 +105,7 @@ static const struct ui_widget_builder default_uwb = {
 };
 
 /* Default in-game menu */
-static const ui_menu_item default_menu_root = UI_MENU_GROUP(
+static const ui_menu_item default_in_game_root = UI_MENU_GROUP(
     NULL, &default_uwb,
 #ifndef CONFIG_FINAL
     UI_MENU_ITEM("Devel",           __menu_devel),
@@ -95,24 +117,71 @@ static const ui_menu_item default_menu_root = UI_MENU_GROUP(
     UI_MENU_END
 );
 
+/* Default start menu */
+static const ui_menu_item default_start_root = UI_MENU_GROUP(
+    NULL, &default_uwb,
+    UI_MENU_ITEM("Start Game",      __menu_start_game),
+#ifndef CONFIG_FINAL
+    UI_MENU_ITEM("Devel",           __menu_devel),
+#endif /* CONFIG_FINAL */
+    UI_MENU_GROUP("Settings",       &default_uwb,
+        UI_MENU_ITEM("Controls",    NULL),
+        UI_MENU_ITEM("Graphics",    NULL),
+        UI_MENU_END
+    ),
+    UI_MENU_GROUP("Help",           &default_uwb,
+        UI_MENU_ITEM("Credits",     NULL),
+        UI_MENU_ITEM("License",     NULL),
+        UI_MENU_ITEM("Help",        NULL),
+        UI_MENU_END
+    ),
+#ifndef CONFIG_BROWSER
+    UI_MENU_ITEM("Exit",            __menu_exit),
+#endif /* CONFIG_BROWSER */
+    UI_MENU_END
+);
+
 static int ui_menus_handle_input(struct clap_context *ctx, struct message *m, void *data)
 {
     struct ui *ui = data;
     uivec uivec = uivec_from_input(ui, m);
 
-    if (m->input.menu_toggle) {
-        if (ui->menu.widget)    main_menu_done(ui);
-        else                    main_menu_init(ui);
-    } else if (m->input.mouse_click) {
-        /* No menu + click miss: open main menu */
-        if (!ui->menu.widget && !ui_element_click(ui, uivec))
-            main_menu_init(ui);
-        /* Menu + menu click miss: close main menu */
-        else if (ui->menu.widget && !ui_widget_click(ui->menu.widget, uivec))
-            main_menu_done(ui);
+    switch (ui->state) {
+    case UI_ST_START_MENU:
+        /* Start menu is modal. Forward clicks but ignore misses; menu_toggle
+         * does nothing; "back" at root is swallowed by ui_menu_input. */
+        if (m->input.mouse_click && ui->menu.widget)
+            ui_widget_click(ui->menu.widget, uivec);
+        break;
+
+    case UI_ST_LOADING:
+        return MSG_HANDLED;
+
+    case UI_ST_RUNNING:
+        if (!ui->menu.in_game_root)
+            return MSG_HANDLED;
+        if (m->input.menu_toggle) {
+            if (ui->menu.widget) {
+                menu_close(ui);
+                ui_modality_send(ui);
+            } else {
+                ui_modality_send(ui);
+                menu_open(ui, ui->menu.in_game_root);
+            }
+        } else if (m->input.mouse_click) {
+            if (!ui->menu.widget && !ui_element_click(ui, uivec)) {
+                ui_modality_send(ui);
+                menu_open(ui, ui->menu.in_game_root);
+            } else if (ui->menu.widget && !ui_widget_click(ui->menu.widget, uivec)) {
+                menu_close(ui);
+                ui_modality_send(ui);
+            }
+        }
+        break;
     }
 
-    if (!clap_is_paused(ui->clap_ctx))  return MSG_HANDLED;
+    if (!clap_is_paused(ui->clap_ctx))
+        return MSG_HANDLED;
 
     if (ui->menu.widget)
         ui->menu.widget->input_event(ui, ui->menu.widget, m);
@@ -120,29 +189,72 @@ static int ui_menus_handle_input(struct clap_context *ctx, struct message *m, vo
     return MSG_STOP;
 }
 
-cerr ui_menus_init(struct ui *ui, const ui_menu_config *cfg)
+static const ui_menu_item *resolve_root(const ui_menu_config *cfg,
+                                        const ui_menu_item *def,
+                                        ui_menu_item *storage)
 {
     if (!cfg || !cfg->enable)
-        return CERR_OK;
+        return NULL;
 
-    const ui_menu_item *root = cfg->menu_root ? cfg->menu_root : &default_menu_root;
-
+    const ui_menu_item *root = cfg->menu_root ? cfg->menu_root : def;
     if (cfg->uwb) {
-        ui->menu.root_storage = *root;
-        ui->menu.root_storage.uwb = cfg->uwb;
-        ui->menu.root = &ui->menu.root_storage;
-    } else {
-        ui->menu.root = root;
+        *storage = *root;
+        storage->uwb = cfg->uwb;
+        return storage;
     }
+    return root;
+}
+
+cerr ui_menus_init(struct ui *ui,
+                   const ui_menu_config *in_game_cfg,
+                   const ui_menu_config *start_cfg)
+{
+    bool in_game_enable = in_game_cfg && in_game_cfg->enable;
+    bool start_enable   = start_cfg && start_cfg->enable;
+
+    if (!in_game_enable && !start_enable) {
+        ui->state = UI_ST_RUNNING;
+        return CERR_OK;
+    }
+
+    ui->menu.in_game_root = resolve_root(in_game_cfg, &default_in_game_root,
+                                         &ui->menu.in_game_storage);
+    ui->menu.start_root   = resolve_root(start_cfg,  &default_start_root,
+                                         &ui->menu.start_storage);
+    ui->menu.loading_cb      = start_cfg ? start_cfg->loading_cb      : NULL;
+    ui->menu.loading_cb_data = start_cfg ? start_cfg->loading_cb_data : NULL;
     ui->menu.widget = NULL;
+    ui->menu.depth  = 0;
+
+    if (start_enable) {
+        ui->state = UI_ST_START_MENU;
+        ui_modality_send(ui);   /* pause */
+        menu_open(ui, ui->menu.start_root);
+    } else {
+        ui->state = UI_ST_RUNNING;
+    }
 
     return subscribe(ui->clap_ctx, MT_INPUT, ui_menus_handle_input, ui);
 }
 
 void ui_menus_done(struct ui *ui)
 {
-    if (ui->menu.widget)
-        ref_put(ui->menu.widget);
-    ui->menu.widget = NULL;
-    ui->menu.root = NULL;
+    menu_close(ui);
+    ui->menu.in_game_root    = NULL;
+    ui->menu.start_root      = NULL;
+    ui->menu.loading_cb      = NULL;
+    ui->menu.loading_cb_data = NULL;
+}
+
+ui_state ui_state_get(const struct ui *ui)
+{
+    return ui->state;
+}
+
+void ui_state_set_running(struct ui *ui)
+{
+    if (ui->state == UI_ST_RUNNING)
+        return;
+    ui->state = UI_ST_RUNNING;
+    ui_modality_send(ui);   /* unpause */
 }
