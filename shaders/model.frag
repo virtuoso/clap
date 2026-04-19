@@ -15,6 +15,7 @@ layout (location=5) in mat3 tbn;
 #include "ubo_render_common.glsl"
 #include "ubo_outline.glsl"
 #include "ubo_bloom.glsl"
+#include "ubo_postproc.glsl"
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
@@ -50,10 +51,10 @@ void main()
     }
 
     if (use_noise_normals == NOISE_NORMALS_GPU)
-        unit_normal = noise_normal_gpu(world_pos.xyz, unit_normal,
+        unit_normal = noise_normal_gpu(world_pos.xyz + vec3(noise_shift), unit_normal,
                                        noise_normals_amp, noise_normals_scale);
     else if (use_noise_normals == NOISE_NORMALS_3D)
-        unit_normal = noise_normal_3d(noise3d, world_pos.xyz, unit_normal,
+        unit_normal = noise_normal_3d(noise3d, world_pos.xyz + vec3(noise_shift), unit_normal,
                                       noise_normals_amp, noise_normals_scale);
 
     lighting_material mat = noise_material();
@@ -88,9 +89,8 @@ void main()
          * jittered local-space position, take the component tangential
          * to the surface normal and map its magnitude to a cyan glow.
          */
-        vec4 local_pos = inverse_trs * world_pos;
-        float ln = noise(local_pos.xyz);
-        vec3 grad = sample_noise3d(noise3d, local_pos.xyz * ln, noise_normals_scale);
+        vec3 pos = world_pos.xyz + vec3(noise_shift);
+        vec3 grad = sample_noise3d(noise3d, pos.xyz * noise(pos.xyz), noise_normals_scale);
         vec3 t = grad - unit_normal * dot(normalize(grad), unit_normal);
         float fac = clamp(length(t), 0.0, 1.0);
         emission = noise_emission_color * min(pow(fac, 0.3), 1.0);

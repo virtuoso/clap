@@ -179,6 +179,7 @@
                 { "name": "fog_far", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_FAR", "discription": "radial fog far distance" },
                 { "name": "film_grain", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_FILM_GRAIN", "discription": "enable film grain" },
                 { "name": "film_grain_shift", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_SHIFT", "discription": "per-frame random seed for film grain UV offset" },
+                { "name": "noise_shift", "type": "DT_FLOAT", "symbol": "UNIFORM_NOISE_SHIFT", "discription": "shift applied to 3D noise sampling coords; shared by use_noise_normals and use_noise_emission paths" },
                 { "name": "film_grain_factor", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_FACTOR", "discription": "film grain intensity" },
                 { "name": "film_grain_power", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_POWER", "discription": "film grain luminance sensitivity exponent" }
             ]

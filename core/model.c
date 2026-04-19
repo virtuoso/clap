@@ -839,6 +839,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_SHIFT, (float)ropts->time);
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_FACTOR, ropts->film_grain_factor);
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_POWER, ropts->film_grain_power);
+                shader_set_var_float(prog, UNIFORM_NOISE_SHIFT, ropts->noise_shift);
             }
 
             if (opts->width)

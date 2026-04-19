@@ -26,6 +26,13 @@ typedef struct render_options {
     double  time;
     float   film_grain_factor;
     float   film_grain_power;
+    /*
+     * 3D noise sampling shift, shared by use_noise_normals and
+     * use_noise_emission paths in model.frag. Advanced per frame by
+     * clap_update_render_options() while UI state is < UI_ST_RUNNING;
+     * user's frame_cb can override.
+     */
+    float   noise_shift;
     float   fog_near;
     float   fog_far;
     vec3    fog_color;
