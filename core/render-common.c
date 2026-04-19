@@ -741,16 +741,18 @@ static texture_t _black_pixel;
 static texture_t _transparent_pixel;
 static texture_t _grey_3d_pixel;
 static texture_t _black_3d_pixel;
+static texture_t _black_uint_pixel;
 
 texture_t *white_pixel(void) { return &_white_pixel; }
 texture_t *black_pixel(void) { return &_black_pixel; }
 texture_t *transparent_pixel(void) { return &_transparent_pixel; }
 texture_t *grey_3d_pixel(void) { return &_grey_3d_pixel; }
 texture_t *black_3d_pixel(void) { return &_black_3d_pixel; }
+texture_t *black_uint_pixel(void) { return &_black_uint_pixel; }
 
 void textures_init(renderer_t *renderer)
 {
-    cerr werr, berr, terr, g3err, b3err;
+    cerr werr, berr, terr, g3err, b3err, buerr;
 
     float white[] = { 1, 1, 1, 1 };
     werr = texture_pixel_init(renderer, &_white_pixel, white);
@@ -762,15 +764,24 @@ void textures_init(renderer_t *renderer)
     g3err = texture_pixel_init_type(renderer, &_grey_3d_pixel, TEX_3D, grey);
     b3err = texture_pixel_init_type(renderer, &_black_3d_pixel, TEX_3D, black);
 
-    err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr) || IS_CERR(g3err) || IS_CERR(b3err),
-           "failed: %d/%d/%d/%d/%d\n",
-           CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr), CERR_CODE(g3err), CERR_CODE(b3err));
+    buerr = texture_init(&_black_uint_pixel, .renderer = renderer, .type = TEX_2D,
+                         .format = TEX_FMT_RGBA32UI,
+                         .min_filter = TEX_FLT_NEAREST, .mag_filter = TEX_FLT_NEAREST);
+    if (!IS_CERR(buerr)) {
+        uint32_t zeros[4] = { 0, 0, 0, 0 };
+        buerr = texture_load(&_black_uint_pixel, TEX_FMT_RGBA32UI, 1, 1, zeros);
+    }
+
+    err_on(IS_CERR(werr) || IS_CERR(berr) || IS_CERR(terr) || IS_CERR(g3err) || IS_CERR(b3err) || IS_CERR(buerr),
+           "failed: %d/%d/%d/%d/%d/%d\n",
+           CERR_CODE(werr), CERR_CODE(berr), CERR_CODE(terr), CERR_CODE(g3err), CERR_CODE(b3err), CERR_CODE(buerr));
 
     texture_set_name(&_white_pixel, "white pixel");
     texture_set_name(&_black_pixel, "black pixel");
     texture_set_name(&_transparent_pixel, "transparent pixel");
     texture_set_name(&_black_3d_pixel, "black 3D pixel");
     texture_set_name(&_grey_3d_pixel, "grey 3D pixel");
+    texture_set_name(&_black_uint_pixel, "black uint pixel");
 }
 
 void textures_done(void)
@@ -780,6 +791,7 @@ void textures_done(void)
     texture_done(&_transparent_pixel);
     texture_done(&_black_3d_pixel);
     texture_done(&_grey_3d_pixel);
+    texture_done(&_black_uint_pixel);
 }
 
 

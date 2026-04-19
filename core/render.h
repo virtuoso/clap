@@ -476,6 +476,7 @@ texture_t *black_pixel(void);
 texture_t *transparent_pixel(void);
 texture_t *grey_3d_pixel(void);
 texture_t *black_3d_pixel(void);
+texture_t *black_uint_pixel(void);
 #ifdef CONFIG_FINAL
 static inline cres(int) texture_set_name(texture_t *tex, const char *fmt, ...) { return cres_val(int, 0); }
 #else
