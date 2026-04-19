@@ -138,7 +138,7 @@ static void loading_start(clap_context *clap_ctx, void *data)
     auto scene = clap_get_scene(clap_ctx);
     auto ui = clap_get_ui(clap_ctx);
 
-    scene->ls = loading_screen_init(ui);
+    scene->ls = loading_screen_init(ui, .skip_background = true);
 }
 
 static void make_menu_quad(struct scene *scene)
