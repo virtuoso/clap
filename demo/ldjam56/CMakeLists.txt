@@ -7,7 +7,7 @@ include(${CMAKE_SOURCE_DIR}/scripts/executable.cmake)
 clap_executable(
     clap
     "When the Mountain Wakes"
-    "onehandclap.c;ui.c"
+    "onehandclap.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset"
     "scene.json;ProggyTiny.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/asset/background.png"

@@ -5,6 +5,7 @@
 #include "api.h"
 #include "lut.h"
 #include "render.h"
+#include "ui-menus.h"
 
 /* Clap build options string */
 const char *clap_build_options(void);
@@ -409,6 +410,7 @@ const char *clap_get_argv(clap_context *ctx, int idx);
  *                      initialization
  * @cli_opt_cb:         callback to handle unrecognized command line options
  * @cli_opts:           command line options parsed by the engine
+ * @ui_menu:            in-game menu configuration, see struct ui_menu_config
  */
 struct clap_config {
     unsigned long   debug       : 1,
@@ -436,6 +438,7 @@ struct clap_config {
     lut_preset      *lut_presets;
     cerr            (*cli_opt_cb)(clap_context *ctx, void *data, int *pos);
     clap_cli_opts   cli_opts;
+    ui_menu_config  ui_menu;
 };
 
 cresp_struct_ret(clap_context);
