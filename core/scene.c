@@ -1947,8 +1947,6 @@ void scene_done(struct scene *scene)
     free(scene->file_name);
     scene->file_name = NULL;
 
-    light_done(scene->clap_ctx, &scene->light);
-
     list_for_each_entry_iter(ch, iter, &scene->characters, entry)
         ref_put_last(ch);
 
@@ -1961,4 +1959,10 @@ void scene_done(struct scene *scene)
     sfx_container_clearout(&scene->sfxc);
 
     mq_release(&scene->mq);
+
+    /*
+     * entities may hold references to lights, so this has to happen after
+     * mq_release()
+     */
+    light_done(scene->clap_ctx, &scene->light);
 }
