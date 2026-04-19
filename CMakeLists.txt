@@ -392,6 +392,7 @@ set(ODE_INCLUDE "${ODE_ROOT}/include")
 add_subdirectory(core)
 add_subdirectory(demo/ldjam56)
 add_subdirectory(demo/ldjam57)
+add_subdirectory(demo/ldjam59)
 
 if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     ExternalProject_Add(compat-host
