@@ -218,9 +218,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     auto scene = clap_get_scene(clap_res.val);
-    cerr err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
-    if (IS_CERR(err))
-        goto exit_scene;
+    CERR_RET(subscribe(clap_res.val, MT_INPUT, handle_input, scene), goto exit_scene);
 
     make_menu_quad(scene);
 
