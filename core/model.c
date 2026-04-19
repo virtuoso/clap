@@ -574,6 +574,7 @@ static void model3dtx_prepare(model3dtx *txm, struct shader_prog *p)
                 switch (v) {
                     case UNIFORM_NOISE3D_TEX:   plug = grey_3d_pixel();     break;
                     case UNIFORM_LUT_TEX:       plug = black_3d_pixel();    break;
+                    case UNIFORM_LIGHT_MAP:     plug = black_uint_pixel();  break;
                     default:                    break;
                 }
 
