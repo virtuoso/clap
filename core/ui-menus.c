@@ -122,6 +122,11 @@ static const ui_menu_item default_in_game_root = UI_MENU_GROUP(
     UI_MENU_ITEM("Devel",           __menu_devel),
 #endif /* CONFIG_FINAL */
     UI_MENU_ITEM("Fullscreen",      __menu_fullscreen),
+    UI_MENU_GROUP("Settings",       &default_uwb,
+        UI_MENU_ITEM("Controls",    ui_settings_open_controls),
+        UI_MENU_ITEM("Graphics",    NULL),
+        UI_MENU_END
+    ),
 #ifndef CONFIG_BROWSER
     UI_MENU_ITEM("Exit",            __menu_exit),
 #endif /* CONFIG_BROWSER */
