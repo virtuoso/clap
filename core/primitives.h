@@ -9,12 +9,14 @@ extern struct mesh cube_mesh;
 
 /**
  * struct prim_emit_opts - vertex/primitive emitting options
+ * @name:       mesh name, gets propagated to model3d
  * @mesh:       mesh, to which the vertices will be appended
  * @uv:         optional texture coordinates per vertex
  * @skip_mask:  sides/faces to skip (primitive-specific bit layout)
  * @clockwise:  emit vertices in left-handed winding order
  */
 typedef struct prim_emit_opts {
+    const char      *name;
     struct mesh     *mesh;
     vec2            *uv;
     uint64_t        skip_mask;
@@ -44,6 +46,17 @@ void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts);
  */
 void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts);
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
+
+#define prim_begin(nv, ...) _prim_begin((nv), &(const prim_emit_opts) { __VA_ARGS__ })
+cresp(mesh) _prim_begin(size_t nr_vert, const prim_emit_opts *opts);
+
+#define prim_end_model3d(prog, ...) \
+    _prim_end_model3d((prog), &(const prim_emit_opts) { __VA_ARGS__ })
+cresp(model3d) _prim_end_model3d(struct shader_prog *p, const prim_emit_opts *opts);
+
+#define prim_end_model3dtx(prog, tex, mq, ...) \
+    _prim_end_model3dtx((prog), (tex), (mq), &(const prim_emit_opts) { __VA_ARGS__ })
+cresp(model3dtx) _prim_end_model3dtx(struct shader_prog *p, texture_t *tex, struct mq *mq, const prim_emit_opts *opts);
 
 /**
  * _prim_emit_cylinder() - emit a cylinder
