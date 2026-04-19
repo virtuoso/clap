@@ -403,7 +403,8 @@ static void model_picker(struct scene *scene)
         list_for_each_entry(txm, &scene->mq.txmodels, entry) {
             bool selected = false;
 
-            if (ei->entity->txmodel == txm)
+            /* XXX: this has problems: e.g., when a new scene is loaded */
+            if (ei->entity && ei->entity->txmodel == txm)
                 selected = true;
 
             igPushID_Ptr(txm);
