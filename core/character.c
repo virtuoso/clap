@@ -599,9 +599,21 @@ static int character_update(entity3d *e, void *data)
     }
 
     if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS)) {
-        if (phys_body_update(e)) {
-            history_push(c);
-            character_set_moved(c);
+        phys_body_update(e);
+        /*
+         * phys_body_update()'s velocity-based motion signal doesn't
+         * work for characters since kinematic sweep zeros ODE body
+         * velocity every frame. Detect motion by position delta
+         * against the newest history entry instead.
+         */
+        if (!c->airborne) {
+            vec3 newest, diff;
+            history_newest(c, newest);
+            vec3_sub(diff, transform_pos(&e->xform, NULL), newest);
+            if (vec3_mul_inner(diff, diff) > 1e-4f) {
+                history_push(c);
+                character_set_moved(c);
+            }
         }
     }
 
