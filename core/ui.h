@@ -224,6 +224,8 @@ typedef struct ui_menu {
     ui_menu_item        start_storage;
     void                (*loading_cb)(struct clap_context *ctx, void *data);
     void                *loading_cb_data;
+    const char * const  *credits;
+    unsigned int        nr_credits;
     const ui_menu_item  *stack[UI_MENU_STACK_MAX];
     unsigned int        depth;
 } ui_menu;
