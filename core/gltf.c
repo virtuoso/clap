@@ -1510,8 +1510,8 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
             .normal_size      = gltf_nmapsz(gd, mesh),
             .emission_buffer  = mat->emit_canvas ? canvas_data(mat->emit_canvas) : gltf_em(gd, mesh),
             .emission_size    = mat->emit_canvas ? canvas_size(mat->emit_canvas) : gltf_emsz(gd, mesh),
-            .emission_width   = mat->base_canvas ? 1 : 0,
-            .emission_height  = mat->base_canvas ? 1 : 0
+            .emission_width   = mat->emit_canvas ? 1 : 0,
+            .emission_height  = mat->emit_canvas ? 1 : 0
         ),
         {
             /*
