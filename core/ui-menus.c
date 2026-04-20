@@ -164,10 +164,13 @@ static int ui_menus_handle_input(struct clap_context *ctx, struct message *m, vo
 
     switch (ui->state) {
     case UI_ST_START_MENU:
-        /* Start menu is modal. Forward clicks but ignore misses; menu_toggle
-         * does nothing; "back" at root is swallowed by ui_menu_input. */
-        if (m->input.mouse_click && ui->menu.widget)
-            ui_widget_click(ui->menu.widget, uivec);
+        /* Start menu is modal. A missed click acts as "back": pops one level
+         * off the menu stack (see ui_menus_navigate_up). At the top of the
+         * start menu it's a no-op, as the state machine keeps clap paused
+         * until "Start Game". */
+        if (m->input.mouse_click && ui->menu.widget &&
+            !ui_widget_click(ui->menu.widget, uivec))
+            ui_menus_navigate_up(ui);
         break;
 
     case UI_ST_LOADING:
