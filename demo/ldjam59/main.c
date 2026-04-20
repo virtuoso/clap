@@ -44,6 +44,8 @@ enum main_state {
 static enum main_state main_state;
 static unsigned long frame;
 
+static void graphics_init(clap_context *ctx, void *data);
+
 static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
 {
     struct scene *s = clap_get_scene(ctx);
@@ -62,6 +64,9 @@ static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
             s->ls = nullptr;
             noise_bg_done(s, &menu_bg);
             ui_state_set_running(ui);
+            scene_load(s, "scene.json");
+            transform_set_angles(&s->camera->xform, (vec3){ 0.0, 180.0, 0.0 }, true);
+            graphics_init(ctx, data);
         }
     }
 
@@ -115,8 +120,8 @@ static cerr early_init(clap_context *ctx, void *data)
 static void graphics_init(clap_context *ctx, void *data)
 {
     auto ropts = clap_get_render_options(ctx);
-    ropts->fog_near = 20.0;
-    ropts->fog_far = 90.0;
+    ropts->fog_near = 300.0;
+    ropts->fog_far = 300.0;
     vec3_dup(ropts->fog_color, (vec3){ 0.043, 0.356, 0.369 });
     ropts->lighting_operator = 1.0;
     ropts->contrast = 0.08;
