@@ -317,6 +317,18 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
                              const char **items, unsigned int nr_items);
 
 /**
+ * ui_text_new() - create a persistent single-string text widget
+ * @ui:     ui context
+ * @uwb:    widget builder overrides, or NULL for defaults (centered, size 32)
+ * @text:   NUL-terminated string to render
+ *
+ * Unlike &ui_osd_new the widget has no timed fade-in/out and doesn't
+ * self-destruct; the caller owns the ref and must ref_put() it to dismiss.
+ */
+struct ui_widget *ui_text_new(struct ui *ui, const struct ui_widget_builder *uwb,
+                              const char *text);
+
+/**
  * ui_roll_new() - create a credits-roll widget
  * @ui:     ui context
  * @uwb:    widget builder overrides, or NULL for defaults (small font,

@@ -43,6 +43,38 @@ static void menu_open(struct ui *ui, const ui_menu_item *root)
     ui->menu.widget = ui_menu_new(ui, root);
 }
 
+#ifdef CONFIG_BROWSER
+/*
+ * A persistent "click anywhere" overlay used as a pre-start gate on web
+ * builds. Browsers suspend the AudioContext until a user gesture, so clap's
+ * audio subsystem won't actually produce sound until then; this state
+ * makes the required gesture an explicit part of the UX instead of the
+ * user clicking a start-menu item and wondering why there's no sound.
+ */
+static const struct ui_widget_builder prestart_uwb = {
+    .affinity    = UI_AF_CENTER,
+    .el_affinity = UI_AF_CENTER,
+    .font_size   = 36,
+    .el_color    = { 0.0f, 0.0f, 0.0f, 0.0f },
+    .text_color  = { 0.95f, 0.95f, 0.95f, 1.0f },
+};
+
+static void prestart_open(struct ui *ui)
+{
+    if (ui->menu.widget)
+        return;
+    ui->menu.widget = ui_text_new(ui, &prestart_uwb, "Click anywhere to begin");
+}
+
+static void prestart_close(struct ui *ui)
+{
+    if (ui->menu.widget) {
+        ref_put(ui->menu.widget);
+        ui->menu.widget = NULL;
+    }
+}
+#endif /* CONFIG_BROWSER */
+
 static void menu_close(struct ui *ui)
 {
     if (ui->menu.widget)
@@ -180,6 +212,25 @@ static int ui_menus_handle_input(struct clap_context *ctx, struct message *m, vo
     uivec uivec = uivec_from_input(ui, m);
 
     switch (ui->state) {
+#ifdef CONFIG_BROWSER
+    case UI_ST_PRESTART:
+        /* First click dismisses the overlay and advances to the start menu.
+         * The click itself is the user gesture that lets the browser
+         * resume the AudioContext. */
+        if (m->input.mouse_click) {
+            prestart_close(ui);
+            ui->state = UI_ST_START_MENU;
+            menu_open(ui, ui->menu.start_root);
+        }
+        return MSG_HANDLED;
+#else
+    case UI_ST_PRESTART:
+        /* Not reachable on native; fall through in case the state was
+         * set externally. */
+        ui->state = UI_ST_START_MENU;
+        __attribute__((fallthrough));
+#endif
+
     case UI_ST_START_MENU:
         /* Start menu is modal. A missed click acts as "back": pops one level
          * off the menu stack (see ui_menus_navigate_up). At the top of the
@@ -263,9 +314,20 @@ cerr ui_menus_init(struct ui *ui,
     ui->menu.depth  = 0;
 
     if (start_enable) {
-        ui->state = UI_ST_START_MENU;
         ui_modality_send(ui);   /* pause */
+#ifdef CONFIG_BROWSER
+        /*
+         * Web builds: stall in UI_ST_PRESTART until a user gesture. The
+         * first click unlocks the browser's AudioContext and transitions
+         * to the start menu without a second modality toggle (clap stays
+         * paused across the transition).
+         */
+        ui->state = UI_ST_PRESTART;
+        prestart_open(ui);
+#else
+        ui->state = UI_ST_START_MENU;
         menu_open(ui, ui->menu.start_root);
+#endif
     } else {
         ui->state = UI_ST_RUNNING;
     }

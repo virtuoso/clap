@@ -832,6 +832,48 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
 }
 
 /****************************************************************************
+ * ui_text
+ ****************************************************************************/
+
+struct ui_widget *ui_text_new(struct ui *ui, const struct ui_widget_builder *uwb,
+                              const char *text)
+{
+    if (!text)
+        return NULL;
+
+    struct ui_widget_builder _uwb = {
+        .affinity    = UI_AF_CENTER,
+        .el_affinity = UI_AF_CENTER,
+        .el_color    = { 0.0, 0.0, 0.0, 0.0 },
+        .text_color  = { 0.8, 0.8, 0.8, 1.0 },
+    };
+    if (uwb)
+        memcpy(&_uwb, uwb, sizeof(_uwb));
+
+    unsigned int fsize = _uwb.font_size ? _uwb.font_size : 32;
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = fsize);
+    if (!_uwb.font)
+        return NULL;
+
+    struct ui_widget *w = ref_new(ui_widget, .ui = ui, .uwb = &_uwb, .nr_items = 1);
+    if (!w) {
+        font_put(_uwb.font);
+        return NULL;
+    }
+
+    w->uies[0] = ref_new(ui_element,
+                         .ui       = ui,
+                         .parent   = w->root,
+                         .txmodel  = ui_quadtx,
+                         .uwb      = &_uwb);
+    CHECK(ui_printf(ui, _uwb.font, w->uies[0], _uwb.text_color, 0, "%s", text));
+
+    ui_widget_finalize(w, &_uwb);
+    font_put(_uwb.font);
+    return w;
+}
+
+/****************************************************************************
  * ui_roll
  ****************************************************************************/
 
