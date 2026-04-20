@@ -167,9 +167,6 @@ static void ui_reset_positioning(entity3d *e, void *data)
     uie->actual_x = uie->actual_y = uie->actual_w = uie->actual_h = -1.0;
 }
 
-static void ui_roll_done(void);
-static bool ui_roll_finished;
-
 static void widgets_cleanup(struct list *list)
 {
     struct ui_widget *widget, *iter;
@@ -188,9 +185,6 @@ void ui_update(struct ui *ui)
     mq_update(&ui->mq);
 
     widgets_cleanup(&ui->widget_cleanup);
-
-    if (ui_roll_finished)
-        ui_roll_done();
 }
 
 static void ui_element_destroy(entity3d *e)
@@ -454,66 +448,6 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
 }
 
 static const char *menu_font = "ofl/Unbounded-Regular.ttf";
-
-/****************************************************************************
- * ui_roll
- ****************************************************************************/
-
-static struct ui_element *ui_roll_element;
-
-static void ui_roll_done(void)
-{
-    if (!ui_roll_element)
-        return;
-
-    ref_put_last(ui_roll_element);
-
-    ui_roll_element = NULL;
-}
-
-static int ui_roll_update(entity3d *e, void *data)
-{
-    struct ui_element *uie = CRES_RET(entity3d_ui_element(e), return 0);
-    struct ui *ui = uie->ui;
-
-    if (uie->y_off == ui->height + uie->height) {
-        dbg("credit roll done at %f\n", uie->y_off);
-        ui_roll_finished = true;
-        return 0;
-    }
-    uie->y_off++;
-    ui_element_update(e, data);
-
-    return 0;
-}
-
-static __unused void ui_roll_init(struct ui *ui)
-{
-    float color[] = { 0.7, 0.7, 0.7, 1.0 };
-    LOCAL(lib_handle, lh);
-    LOCAL(char, buffer);
-    struct font *font;
-    size_t       size;
-
-    lh = lib_read_file(RES_ASSET, "LICENSE", (void **)&buffer, &size);
-    if (!lh)
-        return;
-
-    font = font_get_default(clap_get_font(ui->clap_ctx));
-    if (!font) {
-        ref_put_last(lh);
-        return;
-    }
-
-    ui_roll_element = ui_printf(ui, font, NULL, color, UI_AF_HCENTER | UI_AF_BOTTOM | UI_SZ_NORES,
-                                "%s", buffer);
-    ui_roll_element->entity->update = ui_roll_update;
-    ui_roll_element->y_off = -ui_roll_element->height;
-    ui_element_position(ui_roll_element, ui);
-    buffer = NULL;
-
-    font_put(font);
-}
 
 static bool display_fps;
 static struct ui_element *bottom_uit;
@@ -895,6 +829,66 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
     font_put(_uwb.font);
 
     return osd;
+}
+
+/****************************************************************************
+ * ui_roll
+ ****************************************************************************/
+
+struct ui_widget *ui_roll_new(struct ui *ui, const struct ui_widget_builder *uwb,
+                              const char *text)
+{
+    if (!text)
+        return NULL;
+
+    struct ui_widget_builder _uwb = {
+        .affinity    = UI_AF_HCENTER | UI_AF_BOTTOM,
+        .el_affinity = UI_AF_HCENTER | UI_AF_BOTTOM,
+        .el_color    = { 0.0, 0.0, 0.0, 0.0 },
+        .text_color  = { 0.7, 0.7, 0.7, 1.0 },
+    };
+    if (uwb)
+        memcpy(&_uwb, uwb, sizeof(_uwb));
+
+    unsigned int fsize = _uwb.font_size ? _uwb.font_size : 20;
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = fsize);
+    if (!_uwb.font)
+        return NULL;
+
+    struct ui_widget *roll = ref_new(ui_widget, .ui = ui, .uwb = &_uwb, .nr_items = 1);
+    if (!roll) {
+        font_put(_uwb.font);
+        return NULL;
+    }
+
+    roll->uies[0] = ref_new(ui_element,
+                            .ui       = ui,
+                            .parent   = roll->root,
+                            .txmodel  = ui_quadtx,
+                            .uwb      = &_uwb);
+    CHECK(ui_printf(ui, _uwb.font, roll->uies[0], _uwb.text_color, UI_SZ_NORES,
+                    "%s", text));
+
+    ui_widget_finalize(roll, &_uwb);
+
+    /*
+     * Scroll the widget root from fully below the viewport (y_off = -height,
+     * which puts the root's bottom edge height pixels below the screen
+     * bottom) to fully above it (y_off = screen_height + height). At 120
+     * px/s the Apache-2.0 license runs in ~40-50 seconds.
+     */
+    float start_y = -roll->root->height;
+    float end_y   = (float)ui->height + roll->root->height;
+    const float speed = 120.0f;
+    double duration = (double)(end_y - start_y) / speed;
+
+    roll->root->y_off = start_y;
+    ui_element_position(roll->root, ui);
+    uia_lin_move(roll->root, UIE_MV_Y_OFF, start_y, end_y, false, duration);
+    ui_widget_schedule_deletion(roll->root);
+
+    font_put(_uwb.font);
+    return roll;
 }
 
 /****************************************************************************
@@ -1652,7 +1646,6 @@ void ui_done(struct ui *ui)
         ref_put_last(bottom_uit);
         ref_put_last(bottom_element);
     }
-    ui_roll_done();
 
     mq_release(&ui->mq);
 

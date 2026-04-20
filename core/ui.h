@@ -316,6 +316,23 @@ bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *m);
 struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
                              const char **items, unsigned int nr_items);
 
+/**
+ * ui_roll_new() - create a credits-roll widget
+ * @ui:     ui context
+ * @uwb:    widget builder overrides, or NULL for defaults (small font,
+ *          bottom-anchored, transparent element background)
+ * @text:   NUL-terminated blob to render; preserved line breaks are honored
+ *          by the underlying tex_print()
+ *
+ * Renders @text as a single element inside a widget and scrolls the widget
+ * from below the viewport to above it at a fixed speed. When the scroll
+ * finishes the widget schedules itself for deletion, so the caller may
+ * drop its reference immediately.
+ * Return: ui_widget pointer or NULL on error.
+ */
+struct ui_widget *ui_roll_new(struct ui *ui, const struct ui_widget_builder *uwb,
+                              const char *text);
+
 typedef struct progress_bar_options {
     float           width;
     float           height;
