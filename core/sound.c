@@ -22,6 +22,8 @@ typedef struct sound_context {
     struct list sounds;
     struct list chains;
     clap_context *clap_ctx;
+    float       master_music;
+    float       master_sfx;
 } sound_context;
 
 typedef struct sound {
@@ -32,6 +34,7 @@ typedef struct sound {
     float               *pcm;
     unsigned int        nr_channels;
     float               gain;
+    sound_category      category;
     bool                looping;
     bool                deferred_play;
     sound_effect_chain  *effect_chain;
@@ -64,19 +67,56 @@ struct sound_effect_chain {
     off_t   off;
 } ov_cb_data;
 
+static float sound_master_for(sound_context *ctx, sound_category category)
+{
+    switch (category) {
+    case SOUND_CAT_MUSIC:   return ctx->master_music;
+    case SOUND_CAT_SFX:     return ctx->master_sfx;
+    case SOUND_CAT_NONE:
+    default:                return 1.0f;
+    }
+}
+
+static void sound_apply_gain(sound *sound)
+{
+    if (!sound->ctx->started)   return;
+
+    float g = sound->gain * sound_master_for(sound->ctx, sound->category);
+    ma_sound_set_min_gain(&sound->sound, g);
+    ma_sound_set_max_gain(&sound->sound, g);
+}
+
 void sound_set_gain(sound *sound, float gain)
 {
     sound->gain = gain;
-
-    if (!sound->ctx->started)   return;
-
-    ma_sound_set_min_gain(&sound->sound, gain);
-    ma_sound_set_max_gain(&sound->sound, gain);
+    sound_apply_gain(sound);
 }
 
 float sound_get_gain(sound *sound)
 {
     return sound->gain;
+}
+
+void sound_set_master_volume(sound_context *ctx, sound_category category, float volume)
+{
+    if (volume < 0.0f)  volume = 0.0f;
+    if (volume > 1.0f)  volume = 1.0f;
+
+    switch (category) {
+    case SOUND_CAT_MUSIC:   ctx->master_music = volume; break;
+    case SOUND_CAT_SFX:     ctx->master_sfx   = volume; break;
+    default:                return;
+    }
+
+    sound *s;
+    list_for_each_entry(s, &ctx->sounds, entry)
+        if (s->category == category)
+            sound_apply_gain(s);
+}
+
+float sound_get_master_volume(sound_context *ctx, sound_category category)
+{
+    return sound_master_for(ctx, category);
 }
 
 static cerr do_sound_make(sound *sound, sound_context *ctx)
@@ -152,6 +192,8 @@ static cerr sound_make(struct ref *ref, void *_opts)
 
     sound->ctx = opts->ctx;
     sound->name = strdup(opts->name);
+    sound->category = opts->category;
+    sound->gain = 1.0f;
 
     if (opts->ctx->started)
         CERR_RET(do_sound_make(sound, opts->ctx), { free(sound->name); return __cerr; });
@@ -215,14 +257,17 @@ static void do_sound_init(sound_context *ctx)
     list_for_each_entry(s, &ctx->sounds, entry) {
         CERR_RET(do_sound_make(s, ctx), continue);
         ma_sound_set_looping(&s->sound, s->looping);
-        ma_sound_set_min_gain(&s->sound, s->gain);
-        ma_sound_set_max_gain(&s->sound, s->gain);
     }
 
     result = ma_engine_start(&ctx->engine);
     if (result != MA_SUCCESS)   goto err_engine;
 
     ctx->started = true;
+
+    /* Now that ->started is true, sound_apply_gain() will actually reach
+     * the ma_sound_set_*_gain calls. */
+    list_for_each_entry(s, &ctx->sounds, entry)
+        sound_apply_gain(s);
 
     list_for_each_entry(s, &ctx->sounds, entry)
         if (s->deferred_play) sound_play(s);
@@ -263,6 +308,8 @@ cresp(sound_context) sound_init(clap_context *clap_ctx)
     if (!ctx)   return cresp_error(sound_context, CERR_NOMEM);
 
     ctx->clap_ctx = clap_ctx;
+    ctx->master_music = 1.0f;
+    ctx->master_sfx   = 1.0f;
     list_init(&ctx->sounds);
     list_init(&ctx->chains);
 
@@ -871,7 +918,9 @@ cresp(sfx) sfx_new(sfx_container *sfxc, const char *name, const char *file, soun
             goto found;
         }
 
-    sfx->sound = CRES_RET_T(ref_new_checked(sound, .name = file, .ctx = ctx), sfx);
+    sfx->sound = CRES_RET_T(
+        ref_new_checked(sound, .name = file, .ctx = ctx, .category = SOUND_CAT_SFX),
+        sfx);
 
 found:
     sound_set_gain(sfx->sound, 1.0);

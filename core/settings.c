@@ -24,6 +24,10 @@
     "     \"film_grain\": true,"                    \
     "     \"hdr_output\": true,"                    \
     "     \"ssao\": true"                           \
+    " },"                                           \
+    " \"audio\": {"                                 \
+    "     \"music_volume\": 1.0,"                   \
+    "     \"sfx_volume\": 1.0"                      \
     " }"                                            \
     "}"
 

@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "audio-settings.h"
 #include "clap.h"
 #include "display.h"
 #include "graphics-settings.h"
@@ -11,6 +12,7 @@
 #include "pipeline.h"
 #include "render.h"
 #include "shader_constants.h"
+#include "sound.h"
 #include "ui.h"
 #include "ui-menus.h"
 #include "ui-settings.h"
@@ -544,5 +546,206 @@ void ui_settings_open_graphics(struct ui *ui, const ui_menu_item *item)
     if (ui->menu.depth + 1 < UI_MENU_STACK_MAX) {
         ui->menu.depth++;
         ui->menu.stack[ui->menu.depth] = &gs_root_copy;
+    }
+}
+
+/***************************************************************************
+ * Sound settings screen
+ ***************************************************************************/
+
+#define AS_ITEM_MAX         4
+#define AS_LABEL_MAX        64
+#define AS_VOL_STEPS        10
+
+enum as_kind {
+    AS_KIND_MUSIC,
+    AS_KIND_SFX,
+    AS_KIND_BACK,
+};
+
+static ui_menu_item as_items[AS_ITEM_MAX + 1];
+static char         as_labels[AS_ITEM_MAX][AS_LABEL_MAX];
+static enum as_kind as_kinds[AS_ITEM_MAX];
+static unsigned int as_nr_items;
+static ui_menu_item as_root_copy;
+
+static bool as_input(struct ui *ui, struct ui_widget *uiw, struct message *m);
+
+static const struct ui_widget_builder sound_uwb = {
+    .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
+    .affinity       = UI_AF_TOP | UI_AF_RIGHT | UI_YOFF_FRAC,
+    .el_margin      = 3,
+    .x_off          = 10,
+    .y_off          = 0.1,
+    .w              = 560,
+    .font_size      = 20,
+    .on_create      = settings_on_create,
+    .el_cb          = settings_element_cb,
+    .el_on_focus    = settings_on_focus,
+    .input_event    = as_input,
+    .el_color       = { 0.25f, 0.25f, 0.28f, 1.0f },
+    .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
+};
+
+static float as_vol(enum as_kind k, struct ui *ui)
+{
+    sound_context *sc = clap_get_sound(ui->clap_ctx);
+    if (!sc)    return 0.0f;
+    if (k == AS_KIND_MUSIC) return sound_get_master_volume(sc, SOUND_CAT_MUSIC);
+    if (k == AS_KIND_SFX)   return sound_get_master_volume(sc, SOUND_CAT_SFX);
+    return 0.0f;
+}
+
+static void as_apply(enum as_kind k, struct ui *ui, float volume)
+{
+    if (k == AS_KIND_MUSIC)
+        audio_settings_set_music_volume(ui->clap_ctx, volume);
+    else if (k == AS_KIND_SFX)
+        audio_settings_set_sfx_volume(ui->clap_ctx, volume);
+}
+
+static void music_label(char *buf, size_t n, struct ui *ui)
+{
+    snprintf(buf, n, "Music volume: %d%%  < >",
+             (int)(as_vol(AS_KIND_MUSIC, ui) * 100.0f + 0.5f));
+}
+
+static void sfx_label(char *buf, size_t n, struct ui *ui)
+{
+    snprintf(buf, n, "SFX volume:   %d%%  < >",
+             (int)(as_vol(AS_KIND_SFX, ui) * 100.0f + 0.5f));
+}
+
+static void as_cycle_music(struct ui *ui, const ui_menu_item *item);
+static void as_cycle_sfx(struct ui *ui, const ui_menu_item *item);
+static void as_back(struct ui *ui, const ui_menu_item *item);
+
+static void as_item(unsigned int idx, enum as_kind kind, const char *label,
+                    ui_menu_item_fn fn)
+{
+    strncpy(as_labels[idx], label, AS_LABEL_MAX - 1);
+    as_labels[idx][AS_LABEL_MAX - 1] = '\0';
+    as_kinds[idx] = kind;
+    as_items[idx].name  = as_labels[idx];
+    as_items[idx].uwb   = &sound_uwb;
+    as_items[idx].fn    = fn;
+    as_items[idx].items = NULL;
+}
+
+static void as_populate(struct ui *ui)
+{
+    char buf[AS_LABEL_MAX];
+    unsigned int i = 0;
+
+    music_label(buf, sizeof(buf), ui);
+    as_item(i++, AS_KIND_MUSIC, buf, as_cycle_music);
+    sfx_label(buf, sizeof(buf), ui);
+    as_item(i++, AS_KIND_SFX, buf, as_cycle_sfx);
+    as_item(i++, AS_KIND_BACK, "Back", as_back);
+
+    as_items[i] = (ui_menu_item){};
+    as_nr_items = i;
+}
+
+static void as_recolor(struct ui_widget *uiw)
+{
+    for (unsigned int i = 0; i < as_nr_items && i < uiw->nr_uies; i++) {
+        vec4 c;
+        if (as_kinds[i] == AS_KIND_BACK)
+            memcpy(c, color_back, sizeof(c));
+        else
+            memcpy(c, color_off, sizeof(c));
+        entity3d_color(uiw->uies[i]->entity, COLOR_PT_ALL, c);
+    }
+}
+
+static struct ui_widget *as_make_widget(struct ui *ui)
+{
+    as_populate(ui);
+    as_root_copy = (ui_menu_item){
+        .name  = NULL,
+        .uwb   = &sound_uwb,
+        .items = as_items,
+    };
+    struct ui_widget *uiw = ui_menu_new(ui, &as_root_copy);
+    if (uiw)
+        as_recolor(uiw);
+    return uiw;
+}
+
+static void as_rebuild(struct ui *ui)
+{
+    struct ui_widget *uiw = as_make_widget(ui);
+    if (!uiw)
+        return;
+    replace_widget(ui, uiw);
+}
+
+static unsigned int as_vol_step_index(float cur)
+{
+    int idx = (int)(cur * AS_VOL_STEPS + 0.5f);
+    if (idx < 0) idx = 0;
+    if (idx > AS_VOL_STEPS) idx = AS_VOL_STEPS;
+    return (unsigned int)idx;
+}
+
+static void as_vol_step(struct ui *ui, enum as_kind kind, int dir)
+{
+    unsigned int idx = as_vol_step_index(as_vol(kind, ui));
+    int next = (int)idx + dir;
+    if (next < 0) next = 0;
+    if (next > AS_VOL_STEPS) next = AS_VOL_STEPS;
+    if ((unsigned int)next == idx) return;
+    as_apply(kind, ui, (float)next / (float)AS_VOL_STEPS);
+    as_rebuild(ui);
+}
+
+static void as_cycle_music(struct ui *ui, const ui_menu_item *item)
+{
+    unsigned int idx = as_vol_step_index(as_vol(AS_KIND_MUSIC, ui));
+    unsigned int next = (idx + 1) % (AS_VOL_STEPS + 1);
+    as_apply(AS_KIND_MUSIC, ui, (float)next / (float)AS_VOL_STEPS);
+    as_rebuild(ui);
+}
+
+static void as_cycle_sfx(struct ui *ui, const ui_menu_item *item)
+{
+    unsigned int idx = as_vol_step_index(as_vol(AS_KIND_SFX, ui));
+    unsigned int next = (idx + 1) % (AS_VOL_STEPS + 1);
+    as_apply(AS_KIND_SFX, ui, (float)next / (float)AS_VOL_STEPS);
+    as_rebuild(ui);
+}
+
+static void as_back(struct ui *ui, const ui_menu_item *item)
+{
+    ui_menus_navigate_up(ui);
+}
+
+static bool as_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
+{
+    int focus = uiw->focus;
+    if (focus >= 0 && focus < (int)uiw->nr_uies && focus < (int)as_nr_items) {
+        enum as_kind k = as_kinds[focus];
+        if (k == AS_KIND_MUSIC || k == AS_KIND_SFX) {
+            bool left  = m->input.left  == 1 || m->input.yaw_left  == 1 ||
+                         m->input.delta_lx < -0.99;
+            bool right = m->input.right == 1 || m->input.yaw_right == 1 ||
+                         m->input.delta_lx >  0.99;
+            if (left)   { as_vol_step(ui, k, -1); return true; }
+            if (right)  { as_vol_step(ui, k, +1); return true; }
+        }
+    }
+    return ui_menu_input(ui, uiw, m);
+}
+
+void ui_settings_open_sound(struct ui *ui, const ui_menu_item *item)
+{
+    struct ui_widget *uiw = as_make_widget(ui);
+    if (!uiw)
+        return;
+    replace_widget(ui, uiw);
+    if (ui->menu.depth + 1 < UI_MENU_STACK_MAX) {
+        ui->menu.depth++;
+        ui->menu.stack[ui->menu.depth] = &as_root_copy;
     }
 }

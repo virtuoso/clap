@@ -15,6 +15,18 @@ struct clap_context;
 
 cresp_ret(sound_context);
 
+/**
+ * enum sound_category - volume bucket a sound belongs to
+ * @SOUND_CAT_NONE:     ungrouped, plays at its per-sound gain only
+ * @SOUND_CAT_MUSIC:    scaled by master music volume
+ * @SOUND_CAT_SFX:      scaled by master SFX volume (sfx_new assigns this)
+ */
+typedef enum sound_category {
+    SOUND_CAT_NONE = 0,
+    SOUND_CAT_MUSIC,
+    SOUND_CAT_SFX,
+} sound_category;
+
 typedef struct sfx_container {
     struct list list;
     void        (*on_add)(sound *, void *);
@@ -24,6 +36,7 @@ typedef struct sfx_container {
 DEFINE_REFCLASS_INIT_OPTIONS(sound,
     const char      *name;
     sound_context   *ctx;
+    sound_category  category;
 );
 DECLARE_REFCLASS(sound);
 
@@ -33,6 +46,26 @@ float sound_get_gain(sound *sound);
 void sound_set_gain(sound *sound, float gain);
 void sound_set_looping(sound *sound, bool looping);
 void sound_play(sound *sound);
+
+/**
+ * sound_set_master_volume() - set the master gain for a category
+ * @ctx:        sound context
+ * @category:   %SOUND_CAT_MUSIC or %SOUND_CAT_SFX
+ * @volume:     linear gain in [0.0, 1.0]
+ *
+ * Updates the stored master for @category and re-applies per-sound gain on
+ * every live sound in that category, so the change takes effect immediately.
+ */
+void sound_set_master_volume(sound_context *ctx, sound_category category, float volume);
+
+/**
+ * sound_get_master_volume() - read the master gain for a category
+ * @ctx:        sound context
+ * @category:   %SOUND_CAT_MUSIC or %SOUND_CAT_SFX
+ *
+ * Return: stored linear gain, or 1.0 if @category is %SOUND_CAT_NONE.
+ */
+float sound_get_master_volume(sound_context *ctx, sound_category category);
 
 /**
  * sound_effect_chain_enable() - enable or disable effect chain
