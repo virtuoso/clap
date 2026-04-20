@@ -1714,13 +1714,15 @@ light_done:
             transform_rotate_mat4x4(&e->xform, e->mx);
             mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
-            entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
-                                 ptype, geom_off, geom_radius, geom_length);
-            phys_body_set_contact_params(e->phys_body,
-                                         .bounce = bounce,
-                                         .bounce_vel = bounce_vel);
-            if (c)
-                phys_body_enable(e->phys_body, false);
+            if (!gltf_mesh_fallback(gd, prim_first)) {
+                entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
+                                     ptype, geom_off, geom_radius, geom_length);
+                phys_body_set_contact_params(e->phys_body,
+                                             .bounce = bounce,
+                                             .bounce_vel = bounce_vel);
+                if (c)
+                    phys_body_enable(e->phys_body, false);
+            }
 
             /*
              * For multi-primitive meshes, spawn a child entity per sibling
@@ -1728,12 +1730,28 @@ light_done:
              * so they inherit the parent's world transform. A primitive
              * whose material is a fallback (no texture, no baseColorFactor)
              * loads but isn't rendered — scene logic may still reference it.
+             *
+             * Visible children also get their own static trimesh collider
+             * so the whole mesh contributes collision, not just the parent
+             * primitive. phys_body_new() reads position from xform, so we
+             * temporarily park the child's xform at the parent's world
+             * position for geom placement, then clear it so
+             * parent_transform_apply() stays correct at render time.
              */
             for (int sp = 1; sp < prim_count; sp++) {
                 entity3d *child = ref_new(entity3d, .txmodel = prim_txms[sp]);
                 child->parent = e;
-                if (gltf_mesh_fallback(gd, prim_first + sp))
+                if (gltf_mesh_fallback(gd, prim_first + sp)) {
                     entity3d_clear(child, ENTITY3D_VISIBLE);
+                    continue;
+                }
+
+                vec3 parent_pos;
+                vec3_dup(parent_pos, transform_pos(&e->xform, NULL));
+                transform_set_pos(&child->xform, parent_pos);
+                entity3d_add_physics(child, clap_get_phys(scene->clap_ctx), 1.0,
+                                     GEOM_TRIMESH, PHYS_GEOM, 0.0, 1.0, 1.0);
+                transform_set_pos(&child->xform, (vec3){ 0, 0, 0 });
             }
 
             if (entity_animated(e) && anis) {
@@ -1833,17 +1851,28 @@ light_done:
             if (gltf_node_extras_number(gd, ni, "clap::physics::bounce", &ex_n))     n_bounce = ex_n;
             if (gltf_node_extras_number(gd, ni, "clap::physics::bounce_vel", &ex_n)) n_bv     = ex_n;
 
-            entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), n_mass, n_class,
-                                 n_ptype, n_off, n_radius, n_length);
-            phys_body_set_contact_params(e->phys_body,
-                                         .bounce = n_bounce,
-                                         .bounce_vel = n_bv);
+            if (!gltf_mesh_fallback(gd, prim_first)) {
+                entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), n_mass, n_class,
+                                     n_ptype, n_off, n_radius, n_length);
+                phys_body_set_contact_params(e->phys_body,
+                                             .bounce = n_bounce,
+                                             .bounce_vel = n_bv);
+            }
 
             for (int sp = 1; sp < prim_count; sp++) {
                 entity3d *child = ref_new(entity3d, .txmodel = prim_txms[sp]);
                 child->parent = e;
-                if (gltf_mesh_fallback(gd, prim_first + sp))
+                if (gltf_mesh_fallback(gd, prim_first + sp)) {
                     entity3d_clear(child, ENTITY3D_VISIBLE);
+                    continue;
+                }
+
+                vec3 parent_pos;
+                vec3_dup(parent_pos, transform_pos(&e->xform, NULL));
+                transform_set_pos(&child->xform, parent_pos);
+                entity3d_add_physics(child, clap_get_phys(scene->clap_ctx), 1.0,
+                                     GEOM_TRIMESH, PHYS_GEOM, 0.0, 1.0, 1.0);
+                transform_set_pos(&child->xform, (vec3){ 0, 0, 0 });
             }
 
             spawned++;
@@ -1860,17 +1889,28 @@ light_done:
                 list_del(&instor->entry);
                 free(instor);
 
-                entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
-                                     ptype, geom_off, geom_radius, geom_length);
-                phys_body_set_contact_params(e->phys_body,
-                                             .bounce = bounce,
-                                             .bounce_vel = bounce_vel);
+                if (!gltf_mesh_fallback(gd, prim_first)) {
+                    entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
+                                         ptype, geom_off, geom_radius, geom_length);
+                    phys_body_set_contact_params(e->phys_body,
+                                                 .bounce = bounce,
+                                                 .bounce_vel = bounce_vel);
+                }
 
                 for (int sp = 1; sp < prim_count; sp++) {
                     entity3d *child = ref_new(entity3d, .txmodel = prim_txms[sp]);
                     child->parent = e;
-                    if (gltf_mesh_fallback(gd, prim_first + sp))
+                    if (gltf_mesh_fallback(gd, prim_first + sp)) {
                         entity3d_clear(child, ENTITY3D_VISIBLE);
+                        continue;
+                    }
+
+                    vec3 parent_pos;
+                    vec3_dup(parent_pos, transform_pos(&e->xform, NULL));
+                    transform_set_pos(&child->xform, parent_pos);
+                    entity3d_add_physics(child, clap_get_phys(scene->clap_ctx), 1.0,
+                                         GEOM_TRIMESH, PHYS_GEOM, 0.0, 1.0, 1.0);
+                    transform_set_pos(&child->xform, (vec3){ 0, 0, 0 });
                 }
             }
         }
