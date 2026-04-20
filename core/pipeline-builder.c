@@ -348,9 +348,12 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .clear_color    = { 0.0f, 0.0f, 0.0f, 0.0f }
                 },
                 [RT_MODEL_VIEW_NORMALS] = {
-                    /* Normal */
+                    /* Normal: view-space normal packed in rgb, edge_mask in a;
+                     * blending it with alpha_blend models would smear wrong
+                     * normals across what's behind, so always overwrite. */
                     .format         = TEX_FMT_RGBA8,
                     .load_action    = FBOLOAD_CLEAR,
+                    .no_blend       = true,
                 },
             },
             .depth_config       = {
