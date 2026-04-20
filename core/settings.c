@@ -19,6 +19,11 @@
     "     \"use_mouse_for_camera\": false,"         \
     "     \"mouse_sensitivity\": 1.0,"              \
     "     \"invert_y\": false"                      \
+    " },"                                           \
+    " \"graphics\": {"                              \
+    "     \"film_grain\": true,"                    \
+    "     \"hdr_output\": true,"                    \
+    "     \"ssao\": true"                           \
     " }"                                            \
     "}"
 

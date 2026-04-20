@@ -100,7 +100,7 @@ set(ENGINE_SRC
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
     physics.c ui-animations.c ui-menus.c ui-settings.c input-fuzzer.c character.c settings.c error.c
-    gltf.c input-controls.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c loading-screen.c
+    gltf.c graphics-settings.c input-controls.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c loading-screen.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c presets.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
 

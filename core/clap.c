@@ -9,6 +9,7 @@
 #include "clap.h"
 #include "common.h"
 #include "display.h"
+#include "graphics-settings.h"
 #include "input.h"
 #include "input-controls.h"
 #include "lut.h"
@@ -545,6 +546,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
 
     ui_debug_set_settings(rs);
     input_controls_init(rs);
+    graphics_settings_init(ctx, rs);
 
     if (ctx->cfg.settings_cb)
         ctx->cfg.settings_cb(ctx, rs, ctx->cfg.settings_cb_data);

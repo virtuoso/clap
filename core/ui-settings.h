@@ -18,4 +18,16 @@ struct ui_menu_item;
  */
 void ui_settings_open_controls(struct ui *ui, const struct ui_menu_item *item);
 
+/**
+ * ui_settings_open_graphics() - open the "Graphics" settings screen
+ * @ui:     ui context
+ * @item:   menu item that triggered the open (unused)
+ *
+ * Plug-in as the &ui_menu_item.fn of the Settings -> Graphics leaf. Shows a
+ * list of per-renderer graphics toggles (film grain, HDR output where the
+ * display supports EDR, SSAO where the renderer supports it). Clicks toggle
+ * the matching render_options flag and persist via graphics_settings_*.
+ */
+void ui_settings_open_graphics(struct ui *ui, const struct ui_menu_item *item);
+
 #endif /* __CLAP_UI_SETTINGS_H__ */

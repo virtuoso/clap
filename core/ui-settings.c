@@ -3,9 +3,13 @@
 #include <stdio.h>
 #include <string.h>
 #include "clap.h"
+#include "display.h"
+#include "graphics-settings.h"
 #include "input-controls.h"
 #include "input-joystick.h"
 #include "model.h"
+#include "pipeline.h"
+#include "render.h"
 #include "shader_constants.h"
 #include "ui.h"
 #include "ui-menus.h"
@@ -378,5 +382,167 @@ void ui_settings_open_controls(struct ui *ui, const ui_menu_item *item)
     if (ui->menu.depth + 1 < UI_MENU_STACK_MAX) {
         ui->menu.depth++;
         ui->menu.stack[ui->menu.depth] = &ic_root_copy;
+    }
+}
+
+/***************************************************************************
+ * Graphics settings screen
+ ***************************************************************************/
+
+#define GS_ITEM_MAX         8
+#define GS_LABEL_MAX        64
+
+enum gs_kind {
+    GS_KIND_FILM_GRAIN,
+    GS_KIND_HDR,
+    GS_KIND_SSAO,
+    GS_KIND_BACK,
+};
+
+static ui_menu_item gs_items[GS_ITEM_MAX + 1];
+static char         gs_labels[GS_ITEM_MAX][GS_LABEL_MAX];
+static enum gs_kind gs_kinds[GS_ITEM_MAX];
+static unsigned int gs_nr_items;
+static ui_menu_item gs_root_copy;
+
+/* Same look as Controls, but let the default ui_menu_input handle input:
+ * all graphics rows are plain toggles, no per-item arrow-key semantics. */
+static const struct ui_widget_builder graphics_uwb = {
+    .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
+    .affinity       = UI_AF_TOP | UI_AF_RIGHT | UI_YOFF_FRAC,
+    .el_margin      = 3,
+    .x_off          = 10,
+    .y_off          = 0.1,
+    .w              = 560,
+    .font_size      = 20,
+    .on_create      = settings_on_create,
+    .el_cb          = settings_element_cb,
+    .el_on_focus    = settings_on_focus,
+    .el_color       = { 0.25f, 0.25f, 0.28f, 1.0f },
+    .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
+};
+
+static void gs_toggle_film_grain(struct ui *ui, const ui_menu_item *item);
+static void gs_toggle_hdr(struct ui *ui, const ui_menu_item *item);
+static void gs_toggle_ssao(struct ui *ui, const ui_menu_item *item);
+static void gs_back(struct ui *ui, const ui_menu_item *item);
+
+static void gs_item(unsigned int idx, enum gs_kind kind, const char *label,
+                    ui_menu_item_fn fn)
+{
+    strncpy(gs_labels[idx], label, GS_LABEL_MAX - 1);
+    gs_labels[idx][GS_LABEL_MAX - 1] = '\0';
+    gs_kinds[idx] = kind;
+    gs_items[idx].name  = gs_labels[idx];
+    gs_items[idx].uwb   = &graphics_uwb;
+    gs_items[idx].fn    = fn;
+    gs_items[idx].items = NULL;
+}
+
+static void gs_populate(struct ui *ui)
+{
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+    char buf[GS_LABEL_MAX];
+    unsigned int i = 0;
+
+    snprintf(buf, sizeof(buf), "Film grain: %s", ro->film_grain ? "On" : "Off");
+    gs_item(i++, GS_KIND_FILM_GRAIN, buf, gs_toggle_film_grain);
+
+    if (display_supports_edr()) {
+        snprintf(buf, sizeof(buf), "HDR output: %s",
+                 ro->hdr_output_enabled ? "On" : "Off");
+        gs_item(i++, GS_KIND_HDR, buf, gs_toggle_hdr);
+    }
+
+    renderer_t *r = clap_get_renderer(ui->clap_ctx);
+    if (r && renderer_get_caps(r)->renderer != RENDER_WGPU) {
+        snprintf(buf, sizeof(buf), "SSAO: %s", ro->ssao ? "On" : "Off");
+        gs_item(i++, GS_KIND_SSAO, buf, gs_toggle_ssao);
+    }
+
+    gs_item(i++, GS_KIND_BACK, "Back", gs_back);
+
+    gs_items[i] = (ui_menu_item){};
+    gs_nr_items = i;
+}
+
+static void gs_recolor(struct ui *ui, struct ui_widget *uiw)
+{
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+
+    for (unsigned int i = 0; i < gs_nr_items && i < uiw->nr_uies; i++) {
+        vec4 c;
+        bool on = false;
+        switch (gs_kinds[i]) {
+        case GS_KIND_FILM_GRAIN:    on = ro->film_grain;          break;
+        case GS_KIND_HDR:           on = ro->hdr_output_enabled;  break;
+        case GS_KIND_SSAO:          on = ro->ssao;                break;
+        case GS_KIND_BACK:
+            memcpy(c, color_back, sizeof(c));
+            entity3d_color(uiw->uies[i]->entity, COLOR_PT_ALL, c);
+            continue;
+        }
+        memcpy(c, on ? color_on : color_off, sizeof(c));
+        entity3d_color(uiw->uies[i]->entity, COLOR_PT_ALL, c);
+    }
+}
+
+static struct ui_widget *gs_make_widget(struct ui *ui)
+{
+    gs_populate(ui);
+    gs_root_copy = (ui_menu_item){
+        .name  = NULL,
+        .uwb   = &graphics_uwb,
+        .items = gs_items,
+    };
+    struct ui_widget *uiw = ui_menu_new(ui, &gs_root_copy);
+    if (uiw)
+        gs_recolor(ui, uiw);
+    return uiw;
+}
+
+static void gs_rebuild(struct ui *ui)
+{
+    struct ui_widget *uiw = gs_make_widget(ui);
+    if (!uiw)
+        return;
+    replace_widget(ui, uiw);
+}
+
+static void gs_toggle_film_grain(struct ui *ui, const ui_menu_item *item)
+{
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+    graphics_settings_set_film_grain(ui->clap_ctx, !ro->film_grain);
+    gs_rebuild(ui);
+}
+
+static void gs_toggle_hdr(struct ui *ui, const ui_menu_item *item)
+{
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+    graphics_settings_set_hdr_output(ui->clap_ctx, !ro->hdr_output_enabled);
+    gs_rebuild(ui);
+}
+
+static void gs_toggle_ssao(struct ui *ui, const ui_menu_item *item)
+{
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+    graphics_settings_set_ssao(ui->clap_ctx, !ro->ssao);
+    gs_rebuild(ui);
+}
+
+static void gs_back(struct ui *ui, const ui_menu_item *item)
+{
+    ui_menus_navigate_up(ui);
+}
+
+void ui_settings_open_graphics(struct ui *ui, const ui_menu_item *item)
+{
+    struct ui_widget *uiw = gs_make_widget(ui);
+    if (!uiw)
+        return;
+    replace_widget(ui, uiw);
+    if (ui->menu.depth + 1 < UI_MENU_STACK_MAX) {
+        ui->menu.depth++;
+        ui->menu.stack[ui->menu.depth] = &gs_root_copy;
     }
 }
