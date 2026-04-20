@@ -98,7 +98,15 @@ struct gltf_skin {
 };
 
 struct gltf_mesh {
+    /*
+     * `name` prefers the primitive's material name, so sibling
+     * primitives of the same GLTF mesh are distinguishable. `group_name`
+     * holds the original GLTF mesh name (shared across siblings), which
+     * is what gltf_mesh_by_name() searches — preserving the "mesh named
+     * 'collision'" convention.
+     */
     const char  *name;
+    const char  *group_name;
     int         indices;
     int         material;
     int         POSITION;
@@ -121,10 +129,11 @@ struct gltf_mesh {
     int         group_count;
 };
 
-static void gltf_mesh_init(struct gltf_mesh *mesh, const char *name,
-                           int indices, int material)
+static void gltf_mesh_init(struct gltf_mesh *mesh, const char *group_name,
+                           const char *name, int indices, int material)
 {
     mesh->name = strdup(name);
+    mesh->group_name = strdup(group_name);
     mesh->indices = indices;
     mesh->material = material;
     mesh->POSITION = -1;
@@ -176,6 +185,7 @@ struct gltf_animation {
 };
 
 struct gltf_material {
+    const char *name;
     int    base_tex;
     int    normal_tex;
     int    emission_tex;
@@ -236,11 +246,14 @@ void gltf_free(struct gltf_data *gd)
     for (i = 0; i < gd->buffers.da.nr_el; i++)
         free(*DA(gd->buffers, i));
 
-    for (i = 0; i < gd->meshes.da.nr_el; i++)
+    for (i = 0; i < gd->meshes.da.nr_el; i++) {
         free((void *)DA(gd->meshes, i)->name);
+        free((void *)DA(gd->meshes, i)->group_name);
+    }
 
     struct gltf_material *mat;
     darray_for_each(mat, gd->mats) {
+        free((void *)mat->name);
         if (mat->base_canvas)   canvas_free(mat->base_canvas);
         if (mat->emit_canvas)   canvas_free(mat->emit_canvas);
     }
@@ -284,8 +297,14 @@ int gltf_mesh_by_name(struct gltf_data *gd, const char *name)
 {
     int i;
 
+    /*
+     * Searches by the GLTF mesh (group) name, not the primitive's
+     * material-derived name. That keeps conventions like
+     * "mesh named 'collision'" working after primitives were renamed
+     * after their materials.
+     */
     for (i = 0; i < darray_count(gd->meshes); i++)
-        if (!strcasecmp(name, DA(gd->meshes, i)->name))
+        if (!strcasecmp(name, DA(gd->meshes, i)->group_name))
             return i;
 
     return -1;
@@ -1145,6 +1164,10 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         mat->normal_tex = -1;
         mat->emission_tex = -1;
 
+        JsonNode *jmatname = json_find_member(n, "name");
+        if (jmatname && jmatname->tag == JSON_STRING)
+            mat->name = strdup(jmatname->string_);
+
         jpbr = json_find_member(n, "pbrMetallicRoughness");
         jwut = jpbr && jpbr->tag == JSON_OBJECT ?
                json_find_member(jpbr, "baseColorTexture") : NULL;
@@ -1216,12 +1239,14 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             }
         }
 
-        dbg("material %zu: tex: %d nmap: %d emission: %d met: %f rough: %f\n",
-            darray_count(gd->mats) - 1, mat->base_tex,
+        dbg("material %zu '%s': tex: %d nmap: %d emission: %d met: %f rough: %f%s\n",
+            darray_count(gd->mats) - 1, mat->name ? mat->name : "",
+            mat->base_tex,
             mat->normal_tex,
             mat->emission_tex,
             mat->metallic,
-            mat->roughness
+            mat->roughness,
+            mat->fallback ? " [fallback]" : ""
         );
     }
 
@@ -1256,8 +1281,22 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             if (!jattr || jattr->tag != JSON_OBJECT || !jindices || !jmat)
                 continue;
 
+            /*
+             * Prefer the material's name for the primitive so sibling
+             * primitives from the same GLTF mesh are distinguishable.
+             * Fall back to the GLTF mesh name when the material is
+             * unnamed.
+             */
+            const char *prim_name = jname->string_;
+            int mat_idx = jmat->number_;
+            if (mat_idx >= 0 && mat_idx < darray_count(gd->mats)) {
+                const char *mn = DA(gd->mats, mat_idx)->name;
+                if (mn && *mn)
+                    prim_name = mn;
+            }
+
             CHECK(mesh = darray_add(gd->meshes));
-            gltf_mesh_init(mesh, jname->string_,
+            gltf_mesh_init(mesh, jname->string_, prim_name,
                            jindices->number_, jmat->number_);
             mesh->group = group_idx;
             for (p = jattr->children.head; p; p = p->next) {
@@ -1411,6 +1450,9 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
         return CERR_INVALID_ARGUMENTS;
+
+    dbg("instantiating primitive %d: '%s' (group '%s')\n",
+        mesh, gltf_mesh_name(gd, mesh), DA(gd->meshes, mesh)->group_name);
 
     LOCAL_SET(mesh_t, me) = ref_new(mesh, .name = gltf_mesh_name(gd, mesh), .fix_origin = gd->fix_origin);
     CERR_RET_CERR(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)));
