@@ -81,6 +81,8 @@ void main()
     lighting_result r = compute_total_lighting(unit_normal, view_dir, texture_sample.rgb, shadow_factor, mat, noise3d);
 
     FragColor = vec4(r.diffuse, 1.0) * texture_sample + vec4(r.specular, 1.0);
+    /* Carry the source alpha into the blend factor for semi-transparent fragments */
+    FragColor.a = texture_sample.a;
 
     vec3 emission;
     if (use_noise_emission) {
@@ -99,8 +101,11 @@ void main()
     }
     emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
 
-    /* EmissiveColor.a encodes outline properties */
-    EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), 0.0);
+    /*
+     * Emission RT alpha drives SRC_ALPHA blending so the glow trail behind a
+     * transparent model comes through; fully-opaque fragments still overwrite.
+     */
+    EmissiveColor = vec4(use_hdr ? emission : min(emission, vec3(1.0)), texture_sample.a);
 
     /* surface_normal is in world space */
     vec3 view_normal = mat3(view) * surface_normal;
@@ -122,4 +127,13 @@ void main()
     }
 
     Normal.a = float(final_edge_mode & 0xff) / 255.0;
+
+    /*
+     * Fully transparent fragments must not touch any RT or advance the depth
+     * buffer: the normals RT now opts out of blending (fbo_attconfig.no_blend),
+     * so without discard we'd stamp an unrelated view-normal over what's
+     * behind and poison SSAO/sobel. Discard is at the end of main() so all
+     * textureSample() calls above stay in uniform control flow (Tint/WGSL).
+     */
+    if (texture_sample.a < 1e-3)    discard;
 }
