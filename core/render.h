@@ -633,6 +633,14 @@ typedef struct fbo_attconfig {
     vec4                clear_color;
     double              clear_depth;
     uint32_t            clear_stencil;
+    /*
+     * When set, this attachment opts out of the renderer's global alpha blend
+     * state: writes always overwrite the target regardless of
+     * renderer_blend(true). Intended for G-buffer-like RTs (view normals,
+     * edge masks) where blending is nonsensical. Default (false) keeps the
+     * legacy "blend along with the other attachments" behaviour.
+     */
+    bool                no_blend;
 } fbo_attconfig;
 
 TYPE(fbo,
@@ -904,6 +912,10 @@ TYPE(renderer,
         renderer_profile    profile;
         bool                depth_test;
         bool                mac_amd_quirk;
+        /* Bit i set: color attachment i opts out of blending (fbo_attconfig.no_blend) */
+        uint32_t            no_blend_mask;
+        /* Number of color attachments the currently bound FBO exposes */
+        unsigned int        nr_color_targets;
     } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
 #ifdef CONFIG_RENDERER_WGPU

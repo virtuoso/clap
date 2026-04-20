@@ -440,6 +440,7 @@ static WGPUCompareFunction wgpu_compare_function(depth_func fn)
 // that don't support alpha blending (see wgpu_format_supports_alpha_blend).
 static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
                                                const WGPUTextureFormat *color_formats,
+                                               const bool *color_no_blend,
                                                unsigned int nr_color_targets,
                                                bool blend, bool has_depth,
                                                WGPUTextureFormat depth_format,
@@ -467,7 +468,8 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
 
     WGPUColorTargetState color_targets[FBO_COLOR_ATTACHMENTS_MAX];
     for (unsigned int i = 0; i < nr_color_targets; i++) {
-        bool use_blend = blend && wgpu_format_supports_alpha_blend(color_formats[i]);
+        bool att_blend = color_no_blend ? !color_no_blend[i] : true;
+        bool use_blend = blend && att_blend && wgpu_format_supports_alpha_blend(color_formats[i]);
         color_targets[i] = (WGPUColorTargetState){
             .format     = color_formats[i],
             .blend      = use_blend ? &blend_state : NULL,
@@ -533,12 +535,15 @@ static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_o
     renderer_t *r = opts->renderer;
 
     WGPUTextureFormat color_formats[FBO_COLOR_ATTACHMENTS_MAX];
+    bool color_no_blend[FBO_COLOR_ATTACHMENTS_MAX] = { 0 };
     unsigned int nr_color_targets = 0;
 
     if (r->wgpu.fbo) {
         fa_for_each(fa, r->wgpu.fbo->layout, texture) {
             int idx = fbo_attachment_color(fa);
-            color_formats[nr_color_targets++] = wgpu_texture_format(r->wgpu.fbo->color_config[idx].format);
+            color_formats[nr_color_targets]  = wgpu_texture_format(r->wgpu.fbo->color_config[idx].format);
+            color_no_blend[nr_color_targets] = r->wgpu.fbo->color_config[idx].no_blend;
+            nr_color_targets++;
         }
     }
     if (!nr_color_targets) {
@@ -560,7 +565,7 @@ static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_o
     dc->wgpu.has_depth = has_depth;
 
     dc->wgpu.pipeline[0] = wgpu_create_pipeline(r, opts->shader,
-                                           color_formats, nr_color_targets,
+                                           color_formats, color_no_blend, nr_color_targets,
                                            false,
                                            has_depth, depth_fmt, depth_cmp);
     if (!dc->wgpu.pipeline[0])
@@ -571,7 +576,7 @@ static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_o
         );
 
     dc->wgpu.pipeline[1] = wgpu_create_pipeline(r, opts->shader,
-                                           color_formats, nr_color_targets,
+                                           color_formats, color_no_blend, nr_color_targets,
                                            true,
                                            has_depth, depth_fmt, depth_cmp);
     if (!dc->wgpu.pipeline[1])

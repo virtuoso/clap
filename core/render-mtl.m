@@ -480,8 +480,9 @@ void mtl_reflection_print(mtl_render_pipeline_reflection_t reflection)
 }
 
 static cres(mtl_render_pipeline_state_t)
-mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, texture_format depth,
-                 size_t nr_colors, bool use_depth, bool use_blending, mtl_render_pipeline_reflection_t *reflection)
+mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, const bool *no_blend,
+                 texture_format depth, size_t nr_colors, bool use_depth, bool use_blending,
+                 mtl_render_pipeline_reflection_t *reflection)
 {
     if (!r || !shader)  return cres_error(mtl_render_pipeline_state_t, CERR_INVALID_ARGUMENTS);
 
@@ -492,10 +493,11 @@ mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, textur
     desc.depthAttachmentPixelFormat = use_depth ? mtl_texture_format(depth) : MTLPixelFormatInvalid;
 
     for (size_t i = 0; i < nr_colors; i++) {
+        bool att_blend = use_blending && (!no_blend || !no_blend[i]);
         desc.colorAttachments[i].pixelFormat     = mtl_texture_format(colors[i]);
         desc.colorAttachments[i].writeMask       = MTLColorWriteMaskAll;
-        desc.colorAttachments[i].blendingEnabled = use_blending;
-        if (use_blending) {
+        desc.colorAttachments[i].blendingEnabled = att_blend;
+        if (att_blend) {
             desc.colorAttachments[i].alphaBlendOperation    = MTLBlendOperationAdd;
             desc.colorAttachments[i].rgbBlendOperation      = MTLBlendOperationAdd;
             desc.colorAttachments[i].sourceAlphaBlendFactor      = MTLBlendFactorOne;
@@ -575,18 +577,22 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
         auto fbo = opts->fbo;
         if (fbo) {
             texture_format color_formats[FBO_COLOR_ATTACHMENTS_MAX], depth_format = fbo->depth_config.format;
+            bool no_blend[FBO_COLOR_ATTACHMENTS_MAX] = { 0 };
             fbo_attachment fa;
             size_t i = 0;
 
             fa_for_each(fa, fbo->layout, texture) {
-                color_formats[i] = fbo->color_config[fa_nr_color_texture(fa) - 1].format;
+                int idx = fa_nr_color_texture(fa) - 1;
+                color_formats[i] = fbo->color_config[idx].format;
+                no_blend[i]      = fbo->color_config[idx].no_blend;
                 i++;
             }
 
             bool use_depth = fbo->layout.depth_texture;
             dc->mtl.pipeline[pl] = CRES_RET_CERR(
                 mtl_pipeline_new(
-                    dc->renderer, opts->shader, color_formats, depth_format, i, use_depth, !!pl, NULL//&reflection
+                    dc->renderer, opts->shader, color_formats, no_blend,
+                    depth_format, i, use_depth, !!pl, NULL//&reflection
                 )
             );
 
@@ -595,7 +601,8 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
             texture_format color_format = mtl_texture_format_from_pixel_format(dc->renderer->mtl.layer.pixelFormat);
             dc->mtl.pipeline[pl] = CRES_RET_CERR(
                 mtl_pipeline_new(
-                    dc->renderer, opts->shader, &color_format, TEX_FMT_DEPTH32F, 1, false, !!pl, NULL//&reflection
+                    dc->renderer, opts->shader, &color_format, NULL,
+                    TEX_FMT_DEPTH32F, 1, false, !!pl, NULL//&reflection
                 )
             );
         }

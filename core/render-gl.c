@@ -1180,6 +1180,21 @@ static void gl_fbo_prepare(fbo_t *fbo)
 
     GL(glDrawBuffers(target, buffers));
 
+    renderer_t *r = fbo->renderer;
+    r->gl.nr_color_targets = target;
+    r->gl.no_blend_mask    = 0;
+    for (int i = 0; i < target; i++)
+        if (fbo->color_config[i].no_blend)
+            r->gl.no_blend_mask |= 1u << i;
+#if !defined(CONFIG_GLES) || defined(GL_ES_VERSION_3_2)
+    /* Re-apply per-attachment blend enables for the freshly bound FBO */
+    for (int i = 0; i < target; i++) {
+        bool att_blend = r->blend && !(r->gl.no_blend_mask & (1u << i));
+        if (att_blend)  GL(glEnablei(GL_BLEND, i));
+        else            GL(glDisablei(GL_BLEND, i));
+    }
+#endif
+
     bool depth_test = false;
     for (int i = 0; i < target; i++)
         if (fbo->color_config[i].load_action == FBOLOAD_CLEAR)
@@ -1907,26 +1922,34 @@ static GLenum gl_blend(blend blend)
 
 static void gl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
 {
-    GLenum _sfactor = gl_blend(sfactor);
-    GLenum _dfactor = gl_blend(dfactor);
-
-    if (r->blend == _blend)
-        return;
+    GLenum _sfactor = _blend ? gl_blend(sfactor) : r->gl.blend_sfactor;
+    GLenum _dfactor = _blend ? gl_blend(dfactor) : r->gl.blend_dfactor;
 
     r->blend = _blend;
 
-    if (_blend) {
-        GL(glEnable(GL_BLEND));
-    } else {
-        GL(glDisable(GL_BLEND));
-        return;
+#if !defined(CONFIG_GLES) || defined(GL_ES_VERSION_3_2)
+    /*
+     * Per-attachment enable so fbo_attconfig.no_blend attachments (e.g. the
+     * view-normals G-buffer) never participate in the global alpha blend.
+     * glEnablei/glDisablei is GL 4.0+/ES 3.2+ core; without it we fall back
+     * to global glEnable below, and no_blend becomes advisory.
+     */
+    unsigned int nr = r->gl.nr_color_targets ? r->gl.nr_color_targets : 1;
+    for (unsigned int i = 0; i < nr; i++) {
+        bool att_blend = _blend && !(r->gl.no_blend_mask & (1u << i));
+        if (att_blend)  GL(glEnablei(GL_BLEND, i));
+        else            GL(glDisablei(GL_BLEND, i));
     }
+#else
+    if (_blend) GL(glEnable(GL_BLEND));
+    else        GL(glDisable(GL_BLEND));
+#endif
 
-    if (r->gl.blend_sfactor != _sfactor || r->gl.blend_dfactor != _dfactor) {
+    if (_blend && (r->gl.blend_sfactor != _sfactor || r->gl.blend_dfactor != _dfactor)) {
         r->gl.blend_sfactor = _sfactor;
         r->gl.blend_dfactor = _dfactor;
+        GL(glBlendFunc(_sfactor, _dfactor));
     }
-    GL(glBlendFunc(r->gl.blend_sfactor, r->gl.blend_dfactor));
 }
 
 static GLenum gl_draw_type(draw_type draw_type)
