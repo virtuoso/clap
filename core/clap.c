@@ -47,10 +47,22 @@ const char *__asan_default_options() {
         ":strict_string_checks=true"
 #endif /* !(__APPLE__ && CONFIG_RENDERER_OPENGL) */
         ":abort_on_error=true"
-#ifndef CONFIG_BROWSER
-        ":suppressions=clap.supp"
-#endif /* CONFIG_BROWSER */
     ;
+}
+
+const char *__asan_default_suppressions()
+{
+    return
+#if defined(__APPLE__)
+        /*
+         * AppKit/CoreUI may parse system vector/PDF assets during Cocoa window layout.
+         * ASAN's strndup interceptor reports CoreGraphics' bounded lexer overread.
+         */
+        "interceptor_via_fun:pdf_lexer_scan\n"
+#elif !defined(CONFIG_BROWSER)
+        "interceptor_via_lib:amdgpu_dri.so"
+#endif /* !__APPLE__ && !CONFIG_BROWSER */
+        "";
 }
 #endif /* HAVE_ASAN */
 
