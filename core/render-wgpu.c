@@ -1733,7 +1733,6 @@ static const char *wgpu_feature_name_str(WGPUFeatureName f)
         case WGPUFeatureName_TextureFormatsTier2:           return "TextureFormatsTier2";
         case WGPUFeatureName_PrimitiveIndex:                return "PrimitiveIndex";
         case WGPUFeatureName_Unorm16TextureFormats:         return "Unorm16TextureFormats";
-        case WGPUFeatureName_Snorm16TextureFormats:         return "Snorm16TextureFormats";
         case WGPUFeatureName_MultiDrawIndirect:             return "MultiDrawIndirect";
         case WGPUFeatureName_Force32:                       return "Force32";
         default:                                            return "<unknown>";
