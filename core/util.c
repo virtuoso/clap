@@ -377,7 +377,7 @@ cres(int) bitmap_find_first_unset(struct bitmap *b)
 
 cres(int) bitmap_set_lowest(struct bitmap *b)
 {
-    auto pos = CRES_RET(bitmap_find_first_unset(b), return cres_error_cerr(int, __resp));
+    auto pos = CRES_RET_SCALAR(bitmap_find_first_unset(b), int);
     bitmap_set(b, pos);
     return cres_val(int, pos);
 }
