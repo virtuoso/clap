@@ -332,7 +332,7 @@ static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
     if (!opts->renderer)
         return CERR_INVALID_ARGUMENTS;
 
-    if (opts->type == BUF_ELEMENT_ARRAY && !opts->renderer->mtl.va)
+    if (opts->type == BUF_ELEMENT_ARRAY && !opts->renderer->va)
         return CERR_INVALID_OPERATION;
 
     buf->mtl.size = opts->size;
@@ -345,7 +345,7 @@ static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
         if (!buf->mtl.buf)  return CERR_NOMEM;
 
         if (opts->type == BUF_ELEMENT_ARRAY) {
-            buf->renderer->mtl.va->index = buf;
+            buf->renderer->va->index = buf;
             buf->loc = -1;
         } else {
             buf->loc = opts->loc;
@@ -379,8 +379,8 @@ static void mtl_buffer_bind(buffer_t *buf, uniform_t loc)
         return;
 
     if (loc < 0) {
-        if (buf->renderer->mtl.va)
-            buf->renderer->mtl.va->index = buf;
+        if (buf->renderer->va)
+            buf->renderer->va->index = buf;
         return;
     }
 
@@ -396,8 +396,8 @@ static void mtl_buffer_unbind(buffer_t *buf, uniform_t loc)
         return;
 
     if (loc < 0) {
-        if (buf->renderer->mtl.va)
-            buf->renderer->mtl.va->index = NULL;
+        if (buf->renderer->va)
+            buf->renderer->va->index = NULL;
         return;
     }
 }
@@ -433,12 +433,12 @@ static void mtl_vertex_array_done(vertex_array_t *va)
 
 static void mtl_vertex_array_bind(vertex_array_t *va)
 {
-    va->renderer->mtl.va = va;
+    va->renderer->va = va;
 }
 
 static void mtl_vertex_array_unbind(vertex_array_t *va)
 {
-    va->renderer->mtl.va = NULL;
+    va->renderer->va = NULL;
 }
 
 /****************************************************************************
@@ -1924,9 +1924,11 @@ static unsigned int mtl_draw_type(draw_type draw_type)
 static unsigned int mtl_idx_type(data_type idx_type)
 {
     switch (idx_type) {
+        case DT_SHORT:
         case DT_USHORT:
             return MTLIndexTypeUInt16;
-        case DT_INT: // XXX
+        case DT_INT:
+        case DT_UINT:
             return MTLIndexTypeUInt32;
         default:
             break;
@@ -1940,19 +1942,19 @@ static unsigned int mtl_idx_type(data_type idx_type)
 static cerr mtl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
                               data_type idx_type, unsigned int nr_instances)
 {
-    if (!r->mtl.va || !r->mtl.va->index)
+    if (!r->va || !r->va->index)
         return CERR_INVALID_OPERATION_REASON(
             .fmt = "%s not bound",
-            .arg0   = !r->mtl.va ? "vertex attribute" : "index buffer"
+            .arg0   = !r->va ? "vertex attribute" : "index buffer"
         );
 
-    auto index = r->mtl.va->index;
+    auto index = r->va->index;
     if (!buffer_loaded(index))
         return CERR_INVALID_OPERATION_REASON(.fmt = "index buffer not loaded");
 
-    size_t _idx_count = index->mtl.size / data_comp_size(idx_type);
+    size_t _idx_count = index->mtl.size / data_comp_size(index->comp_type);
     unsigned int _draw_type = mtl_draw_type(draw_type);
-    unsigned int _idx_type = mtl_idx_type(idx_type);
+    unsigned int _idx_type = mtl_idx_type(index->comp_type);
 
     [cmd_encoder(r) setCullMode:to_mtl_cull_mode(r->mtl.cull_mode)];
     [cmd_encoder(r) setFrontFacingWinding:MTLWindingCounterClockwise];

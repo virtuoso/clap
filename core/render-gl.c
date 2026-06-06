@@ -309,6 +309,12 @@ static void gl_buffer_bind(buffer_t *buf, uniform_t loc)
     if (!buf->loaded)
         return;
 
+    auto va = buf->renderer->va;
+    if (!va) {
+        err("vertex array not bound\n");
+        return;
+    }
+
 #ifndef CONFIG_FINAL
     buf->loc = loc;
 #endif /* CONFIG_FINAL */
@@ -322,6 +328,7 @@ static void gl_buffer_bind(buffer_t *buf, uniform_t loc)
      */
     if (buf->gl.type == GL_ELEMENT_ARRAY_BUFFER) {
         GL(glBindBuffer(buf->gl.type, buf->gl.id));
+        va->index = buf;
         return;
     }
 
@@ -333,8 +340,15 @@ static void gl_buffer_unbind(buffer_t *buf, uniform_t loc)
     if (!buf->loaded)
         return;
 
+    auto va = buf->renderer->va;
+    if (!va) {
+        err("vertex array not bound\n");
+        return;
+    }
+
     if (buf->gl.type == GL_ELEMENT_ARRAY_BUFFER) {
         GL(glBindBuffer(buf->gl.type, 0));
+        va->index = nullptr;
         return;
     }
 
@@ -402,12 +416,14 @@ static void gl_vertex_array_bind(vertex_array_t *va)
 {
     if (gl_does_vao())
         GL(glBindVertexArray(va->gl.vao));
+    va->renderer->va = va;
 }
 
 static void gl_vertex_array_unbind(vertex_array_t *va)
 {
     if (gl_does_vao())
         GL(glBindVertexArray(0));
+    va->renderer->va = nullptr;
 }
 
 /****************************************************************************
@@ -1984,7 +2000,7 @@ static cerr gl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr
 {
     err_on(idx_type >= array_size(gl_comp_type), "invalid draw type %u\n", idx_type);
 
-    GLenum _idx_type = gl_comp_type[idx_type];
+    GLenum _idx_type = gl_comp_type[r->va->index->comp_type];
     GLenum _draw_type = gl_draw_type(draw_type);
     if (nr_instances <= 1)
         GL(glDrawElements(_draw_type, nr_faces, _idx_type, 0));

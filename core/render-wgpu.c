@@ -281,6 +281,7 @@ static cerr wgpu_buffer_init(buffer_t *buf, const buffer_init_options *opts)
     buf->wgpu.type = opts->type;
     buf->off = opts->off;
     buf->comp_count = max(opts->comp_count, data_comp_count(comp_type));
+    buf->comp_type = opts->comp_type;
     buf->loc = opts->loc;
     buf->main = opts->main;
 #ifndef CONFIG_FINAL
@@ -322,16 +323,16 @@ static void wgpu_buffer_bind(buffer_t *buf, uniform_t loc)
     buf->loc = loc;
 
     renderer_t *r = buf->renderer;
-    if (!r || !r->wgpu.va)
+    if (!r || !r->va)
         return;
 
     if (loc < 0) {
         /* index buffer */
-        r->wgpu.va->index = buf;
+        r->va->index = buf;
     } else if (loc == 0) {
         /* first vertex attribute — record the interleaved vertex buffer */
         buffer_t *vbuf = buf->main ? buf->main : buf;
-        r->wgpu.va->wgpu.vbuf = vbuf;
+        r->va->wgpu.vbuf = vbuf;
     }
 }
 
@@ -366,13 +367,13 @@ static void wgpu_vertex_array_done(vertex_array_t *va)
 static void wgpu_vertex_array_bind(vertex_array_t *va)
 {
     if (va && va->renderer)
-        va->renderer->wgpu.va = va;
+        va->renderer->va = va;
 }
 
 static void wgpu_vertex_array_unbind(vertex_array_t *va)
 {
     if (va && va->renderer)
-        va->renderer->wgpu.va = NULL;
+        va->renderer->va = NULL;
 }
 
 /****************************************************************************
@@ -2162,15 +2163,15 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
 {
     CERR_RET_CERR(wgpu_previous_errors(r));
 
-    if (!r->wgpu.pass_encoder || !r->wgpu.dc || !r->wgpu.va || !r->wgpu.va->index)
+    if (!r->wgpu.pass_encoder || !r->wgpu.dc || !r->va || !r->va->index)
         return CERR_INVALID_OPERATION_REASON(
             .fmt    = "pass encoder(%p)/draw_control(%p)/index buffer(%p) not bound",
             .arg0   = r->wgpu.pass_encoder,
             .arg1   = r->wgpu.dc,
-            .arg2   = r->wgpu.va ? r->wgpu.va->index : nullptr
+            .arg2   = r->va ? r->va->index : nullptr
         );
 
-    buffer_t *index = r->wgpu.va->index;
+    buffer_t *index = r->va->index;
     if (!buffer_loaded(index))
         return CERR_INVALID_OPERATION_REASON(.fmt = "index buffer not loaded");
 
@@ -2242,7 +2243,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
     wgpuRenderPassEncoderSetBindGroup(enc, 0, bg, 0, NULL);
 
     // Set vertex buffer (tracked from buffer_bind at loc 0)
-    buffer_t *vbuf = r->wgpu.va->wgpu.vbuf;
+    buffer_t *vbuf = r->va->wgpu.vbuf;
     if (!vbuf || !buffer_loaded(vbuf)) {
         wgpuBindGroupRelease(bg);
         return CERR_INVALID_OPERATION_REASON(
@@ -2254,9 +2255,11 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
     wgpuRenderPassEncoderSetVertexBuffer(enc, 0, vbuf->wgpu.buf, 0, vbuf->wgpu.size);
 
     /* Set index buffer */
-    size_t idx_count = index->wgpu.size / data_comp_size(idx_type);
+    size_t comp_size = data_comp_size(index->comp_type);
+    size_t idx_count = index->wgpu.size / comp_size;
     wgpuRenderPassEncoderSetIndexBuffer(enc, index->wgpu.buf,
-                                         wgpu_index_format(idx_type), 0, index->wgpu.size);
+                                        wgpu_index_format(index->comp_type), 0, index->wgpu.size);
+
 
     wgpuRenderPassEncoderDrawIndexed(enc, idx_count, max(nr_instances, 1u), 0, 0, 0);
 

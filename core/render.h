@@ -894,6 +894,7 @@ TYPE(renderer,
     int                 y;
     int                 width;
     int                 height;
+    vertex_array_t      *va;
     bool                blend;
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
@@ -928,7 +929,6 @@ TYPE(renderer,
         wgpu_texture_view_t                 texture_view;
         wgpu_render_pass_encoder_t          pass_encoder;
         fbo_t                               *fbo;
-        vertex_array_t                      *va;
         draw_control_t                      *dc;
         struct list                         dc_cache;
         struct list                         ubos;
@@ -953,7 +953,6 @@ TYPE(renderer,
         dispatch_semaphore_t                sem;
         mtl_ca_layer_t                      layer;
         mtl_ca_drawable_t                   drawable;
-        vertex_array_t                      *va;
         draw_control_t                      *dc;
         fbo_t                               *screen_fbo;
         fbo_t                               *fbo;
