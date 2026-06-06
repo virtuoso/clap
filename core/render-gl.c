@@ -238,9 +238,9 @@ static cerr gl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
     if (IS_CERR(err))
         return err;
 
-    data_type comp_type = opts->comp_type;
-    if (comp_type == DT_NONE)
-        comp_type = DT_FLOAT;
+    buf->comp_type = opts->comp_type;
+    if (buf->comp_type == DT_NONE)
+        buf->comp_type = DT_FLOAT;
 
     /*
      * If comp_count is not specified, it's derived from the component type;
@@ -251,12 +251,11 @@ static cerr gl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
      * specify multiples of compound elements, but that's for later.
      */
     unsigned int comp_count = opts->comp_count;
-    if (comp_count < data_comp_count(comp_type))
-        comp_count = data_comp_count(comp_type);
+    if (comp_count < data_comp_count(buf->comp_type))
+        comp_count = data_comp_count(buf->comp_type);
 
     buf->gl.type = gl_buffer_type(opts->type);
     buf->gl.usage = gl_buffer_usage(opts->usage);
-    buf->gl.comp_type = gl_comp_type[comp_type];
     buf->comp_count = comp_count;
     buf->off = opts->off;
     buf->gl.stride = opts->stride;
@@ -297,21 +296,12 @@ static void gl_buffer_deinit(buffer_t *buf)
 
 static inline noubsan void _buffer_bind(buffer_t *buf, uniform_t loc)
 {
-    switch (buf->gl.comp_type) {
-        case GL_BYTE:
-        case GL_UNSIGNED_BYTE:
-        case GL_SHORT:
-        case GL_UNSIGNED_SHORT:
-        case GL_INT:
-        case GL_UNSIGNED_INT:
-            GL(glVertexAttribIPointer(loc, buf->comp_count, buf->gl.comp_type,
-                                      buf->gl.stride, (void *)0 + buf->off));
-            break;
-        default:
-            GL(glVertexAttribPointer(loc, buf->comp_count, buf->gl.comp_type, GL_FALSE,
-                                     buf->gl.stride, (void *)0 + buf->off));
-            break;
-    }
+    if (data_type_is_integral(buf->comp_type))
+        GL(glVertexAttribIPointer(loc, buf->comp_count, gl_comp_type[buf->comp_type],
+                                  buf->gl.stride, (void *)0 + buf->off));
+    else
+        GL(glVertexAttribPointer(loc, buf->comp_count, gl_comp_type[buf->comp_type],
+                                 GL_FALSE, buf->gl.stride, (void *)0 + buf->off));
 }
 
 static void gl_buffer_bind(buffer_t *buf, uniform_t loc)

@@ -211,12 +211,12 @@ TYPE(buffer,
     buffer_t            *main;
     size_t              off;
     unsigned int        comp_count;
+    data_type           comp_type;
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
         GLenum          type;
         GLenum          usage;
         GLuint          id;
-        GLuint          comp_type;
         GLsizei         stride;
     } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
