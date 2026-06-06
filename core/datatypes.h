@@ -24,6 +24,7 @@ typedef enum data_type {
     DT_MAT4,
 } data_type;
 
+bool data_type_is_valid(data_type type);
 const char *data_type_name(data_type type);
 data_type data_type_by_name(const char *name);
 unsigned int data_comp_count(data_type type);
