@@ -903,6 +903,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     }
 
     vxsz /= sizeof(float);
+    float scale = e->parent ? e->parent->scale : e->scale;
     tvx = mem_alloc(sizeof(*tvx), .nr = vxsz, .fatal_fail = 1);
     for (i = 0; i < vxsz; i += 3) {
         /* apply rotation and scale */
@@ -911,7 +912,7 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
         vec4 res;
         mat4x4_identity(trans);
         /* Rotation is applied to the geom, not baked into the mesh */
-        mat4x4_scale_aniso(trans, trans, e->scale, e->scale, e->scale);
+        mat4x4_scale_aniso(trans, trans, scale, scale, scale);
         mat4x4_mul_vec4(res, trans, pos);
         vec3_scale(res, res, 1.0f / res[3]);
         tvx[i + 0] = res[0];
