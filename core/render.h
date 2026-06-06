@@ -232,7 +232,6 @@ TYPE(buffer,
         mtl_buffer_t    buf;
         size_t          stride;
         size_t          size;
-        data_type       comp_type;
         char            *name;
     } mtl;
 #endif  /* CONFIG_RENDERER_METAL */

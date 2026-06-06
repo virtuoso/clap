@@ -338,6 +338,7 @@ static cerr mtl_buffer_init(buffer_t *buf, const buffer_init_options *opts)
     buf->mtl.size = opts->size;
     buf->off = opts->off;
     buf->mtl.stride = opts->stride;
+    buf->comp_type = opts->comp_type;
 
     if (!opts->main) {
         buf->mtl.buf = mtl_buffer_new(buf->renderer, opts->data, opts->size, true, false);
