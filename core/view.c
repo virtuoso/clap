@@ -293,7 +293,7 @@ void view_calc_frustum(clap_context *clap_ctx, struct view *view)
     return subview_calc_frustum(&view->main, clap_get_renderer(clap_ctx));
 }
 
-bool view_entity_in_frustum(struct view *view, entity3d *e)
+bool view_entity_in_frustum(struct subview *subview, entity3d *e)
 {
     vec3 min, max;
     int i;
@@ -306,32 +306,32 @@ bool view_entity_in_frustum(struct view *view, entity3d *e)
         vec4 v;
 
         vec4_setup(v, min[0], min[1], min[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         vec4_setup(v, max[0], min[1], min[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         vec4_setup(v, min[0], max[1], min[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         vec4_setup(v, max[0], max[1], min[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         vec4_setup(v, min[0], min[1], max[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         vec4_setup(v, max[0], min[1], max[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         vec4_setup(v, min[0], max[1], max[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         vec4_setup(v, max[0], max[1], max[2], 1.0);
-        r += (vec4_mul_inner(view->main.frustum_planes[i], v) < 0.0) ? 1 : 0;
+        r += (vec4_mul_inner(subview->frustum_planes[i], v) < 0.0) ? 1 : 0;
         if (r == 8)
             return false;
     }
 
     int r = 0;
-    for (r = 0, i = 0; i < 8; i++) r += view->main.frustum_corners[i][0] > max[0] ? 1 : 0; if (r == 8) return false;
-    for (r = 0, i = 0; i < 8; i++) r += view->main.frustum_corners[i][0] < min[0] ? 1 : 0; if (r == 8) return false;
-    for (r = 0, i = 0; i < 8; i++) r += view->main.frustum_corners[i][1] > max[1] ? 1 : 0; if (r == 8) return false;
-    for (r = 0, i = 0; i < 8; i++) r += view->main.frustum_corners[i][1] < min[1] ? 1 : 0; if (r == 8) return false;
-    for (r = 0, i = 0; i < 8; i++) r += view->main.frustum_corners[i][2] > max[2] ? 1 : 0; if (r == 8) return false;
-    for (r = 0, i = 0; i < 8; i++) r += view->main.frustum_corners[i][2] < min[2] ? 1 : 0; if (r == 8) return false;
+    for (r = 0, i = 0; i < 8; i++) r += subview->frustum_corners[i][0] > max[0] ? 1 : 0; if (r == 8) return false;
+    for (r = 0, i = 0; i < 8; i++) r += subview->frustum_corners[i][0] < min[0] ? 1 : 0; if (r == 8) return false;
+    for (r = 0, i = 0; i < 8; i++) r += subview->frustum_corners[i][1] > max[1] ? 1 : 0; if (r == 8) return false;
+    for (r = 0, i = 0; i < 8; i++) r += subview->frustum_corners[i][1] < min[1] ? 1 : 0; if (r == 8) return false;
+    for (r = 0, i = 0; i < 8; i++) r += subview->frustum_corners[i][2] > max[2] ? 1 : 0; if (r == 8) return false;
+    for (r = 0, i = 0; i < 8; i++) r += subview->frustum_corners[i][2] < min[2] ? 1 : 0; if (r == 8) return false;
 
     return true;
 }

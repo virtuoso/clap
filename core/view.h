@@ -34,6 +34,6 @@ void view_update_perspective_projection(clap_context *clap_ctx, struct view *vie
 void view_update_from_angles(clap_context *clap_ctx, struct view *view, transform_t *xform);
 void view_update_from_frustum(clap_context *clap_ctx, struct view *view, struct view *src, vec3 dir, float near_backup, bool z_reverse);
 void view_calc_frustum(clap_context *clap_ctx, struct view *view);
-bool view_entity_in_frustum(struct view *view, entity3d *e);
+bool view_entity_in_frustum(struct subview *subview, entity3d *e);
 
 #endif /* __CLAP_VIEW_H__ */
