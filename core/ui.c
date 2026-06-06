@@ -887,7 +887,8 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
     if (uwb)
         memcpy(&_uwb, uwb, sizeof(_uwb));
 
-    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
+    if (!_uwb.font)
+        _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
     if (!_uwb.font)
         return NULL;
 
