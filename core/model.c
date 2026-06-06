@@ -42,7 +42,7 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
                                .renderer   = shader_prog_renderer(m->prog),
                                .type       = BUF_ELEMENT_ARRAY,
                                .usage      = BUF_STATIC,
-                               .comp_type  = DT_SHORT,
+                               .comp_type  = DT_USHORT,
                                .data       = lod,
                                .size       = nr_idx * mesh_idx_stride(mesh));
         mem_free(lod);
@@ -119,7 +119,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
             .renderer   = r,
             .type       = BUF_ELEMENT_ARRAY,
             .usage      = BUF_STATIC,
-            .comp_type  = DT_SHORT,
+            .comp_type  = DT_USHORT,
             .data       = mesh_idx(opts->mesh),
             .size       = mesh_idx_sz(opts->mesh)
         ),
