@@ -217,8 +217,6 @@ TYPE(buffer,
         GLenum          usage;
         GLuint          id;
         GLuint          comp_type;
-        // GLuint          comp_count;
-        // GLuint          off;
         GLsizei         stride;
     } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
