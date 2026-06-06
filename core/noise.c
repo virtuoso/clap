@@ -147,7 +147,7 @@ cerr blue_noise2d_tex(renderer_t *renderer, texture_t *tex, int size)
         if ((i & 3) != 3)
             buf[i] = (buf[i] - minv) / (maxv - minv);
 
-    CERR_RET(
+    CERR_RET_CERR(
         texture_init(
             tex,
             .renderer   = renderer,
@@ -156,8 +156,7 @@ cerr blue_noise2d_tex(renderer_t *renderer, texture_t *tex, int size)
             .min_filter = TEX_FLT_NEAREST,
             .mag_filter = TEX_FLT_NEAREST,
             .wrap       = TEX_WRAP_REPEAT,
-        ),
-        return __cerr
+        )
     );
 
     CERR_RET(
@@ -276,7 +275,7 @@ cerr noise_grad3d_bake_rgba8_tex(renderer_t *r, texture_t *tex, int size, int oc
         noise_grad3d_bake_rgba8(size, octaves, lacunarity, gain, period_units, seed)
     );
 
-    CERR_RET(
+    CERR_RET_CERR(
         texture_init(
             tex,
             .renderer   = r,
@@ -286,8 +285,7 @@ cerr noise_grad3d_bake_rgba8_tex(renderer_t *r, texture_t *tex, int size, int oc
             .min_filter = TEX_FLT_LINEAR,
             .mag_filter = TEX_FLT_LINEAR,
             .wrap       = TEX_WRAP_REPEAT,
-        ),
-        return __cerr
+        )
     );
 
     return texture_load(tex, TEX_FMT_RGBA8, size, size, buf);
