@@ -1304,7 +1304,7 @@ static cresp(fbo_t) mtl_fbo_new(const fbo_init_options *opts)
     int nr_color_configs = fa_nr_color_buffer(fbo->layout) ? :
                            fa_nr_color_texture(fbo->layout);
 
-    fbo->mtl.id = CRES_RET(bitmap_find_first_unset(&fbo->renderer->mtl.fbo_ids), return cresp_error_cerr(fbo_t, __resp));
+    fbo->mtl.id = CRES_RET_T(bitmap_find_first_unset(&fbo->renderer->mtl.fbo_ids), fbo_t);
     bitmap_set(&fbo->renderer->mtl.fbo_ids, fbo->mtl.id);
     size_t size = nr_color_configs * sizeof(fbo_attconfig);
     fbo->color_config = memdup(opts->color_config ? : &(fbo_attconfig){ .format = TEX_FMT_DEFAULT }, size);
