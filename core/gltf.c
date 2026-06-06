@@ -872,7 +872,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     for (n = accrs->children.head; n; n = n->next) {
         JsonNode *jbufvw, *jcount, *jtype, *jcomptype, *joffset;
         struct gltf_accessor *ga;
-        
+
         jbufvw = json_find_member(n, "bufferView");
         joffset = json_find_member(n, "byteOffset");
         jcount = json_find_member(n, "count");
@@ -880,10 +880,10 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         jcomptype = json_find_member(n, "componentType");
         if (!jbufvw || !jcount || !jtype || !jcomptype)
             continue;
-        
+
         if (jbufvw->number_ >= gd->bufvws.da.nr_el)
             continue;
-        
+
         data_type type = data_type_by_name(jtype->string_);
         if (type == DT_NONE)
             continue;
@@ -977,11 +977,11 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             jwut = json_find_member(jpbr, "metallicFactor");
             if (jwut && jwut->tag == JSON_NUMBER)
                 mat->metallic = jwut->number_;
-        
+
             jwut = json_find_member(jpbr, "roughnessFactor");
             if (jwut && jwut->tag == JSON_NUMBER)
                 mat->roughness = jwut->number_;
-        
+
             jwut = json_find_member(n, "normalTexture");
             if (jwut && jwut->tag == JSON_OBJECT) {
                 jwut = json_find_member(jwut, "index");
