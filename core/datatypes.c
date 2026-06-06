@@ -32,6 +32,14 @@ static const struct {
 
 bool data_type_is_valid(data_type type)  { return type < array_size(type_desc); }
 
+bool data_type_is_integral(data_type type)
+{
+    if (unlikely(!data_type_is_valid(type)))        return false;
+    if (type == DT_NONE)                            return false;
+    if (type_desc[type].comp_subtype == DT_FLOAT)   return false;
+    return true;
+}
+
 const char *data_type_name(data_type type)
 {
     if (unlikely(!data_type_is_valid(type)))   return "<unknown>";
