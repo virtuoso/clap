@@ -11,8 +11,15 @@
 #include "librarian.h"
 
 #define SETTINGS_DEFAULT \
-    "{"                  \
-    " \"music_volume\": 0" \
+    "{"                                             \
+    " \"music_volume\": 0,"                         \
+    " \"input_controls\": {"                        \
+    "     \"gamepad_policy\": \"none\","            \
+    "     \"gamepad_name\": \"\","                  \
+    "     \"use_mouse_for_camera\": false,"         \
+    "     \"mouse_sensitivity\": 1.0,"              \
+    "     \"invert_y\": false"                      \
+    " }"                                            \
     "}"
 
 static char *settings_file;

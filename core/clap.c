@@ -10,6 +10,7 @@
 #include "common.h"
 #include "display.h"
 #include "input.h"
+#include "input-controls.h"
 #include "lut.h"
 #include "font.h"
 #include "networking.h"
@@ -555,6 +556,8 @@ static void clap_settings_onload(struct settings *rs, void *data)
     }
 
     ui_debug_set_settings(rs);
+    input_controls_init(rs);
+    clap_update_input_controls(ctx);
 
     if (ctx->cfg.settings_cb)
         ctx->cfg.settings_cb(ctx, rs, ctx->cfg.settings_cb_data);
@@ -832,6 +835,14 @@ static cerr clap_os_init(struct clap_context *ctx)
  * Main API
  ****************************************************************************/
 
+void clap_update_input_controls(struct clap_context *ctx)
+{
+    if (!ctx->cfg.graphics || !ctx->cfg.input)  return;
+
+    bool want = input_controls_use_mouse() && !ctx->paused;
+    display_mouse_capture(want);
+}
+
 static int clap_handle_command(struct clap_context *ctx, struct message *m, void *data)
 {
     if (m->type != MT_COMMAND)  return MSG_HANDLED;
@@ -839,6 +850,7 @@ static int clap_handle_command(struct clap_context *ctx, struct message *m, void
     if (m->cmd.toggle_modality) {
         ctx->paused = !ctx->paused;
         clap_timers_pause(ctx, ctx->paused);
+        clap_update_input_controls(ctx);
     }
 
     if (m->cmd.status && ctx->exit_after >= 0 && !--ctx->exit_after)
@@ -1221,6 +1233,7 @@ void clap_done(struct clap_context *ctx, int status)
         sound_done(ctx->sound);
     if (ctx->cfg.font)
         font_done(ctx->font);
+    input_controls_done();
     if (ctx->settings)
         settings_done(ctx->settings);
     if (ctx->cfg.networking)

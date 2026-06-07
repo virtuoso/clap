@@ -496,6 +496,9 @@ static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void
     return true;
 }
 
+static bool mouse_captured;
+void www_mouse_capture_set(bool on) { mouse_captured = on; }
+
 static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
 {
     if (__ui_set_mouse_position(e->targetX, e->targetY))
@@ -504,14 +507,14 @@ static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, 
     struct message_input mi;
 
     memset(&mi, 0, sizeof(mi));
-    /*dbg("%s, screen: (%ld,%ld), client: (%ld,%ld),%s%s%s%s button: %hu, buttons: %hu, canvas: (%ld,%ld), delta:(%g,%g,%g), deltaMode:%lu\n",
-          emscripten_event_type_to_string(eventType), e->screenX, e->screenY, e->clientX, e->clientY,
-          e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
-          e->button, e->buttons, e->canvasX, e->canvasY);*/
-    //dbg("### mousemove: %d,%d\n", e->clientX, e->clientY);
-    mi.mouse_move = 1;
-    mi.x = e->targetX;
-    mi.y = e->targetY;
+    if (mouse_captured) {
+        mi.delta_rx = (float)e->movementX;
+        mi.delta_ry = (float)e->movementY;
+    } else {
+        mi.mouse_move = 1;
+        mi.x = e->targetX;
+        mi.y = e->targetY;
+    }
     message_input_send(clap_ctx, &mi, &keyboard_source);
 
     return true;

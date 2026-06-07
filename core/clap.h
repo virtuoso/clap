@@ -244,6 +244,21 @@ double clap_get_current_time(struct clap_context *ctx) __nonnull_params((1));
 CLAP_API
 bool clap_is_paused(clap_context *ctx);
 
+/**
+ * clap_update_input_controls() - apply input controls to the current state
+ * @ctx:    clap_context
+ *
+ * Reconcile the state derived from input controls; at the moment, the mouse
+ * capture: reads the current pause state and the user's "use mouse for
+ * camera" preference and applies the matching cursor mode via
+ * display_mouse_capture(). No-op unless both graphics and input are enabled
+ * in the config. Called internally on settings load, pause toggles and from
+ * settings setters; callers can also invoke it after changing either input
+ * of the policy.
+ */
+CLAP_API
+void clap_update_input_controls(struct clap_context *ctx);
+
 typedef void (*clap_timer_fn)(void *data);
 typedef struct clap_timer clap_timer;
 cresp_ret(clap_timer);
