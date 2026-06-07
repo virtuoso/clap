@@ -112,6 +112,7 @@ struct ui_widget_builder {
     unsigned long   el_affinity;
     float           el_x_off, el_y_off, el_w, el_h, el_margin;
     struct font     *font;
+    unsigned int    font_size;  /* 0 -> widget default */
     float           el_color[4];
     float           text_color[4];
     void            (*el_cb)(struct ui_element *uie, unsigned int i);
