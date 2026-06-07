@@ -199,6 +199,9 @@ typedef struct ui_menu_item {
     struct ui_menu_item             *items;
 } ui_menu_item;
 
+/** UI_MENU_STACK_MAX - maximum menu nesting depth that &ui_menu.stack can track */
+#define UI_MENU_STACK_MAX 8
+
 /**
  * struct ui_menu - menu state embedded in &struct ui
  * @widget:             current menu widget, NULL when no menu is open
@@ -210,7 +213,9 @@ typedef struct ui_menu_item {
  *                      root, used when the start ui_menu_config.uwb is set
  * @loading_cb:         callback fired on "Start Game" selection
  * @loading_cb_data:    data pointer passed to @loading_cb
- * @depth:              current menu navigation depth; 0 at the root
+ * @stack:              path of roots from the top of the tree to the current
+ *                      submenu; @stack[@depth] is the currently-open root
+ * @depth:              current menu navigation depth; 0 at the top root
  */
 typedef struct ui_menu {
     struct ui_widget    *widget;
@@ -220,6 +225,7 @@ typedef struct ui_menu {
     ui_menu_item        start_storage;
     void                (*loading_cb)(struct clap_context *ctx, void *data);
     void                *loading_cb_data;
+    const ui_menu_item  *stack[UI_MENU_STACK_MAX];
     unsigned int        depth;
 } ui_menu;
 
@@ -240,6 +246,31 @@ struct ui {
     ui_menu            menu;
     ui_state           state;
 };
+
+/**
+ * ui_menu_can_descend() - check that the menu stack has room to go deeper
+ * @ui:     ui context
+ *
+ * Return: true when another submenu root can be pushed onto &ui_menu.stack.
+ */
+static inline bool ui_menu_can_descend(struct ui *ui)
+{
+    return ui->menu.depth + 1 < UI_MENU_STACK_MAX;
+}
+
+/**
+ * ui_menu_descend() - push a submenu root onto the menu stack
+ * @ui:     ui context
+ * @root:   submenu root that just became current
+ *
+ * Callers must check ui_menu_can_descend() before building the submenu
+ * widget, and only descend once it was successfully created.
+ */
+static inline void ui_menu_descend(struct ui *ui, const struct ui_menu_item *root)
+{
+    ui->menu.depth++;
+    ui->menu.stack[ui->menu.depth] = root;
+}
 
 /**
  * ui_modality_send() - send a modality toggle message

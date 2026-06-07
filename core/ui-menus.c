@@ -36,6 +36,7 @@ static void menu_open(struct ui *ui, const ui_menu_item *root)
 {
     if (!root || ui->menu.widget)   return;
     ui->menu.depth = 0;
+    ui->menu.stack[0] = root;
     ui->menu.widget = ui_menu_new(ui, root);
 }
 
@@ -149,10 +150,13 @@ static int ui_menus_handle_input(struct clap_context *ctx, struct message *m, vo
 
     switch (ui->state) {
     case UI_ST_START_MENU:
-        // Start menu is modal. Forward clicks but ignore misses; menu_toggle
-        // does nothing; "back" at root is swallowed by ui_menu_input.
-        if (m->input.mouse_click && ui->menu.widget)
-            ui_widget_click(ui->menu.widget, uivec);
+        // Start menu is modal. A missed click acts as "back": pops one level
+        // off the menu stack (see ui_menus_ascend). At the top of the
+        // start menu it's a no-op, as the state machine keeps clap paused
+        // until "Start Game".
+        if (m->input.mouse_click && ui->menu.widget &&
+            !ui_widget_click(ui->menu.widget, uivec))
+            ui_menus_ascend(ui);
         break;
 
     case UI_ST_LOADING:
@@ -245,6 +249,29 @@ void ui_menus_done(struct ui *ui)
     ui->menu.start_root      = NULL;
     ui->menu.loading_cb      = NULL;
     ui->menu.loading_cb_data = NULL;
+}
+
+void ui_menus_ascend(struct ui *ui)
+{
+    struct ui_widget *uiw = ui->menu.widget;
+    if (!uiw)   return;
+
+    on_create_fn on_create = uiw->on_create;
+    void *priv = uiw->priv;
+
+    if (ui->menu.depth > 0) {
+        ui->menu.depth--;
+        const ui_menu_item *root = ui->menu.stack[ui->menu.depth];
+        ref_put(uiw);
+        uiw = ui_menu_new(ui, root);
+        if (uiw)        uiw->priv = priv;
+        if (on_create)  on_create(ui, uiw);
+    } else if (ui->state == UI_ST_RUNNING) {
+        ref_put(uiw);
+        ui_modality_send(ui);
+        if (on_create)  on_create(ui, NULL);
+    }
+    /* else: start menu at root - swallow */
 }
 
 ui_state ui_state_get(const struct ui *ui)
