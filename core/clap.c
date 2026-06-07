@@ -1141,15 +1141,15 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (ctx->cfg.graphics) {
         clap_init_render_options(ctx);
 
-        /*
-         * XXX: it will get initialized in display_init(), but the pointer
-         * is valid here. display_init() will call display_get_sizes(), which
-         * will end up in clap_resize(), which needs a valid ctx->renderer.
-         * But not to worry, the renderer will be initialized at that point.
-         */
         CERR_RET_T(display_init(ctx, clap_frame, clap_resize), clap_context);
 
+        /*
+         * Prime the viewport for scene/pipeline construction below; the
+         * initial resize is delivered at the end of clap_init(), when all
+         * of its consumers are in place.
+         */
         display_get_sizes(&width, &height);
+        renderer_viewport(&ctx->renderer, 0, 0, width, height);
 
         if (ctx->cfg.font)
             ctx->font = CRES_RET_T(font_init(ctx->cfg.default_font_name), clap_context);
@@ -1186,6 +1186,14 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         display_debug_ui_init(ctx);
     if (ctx->cfg.settings)
         CHECK(ctx->settings = settings_init(clap_settings_onload, ctx));
+
+    /*
+     * Deliver the initial window geometry through the same path that
+     * window system resizes take. GLFW backends also get a real resize
+     * event when the window maps, but browsers never send one.
+     */
+    if (ctx->cfg.graphics)
+        display_resize(width, height);
 
     return cresp_val(clap_context, NOCU(ctx));
 }

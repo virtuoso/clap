@@ -98,12 +98,12 @@ void display_title(const char *fmt, ...)
 
 void display_get_sizes(int *widthp, int *heightp)
 {
-    EM_ASM(window.onresize(););
+    /* the shell sizes the canvas off <body>'s client size */
+    width  = EM_ASM_INT(return document.body.clientWidth;);
+    height = EM_ASM_INT(return document.body.clientHeight;);
 
-    if (widthp)
-        *widthp = width;
-    if (heightp)
-        *heightp = height;
+    if (widthp)     *widthp = width;
+    if (heightp)    *heightp = height;
 }
 
 void display_set_window_pos_size(int x, int y, int w, int h)
@@ -127,18 +127,12 @@ void display_main_loop(void)
 static display_resize_cb resize_fn;
 static void *callback_data;
 
-/* XXX: this is private between display-www.c and input-www.c */
-EMSCRIPTEN_KEEPALIVE void www_call_resize(int w, int h)
-{
-    resize_fn(callback_data, w, h);
-}
-
 EMSCRIPTEN_KEEPALIVE void display_resize(int w, int h)
 {
-    resize_fn(callback_data, w, h);
     emscripten_set_canvas_element_size("#canvas", w, h);
     width = w;
     height = h;
+    resize_fn(callback_data, w, h);
 }
 
 extern void www_joysticks_poll(void);
@@ -198,7 +192,6 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, d
     }
 
     EM_ASM(runtime_ready = true;);
-    display_get_sizes(NULL, NULL);
     calc_refresh_rate(update_fn, ctx);
 
     return CERR_OK;

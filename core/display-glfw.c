@@ -129,8 +129,8 @@ static void __move_cb(GLFWwindow *window, int x, int y)
      * monitor
      */
     refresh_rate = __display_refresh_rate();
-    /* store new window position in settings */
-    display_get_sizes(NULL, NULL);
+    /* store the new window position in the settings */
+    __resize_cb(window, width, height);
 }
 
 static void __scale_cb(GLFWwindow *window, float sx, float sy)
@@ -149,13 +149,8 @@ void display_get_sizes(int *widthp, int *heightp)
     width /= scale_x;
     height /= scale_y;
 
-    renderer_viewport(renderer, 0, 0, width, height);
-
-    if (widthp)
-        *widthp = width;
-    if (heightp)
-        *heightp = height;
-    __resize_cb(window, width, height);
+    if (widthp)     *widthp = width;
+    if (heightp)    *heightp = height;
 }
 
 float display_get_scale(void)

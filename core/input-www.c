@@ -517,15 +517,6 @@ static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, 
     return true;
 }
 
-extern void www_call_resize(int w, int h);
-
-static EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e, void *userData)
-{
-    www_call_resize(e->windowInnerWidth, e->windowInnerHeight);
-
-    return 0;
-}
-
 void touch_input_set_size(int width, int height)
 {
     touch.w = width;
@@ -551,6 +542,5 @@ int platform_input_init(struct clap_context *ctx)
     CHECK0(emscripten_set_mouseup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mouseup_callback));
     CHECK0(emscripten_set_mousedown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousedown_callback));
     CHECK0(emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousemove_callback));
-    CHECK0(emscripten_set_resize_callback("#canvas", 0, 1, resize_callback));
     return 0;
 }
