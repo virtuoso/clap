@@ -109,6 +109,7 @@ void endless_loop(void)
 }
 ```
 - Comments are good: both /* C */ and // C++ style
+- Multi-line comments are either a series of `//` lines, or `/*` and `*/` on their own lines with ` * `-prefixed lines in between; no text on the opening `/*` or closing `*/` lines
 - SPDX license headers: multiline comments in header files (/* SPDX... */) and single-line in C/C++/ObjC files (// SPDX...)
 - Declare variables at assignment site instead of the top of the function
 - Self-evident code is better
