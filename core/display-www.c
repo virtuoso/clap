@@ -155,6 +155,17 @@ void display_leave_fullscreen(void)
 
 extern void www_mouse_capture_set(bool on);
 static bool www_capture_on;
+
+static EM_BOOL pointerlockchange_callback(int eventType,
+                                          const EmscriptenPointerlockChangeEvent *e,
+                                          void *userData)
+{
+    /* the browser exits pointerlock on its own (ESC, tab switch) */
+    www_capture_on = e->isActive;
+    www_mouse_capture_set(e->isActive);
+    return true;
+}
+
 void display_mouse_capture(bool on)
 {
     if (on == www_capture_on)   return;
@@ -205,6 +216,9 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, d
 
     EM_ASM(runtime_ready = true;);
     calc_refresh_rate(update_fn, ctx);
+
+    CHECK0(emscripten_set_pointerlockchange_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, 0, 1,
+                                                     pointerlockchange_callback));
 
     return CERR_OK;
 }
