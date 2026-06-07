@@ -147,6 +147,60 @@ Clap uses a ref-counted object system (see object.h/object.c) for managing objec
 
 This approach keeps layering clean, decouples implementations, and ensures proper memory management without manual malloc/free tracking.
 
+### Error handling
+
+Fallible functions report errors through a single return channel, never out-parameters or errno-style globals (see error.h):
+
+- `cerr` — a function that either succeeds or fails but has no value to return.
+- `cresp(T)` / `cres(T)` — a function that returns a `T *` / scalar `T` *or* an error. These are declared for refcounted types by `DECLARE_REFCLASS()`, and otherwise with the `cresp_ret()` / `cres_ret()` declarators. `cerr` and every `cres*` share a layout (the error code sits at offset 0), so `IS_CERR()` works on all of them.
+
+You can test a result with `IS_CERR()`, but for the common "unwrap the value or bail out" case prefer the `CRES_RET` / `CERR_RET` family over an explicit `if (IS_CERR(...))` branch — they unwrap and escape in a single expression:
+
+```C
+/* value, or return cresp(thing) on error */
+struct thing *t = CRES_RET_T(thing_get(id), thing);
+/* value, or return the bare cerr */
+struct thing *t = CRES_RET_CERR(thing_get(id));
+/* value, or run any statement (goto/return/...); the cres is available as __resp */
+struct thing *t = CRES_RET(thing_get(id), { err_cerr(cerr_error_cres(__resp), "no thing\n"); goto err; });
+```
+
+Functions returning a bare `cerr` use the `CERR_RET*` variants (the cerr is `__cerr` inside the statement):
+
+```C
+CERR_RET(clap_set_lighting_lut(ctx, "scifi bluegreen"),
+         err_cerr(__cerr, "failed to set LUT\n"));    /* log, then fall through */
+CERR_RET_CERR(some_step());                           /* propagate the cerr */
+CERR_RET_T(some_step(), thing);                       /* propagate as cresp(thing) */
+```
+
+Rule of thumb: if you catch yourself writing `if (IS_CERR(x)) return ...;` right after a fallible call, you almost always want `CRES_RET(x, return ...)` (or its `_T` / `_CERR` variants) instead. Reserve a bare `IS_CERR()` for the genuinely conditional cases, where an error is an expected outcome handled in place (e.g. a lookup miss that yields a default), not propagated.
+
+### Scope-based cleanup
+
+Prefer scope-based (RAII-style) cleanup over manual `mem_free()` / `ref_put()` / `fclose()` on each exit path. Freeing a *scope-local* resource by hand is almost always a latent bug — the next early `return` (or a newly added `CRES_RET`) leaks it. The `LOCAL*` macros (util.h) attach a compiler cleanup that runs at scope exit:
+
+```C
+LOCAL(char, uri);      /* char *uri, mem_free()'d at scope exit, NULL-initialised */
+LOCAL(FILE, f);        /* FILE *f, fclose()'d at scope exit */
+```
+
+`LOCAL(t, x)` declares an auto-released `t *x` (NULL-initialised); `LOCAL_SET(t, x)` is the same but lets you assign on the declaration line. Built-in cleanups exist for `char`, `uchar`, `void`, `FILE` and file descriptors (`cleanup__fd`).
+
+For a refcounted type, give it a cleanup that drops the reference — `DECLARE_CLEANUP(T)` in the header and `DEFINE_CLEANUP(T, if (*p) ref_put(*p))` in the .c — so `LOCAL(T, x)` / `LOCAL_SET(T, x)` release it automatically. When the function hands the resource out on the success path, cancel the cleanup with `NOCU()`:
+
+```C
+cresp(script) script_load(struct clap_context *ctx, const char *name, const char *src)
+{
+    LOCAL_SET(script, s) = CRES_RET_T(script_new(ctx, name, src), script);
+    CERR_RET_T(script_compile(s), script);   /* s is ref_put() on early return */
+    CERR_RET_T(script_run(s), script);
+    return cresp_val(script, NOCU(s));        /* success: hand off, skip cleanup */
+}
+```
+
+Together with the error-handling helpers above, error paths carry no cleanup boilerplate at all.
+
 Also, check out existing commits in the tree to get a good idea of code/commit style etc.
 
 ## Pull requests
