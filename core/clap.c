@@ -556,7 +556,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
     }
 
     ui_debug_set_settings(rs);
-    input_controls_init(rs);
+    CERR_RET(input_controls_init(rs), err_cerr(__cerr, "failed to load input controls\n"));
     clap_update_input_controls(ctx);
 
     if (ctx->cfg.settings_cb)

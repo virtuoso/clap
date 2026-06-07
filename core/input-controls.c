@@ -16,6 +16,7 @@
 #define IC_GAMEPAD_NAME_MAX     64
 #define IC_SENSITIVITY_MIN      0.1f
 #define IC_SENSITIVITY_MAX      5.0f
+#define IC_SENSITIVITY_DEF      1.0f
 
 struct ic_state {
     input_controls_gamepad  gamepad_policy;
@@ -26,7 +27,8 @@ struct ic_state {
     bool                    ready;
 };
 
-static struct ic_state _ic;
+/* sane defaults for before (or without) the settings load */
+static struct ic_state _ic = { .mouse_sensitivity = IC_SENSITIVITY_DEF };
 
 static JsonNode *ic_group(struct settings *rs)
 {
@@ -53,7 +55,8 @@ cerr input_controls_init(struct settings *rs)
 
     JsonNode *sens = settings_get(rs, grp, IC_KEY_SENSITIVITY);
     _ic.mouse_sensitivity =
-        clampf((sens && sens->tag == JSON_NUMBER) ? (float)sens->number_ : 1.0f,
+        clampf((sens && sens->tag == JSON_NUMBER) ? (float)sens->number_
+                                                  : IC_SENSITIVITY_DEF,
                IC_SENSITIVITY_MIN, IC_SENSITIVITY_MAX);
 
     _ic.invert_y = settings_get_bool(rs, grp, IC_KEY_INVERT_Y);
@@ -64,7 +67,7 @@ cerr input_controls_init(struct settings *rs)
 
 void input_controls_done(void)
 {
-    _ic.ready = false;
+    _ic = (struct ic_state){ .mouse_sensitivity = IC_SENSITIVITY_DEF };
 }
 
 input_controls_gamepad input_controls_gamepad_policy(void)
