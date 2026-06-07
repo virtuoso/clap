@@ -471,10 +471,12 @@ static EM_BOOL mousedown_callback(int eventType, const EmscriptenMouseEvent *e, 
     return true;
 }
 
+static bool mouse_captured;
+void www_mouse_capture_set(bool on) { mouse_captured = on; }
+
 static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
 {
-    if (__ui_mouse_event_propagate())
-        return true;
+    if (!mouse_captured && __ui_mouse_event_propagate())  return true;
 
     struct message_input mi;
 
@@ -496,13 +498,9 @@ static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void
     return true;
 }
 
-static bool mouse_captured;
-void www_mouse_capture_set(bool on) { mouse_captured = on; }
-
 static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
 {
-    if (__ui_set_mouse_position(e->targetX, e->targetY))
-        return true;
+    if (!mouse_captured && __ui_set_mouse_position(e->targetX, e->targetY))  return true;
 
     struct message_input mi;
 
