@@ -50,33 +50,40 @@ endif ()
 
 configure_file(config.h.in config.h)
 
-if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
-    set(TEST_BIN tests)
-    set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
-        ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c
-        render-texture.c draw.c)
+set(TEST_BIN tests)
+set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
+    ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c
+    render-texture.c draw.c)
 
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
-        # because it can't reason that sb_finish(sb) is called under the same condition as
-        # sb_init(sb), so it is, in fact, always initialized at that point. The dumb fix
-        # would be to set sb.start = sb.cur = throwaway_buffer and sb.end accordingly, but
-        # the code is actually correct and clang is fine with it. So, shut the warning here
-        # instead.
-        set_source_files_properties(json.c PROPERTIES
-                                    COMPILE_FLAGS -Wno-maybe-uninitialized -Wall
-                                                  -Wno-misleading-indentation -Wno-comment
-                                                  -Werror ${CFLAGS})
-    endif ()
-
-    add_executable(${TEST_BIN} ${TEST_SRC})
-    add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate)
-    target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
-    target_link_options(${TEST_BIN} PRIVATE ${CLAP_LINK_OPTIONS} ${DEBUG_LIBRARIES})
-    win32_executable(${TEST_BIN})
-
-    add_test(${TEST_BIN} ${TEST_BIN})
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
+    # because it can't reason that sb_finish(sb) is called under the same condition as
+    # sb_init(sb), so it is, in fact, always initialized at that point. The dumb fix
+    # would be to set sb.start = sb.cur = throwaway_buffer and sb.end accordingly, but
+    # the code is actually correct and clang is fine with it. So, shut the warning here
+    # instead.
+    set_source_files_properties(json.c PROPERTIES
+                                COMPILE_FLAGS -Wno-maybe-uninitialized -Wall
+                                              -Wno-misleading-indentation -Wno-comment
+                                              -Werror ${CFLAGS})
 endif ()
+
+add_executable(${TEST_BIN} ${TEST_SRC})
+add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate)
+target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
+target_include_directories(${TEST_BIN} PRIVATE ${UMKA_INCLUDE})
+win32_executable(${TEST_BIN})
+if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    # A node runnable .js entry point instead of the .html shell; ctest runs
+    # it with CMAKE_CROSSCOMPILING_EMULATOR (node from the emsdk toolchain)
+    set_target_properties(${TEST_BIN} PROPERTIES SUFFIX ".js")
+    target_link_options(${TEST_BIN} PRIVATE ${DEBUG_LIBRARIES} -pthread
+                        -sEXIT_RUNTIME=1 -sINITIAL_MEMORY=64MB)
+else ()
+    target_link_options(${TEST_BIN} PRIVATE ${CLAP_LINK_OPTIONS} ${DEBUG_LIBRARIES})
+endif ()
+
+add_test(NAME ${TEST_BIN} COMMAND ${TEST_BIN})
 
 set(RENDERER_SRC "")
 if (CONFIG_RENDERER_OPENGL)
