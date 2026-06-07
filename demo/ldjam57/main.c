@@ -246,7 +246,7 @@ static int character_obj_update(entity3d *e, void *data)
 static void process_entity(entity3d *e, void *data)
 {
     const char *name = entity_name(e);
-    char *substr;
+    const char *substr;
 
     bool permanent = !!strstr(name, ".P.");
 
