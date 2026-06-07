@@ -124,6 +124,16 @@ void endless_loop(void)
     - Use snake_case throughout (C and ObjC code)
     - Avoid Hungarian notation prefixes like `p` for pointers or `pp` for pointer-to-pointer
     - Choose clear, descriptive names over terse abbreviations
+    - Boolean predicates read as the question they answer: `thing_is_active()`, not `thing_active()`
+- Resolve configuration (environment variables, settings) once on the init path and store the result; don't re-query it on hot paths
+- Statistics or counters that can be written from multiple threads are either atomic or come with an explicit concurrency plan; the atomics stay internal, user-facing snapshot APIs expose plain types
+
+### Conditional compilation
+
+- A large chunk of code behind `#ifdef CONFIG_*` is a sign that it belongs in a separate compilation unit, gated at the cmake level instead
+- Such a unit's public-facing API goes in its own header, and that is where `#ifdef` is appropriate: the real declarations on one side, no-op/passthrough `static inline` stubs on the other
+- Call sites into gated code use those stubs; peppering unrelated code with `#ifdef`s is bad form
+- The trailing comment on `#endif` names the condition of the branch it closes: after an `#else`, that's the inverted condition (e.g. `#ifdef CONFIG_FOO ... #else ... #endif /* !CONFIG_FOO */`)
 
 ### Object Lifetime Management
 
@@ -212,8 +222,10 @@ Some things to check:
 - Make commits self-contained: each commit should be able to compile and produce a working binary without the commits that follow it
 - At the same time, make commits as small as possible, that is, split large commits into smaller ones that are still self-contained
 - Write good commit messages (not including a link to a howto page, because googling for "writing commit messages" already comes up with a lot of good articles/blog posts). In short:
-  - Use imperative mood ("change XXX" vs "XXX is changed")
+  - Use imperative mood ("change XXX" vs "XXX is changed") — in the entire message, not just the subject line
   - State the reason for the commit, what is being done, why it is done and why it is done in this particular way
+  - First explain what the commit is and why it exists, then how; don't open with implementation minutiae
+  - Implementation details belong in the message only when defending a particular choice over the alternatives; everything else is visible in the diff and belongs in code comments
   - Subject line most often starts with a module name or comma separated names, then colon, then the summary of the change ("xyarray: Reimplement as an xyzarray")
   - One line commit messages are acceptable if the summary covers it all, if it's a one-line patch
   - Check the existing commit history
