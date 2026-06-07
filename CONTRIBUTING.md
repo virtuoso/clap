@@ -115,6 +115,7 @@ void endless_loop(void)
 - In conditional expressions:
     - constants go on the right: no "if (5 == number)" and suchlike; your compiler should warn you if you accidentally write an assignment in a conditional expression
     - no need for spelling out the obvious: "if (x == NULL)" => "if (!x)", "if (b == true)" => "if (b)" etc
+- Short control flow statements with a single-statement body (`if`, `else`, loops) go on one line: `if (!value)   return;`; vertically align the statements of adjacent one-liners
 - Vertical alignment of things is encouraged, but not always necessary; it's good if it improves readability, which is, of course, subjective
 - Structure members should be right-aligned for improved readability
 - Line length soft limit: 120 columns (statements can span multiple lines when needed)
