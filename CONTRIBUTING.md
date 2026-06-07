@@ -128,6 +128,12 @@ void endless_loop(void)
 - Resolve configuration (environment variables, settings) once on the init path and store the result; don't re-query it on hot paths
 - Statistics or counters that can be written from multiple threads are either atomic or come with an explicit concurrency plan; the atomics stay internal, user-facing snapshot APIs expose plain types
 
+### There is no such thing as a "sensible default"
+
+Every time a "sensible default" is introduced,
+- a problem is postponed instead of solved, likely to the worst possible moment
+- a problem is quietly relocated to somebody else's shoulders.
+
 ### Conditional compilation
 
 - A large chunk of code behind `#ifdef CONFIG_*` is a sign that it belongs in a separate compilation unit, gated at the cmake level instead
