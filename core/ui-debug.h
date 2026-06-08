@@ -35,6 +35,7 @@ void imgui_style_switcher(void);
 void imgui_set_style(imgui_style style);
 
 bool __ui_mouse_event_propagate(void);
+bool __ui_keyboard_event_propagate(void);
 void imgui_init(struct clap_context *ctx, void *data, int width, int height);
 void imgui_set_settings(struct settings *rs);
 void imgui_done(void);
@@ -142,6 +143,7 @@ static inline void ui_toggle_debug_selector(void) {}
 static inline void ui_debug_set_settings(struct settings *rs) {}
 
 static inline bool __ui_mouse_event_propagate(void) { return false; }
+static inline bool __ui_keyboard_event_propagate(void) { return false; }
 static inline void imgui_init(struct clap_context *ctx, void *data, int width, int height) {}
 static inline void imgui_set_settings(struct settings *rs) {}
 static inline void imgui_done(void) {}

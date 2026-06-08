@@ -140,7 +140,15 @@ static ImGuiKey keycode_to_imgui_key(int keycode)
 
 bool __ui_set_key(int key_code, const char *key, bool down)
 {
-    if (!__ui_mouse_event_propagate()) return false;
+    bool capture = __ui_keyboard_event_propagate();
+
+    /*
+     * Releases go to ImGui even when it isn't listening: a key can end the
+     * capture with its press, as the keys that leave a text field do, and a
+     * release lost then leaves the key down, repeating into the next field
+     * to take the keyboard. The game still gets them.
+     */
+    if (!capture && down)   return false;
 
     ImGuiKey igkey = keycode_to_imgui_key(key_code);
     if (igkey != ImGuiKey_None)
@@ -149,7 +157,7 @@ bool __ui_set_key(int key_code, const char *key, bool down)
     if (down && key[0] && !key[1])
         ImGuiIO_AddInputCharacter(bd.io, key[0]);
 
-    return true;
+    return capture;
 }
 
 void ui_ig_new_frame(void)

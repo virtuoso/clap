@@ -54,6 +54,12 @@ bool __ui_mouse_event_propagate(void)
     return io->WantCaptureMouse;
 }
 
+bool __ui_keyboard_event_propagate(void)
+{
+    struct ImGuiIO *io = igGetIO_ContextPtr(ctx);
+    return io->WantCaptureKeyboard;
+}
+
 void imgui_set_settings(struct settings *rs)
 {
     settings = rs;
