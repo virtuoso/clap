@@ -7,6 +7,7 @@
 #include "ui.h"
 #include "ui-debug.h"
 #include "ui-menus.h"
+#include "ui-settings.h"
 
 static void menu_onfocus(struct ui_element *uie, bool focus)
 {
@@ -127,7 +128,7 @@ static const ui_menu_item default_start_root = UI_MENU_GROUP(
     UI_MENU_ITEM("Devel",           __menu_devel),
 #endif /* CONFIG_FINAL */
     UI_MENU_GROUP("Settings",       &default_uwb,
-        UI_MENU_ITEM("Controls",    NULL),
+        UI_MENU_ITEM("Controls",    ui_settings_open_controls),
         UI_MENU_ITEM("Graphics",    NULL),
         UI_MENU_END
     ),
