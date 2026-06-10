@@ -471,8 +471,47 @@ static EM_BOOL mousedown_callback(int eventType, const EmscriptenMouseEvent *e, 
     return true;
 }
 
+/*
+ * EmscriptenMouseEvent.movementX/Y are ints, while browsers (notably
+ * Safari/WebKit) report fractional per-event mouse movement during
+ * pointer lock, which the int conversion truncates to zero. Accumulate
+ * the raw values in JS and drain the sums at message time, so that
+ * sub-pixel movements add up instead of getting lost.
+ */
+EM_JS(void, www_movement_hook, (void), {
+    Module.clapMoveX = 0.0;
+    Module.clapMoveY = 0.0;
+    addEventListener('mousemove', (e) => {
+        Module.clapMoveX += e.movementX;
+        Module.clapMoveY += e.movementY;
+    }, true);
+});
+
+EM_JS(void, www_movement_reset, (void), {
+    Module.clapMoveX = 0.0;
+    Module.clapMoveY = 0.0;
+});
+
+EM_JS(double, www_movement_take_x, (void), {
+    const v = Module.clapMoveX;
+    Module.clapMoveX = 0.0;
+    return v;
+});
+
+EM_JS(double, www_movement_take_y, (void), {
+    const v = Module.clapMoveY;
+    Module.clapMoveY = 0.0;
+    return v;
+});
+
 static bool mouse_captured;
-void www_mouse_capture_set(bool on) { mouse_captured = on; }
+
+void www_mouse_capture_set(bool on)
+{
+    mouse_captured = on;
+    /* don't replay motion accumulated before the toggle */
+    www_movement_reset();
+}
 
 static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
 {
@@ -506,8 +545,8 @@ static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, 
 
     memset(&mi, 0, sizeof(mi));
     if (mouse_captured) {
-        mi.delta_rx = (float)e->movementX;
-        mi.delta_ry = (float)e->movementY;
+        mi.delta_rx = (float)www_movement_take_x();
+        mi.delta_ry = (float)www_movement_take_y();
     } else {
         mi.mouse_move = 1;
         mi.x = e->targetX;
@@ -542,6 +581,11 @@ int platform_input_init(struct clap_context *ctx)
     CHECK0(emscripten_set_click_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, click_callback));
     CHECK0(emscripten_set_mouseup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mouseup_callback));
     CHECK0(emscripten_set_mousedown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousedown_callback));
+    /*
+     * must precede the mousemove registration: the accumulator listener has
+     * to run first for mousemove_callback to drain the current event too
+     */
+    www_movement_hook();
     CHECK0(emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, mousemove_callback));
     return 0;
 }
