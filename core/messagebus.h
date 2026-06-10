@@ -28,6 +28,7 @@ enum message_source_type {
     MST_CLIENT,
     MST_SERVER,
     MST_FUZZER,
+    MST_JOYSTICK,
 };
 
 struct message_input {

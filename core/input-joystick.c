@@ -174,7 +174,7 @@ void joystick_name_update(int joy, const char *name)
     strncpy(joys[joy].name, name, JOY_NAME_MAX);
     joys[joy].name[JOY_NAME_MAX - 1] = 0;
     joys[joy].nr_axes = joys[joy].nr_buttons = 0;
-    joys[joy].msg_src.type = -1;
+    joys[joy].msg_src.type = MST_JOYSTICK;
     joys[joy].msg_src.desc = joys[joy].name;
     joys[joy].msg_src.name = joys[joy].name;
     joys[joy].has_motion = false;
