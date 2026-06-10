@@ -45,7 +45,7 @@ void motion_parse_input(struct motionctl *mctl, struct message *m)
         mctl->rs_down = 0;
 
     if (m->input.delta_ry)
-        mctl->rs_dy = m->input.delta_ry;
+        mctl->rs_dy += m->input.delta_ry;
 
     if (m->input.yaw_right == 1)
         mctl->rs_right = 1;
@@ -58,7 +58,7 @@ void motion_parse_input(struct motionctl *mctl, struct message *m)
         mctl->rs_left = 0;
 
     if (m->input.delta_rx)
-        mctl->rs_dx = m->input.delta_rx;
+        mctl->rs_dx += m->input.delta_rx;
 }
 
 static void motion_compute_ls(struct motionctl *mctl)

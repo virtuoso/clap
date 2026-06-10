@@ -1085,6 +1085,15 @@ void scene_characters_move(struct scene *s)
     }
 }
 
+/*
+ * MOUSE_BASELINE is the camera rotation in degrees that one mouse pixel
+ * produces at 1.0x sensitivity; YAW_SPEED_SCALE is the extra horizontal
+ * rotation speed factor on top of scene::ang_speed. Both are candidates
+ * for becoming scene or game parameters.
+ */
+constexpr float MOUSE_BASELINE  = 0.05f;
+constexpr float YAW_SPEED_SCALE = 1.5f;
+
 static int scene_handle_input(struct clap_context *ctx, struct message *m, void *data)
 {
     struct scene *s = data;
@@ -1144,14 +1153,25 @@ static int scene_handle_input(struct clap_context *ctx, struct message *m, void 
         const char *active = input_controls_active_gamepad_name();
         if (!active || !m->source->name || strcmp(m->source->name, active))  return 0;
     } else if (m->source && m->source->type == MST_KEYBOARD) {
-        if (!input_controls_use_mouse()) {
-            filtered.input.delta_rx = 0;
-            filtered.input.delta_ry = 0;
-        } else {
-            float sens = input_controls_mouse_sensitivity();
+        /*
+         * Mouse deltas arrive in pixels, while scene_update() feeds rs_d*
+         * through ang_speed assuming stick-sized (~[-1, 1]) values, and
+         * camera_move() divides the resulting rate by fps. Multiplying by
+         * fps here cancels that division, so that one pixel at sens=1.0
+         * yields MOUSE_BASELINE degrees of rotation independently of the
+         * frame rate. The yaw path multiplies by an extra YAW_SPEED_SCALE,
+         * so divide that out here.
+         */
+        if (input_controls_use_mouse() && s->ang_speed > 0.0f) {
+            unsigned long fps = clap_get_fps_fine(s->clap_ctx);
+            float sens  = input_controls_mouse_sensitivity();
             float yflip = input_controls_invert_y() ? -1.0f : 1.0f;
-            filtered.input.delta_rx *= sens;
-            filtered.input.delta_ry *= sens * yflip;
+            float pitch_factor = sens * yflip * MOUSE_BASELINE * (float)fps / s->ang_speed;
+            float yaw_factor   = sens         * MOUSE_BASELINE * (float)fps / (s->ang_speed * YAW_SPEED_SCALE);
+            filtered.input.delta_ry *= pitch_factor;
+            filtered.input.delta_rx *= yaw_factor;
+        } else {
+            filtered.input.delta_rx = filtered.input.delta_ry = 0;
         }
     }
 
@@ -1201,8 +1221,7 @@ void scene_update(struct scene *scene)
         transform_set_updated(&scene->camera->xform);
     }
     if (scene->mctl.rs_dx) {
-        /* XXX: need a better way to represend horizontal rotational speed */
-        camera_add_yaw(scene->camera, scene->mctl.rs_dx * scene->ang_speed * 1.5);
+        camera_add_yaw(scene->camera, scene->mctl.rs_dx * scene->ang_speed * YAW_SPEED_SCALE);
         transform_set_updated(&scene->camera->xform);
     }
 
