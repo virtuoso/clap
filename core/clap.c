@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
+#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+#include <sys/utsname.h>
+#endif
 #include "clap.h"
 #include "common.h"
 #include "display.h"
@@ -780,6 +783,17 @@ static bool clap_config_is_valid(struct clap_config *cfg)
 /****************************************************************************
  * OS detection
  ****************************************************************************/
+
+static void os_info_dbg(clap_os_info *osi)
+{
+    dbg("os %d v%u.%u.%u%s browser %d v%u.%u.%u webkit v%u.%u.%u\n",
+        osi->os, osi->os_version.major, osi->os_version.minor, osi->os_version.patch,
+        osi->mobile ? " (mobile)" : "",
+        osi->browser, osi->browser_version.major, osi->browser_version.minor,
+        osi->browser_version.patch,
+        osi->webkit_version.major, osi->webkit_version.minor, osi->webkit_version.patch);
+}
+
 #ifdef __EMSCRIPTEN__
 static char *__user_agent;
 
@@ -800,34 +814,46 @@ static cerr clap_os_init(struct clap_context *ctx)
     ctx->os_info.name = strdup(__user_agent);
     free(__user_agent);
     __user_agent = NULL;
+    dbg("### user-agent: '%s'\n", ctx->os_info.name);
 
     if (!ctx->os_info.name)
         return CERR_NOMEM;
 
-    if (ctx->os_info.name &&
-        (strstr(ctx->os_info.name, "iPhone") ||
-         strstr(ctx->os_info.name, "iPad")
-        )
-    )
-        ctx->os_info.mobile = true;
+    clap_os_parse_user_agent(&ctx->os_info, ctx->os_info.name);
+    os_info_dbg(&ctx->os_info);
 
     return CERR_OK;
+}
+#elif defined(_WIN32)
+static cerr clap_os_init(struct clap_context *ctx)
+{
+    ctx->os_info.name = strdup("Windows");
+    ctx->os_info.os = CLAP_OS_WINDOWS;
+    os_info_dbg(&ctx->os_info);
+
+    return ctx->os_info.name ? CERR_OK : CERR_NOMEM;
 }
 #else
 static cerr clap_os_init(struct clap_context *ctx)
 {
-    /* XXX: get struct uts_name from uname() */
-    ctx->os_info.name = strdup(
-#if defined(linux)
-        "Linux"
-#elif defined(__APPLE__)
-        "Mac OS X"
-#else /* XXX: windows */
-        "unknown"
-#endif
-    );
+    struct utsname u;
 
-    return ctx->os_info.name ? CERR_OK : CERR_NOMEM;
+    if (uname(&u) < 0) {
+        ctx->os_info.name = strdup("unknown");
+        return ctx->os_info.name ? CERR_OK : CERR_NOMEM;
+    }
+
+    char buf[sizeof(u.sysname) + sizeof(u.release) + 1];
+    snprintf(buf, sizeof(buf), "%s %s", u.sysname, u.release);
+    ctx->os_info.name = strdup(buf);
+    if (!ctx->os_info.name)  return CERR_NOMEM;
+
+    if (!strcmp(u.sysname, "Linux"))        ctx->os_info.os = CLAP_OS_LINUX;
+    else if (!strcmp(u.sysname, "Darwin"))  ctx->os_info.os = CLAP_OS_MACOS;
+    clap_semver_parse(u.release, &ctx->os_info.os_version);
+    os_info_dbg(&ctx->os_info);
+
+    return CERR_OK;
 }
 #endif /* __EMSCRIPTEN__ */
 

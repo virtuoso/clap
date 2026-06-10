@@ -53,7 +53,7 @@ configure_file(config.h.in config.h)
 set(TEST_BIN tests)
 set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
     ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c
-    render-texture.c draw.c)
+    render-texture.c draw.c os-info.c)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
@@ -107,7 +107,7 @@ set(ENGINE_SRC
     model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
     physics.c ui-animations.c ui-menus.c ui-settings.c input-fuzzer.c character.c settings.c error.c
-    gltf.c input-controls.c input-joystick.c mesh.c pipeline.c pipeline-builder.c datatypes.c
+    gltf.c input-controls.c input-joystick.c mesh.c os-info.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
 

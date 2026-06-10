@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include "ca2d.h"
 #include "ca3d.h"
+#include "clap.h"
 #include "cpio.h"
 #include "draw.h"
 #include "font.h"
@@ -1277,10 +1278,90 @@ static int tex_rgb_to_rgba_16f_test(void)
     return EXIT_SUCCESS;
 }
 
+static int ua_parse_desktop_test(void)
+{
+    clap_os_info osi = {};
+
+    /* Safari on macOS */
+    clap_os_parse_user_agent(&osi,
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+        "(KHTML, like Gecko) Version/17.4 Safari/605.1.15");
+    if (osi.os != CLAP_OS_MACOS || osi.browser != CLAP_BROWSER_SAFARI)  return EXIT_FAILURE;
+    if (osi.os_version.major != 10 || osi.os_version.minor != 15 ||
+        osi.os_version.patch != 7)                                      return EXIT_FAILURE;
+    if (osi.browser_version.major != 17 || osi.browser_version.minor != 4) return EXIT_FAILURE;
+    if (osi.webkit_version.major != 605 || osi.webkit_version.minor != 1 ||
+        osi.webkit_version.patch != 15)                                 return EXIT_FAILURE;
+    if (osi.mobile)                                                     return EXIT_FAILURE;
+
+    /* Chrome on Linux: not Safari despite the trailing Safari/ token */
+    osi = (clap_os_info){};
+    clap_os_parse_user_agent(&osi,
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.6478.61 Safari/537.36");
+    if (osi.os != CLAP_OS_LINUX || osi.browser != CLAP_BROWSER_CHROME)  return EXIT_FAILURE;
+    if (osi.browser_version.major != 126 || osi.browser_version.patch != 6478) return EXIT_FAILURE;
+    if (osi.webkit_version.major != 537 || osi.webkit_version.minor != 36) return EXIT_FAILURE;
+
+    /* Firefox on Windows */
+    osi = (clap_os_info){};
+    clap_os_parse_user_agent(&osi,
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) "
+        "Gecko/20100101 Firefox/128.0");
+    if (osi.os != CLAP_OS_WINDOWS || osi.browser != CLAP_BROWSER_FIREFOX) return EXIT_FAILURE;
+    if (osi.os_version.major != 10 || osi.os_version.minor != 0)        return EXIT_FAILURE;
+    if (osi.browser_version.major != 128)                               return EXIT_FAILURE;
+    if (osi.webkit_version.major)                                       return EXIT_FAILURE;
+
+    /* Edge: Chromium-derived, but not reported as Chrome */
+    osi = (clap_os_info){};
+    clap_os_parse_user_agent(&osi,
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.2592.56");
+    if (osi.browser != CLAP_BROWSER_OTHER)                              return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ua_parse_mobile_test(void)
+{
+    clap_os_info osi = {};
+
+    /* Safari on iPhone */
+    clap_os_parse_user_agent(&osi,
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 "
+        "Mobile/15E148 Safari/604.1");
+    if (osi.os != CLAP_OS_IOS || osi.browser != CLAP_BROWSER_SAFARI)    return EXIT_FAILURE;
+    if (osi.os_version.major != 17 || osi.os_version.minor != 4 ||
+        osi.os_version.patch != 1)                                      return EXIT_FAILURE;
+    if (!osi.mobile)                                                    return EXIT_FAILURE;
+
+    /* Chrome on Android */
+    osi = (clap_os_info){};
+    clap_os_parse_user_agent(&osi,
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.6478.71 Mobile Safari/537.36");
+    if (osi.os != CLAP_OS_ANDROID || osi.browser != CLAP_BROWSER_CHROME) return EXIT_FAILURE;
+    if (osi.os_version.major != 14)                                     return EXIT_FAILURE;
+    if (!osi.mobile)                                                    return EXIT_FAILURE;
+
+    /* garbage and NULL don't misdetect or crash */
+    osi = (clap_os_info){};
+    clap_os_parse_user_agent(&osi, NULL);
+    clap_os_parse_user_agent(&osi, "curl/8.5.0");
+    if (osi.os != CLAP_OS_UNKNOWN || osi.browser != CLAP_BROWSER_OTHER) return EXIT_FAILURE;
+    if (osi.mobile)                                                     return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
 } tests[] = {
+    { .name = "user-agent parse desktop", .test = ua_parse_desktop_test },
+    { .name = "user-agent parse mobile", .test = ua_parse_mobile_test },
     { .name = "refcount basic", .test = refcount_test0 },
     { .name = "refcount get/put", .test = refcount_test1 },
     { .name = "refcount static", .test = refcount_test2 },

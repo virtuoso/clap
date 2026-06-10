@@ -21,14 +21,92 @@ typedef struct render_options render_options;
 typedef struct pipeline pipeline;
 
 /**
+ * enum clap_os_type - operating system kind
+ * @CLAP_OS_UNKNOWN:    not detected
+ * @CLAP_OS_LINUX:      Linux
+ * @CLAP_OS_MACOS:      macOS
+ * @CLAP_OS_IOS:        iOS/iPadOS
+ * @CLAP_OS_WINDOWS:    Windows
+ * @CLAP_OS_ANDROID:    Android
+ */
+typedef enum clap_os_type {
+    CLAP_OS_UNKNOWN = 0,
+    CLAP_OS_LINUX,
+    CLAP_OS_MACOS,
+    CLAP_OS_IOS,
+    CLAP_OS_WINDOWS,
+    CLAP_OS_ANDROID,
+} clap_os_type;
+
+/**
+ * enum clap_browser - browser kind
+ * @CLAP_BROWSER_NONE:      not a browser (native builds)
+ * @CLAP_BROWSER_FIREFOX:   Firefox (Gecko)
+ * @CLAP_BROWSER_CHROME:    Chrome/Chromium (Blink)
+ * @CLAP_BROWSER_SAFARI:    Safari (WebKit)
+ * @CLAP_BROWSER_OTHER:     anything else
+ */
+typedef enum clap_browser {
+    CLAP_BROWSER_NONE = 0,
+    CLAP_BROWSER_FIREFOX,
+    CLAP_BROWSER_CHROME,
+    CLAP_BROWSER_SAFARI,
+    CLAP_BROWSER_OTHER,
+} clap_browser;
+
+/**
+ * struct clap_semver - dotted version triplet
+ * @major:  first version component
+ * @minor:  second version component
+ * @patch:  third version component
+ */
+typedef struct clap_semver {
+    unsigned int    major;
+    unsigned int    minor;
+    unsigned int    patch;
+} clap_semver;
+
+/**
  * struct clap_os_info - static OS information
- * @name:   OS name on native builds or User-Agent on WASM builds
- * @mobile: whether running on a mobile device
+ * @name:               User-Agent on browser builds, OS name and release
+ *                      elsewhere
+ * @mobile:             whether running on a mobile device
+ * @os:                 operating system kind
+ * @browser:            browser kind, %CLAP_BROWSER_NONE on native builds
+ * @os_version:         OS version (browsers may freeze/fake it)
+ * @browser_version:    browser version, zeros on native builds
+ * @webkit_version:     AppleWebKit build version, zeros when not WebKit-derived
  */
 typedef struct clap_os_info {
-    char    *name;
-    bool    mobile;
+    char            *name;
+    bool            mobile;
+    clap_os_type    os;
+    clap_browser    browser;
+    clap_semver     os_version;
+    clap_semver     browser_version;
+    clap_semver     webkit_version;
 } clap_os_info;
+
+/**
+ * clap_semver_parse() - parse a dotted version string
+ * @str:    string starting with up to three '.'/'_' separated numbers
+ * @v:      version triplet to fill in
+ *
+ * Components that aren't present are left untouched.
+ * Return: pointer past the last parsed component.
+ */
+const char *clap_semver_parse(const char *str, clap_semver *v);
+
+/**
+ * clap_os_parse_user_agent() - parse a browser User-Agent string
+ * @osi:    OS info to fill in
+ * @ua:     User-Agent string
+ *
+ * Fill in @osi's os/browser kinds, version triplets and the mobile flag
+ * from @ua; @osi->name is not touched. Called by clap_init() on browser
+ * builds; exposed for unit tests.
+ */
+void clap_os_parse_user_agent(clap_os_info *osi, const char *ua);
 
 /**
  * clap_get_os() - get OS information
