@@ -4,6 +4,7 @@
 #include "error.h"
 #include "input.h"
 #include "input-controls.h"
+#include "librarian.h"
 #include "messagebus.h"
 #include "ui.h"
 #include "ui-debug.h"
@@ -81,6 +82,21 @@ static void __menu_exit(struct ui *ui, const ui_menu_item *item)
 }
 #endif /* CONFIG_BROWSER */
 
+static void __menu_license(struct ui *ui, const ui_menu_item *item)
+{
+    LOCAL(lib_handle, lh);
+    char   *buffer = NULL;
+    size_t size;
+
+    lh = lib_read_file(RES_ASSET, "LICENSE", (void **)&buffer, &size);
+    /*
+     * ui_roll_new() renders the text into a texture during construction, so
+     * the buffer, owned by @lh, can go away on scope exit. Roll a placeholder
+     * if the asset is missing.
+     */
+    ui_roll_new(ui, NULL, lh ? buffer : "<<< license text missing >>>");
+}
+
 static void __menu_start_game(struct ui *ui, const ui_menu_item *item)
 {
     ui->state = UI_ST_LOADING;
@@ -146,7 +162,7 @@ static const ui_menu_item default_start_root = UI_MENU_GROUP(
     ),
     UI_MENU_GROUP("Help",           &default_uwb,
         UI_MENU_ITEM("Credits",     NULL),
-        UI_MENU_ITEM("License",     NULL),
+        UI_MENU_ITEM("License",     __menu_license),
         UI_MENU_ITEM("Help",        NULL),
         UI_MENU_END
     ),
