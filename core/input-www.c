@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include "clap.h"
 #include "common.h"
 #include "memory.h"
 #include "messagebus.h"
@@ -537,6 +538,9 @@ static EM_BOOL click_callback(int eventType, const EmscriptenMouseEvent *e, void
     return true;
 }
 
+/** SAFARI_MOUSE_SCALE - scale Safari's raw pointer lock deltas to other browsers' */
+constexpr float SAFARI_MOUSE_SCALE = 8.0f;
+
 static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
 {
     if (!mouse_captured && __ui_set_mouse_position(e->targetX, e->targetY))  return true;
@@ -545,8 +549,17 @@ static EM_BOOL mousemove_callback(int eventType, const EmscriptenMouseEvent *e, 
 
     memset(&mi, 0, sizeof(mi));
     if (mouse_captured) {
-        mi.delta_rx = (float)www_movement_take_x();
-        mi.delta_ry = (float)www_movement_take_y();
+        /*
+         * Safari reports unaccelerated raw movement deltas under pointer
+         * lock, several times smaller than what other browsers produce for
+         * the same physical motion, and macOS pointer speed settings don't
+         * apply while the pointer is locked. Normalize, so that the same
+         * sensitivity setting feels similar across browsers.
+         */
+        float scale = clap_get_os(clap_ctx)->browser == CLAP_BROWSER_SAFARI
+            ? SAFARI_MOUSE_SCALE : 1.0f;
+        mi.delta_rx = (float)www_movement_take_x() * scale;
+        mi.delta_ry = (float)www_movement_take_y() * scale;
     } else {
         mi.mouse_move = 1;
         mi.x = e->targetX;
