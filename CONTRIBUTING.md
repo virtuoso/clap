@@ -116,7 +116,16 @@ void endless_loop(void)
 - In conditional expressions:
     - constants go on the right: no "if (5 == number)" and suchlike; your compiler should warn you if you accidentally write an assignment in a conditional expression
     - no need for spelling out the obvious: "if (x == NULL)" => "if (!x)", "if (b == true)" => "if (b)" etc
-- Short control flow statements with a single-statement body (`if`, `else`, loops) go on one line: `if (!value)   return;`; vertically align the statements of adjacent one-liners
+- Short control flow statements with a single-statement body (`if`, `else`, loops) go on one line, and the body starts at a column that is a multiple of 4:
+    - a one-liner on its own uses the nearest multiple of 4 past its condition
+    - when several similar one-liners are in close visual proximity — commonly within the same function, though exceptions are made for very short functions — the longest of them picks the column and they all align to it
+    - what counts as "close visual proximity" is a judgement call
+```C
+    if (item->type != TYPE_STRING)  return false;
+
+    if (value_new == value)     return;
+    if (value_new > value_max)  return;
+```
 - Vertical alignment of things is encouraged, but not always necessary; it's good if it improves readability, which is, of course, subjective
 - Structure members should be right-aligned for improved readability
 - In vertically aligned declarations, a pointer's name is aligned by its (first) asterisk, not by the name's first character; that is, the `*` goes in the column where non-pointer names start:
