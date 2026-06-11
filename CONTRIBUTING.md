@@ -119,6 +119,12 @@ void endless_loop(void)
 - Short control flow statements with a single-statement body (`if`, `else`, loops) go on one line: `if (!value)   return;`; vertically align the statements of adjacent one-liners
 - Vertical alignment of things is encouraged, but not always necessary; it's good if it improves readability, which is, of course, subjective
 - Structure members should be right-aligned for improved readability
+- In vertically aligned declarations, a pointer's name is aligned by its (first) asterisk, not by the name's first character; that is, the `*` goes in the column where non-pointer names start:
+```C
+char    *s;
+double  n;
+bool    b;
+```
 - Line length soft limit: 120 columns (statements can span multiple lines when needed)
 - Naming conventions:
     - Use snake_case throughout (C and ObjC code)
