@@ -776,7 +776,7 @@ static void ui_osd_element_cb(struct ui_element *uie, unsigned int i)
 }
 
 static struct ui_widget *
-ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, unsigned int nr_items)
+ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char *const *items, unsigned int nr_items)
 {
     struct ui_widget *osd = ref_new(ui_widget, .ui = ui, .uwb = uwb, .nr_items = nr_items);
     struct ui_element *tui;
@@ -806,7 +806,7 @@ ui_osd_build(struct ui *ui, struct ui_widget_builder *uwb, const char **items, u
 }
 
 struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
-                             const char **items, unsigned int nr_items)
+                             const char *const *items, unsigned int nr_items)
 {
     /* Defaults, if the caller didn't provide a @uwb */
     struct ui_widget_builder _uwb = {

@@ -341,7 +341,7 @@ struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root);
  */
 bool ui_menu_input(struct ui *ui, struct ui_widget *uiw, struct message *m);
 struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
-                             const char **items, unsigned int nr_items);
+                             const char *const *items, unsigned int nr_items);
 
 /**
  * ui_text_new() - create a persistent single-string text widget
