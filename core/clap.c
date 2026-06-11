@@ -12,6 +12,7 @@
 #include "clap.h"
 #include "common.h"
 #include "display.h"
+#include "audio-settings.h"
 #include "graphics-settings.h"
 #include "input.h"
 #include "input-controls.h"
@@ -563,6 +564,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
     CERR_RET(input_controls_init(rs), err_cerr(__cerr, "failed to load input controls\n"));
     clap_update_input_controls(ctx);
     CERR_RET(graphics_settings_init(ctx, rs), err_cerr(__cerr, "failed to load graphics settings\n"));
+    CERR_RET(audio_settings_init(ctx, rs), err_cerr(__cerr, "failed to load audio settings\n"));
 
     if (ctx->cfg.settings_cb)
         ctx->cfg.settings_cb(ctx, rs, ctx->cfg.settings_cb_data);

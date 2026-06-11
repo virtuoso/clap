@@ -19,6 +19,10 @@
     "     \"use_mouse_for_camera\": false,"         \
     "     \"mouse_sensitivity\": 1.0,"              \
     "     \"invert_y\": false"                      \
+    " },"                                           \
+    " \"audio\": {"                                 \
+    "     \"music_volume\": 1.0,"                   \
+    "     \"sfx_volume\": 1.0"                      \
     " }"                                            \
     "}"
 

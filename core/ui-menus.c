@@ -170,6 +170,7 @@ static const ui_menu_item default_in_game_root = UI_MENU_GROUP(
     UI_MENU_GROUP("Settings",       &default_uwb,
         UI_MENU_ITEM("Controls",    ui_settings_open_controls),
         UI_MENU_ITEM("Graphics",    ui_settings_open_graphics),
+        UI_MENU_ITEM("Sound",       ui_settings_open_sound),
         UI_MENU_END
     ),
 #ifndef CONFIG_BROWSER
@@ -188,6 +189,7 @@ static const ui_menu_item default_start_root = UI_MENU_GROUP(
     UI_MENU_GROUP("Settings",       &default_uwb,
         UI_MENU_ITEM("Controls",    ui_settings_open_controls),
         UI_MENU_ITEM("Graphics",    ui_settings_open_graphics),
+        UI_MENU_ITEM("Sound",       ui_settings_open_sound),
         UI_MENU_END
     ),
     UI_MENU_GROUP("Help",           &default_uwb,

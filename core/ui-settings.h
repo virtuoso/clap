@@ -30,4 +30,15 @@ void ui_settings_open_controls(struct ui *ui, const struct ui_menu_item *item);
  */
 void ui_settings_open_graphics(struct ui *ui, const struct ui_menu_item *item);
 
+/**
+ * ui_settings_open_sound() - open the "Sound" settings screen
+ * @ui:     ui context
+ * @item:   menu item that triggered the open (unused)
+ *
+ * Shows music and SFX master volume steppers (10 steps each, left/right
+ * arrow keys step down/up; click cycles forward). Persists through
+ * audio_settings_set_*.
+ */
+void ui_settings_open_sound(struct ui *ui, const struct ui_menu_item *item);
+
 #endif /* __CLAP_UI_SETTINGS_H__ */
