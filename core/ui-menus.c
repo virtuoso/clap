@@ -43,6 +43,36 @@ static void menu_open(struct ui *ui, const ui_menu_item *root)
     ui->menu.widget = ui_menu_new(ui, root);
 }
 
+/*
+ * A persistent "click anywhere" overlay used as a pre-start gate on web
+ * builds. Browsers suspend the AudioContext until a user gesture, so clap's
+ * audio subsystem won't actually produce sound until then; this state
+ * makes the required gesture an explicit part of the UX instead of the
+ * user clicking a start-menu item and wondering why there's no sound.
+ * Compiled on all platforms (IS_DEFINED gating), but only reached on web.
+ */
+static const struct ui_widget_builder prestart_uwb = {
+    .affinity    = UI_AF_CENTER,
+    .el_affinity = UI_AF_CENTER,
+    .font_size   = 36,
+    .el_color    = { 0.0f, 0.0f, 0.0f, 0.0f },
+    .text_color  = { 0.95f, 0.95f, 0.95f, 1.0f },
+};
+
+static void prestart_open(struct ui *ui)
+{
+    if (ui->menu.widget)    return;
+    ui->menu.widget = ui_text_new(ui, &prestart_uwb, "Click anywhere to begin");
+}
+
+static void prestart_close(struct ui *ui)
+{
+    if (ui->menu.widget) {
+        ref_put(ui->menu.widget);
+        ui->menu.widget = NULL;
+    }
+}
+
 static void menu_close(struct ui *ui)
 {
     if (ui->menu.widget)
@@ -178,6 +208,25 @@ static int ui_menus_handle_input(struct clap_context *ctx, struct message *m, vo
     uivec uivec = uivec_from_input(ui, m);
 
     switch (ui->state) {
+    case UI_ST_PRESTART:
+        /*
+         * Web builds gate on a first click: it dismisses the overlay and
+         * opens the start menu, or, with no start menu, starts the game.
+         * The click is also the gesture that resumes the browser's
+         * AudioContext. Native never enters this state; the case is kept
+         * for -Wswitch.
+         */
+        if (IS_DEFINED(CONFIG_BROWSER) && m->input.mouse_click) {
+            prestart_close(ui);
+            if (ui->menu.start_root) {
+                ui->state = UI_ST_START_MENU;
+                menu_open(ui, ui->menu.start_root);
+            } else {
+                ui_state_set_running(ui);
+            }
+        }
+        return MSG_HANDLED;
+
     case UI_ST_START_MENU:
         // Start menu is modal. A missed click acts as "back": pops one level
         // off the menu stack (see ui_menus_ascend). At the top of the
@@ -246,7 +295,8 @@ cerr ui_menus_init(struct ui *ui,
     bool in_game_enable = in_game_cfg && in_game_cfg->enable;
     bool start_enable   = start_cfg && start_cfg->enable;
 
-    if (!in_game_enable && !start_enable) {
+    /* Native with no menus has nothing to gate; web always needs a click. */
+    if (!IS_DEFINED(CONFIG_BROWSER) && !in_game_enable && !start_enable) {
         ui->state = UI_ST_RUNNING;
         return CERR_OK;
     }
@@ -260,9 +310,19 @@ cerr ui_menus_init(struct ui *ui,
     ui->menu.widget = NULL;
     ui->menu.depth  = 0;
 
-    if (start_enable) {
-        ui->state = UI_ST_START_MENU;
+    if (IS_DEFINED(CONFIG_BROWSER)) {
+        /*
+         * Web builds always gate on a first click regardless of menu config:
+         * the browser only unlocks its AudioContext on a user gesture. The
+         * click (in ui_menus_handle_input) opens the start menu if there is
+         * one, otherwise transitions straight to UI_ST_RUNNING.
+         */
         ui_modality_send(ui);   /* pause */
+        ui->state = UI_ST_PRESTART;
+        prestart_open(ui);
+    } else if (start_enable) {
+        ui_modality_send(ui);   /* pause */
+        ui->state = UI_ST_START_MENU;
         menu_open(ui, ui->menu.start_root);
     } else {
         ui->state = UI_ST_RUNNING;

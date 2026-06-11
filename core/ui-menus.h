@@ -11,11 +11,16 @@ struct clap_context;
 
 /**
  * enum ui_state - high-level UI state machine
+ * @UI_ST_PRESTART:     web-build gate before the start menu; a "click
+ *                      anywhere" overlay waits for the user gesture that
+ *                      unlocks the browser's AudioContext. Native builds
+ *                      skip this state and start in %UI_ST_START_MENU.
  * @UI_ST_START_MENU:   start menu is active, clap is paused
  * @UI_ST_LOADING:      "Start Game" selected; loading callback is in flight
  * @UI_ST_RUNNING:      gameplay; in-game menu is toggleable
  */
 typedef enum ui_state {
+    UI_ST_PRESTART,
     UI_ST_START_MENU,
     UI_ST_LOADING,
     UI_ST_RUNNING,
