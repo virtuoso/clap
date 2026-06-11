@@ -34,6 +34,9 @@ typedef enum ui_state {
  *                      takes precedence over @menu_root->uwb
  * @loading_cb:         start menu only: callback fired on "Start Game" click
  * @loading_cb_data:    data pointer passed to @loading_cb
+ * @credits:            start menu only: array of credit lines shown by
+ *                      Help -> Credits, NULL for the built-in placeholder
+ * @nr_credits:         number of entries in @credits
  */
 typedef struct ui_menu_config {
     bool                                enable;
@@ -41,6 +44,8 @@ typedef struct ui_menu_config {
     const struct ui_widget_builder      *uwb;
     void                                (*loading_cb)(struct clap_context *ctx, void *data);
     void                                *loading_cb_data;
+    const char                          *const *credits;
+    unsigned int                        nr_credits;
 } ui_menu_config;
 
 /**

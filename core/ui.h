@@ -213,6 +213,9 @@ typedef struct ui_menu_item {
  *                      root, used when the start ui_menu_config.uwb is set
  * @loading_cb:         callback fired on "Start Game" selection
  * @loading_cb_data:    data pointer passed to @loading_cb
+ * @credits:            credit lines shown by Help -> Credits in the start
+ *                      menu, NULL for the built-in placeholder
+ * @nr_credits:         number of entries in @credits
  * @stack:              path of roots from the top of the tree to the current
  *                      submenu; @stack[@depth] is the currently-open root
  * @depth:              current menu navigation depth; 0 at the top root
@@ -225,6 +228,8 @@ typedef struct ui_menu {
     ui_menu_item        start_storage;
     void                (*loading_cb)(struct clap_context *ctx, void *data);
     void                *loading_cb_data;
+    const char *const   *credits;
+    unsigned int        nr_credits;
     const ui_menu_item  *stack[UI_MENU_STACK_MAX];
     unsigned int        depth;
 } ui_menu;

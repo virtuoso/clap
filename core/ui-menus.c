@@ -112,6 +112,23 @@ static void __menu_exit(struct ui *ui, const ui_menu_item *item)
 }
 #endif /* CONFIG_BROWSER */
 
+static const char *const credits_placeholder[] = {
+    "Made with the clap engine",
+};
+
+static void __menu_credits(struct ui *ui, const ui_menu_item *item)
+{
+    const char *const *items = ui->menu.credits;
+    unsigned int      nr     = ui->menu.nr_credits;
+
+    if (!items || !nr) {
+        items = credits_placeholder;
+        nr    = array_size(credits_placeholder);
+    }
+
+    ui_osd_new(ui, NULL, items, nr);
+}
+
 static void __menu_license(struct ui *ui, const ui_menu_item *item)
 {
     LOCAL(lib_handle, lh);
@@ -193,7 +210,7 @@ static const ui_menu_item default_start_root = UI_MENU_GROUP(
         UI_MENU_END
     ),
     UI_MENU_GROUP("Help",           &default_uwb,
-        UI_MENU_ITEM("Credits",     NULL),
+        UI_MENU_ITEM("Credits",     __menu_credits),
         UI_MENU_ITEM("License",     __menu_license),
         UI_MENU_ITEM("Help",        NULL),
         UI_MENU_END
@@ -309,6 +326,8 @@ cerr ui_menus_init(struct ui *ui,
                                          &ui->menu.start_storage);
     ui->menu.loading_cb      = start_cfg ? start_cfg->loading_cb      : NULL;
     ui->menu.loading_cb_data = start_cfg ? start_cfg->loading_cb_data : NULL;
+    ui->menu.credits         = start_cfg ? start_cfg->credits         : NULL;
+    ui->menu.nr_credits      = start_cfg ? start_cfg->nr_credits      : 0;
     ui->menu.widget = NULL;
     ui->menu.depth  = 0;
 
@@ -340,6 +359,8 @@ void ui_menus_done(struct ui *ui)
     ui->menu.start_root      = NULL;
     ui->menu.loading_cb      = NULL;
     ui->menu.loading_cb_data = NULL;
+    ui->menu.credits         = NULL;
+    ui->menu.nr_credits      = 0;
 }
 
 void ui_menus_ascend(struct ui *ui)
