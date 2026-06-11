@@ -27,4 +27,9 @@ const char *gltf_mesh_name(struct gltf_data *gd, int mesh);
 void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,
                     float **tx, size_t *txsz, float **norm, size_t *normsz);
 
+bool gltf_node_extras_present(struct gltf_data *gd, int node, const char *prefix);
+bool gltf_node_extras_string(struct gltf_data *gd, int node, const char *key, const char **out);
+bool gltf_node_extras_number(struct gltf_data *gd, int node, const char *key, double *out);
+bool gltf_node_extras_bool(struct gltf_data *gd, int node, const char *key, bool *out);
+
 #endif /* __CLAP_GLTF_H__ */

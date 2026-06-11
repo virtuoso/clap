@@ -57,6 +57,22 @@ struct gltf_accessor {
     size_t       offset;
 };
 
+enum gltf_extra_type {
+    GLTF_EXTRA_STRING,
+    GLTF_EXTRA_NUMBER,
+    GLTF_EXTRA_BOOL,
+};
+
+struct gltf_extra {
+    char                 *key;
+    enum gltf_extra_type type;
+    union {
+        char    *s;
+        double  n;
+        bool    b;
+    };
+};
+
 struct gltf_node {
     const char  *name;
     quat        rotation;
@@ -64,6 +80,7 @@ struct gltf_node {
     vec3        translation;
     struct list children;
     struct list entry;
+    darray(struct gltf_extra, extras);
     int         mesh;
     int         skin;
     unsigned int id;
@@ -208,8 +225,14 @@ void gltf_free(struct gltf_data *gd)
     }
 
     darray_for_each(node, gd->nodes) {
+        struct gltf_extra *ex;
         free((void *)node->name);
         free(node->ch_arr);
+        darray_for_each(ex, node->extras) {
+            free(ex->key);
+            if (ex->type == GLTF_EXTRA_STRING)  free(ex->s);
+        }
+        darray_clearout(node->extras);
     }
     darray_for_each(skin, gd->skins) {
         free((void *)skin->joints);
@@ -451,6 +474,59 @@ int gltf_root_mesh(struct gltf_data *gd)
         return 0;
 
     return DA(gd->nodes, root)->mesh;
+}
+
+cresp_ret(gltf_extra, struct);
+static cresp(gltf_extra) gltf_node_extra_find(struct gltf_data *gd, int node, const char *key)
+{
+    if (node < 0 || node >= darray_count(gd->nodes))
+        return cresp_error(gltf_extra, CERR_INVALID_ARGUMENTS);
+
+    struct gltf_node *n = DA(gd->nodes, node);
+    struct gltf_extra *ex;
+    darray_for_each(ex, n->extras)
+        if (!strcmp(ex->key, key))  return cresp_val(gltf_extra, ex);
+
+    return cresp_error(gltf_extra, CERR_NOT_FOUND);
+}
+
+bool gltf_node_extras_present(struct gltf_data *gd, int node, const char *prefix)
+{
+    if (node < 0 || node >= darray_count(gd->nodes))    return false;
+
+    struct gltf_node *n = DA(gd->nodes, node);
+    struct gltf_extra *ex;
+    darray_for_each(ex, n->extras)
+        if (!strncmp(ex->key, prefix, strlen(prefix)))  return true;
+
+    return false;
+}
+
+bool gltf_node_extras_string(struct gltf_data *gd, int node, const char *key, const char **out)
+{
+    auto ex = CRES_RET(gltf_node_extra_find(gd, node, key), return false);
+    if (ex->type != GLTF_EXTRA_STRING)  return false;
+
+    *out = ex->s;
+    return true;
+}
+
+bool gltf_node_extras_number(struct gltf_data *gd, int node, const char *key, double *out)
+{
+    auto ex = CRES_RET(gltf_node_extra_find(gd, node, key), return false);
+    if (ex->type != GLTF_EXTRA_NUMBER)  return false;
+
+    *out = ex->n;
+    return true;
+}
+
+bool gltf_node_extras_bool(struct gltf_data *gd, int node, const char *key, bool *out)
+{
+    auto ex = CRES_RET(gltf_node_extra_find(gd, node, key), return false);
+    if (ex->type != GLTF_EXTRA_BOOL)    return false;
+
+    *out = ex->b;
+    return true;
 }
 
 int gltf_mesh_skin(struct gltf_data *gd, int mesh)
@@ -726,7 +802,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
 
     /* Nodes */
     for (n = nodes->children.head, nid = 0; n; n = n->next, nid++) {
-        JsonNode *jname, *jmesh, *jskin, *jchildren, *jrot, *jtrans, *jscale;
+        JsonNode *jname, *jmesh, *jskin, *jchildren, *jrot, *jtrans, *jscale, *jextras;
         struct gltf_node *node;
 
         if (n->tag != JSON_OBJECT)
@@ -739,10 +815,12 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         jrot = json_find_member(n, "rotation");
         jtrans = json_find_member(n, "translation");
         jscale = json_find_member(n, "scale");
+        jextras = json_find_member(n, "extras");
         if (!jname || jname->tag != JSON_STRING) /* actually, there only name is guaranteed */
             continue;
 
         CHECK(node = darray_add(gd->nodes));
+        darray_init(node->extras);
         node->name = strdup(jname->string_);
         node->id = nid;
         if (jmesh && jmesh->tag == JSON_NUMBER)
@@ -755,8 +833,28 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             CHECK0(json_float_array(jtrans, node->translation, array_size(node->translation)));
         if (jscale && jscale->tag == JSON_ARRAY)
             CHECK0(json_float_array(jscale, node->scale, array_size(node->scale)));
-        if (jchildren && jchildren->tag == JSON_ARRAY) 
+        if (jchildren && jchildren->tag == JSON_ARRAY)
             CHECK(node->ch_arr = json_int_array_alloc(jchildren, &node->nr_children));
+        if (jextras && jextras->tag == JSON_OBJECT) {
+            for (JsonNode *je = jextras->children.head; je; je = je->next) {
+                struct gltf_extra *ex;
+                if (!je->key) continue;
+                if (je->tag != JSON_STRING && je->tag != JSON_NUMBER && je->tag != JSON_BOOL)
+                    continue;
+                CHECK(ex = darray_add(node->extras));
+                ex->key = strdup(je->key);
+                if (je->tag == JSON_STRING) {
+                    ex->type = GLTF_EXTRA_STRING;
+                    ex->s = strdup(je->string_);
+                } else if (je->tag == JSON_NUMBER) {
+                    ex->type = GLTF_EXTRA_NUMBER;
+                    ex->n = je->number_;
+                } else {
+                    ex->type = GLTF_EXTRA_BOOL;
+                    ex->b = je->bool_;
+                }
+            }
+        }
     }
     /* unpack node.children arrays */
 
