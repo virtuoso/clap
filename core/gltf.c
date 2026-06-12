@@ -99,10 +99,10 @@ struct gltf_skin {
 
 struct gltf_mesh {
     /*
-     * `name` prefers the primitive's material name, so sibling
-     * primitives of the same GLTF mesh are distinguishable. `group_name`
-     * holds the original GLTF mesh name (shared across siblings), which
-     * is what gltf_mesh_by_name() searches, preserving the "mesh named
+     * `name` is "<node>.<material>", so sibling primitives of the same
+     * GLTF mesh are distinguishable. `group_name` holds the original
+     * GLTF mesh name (shared across siblings), which is what
+     * gltf_mesh_by_name() searches, preserving the "mesh named
      * 'collision'" convention.
      */
     const char  *name;
@@ -296,7 +296,7 @@ int gltf_mesh_by_name(struct gltf_data *gd, const char *name)
 {
     int i;
 
-    /* matches group_name, not the material-derived name: see struct gltf_mesh */
+    /* matches group_name, not the composed primitive name: see struct gltf_mesh */
     for (i = 0; i < darray_count(gd->meshes); i++)
         if (!strcasecmp(name, DA(gd->meshes, i)->group_name))
             return i;
@@ -1285,21 +1285,37 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             auto jindices = json_find_member(jprim, "indices");
             auto jmat = json_find_member(jprim, "material");
             auto jattr = json_find_member(jprim, "attributes");
-            if (!jattr || jattr->tag != JSON_OBJECT || !jindices || !jmat)
-                continue;
+            if (!jattr    || jattr->tag     != JSON_OBJECT ||
+                !jindices || jindices->tag  != JSON_NUMBER ||
+                !jmat     || jmat->tag      != JSON_NUMBER)
+                continue;           /* TODO: validation error */
+
+            auto mat = DA(gd->mats, (size_t)jmat->number_);
+            if (!mat)   continue;   /* TODO: validation error */
 
             /*
-             * Prefer the material's name for the primitive so sibling
-             * primitives from the same GLTF mesh are distinguishable.
-             * Fall back to the GLTF mesh name when the material is
-             * unnamed.
+             * Compose the primitive name as "<node>.<material>". Node
+             * names are curated by the designer; GLTF mesh names (like
+             * "Cube.144") are Blender auto-numbering. Falls back cleanly
+             * when either piece is missing.
              */
-            const char *prim_name = jname->string_;
-            int mat_idx = jmat->number_;
-            if (mat_idx >= 0 && mat_idx < darray_count(gd->mats)) {
-                const char *mn = DA(gd->mats, mat_idx)->name;
-                if (mn && *mn)  prim_name = mn;
-            }
+            const char *node_base = NULL;
+            struct gltf_node *gn;
+            darray_for_each(gn, gd->nodes)
+                if (gn->mesh == group_idx) {
+                    node_base = gn->name;
+                    break;
+                }
+            if (!node_base) node_base = jname->string_;
+
+            size_t prim_name_sz = strlen(node_base) + 1;
+
+            const char *mat_name = mat->name;
+            if (mat_name && *mat_name)  prim_name_sz += strlen(mat_name) + 1;
+
+            char prim_name[prim_name_sz];
+            if (mat_name && *mat_name)  snprintf(prim_name, prim_name_sz, "%s.%s", node_base, mat_name);
+            else                        strncpy(prim_name, node_base, prim_name_sz);
 
             CHECK(mesh = darray_add(gd->meshes));
             gltf_mesh_init(mesh, jname->string_, prim_name, jindices->number_, jmat->number_);
