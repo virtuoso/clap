@@ -108,6 +108,17 @@ struct gltf_mesh {
     int         COLOR_0;
     int         JOINTS_0;
     int         WEIGHTS_0;
+    /*
+     * A GLTF mesh can contain multiple primitives (different materials on
+     * the same logical object). We flatten the JSON meshes[].primitives[]
+     * array into gd->meshes, with siblings stored consecutively. `group`
+     * is the index into gd->mesh_groups (i.e. the original JSON mesh
+     * index); `group_first` and `group_count` describe the contiguous run
+     * of siblings within gd->meshes.
+     */
+    int         group;
+    int         group_first;
+    int         group_count;
 };
 
 static void gltf_mesh_init(struct gltf_mesh *mesh, const char *name,
@@ -172,6 +183,14 @@ struct gltf_material {
     double roughness;
     canvas *base_canvas;
     canvas *emit_canvas;
+    /*
+     * A GLTF material with neither baseColorTexture nor baseColorFactor
+     * can't be rendered meaningfully but still occupies a slot in
+     * gd->mats so primitive material indices stay aligned. At
+     * instantiation we plug black_pixel() as a stand-in diffuse and the
+     * scene marks the primitive's entity invisible.
+     */
+    bool   fallback;
 };
 
 struct gltf_data {
@@ -181,6 +200,8 @@ struct gltf_data {
     darray(struct gltf_bufview,   bufvws);
     darray(struct gltf_accessor,  accrs);
     darray(struct gltf_mesh,      meshes);
+    /* maps GLTF mesh (group) index -> flat index of group's first primitive */
+    darray(int,                   mesh_groups);
     darray(struct gltf_material,  mats);
     darray(struct gltf_node,      nodes);
     darray(struct gltf_animation, anis);
@@ -242,6 +263,7 @@ void gltf_free(struct gltf_data *gd)
     darray_clearout(gd->buffers);
     darray_clearout(gd->bufvws);
     darray_clearout(gd->meshes);
+    darray_clearout(gd->mesh_groups);
     darray_clearout(gd->accrs);
     darray_clearout(gd->nodes);
     darray_clearout(gd->mats);
@@ -476,11 +498,114 @@ int gltf_root_mesh(struct gltf_data *gd)
     return DA(gd->nodes, root)->mesh;
 }
 
+static cerr gltf_node_is_valid(struct gltf_data *gd, int node)
+{
+    return node >= 0 && node < darray_count(gd->nodes)
+        ? CERR_OK
+        : CERR_INVALID_ARGUMENTS_REASON(.fmt = "invalid gltf node %d", .arg0 = (void *)(intptr_t)node);
+}
+
+static cerr gltf_mesh_is_valid(struct gltf_data *gd, int mesh)
+{
+    return mesh >= 0 && mesh < darray_count(gd->meshes)
+        ? CERR_OK
+        : CERR_INVALID_ARGUMENTS_REASON(.fmt = "invalid gltf mesh %d", .arg0 = (void *)(intptr_t)mesh);
+}
+
+static cerr gltf_group_is_valid(struct gltf_data *gd, int group)
+{
+    return group >= 0 && group < darray_count(gd->mesh_groups)
+        ? CERR_OK
+        : CERR_INVALID_ARGUMENTS_REASON(.fmt = "invalid gltf group %d", .arg0 = (void *)(intptr_t)group);
+}
+
+int gltf_get_mesh_groups(struct gltf_data *gd)
+{
+    return darray_count(gd->mesh_groups);
+}
+
+cres(int) gltf_group_first(struct gltf_data *gd, int group)
+{
+    CERR_RET_SCALAR(gltf_group_is_valid(gd, group), int);
+
+    /* a group whose primitives were all invalid never got its slot filled */
+    int first = *DA(gd->mesh_groups, group);
+    if (first < 0)  return cres_error(int, CERR_NOT_FOUND);
+
+    return cres_val(int, first);
+}
+
+DEFINE_CLEANUP(gltf_data, if (*p) gltf_free(*p));
+
+cres(int) gltf_group_count(struct gltf_data *gd, int group)
+{
+    int first = CRES_RET_SCALAR(gltf_group_first(gd, group), int);
+    return cres_val(int, DA(gd->meshes, first)->group_count);
+}
+
+cres(int) gltf_mesh_group(struct gltf_data *gd, int mesh)
+{
+    CERR_RET_SCALAR(gltf_mesh_is_valid(gd, mesh), int);
+    return cres_val(int, DA(gd->meshes, mesh)->group);
+}
+
+bool gltf_mesh_fallback(struct gltf_data *gd, int mesh)
+{
+    struct gltf_material *mat = gltf_material(gd, mesh);
+    return mat ? mat->fallback : false;
+}
+
+int gltf_get_nodes(struct gltf_data *gd)
+{
+    return darray_count(gd->nodes);
+}
+
+cresp(const_char) gltf_node_name(struct gltf_data *gd, int node)
+{
+    CERR_RET_T(gltf_node_is_valid(gd, node), const_char);
+    return cresp_val(const_char, DA(gd->nodes, node)->name);
+}
+
+cres(int) gltf_node_mesh(struct gltf_data *gd, int node)
+{
+    CERR_RET_SCALAR(gltf_node_is_valid(gd, node), int);
+    return cres_val(int, DA(gd->nodes, node)->mesh);
+}
+
+cerr gltf_node_translation(struct gltf_data *gd, int node, vec3 out)
+{
+    CERR_RET_CERR(gltf_node_is_valid(gd, node));
+
+    struct gltf_node *n = DA(gd->nodes, node);
+    vec3_dup(out, n->translation);
+    return CERR_OK;
+}
+
+cerr gltf_node_rotation(struct gltf_data *gd, int node, quat out)
+{
+    CERR_RET_CERR(gltf_node_is_valid(gd, node));
+
+    struct gltf_node *n = DA(gd->nodes, node);
+
+    /* GLTF default: identity (0,0,0,1); node zero-init is (0,0,0,0) */
+    if (vec4_len(n->rotation) == 0.0f)  quat_identity(out);
+    else                                vec4_dup(out, n->rotation);
+    return CERR_OK;
+}
+
+cerr gltf_node_scale(struct gltf_data *gd, int node, vec3 out)
+{
+    CERR_RET_CERR(gltf_node_is_valid(gd, node));
+
+    struct gltf_node *n = DA(gd->nodes, node);
+    vec3_dup(out, n->scale);
+    return CERR_OK;
+}
+
 cresp_ret(gltf_extra, struct);
 static cresp(gltf_extra) gltf_node_extra_find(struct gltf_data *gd, int node, const char *key)
 {
-    if (node < 0 || node >= darray_count(gd->nodes))
-        return cresp_error(gltf_extra, CERR_INVALID_ARGUMENTS);
+    CERR_RET_T(gltf_node_is_valid(gd, node), gltf_extra);
 
     struct gltf_node *n = DA(gd->nodes, node);
     struct gltf_extra *ex;
@@ -492,7 +617,7 @@ static cresp(gltf_extra) gltf_node_extra_find(struct gltf_data *gd, int node, co
 
 bool gltf_node_extras_present(struct gltf_data *gd, int node, const char *prefix)
 {
-    if (node < 0 || node >= darray_count(gd->nodes))    return false;
+    CERR_RET(gltf_node_is_valid(gd, node), return false);
 
     struct gltf_node *n = DA(gd->nodes, node);
     struct gltf_extra *ex;
@@ -754,6 +879,7 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
     gd->root_node = -1;
     darray_init(gd->nodes);
     darray_init(gd->meshes);
+    darray_init(gd->mesh_groups);
     darray_init(gd->bufvws);
     darray_init(gd->mats);
     darray_init(gd->accrs);
@@ -823,6 +949,11 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         darray_init(node->extras);
         node->name = strdup(jname->string_);
         node->id = nid;
+        node->mesh = -1;
+        node->skin = -1;
+        node->scale[0] = 1.0f;
+        node->scale[1] = 1.0f;
+        node->scale[2] = 1.0f;
         if (jmesh && jmesh->tag == JSON_NUMBER)
             node->mesh = jmesh->number_;
         if (jskin && jskin->tag == JSON_NUMBER)
@@ -1014,42 +1145,54 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         JsonNode *jwut, *jpbr, *jem;
         LOCAL(canvas, base_canvas);
 
-        jpbr = json_find_member(n, "pbrMetallicRoughness");
-        if (!jpbr || jpbr->tag != JSON_OBJECT)
-            continue;
-
-        jwut = json_find_member(jpbr, "baseColorTexture");
-        if (!jwut) {
-            JsonNode *jcolor = json_find_member(jpbr, "baseColorFactor");
-            if (!jcolor || jcolor->tag != JSON_ARRAY)
-                continue;
-
-            float base_color[4];
-            if (json_float_array(jcolor, base_color, array_size(base_color)))
-                continue;
-
-            /* XXX: hardcoded color format */
-            base_canvas = CRES_RET(canvas_new(TEX_FMT_RGBA8, 1, 1), continue);
-            canvas_write(base_canvas, .color = base_color);
-        } else if (jwut->tag != JSON_OBJECT) {
-            continue;
-        } else {
-            /* XXX: model3dtx::buffers_png applies to all textures: break it up */
-            gd->textures_png = true;
-        }
-
-        /* index is a texture property; no texture, no index */
-        if (jwut) {
-            jwut = json_find_member(jwut, "index");
-            if (jwut->tag != JSON_NUMBER || jwut->number_ >= gd->nr_texs)
-                continue;
-        }
-
+        /*
+         * Reserve a slot up front so gd->mats stays 1:1 with the JSON
+         * materials[] array. Any material with neither a baseColorTexture
+         * nor a baseColorFactor is marked as a fallback (black stand-in
+         * texture, entities made invisible) — the slot is still valid, so
+         * primitives whose material index refers to it don't overshoot
+         * gd->mats.
+         */
         CHECK(mat = darray_add(gd->mats));
-        if (base_canvas)    mat->base_canvas    = NOCU(base_canvas);
-        else                mat->base_tex       = jwut->number_;
+        mat->base_tex = -1;
         mat->normal_tex = -1;
         mat->emission_tex = -1;
+
+        jpbr = json_find_member(n, "pbrMetallicRoughness");
+        jwut = jpbr && jpbr->tag == JSON_OBJECT ?
+               json_find_member(jpbr, "baseColorTexture") : NULL;
+
+        float base_color[4];
+        bool have_color = false;
+        bool have_tex = false;
+
+        if (jwut && jwut->tag == JSON_OBJECT) {
+            JsonNode *jidx = json_find_member(jwut, "index");
+            if (jidx && jidx->tag == JSON_NUMBER && jidx->number_ < gd->nr_texs) {
+                mat->base_tex = jidx->number_;
+                /* XXX: model3dtx::buffers_png applies to all textures: break it up */
+                gd->textures_png = true;
+                have_tex = true;
+            }
+        } else if (jpbr && jpbr->tag == JSON_OBJECT) {
+            JsonNode *jcolor = json_find_member(jpbr, "baseColorFactor");
+            if (jcolor && jcolor->tag == JSON_ARRAY &&
+                !json_float_array(jcolor, base_color, array_size(base_color)))
+                have_color = true;
+        }
+
+        if (have_color) {
+            /* XXX: hardcoded color format */
+            base_canvas = CRES_RET(canvas_new(TEX_FMT_RGBA8, 1, 1), {});
+            if (base_canvas) {
+                canvas_write(base_canvas, .color = base_color);
+                mat->base_canvas = NOCU(base_canvas);
+            } else {
+                mat->fallback = true;
+            }
+        } else if (!have_tex) {
+            mat->fallback = true;
+        }
 
         jem = json_find_member(n, "emissiveTexture");
         if (jem && jem->tag == JSON_OBJECT) {
@@ -1097,46 +1240,65 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         );
     }
 
-    for (n = meshes->children.head; n; n = n->next) {
-        JsonNode *jname, *jprim, *jattr, *jindices, *jmat, *p;
+    int group_idx = 0;
+    for (n = meshes->children.head; n; n = n->next, group_idx++) {
         struct gltf_mesh *mesh;
 
-        jname = json_find_member(n, "name"); /* like, "Cube", thanks blender */
-        jprim = json_find_member(n, "primitives");
-        if (!jname || !jprim)
-            continue;
-        if (jprim->tag != JSON_ARRAY)
-            continue;
+        /*
+         * Reserve a group slot in step with the JSON meshes[] index so the
+         * mapping survives skipped/invalid groups. The entry stays -1 if
+         * nothing valid landed in this group.
+         */
+        int *group_slot;
+        CHECK(group_slot = darray_add(gd->mesh_groups));
+        *group_slot = -1;
 
-        /* XXX: why is this an array? */
-        jprim = jprim->children.head;
-        if (!jprim)
-            continue;
-        jindices = json_find_member(jprim, "indices");
-        jmat = json_find_member(jprim, "material");
-        jattr = json_find_member(jprim, "attributes");
-        if (!jattr || jattr->tag != JSON_OBJECT || !jindices || !jmat)
-            continue;
+        auto jname = json_find_member(n, "name"); /* like, "Cube", thanks blender */
+        auto jprims = json_find_member(n, "primitives");
+        if (!jname || !jprims)          continue;
+        if (jprims->tag != JSON_ARRAY)  continue;
 
-        CHECK(mesh = darray_add(gd->meshes));
-        gltf_mesh_init(mesh, jname->string_,
-                       jindices->number_, jmat->number_);
-        for (p = jattr->children.head; p; p = p->next) {
-            if (!strcmp(p->key, "POSITION") && p->tag == JSON_NUMBER)
-                mesh->POSITION = p->number_;
-            else if (!strcmp(p->key, "NORMAL") && p->tag == JSON_NUMBER)
-                mesh->NORMAL = p->number_;
-            else if (!strcmp(p->key, "TANGENT") && p->tag == JSON_NUMBER)
-                mesh->TANGENT = p->number_;
-            else if (!strcmp(p->key, "TEXCOORD_0") && p->tag == JSON_NUMBER)
-                mesh->TEXCOORD_0 = p->number_;
-            else if (!strcmp(p->key, "COLOR_0") && p->tag == JSON_NUMBER)
-                mesh->COLOR_0 = p->number_;
-            else if (!strcmp(p->key, "JOINTS_0") && p->tag == JSON_NUMBER)
-                mesh->JOINTS_0 = p->number_;
-            else if (!strcmp(p->key, "WEIGHTS_0") && p->tag == JSON_NUMBER)
-                mesh->WEIGHTS_0 = p->number_;
+        int group_first = darray_count(gd->meshes);
+        int group_count = 0;
+
+        for (JsonNode *jprim = jprims->children.head; jprim; jprim = jprim->next) {
+            auto jindices = json_find_member(jprim, "indices");
+            auto jmat = json_find_member(jprim, "material");
+            auto jattr = json_find_member(jprim, "attributes");
+            if (!jattr || jattr->tag != JSON_OBJECT || !jindices || !jmat)
+                continue;
+
+            CHECK(mesh = darray_add(gd->meshes));
+            gltf_mesh_init(mesh, jname->string_, jindices->number_, jmat->number_);
+            mesh->group = group_idx;
+            for (JsonNode *p = jattr->children.head; p; p = p->next) {
+                if (!strcmp(p->key, "POSITION") && p->tag == JSON_NUMBER)
+                    mesh->POSITION = p->number_;
+                else if (!strcmp(p->key, "NORMAL") && p->tag == JSON_NUMBER)
+                    mesh->NORMAL = p->number_;
+                else if (!strcmp(p->key, "TANGENT") && p->tag == JSON_NUMBER)
+                    mesh->TANGENT = p->number_;
+                else if (!strcmp(p->key, "TEXCOORD_0") && p->tag == JSON_NUMBER)
+                    mesh->TEXCOORD_0 = p->number_;
+                else if (!strcmp(p->key, "COLOR_0") && p->tag == JSON_NUMBER)
+                    mesh->COLOR_0 = p->number_;
+                else if (!strcmp(p->key, "JOINTS_0") && p->tag == JSON_NUMBER)
+                    mesh->JOINTS_0 = p->number_;
+                else if (!strcmp(p->key, "WEIGHTS_0") && p->tag == JSON_NUMBER)
+                    mesh->WEIGHTS_0 = p->number_;
+            }
+            group_count++;
         }
+
+        if (!group_count)   continue;
+
+        /* backfill group_first / group_count on each primitive */
+        for (int i = 0; i < group_count; i++) {
+            struct gltf_mesh *gm = DA(gd->meshes, group_first + i);
+            gm->group_first = group_first;
+            gm->group_count = group_count;
+        }
+        *DA(gd->mesh_groups, group_idx) = group_first;
         // dbg("mesh %d: '%s' POSITION: %d\n", gd->nr_meshes, jname->string_, mesh->POSITION);
     }
 
@@ -1306,9 +1468,10 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         ref_new_checked(
             model3dtx,
             .model            = ref_pass(m),
-            .buffers_png      = gd->textures_png, /* XXX: one switch for all texture buffers */
-            .texture_buffer   = mat->base_canvas ? canvas_data(mat->base_canvas) : gltf_tex(gd, mesh),
-            .texture_size     = mat->base_canvas ? canvas_size(mat->base_canvas) : gltf_texsz(gd, mesh), /* XXX: need texture*/
+            .tex              = mat->fallback ? black_pixel() : NULL,
+            .buffers_png      = mat->fallback ? false : gd->textures_png, /* XXX: one switch for all texture buffers */
+            .texture_buffer   = mat->fallback ? NULL : (mat->base_canvas ? canvas_data(mat->base_canvas) : gltf_tex(gd, mesh)),
+            .texture_size     = mat->fallback ? 0    : (mat->base_canvas ? canvas_size(mat->base_canvas) : gltf_texsz(gd, mesh)), /* XXX: need texture*/
             .texture_width    = mat->base_canvas ? 1 : 0,
             .texture_height   = mat->base_canvas ? 1 : 0,
             .normal_buffer    = gltf_nmap(gd, mesh),

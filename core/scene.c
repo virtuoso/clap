@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "error.h"
 #include <limits.h>
 #include "messagebus.h"
 #include "character.h"
@@ -1358,6 +1359,43 @@ static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode 
 
 unsigned int nr_models;
 
+/*
+ * Add physics to an entity from parameters parsed out of the scene JSON
+ * "physics" block or a GLTF node's clap::physics::* extras.
+ */
+static void scene_entity_add_physics(struct scene *scene, entity3d *e, double mass,
+                                     geom_class class, phys_type ptype, double geom_off,
+                                     double geom_radius, double geom_length,
+                                     double bounce, double bounce_vel)
+{
+    entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
+                         ptype, geom_off, geom_radius, geom_length);
+    if (!e->phys_body)  return;
+
+    phys_body_set_contact_params(e->phys_body,
+                                 .bounce = bounce,
+                                 .bounce_vel = bounce_vel);
+}
+
+/*
+ * For multi-primitive meshes, spawn a child entity per sibling primitive,
+ * parented to @e. Children have identity local TRS, so they inherit the
+ * parent's world transform. A primitive whose material is a fallback (no
+ * texture, no baseColorFactor) loads but isn't rendered — scene logic may
+ * still reference it.
+ */
+static void scene_spawn_prim_children(entity3d *e, struct gltf_data *gd,
+                                      model3dtx **prim_txms, int prim_first, int prim_count)
+{
+    for (int sp = 1; sp < prim_count; sp++) {
+        entity3d *child = ref_new(entity3d, .txmodel = prim_txms[sp]);
+
+        child->parent = e;
+        if (gltf_mesh_fallback(gd, prim_first + sp))
+            entity3d_clear(child, ENTITY3D_VISIBLE);
+    }
+}
+
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0;
@@ -1366,10 +1404,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
     bool outline_exclude = false, fix_origin = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *sfx = NULL;
-    geom_class class = GEOM_SPHERE;
-    int collision = -1, motion_segments = 8;
-    phys_type ptype = PHYS_BODY;
-    struct gltf_data *gd = NULL;
+    geom_class class = GEOM_TRIMESH;
+    int motion_segments = 8;
+    phys_type ptype = PHYS_GEOM;
     model3dtx  *txm;
 
     if (node->tag != JSON_OBJECT) {
@@ -1421,7 +1458,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         return CERR_PARSE_FAILED;
     }
 
-    gd = gltf_load(
+    LOCAL_SET(gltf_data, gd) = gltf_load(
         .mq         = &scene->mq,
         .pipeline   = clap_get_pipeline(scene->clap_ctx),
         .name       = gltf,
@@ -1432,51 +1469,64 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         return CERR_PARSE_FAILED;
     }
 
-    if (gltf_get_meshes(gd) > 1) {
-        int i, root = gltf_root_mesh(gd);
+    /*
+     * Pick the primary GLTF mesh (group). Multi-primitive meshes become
+     * multiple model3dtx entries in the mq, one per primitive.
+     */
+    int primary_group = 0;
+    if (gltf_get_mesh_groups(gd) > 1) {
+        int root = gltf_root_mesh(gd);
+        int collision_flat = gltf_mesh_by_name(gd, "collision");
+        int collision_group = collision_flat >= 0
+            ? CRES_RET_CERR(gltf_mesh_group(gd, collision_flat))
+            : -1;
 
-        collision = gltf_mesh_by_name(gd, "collision");
         if (root < 0) {
-            for (i = 0; i < gltf_get_meshes(gd); i++)
-                if (i != collision) {
-                    CERR_RET(
-                        gltf_instantiate_one(gd, i),
-                        { gltf_free(gd); return __cerr; }
-                    );
-                    break; /* XXX: why? */
+            for (int g = 0; g < gltf_get_mesh_groups(gd); g++)
+                if (g != collision_group) {
+                    primary_group = g;
+                    break;
                 }
         } else {
-            CERR_RET(
-                gltf_instantiate_one(gd, root),
-                { gltf_free(gd); return __cerr; }
-            );
+            primary_group = root;
         }
-
-        /* In the absence of a dedicated collision mesh, use the main one */
-        if (collision < 0)
-            collision = root ? root : 0;
-    } else {
-        CERR_RET(
-            gltf_instantiate_one(gd, 0),
-            { gltf_free(gd); return __cerr; }
-        );
-        collision = 0;
     }
-    txm = mq_model_last(&scene->mq);
-    txm->model->cull_face = cull_face;
-    txm->model->alpha_blend = alpha_blend;
-    if (roughness >= 0.0)
-        txm->mat.roughness = clampd(roughness, 0.0, 1.0);
-    if (metallic >= 0.0)
-        txm->mat.metallic = clampd(metallic, 0.0, 1.0);
 
-    model3d_set_name(txm->model, name);
+    int prim_first = CRES_RET_CERR(gltf_group_first(gd, primary_group));
+    int prim_count = CRES_RET_CERR(gltf_group_count(gd, primary_group));
+    for (int p = 0; p < prim_count; p++) {
+        CERR_RET_CERR(gltf_instantiate_one(gd, prim_first + p));
+    }
 
-    txm->model->sfxc.on_add = scene->sfxc.on_add;
-    txm->model->sfxc.data = scene->sfxc.data;
+    /*
+     * Walk back from mq's tail to recover the txms we just added: the
+     * last prim_count entries correspond to the primitives in order. The
+     * first entry is the "parent" whose model receives name/armature,
+     * while per-model settings are applied to every primitive's txm.
+     */
+    model3dtx **prim_txms = mem_alloc(sizeof(*prim_txms), .nr = prim_count, .fatal_fail = 1);
+    {
+        model3dtx *cur = mq_model_last(&scene->mq);
+        for (int p = prim_count - 1; p >= 0; p--) {
+            prim_txms[p] = cur;
+            if (p > 0)  cur = list_prev_entry(cur, entry);
+        }
+    }
+    txm = prim_txms[0];
 
     auto n3d = clap_get_noise3d(scene->clap_ctx);
-    model3dtx_set_texture(txm, UNIFORM_NOISE3D_TEX, noise3d_texture(n3d));
+    for (int p = 0; p < prim_count; p++) {
+        model3dtx *it = prim_txms[p];
+        it->model->cull_face = cull_face;
+        it->model->alpha_blend = alpha_blend;
+        if (roughness >= 0.0)   it->mat.roughness = clampd(roughness, 0.0, 1.0);
+        if (metallic >= 0.0)    it->mat.metallic = clampd(metallic, 0.0, 1.0);
+        it->model->sfxc.on_add = scene->sfxc.on_add;
+        it->model->sfxc.data = scene->sfxc.data;
+        model3dtx_set_texture(it, UNIFORM_NOISE3D_TEX, noise3d_texture(n3d));
+    }
+
+    model3d_set_name(txm->model, name);
 
     if (phys) {
         for (p = phys->children.head; p; p = p->next) {
@@ -1557,6 +1607,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             } else {
                 e = ref_new(entity3d, .txmodel = txm);
             }
+            if (gltf_mesh_fallback(gd, prim_first))
+                entity3d_clear(e, ENTITY3D_VISIBLE);
 
             jpos = json_find_member(it, "outline_exclude");
             if (jpos && jpos->tag == JSON_BOOL)
@@ -1694,14 +1746,13 @@ light_done:
             mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
             if (phys) {
-                entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
-                                     ptype, geom_off, geom_radius, geom_length);
-                phys_body_set_contact_params(e->phys_body,
-                                             .bounce = bounce,
-                                             .bounce_vel = bounce_vel);
-                if (c)
+                scene_entity_add_physics(scene, e, mass, class, ptype, geom_off,
+                                         geom_radius, geom_length, bounce, bounce_vel);
+                if (c && e->phys_body)
                     phys_body_enable(e->phys_body, false);
             }
+
+            scene_spawn_prim_children(e, gd, prim_txms, prim_first, prim_count);
 
             if (entity_animated(e) && anis) {
                 for (p = anis->children.head; p; p = p->next) {
@@ -1736,26 +1787,101 @@ light_done:
     } else {
         struct instantiator *instor, *iter;
         entity3d *e;
+        int nr_nodes = gltf_get_nodes(gd), ni, spawned = 0;
 
-        list_for_each_entry_iter(instor, iter, &scene->instor, entry) {
-            if (!strcmp(txmodel_name(txm), instor->name)) {
-                e = instantiate_entity(txm, instor, true, 0.5, scene);
-                list_del(&instor->entry);
-                free(instor);
+        /*
+         * Fallback path when neither "entity" nor "character" arrays are
+         * present in the scene JSON: instantiate one entity per GLTF node
+         * that references the primary mesh, using its TRS directly.
+         */
+        for (ni = 0; ni < nr_nodes; ni++) {
+            if (CRES_RET(gltf_node_mesh(gd, ni), continue) != primary_group)    continue;
 
-                if (phys) {
-                    entity3d_add_physics(e, clap_get_phys(scene->clap_ctx), mass, class,
-                                         ptype, geom_off, geom_radius, geom_length);
-                    phys_body_set_contact_params(e->phys_body,
-                                                 .bounce = bounce,
-                                                 .bounce_vel = bounce_vel);
+            vec3 t, s;
+            quat r;
+            CERR_RET(gltf_node_translation(gd, ni, t), continue);
+            CERR_RET(gltf_node_rotation(gd, ni, r), continue);
+            CERR_RET(gltf_node_scale(gd, ni, s), continue);
+
+            e = ref_new(entity3d, .txmodel = txm);
+            if (gltf_mesh_fallback(gd, prim_first))
+                entity3d_clear(e, ENTITY3D_VISIBLE);
+            entity3d_position(e, t);
+            entity3d_scale(e, s[0]);
+            transform_set_quat(&e->xform, r);
+
+            if (terrain_clamp)
+                phys_ground_entity(clap_get_phys(scene->clap_ctx), e);
+
+            mat4x4_identity(e->mx);
+            transform_translate_mat4x4(&e->xform, e->mx);
+            transform_rotate_mat4x4(&e->xform, e->mx);
+            mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
+
+            /*
+             * Physics is opt-in: the model's JSON "physics" block enables it
+             * for every instance, with GEOM_TRIMESH/PHYS_GEOM defaults, and
+             * the node's clap::physics::* extras enable and/or override it
+             * per instance.
+             */
+            bool n_phys = phys || gltf_node_extras_present(gd, ni, "clap::physics::");
+
+            geom_class   n_class   = class;
+            phys_type    n_ptype   = ptype;
+            double       n_mass    = mass;
+            double       n_off     = geom_off;
+            double       n_radius  = geom_radius;
+            double       n_length  = geom_length;
+            double       n_bounce  = bounce;
+            double       n_bv      = bounce_vel;
+            const char   *ex_s;
+            double       ex_n;
+
+            if (gltf_node_extras_string(gd, ni, "clap::physics::geom", &ex_s)) {
+                if (!strcmp(ex_s, "trimesh"))       n_class = GEOM_TRIMESH;
+                else if (!strcmp(ex_s, "sphere"))   n_class = GEOM_SPHERE;
+                else if (!strcmp(ex_s, "capsule"))  n_class = GEOM_CAPSULE;
+            }
+            if (gltf_node_extras_string(gd, ni, "clap::physics::type", &ex_s)) {
+                if (!strcmp(ex_s, "body"))      n_ptype = PHYS_BODY;
+                else if (!strcmp(ex_s, "geom")) n_ptype = PHYS_GEOM;
+            }
+            if (gltf_node_extras_number(gd, ni, "clap::physics::mass", &ex_n))       n_mass   = ex_n;
+            if (gltf_node_extras_number(gd, ni, "clap::physics::yoffset", &ex_n))    n_off    = ex_n;
+            if (gltf_node_extras_number(gd, ni, "clap::physics::radius", &ex_n))     n_radius = ex_n;
+            if (gltf_node_extras_number(gd, ni, "clap::physics::length", &ex_n))     n_length = ex_n;
+            if (gltf_node_extras_number(gd, ni, "clap::physics::bounce", &ex_n))     n_bounce = ex_n;
+            if (gltf_node_extras_number(gd, ni, "clap::physics::bounce_vel", &ex_n)) n_bv     = ex_n;
+
+            if (n_phys)
+                scene_entity_add_physics(scene, e, n_mass, n_class, n_ptype, n_off,
+                                         n_radius, n_length, n_bounce, n_bv);
+
+            scene_spawn_prim_children(e, gd, prim_txms, prim_first, prim_count);
+
+            spawned++;
+        }
+
+        if (!spawned) {
+            list_for_each_entry_iter(instor, iter, &scene->instor, entry) {
+                if (!strcmp(txmodel_name(txm), instor->name)) {
+                    e = instantiate_entity(txm, instor, true, 0.5, scene);
+                    if (gltf_mesh_fallback(gd, prim_first))
+                        entity3d_clear(e, ENTITY3D_VISIBLE);
+                    list_del(&instor->entry);
+                    free(instor);
+
+                    if (phys)
+                        scene_entity_add_physics(scene, e, mass, class, ptype, geom_off,
+                                                 geom_radius, geom_length, bounce, bounce_vel);
+
+                    scene_spawn_prim_children(e, gd, prim_txms, prim_first, prim_count);
                 }
             }
         }
     }
 
-    if (gd)
-        gltf_free(gd);
+    mem_free(prim_txms);
 
     dbg("loaded model '%s'\n", name);
 

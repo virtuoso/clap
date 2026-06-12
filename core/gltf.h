@@ -2,9 +2,12 @@
 #ifndef __CLAP_GLTF_H__
 #define __CLAP_GLTF_H__
 
+#include "linmath.h"
 #include "pipeline.h"
 
-struct gltf_data;
+typedef struct gltf_data gltf_data;
+
+DECLARE_CLEANUP(gltf_data);
 
 typedef struct gltf_load_options {
     const char  *name;
@@ -27,6 +30,17 @@ const char *gltf_mesh_name(struct gltf_data *gd, int mesh);
 void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,
                     float **tx, size_t *txsz, float **norm, size_t *normsz);
 
+int gltf_get_mesh_groups(struct gltf_data *gd);
+cres(int) gltf_group_first(struct gltf_data *gd, int group);
+cres(int) gltf_group_count(struct gltf_data *gd, int group);
+cres(int) gltf_mesh_group(struct gltf_data *gd, int mesh);
+bool gltf_mesh_fallback(struct gltf_data *gd, int mesh);
+int gltf_get_nodes(struct gltf_data *gd);
+cresp(const_char) gltf_node_name(struct gltf_data *gd, int node);
+cres(int) gltf_node_mesh(struct gltf_data *gd, int node);
+cerr gltf_node_translation(struct gltf_data *gd, int node, vec3 out);
+cerr gltf_node_rotation(struct gltf_data *gd, int node, quat out);
+cerr gltf_node_scale(struct gltf_data *gd, int node, vec3 out);
 bool gltf_node_extras_present(struct gltf_data *gd, int node, const char *prefix);
 bool gltf_node_extras_string(struct gltf_data *gd, int node, const char *key, const char **out);
 bool gltf_node_extras_number(struct gltf_data *gd, int node, const char *key, double *out);
