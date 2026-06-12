@@ -55,6 +55,10 @@ set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
     ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c
     render-texture.c draw.c os-info.c)
 
+if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
+    list(APPEND TEST_SRC websocket.c)
+endif ()
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
     # because it can't reason that sb_finish(sb) is called under the same condition as

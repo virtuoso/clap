@@ -15,6 +15,7 @@
 #include "common.h"
 #include "messagebus.h"
 #include "util.h"
+#include "websocket.h"
 #include "xyarray.h"
 
 struct clap_context {
@@ -1356,6 +1357,92 @@ static int ua_parse_mobile_test(void)
     return EXIT_SUCCESS;
 }
 
+#ifdef CONFIG_NETWORKING
+static int ws_codec_roundtrip(size_t size)
+{
+    LOCAL_SET(uchar, payload) = mem_alloc(size + 1, .zero = 1);
+    LOCAL(uchar, frame);
+    LOCAL(uchar, out);
+    size_t framesz, outsz;
+    int op = -1;
+
+    if (!payload)   return EXIT_FAILURE;
+
+    for (size_t i = 0; i < size; i++)
+        payload[i] = (uchar)(i * 7 + 1);
+
+    if (ws_encode(payload, size, &frame, &framesz))                 return EXIT_FAILURE;
+    if (ws_decode(frame, framesz, &out, &outsz, &op) != framesz)    return EXIT_FAILURE;
+    if (outsz != size || op != WSOP_BIN)                            return EXIT_FAILURE;
+    if (size && memcmp(out, payload, size))                         return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ws_codec_roundtrip_test(void)
+{
+    /* frames shorter than 4 bytes trip ws_decode()'s oversized header gate */
+    static const size_t sizes[] = { 2, 4, 63, 124 };
+
+    for (int i = 0; i < array_size(sizes); i++)
+        if (ws_codec_roundtrip(sizes[i]))   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ws_decode_masked_test(void)
+{
+    static const uint8_t mask[] = { 0x11, 0x22, 0x33, 0x44 };
+    static const char msg[] = "clap";
+    size_t msglen = sizeof(msg) - 1;
+    uint8_t frame[2 + sizeof(mask) + sizeof(msg) - 1];
+    LOCAL(uchar, out);
+    size_t outsz;
+    int op = -1;
+
+    frame[0] = 0x82;                /* FIN | binary opcode */
+    frame[1] = 0x80 | msglen;       /* MASK | payload length */
+    memcpy(&frame[2], mask, sizeof(mask));
+    for (size_t i = 0; i < msglen; i++)
+        frame[2 + sizeof(mask) + i] = msg[i] ^ mask[i % sizeof(mask)];
+
+    if (ws_decode(frame, sizeof(frame), &out, &outsz, &op) != sizeof(frame))    return EXIT_FAILURE;
+    if (outsz != msglen || op != WSOP_BIN)                                      return EXIT_FAILURE;
+    if (memcmp(out, msg, msglen))                                               return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ws_decode_short_test(void)
+{
+    uint8_t frame[] = { 0x82, 0x05, 'c' };  /* claims 5 payload bytes, has 1 */
+    uint8_t *out = NULL;
+    size_t outsz;
+    int op = -1;
+
+    if (ws_decode(frame, sizeof(frame), &out, &outsz, &op) != (size_t)-2)   return EXIT_FAILURE;
+    if (ws_decode(frame, 1, &out, &outsz, &op) != (size_t)-2)               return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ws_decode_coalesced_test(void)
+{
+    uint8_t buf[] = { 0x82, 0x02, 'h', 'i', 0x82, 0x02, 'y', 'o' };
+    LOCAL(uchar, first);
+    LOCAL(uchar, second);
+    size_t outsz;
+    int op = -1;
+    size_t used = ws_decode(buf, sizeof(buf), &first, &outsz, &op);
+
+    if (used != 4 || outsz != 2 || memcmp(first, "hi", 2))                      return EXIT_FAILURE;
+    if (ws_decode(buf + used, sizeof(buf) - used, &second, &outsz, &op) != 4)   return EXIT_FAILURE;
+    if (outsz != 2 || memcmp(second, "yo", 2))                                  return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+#endif /* CONFIG_NETWORKING */
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -1413,6 +1500,12 @@ static struct test {
     { .name = "tex rgb to rgba 8bit", .test = tex_rgb_to_rgba_8bit_test },
     { .name = "tex rgb to rgba 32f", .test = tex_rgb_to_rgba_32f_test },
     { .name = "tex rgb to rgba 16f", .test = tex_rgb_to_rgba_16f_test },
+#ifdef CONFIG_NETWORKING
+    { .name = "websocket codec roundtrip", .test = ws_codec_roundtrip_test },
+    { .name = "websocket masked decode", .test = ws_decode_masked_test },
+    { .name = "websocket short frame", .test = ws_decode_short_test },
+    { .name = "websocket coalesced frames", .test = ws_decode_coalesced_test },
+#endif /* CONFIG_NETWORKING */
 };
 
 static struct option long_options[] = {
