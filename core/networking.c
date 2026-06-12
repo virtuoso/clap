@@ -753,10 +753,7 @@ static void queue_outmsg(struct network_node *n, void *data, size_t size)
 
 static void network_node_cache(struct network_node *n, size_t off)
 {
-    void *xx;
-    CHECK(xx = memdup(n->input + off, n->inputsz - off));
-    mem_free(n->input);
-    n->input = xx;
+    memmove(n->input, n->input + off, n->inputsz - off);
     n->inputsz -= off;
 }
 
@@ -770,10 +767,7 @@ static size_t network_node_uncache(struct network_node *n, uint8_t *buf, size_t 
 
 static void network_node_wscache(struct network_node *n, size_t off)
 {
-    void *xx;
-    CHECK(xx = memdup(n->wsinput + off, n->wsinputsz - off));
-    mem_free(n->wsinput);
-    n->wsinput = xx;
+    memmove(n->wsinput, n->wsinput + off, n->wsinputsz - off);
     n->wsinputsz -= off;
 }
 
