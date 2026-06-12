@@ -279,7 +279,7 @@ static cresp(network_node) network_node_accept(struct network_node *n)
     }
 
     child->src = mem_alloc(sizeof(*child->src), .zero = 1);
-    if (child->fd < 0) {
+    if (!child->src) {
         ref_put(child);
         return cresp_error(network_node, CERR_NOMEM);
     }
