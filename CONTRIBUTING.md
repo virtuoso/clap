@@ -110,7 +110,7 @@ void endless_loop(void)
 ```
 - Comments are good: both /* C */ and // C++ style
 - Multi-line comments are either a series of `//` lines, or `/*` and `*/` on their own lines with ` * `-prefixed lines in between; no text on the opening `/*` or closing `*/` lines
-- Punctuation in source files is plain ASCII: no typographic dashes, quotes, ellipses or other non-ASCII punctuation in code or comments; an em dash is spelled `--`, which is still ASCII. Non-ASCII letters and symbols are fine (a contributor's name in a comment, emoji in test data), and so is Markdown documentation
+- Punctuation in source files is plain ASCII: no typographic dashes, quotes, ellipses or other non-ASCII punctuation in code or comments; an em dash is spelled `--`, which is still ASCII. Non-ASCII letters and symbols are fine (a contributor's name in a comment, emoji in test data), and so is Markdown documentation; `scripts/check-ascii.py` checks staged changes for this when plugged in as a pre-commit hook
 - SPDX license headers: multiline comments in header files (/* SPDX... */) and single-line in C/C++/ObjC files (// SPDX...)
 - Declare variables at assignment site instead of the top of the function
 - Self-evident code is better
