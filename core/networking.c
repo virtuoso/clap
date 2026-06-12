@@ -336,16 +336,13 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
                                  "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
                                  "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
                                  bh);
-    if (IS_CERR(res)) {
-        /*
-         * XXX: wrapping format strings with CHECK*() doesn't work, because
-         * err_on_cond() will try to paste the whole stringified expression
-         * with its own format string. Not a huge inconvenience, but would
-         * be nice to eventually fix this.
-         */
-        CHECK(res.val);
-        queue_outmsg(n, out, res.val);
+    if (IS_CERR(res) || !res.val) {
+        mem_free(key);
+        return -1;
     }
+
+    queue_outmsg(n, out, res.val);
+
     //free(out);
     mem_free(key);
 
