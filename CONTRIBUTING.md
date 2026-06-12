@@ -110,6 +110,7 @@ void endless_loop(void)
 ```
 - Comments are good: both /* C */ and // C++ style
 - Multi-line comments are either a series of `//` lines, or `/*` and `*/` on their own lines with ` * `-prefixed lines in between; no text on the opening `/*` or closing `*/` lines
+- Punctuation in source files is plain ASCII: no typographic dashes, quotes, ellipses or other non-ASCII punctuation in code or comments; an em dash is spelled `--`, which is still ASCII. Non-ASCII letters and symbols are fine (a contributor's name in a comment, emoji in test data), and so is Markdown documentation
 - SPDX license headers: multiline comments in header files (/* SPDX... */) and single-line in C/C++/ObjC files (// SPDX...)
 - Declare variables at assignment site instead of the top of the function
 - Self-evident code is better
@@ -208,6 +209,10 @@ CERR_RET_T(some_step(), thing);                       /* propagate as cresp(thin
 ```
 
 Rule of thumb: if you catch yourself writing `if (IS_CERR(x)) return ...;` right after a fallible call, you almost always want `CRES_RET(x, return ...)` (or its `_T` / `_CERR` variants) instead. Reserve a bare `IS_CERR()` for the genuinely conditional cases, where an error is an expected outcome handled in place (e.g. a lookup miss that yields a default), not propagated.
+
+The single-channel rule extends to in-band sentinels: a lookup or accessor that can fail returns `cres(int)` / `cresp(T)` with a distinguishing error — `CERR_NOT_FOUND` for a miss, `CERR_INVALID_ARGUMENTS` for a bad index — not `-1` or `NULL`. Internal validation helpers return `cerr` too, with a formatted reason so the failure carries context: `CERR_INVALID_ARGUMENTS_REASON(.fmt = "invalid node %d", .arg0 = (void *)(intptr_t)node)`. When converting a sentinel-returning function, watch for sentinels *stored in the data* — a `cres` getter happily returns a stored `-1` as a success value unless the check survives as a `CERR_NOT_FOUND`.
+
+In the other direction, don't cascade `cres` where there's nothing to report: a predicate that answers a yes/no question returns plain `bool` — `cres(bool)` on a "does X exist" query is a hat on a hat.
 
 ### Scope-based cleanup
 
