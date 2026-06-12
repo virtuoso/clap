@@ -279,6 +279,8 @@ static cresp(network_node) network_node_accept(struct network_node *n)
         return cresp_error(network_node, CERR_SOCK_ACCEPT_FAILED);
     }
 
+    fcntl(child->fd, F_SETFL, O_NONBLOCK);
+
     child->src = mem_alloc(sizeof(*child->src), .zero = 1);
     if (!child->src) {
         ref_put(child);
@@ -762,7 +764,7 @@ out_short:
 
 void networking_poll(void)
 {
-    struct network_node *n, *it, *child;
+    struct network_node *n, *it;
     int                 i = 0, events;
     uint8_t             buf[4096];
     ssize_t             ret;
@@ -796,35 +798,31 @@ void networking_poll(void)
                 continue;
             }
 
-            child = res.val;
             dbg("accepted client connection\n");
-            ret = recvfrom(child->fd, buf, sizeof(buf), 0, (struct sockaddr *)&child->sa, &child->addrlen);
-            //dbg("Handshake: '%s'\n", buf);
-            if (ret < 0)
-                continue;
-            if (child->handshake)
-                child->handshake(child, buf);
-            else
-                process_input(child, buf, ret);
-
-            if (child->state == ST_ERROR)
-                ref_put(child);
-            else
-                child->events |= POLLOUT;
-
             continue;
         }
         /* Second, new data on existing connections */
         if (events & POLLIN) {
             memset(buf, 0, sizeof(buf));
-            ret = recvfrom(n->fd, buf, sizeof(buf), 0, (struct sockaddr *)&n->sa, &n->addrlen);
+            ret = recvfrom(n->fd, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&n->sa, &n->addrlen);
             if (!ret) {
                 dbg("pollfd[%d]: shutting down\n", i);
                 ref_put(n);
                 continue;
             }
             if (ret > 0) {
+                buf[ret] = 0;
                 dbg("new data on %d: %zd bytes (+ %zu/%zu bytes left over):\n", i, ret, n->inputsz, n->wsinputsz);
+
+                if (n->handshake) {
+                    if (n->handshake(n, buf) < 0) {
+                        ref_put(n);
+                        goto next;
+                    }
+
+                    n->events |= POLLOUT;
+                    goto next;
+                }
 
                 if (process_input(n, buf, ret))
                     goto next;
