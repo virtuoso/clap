@@ -1383,16 +1383,39 @@ static void scene_entity_add_physics(struct scene *scene, entity3d *e, double ma
  * parent's world transform. A primitive whose material is a fallback (no
  * texture, no baseColorFactor) loads but isn't rendered — scene logic may
  * still reference it.
+ *
+ * When @add_phys, visible children also get their own static trimesh
+ * collider, so the whole mesh contributes collision, not just the parent
+ * primitive.
  */
-static void scene_spawn_prim_children(entity3d *e, struct gltf_data *gd,
-                                      model3dtx **prim_txms, int prim_first, int prim_count)
+static void scene_spawn_prim_children(struct scene *scene, entity3d *e, struct gltf_data *gd,
+                                      model3dtx **prim_txms, int prim_first, int prim_count,
+                                      bool add_phys)
 {
     for (int sp = 1; sp < prim_count; sp++) {
         entity3d *child = ref_new(entity3d, .txmodel = prim_txms[sp]);
 
         child->parent = e;
-        if (gltf_mesh_fallback(gd, prim_first + sp))
+        if (gltf_mesh_fallback(gd, prim_first + sp)) {
             entity3d_clear(child, ENTITY3D_VISIBLE);
+            continue;
+        }
+
+        if (!add_phys)          continue;
+
+        /* mass/radius/length are not used for static trimeshes */
+        entity3d_add_physics(child, clap_get_phys(scene->clap_ctx), 1.0,
+                             GEOM_TRIMESH, PHYS_GEOM, 0.0, 1.0, 1.0);
+        if (!child->phys_body)  continue;
+
+        /*
+         * The child's local TRS stays identity for rendering (see
+         * parent_transform_apply()), and nothing pushes transforms to
+         * parented entities' geoms afterwards, so place the static geom
+         * at the parent's world position/rotation explicitly.
+         */
+        phys_body_set_position(child->phys_body, transform_pos(&e->xform, NULL));
+        phys_body_rotate_xform(child->phys_body, &e->xform);
     }
 }
 
@@ -1752,7 +1775,7 @@ light_done:
                     phys_body_enable(e->phys_body, false);
             }
 
-            scene_spawn_prim_children(e, gd, prim_txms, prim_first, prim_count);
+            scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, !!phys);
 
             if (entity_animated(e) && anis) {
                 for (p = anis->children.head; p; p = p->next) {
@@ -1857,7 +1880,7 @@ light_done:
                 scene_entity_add_physics(scene, e, n_mass, n_class, n_ptype, n_off,
                                          n_radius, n_length, n_bounce, n_bv);
 
-            scene_spawn_prim_children(e, gd, prim_txms, prim_first, prim_count);
+            scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, n_phys);
 
             spawned++;
         }
@@ -1875,7 +1898,7 @@ light_done:
                         scene_entity_add_physics(scene, e, mass, class, ptype, geom_off,
                                                  geom_radius, geom_length, bounce, bounce_vel);
 
-                    scene_spawn_prim_children(e, gd, prim_txms, prim_first, prim_count);
+                    scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, !!phys);
                 }
             }
         }
