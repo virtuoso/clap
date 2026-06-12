@@ -189,7 +189,7 @@ if (NOT CLAP_BUILD_FINAL)
 endif ()
 
 if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
-    list(APPEND ENGINE_SRC networking.c)
+    list(APPEND ENGINE_SRC networking.c websocket.c)
 
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         # sha1.c is obviously buggy, someone should do something about it
