@@ -524,15 +524,15 @@ static void log_f_open(struct network_node *n)
 #define MAX_WIRE_LOG_LENGTH 65536
 
 /**
- * log_message_write() - validate one wire log message and write it out
- * @n:      node the message arrived on; its log file receives the text
+ * log_message_validate() - bounds-check one wire log message
+ * @n:      node the message arrived on
  * @buf:    start of the message_log
  * @size:   bytes available at @buf
  *
- * Return: bytes consumed; -1 to wait for more data; 0 with @n put in
- * ST_ERROR on a hostile length.
+ * Return: bytes the message spans; -1 to wait for more data; 0 with @n put
+ * in ST_ERROR on a hostile length.
  */
-static ssize_t log_message_write(struct network_node *n, uint8_t *buf, size_t size)
+static ssize_t log_message_validate(struct network_node *n, uint8_t *buf, size_t size)
 {
     struct message_log *ml = (void *)buf;
 
@@ -548,11 +548,30 @@ static ssize_t log_message_write(struct network_node *n, uint8_t *buf, size_t si
     if (sizeof(*ml) + ml->length > size)
         return -1;
 
+    return sizeof(*ml) + ml->length;
+}
+
+/**
+ * log_message_write() - validate one wire log message and write it out
+ * @n:      node the message arrived on; its log file receives the text
+ * @buf:    start of the message_log
+ * @size:   bytes available at @buf
+ *
+ * Return: as log_message_validate().
+ */
+static ssize_t log_message_write(struct network_node *n, uint8_t *buf, size_t size)
+{
+    ssize_t consumed = log_message_validate(n, buf, size);
+    struct message_log *ml = (void *)buf;
+
+    if (consumed <= 0)
+        return consumed;
+
     if (n->log_f && ml->length)
         fprintf(n->log_f, "[%" PRItvsec ".%09" PRItvsec "] %.*s",
                 ml->ts.tv_sec, ml->ts.tv_nsec, (int)ml->length, ml->msg);
 
-    return sizeof(*ml) + ml->length;
+    return consumed;
 }
 
 static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, size_t size)
@@ -572,6 +591,17 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
         n->state = ST_ERROR;
         dbg("connect not set: %d\n", mcmd.connect);
         return sizeof(mcmd);
+    }
+
+    /*
+     * The whole message must be here before any side effects: a split
+     * handshake comes back for another round, and replaying the state
+     * flip or the restart broadcast is not an option.
+     */
+    if (mcmd.log_follows) {
+        ssize_t consumed = log_message_validate(n, buf + sizeof(mcmd), size - sizeof(mcmd));
+
+        if (consumed <= 0)  return consumed;
     }
 
     timespec_from_64(&n->remote_time, &mcmd.time);
