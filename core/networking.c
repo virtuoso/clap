@@ -193,7 +193,6 @@ static cerr network_node_make(struct ref *ref, void *_opts)
     n->mode = mode;
     n->events = POLLIN | POLLHUP | POLLNVAL | POLLOUT;
     n->state  = ST_INIT;
-    list_append(&nodes, &n->entry);
     list_init(&n->out_queue);
 
     if (opts->parent) {
@@ -204,16 +203,26 @@ static cerr network_node_make(struct ref *ref, void *_opts)
     } else if (opts->ip) {
         n->addrlen = sizeof(n->sa);
         memset(&n->sa, 0, sizeof(struct sockaddr_in));
-        n->fd            = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
         n->sa.sin_family = AF_INET;
         n->sa.sin_port   = htons(opts->port);
-        inet_pton(AF_INET, opts->ip, &n->sa.sin_addr);
+        if (inet_pton(AF_INET, opts->ip, &n->sa.sin_addr) != 1) {
+            err("bad server address '%s'\n", opts->ip);
+            return CERR_INVALID_ARGUMENTS;
+        }
+
+        n->fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (n->fd < 0)
+            return errno_to_cerr(errno);
+
         if (mode == LISTEN) {
             int val = 1;
             setsockopt(n->fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
         }
         fcntl(n->fd, F_SETFL, O_NONBLOCK);
     }
+
+    /* a failed make is not followed by drop: nothing above may fail past here */
+    list_append(&nodes, &n->entry);
 
     return CERR_OK;
 }
@@ -866,6 +875,16 @@ void networking_poll(void)
         events = pollfds[slot].revents;
         // dbg("pollfd[%d]: %x\n", slot, events);
         pollfds[slot].revents = 0;
+        /* Sockets in error state are done for */
+        if (events & (POLLERR | POLLNVAL)) {
+            int soerr = 0;
+            socklen_t solen = sizeof(soerr);
+
+            getsockopt(n->fd, SOL_SOCKET, SO_ERROR, &soerr, &solen);
+            dbg("pollfd[%d] error on '%s': %s\n", slot, node_name(n), strerror(soerr));
+            ref_put(n);
+            continue;
+        }
         /* First, new incoming connections */
         if (n->mode == LISTEN && (events & POLLIN)) {
             cresp(network_node) res = network_node_accept(n);
@@ -920,8 +939,19 @@ void networking_poll(void)
         if (events & POLLOUT) {
             struct queued *qd, *_qd;
 
-            if (n->state == ST_INIT)
+            if (n->state == ST_INIT) {
+                int soerr = 0;
+                socklen_t solen = sizeof(soerr);
+
+                /* the first POLLOUT on a connecting socket is the connect() verdict */
+                if (!getsockopt(n->fd, SOL_SOCKET, SO_ERROR, &soerr, &solen) && soerr) {
+                    dbg("connect to '%s' failed: %s\n", node_name(n), strerror(soerr));
+                    ref_put(n);
+                    continue;
+                }
+
                 n->state = ST_HANDSHAKE;
+            }
             list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
                 //dbg("sending[%d]: <-- %zd\n", slot, qd->outsz);
                 ret = sendto(n->fd, qd->out + qd->off, qd->outsz - qd->off, MSG_NOSIGNAL,
