@@ -126,7 +126,7 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
     return cres_val(size_t, off + len);
 }
 
-int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz, int opcode)
+void ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz, int opcode)
 {
     size_t            length = inputsz + 2, off = 2;
     uint8_t           *output = NULL;
@@ -160,5 +160,4 @@ int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz,
 
     *poutput = output;
     *poutsz  = length;
-    return 0;
 }

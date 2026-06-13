@@ -87,7 +87,7 @@ struct network_node {
     /* poll(2) */
     short                  events;
     /* carry out websocket handshake */
-    int (*handshake)(struct network_node *n, const uint8_t *buf, size_t len);
+    cerr (*handshake)(struct network_node *n, const uint8_t *buf, size_t len);
 };
 
 
@@ -280,17 +280,16 @@ static cerr network_node_listen(struct network_node *n)
     return CERR_OK;
 }
 
-static int network_node_connect(struct network_node *n)
+static cerr network_node_connect(struct network_node *n)
 {
-    int ret;
-   
-    //dbg("connecting: state: %d\n", n->state);
-    ret = connect(n->fd, (struct sockaddr *)&n->sa, n->addrlen);
-    //dbg("connect: %d %m state: %d\n", ret, n->state);
+    int ret = connect(n->fd, (struct sockaddr *)&n->sa, n->addrlen);
+
     if (!ret)
         n->state = ST_HANDSHAKE;
+    else if (errno != EINPROGRESS)
+        return errno_to_cerr(errno);
 
-    return ret;
+    return CERR_OK;
 }
 
 static cresp(network_node) network_node_accept(struct network_node *n)
@@ -332,7 +331,7 @@ static cresp(network_node) network_node_accept(struct network_node *n)
 
 static const char *wsguid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-static int websocket_parse(struct network_node *n, const uint8_t *_buf, size_t len)
+static cerr websocket_parse(struct network_node *n, const uint8_t *_buf, size_t len)
 {
     const char *buf = (const char *)_buf, *end = buf + len;
     char       h[21], bh[64];
@@ -340,10 +339,10 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf, size_t l
     size_t     klen, vlen;
 
     const char *k = http_header_find(buf, end, "Sec-WebSocket-Key", &klen);
-    if (!k || !klen)                                    return -1;
+    if (!k || !klen)                                    return CERR_INVALID_FORMAT;
 
     const char *ver = http_header_find(buf, end, "Sec-WebSocket-Version", &vlen);
-    if (!ver || vlen != 2 || strncmp(ver, "13", 2))     return -1;
+    if (!ver || vlen != 2 || strncmp(ver, "13", 2))     return CERR_INVALID_FORMAT;
 
     /* the client is entitled to have one of its offered subprotocols echoed */
     size_t plen = 0;
@@ -376,12 +375,11 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf, size_t l
                            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
                            "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
                            bh);
-    if (IS_CERR(res) || !res.val)
-        return -1;
+    int outlen = CRES_RET(res, return cerr_error_cres(__resp));
 
-    queue_outmsg(n, out, res.val);
+    queue_outmsg(n, out, outlen);
 
-    return 0;
+    return CERR_OK;
 }
 
 static cresp(network_node) server_setup(const char *server_ip, unsigned int port)
@@ -408,8 +406,8 @@ static cresp(network_node) _client_setup(struct networking_config *cfg, unsigned
         return res;
 
     n = res.val;
-    network_node_connect(n);
-    if (cfg->logger)
+    err = network_node_connect(n);
+    if (!IS_CERR(err) && cfg->logger)
         err = rb_sink_add(log_flush, n, VDBG, 1);
 
     if (IS_CERR(err)) {
@@ -724,7 +722,7 @@ static void queue_outmsg(struct network_node *n, void *data, size_t size)
         uint8_t *frame;
         size_t  framesz;
 
-        CHECK0(ws_encode(data, size, &frame, &framesz, WSOP_BIN));
+        ws_encode(data, size, &frame, &framesz, WSOP_BIN);
 
         mem_free(data); /* XXX: unless it's static; don't queue static stuff */
         data = frame;
@@ -810,8 +808,8 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
 
                 dbg("close from '%s'\n", node_name(n));
                 /* echo the close, status payload included, drop once it flushes */
-                if (!ws_encode(x, xsz, &frame, &framesz, WSOP_CLOSE))
-                    queue_frame(n, frame, framesz);
+                ws_encode(x, xsz, &frame, &framesz, WSOP_CLOSE);
+                queue_frame(n, frame, framesz);
                 mem_free(x);
                 n->closing = true;
 
@@ -827,8 +825,8 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
                     uint8_t *frame;
                     size_t  framesz;
 
-                    if (!ws_encode(x, xsz, &frame, &framesz, WSOP_PONG))
-                        queue_frame(n, frame, framesz);
+                    ws_encode(x, xsz, &frame, &framesz, WSOP_PONG);
+                    queue_frame(n, frame, framesz);
                 }
                 /* control frames stay out of the message stream */
                 mem_free(x);
@@ -983,7 +981,7 @@ void networking_poll(void)
                         continue;
                     }
 
-                    int hs = n->handshake(n, in, hdr_end - in);
+                    cerr hs = n->handshake(n, in, hdr_end - in);
 
                     if ((size_t)(hdr_end - in) < total)
                         dbg("'%s': %zu bytes before the 101\n", node_name(n),
@@ -993,7 +991,8 @@ void networking_poll(void)
                     n->input   = NULL;
                     n->inputsz = 0;
 
-                    if (hs < 0) {
+                    if (IS_CERR(hs)) {
+                        err_cerr(hs, "websocket handshake from '%s' failed\n", node_name(n));
                         ref_put(n);
                         continue;
                     }

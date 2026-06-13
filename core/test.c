@@ -1422,7 +1422,7 @@ static int ws_codec_roundtrip(size_t size)
     for (size_t i = 0; i < size; i++)
         payload[i] = (uchar)(i * 7 + 1);
 
-    if (ws_encode(payload, size, &frame, &framesz, WSOP_BIN))   return EXIT_FAILURE;
+    ws_encode(payload, size, &frame, &framesz, WSOP_BIN);
 
     cres(size_t) dres = ws_decode(frame, framesz, &out, &outsz, &op, false);
     if (IS_CERR(dres) || dres.val != framesz)           return EXIT_FAILURE;
@@ -1503,13 +1503,13 @@ static int ws_encode_wire_test(void)
     if (!payload)   return EXIT_FAILURE;
 
     /* 125 still fits the single-byte length */
-    if (ws_encode(payload, 125, &frame, &framesz, WSOP_BIN))    return EXIT_FAILURE;
+    ws_encode(payload, 125, &frame, &framesz, WSOP_BIN);
     if (framesz != 2 + 125 || (frame[1] & 0x7f) != 125) return EXIT_FAILURE;
     mem_free(frame);
     frame = NULL;
 
     /* 300 takes the 16-bit form, big-endian on the wire */
-    if (ws_encode(payload, 300, &frame, &framesz, WSOP_BIN))    return EXIT_FAILURE;
+    ws_encode(payload, 300, &frame, &framesz, WSOP_BIN);
     if (framesz != 2 + 2 + 300)                         return EXIT_FAILURE;
     if ((frame[1] & 0x7f) != 126)                       return EXIT_FAILURE;
     if (frame[2] != 0x01 || frame[3] != 0x2c)           return EXIT_FAILURE;
@@ -1517,7 +1517,7 @@ static int ws_encode_wire_test(void)
     frame = NULL;
 
     /* 65535 is the top of the 16-bit form */
-    if (ws_encode(payload, 65535, &frame, &framesz, WSOP_BIN))  return EXIT_FAILURE;
+    ws_encode(payload, 65535, &frame, &framesz, WSOP_BIN);
     if (framesz != 2 + 2 + 65535)                       return EXIT_FAILURE;
     if ((frame[1] & 0x7f) != 126)                       return EXIT_FAILURE;
     if (frame[2] != 0xff || frame[3] != 0xff)           return EXIT_FAILURE;
@@ -1525,7 +1525,7 @@ static int ws_encode_wire_test(void)
     frame = NULL;
 
     /* 70000 takes the 64-bit form */
-    if (ws_encode(payload, 70000, &frame, &framesz, WSOP_BIN))  return EXIT_FAILURE;
+    ws_encode(payload, 70000, &frame, &framesz, WSOP_BIN);
     if (framesz != 2 + 8 + 70000)                       return EXIT_FAILURE;
     if ((frame[1] & 0x7f) != 127)                       return EXIT_FAILURE;
     if (memcmp(&frame[2], be70000, 8))                  return EXIT_FAILURE;
@@ -1575,8 +1575,8 @@ static int ws_control_frames_test(void)
     if (memcmp(out, status, sizeof(status)))            return EXIT_FAILURE;
 
     /* a pong echoing the ping payload carries the pong opcode */
-    if (ws_encode(out, outsz, &pong, &pongsz, WSOP_PONG))   return EXIT_FAILURE;
-    if (pong[0] != (0x80 | WSOP_PONG))                      return EXIT_FAILURE;
+    ws_encode(out, outsz, &pong, &pongsz, WSOP_PONG);
+    if (pong[0] != (0x80 | WSOP_PONG))  return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }

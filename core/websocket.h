@@ -66,9 +66,7 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
  * @poutput:    filled with a freshly allocated frame (unmasked, server-to-client)
  * @poutsz:     filled with the frame length
  * @opcode:     frame opcode (WSOP_*)
- *
- * Return: 0.
  */
-int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz, int opcode);
+void ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz, int opcode);
 
 #endif /* __CLAP_WEBSOCKET_H__ */
