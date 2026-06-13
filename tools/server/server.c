@@ -60,6 +60,7 @@ int main(int argc, char **argv, char **envp)
         .timeout       = 100,
     };
     int c, option_index, do_restart = 0;
+    int ret = EXIT_SUCCESS;
 
     for (;;) {
         c = getopt_long(argc, argv, short_options, long_options, &option_index);
@@ -94,6 +95,7 @@ int main(int argc, char **argv, char **envp)
         err = networking_init(clap_res.val, &ncfg, CLIENT);
         if (IS_CERR(err)) {
             err_cerr(err, "Failed to initialize client connection for restarting\n");
+            ret = EXIT_FAILURE;
             goto exit_clap;
         }
         networking_poll();
@@ -107,6 +109,7 @@ int main(int argc, char **argv, char **envp)
     err = networking_init(clap_res.val, &ncfg, SERVER);
     if (IS_CERR(err)) {
         err_cerr(err, "Failed to initialize server\n");
+        ret = EXIT_FAILURE;
         goto exit_clap;
     }
 
@@ -124,5 +127,5 @@ int main(int argc, char **argv, char **envp)
 exit_clap:
     clap_done(clap_res.val, 0);
 
-    return EXIT_SUCCESS;
+    return ret;
 }
