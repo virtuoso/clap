@@ -96,6 +96,8 @@ static struct clap_context       *clap_ctx;
 static struct pollfd *pollfds;
 static unsigned int  nr_nodes;
 static unsigned int  need_polling_alloc;
+/* a restart command arrived; acted upon once the poll loop unwinds */
+static bool          restart_requested;
 
 static void queue_outmsg(struct network_node *n, void *data, size_t size);
 
@@ -482,14 +484,9 @@ static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t 
     }
 
     mcmd = (void *)buf;
-    if (mcmd->restart) {
-#ifdef __EMSCRIPTEN__
-        networking_done();
-        EM_ASM({ location.reload(); });
-#else
-        clap_restart(_ncfg->clap);
-#endif
-    }
+    if (mcmd->restart)
+        restart_requested = true;
+
     return sizeof(*mcmd);
 }
 
@@ -1025,6 +1022,16 @@ state:
             queue_outmsg(n, mcmd, sizeof(*mcmd));
             n->state = ST_RUNNING;
         }
+    }
+
+    if (restart_requested) {
+        restart_requested = false;
+#ifdef __EMSCRIPTEN__
+        networking_done();
+        EM_ASM({ location.reload(); });
+#else
+        clap_restart(_ncfg->clap);
+#endif /* __EMSCRIPTEN__ */
     }
 }
 
