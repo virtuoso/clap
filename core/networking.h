@@ -9,10 +9,10 @@
 #define MSG_NOSIGNAL 0
 #endif
 
-enum mode {
-    CLIENT = 0,
-    SERVER,
-    LISTEN,
+enum net_mode {
+    NET_CLIENT = 0,
+    NET_SERVER,
+    NET_LISTEN,
 };
 
 struct networking_config {
@@ -25,17 +25,17 @@ struct networking_config {
 };
 
 #ifdef CONFIG_NETWORKING
-cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode);
+cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum net_mode mode);
 void networking_poll(void);
 void networking_done(void);
 int networking_broadcast_restart(void);
-int networking_broadcast(int mode, void *data, size_t size);
+int networking_broadcast(enum net_mode mode, void *data, size_t size);
 #else
-static inline cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode) { return CERR_NOT_SUPPORTED; }
+static inline cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum net_mode mode) { return CERR_NOT_SUPPORTED; }
 static inline void networking_poll(void) {}
 static inline void networking_done(void) {}
 static inline int networking_broadcast_restart(void) { return 0; }
-static inline int networking_broadcast(int mode, void *data, size_t size) { return 0; }
+static inline int networking_broadcast(enum net_mode mode, void *data, size_t size) { return 0; }
 #endif /* CONFIG_NETWORKING */
 
 #endif /* __CLAP_NETWORKING_H__ */

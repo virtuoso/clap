@@ -34,8 +34,8 @@ static int handle_command(struct clap_context *ctx, struct message *m, void *dat
         restart_server   = true;
     }
     if (m->cmd.status) {
-        /* on the server, connected game clients are the SERVER-mode nodes */
-        networking_broadcast(SERVER, &m->cmd, sizeof(m->cmd));
+        /* on the server, connected game clients are the NET_SERVER-mode nodes */
+        networking_broadcast(NET_SERVER, &m->cmd, sizeof(m->cmd));
     }
     return 0;
 }
@@ -92,7 +92,7 @@ int main(int argc, char **argv, char **envp)
     cerr err;
 
     if (do_restart) {
-        err = networking_init(clap_res.val, &ncfg, CLIENT);
+        err = networking_init(clap_res.val, &ncfg, NET_CLIENT);
         if (IS_CERR(err)) {
             err_cerr(err, "Failed to initialize client connection for restarting\n");
             ret = EXIT_FAILURE;
@@ -114,7 +114,7 @@ int main(int argc, char **argv, char **envp)
         goto exit_clap;
     }
 
-    err = networking_init(clap_res.val, &ncfg, SERVER);
+    err = networking_init(clap_res.val, &ncfg, NET_SERVER);
     if (IS_CERR(err)) {
         err_cerr(err, "Failed to initialize server\n");
         ret = EXIT_FAILURE;

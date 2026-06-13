@@ -79,7 +79,7 @@ struct network_node {
     /* chain of struct queued */
     struct list            out_queue;
     /* mode is who we are, not who we're talking to */
-    enum mode              mode;
+    enum net_mode          mode;
     int                    fd;
     int                    state;
     /* file for dumping remote's log messages */
@@ -96,7 +96,7 @@ static struct clap_context       *clap_ctx;
 static struct pollfd *pollfds;
 static unsigned int  nr_nodes;
 static unsigned int  need_polling_alloc;
-static enum mode     _mode;
+static enum net_mode     _mode;
 /* a restart command arrived; acted upon once the poll loop unwinds */
 static bool          restart_requested;
 /* networking_done() in progress: no reconnecting */
@@ -185,13 +185,13 @@ DEFINE_REFCLASS_INIT_OPTIONS(network_node,
     struct network_node *parent;
     const char          *ip;
     unsigned int        port;
-    int                 mode;
+    enum net_mode       mode;
 );
 
 static cerr network_node_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(network_node) *opts = _opts;
-    int mode = opts->parent ? opts->parent->mode : opts->mode;
+    enum net_mode mode = opts->parent ? opts->parent->mode : opts->mode;
 
     struct network_node *n = container_of(ref, struct network_node, ref);
 
@@ -218,7 +218,7 @@ static cerr network_node_make(struct ref *ref, void *_opts)
         if (n->fd < 0)
             return errno_to_cerr(errno);
 
-        if (mode == LISTEN) {
+        if (mode == NET_LISTEN) {
             int val = 1;
             setsockopt(n->fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
         }
@@ -241,7 +241,7 @@ static void network_node_drop(struct ref *ref)
         fclose(n->log_f);
     }
 
-    if (n->mode == CLIENT)
+    if (n->mode == NET_CLIENT)
         rb_sink_del(n);
 
     list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
@@ -300,7 +300,7 @@ static cresp(network_node) network_node_accept(struct network_node *n)
     LOCAL_SET(network_node, child) =
         CRES_RET_T(ref_new_checked(network_node, .parent = n), network_node);
 
-    child->mode    = SERVER;
+    child->mode    = NET_SERVER;
     child->addrlen = sizeof(child->sa);
     child->fd = accept(n->fd, (struct sockaddr *)&child->sa, &child->addrlen);
     if (child->fd < 0)
@@ -379,7 +379,7 @@ static cerr websocket_parse(struct network_node *n, const uint8_t *_buf, size_t 
 
 static cresp(network_node) server_setup(const char *server_ip, unsigned int port)
 {
-    cresp(network_node) res = ref_new_checked(network_node, .ip = server_ip, .port = port, .mode = LISTEN);
+    cresp(network_node) res = ref_new_checked(network_node, .ip = server_ip, .port = port, .mode = NET_LISTEN);
     if (IS_CERR(res))
         return res;
 
@@ -394,7 +394,7 @@ static cresp(network_node) server_setup(const char *server_ip, unsigned int port
 static cresp(network_node) _client_setup(struct networking_config *cfg, unsigned int port)
 {
     LOCAL_SET(network_node, n) =
-        CRES_RET_T(ref_new_checked(network_node, .ip = cfg->server_ip, .port = port, .mode = CLIENT),
+        CRES_RET_T(ref_new_checked(network_node, .ip = cfg->server_ip, .port = port, .mode = NET_CLIENT),
                    network_node);
 
     CERR_RET_T(network_node_connect(n), network_node);
@@ -422,9 +422,9 @@ static const char *node_name(struct network_node *n)
         return n->src->name;
 
     switch (n->mode) {
-    case CLIENT:
+    case NET_CLIENT:
         return "<client>";
-    case SERVER:
+    case NET_SERVER:
         return "<server>";
     default:
         break;
@@ -433,7 +433,7 @@ static const char *node_name(struct network_node *n)
     return "<unknown>";
 }
 
-int networking_broadcast(int mode, void *data, size_t size)
+int networking_broadcast(enum net_mode mode, void *data, size_t size)
 {
     struct network_node *n;
     int sent = 0;
@@ -461,8 +461,8 @@ int networking_broadcast_restart(void)
 
     memset(&mcmd, 0, sizeof(mcmd));
     mcmd.restart = 1;
-    sent  = networking_broadcast(SERVER, &mcmd, sizeof(mcmd));
-    sent += networking_broadcast(CLIENT, &mcmd, sizeof(mcmd));
+    sent  = networking_broadcast(NET_SERVER, &mcmd, sizeof(mcmd));
+    sent += networking_broadcast(NET_CLIENT, &mcmd, sizeof(mcmd));
 
     return sent;
 }
@@ -682,7 +682,7 @@ static ssize_t handle_server_input(struct network_node *n, uint8_t *buf, size_t 
 static ssize_t handle_input(struct network_node *n, uint8_t *buf, size_t size)
 {
     dbg("got input on '%s'(sz=%zu): %d/%d\n", node_name(n), size, n->mode, n->state);
-    if (n->mode == CLIENT) {
+    if (n->mode == NET_CLIENT) {
         return handle_client_input(n, buf, size);
     }
 
@@ -774,7 +774,7 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
         xsz = total;
         if (n->websocket) {
             cres(size_t) dres = ws_decode(n->wsinput + done, total, &x, &xsz, &op,
-                                          n->mode == SERVER);
+                                          n->mode == NET_SERVER);
             /* incomplete packet: cache what we have for the next round */
             if (IS_CERR_CODE(dres, CERR_BUFFER_INCOMPLETE)) {
                 network_node_wscache(n, done);
@@ -896,7 +896,7 @@ void networking_poll(void)
 
     memset(buf, 0, sizeof(buf));
     polling_update();
-    if (nr_nodes == 0 && _mode == CLIENT && !shutting_down) {
+    if (nr_nodes == 0 && _mode == NET_CLIENT && !shutting_down) {
         cresp(network_node) res = client_setup(_ncfg);
         if (IS_CERR(res)) {
             err_cerr(res, "Couldn't start client\n");
@@ -932,7 +932,7 @@ void networking_poll(void)
             continue;
         }
         /* First, new incoming connections */
-        if (n->mode == LISTEN && (events & POLLIN)) {
+        if (n->mode == NET_LISTEN && (events & POLLIN)) {
             cresp(network_node) res = network_node_accept(n);
             if (IS_CERR(res)) {
                 err_cerr(res, "Couldn't accept connection\n");
@@ -1067,8 +1067,8 @@ void networking_poll(void)
 
 state:
     list_for_each_entry(n, &nodes, entry) {
-        //dbg_on(n->mode == CLIENT, "n->state: %d\n", n->state);
-        if (n->mode == CLIENT && n->state == ST_HANDSHAKE) {
+        //dbg_on(n->mode == NET_CLIENT, "n->state: %d\n", n->state);
+        if (n->mode == NET_CLIENT && n->state == ST_HANDSHAKE) {
             struct message_command *mcmd;
             struct timespec ts;
 
@@ -1101,7 +1101,7 @@ static void socket_callback(int fd, void *data)
 }
 #endif /* __EMSCRIPTEN__ */
 
-cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode)
+cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, enum net_mode mode)
 {
     struct network_node *n;
     cresp(network_node) res;
@@ -1113,10 +1113,10 @@ cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, en
 
     _mode = mode;
     switch (mode) {
-    case CLIENT:
+    case NET_CLIENT:
         res = client_setup(_ncfg);
         break;
-    case SERVER:
+    case NET_SERVER:
         res = server_setup(_ncfg->server_ip, _ncfg->server_port);
         if (!IS_CERR(res))
             res = server_setup(_ncfg->server_ip, _ncfg->server_wsport);

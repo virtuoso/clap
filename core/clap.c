@@ -1158,7 +1158,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 #ifdef CONFIG_NETWORKING
     if (ctx->cfg.networking)
         CERR_RET(
-            networking_init(ctx, ctx->cfg.networking, CLIENT),
+            networking_init(ctx, ctx->cfg.networking, NET_CLIENT),
             err_cerr(__cerr, "failed to initialize networking\n")
         );
 #endif /* CONFIG_NETWORKING */
