@@ -485,6 +485,47 @@ static void log_f_open(struct network_node *n)
     n->log_f = fopen(log_name, "w");
 }
 
+/**
+ * MAX_WIRE_LOG_LENGTH - cap on the text length of one wire log message
+ *
+ * A wire log message is one formatted logger line; a length beyond any
+ * plausible line means a hostile or corrupt stream, not something to
+ * keep buffering input for.
+ */
+#define MAX_WIRE_LOG_LENGTH 65536
+
+/**
+ * log_message_write() - validate one wire log message and write it out
+ * @n:      node the message arrived on; its log file receives the text
+ * @buf:    start of the message_log
+ * @size:   bytes available at @buf
+ *
+ * Return: bytes consumed; -1 to wait for more data; 0 with @n put in
+ * ST_ERROR on a hostile length.
+ */
+static ssize_t log_message_write(struct network_node *n, uint8_t *buf, size_t size)
+{
+    struct message_log *ml = (void *)buf;
+
+    if (size < sizeof(*ml))
+        return -1;
+
+    if (ml->length > MAX_WIRE_LOG_LENGTH) {
+        err("bogus log message length %u from '%s'\n", ml->length, node_name(n));
+        n->state = ST_ERROR;
+        return 0;
+    }
+
+    if (sizeof(*ml) + ml->length > size)
+        return -1;
+
+    if (n->log_f && ml->length)
+        fprintf(n->log_f, "[%" PRItvsec ".%09" PRItvsec "] %.*s",
+                ml->ts.tv_sec, ml->ts.tv_nsec, (int)ml->length, ml->msg);
+
+    return sizeof(*ml) + ml->length;
+}
+
 static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, size_t size)
 {
     struct message_command mcmd;
@@ -520,18 +561,11 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
         networking_broadcast_restart();
     }
     if (mcmd.log_follows) {
-        struct message_log *ml;
-        size_t ret;
+        ssize_t consumed = log_message_write(n, buf + sizeof(mcmd), size - sizeof(mcmd));
 
-        ml = (void *)buf + sizeof(mcmd);
-        ret = sizeof(mcmd) + sizeof(*ml) + ml->length;
-        if (ret > size)
-            return -1;
+        if (consumed <= 0)  return consumed;
 
-        if (n->log_f && ml->length) {
-            fprintf(n->log_f, "[%" PRItvsec ".%09" PRItvsec "] %-*s", ml->ts.tv_sec, ml->ts.tv_nsec, ml->length, ml->msg);
-        }
-        return ret;
+        return sizeof(mcmd) + consumed;
     }
 
     return sizeof(mcmd);
@@ -559,19 +593,11 @@ static ssize_t handle_server_command(struct network_node *n, uint8_t *buf, size_
         ret = sizeof(mcmd);
     }
     if (mcmd.log_follows) {
-        struct message_log *ml;
+        ssize_t consumed = log_message_write(n, buf + sizeof(mcmd), size - sizeof(mcmd));
 
-        if (size < sizeof(mcmd) + sizeof(*ml))
-            return -1;
+        if (consumed <= 0)  return consumed;
 
-        ml = (void *)buf + sizeof(mcmd);
-        ret = sizeof(mcmd) + sizeof(*ml) + ml->length;
-        if (ret > size)
-            return -1;
-
-        if (n->log_f && ml->length) {
-            fprintf(n->log_f, "[%" PRItvsec ".%09" PRItvsec "] %-*s", ml->ts.tv_sec, ml->ts.tv_nsec, ml->length, ml->msg);
-        }
+        ret = sizeof(mcmd) + consumed;
     }
 
     /*
