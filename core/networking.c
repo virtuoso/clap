@@ -87,7 +87,7 @@ struct network_node {
     /* poll(2) */
     short                  events;
     /* carry out websocket handshake */
-    int (*handshake)(struct network_node *n, const uint8_t *buf);
+    int (*handshake)(struct network_node *n, const uint8_t *buf, size_t len);
 };
 
 
@@ -332,9 +332,9 @@ static cresp(network_node) network_node_accept(struct network_node *n)
 
 static const char *wsguid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-static int websocket_parse(struct network_node *n, const uint8_t *_buf)
+static int websocket_parse(struct network_node *n, const uint8_t *_buf, size_t len)
 {
-    const char *buf = (const char *)_buf, *end = buf + strlen(buf);
+    const char *buf = (const char *)_buf, *end = buf + len;
     char       h[21], bh[64];
     char       *out;
     size_t     klen, vlen;
@@ -522,6 +522,14 @@ static void log_f_open(struct network_node *n)
  * keep buffering input for.
  */
 #define MAX_WIRE_LOG_LENGTH 65536
+
+/**
+ * MAX_HANDSHAKE_LENGTH - cap on the accumulated websocket handshake bytes
+ *
+ * Real browser handshakes run a few hundred bytes, cookies included;
+ * anything beyond this is not a websocket client.
+ */
+#define MAX_HANDSHAKE_LENGTH 16384
 
 /**
  * log_message_validate() - bounds-check one wire log message
@@ -963,7 +971,29 @@ void networking_poll(void)
                 dbg("new data on %d: %zd bytes (+ %zu/%zu bytes left over):\n", slot, ret, n->inputsz, n->wsinputsz);
 
                 if (n->handshake) {
-                    if (n->handshake(n, buf) < 0) {
+                    /* the header block may take several reads to arrive */
+                    size_t total = network_node_uncache(n, buf, ret);
+                    uint8_t *in = n->input;
+                    const uint8_t *hdr_end = http_headers_end(in, total);
+
+                    if (!hdr_end) {
+                        /* no legitimate handshake is anywhere near this big */
+                        if (total > MAX_HANDSHAKE_LENGTH)
+                            ref_put(n);
+                        continue;
+                    }
+
+                    int hs = n->handshake(n, in, hdr_end - in);
+
+                    if ((size_t)(hdr_end - in) < total)
+                        dbg("'%s': %zu bytes before the 101\n", node_name(n),
+                            total - (hdr_end - in));
+
+                    mem_free(n->input);
+                    n->input   = NULL;
+                    n->inputsz = 0;
+
+                    if (hs < 0) {
                         ref_put(n);
                         continue;
                     }

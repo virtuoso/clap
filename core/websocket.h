@@ -20,6 +20,16 @@ enum {
 };
 
 /**
+ * http_headers_end() - find the end of an HTTP header block
+ * @buf:        request bytes
+ * @len:        number of bytes at @buf
+ *
+ * Return: pointer just past the blank line that terminates the headers, or
+ * NULL while the block is still incomplete.
+ */
+const uint8_t *http_headers_end(const uint8_t *buf, size_t len);
+
+/**
  * http_header_find() - find an HTTP header value in a request buffer
  * @buf:        start of the request text
  * @end:        end of the request text

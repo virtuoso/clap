@@ -7,13 +7,30 @@
 #include "memory.h"
 #include "websocket.h"
 
+const uint8_t *http_headers_end(const uint8_t *buf, size_t len)
+{
+    for (size_t i = 0; i + 3 < len; i++)
+        if (buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\r' && buf[i + 3] == '\n')
+            return buf + i + 4;
+
+    return NULL;
+}
+
 const char *http_header_find(const char *buf, const char *end, const char *name, size_t *vlen)
 {
     size_t     namelen = strlen(name);
     const char *p, *c;
 
     for (p = buf; p < end; p = c) {
-        c = skip_to_new_line(p);
+        /* find the start of the next line, staying inside the buffer */
+        for (c = p; c < end && *c != '\n'; c++)
+            ;
+        if (c < end)
+            c++;
+
+        /* a name the buffer truncates cannot match */
+        if ((size_t)(end - p) < namelen + 1)
+            continue;
         if (strncasecmp(p, name, namelen) || p[namelen] != ':')
             continue;
 

@@ -1387,6 +1387,25 @@ static int http_header_find_test(void)
     if (http_header_find(req, end, "Sec-WebSocket", &vlen))                 return EXIT_FAILURE;
     if (http_header_find(req, end, "Origin", &vlen))                        return EXIT_FAILURE;
 
+    /* a name truncated by the buffer end doesn't match either */
+    static const char cut[] = "GET / HTTP/1.1\r\nSec-WebSocket-Key";
+    if (http_header_find(cut, cut + sizeof(cut) - 3, "Sec-WebSocket-Key", &vlen))   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int http_headers_end_test(void)
+{
+    static const char req[] = "GET / HTTP/1.1\r\nHost: x\r\n\r\nBODY";
+    const uint8_t *p = (const uint8_t *)req;
+
+    const uint8_t *e = http_headers_end(p, sizeof(req) - 1);
+    if (!e || memcmp(e, "BODY", 4))             return EXIT_FAILURE;
+
+    /* incomplete block: no verdict yet */
+    if (http_headers_end(p, sizeof(req) - 6))   return EXIT_FAILURE;
+    if (http_headers_end(p, 3))                 return EXIT_FAILURE;
+
     return EXIT_SUCCESS;
 }
 
@@ -1644,6 +1663,7 @@ static struct test {
     { .name = "tex rgb to rgba 16f", .test = tex_rgb_to_rgba_16f_test },
 #ifdef CONFIG_NETWORKING
     { .name = "http header find", .test = http_header_find_test },
+    { .name = "http headers end", .test = http_headers_end_test },
     { .name = "websocket codec roundtrip", .test = ws_codec_roundtrip_test },
     { .name = "websocket masked decode", .test = ws_decode_masked_test },
     { .name = "websocket encode wire format", .test = ws_encode_wire_test },
