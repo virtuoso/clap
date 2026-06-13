@@ -314,16 +314,37 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
     const char *ver = http_header_find(buf, end, "Sec-WebSocket-Version", &vlen);
     if (!ver || vlen != 2 || strncmp(ver, "13", 2))     return -1;
 
+    /* the client is entitled to have one of its offered subprotocols echoed */
+    size_t plen = 0;
+    const char *proto = http_header_find(buf, end, "Sec-WebSocket-Protocol", &plen);
+    if (proto) {
+        size_t i;
+
+        for (i = 0; i < plen && proto[i] != ',' && proto[i] != ' ' && proto[i] != '\t'; i++)
+            ;
+        plen = i;
+        if (!plen)
+            proto = NULL;
+    }
+
     LOCAL_SET(char, key) = mem_alloc(klen + strlen(wsguid) + 1, .zero = 1, .fatal_fail = 1);
     memcpy(key, k, klen);
     strcpy(key + klen, wsguid);
     SHA1(h, key, strlen(key));
 
     base64_encode(bh, sizeof(bh), h, sizeof(h) - 1);
-    cres(int) res = mem_asprintf((char **)&out,
-                                 "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
-                                 "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
-                                 bh);
+    cres(int) res;
+    if (proto)
+        res = mem_asprintf((char **)&out,
+                           "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
+                           "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n"
+                           "Sec-WebSocket-Protocol: %.*s\r\n\r\n",
+                           bh, (int)plen, proto);
+    else
+        res = mem_asprintf((char **)&out,
+                           "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
+                           "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
+                           bh);
     if (IS_CERR(res) || !res.val)
         return -1;
 
