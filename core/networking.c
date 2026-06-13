@@ -1056,29 +1056,42 @@ cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, en
 
     clap_ctx = ctx;
     _ncfg = memdup(cfg, sizeof(*cfg));
+    if (!_ncfg)
+        return CERR_NOMEM;
+
     _mode = mode;
     switch (mode) {
     case CLIENT:
         res = client_setup(_ncfg);
-        if (IS_CERR(res))
-            return cerr_error_cres(res);
         break;
     case SERVER:
         res = server_setup(_ncfg->server_ip, _ncfg->server_port);
-        if (IS_CERR(res))
-            return cerr_error_cres(res);
+        if (!IS_CERR(res))
+            res = server_setup(_ncfg->server_ip, _ncfg->server_wsport);
 
-        res = server_setup(_ncfg->server_ip, _ncfg->server_wsport);
-        if (IS_CERR(res))
-            return cerr_error_cres(res);
-
-        n            = res.val;
-        n->handshake = websocket_parse;
-        need_polling_alloc++;
+        if (!IS_CERR(res)) {
+            n            = res.val;
+            n->handshake = websocket_parse;
+            need_polling_alloc++;
+        }
         break;
     default:
+        res = cresp_error(network_node, CERR_INVALID_ARGUMENTS);
         break;
     }
+
+    if (IS_CERR(res)) {
+        struct network_node *it;
+
+        /* the raw listener may have made it up before the ws one failed */
+        list_for_each_entry_iter(n, it, &nodes, entry)
+            ref_put(n);
+        mem_free(_ncfg);
+        _ncfg = NULL;
+
+        return cerr_error_cres(res);
+    }
+
 #ifdef __EMSCRIPTEN__
     emscripten_set_socket_open_callback(NULL, socket_callback);
 #endif /* __EMSCRIPTEN__ */
