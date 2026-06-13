@@ -8,10 +8,8 @@
 #include <inttypes.h>
 #include <poll.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <time.h>
 #include <unistd.h>
-#include <getopt.h>
 #include "common.h" /* XXX: for EM_ASM(): factor out */
 #include "clap.h"
 #include "util.h"
@@ -93,14 +91,14 @@ struct network_node {
 
 static struct networking_config  *_ncfg;
 static struct clap_context       *clap_ctx;
-static struct pollfd *pollfds;
-static unsigned int  nr_nodes;
-static unsigned int  need_polling_alloc;
-static enum net_mode     _mode;
+static struct pollfd             *pollfds;
+static unsigned int              nr_nodes;
+static unsigned int              need_polling_alloc;
+static enum net_mode             _mode;
 /* a restart command arrived; acted upon once the poll loop unwinds */
-static bool          restart_requested;
+static bool                      restart_requested;
 /* networking_done() in progress: no reconnecting */
-static bool          shutting_down;
+static bool                      shutting_down;
 
 static void queue_outmsg(struct network_node *n, void *data, size_t size);
 
@@ -115,24 +113,19 @@ static void log_flush(struct log_entry *e, void *data)
     void *buf;
 
     modfile = strrchr(e->mod, '/');
-    if (!modfile)
-        modfile = e->mod;
-    else
-        modfile++;
+    if (!modfile)   modfile = e->mod;
+    else            modfile++;
 
     size = sizeof(*mcmd) + sizeof(*mlog) + strlen(e->msg) + 1;
+    /* "[: @] " decorations plus up to 5 digits of line number */
     size += strlen(modfile) + strlen(e->func) + 7 + 5;
     buf = mem_alloc(size, .nr = 1, .fatal_fail = 1);
     mcmd = buf;
     mlog = buf + sizeof(*mcmd);
     mcmd->log_follows = 1;
-    if (n->state < ST_RUNNING) {
-        mcmd->connect = 1; /* XXX */
+    mcmd->connect     = 1;
+    if (n->state < ST_RUNNING)
         n->state = ST_RUNNING;
-    } else {
-        mcmd->connect = 1;
-        dbg_once("### n->state: %d\n", n->state);
-    }
     mlog->ts.tv_sec = e->ts.tv_sec;
     mlog->ts.tv_nsec = e->ts.tv_nsec;
     mlog->length = snprintf(mlog->msg, size - sizeof(*mcmd) - sizeof(*mlog),
@@ -141,17 +134,15 @@ static void log_flush(struct log_entry *e, void *data)
     clock_gettime(CLOCK_REALTIME, &ts);
     timespec_to_64(&ts, &mcmd->time);
     queue_outmsg(n, buf, size);
-    //fprintf(stderr, "===> %s <===\n", e->msg);
 }
 
-static void polling_alloc()
+static void polling_alloc(void)
 {
     struct network_node *n;
 
     nr_nodes = 0;
-    list_for_each_entry(n, &nodes, entry) {
+    list_for_each_entry(n, &nodes, entry)
         nr_nodes++;
-    }
 
     dbg("pollfds: %d\n", nr_nodes);
     mem_free(pollfds);
@@ -329,6 +320,7 @@ static const char *wsguid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 static cerr websocket_parse(struct network_node *n, const uint8_t *_buf, size_t len)
 {
     const char *buf = (const char *)_buf, *end = buf + len;
+    /* SHA-1 digest + NUL; its base64 form + slack */
     char       h[21], bh[64];
     char       *out;
     size_t     klen, vlen;
@@ -472,7 +464,6 @@ static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t 
     struct message_command *mcmd;
 
     if (size < sizeof(*mcmd)) {
-        //n->state = ST_ERROR;
         dbg("short read: %zu <> %lu\n", size, sizeof(*mcmd));
         return -1;
     }
@@ -573,7 +564,6 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
 
     if (size < sizeof(mcmd)) {
         /* not an error, cache and wait for more */
-        // n->state = ST_ERROR;
         dbg("short handshake: %zu <> %lu\n", size, sizeof(mcmd));
         return -1;
     }
@@ -634,7 +624,6 @@ static ssize_t handle_server_command(struct network_node *n, uint8_t *buf, size_
 
     if (size < sizeof(mcmd)) {
         /* short read is not an error, cache and wait for more */
-        //n->state = ST_ERROR;
         return -1;
     }
 
@@ -700,18 +689,22 @@ static void queue_frame(struct network_node *n, void *data, size_t size)
     n->events |= POLLOUT;
 }
 
+/**
+ * queue_outmsg() - queue a message for sending
+ * @n:      node to send it to
+ * @data:   message bytes; ownership passes to the queue, so it must be
+ *          heap-allocated (websocket nodes re-frame and free it)
+ * @size:   message length
+ */
 static void queue_outmsg(struct network_node *n, void *data, size_t size)
 {
-    if (!size)
-        size = strlen(data) + 1;
-
     if (n->websocket) {
         uint8_t *frame;
         size_t  framesz;
 
         ws_encode(data, size, &frame, &framesz, WSOP_BIN);
 
-        mem_free(data); /* XXX: unless it's static; don't queue static stuff */
+        mem_free(data);
         data = frame;
         size = framesz;
     }
@@ -853,10 +846,8 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
                 cached = true;
                 break;
             }
-            if (n->state == ST_ERROR) {
-                // ref_put(n);
+            if (n->state == ST_ERROR)
                 return 0;
-            }
             handled += xhandled;
         } while (handled > 0 && handled < n->inputsz);
 
@@ -902,15 +893,12 @@ void networking_poll(void)
             err_cerr(res, "Couldn't start client\n");
             return;
         }
-
-        n = res.val;
     }
 
     ret = poll(pollfds, nr_nodes, _ncfg->timeout);
     if (ret <= 0)
         goto state;
 
-    //dbg("polled: %d\n", ret);
     list_for_each_entry_iter(n, it, &nodes, entry) {
         /* nodes appended mid-walk have no pollfd slot yet */
         if (i == nr_nodes)
@@ -919,7 +907,6 @@ void networking_poll(void)
         int slot = i++;
 
         events = pollfds[slot].revents;
-        // dbg("pollfd[%d]: %x\n", slot, events);
         pollfds[slot].revents = 0;
         /* Sockets in error state are done for */
         if (events & (POLLERR | POLLNVAL)) {
@@ -1022,7 +1009,6 @@ void networking_poll(void)
                 n->state = ST_HANDSHAKE;
             }
             list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
-                //dbg("sending[%d]: <-- %zd\n", slot, qd->outsz);
                 ret = sendto(n->fd, qd->out + qd->off, qd->outsz - qd->off, MSG_NOSIGNAL,
                              (struct sockaddr *)&n->sa, n->addrlen);
                 if (ret < 0) {
@@ -1046,7 +1032,6 @@ void networking_poll(void)
                 list_del(&qd->entry);
                 mem_free(qd);
 
-                //n->outsz = mem_asprintf(&n->out, "PING");
                 if (n->handshake) {
                     n->websocket = true;
                     n->handshake = NULL;
@@ -1067,7 +1052,6 @@ void networking_poll(void)
 
 state:
     list_for_each_entry(n, &nodes, entry) {
-        //dbg_on(n->mode == NET_CLIENT, "n->state: %d\n", n->state);
         if (n->mode == NET_CLIENT && n->state == ST_HANDSHAKE) {
             struct message_command *mcmd;
             struct timespec ts;

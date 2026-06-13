@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -21,7 +22,7 @@ static void sigint_handler(int sig)
 static bool exit_server_loop = false;
 static bool restart_server   = false;
 
-void server_run(void)
+static void server_run(void)
 {
     while (!exit_server_loop && !exit_requested)
         networking_poll();

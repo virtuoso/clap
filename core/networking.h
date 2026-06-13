@@ -31,12 +31,12 @@ enum net_mode {
  * @timeout:        poll timeout in milliseconds
  */
 struct networking_config {
-    struct clap_context *clap;
-    const char  *server_ip;
-    unsigned int server_port;
-    unsigned int server_wsport;
-    unsigned long   logger  : 1;
-    int             timeout;
+    struct clap_context     *clap;
+    const char              *server_ip;
+    unsigned int            server_port;
+    unsigned int            server_wsport;
+    unsigned long           logger : 1;
+    int                     timeout;
 };
 
 #ifdef CONFIG_NETWORKING
