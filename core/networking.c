@@ -96,8 +96,11 @@ static struct clap_context       *clap_ctx;
 static struct pollfd *pollfds;
 static unsigned int  nr_nodes;
 static unsigned int  need_polling_alloc;
+static enum mode     _mode;
 /* a restart command arrived; acted upon once the poll loop unwinds */
 static bool          restart_requested;
+/* networking_done() in progress: no reconnecting */
+static bool          shutting_down;
 
 static void queue_outmsg(struct network_node *n, void *data, size_t size);
 
@@ -859,9 +862,12 @@ void networking_poll(void)
     uint8_t             buf[4096];
     ssize_t             ret;
 
+    if (!_ncfg)
+        return;
+
     memset(buf, 0, sizeof(buf));
     polling_update();
-    if (nr_nodes == 0) {
+    if (nr_nodes == 0 && _mode == CLIENT && !shutting_down) {
         cresp(network_node) res = client_setup(_ncfg);
         if (IS_CERR(res)) {
             err_cerr(res, "Couldn't start client\n");
@@ -1050,6 +1056,7 @@ cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, en
 
     clap_ctx = ctx;
     _ncfg = memdup(cfg, sizeof(*cfg));
+    _mode = mode;
     switch (mode) {
     case CLIENT:
         res = client_setup(_ncfg);
@@ -1084,13 +1091,28 @@ void networking_done(void)
 {
     struct network_node *n, *it;
 
-not_empty:
-    networking_poll();
+    shutting_down = true;
 
-    list_for_each_entry_iter(n, it, &nodes, entry) {
-        if (!list_empty(&n->out_queue))
-            goto not_empty;
-        ref_put(n);
+    /* flush the stragglers, but a dead peer doesn't get to hold the exit hostage */
+    for (int rounds = 0; rounds < 10; rounds++) {
+        bool pending = false;
+
+        networking_poll();
+        list_for_each_entry(n, &nodes, entry)
+            if (!list_empty(&n->out_queue))
+                pending = true;
+
+        if (!pending)
+            break;
     }
+
+    list_for_each_entry_iter(n, it, &nodes, entry)
+        ref_put(n);
+
+    mem_free(pollfds);
+    pollfds  = NULL;
+    nr_nodes = 0;
     mem_free(_ncfg);
+    _ncfg = NULL;
+    shutting_down = false;
 }
