@@ -666,7 +666,6 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
 {
     size_t total, handled = 0;
     size_t xsz, done = 0;
-    ssize_t ret;
     int    op = -1;
     uint8_t *x;
 
@@ -689,16 +688,16 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
         x = n->input;
         xsz = total;
         if (n->websocket) {
-            ret = ws_decode(n->wsinput + done, total, &x, &xsz, &op);
+            cres(size_t) dres = ws_decode(n->wsinput + done, total, &x, &xsz, &op);
             /* incomplete packet: cache what we have for the next round */
-            if (ret < 0) {
+            if (IS_CERR(dres)) {
                 network_node_wscache(n, done);
                 goto out_short;
             }
 
             /* paste what we decoded with what was cached from before */
             network_node_uncache(n, x, xsz);
-            size = ret;
+            size = dres.val;
         } else {
             network_node_uncache(n, buf, size);
         }

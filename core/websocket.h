@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "error.h"
 
 /*
  * RFC 6455 frame opcodes
@@ -35,10 +36,10 @@ const char *http_header_find(const char *buf, const char *end, const char *name,
  * @poutsz:     filled with the payload length
  * @popcode:    filled with the frame opcode (WSOP_*)
  *
- * Return: the number of bytes consumed from @input, or (size_t)-2 when @input
- * does not yet hold a complete frame and more data is needed.
+ * Return: the number of bytes consumed from @input; CERR_BUFFER_INCOMPLETE
+ * when @input does not yet hold a complete frame and more data is needed.
  */
-size_t ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode);
+cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode);
 
 /**
  * ws_encode() - wrap a payload in a single binary websocket frame

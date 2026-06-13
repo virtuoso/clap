@@ -1403,18 +1403,20 @@ static int ws_codec_roundtrip(size_t size)
     for (size_t i = 0; i < size; i++)
         payload[i] = (uchar)(i * 7 + 1);
 
-    if (ws_encode(payload, size, &frame, &framesz))                 return EXIT_FAILURE;
-    if (ws_decode(frame, framesz, &out, &outsz, &op) != framesz)    return EXIT_FAILURE;
-    if (outsz != size || op != WSOP_BIN)                            return EXIT_FAILURE;
-    if (size && memcmp(out, payload, size))                         return EXIT_FAILURE;
+    if (ws_encode(payload, size, &frame, &framesz))     return EXIT_FAILURE;
+
+    cres(size_t) dres = ws_decode(frame, framesz, &out, &outsz, &op);
+    if (IS_CERR(dres) || dres.val != framesz)           return EXIT_FAILURE;
+    if (outsz != size || op != WSOP_BIN)                return EXIT_FAILURE;
+    if (size && memcmp(out, payload, size))             return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
 
 static int ws_codec_roundtrip_test(void)
 {
-    /* frames shorter than 4 bytes trip ws_decode()'s oversized header gate */
-    static const size_t sizes[] = { 2, 4, 63, 124, 125, 126, 300, 4096, 65535 };
+    static const size_t sizes[] = { 0, 1, 2, 4, 63, 124, 125, 126, 300,
+                                    4096, 65535, 65536, 70000 };
 
     for (int i = 0; i < array_size(sizes); i++)
         if (ws_codec_roundtrip(sizes[i]))   return EXIT_FAILURE;
@@ -1438,22 +1440,36 @@ static int ws_decode_masked_test(void)
     for (size_t i = 0; i < msglen; i++)
         frame[2 + sizeof(mask) + i] = msg[i] ^ mask[i % sizeof(mask)];
 
-    if (ws_decode(frame, sizeof(frame), &out, &outsz, &op) != sizeof(frame))    return EXIT_FAILURE;
-    if (outsz != msglen || op != WSOP_BIN)                                      return EXIT_FAILURE;
-    if (memcmp(out, msg, msglen))                                               return EXIT_FAILURE;
+    cres(size_t) dres = ws_decode(frame, sizeof(frame), &out, &outsz, &op);
+    if (IS_CERR(dres) || dres.val != sizeof(frame))     return EXIT_FAILURE;
+    if (outsz != msglen || op != WSOP_BIN)              return EXIT_FAILURE;
+    if (memcmp(out, msg, msglen))                       return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
 
-static int ws_decode_short_test(void)
+static int ws_decode_short_one(uint8_t *frame, size_t size)
 {
-    uint8_t frame[] = { 0x82, 0x05, 'c' };  /* claims 5 payload bytes, has 1 */
     uint8_t *out = NULL;
     size_t outsz;
     int op = -1;
 
-    if (ws_decode(frame, sizeof(frame), &out, &outsz, &op) != (size_t)-2)   return EXIT_FAILURE;
-    if (ws_decode(frame, 1, &out, &outsz, &op) != (size_t)-2)               return EXIT_FAILURE;
+    cres(size_t) dres = ws_decode(frame, size, &out, &outsz, &op);
+    return IS_CERR_CODE(dres, CERR_BUFFER_INCOMPLETE) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static int ws_decode_short_test(void)
+{
+    uint8_t claims5[]  = { 0x82, 0x05, 'c' };           /* 5 payload bytes promised, 1 present */
+    uint8_t len16cut[] = { 0x82, 126, 0x01 };           /* 16-bit length cut short */
+    uint8_t len64cut[] = { 0x82, 127, 0, 0, 0 };        /* 64-bit length cut short */
+    uint8_t maskcut[]  = { 0x82, 0x81, 0x11, 0x22 };    /* masking key cut short */
+
+    if (ws_decode_short_one(claims5, sizeof(claims5)))      return EXIT_FAILURE;
+    if (ws_decode_short_one(claims5, 1))                    return EXIT_FAILURE;
+    if (ws_decode_short_one(len16cut, sizeof(len16cut)))    return EXIT_FAILURE;
+    if (ws_decode_short_one(len64cut, sizeof(len64cut)))    return EXIT_FAILURE;
+    if (ws_decode_short_one(maskcut, sizeof(maskcut)))      return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
@@ -1500,16 +1516,20 @@ static int ws_encode_wire_test(void)
 
 static int ws_decode_coalesced_test(void)
 {
-    uint8_t buf[] = { 0x82, 0x02, 'h', 'i', 0x82, 0x02, 'y', 'o' };
+    uint8_t buf[] = { 0x82, 0x02, 'h', 'i', 0x82, 0x01, '!' };
     LOCAL(uchar, first);
     LOCAL(uchar, second);
     size_t outsz;
     int op = -1;
-    size_t used = ws_decode(buf, sizeof(buf), &first, &outsz, &op);
 
-    if (used != 4 || outsz != 2 || memcmp(first, "hi", 2))                      return EXIT_FAILURE;
-    if (ws_decode(buf + used, sizeof(buf) - used, &second, &outsz, &op) != 4)   return EXIT_FAILURE;
-    if (outsz != 2 || memcmp(second, "yo", 2))                                  return EXIT_FAILURE;
+    cres(size_t) dres = ws_decode(buf, sizeof(buf), &first, &outsz, &op);
+    if (IS_CERR(dres) || dres.val != 4)             return EXIT_FAILURE;
+    if (outsz != 2 || memcmp(first, "hi", 2))       return EXIT_FAILURE;
+
+    /* a complete 3-byte frame at the tail decodes on its own */
+    dres = ws_decode(buf + 4, sizeof(buf) - 4, &second, &outsz, &op);
+    if (IS_CERR(dres) || dres.val != 3)             return EXIT_FAILURE;
+    if (outsz != 1 || second[0] != '!')             return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }

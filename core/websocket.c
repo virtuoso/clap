@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
@@ -31,73 +32,74 @@ const char *http_header_find(const char *buf, const char *end, const char *name,
     return NULL;
 }
 
-struct ws_header {
-    unsigned opcode : 4;
-    unsigned rsv    : 3;
-    unsigned fin    : 1;
-    unsigned length : 7;
-    unsigned mask   : 1;
-};
-
-size_t ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode)
+cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode)
 {
-    struct ws_header *h = (void *)input;
-    uint8_t          *mask = NULL;
-    size_t           len, off = 2;
-    uint8_t          *output;
-    int              op;
+    uint8_t  *mask = NULL;
+    size_t   off = 2;
+    uint8_t  *output;
+    uint64_t len;
 
-    if (size < sizeof(*h))
-        return -2;
-    dbg("ws_header: fin=%d opcode=%d mask=%d length=%d (%zu left)\n",
-        h->fin, h->opcode, h->mask, h->length, size);
-    len = h->length;
-    op  = h->opcode;
+    /* the shortest frame is the two mandatory header bytes */
+    if (size < 2)
+        return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
 
-    if (len <= 125) {
-        off = 2;
-    } else if (len == 126) {
-        len = input[off++] << 8;
-        len |= input[off++];
+    unsigned int fin    = input[0] >> 7;
+    unsigned int opcode = input[0] & 0xf;
+    unsigned int masked = input[1] >> 7;
+
+    len = input[1] & 0x7f;
+    dbg("ws_header: fin=%u opcode=%u mask=%u length=%" PRIu64 " (%zu left)\n",
+        fin, opcode, masked, len, size);
+
+    if (len == 126) {
+        if (size < off + 2)
+            return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
+
+        len = (uint64_t)input[2] << 8 | input[3];
+        off += 2;
     } else if (len == 127) {
-        len  = input[off++] << 24;
-        len |= input[off++] << 16;
-        len |= input[off++] << 8;
-        len |= input[off++];
+        if (size < off + 8)
+            return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
+
+        len = 0;
+        for (int i = 0; i < 8; i++)
+            len = len << 8 | input[2 + i];
+        off += 8;
     }
-    if (h->mask) {
+
+    if (masked) {
+        if (size < off + 4)
+            return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
+
         mask = &input[off];
         off += 4;
     }
 
-    if (len + off > size) {
-        dbg("## packet larger than input buffer: %zu/%zu\n", len, size);
-        return -2;
+    if (len > size - off) {
+        dbg("## packet larger than input buffer: %" PRIu64 "/%zu\n", len, size);
+        return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
     }
 
     output = mem_alloc(len + 1, .zero = 1, .fatal_fail = 1);
-    if (!h->mask) {
+    if (!masked) {
         memcpy(output, &input[off], len);
     } else {
-        int i;
-
-        for (i = 0; i < len; i++)
+        for (size_t i = 0; i < len; i++)
             output[i] = input[off + i] ^ mask[i % 4];
     }
     output[len] = 0;
 
     *poutput = output;
     *poutsz  = len;
-    *popcode = op;
+    *popcode = opcode;
 
-    return off + len;
+    return cres_val(size_t, off + len);
 }
 
 int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz)
 {
     size_t            length = inputsz + 2, off = 2;
     uint8_t           *output = NULL;
-    struct ws_header  *h;
     int               lensz;
 
     if (inputsz <= 125)             lensz = 0;
@@ -108,20 +110,18 @@ int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz)
     off += lensz;
 
     output = mem_alloc(length, .zero = 1, .fatal_fail = 1);
-    h         = (void *)output;
-    h->fin    = 1;
-    h->opcode = WSOP_BIN;
+    output[0] = 0x80 | WSOP_BIN;    /* FIN, no fragmentation */
     switch (lensz) {
     case 0:
-        h->length = (uint8_t)inputsz;
+        output[1] = (uint8_t)inputsz;
         break;
     case 2:
-        h->length = 126;
+        output[1] = 126;
         output[2] = (uint8_t)(inputsz >> 8);
         output[3] = (uint8_t)inputsz;
         break;
     case 8:
-        h->length = 127;
+        output[1] = 127;
         for (int i = 0; i < 8; i++)
             output[2 + i] = (uint8_t)((uint64_t)inputsz >> (56 - 8 * i));
         break;
