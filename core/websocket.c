@@ -72,21 +72,12 @@ int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz)
     size_t            length = inputsz + 2, off = 2;
     uint8_t           *output = NULL;
     struct ws_header  *h;
-    uint16_t          len16;
-    uint64_t          len64;
     int               lensz;
 
-    if (inputsz < 125) {
-        lensz = 0;
-        //length += 2;
-        //dbg("header: %02x\n", output[0]);
-    } else if (inputsz < UINT16_MAX) {
-        lensz = 2;
-        len16 = (uint16_t)inputsz;
-    } else {
-        lensz = 8;
-        len64 = (uint64_t)inputsz;
-    }
+    if (inputsz <= 125)             lensz = 0;
+    else if (inputsz <= UINT16_MAX) lensz = 2;
+    else                            lensz = 8;
+
     length += lensz;
     off += lensz;
 
@@ -100,11 +91,13 @@ int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz)
         break;
     case 2:
         h->length = 126;
-        memcpy(&output[2], &len16, lensz);
+        output[2] = (uint8_t)(inputsz >> 8);
+        output[3] = (uint8_t)inputsz;
         break;
     case 8:
         h->length = 127;
-        memcpy(&output[2], &len64, lensz);
+        for (int i = 0; i < 8; i++)
+            output[2 + i] = (uint8_t)((uint64_t)inputsz >> (56 - 8 * i));
         break;
     }
     memcpy(&output[off], input, inputsz);

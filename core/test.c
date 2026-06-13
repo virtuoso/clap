@@ -1382,7 +1382,7 @@ static int ws_codec_roundtrip(size_t size)
 static int ws_codec_roundtrip_test(void)
 {
     /* frames shorter than 4 bytes trip ws_decode()'s oversized header gate */
-    static const size_t sizes[] = { 2, 4, 63, 124 };
+    static const size_t sizes[] = { 2, 4, 63, 124, 125, 126, 300, 4096, 65535 };
 
     for (int i = 0; i < array_size(sizes); i++)
         if (ws_codec_roundtrip(sizes[i]))   return EXIT_FAILURE;
@@ -1422,6 +1422,46 @@ static int ws_decode_short_test(void)
 
     if (ws_decode(frame, sizeof(frame), &out, &outsz, &op) != (size_t)-2)   return EXIT_FAILURE;
     if (ws_decode(frame, 1, &out, &outsz, &op) != (size_t)-2)               return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ws_encode_wire_test(void)
+{
+    static const uint8_t be70000[8] = { 0, 0, 0, 0, 0, 0x01, 0x11, 0x70 };
+    LOCAL_SET(uchar, payload) = mem_alloc(70000, .zero = 1);
+    LOCAL(uchar, frame);
+    size_t framesz;
+
+    if (!payload)   return EXIT_FAILURE;
+
+    /* 125 still fits the single-byte length */
+    if (ws_encode(payload, 125, &frame, &framesz))      return EXIT_FAILURE;
+    if (framesz != 2 + 125 || (frame[1] & 0x7f) != 125) return EXIT_FAILURE;
+    mem_free(frame);
+    frame = NULL;
+
+    /* 300 takes the 16-bit form, big-endian on the wire */
+    if (ws_encode(payload, 300, &frame, &framesz))      return EXIT_FAILURE;
+    if (framesz != 2 + 2 + 300)                         return EXIT_FAILURE;
+    if ((frame[1] & 0x7f) != 126)                       return EXIT_FAILURE;
+    if (frame[2] != 0x01 || frame[3] != 0x2c)           return EXIT_FAILURE;
+    mem_free(frame);
+    frame = NULL;
+
+    /* 65535 is the top of the 16-bit form */
+    if (ws_encode(payload, 65535, &frame, &framesz))    return EXIT_FAILURE;
+    if (framesz != 2 + 2 + 65535)                       return EXIT_FAILURE;
+    if ((frame[1] & 0x7f) != 126)                       return EXIT_FAILURE;
+    if (frame[2] != 0xff || frame[3] != 0xff)           return EXIT_FAILURE;
+    mem_free(frame);
+    frame = NULL;
+
+    /* 70000 takes the 64-bit form */
+    if (ws_encode(payload, 70000, &frame, &framesz))    return EXIT_FAILURE;
+    if (framesz != 2 + 8 + 70000)                       return EXIT_FAILURE;
+    if ((frame[1] & 0x7f) != 127)                       return EXIT_FAILURE;
+    if (memcmp(&frame[2], be70000, 8))                  return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
@@ -1503,6 +1543,7 @@ static struct test {
 #ifdef CONFIG_NETWORKING
     { .name = "websocket codec roundtrip", .test = ws_codec_roundtrip_test },
     { .name = "websocket masked decode", .test = ws_decode_masked_test },
+    { .name = "websocket encode wire format", .test = ws_encode_wire_test },
     { .name = "websocket short frame", .test = ws_decode_short_test },
     { .name = "websocket coalesced frames", .test = ws_decode_coalesced_test },
 #endif /* CONFIG_NETWORKING */
