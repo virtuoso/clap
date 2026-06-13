@@ -39,6 +39,8 @@ enum {
 struct queued {
     void        *out;
     size_t      outsz;
+    /* how much of @out has been sent so far */
+    size_t      off;
     struct list entry;
 };
 
@@ -896,7 +898,24 @@ void networking_poll(void)
                 n->state = ST_HANDSHAKE;
             list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
                 //dbg("sending[%d]: <-- %zd\n", slot, qd->outsz);
-                ret = sendto(n->fd, qd->out, qd->outsz, MSG_NOSIGNAL, (struct sockaddr *)&n->sa, n->addrlen);
+                ret = sendto(n->fd, qd->out + qd->off, qd->outsz - qd->off, MSG_NOSIGNAL,
+                             (struct sockaddr *)&n->sa, n->addrlen);
+                if (ret < 0) {
+                    /* wait for the next POLLOUT on a full socket buffer */
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        break;
+
+                    err("send to '%s' failed: %m\n", node_name(n));
+                    n->state = ST_ERROR;
+                    break;
+                }
+
+                if ((size_t)ret < qd->outsz - qd->off) {
+                    /* short write: keep the tail queued */
+                    qd->off += ret;
+                    break;
+                }
+
                 mem_free(qd->out);
 
                 list_del(&qd->entry);
@@ -908,10 +927,13 @@ void networking_poll(void)
                     n->handshake = NULL;
                 }
             }
-            n->events &= ~POLLOUT;
 
-            /* the close echo has flushed; finish the closing handshake */
-            if (n->closing) {
+            /* keep POLLOUT armed until the queue drains */
+            if (list_empty(&n->out_queue))
+                n->events &= ~POLLOUT;
+
+            /* a dead peer, or the close echo has flushed: drop the node */
+            if (n->state == ST_ERROR || (n->closing && list_empty(&n->out_queue))) {
                 ref_put(n);
                 continue;
             }
