@@ -202,10 +202,8 @@ static cerr network_node_make(struct ref *ref, void *_opts)
     list_init(&n->out_queue);
 
     if (opts->parent) {
-        n->parent            = opts->parent;
-        n->handshake         = opts->parent->handshake;
-        n->addrlen           = opts->parent->addrlen;
-        memcpy(&n->sa, &opts->parent->sa, n->addrlen);
+        n->parent    = opts->parent;
+        n->handshake = opts->parent->handshake;
     } else if (opts->ip) {
         n->addrlen = sizeof(n->sa);
         memset(&n->sa, 0, sizeof(struct sockaddr_in));
@@ -302,8 +300,9 @@ static cresp(network_node) network_node_accept(struct network_node *n)
         return res;
 
     struct network_node *child = res.val;
-    child->mode         = SERVER;
-    child->fd = accept(n->fd, (struct sockaddr *)&n->sa, &n->addrlen);
+    child->mode    = SERVER;
+    child->addrlen = sizeof(child->sa);
+    child->fd = accept(n->fd, (struct sockaddr *)&child->sa, &child->addrlen);
     if (child->fd < 0) {
         ref_put(child);
         return cresp_error(network_node, CERR_SOCK_ACCEPT_FAILED);
@@ -318,7 +317,7 @@ static cresp(network_node) network_node_accept(struct network_node *n)
     }
 
     child->src->type = MST_CLIENT;
-    cres(int) name_res = mem_asprintf(&child->src->name, "%s", inet_ntoa(n->sa.sin_addr));
+    cres(int) name_res = mem_asprintf(&child->src->name, "%s", inet_ntoa(child->sa.sin_addr));
     if (IS_CERR(name_res)) {
         ref_put(child);
         return cresp_error_cerr(network_node, name_res);
