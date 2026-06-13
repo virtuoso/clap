@@ -1266,8 +1266,12 @@ void clap_done(struct clap_context *ctx, int status)
     input_controls_done();
     if (ctx->settings)
         settings_done(ctx->settings);
-    if (ctx->cfg.networking)
+    if (ctx->cfg.networking) {
+#ifdef CONFIG_NETWORKING
+        networking_done();
+#endif /* CONFIG_NETWORKING */
         mem_free(ctx->cfg.networking);
+    }
     messagebus_done(ctx);
     free(ctx->os_info.name);
     clap_timers_done(ctx);
