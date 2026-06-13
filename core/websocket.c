@@ -1,9 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 #include "common.h"
 #include "memory.h"
 #include "websocket.h"
+
+const char *http_header_find(const char *buf, const char *end, const char *name, size_t *vlen)
+{
+    size_t     namelen = strlen(name);
+    const char *p, *c;
+
+    for (p = buf; p < end; p = c) {
+        c = skip_to_new_line(p);
+        if (strncasecmp(p, name, namelen) || p[namelen] != ':')
+            continue;
+
+        const char *v = p + namelen + 1;
+        while (v < end && (*v == ' ' || *v == '\t'))
+            v++;
+
+        const char *vend = v;
+        while (vend < end && *vend != '\r' && *vend != '\n')
+            vend++;
+
+        *vlen = vend - v;
+        return v;
+    }
+
+    return NULL;
+}
 
 struct ws_header {
     unsigned opcode : 4;

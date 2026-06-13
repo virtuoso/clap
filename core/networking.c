@@ -72,7 +72,6 @@ struct network_node {
      * requires websocket encoding/decoding
      */
     bool                   websocket;
-    void                   *data;
     /* chain of struct queued */
     struct list            out_queue;
     /* mode is who we are, not who we're talking to */
@@ -196,7 +195,6 @@ static cerr network_node_make(struct ref *ref, void *_opts)
     if (opts->parent) {
         n->parent            = opts->parent;
         n->handshake         = opts->parent->handshake;
-        n->data              = opts->parent->data;
         n->addrlen           = opts->parent->addrlen;
         memcpy(&n->sa, &opts->parent->sa, n->addrlen);
     } else if (opts->ip) {
@@ -301,37 +299,24 @@ static cresp(network_node) network_node_accept(struct network_node *n)
     return res;
 }
 
-struct wsheader {
-    char *key;
-    int  version;
-};
-
-const char *wsguid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+static const char *wsguid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 static int websocket_parse(struct network_node *n, const uint8_t *_buf)
 {
-    const char      *p, *c, *buf = (const char *)_buf;
-    size_t          len = strlen(buf), wslen = 0;
-    struct wsheader *wsh = n->data;
-    char            h[21], bh[64];
-    char            *key, *out;
+    const char *buf = (const char *)_buf, *end = buf + strlen(buf);
+    char       h[21], bh[64];
+    char       *out;
+    size_t     klen, vlen;
 
-    for (p = buf; p - buf < len;) {
-        c = skip_to_new_line(p);
-        if (!strncmp(p, "Sec-WebSocket-Key", 17)) {
-            p        = skip_nonspace(p);
-            p        = skip_space(p);
-            wslen    = c - p - 2; /* XXX: \r\n */
-            wsh->key = strndup(p, wslen);
-        }
-        p = c;
-    }
-    if (!wsh->key)
-        return -1;
+    const char *k = http_header_find(buf, end, "Sec-WebSocket-Key", &klen);
+    if (!k || !klen)                                    return -1;
 
-    key = mem_alloc(wslen + strlen(wsguid) + 1, .zero = 1, .fatal_fail = 1);
-    strcpy(key, wsh->key);
-    strcpy(key + wslen, wsguid);
+    const char *ver = http_header_find(buf, end, "Sec-WebSocket-Version", &vlen);
+    if (!ver || vlen != 2 || strncmp(ver, "13", 2))     return -1;
+
+    LOCAL_SET(char, key) = mem_alloc(klen + strlen(wsguid) + 1, .zero = 1, .fatal_fail = 1);
+    memcpy(key, k, klen);
+    strcpy(key + klen, wsguid);
     SHA1(h, key, strlen(key));
 
     base64_encode(bh, sizeof(bh), h, sizeof(h) - 1);
@@ -339,15 +324,10 @@ static int websocket_parse(struct network_node *n, const uint8_t *_buf)
                                  "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
                                  "Connection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
                                  bh);
-    if (IS_CERR(res) || !res.val) {
-        mem_free(key);
+    if (IS_CERR(res) || !res.val)
         return -1;
-    }
 
     queue_outmsg(n, out, res.val);
-
-    //free(out);
-    mem_free(key);
 
     return 0;
 }
@@ -605,8 +585,6 @@ static ssize_t handle_input(struct network_node *n, uint8_t *buf, size_t size)
 
     return handle_server_input(n, buf, size);
 }
-
-struct wsheader _wsh;
 
 static void queue_outmsg(struct network_node *n, void *data, size_t size)
 {
@@ -919,7 +897,6 @@ cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, en
             return cerr_error_cres(res);
 
         n            = res.val;
-        n->data      = &_wsh;
         n->handshake = websocket_parse;
         need_polling_alloc++;
         break;

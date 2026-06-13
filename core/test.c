@@ -1358,6 +1358,38 @@ static int ua_parse_mobile_test(void)
 }
 
 #ifdef CONFIG_NETWORKING
+static int http_header_find_test(void)
+{
+    static const char req[] =
+        "GET /chat HTTP/1.1\r\n"
+        "Host: server.example.com\r\n"
+        "Upgrade: websocket\r\n"
+        "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+        "Sec-WebSocket-Protocol: binary, base64\r\n"
+        "Sec-WebSocket-Version: 13\r\n"
+        "\r\n";
+    const char *end = req + sizeof(req) - 1;
+    size_t vlen;
+    const char *v;
+
+    /* name match is case-insensitive */
+    v = http_header_find(req, end, "Sec-WebSocket-Key", &vlen);
+    if (!v || vlen != 24 || strncmp(v, "dGhlIHNhbXBsZSBub25jZQ==", vlen))   return EXIT_FAILURE;
+
+    /* the value ends at its own line ending even for the last header */
+    v = http_header_find(req, end, "Sec-WebSocket-Version", &vlen);
+    if (!v || vlen != 2 || strncmp(v, "13", vlen))                          return EXIT_FAILURE;
+
+    v = http_header_find(req, end, "Sec-WebSocket-Protocol", &vlen);
+    if (!v || vlen != 14 || strncmp(v, "binary, base64", vlen))             return EXIT_FAILURE;
+
+    /* name prefixes and absent headers don't match */
+    if (http_header_find(req, end, "Sec-WebSocket", &vlen))                 return EXIT_FAILURE;
+    if (http_header_find(req, end, "Origin", &vlen))                        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static int ws_codec_roundtrip(size_t size)
 {
     LOCAL_SET(uchar, payload) = mem_alloc(size + 1, .zero = 1);
@@ -1541,6 +1573,7 @@ static struct test {
     { .name = "tex rgb to rgba 32f", .test = tex_rgb_to_rgba_32f_test },
     { .name = "tex rgb to rgba 16f", .test = tex_rgb_to_rgba_16f_test },
 #ifdef CONFIG_NETWORKING
+    { .name = "http header find", .test = http_header_find_test },
     { .name = "websocket codec roundtrip", .test = ws_codec_roundtrip_test },
     { .name = "websocket masked decode", .test = ws_decode_masked_test },
     { .name = "websocket encode wire format", .test = ws_encode_wire_test },

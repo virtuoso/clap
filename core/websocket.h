@@ -16,6 +16,18 @@ enum {
 };
 
 /**
+ * http_header_find() - find an HTTP header value in a request buffer
+ * @buf:        start of the request text
+ * @end:        end of the request text
+ * @name:       header name, matched case-insensitively, without the colon
+ * @vlen:       filled with the length of the returned value
+ *
+ * Return: pointer into @buf at the header's value, leading whitespace and
+ * the line ending trimmed, or NULL if the header isn't there.
+ */
+const char *http_header_find(const char *buf, const char *end, const char *name, size_t *vlen);
+
+/**
  * ws_decode() - decode one websocket frame from a byte buffer
  * @input:      raw frame bytes as received from the peer
  * @size:       number of bytes available at @input
