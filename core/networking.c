@@ -1077,7 +1077,6 @@ void networking_done(void)
 {
     struct network_node *n, *it;
 
-    networking_broadcast_restart();
 not_empty:
     networking_poll();
 
