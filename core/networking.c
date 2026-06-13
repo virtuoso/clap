@@ -449,9 +449,10 @@ static const char *node_name(struct network_node *n)
     return "<unknown>";
 }
 
-void networking_broadcast(int mode, void *data, size_t size)
+int networking_broadcast(int mode, void *data, size_t size)
 {
     struct network_node *n;
+    int sent = 0;
 
     dbg("sending broadcast\n");
     list_for_each_entry(n, &nodes, entry) {
@@ -462,18 +463,24 @@ void networking_broadcast(int mode, void *data, size_t size)
             out = memdup(data, size);
             queue_outmsg(n, out, size);
             n->events |= POLLOUT;
+            sent++;
         }
     }
+
+    return sent;
 }
 
-void networking_broadcast_restart(void)
+int networking_broadcast_restart(void)
 {
     struct message_command mcmd;
+    int sent;
 
     memset(&mcmd, 0, sizeof(mcmd));
     mcmd.restart = 1;
-    networking_broadcast(SERVER, &mcmd, sizeof(mcmd));
-    networking_broadcast(CLIENT, &mcmd, sizeof(mcmd));
+    sent  = networking_broadcast(SERVER, &mcmd, sizeof(mcmd));
+    sent += networking_broadcast(CLIENT, &mcmd, sizeof(mcmd));
+
+    return sent;
 }
 
 static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t size)

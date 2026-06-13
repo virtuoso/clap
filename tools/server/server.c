@@ -98,11 +98,19 @@ int main(int argc, char **argv, char **envp)
             ret = EXIT_FAILURE;
             goto exit_clap;
         }
-        networking_poll();
-        networking_poll();
-        networking_broadcast_restart();
+        /* wait for the connection to come up before broadcasting */
+        int sent = 0;
+        for (int i = 0; i < 20 && !sent; i++) {
+            networking_poll();
+            sent = networking_broadcast_restart();
+        }
+
         networking_poll();
         networking_done();
+        if (!sent) {
+            err("no server to restart at %s\n", ncfg.server_ip);
+            ret = EXIT_FAILURE;
+        }
         goto exit_clap;
     }
 

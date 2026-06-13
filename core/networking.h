@@ -28,14 +28,14 @@ struct networking_config {
 cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode);
 void networking_poll(void);
 void networking_done(void);
-void networking_broadcast_restart(void);
-void networking_broadcast(int mode, void *data, size_t size);
+int networking_broadcast_restart(void);
+int networking_broadcast(int mode, void *data, size_t size);
 #else
 static inline cerr_check networking_init(struct clap_context *ctx, struct networking_config *cfg, enum mode mode) { return CERR_NOT_SUPPORTED; }
 static inline void networking_poll(void) {}
 static inline void networking_done(void) {}
-static inline void networking_broadcast_restart(void) {}
-static inline void networking_broadcast(int mode, void *data, size_t size) {}
+static inline int networking_broadcast_restart(void) { return 0; }
+static inline int networking_broadcast(int mode, void *data, size_t size) { return 0; }
 #endif /* CONFIG_NETWORKING */
 
 #endif /* __CLAP_NETWORKING_H__ */
