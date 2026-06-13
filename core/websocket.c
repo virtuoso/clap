@@ -32,7 +32,8 @@ const char *http_header_find(const char *buf, const char *end, const char *name,
     return NULL;
 }
 
-cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode)
+cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode,
+                       bool require_mask)
 {
     uint8_t  *mask = NULL;
     size_t   off = 2;
@@ -44,12 +45,24 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
         return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
 
     unsigned int fin    = input[0] >> 7;
+    unsigned int rsv    = (input[0] >> 4) & 0x7;
     unsigned int opcode = input[0] & 0xf;
     unsigned int masked = input[1] >> 7;
 
     len = input[1] & 0x7f;
     dbg("ws_header: fin=%u opcode=%u mask=%u length=%" PRIu64 " (%zu left)\n",
         fin, opcode, masked, len, size);
+
+    /* no extensions are negotiated and fragmentation isn't supported */
+    if (rsv || !fin || opcode == WSOP_CONT)
+        return cres_error(size_t, CERR_INVALID_FORMAT);
+
+    /* RFC 6455 5.5: control frames must be short and whole */
+    if (opcode >= WSOP_CLOSE && len > 125)
+        return cres_error(size_t, CERR_INVALID_FORMAT);
+
+    if (require_mask && !masked)
+        return cres_error(size_t, CERR_INVALID_FORMAT);
 
     if (len == 126) {
         if (size < off + 2)
@@ -96,7 +109,7 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
     return cres_val(size_t, off + len);
 }
 
-int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz)
+int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz, int opcode)
 {
     size_t            length = inputsz + 2, off = 2;
     uint8_t           *output = NULL;
@@ -110,7 +123,7 @@ int ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz)
     off += lensz;
 
     output = mem_alloc(length, .zero = 1, .fatal_fail = 1);
-    output[0] = 0x80 | WSOP_BIN;    /* FIN, no fragmentation */
+    output[0] = 0x80 | (opcode & 0xf);      /* FIN, no fragmentation */
     switch (lensz) {
     case 0:
         output[1] = (uint8_t)inputsz;

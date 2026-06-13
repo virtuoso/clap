@@ -1403,9 +1403,9 @@ static int ws_codec_roundtrip(size_t size)
     for (size_t i = 0; i < size; i++)
         payload[i] = (uchar)(i * 7 + 1);
 
-    if (ws_encode(payload, size, &frame, &framesz))     return EXIT_FAILURE;
+    if (ws_encode(payload, size, &frame, &framesz, WSOP_BIN))   return EXIT_FAILURE;
 
-    cres(size_t) dres = ws_decode(frame, framesz, &out, &outsz, &op);
+    cres(size_t) dres = ws_decode(frame, framesz, &out, &outsz, &op, false);
     if (IS_CERR(dres) || dres.val != framesz)           return EXIT_FAILURE;
     if (outsz != size || op != WSOP_BIN)                return EXIT_FAILURE;
     if (size && memcmp(out, payload, size))             return EXIT_FAILURE;
@@ -1440,7 +1440,7 @@ static int ws_decode_masked_test(void)
     for (size_t i = 0; i < msglen; i++)
         frame[2 + sizeof(mask) + i] = msg[i] ^ mask[i % sizeof(mask)];
 
-    cres(size_t) dres = ws_decode(frame, sizeof(frame), &out, &outsz, &op);
+    cres(size_t) dres = ws_decode(frame, sizeof(frame), &out, &outsz, &op, true);
     if (IS_CERR(dres) || dres.val != sizeof(frame))     return EXIT_FAILURE;
     if (outsz != msglen || op != WSOP_BIN)              return EXIT_FAILURE;
     if (memcmp(out, msg, msglen))                       return EXIT_FAILURE;
@@ -1454,7 +1454,7 @@ static int ws_decode_short_one(uint8_t *frame, size_t size)
     size_t outsz;
     int op = -1;
 
-    cres(size_t) dres = ws_decode(frame, size, &out, &outsz, &op);
+    cres(size_t) dres = ws_decode(frame, size, &out, &outsz, &op, false);
     return IS_CERR_CODE(dres, CERR_BUFFER_INCOMPLETE) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
@@ -1484,13 +1484,13 @@ static int ws_encode_wire_test(void)
     if (!payload)   return EXIT_FAILURE;
 
     /* 125 still fits the single-byte length */
-    if (ws_encode(payload, 125, &frame, &framesz))      return EXIT_FAILURE;
+    if (ws_encode(payload, 125, &frame, &framesz, WSOP_BIN))    return EXIT_FAILURE;
     if (framesz != 2 + 125 || (frame[1] & 0x7f) != 125) return EXIT_FAILURE;
     mem_free(frame);
     frame = NULL;
 
     /* 300 takes the 16-bit form, big-endian on the wire */
-    if (ws_encode(payload, 300, &frame, &framesz))      return EXIT_FAILURE;
+    if (ws_encode(payload, 300, &frame, &framesz, WSOP_BIN))    return EXIT_FAILURE;
     if (framesz != 2 + 2 + 300)                         return EXIT_FAILURE;
     if ((frame[1] & 0x7f) != 126)                       return EXIT_FAILURE;
     if (frame[2] != 0x01 || frame[3] != 0x2c)           return EXIT_FAILURE;
@@ -1498,7 +1498,7 @@ static int ws_encode_wire_test(void)
     frame = NULL;
 
     /* 65535 is the top of the 16-bit form */
-    if (ws_encode(payload, 65535, &frame, &framesz))    return EXIT_FAILURE;
+    if (ws_encode(payload, 65535, &frame, &framesz, WSOP_BIN))  return EXIT_FAILURE;
     if (framesz != 2 + 2 + 65535)                       return EXIT_FAILURE;
     if ((frame[1] & 0x7f) != 126)                       return EXIT_FAILURE;
     if (frame[2] != 0xff || frame[3] != 0xff)           return EXIT_FAILURE;
@@ -1506,7 +1506,7 @@ static int ws_encode_wire_test(void)
     frame = NULL;
 
     /* 70000 takes the 64-bit form */
-    if (ws_encode(payload, 70000, &frame, &framesz))    return EXIT_FAILURE;
+    if (ws_encode(payload, 70000, &frame, &framesz, WSOP_BIN))  return EXIT_FAILURE;
     if (framesz != 2 + 8 + 70000)                       return EXIT_FAILURE;
     if ((frame[1] & 0x7f) != 127)                       return EXIT_FAILURE;
     if (memcmp(&frame[2], be70000, 8))                  return EXIT_FAILURE;
@@ -1522,14 +1522,64 @@ static int ws_decode_coalesced_test(void)
     size_t outsz;
     int op = -1;
 
-    cres(size_t) dres = ws_decode(buf, sizeof(buf), &first, &outsz, &op);
+    cres(size_t) dres = ws_decode(buf, sizeof(buf), &first, &outsz, &op, false);
     if (IS_CERR(dres) || dres.val != 4)             return EXIT_FAILURE;
     if (outsz != 2 || memcmp(first, "hi", 2))       return EXIT_FAILURE;
 
     /* a complete 3-byte frame at the tail decodes on its own */
-    dres = ws_decode(buf + 4, sizeof(buf) - 4, &second, &outsz, &op);
+    dres = ws_decode(buf + 4, sizeof(buf) - 4, &second, &outsz, &op, false);
     if (IS_CERR(dres) || dres.val != 3)             return EXIT_FAILURE;
     if (outsz != 1 || second[0] != '!')             return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ws_control_frames_test(void)
+{
+    static const uint8_t mask[] = { 0xa5, 0x5a, 0xff, 0x00 };
+    static const uint8_t status[] = { 0x03, 0xe8 };     /* 1000, normal closure */
+    uint8_t frame[2 + sizeof(mask) + sizeof(status)];
+    LOCAL(uchar, out);
+    LOCAL(uchar, pong);
+    size_t outsz, pongsz;
+    int op = -1;
+
+    frame[0] = 0x88;                    /* FIN | close */
+    frame[1] = 0x80 | sizeof(status);   /* MASK | payload length */
+    memcpy(&frame[2], mask, sizeof(mask));
+    for (size_t i = 0; i < sizeof(status); i++)
+        frame[2 + sizeof(mask) + i] = status[i] ^ mask[i % sizeof(mask)];
+
+    cres(size_t) dres = ws_decode(frame, sizeof(frame), &out, &outsz, &op, true);
+    if (IS_CERR(dres) || dres.val != sizeof(frame))     return EXIT_FAILURE;
+    if (op != WSOP_CLOSE || outsz != sizeof(status))    return EXIT_FAILURE;
+    if (memcmp(out, status, sizeof(status)))            return EXIT_FAILURE;
+
+    /* a pong echoing the ping payload carries the pong opcode */
+    if (ws_encode(out, outsz, &pong, &pongsz, WSOP_PONG))   return EXIT_FAILURE;
+    if (pong[0] != (0x80 | WSOP_PONG))                      return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int ws_decode_reject_one(uint8_t b0, uint8_t b1, bool require_mask)
+{
+    uint8_t frame[8] = { b0, b1 };
+    uint8_t *out = NULL;
+    size_t outsz;
+    int op = -1;
+
+    cres(size_t) dres = ws_decode(frame, sizeof(frame), &out, &outsz, &op, require_mask);
+    return IS_CERR_CODE(dres, CERR_INVALID_FORMAT) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static int ws_decode_reject_test(void)
+{
+    if (ws_decode_reject_one(0x02, 0x01, false))    return EXIT_FAILURE;    /* fin clear */
+    if (ws_decode_reject_one(0x80, 0x01, false))    return EXIT_FAILURE;    /* continuation */
+    if (ws_decode_reject_one(0xc2, 0x01, false))    return EXIT_FAILURE;    /* reserved bit set */
+    if (ws_decode_reject_one(0x88, 126, false))     return EXIT_FAILURE;    /* extended-length control */
+    if (ws_decode_reject_one(0x82, 0x01, true))     return EXIT_FAILURE;    /* unmasked to a server */
 
     return EXIT_SUCCESS;
 }
@@ -1599,6 +1649,8 @@ static struct test {
     { .name = "websocket encode wire format", .test = ws_encode_wire_test },
     { .name = "websocket short frame", .test = ws_decode_short_test },
     { .name = "websocket coalesced frames", .test = ws_decode_coalesced_test },
+    { .name = "websocket control frames", .test = ws_control_frames_test },
+    { .name = "websocket protocol rejects", .test = ws_decode_reject_test },
 #endif /* CONFIG_NETWORKING */
 };
 

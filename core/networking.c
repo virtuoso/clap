@@ -72,6 +72,8 @@ struct network_node {
      * requires websocket encoding/decoding
      */
     bool                   websocket;
+    /* close frame received; drop once the close echo flushes */
+    bool                   closing;
     /* chain of struct queued */
     struct list            out_queue;
     /* mode is who we are, not who we're talking to */
@@ -607,31 +609,34 @@ static ssize_t handle_input(struct network_node *n, uint8_t *buf, size_t size)
     return handle_server_input(n, buf, size);
 }
 
+static void queue_frame(struct network_node *n, void *data, size_t size)
+{
+    struct queued *qd = mem_alloc(sizeof(*qd), .zero = 1, .fatal_fail = 1);
+
+    qd->out    = data;
+    qd->outsz  = size;
+    list_append(&n->out_queue, &qd->entry);
+
+    n->events |= POLLOUT;
+}
+
 static void queue_outmsg(struct network_node *n, void *data, size_t size)
 {
-    struct queued *qd;
-
     if (!size)
         size = strlen(data) + 1;
-
-    qd = mem_alloc(sizeof(*qd), .zero = 1, .fatal_fail = 1);
 
     if (n->websocket) {
         uint8_t *frame;
         size_t  framesz;
 
-        CHECK0(ws_encode(data, size, &frame, &framesz));
+        CHECK0(ws_encode(data, size, &frame, &framesz, WSOP_BIN));
 
         mem_free(data); /* XXX: unless it's static; don't queue static stuff */
         data = frame;
         size = framesz;
     }
 
-    qd->out    = (void *)data;
-    qd->outsz  = size;
-    list_append(&n->out_queue, &qd->entry);
-
-    n->events |= POLLOUT;
+    queue_frame(n, data, size);
 }
 
 static void network_node_cache(struct network_node *n, size_t off)
@@ -688,16 +693,57 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
         x = n->input;
         xsz = total;
         if (n->websocket) {
-            cres(size_t) dres = ws_decode(n->wsinput + done, total, &x, &xsz, &op);
+            cres(size_t) dres = ws_decode(n->wsinput + done, total, &x, &xsz, &op,
+                                          n->mode == SERVER);
             /* incomplete packet: cache what we have for the next round */
-            if (IS_CERR(dres)) {
+            if (IS_CERR_CODE(dres, CERR_BUFFER_INCOMPLETE)) {
                 network_node_wscache(n, done);
                 goto out_short;
             }
 
+            /* protocol violation: fail the connection */
+            if (IS_CERR(dres)) {
+                n->state = ST_ERROR;
+                return 0;
+            }
+
+            size = dres.val;
+
+            if (op == WSOP_CLOSE) {
+                uint8_t *frame;
+                size_t  framesz;
+
+                dbg("close from '%s'\n", node_name(n));
+                /* echo the close, status payload included, drop once it flushes */
+                if (!ws_encode(x, xsz, &frame, &framesz, WSOP_CLOSE))
+                    queue_frame(n, frame, framesz);
+                mem_free(x);
+                n->closing = true;
+
+                /* nothing after a close frame is worth reading */
+                mem_free(n->wsinput);
+                n->wsinput = NULL;
+                n->wsinputsz = 0;
+                return 0;
+            }
+
+            if (op == WSOP_PING || op == WSOP_PONG) {
+                if (op == WSOP_PING) {
+                    uint8_t *frame;
+                    size_t  framesz;
+
+                    if (!ws_encode(x, xsz, &frame, &framesz, WSOP_PONG))
+                        queue_frame(n, frame, framesz);
+                }
+                /* control frames stay out of the message stream */
+                mem_free(x);
+                total -= size;
+                done += size;
+                continue;
+            }
+
             /* paste what we decoded with what was cached from before */
             network_node_uncache(n, x, xsz);
-            size = dres.val;
         } else {
             network_node_uncache(n, buf, size);
         }
@@ -751,12 +797,6 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
     return 0;
 
 out_short:
-    if (n->websocket) {
-        if (op == WSOP_FIN) {
-            ref_put(n);
-        }
-    }
-
     return 1;
 }
 
@@ -865,6 +905,12 @@ void networking_poll(void)
                 }
             }
             n->events &= ~POLLOUT;
+
+            /* the close echo has flushed; finish the closing handshake */
+            if (n->closing) {
+                ref_put(n);
+                continue;
+            }
         }
     }
 
