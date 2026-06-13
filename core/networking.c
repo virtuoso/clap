@@ -267,6 +267,9 @@ static void network_node_drop(struct ref *ref)
 DEFINE_REFCLASS2(network_node);
 DECLARE_REFCLASS(network_node);
 
+typedef struct network_node network_node;
+static DEFINE_CLEANUP(network_node, if (*p) ref_put(*p))
+
 static cerr network_node_listen(struct network_node *n)
 {
     if (bind(n->fd, (struct sockaddr *)&n->sa, n->addrlen))
@@ -294,39 +297,31 @@ static cerr network_node_connect(struct network_node *n)
 
 static cresp(network_node) network_node_accept(struct network_node *n)
 {
-    cresp(network_node) res = ref_new_checked(network_node, .parent = n);
-    if (IS_CERR(res))
-        return res;
+    LOCAL_SET(network_node, child) =
+        CRES_RET_T(ref_new_checked(network_node, .parent = n), network_node);
 
-    struct network_node *child = res.val;
     child->mode    = SERVER;
     child->addrlen = sizeof(child->sa);
     child->fd = accept(n->fd, (struct sockaddr *)&child->sa, &child->addrlen);
-    if (child->fd < 0) {
-        ref_put(child);
+    if (child->fd < 0)
         return cresp_error(network_node, CERR_SOCK_ACCEPT_FAILED);
-    }
 
     fcntl(child->fd, F_SETFL, O_NONBLOCK);
 
     child->src = mem_alloc(sizeof(*child->src), .zero = 1);
-    if (!child->src) {
-        ref_put(child);
+    if (!child->src)
         return cresp_error(network_node, CERR_NOMEM);
-    }
 
     child->src->type = MST_CLIENT;
-    cres(int) name_res = mem_asprintf(&child->src->name, "%s", inet_ntoa(child->sa.sin_addr));
-    if (IS_CERR(name_res)) {
-        ref_put(child);
-        return cresp_error_cerr(network_node, name_res);
-    }
+    CRES_RET_T(mem_asprintf(&child->src->name, "%s", inet_ntoa(child->sa.sin_addr)),
+               network_node);
 
     dbg("new client '%s'\n", child->src->name);
     child->src->desc = "remote client";
     child->state     = ST_HANDSHAKE;
     need_polling_alloc++;
-    return res;
+
+    return cresp_val(network_node, NOCU(child));
 }
 
 static const char *wsguid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -398,26 +393,18 @@ static cresp(network_node) server_setup(const char *server_ip, unsigned int port
 
 static cresp(network_node) _client_setup(struct networking_config *cfg, unsigned int port)
 {
-    struct network_node *n;
-    cerr err = CERR_OK;
+    LOCAL_SET(network_node, n) =
+        CRES_RET_T(ref_new_checked(network_node, .ip = cfg->server_ip, .port = port, .mode = CLIENT),
+                   network_node);
 
-    cresp(network_node) res = ref_new_checked(network_node, .ip = cfg->server_ip, .port = port, .mode = CLIENT);
-    if (IS_CERR(res))
-        return res;
+    CERR_RET_T(network_node_connect(n), network_node);
 
-    n = res.val;
-    err = network_node_connect(n);
-    if (!IS_CERR(err) && cfg->logger)
-        err = rb_sink_add(log_flush, n, VDBG, 1);
-
-    if (IS_CERR(err)) {
-        ref_put(n);
-        return cresp_error_cerr(network_node, err);
-    }
+    if (cfg->logger)
+        CERR_RET_T(rb_sink_add(log_flush, n, VDBG, 1), network_node);
 
     need_polling_alloc++;
 
-    return res;
+    return cresp_val(network_node, NOCU(n));
 }
 
 static cresp(network_node) client_setup(struct networking_config *cfg)
