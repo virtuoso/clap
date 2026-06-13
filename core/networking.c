@@ -787,9 +787,15 @@ void networking_poll(void)
 
     //dbg("polled: %d\n", ret);
     list_for_each_entry_iter(n, it, &nodes, entry) {
-        events = pollfds[i].revents;
-        // dbg("pollfd[%d]: %x\n", i, events);
-        pollfds[i].revents = 0;
+        /* nodes appended mid-walk have no pollfd slot yet */
+        if (i == nr_nodes)
+            break;
+
+        int slot = i++;
+
+        events = pollfds[slot].revents;
+        // dbg("pollfd[%d]: %x\n", slot, events);
+        pollfds[slot].revents = 0;
         /* First, new incoming connections */
         if (n->mode == LISTEN && (events & POLLIN)) {
             cresp(network_node) res = network_node_accept(n);
@@ -806,33 +812,33 @@ void networking_poll(void)
             memset(buf, 0, sizeof(buf));
             ret = recvfrom(n->fd, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&n->sa, &n->addrlen);
             if (!ret) {
-                dbg("pollfd[%d]: shutting down\n", i);
+                dbg("pollfd[%d]: shutting down\n", slot);
                 ref_put(n);
                 continue;
             }
             if (ret > 0) {
                 buf[ret] = 0;
-                dbg("new data on %d: %zd bytes (+ %zu/%zu bytes left over):\n", i, ret, n->inputsz, n->wsinputsz);
+                dbg("new data on %d: %zd bytes (+ %zu/%zu bytes left over):\n", slot, ret, n->inputsz, n->wsinputsz);
 
                 if (n->handshake) {
                     if (n->handshake(n, buf) < 0) {
                         ref_put(n);
-                        goto next;
+                        continue;
                     }
 
                     n->events |= POLLOUT;
-                    goto next;
+                    continue;
                 }
 
                 if (process_input(n, buf, ret))
-                    goto next;
+                    continue;
 
                 if (n->state == ST_ERROR) {
                     ref_put(n);
                     continue;
                 }
             } else if (ret < 0) {
-                err("recvfrom[%d] returned %zd: %m // %x\n", i, ret, events);
+                err("recvfrom[%d] returned %zd: %m // %x\n", slot, ret, events);
             }
         }
         /* Third, hangups */
@@ -847,7 +853,7 @@ void networking_poll(void)
             if (n->state == ST_INIT)
                 n->state = ST_HANDSHAKE;
             list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
-                //dbg("sending[%d]: <-- %zd\n", i, qd->outsz);
+                //dbg("sending[%d]: <-- %zd\n", slot, qd->outsz);
                 ret = sendto(n->fd, qd->out, qd->outsz, MSG_NOSIGNAL, (struct sockaddr *)&n->sa, n->addrlen);
                 mem_free(qd->out);
 
@@ -862,9 +868,6 @@ void networking_poll(void)
             }
             n->events &= ~POLLOUT;
         }
-
-next:
-        i++;
     }
 
 state:
