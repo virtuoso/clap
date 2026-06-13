@@ -34,7 +34,8 @@ static int handle_command(struct clap_context *ctx, struct message *m, void *dat
         restart_server   = true;
     }
     if (m->cmd.status) {
-        networking_broadcast(CLIENT, &m->cmd, sizeof(m->cmd));
+        /* on the server, connected game clients are the SERVER-mode nodes */
+        networking_broadcast(SERVER, &m->cmd, sizeof(m->cmd));
     }
     return 0;
 }
