@@ -750,6 +750,8 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
 
         handled = 0;
 
+        bool cached = false;
+
         /*
          * making it handle multiple messages, if in fact, one WS frame
          * contains multiple messages
@@ -766,7 +768,9 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
              */
             dbg("<== handled / xhandled: %zu / %zd\n", handled, xhandled);
             if (xhandled < 0) {
+                /* partial message: keep the tail for the next read */
                 network_node_cache(n, handled);
+                cached = true;
                 break;
             }
             if (n->state == ST_ERROR) {
@@ -776,7 +780,7 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
             handled += xhandled;
         } while (handled > 0 && handled < n->inputsz);
 
-        if (handled == n->inputsz) {
+        if (!cached && handled == n->inputsz) {
             mem_free(n->input);
             n->input = NULL;
             n->inputsz = 0;
