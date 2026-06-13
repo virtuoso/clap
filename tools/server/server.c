@@ -11,14 +11,11 @@
 #include "messagebus.h"
 #include "networking.h"
 
-struct clap_context *clap;
+static volatile sig_atomic_t exit_requested;
 
 static void sigint_handler(int sig)
 {
-    fprintf(stderr, "## SIGINT\n");
-    networking_done();
-    clap_done(clap, 0);
-    exit(0);
+    exit_requested = 1;
 }
 
 static bool exit_server_loop = false;
@@ -26,7 +23,7 @@ static bool restart_server   = false;
 
 void server_run(void)
 {
-    while (!exit_server_loop)
+    while (!exit_server_loop && !exit_requested)
         networking_poll();
 }
 
