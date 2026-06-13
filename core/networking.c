@@ -193,6 +193,7 @@ static cerr network_node_make(struct ref *ref, void *_opts)
     n->mode = mode;
     n->events = POLLIN | POLLHUP | POLLNVAL | POLLOUT;
     n->state  = ST_INIT;
+    n->fd     = -1;
     list_init(&n->out_queue);
 
     if (opts->parent) {
@@ -230,6 +231,7 @@ static cerr network_node_make(struct ref *ref, void *_opts)
 static void network_node_drop(struct ref *ref)
 {
     struct network_node *n = container_of(ref, struct network_node, ref);
+    struct queued *qd, *_qd;
 
     if (n->log_f) {
         fprintf(n->log_f, " --- connection closed ---\n");
@@ -239,11 +241,23 @@ static void network_node_drop(struct ref *ref)
     if (n->mode == CLIENT)
         rb_sink_del(n);
 
+    list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
+        list_del(&qd->entry);
+        mem_free(qd->out);
+        mem_free(qd);
+    }
+
     mem_free(n->input);
-    mem_free(n->src);
+    mem_free(n->wsinput);
+    if (n->src) {
+        mem_free(n->src->name);
+        mem_free(n->src);
+    }
     list_del(&n->entry);
-    close(n->fd);
-    shutdown(n->fd, SHUT_RDWR);
+    if (n->fd >= 0) {
+        shutdown(n->fd, SHUT_RDWR);
+        close(n->fd);
+    }
     need_polling_alloc++;
 }
 
