@@ -271,7 +271,7 @@ elseif (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
             set(CLAP_RENDERER_LIBRARIES ${OPENGL_LIBRARIES})
         elseif (CLAP_BUILD_WITH_GLES)
             set(CLAP_RENDERER_INCLUDE_DIRS "")
-            set(CLAP_RENDERER_LIBRARIES "")
+            set(CLAP_RENDERER_LIBRARIES GLESv2)
         elseif (WIN32)
             find_package(OpenGL REQUIRED)
             set(CLAP_RENDERER_LIBRARIES
