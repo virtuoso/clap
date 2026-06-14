@@ -276,10 +276,18 @@ static cerr network_node_connect(struct network_node *n)
 {
     int ret = connect(n->fd, (struct sockaddr *)&n->sa, n->addrlen);
 
+    if (ret && errno != EINPROGRESS)
+        return errno_to_cerr(errno);
+
+#ifndef __EMSCRIPTEN__
+    /*
+     * Emscripten's connect() succeeds unconditionally, in its own words
+     * "pretending that the connection was a success": there the socket-open
+     * callback is the real signal. A native synchronous success is one.
+     */
     if (!ret)
         n->state = ST_HANDSHAKE;
-    else if (errno != EINPROGRESS)
-        return errno_to_cerr(errno);
+#endif /* !__EMSCRIPTEN__ */
 
     return CERR_OK;
 }
@@ -949,6 +957,11 @@ void networking_poll(void)
 
         events = pollfds[slot].revents;
         pollfds[slot].revents = 0;
+        /* the error callback may have condemned it between polls */
+        if (n->state == ST_ERROR) {
+            ref_put(n);
+            continue;
+        }
         /* Sockets in error state are done for */
         if (events & (POLLERR | POLLNVAL)) {
             int soerr = 0;
@@ -1037,6 +1050,10 @@ void networking_poll(void)
             struct queued *qd, *_qd;
 
             if (n->state == ST_INIT) {
+#ifdef __EMSCRIPTEN__
+                /* promotion out of ST_INIT belongs to the open callback */
+                continue;
+#else
                 int soerr = 0;
                 socklen_t solen = sizeof(soerr);
 
@@ -1048,6 +1065,7 @@ void networking_poll(void)
                 }
 
                 n->state = ST_HANDSHAKE;
+#endif /* !__EMSCRIPTEN__ */
             }
             list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
                 ret = sendto(n->fd, qd->out + qd->off, qd->outsz - qd->off, MSG_NOSIGNAL,
@@ -1133,10 +1151,45 @@ state:
 }
 
 #ifdef __EMSCRIPTEN__
-static void socket_callback(int fd, void *data)
+static struct network_node *node_by_fd(int fd)
 {
-    dbg("socket callback on fd %d\n", fd);
+    struct network_node *n;
+
+    list_for_each_entry(n, &nodes, entry)
+        if (n->fd == fd)
+            return n;
+
+    return NULL;
+}
+
+/**
+ * socket_open_callback() - promote a node whose websocket really opened
+ * @fd:     socket the browser reports open
+ * @data:   unused
+ *
+ * Under emscripten, the browser's websocket callbacks are the authority on
+ * the connection state: poll() masks and SO_ERROR are derived from them
+ * inconsistently across browsers, so promotion out of ST_INIT waits for
+ * this callback and socket_error_callback() condemns the node on the spot.
+ */
+static void socket_open_callback(int fd, void *data)
+{
+    struct network_node *n = node_by_fd(fd);
+
+    dbg("socket open on fd %d\n", fd);
+    if (n && n->state == ST_INIT)
+        n->state = ST_HANDSHAKE;
+
     networking_poll();
+}
+
+static void socket_error_callback(int fd, int err, const char *msg, void *data)
+{
+    struct network_node *n = node_by_fd(fd);
+
+    dbg("socket error on fd %d: %s\n", fd, msg);
+    if (n)
+        n->state = ST_ERROR;
 }
 #endif /* __EMSCRIPTEN__ */
 
@@ -1184,7 +1237,8 @@ cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, en
     }
 
 #ifdef __EMSCRIPTEN__
-    emscripten_set_socket_open_callback(NULL, socket_callback);
+    emscripten_set_socket_open_callback(NULL, socket_open_callback);
+    emscripten_set_socket_error_callback(NULL, socket_error_callback);
 #endif /* __EMSCRIPTEN__ */
     dbg("networking initialized\n");
 
