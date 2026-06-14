@@ -918,6 +918,17 @@ void networking_poll(void)
     memset(buf, 0, sizeof(buf));
     polling_update();
     if (nr_nodes == 0 && _mode == NET_CLIENT && !shutting_down) {
+        static struct timespec last_dial;
+        struct timespec now, since;
+
+        /* pace the redials: a dead server doesn't need a dial per frame */
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        timespec_diff(&last_dial, &now, &since);
+        if (last_dial.tv_sec && !since.tv_sec)
+            return;
+
+        last_dial = now;
+
         cresp(network_node) res = client_setup(_ncfg);
         if (IS_CERR(res)) {
             err_cerr(res, "Couldn't start client\n");
