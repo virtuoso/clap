@@ -461,18 +461,19 @@ int networking_broadcast_restart(void)
 
 static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t size)
 {
-    struct message_command *mcmd;
+    struct message_command mcmd;
 
-    if (size < sizeof(*mcmd)) {
-        dbg("short read: %zu <> %lu\n", size, sizeof(*mcmd));
+    if (size < sizeof(mcmd)) {
+        dbg("short read: %zu <> %lu\n", size, sizeof(mcmd));
         return -1;
     }
 
-    mcmd = (void *)buf;
-    if (mcmd->restart)
+    /* the wire carries no alignment, copy the message out */
+    memcpy(&mcmd, buf, sizeof(mcmd));
+    if (mcmd.restart)
         restart_requested = true;
 
-    return sizeof(*mcmd);
+    return sizeof(mcmd);
 }
 
 static void log_f_open(struct network_node *n)
@@ -520,26 +521,31 @@ static void log_f_open(struct network_node *n)
  * @buf:    start of the message_log
  * @size:   bytes available at @buf
  *
+ * Messages are packed back to back on the wire, so @buf carries no
+ * alignment: the header is copied out before being looked at.
+ *
  * Return: bytes the message spans; -1 to wait for more data; 0 with @n put
  * in ST_ERROR on a hostile length.
  */
 static ssize_t log_message_validate(struct network_node *n, uint8_t *buf, size_t size)
 {
-    struct message_log *ml = (void *)buf;
+    struct message_log ml;
 
-    if (size < sizeof(*ml))
+    if (size < sizeof(ml))
         return -1;
 
-    if (ml->length > MAX_WIRE_LOG_LENGTH) {
-        err("bogus log message length %u from '%s'\n", ml->length, node_name(n));
+    memcpy(&ml, buf, sizeof(ml));
+
+    if (ml.length > MAX_WIRE_LOG_LENGTH) {
+        err("bogus log message length %u from '%s'\n", ml.length, node_name(n));
         n->state = ST_ERROR;
         return 0;
     }
 
-    if (sizeof(*ml) + ml->length > size)
+    if (sizeof(ml) + ml.length > size)
         return -1;
 
-    return sizeof(*ml) + ml->length;
+    return sizeof(ml) + ml.length;
 }
 
 /**
@@ -553,14 +559,16 @@ static ssize_t log_message_validate(struct network_node *n, uint8_t *buf, size_t
 static ssize_t log_message_write(struct network_node *n, uint8_t *buf, size_t size)
 {
     ssize_t consumed = log_message_validate(n, buf, size);
-    struct message_log *ml = (void *)buf;
+    struct message_log ml;
 
     if (consumed <= 0)
         return consumed;
 
-    if (n->log_f && ml->length)
+    memcpy(&ml, buf, sizeof(ml));
+    if (n->log_f && ml.length)
         fprintf(n->log_f, "[%" PRItvsec ".%09" PRItvsec "] %.*s",
-                ml->ts.tv_sec, ml->ts.tv_nsec, (int)ml->length, ml->msg);
+                ml.ts.tv_sec, ml.ts.tv_nsec, (int)ml.length,
+                (char *)buf + offsetof(struct message_log, msg));
 
     return consumed;
 }
