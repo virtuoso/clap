@@ -14,7 +14,16 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
 void display_debug_ui_init(struct clap_context *ctx);
 int display_refresh_rate(void);
 bool display_supports_edr(void);
-void display_main_loop(void);
+/**
+ * display_main_loop() - run the platform main loop until exit or a fatal error
+ *
+ * Drives the per-frame update callback until an exit is requested or the
+ * display backend reports an unrecoverable error. The result must be checked.
+ *
+ * Return: %CERR_OK on a normal exit, or the unrecoverable error that ended the
+ *         loop.
+ */
+cerr_check display_main_loop(void);
 void display_done(void);
 void display_swap_buffers(void);
 void display_get_sizes(int *widthp, int *heightp);

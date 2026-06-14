@@ -189,9 +189,9 @@ int main(int argc, char **argv, char **envp)
 
     imgui_render();
     renderer_frame_end(clap_get_renderer(clap_res.val));
-    display_main_loop();
-
-    dbg("exiting peacefully\n");
+    err = display_main_loop();
+    if (IS_CERR(err))   err_cerr(err, "main loop exited with an error\n");
+    else                dbg("exiting peacefully\n");
 
 #ifndef CONFIG_BROWSER
     if (intro_sound)

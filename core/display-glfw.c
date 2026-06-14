@@ -93,10 +93,38 @@ void display_title(const char *fmt, ...)
         glfwSetWindowTitle(window, title);
 }
 
+/*
+ * Set from the GLFW error callback when an unrecoverable error is seen and
+ * polled by display_main_loop(), which returns it to its caller. Zero
+ * (CERR_OK) means no error is pending.
+ */
+static cerr display_unrecoverable_error;
+
 static void __error_cb(int error, const char *desc)
 {
     err("glfw error %d: '%s'\n", error, desc);
-    abort();
+
+    /*
+     * Most GLFW errors are non-fatal and some are spurious on particular
+     * platforms, so aborting on any of them is not an option. Only flag
+     * the genuinely unrecoverable ones and let display_main_loop() unwind.
+     */
+    switch (error) {
+    case GLFW_OUT_OF_MEMORY:
+        display_unrecoverable_error = CERR_NOMEM_REASON("GLFW reported out of memory");
+        break;
+    case GLFW_NOT_INITIALIZED:
+    case GLFW_API_UNAVAILABLE:
+    case GLFW_VERSION_UNAVAILABLE:
+#ifdef GLFW_PLATFORM_UNAVAILABLE
+    case GLFW_PLATFORM_UNAVAILABLE:
+#endif
+        display_unrecoverable_error =
+            CERR_INITIALIZATION_FAILED_REASON("unrecoverable GLFW error (see log for code)");
+        break;
+    default:
+        break;
+    }
 }
 
 static void get_content_scale(void)
@@ -348,11 +376,15 @@ void display_request_exit(void)
     glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
 
-void display_main_loop(void)
+cerr display_main_loop(void)
 {
     while (!glfwWindowShouldClose(window)) {
         update_fn(update_fn_data);
+
+        CERR_RET_CERR(display_unrecoverable_error);
     }
+
+    return CERR_OK;
 }
 
 void display_done(void)

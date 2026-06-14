@@ -120,8 +120,10 @@ float display_get_scale(void)
     return 1.0;
 }
 
-void display_main_loop(void)
+cerr display_main_loop(void)
 {
+    /* emscripten drives the loop via emscripten_set_main_loop() elsewhere */
+    return CERR_OK;
 }
 
 static display_resize_cb resize_fn;
