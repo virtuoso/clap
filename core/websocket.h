@@ -52,9 +52,9 @@ const char *http_header_find(const char *buf, const char *end, const char *name,
  *
  * Return: the number of bytes consumed from @input; CERR_BUFFER_INCOMPLETE
  * when @input does not yet hold a complete frame and more data is needed;
- * CERR_INVALID_FORMAT on protocol violations: reserved bits, fragmentation
- * (unsupported), an oversized control frame, or an unmasked frame when
- * @require_mask says so.
+ * CERR_INVALID_FORMAT on protocol violations: reserved bits or opcodes,
+ * fragmentation (unsupported), an oversized control frame, or an unmasked
+ * frame when @require_mask says so.
  */
 cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode,
                        bool require_mask);

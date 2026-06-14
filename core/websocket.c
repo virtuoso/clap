@@ -44,6 +44,17 @@ const char *http_header_find(const char *buf, const char *end, const char *name,
     return NULL;
 }
 
+/**
+ * ws_opcode_is_reserved() - tell whether RFC 6455 reserves an opcode
+ * @opcode:     frame opcode
+ *
+ * Return: true for opcodes 3-7 and 0xb-0xf, which no extension defines.
+ */
+static bool ws_opcode_is_reserved(unsigned int opcode)
+{
+    return (opcode > WSOP_BIN && opcode < WSOP_CLOSE) || opcode > WSOP_PONG;
+}
+
 cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *poutsz, int *popcode,
                        bool require_mask)
 {
@@ -66,6 +77,9 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
 
     /* no extensions are negotiated and fragmentation isn't supported */
     if (rsv || !fin || opcode == WSOP_CONT)     return cres_error(size_t, CERR_INVALID_FORMAT);
+
+    /* RFC 6455 5.2: an unknown opcode fails the connection */
+    if (ws_opcode_is_reserved(opcode))          return cres_error(size_t, CERR_INVALID_FORMAT);
 
     /* RFC 6455 5.5: control frames must be short and whole */
     if (opcode >= WSOP_CLOSE && len > 125)      return cres_error(size_t, CERR_INVALID_FORMAT);
