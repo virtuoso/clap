@@ -124,8 +124,6 @@ static void log_flush(struct log_entry *e, void *data)
     mlog = buf + sizeof(*mcmd);
     mcmd->log_follows = 1;
     mcmd->connect     = 1;
-    if (n->state < ST_RUNNING)
-        n->state = ST_RUNNING;
     mlog->ts.tv_sec = e->ts.tv_sec;
     mlog->ts.tv_nsec = e->ts.tv_nsec;
     mlog->length = snprintf(mlog->msg, size - sizeof(*mcmd) - sizeof(*mlog),
@@ -390,9 +388,6 @@ static cresp(network_node) _client_setup(struct networking_config *cfg, unsigned
                    network_node);
 
     CERR_RET_T(network_node_connect(n), network_node);
-
-    if (cfg->logger)
-        CERR_RET_T(rb_sink_add(log_flush, n, VDBG, 1), network_node);
 
     need_polling_alloc++;
 
@@ -1078,6 +1073,20 @@ state:
             timespec_to_64(&ts, &mcmd->time);
             queue_outmsg(n, mcmd, sizeof(*mcmd));
             n->state = ST_RUNNING;
+
+            /*
+             * Attach the log sink only now: the ring buffer drains as
+             * sinks consume it, and a sink bound to a connection that
+             * never comes up wastes the ring's contents on a dead queue.
+             * The dbg() below is also what pumps the buffered backlog
+             * into the fresh sink: flushing rides on log emission.
+             */
+            if (_ncfg->logger) {
+                CERR_RET(rb_sink_add(log_flush, n, VDBG, 1),
+                         err_cerr(__cerr, "no log streaming for this connection\n"));
+                dbg("log streaming to '%s:%d' begins\n",
+                    inet_ntoa(n->sa.sin_addr), ntohs(n->sa.sin_port));
+            }
         }
     }
 
