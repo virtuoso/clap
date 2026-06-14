@@ -56,8 +56,8 @@ int main(int argc, char **argv, char **envp)
     };
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
-        .server_port   = 21044,
-        .server_wsport = 21045,
+        .server_port   = CONFIG_SERVER_PORT,
+        .server_wsport = CONFIG_SERVER_WSPORT,
         .timeout       = 100,
     };
     int c, option_index, do_restart = 0;

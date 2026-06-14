@@ -513,8 +513,8 @@ int main(int argc, char **argv, char **envp)
 #ifndef CONFIG_FINAL
         .networking     = &(struct networking_config) {
             .server_ip     = CONFIG_SERVER_IP,
-            .server_port   = 21044,
-            .server_wsport = 21045,
+            .server_port   = CONFIG_SERVER_PORT,
+            .server_wsport = CONFIG_SERVER_WSPORT,
             .logger        = 1,
         },
 #endif /* CONFIG_FINAL */

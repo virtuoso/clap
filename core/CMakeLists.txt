@@ -47,6 +47,12 @@ endif ()
 if (CLAP_SERVER_IP)
     set(CONFIG_SERVER_IP ${CLAP_SERVER_IP})
 endif ()
+if (CLAP_SERVER_PORT)
+    set(CONFIG_SERVER_PORT ${CLAP_SERVER_PORT})
+endif ()
+if (CLAP_SERVER_WSPORT)
+    set(CONFIG_SERVER_WSPORT ${CLAP_SERVER_WSPORT})
+endif ()
 
 configure_file(config.h.in config.h)
 

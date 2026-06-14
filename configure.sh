@@ -17,6 +17,12 @@ CLAP_OPTS_NATIVE="$CLAP_OPTS"
 if [ -n "$server_ip" ]; then
 	CLAP_OPTS_NATIVE="$CLAP_OPTS -DCLAP_SERVER_IP=$server_ip -DCLAP_BUILD_NETWORKING=ON"
 fi
+if [ -n "$server_port" ]; then
+	CLAP_OPTS_NATIVE="$CLAP_OPTS_NATIVE -DCLAP_SERVER_PORT=$server_port"
+fi
+if [ -n "$server_wsport" ]; then
+	CLAP_OPTS_NATIVE="$CLAP_OPTS_NATIVE -DCLAP_SERVER_WSPORT=$server_wsport"
+fi
 
 cmake --preset=rel $CLAP_OPTS_NATIVE
 cmake --preset=test $CLAP_OPTS_NATIVE
