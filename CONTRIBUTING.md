@@ -138,6 +138,7 @@ char    *s;
 double  n;
 bool    b;
 ```
+- Adding a member to a structure must not open a padding hole: put it where its alignment fits, next to members of the same size if need be. `pahole` shows the holes, but they are just as visible from the member sizes, so look before you add. The one conceivable exception is a hole forced by grouping members into a cacheline, which shouldn't happen; if it ever does, the hole is documented in a comment right next to it
 - Line length soft limit: 120 columns (statements can span multiple lines when needed)
 - Naming conventions:
     - Use snake_case throughout (C and ObjC code)
