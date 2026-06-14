@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/time.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "ca2d.h"
 #include "ca3d.h"
 #include "clap.h"
@@ -1608,6 +1610,42 @@ static int ws_decode_reject_test(void)
 }
 #endif /* CONFIG_NETWORKING */
 
+/* Log @nr messages into the ring with the test's stdio parked on /dev/null */
+static int log_rb_spam(int nr)
+{
+    int devnull = open("/dev/null", O_WRONLY);
+    if (devnull < 0)    return EXIT_FAILURE;
+
+    fflush(stdout);
+    fflush(stderr);
+    int saved_out = dup(STDOUT_FILENO);
+    int saved_err = dup(STDERR_FILENO);
+    dup2(devnull, STDOUT_FILENO);
+    dup2(devnull, STDERR_FILENO);
+
+    for (int i = 0; i < nr; i++)
+        dbg("ring buffer spam %d\n", i);
+
+    fflush(stdout);
+    fflush(stderr);
+    dup2(saved_out, STDOUT_FILENO);
+    dup2(saved_err, STDERR_FILENO);
+    close(saved_out);
+    close(saved_err);
+    close(devnull);
+
+    return EXIT_SUCCESS;
+}
+
+static int log_rb_wrap_test(void)
+{
+    /*
+     * Come around the ring with room to spare: an entry that gets overwritten
+     * without being freed is a leak that LeakSanitizer reports at exit.
+     */
+    return log_rb_spam(LOG_RB_MAX + 8);
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -1665,6 +1703,7 @@ static struct test {
     { .name = "tex rgb to rgba 8bit", .test = tex_rgb_to_rgba_8bit_test },
     { .name = "tex rgb to rgba 32f", .test = tex_rgb_to_rgba_32f_test },
     { .name = "tex rgb to rgba 16f", .test = tex_rgb_to_rgba_16f_test },
+    { .name = "log ring buffer wrap", .test = log_rb_wrap_test },
 #ifdef CONFIG_NETWORKING
     { .name = "http header find", .test = http_header_find_test },
     { .name = "http headers end", .test = http_headers_end_test },
