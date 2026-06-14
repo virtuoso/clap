@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <limits.h>
 #include <sys/time.h>
 #include <time.h>
 #include "config.h"
@@ -81,36 +82,42 @@ static struct logger logger_stdio = {
 
 /*
  * TODO we do actually want this to be thread-safe
- * ? make log_rb_wp atomic
+ * ? make log_rb_seq atomic
  */
 static struct log_entry *log_rb;
-static int log_rb_wp;
-static int log_rb_sz;
+static unsigned int log_rb_sz;
+/* Sequence number of the next entry to write; entry N lives in slot N % log_rb_sz */
+static unsigned long log_rb_seq;
+/* Sequence number of the oldest entry that hasn't been freed yet */
+static unsigned long log_rb_done;
 static DECLARE_LIST(log_rb_sinks);
 
 struct rb_sink {
-    struct list entry;
-    void        (*flush)(struct log_entry *e, void *data);
-    void        *data;
-    int         fill;
-    int         rp;
-    int         filter;
+    struct list         entry;
+    void                (*flush)(struct log_entry *e, void *data);
+    void                *data;
+    unsigned long       seq;    /* next entry to flush */
+    int                 fill;
+    int                 filter;
 };
+
+/* Sequence number of the oldest entry still in the ring */
+static notrace unsigned long rb_oldest(void)
+{
+    return log_rb_seq > log_rb_sz ? log_rb_seq - log_rb_sz : 0;
+}
 
 static notrace void rb_flush_one(struct rb_sink *sink)
 {
-    int i;
+    /* Anything a lap behind has been overwritten by now */
+    sink->seq = max(sink->seq, rb_oldest());
 
-    for (i = (sink->rp + 1) % log_rb_sz; i != log_rb_wp; i = (i + 1) % log_rb_sz)
-        if (log_rb[i].msg) {
-            if (log_rb[i].level >= sink->filter) {
-                /*fprintf(log_rb_output, "[%08lu.%09lu] %s",
-                    log_rb[i].ts.tv_sec, log_rb[i].ts.tv_nsec,
-                    log_rb[i].msg);*/
-                sink->flush(&log_rb[i], sink->data);
-                sink->rp = i;
-            }
-        }
+    for (; sink->seq != log_rb_seq; sink->seq++) {
+        struct log_entry *e = &log_rb[sink->seq % log_rb_sz];
+
+        if (e->msg && e->level >= sink->filter)
+            sink->flush(e, sink->data);
+    }
 }
 
 cerr rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int filter, int fill)
@@ -125,7 +132,7 @@ cerr rb_sink_add(void (*flush)(struct log_entry *e, void *data), void *data, int
     s->filter = filter;
     s->fill   = fill;
     s->data   = data;
-    s->rp     = -1;
+    s->seq    = rb_oldest();
     list_append(&log_rb_sinks, &s->entry);
 
     return CERR_OK;
@@ -144,50 +151,36 @@ void rb_sink_del(void *data)
     }
 }
 
-static notrace int rb_space(int readp)
-{
-    int writep = log_rb_wp;
-
-    if (readp > writep)
-        writep += log_rb_sz;
-
-    return writep - readp;
-}
-
 static notrace bool rb_needs_flush(struct rb_sink *s)
 {
-    if (s->rp == -1) {
-        s->rp = 0;
-        return true;
-    }
+    unsigned long pending = log_rb_seq - s->seq;
+    unsigned long fill = s->fill > 0 ? s->fill : 0;
 
-    if (log_rb[log_rb_wp].msg)
-        return true;
-    
-    if (rb_space(s->rp) >= s->fill)
-        return true;
-
-    return false;
+    /* A full lap of pending entries means the next write overwrites one of them */
+    return pending >= fill || pending >= log_rb_sz;
 }
 
 static notrace void rb_flush(void)
 {
     struct rb_sink *sink;
-    int rp_min = __INT_MAX__, rp_max = __INT_MAX__, i;
+    unsigned long seq_min = ULONG_MAX;
 
     list_for_each_entry(sink, &log_rb_sinks, entry) {
-        if (rb_needs_flush(sink)) {
-            rp_min = min(rp_min, sink->rp);
+        if (rb_needs_flush(sink))
             rb_flush_one(sink);
-            rp_max = min(rp_max, sink->rp);
-        }
+        seq_min = min(seq_min, sink->seq);
     }
 
-    if (rp_min == __INT_MAX__ || rp_max == __INT_MAX__)
+    /* Without a sink, everything stays in the ring for one that comes later */
+    if (seq_min == ULONG_MAX)
         return;
-    for (i = rp_min; i != rp_max; i = (i + 1) % log_rb_sz) {
-        mem_free((void *)log_rb[i].msg);
-        log_rb[i].msg = NULL;
+
+    /* Entries every sink is past are done with; older ones went with their slots */
+    for (log_rb_done = max(log_rb_done, rb_oldest()); log_rb_done < seq_min; log_rb_done++) {
+        struct log_entry *e = &log_rb[log_rb_done % log_rb_sz];
+
+        mem_free((void *)e->msg);
+        e->msg = NULL;
     }
 }
 
@@ -222,21 +215,23 @@ static notrace cerr rb_log(int level, const char *mod, int line, const char *fun
 
     rb_flush();
 
+    struct log_entry *e = &log_rb[log_rb_seq % log_rb_sz];
+
     /*
      * Once the ring has come around, the slot holds the oldest entry, and it
      * goes whether or not every sink has flushed it: the forced flush in
      * rb_needs_flush() is a sink's last chance to see it.
      */
-    mem_free((void *)log_rb[log_rb_wp].msg);
+    mem_free((void *)e->msg);
 
-    log_rb[log_rb_wp].mod = mod;
-    log_rb[log_rb_wp].func = func;
-    log_rb[log_rb_wp].line = line;
-    log_rb[log_rb_wp].level = level;
-    log_rb[log_rb_wp].ts.tv_sec = ts.tv_sec;
-    log_rb[log_rb_wp].ts.tv_nsec = ts.tv_nsec;
-    log_rb[log_rb_wp].msg = msg;
-    log_rb_wp = (log_rb_wp + 1) % LOG_RB_MAX;
+    e->mod = mod;
+    e->func = func;
+    e->line = line;
+    e->level = level;
+    e->ts.tv_sec = ts.tv_sec;
+    e->ts.tv_nsec = ts.tv_nsec;
+    e->msg = msg;
+    log_rb_seq++;
 
     return CERR_OK;
 }
