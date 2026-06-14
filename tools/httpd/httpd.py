@@ -41,8 +41,11 @@ class threaded_https_server(ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-def generate_self_signed_cert(cert_path: Path, key_path: Path):
-    print("[*] Generating self-signed certificate (localhost, 127.0.0.1)")
+def generate_self_signed_cert(cert_path: Path, key_path: Path, extra_san=None):
+    san = "DNS:localhost,IP:127.0.0.1"
+    if extra_san:
+        san += "," + ",".join(extra_san)
+    print(f"[*] Generating self-signed certificate ({san})")
 
     def run_openssl_cmd(cmd):
         try:
@@ -53,6 +56,8 @@ def generate_self_signed_cert(cert_path: Path, key_path: Path):
             sys.exit(3)
 
     # First try modern OpenSSL with -addext; fall back to a temp config if that fails.
+    # The serverAuth EKU is not optional: macOS refuses TLS server certificates
+    # without it no matter how trusted they are.
     try:
         run_openssl_cmd([
             "openssl", "req",
@@ -61,7 +66,8 @@ def generate_self_signed_cert(cert_path: Path, key_path: Path):
             "-keyout", str(key_path),
             "-out", str(cert_path),
             "-subj", "/CN=localhost",
-            "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
+            "-addext", f"subjectAltName={san}",
+            "-addext", "extendedKeyUsage=serverAuth",
         ])
         return
     except subprocess.CalledProcessError:
@@ -73,7 +79,8 @@ def generate_self_signed_cert(cert_path: Path, key_path: Path):
         "distinguished_name=req\n"
         "x509_extensions=v3_req\n"
         "[v3_req]\n"
-        "subjectAltName=DNS:localhost,IP:127.0.0.1\n"
+        f"subjectAltName={san}\n"
+        "extendedKeyUsage=serverAuth\n"
     )
     cfg_path = cert_path.with_suffix(".openssl.cnf")
     cfg_path.write_text(cfg, encoding="utf-8")
@@ -100,13 +107,14 @@ def generate_self_signed_cert(cert_path: Path, key_path: Path):
         except Exception:
             pass
 
-def make_ssl_context(cert_path: Path, key_path: Path, autocert: bool) -> ssl.SSLContext:
+def make_ssl_context(cert_path: Path, key_path: Path, autocert: bool,
+                     autocert_san=None) -> ssl.SSLContext:
     if not cert_path.exists() or not key_path.exists():
         if not autocert:
             print(f"[!] Cert or key missing: {cert_path} / {key_path}")
             print("    Use --autocert to generate a self-signed dev certificate.")
             sys.exit(2)
-        generate_self_signed_cert(cert_path, key_path)
+        generate_self_signed_cert(cert_path, key_path, autocert_san)
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     # Reasonable defaults for local dev
@@ -220,6 +228,9 @@ def parse_args():
     p.add_argument("--cert", default="dev-cert.pem", help="Path to TLS cert (default: dev-cert.pem)")
     p.add_argument("--key", default="dev-key.pem", help="Path to TLS private key (default: dev-key.pem)")
     p.add_argument("--autocert", action="store_true", help="Auto-generate a self-signed cert if missing (uses openssl).")
+    p.add_argument("--autocert-san", action="append", metavar="IP:A.B.C.D|DNS:NAME",
+                   help="Additional subjectAltName entries for --autocert, e.g. the LAN address "
+                        "the clients will actually dial. Repeatable.")
     p.add_argument("--wss-listen", metavar="ADDR:PORT",
                    help="Terminate wss:// here and pipe the bytes to --wss-backend.")
     p.add_argument("--wss-backend", metavar="ADDR:PORT",
@@ -241,7 +252,7 @@ def main():
         sys.exit(2)
 
     os.chdir(web_root)
-    ssl_ctx = make_ssl_context(cert_path, key_path, args.autocert)
+    ssl_ctx = make_ssl_context(cert_path, key_path, args.autocert, args.autocert_san)
 
     if args.wss_listen:
         wss_start(args, ssl_ctx)
