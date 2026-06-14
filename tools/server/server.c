@@ -44,10 +44,25 @@ static int handle_command(struct clap_context *ctx, struct message *m, void *dat
 static struct option long_options[] = {
     { "restart",    no_argument,        0, 'R' },
     { "server",     required_argument,  0, 'S'},
+    { "port",       required_argument,  0, 'p' },
+    { "wsport",     required_argument,  0, 'w' },
     {}
 };
 
-static const char short_options[] = "RS:";
+static const char short_options[] = "RS:p:w:";
+
+static unsigned int parse_port(const char *str)
+{
+    char *end;
+    unsigned long port = strtoul(str, &end, 0);
+
+    if (*end || !port || port > 65535) {
+        fprintf(stderr, "invalid port '%s'\n", str);
+        exit(EXIT_FAILURE);
+    }
+
+    return port;
+}
 
 int main(int argc, char **argv, char **envp)
 {
@@ -74,6 +89,12 @@ int main(int argc, char **argv, char **envp)
             break;
         case 'S':
             ncfg.server_ip = optarg;
+            break;
+        case 'p':
+            ncfg.server_port = parse_port(optarg);
+            break;
+        case 'w':
+            ncfg.server_wsport = parse_port(optarg);
             break;
         default:
             fprintf(stderr, "invalid option %x\n", c);
