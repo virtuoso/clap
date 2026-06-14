@@ -368,10 +368,10 @@ LINMATH_H_FUNC void mat4x4_transpose(mat4x4 M, mat4x4 N)
     c = vtrn1q_f32(n2, n3);
     d = vtrn2q_f32(n2, n3);
 
-    m0 = vtrn1q_f64(a, c);
-    m1 = vtrn1q_f64(b, d);
-    m2 = vtrn2q_f64(a, c);
-    m3 = vtrn2q_f64(b, d);
+    m0 = vreinterpretq_f32_f64(vtrn1q_f64(vreinterpretq_f64_f32(a), vreinterpretq_f64_f32(c)));
+    m1 = vreinterpretq_f32_f64(vtrn1q_f64(vreinterpretq_f64_f32(b), vreinterpretq_f64_f32(d)));
+    m2 = vreinterpretq_f32_f64(vtrn2q_f64(vreinterpretq_f64_f32(a), vreinterpretq_f64_f32(c)));
+    m3 = vreinterpretq_f32_f64(vtrn2q_f64(vreinterpretq_f64_f32(b), vreinterpretq_f64_f32(d)));
 
     vst1q_f32(M[0], m0);
     vst1q_f32(M[1], m1);
