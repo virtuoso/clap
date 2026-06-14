@@ -1646,6 +1646,47 @@ static int log_rb_wrap_test(void)
     return log_rb_spam(LOG_RB_MAX + 8);
 }
 
+struct log_rb_probe {
+    int     count;
+    char    first[32];
+};
+
+static void log_rb_probe_flush(struct log_entry *e, void *data)
+{
+    struct log_rb_probe *probe = data;
+
+    if (!probe->count++)
+        strncpy(probe->first, e->msg, sizeof(probe->first) - 1);
+}
+
+static int log_rb_late_sink_test(void)
+{
+    struct log_rb_probe probe = {};
+
+    /* A full ring: a sink attached now is due all of it, oldest entry first */
+    if (log_rb_spam(LOG_RB_MAX + 8))    return EXIT_FAILURE;
+
+    cerr err = rb_sink_add(log_rb_probe_flush, &probe, VDBG, 1);
+    if (IS_CERR(err))                   return EXIT_FAILURE;
+
+    /* Sinks are flushed on the way into the ring, so the trigger itself doesn't count */
+    int ret = log_rb_spam(1);
+    rb_sink_del(&probe);
+    if (ret)                            return ret;
+
+    if (probe.count != LOG_RB_MAX) {
+        err("late sink got %d entries, expected %d\n", probe.count, LOG_RB_MAX);
+        return EXIT_FAILURE;
+    }
+
+    if (strcmp(probe.first, "ring buffer spam 8\n")) {
+        err("late sink started at '%s'\n", probe.first);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static struct test {
     const char	*name;
     int			(*test)(void);
@@ -1704,6 +1745,7 @@ static struct test {
     { .name = "tex rgb to rgba 32f", .test = tex_rgb_to_rgba_32f_test },
     { .name = "tex rgb to rgba 16f", .test = tex_rgb_to_rgba_16f_test },
     { .name = "log ring buffer wrap", .test = log_rb_wrap_test },
+    { .name = "log ring buffer late sink", .test = log_rb_late_sink_test },
 #ifdef CONFIG_NETWORKING
     { .name = "http header find", .test = http_header_find_test },
     { .name = "http headers end", .test = http_headers_end_test },
