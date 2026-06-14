@@ -91,6 +91,8 @@ If you're suddenly getting build errors, [check here](https://github.com/virtuos
 
 There's a .clang-format file at the top, unfortunately, as of this writing clang-format still isn't quite able to align pointers on the right the way that it's done in the code, so either fix up after it or just format the code by hand.
 
+The guidelines below take precedence over the surrounding code: when a file predates a rule, new code in that file follows the rule anyway, even if the neighboring lines don't. Bringing the rest of the file in line is a separate commit, typically one bulk reflow at the end of a series, never folded into a functional change.
+
 - Indentation is 4 spaces
 - There's a space between a control statement and whatever follows
 - Curly brackets go on the same line as the control statement it belongs to
@@ -247,6 +249,9 @@ Some things to check:
 - Sign off your commits (git commit -s)
 - Make commits self-contained: each commit should be able to compile and produce a working binary without the commits that follow it
 - At the same time, make commits as small as possible, that is, split large commits into smaller ones that are still self-contained
+- One logical change per commit: a bug fix and the test that covers it, a cleanup and the feature it enables, are separate commits. An "and" in the subject line, or in your head ("fix X and add a test for it"), is a red flag that two commits are lumped into one
+- Commit messages don't reference the future: "this will be useful for the upcoming mesh rework" is permissible, "two commits from now this function is called by xyz" is not. The reader may not have that commit, a rebase may reorder it, and whatever is worth saying about a later commit belongs in that commit's message
+- Referring back to earlier commits is done kernel-style, always as `<abbreviated sha1> ("<commit subject line>")`: either in a `Fixes:` tag line at the bottom of the message, or in the body prefixed with "commit". Such references only make sense for commits that are already in upstream `main`, which is never rebased; if the commit you're fixing is still on your branch, the fix is not a new commit, it's a fixup of that commit (`git commit --fixup=<sha1>`), because "fix a bug added earlier in this branch" is never ok
 - Write good commit messages (not including a link to a howto page, because googling for "writing commit messages" already comes up with a lot of good articles/blog posts). In short:
   - Use imperative mood ("change XXX" vs "XXX is changed") — in the entire message, not just the subject line
   - State the reason for the commit, what is being done, why it is done and why it is done in this particular way
@@ -257,4 +262,5 @@ Some things to check:
   - Check the existing commit history
 - No *new* compiler warnings (the build will fail, because -Wall and -Werror are enabled, unless you're on windows)
 - Rebase your code onto the "main" branch, so that everything is fast-forward and no merge commits are necessary
+- `main` means the upstream branch published in the github repository, `origin/main` once you've run `git remote update origin`; your local `main` is not an indicator of anything. Integration goes through `testing` on github, which is rebased and force-pushed freely: once all actions are green and smoke testing passes, the same commits are pushed to `main`, which is strictly fast-forward only
 - Make sure that all github actions pass (with a possible exception of www deployment action).
