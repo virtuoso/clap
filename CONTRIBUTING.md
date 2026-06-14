@@ -254,6 +254,7 @@ Some things to check:
 - Referring back to earlier commits is done kernel-style, always as `<abbreviated sha1> ("<commit subject line>")`: either in a `Fixes:` tag line at the bottom of the message, or in the body prefixed with "commit". Such references only make sense for commits that are already in upstream `main`, which is never rebased; if the commit you're fixing is still on your branch, the fix is not a new commit, it's a fixup of that commit (`git commit --fixup=<sha1>`), because "fix a bug added earlier in this branch" is never ok
 - Write good commit messages (not including a link to a howto page, because googling for "writing commit messages" already comes up with a lot of good articles/blog posts). In short:
   - Use imperative mood ("change XXX" vs "XXX is changed") — in the entire message, not just the subject line
+  - Describe the problem in the present tense ("XYZ does a stupid thing. Fix it."), not the past ("XYZ did a stupid thing"): the message is read on top of the parent commit, where the problem still exists, and the past tense reads as if it were already fixed
   - State the reason for the commit, what is being done, why it is done and why it is done in this particular way
   - First explain what the commit is and why it exists, then how; don't open with implementation minutiae
   - Implementation details belong in the message only when defending a particular choice over the alternatives; everything else is visible in the diff and belongs in code comments
