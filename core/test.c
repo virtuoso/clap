@@ -1599,6 +1599,10 @@ static int ws_decode_reject_test(void)
     if (ws_decode_reject_one(0xc2, 0x01, false))    return EXIT_FAILURE;    /* reserved bit set */
     if (ws_decode_reject_one(0x88, 126, false))     return EXIT_FAILURE;    /* extended-length control */
     if (ws_decode_reject_one(0x82, 0x01, true))     return EXIT_FAILURE;    /* unmasked to a server */
+    if (ws_decode_reject_one(0x83, 0x01, false))    return EXIT_FAILURE;    /* reserved data opcode 3 */
+    if (ws_decode_reject_one(0x87, 0x01, false))    return EXIT_FAILURE;    /* reserved data opcode 7 */
+    if (ws_decode_reject_one(0x8b, 0x01, false))    return EXIT_FAILURE;    /* reserved control opcode 0xb */
+    if (ws_decode_reject_one(0x8f, 0x01, false))    return EXIT_FAILURE;    /* reserved control opcode 0xf */
 
     return EXIT_SUCCESS;
 }
