@@ -160,14 +160,14 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         "-s WASM_WORKERS=1"
         "-s SHARED_MEMORY=1"
         "-s ASYNCIFY"
-        "-s USE_PTHREADS=1"
+        "-pthread"
         "-s PTHREAD_POOL_SIZE=4"
     )
     set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS
         ${CLAP_EMSCRIPTEN_COMPILE_OPTIONS}
         "-s WASM_WORKERS=1"
         "-s SHARED_MEMORY=1"
-        "-s USE_PTHREADS=1"
+        "-pthread"
     )
     if (CLAP_BUILD_FINAL)
         list(APPEND CLAP_DEPENDENCY_LIBRARIES
