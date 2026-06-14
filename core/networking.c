@@ -420,7 +420,7 @@ static const char *node_name(struct network_node *n)
     return "<unknown>";
 }
 
-int networking_broadcast(enum net_mode mode, void *data, size_t size)
+static int broadcast(enum net_mode mode, struct network_node *except, void *data, size_t size)
 {
     struct network_node *n;
     int sent = 0;
@@ -429,29 +429,49 @@ int networking_broadcast(enum net_mode mode, void *data, size_t size)
     list_for_each_entry(n, &nodes, entry) {
         void *out;
 
-        if (n->mode == mode && n->state == ST_RUNNING) {
-            dbg("sending to node '%s'\n", node_name(n));
-            out = memdup(data, size);
-            queue_outmsg(n, out, size);
-            n->events |= POLLOUT;
-            sent++;
-        }
+        if (n == except || n->mode != mode || n->state != ST_RUNNING)
+            continue;
+
+        dbg("sending to node '%s'\n", node_name(n));
+        out = memdup(data, size);
+        queue_outmsg(n, out, size);
+        n->events |= POLLOUT;
+        sent++;
     }
 
     return sent;
 }
 
-int networking_broadcast_restart(void)
+int networking_broadcast(enum net_mode mode, void *data, size_t size)
+{
+    return broadcast(mode, NULL, data, size);
+}
+
+/**
+ * broadcast_restart_except() - relay a restart to everybody but its sender
+ * @from:   node the restart came from, or NULL to address everyone
+ *
+ * Echoing a restart back has the sender restart itself, rebroadcast, and
+ * chase its own restart in a loop.
+ *
+ * Return: the number of nodes the restart was queued to.
+ */
+static int broadcast_restart_except(struct network_node *from)
 {
     struct message_command mcmd;
     int sent;
 
     memset(&mcmd, 0, sizeof(mcmd));
     mcmd.restart = 1;
-    sent  = networking_broadcast(NET_SERVER, &mcmd, sizeof(mcmd));
-    sent += networking_broadcast(NET_CLIENT, &mcmd, sizeof(mcmd));
+    sent  = broadcast(NET_SERVER, from, &mcmd, sizeof(mcmd));
+    sent += broadcast(NET_CLIENT, from, &mcmd, sizeof(mcmd));
 
     return sent;
+}
+
+int networking_broadcast_restart(void)
+{
+    return broadcast_restart_except(NULL);
 }
 
 static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t size)
@@ -610,7 +630,7 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
         setbuf(n->log_f, NULL);
     if (mcmd.restart) {
         fprintf(stderr, "broadcasting restart right away\n");
-        networking_broadcast_restart();
+        broadcast_restart_except(n);
     }
     if (mcmd.log_follows) {
         ssize_t consumed = log_message_write(n, buf + sizeof(mcmd), size - sizeof(mcmd));
@@ -640,7 +660,7 @@ static ssize_t handle_server_command(struct network_node *n, uint8_t *buf, size_
     memcpy(&mcmd, buf, sizeof(mcmd));
     if (mcmd.restart) {
         fprintf(stderr, "broadcasting restart\n");
-        networking_broadcast_restart();
+        broadcast_restart_except(n);
         ret = sizeof(mcmd);
     }
     if (mcmd.log_follows) {
