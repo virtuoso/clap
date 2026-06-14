@@ -222,6 +222,13 @@ static notrace cerr rb_log(int level, const char *mod, int line, const char *fun
 
     rb_flush();
 
+    /*
+     * Once the ring has come around, the slot holds the oldest entry, and it
+     * goes whether or not every sink has flushed it: the forced flush in
+     * rb_needs_flush() is a sink's last chance to see it.
+     */
+    mem_free((void *)log_rb[log_rb_wp].msg);
+
     log_rb[log_rb_wp].mod = mod;
     log_rb[log_rb_wp].func = func;
     log_rb[log_rb_wp].line = line;
