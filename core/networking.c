@@ -146,8 +146,7 @@ static void polling_alloc(void)
     mem_free(pollfds);
     pollfds = NULL;
 
-    if (nr_nodes)
-        pollfds = mem_alloc(sizeof(struct pollfd), .nr = nr_nodes, .fatal_fail = 1);
+    if (nr_nodes)   pollfds = mem_alloc(sizeof(struct pollfd), .nr = nr_nodes, .fatal_fail = 1);
     need_polling_alloc = 0;
 }
 
@@ -156,8 +155,7 @@ static void polling_update(void)
     struct network_node *n;
     unsigned int        i = 0;
 
-    if (need_polling_alloc)
-        polling_alloc();
+    if (need_polling_alloc)     polling_alloc();
 
     list_for_each_entry(n, &nodes, entry) {
         if (i == nr_nodes) {
@@ -204,8 +202,7 @@ static cerr network_node_make(struct ref *ref, void *_opts)
         }
 
         n->fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (n->fd < 0)
-            return errno_to_cerr(errno);
+        if (n->fd < 0)  return errno_to_cerr(errno);
 
         if (mode == NET_LISTEN) {
             int val = 1;
@@ -230,8 +227,7 @@ static void network_node_drop(struct ref *ref)
         fclose(n->log_f);
     }
 
-    if (n->mode == NET_CLIENT)
-        rb_sink_del(n);
+    if (n->mode == NET_CLIENT)  rb_sink_del(n);
 
     list_for_each_entry_iter(qd, _qd, &n->out_queue, entry) {
         list_del(&qd->entry);
@@ -261,11 +257,9 @@ static DEFINE_CLEANUP(network_node, if (*p) ref_put(*p))
 
 static cerr network_node_listen(struct network_node *n)
 {
-    if (bind(n->fd, (struct sockaddr *)&n->sa, n->addrlen))
-        return CERR_SOCK_BIND_FAILED;
+    if (bind(n->fd, (struct sockaddr *)&n->sa, n->addrlen))     return CERR_SOCK_BIND_FAILED;
 
-    if (listen(n->fd, 1))
-        return CERR_SOCK_LISTEN_FAILED;
+    if (listen(n->fd, 1))                                       return CERR_SOCK_LISTEN_FAILED;
 
     need_polling_alloc++;
 
@@ -276,8 +270,7 @@ static cerr network_node_connect(struct network_node *n)
 {
     int ret = connect(n->fd, (struct sockaddr *)&n->sa, n->addrlen);
 
-    if (ret && errno != EINPROGRESS)
-        return errno_to_cerr(errno);
+    if (ret && errno != EINPROGRESS)    return errno_to_cerr(errno);
 
 #ifndef __EMSCRIPTEN__
     /*
@@ -285,8 +278,7 @@ static cerr network_node_connect(struct network_node *n)
      * "pretending that the connection was a success": there the socket-open
      * callback is the real signal. A native synchronous success is one.
      */
-    if (!ret)
-        n->state = ST_HANDSHAKE;
+    if (!ret)   n->state = ST_HANDSHAKE;
 #endif /* !__EMSCRIPTEN__ */
 
     return CERR_OK;
@@ -299,15 +291,13 @@ static cresp(network_node) network_node_accept(struct network_node *n)
 
     child->mode    = NET_SERVER;
     child->addrlen = sizeof(child->sa);
-    child->fd = accept(n->fd, (struct sockaddr *)&child->sa, &child->addrlen);
-    if (child->fd < 0)
-        return cresp_error(network_node, CERR_SOCK_ACCEPT_FAILED);
+    child->fd      = accept(n->fd, (struct sockaddr *)&child->sa, &child->addrlen);
+    if (child->fd < 0)  return cresp_error(network_node, CERR_SOCK_ACCEPT_FAILED);
 
     fcntl(child->fd, F_SETFL, O_NONBLOCK);
 
     child->src = mem_alloc(sizeof(*child->src), .zero = 1);
-    if (!child->src)
-        return cresp_error(network_node, CERR_NOMEM);
+    if (!child->src)    return cresp_error(network_node, CERR_NOMEM);
 
     child->src->type = MST_CLIENT;
     CRES_RET_T(mem_asprintf(&child->src->name, "%s", inet_ntoa(child->sa.sin_addr)),
@@ -346,8 +336,7 @@ static cerr websocket_parse(struct network_node *n, const uint8_t *_buf, size_t 
         for (i = 0; i < plen && proto[i] != ',' && proto[i] != ' ' && proto[i] != '\t'; i++)
             ;
         plen = i;
-        if (!plen)
-            proto = NULL;
+        if (!plen)  proto = NULL;
     }
 
     LOCAL_SET(char, key) = mem_alloc(klen + strlen(wsguid) + 1, .zero = 1, .fatal_fail = 1);
@@ -378,12 +367,10 @@ static cerr websocket_parse(struct network_node *n, const uint8_t *_buf, size_t 
 static cresp(network_node) server_setup(const char *server_ip, unsigned int port)
 {
     cresp(network_node) res = ref_new_checked(network_node, .ip = server_ip, .port = port, .mode = NET_LISTEN);
-    if (IS_CERR(res))
-        return res;
+    if (IS_CERR(res))   return res;
 
     cerr err = network_node_listen(res.val);
-    if (IS_CERR(err))
-        return cresp_error_cerr(network_node, err);
+    if (IS_CERR(err))   return cresp_error_cerr(network_node, err);
     need_polling_alloc++;
 
     return res;
@@ -413,8 +400,7 @@ static cresp(network_node) client_setup(struct networking_config *cfg)
 
 static const char *node_name(struct network_node *n)
 {
-    if (n->src)
-        return n->src->name;
+    if (n->src)     return n->src->name;
 
     switch (n->mode) {
     case NET_CLIENT:
@@ -437,8 +423,7 @@ static int broadcast(enum net_mode mode, struct network_node *except, void *data
     list_for_each_entry(n, &nodes, entry) {
         void *out;
 
-        if (n == except || n->mode != mode || n->state != ST_RUNNING)
-            continue;
+        if (n == except || n->mode != mode || n->state != ST_RUNNING)   continue;
 
         dbg("sending to node '%s'\n", node_name(n));
         out = memdup(data, size);
@@ -493,8 +478,7 @@ static ssize_t handle_client_input(struct network_node *n, uint8_t *buf, size_t 
 
     /* the wire carries no alignment, copy the message out */
     memcpy(&mcmd, buf, sizeof(mcmd));
-    if (mcmd.restart)
-        restart_requested = true;
+    if (mcmd.restart)   restart_requested = true;
 
     return sizeof(mcmd);
 }
@@ -517,8 +501,7 @@ static void log_f_open(struct network_node *n)
          _ncfg->log_dir, n->src->name, buf, n->remote_time.tv_nsec);
     dbg("using log file '%s'\n", log_name);
     n->log_f = fopen(log_name, "w");
-    if (!n->log_f)
-        err("can't open log file '%s': %m\n", log_name);
+    if (!n->log_f)  err("can't open log file '%s': %m\n", log_name);
 }
 
 /**
@@ -554,8 +537,7 @@ static ssize_t log_message_validate(struct network_node *n, uint8_t *buf, size_t
 {
     struct message_log ml;
 
-    if (size < sizeof(ml))
-        return -1;
+    if (size < sizeof(ml))  return -1;
 
     memcpy(&ml, buf, sizeof(ml));
 
@@ -565,8 +547,7 @@ static ssize_t log_message_validate(struct network_node *n, uint8_t *buf, size_t
         return 0;
     }
 
-    if (sizeof(ml) + ml.length > size)
-        return -1;
+    if (sizeof(ml) + ml.length > size)  return -1;
 
     return sizeof(ml) + ml.length;
 }
@@ -584,8 +565,7 @@ static ssize_t log_message_write(struct network_node *n, uint8_t *buf, size_t si
     ssize_t consumed = log_message_validate(n, buf, size);
     struct message_log ml;
 
-    if (consumed <= 0)
-        return consumed;
+    if (consumed <= 0)  return consumed;
 
     memcpy(&ml, buf, sizeof(ml));
     if (n->log_f && ml.length)
@@ -634,8 +614,7 @@ static ssize_t handle_server_handshake(struct network_node *n, uint8_t *buf, siz
         n->local_time.tv_sec, n->local_time.tv_nsec,
         n->remote_time.tv_sec, n->remote_time.tv_nsec,
         n->remote_delta.tv_sec, n->remote_delta.tv_nsec);
-    if (n->log_f)
-        setbuf(n->log_f, NULL);
+    if (n->log_f)   setbuf(n->log_f, NULL);
     if (mcmd.restart) {
         fprintf(stderr, "broadcasting restart right away\n");
         broadcast_restart_except(n);
@@ -794,10 +773,8 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
      * If socket is not ws, only one stage.
      */
 
-    if (n->websocket)
-        total = network_node_wsuncache(n, buf, size);
-    else
-        total = size;
+    if (n->websocket)   total = network_node_wsuncache(n, buf, size);
+    else                total = size;
 
     /* decode all complete frames */
     while (total > 0) {
@@ -884,8 +861,7 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
                 cached = true;
                 break;
             }
-            if (n->state == ST_ERROR)
-                return 0;
+            if (n->state == ST_ERROR)   return 0;
             handled += xhandled;
         } while (handled > 0 && handled < n->inputsz);
 
@@ -897,8 +873,7 @@ static int process_input(struct network_node *n, uint8_t *buf, size_t size)
         total -= size;
         done += size;
 
-        if (n->websocket)
-            mem_free(x);
+        if (n->websocket)   mem_free(x);
     }
 
     if (n->websocket) {
@@ -920,8 +895,7 @@ void networking_poll(void)
     uint8_t             buf[4096];
     ssize_t             ret;
 
-    if (!_ncfg)
-        return;
+    if (!_ncfg)     return;
 
     memset(buf, 0, sizeof(buf));
     polling_update();
@@ -932,8 +906,7 @@ void networking_poll(void)
         /* pace the redials: a dead server doesn't need a dial per frame */
         clock_gettime(CLOCK_MONOTONIC, &now);
         timespec_diff(&last_dial, &now, &since);
-        if (last_dial.tv_sec && !since.tv_sec)
-            return;
+        if (last_dial.tv_sec && !since.tv_sec)  return;
 
         last_dial = now;
 
@@ -945,13 +918,11 @@ void networking_poll(void)
     }
 
     ret = poll(pollfds, nr_nodes, _ncfg->timeout);
-    if (ret <= 0)
-        goto state;
+    if (ret <= 0)   goto state;
 
     list_for_each_entry_iter(n, it, &nodes, entry) {
         /* nodes appended mid-walk have no pollfd slot yet */
-        if (i == nr_nodes)
-            break;
+        if (i == nr_nodes)  break;
 
         int slot = i++;
 
@@ -1004,8 +975,7 @@ void networking_poll(void)
 
                     if (!hdr_end) {
                         /* no legitimate handshake is anywhere near this big */
-                        if (total > MAX_HANDSHAKE_LENGTH)
-                            ref_put(n);
+                        if (total > MAX_HANDSHAKE_LENGTH)   ref_put(n);
                         continue;
                     }
 
@@ -1029,8 +999,7 @@ void networking_poll(void)
                     continue;
                 }
 
-                if (process_input(n, buf, ret))
-                    continue;
+                if (process_input(n, buf, ret))     continue;
 
                 if (n->state == ST_ERROR) {
                     ref_put(n);
@@ -1072,8 +1041,7 @@ void networking_poll(void)
                              (struct sockaddr *)&n->sa, n->addrlen);
                 if (ret < 0) {
                     /* wait for the next POLLOUT on a full socket buffer */
-                    if (errno == EAGAIN || errno == EWOULDBLOCK)
-                        break;
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)    break;
 
                     err("send to '%s' failed: %m\n", node_name(n));
                     n->state = ST_ERROR;
@@ -1098,8 +1066,7 @@ void networking_poll(void)
             }
 
             /* keep POLLOUT armed until the queue drains */
-            if (list_empty(&n->out_queue))
-                n->events &= ~POLLOUT;
+            if (list_empty(&n->out_queue))  n->events &= ~POLLOUT;
 
             /* a dead peer, or the close echo has flushed: drop the node */
             if (n->state == ST_ERROR || (n->closing && list_empty(&n->out_queue))) {
@@ -1156,8 +1123,7 @@ static struct network_node *node_by_fd(int fd)
     struct network_node *n;
 
     list_for_each_entry(n, &nodes, entry)
-        if (n->fd == fd)
-            return n;
+        if (n->fd == fd)    return n;
 
     return NULL;
 }
@@ -1177,8 +1143,7 @@ static void socket_open_callback(int fd, void *data)
     struct network_node *n = node_by_fd(fd);
 
     dbg("socket open on fd %d\n", fd);
-    if (n && n->state == ST_INIT)
-        n->state = ST_HANDSHAKE;
+    if (n && n->state == ST_INIT)   n->state = ST_HANDSHAKE;
 
     networking_poll();
 }
@@ -1188,8 +1153,7 @@ static void socket_error_callback(int fd, int err, const char *msg, void *data)
     struct network_node *n = node_by_fd(fd);
 
     dbg("socket error on fd %d: %s\n", fd, msg);
-    if (n)
-        n->state = ST_ERROR;
+    if (n)  n->state = ST_ERROR;
 }
 #endif /* __EMSCRIPTEN__ */
 
@@ -1200,8 +1164,7 @@ cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, en
 
     clap_ctx = ctx;
     _ncfg = memdup(cfg, sizeof(*cfg));
-    if (!_ncfg)
-        return CERR_NOMEM;
+    if (!_ncfg)     return CERR_NOMEM;
 
     _mode = mode;
     switch (mode) {
@@ -1210,8 +1173,7 @@ cerr networking_init(struct clap_context *ctx, struct networking_config *cfg, en
         break;
     case NET_SERVER:
         res = server_setup(_ncfg->server_ip, _ncfg->server_port);
-        if (!IS_CERR(res))
-            res = server_setup(_ncfg->server_ip, _ncfg->server_wsport);
+        if (!IS_CERR(res))  res = server_setup(_ncfg->server_ip, _ncfg->server_wsport);
 
         if (!IS_CERR(res)) {
             n            = res.val;
@@ -1257,11 +1219,9 @@ void networking_done(void)
 
         networking_poll();
         list_for_each_entry(n, &nodes, entry)
-            if (!list_empty(&n->out_queue))
-                pending = true;
+            if (!list_empty(&n->out_queue))     pending = true;
 
-        if (!pending)
-            break;
+        if (!pending)                           break;
     }
 
     list_for_each_entry_iter(n, it, &nodes, entry)

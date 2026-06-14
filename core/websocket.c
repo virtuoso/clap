@@ -25,22 +25,17 @@ const char *http_header_find(const char *buf, const char *end, const char *name,
         /* find the start of the next line, staying inside the buffer */
         for (c = p; c < end && *c != '\n'; c++)
             ;
-        if (c < end)
-            c++;
+        if (c < end)                                                c++;
 
         /* a name the buffer truncates cannot match */
-        if ((size_t)(end - p) < namelen + 1)
-            continue;
-        if (strncasecmp(p, name, namelen) || p[namelen] != ':')
-            continue;
+        if ((size_t)(end - p) < namelen + 1)                        continue;
+        if (strncasecmp(p, name, namelen) || p[namelen] != ':')     continue;
 
         const char *v = p + namelen + 1;
-        while (v < end && (*v == ' ' || *v == '\t'))
-            v++;
+        while (v < end && (*v == ' ' || *v == '\t'))                v++;
 
         const char *vend = v;
-        while (vend < end && *vend != '\r' && *vend != '\n')
-            vend++;
+        while (vend < end && *vend != '\r' && *vend != '\n')        vend++;
 
         *vlen = vend - v;
         return v;
@@ -58,8 +53,7 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
     uint64_t len;
 
     /* the shortest frame is the two mandatory header bytes */
-    if (size < 2)
-        return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
+    if (size < 2)   return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
 
     unsigned int fin    = input[0] >> 7;
     unsigned int rsv    = (input[0] >> 4) & 0x7;
@@ -71,35 +65,28 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
         fin, opcode, masked, len, size);
 
     /* no extensions are negotiated and fragmentation isn't supported */
-    if (rsv || !fin || opcode == WSOP_CONT)
-        return cres_error(size_t, CERR_INVALID_FORMAT);
+    if (rsv || !fin || opcode == WSOP_CONT)     return cres_error(size_t, CERR_INVALID_FORMAT);
 
     /* RFC 6455 5.5: control frames must be short and whole */
-    if (opcode >= WSOP_CLOSE && len > 125)
-        return cres_error(size_t, CERR_INVALID_FORMAT);
+    if (opcode >= WSOP_CLOSE && len > 125)      return cres_error(size_t, CERR_INVALID_FORMAT);
 
-    if (require_mask && !masked)
-        return cres_error(size_t, CERR_INVALID_FORMAT);
+    if (require_mask && !masked)                return cres_error(size_t, CERR_INVALID_FORMAT);
 
     if (len == 126) {
-        if (size < off + 2)
-            return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
+        if (size < off + 2)     return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
 
         len = (uint64_t)input[2] << 8 | input[3];
         off += 2;
     } else if (len == 127) {
-        if (size < off + 8)
-            return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
+        if (size < off + 8)     return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
 
         len = 0;
-        for (int i = 0; i < 8; i++)
-            len = len << 8 | input[2 + i];
+        for (int i = 0; i < 8; i++)     len = len << 8 | input[2 + i];
         off += 8;
     }
 
     if (masked) {
-        if (size < off + 4)
-            return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
+        if (size < off + 4)     return cres_error(size_t, CERR_BUFFER_INCOMPLETE);
 
         mask = &input[off];
         off += 4;
@@ -114,8 +101,7 @@ cres(size_t) ws_decode(uint8_t *input, size_t size, uint8_t **poutput, size_t *p
     if (!masked) {
         memcpy(output, &input[off], len);
     } else {
-        for (size_t i = 0; i < len; i++)
-            output[i] = input[off + i] ^ mask[i % 4];
+        for (size_t i = 0; i < len; i++)    output[i] = input[off + i] ^ mask[i % 4];
     }
     output[len] = 0;
 
@@ -152,8 +138,7 @@ void ws_encode(uint8_t *input, size_t inputsz, uint8_t **poutput, size_t *poutsz
         break;
     case 8:
         output[1] = 127;
-        for (int i = 0; i < 8; i++)
-            output[2 + i] = (uint8_t)((uint64_t)inputsz >> (56 - 8 * i));
+        for (int i = 0; i < 8; i++)     output[2 + i] = (uint8_t)((uint64_t)inputsz >> (56 - 8 * i));
         break;
     }
     memcpy(&output[off], input, inputsz);
