@@ -24,3 +24,17 @@ target_link_options(${SERVER_BIN} PRIVATE ${CLAP_LINK_OPTIONS} ${DEBUG_LIBRARIES
 win32_executable(${SERVER_BIN})
 
 install(TARGETS ${SERVER_BIN} DESTINATION bin)
+
+set(TEST_CLIENT_BIN net-test-client)
+
+add_executable(${TEST_CLIENT_BIN} test-client.c)
+target_include_directories(${TEST_CLIENT_BIN} PRIVATE ${ENGINE_INCLUDE} ${ODE_INCLUDE})
+target_link_libraries(${TEST_CLIENT_BIN} PRIVATE ${ENGINE_LIB})
+target_link_options(${TEST_CLIENT_BIN} PRIVATE ${CLAP_LINK_OPTIONS} ${DEBUG_LIBRARIES})
+win32_executable(${TEST_CLIENT_BIN})
+
+if (CLAP_BUILD_NETWORKING AND NOT WIN32)
+    add_test(NAME net-e2e
+             COMMAND ${CMAKE_SOURCE_DIR}/scripts/net-e2e-test.sh
+                     $<TARGET_FILE:${SERVER_BIN}> $<TARGET_FILE:${TEST_CLIENT_BIN}>)
+endif ()
