@@ -481,13 +481,20 @@ static void log_f_open(struct network_node *n)
     char buf[128];
     struct tm t;
 
+    if (!_ncfg->log_dir) {
+        dbg("no log directory configured, not logging '%s'\n", n->src->name);
+        return;
+    }
+
     localtime_r(&n->remote_time.tv_sec, &t);
 
     strftime(buf, sizeof(buf), "%F_%T", &t);
-    snprintf(log_name, PATH_MAX, "/tmp/clap-%s-%s.%09" "ld",
-         n->src->name, buf, n->remote_time.tv_nsec);
+    snprintf(log_name, PATH_MAX, "%s/clap-%s-%s.%09" "ld",
+         _ncfg->log_dir, n->src->name, buf, n->remote_time.tv_nsec);
     dbg("using log file '%s'\n", log_name);
     n->log_f = fopen(log_name, "w");
+    if (!n->log_f)
+        err("can't open log file '%s': %m\n", log_name);
 }
 
 /**

@@ -27,6 +27,8 @@ enum net_mode {
  * @server_ip:      address to connect to (client) or bind to (server)
  * @server_port:    raw TCP port used by native clients
  * @server_wsport:  websocket port used by browser clients
+ * @log_dir:        directory for per-client log files (server; no logging
+ *                  when NULL)
  * @logger:         stream the log ring buffer to the server
  * @timeout:        poll timeout in milliseconds
  */
@@ -35,6 +37,7 @@ struct networking_config {
     const char              *server_ip;
     unsigned int            server_port;
     unsigned int            server_wsport;
+    const char              *log_dir;
     unsigned long           logger : 1;
     int                     timeout;
 };

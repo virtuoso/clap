@@ -46,10 +46,11 @@ static struct option long_options[] = {
     { "server",     required_argument,  0, 'S'},
     { "port",       required_argument,  0, 'p' },
     { "wsport",     required_argument,  0, 'w' },
+    { "log-dir",    required_argument,  0, 'L' },
     {}
 };
 
-static const char short_options[] = "RS:p:w:";
+static const char short_options[] = "RS:p:w:L:";
 
 static unsigned int parse_port(const char *str)
 {
@@ -73,6 +74,7 @@ int main(int argc, char **argv, char **envp)
         .server_ip     = CONFIG_SERVER_IP,
         .server_port   = CONFIG_SERVER_PORT,
         .server_wsport = CONFIG_SERVER_WSPORT,
+        .log_dir       = "/tmp",
         .timeout       = 100,
     };
     int c, option_index, do_restart = 0;
@@ -95,6 +97,9 @@ int main(int argc, char **argv, char **envp)
             break;
         case 'w':
             ncfg.server_wsport = parse_port(optarg);
+            break;
+        case 'L':
+            ncfg.log_dir = optarg;
             break;
         default:
             fprintf(stderr, "invalid option %x\n", c);
