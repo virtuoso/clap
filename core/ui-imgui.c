@@ -12,9 +12,8 @@
 #include "imgui_impl_glfw.h"
 #endif
 
-#ifdef CONFIG_RENDERER_OPENGL
-#include "imgui_impl_opengl3.h"
-#endif /* CONFIG_RENDERER_OPENGL */
+#include "ui-imgui-gl.h"
+
 #ifdef CONFIG_RENDERER_WGPU
 #include "ui-imgui-wgpu.h"
 #endif /* CONFIG_RENDERER_WGPU */
@@ -97,23 +96,11 @@ static void debug_debugger(void)
     ui_igEnd(DEBUG_DEBUGGER);
 }
 
-#ifdef CONFIG_RENDERER_OPENGL
-# ifndef __EMSCRIPTEN__
+#if defined(CONFIG_RENDERER_OPENGL) && !defined(__EMSCRIPTEN__)
 static inline void ui_imgui_init_glfw_for_opengl(void *window, bool do_callbacks) { ImGui_ImplGlfw_InitForOpenGL(window, do_callbacks); }
-# else /* !__EMSCRIPTEN__ */
+#else /* !CONFIG_RENDERER_OPENGL || __EMSCRIPTEN__ */
 static inline void __unused ui_imgui_init_glfw_for_opengl(void *window, bool do_callbacks) {}
-# endif /* !__EMSCRIPTEN__ */
-static inline void ui_imgui_opengl_init(const char *glsl_version) { ImGui_ImplOpenGL3_Init(glsl_version); }
-static inline void ui_imgui_opengl_new_frame(void) { ImGui_ImplOpenGL3_NewFrame(); }
-static inline void ui_imgui_opengl_render_draw_data(ImDrawData *draw) { ImGui_ImplOpenGL3_RenderDrawData(draw); }
-static inline void ui_imgui_opengl_shutdown(void) { ImGui_ImplOpenGL3_Shutdown(); }
-#else /* !CONFIG_RENDERER_OPENGL */
-static inline void __unused ui_imgui_init_glfw_for_opengl(void *window, bool do_callbacks) {}
-static inline void ui_imgui_opengl_init(const char *glsl_version) {}
-static inline void ui_imgui_opengl_new_frame(void) {}
-static inline void ui_imgui_opengl_render_draw_data(ImDrawData *draw) {}
-static inline void __unused ui_imgui_opengl_shutdown(void) {}
-#endif /* !CONFIG_RENDERER_OPENGL */
+#endif /* !CONFIG_RENDERER_OPENGL || __EMSCRIPTEN__ */
 
 #ifdef CONFIG_RENDERER_METAL
 static inline void ui_imgui_init_glfw_for_other(void *window, bool do_callbacks) { ImGui_ImplGlfw_InitForOther(window, do_callbacks); }

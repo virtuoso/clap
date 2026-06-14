@@ -74,6 +74,10 @@ if (CONFIG_RENDERER_METAL)
     )
 endif ()
 
+if (CONFIG_RENDERER_OPENGL)
+    list(APPEND ENGINE_SRC ui-imgui-gl.cpp)
+endif ()
+
 if (CONFIG_RENDERER_WGPU)
     list(APPEND ENGINE_SRC ui-imgui-wgpu.cpp)
 endif ()
