@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <getopt.h>
 #include <errno.h>
+#include <limits.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
@@ -70,6 +71,57 @@ const char *__asan_default_suppressions()
 #endif /* !__APPLE__ && !CONFIG_BROWSER */
         "";
 }
+
+# ifdef __linux__
+/**
+ * on_wayland() - Tell if the process is going to talk to a Wayland compositor
+ *
+ * LSan asks for its suppressions before main(), so GLFW can't be asked which
+ * platform it picked; mirror what wl_display_connect() does instead: an
+ * inherited socket fd, or the socket named in the environment (absolute, or
+ * relative to the runtime directory), or the default one in the runtime
+ * directory. GLFW prefers Wayland over X11 whenever it can connect to it.
+ *
+ * Return: true if a Wayland connection is possible
+ */
+static bool on_wayland(void)
+{
+    if (getenv("WAYLAND_SOCKET"))       return true;
+
+    const char *name = getenv("WAYLAND_DISPLAY") ?: "wayland-0";
+    if (name[0] == '/')                 return !access(name, F_OK);
+
+    const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
+    if (!runtime_dir)                   return false;
+
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", runtime_dir, name);
+
+    return !access(path, F_OK);
+}
+
+/**
+ * __lsan_default_suppressions() - Built-in LeakSanitizer suppressions
+ *
+ * GLFW's Wayland backend draws client-side decorations through libdecor,
+ * whose cairo plugin fills process-wide pango and fontconfig caches that
+ * nothing releases at glfwTerminate(); a couple of wl_proxy objects created
+ * by a library that is unloaded again by then also survive. Suppress those,
+ * but only when running on Wayland, so that leaks elsewhere stay visible.
+ *
+ * Return: newline-separated leak suppressions, empty when not on Wayland
+ */
+const char *__lsan_default_suppressions(void)
+{
+    if (!on_wayland())  return "";
+
+    return
+        "leak:libdecor-cairo\n"
+        "leak:libfontconfig\n"
+        "leak:libpango\n"
+        "leak:libwayland-client\n";
+}
+# endif /* __linux__ */
 #endif /* HAVE_ASAN */
 
 #if defined(__has_feature)
