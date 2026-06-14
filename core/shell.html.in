@@ -82,6 +82,18 @@
 
       var Module = {
         noAudioDecoding: true,
+        websocket: {
+          // The page scheme dictates the socket scheme: browsers refuse
+          // ws:// from https pages, and wss:// against a plaintext server
+          // has nothing to talk to. The prefix-only url makes emscripten
+          // append the address and port from the engine's networking
+          // config, which stays the single source of truth.
+          url: location.protocol === 'https:' ? 'wss://' : 'ws://',
+          // Restate emscripten's default: the server echoes this in its
+          // Sec-WebSocket-Protocol; set to null to omit the header when
+          // debugging handshake failures.
+          subprotocol: 'binary',
+        },
         onRuntimeInitialized: function() {
           document.getElementsByClassName('game_title')[0].hidden = true;
           var canvas = document.getElementById('canvas');
