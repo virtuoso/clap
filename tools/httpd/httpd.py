@@ -2,9 +2,11 @@
 import argparse
 import http.server
 import os
+import socket
 import ssl
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from socketserver import ThreadingMixIn
 import mimetypes
@@ -116,6 +118,100 @@ def make_ssl_context(cert_path: Path, key_path: Path, autocert: bool) -> ssl.SSL
     ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
     return ctx
 
+def wss_parse_hostport(value, what):
+    host, sep, port = value.rpartition(":")
+    if not sep or not host or not port.isdigit():
+        print(f"[!] Invalid {what} '{value}', expected ADDR:PORT")
+        sys.exit(2)
+    return host, int(port)
+
+def wss_pump(src, dst, counter):
+    # Byte-transparent: the websocket handshake and frames are opaque here.
+    # A blocking sendall() is the backpressure: a slow peer stalls only its
+    # own connection, with at most 64 KiB in flight.
+    try:
+        while True:
+            data = src.recv(65536)
+            if not data:
+                break
+            dst.sendall(data)
+            counter[0] += len(data)
+    except OSError:
+        pass
+    finally:
+        # Propagate the half-close so the backend sees EOF and finishes the
+        # client's log file. On the TLS side this sends a bare FIN without a
+        # close_notify, which browsers are fine with for a dev setup.
+        try:
+            dst.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+def wss_connection(conn, peer, ssl_ctx, backend):
+    who = f"{peer[0]}:{peer[1]}"
+    try:
+        # Handshake here, in the per-connection thread, so a stalled or
+        # cert-rejecting client can't block the accept loop.
+        conn.settimeout(10)
+        conn = ssl_ctx.wrap_socket(conn, server_side=True)
+    except (ssl.SSLError, OSError) as e:
+        print(f"[wss] {who} TLS handshake failed: {e}", flush=True)
+        conn.close()
+        return
+
+    try:
+        upstream = socket.create_connection(backend, timeout=5)
+    except OSError as e:
+        print(f"[wss] {who} no backend at {backend[0]}:{backend[1]}: {e}", flush=True)
+        conn.close()
+        return
+
+    for s in (conn, upstream):
+        s.settimeout(None)
+        s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+    print(f"[wss] {who} connected -> {backend[0]}:{backend[1]}", flush=True)
+    c2s, s2c = [0], [0]
+    pumps = [threading.Thread(target=wss_pump, args=(conn, upstream, c2s), daemon=True),
+             threading.Thread(target=wss_pump, args=(upstream, conn, s2c), daemon=True)]
+    for t in pumps:
+        t.start()
+    for t in pumps:
+        t.join()
+    for s in (conn, upstream):
+        try:
+            s.close()
+        except OSError:
+            pass
+    print(f"[wss] {who} closed (client->server {c2s[0]} B, server->client {s2c[0]} B)", flush=True)
+
+def wss_accept_loop(lsock, ssl_ctx, backend):
+    while True:
+        try:
+            conn, peer = lsock.accept()
+        except OSError as e:
+            print(f"[wss] accept failed: {e}", flush=True)
+            continue
+        threading.Thread(target=wss_connection, args=(conn, peer, ssl_ctx, backend),
+                         daemon=True).start()
+
+def wss_start(args, ssl_ctx):
+    lhost, lport = wss_parse_hostport(args.wss_listen, "--wss-listen")
+    backend = wss_parse_hostport(args.wss_backend, "--wss-backend")
+
+    lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        lsock.bind((lhost, lport))
+        lsock.listen(16)
+    except OSError as e:
+        print(f"[!] Error: could not listen on {lhost}:{lport} for wss: {e}")
+        sys.exit(1)
+
+    threading.Thread(target=wss_accept_loop, args=(lsock, ssl_ctx, backend),
+                     daemon=True).start()
+    print(f"[wss] proxying wss://{lhost}:{lport} -> ws://{backend[0]}:{backend[1]}", flush=True)
+
 def parse_args():
     p = argparse.ArgumentParser(description="Minimal HTTPS static server with cross-origin isolation (COOP/COEP) + CORS.")
     p.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
@@ -124,6 +220,10 @@ def parse_args():
     p.add_argument("--cert", default="dev-cert.pem", help="Path to TLS cert (default: dev-cert.pem)")
     p.add_argument("--key", default="dev-key.pem", help="Path to TLS private key (default: dev-key.pem)")
     p.add_argument("--autocert", action="store_true", help="Auto-generate a self-signed cert if missing (uses openssl).")
+    p.add_argument("--wss-listen", metavar="ADDR:PORT",
+                   help="Terminate wss:// here and pipe the bytes to --wss-backend.")
+    p.add_argument("--wss-backend", metavar="ADDR:PORT",
+                   help="Plaintext websocket backend (the clap server's websocket port).")
     return p.parse_args()
 
 def main():
@@ -136,10 +236,19 @@ def main():
         print(f"[!] Not a directory: {web_root}")
         sys.exit(2)
 
+    if bool(args.wss_listen) != bool(args.wss_backend):
+        print("[!] --wss-listen and --wss-backend go together")
+        sys.exit(2)
+
     os.chdir(web_root)
+    ssl_ctx = make_ssl_context(cert_path, key_path, args.autocert)
+
+    if args.wss_listen:
+        wss_start(args, ssl_ctx)
+
     try:
         httpd = threaded_https_server((args.host, args.port), cors_handler)
-        httpd.socket = make_ssl_context(cert_path, key_path, args.autocert).wrap_socket(httpd.socket, server_side=True)
+        httpd.socket = ssl_ctx.wrap_socket(httpd.socket, server_side=True)
 
         url_host = "localhost" if args.host in ("127.0.0.1", "0.0.0.0") else args.host
         print(f"Serving HTTPS on https://{url_host}:{args.port} from {web_root}")
