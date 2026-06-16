@@ -13,8 +13,6 @@
 struct joystick {
     char                name[JOY_NAME_MAX];
     unsigned char       buttons[JOY_THINGS_MAX];
-    /* not actually using glfw's hats at the moment */
-    // unsigned char       hats[JOY_THINGS_MAX];
     unsigned long       button_state;
     int                 id;
     int                 nr_axes, nr_buttons, nr_hats;
@@ -55,10 +53,8 @@ static inline unsigned int to_press_hold(int state)
 
 static inline unsigned int to_press_release(int state)
 {
-    if (state == JB_RELEASE)
-        return 2;
-    if (state == JB_PRESS)
-        return  1;
+    if (state == JB_RELEASE)    return 2;
+    if (state == JB_PRESS)      return 1;
     return 0;
 }
 
@@ -71,19 +67,14 @@ static inline bool joystick_present(int joy)
 
 void joystick_axes_update(int joy, const double *axes, int nr_axes)
 {
-    if (!joystick_present(joy))
-        return;
+    if (!joystick_present(joy))     return;
     if (!nr_axes || !axes)          return;
-    
-    if (nr_axes > JOY_THINGS_MAX)
-        nr_axes = JOY_THINGS_MAX;
+
+    nr_axes = min(nr_axes, JOY_THINGS_MAX);
 
     /* new joystick -- reset axes */
-    if (!joys[joy].nr_axes) {
+    if (!joys[joy].nr_axes)
         memcpy(joys[joy].axes_init, axes, nr_axes * sizeof(*axes));
-        //memset(joys[joy].axes_init, 0, nr_axes * sizeof(*axes));
-        dbg("### axis[0]: %f\n", axes[0]);
-    }
 
     joys[joy].nr_axes = nr_axes;
     memcpy(joys[joy].axes, axes, nr_axes * sizeof(*axes));
@@ -92,32 +83,24 @@ void joystick_axes_update(int joy, const double *axes, int nr_axes)
 /* XXX-ish */
 void joystick_abuttons_update(int joy, const double *abuttons, int nr_buttons)
 {
-    if (!joystick_present(joy))
-        return;
+    if (!joystick_present(joy))     return;
     if (!nr_buttons || !abuttons)   return;
-    
-    if (nr_buttons > JOY_THINGS_MAX)
-        nr_buttons = JOY_THINGS_MAX;
+
+    nr_buttons = min(nr_buttons, JOY_THINGS_MAX);
 
     memcpy(joys[joy].abuttons, abuttons, nr_buttons * sizeof(*abuttons));
 }
 
 void joystick_faxes_update(int joy, const float *axes, int nr_axes)
 {
-    int i;
-
-    if (!joystick_present(joy))
-        return;
+    if (!joystick_present(joy))     return;
     if (!nr_axes || !axes)          return;
-    
-    if (nr_axes > JOY_THINGS_MAX)
-        nr_axes = JOY_THINGS_MAX;
 
-    for (i = 0; i < nr_axes; i++) {
+    nr_axes = min(nr_axes, JOY_THINGS_MAX);
+
+    for (int i = 0; i < nr_axes; i++)
         joys[joy].axes[i] = axes[i];
-        // dbg("### axis[%d]: %f\n", i, joys[joy].axes[i]);
-    }
-    
+
     if (!joys[joy].nr_axes) {
         memcpy(joys[joy].axes_init, joys[joy].axes, nr_axes * sizeof(*axes));
         joys[joy].nr_axes = nr_axes;
@@ -126,28 +109,22 @@ void joystick_faxes_update(int joy, const float *axes, int nr_axes)
 
 void joystick_buttons_update(int joy, const unsigned char *buttons, int nr_buttons)
 {
-    if (!joystick_present(joy))
-        return;
+    if (!joystick_present(joy))     return;
     if (!nr_buttons || !buttons)    return;
-    
-    if (nr_buttons > JOY_THINGS_MAX)
-        nr_buttons = JOY_THINGS_MAX;
-    
+
+    nr_buttons = min(nr_buttons, JOY_THINGS_MAX);
+
     joys[joy].nr_buttons = nr_buttons;
     memcpy(joys[joy].buttons, buttons, nr_buttons);
 }
 
 void joystick_motion_update(int joy, const float *accel, const float *gyro, const quat attitude)
 {
-    if (!joystick_present(joy))
-        return;
+    if (!joystick_present(joy))     return;
 
-    if (accel)
-        memcpy(joys[joy].accel, accel, sizeof(joys[joy].accel));
-    if (gyro)
-        memcpy(joys[joy].gyro, gyro, sizeof(joys[joy].gyro));
-    if (attitude)
-        memcpy(joys[joy].attitude, attitude, sizeof(joys[joy].attitude));
+    if (accel)      memcpy(joys[joy].accel, accel, sizeof(joys[joy].accel));
+    if (gyro)       memcpy(joys[joy].gyro, gyro, sizeof(joys[joy].gyro));
+    if (attitude)   memcpy(joys[joy].attitude, attitude, sizeof(joys[joy].attitude));
 }
 
 const char *joystick_name_at(int joy)
@@ -160,7 +137,7 @@ int joystick_count(void)
 {
     int n = 0;
     for (int i = 0; i < NR_JOYS; i++)
-        if (joystick_present(i))  n++;
+        if (joystick_present(i))    n++;
     return n;
 }
 
@@ -169,12 +146,10 @@ void joystick_name_update(int joy, const char *name)
 {
     if (joy < 0 || joy >= NR_JOYS)  return;
 
-    if (!name)
-        name = "";
+    if (!name)  name = "";
 
     /* same name, assuming same joystick */
-    if (!strncmp(joys[joy].name, name, JOY_NAME_MAX))
-        return;
+    if (!strncmp(joys[joy].name, name, JOY_NAME_MAX))   return;
 
     strncpy(joys[joy].name, name, JOY_NAME_MAX);
     joys[joy].name[JOY_NAME_MAX - 1] = 0;
@@ -250,12 +225,11 @@ void controllers_debug(void)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_CONTROLLERS, ImGuiWindowFlags_AlwaysAutoResize);
 
-    if (!dbgm->display)
-        return;
+    if (!dbgm->display)     return;
 
     if (dbgm->unfolded) {
         for (unsigned int i = 0; i < NR_JOYS; i++) {
-            if (!joystick_present(i))    continue;
+            if (!joystick_present(i))   continue;
 
             igPushID_Int(i);
 
@@ -305,48 +279,33 @@ void controllers_debug(void)
 void joysticks_poll(struct clap_context *ctx)
 {
     struct message_input mi;
-    int i, t;
 
-    for (i = 0; i < NR_JOYS; i++) {
+    for (int i = 0; i < NR_JOYS; i++) {
         struct joystick *j = &joys[i];
         int count = 0;
 
-        if (!joystick_present(i))
-            continue;
+        if (!joystick_present(i))   continue;
 
         memset(&mi, 0, sizeof(mi));
 
         /* XXX: below is a mapping of DualShock */
-        for (t = 0; t < j->nr_axes; t++)
-            if (j->axes[t] != j->axes_init[t]) {
-                trace("joystick%d axis%d: %f\n", i, t, j->axes[t]);
-                if (fabs(j->axes[t] - j->axes_init[t]) < 0.2)
-                    continue;
+        for (int t = 0; t < j->nr_axes; t++) {
+            // XXX: hardcoded dead zone / drift correction
+            if (fabs(j->axes[t] - j->axes_init[t]) < 0.2)   continue;
+            trace("joystick%d axis%d: %f\n", i, t, j->axes[t]);
 
-                switch (t) {
-                case CLAP_JOY_AXIS_LX:
-                    mi.delta_lx = j->axes[t] - j->axes_init[t];
-                    break;
-                case CLAP_JOY_AXIS_LY:
-                    mi.delta_ly = j->axes[t] - j->axes_init[t];
-                    break;
-                case CLAP_JOY_AXIS_RX:
-                    mi.delta_rx = j->axes[t] - j->axes_init[t];
-                    break;
-                case CLAP_JOY_AXIS_RY:
-                    mi.delta_ry = j->axes[t] - j->axes_init[t];
-                    break;
-                case CLAP_JOY_AXIS_LT:
-                    mi.trigger_l = j->axes[t] - j->axes_init[t];
-                    break;
-                case CLAP_JOY_AXIS_RT:
-                    mi.trigger_r = j->axes[t] - j->axes_init[t];
-                    break;
-                }
-                count++;
+            switch (t) {
+            case CLAP_JOY_AXIS_LX:  mi.delta_lx  = j->axes[t] - j->axes_init[t]; break;
+            case CLAP_JOY_AXIS_LY:  mi.delta_ly  = j->axes[t] - j->axes_init[t]; break;
+            case CLAP_JOY_AXIS_RX:  mi.delta_rx  = j->axes[t] - j->axes_init[t]; break;
+            case CLAP_JOY_AXIS_RY:  mi.delta_ry  = j->axes[t] - j->axes_init[t]; break;
+            case CLAP_JOY_AXIS_LT:  mi.trigger_l = j->axes[t] - j->axes_init[t]; break;
+            case CLAP_JOY_AXIS_RT:  mi.trigger_r = j->axes[t] - j->axes_init[t]; break;
             }
+            count++;
+        }
 
-        for (t = 0; t < j->nr_buttons; t++) {
+        for (int t = 0; t < j->nr_buttons; t++) {
             bool pressed = j->button_state & (1ul << t);
             int state = JB_NONE;
 
@@ -356,8 +315,7 @@ void joysticks_poll(struct clap_context *ctx)
                 trace("joystick%d button%d: %d\n", i, t, j->buttons[t]);
             } else {
                 j->button_state &= ~(1ul << t);
-                if (pressed)
-                    state = JB_RELEASE;
+                if (pressed)    state = JB_RELEASE;
             }
 
             /*
@@ -373,21 +331,14 @@ void joysticks_poll(struct clap_context *ctx)
                 *val = joy_map[t].setter(state);
             }
 
-            if (mi.pad_lt && j->abuttons[CLAP_JOY_BTN_LT])
-                mi.trigger_l = j->abuttons[CLAP_JOY_BTN_LT];
-            if (mi.pad_rt && j->abuttons[CLAP_JOY_BTN_RT])
-                mi.trigger_r = j->abuttons[CLAP_JOY_BTN_RT];
+            if (mi.pad_lt && j->abuttons[CLAP_JOY_BTN_LT])  mi.trigger_l = j->abuttons[CLAP_JOY_BTN_LT];
+            if (mi.pad_rt && j->abuttons[CLAP_JOY_BTN_RT])  mi.trigger_r = j->abuttons[CLAP_JOY_BTN_RT];
 
-            if (mi.pad_plus && to_press(state))
-                mi.menu_toggle = 1;
-            if (mi.pad_min && to_press(state))
-                mi.inv_toggle = 1;
-            if (mi.pad_b && to_press(state))
-                mi.enter = 1;
-            if (mi.pad_a && to_press(state))
-                mi.back = 1;
-            if (state != JB_NONE)
-                count++;
+            if (mi.pad_plus && to_press(state))     mi.menu_toggle = 1;
+            if (mi.pad_min  && to_press(state))     mi.inv_toggle = 1;
+            if (mi.pad_b    && to_press(state))     mi.enter = 1;
+            if (mi.pad_a    && to_press(state))     mi.back = 1;
+            if (state != JB_NONE)                   count++;
         }
 
         memcpy(mi.accel, j->accel, sizeof(mi.accel));
