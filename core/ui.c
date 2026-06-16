@@ -984,12 +984,12 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const ui_menu_item *
 
     struct ui_widget *menu = ref_new(ui_widget, .ui = ui, .uwb = uwb, .nr_items = nr_items);
     struct ui_element *tui;
-    float off, width, height;
+    float width, height;
     int i;
 
     menu->focus = -1;
 
-    for (i = 0, off = 0.0, width = 0.0, height = 0.0; i < nr_items; i++) {
+    for (i = 0, width = 0.0, height = 0.0; i < nr_items; i++) {
         menu->uies[i]           = ref_new(ui_element,
                                           .ui       = ui,
                                           .parent   = menu->root,
@@ -1005,7 +1005,6 @@ ui_menu_build(struct ui *ui, struct ui_widget_builder *uwb, const ui_menu_item *
                               "%s", root->items[i].name));
         width = max(width, menu->uies[i]->width);
         height = max(height, menu->uies[i]->height);
-        off += menu->uies[i]->height + uwb->el_margin;
 
         if (uwb->el_cb)         uwb->el_cb(menu->uies[i], i);
         if (i == nr_items - 1)  uia_action(menu->uies[i], ui_menu_preselect);
