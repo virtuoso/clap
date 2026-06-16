@@ -22,9 +22,9 @@ struct joystick {
     float               accel[3];
     float               gyro[3];
     quat                attitude;
+    struct message_source msg_src;
     bool                has_motion;
     bool                sensors_enabled;
-    struct message_source msg_src;
 };
 
 static struct joystick joys[NR_JOYS];
