@@ -64,8 +64,7 @@ static inline unsigned int to_press_release(int state)
 
 static inline bool joystick_present(int joy)
 {
-    if (joy >= NR_JOYS)
-        return false;
+    if (joy < 0 || joy >= NR_JOYS)  return false;
 
     return !!strlen(joys[joy].name);
 }
@@ -74,6 +73,7 @@ void joystick_axes_update(int joy, const double *axes, int nr_axes)
 {
     if (!joystick_present(joy))
         return;
+    if (!nr_axes || !axes)          return;
     
     if (nr_axes > JOY_THINGS_MAX)
         nr_axes = JOY_THINGS_MAX;
@@ -94,6 +94,7 @@ void joystick_abuttons_update(int joy, const double *abuttons, int nr_buttons)
 {
     if (!joystick_present(joy))
         return;
+    if (!nr_buttons || !abuttons)   return;
     
     if (nr_buttons > JOY_THINGS_MAX)
         nr_buttons = JOY_THINGS_MAX;
@@ -107,6 +108,7 @@ void joystick_faxes_update(int joy, const float *axes, int nr_axes)
 
     if (!joystick_present(joy))
         return;
+    if (!nr_axes || !axes)          return;
     
     if (nr_axes > JOY_THINGS_MAX)
         nr_axes = JOY_THINGS_MAX;
@@ -126,6 +128,7 @@ void joystick_buttons_update(int joy, const unsigned char *buttons, int nr_butto
 {
     if (!joystick_present(joy))
         return;
+    if (!nr_buttons || !buttons)    return;
     
     if (nr_buttons > JOY_THINGS_MAX)
         nr_buttons = JOY_THINGS_MAX;
@@ -149,7 +152,7 @@ void joystick_motion_update(int joy, const float *accel, const float *gyro, cons
 
 const char *joystick_name_at(int joy)
 {
-    if (joy < 0 || !joystick_present(joy))  return NULL;
+    if (!joystick_present(joy))     return NULL;
     return joys[joy].name;
 }
 
@@ -164,6 +167,8 @@ int joystick_count(void)
 /* empty string or NULL disables the joystick */
 void joystick_name_update(int joy, const char *name)
 {
+    if (joy < 0 || joy >= NR_JOYS)  return;
+
     if (!name)
         name = "";
 
@@ -183,20 +188,17 @@ void joystick_name_update(int joy, const char *name)
 
 void joystick_set_motion(int joy, bool has_motion)
 {
-    if (joy < NR_JOYS)
-        joys[joy].has_motion = has_motion;
+    if (joystick_present(joy))  joys[joy].has_motion = has_motion;
 }
 
 bool joystick_has_motion(int joy)
 {
-    if (joy < NR_JOYS)
-        return joys[joy].has_motion;
-    return false;
+    return joystick_present(joy) ? joys[joy].has_motion : false;
 }
 
 void joystick_set_sensors(int joy, bool enabled)
 {
-    if (joy >= NR_JOYS || !joys[joy].has_motion)    return;
+    if (!joystick_present(joy) || !joys[joy].has_motion)    return;
 
     joys[joy].sensors_enabled = enabled;
     if (enabled)    return;
@@ -209,9 +211,7 @@ void joystick_set_sensors(int joy, bool enabled)
 
 bool joystick_get_sensors_enabled(int joy)
 {
-    if (joy < NR_JOYS)
-        return joys[joy].sensors_enabled;
-    return false;
+    return joystick_present(joy) ? joys[joy].sensors_enabled : false;
 }
 
 struct joy_map {
