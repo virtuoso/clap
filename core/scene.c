@@ -384,6 +384,7 @@ static void scene_characters_debug(struct scene *scene)
             ui_igSliderFloat("speed", &c->speed, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             ui_igCheckbox("can jump", &c->can_jump);
             ui_igCheckbox("can dash", &c->can_dash);
+            ui_igCheckbox("can levitate", &c->can_levitate);
             igPopID();
             igEndTable();
         }
@@ -1425,7 +1426,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     double geom_length = 1.0, speed = 0.75, roughness = -1.0, metallic = -1.0;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
-    bool outline_exclude = false, fix_origin = false;
+    bool outline_exclude = false, fix_origin = false, can_levitate = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *sfx = NULL;
     geom_class class = GEOM_TRIMESH;
     int motion_segments = 8;
@@ -1454,6 +1455,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             can_dash = p->bool_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "can_jump"))
             can_jump = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "can_levitate"))
+            can_levitate = p->bool_;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
             ent = p->children.head;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "character"))
@@ -1627,6 +1630,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 entity3d_set(e, ENTITY3D_SKIP_CULLING, NULL);
                 c->can_dash = can_dash;
                 c->can_jump = can_jump;
+                c->can_levitate = can_levitate;
             } else {
                 e = ref_new(entity3d, .txmodel = txm);
             }
