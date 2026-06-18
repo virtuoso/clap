@@ -78,9 +78,29 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
     if (m->input.dash || m->input.pad_rb)
         character_dash(ch, s);
 
-    if ((m->input.space || m->input.pad_y) &&
-        ch->state != CS_JUMPING && ch->state != CS_JUMP_START)
-        ch->jump = true;
+    /*
+     * The jump buttons (space on the keyboard, Y on the gamepad) carry
+     * to_press_release() values: 1 on press, and on the keyboard's auto-repeat,
+     * 2 on release. jump_held mirrors the button, and only the release clears
+     * it, so auto-repeat can't retrigger a jump.
+     */
+    bool press   = m->input.space == 1 || m->input.pad_y == 1;
+    bool release = m->input.space == 2 || m->input.pad_y == 2;
+
+    if (release) {
+        ch->jump_held = false;
+    } else if (press) {
+        /*
+         * ch->jump is the edge: only on the rising edge (was-released ->
+         * pressed). Hold-repeat events keep arriving while held, but
+         * jump_held latches them so we don't stack spurious jumps.
+         */
+        if (!ch->jump_held &&
+            ch->state != CS_JUMPING && ch->state != CS_JUMP_START &&
+            ch->state != CS_ASCENDING)
+            ch->jump = true;
+        ch->jump_held = true;
+    }
 }
 
 static void character_idle(struct scene *s, void *priv)
@@ -105,6 +125,18 @@ static void character_any_to_jump(struct scene *s, void *priv)
     struct character *c = priv;
 
     c->airborne = true;
+
+    /*
+     * At the end of the pre-jump windup we branch on hold state: if the
+     * character can levitate and the button is still held, it transitions
+     * into a sustained ascent; otherwise we commit to a regular ballistic
+     * jump.
+     */
+    if (c->jump_held && c->can_levitate) {
+        character_set_state(c, s, CS_ASCENDING);
+        return;
+    }
+
     /*
      * Re-establish jump velocity at the moment of actual liftoff.
      * During the "motion_to_jump" animation, the grounded motion code
@@ -134,6 +166,8 @@ static const char *character_state_string[] = {
     [CS_MOVING]     = "moving",
     [CS_JUMP_START] = "jump start",
     [CS_JUMPING]    = "jumping",
+    [CS_ASCENDING]  = "ascending",
+    [CS_LEVITATING] = "levitating",
     [CS_FALLING]    = "falling"
 };
 
@@ -164,6 +198,8 @@ static void character_debug(struct character *ch)
         bool moved = transform_is_updated(&ch->entity->xform);
         igBeginDisabled(true);
         igCheckbox("moved", &moved);
+        igCheckbox("jump_held", &ch->jump_held);
+        igCheckbox("jump", &ch->jump);
         igEndDisabled();
         if (igButton("disable body", (ImVec2){}))
             phys_body_enable(ch->entity->phys_body, false);
@@ -306,6 +342,8 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
                               ch->velocity, char_mass);
     }
 
+    if (ch->state == CS_LEVITATING)     vec3_dup(ch->velocity, (vec3){});
+
     /* Zero body velocity so ODE dynamics don't fight the sweep */
     phys_body_set_velocity(e->phys_body, (vec3){ 0, 0, 0 });
 
@@ -337,7 +375,7 @@ fail_fallback:
                 animation_push_by_name(ch->entity, s, "jump_to_idle", true, false);
             } else if (ch->state == CS_FALLING) {
                 animation_push_by_name(ch->entity, s, "fall_to_idle", true, false);
-            } else if (ch->state <= CS_IDLE || ch->state == CS_JUMP_START) {
+            } else if (ch->state <= CS_IDLE || ch->state == CS_JUMP_START || ch->state == CS_LEVITATING) {
                 return;
             }
             animation_push_by_name(ch->entity, s, "idle", false, true);
@@ -365,7 +403,7 @@ fail_fallback:
             } else if (ch->state == CS_JUMP_START) {
                 state = CS_IDLE;
                 goto fail_fallback;
-            } else if (ch->state == CS_MOVING) {
+            } else if (ch->state == CS_MOVING || ch->state == CS_LEVITATING) {
                 return;
             }
 
@@ -411,6 +449,37 @@ fail_fallback:
             state = CS_IDLE;
             goto fail_fallback;
 
+        case CS_ASCENDING:
+            /*
+             * Entered from the end of the pre-jump windup when the button
+             * is still held (character_any_to_jump). Re-entry is a no-op --
+             * character_move() drives the per-frame ascent and the
+             * ASCENDING -> LEVITATING transition on release.
+             */
+            if (ch->state == CS_ASCENDING)  return;
+            if (ch->state != CS_JUMP_START) {
+                state = CS_FALLING;
+                goto fail_fallback;
+            }
+            animation_push_by_name(ch->entity, s, "fall", true, true);
+            ch->state = state;
+            break;
+
+        case CS_LEVITATING:
+            /*
+             * Reachable only from ASCENDING -- the jump button was
+             * released mid-ascent, so the character latches into a
+             * zero-velocity hover. Zero out the ascent velocity here,
+             * character_apply_velocity() keeps it zeroed on steered
+             * frames; character_move() re-applies horizontal motion
+             * from input each frame. The fall animation has been
+             * playing since the ascent started.
+             */
+            if (ch->state != CS_ASCENDING)      return;
+            vec3_dup(ch->velocity, (vec3){});
+            ch->state = state;
+            break;
+
         case CS_FALLING:
             if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
                 return;
@@ -427,6 +496,17 @@ fail_fallback:
 
 static bool character_jump(struct character *ch, struct scene *s, float dx, float dz)
 {
+    /*
+     * Jumping while levitating drops the character. Return true so the
+     * caller skips this frame's motion block: character_set_state(CS_MOVING)
+     * with state == FALLING && airborne matches none of its guards and
+     * would push the "motion" animation mid-air.
+     */
+    if (ch->state == CS_LEVITATING) {
+        character_set_state(ch, s, CS_FALLING);
+        return true;
+    }
+
     /*
      * Clearing ch->jump here is pointless, because it can be set again from the
      * input handler for the next frame. We won't act on it here while ch->airborne
@@ -472,6 +552,45 @@ void character_move(struct character *ch, struct scene *s)
     if (ch->state == CS_JUMPING && ch->velocity[1] > 0)
         ch->airborne = true;
 
+    /*
+     * ASCENDING: jump button still held at the end of the pre-jump windup;
+     * sustain an upward velocity and fly the character ourselves rather
+     * than falling through to the motion block, which would clobber
+     * velocity[1] via vec3_add_scaled() and leave us hovering at the
+     * windup height. Once the button is released (jump_held flips off
+     * via the release event from to_press_release) latch into LEVITATING.
+     */
+    if (ch->state == CS_ASCENDING) {
+        if (!ch->jump_held) {
+            character_set_state(ch, s, CS_LEVITATING);
+        } else {
+            ch->airborne = true;
+            vec3_dup(ch->normal, (vec3){ 0.0f, 1.0f, 0.0f });
+
+            struct motionctl *mctl = &s->mctl;
+            vec3_dup(ch->motion, (vec3){ mctl->dx, 0.0f, mctl->dz });
+
+            /*
+             * Horizontal control while ascending is a quarter of grounded
+             * speed so the player can steer but not zoom around;
+             * velocity[1] is the actual rise rate.
+             */
+            ch->velocity[0] = ch->motion[0] * 0.25f;
+            ch->velocity[1] = ch->jump_upward;
+            ch->velocity[2] = ch->motion[2] * 0.25f;
+
+            character_apply_velocity(ch, s);
+            character_set_moved(ch);
+            goto out;
+        }
+    }
+
+    if (ch->state == CS_LEVITATING) {
+        ch->airborne = true;
+        vec3_dup(ch->normal, (vec3){ 0.0f, 1.0f, 0.0f });
+        goto motion;
+    }
+
     if (ch->airborne) {
         /*
          * Apply gravity and move via sweep-and-slide.  The sweep's
@@ -503,6 +622,7 @@ void character_move(struct character *ch, struct scene *s)
         ch->old_collision = ch->collision;
     }
 
+motion:
     struct motionctl *mctl = &s->mctl;
     vec3_dup(ch->motion, (vec3){ mctl->dx, 0.0, mctl->dz });
 
@@ -525,7 +645,7 @@ void character_move(struct character *ch, struct scene *s)
             vec3_norm(newz, newz);
 
             /* XXX: apply this in character_apply_velocity() */
-            if (ch->state == CS_MOVING)
+            if (ch->state == CS_MOVING || ch->state == CS_LEVITATING)
                 motion_coefficient = 1.0f;
             else
                 motion_coefficient = 0.3f;
@@ -548,6 +668,7 @@ void character_stop(struct character *c, struct scene *s)
 {
     vec3_dup(c->motion, (vec3){});
     vec3_dup(c->velocity, (vec3){});
+    c->jump_held = false;
     character_set_state(c, s, CS_IDLE);
 }
 

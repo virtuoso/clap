@@ -15,6 +15,8 @@ typedef enum character_state {
     CS_MOVING,
     CS_JUMP_START,
     CS_JUMPING,
+    CS_ASCENDING,
+    CS_LEVITATING,
     CS_FALLING,
 } character_state;
 
@@ -33,6 +35,7 @@ struct character {
     float   jump_forward;
     float   jump_upward;
     float   lin_speed;
+    enum character_state state;
     struct list entry;
     entity3d *collision;
     entity3d *old_collision;
@@ -43,10 +46,11 @@ struct character {
         bool            wrapped;
     } history;
     bool    jump;
+    bool    jump_held;
     bool    airborne;
     bool    can_dash;
     bool    can_jump;
-    enum character_state state;
+    bool    can_levitate;
 };
 
 DEFINE_REFCLASS_INIT_OPTIONS(character,
