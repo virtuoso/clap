@@ -130,7 +130,7 @@ set(CERRS_H "${CMAKE_CURRENT_BINARY_DIR}/cerrs.h")
 add_custom_command(
     COMMENT "Generating cerrs.h"
     OUTPUT "${CERRS_H}"
-    DEPENDS error.h
+    DEPENDS error.h ${CMAKE_SOURCE_DIR}/scripts/cerr-gen.cmake
     COMMAND
         ${CMAKE_COMMAND}
             -Ddir="${CMAKE_CURRENT_SOURCE_DIR}"
@@ -146,7 +146,7 @@ set(REFCLASSES_H "${CMAKE_CURRENT_BINARY_DIR}/refclasses.h")
 add_custom_command(
     COMMENT "Generating refclasses.h"
     OUTPUT "${REFCLASSES_H}"
-    DEPENDS ${ENGINE_SRC}
+    DEPENDS ${ENGINE_SRC} ${CMAKE_SOURCE_DIR}/scripts/refclass-gen.cmake
     COMMAND
         ${CMAKE_COMMAND}
             -Ddir="${CMAKE_CURRENT_SOURCE_DIR}"
