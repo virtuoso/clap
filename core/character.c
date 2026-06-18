@@ -393,9 +393,9 @@ fail_fallback:
                     state = CS_IDLE;
                     goto fail_fallback;
                 }
-            } else if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
-                state = CS_IDLE;
-                goto fail_fallback;
+            } else {
+                /* JUMP_START only legitimately starts from IDLE or MOVING. */
+                return;
             }
 
             ch->state = state;
@@ -436,6 +436,14 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
      */
     if (!ch->can_jump || ch->airborne)
         return false;
+
+    /*
+     * On the landing frame the state is still JUMPING or FALLING: the
+     * grounded transition hasn't run yet, so there is no animation to
+     * chain the jump onto and character_set_state() would refuse it.
+     * Setting the velocity first would then leak it into that frame.
+     */
+    if (ch->state != CS_IDLE && ch->state != CS_MOVING)     return false;
 
     if (!entity3d_matches(ch->entity, ENTITY3D_PHYS_IS_BODY))
         return false;
