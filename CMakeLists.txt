@@ -175,9 +175,13 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
             "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307"
         )
     else ()
+        list(APPEND CLAP_EMSCRIPTEN_COMPILE_OPTIONS
+            "-Wno-limited-postlink-optimizations"
+        )
         list(APPEND CLAP_DEPENDENCY_LIBRARIES
             "-s ASSERTIONS=1"
             "-s EXCEPTION_DEBUG=1"
+            "-Wno-limited-postlink-optimizations"
         )
     endif ()
     set(EXTRA_LIBRARIES "")
