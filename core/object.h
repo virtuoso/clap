@@ -213,7 +213,15 @@ static inline void _ref_put(struct ref *ref)
         _ref_drop((r)); \
     } while (0)
 
-#define ref_put_last(obj) ref_put_last_ref(__obj_ref(obj))
+/*
+ * Drop the last reference to @obj and clear the pointer, so that a stale
+ * user trips over NULL instead of freed memory
+ */
+#define ref_put_last(obj) do { \
+        auto __pobj = &(obj); \
+        ref_put_last_ref(__obj_ref(*__pobj)); \
+        *__pobj = nullptr; \
+    } while (0)
 
 /*
  * Expect object to have reference count @c
