@@ -14,30 +14,6 @@ struct key_map {
     unsigned int (*setter)(unsigned int press);
 };
 
-static inline unsigned int is_release(unsigned int press)
-{
-    return press == KEY_RELEASE;
-}
-
-static inline unsigned int is_press(unsigned int press)
-{
-    return press == KEY_PRESS;
-}
-
-static inline unsigned int is_press_hold(unsigned int press)
-{
-    return press == KEY_PRESS || press == KEY_HOLD;
-}
-
-static inline unsigned int to_press_release(unsigned int press)
-{
-    if (is_press_hold(press))
-        return 1;
-    if (is_release(press))
-        return 2;
-    return 0;
-}
-
 #define KEY_NAME(_name, _setter, _field) \
     { .name = _name, .setter = _setter, .offset = offsetof(struct message_input, _field) }
 #define KEY_VAL(_key, _setter, _field) \
@@ -49,6 +25,7 @@ static struct key_map key_map_wasd[] = {
     KEY_NAME("KeyD",       to_press_release, right),
     KEY_NAME("KeyW",       to_press_release, up),
     KEY_NAME("KeyS",       to_press_release, down),
+    KEY_NAME("Space",      to_press_release, space),
     KEY_NAME("ShiftLeft",  is_press,         dash),
     KEY_NAME("ArrowUp",    to_press_release, pitch_up),
     KEY_NAME("ArrowDown",  to_press_release, pitch_down),
@@ -71,6 +48,7 @@ static struct key_map key_map_wasd[] = {
     KEY_VAL(GLFW_KEY_D, to_press_release, right),
     KEY_VAL(GLFW_KEY_W, to_press_release, up),
     KEY_VAL(GLFW_KEY_S, to_press_release, down),
+    KEY_VAL(GLFW_KEY_SPACE, to_press_release, space),
     KEY_VAL(GLFW_KEY_LEFT_SHIFT, is_press,         dash),
     KEY_VAL(GLFW_KEY_UP,    to_press_release, pitch_up),
     KEY_VAL(GLFW_KEY_DOWN,  to_press_release, pitch_down),

@@ -1146,7 +1146,7 @@ static bool ui_inventory_input(struct ui *ui, struct ui_widget *uiw, struct mess
         // right
         ui->mod_x = 0;
         ui_widget_pick_rel(ui->inventory, 1);
-    } else if (m->input.pad_y) {
+    } else if (m->input.pad_y == 1) {
         ui_widget_on_click(ui->inventory, ui->inventory->focus, uivec);
         ui_inventory_done(ui);
     }

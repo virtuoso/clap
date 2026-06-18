@@ -37,7 +37,6 @@ static inline const char *emscripten_event_type_to_string(int eventType)
 
 static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, void *userData)
 {
-    struct message_input mi;
     int press, mods = 0;
 
     switch (eventType) {
@@ -55,7 +54,6 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     if (__ui_set_key(e->keyCode, e->key, press == KEY_PRESS || press == KEY_HOLD))
         return true;
 
-    memset(&mi, 0, sizeof(mi));
     trace("%s, key: \"%s\", code: \"%s\", location: %u,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %u, keyCode: %u, which: %u\n",
           emscripten_event_type_to_string(eventType), e->key, e->code, e->location,
           e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
@@ -64,23 +62,7 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
     mods |= (!!e->ctrlKey)  << 1;
     mods |= (!!e->altKey)   << 2;
 
-    switch (e->keyCode) {
-    case 32:
-        /*if (e->ctrlKey)
-            mi.focus_cancel = 1;
-        if (e->shiftKey)
-            mi.focus_prev = 1;
-        else
-            mi.focus_next = 1;*/
-        mi.space = 1;
-        break;
-    default:
-        key_event(clap_ctx, &keyboard_source, e->keyCode, e->code, mods, press);
-        /* don't send empty messages */
-        return true;
-    };
-
-    message_input_send(clap_ctx, &mi, &keyboard_source);
+    key_event(clap_ctx, &keyboard_source, e->keyCode, e->code, mods, press);
 
     return true;
 }

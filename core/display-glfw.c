@@ -424,21 +424,17 @@ static void key_cb(struct GLFWwindow *window, int key, int scancode, int action,
             break;
     }
     memset(&mi, 0, sizeof(mi));
-    switch (key) {
-    case GLFW_KEY_SPACE:
-        if (mods & GLFW_MOD_SHIFT)
-            mi.focus_prev = 1;
-        else if (mods & GLFW_MOD_CONTROL)
-            mi.focus_cancel = 1;
-        else if (mods & GLFW_MOD_ALT)
-            mi.focus_next = 1;
-        else
-            mi.space = 1;
-        break;
-    default:
+    /* Space with a modifier drives the UI focus; everything else is in the key map */
+    if (key == GLFW_KEY_SPACE && (mods & GLFW_MOD_SHIFT)) {
+        mi.focus_prev = 1;
+    } else if (key == GLFW_KEY_SPACE && (mods & GLFW_MOD_CONTROL)) {
+        mi.focus_cancel = 1;
+    } else if (key == GLFW_KEY_SPACE && (mods & GLFW_MOD_ALT)) {
+        mi.focus_next = 1;
+    } else {
         key_event(clap_ctx, &keyboard_source, key, NULL, mods, press);
         return;
-    };
+    }
     message_input_send(clap_ctx, &mi, &keyboard_source);
 }
 
