@@ -143,10 +143,18 @@ add_custom_target(cerrs_gen DEPENDS "${CERRS_H}")
 
 set(REFCLASSES_H "${CMAKE_CURRENT_BINARY_DIR}/refclasses.h")
 
+# DECLARE_REFCLASS() lives mostly in headers; mirror the file set
+# refclass-gen.cmake trawls
+file(GLOB_RECURSE REFCLASSES_GEN_DEPS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.m"
+)
+
 add_custom_command(
     COMMENT "Generating refclasses.h"
     OUTPUT "${REFCLASSES_H}"
-    DEPENDS ${ENGINE_SRC} ${CMAKE_SOURCE_DIR}/scripts/refclass-gen.cmake
+    DEPENDS ${REFCLASSES_GEN_DEPS} ${CMAKE_SOURCE_DIR}/scripts/refclass-gen.cmake
     COMMAND
         ${CMAKE_COMMAND}
             -Ddir="${CMAKE_CURRENT_SOURCE_DIR}"
