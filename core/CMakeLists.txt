@@ -57,7 +57,7 @@ endif ()
 configure_file(config.h.in config.h)
 
 set(TEST_BIN tests)
-set(TEST_SRC test.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
+set(TEST_SRC test.c test-harness.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
     ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c
     render-texture.c draw.c os-info.c)
 

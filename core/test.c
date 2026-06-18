@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <getopt.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/time.h>
@@ -19,19 +18,9 @@
 #include "util.h"
 #include "websocket.h"
 #include "xyarray.h"
-
-struct clap_context {
-    struct messagebus mb;
-};
-
-struct messagebus *clap_get_messagebus(struct clap_context *ctx)
-{
-    return &ctx->mb;
-}
+#include "test.h"
 
 #define TEST_MAGIC0 0xdeadbeef
-
-static unsigned int verbose;
 
 struct x0 {
     struct ref	ref;
@@ -1687,10 +1676,7 @@ static int log_rb_late_sink_test(void)
     return EXIT_SUCCESS;
 }
 
-static struct test {
-    const char	*name;
-    int			(*test)(void);
-} tests[] = {
+static const struct test tests[] = {
     { .name = "user-agent parse desktop", .test = ua_parse_desktop_test },
     { .name = "user-agent parse mobile", .test = ua_parse_mobile_test },
     { .name = "refcount basic", .test = refcount_test0 },
@@ -1759,49 +1745,8 @@ static struct test {
 #endif /* CONFIG_NETWORKING */
 };
 
-static struct option long_options[] = {
-    { "verbose",    no_argument,        0, 'v' },
-    {}
-};
-
-static const char short_options[] = "v";
-
 int main(int argc, char **argv, char **envp)
 {
-    int ret, i, c, option_index;
-    struct clap_context ctx = {};
-
-    cerr err = messagebus_init(&ctx);
-    if (IS_CERR(err))
-        return EXIT_FAILURE;
-
-    for (;;) {
-        c = getopt_long(argc, argv, short_options, long_options, &option_index);
-        if (c == -1)
-            break;
-
-        switch (c) {
-        case 'v':
-            verbose++;
-            break;
-        default:
-            err("invalid command line option %x\n", c);
-            ret = EXIT_FAILURE;
-            goto out;
-        }
-    }
-
-    for (i = 0; i < array_size(tests); i++) {
-        failcount = 0;
-        ret = tests[i].test();
-        msg("test %-40s: %s\n", tests[i].name, ret ? "FAILED" : "PASSED");
-        if (ret)
-            break;
-    }
-
-out:
-    messagebus_done(&ctx);
-
-    return ret;
+    return test_main(argc, argv, envp, tests, array_size(tests));
 }
 
