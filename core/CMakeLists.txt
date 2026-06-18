@@ -287,6 +287,10 @@ if (NOT CLAP_BUILD_FINAL)
     include("${CMAKE_SOURCE_DIR}/scripts/cimgui.cmake")
 endif ()
 
+# The warning set for the engine's own translation units
+set(ENGINE_WARNING_FLAGS -Wall -Wno-misleading-indentation -Wno-comment -Werror)
+list(JOIN ENGINE_WARNING_FLAGS " " engine_warning_flags)
+
 # the regular C sources don't need any special cimgui API prefixes
 FOREACH(src ${ENGINE_SRC})
     get_source_file_property(CFLAGS ${src} COMPILE_FLAGS)
@@ -296,7 +300,7 @@ FOREACH(src ${ENGINE_SRC})
     )
     if (NOT WIN32)
         set_source_files_properties(${src} PROPERTIES
-                                    COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CFLAGS}"
+                                    COMPILE_FLAGS "${engine_warning_flags} ${CFLAGS}"
         )
     endif ()
 ENDFOREACH ()
