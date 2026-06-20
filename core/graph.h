@@ -246,6 +246,49 @@ cresp_check(graph) graph_linear(unsigned int nr_nodes);
 cresp_check(graph) graph_from_string(const char *str);
 
 /**
+ * struct graph_match - one match of a pattern graph inside a host graph
+ * @node_map:   host node index bound to each pattern node index
+ * @edges:      host (left, right) node indices matched to each pattern
+ *              edge, in the pattern's edge order
+ * @nr_nodes:   pattern node count
+ * @nr_edges:   pattern edge count
+ *
+ * Produced by graph_subgraph(), released with graph_match_release().
+ */
+typedef struct graph_match {
+    unsigned int    *node_map;
+    unsigned int    (*edges)[2];
+    unsigned int    nr_nodes;
+    unsigned int    nr_edges;
+} graph_match;
+
+/**
+ * graph_subgraph() - find a pattern graph inside a host graph
+ * @g:      the host graph
+ * @find:   the pattern: names must match host node names, while ids only
+ *          tell same-name pattern nodes apart, so "room-room_1" matches
+ *          any two connected host rooms
+ * @match:  the first match found, in host node index order
+ *
+ * Backtracking subgraph search. Bindings are injective (distinct pattern
+ * nodes bind distinct host nodes) and pattern edges match distinct host
+ * edges; on a directed host, a pattern edge only matches its own
+ * orientation. Pattern nodes with no edges bind to any otherwise unbound
+ * name-matching host node.
+ *
+ * Return: CERR_OK with @match filled in (release it with
+ * graph_match_release()), CERR_NOT_FOUND when the pattern doesn't occur,
+ * or CERR_NOMEM / CERR_INVALID_ARGUMENTS (empty pattern).
+ */
+cerr_check graph_subgraph(const graph *g, const graph *find, graph_match *match);
+
+/**
+ * graph_match_release() - free a match's bindings
+ * @match:  match filled in by graph_subgraph(), may be released twice
+ */
+void graph_match_release(graph_match *match);
+
+/**
  * graph_dump_gv() - log the graph in graphviz format
  * @g:      the graph
  * @name:   graph name in the output, "G" when NULL

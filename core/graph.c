@@ -409,6 +409,204 @@ cresp(graph) graph_from_string(const char *str)
     return cresp_val(graph, NOCU(g));
 }
 
+/*
+ * Backtracking subgraph search state. gmap pins the host node bound to
+ * each pattern node (-1 while unbound); bindings are injective via used[]
+ * and can be masked off with excluded[] (node-disjoint rewriting). rot
+ * rotates the candidate scan so a caller can randomize which match comes
+ * up first.
+ */
+struct graph_matcher {
+    const graph             *g;
+    const graph             *find;
+    const struct graph_edge **fedges;
+    int                     *gmap;
+    bool                    *used;
+    const bool              *excluded;
+    unsigned int            (*medges)[2];
+    unsigned int            nr_fn;
+    unsigned int            nr_fe;
+    unsigned int            rot;
+};
+
+static bool graph_matcher_bindable(const struct graph_matcher *m, unsigned int fnode,
+                                   unsigned int gnode)
+{
+    if (m->used[gnode] || (m->excluded && m->excluded[gnode]))  return false;
+
+    return !strcmp(graph_node(m->find, fnode)->name, graph_node(m->g, gnode)->name);
+}
+
+/* second phase: bind pattern nodes that no edge covers */
+static bool graph_match_nodes(struct graph_matcher *m, unsigned int fnode)
+{
+    for (; fnode < m->nr_fn; fnode++)
+        if (m->gmap[fnode] < 0)                         break;
+
+    if (fnode == m->nr_fn)  return true;
+
+    for (unsigned int k = 0; k < m->g->nr_nodes; k++) {
+        unsigned int cand = (k + m->rot) % m->g->nr_nodes;
+
+        if (!graph_matcher_bindable(m, fnode, cand))    continue;
+
+        m->gmap[fnode] = cand;
+        m->used[cand] = true;
+        if (graph_match_nodes(m, fnode + 1))            return true;
+        m->gmap[fnode] = -1;
+        m->used[cand] = false;
+    }
+
+    return false;
+}
+
+/* first phase: bind pattern edges to host edges, one per recursion level */
+static bool graph_match_edges(struct graph_matcher *m, unsigned int edge)
+{
+    if (edge == m->nr_fe)   return graph_match_nodes(m, 0);
+
+    const struct graph_edge *fe = m->fedges[edge];
+    unsigned int nr = m->g->nr_nodes;
+    int bl = m->gmap[fe->left];
+
+    for (unsigned int k = 0; k < nr; k++) {
+        unsigned int gl = (k + m->rot) % nr;
+        bool bound_l = bl >= 0;
+
+        if (bound_l) {
+            if (k)                                  break;
+            gl = bl;
+        } else if (!graph_matcher_bindable(m, fe->left, gl)) {
+            continue;
+        }
+
+        if (!bound_l) {
+            m->gmap[fe->left] = gl;
+            m->used[gl] = true;
+        }
+
+        int br = m->gmap[fe->right];
+        for (unsigned int k2 = 0; k2 < nr; k2++) {
+            unsigned int gr = (k2 + m->rot) % nr;
+            bool bound_r = br >= 0;
+
+            if (bound_r) {
+                if (k2)     break;
+                gr = br;
+            } else if (!graph_matcher_bindable(m, fe->right, gr)) {
+                continue;
+            }
+
+            if (!graph_has_edge(m->g, gl, gr))      continue;
+
+            /* distinct pattern edges must land on distinct host edges */
+            unsigned int p;
+            for (p = 0; p < edge; p++)
+                if ((m->medges[p][0] == gl && m->medges[p][1] == gr) ||
+                    (!m->g->params.directed && m->medges[p][0] == gr && m->medges[p][1] == gl))
+                    break;
+            if (p < edge)                           continue;
+
+            if (!bound_r) {
+                m->gmap[fe->right] = gr;
+                m->used[gr] = true;
+            }
+            m->medges[edge][0] = gl;
+            m->medges[edge][1] = gr;
+
+            if (graph_match_edges(m, edge + 1))     return true;
+
+            if (!bound_r) {
+                m->gmap[fe->right] = -1;
+                m->used[gr] = false;
+            }
+        }
+
+        if (!bound_l) {
+            m->gmap[fe->left] = -1;
+            m->used[gl] = false;
+        }
+    }
+
+    return false;
+}
+
+static cerr graph_match_first(const graph *g, const graph *find, unsigned int rot,
+                              const bool *excluded, graph_match *match)
+{
+    if (find->nr_nodes > g->nr_nodes)   return CERR_NOT_FOUND;
+
+    struct graph_matcher m = {
+        .g          = g,
+        .find       = find,
+        .excluded   = excluded,
+        .nr_fn      = find->nr_nodes,
+        .nr_fe      = find->nr_edges,
+        .rot        = rot % g->nr_nodes,
+    };
+
+    LOCAL(void, fedges_buf);
+    LOCAL(void, gmap_buf);
+    LOCAL(void, used_buf);
+    LOCAL(void, medges_buf);
+
+    gmap_buf = mem_alloc(sizeof(*m.gmap), .nr = m.nr_fn);
+    used_buf = mem_alloc(sizeof(*m.used), .nr = g->nr_nodes, .zero = 1);
+    if (!gmap_buf || !used_buf)         return CERR_NOMEM;
+
+    if (m.nr_fe) {
+        fedges_buf = mem_alloc(sizeof(*m.fedges), .nr = m.nr_fe);
+        medges_buf = mem_alloc(sizeof(*m.medges), .nr = m.nr_fe);
+        if (!fedges_buf || !medges_buf)     return CERR_NOMEM;
+    }
+
+    m.fedges = fedges_buf;
+    m.gmap = gmap_buf;
+    m.used = used_buf;
+    m.medges = medges_buf;
+
+    for (unsigned int i = 0; i < m.nr_fn; i++)
+        m.gmap[i] = -1;
+
+    unsigned int i = 0;
+    struct graph_edge *e;
+    list_for_each_entry(e, &((graph *)find)->edges, entry)
+        m.fedges[i++] = e;
+
+    if (!graph_match_edges(&m, 0))      return CERR_NOT_FOUND;
+
+    match->node_map = mem_alloc(sizeof(*match->node_map), .nr = m.nr_fn);
+    match->edges = m.nr_fe ? mem_alloc(sizeof(*match->edges), .nr = m.nr_fe) : NULL;
+    if (!match->node_map || (m.nr_fe && !match->edges)) {
+        graph_match_release(match);
+        return CERR_NOMEM;
+    }
+
+    for (i = 0; i < m.nr_fn; i++)
+        match->node_map[i] = m.gmap[i];
+    if (m.nr_fe)                        memcpy(match->edges, m.medges, sizeof(*match->edges) * m.nr_fe);
+    match->nr_nodes = m.nr_fn;
+    match->nr_edges = m.nr_fe;
+
+    return CERR_OK;
+}
+
+cerr graph_subgraph(const graph *g, const graph *find, graph_match *match)
+{
+    if (!g || !find || !match || !find->nr_nodes)   return CERR_INVALID_ARGUMENTS;
+
+    return graph_match_first(g, find, 0, NULL, match);
+}
+
+void graph_match_release(graph_match *match)
+{
+    if (!match)     return;
+
+    mem_free(match->node_map);
+    mem_free(match->edges);
+    memset(match, 0, sizeof(*match));
+}
+
 static void graph_gv_label(const graph *g, const struct graph_node *node, char *buf, size_t size)
 {
     if (node->id || graph_node_max_id(g, node->name) > 0)
