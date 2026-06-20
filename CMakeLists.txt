@@ -80,6 +80,7 @@ bootstrap_deps("bootstrap.json")
 add_subdirectory(${CMAKE_SOURCE_DIR}/compat)
 
 include(scripts/win32-helpers.cmake)
+include(scripts/subsystem.cmake)
 
 set(CLAP_DEPENDENCY_INCLUDE_DIRS "")
 set(CLAP_DEPENDENCY_LIBRARIES "")
