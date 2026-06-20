@@ -116,7 +116,7 @@ set(ENGINE_SRC
     physics.c ui-animations.c ui-menus.c ui-settings.c character.c settings.c error.c
     gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c graphics-settings.c audio-settings.c
-    prng.c prng-mt.cpp bsp.c
+    prng.c prng-mt.cpp bsp.c graph.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
 
 set_source_files_properties(${MA_DIR}/miniaudio.c PROPERTIES COMPILE_FLAGS
