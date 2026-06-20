@@ -343,3 +343,7 @@ win32_library(${ENGINE_LIB} FALSE)
 # The input subsystem is its own static library (see input/CMakeLists.txt)
 add_subdirectory(input)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_input)
+
+# The prng tests compile the generator sources directly and link neither
+# the engine nor the main test blob
+clap_subsystem_test(prng_tests test-prng.c prng.c prng-mt.cpp)
