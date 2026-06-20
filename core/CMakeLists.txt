@@ -350,3 +350,6 @@ clap_subsystem_test(prng_tests test-prng.c prng.c prng-mt.cpp)
 
 # The bsp tests compile the partitioner and the prng it splits streams from
 clap_subsystem_test(bsp_tests test-bsp.c bsp.c prng.c prng-mt.cpp)
+
+# The graph tests compile the graph and the prng its generator draws from
+clap_subsystem_test(graph_tests test-graph.c graph.c prng.c prng-mt.cpp)
