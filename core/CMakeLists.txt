@@ -58,7 +58,7 @@ configure_file(config.h.in config.h)
 
 set(TEST_BIN tests)
 set(TEST_SRC test.c test-harness.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
-    ca2d.c xyarray.c memory.c cpio.c builddate.c fs-ops.c fs-ops-posix.c
+    ca2d.c xyarray.c memory.c cpio.c fs-ops.c fs-ops-posix.c
     render-texture.c draw.c os-info.c)
 
 if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
@@ -76,7 +76,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif ()
 
 add_executable(${TEST_BIN} ${TEST_SRC})
-add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen force_builddate)
+add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen)
 target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
 target_include_directories(${TEST_BIN} PRIVATE ${UMKA_INCLUDE})
 win32_executable(${TEST_BIN})

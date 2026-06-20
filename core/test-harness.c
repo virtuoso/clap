@@ -26,6 +26,13 @@ struct messagebus *clap_get_messagebus(struct clap_context *ctx)
     return &ctx->mb;
 }
 
+/*
+ * logger.c prints build_date on init. The real value comes from the generated
+ * builddate.c, which the engine regenerates on every build; the tests don't
+ * care about the timestamp, so stub it instead of compiling that file.
+ */
+const char *build_date = "test";
+
 unsigned int verbose;
 
 static struct option long_options[] = {

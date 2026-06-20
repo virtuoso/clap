@@ -42,15 +42,12 @@ endfunction ()
 #   so the binary links only what it needs.
 function(clap_subsystem_test target)
     get_target_property(src_dir ${ENGINE_LIB} SOURCE_DIR)
-    get_target_property(bin_dir ${ENGINE_LIB} BINARY_DIR)
     add_executable(${target}
         ${ARGN}
         ${src_dir}/test-harness.c
         ${src_dir}/object.c ${src_dir}/util.c ${src_dir}/logger.c
-        ${src_dir}/messagebus.c ${src_dir}/error.c ${src_dir}/memory.c
-        ${bin_dir}/builddate.c)
-    set_source_files_properties(${bin_dir}/builddate.c PROPERTIES GENERATED TRUE)
-    add_dependencies(${target} refclasses_gen cerrs_gen render_bindings_gen force_builddate)
+        ${src_dir}/messagebus.c ${src_dir}/error.c ${src_dir}/memory.c)
+    add_dependencies(${target} refclasses_gen cerrs_gen render_bindings_gen)
     target_compile_definitions(${target} PRIVATE CLAP_TESTS)
     _clap_inherit_engine_includes(${target})
     win32_executable(${target})
