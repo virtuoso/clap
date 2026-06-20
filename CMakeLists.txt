@@ -88,6 +88,7 @@ set(CLAP_RENDERER_INCLUDE_DIRS "")
 set(CLAP_RENDERER_LIBRARIES "")
 set(CLAP_LINK_OPTIONS "")
 set(CLAP_EXECUTABLE_LINK_OPTIONS "")
+set(CLAP_TEST_LINK_OPTIONS "")
 set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS "")
 set(CLAP_EMSCRIPTEN_COMPILE_LIBRARIES "")
 
@@ -170,20 +171,25 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         "-s SHARED_MEMORY=1"
         "-pthread"
     )
+    # The test binaries run under node, without the demos' link flags: no
+    # ports, no shell, a small heap
+    set(CLAP_TEST_LINK_OPTIONS
+        "-pthread"
+        "-sEXIT_RUNTIME=1"
+        "-sINITIAL_MEMORY=64MB"
+    )
     if (CLAP_BUILD_FINAL)
         list(APPEND CLAP_DEPENDENCY_LIBRARIES
             "-s ASSERTIONS=0"
             "-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19307"
         )
     else ()
-        list(APPEND CLAP_EMSCRIPTEN_COMPILE_OPTIONS
-            "-Wno-limited-postlink-optimizations"
-        )
         list(APPEND CLAP_DEPENDENCY_LIBRARIES
             "-s ASSERTIONS=1"
             "-s EXCEPTION_DEBUG=1"
             "-Wno-limited-postlink-optimizations"
         )
+        list(APPEND CLAP_TEST_LINK_OPTIONS "-Wno-limited-postlink-optimizations")
     endif ()
     set(EXTRA_LIBRARIES "")
 elseif (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))

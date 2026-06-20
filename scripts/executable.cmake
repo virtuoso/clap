@@ -118,6 +118,9 @@ function (clap_executable executable_name title sources asset_dir assets backgro
     get_directory_property(CMAKE_C_FLAGS
         DIRECTORY "${ENGINE_SRC}"
         DEFINITION CMAKE_C_FLAGS)
+    get_directory_property(engine_compile_options
+        DIRECTORY "${ENGINE_SRC}"
+        COMPILE_OPTIONS)
 
     include(${CMAKE_SOURCE_DIR}/scripts/pack-assets.cmake)
 
@@ -182,6 +185,7 @@ function (clap_executable executable_name title sources asset_dir assets backgro
         ${CLAP_RENDERER_INCLUDE_DIRS}
     )
     set_target_properties(${executable_name} PROPERTIES COMPILE_FLAGS "-Wall -Wno-misleading-indentation -Wno-comment -Werror ${CMAKE_C_FLAGS}")
+    target_compile_options(${executable_name} PRIVATE ${engine_compile_options})
     set_target_properties(${executable_name} PROPERTIES COMPILE_DEFINITIONS "CLAP_EXECUTABLE_TITLE=\"${title}\";CLAP_FONT_FILE=\"${font_file}\"")
     set_target_properties(${executable_name} PROPERTIES LINK_DEPENDS "${ASSETS};${EMSDK_SHELL}")
     target_link_libraries(${executable_name} PRIVATE ${CLAP_DEPENDENCY_LIBRARIES})

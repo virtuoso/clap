@@ -5,12 +5,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    # Compile flags only: CMAKE_C_FLAGS would put these on the link lines as
+    # well, where the ports come from CLAP_DEPENDENCY_LIBRARIES instead
     string(JOIN " " emscripten_compile_flags
         ${CLAP_EMSCRIPTEN_COMPILE_OPTIONS}
         ${CLAP_EMSCRIPTEN_COMPILE_LIBRARIES}
     )
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${emscripten_compile_flags}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${emscripten_compile_flags}")
+    add_compile_options("SHELL:${emscripten_compile_flags}")
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
     else ()
@@ -84,8 +85,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     # A node runnable .js entry point instead of the .html shell; ctest runs
     # it with CMAKE_CROSSCOMPILING_EMULATOR (node from the emsdk toolchain)
     set_target_properties(${TEST_BIN} PROPERTIES SUFFIX ".js")
-    target_link_options(${TEST_BIN} PRIVATE ${DEBUG_LIBRARIES} -pthread
-                        -sEXIT_RUNTIME=1 -sINITIAL_MEMORY=64MB)
+    target_link_options(${TEST_BIN} PRIVATE ${DEBUG_LIBRARIES} ${CLAP_TEST_LINK_OPTIONS})
 else ()
     target_link_options(${TEST_BIN} PRIVATE ${CLAP_LINK_OPTIONS} ${DEBUG_LIBRARIES})
 endif ()
