@@ -176,6 +176,7 @@ typedef struct clap_context {
     font_context        *font;
     struct phys         *phys;
     struct settings     *settings;
+    prng                *prng;
     renderer_t          renderer;
     render_options      render_options;
     render_options      render_options_current;
@@ -202,6 +203,11 @@ typedef struct clap_context {
 struct clap_config *clap_get_config(struct clap_context *ctx)
 {
     return &ctx->cfg;
+}
+
+prng *clap_prng(struct clap_context *ctx)
+{
+    return ctx->prng;
 }
 
 messagebus *clap_get_messagebus(struct clap_context *ctx)
@@ -1159,7 +1165,7 @@ handle_or_bail:
     return CERR_OK;
 }
 
-DEFINE_CLEANUP(clap_context, if (*p) mem_free(*p))
+DEFINE_CLEANUP(clap_context, if (*p) { prng_free((*p)->prng); mem_free(*p); })
 
 cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, char **envp)
 {
@@ -1214,6 +1220,9 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
             err_cerr(__cerr, "failed to initialize networking\n")
         );
 #endif /* CONFIG_NETWORKING */
+
+    /* before early_init(), so the application can split streams off it */
+    ctx->prng = CRES_RET_T(prng_new(ctx->cfg.prng_alg, ctx->cfg.prng_seed), clap_context);
 
     if (ctx->cfg.early_init)
         CERR_RET_T(ctx->cfg.early_init(ctx, ctx->cfg.callback_data), clap_context);
@@ -1327,6 +1336,7 @@ void clap_done(struct clap_context *ctx, int status)
     messagebus_done(ctx);
     free(ctx->os_info.name);
     clap_timers_done(ctx);
+    prng_free(ctx->prng);
     mem_free(ctx);
     exit_cleanup_run(status);
 }

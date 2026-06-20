@@ -4,6 +4,7 @@
 
 #include "api.h"
 #include "lut.h"
+#include "prng.h"
 #include "render.h"
 #include "ui-menus.h"
 
@@ -139,6 +140,19 @@ noise3d *clap_get_noise3d(clap_context *ctx) __nonnull_params((1)) __returns_non
  */
 CLAP_API
 struct phys *clap_get_phys(struct clap_context *ctx) __nonnull_params((1));
+
+/**
+ * clap_prng() - get clap's base random stream
+ * @ctx:    clap_context
+ *
+ * The engine owns one stream, created at clap_init() from
+ * clap_config::prng_alg and clap_config::prng_seed. Subsystems that need
+ * their own reproducible sequence prng_split() it rather than draw from it
+ * directly, so what one of them consumes doesn't reshuffle the others.
+ * Return: prng pointer (nonnull).
+ */
+CLAP_API
+prng *clap_prng(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
 /**
  * clap_get_config() - get clap's config structure
@@ -503,6 +517,9 @@ const char *clap_get_argv(clap_context *ctx, int idx);
  *                      initialization
  * @cli_opt_cb:         callback to handle unrecognized command line options
  * @cli_opts:           command line options parsed by the engine
+ * @prng_alg:           algorithm of the engine's base random stream, see clap_prng()
+ * @prng_seed:          seed of the base random stream; a run is reproducible given
+ *                      the same seed, so it is used verbatim, 0 included
  * @ui_menu:            in-game menu configuration, see struct ui_menu_config
  * @ui_start_menu:      start menu configuration, see struct ui_menu_config
  */
@@ -532,6 +549,8 @@ struct clap_config {
     lut_preset      *lut_presets;
     cerr            (*cli_opt_cb)(clap_context *ctx, void *data, int *pos);
     clap_cli_opts   cli_opts;
+    prng_alg        prng_alg;
+    uint64_t        prng_seed;
     ui_menu_config  ui_menu;
     ui_menu_config  ui_start_menu;
 };
