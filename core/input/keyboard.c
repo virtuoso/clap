@@ -7,6 +7,35 @@
 #include "input-keyboard.h"
 #include "logger.h"
 
+/* The key map setters: what a key event stores in its message_input field */
+static inline unsigned int is_release(unsigned int press)
+{
+    return press == KEY_RELEASE;
+}
+
+static inline unsigned int is_press(unsigned int press)
+{
+    return press == KEY_PRESS;
+}
+
+static inline unsigned int is_press_hold(unsigned int press)
+{
+    return press == KEY_PRESS || press == KEY_HOLD;
+}
+
+/**
+ * to_press_release() - Encode a key event for a message_input field
+ * @press:  KEY_PRESS, KEY_HOLD or KEY_RELEASE
+ *
+ * Return: 1 on press or hold, 2 on release, 0 otherwise
+ */
+static inline unsigned int to_press_release(unsigned int press)
+{
+    if (is_press_hold(press))   return 1;
+    if (is_release(press))      return 2;
+    return 0;
+}
+
 struct key_map {
     const char  *name;
     int         key;
