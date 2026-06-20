@@ -18,7 +18,7 @@ if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     endif ()
     set(CONFIG_BROWSER 1)
     set(CONFIG_GLES 1)
-    set(PLATFORM_SRC display-www.c input-www.c)
+    set(PLATFORM_SRC display-www.c)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 else ()
     set(PLATFORM_SRC display-glfw.c loading-screen.c)
@@ -110,11 +110,11 @@ set(MA_DIR ${CMAKE_SOURCE_DIR}/deps/src/miniaudio)
 
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
-    object.c util.c fs-ops.c fs-ops-posix.c logger.c input.c messagebus.c primitives.c motion.c
-    model.c shader.c librarian.c json.c clap.c view.c light.c input-keyboard.c thread-pthread.c
+    object.c util.c fs-ops.c fs-ops-posix.c logger.c messagebus.c primitives.c motion.c
+    model.c shader.c librarian.c json.c clap.c view.c light.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
-    physics.c ui-animations.c ui-menus.c ui-settings.c input-fuzzer.c character.c settings.c error.c
-    gltf.c input-controls.c input-joystick.c mesh.c os-info.c pipeline.c pipeline-builder.c datatypes.c
+    physics.c ui-animations.c ui-menus.c ui-settings.c character.c settings.c error.c
+    gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c graphics-settings.c audio-settings.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
 
@@ -217,7 +217,6 @@ if (NOT CLAP_BUILD_FINAL)
 endif ()
 
 if (APPLE)
-    list(APPEND ENGINE_SRC input-apple.m)
     list(APPEND EXTRA_LIBRARIES "-framework GameController" "-framework Foundation" "-framework Cocoa")
 endif ()
 
@@ -306,7 +305,6 @@ FOREACH(src ${ENGINE_SRC})
 ENDFOREACH ()
 
 set_source_files_properties(render-mtl.m COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-availability -fno-objc-arc")
-set_source_files_properties(input-apple.m COMPILE_FLAGS "-Wno-deprecated-declarations -Wno-availability -fno-objc-arc")
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builddate.c" FORCE_REGEN
@@ -340,3 +338,7 @@ target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_RENDERER_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR}/imgui)
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR} ${CMAKE_BINARY_DIR})
 win32_library(${ENGINE_LIB} FALSE)
+
+# The input subsystem is its own static library (see input/CMakeLists.txt)
+add_subdirectory(input)
+target_link_libraries(${ENGINE_LIB} PRIVATE clap_input)
