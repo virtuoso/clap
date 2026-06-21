@@ -18,6 +18,7 @@ option(CLAP_USE_UBSAN BOOL OFF)
 option(CLAP_USE_ASAN BOOL OFF)
 option(CLAP_DEMOS_BUILD_IN_ASSETS BOOL ON)
 option(CLAP_SHIP BOOL OFF)
+option(CLAP_BUILD_WITH_SCRIPTING BOOL ON)
 set(CLAP_SERVER_IP "127.0.0.1" CACHE STRING "Server IP address")
 set(CLAP_SERVER_PORT "21044" CACHE STRING "Server TCP port")
 set(CLAP_SERVER_WSPORT "21045" CACHE STRING "Server websocket port")
@@ -351,6 +352,13 @@ set(KISSFFT_TOOLS OFF CACHE BOOL "")
 add_subdirectory(deps/src/kissfft EXCLUDE_FROM_ALL)
 set_property(TARGET kissfft PROPERTY FOLDER "ThirdPartyLibraries")
 set(KISSFFT_INCLUDE "${CMAKE_SOURCE_DIR}/deps/src/kissfft")
+
+# Umka scripting interpreter for the scripting subsystem; built on every
+# target, the web build included
+if (CLAP_BUILD_WITH_SCRIPTING)
+    set(UMKA_DIR "${CMAKE_SOURCE_DIR}/deps/src/umka")
+    include(scripts/umka.cmake)
+endif ()
 
 set(ODE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ode")
 

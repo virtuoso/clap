@@ -48,5 +48,13 @@
         "url": "https://github.com/mborgerding/kissfft.git",
         "revision": "7bce4153c6bc8aba2db0e889e576f9d00505cbe1"
     }
+},
+{
+    "name": "umka",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/vtereshkov/umka-lang.git",
+        "revision": "v1.5.6"
+    }
 }
 ]
