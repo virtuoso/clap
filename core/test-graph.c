@@ -203,11 +203,97 @@ static int graph_generators_test(void)
     return EXIT_SUCCESS;
 }
 
+static int graph_subgraph_test(void)
+{
+    LOCAL_SET(graph, g) = CRES_RET(graph_from_string("start-a a-b b-end"), return EXIT_FAILURE);
+    LOCAL_SET(graph, pat) = CRES_RET(graph_from_string("a-b end"), return EXIT_FAILURE);
+    graph_match match = {};
+
+    /* one edge, one isolated pattern node; ids checked on the host side */
+    CERR_RET(graph_subgraph(g, pat, &match), return EXIT_FAILURE);
+    if (match.nr_nodes != 3 || match.nr_edges != 1)                                         return EXIT_FAILURE;
+
+    int pa = CRES_RET(graph_node_find(pat, "a", 0), return EXIT_FAILURE);
+    int pb = CRES_RET(graph_node_find(pat, "b", 0), return EXIT_FAILURE);
+    int pe = CRES_RET(graph_node_find(pat, "end", 0), return EXIT_FAILURE);
+    int ga = CRES_RET(graph_node_find(g, "a", 0), return EXIT_FAILURE);
+    int gb = CRES_RET(graph_node_find(g, "b", 0), return EXIT_FAILURE);
+    int ge = CRES_RET(graph_node_find(g, "end", 0), return EXIT_FAILURE);
+
+    if (match.node_map[pa] != (unsigned int)ga)                                             return EXIT_FAILURE;
+    if (match.node_map[pb] != (unsigned int)gb)                                             return EXIT_FAILURE;
+    if (match.node_map[pe] != (unsigned int)ge)                                             return EXIT_FAILURE;
+    if (match.edges[0][0] != (unsigned int)ga || match.edges[0][1] != (unsigned int)gb)     return EXIT_FAILURE;
+    graph_match_release(&match);
+    graph_match_release(&match);
+
+    /* same-name pattern variables bind distinct connected hosts */
+    LOCAL_SET(graph, rooms) = CRES_RET(graph_from_string("room-room_1 room_1-room_2"),
+                                       return EXIT_FAILURE);
+    LOCAL_SET(graph, pair) = CRES_RET(graph_from_string("room-room_1"), return EXIT_FAILURE);
+    CERR_RET(graph_subgraph(rooms, pair, &match), return EXIT_FAILURE);
+    if (match.node_map[0] == match.node_map[1])                                             return EXIT_FAILURE;
+    if (!graph_has_edge(rooms, match.node_map[0], match.node_map[1]))                       return EXIT_FAILURE;
+    graph_match_release(&match);
+
+    /* injectivity: two pattern variables need two host nodes */
+    LOCAL_SET(graph, single) = CRES_RET(graph_from_string("a-b"), return EXIT_FAILURE);
+    LOCAL_SET(graph, twoas) = CRES_RET(graph_from_string("a-a_1"), return EXIT_FAILURE);
+    cerr err = graph_subgraph(single, twoas, &match);
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND))                                                 return EXIT_FAILURE;
+
+    /* names that the host doesn't have don't match */
+    LOCAL_SET(graph, noz) = CRES_RET(graph_from_string("a-z"), return EXIT_FAILURE);
+    err = graph_subgraph(g, noz, &match);
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND))                                                 return EXIT_FAILURE;
+
+    /*
+     * Backtracking: the scan meets a-b first (a, b at indices 0, 1), but
+     * only a_1-b_1 b_1-a extends to the a-b b-a_1 path
+     */
+    LOCAL_SET(graph, maze) = CRES_RET(graph_from_string("a-b a_1-b_1 b_1-a"),
+                                      return EXIT_FAILURE);
+    LOCAL_SET(graph, path) = CRES_RET(graph_from_string("a-b b-a_1"), return EXIT_FAILURE);
+    CERR_RET(graph_subgraph(maze, path, &match), return EXIT_FAILURE);
+
+    int fa = CRES_RET(graph_node_find(path, "a", 0), return EXIT_FAILURE);
+    int fb = CRES_RET(graph_node_find(path, "b", 0), return EXIT_FAILURE);
+    int fa1 = CRES_RET(graph_node_find(path, "a", 1), return EXIT_FAILURE);
+    if (match.node_map[fa] == match.node_map[fa1])                                          return EXIT_FAILURE;
+    if (!graph_has_edge(maze, match.node_map[fa], match.node_map[fb]))                      return EXIT_FAILURE;
+    if (!graph_has_edge(maze, match.node_map[fb], match.node_map[fa1]))                     return EXIT_FAILURE;
+    graph_match_release(&match);
+
+    /* directed hosts only match the pattern's orientation */
+    LOCAL_SET(graph, dg) = CRES_RET(graph_new(.directed = true), return EXIT_FAILURE);
+    int da = CRES_RET(graph_node_add(dg, "a", NULL), return EXIT_FAILURE);
+    int db = CRES_RET(graph_node_add(dg, "b", NULL), return EXIT_FAILURE);
+    CERR_RET(graph_edge_add(dg, da, db, NULL), return EXIT_FAILURE);
+
+    LOCAL_SET(graph, fwd) = CRES_RET(graph_from_string("a-b"), return EXIT_FAILURE);
+    LOCAL_SET(graph, rev) = CRES_RET(graph_from_string("b-a"), return EXIT_FAILURE);
+    CERR_RET(graph_subgraph(dg, fwd, &match), return EXIT_FAILURE);
+    if (match.edges[0][0] != (unsigned int)da || match.edges[0][1] != (unsigned int)db)     return EXIT_FAILURE;
+    graph_match_release(&match);
+    err = graph_subgraph(dg, rev, &match);
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND))                                                 return EXIT_FAILURE;
+
+    /* an empty pattern matches nothing meaningfully */
+    LOCAL_SET(graph, emptyp) = CRES_RET(graph_new(), return EXIT_FAILURE);
+    err = graph_subgraph(g, emptyp, &match);
+    if (!IS_CERR(err) || IS_CERR_CODE(err, CERR_NOT_FOUND))                                 return EXIT_FAILURE;
+    err = graph_subgraph(g, pat, NULL);
+    if (!IS_CERR(err))                                                                      return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "graph basic", .test = graph_basic_test },
     { .name = "graph directed", .test = graph_directed_test },
     { .name = "graph from string", .test = graph_from_string_test },
     { .name = "graph generators", .test = graph_generators_test },
+    { .name = "graph subgraph", .test = graph_subgraph_test },
 };
 
 int main(int argc, char **argv, char **envp)
