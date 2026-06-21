@@ -289,6 +289,51 @@ cerr_check graph_subgraph(const graph *g, const graph *find, graph_match *match)
 void graph_match_release(graph_match *match);
 
 /**
+ * graph_rewrite_once() - replace one occurrence of a pattern
+ * @g:          the host graph
+ * @find:       the pattern (matched as in graph_subgraph())
+ * @replace:    what the match becomes: a replace node labeled like a
+ *              @find node stands for that node's binding, any other
+ *              replace node is created fresh (same name, next free id,
+ *              NULL payload)
+ * @rng:        optional random stream deciding which match is rewritten;
+ *              NULL rewrites the first match in scan order. The caller
+ *              retains ownership
+ *
+ * The matched edges are removed (dropping their payloads) and the
+ * replacement's edges are added between the bound and created nodes, so
+ * "start-a" -> "start-b b-a" splices a fresh b into a corridor and
+ * "room" -> "room-loot" hangs loot off some room. Nodes are never
+ * removed: a @find node absent from @replace just loses the matched
+ * edges. If adding nodes or edges runs out of memory the graph may be
+ * left partially rewritten.
+ *
+ * Return: CERR_OK when a match was rewritten, CERR_NOT_FOUND when the
+ * pattern doesn't occur (@g unchanged), or CERR_NOMEM /
+ * CERR_INVALID_ARGUMENTS (empty pattern).
+ */
+cerr_check graph_rewrite_once(graph *g, const graph *find, const graph *replace, prng *rng);
+
+/**
+ * graph_rewrite_all() - replace every disjoint occurrence of a pattern
+ * @g:          the host graph
+ * @find:       the pattern (matched as in graph_subgraph())
+ * @replace:    what each match becomes (see graph_rewrite_once())
+ * @rng:        optional random stream varying the match scan; the caller
+ *              retains ownership
+ *
+ * One L-system-style generation: node-disjoint matches are collected
+ * against the graph as it stands, then every one of them is rewritten.
+ * Nodes created by one application are not matched again within the same
+ * call, so rules that produce more of their own pattern still terminate;
+ * call again for the next generation.
+ *
+ * Return: the number of matches rewritten, possibly 0, or CERR_NOMEM /
+ * CERR_INVALID_ARGUMENTS (empty pattern).
+ */
+cres_check(int) graph_rewrite_all(graph *g, const graph *find, const graph *replace, prng *rng);
+
+/**
  * graph_dump_gv() - log the graph in graphviz format
  * @g:      the graph
  * @name:   graph name in the output, "G" when NULL

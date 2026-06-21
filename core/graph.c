@@ -607,6 +607,126 @@ void graph_match_release(graph_match *match)
     memset(match, 0, sizeof(*match));
 }
 
+static cerr graph_rewrite_apply(graph *g, const graph *find, const graph *replace,
+                                const graph_match *match)
+{
+    /* the matched edges go away, payloads and all */
+    for (unsigned int i = 0; i < match->nr_edges; i++)
+        CERR_RET_CERR(graph_edge_del(g, match->edges[i][0], match->edges[i][1]));
+
+    if (!replace->nr_nodes)     return CERR_OK;
+
+    /*
+     * Map replacement nodes into the host: labels shared with the
+     * pattern reuse the match's bindings, the rest come into being
+     */
+    LOCAL(void, rmap_buf);
+    rmap_buf = mem_alloc(sizeof(unsigned int), .nr = replace->nr_nodes);
+    if (!rmap_buf)              return CERR_NOMEM;
+    unsigned int *rmap = rmap_buf;
+
+    for (unsigned int i = 0; i < replace->nr_nodes; i++) {
+        struct graph_node *rn = graph_node(replace, i);
+        cres(int) fi = graph_node_find(find, rn->name, rn->id);
+
+        if (!IS_CERR(fi))
+            rmap[i] = match->node_map[fi.val];
+        else
+            rmap[i] = CRES_RET(graph_node_add(g, rn->name, NULL),
+                               return cerr_error_cres(__resp));
+    }
+
+    struct graph_edge *re;
+    list_for_each_entry(re, &((graph *)replace)->edges, entry)
+        CERR_RET(graph_edge_add(g, rmap[re->left], rmap[re->right], NULL), {
+            if (!IS_CERR_CODE(__cerr, CERR_ALREADY_LOADED))     return __cerr;
+        });
+
+    return CERR_OK;
+}
+
+cerr graph_rewrite_once(graph *g, const graph *find, const graph *replace, prng *rng)
+{
+    if (!g || !find || !replace || !find->nr_nodes)
+        return CERR_INVALID_ARGUMENTS;
+
+    unsigned int rot = 0;
+    if (rng && g->nr_nodes)     rot = CRES_RET(prng_range(rng, 0, g->nr_nodes), return cerr_error_cres(__resp));
+
+    graph_match match = {};
+    CERR_RET_CERR(graph_match_first(g, find, rot, NULL, &match));
+
+    cerr err = graph_rewrite_apply(g, find, replace, &match);
+    graph_match_release(&match);
+
+    return err;
+}
+
+cres(int) graph_rewrite_all(graph *g, const graph *find, const graph *replace, prng *rng)
+{
+    if (!g || !find || !replace || !find->nr_nodes)     return cres_error(int, CERR_INVALID_ARGUMENTS);
+
+    /*
+     * Collect node-disjoint matches against the graph as it stands, only
+     * then rewrite: one generation per call, and rules producing more of
+     * their own pattern can't chase their tail
+     */
+    LOCAL(void, excluded_buf);
+    bool *excluded = NULL;
+    if (g->nr_nodes) {
+        excluded_buf = mem_alloc(sizeof(*excluded), .nr = g->nr_nodes, .zero = 1);
+        if (!excluded_buf)                          return cres_error(int, CERR_NOMEM);
+        excluded = excluded_buf;
+    }
+
+    darray(graph_match, matches);
+    darray_init(matches);
+
+    cerr err = CERR_OK;
+    int count = 0;
+    graph_match *m;
+
+    for (;;) {
+        unsigned int rot = 0;
+        if (rng && g->nr_nodes)
+            rot = CRES_RET(prng_range(rng, 0, g->nr_nodes), { err = cerr_error_cres(__resp); goto out; });
+
+        graph_match match = {};
+        cerr found = graph_match_first(g, find, rot, excluded, &match);
+        if (IS_CERR_CODE(found, CERR_NOT_FOUND))    break;
+        if (IS_CERR(found)) {
+            err = found;
+            goto out;
+        }
+
+        for (unsigned int i = 0; i < match.nr_nodes; i++)
+            excluded[match.node_map[i]] = true;
+
+        graph_match *slot = darray_add(matches);
+        if (!slot) {
+            graph_match_release(&match);
+            err = CERR_NOMEM;
+            goto out;
+        }
+        *slot = match;
+    }
+
+    darray_for_each(m, matches) {
+        err = graph_rewrite_apply(g, find, replace, m);
+        if (IS_CERR(err))                           break;
+        count++;
+    }
+
+out:
+    darray_for_each(m, matches)
+        graph_match_release(m);
+    darray_clearout(matches);
+
+    if (IS_CERR(err))                                   return cres_error_cerr(int, err);
+
+    return cres_val(int, count);
+}
+
 static void graph_gv_label(const graph *g, const struct graph_node *node, char *buf, size_t size)
 {
     if (node->id || graph_node_max_id(g, node->name) > 0)
