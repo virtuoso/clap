@@ -288,12 +288,118 @@ static int graph_subgraph_test(void)
     return EXIT_SUCCESS;
 }
 
+static int graph_rewrite_test(void)
+{
+    /* the canonical splice: start-a becomes start-b b-a */
+    LOCAL_SET(graph, g) = CRES_RET(graph_from_string("start-a a-end"), return EXIT_FAILURE);
+    LOCAL_SET(graph, find) = CRES_RET(graph_from_string("start-a"), return EXIT_FAILURE);
+    LOCAL_SET(graph, repl) = CRES_RET(graph_from_string("start-b b-a"), return EXIT_FAILURE);
+
+    int gstart = CRES_RET(graph_node_find(g, "start", 0), return EXIT_FAILURE);
+    int ga = CRES_RET(graph_node_find(g, "a", 0), return EXIT_FAILURE);
+    int gend = CRES_RET(graph_node_find(g, "end", 0), return EXIT_FAILURE);
+    int marker = 0;
+    CERR_RET(graph_node_payload_set(g, ga, &marker), return EXIT_FAILURE);
+
+    CERR_RET(graph_rewrite_once(g, find, repl, NULL), return EXIT_FAILURE);
+
+    if (graph_nr_nodes(g) != 4 || graph_nr_edges(g) != 3)                       return EXIT_FAILURE;
+    int gb = CRES_RET(graph_node_find(g, "b", 0), return EXIT_FAILURE);
+    if (graph_has_edge(g, gstart, ga))                                          return EXIT_FAILURE;
+    if (!graph_has_edge(g, gstart, gb) || !graph_has_edge(g, gb, ga))           return EXIT_FAILURE;
+    if (!graph_has_edge(g, ga, gend))                                           return EXIT_FAILURE;
+    /* matched nodes stay put, payload and all */
+    if (CRES_RET(graph_node_payload(g, ga), return EXIT_FAILURE) != &marker)    return EXIT_FAILURE;
+
+    /* nothing left to match, nothing changes */
+    cerr err = graph_rewrite_once(g, find, repl, NULL);
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND))                                     return EXIT_FAILURE;
+    if (graph_nr_nodes(g) != 4 || graph_nr_edges(g) != 3)                       return EXIT_FAILURE;
+
+    /* a seeded rewrite splices a mid into some pair of connected rooms */
+    LOCAL_SET(graph, corr) = CRES_RET(graph_linear(6), return EXIT_FAILURE);
+    LOCAL_SET(graph, pair) = CRES_RET(graph_from_string("room-room_1"), return EXIT_FAILURE);
+    LOCAL_SET(graph, splice) = CRES_RET(graph_from_string("room-mid mid-room_1"),
+                                        return EXIT_FAILURE);
+    LOCAL_SET(prng, rng) = CRES_RET(prng_new(PRNG_DEFAULT, 5), return EXIT_FAILURE);
+
+    CERR_RET(graph_rewrite_once(corr, pair, splice, rng), return EXIT_FAILURE);
+    if (graph_nr_nodes(corr) != 7 || graph_nr_edges(corr) != 6)                 return EXIT_FAILURE;
+    int mid = CRES_RET(graph_node_find(corr, "mid", 0), return EXIT_FAILURE);
+    if (CRES_RET(graph_node_edge_count(corr, mid), return EXIT_FAILURE) != 2)   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int graph_rewrite_all_test(void)
+{
+    /* one generation: disjoint room pairs each get a mid spliced in */
+    LOCAL_SET(graph, g) = CRES_RET(graph_linear(6), return EXIT_FAILURE);
+    LOCAL_SET(graph, pair) = CRES_RET(graph_from_string("room-room_1"), return EXIT_FAILURE);
+    LOCAL_SET(graph, splice) = CRES_RET(graph_from_string("room-mid mid-room_1"),
+                                        return EXIT_FAILURE);
+
+    int n = CRES_RET(graph_rewrite_all(g, pair, splice, NULL), return EXIT_FAILURE);
+    if (n != 2)                                                                     return EXIT_FAILURE;
+    if (graph_nr_nodes(g) != 8 || graph_nr_edges(g) != 7)                           return EXIT_FAILURE;
+    /* each application drew its own fresh mid */
+    int m0 = CRES_RET(graph_node_find(g, "mid", 0), return EXIT_FAILURE);
+    int m1 = CRES_RET(graph_node_find(g, "mid", 1), return EXIT_FAILURE);
+    if (CRES_RET(graph_node_edge_count(g, m0), return EXIT_FAILURE) != 2)           return EXIT_FAILURE;
+    if (CRES_RET(graph_node_edge_count(g, m1), return EXIT_FAILURE) != 2)           return EXIT_FAILURE;
+    /* rooms 1-2 and 3-4 were split up, the 2-3 link between pairs survives */
+    if (graph_has_edge(g, 1, 2) || graph_has_edge(g, 3, 4))                         return EXIT_FAILURE;
+    if (!graph_has_edge(g, 2, 3))                                                   return EXIT_FAILURE;
+
+    /* a growing rule applies once per room per generation and terminates */
+    LOCAL_SET(graph, dungeon) = CRES_RET(graph_linear(5), return EXIT_FAILURE);
+    LOCAL_SET(graph, room) = CRES_RET(graph_from_string("room"), return EXIT_FAILURE);
+    LOCAL_SET(graph, loot) = CRES_RET(graph_from_string("room-loot"), return EXIT_FAILURE);
+
+    n = CRES_RET(graph_rewrite_all(dungeon, room, loot, NULL), return EXIT_FAILURE);
+    if (n != 3 || graph_nr_nodes(dungeon) != 8)                                     return EXIT_FAILURE;
+    n = CRES_RET(graph_rewrite_all(dungeon, room, loot, NULL), return EXIT_FAILURE);
+    if (n != 3 || graph_nr_nodes(dungeon) != 11)                                    return EXIT_FAILURE;
+    int l5 = CRES_RET(graph_node_find(dungeon, "loot", 5), return EXIT_FAILURE);
+    if (CRES_RET(graph_node_edge_count(dungeon, l5), return EXIT_FAILURE) != 1)     return EXIT_FAILURE;
+
+    /* no match is a zero count, not an error */
+    LOCAL_SET(graph, vault) = CRES_RET(graph_from_string("vault"), return EXIT_FAILURE);
+    n = CRES_RET(graph_rewrite_all(dungeon, vault, loot, NULL), return EXIT_FAILURE);
+    if (n)                                                                          return EXIT_FAILURE;
+
+    /* directed hosts rewrite with orientation intact */
+    LOCAL_SET(graph, dg) = CRES_RET(graph_new(.directed = true), return EXIT_FAILURE);
+    int da = CRES_RET(graph_node_add(dg, "a", NULL), return EXIT_FAILURE);
+    int de = CRES_RET(graph_node_add(dg, "end", NULL), return EXIT_FAILURE);
+    CERR_RET(graph_edge_add(dg, da, de, NULL), return EXIT_FAILURE);
+
+    LOCAL_SET(graph, dfind) = CRES_RET(graph_from_string("a-end"), return EXIT_FAILURE);
+    LOCAL_SET(graph, drepl) = CRES_RET(graph_from_string("a-c c-end"), return EXIT_FAILURE);
+    CERR_RET(graph_rewrite_once(dg, dfind, drepl, NULL), return EXIT_FAILURE);
+    int dc = CRES_RET(graph_node_find(dg, "c", 0), return EXIT_FAILURE);
+    if (graph_has_edge(dg, da, de))                                                 return EXIT_FAILURE;
+    if (!graph_has_edge(dg, da, dc) || graph_has_edge(dg, dc, da))                  return EXIT_FAILURE;
+    if (!graph_has_edge(dg, dc, de))                                                return EXIT_FAILURE;
+
+    /* empty patterns are refused */
+    LOCAL_SET(graph, none) = CRES_RET(graph_new(), return EXIT_FAILURE);
+    cerr err = graph_rewrite_once(dg, none, drepl, NULL);
+    if (!IS_CERR(err) || IS_CERR_CODE(err, CERR_NOT_FOUND))                         return EXIT_FAILURE;
+    cres(int) bad = graph_rewrite_all(dg, none, drepl, NULL);
+    if (!IS_CERR(bad))                                                              return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "graph basic", .test = graph_basic_test },
     { .name = "graph directed", .test = graph_directed_test },
     { .name = "graph from string", .test = graph_from_string_test },
     { .name = "graph generators", .test = graph_generators_test },
     { .name = "graph subgraph", .test = graph_subgraph_test },
+    { .name = "graph rewrite once", .test = graph_rewrite_test },
+    { .name = "graph rewrite all", .test = graph_rewrite_all_test },
 };
 
 int main(int argc, char **argv, char **envp)
