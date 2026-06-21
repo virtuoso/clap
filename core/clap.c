@@ -35,6 +35,7 @@
 #include "ui.h"
 #include "ui-debug.h"
 #include "util.h"
+#include "script.h"
 
 #ifdef HAVE_ASAN
 const char *__asan_default_options() {
@@ -186,6 +187,7 @@ typedef struct clap_context {
     struct list         luts;
     noise3d             *noise3d;
     struct list         timers;
+    struct list         scripts;
     struct ui           ui;
     messagebus          mb;
     int                 argc;
@@ -515,6 +517,64 @@ static void clap_timers_done(clap_context *ctx)
 }
 
 /****************************************************************************
+ * Scripting
+ ****************************************************************************/
+
+#ifdef CONFIG_SCRIPTING
+/* Wrapper node so struct script stays opaque to the context. */
+struct clap_script_node {
+    struct list     entry;
+    struct script   *script;
+};
+
+cerr clap_script_add(clap_context *ctx, struct script *s)
+{
+    struct clap_script_node *node = mem_alloc(sizeof(*node), .zero = 1);
+    if (!node)  return CERR_NOMEM;
+
+    node->script = ref_get(s);
+    list_append(&ctx->scripts, &node->entry);
+
+    return CERR_OK;
+}
+
+void clap_script_remove(clap_context *ctx, struct script *s)
+{
+    struct clap_script_node *node;
+
+    list_for_each_entry(node, &ctx->scripts, entry)
+        if (node->script == s) {
+            list_del(&node->entry);
+            ref_put(node->script);
+            mem_free(node);
+            return;
+        }
+}
+
+static void clap_scripts_run_frame(clap_context *ctx)
+{
+    struct clap_script_node *node;
+
+    list_for_each_entry(node, &ctx->scripts, entry)
+        script_run_frame(node->script);
+}
+
+static void clap_scripts_done(clap_context *ctx)
+{
+    struct clap_script_node *node, *iter;
+
+    list_for_each_entry_iter(node, iter, &ctx->scripts, entry) {
+        list_del(&node->entry);
+        ref_put(node->script);
+        mem_free(node);
+    }
+}
+#else /* !CONFIG_SCRIPTING */
+static inline void clap_scripts_run_frame(clap_context *ctx) {}
+static inline void clap_scripts_done(clap_context *ctx) {}
+#endif /* !CONFIG_SCRIPTING */
+
+/****************************************************************************
  * Rendering pipeline
  ****************************************************************************/
 
@@ -705,6 +765,8 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
 
     if (ctx->cfg.frame_cb)
         ctx->cfg.frame_cb(ctx, ctx->cfg.callback_data);
+
+    clap_scripts_run_frame(ctx);
 
     PROF_STEP(callback, updates);
 
@@ -1181,6 +1243,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
     list_init(&ctx->luts);
     list_init(&ctx->timers);
+    list_init(&ctx->scripts);
 
     CERR_RET_T(clap_os_init(ctx), clap_context);
 
@@ -1305,6 +1368,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
 void clap_done(struct clap_context *ctx, int status)
 {
+    /* Drop scripts first, while the ui they may hold widgets in is still up. */
+    clap_scripts_done(ctx);
     if (ctx->cfg.ui) {
         ui_menus_done(&ctx->ui);
         ui_done(&ctx->ui);

@@ -347,6 +347,12 @@ win32_library(${ENGINE_LIB} FALSE)
 add_subdirectory(input)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_input)
 
+# The Umka scripting subsystem is its own static library (see script/CMakeLists.txt)
+if (CLAP_BUILD_WITH_SCRIPTING)
+    add_subdirectory(script)
+    target_link_libraries(${ENGINE_LIB} PRIVATE clap_script)
+endif ()
+
 # The prng tests compile the generator sources directly and link neither
 # the engine nor the main test blob
 clap_subsystem_test(prng_tests test-prng.c prng.c prng-mt.cpp)

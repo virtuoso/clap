@@ -593,4 +593,39 @@ void clap_done(struct clap_context *ctx, int status) __nonnull_params((1));
 CLAP_API
 cres(int) clap_restart(struct clap_context *ctx) __nonnull_params((1));
 
+struct script;
+
+#ifdef CONFIG_SCRIPTING
+/**
+ * clap_script_add() - register a script to be ticked every frame
+ * @ctx:    clap_context pointer returned from clap_init()
+ * @s:      a script whose main() has already run (see script_load())
+ *
+ * The context takes a reference on @s and calls script_run_frame() on it each
+ * frame, driving any clap::on_frame() callbacks the script registered. The
+ * reference is released at clap_done().
+ */
+CLAP_API
+cerr clap_script_add(struct clap_context *ctx, struct script *s) __nonnull_params((1, 2));
+
+/**
+ * clap_script_remove() - stop ticking a script registered with clap_script_add()
+ * @ctx:    clap_context pointer returned from clap_init()
+ * @s:      a script previously handed to clap_script_add()
+ *
+ * Drops the context's per-frame reference on @s, so its clap::on_frame()
+ * callbacks stop running and any widgets it owns are released once the last
+ * reference goes. A no-op if @s is not currently registered.
+ */
+CLAP_API
+void clap_script_remove(struct clap_context *ctx, struct script *s) __nonnull_params((1, 2));
+#else /* !CONFIG_SCRIPTING */
+static inline cerr clap_script_add(struct clap_context *ctx, struct script *s)
+{
+    return CERR_NOT_SUPPORTED;
+}
+
+static inline void clap_script_remove(struct clap_context *ctx, struct script *s) {}
+#endif /* !CONFIG_SCRIPTING */
+
 #endif /* __CLAP_CLAP_H__ */
