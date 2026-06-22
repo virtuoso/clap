@@ -223,6 +223,8 @@ endif ()
 if (APPLE)
     list(APPEND ENGINE_SRC fs-ops-fsevents.c)
     list(APPEND EXTRA_LIBRARIES "-framework GameController" "-framework Foundation" "-framework Cocoa" "-framework CoreServices")
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    list(APPEND ENGINE_SRC fs-ops-inotify.c)
 endif ()
 
 ##########################################################################
