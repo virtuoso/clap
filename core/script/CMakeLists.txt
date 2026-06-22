@@ -3,6 +3,10 @@
 # sources by scripts/script-ffi-gen.cmake.
 
 set(SCRIPT_SRC core.c umka.c frame.c ffi-scene.c ffi-ui.c)
+if (NOT CLAP_BUILD_FINAL)
+    # The ImGui REPL console needs cimgui, which is dropped in final builds.
+    list(APPEND SCRIPT_SRC repl.c)
+endif ()
 
 set(SCRIPT_FFI_H "${CMAKE_CURRENT_BINARY_DIR}/script-ffi-gen.h")
 set(SCRIPT_PRIV_H "${CMAKE_CURRENT_BINARY_DIR}/script-priv-gen.h")

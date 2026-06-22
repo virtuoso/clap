@@ -65,8 +65,16 @@ const char *script_error(struct script *s);
  * it keeps ticking rather than being dropped immediately.
  */
 bool script_persistent(struct script *s);
+
+#ifndef CONFIG_FINAL
+/** script_repl_show() - draw the ImGui REPL console (debug builds only) */
+void script_repl_show(struct clap_context *ctx);
+#else /* CONFIG_FINAL */
+static inline void script_repl_show(struct clap_context *ctx) {}
+#endif /* CONFIG_FINAL */
 #else /* !CONFIG_SCRIPTING */
 static inline void script_run_frame(struct script *s) {}
+static inline void script_repl_show(struct clap_context *ctx) {}
 #endif /* !CONFIG_SCRIPTING */
 
 #endif /* __CLAP_SCRIPT_H__ */

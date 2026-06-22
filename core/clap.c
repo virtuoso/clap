@@ -802,6 +802,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     input_debug();
     controllers_debug();
     memory_debug();
+    script_repl_show(ctx);
 
     imgui_render();
     renderer_swapchain_end(&ctx->renderer);

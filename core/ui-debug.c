@@ -23,6 +23,7 @@ static struct debug_module debug_enabled[DEBUG_MODULES_MAX] = {
     [DEBUG_RENDERER]            = { .name = "renderer" },
     [DEBUG_DEBUGGER]            = { .name = "debugger" },
     [DEBUG_MEMORY]              = { .name = "memory" },
+    [DEBUG_REPL]                = { .name = "umka repl" },
 };
 
 debug_module *ui_debug_module(enum debug_modules mod)
