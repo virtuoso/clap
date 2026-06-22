@@ -221,7 +221,8 @@ if (NOT CLAP_BUILD_FINAL)
 endif ()
 
 if (APPLE)
-    list(APPEND EXTRA_LIBRARIES "-framework GameController" "-framework Foundation" "-framework Cocoa")
+    list(APPEND ENGINE_SRC fs-ops-fsevents.c)
+    list(APPEND EXTRA_LIBRARIES "-framework GameController" "-framework Foundation" "-framework Cocoa" "-framework CoreServices")
 endif ()
 
 ##########################################################################
