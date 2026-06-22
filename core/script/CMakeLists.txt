@@ -28,3 +28,8 @@ add_dependencies(clap_script script_ffi_gen)
 # The interpreter is this subsystem's dependency: its headers come with the
 # target, and the executables pick up the archive through this library.
 target_link_libraries(clap_script PRIVATE umka)
+
+# The tests link the interpreter and the frame callback list, nothing else
+# of the subsystem
+clap_subsystem_test(script_tests test.c frame.c)
+target_link_libraries(script_tests PRIVATE umka)
