@@ -12,13 +12,18 @@ struct fs_file {
     const struct fs_ops   *ops;
 };
 
+struct fs_watch {
+    void                        *handle;
+    const struct fs_watch_ops   *ops;
+};
+
 DEFINE_CLEANUP(fs_dir, if (*p) CERR_RET(fs_close_dir(*p),))
 DEFINE_CLEANUP(fs_file, if (*p) CERR_RET(fs_close(*p),))
+DEFINE_CLEANUP(fs_watch, if (*p) CERR_RET(fs_watch_close(*p),))
 
 cerr fs_get_cwd(const struct fs_ops *ops, char out_path[PATH_MAX])
 {
-    if (!ops || !ops->get_cwd)
-        return CERR_NOT_SUPPORTED;
+    if (!ops || !ops->get_cwd)  return CERR_NOT_SUPPORTED;
     return ops->get_cwd(out_path);
 }
 
@@ -133,4 +138,56 @@ cerr fs_seek(fs_file *file, long offset, enum fs_seek_origin origin)
     if (!file || !file->ops || !file->ops->seek)
         return CERR_INVALID_ARGUMENTS;
     return file->ops->seek(file->handle, offset, origin);
+}
+
+cresp(fs_watch) fs_watch_open(const struct fs_watch_ops *ops, const char *path)
+{
+    if (!ops || !ops->open)     return cresp_error(fs_watch, CERR_NOT_SUPPORTED);
+
+    void *handle = CRES_RET_T(ops->open(path), fs_watch);
+
+    fs_watch *watch = mem_alloc(sizeof(*watch));
+    if (!watch) {
+        if (ops->close)     ops->close(handle);
+        return cresp_error(fs_watch, CERR_NOMEM);
+    }
+
+    watch->handle = handle;
+    watch->ops = ops;
+
+    return cresp_val(fs_watch, watch);
+}
+
+cerr fs_watch_read(fs_watch *watch, struct fs_watch_event *out)
+{
+    if (!watch || !watch->ops || !watch->ops->read)     return CERR_INVALID_ARGUMENTS;
+    return watch->ops->read(watch->handle, out);
+}
+
+cerr fs_watch_poll(fs_watch **watches, size_t n, int timeout_ms)
+{
+    if (!watches || !n)         return CERR_INVALID_ARGUMENTS;
+
+    const struct fs_watch_ops *ops = watches[0] ? watches[0]->ops : NULL;
+    if (!ops || !ops->poll)     return CERR_NOT_SUPPORTED;
+
+    void *handles[n];
+
+    for (size_t i = 0; i < n; i++) {
+        /* poll() dispatches to a single backend, so all must match */
+        if (!watches[i] || watches[i]->ops != ops)  return CERR_INVALID_ARGUMENTS;
+        handles[i] = watches[i]->handle;
+    }
+
+    return ops->poll(handles, n, timeout_ms);
+}
+
+cerr fs_watch_close(fs_watch *watch)
+{
+    if (!watch)                             return CERR_OK;
+
+    if (watch->ops && watch->ops->close)    watch->ops->close(watch->handle);
+
+    mem_free(watch);
+    return CERR_OK;
 }

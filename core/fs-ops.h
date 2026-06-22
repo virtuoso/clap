@@ -44,6 +44,33 @@ enum fs_seek_origin {
 };
 
 /**
+ * enum fs_watch_flags - kinds of filesystem change, combinable as a bitmask
+ * @FS_WATCH_CREATED:  an entry appeared in the directory
+ * @FS_WATCH_DELETED:  an entry was removed from the directory
+ * @FS_WATCH_MODIFIED: an entry's contents changed
+ * @FS_WATCH_RENAMED:  an entry was renamed into or out of the directory
+ *
+ * Backends coalesce changes that happen in quick succession, so a single
+ * event may carry more than one flag.
+ */
+enum fs_watch_flags {
+    FS_WATCH_CREATED    = 1 << 0,
+    FS_WATCH_DELETED    = 1 << 1,
+    FS_WATCH_MODIFIED   = 1 << 2,
+    FS_WATCH_RENAMED    = 1 << 3,
+};
+
+/**
+ * struct fs_watch_event - a single directory change notification
+ * @name:  affected entry name, relative to the watched directory
+ * @flags: bitmask of enum fs_watch_flags describing what happened
+ */
+struct fs_watch_event {
+    char            name[PATH_MAX];
+    unsigned int    flags;
+};
+
+/**
  * struct fs_ops - filesystem access vtable
  * @get_cwd:   fill @out_path with the current working directory
  * @open_dir:  open a directory stream for @path
@@ -75,14 +102,49 @@ struct fs_ops {
 
 extern const struct fs_ops fs_ops_posix;
 
+/**
+ * struct fs_watch_ops - directory change notification vtable
+ * @open:  begin watching @path, returns an opaque watch handle
+ * @read:  dequeue the next pending event, returns CERR_EOF when none are pending
+ * @poll:  block until any of @n watches may have events, or @timeout_ms elapses
+ * @close: stop watching and release a handle returned by @open
+ *
+ * A backend maps the platform's native mechanism (FSEvents on macOS, inotify
+ * on Linux) onto a non-blocking, pollable event queue. All handles passed to
+ * @poll belong to the same backend.
+ */
+struct fs_watch_ops {
+    cresp_check(void)   (*open)(const char *path);
+    cerr_check          (*read)(void *watch, struct fs_watch_event *out);
+    cerr_check          (*poll)(void *const *watches, size_t n, int timeout_ms);
+    void                (*close)(void *watch);
+};
+
+/*
+ * The native directory watch backend for this platform, exposed as
+ * fs_watch_ops_native with HAVE_FSWATCH defined when one exists.
+ */
+#if defined(__APPLE__)
+extern const struct fs_watch_ops fs_watch_ops_fsevents;
+#define fs_watch_ops_native fs_watch_ops_fsevents
+#define HAVE_FSWATCH 1
+#elif defined(__linux__) && !defined(__EMSCRIPTEN__)
+extern const struct fs_watch_ops fs_watch_ops_inotify;
+#define fs_watch_ops_native fs_watch_ops_inotify
+#define HAVE_FSWATCH 1
+#endif /* __linux__ && !__EMSCRIPTEN__ */
+
 typedef struct fs_dir fs_dir;
 typedef struct fs_file fs_file;
+typedef struct fs_watch fs_watch;
 
 DECLARE_CLEANUP(fs_dir);
 DECLARE_CLEANUP(fs_file);
+DECLARE_CLEANUP(fs_watch);
 
 cresp_struct_ret(fs_dir);
 cresp_struct_ret(fs_file);
+cresp_struct_ret(fs_watch);
 
 /**
  * fs_get_cwd() - get current working directory
@@ -187,5 +249,49 @@ cres_check(size_t)   fs_write(fs_file *file, const void *buf, size_t size);
  * Return: CERR_OK on success, error code otherwise.
  */
 cerr_check           fs_seek(fs_file *file, long offset, enum fs_seek_origin origin);
+
+/**
+ * fs_watch_open() - start watching a directory for changes
+ * @ops:  directory change notification vtable
+ * @path: path to the directory to watch
+ *
+ * Return: watch handle on success, error code otherwise.
+ */
+cresp_check(fs_watch) fs_watch_open(const struct fs_watch_ops *ops, const char *path);
+
+/**
+ * fs_watch_read() - dequeue the next pending change event
+ * @watch: watch handle
+ * @out:   buffer to write the event to
+ *
+ * Non-blocking: reports changes accumulated since the previous call.
+ *
+ * Return: CERR_OK on success, CERR_EOF when no events are pending, error code otherwise.
+ */
+cerr_check           fs_watch_read(fs_watch *watch, struct fs_watch_event *out);
+
+/**
+ * fs_watch_poll() - wait for pending change events across one or more watches
+ * @watches:    array of @n watch handles, all from the same backend
+ * @n:          number of handles in @watches
+ * @timeout_ms: maximum wait in milliseconds; 0 returns at once, negative waits forever
+ *
+ * Blocks so callers need not sleep-poll, waiting on all @watches at once and
+ * returning as soon as any of them may have events. Drain them with
+ * fs_watch_read() to find which fired. Must not race with fs_watch_read() or
+ * fs_watch_close() on the same handle.
+ *
+ * Return: CERR_OK when some watch may have events, CERR_EOF on timeout, error
+ * code otherwise.
+ */
+cerr_check           fs_watch_poll(fs_watch **watches, size_t n, int timeout_ms);
+
+/**
+ * fs_watch_close() - stop watching a directory
+ * @watch: watch handle
+ *
+ * Return: CERR_OK on success, error code otherwise.
+ */
+cerr_check           fs_watch_close(fs_watch *watch);
 
 #endif /* __CLAP_FS_OPS_H__ */
