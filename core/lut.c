@@ -278,7 +278,7 @@ lut_preset lut_presets_all[LUT_MAX + 1] = {
 
 typedef struct lut {
     texture_t       tex;
-    const char      *name;
+    char            *name;
     struct list     entry;
     struct ref      ref;
     renderer_t      *renderer;
@@ -295,7 +295,8 @@ static cerr lut_make(struct ref *ref, void *_opts)
         return CERR_INVALID_ARGUMENTS;
 
     lut *lut = container_of(ref, struct lut, ref);
-    lut->name = opts->name;
+    lut->name = memdup(opts->name, strlen(opts->name) + 1);
+    if (!lut->name)     return CERR_NOMEM;
     lut->renderer = opts->renderer;
     lut->exposure = 1.0;
     lut->contrast = 0.15;
@@ -310,6 +311,7 @@ static void lut_drop(struct ref *ref)
     lut *lut = container_of(ref, struct lut, ref);
     list_del(&lut->entry);
     texture_deinit(&lut->tex);
+    mem_free(lut->name);
 }
 DEFINE_REFCLASS2(lut);
 
@@ -360,25 +362,22 @@ static inline float lut_to_linear(float u)
 
 DEFINE_CLEANUP(uint16_t, if (*p) mem_free(*p);)
 
-cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset preset, int sz)
+cresp(lut) lut_generate_fn(renderer_t *renderer, struct list *list, const char *name,
+                           lut_gen_fn fn, void *data, float exposure, float contrast, int sz)
 {
-    if (preset >= LUT_MAX)
-        return cresp_error_cerr(lut, CERR_INVALID_ARGUMENTS);
-
     LOCAL_SET(uint16_t, arr) = mem_alloc(1, .nr = sz * sz * sz * sizeof(*arr) * 4);
 
     lut *lut = CRES_RET_T(
         ref_new_checked(
             lut,
             .renderer   = renderer,
-            .name       = lut_presets[preset].name,
+            .name       = name,
             .list       = list
         ),
         lut
     );
-    lut->exposure = lut_presets[preset].exposure;
-    lut->contrast = lut_presets[preset].contrast;
-    lut->fn = lut_presets[preset].fn;
+    lut->exposure = exposure;
+    lut->contrast = contrast;
 
     for (int z = 0; z < sz; z++)
         for (int y = 0; y < sz; y++)
@@ -392,7 +391,7 @@ cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset pres
                     lut_to_linear(color_in[2]),
                 };
 
-                lut_presets[preset].fn(linear_color_in, color_out);
+                fn(linear_color_in, color_out, data);
 
                 vec3 lut_color_out = {
                     linear_to_lut(color_out[0]),
@@ -406,6 +405,25 @@ cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset pres
     CERR_RET(lut_setup(lut, arr, sz), { ref_put_last(lut); return cresp_error_cerr(lut, __cerr); });
 
     return cresp_val(lut, lut);
+}
+
+/* Adapt a preset's plain (in, out) mapping to the lut_gen_fn callback shape. */
+static void lut_preset_eval(vec3 color_in, vec3 color_out, void *data)
+{
+    ((lut_fn)data)(color_in, color_out);
+}
+
+cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset preset, int sz)
+{
+    if (preset >= LUT_MAX)  return cresp_error_cerr(lut, CERR_INVALID_ARGUMENTS);
+
+    cresp(lut) res = lut_generate_fn(renderer, list, lut_presets[preset].name, lut_preset_eval,
+                                     lut_presets[preset].fn, lut_presets[preset].exposure,
+                                     lut_presets[preset].contrast, sz);
+    /* Keep the plain mapping around for the LUT's OSD preview swatch. */
+    if (!IS_CERR(res))      res.val->fn = lut_presets[preset].fn;
+
+    return res;
 }
 
 static cerr cube_parse(lut *lut, void *buf, size_t size)

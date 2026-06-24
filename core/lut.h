@@ -35,7 +35,33 @@ DECLARE_REFCLASS(lut);
 typedef struct lut lut;
 struct scene;
 
+/*
+ * Per-cell colour mapping for lut_generate_fn(): both @color_in and @color_out
+ * are linear RGB (@color_in is HDR-decoded, in [0, HDR_LUT_MAX]).
+ */
+typedef void (*lut_gen_fn)(vec3 color_in, vec3 color_out, void *data);
+
 cresp(lut) lut_generate(renderer_t *renderer, struct list *list, lut_preset preset, int sz);
+
+/**
+ * lut_generate_fn() - build a named LUT by evaluating a callback for every cell
+ * @renderer:   renderer that owns the LUT texture
+ * @list:       LUT list the new LUT joins
+ * @name:       LUT name, copied
+ * @fn:         per-cell colour mapping
+ * @data:       opaque pointer handed to @fn
+ * @exposure:   exposure the LUT is applied with
+ * @contrast:   contrast the LUT is applied with
+ * @sz:         LUT side; the texture is @sz cubed
+ *
+ * Like lut_generate(), but the colour transform comes from @fn(@data) rather
+ * than a built-in preset, so a caller can drive it from a scripted in->out
+ * colour function.
+ *
+ * Return: the new LUT, or CERR_NOMEM / an error from the texture setup.
+ */
+cresp(lut) lut_generate_fn(renderer_t *renderer, struct list *list, const char *name,
+                           lut_gen_fn fn, void *data, float exposure, float contrast, int sz);
 cresp(lut) lut_first(struct list *list);
 cresp(lut) lut_next(struct list *list, lut *lut);
 cresp(lut) lut_find(struct list *list, const char *name);
