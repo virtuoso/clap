@@ -19,6 +19,7 @@
 #include "input-controls.h"
 #include "lut.h"
 #include "font.h"
+#include "fs-ops.h"
 #include "networking.h"
 #include "noise.h"
 #include "pipeline-builder.h"
@@ -166,6 +167,15 @@ typedef struct clap_timer {
     double          time;
 } clap_timer;
 
+typedef struct clap_fs_watch {
+    struct list         entry;
+    fs_watch            *watch;
+    clap_fs_watch_cb    cb;
+    void                *data;
+    unsigned int        events;
+    char                path[PATH_MAX];
+} clap_fs_watch;
+
 typedef struct clap_context {
     struct clap_config  cfg;
     struct fps_data     fps;
@@ -188,6 +198,7 @@ typedef struct clap_context {
     noise3d             *noise3d;
     struct list         timers;
     struct list         scripts;
+    struct list         fs_watches;
     struct ui           ui;
     messagebus          mb;
     int                 argc;
@@ -457,6 +468,79 @@ void clap_timer_cancel(clap_context *ctx, clap_timer *timer)
     mem_free(timer);
 }
 
+cresp(clap_fs_watch) clap_fs_watch_add(clap_context *ctx, const char *path, unsigned int events,
+                                       clap_fs_watch_cb cb, void *data)
+{
+#ifdef HAVE_FSWATCH
+    if (!events)    return cresp_error(clap_fs_watch, CERR_INVALID_ARGUMENTS);
+
+    fs_watch *watch = CRES_RET_T(fs_watch_open(&fs_watch_ops_native, path), clap_fs_watch);
+
+    clap_fs_watch *w = mem_alloc(sizeof(*w), .zero = 1);
+    if (!w) {
+        CERR_RET(fs_watch_close(watch),);
+        return cresp_error(clap_fs_watch, CERR_NOMEM);
+    }
+
+    w->watch = watch;
+    w->cb = cb;
+    w->data = data;
+    w->events = events;
+    snprintf(w->path, sizeof(w->path), "%s", path);
+    list_append(&ctx->fs_watches, &w->entry);
+
+    return cresp_val(clap_fs_watch, w);
+#else
+    return cresp_error(clap_fs_watch, CERR_NOT_SUPPORTED);
+#endif /* HAVE_FSWATCH */
+}
+
+void clap_fs_watch_remove(clap_context *ctx, clap_fs_watch *w)
+{
+    list_del(&w->entry);
+    CERR_RET(fs_watch_close(w->watch),);
+    mem_free(w);
+}
+
+/* Poll every watch without blocking and dispatch what changed; runs each frame */
+static void clap_fs_watches_run(clap_context *ctx)
+{
+    if (list_empty(&ctx->fs_watches))   return;
+
+    clap_fs_watch *w, *iter;
+    size_t n = 0;
+
+    list_for_each_entry(w, &ctx->fs_watches, entry)
+        n++;
+
+    fs_watch *watches[n];
+    size_t i = 0;
+
+    list_for_each_entry(w, &ctx->fs_watches, entry)
+        watches[i++] = w->watch;
+
+    /* One non-blocking poll across every watch; nothing ready means nothing to drain */
+    cerr pr = fs_watch_poll(watches, n, 0);
+    if (IS_CERR(pr))                    return;
+
+    list_for_each_entry_iter(w, iter, &ctx->fs_watches, entry)
+        for (;;) {
+            struct fs_watch_event ev;
+            cerr err = fs_watch_read(w->watch, &ev);
+
+            if (IS_CERR(err))           break;
+            if (ev.flags & w->events)   w->cb(w->path, &ev, w->data);
+        }
+}
+
+static void clap_fs_watches_done(clap_context *ctx)
+{
+    clap_fs_watch *w, *iter;
+
+    list_for_each_entry_iter(w, iter, &ctx->fs_watches, entry)
+        clap_fs_watch_remove(ctx, w);
+}
+
 static void clap_timers_pause(clap_context *ctx, bool pause)
 {
     double dt;
@@ -699,6 +783,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     clap_update_render_options(ctx);
 
     clap_timers_run(ctx);
+    clap_fs_watches_run(ctx);
 
     if (ctx->fullscreen) {
         ctx->fullscreen = false;
@@ -1245,6 +1330,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     list_init(&ctx->luts);
     list_init(&ctx->timers);
     list_init(&ctx->scripts);
+    list_init(&ctx->fs_watches);
 
     CERR_RET_T(clap_os_init(ctx), clap_context);
 
@@ -1403,6 +1489,7 @@ void clap_done(struct clap_context *ctx, int status)
     free(ctx->os_info.name);
     clap_timers_done(ctx);
     prng_free(ctx->prng);
+    clap_fs_watches_done(ctx);
     mem_free(ctx);
     exit_cleanup_run(status);
 }

@@ -3,6 +3,7 @@
 #define __CLAP_CLAP_H__
 
 #include "api.h"
+#include "fs-ops.h"
 #include "lut.h"
 #include "prng.h"
 #include "render.h"
@@ -386,6 +387,42 @@ cresp(clap_timer) clap_timer_set(clap_context *ctx, double dt, clap_timer *timer
  */
 CLAP_API
 void clap_timer_cancel(clap_context *ctx, clap_timer *timer) __nonnull_params((1, 2));
+
+/**
+ * clap_fs_watch_cb - directory change callback
+ * @path: the watched directory, as passed to clap_fs_watch_add()
+ * @ev:   the change that occurred
+ * @data: callback data passed to clap_fs_watch_add()
+ */
+typedef void (*clap_fs_watch_cb)(const char *path, const struct fs_watch_event *ev, void *data);
+typedef struct clap_fs_watch clap_fs_watch;
+cresp_ret(clap_fs_watch);
+
+/**
+ * clap_fs_watch_add() - watch a directory for changes
+ * @ctx:    clap_context
+ * @path:   directory to watch
+ * @events: bitmask of enum fs_watch_flags to report
+ * @cb:     callback invoked for each matching change, from the frame path
+ * @data:   callback data
+ *
+ * Watches are polled once per frame and never block.
+ * Return:
+ * * watch handle on success
+ * * CERR_NOT_SUPPORTED where no watch backend exists (e.g. web builds)
+ * * an error from the underlying backend otherwise
+ */
+CLAP_API
+cresp(clap_fs_watch) clap_fs_watch_add(clap_context *ctx, const char *path, unsigned int events,
+                                       clap_fs_watch_cb cb, void *data) __nonnull_params((1, 2, 4));
+
+/**
+ * clap_fs_watch_remove() - stop watching a directory
+ * @ctx:   clap_context
+ * @watch: handle returned by clap_fs_watch_add()
+ */
+CLAP_API
+void clap_fs_watch_remove(clap_context *ctx, clap_fs_watch *watch) __nonnull_params((1, 2));
 
 /**
  * clap_get_fps_delta() - get time since the previous frame
