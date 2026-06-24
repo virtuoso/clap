@@ -10,6 +10,7 @@
 #include "model.h"
 #include "scene.h"
 #include "script/ffi.h"
+#include "shader_constants.h"
 #include "transform.h"
 
 CLAP_SCRIPT_TYPE("type Entity3d* = struct { _h: uint }")
@@ -61,6 +62,46 @@ void ffi_entity_get_xform(UmkaStackSlot *params, UmkaStackSlot *result)
 {
     entity3d *e = ffi_ptr(params, 0);
     ffi_ret_ptr(params, result, e ? &e->xform : NULL);
+}
+
+/*
+ * Per-entity render knobs. The scalar/flag ones are generated straight from the
+ * field-accessor markers in ffi.h; color passthrough goes through entity3d_color()
+ * because it validates the mode bits.
+ */
+FFI_GET_FLOAT(ffi_entity_bloom_intensity, "fn (e: Entity3d) bloom_intensity*(): real",
+              entity3d, bloom_intensity)
+FFI_SET_FLOAT_RANGE(ffi_entity_set_bloom_intensity, "fn (e: Entity3d) set_bloom_intensity*(v: real)",
+                    entity3d, bloom_intensity, 0.0f, 20.0f)
+FFI_GET_FLOAT(ffi_entity_bloom_threshold, "fn (e: Entity3d) bloom_threshold*(): real",
+              entity3d, bloom_threshold)
+FFI_SET_FLOAT_RANGE(ffi_entity_set_bloom_threshold, "fn (e: Entity3d) set_bloom_threshold*(v: real)",
+                    entity3d, bloom_threshold, 0.0f, 10.0f)
+FFI_GET_BOOL(ffi_entity_outline_exclude, "fn (e: Entity3d) outline_exclude*(): bool",
+             entity3d, outline_exclude)
+FFI_SET_BOOL(ffi_entity_set_outline_exclude, "fn (e: Entity3d) set_outline_exclude*(v: bool)",
+             entity3d, outline_exclude)
+FFI_GET_INT(ffi_entity_color_pt, "fn (e: Entity3d) color_pt*(): int", entity3d, color_pt)
+
+/* Flat-color an entity (replace its RGB) to pick it out in a screenshot; alpha too. */
+CLAP_SCRIPT_METHOD(ffi_entity_set_color, "fn (e: Entity3d) set_color*(r, g, b, a: real)")
+void ffi_entity_set_color(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    (void)result;
+    entity3d *e = ffi_ptr(params, 0);
+    if (e)
+        entity3d_color(e, COLOR_PT_REPLACE_RGB | COLOR_PT_REPLACE_ALPHA,
+                       (vec4){ ffi_real(params, 1), ffi_real(params, 2),
+                               ffi_real(params, 3), ffi_real(params, 4) });
+}
+
+/* Stop overriding the entity's color. */
+CLAP_SCRIPT_METHOD(ffi_entity_clear_color, "fn (e: Entity3d) clear_color*()")
+void ffi_entity_clear_color(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    (void)result;
+    entity3d *e = ffi_ptr(params, 0);
+    if (e)  entity3d_color(e, COLOR_PT_NONE, (vec4){});
 }
 
 /* Camera */

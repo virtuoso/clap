@@ -45,6 +45,12 @@ set(priv_persist "") # !list_empty() terms for struct list members
 set(done_externs "") # extern decls of teardown hooks
 set(done_calls "")  # teardown hook calls
 
+# Method-like markers all share the "(cfunc, \"proto\", ...)" shape and generate a
+# method the same way. CLAP_SCRIPT_METHOD has exactly those two args; the FFI_*
+# field-accessor macros (core/script/ffi.h) add trailing C-body args (struct, field,
+# range) that are irrelevant to the binding and ignored here.
+set(method_markers "CLAP_SCRIPT_METHOD|FFI_GET_FLOAT|FFI_SET_FLOAT_RANGE|FFI_SET_FLOAT|FFI_GET_BOOL|FFI_SET_BOOL|FFI_GET_INT|FFI_SET_INT|FFI_GET_VEC3|FFI_SET_VEC3")
+
 foreach (src ${sources})
     file(READ "${src}" text)
 
@@ -67,11 +73,12 @@ foreach (src ${sources})
         string(APPEND regs "    umkaAddFunc(umka, \"${name}\", ${cfunc});\n")
     endforeach ()
 
-    # --- CLAP_SCRIPT_METHOD(cfunc, "fn (r: T) name*(sig): ret") ---
-    string(REGEX MATCHALL "CLAP_SCRIPT_METHOD[ \t]*\\([ \t]*[A-Za-z0-9_]+[ \t]*,[ \t\r\n]*\"[^\"]*\"[ \t]*\\)" mmatches "${text}")
+    # --- method-like markers: CLAP_SCRIPT_METHOD + FFI_* accessors ---
+    # (cfunc, "fn (r: T) name*(sig): ret"[, C-body args...]); trailing args ignored.
+    string(REGEX MATCHALL "(${method_markers})[ \t]*\\([ \t]*[A-Za-z0-9_]+[ \t]*,[ \t\r\n]*\"[^\"]*\"[^)]*\\)" mmatches "${text}")
     foreach (m ${mmatches})
-        string(REGEX REPLACE "CLAP_SCRIPT_METHOD[ \t]*\\([ \t]*([A-Za-z0-9_]+).*" "\\1" cfunc "${m}")
-        string(REGEX REPLACE "CLAP_SCRIPT_METHOD[ \t]*\\([^,]*,[ \t\r\n]*\"([^\"]*)\".*" "\\1" proto "${m}")
+        string(REGEX REPLACE "^[A-Za-z0-9_]+[ \t]*\\([ \t]*([A-Za-z0-9_]+).*" "\\1" cfunc "${m}")
+        string(REGEX REPLACE "^[A-Za-z0-9_]+[ \t]*\\([^,]*,[ \t\r\n]*\"([^\"]*)\".*" "\\1" proto "${m}")
 
         string(REGEX REPLACE "^ffi_" "" flat "${cfunc}")
 
