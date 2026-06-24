@@ -59,6 +59,7 @@ enum debug_modules {
     DEBUG_DEBUGGER,
     DEBUG_MEMORY,
     DEBUG_REPL,
+    DEBUG_SCRIPTS,
     DEBUG_MODULES_MAX,
 };
 
