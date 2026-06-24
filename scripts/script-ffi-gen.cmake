@@ -49,7 +49,7 @@ set(done_calls "")  # teardown hook calls
 # method the same way. CLAP_SCRIPT_METHOD has exactly those two args; the FFI_*
 # field-accessor macros (core/script/ffi.h) add trailing C-body args (struct, field,
 # range) that are irrelevant to the binding and ignored here.
-set(method_markers "CLAP_SCRIPT_METHOD|FFI_GET_FLOAT|FFI_SET_FLOAT_RANGE|FFI_SET_FLOAT|FFI_GET_BOOL|FFI_SET_BOOL|FFI_GET_INT|FFI_SET_INT|FFI_GET_VEC3|FFI_SET_VEC3")
+set(method_markers "CLAP_SCRIPT_METHOD|FFI_GET_FLOAT|FFI_SET_FLOAT_RANGE|FFI_SET_FLOAT|FFI_GET_BOOL|FFI_SET_BOOL|FFI_GET_INT|FFI_SET_INT|FFI_GET_VEC3|FFI_SET_VEC3|FFI_LIGHT_GET_FLOAT|FFI_LIGHT_SET_FLOAT|FFI_LIGHT_GET_BOOL|FFI_LIGHT_SET_BOOL|FFI_LIGHT_GET_VEC3|FFI_LIGHT_SET_VEC3")
 
 foreach (src ${sources})
     file(READ "${src}" text)
