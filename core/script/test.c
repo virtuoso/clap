@@ -3,9 +3,11 @@
 // Tests for the Umka embedding mechanisms the scripting subsystem relies on,
 // exercised without the rest of the engine: two-layer module registration
 // (umkaAddModule prototypes bound to umkaAddFunc externals), struct-handle
-// marshalling, host context via metadata, and the frame callback list in
-// script/frame.c that clap::on_frame() and Frame.cancel() are built on.
+// marshalling, int arguments (ffi_int()), host context via metadata, and the
+// frame callback list in script/frame.c that clap::on_frame() and
+// Frame.cancel() are built on.
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -26,6 +28,14 @@ static void t_record(UmkaStackSlot *params, UmkaStackSlot *result)
     int v = umkaGetParam(params, 0)->intVal;
 
     if (tc->n < (int)array_size(tc->recorded))  tc->recorded[tc->n++] = v;
+}
+
+/* record() through ffi_int(), the way the engine's FFI reads int arguments */
+static void t_record_int(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_test_ctx *tc = umkaGetMetadata(umkaGetInstance(result));
+
+    if (tc->n < (int)array_size(tc->recorded))  tc->recorded[tc->n++] = ffi_int(params, 0);
 }
 
 static void t_add(UmkaStackSlot *params, UmkaStackSlot *result)
@@ -72,6 +82,7 @@ static const char *test_module =
     "type Thing* = struct { _h: uint }\n"
     "type Frame* = struct { _h: uint }\n"
     "fn record*(x: int)\n"
+    "fn recordInt*(x: int)\n"
     "fn add*(a, b: int): int\n"
     "fn makeThing*(id: int): Thing\n"
     "fn thingId*(t: Thing): int\n"
@@ -93,6 +104,7 @@ static Umka *test_script_setup(struct script_test_ctx *tc, const char *prog)
     list_init(&tc->frames);
     umkaSetMetadata(umka, tc);
     umkaAddFunc(umka, "record", t_record);
+    umkaAddFunc(umka, "recordInt", t_record_int);
     umkaAddFunc(umka, "add", t_add);
     umkaAddFunc(umka, "makeThing", t_make_thing);
     umkaAddFunc(umka, "thingId", t_thing_id);
@@ -131,6 +143,36 @@ static int script_test_ffi(void)
 
     if (rc != 0)                                                    return EXIT_FAILURE;
     if (tc.n != 2 || tc.recorded[0] != 7 || tc.recorded[1] != 5)    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* ffi_int(): Umka's 64-bit ints past either end of int's range read as that end */
+static int script_test_ffi_int(void)
+{
+    struct script_test_ctx tc = {};
+    Umka *umka = test_script_setup(&tc,
+        "import \"t.um\"\n"
+        "fn main() {\n"
+        "    t::recordInt(7)\n"
+        "    t::recordInt(-7)\n"
+        "    t::recordInt(2147483647)\n"
+        "    t::recordInt(-2147483648)\n"
+        "    t::recordInt(2147483648)\n"
+        "    t::recordInt(-2147483649)\n"
+        "    t::recordInt(4294967297)\n"      /* 1 if truncated */
+        "    t::recordInt(-4294967297)\n"     /* -1 if truncated */
+        "}\n");
+    if (!umka)                              return EXIT_FAILURE;
+
+    int rc = umkaRun(umka);
+    test_script_teardown(&tc, umka);
+    if (rc != 0)                            return EXIT_FAILURE;
+
+    static const int expected[] = { 7, -7, INT_MAX, INT_MIN, INT_MAX, INT_MIN, INT_MAX, INT_MIN };
+    if (tc.n != (int)array_size(expected))  return EXIT_FAILURE;
+    for (size_t i = 0; i < array_size(expected); i++)
+        if (tc.recorded[i] != expected[i])  return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
@@ -204,6 +246,7 @@ static int script_test_frame_cancel(void)
 
 static const struct test tests[] = {
     { .name = "script ffi", .test = script_test_ffi },
+    { .name = "script ffi int", .test = script_test_ffi_int },
     { .name = "script closure", .test = script_test_closure },
     { .name = "script frame cancel", .test = script_test_frame_cancel },
 };
