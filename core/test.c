@@ -860,6 +860,80 @@ static int fs_test_seek(void)
     return EXIT_SUCCESS;
 }
 
+#ifdef HAVE_FSWATCH
+/* Poll (without sleeping) for up to ~2s, OR-ing the flags reported for @name; @nr counts its events */
+static unsigned int fs_test_watch_drain(fs_watch *w, const char *name, int *nr)
+{
+    unsigned int seen = 0;
+
+    for (int i = 0; i < 20; i++) {
+        cerr pr = fs_watch_poll(&w, 1, 100);
+        if (IS_CERR_CODE(pr, CERR_EOF)) {
+            /* a batch came through and nothing more is queued; otherwise keep waiting */
+            if (seen)   break;
+            continue;
+        }
+        if (IS_CERR(pr))    break;
+
+        struct fs_watch_event ev;
+        for (;;) {
+            cerr rr = fs_watch_read(w, &ev);
+            if (IS_CERR_CODE(rr, CERR_EOF))     break;
+            if (IS_CERR(rr))                    return seen;
+            if (strcmp(ev.name, name))          continue;
+
+            seen |= ev.flags;
+            if (nr)     (*nr)++;
+        }
+    }
+
+    return seen;
+}
+
+static int fs_test_watch(void)
+{
+    LOCAL_SET(fs_watch, w) = CRES_RET(fs_watch_open(&fs_watch_ops_native, fs_test_dir),
+                                      return EXIT_FAILURE);
+
+    char file[PATH_MAX];
+    path_join(file, sizeof(file), fs_test_dir, "watched.txt");
+
+    unsigned int seen = 0;
+
+    /* create */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_WRITE, true, false, false),
+                                         return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, "a", 1), return EXIT_FAILURE) != 1)    return EXIT_FAILURE;
+    }
+    int nr = 0;
+    seen |= fs_test_watch_drain(w, "watched.txt", &nr);
+#ifdef __linux__
+    /* inotify: the create and the close-write are queued together and come out merged */
+    if (nr != 1)                        return EXIT_FAILURE;
+#endif /* __linux__ */
+
+    /* modify */
+    {
+        LOCAL_SET(fs_file, f) = CRES_RET(fs_open(fs_test_ops, file, FS_APPEND, false, false, false),
+                                         return EXIT_FAILURE);
+        if (CRES_RET(fs_write(f, "b", 1), return EXIT_FAILURE) != 1)    return EXIT_FAILURE;
+    }
+    seen |= fs_test_watch_drain(w, "watched.txt", NULL);
+
+    /* delete */
+    remove(file);
+    seen |= fs_test_watch_drain(w, "watched.txt", NULL);
+
+    /* Backends coalesce, so assert the union of what was observed */
+    if (!(seen & FS_WATCH_CREATED))     return EXIT_FAILURE;
+    if (!(seen & FS_WATCH_MODIFIED))    return EXIT_FAILURE;
+    if (!(seen & FS_WATCH_DELETED))     return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+#endif /* HAVE_FSWATCH */
+
 static int fs_test_teardown(void)
 {
     CERR_RET(fs_remove_dir(fs_test_ops, fs_test_dir), return EXIT_FAILURE);
@@ -1707,6 +1781,9 @@ static const struct test tests[] = {
     { .name = "fs test append", .test = fs_test_append },
     { .name = "fs test binary rw", .test = fs_test_binary_rw },
     { .name = "fs test seek", .test = fs_test_seek },
+#ifdef HAVE_FSWATCH
+    { .name = "fs test watch", .test = fs_test_watch },
+#endif /* HAVE_FSWATCH */
     { .name = "fs test teardown", .test = fs_test_teardown },
     { .name = "canvas new", .test = canvas_test_new },
     { .name = "canvas write/read rgba8", .test = canvas_test_write_read_rgba8 },

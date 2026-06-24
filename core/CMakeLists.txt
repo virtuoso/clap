@@ -69,6 +69,13 @@ if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
     list(APPEND TEST_SRC websocket.c)
 endif ()
 
+# The native directory-watch backend, so the fs watch test has a vtable to link
+if (APPLE)
+    list(APPEND TEST_SRC fs-ops-fsevents.c)
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    list(APPEND TEST_SRC fs-ops-inotify.c)
+endif ()
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC detects a false positive -Wmaybe-uninitialized in parse_string() in json.c
     # because it can't reason that sb_finish(sb) is called under the same condition as
@@ -82,6 +89,9 @@ endif ()
 add_executable(${TEST_BIN} ${TEST_SRC})
 add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen)
 target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
+if (APPLE)
+    target_link_libraries(${TEST_BIN} PRIVATE "-framework CoreServices")
+endif ()
 target_include_directories(${TEST_BIN} PRIVATE ${UMKA_INCLUDE})
 win32_executable(${TEST_BIN})
 if ((${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
