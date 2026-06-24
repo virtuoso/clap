@@ -71,6 +71,11 @@ jobs:
           cmake --install build/emrel
           cmake --install build/emtest
           cmake --install build/emdebug
+      - name: scripting API reference
+        run: |
+          cd ${{ github.workspace }}
+          install -Dm644 build/emrel/core/script/script-api.md \
+            "www/${GITHUB_REF##*/}/script-api.md"
       - name: Deploy to Server
         uses: easingthemes/ssh-deploy@main
         if: ${{ env.remote_host }}

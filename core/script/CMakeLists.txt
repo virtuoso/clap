@@ -10,9 +10,10 @@ endif ()
 
 set(SCRIPT_FFI_H "${CMAKE_CURRENT_BINARY_DIR}/script-ffi-gen.h")
 set(SCRIPT_PRIV_H "${CMAKE_CURRENT_BINARY_DIR}/script-priv-gen.h")
+set(SCRIPT_API_MD "${CMAKE_CURRENT_BINARY_DIR}/script-api.md")
 add_custom_command(
-    COMMENT "Generating Umka FFI bindings"
-    OUTPUT "${SCRIPT_FFI_H}" "${SCRIPT_PRIV_H}"
+    COMMENT "Generating Umka FFI bindings and the script API reference"
+    OUTPUT "${SCRIPT_FFI_H}" "${SCRIPT_PRIV_H}" "${SCRIPT_API_MD}"
     DEPENDS ${SCRIPT_SRC} "${CMAKE_SOURCE_DIR}/scripts/script-ffi-gen.cmake"
     COMMAND
         ${CMAKE_COMMAND}
@@ -20,7 +21,7 @@ add_custom_command(
             -Doutput_dir="${CMAKE_CURRENT_BINARY_DIR}"
             -P "${CMAKE_SOURCE_DIR}/scripts/script-ffi-gen.cmake"
 )
-add_custom_target(script_ffi_gen DEPENDS "${SCRIPT_FFI_H}" "${SCRIPT_PRIV_H}")
+add_custom_target(script_ffi_gen DEPENDS "${SCRIPT_FFI_H}" "${SCRIPT_PRIV_H}" "${SCRIPT_API_MD}")
 
 clap_subsystem_library(clap_script ${SCRIPT_SRC})
 add_dependencies(clap_script script_ffi_gen)
