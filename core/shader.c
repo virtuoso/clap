@@ -628,12 +628,7 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
 
     if (opts->vert_ref_text && !IS_CERR(vert_ref_err) &&
         opts->frag_ref_text && !IS_CERR(frag_ref_err) &&
-        (!opts->geom_text || (opts->geom_ref_text && !IS_CERR(geom_ref_err))) &&
-        // XXX: OpenGL pipeline doesn't generate reflections, don't try to load
-        // them; since they don't have the shading language suffix in the name,
-        // in combinations of OpenGL + WebGPU, this will load the latter's
-        // reflections. A proper fix is to fix that; this is a stopgap.
-        renderer_get_caps(p->ctx->renderer)->renderer != RENDER_OPENGL)
+        (!opts->geom_text || (opts->geom_ref_text && !IS_CERR(geom_ref_err))))
         goto out;
 
     /*
@@ -783,9 +778,9 @@ cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *sha
     cres(int) vres = mem_asprintf(&nvert, "%s.vert%s", name, ext);
     cres(int) fres = mem_asprintf(&nfrag, "%s.frag%s", name, ext);
     cres(int) gres = mem_asprintf(&ngeom, "%s.geom%s", name, ext);
-    cres(int) vresref = mem_asprintf(&nvertref, "%s.vert.json", name);
-    cres(int) fresref = mem_asprintf(&nfragref, "%s.frag.json", name);
-    cres(int) gresref = mem_asprintf(&ngeomref, "%s.geom.json", name);
+    cres(int) vresref = mem_asprintf(&nvertref, "%s.vert%s.json", name, ext);
+    cres(int) fresref = mem_asprintf(&nfragref, "%s.frag%s.json", name, ext);
+    cres(int) gresref = mem_asprintf(&ngeomref, "%s.geom%s.json", name, ext);
     if (IS_CERR(vres) || IS_CERR(fres) || IS_CERR(gres) ||
         IS_CERR(vresref) || IS_CERR(fresref) || IS_CERR(gresref))
         return CERR_NOMEM;

@@ -104,7 +104,7 @@ function(_compile_shader_for_backend shader stage backend SHADER_SRCS SHADER_OUT
     list(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${shader}")
     list(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}${_SHADER_EXT}")
     if (_HAS_REFLECTION)
-        list(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}.json")
+        list(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}${_SHADER_EXT}.json")
     endif ()
 
     set(shader_depfile_args "")
@@ -147,13 +147,17 @@ function(_compile_shader_for_backend shader stage backend SHADER_SRCS SHADER_OUT
         )
     endif ()
 
-    # JSON reflection (non-GL backends)
+    # JSON reflection (non-GL backends): the bindings in it are this
+    # backend's, so it carries the shading language suffix like the shader
+    # it describes does; the runtime asks for it under that name, which
+    # keeps a GL build from picking up another backend's reflection when
+    # several are packed together
     if (_HAS_REFLECTION)
         add_custom_command(
-            OUTPUT "${SHADER_DIR}/${shader}.json"
+            OUTPUT "${SHADER_DIR}/${shader}${_SHADER_EXT}.json"
             DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_OUTPUT}"
             COMMAND "${SPIRV_CROSS}"
-            ARGS "${SPIRV_OUTPUT}" --reflect --output "${SHADER_DIR}/${shader}.json"
+            ARGS "${SPIRV_OUTPUT}" --reflect --output "${SHADER_DIR}/${shader}${_SHADER_EXT}.json"
         )
     endif ()
 
