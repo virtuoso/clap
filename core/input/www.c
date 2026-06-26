@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <emscripten/key_codes.h>
 #include "clap.h"
 #include "common.h"
 #include "memory.h"
@@ -35,6 +36,20 @@ static inline const char *emscripten_event_type_to_string(int eventType)
     return events[eventType];
 }
 
+/*
+ * ImGui gets the clipboard from the browser's paste event, which only fires
+ * when the Ctrl+V keydown keeps its default action; copy and cut likewise,
+ * in both their letter and Insert forms.
+ */
+static bool key_is_clipboard_chord(const EmscriptenKeyboardEvent *e)
+{
+    if (e->ctrlKey || e->metaKey)
+        return e->keyCode == DOM_VK_V || e->keyCode == DOM_VK_C || e->keyCode == DOM_VK_X ||
+               e->keyCode == DOM_VK_INSERT;
+
+    return e->shiftKey && e->keyCode == DOM_VK_INSERT;
+}
+
 static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, void *userData)
 {
     int press, mods = 0;
@@ -51,8 +66,8 @@ static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent *e, voi
             break;
     }
 
-    if (__ui_set_key(e->keyCode, e->key, press == KEY_PRESS || press == KEY_HOLD))
-        return true;
+    if (__ui_set_key(e, press == KEY_PRESS || press == KEY_HOLD))
+        return !key_is_clipboard_chord(e);
 
     trace("%s, key: \"%s\", code: \"%s\", location: %u,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %u, keyCode: %u, which: %u\n",
           emscripten_event_type_to_string(eventType), e->key, e->code, e->location,

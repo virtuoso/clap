@@ -536,7 +536,9 @@ void imgui_done(void)
 
 #ifndef __EMSCRIPTEN__
     ImGui_ImplGlfw_Shutdown();
-#endif
+#else /* __EMSCRIPTEN__ */
+    ui_ig_done_for_emscripten();
+#endif /* __EMSCRIPTEN__ */
     igDestroyContext(ctx);
 }
 

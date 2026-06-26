@@ -1,5 +1,9 @@
+#include <string.h>
+#include <emscripten.h>
+#include <emscripten/html5.h>
 #include <emscripten/key_codes.h>
 #include "common.h"
+#include "memory.h"
 #include "ui-debug.h"
 
 static struct backend_data {
@@ -7,6 +11,7 @@ static struct backend_data {
     double time;
     struct ImGuiContext *igctx;
     struct ImGuiIO *io;
+    char *clipboard;    /* text last pasted from or copied to the browser */
 } bd;
 
 bool __ui_set_mouse_position(unsigned int x, unsigned int y)
@@ -138,7 +143,21 @@ static ImGuiKey keycode_to_imgui_key(int keycode)
     }
 }
 
-bool __ui_set_key(int key_code, const char *key, bool down)
+/*
+ * ImGui derives io.KeyCtrl & co from the ImGuiMod_* keys. Every key event
+ * carries the current modifier flags, so they are refreshed from those rather
+ * than from the modifier keys' own presses, which never arrive while ImGui is
+ * not listening: a modifier held down since before it started would go unseen.
+ */
+static void set_key_mods(const EmscriptenKeyboardEvent *e)
+{
+    ImGuiIO_AddKeyEvent(bd.io, ImGuiMod_Shift, e->shiftKey);
+    ImGuiIO_AddKeyEvent(bd.io, ImGuiMod_Ctrl, e->ctrlKey);
+    ImGuiIO_AddKeyEvent(bd.io, ImGuiMod_Alt, e->altKey);
+    ImGuiIO_AddKeyEvent(bd.io, ImGuiMod_Super, e->metaKey);
+}
+
+bool __ui_set_key(const EmscriptenKeyboardEvent *e, bool down)
 {
     bool capture = __ui_keyboard_event_propagate();
 
@@ -150,14 +169,62 @@ bool __ui_set_key(int key_code, const char *key, bool down)
      */
     if (!capture && down)   return false;
 
-    ImGuiKey igkey = keycode_to_imgui_key(key_code);
+    set_key_mods(e);
+
+    ImGuiKey igkey = keycode_to_imgui_key(e->keyCode);
     if (igkey != ImGuiKey_None)
         ImGuiIO_AddKeyEvent(bd.io, igkey, down);
 
-    if (down && key[0] && !key[1])
-        ImGuiIO_AddInputCharacter(bd.io, key[0]);
+    if (down && e->key[0] && !e->key[1])
+        ImGuiIO_AddInputCharacter(bd.io, e->key[0]);
 
     return capture;
+}
+
+/*
+ * Clipboard: the browser only hands its contents out through a paste event,
+ * which it dispatches right after a Ctrl+V keydown that kept its default
+ * action and before the next frame renders. The hook stashes that text, so
+ * ImGui's own Ctrl+V handling reads it back a moment later via the platform
+ * getter; the setter mirrors ImGui's copies into the browser clipboard.
+ */
+EM_JS(void, www_clipboard_hook, (void), {
+    window.addEventListener("paste", function(e) {
+        var text = e.clipboardData ? e.clipboardData.getData("text/plain") : "";
+        if (!text)  return;
+
+        var ptr = stringToNewUTF8(text);
+        ccall("www_ui_clipboard_paste", null, ["number"], [ptr]);
+        _free(ptr);
+        e.preventDefault();
+    });
+});
+
+EM_JS(void, www_clipboard_write, (const char *text), {
+    if (navigator.clipboard)
+        navigator.clipboard.writeText(UTF8ToString(text)).catch(function() {});
+});
+
+static void clipboard_set(const char *text)
+{
+    mem_free(bd.clipboard);
+    bd.clipboard = memdup(text, strlen(text) + 1);
+}
+
+EMSCRIPTEN_KEEPALIVE void www_ui_clipboard_paste(const char *text)
+{
+    clipboard_set(text);
+}
+
+static const char *www_get_clipboard_text(struct ImGuiContext *igctx)
+{
+    return bd.clipboard;
+}
+
+static void www_set_clipboard_text(struct ImGuiContext *igctx, const char *text)
+{
+    clipboard_set(text);
+    www_clipboard_write(text);
 }
 
 void ui_ig_new_frame(void)
@@ -174,4 +241,18 @@ void ui_ig_init_for_emscripten(struct clap_context *clap_ctx, struct ImGuiContex
     bd.ctx = clap_ctx;
     bd.igctx = igctx;
     bd.io = io;
+
+    /* Cmd, not Ctrl, is the clipboard modifier in browsers on a Mac */
+    if (clap_get_os(clap_ctx)->os == CLAP_OS_MACOS)     io->ConfigMacOSXBehaviors = true;
+
+    struct ImGuiPlatformIO *pio = igGetPlatformIO_ContextPtr(igctx);
+    pio->Platform_GetClipboardTextFn = www_get_clipboard_text;
+    pio->Platform_SetClipboardTextFn = www_set_clipboard_text;
+    www_clipboard_hook();
+}
+
+void ui_ig_done_for_emscripten(void)
+{
+    mem_free(bd.clipboard);
+    bd.clipboard = NULL;
 }

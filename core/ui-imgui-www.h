@@ -5,28 +5,31 @@
 
 struct ImGuiContext;
 struct ImGuiIO;
+struct EmscriptenKeyboardEvent;
 
 #ifndef CONFIG_FINAL
 
 bool __ui_set_mouse_click(unsigned int button, bool down);
 bool __ui_set_mouse_position(unsigned int x, unsigned int y);
-bool __ui_set_key(int key_code, const char *key, bool down);
+bool __ui_set_key(const struct EmscriptenKeyboardEvent *e, bool down);
 bool __ui_mouse_event_wheel(double dx, double dy);
 
 void ui_ig_new_frame(void);
 void ui_ig_init_for_emscripten(struct clap_context *clap_ctx, struct ImGuiContext *igctx,
                                struct ImGuiIO *io);
+void ui_ig_done_for_emscripten(void);
 
 #else
 
 static inline bool __ui_set_mouse_click(unsigned int button, bool down) { return false; }
 static inline bool __ui_set_mouse_position(unsigned int x, unsigned int y) { return false; }
 static inline bool __ui_mouse_event_wheel(double dx, double dy) { return false; }
-static inline bool __ui_set_key(int key_code, const char *key, bool down) { return false; }
+static inline bool __ui_set_key(const struct EmscriptenKeyboardEvent *e, bool down) { return false; }
 
 static inline void ui_ig_new_frame(void) {}
 static inline void ui_ig_init_for_emscripten(struct clap_context *ctx, struct ImGuiContext *igctx,
                                              struct ImGuiIO *io) {}
+static inline void ui_ig_done_for_emscripten(void) {}
 
 #endif /* CONFIG_FINAL */
 
