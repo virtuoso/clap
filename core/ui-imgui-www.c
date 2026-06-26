@@ -48,7 +48,7 @@ static ImGuiKey keycode_to_imgui_key(int keycode)
         case DOM_VK_DELETE:        return ImGuiKey_Delete;
         case DOM_VK_BACK_SPACE:    return ImGuiKey_Backspace;
         case DOM_VK_SPACE:         return ImGuiKey_Space;
-        case DOM_VK_ENTER:         return ImGuiKey_Enter;
+        case DOM_VK_RETURN:        return ImGuiKey_Enter;
         case DOM_VK_ESCAPE:        return ImGuiKey_Escape;
         case DOM_VK_QUOTE:         return ImGuiKey_Apostrophe;
         case DOM_VK_COMMA:         return ImGuiKey_Comma;
