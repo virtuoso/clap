@@ -36,4 +36,12 @@ struct script {
 /* Copy the interpreter's current error onto the script and log it (core.c). */
 void script_capture_error(script *s);
 
+/**
+ * script_read_file() - read a whole script file into memory (loader.c)
+ * @path: file to read
+ *
+ * Return: NUL-terminated, mem_alloc()'d contents, or NULL on any error
+ */
+char *script_read_file(const char *path);
+
 #endif /* __CLAP_SCRIPT_INTERNAL_H__ */

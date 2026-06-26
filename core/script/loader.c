@@ -16,12 +16,13 @@
 
 #include "clap.h"
 #include "script.h"
+#include "internal.h"
 
 #ifndef CONFIG_FINAL
 #include "ui-debug.h"
 #endif /* !CONFIG_FINAL */
 
-/* Read granularity of loader_slurp() */
+/* Read granularity of script_read_file() */
 #define LOADER_CHUNK    4096
 
 /* One loaded file: its name (relative to the watched dir) and running script. */
@@ -39,8 +40,7 @@ struct script_watch {
     char                dir[PATH_MAX];
 };
 
-/* Read a whole file into a NUL-terminated, mem_alloc()'d buffer (NULL on error) */
-static char *loader_slurp(const char *path)
+char *script_read_file(const char *path)
 {
     LOCAL_SET(fs_file, f) = CRES_RET(fs_open(&fs_ops_posix, path, FS_READ, false, false, true),
                                      return NULL);
@@ -105,7 +105,7 @@ static void loader_reload(struct script_watch *sw, const char *name)
              { err("script loader: path too long: %s/%s\n", sw->dir, name); return; });
 
     LOCAL(char, source);
-    source = loader_slurp(path);
+    source = script_read_file(path);
     if (!source) {
         /* Gone from disk: forget it entirely. */
         if (ls)     loader_unload(sw, ls);
