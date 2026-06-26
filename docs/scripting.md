@@ -115,6 +115,22 @@ fn main() {
 `make_lut` evaluates `grade` for every cell of a 32³ LUT, so it is a one-shot
 design action — call it from `main`, not from `on_frame`.
 
+**Drive the character and the session.** Inject input to move the controlled
+character (or the free camera when nothing is controlled), and end or restart the
+run when a scripted sequence finishes:
+
+```
+clap::input_move(true, false, false, false)    // hold forward
+clap::input_jump()                             // one-shot
+// ...later, e.g. from on_frame after N frames...
+clap::input_move(false, false, false, false)   // stop
+clap::quit()                                   // end the process cleanly
+// clap::restart()                             // ...or re-exec in place
+```
+
+Directions are held state — set once, they persist until you change them; jump
+and dash are one-shot edges. Time a sequence by sending input from `on_frame`.
+
 ## Examples
 
 Ready-to-crib scripts live in [`script-examples/`](script-examples/):
