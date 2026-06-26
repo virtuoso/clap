@@ -499,6 +499,7 @@ enum clap_cli_opt_bits {
     CLAP_CLI_EXITAFTER_BIT,
     CLAP_CLI_ABORT_ON_ERROR_BIT,
     CLAP_CLI_SERVER_ADDR_BIT,
+    CLAP_CLI_SCRIPT_DIR_BIT,
     CLAP_CLI_SENTINEL
 };
 
@@ -508,6 +509,7 @@ typedef enum clap_cli_opts {
     CLAP_CLI_EXITAFTER      = (1u << CLAP_CLI_EXITAFTER_BIT),
     CLAP_CLI_ABORT_ON_ERROR = (1u << CLAP_CLI_ABORT_ON_ERROR_BIT),
     CLAP_CLI_SERVER_ADDR    = (1u << CLAP_CLI_SERVER_ADDR_BIT),
+    CLAP_CLI_SCRIPT_DIR     = (1u << CLAP_CLI_SCRIPT_DIR_BIT),
 #ifdef CONFIG_FINAL
     CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN | CLAP_CLI_HELP,
 #else /* !CONFIG_FINAL */
@@ -515,7 +517,8 @@ typedef enum clap_cli_opts {
                               CLAP_CLI_FULLSCREEN       |
                               CLAP_CLI_EXITAFTER        |
                               CLAP_CLI_ABORT_ON_ERROR   |
-                              CLAP_CLI_SERVER_ADDR,
+                              CLAP_CLI_SERVER_ADDR      |
+                              CLAP_CLI_SCRIPT_DIR,
 #endif /* !CONFIG_FINAL */
 } clap_cli_opts;
 
@@ -537,6 +540,10 @@ const char *clap_get_argv(clap_context *ctx, int idx);
  *                      generate color grading LUT textures
  * @ui:                 initialize clap's own UI subsystem
  * @settings:           initialize settings subsystem and load existing settings
+ * @no_default_fs_watches: opt out of the engine's own directory watches: the
+ *                      hot-reloaded scripts directory (see @base_url and the
+ *                      --scripts option); skipped anyway where the platform
+ *                      has no directory watch backend
  * @title:              application/window title
  * @base_url:           base URL/path where librarian will look for files
  * @default_font_name:  default font for clap's UI
@@ -569,7 +576,8 @@ struct clap_config {
                     phys        : 1,
                     graphics    : 1,
                     ui          : 1,
-                    settings    : 1;
+                    settings    : 1,
+                    no_default_fs_watches : 1;
     const char      *title;
     const char      *base_url;
     const char      *default_font_name;

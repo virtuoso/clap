@@ -13,6 +13,19 @@ drifts — it is deployed next to the web demos, and lands at
 `build/<cfg>/core/script/script-api.md` after any build). The source of truth is
 the `CLAP_SCRIPT_*` / `FFI_*` markers in `core/script/*.c`.
 
+## Running scripts
+
+Scripts are loaded from a watched directory and **hot-reloaded**: edit a `.um`
+file and save, and the change takes effect on the next frame; delete it to
+unload it. The engine watches `<base_url>/scripts` by default and creates the
+directory when it is missing; `--scripts <dir>` points it at another
+directory, and a program with no use for scripts opts out with
+`clap_config::no_default_fs_watches` (as `tools/server` does).
+
+Directory watching is native-only; on wasm there is no watch backend and the
+default watch is skipped. There is also an ImGui REPL (the "umka repl" debug
+window) for one-off lines.
+
 ## The language, in one screen
 
 Umka is small and Go-like. What you need to know to use the `clap` module:

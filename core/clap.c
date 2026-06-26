@@ -199,6 +199,8 @@ typedef struct clap_context {
     struct list         timers;
     struct list         scripts;
     struct list         fs_watches;
+    script_watch        *script_watch;
+    const char          *script_dir;
     struct ui           ui;
     messagebus          mb;
     int                 argc;
@@ -659,6 +661,48 @@ static inline void clap_scripts_done(clap_context *ctx) {}
 #endif /* !CONFIG_SCRIPTING */
 
 /****************************************************************************
+ * Default fs watches
+ ****************************************************************************/
+
+/**
+ * clap_default_fs_watches_init() - start the engine's own directory watches
+ * @ctx:    clap_context
+ *
+ * Currently that is the hot-reloaded scripts directory: base_url/scripts
+ * unless --scripts says otherwise. Nothing to watch where the platform has
+ * no watch backend, and a config opts out with
+ * clap_config::no_default_fs_watches.
+ */
+static void clap_default_fs_watches_init(clap_context *ctx)
+{
+    if (ctx->cfg.no_default_fs_watches)         return;
+
+    char dir[PATH_MAX];
+    const char *script_dir = ctx->script_dir;
+
+    if (!script_dir) {
+        CERR_RET(path_join(dir, sizeof(dir), ctx->cfg.base_url ? : "", "scripts"),
+                 { err_cerr(__cerr, "scripts directory path too long\n"); return; });
+        script_dir = dir;
+    }
+
+    cresp(script_watch) res = script_watch_dir(ctx, script_dir);
+    /* No watch backend on this platform: nothing to keep in sync with */
+    if (IS_CERR_CODE(res, CERR_NOT_SUPPORTED))  return;
+
+    ctx->script_watch = CRES_RET(res, { err_cerr(res, "cannot watch scripts in '%s'\n", script_dir); return; });
+}
+
+/**
+ * clap_default_fs_watches_done() - stop the engine's own directory watches
+ * @ctx:    clap_context
+ */
+static void clap_default_fs_watches_done(clap_context *ctx)
+{
+    script_watch_done(ctx->script_watch);
+}
+
+/****************************************************************************
  * Rendering pipeline
  ****************************************************************************/
 
@@ -888,6 +932,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     controllers_debug();
     memory_debug();
     script_repl_show(ctx);
+    script_watch_show(ctx->script_watch);
 
     imgui_render();
     renderer_swapchain_end(&ctx->renderer);
@@ -1187,6 +1232,15 @@ static const struct clap_cli_options_desc {
         .type           = CLI_STR,
         .handle         = handle_server_opt
     },
+    [CLAP_CLI_SCRIPT_DIR_BIT] = {
+        .long_name      = "scripts",
+        .short_name     = 's',
+        .help           = "directory of Umka scripts to watch and hot-reload (default: <base_url>/scripts)",
+        .arg_help       = "dir",
+        .arg_required   = true,
+        .type           = CLI_STR,
+        .ctx_offset     = offsetof(clap_context, script_dir)
+    },
 };
 
 #define HELP_OPT_PFX "  "
@@ -1450,12 +1504,15 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
     if (ctx->cfg.graphics)
         display_resize(width, height);
 
+    clap_default_fs_watches_init(ctx);
+
     return cresp_val(clap_context, NOCU(ctx));
 }
 
 void clap_done(struct clap_context *ctx, int status)
 {
-    /* Drop scripts first, while the ui they may hold widgets in is still up. */
+    /* Drop the script watch and the scripts first, while the ui their widgets live in is up */
+    clap_default_fs_watches_done(ctx);
     clap_scripts_done(ctx);
     if (ctx->cfg.ui) {
         ui_menus_done(&ctx->ui);

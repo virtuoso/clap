@@ -68,7 +68,8 @@ static unsigned int parse_port(const char *str)
 int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
-        .debug = 1,
+        .debug                  = 1,
+        .no_default_fs_watches  = 1,
     };
     struct networking_config ncfg = {
         .server_ip     = CONFIG_SERVER_IP,
