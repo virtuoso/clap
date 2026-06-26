@@ -225,6 +225,12 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, d
     return CERR_OK;
 }
 
+void display_done(void)
+{
+    imgui_done();
+    renderer_done(clap_get_renderer(callback_data));
+}
+
 void display_debug_ui_init(struct clap_context *ctx)
 {
     imgui_init(ctx, NULL, width, height);
