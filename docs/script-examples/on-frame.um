@@ -1,0 +1,24 @@
+// Per-frame updates. State that must survive between frames lives in a
+// module-level var, because a captured variable is copied afresh for every
+// deferred on_frame call (mutating a capture would not persist).
+import "clap.um"
+
+var frames: int = 0
+
+fn main() {
+    clap::dbg("on-frame example loaded")
+
+    clap::on_frame(fn() {
+        frames += 1
+
+        // Spin the "gem" entity, if this scene has one.
+        e := clap::get_entity3d("gem")
+        if e.valid() {
+            e.get_xform().rotate_Y(1.0)
+        }
+
+        if frames % 60 == 0 {
+            clap::dbg(sprintf("%d frames", frames))
+        }
+    })
+}

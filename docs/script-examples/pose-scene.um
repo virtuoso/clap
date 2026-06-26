@@ -1,0 +1,19 @@
+// One-shot scene posing for a repeatable screenshot: place an entity, then park
+// a free-fly camera at a fixed vantage. Runs once at (re)load.
+import "clap.um"
+
+fn main() {
+    hero := clap::get_entity3d("golem")
+    if hero.valid() {
+        hero.get_xform().set_position(0, 0, 0)
+        hero.get_xform().set_rotation(0, 180, 0)   // euler degrees, XYZ
+    }
+
+    // Detach from any followed entity and fix the camera, so successive
+    // screenshots frame the scene identically.
+    clap::detach()
+    clap::get_camera().get_xform().set_position(6, 9, 14)
+
+    // Alternatively, have the camera follow the hero instead of detaching:
+    //   clap::control(hero)
+}

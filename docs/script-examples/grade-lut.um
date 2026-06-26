@@ -1,0 +1,20 @@
+// Build a colour-grading LUT from a function and apply it. The grade writes its
+// result through the out pointer (so it returns nothing); both the input and the
+// output are linear RGB. Reusing a name rebuilds that LUT in place.
+import "clap.um"
+
+fn grade(r, g, b: real, out: ^clap::Vec3) {
+    // A simple warm/cool rebalance: lift reds, cool blues.
+    out.x = r * 1.1
+    out.y = g
+    out.z = b * 0.9
+}
+
+fn main() {
+    if clap::make_lut("warm", grade) {
+        clap::set_lut("warm")
+        clap::dbg("warm LUT built and applied")
+    } else {
+        clap::dbg("make_lut failed (graphics disabled?)")
+    }
+}

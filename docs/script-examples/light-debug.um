@@ -1,0 +1,31 @@
+// Inspect and drive the scene's lights. All lights share one array; a Light
+// handle refers to a slot, and slots in [0, light_count) may be empty, so guard
+// every handle with valid().
+import "clap.um"
+
+fn main() {
+    n := clap::light_count()
+    clap::dbg(sprintf("scene has %d light slot(s)", n))
+
+    for i := 0; i < n; i++ {
+        l := clap::get_light(i)
+        if !l.valid() {
+            continue
+        }
+        p := l.position()
+        c := l.color()
+        clap::dbg(sprintf("light %d: pos (%.1f %.1f %.1f) color (%.2f %.2f %.2f) radius %.1f",
+                          i, p.x, p.y, p.z, c.x, c.y, c.z, l.radius()))
+    }
+
+    // Reposition and recolour the first light for a shadow test.
+    key := clap::get_light(0)
+    if key.valid() {
+        key.set_position(10, 40, 10)
+        key.set_color(2.0, 1.8, 1.5)        // HDR values (> 1) are allowed
+        key.set_directional(false)          // make it a point light
+    }
+
+    clap::set_ambient(0.05, 0.05, 0.08)
+    clap::set_shadow_tint(0.1, 0.1, 0.2)
+}
