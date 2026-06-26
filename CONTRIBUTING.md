@@ -117,6 +117,7 @@ void endless_loop(void)
 - SPDX license headers: multiline comments in header files (/* SPDX... */) and single-line in C/C++/ObjC files (// SPDX...)
 - Declare variables at assignment site instead of the top of the function
 - Self-evident code is better
+- Unused function parameters are just that, unused: no `__unused` annotation, no `(void)param;` ritual. A callback that ignores an argument of its prototype is the normal case, not something to flag. `__unused` on a function is occasionally justified, and then the reason goes in a comment next to it; the annotation earns its keep while prototyping or debugging, on transient code that doesn't get committed
 - In conditional expressions:
     - constants go on the right: no "if (5 == number)" and suchlike; your compiler should warn you if you accidentally write an assignment in a conditional expression
     - no need for spelling out the obvious: "if (x == NULL)" => "if (!x)", "if (b == true)" => "if (b)" etc
