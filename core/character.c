@@ -34,7 +34,7 @@ static void character_motion_reset(struct character *ch, struct scene *s)
     if (scene_control_character(s) != ch)
         return;
 
-    if (ch->state == CS_IDLE) {
+    if (gpsm_get(&ch->sm) == CS_IDLE) {
         ch->dash_started.tv_sec = 0;
         ch->dash_started.tv_nsec = 0;
     }
@@ -95,9 +95,9 @@ void character_handle_input(struct character *ch, struct scene *s, struct messag
          * pressed). Hold-repeat events keep arriving while held, but
          * jump_held latches them so we don't stack spurious jumps.
          */
+        character_state state = gpsm_get(&ch->sm);
         if (!ch->jump_held &&
-            ch->state != CS_JUMPING && ch->state != CS_JUMP_START &&
-            ch->state != CS_ASCENDING)
+            state != CS_JUMPING && state != CS_JUMP_START && state != CS_ASCENDING)
             ch->jump = true;
         ch->jump_held = true;
     }
@@ -107,18 +107,9 @@ static void character_idle(struct scene *s, void *priv)
 {
     struct character *c = priv;
 
-    c->state = CS_AWAKE;
-    animation_push_by_name(c->entity, s, "idle", true, true);
+    /* end of the wake-up animation: the character is awake and idle */
+    gpsm_set(&c->sm, CS_IDLE);
 }
-
-static void character_start_motion(struct scene *s, void *priv)
-{
-    struct character *c = priv;
-
-    c->state = CS_MOVING;
-}
-
-static void character_set_state(struct character *ch, struct scene *s, character_state state);
 
 static void character_any_to_jump(struct scene *s, void *priv)
 {
@@ -133,7 +124,7 @@ static void character_any_to_jump(struct scene *s, void *priv)
      * jump.
      */
     if (c->jump_held && c->can_levitate) {
-        character_set_state(c, s, CS_ASCENDING);
+        gpsm_set(&c->sm, CS_ASCENDING);
         return;
     }
 
@@ -149,7 +140,7 @@ static void character_any_to_jump(struct scene *s, void *priv)
         c->jump_upward,
         c->motion[2] * c->jump_forward,
     });
-    character_set_state(c, s, CS_JUMPING);
+    gpsm_set(&c->sm, CS_JUMPING);
 }
 
 void character_set_moved(struct character *c)
@@ -159,18 +150,6 @@ void character_set_moved(struct character *c)
 }
 
 #ifndef CONFIG_FINAL
-static const char *character_state_string[] = {
-    [CS_START]      = "start",
-    [CS_WAKING]     = "waking",
-    [CS_IDLE]       = "idle",
-    [CS_MOVING]     = "moving",
-    [CS_JUMP_START] = "jump start",
-    [CS_JUMPING]    = "jumping",
-    [CS_ASCENDING]  = "ascending",
-    [CS_LEVITATING] = "levitating",
-    [CS_FALLING]    = "falling"
-};
-
 static void character_debug(struct character *ch)
 {
     const char *name = entity_name(ch->entity);
@@ -193,7 +172,7 @@ static void character_debug(struct character *ch)
         igText("upness %f", dot);
 
         igText("collision %s", entity_name(ch->collision));
-        igText("state %s", character_state_string[ch->state]);
+        igText("state %s", gpsm_name(&ch->sm, gpsm_get(&ch->sm)));
         igCheckbox("airborne", &ch->airborne);
         bool moved = transform_is_updated(&ch->entity->xform);
         igBeginDisabled(true);
@@ -342,7 +321,7 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
                               ch->velocity, char_mass);
     }
 
-    if (ch->state == CS_LEVITATING)     vec3_dup(ch->velocity, (vec3){});
+    if (gpsm_get(&ch->sm) == CS_LEVITATING)     vec3_dup(ch->velocity, (vec3){});
 
     /* Zero body velocity so ODE dynamics don't fight the sweep */
     phys_body_set_velocity(e->phys_body, (vec3){ 0, 0, 0 });
@@ -351,159 +330,206 @@ rotate:
     entity3d_rotate(ch->entity, 0, atan2f(ch->motion[0], ch->motion[2]), 0);
 }
 
-static void character_set_state(struct character *ch, struct scene *s, character_state state)
+/*
+ * State machine (gpsm.h). Every callback gets the character as @priv. Guards
+ * refuse or redirect a transition before anything is committed; enters push
+ * the animations, and can land on a different state by returning it.
+ */
+
+static cres(gpsm_state_t) cs_moving_guard(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
-    /* if character is in START state and motion is triggered */
-    if (unlikely(state != CS_IDLE && ch->state < CS_IDLE)) {
-        if (ch->state == CS_START) {
-            ch->state = CS_WAKING;
-            animation_push_by_name(ch->entity, s, "start_to_idle", true, false);
-            animation_set_end_callback(ch->entity, character_idle, ch);
-        }
-        return;
-    }
+    /* asked of a sleeping character, MOVING (and FALLING) wakes it up instead */
+    return cres_val(gpsm_state_t, from == CS_START ? CS_WAKING : CS_MOVING);
+}
 
-fail_fallback:
-    switch (state) {
-        case CS_IDLE:
-            if (ch->airborne)
-                return;
+static cres(gpsm_state_t) cs_falling_guard(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    /* see cs_moving_guard() */
+    return cres_val(gpsm_state_t, from == CS_START ? CS_WAKING : CS_FALLING);
+}
 
-            if (ch->state == CS_MOVING) {
-                animation_push_by_name(ch->entity, s, "motion_stop", true, false);
-            } else if (ch->state == CS_JUMPING) {
-                animation_push_by_name(ch->entity, s, "jump_to_idle", true, false);
-            } else if (ch->state == CS_FALLING) {
-                animation_push_by_name(ch->entity, s, "fall_to_idle", true, false);
-            } else if (ch->state <= CS_IDLE || ch->state == CS_JUMP_START || ch->state == CS_LEVITATING) {
-                return;
-            }
-            animation_push_by_name(ch->entity, s, "idle", false, true);
+static cres(gpsm_state_t) cs_idle_guard(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
 
-            ch->state = state;
-            break;
+    /* The end of the wake-up animation always lands; nothing else idles mid-air */
+    if (from != CS_WAKING && ch->airborne)  return cres_error(gpsm_state_t, CERR_GPSM_ABORT);
 
+    return cres_val(gpsm_state_t, CS_IDLE);
+}
+
+static const char *cs_jump_windup(gpsm_state_t from)
+{
+    return from == CS_IDLE ? "idle_to_jump" : "motion_to_jump";
+}
+
+static cres(gpsm_state_t) cs_jump_start_guard(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    /*
+     * No windup clip, no jump. Refusing here keeps the animation queue as it
+     * is, where a failed clearing push would have wiped it.
+     */
+    if (animation_by_name(ch->entity->txmodel->model, cs_jump_windup(from)) < 0)
+        return cres_error(gpsm_state_t, CERR_GPSM_ABORT);
+
+    return cres_val(gpsm_state_t, CS_JUMP_START);
+}
+
+static gpsm_state_t cs_start_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    animation_push_by_name(ch->entity, ch->scene, "start", true, true);
+    return CS_START;
+}
+
+static gpsm_state_t cs_waking_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    animation_push_by_name(ch->entity, ch->scene, "start_to_idle", true, false);
+    animation_set_end_callback(ch->entity, character_idle, ch);
+    return CS_WAKING;
+}
+
+static gpsm_state_t cs_idle_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    switch (from) {
+        case CS_WAKING:
+            animation_push_by_name(ch->entity, ch->scene, "idle", true, true);
+            return CS_IDLE;
         case CS_MOVING:
-            /* velocity vector may have changed, always apply it */
-            character_apply_velocity(ch, s);
-            character_set_moved(ch);
-
-            if (ch->state == CS_IDLE) {
-                if (animation_push_by_name(ch->entity, s, "motion_start", true, false)) {
-                    animation_set_end_callback(ch->entity, character_start_motion, ch);
-                } else {
-                    state = CS_IDLE;
-                    goto fail_fallback;
-                }
-            } else if ((ch->state == CS_FALLING || ch->state == CS_JUMPING) && !ch->airborne) {
-                if (!animation_push_by_name(ch->entity, s, "jump_to_motion", true, false)) {
-                    state = CS_IDLE;
-                    goto fail_fallback;
-                }
-            } else if (ch->state == CS_JUMP_START) {
-                state = CS_IDLE;
-                goto fail_fallback;
-            } else if (ch->state == CS_MOVING || ch->state == CS_LEVITATING) {
-                return;
-            }
-
-            if (!animation_push_by_name(ch->entity, s, "motion", false, true)) {
-                state = CS_IDLE;
-                goto fail_fallback;
-            }
-            ch->state = state;
+            animation_push_by_name(ch->entity, ch->scene, "motion_stop", true, false);
             break;
-
-        case CS_JUMP_START:
-            if (ch->state == CS_IDLE) {
-                if (animation_push_by_name(ch->entity, s, "idle_to_jump", true, false)) {
-                    animation_set_end_callback(ch->entity, character_any_to_jump, ch);
-                } else {
-                    state = CS_IDLE;
-                    goto fail_fallback;
-                }
-            } else if (ch->state == CS_MOVING) {
-                ch->airborne = true;
-
-                if (animation_push_by_name(ch->entity, s, "motion_to_jump", true, false)) {
-                    animation_set_end_callback(ch->entity, character_any_to_jump, ch);
-                } else {
-                    state = CS_IDLE;
-                    goto fail_fallback;
-                }
-            } else {
-                /* JUMP_START only legitimately starts from IDLE or MOVING. */
-                return;
-            }
-
-            ch->state = state;
-            break;
-
         case CS_JUMPING:
-            if (ch->state == CS_JUMP_START) {
-                if (animation_push_by_name(ch->entity, s, "jump", true, true)) {
-                    ch->state = state;
-                    break;
-                }
-            }
-            state = CS_IDLE;
-            goto fail_fallback;
-
-        case CS_ASCENDING:
-            /*
-             * Entered from the end of the pre-jump windup when the button
-             * is still held (character_any_to_jump). Re-entry is a no-op --
-             * character_move() drives the per-frame ascent and the
-             * ASCENDING -> LEVITATING transition on release.
-             */
-            if (ch->state == CS_ASCENDING)  return;
-            if (ch->state != CS_JUMP_START) {
-                state = CS_FALLING;
-                goto fail_fallback;
-            }
-            animation_push_by_name(ch->entity, s, "fall", true, true);
-            ch->state = state;
+            animation_push_by_name(ch->entity, ch->scene, "jump_to_idle", true, false);
             break;
-
-        case CS_LEVITATING:
-            /*
-             * Reachable only from ASCENDING -- the jump button was
-             * released mid-ascent, so the character latches into a
-             * zero-velocity hover. Zero out the ascent velocity here,
-             * character_apply_velocity() keeps it zeroed on steered
-             * frames; character_move() re-applies horizontal motion
-             * from input each frame. The fall animation has been
-             * playing since the ascent started.
-             */
-            if (ch->state != CS_ASCENDING)      return;
-            vec3_dup(ch->velocity, (vec3){});
-            ch->state = state;
-            break;
-
         case CS_FALLING:
-            if (ch->state == CS_JUMP_START || ch->state == CS_JUMPING) {
-                return;
-            }
-            animation_push_by_name(ch->entity, s, "fall", true, true);
-            ch->state = state;
+            animation_push_by_name(ch->entity, ch->scene, "fall_to_idle", true, false);
             break;
-
         default:
-            ch->state = state;
-            break;
+            /* gpsm_init(), or an enter() falling back to where it started */
+            return CS_IDLE;
     }
+
+    animation_push_by_name(ch->entity, ch->scene, "idle", false, true);
+    return CS_IDLE;
+}
+
+static gpsm_state_t cs_moving_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+    const char *lead_in = from == CS_IDLE ? "motion_start" : "jump_to_motion";
+
+    /* Missing a clip, land idle instead: from the air, that plays the landing */
+    if (!animation_push_by_name(ch->entity, ch->scene, lead_in, true, false))   return CS_IDLE;
+    if (!animation_push_by_name(ch->entity, ch->scene, "motion", false, true))  return CS_IDLE;
+
+    return CS_MOVING;
+}
+
+static gpsm_state_t cs_jump_start_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    animation_push_by_name(ch->entity, ch->scene, cs_jump_windup(from), true, false);
+    animation_set_end_callback(ch->entity, character_any_to_jump, ch);
+    /* a running jump is airborne from the windup on */
+    if (from == CS_MOVING)  ch->airborne = true;
+
+    return CS_JUMP_START;
+}
+
+static gpsm_state_t cs_jumping_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    animation_push_by_name(ch->entity, ch->scene, "jump", true, true);
+    return CS_JUMPING;
+}
+
+static gpsm_state_t cs_ascending_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    /*
+     * Entered from the end of the pre-jump windup when the button is still
+     * held (character_any_to_jump()). character_move() drives the per-frame
+     * ascent and the ASCENDING -> LEVITATING transition on release.
+     */
+    animation_push_by_name(ch->entity, ch->scene, "fall", true, true);
+    return CS_ASCENDING;
+}
+
+static gpsm_state_t cs_levitating_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    /*
+     * The jump button was released mid-ascent, so the character latches into
+     * a zero-velocity hover. Zero out the ascent velocity here,
+     * character_apply_velocity() keeps it zeroed on steered frames;
+     * character_move() re-applies horizontal motion from input each frame.
+     * The fall animation has been playing since the ascent started.
+     */
+    vec3_dup(ch->velocity, (vec3){});
+    return CS_LEVITATING;
+}
+
+static gpsm_state_t cs_falling_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
+{
+    struct character *ch = priv;
+
+    animation_push_by_name(ch->entity, ch->scene, "fall", true, true);
+    return CS_FALLING;
+}
+
+/*
+ * Missing edges are deliberate: JUMP_START and JUMPING stay put while airborne
+ * (JUMPING covers the whole arc down to the landing), JUMP_START and
+ * LEVITATING never idle (the windup ends in a jump, a hover ends in a fall),
+ * and IDLE lists itself only so that cs_moving_enter() can fall back to it.
+ */
+static const struct gpsm_state character_states[CS_NR] = {
+    [CS_START]      = { .name = "start",      .enter = cs_start_enter,
+                        .valid_from = GPSM_FROM(CS_IDLE) },
+    [CS_WAKING]     = { .name = "waking",     .enter = cs_waking_enter,
+                        .valid_from = GPSM_FROM(CS_START) },
+    [CS_IDLE]       = { .name = "idle",       .enter = cs_idle_enter,       .guard = cs_idle_guard,
+                        .valid_from = GPSM_FROM(CS_WAKING, CS_IDLE, CS_MOVING, CS_JUMPING, CS_FALLING) },
+    [CS_MOVING]     = { .name = "moving",     .enter = cs_moving_enter,     .guard = cs_moving_guard,
+                        .valid_from = GPSM_FROM(CS_START, CS_IDLE, CS_JUMPING, CS_FALLING) },
+    [CS_JUMP_START] = { .name = "jump start", .enter = cs_jump_start_enter, .guard = cs_jump_start_guard,
+                        .valid_from = GPSM_FROM(CS_IDLE, CS_MOVING) },
+    [CS_JUMPING]    = { .name = "jumping",    .enter = cs_jumping_enter,
+                        .valid_from = GPSM_FROM(CS_JUMP_START) },
+    [CS_ASCENDING]  = { .name = "ascending",  .enter = cs_ascending_enter,
+                        .valid_from = GPSM_FROM(CS_JUMP_START) },
+    [CS_LEVITATING] = { .name = "levitating", .enter = cs_levitating_enter,
+                        .valid_from = GPSM_FROM(CS_ASCENDING) },
+    [CS_FALLING]    = { .name = "falling",    .enter = cs_falling_enter,    .guard = cs_falling_guard,
+                        .valid_from = GPSM_FROM(CS_START, CS_IDLE, CS_MOVING, CS_LEVITATING) },
+};
+
+static bool character_is_awake(struct character *ch)
+{
+    /* START and WAKING are not: input wakes the character up, but doesn't move it */
+    return gpsm_get(&ch->sm) >= CS_IDLE;
 }
 
 static bool character_jump(struct character *ch, struct scene *s, float dx, float dz)
 {
     /*
      * Jumping while levitating drops the character. Return true so the
-     * caller skips this frame's motion block: character_set_state(CS_MOVING)
-     * with state == FALLING && airborne matches none of its guards and
-     * would push the "motion" animation mid-air.
+     * caller skips this frame's motion block: asking for MOVING from FALLING
+     * while airborne would push the landing animation mid-air.
      */
-    if (ch->state == CS_LEVITATING) {
-        character_set_state(ch, s, CS_FALLING);
+    if (gpsm_get(&ch->sm) == CS_LEVITATING) {
+        gpsm_set(&ch->sm, CS_FALLING);
         return true;
     }
 
@@ -520,17 +546,18 @@ static bool character_jump(struct character *ch, struct scene *s, float dx, floa
     /*
      * On the landing frame the state is still JUMPING or FALLING: the
      * grounded transition hasn't run yet, so there is no animation to
-     * chain the jump onto and character_set_state() would refuse it.
+     * chain the jump onto and the state machine would refuse it.
      * Setting the velocity first would then leak it into that frame.
      */
-    if (ch->state != CS_IDLE && ch->state != CS_MOVING)     return false;
+    character_state state = gpsm_get(&ch->sm);
+    if (state != CS_IDLE && state != CS_MOVING)     return false;
 
     if (!entity3d_matches(ch->entity, ENTITY3D_PHYS_IS_BODY))
         return false;
 
     vec3_dup(ch->velocity, (vec3){ dx * ch->jump_forward, ch->jump_upward, dz * ch->jump_forward });
 
-    character_set_state(ch, s, CS_JUMP_START);
+    gpsm_set(&ch->sm, CS_JUMP_START);
 
     return true;
 }
@@ -549,7 +576,7 @@ void character_move(struct character *ch, struct scene *s)
      * here. Once gravity brings velocity[1] to zero, ground_collide
      * takes over for landing detection.
      */
-    if (ch->state == CS_JUMPING && ch->velocity[1] > 0)
+    if (gpsm_get(&ch->sm) == CS_JUMPING && ch->velocity[1] > 0)
         ch->airborne = true;
 
     /*
@@ -560,9 +587,9 @@ void character_move(struct character *ch, struct scene *s)
      * windup height. Once the button is released (jump_held flips off
      * via the release event from to_press_release) latch into LEVITATING.
      */
-    if (ch->state == CS_ASCENDING) {
+    if (gpsm_get(&ch->sm) == CS_ASCENDING) {
         if (!ch->jump_held) {
-            character_set_state(ch, s, CS_LEVITATING);
+            gpsm_set(&ch->sm, CS_LEVITATING);
         } else {
             ch->airborne = true;
             vec3_dup(ch->normal, (vec3){ 0.0f, 1.0f, 0.0f });
@@ -585,7 +612,7 @@ void character_move(struct character *ch, struct scene *s)
         }
     }
 
-    if (ch->state == CS_LEVITATING) {
+    if (gpsm_get(&ch->sm) == CS_LEVITATING) {
         ch->airborne = true;
         vec3_dup(ch->normal, (vec3){ 0.0f, 1.0f, 0.0f });
         goto motion;
@@ -610,7 +637,9 @@ void character_move(struct character *ch, struct scene *s)
             character_set_moved(ch);
         }
 
-        character_set_state(ch, s, CS_FALLING);
+        /* JUMP_START and JUMPING turn this down: they are already airborne */
+        if (gpsm_get(&ch->sm) != CS_FALLING)
+            gpsm_set(&ch->sm, CS_FALLING);
         goto out;
     }
 
@@ -645,7 +674,8 @@ motion:
             vec3_norm(newz, newz);
 
             /* XXX: apply this in character_apply_velocity() */
-            if (ch->state == CS_MOVING || ch->state == CS_LEVITATING)
+            character_state state = gpsm_get(&ch->sm);
+            if (state == CS_MOVING || state == CS_LEVITATING)
                 motion_coefficient = 1.0f;
             else
                 motion_coefficient = 0.3f;
@@ -654,9 +684,21 @@ motion:
             vec3_add_scaled(ch->velocity, newx, newz, ch->motion[0] * motion_coefficient, ch->motion[2] * motion_coefficient);
         }
 
-        character_set_state(ch, s, CS_MOVING);
-    } else if (!ch->airborne) {
-        character_set_state(ch, s, CS_IDLE);
+        /*
+         * The velocity is input-driven, so it is applied here and not by the
+         * state machine: it moves the character whether or not MOVING is
+         * granted (JUMP_START windup, LEVITATING), as long as it is awake.
+         */
+        if (character_is_awake(ch)) {
+            character_apply_velocity(ch, s);
+            character_set_moved(ch);
+        }
+
+        if (gpsm_get(&ch->sm) != CS_MOVING)
+            gpsm_set(&ch->sm, CS_MOVING);
+    } else if (!ch->airborne && character_is_awake(ch) && gpsm_get(&ch->sm) != CS_IDLE) {
+        /* WAKING -> IDLE is the wake-up animation's to take, see character_idle() */
+        gpsm_set(&ch->sm, CS_IDLE);
     }
 
 out:
@@ -669,7 +711,9 @@ void character_stop(struct character *c, struct scene *s)
     vec3_dup(c->motion, (vec3){});
     vec3_dup(c->velocity, (vec3){});
     c->jump_held = false;
-    character_set_state(c, s, CS_IDLE);
+    /* a waking character finishes waking up on its own */
+    if (character_is_awake(c))
+        gpsm_set(&c->sm, CS_IDLE);
 }
 
 static void history_push(struct character *c)
@@ -764,7 +808,9 @@ static cerr character_make(struct ref *ref, void *_opts)
     entity3d_set(c->entity, ENTITY3D_IS_CHARACTER, c);
     c->orig_update = c->entity->update;
     c->entity->update = character_update;
-    c->state = CS_AWAKE;
+    c->scene = opts->scene;
+    c->sm.name = txmodel_name(opts->txmodel);
+    CERR_RET_CERR(gpsm_init(&c->sm, character_states, CS_NR, c, CS_IDLE));
     c->jump_forward = 0.5;
     c->jump_upward = 3.5;
     c->mq = &opts->scene->mq;

@@ -2,6 +2,7 @@
 #ifndef __CLAP_CHARACTER_H__
 #define __CLAP_CHARACTER_H__
 
+#include "gpsm.h"
 #include "messagebus.h"
 #include "model.h"
 #include "physics.h"
@@ -18,6 +19,7 @@ typedef enum character_state {
     CS_ASCENDING,
     CS_LEVITATING,
     CS_FALLING,
+    CS_NR,
 } character_state;
 
 #define POS_HISTORY_MAX 8
@@ -28,6 +30,12 @@ struct character {
     int (*orig_update)(entity3d *, void *);
     struct camera *camera;
     struct timespec dash_started;
+    struct gpsm sm;
+    struct list entry;
+    entity3d *collision;
+    entity3d *old_collision;
+    struct mq *mq;
+    struct scene *scene;
     vec3    motion;
     vec3    velocity;
     vec3    normal;
@@ -35,11 +43,6 @@ struct character {
     float   jump_forward;
     float   jump_upward;
     float   lin_speed;
-    enum character_state state;
-    struct list entry;
-    entity3d *collision;
-    entity3d *old_collision;
-    struct mq *mq;
     struct {
         vec3            pos[POS_HISTORY_MAX];
         unsigned int    head;

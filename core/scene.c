@@ -1805,10 +1805,9 @@ light_done:
 
                 if (c &&
                     animation_by_name(e->txmodel->model, "start") >= 0 &&
-                    animation_by_name(e->txmodel->model, "start_to_idle") >= 0) {
-                        c->state = CS_START;
-                        animation_push_by_name(e, scene, "start", true, true);
-                }
+                    animation_by_name(e->txmodel->model, "start_to_idle") >= 0)
+                    CERR_RET(gpsm_set(&c->sm, CS_START),
+                             err_cerr(__cerr, "'%s' can't start asleep\n", entity_name(e)));
             }
         }
     } else {
