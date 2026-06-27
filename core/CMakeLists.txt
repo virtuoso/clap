@@ -375,3 +375,7 @@ clap_subsystem_test(bsp_tests test-bsp.c bsp.c prng.c prng-mt.cpp)
 
 # The graph tests compile the graph and the prng its generator draws from
 clap_subsystem_test(graph_tests test-graph.c graph.c prng.c prng-mt.cpp)
+
+# The gpsm tests compile the state machine alone; the callbacks are the
+# fixture's own
+clap_subsystem_test(gpsm_tests test-gpsm.c gpsm.c)
