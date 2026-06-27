@@ -126,7 +126,7 @@ set(ENGINE_SRC
     object.c util.c fs-ops.c fs-ops-posix.c logger.c messagebus.c primitives.c motion.c
     model.c shader.c librarian.c json.c clap.c view.c light.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
-    physics.c ui-animations.c ui-menus.c ui-settings.c character.c settings.c error.c
+    physics.c ui-animations.c ui-menus.c ui-settings.c character.c gpsm.c settings.c error.c
     gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c graphics-settings.c audio-settings.c
     prng.c prng-mt.cpp bsp.c graph.c

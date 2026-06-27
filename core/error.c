@@ -44,6 +44,7 @@ const char *cerr_str(cerr_enum err)
         case _CERR_REQUEST_EXIT:            return "exit requested";
         case _CERR_PREVIOUS_ERRORS:         return "previous errors";
         case _CERR_PARTIAL_FAILURE:         return "partial failure";
+        case _CERR_GPSM_ABORT:              return "transition aborted";
         default:                            break;
     }
 
