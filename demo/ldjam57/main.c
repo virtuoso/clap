@@ -277,6 +277,9 @@ static void process_entity(entity3d *e, void *data)
         if (permanent)
             sobj->permanent = true;
     } else if (str_endswith(name, "dude") || strstr(name, ".body")) {
+        auto c = CRES_RET(entity3d_character(e), return);
+        c->fall_drag = 0.8;
+
         character_obj *cobj = darray_add(cobjs);
         cobj->e = e;
         cobj->orig_update = e->update;
