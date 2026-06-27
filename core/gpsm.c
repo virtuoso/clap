@@ -198,3 +198,34 @@ void gpsm_swap_table(struct gpsm *sm, const struct gpsm_state *table,
     sm->nr_states = nr_states;
     /* state index preserved; caller ensures table[state] is meaningful */
 }
+
+#if !defined(CONFIG_FINAL) && !defined(CLAP_TESTS)
+#include "ui-debug.h"
+
+void gpsm_debug(struct gpsm *sm, bool readonly)
+{
+    gpsm_state_t cur = sm->state;
+
+    /* state names repeat across machines sharing a window, so scope the IDs */
+    igPushID_Ptr(sm);
+    igText("state %s (%d)", gpsm_name(sm, cur), cur);
+
+    if (readonly)  igBeginDisabled(true);
+
+    bool first = true;
+    for (unsigned int s = 0; s < sm->nr_states; s++) {
+        if (!mask_test(&sm->table[s].valid_from, cur))  continue;
+
+        if (!first)  igSameLine(0.0, -1.0);
+        first = false;
+
+        if (igSmallButton(gpsm_name(sm, s)))
+            CERR_RET(gpsm_set(sm, s),
+                     err_cerr(__cerr, "gpsm(%s): %s -> %s refused\n",
+                              gpsm_id(sm), gpsm_name(sm, cur), gpsm_name(sm, s)));
+    }
+
+    if (readonly)  igEndDisabled();
+    igPopID();
+}
+#endif /* !CONFIG_FINAL && !CLAP_TESTS */

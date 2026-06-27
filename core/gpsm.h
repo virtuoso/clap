@@ -127,7 +127,7 @@ struct gpsm {
     unsigned int              nr_states;
     const struct gpsm_state  *table;       /* [nr_states] */
     void                     *priv;
-    const char               *name;        /* optional, names the machine in log lines */
+    const char               *name;        /* optional, names the machine in log lines and gpsm_debug() */
     gpsm_recover_fn           recover;     /* optional; set before/after gpsm_init() */
 };
 
@@ -211,5 +211,20 @@ void  gpsm_tick(struct gpsm *sm);
  */
 void  gpsm_swap_table(struct gpsm *sm, const struct gpsm_state *table,
                       unsigned int nr_states);
+
+#if !defined(CONFIG_FINAL) && !defined(CLAP_TESTS)
+/**
+ * gpsm_debug() - ImGui block for a machine, embedded in its owner's debug window
+ * @sm:         the state machine
+ * @readonly:   show the legal targets, but don't offer to transition
+ *
+ * Shows the current state and one button per state whose valid_from admits it;
+ * a click attempts gpsm_set() to that state and a refusal is logged. No window
+ * of its own: the caller is inside ui_igBegin()/ui_igEnd() of its own module.
+ */
+void  gpsm_debug(struct gpsm *sm, bool readonly);
+#else
+static inline void gpsm_debug(struct gpsm *sm, bool readonly) {}
+#endif /* CONFIG_FINAL || CLAP_TESTS */
 
 #endif /* __CLAP_GPSM_H__ */

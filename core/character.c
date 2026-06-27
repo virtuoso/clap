@@ -172,7 +172,7 @@ static void character_debug(struct character *ch)
         igText("upness %f", dot);
 
         igText("collision %s", entity_name(ch->collision));
-        igText("state %s", gpsm_name(&ch->sm, gpsm_get(&ch->sm)));
+        gpsm_debug(&ch->sm, false);
         igCheckbox("airborne", &ch->airborne);
         bool moved = transform_is_updated(&ch->entity->xform);
         igBeginDisabled(true);
