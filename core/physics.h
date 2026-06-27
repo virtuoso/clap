@@ -49,15 +49,17 @@ typedef struct entity3d entity3d;
  * @bounce:     "contact resolution" by bouncing [0.0, 1.0]: 0.0: not
  *              bouncy at all, 1.0: maximum bounciness
  * @bounce_vel: minimal incoming velocity necessary to bounce, below this bounce
- *              is zero
+ *              is zero (ODE backend only; Box3D uses the world-level
+ *              restitution threshold)
  * @mu:         Coulomb friction coefficient [0.0, infinity]: 0.0: frictionless,
  *              infinity: never slides
  * @soft_erp:   per-body error reduction parameter override [0.0, 1.0]:
  *              0 means use the default; lower values reduce penetration
  *              correction force (helps prevent tall objects from bouncing
- *              back upright)
+ *              back upright) (ODE backend only)
  * @soft_cfm:   per-body constraint force mixing override:
  *              0 means use the default; higher values make contacts softer
+ *              (ODE backend only)
  */
 typedef struct phys_contact_params {
     float   bounce;

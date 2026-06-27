@@ -16,6 +16,7 @@ option(CLAP_BUILD_FINAL BOOL OFF)
 option(CLAP_BUILD_NETWORKING BOOL OFF)
 option(CLAP_USE_UBSAN BOOL OFF)
 option(CLAP_USE_ASAN BOOL OFF)
+option(CLAP_USE_ODE "Use ODE as the physics backend instead of Box3D" OFF)
 option(CLAP_DEMOS_BUILD_IN_ASSETS BOOL ON)
 option(CLAP_SHIP BOOL OFF)
 option(CLAP_BUILD_WITH_SCRIPTING BOOL ON)
@@ -32,6 +33,15 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 include(ProcessorCount)
 ProcessorCount(nproc)
 include(scripts/renderer-switch.cmake)
+
+# Physics backend: Box3D by default, ODE as an opt-in fallback (-DCLAP_USE_ODE=ON)
+if (CLAP_USE_ODE)
+    set(CONFIG_PHYSICS_ODE 1)
+    message(STATUS "Physics backend: ODE")
+else ()
+    set(CONFIG_PHYSICS_BOX3D 1)
+    message(STATUS "Physics backend: Box3D")
+endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     if (CLAP_USE_ASAN)
@@ -360,53 +370,79 @@ if (CLAP_BUILD_WITH_SCRIPTING)
     include(scripts/umka.cmake)
 endif ()
 
-set(ODE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ode")
+if (CONFIG_PHYSICS_ODE)
+    set(ODE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ode")
 
-if (WIN32)
-    if (MINGW)
-        set(ODE_LIBRARY "${ODE_ROOT}/lib/libode_doubles${W32LIBSUFFIX}.a")
+    if (WIN32)
+        if (MINGW)
+            set(ODE_LIBRARY "${ODE_ROOT}/lib/libode_doubles${W32LIBSUFFIX}.a")
+        else ()
+            set(ODE_LIBRARY "${ODE_ROOT}/lib/ode_doubles${W32LIBSUFFIX}.lib")
+        endif ()
     else ()
-        set(ODE_LIBRARY "${ODE_ROOT}/lib/ode_doubles${W32LIBSUFFIX}.lib")
+        set(ODE_LIBRARY "${ODE_ROOT}/lib/libode.a")
     endif ()
+
+    ExternalProject_Add(ode
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/deps/ode
+        CMAKE_ARGS
+            -DCMAKE_BUILD_PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL}
+            -DCMAKE_PROGRAM_PATH=${CMAKE_PROGRAM_PATH}
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+            -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${VCPKG_CHAINLOAD_TOOLCHAIN_FILE}
+            -DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}
+            -DCMAKE_C_COMPILER_FRONTEND_VARIANT=MSVC -DCMAKE_CXX_COMPILER_FRONTEND_VARIANT=MSVC
+            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+            -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+            -DCMAKE_AR=${CMAKE_AR}
+            -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+            -DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}
+            -DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}
+            -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+            -DCMAKE_C_FLAGS_DEBUG=${CMAKE_C_FLAGS_DEBUG}
+            -DCMAKE_C_FLAGS_RELEASE=${CMAKE_C_FLAGS_RELEASE}
+            -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/ode
+            -DODE_WITH_DEMOS=OFF -DODE_WITH_GIMPACT=OFF -DODE_WITH_TESTS=OFF
+            -DODE_WITH_LIBCCD=ON -DODE_WITH_OPCODE=ON -DBUILD_SHARED_LIBS=OFF
+            -DODE_WITH_TESTS=OFF
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}
+        USES_TERMINAL_BUILD TRUE
+        BUILD_BYPRODUCTS
+            ${ODE_LIBRARY}
+        INSTALL_COMMAND
+            cmake --build . --target install)
+
+    add_library(libode STATIC IMPORTED)
+    add_dependencies(libode ode)
+    set_property(TARGET libode PROPERTY IMPORTED_LOCATION "${ODE_LIBRARY}")
+    set(ODE_INCLUDE "${ODE_ROOT}/include")
+
+    set(CLAP_PHYSICS_LIBRARIES libode)
+    set(CLAP_PHYSICS_INCLUDE_DIRS "${ODE_INCLUDE}")
 else ()
-set(ODE_LIBRARY "${ODE_ROOT}/lib/libode.a")
+    bootstrap_deps("bootstrap-box3d.json")
+
+    set(BOX3D_SAMPLES OFF CACHE BOOL "")
+    set(BOX3D_UNIT_TESTS OFF CACHE BOOL "")
+    set(BOX3D_BENCHMARKS OFF CACHE BOOL "")
+    set(BOX3D_DOCS OFF CACHE BOOL "")
+    add_subdirectory(deps/src/box3d EXCLUDE_FROM_ALL)
+    set_property(TARGET box3d PROPERTY FOLDER "ThirdPartyLibraries")
+
+    set(CLAP_PHYSICS_LIBRARIES box3d)
+    set(CLAP_PHYSICS_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/deps/src/box3d/include")
 endif ()
 
-ExternalProject_Add(ode
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/deps/ode
-    CMAKE_ARGS
-        -DCMAKE_BUILD_PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL}
-        -DCMAKE_PROGRAM_PATH=${CMAKE_PROGRAM_PATH}
-        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-        -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
-        -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${VCPKG_CHAINLOAD_TOOLCHAIN_FILE}
-        -DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}
-        -DCMAKE_C_COMPILER_FRONTEND_VARIANT=MSVC -DCMAKE_CXX_COMPILER_FRONTEND_VARIANT=MSVC
-        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-        -DCMAKE_AR=${CMAKE_AR}
-        -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
-        -DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}
-        -DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}
-        -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
-        -DCMAKE_C_FLAGS_DEBUG=${CMAKE_C_FLAGS_DEBUG}
-        -DCMAKE_C_FLAGS_RELEASE=${CMAKE_C_FLAGS_RELEASE}
-        -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/ode
-        -DODE_WITH_DEMOS=OFF -DODE_WITH_GIMPACT=OFF -DODE_WITH_TESTS=OFF
-        -DODE_WITH_LIBCCD=ON -DODE_WITH_OPCODE=ON -DBUILD_SHARED_LIBS=OFF
-        -DODE_WITH_TESTS=OFF
-        -DCMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}
-    USES_TERMINAL_BUILD TRUE
-    BUILD_BYPRODUCTS
-        ${ODE_LIBRARY}
-    INSTALL_COMMAND
-        cmake --build . --target install)
-
-add_library(libode STATIC IMPORTED)
-add_dependencies(libode ode)
-set_property(TARGET libode PROPERTY IMPORTED_LOCATION "${ODE_LIBRARY}")
-set(ODE_INCLUDE "${ODE_ROOT}/include")
+if (TARGET box3d AND ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # Box3D uses __atomic_* builtins (solver, broadphase, scheduler); without
+    # -pthread clang lowers them thread-unsafely and marks the objects as
+    # incompatible with shared memory, so wasm-ld rejects them in the
+    # -s SHARED_MEMORY=1 link. Deps without atomics (meshoptimizer, kissfft)
+    # do not need this.
+    target_compile_options(box3d PRIVATE -pthread)
+endif ()
 
 add_subdirectory(core)
 add_subdirectory(demo/ldjam56)

@@ -119,6 +119,17 @@ if (NOT RENDERER_SRC)
     message(FATAL_ERROR "Unsupported renderer")
 endif ()
 
+set(PHYSICS_SRC "")
+if (CONFIG_PHYSICS_ODE)
+    list(APPEND PHYSICS_SRC physics-ode.c)
+endif ()
+if (CONFIG_PHYSICS_BOX3D)
+    list(APPEND PHYSICS_SRC physics-box3d.c)
+endif ()
+if (NOT PHYSICS_SRC)
+    message(FATAL_ERROR "Unsupported physics backend")
+endif ()
+
 set(MA_DIR ${CMAKE_SOURCE_DIR}/deps/src/miniaudio)
 
 set(ENGINE_LIB libonehandclap)
@@ -126,7 +137,7 @@ set(ENGINE_SRC
     object.c util.c fs-ops.c fs-ops-posix.c logger.c messagebus.c primitives.c motion.c
     model.c shader.c librarian.c json.c clap.c view.c light.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
-    physics-ode.c ui-animations.c ui-menus.c ui-settings.c character.c gpsm.c settings.c error.c
+    ${PHYSICS_SRC} ui-animations.c ui-menus.c ui-settings.c character.c gpsm.c settings.c error.c
     gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c graphics-settings.c audio-settings.c
     prng.c prng-mt.cpp bsp.c graph.c
@@ -339,16 +350,19 @@ add_custom_target(
 )
 
 add_library(${ENGINE_LIB} ${ENGINE_SRC} ${CIMGUI_SRC} builddate.c builtin-shaders.c)
-add_dependencies(${ENGINE_LIB} ode refclasses_gen cerrs_gen force_builddate render_bindings_gen)
+add_dependencies(${ENGINE_LIB} refclasses_gen cerrs_gen force_builddate render_bindings_gen)
+if (CONFIG_PHYSICS_ODE)
+    add_dependencies(${ENGINE_LIB} ode)
+endif ()
 set_target_properties(${ENGINE_LIB} PROPERTIES PREFIX "")
 set_target_properties(${ENGINE_LIB} PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${CLAP_DEPENDENCY_LIBRARIES})
 target_link_libraries(${ENGINE_LIB} PRIVATE ${CLAP_RENDERER_LIBRARIES})
-target_link_libraries(${ENGINE_LIB} PRIVATE libode meshoptimizer kissfft)
+target_link_libraries(${ENGINE_LIB} PRIVATE ${CLAP_PHYSICS_LIBRARIES} meshoptimizer kissfft)
 target_link_libraries(${ENGINE_LIB} PRIVATE ${EXTRA_LIBRARIES})
 target_link_options(${ENGINE_LIB} PRIVATE ${DEBUG_LIBRARIES})
 target_include_directories(${ENGINE_LIB} PRIVATE ${MA_DIR})
-target_include_directories(${ENGINE_LIB} PRIVATE ${ODE_INCLUDE})
+target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_PHYSICS_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${KISSFFT_INCLUDE})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_DEPENDENCY_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_RENDERER_INCLUDE_DIRS})

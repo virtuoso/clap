@@ -179,7 +179,7 @@ function (clap_executable executable_name title sources asset_dir assets backgro
     add_dependencies(${executable_name} ${ENGINE_LIB} meshoptimizer)
     target_include_directories(${executable_name} PRIVATE
         ${ENGINE_INCLUDE}
-        ${ODE_INCLUDE}
+        ${CLAP_PHYSICS_INCLUDE_DIRS}
         ${CIMGUI_DIR}
         ${CLAP_DEPENDENCY_INCLUDE_DIRS}
         ${CLAP_RENDERER_INCLUDE_DIRS}
@@ -190,7 +190,7 @@ function (clap_executable executable_name title sources asset_dir assets backgro
     set_target_properties(${executable_name} PROPERTIES LINK_DEPENDS "${ASSETS};${EMSDK_SHELL}")
     target_link_libraries(${executable_name} PRIVATE ${CLAP_DEPENDENCY_LIBRARIES})
     target_link_libraries(${executable_name} PRIVATE ${CLAP_RENDERER_LIBRARIES})
-    target_link_libraries(${executable_name} PRIVATE libode meshoptimizer)
+    target_link_libraries(${executable_name} PRIVATE ${CLAP_PHYSICS_LIBRARIES} meshoptimizer)
     target_link_libraries(${executable_name} PRIVATE ${EXTRA_LIBRARIES})
     target_link_libraries(${executable_name} PRIVATE ${ENGINE_LIB})
     target_link_options(${executable_name} PRIVATE ${CLAP_EXECUTABLE_LINK_OPTIONS} ${DEBUG_LIBRARIES})
