@@ -381,6 +381,7 @@ static void scene_characters_debug(struct scene *scene)
             igPushID_Ptr(c);
             ui_igSliderFloat("jump forward", &c->jump_forward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             ui_igSliderFloat("jump upward", &c->jump_upward, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
+            ui_igSliderFloat("fall drag", &c->fall_drag, 0.0, 20.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             ui_igSliderFloat("speed", &c->speed, 0.1, 10.0, "%f", ImGuiSliderFlags_AlwaysClamp);
             ui_igCheckbox("can jump", &c->can_jump);
             ui_igCheckbox("can dash", &c->can_dash);

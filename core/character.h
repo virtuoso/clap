@@ -42,6 +42,8 @@ struct character {
     float   speed;
     float   jump_forward;
     float   jump_upward;
+    /* exponential decay rate (1/s) of horizontal velocity in a non-jump fall */
+    float   fall_drag;
     float   lin_speed;
     struct {
         vec3            pos[POS_HISTORY_MAX];

@@ -633,6 +633,21 @@ void character_move(struct character *ch, struct scene *s)
             vec3 gravity;
             phys_body_get_gravity(body, gravity);
             ch->velocity[1] += gravity[1] * dt_sec;
+            /*
+             * A fall from walking/running bleeds off horizontal velocity
+             * (exponential decay at fall_drag 1/s), unlike a jump, whose
+             * ballistic arc is tuned via jump_forward and stays intact.
+             * The state tells the two apart: CS_FALLING's valid_from
+             * omits CS_JUMPING, so jump states own the whole arc.
+             */
+            character_state state = gpsm_get(&ch->sm);
+
+            if (state != CS_JUMP_START && state != CS_JUMPING) {
+                float keep = expf(-ch->fall_drag * (float)dt_sec);
+
+                ch->velocity[0] *= keep;
+                ch->velocity[2] *= keep;
+            }
             character_apply_velocity(ch, s);
             character_set_moved(ch);
         }
@@ -813,6 +828,8 @@ static cerr character_make(struct ref *ref, void *_opts)
     CERR_RET_CERR(gpsm_init(&c->sm, character_states, CS_NR, c, CS_IDLE));
     c->jump_forward = 0.5;
     c->jump_upward = 3.5;
+    /* sharp, near-realistic drop; lower values carry more run momentum */
+    c->fall_drag = 10.0;
     c->mq = &opts->scene->mq;
     list_append(&opts->scene->characters, &c->entry);
     c->mq->nr_characters++;
