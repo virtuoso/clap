@@ -2,11 +2,6 @@
 #ifndef __CLAP_PHYSICS_H__
 #define __CLAP_PHYSICS_H__
 
-#ifdef __EMSCRIPTEN__
-#define dSINGLE
-#else
-#define dDOUBLE
-#endif
 #include "linmath.h"
 #include "transform.h"
 
@@ -15,8 +10,8 @@
  * Type of struct phys_body:
  * @PHYS_GEOM:  just a geometry, doesn't directly participate in dynamics
  *              simulation, only via collisions
- * @PHYS_BODY:  has a dBodyID in addition to dGeomID, moves around and
- *              callides with other bodies and geometries
+ * @PHYS_BODY:  has a dynamic body in addition to its collision geometry,
+ *              moves around and collides with other bodies and geometries
  */
 typedef enum phys_type {
     PHYS_BODY = 0,
@@ -24,8 +19,8 @@ typedef enum phys_type {
 } phys_type;
 
 /*
- * Geometry classes: these directly map onto ODE's classes, at least for
- * now. In practice, we only use sphere, capsule and trimesh.
+ * Geometry classes: these historically mirror ODE's geometry classes.
+ * In practice, we only use sphere, capsule and trimesh.
  */
 typedef enum geom_class {
     GEOM_SPHERE = 0,
@@ -51,12 +46,12 @@ typedef struct entity3d entity3d;
 
 /**
  * struct phys_contact_params - geom-geom contact parameters
- * @bounce:     [ODE] "contact resolution" by bouncing [0.0, 1.0]: 0.0: not
+ * @bounce:     "contact resolution" by bouncing [0.0, 1.0]: 0.0: not
  *              bouncy at all, 1.0: maximum bounciness
  * @bounce_vel: minimal incoming velocity necessary to bounce, below this bounce
  *              is zero
- * @mu:         Coulomb friction coefficient [0.0, dInfinity]: 0.0: frictionless,
- *              dInfinity: never slides
+ * @mu:         Coulomb friction coefficient [0.0, infinity]: 0.0: frictionless,
+ *              infinity: never slides
  * @soft_erp:   per-body error reduction parameter override [0.0, 1.0]:
  *              0 means use the default; lower values reduce penetration
  *              correction force (helps prevent tall objects from bouncing
@@ -311,7 +306,7 @@ void phys_body_rotate_xform(struct phys_body *body, transform_t *xform);
  * @body:       phys_body object
  * @gravity:    receiver for the gravity vector
  *
- * Retrieve the gravitational acceleration configured on the ODE world.
+ * Retrieve the gravitational acceleration configured on the physics world.
  */
 void phys_body_get_gravity(struct phys_body *body, vec3 gravity);
 
