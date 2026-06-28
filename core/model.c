@@ -182,6 +182,7 @@ static void model3d_drop(struct ref *ref)
     mem_free(m->joints);
     mem_free(m->collision_vx);
     mem_free(m->collision_idx);
+    mem_free(m->degenerate_tri);
     mem_free(m->name);
 }
 
@@ -443,6 +444,23 @@ float model3d_aabb_Y(model3d *m)
 float model3d_aabb_Z(model3d *m)
 {
     return fabs(m->aabb[1][2] - m->aabb[0][2]);
+}
+
+cerr model3d_set_degenerate_tris(model3d *m, const int *tris, size_t nr)
+{
+    mem_free(m->degenerate_tri);
+    m->degenerate_tri = NULL;
+    m->nr_degenerate_tri = 0;
+
+    if (!nr)                    return CERR_OK;
+
+    m->degenerate_tri = mem_alloc(sizeof(*m->degenerate_tri), .nr = nr);
+    if (!m->degenerate_tri)     return CERR_NOMEM;
+
+    memcpy(m->degenerate_tri, tris, nr * sizeof(*m->degenerate_tri));
+    m->nr_degenerate_tri = nr;
+
+    return CERR_OK;
 }
 
 static void model3d_aabb_center(model3d *m, vec3 center)

@@ -810,6 +810,34 @@ static void phys_sphere_shape_params(struct phys_body *body, entity3d *e,
     body->ray_off = r;
 }
 
+#ifndef CONFIG_FINAL
+/*
+ * Cooking drops degenerate triangles, which is a modeling problem: the
+ * collision mesh no longer matches the render mesh there. Ask for the
+ * list, which can't be longer than one entry per triangle, and hand it
+ * to the model for the debug UI to flag and draw.
+ */
+static b3MeshData *phys_mesh_cook(const b3MeshDef *md, model3d *m, entity3d *e)
+{
+    LOCAL_SET(int32_t, degenerate) = mem_alloc(sizeof(*degenerate), .nr = md->triangleCount,
+                                               .fatal_fail = 1);
+    b3MeshData *mesh = b3CreateMesh(md, degenerate, md->triangleCount);
+
+    if (mesh && mesh->degenerateCount) {
+        warn("'%s': %d degenerate collision triangles\n", entity_name(e), mesh->degenerateCount);
+        CERR_RET(model3d_set_degenerate_tris(m, degenerate, mesh->degenerateCount),
+                 err_cerr(__cerr, "'%s': can't store degenerate triangles\n", entity_name(e)));
+    }
+
+    return mesh;
+}
+#else
+static inline b3MeshData *phys_mesh_cook(const b3MeshDef *md, model3d *m, entity3d *e)
+{
+    return b3CreateMesh(md, NULL, 0);
+}
+#endif /* CONFIG_FINAL */
+
 static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd, entity3d *e)
 {
     model3d *m = e->txmodel->model;
@@ -861,24 +889,12 @@ static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd,
             .weldTolerance  = 1e-4f,
             .identifyEdges  = true,
         };
-        body->mesh_data = b3CreateMesh(&md, NULL, 0);
+        body->mesh_data = phys_mesh_cook(&md, m, e);
         if (!body->mesh_data)
             return CERR_INVALID_ARGUMENTS_REASON(
                 .fmt    = "'%s': collision mesh cooking failed",
                 .arg0   = entity_name(e)
             );
-
-#ifndef CONFIG_FINAL
-        /*
-         * Cooking drops degenerate triangles, which are a modeling
-         * problem: the collision mesh no longer matches the render mesh
-         * there. b3CreateMesh() can also list them, but the count is
-         * enough to point at the asset.
-         */
-        if (body->mesh_data->degenerateCount)
-            warn("'%s': %d degenerate collision triangles\n",
-                 entity_name(e), body->mesh_data->degenerateCount);
-#endif /* !CONFIG_FINAL */
 
         body->shape_id = b3CreateMeshShape(body->body_id, sd, body->mesh_data,
                                            (b3Vec3){ scale, scale, scale });

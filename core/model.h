@@ -73,6 +73,9 @@ typedef struct model3d {
     size_t              collision_vxsz;
     unsigned short      *collision_idx;
     size_t              collision_idxsz;
+    /* Collision triangles that the physics backend dropped as degenerate */
+    int                 *degenerate_tri;
+    size_t              nr_degenerate_tri;
 } model3d;
 
 /**
@@ -257,6 +260,33 @@ cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
 float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);
 float model3d_aabb_Z(model3d *m);
+
+/**
+ * model3d_set_degenerate_tris() - record the collision triangles dropped as degenerate
+ * @m:      model whose collision mesh was cooked
+ * @tris:   indices of the dropped triangles into @m's collision mesh
+ * @nr:     number of entries in @tris
+ *
+ * Physics backends call this when cooking @m's collision mesh: a triangle too
+ * small to collide with doesn't make it into the collision geometry, leaving a
+ * hole in an otherwise solid surface. The list stays on the model so that the
+ * asset can be flagged and the offending triangles drawn.
+ *
+ * Return: CERR_OK, or CERR_NOMEM when the list can't be stored.
+ */
+cerr model3d_set_degenerate_tris(model3d *m, const int *tris, size_t nr);
+
+/**
+ * model3d_has_degenerate_tris() - are any of the collision triangles degenerate
+ * @m:  model
+ *
+ * Return: true if the physics backend dropped triangles from @m's collision mesh
+ */
+static inline bool model3d_has_degenerate_tris(model3d *m)
+{
+    return !!m->nr_degenerate_tri;
+}
+
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex);
 
 cresp_ret(texture_t);
