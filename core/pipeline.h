@@ -69,6 +69,11 @@ typedef enum {
     RM_RENDER,
     /* use a texture */
     RM_PLUG,
+    /*
+     * sample this pass' own previous-frame output; requires
+     * pipeline_pass_config::ping_pong on the same pass
+     */
+    RM_HISTORY,
 } render_method;
 
 typedef struct render_source {
@@ -139,6 +144,13 @@ typedef struct pipeline_pass_config {
     float                   scale;
     int                     cascade;
     bool                    multisampled;
+    /*
+     * Allocate two FBOs and swap them each frame; the previous frame's
+     * render target is sampled via an RM_HISTORY source. A ping-pong
+     * pass must render every frame, i.e. it must sit before the lowest
+     * checkpoint and never render to the screen.
+     */
+    bool                    ping_pong;
 } pipeline_pass_config;
 
 DEFINE_REFCLASS_INIT_OPTIONS(pipeline,

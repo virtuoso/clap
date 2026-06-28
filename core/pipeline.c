@@ -59,6 +59,7 @@ static void pass_free_quad(render_pass *pass)
         switch (source->method) {
             case RM_USE:
             case RM_PLUG:
+            case RM_HISTORY:
                 model3dtx_set_texture(txm, source->sampler, NULL);
                 break;
             default:        continue;
@@ -82,6 +83,7 @@ void pipeline_clearout(pipeline *pl)
                 fbo_put(pass->blit_fbo[i]);
 
         fbo_put(pass->fbo);
+        if (pass->fbo_back) fbo_put(pass->fbo_back);
         if (pass->prog_override)
             ref_put(pass->prog_override);
 
@@ -91,6 +93,9 @@ void pipeline_clearout(pipeline *pl)
         list_del(&pass->entry);
         mem_free(pass);
     }
+
+    /* Pass teardown took the history buffers with it */
+    pl->history_valid = false;
 }
 
 static void pipeline_drop(struct ref *ref)
@@ -142,10 +147,17 @@ void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int heigh
         if (IS_CERR(err))
             err_cerr(err, "pass '%s': error resizing FBO to %d x %d\n",
                      pass->name, _width, _height);
+
+        if (pass->fbo_back)
+            CERR_RET(fbo_resize(pass->fbo_back, _width, _height),
+                     err_cerr(__cerr, "pass '%s': error resizing back FBO to %d x %d\n",
+                              pass->name, _width, _height));
     }
 
     pl->width = width;
     pl->height = height;
+    /* Freshly resized back buffers hold garbage */
+    pl->history_valid = false;
 }
 
 cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg)
@@ -157,6 +169,9 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
     if (cfg->shader && cfg->shader_override)
         return cresp_error(render_pass, CERR_INVALID_ARGUMENTS);
 
+    /* Ping-pong render targets don't mix with MSAA */
+    if (cfg->ping_pong && cfg->multisampled)    return cresp_error(render_pass, CERR_INVALID_ARGUMENTS);
+
     render_pass *pass = mem_alloc(sizeof(*pass), .zero = 1);
     if (!pass)
         return cresp_error(render_pass, CERR_NOMEM);
@@ -164,7 +179,8 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
     list_append(&pl->passes, &pass->entry);
 
     for (pass->nr_sources = 0;
-         cfg->source[pass->nr_sources].pass || cfg->source[pass->nr_sources].mq;
+         cfg->source[pass->nr_sources].pass || cfg->source[pass->nr_sources].mq ||
+         cfg->source[pass->nr_sources].method == RM_HISTORY;
          pass->nr_sources++)
         ;
 
@@ -210,10 +226,24 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
         { err = cerr_error_cres(__resp); goto err_source; }
     );
 
+    if (cfg->ping_pong)
+        pass->fbo_back = CRES_RET(
+            fbo_new(
+                .renderer            = pl->renderer,
+                .name                = pass->name,
+                .width               = width,
+                .height              = height,
+                .layers              = cfg->layers,
+                .color_config        = cfg->color_config,
+                .depth_config        = cfg->depth_config,
+                .layout              = cfg->layout,
+            ),
+            { err = cerr_error_cres(__resp); goto err_fbo; }
+        );
+
     err = CERR_NOMEM;
     pass->blit_fbo = mem_alloc(sizeof(fbo_t *), .nr = pass->nr_sources);
-    if (!pass->blit_fbo)
-        goto err_fbo;
+    if (!pass->blit_fbo)    goto err_fbo_back;
 
     pass->use_tex = mem_alloc(sizeof(texture_t *), .nr = pass->nr_sources);
     if (!pass->use_tex)
@@ -296,6 +326,15 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
             pass->use_tex[i] = rsrc->tex;
             texture_set_name(pass->use_tex[i], "%s:%s", pass->name, shader_get_var_name(rsrc->sampler));
             nr_plugs++;
+        } else if (rsrc->method == RM_HISTORY) {
+            if (!pass->fbo_back)    goto err_use_tex;
+
+            pass->use_tex[i] = fbo_texture(pass->fbo_back, rsrc->attachment);
+            if (!pass->use_tex[i])  goto err_use_tex;
+
+            texture_set_name(pass->use_tex[i], "%s:%s [history]", pass->name,
+                             shader_get_var_name(rsrc->sampler));
+            nr_uses++;
         } else {
             goto err_use_tex;
         }
@@ -383,6 +422,8 @@ err_blit_fbo:
         if (pass->blit_fbo[i])
             fbo_put(pass->blit_fbo[i]);
     mem_free(pass->blit_fbo);
+err_fbo_back:
+    if (pass->fbo_back) fbo_put_last(pass->fbo_back);
 err_fbo:
     fbo_put_last(pass->fbo);
 err_source:
@@ -423,6 +464,14 @@ static struct mq *pass_resolve_sources(pipeline *pl, render_pass *pass)
 {
     struct mq *mq = NULL;
 
+    /* Ping-pong: last frame's render target becomes this frame's history */
+    if (pass->fbo_back) {
+        fbo_t *front = pass->fbo_back;
+
+        pass->fbo_back = pass->fbo;
+        pass->fbo = front;
+    }
+
     /* Blit stuff to blit_fbo[]s, pick up mq is one was given */
     for (int i = 0; i < pass->nr_sources; i++) {
         pipeline_pass_debug_begin(pl, pass, i);
@@ -435,6 +484,19 @@ static struct mq *pass_resolve_sources(pipeline *pl, render_pass *pass)
                 continue;
             }
             mq = rsrc->mq;
+            continue;
+        }
+
+        /* Ping-pong textures change identity every frame; rebind */
+        if (rsrc->method == RM_HISTORY) {
+            pass->use_tex[i] = fbo_texture(pass->fbo_back, rsrc->attachment);
+            if (pass->quad)     model3dtx_set_texture(pass->quad->txmodel, rsrc->sampler, pass->use_tex[i]);
+            continue;
+        }
+
+        if (rsrc->method == RM_USE && rsrc->pass->fbo_back) {
+            pass->use_tex[i] = fbo_texture(rsrc->pass->fbo, rsrc->attachment);
+            if (pass->quad)     model3dtx_set_texture(pass->quad->txmodel, rsrc->sampler, pass->use_tex[i]);
             continue;
         }
 
@@ -568,6 +630,9 @@ cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
     }
 
     pipeline_debug_end(pl);
+
+    /* Ping-pong back buffers now hold this frame's output */
+    pl->history_valid = true;
 
     if (failure_mask) {
         if ((failure_mask & ((1ull << idx) - 1)) == failure_mask)

@@ -106,10 +106,11 @@ void pipeline_debug_end(struct pipeline *pl)
 }
 
 static const char *render_method_string[] = {
-    [RM_BLIT]   = "blit",
-    [RM_USE]    = "use",
-    [RM_PLUG]   = "plug",
-    [RM_RENDER] = "render",
+    [RM_BLIT]       = "blit",
+    [RM_USE]        = "use",
+    [RM_PLUG]       = "plug",
+    [RM_RENDER]     = "render",
+    [RM_HISTORY]    = "history",
 };
 
 void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, int srcidx)
@@ -140,13 +141,16 @@ void pipeline_pass_debug_begin(struct pipeline *pl, struct render_pass *pass, in
         case RM_RENDER:
             igText("<mq>");
             break;
+        case RM_HISTORY:
+            igText("%s:%s (previous frame)", pass->name, fbo_attachment_string(rsrc->attachment));
+            break;
         default:
             break;
     }
     igTableNextColumn();
 
     /* "at" */
-    if (rsrc->method == RM_BLIT || rsrc->method == RM_USE)
+    if (rsrc->method == RM_BLIT || rsrc->method == RM_USE || rsrc->method == RM_HISTORY)
         igText("%s", shader_get_var_name(rsrc->sampler));
     igTableNextColumn();
 

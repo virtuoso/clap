@@ -21,6 +21,13 @@ struct pipeline {
     unsigned int        nr_cascades;
     int                 width;
     int                 height;
+    /*
+     * False while ping-pong back buffers hold garbage (fresh build,
+     * clearout or resize); set by pipeline_render() once a frame has
+     * been rendered: whoever samples an RM_HISTORY source checks it
+     * before trusting the contents
+     */
+    bool                history_valid;
 
     PIPELINE_DEBUG_DATA;
 };
@@ -36,6 +43,12 @@ struct render_pass {
     texture_t               **use_tex;
     /* Render output: always exists */
     fbo_t                   *fbo;
+    /*
+     * Ping-pong only (NULL otherwise): previous frame's render target,
+     * swapped with fbo at the top of pass_resolve_sources(), sampled
+     * by this pass' RM_HISTORY source
+     */
+    fbo_t                   *fbo_back;
     /*
      * Postprocessing passes assemble textures from sources' fbos
      * and this pass' blit_fbos into this quad and render it into
