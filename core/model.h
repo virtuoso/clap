@@ -20,6 +20,7 @@ struct light;
 struct camera;
 struct shader_prog;
 typedef struct render_options render_options;
+typedef struct taa_params taa_params;
 
 /*
  * Semantic joint identifiers that callers can resolve to the actual
@@ -478,6 +479,8 @@ typedef struct models_render_options {
     unsigned long       *culled_count;
     render_options      *render_options;
     ssao_state          *ssao_state;
+    /* TAA state for camera passes: jittered projection + reprojection inputs */
+    taa_params          *taa;
     unsigned int        width;
     unsigned int        height;
     int                 cascade;

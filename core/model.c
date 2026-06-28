@@ -824,6 +824,12 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         view = &camera->view;
         proj = &camera->view.main.proj_mx;
         inv_proj = &camera->view.main.inv_proj_mx;
+
+        /* Rasterize camera passes with the jittered projection */
+        if (opts->taa) {
+            proj = &opts->taa->proj_jittered;
+            inv_proj = &opts->taa->inv_proj_jittered;
+        }
     } else if (light) {
         view = &light->view[0];
         proj = &light->view[0].main.proj_mx;
@@ -956,6 +962,11 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (proj && inv_proj) {
                 shader_set_var_ptr(prog, UNIFORM_PROJ, 1, proj);
                 shader_set_var_ptr(prog, UNIFORM_INVERSE_PROJ, 1, inv_proj);
+            }
+
+            if (opts->taa) {
+                shader_set_var_ptr(prog, UNIFORM_PREV_PROJ_VIEW, 1, opts->taa->prev_proj_view);
+                shader_set_var_ptr(prog, UNIFORM_JITTER, 1, opts->taa->jitter);
             }
         }
 

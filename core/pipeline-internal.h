@@ -22,6 +22,16 @@ struct pipeline {
     int                 width;
     int                 height;
     /*
+     * TAA per-frame state fed to models_render() for camera passes;
+     * taa::prev_proj_view is captured at the end of pipeline_render(),
+     * the jitters advance at the top of it
+     */
+    taa_params          taa;
+    /* Halton sequence position */
+    unsigned int        jitter_seq;
+    /* render_options::taa, sampled once per frame in pipeline_render() */
+    bool                taa_active;
+    /*
      * False while ping-pong back buffers hold garbage (fresh build,
      * clearout or resize); set by pipeline_render() once a frame has
      * been rendered: whoever samples an RM_HISTORY source checks it

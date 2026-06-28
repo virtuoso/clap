@@ -528,12 +528,16 @@ static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
 
     pass->ops->prepare(&params);
 
+    /* Jitter camera passes only; shadow_prepare() clears params.camera */
+    taa_params *taa = params.camera && pl->taa_active ? &pl->taa : NULL;
+
     cerr ret = CERR_OK;
 
     if (mq) {
         /* Render render_source::mq models */
         ret = models_render(pl->renderer, mq,
                             .shader_override  = pass->prog_override,
+                            .taa              = taa,
                             .render_options   = pl->render_options,
                             .near_plane       = params.near_plane,
                             .far_plane        = params.far_plane,
@@ -553,6 +557,7 @@ static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         mq_add_model(&_mq, pass->quad->txmodel);
         ret = models_render(pl->renderer, &_mq,
                             .camera           = params.camera,
+                            .taa              = taa,
                             .near_plane       = params.near_plane,
                             .far_plane        = params.far_plane,
                             .render_options   = pl->render_options,
@@ -570,6 +575,48 @@ static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
     return ret;
 }
 
+/**
+ * taa_update() - advance TAA sub-pixel jitter to the next frame
+ * @pl:     pipeline to advance
+ *
+ * Each frame, the camera projection is offset by a sub-pixel amount so
+ * that edges get rasterized at a different position within the pixel;
+ * once the TAA resolve pass blends frames over time, those samples
+ * average into gradients instead of stairsteps -- that is where the
+ * extra spatial resolution comes from. The offsets step through a
+ * Halton(2,3) sequence: the radical inverses of the frame counter in
+ * bases 2 (x) and 3 (y), which spread 8 points evenly over the pixel
+ * without the clumping of random points or the correlation of a grid.
+ * Index 0 (the pixel corner) is skipped by convention.
+ *
+ * The jittered projection is derived from view::main per frame and
+ * never written back, so frustum culling and shadow cascade fitting
+ * only ever see the clean matrices.
+ */
+static void taa_update(pipeline *pl)
+{
+    pl->taa_active = pl->render_options->taa && pl->camera &&
+                     pl->width && pl->height;
+    if (!pl->taa_active)    return;
+
+    static const vec2 halton23[] = {
+        { 0.50000f, 0.333333f }, { 0.25000f, 0.666667f },
+        { 0.75000f, 0.111111f }, { 0.12500f, 0.444444f },
+        { 0.62500f, 0.777778f }, { 0.37500f, 0.222222f },
+        { 0.87500f, 0.555556f }, { 0.06250f, 0.888889f },
+    };
+    const float *h = halton23[pl->jitter_seq++ % array_size(halton23)];
+
+    /* +/-0.5px in NDC units (one pixel spans 2/width) */
+    pl->taa.jitter[0] = (h[0] - 0.5f) * 2.0f / (float)pl->width;
+    pl->taa.jitter[1] = (h[1] - 0.5f) * 2.0f / (float)pl->height;
+
+    mat4x4 jitter_mx;
+    mat4x4_translate(jitter_mx, pl->taa.jitter[0], pl->taa.jitter[1], 0.0f);
+    mat4x4_mul(pl->taa.proj_jittered, jitter_mx, pl->camera->view.main.proj_mx);
+    mat4x4_invert(pl->taa.inv_proj_jittered, pl->taa.proj_jittered);
+}
+
 cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
 {
     if (!pl || list_empty(&pl->passes))
@@ -577,6 +624,8 @@ cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
             .fmt    = "invalid pipeline state: %s",
             .arg0   = !pl ? "pl==NULL" : "no render passes"
         );
+
+    taa_update(pl);
 
     struct render_pass *last_pass = list_last_entry(&pl->passes, struct render_pass, entry);
     struct render_pass *pass;
@@ -630,6 +679,14 @@ cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
     }
 
     pipeline_debug_end(pl);
+
+    /*
+     * Camera matrices as rendered this frame; TAA reprojects against
+     * them next frame. Light-only pipelines have no camera and no TAA.
+     */
+    if (pl->camera)
+        mat4x4_mul(pl->taa.prev_proj_view, pl->camera->view.main.proj_mx,
+                   pl->camera->view.main.view_mx);
 
     /* Ping-pong back buffers now hold this frame's output */
     pl->history_valid = true;

@@ -44,6 +44,7 @@ typedef struct render_options {
     bool    ssao;
     bool    shadow_vsm;
     bool    film_grain;
+    bool    taa;
     bool    hdr;
     bool    hdr_output;
     bool    hdr_output_enabled;
@@ -56,6 +57,23 @@ typedef struct render_options {
     bool    overlay_draws_enabled;
     bool    light_draws_enabled;
 } render_options;
+
+/**
+ * struct taa_params - per-frame TAA state
+ * @proj_jittered:      camera projection with this frame's sub-pixel jitter
+ * @inv_proj_jittered:  its inverse, for depth-based position reconstruction
+ * @prev_proj_view:     proj * view (unjittered) of the previous frame
+ * @jitter:             this frame's sub-pixel jitter in NDC units
+ *
+ * Built by the pipeline for camera-driven passes; models_render() uploads it
+ * when set.
+ */
+typedef struct taa_params {
+    mat4x4  proj_jittered;
+    mat4x4  inv_proj_jittered;
+    mat4x4  prev_proj_view;
+    vec2    jitter;
+} taa_params;
 
 typedef enum {
     /* blit from source's fbo attachment into blit_fbo */
