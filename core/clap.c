@@ -378,6 +378,7 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.shadow_msaa = false;
     ctx->render_options.laplace_kernel = 3;
     ctx->render_options.edge_antialiasing = true;
+    ctx->render_options.taa_feedback = 0.1;
     ctx->render_options.shadow_outline = true;
     ctx->render_options.shadow_outline_threshold = 0.4;
     ctx->render_options.hdr = true;
@@ -725,6 +726,7 @@ static const struct rebuild_reason {
     REBUILD_REASON_FIELD(ssao),
     REBUILD_REASON_FIELD(shadow_vsm),
     REBUILD_REASON_FIELD(edge_antialiasing),
+    REBUILD_REASON_FIELD(taa),
     REBUILD_REASON_FIELD(lighting_lut),
 };
 

@@ -599,6 +599,9 @@ static void taa_update(pipeline *pl)
                      pl->width && pl->height;
     if (!pl->taa_active)    return;
 
+    /* history_valid still reflects the previous frame at this point */
+    pl->taa.reset = !pl->history_valid;
+
     static const vec2 halton23[] = {
         { 0.50000f, 0.333333f }, { 0.25000f, 0.666667f },
         { 0.75000f, 0.111111f }, { 0.12500f, 0.444444f },

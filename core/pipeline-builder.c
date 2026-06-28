@@ -211,7 +211,9 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     else
         ssao_done(&ssao_state);
 
-    bool edge_aa = ropts->edge_antialiasing;
+    bool taa = ropts->taa;
+    /* TAA replaces SMAA: no weights pass, use_edge_aa off in combine */
+    bool edge_aa = ropts->edge_antialiasing && !taa;
     bool model_pass_msaa =
 #ifdef CONFIG_BROWSER
         false;
@@ -563,11 +565,42 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline
     );
 
-    render_pass *present_pass = CRES_RET_T(
+    render_pass *taa_pass = taa ? CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
                     .pass       = combine_pass,
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_MODEL_TEX
+                },
+                {
+                    .pass       = model_pass,
+                    .attachment = FBO_DEPTH_TEXTURE(0),
+                    .method     = model_pass_method,
+                    .sampler    = UNIFORM_DEPTH_TEX
+                },
+                {
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_HISTORY,
+                    .sampler    = UNIFORM_HISTORY_TEX
+                },
+                {}
+            },
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
+            .ops                = &postproc_ops,
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .shader             = "taa",
+            .ping_pong          = true,
+        ),
+        pipeline
+    ) : NULL;
+
+    render_pass *present_pass = CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = taa ? taa_pass : combine_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
                     .sampler    = UNIFORM_MODEL_TEX

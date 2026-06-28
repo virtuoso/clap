@@ -26,6 +26,8 @@ typedef struct render_options {
     double  time;
     float   film_grain_factor;
     float   film_grain_power;
+    /* TAA: current frame's contribution to the history blend */
+    float   taa_feedback;
     float   fog_near;
     float   fog_far;
     vec3    fog_color;
@@ -64,6 +66,8 @@ typedef struct render_options {
  * @inv_proj_jittered:  its inverse, for depth-based position reconstruction
  * @prev_proj_view:     proj * view (unjittered) of the previous frame
  * @jitter:             this frame's sub-pixel jitter in NDC units
+ * @reset:              the history buffers hold garbage: the resolve outputs the
+ *                      current frame alone
  *
  * Built by the pipeline for camera-driven passes; models_render() uploads it
  * when set.
@@ -73,6 +77,7 @@ typedef struct taa_params {
     mat4x4  inv_proj_jittered;
     mat4x4  prev_proj_view;
     vec2    jitter;
+    bool    reset;
 } taa_params;
 
 typedef enum {

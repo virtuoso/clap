@@ -890,7 +890,9 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_int(prog, UNIFORM_NR_CASCADES, opts->nr_cascades);
                 shader_set_var_float(prog, UNIFORM_SHADOW_OUTLINE_THRESHOLD, ropts->shadow_outline_threshold);
                 shader_set_var_int(prog, UNIFORM_USE_MSAA, ropts->shadow_msaa);
-                shader_set_var_int(prog, UNIFORM_USE_EDGE_AA, ropts->edge_antialiasing);
+                /* TAA replaces SMAA; the builder skips the weights pass */
+                shader_set_var_int(prog, UNIFORM_USE_EDGE_AA,
+                                   ropts->edge_antialiasing && !ropts->taa);
                 shader_set_var_int(prog, UNIFORM_LAPLACE_KERNEL, ropts->laplace_kernel);
                 shader_set_var_int(prog, UNIFORM_USE_HDR, ropts->hdr);
                 shader_set_var_int(prog, UNIFORM_USE_SSAO, ropts->ssao);
@@ -967,6 +969,8 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             if (opts->taa) {
                 shader_set_var_ptr(prog, UNIFORM_PREV_PROJ_VIEW, 1, opts->taa->prev_proj_view);
                 shader_set_var_ptr(prog, UNIFORM_JITTER, 1, opts->taa->jitter);
+                shader_set_var_int(prog, UNIFORM_TAA_RESET, opts->taa->reset);
+                if (ropts)  shader_set_var_float(prog, UNIFORM_TAA_FEEDBACK, ropts->taa_feedback);
             }
         }
 
