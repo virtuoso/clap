@@ -648,12 +648,12 @@ cerr _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, 
         storage_size = 16;
 
     /*
-     * vec2 is aligned on 8-bype boundary [Metal];
-     * non-arrayed scalars have maximum storage size of 4, if something
-     * larger is following a non-padded offset, it needs to be padded first
+     * A lone vec2 has 2N (8 byte) base alignment on all backends (GLSL
+     * std140, MSL float2, WGSL uniform space); vec3/vec4/matrix columns
+     * align to 16. Non-arrayed scalars have maximum storage size of 4
+     * and pack tightly, including into a vec3's tail.
      */
-    if (ubo->renderer->ops->get_caps()->renderer == RENDER_METAL &&
-        storage_size == 8 && *offset % 8)
+    if (storage_size == 8)
         *offset = round_up(*offset, 8);
     else if (storage_size > 4 && *offset % 16)
         *offset = round_up(*offset, 16);
