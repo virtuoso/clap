@@ -140,7 +140,8 @@
                 { "name": "hdr_white_nits", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_WHITE_NITS", "discription": "HDR reference white level in nits" },
                 { "name": "hdr_peak_nits", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_PEAK_NITS", "discription": "HDR peak luminance in nits" },
                 { "name": "hdr_compress_knee", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_COMPRESS_KNEE", "discription": "HDR highlight compression knee" },
-                { "name": "hdr_knee_softness", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_KNEE_SOFTNESS", "discription": "HDR highlight compression knee softness" }
+                { "name": "hdr_knee_softness", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_KNEE_SOFTNESS", "discription": "HDR highlight compression knee softness" },
+                { "name": "use_taa", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_TAA", "discription": "TAA is enabled and the jitter uniforms are live" }
             ]
         },
         {

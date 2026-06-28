@@ -392,7 +392,8 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
             .layout             = FBO_COLOR_TEXTURE(0),
             .ops                = &postproc_ops,
-            .shader             = "downsample",
+            /* unjitters its input: emission pulses across 1/4-res texels otherwise */
+            .shader             = "bloom-downsample",
             .scale              = 0.25,
         ),
         pipeline
