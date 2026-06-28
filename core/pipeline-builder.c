@@ -179,6 +179,8 @@ static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, text
  * pipeline builder
  ****************************************************************************/
 
+DEFINE_CLEANUP(pipeline, if (*p) ref_put(*p))
+
 cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 {
     static texture_t grain_tex;
@@ -229,18 +231,26 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     bool vsm = ropts->shadow_vsm;
     unsigned int nr_cascades = min(opts->pl_opts->nr_cascades, CASCADES_MAX) ?: CASCADES_MAX;
 
-    pipeline *pl = opts->pl ? : CRES_RET_T(
-        ref_new_checked(
-            pipeline,
-            .light            = opts->pl_opts->light,
-            .camera           = opts->pl_opts->camera,
-            .clap_ctx         = opts->pl_opts->clap_ctx,
-            .ssao_state       = &ssao_state,
-            .nr_cascades      = nr_cascades,
-            .name             = opts->pl_opts->name
-        ),
-        pipeline
-    );
+    /*
+     * A newly created pipeline is auto-released if any pass setup below
+     * fails; a caller-provided opts->pl (rebuild) stays owned by the caller
+     */
+    LOCAL(pipeline, new_pl);
+    if (!opts->pl)
+        new_pl = CRES_RET_T(
+            ref_new_checked(
+                pipeline,
+                .light            = opts->pl_opts->light,
+                .camera           = opts->pl_opts->camera,
+                .clap_ctx         = opts->pl_opts->clap_ctx,
+                .ssao_state       = &ssao_state,
+                .nr_cascades      = nr_cascades,
+                .name             = opts->pl_opts->name
+            ),
+            pipeline
+        );
+
+    pipeline *pl = opts->pl ? : new_pl;
 
     struct render_pass *shadow_pass[CASCADES_MAX];
 
@@ -704,5 +714,5 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline
     );
 
-    return cresp_val(pipeline, pl);
+    return cresp_val(pipeline, opts->pl ? : NOCU(new_pl));
 }

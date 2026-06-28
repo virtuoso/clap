@@ -186,6 +186,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(pipeline,
     unsigned int    nr_cascades;
 );
 DECLARE_REFCLASS(pipeline);
+DECLARE_CLEANUP(pipeline);
 
 void pipeline_clearout(pipeline *pl);
 void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height);
