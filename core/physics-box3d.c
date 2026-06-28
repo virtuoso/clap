@@ -26,6 +26,18 @@ DEFINE_CLEANUP(b3Vec3, if (*p) mem_free(*p);)
 #define PHYS_SWEEP_BLOCK_DOT (-0.1f)
 
 /**
+ * PHYS_HULL_MAX_VERTICES - vertex cap requested when cooking a dynamic hull
+ *
+ * b3CreateHull() simplifies the hull down to the requested vertex count,
+ * but its face and edge limits (B3_MAX_HULL_FACES, B3_MAX_HULL_EDGES) are
+ * only checked after the fact. A smooth hull is fully triangulated, so by
+ * Euler's formula the half-edge count is 6 * V - 12, which stays within
+ * Box3D's 2 * B3_MAX_HULL_EDGES cap only for V <= 44 (faces, at 2 * V - 4,
+ * then fit too). Asking for more fails cooking on any smooth shape.
+ */
+#define PHYS_HULL_MAX_VERTICES 44
+
+/**
  * struct phys - global physics state
  * @clap_ctx:           clap context
  * @bodies:             all phys_bodies, for the contact debug draw pass
@@ -820,7 +832,7 @@ static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd,
             points[i / 3].z = m->collision_vx[i + 2] * scale;
         }
 
-        body->hull_data = b3CreateHull(points, vxsz / 3, B3_MAX_HULL_VERTICES);
+        body->hull_data = b3CreateHull(points, vxsz / 3, PHYS_HULL_MAX_VERTICES);
         if (!body->hull_data)
             return CERR_INVALID_ARGUMENTS_REASON(
                 .fmt    = "'%s': convex hull cooking failed",
