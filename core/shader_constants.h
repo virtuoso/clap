@@ -65,7 +65,8 @@
 #define RT_MODEL_LIGHTING       0
 #define RT_MODEL_EMISSION       1
 #define RT_MODEL_VIEW_NORMALS   2
-#define RT_MODEL_LAST           RT_MODEL_VIEW_NORMALS
+#define RT_MODEL_VELOCITY       3
+#define RT_MODEL_LAST           RT_MODEL_VELOCITY
 
 #endif /* CLAP_SHADER_CONSTANTS_H */
 

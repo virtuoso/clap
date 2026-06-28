@@ -32,6 +32,7 @@ mat3 tbn = mat3(1.0);
 layout (location=RT_MODEL_LIGHTING)     out vec4 FragColor;
 layout (location=RT_MODEL_EMISSION)     out vec4 EmissiveColor;
 layout (location=RT_MODEL_VIEW_NORMALS) out vec4 Normal;
+layout (location=RT_MODEL_VELOCITY)     out vec2 Velocity;
 
 void main()
 {
@@ -76,4 +77,7 @@ void main()
      */
     vec3 view_normal = mat3(view) * surface_normal;
     Normal = vec4(view_normal * 0.5 + 0.5, float(edge_mode & 0xff) / 255.0);
+
+    /* no previous-frame particle state yet: camera reprojection fallback */
+    Velocity = vec2(0.0);
 }

@@ -21,6 +21,9 @@ layout (location=2) out vec3 orig_normal;
 layout (location=3) out vec3 to_camera_vector;
 layout (location=4) out vec4 world_pos;
 layout (location=5) out mat3 tbn;
+/* the mat3 above occupies locations 5-7 */
+layout (location=8) out vec4 pass_curr_clip;
+layout (location=9) out vec4 pass_prev_clip;
 
 void main()
 {
@@ -46,6 +49,12 @@ void main()
     } else {
         gl_Position = proj * view * trs * vec4(position, 1.0);
     }
+
+    /* rigid approximation for skinned models: current pose, previous TRS */
+    vec4 local_pos = use_skinning != 0 ? total_local_pos : vec4(position, 1.0);
+    pass_curr_clip = gl_Position;
+    pass_prev_clip = prev_proj_view * prev_trs * local_pos;
+
     pass_tex = tex;
 
     mat3 trs_rot = mat3(trs);

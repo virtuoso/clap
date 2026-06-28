@@ -357,6 +357,16 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .load_action    = FBOLOAD_CLEAR,
                     .no_blend       = true,
                 },
+                [RT_MODEL_VELOCITY] = {
+                    /*
+                     * Velocity: TAA motion vectors; cleared to "no motion",
+                     * which the resolve reads as "fall back to camera
+                     * reprojection". Blending motion vectors is nonsense.
+                     */
+                    .format         = TEX_FMT_RG16F,
+                    .load_action    = FBOLOAD_CLEAR,
+                    .no_blend       = true,
+                },
             },
             .depth_config       = {
                 .format         = TEX_FMT_DEPTH32F,

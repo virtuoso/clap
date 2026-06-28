@@ -63,7 +63,8 @@
             "uniforms": [
                 { "name": "trs", "type": "DT_MAT4", "symbol": "UNIFORM_TRS", "discription": "model TRS matrix" },
                 { "name": "inverse_trs", "type": "DT_MAT4", "symbol": "UNIFORM_INVERSE_TRS", "discription": "inverted TRS matrix" },
-                { "name": "prev_trs", "type": "DT_MAT4", "symbol": "UNIFORM_PREV_TRS", "discription": "previous frame's model TRS matrix for TAA motion vectors" }
+                { "name": "prev_trs", "type": "DT_MAT4", "symbol": "UNIFORM_PREV_TRS", "discription": "previous frame's model TRS matrix for TAA motion vectors" },
+                { "name": "use_velocity", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_VELOCITY", "discription": "model writes TAA motion vectors (prev_trs is valid)" }
             ]
         },
         {
