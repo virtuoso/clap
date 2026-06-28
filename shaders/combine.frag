@@ -4,7 +4,6 @@
 #include "half.glsl"
 #include "tonemap.glsl"
 #include "lut.glsl"
-#include "oetf.glsl"
 #include "smaa-neighborhood-blend.glsl"
 #include "view_pos.glsl"
 
@@ -17,7 +16,6 @@ layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map2) uniform sampler2D shadow_map2;
-layout (binding=SAMPLER_BINDING_grain_tex) uniform sampler2D grain_tex;
 layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
 layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
 
@@ -45,21 +43,6 @@ vec3 radial_fog_color(vec3 view_pos)
     vec3 noise_vec = sample_noise3d(noise3d, view_pos + vec3(noise(view_pos)), 0.05) * 0.05;
     float n = min(dot(noise_vec, noise_vec), 3.0) / 3.0;
     return fog_color * (1.0 - n);
-}
-
-vec3 grain_color(vec3 color, vec3 view_pos)
-{
-    vec2 uv = vec2(
-        fract(sin(film_grain_shift * 12.9898) * 43758.5453),
-        fract(cos(film_grain_shift * 78.233)  * 12345.6789)
-    );
-
-    float dist = length(view_pos);
-    vec3 noise = texture(grain_tex, (pass_tex + uv * dist) * FILM_GRAIN_SIZE).rgb;
-
-    float luma = dot(color, vec3(0.299, 0.587, 0.114));
-    float weight = 1.0 - pow(luma, film_grain_power);
-    return color + noise.rgb * weight * film_grain_factor;
 }
 
 void main()
@@ -101,18 +84,4 @@ void main()
         tex_color = mix(tex_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
     }
-
-    if (film_grain)
-        FragColor = vec4(grain_color(FragColor.rgb, view_pos), 1.0);
-
-    if (hdr_output)
-        // TODO: This should be a uniform: extended_p3/pq/extended_srgb
-        // For now, this should be enough
-#ifdef SHADER_RENDERER_WGPU
-        FragColor.rgb = scene_linear_to_extended_p3(FragColor.rgb, hdr_white_nits);
-#else /* !SHADER_RENDERER_WGPU */
-        FragColor.rgb = scene_linear_to_pq(FragColor.rgb, hdr_white_nits);
-#endif /* !SHADER_RENDERER_WGPU */
-    else
-        FragColor.rgb = scene_linear_to_srgb(FragColor.rgb);
 }

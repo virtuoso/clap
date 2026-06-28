@@ -540,11 +540,6 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                         .sampler    = UNIFORM_SHADOW_MAP2
                     },
                 {
-                    .tex        = &grain_tex,
-                    .method     = RM_PLUG,
-                    .sampler    = UNIFORM_GRAIN_TEX,
-                },
-                {
                     .tex        = lut_tex(ropts->lighting_lut),
                     .method     = RM_PLUG,
                     .sampler    = UNIFORM_LUT_TEX
@@ -556,6 +551,40 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
+            /*
+             * Linear tonemapped color: film grain and the OETF encode
+             * happen in the present pass, TAA resolves in between
+             */
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
+            .ops                = &postproc_ops,
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .shader             = "combine",
+        ),
+        pipeline
+    );
+
+    render_pass *present_pass = CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = combine_pass,
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_MODEL_TEX
+                },
+                {
+                    .pass       = model_pass,
+                    .attachment = FBO_DEPTH_TEXTURE(0),
+                    .method     = model_pass_method,
+                    .sampler    = UNIFORM_DEPTH_TEX
+                },
+                {
+                    .tex        = &grain_tex,
+                    .method     = RM_PLUG,
+                    .sampler    = UNIFORM_GRAIN_TEX,
+                },
+                {}
+            },
 #ifdef CONFIG_RENDERER_METAL
             .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
 #else
@@ -563,7 +592,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 #endif /* !CONFIG_RENDERER_METAL*/
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "combine",
+            .shader             = "present",
             .checkpoint         = 1,
         ),
         pipeline
@@ -574,7 +603,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
-                    .pass       = combine_pass,
+                    .pass       = present_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
                     .sampler    = UNIFORM_MODEL_TEX
