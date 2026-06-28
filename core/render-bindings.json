@@ -22,7 +22,8 @@
         { "name": "light_map",      "binding": 9, "symbol": "UNIFORM_LIGHT_MAP" },
         { "name": "noise3d",        "binding": 10, "symbol": "UNIFORM_NOISE3D_TEX" },
         { "name": "grain_tex",      "binding": 11, "symbol": "UNIFORM_GRAIN_TEX" },
-        { "name": "history_tex",    "binding": 12, "symbol": "UNIFORM_HISTORY_TEX" }
+        { "name": "history_tex",    "binding": 12, "symbol": "UNIFORM_HISTORY_TEX" },
+        { "name": "velocity_tex",   "binding": 13, "symbol": "UNIFORM_VELOCITY_TEX" }
     ],
     "ubos": [
         {

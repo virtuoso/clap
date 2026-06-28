@@ -591,6 +591,12 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .sampler    = UNIFORM_DEPTH_TEX
                 },
                 {
+                    .pass       = model_pass,
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_VELOCITY),
+                    .method     = model_pass_method,
+                    .sampler    = UNIFORM_VELOCITY_TEX
+                },
+                {
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_HISTORY,
                     .sampler    = UNIFORM_HISTORY_TEX

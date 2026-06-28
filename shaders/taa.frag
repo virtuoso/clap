@@ -12,6 +12,7 @@ layout (location=0) in vec2 pass_tex;
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_history_tex) uniform sampler2D history_tex;
+layout (binding=SAMPLER_BINDING_velocity_tex) uniform sampler2D velocity_tex;
 
 #include "ubo_projview.glsl"
 #include "ubo_postproc.glsl"
@@ -83,36 +84,56 @@ void main()
     neighborhood(pass_tex, mu, sigma, near_off);
 
     /*
-     * Reproject: reconstruct the world position at the *closest* depth
-     * in the neighborhood (silhouette-crossing pixels then follow the
-     * foreground object instead of tearing off it) and find its pixel
-     * in the previous frame; the neighbor's motion is transferred back
-     * to this pixel by undoing the offset afterwards. The accumulated
-     * history converges to the *unjittered* image, so jitter must
-     * cancel out of the reprojection: prev_proj_view is unjittered,
-     * and adding our own jitter re-aligns the result with this frame's
-     * pixel grid. For a static camera prev_uv then equals pass_tex
-     * exactly, texel-center aligned -- no bilinear resampling, no
-     * progressive history blur.
+     * Motion source, dilated to the closest depth in the neighborhood
+     * so that silhouette-crossing pixels follow the foreground object:
+     * models write true object + camera motion into the velocity RT;
+     * zero (the clear value, also what particles write) means "static
+     * world", for which the camera reprojection below is exact. The
+     * two paths agree bit-for-bit on static geometry, so the hybrid
+     * seam is invisible.
      */
-    vec2 texel = 1.0 / vec2(width, height);
-    vec2 uv_near = pass_tex + vec2(near_off) * texel;
-    vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv_near);
-    vec4 world_pos = inverse_view * vec4(view_pos, 1.0);
-    vec4 prev_clip = prev_proj_view * world_pos;
-    vec2 prev_ndc = prev_clip.xy / prev_clip.w + jitter;
-    vec2 prev_uv = convert_pass_tex(prev_ndc * 0.5 + 0.5) - vec2(near_off) * texel;
+    ivec2 size = textureSize(depth_tex, 0);
+    ivec2 tc = ivec2(pass_tex * vec2(size));
+    vec2 vel = texelFetch(velocity_tex, clamp(tc + near_off, ivec2(0), size - 1), 0).rg;
 
-    /*
-     * History is unusable when explicitly reset, for the sky (the
-     * view_pos sentinel z = 1.0 for depth >= 1.0), for points behind
-     * the previous camera and for reprojections off the screen.
-     */
-    bool valid = !taa_reset &&
-                 view_pos.z <= 0.0 &&
-                 prev_clip.w > 0.0 &&
-                 all(greaterThanEqual(prev_uv, vec2(0.0))) &&
-                 all(lessThanEqual(prev_uv, vec2(1.0)));
+    vec2 prev_uv;
+    bool valid = !taa_reset;
+
+    if (vel != vec2(0.0)) {
+        /* velocity is a GL-orientation uv delta, unjittered both sides */
+        prev_uv = convert_pass_tex(convert_pass_tex(pass_tex) - vel);
+    } else {
+        /*
+         * Reproject: reconstruct the world position at the dilated
+         * offset and find its pixel in the previous frame; the
+         * neighbor's motion is transferred back to this pixel by
+         * undoing the offset afterwards. The accumulated history
+         * converges to the *unjittered* image, so jitter must cancel
+         * out of the reprojection: prev_proj_view is unjittered, and
+         * adding our own jitter re-aligns the result with this frame's
+         * pixel grid. For a static camera prev_uv then equals pass_tex
+         * exactly, texel-center aligned -- no bilinear resampling, no
+         * progressive history blur.
+         *
+         * History is unusable for the sky (the view_pos sentinel
+         * z = 1.0 for depth >= 1.0) and for points behind the previous
+         * camera.
+         */
+        vec2 texel = 1.0 / vec2(width, height);
+        vec2 uv_near = pass_tex + vec2(near_off) * texel;
+        vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv_near);
+        vec4 world_pos = inverse_view * vec4(view_pos, 1.0);
+        vec4 prev_clip = prev_proj_view * world_pos;
+        vec2 prev_ndc = prev_clip.xy / prev_clip.w + jitter;
+
+        prev_uv = convert_pass_tex(prev_ndc * 0.5 + 0.5) - vec2(near_off) * texel;
+        valid = valid && view_pos.z <= 0.0 && prev_clip.w > 0.0;
+    }
+
+    /* off-screen reprojections have no history on either path */
+    valid = valid &&
+            all(greaterThanEqual(prev_uv, vec2(0.0))) &&
+            all(lessThanEqual(prev_uv, vec2(1.0)));
 
     if (valid) {
         /*
