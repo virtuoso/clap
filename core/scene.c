@@ -231,6 +231,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
         igCheckbox("light draws", &ropts->light_draws_enabled);
         igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
+        igCheckbox("degenerate collision draws", &ropts->degenerate_draws_enabled);
+        ui_igHelpTooltip("Paint the collision triangles that the physics backend dropped "
+                         "as degenerate, on the models flagged in the entity inspector");
         igCheckbox("use SSAO", &ropts->ssao);
         if (ropts->ssao) {
             igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);

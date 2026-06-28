@@ -506,6 +506,58 @@ static void entity3d_aabb_draw(struct scene *scene, entity3d *e, bool entity, bo
     }
 }
 
+/*
+ * Paint the collision triangles that the physics backend dropped as
+ * degenerate (see model3d_set_degenerate_tris()): the edges in the entity's
+ * world transform, plus a disc at the centroid, because a triangle this
+ * small is a couple of pixels of outline at best.
+ */
+static void entity3d_degenerate_draw(struct scene *scene, entity3d *e)
+{
+    model3d *m = e->txmodel->model;
+
+    for (size_t t = 0; t < m->nr_degenerate_tri; t++) {
+        vec4 vx[3];
+        vec3 centroid = {};
+
+        for (int v = 0; v < 3; v++) {
+            unsigned short idx = m->collision_idx[m->degenerate_tri[t] * 3 + v];
+            const float *pos = &m->collision_vx[idx * 3];
+
+            vec4_setup(vx[v], pos[0], pos[1], pos[2], 1.0);
+            mat4x4_mul_vec4_post(vx[v], e->mx, vx[v]);
+            vec3_add(centroid, centroid, vx[v]);
+        }
+
+        vec3_scale(centroid, centroid, 1.0 / 3.0);
+
+        for (int v = 0; v < 3; v++) {
+            struct message dm = {
+                .type           = MT_DEBUG_DRAW,
+                .debug_draw     = (struct message_debug_draw){
+                    .color      = { 1.0, 1.0, 0.0, 1.0 },
+                    .thickness  = 2.0,
+                    .shape      = DEBUG_DRAW_LINE,
+                    .v0         = { vx[v][0], vx[v][1], vx[v][2] },
+                    .v1         = { vx[(v + 1) % 3][0], vx[(v + 1) % 3][1], vx[(v + 1) % 3][2] },
+                }
+            };
+            message_send(scene->clap_ctx, &dm);
+        }
+
+        struct message dm = {
+            .type           = MT_DEBUG_DRAW,
+            .debug_draw     = (struct message_debug_draw){
+                .color      = { 1.0, 1.0, 0.0, 1.0 },
+                .shape      = DEBUG_DRAW_DISC,
+                .radius     = 3.0,
+                .v0         = { centroid[0], centroid[1], centroid[2] },
+            }
+        };
+        message_send(scene->clap_ctx, &dm);
+    }
+}
+
 static void entity3d_debug(struct scene *scene, entity3d *e)
 {
     struct message dm = {
@@ -536,6 +588,7 @@ static void entity3d_debug(struct scene *scene, entity3d *e)
 }
 #else
 static inline void entity3d_aabb_draw(struct scene *scene, entity3d *e, bool entity, bool model) {}
+static inline void entity3d_degenerate_draw(struct scene *scene, entity3d *e) {}
 static inline void entity3d_debug(struct scene *scene, entity3d *e) {}
 #endif /* CONFIG_FINAL */
 
@@ -980,6 +1033,9 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             if (unlikely(ropts && ropts->aabb_draws_enabled && !model->skip_aabb))
                 entity3d_aabb_draw(mq->priv, e, true, true);
+
+            if (unlikely(ropts && ropts->degenerate_draws_enabled))
+                entity3d_degenerate_draw(mq->priv, e);
 
             if (!entity3d_matches(e, ENTITY3D_VISIBLE))
                 continue;

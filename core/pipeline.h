@@ -50,6 +50,7 @@ typedef struct render_options {
     bool    collision_draws_enabled;
     bool    velocity_draws_enabled;
     bool    aabb_draws_enabled;
+    bool    degenerate_draws_enabled;
     bool    camera_frusta_draws_enabled;
     bool    light_frusta_draws_enabled;
     bool    overlay_draws_enabled;
