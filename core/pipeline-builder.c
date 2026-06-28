@@ -179,12 +179,27 @@ static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, text
  * pipeline builder
  ****************************************************************************/
 
+/*
+ * Shared by all pipeline (re)builds; released in pipeline_builder_done().
+ * TODO: these want proper ownership (the pipeline object or a builder
+ * context) instead of hidden statics with an out-of-band destructor
+ */
+static texture_t grain_tex;
+static ssao_state pl_ssao_state;
+
+/**
+ * pipeline_builder_done() - release pipeline builder's process-wide resources
+ */
+void pipeline_builder_done(void)
+{
+    ssao_done(&pl_ssao_state);
+    texture_deinit(&grain_tex);
+}
+
 DEFINE_CLEANUP(pipeline, if (*p) ref_put(*p))
 
 cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 {
-    static texture_t grain_tex;
-
     if (!opts->mq)
         return cresp_error(pipeline, CERR_NOMEM);
 
@@ -207,11 +222,8 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         );
 
     auto renderer = clap_get_renderer(opts->pl_opts->clap_ctx);
-    static ssao_state ssao_state = {};
-    if (ssao)
-        ssao_init(renderer, &ssao_state);
-    else
-        ssao_done(&ssao_state);
+    if (ssao)   ssao_init(renderer, &pl_ssao_state);
+    else        ssao_done(&pl_ssao_state);
 
     bool taa = ropts->taa;
     /* TAA replaces SMAA: no weights pass, use_edge_aa off in combine */
@@ -243,7 +255,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 .light            = opts->pl_opts->light,
                 .camera           = opts->pl_opts->camera,
                 .clap_ctx         = opts->pl_opts->clap_ctx,
-                .ssao_state       = &ssao_state,
+                .ssao_state       = &pl_ssao_state,
                 .nr_cascades      = nr_cascades,
                 .name             = opts->pl_opts->name
             ),
@@ -495,7 +507,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .method     = model_pass_method,
                     .sampler    = UNIFORM_NORMAL_MAP
                 },
-                { .tex  = &ssao_state.noise, .method = RM_PLUG, .sampler = UNIFORM_SOBEL_TEX },
+                { .tex  = &pl_ssao_state.noise, .method = RM_PLUG, .sampler = UNIFORM_SOBEL_TEX },
                 {}
             },
             .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },

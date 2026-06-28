@@ -1526,6 +1526,7 @@ void clap_done(struct clap_context *ctx, int status)
         shader_vars_done(ctx->shaders);
         luts_done(&ctx->luts);
         ref_put_last(ctx->noise3d);
+        pipeline_builder_done();
         textures_done();
         display_done();
     }
