@@ -394,6 +394,19 @@ static void scene_characters_debug(struct scene *scene)
     ui_igEnd(DEBUG_CHARACTERS);
 }
 
+/*
+ * Flag a model whose collision mesh has holes where the physics backend
+ * dropped degenerate triangles. "degenerate collision draws" paints them
+ * in the scene.
+ */
+static void model_degenerate_warn(model3d *m)
+{
+    if (!model3d_has_degenerate_tris(m))    return;
+
+    ui_igWarnTooltip("%zu degenerate collision triangle(s): the collision mesh has holes "
+                     "where the renderer shows a surface", m->nr_degenerate_tri);
+}
+
 static void model_picker(struct scene *scene)
 {
     entity_inspector *ei = &scene->entity_inspector;
@@ -411,9 +424,14 @@ static void model_picker(struct scene *scene)
                 selected = true;
 
             igPushID_Ptr(txm);
-            if (igSelectable_Bool(txmodel_name(txm), selected, selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0})) {
-                igSetItemDefaultFocus();
 
+            bool picked = igSelectable_Bool(txmodel_name(txm), selected,
+                                            selected ? ImGuiSelectableFlags_Highlight : 0, (ImVec2){0, 0});
+            /* default focus applies to the last item, so it goes before the mark */
+            if (picked)     igSetItemDefaultFocus();
+            model_degenerate_warn(txm->model);
+
+            if (picked) {
                 /*
                  * list_empty(&txm->entities) should never be empty:
                  * removing the last entity should remove the txmodel
@@ -440,6 +458,9 @@ static void model_picker(struct scene *scene)
 
         ui_igEndCombo();
     }
+
+    if (ei->entity)
+        model_degenerate_warn(ei->entity->txmodel->model);
 
     ui_igCheckbox("switch scene control", &ei->switch_control);
     ui_igHelpTooltip(
