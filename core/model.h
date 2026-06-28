@@ -404,6 +404,8 @@ typedef struct entity3d {
     model3dtx           *txmodel;
     mat4x4              mx;
     mat4x4              inverse_mx;
+    /* mx as rendered last frame, for TAA motion vectors */
+    mat4x4              prev_mx;
     struct ref          ref;
     struct list         entry;     /* link to txmodel->entities */
     entity3d_flags      flags;

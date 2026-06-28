@@ -1115,6 +1115,19 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             shader_set_var_ptr(prog, UNIFORM_TRS, 1, e->mx);
             shader_set_var_ptr(prog, UNIFORM_INVERSE_TRS, 1, e->inverse_mx);
+            if (opts->taa) {
+                shader_set_var_ptr(prog, UNIFORM_PREV_TRS, 1, e->prev_mx);
+                /*
+                 * The model pass is the only consumer of prev_trs and
+                 * the only camera pass drawing scene entities, so this
+                 * doubles as the once-per-frame snapshot -- no separate
+                 * O(entities) end-of-frame sweep. An entity that moves
+                 * while frustum-culled re-enters the view with the prev_mx
+                 * of its last drawn frame: one frame of stale velocity,
+                 * absorbed like a spawn's
+                 */
+                mat4x4_dup(e->prev_mx, e->mx);
+            }
 
             if (opts->ssao_state)
                 ssao_upload(opts->ssao_state, prog, opts->width, opts->height);
@@ -1823,6 +1836,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
 
     transform_init(&e->xform);
     mat4x4_identity(e->inverse_mx);
+    mat4x4_identity(e->prev_mx);
     darray_init(e->aniq);
     e->animation = -1;
     e->light     = NULL;
