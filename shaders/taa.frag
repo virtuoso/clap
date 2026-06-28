@@ -1,0 +1,145 @@
+#version 460 core
+
+#include "shader_constants.h"
+#include "half.glsl"
+#include "color-utils.glsl"
+#include "pass-tex.glsl"
+#include "view_pos.glsl"
+
+layout (location=0) out vec4 FragColor;
+layout (location=0) in vec2 pass_tex;
+
+layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
+layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
+layout (binding=SAMPLER_BINDING_history_tex) uniform sampler2D history_tex;
+
+#include "ubo_projview.glsl"
+#include "ubo_postproc.glsl"
+
+/*
+ * One pass over the 3x3 neighborhood around uv: first two moments of
+ * the color in YCoCg space (for the variance clip) and the offset of
+ * the sample closest to the camera (for depth-dilated reprojection).
+ * Explicit-LOD sampling throughout: this runs under a non-uniform
+ * branch, where tint (WGSL) disallows implicit-derivative texture().
+ */
+void neighborhood(vec2 uv, out f16vec3 mu, out f16vec3 sigma, out ivec2 near_off)
+{
+    ivec2 size = textureSize(depth_tex, 0);
+    ivec2 tc = ivec2(uv * vec2(size));
+    f16vec3 m1 = HVEC3(0.0);
+    f16vec3 m2 = HVEC3(0.0);
+    float near_depth = 1.0;
+
+    near_off = ivec2(0);
+
+#define TAP(dx, dy) { \
+        f16vec3 c = HVEC3(rgb_to_ycocg(textureLodOffset(model_tex, uv, 0.0, ivec2(dx, dy)).rgb)); \
+        m1 += c; \
+        m2 += c * c; \
+        float d = texelFetch(depth_tex, clamp(tc + ivec2(dx, dy), ivec2(0), size - 1), 0).r; \
+        if (d < near_depth) { near_depth = d; near_off = ivec2(dx, dy); } \
+    }
+    TAP(-1, -1) TAP( 0, -1) TAP( 1, -1)
+    TAP(-1,  0) TAP( 0,  0) TAP( 1,  0)
+    TAP(-1,  1) TAP( 0,  1) TAP( 1,  1)
+#undef TAP
+
+    mu = m1 / H(9.0);
+    sigma = sqrt(max(m2 / H(9.0) - mu * mu, HVEC3(0.0)));
+}
+
+/*
+ * Clip color to the [mn, mx] box by pulling it toward the box center
+ * instead of clamping per component: clamping projects onto box faces
+ * and skews the hue, clipping preserves the direction of the change.
+ * The epsilon keeps the division finite on a degenerate (flat) box.
+ * t tells the caller how far outside the box the color was: ~1 for
+ * legitimate sub-pixel edge information, much larger for stale
+ * (disoccluded) history.
+ */
+f16vec3 clip_to_aabb(f16vec3 mn, f16vec3 mx, f16vec3 color, out float16_t t)
+{
+    f16vec3 center = (mx + mn) * H(0.5);
+    f16vec3 extent = (mx - mn) * H(0.5) + H(1e-3);
+    f16vec3 dist = color - center;
+    f16vec3 ts = abs(dist) / extent;
+
+    t = max(ts.x, max(ts.y, ts.z));
+
+    return t > H(1.0) ? center + dist / t : color;
+}
+
+void main()
+{
+    /*
+     * The current sample stays at its jittered position on purpose:
+     * blending differently-jittered frames is what integrates edges.
+     */
+    f16vec3 current = HVEC3(rgb_to_ycocg(texture(model_tex, pass_tex).rgb));
+
+    f16vec3 mu, sigma;
+    ivec2 near_off;
+    neighborhood(pass_tex, mu, sigma, near_off);
+
+    /*
+     * Reproject: reconstruct the world position at the *closest* depth
+     * in the neighborhood (silhouette-crossing pixels then follow the
+     * foreground object instead of tearing off it) and find its pixel
+     * in the previous frame; the neighbor's motion is transferred back
+     * to this pixel by undoing the offset afterwards. The accumulated
+     * history converges to the *unjittered* image, so jitter must
+     * cancel out of the reprojection: prev_proj_view is unjittered,
+     * and adding our own jitter re-aligns the result with this frame's
+     * pixel grid. For a static camera prev_uv then equals pass_tex
+     * exactly, texel-center aligned -- no bilinear resampling, no
+     * progressive history blur.
+     */
+    vec2 texel = 1.0 / vec2(width, height);
+    vec2 uv_near = pass_tex + vec2(near_off) * texel;
+    vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv_near);
+    vec4 world_pos = inverse_view * vec4(view_pos, 1.0);
+    vec4 prev_clip = prev_proj_view * world_pos;
+    vec2 prev_ndc = prev_clip.xy / prev_clip.w + jitter;
+    vec2 prev_uv = convert_pass_tex(prev_ndc * 0.5 + 0.5) - vec2(near_off) * texel;
+
+    /*
+     * History is unusable when explicitly reset, for the sky (the
+     * view_pos sentinel z = 1.0 for depth >= 1.0), for points behind
+     * the previous camera and for reprojections off the screen.
+     */
+    bool valid = !taa_reset &&
+                 view_pos.z <= 0.0 &&
+                 prev_clip.w > 0.0 &&
+                 all(greaterThanEqual(prev_uv, vec2(0.0))) &&
+                 all(lessThanEqual(prev_uv, vec2(1.0)));
+
+    if (valid) {
+        /*
+         * Variance clip (Salvi): mu +/- gamma * sigma bounds much
+         * tighter than the min/max box where the neighborhood
+         * straddles a silhouette, so disoccluded history (e.g. a face
+         * ghost on a freshly revealed wall) dies in a frame or two
+         */
+        const float16_t var_gamma = H(1.0);
+
+        /* textureLod: non-uniform branch, see neighborhood() */
+        f16vec3 history = HVEC3(rgb_to_ycocg(textureLod(history_tex, prev_uv, 0.0).rgb));
+        float16_t t;
+        history = clip_to_aabb(mu - sigma * var_gamma, mu + sigma * var_gamma, history, t);
+
+        /*
+         * Disocclusion response: history far outside the box (wide
+         * bands of freshly revealed background during camera motion)
+         * would take ~1/feedback frames to fade as a smudge; snap the
+         * blend toward the current sample instead. t <= 1 (converged
+         * or normal edge detail) keeps the configured feedback.
+         */
+        float16_t w = mix(H(taa_feedback), H(1.0),
+                          clamp((t - H(1.0)) * H(0.5), H(0.0), H(1.0)));
+
+        current = mix(history, current, w);
+    }
+
+    FragColor = vec4(ycocg_to_rgb(current), 1.0);
+}
