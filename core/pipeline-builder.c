@@ -540,18 +540,6 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                         .method     = RM_PLUG,
                         .sampler    = UNIFORM_SHADOW_MAP
                     },
-                edge_aa ?
-                    (render_source) {
-                        .pass       = smaa_weights_pass,
-                        .attachment = FBO_COLOR_TEXTURE(0),
-                        .method     = RM_USE,
-                        .sampler    = UNIFORM_SHADOW_MAP2
-                    } :
-                    (render_source) {
-                        .tex        = white_pixel(),
-                        .method     = RM_PLUG,
-                        .sampler    = UNIFORM_SHADOW_MAP2
-                    },
                 {
                     .tex        = lut_tex(ropts->lighting_lut),
                     .method     = RM_PLUG,
@@ -633,6 +621,31 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .method     = RM_PLUG,
                     .sampler    = UNIFORM_GRAIN_TEX,
                 },
+                /* SMAA blends the composite here; see present.frag */
+                edge_aa ?
+                    (render_source) {
+                        .pass       = edge_pass,
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_SOBEL_TEX
+                    } :
+                    (render_source) {
+                        .tex        = white_pixel(),
+                        .method     = RM_PLUG,
+                        .sampler    = UNIFORM_SOBEL_TEX
+                    },
+                edge_aa ?
+                    (render_source) {
+                        .pass       = smaa_weights_pass,
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_SHADOW_MAP2
+                    } :
+                    (render_source) {
+                        .tex        = white_pixel(),
+                        .method     = RM_PLUG,
+                        .sampler    = UNIFORM_SHADOW_MAP2
+                    },
                 {}
             },
 #ifdef CONFIG_RENDERER_METAL
