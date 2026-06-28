@@ -21,7 +21,8 @@
         { "name": "depth_tex",      "binding": 8, "symbol": "UNIFORM_DEPTH_TEX" },
         { "name": "light_map",      "binding": 9, "symbol": "UNIFORM_LIGHT_MAP" },
         { "name": "noise3d",        "binding": 10, "symbol": "UNIFORM_NOISE3D_TEX" },
-        { "name": "grain_tex",      "binding": 11, "symbol": "UNIFORM_GRAIN_TEX" }
+        { "name": "grain_tex",      "binding": 11, "symbol": "UNIFORM_GRAIN_TEX" },
+        { "name": "history_tex",    "binding": 12, "symbol": "UNIFORM_HISTORY_TEX" }
     ],
     "ubos": [
         {
@@ -72,7 +73,9 @@
                 { "name": "proj", "type": "DT_MAT4", "symbol": "UNIFORM_PROJ", "discription": "projection matrix" },
                 { "name": "view", "type": "DT_MAT4", "symbol": "UNIFORM_VIEW", "discription": "view matrix" },
                 { "name": "inverse_view", "type": "DT_MAT4", "symbol": "UNIFORM_INVERSE_VIEW", "discription": "inverse view matrix" },
-                { "name": "inverse_proj", "type": "DT_MAT4", "symbol": "UNIFORM_INVERSE_PROJ", "discription": "inverse projection matrix for view-space position reconstruction" }
+                { "name": "inverse_proj", "type": "DT_MAT4", "symbol": "UNIFORM_INVERSE_PROJ", "discription": "inverse projection matrix for view-space position reconstruction" },
+                { "name": "prev_proj_view", "type": "DT_MAT4", "symbol": "UNIFORM_PREV_PROJ_VIEW", "discription": "proj * view of the previous frame (unjittered) for TAA reprojection" },
+                { "name": "jitter", "type": "DT_VEC2", "symbol": "UNIFORM_JITTER", "discription": "TAA sub-pixel jitter of the current frame in NDC units" },
             ]
         },
         {
@@ -180,7 +183,9 @@
                 { "name": "film_grain", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_FILM_GRAIN", "discription": "enable film grain" },
                 { "name": "film_grain_shift", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_SHIFT", "discription": "per-frame random seed for film grain UV offset" },
                 { "name": "film_grain_factor", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_FACTOR", "discription": "film grain intensity" },
-                { "name": "film_grain_power", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_POWER", "discription": "film grain luminance sensitivity exponent" }
+                { "name": "film_grain_power", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_POWER", "discription": "film grain luminance sensitivity exponent" },
+                { "name": "taa_feedback", "type": "DT_FLOAT", "symbol": "UNIFORM_TAA_FEEDBACK", "discription": "TAA current-frame contribution to the history blend" },
+                { "name": "taa_reset", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_TAA_RESET", "discription": "TAA history is invalid, output the current frame only" }
             ]
         },
         {
