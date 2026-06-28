@@ -71,6 +71,51 @@ f16vec3 clip_to_aabb(f16vec3 mn, f16vec3 mx, f16vec3 color, out float16_t t)
     return t > H(1.0) ? center + dist / t : color;
 }
 
+/*
+ * Catmull-Rom history filter, 5 bilinear taps (the corner taps of the
+ * full 9 carry ~4% of the energy and are dropped, cross renormalized):
+ * the bicubic negative lobes undo the softening that plain bilinear
+ * history resampling accumulates under camera motion. At a texel
+ * center (static camera) the weights collapse to a single exact fetch,
+ * preserving bit-stable convergence. Explicit LOD throughout: this is
+ * called from a non-uniform branch (tint).
+ */
+f16vec3 sample_history(vec2 uv)
+{
+    vec2 size = vec2(textureSize(history_tex, 0));
+    vec2 texel = 1.0 / size;
+
+    vec2 pos = uv * size;
+    vec2 center = floor(pos - 0.5) + 0.5;
+    vec2 f = pos - center;
+    vec2 f2 = f * f;
+    vec2 f3 = f2 * f;
+
+    /* Catmull-Rom weights (B = 0, C = 0.5) */
+    vec2 w0 = f2 - 0.5 * (f3 + f);
+    vec2 w1 = 1.5 * f3 - 2.5 * f2 + 1.0;
+    vec2 w3 = 0.5 * (f3 - f2);
+    vec2 w2 = 1.0 - w0 - w1 - w3;
+
+    /* fold the two middle rows/columns into one bilinear tap each */
+    vec2 w12 = w1 + w2;
+    vec2 tc0 = (center - 1.0) * texel;
+    vec2 tc12 = (center + w2 / w12) * texel;
+    vec2 tc3 = (center + 2.0) * texel;
+
+    vec3 history =
+        textureLod(history_tex, vec2(tc0.x,  tc12.y), 0.0).rgb * (w0.x  * w12.y) +
+        textureLod(history_tex, vec2(tc12.x, tc0.y),  0.0).rgb * (w12.x * w0.y)  +
+        textureLod(history_tex, vec2(tc12.x, tc12.y), 0.0).rgb * (w12.x * w12.y) +
+        textureLod(history_tex, vec2(tc12.x, tc3.y),  0.0).rgb * (w12.x * w3.y)  +
+        textureLod(history_tex, vec2(tc3.x,  tc12.y), 0.0).rgb * (w3.x  * w12.y);
+    float wsum = w0.x * w12.y + w12.x * w0.y + w12.x * w12.y +
+                 w12.x * w3.y + w3.x * w12.y;
+
+    /* the negative lobes can undershoot; clamp before the color transform */
+    return HVEC3(rgb_to_ycocg(max(history / wsum, vec3(0.0))));
+}
+
 void main()
 {
     /*
@@ -144,8 +189,7 @@ void main()
          */
         const float16_t var_gamma = H(1.0);
 
-        /* textureLod: non-uniform branch, see neighborhood() */
-        f16vec3 history = HVEC3(rgb_to_ycocg(textureLod(history_tex, prev_uv, 0.0).rgb));
+        f16vec3 history = sample_history(prev_uv);
         float16_t t;
         history = clip_to_aabb(mu - sigma * var_gamma, mu + sigma * var_gamma, history, t);
 
