@@ -369,6 +369,7 @@ enum gs_kind {
     GS_KIND_FILM_GRAIN,
     GS_KIND_HDR,
     GS_KIND_SSAO,
+    GS_KIND_TAA,
     GS_KIND_BACK,
 };
 
@@ -400,6 +401,7 @@ static const struct ui_widget_builder graphics_uwb = {
 static void gs_toggle_film_grain(struct ui *ui, const ui_menu_item *item);
 static void gs_toggle_hdr(struct ui *ui, const ui_menu_item *item);
 static void gs_toggle_ssao(struct ui *ui, const ui_menu_item *item);
+static void gs_toggle_taa(struct ui *ui, const ui_menu_item *item);
 static void gs_back(struct ui *ui, const ui_menu_item *item);
 
 static void gs_item(unsigned int idx, enum gs_kind kind, const char *label,
@@ -432,6 +434,9 @@ static void gs_populate(struct ui *ui)
     snprintf(buf, sizeof(buf), "SSAO: %s", ro->ssao ? "On" : "Off");
     gs_item(i++, GS_KIND_SSAO, buf, gs_toggle_ssao);
 
+    snprintf(buf, sizeof(buf), "TAA: %s", ro->taa ? "On" : "Off");
+    gs_item(i++, GS_KIND_TAA, buf, gs_toggle_taa);
+
     gs_item(i++, GS_KIND_BACK, "Back", gs_back);
 
     gs_items[i] = (ui_menu_item){};
@@ -449,6 +454,7 @@ static void gs_recolor(struct ui *ui, struct ui_widget *uiw)
         case GS_KIND_FILM_GRAIN:    on = ro->film_grain;          break;
         case GS_KIND_HDR:           on = ro->hdr_output_enabled;  break;
         case GS_KIND_SSAO:          on = ro->ssao;                break;
+        case GS_KIND_TAA:           on = ro->taa;                 break;
         case GS_KIND_BACK:
             memcpy(c, color_back, sizeof(c));
             entity3d_color(uiw->uies[i]->entity, COLOR_PT_ALL, c);
@@ -495,6 +501,13 @@ static void gs_toggle_ssao(struct ui *ui, const ui_menu_item *item)
 {
     render_options *ro = clap_get_render_options(ui->clap_ctx);
     graphics_settings_set_ssao(ui->clap_ctx, !ro->ssao);
+    gs_rebuild(ui);
+}
+
+static void gs_toggle_taa(struct ui *ui, const ui_menu_item *item)
+{
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+    graphics_settings_set_taa(ui->clap_ctx, !ro->taa);
     gs_rebuild(ui);
 }
 

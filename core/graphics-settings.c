@@ -9,6 +9,7 @@
 #define GFX_KEY_FILM_GRAIN  "film_grain"
 #define GFX_KEY_HDR_OUTPUT  "hdr_output"
 #define GFX_KEY_SSAO        "ssao"
+#define GFX_KEY_TAA         "taa"
 
 static JsonNode *gfx_group(struct settings *rs)
 {
@@ -38,6 +39,8 @@ cerr graphics_settings_init(struct clap_context *ctx, struct settings *rs)
     if (n && n->tag == JSON_BOOL)   ro->hdr_output_enabled = n->bool_;
     n = settings_get(rs, grp, GFX_KEY_SSAO);
     if (n && n->tag == JSON_BOOL)   ro->ssao = n->bool_;
+    n = settings_get(rs, grp, GFX_KEY_TAA);
+    if (n && n->tag == JSON_BOOL)   ro->taa = n->bool_;
 
     return CERR_OK;
 }
@@ -70,4 +73,14 @@ void graphics_settings_set_ssao(struct clap_context *ctx, bool on)
     struct settings *rs = clap_get_settings(ctx);
     JsonNode *grp = rs ? gfx_group(rs) : NULL;
     if (grp)    settings_set_bool(rs, grp, GFX_KEY_SSAO, on);
+}
+
+void graphics_settings_set_taa(struct clap_context *ctx, bool on)
+{
+    render_options *ro = clap_get_render_options(ctx);
+    if (ro)     ro->taa = on;
+
+    struct settings *rs = clap_get_settings(ctx);
+    JsonNode *grp = rs ? gfx_group(rs) : NULL;
+    if (grp)    settings_set_bool(rs, grp, GFX_KEY_TAA, on);
 }

@@ -45,4 +45,14 @@ void graphics_settings_set_hdr_output(struct clap_context *ctx, bool on);
  */
 void graphics_settings_set_ssao(struct clap_context *ctx, bool on);
 
+/**
+ * graphics_settings_set_taa() - toggle TAA
+ * @ctx:    clap context
+ * @on:     new state
+ *
+ * Updates render_options.taa and persists to settings; the pipeline
+ * rebuild follows via the rebuild_reason table.
+ */
+void graphics_settings_set_taa(struct clap_context *ctx, bool on);
+
 #endif /* __CLAP_GRAPHICS_SETTINGS_H__ */
