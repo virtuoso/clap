@@ -669,20 +669,24 @@ void ui_igDebugPlotLines(const char *label, debug_plot *plot)
 
 static const float left_padding = 4;
 
-void ui_igTooltip(const char *fmt, ...)
+static void ui_igTooltipV(const char *fmt, va_list va)
 {
     if (!igBeginItemTooltip())
         return;
 
     igPushTextWrapPos(igGetFontSize() * 35.0f);
-
-    va_list va;
-    va_start(va, fmt);
     igTextV(fmt, va);
-    va_end(va);
-
     igPopTextWrapPos();
     igEndTooltip();
+}
+
+void ui_igTooltip(const char *fmt, ...)
+{
+    va_list va;
+
+    va_start(va, fmt);
+    ui_igTooltipV(fmt, va);
+    va_end(va);
 }
 
 /*
@@ -694,6 +698,24 @@ void ui_igHelpTooltip(const char *text)
     igSameLine(0.0, left_padding);
     igTextDisabled("(?)");
     ui_igTooltip(text);
+}
+
+/**
+ * ui_igWarnTooltip() - add a yellow "(!)" mark with a formatted tooltip
+ * @fmt:    printf-style format of the tooltip text
+ *
+ * For things that are worth the user's attention, but aren't errors.
+ */
+void ui_igWarnTooltip(const char *fmt, ...)
+{
+    igSameLine(0.0, left_padding);
+    igTextColored((ImVec4){ 1.0, 1.0, 0.0, 1.0 }, "(!)");
+
+    va_list va;
+
+    va_start(va, fmt);
+    ui_igTooltipV(fmt, va);
+    va_end(va);
 }
 
 bool ui_igControlTableHeader(const char *str_id_fmt, const char *longest_label, ...)
