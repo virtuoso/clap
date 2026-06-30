@@ -25,6 +25,13 @@ struct view {
     unsigned int            nr_cascades;
     float                   fov;
     float                   aspect;
+    /*
+     * Cascade split scheme: 1.0 = logarithmic (constant texel-density ratio
+     * between cascades), 0.0 = uniform in view distance, blended in between
+     */
+    float                   cascade_lambda;
+    /* how far the shadow cascades reach; 0 follows the main far plane */
+    float                   shadow_distance;
     bool                    proj_update;
 };
 

@@ -10,22 +10,28 @@ static void subview_calc_frustum(struct subview *subview, renderer_t *r);
 
 static void view_update_perspective_subviews(struct view *view, renderer_t *r)
 {
-    static const float dividers[CASCADES_MAX - 1] = { 15, 50, 150 };
-    unsigned int max = view->nr_cascades ?: array_size(view->subview);
-    unsigned int i = 0;
+    unsigned int nr = view->nr_cascades ?: array_size(view->subview);
+    float far_plane = view->shadow_distance ?
+        min(view->shadow_distance, view->main.far_plane) : view->main.far_plane;
+    float near_plane = view->main.near_plane;
+    /* the logarithmic term explodes with tiny near planes */
+    float log_near = max(near_plane, 0.5);
+    unsigned int i;
 
-    view->subview[0].near_plane = view->main.near_plane;
-    for (i = 0; i < max - 1; i++) {
+    view->subview[0].near_plane = near_plane;
+    for (i = 0; i < nr; i++) {
         struct subview *sv = &view->subview[i];
+        float s = (float)(i + 1) / nr;
+        float f_log = log_near * powf(far_plane / log_near, s);
+        float f_lin = near_plane + (far_plane - near_plane) * s;
 
-        view->divider[i] = dividers[i];
+        view->divider[i] = view->cascade_lambda * f_log +
+                           (1.0 - view->cascade_lambda) * f_lin;
         sv->far_plane    = view->divider[i];
-        view->subview[i + 1].near_plane = sv->far_plane;
+        if (i + 1 < nr) view->subview[i + 1].near_plane = sv->far_plane;
     }
-    view->divider[i]           = view->main.far_plane;
-    view->subview[i].far_plane = view->main.far_plane;
 
-    for (i = 0; i < max; i++) {
+    for (i = 0; i < nr; i++) {
         struct subview *sv = &view->subview[i];
 
         mat4x4_dup(sv->view_mx, view->main.view_mx);

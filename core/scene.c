@@ -77,6 +77,9 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
     s->camera->view.nr_cascades      = CASCADES_MAX;
+    /* 0.9 lands the first divider at 15 units for a 500-unit far plane */
+    s->camera->view.cascade_lambda   = 0.9;
+    s->camera->view.shadow_distance  = 0.0;
     s->camera->view.proj_update      = true;
     s->camera->dist = 10;
     transform_init(&s->camera->xform);
@@ -211,6 +214,12 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("VSM shadows", &ropts->shadow_vsm);
         igSliderFloat("shadow caster min size (texels)", &ropts->shadow_caster_min_size,
                       0.0, 128.0, "%.0f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("cascade lambda", &cam->view.cascade_lambda, 0.0, 1.0, "%.2f",
+                      ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("shadow distance", &cam->view.shadow_distance, 0.0,
+                      cam->view.main.far_plane, "%.0f", ImGuiSliderFlags_ClampOnInput);
+        igText("cascades: %.1f | %.1f | %.1f | %.1f", cam->view.divider[0],
+               cam->view.divider[1], cam->view.divider[2], cam->view.divider[3]);
         igCheckbox("shadow msaa", &ropts->shadow_msaa);
         igCheckbox("model msaa", &ropts->model_msaa);
         igCheckbox("edge sobel", &ropts->edge_sobel);
