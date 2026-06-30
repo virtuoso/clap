@@ -1646,6 +1646,15 @@ err:
 
 void ui_done(struct ui *ui)
 {
+    /*
+     * An empty shader list is, at the moment, the best indication that UI
+     * initialization failed inside the UI code or that ui_done() already
+     * ran (the frame loop disarms the UI this way on rendering failures,
+     * and clap_done() calls it once more at teardown); either way, there
+     * are no UI elements to clean up either
+     */
+    if (list_empty(&ui->shaders))   return;
+
     if (ui->inventory)
         ui_inventory_done(ui);
 
