@@ -786,12 +786,17 @@ void textures_init(renderer_t *renderer)
 
 void textures_done(void)
 {
-    texture_done(&_white_pixel);
-    texture_done(&_black_pixel);
-    texture_done(&_transparent_pixel);
-    texture_done(&_black_3d_pixel);
-    texture_done(&_grey_3d_pixel);
-    texture_done(&_black_uint_pixel);
+    /*
+     * These are embedded refs, which texture_done() deliberately skips
+     * (clones share the GPU objects of embedded textures elsewhere);
+     * release the GPU side explicitly, nothing clones the singletons
+     */
+    texture_deinit(&_white_pixel);
+    texture_deinit(&_black_pixel);
+    texture_deinit(&_transparent_pixel);
+    texture_deinit(&_black_3d_pixel);
+    texture_deinit(&_grey_3d_pixel);
+    texture_deinit(&_black_uint_pixel);
 }
 
 
