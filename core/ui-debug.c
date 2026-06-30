@@ -63,6 +63,9 @@ void ui_debug_selector(void)
     if (!debug_selector)
         return;
 
+    /* Widget calls are only valid inside an imgui frame */
+    if (!imgui_frame_started()) return;
+
     debug_selector_ui_open = igBegin("Debug controls", &debug_selector, ImGuiWindowFlags_AlwaysAutoResize);
     if (!debug_selector_ui_open) {
         igEnd();
@@ -119,6 +122,15 @@ debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
 
     ui_debug_set_one(mod);
 
+    /*
+     * Widget calls are only valid inside an imgui frame; the renderer
+     * backend may be skipping them entirely
+     */
+    if (!imgui_frame_started()) {
+        if (dbgm)   dbgm->unfolded = false;
+        return dbgm;
+    }
+
     if (!dbgm || !dbgm->display)
         return dbgm;
 
@@ -146,6 +158,9 @@ debug_module *ui_igBegin_name(enum debug_modules mod, ImGuiWindowFlags flags,
 void ui_igEnd(enum debug_modules mod)
 {
     debug_module *dbgm = ui_debug_module(mod);
+
+    /* Keep Begin/End balanced when no imgui frame is being built */
+    if (!imgui_frame_started()) return;
 
     if (!dbgm || !dbgm->display)
         return;

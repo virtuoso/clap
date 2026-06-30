@@ -118,6 +118,22 @@ static inline void ui_imgui_wgpu_new_frame(void) {}
 static inline void ui_imgui_wgpu_render_draw_data(ImDrawData *draw) {}
 #endif /* CONFIG_RENDERER_WGPU */
 
+static bool frame_started;
+
+/**
+ * imgui_frame_started() - whether an imgui frame is being built
+ *
+ * imgui widget calls are only valid between igNewFrame() and igRender();
+ * the debug modules use this to stay clear of renderer backends that skip
+ * imgui frames entirely.
+ *
+ * Return: true while a frame is being built
+ */
+bool imgui_frame_started(void)
+{
+    return frame_started;
+}
+
 void imgui_render_begin(int width, int height)
 {
     io->DisplaySize.x = width;
@@ -145,6 +161,7 @@ void imgui_render_begin(int width, int height)
     if (renderer == RENDER_METAL)
         io->DisplayFramebufferScale = (ImVec2){ 1.0f, 1.0f };
     igNewFrame();
+    frame_started = true;
 }
 
 void imgui_render(void)
@@ -154,6 +171,7 @@ void imgui_render(void)
     ui_call_hover_cb(io->MousePos.x, io->MousePos.y);
 
     igRender();
+    frame_started = false;
     if (renderer == RENDER_OPENGL) {
         ui_imgui_opengl_render_draw_data(igGetDrawData());
     } else if (renderer == RENDER_WGPU) {

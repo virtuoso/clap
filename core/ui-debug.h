@@ -41,6 +41,7 @@ void imgui_set_settings(struct settings *rs);
 void imgui_done(void);
 void imgui_render_begin(int width, int height);
 void imgui_render(void);
+bool imgui_frame_started(void);
 
 enum debug_modules {
     DEBUG_ENTITY_INSPECTOR,
@@ -152,6 +153,7 @@ static inline void imgui_set_settings(struct settings *rs) {}
 static inline void imgui_done(void) {}
 static inline void imgui_render_begin(int width, int height) {}
 static inline void imgui_render(void) {}
+static inline bool imgui_frame_started(void) { return false; }
 
 
 #endif /* CONFIG_FINAL */
