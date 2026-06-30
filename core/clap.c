@@ -755,6 +755,9 @@ static cerr build_main_pl(clap_context *ctx)
 
 static cerr rebuild_pl_if_needed(clap_context *ctx)
 {
+    /* Nothing to rebuild: this configuration builds no graphics pipeline */
+    if (!ctx->pl)   return CERR_OK;
+
     render_options *ropts = &ctx->render_options;
     render_options *ropts_current = &ctx->render_options_current;
 
