@@ -530,9 +530,13 @@ cerr uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, s
  * Shaders
  ****************************************************************************/
 
-cerr shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
+cerr shader_init(renderer_t *r, shader_t *shader,
+                 const char *vertex, size_t vert_size,
+                 const char *geometry, size_t geom_size,
+                 const char *fragment, size_t frag_size)
 {
-    cerr err = r->ops->shader_init(r, shader, vertex, geometry, fragment);
+    cerr err = r->ops->shader_init(r, shader, vertex, vert_size, geometry, geom_size,
+                                   fragment, frag_size);
     shader->renderer = r;
     return err;
 }

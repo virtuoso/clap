@@ -841,7 +841,9 @@ TYPE(shader,
 );
 
 cerr shader_init(renderer_t *r, shader_t *shader,
-                 const char *vertex, const char *geometry, const char *fragment);
+                 const char *vertex, size_t vert_size,
+                 const char *geometry, size_t geom_size,
+                 const char *fragment, size_t frag_size);
 void shader_set_vertex_attrs(shader_t *shader, size_t stride,
                              size_t *offs, data_type *types, size_t *comp_counts,
                              unsigned int nr_attrs);
@@ -1157,7 +1159,9 @@ typedef struct renderer_ops {
     cerr                (*ubo_set)(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                    size_t *size, unsigned int count, const void *value);
     cerr                (*shader_init)(renderer_t *r, shader_t *shader,
-                                      const char *vertex, const char *geometry, const char *fragment);
+                                      const char *vertex, size_t vert_size,
+                                      const char *geometry, size_t geom_size,
+                                      const char *fragment, size_t frag_size);
     void                (*shader_done)(shader_t *shader);
     void                (*shader_set_vertex_attrs)(shader_t *shader, size_t stride,
                                                    size_t *offs, data_type *types,

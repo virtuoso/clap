@@ -22,6 +22,10 @@ DEFINE_REFCLASS_INIT_OPTIONS(shader_prog,
     const char      *vert_ref_text;
     const char      *geom_ref_text;
     const char      *frag_ref_text;
+    /* shader sizes: the sources can be binary (SPIR-V on Vulkan) */
+    size_t          vert_size;
+    size_t          geom_size;
+    size_t          frag_size;
 );
 DECLARE_REFCLASS(shader_prog);
 

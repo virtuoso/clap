@@ -69,7 +69,9 @@ static void gl_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *bi
 static cerr gl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                   size_t *size, unsigned int count, const void *value);
 static cerr gl_shader_init(renderer_t *r, shader_t *shader,
-                           const char *vertex, const char *geometry, const char *fragment);
+                           const char *vertex, size_t vert_size,
+                           const char *geometry, size_t geom_size,
+                           const char *fragment, size_t frag_size);
 static void gl_shader_done(shader_t *shader);
 static void gl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                        size_t *offs, data_type *types,
@@ -1523,7 +1525,10 @@ static GLuint load_shader(GLenum type, const char *source)
     return shader;
 }
 
-static cerr gl_shader_init(renderer_t *r, shader_t *shader, const char *vertex, const char *geometry, const char *fragment)
+static cerr gl_shader_init(renderer_t *r, shader_t *shader,
+                           const char *vertex, size_t vert_size,
+                           const char *geometry, size_t geom_size,
+                           const char *fragment, size_t frag_size)
 {
     shader->gl.vert = load_shader(GL_VERTEX_SHADER, vertex);
     shader->gl.geom =

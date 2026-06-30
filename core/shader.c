@@ -602,7 +602,10 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     struct shader_prog *p = container_of(ref, struct shader_prog, ref);
     list_init(&p->entry);
     p->name = opts->name;
-    CERR_RET_CERR(shader_init(opts->ctx->renderer, &p->shader, opts->vert_text, opts->geom_text, opts->frag_text));
+    CERR_RET_CERR(shader_init(opts->ctx->renderer, &p->shader,
+                              opts->vert_text, opts->vert_size,
+                              opts->geom_text, opts->geom_size,
+                              opts->frag_text, opts->frag_size));
 
     p->ctx = opts->ctx;
     for (enum shader_vars v = 0; v < SHADER_VAR_MAX; v++)
@@ -804,6 +807,9 @@ cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *sha
                                              .vert_ref_text = hvref ? vertref : NULL,
                                              .geom_ref_text = hgref ? geomref : NULL,
                                              .frag_ref_text = hfref ? fragref : NULL,
+                                             .vert_size = vsz,
+                                             .geom_size = hg ? gsz : 0,
+                                             .frag_size = fsz,
                                             );
     if (IS_CERR(res))
         return cerr_error_cres(res);

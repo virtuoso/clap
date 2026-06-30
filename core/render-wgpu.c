@@ -75,7 +75,9 @@ static void wgpu_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *
 static cerr wgpu_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                     size_t *size, unsigned int count, const void *value);
 static cerr wgpu_shader_init(renderer_t *r, shader_t *shader,
-                             const char *vertex, const char *geometry, const char *fragment);
+                             const char *vertex, size_t vert_size,
+                             const char *geometry, size_t geom_size,
+                             const char *fragment, size_t frag_size);
 static void wgpu_shader_done(shader_t *shader);
 static void wgpu_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                          size_t *offs, data_type *types,
@@ -1410,8 +1412,10 @@ static cres(wgpu_shader_module_t) wgpu_create_shader_module(renderer_t *r, const
     return cres_val(wgpu_shader_module_t, module);
 }
 
-static cerr wgpu_shader_init(renderer_t *r, shader_t *shader, const char *vertex,
-                             const char *geometry, const char *fragment)
+static cerr wgpu_shader_init(renderer_t *r, shader_t *shader,
+                             const char *vertex, size_t vert_size,
+                             const char *geometry, size_t geom_size,
+                             const char *fragment, size_t frag_size)
 {
     shader->wgpu.renderer = r;
     shader->wgpu.binding_mask = 0;
