@@ -40,6 +40,11 @@ typedef struct render_options {
     bool    model_msaa;
     bool    debug_draws_enabled;
     float   shadow_outline_threshold;
+    /*
+     * Shadow casters smaller than this many texels of the target
+     * cascade's map are skipped in its shadow pass; 0 disables the cull
+     */
+    float   shadow_caster_min_size;
     int     laplace_kernel;
     bool    edge_antialiasing;
     bool    edge_sobel;

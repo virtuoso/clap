@@ -209,6 +209,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             igSliderFloat("shadow outline threshold", &ropts->shadow_outline_threshold,
                           0.0, 1.0, "%.02f", ImGuiSliderFlags_ClampOnInput);
         igCheckbox("VSM shadows", &ropts->shadow_vsm);
+        igSliderFloat("shadow caster min size (texels)", &ropts->shadow_caster_min_size,
+                      0.0, 128.0, "%.0f", ImGuiSliderFlags_ClampOnInput);
         igCheckbox("shadow msaa", &ropts->shadow_msaa);
         igCheckbox("model msaa", &ropts->model_msaa);
         igCheckbox("edge sobel", &ropts->edge_sobel);

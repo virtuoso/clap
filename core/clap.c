@@ -381,6 +381,7 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.taa_feedback = 0.1;
     ctx->render_options.shadow_outline = true;
     ctx->render_options.shadow_outline_threshold = 0.4;
+    ctx->render_options.shadow_caster_min_size = 24.0;
     ctx->render_options.hdr = true;
     ctx->render_options.hdr_output_enabled = true;
     /*

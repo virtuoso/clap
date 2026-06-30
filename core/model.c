@@ -858,6 +858,25 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     struct shader_prog *prog = NULL;
     model3dtx *txmodel;
 
+    /*
+     * Shadow casters smaller than a few texels of this cascade's map
+     * don't resolve to a stable shadow -- they alias and flicker.
+     * render_options::shadow_caster_min_size is that threshold in
+     * texels: converted through the cascade's world texel size it
+     * self-tunes across map resolutions, cascade splits and aspect
+     * ratios. The useful settings are far above bare resolvability
+     * (tens of texels): distant small-object shadows are perceptual
+     * clutter long before they stop resolving, which is why only the
+     * coarse cascades cull. Arrayed shadow maps render all cascades
+     * in one pass (cascade == -1) and can't use this.
+     */
+    float caster_min_size = 0.0;
+    if (ropts && ropts->shadow_caster_min_size && opts->shader_override &&
+        subview && opts->cascade > 1 && opts->width && opts->height)
+        caster_min_size = ropts->shadow_caster_min_size *
+            max(2.0 / subview->proj_mx[0][0] / (float)opts->width,
+                2.0 / subview->proj_mx[1][1] / (float)opts->height);
+
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         model3d *model = txmodel->model;
         if (model->skip_shadow && opts->shader_override)
@@ -1055,6 +1074,12 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             if (!entity3d_matches(e, ENTITY3D_VISIBLE))
                 continue;
+
+            if (caster_min_size &&
+                entity3d_aabb_avg_edge(e) < caster_min_size) {
+                culled++;
+                continue;
+            }
 
             if (!entity3d_matches(e, ENTITY3D_SKIP_CULLING) &&
                 subview && !view_entity_in_frustum(subview, e)) {
