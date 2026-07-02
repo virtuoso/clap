@@ -109,7 +109,14 @@ float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
         return 1.0;
 
     float distance = d - m1;
-    float variance = max(m2 - m1 * m1, 1e-6);
+    /*
+     * The moments are in world units, so the fp32 cancellation noise
+     * of m2 - m1^2 scales with m1^2 (~2^-23 relative): an absolute
+     * floor can't cover it across the cascades' depth ranges, and
+     * uncovered noise reads as sub-1.0 light in fully lit areas,
+     * deepening with cascade order
+     */
+    float variance = max(m2 - m1 * m1, 1e-6 * m1 * m1);
 
     /* Chebyshev upper bound */
     float p_max = variance / (variance + distance * distance);
