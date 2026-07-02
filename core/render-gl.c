@@ -12,6 +12,9 @@
 #ifndef GL_RG16
 #define GL_RG16 0x822C
 #endif /* !GL_RG16 */
+#ifndef GL_RGBA16
+#define GL_RGBA16 0x805B
+#endif /* !GL_RGBA16 */
 
 const renderer_caps gl_renderer_caps = {
     .renderer           = RENDER_OPENGL,
@@ -506,6 +509,7 @@ static GLenum gl_texture_format(texture_format format)
         case TEX_FMT_RG8:       return GL_RG;
         case TEX_FMT_RGBA32UI:  return GL_RGBA_INTEGER;
         case TEX_FMT_RGBA32F:
+        case TEX_FMT_RGBA16:
         case TEX_FMT_RGBA16F:
         case TEX_FMT_RGBA8_SRGB:
         case TEX_FMT_RGBA8:     return GL_RGBA;
@@ -539,6 +543,7 @@ static GLenum gl_texture_internal_format(texture_format fmt)
         case TEX_FMT_RGBA8_SRGB:return GL_SRGB8_ALPHA8;
         case TEX_FMT_RGB8_SRGB: return GL_SRGB8;
         case TEX_FMT_RGBA32F:   return GL_RGBA32F;
+        case TEX_FMT_RGBA16:    return GL_RGBA16;
         case TEX_FMT_RGBA16F:   return GL_RGBA16F;
         case TEX_FMT_RGB32F:    return GL_RGB32F;
         case TEX_FMT_RGB16F:    return GL_RGB16F;
@@ -565,7 +570,8 @@ static GLenum gl_texture_component_type(texture_format fmt)
         case TEX_FMT_RGBA8:
         case TEX_FMT_RGB8_SRGB:
         case TEX_FMT_RGBA8_SRGB:return GL_UNSIGNED_BYTE;
-        case TEX_FMT_RG16:      return GL_UNSIGNED_SHORT;
+        case TEX_FMT_RG16:
+        case TEX_FMT_RGBA16:    return GL_UNSIGNED_SHORT;
         case TEX_FMT_R16F:
         case TEX_FMT_RG16F:
         case TEX_FMT_RGB16F:

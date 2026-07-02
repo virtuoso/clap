@@ -642,6 +642,7 @@ static wgpu_texture_format_t wgpu_texture_format(texture_format format)
         case TEX_FMT_RGB8_SRGB: return WGPUTextureFormat_RGBA8UnormSrgb;
 
         case TEX_FMT_RGBA32F:   return WGPUTextureFormat_RGBA32Float;
+        case TEX_FMT_RGBA16:    return WGPUTextureFormat_RGBA16Unorm;
         case TEX_FMT_RGBA16F:   return WGPUTextureFormat_RGBA16Float;
         case TEX_FMT_RGBA8:     return WGPUTextureFormat_RGBA8Unorm;
         case TEX_FMT_RGBA8_SRGB:return WGPUTextureFormat_RGBA8UnormSrgb;
@@ -722,7 +723,7 @@ static WGPUTextureViewDimension wgpu_texture_view_dimension(texture_type type)
 static bool wgpu_texture_format_supported(renderer_t *r, texture_format format)
 {
     /* norm16 is an optional feature that the device doesn't request */
-    if (format == TEX_FMT_RG16)     return false;
+    if (format == TEX_FMT_RG16 || format == TEX_FMT_RGBA16)     return false;
     return format < TEX_FMT_MAX;
 }
 

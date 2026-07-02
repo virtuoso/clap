@@ -18,6 +18,7 @@ static const struct {
     [TEX_FMT_RGB8]      = { .name = "RGB8",         .comp_sz = 1, .nr_comps = 3, .add_alpha = TEX_FMT_RGBA8 },
     [TEX_FMT_RGBA8_SRGB]= { .name = "RGBA8_sRGB",   .comp_sz = 1, .nr_comps = 4, .add_alpha = TEX_FMT_MAX },
     [TEX_FMT_RGB8_SRGB] = { .name = "RGB8_sRGB",    .comp_sz = 1, .nr_comps = 3, .add_alpha = TEX_FMT_RGBA8_SRGB },
+    [TEX_FMT_RGBA16]    = { .name = "RGBA16",       .comp_sz = 2, .nr_comps = 4, .add_alpha = TEX_FMT_MAX },
     [TEX_FMT_RGBA16F]   = { .name = "RGBA16F",      .comp_sz = 2, .nr_comps = 4, .add_alpha = TEX_FMT_MAX },
     [TEX_FMT_RGB16F]    = { .name = "RGB16F",       .comp_sz = 2, .nr_comps = 3, .add_alpha = TEX_FMT_RGBA16F },
     [TEX_FMT_RGBA32F]   = { .name = "RGBA32F",      .comp_sz = 4, .nr_comps = 4, .add_alpha = TEX_FMT_MAX },
