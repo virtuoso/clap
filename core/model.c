@@ -905,6 +905,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
             if (ropts) {
                 shader_set_var_int(prog, UNIFORM_SHADOW_VSM, ropts->shadow_vsm);
+                shader_set_var_float(prog, UNIFORM_SHADOW_BLEED, ropts->shadow_bleed);
                 shader_set_var_int(prog, UNIFORM_SHADOW_OUTLINE, ropts->shadow_outline);
                 shader_set_var_int(prog, UNIFORM_NR_CASCADES, opts->nr_cascades);
                 shader_set_var_float(prog, UNIFORM_SHADOW_OUTLINE_THRESHOLD, ropts->shadow_outline_threshold);

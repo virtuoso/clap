@@ -375,6 +375,7 @@ bool clap_is_paused(clap_context *ctx)
 static void clap_init_render_options(struct clap_context *ctx)
 {
     ctx->render_options.shadow_vsm = true;
+    ctx->render_options.shadow_bleed = 0.9;
     ctx->render_options.shadow_msaa = false;
     ctx->render_options.laplace_kernel = 3;
     ctx->render_options.edge_antialiasing = true;

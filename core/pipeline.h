@@ -50,6 +50,8 @@ typedef struct render_options {
     bool    edge_sobel;
     bool    ssao;
     bool    shadow_vsm;
+    /* VSM light bleed reduction: the Chebyshev tail written off as bleed */
+    float   shadow_bleed;
     bool    film_grain;
     bool    taa;
     bool    hdr;

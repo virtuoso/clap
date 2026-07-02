@@ -121,10 +121,14 @@ float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
     /* Chebyshev upper bound */
     float p_max = variance / (variance + distance * distance);
 
-    const float light_bleed_reduction = 0.8; /* XXX: parameterize me */
-    p_max = clamp((p_max - light_bleed_reduction) / (1.0 - light_bleed_reduction), 0.0, 1.0);
-
-    return smoothstep(0.15, 0.95, clamp(p_max, 0.0, 1.0));
+    /*
+     * Chebyshev gives an upper bound on visibility: with multiple
+     * occluders in the filter footprint the bound's lower range is light
+     * bleeding, not penumbra. Write the tail below shadow_bleed off as
+     * shadow and renormalize the rest (linstep). No further shaping: the
+     * penumbra profile comes from the variance itself.
+     */
+    return clamp((p_max - shadow_bleed) / (1.0 - shadow_bleed), 0.0, 1.0);
 }
 
 float shadow_factor_vsm(in sampler2DArray map, in vec4 pos, in int layer)

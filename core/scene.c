@@ -212,6 +212,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             igSliderFloat("shadow outline threshold", &ropts->shadow_outline_threshold,
                           0.0, 1.0, "%.02f", ImGuiSliderFlags_ClampOnInput);
         igCheckbox("VSM shadows", &ropts->shadow_vsm);
+        if (ropts->shadow_vsm)
+            igSliderFloat("light bleed reduction", &ropts->shadow_bleed, 0.0, 0.99,
+                          "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("shadow caster min size (texels)", &ropts->shadow_caster_min_size,
                       0.0, 128.0, "%.0f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("cascade lambda", &cam->view.cascade_lambda, 0.0, 1.0, "%.2f",
