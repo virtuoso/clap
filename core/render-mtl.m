@@ -229,6 +229,7 @@ static MTLPixelFormat mtl_texture_format(texture_format format)
         case TEX_FMT_R8:        return MTLPixelFormatR8Unorm;
 
         case TEX_FMT_RG32F:     return MTLPixelFormatRG32Float;
+        case TEX_FMT_RG16:      return MTLPixelFormatRG16Unorm;
         case TEX_FMT_RG16F:     return MTLPixelFormatRG16Float;
         case TEX_FMT_RG8:       return MTLPixelFormatRG8Unorm;
 
@@ -269,6 +270,7 @@ static texture_format mtl_texture_format_from_pixel_format(MTLPixelFormat pixel_
         case MTLPixelFormatR8Unorm:                 return TEX_FMT_R8;
 
         case MTLPixelFormatRG32Float:               return TEX_FMT_RG32F;
+        case MTLPixelFormatRG16Unorm:               return TEX_FMT_RG16;
         case MTLPixelFormatRG16Float:               return TEX_FMT_RG16F;
         case MTLPixelFormatRG8Unorm:                return TEX_FMT_RG8;
 
@@ -848,6 +850,7 @@ static NSUInteger mtl_row_bytes(texture_format format, int width)
         case TEX_FMT_R8:        return width;
 
         case TEX_FMT_RG32F:     return 8 * width;
+        case TEX_FMT_RG16:      return 4 * width;
         case TEX_FMT_RG16F:     return 4 * width;
         case TEX_FMT_RG8:       return 2 * width;
 

@@ -361,6 +361,7 @@ typedef enum texture_format {
     TEX_FMT_R16F,
     TEX_FMT_R32F,
     TEX_FMT_RG8,
+    TEX_FMT_RG16,
     TEX_FMT_RG16F,
     TEX_FMT_RG32F,
     TEX_FMT_R32UI,
