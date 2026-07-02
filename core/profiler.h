@@ -41,7 +41,8 @@ struct profile {
     clock_gettime(CLOCK_MONOTONIC, &PROF_PTR(_n)->ts); \
     PROF_PTR(_prev)->next = &prof_ ## _n; \
     timespec_diff(&PROF_PTR(_prev)->ts, &PROF_PTR(_n)->ts, &PROF_PTR(_n)->diff); \
-    debug_plot_push(&PROF_PTR(_n)->plot, (float)PROF_PTR(_n)->diff.tv_nsec / NSEC_PER_SEC);
+    debug_plot_push(&PROF_PTR(_n)->plot, (float)PROF_PTR(_n)->diff.tv_sec + \
+                    (float)PROF_PTR(_n)->diff.tv_nsec / NSEC_PER_SEC);
 
 #define PROF_SHOW(_n) \
     dbg("PROFILER: '%s': %lu.%09lu\n", __stringify(_n), prof_ ## _n.diff.tv_sec, prof_ ## _n.diff.tv_nsec);
