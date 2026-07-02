@@ -394,11 +394,14 @@ static void buffer_load(buffer_t *buf, void *data, size_t sz, uniform_t loc)
 
 static bool gl_does_vao(void)
 {
-#if defined(CONFIG_GLES) && !defined(CONFIG_BROWSER)
-    return false;
-#else
+    /*
+     * VAOs are core in desktop GL and in GLES 3.0+. The GLES build compiles
+     * against the GLES3 headers and the renderer already relies on GLES3-only
+     * entry points (glGetStringi()/GL_NUM_EXTENSIONS), so a native GLES
+     * context here is always >= 3.x. WebGL exposes them too. Hence no
+     * GLES2-only fallback and no GL_OES_vertex_array_object probe is needed.
+     */
     return true;
-#endif
 }
 
 static cerr gl_vertex_array_init(vertex_array_t *va, renderer_t *r)
