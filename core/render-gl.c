@@ -688,12 +688,22 @@ static void gl_texture_deinit(texture_t *tex)
     tex->loaded = false;
 }
 
-static cerr texture_storage(texture_t *tex, void *buf)
+static cerr texture_storage(texture_t *tex, void *buf, bool in_place)
 {
-    if (tex->gl.type == GL_TEXTURE_2D)
-        glTexImage2D(tex->gl.type, 0, tex->gl.internal_format, tex->width, tex->height,
-                     0, tex->gl.format, tex->gl.component_type, buf);
-    else if (tex->gl.type == GL_TEXTURE_2D_ARRAY || tex->gl.type == GL_TEXTURE_3D)
+    if (tex->gl.type == GL_TEXTURE_2D) {
+        /*
+         * When the texture is already allocated at this size and format,
+         * re-upload the pixels in place instead of reallocating the whole
+         * storage with glTexImage2D. This is what makes per-frame uploads
+         * (e.g. the light grid) cheap.
+         */
+        if (in_place && buf)
+            glTexSubImage2D(tex->gl.type, 0, 0, 0, tex->width, tex->height,
+                            tex->gl.format, tex->gl.component_type, buf);
+        else
+            glTexImage2D(tex->gl.type, 0, tex->gl.internal_format, tex->width, tex->height,
+                         0, tex->gl.format, tex->gl.component_type, buf);
+    } else if (tex->gl.type == GL_TEXTURE_2D_ARRAY || tex->gl.type == GL_TEXTURE_3D)
         glTexImage3D(tex->gl.type, 0, tex->gl.internal_format, tex->width, tex->height, tex->layers,
                      0, tex->gl.format, tex->gl.component_type, buf);
 #ifdef CONFIG_GLES
@@ -735,13 +745,13 @@ static cerr gl_texture_resize(texture_t *tex, unsigned int width, unsigned int h
     tex->width = width;
     tex->height = height;
     GL(glBindTexture(tex->gl.type, tex->gl.id));
-    cerr err = texture_storage(tex, NULL);
+    cerr err = texture_storage(tex, NULL, false);
     GL(glBindTexture(tex->gl.type, 0));
 
     return err;
 }
 
-static cerr texture_setup_begin(texture_t *tex, void *buf)
+static cerr texture_setup_begin(texture_t *tex, void *buf, bool in_place)
 {
     GL(glActiveTexture(tex->gl.target));
     GL(glBindTexture(tex->gl.type, tex->gl.id));
@@ -765,7 +775,7 @@ static cerr texture_setup_begin(texture_t *tex, void *buf)
     tex->gl.sampler_updated = false;
 
 out:
-    return texture_storage(tex, buf);
+    return texture_storage(tex, buf, in_place);
 }
 
 static void texture_setup_end(texture_t *tex)
@@ -786,6 +796,14 @@ static cerr gl_texture_load(texture_t *tex, texture_format format,
     if (!gl_texture_format_supported(tex->renderer, format))
         return CERR_NOT_SUPPORTED;
 
+    /*
+     * An already-loaded texture of matching size and format can take a
+     * cheap in-place pixel update rather than a full storage reallocation.
+     */
+    bool in_place = tex->loaded &&
+                    tex->width == width && tex->height == height &&
+                    tex->gl.internal_format == gl_texture_internal_format(format);
+
     tex->gl.format          = gl_texture_format(format);
     tex->gl.internal_format = gl_texture_internal_format(format);
     tex->gl.component_type  = gl_texture_component_type(format);
@@ -793,7 +811,7 @@ static cerr gl_texture_load(texture_t *tex, texture_format format,
     tex->width      = width;
     tex->height     = height;
 
-    cerr err = texture_setup_begin(tex, buf);
+    cerr err = texture_setup_begin(tex, buf, in_place);
     if (IS_CERR(err))
         return err;
 
@@ -823,7 +841,7 @@ static cerr_check texture_fbo(texture_t *tex, GLuint attachment, texture_format 
     tex->width  = width;
     tex->height = height;
 
-    cerr err = texture_setup_begin(tex, NULL);
+    cerr err = texture_setup_begin(tex, NULL, false);
     if (IS_CERR(err))
         return err;
 
