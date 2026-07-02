@@ -810,6 +810,26 @@ void animation_add_channel(struct animation *an, size_t frames, float *time, flo
     an->time_end = max(an->time_end, time[frames - 1]/* + time[1] - time[0]*/);
 }
 
+/**
+ * subview_texel_size() - the size of one shadow map texel through a subview
+ * @sv: the subview whose projection renders the shadow map
+ * @w:  shadow map width in texels
+ * @h:  shadow map height in texels
+ *
+ * Through an orthographic projection the x/y scales are 2 / extent. The
+ * light boxes are axis-aligned fits of a rotated camera frustum, so their
+ * x and y extents differ, worst around diagonal yaws where one axis
+ * inflates by up to sqrt(2): the coarser axis is the one that matters.
+ * Through a perspective projection (a spotlight's) the x/y scales are
+ * 1 / tan(fov / 2), and the same expression is the texel's size per unit
+ * of depth.
+ * Return: the texel's world size, or its size per unit of depth
+ */
+static float subview_texel_size(const struct subview *sv, unsigned int w, unsigned int h)
+{
+    return max(2.0 / sv->proj_mx[0][0] / (float)w, 2.0 / sv->proj_mx[1][1] / (float)h);
+}
+
 cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *opts)
 {
     struct camera *camera = opts->camera;
@@ -874,8 +894,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     if (ropts && ropts->shadow_caster_min_size && opts->shader_override &&
         subview && opts->cascade > 1 && opts->width && opts->height)
         caster_min_size = ropts->shadow_caster_min_size *
-            max(2.0 / subview->proj_mx[0][0] / (float)opts->width,
-                2.0 / subview->proj_mx[1][1] / (float)opts->height);
+                          subview_texel_size(subview, opts->width, opts->height);
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         model3d *model = txmodel->model;
@@ -957,17 +976,23 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_AMBIENT, 1, light->ambient);
                 shader_set_var_ptr(prog, UNIFORM_SHADOW_TINT, 1, light->shadow_tint);
                 if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
+                    float shadow_texel[CASCADES_MAX];
                     float light_far[CASCADES_MAX];
                     mat4x4 mvp[CASCADES_MAX];
+                    unsigned int map_w = 0, map_h = 0;
                     int i;
+
+                    if (light->shadow[0][0])    texture_get_dimesnions(light->shadow[0][0], &map_w, &map_h);
 
                     for (i = 0; i < (int)opts->nr_cascades; i++) {
                         struct subview *light_sv = &light->view[0].subview[i];
                         mat4x4_mul(mvp[i], light_sv->proj_mx, light_sv->view_mx);
                         light_far[i] = light_sv->far_plane;
+                        shadow_texel[i] = map_w ? subview_texel_size(light_sv, map_w, map_h) : 0.0;
                     }
                     shader_set_var_ptr(prog, UNIFORM_SHADOW_MVP, opts->nr_cascades, mvp);
                     shader_set_var_ptr(prog, UNIFORM_LIGHT_FAR, opts->nr_cascades, light_far);
+                    shader_set_var_ptr(prog, UNIFORM_SHADOW_TEXEL, opts->nr_cascades, shadow_texel);
                 }
             }
 

@@ -94,12 +94,55 @@ float shadow_factor_msaa_weighted(in sampler2DMSArray map, in vec4 pos, in int l
 }
 #endif /* SHADER_GLES */
 
+/*
+ * A spotlight's shadow view is a perspective projection, a cascade's an
+ * orthographic one: only the former carries the depth into w, so the
+ * bottom row of its matrix isn't (0, 0, 0, 1)
+ */
+bool shadow_is_perspective(in int layer)
+{
+    return shadow_mvp[layer][0][3] != 0.0 || shadow_mvp[layer][1][3] != 0.0 || shadow_mvp[layer][2][3] != 0.0;
+}
+
+/*
+ * Slope-scaled receiver bias, in texels of the shadow view: the depth
+ * error across the sampling filter's footprint at the receiver's slope
+ * is the magnitude of the self-shadowing (acne) it produces, so back the
+ * receiver off by that much plus half a texel for rasterization
+ * snapping. @radius is the filter's reach in texels: 1 for bilinear
+ * moment fetches, pcf_count + 0.5 for the PCF kernel. Expressing the
+ * bias in the view's own texel size keeps the residual level equal
+ * across cascades -- a fixed constant under-biases every coarser
+ * cascade progressively (visible as moire worsening with cascade order
+ * and a level step at every divide). shadow_texel is the texel's world
+ * size for a cascade and its size per unit of depth for a perspective
+ * view, whose texels grow with the distance from the light.
+ */
+float shadow_receiver_bias(in int layer, in float light_dot, in float radius)
+{
+    float slope = sqrt(1.0 - light_dot * light_dot) / max(light_dot, 0.125);
+
+    return shadow_texel[layer] * (0.5 + radius * slope);
+}
+
+/*
+ * The receiver's depth in the moments' units, the linearized depth
+ * shadow_vsm.frag stores, backed off toward the light by @bias from
+ * shadow_receiver_bias(). A perspective view's w is that depth exactly,
+ * and the bias scales with it; a cascade's window depth is linear over
+ * the light's far plane.
+ */
+float shadow_vsm_depth(in int layer, in vec4 proj_coords, in float bias)
+{
+    if (shadow_is_perspective(layer))   return proj_coords.w * (1.0 - bias);
+
+    return linearize_depth(proj_coords.z - bias / light_far[layer], 0.1, light_far[layer]);
+}
+
+/* @d is the receiver's depth from shadow_vsm_depth() */
 float shadow_factor_vsm_calc(in vec2 moments, in float d, in int layer)
 {
     if (moments.y < 0.0)    return 1.0;
-
-    float far_plane = light_far[layer];
-    d = linearize_depth(d, 0.1, far_plane);
 
     float m1 = moments.x;
     float m2 = max(moments.y, m1 * m1);
@@ -175,29 +218,39 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     proj_coords.xy = convert_pass_tex(proj_coords.xy * 0.5 + 0.5);
     proj_coords.z = convert_from_ndc_z(proj_coords.z);
 
-    float slope_bias = 0.0005 * (1.0 - light_dot);
-    float bias = max(slope_bias, 0.0008) * max(proj_coords.w * 0.02, 1.0);
+    /* the PCF kernel reaches pcf_count + 0.5 = 2.5 texels out */
+    float bias = shadow_receiver_bias(layer, light_dot, use_vsm ? 1.0 : 2.5);
+
+    /*
+     * The moment views render with a regular depth range, CSM with a
+     * reversed one: the moments compare against a receiver depth backed
+     * off toward the light, the pcf/msaa samplers add the bias in
+     * normalized depth
+     */
+    vec4 vsm_coords = proj_coords;
+    vsm_coords.z = shadow_vsm_depth(layer, proj_coords, bias);
+    bias /= light_far[layer];
 #ifndef SHADER_SHADOW_MAP_ARRAY
     switch (layer) {
         case 0:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map, proj_coords, 0) :
+                shadow_factor_vsm(shadow_map, vsm_coords, 0) :
                 shadow_factor_pcf(shadow_map, proj_coords, bias);
             break;
         case 1:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map1, proj_coords, 1) :
+                shadow_factor_vsm(shadow_map1, vsm_coords, 1) :
                 shadow_factor_pcf(shadow_map1, proj_coords, bias);
             break;
         case 2:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map2, proj_coords, 2) :
+                shadow_factor_vsm(shadow_map2, vsm_coords, 2) :
                 shadow_factor_pcf(shadow_map2, proj_coords, bias);
             break;
         default:
         case 3:
             shadow_factor = use_vsm ?
-                shadow_factor_vsm(shadow_map3, proj_coords, 3) :
+                shadow_factor_vsm(shadow_map3, vsm_coords, 3) :
                 shadow_factor_pcf(shadow_map3, proj_coords, bias);
             break;
     }
@@ -206,7 +259,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
         shadow_factor = shadow_factor_msaa_weighted(shadow_map_ms, proj_coords, layer, bias);
     else
         shadow_factor = use_vsm ?
-            shadow_factor_vsm(shadow_map, proj_coords, layer) :
+            shadow_factor_vsm(shadow_map, vsm_coords, layer) :
             shadow_factor_pcf(shadow_map, proj_coords, layer, bias);
 #endif /* SHADER_SHADOW_MAP_ARRAY */
 

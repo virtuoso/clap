@@ -50,6 +50,7 @@
                 { "name": "shadow_mvp", "type": "DT_MAT4", "symbol": "UNIFORM_SHADOW_MVP", "array_size": "CASCADES_MAX", "discription": "array of proj * view matrices for shadow cascades (CASCADES_MAX entries)" },
                 { "name": "cascade_distances", "type": "DT_FLOAT", "symbol": "UNIFORM_CASCADE_DISTANCES", "array_size": "CASCADES_MAX", "discription": "array of cascade distances from the camera (CASCADES_MAX entries)" },
                 { "name": "light_far", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHT_FAR", "array_size": "CASCADES_MAX", "discription": "array of far plane distances of shadow cascades (CASCADES_MAX entries)" },
+                { "name": "shadow_texel", "type": "DT_FLOAT", "symbol": "UNIFORM_SHADOW_TEXEL", "array_size": "CASCADES_MAX", "discription": "world size of one shadow map texel per cascade (CASCADES_MAX entries)" },
                 { "name": "shadow_tint", "type": "DT_VEC3", "symbol": "UNIFORM_SHADOW_TINT", "discription": "color of the shadow tint" },
                 { "name": "shadow_vsm", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_SHADOW_VSM", "discription": "use Variance Shadow Mapping (otherwise CSM)" },
                 { "name": "shadow_bleed", "type": "DT_FLOAT", "symbol": "UNIFORM_SHADOW_BLEED", "discription": "fraction of the Chebyshev bound's range attributed to light bleeding" },
