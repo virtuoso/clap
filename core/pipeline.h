@@ -59,6 +59,11 @@ typedef struct render_options {
     bool    shadow_vsm;
     /* VSM light bleed reduction: the Chebyshev tail written off as bleed */
     float   shadow_bleed;
+    /*
+     * The edge (outline) pass; when off, the pass is not built at all and
+     * combine/present composite without edges (SMAA goes down with it)
+     */
+    bool    edges;
     bool    film_grain;
     bool    taa;
     bool    hdr;

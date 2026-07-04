@@ -227,10 +227,13 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("model msaa", &ropts->model_msaa);
         igSliderFloat("render scale", &ropts->render_scale, 0.25, 1.0, "%.2f",
                       ImGuiSliderFlags_ClampOnInput);
+        igCheckbox("edges", &ropts->edges);
+        igBeginDisabled(!ropts->edges);
         igCheckbox("edge sobel", &ropts->edge_sobel);
         /* SMAA has no effect while TAA is on */
         igBeginDisabled(ropts->taa);
         igCheckbox("edge antialiasing", &ropts->edge_antialiasing);
+        igEndDisabled();
         igEndDisabled();
         if (IS_DEFINED(CONFIG_TAA)) {
             igCheckbox("TAA", &ropts->taa);

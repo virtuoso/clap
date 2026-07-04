@@ -95,12 +95,12 @@ void main()
          * SMAA (use_edge_aa) applies edges in present.frag instead,
          * where the neighbors it blends from have been computed
          */
-        if (!use_edge_aa)
+        if (use_edges && !use_edge_aa)
             hdr_color = apply_edge(hdr_color, sobel_tex, 1.0 - fog_factor, pass_tex, ivec2(0));
         FragColor = vec4(hdr_color, 1.0);
     } else {
         tex_color = mix(tex_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
-        if (!use_edge_aa)
+        if (use_edges && !use_edge_aa)
             tex_color = apply_edge(tex_color, sobel_tex, 1.0 - fog_factor, pass_tex, ivec2(0));
         FragColor = vec4(tex_color + highlight_color * 2.0, 1.0);
     }

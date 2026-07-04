@@ -932,6 +932,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 /* TAA replaces SMAA; the builder skips the weights pass */
                 shader_set_var_int(prog, UNIFORM_USE_EDGE_AA,
                                    ropts->edge_antialiasing && !ropts->taa);
+                shader_set_var_int(prog, UNIFORM_USE_EDGES, ropts->edges);
                 shader_set_var_int(prog, UNIFORM_USE_TAA, ropts->taa);
                 shader_set_var_int(prog, UNIFORM_LAPLACE_KERNEL, ropts->laplace_kernel);
                 shader_set_var_int(prog, UNIFORM_USE_HDR, ropts->hdr);

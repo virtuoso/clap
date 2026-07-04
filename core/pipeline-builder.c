@@ -164,16 +164,17 @@ static texture_format get_depth_format(pipeline_builder_opts *opts)
     return depth_fmt;
 }
 
-static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, texture_format format, float scale)
+static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, fbo_attachment rt, texture_format format,
+                                            float scale)
 {
     auto pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
                     .pass       = src,
-                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .attachment = rt,
                     .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
+                    .sampler    = UNIFORM_MODEL_TEX,
                 },
                 {}
             },
@@ -259,8 +260,9 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     else        ssao_done(&pl_ssao_state);
 
     bool taa = ropts->taa;
+    bool edges = ropts->edges;
     /* TAA replaces SMAA: no weights pass, use_edge_aa off in combine */
-    bool edge_aa = ropts->edge_antialiasing && !taa;
+    bool edge_aa = ropts->edge_antialiasing && !taa && edges;
     bool model_pass_msaa =
 #ifdef CONFIG_BROWSER
         false;
@@ -467,10 +469,11 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
      * for math that amounts to three lines
      */
     render_pass *bloom_blur_pass = CRES_RET_T(
-        add_blur_subchain(pl, pass, hdr_fmt, 0.25), pipeline
+        add_blur_subchain(pl, pass, FBO_COLOR_TEXTURE(0), hdr_fmt, ropts->render_scale * 0.25),
+        pipeline
     );
 
-    struct render_pass *edge_pass = CRES_RET_T(
+    struct render_pass *edge_pass = !edges ? NULL : CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
@@ -492,6 +495,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .ops                = &postproc_ops,
             .name               = "edge",
             .shader             = model_pass_msaa ? edge_msaa_shader : edge_shader,
+            .scale              = ropts->render_scale,
         ),
         pipeline
     );
@@ -543,7 +547,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     ) : NULL;
 
     render_pass *ssao_blur_pass = ssao
-        ? CRES_RET_T(add_blur_subchain(pl, ssao_pass, TEX_FMT_R8, 0.25), pipeline)
+        ? CRES_RET_T(add_blur_subchain(pl, ssao_pass, FBO_COLOR_TEXTURE(0), TEX_FMT_R8, 0.25), pipeline)
         : NULL;
 
     render_pass *combine_pass = CRES_RET_T(
@@ -567,12 +571,19 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .method     = RM_USE,
                     .sampler    = UNIFORM_BLOOM_TEX
                 },
-                {
-                    .pass       = edge_pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_SOBEL_TEX
-                },
+                edges ?
+                    (render_source) {
+                        .pass       = edge_pass,
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_SOBEL_TEX
+                    } :
+                    /* apply_edge() darkens by 1 - edge, white is neutral */
+                    (render_source) {
+                        .tex        = white_pixel(),
+                        .method     = RM_PLUG,
+                        .sampler    = UNIFORM_SOBEL_TEX
+                    },
                 {
                     .pass       = model_pass,
                     .attachment = FBO_DEPTH_TEXTURE(0),
@@ -733,7 +744,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline
     );
 
-    pass = CRES_RET_T(add_blur_subchain(pl, pass, TEX_FMT_RGBA8, 0.25), pipeline);
+    pass = CRES_RET_T(add_blur_subchain(pl, pass, FBO_COLOR_TEXTURE(0), TEX_FMT_RGBA8, 0.25), pipeline);
 
     pass = CRES_RET_T(
         pipeline_add_pass(pl,

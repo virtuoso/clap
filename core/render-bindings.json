@@ -138,6 +138,7 @@
             "uniforms": [
                 { "name": "use_msaa", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_MSAA", "discription": "use multisampled textures" },
                 { "name": "use_edge_aa", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_EDGE_AA", "discription": "use edge antialiasing" },
+                { "name": "use_edges", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_EDGES", "discription": "the edge pass exists and combine applies edges to the composite" },
                 { "name": "use_hdr", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_HDR", "discription": "use half-float or float components for colors in intermediate postprocessing render passes" },
                 { "name": "hdr_output", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_HDR_OUTPUT", "discription": "output PQ-encoded HDR instead of SDR tonemapped color" },
                 { "name": "hdr_white_nits", "type": "DT_FLOAT", "symbol": "UNIFORM_HDR_WHITE_NITS", "discription": "HDR reference white level in nits" },
