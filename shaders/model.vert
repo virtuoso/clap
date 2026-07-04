@@ -20,8 +20,10 @@ layout (location=1) out vec3 surface_normal;
 layout (location=2) out vec3 orig_normal;
 layout (location=3) out vec3 to_camera_vector;
 layout (location=4) out vec4 world_pos;
+#ifdef SHADER_VARIANT_NORMALS
 layout (location=5) out mat3 tbn;
 /* the mat3 above occupies locations 5-7 */
+#endif /* SHADER_VARIANT_NORMALS */
 layout (location=8) out vec4 pass_curr_clip;
 layout (location=9) out vec4 pass_prev_clip;
 
@@ -34,6 +36,7 @@ void main()
 
     vec4 total_local_pos = vec4(0, 0, 0, 0);
     vec4 total_normal = vec4(0, 0, 0, 0);
+#ifdef SHADER_VARIANT_SKINNING
     if (use_skinning != 0) {
         for (int i = 0; i < 4; i++) {
             mat4 joint_transform = joint_transforms[joints[i]];
@@ -46,12 +49,18 @@ void main()
 
         gl_Position = proj * view * trs * total_local_pos;
         our_normal = total_normal;
-    } else {
+    } else
+#endif /* SHADER_VARIANT_SKINNING */
+    {
         gl_Position = proj * view * trs * vec4(position, 1.0);
     }
 
     /* rigid approximation for skinned models: current pose, previous TRS */
+#ifdef SHADER_VARIANT_SKINNING
     vec4 local_pos = use_skinning != 0 ? total_local_pos : vec4(position, 1.0);
+#else
+    vec4 local_pos = vec4(position, 1.0);
+#endif /* !SHADER_VARIANT_SKINNING */
     pass_curr_clip = gl_Position;
     pass_prev_clip = prev_proj_view * prev_trs * local_pos;
 
@@ -60,6 +69,7 @@ void main()
     mat3 trs_rot = mat3(trs);
 
     // this is still needed in frag
+#ifdef SHADER_VARIANT_NORMALS
     if (use_normals) {
         surface_normal = our_normal.xyz;
 
@@ -74,7 +84,9 @@ void main()
         tbn = mat3(T, B, N);
 
         to_camera_vector = tbn * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
-    } else {
+    } else
+#endif /* SHADER_VARIANT_NORMALS */
+    {
         surface_normal = trs_rot * our_normal.xyz;
 
         to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;

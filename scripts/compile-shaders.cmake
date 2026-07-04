@@ -17,6 +17,17 @@ if (DEFINED GLSL_UBO_DIR)
     list(APPEND GLSLC_ARGS -I${GLSL_UBO_DIR})
 endif ()
 
+# Model uber-shader variant axes: every build defines the full set, so the
+# compiled shaders match the uber shader (SHADER_VARIANT_BLINN_PHONG
+# selects the cheaper BRDF and stays off). See
+# model.vert/model.frag/lighting.glsl.
+list(APPEND GLSLC_ARGS
+    -DSHADER_VARIANT_NORMALS=1
+    -DSHADER_VARIANT_SKINNING=1
+    -DSHADER_VARIANT_NOISE_MATERIALS=1
+    -DSHADER_VARIANT_ALPHA_DISCARD=1
+)
+
 # GLSL compiler
 find_program(GLSLC glslc HINTS "${GLSLC_HINT}")
 # SPIR-V decompiler

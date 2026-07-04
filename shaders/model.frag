@@ -9,8 +9,10 @@ layout (location=1) in vec3 surface_normal;
 layout (location=2) in vec3 orig_normal;
 layout (location=3) in vec3 to_camera_vector;
 layout (location=4) in vec4 world_pos;
+#ifdef SHADER_VARIANT_NORMALS
 layout (location=5) in mat3 tbn;
 /* the mat3 above occupies locations 5-7 */
+#endif /* SHADER_VARIANT_NORMALS */
 layout (location=8) in vec4 pass_curr_clip;
 layout (location=9) in vec4 pass_prev_clip;
 
@@ -47,19 +49,24 @@ void main()
     vec3 unit_normal;
 
     vec2 uv = pass_tex * uv_factor;
+#ifdef SHADER_VARIANT_NORMALS
     if (use_normals) {
         vec3 normal_sample = texture(normal_map, uv).xyz * 2.0 - 1.0;
         unit_normal = normalize(tbn * normal_sample);
-    } else {
+    } else
+#endif /* SHADER_VARIANT_NORMALS */
+    {
         unit_normal = geom_normal;
     }
 
+#ifdef SHADER_VARIANT_NOISE_MATERIALS
     if (use_noise_normals == NOISE_NORMALS_GPU)
         unit_normal = noise_normal_gpu(world_pos.xyz, unit_normal,
                                        noise_normals_amp, noise_normals_scale);
     else if (use_noise_normals == NOISE_NORMALS_3D)
         unit_normal = noise_normal_3d(noise3d, world_pos.xyz, unit_normal,
                                       noise_normals_amp, noise_normals_scale);
+#endif /* SHADER_VARIANT_NOISE_MATERIALS */
 
     lighting_material mat = noise_material();
 
@@ -89,6 +96,7 @@ void main()
     FragColor.a = texture_sample.a;
 
     vec3 emission;
+#ifdef SHADER_VARIANT_NOISE_MATERIALS
     if (use_noise_emission) {
         /*
          * Tangential fBm-gradient glow: sample the baked 3D noise at a
@@ -101,7 +109,9 @@ void main()
         vec3 t = grad - unit_normal * dot(normalize(grad), unit_normal);
         float fac = clamp(length(t), 0.0, 1.0);
         emission = noise_emission_color * min(pow(fac, 0.3), 1.0);
-    } else {
+    } else
+#endif /* SHADER_VARIANT_NOISE_MATERIALS */
+    {
         emission = bloom_intensity > 0.0 ? texture(emission_map, uv).rgb : texture_sample.rgb;
     }
     emission = max(emission - bloom_threshold, vec3(0.0)) * abs(bloom_intensity);
@@ -148,5 +158,7 @@ void main()
      * behind and poison SSAO/sobel. Discard is at the end of main() so all
      * textureSample() calls above stay in uniform control flow (Tint/WGSL).
      */
+#ifdef SHADER_VARIANT_ALPHA_DISCARD
     if (texture_sample.a < 1e-3)    discard;
+#endif /* SHADER_VARIANT_ALPHA_DISCARD */
 }

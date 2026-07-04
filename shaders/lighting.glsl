@@ -171,9 +171,15 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
             if (!set)   continue;
 
             vec3 to_light_vector = light_pos[i] - world_pos.xyz;
+#ifdef SHADER_VARIANT_NORMALS
             if (use_normals)    to_light_vector = tbn * to_light_vector;
+#endif /* SHADER_VARIANT_NORMALS */
 
+#ifdef SHADER_VARIANT_BLINN_PHONG
+            lighting_result l = compute_blinn_phong(int(i), unit_normal, to_light_vector, view_dir);
+#else
             lighting_result l = compute_cook_torrance(int(i), unit_normal, to_light_vector, view_dir, base_color, mat);
+#endif /* !SHADER_VARIANT_BLINN_PHONG */
 
             if (light_is_spotlight(int(i))) {
                 float si = spotlight_intensity(int(i), normalize(to_light_vector));
