@@ -131,6 +131,30 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
     return hdr_fmt;
 }
 
+static texture_format get_depth_format(pipeline_builder_opts *opts)
+{
+    /*
+     * Prefer 32-bit float depth: it gives the best precision (the reverse-z
+     * shadow passes in particular want float depth), and is measured to be no
+     * more expensive than 24-bit on RPi5/V3D -- GL_DEPTH_COMPONENT24 occupies a
+     * 32-bit slot there too, so 24-bit buys no bandwidth. Fall back to 24/16-bit
+     * only when the renderer can't attach 32F.
+     */
+    texture_format depth_fmts[] = {
+        TEX_FMT_DEPTH32F, TEX_FMT_DEPTH24F, TEX_FMT_DEPTH16F
+    };
+
+    auto r = clap_get_renderer(opts->pl_opts->clap_ctx);
+    texture_format depth_fmt = TEX_FMT_DEPTH16F;
+    for (int i = 0; i < array_size(depth_fmts); i++)
+        if (fbo_texture_supported(r, depth_fmts[i])) {
+            depth_fmt = depth_fmts[i];
+            break;
+        }
+
+    return depth_fmt;
+}
+
 static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, texture_format format, float scale)
 {
     auto pass = CRES_RET_T(
@@ -332,6 +356,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 #endif /* CONFIG_SHADOW_MAP_ARRAY */
 
     texture_format hdr_fmt = get_hdr_format(opts);
+    texture_format depth_fmt = get_depth_format(opts);
 
     static const enum shader_vars shadow_samplers[CASCADES_MAX] = {
         UNIFORM_SHADOW_MAP, UNIFORM_SHADOW_MAP1, UNIFORM_SHADOW_MAP2, UNIFORM_SHADOW_MAP3
@@ -391,7 +416,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
             },
             .depth_config       = {
-                .format         = TEX_FMT_DEPTH32F,
+                .format         = depth_fmt,
                 .load_action    = FBOLOAD_CLEAR,
                 .clear_depth    = 1.0,
                 .depth_func     = DEPTH_FN_LESS,
