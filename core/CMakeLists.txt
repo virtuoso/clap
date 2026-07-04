@@ -182,6 +182,10 @@ add_custom_command(
             -Ddir="${CMAKE_CURRENT_SOURCE_DIR}"
             -Doutput="${REFCLASSES_H}"
             -P ${CMAKE_SOURCE_DIR}/scripts/refclass-gen.cmake
+    # the generator writes only on content changes, which leaves the output's
+    # mtime behind the sources' and re-fires this rule on every build; the
+    # touch settles it after one run
+    COMMAND ${CMAKE_COMMAND} -E touch "${REFCLASSES_H}"
 )
 
 add_custom_target(refclasses_gen DEPENDS "${REFCLASSES_H}")
