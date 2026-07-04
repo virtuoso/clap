@@ -28,6 +28,7 @@ list(APPEND GLSLC_ARGS
     -DSHADER_VARIANT_ALPHA_DISCARD=1
     -DSHADER_VARIANT_SHADOWS=1
     -DSHADER_VARIANT_SHADOW_PCF=1
+    -DSHADER_VARIANT_RADIAL_FOG=1
 )
 
 # Unlike the axes above, TAA follows the build config: the model pass

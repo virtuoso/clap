@@ -34,17 +34,25 @@ f16vec3 apply_contrast(f16vec3 color, float16_t contrast)
 
 float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 {
+#ifdef SHADER_VARIANT_RADIAL_FOG
     f16vec3 view_pos = HVEC3(view_pos_from_depth(tex, inverse_proj, uv));
     if (view_pos.z > 0.0)   return H(0.0);
     float16_t dist = length(view_pos);
     return clamp((dist - H(near_fog)) / H(far_fog - near_fog), H(0.0), H(1.0));
+#else /* !SHADER_VARIANT_RADIAL_FOG */
+    return H(0.0);
+#endif /* !SHADER_VARIANT_RADIAL_FOG */
 }
 
 vec3 radial_fog_color(vec3 view_pos)
 {
+#ifdef SHADER_VARIANT_RADIAL_FOG
     vec3 noise_vec = sample_noise3d(noise3d, view_pos + vec3(noise(view_pos)), 0.05) * 0.05;
     float n = min(dot(noise_vec, noise_vec), 3.0) / 3.0;
     return fog_color * (1.0 - n);
+#else /* !SHADER_VARIANT_RADIAL_FOG */
+    return vec3(1.0);
+#endif /* !SHADER_VARIANT_RADIAL_FOG */
 }
 
 void main()
