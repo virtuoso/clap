@@ -383,7 +383,7 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
         i++;
     }
 
-    shader_set_vertex_attrs(&p->shader, p->stride, p->attr_offs, attr_types, attr_comp_count, v);
+    shader_set_vertex_attrs(&p->shader, p->stride, p->attr_offs, attr_types, attr_comp_count, i);
     p->mesh_attrs[i] = MESH_MAX;
     p->nr_attrs = i;
 }
