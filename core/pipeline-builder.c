@@ -446,32 +446,16 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline
     );
 
-    pass = CRES_RET_T(add_blur_subchain(pl, pass, hdr_fmt, 0.25), pipeline);
-
-    struct render_pass *bloom_pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = pass,
-                    .attachment = FBO_COLOR_TEXTURE(0),
-                    .method     = RM_USE,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {
-                    .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_EMISSION),
-                    .method     = model_pass_method,
-                    .sampler    = UNIFORM_EMISSION_MAP
-                },
-                {}
-            },
-            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .ops                = &postproc_ops,
-            .shader             = "upsample",
-        ),
-        pipeline
+    /*
+     * The final bloom blend (blurred chain + raw emission) happens in
+     * combine.frag, which samples the quarter-res blur result directly:
+     * a separate full-res upsample pass costs a full-res RT write+read
+     * for math that amounts to three lines
+     */
+    render_pass *bloom_blur_pass = CRES_RET_T(
+        add_blur_subchain(pl, pass, hdr_fmt, 0.25), pipeline
     );
+
     struct render_pass *edge_pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
@@ -558,10 +542,16 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .sampler    = UNIFORM_MODEL_TEX
                 },
                 {
-                    .pass       = bloom_pass,
+                    .pass       = model_pass,
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_EMISSION),
+                    .method     = model_pass_method,
+                    .sampler    = UNIFORM_EMISSION_MAP
+                },
+                {
+                    .pass       = bloom_blur_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
-                    .sampler    = UNIFORM_EMISSION_MAP
+                    .sampler    = UNIFORM_BLOOM_TEX
                 },
                 {
                     .pass       = edge_pass,

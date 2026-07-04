@@ -2,6 +2,7 @@
 
 #include "shader_constants.h"
 #include "half.glsl"
+#include "pass-tex.glsl"
 #include "tonemap.glsl"
 #include "lut.glsl"
 #include "smaa-neighborhood-blend.glsl"
@@ -12,6 +13,7 @@ layout (location=0) in vec2 pass_tex;
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
+layout (binding=SAMPLER_BINDING_bloom_tex) uniform sampler2D bloom_tex;
 layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
@@ -21,6 +23,7 @@ layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
 #include "ubo_render_common.glsl"
 #include "ubo_postproc.glsl"
 #include "ubo_projview.glsl"
+#include "ubo_bloom.glsl"
 
 #include "noise.glsl"
 
@@ -48,7 +51,24 @@ void main()
 {
     f16vec3 tex_color = HVEC3(texture(model_tex, pass_tex).rgb);
     float16_t fog_factor = radial_fog_factor(depth_tex, pass_tex, fog_near, fog_far);
-    f16vec3 highlight_color = HVEC3(texture(emission_map, pass_tex).rgb);
+
+    /*
+     * Bloom upsample+blend, absorbed from the former "upsample" pass:
+     * mix the raw emission with the blurred quarter-res chain here
+     * instead of paying a full-res RT write+read for it. The raw
+     * emission tap is jitter-displaced like the downsample's input, see
+     * bloom-downsample.frag; sampled at 1/4-res stride it aliases per
+     * frame especially hard on small emitters.
+     */
+    f16vec3 blurred = HVEC3(texture(bloom_tex, pass_tex).rgb);
+    vec2 em_uv = use_taa ?
+        convert_pass_tex(convert_pass_tex(pass_tex) + jitter * 0.5) :
+        pass_tex;
+    f16vec3 raw_emission = HVEC3(texture(emission_map, em_uv).rgb);
+    f16vec3 highlight_color = use_hdr ?
+        (raw_emission + blurred * H(bloom_intensity)) * H(bloom_exposure) :
+        mix(raw_emission, blurred, clamp(H(bloom_intensity), H(0.0), H(1.0)));
+
     float16_t ao = H(texture(shadow_map, pass_tex).r);
 
     if (use_ssao)
