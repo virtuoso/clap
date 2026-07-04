@@ -74,7 +74,11 @@ void main()
     vec4 texture_sample = texture(model_tex, uv);
     vec4 view_pos = view * world_pos;
 
+#ifdef SHADER_VARIANT_SHADOWS
     float shadow_factor = shadow_factor_calc(geom_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
+#else
+    float shadow_factor = 1.0;
+#endif /* !SHADER_VARIANT_SHADOWS */
 
     /*
      * XXX: Both diffuse and spcular components are affected by the shadow_factor;

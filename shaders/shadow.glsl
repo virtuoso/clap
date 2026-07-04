@@ -191,6 +191,10 @@ float shadow_factor_vsm(in sampler2D map, in vec4 pos, in int layer)
 float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_dir,
                          in bool use_vsm, in bool use_msaa)
 {
+#ifndef SHADER_VARIANT_SHADOW_PCF
+    /* the PCF path is compiled out: VSM is the only shadow filter */
+    use_vsm = true;
+#endif /* !SHADER_VARIANT_SHADOW_PCF */
     float shadow_factor = 1.0;
 
     float light_dot = dot(unit_normal, normalize(-light_dir));
