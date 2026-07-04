@@ -722,6 +722,7 @@ static const struct rebuild_reason {
     size_t      offset;
     size_t      size;
 } rebuild_reason[] = {
+    REBUILD_REASON_FIELD(hdr),
     REBUILD_REASON_FIELD(shadow_msaa),
     REBUILD_REASON_FIELD(model_msaa),
     REBUILD_REASON_FIELD(edge_sobel),
