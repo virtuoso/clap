@@ -56,6 +56,9 @@ static const render_pass_ops shadow_ops = {
 
 static bool model_resize(render_pass_ops_params *params, unsigned int *pwidth, unsigned int *pheight)
 {
+    *pwidth     = (float)*pwidth * params->render_scale;
+    *pheight    = (float)*pheight * params->render_scale;
+
     return true;
 }
 
@@ -382,6 +385,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .ops                = &model_ops,
             .layout             = FBO_COLOR_DEPTH_TEXTURE(RT_MODEL_LAST),
             .name               = "model",
+            .scale              = ropts->render_scale,
             .cascade            = -1,
             .color_config       = (fbo_attconfig[]) {
                 [RT_MODEL_LIGHTING] = {

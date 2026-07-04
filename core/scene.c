@@ -225,6 +225,8 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
                cam->view.divider[1], cam->view.divider[2], cam->view.divider[3]);
         igCheckbox("shadow msaa", &ropts->shadow_msaa);
         igCheckbox("model msaa", &ropts->model_msaa);
+        igSliderFloat("render scale", &ropts->render_scale, 0.25, 1.0, "%.2f",
+                      ImGuiSliderFlags_ClampOnInput);
         igCheckbox("edge sobel", &ropts->edge_sobel);
         /* SMAA has no effect while TAA is on */
         igBeginDisabled(ropts->taa);

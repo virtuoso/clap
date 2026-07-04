@@ -35,6 +35,13 @@ typedef struct render_options {
     float   hdr_peak_nits;
     float   hdr_compress_knee;
     float   hdr_knee_softness;
+    /*
+     * Model pass resolution scale (0..1]: render the model pass at a
+     * fraction of the pipeline size, postprocessing samples it back up.
+     * The frame is fragment-bound on small GPUs, so the model pass cost
+     * scales almost linearly with this
+     */
+    float   render_scale;
     bool    shadow_outline;
     bool    shadow_msaa;
     bool    model_msaa;
