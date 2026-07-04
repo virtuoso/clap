@@ -510,7 +510,7 @@ void shader_plug_textures_multisample(struct shader_prog *p, bool multisample,
     }
 }
 
-static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
+static cerr shader_reflection_apply(struct shader_prog *p, const char *text, bool vertex_stage)
 {
     LOCAL_SET(JsonNode, root) = json_decode(text);
 
@@ -542,6 +542,34 @@ static cerr shader_reflection_apply(struct shader_prog *p, const char *text)
                 p->vars[i] = bind;
                 p->var_cached[i] = true;
                 break;
+            }
+        }
+    }
+
+    /* non-vertex stages' inputs are varyings, not vertex attributes */
+    array = vertex_stage ? json_find_member(root, "inputs") : NULL;
+    if (array && array->tag == JSON_ARRAY) {
+        for (JsonNode *it = array->children.head; it; it = it->next) {
+            auto jname = json_find_member(it, "name");
+            auto jloc = json_find_member(it, "location");
+            if (!jname || jname->tag != JSON_STRING ||
+                !jloc || jloc->tag != JSON_NUMBER)
+                continue;
+
+            const char *name = jname->string_;
+            unsigned int loc = jloc->number_;
+
+            if (loc >= ATTR_MAX) {
+                err("attribute '%s' has incompatible location: %u\n", name, loc);
+                continue;
+            }
+
+            if (p->var_cached[loc]) continue;
+
+            auto desc = &shader_var_desc[loc];
+            if (!strcmp(name, desc->name)) {
+                p->var_cached[loc] = true;
+                p->vars[loc] = loc;
             }
         }
     }
@@ -618,9 +646,9 @@ static cerr shader_prog_make(struct ref *ref, void *_opts)
     cerr geom_ref_err = CERR_OK;
     cerr frag_ref_err = CERR_OK;
 
-    if (opts->vert_ref_text)    vert_ref_err = shader_reflection_apply(p, opts->vert_ref_text);
-    if (opts->geom_ref_text)    geom_ref_err = shader_reflection_apply(p, opts->geom_ref_text);
-    if (opts->frag_ref_text)    frag_ref_err = shader_reflection_apply(p, opts->frag_ref_text);
+    if (opts->vert_ref_text)    vert_ref_err = shader_reflection_apply(p, opts->vert_ref_text, true);
+    if (opts->geom_ref_text)    geom_ref_err = shader_reflection_apply(p, opts->geom_ref_text, false);
+    if (opts->frag_ref_text)    frag_ref_err = shader_reflection_apply(p, opts->frag_ref_text, false);
 
     shader_prog_done(p, false);
     if (!__shader_has_var(p, ATTR_POSITION)) {

@@ -5,9 +5,13 @@
 layout (location=ATTR_LOC_POSITION) in vec3 position;
 layout (location=ATTR_LOC_TEX) in vec2 tex;
 layout (location=ATTR_LOC_NORMAL) in vec3 normal;
+#ifdef SHADER_VARIANT_NORMALS
 layout (location=ATTR_LOC_TANGENT) in vec4 tangent;
+#endif /* SHADER_VARIANT_NORMALS */
+#ifdef SHADER_VARIANT_SKINNING
 layout (location=ATTR_LOC_JOINTS) in uvec4 joints;
 layout (location=ATTR_LOC_WEIGHTS) in vec4 weights;
+#endif /* SHADER_VARIANT_SKINNING */
 
 #include "ubo_lighting.glsl"
 #include "ubo_transform.glsl"

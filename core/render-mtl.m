@@ -1577,8 +1577,8 @@ static void mtl_shader_done(shader_t *shader)
 
 static attr_t mtl_shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
-    /* attribute locations are shared between core and shaders */
-    return attr;
+    /* force reading vertex attributes from reflection */
+    return UA_UNKNOWN;
 }
 
 static int mtl_shader_id(shader_t *shader)

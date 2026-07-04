@@ -1509,7 +1509,8 @@ static cerr wgpu_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *
 
 static attr_t wgpu_shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
-    return attr;
+    /* force reading vertex attributes from reflection */
+    return UA_UNKNOWN;
 }
 
 static uniform_t wgpu_shader_uniform(shader_t *shader, const char *name)
