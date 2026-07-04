@@ -108,6 +108,12 @@ static void apply_constraints(pipeline_builder_opts *opts)
          */
         get_ropts(opts)->shadow_vsm = false;
     }
+
+    /*
+     * TAA compiled out: the model shaders have no velocity RT to write
+     * and the taa shader isn't part of the pipeline
+     */
+    if (!IS_DEFINED(CONFIG_TAA))    get_ropts(opts)->taa = false;
 }
 
 static texture_format get_hdr_format(pipeline_builder_opts *opts)
@@ -383,7 +389,9 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .source             = model_sources,
             .multisampled       = model_pass_msaa,
             .ops                = &model_ops,
-            .layout             = FBO_COLOR_DEPTH_TEXTURE(RT_MODEL_LAST),
+            .layout             = FBO_COLOR_DEPTH_TEXTURE(
+                                    IS_DEFINED(CONFIG_TAA) ? RT_MODEL_LAST : RT_MODEL_VIEW_NORMALS
+                                  ),
             .name               = "model",
             .scale              = ropts->render_scale,
             .cascade            = -1,
@@ -408,6 +416,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .load_action    = FBOLOAD_CLEAR,
                     .no_blend       = true,
                 },
+#ifdef CONFIG_TAA
                 [RT_MODEL_VELOCITY] = {
                     /*
                      * Velocity: TAA motion vectors; cleared to "no motion",
@@ -418,6 +427,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .load_action    = FBOLOAD_CLEAR,
                     .no_blend       = true,
                 },
+#endif /* CONFIG_TAA */
             },
             .depth_config       = {
                 .format         = depth_fmt,

@@ -28,8 +28,10 @@ layout (location=4) out vec4 world_pos;
 layout (location=5) out mat3 tbn;
 /* the mat3 above occupies locations 5-7 */
 #endif /* SHADER_VARIANT_NORMALS */
+#ifdef SHADER_VARIANT_TAA
 layout (location=8) out vec4 pass_curr_clip;
 layout (location=9) out vec4 pass_prev_clip;
+#endif /* SHADER_VARIANT_TAA */
 
 void main()
 {
@@ -59,6 +61,7 @@ void main()
         gl_Position = proj * view * trs * vec4(position, 1.0);
     }
 
+#ifdef SHADER_VARIANT_TAA
     /* rigid approximation for skinned models: current pose, previous TRS */
 #ifdef SHADER_VARIANT_SKINNING
     vec4 local_pos = use_skinning != 0 ? total_local_pos : vec4(position, 1.0);
@@ -67,6 +70,7 @@ void main()
 #endif /* !SHADER_VARIANT_SKINNING */
     pass_curr_clip = gl_Position;
     pass_prev_clip = prev_proj_view * prev_trs * local_pos;
+#endif /* SHADER_VARIANT_TAA */
 
     pass_tex = tex;
 

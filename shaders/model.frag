@@ -13,8 +13,10 @@ layout (location=4) in vec4 world_pos;
 layout (location=5) in mat3 tbn;
 /* the mat3 above occupies locations 5-7 */
 #endif /* SHADER_VARIANT_NORMALS */
+#ifdef SHADER_VARIANT_TAA
 layout (location=8) in vec4 pass_curr_clip;
 layout (location=9) in vec4 pass_prev_clip;
+#endif /* SHADER_VARIANT_TAA */
 
 #include "ubo_projview.glsl"
 #include "ubo_transform.glsl"
@@ -34,7 +36,9 @@ layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
 layout (location=RT_MODEL_LIGHTING)     out vec4 FragColor;
 layout (location=RT_MODEL_EMISSION)     out vec4 EmissiveColor;
 layout (location=RT_MODEL_VIEW_NORMALS) out vec4 Normal;
+#ifdef SHADER_VARIANT_TAA
 layout (location=RT_MODEL_VELOCITY)     out vec2 Velocity;
+#endif /* SHADER_VARIANT_TAA */
 
 void main()
 {
@@ -147,6 +151,7 @@ void main()
 
     Normal.a = float(final_edge_mode & 0xff) / 255.0;
 
+#ifdef SHADER_VARIANT_TAA
     /*
      * Unjittered NDC motion, halved to uv scale: gl_Position carried the
      * jittered projection while the TAA history lives in unjittered space
@@ -154,6 +159,7 @@ void main()
     vec2 curr_ndc = pass_curr_clip.xy / pass_curr_clip.w - jitter;
     vec2 prev_ndc = pass_prev_clip.xy / pass_prev_clip.w;
     Velocity = use_velocity ? (curr_ndc - prev_ndc) * 0.5 : vec2(0.0);
+#endif /* SHADER_VARIANT_TAA */
 
     /*
      * Fully transparent fragments must not touch any RT or advance the depth

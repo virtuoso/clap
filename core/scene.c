@@ -232,10 +232,12 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igBeginDisabled(ropts->taa);
         igCheckbox("edge antialiasing", &ropts->edge_antialiasing);
         igEndDisabled();
-        igCheckbox("TAA", &ropts->taa);
-        if (ropts->taa)
-            igSliderFloat("TAA feedback", &ropts->taa_feedback, 0.02, 1.0, "%.2f",
-                          ImGuiSliderFlags_ClampOnInput);
+        if (IS_DEFINED(CONFIG_TAA)) {
+            igCheckbox("TAA", &ropts->taa);
+            if (ropts->taa)
+                igSliderFloat("TAA feedback", &ropts->taa_feedback, 0.02, 1.0, "%.2f",
+                              ImGuiSliderFlags_ClampOnInput);
+        }
         if (!ropts->edge_sobel) {
             igText("Laplace kernel size");
             igSameLine(0.0, 0.0);

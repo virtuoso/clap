@@ -30,6 +30,13 @@ list(APPEND GLSLC_ARGS
     -DSHADER_VARIANT_SHADOW_PCF=1
 )
 
+# Unlike the axes above, TAA follows the build config: the model pass
+# RT layout (velocity RT present or not) must agree between the shaders
+# and pipeline-builder.c, so this axis can never vary per material
+if (CONFIG_TAA)
+    list(APPEND GLSLC_ARGS -DSHADER_VARIANT_TAA=1)
+endif ()
+
 # GLSL compiler
 find_program(GLSLC glslc HINTS "${GLSLC_HINT}")
 # SPIR-V decompiler

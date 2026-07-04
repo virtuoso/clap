@@ -14,6 +14,10 @@ include (FindPkgConfig)
 option(CLAP_BUILD_WITH_GLES BOOL OFF)
 option(CLAP_BUILD_FINAL BOOL OFF)
 option(CLAP_BUILD_NETWORKING BOOL OFF)
+# TAA support: compiling it out drops the RG16F velocity RT from the model
+# pass and the motion-vector varyings/math from the model shaders, a
+# bandwidth/register win on small GPUs
+option(CLAP_BUILD_TAA BOOL ON)
 option(CLAP_USE_UBSAN BOOL OFF)
 option(CLAP_USE_ASAN BOOL OFF)
 option(CLAP_USE_ODE "Use ODE as the physics backend instead of Box3D" OFF)
