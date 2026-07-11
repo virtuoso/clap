@@ -1,5 +1,13 @@
 # Generate builtin-shaders.c out of compiled shaders
-string(REPLACE " " ";" shaders "${shaders}")
+#
+# The shader list arrives in a file, one path per line: the per-variant
+# list is far too long to pass as a command line argument.
+if (NOT DEFINED shaders_file)
+    message(FATAL_ERROR "builtin-shaders.cmake requires -Dshaders_file=<list>")
+endif ()
+
+file(STRINGS "${shaders_file}" shaders)
+list(REMOVE_ITEM shaders "")
 
 if (HEADER)
     LIST(LENGTH shaders NR_SHADERS)

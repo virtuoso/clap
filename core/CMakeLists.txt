@@ -274,25 +274,34 @@ add_dependencies(preprocess_shaders_core render_bindings_gen)
 ##########################################################################
 # Convert engine shaders into C string array to build them in statically
 ##########################################################################
+# The shader list goes to the generator in a file, not on the command
+# line: with per-variant shaders it runs to hundreds of kilobytes, and
+# as a single argument that is over Linux's MAX_ARG_STRLEN (128K), which
+# fails the build with "argument list too long". file(GENERATE) leaves
+# the file alone when the list hasn't changed.
+set(BUILTIN_SHADERS_LIST "${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.list")
+string(REPLACE ";" "\n" BUILTIN_SHADERS_LINES "${SHADER_OUTS}")
+file(GENERATE OUTPUT "${BUILTIN_SHADERS_LIST}" CONTENT "${BUILTIN_SHADERS_LINES}\n")
+
 add_custom_command(
-    DEPENDS preprocess_shaders_core ${SHADER_OUTS}
+    DEPENDS preprocess_shaders_core ${SHADER_OUTS} "${BUILTIN_SHADERS_LIST}"
     COMMENT "Generating builtin shaders"
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
     COMMAND
         ${CMAKE_COMMAND}
             -DHEADER=1
-            -Dshaders="${SHADER_OUTS}"
+            -Dshaders_file="${BUILTIN_SHADERS_LIST}"
             -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
             -P ${CMAKE_SOURCE_DIR}/scripts/builtin-shaders.cmake
     COMMAND
         ${CMAKE_COMMAND}
-            -Dshaders="${SHADER_OUTS}"
+            -Dshaders_file="${BUILTIN_SHADERS_LIST}"
             -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
             -P ${CMAKE_SOURCE_DIR}/scripts/builtin-shaders.cmake
     COMMAND
         ${CMAKE_COMMAND}
             -DFOOTER=1
-            -Dshaders="${SHADER_OUTS}"
+            -Dshaders_file="${BUILTIN_SHADERS_LIST}"
             -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/builtin-shaders.c"
             -P ${CMAKE_SOURCE_DIR}/scripts/builtin-shaders.cmake
 )
