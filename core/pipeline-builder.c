@@ -263,6 +263,12 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     bool edges = ropts->edges;
     /* TAA replaces SMAA: no weights pass, use_edge_aa off in combine */
     bool edge_aa = ropts->edge_antialiasing && !taa && edges;
+    /*
+     * The combine/present split only exists so TAA can resolve (and SMAA
+     * blend) between the composite and the OETF encode; with neither in
+     * play, one merged screen pass saves a full-res RT write + read
+     */
+    bool merge_present = !taa && !edge_aa;
     bool model_pass_msaa =
 #ifdef CONFIG_BROWSER
         false;
@@ -612,16 +618,35 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .method     = RM_PLUG,
                     .sampler    = UNIFORM_NOISE3D_TEX
                 },
+                /* the merged pass applies film grain, see present below */
+                merge_present ?
+                    (render_source) {
+                        .tex        = &grain_tex,
+                        .method     = RM_PLUG,
+                        .sampler    = UNIFORM_GRAIN_TEX,
+                    } :
+                    (render_source) {},
                 {}
             },
             /*
              * Linear tonemapped color: film grain and the OETF encode
-             * happen in the present pass, TAA resolves in between
+             * happen in the present pass, TAA resolves in between; the
+             * merged pass encodes right here and renders to the screen
+             * (checkpoint 1), so its FBO (only rendered for the menu
+             * blur chain) holds encoded output like present's
              */
+#ifdef CONFIG_RENDERER_METAL
             .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
+#else
+            .color_config       = (fbo_attconfig[]) {
+                { .format = merge_present ? TEX_FMT_RGBA8 : hdr_fmt, .load_action = FBOLOAD_DONTCARE, }
+            },
+#endif /* !CONFIG_RENDERER_METAL */
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "combine",
+            .name               = "combine",
+            .shader             = merge_present ? "combine-present" : "combine",
+            .checkpoint         = merge_present ? 1 : 0,
         ),
         pipeline
     );
@@ -663,7 +688,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline
     ) : NULL;
 
-    render_pass *present_pass = CRES_RET_T(
+    render_pass *present_pass = merge_present ? combine_pass : CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
