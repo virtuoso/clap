@@ -83,7 +83,8 @@ static cerr gl_shader_init(renderer_t *r, shader_t *shader,
 static void gl_shader_done(shader_t *shader);
 static void gl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                        size_t *offs, data_type *types,
-                                       size_t *comp_counts, unsigned int nr_attrs);
+                                       size_t *comp_counts, unsigned int *locs,
+                                       unsigned int nr_attrs);
 static int gl_shader_id(shader_t *shader);
 static cerr gl_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
 static attr_t gl_shader_attribute(shader_t *shader, const char *name, attr_t attr);
@@ -1624,7 +1625,7 @@ static void gl_shader_done(shader_t *shader)
 
 static void gl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                        size_t *offs, data_type *types, size_t *comp_counts,
-                                       unsigned int nr_attrs)
+                                       unsigned int *locs, unsigned int nr_attrs)
 {
 }
 

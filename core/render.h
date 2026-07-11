@@ -848,7 +848,7 @@ cerr shader_init(renderer_t *r, shader_t *shader,
                  const char *fragment, size_t frag_size);
 void shader_set_vertex_attrs(shader_t *shader, size_t stride,
                              size_t *offs, data_type *types, size_t *comp_counts,
-                             unsigned int nr_attrs);
+                             unsigned int *locs, unsigned int nr_attrs);
 void shader_done(shader_t *shader);
 int shader_id(shader_t *shader);
 cerr_check shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
@@ -1167,7 +1167,8 @@ typedef struct renderer_ops {
     void                (*shader_done)(shader_t *shader);
     void                (*shader_set_vertex_attrs)(shader_t *shader, size_t stride,
                                                    size_t *offs, data_type *types,
-                                                   size_t *comp_counts, unsigned int nr_attrs);
+                                                   size_t *comp_counts, unsigned int *locs,
+                                                   unsigned int nr_attrs);
     int                 (*shader_id)(shader_t *shader);
     cerr                (*shader_ubo_bind)(shader_t *shader, binding_points_t *bpt, const char *name);
     attr_t              (*shader_attribute)(shader_t *shader, const char *name, attr_t attr);

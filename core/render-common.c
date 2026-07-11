@@ -545,10 +545,11 @@ void shader_done(shader_t *shader) { if (!shader->renderer) return; shader->rend
 
 void shader_set_vertex_attrs(shader_t *shader, size_t stride,
                              size_t *offs, data_type *types, size_t *comp_counts,
-                             unsigned int nr_attrs)
+                             unsigned int *locs, unsigned int nr_attrs)
 {
     if (!shader->renderer)   return;
-    shader->renderer->ops->shader_set_vertex_attrs(shader, stride, offs, types, comp_counts, nr_attrs);
+    shader->renderer->ops->shader_set_vertex_attrs(shader, stride, offs, types, comp_counts,
+                                                   locs, nr_attrs);
 }
 
 int shader_id(shader_t *shader) { if (!shader->renderer) return -1; return shader->renderer->ops->shader_id(shader); }

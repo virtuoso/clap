@@ -382,6 +382,7 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
     size_t type_size = 0, prev_type_size = 0;
     size_t attr_comp_count[ATTR_MAX];
     data_type attr_types[ATTR_MAX];
+    unsigned int attr_locs[ATTR_MAX];
     enum shader_vars v;
     int i;
     for (i = 0, v = 0; v < ATTR_MAX; v++) {
@@ -390,6 +391,8 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
 
         enum mesh_attrs ma = attr_to_mesh_map[v];
         p->mesh_attrs[i] = ma;
+        /* variant progs can have gaps in their attribute locations */
+        attr_locs[i] = v;
 
         /*
          * calculate the total stride for all attributes of one vertex; there's no
@@ -408,7 +411,8 @@ static void shader_setup_mesh_attrs(struct shader_prog *p)
         i++;
     }
 
-    shader_set_vertex_attrs(&p->shader, p->stride, p->attr_offs, attr_types, attr_comp_count, i);
+    shader_set_vertex_attrs(&p->shader, p->stride, p->attr_offs, attr_types, attr_comp_count,
+                            attr_locs, i);
     p->mesh_attrs[i] = MESH_MAX;
     p->nr_attrs = i;
 }

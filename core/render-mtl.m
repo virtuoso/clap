@@ -76,7 +76,8 @@ static cerr mtl_shader_init(renderer_t *r, shader_t *shader,
 static void mtl_shader_done(shader_t *shader);
 static void mtl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                         size_t *offs, data_type *types,
-                                        size_t *comp_counts, unsigned int nr_attrs);
+                                        size_t *comp_counts, unsigned int *locs,
+                                        unsigned int nr_attrs);
 static cerr mtl_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
 static attr_t mtl_shader_attribute(shader_t *shader, const char *name, attr_t attr);
 static uniform_t mtl_shader_uniform(shader_t *shader, const char *name);
@@ -1546,15 +1547,15 @@ static cerr mtl_shader_init(renderer_t *r, shader_t *shader,
 
 static void mtl_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                         size_t *offs, data_type *types, size_t *comp_counts,
-                                        unsigned int nr_attrs)
+                                        unsigned int *locs, unsigned int nr_attrs)
 {
     shader->mtl.vdesc = [[MTLVertexDescriptor alloc] init];
     shader->mtl.vdesc = [shader->mtl.vdesc retain];
 
     for (unsigned int v = 0; v < nr_attrs; v++) {
-        shader->mtl.vdesc.attributes[v].format = mtl_data_type[types[v]];
-        shader->mtl.vdesc.attributes[v].bufferIndex = 0;     /* main0_in: all vertex attributes */
-        shader->mtl.vdesc.attributes[v].offset = offs[v];
+        shader->mtl.vdesc.attributes[locs[v]].format = mtl_data_type[types[v]];
+        shader->mtl.vdesc.attributes[locs[v]].bufferIndex = 0;  /* main0_in: all vertex attributes */
+        shader->mtl.vdesc.attributes[locs[v]].offset = offs[v];
     }
 
     shader->mtl.vdesc.layouts[0].stride = stride;

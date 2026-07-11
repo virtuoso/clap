@@ -81,7 +81,8 @@ static cerr wgpu_shader_init(renderer_t *r, shader_t *shader,
 static void wgpu_shader_done(shader_t *shader);
 static void wgpu_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                          size_t *offs, data_type *types,
-                                         size_t *comp_counts, unsigned int nr_attrs);
+                                         size_t *comp_counts, unsigned int *locs,
+                                         unsigned int nr_attrs);
 static int wgpu_shader_id(shader_t *shader);
 static cerr wgpu_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name);
 static attr_t wgpu_shader_attribute(shader_t *shader, const char *name, attr_t attr);
@@ -1459,7 +1460,8 @@ static WGPUVertexFormat wgpu_vertex_format(data_type type)
 
 static void wgpu_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                          size_t *offs, data_type *types,
-                                         size_t *comp_counts, unsigned int nr_attrs)
+                                         size_t *comp_counts, unsigned int *locs,
+                                         unsigned int nr_attrs)
 {
     shader->wgpu.vertex_stride = stride;
     shader->wgpu.nr_vertex_attrs = nr_attrs;
@@ -1469,9 +1471,9 @@ static void wgpu_shader_set_vertex_attrs(shader_t *shader, size_t stride,
         shader->wgpu.vertex_attrs[i] = (WGPUVertexAttribute){
             .format         = fmt,
             .offset         = offs[i],
-            .shaderLocation = i,
+            .shaderLocation = locs[i],
         };
-        dbg(" -> @location(%u): offset %zu %s (fmt %d)\n", i, offs[i], data_type_name(types[i]), fmt);
+        dbg(" -> @location(%u): offset %zu %s (fmt %d)\n", locs[i], offs[i], data_type_name(types[i]), fmt);
     }
 }
 
