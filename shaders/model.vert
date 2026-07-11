@@ -16,7 +16,10 @@ layout (location=ATTR_LOC_WEIGHTS) in vec4 weights;
 #include "ubo_lighting.glsl"
 #include "ubo_transform.glsl"
 #include "ubo_projview.glsl"
+/* declared iff used, see model.frag; nothing else references skinning */
+#ifdef SHADER_VARIANT_SKINNING
 #include "ubo_skinning.glsl"
+#endif /* SHADER_VARIANT_SKINNING */
 #include "ubo_material.glsl"
 
 layout (location=0) out vec2 pass_tex;

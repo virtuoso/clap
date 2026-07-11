@@ -7,6 +7,13 @@
 #include "ndc-z.glsl"
 #include "linearize-depth.glsl"
 
+/*
+ * The shadow maps and everything sampling them are declared iff the
+ * variant samples shadows at all (declared iff used, see model.frag);
+ * the shadow UBO stays outside the gate: lighting.glsl reads
+ * shadow_tint unconditionally
+ */
+#ifdef SHADER_VARIANT_SHADOWS
 #ifndef SHADER_SHADOW_MAP_ARRAY
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_shadow_map1) uniform sampler2D shadow_map1;
@@ -269,5 +276,7 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
 
     return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.3));
 }
+
+#endif /* SHADER_VARIANT_SHADOWS */
 
 #endif /* SHADERS_SHADOW_GLSL */

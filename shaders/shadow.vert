@@ -22,7 +22,10 @@ layout (location=ATTR_LOC_WEIGHTS) in vec4 weights;
 
 #include "ubo_transform.glsl"
 #include "ubo_projview.glsl"
+/* declared iff used, see model.frag */
+#ifdef SHADER_VARIANT_SKINNING
 #include "ubo_skinning.glsl"
+#endif /* SHADER_VARIANT_SKINNING */
 
 void main()
 {

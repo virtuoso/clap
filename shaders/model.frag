@@ -25,7 +25,15 @@ layout (location=9) in vec4 pass_prev_clip;
 #include "ubo_bloom.glsl"
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
+/*
+ * Variant rule: a resource is declared iff the variant's code samples it.
+ * WebGPU's auto pipeline layout only contains statically-used bindings,
+ * so a declared-but-unused resource desyncs the reflection-driven bind
+ * groups; unused declarations also waste v3dv descriptors.
+ */
+#ifdef SHADER_VARIANT_NORMALS
 layout (binding=SAMPLER_BINDING_normal_map) uniform sampler2D normal_map;
+#endif /* SHADER_VARIANT_NORMALS */
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 layout (binding=SAMPLER_BINDING_light_map) uniform usampler2D light_map;
 layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
