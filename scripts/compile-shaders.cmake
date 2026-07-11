@@ -12,31 +12,45 @@
 #   compile_shaders_for_backend("wgpu" "${SHADERS}" "_core")
 #   compile_shaders_for_backend("gl"   "${SHADERS}" "_core")
 
+include("${CMAKE_SOURCE_DIR}/scripts/shader-variants.cmake")
+
 set(GLSLC_ARGS -I${CMAKE_BINARY_DIR}/core -I${CMAKE_SOURCE_DIR}/core)
 if (DEFINED GLSL_UBO_DIR)
     list(APPEND GLSLC_ARGS -I${GLSL_UBO_DIR})
 endif ()
 
-# Model uber-shader variant axes: every build defines the full set, so the
-# compiled shaders match the uber shader (SHADER_VARIANT_BLINN_PHONG
-# selects the cheaper BRDF and stays off). See
-# model.vert/model.frag/lighting.glsl.
-list(APPEND GLSLC_ARGS
-    -DSHADER_VARIANT_NORMALS=1
-    -DSHADER_VARIANT_SKINNING=1
-    -DSHADER_VARIANT_NOISE_MATERIALS=1
-    -DSHADER_VARIANT_ALPHA_DISCARD=1
-    -DSHADER_VARIANT_SHADOWS=1
-    -DSHADER_VARIANT_SHADOW_PCF=1
-    -DSHADER_VARIANT_RADIAL_FOG=1
+# Default variant axis set: what the plain (uber) "model"/"shadow"/
+# "shadow_vsm" shaders and every non-variant shader compile with, and
+# the mask the base names resolve to in the generated lookup tables.
+# With CLAP_SHADER_VARIANTS, the variant families additionally compile
+# one specialization per valid axis combination; see shader-variants.cmake
+# (SHADER_VARIANT_BLINN_PHONG selects the cheaper BRDF and stays off by
+# default). See model.vert/model.frag/lighting.glsl.
+set(SHADER_VARIANT_DEFAULTS
+    NORMALS
+    SKINNING
+    NOISE_MATERIALS
+    ALPHA_DISCARD
+    SHADOWS
+    SHADOW_PCF
+    RADIAL_FOG
 )
 
 # Unlike the axes above, TAA follows the build config: the model pass
 # RT layout (velocity RT present or not) must agree between the shaders
 # and pipeline-builder.c, so this axis can never vary per material
 if (CONFIG_TAA)
-    list(APPEND GLSLC_ARGS -DSHADER_VARIANT_TAA=1)
+    list(APPEND SHADER_VARIANT_DEFAULTS TAA)
 endif ()
+
+# The default set rides on every plain compile as a per-compile argument
+# (not in GLSLC_ARGS: defines are additive, so variant specializations
+# must start from none and pass exactly their mask's subset instead)
+set(GLSLC_VARIANT_DEFAULT_ARGS "")
+foreach (axis ${SHADER_VARIANT_DEFAULTS})
+    shader_variant_define(${axis} def)
+    list(APPEND GLSLC_VARIANT_DEFAULT_ARGS -DSHADER_VARIANT_${def}=1)
+endforeach ()
 
 # GLSL compiler
 find_program(GLSLC glslc HINTS "${GLSLC_HINT}")
@@ -116,13 +130,17 @@ endfunction()
 
 # Compile a single shader stage for a given backend.
 # All _BACKEND_* variables must be set before calling.
-function(_compile_shader_for_backend shader stage backend SHADER_SRCS SHADER_OUTS suffix)
+# @shader is the output basename (e.g. "model.0131.vert"), @src the GLSL
+# source path: they differ for variant specializations of an uber shader.
+# @variant_args is the compile's SHADER_VARIANT_* define set: the global
+# default set for plain shaders, the mask's exact subset for variants
+function(_compile_shader_for_backend shader src stage backend SHADER_SRCS SHADER_OUTS suffix variant_args)
     set(SPIRV_DIR "${SHADER_BASE}/spirv-${backend}${suffix}")
     set(SHADER_DIR "${SHADER_BASE}/${_SHADER_TYPE}${suffix}")
     set(SPIRV_OUTPUT "${SPIRV_DIR}/${shader}.spv")
     set(SPIRV_DEPFILE "${SPIRV_OUTPUT}.d")
 
-    list(APPEND SHADER_SRCS "${SHADER_SOURCE_DIR}/${shader}")
+    list(APPEND SHADER_SRCS "${src}")
     list(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}${_SHADER_EXT}")
     if (_HAS_REFLECTION)
         list(APPEND SHADER_OUTS "${SHADER_DIR}/${shader}${_SHADER_EXT}.json")
@@ -137,7 +155,7 @@ function(_compile_shader_for_backend shader stage backend SHADER_SRCS SHADER_OUT
     add_custom_command(
         OUTPUT "${SPIRV_OUTPUT}"
         BYPRODUCTS "${SPIRV_DEPFILE}"
-        DEPENDS render_bindings_gen make-shader-ir-dir-${backend}${suffix} "${SHADER_SOURCE_DIR}/${shader}"
+        DEPENDS render_bindings_gen make-shader-ir-dir-${backend}${suffix} "${src}"
         COMMAND "${GLSLC}"
         ARGS
             -MD
@@ -146,8 +164,9 @@ function(_compile_shader_for_backend shader stage backend SHADER_SRCS SHADER_OUT
             -fshader-stage=${stage}
             ${GLSLC_ARGS}
             ${_GLSLC_BACKEND_ARGS}
+            ${variant_args}
             -o "${SPIRV_OUTPUT}"
-            -c "${SHADER_SOURCE_DIR}/${shader}"
+            -c "${src}"
         ${shader_depfile_args}
     )
 
@@ -216,10 +235,43 @@ function(compile_shaders_for_backend backend SHADERS suffix)
                 endif ()
             endif ()
             _compile_shader_for_backend(
-                "${s}.${stage}" "${stage}" "${backend}"
-                "${SHADER_SRCS}" "${SHADER_OUTS}" "${suffix}")
+                "${s}.${stage}" "${SHADER_SOURCE_DIR}/${s}.${stage}" "${stage}" "${backend}"
+                "${SHADER_SRCS}" "${SHADER_OUTS}" "${suffix}" "${GLSLC_VARIANT_DEFAULT_ARGS}")
         endforeach ()
     endforeach()
+
+    # Variant specializations: one compile of each family's stages per
+    # valid axis combination, named "<family>.<mask hex>"; the default
+    # combination is the plain "<family>" compile above
+    if (CLAP_SHADER_VARIANTS)
+        foreach (family ${SHADER_VARIANT_FAMILIES})
+            if (NOT family IN_LIST SHADERS)
+                continue ()
+            endif ()
+
+            shader_variant_default_mask(${family} default_mask)
+            shader_variant_enumerate(${family} masks)
+            foreach (mask ${masks})
+                if (mask EQUAL default_mask)
+                    continue ()
+                endif ()
+
+                shader_variant_suffix(${mask} sfx)
+                shader_variant_glslc_args(${family} ${mask} variant_args)
+                foreach (stage vert frag geom)
+                    if (stage STREQUAL "geom")
+                        if (NOT EXISTS "${SHADER_SOURCE_DIR}/${family}.${stage}" OR _SKIP_GEOM)
+                            continue ()
+                        endif ()
+                    endif ()
+                    _compile_shader_for_backend(
+                        "${family}.${sfx}.${stage}" "${SHADER_SOURCE_DIR}/${family}.${stage}"
+                        "${stage}" "${backend}"
+                        "${SHADER_SRCS}" "${SHADER_OUTS}" "${suffix}" "${variant_args}")
+                endforeach ()
+            endforeach ()
+        endforeach ()
+    endif ()
 
     add_custom_target(preprocess_shaders_${backend}${suffix}
         DEPENDS ${SHADER_OUTS}

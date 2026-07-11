@@ -18,6 +18,11 @@ option(CLAP_BUILD_NETWORKING BOOL OFF)
 # pass and the motion-vector varyings/math from the model shaders, a
 # bandwidth/register win on small GPUs
 option(CLAP_BUILD_TAA BOOL ON)
+# Compile the model/shadow uber shaders into per-variant specializations,
+# one shader per valid SHADER_VARIANT_* axis combination, resolvable at
+# runtime via shader_get_name(); OFF compiles only the uber shaders
+# (see scripts/shader-variants.cmake)
+option(CLAP_SHADER_VARIANTS BOOL OFF)
 option(CLAP_USE_UBSAN BOOL OFF)
 option(CLAP_USE_ASAN BOOL OFF)
 option(CLAP_USE_ODE "Use ODE as the physics backend instead of Box3D" OFF)

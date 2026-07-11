@@ -7,6 +7,7 @@
 #include "object.h"
 #include "render.h"
 #include "bindings/render-bindings.h"
+#include "bindings/shader-variants.h"
 
 typedef struct shader_context shader_context;
 cresp_ret(shader_context);
@@ -35,6 +36,22 @@ DECLARE_REFCLASS(shader_prog);
  * Return: shader program's name
  */
 const char *shader_name(struct shader_prog *p);
+
+/**
+ * shader_get_name() - look up the shader specialized for a variant set
+ * @base:       uber shader base name ("model", "shadow", "shadow_vsm")
+ * @variants:   bitmask of SHADER_*_BIT variant axes
+ *
+ * Match a set of shader variants to the shader compiled with exactly
+ * that set: the name to hand to pipeline_shader_find_get() and friends.
+ * Non-default combinations only exist in CLAP_SHADER_VARIANTS builds.
+ * Context: anywhere
+ * Return:
+ * * the shader name
+ * * CERR_INVALID_ARGUMENTS: @base is not a variant family
+ * * CERR_NOT_FOUND: no compiled shader covers exactly @variants
+ */
+cresp(const_char) shader_get_name(const char *base, shader_variants_t variants);
 
 /**
  * shader_prog_use() - bind a shader program

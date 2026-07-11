@@ -36,6 +36,7 @@ struct shader_var_block_desc {
 };
 
 #include "bindings/render-bindings.c"
+#include "bindings/shader-variants.c"
 
 /* Runtime shader context */
 typedef struct shader_context {
@@ -212,6 +213,30 @@ struct shader_prog {
 const char *shader_name(struct shader_prog *p)
 {
     return p->name;
+}
+
+cresp(const_char) shader_get_name(const char *base, shader_variants_t variants)
+{
+    for (int i = 0; i < array_size(shader_variant_families); i++) {
+        const struct shader_variant_family *fam = &shader_variant_families[i];
+        unsigned int lo = 0, hi = fam->nr_names;
+
+        if (strcmp(fam->base, base))    continue;
+
+        /* names[] is sorted by mask */
+        while (lo < hi) {
+            unsigned int mid = (lo + hi) / 2;
+
+            if (fam->names[mid].mask < variants)    lo = mid + 1;
+            else                                    hi = mid;
+        }
+
+        if (lo == fam->nr_names || fam->names[lo].mask != variants) return cresp_error(const_char, CERR_NOT_FOUND);
+
+        return cresp_val(const_char, fam->names[lo].name);
+    }
+
+    return cresp_error(const_char, CERR_INVALID_ARGUMENTS);
 }
 
 static struct shader_var_block *

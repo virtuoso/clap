@@ -271,6 +271,9 @@ set(SHADERS ui glyph model contrast sobel sobel-msaa laplace
 compile_shaders("${SHADERS}" "_core")
 add_dependencies(preprocess_shaders_core render_bindings_gen)
 
+# variant mask -> shader name tables behind shader_get_name()
+shader_variants_emit("${RENDER_BINDINGS_DIR}" "${CLAP_SHADER_VARIANTS}")
+
 ##########################################################################
 # Convert engine shaders into C string array to build them in statically
 ##########################################################################
