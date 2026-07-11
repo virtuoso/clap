@@ -1496,20 +1496,36 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         );
     mesh_optimize(me);
 
-    struct shader_prog *prog = CRES_RET_CERR(pipeline_shader_find_get(gd->pl, "model"));
+    /*
+     * The attribute-layout half of the mask must be final here: the
+     * model's vertex buffers are laid out against the resolved prog,
+     * and its shadow prog (resolved right after construction) carries
+     * the same bits so the shadow passes read them identically.
+     */
+    shader_variants_t variants = ropts_shader_variants(pipeline_render_options(gd->pl));
+    if (gltf_has_tangent(gd, mesh) && gltf_nmap(gd, mesh))  variants |= SHADER_NORMALS_BIT;
+    if (gltf_has_joints(gd, mesh))                          variants |= SHADER_SKINNING_BIT;
+
+    struct shader_prog *prog = CRES_RET_CERR(
+        pipeline_shader_variant_get(gd->pl, "model", variants));
     /*
      * ref_put(prog) on failure is not necessary, model3d constructor
      * already drops this reference; plus ref_pass(prog) sets prog to NULL
      * effectively making this a requirement
      */
-    model3d *m = CRES_RET_CERR(
+    /* dropped if the shadow prog fails to resolve; ref_pass() hands it on below */
+    LOCAL_SET(model3d, m) = CRES_RET_CERR(
         ref_new_checked(
             model3d,
-            .prog   = ref_pass(prog),
-            .name   = gltf_mesh_name(gd, mesh),
-            .mesh   = me
+            .prog        = ref_pass(prog),
+            .name        = gltf_mesh_name(gd, mesh),
+            .mesh        = me,
+            .shader_base = "model",
+            .variants    = variants
         )
     );
+
+    CERR_RET_CERR(pipeline_model_shadow_resolve(gd->pl, m));
 
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));

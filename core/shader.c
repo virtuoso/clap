@@ -239,6 +239,23 @@ cresp(const_char) shader_get_name(const char *base, shader_variants_t variants)
     return cresp_error(const_char, CERR_INVALID_ARGUMENTS);
 }
 
+const char *shader_variants_str(shader_variants_t variants, char *buf, size_t size)
+{
+    size_t off = 0;
+
+    buf[0] = 0;
+    for (int i = 0; i < array_size(shader_variant_bit_names); i++) {
+        if (!(variants & ((shader_variants_t)1 << i)))  continue;
+
+        off += snprintf(buf + off, size - off, "%s%s", off ? "|" : "",
+                        shader_variant_bit_names[i]);
+        if (off >= size)    break;
+    }
+    if (!off)   snprintf(buf, size, "none");
+
+    return buf;
+}
+
 static struct shader_var_block *
 shader_get_var_block_by_binding(struct shader_prog *p, int binding)
 {

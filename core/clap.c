@@ -755,6 +755,9 @@ static cerr build_main_pl(clap_context *ctx)
         })
     );
 
+    /* re-resolve variant-managed model shaders against the new options */
+    CERR_RET_CERR(pipeline_shaders_resolve(ctx->pl, &scene->mq));
+
     clap_sync_render_options(ctx, false);
 
     return CERR_OK;
@@ -921,6 +924,11 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     } else {
         renderer_swapchain_begin(&ctx->renderer);
     }
+
+    /* materials that changed since their models' variants were resolved */
+    if (ctx->pl && pipeline_shaders_are_stale(ctx->pl))
+        CERR_RET(pipeline_shaders_resolve(ctx->pl, &scene->mq),
+                 err_cerr(__cerr, "failed to resolve shader variants\n"));
 
     rebuild_pl_if_needed(ctx);
 

@@ -45,6 +45,26 @@ typedef struct model3d {
     char                *name;
     struct ref          ref;
     struct shader_prog  *prog;
+    /*
+     * Shadow-pass counterpart of @prog, resolved from the same
+     * attribute-layout bits (see pipeline_shaders_resolve()). The mesh's
+     * interleaved vertex buffer is laid out once against @prog, and the
+     * shadow passes reinterpret that same buffer, so their prog has to
+     * declare the identical attribute set -- a mismatch reads garbage
+     * vertices. NULL for models that aren't variant managed: those draw
+     * with the shadow pass's own override, which matches the uber @prog
+     * they were built with.
+     */
+    struct shader_prog  *shadow_prog;
+    /*
+     * Uber shader family for variant selection (NULL: not variant
+     * managed) and the mask @prog was last resolved with. The
+     * attribute-layout bits (NORMALS/SKINNING) are frozen: attr[] and
+     * the VAO are laid out against them at creation, so prog swaps
+     * must preserve them (see pipeline_shaders_resolve())
+     */
+    const char          *shader_base;
+    shader_variants_t   variants;
     bool                cull_face;
     bool                alpha_blend;
     bool                depth_testing;
@@ -81,11 +101,13 @@ typedef struct model3d {
 
 /**
  * struct model3d_init_options - model3d constructor parameters
- * @name:       model name
- * @prog:       shader program that will draw this model
- * @mesh:       source of combined vertex attributes and mesh indices
- * @fix_origin: recalculate vertex coordinates
- * @skip_aabb:  don't calculate AABB for this model
+ * @name:        model name
+ * @prog:        shader program that will draw this model
+ * @mesh:        source of combined vertex attributes and mesh indices
+ * @fix_origin:  recalculate vertex coordinates
+ * @skip_aabb:   don't calculate AABB for this model
+ * @shader_base: uber shader family @prog was variant-resolved from
+ * @variants:    the variant mask @prog was resolved with
  *
  * Constructor parameters for model3d, passed into model3d_make().
  * * @prog and @mesh and non-optional;
@@ -94,11 +116,17 @@ typedef struct model3d {
  * AABB and recalculates all vertices relative to that;
  * * @skip_aabb is for models that don't participate in frustum culling, origin
  * fixing or anything else that requires a valid AABB, like the UI quads or glyphs.
+ * * @shader_base and @variants opt the model into shader variant
+ * re-resolution on pipeline rebuilds and material changes (see
+ * pipeline_shaders_resolve()); leave unset for models drawing with progs
+ * outside the variant families.
  */
 DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     const char          *name;
     struct shader_prog  *prog;
     struct mesh         *mesh;
+    const char          *shader_base;
+    shader_variants_t   variants;
     bool                fix_origin;
     bool                skip_aabb;
 );
@@ -224,6 +252,10 @@ typedef struct model3dtx {
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
     struct list    entities;           /* links entity3d->entry */
+#ifndef CONFIG_FINAL
+    /* one-shot dbg of the composed variant mask in models_render() */
+    bool           variants_logged;
+#endif /* !CONFIG_FINAL */
 } model3dtx;
 
 DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
@@ -294,6 +326,21 @@ cresp_ret(texture_t);
 
 cresp(texture_t) model3dtx_texture(model3dtx *txm, enum shader_vars var);
 cresp(texture_t) model3dtx_loaded_texture(model3dtx *txm, enum shader_vars var);
+
+/**
+ * model3dtx_shader_variants() - the per-model half of the shader variant mask
+ * @txm:    the model
+ *
+ * The SHADER_*_BIT axes this model needs from its shaders: the
+ * attribute-layout bits (NORMALS/SKINNING) frozen at model creation,
+ * plus the frag-only axes composed live from the same conditions
+ * models_render() drives the corresponding uniforms with:
+ * NOISE_MATERIALS (material noise features), ALPHA_DISCARD (alpha
+ * blending). OR with ropts_shader_variants() for the full mask.
+ * Context: anywhere
+ * Return: the variant bits
+ */
+shader_variants_t model3dtx_shader_variants(model3dtx *txm);
 
 static inline const char *txmodel_name(model3dtx *txm)
 {
@@ -483,6 +530,11 @@ typedef struct models_render_options {
     ssao_state          *ssao_state;
     /* TAA state for camera passes: jittered projection + reprojection inputs */
     taa_params          *taa;
+    /*
+     * Camera passes: set to true when a variant-managed model's composed
+     * mask no longer matches its prog (see pipeline_shaders_are_stale())
+     */
+    bool                *variants_stale;
     unsigned int        width;
     unsigned int        height;
     int                 cascade;

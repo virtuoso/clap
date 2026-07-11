@@ -503,6 +503,22 @@ static void model_picker(struct scene *scene)
     ui_igCheckbox("follow scene control", &ei->follow_control);
     ui_igHelpTooltip("Automatically switched to the control entity");
 
+    if (ei->entity) {
+        model3dtx *txm = ei->entity->txmodel;
+        render_options *ropts = clap_get_render_options(scene->clap_ctx);
+        shader_variants_t variants = model3dtx_shader_variants(txm) |
+                                     ropts_shader_variants(ropts);
+        char vbuf[144];     /* shader_variants_str() truncates past this */
+
+        ui_igLabel("shader");
+        igTableNextColumn();
+        igText("%s", shader_name(txm->model->prog));
+
+        ui_igLabel("variants");
+        igTableNextColumn();
+        igTextWrapped("%s", shader_variants_str(variants, vbuf, sizeof(vbuf)));
+    }
+
     igEndTable();
 }
 

@@ -80,6 +80,21 @@ typedef struct render_options {
 } render_options;
 
 /**
+ * ropts_shader_variants() - the global half of the shader variant mask
+ * @ropts:  render options
+ *
+ * The SHADER_*_BIT axes every model shader needs under @ropts, minimal:
+ * axes whose paths can't be exercised with these options stay off, which
+ * in variant builds is exactly the compiled specialization. TAA follows
+ * CONFIG_TAA alone: the model pass binds the velocity RT whenever it's
+ * compiled in (see pipeline-builder.c), runtime taa only zeroes it.
+ * OR with model3dtx_shader_variants() for the full mask.
+ * Context: anywhere
+ * Return: the variant bits
+ */
+shader_variants_t ropts_shader_variants(const render_options *ropts);
+
+/**
  * struct taa_params - per-frame TAA state
  * @proj_jittered:      camera projection with this frame's sub-pixel jitter
  * @inv_proj_jittered:  its inverse, for depth-based position reconstruction
@@ -210,6 +225,74 @@ DECLARE_CLEANUP(pipeline);
 void pipeline_clearout(pipeline *pl);
 void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height);
 cresp(shader_prog) pipeline_shader_find_get(pipeline *pl, const char *name);
+
+/**
+ * pipeline_render_options() - get the pipeline's render options
+ * @pl: the pipeline
+ * Return: the render options the pipeline was built with, non-NULL
+ */
+render_options *pipeline_render_options(pipeline *pl);
+
+/**
+ * pipeline_shader_variant_get() - get the shader covering a variant set
+ * @pl:         the pipeline
+ * @base:       uber shader family base name
+ * @variants:   the full variant mask (per-model | global halves)
+ *
+ * The shader compiled with exactly @variants when one exists (variant
+ * builds), the uber @base otherwise: the uber branches on uniforms, so
+ * it covers any mask. Takes a reference either way.
+ * Return: the shader program or an error from shader/pipeline loading
+ */
+cresp(shader_prog) pipeline_shader_variant_get(pipeline *pl, const char *base,
+                                               shader_variants_t variants);
+
+struct mq;
+typedef struct model3d model3d;
+
+/**
+ * pipeline_model_shadow_resolve() - resolve a model's shadow-pass shader
+ * @pl:     the pipeline
+ * @model:  the model, variant managed (model3d::shader_base set)
+ *
+ * Give @model the shadow-pass counterpart of its model prog: same
+ * attribute-layout bits, so both read the model's vertex buffer the same
+ * way, in the family the shadow passes use for the current options.
+ * A no-op for models that aren't variant managed.
+ * Return: CERR_OK or a shader loading error
+ */
+cerr pipeline_model_shadow_resolve(pipeline *pl, model3d *model);
+
+/**
+ * pipeline_shaders_resolve() - re-resolve variant-managed model shaders
+ * @pl: the pipeline
+ * @mq: the model queue
+ *
+ * For every txmodel whose model3d opted in (shader_base set) and whose
+ * composed variant mask changed since its last resolution, resolve the
+ * mask against the compiled set and swap the prog if it resolves to a
+ * different one. The attribute-layout bits are frozen at model
+ * creation, so swaps never change the vertex layout. Call after a
+ * pipeline rebuild, where the global mask half follows render options,
+ * and when pipeline_shaders_are_stale() says a material changed the
+ * other half. A mask that fails to resolve keeps the model's old prog
+ * until the mask changes again.
+ * Return: CERR_OK or the first resolution error
+ */
+cerr pipeline_shaders_resolve(pipeline *pl, struct mq *mq);
+
+/**
+ * pipeline_shaders_are_stale() - tell if a model drew with a stale shader variant
+ * @pl: the pipeline
+ *
+ * The frag-only axes of a variant-managed model's mask follow its
+ * material, which can change after the prog was resolved: a model built
+ * before its material was filled in, a debug UI edit. The camera passes
+ * flag such a model as they draw it; pipeline_shaders_resolve() clears
+ * the flag.
+ * Return: true if pipeline_shaders_resolve() has a prog to swap
+ */
+bool pipeline_shaders_are_stale(pipeline *pl);
 cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_config *cfg);
 #define pipeline_add_pass(_pl, args...) \
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })

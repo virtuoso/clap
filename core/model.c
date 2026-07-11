@@ -84,6 +84,8 @@ static cerr model3d_make(struct ref *ref, void *_opts)
 
     CHECK(m->name = strdup(opts->name));
     m->prog = ref_get(opts->prog);
+    m->shader_base = opts->shader_base;
+    m->variants = opts->variants;
     m->alpha_blend = false;
     m->skip_aabb = opts->skip_aabb;
     if (!m->skip_aabb) {
@@ -170,6 +172,7 @@ static void model3d_drop(struct ref *ref)
         buffer_deinit(&m->attr[v]);
     vertex_array_done(&m->vao);
     ref_put(m->prog);
+    if (m->shadow_prog) ref_put(m->shadow_prog);
     trace("dropping model '%s'\n", m->name);
 
     while (darray_count(m->anis))
@@ -224,6 +227,26 @@ cresp(texture_t) model3dtx_loaded_texture(model3dtx *txm, enum shader_vars var)
     auto tex = CRES_RET_T(model3dtx_texture(txm, var), texture_t);
     if (!tex || !texture_loaded(tex))   return cresp_error(texture_t, CERR_TEXTURE_NOT_LOADED);
     return cresp_val(texture_t, tex);
+}
+
+shader_variants_t model3dtx_shader_variants(model3dtx *txm)
+{
+    model3d *model = txm->model;
+    /*
+     * The attribute-layout half is frozen at model creation (attr[] and
+     * the VAO are laid out against it, and the shadow prog matches it);
+     * the frag-only axes compose live, mirroring models_render() driving
+     * the matching uniforms: models_render() flags a divergence for
+     * pipeline_shaders_resolve() to pick a material edit up
+     */
+    shader_variants_t variants =
+        model->variants & (SHADER_NORMALS_BIT | SHADER_SKINNING_BIT);
+
+    if (txm->mat.use_noise_normals != NOISE_NORMALS_NONE || txm->mat.use_noise_emission)
+        variants |= SHADER_NOISE_MATERIALS_BIT;
+    if (model->alpha_blend) variants |= SHADER_ALPHA_DISCARD_BIT;
+
+    return variants;
 }
 
 static cerr model3dtx_add_texture_from_buffer(model3dtx *txm, enum shader_vars var, void *input,
@@ -896,12 +919,26 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
         caster_min_size = ropts->shadow_caster_min_size *
                           subview_texel_size(subview, opts->width, opts->height);
 
+    /* camera passes only: the shadow progs only carry the frozen attribute-layout bits */
+    shader_variants_t global_variants = opts->variants_stale && ropts ? ropts_shader_variants(ropts) : 0;
+
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
         model3d *model = txmodel->model;
         if (model->skip_shadow && opts->shader_override)
             continue;
 
-        struct shader_prog *model_prog = opts->shader_override ? : model->prog;
+        if (opts->variants_stale && model->shader_base &&
+            (model3dtx_shader_variants(txmodel) | global_variants) != model->variants)
+            *opts->variants_stale = true;
+
+        /*
+         * In a shadow pass (@shader_override), a variant-managed model
+         * draws with its own shadow prog: it shares @prog's attribute
+         * set, which is what the model's vertex buffer was laid out
+         * with. The pass override only covers models without one.
+         */
+        struct shader_prog *model_prog = opts->shader_override ?
+            (model->shadow_prog ? : opts->shader_override) : model->prog;
 
         int lod = -1;
 
@@ -1051,6 +1088,20 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         auto normals_res = model3dtx_loaded_texture(txmodel, UNIFORM_NORMAL_MAP);
         shader_set_var_int(prog, UNIFORM_USE_NORMALS, !IS_CERR(normals_res));
+
+#ifndef CONFIG_FINAL
+        if (ropts && model->shader_base && !txmodel->variants_logged) {
+            shader_variants_t variants = model3dtx_shader_variants(txmodel) |
+                                         ropts_shader_variants(ropts);
+            cresp(const_char) vres = shader_get_name(model->shader_base, variants);
+
+            /* a mismatch is a stale resolution: pipeline_shaders_resolve() swaps the prog */
+            dbg("model '%s' variants %#llx -> '%s', prog '%s'\n", txmodel_name(txmodel),
+                (unsigned long long)variants, IS_CERR(vres) ? model->shader_base : vres.val,
+                shader_name(model->prog));
+            txmodel->variants_logged = true;
+        }
+#endif /* !CONFIG_FINAL */
 
         shader_set_var_float(prog, UNIFORM_ROUGHNESS, txmodel->mat.roughness);
         shader_set_var_int(prog, UNIFORM_ROUGHNESS_OCT, txmodel->mat.roughness_oct);

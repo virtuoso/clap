@@ -54,6 +54,19 @@ const char *shader_name(struct shader_prog *p);
 cresp(const_char) shader_get_name(const char *base, shader_variants_t variants);
 
 /**
+ * shader_variants_str() - format a variant mask as axis names
+ * @variants:   bitmask of SHADER_*_BIT variant axes
+ * @buf:        output buffer (must fit at least "none")
+ * @size:       output buffer size
+ *
+ * Writes "NORMALS|SKINNING|..." for the bits set in @variants, "none"
+ * for an empty mask; truncates at @size like snprintf.
+ * Context: anywhere
+ * Return: @buf
+ */
+const char *shader_variants_str(shader_variants_t variants, char *buf, size_t size);
+
+/**
  * shader_prog_use() - bind a shader program
  * @p:      shader program
  * @draw:   use shader for drawing

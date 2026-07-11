@@ -113,6 +113,113 @@ cresp(shader_prog) pipeline_shader_find_get(pipeline *pl, const char *name)
     return shader_prog_find_get(pl->shader_ctx, &pl->shaders, name);
 }
 
+render_options *pipeline_render_options(pipeline *pl)
+{
+    return pl->render_options;
+}
+
+bool pipeline_shaders_are_stale(pipeline *pl)
+{
+    return pl->shaders_stale;
+}
+
+cresp(shader_prog) pipeline_shader_variant_get(pipeline *pl, const char *base,
+                                               shader_variants_t variants)
+{
+    auto res = shader_get_name(base, variants);
+
+    /* no exact specialization compiled: the uber @base covers any mask */
+    if (IS_CERR_CODE(res, CERR_NOT_FOUND))  return pipeline_shader_find_get(pl, base);
+
+    return pipeline_shader_find_get(pl, CRES_RET_T(res, shader_prog));
+}
+
+cerr pipeline_model_shadow_resolve(pipeline *pl, model3d *model)
+{
+    const render_options *ropts = pl->render_options;
+
+    if (!model->shader_base)    return CERR_OK;
+
+    /*
+     * The family follows the shadow passes' own choice
+     * (pipeline-builder.c); a rebuild is what changes it, and that's
+     * where this runs from. The mask is the model's attribute-layout
+     * bits -- which is the whole point: the shadow prog reads the same
+     * vertex buffer as @prog.
+     */
+    bool vsm = ropts->shadow_vsm;
+    const char *base = vsm ? "shadow_vsm" : "shadow";
+    shader_variants_t variants =
+        model->variants & (SHADER_NORMALS_BIT | SHADER_SKINNING_BIT);
+
+    struct shader_prog *prog = CRES_RET_CERR(
+        pipeline_shader_variant_get(pl, base, variants));
+
+    if (prog == model->shadow_prog) {
+        ref_put(prog);
+        return CERR_OK;
+    }
+
+    if (model->shadow_prog) ref_put(model->shadow_prog);
+    model->shadow_prog = prog;
+
+    return CERR_OK;
+}
+
+cerr pipeline_shaders_resolve(pipeline *pl, struct mq *mq)
+{
+    shader_variants_t global = ropts_shader_variants(pl->render_options);
+    model3dtx *txm;
+
+    pl->shaders_stale = false;
+
+    list_for_each_entry(txm, &mq->txmodels, entry) {
+        model3d *model = txm->model;
+
+        if (!model->shader_base)    continue;
+
+        /* @prog and @shadow_prog are functions of the mask alone */
+        shader_variants_t variants = model3dtx_shader_variants(txm) | global;
+        if (variants == model->variants)    continue;
+
+        /*
+         * Recorded first, and also when it maps onto the same prog (the
+         * uber shader): a mask fails or resolves once, not on every
+         * frame that draws the model
+         */
+        model->variants = variants;
+
+        struct shader_prog *prog = CRES_RET_CERR(
+            pipeline_shader_variant_get(pl, model->shader_base, variants));
+
+        if (prog != model->prog) {
+            dbg("model '%s': shader '%s' -> '%s'\n", model->name,
+                shader_name(model->prog), shader_name(prog));
+            ref_put(model->prog);
+            model->prog = prog;
+        } else {
+            ref_put(prog);
+        }
+
+        /* the shadow prog tracks @prog's attribute set, always */
+        CERR_RET_CERR(pipeline_model_shadow_resolve(pl, model));
+    }
+
+    return CERR_OK;
+}
+
+shader_variants_t ropts_shader_variants(const render_options *ropts)
+{
+    shader_variants_t variants = SHADER_SHADOWS_BIT;
+
+    /* the CSM/PCF path only runs when vsm sampling is off */
+    if (!ropts->shadow_vsm) variants |= SHADER_SHADOW_PCF_BIT;
+    /* the velocity RT rides on the compile-time config, not ropts->taa */
+    if (IS_DEFINED(CONFIG_TAA)) variants |= SHADER_TAA_BIT;
+
+    return variants;
+}
+
 void pipeline_resize(struct pipeline *pl, unsigned int width, unsigned int height)
 {
     struct render_pass *pass;
@@ -538,6 +645,7 @@ static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         ret = models_render(pl->renderer, mq,
                             .shader_override  = pass->prog_override,
                             .taa              = taa,
+                            .variants_stale   = pass->prog_override ? NULL : &pl->shaders_stale,
                             .render_options   = pl->render_options,
                             .near_plane       = params.near_plane,
                             .far_plane        = params.far_plane,

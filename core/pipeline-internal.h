@@ -38,6 +38,11 @@ struct pipeline {
      * before trusting the contents
      */
     bool                history_valid;
+    /*
+     * A camera pass drew a variant-managed model whose composed mask
+     * diverged from its prog's; pipeline_shaders_resolve() clears it
+     */
+    bool                shaders_stale;
 
     PIPELINE_DEBUG_DATA;
 };
