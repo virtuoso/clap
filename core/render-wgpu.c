@@ -934,7 +934,6 @@ static void wgpu_texture_bind(texture_t *tex, unsigned int target, uniform_t uni
     if (slot >= BINDING_TEXTURE_MAX)    return;
 
     r->wgpu.bound_textures[slot] = tex;
-    r->wgpu.dc->wgpu.shader->wgpu.binding_mask |= 3ull << target;
 }
 
 
@@ -2192,8 +2191,10 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
     // Re-set pipeline in case blend state changed since shader_use()
     wgpuRenderPassEncoderSetPipeline(enc, pipeline);
 
-    // Build bind group from currently bound resources, filtered by the shader's
-    // binding mask so we only include entries the pipeline layout expects
+    // Build bind group from the resources bound for this draw: shader_use()
+    // cleared them, so what's here is what this shader plugged, which is what
+    // its auto layout contains. UBOs additionally filter by the shader's
+    // binding mask, which reflection fills in per shader at link time.
     uint64_t mask = r->wgpu.dc->wgpu.shader->wgpu.binding_mask;
     WGPUBindGroupEntry entries[BINDING_TEXTURE_MAX * 2 + BINDING_UBO_MAX];
     unsigned int n = 0;
@@ -2204,8 +2205,6 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
             continue;
 
         unsigned int image_binding = i * 2;
-        if (!(mask & (1ull << image_binding)))
-            continue;
 
         entries[n++] = (WGPUBindGroupEntry) {
             .binding        = image_binding,
