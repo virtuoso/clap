@@ -30,6 +30,29 @@ typedef struct renderer_caps {
     bool            origin_top_left;
 } renderer_caps;
 
+/** RENDERER_PASS_TIMERS_MAX - passes a backend can time on the GPU in one frame */
+#define RENDERER_PASS_TIMERS_MAX 64
+
+#ifndef CONFIG_FINAL
+/**
+ * struct renderer_pass_times - how long each pass took on the GPU
+ * @names:      pass labels, borrowed from the fbos, not owned
+ * @ms:         GPU time per pass, in milliseconds
+ * @count:      passes timed
+ * @total_ms:   the whole frame where a backend can only measure that much,
+ *              0 when it can't measure at all
+ *
+ * Filled in by whichever backend can measure it and displayed by the shared
+ * "renderer" debug module.
+ */
+typedef struct renderer_pass_times {
+    const char      *names[RENDERER_PASS_TIMERS_MAX];
+    float           ms[RENDERER_PASS_TIMERS_MAX];
+    unsigned int    count;
+    float           total_ms;
+} renderer_pass_times;
+#endif /* !CONFIG_FINAL */
+
 #ifdef CONFIG_RENDERER_OPENGL
 # ifdef IMPLEMENTOR
 #  if defined(CONFIG_BROWSER) || defined(CONFIG_GLES)
@@ -75,6 +98,7 @@ typedef id<MTLLibrary> mtl_library_t;
 typedef id<MTLFunction> mtl_function_t;
 typedef id<MTLCommandQueue> mtl_command_queue_t;
 typedef id<MTLCommandBuffer> mtl_command_buffer_t;
+typedef id<MTLCounterSampleBuffer> mtl_counter_sample_buffer_t;
 typedef id<MTLRenderCommandEncoder> mtl_render_command_encoder_t;
 typedef MTLRenderPassDescriptor *mtl_render_pass_descriptor_t;
 typedef MTLRenderPipelineDescriptor *mtl_render_pipeline_descriptor_t;
@@ -96,6 +120,7 @@ typedef void *mtl_library_t;
 typedef void *mtl_function_t;
 typedef void *mtl_command_queue_t;
 typedef void *mtl_command_buffer_t;
+typedef void *mtl_counter_sample_buffer_t;
 typedef void *mtl_render_command_encoder_t;
 typedef void *mtl_render_pass_descriptor_t;
 typedef void *mtl_render_pipeline_descriptor_t;
@@ -977,9 +1002,39 @@ TYPE(renderer,
         double                              cmdbuf_time;
         int                                 cmdbuf_count;
         int                                 frame_idx;
+#ifndef CONFIG_FINAL
+        /*
+         * Per-pass GPU timestamps, sampled at encoder stage boundaries
+         * into one counter buffer per in-flight frame. Absent when the
+         * device can't sample counters at stage boundaries, and then only
+         * the whole command buffer's GPU time is available.
+         */
+        mtl_counter_sample_buffer_t         ts_bufs[MTL_INFLIGHT_FRAMES];
+        const char                          *ts_names[MTL_INFLIGHT_FRAMES][RENDERER_PASS_TIMERS_MAX];
+        /* GPU ticks -> nanoseconds, from a CPU/GPU timestamp correlation */
+        double                              ts_period;
+        uint64_t                            ts_cpu0;
+        uint64_t                            ts_gpu0;
+        /*
+         * Results per in-flight slot, written by that command buffer's
+         * completion handler, which then publishes the slot in @ts_ready
+         * (-1 until the first one completes, accessed through the __atomic
+         * builtins); renderer_frame_advance() copies the published slot
+         * into renderer::pass_times on the main thread. A slot is only
+         * rewritten after the main thread has waited for its previous
+         * command buffer, so the copy never races the handler.
+         */
+        renderer_pass_times                 ts_results[MTL_INFLIGHT_FRAMES];
+        int                                 ts_ready;
+        unsigned int                        ts_count[MTL_INFLIGHT_FRAMES];
+#endif /* !CONFIG_FINAL */
         bool                                hdr;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+#ifndef CONFIG_FINAL
+    /* last completed frame's GPU times, written on the main thread only */
+    renderer_pass_times pass_times;
+#endif /* !CONFIG_FINAL */
 );
 
 int renderer_query_limits(renderer_t *renderer, render_limit limit);

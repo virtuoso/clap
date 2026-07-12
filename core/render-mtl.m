@@ -1076,6 +1076,137 @@ static void mtl_fbo_destroy(fbo_t *fbo)
     mem_free(fbo->color_config);
 }
 
+#ifndef CONFIG_FINAL
+/*
+ * Per-pass GPU timing: one timestamp counter buffer per in-flight frame,
+ * sampled at each render encoder's stage boundaries. Needs a device that
+ * can sample counters there -- Apple silicon can, older discrete GPUs
+ * may not -- and without it only the command buffer's GPU time is left
+ * (mtl.cmdbuf_time), which the shared debug module falls back to.
+ */
+static void mtl_pass_timers_init(renderer_t *r)
+{
+    /* nothing has completed yet; the whole-frame time gets published regardless */
+    r->mtl.ts_ready = -1;
+
+    if (![r->mtl.device supportsCounterSampling:MTLCounterSamplingPointAtStageBoundary])    return;
+
+    id<MTLCounterSet> timestamps = nil;
+    for (id<MTLCounterSet> cs in r->mtl.device.counterSets)
+        if ([cs.name isEqualToString:MTLCommonCounterSetTimestamp]) timestamps = cs;
+    if (!timestamps)    return;
+
+    MTLCounterSampleBufferDescriptor *desc = [[MTLCounterSampleBufferDescriptor alloc] init];
+    desc.counterSet = timestamps;
+    desc.storageMode = MTLStorageModeShared;
+    desc.sampleCount = RENDERER_PASS_TIMERS_MAX * 2;
+
+    for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++) {
+        NSError *err = nil;
+        r->mtl.ts_bufs[i] = [r->mtl.device newCounterSampleBufferWithDescriptor:desc error:&err];
+        if (!r->mtl.ts_bufs[i]) warn("counter sample buffer: %s\n", [[err localizedDescription] UTF8String]);
+    }
+    [desc release];
+
+    /* first half of the CPU/GPU correlation; the ratio needs two points */
+    [r->mtl.device sampleTimestamps:&r->mtl.ts_cpu0 gpuTimestamp:&r->mtl.ts_gpu0];
+}
+
+static void mtl_pass_timers_done(renderer_t *r)
+{
+    for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++) {
+        [r->mtl.ts_bufs[i] release];
+        r->mtl.ts_bufs[i] = nil;
+    }
+}
+
+/* Attach this frame's counter buffer to a pass about to be encoded */
+static void mtl_pass_ts_attach(renderer_t *r, fbo_t *fbo)
+{
+    unsigned int slot = r->mtl.frame_idx;
+    unsigned int n = r->mtl.ts_count[slot];
+
+    if (!r->mtl.ts_bufs[slot] || n >= RENDERER_PASS_TIMERS_MAX) {
+        fbo->mtl.desc.sampleBufferAttachments[0].sampleBuffer = nil;
+        return;
+    }
+
+    /*
+     * Fragment stage boundaries, not vertex-start to fragment-end: this
+     * is a tile-based GPU, so a pass's vertex/tiling work runs far ahead
+     * of its fragment work and spanning both measures the overlap rather
+     * than the pass -- the per-pass numbers then sum to several times the
+     * command buffer's own GPU time. The fragment stage is where a pass
+     * spends its time here anyway.
+     */
+    auto att = fbo->mtl.desc.sampleBufferAttachments[0];
+    att.sampleBuffer = r->mtl.ts_bufs[slot];
+    att.startOfVertexSampleIndex = MTLCounterDontSample;
+    att.endOfVertexSampleIndex = MTLCounterDontSample;
+    att.startOfFragmentSampleIndex = n * 2;
+    att.endOfFragmentSampleIndex = n * 2 + 1;
+
+    r->mtl.ts_names[slot][n] = fbo->mtl.name;
+    r->mtl.ts_count[slot] = n + 1;
+}
+
+/* The command buffer has completed: resolve its samples into @res */
+static void mtl_pass_ts_resolve(renderer_t *r, unsigned int slot, unsigned int n, renderer_pass_times *res)
+{
+    /*
+     * Refresh the correlation each time: one pair at init and one now
+     * gives nanoseconds per GPU tick, which is all a duration needs
+     */
+    uint64_t cpu1, gpu1;
+    [r->mtl.device sampleTimestamps:&cpu1 gpuTimestamp:&gpu1];
+    if (gpu1 > r->mtl.ts_gpu0 && cpu1 > r->mtl.ts_cpu0)
+        r->mtl.ts_period = (double)(cpu1 - r->mtl.ts_cpu0) / (double)(gpu1 - r->mtl.ts_gpu0);
+
+    NSData *data = [r->mtl.ts_bufs[slot] resolveCounterRange:NSMakeRange(0, n * 2)];
+    if (!data || !r->mtl.ts_period) return;
+
+    const MTLCounterResultTimestamp *ts = data.bytes;
+    unsigned int count = 0;
+
+    for (unsigned int i = 0; i < n; i++) {
+        uint64_t begin = ts[i * 2].timestamp, end = ts[i * 2 + 1].timestamp;
+
+        /* MTLCounterErrorValue marks a sample the GPU didn't write */
+        if (begin == MTLCounterErrorValue || end == MTLCounterErrorValue || end < begin)    continue;
+
+        res->names[count] = r->mtl.ts_names[slot][i];
+        res->ms[count] = (float)((double)(end - begin) * r->mtl.ts_period / 1e6);
+        count++;
+    }
+
+    res->count = count;
+}
+
+/*
+ * Completion handler side: fill in the slot's results and publish it.
+ * Runs before the in-flight semaphore is signalled, so the main thread
+ * can't start recording into this slot (mtl_pass_ts_attach()) while the
+ * names are still being read here
+ */
+static void mtl_pass_ts_collect(renderer_t *r, unsigned int slot, double cmdbuf_time)
+{
+    renderer_pass_times *res = &r->mtl.ts_results[slot];
+    unsigned int n = r->mtl.ts_count[slot];
+
+    /* whole-frame GPU time, and all there is without stage sampling */
+    res->total_ms = (float)(cmdbuf_time * 1000.0);
+    res->count = 0;
+    if (r->mtl.ts_bufs[slot] && n)     mtl_pass_ts_resolve(r, slot, n, res);
+
+    __atomic_store_n(&r->mtl.ts_ready, (int)slot, __ATOMIC_RELEASE);
+}
+#else
+static inline void mtl_pass_timers_init(renderer_t *r) {}
+static inline void mtl_pass_timers_done(renderer_t *r) {}
+static inline void mtl_pass_ts_attach(renderer_t *r, fbo_t *fbo) {}
+static inline void mtl_pass_ts_collect(renderer_t *r, unsigned int slot, double cmdbuf_time) {}
+#endif /* CONFIG_FINAL */
+
 static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
 {
     if (r->mtl.cmd_buffer)  return r->mtl.cmd_buffer;
@@ -1083,17 +1214,28 @@ static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
     /* create cmd_buffer if necessary */
     dispatch_semaphore_wait(r->mtl.sem, DISPATCH_TIME_FOREVER);
     r->mtl.cmdbuf_count++;
+#ifndef CONFIG_FINAL
+    /*
+     * The wait guarantees that this slot's previous command buffer has
+     * completed and its timings are collected: it can be recorded into
+     */
+    r->mtl.ts_count[r->mtl.frame_idx] = 0;
+#endif /* !CONFIG_FINAL */
 
     r->mtl.cmd_buffer = [r->mtl.cmd_queue commandBuffer];
     [r->mtl.cmd_buffer enqueue];
     [r->mtl.cmd_buffer setLabel:[NSString stringWithFormat:@"cmd_buffer:%d", r->mtl.frame_idx]];
 
+    unsigned int ts_slot = r->mtl.frame_idx;
+
     [r->mtl.cmd_buffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
         if (cb.error)
             err("MTL error (%s): %s\n", [[cb.label localizedLowercaseString] UTF8String], [[cb.error localizedDescription] UTF8String]);
-        dispatch_semaphore_signal(r->mtl.sem);
         r->mtl.cmdbuf_count--;
         r->mtl.cmdbuf_time = cb.GPUEndTime - cb.GPUStartTime;
+        /* before the signal: the main thread reuses this slot right after its wait */
+        mtl_pass_ts_collect(r, ts_slot, r->mtl.cmdbuf_time);
+        dispatch_semaphore_signal(r->mtl.sem);
     }];
 
     return r->mtl.cmd_buffer;
@@ -1108,6 +1250,7 @@ static void mtl_fbo_prepare(fbo_t *fbo)
 
     mtl_cmd_buffer(r);
 
+    mtl_pass_ts_attach(r, fbo);
     fbo->mtl.cmd_encoder = [r->mtl.cmd_buffer renderCommandEncoderWithDescriptor:fbo->mtl.desc];
     if (!fbo->mtl.cmd_encoder)  return;
 
@@ -1668,6 +1811,8 @@ static cerr mtl_renderer_init(renderer_t *r, const renderer_init_options *opts)
 
     r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeBack);
 
+    mtl_pass_timers_init(r);
+
     return CERR_OK;
 }
 
@@ -1680,6 +1825,8 @@ static void mtl_renderer_done(renderer_t *r)
 
     for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)
         dispatch_semaphore_signal(r->mtl.sem);
+
+    mtl_pass_timers_done(r);
 
     [r->mtl.sem release];
 
@@ -1781,6 +1928,15 @@ static void renderer_frame_advance(renderer_t *r)
 {
     r->mtl.nr_draws = 0;
     r->mtl.frame_idx = (r->mtl.frame_idx + 1) % MTL_INFLIGHT_FRAMES;
+#ifndef CONFIG_FINAL
+    /*
+     * The newest completed command buffer's timings, published by its
+     * completion handler; the slot can't be rewritten before this thread
+     * records MTL_INFLIGHT_FRAMES more frames, so the copy is race-free
+     */
+    int ready = __atomic_load_n(&r->mtl.ts_ready, __ATOMIC_ACQUIRE);
+    if (ready >= 0)     r->pass_times = r->mtl.ts_results[ready];
+#endif /* !CONFIG_FINAL */
 
     uniform_buffer_t *ubo;
     list_for_each_entry(ubo, &r->mtl.ubos, mtl.entry) {

@@ -180,8 +180,61 @@ void renderer_swapchain_end(renderer_t *r)
     r->ops->swapchain_end(r);
 }
 
+#ifndef CONFIG_FINAL
+#include "ui-debug.h"
+
+/*
+ * Per-pass GPU times, for whichever backend filled renderer::pass_times
+ * in. The plot history has to keep running while the window is folded
+ * away, or it comes back empty.
+ */
+static void renderer_pass_times_debug(renderer_t *r)
+{
+    static debug_plot pass_plots[RENDERER_PASS_TIMERS_MAX], total_plot = {
+        .fmt        = "total: %.3f ms",
+        .scale_max  = 16.0,
+        .size       = { 200.0, 40.0 },
+    };
+    static char pass_fmts[RENDERER_PASS_TIMERS_MAX][64];
+    static char pass_labels[RENDERER_PASS_TIMERS_MAX][16];
+    float total = 0.0;
+
+    for (unsigned int i = 0; i < r->pass_times.count; i++) {
+        debug_plot *plot = &pass_plots[i];
+
+        snprintf(pass_fmts[i], sizeof(pass_fmts[i]), "%s: %%.3f ms",
+                 r->pass_times.names[i]);
+        snprintf(pass_labels[i], sizeof(pass_labels[i]), "##p%u", i);
+        plot->fmt = pass_fmts[i];
+        plot->scale_max = 8.0;
+        plot->size[0] = 200.0;
+        plot->size[1] = 40.0;
+        debug_plot_push(plot, r->pass_times.ms[i]);
+        total += r->pass_times.ms[i];
+    }
+
+    /* backends that can only time the whole frame report just that */
+    if (!r->pass_times.count)   total = r->pass_times.total_ms;
+    if (total > 0.0)            debug_plot_push(&total_plot, total);
+
+    debug_module *dbgm = ui_igBegin(DEBUG_RENDERER, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if (!dbgm->display) return;
+
+    if (dbgm->unfolded) {
+        for (unsigned int i = 0; i < r->pass_times.count; i++)  ui_igDebugPlotLines(pass_labels[i], &pass_plots[i]);
+        if (total > 0.0)                                        ui_igDebugPlotLines("##ptotal", &total_plot);
+    }
+
+    ui_igEnd(DEBUG_RENDERER);
+}
+#endif /* !CONFIG_FINAL */
+
 void renderer_debug(renderer_t *r)
 {
+#ifndef CONFIG_FINAL
+    renderer_pass_times_debug(r);
+#endif /* !CONFIG_FINAL */
     if (!r->ops->debug) return;
     r->ops->debug(r);
 }
