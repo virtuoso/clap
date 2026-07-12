@@ -131,7 +131,6 @@ typedef WGPUDevice wgpu_device_t;
 typedef WGPUQueue wgpu_queue_t;
 typedef WGPURenderPassEncoder wgpu_render_pass_encoder_t;
 typedef WGPUSurface wgpu_surface_t;
-typedef WGPUSurfaceTexture wgpu_surface_texture_t;
 typedef WGPUTexture wgpu_texture_t;
 typedef WGPUTextureView wgpu_texture_view_t;
 typedef WGPUCommandEncoder wgpu_command_encoder_t;
@@ -153,7 +152,6 @@ typedef void *wgpu_device_t;
 typedef void *wgpu_queue_t;
 typedef void *wgpu_render_pass_encoder_t;
 typedef void *wgpu_surface_t;
-typedef void *wgpu_surface_texture_t;
 typedef void *wgpu_texture_t;
 typedef void *wgpu_texture_view_t;
 typedef void *wgpu_command_encoder_t;
@@ -928,8 +926,8 @@ TYPE(renderer,
         wgpu_queue_t                        queue;
         wgpu_command_encoder_t              cmd_encoder;
         wgpu_surface_t                      surface;
-        wgpu_surface_texture_t              surface_texture;
-        wgpu_texture_t                      texture;
+        /* this frame's swapchain texture, released again in present */
+        wgpu_texture_t                      surface_texture;
         wgpu_texture_view_t                 texture_view;
         wgpu_render_pass_encoder_t          pass_encoder;
         fbo_t                               *fbo;
@@ -1097,6 +1095,13 @@ static inline cerr wgpu_renderer_setup(renderer_t *rendnerer, const renderer_ini
 #endif /* !CONFIG_RENDERER_WGPU */
 
 typedef struct renderer_ops {
+    /*
+     * sizeof(renderer_t) as the implementing TU sees it. The backend
+     * sub-structs are made of typedefs that the non-IMPLEMENTOR side
+     * shims, and a size mismatch in any of them splits renderer_t into
+     * two layouts linked into one binary; checked in _renderer_init().
+     */
+    size_t              renderer_size;
     const renderer_caps *(*get_caps)(void);
     void                (*mat4x4_ortho)(mat4x4 M, float l, float r, float b, float t, float n, float f);
     void                (*mat4x4_perspective)(mat4x4 m, float y_fov, float aspect, float n, float f);

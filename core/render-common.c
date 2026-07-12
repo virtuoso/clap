@@ -113,6 +113,19 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
                                 );
     }
 
+    /*
+     * The backend TU defines IMPLEMENTOR and sees the real backend
+     * types in renderer_t where this TU sees same-size stand-ins; a
+     * stand-in whose size drifted splits renderer_t into two layouts.
+     */
+    if (renderer->ops->renderer_size != sizeof(renderer_t))
+        return CERR_INITIALIZATION_FAILED_REASON(
+            .fmt    = "%s sizeof(renderer_t) %zu != %zu: IMPLEMENTOR type shim drifted",
+            .arg0   = render_str[opts->backend],
+            .arg1   = (void *)renderer->ops->renderer_size,
+            .arg2   = (void *)sizeof(renderer_t)
+        );
+
     return renderer->ops->init(renderer, opts);
 }
 

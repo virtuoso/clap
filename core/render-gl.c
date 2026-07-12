@@ -96,6 +96,7 @@ static void gl_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 
 static const renderer_ops gl_renderer_ops = {
+    .renderer_size  = sizeof(renderer_t),
     .get_caps       = gl_renderer_get_caps,
     .query_limits   = gl_renderer_query_limits,
     .init           = gl_renderer_init,

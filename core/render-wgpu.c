@@ -102,6 +102,7 @@ static void wgpu_fbo_destroy(fbo_t *fbo);
 static void wgpu_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 static const renderer_ops wgpu_renderer_ops = {
+    .renderer_size  = sizeof(renderer_t),
     .get_caps       = wgpu_renderer_get_caps,
     .query_limits   = wgpu_renderer_query_limits,
     .init           = wgpu_renderer_init,
@@ -1876,11 +1877,15 @@ static cerr wgpu_create_surface(renderer_t *r)
 
 static cerr wgpu_create_texture_view(renderer_t *r)
 {
-    wgpuSurfaceGetCurrentTexture(r->wgpu.surface, &r->wgpu.surface_texture);
-    if (!r->wgpu.surface_texture.texture) return CERR_INITIALIZATION_FAILED_REASON(.fmt = "surface texture == NULL");
+    WGPUSurfaceTexture surface_texture = {};
 
-    if (r->wgpu.surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal)
+    wgpuSurfaceGetCurrentTexture(r->wgpu.surface, &surface_texture);
+    if (!surface_texture.texture)   return CERR_INITIALIZATION_FAILED_REASON(.fmt = "surface texture == NULL");
+
+    if (surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal)
         dbg("suboptimal surface texture: handle me\n");
+
+    r->wgpu.surface_texture = surface_texture.texture;
 
     WGPUTextureViewDescriptor view_desc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
     view_desc.format = wgpu_swapchain_format(r);
@@ -1889,7 +1894,7 @@ static cerr wgpu_create_texture_view(renderer_t *r)
     view_desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
     view_desc.aspect = WGPUTextureAspect_All;
 
-    r->wgpu.texture_view = wgpuTextureCreateView(r->wgpu.surface_texture.texture, &view_desc);
+    r->wgpu.texture_view = wgpuTextureCreateView(r->wgpu.surface_texture, &view_desc);
     return r->wgpu.texture_view ? CERR_OK : CERR_INVALID_OPERATION_REASON(.fmt = "failed to create surface texture view");
 }
 
@@ -2035,14 +2040,13 @@ static void wgpu_renderer_frame_end(renderer_t *r)
 
     if (r->wgpu.texture_view)
         wgpuTextureViewRelease(r->wgpu.texture_view);
-    if (r->wgpu.surface_texture.texture)
-        wgpuTextureRelease(r->wgpu.surface_texture.texture);
+    if (r->wgpu.surface_texture)    wgpuTextureRelease(r->wgpu.surface_texture);
     wgpuCommandEncoderRelease(r->wgpu.cmd_encoder);
     wgpuCommandBufferRelease(cmd_buffer);
 
     r->wgpu.cmd_encoder = NULL;
     r->wgpu.texture_view = NULL;
-    r->wgpu.surface_texture.texture = NULL;
+    r->wgpu.surface_texture = NULL;
 }
 
 wgpu_device_t renderer_device(renderer_t *r)

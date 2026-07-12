@@ -96,6 +96,7 @@ static void mtl_fbo_destroy(fbo_t *fbo);
 static void mtl_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 static const renderer_ops mtl_renderer_ops = {
+    .renderer_size  = sizeof(renderer_t),
     .get_caps       = mtl_renderer_get_caps,
     .query_limits   = mtl_renderer_query_limits,
     .init           = mtl_renderer_init,
