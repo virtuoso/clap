@@ -32,6 +32,8 @@ typedef struct renderer_caps {
 
 /** RENDERER_PASS_TIMERS_MAX - passes a backend can time on the GPU in one frame */
 #define RENDERER_PASS_TIMERS_MAX 64
+/** GL_INFLIGHT_FRAMES - depth of the GL timer query ring: results trail by frames on WebGL */
+#define GL_INFLIGHT_FRAMES 4
 
 #ifndef CONFIG_FINAL
 /**
@@ -679,6 +681,7 @@ TYPE(fbo,
     fbo_attachment  layout;
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
+        const char      *name;
         unsigned int    fbo;
         int             color_buf[FBO_COLOR_ATTACHMENTS_MAX];
         int             depth_buf;
@@ -941,6 +944,24 @@ TYPE(renderer,
         uint32_t            no_blend_mask;
         /* Number of color attachments the currently bound FBO exposes */
         unsigned int        nr_color_targets;
+#ifndef CONFIG_FINAL
+        /*
+         * Per-pass GL_TIME_ELAPSED queries; results land in
+         * renderer::pass_times. A deeper ring than the other backends'
+         * in-flight counts: query results trail by several frames on
+         * WebGL, and an unavailable slot just skips a publish.
+         */
+        unsigned int        ts_count[GL_INFLIGHT_FRAMES];
+        GLuint              ts_queries[GL_INFLIGHT_FRAMES][RENDERER_PASS_TIMERS_MAX];
+        const char          *ts_names[GL_INFLIGHT_FRAMES][RENDERER_PASS_TIMERS_MAX];
+        /* first fbo of the pass cycle: its reappearance marks a new frame */
+        fbo_t               *ts_first_fbo;
+        /* the fbo whose query is open (NULL: the swapchain pass) */
+        fbo_t               *ts_fbo;
+        unsigned int        ts_frame;
+        bool                ts_open;
+        bool                ts_supported;
+#endif /* !CONFIG_FINAL */
     } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
 #ifdef CONFIG_RENDERER_WGPU

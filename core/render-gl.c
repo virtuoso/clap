@@ -32,9 +32,11 @@ static void gl_renderer_set_version(renderer_t *r, int major, int minor, rendere
 static void gl_renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 static void gl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 static void gl_renderer_swapchain_begin(renderer_t *r);
+static void gl_renderer_swapchain_end(renderer_t *r);
 #ifndef CONFIG_FINAL
 static void gl_renderer_debug(renderer_t *r);
 #endif
+static void gl_renderer_done(renderer_t *r);
 static void gl_renderer_cull_face(renderer_t *r, cull_face cull);
 static void gl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
 static cerr gl_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
@@ -104,6 +106,8 @@ static const renderer_ops gl_renderer_ops = {
     .viewport       = gl_renderer_viewport,
     .get_viewport   = gl_renderer_get_viewport,
     .swapchain_begin = gl_renderer_swapchain_begin,
+    .swapchain_end  = gl_renderer_swapchain_end,
+    .done           = gl_renderer_done,
 #ifndef CONFIG_FINAL
     .debug          = gl_renderer_debug,
 #endif
@@ -1201,6 +1205,132 @@ static void renderer_depth_test(renderer_t *r, bool enable)
 }
 
 #define NR_TARGETS FBO_COLOR_ATTACHMENTS_MAX
+#ifndef CONFIG_FINAL
+/*
+ * Per-pass GPU times from GL_TIME_ELAPSED queries; the results land in
+ * renderer::pass_times. Timer queries are core desktop GL (3.3, and the
+ * engine's floor is 4.1); GLES and WebGL2 only have them through
+ * EXT_disjoint_timer_query{,_webgl2}, detected at init -- browsers have
+ * been known to switch it off. Only one query can be measuring at a
+ * time, which matches the pass structure; results are read a few frames
+ * later from a ring, never synchronously.
+ */
+#ifndef GL_TIME_ELAPSED
+#define GL_TIME_ELAPSED GL_TIME_ELAPSED_EXT
+#endif /* !GL_TIME_ELAPSED */
+
+static inline void gl_query_result64(GLuint query, GLuint64 *result)
+{
+#ifdef CONFIG_GLES
+    GL(glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT, result));
+#else
+    GL(glGetQueryObjectui64v(query, GL_QUERY_RESULT, result));
+#endif /* !CONFIG_GLES */
+}
+
+static void gl_pass_ts_collect(renderer_t *r, unsigned int slot);
+
+static void gl_pass_timers_init(renderer_t *r)
+{
+    msg("GL timer queries: %s\n", r->gl.ts_supported ? "available" : "not available");
+    if (!r->gl.ts_supported)    return;
+
+    for (int slot = 0; slot < GL_INFLIGHT_FRAMES; slot++)
+        GL(glGenQueries(RENDERER_PASS_TIMERS_MAX, r->gl.ts_queries[slot]));
+}
+
+static void gl_pass_timers_done(renderer_t *r)
+{
+    if (!r->gl.ts_supported)    return;
+
+    for (int slot = 0; slot < GL_INFLIGHT_FRAMES; slot++)
+        GL(glDeleteQueries(RENDERER_PASS_TIMERS_MAX, r->gl.ts_queries[slot]));
+}
+
+static void gl_pass_ts_begin(renderer_t *r, fbo_t *fbo, const char *name)
+{
+    unsigned int slot, n;
+
+    if (!r->gl.ts_supported || r->gl.ts_open)   return;
+
+    /*
+     * Frame boundary: the pass cycle wrapped around to its first fbo.
+     * There is no per-frame renderer hook to borrow here -- in the
+     * browser build's steady state ASYNCIFY keeps the loop inside the
+     * frame, so clap.c's frame prologue/epilogue and even pipeline.c's
+     * swapchain_begin run only during the first frames, while the fbo
+     * passes keep coming. The count cap doubles as a forced boundary so
+     * a stream without a recognizable cycle can't wedge the ring.
+     */
+    slot = r->gl.ts_frame;
+    if ((fbo && fbo == r->gl.ts_first_fbo && r->gl.ts_count[slot]) ||
+        r->gl.ts_count[slot] >= RENDERER_PASS_TIMERS_MAX) {
+        slot = r->gl.ts_frame = (r->gl.ts_frame + 1) % GL_INFLIGHT_FRAMES;
+        gl_pass_ts_collect(r, slot);
+        r->gl.ts_count[slot] = 0;
+    }
+    if (fbo && !r->gl.ts_first_fbo) r->gl.ts_first_fbo = fbo;
+
+    n = r->gl.ts_count[slot];
+    r->gl.ts_names[slot][n] = name;
+    r->gl.ts_fbo = fbo;
+    GL(glBeginQuery(GL_TIME_ELAPSED, r->gl.ts_queries[slot][n]));
+    r->gl.ts_open = true;
+}
+
+/* Only the pass that opened the query closes it: a nested pass isn't timed */
+static void gl_pass_ts_end(renderer_t *r, fbo_t *fbo)
+{
+    unsigned int slot = r->gl.ts_frame;
+    unsigned int n = r->gl.ts_count[slot];
+
+    if (!r->gl.ts_supported || !r->gl.ts_open || fbo != r->gl.ts_fbo || n >= RENDERER_PASS_TIMERS_MAX)  return;
+
+    GL(glEndQuery(GL_TIME_ELAPSED));
+    r->gl.ts_count[slot] = n + 1;
+    r->gl.ts_open = false;
+}
+
+/* About to reuse @slot's queries: their results are normally in by now */
+static void gl_pass_ts_collect(renderer_t *r, unsigned int slot)
+{
+    unsigned int n = r->gl.ts_count[slot];
+    GLuint available = 0;
+
+    if (!r->gl.ts_supported || !n)  return;
+
+    /* queries complete in order: the last one available means all are */
+    GL(glGetQueryObjectuiv(r->gl.ts_queries[slot][n - 1],
+                           GL_QUERY_RESULT_AVAILABLE, &available));
+    if (!available) return;
+
+    for (unsigned int i = 0; i < n; i++) {
+        GLuint64 ns = 0;
+
+        gl_query_result64(r->gl.ts_queries[slot][i], &ns);
+        r->pass_times.names[i] = r->gl.ts_names[slot][i];
+        r->pass_times.ms[i] = (float)((double)ns / 1e6);
+    }
+
+    r->pass_times.count = n;
+}
+#else
+static inline void gl_pass_timers_init(renderer_t *r) {}
+static inline void gl_pass_timers_done(renderer_t *r) {}
+static inline void gl_pass_ts_begin(renderer_t *r, fbo_t *fbo, const char *name) {}
+static inline void gl_pass_ts_end(renderer_t *r, fbo_t *fbo) {}
+#endif /* CONFIG_FINAL */
+
+static void gl_renderer_swapchain_end(renderer_t *r)
+{
+    gl_pass_ts_end(r, NULL);
+}
+
+static void gl_renderer_done(renderer_t *r)
+{
+    gl_pass_timers_done(r);
+}
+
 static void gl_fbo_prepare(fbo_t *fbo)
 {
     GLenum buffers[NR_TARGETS];
@@ -1256,10 +1386,13 @@ static void gl_fbo_prepare(fbo_t *fbo)
     }
 
     renderer_depth_test(fbo->renderer, depth_test);
+
+    gl_pass_ts_begin(r, fbo, fbo->gl.name);
 }
 
 static void gl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
+    gl_pass_ts_end(fbo->renderer, fbo);
     fbo_invalidate(fbo);
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, width, height));
@@ -1301,6 +1434,10 @@ static void gl_fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment atta
 
 static void gl_fbo_destroy(fbo_t *fbo)
 {
+#ifndef CONFIG_FINAL
+    /* a rebuilt pipeline's fbo could alias the stale pointer */
+    if (fbo->renderer && fbo->renderer->gl.ts_first_fbo == fbo) fbo->renderer->gl.ts_first_fbo = NULL;
+#endif /* !CONFIG_FINAL */
     GL(glDeleteFramebuffers(1, &fbo->gl.fbo));
     /* if the texture was cloned, its ->loaded==false making this a nop */
     fa_for_each(fa, fbo->layout, texture)
@@ -1385,6 +1522,7 @@ static cresp(fbo_t) gl_fbo_new(const fbo_init_options *opts)
         return cresp_error(fbo_t, CERR_NOMEM);
 
     fbo->gl.depth_buf = -1;
+    fbo->gl.name      = opts->name ? : "<unset>";
     fbo->renderer     = opts->renderer;
     fbo->width        = opts->width;
     fbo->height       = opts->height;
@@ -1703,7 +1841,17 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
     for (i = 0; i < nr_exts; i++) {
         GL(ext = glGetStringi(GL_EXTENSIONS, i));
         msg("GL extension: '%s'\n", ext);
+#if !defined(CONFIG_FINAL) && defined(CONFIG_GLES)
+        /* matches EXT_disjoint_timer_query and its _webgl2 flavor */
+        if (strstr((const char *)ext, "EXT_disjoint_timer_query"))  renderer->gl.ts_supported = true;
+#endif /* !CONFIG_FINAL && CONFIG_GLES */
     }
+
+#if !defined(CONFIG_FINAL) && !defined(CONFIG_GLES)
+    /* timer queries are core desktop GL since 3.3; the engine floor is 4.1 */
+    renderer->gl.ts_supported = true;
+#endif /* !CONFIG_FINAL && !CONFIG_GLES */
+    gl_pass_timers_init(renderer);
 
 #ifdef __APPLE__
     const char *renderer_str = (const char *)glGetString(GL_RENDERER);
@@ -2102,4 +2250,6 @@ static void gl_renderer_swapchain_begin(renderer_t *renderer)
     renderer_clear(renderer, false, true, false);
     renderer_depth_func(renderer, DEPTH_FN_ALWAYS);
     renderer_depth_test(renderer, false);
+
+    gl_pass_ts_begin(renderer, NULL, "swapchain");
 }
