@@ -37,13 +37,114 @@ DEFINE_REFCLASS2(_type)
 
 DEFINE_RENDERER_REFCLASS(buffer,,       r_op(x, buf_deinit)(x));
 DEFINE_RENDERER_REFCLASS(vertex_array,, if (r_op(x, va_done)) r_op(x, va_done)(x));
-DEFINE_RENDERER_REFCLASS(draw_control,  r_op(x, dc_init)(x, opts), if (r_op(x, dc_done)) r_op(x, dc_done)(x));
 DEFINE_RENDERER_REFCLASS(texture,,      r_op(x, tex_deinit)(x));
-DEFINE_RENDERER_REFCLASS(fbo,,          r_op(x, fbo_destroy)(x));
+DEFINE_RENDERER_REFCLASS(fbo,, {
+    draw_control_cache_drop(x->renderer, x);
+    r_op(x, fbo_destroy)(x);
+});
 DEFINE_RENDERER_REFCLASS(uniform_buffer,
     if (opts->binding < 0) return CERR_INVALID_ARGUMENTS,
     r_op(x, ubo_destroy)(x)
 );
+
+/****************************************************************************
+ * Draw control cache
+ *
+ * One per renderer (renderer_t::dc_cache), holding the only reference to
+ * each draw_control. Entries are keyed on (shader, render target shape)
+ * and dropped with the fbo or shader they were created against, so a
+ * rebuilt pipeline doesn't leave stale pipelines behind.
+ ****************************************************************************/
+
+static cerr draw_control_make(struct ref *ref, void *_opts)
+{
+    draw_control_t *dc = container_of(ref, draw_control_t, ref);
+    rc_init_opts(draw_control) *opts = _opts;
+    renderer_t *r = opts->renderer;
+    fbo_t *fbo = opts->fbo;
+
+    if (!r || !opts->shader)    return CERR_INVALID_ARGUMENTS;
+
+    dc->renderer    = r;
+    dc->shader      = opts->shader;
+    dc->fbo         = fbo;
+    if (fbo) {
+        memcpy(dc->att_map, fbo->att_map, sizeof(dc->att_map));
+        dc->no_blend_mask   = fbo->no_blend_mask;
+        dc->nr_samples      = fbo->nr_samples ? : 1;
+        dc->has_depth       = fbo->layout.depth_texture;
+        if (dc->has_depth) {
+            dc->depth_format = fbo->depth_config.format;
+            dc->depth_fn     = fbo->depth_config.depth_func;
+        }
+    } else {
+        dc->nr_samples      = 1;
+        dc->swapchain_gen   = r->swapchain_gen;
+    }
+
+    CERR_RET_CERR(r->ops->dc_init(dc, opts));
+
+    list_append(&r->dc_cache, &dc->cache_entry);
+    list_append(&dc->shader->dc_list, &dc->shader_entry);
+
+    return CERR_OK;
+}
+
+static void draw_control_drop(struct ref *ref)
+{
+    draw_control_t *dc = container_of(ref, draw_control_t, ref);
+
+    err_on(!dc->renderer, "no renderer\n");
+    if (!dc->renderer)  return;
+
+    list_del(&dc->cache_entry);
+    list_del(&dc->shader_entry);
+    if (dc->renderer->ops->dc_done) dc->renderer->ops->dc_done(dc);
+}
+
+DEFINE_REFCLASS2(draw_control);
+
+static bool draw_control_matches(draw_control_t *dc, fbo_t *fbo, shader_t *shader,
+                                 unsigned int swapchain_gen)
+{
+    if (dc->shader != shader || !dc->fbo != !fbo)   return false;
+    if (!fbo)                                       return dc->swapchain_gen == swapchain_gen;
+
+    if (memcmp(dc->att_map, fbo->att_map, sizeof(dc->att_map)) ||
+        dc->no_blend_mask != fbo->no_blend_mask ||
+        dc->nr_samples != (fbo->nr_samples ? : 1) ||
+        dc->has_depth != (bool)fbo->layout.depth_texture)
+        return false;
+
+    return !dc->has_depth || (dc->depth_format == fbo->depth_config.format &&
+                              dc->depth_fn == fbo->depth_config.depth_func);
+}
+
+cresp(draw_control) draw_control_get(renderer_t *r, fbo_t *fbo, shader_t *shader)
+{
+    draw_control_t *dc;
+
+    list_for_each_entry(dc, &r->dc_cache, cache_entry)
+        if (draw_control_matches(dc, fbo, shader, r->swapchain_gen))    return cresp_val(draw_control, dc);
+
+    return ref_new_checked(draw_control, .renderer = r, .fbo = fbo, .shader = shader);
+}
+
+void draw_control_cache_drop(renderer_t *r, fbo_t *fbo)
+{
+    draw_control_t *dc, *iter;
+
+    list_for_each_entry_iter(dc, iter, &r->dc_cache, cache_entry)
+        if (dc->fbo == fbo) ref_put_last(dc);
+}
+
+void draw_control_cache_done(renderer_t *r)
+{
+    draw_control_t *dc, *iter;
+
+    list_for_each_entry_iter(dc, iter, &r->dc_cache, cache_entry)
+        ref_put_last(dc);
+}
 
 static const char *render_str[RENDER_MAX] = {
     [RENDER_OPENGL] = "OpenGL",
@@ -102,6 +203,7 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
         );
 
     memset(renderer, 0, sizeof(*renderer));
+    list_init(&renderer->dc_cache);
 
     switch (opts->backend) {
         case RENDER_OPENGL:     CERR_RET_CERR(gl_renderer_setup(renderer, opts));   break;
@@ -329,20 +431,6 @@ void vertex_array_unbind(vertex_array_t *va)
     va->renderer->ops->va_unbind(va);
 }
 
-cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
-{
-    renderer_t *r = opts->renderer;
-    cerr err = r->ops->dc_init(dc, opts);
-    dc->renderer = r;
-    return err;
-}
-
-void draw_control_done(draw_control_t *dc)
-{
-    if (!dc->renderer || !dc->renderer->ops->dc_done)    return;
-    dc->renderer->ops->dc_done(dc);
-}
-
 void draw_control_bind(draw_control_t *dc)
 {
     if (!dc->renderer || !dc->renderer->ops->dc_bind)    return;
@@ -542,11 +630,29 @@ bool fbo_texture_supported(renderer_t *r, texture_format format)
     return r->ops->fbo_tex_supported(r, format);
 }
 
+/* pack the attachment formats and no_blend bits into the fbo's pipeline key */
+static void fbo_att_map_init(fbo_t *fbo)
+{
+    unsigned int nr = fa_nr_color_buffer(fbo->layout) ? : fa_nr_color_texture(fbo->layout);
+
+    for (unsigned int idx = 0; idx < nr; idx++) {
+        /* offset by one: an empty slot must not read as TEX_FMT_DEFAULT */
+        fbo->att_map[idx / ATTACHMENTS_PER_LONG] |=
+            (unsigned long)(fbo->color_config[idx].format + 1) <<
+            ((idx % ATTACHMENTS_PER_LONG) * TEX_FMT_BITS);
+        if (fbo->color_config[idx].no_blend)    fbo->no_blend_mask |= 1u << idx;
+    }
+}
+
 cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
 {
     if (!opts || !opts->renderer)
         return cresp_error(fbo_t, CERR_INVALID_ARGUMENTS);
-    return opts->renderer->ops->fbo_create(opts);
+
+    fbo_t *fbo = CRES_RET_T(opts->renderer->ops->fbo_create(opts), fbo_t);
+    fbo_att_map_init(fbo);
+
+    return cresp_val(fbo_t, fbo);
 }
 
 /****************************************************************************
@@ -601,13 +707,24 @@ cerr shader_init(renderer_t *r, shader_t *shader,
                  const char *geometry, size_t geom_size,
                  const char *fragment, size_t frag_size)
 {
+    list_init(&shader->dc_list);
     cerr err = r->ops->shader_init(r, shader, vertex, vert_size, geometry, geom_size,
                                    fragment, frag_size);
     shader->renderer = r;
     return err;
 }
 
-void shader_done(shader_t *shader) { if (!shader->renderer) return; shader->renderer->ops->shader_done(shader); }
+void shader_done(shader_t *shader)
+{
+    if (!shader->renderer)  return;
+
+    /* the pipelines cached against this shader go with it */
+    draw_control_t *dc, *iter;
+    list_for_each_entry_iter(dc, iter, &shader->dc_list, shader_entry)
+        ref_put_last(dc);
+
+    shader->renderer->ops->shader_done(shader);
+}
 
 void shader_set_vertex_attrs(shader_t *shader, size_t stride,
                              size_t *offs, data_type *types, size_t *comp_counts,

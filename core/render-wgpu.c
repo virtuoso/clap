@@ -520,34 +520,20 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
     return wgpuDeviceCreateRenderPipeline(r->wgpu.device, &desc);
 }
 
-static WGPUTextureFormat wgpu_current_color_format(renderer_t *r)
-{
-    if (r->wgpu.fbo) {
-        texture_format fmt = wgpu_fbo_texture_format(r->wgpu.fbo, FBO_COLOR_TEXTURE(0));
-        return wgpu_texture_format(fmt);
-    }
-    return wgpu_swapchain_format(r);
-}
-
 static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
 {
-    // cerr err = ref_embed_opts(draw_control, dc, opts);
-    // if (IS_CERR(err))
-    //     return err;
-
-    dc->wgpu.shader = opts->shader;
-
     renderer_t *r = opts->renderer;
+    fbo_t *fbo = opts->fbo;
 
     WGPUTextureFormat color_formats[FBO_COLOR_ATTACHMENTS_MAX];
     bool color_no_blend[FBO_COLOR_ATTACHMENTS_MAX] = { 0 };
     unsigned int nr_color_targets = 0;
 
-    if (r->wgpu.fbo) {
-        fa_for_each(fa, r->wgpu.fbo->layout, texture) {
+    if (fbo) {
+        fa_for_each(fa, fbo->layout, texture) {
             int idx = fbo_attachment_color(fa);
-            color_formats[nr_color_targets]  = wgpu_texture_format(r->wgpu.fbo->color_config[idx].format);
-            color_no_blend[nr_color_targets] = r->wgpu.fbo->color_config[idx].no_blend;
+            color_formats[nr_color_targets]  = wgpu_texture_format(fbo->color_config[idx].format);
+            color_no_blend[nr_color_targets] = fbo->color_config[idx].no_blend;
             nr_color_targets++;
         }
     }
@@ -556,18 +542,13 @@ static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_o
         nr_color_targets = 1;
     }
 
-    dc->wgpu.color_format       = color_formats[0];
-    dc->wgpu.nr_color_targets   = nr_color_targets;
-
-    bool has_depth = r->wgpu.fbo && r->wgpu.fbo->layout.depth_texture;
+    bool has_depth = fbo && fbo->layout.depth_texture;
     WGPUTextureFormat depth_fmt = WGPUTextureFormat_Depth32Float;
     WGPUCompareFunction depth_cmp = WGPUCompareFunction_Always;
     if (has_depth) {
-        depth_fmt = wgpu_texture_format(r->wgpu.fbo->depth_config.format);
-        depth_cmp = wgpu_compare_function(r->wgpu.fbo->depth_config.depth_func);
+        depth_fmt = wgpu_texture_format(fbo->depth_config.format);
+        depth_cmp = wgpu_compare_function(fbo->depth_config.depth_func);
     }
-
-    dc->wgpu.has_depth = has_depth;
 
     dc->wgpu.pipeline[0] = wgpu_create_pipeline(r, opts->shader,
                                            color_formats, color_no_blend, nr_color_targets,
@@ -591,13 +572,13 @@ static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_o
             .arg1 = has_depth ? "yes" : "no"
         );
 
-    list_append(&opts->renderer->wgpu.dc_cache, &dc->wgpu.cache_entry);
-
     return CERR_OK;
 }
 
 static void wgpu_draw_control_done(draw_control_t *dc)
 {
+    if (dc->renderer->wgpu.dc == dc)    dc->renderer->wgpu.dc = NULL;
+
     if (dc->wgpu.pipeline[0]) {
         wgpuRenderPipelineRelease(dc->wgpu.pipeline[0]);
         dc->wgpu.pipeline[0] = NULL;
@@ -606,7 +587,6 @@ static void wgpu_draw_control_done(draw_control_t *dc)
         wgpuRenderPipelineRelease(dc->wgpu.pipeline[1]);
         dc->wgpu.pipeline[1] = NULL;
     }
-    list_del(&dc->wgpu.cache_entry);
 }
 
 static void wgpu_draw_control_bind(draw_control_t *dc)
@@ -1522,23 +1502,6 @@ static uniform_t wgpu_shader_uniform(shader_t *shader, const char *name)
     return UA_NOT_PRESENT;
 }
 
-static cresp(draw_control) wgpu_dc_find_or_create(renderer_t *r, shader_t *shader)
-{
-    WGPUTextureFormat fmt = wgpu_current_color_format(r);
-    bool has_depth = r->wgpu.fbo && r->wgpu.fbo->layout.depth_texture;
-    unsigned int nr_targets = r->wgpu.fbo ? fa_nr_color_texture(r->wgpu.fbo->layout) : 1;
-    draw_control_t *dc;
-
-    list_for_each_entry(dc, &r->wgpu.dc_cache, wgpu.cache_entry)
-        if (dc->wgpu.shader == shader && dc->wgpu.color_format == fmt &&
-            dc->wgpu.nr_color_targets == nr_targets && dc->wgpu.has_depth == has_depth)
-            return cresp_val(draw_control, dc);
-
-    dc = CRES_RET_T(ref_new_checked(draw_control, .renderer = r, .shader = shader), draw_control);
-
-    return cresp_val(draw_control, dc);
-}
-
 static cerr wgpu_shader_use(shader_t *shader, bool draw)
 {
     if (!draw)  return CERR_OK;
@@ -1552,7 +1515,7 @@ static cerr wgpu_shader_use(shader_t *shader, bool draw)
     memset(r->wgpu.bound_textures, 0, sizeof(r->wgpu.bound_textures));
     memset(r->wgpu.bound_ubos, 0, sizeof(r->wgpu.bound_ubos));
 
-    auto dc = CRES_RET_CERR(wgpu_dc_find_or_create(r, shader));
+    auto dc = CRES_RET_CERR(draw_control_get(r, r->wgpu.fbo, shader));
     draw_control_bind(dc);
 
     return CERR_OK;
@@ -1951,7 +1914,6 @@ static cerr wgpu_get_queue(renderer_t *r)
 cerr wgpu_renderer_setup(renderer_t *renderer, const renderer_init_options *opts)
 {
     atomic_init(&renderer->wgpu.error, 0);
-    list_init(&renderer->wgpu.dc_cache);
     list_init(&renderer->wgpu.ubos);
 
     CERR_RET_CERR(wgpu_request_adapter(renderer));
@@ -1974,6 +1936,8 @@ static cerr wgpu_renderer_init(renderer_t *renderer, const renderer_init_options
 
 static void wgpu_renderer_done(renderer_t *r)
 {
+    draw_control_cache_done(r);
+
     wgpuSurfaceUnconfigure(r->wgpu.surface);
     wgpuSurfaceRelease(r->wgpu.surface);
     wgpuQueueRelease(r->wgpu.queue);
@@ -2066,7 +2030,7 @@ wgpu_texture_format_t renderer_swapchain_format(renderer_t *r)
 
 unsigned int renderer_swapchain_format_gen(renderer_t *r)
 {
-    return r->wgpu.swapchain_format_gen;
+    return r->swapchain_gen;
 }
 
 static void wgpu_renderer_set_version(renderer_t *renderer, int major, int minor,
@@ -2104,7 +2068,8 @@ static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable)
     // Bump generation so any consumer of the swapchain format (notably ImGui's
     // WGPU backend, whose pipeline bakes the render-target format at init time)
     // can notice the change and reinitialize.
-    r->wgpu.swapchain_format_gen++;
+    r->swapchain_gen++;
+    draw_control_cache_drop(r, NULL);
     wgpu_configure_surface(r);
 }
 
@@ -2199,7 +2164,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
     // cleared them, so what's here is what this shader plugged, which is what
     // its auto layout contains. UBOs additionally filter by the shader's
     // binding mask, which reflection fills in per shader at link time.
-    uint64_t mask = r->wgpu.dc->wgpu.shader->wgpu.binding_mask;
+    uint64_t mask = r->wgpu.dc->shader->wgpu.binding_mask;
     WGPUBindGroupEntry entries[BINDING_TEXTURE_MAX * 2 + BINDING_UBO_MAX];
     unsigned int n = 0;
 
@@ -2242,7 +2207,7 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
         return CERR_INVALID_OPERATION_REASON(.fmt = "wgpuRenderPipelineGetBindGroupLayout() failed");
 
     WGPUBindGroupDescriptor bg_desc = {
-        .label      = to_wgpu_stringview(r->wgpu.dc->wgpu.shader->wgpu.name),
+        .label      = to_wgpu_stringview(r->wgpu.dc->shader->wgpu.name),
         .layout     = layout,
         .entryCount = n,
         .entries    = entries,

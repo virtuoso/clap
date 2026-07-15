@@ -308,46 +308,7 @@ void vertex_array_unbind(vertex_array_t *va);
 
 TYPE_FORWARD(shader);
 TYPE_FORWARD(fbo);
-
-DEFINE_REFCLASS_INIT_OPTIONS(draw_control,
-    renderer_t  *renderer;
-    shader_t    *shader;
-    fbo_t       *fbo;
-    const char  *name;
-);
-
-TYPE(draw_control,
-    struct ref  ref;
-    renderer_t                  *renderer;
-#ifdef CONFIG_RENDERER_WGPU
-    struct {
-        shader_t                    *shader;
-        struct list                 cache_entry;
-        wgpu_render_pipeline_t      pipeline[2]; /* [0] no blend, [1] blend */
-        wgpu_texture_format_t       color_format;
-        unsigned int                nr_color_targets;
-        bool                        has_depth;
-    } wgpu;
-#endif /* CONFIG_RENDERER_WGPU */
-#ifdef CONFIG_RENDERER_METAL
-    struct {
-        struct list                         shader_entry;
-        struct list                         hash_entry;
-        shader_t                            *shader;
-        fbo_t                               *fbo;
-        mtl_depth_stencil_state_t           depth_stencil;
-        mtl_render_pipeline_state_t         pipeline[2];
-        mtl_render_pipeline_reflection_t    reflection;
-    } mtl;
-#endif /* CONFIG_RENDERER_METAL */
-);
-
-#define draw_control_init(_dc, args...) \
-    _draw_control_init((_dc), &(draw_control_init_options){ args })
-cerr _draw_control_init(draw_control_t *dc, const draw_control_init_options *opts);
-void draw_control_done(draw_control_t *dc);
-void draw_control_bind(draw_control_t *dc);
-void draw_control_unbind(draw_control_t *dc);
+TYPE_FORWARD(draw_control);
 
 typedef enum texture_type {
     TEX_2D,         /* default comes first */
@@ -563,6 +524,22 @@ typedef union fbo_attachment {
                                                       .depth_buffers = 1 }
 #define FBO_COLOR_ATTACHMENTS_MAX 8
 
+/*
+ * Per-attachment format map: every color attachment's format, offset by
+ * one so that an empty slot doesn't read as TEX_FMT_DEFAULT, packed
+ * TEX_FMT_BITS apart into longs. Render targets with equal maps are
+ * pipeline-compatible, so draw_control lookup compares maps instead of
+ * walking the attachments.
+ */
+/** TEX_FMT_BITS - bits to hold a texture_format (TEX_FMT_MAX - 1), rounded up to a power of 2 */
+#define TEX_FMT_BITS            8
+/** ATTACHMENTS_PER_LONG - attachment format slots packed into one long of an att_map */
+#define ATTACHMENTS_PER_LONG    (BITS_PER_LONG / TEX_FMT_BITS)
+/** FBO_ATT_MAP_SIZE - longs an att_map needs for FBO_COLOR_ATTACHMENTS_MAX attachments */
+#define FBO_ATT_MAP_SIZE \
+    ((FBO_COLOR_ATTACHMENTS_MAX + ATTACHMENTS_PER_LONG - 1) / ATTACHMENTS_PER_LONG)
+static_assert(TEX_FMT_MAX < (1 << TEX_FMT_BITS), "texture_format overflows a TEX_FMT_BITS slot");
+
 static inline unsigned int fa_nr_color_buffer(fbo_attachment attachment)
 {
     return fls(attachment.color_buffers);
@@ -679,6 +656,12 @@ TYPE(fbo,
     fbo_attconfig   *color_config;
     fbo_attconfig   depth_config;
     fbo_attachment  layout;
+    /*
+     * Pipeline-compatibility key of this render target: the attachment
+     * formats packed by fbo_att_map_init() and the fbo_attconfig::no_blend
+     * bits beside them; draw_control_get() matches targets on these
+     */
+    unsigned long   att_map[FBO_ATT_MAP_SIZE];
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
         const char      *name;
@@ -702,6 +685,8 @@ TYPE(fbo,
         const char                      *name;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+    /* att_map's companion, at the tail so it costs padding rather than a hole */
+    uint32_t        no_blend_mask;
 );
 
 cresp_ret(fbo_t);
@@ -741,6 +726,66 @@ int fbo_height(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
+
+DEFINE_REFCLASS_INIT_OPTIONS(draw_control,
+    renderer_t  *renderer;
+    shader_t    *shader;
+    fbo_t       *fbo;
+    const char  *name;
+);
+
+/*
+ * A draw_control caches the pipeline state objects a (shader, render
+ * target) combination draws with. They live in renderer_t::dc_cache,
+ * keyed on the target's attachment map rather than its identity, and
+ * are dropped with the fbo or shader they were created against.
+ */
+TYPE(draw_control,
+    struct ref      ref;
+    renderer_t      *renderer;
+    shader_t        *shader;
+    /* creator (NULL: the swapchain); its destruction drops this dc */
+    fbo_t           *fbo;
+    struct list     cache_entry;    /* renderer_t::dc_cache */
+    struct list     shader_entry;   /* shader_t::dc_list */
+    /*
+     * Pipeline-compatibility key: a copy of the creator fbo's att_map /
+     * no_blend_mask plus its depth and multisample state; swapchain dcs
+     * match on swapchain_gen instead
+     */
+    unsigned long   att_map[FBO_ATT_MAP_SIZE];
+    unsigned int    nr_samples;
+    unsigned int    swapchain_gen;
+    texture_format  depth_format;
+    depth_func      depth_fn;
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        wgpu_render_pipeline_t      pipeline[2]; /* [0] no blend, [1] blend */
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        mtl_depth_stencil_state_t           depth_stencil;
+        mtl_render_pipeline_state_t         pipeline[2];
+        mtl_render_pipeline_reflection_t    reflection;
+    } mtl;
+#endif /* CONFIG_RENDERER_METAL */
+    /* part of the key too; at the tail so they cost padding rather than a hole */
+    uint32_t        no_blend_mask;
+    bool            has_depth;
+);
+
+/**
+ * draw_control_bind() - hand the backend's pipeline state to the current pass
+ * @dc: draw_control to bind
+ */
+void draw_control_bind(draw_control_t *dc);
+
+/**
+ * draw_control_unbind() - release the pipeline state bound by @dc
+ * @dc: draw_control to unbind
+ */
+void draw_control_unbind(draw_control_t *dc);
 
 typedef enum {
     SHADER_STAGE_VERTEX,
@@ -832,6 +877,8 @@ cerr_check uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *off
 
 TYPE(shader,
     renderer_t  *renderer;
+    /* draw_controls created against this shader, dropped with it */
+    struct list dc_list;
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
         GLuint  vert;
@@ -857,7 +904,6 @@ TYPE(shader,
 #ifdef CONFIG_RENDERER_METAL
     struct {
         renderer_t                          *renderer;
-        struct list                         dc_list;
         mtl_function_t                      vert;
         mtl_function_t                      frag;
         mtl_vertex_descriptor_t             vdesc;
@@ -926,6 +972,10 @@ TYPE(renderer,
     int                 height;
     vertex_array_t      *va;
     bool                blend;
+    /* bumped on swapchain format changes: keys the swapchain draw_controls */
+    unsigned int        swapchain_gen;
+    /* the draw_control (pipeline) cache; entries drop with their fbo/shader */
+    struct list         dc_cache;
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
         GLenum              cull_face;
@@ -938,8 +988,6 @@ TYPE(renderer,
         int                 major;
         int                 minor;
         renderer_profile    profile;
-        bool                depth_test;
-        bool                mac_amd_quirk;
         /* Bit i set: color attachment i opts out of blending (fbo_attconfig.no_blend) */
         uint32_t            no_blend_mask;
         /* Number of color attachments the currently bound FBO exposes */
@@ -962,6 +1010,9 @@ TYPE(renderer,
         bool                ts_open;
         bool                ts_supported;
 #endif /* !CONFIG_FINAL */
+        /* at the tail so they cost padding rather than a hole */
+        bool                depth_test;
+        bool                mac_amd_quirk;
     } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
 #ifdef CONFIG_RENDERER_WGPU
@@ -978,13 +1029,11 @@ TYPE(renderer,
         wgpu_render_pass_encoder_t          pass_encoder;
         fbo_t                               *fbo;
         draw_control_t                      *dc;
-        struct list                         dc_cache;
         struct list                         ubos;
         texture_t                           *bound_textures[BINDING_TEXTURE_MAX];
         uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
         bool                                hdr;
         bool                                edr_supported;
-        unsigned int                        swapchain_format_gen;
         int                                 limits[RENDER_LIMIT_MAX];
         atomic_uint                         error;
         char                                wgpu_message[128];
@@ -1012,7 +1061,6 @@ TYPE(renderer,
         void                                *sampler_cache[SLOTS_MAX];
         struct bitmap                       fbo_ids;
         struct bitmap                       shader_ids;
-        struct list                         dc_hash[256];
         struct list                         ubos;
         cg_colorspace_ref_t                 colorspace;
         int                                 major;
@@ -1141,6 +1189,32 @@ DECLARE_REFCLASS(texture);
 DECLARE_REFCLASS(fbo);
 DECLARE_REFCLASS(uniform_buffer);
 DECLARE_REFCLASS(draw_control);
+
+/**
+ * draw_control_get() - the cached draw_control for (@fbo, @shader)
+ * @r:      renderer owning the cache
+ * @fbo:    render target to match, %NULL for the swapchain
+ * @shader: shader to match
+ *
+ * Targets match on their attachment maps, so pipeline-compatible fbos
+ * share a draw_control. Created on the first miss; the cache holds the
+ * only reference.
+ * Return: the draw_control, or an error when one can't be created.
+ */
+must_check cresp(draw_control) draw_control_get(renderer_t *r, fbo_t *fbo, shader_t *shader);
+
+/**
+ * draw_control_cache_drop() - drop the draw_controls created against @fbo
+ * @r:      renderer owning the cache
+ * @fbo:    render target being dropped, %NULL for the swapchain
+ */
+void draw_control_cache_drop(renderer_t *r, fbo_t *fbo);
+
+/**
+ * draw_control_cache_done() - drop the whole draw_control cache
+ * @r:  renderer owning the cache
+ */
+void draw_control_cache_done(renderer_t *r);
 
 #ifdef IMPLEMENTOR
 #ifdef CONFIG_RENDERER_OPENGL

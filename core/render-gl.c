@@ -1357,10 +1357,7 @@ static void gl_fbo_prepare(fbo_t *fbo)
 
     renderer_t *r = fbo->renderer;
     r->gl.nr_color_targets = target;
-    r->gl.no_blend_mask    = 0;
-    for (int i = 0; i < target; i++)
-        if (fbo->color_config[i].no_blend)
-            r->gl.no_blend_mask |= 1u << i;
+    r->gl.no_blend_mask    = fbo->no_blend_mask;
 #if !defined(CONFIG_GLES) || defined(GL_ES_VERSION_3_2)
     /* Re-apply per-attachment blend enables for the freshly bound FBO */
     for (int i = 0; i < target; i++) {

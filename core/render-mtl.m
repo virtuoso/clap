@@ -453,11 +453,6 @@ static void mtl_vertex_array_unbind(vertex_array_t *va)
  * Draw control
  ****************************************************************************/
 
-static size_t dc_hash(fbo_t *fbo, shader_t *shader)
-{
-    return fbo->mtl.id ^ (shader->mtl.id << 4);
-}
-
 cres_ret(mtl_render_pipeline_state_t);
 
 void mtl_reflection_print(mtl_render_pipeline_reflection_t reflection)
@@ -617,15 +612,6 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
         }
     }
 
-    list_append(&opts->shader->mtl.dc_list, &dc->mtl.shader_entry);
-    if (opts->fbo) {
-        auto idx = dc_hash(opts->fbo, opts->shader);
-        list_append(&dc->renderer->mtl.dc_hash[idx], &dc->mtl.hash_entry);
-    }
-
-    dc->mtl.shader  = opts->shader;
-    dc->mtl.fbo     = opts->fbo;
-
     // if (!opts->shader->mtl.reflection) {
     //     opts->shader->mtl.reflection = reflection;
     //     mtl_reflection_print(reflection);
@@ -636,12 +622,11 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
 
 static void mtl_draw_control_done(draw_control_t *dc)
 {
+    if (dc->renderer->mtl.dc == dc) dc->renderer->mtl.dc = NULL;
+
     [dc->mtl.pipeline[0] release];
     [dc->mtl.pipeline[1] release];
     if (dc->mtl.depth_stencil)  [dc->mtl.depth_stencil release];
-
-    list_del(&dc->mtl.shader_entry);
-    list_del(&dc->mtl.hash_entry);
 }
 
 static void mtl_draw_control_bind(draw_control_t *dc)
@@ -659,35 +644,6 @@ static void mtl_draw_control_unbind(draw_control_t *dc)
     r->mtl.dc = NULL;
     for (size_t i = 0; i < SLOTS_MAX; i++)
         r->mtl.vbuffer_cache[i] = r->mtl.fbuffer_cache[i] = NULL;
-}
-
-static cresp(draw_control) dc_hash_find_get(renderer_t *r, fbo_t *fbo, shader_t *shader)
-{
-    auto bucket = &r->mtl.dc_hash[dc_hash(fbo, shader)];
-    draw_control_t *dc;
-    list_for_each_entry(dc, bucket, mtl.hash_entry)
-        if (dc->mtl.fbo == fbo && dc->mtl.shader == shader)  return cresp_val(draw_control, dc);
-
-    dc = CRES_RET(
-        ref_new_checked(draw_control, .renderer = r, .fbo = fbo, .shader = shader),
-        {
-            err("couldn't create draw control for fbo%d + shader%d\n", fbo->mtl.id, shader->mtl.id);
-            return cresp_error_cerr(draw_control, __resp);
-        }
-    );
-
-    return cresp_val(draw_control, dc);
-}
-
-static void dc_hash_fbo_drop(renderer_t *r, fbo_t *fbo)
-{
-    for (size_t i = 0; i < array_size(r->mtl.dc_hash); i++) {
-        auto bucket = &r->mtl.dc_hash[i];
-
-        draw_control_t *dc, *iter;
-        list_for_each_entry_iter(dc, iter, bucket, mtl.hash_entry)
-            if (dc->mtl.fbo == fbo) ref_put_last(dc);
-    }
 }
 
 /****************************************************************************
@@ -1071,7 +1027,6 @@ static void mtl_fbo_destroy(fbo_t *fbo)
     if (fbo->mtl.cmd_encoder)   [fbo->mtl.cmd_encoder release];
     if (fbo->mtl.desc)          [fbo->mtl.desc release];
 
-    dc_hash_fbo_drop(fbo->renderer, fbo);
     bitmap_clear(&fbo->renderer->mtl.fbo_ids, fbo->mtl.id);
     mem_free(fbo->color_config);
 }
@@ -1684,7 +1639,6 @@ static cerr mtl_shader_init(renderer_t *r, shader_t *shader,
     );
 
     shader->mtl.renderer = r;
-    list_init(&shader->mtl.dc_list);
 
     return CERR_OK;
 }
@@ -1710,10 +1664,6 @@ static void mtl_shader_done(shader_t *shader)
 {
     auto r = shader->mtl.renderer;
     bitmap_clear(&r->mtl.shader_ids, shader->mtl.id);
-
-    draw_control_t *dc, *it;
-    list_for_each_entry_iter(dc, it, &shader->mtl.dc_list, mtl.shader_entry)
-        ref_put_last(dc);
 
     [shader->mtl.vdesc release];
     [shader->mtl.vert release];
@@ -1766,7 +1716,7 @@ static cerr mtl_shader_use(shader_t *shader, bool draw)
             .arg2   = shader->mtl.vdesc
         );
 
-    auto dc = CRES_RET_CERR(dc_hash_find_get(r, fbo, shader));
+    auto dc = CRES_RET_CERR(draw_control_get(r, fbo, shader));
     draw_control_bind(dc);
 
     return CERR_OK;
@@ -1797,8 +1747,6 @@ static cerr mtl_renderer_init(renderer_t *r, const renderer_init_options *opts)
 {
     bitmap_init(&r->mtl.fbo_ids, FBOS_MAX);
     bitmap_init(&r->mtl.shader_ids, SHADERS_MAX);
-    for (size_t i = 0; i < array_size(r->mtl.dc_hash); i++)
-        list_init(&r->mtl.dc_hash[i]);
 
     list_init(&r->mtl.ubos);
 
@@ -1825,6 +1773,8 @@ static void mtl_renderer_done(renderer_t *r)
 
     for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)
         dispatch_semaphore_signal(r->mtl.sem);
+
+    draw_control_cache_done(r);
 
     mtl_pass_timers_done(r);
 
