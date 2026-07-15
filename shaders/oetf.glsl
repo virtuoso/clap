@@ -75,11 +75,12 @@ vec3 scene_linear_to_extended_srgb(vec3 scene_linear_rgb, float paper_white_nits
 }
 
 /*
- * sRGB (Rec.709) → Display P3 D65 linear primary conversion. From CSS Color 4
- * (https://www.w3.org/TR/css-color-4/#color-conversion-code), via XYZ.
+ * BT.709 primaries -> Display P3 primaries, D65 white in both. From CSS Color 4
+ * (https://www.w3.org/TR/css-color-4/#color-conversion-code), via XYZ. Linear
+ * light only, on the same terms as LINEAR_TO_BT2020 above.
  * GLSL mat3 is column-major: each line below is one column of the matrix.
  */
-const mat3 SRGB_TO_DISPLAY_P3 = mat3(
+const mat3 LINEAR_TO_DISPLAY_P3 = mat3(
     0.8224621, 0.0331941, 0.0170827,  /* col 0 */
     0.1775380, 0.9668058, 0.0723974,  /* col 1 */
     0.0000000, 0.0000000, 0.9105199   /* col 2 */
@@ -90,11 +91,11 @@ vec3 scene_linear_to_extended_p3(vec3 scene_linear_rgb, float paper_white_nits)
     /*
      * Float16 swapchain, colorSpace = DisplayP3, toneMappingMode = Extended.
      * Same idea as the sRGB path, but the compositor expects values in P3
-     * primaries — so we rotate sRGB primaries into P3 first. The wider gamut
+     * primaries — so we convert BT.709 primaries to P3 first. The wider gamut
      * is what gives this path its "punch" on capable displays; the SRGB path
-     * just clips anything outside Rec.709.
+     * just clips anything outside BT.709.
      */
-    vec3 p3 = SRGB_TO_DISPLAY_P3 * scene_linear_rgb;
+    vec3 p3 = LINEAR_TO_DISPLAY_P3 * scene_linear_rgb;
     return p3 * (paper_white_nits / SDR_WHITE_NITS);
 }
 
