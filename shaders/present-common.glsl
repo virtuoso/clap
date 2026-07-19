@@ -23,7 +23,12 @@ vec3 grain_color(vec3 color, vec3 view_pos, vec2 uv)
 
     float luma = dot(color, vec3(0.299, 0.587, 0.114));
     float weight = 1.0 - pow(luma, film_grain_power);
-    return color + noise.rgb * weight * film_grain_factor;
+    /*
+     * Zero-mean and achromatic: the texture's three channels are
+     * independent noise normalized to [0, 1], and adding them as they
+     * come would lift every pixel by half the factor and speckle its hue
+     */
+    return color + vec3((noise.r - 0.5) * 2.0) * weight * film_grain_factor;
 }
 
 vec3 present_finalize(vec3 color, vec2 uv)
