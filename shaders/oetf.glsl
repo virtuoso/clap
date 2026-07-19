@@ -19,9 +19,35 @@ float linear_to_pq(float l)
     return pow(num / den, m2);
 }
 
+/*
+ * BT.709 primaries -> BT.2020 primaries, D65 white in both, derived from the
+ * CIE xy coordinates of each gamut. This is a change of basis on linear light
+ * and nothing else: it says which physical red/green/blue the channels point
+ * at, and leaves the transfer function alone. It is a plain matrix because
+ * both gamuts are linear combinations of the same XYZ tristimulus values,
+ * which is also exactly why it is only valid before an OETF is applied.
+ *
+ * BT.709 is the smaller gamut, so everything lands inside BT.2020 and no
+ * component leaves [0, 1]; the inverse direction would produce negatives.
+ *
+ * GLSL mat3 is column-major: each line below is one column of the matrix.
+ */
+const mat3 LINEAR_TO_BT2020 = mat3(
+    0.6274039, 0.0690973, 0.0163914,  /* col 0 */
+    0.3292830, 0.9195404, 0.0880133,  /* col 1 */
+    0.0433131, 0.0113623, 0.8955953   /* col 2 */
+);
+
 vec3 scene_linear_to_pq(vec3 scene_linear_rgb, float paper_white_nits)
 {
-    vec3 abs_nits = scene_linear_rgb * paper_white_nits;
+    /*
+     * PQ output is always paired with a BT.2020 color space (Vulkan's
+     * HDR10_ST2084, CoreGraphics' ITUR_2100_PQ), so the scene's BT.709
+     * primaries have to be converted to BT.2020 first; skipping it leaves
+     * the compositor reading BT.709 coordinates as the wider gamut's and
+     * oversaturating everything.
+     */
+    vec3 abs_nits = (LINEAR_TO_BT2020 * scene_linear_rgb) * paper_white_nits;
     vec3 l = abs_nits / 10000.0;
     return vec3(
         linear_to_pq(l.r),
