@@ -36,7 +36,11 @@ cerr graphics_settings_init(struct clap_context *ctx, struct settings *rs)
     n = settings_get(rs, grp, GFX_KEY_FILM_GRAIN);
     if (n && n->tag == JSON_BOOL)   ro->film_grain = n->bool_;
     n = settings_get(rs, grp, GFX_KEY_HDR_OUTPUT);
-    if (n && n->tag == JSON_BOOL)   ro->hdr_output_enabled = n->bool_;
+    if (n && n->tag == JSON_BOOL) {
+        ro->hdr_output_enabled = n->bool_;
+        /* the swapchain follows the flag, see graphics_settings_set_hdr_output() */
+        renderer_hdr_enable(clap_get_renderer(ctx), ro->hdr_output_enabled);
+    }
     n = settings_get(rs, grp, GFX_KEY_SSAO);
     if (n && n->tag == JSON_BOOL)   ro->ssao = n->bool_;
     n = settings_get(rs, grp, GFX_KEY_TAA);
