@@ -1497,7 +1497,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         lut_preset *lut_presets = ctx->cfg.lut_presets;
         if (!lut_presets)
             lut_presets = (lut_preset[]){ LUT_IDENTITY, LUT_MAX };
-        CERR_RET_T(clap_lut_generate(ctx, lut_presets, 32), clap_context);
+        CERR_RET_T(clap_lut_generate(ctx, lut_presets, 64), clap_context);
 
         ctx->noise3d = CRES_RET_T(ref_new_checked(noise3d, .renderer = &ctx->renderer), clap_context);
 
