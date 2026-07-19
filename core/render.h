@@ -1174,6 +1174,17 @@ void renderer_hdr_transfer_set(renderer_t *r, int transfer);
  */
 int renderer_hdr_transfer(renderer_t *r);
 
+/**
+ * renderer_hdr_transfers() - the HDR output encodings the surface can present
+ * @r:  renderer
+ *
+ * Return: bitmask over HDR_TRANSFER_* (shader_constants.h), 1 << transfer per
+ *         encoding renderer_hdr_transfer_set() can be granted; the PQ bit
+ *         alone on backends that don't implement the query, 0 where the
+ *         surface can't present HDR at all.
+ */
+unsigned int renderer_hdr_transfers(renderer_t *r);
+
 void renderer_swapchain_begin(renderer_t *renderer);
 
 void renderer_frame_begin(renderer_t *renderer);
@@ -1311,6 +1322,7 @@ typedef struct renderer_ops {
     void                (*hdr_enable)(renderer_t *r, bool enable);
     void                (*hdr_transfer_set)(renderer_t *r, int transfer);
     int                 (*hdr_transfer_get)(renderer_t *r);
+    unsigned int        (*hdr_transfers)(renderer_t *r);
     void                (*swapchain_begin)(renderer_t *r);
     void                (*frame_begin)(renderer_t *r);
     void                (*frame_end)(renderer_t *r);

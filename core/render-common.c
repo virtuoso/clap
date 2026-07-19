@@ -278,6 +278,12 @@ int renderer_hdr_transfer(renderer_t *r)
     return r->ops->hdr_transfer_get(r);
 }
 
+unsigned int renderer_hdr_transfers(renderer_t *r)
+{
+    if (!r->ops->hdr_transfers)     return 1u << HDR_TRANSFER_PQ;
+    return r->ops->hdr_transfers(r);
+}
+
 void renderer_swapchain_begin(renderer_t *r)
 {
     r->ops->swapchain_begin(r);

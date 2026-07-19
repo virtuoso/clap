@@ -32,6 +32,7 @@ static bool wgpu_renderer_supports_edr(renderer_t *r);
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable);
 static void wgpu_renderer_hdr_transfer_set(renderer_t *r, int transfer);
 static int wgpu_renderer_hdr_transfer_get(renderer_t *r);
+static unsigned int wgpu_renderer_hdr_transfers(renderer_t *r);
 static void wgpu_renderer_swapchain_begin(renderer_t *r);
 static void wgpu_renderer_frame_begin(renderer_t *r);
 static void wgpu_renderer_frame_end(renderer_t *r);
@@ -118,6 +119,7 @@ static const renderer_ops wgpu_renderer_ops = {
     .hdr_enable     = wgpu_renderer_hdr_enable,
     .hdr_transfer_set = wgpu_renderer_hdr_transfer_set,
     .hdr_transfer_get = wgpu_renderer_hdr_transfer_get,
+    .hdr_transfers  = wgpu_renderer_hdr_transfers,
     .swapchain_begin = wgpu_renderer_swapchain_begin,
     .frame_begin    = wgpu_renderer_frame_begin,
     .frame_end      = wgpu_renderer_frame_end,
@@ -2101,6 +2103,14 @@ static void wgpu_renderer_hdr_transfer_set(renderer_t *r, int transfer)
 static int wgpu_renderer_hdr_transfer_get(renderer_t *r)
 {
     return r->wgpu.hdr_transfer;
+}
+
+static unsigned int wgpu_renderer_hdr_transfers(renderer_t *r)
+{
+    if (!r->wgpu.edr_supported)     return 0;
+
+    /* the canvas' two predefined color spaces under extended tone mapping */
+    return (1u << HDR_TRANSFER_EXT_SRGB) | (1u << HDR_TRANSFER_EXT_P3);
 }
 
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable)

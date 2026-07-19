@@ -1509,6 +1509,14 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         if (ctx->cfg.graphics_init)
             ctx->cfg.graphics_init(ctx, ctx->cfg.callback_data);
 
+        /*
+         * The default transfer is a wish; where the surface can't grant it,
+         * start from one it can instead of quietly landing on a fallback
+         */
+        unsigned int transfers = renderer_hdr_transfers(&ctx->renderer);
+        if (transfers && !(transfers & (1u << ctx->render_options.hdr_transfer_want)))
+            ctx->render_options.hdr_transfer_want = __builtin_ffs(transfers) - 1;
+
         renderer_hdr_transfer_set(&ctx->renderer, ctx->render_options.hdr_transfer_want);
         renderer_hdr_enable(&ctx->renderer, ctx->render_options.hdr_output_enabled);
 
