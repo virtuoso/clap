@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#import <AppKit/AppKit.h>
+
 #include "display.h"
 #define IMPLEMENTOR
 #include "render.h"
@@ -22,6 +24,7 @@ static void mtl_renderer_done(renderer_t *r);
 static void mtl_renderer_set_version(renderer_t *r, int major, int minor, renderer_profile profile);
 static void mtl_renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 static void mtl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+static bool mtl_renderer_supports_edr(renderer_t *r);
 static void mtl_renderer_hdr_enable(renderer_t *r, bool enable);
 static void mtl_renderer_swapchain_begin(renderer_t *r);
 static void mtl_renderer_frame_begin(renderer_t *r);
@@ -104,6 +107,7 @@ static const renderer_ops mtl_renderer_ops = {
     .set_version    = mtl_renderer_set_version,
     .viewport       = mtl_renderer_viewport,
     .get_viewport   = mtl_renderer_get_viewport,
+    .supports_edr   = mtl_renderer_supports_edr,
     .hdr_enable     = mtl_renderer_hdr_enable,
     .swapchain_begin = mtl_renderer_swapchain_begin,
     .frame_begin    = mtl_renderer_frame_begin,
@@ -1753,6 +1757,7 @@ static cerr mtl_renderer_init(renderer_t *r, const renderer_init_options *opts)
     r->mtl.sem = dispatch_semaphore_create(MTL_INFLIGHT_FRAMES);
     r->mtl.device = opts->device;
     r->mtl.layer = opts->layer;
+    r->mtl.window = opts->window;
     [r->mtl.layer retain];
 
     r->mtl.cmd_queue = [r->mtl.device newCommandQueue];
@@ -1791,6 +1796,25 @@ static void mtl_renderer_done(renderer_t *r)
     err_on(!list_empty(&r->mtl.ubos), "UBO list not empty\n");
 }
 
+/**
+ * mtl_renderer_supports_edr() - the supports_edr op
+ * @r:  renderer
+ *
+ * Return: whether the screen the window is on has EDR headroom
+ */
+static bool mtl_renderer_supports_edr(renderer_t *r)
+{
+    NSWindow *window = r->mtl.window;
+
+    /*
+     * Live rather than cached: the headroom is a property of the screen the
+     * window is currently on, and that changes when it is dragged to another
+     * display. > 2.0 keeps out the nominal-HDR panels whose headroom is too
+     * small to be worth the wider pipeline.
+     */
+    return window.screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 2.0;
+}
+
 static void mtl_renderer_hdr_enable(renderer_t *r, bool enable)
 {
     r->mtl.hdr = enable;
@@ -1798,7 +1822,7 @@ static void mtl_renderer_hdr_enable(renderer_t *r, bool enable)
 
 static void mtl_renderer_frame_begin(renderer_t *r)
 {
-    if (display_supports_edr() && r->mtl.hdr) {
+    if (mtl_renderer_supports_edr(r) && r->mtl.hdr) {
         /* HDR output */
         if (!r->mtl.colorspace)
             r->mtl.colorspace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);

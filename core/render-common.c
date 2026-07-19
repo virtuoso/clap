@@ -253,6 +253,12 @@ void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *ph
     r->ops->get_viewport(r, px, py, pwidth, pheight);
 }
 
+bool renderer_supports_edr(renderer_t *r)
+{
+    if (!r->ops->supports_edr)  return false;
+    return r->ops->supports_edr(r);
+}
+
 void renderer_hdr_enable(renderer_t *r, bool enable)
 {
     if (!r->ops->hdr_enable)    return;

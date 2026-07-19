@@ -1049,6 +1049,8 @@ TYPE(renderer,
         mtl_command_buffer_t                cmd_buffer;
         dispatch_semaphore_t                sem;
         mtl_ca_layer_t                      layer;
+        /* the NSWindow, kept to read its NSScreen's EDR headroom */
+        void                                *window;
         mtl_ca_drawable_t                   drawable;
         draw_control_t                      *dc;
         fbo_t                               *screen_fbo;
@@ -1109,6 +1111,11 @@ TYPE(renderer,
 int renderer_query_limits(renderer_t *renderer, render_limit limit);
 
 typedef struct renderer_init_options {
+    /*
+     * The platform window: metal reads the NSScreen off it (an NSWindow) to
+     * answer supports_edr(). Unused where there is no window to speak of.
+     */
+    void            *window;
     render_backend  backend;
 #ifdef CONFIG_RENDERER_METAL
     void    *device;
@@ -1125,6 +1132,19 @@ const char *renderer_shader_ext(renderer_t *r);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+
+/**
+ * renderer_supports_edr() - can the thing we present to show HDR
+ * @r:  renderer
+ *
+ * Answered by the backend, because that is where the answer lives: metal
+ * reads the NSScreen the window is on, a backend with a surface to probe
+ * asks the surface. Callable per frame -- metal's answer changes when the
+ * window moves to another display, so backends that can track it should.
+ *
+ * Return: %true if HDR output can reach the display.
+ */
+bool renderer_supports_edr(renderer_t *r);
 
 void renderer_hdr_enable(renderer_t *r, bool enable);
 
@@ -1261,6 +1281,7 @@ typedef struct renderer_ops {
     void                (*set_version)(renderer_t *r, int major, int minor, renderer_profile profile);
     void                (*viewport)(renderer_t *r, int x, int y, int width, int height);
     void                (*get_viewport)(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+    bool                (*supports_edr)(renderer_t *r);
     void                (*hdr_enable)(renderer_t *r, bool enable);
     void                (*swapchain_begin)(renderer_t *r);
     void                (*frame_begin)(renderer_t *r);

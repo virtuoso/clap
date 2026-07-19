@@ -27,6 +27,7 @@ static void wgpu_renderer_done(renderer_t *r);
 static void wgpu_renderer_set_version(renderer_t *r, int major, int minor, renderer_profile profile);
 static void wgpu_renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 static void wgpu_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
+static bool wgpu_renderer_supports_edr(renderer_t *r);
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable);
 static void wgpu_renderer_swapchain_begin(renderer_t *r);
 static void wgpu_renderer_frame_begin(renderer_t *r);
@@ -110,6 +111,7 @@ static const renderer_ops wgpu_renderer_ops = {
     .set_version    = wgpu_renderer_set_version,
     .viewport       = wgpu_renderer_viewport,
     .get_viewport   = wgpu_renderer_get_viewport,
+    .supports_edr   = wgpu_renderer_supports_edr,
     .hdr_enable     = wgpu_renderer_hdr_enable,
     .swapchain_begin = wgpu_renderer_swapchain_begin,
     .frame_begin    = wgpu_renderer_frame_begin,
@@ -2056,6 +2058,20 @@ static void wgpu_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwi
         *pwidth  = r->width;
     if (pheight)
         *pheight = r->height;
+}
+
+/**
+ * wgpu_renderer_supports_edr() - the supports_edr op
+ * @r:  renderer
+ *
+ * Still sourced from display_supports_edr() at init (the CSS media query in
+ * display-www.c); this only stops the per-frame calls going that way.
+ *
+ * Return: whether the canvas can show HDR
+ */
+static bool wgpu_renderer_supports_edr(renderer_t *r)
+{
+    return r->wgpu.edr_supported;
 }
 
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable)
