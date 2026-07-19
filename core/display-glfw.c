@@ -41,16 +41,10 @@ static int refresh_rate;
 
 #ifdef CONFIG_RENDERER_METAL
 unsigned int metal_refresh_rate(GLFWwindow *window);
-bool metal_supports_edr(GLFWwindow *window);
 
 static int __display_refresh_rate(void)
 {
     return metal_refresh_rate(window);
-}
-
-bool display_supports_edr(void)
-{
-    return metal_supports_edr(window);
 }
 #else
 static int __display_refresh_rate(void)
@@ -65,12 +59,13 @@ static int __display_refresh_rate(void)
     refresh_rate = glfwGetVideoMode(monitor)->refreshRate;
     return refresh_rate;
 }
+#endif /* !CONFIG_RENDERER_METAL */
 
+/* The backend owns the answer; see renderer_supports_edr() */
 bool display_supports_edr(void)
 {
-    return false;
+    return renderer && renderer_supports_edr(renderer);
 }
-#endif /* !CONFIG_RENDERER_METAL */
 
 int display_refresh_rate(void)
 {
