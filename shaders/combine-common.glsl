@@ -10,9 +10,16 @@
  * depth_tex, shadow_map, lut_tex, noise3d) and the UBOs.
  */
 
-f16vec3 apply_contrast(f16vec3 color, float16_t contrast)
+/*
+ * Contrast in scene-linear light: a gain in log space about the exposed
+ * scene's mid-grey, so the pivot follows exposure and contrast 1.0
+ * doubles the slope through it. A linear gain about a fixed 0.5 would
+ * pivot far above mid-grey at any sane exposure and drive darks
+ * negative.
+ */
+f16vec3 apply_contrast(f16vec3 color, float16_t contrast, float16_t pivot)
 {
-    return (color.rgb - H(0.5)) * (H(1.0) + contrast) + H(0.5);
+    return clamp(pivot * pow(max(color, H(0.0)) / pivot, HVEC3(H(1.0) + contrast)), H(0.0), H(HDR_LUT_MAX));
 }
 
 float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
@@ -74,7 +81,7 @@ vec4 combine_color(vec2 pass_tex)
         /* fog */
         hdr_color = mix(hdr_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
         /* contrast */
-        hdr_color = apply_contrast(hdr_color, H(contrast));
+        hdr_color = apply_contrast(hdr_color, H(contrast), H(0.18 * lighting_exposure));
         /* color grading */
         hdr_color = HVEC3(apply_lut(lut_tex, hdr_color));
         /* tonemapping */
