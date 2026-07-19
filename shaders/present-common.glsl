@@ -36,7 +36,7 @@ vec3 present_finalize(vec3 color, vec2 uv)
         // TODO: This should be a uniform: extended_p3/pq/extended_srgb
         // For now, this should be enough
 #ifdef SHADER_RENDERER_WGPU
-        color = scene_linear_to_extended_p3(color, hdr_white_nits);
+        color = scene_linear_to_extended_p3(color);
 #else /* !SHADER_RENDERER_WGPU */
         color = scene_linear_to_pq(color, hdr_white_nits);
 #endif /* !SHADER_RENDERER_WGPU */

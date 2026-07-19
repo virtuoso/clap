@@ -68,36 +68,30 @@ vec3 scene_linear_to_srgb(vec3 scene_linear_rgb)
 /*
  * Float16 swapchains with extended color spaces (WebGPU's
  * WGPUPredefinedColorSpace_SRGB / DisplayP3 with toneMappingMode_Extended,
- * macOS's extendedSRGB / extendedDisplayP3) are LINEAR-LIGHT, not
+ * macOS's extendedSRGB / extendedDisplayP3, Vulkan's EXTENDED_SRGB_LINEAR /
+ * DISPLAY_P3_LINEAR color spaces) are LINEAR-LIGHT, not
  * gamma/PQ-encoded. The compositor scans linear values out and applies the
  * display's transfer function itself. The conventions:
- *   - 1.0           == SDR diffuse white (~80 nits, sRGB reference)
+ *   - 1.0           == the compositor's SDR white, whatever it currently has
+ *                      that set to -- commonly 200 nits on a KWin desktop,
+ *                      not the nominal 80 the sRGB spec names
  *   - values > 1.0  == HDR boost above SDR white
- *   - primaries     == sRGB (Rec.709) for the SRGB color space,
- *                      Display P3 for the DisplayP3 color space
+ *   - primaries     == BT.709 for the SRGB color space, Display P3 for the
+ *                      DisplayP3 one
  *
- * So the OETF for these targets is identity for the transfer curve plus a
- * primary conversion (and a uniform scale to map your scene's "paper white"
- * to the compositor's SDR reference).
+ * So the OETF here is the identity for the transfer curve plus a primary
+ * conversion where the target isn't BT.709 -- and deliberately no paper-white
+ * scale on top. hdr_display_map() already leaves 1.0 meaning diffuse white,
+ * which is exactly what the compositor's 1.0 means; a paper_white_nits/80
+ * factor would make these paths ~2.5x brighter than PQ instead.
+ * hdr_white_nits is inert here: only PQ, which encodes absolute nits, can
+ * honour it.
  */
 
-/*
- * sRGB convention: 1.0 == 80 nits diffuse white. The user-facing
- * paper_white_nits slider then controls how many nits paper white actually
- * lands at on screen by scaling above the compositor's reference.
- */
-const float SDR_WHITE_NITS = 80.0;
-
-vec3 scene_linear_to_extended_srgb(vec3 scene_linear_rgb, float paper_white_nits)
+vec3 scene_linear_to_extended_srgb(vec3 scene_linear_rgb)
 {
-    /*
-     * Float16 swapchain, colorSpace = SRGB, toneMappingMode = Extended.
-     * Our scene is rendered in sRGB primaries already, so the only thing
-     * left is to scale paper-white-relative values into compositor units
-     * (1.0 = SDR white). hdr_display_map() leaves rgb in "relative to
-     * paper white" units, so 1.0 in == paper_white_nits out.
-     */
-    return scene_linear_rgb * (paper_white_nits / SDR_WHITE_NITS);
+    /* colorSpace = SRGB: BT.709 in, BT.709 out, nothing to do */
+    return scene_linear_rgb;
 }
 
 /*
@@ -112,7 +106,7 @@ const mat3 LINEAR_TO_DISPLAY_P3 = mat3(
     0.0000000, 0.0000000, 0.9105199   /* col 2 */
 );
 
-vec3 scene_linear_to_extended_p3(vec3 scene_linear_rgb, float paper_white_nits)
+vec3 scene_linear_to_extended_p3(vec3 scene_linear_rgb)
 {
     /*
      * Float16 swapchain, colorSpace = DisplayP3, toneMappingMode = Extended.
@@ -121,8 +115,7 @@ vec3 scene_linear_to_extended_p3(vec3 scene_linear_rgb, float paper_white_nits)
      * is what gives this path its "punch" on capable displays; the SRGB path
      * just clips anything outside BT.709.
      */
-    vec3 p3 = LINEAR_TO_DISPLAY_P3 * scene_linear_rgb;
-    return p3 * (paper_white_nits / SDR_WHITE_NITS);
+    return LINEAR_TO_DISPLAY_P3 * scene_linear_rgb;
 }
 
 #endif /* CLAP_OETF_GLSL */
