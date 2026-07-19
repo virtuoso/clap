@@ -176,6 +176,24 @@ static void scene_open_model_dialog(struct scene *scene)
         err_cerr(err, "failed to open filesystem dialog");
 }
 
+/**
+ * hdr_transfer_name() - the debug panel's name for an HDR transfer
+ * @transfer:   one of HDR_TRANSFER_*
+ *
+ * Return: a short static label, "?" for a value outside the enumeration
+ */
+static const char *hdr_transfer_name(int transfer)
+{
+    switch (transfer) {
+        case HDR_TRANSFER_PQ:       return "PQ";
+        case HDR_TRANSFER_EXT_SRGB: return "scRGB";
+        case HDR_TRANSFER_EXT_P3:   return "P3";
+        default:                    break;
+    }
+
+    return "?";
+}
+
 static void scene_parameters_debug(struct scene *scene, int cam_idx)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_SCENE_PARAMETERS, ImGuiWindowFlags_AlwaysAutoResize);
@@ -270,6 +288,27 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("use HDR pipeline", &ropts->hdr);
         if (igCheckbox("enable HDR output", &ropts->hdr_output_enabled))
             renderer_hdr_enable(clap_get_renderer(scene->clap_ctx), ropts->hdr_output_enabled);
+        if (ropts->hdr_output) {
+            int transfer = ropts->hdr_transfer_want;
+            unsigned int transfers = renderer_hdr_transfers(clap_get_renderer(scene->clap_ctx));
+
+            /* one radio per encoding the surface can actually present */
+            igText("HDR transfer:");
+            igPushID_Str("hdrtf");
+            for (int i = 0; i < HDR_TRANSFER_MAX; i++) {
+                if (!(transfers & (1u << i)))   continue;
+                igSameLine(0.0, 0.0);
+                igRadioButton_IntPtr(hdr_transfer_name(i), &transfer, i);
+            }
+            igPopID();
+
+            if (transfer != ropts->hdr_transfer_want) {
+                ropts->hdr_transfer_want = transfer;
+                renderer_hdr_transfer_set(clap_get_renderer(scene->clap_ctx), transfer);
+            }
+            if (ropts->hdr_transfer != ropts->hdr_transfer_want)
+                igText("surface gave %s instead", hdr_transfer_name(ropts->hdr_transfer));
+        }
 
         igSliderFloat("bloom exposure", &ropts->bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom intensity", &ropts->bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
