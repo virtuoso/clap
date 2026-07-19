@@ -30,6 +30,7 @@ static void wgpu_renderer_viewport(renderer_t *r, int x, int y, int width, int h
 static void wgpu_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 static bool wgpu_renderer_supports_edr(renderer_t *r);
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable);
+static void wgpu_renderer_hdr_transfer_set(renderer_t *r, int transfer);
 static int wgpu_renderer_hdr_transfer_get(renderer_t *r);
 static void wgpu_renderer_swapchain_begin(renderer_t *r);
 static void wgpu_renderer_frame_begin(renderer_t *r);
@@ -115,6 +116,7 @@ static const renderer_ops wgpu_renderer_ops = {
     .get_viewport   = wgpu_renderer_get_viewport,
     .supports_edr   = wgpu_renderer_supports_edr,
     .hdr_enable     = wgpu_renderer_hdr_enable,
+    .hdr_transfer_set = wgpu_renderer_hdr_transfer_set,
     .hdr_transfer_get = wgpu_renderer_hdr_transfer_get,
     .swapchain_begin = wgpu_renderer_swapchain_begin,
     .frame_begin    = wgpu_renderer_frame_begin,
@@ -1810,9 +1812,16 @@ static void wgpu_configure_surface(renderer_t *r)
     // SurfaceColorManagement chains an Extended tone mapping mode so the
     // compositor doesn't clamp values >1.0 to SDR white. Only attached when
     // HDR is on; otherwise default sRGB / Standard tone mapping is fine.
+    // WebGPU has no PQ color space -- srgb and display-p3 are the only
+    // predefined ones, and under Extended tone mapping both are linear-light.
+    // A PQ request therefore lands on extended sRGB, which is also the pair
+    // that needs no primary conversion out of the scene's BT.709 at all.
     WGPUSurfaceColorManagement color_mgmt = WGPU_SURFACE_COLOR_MANAGEMENT_INIT;
     if (r->wgpu.hdr) {
-        color_mgmt.colorSpace      = WGPUPredefinedColorSpace_DisplayP3;
+        r->wgpu.hdr_transfer = r->wgpu.hdr_transfer_want == HDR_TRANSFER_EXT_P3 ?
+            HDR_TRANSFER_EXT_P3 : HDR_TRANSFER_EXT_SRGB;
+        color_mgmt.colorSpace      = r->wgpu.hdr_transfer == HDR_TRANSFER_EXT_P3 ?
+            WGPUPredefinedColorSpace_DisplayP3 : WGPUPredefinedColorSpace_SRGB;
         color_mgmt.toneMappingMode = WGPUToneMappingMode_Extended;
         config.nextInChain         = &color_mgmt.chain;
     }
@@ -2077,10 +2086,21 @@ static bool wgpu_renderer_supports_edr(renderer_t *r)
     return r->wgpu.edr_supported;
 }
 
+static void wgpu_renderer_hdr_transfer_set(renderer_t *r, int transfer)
+{
+    if (transfer < 0 || transfer >= HDR_TRANSFER_MAX || transfer == r->wgpu.hdr_transfer_want)    return;
+
+    r->wgpu.hdr_transfer_want = transfer;
+
+    // The surface format doesn't change with the color space, only the
+    // chained color management does, so no swapchain_gen bump is needed:
+    // nothing has the color space baked into a pipeline.
+    if (r->wgpu.hdr)    wgpu_configure_surface(r);
+}
+
 static int wgpu_renderer_hdr_transfer_get(renderer_t *r)
 {
-    // the surface is configured for Display P3 with extended tone mapping
-    return HDR_TRANSFER_EXT_P3;
+    return r->wgpu.hdr_transfer;
 }
 
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable)

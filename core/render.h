@@ -1034,6 +1034,9 @@ TYPE(renderer,
         uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
         bool                                hdr;
         bool                                edr_supported;
+        /* HDR_TRANSFER_*: requested, and what the surface config used */
+        int                                 hdr_transfer_want;
+        int                                 hdr_transfer;
         int                                 limits[RENDER_LIMIT_MAX];
         atomic_uint                         error;
         char                                wgpu_message[128];
