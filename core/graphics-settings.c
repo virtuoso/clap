@@ -60,6 +60,12 @@ void graphics_settings_set_hdr_output(struct clap_context *ctx, bool on)
     render_options *ro = clap_get_render_options(ctx);
     if (ro)     ro->hdr_output_enabled = on;
 
+    /*
+     * The intent alone only flips the shader's OETF; the swapchain format
+     * and color space follow from the renderer being told about it
+     */
+    renderer_hdr_enable(clap_get_renderer(ctx), on);
+
     struct settings *rs = clap_get_settings(ctx);
     JsonNode *grp = rs ? gfx_group(rs) : NULL;
     if (grp)    settings_set_bool(rs, grp, GFX_KEY_HDR_OUTPUT, on);
