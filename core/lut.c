@@ -7,6 +7,7 @@
 #include "pipeline.h"
 #include "render.h"
 #include "scene.h"
+#include "shader_constants.h"
 #include "ui-debug.h"
 #include "util.h"
 
@@ -23,13 +24,16 @@ static void __identity(vec3 color, vec3 out)
     mat3x3_mul_vec3(out, mat, color);
 }
 
+/*
+ * Preset ceiling: the LUT's own domain, not diffuse white. The table stores
+ * shaped values and linear_to_lut(HDR_LUT_MAX) is exactly 1.0, so HDR_LUT_MAX
+ * is the largest linear value the texture can carry -- clamping there costs
+ * nothing, while clamping at 1.0 would discard every highlight above paper
+ * white, which is the whole of the HDR range.
+ */
 static inline float lut_clampf(float x)
 {
-#ifdef CONFIG_RENDERER_METAL
-    return x;
-#else /* !CONFIG_RENDERER_METAL */
-    return clampf(x, 0.0f, 1.0f);
-#endif /* !CONFIG_RENDERER_METAL */
+    return clampf(x, 0.0f, HDR_LUT_MAX);
 }
 
 static void __orange_blue_filmic(vec3 color, vec3 out)
@@ -123,21 +127,21 @@ static void __scifi_neon(vec3 in, vec3 out)
 static inline float abyss_curve(float x, float boost, float thresh)
 {
     float y = powf(x + boost, 1.3f) - thresh;
-    return clampf(y, 0.0f, 1.0f);
+    return clampf(y, 0.0f, HDR_LUT_MAX);
 }
 
 static void __deep_sea_abyss(vec3 in, vec3 out)
 {
-    out[0] = abyss_curve(clampf(in[0] * 0.3f + in[2] * 0.25, 0.0, 1.0), 0.1, 0.03);
-    out[1] = abyss_curve(clampf(in[1] * 0.5f + in[2] * 0.15, 0.0, 1.0), 0.1, 0.03);
-    out[2] = abyss_curve(clampf(in[2] * 1.3f, 0.0, 1.0), 0.1, 0.03);
+    out[0] = abyss_curve(clampf(in[0] * 0.3f + in[2] * 0.25, 0.0, HDR_LUT_MAX), 0.1, 0.03);
+    out[1] = abyss_curve(clampf(in[1] * 0.5f + in[2] * 0.15, 0.0, HDR_LUT_MAX), 0.1, 0.03);
+    out[2] = abyss_curve(clampf(in[2] * 1.3f, 0.0, HDR_LUT_MAX), 0.1, 0.03);
 }
 
 static void __bloodveil_crimson(vec3 in, vec3 out)
 {
-    out[0] = abyss_curve(clampf(in[0] * 1.6f, 0.0, 1.0), 0.1, 0.03);
-    out[1] = abyss_curve(clampf(in[1] * 0.3f + in[0] * 0.1, 0.0, 1.0), 0.1, 0.03);
-    out[2] = abyss_curve(clampf(in[2] * 0.3f + in[0] * 0.1, 0.0, 1.0), 0.1, 0.03);
+    out[0] = abyss_curve(clampf(in[0] * 1.6f, 0.0, HDR_LUT_MAX), 0.1, 0.03);
+    out[1] = abyss_curve(clampf(in[1] * 0.3f + in[0] * 0.1, 0.0, HDR_LUT_MAX), 0.1, 0.03);
+    out[2] = abyss_curve(clampf(in[2] * 0.3f + in[0] * 0.1, 0.0, HDR_LUT_MAX), 0.1, 0.03);
 }
 
 static void __mad_max_bleach(vec3 in, vec3 out)
