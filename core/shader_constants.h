@@ -18,6 +18,26 @@
 #define HDR_LUT_K   1.0f
 #define HDR_LUT_MAX 16.0f
 
+/*
+ * HDR output encodings present.frag can produce, one per surface the
+ * backends know how to ask a compositor for:
+ *   PQ       -- BT.2020 primaries, SMPTE ST2084 (vulkan HDR10_ST2084,
+ *               CoreGraphics ITUR_2100_PQ). Absolute: 1.0 out of
+ *               hdr_display_map() lands at hdr_white_nits exactly.
+ *   EXT_SRGB -- BT.709 primaries, linear light (scRGB; vulkan
+ *               EXTENDED_SRGB_LINEAR, wgpu srgb + extended tone mapping)
+ *   EXT_P3   -- Display P3 primaries, linear light (vulkan
+ *               DISPLAY_P3_LINEAR, wgpu display-p3 + extended)
+ * The two linear pairs put 1.0 at the compositor's SDR reference white, so
+ * hdr_white_nits is advisory there and absolute under PQ. Only PQ needs a
+ * primary conversion out of the scene's BT.709 working space; EXT_SRGB
+ * needs none, which makes it the one that isolates gamut bugs.
+ */
+#define HDR_TRANSFER_PQ         0
+#define HDR_TRANSFER_EXT_SRGB   1
+#define HDR_TRANSFER_EXT_P3     2
+#define HDR_TRANSFER_MAX        3
+
 #define COLOR_PT_NONE 0
 #define COLOR_PT_SET_RGB        0x01
 #define COLOR_PT_REPLACE_RGB    0x02

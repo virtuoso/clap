@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #define IMPLEMENTOR
 #include "render.h"
+#include "shader_constants.h"
 #undef IMPLEMENTOR
 
 #include "object.h"
@@ -263,6 +264,18 @@ void renderer_hdr_enable(renderer_t *r, bool enable)
 {
     if (!r->ops->hdr_enable)    return;
     r->ops->hdr_enable(r, enable);
+}
+
+void renderer_hdr_transfer_set(renderer_t *r, int transfer)
+{
+    if (!r->ops->hdr_transfer_set)  return;
+    r->ops->hdr_transfer_set(r, transfer);
+}
+
+int renderer_hdr_transfer(renderer_t *r)
+{
+    if (!r->ops->hdr_transfer_get)  return HDR_TRANSFER_PQ;
+    return r->ops->hdr_transfer_get(r);
 }
 
 void renderer_swapchain_begin(renderer_t *r)

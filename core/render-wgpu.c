@@ -7,6 +7,7 @@
 #include <stdatomic.h>
 #include "bindings/render-bindings.h"
 #include "bindings/render-bindings-common.h"
+#include "shader_constants.h"
 #include "str.h"
 
 const renderer_caps wgpu_renderer_caps = {
@@ -29,6 +30,7 @@ static void wgpu_renderer_viewport(renderer_t *r, int x, int y, int width, int h
 static void wgpu_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 static bool wgpu_renderer_supports_edr(renderer_t *r);
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable);
+static int wgpu_renderer_hdr_transfer_get(renderer_t *r);
 static void wgpu_renderer_swapchain_begin(renderer_t *r);
 static void wgpu_renderer_frame_begin(renderer_t *r);
 static void wgpu_renderer_frame_end(renderer_t *r);
@@ -113,6 +115,7 @@ static const renderer_ops wgpu_renderer_ops = {
     .get_viewport   = wgpu_renderer_get_viewport,
     .supports_edr   = wgpu_renderer_supports_edr,
     .hdr_enable     = wgpu_renderer_hdr_enable,
+    .hdr_transfer_get = wgpu_renderer_hdr_transfer_get,
     .swapchain_begin = wgpu_renderer_swapchain_begin,
     .frame_begin    = wgpu_renderer_frame_begin,
     .frame_end      = wgpu_renderer_frame_end,
@@ -2072,6 +2075,12 @@ static void wgpu_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwi
 static bool wgpu_renderer_supports_edr(renderer_t *r)
 {
     return r->wgpu.edr_supported;
+}
+
+static int wgpu_renderer_hdr_transfer_get(renderer_t *r)
+{
+    // the surface is configured for Display P3 with extended tone mapping
+    return HDR_TRANSFER_EXT_P3;
 }
 
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable)

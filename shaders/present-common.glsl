@@ -2,6 +2,7 @@
 #define SHADERS_PRESENT_COMMON_GLSL
 
 #include "oetf.glsl"
+#include "shader_constants.h"
 #include "view_pos.glsl"
 
 /*
@@ -32,16 +33,21 @@ vec3 present_finalize(vec3 color, vec2 uv)
         color = grain_color(color, view_pos, uv);
     }
 
-    if (hdr_output)
-        // TODO: This should be a uniform: extended_p3/pq/extended_srgb
-        // For now, this should be enough
-#ifdef SHADER_RENDERER_WGPU
-        color = scene_linear_to_extended_p3(color);
-#else /* !SHADER_RENDERER_WGPU */
-        color = scene_linear_to_pq(color, hdr_white_nits);
-#endif /* !SHADER_RENDERER_WGPU */
-    else
+    /*
+     * The encode has to match the surface the backend actually got, which is
+     * what hdr_transfer carries: both extended pairs are linear light and
+     * differ only in primaries, PQ is the one with a curve of its own.
+     */
+    if (hdr_output) {
+        if (hdr_transfer == HDR_TRANSFER_EXT_SRGB)
+            color = scene_linear_to_extended_srgb(color);
+        else if (hdr_transfer == HDR_TRANSFER_EXT_P3)
+            color = scene_linear_to_extended_p3(color);
+        else
+            color = scene_linear_to_pq(color, hdr_white_nits);
+    } else {
         color = scene_linear_to_srgb(color);
+    }
 
     return color;
 }

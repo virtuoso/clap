@@ -414,6 +414,7 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.hdr_peak_nits = 1000.0f;
     ctx->render_options.hdr_compress_knee = 1.0f;
     ctx->render_options.hdr_knee_softness = 16.0f;
+    ctx->render_options.hdr_transfer_want = HDR_TRANSFER_PQ;
 }
 
 /* Per-frame render options update */
@@ -913,6 +914,14 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
     clap_scripts_run_frame(ctx);
 
     PROF_STEP(callback, updates);
+
+    /*
+     * Read back after the updates rather than at the top of the frame: the
+     * debug UI switches the HDR transfer from scene_update() and the surface
+     * is recreated on the spot, so the encode present.frag picks has to
+     * follow the surface this frame has, not the one last frame had
+     */
+    ctx->render_options.hdr_transfer = renderer_hdr_transfer(&ctx->renderer);
 
     if (ctx->pl && !IS_CERR(ctx->pipeline_error)) {
         unsigned int ui_checkpoint = ui_state_get(ui) < UI_ST_RUNNING ? 0 : 1;
@@ -1500,6 +1509,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         if (ctx->cfg.graphics_init)
             ctx->cfg.graphics_init(ctx, ctx->cfg.callback_data);
 
+        renderer_hdr_transfer_set(&ctx->renderer, ctx->render_options.hdr_transfer_want);
         renderer_hdr_enable(&ctx->renderer, ctx->render_options.hdr_output_enabled);
 
         CERR_RET_T(build_main_pl(ctx), clap_context);

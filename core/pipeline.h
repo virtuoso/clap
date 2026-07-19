@@ -36,6 +36,15 @@ typedef struct render_options {
     float   hdr_compress_knee;
     float   hdr_knee_softness;
     /*
+     * HDR output encoding, one of HDR_TRANSFER_* (shader_constants.h).
+     * @hdr_transfer_want is the request, settable at runtime; @hdr_transfer
+     * is what the backend's surface actually came back with and what
+     * present.frag encodes for, refreshed every frame in clap_frame().
+     * They differ when the compositor doesn't offer the requested pair.
+     */
+    int     hdr_transfer;
+    int     hdr_transfer_want;
+    /*
      * Model pass resolution scale (0..1]: render the model pass at a
      * fraction of the pipeline size, postprocessing samples it back up.
      * The frame is fragment-bound on small GPUs, so the model pass cost

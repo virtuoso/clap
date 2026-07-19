@@ -1148,6 +1148,29 @@ bool renderer_supports_edr(renderer_t *r);
 
 void renderer_hdr_enable(renderer_t *r, bool enable);
 
+/**
+ * renderer_hdr_transfer_set() - request an HDR output encoding
+ * @r:          renderer
+ * @transfer:   one of HDR_TRANSFER_* (shader_constants.h)
+ *
+ * A request: the backend falls back to whatever its surface does offer.
+ * renderer_hdr_transfer() reports what it settled on.
+ */
+void renderer_hdr_transfer_set(renderer_t *r, int transfer);
+
+/**
+ * renderer_hdr_transfer() - the HDR output encoding actually in effect
+ * @r:  renderer
+ *
+ * Return: one of HDR_TRANSFER_* (shader_constants.h); %HDR_TRANSFER_PQ on
+ *         backends that don't implement the query. Moot on GL, which never
+ *         sets render_options::hdr_output; correct on metal only because its
+ *         CAMetalLayer sits on ITUR_2100_PQ -- metal doesn't take
+ *         renderer_hdr_transfer_set() either, so the debug panel's radio
+ *         buttons are inert there and report the surface's own choice.
+ */
+int renderer_hdr_transfer(renderer_t *r);
+
 void renderer_swapchain_begin(renderer_t *renderer);
 
 void renderer_frame_begin(renderer_t *renderer);
@@ -1283,6 +1306,8 @@ typedef struct renderer_ops {
     void                (*get_viewport)(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
     bool                (*supports_edr)(renderer_t *r);
     void                (*hdr_enable)(renderer_t *r, bool enable);
+    void                (*hdr_transfer_set)(renderer_t *r, int transfer);
+    int                 (*hdr_transfer_get)(renderer_t *r);
     void                (*swapchain_begin)(renderer_t *r);
     void                (*frame_begin)(renderer_t *r);
     void                (*frame_end)(renderer_t *r);
