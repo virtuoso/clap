@@ -52,6 +52,14 @@ void ui_imgui_wgpu_new_frame(void)
 
 void ui_imgui_wgpu_render_draw_data(ImDrawData *draw)
 {
+    /*
+     * The HDR toggle lives in an imgui window, so a format flip can land
+     * after this frame's new_frame(): the pipeline in hand is built for the
+     * old swapchain format and the pass is already on the new one. Skip
+     * the frame, new_frame() reinitializes before the next one
+     */
+    if (renderer_swapchain_format_gen(renderer) != last_format_gen) return;
+
     auto encoder = renderer_pass_encoder(renderer);
     ImGui_ImplWGPU_RenderDrawData(draw, encoder);
 }
