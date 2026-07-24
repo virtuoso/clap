@@ -1216,12 +1216,12 @@ static const struct clap_cli_options_desc {
     const char      *help;
     const char      *arg_help;
     const char      *long_name;
-    char            short_name;
-    bool            arg_required;
+    int             short_name;
     cli_opt_type    type;
     size_t          ctx_offset;
     void            *ptr;
     cerr            (*handle)(clap_context *ctx, const char *optarg);
+    bool            arg_required;
 } clap_cli_options_desc[CLAP_CLI_SENTINEL] = {
     [CLAP_CLI_HELP_BIT] = {
         .long_name      = "help",
@@ -1272,6 +1272,17 @@ static const struct clap_cli_options_desc {
     },
 };
 
+/*
+ * The value getopt_long() returns for option @i: its short name, or a
+ * number above the character range for options that have none
+ */
+static int cli_opt_val(size_t i)
+{
+    auto desc = &clap_cli_options_desc[i];
+
+    return desc->short_name ? desc->short_name : (int)(256 + i);
+}
+
 #define HELP_OPT_PFX "  "
 static cerr handle_help_opt(clap_context *ctx, const char *optarg)
 {
@@ -1315,15 +1326,18 @@ static cerr clap_cli_opts_process(clap_context *ctx)
         if (!(ctx->cfg.cli_opts & (1u << i)))   continue;
 
         auto desc = &clap_cli_options_desc[i];
+        int val = cli_opt_val(i);
         long_options[lopts_idx++] = (struct option) {
             desc->long_name,
             desc->arg_required ? required_argument : no_argument,
             NULL,
-            desc->short_name
+            val
         };
 
-        short_options[sopts_idx++] = desc->short_name;
-        if (desc->arg_required) short_options[sopts_idx++] = ':';
+        if (desc->short_name) {
+            short_options[sopts_idx++] = desc->short_name;
+            if (desc->arg_required) short_options[sopts_idx++] = ':';
+        }
     }
 
     long_options[lopts_idx] = (struct option) {};
@@ -1340,7 +1354,7 @@ next:
 
         for (size_t i = 0; i < array_size(clap_cli_options_desc); i++) {
             auto desc = &clap_cli_options_desc[i];
-            if (c != desc->short_name)  continue;
+            if (c != cli_opt_val(i))    continue;
 
             if (desc->handle) {
                 CERR_RET_CERR(desc->handle(ctx, desc->arg_required ? optarg : nullptr));
