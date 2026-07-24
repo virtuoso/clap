@@ -185,10 +185,12 @@ static void scene_open_model_dialog(struct scene *scene)
 static const char *hdr_transfer_name(int transfer)
 {
     switch (transfer) {
-        case HDR_TRANSFER_PQ:       return "PQ";
-        case HDR_TRANSFER_EXT_SRGB: return "scRGB";
-        case HDR_TRANSFER_EXT_P3:   return "P3";
-        default:                    break;
+        case HDR_TRANSFER_PQ:                   return "PQ";
+        case HDR_TRANSFER_EXT_SRGB_LINEAR:      return "linear sRGB";
+        case HDR_TRANSFER_EXT_P3_LINEAR:        return "linear P3";
+        case HDR_TRANSFER_EXT_SRGB_NONLINEAR:   return "sRGB";
+        case HDR_TRANSFER_EXT_P3_NONLINEAR:     return "P3";
+        default:                                break;
     }
 
     return "?";

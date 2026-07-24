@@ -66,32 +66,58 @@ vec3 scene_linear_to_srgb(vec3 scene_linear_rgb)
 }
 
 /*
- * Float16 swapchains with extended color spaces (WebGPU's
- * WGPUPredefinedColorSpace_SRGB / DisplayP3 with toneMappingMode_Extended,
- * macOS's extendedSRGB / extendedDisplayP3, Vulkan's EXTENDED_SRGB_LINEAR /
- * DISPLAY_P3_LINEAR color spaces) are LINEAR-LIGHT, not
- * gamma/PQ-encoded. The compositor scans linear values out and applies the
- * display's transfer function itself. The conventions:
+ * Float16 swapchains with extended color spaces. The conventions they share:
  *   - 1.0           == the compositor's SDR white, whatever it currently has
  *                      that set to -- commonly 200 nits on a KWin desktop,
  *                      not the nominal 80 the sRGB spec names
  *   - values > 1.0  == HDR boost above SDR white
- *   - primaries     == BT.709 for the SRGB color space, Display P3 for the
- *                      DisplayP3 one
+ *   - primaries     == BT.709 for the sRGB color space, Display P3 for the
+ *                      P3 one
+ * and deliberately no paper-white scale on top: hdr_display_map() already
+ * leaves 1.0 meaning diffuse white, which is exactly what the compositor's
+ * 1.0 means; the old paper_white_nits/80 factor made these paths ~2.5x
+ * brighter than PQ instead. hdr_white_nits is inert here: only PQ, which
+ * encodes absolute nits, can honour it.
  *
- * So the OETF here is the identity for the transfer curve plus a primary
- * conversion where the target isn't BT.709 -- and deliberately no paper-white
- * scale on top. hdr_display_map() already leaves 1.0 meaning diffuse white,
- * which is exactly what the compositor's 1.0 means; a paper_white_nits/80
- * factor would make these paths ~2.5x brighter than PQ instead.
- * hdr_white_nits is inert here: only PQ, which encodes absolute nits, can
- * honour it.
+ * Where they differ is the transfer curve. Vulkan's EXTENDED_SRGB_LINEAR /
+ * DISPLAY_P3_LINEAR and Metal's extended linear sRGB are LINEAR-LIGHT: the
+ * compositor scans linear values out and applies the display's transfer
+ * function itself, so the encode is the identity plus a primary conversion
+ * where the target isn't BT.709. A browser canvas is not: WebGPU's
+ * colorSpace "srgb" / "display-p3" are the CSS predefined color spaces, which
+ * carry their transfer function, and toneMappingMode Extended only lets the
+ * curve continue past 1.0 (there is no linear predefined color space). Linear
+ * light written there is read as encoded values: 0.3 shows as ~0.07 linear,
+ * darks crushed, brights nearly right. Vulkan names the same thing
+ * EXTENDED_SRGB_NONLINEAR. So there are two encoders per gamut, linear and
+ * nonlinear, and HDR_TRANSFER_* says which one a surface is; the backend
+ * that configured it reports that.
  */
 
-vec3 scene_linear_to_extended_srgb(vec3 scene_linear_rgb)
+/*
+ * The sRGB transfer function, extended: the piecewise curve as CSS Color 4
+ * defines it, continued past 1.0 and mirrored for negatives, no clamp. It is
+ * what a browser canvas expects for both "srgb" and "display-p3", which
+ * share the curve and differ in primaries only.
+ */
+vec3 extended_srgb_oetf(vec3 linear_rgb)
 {
-    /* colorSpace = SRGB: BT.709 in, BT.709 out, nothing to do */
+    vec3 a = abs(linear_rgb);
+    vec3 encoded = mix(a * 12.92, 1.055 * pow(a, vec3(1.0 / 2.4)) - 0.055,
+                       step(vec3(0.0031308), a));
+    return sign(linear_rgb) * encoded;
+}
+
+vec3 scene_linear_to_extended_srgb_linear(vec3 scene_linear_rgb)
+{
+    /* EXTENDED_SRGB_LINEAR: BT.709 in, BT.709 out, linear light, nothing to do */
     return scene_linear_rgb;
+}
+
+vec3 scene_linear_to_extended_srgb_nonlinear(vec3 scene_linear_rgb)
+{
+    /* EXTENDED_SRGB_NONLINEAR, the canvas' "srgb": BT.709 in and out, the curve applied */
+    return extended_srgb_oetf(scene_linear_rgb);
 }
 
 /*
@@ -106,16 +132,22 @@ const mat3 LINEAR_TO_DISPLAY_P3 = mat3(
     0.0000000, 0.0000000, 0.9105199   /* col 2 */
 );
 
-vec3 scene_linear_to_extended_p3(vec3 scene_linear_rgb)
+/*
+ * Same idea as the sRGB pair, but the compositor expects values in P3
+ * primaries -- so BT.709 primaries are converted to P3 first. The wider gamut
+ * is what gives these paths their "punch" on capable displays; the sRGB pair
+ * just clips anything outside BT.709.
+ */
+vec3 scene_linear_to_extended_p3_linear(vec3 scene_linear_rgb)
 {
-    /*
-     * Float16 swapchain, colorSpace = DisplayP3, toneMappingMode = Extended.
-     * Same idea as the sRGB path, but the compositor expects values in P3
-     * primaries — so we convert BT.709 primaries to P3 first. The wider gamut
-     * is what gives this path its "punch" on capable displays; the SRGB path
-     * just clips anything outside BT.709.
-     */
+    /* DISPLAY_P3_LINEAR: linear light */
     return LINEAR_TO_DISPLAY_P3 * scene_linear_rgb;
+}
+
+vec3 scene_linear_to_extended_p3_nonlinear(vec3 scene_linear_rgb)
+{
+    /* DISPLAY_P3_NONLINEAR, the canvas' "display-p3": the curve is sRGB's */
+    return extended_srgb_oetf(LINEAR_TO_DISPLAY_P3 * scene_linear_rgb);
 }
 
 #endif /* CLAP_OETF_GLSL */

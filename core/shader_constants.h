@@ -21,22 +21,31 @@
 /*
  * HDR output encodings present.frag can produce, one per surface the
  * backends know how to ask a compositor for:
- *   PQ       -- BT.2020 primaries, SMPTE ST2084 (vulkan HDR10_ST2084,
- *               CoreGraphics ITUR_2100_PQ). Absolute: 1.0 out of
- *               hdr_display_map() lands at hdr_white_nits exactly.
- *   EXT_SRGB -- BT.709 primaries, linear light (scRGB; vulkan
- *               EXTENDED_SRGB_LINEAR, wgpu srgb + extended tone mapping)
- *   EXT_P3   -- Display P3 primaries, linear light (vulkan
- *               DISPLAY_P3_LINEAR, wgpu display-p3 + extended)
- * The two linear pairs put 1.0 at the compositor's SDR reference white, so
- * hdr_white_nits is advisory there and absolute under PQ. Only PQ needs a
- * primary conversion out of the scene's BT.709 working space; EXT_SRGB
- * needs none, which makes it the one that isolates gamut bugs.
+ *   PQ                 -- BT.2020 primaries, SMPTE ST2084 (vulkan
+ *                         HDR10_ST2084, CoreGraphics ITUR_2100_PQ). Absolute:
+ *                         1.0 out of hdr_display_map() lands at
+ *                         hdr_white_nits exactly.
+ *   EXT_SRGB_LINEAR    -- BT.709 primaries, linear light (scRGB; vulkan
+ *                         EXTENDED_SRGB_LINEAR, metal's extended linear sRGB)
+ *   EXT_P3_LINEAR      -- Display P3 primaries, linear light (vulkan
+ *                         DISPLAY_P3_LINEAR)
+ *   EXT_SRGB_NONLINEAR -- BT.709 primaries, the sRGB curve continued past
+ *                         1.0 (vulkan EXTENDED_SRGB_NONLINEAR, and what a
+ *                         browser canvas is: wgpu srgb + extended tone
+ *                         mapping)
+ *   EXT_P3_NONLINEAR   -- Display P3 primaries, the same curve (vulkan
+ *                         DISPLAY_P3_NONLINEAR, wgpu display-p3 + extended)
+ * The four extended pairs put 1.0 at the compositor's SDR reference white,
+ * so hdr_white_nits is advisory there and absolute under PQ. Only PQ needs a
+ * primary conversion out of the scene's BT.709 working space; the sRGB pairs
+ * need none, which makes them the ones that isolate gamut bugs.
  */
-#define HDR_TRANSFER_PQ         0
-#define HDR_TRANSFER_EXT_SRGB   1
-#define HDR_TRANSFER_EXT_P3     2
-#define HDR_TRANSFER_MAX        3
+#define HDR_TRANSFER_PQ                 0
+#define HDR_TRANSFER_EXT_SRGB_LINEAR    1
+#define HDR_TRANSFER_EXT_P3_LINEAR      2
+#define HDR_TRANSFER_EXT_SRGB_NONLINEAR 3
+#define HDR_TRANSFER_EXT_P3_NONLINEAR   4
+#define HDR_TRANSFER_MAX                5
 
 #define COLOR_PT_NONE 0
 #define COLOR_PT_SET_RGB        0x01

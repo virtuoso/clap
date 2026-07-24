@@ -40,14 +40,19 @@ vec3 present_finalize(vec3 color, vec2 uv)
 
     /*
      * The encode has to match the surface the backend actually got, which is
-     * what hdr_transfer carries: both extended pairs are linear light and
-     * differ only in primaries, PQ is the one with a curve of its own.
+     * what hdr_transfer carries: the extended pairs differ in primaries and
+     * in whether the compositor takes linear light or the sRGB curve, PQ is
+     * the one with a curve of its own.
      */
     if (hdr_output) {
-        if (hdr_transfer == HDR_TRANSFER_EXT_SRGB)
-            color = scene_linear_to_extended_srgb(color);
-        else if (hdr_transfer == HDR_TRANSFER_EXT_P3)
-            color = scene_linear_to_extended_p3(color);
+        if (hdr_transfer == HDR_TRANSFER_EXT_SRGB_LINEAR)
+            color = scene_linear_to_extended_srgb_linear(color);
+        else if (hdr_transfer == HDR_TRANSFER_EXT_P3_LINEAR)
+            color = scene_linear_to_extended_p3_linear(color);
+        else if (hdr_transfer == HDR_TRANSFER_EXT_SRGB_NONLINEAR)
+            color = scene_linear_to_extended_srgb_nonlinear(color);
+        else if (hdr_transfer == HDR_TRANSFER_EXT_P3_NONLINEAR)
+            color = scene_linear_to_extended_p3_nonlinear(color);
         else
             color = scene_linear_to_pq(color, hdr_white_nits);
     } else {

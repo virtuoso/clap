@@ -1814,15 +1814,18 @@ static void wgpu_configure_surface(renderer_t *r)
     // SurfaceColorManagement chains an Extended tone mapping mode so the
     // compositor doesn't clamp values >1.0 to SDR white. Only attached when
     // HDR is on; otherwise default sRGB / Standard tone mapping is fine.
-    // WebGPU has no PQ color space -- srgb and display-p3 are the only
-    // predefined ones, and under Extended tone mapping both are linear-light.
-    // A PQ request therefore lands on extended sRGB, which is also the pair
-    // that needs no primary conversion out of the scene's BT.709 at all.
+    // WebGPU has no PQ color space and no linear one either: srgb and
+    // display-p3 are the only predefined ones, both carry the sRGB curve, and
+    // Extended tone mapping only lets it run past 1.0. So every request lands
+    // on the nonlinear pair with the matching primaries; the sRGB one is also
+    // the pair that needs no primary conversion out of the scene's BT.709.
     WGPUSurfaceColorManagement color_mgmt = WGPU_SURFACE_COLOR_MANAGEMENT_INIT;
     if (r->wgpu.hdr) {
-        r->wgpu.hdr_transfer = r->wgpu.hdr_transfer_want == HDR_TRANSFER_EXT_P3 ?
-            HDR_TRANSFER_EXT_P3 : HDR_TRANSFER_EXT_SRGB;
-        color_mgmt.colorSpace      = r->wgpu.hdr_transfer == HDR_TRANSFER_EXT_P3 ?
+        bool p3 = r->wgpu.hdr_transfer_want == HDR_TRANSFER_EXT_P3_LINEAR ||
+                  r->wgpu.hdr_transfer_want == HDR_TRANSFER_EXT_P3_NONLINEAR;
+
+        r->wgpu.hdr_transfer = p3 ? HDR_TRANSFER_EXT_P3_NONLINEAR : HDR_TRANSFER_EXT_SRGB_NONLINEAR;
+        color_mgmt.colorSpace      = p3 ?
             WGPUPredefinedColorSpace_DisplayP3 : WGPUPredefinedColorSpace_SRGB;
         color_mgmt.toneMappingMode = WGPUToneMappingMode_Extended;
         config.nextInChain         = &color_mgmt.chain;
@@ -2110,8 +2113,8 @@ static unsigned int wgpu_renderer_hdr_transfers(renderer_t *r)
 {
     if (!r->wgpu.edr_supported)     return 0;
 
-    /* the canvas' two predefined color spaces under extended tone mapping */
-    return (1u << HDR_TRANSFER_EXT_SRGB) | (1u << HDR_TRANSFER_EXT_P3);
+    /* the canvas' two predefined color spaces, both with the sRGB curve */
+    return (1u << HDR_TRANSFER_EXT_SRGB_NONLINEAR) | (1u << HDR_TRANSFER_EXT_P3_NONLINEAR);
 }
 
 static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable)
