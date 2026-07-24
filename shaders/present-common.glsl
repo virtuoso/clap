@@ -53,6 +53,8 @@ vec3 present_finalize(vec3 color, vec2 uv)
             color = scene_linear_to_extended_srgb_nonlinear(color);
         else if (hdr_transfer == HDR_TRANSFER_EXT_P3_NONLINEAR)
             color = scene_linear_to_extended_p3_nonlinear(color);
+        else if (hdr_transfer == HDR_TRANSFER_SCRGB)
+            color = scene_linear_to_scrgb(color, hdr_white_nits);
         else
             color = scene_linear_to_pq(color, hdr_white_nits);
     } else {

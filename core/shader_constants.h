@@ -35,17 +35,23 @@
  *                         mapping)
  *   EXT_P3_NONLINEAR   -- Display P3 primaries, the same curve (vulkan
  *                         DISPLAY_P3_NONLINEAR, wgpu display-p3 + extended)
+ *   SCRGB              -- the same fp16 EXTENDED_SRGB_LINEAR surface as
+ *                         EXT_SRGB_LINEAR, on a windows desktop in HDR mode:
+ *                         DWM reads 1.0 as 80 nits there, not as its SDR
+ *                         white, so the encode scales by hdr_white_nits / 80
+ *                         to put diffuse white where PQ puts it
  * The four extended pairs put 1.0 at the compositor's SDR reference white,
- * so hdr_white_nits is advisory there and absolute under PQ. Only PQ needs a
- * primary conversion out of the scene's BT.709 working space; the sRGB pairs
- * need none, which makes them the ones that isolate gamut bugs.
+ * so hdr_white_nits is advisory there and absolute under PQ and SCRGB. Only
+ * PQ needs a primary conversion out of the scene's BT.709 working space; the
+ * sRGB pairs need none, which makes them the ones that isolate gamut bugs.
  */
 #define HDR_TRANSFER_PQ                 0
 #define HDR_TRANSFER_EXT_SRGB_LINEAR    1
 #define HDR_TRANSFER_EXT_P3_LINEAR      2
 #define HDR_TRANSFER_EXT_SRGB_NONLINEAR 3
 #define HDR_TRANSFER_EXT_P3_NONLINEAR   4
-#define HDR_TRANSFER_MAX                5
+#define HDR_TRANSFER_SCRGB              5
+#define HDR_TRANSFER_MAX                6
 
 #define COLOR_PT_NONE 0
 #define COLOR_PT_SET_RGB        0x01

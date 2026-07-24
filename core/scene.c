@@ -190,6 +190,7 @@ static const char *hdr_transfer_name(int transfer)
         case HDR_TRANSFER_EXT_P3_LINEAR:        return "linear P3";
         case HDR_TRANSFER_EXT_SRGB_NONLINEAR:   return "sRGB";
         case HDR_TRANSFER_EXT_P3_NONLINEAR:     return "P3";
+        case HDR_TRANSFER_SCRGB:                return "scRGB";
         default:                                break;
     }
 

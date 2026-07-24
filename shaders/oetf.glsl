@@ -121,6 +121,20 @@ vec3 scene_linear_to_extended_srgb_nonlinear(vec3 scene_linear_rgb)
 }
 
 /*
+ * The one extended surface that is NOT referred to the compositor's SDR
+ * white: DWM composes an HDR desktop in scRGB and takes fp16 1.0 as the
+ * nominal 80 nits, leaving the SDR white level adjustment to the app
+ * (learn.microsoft.com, "Use DirectX with Advanced Color": "multiply the
+ * SDR color value by SdrWhiteLevelInNits / 80"). paper_white_nits stands in
+ * for the OS setting, the way it does under PQ, so both land diffuse white
+ * at the same luminance.
+ */
+vec3 scene_linear_to_scrgb(vec3 scene_linear_rgb, float paper_white_nits)
+{
+    return scene_linear_rgb * (paper_white_nits / 80.0);
+}
+
+/*
  * BT.709 primaries -> Display P3 primaries, D65 white in both. From CSS Color 4
  * (https://www.w3.org/TR/css-color-4/#color-conversion-code), via XYZ. Linear
  * light only, on the same terms as LINEAR_TO_BT2020 above.
