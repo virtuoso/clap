@@ -15,6 +15,14 @@
  * Instead of shipping .cube files for basic color grading LUTs, generate them
  * at startup time, to avoid wasting space, bandwidth and parsing an text
  * based float array.
+ *
+ * The presets are scene-referred: they run on scene-linear color after
+ * exposure and ahead of the tonemapper, so mid-grey sits at 0.18 times the
+ * exposure, nothing pins at 1.0, and the tonemapper's per-channel curve gets
+ * the last word on how much of a gain survives into the highlights. Their
+ * constants are dialled for that position against the pictures the original
+ * display-referred looks made, which is why the gains run stronger than a
+ * grade on the finished image would.
  * --------------------------------------------------------------------------- */
 static void __identity(vec3 color, vec3 out)
 {
@@ -39,11 +47,11 @@ static inline float lut_clampf(float x)
 static void __orange_blue_filmic(vec3 color, vec3 out)
 {
     vec3 powed;
-    vec3_pow_vec3(powed, color, (vec3){ 0.9f, 0.95f, 1.1f });
+    vec3_pow_vec3(powed, color, (vec3){ 1.1f, 1.0f, 1.3f });
     vec3_dup(out, (vec3){
-        lut_clampf(powed[0] * 1.6f - powed[1] * 0.2f),
-        lut_clampf(powed[1]),
-        lut_clampf(powed[2] * 1.3f - powed[0] * 0.3f)
+        lut_clampf(powed[0] * 3.0f - powed[1] * 0.2f),
+        lut_clampf(powed[1] * 0.8f),
+        lut_clampf(powed[2] - powed[0] * 0.05f)
     });
 }
 
@@ -52,10 +60,12 @@ static void __comic_red(vec3 color, vec3 out)
     float luma = vec3_mul_inner(color, (vec3){ 0.3, 0.59, 0.11 });
     float gray = luma;
 
-    float redness = powf(fmaxf(fminf(color[0] - color[1], color[0] - color[2]) - 0.125, 0.0), 0.75);
+    /* how far red stands above the other two, relative to itself */
+    float redness = (color[0] - fmaxf(color[1], color[2])) / fmaxf(color[0], 1e-4f);
+    float keep = fminf(sqrtf(fmaxf(redness - 0.4f, 0.0f)) * 1.5f, 1.0f);
     vec3 grayscale = { gray, gray, gray };
-    vec3 reds = { powf(color[0], 0.25), gray * 0.2, gray * 0.2 };
-    vec3_interp(out, grayscale, reds, fminf(redness, 1.0));
+    vec3 reds = { color[0], gray * 0.02, gray * 0.02 };
+    vec3_interp(out, grayscale, reds, keep);
 }
 
 static void __comic_green(vec3 color, vec3 out)
@@ -63,10 +73,12 @@ static void __comic_green(vec3 color, vec3 out)
     float luma = vec3_mul_inner(color, (vec3){ 0.3, 0.59, 0.11 });
     float gray = luma;
 
-    float greenness = powf(fmaxf(fminf(color[1] - color[0], color[1] - color[2]) - 0.125, 0.0), 0.75);
+    /* how far green stands above the other two, relative to itself */
+    float greenness = (color[1] - fmaxf(color[0], color[2])) / fmaxf(color[1], 1e-4f);
+    float keep = fminf(sqrtf(fmaxf(greenness - 0.4f, 0.0f)) * 1.5f, 1.0f);
     vec3 grayscale = { gray, gray, gray };
-    vec3 greens = { gray * 0.2, powf(color[1], 0.25), gray * 0.2 };
-    vec3_interp(out, grayscale, greens, fminf(greenness, 1.0));
+    vec3 greens = { gray * 0.02, color[1], gray * 0.02 };
+    vec3_interp(out, grayscale, greens, keep);
 }
 
 static void __comic_blue(vec3 color, vec3 out)
@@ -74,33 +86,35 @@ static void __comic_blue(vec3 color, vec3 out)
     float luma = vec3_mul_inner(color, (vec3){ 0.3, 0.59, 0.11 });
     float gray = luma;
 
-    float blueness = powf(fmaxf(fminf(color[2] - color[0], color[2] - color[1]) - 0.125, 0.0), 0.75);
+    /* how far blue stands above the other two, relative to itself */
+    float blueness = (color[2] - fmaxf(color[0], color[1])) / fmaxf(color[2], 1e-4f);
+    float keep = fminf(sqrtf(fmaxf(blueness - 0.4f, 0.0f)) * 1.5f, 1.0f);
     vec3 grayscale = { gray, gray, gray };
-    vec3 blues = { gray * 0.2, gray * 0.2, powf(color[2], 0.25) };
-    vec3_interp(out, grayscale, blues, fminf(blueness, 1.0));
+    vec3 blues = { gray * 0.02, gray * 0.02, color[2] };
+    vec3_interp(out, grayscale, blues, keep);
 }
 
 static void __sunset_warm(vec3 color, vec3 out)
 {
-    out[0] = lut_clampf(color[0] * 1.15 + 0.05);
-    out[1] = color[1];
-    out[2] = color[2] * 0.85;
+    out[0] = lut_clampf(color[0] * 3.0f);
+    out[1] = color[1] * 0.85f;
+    out[2] = color[2] * 0.35f;
 }
 
 static void __hyper_sunset(vec3 color, vec3 out)
 {
-    out[0] = lut_clampf(color[0] * 1.5);
-    out[1] = lut_clampf(color[1] * 1.2);
-    out[2] = lut_clampf(color[2] * 0.7);
-    vec3_pow(out, out, 0.85);
+    out[0] = lut_clampf(color[0] * 4.0f);
+    out[1] = lut_clampf(color[1] * 1.8f);
+    out[2] = lut_clampf(color[2] * 0.4f);
+    vec3_pow(out, out, 1.4f);
 }
 
 static void __green_matrix(vec3 color, vec3 out)
 {
     mat3x3 mat = {
-        { 0.0, 0.5, 0.0 },  // output R = 0*R + 0.5*G + 0*B
-        { 0.1, 1.0, 0.1 },  // output G = 0.1*R + 1.0*G + 0.1*B
-        { 0.0, 0.4, 0.0 }   // output B = 0*R + 0.4*G + 0*B
+        { 0.0, 0.07, 0.0 },   // output R = 0*R + 0.07*G + 0*B
+        { 0.1, 1.0, 0.1 },    // output G = 0.1*R + 1.0*G + 0.1*B
+        { 0.0, 0.035, 0.0 }   // output B = 0*R + 0.035*G + 0*B
     };
     mat3x3_transpose(mat, mat);
     mat3x3_mul_vec3(out, mat, color);
@@ -108,62 +122,63 @@ static void __green_matrix(vec3 color, vec3 out)
 
 static void __scifi_bluegreen(vec3 in, vec3 out)
 {
-    out[0] = lut_clampf(in[0] * 0.3f);
-    out[1] = lut_clampf(in[1] * 1.4f);
-    out[2] = lut_clampf(in[2] * 1.6f);
+    out[0] = lut_clampf(in[0] * 0.01f);
+    out[1] = lut_clampf(in[1] * 1.7f);
+    out[2] = lut_clampf(in[2] * 3.0f);
 }
 
 static void __scifi_neon(vec3 in, vec3 out)
 {
     vec3_dup(out, in);
-    vec3_sub(out, out, (vec3){ 0.5, 0.5, 0.5 });
+    vec3_sub(out, out, (vec3){ 0.25, 0.25, 0.25 });
     vec3_scale(out, out, 1.6);
-    vec3_add(out, out, (vec3){ 0.5, 0.5, 0.5 });
+    vec3_add(out, out, (vec3){ 0.25, 0.25, 0.25 });
     out[0] = lut_clampf(out[0]);
     out[1] = lut_clampf(out[1]);
     out[2] = lut_clampf(out[2]);
 }
 
-static inline float abyss_curve(float x, float boost, float thresh)
+/* a touch of contrast; a black lift means nothing in linear light */
+static inline float abyss_curve(float x)
 {
-    float y = powf(x + boost, 1.3f) - thresh;
-    return clampf(y, 0.0f, HDR_LUT_MAX);
+    return lut_clampf(powf(x, 1.3f));
 }
 
 static void __deep_sea_abyss(vec3 in, vec3 out)
 {
-    out[0] = abyss_curve(clampf(in[0] * 0.3f + in[2] * 0.25, 0.0, HDR_LUT_MAX), 0.1, 0.03);
-    out[1] = abyss_curve(clampf(in[1] * 0.5f + in[2] * 0.15, 0.0, HDR_LUT_MAX), 0.1, 0.03);
-    out[2] = abyss_curve(clampf(in[2] * 1.3f, 0.0, HDR_LUT_MAX), 0.1, 0.03);
+    out[0] = abyss_curve(in[0] * 0.04f + in[2] * 0.15f);
+    out[1] = abyss_curve(in[1] * 0.2f);
+    out[2] = abyss_curve(in[2] * 1.6f);
 }
 
 static void __bloodveil_crimson(vec3 in, vec3 out)
 {
-    out[0] = abyss_curve(clampf(in[0] * 1.6f, 0.0, HDR_LUT_MAX), 0.1, 0.03);
-    out[1] = abyss_curve(clampf(in[1] * 0.3f + in[0] * 0.1, 0.0, HDR_LUT_MAX), 0.1, 0.03);
-    out[2] = abyss_curve(clampf(in[2] * 0.3f + in[0] * 0.1, 0.0, HDR_LUT_MAX), 0.1, 0.03);
+    out[0] = abyss_curve(in[0] * 1.6f);
+    out[1] = abyss_curve(in[1] * 0.05f);
+    out[2] = abyss_curve(in[2] * 0.04f);
 }
 
 static void __mad_max_bleach(vec3 in, vec3 out)
 {
     float luma = vec3_mul_inner(in, (vec3){ 0.3f, 0.59f, 0.11f });
-    float harsh = fminf(1.0f, luma * 1.6f);
+    /* the level the bleach lifts toward, capped where the tonemapper has it white anyway */
+    float harsh = fminf(2.8f, luma * 2.8f);
     out[0] = fmaxf(in[0], harsh);
-    out[1] = fmaxf(in[1] * 0.9f, harsh * 0.8f);
-    out[2] = fmaxf(in[2] * 0.6f, harsh * 0.6f);
+    out[1] = fmaxf(in[1] * 0.55f, harsh * 0.3f);
+    out[2] = harsh * 0.07f;
 }
 
 static void __teal_orange(vec3 color, vec3 out)
 {
     vec3 powed;
-    vec3_pow_vec3(powed, color, (vec3){ 0.9f, 1.0f, 1.1f });
+    vec3_pow_vec3(powed, color, (vec3){ 1.0f, 1.0f, 1.1f });
 
     // R: boost for skin tones, suppress blue spill
-    out[0] = lut_clampf(powed[0] * 1.3f - powed[2] * 0.2f);
-    // G: slight lift
-    out[1] = lut_clampf(powed[1] * 1.0f + powed[2] * 0.05f);
-    // B: boost mids, darken overall
-    out[2] = lut_clampf(powed[2] * 1.1f - powed[0] * 0.2f - powed[1] * 0.1f);
+    out[0] = lut_clampf(powed[0] * 2.8f - powed[2] * 0.25f);
+    // G: as is
+    out[1] = lut_clampf(powed[1]);
+    // B: darken overall
+    out[2] = lut_clampf(powed[2] * 0.57f - powed[0] * 0.06f - powed[1] * 0.04f);
 }
 
 typedef void (*lut_fn)(vec3, vec3);
@@ -231,7 +246,7 @@ static struct {
     [LUT_SCIFI_NEON]            = {
         .name       = "scifi neon",
         .fn         = __scifi_neon,
-        .exposure   = 5.0,
+        .exposure   = 2.35,
         .contrast   = 0.01,
     },
     [LUT_DEEP_SEA_ABYSS]        = {
