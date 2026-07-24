@@ -86,7 +86,9 @@ vec4 combine_color(vec2 pass_tex)
         hdr_color = HVEC3(apply_lut(lut_tex, hdr_color));
         /* tonemapping */
         if (hdr_output)
-            hdr_color = HVEC3(hdr_display_map(hdr_color, hdr_white_nits, hdr_peak_nits, hdr_compress_knee, hdr_knee_softness));
+            hdr_color = HVEC3(hdr_display_map(hdr_color, hdr_white_nits, hdr_peak_nits,
+                                              hdr_compress_knee, hdr_knee_softness,
+                                              lighting_operator));
         else
             hdr_color = mix(reinhard_tonemap(hdr_color), aces_tonemap(hdr_color), H(lighting_operator));
         /*

@@ -11,28 +11,29 @@ f16vec3 aces_tonemap(f16vec3 hdr_color)
     return hdr_color * (hdr_color + H(0.25)) / (hdr_color * (hdr_color + H(0.5)) + H(0.1));
 }
 
-float compress_knee(float x, float knee, float max_x, float s)
-{
-    /* x,knee,max_x in "relative to paper white" units, s > 0 controls softness */
-    x = max(x, 0.0);
-    if (x <= knee) return x;
-    float t = (x - knee) / max(1e-6, (max_x - knee));
-    /* log rolloff to [knee..max_x] */
-    return knee + (max_x - knee) * (log(1.0 + s * t) / log(1.0 + s));
-}
-
+/*
+ * HDR display map: the SDR picture, with the headroom on top. The lighting
+ * operator runs per channel exactly as it does for SDR output, so below
+ * knee_rel (scene-linear, after exposure) the two outputs agree and a LUT
+ * dialled against the operator holds on HDR too. Above the knee the
+ * brightest channel decides how much of the headroom a highlight gets, and
+ * the whole colour is scaled up by that, so hue and saturation stay what SDR
+ * shows and only the brightness climbs toward peak_rel, over about
+ * `softness` scene-linear units. (Scaling per channel instead lets one
+ * strong channel run to the peak alone, which turns an imbalanced grade
+ * like bloodveil into a far deeper red than SDR ever shows.) Monotone, and
+ * smooth at the knee: the headroom term starts with zero slope.
+ */
 vec3 hdr_display_map(vec3 rgb, float paper_white_nits, float peak_nits,
-                     float knee_rel, float softness)
+                     float knee_rel, float softness, float op)
 {
     float peak_rel = peak_nits / paper_white_nits;
+    vec3 sdr = vec3(mix(reinhard_tonemap(HVEC3(rgb)), aces_tonemap(HVEC3(rgb)), H(op)));
+    float top = max(sdr.r, max(sdr.g, sdr.b));
+    float t = max(max(rgb.r, max(rgb.g, rgb.b)) - knee_rel, 0.0) / softness;
+    float head = (peak_rel - 1.0) * (1.0 - exp(-t * t));
 
-    /* scene-linear luminance (use your working primaries; this is sRGB-ish) */
-    float y = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
-    float y2 = compress_knee(y, knee_rel, peak_rel, softness);
-
-    float s = (y > 1e-6) ? (y2 / y) : 0.0;
-    return rgb * s; /* can be > 1.0, capped by peak_rel */
+    return sdr * (1.0 + head / max(top, 1e-3));
 }
 
 #endif /* CLAP_TONEMAP_GLSL */
-

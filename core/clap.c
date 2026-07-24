@@ -412,8 +412,8 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.film_grain_power = 1.0;
     ctx->render_options.hdr_white_nits = 203.0f;
     ctx->render_options.hdr_peak_nits = 1000.0f;
-    ctx->render_options.hdr_compress_knee = 1.0f;
-    ctx->render_options.hdr_knee_softness = 16.0f;
+    ctx->render_options.hdr_compress_knee = 2.0f;
+    ctx->render_options.hdr_knee_softness = 4.0f;
     ctx->render_options.hdr_transfer_want = HDR_TRANSFER_PQ;
 }
 

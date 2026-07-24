@@ -985,10 +985,9 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                     shader_set_var_float(prog, UNIFORM_HDR_PEAK_NITS, ropts->hdr_peak_nits);
                     shader_set_var_float(prog, UNIFORM_HDR_COMPRESS_KNEE, ropts->hdr_compress_knee);
                     shader_set_var_float(prog, UNIFORM_HDR_KNEE_SOFTNESS, ropts->hdr_knee_softness);
-                } else {
-                    shader_set_var_float(prog, UNIFORM_BLOOM_OPERATOR, ropts->bloom_operator);
-                    shader_set_var_float(prog, UNIFORM_LIGHTING_OPERATOR, ropts->lighting_operator);
                 }
+                shader_set_var_float(prog, UNIFORM_BLOOM_OPERATOR, ropts->bloom_operator);
+                shader_set_var_float(prog, UNIFORM_LIGHTING_OPERATOR, ropts->lighting_operator);
                 shader_set_var_float(prog, UNIFORM_CONTRAST, ropts->contrast);
                 shader_set_var_float(prog, UNIFORM_FOG_NEAR, ropts->fog_near);
                 shader_set_var_float(prog, UNIFORM_FOG_FAR, ropts->fog_far);
