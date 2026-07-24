@@ -1891,6 +1891,7 @@ static cerr wgpu_create_render_pass(renderer_t *r)
     color_attachments.view = r->wgpu.texture_view;
 
     WGPURenderPassDescriptor render_pass_desc = {};
+    render_pass_desc.label = literal_to_wgpu_stringview("swapchain pass");
     render_pass_desc.colorAttachmentCount = 1;
     render_pass_desc.colorAttachments = &color_attachments;
     render_pass_desc.depthStencilAttachment = nullptr;
