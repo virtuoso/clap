@@ -18,6 +18,10 @@ option(CLAP_BUILD_NETWORKING BOOL OFF)
 # pass and the motion-vector varyings/math from the model shaders, a
 # bandwidth/register win on small GPUs
 option(CLAP_BUILD_TAA BOOL ON)
+# The target device lacks fp16 arithmetic (VkPhysicalDeviceVulkan12Features::
+# shaderFloat16, e.g. RPi5/v3dv): compile shaders with half.glsl's mediump
+# fallback and don't require the feature when picking a device
+option(CLAP_SHADER_NO_FP16 BOOL OFF)
 # Compile the model/shadow uber shaders into per-variant specializations,
 # one shader per valid SHADER_VARIANT_* axis combination, resolvable at
 # runtime via shader_get_name(); OFF compiles only the uber shaders

@@ -78,7 +78,8 @@ function(_shader_backend_props backend)
     set(backend_args "")
 
     if (backend STREQUAL "gl")
-        list(APPEND backend_args -DSHADER_RENDERER_OPENGL=1)
+        # no explicit fp16 arithmetic in GLSL, half.glsl falls back to mediump
+        list(APPEND backend_args -DSHADER_RENDERER_OPENGL=1 -DSHADER_NO_FP16=1)
         if (CONFIG_GLES)
             set(_SHADER_TYPE "glsl-es" PARENT_SCOPE)
             set(_SHADER_EXT ".glsl" PARENT_SCOPE)
@@ -104,6 +105,9 @@ function(_shader_backend_props backend)
             -DSHADER_ORIGIN_TOP_LEFT=1
             -DSHADER_NDC_ZERO_ONE=1
             -DSHADER_NDC_Y_DOWN=1
+            # f16 in WGSL needs the optional shader-f16 feature; until the
+            # renderer requests it, half.glsl falls back to mediump
+            -DSHADER_NO_FP16=1
         )
         set(_SHADER_TYPE "wgsl" PARENT_SCOPE)
         set(_SHADER_EXT ".wgsl" PARENT_SCOPE)

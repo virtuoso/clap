@@ -1,7 +1,13 @@
 #ifndef SHADERS_HALF_GLSL
 #define SHADERS_HALF_GLSL
 
-#if defined(SHADER_RENDERER_OPENGL) || defined(SHADER_RENDERER_WGPU)
+/*
+ * SHADER_NO_FP16 comes from the shader compiler command line: always for
+ * the GL and WGPU backends, and for backends that can do explicit fp16
+ * arithmetic (Vulkan) when CLAP_SHADER_NO_FP16 says the target device
+ * lacks shaderFloat16 (RPi5/v3dv)
+ */
+#ifdef SHADER_NO_FP16
 # ifdef SHADER_BROWSER
 // At a superficial glance, WebGL doesn't handle mediump float well at all
 // Needs proper profiling
@@ -21,12 +27,12 @@
 #  define HVEC3(x) vec3(x)
 #  define HVEC4(x) vec4(x)
 # endif /* !SHADER_BROWSER */
-#else /* !SHADER_RENDERER_OPENGL */
+#else /* !SHADER_NO_FP16 */
 #extension GL_EXT_shader_explicit_arithmetic_types: require
 #define H(x)        float16_t(x)
 #define HVEC3(x)    f16vec3(x)
 #define HVEC4(x)    f16vec4(x)
-#endif /* !SHADER_RENDERER_OPENGL */
+#endif /* !SHADER_NO_FP16 */
 precision highp float;
 precision highp int;
 
