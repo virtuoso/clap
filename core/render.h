@@ -150,6 +150,15 @@ typedef uint64_t mtl_cull_mode_t;
 # include <stdatomic.h>
 # include "bindings/render-bindings.h" /* for BINDING_TEXTURE_MAX / BINDING_UBO_MAX */
 enum { WGPU_VERTEX_ATTRIBUTE_SIZE = 24, WGPU_VERTEX_ATTRIBUTE_ALIGN = 8 };
+/*
+ * WGPURenderPass{ColorAttachment,DepthStencilAttachment,Descriptor}, kept by
+ * value in fbo_t and mirrored below for the non-IMPLEMENTOR side
+ */
+enum {
+    WGPU_COLOR_ATTACHMENT_SIZE  = 56, WGPU_COLOR_ATTACHMENT_ALIGN = 8,
+    WGPU_DEPTH_ATTACHMENT_SIZE  = 40, WGPU_DEPTH_ATTACHMENT_ALIGN = 4,
+    WGPU_PASS_DESCRIPTOR_SIZE   = 32, WGPU_PASS_DESCRIPTOR_ALIGN  = 4,
+};
 # ifdef IMPLEMENTOR
 #  include <webgpu/webgpu.h>
 typedef WGPUInstance wgpu_instance_t;
@@ -172,6 +181,18 @@ static_assert(sizeof(WGPUVertexAttribute) == WGPU_VERTEX_ATTRIBUTE_SIZE,
               "WGPUVertexAttribute size mismatch");
 static_assert(_Alignof(WGPUVertexAttribute) == WGPU_VERTEX_ATTRIBUTE_ALIGN,
               "WGPUVertexAttribute align mismatch");
+typedef WGPURenderPassColorAttachment wgpu_color_attachment_t;
+typedef WGPURenderPassDepthStencilAttachment wgpu_depth_attachment_t;
+typedef WGPURenderPassDescriptor wgpu_pass_descriptor_t;
+static_assert(sizeof(WGPURenderPassColorAttachment) == WGPU_COLOR_ATTACHMENT_SIZE &&
+              _Alignof(WGPURenderPassColorAttachment) == WGPU_COLOR_ATTACHMENT_ALIGN,
+              "WGPURenderPassColorAttachment layout mismatch");
+static_assert(sizeof(WGPURenderPassDepthStencilAttachment) == WGPU_DEPTH_ATTACHMENT_SIZE &&
+              _Alignof(WGPURenderPassDepthStencilAttachment) == WGPU_DEPTH_ATTACHMENT_ALIGN,
+              "WGPURenderPassDepthStencilAttachment layout mismatch");
+static_assert(sizeof(WGPURenderPassDescriptor) == WGPU_PASS_DESCRIPTOR_SIZE &&
+              _Alignof(WGPURenderPassDescriptor) == WGPU_PASS_DESCRIPTOR_ALIGN,
+              "WGPURenderPassDescriptor layout mismatch");
 # else /* !IMPLEMENTOR */
 typedef void *wgpu_instance_t;
 typedef void *wgpu_adapter_t;
@@ -188,6 +209,9 @@ typedef void *wgpu_buffer_t;
 typedef void *wgpu_sampler_t;
 typedef void *wgpu_render_pipeline_t;
 typedef struct { _Alignas(WGPU_VERTEX_ATTRIBUTE_ALIGN) char _[WGPU_VERTEX_ATTRIBUTE_SIZE]; } wgpu_vertex_attribute_t;
+typedef struct { _Alignas(WGPU_COLOR_ATTACHMENT_ALIGN) char _[WGPU_COLOR_ATTACHMENT_SIZE]; } wgpu_color_attachment_t;
+typedef struct { _Alignas(WGPU_DEPTH_ATTACHMENT_ALIGN) char _[WGPU_DEPTH_ATTACHMENT_SIZE]; } wgpu_depth_attachment_t;
+typedef struct { _Alignas(WGPU_PASS_DESCRIPTOR_ALIGN) char _[WGPU_PASS_DESCRIPTOR_SIZE]; } wgpu_pass_descriptor_t;
 # endif /* !IMPLEMENTOR */
 #endif /* CONFIG_RENDERER_WGPU */
 
@@ -673,7 +697,11 @@ TYPE(fbo,
 
 #ifdef CONFIG_RENDERER_WGPU
     struct {
-        const char      *name;
+        /* render pass setup over the attachments, fixed while they exist */
+        wgpu_color_attachment_t     color_atts[FBO_COLOR_ATTACHMENTS_MAX];
+        wgpu_depth_attachment_t     depth_att;
+        wgpu_pass_descriptor_t      desc;
+        const char                  *name;
     } wgpu;
 #endif /* CONFIG_RENDERER_WGPU */
 

@@ -1058,6 +1058,56 @@ static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment layout)
 }
 
 /**
+ * fbo_render_pass_update() - rebuild the FBO's render pass descriptor
+ * @fbo:    FBO whose attachments have just been (re)created
+ *
+ * The render pass setup over the attachments: their views and the
+ * load/store/clear config don't change for as long as the textures exist,
+ * so it's rebuilt with them and fbo_prepare() only begins the pass.
+ */
+static void fbo_render_pass_update(fbo_t *fbo)
+{
+    unsigned int nr_colors = 0;
+
+    fa_for_each(fa, fbo->layout, texture) {
+        int idx = fbo_attachment_color(fa);
+        texture_t *tex = &fbo->color_tex[idx];
+        fbo_attconfig *cfg = &fbo->color_config[idx];
+
+        if (!tex->wgpu.view)    continue;
+
+        fbo->wgpu.color_atts[nr_colors++] = (WGPURenderPassColorAttachment){
+            .view           = tex->wgpu.view,
+            .depthSlice     = WGPU_DEPTH_SLICE_UNDEFINED,
+            .loadOp         = wgpu_load_op(cfg->load_action),
+            .storeOp        = wgpu_store_op(cfg->store_action),
+            .clearValue     = {
+                cfg->clear_color[0],
+                cfg->clear_color[1],
+                cfg->clear_color[2],
+                cfg->clear_color[3],
+            },
+        };
+    }
+
+    bool has_depth = fbo->layout.depth_texture && fbo->depth_tex.wgpu.view;
+    if (has_depth)
+        fbo->wgpu.depth_att = (WGPURenderPassDepthStencilAttachment){
+            .view               = fbo->depth_tex.wgpu.view,
+            .depthLoadOp        = wgpu_load_op(fbo->depth_config.load_action),
+            .depthStoreOp       = wgpu_store_op(fbo->depth_config.store_action),
+            .depthClearValue    = fbo->depth_config.clear_depth,
+        };
+
+    fbo->wgpu.desc = (WGPURenderPassDescriptor){
+        .label                  = to_wgpu_stringview(fbo->wgpu.name),
+        .colorAttachmentCount   = nr_colors,
+        .colorAttachments       = fbo->wgpu.color_atts,
+        .depthStencilAttachment = has_depth ? &fbo->wgpu.depth_att : NULL,
+    };
+}
+
+/**
  * fbo_attachments_init() - create all the attachments at the FBO's current size
  * @fbo:    the FBO
  *
@@ -1071,6 +1121,7 @@ static cerr fbo_attachments_init(fbo_t *fbo)
     if (fbo->layout.depth_texture)                      err = fbo_depth_texture_init(fbo);
     if (!IS_CERR(err) && fbo->layout.color_textures)    err = fbo_textures_init(fbo, fbo->layout);
     if (IS_CERR(err))                                   fbo_attachments_deinit(fbo);
+    else                                                fbo_render_pass_update(fbo);
 
     return err;
 }
@@ -1122,51 +1173,7 @@ static void wgpu_fbo_prepare(fbo_t *fbo)
         return;
     }
 
-    /* Build color attachments from FBO textures */
-    WGPURenderPassColorAttachment color_atts[FBO_COLOR_ATTACHMENTS_MAX] = {};
-    unsigned int nr_colors = 0;
-
-    fa_for_each(fa, fbo->layout, texture) {
-        int idx = fbo_attachment_color(fa);
-        texture_t *tex = &fbo->color_tex[idx];
-
-        if (!tex->wgpu.view)
-            continue;
-
-        color_atts[nr_colors] = (WGPURenderPassColorAttachment){
-            .view           = tex->wgpu.view,
-            .depthSlice     = WGPU_DEPTH_SLICE_UNDEFINED,
-            .loadOp         = wgpu_load_op(fbo->color_config[idx].load_action),
-            .storeOp        = wgpu_store_op(fbo->color_config[idx].store_action),
-            .clearValue     = {
-                fbo->color_config[idx].clear_color[0],
-                fbo->color_config[idx].clear_color[1],
-                fbo->color_config[idx].clear_color[2],
-                fbo->color_config[idx].clear_color[3],
-            },
-        };
-        nr_colors++;
-    }
-
-    WGPURenderPassDepthStencilAttachment depth_att = {};
-    bool has_depth = fbo->layout.depth_texture && fbo->depth_tex.wgpu.view;
-
-    if (has_depth) {
-        depth_att = (WGPURenderPassDepthStencilAttachment){
-            .view               = fbo->depth_tex.wgpu.view,
-            .depthLoadOp        = wgpu_load_op(fbo->depth_config.load_action),
-            .depthStoreOp       = wgpu_store_op(fbo->depth_config.store_action),
-            .depthClearValue    = fbo->depth_config.clear_depth,
-        };
-    }
-
-    WGPURenderPassDescriptor desc = {
-        .colorAttachmentCount       = nr_colors,
-        .colorAttachments           = color_atts,
-        .depthStencilAttachment     = has_depth ? &depth_att : NULL,
-    };
-
-    r->wgpu.pass_encoder = wgpuCommandEncoderBeginRenderPass(r->wgpu.cmd_encoder, &desc);
+    r->wgpu.pass_encoder = wgpuCommandEncoderBeginRenderPass(r->wgpu.cmd_encoder, &fbo->wgpu.desc);
     r->wgpu.fbo = fbo;
 }
 
