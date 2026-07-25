@@ -6,13 +6,16 @@
 #   render-bindings.c        -- shader_bindings[][][] lookup table, shader_var_desc[],
 #                               shader_var_block_desc[]  (#include'd by shader.c)
 #   render-bindings-common.h -- per-backend binding constants for all renderers
-#   render-bindings-{gl,metal,wgpu}.h -- per-backend UBO_BINDING_*/SAMPLER_BINDING_* aliases
+#   render-bindings-{gl,metal,wgpu,vulkan}.h -- per-backend UBO_BINDING_*/SAMPLER_BINDING_* aliases
 #
 # Binding offset conventions (JSON bindings are renderer-agnostic, starting at 0):
 #   OpenGL -- uses JSON values as-is (UBO binding points are a separate namespace)
 #   Metal  -- UBOs += 1 (buffer index 0 is reserved for the vertex buffer)
 #   WGPU   -- ignores JSON values; auto-assigns: textures get even slots (each
 #             texture+sampler pair), UBOs follow sequentially after
+#   Vulkan -- textures (combined image samplers) use JSON values as-is; UBOs
+#             += VULKAN_UBO_BINDING_BASE (descriptor set 0 is a single binding
+#             namespace shared by both classes)
 
 if (NOT DEFINED input)
     message(FATAL_ERROR "render-bindings-gen.cmake requires -Dinput=<render-bindings.json>")
@@ -142,7 +145,21 @@ if (binding_slot_count EQUAL 0)
     set(binding_slot_count 1)
 endif ()
 
-set(backends OPENGL METAL WGPU)
+set(backends OPENGL METAL WGPU VULKAN)
+
+# Vulkan set-0 layout: texture bindings occupy 0..(texture_count - 1) as-is,
+# UBO bindings start above them at a fixed base; a texture binding at or
+# above the base would collide with a UBO's
+set(VULKAN_UBO_BINDING_BASE 16)
+foreach (idx RANGE ${texture_count})
+    if (idx EQUAL texture_count)
+        break()
+    endif ()
+    json_get(binding "${json}" textures ${idx} binding)
+    if (NOT binding LESS VULKAN_UBO_BINDING_BASE)
+        message(FATAL_ERROR "texture binding ${binding} collides with the Vulkan UBO binding base ${VULKAN_UBO_BINDING_BASE}")
+    endif ()
+endforeach ()
 
 # ---------------------------------------------------------------------------
 # render-bindings-common.h -- flat #define constants for every backend
@@ -156,6 +173,7 @@ function(emit_common_header out_var)
         set(label_OPENGL "OpenGL")
         set(label_METAL  "Metal")
         set(label_WGPU   "WGPU")
+        set(label_VULKAN "Vulkan")
         append_line(c "/* ${label_${backend}} bindings */")
 
         # Texture bindings: all backends use the JSON binding value directly,
@@ -194,6 +212,8 @@ function(emit_common_header out_var)
                 json_get(binding "${json}" ubos ${idx} binding)
                 if (backend STREQUAL "METAL")
                     math(EXPR binding "${binding} + 1")
+                elseif (backend STREQUAL "VULKAN")
+                    math(EXPR binding "${binding} + ${VULKAN_UBO_BINDING_BASE}")
                 endif ()
             endif ()
             append_line(c "#define ${backend}_BINDING_UBO_${name} ${binding}")
@@ -206,7 +226,7 @@ function(emit_common_header out_var)
 endfunction()
 
 # ---------------------------------------------------------------------------
-# render-bindings-{gl,metal,wgpu}.h -- backend-specific alias headers
+# render-bindings-{gl,metal,wgpu,vulkan}.h -- backend-specific alias headers
 # ---------------------------------------------------------------------------
 # These are included from shader_constants.h via #if CONFIG_RENDERER_*.
 # They alias UBO_BINDING_foo / SAMPLER_BINDING_foo to the backend-specific
@@ -348,6 +368,9 @@ function(emit_header out_var)
     append_line(c "#ifdef CONFIG_RENDERER_WGPU")
     append_line(c "    RENDERER_WGPU,")
     append_line(c "#endif")
+    append_line(c "#ifdef CONFIG_RENDERER_VULKAN")
+    append_line(c "    RENDERER_VULKAN,")
+    append_line(c "#endif")
     append_line(c "    RENDERER_MAX")
     append_line(c "};")
     append_line(c "")
@@ -388,7 +411,7 @@ function(emit_source out_var)
 
     # shader_bindings[][][] -- abstract-to-backend binding lookup table
     append_line(c "static const int shader_bindings[RENDERER_MAX][BC_MAX][SHADER_BINDING_SLOT_MAX] = {")
-    foreach (backend OPENGL METAL WGPU)
+    foreach (backend ${backends})
         append_line(c "#ifdef CONFIG_RENDERER_${backend}")
         append_line(c "    [RENDERER_${backend}] = {")
         append_line(c "        [BC_TEXTURE] = {")
@@ -560,9 +583,10 @@ append_line(common_header "")
 string(APPEND common_header "${common_content}")
 append_line(common_header "#endif /* CLAP_RENDER_BINDINGS_COMMON_GENERATED_H */")
 
-emit_backend_header(gl_header    "CLAP_RENDER_BINDINGS_GL_GENERATED_H"    "OPENGL")
-emit_backend_header(metal_header "CLAP_RENDER_BINDINGS_METAL_GENERATED_H" "METAL")
-emit_backend_header(wgpu_header  "CLAP_RENDER_BINDINGS_WGPU_GENERATED_H"  "WGPU")
+emit_backend_header(gl_header     "CLAP_RENDER_BINDINGS_GL_GENERATED_H"     "OPENGL")
+emit_backend_header(metal_header  "CLAP_RENDER_BINDINGS_METAL_GENERATED_H"  "METAL")
+emit_backend_header(wgpu_header   "CLAP_RENDER_BINDINGS_WGPU_GENERATED_H"   "WGPU")
+emit_backend_header(vulkan_header "CLAP_RENDER_BINDINGS_VULKAN_GENERATED_H" "VULKAN")
 
 write_if_different("${output_dir}/render-bindings.h"        "${header_content}")
 write_if_different("${output_dir}/render-bindings.c"        "${source_content}")
@@ -570,6 +594,7 @@ write_if_different("${output_dir}/render-bindings-common.h" "${common_header}")
 write_if_different("${output_dir}/render-bindings-gl.h"     "${gl_header}")
 write_if_different("${output_dir}/render-bindings-metal.h"  "${metal_header}")
 write_if_different("${output_dir}/render-bindings-wgpu.h"   "${wgpu_header}")
+write_if_different("${output_dir}/render-bindings-vulkan.h" "${vulkan_header}")
 
 if (DEFINED glsl_ubo_dir)
     emit_ubo_glsl("${glsl_ubo_dir}")
