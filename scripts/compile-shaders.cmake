@@ -1,7 +1,7 @@
 # Shader compilation
 #
-# Compiles GLSL shaders to backend-specific formats (WGSL, MSL, GLSL/GLES)
-# via an intermediate SPIR-V representation.
+# Compiles GLSL shaders to backend-specific formats (WGSL, MSL, GLSL/GLES,
+# SPIR-V) via an intermediate SPIR-V representation.
 #
 # Each backend gets its own SPIR-V intermediate directory (because the
 # force-included per-backend shader config header produces different
@@ -59,14 +59,16 @@ find_program(SPIRV_CROSS spirv-cross HINTS "${SPIRV_CROSS_HINT}")
 
 # Resolve backend properties.
 # Sets in PARENT_SCOPE:
-#   _SHADER_TYPE        — output directory prefix ("wgsl", "msl", "glsl", "glsl-es")
+#   _SHADER_TYPE        -- output directory prefix ("wgsl", "msl", "glsl", "glsl-es", "spv")
 #   _SPIRV_CROSS_ARGS   — backend-specific spirv-cross flags
 #   _GLSLC_BACKEND_ARGS — per-backend glslc flags (-include, -D)
 #   _USE_TINT           — TRUE if this backend uses tint instead of spirv-cross
+#   _USE_COPY           -- TRUE if the SPIR-V intermediate is the final artifact
 #   _HAS_REFLECTION     — TRUE if this backend emits .json reflection files
 #   _SKIP_GEOM          — TRUE if geometry shaders are not supported
 function(_shader_backend_props backend)
     set(_USE_TINT FALSE PARENT_SCOPE)
+    set(_USE_COPY FALSE PARENT_SCOPE)
     set(_HAS_REFLECTION TRUE PARENT_SCOPE)
     set(_SKIP_GEOM FALSE PARENT_SCOPE)
     set(_SPIRV_CROSS_ARGS "" PARENT_SCOPE)
@@ -125,6 +127,22 @@ function(_shader_backend_props backend)
         set(_SHADER_TYPE "msl" PARENT_SCOPE)
         set(_SHADER_EXT ".msl" PARENT_SCOPE)
         set(_SPIRV_CROSS_ARGS --msl --msl-version 20100 --msl-decoration-binding PARENT_SCOPE)
+    elseif (backend STREQUAL "vulkan")
+        list(APPEND backend_args
+            -DSHADER_RENDERER_VULKAN=1
+            -DSHADER_ORIGIN_TOP_LEFT=1
+            -DSHADER_NDC_ZERO_ONE=1
+            -DSHADER_NDC_Y_DOWN=1
+            --target-env=vulkan1.3
+        )
+        # Devices without VkPhysicalDeviceVulkan12Features::shaderFloat16
+        # (RPi5/v3dv): fall back to mediump/RelaxedPrecision in half.glsl
+        if (CONFIG_SHADER_NO_FP16)
+            list(APPEND backend_args -DSHADER_NO_FP16=1)
+        endif ()
+        set(_SHADER_TYPE "spv" PARENT_SCOPE)
+        set(_SHADER_EXT ".spv" PARENT_SCOPE)
+        set(_USE_COPY TRUE PARENT_SCOPE)
     else ()
         message(FATAL_ERROR "Unknown shader backend: ${backend}")
     endif ()
@@ -182,6 +200,17 @@ function(_compile_shader_for_backend shader src stage backend SHADER_SRCS SHADER
             COMMAND "${TINT_BIN_PATH}"
             ARGS --format wgsl -o "${SHADER_DIR}/${shader}${_SHADER_EXT}" "${SPIRV_OUTPUT}"
         )
+    elseif (_USE_COPY)
+        # copy_if_different leaves the destination mtime behind the source's
+        # when the content matches, which makes this rule fire on every build
+        # forever; the explicit touch settles it after one run
+        add_custom_command(
+            OUTPUT "${SHADER_DIR}/${shader}${_SHADER_EXT}"
+            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_OUTPUT}"
+            COMMAND ${CMAKE_COMMAND}
+            ARGS -E copy_if_different "${SPIRV_OUTPUT}" "${SHADER_DIR}/${shader}${_SHADER_EXT}"
+            COMMAND ${CMAKE_COMMAND} -E touch "${SHADER_DIR}/${shader}${_SHADER_EXT}"
+        )
     else ()
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${shader}${_SHADER_EXT}"
@@ -211,7 +240,7 @@ endfunction()
 
 # Compile all shaders for a specific backend.
 #
-# @backend: "gl", "wgpu", or "metal"
+# @backend: "gl", "wgpu", "metal" or "vulkan"
 # @SHADERS: list of shader base names (e.g. "model;ui;combine")
 # @suffix:  target/directory suffix (e.g. "_core")
 #
@@ -307,6 +336,11 @@ function(compile_shaders SHADERS PREPROCESS_SHADERS_TARGET)
     endif ()
     if (CONFIG_RENDERER_OPENGL)
         set(_backend "gl")
+        compile_shaders_for_backend(${_backend} "${SHADERS}" "${PREPROCESS_SHADERS_TARGET}")
+        list(APPEND shader_outs ${SHADER_OUTS_${_backend}})
+    endif ()
+    if (CONFIG_RENDERER_VULKAN)
+        set(_backend "vulkan")
         compile_shaders_for_backend(${_backend} "${SHADERS}" "${PREPROCESS_SHADERS_TARGET}")
         list(APPEND shader_outs ${SHADER_OUTS_${_backend}})
     endif ()

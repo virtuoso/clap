@@ -84,6 +84,8 @@
 #include "bindings/render-bindings-metal.h"
 #elif defined(SHADER_RENDERER_WGPU)
 #include "bindings/render-bindings-wgpu.h"
+#elif defined(SHADER_RENDERER_VULKAN)
+#include "bindings/render-bindings-vulkan.h"
 #elif !defined(__STDC__) && !defined(__OBJC__) && !defined(__cplusplus)
 #error "Unsupported renderer"
 #endif
