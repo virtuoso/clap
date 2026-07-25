@@ -1057,6 +1057,24 @@ static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment layout)
     return CERR_OK;
 }
 
+/**
+ * fbo_attachments_init() - create all the attachments at the FBO's current size
+ * @fbo:    the FBO
+ *
+ * Return: CERR_OK with every attachment created, or the first error with
+ *         none of them left behind
+ */
+static cerr fbo_attachments_init(fbo_t *fbo)
+{
+    cerr err = CERR_OK;
+
+    if (fbo->layout.depth_texture)                      err = fbo_depth_texture_init(fbo);
+    if (!IS_CERR(err) && fbo->layout.color_textures)    err = fbo_textures_init(fbo, fbo->layout);
+    if (IS_CERR(err))                                   fbo_attachments_deinit(fbo);
+
+    return err;
+}
+
 static void wgpu_fbo_destroy(fbo_t *fbo)
 {
     fbo_attachments_deinit(fbo);
@@ -1089,10 +1107,7 @@ static cresp(fbo_t) wgpu_fbo_new(const fbo_init_options *opts)
     size_t size = nr_color_configs * sizeof(fbo_attconfig);
     fbo->color_config = memdup(opts->color_config ? : &(fbo_attconfig){ .format = TEX_FMT_DEFAULT }, size);
 
-    if (fbo->layout.depth_texture)
-        CERR_RET_T(fbo_depth_texture_init(fbo), fbo_t);
-    if (fbo->layout.color_textures)
-        CERR_RET_T(fbo_textures_init(fbo, fbo->layout), fbo_t);
+    CERR_RET_T(fbo_attachments_init(fbo), fbo_t);
 
     return cresp_val(fbo_t, fbo);
 }
@@ -1187,23 +1202,15 @@ static cerr_check wgpu_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int h
     fbo->width = width;
     fbo->height = height;
 
-    if (fbo->layout.depth_texture)      CERR_RET(fbo_depth_texture_init(fbo), goto fail);
-    if (fbo->layout.color_textures)     CERR_RET(fbo_textures_init(fbo, fbo->layout), goto fail);
+    cerr err = fbo_attachments_init(fbo);
+    if (!IS_CERR(err))  return CERR_OK;
 
-    return CERR_OK;
-
-fail:
-    /* whatever the failed attempt did create goes before the rollback re-creates it */
-    fbo_attachments_deinit(fbo);
+    /* roll back to the previous size */
     fbo->width = orig_width;
     fbo->height = orig_height;
+    CERR_RET_CERR(fbo_attachments_init(fbo));
 
-    if (fbo->layout.depth_texture)
-        CERR_RET_CERR(fbo_depth_texture_init(fbo));
-    if (fbo->layout.color_textures)
-        CERR_RET_CERR(fbo_textures_init(fbo, fbo->layout));
-
-    return CERR_NOMEM;
+    return err;
 }
 
 static texture_t *wgpu_fbo_texture(fbo_t *fbo, fbo_attachment attachment)
