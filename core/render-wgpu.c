@@ -1187,18 +1187,14 @@ static cerr_check wgpu_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int h
     fbo->width = width;
     fbo->height = height;
 
-    if (fbo->layout.depth_texture)
-        CERR_RET(fbo_depth_texture_init(fbo), goto fail);
-    if (fbo->layout.color_textures)
-        CERR_RET(fbo_textures_init(fbo, fbo->layout), goto fail_depth);
+    if (fbo->layout.depth_texture)      CERR_RET(fbo_depth_texture_init(fbo), goto fail);
+    if (fbo->layout.color_textures)     CERR_RET(fbo_textures_init(fbo, fbo->layout), goto fail);
 
     return CERR_OK;
 
-fail_depth:
-    if (fbo->layout.depth_texture)
-        texture_deinit(&fbo->depth_tex);
-
 fail:
+    /* whatever the failed attempt did create goes before the rollback re-creates it */
+    fbo_attachments_deinit(fbo);
     fbo->width = orig_width;
     fbo->height = orig_height;
 
