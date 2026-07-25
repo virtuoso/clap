@@ -151,12 +151,14 @@ static const char *render_str[RENDER_MAX] = {
     [RENDER_OPENGL] = "OpenGL",
     [RENDER_METAL]  = "Metal",
     [RENDER_WGPU]   = "WebGPU",
+    [RENDER_VULKAN] = "Vulkan",
 };
 
 static const char *render_shader_ext[RENDER_MAX] = {
     [RENDER_OPENGL] = ".glsl",
     [RENDER_METAL]  = ".msl",
     [RENDER_WGPU]   = ".wgsl",
+    [RENDER_VULKAN] = ".spv",
 };
 
 const char *renderer_shader_ext(renderer_t *r)
@@ -210,6 +212,7 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
         case RENDER_OPENGL:     CERR_RET_CERR(gl_renderer_setup(renderer, opts));   break;
         case RENDER_METAL:      CERR_RET_CERR(mtl_renderer_setup(renderer, opts));  break;
         case RENDER_WGPU:       CERR_RET_CERR(wgpu_renderer_setup(renderer, opts)); break;
+        case RENDER_VULKAN:     CERR_RET_CERR(vk_renderer_setup(renderer, opts));   break;
         default:                return CERR_NOT_SUPPORTED_REASON(
                                     .fmt    = "requested rendering backend %s is not supported",
                                     .arg0   = render_str[opts->backend]

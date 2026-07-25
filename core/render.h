@@ -20,6 +20,7 @@ typedef enum {
     RENDER_OPENGL,
     RENDER_METAL,
     RENDER_WGPU,
+    RENDER_VULKAN,
     RENDER_MAX
 } render_backend;
 
@@ -215,6 +216,82 @@ typedef struct { _Alignas(WGPU_PASS_DESCRIPTOR_ALIGN) char _[WGPU_PASS_DESCRIPTO
 # endif /* !IMPLEMENTOR */
 #endif /* CONFIG_RENDERER_WGPU */
 
+#ifdef CONFIG_RENDERER_VULKAN
+# include "bindings/render-bindings.h" /* for BINDING_TEXTURE_MAX / BINDING_UBO_MAX */
+/** VK_INFLIGHT_FRAMES - frames the Vulkan backend records ahead of the GPU */
+# define VK_INFLIGHT_FRAMES 3
+/** VK_SWAPCHAIN_IMAGES_MAX - swapchain images the Vulkan backend can track */
+# define VK_SWAPCHAIN_IMAGES_MAX 8
+# ifdef IMPLEMENTOR
+#  include <vulkan/vulkan.h>
+/* Dispatchable handles are always pointers */
+typedef VkInstance vk_instance_t;
+typedef VkPhysicalDevice vk_physical_device_t;
+typedef VkDevice vk_device_t;
+typedef VkQueue vk_queue_t;
+typedef VkCommandBuffer vk_command_buffer_t;
+/*
+ * Non-dispatchable handles are pointers on 64-bit and uint64_t on 32-bit;
+ * the non-IMPLEMENTOR mirrors below use uint64_t, which matches both in
+ * size and alignment
+ */
+typedef VkSurfaceKHR vk_surface_t;
+typedef VkSwapchainKHR vk_swapchain_t;
+typedef VkImage vk_image_t;
+typedef VkImageView vk_image_view_t;
+typedef VkSampler vk_sampler_t;
+typedef VkDeviceMemory vk_device_memory_t;
+typedef VkBuffer vk_buffer_t;
+typedef VkShaderModule vk_shader_module_t;
+typedef VkPipeline vk_pipeline_t;
+typedef VkPipelineLayout vk_pipeline_layout_t;
+typedef VkDescriptorSetLayout vk_descriptor_set_layout_t;
+typedef VkDescriptorPool vk_descriptor_pool_t;
+typedef VkCommandPool vk_command_pool_t;
+typedef VkSemaphore vk_semaphore_t;
+typedef VkFence vk_fence_t;
+typedef VkDebugUtilsMessengerEXT vk_debug_utils_messenger_t;
+typedef VkFormat vk_format_t;
+static_assert(sizeof(VkImage) == sizeof(uint64_t), "VkImage handle width mismatch");
+static_assert(sizeof(VkInstance) == sizeof(void *), "VkInstance handle width mismatch");
+static_assert(sizeof(VkFormat) == sizeof(int), "VkFormat width mismatch");
+# else /* !IMPLEMENTOR */
+typedef void *vk_instance_t;
+typedef void *vk_physical_device_t;
+typedef void *vk_device_t;
+typedef void *vk_queue_t;
+typedef void *vk_command_buffer_t;
+typedef uint64_t vk_surface_t;
+typedef uint64_t vk_swapchain_t;
+typedef uint64_t vk_image_t;
+typedef uint64_t vk_image_view_t;
+typedef uint64_t vk_sampler_t;
+typedef uint64_t vk_device_memory_t;
+typedef uint64_t vk_buffer_t;
+typedef uint64_t vk_shader_module_t;
+typedef uint64_t vk_pipeline_t;
+typedef uint64_t vk_pipeline_layout_t;
+typedef uint64_t vk_descriptor_set_layout_t;
+typedef uint64_t vk_descriptor_pool_t;
+typedef uint64_t vk_command_pool_t;
+typedef uint64_t vk_semaphore_t;
+typedef uint64_t vk_fence_t;
+typedef uint64_t vk_debug_utils_messenger_t;
+typedef int vk_format_t;
+# endif /* !IMPLEMENTOR */
+/**
+ * struct vk_vertex_attr - vertex attribute description for pipeline creation
+ * @format:     the attribute's VkFormat
+ * @offset:     byte offset within the vertex
+ * @location:   shader input location
+ */
+typedef struct vk_vertex_attr {
+    vk_format_t     format;
+    unsigned int    offset;
+    unsigned int    location;
+} vk_vertex_attr_t;
+#endif /* CONFIG_RENDERER_VULKAN */
+
 typedef enum buffer_type {
     BUF_ARRAY,
     BUF_ELEMENT_ARRAY,
@@ -284,6 +361,14 @@ TYPE(buffer,
         char            *name;
     } mtl;
 #endif  /* CONFIG_RENDERER_METAL */
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        vk_buffer_t         buf;
+        vk_device_memory_t  mem;
+        size_t              size;
+        buffer_type         type;
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
     uniform_t           loc;
     int                 use_count;
     bool                loaded;
@@ -319,6 +404,11 @@ TYPE(vertex_array,
         buffer_t        *vbuf;
     } wgpu;
 #endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        buffer_t        *vbuf;
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
 );
 
 DEFINE_REFCLASS_INIT_OPTIONS(vertex_array,
@@ -445,6 +535,18 @@ TYPE(texture,
         char                *name;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        vk_image_t          image;
+        vk_device_memory_t  mem;
+        vk_image_view_t     view;
+        vk_sampler_t        sampler;
+        texture_type        type;
+        texture_format      format;
+        bool                render_target;
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
 
 #ifndef CONFIG_FINAL
     texture_init_options    opts;
@@ -713,6 +815,12 @@ TYPE(fbo,
         const char                      *name;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        const char      *name;
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
     /* att_map's companion, at the tail so it costs padding rather than a hole */
     uint32_t        no_blend_mask;
 );
@@ -798,6 +906,11 @@ TYPE(draw_control,
         mtl_render_pipeline_reflection_t    reflection;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        vk_pipeline_t               pipeline[2]; /* [0] no blend, [1] blend */
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
     /* part of the key too; at the tail so they cost padding rather than a hole */
     uint32_t        no_blend_mask;
     bool            has_depth;
@@ -828,7 +941,8 @@ typedef enum {
 #define SHADER_STAGE_GEOMETRY_BIT   (1 << SHADER_STAGE_GEOMETRY)
 #define SHADER_STAGE_COMPUTE_BIT    (1 << SHADER_STAGE_COMPUTE)
 
-#if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_WGPU) || defined(CONFIG_RENDERER_METAL)
+#if defined(CONFIG_RENDERER_OPENGL) || defined(CONFIG_RENDERER_WGPU) || \
+    defined(CONFIG_RENDERER_METAL) || defined(CONFIG_RENDERER_VULKAN)
 TYPE(binding_points,
     int binding;
     int stages;
@@ -879,6 +993,20 @@ TYPE(uniform_buffer,
         bool                    advance;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        vk_buffer_t             buf;        /* GPU-side buffer: per-frame regions x slot ring */
+        vk_device_memory_t      mem;
+        void                    *mapped;    /* persistently mapped base pointer */
+        size_t                  slot_size;  /* aligned slot stride */
+        size_t                  frame_size; /* one in-flight frame's region size */
+        size_t                  item;       /* current slot index */
+        struct list             entry;      /* link into renderer->vk.ubos */
+        int                     binding;    /* set-0 binding point */
+        bool                    advance;    /* next write should advance to a new slot */
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
 );
 
 DEFINE_REFCLASS_INIT_OPTIONS(uniform_buffer,
@@ -940,6 +1068,20 @@ TYPE(shader,
         unsigned int                        id;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        renderer_t                          *renderer;
+        vk_shader_module_t                  vert;
+        vk_shader_module_t                  frag;
+        vk_vertex_attr_t                    vertex_attrs[6];
+        size_t                              vertex_stride;
+        uint64_t                            binding_mask;
+        char                                *name;
+        unsigned int                        nr_vertex_attrs;
+        unsigned int                        id;
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
 );
 
 cerr shader_init(renderer_t *r, shader_t *shader,
@@ -1133,6 +1275,46 @@ TYPE(renderer,
         bool                                hdr;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        vk_instance_t                       instance;
+        vk_debug_utils_messenger_t          messenger;
+        vk_physical_device_t                phys_device;
+        vk_device_t                         device;
+        vk_queue_t                          queue;
+        vk_surface_t                        surface;
+        vk_swapchain_t                      swapchain;
+        vk_image_t                          images[VK_SWAPCHAIN_IMAGES_MAX];
+        vk_image_view_t                     views[VK_SWAPCHAIN_IMAGES_MAX];
+        /* per swapchain image: render-finished, waited on by present */
+        vk_semaphore_t                      render_sems[VK_SWAPCHAIN_IMAGES_MAX];
+        struct {
+            vk_command_pool_t               cmd_pool;
+            vk_command_buffer_t             cmd_buf;
+            vk_fence_t                      fence;
+            vk_semaphore_t                  acquire_sem;
+            vk_descriptor_pool_t            desc_pool;
+        }                                   frames[VK_INFLIGHT_FRAMES];
+        draw_control_t                      *dc;
+        fbo_t                               *fbo;
+        struct list                         ubos;
+        texture_t                           *bound_textures[BINDING_TEXTURE_MAX];
+        uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
+        int                                 limits[RENDER_LIMIT_MAX];
+        vk_format_t                         swapchain_format;
+        unsigned int                        queue_family;
+        unsigned int                        nr_images;
+        unsigned int                        min_image_count;
+        unsigned int                        frame_idx;
+        unsigned int                        image_idx;
+        bool                                swapchain_dirty;
+        /* frame-state machine: see render-vk.c */
+        bool                                cb_open;
+        bool                                image_acquired;
+        bool                                pass_open;
+        bool                                validation;
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
 #ifndef CONFIG_FINAL
     /* last completed frame's GPU times, written on the main thread only */
     renderer_pass_times pass_times;
@@ -1328,6 +1510,15 @@ static inline cerr wgpu_renderer_setup(renderer_t *rendnerer, const renderer_ini
     return CERR_NOT_SUPPORTED_REASON(.fmt = "WebGPU support is not compiled in");
 }
 #endif /* !CONFIG_RENDERER_WGPU */
+
+#ifdef CONFIG_RENDERER_VULKAN
+cerr vk_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts);
+#else /* !CONFIG_RENDERER_VULKAN */
+static inline cerr vk_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts)
+{
+    return CERR_NOT_SUPPORTED_REASON(.fmt = "Vulkan support is not compiled in");
+}
+#endif /* !CONFIG_RENDERER_VULKAN */
 
 typedef struct renderer_ops {
     /*

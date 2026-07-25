@@ -65,6 +65,9 @@ static inline enum shader_binding_renderers shader_binding_current_backend(rende
 #ifdef CONFIG_RENDERER_WGPU
         case RENDER_WGPU:   return RENDERER_WGPU;
 #endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_VULKAN
+        case RENDER_VULKAN: return RENDERER_VULKAN;
+#endif /* CONFIG_RENDERER_VULKAN */
         default:            clap_unreachable();
     }
 
