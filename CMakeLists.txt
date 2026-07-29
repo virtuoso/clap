@@ -225,10 +225,10 @@ elseif (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
     if (CLAP_SHIP AND UNIX AND NOT APPLE AND NOT WIN32 AND NOT ASAN_FLAG AND NOT UBSAN_FLAG)
         set(CLAP_REQUIRE_STATIC_ARCHIVES TRUE)
         set(CLAP_REQUIRE_FULLY_STATIC_LINKAGE TRUE)
-        if (CONFIG_RENDERER_OPENGL)
+        if (CONFIG_RENDERER_OPENGL OR CONFIG_RENDERER_VULKAN)
             set(CLAP_ALLOW_DYNAMIC_RUNTIME_LIBS TRUE)
             message(STATUS
-                "static-linkage: shipping desktop OpenGL binaries without -static; "
+                "static-linkage: shipping desktop OpenGL/Vulkan binaries without -static; "
                 "GPU drivers still require dynamic loading")
         endif ()
     elseif (CLAP_SHIP AND (ASAN_FLAG OR UBSAN_FLAG))
@@ -325,6 +325,10 @@ elseif (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
             "-framework CoreVideo"
             "-framework QuartzCore"
         )
+    elseif (CONFIG_RENDERER_VULKAN)
+        find_package(Vulkan REQUIRED)
+        set(CLAP_RENDERER_INCLUDE_DIRS "")
+        set(CLAP_RENDERER_LIBRARIES Vulkan::Vulkan)
     endif ()
 
     if (CLAP_ALLOW_DYNAMIC_RUNTIME_LIBS)

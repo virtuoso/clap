@@ -93,7 +93,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif ()
 
 add_executable(${TEST_BIN} ${TEST_SRC})
-add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen)
+add_dependencies(${TEST_BIN} refclasses_gen cerrs_gen render_bindings_gen)
 target_compile_definitions(${TEST_BIN} PRIVATE -DCLAP_TESTS)
 if (APPLE)
     target_link_libraries(${TEST_BIN} PRIVATE "-framework CoreServices")
@@ -120,6 +120,9 @@ if (CONFIG_RENDERER_METAL)
 endif ()
 if (CONFIG_RENDERER_WGPU)
     list(APPEND RENDERER_SRC render-wgpu.c)
+endif ()
+if (CONFIG_RENDERER_VULKAN)
+    list(APPEND RENDERER_SRC render-vk.c display-glfw-vk.c)
 endif ()
 if (NOT RENDERER_SRC)
     message(FATAL_ERROR "Unsupported renderer")
@@ -204,6 +207,7 @@ set(RENDER_BINDINGS_COMMON_H "${RENDER_BINDINGS_DIR}/render-bindings-common.h")
 set(RENDER_BINDINGS_GL_H "${RENDER_BINDINGS_DIR}/render-bindings-gl.h")
 set(RENDER_BINDINGS_METAL_H "${RENDER_BINDINGS_DIR}/render-bindings-metal.h")
 set(RENDER_BINDINGS_WGPU_H "${RENDER_BINDINGS_DIR}/render-bindings-wgpu.h")
+set(RENDER_BINDINGS_VULKAN_H "${RENDER_BINDINGS_DIR}/render-bindings-vulkan.h")
 
 add_custom_command(
     COMMENT "Generating render bindings"
@@ -214,6 +218,7 @@ add_custom_command(
         "${RENDER_BINDINGS_GL_H}"
         "${RENDER_BINDINGS_METAL_H}"
         "${RENDER_BINDINGS_WGPU_H}"
+        "${RENDER_BINDINGS_VULKAN_H}"
     DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/render-bindings.json"
         "${CMAKE_SOURCE_DIR}/scripts/render-bindings-gen.cmake"
@@ -232,6 +237,7 @@ add_custom_target(render_bindings_gen DEPENDS
     "${RENDER_BINDINGS_GL_H}"
     "${RENDER_BINDINGS_METAL_H}"
     "${RENDER_BINDINGS_WGPU_H}"
+    "${RENDER_BINDINGS_VULKAN_H}"
 )
 
 if (NOT CLAP_BUILD_FINAL)
