@@ -1325,8 +1325,9 @@ int renderer_query_limits(renderer_t *renderer, render_limit limit);
 
 typedef struct renderer_init_options {
     /*
-     * The platform window: metal reads the NSScreen off it (an NSWindow) to
-     * answer supports_edr(). Unused where there is no window to speak of.
+     * The platform window: vulkan creates its VkSurfaceKHR from it (a
+     * GLFWwindow), metal reads the NSScreen off it (an NSWindow) to answer
+     * supports_edr(). Unused where there is no window to speak of.
      */
     void            *window;
     render_backend  backend;

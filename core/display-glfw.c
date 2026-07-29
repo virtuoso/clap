@@ -13,6 +13,8 @@
 # endif
 #elif defined(CONFIG_RENDERER_METAL)
 #define GLFW_INCLUDE_NONE
+#elif defined(CONFIG_RENDERER_VULKAN)
+#define GLFW_INCLUDE_NONE
 #endif
 
 #include <stdlib.h>
@@ -317,6 +319,8 @@ restart:
 }
 #elif defined(CONFIG_RENDERER_METAL)
 cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow);
+#elif defined(CONFIG_RENDERER_VULKAN)
+cerr display_vk_init(struct clap_context *ctx, GLFWwindow **pwindow);
 #else
 #error "Unsupported renderer"
 #endif /* CONFIG_RENDERER_OPENGL */
@@ -346,6 +350,8 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
     cerr err = display_gl_init(ctx);
 #elif defined(CONFIG_RENDERER_METAL)
     cerr err = display_metal_init(ctx, &window);
+#elif defined(CONFIG_RENDERER_VULKAN)
+    cerr err = display_vk_init(ctx, &window);
 #else
     return CERR_INITIALIZATION_FAILED;
 #endif
@@ -598,9 +604,13 @@ int platform_input_init(struct clap_context *ctx)
 
 void display_swap_buffers(void)
 {
-#ifndef CONFIG_RENDERER_METAL
+    /*
+     * Metal and Vulkan present in renderer_frame_end(); GLFW would error on
+     * a GLFW_NO_API window
+     */
+#if !defined(CONFIG_RENDERER_METAL) && !defined(CONFIG_RENDERER_VULKAN)
     glfwSwapBuffers(window);
-#endif /* CONFIG_RENDERER_METAL */
+#endif /* !CONFIG_RENDERER_METAL && !CONFIG_RENDERER_VULKAN */
     glfwPollEvents();
     /* XXX: move to the start of frame code? */
     platform_joysticks_poll();
