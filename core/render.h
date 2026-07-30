@@ -1294,7 +1294,11 @@ TYPE(renderer,
             vk_fence_t                      fence;
             vk_semaphore_t                  acquire_sem;
             vk_descriptor_pool_t            desc_pool;
+            /* the fence is only ever signalled for a frame whose submit succeeded */
+            bool                            submitted;
         }                                   frames[VK_INFLIGHT_FRAMES];
+        /* synchronous resource upload path */
+        vk_command_pool_t                   upload_pool;
         draw_control_t                      *dc;
         fbo_t                               *fbo;
         struct list                         ubos;
@@ -1303,6 +1307,8 @@ TYPE(renderer,
         int                                 limits[RENDER_LIMIT_MAX];
         vk_format_t                         swapchain_format;
         unsigned int                        queue_family;
+        unsigned int                        sc_width;
+        unsigned int                        sc_height;
         unsigned int                        nr_images;
         unsigned int                        min_image_count;
         unsigned int                        frame_idx;
