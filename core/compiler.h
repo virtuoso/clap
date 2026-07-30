@@ -11,6 +11,12 @@
 #define rodata __attribute__((section(".rodata")))
 #endif /* __APPLE__ */
 #define nonstring __attribute__((nonstring))
+/*
+ * glibc names a member of struct __pthread_mutex_s __unused: pull the
+ * pthread types in before the macro exists, so that they parse as an
+ * identifier wherever this header comes before the system ones
+ */
+#include <sys/types.h>
 #ifndef __unused
 #define __unused __attribute__((unused))
 #endif /* __unused */
