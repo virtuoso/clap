@@ -20,6 +20,9 @@
 #ifdef CONFIG_RENDERER_METAL
 #include "ui-imgui-metal.h"
 #endif /* CONFIG_RENDERER_METAL */
+#ifdef CONFIG_RENDERER_VULKAN
+#include "ui-imgui-vk.h"
+#endif /* CONFIG_RENDERER_VULKAN */
 
 static render_backend renderer = RENDER_MAX;
 static struct settings *settings;
@@ -118,6 +121,22 @@ static inline void ui_imgui_wgpu_new_frame(void) {}
 static inline void ui_imgui_wgpu_render_draw_data(ImDrawData *draw) {}
 #endif /* CONFIG_RENDERER_WGPU */
 
+#ifdef CONFIG_RENDERER_VULKAN
+# ifndef __EMSCRIPTEN__
+static inline void ui_imgui_init_glfw_for_vulkan(void *window, bool do_callbacks)
+{
+    ImGui_ImplGlfw_InitForVulkan(window, do_callbacks);
+}
+# endif /* !__EMSCRIPTEN__ */
+#else /* !CONFIG_RENDERER_VULKAN */
+/* __unused: the only callers sit under #ifdefs that don't compile in this configuration */
+static inline void __unused ui_imgui_init_glfw_for_vulkan(void *window, bool do_callbacks) {}
+static inline void ui_imgui_vk_init(clap_context *clap_ctx) {}
+static inline void ui_imgui_vk_new_frame(void) {}
+static inline void ui_imgui_vk_render_draw_data(ImDrawData *draw) {}
+static inline void __unused ui_imgui_vk_shutdown(void) {}
+#endif /* !CONFIG_RENDERER_VULKAN */
+
 static bool frame_started;
 
 /**
@@ -145,6 +164,8 @@ void imgui_render_begin(int width, int height)
         ui_imgui_metal_new_frame();
     } else if (renderer == RENDER_WGPU) {
         ui_imgui_wgpu_new_frame();
+    } else if (renderer == RENDER_VULKAN) {
+        ui_imgui_vk_new_frame();
     }
 
 #ifdef __EMSCRIPTEN__
@@ -178,6 +199,8 @@ void imgui_render(void)
         ui_imgui_wgpu_render_draw_data(igGetDrawData());
     } else if (renderer == RENDER_METAL) {
         ui_imgui_metal_render_draw_data(igGetDrawData());
+    } else if (renderer == RENDER_VULKAN) {
+        ui_imgui_vk_render_draw_data(igGetDrawData());
     }
 
     if (io->WantSaveIniSettings && settings) {
@@ -524,6 +547,8 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
         ui_imgui_init_glfw_for_opengl(data, true);
     } else if (renderer == RENDER_METAL) {
         ui_imgui_init_glfw_for_other(data, true);
+    } else if (renderer == RENDER_VULKAN) {
+        ui_imgui_init_glfw_for_vulkan(data, true);
     }
 #endif /* !__EMSCRIPTEN__ */
 
@@ -533,6 +558,8 @@ void imgui_init(struct clap_context *clap_ctx, void *data, int width, int height
         ui_imgui_metal_init(clap_ctx);
     } else if (renderer == RENDER_WGPU) {
         ui_imgui_wgpu_init(clap_ctx);
+    } else if (renderer == RENDER_VULKAN) {
+        ui_imgui_vk_init(clap_ctx);
     }
 
     igStyleColorsDark(NULL);
@@ -548,6 +575,10 @@ void imgui_done(void)
 #ifdef CONFIG_RENDERER_METAL
         ui_imgui_metal_shutdown();
 #endif /* CONFIG_RENDERER_METAL */
+    } else if (renderer == RENDER_VULKAN) {
+#ifdef CONFIG_RENDERER_VULKAN
+        ui_imgui_vk_shutdown();
+#endif /* CONFIG_RENDERER_VULKAN */
     }
 
     // XXX: need to shut down wgpu backend as well

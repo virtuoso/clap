@@ -21,14 +21,21 @@ FOREACH(backend ${CIMGUI_BACKENDS})
 
     # Per-backend compile flags
     set(per_backend_cflags "")
+    set(per_backend_defs "IMGUI_IMPL_API=extern\ \"C\"")
     if (${backend} STREQUAL "metal")
         set(per_backend_cflags "-fobjc-arc")
     endif ()
     if (${backend} STREQUAL "wgpu")
         set(per_backend_cflags "--use-port=emdawnwebgpu")
     endif ()
+    if (${backend} STREQUAL "vulkan")
+        # The vulkan backend API has overloads, which extern "C" can't
+        # express; its only consumer is ui-imgui-vk.cpp (C++), so keep the
+        # default C++ linkage
+        set(per_backend_defs "")
+    endif ()
     set_source_files_properties("${backend_file}" PROPERTIES
-        COMPILE_DEFINITIONS "IMGUI_IMPL_API=extern\ \"C\""
+        COMPILE_DEFINITIONS "${per_backend_defs}"
         COMPILE_FLAGS "-Wno-nontrivial-memaccess -Wno-deprecated-declarations ${per_backend_cflags}"
     )
 ENDFOREACH()
@@ -80,6 +87,17 @@ endif ()
 
 if (CONFIG_RENDERER_WGPU)
     list(APPEND ENGINE_SRC ui-imgui-wgpu.cpp)
+endif ()
+
+if (CONFIG_RENDERER_VULKAN)
+    list(APPEND ENGINE_SRC ui-imgui-vk.cpp)
+    # gcc C++ trips over C-idiomatic 'depth_func depth_func' &c in render.h;
+    # the flag is gcc's alone, clang rejects unknown warning options under -Werror
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set_source_files_properties(ui-imgui-vk.cpp PROPERTIES
+            COMPILE_FLAGS "-Wno-changes-meaning"
+        )
+    endif ()
 endif ()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
