@@ -377,6 +377,28 @@ static cerr vk_frames_init(renderer_t *r)
             return CERR_INITIALIZATION_FAILED_REASON(.fmt = "vkCreateFence failed");
 
         CERR_RET_CERR(vk_semaphore_create(r, &f->acquire_sem));
+
+        /* one descriptor set per draw, reset wholesale each frame */
+        VkDescriptorPoolSize pool_sizes[] = {
+            {
+                .type               = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount    = VK_UBO_SLOTS_PER_FRAME * VULKAN_BINDING_UBO_BASE,
+            },
+            {
+                .type               = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorCount    = VK_UBO_SLOTS_PER_FRAME * BINDING_UBO_MAX,
+            },
+        };
+        VkDescriptorPoolCreateInfo dp_info = {
+            .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .maxSets        = VK_UBO_SLOTS_PER_FRAME,
+            .poolSizeCount  = array_size(pool_sizes),
+            .pPoolSizes     = pool_sizes,
+        };
+        if (vkCreateDescriptorPool(r->vk.device, &dp_info, NULL, &f->desc_pool) != VK_SUCCESS)
+            return CERR_INITIALIZATION_FAILED_REASON(.fmt = "vkCreateDescriptorPool failed");
+
+        list_init(&f->zombies);
     }
 
     return vk_command_pool_create(r, &r->vk.upload_pool);
@@ -624,6 +646,217 @@ static cerr vk_upload_end(renderer_t *r, VkCommandBuffer cb)
 }
 
 /****************************************************************************
+ * Deferred destruction
+ *
+ * GPU resources can be released by the engine while frames that reference
+ * them are still in flight (ui_printf() replaces its text textures every
+ * time, for one); their handles are parked on the current frame slot's
+ * zombie list and destroyed once that slot's fence proves the frame -- and
+ * every earlier one -- has retired
+ ****************************************************************************/
+
+/**
+ * struct vk_zombie - handles parked for destruction once their frame retires
+ * @entry:      link in the frame slot's zombie list
+ * @image:      image to destroy, or VK_NULL_HANDLE
+ * @view:       image view to destroy, or VK_NULL_HANDLE
+ * @sampler:    sampler to destroy, or VK_NULL_HANDLE
+ * @buf:        buffer to destroy, or VK_NULL_HANDLE
+ * @mem:        memory to free, or VK_NULL_HANDLE
+ * @pipeline:   a dropped draw_control's pipeline, possibly still bound
+ */
+typedef struct vk_zombie {
+    struct list         entry;
+    VkImage             image;
+    VkImageView         view;
+    VkSampler           sampler;
+    VkBuffer            buf;
+    VkDeviceMemory      mem;
+    VkPipeline          pipeline;   /* a dropped draw_control's, possibly bound */
+} vk_zombie;
+
+/**
+ * vk_zombie_list() - the zombie list a deferred destroy retires with
+ * @r:  renderer
+ *
+ * Inside a recording frame that is
+ * simply the current one. Outside one it is NOT: frame_end() has already
+ * advanced frame_idx, so frames[frame_idx] is the next frame to record and its
+ * fence is VK_INFLIGHT_FRAMES old -- retiring against it frees the object at
+ * the next frame_begin(), while the frame just submitted may still be reading
+ * it. Destroys do land here: clap_frame() polls input after frame_end(), so
+ * any handler that drops a UI element (closing a menu, say) runs in that gap.
+ * Charge those to the frame that was actually submitted last.
+ *
+ * Return: the list of the frame whose fence retires the destroyed objects
+ */
+static struct list *vk_zombie_list(renderer_t *r)
+{
+    unsigned int frame = r->vk.cb_open ? r->vk.frame_idx :
+        (r->vk.frame_idx + VK_INFLIGHT_FRAMES - 1) % VK_INFLIGHT_FRAMES;
+
+    return &r->vk.frames[frame].zombies;
+}
+
+/**
+ * vk_zombie_add() - park handles for destruction once their frame retires
+ * @r:      renderer
+ * @zombie: the handles to destroy, unset ones VK_NULL_HANDLE
+ */
+static void vk_zombie_add(renderer_t *r, vk_zombie zombie)
+{
+    vk_zombie *z = memdup(&zombie, sizeof(zombie));
+
+    if (!z) {
+        /* better a validation complaint than a leak we can't see */
+        warn("out of memory deferring a destroy\n");
+        return;
+    }
+
+    list_append(vk_zombie_list(r), &z->entry);
+}
+
+/**
+ * vk_zombies_drain() - destroy everything parked on a retired frame's list
+ * @r:      renderer
+ * @frame:  frame slot whose fence has been waited for
+ */
+static void vk_zombies_drain(renderer_t *r, unsigned int frame)
+{
+    vk_zombie *z, *iter;
+
+    list_for_each_entry_iter(z, iter, &r->vk.frames[frame].zombies, entry) {
+        if (z->view)        vkDestroyImageView(r->vk.device, z->view, NULL);
+        if (z->image)       vkDestroyImage(r->vk.device, z->image, NULL);
+        if (z->sampler)     vkDestroySampler(r->vk.device, z->sampler, NULL);
+        if (z->buf)         vkDestroyBuffer(r->vk.device, z->buf, NULL);
+        if (z->mem)         vkFreeMemory(r->vk.device, z->mem, NULL);
+        if (z->pipeline)    vkDestroyPipeline(r->vk.device, z->pipeline, NULL);
+        list_del(&z->entry);
+        mem_free(z);
+    }
+}
+
+/****************************************************************************
+ * Descriptors
+ *
+ * One global set-0 layout shared by every pipeline: combined image samplers
+ * at the texture bindings (0 .. VULKAN_BINDING_UBO_BASE - 1) and plain
+ * uniform buffers above them. Every shader's bindings are a subset of it by
+ * construction, which kills the layout-vs-reflection mismatch class the
+ * WGPU backend still fights. Per draw, a set is allocated from the frame's
+ * pool and every slot is written, with dummy resources filling the unbound
+ * ones.
+ ****************************************************************************/
+
+/**
+ * vk_descriptors_init() - create the global set-0 layout, the pipeline layout and the per-frame pools
+ * @r:  renderer
+ *
+ * Return: CERR_OK, or the creation error
+ */
+static cerr vk_descriptors_init(renderer_t *r)
+{
+    VkDescriptorSetLayoutBinding bindings[VULKAN_BINDING_UBO_BASE + BINDING_UBO_MAX];
+    uint32_t n = 0;
+
+    for (unsigned int i = 0; i < VULKAN_BINDING_UBO_BASE; i++)
+        bindings[n++] = (VkDescriptorSetLayoutBinding){
+            .binding            = i,
+            .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount    = 1,
+            /* no geometry stage: the geometryShader device feature isn't requested */
+            .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        };
+
+    for (unsigned int i = 0; i < BINDING_UBO_MAX; i++)
+        bindings[n++] = (VkDescriptorSetLayoutBinding){
+            .binding            = VULKAN_BINDING_UBO_BASE + i,
+            .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount    = 1,
+            .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        };
+
+    VkDescriptorSetLayoutCreateInfo layout_info = {
+        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount   = n,
+        .pBindings      = bindings,
+    };
+    if (vkCreateDescriptorSetLayout(r->vk.device, &layout_info, NULL, &r->vk.desc_layout) != VK_SUCCESS)
+        return CERR_INITIALIZATION_FAILED_REASON(.fmt = "vkCreateDescriptorSetLayout failed");
+
+    VkPipelineLayoutCreateInfo pl_info = {
+        .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts    = &r->vk.desc_layout,
+    };
+    if (vkCreatePipelineLayout(r->vk.device, &pl_info, NULL, &r->vk.pipeline_layout) != VK_SUCCESS)
+        return CERR_INITIALIZATION_FAILED_REASON(.fmt = "vkCreatePipelineLayout failed");
+
+    return CERR_OK;
+}
+
+/**
+ * vk_dummies_init() - create the 1x1 image and the 256-byte UBO that fill unbound slots
+ * @r:  renderer
+ *
+ * Return: CERR_OK, or the creation error
+ */
+static cerr vk_dummies_init(renderer_t *r)
+{
+    CERR_RET_CERR(vk_image_create(r, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, (VkExtent3D){ 1, 1, 1 },
+                                  1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_SAMPLED_BIT,
+                                  &r->vk.dummy_image, &r->vk.dummy_mem));
+    CERR_RET_CERR(vk_image_view_create(r, r->vk.dummy_image, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
+                                       VK_IMAGE_ASPECT_COLOR_BIT, 1, &r->vk.dummy_view));
+
+    VkSamplerCreateInfo sampler_info = {
+        .sType          = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter      = VK_FILTER_NEAREST,
+        .minFilter      = VK_FILTER_NEAREST,
+        .addressModeU   = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV   = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW   = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+    };
+    if (vkCreateSampler(r->vk.device, &sampler_info, NULL, &r->vk.dummy_sampler) != VK_SUCCESS)
+        return CERR_INITIALIZATION_FAILED_REASON(.fmt = "dummy vkCreateSampler failed");
+
+    /* the shaders never read it, but the layout must still be right */
+    VkCommandBuffer cb;
+    CERR_RET_CERR(vk_upload_begin(r, &cb));
+    vk_image_layout_transition(cb, r->vk.dummy_image, VK_IMAGE_ASPECT_COLOR_BIT,
+                               VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS,
+                               VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                               0, VK_ACCESS_SHADER_READ_BIT,
+                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    CERR_RET_CERR(vk_upload_end(r, cb));
+
+    return vk_buffer_create(r, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                            &r->vk.dummy_ubo, &r->vk.dummy_ubo_mem);
+}
+
+/**
+ * vk_descriptors_done() - destroy the dummies, the pools and the layouts
+ * @r:  renderer
+ *
+ * Tolerates a partial vk_descriptors_init()/vk_dummies_init().
+ */
+static void vk_descriptors_done(renderer_t *r)
+{
+    if (r->vk.dummy_ubo)        vkDestroyBuffer(r->vk.device, r->vk.dummy_ubo, NULL);
+    if (r->vk.dummy_ubo_mem)    vkFreeMemory(r->vk.device, r->vk.dummy_ubo_mem, NULL);
+    if (r->vk.dummy_sampler)    vkDestroySampler(r->vk.device, r->vk.dummy_sampler, NULL);
+    if (r->vk.dummy_view)       vkDestroyImageView(r->vk.device, r->vk.dummy_view, NULL);
+    if (r->vk.dummy_image)      vkDestroyImage(r->vk.device, r->vk.dummy_image, NULL);
+    if (r->vk.dummy_mem)        vkFreeMemory(r->vk.device, r->vk.dummy_mem, NULL);
+    if (r->vk.pipeline_layout)  vkDestroyPipelineLayout(r->vk.device, r->vk.pipeline_layout, NULL);
+    if (r->vk.desc_layout)      vkDestroyDescriptorSetLayout(r->vk.device, r->vk.desc_layout, NULL);
+}
+
+/****************************************************************************
  * Swapchain
  ****************************************************************************/
 
@@ -776,6 +1009,11 @@ static void vk_renderer_done(renderer_t *r)
     if (r->vk.device) {
         vkDeviceWaitIdle(r->vk.device);
 
+        /* the pipeline cache holds the only reference to its draw_controls */
+        draw_control_cache_done(r);
+
+        for (unsigned int i = 0; i < VK_INFLIGHT_FRAMES; i++)   vk_zombies_drain(r, i);
+
         vk_swapchain_destroy_resources(r);
         if (r->vk.swapchain)    vkDestroySwapchainKHR(r->vk.device, r->vk.swapchain, NULL);
 
@@ -785,7 +1023,10 @@ static void vk_renderer_done(renderer_t *r)
             if (f->fence)       vkDestroyFence(r->vk.device, f->fence, NULL);
             if (f->acquire_sem) vkDestroySemaphore(r->vk.device, f->acquire_sem, NULL);
             if (f->cmd_pool)    vkDestroyCommandPool(r->vk.device, f->cmd_pool, NULL);
+            if (f->desc_pool)   vkDestroyDescriptorPool(r->vk.device, f->desc_pool, NULL);
         }
+
+        vk_descriptors_done(r);
 
         if (r->vk.upload_pool)  vkDestroyCommandPool(r->vk.device, r->vk.upload_pool, NULL);
 
@@ -845,9 +1086,12 @@ static void vk_renderer_frame_begin(renderer_t *r)
         f->submitted = false;
     }
     vkResetCommandPool(r->vk.device, f->cmd_pool, 0);
+    vkResetDescriptorPool(r->vk.device, f->desc_pool, 0);
 
     /* The fence guarantees this frame's UBO regions are no longer read */
     vk_ubos_frame_advance(r);
+    /* ... and that its parked resources are safe to destroy */
+    vk_zombies_drain(r, r->vk.frame_idx);
 
     if (vk_command_buffer_begin(f->cmd_buf) != VK_SUCCESS) {
         err("vulkan: vkBeginCommandBuffer failed\n");
@@ -999,10 +1243,7 @@ static void vk_renderer_cull_face(renderer_t *r, cull_face cull)                
 static void vk_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor) { r->blend = _blend; }
 
 static cerr vk_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
-                             data_type idx_type, unsigned int nr_instances)
-{
-    return CERR_NOT_SUPPORTED_REASON(.fmt = "vulkan: draw not implemented yet");
-}
+                             data_type idx_type, unsigned int nr_instances);
 
 /****************************************************************************
  * Buffers
@@ -1074,14 +1315,9 @@ static cerr vk_buffer_init(buffer_t *buf, const buffer_init_options *opts)
 
 static void vk_buffer_deinit(buffer_t *buf)
 {
-    if (!buf)   return;
+    if (!buf)                       return;
 
-    if (buf->vk.buf && !buf->main) {
-        renderer_t *r = buf->renderer;
-
-        vkDestroyBuffer(r->vk.device, buf->vk.buf, NULL);
-        vkFreeMemory(r->vk.device, buf->vk.mem, NULL);
-    }
+    if (buf->vk.buf && !buf->main)  vk_zombie_add(buf->renderer, (vk_zombie){ .buf = buf->vk.buf, .mem = buf->vk.mem });
 
     buf->vk.buf = VK_NULL_HANDLE;
     buf->vk.mem = VK_NULL_HANDLE;
@@ -1132,19 +1368,188 @@ static void vk_vertex_array_unbind(vertex_array_t *va)              { if (va && 
 
 /****************************************************************************
  * Draw controls
+ *
+ * A draw_control caches the two VkPipeline variants ([0] no blend,
+ * [1] alpha blend) for a (shader, color format, target count, depth)
+ * combination, looked up in shader_use() for the currently bound target
  ****************************************************************************/
+
+static VkFormat vk_current_color_format(renderer_t *r)
+{
+    /* every pipeline renders to the swapchain: there are no FBO passes */
+    return r->vk.swapchain_format;
+}
+
+/**
+ * vk_shader_stage() - a pipeline stage description for a shader module
+ * @stage:  the stage
+ * @module: its module, entry point "main"
+ *
+ * Return: the stage create info
+ */
+static VkPipelineShaderStageCreateInfo vk_shader_stage(VkShaderStageFlagBits stage, VkShaderModule module)
+{
+    return (VkPipelineShaderStageCreateInfo){
+        .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage  = stage,
+        .module = module,
+        .pName  = "main",
+    };
+}
+
+/**
+ * vk_pipeline_create() - build one of a draw_control's dynamic-rendering pipelines
+ * @r:          renderer
+ * @dc:         the draw_control: its shader supplies the stages and vertex attributes
+ * @blend:      build the alpha-blending variant instead of the opaque one
+ * @pipeline:   filled with the pipeline
+ *
+ * Return: CERR_OK, or the creation error
+ */
+static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, bool blend, VkPipeline *pipeline)
+{
+    shader_t *shader = dc->shader;
+    VkFormat color_format = vk_current_color_format(r);
+
+    VkPipelineShaderStageCreateInfo stages[] = {
+        vk_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, shader->vk.vert),
+        vk_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, shader->vk.frag),
+    };
+
+    VkVertexInputAttributeDescription attrs[array_size(shader->vk.vertex_attrs)];
+    for (unsigned int i = 0; i < shader->vk.nr_vertex_attrs; i++)
+        attrs[i] = (VkVertexInputAttributeDescription){
+            .location   = shader->vk.vertex_attrs[i].location,
+            .format     = shader->vk.vertex_attrs[i].format,
+            .offset     = shader->vk.vertex_attrs[i].offset,
+        };
+
+    VkVertexInputBindingDescription vbinding = {
+        .stride     = shader->vk.vertex_stride,
+        .inputRate  = VK_VERTEX_INPUT_RATE_VERTEX,
+    };
+    VkPipelineVertexInputStateCreateInfo vertex_input = {
+        .sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount      = shader->vk.nr_vertex_attrs ? 1 : 0,
+        .pVertexBindingDescriptions         = &vbinding,
+        .vertexAttributeDescriptionCount    = shader->vk.nr_vertex_attrs,
+        .pVertexAttributeDescriptions       = attrs,
+    };
+
+    /* draw_type is baked as triangles, same as the WGPU backend */
+    VkPipelineInputAssemblyStateCreateInfo input_assembly = {
+        .sType      = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology   = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+    };
+
+    VkPipelineViewportStateCreateInfo viewport_state = {
+        .sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount  = 1,
+        .scissorCount   = 1,
+    };
+
+    /* cull is dynamic-ish future work; WGPU also runs CullNone */
+    VkPipelineRasterizationStateCreateInfo raster = {
+        .sType      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .cullMode   = VK_CULL_MODE_NONE,
+        .frontFace  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .lineWidth  = 1.0,
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisample = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
+    };
+
+    /* SrcAlpha/OneMinusSrcAlpha color, One/OneMinusSrcAlpha alpha: the only
+     * blend mode the engine uses (model.c), same equations as WGPU/Metal */
+    VkPipelineColorBlendAttachmentState blend_attachment = {
+        .blendEnable            = blend ? VK_TRUE : VK_FALSE,
+        .srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp           = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .alphaBlendOp           = VK_BLEND_OP_ADD,
+        .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+    };
+    VkPipelineColorBlendStateCreateInfo blend_state = {
+        .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .attachmentCount    = 1,
+        .pAttachments       = &blend_attachment,
+    };
+
+    VkDynamicState dynamic_states[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
+    VkPipelineDynamicStateCreateInfo dynamic_state = {
+        .sType              = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount  = array_size(dynamic_states),
+        .pDynamicStates     = dynamic_states,
+    };
+
+    VkPipelineRenderingCreateInfo rendering_info = {
+        .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .colorAttachmentCount       = 1,
+        .pColorAttachmentFormats    = &color_format,
+    };
+
+    VkGraphicsPipelineCreateInfo info = {
+        .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext                  = &rendering_info,
+        .stageCount             = array_size(stages),
+        .pStages                = stages,
+        .pVertexInputState      = &vertex_input,
+        .pInputAssemblyState    = &input_assembly,
+        .pViewportState         = &viewport_state,
+        .pRasterizationState    = &raster,
+        .pMultisampleState      = &multisample,
+        .pColorBlendState       = &blend_state,
+        .pDynamicState          = &dynamic_state,
+        .layout                 = r->vk.pipeline_layout,
+    };
+
+    VkResult res = vkCreateGraphicsPipelines(r->vk.device, VK_NULL_HANDLE, 1, &info, NULL, pipeline);
+    if (res != VK_SUCCESS)  return VK_INIT_FAILED("vkCreateGraphicsPipelines", res);
+
+    return CERR_OK;
+}
 
 static cerr vk_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
 {
+    auto r = opts->renderer;
+
+    CERR_RET_CERR(vk_pipeline_create(r, dc, false, &dc->vk.pipeline[0]));
+    /* a failed make skips the drop: nothing else releases the first pipeline */
+    CERR_RET(vk_pipeline_create(r, dc, true, &dc->vk.pipeline[1]), {
+        vkDestroyPipeline(r->vk.device, dc->vk.pipeline[0], NULL);
+        dc->vk.pipeline[0] = VK_NULL_HANDLE;
+        return __cerr;
+    });
+
     return CERR_OK;
 }
 
 static void vk_draw_control_done(draw_control_t *dc)
 {
+    auto r = dc->renderer;
+    if (!r)             return;
+
+    if (r->vk.dc == dc) r->vk.dc = NULL;
+
+    /* frames in flight may still reference the pipelines: defer */
+    for (int i = 0; i < array_size(dc->vk.pipeline); i++)
+        if (dc->vk.pipeline[i]) {
+            vk_zombie_add(r, (vk_zombie){ .pipeline = dc->vk.pipeline[i] });
+            dc->vk.pipeline[i] = VK_NULL_HANDLE;
+        }
 }
 
-static void vk_draw_control_bind(draw_control_t *dc)     {}
-static void vk_draw_control_unbind(draw_control_t *dc)   {}
+/* the blend variant is picked in renderer_draw() */
+static void vk_draw_control_bind(draw_control_t *dc)     { dc->renderer->vk.dc = dc; }
+static void vk_draw_control_unbind(draw_control_t *dc)   { dc->renderer->vk.dc = NULL; }
 
 /****************************************************************************
  * Textures
@@ -1304,33 +1709,29 @@ static void vk_texture_release(texture_t *tex)
 {
     auto r = tex->renderer;
 
-    if (tex->vk.view) {
-        vkDestroyImageView(r->vk.device, tex->vk.view, NULL);
-        tex->vk.view = VK_NULL_HANDLE;
-    }
-    if (tex->vk.image) {
-        vkDestroyImage(r->vk.device, tex->vk.image, NULL);
-        tex->vk.image = VK_NULL_HANDLE;
-    }
-    if (tex->vk.mem) {
-        vkFreeMemory(r->vk.device, tex->vk.mem, NULL);
-        tex->vk.mem = VK_NULL_HANDLE;
-    }
+    if (tex->vk.image || tex->vk.view || tex->vk.mem)
+        vk_zombie_add(r, (vk_zombie){ .image = tex->vk.image, .view = tex->vk.view, .mem = tex->vk.mem });
+
+    tex->vk.view = VK_NULL_HANDLE;
+    tex->vk.image = VK_NULL_HANDLE;
+    tex->vk.mem = VK_NULL_HANDLE;
 }
 
 static void vk_texture_deinit(texture_t *tex)
 {
     if (!tex || !tex->renderer) return;
 
-    /*
-     * Immediate destruction: nothing samples textures yet, so no in-flight
-     * frame can still reference one
-     */
-    vk_texture_release(tex);
-    if (tex->vk.sampler) {
-        vkDestroySampler(tex->renderer->vk.device, tex->vk.sampler, NULL);
-        tex->vk.sampler = VK_NULL_HANDLE;
-    }
+    auto r = tex->renderer;
+
+    if (tex->vk.image || tex->vk.view || tex->vk.mem || tex->vk.sampler)
+        vk_zombie_add(r, (vk_zombie){
+            .image = tex->vk.image, .view = tex->vk.view, .sampler = tex->vk.sampler, .mem = tex->vk.mem
+        });
+
+    tex->vk.view = VK_NULL_HANDLE;
+    tex->vk.image = VK_NULL_HANDLE;
+    tex->vk.mem = VK_NULL_HANDLE;
+    tex->vk.sampler = VK_NULL_HANDLE;
 
     tex->width = 0;
     tex->height = 0;
@@ -1463,10 +1864,21 @@ static cerr vk_texture_resize(texture_t *tex, unsigned int width, unsigned int h
 
 static void vk_texture_bind(texture_t *tex, unsigned int target, uniform_t uniform)
 {
+    auto r = tex ? tex->renderer : NULL;
+
+    /* @target is the set-0 binding number; aliased names share a slot */
+    if (!r || target >= array_size(r->vk.bound_textures))   return;
+
+    r->vk.bound_textures[target] = tex;
 }
 
 static void vk_texture_unbind(texture_t *tex, unsigned int target)
 {
+    auto r = tex ? tex->renderer : NULL;
+
+    if (!r || target >= array_size(r->vk.bound_textures))   return;
+
+    r->vk.bound_textures[target] = NULL;
 }
 
 static bool vk_texture_is_array(texture_t *tex)                     { return tex && tex->vk.type == TEX_2D_ARRAY; }
@@ -1622,8 +2034,7 @@ static void vk_uniform_buffer_free(uniform_buffer_t *ubo)
 
     if (ubo->vk.buf) {
         if (ubo->vk.mapped) vkUnmapMemory(r->vk.device, ubo->vk.mem);
-        vkDestroyBuffer(r->vk.device, ubo->vk.buf, NULL);
-        vkFreeMemory(r->vk.device, ubo->vk.mem, NULL);
+        vk_zombie_add(r, (vk_zombie){ .buf = ubo->vk.buf, .mem = ubo->vk.mem });
         ubo->vk.buf = VK_NULL_HANDLE;
         ubo->vk.mem = VK_NULL_HANDLE;
         ubo->vk.mapped = NULL;
@@ -1839,10 +2250,22 @@ static uniform_t vk_shader_uniform(shader_t *shader, const char *name)
 
 static cerr vk_shader_use(shader_t *shader, bool draw)
 {
-    /* no pipelines to bind: only the resource-loading path can succeed */
     if (!draw)  return CERR_OK;
 
-    return CERR_NOT_SUPPORTED;
+    auto r = shader->vk.renderer;
+
+    /*
+     * Clear the per-draw binding state so only resources bound for this
+     * shader make it into the descriptor set
+     */
+    memset(r->vk.bound_textures, 0, sizeof(r->vk.bound_textures));
+    memset(r->vk.bound_ubos, 0, sizeof(r->vk.bound_ubos));
+
+    /* the swapchain is the only render target: the cache keys on swapchain_gen */
+    auto dc = CRES_RET_CERR(draw_control_get(r, NULL, shader));
+    draw_control_bind(dc);
+
+    return CERR_OK;
 }
 
 static void vk_shader_unuse(shader_t *shader, bool draw)    {}
@@ -1857,6 +2280,132 @@ static void vk_shader_set_name(shader_t *shader, const char *name)
 {
     free(shader->vk.name);
     shader->vk.name = strdup(name);
+}
+
+/****************************************************************************
+ * Drawing
+ ****************************************************************************/
+
+/**
+ * vk_descriptor_write() - one descriptor write into a set
+ * @ds:             the descriptor set
+ * @binding:        set-0 binding number
+ * @type:           the descriptor type
+ * @image_info:     the image descriptor, NULL for a buffer binding
+ * @buffer_info:    the buffer descriptor, NULL for an image binding
+ *
+ * Return: the write, for a batched vkUpdateDescriptorSets()
+ */
+static VkWriteDescriptorSet vk_descriptor_write(VkDescriptorSet ds, uint32_t binding, VkDescriptorType type,
+                                                const VkDescriptorImageInfo *image_info,
+                                                const VkDescriptorBufferInfo *buffer_info)
+{
+    return (VkWriteDescriptorSet){
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = ds,
+        .dstBinding         = binding,
+        .descriptorCount    = 1,
+        .descriptorType     = type,
+        .pImageInfo         = image_info,
+        .pBufferInfo        = buffer_info,
+    };
+}
+
+/**
+ * vk_renderer_draw() - the draw op: descriptor set, pipeline, buffers, then the indexed draw
+ * @r:              renderer
+ * @draw_type:      primitive type
+ * @nr_faces:       faces to draw (the whole index buffer)
+ * @idx_type:       index element type
+ * @nr_instances:   instances to draw
+ *
+ * Return: CERR_OK, CERR_INVALID_OPERATION without an open pass, draw_control
+ *         or index buffer, CERR_NOMEM when the frame's descriptor pool is
+ *         exhausted
+ */
+static cerr vk_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
+                             data_type idx_type, unsigned int nr_instances)
+{
+    if (!r->vk.pass_open || !r->vk.dc || !r->va || !r->va->index)
+        return CERR_INVALID_OPERATION_REASON(
+            .fmt    = "pass(%d)/draw_control(%p)/index buffer(%p) not bound",
+            .arg0   = (void *)(uintptr_t)r->vk.pass_open,
+            .arg1   = r->vk.dc,
+            .arg2   = r->va ? r->va->index : NULL
+        );
+
+    buffer_t *index = r->va->index;
+    buffer_t *vbuf = r->va->vk.vbuf;
+
+    if (!buffer_loaded(index) || !vbuf || !buffer_loaded(vbuf))
+        return CERR_INVALID_OPERATION_REASON(.fmt = "vertex/index buffers not loaded");
+
+    auto f = &r->vk.frames[r->vk.frame_idx];
+
+    /* Pick the blend variant here: blend state may change after shader_use() */
+    vkCmdBindPipeline(f->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      r->vk.dc->vk.pipeline[r->blend ? 1 : 0]);
+
+    /* One descriptor set per draw: every slot written, dummies where unbound */
+    VkDescriptorSetAllocateInfo ds_info = {
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = f->desc_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &r->vk.desc_layout,
+    };
+    VkDescriptorSet ds;
+    VkResult res = vkAllocateDescriptorSets(r->vk.device, &ds_info, &ds);
+    if (res != VK_SUCCESS)
+        return CERR_NOMEM_REASON(
+            .fmt    = "vkAllocateDescriptorSets failed: %d",
+            .arg0   = (void *)(intptr_t)res
+        );
+
+    VkDescriptorImageInfo image_infos[VULKAN_BINDING_UBO_BASE];
+    VkDescriptorBufferInfo buffer_infos[BINDING_UBO_MAX];
+    VkWriteDescriptorSet writes[VULKAN_BINDING_UBO_BASE + BINDING_UBO_MAX];
+    uint32_t n = 0;
+
+    for (unsigned int i = 0; i < VULKAN_BINDING_UBO_BASE; i++) {
+        texture_t *tex = i < array_size(r->vk.bound_textures) ?
+            r->vk.bound_textures[i] : NULL;
+        bool live = tex && texture_loaded(tex) && tex->vk.view;
+
+        image_infos[i] = (VkDescriptorImageInfo){
+            .sampler        = live ? tex->vk.sampler : r->vk.dummy_sampler,
+            .imageView      = live ? tex->vk.view : r->vk.dummy_view,
+            .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        writes[n++] = vk_descriptor_write(ds, i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos[i], NULL);
+    }
+
+    for (unsigned int i = 0; i < BINDING_UBO_MAX; i++) {
+        uniform_buffer_t *ubo = r->vk.bound_ubos[i];
+        bool live = ubo && ubo->vk.buf;
+
+        buffer_infos[i] = (VkDescriptorBufferInfo){
+            .buffer = live ? ubo->vk.buf : r->vk.dummy_ubo,
+            .offset = live ? vk_ubo_offset(ubo) : 0,
+            .range  = live ? ubo->size : 256,
+        };
+        writes[n++] = vk_descriptor_write(ds, VULKAN_BINDING_UBO_BASE + i, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                          NULL, &buffer_infos[i]);
+    }
+
+    vkUpdateDescriptorSets(r->vk.device, n, writes, 0, NULL);
+    vkCmdBindDescriptorSets(f->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            r->vk.pipeline_layout, 0, 1, &ds, 0, NULL);
+
+    VkDeviceSize vbuf_offset = 0;
+    vkCmdBindVertexBuffers(f->cmd_buf, 0, 1, &vbuf->vk.buf, &vbuf_offset);
+    vkCmdBindIndexBuffer(f->cmd_buf, index->vk.buf, 0,
+                         data_comp_size(index->comp_type) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+
+    /* Draw the whole index buffer, same as the WGPU backend */
+    size_t idx_count = index->vk.size / data_comp_size(index->comp_type);
+    vkCmdDrawIndexed(f->cmd_buf, idx_count, max(nr_instances, 1u), 0, 0, 0);
+
+    return CERR_OK;
 }
 
 static const renderer_ops vk_renderer_ops = {
@@ -1970,6 +2519,8 @@ cerr vk_renderer_setup(renderer_t *renderer, const renderer_init_options *opts)
     CERR_RET_CERR(vk_physical_device_pick(renderer));
     CERR_RET_CERR(vk_device_create(renderer));
     CERR_RET_CERR(vk_frames_init(renderer));
+    CERR_RET_CERR(vk_descriptors_init(renderer));
+    CERR_RET_CERR(vk_dummies_init(renderer));
 
     /*
      * No viewport has been set yet: size the first swapchain to the window's

@@ -1296,11 +1296,23 @@ TYPE(renderer,
             vk_fence_t                      fence;
             vk_semaphore_t                  acquire_sem;
             vk_descriptor_pool_t            desc_pool;
+            /* resources destroyed while this frame may still be in flight */
+            struct list                     zombies;
             /* the fence is only ever signalled for a frame whose submit succeeded */
             bool                            submitted;
         }                                   frames[VK_INFLIGHT_FRAMES];
         /* synchronous resource upload path */
         vk_command_pool_t                   upload_pool;
+        /* one global set-0 layout: every shader's bindings are a subset */
+        vk_descriptor_set_layout_t          desc_layout;
+        vk_pipeline_layout_t                pipeline_layout;
+        /* fallbacks for descriptor slots with nothing bound */
+        vk_image_t                          dummy_image;
+        vk_device_memory_t                  dummy_mem;
+        vk_image_view_t                     dummy_view;
+        vk_sampler_t                        dummy_sampler;
+        vk_buffer_t                         dummy_ubo;
+        vk_device_memory_t                  dummy_ubo_mem;
         draw_control_t                      *dc;
         fbo_t                               *fbo;
         struct list                         ubos;
