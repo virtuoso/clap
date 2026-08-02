@@ -1008,17 +1008,109 @@ static cerr vk_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr
  * Buffers
  ****************************************************************************/
 
+static VkBufferUsageFlags vk_buffer_usage(buffer_type type)
+{
+    switch (type) {
+        case BUF_ARRAY:         return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        case BUF_ELEMENT_ARRAY: return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        default:                break;
+    }
+
+    clap_unreachable();
+    return 0;
+}
+
+static cerr vk_buffer_load(buffer_t *buf, renderer_t *r, void *data, size_t size)
+{
+    if (buf->main) {
+        /* interleaved attributes alias the main buffer */
+        buf->vk.buf = buf->main->vk.buf;
+    } else {
+        /*
+         * Host-visible is plenty for the UI-scale geometry; a device-local
+         * staging path can come with the 3D pipeline if it proves to matter
+         */
+        CERR_RET_CERR(vk_buffer_create(r, size, vk_buffer_usage(buf->vk.type),
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                       &buf->vk.buf, &buf->vk.mem));
+
+        void *mapped;
+        if (vkMapMemory(r->vk.device, buf->vk.mem, 0, size, 0, &mapped) != VK_SUCCESS)
+            return CERR_INVALID_OPERATION_REASON(.fmt = "vkMapMemory failed");
+        memcpy(mapped, data, size);
+        vkUnmapMemory(r->vk.device, buf->vk.mem);
+    }
+
+    buf->vk.size = size;
+    buf->loaded = true;
+
+    return CERR_OK;
+}
+
 static cerr vk_buffer_init(buffer_t *buf, const buffer_init_options *opts)
 {
-    return ref_embed(buffer, buf);
+    CERR_RET_CERR(ref_embed(buffer, buf));
+
+    data_type comp_type = opts->comp_type;
+    if (comp_type == DT_NONE)   comp_type = DT_FLOAT;
+
+    buf->vk.type = opts->type;
+    buf->off = opts->off;
+    buf->comp_count = max(opts->comp_count, data_comp_count(comp_type));
+    buf->comp_type = opts->comp_type;
+    buf->loc = opts->loc;
+    buf->main = opts->main;
+#ifndef CONFIG_FINAL
+    buf->opts = *opts;
+    buf->opts.comp_type = comp_type;
+    buf->opts.comp_count = buf->comp_count;
+#endif /* !CONFIG_FINAL */
+
+    if (opts->data && opts->size)   return vk_buffer_load(buf, opts->renderer, opts->data, opts->size);
+
+    return CERR_OK;
 }
 
 static void vk_buffer_deinit(buffer_t *buf)
 {
+    if (!buf)   return;
+
+    if (buf->vk.buf && !buf->main) {
+        renderer_t *r = buf->renderer;
+
+        vkDestroyBuffer(r->vk.device, buf->vk.buf, NULL);
+        vkFreeMemory(r->vk.device, buf->vk.mem, NULL);
+    }
+
+    buf->vk.buf = VK_NULL_HANDLE;
+    buf->vk.mem = VK_NULL_HANDLE;
+    buf->off = 0;
+    buf->vk.size = 0;
+    buf->comp_count = 0;
+    buf->loc = 0;
+    buf->loaded = false;
+#ifndef CONFIG_FINAL
+    memset(&buf->opts, 0, sizeof(buf->opts));
+#endif /* !CONFIG_FINAL */
 }
 
 static void vk_buffer_bind(buffer_t *buf, uniform_t loc)
 {
+    if (!buf || !buf->loaded)   return;
+
+    buf->loc = loc;
+
+    auto r = buf->renderer;
+    if (!r || !r->va)           return;
+
+    if (loc < 0) {
+        /* index buffer */
+        r->va->index = buf;
+    } else if (loc == 0) {
+        /* first vertex attribute: record the interleaved vertex buffer */
+        r->va->vk.vbuf = buf->main ? buf->main : buf;
+    }
 }
 
 static void vk_buffer_unbind(buffer_t *buf, uniform_t loc)      {}
@@ -1033,9 +1125,10 @@ static cerr vk_vertex_array_init(vertex_array_t *va, renderer_t *r)
 {
     return ref_embed(vertex_array, va, .renderer = r);
 }
-static void vk_vertex_array_done(vertex_array_t *va)                {}
-static void vk_vertex_array_bind(vertex_array_t *va)                {}
-static void vk_vertex_array_unbind(vertex_array_t *va)              {}
+
+static void vk_vertex_array_done(vertex_array_t *va)                { va->index = NULL; va->vk.vbuf = NULL; }
+static void vk_vertex_array_bind(vertex_array_t *va)                { if (va && va->renderer) va->renderer->va = va; }
+static void vk_vertex_array_unbind(vertex_array_t *va)              { if (va && va->renderer) va->renderer->va = NULL; }
 
 /****************************************************************************
  * Draw controls
