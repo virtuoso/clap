@@ -9,11 +9,15 @@
 
 #include <string.h>
 
+#include "bindings/render-bindings-common.h"
 #include "common.h"
 #include "logger.h"
 #include "memory.h"
 #include "render-vk.h"
 #include "util.h"
+
+/** VK_UBO_SLOTS_PER_FRAME - per-draw UBO slots in each in-flight frame's region: the busiest scenes run ~850 draws */
+#define VK_UBO_SLOTS_PER_FRAME 1024
 
 /*
  * Vulkan renderer backend
@@ -826,6 +830,8 @@ static void vk_renderer_hdr_enable(renderer_t *r, bool enable)
 {
 }
 
+static void vk_ubos_frame_advance(renderer_t *r);
+
 static void vk_renderer_frame_begin(renderer_t *r)
 {
     /* Idempotent: loading-screen mini-frames re-enter an open pseudo-frame */
@@ -839,6 +845,9 @@ static void vk_renderer_frame_begin(renderer_t *r)
         f->submitted = false;
     }
     vkResetCommandPool(r->vk.device, f->cmd_pool, 0);
+
+    /* The fence guarantees this frame's UBO regions are no longer read */
+    vk_ubos_frame_advance(r);
 
     if (vk_command_buffer_begin(f->cmd_buf) != VK_SUCCESS) {
         err("vulkan: vkBeginCommandBuffer failed\n");
@@ -1454,6 +1463,11 @@ static void vk_fbo_destroy(fbo_t *fbo)
 
 /****************************************************************************
  * Uniform buffers
+ *
+ * The WGPU slot-ring model crossed with Metal's per-frame regions: each
+ * in-flight frame owns a region of VK_UBO_SLOTS_PER_FRAME slots, so a
+ * frame's writes never touch memory a previous frame may still be reading
+ * (Vulkan mapped writes aren't queue-ordered like wgpuQueueWriteBuffer())
  ****************************************************************************/
 
 cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset, size_t *size,
@@ -1462,44 +1476,144 @@ cerr_check _uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *of
 static cerr vk_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name,
                                    int binding)
 {
-    CERR_RET_CERR(ref_embed(uniform_buffer, ubo, .binding = binding));
+    CERR_RET_CERR(ref_embed(uniform_buffer, ubo, .renderer = r, .name = name, .binding = binding));
 
+    ubo->renderer = r;
     ubo->vk.binding = binding;
+    list_append(&r->vk.ubos, &ubo->vk.entry);
+
+    return CERR_OK;
+}
+
+/* Offset of the current slot in both the GPU buffer and the CPU shadow */
+static inline size_t vk_ubo_offset(uniform_buffer_t *ubo)
+{
+    auto r = ubo->renderer;
+
+    return r->vk.frame_idx * ubo->vk.frame_size + ubo->vk.item * ubo->vk.slot_size;
+}
+
+static cerr vk_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
+{
+    /* There's no reason to ever want to reallocate a UBO */
+    if (ubo->data || ubo->size) return CERR_INVALID_OPERATION;
+
+    auto r = ubo->renderer;
+
+    ubo->size = round_up(size, 16);
+    ubo->vk.slot_size = round_up(ubo->size, 256);
+    ubo->vk.frame_size = ubo->vk.slot_size * VK_UBO_SLOTS_PER_FRAME;
+
+    size_t total_size = ubo->vk.frame_size * VK_INFLIGHT_FRAMES;
+
+    CERR_RET_CERR(vk_buffer_create(r, total_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   &ubo->vk.buf, &ubo->vk.mem));
+
+    if (vkMapMemory(r->vk.device, ubo->vk.mem, 0, total_size, 0, &ubo->vk.mapped) != VK_SUCCESS)
+        return CERR_INVALID_OPERATION_REASON(.fmt = "vkMapMemory failed");
+
+    /* CPU shadow covers the full allocation */
+    ubo->vk.shadow = mem_alloc(total_size, .zero = true);
+    if (!ubo->vk.shadow)    return CERR_NOMEM;
+
+    ubo->data = (char *)ubo->vk.shadow + vk_ubo_offset(ubo);
 
     return CERR_OK;
 }
 
 static void vk_uniform_buffer_free(uniform_buffer_t *ubo)
 {
-    if (!ubo->data) return;
+    auto r = ubo->renderer;
 
-    mem_free(ubo->data);
-    ubo->data = NULL;
+    if (ubo->vk.buf) {
+        if (ubo->vk.mapped) vkUnmapMemory(r->vk.device, ubo->vk.mem);
+        vkDestroyBuffer(r->vk.device, ubo->vk.buf, NULL);
+        vkFreeMemory(r->vk.device, ubo->vk.mem, NULL);
+        ubo->vk.buf = VK_NULL_HANDLE;
+        ubo->vk.mem = VK_NULL_HANDLE;
+        ubo->vk.mapped = NULL;
+    }
+    /* linked at init, with or without a GPU buffer */
+    list_del(&ubo->vk.entry);
+
+    if (ubo->vk.shadow) {
+        mem_free(ubo->vk.shadow);
+        ubo->vk.shadow = NULL;
+        ubo->data = NULL;
+    }
+
+    ubo->size = 0;
+    ubo->vk.frame_size = 0;
+    ubo->vk.item = 0;
+    ubo->dirty = false;
+    ubo->vk.advance = false;
 }
 
 static void vk_uniform_buffer_done(uniform_buffer_t *ubo)       { vk_uniform_buffer_free(ubo); }
 static void vk_uniform_buffer_destroy(uniform_buffer_t *ubo)    { vk_uniform_buffer_free(ubo); }
 
-static cerr vk_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
-{
-    ubo->data = mem_alloc(size, .zero = true);
-    if (!ubo->data) return CERR_NOMEM;
-
-    ubo->size = size;
-
-    return CERR_OK;
-}
-
 static cerr vk_uniform_buffer_bind(uniform_buffer_t *ubo, binding_points_t *binding_points)   { return CERR_OK; }
 
 static void vk_uniform_buffer_update(uniform_buffer_t *ubo, binding_points_t *binding_points)
 {
+    if (!ubo || !ubo->data || !ubo->size || !ubo->vk.mapped)    return;
+
+    auto r = ubo->renderer;
+    size_t offset = vk_ubo_offset(ubo);
+
+    /* Publish the current slot; the memory is host-coherent */
+    memcpy((char *)ubo->vk.mapped + offset, ubo->data, ubo->size);
+
+    ubo->vk.advance = true;
+    ubo->dirty = false;
+
+    /* Track this UBO for descriptor set creation at draw time */
+    int slot = ubo->vk.binding - VULKAN_BINDING_UBO_BASE;
+    if (slot >= 0 && slot < BINDING_UBO_MAX)    r->vk.bound_ubos[slot] = ubo;
 }
 
 static cerr vk_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t *offset,
                                   size_t *size, unsigned int count, const void *value)
 {
+    if (!value || !ubo->vk.advance) goto out;
+
+    /* Advance to a new slot on the first write after uniform_buffer_update() */
+    void *prev_data = ubo->data;
+
+    if (ubo->vk.item + 1 < VK_UBO_SLOTS_PER_FRAME)
+        ubo->vk.item++;
+    else
+        warn_once("UBO %d ran out of slots (%u per frame)\n", ubo->vk.binding, VK_UBO_SLOTS_PER_FRAME);
+    ubo->data = (char *)ubo->vk.shadow + vk_ubo_offset(ubo);
+
+    /* COW: seed the new slot from the previous one */
+    if (ubo->data != prev_data) memcpy(ubo->data, prev_data, ubo->size);
+    ubo->vk.advance = false;
+
+out:
     return _uniform_buffer_set(ubo, type, offset, size, count, value);
+}
+
+/* Rewind every UBO ring into the new frame's region */
+static void vk_ubos_frame_advance(renderer_t *r)
+{
+    uniform_buffer_t *ubo;
+
+    list_for_each_entry(ubo, &r->vk.ubos, vk.entry) {
+        if (!ubo->data) continue;
+
+        void *prev_data = ubo->data;
+
+        ubo->vk.item = 0;
+        ubo->data = (char *)ubo->vk.shadow + vk_ubo_offset(ubo);
+        ubo->dirty = false;
+        ubo->vk.advance = false;
+
+        /* Seed the frame's first slot from the last one written */
+        if (prev_data != ubo->data) memcpy(ubo->data, prev_data, ubo->size);
+    }
 }
 
 /****************************************************************************

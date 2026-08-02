@@ -200,6 +200,8 @@ function(emit_common_header out_var)
         #   WGPU   -- sequential, continuing after the last texture slot
         if (backend STREQUAL "WGPU")
             append_line(c "#define ${backend}_BINDING_UBO_BASE ${slot}")
+        elseif (backend STREQUAL "VULKAN")
+            append_line(c "#define ${backend}_BINDING_UBO_BASE ${VULKAN_UBO_BINDING_BASE}")
         endif ()
         foreach (record ${ubo_records})
             string(REPLACE "|" ";" f "${record}")

@@ -999,6 +999,7 @@ TYPE(uniform_buffer,
         vk_buffer_t             buf;        /* GPU-side buffer: per-frame regions x slot ring */
         vk_device_memory_t      mem;
         void                    *mapped;    /* persistently mapped base pointer */
+        void                    *shadow;    /* CPU shadow base; data points inside it */
         size_t                  slot_size;  /* aligned slot stride */
         size_t                  frame_size; /* one in-flight frame's region size */
         size_t                  item;       /* current slot index */
