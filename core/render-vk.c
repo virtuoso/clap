@@ -1372,7 +1372,31 @@ static void vk_texture_set_name(texture_t *tex, const char *name)   {}
 
 static texture_t *vk_texture_clone(texture_t *tex)
 {
-    return NULL;
+    if (!tex)   return NULL;
+
+    texture_t *clone = ref_new(texture);
+    if (!clone) return NULL;
+
+    clone->renderer = tex->renderer;
+    clone->vk.type = tex->vk.type;
+    clone->vk.format = tex->vk.format;
+    clone->width = tex->width;
+    clone->height = tex->height;
+    clone->layers = tex->layers;
+    clone->multisampled = tex->multisampled;
+    clone->vk.render_target = false;
+    clone->loaded = tex->loaded;
+    /*
+     * Take over the GPU objects: the cloned original is an embedded ref
+     * that texture_done() deliberately skips deiniting, which makes the
+     * clone the sole owner from here on
+     */
+    clone->vk.image = tex->vk.image;
+    clone->vk.mem = tex->vk.mem;
+    clone->vk.view = tex->vk.view;
+    clone->vk.sampler = tex->vk.sampler;
+
+    return clone;
 }
 
 static texid_t vk_texture_id(texture_t *tex)
