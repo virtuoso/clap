@@ -1506,16 +1506,89 @@ static cerr vk_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_t 
  * Shaders
  ****************************************************************************/
 
+static cerr vk_shader_module_create(renderer_t *r, const char *code, size_t size,
+                                    VkShaderModule *mod)
+{
+    if (!code || !size || size % 4)
+        return CERR_INVALID_ARGUMENTS_REASON(
+            .fmt    = "bad SPIR-V blob: %zu bytes",
+            .arg0   = (void *)(uintptr_t)size
+        );
+
+    /*
+     * Built-in shaders are string literals with no alignment guarantees;
+     * vkCreateShaderModule() wants uint32-aligned code
+     */
+    LOCAL_SET(void, aligned) = mem_alloc(size);
+    if (!aligned)           return CERR_NOMEM;
+    memcpy(aligned, code, size);
+
+    VkShaderModuleCreateInfo info = {
+        .sType      = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize   = size,
+        .pCode      = aligned,
+    };
+    VkResult res = vkCreateShaderModule(r->vk.device, &info, NULL, mod);
+    if (res != VK_SUCCESS)  return VK_INIT_FAILED("vkCreateShaderModule", res);
+
+    return CERR_OK;
+}
+
+static void vk_shader_done(shader_t *shader)
+{
+    auto r = shader->vk.renderer;
+    if (!r)                 return;
+
+    free(shader->vk.name);
+    shader->vk.name = NULL;
+
+    if (shader->vk.vert)    vkDestroyShaderModule(r->vk.device, shader->vk.vert, NULL);
+    if (shader->vk.geom)    vkDestroyShaderModule(r->vk.device, shader->vk.geom, NULL);
+    if (shader->vk.frag)    vkDestroyShaderModule(r->vk.device, shader->vk.frag, NULL);
+    shader->vk.vert = VK_NULL_HANDLE;
+    shader->vk.geom = VK_NULL_HANDLE;
+    shader->vk.frag = VK_NULL_HANDLE;
+}
+
 static cerr vk_shader_init(renderer_t *r, shader_t *shader,
                            const char *vertex, size_t vert_size,
                            const char *geometry, size_t geom_size,
                            const char *fragment, size_t frag_size)
 {
-    return CERR_NOT_SUPPORTED_REASON(.fmt = "vulkan: shaders not implemented yet");
+    shader->vk.renderer = r;
+    shader->vk.binding_mask = 0;
+
+    cerr err = vk_shader_module_create(r, vertex, vert_size, &shader->vk.vert);
+    if (!IS_CERR(err) && geometry)  err = vk_shader_module_create(r, geometry, geom_size, &shader->vk.geom);
+    if (!IS_CERR(err))              err = vk_shader_module_create(r, fragment, frag_size, &shader->vk.frag);
+
+    if (IS_CERR(err))               vk_shader_done(shader);
+
+    return err;
 }
 
-static void vk_shader_done(shader_t *shader)
+static_assert(6 >= ATTR_MAX, "shader_t::vertex_attrs array too small for ATTR_MAX");
+
+static VkFormat vk_vertex_format(data_type type)
 {
+    switch (type) {
+        case DT_FLOAT:  return VK_FORMAT_R32_SFLOAT;
+        case DT_VEC2:   return VK_FORMAT_R32G32_SFLOAT;
+        case DT_VEC3:   return VK_FORMAT_R32G32B32_SFLOAT;
+        case DT_VEC4:   return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case DT_INT:    return VK_FORMAT_R32_SINT;
+        case DT_IVEC2:  return VK_FORMAT_R32G32_SINT;
+        case DT_IVEC3:  return VK_FORMAT_R32G32B32_SINT;
+        case DT_IVEC4:  return VK_FORMAT_R32G32B32A32_SINT;
+        case DT_UINT:   return VK_FORMAT_R32_UINT;
+        case DT_UVEC2:  return VK_FORMAT_R32G32_UINT;
+        case DT_UVEC3:  return VK_FORMAT_R32G32B32_UINT;
+        case DT_UVEC4:  return VK_FORMAT_R32G32B32A32_UINT;
+        default:        break;
+    }
+
+    clap_unreachable();
+    return VK_FORMAT_UNDEFINED;
 }
 
 static void vk_shader_set_vertex_attrs(shader_t *shader, size_t stride,
@@ -1523,27 +1596,45 @@ static void vk_shader_set_vertex_attrs(shader_t *shader, size_t stride,
                                        size_t *comp_counts, unsigned int *locs,
                                        unsigned int nr_attrs)
 {
+    shader->vk.vertex_stride = stride;
+    shader->vk.nr_vertex_attrs = nr_attrs;
+
+    for (unsigned int i = 0; i < nr_attrs; i++)
+        shader->vk.vertex_attrs[i] = (vk_vertex_attr_t){
+            .format     = vk_vertex_format(types[i]),
+            .offset     = offs[i],
+            .location   = locs[i],
+        };
 }
 
-static int vk_shader_id(shader_t *shader)   { return 0; }
+static int vk_shader_id(shader_t *shader)   { return (int)(uintptr_t)shader; }
 
 static cerr vk_shader_uniform_buffer_bind(shader_t *shader, binding_points_t *bpt, const char *name)
 {
+    shader->vk.binding_mask |= 1ull << bpt->binding;
     return CERR_OK;
 }
 
 static attr_t vk_shader_attribute(shader_t *shader, const char *name, attr_t attr)
 {
-    return attr;
+    /* force reading vertex attributes from reflection */
+    return UA_UNKNOWN;
 }
 
 static uniform_t vk_shader_uniform(shader_t *shader, const char *name)
 {
+    /*
+     * No runtime uniform introspection; reflection JSON populates
+     * p->vars[] via shader_reflection_apply(), same as WGPU
+     */
     return UA_NOT_PRESENT;
 }
 
 static cerr vk_shader_use(shader_t *shader, bool draw)
 {
+    /* no pipelines to bind: only the resource-loading path can succeed */
+    if (!draw)  return CERR_OK;
+
     return CERR_NOT_SUPPORTED;
 }
 
@@ -1557,6 +1648,8 @@ static cres(size_t) vk_shader_uniform_offset_query(shader_t *shader, const char 
 
 static void vk_shader_set_name(shader_t *shader, const char *name)
 {
+    free(shader->vk.name);
+    shader->vk.name = strdup(name);
 }
 
 static const renderer_ops vk_renderer_ops = {

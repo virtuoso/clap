@@ -1073,6 +1073,7 @@ TYPE(shader,
     struct {
         renderer_t                          *renderer;
         vk_shader_module_t                  vert;
+        vk_shader_module_t                  geom;
         vk_shader_module_t                  frag;
         vk_vertex_attr_t                    vertex_attrs[6];
         size_t                              vertex_stride;
