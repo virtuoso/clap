@@ -240,12 +240,25 @@ static cerr vk_physical_device_pick(renderer_t *r)
         VkPhysicalDeviceVulkan13Features f13 = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
         };
-        VkPhysicalDeviceFeatures2 f2 = {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        VkPhysicalDeviceVulkan12Features f12 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
             .pNext = &f13,
         };
+        VkPhysicalDeviceFeatures2 f2 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .pNext = &f12,
+        };
         vkGetPhysicalDeviceFeatures2(devs[i], &f2);
-        if (!f13.dynamicRendering)                                              continue;
+        /*
+         * TODO: these want to become renderer capabilities with runtime fallbacks;
+         * RPi5/v3dv does have geometry shaders but no shaderFloat16, hence the
+         * CONFIG_SHADER_NO_FP16 build
+         */
+        if (!f13.dynamicRendering || !f13.shaderDemoteToHelperInvocation ||
+            (!IS_DEFINED(CONFIG_SHADER_NO_FP16) && !f12.shaderFloat16) ||
+            !f2.features.geometryShader ||
+            !f2.features.independentBlend)
+            continue;
 
         if (!vk_queue_family_pick(r, devs[i], &queue_family))                   continue;
 
@@ -263,7 +276,7 @@ static cerr vk_physical_device_pick(renderer_t *r)
 
     if (!best_score)
         return CERR_NOT_SUPPORTED_REASON(
-            .fmt = "no Vulkan 1.3 device with dynamic rendering and a graphics+present queue"
+            .fmt = "no Vulkan 1.3 device with the required features and a graphics+present queue"
         );
 
     vk_limits_fill(r, &best_props.limits);
@@ -285,12 +298,26 @@ static cerr vk_device_create(renderer_t *r)
         .pQueuePriorities   = &prio,
     };
     VkPhysicalDeviceVulkan13Features f13 = {
-        .sType              = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-        .dynamicRendering   = VK_TRUE,
+        .sType                          = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .dynamicRendering               = VK_TRUE,
+        /* discard compiles to OpDemoteToHelperInvocation in SPIR-V 1.6 */
+        .shaderDemoteToHelperInvocation = VK_TRUE,
+    };
+    VkPhysicalDeviceVulkan12Features f12 = {
+        .sType              = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext              = &f13,
+        /* the postprocessing shaders use explicit fp16 (half.glsl) */
+        .shaderFloat16      = IS_DEFINED(CONFIG_SHADER_NO_FP16) ? VK_FALSE : VK_TRUE,
     };
     VkPhysicalDeviceFeatures2 f2 = {
         .sType              = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext              = &f13,
+        .pNext              = &f12,
+        .features           = {
+            /* the shadow passes emit cascade layers from geometry shaders */
+            .geometryShader     = VK_TRUE,
+            /* G-buffer-ish attachments opt out of blending (no_blend) */
+            .independentBlend   = VK_TRUE,
+        },
     };
     const char *exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     VkDeviceCreateInfo info = {
@@ -760,13 +787,15 @@ static cerr vk_descriptors_init(renderer_t *r)
     VkDescriptorSetLayoutBinding bindings[VULKAN_BINDING_UBO_BASE + BINDING_UBO_MAX];
     uint32_t n = 0;
 
+    VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT |
+                                VK_SHADER_STAGE_GEOMETRY_BIT;
+
     for (unsigned int i = 0; i < VULKAN_BINDING_UBO_BASE; i++)
         bindings[n++] = (VkDescriptorSetLayoutBinding){
             .binding            = i,
             .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount    = 1,
-            /* no geometry stage: the geometryShader device feature isn't requested */
-            .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags         = stages,
         };
 
     for (unsigned int i = 0; i < BINDING_UBO_MAX; i++)
@@ -774,7 +803,7 @@ static cerr vk_descriptors_init(renderer_t *r)
             .binding            = VULKAN_BINDING_UBO_BASE + i,
             .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount    = 1,
-            .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags         = stages,
         };
 
     VkDescriptorSetLayoutCreateInfo layout_info = {
