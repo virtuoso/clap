@@ -102,6 +102,8 @@ static bool on_wayland(void)
     return !access(path, F_OK);
 }
 
+# endif /* __linux__ */
+
 /**
  * __lsan_default_suppressions() - Built-in LeakSanitizer suppressions
  *
@@ -111,19 +113,41 @@ static bool on_wayland(void)
  * by a library that is unloaded again by then also survive. Suppress those,
  * but only when running on Wayland, so that leaks elsewhere stay visible.
  *
- * Return: newline-separated leak suppressions, empty when not on Wayland
+ * On vulkan builds, amdvlk's WSI drops xcb replies on the floor at teardown
+ * (RADV, running the same engine code, exits leak-free); the engine never
+ * talks to xcb directly, so this can't mask a leak of ours. amdvlk's other
+ * leaks are internal to the driver, but the loader dlclose()s the ICDs
+ * before LeakSanitizer runs, which leaves their frames unattributable
+ * ("<unknown module>"): a pattern for that would also hide anything else
+ * that passes through unloaded code, so when those reports show up, run
+ * with VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING=1 to keep the ICD mapped
+ * and let the amdvlk64.so entry match. Engine frames always resolve, so
+ * the engine's own leaks still surface.
+ *
+ * Return: newline-separated leak suppressions, possibly empty
  */
 const char *__lsan_default_suppressions(void)
 {
-    if (!on_wayland())  return "";
+# ifdef CONFIG_RENDERER_VULKAN
+#  define LSAN_VULKAN_SUPPRESSIONS \
+        "leak:xcb_wait_for_reply\n" \
+        "leak:amdvlk64.so\n"
+# else /* CONFIG_RENDERER_VULKAN */
+#  define LSAN_VULKAN_SUPPRESSIONS
+# endif /* !CONFIG_RENDERER_VULKAN */
 
-    return
-        "leak:libdecor-cairo\n"
-        "leak:libfontconfig\n"
-        "leak:libpango\n"
-        "leak:libwayland-client\n";
-}
+# ifdef __linux__
+    if (on_wayland())
+        return
+            "leak:libdecor-cairo\n"
+            "leak:libfontconfig\n"
+            "leak:libpango\n"
+            "leak:libwayland-client\n"
+            LSAN_VULKAN_SUPPRESSIONS;
 # endif /* __linux__ */
+
+    return LSAN_VULKAN_SUPPRESSIONS "";
+}
 #endif /* HAVE_ASAN */
 
 #if defined(__has_feature)
