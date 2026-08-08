@@ -583,6 +583,11 @@ TYPE(texture,
         vk_device_memory_t  mem;
         vk_image_view_t     view;
         vk_sampler_t        sampler;
+        /* per-frame reloaders keep a persistently mapped staging ring */
+        vk_buffer_t         staging_buf;
+        vk_device_memory_t  staging_mem;
+        void                *staging_map;
+        size_t              staging_slice;
         vk_image_layout_t   layout;     /* current image layout */
         texture_type        type;
         texture_format      format;

@@ -1984,11 +1984,18 @@ static void vk_texture_deinit(texture_t *tex)
         vk_zombie_add(r, (vk_zombie){
             .image = tex->vk.image, .view = tex->vk.view, .sampler = tex->vk.sampler, .mem = tex->vk.mem
         });
+    if (tex->vk.staging_buf)
+        /* in-flight uploads may still read it; freeing the memory unmaps */
+        vk_zombie_add(r, (vk_zombie){ .buf = tex->vk.staging_buf, .mem = tex->vk.staging_mem });
 
     tex->vk.view = VK_NULL_HANDLE;
     tex->vk.image = VK_NULL_HANDLE;
     tex->vk.mem = VK_NULL_HANDLE;
     tex->vk.sampler = VK_NULL_HANDLE;
+    tex->vk.staging_buf = VK_NULL_HANDLE;
+    tex->vk.staging_mem = VK_NULL_HANDLE;
+    tex->vk.staging_map = NULL;
+    tex->vk.staging_slice = 0;
 
     tex->width = 0;
     tex->height = 0;
@@ -2104,11 +2111,22 @@ static cerr vk_texture_load(texture_t *tex, texture_format format,
         format = texture_format_add_alpha(format);
     }
 
+    /*
+     * Per-frame reloaders (the clustered-light grid) keep their image and a
+     * persistently mapped staging ring instead of churning allocations at
+     * frame rate. In-place update is safe: the upload precedes this frame's
+     * command buffer in queue order, and the layout barrier below waits out
+     * the previous frame's reads.
+     */
+    bool reuse = buf && tex->vk.image && tex->loaded && !tex->vk.render_target &&
+                 tex->vk.format == format &&
+                 tex->width == width && tex->height == height;
+
     tex->vk.format = format;
     tex->width = width;
     tex->height = height;
 
-    CERR_RET_CERR(vk_texture_create(tex, width, height));
+    if (!reuse) CERR_RET_CERR(vk_texture_create(tex, width, height));
 
     VkImageAspectFlags aspect = vk_texture_aspect(tex);
     unsigned int depth = tex->vk.type == TEX_3D ? max(tex->layers, 1u) : 1;
@@ -2120,21 +2138,50 @@ static cerr vk_texture_load(texture_t *tex, texture_format format,
     if (buf) {
         size_t bpp = texture_format_comp_size(format) * texture_format_nr_comps(format);
         size_t size = (size_t)width * height * depth * layers * bpp;
-        VkBuffer staging;
-        VkDeviceMemory staging_mem;
+        VkBuffer staging = VK_NULL_HANDLE;
+        VkDeviceMemory staging_mem = VK_NULL_HANDLE;
+        VkDeviceSize staging_off = 0;
 
-        CERR_RET(vk_staging_create(r, buf, size, &staging, &staging_mem),
-                 { vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE); return __cerr; });
+        if (reuse) {
+            /* one ring slice per in-flight frame, like the UBO ring */
+            size_t slice = round_up(size, 256);
 
-        vk_image_layout_transition(cb, tex->vk.image, aspect,
-                                   VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS,
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   0, VK_ACCESS_TRANSFER_WRITE_BIT,
-                                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT);
+            if (!tex->vk.staging_buf || tex->vk.staging_slice < slice) {
+                if (tex->vk.staging_buf)
+                    vk_zombie_add(r, (vk_zombie){ .buf = tex->vk.staging_buf, .mem = tex->vk.staging_mem });
+                tex->vk.staging_buf = VK_NULL_HANDLE;
+                tex->vk.staging_mem = VK_NULL_HANDLE;
+                tex->vk.staging_map = NULL;
+
+                cerr err = vk_buffer_create(r, slice * VK_INFLIGHT_FRAMES,
+                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                            &tex->vk.staging_buf, &tex->vk.staging_mem);
+                if (!IS_CERR(err) &&
+                    vkMapMemory(r->vk.device, tex->vk.staging_mem, 0,
+                                slice * VK_INFLIGHT_FRAMES, 0,
+                                &tex->vk.staging_map) != VK_SUCCESS)
+                    err = CERR_INVALID_OPERATION_REASON(.fmt = "vkMapMemory failed");
+                if (IS_CERR(err)) {
+                    vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE);
+                    return err;
+                }
+                tex->vk.staging_slice = slice;
+            }
+
+            staging = tex->vk.staging_buf;
+            staging_off = (VkDeviceSize)tex->vk.staging_slice * r->vk.frame_idx;
+            memcpy((char *)tex->vk.staging_map + staging_off, buf, size);
+        } else {
+            CERR_RET(vk_staging_create(r, buf, size, &staging, &staging_mem),
+                     { vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE); return __cerr; });
+        }
+
+        vk_texture_layout_to(cb, tex, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         VkBufferImageCopy copy = {
+            .bufferOffset       = staging_off,
             .imageSubresource   = {
                 .aspectMask     = aspect,
                 .layerCount     = layers,
@@ -2144,15 +2191,11 @@ static cerr vk_texture_load(texture_t *tex, texture_format format,
         vkCmdCopyBufferToImage(cb, staging, tex->vk.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
-        vk_image_layout_transition(cb, tex->vk.image, aspect,
-                                   VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        vk_texture_layout_to(cb, tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        CERR_RET_CERR(vk_upload_end(r, cb, staging, staging_mem));
+        /* the persistent staging ring outlives the upload; transients don't */
+        CERR_RET_CERR(vk_upload_end(r, cb, reuse ? VK_NULL_HANDLE : staging,
+                                    reuse ? VK_NULL_HANDLE : staging_mem));
     } else {
         /* no data: still leave the image in a sampleable layout */
         vk_image_layout_transition(cb, tex->vk.image, aspect,
