@@ -1303,7 +1303,8 @@ static void vk_renderer_debug(renderer_t *r)
 {
 }
 
-static void vk_renderer_cull_face(renderer_t *r, cull_face cull)                    {}
+/* recorded into the command buffer at draw time */
+static void vk_renderer_cull_face(renderer_t *r, cull_face cull)                    { r->vk.cull = cull; }
 static void vk_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor) { r->blend = _blend; }
 
 static cerr vk_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr_faces,
@@ -1473,6 +1474,22 @@ static bool vk_format_supports_alpha_blend(VkFormat format)
 }
 
 /**
+ * vk_cull_mode() - the VkCullModeFlags for the engine's cull face setting
+ * @cull:   the cull face setting
+ *
+ * Return: the cull mode
+ */
+static VkCullModeFlags vk_cull_mode(cull_face cull)
+{
+    switch (cull) {
+        case CULL_FACE_NONE:    return VK_CULL_MODE_NONE;
+        case CULL_FACE_FRONT:   return VK_CULL_MODE_FRONT_BIT;
+        case CULL_FACE_BACK:    return VK_CULL_MODE_BACK_BIT;
+    }
+    return VK_CULL_MODE_NONE;
+}
+
+/**
  * vk_compare_op() - the VkCompareOp for a depth function
  * @fn: the engine's depth function
  *
@@ -1616,7 +1633,13 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, const vk_targe
         .scissorCount   = 1,
     };
 
-    /* cull is dynamic-ish future work; WGPU also runs CullNone */
+    /*
+     * Cull mode is dynamic (renderer_cull_face() flips per model and per
+     * pass). Winding is evaluated after the negative-height viewport
+     * mirrors y, and the engine's projection matrices already flip once for
+     * the y-down conventions, so the engine's front faces come out CCW here
+     * (verified against the GL renderer's culling, not derived).
+     */
     VkPipelineRasterizationStateCreateInfo raster = {
         .sType      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .cullMode   = VK_CULL_MODE_NONE,
@@ -1664,6 +1687,7 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, const vk_targe
     VkDynamicState dynamic_states[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_CULL_MODE,
     };
     VkPipelineDynamicStateCreateInfo dynamic_state = {
         .sType              = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
@@ -2921,6 +2945,7 @@ static cerr vk_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr
     /* Pick the blend variant here: blend state may change after shader_use() */
     vkCmdBindPipeline(f->cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       r->vk.dc->vk.pipeline[r->blend ? 1 : 0]);
+    vkCmdSetCullMode(f->cmd_buf, vk_cull_mode(r->vk.cull));
 
     /* One descriptor set per draw: every slot written, dummies where unbound */
     VkDescriptorSetAllocateInfo ds_info = {

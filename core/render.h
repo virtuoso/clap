@@ -1349,6 +1349,7 @@ TYPE(renderer,
         unsigned int                        min_image_count;
         unsigned int                        frame_idx;
         unsigned int                        image_idx;
+        int                                 cull;       /* cull_face: declared below */
         bool                                swapchain_dirty;
         /* frame-state machine: see render-vk.c */
         bool                                cb_open;
