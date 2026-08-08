@@ -645,7 +645,41 @@ static cerr vk_upload_begin(renderer_t *r, VkCommandBuffer *cb)
     return CERR_OK;
 }
 
-static cerr vk_upload_end(renderer_t *r, VkCommandBuffer cb)
+/**
+ * struct vk_zombie - handles parked for destruction once their frame retires
+ * @entry:      link in the frame slot's zombie list
+ * @image:      image to destroy, or VK_NULL_HANDLE
+ * @view:       image view to destroy, or VK_NULL_HANDLE
+ * @sampler:    sampler to destroy, or VK_NULL_HANDLE
+ * @buf:        buffer to destroy, or VK_NULL_HANDLE
+ * @mem:        memory to free, or VK_NULL_HANDLE
+ * @pipeline:   a dropped draw_control's pipeline, possibly still bound
+ * @cmd_buf:    an upload's command buffer, freed back to the upload pool
+ */
+typedef struct vk_zombie {
+    struct list         entry;
+    VkImage             image;
+    VkImageView         view;
+    VkSampler           sampler;
+    VkBuffer            buf;
+    VkDeviceMemory      mem;
+    VkPipeline          pipeline;
+    VkCommandBuffer     cmd_buf;
+} vk_zombie;
+
+static void vk_zombie_add(renderer_t *r, vk_zombie zombie);
+
+/*
+ * Submit an upload, taking ownership of its staging buffer. With a frame
+ * recording, the upload retires with that frame: it's submitted ahead of the
+ * frame's command buffer on the same queue, so the frame fence covers it and
+ * the transients just go on the frame's zombie list. Without one (device
+ * init), drain the queue and clean up on the spot -- a mid-frame
+ * vkQueueWaitIdle() is not an option, it also absorbs FIFO's vblank wait and
+ * halves the frame rate.
+ */
+static cerr vk_upload_end(renderer_t *r, VkCommandBuffer cb, VkBuffer staging,
+                          VkDeviceMemory staging_mem)
 {
     VkResult res = vkEndCommandBuffer(cb);
     if (res != VK_SUCCESS) {
@@ -659,9 +693,17 @@ static cerr vk_upload_end(renderer_t *r, VkCommandBuffer cb)
         .pCommandBuffers    = &cb,
     };
     res = vkQueueSubmit(r->vk.queue, 1, &submit_info, VK_NULL_HANDLE);
+
+    if (res == VK_SUCCESS && r->vk.cb_open) {
+        vk_zombie_add(r, (vk_zombie){ .buf = staging, .mem = staging_mem, .cmd_buf = cb });
+        return CERR_OK;
+    }
+
     if (res == VK_SUCCESS)  vkQueueWaitIdle(r->vk.queue);
 
     vkFreeCommandBuffers(r->vk.device, r->vk.upload_pool, 1, &cb);
+    if (staging)            vkDestroyBuffer(r->vk.device, staging, NULL);
+    if (staging_mem)        vkFreeMemory(r->vk.device, staging_mem, NULL);
 
     if (res != VK_SUCCESS)
         return CERR_INVALID_OPERATION_REASON(
@@ -681,26 +723,6 @@ static cerr vk_upload_end(renderer_t *r, VkCommandBuffer cb)
  * zombie list and destroyed once that slot's fence proves the frame -- and
  * every earlier one -- has retired
  ****************************************************************************/
-
-/**
- * struct vk_zombie - handles parked for destruction once their frame retires
- * @entry:      link in the frame slot's zombie list
- * @image:      image to destroy, or VK_NULL_HANDLE
- * @view:       image view to destroy, or VK_NULL_HANDLE
- * @sampler:    sampler to destroy, or VK_NULL_HANDLE
- * @buf:        buffer to destroy, or VK_NULL_HANDLE
- * @mem:        memory to free, or VK_NULL_HANDLE
- * @pipeline:   a dropped draw_control's pipeline, possibly still bound
- */
-typedef struct vk_zombie {
-    struct list         entry;
-    VkImage             image;
-    VkImageView         view;
-    VkSampler           sampler;
-    VkBuffer            buf;
-    VkDeviceMemory      mem;
-    VkPipeline          pipeline;   /* a dropped draw_control's, possibly bound */
-} vk_zombie;
 
 /**
  * vk_zombie_list() - the zombie list a deferred destroy retires with
@@ -759,6 +781,7 @@ static void vk_zombies_drain(renderer_t *r, unsigned int frame)
         if (z->buf)         vkDestroyBuffer(r->vk.device, z->buf, NULL);
         if (z->mem)         vkFreeMemory(r->vk.device, z->mem, NULL);
         if (z->pipeline)    vkDestroyPipeline(r->vk.device, z->pipeline, NULL);
+        if (z->cmd_buf)     vkFreeCommandBuffers(r->vk.device, r->vk.upload_pool, 1, &z->cmd_buf);
         list_del(&z->entry);
         mem_free(z);
     }
@@ -860,7 +883,7 @@ static cerr vk_dummies_init(renderer_t *r)
                                0, VK_ACCESS_SHADER_READ_BIT,
                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-    CERR_RET_CERR(vk_upload_end(r, cb));
+    CERR_RET_CERR(vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE));
 
     return vk_buffer_create(r, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -2024,7 +2047,7 @@ static cerr vk_texture_load(texture_t *tex, texture_format format,
         VkDeviceMemory staging_mem;
 
         CERR_RET(vk_staging_create(r, buf, size, &staging, &staging_mem),
-                 { vk_upload_end(r, cb); return __cerr; });
+                 { vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE); return __cerr; });
 
         vk_image_layout_transition(cb, tex->vk.image, aspect,
                                    VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS,
@@ -2052,11 +2075,7 @@ static cerr vk_texture_load(texture_t *tex, texture_format format,
                                    VK_PIPELINE_STAGE_TRANSFER_BIT,
                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        cerr end_err = vk_upload_end(r, cb);
-
-        vkDestroyBuffer(r->vk.device, staging, NULL);
-        vkFreeMemory(r->vk.device, staging_mem, NULL);
-        CERR_RET_CERR(end_err);
+        CERR_RET_CERR(vk_upload_end(r, cb, staging, staging_mem));
     } else {
         /* no data: still leave the image in a sampleable layout */
         vk_image_layout_transition(cb, tex->vk.image, aspect,
@@ -2066,7 +2085,7 @@ static cerr vk_texture_load(texture_t *tex, texture_format format,
                                    0, VK_ACCESS_SHADER_READ_BIT,
                                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-        CERR_RET_CERR(vk_upload_end(r, cb));
+        CERR_RET_CERR(vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE));
     }
 
     tex->vk.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
