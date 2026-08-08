@@ -14,6 +14,7 @@
 #include "logger.h"
 #include "memory.h"
 #include "render-vk.h"
+#include "shader_constants.h"
 #include "util.h"
 
 /** VK_UBO_SLOTS_PER_FRAME - per-draw UBO slots in each in-flight frame's region: the busiest scenes run ~850 draws */
@@ -1474,6 +1475,23 @@ static bool vk_format_supports_alpha_blend(VkFormat format)
 }
 
 /**
+ * vk_sample_count() - the VkSampleCountFlagBits for a sample count
+ * @nr_samples: samples per pixel
+ *
+ * Return: the sample count bit, single-sampled for counts the backend doesn't use
+ */
+static VkSampleCountFlagBits vk_sample_count(unsigned int nr_samples)
+{
+    switch (nr_samples) {
+        case 2:     return VK_SAMPLE_COUNT_2_BIT;
+        case 4:     return VK_SAMPLE_COUNT_4_BIT;
+        case 8:     return VK_SAMPLE_COUNT_8_BIT;
+        default:    break;
+    }
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
+/**
  * vk_cull_mode() - the VkCullModeFlags for the engine's cull face setting
  * @cull:   the cull face setting
  *
@@ -1526,6 +1544,7 @@ typedef struct vk_target_state {
     VkFormat        color_formats[FBO_COLOR_ATTACHMENTS_MAX];
     VkFormat        depth_format;
     unsigned int    nr_color_targets;
+    unsigned int    nr_samples;
     uint32_t        no_blend;
     depth_func      depth_fn;
     bool            has_depth;
@@ -1539,13 +1558,15 @@ typedef struct vk_target_state {
  */
 static void vk_target_state_get(renderer_t *r, fbo_t *fbo, vk_target_state *ts)
 {
-    *ts = (vk_target_state){ .depth_format = VK_FORMAT_UNDEFINED };
+    *ts = (vk_target_state){ .depth_format = VK_FORMAT_UNDEFINED, .nr_samples = 1 };
 
     if (!fbo) {
         ts->color_formats[0] = r->vk.swapchain_format;
         ts->nr_color_targets = 1;
         return;
     }
+
+    ts->nr_samples = fbo->nr_samples ? : 1;
 
     fa_for_each(fa, fbo->layout, texture) {
         int idx = fbo_attachment_color(fa);
@@ -1649,7 +1670,7 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, const vk_targe
 
     VkPipelineMultisampleStateCreateInfo multisample = {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
+        .rasterizationSamples   = vk_sample_count(ts->nr_samples),
     };
 
     /* SrcAlpha/OneMinusSrcAlpha color, One/OneMinusSrcAlpha alpha: the only
@@ -1961,14 +1982,16 @@ static cerr vk_texture_create(texture_t *tex, unsigned int width, unsigned int h
 
     VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     if (tex->vk.render_target)
-        usage |= vk_format_is_depth(tex->vk.format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-                                                    : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        /* render targets are fbo_blit()/resolve sources */
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                 (vk_format_is_depth(tex->vk.format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+                                                     : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
     /* release previous, if resizing */
     vk_texture_release(tex);
 
     CERR_RET_CERR(vk_image_create(r, vk_image_type(tex->vk.type), format, extent, nr_layers,
-                                  tex->multisampled ? VK_SAMPLE_COUNT_4_BIT : VK_SAMPLE_COUNT_1_BIT, usage,
+                                  vk_sample_count(tex->multisampled ? MSAA_SAMPLES : 1), usage,
                                   &tex->vk.image, &tex->vk.mem));
     tex->vk.layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -1989,6 +2012,10 @@ static void vk_layout_access(VkImageLayout layout, VkAccessFlags *access,
         case VK_IMAGE_LAYOUT_UNDEFINED:
             *access = 0;
             *stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            break;
+        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+            *access = VK_ACCESS_TRANSFER_READ_BIT;
+            *stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
             break;
         case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
             *access = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -2285,6 +2312,7 @@ static cerr fbo_depth_texture_init(fbo_t *fbo)
             .layers         = fbo->layers,
             .format         = fbo->depth_config.format,
             .render_target  = true,
+            .multisampled   = fbo_is_multisampled(fbo),
             .wrap           = TEX_CLAMP_TO_EDGE,
             .min_filter     = TEX_FLT_NEAREST,
             .mag_filter     = TEX_FLT_NEAREST
@@ -2318,6 +2346,7 @@ static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
             .layers         = fbo->layers,
             .format         = vk_fbo_texture_format(fbo, attachment),
             .render_target  = true,
+            .multisampled   = fbo_is_multisampled(fbo),
             .wrap           = TEX_CLAMP_TO_EDGE,
             .min_filter     = TEX_FLT_LINEAR,
             .mag_filter     = TEX_FLT_LINEAR
@@ -2434,7 +2463,7 @@ static cresp(fbo_t) vk_fbo_create(const fbo_init_options *opts)
     fbo->height       = opts->height;
     fbo->layers       = opts->layers ? : 1;
     fbo->depth_config = opts->depth_config;
-    fbo->nr_samples   = opts->nr_samples ? : 1;
+    fbo->nr_samples   = opts->nr_samples ? : (opts->multisampled ? MSAA_SAMPLES : 1);
     fbo->layout       = opts->layout;
     fbo->vk.name      = opts->name ? : "<unset>";
 
@@ -2519,6 +2548,112 @@ static void vk_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
         vk_texture_layout_to(f->cmd_buf, &fbo->depth_tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     r->vk.fbo = NULL;
+}
+
+/**
+ * vk_fbo_blit() - the fbo_blit op: copy or MSAA-resolve one attachment of @src_fbo into @fbo
+ * @fbo:        target FBO, whose rendering pass has just begun
+ * @src_fbo:    source FBO
+ * @attachment: which attachment
+ *
+ * The caller (pipeline.c) brackets this in fbo_prepare()/fbo_done() of @fbo,
+ * so the just-begun rendering is closed first -- transfers can't happen
+ * inside one.
+ */
+static void vk_fbo_blit(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
+{
+    auto r = fbo->renderer;
+
+    if (!r->vk.cb_open) {
+        err("fbo_blit: no command buffer\n");
+        return;
+    }
+
+    bool is_depth = attachment.depth_buffer || attachment.depth_texture;
+    texture_t *src = is_depth ? &src_fbo->depth_tex :
+        &src_fbo->color_tex[fbo_attachment_color(attachment)];
+    /* the blit target is a single-attachment FBO (pipeline.c's blit_fbo) */
+    texture_t *dst = is_depth ? &fbo->depth_tex : &fbo->color_tex[0];
+
+    if (!src->vk.image || !dst->vk.image) {
+        err("fbo_blit: %s: attachments not initialized\n", fbo->vk.name);
+        return;
+    }
+
+    if (dst->multisampled) {
+        err("fbo_blit: %s: multisampled blit target not supported\n", fbo->vk.name);
+        return;
+    }
+
+    auto f = &r->vk.frames[r->vk.frame_idx];
+
+    if (r->vk.pass_open && r->vk.fbo == fbo) {
+        vkCmdEndRendering(f->cmd_buf);
+        r->vk.pass_open = false;
+    }
+
+    if (src->multisampled && is_depth) {
+        /*
+         * vkCmdResolveImage() is color-only; depth resolves through a
+         * draw-less rendering instance with a resolve attachment.
+         * SAMPLE_ZERO is the one mode the spec guarantees.
+         */
+        vk_texture_layout_to(f->cmd_buf, src, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+        vk_texture_layout_to(f->cmd_buf, dst, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+        VkRenderingAttachmentInfo depth_att = {
+            .sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView          = src->vk.view,
+            .imageLayout        = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            .resolveMode        = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT,
+            .resolveImageView   = dst->vk.view,
+            .resolveImageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            .loadOp             = VK_ATTACHMENT_LOAD_OP_LOAD,
+            .storeOp            = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        };
+        VkRenderingInfo rendering_info = {
+            .sType              = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea         = { .extent = { src_fbo->width, src_fbo->height } },
+            .layerCount         = 1,
+            .pDepthAttachment   = &depth_att,
+        };
+        vkCmdBeginRendering(f->cmd_buf, &rendering_info);
+        vkCmdEndRendering(f->cmd_buf);
+    } else if (src->multisampled) {
+        vk_texture_layout_to(f->cmd_buf, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_texture_layout_to(f->cmd_buf, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkImageResolve region = {
+            .srcSubresource = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .layerCount = 1 },
+            .dstSubresource = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .layerCount = 1 },
+            .extent         = { src_fbo->width, src_fbo->height, 1 },
+        };
+        vkCmdResolveImage(f->cmd_buf,
+                          src->vk.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                          dst->vk.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          1, &region);
+    } else {
+        VkImageAspectFlags aspect = vk_texture_aspect(src);
+
+        vk_texture_layout_to(f->cmd_buf, src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_texture_layout_to(f->cmd_buf, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkImageBlit region = {
+            .srcSubresource = { .aspectMask = aspect, .layerCount = 1 },
+            .srcOffsets[1]  = { src_fbo->width, src_fbo->height, 1 },
+            .dstSubresource = { .aspectMask = aspect, .layerCount = 1 },
+            .dstOffsets[1]  = { fbo->width, fbo->height, 1 },
+        };
+        /* depth blits must be NEAREST; GL picks the same filters */
+        vkCmdBlitImage(f->cmd_buf,
+                       src->vk.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       dst->vk.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                       1, &region, is_depth ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
+    }
+
+    /* downstream passes go back to sampling the source */
+    vk_texture_layout_to(f->cmd_buf, src, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    /* @dst is left to fbo_done(), which follows the blit */
 }
 
 static cerr vk_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
@@ -3054,6 +3189,7 @@ static const renderer_ops vk_renderer_ops = {
     .tex_format_supported   = vk_texture_format_supported,
     .fbo_prepare            = vk_fbo_prepare,
     .fbo_done               = vk_fbo_done,
+    .fbo_blit               = vk_fbo_blit,
     .fbo_resize             = vk_fbo_resize,
     .fbo_attachment_valid   = vk_fbo_attachment_valid,
     .fbo_attachment_format  = vk_fbo_attachment_format,
