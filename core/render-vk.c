@@ -1102,6 +1102,28 @@ static void vk_renderer_hdr_enable(renderer_t *r, bool enable)
 
 static void vk_ubos_frame_advance(renderer_t *r);
 
+/**
+ * vk_viewport_apply() - set the viewport and scissor for a @width x @height target
+ * @cb:     command buffer being recorded
+ * @width:  target width
+ * @height: target height
+ *
+ * Negative height: y-up clip space, same convention as WGPU/Metal.
+ */
+static void vk_viewport_apply(VkCommandBuffer cb, unsigned int width, unsigned int height)
+{
+    VkViewport viewport = {
+        .y          = (float)height,
+        .width      = (float)width,
+        .height     = -(float)height,
+        .maxDepth   = 1.0,
+    };
+    vkCmdSetViewport(cb, 0, 1, &viewport);
+
+    VkRect2D scissor = { .extent = { width, height } };
+    vkCmdSetScissor(cb, 0, 1, &scissor);
+}
+
 static void vk_renderer_frame_begin(renderer_t *r)
 {
     /* Idempotent: loading-screen mini-frames re-enter an open pseudo-frame */
@@ -1188,17 +1210,7 @@ static void vk_renderer_swapchain_begin(renderer_t *r)
     vkCmdBeginRendering(f->cmd_buf, &rendering_info);
     r->vk.pass_open = true;
 
-    /* Negative height: y-up clip space, same convention as WGPU/Metal */
-    VkViewport viewport = {
-        .y          = (float)r->vk.sc_height,
-        .width      = (float)r->vk.sc_width,
-        .height     = -(float)r->vk.sc_height,
-        .maxDepth   = 1.0,
-    };
-    vkCmdSetViewport(f->cmd_buf, 0, 1, &viewport);
-
-    VkRect2D scissor = { .extent = { r->vk.sc_width, r->vk.sc_height } };
-    vkCmdSetScissor(f->cmd_buf, 0, 1, &scissor);
+    vk_viewport_apply(f->cmd_buf, r->vk.sc_width, r->vk.sc_height);
 }
 
 static void vk_renderer_swapchain_end(renderer_t *r)
@@ -1403,10 +1415,111 @@ static void vk_vertex_array_unbind(vertex_array_t *va)              { if (va && 
  * combination, looked up in shader_use() for the currently bound target
  ****************************************************************************/
 
-static VkFormat vk_current_color_format(renderer_t *r)
+static VkFormat vk_texture_format(texture_format format);
+
+/**
+ * vk_format_supports_alpha_blend() - whether a target format takes alpha blending
+ * @format: attachment format
+ *
+ * Blend state must be compatible with the render target format. Mirrors the
+ * WGPU matrix: 32-bit formats aren't universally blendable, and formats
+ * without an alpha channel make no sense with SrcAlpha/OneMinusSrcAlpha
+ * factors -- keeping the set identical keeps the backends' output identical.
+ *
+ * Return: true if pipelines on this format may blend
+ */
+static bool vk_format_supports_alpha_blend(VkFormat format)
 {
-    /* every pipeline renders to the swapchain: there are no FBO passes */
-    return r->vk.swapchain_format;
+    switch (format) {
+        case VK_FORMAT_R32_SFLOAT:
+        case VK_FORMAT_R32G32_SFLOAT:
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+        case VK_FORMAT_R32_UINT:
+        case VK_FORMAT_R32G32_UINT:
+        case VK_FORMAT_R32G32B32A32_UINT:
+        case VK_FORMAT_R8_UNORM:
+        case VK_FORMAT_R16_SFLOAT:
+        case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R16G16_UNORM:
+        case VK_FORMAT_R16G16_SFLOAT:
+        case VK_FORMAT_R16G16B16A16_UNORM:
+            return false;
+        default:
+            return true;
+    }
+}
+
+/**
+ * vk_compare_op() - the VkCompareOp for a depth function
+ * @fn: the engine's depth function
+ *
+ * Return: the compare op
+ */
+static VkCompareOp vk_compare_op(depth_func fn)
+{
+    switch (fn) {
+        case DEPTH_FN_ALWAYS:           return VK_COMPARE_OP_ALWAYS;
+        case DEPTH_FN_NEVER:            return VK_COMPARE_OP_NEVER;
+        case DEPTH_FN_LESS:             return VK_COMPARE_OP_LESS;
+        case DEPTH_FN_EQUAL:            return VK_COMPARE_OP_EQUAL;
+        case DEPTH_FN_LESS_OR_EQUAL:    return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case DEPTH_FN_GREATER:          return VK_COMPARE_OP_GREATER;
+        case DEPTH_FN_NOT_EQUAL:        return VK_COMPARE_OP_NOT_EQUAL;
+        case DEPTH_FN_GREATER_OR_EQUAL: return VK_COMPARE_OP_GREATER_OR_EQUAL;
+    }
+    return VK_COMPARE_OP_ALWAYS;
+}
+
+/**
+ * struct vk_target_state - attachment state of a render target
+ * @color_formats:      one format per color attachment
+ * @depth_format:       the depth attachment's format, VK_FORMAT_UNDEFINED without one
+ * @nr_color_targets:   color attachments in use
+ * @no_blend:           bit i set: color attachment i opts out of blending
+ * @depth_fn:           the depth test
+ * @has_depth:          whether there is a depth attachment
+ *
+ * The bound FBO's textures, or the swapchain; pipelines are created against
+ * and cache-keyed on this.
+ */
+typedef struct vk_target_state {
+    VkFormat        color_formats[FBO_COLOR_ATTACHMENTS_MAX];
+    VkFormat        depth_format;
+    unsigned int    nr_color_targets;
+    uint32_t        no_blend;
+    depth_func      depth_fn;
+    bool            has_depth;
+} vk_target_state;
+
+/**
+ * vk_target_state_get() - describe the render target a pipeline is built for
+ * @r:      renderer
+ * @fbo:    the FBO, NULL for the swapchain
+ * @ts:     filled in
+ */
+static void vk_target_state_get(renderer_t *r, fbo_t *fbo, vk_target_state *ts)
+{
+    *ts = (vk_target_state){ .depth_format = VK_FORMAT_UNDEFINED };
+
+    if (!fbo) {
+        ts->color_formats[0] = r->vk.swapchain_format;
+        ts->nr_color_targets = 1;
+        return;
+    }
+
+    fa_for_each(fa, fbo->layout, texture) {
+        int idx = fbo_attachment_color(fa);
+
+        ts->color_formats[ts->nr_color_targets] = vk_texture_format(fbo->color_config[idx].format);
+        if (fbo->color_config[idx].no_blend)    ts->no_blend |= 1u << ts->nr_color_targets;
+        ts->nr_color_targets++;
+    }
+
+    if (fbo->layout.depth_texture) {
+        ts->has_depth = true;
+        ts->depth_format = vk_texture_format(fbo->depth_config.format);
+        ts->depth_fn = fbo->depth_config.depth_func;
+    }
 }
 
 /**
@@ -1430,20 +1543,23 @@ static VkPipelineShaderStageCreateInfo vk_shader_stage(VkShaderStageFlagBits sta
  * vk_pipeline_create() - build one of a draw_control's dynamic-rendering pipelines
  * @r:          renderer
  * @dc:         the draw_control: its shader supplies the stages and vertex attributes
+ * @ts:         the render target's attachment formats and depth state
  * @blend:      build the alpha-blending variant instead of the opaque one
  * @pipeline:   filled with the pipeline
  *
  * Return: CERR_OK, or the creation error
  */
-static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, bool blend, VkPipeline *pipeline)
+static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, const vk_target_state *ts,
+                               bool blend, VkPipeline *pipeline)
 {
     shader_t *shader = dc->shader;
-    VkFormat color_format = vk_current_color_format(r);
 
-    VkPipelineShaderStageCreateInfo stages[] = {
-        vk_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, shader->vk.vert),
-        vk_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, shader->vk.frag),
-    };
+    VkPipelineShaderStageCreateInfo stages[3];
+    uint32_t nr_stages = 0;
+
+    stages[nr_stages++] = vk_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, shader->vk.vert);
+    if (shader->vk.geom)    stages[nr_stages++] = vk_shader_stage(VK_SHADER_STAGE_GEOMETRY_BIT, shader->vk.geom);
+    stages[nr_stages++] = vk_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, shader->vk.frag);
 
     VkVertexInputAttributeDescription attrs[array_size(shader->vk.vertex_attrs)];
     for (unsigned int i = 0; i < shader->vk.nr_vertex_attrs; i++)
@@ -1492,21 +1608,34 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, bool blend, Vk
 
     /* SrcAlpha/OneMinusSrcAlpha color, One/OneMinusSrcAlpha alpha: the only
      * blend mode the engine uses (model.c), same equations as WGPU/Metal */
-    VkPipelineColorBlendAttachmentState blend_attachment = {
-        .blendEnable            = blend ? VK_TRUE : VK_FALSE,
-        .srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp           = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .alphaBlendOp           = VK_BLEND_OP_ADD,
-        .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    };
+    VkPipelineColorBlendAttachmentState blend_attachments[FBO_COLOR_ATTACHMENTS_MAX];
+    for (unsigned int i = 0; i < ts->nr_color_targets; i++) {
+        bool att_blend = blend && !(ts->no_blend & (1u << i)) &&
+                         vk_format_supports_alpha_blend(ts->color_formats[i]);
+
+        blend_attachments[i] = (VkPipelineColorBlendAttachmentState){
+            .blendEnable            = att_blend ? VK_TRUE : VK_FALSE,
+            .srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp           = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .alphaBlendOp           = VK_BLEND_OP_ADD,
+            .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        };
+    }
     VkPipelineColorBlendStateCreateInfo blend_state = {
         .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .attachmentCount    = 1,
-        .pAttachments       = &blend_attachment,
+        .attachmentCount    = ts->nr_color_targets,
+        .pAttachments       = blend_attachments,
+    };
+
+    VkPipelineDepthStencilStateCreateInfo depth_state = {
+        .sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable    = VK_TRUE,
+        .depthWriteEnable   = VK_TRUE,
+        .depthCompareOp     = vk_compare_op(ts->depth_fn),
     };
 
     VkDynamicState dynamic_states[] = {
@@ -1521,20 +1650,22 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, bool blend, Vk
 
     VkPipelineRenderingCreateInfo rendering_info = {
         .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        .colorAttachmentCount       = 1,
-        .pColorAttachmentFormats    = &color_format,
+        .colorAttachmentCount       = ts->nr_color_targets,
+        .pColorAttachmentFormats    = ts->color_formats,
+        .depthAttachmentFormat      = ts->depth_format,
     };
 
     VkGraphicsPipelineCreateInfo info = {
         .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext                  = &rendering_info,
-        .stageCount             = array_size(stages),
+        .stageCount             = nr_stages,
         .pStages                = stages,
         .pVertexInputState      = &vertex_input,
         .pInputAssemblyState    = &input_assembly,
         .pViewportState         = &viewport_state,
         .pRasterizationState    = &raster,
         .pMultisampleState      = &multisample,
+        .pDepthStencilState     = ts->has_depth ? &depth_state : NULL,
         .pColorBlendState       = &blend_state,
         .pDynamicState          = &dynamic_state,
         .layout                 = r->vk.pipeline_layout,
@@ -1549,10 +1680,13 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, bool blend, Vk
 static cerr vk_draw_control_init(draw_control_t *dc, const draw_control_init_options *opts)
 {
     auto r = opts->renderer;
+    vk_target_state ts;
 
-    CERR_RET_CERR(vk_pipeline_create(r, dc, false, &dc->vk.pipeline[0]));
+    vk_target_state_get(r, opts->fbo, &ts);
+
+    CERR_RET_CERR(vk_pipeline_create(r, dc, &ts, false, &dc->vk.pipeline[0]));
     /* a failed make skips the drop: nothing else releases the first pipeline */
-    CERR_RET(vk_pipeline_create(r, dc, true, &dc->vk.pipeline[1]), {
+    CERR_RET(vk_pipeline_create(r, dc, &ts, true, &dc->vk.pipeline[1]), {
         vkDestroyPipeline(r->vk.device, dc->vk.pipeline[0], NULL);
         dc->vk.pipeline[0] = VK_NULL_HANDLE;
         return __cerr;
@@ -1789,9 +1923,68 @@ static cerr vk_texture_create(texture_t *tex, unsigned int width, unsigned int h
     CERR_RET_CERR(vk_image_create(r, vk_image_type(tex->vk.type), format, extent, nr_layers,
                                   tex->multisampled ? VK_SAMPLE_COUNT_4_BIT : VK_SAMPLE_COUNT_1_BIT, usage,
                                   &tex->vk.image, &tex->vk.mem));
+    tex->vk.layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     return vk_image_view_create(r, tex->vk.image, vk_image_view_type(tex->vk.type), format,
                                 vk_texture_aspect(tex), nr_layers, &tex->vk.view);
+}
+
+/**
+ * vk_layout_access() - the access mask and pipeline stage an image layout implies
+ * @layout: the layout
+ * @access: filled with the access mask
+ * @stage:  filled with the pipeline stage
+ */
+static void vk_layout_access(VkImageLayout layout, VkAccessFlags *access,
+                             VkPipelineStageFlags *stage)
+{
+    switch (layout) {
+        case VK_IMAGE_LAYOUT_UNDEFINED:
+            *access = 0;
+            *stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            break;
+        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+            *access = VK_ACCESS_TRANSFER_WRITE_BIT;
+            *stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            break;
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            *access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            *stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            break;
+        case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:
+            *access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+            *stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                     VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            break;
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+        default:
+            *access = VK_ACCESS_SHADER_READ_BIT;
+            *stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            break;
+    }
+}
+
+/**
+ * vk_texture_layout_to() - transition a texture's image to a layout
+ * @cb:     command buffer being recorded
+ * @tex:    the texture, whose tracked layout is the source and gets updated
+ * @to:     the target layout
+ */
+static void vk_texture_layout_to(VkCommandBuffer cb, texture_t *tex, VkImageLayout to)
+{
+    if (tex->vk.layout == to)   return;
+
+    VkAccessFlags src_access, dst_access;
+    VkPipelineStageFlags src_stage, dst_stage;
+
+    vk_layout_access(tex->vk.layout, &src_access, &src_stage);
+    vk_layout_access(to, &dst_access, &dst_stage);
+    vk_image_layout_transition(cb, tex->vk.image, vk_texture_aspect(tex),
+                               VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS,
+                               tex->vk.layout, to, src_access, dst_access, src_stage, dst_stage);
+
+    tex->vk.layout = to;
 }
 
 static cerr vk_texture_load(texture_t *tex, texture_format format,
@@ -1876,6 +2069,7 @@ static cerr vk_texture_load(texture_t *tex, texture_format format,
         CERR_RET_CERR(vk_upload_end(r, cb));
     }
 
+    tex->vk.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     tex->loaded = true;
 
     return CERR_OK;
@@ -1949,50 +2143,385 @@ static texid_t vk_texture_id(texture_t *tex)
 
 /****************************************************************************
  * Framebuffers
+ *
+ * Dynamic rendering: fbo_prepare()/fbo_done() bracket a vkCmdBeginRendering/
+ * vkCmdEndRendering pair, and fbo_done() moves the attachments to
+ * SHADER_READ_ONLY so downstream passes can sample them
  ****************************************************************************/
 
-static void vk_fbo_prepare(fbo_t *fbo)
+/**
+ * fbo_texture_fallback() - the dummy texture standing in for a missing attachment
+ * @attachment: the attachment being asked for
+ *
+ * Return: a static pixel texture of the attachment's kind
+ */
+static texture_t *fbo_texture_fallback(fbo_attachment attachment)
 {
-}
+    if (attachment.depth_texture || attachment.depth_buffer)    return black_pixel();
 
-static void vk_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
-{
-}
-
-static cerr vk_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
-{
-    return CERR_OK;
-}
-
-static bool vk_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)    { return false; }
-
-static texture_format vk_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
-{
-    return TEX_FMT_DEFAULT;
-}
-
-static texture_t *vk_fbo_texture(fbo_t *fbo, fbo_attachment attachment)
-{
-    return NULL;
-}
-
-static texture_format vk_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
-{
-    return TEX_FMT_DEFAULT;
+    return transparent_pixel();
 }
 
 static bool vk_fbo_texture_supported(renderer_t *r, texture_format format)
 {
-    return format < TEX_FMT_MAX;
+    return vk_texture_format_supported(r, format);
 }
 
-static cresp(fbo_t) vk_fbo_create(const fbo_init_options *opts)
+static texture_format vk_fbo_texture_format(fbo_t *fbo, fbo_attachment attachment)
 {
-    return cresp_error(fbo_t, CERR_NOT_SUPPORTED);
+    if (attachment.depth_texture || attachment.depth_buffer)
+        return fbo ? fbo->depth_config.format : TEX_FMT_DEPTH32F;
+
+    if (fbo && attachment.color_textures) {
+        int idx = fbo_attachment_color(attachment);
+        if (idx >= 0 && fbo->color_config)  return fbo->color_config[idx].format;
+    }
+
+    return TEX_FMT_RGBA8;
+}
+
+/**
+ * vk_load_op() - the load op for an attachment's configured load action
+ * @action: the engine's load action
+ *
+ * Return: the load op
+ */
+static VkAttachmentLoadOp vk_load_op(fbo_load_action action)
+{
+    switch (action) {
+        case FBOLOAD_LOAD:      return VK_ATTACHMENT_LOAD_OP_LOAD;
+        case FBOLOAD_CLEAR:     return VK_ATTACHMENT_LOAD_OP_CLEAR;
+        case FBOLOAD_DONTCARE:  return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    }
+    return VK_ATTACHMENT_LOAD_OP_CLEAR;
+}
+
+/**
+ * vk_store_op() - the store op for an attachment's configured store action
+ * @action: the engine's store action
+ *
+ * Return: the store op
+ */
+static VkAttachmentStoreOp vk_store_op(fbo_store_action action)
+{
+    switch (action) {
+        case FBOSTORE_STORE:        return VK_ATTACHMENT_STORE_OP_STORE;
+        /* TODO: MSAA resolve attachments */
+        case FBOSTORE_MS_RESOLVE:   return VK_ATTACHMENT_STORE_OP_STORE;
+        case FBOSTORE_DONTCARE:     return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    }
+    return VK_ATTACHMENT_STORE_OP_STORE;
+}
+
+/**
+ * fbo_attachments_deinit() - release the FBO's attachment textures
+ * @fbo:    the FBO; attachments that were never created are skipped
+ */
+static void fbo_attachments_deinit(fbo_t *fbo)
+{
+    fa_for_each(fa, fbo->layout, texture) {
+        int idx = fbo_attachment_color(fa);
+        texture_deinit(&fbo->color_tex[idx]);
+    }
+    if (fbo->layout.depth_texture)  texture_deinit(&fbo->depth_tex);
+}
+
+/**
+ * fbo_depth_texture_init() - create the FBO's depth attachment at its current size
+ * @fbo:    the FBO
+ *
+ * Return: CERR_OK, or the texture creation error
+ */
+static cerr fbo_depth_texture_init(fbo_t *fbo)
+{
+    CERR_RET_CERR(
+        texture_init(
+            &fbo->depth_tex,
+            .renderer       = fbo->renderer,
+            .type           = fbo->layers > 1 ? TEX_2D_ARRAY : TEX_2D,
+            .layers         = fbo->layers,
+            .format         = fbo->depth_config.format,
+            .render_target  = true,
+            .wrap           = TEX_CLAMP_TO_EDGE,
+            .min_filter     = TEX_FLT_NEAREST,
+            .mag_filter     = TEX_FLT_NEAREST
+        )
+    );
+
+    texture_set_name(&fbo->depth_tex, "%s:depth", fbo->vk.name);
+
+    CERR_RET_CERR(texture_load(&fbo->depth_tex, fbo->depth_config.format,
+                               fbo->width, fbo->height, NULL));
+
+    return CERR_OK;
+}
+
+/**
+ * fbo_texture_init() - create one color attachment at the FBO's current size
+ * @fbo:        the FBO
+ * @attachment: which color attachment
+ *
+ * Return: CERR_OK, or the texture creation error
+ */
+static cerr_check fbo_texture_init(fbo_t *fbo, fbo_attachment attachment)
+{
+    int idx = fbo_attachment_color(attachment);
+
+    CERR_RET_CERR(
+        texture_init(
+            &fbo->color_tex[idx],
+            .renderer       = fbo->renderer,
+            .type           = fbo->layers > 1 ? TEX_2D_ARRAY : TEX_2D,
+            .layers         = fbo->layers,
+            .format         = vk_fbo_texture_format(fbo, attachment),
+            .render_target  = true,
+            .wrap           = TEX_CLAMP_TO_EDGE,
+            .min_filter     = TEX_FLT_LINEAR,
+            .mag_filter     = TEX_FLT_LINEAR
+        )
+    );
+
+    texture_set_name(&fbo->color_tex[idx], "%s:rt%d", fbo->vk.name, idx);
+
+    CERR_RET_CERR(texture_load(&fbo->color_tex[idx], vk_fbo_texture_format(fbo, attachment),
+                               fbo->width, fbo->height, NULL));
+
+    /* texture_load() may have promoted the format (RGB -> RGBA) */
+    fbo->color_config[idx].format = fbo->color_tex[idx].vk.format;
+
+    return CERR_OK;
+}
+
+/**
+ * fbo_textures_init() - create every color attachment in @layout
+ * @fbo:    the FBO
+ * @layout: the attachments to create
+ *
+ * Return: CERR_OK, or the first creation error, the attachments before it left live
+ */
+static cerr_check fbo_textures_init(fbo_t *fbo, fbo_attachment layout)
+{
+    fa_for_each(fa, layout, texture)
+        CERR_RET(fbo_texture_init(fbo, fa), return __cerr);
+
+    return CERR_OK;
+}
+
+/**
+ * fbo_rendering_info_update() - rebuild the FBO's VkRenderingInfo
+ * @fbo:    FBO whose attachments have just been (re)created
+ *
+ * The dynamic rendering setup over the attachments: their views and the
+ * load/store/clear config don't change for as long as the textures exist,
+ * so it's rebuilt with them and fbo_prepare() only records the transitions.
+ */
+static void fbo_rendering_info_update(fbo_t *fbo)
+{
+    unsigned int nr_colors = 0;
+
+    fa_for_each(fa, fbo->layout, texture) {
+        int idx = fbo_attachment_color(fa);
+        auto tex = &fbo->color_tex[idx];
+        auto cfg = &fbo->color_config[idx];
+
+        if (!tex->vk.view)  continue;
+
+        fbo->vk.color_atts[nr_colors++] = vk_attachment_info(
+            tex->vk.view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            vk_load_op(cfg->load_action), vk_store_op(cfg->store_action),
+            (VkClearValue){ .color = { .float32 = {
+                cfg->clear_color[0], cfg->clear_color[1], cfg->clear_color[2], cfg->clear_color[3]
+            } } }
+        );
+    }
+
+    bool has_depth = fbo->layout.depth_texture && fbo->depth_tex.vk.view;
+    if (has_depth)
+        fbo->vk.depth_att = vk_attachment_info(
+            fbo->depth_tex.vk.view, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            vk_load_op(fbo->depth_config.load_action), vk_store_op(fbo->depth_config.store_action),
+            (VkClearValue){ .depthStencil = { .depth = fbo->depth_config.clear_depth } }
+        );
+
+    fbo->vk.rendering_info = (VkRenderingInfo){
+        .sType                  = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .renderArea             = { .extent = { fbo->width, fbo->height } },
+        /* layered target: the geometry shader routes shadow cascades */
+        .layerCount             = max(fbo->layers, 1u),
+        .colorAttachmentCount   = nr_colors,
+        .pColorAttachments      = fbo->vk.color_atts,
+        .pDepthAttachment       = has_depth ? &fbo->vk.depth_att : NULL,
+    };
+}
+
+/**
+ * fbo_attachments_init() - create all the attachments at the FBO's current size
+ * @fbo:    the FBO
+ *
+ * Return: CERR_OK with every attachment created and the rendering info
+ *         rebuilt, or the first error with none of them left behind
+ */
+static cerr fbo_attachments_init(fbo_t *fbo)
+{
+    if (fbo->layout.depth_texture)
+        CERR_RET(fbo_depth_texture_init(fbo), { fbo_attachments_deinit(fbo); return __cerr; });
+    if (fbo->layout.color_textures)
+        CERR_RET(fbo_textures_init(fbo, fbo->layout), { fbo_attachments_deinit(fbo); return __cerr; });
+
+    fbo_rendering_info_update(fbo);
+
+    return CERR_OK;
 }
 
 static void vk_fbo_destroy(fbo_t *fbo)
 {
+    fbo_attachments_deinit(fbo);
+    mem_free(fbo->color_config);
+}
+
+static cresp(fbo_t) vk_fbo_create(const fbo_init_options *opts)
+{
+    if (!opts || !opts->width || !opts->height) return cresp_error(fbo_t, CERR_INVALID_ARGUMENTS);
+
+    fbo_t *fbo = ref_new(fbo);
+    if (!fbo)   return cresp_error(fbo_t, CERR_NOMEM);
+
+    fbo->renderer     = opts->renderer;
+    fbo->width        = opts->width;
+    fbo->height       = opts->height;
+    fbo->layers       = opts->layers ? : 1;
+    fbo->depth_config = opts->depth_config;
+    fbo->nr_samples   = opts->nr_samples ? : 1;
+    fbo->layout       = opts->layout;
+    fbo->vk.name      = opts->name ? : "<unset>";
+
+    if (!fbo->layout.mask)  fbo->layout.color_texture0 = 1;
+
+    unsigned int nr_color_configs = fa_nr_color_buffer(fbo->layout) ? :
+                                    fa_nr_color_texture(fbo->layout);
+    if (nr_color_configs) {
+        if (opts->color_config) {
+            fbo->color_config = memdup(opts->color_config,  nr_color_configs * sizeof(fbo_attconfig));
+        } else {
+            fbo->color_config = mem_alloc(sizeof(fbo_attconfig), .nr = nr_color_configs);
+            for (unsigned int i = 0; fbo->color_config && i < nr_color_configs; i++)
+                fbo->color_config[i] = (fbo_attconfig){ .format = TEX_FMT_DEFAULT };
+        }
+        if (!fbo->color_config) {
+            ref_put_last(fbo);
+            return cresp_error(fbo_t, CERR_NOMEM);
+        }
+    }
+
+    CERR_RET(fbo_attachments_init(fbo), { ref_put_last(fbo); return cresp_error_cerr(fbo_t, __cerr); });
+
+    return cresp_val(fbo_t, fbo);
+}
+
+static void vk_fbo_prepare(fbo_t *fbo)
+{
+    auto r = fbo->renderer;
+
+    if (!r->vk.cb_open) {
+        err("fbo_prepare: no command buffer\n");
+        return;
+    }
+
+    /* Passes don't nest: the pipeline runs before the swapchain pass */
+    if (r->vk.pass_open) {
+        err("fbo_prepare: %s: another pass is open\n", fbo->vk.name);
+        return;
+    }
+
+    auto f = &r->vk.frames[r->vk.frame_idx];
+
+    fa_for_each(fa, fbo->layout, texture) {
+        auto tex = &fbo->color_tex[fbo_attachment_color(fa)];
+
+        if (tex->vk.view)   vk_texture_layout_to(f->cmd_buf, tex, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    }
+    if (fbo->layout.depth_texture && fbo->depth_tex.vk.view)
+        vk_texture_layout_to(f->cmd_buf, &fbo->depth_tex, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+    vkCmdBeginRendering(f->cmd_buf, &fbo->vk.rendering_info);
+    r->vk.pass_open = true;
+    r->vk.fbo = fbo;
+
+    vk_viewport_apply(f->cmd_buf, fbo->width, fbo->height);
+}
+
+static void vk_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
+{
+    auto r = fbo->renderer;
+
+    if (r->vk.fbo != fbo) {
+        err("fbo_done: wrong fbo: %s (%p)\n", fbo->vk.name, fbo);
+        return;
+    }
+
+    auto f = &r->vk.frames[r->vk.frame_idx];
+
+    if (r->vk.pass_open) {
+        vkCmdEndRendering(f->cmd_buf);
+        r->vk.pass_open = false;
+    }
+
+    /* Downstream passes sample what this one rendered */
+    fa_for_each(fa, fbo->layout, texture) {
+        auto tex = &fbo->color_tex[fbo_attachment_color(fa)];
+
+        if (tex->vk.view)   vk_texture_layout_to(f->cmd_buf, tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if (fbo->layout.depth_texture && fbo->depth_tex.vk.view)
+        vk_texture_layout_to(f->cmd_buf, &fbo->depth_tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    r->vk.fbo = NULL;
+}
+
+static cerr vk_fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
+{
+    if (!fbo)   return CERR_INVALID_ARGUMENTS;
+
+    fbo_attachments_deinit(fbo);
+
+    unsigned int orig_width = fbo->width;
+    unsigned int orig_height = fbo->height;
+
+    fbo->width = width;
+    fbo->height = height;
+
+    cerr err = fbo_attachments_init(fbo);
+    if (!IS_CERR(err))  return CERR_OK;
+
+    /* roll back to the previous size */
+    fbo->width = orig_width;
+    fbo->height = orig_height;
+    CERR_RET_CERR(fbo_attachments_init(fbo));
+
+    return err;
+}
+
+static bool vk_fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)    { return !!attachment.mask; }
+
+static texture_format vk_fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment)
+{
+    if (!attachment.mask)   return TEX_FMT_MAX;
+
+    return vk_fbo_texture_format(fbo, attachment);
+}
+
+static texture_t *vk_fbo_texture(fbo_t *fbo, fbo_attachment attachment)
+{
+    if (!fbo)                       return fbo_texture_fallback(attachment);
+
+    if (attachment.depth_texture)   return &fbo->depth_tex;
+
+    if (attachment.color_textures) {
+        int idx = fbo_attachment_color(attachment);
+        if (idx >= 0 && idx < FBO_COLOR_ATTACHMENTS_MAX)    return &fbo->color_tex[idx];
+    }
+
+    return fbo_texture_fallback(attachment);
 }
 
 /****************************************************************************
@@ -2290,8 +2819,7 @@ static cerr vk_shader_use(shader_t *shader, bool draw)
     memset(r->vk.bound_textures, 0, sizeof(r->vk.bound_textures));
     memset(r->vk.bound_ubos, 0, sizeof(r->vk.bound_ubos));
 
-    /* the swapchain is the only render target: the cache keys on swapchain_gen */
-    auto dc = CRES_RET_CERR(draw_control_get(r, NULL, shader));
+    auto dc = CRES_RET_CERR(draw_control_get(r, r->vk.fbo, shader));
     draw_control_bind(dc);
 
     return CERR_OK;

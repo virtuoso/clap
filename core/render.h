@@ -222,6 +222,8 @@ typedef struct { _Alignas(WGPU_PASS_DESCRIPTOR_ALIGN) char _[WGPU_PASS_DESCRIPTO
 # define VK_INFLIGHT_FRAMES 3
 /** VK_SWAPCHAIN_IMAGES_MAX - swapchain images the Vulkan backend can track */
 # define VK_SWAPCHAIN_IMAGES_MAX 8
+/* VkRenderingAttachmentInfo / VkRenderingInfo, mirrored below for the non-IMPLEMENTOR side */
+enum { VK_RENDERING_ATTACHMENT_INFO_SIZE = 72, VK_RENDERING_INFO_SIZE = 72, VK_RENDERING_INFO_ALIGN = 8 };
 # ifdef IMPLEMENTOR
 #  include <vulkan/vulkan.h>
 /* Dispatchable handles are always pointers */
@@ -251,10 +253,19 @@ typedef VkCommandPool vk_command_pool_t;
 typedef VkSemaphore vk_semaphore_t;
 typedef VkFence vk_fence_t;
 typedef VkDebugUtilsMessengerEXT vk_debug_utils_messenger_t;
+typedef VkRenderingAttachmentInfo vk_rendering_attachment_info_t;
+typedef VkRenderingInfo vk_rendering_info_t;
 typedef VkFormat vk_format_t;
+typedef VkImageLayout vk_image_layout_t;
 static_assert(sizeof(VkImage) == sizeof(uint64_t), "VkImage handle width mismatch");
 static_assert(sizeof(VkInstance) == sizeof(void *), "VkInstance handle width mismatch");
+static_assert(sizeof(VkRenderingAttachmentInfo) == VK_RENDERING_ATTACHMENT_INFO_SIZE,
+              "VkRenderingAttachmentInfo size mismatch");
+static_assert(sizeof(VkRenderingInfo) == VK_RENDERING_INFO_SIZE, "VkRenderingInfo size mismatch");
+static_assert(_Alignof(VkRenderingAttachmentInfo) == VK_RENDERING_INFO_ALIGN &&
+              _Alignof(VkRenderingInfo) == VK_RENDERING_INFO_ALIGN, "VkRenderingInfo alignment mismatch");
 static_assert(sizeof(VkFormat) == sizeof(int), "VkFormat width mismatch");
+static_assert(sizeof(VkImageLayout) == sizeof(int), "VkImageLayout width mismatch");
 # else /* !IMPLEMENTOR */
 typedef void *vk_instance_t;
 typedef void *vk_physical_device_t;
@@ -277,7 +288,13 @@ typedef uint64_t vk_command_pool_t;
 typedef uint64_t vk_semaphore_t;
 typedef uint64_t vk_fence_t;
 typedef uint64_t vk_debug_utils_messenger_t;
+/* the C++ side (ui-imgui-vk.cpp) sees these too, hence no _Alignas */
+typedef struct { char _[VK_RENDERING_ATTACHMENT_INFO_SIZE]; } __attribute__((aligned(VK_RENDERING_INFO_ALIGN)))
+    vk_rendering_attachment_info_t;
+typedef struct { char _[VK_RENDERING_INFO_SIZE]; } __attribute__((aligned(VK_RENDERING_INFO_ALIGN)))
+    vk_rendering_info_t;
 typedef int vk_format_t;
+typedef int vk_image_layout_t;
 # endif /* !IMPLEMENTOR */
 /**
  * struct vk_vertex_attr - vertex attribute description for pipeline creation
@@ -542,6 +559,7 @@ TYPE(texture,
         vk_device_memory_t  mem;
         vk_image_view_t     view;
         vk_sampler_t        sampler;
+        vk_image_layout_t   layout;     /* current image layout */
         texture_type        type;
         texture_format      format;
         bool                render_target;
@@ -818,7 +836,11 @@ TYPE(fbo,
 
 #ifdef CONFIG_RENDERER_VULKAN
     struct {
-        const char      *name;
+        /* dynamic rendering setup over the attachments, fixed while they exist */
+        vk_rendering_attachment_info_t  color_atts[FBO_COLOR_ATTACHMENTS_MAX];
+        vk_rendering_attachment_info_t  depth_att;
+        vk_rendering_info_t             rendering_info;
+        const char                      *name;
     } vk;
 #endif /* CONFIG_RENDERER_VULKAN */
     /* att_map's companion, at the tail so it costs padding rather than a hole */
