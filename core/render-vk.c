@@ -1360,19 +1360,41 @@ static cerr vk_buffer_load(buffer_t *buf, renderer_t *r, void *data, size_t size
         buf->vk.buf = buf->main->vk.buf;
     } else {
         /*
-         * Host-visible is plenty for the UI-scale geometry; a device-local
-         * staging path can come with the 3D pipeline if it proves to matter
+         * Meshes are immutable and every pass fetches them every frame:
+         * device-local memory plus a single staged copy
          */
-        CERR_RET_CERR(vk_buffer_create(r, size, vk_buffer_usage(buf->vk.type),
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        CERR_RET_CERR(vk_buffer_create(r, size,
+                                       vk_buffer_usage(buf->vk.type) |
+                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                        &buf->vk.buf, &buf->vk.mem));
 
-        void *mapped;
-        if (vkMapMemory(r->vk.device, buf->vk.mem, 0, size, 0, &mapped) != VK_SUCCESS)
-            return CERR_INVALID_OPERATION_REASON(.fmt = "vkMapMemory failed");
-        memcpy(mapped, data, size);
-        vkUnmapMemory(r->vk.device, buf->vk.mem);
+        VkCommandBuffer cb;
+        CERR_RET_CERR(vk_upload_begin(r, &cb));
+
+        VkBuffer staging;
+        VkDeviceMemory staging_mem;
+        CERR_RET(vk_staging_create(r, data, size, &staging, &staging_mem),
+                 { vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE); return __cerr; });
+
+        VkBufferCopy copy = { .size = size };
+        vkCmdCopyBuffer(cb, staging, buf->vk.buf, 1, &copy);
+
+        VkBufferMemoryBarrier barrier = {
+            .sType                  = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask          = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask          = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+                                      VK_ACCESS_INDEX_READ_BIT,
+            .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+            .buffer                 = buf->vk.buf,
+            .size                   = VK_WHOLE_SIZE,
+        };
+        vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0,
+                             0, NULL, 1, &barrier, 0, NULL);
+
+        CERR_RET_CERR(vk_upload_end(r, cb, staging, staging_mem));
     }
 
     buf->vk.size = size;
