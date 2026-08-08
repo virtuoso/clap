@@ -855,13 +855,49 @@ static cerr vk_descriptors_init(renderer_t *r)
  *
  * Return: CERR_OK, or the creation error
  */
+static VkSampleCountFlagBits vk_sample_count(unsigned int nr_samples);
+
 static cerr vk_dummies_init(renderer_t *r)
 {
-    CERR_RET_CERR(vk_image_create(r, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, (VkExtent3D){ 1, 1, 1 },
-                                  1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_SAMPLED_BIT,
-                                  &r->vk.dummy_image, &r->vk.dummy_mem));
-    CERR_RET_CERR(vk_image_view_create(r, r->vk.dummy_image, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
-                                       VK_IMAGE_ASPECT_COLOR_BIT, 1, &r->vk.dummy_view));
+    static const struct {
+        VkImageType     type;
+        VkImageViewType view_type;
+        uint32_t        layers;
+        bool            ms;
+    } kinds[VK_DUMMY_MAX] = {
+        [VK_DUMMY_2D]           = { VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, 1, false },
+        [VK_DUMMY_2D_MS]        = { VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, 1, true },
+        [VK_DUMMY_2D_ARRAY]     = { VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D_ARRAY, 1, false },
+        [VK_DUMMY_2D_ARRAY_MS]  = { VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D_ARRAY, 1, true },
+        [VK_DUMMY_3D]           = { VK_IMAGE_TYPE_3D, VK_IMAGE_VIEW_TYPE_3D, 1, false },
+    };
+
+    VkCommandBuffer cb;
+    CERR_RET_CERR(vk_upload_begin(r, &cb));
+
+    for (unsigned int i = 0; i < VK_DUMMY_MAX; i++) {
+        /* the multisampled dummies stand in for the engine's MSAA targets */
+        VkSampleCountFlagBits samples = kinds[i].ms ? vk_sample_count(MSAA_SAMPLES) : VK_SAMPLE_COUNT_1_BIT;
+
+        CERR_RET(vk_image_create(r, kinds[i].type, VK_FORMAT_R8G8B8A8_UNORM, (VkExtent3D){ 1, 1, 1 },
+                                 kinds[i].layers, samples, VK_IMAGE_USAGE_SAMPLED_BIT,
+                                 &r->vk.dummy_image[i], &r->vk.dummy_mem[i]),
+                 { vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE); return __cerr; });
+        CERR_RET(vk_image_view_create(r, r->vk.dummy_image[i], kinds[i].view_type, VK_FORMAT_R8G8B8A8_UNORM,
+                                      VK_IMAGE_ASPECT_COLOR_BIT, kinds[i].layers, &r->vk.dummy_view[i]),
+                 { vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE); return __cerr; });
+
+        /* the shaders read zeroes at most, but the layout must be right */
+        vk_image_layout_transition(cb, r->vk.dummy_image[i], VK_IMAGE_ASPECT_COLOR_BIT,
+                                   VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS,
+                                   VK_IMAGE_LAYOUT_UNDEFINED,
+                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   0, VK_ACCESS_SHADER_READ_BIT,
+                                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    }
+
+    CERR_RET_CERR(vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE));
 
     VkSamplerCreateInfo sampler_info = {
         .sType          = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -873,18 +909,6 @@ static cerr vk_dummies_init(renderer_t *r)
     };
     if (vkCreateSampler(r->vk.device, &sampler_info, NULL, &r->vk.dummy_sampler) != VK_SUCCESS)
         return CERR_INITIALIZATION_FAILED_REASON(.fmt = "dummy vkCreateSampler failed");
-
-    /* the shaders never read it, but the layout must still be right */
-    VkCommandBuffer cb;
-    CERR_RET_CERR(vk_upload_begin(r, &cb));
-    vk_image_layout_transition(cb, r->vk.dummy_image, VK_IMAGE_ASPECT_COLOR_BIT,
-                               VK_REMAINING_MIP_LEVELS, VK_REMAINING_ARRAY_LAYERS,
-                               VK_IMAGE_LAYOUT_UNDEFINED,
-                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                               0, VK_ACCESS_SHADER_READ_BIT,
-                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-    CERR_RET_CERR(vk_upload_end(r, cb, VK_NULL_HANDLE, VK_NULL_HANDLE));
 
     return vk_buffer_create(r, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -902,9 +926,11 @@ static void vk_descriptors_done(renderer_t *r)
     if (r->vk.dummy_ubo)        vkDestroyBuffer(r->vk.device, r->vk.dummy_ubo, NULL);
     if (r->vk.dummy_ubo_mem)    vkFreeMemory(r->vk.device, r->vk.dummy_ubo_mem, NULL);
     if (r->vk.dummy_sampler)    vkDestroySampler(r->vk.device, r->vk.dummy_sampler, NULL);
-    if (r->vk.dummy_view)       vkDestroyImageView(r->vk.device, r->vk.dummy_view, NULL);
-    if (r->vk.dummy_image)      vkDestroyImage(r->vk.device, r->vk.dummy_image, NULL);
-    if (r->vk.dummy_mem)        vkFreeMemory(r->vk.device, r->vk.dummy_mem, NULL);
+    for (unsigned int i = 0; i < VK_DUMMY_MAX; i++) {
+        if (r->vk.dummy_view[i])    vkDestroyImageView(r->vk.device, r->vk.dummy_view[i], NULL);
+        if (r->vk.dummy_image[i])   vkDestroyImage(r->vk.device, r->vk.dummy_image[i], NULL);
+        if (r->vk.dummy_mem[i])     vkFreeMemory(r->vk.device, r->vk.dummy_mem[i], NULL);
+    }
     if (r->vk.pipeline_layout)  vkDestroyPipelineLayout(r->vk.device, r->vk.pipeline_layout, NULL);
     if (r->vk.desc_layout)      vkDestroyDescriptorSetLayout(r->vk.device, r->vk.desc_layout, NULL);
 }
@@ -2860,8 +2886,115 @@ static void vk_ubos_frame_advance(renderer_t *r)
  * Shaders
  ****************************************************************************/
 
-static cerr vk_shader_module_create(renderer_t *r, const char *code, size_t size,
-                                    VkShaderModule *mod)
+/* The bare minimum of SPIR-V to type the texture bindings */
+/** SPV_MAGIC - the SPIR-V magic number, first word of a module */
+#define SPV_MAGIC                       0x07230203
+/** SPV_OP_TYPE_IMAGE - OpTypeImage opcode */
+#define SPV_OP_TYPE_IMAGE               25
+/** SPV_OP_TYPE_SAMPLED_IMAGE - OpTypeSampledImage opcode */
+#define SPV_OP_TYPE_SAMPLED_IMAGE       27
+/** SPV_OP_TYPE_POINTER - OpTypePointer opcode */
+#define SPV_OP_TYPE_POINTER             32
+/** SPV_OP_VARIABLE - OpVariable opcode */
+#define SPV_OP_VARIABLE                 59
+/** SPV_OP_DECORATE - OpDecorate opcode */
+#define SPV_OP_DECORATE                 71
+/** SPV_DECORATION_BINDING - the Binding decoration */
+#define SPV_DECORATION_BINDING          33
+/** SPV_STORAGE_UNIFORM_CONSTANT - the UniformConstant storage class, where samplers live */
+#define SPV_STORAGE_UNIFORM_CONSTANT    0
+/** SPV_DIM_3D - the Dim operand value for 3D images */
+#define SPV_DIM_3D                      2
+
+/*
+ * Collect VK_TEX_* traits per texture binding from a stage's SPIR-V: a
+ * descriptor must reference an image matching the declared type (ms/array/
+ * 3D), and the engine happily leaves mismatches on bindings a pass doesn't
+ * feed -- the draw substitutes typed dummies for those (vk_renderer_draw())
+ */
+static void vk_shader_tex_traits(shader_t *shader, const uint32_t *words, size_t nr_words)
+{
+    if (nr_words < 5 || words[0] != SPV_MAGIC)                  return;
+
+    uint32_t bound = words[3];
+
+    /* per id: OpTypeImage traits / referenced type id / binding + 1 */
+    LOCAL_SET(void, img_traits_buf) = mem_alloc(sizeof(uint8_t), .nr = bound, .zero = true);
+    LOCAL_SET(void, type_ref_buf) = mem_alloc(sizeof(uint32_t), .nr = bound, .zero = true);
+    LOCAL_SET(void, binding_plus1_buf) = mem_alloc(sizeof(uint32_t), .nr = bound, .zero = true);
+
+    if (!img_traits_buf || !type_ref_buf || !binding_plus1_buf) return;
+
+    uint8_t *img_traits = img_traits_buf;
+    uint32_t *type_ref = type_ref_buf;
+    uint32_t *binding_plus1 = binding_plus1_buf;
+
+    for (size_t pos = 5; pos < nr_words;) {
+        uint32_t len = words[pos] >> 16;
+        uint16_t op = words[pos] & 0xffff;
+
+        if (!len || pos + len > nr_words)   break;
+
+        switch (op) {
+            case SPV_OP_TYPE_IMAGE:
+                /* result, sampled type, dim, depth, arrayed, ms, sampled, format */
+                if (len >= 9 && words[pos + 1] < bound) {
+                    uint8_t t = VK_TEX_DECLARED;
+
+                    if (words[pos + 3] == SPV_DIM_3D)   t |= VK_TEX_3D;
+                    if (words[pos + 5])                 t |= VK_TEX_ARRAYED;
+                    if (words[pos + 6])                 t |= VK_TEX_MS;
+                    img_traits[words[pos + 1]] = t;
+                }
+                break;
+            case SPV_OP_TYPE_SAMPLED_IMAGE:
+                /* result, image type */
+                if (len >= 3 && words[pos + 1] < bound && words[pos + 2] < bound)
+                    type_ref[words[pos + 1]] = words[pos + 2];
+                break;
+            case SPV_OP_TYPE_POINTER:
+                /* result, storage class, pointee type */
+                if (len >= 4 && words[pos + 1] < bound && words[pos + 3] < bound)
+                    type_ref[words[pos + 1]] = words[pos + 3];
+                break;
+            case SPV_OP_VARIABLE:
+                /* result type (a pointer), result, storage class */
+                if (len >= 4 && words[pos + 1] < bound && words[pos + 2] < bound &&
+                    words[pos + 3] == SPV_STORAGE_UNIFORM_CONSTANT)
+                    type_ref[words[pos + 2]] = words[pos + 1];
+                break;
+            case SPV_OP_DECORATE:
+                /* target, decoration, operand */
+                if (len >= 4 && words[pos + 1] < bound &&
+                    words[pos + 2] == SPV_DECORATION_BINDING)
+                    binding_plus1[words[pos + 1]] = words[pos + 3] + 1;
+                break;
+            default:
+                break;
+        }
+
+        pos += len;
+    }
+
+    /*
+     * Chase variable -> pointer -> (sampled image ->) image; UBO variables
+     * carry Binding decorations too, but their chains end typeless
+     */
+    for (uint32_t id = 0; id < bound; id++) {
+        if (!binding_plus1[id])                                     continue;
+
+        uint32_t binding = binding_plus1[id] - 1;
+        if (binding >= array_size(shader->vk.tex_traits))           continue;
+
+        uint32_t t = id;
+        for (int hop = 0; hop < 3 && t && !img_traits[t]; hop++)    t = type_ref[t];
+
+        if (t && img_traits[t])                                     shader->vk.tex_traits[binding] |= img_traits[t];
+    }
+}
+
+static cerr vk_shader_module_create(renderer_t *r, shader_t *shader, const char *code,
+                                    size_t size, VkShaderModule *mod)
 {
     if (!code || !size || size % 4)
         return CERR_INVALID_ARGUMENTS_REASON(
@@ -2876,6 +3009,8 @@ static cerr vk_shader_module_create(renderer_t *r, const char *code, size_t size
     LOCAL_SET(void, aligned) = mem_alloc(size);
     if (!aligned)           return CERR_NOMEM;
     memcpy(aligned, code, size);
+
+    vk_shader_tex_traits(shader, aligned, size / 4);
 
     VkShaderModuleCreateInfo info = {
         .sType      = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -2912,9 +3047,9 @@ static cerr vk_shader_init(renderer_t *r, shader_t *shader,
     shader->vk.renderer = r;
     shader->vk.binding_mask = 0;
 
-    cerr err = vk_shader_module_create(r, vertex, vert_size, &shader->vk.vert);
-    if (!IS_CERR(err) && geometry)  err = vk_shader_module_create(r, geometry, geom_size, &shader->vk.geom);
-    if (!IS_CERR(err))              err = vk_shader_module_create(r, fragment, frag_size, &shader->vk.frag);
+    cerr err = vk_shader_module_create(r, shader, vertex, vert_size, &shader->vk.vert);
+    if (!IS_CERR(err) && geometry)  err = vk_shader_module_create(r, shader, geometry, geom_size, &shader->vk.geom);
+    if (!IS_CERR(err))              err = vk_shader_module_create(r, shader, fragment, frag_size, &shader->vk.frag);
 
     if (IS_CERR(err))               vk_shader_done(shader);
 
@@ -3022,6 +3157,39 @@ static void vk_shader_set_name(shader_t *shader, const char *name)
  ****************************************************************************/
 
 /**
+ * vk_tex_traits_match() - does a bound texture match the shader's declared image type
+ * @tex:    the texture bound at the binding
+ * @traits: the binding's VK_TEX_* traits from the SPIR-V
+ *
+ * Return: true if the descriptor may reference @tex
+ */
+static bool vk_tex_traits_match(texture_t *tex, uint8_t traits)
+{
+    /* not sampled by this shader: anything goes */
+    if (!(traits & VK_TEX_DECLARED))                                    return true;
+
+    if (!!(traits & VK_TEX_MS) != tex->multisampled)                    return false;
+    if (!!(traits & VK_TEX_ARRAYED) != (tex->vk.type == TEX_2D_ARRAY))  return false;
+    if (!!(traits & VK_TEX_3D) != (tex->vk.type == TEX_3D))             return false;
+
+    return true;
+}
+
+/**
+ * vk_dummy_kind_for() - the dummy image kind matching a binding's declared type
+ * @traits: the binding's VK_TEX_* traits
+ *
+ * Return: the kind of dummy to substitute
+ */
+static enum vk_dummy_kind vk_dummy_kind_for(uint8_t traits)
+{
+    if (traits & VK_TEX_3D)         return VK_DUMMY_3D;
+    if (traits & VK_TEX_ARRAYED)    return traits & VK_TEX_MS ? VK_DUMMY_2D_ARRAY_MS : VK_DUMMY_2D_ARRAY;
+
+    return traits & VK_TEX_MS ? VK_DUMMY_2D_MS : VK_DUMMY_2D;
+}
+
+/**
  * vk_descriptor_write() - one descriptor write into a set
  * @ds:             the descriptor set
  * @binding:        set-0 binding number
@@ -3102,14 +3270,24 @@ static cerr vk_renderer_draw(renderer_t *r, draw_type draw_type, unsigned int nr
     VkWriteDescriptorSet writes[VULKAN_BINDING_UBO_BASE + BINDING_UBO_MAX];
     uint32_t n = 0;
 
+    shader_t *shader = r->vk.dc->shader;
+
     for (unsigned int i = 0; i < VULKAN_BINDING_UBO_BASE; i++) {
         texture_t *tex = i < array_size(r->vk.bound_textures) ?
             r->vk.bound_textures[i] : NULL;
-        bool live = tex && texture_loaded(tex) && tex->vk.view;
+        uint8_t traits = i < array_size(shader->vk.tex_traits) ?
+            shader->vk.tex_traits[i] : 0;
+        /*
+         * A mismatched texture (the engine leaves stale/placeholder
+         * bindings on slots a pass doesn't feed) reads as a typed dummy:
+         * GL treats such sampling as undefined, here it's zeroes
+         */
+        bool live = tex && texture_loaded(tex) && tex->vk.view &&
+                    vk_tex_traits_match(tex, traits);
 
         image_infos[i] = (VkDescriptorImageInfo){
             .sampler        = live ? tex->vk.sampler : r->vk.dummy_sampler,
-            .imageView      = live ? tex->vk.view : r->vk.dummy_view,
+            .imageView      = live ? tex->vk.view : r->vk.dummy_view[vk_dummy_kind_for(traits)],
             .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
         writes[n++] = vk_descriptor_write(ds, i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &image_infos[i], NULL);

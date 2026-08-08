@@ -307,6 +307,30 @@ typedef struct vk_vertex_attr {
     unsigned int    offset;
     unsigned int    location;
 } vk_vertex_attr_t;
+
+/*
+ * Typed dummy images: a statically used sampler must see an image of the
+ * declared type, so descriptor slots with nothing (compatible) bound get a
+ * dummy of the matching dimensionality/multisampledness
+ */
+enum vk_dummy_kind {
+    VK_DUMMY_2D = 0,
+    VK_DUMMY_2D_MS,
+    VK_DUMMY_2D_ARRAY,
+    VK_DUMMY_2D_ARRAY_MS,
+    VK_DUMMY_3D,
+    VK_DUMMY_MAX,
+};
+
+/* Per texture binding image traits, collected from the shader's SPIR-V */
+/** VK_TEX_DECLARED - the shader declares a sampler at this binding */
+#define VK_TEX_DECLARED (1 << 0)
+/** VK_TEX_MS - the sampler expects a multisampled image */
+#define VK_TEX_MS       (1 << 1)
+/** VK_TEX_ARRAYED - the sampler expects an array image */
+#define VK_TEX_ARRAYED  (1 << 2)
+/** VK_TEX_3D - the sampler expects a 3D image */
+#define VK_TEX_3D       (1 << 3)
 #endif /* CONFIG_RENDERER_VULKAN */
 
 typedef enum buffer_type {
@@ -1104,6 +1128,8 @@ TYPE(shader,
         char                                *name;
         unsigned int                        nr_vertex_attrs;
         unsigned int                        id;
+        /* VK_TEX_* traits per texture binding, from the SPIR-V */
+        uint8_t                             tex_traits[BINDING_TEXTURE_MAX];
     } vk;
 #endif /* CONFIG_RENDERER_VULKAN */
 );
@@ -1328,10 +1354,10 @@ TYPE(renderer,
         /* one global set-0 layout: every shader's bindings are a subset */
         vk_descriptor_set_layout_t          desc_layout;
         vk_pipeline_layout_t                pipeline_layout;
-        /* fallbacks for descriptor slots with nothing bound */
-        vk_image_t                          dummy_image;
-        vk_device_memory_t                  dummy_mem;
-        vk_image_view_t                     dummy_view;
+        /* fallbacks for descriptor slots with nothing (compatible) bound */
+        vk_image_t                          dummy_image[VK_DUMMY_MAX];
+        vk_device_memory_t                  dummy_mem[VK_DUMMY_MAX];
+        vk_image_view_t                     dummy_view[VK_DUMMY_MAX];
         vk_sampler_t                        dummy_sampler;
         vk_buffer_t                         dummy_ubo;
         vk_device_memory_t                  dummy_ubo_mem;
