@@ -219,6 +219,22 @@ struct scene *clap_get_scene(struct clap_context *ctx)  __nonnull_params((1));
 CLAP_API
 render_options *clap_get_render_options(struct clap_context *ctx) __returns_nonnull __nonnull_params((1));
 
+struct view;
+
+/**
+ * clap_reserve_shadow_passes() - set a view's shadow cascade count
+ * @ctx:    clap_context
+ * @view:   the view whose cascades are being reserved
+ * @nr:     requested number of cascades; 0 requests the maximum
+ *
+ * Clamps the request to what the build can render, CASCADES_MAX.
+ *
+ * Return: the number of cascade passes actually granted.
+ */
+CLAP_API
+unsigned int clap_reserve_shadow_passes(clap_context *ctx, struct view *view, unsigned int nr)
+    __nonnull_params((1, 2));
+
 /**
  * clap_sync_render_options() - get clap's render options (mutable)
  * @ctx:            clap_context

@@ -441,6 +441,15 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.hdr_transfer_want = HDR_TRANSFER_PQ;
 }
 
+unsigned int clap_reserve_shadow_passes(clap_context *ctx, struct view *view, unsigned int nr)
+{
+    unsigned int cap = CASCADES_MAX;
+
+    view->nr_cascades = min(nr ? : cap, cap);
+
+    return view->nr_cascades;
+}
+
 /* Per-frame render options update */
 static void clap_update_render_options(clap_context *ctx)
 {

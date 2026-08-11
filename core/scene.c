@@ -76,7 +76,7 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.main.near_plane  = 0.1;
     s->camera->view.main.far_plane   = 500.0;
     s->camera->view.fov              = to_radians(70);
-    s->camera->view.nr_cascades      = CASCADES_MAX;
+    clap_reserve_shadow_passes(s->clap_ctx, &s->camera->view, CASCADES_MAX);
     /* 0.9 lands the first divider at 15 units for a 500-unit far plane */
     s->camera->view.cascade_lambda   = 0.9;
     s->camera->view.shadow_distance  = 0.0;
