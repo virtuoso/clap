@@ -1470,7 +1470,14 @@ int renderer_hdr_transfer(renderer_t *r);
  */
 unsigned int renderer_hdr_transfers(renderer_t *r);
 
-void renderer_swapchain_begin(renderer_t *renderer);
+/**
+ * renderer_swapchain_begin() - open the pass that renders to the swapchain
+ * @renderer:   renderer
+ * @load:       FBOLOAD_DONTCARE when the caller overwrites every pixel of the
+ *              image, FBOLOAD_CLEAR otherwise; a backend whose clear is free may
+ *              clear regardless
+ */
+void renderer_swapchain_begin(renderer_t *renderer, fbo_load_action load);
 
 void renderer_frame_begin(renderer_t *renderer);
 
@@ -1617,7 +1624,7 @@ typedef struct renderer_ops {
     void                (*hdr_transfer_set)(renderer_t *r, int transfer);
     int                 (*hdr_transfer_get)(renderer_t *r);
     unsigned int        (*hdr_transfers)(renderer_t *r);
-    void                (*swapchain_begin)(renderer_t *r);
+    void                (*swapchain_begin)(renderer_t *r, fbo_load_action load);
     void                (*frame_begin)(renderer_t *r);
     void                (*frame_end)(renderer_t *r);
     void                (*swapchain_end)(renderer_t *r);

@@ -26,7 +26,7 @@ static void mtl_renderer_viewport(renderer_t *r, int x, int y, int width, int he
 static void mtl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
 static bool mtl_renderer_supports_edr(renderer_t *r);
 static void mtl_renderer_hdr_enable(renderer_t *r, bool enable);
-static void mtl_renderer_swapchain_begin(renderer_t *r);
+static void mtl_renderer_swapchain_begin(renderer_t *r, fbo_load_action load);
 static void mtl_renderer_frame_begin(renderer_t *r);
 static void mtl_renderer_frame_end(renderer_t *r);
 static void mtl_renderer_swapchain_end(renderer_t *r);
@@ -1886,7 +1886,7 @@ static void mtl_renderer_frame_begin(renderer_t *r)
     mtl_cmd_buffer(r);
 }
 
-static void mtl_renderer_swapchain_begin(renderer_t *r)
+static void mtl_renderer_swapchain_begin(renderer_t *r, fbo_load_action load)
 {
     r->mtl.drawable = [r->mtl.layer nextDrawable];
     r->mtl.screen_fbo->mtl.desc.colorAttachments[0].texture = r->mtl.drawable.texture;

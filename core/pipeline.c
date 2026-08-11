@@ -782,7 +782,8 @@ cerr pipeline_render(struct pipeline *pl, unsigned int checkpoint)
         pass = last_pass;
 
     /* render the last pass to the screen */
-    renderer_swapchain_begin(pl->renderer);
+    /* the screen pass composites over every pixel: nothing to clear */
+    renderer_swapchain_begin(pl->renderer, FBOLOAD_DONTCARE);
     ret = pass_render(pl, pass, mq);
     if (IS_CERR(ret)) {
         failure_mask |= 1ull << idx;

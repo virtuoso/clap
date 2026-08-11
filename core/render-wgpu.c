@@ -33,7 +33,7 @@ static void wgpu_renderer_hdr_enable(renderer_t *r, bool enable);
 static void wgpu_renderer_hdr_transfer_set(renderer_t *r, int transfer);
 static int wgpu_renderer_hdr_transfer_get(renderer_t *r);
 static unsigned int wgpu_renderer_hdr_transfers(renderer_t *r);
-static void wgpu_renderer_swapchain_begin(renderer_t *r);
+static void wgpu_renderer_swapchain_begin(renderer_t *r, fbo_load_action load);
 static void wgpu_renderer_frame_begin(renderer_t *r);
 static void wgpu_renderer_frame_end(renderer_t *r);
 static void wgpu_renderer_swapchain_end(renderer_t *r);
@@ -2001,7 +2001,7 @@ static void wgpu_renderer_frame_begin(renderer_t *r)
     CERR_RET(wgpu_create_cmd_encoder(r), err_cerr(__cerr, "create command encoder failed\n"));
 }
 
-static void wgpu_renderer_swapchain_begin(renderer_t *r)
+static void wgpu_renderer_swapchain_begin(renderer_t *r, fbo_load_action load)
 {
     CERR_RET(wgpu_create_texture_view(r), err_cerr(__cerr, "texture view from surface failed\n"));
     CERR_RET(wgpu_create_render_pass(r), err_cerr(__cerr, "create render pass failed\n"));

@@ -955,7 +955,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
             ctx->pipeline_error = err;
         }
     } else {
-        renderer_swapchain_begin(&ctx->renderer);
+        renderer_swapchain_begin(&ctx->renderer, FBOLOAD_CLEAR);
     }
 
     /* materials that changed since their models' variants were resolved */

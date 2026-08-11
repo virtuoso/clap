@@ -1202,7 +1202,9 @@ static void vk_renderer_frame_begin(renderer_t *r)
     r->vk.cb_open = true;
 }
 
-static void vk_renderer_swapchain_begin(renderer_t *r)
+static VkAttachmentLoadOp vk_load_op(fbo_load_action action);
+
+static void vk_renderer_swapchain_begin(renderer_t *r, fbo_load_action load)
 {
     if (!r->vk.cb_open) vk_renderer_frame_begin(r);
     if (!r->vk.cb_open || r->vk.pass_open)  return;
@@ -1247,7 +1249,7 @@ static void vk_renderer_swapchain_begin(renderer_t *r)
 
     VkRenderingAttachmentInfo color = vk_attachment_info(
         r->vk.views[idx], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE,
+        vk_load_op(load), VK_ATTACHMENT_STORE_OP_STORE,
         (VkClearValue){ .color = { .float32 = { 0.0, 0.0, 0.0, 1.0 } } }
     );
     VkRenderingInfo rendering_info = {

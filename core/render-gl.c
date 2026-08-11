@@ -31,7 +31,7 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
 static void gl_renderer_set_version(renderer_t *r, int major, int minor, renderer_profile profile);
 static void gl_renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 static void gl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);
-static void gl_renderer_swapchain_begin(renderer_t *r);
+static void gl_renderer_swapchain_begin(renderer_t *r, fbo_load_action load);
 static void gl_renderer_swapchain_end(renderer_t *r);
 #ifndef CONFIG_FINAL
 static void gl_renderer_debug(renderer_t *r);
@@ -2239,7 +2239,7 @@ static void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
     GL(glClear(flags));
 }
 
-static void gl_renderer_swapchain_begin(renderer_t *renderer)
+static void gl_renderer_swapchain_begin(renderer_t *renderer, fbo_load_action load)
 {
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, renderer->width, renderer->height));

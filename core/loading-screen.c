@@ -68,7 +68,7 @@ loading_screen *loading_screen_init(struct ui *ui)
 void loading_screen_done(loading_screen *ls)
 {
     renderer_frame_begin(ls->ui->renderer);
-    renderer_swapchain_begin(ls->ui->renderer);
+    renderer_swapchain_begin(ls->ui->renderer, FBOLOAD_CLEAR);
 
     ref_put(ls->uit);
     ref_put(ls->uie);
@@ -85,7 +85,7 @@ void loading_screen_progress(loading_screen *ls, float progress)
 
     ui_update(ls->ui);
     renderer_frame_begin(ls->ui->renderer);
-    renderer_swapchain_begin(ls->ui->renderer);
+    renderer_swapchain_begin(ls->ui->renderer, FBOLOAD_CLEAR);
     CERR_RET(
         models_render(ls->ui->renderer, &ls->ui->mq),
         { err_cerr(__cerr, "failed to render loading screen UI\n"); mq_release(&ls->ui->mq); }

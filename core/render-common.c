@@ -287,9 +287,9 @@ unsigned int renderer_hdr_transfers(renderer_t *r)
     return r->ops->hdr_transfers(r);
 }
 
-void renderer_swapchain_begin(renderer_t *r)
+void renderer_swapchain_begin(renderer_t *r, fbo_load_action load)
 {
-    r->ops->swapchain_begin(r);
+    r->ops->swapchain_begin(r, load);
 }
 
 void renderer_frame_begin(renderer_t *r)
