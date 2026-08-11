@@ -16,6 +16,10 @@
 #include "render-vk.h"
 #include "shader_constants.h"
 #include "util.h"
+#ifndef CONFIG_FINAL
+/* the imgui glue registers texture views for the debug previews */
+#include "ui-imgui-vk.h"
+#endif /* !CONFIG_FINAL */
 
 /** VK_UBO_SLOTS_PER_FRAME - per-draw UBO slots in each in-flight frame's region: the busiest scenes run ~850 draws */
 #define VK_UBO_SLOTS_PER_FRAME 1024
@@ -660,6 +664,8 @@ static cerr vk_upload_begin(renderer_t *r, VkCommandBuffer *cb)
  * @mem:        memory to free, or VK_NULL_HANDLE
  * @pipeline:   a dropped draw_control's pipeline, possibly still bound
  * @cmd_buf:    an upload's command buffer, freed back to the upload pool
+ * @imgui_ds:   an imgui debug-preview binding (ui-imgui-vk.cpp), or 0
+ * @imgui_ds_epoch: the imgui pool generation @imgui_ds was allocated from
  */
 typedef struct vk_zombie {
     struct list         entry;
@@ -670,6 +676,10 @@ typedef struct vk_zombie {
     VkDeviceMemory      mem;
     VkPipeline          pipeline;
     VkCommandBuffer     cmd_buf;
+#ifndef CONFIG_FINAL
+    uint64_t            imgui_ds;
+    unsigned int        imgui_ds_epoch;
+#endif /* !CONFIG_FINAL */
 } vk_zombie;
 
 static void vk_zombie_add(renderer_t *r, vk_zombie zombie);
@@ -752,6 +762,28 @@ static struct list *vk_zombie_list(renderer_t *r)
     return &r->vk.frames[frame].zombies;
 }
 
+#ifndef CONFIG_FINAL
+/**
+ * vk_zombie_add_imgui_ds() - park a texture's imgui binding for removal once its frame retires
+ * @r:      renderer
+ * @tex:    the texture, its binding cleared
+ */
+static void vk_zombie_add_imgui_ds(renderer_t *r, texture_t *tex)
+{
+    if (!tex->vk.imgui_ds)  return;
+
+    vk_zombie_add(r, (vk_zombie){
+        .imgui_ds       = (uint64_t)(uintptr_t)tex->vk.imgui_ds,
+        .imgui_ds_epoch = tex->vk.imgui_ds_epoch,
+    });
+
+    tex->vk.imgui_ds = VK_NULL_HANDLE;
+    tex->vk.imgui_ds_epoch = 0;
+}
+#else
+static inline void vk_zombie_add_imgui_ds(renderer_t *r, texture_t *tex) {}
+#endif /* CONFIG_FINAL */
+
 /**
  * vk_zombie_add() - park handles for destruction once their frame retires
  * @r:      renderer
@@ -787,6 +819,9 @@ static void vk_zombies_drain(renderer_t *r, unsigned int frame)
         if (z->mem)         vkFreeMemory(r->vk.device, z->mem, NULL);
         if (z->pipeline)    vkDestroyPipeline(r->vk.device, z->pipeline, NULL);
         if (z->cmd_buf)     vkFreeCommandBuffers(r->vk.device, r->vk.upload_pool, 1, &z->cmd_buf);
+#ifndef CONFIG_FINAL
+        if (z->imgui_ds)    ui_imgui_vk_texture_remove(z->imgui_ds, z->imgui_ds_epoch);
+#endif /* !CONFIG_FINAL */
         list_del(&z->entry);
         mem_free(z);
     }
@@ -2146,6 +2181,7 @@ static void vk_texture_release(texture_t *tex)
 
     if (tex->vk.image || tex->vk.view || tex->vk.mem)
         vk_zombie_add(r, (vk_zombie){ .image = tex->vk.image, .view = tex->vk.view, .mem = tex->vk.mem });
+    vk_zombie_add_imgui_ds(r, tex);
 
     tex->vk.view = VK_NULL_HANDLE;
     tex->vk.image = VK_NULL_HANDLE;
@@ -2162,6 +2198,7 @@ static void vk_texture_deinit(texture_t *tex)
         vk_zombie_add(r, (vk_zombie){
             .image = tex->vk.image, .view = tex->vk.view, .sampler = tex->vk.sampler, .mem = tex->vk.mem
         });
+    vk_zombie_add_imgui_ds(r, tex);
     if (tex->vk.staging_buf)
         /* in-flight uploads may still read it; freeing the memory unmaps */
         vk_zombie_add(r, (vk_zombie){ .buf = tex->vk.staging_buf, .mem = tex->vk.staging_mem });
@@ -2455,7 +2492,37 @@ static texture_t *vk_texture_clone(texture_t *tex)
 
 static texid_t vk_texture_id(texture_t *tex)
 {
+#ifndef CONFIG_FINAL
+    /*
+     * imgui wants a VkDescriptorSet as the texture ID
+     * (ImGui_ImplVulkan_AddTexture()); bindings are created lazily for the
+     * textures the debug UI actually previews and follow the texture's
+     * lifetime via the zombie list. The recorded layout must match the
+     * layout at UI draw time: render targets are parked in
+     * SHADER_READ_ONLY by fbo_done() before the UI pass samples anything,
+     * so anything else (never rendered yet, mid-frame state) gets no
+     * binding -- callers skip the preview and retry next frame.
+     */
+    if (!tex->vk.view || tex->vk.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)    return 0;
+
+    unsigned int epoch = ui_imgui_vk_texture_epoch();
+
+    /* an imgui reinit (swapchain format flip) killed the old binding */
+    if (tex->vk.imgui_ds && tex->vk.imgui_ds_epoch != epoch) {
+        tex->vk.imgui_ds = VK_NULL_HANDLE;
+        tex->vk.imgui_ds_epoch = 0;
+    }
+
+    if (!tex->vk.imgui_ds) {
+        tex->vk.imgui_ds = (vk_descriptor_set_t)(uintptr_t)ui_imgui_vk_texture_add(
+            (uint64_t)(uintptr_t)tex->vk.view, tex->vk.layout);
+        tex->vk.imgui_ds_epoch = epoch;
+    }
+
+    return (texid_t)(uintptr_t)tex->vk.imgui_ds;
+#else
     return 0;
+#endif /* CONFIG_FINAL */
 }
 
 /****************************************************************************

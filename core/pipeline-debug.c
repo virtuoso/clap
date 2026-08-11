@@ -248,7 +248,9 @@ void pipeline_debug(struct pipeline *pl)
 ui_ig_end:
     ui_igEnd(DEBUG_PIPELINE_SELECTOR);
 
-    if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex)) {
+    /* a zero ID means the renderer has no imgui binding for it (yet) */
+    if (pass_tex && !texture_is_array(pass_tex) && !texture_is_multisampled(pass_tex) &&
+        texture_id(pass_tex)) {
         if (igBegin("Render pass preview", NULL, 0)) {
             ImVec2 avail = igGetContentRegionAvail();
             if (avail.x < 512) {

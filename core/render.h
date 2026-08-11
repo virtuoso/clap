@@ -248,6 +248,7 @@ typedef VkShaderModule vk_shader_module_t;
 typedef VkPipeline vk_pipeline_t;
 typedef VkPipelineLayout vk_pipeline_layout_t;
 typedef VkDescriptorSetLayout vk_descriptor_set_layout_t;
+typedef VkDescriptorSet vk_descriptor_set_t;
 typedef VkDescriptorPool vk_descriptor_pool_t;
 typedef VkCommandPool vk_command_pool_t;
 typedef VkSemaphore vk_semaphore_t;
@@ -284,6 +285,7 @@ typedef uint64_t vk_shader_module_t;
 typedef uint64_t vk_pipeline_t;
 typedef uint64_t vk_pipeline_layout_t;
 typedef uint64_t vk_descriptor_set_layout_t;
+typedef uint64_t vk_descriptor_set_t;
 typedef uint64_t vk_descriptor_pool_t;
 typedef uint64_t vk_command_pool_t;
 typedef uint64_t vk_semaphore_t;
@@ -590,6 +592,11 @@ TYPE(texture,
         vk_device_memory_t  staging_mem;
         void                *staging_map;
         size_t              staging_slice;
+#ifndef CONFIG_FINAL
+        /* imgui binding for debug previews; owned, epoch-checked */
+        vk_descriptor_set_t imgui_ds;
+        unsigned int        imgui_ds_epoch;
+#endif /* !CONFIG_FINAL */
         vk_image_layout_t   layout;     /* current image layout */
         texture_type        type;
         texture_format      format;
