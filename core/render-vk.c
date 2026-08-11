@@ -2838,10 +2838,23 @@ static cerr vk_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
 
     size_t total_size = ubo->vk.frame_size * VK_INFLIGHT_FRAMES;
 
-    CERR_RET_CERR(vk_buffer_create(r, total_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                   &ubo->vk.buf, &ubo->vk.mem));
+    /*
+     * Every lit fragment reads these: prefer device-local host-visible (BAR)
+     * memory so the GPU reads VRAM instead of PCIe. CPU access stays fine:
+     * writes are sequential memcpys from the shadow, never reads. Fall back
+     * to plain host-visible when the BAR heap is absent or full.
+     */
+    cerr err = vk_buffer_create(r, total_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                &ubo->vk.buf, &ubo->vk.mem);
+    if (IS_CERR(err))
+        err = vk_buffer_create(r, total_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                               &ubo->vk.buf, &ubo->vk.mem);
+    CERR_RET_CERR(err);
 
     if (vkMapMemory(r->vk.device, ubo->vk.mem, 0, total_size, 0, &ubo->vk.mapped) != VK_SUCCESS)
         return CERR_INVALID_OPERATION_REASON(.fmt = "vkMapMemory failed");
