@@ -211,6 +211,10 @@ static void vk_limits_fill(renderer_t *r, const VkPhysicalDeviceLimits *l)
     lim[RENDER_LIMIT_MAX_VERTEX_UNIFORM_BLOCKS]     = l->maxPerStageDescriptorUniformBuffers;
     lim[RENDER_LIMIT_MAX_GEOMETRY_UNIFORM_BLOCKS]   = l->maxPerStageDescriptorUniformBuffers;
     lim[RENDER_LIMIT_MAX_FRAGMENT_UNIFORM_BLOCKS]   = l->maxPerStageDescriptorUniformBuffers;
+
+#ifndef CONFIG_FINAL
+    r->vk.timestamp_period = l->timestampPeriod;
+#endif /* !CONFIG_FINAL */
 }
 
 static cerr vk_physical_device_pick(renderer_t *r)
@@ -789,6 +793,152 @@ static void vk_zombies_drain(renderer_t *r, unsigned int frame)
 }
 
 /****************************************************************************
+ * Pass GPU timers ("renderer" debug module)
+ *
+ * Bottom-of-pipe timestamps bracket every pass; each in-flight frame owns a
+ * slice of the query pool, read back once its fence proves the frame retired
+ ****************************************************************************/
+
+#ifndef CONFIG_FINAL
+/**
+ * vk_queue_family_timestamp_bits() - the queue family's timestampValidBits
+ * @r:  renderer, its queue family picked
+ *
+ * Return: valid bits of a timestamp written on the queue, 0 when the family
+ *         can't write timestamps at all
+ */
+static uint32_t vk_queue_family_timestamp_bits(renderer_t *r)
+{
+    uint32_t count = 0;
+
+    vkGetPhysicalDeviceQueueFamilyProperties(r->vk.phys_device, &count, NULL);
+    if (r->vk.queue_family >= count)    return 0;
+
+    LOCAL_SET(void, families_buf) = mem_alloc(sizeof(VkQueueFamilyProperties), .nr = count);
+    VkQueueFamilyProperties *families = families_buf;
+    if (!families)  return 0;
+
+    vkGetPhysicalDeviceQueueFamilyProperties(r->vk.phys_device, &count, families);
+
+    return families[r->vk.queue_family].timestampValidBits;
+}
+
+/**
+ * vk_pass_timers_init() - create the timestamp query pool, one slice per in-flight frame
+ * @r:  renderer
+ *
+ * Not fatal: without timestamp support on the queue the debug module stays
+ * empty.
+ */
+static void vk_pass_timers_init(renderer_t *r)
+{
+    VkQueryPoolCreateInfo info = {
+        .sType      = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+        .queryType  = VK_QUERY_TYPE_TIMESTAMP,
+        .queryCount = VK_INFLIGHT_FRAMES * RENDERER_PASS_TIMERS_MAX * 2,
+    };
+
+    if (!vk_queue_family_timestamp_bits(r) || !r->vk.timestamp_period ||
+        vkCreateQueryPool(r->vk.device, &info, NULL, &r->vk.ts_pool) != VK_SUCCESS)
+        r->vk.ts_pool = VK_NULL_HANDLE;
+}
+
+/**
+ * vk_pass_timers_done() - destroy the query pool
+ * @r:  renderer
+ */
+static void vk_pass_timers_done(renderer_t *r)
+{
+    if (r->vk.ts_pool)  vkDestroyQueryPool(r->vk.device, r->vk.ts_pool, NULL);
+}
+
+/**
+ * vk_pass_ts_begin() - write a pass's begin timestamp
+ * @r:      renderer, recording a frame
+ * @name:   the pass, for the debug module; static storage
+ */
+static void vk_pass_ts_begin(renderer_t *r, const char *name)
+{
+    unsigned int slot = r->vk.frame_idx;
+    unsigned int n = r->vk.ts_count[slot];
+
+    if (!r->vk.ts_pool || r->vk.ts_open || n >= RENDERER_PASS_TIMERS_MAX)   return;
+
+    r->vk.ts_names[slot][n] = name;
+    vkCmdWriteTimestamp(r->vk.frames[slot].cmd_buf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                        r->vk.ts_pool, (slot * RENDERER_PASS_TIMERS_MAX + n) * 2);
+    r->vk.ts_open = true;
+}
+
+/**
+ * vk_pass_ts_end() - write the open pass's end timestamp
+ * @r:  renderer, recording a frame
+ */
+static void vk_pass_ts_end(renderer_t *r)
+{
+    unsigned int slot = r->vk.frame_idx;
+    unsigned int n = r->vk.ts_count[slot];
+
+    if (!r->vk.ts_pool || !r->vk.ts_open || n >= RENDERER_PASS_TIMERS_MAX)  return;
+
+    vkCmdWriteTimestamp(r->vk.frames[slot].cmd_buf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                        r->vk.ts_pool, (slot * RENDERER_PASS_TIMERS_MAX + n) * 2 + 1);
+    r->vk.ts_count[slot] = n + 1;
+    r->vk.ts_open = false;
+}
+
+/**
+ * vk_pass_ts_collect() - publish the slot's timings; its fence has signalled
+ * @r:  renderer, about to record into the slot again
+ */
+static void vk_pass_ts_collect(renderer_t *r)
+{
+    unsigned int slot = r->vk.frame_idx;
+    unsigned int n = r->vk.ts_count[slot];
+
+    if (!r->vk.ts_pool) return;
+
+    if (n) {
+        uint64_t ts[RENDERER_PASS_TIMERS_MAX * 2];
+
+        if (vkGetQueryPoolResults(r->vk.device, r->vk.ts_pool,
+                                  slot * RENDERER_PASS_TIMERS_MAX * 2, n * 2,
+                                  sizeof(uint64_t) * n * 2, ts, sizeof(uint64_t),
+                                  VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
+            for (unsigned int i = 0; i < n; i++) {
+                r->pass_times.names[i] = r->vk.ts_names[slot][i];
+                r->pass_times.ms[i] = (float)((double)(ts[i * 2 + 1] - ts[i * 2]) *
+                                              r->vk.timestamp_period / 1e6);
+            }
+            r->pass_times.count = n;
+        }
+    }
+
+    r->vk.ts_count[slot] = 0;
+}
+
+/**
+ * vk_pass_ts_reset() - reset the slot's queries on the fresh command buffer
+ * @r:  renderer, its frame's command buffer just begun
+ */
+static void vk_pass_ts_reset(renderer_t *r)
+{
+    if (!r->vk.ts_pool) return;
+
+    vkCmdResetQueryPool(r->vk.frames[r->vk.frame_idx].cmd_buf, r->vk.ts_pool,
+                        r->vk.frame_idx * RENDERER_PASS_TIMERS_MAX * 2,
+                        RENDERER_PASS_TIMERS_MAX * 2);
+}
+#else /* CONFIG_FINAL */
+static inline void vk_pass_timers_init(renderer_t *r) {}
+static inline void vk_pass_timers_done(renderer_t *r) {}
+static inline void vk_pass_ts_begin(renderer_t *r, const char *name) {}
+static inline void vk_pass_ts_end(renderer_t *r) {}
+static inline void vk_pass_ts_collect(renderer_t *r) {}
+static inline void vk_pass_ts_reset(renderer_t *r) {}
+#endif /* CONFIG_FINAL */
+
+/****************************************************************************
  * Descriptors
  *
  * One global set-0 layout shared by every pipeline: combined image samplers
@@ -1106,6 +1256,7 @@ static void vk_renderer_done(renderer_t *r)
         }
 
         vk_descriptors_done(r);
+        vk_pass_timers_done(r);
 
         if (r->vk.upload_pool)  vkDestroyCommandPool(r->vk.device, r->vk.upload_pool, NULL);
 
@@ -1193,6 +1344,8 @@ static void vk_renderer_frame_begin(renderer_t *r)
     vk_ubos_frame_advance(r);
     /* ... and that its parked resources are safe to destroy */
     vk_zombies_drain(r, r->vk.frame_idx);
+    /* ... and that its pass timestamps have landed */
+    vk_pass_ts_collect(r);
 
     if (vk_command_buffer_begin(f->cmd_buf) != VK_SUCCESS) {
         err("vulkan: vkBeginCommandBuffer failed\n");
@@ -1200,6 +1353,8 @@ static void vk_renderer_frame_begin(renderer_t *r)
     }
 
     r->vk.cb_open = true;
+
+    vk_pass_ts_reset(r);
 }
 
 static VkAttachmentLoadOp vk_load_op(fbo_load_action action);
@@ -1259,6 +1414,7 @@ static void vk_renderer_swapchain_begin(renderer_t *r, fbo_load_action load)
         .colorAttachmentCount   = 1,
         .pColorAttachments      = &color,
     };
+    vk_pass_ts_begin(r, "swapchain");
     vkCmdBeginRendering(f->cmd_buf, &rendering_info);
     r->vk.pass_open = true;
 
@@ -1271,6 +1427,8 @@ static void vk_renderer_swapchain_end(renderer_t *r)
 
     vkCmdEndRendering(r->vk.frames[r->vk.frame_idx].cmd_buf);
     r->vk.pass_open = false;
+
+    vk_pass_ts_end(r);
 }
 
 static void vk_renderer_frame_end(renderer_t *r)
@@ -1326,10 +1484,6 @@ static void vk_renderer_frame_end(renderer_t *r)
     r->vk.frame_idx = (r->vk.frame_idx + 1) % VK_INFLIGHT_FRAMES;
     r->vk.cb_open = false;
     r->vk.image_acquired = false;
-}
-
-static void vk_renderer_debug(renderer_t *r)
-{
 }
 
 /* recorded into the command buffer at draw time */
@@ -2600,6 +2754,8 @@ static void vk_fbo_prepare(fbo_t *fbo)
 
     auto f = &r->vk.frames[r->vk.frame_idx];
 
+    vk_pass_ts_begin(r, fbo->vk.name);
+
     fa_for_each(fa, fbo->layout, texture) {
         auto tex = &fbo->color_tex[fbo_attachment_color(fa)];
 
@@ -2641,6 +2797,8 @@ static void vk_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
         vk_texture_layout_to(f->cmd_buf, &fbo->depth_tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     r->vk.fbo = NULL;
+
+    vk_pass_ts_end(r);
 }
 
 /**
@@ -3417,7 +3575,6 @@ static const renderer_ops vk_renderer_ops = {
     .frame_begin            = vk_renderer_frame_begin,
     .frame_end              = vk_renderer_frame_end,
     .swapchain_end          = vk_renderer_swapchain_end,
-    .debug                  = vk_renderer_debug,
     .cull_face              = vk_renderer_cull_face,
     .blend                  = vk_renderer_blend,
     .draw                   = vk_renderer_draw,
@@ -3524,6 +3681,7 @@ cerr vk_renderer_setup(renderer_t *renderer, const renderer_init_options *opts)
      */
     glfwGetFramebufferSize(opts->window, &renderer->width, &renderer->height);
     CERR_RET_CERR(vk_swapchain_create(renderer));
+    vk_pass_timers_init(renderer);
 
     return CERR_OK;
 }

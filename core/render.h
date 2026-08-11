@@ -257,6 +257,7 @@ typedef VkRenderingAttachmentInfo vk_rendering_attachment_info_t;
 typedef VkRenderingInfo vk_rendering_info_t;
 typedef VkFormat vk_format_t;
 typedef VkImageLayout vk_image_layout_t;
+typedef VkQueryPool vk_query_pool_t;
 static_assert(sizeof(VkImage) == sizeof(uint64_t), "VkImage handle width mismatch");
 static_assert(sizeof(VkInstance) == sizeof(void *), "VkInstance handle width mismatch");
 static_assert(sizeof(VkRenderingAttachmentInfo) == VK_RENDERING_ATTACHMENT_INFO_SIZE,
@@ -295,6 +296,7 @@ typedef struct { char _[VK_RENDERING_INFO_SIZE]; } __attribute__((aligned(VK_REN
     vk_rendering_info_t;
 typedef int vk_format_t;
 typedef int vk_image_layout_t;
+typedef uint64_t vk_query_pool_t;
 # endif /* !IMPLEMENTOR */
 /**
  * struct vk_vertex_attr - vertex attribute description for pipeline creation
@@ -1371,6 +1373,13 @@ TYPE(renderer,
         struct list                         ubos;
         texture_t                           *bound_textures[BINDING_TEXTURE_MAX];
         uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
+#ifndef CONFIG_FINAL
+        /* per-pass GPU timestamps; the results land in renderer::pass_times */
+        vk_query_pool_t                     ts_pool;
+        const char                          *ts_names[VK_INFLIGHT_FRAMES][RENDERER_PASS_TIMERS_MAX];
+        float                               timestamp_period;
+        unsigned int                        ts_count[VK_INFLIGHT_FRAMES];
+#endif /* !CONFIG_FINAL */
         int                                 limits[RENDER_LIMIT_MAX];
         vk_format_t                         swapchain_format;
         unsigned int                        queue_family;
@@ -1387,6 +1396,10 @@ TYPE(renderer,
         bool                                image_acquired;
         bool                                pass_open;
         bool                                validation;
+#ifndef CONFIG_FINAL
+        /* a pass's begin timestamp is written and its end isn't yet */
+        bool                                ts_open;
+#endif /* !CONFIG_FINAL */
     } vk;
 #endif /* CONFIG_RENDERER_VULKAN */
 #ifndef CONFIG_FINAL
