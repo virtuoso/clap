@@ -46,4 +46,35 @@ EXTERN void ui_imgui_vk_render_draw_data(ImDrawData *draw);
  */
 EXTERN void ui_imgui_vk_shutdown(void);
 
+/**
+ * ui_imgui_vk_texture_add() - register an image view as an imgui texture ID
+ * @image_view:     the VkImageView, as uint64_t to keep this header C-includable
+ * @image_layout:   the VkImageLayout the view is sampled in
+ *
+ * Wraps ImGui_ImplVulkan_AddTexture(): imgui's Vulkan backend wants a
+ * VkDescriptorSet as the texture ID for igImage().
+ *
+ * Return: the descriptor set as uint64_t, 0 if the backend isn't initialized
+ */
+EXTERN uint64_t ui_imgui_vk_texture_add(uint64_t image_view, int image_layout);
+
+/**
+ * ui_imgui_vk_texture_remove() - release a texture ID from ui_imgui_vk_texture_add()
+ * @ds:     the descriptor set
+ * @epoch:  ui_imgui_vk_texture_epoch() at the time it was added
+ *
+ * A backend (re)init destroys imgui's descriptor pool and with it every
+ * added binding: the epoch identifies the pool generation a binding was
+ * allocated from, so stale ones are dropped instead of double-freed.
+ */
+EXTERN void ui_imgui_vk_texture_remove(uint64_t ds, unsigned int epoch);
+
+/**
+ * ui_imgui_vk_texture_epoch() - the current descriptor pool generation
+ *
+ * Return: a counter that changes on every backend (re)init; a binding added
+ *         under another value is dead
+ */
+EXTERN unsigned int ui_imgui_vk_texture_epoch(void);
+
 #endif /* __CLAP_UI_IMGUI_VK_H__ */
