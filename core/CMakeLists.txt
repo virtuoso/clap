@@ -51,6 +51,12 @@ endif ()
 if (CLAP_SHADER_NO_FP16)
     set(CONFIG_SHADER_NO_FP16 1)
 endif ()
+if (CLAP_PLATFORM)
+    if (NOT EXISTS "${CMAKE_SOURCE_DIR}/platforms/${CLAP_PLATFORM}/core.c")
+        message(FATAL_ERROR "Unknown CLAP_PLATFORM '${CLAP_PLATFORM}': no platforms/${CLAP_PLATFORM}/core.c")
+    endif ()
+    set(CONFIG_PLATFORM ${CLAP_PLATFORM})
+endif ()
 if (CLAP_SERVER_IP)
     set(CONFIG_SERVER_IP ${CLAP_SERVER_IP})
 endif ()
@@ -147,7 +153,7 @@ set(ENGINE_SRC
     model.c shader.c librarian.c json.c clap.c view.c light.c thread-pthread.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
     ${PHYSICS_SRC} ui-animations.c ui-menus.c ui-settings.c character.c gpsm.c settings.c error.c
-    gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c datatypes.c
+    gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c platform.c datatypes.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c graphics-settings.c audio-settings.c
     prng.c prng-mt.cpp bsp.c graph.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
@@ -155,6 +161,10 @@ set(ENGINE_SRC
 set_source_files_properties(${MA_DIR}/miniaudio.c PROPERTIES COMPILE_FLAGS
     "-DMA_ENABLE_AUDIO_WORKLETS -DSTB_VORBIS_HEADER_ONLY -include ${MA_DIR}/extras/stb_vorbis.c"
 )
+
+if (CONFIG_PLATFORM)
+    list(APPEND ENGINE_SRC ${CMAKE_SOURCE_DIR}/platforms/${CONFIG_PLATFORM}/core.c)
+endif ()
 
 set(CERRS_H "${CMAKE_CURRENT_BINARY_DIR}/cerrs.h")
 

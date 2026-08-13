@@ -53,6 +53,20 @@
             }
         },
         {
+            "name": "rpi5",
+            "displayName": "Raspberry Pi 5 (Vulkan/v3dv)",
+            "inherits": [ "debug" ],
+            "binaryDir": "${sourceDir}/build/rpi5",
+            "cacheVariables": {
+                "CLAP_RENDERER": "Vulkan",
+                "CLAP_USE_ASAN": false,
+                "CLAP_USE_UBSAN": false,
+                "CLAP_PLATFORM": "rpi5",
+                "CLAP_BUILD_TAA": false,
+                "CLAP_SHADER_NO_FP16": true
+            }
+        },
+        {
             "name": "test",
             "displayName": "Native Test",
             "inherits":["debug"],
@@ -200,6 +214,11 @@
         {
             "name": "Debug",
             "configurePreset": "debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "RPi5",
+            "configurePreset": "rpi5",
             "configuration": "Debug"
         },
         {

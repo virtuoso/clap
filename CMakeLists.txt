@@ -27,6 +27,9 @@ option(CLAP_SHADER_NO_FP16 BOOL OFF)
 # runtime via shader_get_name(); OFF compiles only the uber shaders
 # (see scripts/shader-variants.cmake)
 option(CLAP_SHADER_VARIANTS BOOL OFF)
+# Target platform constraint overrides, compiled from platforms/<name>/core.c;
+# empty (the default) builds no platform quirks in
+set(CLAP_PLATFORM "" CACHE STRING "Target platform overrides (platforms/<name>)")
 option(CLAP_USE_UBSAN BOOL OFF)
 option(CLAP_USE_ASAN BOOL OFF)
 option(CLAP_USE_ODE "Use ODE as the physics backend instead of Box3D" OFF)

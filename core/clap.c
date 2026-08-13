@@ -23,6 +23,7 @@
 #include "networking.h"
 #include "noise.h"
 #include "pipeline-builder.h"
+#include "platform.h"
 #include "profiler.h"
 #include "render.h"
 #include "scene.h"
@@ -439,11 +440,21 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.hdr_compress_knee = 2.0f;
     ctx->render_options.hdr_knee_softness = 4.0f;
     ctx->render_options.hdr_transfer_want = HDR_TRANSFER_PQ;
+
+    /*
+     * Platform overrides on top of the engine defaults; the game's own
+     * graphics init runs later still and wins over both
+     */
+    const clap_platform *platform = platform_get();
+    if (platform && platform->init_render_options)  platform->init_render_options(&ctx->render_options);
 }
 
 unsigned int clap_reserve_shadow_passes(clap_context *ctx, struct view *view, unsigned int nr)
 {
+    const clap_platform *platform = platform_get();
     unsigned int cap = CASCADES_MAX;
+
+    if (platform && platform->shadow_passes_max)    cap = min(cap, platform->shadow_passes_max);
 
     view->nr_cascades = min(nr ? : cap, cap);
 
@@ -1452,6 +1463,8 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
 
     if (cfg && !clap_config_is_valid(cfg))
         return cresp_error(clap_context, CERR_INVALID_ARGUMENTS);
+
+    platform_init();
 
     ctx = mem_alloc(sizeof(*ctx), .zero = 1);
     if (!ctx)

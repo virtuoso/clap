@@ -227,7 +227,8 @@ struct view;
  * @view:   the view whose cascades are being reserved
  * @nr:     requested number of cascades; 0 requests the maximum
  *
- * Clamps the request to what the build can render, CASCADES_MAX.
+ * Clamps the request by the platform's shadow_passes_max (if a platform
+ * is registered) and CASCADES_MAX.
  *
  * Return: the number of cascade passes actually granted.
  */
