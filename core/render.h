@@ -1398,6 +1398,8 @@ TYPE(renderer,
         unsigned int                        image_idx;
         int                                 cull;       /* cull_face: declared below */
         bool                                swapchain_dirty;
+        /* the surface offers a PQ color space; probed once at setup */
+        bool                                edr_supported;
         /* frame-state machine: see render-vk.c */
         bool                                cb_open;
         bool                                image_acquired;

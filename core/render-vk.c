@@ -101,6 +101,30 @@ static bool vk_validation_available(void)
     return false;
 }
 
+/**
+ * vk_instance_ext_available() - whether the loader offers an instance extension
+ * @name:   the extension name
+ *
+ * Return: true if the extension can be enabled on the instance
+ */
+static bool vk_instance_ext_available(const char *name)
+{
+    uint32_t count = 0;
+
+    if (vkEnumerateInstanceExtensionProperties(NULL, &count, NULL) != VK_SUCCESS || !count) return false;
+
+    LOCAL_SET(void, props_buf) = mem_alloc(sizeof(VkExtensionProperties), .nr = count, .zero = true);
+    VkExtensionProperties *props = props_buf;
+    if (!props) return false;
+
+    vkEnumerateInstanceExtensionProperties(NULL, &count, props);
+
+    for (uint32_t i = 0; i < count; i++)
+        if (!strcmp(props[i].extensionName, name))  return true;
+
+    return false;
+}
+
 static const VkDebugUtilsMessengerCreateInfoEXT vk_messenger_info = {
     .sType              = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
     .messageSeverity    = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
@@ -120,15 +144,21 @@ static cerr vk_instance_create(renderer_t *r)
         return CERR_INITIALIZATION_FAILED_REASON(.fmt = "GLFW reports no Vulkan surface extensions");
 
     r->vk.validation = vk_validation_available();
+    /*
+     * Without it the driver only ever advertises SRGB_NONLINEAR surface
+     * formats and there is no HDR color space to pick from
+     */
+    bool swapchain_colorspace = vk_instance_ext_available(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 
-    /* GLFW's surface extensions, plus maybe debug utils */
-    LOCAL_SET(void, exts_buf) = mem_alloc(sizeof(const char *), .nr = nr_glfw_exts + 1);
+    /* GLFW's surface extensions, plus maybe debug utils and swapchain colorspace */
+    LOCAL_SET(void, exts_buf) = mem_alloc(sizeof(const char *), .nr = nr_glfw_exts + 2);
     const char **exts = exts_buf;
     if (!exts)  return CERR_NOMEM;
 
     uint32_t nr_exts = 0;
     for (uint32_t i = 0; i < nr_glfw_exts; i++) exts[nr_exts++] = glfw_exts[i];
-    if (r->vk.validation)   exts[nr_exts++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+    if (r->vk.validation)                       exts[nr_exts++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+    if (swapchain_colorspace)                   exts[nr_exts++] = VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME;
 
     const char *layers[] = { VK_VALIDATION_LAYER };
     VkApplicationInfo app_info = {
@@ -1136,21 +1166,82 @@ static void vk_swapchain_destroy_resources(renderer_t *r)
     r->vk.nr_images = 0;
 }
 
-/* BGRA8 sRGB, RGBA8 sRGB or whatever comes first; VK_FORMAT_UNDEFINED if the surface has nothing */
+/*
+ * HDR output: 10-bit PQ in BT.2020, the wire format the Metal path asks
+ * CAMetalLayer for (kCGColorSpaceITUR_2100_PQ + BGR10A2) and what
+ * present_finalize() already encodes for every non-WGPU backend. The fp16
+ * entry covers drivers that pair ST2084 with half-float only.
+ */
+static const VkSurfaceFormatKHR vk_hdr_formats[] = {
+    { VK_FORMAT_A2B10G10R10_UNORM_PACK32,   VK_COLOR_SPACE_HDR10_ST2084_EXT },
+    { VK_FORMAT_R16G16B16A16_SFLOAT,        VK_COLOR_SPACE_HDR10_ST2084_EXT },
+};
+
+/**
+ * vk_surface_formats_get() - enumerate the surface's format/color space pairs
+ * @r:      renderer, its surface and physical device set
+ * @count:  filled with the number of pairs
+ *
+ * VK_EXT_swapchain_colorspace multiplies every format by every color space
+ * (RADV/wayland alone advertises 81), so the array is sized by asking first.
+ *
+ * Return: the pairs, mem_alloc()ed for the caller to free, NULL with @count
+ *         0 when the surface offers none or the query fails
+ */
+static VkSurfaceFormatKHR *vk_surface_formats_get(renderer_t *r, uint32_t *count)
+{
+    *count = 0;
+    if (vkGetPhysicalDeviceSurfaceFormatsKHR(r->vk.phys_device, r->vk.surface, count, NULL) != VK_SUCCESS || !*count)
+        return NULL;
+
+    VkSurfaceFormatKHR *formats = mem_alloc(sizeof(*formats), .nr = *count);
+    if (!formats)   return NULL;
+
+    /* VK_INCOMPLETE only means the tail didn't fit; the prefix is valid */
+    VkResult res = vkGetPhysicalDeviceSurfaceFormatsKHR(r->vk.phys_device, r->vk.surface, count, formats);
+    if (res != VK_SUCCESS && res != VK_INCOMPLETE) {
+        mem_free(formats);
+        *count = 0;
+        return NULL;
+    }
+
+    return formats;
+}
+
+/**
+ * vk_surface_format_match() - the first wanted format/color space pair the surface offers
+ * @have:       what the surface offers
+ * @nr_have:    entries in @have
+ * @want:       the pairs wanted, in order of preference
+ * @nr_want:    entries in @want
+ *
+ * Return: the first entry of @want present in @have, or VK_FORMAT_UNDEFINED
+ */
+static VkSurfaceFormatKHR vk_surface_format_match(const VkSurfaceFormatKHR *have, uint32_t nr_have,
+                                                  const VkSurfaceFormatKHR *want, uint32_t nr_want)
+{
+    for (uint32_t i = 0; i < nr_want; i++)
+        for (uint32_t j = 0; j < nr_have; j++)
+            if (have[j].format == want[i].format && have[j].colorSpace == want[i].colorSpace)   return want[i];
+
+    return (VkSurfaceFormatKHR){ .format = VK_FORMAT_UNDEFINED };
+}
+
+/**
+ * vk_surface_format_pick() - the SDR swapchain format
+ * @r:  renderer
+ *
+ * Return: BGRA8 sRGB, RGBA8 sRGB or whatever the surface lists first;
+ *         VK_FORMAT_UNDEFINED if it lists nothing
+ */
 static VkSurfaceFormatKHR vk_surface_format_pick(renderer_t *r)
 {
     VkSurfaceFormatKHR none = { .format = VK_FORMAT_UNDEFINED };
-    uint32_t count = 0;
-
-    if (vkGetPhysicalDeviceSurfaceFormatsKHR(r->vk.phys_device, r->vk.surface, &count, NULL) != VK_SUCCESS || !count)
-        return none;
-
-    LOCAL_SET(void, formats_buf) = mem_alloc(sizeof(VkSurfaceFormatKHR), .nr = count);
+    uint32_t count;
+    LOCAL_SET(void, formats_buf) = vk_surface_formats_get(r, &count);
     VkSurfaceFormatKHR *formats = formats_buf;
-    if (!formats)   return none;
 
-    if (vkGetPhysicalDeviceSurfaceFormatsKHR(r->vk.phys_device, r->vk.surface, &count, formats) != VK_SUCCESS)
-        return none;
+    if (!formats)   return none;
 
     for (uint32_t i = 0; i < count; i++)
         if (formats[i].format == VK_FORMAT_B8G8R8A8_UNORM &&
@@ -1163,6 +1254,26 @@ static VkSurfaceFormatKHR vk_surface_format_pick(renderer_t *r)
             return formats[i];
 
     return formats[0];
+}
+
+/**
+ * vk_edr_probe() - find out whether the surface can present HDR at all
+ * @r:  renderer, its surface and physical device set
+ *
+ * On wayland the compositor advertises a PQ color space only when it can
+ * route one to the display, so this doubles as the display capability probe
+ * that display_supports_edr() needs. Neither the surface nor the compositor
+ * changes under us, so it is probed once at setup.
+ */
+static void vk_edr_probe(renderer_t *r)
+{
+    uint32_t count;
+    LOCAL_SET(void, formats_buf) = vk_surface_formats_get(r, &count);
+    VkSurfaceFormatKHR hdr = vk_surface_format_match(formats_buf, count, vk_hdr_formats,
+                                                     array_size(vk_hdr_formats));
+
+    r->vk.edr_supported = hdr.format != VK_FORMAT_UNDEFINED;
+    msg("vulkan: HDR output %ssupported by the surface\n", r->vk.edr_supported ? "" : "un");
 }
 
 static cerr vk_swapchain_create(renderer_t *r)
@@ -3736,6 +3847,7 @@ cerr vk_renderer_setup(renderer_t *renderer, const renderer_init_options *opts)
     if (res != VK_SUCCESS)  return VK_INIT_FAILED("glfwCreateWindowSurface", res);
 
     CERR_RET_CERR(vk_physical_device_pick(renderer));
+    vk_edr_probe(renderer);
     CERR_RET_CERR(vk_device_create(renderer));
     CERR_RET_CERR(vk_frames_init(renderer));
     CERR_RET_CERR(vk_descriptors_init(renderer));
