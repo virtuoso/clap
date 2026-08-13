@@ -1177,6 +1177,12 @@ static const VkSurfaceFormatKHR vk_hdr_formats[] = {
     { VK_FORMAT_R16G16B16A16_SFLOAT,        VK_COLOR_SPACE_HDR10_ST2084_EXT },
 };
 
+/* the SDR swapchain, in order of preference */
+static const VkSurfaceFormatKHR vk_sdr_formats[] = {
+    { VK_FORMAT_B8G8R8A8_UNORM,             VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
+    { VK_FORMAT_R8G8B8A8_UNORM,             VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
+};
+
 /**
  * vk_surface_formats_get() - enumerate the surface's format/color space pairs
  * @r:      renderer, its surface and physical device set
@@ -1236,24 +1242,20 @@ static VkSurfaceFormatKHR vk_surface_format_match(const VkSurfaceFormatKHR *have
  */
 static VkSurfaceFormatKHR vk_surface_format_pick(renderer_t *r)
 {
-    VkSurfaceFormatKHR none = { .format = VK_FORMAT_UNDEFINED };
     uint32_t count;
     LOCAL_SET(void, formats_buf) = vk_surface_formats_get(r, &count);
     VkSurfaceFormatKHR *formats = formats_buf;
+    VkSurfaceFormatKHR format = { .format = VK_FORMAT_UNDEFINED };
 
-    if (!formats)   return none;
+    if (r->vk.hdr)  format = vk_surface_format_match(formats, count, vk_hdr_formats, array_size(vk_hdr_formats));
 
-    for (uint32_t i = 0; i < count; i++)
-        if (formats[i].format == VK_FORMAT_B8G8R8A8_UNORM &&
-            formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-            return formats[i];
+    if (format.format == VK_FORMAT_UNDEFINED)
+        format = vk_surface_format_match(formats, count, vk_sdr_formats,
+                                         array_size(vk_sdr_formats));
 
-    for (uint32_t i = 0; i < count; i++)
-        if (formats[i].format == VK_FORMAT_R8G8B8A8_UNORM &&
-            formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-            return formats[i];
+    if (format.format == VK_FORMAT_UNDEFINED)   format = count ? formats[0] : vk_sdr_formats[0];
 
-    return formats[0];
+    return format;
 }
 
 /**
@@ -1346,8 +1348,10 @@ static cerr vk_swapchain_create(renderer_t *r)
         CERR_RET_CERR(vk_semaphore_create(r, &r->vk.render_sems[i]));
     }
 
-    if (r->vk.swapchain_format != format.format) {
+    if (r->vk.swapchain_format != format.format ||
+        r->vk.swapchain_colorspace != format.colorSpace) {
         r->vk.swapchain_format = format.format;
+        r->vk.swapchain_colorspace = format.colorSpace;
         r->swapchain_gen++;
         draw_control_cache_drop(r, NULL);
     }
@@ -1356,8 +1360,8 @@ static cerr vk_swapchain_create(renderer_t *r)
     r->vk.sc_height = extent.height;
     r->vk.swapchain_dirty = false;
 
-    dbg("vulkan: swapchain %ux%u, %u images, format %d\n",
-        extent.width, extent.height, nr_images, format.format);
+    dbg("vulkan: swapchain %ux%u, %u images, format %d, color space %d\n",
+        extent.width, extent.height, nr_images, format.format, format.colorSpace);
 
     return CERR_OK;
 }
@@ -1443,8 +1447,41 @@ static void vk_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidt
     if (pheight)    *pheight = r->height;
 }
 
+static bool vk_renderer_supports_edr(renderer_t *r)  { return r->vk.edr_supported; }
+
+/**
+ * vk_hdr_reconfigure() - swap the swapchain over to the current HDR settings
+ * @r:  renderer
+ *
+ * Recreating right here rather than flagging it dirty: consumers that bake
+ * the swapchain format
+ * into a pipeline (imgui's backend) sample the format generation once per
+ * frame, so the flip has to be visible before the next frame begins. Today's
+ * callers -- the clap_init() defaults and the debug UI out of scene_update()
+ * -- all run outside the swapchain pass, in the same state swapchain_begin()
+ * recreates in; anything else falls back to the lazy path.
+ */
+static void vk_hdr_reconfigure(renderer_t *r)
+{
+    if (r->vk.image_acquired || r->vk.pass_open) {
+        r->vk.swapchain_dirty = true;
+        return;
+    }
+
+    CERR_RET(vk_swapchain_recreate(r), {
+        err_cerr(__cerr, "vulkan: swapchain recreation failed\n");
+        r->vk.swapchain_dirty = true;
+    });
+}
+
 static void vk_renderer_hdr_enable(renderer_t *r, bool enable)
 {
+    bool want = r->vk.edr_supported && enable;
+
+    if (want == r->vk.hdr)  return;
+
+    r->vk.hdr = want;
+    vk_hdr_reconfigure(r);
 }
 
 static void vk_ubos_frame_advance(renderer_t *r);
@@ -3748,6 +3785,7 @@ static const renderer_ops vk_renderer_ops = {
     .done                   = vk_renderer_done,
     .viewport               = vk_renderer_viewport,
     .get_viewport           = vk_renderer_get_viewport,
+    .supports_edr           = vk_renderer_supports_edr,
     .hdr_enable             = vk_renderer_hdr_enable,
     .swapchain_begin        = vk_renderer_swapchain_begin,
     .frame_begin            = vk_renderer_frame_begin,

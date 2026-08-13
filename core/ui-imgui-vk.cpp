@@ -105,6 +105,14 @@ void ui_imgui_vk_render_draw_data(ImDrawData *draw)
      */
     if (!renderer_vk_pass_open(renderer))   return;
 
+    /*
+     * The HDR toggle lives in an imgui window, so a format flip can land
+     * after this frame's new_frame(): the pipeline in hand is built for the
+     * old swapchain format. Skip the frame, new_frame() reinitializes
+     * before the next one
+     */
+    if (renderer_vk_swapchain_format_gen(renderer) != last_format_gen)  return;
+
     ImGui_ImplVulkan_RenderDrawData(draw, renderer_vk_cmd_buf(renderer));
 }
 

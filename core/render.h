@@ -257,6 +257,7 @@ typedef VkDebugUtilsMessengerEXT vk_debug_utils_messenger_t;
 typedef VkRenderingAttachmentInfo vk_rendering_attachment_info_t;
 typedef VkRenderingInfo vk_rendering_info_t;
 typedef VkFormat vk_format_t;
+typedef VkColorSpaceKHR vk_color_space_t;
 typedef VkImageLayout vk_image_layout_t;
 typedef VkQueryPool vk_query_pool_t;
 static_assert(sizeof(VkImage) == sizeof(uint64_t), "VkImage handle width mismatch");
@@ -267,6 +268,7 @@ static_assert(sizeof(VkRenderingInfo) == VK_RENDERING_INFO_SIZE, "VkRenderingInf
 static_assert(_Alignof(VkRenderingAttachmentInfo) == VK_RENDERING_INFO_ALIGN &&
               _Alignof(VkRenderingInfo) == VK_RENDERING_INFO_ALIGN, "VkRenderingInfo alignment mismatch");
 static_assert(sizeof(VkFormat) == sizeof(int), "VkFormat width mismatch");
+static_assert(sizeof(VkColorSpaceKHR) == sizeof(int), "VkColorSpaceKHR width mismatch");
 static_assert(sizeof(VkImageLayout) == sizeof(int), "VkImageLayout width mismatch");
 # else /* !IMPLEMENTOR */
 typedef void *vk_instance_t;
@@ -297,6 +299,7 @@ typedef struct { char _[VK_RENDERING_ATTACHMENT_INFO_SIZE]; } __attribute__((ali
 typedef struct { char _[VK_RENDERING_INFO_SIZE]; } __attribute__((aligned(VK_RENDERING_INFO_ALIGN)))
     vk_rendering_info_t;
 typedef int vk_format_t;
+typedef int vk_color_space_t;
 typedef int vk_image_layout_t;
 typedef uint64_t vk_query_pool_t;
 # endif /* !IMPLEMENTOR */
@@ -1389,6 +1392,7 @@ TYPE(renderer,
 #endif /* !CONFIG_FINAL */
         int                                 limits[RENDER_LIMIT_MAX];
         vk_format_t                         swapchain_format;
+        vk_color_space_t                    swapchain_colorspace;
         unsigned int                        queue_family;
         unsigned int                        sc_width;
         unsigned int                        sc_height;
@@ -1400,6 +1404,8 @@ TYPE(renderer,
         bool                                swapchain_dirty;
         /* the surface offers a PQ color space; probed once at setup */
         bool                                edr_supported;
+        /* HDR output wanted and possible: drives the swapchain format pick */
+        bool                                hdr;
         /* frame-state machine: see render-vk.c */
         bool                                cb_open;
         bool                                image_acquired;
