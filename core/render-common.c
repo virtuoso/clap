@@ -166,6 +166,21 @@ const char *renderer_shader_ext(renderer_t *r)
     return render_shader_ext[renderer_get_caps(r)->renderer];
 }
 
+const char *renderer_backend_name(render_backend backend)
+{
+    if ((unsigned int)backend >= RENDER_MAX)    return "unknown";
+
+    return render_str[backend];
+}
+
+cres(render_backend) renderer_backend_by_name(const char *name)
+{
+    for (int i = 0; i < RENDER_MAX; i++)
+        if (!strcasecmp(render_str[i], name))   return cres_val(render_backend, i);
+
+    return cres_error(render_backend, CERR_NOT_FOUND);
+}
+
 const renderer_caps *renderer_get_caps(renderer_t *r)
 {
     return r->ops->get_caps();
@@ -237,7 +252,8 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 
 void renderer_done(renderer_t *renderer)
 {
-    if (!renderer->ops->done)   return;
+    /* a failed renderer_init() may not have gotten as far as picking a backend */
+    if (!renderer->ops || !renderer->ops->done) return;
     renderer->ops->done(renderer);
 }
 

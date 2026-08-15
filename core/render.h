@@ -1450,6 +1450,24 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts);
 void renderer_done(renderer_t *r);
 const renderer_caps *renderer_get_caps(renderer_t *r);
 const char *renderer_shader_ext(renderer_t *r);
+
+/**
+ * renderer_backend_name() - human-readable name of a rendering backend
+ * @backend:    RENDER_* constant
+ *
+ * Return: "OpenGL", "Vulkan" and so on; "unknown" for anything out of range.
+ */
+const char *renderer_backend_name(render_backend backend);
+
+cres_ret(render_backend);
+
+/**
+ * renderer_backend_by_name() - look a rendering backend up by name
+ * @name:   backend name as renderer_backend_name() spells it, in any case
+ *
+ * Return: the RENDER_* constant, or CERR_NOT_FOUND when @name matches none.
+ */
+cres(render_backend) renderer_backend_by_name(const char *name);
 void renderer_set_version(renderer_t *renderer, int major, int minor, renderer_profile profile);
 void renderer_viewport(renderer_t *r, int x, int y, int width, int height);
 void renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwidth, int *pheight);

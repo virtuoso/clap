@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "config.h"
+#define GLFW_INCLUDE_NONE
 #if defined(CONFIG_RENDERER_OPENGL)
-# define GLFW_INCLUDE_NONE
 # if defined(CONFIG_GLES)
 #  include <GLES3/gl3.h>
 # elif defined(__APPLE__)
@@ -11,11 +11,7 @@
 # else
 #  include <glad/glad.h>
 # endif
-#elif defined(CONFIG_RENDERER_METAL)
-#define GLFW_INCLUDE_NONE
-#elif defined(CONFIG_RENDERER_VULKAN)
-#define GLFW_INCLUDE_NONE
-#endif
+#endif /* CONFIG_RENDERER_OPENGL */
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -317,13 +313,99 @@ restart:
 
     return CERR_OK;
 }
-#elif defined(CONFIG_RENDERER_METAL)
+#else /* !CONFIG_RENDERER_OPENGL */
+static cerr display_gl_init(struct clap_context *ctx)
+{
+    return CERR_NOT_SUPPORTED_REASON(.fmt = "OpenGL support is not compiled in");
+}
+#endif /* !CONFIG_RENDERER_OPENGL */
+
+#ifdef CONFIG_RENDERER_METAL
 cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow);
-#elif defined(CONFIG_RENDERER_VULKAN)
+#else /* !CONFIG_RENDERER_METAL */
+static cerr display_metal_init(struct clap_context *ctx, GLFWwindow **pwindow)
+{
+    return CERR_NOT_SUPPORTED_REASON(.fmt = "Metal support is not compiled in");
+}
+#endif /* !CONFIG_RENDERER_METAL */
+
+#ifdef CONFIG_RENDERER_VULKAN
 cerr display_vk_init(struct clap_context *ctx, GLFWwindow **pwindow);
-#else
-#error "Unsupported renderer"
+#else /* !CONFIG_RENDERER_VULKAN */
+static cerr display_vk_init(struct clap_context *ctx, GLFWwindow **pwindow)
+{
+    return CERR_NOT_SUPPORTED_REASON(.fmt = "Vulkan support is not compiled in");
+}
+#endif /* !CONFIG_RENDERER_VULKAN */
+
+/*
+ * The order display_init() tries the compiled-in backends in when the
+ * command line doesn't name one: the platform's native API, then vulkan,
+ * then OpenGL as the fallback every desktop still has
+ */
+/* whether the picked backend presents through GLFW; decided once at display_init() */
+static bool swap_buffers;
+
+static const render_backend display_backend_order[] = {
+#ifdef CONFIG_RENDERER_METAL
+    RENDER_METAL,
+#endif /* CONFIG_RENDERER_METAL */
+#ifdef CONFIG_RENDERER_VULKAN
+    RENDER_VULKAN,
+#endif /* CONFIG_RENDERER_VULKAN */
+#ifdef CONFIG_RENDERER_OPENGL
+    RENDER_OPENGL,
 #endif /* CONFIG_RENDERER_OPENGL */
+};
+
+/**
+ * display_backend_init() - create the window and renderer for one backend
+ * @ctx:        clap context
+ * @backend:    the backend to bring up
+ *
+ * Return: CERR_OK, CERR_NOT_SUPPORTED for a backend that isn't compiled in,
+ *         or the backend's own error, with its partial state left for
+ *         display_backend_undo()
+ */
+static cerr display_backend_init(struct clap_context *ctx, render_backend backend)
+{
+    switch (backend) {
+        case RENDER_OPENGL: return display_gl_init(ctx);
+        case RENDER_METAL:  return display_metal_init(ctx, &window);
+        case RENDER_VULKAN: return display_vk_init(ctx, &window);
+        default:            break;
+    }
+
+    return CERR_NOT_SUPPORTED_REASON(
+        .fmt    = "%s is not a display backend",
+        .arg0   = renderer_backend_name(backend)
+    );
+}
+
+/**
+ * display_backend_undo() - undo a failed display_backend_init()
+ *
+ * The next backend starts clean: partial renderer state torn down, the
+ * window destroyed, GLFW's sticky window hints reset.
+ */
+static void display_backend_undo(void)
+{
+    /*
+     * A backend that failed inside renderer_init() leaves its partial state
+     * behind (vulkan: an instance and a surface without a device): done()
+     * takes that apart, and zeroing the struct keeps a later undo from doing
+     * it twice. A backend that never got that far makes both no-ops.
+     */
+    renderer_done(renderer);
+    memset(renderer, 0, sizeof(*renderer));
+
+    if (window) {
+        glfwDestroyWindow(window);
+        window = NULL;
+    }
+    /* GLFW_CLIENT_API and the GL context hints stick until reset */
+    glfwDefaultWindowHints();
+}
 
 cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, display_resize_cb resize_cb)
 {
@@ -346,18 +428,30 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_cb, d
 
     glfwSetErrorCallback(__error_cb);
 
-#ifdef CONFIG_RENDERER_OPENGL
-    cerr err = display_gl_init(ctx);
-#elif defined(CONFIG_RENDERER_METAL)
-    cerr err = display_metal_init(ctx, &window);
-#elif defined(CONFIG_RENDERER_VULKAN)
-    cerr err = display_vk_init(ctx, &window);
-#else
-    return CERR_INITIALIZATION_FAILED;
-#endif
+    render_backend want = clap_get_renderer_want(ctx);
+    cerr err = CERR_NOT_SUPPORTED;
+
+    if (want != RENDER_MAX) {
+        err = display_backend_init(ctx, want);
+    } else {
+        for (size_t i = 0; i < array_size(display_backend_order); i++) {
+            err = display_backend_init(ctx, display_backend_order[i]);
+            if (!IS_CERR(err))  break;
+
+            err_cerr(err, "%s display init failed\n", renderer_backend_name(display_backend_order[i]));
+            display_backend_undo();
+        }
+    }
 
     if (IS_CERR(err))
         return err;
+
+    msg("display: %s renderer\n", renderer_backend_name(renderer_get_caps(renderer)->renderer));
+    /*
+     * Metal and Vulkan present in renderer_frame_end(); GLFW would error on
+     * a GLFW_NO_API window
+     */
+    swap_buffers = renderer_get_caps(renderer)->renderer == RENDER_OPENGL;
 
     get_content_scale();
     glfwSetWindowPosCallback(window, __move_cb);
@@ -604,13 +698,7 @@ int platform_input_init(struct clap_context *ctx)
 
 void display_swap_buffers(void)
 {
-    /*
-     * Metal and Vulkan present in renderer_frame_end(); GLFW would error on
-     * a GLFW_NO_API window
-     */
-#if !defined(CONFIG_RENDERER_METAL) && !defined(CONFIG_RENDERER_VULKAN)
-    glfwSwapBuffers(window);
-#endif /* !CONFIG_RENDERER_METAL && !CONFIG_RENDERER_VULKAN */
+    if (swap_buffers)   glfwSwapBuffers(window);
     glfwPollEvents();
     /* XXX: move to the start of frame code? */
     platform_joysticks_poll();

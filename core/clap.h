@@ -185,6 +185,16 @@ CLAP_API
 renderer_t *clap_get_renderer(struct clap_context *ctx) __nonnull_params((1));
 
 /**
+ * clap_get_renderer_want() - the rendering backend named on the command line
+ * @ctx:    clap_context
+ *
+ * Return: a RENDER_* constant, or %RENDER_MAX when none was named and the
+ *         display goes with the first backend that initializes.
+ */
+CLAP_API
+render_backend clap_get_renderer_want(struct clap_context *ctx) __nonnull_params((1));
+
+/**
  * clap_get_viewport() - get clap's viewport
  * @ctx:    clap_context
  * @px:     X coordinate receiver or NULL
@@ -517,6 +527,7 @@ enum clap_cli_opt_bits {
     CLAP_CLI_ABORT_ON_ERROR_BIT,
     CLAP_CLI_SERVER_ADDR_BIT,
     CLAP_CLI_SCRIPT_DIR_BIT,
+    CLAP_CLI_RENDERER_BIT,
     CLAP_CLI_SENTINEL
 };
 
@@ -527,15 +538,17 @@ typedef enum clap_cli_opts {
     CLAP_CLI_ABORT_ON_ERROR = (1u << CLAP_CLI_ABORT_ON_ERROR_BIT),
     CLAP_CLI_SERVER_ADDR    = (1u << CLAP_CLI_SERVER_ADDR_BIT),
     CLAP_CLI_SCRIPT_DIR     = (1u << CLAP_CLI_SCRIPT_DIR_BIT),
+    CLAP_CLI_RENDERER       = (1u << CLAP_CLI_RENDERER_BIT),
 #ifdef CONFIG_FINAL
-    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN | CLAP_CLI_HELP,
+    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN | CLAP_CLI_HELP | CLAP_CLI_RENDERER,
 #else /* !CONFIG_FINAL */
     CLAP_CLI_DEFAULT        = CLAP_CLI_HELP             |
                               CLAP_CLI_FULLSCREEN       |
                               CLAP_CLI_EXITAFTER        |
                               CLAP_CLI_ABORT_ON_ERROR   |
                               CLAP_CLI_SERVER_ADDR      |
-                              CLAP_CLI_SCRIPT_DIR,
+                              CLAP_CLI_SCRIPT_DIR       |
+                              CLAP_CLI_RENDERER,
 #endif /* !CONFIG_FINAL */
 } clap_cli_opts;
 

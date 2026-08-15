@@ -232,6 +232,7 @@ typedef struct clap_context {
     int                 exit_after;
     double              paused_time;
     cerr                pipeline_error;
+    render_backend      renderer_want;
     bool                fullscreen;
     bool                paused;
 } clap_context;
@@ -259,6 +260,11 @@ renderer_t *clap_get_renderer(struct clap_context *ctx)
 {
     if (!ctx->cfg.graphics) return NULL;
     return &ctx->renderer;
+}
+
+render_backend clap_get_renderer_want(struct clap_context *ctx)
+{
+    return ctx->renderer_want;
 }
 
 void clap_get_viewport(struct clap_context *ctx, int *px, int *py, int *pw, int *ph)
@@ -1240,6 +1246,19 @@ static cerr handle_server_opt(clap_context *ctx, const char *optarg)
     return CERR_OK;
 }
 
+/* -R/--renderer: the backend to force, looked up against the backend table */
+static cerr handle_renderer_opt(clap_context *ctx, const char *optarg)
+{
+    ctx->renderer_want = CRES_RET(renderer_backend_by_name(optarg), {
+        return CERR_INVALID_ARGUMENTS_REASON(
+            .fmt    = "unknown rendering backend '%s'",
+            .arg0   = optarg
+        );
+    });
+
+    return CERR_OK;
+}
+
 static cerr handle_help_opt(clap_context *ctx, const char *optarg);
 
 const char *clap_get_argv(clap_context *ctx, int idx)
@@ -1313,6 +1332,15 @@ static const struct clap_cli_options_desc {
         .arg_required   = true,
         .type           = CLI_STR,
         .ctx_offset     = offsetof(clap_context, script_dir)
+    },
+    [CLAP_CLI_RENDERER_BIT] = {
+        .long_name      = "renderer",
+        .short_name     = 'R',
+        .help           = "rendering backend to use (OpenGL, Vulkan, Metal); default: the first one that works",
+        .arg_help       = "name",
+        .arg_required   = true,
+        .type           = CLI_STR,
+        .handle         = handle_renderer_opt
     },
 };
 
@@ -1483,6 +1511,7 @@ cresp(clap_context) clap_init(struct clap_config *cfg, int argc, char **argv, ch
         memcpy(&ctx->cfg, cfg, sizeof(ctx->cfg));
 
     ctx->exit_after = -1;
+    ctx->renderer_want = RENDER_MAX;
 
     if (cfg->networking) {
         ctx->cfg.networking = memdup(cfg->networking, sizeof(*cfg->networking));
