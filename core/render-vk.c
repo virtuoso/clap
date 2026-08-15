@@ -1179,7 +1179,11 @@ static void vk_swapchain_destroy_resources(renderer_t *r)
  * The extended pairs are fp16: the linear ones the compositor encodes itself,
  * the nonlinear ones carry the sRGB curve past 1.0 (RADV on wayland offers
  * neither of those two, other stacks do); within each kind only the
- * primaries differ.
+ * primaries differ. SCRGB is the linear sRGB surface again, for windows
+ * desktops, where DWM puts 1.0 at 80 nits rather than at its SDR white: a
+ * windows build offers both and the encode differs, see shader_constants.h.
+ * Under wine the surface is the host compositor's, so the plain linear one
+ * is the right pick there.
  */
 static const struct vk_hdr_transfer {
     const char          *name;
@@ -1215,6 +1219,15 @@ static const struct vk_hdr_transfer {
         .fmt    = { { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT } },
         .nr     = 1,
     },
+#ifdef _WIN32
+    [HDR_TRANSFER_SCRGB] = {
+        .name   = "scRGB (80-nit white)",
+        .fmt    = { { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT } },
+        .nr     = 1,
+    },
+#else
+    [HDR_TRANSFER_SCRGB] = { .name = "scRGB (80-nit white)" },
+#endif /* !_WIN32 */
 };
 
 /* the SDR swapchain, in order of preference */
