@@ -1173,24 +1173,27 @@ static void vk_swapchain_destroy_resources(renderer_t *r)
  * @nr:     entries in @fmt
  *
  * PQ is the 10-bit BT.2020 wire format the Metal path asks CAMetalLayer for
- * (kCGColorSpaceITUR_2100_PQ + BGR10A2), with an fp16 fallback for drivers
- * that only pair ST2084 with half-float. The extended pairs are fp16: the
- * linear ones the compositor encodes itself, the nonlinear ones carry the
- * sRGB curve past 1.0 (RADV on wayland offers neither of those two, other
- * stacks do); within each kind only the primaries differ.
+ * (kCGColorSpaceITUR_2100_PQ + BGR10A2), in either channel order -- RADV
+ * offers both, dxvk asks for both in this order too, so windows drivers vary
+ * -- with an fp16 fallback for drivers that only pair ST2084 with half-float.
+ * The extended pairs are fp16: the linear ones the compositor encodes itself,
+ * the nonlinear ones carry the sRGB curve past 1.0 (RADV on wayland offers
+ * neither of those two, other stacks do); within each kind only the
+ * primaries differ.
  */
 static const struct vk_hdr_transfer {
     const char          *name;
-    VkSurfaceFormatKHR  fmt[2];
+    VkSurfaceFormatKHR  fmt[3];
     unsigned int        nr;
 } vk_hdr_transfers[HDR_TRANSFER_MAX] = {
     [HDR_TRANSFER_PQ] = {
         .name   = "PQ (BT.2020)",
         .fmt    = {
             { VK_FORMAT_A2B10G10R10_UNORM_PACK32,   VK_COLOR_SPACE_HDR10_ST2084_EXT },
+            { VK_FORMAT_A2R10G10B10_UNORM_PACK32,   VK_COLOR_SPACE_HDR10_ST2084_EXT },
             { VK_FORMAT_R16G16B16A16_SFLOAT,        VK_COLOR_SPACE_HDR10_ST2084_EXT },
         },
-        .nr     = 2,
+        .nr     = 3,
     },
     [HDR_TRANSFER_EXT_SRGB_LINEAR] = {
         .name   = "linear (BT.709)",
