@@ -9,7 +9,7 @@ layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 
 void main()
 {
-    float pixsz = 1.0 / textureSize(model_tex, 0).x;
+    float pixsz = 1.0 / textureSize(model_tex, 0).y;
     vec4 color = vec4(0.0);
     color += texture(model_tex, pass_tex + vec2(0.0, -5.0 * pixsz)) * 0.0093;
     color += texture(model_tex, pass_tex + vec2(0.0, -4.0 * pixsz)) * 0.028002;
