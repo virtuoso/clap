@@ -52,6 +52,10 @@ FFI_GET_FLOAT(ffi_render_bloom_threshold, "fn (ro: RenderOptions) bloom_threshol
               render_options, bloom_threshold)
 FFI_SET_FLOAT(ffi_render_set_bloom_threshold, "fn (ro: RenderOptions) set_bloom_threshold*(v: real)",
               render_options, bloom_threshold)
+FFI_GET_FLOAT(ffi_render_bloom_distance, "fn (ro: RenderOptions) bloom_distance*(): real",
+              render_options, bloom_distance)
+FFI_SET_FLOAT(ffi_render_set_bloom_distance, "fn (ro: RenderOptions) set_bloom_distance*(v: real)",
+              render_options, bloom_distance)
 
 /* Tone / colour */
 FFI_GET_FLOAT(ffi_render_contrast, "fn (ro: RenderOptions) contrast*(): real", render_options, contrast)
