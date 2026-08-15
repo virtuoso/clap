@@ -432,6 +432,8 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.bloom_intensity = 2.0;
     ctx->render_options.bloom_threshold = 0.27;
     ctx->render_options.bloom_operator = 1.0;
+    /* 0: halo radius does not scale with the emitter's distance */
+    ctx->render_options.bloom_distance = 0.0;
     ctx->render_options.lighting_exposure = 1.3;
     ctx->render_options.lighting_operator = 0.0;
     ctx->render_options.contrast = 0.15;

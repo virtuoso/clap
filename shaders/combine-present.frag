@@ -9,6 +9,7 @@
 
 #include "shader_constants.h"
 #include "half.glsl"
+#include "color-utils.glsl"
 #include "pass-tex.glsl"
 #include "tonemap.glsl"
 #include "lut.glsl"
@@ -21,6 +22,7 @@ layout (location=0) in vec2 pass_tex;
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 layout (binding=SAMPLER_BINDING_bloom_tex) uniform sampler2D bloom_tex;
+layout (binding=SAMPLER_BINDING_bloom_half_tex) uniform sampler2D bloom_half_tex;
 layout (binding=SAMPLER_BINDING_sobel_tex) uniform sampler2D sobel_tex;
 layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;

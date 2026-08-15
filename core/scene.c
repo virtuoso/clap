@@ -316,6 +316,7 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igSliderFloat("bloom exposure", &ropts->bloom_exposure, 0.01, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom intensity", &ropts->bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom threshold", &ropts->bloom_threshold, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        igSliderFloat("bloom distance", &ropts->bloom_distance, 0.0, 100.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
         int bop = (int)ropts->bloom_operator;
         igText("bloom tonemapping op:");
         igSameLine(0.0, 0.0);

@@ -6,8 +6,8 @@
  * resolve and/or SMAA in present between it and the screen) and
  * combine-present.frag (combine and present merged into one screen
  * pass when neither TAA nor SMAA runs). The including shader declares
- * the samplers (model_tex, emission_map, bloom_tex, sobel_tex,
- * depth_tex, shadow_map, lut_tex, noise3d) and the UBOs.
+ * the samplers (model_tex, emission_map, bloom_tex, bloom_half_tex,
+ * sobel_tex, depth_tex, shadow_map, lut_tex, noise3d) and the UBOs.
  */
 
 /*
@@ -58,7 +58,25 @@ vec4 combine_color(vec2 pass_tex)
      * bloom-downsample.frag; sampled at 1/4-res stride it aliases per
      * frame especially hard on small emitters.
      */
-    f16vec3 blurred = HVEC3(texture(bloom_tex, pass_tex).rgb);
+    vec4 wide = texture(bloom_tex, pass_tex);
+
+    /*
+     * Halo radius falls off with the emitter's distance: a glow of a
+     * fixed world radius subtends less of the screen the further away
+     * it is. Two kernels and a lerp between them approximate the
+     * 1/distance curve: the same blur chain at quarter and at half res,
+     * so the tight end reaches half as far. Peak intensity needs no
+     * compensation, because the energy and the area it covers shrink
+     * at the same rate. bloom-downsample.frag premultiplied the
+     * normalized distance by luma, so dividing the blurred alpha by the
+     * blurred luma recovers the luma-weighted mean distance of the
+     * emitters that lit this texel -- right across a silhouette, where
+     * the depth under the halo belongs to the background. It is 0 with
+     * distance scaling off (bloom_distance == 0), which leaves the
+     * blend at the wide end.
+     */
+    float tightness = clamp(wide.a / max(luma(wide.rgb), 1e-6), 0.0, 1.0);
+    f16vec3 blurred = HVEC3(mix(wide.rgb, texture(bloom_half_tex, pass_tex).rgb, tightness));
     vec2 em_uv = use_taa ?
         convert_pass_tex(convert_pass_tex(pass_tex) + jitter * 0.5) :
         pass_tex;

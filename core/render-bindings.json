@@ -24,7 +24,8 @@
         { "name": "grain_tex",      "binding": 11, "symbol": "UNIFORM_GRAIN_TEX" },
         { "name": "history_tex",    "binding": 12, "symbol": "UNIFORM_HISTORY_TEX" },
         { "name": "velocity_tex",   "binding": 13, "symbol": "UNIFORM_VELOCITY_TEX" },
-        { "name": "bloom_tex",      "binding": 1,  "symbol": "UNIFORM_BLOOM_TEX" }
+        { "name": "bloom_tex",      "binding": 1,  "symbol": "UNIFORM_BLOOM_TEX" },
+        { "name": "bloom_half_tex", "binding": 6,  "symbol": "UNIFORM_BLOOM_HALF_TEX" }
     ],
     "ubos": [
         {
@@ -165,7 +166,8 @@
                 { "name": "bloom_exposure", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_EXPOSURE", "discription": "bloom exposure" },
                 { "name": "bloom_intensity", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_INTENSITY", "discription": ">0: emission map bloom intensity; <0: diffuse color bloom intensity" },
                 { "name": "bloom_threshold", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_THRESHOLD", "discription": "emission cutoff" },
-                { "name": "bloom_operator", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_OPERATOR", "discription": "HDR bloom tonemapping operator" }
+                { "name": "bloom_operator", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_OPERATOR", "discription": "HDR bloom tonemapping operator" },
+                { "name": "bloom_distance", "type": "DT_FLOAT", "symbol": "UNIFORM_BLOOM_DISTANCE", "discription": "emitter distance at which the bloom halo is tightest; 0 disables distance scaling" }
             ]
         },
         {

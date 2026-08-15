@@ -18,6 +18,7 @@ typedef struct render_options {
     float   bloom_intensity;
     float   bloom_threshold;
     float   bloom_operator;
+    float   bloom_distance;
     float   lighting_exposure;
     float   lighting_operator;
     float   contrast;

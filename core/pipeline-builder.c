@@ -140,6 +140,27 @@ static texture_format get_hdr_format(pipeline_builder_opts *opts)
     return hdr_fmt;
 }
 
+/*
+ * The bloom chain carries the emitter's distance in alpha (see
+ * bloom-downsample.frag), so its render targets need a format that
+ * keeps one: the RGB HDR formats get_hdr_format() prefers for the
+ * model pass' bandwidth have no alpha where the backend maps them
+ * literally (GL), and a write to it is silently dropped
+ */
+static texture_format get_bloom_format(pipeline_builder_opts *opts, texture_format hdr_fmt)
+{
+    texture_format with_alpha;
+
+    switch (hdr_fmt) {
+        case TEX_FMT_RGB16F:    with_alpha = TEX_FMT_RGBA16F;   break;
+        case TEX_FMT_RGB32F:    with_alpha = TEX_FMT_RGBA32F;   break;
+        default:                return hdr_fmt;
+    }
+
+    auto r = clap_get_renderer(opts->pl_opts->clap_ctx);
+    return fbo_texture_supported(r, with_alpha) ? with_alpha : hdr_fmt;
+}
+
 static texture_format get_depth_format(pipeline_builder_opts *opts)
 {
     /*
@@ -202,6 +223,44 @@ static cresp(render_pass) add_blur_subchain(pipeline *pl, render_pass *src, fbo_
             .ops                = &postproc_ops,
             .scale              = scale,
             .shader             = "hblur",
+        ),
+        render_pass
+    );
+
+    return cresp_val(render_pass, pass);
+}
+
+/*
+ * The head of a bloom chain: the thresholded emission tent-downsampled
+ * to @scale, with the emitter distance carried in alpha for the
+ * distance lerp in combine_color(), see bloom-downsample.frag
+ */
+static cresp(render_pass) add_bloom_downsample(pipeline *pl, render_pass *model_pass, render_method method,
+                                               texture_format format, float scale)
+{
+    auto pass = CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = model_pass,
+                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_EMISSION),
+                    .method     = method,
+                    .sampler    = UNIFORM_MODEL_TEX
+                },
+                {
+                    .pass       = model_pass,
+                    .attachment = FBO_DEPTH_TEXTURE(0),
+                    .method     = method,
+                    .sampler    = UNIFORM_DEPTH_TEX
+                },
+                {}
+            },
+            .color_config       = (fbo_attconfig[]) { { .format = format, .load_action = FBOLOAD_DONTCARE } },
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .ops                = &postproc_ops,
+            /* unjitters its input: emission pulses across the coarse texels otherwise */
+            .shader             = "bloom-downsample",
+            .scale              = scale,
         ),
         render_pass
     );
@@ -373,6 +432,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 #endif /* CONFIG_SHADOW_MAP_ARRAY */
 
     texture_format hdr_fmt = get_hdr_format(opts);
+    texture_format bloom_fmt = get_bloom_format(opts, hdr_fmt);
     texture_format depth_fmt = get_depth_format(opts);
 
     static const enum shader_vars shadow_samplers[CASCADES_MAX] = {
@@ -446,26 +506,8 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         ),
         pipeline
     );
-    struct render_pass *pass;
-    pass = CRES_RET_T(
-        pipeline_add_pass(pl,
-            .source             = (render_source[]) {
-                {
-                    .pass       = model_pass,
-                    .attachment = FBO_COLOR_TEXTURE(RT_MODEL_EMISSION),
-                    .method     = model_pass_method,
-                    .sampler    = UNIFORM_MODEL_TEX
-                },
-                {}
-            },
-            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .ops                = &postproc_ops,
-            /* unjitters its input: emission pulses across 1/4-res texels otherwise */
-            .shader             = "bloom-downsample",
-            .scale              = 0.25,
-        ),
-        pipeline
+    render_pass *bloom_pass = CRES_RET_T(
+        add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.25), pipeline
     );
 
     /*
@@ -475,8 +517,22 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
      * for math that amounts to three lines
      */
     render_pass *bloom_blur_pass = CRES_RET_T(
-        add_blur_subchain(pl, pass, FBO_COLOR_TEXTURE(0), hdr_fmt, ropts->render_scale * 0.25),
+        add_blur_subchain(pl, bloom_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.25),
         pipeline
+    );
+
+    /*
+     * The tight end of the distance lerp in combine_color(): the same
+     * chain again at half res, where its kernel covers half the screen
+     * distance. The raw quarter-res downsample is not usable as this
+     * end: bilinear magnification of its texel grid shows through as
+     * staircases wherever the blend leans on it.
+     */
+    render_pass *bloom_half_pass = CRES_RET_T(
+        add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.5), pipeline
+    );
+    render_pass *bloom_half_blur_pass = CRES_RET_T(
+        add_blur_subchain(pl, bloom_half_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.5), pipeline
     );
 
     struct render_pass *edge_pass = !edges ? NULL : CRES_RET_T(
@@ -576,6 +632,12 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
                     .sampler    = UNIFORM_BLOOM_TEX
+                },
+                {
+                    .pass       = bloom_half_blur_pass,
+                    .attachment = FBO_COLOR_TEXTURE(0),
+                    .method     = RM_USE,
+                    .sampler    = UNIFORM_BLOOM_HALF_TEX
                 },
                 edges ?
                     (render_source) {
@@ -749,7 +811,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     );
 
     /* Extra blur for the menu */
-    pass = CRES_RET_T(
+    render_pass *pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source             = (render_source[]) {
                 {
