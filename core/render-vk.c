@@ -1174,8 +1174,10 @@ static void vk_swapchain_destroy_resources(renderer_t *r)
  *
  * PQ is the 10-bit BT.2020 wire format the Metal path asks CAMetalLayer for
  * (kCGColorSpaceITUR_2100_PQ + BGR10A2), with an fp16 fallback for drivers
- * that only pair ST2084 with half-float. The extended pairs are linear-light
- * fp16 that the compositor encodes itself; only their primaries differ.
+ * that only pair ST2084 with half-float. The extended pairs are fp16: the
+ * linear ones the compositor encodes itself, the nonlinear ones carry the
+ * sRGB curve past 1.0 (RADV on wayland offers neither of those two, other
+ * stacks do); within each kind only the primaries differ.
  */
 static const struct vk_hdr_transfer {
     const char          *name;
@@ -1198,6 +1200,16 @@ static const struct vk_hdr_transfer {
     [HDR_TRANSFER_EXT_P3_LINEAR] = {
         .name   = "linear (Display P3)",
         .fmt    = { { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT } },
+        .nr     = 1,
+    },
+    [HDR_TRANSFER_EXT_SRGB_NONLINEAR] = {
+        .name   = "sRGB curve (BT.709)",
+        .fmt    = { { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT } },
+        .nr     = 1,
+    },
+    [HDR_TRANSFER_EXT_P3_NONLINEAR] = {
+        .name   = "sRGB curve (Display P3)",
+        .fmt    = { { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT } },
         .nr     = 1,
     },
 };
