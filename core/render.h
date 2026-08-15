@@ -1404,6 +1404,8 @@ TYPE(renderer,
         /* HDR_TRANSFER_*: requested, and what the surface actually offered */
         int                                 hdr_transfer_want;
         int                                 hdr_transfer;
+        /* HDR_TRANSFER_* the surface can present, as a bitmask; the setup probe's */
+        unsigned int                        hdr_transfers;
         bool                                swapchain_dirty;
         /* the surface offers a PQ color space; probed once at setup */
         bool                                edr_supported;

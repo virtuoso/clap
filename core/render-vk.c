@@ -1346,12 +1346,14 @@ static void vk_edr_probe(renderer_t *r)
     VkSurfaceFormatKHR *formats = formats_buf;
 
     r->vk.edr_supported = false;
+    r->vk.hdr_transfers = 0;
     for (int i = 0; i < HDR_TRANSFER_MAX; i++) {
         auto tf = &vk_hdr_transfers[i];
         bool have = vk_surface_format_match(formats, count, tf->fmt, tf->nr).format !=
                     VK_FORMAT_UNDEFINED;
 
         r->vk.edr_supported |= have;
+        if (have)   r->vk.hdr_transfers |= 1u << i;
         msg("vulkan: HDR %s: %savailable\n", tf->name, have ? "" : "un");
     }
 }
@@ -1572,7 +1574,8 @@ static void vk_renderer_hdr_transfer_set(renderer_t *r, int transfer)
     if (r->vk.hdr)  vk_hdr_reconfigure(r);
 }
 
-static int vk_renderer_hdr_transfer_get(renderer_t *r)  { return r->vk.hdr_transfer; }
+static int vk_renderer_hdr_transfer_get(renderer_t *r)          { return r->vk.hdr_transfer; }
+static unsigned int vk_renderer_hdr_transfers(renderer_t *r)    { return r->vk.hdr_transfers; }
 
 static void vk_ubos_frame_advance(renderer_t *r);
 
@@ -3879,6 +3882,7 @@ static const renderer_ops vk_renderer_ops = {
     .hdr_enable             = vk_renderer_hdr_enable,
     .hdr_transfer_set       = vk_renderer_hdr_transfer_set,
     .hdr_transfer_get       = vk_renderer_hdr_transfer_get,
+    .hdr_transfers          = vk_renderer_hdr_transfers,
     .swapchain_begin        = vk_renderer_swapchain_begin,
     .frame_begin            = vk_renderer_frame_begin,
     .frame_end              = vk_renderer_frame_end,
