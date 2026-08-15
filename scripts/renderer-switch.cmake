@@ -1,8 +1,12 @@
-# Use -DCLAP_RENDERER to select a renderer
+# Use -DCLAP_RENDERER to select renderers; more than one means the pick
+# happens at runtime, in the order display_init() tries them (see
+# core/display-glfw.c), which -R/--renderer on the command line overrides
 if (APPLE)
     set(CLAP_RENDERER "Metal" CACHE STRING "Graphics renderer")
-else ()
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CLAP_RENDERER "OpenGL" CACHE STRING "Graphics renderer")
+else ()
+    set(CLAP_RENDERER "Vulkan;OpenGL" CACHE STRING "Graphics renderer")
 endif ()
 
 foreach(renderer ${CLAP_RENDERER})

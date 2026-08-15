@@ -134,6 +134,7 @@
                 "VCPKG_LOAD_VCVARS_ENV": true,
                 "VCPKG_TARGET_TRIPLET": "x64-mingw",
                 "VCPKG_APPLOCAL_DEPS": false,
+                "CLAP_RENDERER": "Vulkan;OpenGL",
                 "CLAP_BUILD_NETWORKING": false
             }
         },

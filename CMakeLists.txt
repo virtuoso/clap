@@ -328,10 +328,16 @@ elseif (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
             "-framework CoreVideo"
             "-framework QuartzCore"
         )
-    elseif (CONFIG_RENDERER_VULKAN)
-        find_package(Vulkan REQUIRED)
-        set(CLAP_RENDERER_INCLUDE_DIRS "")
-        set(CLAP_RENDERER_LIBRARIES Vulkan::Vulkan)
+    endif ()
+    # vulkan goes alongside either of the above: the backend is picked at runtime
+    if (CONFIG_RENDERER_VULKAN)
+        find_package(Vulkan)
+        if (NOT Vulkan_FOUND)
+            message(FATAL_ERROR
+                "CLAP_RENDERER asks for Vulkan, but no Vulkan loader/headers were found: "
+                "install them (libvulkan-dev) or configure with -DCLAP_RENDERER=OpenGL")
+        endif ()
+        list(APPEND CLAP_RENDERER_LIBRARIES Vulkan::Vulkan)
     endif ()
 
     if (CLAP_ALLOW_DYNAMIC_RUNTIME_LIBS)
