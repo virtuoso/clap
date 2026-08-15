@@ -1166,15 +1166,40 @@ static void vk_swapchain_destroy_resources(renderer_t *r)
     r->vk.nr_images = 0;
 }
 
-/*
- * HDR output: 10-bit PQ in BT.2020, the wire format the Metal path asks
- * CAMetalLayer for (kCGColorSpaceITUR_2100_PQ + BGR10A2) and what
- * present_finalize() already encodes for every non-WGPU backend. The fp16
- * entry covers drivers that pair ST2084 with half-float only.
+/**
+ * struct vk_hdr_transfer - surface candidates for one HDR_TRANSFER_*
+ * @name:   the transfer's name, for the log
+ * @fmt:    format/color space pairs, in order of preference
+ * @nr:     entries in @fmt
+ *
+ * PQ is the 10-bit BT.2020 wire format the Metal path asks CAMetalLayer for
+ * (kCGColorSpaceITUR_2100_PQ + BGR10A2), with an fp16 fallback for drivers
+ * that only pair ST2084 with half-float. The extended pairs are linear-light
+ * fp16 that the compositor encodes itself; only their primaries differ.
  */
-static const VkSurfaceFormatKHR vk_hdr_formats[] = {
-    { VK_FORMAT_A2B10G10R10_UNORM_PACK32,   VK_COLOR_SPACE_HDR10_ST2084_EXT },
-    { VK_FORMAT_R16G16B16A16_SFLOAT,        VK_COLOR_SPACE_HDR10_ST2084_EXT },
+static const struct vk_hdr_transfer {
+    const char          *name;
+    VkSurfaceFormatKHR  fmt[2];
+    unsigned int        nr;
+} vk_hdr_transfers[HDR_TRANSFER_MAX] = {
+    [HDR_TRANSFER_PQ] = {
+        .name   = "PQ (BT.2020)",
+        .fmt    = {
+            { VK_FORMAT_A2B10G10R10_UNORM_PACK32,   VK_COLOR_SPACE_HDR10_ST2084_EXT },
+            { VK_FORMAT_R16G16B16A16_SFLOAT,        VK_COLOR_SPACE_HDR10_ST2084_EXT },
+        },
+        .nr     = 2,
+    },
+    [HDR_TRANSFER_EXT_SRGB_LINEAR] = {
+        .name   = "linear (BT.709)",
+        .fmt    = { { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT } },
+        .nr     = 1,
+    },
+    [HDR_TRANSFER_EXT_P3_LINEAR] = {
+        .name   = "linear (Display P3)",
+        .fmt    = { { VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT } },
+        .nr     = 1,
+    },
 };
 
 /* the SDR swapchain, in order of preference */
@@ -1234,6 +1259,41 @@ static VkSurfaceFormatKHR vk_surface_format_match(const VkSurfaceFormatKHR *have
 }
 
 /**
+ * vk_hdr_format_pick() - the HDR surface format for the requested transfer
+ * @r:          renderer, its hdr_transfer_want set; hdr_transfer records the pick
+ * @have:       the format/color space pairs the surface offers
+ * @nr_have:    entries in @have
+ *
+ * The requested encoding when the surface offers it, otherwise the first one
+ * it does: HDR at a known-but-different encoding beats silently dropping to
+ * SDR, and hdr_transfer_get() tells present.frag which one to encode for.
+ *
+ * Return: the pair, VK_FORMAT_UNDEFINED when the surface offers no HDR at all
+ */
+static VkSurfaceFormatKHR vk_hdr_format_pick(renderer_t *r, const VkSurfaceFormatKHR *have,
+                                             uint32_t nr_have)
+{
+    int order[HDR_TRANSFER_MAX];
+    unsigned int nr = 0;
+
+    order[nr++] = r->vk.hdr_transfer_want;
+    for (int i = 0; i < HDR_TRANSFER_MAX; i++)
+        if (i != r->vk.hdr_transfer_want)   order[nr++] = i;
+
+    for (unsigned int i = 0; i < nr; i++) {
+        auto tf = &vk_hdr_transfers[order[i]];
+        VkSurfaceFormatKHR fmt = vk_surface_format_match(have, nr_have, tf->fmt, tf->nr);
+
+        if (fmt.format != VK_FORMAT_UNDEFINED) {
+            r->vk.hdr_transfer = order[i];
+            return fmt;
+        }
+    }
+
+    return (VkSurfaceFormatKHR){ .format = VK_FORMAT_UNDEFINED };
+}
+
+/**
  * vk_surface_format_pick() - the SDR swapchain format
  * @r:  renderer
  *
@@ -1247,7 +1307,7 @@ static VkSurfaceFormatKHR vk_surface_format_pick(renderer_t *r)
     VkSurfaceFormatKHR *formats = formats_buf;
     VkSurfaceFormatKHR format = { .format = VK_FORMAT_UNDEFINED };
 
-    if (r->vk.hdr)  format = vk_surface_format_match(formats, count, vk_hdr_formats, array_size(vk_hdr_formats));
+    if (r->vk.hdr)  format = vk_hdr_format_pick(r, formats, count);
 
     if (format.format == VK_FORMAT_UNDEFINED)
         format = vk_surface_format_match(formats, count, vk_sdr_formats,
@@ -1271,11 +1331,17 @@ static void vk_edr_probe(renderer_t *r)
 {
     uint32_t count;
     LOCAL_SET(void, formats_buf) = vk_surface_formats_get(r, &count);
-    VkSurfaceFormatKHR hdr = vk_surface_format_match(formats_buf, count, vk_hdr_formats,
-                                                     array_size(vk_hdr_formats));
+    VkSurfaceFormatKHR *formats = formats_buf;
 
-    r->vk.edr_supported = hdr.format != VK_FORMAT_UNDEFINED;
-    msg("vulkan: HDR output %ssupported by the surface\n", r->vk.edr_supported ? "" : "un");
+    r->vk.edr_supported = false;
+    for (int i = 0; i < HDR_TRANSFER_MAX; i++) {
+        auto tf = &vk_hdr_transfers[i];
+        bool have = vk_surface_format_match(formats, count, tf->fmt, tf->nr).format !=
+                    VK_FORMAT_UNDEFINED;
+
+        r->vk.edr_supported |= have;
+        msg("vulkan: HDR %s: %savailable\n", tf->name, have ? "" : "un");
+    }
 }
 
 static cerr vk_swapchain_create(renderer_t *r)
@@ -1483,6 +1549,18 @@ static void vk_renderer_hdr_enable(renderer_t *r, bool enable)
     r->vk.hdr = want;
     vk_hdr_reconfigure(r);
 }
+
+static void vk_renderer_hdr_transfer_set(renderer_t *r, int transfer)
+{
+    if (transfer < 0 || transfer >= HDR_TRANSFER_MAX || transfer == r->vk.hdr_transfer_want)    return;
+
+    r->vk.hdr_transfer_want = transfer;
+
+    /* the pick only consults it in HDR; SDR keeps its format either way */
+    if (r->vk.hdr)  vk_hdr_reconfigure(r);
+}
+
+static int vk_renderer_hdr_transfer_get(renderer_t *r)  { return r->vk.hdr_transfer; }
 
 static void vk_ubos_frame_advance(renderer_t *r);
 
@@ -3787,6 +3865,8 @@ static const renderer_ops vk_renderer_ops = {
     .get_viewport           = vk_renderer_get_viewport,
     .supports_edr           = vk_renderer_supports_edr,
     .hdr_enable             = vk_renderer_hdr_enable,
+    .hdr_transfer_set       = vk_renderer_hdr_transfer_set,
+    .hdr_transfer_get       = vk_renderer_hdr_transfer_get,
     .swapchain_begin        = vk_renderer_swapchain_begin,
     .frame_begin            = vk_renderer_frame_begin,
     .frame_end              = vk_renderer_frame_end,

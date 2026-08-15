@@ -1401,6 +1401,9 @@ TYPE(renderer,
         unsigned int                        frame_idx;
         unsigned int                        image_idx;
         int                                 cull;       /* cull_face: declared below */
+        /* HDR_TRANSFER_*: requested, and what the surface actually offered */
+        int                                 hdr_transfer_want;
+        int                                 hdr_transfer;
         bool                                swapchain_dirty;
         /* the surface offers a PQ color space; probed once at setup */
         bool                                edr_supported;
