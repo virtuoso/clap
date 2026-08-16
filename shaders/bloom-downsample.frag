@@ -5,6 +5,7 @@
 #include "pass-tex.glsl"
 #include "view_pos.glsl"
 #include "downsample.glsl"
+#include "bloom-level.glsl"
 
 layout (location=0) out vec4 FragColor;
 layout (location=0) in vec2 pass_tex;
@@ -34,21 +35,19 @@ void main()
     vec4 color = downsample_5tap(model_tex, uv);
 
     /*
-     * Carry the emitter's distance to combine_color(), premultiplied by
-     * luma, in place of the emission RT's blend alpha, which nothing
-     * downstream of here reads. The blur chain is linear, so that alpha
-     * divided by the luma of the color beside it recovers the
-     * luma-weighted mean distance of the emitters that reached a halo
-     * texel, which is what the halo's radius depends on. Sampling depth
-     * at the receiving pixel instead would read whatever the halo lands
-     * on -- for an emitter against a distant background, the background.
-     * Normalized, so alpha stays inside the range the color channels
-     * already hold; the sky sentinel (view_pos.z > 0) reads as
-     * maximally distant.
+     * Carry the emitters' distance along the chain, not the receiving
+     * pixel's: the halo lands on the background, whose depth is not the
+     * emitter's. It goes as the pyramid level the emitter wants, see
+     * bloom-level.glsl: full size (the coarsest level) up to
+     * bloom_distance, one level down per doubling of distance beyond
+     * it, i.e. a halo radius falling as 1/distance until the finest
+     * level. 0 disables the scaling; the sky sentinel (view_pos.z > 0)
+     * is as far as it gets.
      */
     vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv);
-    float dist = view_pos.z > 0.0 ? bloom_distance : -view_pos.z;
-    float depth_norm = bloom_distance > 0.0 ? clamp(dist / bloom_distance, 0.0, 1.0) : 0.0;
+    float dist = view_pos.z > 0.0 ? 1e30 : max(-view_pos.z, 1e-3);
+    float nearness = bloom_distance > 0.0 ? min(bloom_distance / dist, 1.0) : 1.0;
+    float rel = clamp(BLOOM_LEVEL_RANGE + log2(max(nearness, 1e-6)), 0.0, BLOOM_LEVEL_RANGE);
 
-    FragColor = vec4(color.rgb, luma(color.rgb) * depth_norm);
+    FragColor = vec4(color.rgb, bloom_level_encode(luma(color.rgb), rel));
 }

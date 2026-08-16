@@ -63,19 +63,16 @@ vec4 combine_color(vec2 pass_tex)
     /*
      * Halo radius falls off with the emitter's distance: a glow of a
      * fixed world radius subtends less of the screen the further away
-     * it is. Two kernels and a lerp between them approximate the
-     * 1/distance curve: the same blur chain at quarter and at half res,
-     * so the tight end reaches half as far. Peak intensity needs no
-     * compensation, because the energy and the area it covers shrink
-     * at the same rate. bloom-downsample.frag premultiplied the
-     * normalized distance by luma, so dividing the blurred alpha by the
-     * blurred luma recovers the luma-weighted mean distance of the
-     * emitters that lit this texel -- right across a silhouette, where
-     * the depth under the halo belongs to the background. It is 0 with
-     * distance scaling off (bloom_distance == 0), which leaves the
-     * blend at the wide end.
+     * it is. Peak intensity needs no compensation, because the energy
+     * and the area it covers shrink at the same rate. The chain carries
+     * the pyramid level the emitters want, see bloom-level.glsl. With
+     * the two-chain bloom (the same blur chain at quarter and at half
+     * res, the latter reaching half as far) that lerps between the two,
+     * wide at the coarsest level. With the pyramid, the level selection
+     * happened in bloom-upsample.frag and both samplers hold its
+     * result, so the lerp is the identity.
      */
-    float tightness = clamp(wide.a / max(luma(wide.rgb), 1e-6), 0.0, 1.0);
+    float tightness = 1.0 - clamp(bloom_level_decode(wide), 0.0, BLOOM_LEVEL_RANGE) / BLOOM_LEVEL_RANGE;
     f16vec3 blurred = HVEC3(mix(wide.rgb, texture(bloom_half_tex, pass_tex).rgb, tightness));
     vec2 em_uv = use_taa ?
         convert_pass_tex(convert_pass_tex(pass_tex) + jitter * 0.5) :

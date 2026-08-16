@@ -76,6 +76,8 @@ typedef struct render_options {
     bool    edges;
     bool    film_grain;
     bool    taa;
+    /* bloom as a mip pyramid with per-pixel level selection, else two blur chains */
+    bool    bloom_pyramid;
     bool    hdr;
     bool    hdr_output;
     bool    hdr_output_enabled;

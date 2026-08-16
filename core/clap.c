@@ -432,8 +432,13 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.bloom_intensity = 2.0;
     ctx->render_options.bloom_threshold = 0.27;
     ctx->render_options.bloom_operator = 1.0;
-    /* 0: halo radius does not scale with the emitter's distance */
-    ctx->render_options.bloom_distance = 0.0;
+    /*
+     * Halos are full size up to this distance and halve per doubling
+     * beyond it, 0 disabling the scaling; the pyramid gives that law a
+     * 10:1 range, the two blur chains it can be switched back to 2:1
+     */
+    ctx->render_options.bloom_distance = 3.0;
+    ctx->render_options.bloom_pyramid = true;
     ctx->render_options.lighting_exposure = 1.3;
     ctx->render_options.lighting_operator = 0.0;
     ctx->render_options.contrast = 0.15;
@@ -788,6 +793,7 @@ static const struct rebuild_reason {
     REBUILD_REASON_FIELD(edge_antialiasing),
     REBUILD_REASON_FIELD(taa),
     REBUILD_REASON_FIELD(lighting_lut),
+    REBUILD_REASON_FIELD(bloom_pyramid),
 };
 
 static cerr build_main_pl(clap_context *ctx)

@@ -268,6 +268,78 @@ static cresp(render_pass) add_bloom_downsample(pipeline *pl, render_pass *model_
     return cresp_val(render_pass, pass);
 }
 
+/*
+ * Bloom as a mip pyramid with per-pixel level selection: BLOOM_LEVELS
+ * levels from half res down, each a 2x downsample of the one above,
+ * then a progressive tent upsample back to half res that adds each
+ * level's own contribution weighted by how far its emitters are, see
+ * bloom-upsample.frag. Returns the half-res result.
+ */
+static cresp(render_pass) add_bloom_pyramid(pipeline *pl, render_pass *model_pass, render_method method,
+                                            texture_format format)
+{
+    render_pass *down[BLOOM_LEVELS];
+
+    down[0] = CRES_RET_T(add_bloom_downsample(pl, model_pass, method, format, 0.5), render_pass);
+    for (int i = 1; i < BLOOM_LEVELS; i++)
+        down[i] = CRES_RET_T(
+            pipeline_add_pass(pl,
+                .source             = (render_source[]) {
+                    {
+                        .pass       = down[i - 1],
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_MODEL_TEX
+                    },
+                    {}
+                },
+                .color_config       = (fbo_attconfig[]) { { .format = format, .load_action = FBOLOAD_DONTCARE } },
+                .layout             = FBO_COLOR_TEXTURE(0),
+                .ops                = &postproc_ops,
+                .shader             = "bloom-mip",
+                .scale              = 0.5 / (1 << i),
+            ),
+            render_pass
+        );
+
+    /* coarsest first, with nothing coarser to add to it */
+    render_pass *up = nullptr;
+    for (int i = BLOOM_LEVELS - 1; i >= 0; i--)
+        up = CRES_RET_T(
+            pipeline_add_pass(pl,
+                .source             = (render_source[]) {
+                    {
+                        .pass       = down[i],
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_MODEL_TEX
+                    },
+                    up ?
+                        (render_source) {
+                            .pass       = up,
+                            .attachment = FBO_COLOR_TEXTURE(0),
+                            .method     = RM_USE,
+                            .sampler    = UNIFORM_BLOOM_TEX
+                        } :
+                        (render_source) {
+                            .tex        = black_pixel(),
+                            .method     = RM_PLUG,
+                            .sampler    = UNIFORM_BLOOM_TEX
+                        },
+                    {}
+                },
+                .color_config       = (fbo_attconfig[]) { { .format = format, .load_action = FBOLOAD_DONTCARE } },
+                .layout             = FBO_COLOR_TEXTURE(0),
+                .ops                = &postproc_ops,
+                .shader             = "bloom-upsample",
+                .scale              = 0.5 / (1 << i),
+            ),
+            render_pass
+        );
+
+    return cresp_val(render_pass, up);
+}
+
 /****************************************************************************
  * pipeline builder
  ****************************************************************************/
@@ -506,34 +578,44 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         ),
         pipeline
     );
-    render_pass *bloom_pass = CRES_RET_T(
-        add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.25), pipeline
-    );
+    /* the two ends combine_color() lerps between by the emitters' distance */
+    render_pass *bloom_pass, *bloom_tight_pass;
 
-    /*
-     * The final bloom blend (blurred chain + raw emission) happens in
-     * combine.frag, which samples the quarter-res blur result directly:
-     * a separate full-res upsample pass costs a full-res RT write+read
-     * for math that amounts to three lines
-     */
-    render_pass *bloom_blur_pass = CRES_RET_T(
-        add_blur_subchain(pl, bloom_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.25),
-        pipeline
-    );
+    if (ropts->bloom_pyramid) {
+        /* the level selection happened inside, both ends hold the result */
+        bloom_pass = CRES_RET_T(add_bloom_pyramid(pl, model_pass, model_pass_method, bloom_fmt), pipeline);
+        bloom_tight_pass = bloom_pass;
+    } else {
+        render_pass *bloom_down_pass = CRES_RET_T(
+            add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.25), pipeline
+        );
 
-    /*
-     * The tight end of the distance lerp in combine_color(): the same
-     * chain again at half res, where its kernel covers half the screen
-     * distance. The raw quarter-res downsample is not usable as this
-     * end: bilinear magnification of its texel grid shows through as
-     * staircases wherever the blend leans on it.
-     */
-    render_pass *bloom_half_pass = CRES_RET_T(
-        add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.5), pipeline
-    );
-    render_pass *bloom_half_blur_pass = CRES_RET_T(
-        add_blur_subchain(pl, bloom_half_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.5), pipeline
-    );
+        /*
+         * The final bloom blend (blurred chain + raw emission) happens in
+         * combine.frag, which samples the quarter-res blur result directly:
+         * a separate full-res upsample pass costs a full-res RT write+read
+         * for math that amounts to three lines
+         */
+        bloom_pass = CRES_RET_T(
+            add_blur_subchain(pl, bloom_down_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.25),
+            pipeline
+        );
+
+        /*
+         * The tight end of the distance lerp in combine_color(): the same
+         * chain again at half res, where its kernel covers half the screen
+         * distance. The raw quarter-res downsample is not usable as this
+         * end: bilinear magnification of its texel grid shows through as
+         * staircases wherever the blend leans on it.
+         */
+        render_pass *bloom_half_pass = CRES_RET_T(
+            add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.5), pipeline
+        );
+        bloom_tight_pass = CRES_RET_T(
+            add_blur_subchain(pl, bloom_half_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.5),
+            pipeline
+        );
+    }
 
     struct render_pass *edge_pass = !edges ? NULL : CRES_RET_T(
         pipeline_add_pass(pl,
@@ -628,13 +710,13 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .sampler    = UNIFORM_EMISSION_MAP
                 },
                 {
-                    .pass       = bloom_blur_pass,
+                    .pass       = bloom_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
                     .sampler    = UNIFORM_BLOOM_TEX
                 },
                 {
-                    .pass       = bloom_half_blur_pass,
+                    .pass       = bloom_tight_pass,
                     .attachment = FBO_COLOR_TEXTURE(0),
                     .method     = RM_USE,
                     .sampler    = UNIFORM_BLOOM_HALF_TEX

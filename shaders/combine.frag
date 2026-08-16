@@ -3,6 +3,7 @@
 #include "shader_constants.h"
 #include "half.glsl"
 #include "color-utils.glsl"
+#include "bloom-level.glsl"
 #include "pass-tex.glsl"
 #include "tonemap.glsl"
 #include "lut.glsl"
