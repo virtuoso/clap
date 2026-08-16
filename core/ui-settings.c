@@ -125,6 +125,13 @@ static void settings_screen_open(struct ui *ui, struct ui_widget *(*make)(struct
     if (settings_screen_replace(ui, make))  ui_menu_descend(ui, root);
 }
 
+/* whether the widget's focus sits on one of its @nr_items settings rows */
+static bool settings_row_focused(const struct ui_widget *uiw, unsigned int nr_items)
+{
+    int focus = uiw->focus;
+    return focus >= 0 && focus < (int)uiw->nr_uies && focus < (int)nr_items;
+}
+
 /* -1 / +1 for a left / right step on the focused row: arrow keys, yaw or a full left stick push */
 static int settings_step_dir(const struct message *m)
 {
@@ -341,10 +348,9 @@ static void ic_back(struct ui *ui, const ui_menu_item *item)
 
 static bool settings_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
 {
-    int focus = uiw->focus;
-    if (focus >= 0 && focus < (int)uiw->nr_uies && focus < (int)ic_nr_items) {
+    if (settings_row_focused(uiw, ic_nr_items)) {
         int dir = settings_step_dir(m);
-        enum ic_kind k = ic_kinds[focus];
+        enum ic_kind k = ic_kinds[uiw->focus];
 
         if (k == IC_KIND_SENSITIVITY) {
             if (dir)    { sens_step(ui, dir); return true; }
@@ -691,9 +697,8 @@ static void as_back(struct ui *ui, const ui_menu_item *item)
 
 static bool as_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
 {
-    int focus = uiw->focus;
-    if (focus >= 0 && focus < (int)uiw->nr_uies && focus < (int)as_nr_items) {
-        enum as_kind k = as_kinds[focus];
+    if (settings_row_focused(uiw, as_nr_items)) {
+        enum as_kind k = as_kinds[uiw->focus];
         if (k == AS_KIND_MUSIC || k == AS_KIND_SFX) {
             int dir = settings_step_dir(m);
             if (dir)    { as_vol_step(ui, k, dir); return true; }
