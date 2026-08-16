@@ -125,6 +125,14 @@ static void settings_screen_open(struct ui *ui, struct ui_widget *(*make)(struct
     if (settings_screen_replace(ui, make))  ui_menu_descend(ui, root);
 }
 
+/* -1 / +1 for a left / right step on the focused row: arrow keys, yaw or a full left stick push */
+static int settings_step_dir(const struct message *m)
+{
+    if (m->input.left == 1 || m->input.yaw_left == 1 || m->input.delta_lx < -0.99)      return -1;
+    if (m->input.right == 1 || m->input.yaw_right == 1 || m->input.delta_lx > 0.99)     return 1;
+    return 0;
+}
+
 static void mouse_label(char *buf, size_t n)
 {
     snprintf(buf, n, "Use mouse for camera: %s",
@@ -335,16 +343,12 @@ static bool settings_input(struct ui *ui, struct ui_widget *uiw, struct message 
 {
     int focus = uiw->focus;
     if (focus >= 0 && focus < (int)uiw->nr_uies && focus < (int)ic_nr_items) {
-        bool left  = m->input.left == 1 || m->input.yaw_left == 1 ||
-                     m->input.delta_lx < -0.99;
-        bool right = m->input.right == 1 || m->input.yaw_right == 1 ||
-                     m->input.delta_lx > 0.99;
+        int dir = settings_step_dir(m);
         enum ic_kind k = ic_kinds[focus];
 
         if (k == IC_KIND_SENSITIVITY) {
-            if (left)   { sens_step(ui, -1); return true; }
-            if (right)  { sens_step(ui, +1); return true; }
-        } else if (k == IC_KIND_INVERT_Y && (left || right)) {
+            if (dir)    { sens_step(ui, dir); return true; }
+        } else if (k == IC_KIND_INVERT_Y && dir) {
             input_controls_set_invert_y(ui->clap_ctx, !input_controls_invert_y());
             ic_rebuild(ui);
             return true;
@@ -691,12 +695,8 @@ static bool as_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
     if (focus >= 0 && focus < (int)uiw->nr_uies && focus < (int)as_nr_items) {
         enum as_kind k = as_kinds[focus];
         if (k == AS_KIND_MUSIC || k == AS_KIND_SFX) {
-            bool left  = m->input.left  == 1 || m->input.yaw_left  == 1 ||
-                         m->input.delta_lx < -0.99;
-            bool right = m->input.right == 1 || m->input.yaw_right == 1 ||
-                         m->input.delta_lx >  0.99;
-            if (left)   { as_vol_step(ui, k, -1); return true; }
-            if (right)  { as_vol_step(ui, k, +1); return true; }
+            int dir = settings_step_dir(m);
+            if (dir)    { as_vol_step(ui, k, dir); return true; }
         }
     }
     return ui_menu_input(ui, uiw, m);
