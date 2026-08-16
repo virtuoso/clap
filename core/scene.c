@@ -7,6 +7,7 @@
 #include "debug_draw.h"
 #include "display.h"
 #include "gltf.h"
+#include "graphics-settings.h"
 #include "input-controls.h"
 #include "interp.h"
 #include "physics.h"
@@ -317,7 +318,16 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igSliderFloat("bloom intensity", &ropts->bloom_intensity, 0.1, 10.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom threshold", &ropts->bloom_threshold, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSliderFloat("bloom distance", &ropts->bloom_distance, 0.0, 100.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
-        igCheckbox("bloom pyramid", &ropts->bloom_pyramid);
+        int bq = ropts->bloom_quality;
+        igText("bloom quality:");
+        igSameLine(0.0, 0.0);
+        igPushID_Str("bq");
+        for (int i = 0; i < BLOOM_QUALITY_MAX; i++) {
+            igSameLine(0.0, 0.0);
+            igRadioButton_IntPtr(graphics_settings_bloom_quality_name(i), &bq, i);
+        }
+        igPopID();
+        if (bq != ropts->bloom_quality) graphics_settings_set_bloom_quality(scene->clap_ctx, bq);
         int bop = (int)ropts->bloom_operator;
         igText("bloom tonemapping op:");
         igSameLine(0.0, 0.0);

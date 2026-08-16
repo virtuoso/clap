@@ -10,6 +10,13 @@
 #define GFX_KEY_HDR_OUTPUT  "hdr_output"
 #define GFX_KEY_SSAO        "ssao"
 #define GFX_KEY_TAA         "taa"
+#define GFX_KEY_BLOOM       "bloom_quality"
+
+static const char *bloom_quality_names[BLOOM_QUALITY_MAX] = {
+    [BLOOM_QUALITY_LOW]     = "Low",
+    [BLOOM_QUALITY_MEDIUM]  = "Medium",
+    [BLOOM_QUALITY_HIGH]    = "High",
+};
 
 static JsonNode *gfx_group(struct settings *rs)
 {
@@ -45,6 +52,9 @@ cerr graphics_settings_init(struct clap_context *ctx, struct settings *rs)
     if (n && n->tag == JSON_BOOL)   ro->ssao = n->bool_;
     n = settings_get(rs, grp, GFX_KEY_TAA);
     if (n && n->tag == JSON_BOOL)   ro->taa = n->bool_;
+    n = settings_get(rs, grp, GFX_KEY_BLOOM);
+    if (n && n->tag == JSON_NUMBER)
+        ro->bloom_quality = clamp((int)n->number_, BLOOM_QUALITY_LOW, BLOOM_QUALITY_MAX - 1);
 
     return CERR_OK;
 }
@@ -93,4 +103,23 @@ void graphics_settings_set_taa(struct clap_context *ctx, bool on)
     struct settings *rs = clap_get_settings(ctx);
     JsonNode *grp = rs ? gfx_group(rs) : NULL;
     if (grp)    settings_set_bool(rs, grp, GFX_KEY_TAA, on);
+}
+
+void graphics_settings_set_bloom_quality(struct clap_context *ctx, int quality)
+{
+    quality = clamp(quality, BLOOM_QUALITY_LOW, BLOOM_QUALITY_MAX - 1);
+
+    render_options *ro = clap_get_render_options(ctx);
+    if (ro)     ro->bloom_quality = quality;
+
+    struct settings *rs = clap_get_settings(ctx);
+    JsonNode *grp = rs ? gfx_group(rs) : NULL;
+    if (grp)    settings_set_num(rs, grp, GFX_KEY_BLOOM, quality);
+}
+
+const char *graphics_settings_bloom_quality_name(int quality)
+{
+    if (quality < 0 || quality >= BLOOM_QUALITY_MAX)  return "?";
+
+    return bloom_quality_names[quality];
 }

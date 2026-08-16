@@ -12,6 +12,20 @@ cresp_ret(render_pass);
 
 typedef struct pipeline pipeline;
 
+/*
+ * bloom_quality levels, the player-facing knob over the bloom setup:
+ * see graphics_settings_set_bloom_quality()
+ */
+typedef enum bloom_quality {
+    /* one quarter-res blur chain, no distance scaling: the fewest fetches */
+    BLOOM_QUALITY_LOW = 0,
+    /* two blur chains, halos scaled with distance over a 2:1 range */
+    BLOOM_QUALITY_MEDIUM,
+    /* mip pyramid, halos scaled with distance over a 10:1 range */
+    BLOOM_QUALITY_HIGH,
+    BLOOM_QUALITY_MAX,
+} bloom_quality;
+
 typedef struct render_options {
     lut     *lighting_lut;
     float   bloom_exposure;
@@ -69,6 +83,8 @@ typedef struct render_options {
     bool    shadow_vsm;
     /* VSM light bleed reduction: the Chebyshev tail written off as bleed */
     float   shadow_bleed;
+    /* one of BLOOM_QUALITY_*, picks the bloom passes the pipeline builder emits */
+    int     bloom_quality;
     /*
      * The edge (outline) pass; when off, the pass is not built at all and
      * combine/present composite without edges (SMAA goes down with it)
@@ -76,8 +92,6 @@ typedef struct render_options {
     bool    edges;
     bool    film_grain;
     bool    taa;
-    /* bloom as a mip pyramid with per-pixel level selection, else two blur chains */
-    bool    bloom_pyramid;
     bool    hdr;
     bool    hdr_output;
     bool    hdr_output_enabled;

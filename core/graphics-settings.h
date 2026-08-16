@@ -55,4 +55,22 @@ void graphics_settings_set_ssao(struct clap_context *ctx, bool on);
  */
 void graphics_settings_set_taa(struct clap_context *ctx, bool on);
 
+/**
+ * graphics_settings_set_bloom_quality() - set the bloom quality level
+ * @ctx:        clap context
+ * @quality:    one of BLOOM_QUALITY_*, clamped into range
+ *
+ * Updates render_options.bloom_quality and persists it to settings; the
+ * pipeline rebuild follows via the rebuild_reason table.
+ */
+void graphics_settings_set_bloom_quality(struct clap_context *ctx, int quality);
+
+/**
+ * graphics_settings_bloom_quality_name() - human-readable bloom quality level
+ * @quality:    one of BLOOM_QUALITY_*
+ *
+ * Return: "Low", "Medium" or "High"; "?" out of range.
+ */
+const char *graphics_settings_bloom_quality_name(int quality);
+
 #endif /* __CLAP_GRAPHICS_SETTINGS_H__ */

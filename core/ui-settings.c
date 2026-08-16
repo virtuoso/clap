@@ -380,6 +380,7 @@ enum gs_kind {
     GS_KIND_HDR,
     GS_KIND_SSAO,
     GS_KIND_TAA,
+    GS_KIND_BLOOM,
     GS_KIND_BACK,
 };
 
@@ -389,9 +390,11 @@ static enum gs_kind gs_kinds[GS_ITEM_MAX];
 static unsigned int gs_nr_items;
 static ui_menu_item gs_root_copy;
 
+static bool gs_input(struct ui *ui, struct ui_widget *uiw, struct message *m);
+
 /*
- * Same look as Controls, but with the default ui_menu_input() input handling:
- * all graphics rows are plain toggles, no per-item arrow-key semantics.
+ * Same look as Controls; the toggles take the default ui_menu_input()
+ * handling, the bloom quality row steps on left/right like sensitivity.
  */
 static const struct ui_widget_builder graphics_uwb = {
     .el_affinity    = UI_AF_TOP | UI_AF_RIGHT,
@@ -404,6 +407,7 @@ static const struct ui_widget_builder graphics_uwb = {
     .on_create      = settings_on_create,
     .el_cb          = settings_element_cb,
     .el_on_focus    = settings_on_focus,
+    .input_event    = gs_input,
     .el_color       = { 0.25f, 0.25f, 0.28f, 1.0f },
     .text_color     = { 0.9375f, 0.902344f, 0.859375f, 1.0f },
 };
@@ -412,6 +416,7 @@ static void gs_toggle_film_grain(struct ui *ui, const ui_menu_item *item);
 static void gs_toggle_hdr(struct ui *ui, const ui_menu_item *item);
 static void gs_toggle_ssao(struct ui *ui, const ui_menu_item *item);
 static void gs_toggle_taa(struct ui *ui, const ui_menu_item *item);
+static void gs_cycle_bloom(struct ui *ui, const ui_menu_item *item);
 static void gs_back(struct ui *ui, const ui_menu_item *item);
 
 static void gs_item(unsigned int idx, enum gs_kind kind, const char *label,
@@ -447,6 +452,10 @@ static void gs_populate(struct ui *ui)
     snprintf(buf, sizeof(buf), "TAA: %s", ro->taa ? "On" : "Off");
     gs_item(i++, GS_KIND_TAA, buf, gs_toggle_taa);
 
+    snprintf(buf, sizeof(buf), "Bloom quality: %s",
+             graphics_settings_bloom_quality_name(ro->bloom_quality));
+    gs_item(i++, GS_KIND_BLOOM, buf, gs_cycle_bloom);
+
     gs_item(i++, GS_KIND_BACK, "Back", gs_back);
 
     gs_items[i] = (ui_menu_item){};
@@ -461,10 +470,12 @@ static void gs_recolor(struct ui *ui, struct ui_widget *uiw)
         vec4 c;
         bool on = false;
         switch (gs_kinds[i]) {
-        case GS_KIND_FILM_GRAIN:    on = ro->film_grain;          break;
-        case GS_KIND_HDR:           on = ro->hdr_output_enabled;  break;
-        case GS_KIND_SSAO:          on = ro->ssao;                break;
-        case GS_KIND_TAA:           on = ro->taa;                 break;
+        case GS_KIND_FILM_GRAIN:    on = ro->film_grain;                        break;
+        case GS_KIND_HDR:           on = ro->hdr_output_enabled;                break;
+        case GS_KIND_SSAO:          on = ro->ssao;                              break;
+        case GS_KIND_TAA:           on = ro->taa;                               break;
+        /* a level, not a switch: lit unless it is the lowest */
+        case GS_KIND_BLOOM:         on = ro->bloom_quality > BLOOM_QUALITY_LOW; break;
         case GS_KIND_BACK:
             memcpy(c, color_back, sizeof(c));
             entity3d_color(uiw->uies[i]->entity, COLOR_PT_ALL, c);
@@ -521,9 +532,35 @@ static void gs_toggle_taa(struct ui *ui, const ui_menu_item *item)
     gs_rebuild(ui);
 }
 
+static void gs_bloom_step(struct ui *ui, int dir)
+{
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+    int next = clamp(ro->bloom_quality + dir, BLOOM_QUALITY_LOW, BLOOM_QUALITY_MAX - 1);
+    if (next == ro->bloom_quality)  return;
+    graphics_settings_set_bloom_quality(ui->clap_ctx, next);
+    gs_rebuild(ui);
+}
+
+static void gs_cycle_bloom(struct ui *ui, const ui_menu_item *item)
+{
+    /* click / enter steps up and wraps, like sensitivity; arrows step either way */
+    render_options *ro = clap_get_render_options(ui->clap_ctx);
+    graphics_settings_set_bloom_quality(ui->clap_ctx, (ro->bloom_quality + 1) % BLOOM_QUALITY_MAX);
+    gs_rebuild(ui);
+}
+
 static void gs_back(struct ui *ui, const ui_menu_item *item)
 {
     ui_menus_ascend(ui);
+}
+
+static bool gs_input(struct ui *ui, struct ui_widget *uiw, struct message *m)
+{
+    if (settings_row_focused(uiw, gs_nr_items) && gs_kinds[uiw->focus] == GS_KIND_BLOOM) {
+        int dir = settings_step_dir(m);
+        if (dir)    { gs_bloom_step(ui, dir); return true; }
+    }
+    return ui_menu_input(ui, uiw, m);
 }
 
 void ui_settings_open_graphics(struct ui *ui, const ui_menu_item *item)

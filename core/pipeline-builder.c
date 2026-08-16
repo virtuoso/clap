@@ -578,11 +578,14 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         ),
         pipeline
     );
-    /* the two ends combine_color() lerps between by the emitters' distance */
+    /*
+     * The two ends combine_color() lerps between by the emitters'
+     * distance; the same pass at both when there is nothing to lerp
+     */
     render_pass *bloom_pass, *bloom_tight_pass;
 
-    if (ropts->bloom_pyramid) {
-        /* the level selection happened inside, both ends hold the result */
+    if (ropts->bloom_quality == BLOOM_QUALITY_HIGH) {
+        /* the level selection happened inside */
         bloom_pass = CRES_RET_T(add_bloom_pyramid(pl, model_pass, model_pass_method, bloom_fmt), pipeline);
         bloom_tight_pass = bloom_pass;
     } else {
@@ -601,20 +604,25 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             pipeline
         );
 
-        /*
-         * The tight end of the distance lerp in combine_color(): the same
-         * chain again at half res, where its kernel covers half the screen
-         * distance. The raw quarter-res downsample is not usable as this
-         * end: bilinear magnification of its texel grid shows through as
-         * staircases wherever the blend leans on it.
-         */
-        render_pass *bloom_half_pass = CRES_RET_T(
-            add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.5), pipeline
-        );
-        bloom_tight_pass = CRES_RET_T(
-            add_blur_subchain(pl, bloom_half_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.5),
-            pipeline
-        );
+        /* Low stops here, the halo at its fixed widest */
+        bloom_tight_pass = bloom_pass;
+        if (ropts->bloom_quality > BLOOM_QUALITY_LOW) {
+            /*
+             * The tight end of the distance lerp in combine_color(): the
+             * same chain again at half res, where its kernel covers half
+             * the screen distance. The raw quarter-res downsample is not
+             * usable as this end: bilinear magnification of its texel
+             * grid shows through as staircases wherever the blend leans
+             * on it.
+             */
+            render_pass *bloom_half_pass = CRES_RET_T(
+                add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.5), pipeline
+            );
+            bloom_tight_pass = CRES_RET_T(
+                add_blur_subchain(pl, bloom_half_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.5),
+                pipeline
+            );
+        }
     }
 
     struct render_pass *edge_pass = !edges ? NULL : CRES_RET_T(
