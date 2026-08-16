@@ -83,6 +83,40 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_cb(VkDebugUtilsMessageSeverityFla
     return VK_FALSE;
 }
 
+#if defined(HAVE_ASAN) && defined(__linux__)
+#include <dlfcn.h>
+#include <link.h>
+
+/*
+ * The loader dlclose()s the ICDs and layers at vkDestroyInstance(), which
+ * is before LeakSanitizer runs at exit: memory a driver still holds from
+ * its globals then counts as leaked, and its frames read "<unknown
+ * module>", which no suppression can name without also hiding whatever
+ * else went through unloaded code. So once vkCreateInstance() has mapped
+ * them all, mark every object in the link map undeletable and the
+ * loader's dlclose() leaves them in place: the driver's live data is
+ * reachable again and a real leak in it symbolizes. The handles are
+ * never closed, that is the point of them.
+ */
+static int vk_module_pin(struct dl_phdr_info *info, size_t size, void *data)
+{
+    size_t *pcount = data;
+
+    if (*info->dlpi_name && dlopen(info->dlpi_name, RTLD_NOW | RTLD_NOLOAD | RTLD_NODELETE))    (*pcount)++;
+    return 0;
+}
+
+static void vk_modules_pin(void)
+{
+    size_t count = 0;
+
+    dl_iterate_phdr(vk_module_pin, &count);
+    dbg("vulkan: pinned %zu objects for LeakSanitizer\n", count);
+}
+#else /* HAVE_ASAN && __linux__ */
+static inline void vk_modules_pin(void) {}
+#endif /* !(HAVE_ASAN && __linux__) */
+
 static bool vk_validation_available(void)
 {
     uint32_t count = 0;
@@ -180,6 +214,8 @@ static cerr vk_instance_create(renderer_t *r)
 
     VkResult res = vkCreateInstance(&info, NULL, &r->vk.instance);
     if (res != VK_SUCCESS)  return VK_INIT_FAILED("vkCreateInstance", res);
+
+    vk_modules_pin();
 
     if (r->vk.validation) {
         PFN_vkCreateDebugUtilsMessengerEXT create_messenger =

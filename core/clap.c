@@ -117,13 +117,10 @@ static bool on_wayland(void)
  * On vulkan builds, amdvlk's WSI drops xcb replies on the floor at teardown
  * (RADV, running the same engine code, exits leak-free); the engine never
  * talks to xcb directly, so this can't mask a leak of ours. amdvlk's other
- * leaks are internal to the driver, but the loader dlclose()s the ICDs
- * before LeakSanitizer runs, which leaves their frames unattributable
- * ("<unknown module>"): a pattern for that would also hide anything else
- * that passes through unloaded code, so when those reports show up, run
- * with VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING=1 to keep the ICD mapped
- * and let the amdvlk64.so entry match. Engine frames always resolve, so
- * the engine's own leaks still surface.
+ * leaks are internal to the driver and match the amdvlk64.so entry, since
+ * render-vk.c keeps the ICDs mapped past the loader's dlclose() for
+ * exactly this. Engine frames always resolve, so the engine's own leaks
+ * still surface.
  *
  * Return: newline-separated leak suppressions, possibly empty
  */
