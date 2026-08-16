@@ -832,66 +832,94 @@ void shaders_free(struct list *shaders)
         ref_put_last(prog);
 }
 
-cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *shaders)
+/* One stage's sources for the length of a prog load: the handles own the text, this is a view */
+typedef struct shader_stage_src {
+    lib_handle  *code;
+    lib_handle  *ref;
+    const char  *text;
+    const char  *ref_text;
+    size_t      size;
+} shader_stage_src;
+
+/* A prog's sources, one per stage, under one scope cleanup */
+typedef struct shader_srcs {
+    shader_stage_src    stage[SHADER_STAGES_MAX];
+} shader_srcs;
+
+static void shader_srcs_put(shader_srcs *srcs)
 {
-    LOCAL(lib_handle, hv);
-    LOCAL(lib_handle, hvref);
-    LOCAL(lib_handle, hf);
-    LOCAL(lib_handle, hfref);
-    LOCAL(lib_handle, hg);
-    LOCAL(lib_handle, hgref);
-    LOCAL(char, nvert);
-    LOCAL(char, nvertref);
-    LOCAL(char, nfrag);
-    LOCAL(char, nfragref);
-    LOCAL(char, ngeom);
-    LOCAL(char, ngeomref);
-    char *vert;
-    char *vertref;
-    char *frag;
-    char *fragref;
-    char *geom;
-    char *geomref;
-    size_t vsz, fsz, gsz, vrefsz, frefsz, grefsz;
+    for (shader_stage s = 0; s < SHADER_STAGES_MAX; s++) {
+        if (srcs->stage[s].code)    ref_put_last(srcs->stage[s].code);
+        if (srcs->stage[s].ref)     ref_put_last(srcs->stage[s].ref);
+    }
+}
+
+static DEFINE_CLEANUP_EXACT(shader_srcs, shader_srcs_put(p))
+
+static const char *shader_stage_file_ext[SHADER_STAGES_MAX] = {
+    [SHADER_STAGE_VERTEX]   = "vert",
+    [SHADER_STAGE_FRAGMENT] = "frag",
+    [SHADER_STAGE_GEOMETRY] = "geom",
+    [SHADER_STAGE_COMPUTE]  = "comp",
+};
+
+/*
+ * Load one stage of @name's prog: the compiled shader and, on the
+ * backends that emit one, its reflection. A stage @name has no source
+ * for leaves @src->code NULL for the caller to judge, the geometry
+ * stage being optional and the other two not.
+ */
+static cerr lib_read_shader_stage(shader_context *ctx, const char *name, shader_stage stage, shader_stage_src *src)
+{
+    LOCAL(char, file);
+    LOCAL(char, ref_file);
 
     const char *ext = renderer_shader_ext(ctx->renderer);
-    cres(int) vres = mem_asprintf(&nvert, "%s.vert%s", name, ext);
-    cres(int) fres = mem_asprintf(&nfrag, "%s.frag%s", name, ext);
-    cres(int) gres = mem_asprintf(&ngeom, "%s.geom%s", name, ext);
-    cres(int) vresref = mem_asprintf(&nvertref, "%s.vert%s.json", name, ext);
-    cres(int) fresref = mem_asprintf(&nfragref, "%s.frag%s.json", name, ext);
-    cres(int) gresref = mem_asprintf(&ngeomref, "%s.geom%s.json", name, ext);
-    if (IS_CERR(vres) || IS_CERR(fres) || IS_CERR(gres) ||
-        IS_CERR(vresref) || IS_CERR(fresref) || IS_CERR(gresref))
-        return CERR_NOMEM;
+    CRES_RET(mem_asprintf(&file, "%s.%s%s", name, shader_stage_file_ext[stage], ext), return CERR_NOMEM);
+    CRES_RET(mem_asprintf(&ref_file, "%s.json", file), return CERR_NOMEM);
 
-    hv = lib_read_file(RES_SHADER, nvert, (void **)&vert, &vsz);
-    hf = lib_read_file(RES_SHADER, nfrag, (void **)&frag, &fsz);
-    hg = lib_read_file(RES_SHADER, ngeom, (void **)&geom, &gsz);
-    hvref = lib_read_file(RES_SHADER, nvertref, (void **)&vertref, &vrefsz);
-    hfref = lib_read_file(RES_SHADER, nfragref, (void **)&fragref, &frefsz);
-    hgref = lib_read_file(RES_SHADER, ngeomref, (void **)&geomref, &grefsz);
+    void *text;
+    src->code = lib_read_file(RES_SHADER, file, &text, &src->size);
+    if (!src->code) return CERR_OK;
+    src->text = text;
 
-    if (!hv || !hf)
-        return CERR_SHADER_NOT_LOADED;
+    void *ref_text;
+    size_t ref_size;
+    src->ref = lib_read_file(RES_SHADER, ref_file, &ref_text, &ref_size);
+    if (src->ref)   src->ref_text = ref_text;
 
-    cresp(shader_prog) res = ref_new_checked(shader_prog,
-                                             .ctx       = ctx,
-                                             .name      = name,
-                                             .vert_text = vert,
-                                             .geom_text = hg ? geom : NULL,
-                                             .frag_text = frag,
-                                             .vert_ref_text = hvref ? vertref : NULL,
-                                             .geom_ref_text = hgref ? geomref : NULL,
-                                             .frag_ref_text = hfref ? fragref : NULL,
-                                             .vert_size = vsz,
-                                             .geom_size = hg ? gsz : 0,
-                                             .frag_size = fsz,
-                                            );
-    if (IS_CERR(res))
-        return cerr_error_cres(res);
+    return CERR_OK;
+}
 
-    list_append(shaders, &res.val->entry);
+cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *shaders)
+{
+    LOCAL_SET_EXACT(shader_srcs, srcs) = {};
+    shader_stage_src *vert = &srcs.stage[SHADER_STAGE_VERTEX];
+    shader_stage_src *frag = &srcs.stage[SHADER_STAGE_FRAGMENT];
+    shader_stage_src *geom = &srcs.stage[SHADER_STAGE_GEOMETRY];
+
+    CERR_RET_CERR(lib_read_shader_stage(ctx, name, SHADER_STAGE_VERTEX, vert));
+    CERR_RET_CERR(lib_read_shader_stage(ctx, name, SHADER_STAGE_FRAGMENT, frag));
+    CERR_RET_CERR(lib_read_shader_stage(ctx, name, SHADER_STAGE_GEOMETRY, geom));
+    /* the geometry stage is optional */
+    if (!vert->code || !frag->code) return CERR_SHADER_NOT_LOADED;
+
+    struct shader_prog *prog = CRES_RET_CERR(
+        ref_new_checked(shader_prog,
+                        .ctx            = ctx,
+                        .name           = name,
+                        .vert_text      = vert->text,
+                        .geom_text      = geom->text,
+                        .frag_text      = frag->text,
+                        .vert_ref_text  = vert->ref_text,
+                        .geom_ref_text  = geom->ref_text,
+                        .frag_ref_text  = frag->ref_text,
+                        .vert_size      = vert->size,
+                        .geom_size      = geom->size,
+                        .frag_size      = frag->size,
+        )
+    );
+    list_append(shaders, &prog->entry);
 
     return CERR_OK;
 }
