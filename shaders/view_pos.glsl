@@ -22,7 +22,16 @@ vec2 convert_to_ndc_xy(in vec2 uv)
  */
 vec3 view_pos_from_depth(in sampler2D depth_map, in mat4 inv_proj, in vec2 uv, out float depth)
 {
-    ivec2 tc = ivec2(uv * vec2(textureSize(depth_map, 0)));
+    /*
+     * texelFetch() has no wrap mode: a coordinate outside the map is
+     * undefined. The uv is not always a pixel center of this pass: the
+     * SSAO kernel projects its samples anywhere, including off screen,
+     * the TAA resolve offsets to the nearest depth in its neighborhood
+     * and the bloom downsample moves by the TAA jitter, all of which
+     * cross the edge at the border pixels.
+     */
+    ivec2 size = textureSize(depth_map, 0);
+    ivec2 tc = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
     depth = texelFetch(depth_map, tc, 0).r;
 
     // Assume depth map is 0.0 <= z <= 1.0
