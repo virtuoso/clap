@@ -2034,9 +2034,9 @@ static void mtl_renderer_get_viewport(renderer_t *r, int *px, int *py, int *pwid
 static void mtl_renderer_cull_face(renderer_t *r, cull_face cull)
 {
     switch (cull) {
-        case CULL_FACE_NONE:    r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeNone);
-        case CULL_FACE_FRONT:   r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeFront);
-        case CULL_FACE_BACK:    r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeBack);
+        case CULL_FACE_NONE:    r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeNone);  break;
+        case CULL_FACE_FRONT:   r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeFront); break;
+        case CULL_FACE_BACK:    r->mtl.cull_mode = from_mtl_cull_mode(MTLCullModeBack);  break;
         default:                return;
     }
 }
