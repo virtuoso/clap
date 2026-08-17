@@ -21,10 +21,12 @@ void main()
 
     vec3 normal_sample = texture(normal_map, pass_tex).xyz;
     vec3 normal = normalize(normal_sample * 2.0 - 1.0);
-    vec3 pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
+    float depth;
+    vec3 pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex, depth);
     float dz = fwidth(pos.z);
     FragColor = 1.0;
-    if (pos.z > 0.0)    return;
+    // nothing rendered here, nothing to occlude
+    if (depth >= 1.0)   return;
 
     // Create TBN
     vec3 tangent = normalize(random_vec - normal * dot(random_vec, normal));
@@ -49,8 +51,6 @@ void main()
         offset.xyz = offset.xyz * 0.5 + 0.5;
 
         vec3 sample_view = view_pos_from_depth(depth_tex, inverse_proj, convert_pass_tex(offset.xy));
-        if (sample_view.z > 0.0)    continue;
-
         float range_check = 1.0 - clamp(abs(pos.z - sample_view.z) / scale, 0.0, 1.0);
         if (sample_view.z >= sample_pos.z + bias)
             occlusion += range_check;

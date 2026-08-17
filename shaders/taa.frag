@@ -160,9 +160,7 @@ void main()
          * exactly, texel-center aligned -- no bilinear resampling, no
          * progressive history blur.
          *
-         * History is unusable for the sky (the view_pos sentinel
-         * z = 1.0 for depth >= 1.0) and for points behind the previous
-         * camera.
+         * History is unusable for points behind the previous camera.
          */
         vec2 texel = 1.0 / vec2(width, height);
         vec2 uv_near = pass_tex + vec2(near_off) * texel;
@@ -172,7 +170,7 @@ void main()
         vec2 prev_ndc = prev_clip.xy / prev_clip.w + jitter;
 
         prev_uv = convert_pass_tex(prev_ndc * 0.5 + 0.5) - vec2(near_off) * texel;
-        valid = valid && view_pos.z <= 0.0 && prev_clip.w > 0.0;
+        valid = valid && prev_clip.w > 0.0;
     }
 
     /* off-screen reprojections have no history on either path */

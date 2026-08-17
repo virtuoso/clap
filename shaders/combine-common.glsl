@@ -26,7 +26,6 @@ float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fo
 {
 #ifdef SHADER_VARIANT_RADIAL_FOG
     f16vec3 view_pos = HVEC3(view_pos_from_depth(tex, inverse_proj, uv));
-    if (view_pos.z > 0.0)   return H(0.0);
     float16_t dist = length(view_pos);
     return clamp((dist - H(near_fog)) / H(far_fog - near_fog), H(0.0), H(1.0));
 #else /* !SHADER_VARIANT_RADIAL_FOG */

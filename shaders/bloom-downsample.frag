@@ -41,11 +41,11 @@ void main()
      * bloom-level.glsl: full size (the coarsest level) up to
      * bloom_distance, one level down per doubling of distance beyond
      * it, i.e. a halo radius falling as 1/distance until the finest
-     * level. 0 disables the scaling; the sky sentinel (view_pos.z > 0)
-     * is as far as it gets.
+     * level. 0 disables the scaling; where nothing was rendered the
+     * depth reconstructs to the far plane, as far as it gets.
      */
     vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv);
-    float dist = view_pos.z > 0.0 ? 1e30 : max(-view_pos.z, 1e-3);
+    float dist = max(-view_pos.z, 1e-3);
     float nearness = bloom_distance > 0.0 ? min(bloom_distance / dist, 1.0) : 1.0;
     float rel = clamp(BLOOM_LEVEL_RANGE + log2(max(nearness, 1e-6)), 0.0, BLOOM_LEVEL_RANGE);
 
