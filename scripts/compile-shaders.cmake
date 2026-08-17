@@ -260,12 +260,16 @@ function(compile_shaders_for_backend backend SHADERS suffix)
         COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_DIR}"
     )
 
+    # A name's stages are the ones it has sources for: a prog can lack a
+    # geometry stage, and a vertex shader built as an entry of its own has
+    # no fragment stage. Geometry also needs the backend's support.
     foreach(s ${SHADERS})
         foreach(stage vert frag geom)
-            if (stage STREQUAL "geom")
-                if (NOT EXISTS "${SHADER_SOURCE_DIR}/${s}.${stage}" OR _SKIP_GEOM)
-                    continue ()
-                endif ()
+            if (NOT EXISTS "${SHADER_SOURCE_DIR}/${s}.${stage}")
+                continue ()
+            endif ()
+            if (stage STREQUAL "geom" AND _SKIP_GEOM)
+                continue ()
             endif ()
             _compile_shader_for_backend(
                 "${s}.${stage}" "${SHADER_SOURCE_DIR}/${s}.${stage}" "${stage}" "${backend}"
@@ -292,10 +296,11 @@ function(compile_shaders_for_backend backend SHADERS suffix)
                 shader_variant_suffix(${mask} sfx)
                 shader_variant_glslc_args(${family} ${mask} variant_args)
                 foreach (stage vert frag geom)
-                    if (stage STREQUAL "geom")
-                        if (NOT EXISTS "${SHADER_SOURCE_DIR}/${family}.${stage}" OR _SKIP_GEOM)
-                            continue ()
-                        endif ()
+                    if (NOT EXISTS "${SHADER_SOURCE_DIR}/${family}.${stage}")
+                        continue ()
+                    endif ()
+                    if (stage STREQUAL "geom" AND _SKIP_GEOM)
+                        continue ()
                     endif ()
                     _compile_shader_for_backend(
                         "${family}.${sfx}.${stage}" "${SHADER_SOURCE_DIR}/${family}.${stage}"
