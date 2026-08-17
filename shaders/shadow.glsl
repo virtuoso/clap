@@ -229,6 +229,16 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     proj_coords.xy = convert_pass_tex(proj_coords.xy * 0.5 + 0.5);
     proj_coords.z = convert_from_ndc_z(proj_coords.z);
 
+    /*
+     * Outside the shadow map there is no occluder information, so the
+     * fragment is lit. CSM cascades cover the camera frustum by
+     * construction, but a spotlight's perspective map only covers its
+     * cone, and everything else would sample edge-clamped moments or
+     * depths.
+     */
+    bool outside = any(lessThan(proj_coords.xyz, vec3(0.0))) || any(greaterThan(proj_coords.xyz, vec3(1.0)));
+    if (outside)    return shadow_factor;
+
     /* the PCF kernel reaches pcf_count + 0.5 = 2.5 texels out */
     float bias = shadow_receiver_bias(layer, light_dot, use_vsm ? 1.0 : 2.5);
 
