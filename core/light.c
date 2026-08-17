@@ -78,7 +78,7 @@ static ui32vec4 *grid_get(struct light_grid *grid, unsigned int x, unsigned int 
 
 static void ui32vec4_set(ui32vec4 *v, unsigned int idx)
 {
-    if (idx > sizeof(v->v) * 8) return;
+    if (idx >= sizeof(v->v) * 8)    return;
 
     static const size_t bits_per_comp = sizeof(*v->v) * 8;
     size_t comp = idx / bits_per_comp;
