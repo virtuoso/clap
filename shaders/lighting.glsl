@@ -163,7 +163,9 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
 
     uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
 
-    for (uint c = 0, off = 0; c < 4; c++) {
+    for (uint c = 0; c < 4; c++) {
+        /* Each component owns a fixed 32-light range in the 128-bit mask */
+        uint off = c * 32u;
         while (mask[c] != 0u) {
             bool set = (mask[c] & 1u) == 1;
             mask[c] >>= 1;
