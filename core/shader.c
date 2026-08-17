@@ -864,17 +864,15 @@ static const char *shader_stage_file_ext[SHADER_STAGES_MAX] = {
 };
 
 /*
- * Load one stage of @name's prog: the compiled shader and, on the
+ * Read one stage of @name's prog: the compiled shader and, on the
  * backends that emit one, its reflection. A stage @name has no source
- * for leaves @src->code NULL for the caller to judge, the geometry
- * stage being optional and the other two not.
+ * for leaves @src->code NULL.
  */
-static cerr lib_read_shader_stage(shader_context *ctx, const char *name, shader_stage stage, shader_stage_src *src)
+static cerr lib_read_stage_files(const char *ext, const char *name, shader_stage stage, shader_stage_src *src)
 {
     LOCAL(char, file);
     LOCAL(char, ref_file);
 
-    const char *ext = renderer_shader_ext(ctx->renderer);
     CRES_RET(mem_asprintf(&file, "%s.%s%s", name, shader_stage_file_ext[stage], ext), return CERR_NOMEM);
     CRES_RET(mem_asprintf(&ref_file, "%s.json", file), return CERR_NOMEM);
 
@@ -889,6 +887,26 @@ static cerr lib_read_shader_stage(shader_context *ctx, const char *name, shader_
     if (src->ref)   src->ref_text = ref_text;
 
     return CERR_OK;
+}
+
+/*
+ * Load one stage of @name's prog. A stage @name has no source for
+ * leaves @src->code NULL for the caller to judge, the geometry stage
+ * being optional and the fragment stage not; the vertex stage has a
+ * default: the post-process progs draw a full-screen quad and do all
+ * their work in the fragment stage, so one without a vertex shader
+ * under its name gets passthrough.vert, reflection and all, where the
+ * reflection is what the prog's attribute layout comes from.
+ */
+static cerr lib_read_shader_stage(shader_context *ctx, const char *name, shader_stage stage, shader_stage_src *src)
+{
+    const char *ext = renderer_shader_ext(ctx->renderer);
+
+    CERR_RET_CERR(lib_read_stage_files(ext, name, stage, src));
+    if (src->code || stage != SHADER_STAGE_VERTEX)  return CERR_OK;
+
+    dbg("shader '%s': no vertex stage of its own, using passthrough.vert\n", name);
+    return lib_read_stage_files(ext, "passthrough", stage, src);
 }
 
 cerr lib_request_shaders(shader_context *ctx, const char *name, struct list *shaders)
