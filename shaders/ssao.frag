@@ -21,12 +21,24 @@ void main()
 
     vec3 normal_sample = texture(normal_map, pass_tex).xyz;
     vec3 normal = normalize(normal_sample * 2.0 - 1.0);
-    float depth;
-    vec3 pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex, depth);
+    vec3 pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
     float dz = fwidth(pos.z);
     FragColor = 1.0;
-    // nothing rendered here, nothing to occlude
-    if (depth >= 1.0)   return;
+
+    float scale = clamp(1.0 + pos.z / far_plane, 0.1, 1.0);
+    float actual_radius = ssao_radius * scale;
+
+    /*
+     * The kernel's projected radius in depth texels. Under one texel
+     * every tap lands on the center's own texel or its neighbor and
+     * the occlusion it finds is the noise tile, not geometry: fade the
+     * kernel out over its last texel and skip it once it is gone. Far
+     * geometry shrinks below this well before the far plane, where the
+     * background sits.
+     */
+    float radius_px = actual_radius * proj[1][1] * 0.5 * float(textureSize(depth_tex, 0).y) / -pos.z;
+    float fade = clamp(radius_px - 1.0, 0.0, 1.0);
+    if (fade == 0.0)    return;
 
     // Create TBN
     vec3 tangent = normalize(random_vec - normal * dot(random_vec, normal));
@@ -38,9 +50,6 @@ void main()
     bias *= mix(1.0, 4.0, 1.0 - abs(normal.z));
 
     float occlusion = 0.0;
-
-    float scale = clamp(1.0 + pos.z / far_plane, 0.1, 1.0);
-    float actual_radius = ssao_radius * scale;
 
     for (int i = 0; i < SSAO_KERNEL_SIZE; ++i) {
         vec3 sample_vec = TBN * ssao_kernel[i];
@@ -56,5 +65,5 @@ void main()
             occlusion += range_check;
     }
 
-    FragColor = 1.0 - (occlusion / float(SSAO_KERNEL_SIZE));
+    FragColor = 1.0 - fade * occlusion / float(SSAO_KERNEL_SIZE);
 }
