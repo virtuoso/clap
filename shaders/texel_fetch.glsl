@@ -19,18 +19,24 @@ vec4 texel_fetch_2darray(in sampler2DArray map, in vec3 pos, in ivec2 tex_off)
     return textureLod(map, vec3(pos.xy + off, pos.z), 0.0);
 }
 
+/*
+ * The MSAA fetches take a uv, offset by the caller's kernel in uv space
+ * since texelFetch() has no offset parameter for multisampled textures;
+ * at the border pixels that reaches past the edge, and texelFetch()
+ * does not wrap, so clamp to the edge texel
+ */
 vec4 texel_fetch_2dms_sample(in texture2DMS map, in vec2 pos, in int idx)
 {
-    float texel_size_x = textureSize(map).x;
-    float texel_size_y = textureSize(map).y;
-    return texelFetch(map, ivec2(pos.x * texel_size_x, pos.y * texel_size_y), idx);
+    ivec2 size = textureSize(map);
+    ivec2 tc = clamp(ivec2(pos * vec2(size)), ivec2(0), size - 1);
+    return texelFetch(map, tc, idx);
 }
 
 vec4 texel_fetch_2dms_array_sample(in sampler2DMSArray map, in vec3 pos, in int idx)
 {
-    float texel_size_x = textureSize(map).x;
-    float texel_size_y = textureSize(map).y;
-    return texelFetch(map, ivec3(pos.x * texel_size_x, pos.y * texel_size_y, pos.z), idx);
+    ivec2 size = textureSize(map).xy;
+    ivec2 tc = clamp(ivec2(pos.xy * vec2(size)), ivec2(0), size - 1);
+    return texelFetch(map, ivec3(tc, int(pos.z)), idx);
 }
 
 /* MSAA resolving algorithms */

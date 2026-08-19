@@ -14,7 +14,9 @@ float depth_linear(sampler2D map, vec2 uv, ivec2 off, float near_plane, float fa
 // XXX: texel_fetch_*() APIs are a misnomer and should really be texture_sample_*()
 float depth_linear_fetch(sampler2D map, vec2 uv, ivec2 off, float near_plane, float far_plane)
 {
-    ivec2 tc = ivec2(uv * vec2(textureSize(map, 0))) + off;
+    /* the kernel reaches past the edge at the border pixels, texelFetch() does not wrap */
+    ivec2 size = textureSize(map, 0);
+    ivec2 tc = clamp(ivec2(uv * vec2(size)) + off, ivec2(0), size - 1);
     return linearize_depth(texelFetch(map, tc, 0).r, near_plane, far_plane);
 }
 
