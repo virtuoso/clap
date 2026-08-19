@@ -25,9 +25,13 @@ f16vec3 apply_contrast(f16vec3 color, float16_t contrast, float16_t pivot)
 float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
 {
 #ifdef SHADER_VARIANT_RADIAL_FOG
-    f16vec3 view_pos = HVEC3(view_pos_from_depth(tex, inverse_proj, uv));
-    float16_t dist = length(view_pos);
-    return clamp((dist - H(near_fog)) / H(far_fog - near_fog), H(0.0), H(1.0));
+    /*
+     * The distance stays in full precision: squaring a far view
+     * position overflows fp16 past 256 units, and the background sits
+     * on the far plane
+     */
+    float dist = length(view_pos_from_depth(tex, inverse_proj, uv));
+    return H(clamp((dist - near_fog) / (far_fog - near_fog), 0.0, 1.0));
 #else /* !SHADER_VARIANT_RADIAL_FOG */
     return H(0.0);
 #endif /* !SHADER_VARIANT_RADIAL_FOG */
