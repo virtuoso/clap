@@ -45,6 +45,8 @@ typedef struct render_options {
     float   taa_feedback;
     float   fog_near;
     float   fog_far;
+    /* the fog factor at and past fog_far */
+    float   fog_max;
     vec3    fog_color;
     float   hdr_white_nits;
     float   hdr_peak_nits;
@@ -85,6 +87,8 @@ typedef struct render_options {
     float   shadow_bleed;
     /* one of BLOOM_QUALITY_*, picks the bloom passes the pipeline builder emits */
     int     bloom_quality;
+    /* one of FOG_CURVE_* (shader_constants.h) */
+    int     fog_curve;
     /*
      * The edge (outline) pass; when off, the pass is not built at all and
      * combine/present composite without edges (SMAA goes down with it)

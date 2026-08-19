@@ -443,6 +443,8 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.fog = true;
     ctx->render_options.fog_near = 5.0;
     ctx->render_options.fog_far = 80.0;
+    ctx->render_options.fog_max = 1.0;
+    ctx->render_options.fog_curve = FOG_CURVE_LINEAR;
     vec3_dup(ctx->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
     ctx->render_options.film_grain = true;
     ctx->render_options.film_grain_factor = 0.02;

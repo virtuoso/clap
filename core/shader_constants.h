@@ -23,6 +23,18 @@
 #define FOG_RANGE_MIN   0.001f
 
 /*
+ * Radial fog density over the fog_near..fog_far range:
+ *   LINEAR -- fog_far is where the fog reaches its ceiling
+ *   EXP    -- asymptotic, 95% of the ceiling at fog_far and closing in
+ *             on it beyond
+ *   SMOOTH -- linear eased in and out at both ends
+ */
+#define FOG_CURVE_LINEAR    0
+#define FOG_CURVE_EXP       1
+#define FOG_CURVE_SMOOTH    2
+#define FOG_CURVE_MAX       3
+
+/*
  * HDR output encodings present.frag can produce, one per surface the
  * backends know how to ask a compositor for:
  *   PQ                 -- BT.2020 primaries, SMPTE ST2084 (vulkan

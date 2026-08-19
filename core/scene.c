@@ -373,6 +373,16 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             );
             igSameLine(0, 0);
             igText("fog color");
+            igSliderFloat("fog ceiling", &ropts->fog_max, 0.0, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+            igText("fog curve:");
+            igSameLine(0.0, 0.0);
+            igPushID_Str("fog_curve");
+            igRadioButton_IntPtr("linear", &ropts->fog_curve, FOG_CURVE_LINEAR);
+            igSameLine(0.0, 0.0);
+            igRadioButton_IntPtr("exp", &ropts->fog_curve, FOG_CURVE_EXP);
+            igSameLine(0.0, 0.0);
+            igRadioButton_IntPtr("smooth", &ropts->fog_curve, FOG_CURVE_SMOOTH);
+            igPopID();
         }
         igSeparator();
         igCheckbox("film grain", &ropts->film_grain);

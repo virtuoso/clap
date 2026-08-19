@@ -34,7 +34,14 @@ float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fo
      */
     float dist = length(view_pos_from_depth(tex, inverse_proj, uv));
     /* the range dragged shut is a step at near_fog, not a division by zero */
-    return H(clamp((dist - near_fog) / max(far_fog - near_fog, FOG_RANGE_MIN), 0.0, 1.0));
+    float t = (dist - near_fog) / max(far_fog - near_fog, FOG_RANGE_MIN);
+    float factor;
+
+    if (fog_curve == FOG_CURVE_EXP)         factor = 1.0 - exp(-3.0 * max(t, 0.0));
+    else if (fog_curve == FOG_CURVE_SMOOTH) factor = smoothstep(0.0, 1.0, t);
+    else                                    factor = clamp(t, 0.0, 1.0);
+
+    return H(factor * fog_max);
 #else /* !SHADER_VARIANT_RADIAL_FOG */
     return H(0.0);
 #endif /* !SHADER_VARIANT_RADIAL_FOG */
