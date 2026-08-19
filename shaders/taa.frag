@@ -160,12 +160,18 @@ void main()
          * exactly, texel-center aligned -- no bilinear resampling, no
          * progressive history blur.
          *
+         * Where nothing was rendered there is no point to follow, only
+         * a view direction: the background is at infinity and moves
+         * with the camera's rotation alone, so reproject it as a
+         * direction (w = 0) and let the translation drop out.
+         *
          * History is unusable for points behind the previous camera.
          */
         vec2 texel = 1.0 / vec2(width, height);
         vec2 uv_near = pass_tex + vec2(near_off) * texel;
-        vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv_near);
-        vec4 world_pos = inverse_view * vec4(view_pos, 1.0);
+        float depth;
+        vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv_near, depth);
+        vec4 world_pos = inverse_view * vec4(view_pos, depth < 1.0 ? 1.0 : 0.0);
         vec4 prev_clip = prev_proj_view * world_pos;
         vec2 prev_ndc = prev_clip.xy / prev_clip.w + jitter;
 
