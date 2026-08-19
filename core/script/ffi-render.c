@@ -38,6 +38,21 @@ FFI_SET_FLOAT(ffi_render_set_fog_far, "fn (ro: RenderOptions) set_fog_far*(v: re
 FFI_GET_VEC3(ffi_render_fog_color, "fn (ro: RenderOptions) fog_color*(): Vec3", render_options, fog_color)
 FFI_SET_VEC3(ffi_render_set_fog_color, "fn (ro: RenderOptions) set_fog_color*(r, g, b: real)",
              render_options, fog_color)
+FFI_GET_BOOL(ffi_render_fog, "fn (ro: RenderOptions) fog*(): bool", render_options, fog)
+FFI_SET_BOOL(ffi_render_set_fog, "fn (ro: RenderOptions) set_fog*(v: bool)", render_options, fog)
+FFI_GET_FLOAT(ffi_render_fog_max, "fn (ro: RenderOptions) fog_max*(): real", render_options, fog_max)
+FFI_SET_FLOAT_RANGE(ffi_render_set_fog_max, "fn (ro: RenderOptions) set_fog_max*(v: real)",
+                    render_options, fog_max, 0.0, 1.0)
+FFI_GET_INT(ffi_render_fog_curve, "fn (ro: RenderOptions) fog_curve*(): int", render_options, fog_curve)
+
+/* One of FOG_CURVE_* (shader_constants.h); anything else is clamped into the range. */
+CLAP_SCRIPT_METHOD(ffi_render_set_fog_curve, "fn (ro: RenderOptions) set_fog_curve*(v: int)")
+void ffi_render_set_fog_curve(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    (void)result;
+    render_options *ro = ffi_ptr(params, 0);
+    if (ro) ro->fog_curve = clamp((int)ffi_int(params, 1), FOG_CURVE_LINEAR, FOG_CURVE_MAX - 1);
+}
 
 /* Bloom */
 FFI_GET_FLOAT(ffi_render_bloom_intensity, "fn (ro: RenderOptions) bloom_intensity*(): real",
