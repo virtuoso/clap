@@ -284,7 +284,7 @@ include("${CMAKE_SOURCE_DIR}/scripts/compile-shaders.cmake")
 set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
 set(SHADERS ui glyph model contrast sobel sobel-msaa laplace
     smaa-blend-weights smaa-neighborhood-blend combine shadow
-    debug hblur vblur downsample terrain particle ssao
+    debug hblur vblur downsample terrain particle ssao gtao
     shadow_vsm taa present combine-present bloom-downsample
     bloom-mip bloom-upsample passthrough)
 

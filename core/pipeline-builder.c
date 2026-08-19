@@ -692,7 +692,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "ssao",
+            .shader             = "gtao",
             .scale              = 0.25,
         ),
         pipeline
