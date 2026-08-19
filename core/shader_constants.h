@@ -19,6 +19,9 @@
 #define HDR_LUT_K   1.0f
 #define HDR_LUT_MAX 16.0f
 
+/* the shortest fog_near..fog_far range the fog factor divides by */
+#define FOG_RANGE_MIN   0.001f
+
 /*
  * HDR output encodings present.frag can produce, one per surface the
  * backends know how to ask a compositor for:

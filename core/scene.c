@@ -355,26 +355,25 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         }
         igSliderFloat("contrast", &ropts->contrast, 0.01, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
         igSeparator();
-        if (igButton("disable fog", (ImVec2){})) {
-            ropts->fog_near = scene->camera->view.main.far_plane;
-            ropts->fog_far = scene->camera->view.main.far_plane;
+        igCheckbox("fog", &ropts->fog);
+        if (ropts->fog) {
+            igDragFloatRange2(
+                "fog near/far",
+                &ropts->fog_near,
+                &ropts->fog_far,
+                1.0, 1.0, scene->camera->view.main.far_plane,
+                "near: %.02f", "far: %.02f", 0
+            );
+            igColorEdit3(
+                "fog_color",
+                ropts->fog_color,
+                ImGuiColorEditFlags_NoInputs |
+                ImGuiColorEditFlags_NoLabel  |
+                ImGuiColorEditFlags_NoTooltip
+            );
+            igSameLine(0, 0);
+            igText("fog color");
         }
-        igDragFloatRange2(
-            "fog near/far",
-            &ropts->fog_near,
-            &ropts->fog_far,
-            1.0, 1.0, scene->camera->view.main.far_plane,
-            "near: %.02f", "far: %.02f", 0
-        );
-        igColorEdit3(
-            "fog_color",
-            ropts->fog_color,
-            ImGuiColorEditFlags_NoInputs |
-            ImGuiColorEditFlags_NoLabel  |
-            ImGuiColorEditFlags_NoTooltip
-        );
-        igSameLine(0, 0);
-        igText("fog color");
         igSeparator();
         igCheckbox("film grain", &ropts->film_grain);
         igSliderFloat("grain factor", &ropts->film_grain_factor, 0.0, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);

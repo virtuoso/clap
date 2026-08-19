@@ -496,7 +496,7 @@ static void graphics_init(clap_context *ctx, void *data)
     ropts->lighting_operator = 1.0;
     ropts->contrast = 0.05;
     ropts->lighting_exposure = 1.1;
-    ropts->fog_near = ropts->fog_far = 300.0f;
+    ropts->fog = false;
 
 
     CERR_RET(

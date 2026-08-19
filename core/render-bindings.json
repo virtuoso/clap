@@ -191,6 +191,7 @@
                 { "name": "fog_color", "type": "DT_VEC3", "symbol": "UNIFORM_FOG_COLOR", "discription": "radial fog color" },
                 { "name": "fog_near", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_NEAR", "discription": "radial fog near distance" },
                 { "name": "fog_far", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_FAR", "discription": "radial fog far distance" },
+                { "name": "use_fog", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_FOG", "discription": "apply radial fog" },
                 { "name": "film_grain", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_FILM_GRAIN", "discription": "enable film grain" },
                 { "name": "film_grain_shift", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_SHIFT", "discription": "per-frame random seed for film grain UV offset" },
                 { "name": "film_grain_factor", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_FACTOR", "discription": "film grain intensity" },

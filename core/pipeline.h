@@ -91,6 +91,7 @@ typedef struct render_options {
      */
     bool    edges;
     bool    film_grain;
+    bool    fog;
     bool    taa;
     bool    hdr;
     bool    hdr_output;

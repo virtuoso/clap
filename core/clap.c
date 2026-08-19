@@ -440,6 +440,7 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.lighting_exposure = 1.3;
     ctx->render_options.lighting_operator = 0.0;
     ctx->render_options.contrast = 0.15;
+    ctx->render_options.fog = true;
     ctx->render_options.fog_near = 5.0;
     ctx->render_options.fog_far = 80.0;
     vec3_dup(ctx->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
