@@ -42,7 +42,8 @@
                 { "name": "light_cutoff", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHT_CUTOFF", "array_size": "LIGHTS_MAX", "discription": "array of spotlight cutoff angles in radians (LIGHTS_MAX entries)" },
                 { "name": "nr_lights", "type": "DT_INT", "symbol": "UNIFORM_NR_LIGHTS", "discription": "number of light sources" },
                 { "name": "use_normals", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_USE_NORMALS", "discription": "model uses a normal map" },
-                { "name": "light_ambient", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_AMBIENT", "discription": "ambient light color" }
+                { "name": "light_ambient", "type": "DT_VEC3", "symbol": "UNIFORM_LIGHT_AMBIENT", "discription": "ambient light color" },
+                { "name": "light_volumetric", "type": "DT_FLOAT", "symbol": "UNIFORM_LIGHT_VOLUMETRIC", "array_size": "LIGHTS_MAX", "discription": "array of per-light volumetric in-scattering factors (LIGHTS_MAX entries)" }
             ]
         },
         {
