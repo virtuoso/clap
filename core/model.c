@@ -1000,6 +1000,8 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_SHIFT, (float)ropts->time);
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_FACTOR, ropts->film_grain_factor);
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_POWER, ropts->film_grain_power);
+                shader_set_var_int(prog, UNIFORM_FRAME_COUNT, (int)ropts->frame_count);
+                shader_set_var_float(prog, UNIFORM_UPTIME, ropts->uptime);
             }
 
             if (opts->width)
