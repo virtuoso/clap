@@ -25,7 +25,8 @@
         { "name": "history_tex",    "binding": 12, "symbol": "UNIFORM_HISTORY_TEX" },
         { "name": "velocity_tex",   "binding": 13, "symbol": "UNIFORM_VELOCITY_TEX" },
         { "name": "bloom_tex",      "binding": 1,  "symbol": "UNIFORM_BLOOM_TEX" },
-        { "name": "bloom_half_tex", "binding": 6,  "symbol": "UNIFORM_BLOOM_HALF_TEX" }
+        { "name": "bloom_half_tex", "binding": 6,  "symbol": "UNIFORM_BLOOM_HALF_TEX" },
+        { "name": "volumetric_tex", "binding": 14, "symbol": "UNIFORM_VOLUMETRIC_TEX" }
     ],
     "ubos": [
         {
@@ -199,7 +200,14 @@
                 { "name": "film_grain_factor", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_FACTOR", "discription": "film grain intensity" },
                 { "name": "film_grain_power", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_POWER", "discription": "film grain luminance sensitivity exponent" },
                 { "name": "taa_feedback", "type": "DT_FLOAT", "symbol": "UNIFORM_TAA_FEEDBACK", "discription": "TAA current-frame contribution to the history blend" },
-                { "name": "taa_reset", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_TAA_RESET", "discription": "TAA history is invalid, output the current frame only" }
+                { "name": "taa_reset", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_TAA_RESET", "discription": "TAA history is invalid, output the current frame only" },
+                { "name": "volumetric_intensity", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_INTENSITY", "discription": "volumetric in-scattering strength" },
+                { "name": "volumetric_g", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_G", "discription": "volumetric phase anisotropy (Schlick), -1..1, forward-scattering when positive" },
+                { "name": "volumetric_density", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_DENSITY", "discription": "volumetric base fog density" },
+                { "name": "volumetric_amp", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_AMP", "discription": "volumetric noise density amplitude" },
+                { "name": "volumetric_scale", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_SCALE", "discription": "volumetric noise sampling frequency" },
+                { "name": "volumetric_local_intensity", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_LOCAL_INTENSITY", "discription": "volumetric in-scattering strength of local (point/spot) lights" },
+                { "name": "volumetric_debug", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_VOLUMETRIC_DEBUG", "discription": "combine outputs the raw volumetric buffer" }
             ]
         },
         {
