@@ -380,6 +380,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 
     render_options *ropts = get_ropts(opts);
     bool ssao = ropts->ssao;
+    bool volumetric = ropts->fog_volumetric;
 
     /*
      * No LUT in render_options, but one is required; pick the first one
@@ -707,6 +708,32 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         ? CRES_RET_T(add_blur_subchain(pl, ssao_pass, FBO_COLOR_TEXTURE(0), TEX_FMT_R8, 0.25), pipeline)
         : NULL;
 
+    render_pass *volumetric_pass = volumetric ? CRES_RET_T(
+        pipeline_add_pass(pl,
+            .source             = (render_source[]) {
+                {
+                    .pass       = model_pass,
+                    .attachment = FBO_DEPTH_TEXTURE(0),
+                    .method     = model_pass_method,
+                    .sampler    = UNIFORM_DEPTH_TEX
+                },
+                {
+                    .tex        = opts->pl_opts->noise3d,
+                    .method     = RM_PLUG,
+                    .sampler    = UNIFORM_NOISE3D_TEX
+                },
+                {}
+            },
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
+            .ops                = &postproc_ops,
+            .layout             = FBO_COLOR_TEXTURE(0),
+            .shader             = "volumetric",
+            .scale              = 0.25,
+            .use_light          = true,
+        ),
+        pipeline
+    ) : NULL;
+
     render_pass *combine_pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source            = (render_source[]) {
@@ -764,6 +791,18 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                         .tex        = black_pixel(),
                         .method     = RM_PLUG,
                         .sampler    = UNIFORM_SHADOW_MAP
+                    },
+                volumetric ?
+                    (render_source) {
+                        .pass       = volumetric_pass,
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_VOLUMETRIC_TEX
+                    } :
+                    (render_source) {
+                        .tex        = black_pixel(),
+                        .method     = RM_PLUG,
+                        .sampler    = UNIFORM_VOLUMETRIC_TEX
                     },
                 {
                     .tex        = lut_tex(ropts->lighting_lut),

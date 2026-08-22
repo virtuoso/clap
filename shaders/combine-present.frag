@@ -29,6 +29,7 @@ layout (binding=SAMPLER_BINDING_depth_tex) uniform sampler2D depth_tex;
 layout (binding=SAMPLER_BINDING_shadow_map) uniform sampler2D shadow_map;
 layout (binding=SAMPLER_BINDING_lut_tex) uniform sampler3D lut_tex;
 layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
+layout (binding=SAMPLER_BINDING_volumetric_tex) uniform sampler2D volumetric_tex;
 layout (binding=SAMPLER_BINDING_grain_tex) uniform sampler2D grain_tex;
 
 #include "ubo_render_common.glsl"

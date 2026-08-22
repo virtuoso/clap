@@ -7,7 +7,8 @@
  * combine-present.frag (combine and present merged into one screen
  * pass when neither TAA nor SMAA runs). The including shader declares
  * the samplers (model_tex, emission_map, bloom_tex, bloom_half_tex,
- * sobel_tex, depth_tex, shadow_map, lut_tex, noise3d) and the UBOs.
+ * sobel_tex, depth_tex, shadow_map, lut_tex, noise3d, volumetric_tex)
+ * and the UBOs.
  */
 
 /*
@@ -60,6 +61,9 @@ vec3 radial_fog_color(vec3 view_pos)
 
 vec4 combine_color(vec2 pass_tex)
 {
+    if (volumetric_debug)
+        return vec4(texture(volumetric_tex, pass_tex).rgb, 1.0);
+
     f16vec3 tex_color = HVEC3(texture(model_tex, pass_tex).rgb);
     float16_t fog_factor = radial_fog_factor(depth_tex, pass_tex, fog_near, fog_far);
 
