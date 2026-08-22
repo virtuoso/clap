@@ -193,6 +193,7 @@ void light_init(struct clap_context *ctx, struct light *light)
 {
     bitmap_init(&light->active, LIGHTS_MAX);
 
+    clap_get_viewport(ctx, nullptr, nullptr, (int *)&light->grid.width, (int *)&light->grid.height);
     light_grid_update(light);
 
     CERR_RET(
