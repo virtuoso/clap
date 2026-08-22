@@ -205,6 +205,7 @@ typedef struct clap_context {
     char                **envp;
     clap_os_info        os_info;
     struct timespec     current_time;
+    struct timespec     time_origin;
     sound_context       *sound;
     font_context        *font;
     struct phys         *phys;
@@ -328,14 +329,35 @@ struct timespec clap_get_current_timespec(struct clap_context *ctx)
     return ctx->current_time;
 }
 
+/**
+ * clap_sample_time() - sample the clock into the context's engine time
+ * @ctx:    clap context
+ *
+ * Engine time is relative to the first clock sample (the app epoch):
+ * CLOCK_MONOTONIC is anchored at boot on Linux and at the unix epoch
+ * on emscripten (performance.timeOrigin), magnitudes at which a
+ * float32 cast loses whole seconds of precision -- shader uniforms
+ * derived from engine time rely on it staying small.
+ */
+static void clap_sample_time(struct clap_context *ctx)
+{
+    struct timespec now;
+
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    if (unlikely(!ctx->time_origin.tv_sec && !ctx->time_origin.tv_nsec))
+        ctx->time_origin = now;
+
+    timespec_diff(&ctx->time_origin, &now, &ctx->current_time);
+}
+
 double clap_get_current_time(struct clap_context *ctx)
 {
     /*
-     * If clap_timer_set() is called before ctx->current time is first set,
-     * it'll go off immediately. Prevent that.
+     * If clap_timer_set() is called before the first frame samples the
+     * clock, it'll go off immediately. Prevent that.
      */
-    if (unlikely(!ctx->current_time.tv_nsec && !ctx->current_time.tv_sec))
-        clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
+    if (unlikely(!ctx->time_origin.tv_nsec && !ctx->time_origin.tv_sec))
+        clap_sample_time(ctx);
 
     return (double)ctx->current_time.tv_sec + (double)ctx->current_time.tv_nsec / NSEC_PER_SEC;
 }
@@ -345,7 +367,7 @@ static void clap_fps_calc(struct clap_context *ctx, struct fps_data *f)
     bool status = false;
     struct message m;
 
-    clock_gettime(CLOCK_MONOTONIC, &ctx->current_time);
+    clap_sample_time(ctx);
     if (!f->ts_prev.tv_sec && !f->ts_prev.tv_nsec) {
         // Default to a reasonable value (~60 FPS) instead of display_refresh_rate()
         f->ts_delta.tv_nsec = NSEC_PER_SEC / 1000 * 16;  // 16ms
