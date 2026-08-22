@@ -86,6 +86,8 @@ struct render_pass {
     float                   scale;
 
     unsigned int            checkpoint;
+    /* models_render() gets pipeline::light for this pass' quad */
+    bool                    use_light;
 };
 
 #endif /* __CLAP_PIPELINE_INTERNAL_H__ */

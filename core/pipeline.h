@@ -256,6 +256,11 @@ typedef struct pipeline_pass_config {
     int                     cascade;
     bool                    multisampled;
     /*
+     * Pass light uniforms and the shadow maps to this pass' quad
+     * shader; only meaningful for postprocessing (quad) passes
+     */
+    bool                    use_light;
+    /*
      * Allocate two FBOs and swap them each frame; the previous frame's
      * render target is sampled via an RM_HISTORY source. A ping-pong
      * pass must render every frame, i.e. it must sit before the lowest

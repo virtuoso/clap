@@ -66,6 +66,16 @@ static void pass_free_quad(render_pass *pass)
         }
     }
 
+    /* models_render() plugs these into use_light passes' quads (model.c) */
+    if (pass->use_light) {
+        model3dtx_set_texture(txm, UNIFORM_LIGHT_MAP, NULL);
+        model3dtx_set_texture(txm, UNIFORM_SHADOW_MAP, NULL);
+        model3dtx_set_texture(txm, UNIFORM_SHADOW_MAP1, NULL);
+        model3dtx_set_texture(txm, UNIFORM_SHADOW_MAP2, NULL);
+        model3dtx_set_texture(txm, UNIFORM_SHADOW_MAP3, NULL);
+        model3dtx_set_texture(txm, UNIFORM_SHADOW_MAP_MS, NULL);
+    }
+
     ref_put_last(pass->quad);
 }
 
@@ -313,6 +323,7 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
         pass->name = cfg->shader_override;
 
     pass->cascade = cfg->cascade;
+    pass->use_light = cfg->use_light;
     pass->scale = cfg->scale ? : 1.0;
     unsigned int width = pl->width, height = pl->height;
     RENDER_PASS_OPS_PARAMS(pl, pass);
@@ -665,6 +676,7 @@ static cerr pass_render(pipeline *pl, render_pass *pass, struct mq *mq)
         mq_add_model(&_mq, pass->quad->txmodel);
         ret = models_render(pl->renderer, &_mq,
                             .camera           = params.camera,
+                            .light            = pass->use_light ? params.light : NULL,
                             .taa              = taa,
                             .near_plane       = params.near_plane,
                             .far_plane        = params.far_plane,
