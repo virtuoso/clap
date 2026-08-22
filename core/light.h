@@ -22,6 +22,8 @@ struct light {
     float attenuation[3 * LIGHTS_MAX];
     float dir[3 * LIGHTS_MAX];
     float cutoff[LIGHTS_MAX];
+    /* volumetric in-scattering factor; opt-in, 0.0 excludes the light */
+    float volumetric[LIGHTS_MAX];
     int is_dir[LIGHTS_MAX];
     struct view view[LIGHTS_MAX];
     texture_t *shadow[LIGHTS_MAX][CASCADES_MAX];
@@ -78,6 +80,7 @@ void light_set_directional(struct light *light, int idx, bool is_directional);
 void light_set_direction(struct light *light, int idx, vec3 dir);
 bool light_is_spotlight(struct light *light, int idx);
 void light_set_cutoff(struct light *light, int idx, float cutoff);
+void light_set_volumetric(struct light *light, int idx, float volumetric);
 void light_init(struct clap_context *ctx, struct light *light);
 void light_done(struct clap_context *ctx, struct light *light);
 

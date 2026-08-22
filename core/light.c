@@ -329,6 +329,7 @@ cres(int) light_get(struct light *light)
     light->dir[idx * 3 + 1]     = 0;
     light->dir[idx * 3 + 2]     = 0;
     light->cutoff[idx]          = 0;
+    light->volumetric[idx]      = 0;
     light->is_dir[idx]          = true;
     light->update[idx]          = NULL;
     light->update_cleanup[idx]  = NULL;
@@ -527,4 +528,22 @@ void light_set_cutoff(struct light *light, int idx, float cutoff)
         return;
 
     light->cutoff[idx] = cutoff;
+}
+
+/**
+ * light_set_volumetric() - set a light's volumetric scattering factor
+ * @light:      lights
+ * @idx:        light index from light_get()
+ * @volumetric: in-scattering contribution factor
+ *
+ * Scales this light's contribution to the volumetric scattering pass.
+ * Volumetric scattering is opt-in per light: every allocated light
+ * defaults to 0.0 (excluded). Has no effect on surface lighting.
+ */
+void light_set_volumetric(struct light *light, int idx, float volumetric)
+{
+    if (!light_is_valid(light, idx))
+        return;
+
+    light->volumetric[idx] = volumetric;
 }
