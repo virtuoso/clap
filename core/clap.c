@@ -476,6 +476,7 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.volumetric_scale = 0.05;
     ctx->render_options.volumetric_local_intensity = 1.0;
     ctx->render_options.volumetric_wind = 0.5;
+    ctx->render_options.volumetric_extinction = 0.1;
     ctx->render_options.film_grain = true;
     ctx->render_options.film_grain_factor = 0.02;
     ctx->render_options.film_grain_power = 1.0;
