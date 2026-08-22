@@ -14,6 +14,8 @@
 #define BLOOM_LEVELS 4
 /** VOLUMETRIC_STEPS - ray march steps per pixel of the volumetric pass */
 #define VOLUMETRIC_STEPS 16
+/** VOLUMETRIC_LOCAL_LIGHTS_MAX - local lights the volumetric pass scatters, past the shadow slot */
+#define VOLUMETRIC_LOCAL_LIGHTS_MAX 4
 
 #define LIGHT_CUTOFF    (1.0f / 256.0f)
 #define TILE_WIDTH      64
