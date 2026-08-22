@@ -1892,6 +1892,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 light_set_directional(&scene->light, e->light_idx, true);
             }
 
+            jpos = json_find_member(it, "light_volumetric");
+            if (jpos && jpos->tag == JSON_NUMBER && e->light_idx >= 0)
+                light_set_volumetric(&scene->light, e->light_idx, jpos->number_);
+
 light_done:
             if (e->light_idx >= 0) {
                 e->light = &scene->light;
