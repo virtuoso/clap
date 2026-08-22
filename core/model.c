@@ -1026,6 +1026,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_int(prog, UNIFORM_NR_LIGHTS, light->nr_lights);
                 shader_set_var_ptr(prog, UNIFORM_LIGHT_AMBIENT, 1, light->ambient);
                 shader_set_var_ptr(prog, UNIFORM_SHADOW_TINT, 1, light->shadow_tint);
+                shader_set_var_ptr(prog, UNIFORM_LIGHT_VOLUMETRIC, LIGHTS_MAX, light->volumetric);
                 if (shader_has_var(prog, UNIFORM_SHADOW_MVP)) {
                     float shadow_texel[CASCADES_MAX];
                     float light_far[CASCADES_MAX];
