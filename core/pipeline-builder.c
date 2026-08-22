@@ -734,6 +734,10 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
         pipeline
     ) : NULL;
 
+    render_pass *volumetric_blur_pass = volumetric
+        ? CRES_RET_T(add_blur_subchain(pl, volumetric_pass, FBO_COLOR_TEXTURE(0), hdr_fmt, 0.25), pipeline)
+        : NULL;
+
     render_pass *combine_pass = CRES_RET_T(
         pipeline_add_pass(pl,
             .source            = (render_source[]) {
@@ -794,7 +798,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     },
                 volumetric ?
                     (render_source) {
-                        .pass       = volumetric_pass,
+                        .pass       = volumetric_blur_pass,
                         .attachment = FBO_COLOR_TEXTURE(0),
                         .method     = RM_USE,
                         .sampler    = UNIFORM_VOLUMETRIC_TEX
