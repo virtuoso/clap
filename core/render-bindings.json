@@ -203,6 +203,15 @@
             ]
         },
         {
+            "name": "frame",
+            "stages": [ "vertex", "fragment" ],
+            "binding": 12,
+            "uniforms": [
+                { "name": "frame_count", "type": "DT_UINT", "symbol": "UNIFORM_FRAME_COUNT", "discription": "frames since app start; exact, wraps at 2^32 -- seed per-frame hashes off this" },
+                { "name": "uptime", "type": "DT_FLOAT", "symbol": "UNIFORM_UPTIME", "discription": "seconds since app start; smooth for hours, quantizes over days -- wrap long-period consumers CPU-side" }
+            ]
+        },
+        {
             "name": "color_pt",
             "stages": [ "fragment" ],
             "binding": 11,
