@@ -469,6 +469,12 @@ static void clap_init_render_options(struct clap_context *ctx)
     ctx->render_options.fog_max = 1.0;
     ctx->render_options.fog_curve = FOG_CURVE_LINEAR;
     vec3_dup(ctx->render_options.fog_color, (vec3){ 0.11, 0.14, 0.03 });
+    ctx->render_options.volumetric_intensity = 1.0;
+    ctx->render_options.volumetric_g = 0.6;
+    ctx->render_options.volumetric_density = 0.15;
+    ctx->render_options.volumetric_amp = 0.5;
+    ctx->render_options.volumetric_scale = 0.05;
+    ctx->render_options.volumetric_local_intensity = 1.0;
     ctx->render_options.film_grain = true;
     ctx->render_options.film_grain_factor = 0.02;
     ctx->render_options.film_grain_power = 1.0;
@@ -817,6 +823,7 @@ static const struct rebuild_reason {
     REBUILD_REASON_FIELD(shadow_vsm),
     REBUILD_REASON_FIELD(edge_antialiasing),
     REBUILD_REASON_FIELD(taa),
+    REBUILD_REASON_FIELD(fog_volumetric),
     REBUILD_REASON_FIELD(lighting_lut),
     REBUILD_REASON_FIELD(bloom_quality),
 };

@@ -59,6 +59,12 @@ typedef struct render_options {
     /* the fog factor at and past fog_far */
     float   fog_max;
     vec3    fog_color;
+    float   volumetric_intensity;
+    float   volumetric_g;
+    float   volumetric_density;
+    float   volumetric_amp;
+    float   volumetric_scale;
+    float   volumetric_local_intensity;
     float   hdr_white_nits;
     float   hdr_peak_nits;
     float   hdr_compress_knee;
@@ -93,6 +99,9 @@ typedef struct render_options {
     bool    edge_antialiasing;
     bool    edge_sobel;
     bool    ssao;
+    /* volumetric scattering pass; fog_far bounds the march */
+    bool    fog_volumetric;
+    bool    fog_volumetric_debug;
     bool    shadow_vsm;
     /* VSM light bleed reduction: the Chebyshev tail written off as bleed */
     float   shadow_bleed;

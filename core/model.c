@@ -1001,6 +1001,13 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_POWER, ropts->film_grain_power);
                 shader_set_var_int(prog, UNIFORM_FRAME_COUNT, (int)ropts->frame_count);
                 shader_set_var_float(prog, UNIFORM_UPTIME, ropts->uptime);
+                shader_set_var_int(prog, UNIFORM_VOLUMETRIC_DEBUG, ropts->fog_volumetric_debug);
+                shader_set_var_float(prog, UNIFORM_VOLUMETRIC_INTENSITY, ropts->volumetric_intensity);
+                shader_set_var_float(prog, UNIFORM_VOLUMETRIC_G, ropts->volumetric_g);
+                shader_set_var_float(prog, UNIFORM_VOLUMETRIC_DENSITY, ropts->volumetric_density);
+                shader_set_var_float(prog, UNIFORM_VOLUMETRIC_AMP, ropts->volumetric_amp);
+                shader_set_var_float(prog, UNIFORM_VOLUMETRIC_SCALE, ropts->volumetric_scale);
+                shader_set_var_float(prog, UNIFORM_VOLUMETRIC_LOCAL_INTENSITY, ropts->volumetric_local_intensity);
             }
 
             if (opts->width)
