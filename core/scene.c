@@ -306,6 +306,17 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             igSliderFloat("AO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
             igSliderFloat("AO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
         }
+        igCheckbox("volumetric fog", &ropts->fog_volumetric);
+        if (ropts->fog_volumetric) {
+            igCheckbox("-> debug view", &ropts->fog_volumetric_debug);
+            igSliderFloat("-> intensity", &ropts->volumetric_intensity, 0.0, 50.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("-> anisotropy", &ropts->volumetric_g, -0.99, 0.99, "%.2f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("-> density", &ropts->volumetric_density, 0.0, 1.0, "%.3f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("-> noise amp", &ropts->volumetric_amp, 0.0, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("-> noise scale", &ropts->volumetric_scale, 0.001, 0.5, "%.3f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("-> local intensity", &ropts->volumetric_local_intensity, 0.0, 100.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("-> wind", &ropts->volumetric_wind, 0.0, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+        }
         igCheckbox("use HDR pipeline", &ropts->hdr);
         if (igCheckbox("enable HDR output", &ropts->hdr_output_enabled))
             renderer_hdr_enable(clap_get_renderer(scene->clap_ctx), ropts->hdr_output_enabled);
