@@ -56,6 +56,9 @@ endforeach ()
 find_program(GLSLC glslc HINTS "${GLSLC_HINT}")
 # SPIR-V decompiler
 find_program(SPIRV_CROSS spirv-cross HINTS "${SPIRV_CROSS_HINT}")
+# SPIR-V optimizer, for the backends whose bind group layouts come from
+# the shader's statically used resources
+find_program(SPIRV_OPT spirv-opt HINTS "${SPIRV_OPT_HINT}")
 
 # Resolve backend properties.
 # Sets in PARENT_SCOPE:
@@ -192,13 +195,31 @@ function(_compile_shader_for_backend shader src stage backend SHADER_SRCS SHADER
         ${shader_depfile_args}
     )
 
+    # WebGPU derives a pipeline's bind group layout from the resources its
+    # shaders statically use, and rejects a bind group with an entry for
+    # anything else. A specialization of an uber shader keeps the uniform
+    # blocks its includes declare for the axes it compiles out, and the
+    # reflection would list them: strip the dead declarations first, so
+    # the reflection and the WGSL carry exactly what the pipeline binds
+    if (_USE_TINT)
+        set(SPIRV_USED "${SPIRV_DIR}/${shader}.used.spv")
+        add_custom_command(
+            OUTPUT "${SPIRV_USED}"
+            DEPENDS "${SPIRV_OUTPUT}"
+            COMMAND "${SPIRV_OPT}"
+            ARGS --eliminate-dead-code-aggressive -o "${SPIRV_USED}" "${SPIRV_OUTPUT}"
+        )
+    else ()
+        set(SPIRV_USED "${SPIRV_OUTPUT}")
+    endif ()
+
     # Backend-specific output
     if (_USE_TINT)
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${shader}${_SHADER_EXT}"
-            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_OUTPUT}" "${TINT_BIN_PATH}"
+            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_USED}" "${TINT_BIN_PATH}"
             COMMAND "${TINT_BIN_PATH}"
-            ARGS --format wgsl -o "${SHADER_DIR}/${shader}${_SHADER_EXT}" "${SPIRV_OUTPUT}"
+            ARGS --format wgsl -o "${SHADER_DIR}/${shader}${_SHADER_EXT}" "${SPIRV_USED}"
         )
     elseif (_USE_COPY)
         # copy_if_different leaves the destination mtime behind the source's
@@ -228,9 +249,9 @@ function(_compile_shader_for_backend shader src stage backend SHADER_SRCS SHADER
     if (_HAS_REFLECTION)
         add_custom_command(
             OUTPUT "${SHADER_DIR}/${shader}${_SHADER_EXT}.json"
-            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_OUTPUT}"
+            DEPENDS make-shader-output-dir-${backend}${suffix} "${SPIRV_USED}"
             COMMAND "${SPIRV_CROSS}"
-            ARGS "${SPIRV_OUTPUT}" --reflect --output "${SHADER_DIR}/${shader}${_SHADER_EXT}.json"
+            ARGS "${SPIRV_USED}" --reflect --output "${SHADER_DIR}/${shader}${_SHADER_EXT}.json"
         )
     endif ()
 
@@ -248,6 +269,9 @@ endfunction()
 # Propagates: SHADER_OUTS_${backend} to parent scope
 function(compile_shaders_for_backend backend SHADERS suffix)
     _shader_backend_props(${backend})
+    if (_USE_TINT AND NOT SPIRV_OPT)
+        message(FATAL_ERROR "spirv-opt is required for the ${backend} shaders (SPIRV_OPT_HINT)")
+    endif ()
 
     set(SPIRV_DIR "${SHADER_BASE}/spirv-${backend}${suffix}")
     set(SHADER_DIR "${SHADER_BASE}/${_SHADER_TYPE}${suffix}")
