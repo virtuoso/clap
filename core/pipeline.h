@@ -65,6 +65,7 @@ typedef struct render_options {
     float   volumetric_amp;
     float   volumetric_scale;
     float   volumetric_local_intensity;
+    float   volumetric_wind;
     float   hdr_white_nits;
     float   hdr_peak_nits;
     float   hdr_compress_knee;
