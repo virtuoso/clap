@@ -47,7 +47,6 @@ typedef struct render_options {
     float   contrast;
     float   ssao_radius;
     float   ssao_weight;
-    double  time;
     /* per-frame shader state: seconds and frames since app start */
     float   uptime;
     unsigned int    frame_count;

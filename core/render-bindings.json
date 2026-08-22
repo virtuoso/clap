@@ -195,7 +195,6 @@
                 { "name": "fog_max", "type": "DT_FLOAT", "symbol": "UNIFORM_FOG_MAX", "discription": "radial fog ceiling: the factor at and past fog_far" },
                 { "name": "fog_curve", "type": "DT_INT", "symbol": "UNIFORM_FOG_CURVE", "discription": "radial fog density curve, one of FOG_CURVE_*" },
                 { "name": "film_grain", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_FILM_GRAIN", "discription": "enable film grain" },
-                { "name": "film_grain_shift", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_SHIFT", "discription": "per-frame random seed for film grain UV offset" },
                 { "name": "film_grain_factor", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_FACTOR", "discription": "film grain intensity" },
                 { "name": "film_grain_power", "type": "DT_FLOAT", "symbol": "UNIFORM_FILM_GRAIN_POWER", "discription": "film grain luminance sensitivity exponent" },
                 { "name": "taa_feedback", "type": "DT_FLOAT", "symbol": "UNIFORM_TAA_FEEDBACK", "discription": "TAA current-frame contribution to the history blend" },

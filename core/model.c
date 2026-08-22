@@ -997,7 +997,6 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_int(prog, UNIFORM_FOG_CURVE, ropts->fog_curve);
                 shader_set_var_ptr(prog, UNIFORM_FOG_COLOR, 1, ropts->fog_color);
                 shader_set_var_int(prog, UNIFORM_FILM_GRAIN, ropts->film_grain);
-                shader_set_var_float(prog, UNIFORM_FILM_GRAIN_SHIFT, (float)ropts->time);
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_FACTOR, ropts->film_grain_factor);
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_POWER, ropts->film_grain_power);
                 shader_set_var_int(prog, UNIFORM_FRAME_COUNT, (int)ropts->frame_count);

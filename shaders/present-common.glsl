@@ -8,14 +8,20 @@
 /*
  * Film grain + OETF encode tail shared by present.frag and the merged
  * combine-present.frag; expects the grain_tex/depth_tex samplers and
- * the postproc UBO in scope.
+ * the postproc and frame UBOs in scope.
  */
 
 vec3 grain_color(vec3 color, vec3 view_pos, vec2 uv)
 {
+    /*
+     * Reseed the grain UV at 24Hz for the film cadence, independent of
+     * the display frame rate; the seed only needs to be distinct per
+     * tick, which float precision sustains for days of uptime
+     */
+    float grain_seed = floor(uptime * 24.0);
     vec2 shift = vec2(
-        fract(sin(film_grain_shift * 12.9898) * 43758.5453),
-        fract(cos(film_grain_shift * 78.233)  * 12345.6789)
+        fract(sin(grain_seed * 12.9898) * 43758.5453),
+        fract(cos(grain_seed * 78.233)  * 12345.6789)
     );
 
     float dist = length(view_pos);

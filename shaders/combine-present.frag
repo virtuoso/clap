@@ -35,6 +35,7 @@ layout (binding=SAMPLER_BINDING_grain_tex) uniform sampler2D grain_tex;
 #include "ubo_postproc.glsl"
 #include "ubo_projview.glsl"
 #include "ubo_bloom.glsl"
+#include "ubo_frame.glsl"
 
 #include "noise.glsl"
 

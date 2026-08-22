@@ -501,8 +501,6 @@ unsigned int clap_reserve_shadow_passes(clap_context *ctx, struct view *view, un
 /* Per-frame render options update */
 static void clap_update_render_options(clap_context *ctx)
 {
-    static const typeof(ctx->current_time.tv_nsec) nsec_per_24fps = NSEC_PER_SEC / 24;
-    ctx->render_options.time = (double)(ctx->current_time.tv_nsec / nsec_per_24fps) / 24.0;
     ctx->render_options.uptime = (float)clap_get_current_time(ctx);
     ctx->render_options.frame_count++;
 }
