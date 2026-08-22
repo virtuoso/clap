@@ -352,6 +352,11 @@ static cresp(render_pass) add_bloom_pyramid(pipeline *pl, render_pass *model_pas
 static texture_t grain_tex;
 static ssao_state pl_ssao_state;
 
+static const char *ao_shader_names[AO_METHOD_MAX] = {
+    [AO_METHOD_SSAO]    = "ssao",
+    [AO_METHOD_GTAO]    = "gtao",
+};
+
 /**
  * pipeline_builder_done() - release pipeline builder's process-wide resources
  */
@@ -692,7 +697,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_R8, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "gtao",
+            .shader             = ao_shader_names[ropts->ao_method],
             .scale              = 0.25,
         ),
         pipeline

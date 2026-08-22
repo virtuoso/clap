@@ -198,6 +198,12 @@ static const char *hdr_transfer_name(int transfer)
     return "?";
 }
 
+/* the AO radio labels, indexed by AO_METHOD_* */
+static const char *ao_method_names[AO_METHOD_MAX] = {
+    [AO_METHOD_SSAO]    = "SSAO",
+    [AO_METHOD_GTAO]    = "GTAO",
+};
+
 static void scene_parameters_debug(struct scene *scene, int cam_idx)
 {
     debug_module *dbgm = ui_igBegin(DEBUG_SCENE_PARAMETERS, ImGuiWindowFlags_AlwaysAutoResize);
@@ -284,10 +290,21 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("degenerate collision draws", &ropts->degenerate_draws_enabled);
         ui_igHelpTooltip("Paint the collision triangles that the physics backend dropped "
                          "as degenerate, on the models flagged in the entity inspector");
-        igCheckbox("use SSAO", &ropts->ssao);
+        igText("AO:");
+        igSameLine(0.0, 0.0);
+        igPushID_Str("ao");
+        if (igRadioButton_Bool("off", !ropts->ssao))    ropts->ssao = false;
+        for (int i = 0; i < AO_METHOD_MAX; i++) {
+            igSameLine(0.0, 0.0);
+            if (igRadioButton_Bool(ao_method_names[i], ropts->ssao && ropts->ao_method == i)) {
+                ropts->ssao = true;
+                ropts->ao_method = i;
+            }
+        }
+        igPopID();
         if (ropts->ssao) {
-            igSliderFloat("SSAO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-            igSliderFloat("SSAO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("AO radius", &ropts->ssao_radius, 0.1, 2.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
+            igSliderFloat("AO weight", &ropts->ssao_weight, 0.0, 1.0, "%.4f", ImGuiSliderFlags_ClampOnInput);
         }
         igCheckbox("use HDR pipeline", &ropts->hdr);
         if (igCheckbox("enable HDR output", &ropts->hdr_output_enabled))

@@ -26,6 +26,15 @@ typedef enum bloom_quality {
     BLOOM_QUALITY_MAX,
 } bloom_quality;
 
+/* The ambient occlusion pass shader; render_options.ssao switches the pass itself */
+typedef enum ao_method {
+    /* hemisphere kernel, SSAO_KERNEL_SIZE depth taps per fragment: ssao.frag */
+    AO_METHOD_SSAO = 0,
+    /* horizon marching, GTAO_SLICES x 2 x GTAO_STEPS depth taps per fragment: gtao.frag */
+    AO_METHOD_GTAO,
+    AO_METHOD_MAX,
+} ao_method;
+
 typedef struct render_options {
     lut     *lighting_lut;
     float   bloom_exposure;
@@ -87,6 +96,8 @@ typedef struct render_options {
     float   shadow_bleed;
     /* one of BLOOM_QUALITY_*, picks the bloom passes the pipeline builder emits */
     int     bloom_quality;
+    /* one of AO_METHOD_*, picks the AO pass shader when ssao is on */
+    int     ao_method;
     /* one of FOG_CURVE_* (shader_constants.h) */
     int     fog_curve;
     /*

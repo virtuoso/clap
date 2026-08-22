@@ -423,6 +423,7 @@ static void clap_init_render_options(struct clap_context *ctx)
 #if !(defined(__APPLE__) && defined(CONFIG_RENDERER_OPENGL))
     ctx->render_options.ssao = true;
 #endif /* __APPLE__ && __arm64__ */
+    ctx->render_options.ao_method = AO_METHOD_GTAO;
     ctx->render_options.ssao_radius = 0.3;
     ctx->render_options.ssao_weight = 0.85;
     ctx->render_options.bloom_exposure = 1.7;
@@ -790,6 +791,7 @@ static const struct rebuild_reason {
     REBUILD_REASON_FIELD(edges),
     REBUILD_REASON_FIELD(edge_sobel),
     REBUILD_REASON_FIELD(ssao),
+    REBUILD_REASON_FIELD(ao_method),
     REBUILD_REASON_FIELD(shadow_vsm),
     REBUILD_REASON_FIELD(edge_antialiasing),
     REBUILD_REASON_FIELD(taa),
