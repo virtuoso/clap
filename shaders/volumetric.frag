@@ -251,12 +251,22 @@ void main()
             integral = att_segment_integral(attenuation[l], gamma, seg.x + beta, seg.y + beta);
         }
 
-        /* density and transmittance at the closest approach in-segment */
+        /*
+         * Density and transmittance at the closest approach
+         * in-segment. The beams' path transmittance uses
+         * rho * volumetric_extinction rather than the full density the
+         * sun march self-extincts with: light sources are expected to
+         * read across a scene, and coupling their falloff to a fog
+         * dense enough to see swallows them within ~20m
+         * (exp(-0.19 * 20) ~= 0.02). 0 keeps beams at full strength at
+         * any distance; the sun march is unaffected, since its
+         * self-extinction also caps its accumulation.
+         */
         float t_c = clamp(-beta, seg.x, seg.y);
         vec3 p_c = origin + world_dir * t_c;
         float rho = volumetric_density
                   + fog_cloud_lod(noise3d, p_c + vec3(uptime * volumetric_wind), volumetric_amp, volumetric_scale);
-        float T_c = exp(-(volumetric_density + 0.5 * volumetric_amp) * t_c);
+        float T_c = exp(-(volumetric_density + 0.5 * volumetric_amp) * volumetric_extinction * t_c);
 
         scatter_loc += light_color[l] * light_volumetric[l] * rho * T_c * integral;
     }
