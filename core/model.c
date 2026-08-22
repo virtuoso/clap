@@ -1135,6 +1135,8 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
 
         shader_set_var_int(prog, UNIFORM_USE_NOISE_EMISSION, txmodel->mat.use_noise_emission);
         shader_set_var_ptr(prog, UNIFORM_NOISE_EMISSION_COLOR, 1, txmodel->mat.noise_emission_color);
+        if (txmodel->mat.use_noise_normals != NOISE_NORMALS_NONE || txmodel->mat.use_noise_emission)
+            shader_set_var_ptr(prog, UNIFORM_NOISE_DRIFT, 1, txmodel->mat.noise_drift);
 
         shader_set_var_int(prog, UNIFORM_USE_3D_FOG, txmodel->mat.use_3d_fog);
         if (txmodel->mat.use_3d_fog) {

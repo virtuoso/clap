@@ -23,6 +23,7 @@ layout (location=9) in vec4 pass_prev_clip;
 #include "ubo_render_common.glsl"
 #include "ubo_outline.glsl"
 #include "ubo_bloom.glsl"
+#include "ubo_frame.glsl"
 
 layout (binding=SAMPLER_BINDING_model_tex) uniform sampler2D model_tex;
 /*
@@ -72,11 +73,14 @@ void main()
     }
 
 #ifdef SHADER_VARIANT_NOISE_MATERIALS
+    /* the material's own drift; zero keeps the surface static */
+    vec3 noise_ofs = noise_drift * uptime;
+
     if (use_noise_normals == NOISE_NORMALS_GPU)
-        unit_normal = noise_normal_gpu(world_pos.xyz, unit_normal,
+        unit_normal = noise_normal_gpu(world_pos.xyz + noise_ofs, unit_normal,
                                        noise_normals_amp, noise_normals_scale);
     else if (use_noise_normals == NOISE_NORMALS_3D)
-        unit_normal = noise_normal_3d(noise3d, world_pos.xyz, unit_normal,
+        unit_normal = noise_normal_3d(noise3d, world_pos.xyz, noise_ofs, unit_normal,
                                       noise_normals_amp, noise_normals_scale);
 #endif /* SHADER_VARIANT_NOISE_MATERIALS */
 
@@ -116,12 +120,13 @@ void main()
     if (use_noise_emission) {
         /*
          * Tangential fBm-gradient glow: sample the baked 3D noise at a
-         * jittered local-space position, take the component tangential
-         * to the surface normal and map its magnitude to a cyan glow.
+         * jittered local-space position, moved by the drift after the
+         * jitter, take the component tangential to the surface normal
+         * and map its magnitude to a cyan glow.
          */
-        vec4 local_pos = inverse_trs * world_pos;
-        float ln = noise(local_pos.xyz);
-        vec3 grad = sample_noise3d(noise3d, local_pos.xyz * ln, noise_normals_scale);
+        vec3 local_pos = (inverse_trs * world_pos).xyz;
+        float ln = noise(local_pos);
+        vec3 grad = sample_noise3d(noise3d, local_pos * ln + noise_ofs, noise_normals_scale);
         vec3 t = grad - unit_normal * dot(normalize(grad), unit_normal);
         float fac = clamp(length(t), 0.0, 1.0);
         emission = noise_emission_color * min(pow(fac, 0.3), 1.0);

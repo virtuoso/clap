@@ -748,6 +748,9 @@ static void model_tabs(model3dtx *txm)
                 ImGuiColorEditFlags_NoTooltip
             );
 
+        if (mat->use_noise_normals || mat->use_noise_emission)
+            ui_igSliderFloat3("noise drift", mat->noise_drift, -2.0, 2.0, "%.03f", 0);
+
         bool noisy_roughness = mat->roughness_oct > 0;
         if (ui_igCheckbox("noisy roughness", &noisy_roughness))
             mat->roughness_oct = noisy_roughness ? 1 : 0;

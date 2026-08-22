@@ -240,6 +240,13 @@ typedef struct material {
     float   fog_3d_scale;
     /* In case of noise emission*/
     vec3    noise_emission_color;
+    /*
+     * Noise normals and emission drift with time at this velocity, in
+     * their sampling space's units per second; zero keeps them static.
+     * The offset is the velocity times the uptime, so a change jumps
+     * the pattern rather than easing it into the new speed
+     */
+    vec3    noise_drift;
 } material;
 
 typedef struct model3dtx {

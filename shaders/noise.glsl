@@ -115,13 +115,15 @@ vec3 noise_normal_gpu(vec3 world_pos, vec3 geom_normal, float amp, float freq)
  * Baked periodic fBm gradient normal perturbation. Cheap, tileable
  * alternative to noise_normal_gpu(): good for large-scale diffuse
  * surface variation, but the texture's period can become visible on
- * highly specular materials.
+ * highly specular materials. @ofs moves the pattern: it goes in after
+ * the hash jitter, which stays on the surface's own position, so the
+ * pattern translates rather than boils.
  */
-vec3 noise_normal_3d(sampler3D tex, vec3 world_pos, vec3 geom_normal, float amp, float freq)
+vec3 noise_normal_3d(sampler3D tex, vec3 world_pos, vec3 ofs, vec3 geom_normal, float amp, float freq)
 {
     const float max_tilt = 0.6;
     /* jitter sampling position by a scalar hash to blur the tiling period */
-    vec3 grad = sample_noise3d(tex, world_pos * noise(world_pos), freq);
+    vec3 grad = sample_noise3d(tex, world_pos * noise(world_pos) + ofs, freq);
     vec3 t = grad - geom_normal * dot(grad, geom_normal);
     float tl = length(t);
     if (tl < 1e-5) return geom_normal;
