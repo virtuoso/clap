@@ -148,4 +148,16 @@ float fog_cloud(sampler3D tex, vec3 pos, float amp, float freq)
     return clamp(d * amp, 0.0, 1.0);
 }
 
+/*
+ * fog_cloud() with an explicit LOD: implicit-derivative texture() is
+ * not allowed under non-uniform control flow (WGSL), which is where
+ * raymarch loops that follow per-pixel early-outs live.
+ */
+float fog_cloud_lod(sampler3D tex, vec3 pos, float amp, float freq)
+{
+    vec3 p = pos + noise(pos.zxy);
+    float d = textureLod(tex, p * freq, 0.0).x;
+    return clamp(d * amp, 0.0, 1.0);
+}
+
 #endif /* SHADERS_NOISE_GLSL */

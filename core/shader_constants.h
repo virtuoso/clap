@@ -12,6 +12,8 @@
 #define SSAO_NOISE_DIM 16
 #define FILM_GRAIN_SIZE 64
 #define BLOOM_LEVELS 4
+/** VOLUMETRIC_STEPS - ray march steps per pixel of the volumetric pass */
+#define VOLUMETRIC_STEPS 16
 
 #define LIGHT_CUTOFF    (1.0f / 256.0f)
 #define TILE_WIDTH      64
