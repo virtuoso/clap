@@ -112,6 +112,8 @@ vec4 combine_color(vec2 pass_tex)
         f16vec3 hdr_color = tex_color * H(lighting_exposure) + highlight_color * (H(1.0) - fog_factor);
         /* fog */
         hdr_color = mix(hdr_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
+        /* volumetric in-scattering: additive; extinction stays with radial fog */
+        hdr_color += HVEC3(texture(volumetric_tex, pass_tex).rgb);
         /* contrast */
         hdr_color = apply_contrast(hdr_color, H(contrast), H(0.18 * lighting_exposure));
         /* color grading */
@@ -133,6 +135,7 @@ vec4 combine_color(vec2 pass_tex)
         result = vec4(hdr_color, 1.0);
     } else {
         tex_color = mix(tex_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
+        tex_color += HVEC3(texture(volumetric_tex, pass_tex).rgb);
         if (use_edges && !use_edge_aa)
             tex_color = apply_edge(tex_color, sobel_tex, 1.0 - fog_factor, pass_tex, ivec2(0));
         result = vec4(tex_color + highlight_color * 2.0, 1.0);
