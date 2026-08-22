@@ -2142,6 +2142,10 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
         light_set_directional(&s->light, idx, true);
     }
 
+    jpos = json_find_member(light, "volumetric");
+    if (jpos && jpos->tag == JSON_NUMBER)
+        light_set_volumetric(&s->light, idx, jpos->number_);
+
     /*
      * Seed the CSM frustum for the first non-spotlight directional light;
      * scene_cameras_calc() will refresh it per-frame. Spotlights that cast
