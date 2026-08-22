@@ -287,6 +287,68 @@ float shadow_factor_calc(in vec3 unit_normal, in vec4 view_pos, in vec3 light_di
     return mix(shadow_factor, 1.0, pow(1 - light_dot, 1.3));
 }
 
+/*
+ * Single-tap shadow visibility for raymarching: no PCF, no
+ * normal-based biasing -- cheap enough to call per march step.
+ * Cascade selection follows shadow_factor_calc()'s, except that a
+ * sample past the last cascade takes the last cascade. @view_dist is
+ * the view-space distance along -Z (i.e. -view_pos.z).
+ */
+float shadow_sample_visibility(in vec4 w_pos, in float view_dist, in bool use_vsm)
+{
+    int layer = max(nr_cascades - 1, 0);
+    for (int i = CASCADES_MAX - 1; i >= 0; i--)
+        if (i < nr_cascades && view_dist < cascade_distances[i])
+            layer = i;
+
+    vec4 shadow_pos = shadow_mvp[layer] * w_pos;
+    /* can't be projected: call it lit */
+    if (shadow_pos.w < 1e-3)
+        return 1.0;
+
+    vec4 pos = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
+    pos.xy = pos.xy * 0.5 + 0.5;
+    if (pos.x < 0.0 || pos.x > 1.0 || pos.y < 0.0 || pos.y > 1.0)
+        return 1.0;
+
+    pos.xy = convert_pass_tex(pos.xy);
+    pos.z = convert_from_ndc_z(pos.z);
+
+    /* a single tap has no slope to scale: half a texel of the view */
+    float bias = shadow_receiver_bias(layer, 1.0, 0.0);
+    vec4 vsm_pos = pos;
+    vsm_pos.z = shadow_vsm_depth(layer, pos, bias);
+    bias /= light_far[layer];
+    float d;
+
+#ifndef SHADER_SHADOW_MAP_ARRAY
+    switch (layer) {
+        case 0:
+            if (use_vsm)    return shadow_factor_vsm(shadow_map, vsm_pos, 0);
+            d = texel_fetch_2d(shadow_map, pos.xy, ivec2(0)).r;
+            break;
+        case 1:
+            if (use_vsm)    return shadow_factor_vsm(shadow_map1, vsm_pos, 1);
+            d = texel_fetch_2d(shadow_map1, pos.xy, ivec2(0)).r;
+            break;
+        case 2:
+            if (use_vsm)    return shadow_factor_vsm(shadow_map2, vsm_pos, 2);
+            d = texel_fetch_2d(shadow_map2, pos.xy, ivec2(0)).r;
+            break;
+        default:
+        case 3:
+            if (use_vsm)    return shadow_factor_vsm(shadow_map3, vsm_pos, 3);
+            d = texel_fetch_2d(shadow_map3, pos.xy, ivec2(0)).r;
+            break;
+    }
+#else
+    if (use_vsm)
+        return shadow_factor_vsm(shadow_map, vsm_pos, layer);
+    d = texel_fetch_2darray(shadow_map, vec3(pos.xy, float(layer)), ivec2(0)).r;
+#endif /* SHADER_SHADOW_MAP_ARRAY */
+
+    return pos.z + bias < d ? 0.0 : 1.0;
+}
 #endif /* SHADER_VARIANT_SHADOWS */
 
 #endif /* SHADERS_SHADOW_GLSL */
