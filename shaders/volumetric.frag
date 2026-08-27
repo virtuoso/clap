@@ -227,6 +227,15 @@ void main()
         float gamma = sqrt(max(dot(m, m) - beta * beta, 0.0));
         vec2 seg = range;
 
+        /*
+         * The lights' attenuation is tuned for surface reach, whose
+         * soft radial profile line-integrates into a frame-filling
+         * veil at close range; boost the quadratic term for the beam
+         * integral only, tightening the volume without touching the
+         * surface lighting.
+         */
+        vec3 att = attenuation[l] * vec3(1.0, 1.0, volumetric_falloff);
+
         if (spot) {
             /* stored light_dir points at the light; the beam axis away from it */
             vec3 axis = normalize(-light_dir[l]);
@@ -236,19 +245,37 @@ void main()
              * smoothstep band spotlight_intensity() uses
              */
             const float soft = radians(5.0);
+            float cos_outer = cos(light_cutoff[l] + soft);
             vec2 inner = ray_cone_clip(m, world_dir, axis, cos(light_cutoff[l]), range);
-            vec2 outer = ray_cone_clip(m, world_dir, axis, cos(light_cutoff[l] + soft), range);
+            vec2 outer = ray_cone_clip(m, world_dir, axis, cos_outer, range);
             if (outer.x >= outer.y)
                 continue;
 
             float i_inner = inner.x < inner.y ?
-                att_segment_integral(attenuation[l], gamma, inner.x + beta, inner.y + beta) : 0.0;
+                att_segment_integral(att, gamma, inner.x + beta, inner.y + beta) : 0.0;
             float i_outer =
-                att_segment_integral(attenuation[l], gamma, outer.x + beta, outer.y + beta);
+                att_segment_integral(att, gamma, outer.x + beta, outer.y + beta);
             integral = 0.5 * (i_inner + i_outer);
             seg = outer;
+
+            /*
+             * Hotspot: a real spotlight's emission peaks on the axis
+             * and falls toward the cutoff, which the line integral
+             * above ignores -- attenuation varies with distance to
+             * the light only, and across a beam a few meters tall
+             * that is nearly constant, leaving the interior flat: the
+             * beam stamps a uniform glow slab over everything behind
+             * its footprint, which reads as the light illuminating
+             * the background. Weight the integral by an angular
+             * profile at the segment midpoint: on-axis rays keep
+             * their glow, rim-grazers fade, the beam gains a core.
+             */
+            vec3 w_m = m + world_dir * (0.5 * (seg.x + seg.y));
+            float cos_m = dot(w_m, axis) / max(length(w_m), 1e-4);
+            float focus = clamp((cos_m - cos_outer) / (1.0 - cos_outer), 0.0, 1.0);
+            integral *= focus * focus;
         } else {
-            integral = att_segment_integral(attenuation[l], gamma, seg.x + beta, seg.y + beta);
+            integral = att_segment_integral(att, gamma, seg.x + beta, seg.y + beta);
         }
 
         /*
