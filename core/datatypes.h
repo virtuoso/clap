@@ -24,6 +24,12 @@ typedef enum data_type {
     DT_MAT4,
 } data_type;
 
+/* accept-set for APIs that match on component types */
+typedef unsigned int data_type_mask;
+#define DT_MASK(t)  (1u << (t))
+static_assert(DT_MAT4 < sizeof(data_type_mask) * 8,
+              "data_type overflows data_type_mask");
+
 bool data_type_is_valid(data_type type);
 bool data_type_is_integral(data_type type);
 const char *data_type_name(data_type type);
