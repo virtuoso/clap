@@ -8,10 +8,12 @@
 #include "ca3d.h"
 #include "clap.h"
 #include "cpio.h"
+#include "datatypes.h"
 #include "draw.h"
 #include "font.h"
 #include "fs-ops.h"
 #include "object.h"
+#include "render.h"
 #include "str.h"
 #include "common.h"
 #include "messagebus.h"
@@ -1750,6 +1752,54 @@ static int log_rb_late_sink_test(void)
     return EXIT_SUCCESS;
 }
 
+static int tex_next_match_test(void)
+{
+    texture_format_iter it = 0;
+    auto fmt = CRES_RET(texture_format_next_match(&it, 0, 4, DT_MASK(DT_BYTE), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RGBA8)   return EXIT_FAILURE;
+    it = 0;
+    fmt = CRES_RET(texture_format_next_match(&it, 16, 2, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RG16F)   return EXIT_FAILURE;
+    it = 0;
+    fmt = CRES_RET(texture_format_next_match(&it, 16, 4, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RGBA16F) return EXIT_FAILURE;
+    it = 0;
+    fmt = CRES_RET(texture_format_next_match(&it, 32, 2, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RG32F)   return EXIT_FAILURE;
+    it = 0;
+    fmt = CRES_RET(texture_format_next_match(&it, 32, 4, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RGBA32F) return EXIT_FAILURE;
+
+    /*
+     * Resumption: each call returns the next-best unvisited candidate
+     * (the WebGL2 shape: RGB16F unsupported must yield RGBA16F next,
+     * not skip to the 32-bit tier), and exhaustion errors out
+     */
+    it = 0;
+    fmt = CRES_RET(texture_format_next_match(&it, 16, 3, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RGB16F)  return EXIT_FAILURE;
+    fmt = CRES_RET(texture_format_next_match(&it, 16, 3, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RGBA16F) return EXIT_FAILURE;
+    fmt = CRES_RET(texture_format_next_match(&it, 16, 3, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RGB32F)  return EXIT_FAILURE;
+    fmt = CRES_RET(texture_format_next_match(&it, 16, 3, DT_MASK(DT_FLOAT), false, false), return EXIT_FAILURE);
+    if (fmt != TEX_FMT_RGBA32F) return EXIT_FAILURE;
+    auto res = texture_format_next_match(&it, 16, 3, DT_MASK(DT_FLOAT), false, false);
+    if (!IS_CERR(res))          return EXIT_FAILURE;
+
+    /* an integer format doesn't sneak into a byte|float accept-set */
+    it = 0;
+    fmt = CRES_RET(
+        texture_format_next_match(&it, 32, 4, DT_MASK(DT_BYTE) | DT_MASK(DT_FLOAT), false, false),
+        return EXIT_FAILURE
+    );
+    if (fmt != TEX_FMT_RGBA32F) return EXIT_FAILURE;
+    res = texture_format_next_match(&it, 32, 4, DT_MASK(DT_BYTE) | DT_MASK(DT_FLOAT), false, false);
+    if (!IS_CERR(res))          return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "user-agent parse desktop", .test = ua_parse_desktop_test },
     { .name = "user-agent parse mobile", .test = ua_parse_mobile_test },
@@ -1807,6 +1857,7 @@ static const struct test tests[] = {
     { .name = "tex rgb to rgba 8bit", .test = tex_rgb_to_rgba_8bit_test },
     { .name = "tex rgb to rgba 32f", .test = tex_rgb_to_rgba_32f_test },
     { .name = "tex rgb to rgba 16f", .test = tex_rgb_to_rgba_16f_test },
+    { .name = "tex next match iterator test", .test = tex_next_match_test },
     { .name = "log ring buffer wrap", .test = log_rb_wrap_test },
     { .name = "log ring buffer late sink", .test = log_rb_late_sink_test },
 #ifdef CONFIG_NETWORKING
@@ -1826,4 +1877,3 @@ int main(int argc, char **argv, char **envp)
 {
     return test_main(argc, argv, envp, tests, array_size(tests));
 }
-
