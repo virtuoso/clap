@@ -522,6 +522,8 @@ typedef enum texture_format {
     TEX_FMT_MAX,
 } texture_format;
 
+cres_ret(texture_format);
+
 typedef struct texture_init_options {
     renderer_t          *renderer;
     unsigned int        target;
@@ -620,6 +622,11 @@ size_t texture_format_comp_size(texture_format fmt);
 size_t texture_format_nr_comps(texture_format fmt);
 bool texture_format_needs_alpha(texture_format format);
 texture_format texture_format_add_alpha(texture_format format);
+/* bitmask of formats that texture_format_next_match() has already returned */
+typedef uint64_t texture_format_iter;
+cres(texture_format) texture_format_next_match(texture_format_iter *iter, size_t min_width,
+                                               size_t min_components, data_type_mask type_mask,
+                                               bool depth, bool stencil);
 void *texture_rgb_to_rgba(texture_format format, const void *buf,
                           size_t nr_pixels, size_t *out_size);
 cerr_check _texture_init(texture_t *tex, const texture_init_options *opts);
