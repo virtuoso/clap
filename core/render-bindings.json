@@ -211,6 +211,7 @@
                 { "name": "volumetric_wind", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_WIND", "discription": "fog density drift speed along the world diagonal, in units per second" },
                 { "name": "volumetric_extinction", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_EXTINCTION", "discription": "how strongly the fog density attenuates light through the medium; 0 = in-scatter never fades" },
                 { "name": "volumetric_falloff", "type": "DT_FLOAT", "symbol": "UNIFORM_VOLUMETRIC_FALLOFF", "discription": "extra quadratic attenuation for the beam integral only: tightens the volumetric radial falloff without touching surface lighting" },
+                { "name": "volumetric_fog", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_VOLUMETRIC_FOG", "discription": "the volumetric medium carries the distance haze, so combine skips its own radial fog" },
                 { "name": "volumetric_debug", "type": "DT_INT", "glsl_type": "bool", "symbol": "UNIFORM_VOLUMETRIC_DEBUG", "discription": "combine outputs the raw volumetric buffer" }
             ]
         },
