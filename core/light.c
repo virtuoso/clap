@@ -522,19 +522,23 @@ void light_set_update(struct light *light, int idx, light_update_fn fn,
  * @idx:    the spotlight's index
  * @xform:  the transform the light tracks, or NULL for a static light
  *
- * A square perspective projection down the beam. The view matrix comes
- * from @xform when the light tracks an entity or a camera, or from the
- * light's own position and direction when it doesn't.
+ * A square perspective projection covering the full beam -- twice the
+ * cutoff half-angle plus the soft rim spotlight_intensity() feathers
+ * over -- reaching as far as the light's attenuation radius. The view
+ * matrix comes from @xform when the light tracks an entity or a
+ * camera, or from the light's own position and direction when it
+ * doesn't.
  */
 void light_spot_view_update(struct clap_context *ctx, struct light *light, int idx,
                             transform_t *xform)
 {
     struct view *lv = &light->view[idx];
+    float range = light_get_radius(light, idx);
 
     lv->nr_cascades       = 1;
-    lv->fov               = light->cutoff[idx];
+    lv->fov               = 2.0f * (light->cutoff[idx] + to_radians(5.0f));
     lv->main.near_plane   = 0.1f;
-    lv->main.far_plane    = 200.0f;
+    lv->main.far_plane    = isfinite(range) && range > 0.0f ? range : 200.0f;
     lv->proj_update       = true;
     /* aspect of 1.0 -> square shadow map */
     view_update_perspective_projection(ctx, lv, 1, 1, 1.0f);
