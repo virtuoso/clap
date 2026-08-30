@@ -2,6 +2,7 @@
 #include "clap.h"
 #include "camera.h"
 #include "display.h"
+#include "error.h"
 #include "light.h"
 #include "lut.h"
 #include "noise.h"
@@ -116,49 +117,43 @@ static void apply_constraints(pipeline_builder_opts *opts)
     if (!IS_DEFINED(CONFIG_TAA))    get_ropts(opts)->taa = false;
 }
 
-static texture_format get_hdr_format(pipeline_builder_opts *opts)
+/**
+ * get_supported_format() - pick an FBO-renderable render target format
+ * @opts:           pipeline builder options
+ * @min_width:      minimum bits per component
+ * @min_components: minimum number of components
+ *
+ * Walks color formats of any component type from the narrowest
+ * satisfying the constraints upward (unorm8 through the floats) and
+ * picks the first one the renderer can attach to an FBO. Passes that
+ * carry data in alpha must ask for min_components = 4. Non-HDR
+ * pipelines and mobile fall back to RGBA8.
+ * Return: the format, TEX_FMT_RGBA8 when nothing wider is attachable
+ */
+static texture_format get_supported_format(pipeline_builder_opts *opts,
+                                           size_t min_width, size_t min_components)
 {
     if (!get_ropts(opts)->hdr)
         return TEX_FMT_RGBA8;
 
+    /* XXX: needs more nuance than a blanket mobile check */
     clap_context *clap_ctx = opts->pl_opts->clap_ctx;
     if (clap_ctx && clap_get_os(clap_ctx)->mobile)
         return TEX_FMT_RGBA8;
 
-    texture_format hdr_fmts[] = {
-        TEX_FMT_RGB16F, TEX_FMT_RGBA16F, TEX_FMT_RGB32F, TEX_FMT_RGBA32F
-    };
-
     auto r = clap_get_renderer(clap_ctx);
-    texture_format hdr_fmt = TEX_FMT_RGBA8;
-    for (int i = 0; i < array_size(hdr_fmts); i++)
-        if (fbo_texture_supported(r, hdr_fmts[i])) {
-            hdr_fmt = hdr_fmts[i];
-            break;
-        }
+    texture_format_iter iter = 0;
+    for (;;) {
+        texture_format fmt = CRES_RET(
+            texture_format_next_match(&iter, min_width, min_components,
+                                      DT_MASK(DT_BYTE) | DT_MASK(DT_FLOAT), false, false),
+            break
+        );
 
-    return hdr_fmt;
-}
-
-/*
- * The bloom chain carries the emitter's distance in alpha (see
- * bloom-downsample.frag), so its render targets need a format that
- * keeps one: the RGB HDR formats get_hdr_format() prefers for the
- * model pass' bandwidth have no alpha where the backend maps them
- * literally (GL), and a write to it is silently dropped
- */
-static texture_format get_bloom_format(pipeline_builder_opts *opts, texture_format hdr_fmt)
-{
-    texture_format with_alpha;
-
-    switch (hdr_fmt) {
-        case TEX_FMT_RGB16F:    with_alpha = TEX_FMT_RGBA16F;   break;
-        case TEX_FMT_RGB32F:    with_alpha = TEX_FMT_RGBA32F;   break;
-        default:                return hdr_fmt;
+        if (fbo_texture_supported(r, fmt))  return fmt;
     }
 
-    auto r = clap_get_renderer(opts->pl_opts->clap_ctx);
-    return fbo_texture_supported(r, with_alpha) ? with_alpha : hdr_fmt;
+    return TEX_FMT_RGBA8;
 }
 
 static texture_format get_depth_format(pipeline_builder_opts *opts)
@@ -509,8 +504,14 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     );
 #endif /* CONFIG_SHADOW_MAP_ARRAY */
 
-    texture_format hdr_fmt = get_hdr_format(opts);
-    texture_format bloom_fmt = get_bloom_format(opts, hdr_fmt);
+    texture_format hdr_fmt = get_supported_format(opts, 16, 3);
+    /*
+     * The bloom chain carries the emitter's distance in alpha (see
+     * bloom-downsample.frag) and the volumetric buffer a fourth
+     * channel of its own: where the backend maps an RGB format
+     * literally (GL), a write to the missing alpha is silently dropped
+     */
+    texture_format hdr_alpha_fmt = get_supported_format(opts, 16, 4);
     texture_format depth_fmt = get_depth_format(opts);
 
     static const enum shader_vars shadow_samplers[CASCADES_MAX] = {
@@ -592,11 +593,11 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
 
     if (ropts->bloom_quality == BLOOM_QUALITY_HIGH) {
         /* the level selection happened inside */
-        bloom_pass = CRES_RET_T(add_bloom_pyramid(pl, model_pass, model_pass_method, bloom_fmt), pipeline);
+        bloom_pass = CRES_RET_T(add_bloom_pyramid(pl, model_pass, model_pass_method, hdr_alpha_fmt), pipeline);
         bloom_tight_pass = bloom_pass;
     } else {
         render_pass *bloom_down_pass = CRES_RET_T(
-            add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.25), pipeline
+            add_bloom_downsample(pl, model_pass, model_pass_method, hdr_alpha_fmt, 0.25), pipeline
         );
 
         /*
@@ -606,7 +607,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
          * for math that amounts to three lines
          */
         bloom_pass = CRES_RET_T(
-            add_blur_subchain(pl, bloom_down_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.25),
+            add_blur_subchain(pl, bloom_down_pass, FBO_COLOR_TEXTURE(0), hdr_alpha_fmt, ropts->render_scale * 0.25),
             pipeline
         );
 
@@ -622,10 +623,10 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
              * on it.
              */
             render_pass *bloom_half_pass = CRES_RET_T(
-                add_bloom_downsample(pl, model_pass, model_pass_method, bloom_fmt, 0.5), pipeline
+                add_bloom_downsample(pl, model_pass, model_pass_method, hdr_alpha_fmt, 0.5), pipeline
             );
             bloom_tight_pass = CRES_RET_T(
-                add_blur_subchain(pl, bloom_half_pass, FBO_COLOR_TEXTURE(0), bloom_fmt, ropts->render_scale * 0.5),
+                add_blur_subchain(pl, bloom_half_pass, FBO_COLOR_TEXTURE(0), hdr_alpha_fmt, ropts->render_scale * 0.5),
                 pipeline
             );
         }
@@ -724,7 +725,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 },
                 {}
             },
-            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
+            .color_config       = (fbo_attconfig[]) { { .format = hdr_alpha_fmt, .load_action = FBOLOAD_DONTCARE, } },
             .ops                = &postproc_ops,
             .layout             = FBO_COLOR_TEXTURE(0),
             .shader             = "volumetric",
@@ -735,7 +736,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     ) : NULL;
 
     render_pass *volumetric_blur_pass = volumetric
-        ? CRES_RET_T(add_blur_subchain(pl, volumetric_pass, FBO_COLOR_TEXTURE(0), hdr_fmt, 0.25), pipeline)
+        ? CRES_RET_T(add_blur_subchain(pl, volumetric_pass, FBO_COLOR_TEXTURE(0), hdr_alpha_fmt, 0.25), pipeline)
         : NULL;
 
     render_pass *combine_pass = CRES_RET_T(
