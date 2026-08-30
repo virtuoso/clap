@@ -13,6 +13,7 @@ layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
 #include "ubo_projview.glsl"
 #include "ubo_postproc.glsl"
 #include "ubo_frame.glsl"
+#include "fog.glsl"
 
 /* shadow_factor_calc() references this model.frag input; never used here */
 vec4 world_pos;
@@ -150,15 +151,20 @@ vec2 ray_cone_clip(vec3 m, vec3 u, vec3 axis, float cos_theta, vec2 range)
 
 void main()
 {
-    /* where nothing was rendered the depth reconstructs to the far plane */
+    /*
+     * Where nothing was rendered the depth is the clear value and
+     * reconstructs to the far plane like any surface: the sky gets the
+     * whole march, the way the radial fog gets it the full haze
+     */
     vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
 
     float surface_dist = length(view_pos);
     float march_far = min(surface_dist, fog_far);
     float dt = (march_far - near_plane) / float(VOLUMETRIC_STEPS);
 
+    /* nothing to march: no in-scattering, and the medium's mean density */
     if (dt <= 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        FragColor = vec4(0.0, 0.0, 0.0, 0.5);
         return;
     }
 
@@ -174,26 +180,48 @@ void main()
     float jitter = hash(vec3(gl_FragCoord.xy, float(frame_count & 1023u)));
 
     bool sun_on = light_volumetric[0] > 0.0;
-    float transmittance = 1.0;
+    /*
+     * The haze is the radial fog's curve, which combine applies per
+     * pixel at full resolution (see radial_fog_factor()); the medium's
+     * contribution to it is its patchiness: the density field's mean
+     * along the fogged stretch of the ray, past fog_near, relative to
+     * the field's mean everywhere, by which combine scales the curve's
+     * optical depth. fog_cloud_lod() is clamp(n * amp, 0, 1) for a
+     * noise sample n uniform in [0, 1]. The light scattered toward the
+     * camera dims through the same curve on its way. @shaft_t is a sun
+     * shaft's own extinction, driven by the raw density field, which
+     * is tuned for dust wisps to read inside a beam.
+     */
+    float density_mean = volumetric_density +
+                         (volumetric_amp <= 1.0 ? 0.5 * volumetric_amp : 1.0 - 0.5 / volumetric_amp);
+    float patch_sum = 0.0;
+    float patch_len = 0.0;
+    float shaft_t = 1.0;
     float scatter_dir = 0.0;
     vec3 scatter_loc = vec3(0.0);
 
-    if (sun_on) {
-        for (int i = 0; i < VOLUMETRIC_STEPS; i++) {
-            float t = near_plane + (float(i) + jitter) * dt;
-            vec3 p = origin + world_dir * t;
+    /* the march feeds the sun's shafts and the haze's patchiness: with neither, nothing reads it */
+    for (int i = 0; (sun_on || use_fog) && i < VOLUMETRIC_STEPS; i++) {
+        float t = near_plane + (float(i) + jitter) * dt;
+        vec3 p = origin + world_dir * t;
 
-            float density = volumetric_density
-                          + fog_cloud_lod(noise3d, p + vec3(uptime * volumetric_wind), volumetric_amp, volumetric_scale);
+        float density = volumetric_density
+                      + fog_cloud_lod(noise3d, p + vec3(uptime * volumetric_wind), volumetric_amp, volumetric_scale);
+
+        if (t >= fog_near) {
+            patch_sum += density * dt;
+            patch_len += dt;
+        }
+
+        if (sun_on) {
             float vis = shadow_sample_visibility(vec4(p, 1.0), -ray_dir.z * t, shadow_vsm);
 
-            scatter_dir += transmittance * vis * density * dt;
-            transmittance *= exp(-density * dt);
+            scatter_dir += shaft_t * vis * density * dt * (1.0 - fog_factor_at(t));
+            shaft_t *= exp(-density * dt);
         }
-    } else {
-        /* alpha still carries transmittance: homogeneous-medium estimate */
-        transmittance = exp(-(volumetric_density + 0.5 * volumetric_amp) * (march_far - near_plane));
     }
+
+    float patchiness = patch_len > 0.0 && density_mean > 0.0 ? patch_sum / (patch_len * density_mean) : 1.0;
 
     /*
      * Local (point/spot) lights, integrated analytically:
@@ -204,7 +232,7 @@ void main()
      * (att_segment_integral()); T and rho vary much more slowly than
      * att across a beam, so both are frozen at the closest approach
      * inside the segment: rho at the full noisy density (dust wisps
-     * modulate the beam), T with a homogeneous-medium estimate.
+     * modulate the beam), T from the haze's curve.
      * Point-sampling this from the march instead dissolves distant
      * cones (a ~3m beam sampled every ~4m) and saturates from inside;
      * the closed form is bounded and step-free. The sun is index 0;
@@ -280,20 +308,18 @@ void main()
 
         /*
          * Density and transmittance at the closest approach
-         * in-segment. The beams' path transmittance uses
-         * rho * volumetric_extinction rather than the full density the
-         * sun march self-extincts with: light sources are expected to
-         * read across a scene, and coupling their falloff to a fog
-         * dense enough to see swallows them within ~20m
-         * (exp(-0.19 * 20) ~= 0.02). 0 keeps beams at full strength at
-         * any distance; the sun march is unaffected, since its
-         * self-extinction also caps its accumulation.
+         * in-segment. The beams' path transmittance is the haze's, not
+         * the full density the sun march self-extincts with: light
+         * sources are expected to read across a scene, and coupling
+         * their falloff to a field dense enough to see in a beam
+         * swallows them within ~20m (exp(-0.19 * 20) ~= 0.02). With the
+         * fog off, the beams keep their full strength at any distance.
          */
         float t_c = clamp(-beta, seg.x, seg.y);
         vec3 p_c = origin + world_dir * t_c;
         float rho = volumetric_density
                   + fog_cloud_lod(noise3d, p_c + vec3(uptime * volumetric_wind), volumetric_amp, volumetric_scale);
-        float T_c = exp(-(volumetric_density + 0.5 * volumetric_amp) * volumetric_extinction * t_c);
+        float T_c = 1.0 - fog_factor_at(t_c);
 
         scatter_loc += light_color[l] * light_volumetric[l] * rho * T_c * integral;
     }
@@ -306,5 +332,15 @@ void main()
                    * scatter_dir * schlick_phase(mu, volumetric_g) * volumetric_intensity;
     }
 
-    FragColor = vec4(inscatter, transmittance);
+    /*
+     * rgb is added on top of the fogged scene, alpha carries the
+     * patchiness, which is at most 2 (a density field at its ceiling
+     * everywhere over one at half of it on average), halved to fit
+     * unorm targets. This buffer is blurred and upsampled without
+     * regard to depth, so the haze's steps at silhouettes stay out of
+     * it, in combine's full resolution fog curve: the patchiness only
+     * changes as fast as the density field does, and the in-scattering
+     * steps where a near surface clips a beam.
+     */
+    FragColor = vec4(inscatter, clamp(0.5 * patchiness, 0.0, 1.0));
 }

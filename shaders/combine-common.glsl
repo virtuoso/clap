@@ -11,6 +11,8 @@
  * and the UBOs.
  */
 
+#include "fog.glsl"
+
 /*
  * Contrast in scene-linear light: a gain in log space about the exposed
  * scene's mid-grey, so the pivot follows exposure and contrast 1.0
@@ -23,26 +25,28 @@ f16vec3 apply_contrast(f16vec3 color, float16_t contrast, float16_t pivot)
     return clamp(pivot * pow(max(color, H(0.0)) / pivot, HVEC3(H(1.0) + contrast)), H(0.0), H(HDR_LUT_MAX));
 }
 
-float16_t radial_fog_factor(sampler2D tex, vec2 uv, float near_fog, float far_fog)
+/*
+ * The haze over a surface @view_pos away, in both fog modes: the radial
+ * fog's curve, which the volumetric fog patches with @patchiness, the
+ * medium's mean density along the ray relative to the noise field's
+ * mean (see volumetric.frag). Scaling the curve's optical depth by it
+ * keeps the haze per pixel at full resolution, where only this slow
+ * modulation comes from the low-res buffer, and averages out to the
+ * radial fog.
+ */
+float16_t radial_fog_factor(vec3 view_pos, float patchiness)
 {
 #ifdef SHADER_VARIANT_RADIAL_FOG
-    if (!use_fog)   return H(0.0);
-
     /*
      * The distance stays in full precision: squaring a far view
      * position overflows fp16 past 256 units, and the background sits
      * on the far plane
      */
-    float dist = length(view_pos_from_depth(tex, inverse_proj, uv));
-    /* the range dragged shut is a step at near_fog, not a division by zero */
-    float t = (dist - near_fog) / max(far_fog - near_fog, FOG_RANGE_MIN);
-    float factor;
+    float factor = fog_factor_at(length(view_pos));
 
-    if (fog_curve == FOG_CURVE_EXP)         factor = 1.0 - exp(-3.0 * max(t, 0.0));
-    else if (fog_curve == FOG_CURVE_SMOOTH) factor = smoothstep(0.0, 1.0, t);
-    else                                    factor = clamp(t, 0.0, 1.0);
+    if (volumetric_fog) factor = 1.0 - exp2(patchiness * log2(max(1.0 - factor, 1e-6)));
 
-    return H(factor * fog_max);
+    return H(factor);
 #else /* !SHADER_VARIANT_RADIAL_FOG */
     return H(0.0);
 #endif /* !SHADER_VARIANT_RADIAL_FOG */
@@ -65,7 +69,10 @@ vec4 combine_color(vec2 pass_tex)
         return vec4(texture(volumetric_tex, pass_tex).rgb, 1.0);
 
     f16vec3 tex_color = HVEC3(texture(model_tex, pass_tex).rgb);
-    float16_t fog_factor = radial_fog_factor(depth_tex, pass_tex, fog_near, fog_far);
+    vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
+    /* rgb: the light the medium scatters toward the camera; a: its patchiness, halved for unorm targets */
+    f16vec4 vol = HVEC4(texture(volumetric_tex, pass_tex));
+    float16_t fog_factor = radial_fog_factor(view_pos, 2.0 * float(vol.a));
 
     /*
      * Bloom upsample+blend, absorbed from the former "upsample" pass:
@@ -104,16 +111,14 @@ vec4 combine_color(vec2 pass_tex)
     if (use_ssao)
         tex_color = tex_color * mix(H(1.0), ao, H(ssao_weight));
 
-    vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
     vec4 result;
 
     if (use_hdr) {
-        /* lighting exposure + bloom exposure */
         f16vec3 hdr_color = tex_color * H(lighting_exposure) + highlight_color * (H(1.0) - fog_factor);
         /* fog */
         hdr_color = mix(hdr_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
-        /* volumetric in-scattering: additive; extinction stays with radial fog */
-        hdr_color += HVEC3(texture(volumetric_tex, pass_tex).rgb);
+        /* volumetric in-scattering: sun shafts and light beams */
+        hdr_color += vol.rgb;
         /* contrast */
         hdr_color = apply_contrast(hdr_color, H(contrast), H(0.18 * lighting_exposure));
         /* color grading */
@@ -126,18 +131,21 @@ vec4 combine_color(vec2 pass_tex)
         else
             hdr_color = mix(reinhard_tonemap(hdr_color), aces_tonemap(hdr_color), H(lighting_operator));
         /*
-         * The one edge application, at the composite, fading with fog;
-         * SMAA (use_edge_aa) applies edges in present.frag instead,
-         * where the neighbors it blends from have been computed
+         * The one edge application, at the composite, fading into the
+         * haze; SMAA (use_edge_aa) applies edges in present.frag
+         * instead, where the neighbors it blends from have been
+         * computed
          */
+        float edge_blend = float(1.0 - fog_factor);
         if (use_edges && !use_edge_aa)
-            hdr_color = apply_edge(hdr_color, sobel_tex, 1.0 - fog_factor, pass_tex, ivec2(0));
+            hdr_color = apply_edge(hdr_color, sobel_tex, edge_blend, pass_tex, ivec2(0));
         result = vec4(hdr_color, 1.0);
     } else {
         tex_color = mix(tex_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
-        tex_color += HVEC3(texture(volumetric_tex, pass_tex).rgb);
+        tex_color += vol.rgb;
+        float edge_blend = float(1.0 - fog_factor);
         if (use_edges && !use_edge_aa)
-            tex_color = apply_edge(tex_color, sobel_tex, 1.0 - fog_factor, pass_tex, ivec2(0));
+            tex_color = apply_edge(tex_color, sobel_tex, edge_blend, pass_tex, ivec2(0));
         result = vec4(tex_color + highlight_color * 2.0, 1.0);
     }
 

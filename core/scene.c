@@ -316,7 +316,6 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
             igSliderFloat("-> noise scale", &ropts->volumetric_scale, 0.001, 0.5, "%.3f", ImGuiSliderFlags_ClampOnInput);
             igSliderFloat("-> local intensity", &ropts->volumetric_local_intensity, 0.0, 100.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
             igSliderFloat("-> wind", &ropts->volumetric_wind, 0.0, 5.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
-            igSliderFloat("-> extinction", &ropts->volumetric_extinction, 0.0, 1.0, "%.2f", ImGuiSliderFlags_ClampOnInput);
             igSliderFloat("-> falloff", &ropts->volumetric_falloff, 1.0, 32.0, "%.1f", ImGuiSliderFlags_ClampOnInput);
         }
         igCheckbox("use HDR pipeline", &ropts->hdr);

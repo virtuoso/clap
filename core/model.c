@@ -1010,7 +1010,6 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_VOLUMETRIC_SCALE, ropts->volumetric_scale);
                 shader_set_var_float(prog, UNIFORM_VOLUMETRIC_LOCAL_INTENSITY, ropts->volumetric_local_intensity);
                 shader_set_var_float(prog, UNIFORM_VOLUMETRIC_WIND, ropts->volumetric_wind);
-                shader_set_var_float(prog, UNIFORM_VOLUMETRIC_EXTINCTION, ropts->volumetric_extinction);
                 shader_set_var_float(prog, UNIFORM_VOLUMETRIC_FALLOFF, ropts->volumetric_falloff);
             }
 
