@@ -3,6 +3,7 @@
 #include "messagebus.h"
 #include "scene.h"
 #include "ui-debug.h"
+#include "util.h"
 #include "view.h"
 
 void light_set_ambient(struct light *light, const float *color)
@@ -85,6 +86,124 @@ static void ui32vec4_set(ui32vec4 *v, unsigned int idx)
     v->v[comp] |= 1u << (idx - comp * bits_per_comp);
 }
 
+/**
+ * cone_outside_plane() - test a spotlight cone against a plane
+ * @n:      the plane's unit normal, pointing to the inside
+ * @d:      the plane's offset: a point x is inside when dot(n, x) + d >= 0
+ * @apex:   the cone's apex, the light's position
+ * @cap:    the center of the cone's cap disk
+ * @axis:   the cone's unit axis, apex to cap
+ * @rim:    the cap disk's radius
+ *
+ * A solid spotlight cone is the convex hull of its apex and its cap
+ * disk (center apex + range * axis, radius range * tan(angle)), so it
+ * lies entirely behind a plane iff both the apex and the disk's
+ * closest-to-the-plane rim point do: the rim extreme along a unit
+ * normal n is dot(n, cap_center) + rim * sqrt(1 - dot(n, axis)^2).
+ * The hull slightly overshoots the attenuation sphere's spherical cap
+ * with the flat disk, which errs on the conservative side.
+ * Return: true when the whole cone lies outside the plane
+ */
+static bool cone_outside_plane(const vec3 n, float d, const vec3 apex,
+                               const vec3 cap, const vec3 axis, float rim)
+{
+    if (vec3_mul_inner(n, apex) + d >= 0.0f)    return false;
+
+    float na = vec3_mul_inner(n, axis);
+    float cap_d = vec3_mul_inner(n, cap) + d +
+                  rim * sqrtf(fmaxf(1.0f - na * na, 0.0f));
+
+    return cap_d < 0.0f;
+}
+
+/**
+ * light_grid_spot_cone() - mark the tiles whose frusta a spotlight's cone intersects
+ * @light:      lights
+ * @idx:        the spotlight's index
+ * @subview:    the camera's main subview, for the view and projection matrices
+ * @grid:       the light grid to mark
+ *
+ * The tiles' side planes all pass through the camera, which makes view
+ * space the cheap place to test: a screen-x tile boundary at ndc
+ * x = nx is the plane fx*x + nx*z = 0 (from the projection
+ * fx * x / -z = nx), and rows work the same through fy. The cone is
+ * culled from a tile if it lies entirely outside any of the four
+ * side planes (with inward-facing normals) or entirely in front of
+ * the near plane; plane-wise separation can only over-include, never
+ * over-cull. There is no depth bound per tile, matching the point
+ * lights' screen-space circle.
+ * Return: true when the cone was handled; false to fall back to the
+ * circle path: wide cones (tan blows up), an unset direction, or a
+ * divergent attenuation radius
+ */
+static bool light_grid_spot_cone(struct light *light, unsigned int idx,
+                                 struct subview *subview, struct light_grid *grid)
+{
+    /* the soft rim spotlight_intensity() feathers over */
+    float angle = light->cutoff[idx] + to_radians(5.0f);
+    if (angle >= to_radians(85.0f)) return false;
+
+    float range = light_get_radius(light, idx);
+    if (!isfinite(range) || range <= 0.0f)  return false;
+
+    /* view-space cone: stored dir points at the light, the beam away from it */
+    vec4 apex_w, apex, axis_w, axis;
+    vec3_dup(apex_w, &light->pos[idx * 3]);
+    apex_w[3] = 1.0f;
+    mat4x4_mul_vec4_post(apex, subview->view_mx, apex_w);
+
+    vec3_scale(axis_w, &light->dir[idx * 3], -1.0f);
+    axis_w[3] = 0.0f;
+    mat4x4_mul_vec4_post(axis, subview->view_mx, axis_w);
+
+    float axis_len = vec3_len(axis);
+    if (axis_len < 1e-6f)   return false;
+    vec3_scale(axis, axis, 1.0f / axis_len);
+
+    vec3 cap;
+    vec3_scale(cap, axis, range);
+    vec3_add(cap, cap, apex);
+    float rim = range * tanf(angle);
+
+    /* the camera looks down -z: skip a cone entirely closer than the near plane */
+    vec3 near_n = { 0.0f, 0.0f, -1.0f };
+    if (cone_outside_plane(near_n, -subview->near_plane, apex, cap, axis, rim))
+        return true;
+
+    float fx = subview->proj_mx[0][0];
+    float fy = subview->proj_mx[1][1];
+
+    for (unsigned int gy = 0; gy < grid->theight; gy++) {
+        float ny0 = 1.0f - 2.0f * (gy * grid->cell) / grid->height;
+        float ny1 = 1.0f - 2.0f * ((gy + 1) * grid->cell) / grid->height;
+        /* inward normals: top boundary faces down, bottom faces up */
+        vec3 top = { 0.0f, -fy, -ny0 };
+        vec3 bottom = { 0.0f, fy, ny1 };
+        vec3_norm(top, top);
+        vec3_norm(bottom, bottom);
+
+        if (cone_outside_plane(top, 0.0f, apex, cap, axis, rim))    continue;
+        if (cone_outside_plane(bottom, 0.0f, apex, cap, axis, rim)) continue;
+
+        for (unsigned int gx = 0; gx < grid->twidth; gx++) {
+            float nx0 = 2.0f * (gx * grid->cell) / grid->width - 1.0f;
+            float nx1 = 2.0f * ((gx + 1) * grid->cell) / grid->width - 1.0f;
+            vec3 left = { fx, 0.0f, nx0 };
+            vec3 right = { -fx, 0.0f, -nx1 };
+            vec3_norm(left, left);
+            vec3_norm(right, right);
+
+            if (cone_outside_plane(left, 0.0f, apex, cap, axis, rim))   continue;
+            if (cone_outside_plane(right, 0.0f, apex, cap, axis, rim))  continue;
+
+            auto v = grid_get(grid, gx, gy);
+            if (v)  ui32vec4_set(v, idx);
+        }
+    }
+
+    return true;
+}
+
 void light_grid_compute(struct light *light, struct view *view)
 {
     light_grid_update(light);
@@ -100,8 +219,22 @@ void light_grid_compute(struct light *light, struct view *view)
 
     for (unsigned int idx = 0; idx < (unsigned int)light->nr_lights; idx++) {
         if (!bitmap_is_set(&light->active, idx)) continue;
-        /* Directional light(s) always apply */
-        if (light->is_dir[idx]) goto grid;
+
+        bool spot = light_is_spotlight(light, idx);
+
+        /* plain directional light(s) always apply */
+        if (light->is_dir[idx] && !spot) {
+            for (unsigned int gy = 0; gy < grid->theight; gy++)
+                for (unsigned int gx = 0; gx < grid->twidth; gx++) {
+                    auto v = grid_get(grid, gx, gy);
+                    if (v)  ui32vec4_set(v, idx);
+                }
+            continue;
+        }
+
+        /* spotlights only reach tiles their cone intersects */
+        if (spot && light_grid_spot_cone(light, idx, subview, grid))
+            continue;
 
         vec4 light_pos;
         vec3_dup(light_pos, &light->pos[idx * 3]);
@@ -126,13 +259,10 @@ void light_grid_compute(struct light *light, struct view *view)
             (1.0f - light_pos_ndc[1]) / 2.0f * grid->height
         };
 
-grid:
         for (unsigned int gy = 0; gy < grid->theight; gy++)
             for (unsigned int gx = 0; gx < grid->twidth; gx++) {
                 auto v = grid_get(grid, gx, gy);
                 if (!v) continue;
-
-                if (light->is_dir[idx]) { ui32vec4_set(v, idx); continue; }
 
                 /* test 4 corners of the tile */
                 for (unsigned int corner = 0; corner < 4; corner++) {
