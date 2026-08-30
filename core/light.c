@@ -515,6 +515,51 @@ void light_set_update(struct light *light, int idx, light_update_fn fn,
     light->update_track[idx]    = track;
 }
 
+/**
+ * light_spot_view_update() - (re)build a spotlight's shadow view
+ * @ctx:    clap context
+ * @light:  lights
+ * @idx:    the spotlight's index
+ * @xform:  the transform the light tracks, or NULL for a static light
+ *
+ * A square perspective projection down the beam. The view matrix comes
+ * from @xform when the light tracks an entity or a camera, or from the
+ * light's own position and direction when it doesn't.
+ */
+void light_spot_view_update(struct clap_context *ctx, struct light *light, int idx,
+                            transform_t *xform)
+{
+    struct view *lv = &light->view[idx];
+
+    lv->nr_cascades       = 1;
+    lv->fov               = light->cutoff[idx];
+    lv->main.near_plane   = 0.1f;
+    lv->main.far_plane    = 200.0f;
+    lv->proj_update       = true;
+    /* aspect of 1.0 -> square shadow map */
+    view_update_perspective_projection(ctx, lv, 1, 1, 1.0f);
+    if (xform) {
+        view_update_from_angles(ctx, lv, xform);
+    } else {
+        /* stored dir points at the light; the beam looks away from it */
+        vec3 beam;
+        vec3_sub(beam, (vec3){}, &light->dir[idx * 3]);
+        view_update_from_direction(ctx, lv, &light->pos[idx * 3], beam);
+    }
+    view_calc_frustum(ctx, lv);
+
+    /*
+     * The pipeline's nr_cascades comes from the camera (typically 4 for CSM),
+     * but the spotlight only needs one.  Fill the remaining cascade slots with
+     * copies of subview[0] so the shader's cascade selection always finds a
+     * valid shadow MVP instead of stale/uninitialized data.
+     */
+    for (int i = 1; i < CASCADES_MAX; i++) {
+        lv->subview[i] = lv->subview[0];
+        lv->divider[i] = lv->divider[0];
+    }
+}
+
 void light_update_from_entity(struct light *light, int idx, void *data)
 {
     struct scene *scene = container_of(light, struct scene, light);
@@ -532,26 +577,7 @@ void light_update_from_entity(struct light *light, int idx, void *data)
     transform_rotate_vec3(&e->xform, dir);
     light_set_direction(light, idx, dir);
 
-    struct view *lv = &light->view[idx];
-    lv->nr_cascades       = 1;
-    lv->fov               = light->cutoff[idx];
-    lv->main.near_plane   = 0.1f;
-    lv->main.far_plane    = 200.0f;
-    lv->proj_update       = true;
-    view_update_perspective_projection(scene->clap_ctx, lv, 1, 1, 1.0f);
-    view_update_from_angles(scene->clap_ctx, lv, &e->xform);
-    view_calc_frustum(scene->clap_ctx, lv);
-
-    /*
-     * The pipeline's nr_cascades comes from the camera (typically 4 for CSM),
-     * but the spotlight only needs one.  Fill the remaining cascade slots with
-     * copies of subview[0] so the shader's cascade selection always finds a
-     * valid shadow MVP instead of stale/uninitialized data.
-     */
-    for (int i = 1; i < CASCADES_MAX; i++) {
-        lv->subview[i] = lv->subview[0];
-        lv->divider[i] = lv->divider[0];
-    }
+    light_spot_view_update(scene->clap_ctx, light, idx, &e->xform);
 }
 
 /*
@@ -575,21 +601,7 @@ void light_update_from_camera(struct light *light, int idx, void *data)
     if (!light_is_spotlight(light, idx))
         return;
 
-    struct view *lv = &light->view[idx];
-    lv->nr_cascades       = 1;
-    lv->fov               = light->cutoff[idx];
-    lv->main.near_plane   = 0.1f;
-    lv->main.far_plane    = 200.0f;
-    lv->proj_update       = true;
-    /* aspect of 1.0 → square shadow map */
-    view_update_perspective_projection(scene->clap_ctx, lv, 1, 1, 1.0f);
-    view_update_from_angles(scene->clap_ctx, lv, &cam->xform);
-    view_calc_frustum(scene->clap_ctx, lv);
-
-    for (int i = 1; i < CASCADES_MAX; i++) {
-        lv->subview[i] = lv->subview[0];
-        lv->divider[i] = lv->divider[0];
-    }
+    light_spot_view_update(scene->clap_ctx, light, idx, &cam->xform);
 }
 
 void light_update(struct light *light)

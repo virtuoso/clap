@@ -70,6 +70,8 @@ cres(int) light_get(struct light *light);
 void light_put(struct light *light, int idx);
 void light_set_update(struct light *light, int idx, light_update_fn fn,
                       void *data, transform_t *track, light_cleanup_fn cleanup);
+void light_spot_view_update(struct clap_context *ctx, struct light *light, int idx,
+                            transform_t *xform);
 void light_update(struct light *light);
 void light_update_from_entity(struct light *light, int idx, void *data);
 void light_update_from_camera(struct light *light, int idx, void *data);
