@@ -301,7 +301,8 @@ void light_draw(struct clap_context *ctx, struct light *light)
 
 float light_get_radius(struct light *light, unsigned int idx)
 {
-    if (light->is_dir[idx]) return 0.0f;
+    /* spotlights attenuate like point lights; only sun-likes are unbounded */
+    if (light->is_dir[idx] && !light_is_spotlight(light, idx)) return 0.0f;
 
     float *color = &light->color[idx * 3];
     float comp_max = max3(color[0], color[1], color[2]);
