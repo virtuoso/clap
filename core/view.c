@@ -181,6 +181,32 @@ void view_update_from_angles(clap_context *clap_ctx, struct view *view, transfor
     view_update_perspective_subviews(view, clap_get_renderer(clap_ctx));
 }
 
+/**
+ * view_update_from_direction() - aim a view from a position along a direction
+ * @clap_ctx:   clap context
+ * @view:       the view to update
+ * @eye:        the view's position
+ * @dir:        the direction to look along, any length
+ *
+ * view_update_from_angles() for a view that has no transform behind it.
+ * Used for shadow views of lights that are placed directly (scene light
+ * array) rather than tracking an entity or a camera.
+ */
+void view_update_from_direction(clap_context *clap_ctx, struct view *view, vec3 eye, vec3 dir)
+{
+    vec3 dir_n, center, up = { 0.0f, 1.0f, 0.0f };
+
+    vec3_norm(dir_n, dir);
+    /* looking straight up or down: any horizontal up vector works */
+    if (fabsf(dir_n[1]) > 0.99f)
+        vec3_dup(up, (vec3){ 0.0f, 0.0f, 1.0f });
+
+    vec3_add(center, eye, dir_n);
+    mat4x4_look_at(view->main.view_mx, eye, center, up);
+    mat4x4_invert(view->main.inv_view_mx, view->main.view_mx);
+    view_update_perspective_subviews(view, clap_get_renderer(clap_ctx));
+}
+
 void view_update_perspective_projection(clap_context *clap_ctx, struct view *view, int width, int height, float zoom)
 {
     if (!view->proj_update)
