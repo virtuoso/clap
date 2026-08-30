@@ -2165,15 +2165,26 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
     if (jpos && jpos->tag == JSON_NUMBER)
         light_set_volumetric(&s->light, idx, jpos->number_);
 
+    bool spot = light_is_spotlight(&s->light, idx);
+
+    /*
+     * A directional light without an explicit direction shines at the
+     * origin from its position, at any slot -- the sun doesn't stop
+     * having a direction when a shadow-casting spotlight bumps it from
+     * slot 0
+     */
+    if (!spot && !json_find_member(light, "direction")) {
+        vec3 center = {};
+        vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
+    }
+
     /*
      * Seed the CSM frustum for the first non-spotlight directional light;
      * scene_cameras_calc() will refresh it per-frame. Spotlights that cast
      * shadows get their view from a light_update_*() callback when hooked up.
      */
-    if (idx == 0 && !light_is_spotlight(&s->light, idx)) {
+    if (idx == 0 && !spot) {
         bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
-        vec3 center = {};
-        vec3_sub(&s->light.dir[idx * 3], center, &s->light.pos[idx * 3]);
         view_update_from_frustum(s->clap_ctx, &s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
     }
 
