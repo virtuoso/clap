@@ -1001,6 +1001,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
                 shader_set_var_float(prog, UNIFORM_FILM_GRAIN_POWER, ropts->film_grain_power);
                 shader_set_var_int(prog, UNIFORM_FRAME_COUNT, (int)ropts->frame_count);
                 shader_set_var_float(prog, UNIFORM_UPTIME, ropts->uptime);
+                shader_set_var_int(prog, UNIFORM_VOLUMETRIC_FOG, ropts->fog_volumetric);
                 shader_set_var_int(prog, UNIFORM_VOLUMETRIC_DEBUG, ropts->fog_volumetric_debug);
                 shader_set_var_float(prog, UNIFORM_VOLUMETRIC_INTENSITY, ropts->volumetric_intensity);
                 shader_set_var_float(prog, UNIFORM_VOLUMETRIC_G, ropts->volumetric_g);
