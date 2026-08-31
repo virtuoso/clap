@@ -49,7 +49,7 @@ typedef struct render_options {
     float   ssao_weight;
     /* per-frame shader state: seconds and frames since app start */
     float   uptime;
-    unsigned int    frame_count;
+    unsigned int frame_count;
     float   film_grain_factor;
     float   film_grain_power;
     /* TAA: current frame's contribution to the history blend */

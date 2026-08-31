@@ -344,8 +344,7 @@ static void clap_sample_time(struct clap_context *ctx)
     struct timespec now;
 
     clock_gettime(CLOCK_MONOTONIC, &now);
-    if (unlikely(!ctx->time_origin.tv_sec && !ctx->time_origin.tv_nsec))
-        ctx->time_origin = now;
+    if (unlikely(!ctx->time_origin.tv_sec && !ctx->time_origin.tv_nsec))    ctx->time_origin = now;
 
     timespec_diff(&ctx->time_origin, &now, &ctx->current_time);
 }
@@ -356,8 +355,7 @@ double clap_get_current_time(struct clap_context *ctx)
      * If clap_timer_set() is called before the first frame samples the
      * clock, it'll go off immediately. Prevent that.
      */
-    if (unlikely(!ctx->time_origin.tv_nsec && !ctx->time_origin.tv_sec))
-        clap_sample_time(ctx);
+    if (unlikely(!ctx->time_origin.tv_nsec && !ctx->time_origin.tv_sec))    clap_sample_time(ctx);
 
     return (double)ctx->current_time.tv_sec + (double)ctx->current_time.tv_nsec / NSEC_PER_SEC;
 }

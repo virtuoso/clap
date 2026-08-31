@@ -198,8 +198,7 @@ void view_update_from_direction(clap_context *clap_ctx, struct view *view, vec3 
 
     vec3_norm(dir_n, dir);
     /* looking straight up or down: any horizontal up vector works */
-    if (fabsf(dir_n[1]) > 0.99f)
-        vec3_dup(up, (vec3){ 0.0f, 0.0f, 1.0f });
+    if (fabsf(dir_n[1]) > 0.99f)    vec3_dup(up, (vec3){ 0.0f, 0.0f, 1.0f });
 
     vec3_add(center, eye, dir_n);
     mat4x4_look_at(view->main.view_mx, eye, center, up);

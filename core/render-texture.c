@@ -113,13 +113,13 @@ cres(texture_format) texture_format_next_match(texture_format_iter *iter, size_t
         texture_format fmt = ordered_fmts[idx];
         auto desc = &texture_format_desc[fmt];
 
-        if (*iter & (1ull << fmt))              continue;
-        if (!desc->name)                        continue;
-        if (desc->swapchain)                    continue;
-        if (desc->comp_sz * 8 < min_width)      continue;
-        if (desc->nr_comps < min_components)    continue;
+        if (*iter & (1ull << fmt))                      continue;
+        if (!desc->name)                                continue;
+        if (desc->swapchain)                            continue;
+        if (desc->comp_sz * 8 < min_width)              continue;
+        if (desc->nr_comps < min_components)            continue;
         if (!(type_mask & DT_MASK(desc->comp_type)))    continue;
-        if (desc->depth != depth)               continue;
+        if (desc->depth != depth)                       continue;
 
         *iter |= 1ull << fmt;
         return cres_val(texture_format, fmt);

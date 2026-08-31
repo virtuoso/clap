@@ -2165,8 +2165,7 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
     }
 
     jpos = json_find_member(light, "volumetric");
-    if (jpos && jpos->tag == JSON_NUMBER)
-        light_set_volumetric(&s->light, idx, jpos->number_);
+    if (jpos && jpos->tag == JSON_NUMBER)   light_set_volumetric(&s->light, idx, jpos->number_);
 
     bool spot = light_is_spotlight(&s->light, idx);
 

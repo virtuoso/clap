@@ -146,7 +146,7 @@ static bool light_grid_spot_cone(struct light *light, unsigned int idx,
 {
     /* the soft rim spotlight_intensity() feathers over */
     float angle = light->cutoff[idx] + to_radians(5.0f);
-    if (angle >= to_radians(85.0f)) return false;
+    if (angle >= to_radians(85.0f))         return false;
 
     float range = light_get_radius(light, idx);
     if (!isfinite(range) || range <= 0.0f)  return false;
@@ -162,7 +162,7 @@ static bool light_grid_spot_cone(struct light *light, unsigned int idx,
     mat4x4_mul_vec4_post(axis, subview->view_mx, axis_w);
 
     float axis_len = vec3_len(axis);
-    if (axis_len < 1e-6f)   return false;
+    if (axis_len < 1e-6f)                   return false;
     vec3_scale(axis, axis, 1.0f / axis_len);
 
     vec3 cap;
@@ -172,8 +172,7 @@ static bool light_grid_spot_cone(struct light *light, unsigned int idx,
 
     /* the camera looks down -z: skip a cone entirely closer than the near plane */
     vec3 near_n = { 0.0f, 0.0f, -1.0f };
-    if (cone_outside_plane(near_n, -subview->near_plane, apex, cap, axis, rim))
-        return true;
+    if (cone_outside_plane(near_n, -subview->near_plane, apex, cap, axis, rim)) return true;
 
     float fx = subview->proj_mx[0][0];
     float fy = subview->proj_mx[1][1];
@@ -240,8 +239,7 @@ void light_grid_compute(struct light *light, struct view *view)
         }
 
         /* spotlights only reach tiles their cone intersects */
-        if (spot && light_grid_spot_cone(light, idx, subview, grid))
-            continue;
+        if (spot && light_grid_spot_cone(light, idx, subview, grid))    continue;
 
         vec4 light_pos;
         vec3_dup(light_pos, &light->pos[idx * 3]);
@@ -440,7 +438,7 @@ void light_draw(struct clap_context *ctx, struct light *light)
 float light_get_radius(struct light *light, unsigned int idx)
 {
     /* spotlights attenuate like point lights; only sun-likes are unbounded */
-    if (light->is_dir[idx] && !light_is_spotlight(light, idx)) return 0.0f;
+    if (light->is_dir[idx] && !light_is_spotlight(light, idx))  return 0.0f;
 
     float *color = &light->color[idx * 3];
     float comp_max = max3(color[0], color[1], color[2]);
@@ -698,8 +696,7 @@ void light_set_cutoff(struct light *light, int idx, float cutoff)
  */
 void light_set_volumetric(struct light *light, int idx, float volumetric)
 {
-    if (!light_is_valid(light, idx))
-        return;
+    if (!light_is_valid(light, idx))    return;
 
     light->volumetric[idx] = volumetric;
 }

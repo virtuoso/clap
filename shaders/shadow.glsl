@@ -298,18 +298,15 @@ float shadow_sample_visibility(in vec4 w_pos, in float view_dist, in bool use_vs
 {
     int layer = max(nr_cascades - 1, 0);
     for (int i = CASCADES_MAX - 1; i >= 0; i--)
-        if (i < nr_cascades && view_dist < cascade_distances[i])
-            layer = i;
+        if (i < nr_cascades && view_dist < cascade_distances[i])    layer = i;
 
     vec4 shadow_pos = shadow_mvp[layer] * w_pos;
     /* can't be projected: call it lit */
-    if (shadow_pos.w < 1e-3)
-        return 1.0;
+    if (shadow_pos.w < 1e-3)    return 1.0;
 
     vec4 pos = vec4(shadow_pos.xyz / shadow_pos.w, shadow_pos.w);
     pos.xy = pos.xy * 0.5 + 0.5;
-    if (pos.x < 0.0 || pos.x > 1.0 || pos.y < 0.0 || pos.y > 1.0)
-        return 1.0;
+    if (pos.x < 0.0 || pos.x > 1.0 || pos.y < 0.0 || pos.y > 1.0)   return 1.0;
 
     pos.xy = convert_pass_tex(pos.xy);
     pos.z = convert_from_ndc_z(pos.z);
@@ -342,8 +339,7 @@ float shadow_sample_visibility(in vec4 w_pos, in float view_dist, in bool use_vs
             break;
     }
 #else
-    if (use_vsm)
-        return shadow_factor_vsm(shadow_map, vsm_pos, layer);
+    if (use_vsm)    return shadow_factor_vsm(shadow_map, vsm_pos, layer);
     d = texel_fetch_2darray(shadow_map, vec3(pos.xy, float(layer)), ivec2(0)).r;
 #endif /* SHADER_SHADOW_MAP_ARRAY */
 

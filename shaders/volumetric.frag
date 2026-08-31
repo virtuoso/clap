@@ -106,12 +106,9 @@ vec2 ray_cone_clip(vec3 m, vec3 u, vec3 axis, float cos_theta, vec2 range)
     vec2 quad, quad2 = vec2(1.0, 0.0);
 
     if (abs(c2) < eps) {
-        if (abs(c1) < eps)
-            quad = c0 >= 0.0 ? range : vec2(1.0, 0.0);
-        else if (c1 > 0.0)
-            quad = vec2(-c0 / c1, range.y);
-        else
-            quad = vec2(range.x, -c0 / c1);
+        if (abs(c1) < eps)      quad = c0 >= 0.0 ? range : vec2(1.0, 0.0);
+        else if (c1 > 0.0)      quad = vec2(-c0 / c1, range.y);
+        else                    quad = vec2(range.x, -c0 / c1);
     } else {
         float disc = c1 * c1 - 4.0 * c2 * c0;
         if (disc < 0.0) {
@@ -132,12 +129,9 @@ vec2 ray_cone_clip(vec3 m, vec3 u, vec3 axis, float cos_theta, vec2 range)
 
     /* single-nappe half-line: dot(axis, w(t)) = am + au*t >= 0 */
     vec2 nappe;
-    if (abs(au) < eps)
-        nappe = am >= 0.0 ? range : vec2(1.0, 0.0);
-    else if (au > 0.0)
-        nappe = vec2(-am / au, range.y);
-    else
-        nappe = vec2(range.x, -am / au);
+    if (abs(au) < eps)      nappe = am >= 0.0 ? range : vec2(1.0, 0.0);
+    else if (au > 0.0)      nappe = vec2(-am / au, range.y);
+    else                    nappe = vec2(range.x, -am / au);
 
     vec2 seg = vec2(max(max(quad.x, nappe.x), range.x),
                     min(min(quad.y, nappe.y), range.y));
@@ -242,12 +236,10 @@ void main()
      * VOLUMETRIC_LOCAL_LIGHTS_MAX more.
      */
     for (int l = 0; l <= VOLUMETRIC_LOCAL_LIGHTS_MAX; l++) {
-        if (l >= nr_lights || light_volumetric[l] <= 0.0)
-            continue;
+        if (l >= nr_lights || light_volumetric[l] <= 0.0)   continue;
 
         bool spot = light_cutoff[l] > 0.0 && light_directional[l];
-        if (light_directional[l] && !spot)
-            continue;
+        if (light_directional[l] && !spot)                  continue;
 
         vec3 m = origin - light_pos[l];
         vec2 range = vec2(near_plane, march_far);
@@ -279,8 +271,7 @@ void main()
             float cos_outer = cos(light_cutoff[l] + soft);
             vec2 inner = ray_cone_clip(m, world_dir, axis, cos(light_cutoff[l]), range);
             vec2 outer = ray_cone_clip(m, world_dir, axis, cos_outer, range);
-            if (outer.x >= outer.y)
-                continue;
+            if (outer.x >= outer.y)     continue;
 
             float i_inner = inner.x < inner.y ?
                 att_segment_integral(att, gamma, inner.x + beta, inner.y + beta) : 0.0;

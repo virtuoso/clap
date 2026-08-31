@@ -65,8 +65,7 @@ vec3 radial_fog_color(vec3 view_pos)
 
 vec4 combine_color(vec2 pass_tex)
 {
-    if (volumetric_debug)
-        return vec4(texture(volumetric_tex, pass_tex).rgb, 1.0);
+    if (volumetric_debug)   return vec4(texture(volumetric_tex, pass_tex).rgb, 1.0);
 
     f16vec3 tex_color = HVEC3(texture(model_tex, pass_tex).rgb);
     vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
