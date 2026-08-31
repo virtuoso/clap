@@ -91,7 +91,15 @@ void main()
     vec4 view_pos = view * world_pos;
 
 #ifdef SHADER_VARIANT_SHADOWS
-    float shadow_factor = shadow_factor_calc(geom_normal, view_pos, light_dir[0], shadow_vsm, use_msaa);
+    /*
+     * The shadow light's direction for the facing test and slope bias:
+     * a sun-like stores its propagation direction, but a spotlight in
+     * the shadow slot is positional -- its stored dir points at the
+     * light -- so derive the per-fragment propagation instead
+     */
+    vec3 shadow_dir = light_is_spotlight(0) ?
+        vec3(world_pos) - light_pos[0] : light_dir[0];
+    float shadow_factor = shadow_factor_calc(geom_normal, view_pos, shadow_dir, shadow_vsm, use_msaa);
 #else
     float shadow_factor = 1.0;
 #endif /* !SHADER_VARIANT_SHADOWS */

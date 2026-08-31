@@ -179,7 +179,8 @@ void main()
      */
     float jitter = hash(vec3(gl_FragCoord.xy, float(frame_count & 1023u)));
 
-    bool sun_on = light_volumetric[0] > 0.0;
+    /* slot 0 is the shadow light, which may be a spotlight, not a sun */
+    bool sun_on = light_volumetric[0] > 0.0 && light_directional[0] && light_cutoff[0] <= 0.0;
     /*
      * The haze is the radial fog's curve, which combine applies per
      * pixel at full resolution (see radial_fog_factor()); the medium's
@@ -235,10 +236,12 @@ void main()
      * modulate the beam), T from the haze's curve.
      * Point-sampling this from the march instead dissolves distant
      * cones (a ~3m beam sampled every ~4m) and saturates from inside;
-     * the closed form is bounded and step-free. The sun is index 0;
-     * other plain directional lights don't scatter.
+     * the closed form is bounded and step-free. Plain directional
+     * lights (the sun among them) don't scatter here. The slots in
+     * reach are the shadow slot, which may hold a spotlight, plus
+     * VOLUMETRIC_LOCAL_LIGHTS_MAX more.
      */
-    for (int l = 1; l <= VOLUMETRIC_LOCAL_LIGHTS_MAX; l++) {
+    for (int l = 0; l <= VOLUMETRIC_LOCAL_LIGHTS_MAX; l++) {
         if (l >= nr_lights || light_volumetric[l] <= 0.0)
             continue;
 
