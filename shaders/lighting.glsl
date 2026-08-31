@@ -138,9 +138,24 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
     return ret;
 }
 
+/*
+ * The light grid's rows run top-down like the screen (light.c projects
+ * lights with y = 0 at the top), but only the top-left-origin backends
+ * hand out fragment coordinates that way: OpenGL counts them from the
+ * bottom, so its row has to be flipped through the framebuffer height
+ */
+ivec2 light_grid_tile()
+{
+#ifdef SHADER_ORIGIN_TOP_LEFT
+    return ivec2(gl_FragCoord.xy) / TILE_WIDTH;
+#else /* !SHADER_ORIGIN_TOP_LEFT */
+    return ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH;
+#endif /* !SHADER_ORIGIN_TOP_LEFT */
+}
+
 float light_heatmap()
 {
-    uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
+    uvec4 mask = texelFetch(light_map, light_grid_tile(), 0);
 
     float heat = 0.0;
     for (uint c = 0; c < 4; c++) {
@@ -161,7 +176,7 @@ lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 bas
     lighting_result r = lighting_result(vec3(0.0), vec3(0.0));
     vec3 shadow_tinted = light_color[0] * shadow_tint;
 
-    uvec4 mask = texelFetch(light_map, ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH, 0);
+    uvec4 mask = texelFetch(light_map, light_grid_tile(), 0);
 
     for (uint c = 0; c < 4; c++) {
         /* Each component owns a fixed 32-light range in the 128-bit mask */
