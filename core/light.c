@@ -35,10 +35,15 @@ bool light_is_directional(struct light *light, int idx)
 /*
  * A very basic implementation of clustered lighting
  *
- * light::grid is a grid of square tiles made of RGBA32UI (128-bit) that
- * is used as a bitmask for up to 128 light sources. This texture communicates
- * to the fragment shader which light sources to apply for a fragment, thereby
+ * light::grid is a grid of tiles made of RGBA32UI (128-bit) that is used
+ * as a bitmask for up to 128 light sources. This texture communicates to
+ * the fragment shader which light sources to apply for a fragment, thereby
  * allowing for more light sources in the scene without blowing out the GPU.
+ *
+ * The tile count comes from the window size and the nominal cell size,
+ * but the tiles then split the screen evenly, in fractions rather than
+ * pixels, so a pass rendering at a fraction of the window (render_scale)
+ * lands on the same tiles through its own framebuffer fraction.
  */
 #define LIGHT_MASK_SIZE sizeof(ui32vec4)
 
@@ -174,8 +179,8 @@ static bool light_grid_spot_cone(struct light *light, unsigned int idx,
     float fy = subview->proj_mx[1][1];
 
     for (unsigned int gy = 0; gy < grid->theight; gy++) {
-        float ny0 = 1.0f - 2.0f * (gy * grid->cell) / grid->height;
-        float ny1 = 1.0f - 2.0f * ((gy + 1) * grid->cell) / grid->height;
+        float ny0 = 1.0f - 2.0f * gy / grid->theight;
+        float ny1 = 1.0f - 2.0f * (gy + 1) / grid->theight;
         /* inward normals: top boundary faces down, bottom faces up */
         vec3 top = { 0.0f, -fy, -ny0 };
         vec3 bottom = { 0.0f, fy, ny1 };
@@ -186,8 +191,8 @@ static bool light_grid_spot_cone(struct light *light, unsigned int idx,
         if (cone_outside_plane(bottom, 0.0f, apex, cap, axis, rim)) continue;
 
         for (unsigned int gx = 0; gx < grid->twidth; gx++) {
-            float nx0 = 2.0f * (gx * grid->cell) / grid->width - 1.0f;
-            float nx1 = 2.0f * ((gx + 1) * grid->cell) / grid->width - 1.0f;
+            float nx0 = 2.0f * gx / grid->twidth - 1.0f;
+            float nx1 = 2.0f * (gx + 1) / grid->twidth - 1.0f;
             vec3 left = { fx, 0.0f, nx0 };
             vec3 right = { -fx, 0.0f, -nx1 };
             vec3_norm(left, left);
@@ -214,6 +219,8 @@ void light_grid_compute(struct light *light, struct view *view)
     memset(grid->tiles, 0, grid->twidth * grid->theight * sizeof(ui32vec4));
     mat4x4 mvp;
     auto subview = &view->main;
+    float cell_w = (float)grid->width / grid->twidth;
+    float cell_h = (float)grid->height / grid->theight;
 
     mat4x4_mul(mvp, subview->proj_mx, subview->view_mx);
 
@@ -268,8 +275,8 @@ void light_grid_compute(struct light *light, struct view *view)
                 for (unsigned int corner = 0; corner < 4; corner++) {
                     vec2 dist;
                     vec2_sub(dist, light_pos_screen, (vec2) {
-                        gx * grid->cell + grid->cell * !!(corner & 1),
-                        gy * grid->cell + grid->cell * !!(corner & 2)
+                        (gx + (corner & 1)) * cell_w,
+                        (gy + !!(corner & 2)) * cell_h
                     });
                     float distsq = vec2_mul_inner(dist, dist);
 
@@ -304,9 +311,10 @@ static void light_hover(float x, float y, void *data)
     if (!clap_get_render_options(scene->clap_ctx)->light_draws_enabled) return;
 
     auto grid = &light->grid;
+    if (!grid->width || !grid->height)  return;
 
-    auto gx = (unsigned int)x / grid->cell;
-    auto gy = (unsigned int)y / grid->cell;
+    auto gx = (unsigned int)(x / grid->width * grid->twidth);
+    auto gy = (unsigned int)(y / grid->height * grid->theight);
     auto v  = grid_get(grid, gx, gy);
 
     if (v && igBeginTooltip()) {

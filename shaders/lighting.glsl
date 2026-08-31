@@ -139,18 +139,21 @@ lighting_result compute_cook_torrance(int idx, vec3 unit_normal, vec3 to_light_v
 }
 
 /*
- * The light grid's rows run top-down like the screen (light.c projects
- * lights with y = 0 at the top), but only the top-left-origin backends
- * hand out fragment coordinates that way: OpenGL counts them from the
- * bottom, so its row has to be flipped through the framebuffer height
+ * The light grid's tiles split the screen evenly (light.c), so a
+ * fragment finds its tile through its fraction of the framebuffer
+ * rather than its pixel coordinates: the model pass renders at
+ * render_scale of the window the grid is laid over. The rows run
+ * top-down like the screen, but only the top-left-origin backends hand
+ * out fragment coordinates that way: OpenGL counts them from the
+ * bottom, so its row has to be flipped
  */
 ivec2 light_grid_tile()
 {
-#ifdef SHADER_ORIGIN_TOP_LEFT
-    return ivec2(gl_FragCoord.xy) / TILE_WIDTH;
-#else /* !SHADER_ORIGIN_TOP_LEFT */
-    return ivec2(gl_FragCoord.x, height - gl_FragCoord.y) / TILE_WIDTH;
+    vec2 frac = gl_FragCoord.xy / vec2(width, height);
+#ifndef SHADER_ORIGIN_TOP_LEFT
+    frac.y = 1.0 - frac.y;
 #endif /* !SHADER_ORIGIN_TOP_LEFT */
+    return ivec2(frac * vec2(textureSize(light_map, 0)));
 }
 
 float light_heatmap()
