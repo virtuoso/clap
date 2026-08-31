@@ -2179,13 +2179,18 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
     }
 
     /*
-     * Seed the CSM frustum for the first non-spotlight directional light;
-     * scene_cameras_calc() will refresh it per-frame. Spotlights that cast
-     * shadows get their view from a light_update_*() callback when hooked up.
+     * Seed the CSM frustum for a slot-0 non-spotlight directional
+     * light; scene_cameras_calc() will refresh it per-frame. A static
+     * spotlight gets its shadow view built here once -- shadows only
+     * render from slot 0, but the view is cheap and correct at any
+     * index; spotlights that track an entity or a camera refresh
+     * theirs from the light_update_*() callbacks instead.
      */
     if (idx == 0 && !spot) {
         bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
         view_update_from_frustum(s->clap_ctx, &s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
+    } else if (spot) {
+        light_spot_view_update(s->clap_ctx, &s->light, idx, NULL);
     }
 
     return CERR_OK;
