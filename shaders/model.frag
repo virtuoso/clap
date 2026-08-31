@@ -123,6 +123,15 @@ void main()
     /* Carry the source alpha into the blend factor for semi-transparent fragments */
     FragColor.a = texture_sample.a;
 
+#ifdef SHADER_VARIANT_LIGHT_HEATMAP
+    /*
+     * An overlay rather than a replacement: the lit surface stays
+     * readable under the tiles, and every sampler the lighting path
+     * declares stays statically used (see the variant rule above)
+     */
+    FragColor.rgb = mix(FragColor.rgb, light_heatmap(), 0.75);
+#endif /* SHADER_VARIANT_LIGHT_HEATMAP */
+
     vec3 emission;
 #ifdef SHADER_VARIANT_NOISE_MATERIALS
     if (use_noise_emission) {

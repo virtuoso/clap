@@ -156,7 +156,12 @@ ivec2 light_grid_tile()
     return ivec2(frac * vec2(textureSize(light_map, 0)));
 }
 
-float light_heatmap()
+#ifdef SHADER_VARIANT_LIGHT_HEATMAP
+/*
+ * Light grid debug view: how many lights the fragment's tile carries,
+ * ramped blue (none) through green to red (five and up)
+ */
+vec3 light_heatmap()
 {
     uvec4 mask = texelFetch(light_map, light_grid_tile(), 0);
 
@@ -169,9 +174,13 @@ float light_heatmap()
             q >>= 1u;
         }
     }
+    heat = min(heat, 1.0);
 
-    return heat;
+    return heat < 0.5 ?
+        mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), heat * 2.0) :
+        mix(vec3(0.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), heat * 2.0 - 1.0);
 }
+#endif /* SHADER_VARIANT_LIGHT_HEATMAP */
 
 lighting_result compute_total_lighting(vec3 unit_normal, vec3 view_dir, vec3 base_color, float shadow_factor,
                                        lighting_material mat, sampler3D noise3d)

@@ -44,7 +44,10 @@ const char *shader_name(struct shader_prog *p);
  *
  * Match a set of shader variants to the shader compiled with exactly
  * that set: the name to hand to pipeline_shader_find_get() and friends.
- * Non-default combinations only exist in CLAP_SHADER_VARIANTS builds.
+ * Non-default combinations only exist in CLAP_SHADER_VARIANTS builds,
+ * bar the debug companions (default set plus a debug axis) every
+ * non-final build compiles; those cover every mask carrying their
+ * debug axis, which is not a dimension of the variant matrix.
  * Context: anywhere
  * Return:
  * * the shader name

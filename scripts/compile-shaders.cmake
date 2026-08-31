@@ -22,10 +22,11 @@ endif ()
 # Default variant axis set: what the plain (uber) "model"/"shadow"/
 # "shadow_vsm" shaders and every non-variant shader compile with, and
 # the mask the base names resolve to in the generated lookup tables.
-# With CLAP_SHADER_VARIANTS, the variant families additionally compile
-# one specialization per valid axis combination; see shader-variants.cmake
-# (SHADER_VARIANT_BLINN_PHONG selects the cheaper BRDF and stays off by
-# default). See model.vert/model.frag/lighting.glsl.
+# The variant families additionally compile their debug companions
+# and, with CLAP_SHADER_VARIANTS, one specialization per valid axis
+# combination; see shader-variants.cmake (SHADER_VARIANT_BLINN_PHONG
+# selects the cheaper BRDF and stays off by default). See
+# model.vert/model.frag/lighting.glsl.
 set(SHADER_VARIANT_DEFAULTS
     NORMALS
     SKINNING
@@ -301,39 +302,42 @@ function(compile_shaders_for_backend backend SHADERS suffix)
         endforeach ()
     endforeach()
 
-    # Variant specializations: one compile of each family's stages per
-    # valid axis combination, named "<family>.<mask hex>"; the default
+    # Variant specializations, named "<family>.<mask hex>": the debug
+    # companions always, plus one compile of each family's stages per
+    # valid axis combination with CLAP_SHADER_VARIANTS; the default
     # combination is the plain "<family>" compile above
-    if (CLAP_SHADER_VARIANTS)
-        foreach (family ${SHADER_VARIANT_FAMILIES})
-            if (NOT family IN_LIST SHADERS)
+    foreach (family ${SHADER_VARIANT_FAMILIES})
+        if (NOT family IN_LIST SHADERS)
+            continue ()
+        endif ()
+
+        shader_variant_default_mask(${family} default_mask)
+        shader_variant_debug_masks(${family} masks)
+        if (CLAP_SHADER_VARIANTS)
+            shader_variant_enumerate(${family} full_masks)
+            list(APPEND masks ${full_masks})
+        endif ()
+        foreach (mask ${masks})
+            if (mask EQUAL default_mask)
                 continue ()
             endif ()
 
-            shader_variant_default_mask(${family} default_mask)
-            shader_variant_enumerate(${family} masks)
-            foreach (mask ${masks})
-                if (mask EQUAL default_mask)
+            shader_variant_suffix(${mask} sfx)
+            shader_variant_glslc_args(${family} ${mask} variant_args)
+            foreach (stage vert frag geom)
+                if (NOT EXISTS "${SHADER_SOURCE_DIR}/${family}.${stage}")
                     continue ()
                 endif ()
-
-                shader_variant_suffix(${mask} sfx)
-                shader_variant_glslc_args(${family} ${mask} variant_args)
-                foreach (stage vert frag geom)
-                    if (NOT EXISTS "${SHADER_SOURCE_DIR}/${family}.${stage}")
-                        continue ()
-                    endif ()
-                    if (stage STREQUAL "geom" AND _SKIP_GEOM)
-                        continue ()
-                    endif ()
-                    _compile_shader_for_backend(
-                        "${family}.${sfx}.${stage}" "${SHADER_SOURCE_DIR}/${family}.${stage}"
-                        "${stage}" "${backend}"
-                        "${SHADER_SRCS}" "${SHADER_OUTS}" "${suffix}" "${variant_args}")
-                endforeach ()
+                if (stage STREQUAL "geom" AND _SKIP_GEOM)
+                    continue ()
+                endif ()
+                _compile_shader_for_backend(
+                    "${family}.${sfx}.${stage}" "${SHADER_SOURCE_DIR}/${family}.${stage}"
+                    "${stage}" "${backend}"
+                    "${SHADER_SRCS}" "${SHADER_OUTS}" "${suffix}" "${variant_args}")
             endforeach ()
         endforeach ()
-    endif ()
+    endforeach ()
 
     add_custom_target(preprocess_shaders_${backend}${suffix}
         DEPENDS ${SHADER_OUTS}

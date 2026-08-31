@@ -218,25 +218,52 @@ const char *shader_name(struct shader_prog *p)
     return p->name;
 }
 
+/**
+ * shader_family_lookup() - find the row compiled for exactly a variant set
+ * @fam:        the shader variant family
+ * @variants:   the variant mask to match
+ *
+ * names[] is sorted by mask, so this is a binary search.
+ * Return: the shader name, or CERR_NOT_FOUND when no row carries exactly
+ * @variants
+ */
+static cresp(const_char) shader_family_lookup(const struct shader_variant_family *fam,
+                                              shader_variants_t variants)
+{
+    unsigned int lo = 0, hi = fam->nr_names;
+
+    while (lo < hi) {
+        unsigned int mid = (lo + hi) / 2;
+
+        if (fam->names[mid].mask < variants)    lo = mid + 1;
+        else                                    hi = mid;
+    }
+
+    if (lo == fam->nr_names || fam->names[lo].mask != variants)
+        return cresp_error(const_char, CERR_NOT_FOUND);
+
+    return cresp_val(const_char, fam->names[lo].name);
+}
+
 cresp(const_char) shader_get_name(const char *base, shader_variants_t variants)
 {
     for (int i = 0; i < array_size(shader_variant_families); i++) {
         const struct shader_variant_family *fam = &shader_variant_families[i];
-        unsigned int lo = 0, hi = fam->nr_names;
 
         if (strcmp(fam->base, base))    continue;
 
-        /* names[] is sorted by mask */
-        while (lo < hi) {
-            unsigned int mid = (lo + hi) / 2;
+        cresp(const_char) res = shader_family_lookup(fam, variants);
 
-            if (fam->names[mid].mask < variants)    lo = mid + 1;
-            else                                    hi = mid;
-        }
+        /*
+         * The debug axes are not a dimension of the variant matrix:
+         * the debug companion (the default set plus the debug axes)
+         * stands in for any mask that carries them, the way the uber
+         * shader does for the rest
+         */
+        if (IS_CERR(res) && (variants & SHADER_DEBUG_BITS))
+            res = shader_family_lookup(fam, fam->default_mask | (variants & SHADER_DEBUG_BITS));
 
-        if (lo == fam->nr_names || fam->names[lo].mask != variants) return cresp_error(const_char, CERR_NOT_FOUND);
-
-        return cresp_val(const_char, fam->names[lo].name);
+        return res;
     }
 
     return cresp_error(const_char, CERR_INVALID_ARGUMENTS);
