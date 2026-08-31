@@ -447,7 +447,46 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     return uie;
 }
 
-static const char *menu_font = "ofl/Unbounded-Regular.ttf";
+/**
+ * ui_font_name() - the font the widgets' text is set in
+ * @ui:     ui context
+ *
+ * Return: the application's default font name
+ */
+static const char *ui_font_name(struct ui *ui)
+{
+    return clap_get_config(ui->clap_ctx)->default_font_name;
+}
+
+/* the UI's own text font, resolved once by ui_font_small() */
+static const char *small_font_name;
+
+/**
+ * ui_font_small() - open the UI's own small text font
+ * @ui:     ui context
+ * @size:   pixel size
+ *
+ * The UI's own text (build banner, pocket, wheel) is set in ProggyTiny.ttf,
+ * a pixel font; an application whose assets don't ship it gets its default
+ * font at @size instead.
+ * Return: font reference to font_put() by the caller, or CERR_FONT_NOT_LOADED
+ */
+static cresp(font) ui_font_small(struct ui *ui, unsigned int size)
+{
+    font_context *fctx = clap_get_font(ui->clap_ctx);
+
+    if (!small_font_name) {
+        struct font *probe = ref_new(font, .ctx = fctx, .name = "ProggyTiny.ttf", .size = size);
+
+        small_font_name = probe ? "ProggyTiny.ttf" : clap_get_config(ui->clap_ctx)->default_font_name;
+        if (probe)  return cresp_val(font, probe);
+    }
+
+    struct font *font = ref_new(font, .ctx = fctx, .name = small_font_name, .size = size);
+    if (!font)  return cresp_error(font, CERR_FONT_NOT_LOADED);
+
+    return cresp_val(font, font);
+}
 
 static bool display_fps;
 static struct ui_element *bottom_uit;
@@ -716,12 +755,7 @@ struct ui_widget *ui_wheel_new(struct ui *ui, const char **items)
 
     wheel->focus   = -1;
 
-    /* XXX^2: font global/hardcoded */
-    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 48);
-    if (!font) {
-        ref_put_last(wheel);
-        return NULL;
-    }
+    font = CRES_RET(ui_font_small(ui, 48), { ref_put_last(wheel); return NULL; });
 
     for (i = 0, width = 0.0, height = 0.0; i < 4; i++) {
         /* XXX^3: element placement hardcoded */
@@ -822,7 +856,7 @@ struct ui_widget *ui_osd_new(struct ui *ui, const struct ui_widget_builder *uwb,
         memcpy(&_uwb, uwb, sizeof(_uwb));
 
     if (!_uwb.font)
-        _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = 32);
+        _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = ui_font_name(ui), .size = 32);
     if (!_uwb.font)
         return NULL;
 
@@ -850,7 +884,7 @@ struct ui_widget *ui_text_new(struct ui *ui, const struct ui_widget_builder *uwb
     if (uwb)    memcpy(&_uwb, uwb, sizeof(_uwb));
 
     unsigned int fsize = _uwb.font_size ? _uwb.font_size : 32;
-    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = fsize);
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = ui_font_name(ui), .size = fsize);
     if (!_uwb.font) return NULL;
 
     struct ui_widget *w = ref_new(ui_widget, .ui = ui, .uwb = &_uwb, .nr_items = 1);
@@ -889,7 +923,7 @@ struct ui_widget *ui_roll_new(struct ui *ui, const struct ui_widget_builder *uwb
     if (uwb)    memcpy(&_uwb, uwb, sizeof(_uwb));
 
     unsigned int fsize = _uwb.font_size ? _uwb.font_size : 20;
-    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = fsize);
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = ui_font_name(ui), .size = fsize);
     if (!_uwb.font) return NULL;
 
     struct ui_widget *roll = ref_new(ui_widget, .ui = ui, .uwb = &_uwb, .nr_items = 1);
@@ -1073,7 +1107,7 @@ struct ui_widget *ui_menu_new(struct ui *ui, const ui_menu_item *root)
     if (!_uwb.input_event)  _uwb.input_event = ui_menu_input;
 
     unsigned int fsize = _uwb.font_size ? _uwb.font_size : 32;
-    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = menu_font, .size = fsize);
+    _uwb.font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = ui_font_name(ui), .size = fsize);
     if (!_uwb.font)         return NULL;
 
     auto menu = ui_menu_build(ui, &_uwb, root);
@@ -1384,14 +1418,8 @@ struct ui_element *ui_pocket_new(struct ui *ui, const char **tex, int nr)
     model3d *model;
     model3dtx *txm;
     struct ui_element *p, *t;
-    struct font *font = ref_new(font,
-                                .ctx  = clap_get_font(ui->clap_ctx),
-                                .name = "ProggyTiny.ttf",
-                                .size = 48);
+    struct font *font = CRES_RET(ui_font_small(ui, 48), return NULL);
     int i;
-
-    if (!font)
-        return NULL;
 
     pocket_text = mem_alloc(sizeof(struct ui_element *), .nr = nr, .fatal_fail = 1);
     pocket_count = mem_alloc(sizeof(int), .nr = nr, .fatal_fail = 1);
@@ -1455,14 +1483,8 @@ void pocket_update(struct ui *ui)
 {
     struct ui_element *parent;
     float color[4] = { 1, 1, 1, 1 };
-    struct font *font = ref_new(font,
-                                .ctx  = clap_get_font(ui->clap_ctx),
-                                .name = "ProggyTiny.ttf",
-                                .size = 48);
+    struct font *font = CRES_RET(ui_font_small(ui, 48), return);
     int i;
-
-    if (!font)
-        return;
 
     for (i = 0; i < pocket_buckets; i++) {
         parent = pocket_text[i]->parent;
@@ -1606,11 +1628,7 @@ cerr ui_init(struct ui *ui, clap_context *clap_ctx, int width, int height)
         goto err;
     }
 
-    font = ref_new(font, .ctx = clap_get_font(ui->clap_ctx), .name = "ProggyTiny.ttf", .size = 16);
-    if (!font) {
-        ret = CERR_FONT_NOT_LOADED;
-        goto err;
-    }
+    font = CRES_RET(ui_font_small(ui, 16), { ret = cerr_error_cres(__resp); goto err; });
 
     CERR_RET(ui_model_init(ui), { font_put(font); goto err; });
 
