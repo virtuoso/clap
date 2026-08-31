@@ -286,6 +286,9 @@ static void scene_parameters_debug(struct scene *scene, int cam_idx)
         igCheckbox("camera frusta draws", &ropts->camera_frusta_draws_enabled);
         igCheckbox("light frusta draws", &ropts->light_frusta_draws_enabled);
         igCheckbox("light draws", &ropts->light_draws_enabled);
+        igCheckbox("light heatmap", &ropts->light_heatmap);
+        ui_igHelpTooltip("Overlay the light grid's tile occupancy on the scene, blue (no lights) "
+                         "through green to red (five and up); rebuilds the pipeline");
         igCheckbox("aabb draws", &ropts->aabb_draws_enabled);
         igCheckbox("degenerate collision draws", &ropts->degenerate_draws_enabled);
         ui_igHelpTooltip("Paint the collision triangles that the physics backend dropped "

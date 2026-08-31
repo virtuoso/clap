@@ -828,6 +828,7 @@ static const struct rebuild_reason {
     REBUILD_REASON_FIELD(fog_volumetric),
     REBUILD_REASON_FIELD(lighting_lut),
     REBUILD_REASON_FIELD(bloom_quality),
+    REBUILD_REASON_FIELD(light_heatmap),
 };
 
 static cerr build_main_pl(clap_context *ctx)

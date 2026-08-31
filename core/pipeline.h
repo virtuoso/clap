@@ -132,6 +132,8 @@ typedef struct render_options {
     bool    light_frusta_draws_enabled;
     bool    overlay_draws_enabled;
     bool    light_draws_enabled;
+    /* light grid tile occupancy overlaid on the model pass (debug builds) */
+    bool    light_heatmap;
 } render_options;
 
 /**

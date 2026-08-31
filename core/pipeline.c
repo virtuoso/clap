@@ -226,6 +226,8 @@ shader_variants_t ropts_shader_variants(const render_options *ropts)
     if (!ropts->shadow_vsm) variants |= SHADER_SHADOW_PCF_BIT;
     /* the velocity RT rides on the compile-time config, not ropts->taa */
     if (IS_DEFINED(CONFIG_TAA)) variants |= SHADER_TAA_BIT;
+    /* the debug companion only exists in non-final builds */
+    if (!IS_DEFINED(CONFIG_FINAL) && ropts->light_heatmap)  variants |= SHADER_LIGHT_HEATMAP_BIT;
 
     return variants;
 }
