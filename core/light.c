@@ -308,11 +308,17 @@ static void light_hover(float x, float y, void *data)
 
     if (!clap_get_render_options(scene->clap_ctx)->light_draws_enabled) return;
 
-    auto grid = &light->grid;
-    if (!grid->width || !grid->height)  return;
+    /*
+     * The mouse is in the display's units, which are points where the
+     * framebuffer is in pixels on a HiDPI display: the tile is the same
+     * fraction of either
+     */
+    ImGuiIO *io = igGetIO_Nil();
+    if (io->DisplaySize.x <= 0.0f || io->DisplaySize.y <= 0.0f) return;
 
-    auto gx = (unsigned int)(x / grid->width * grid->twidth);
-    auto gy = (unsigned int)(y / grid->height * grid->theight);
+    auto grid = &light->grid;
+    auto gx = (unsigned int)(x / io->DisplaySize.x * grid->twidth);
+    auto gy = (unsigned int)(y / io->DisplaySize.y * grid->theight);
     auto v  = grid_get(grid, gx, gy);
 
     if (v && igBeginTooltip()) {
