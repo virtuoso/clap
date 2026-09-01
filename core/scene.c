@@ -1223,6 +1223,14 @@ void scene_cameras_calc(struct scene *s)
 
     for (i = 0; i < s->nr_cameras; i++)
         scene_camera_calc(s, i);
+
+    /*
+     * The grid bins the lights into the screen tiles of the view this
+     * frame renders with, so it follows the camera's: binned against
+     * the previous frame's view, the tiles along a lit area's edge drop
+     * its lights whenever the camera moves
+     */
+    light_grid_compute(&s->light, &s->camera->view);
 }
 
 void scene_characters_move(struct scene *s)
@@ -1395,7 +1403,6 @@ void scene_update(struct scene *scene)
 
     clap_context *ctx = scene->clap_ctx;
     camera_move(scene->camera, clap_get_fps_fine(ctx));
-    light_grid_compute(&scene->light, &scene->camera->view);
 
     if (clap_get_render_options(ctx)->camera_frusta_draws_enabled)
         scene_debug_frusta(scene, &scene->camera->view);
