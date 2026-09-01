@@ -174,7 +174,13 @@ void main()
         if ((edge_mode & EDGE_SOLID_MASK) != 0) {
             final_edge_mode ^= EDGE_LUMA_MAX << EDGE_SOLID_LUMA_OFFSET;
         } else {
-            float luma = luma(view_normal.xyz);
+            /*
+             * The luma of the normal as the Normal RT encodes it, inside
+             * (0, 1): the view space normal's own goes negative with the
+             * camera's pitch and yaw, where uint() is undefined, and a
+             * packed 0 reads as unshadowed in the edge filter
+             */
+            float luma = luma(view_normal * 0.5 + 0.5);
             final_edge_mode = (uint(luma * EDGE_LUMA_MAX) << (EDGE_SOLID_LUMA_OFFSET));
         }
     }
