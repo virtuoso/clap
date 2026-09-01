@@ -37,7 +37,8 @@ struct light {
     struct bitmap       active;
     /*
      * Per-slot update callback. Fires from light_update() when the tracked
-     * transform has changed since the last update. update_cleanup, if set,
+     * transform has changed since the last update, or whenever its owner
+     * fires it with light_fire_update() instead. update_cleanup, if set,
      * runs on update_data at light_put() / light_done() time and is the
      * escape hatch for releasing references held by the callback owner.
      */
@@ -72,6 +73,7 @@ void light_set_update(struct light *light, int idx, light_update_fn fn,
                       void *data, transform_t *track, light_cleanup_fn cleanup);
 void light_spot_view_update(struct clap_context *ctx, struct light *light, int idx);
 void light_update(struct light *light);
+void light_fire_update(struct light *light, int idx);
 void light_update_from_entity(struct light *light, int idx, void *data);
 void light_update_from_camera(struct light *light, int idx, void *data);
 void light_set_pos(struct light *light, int idx, const float pos[3]);

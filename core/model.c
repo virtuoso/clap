@@ -1911,12 +1911,8 @@ static int default_update(entity3d *e, void *data)
             entity3d_is(e, &E3DQ(.all_of = ENTITY3D_HAS_PHYSICS, .none_of = ENTITY3D_PHYS_IS_BODY)))
             phys_body_rotate_xform(e->phys_body, &e->xform);
 
-        if (scene && e->light_idx >= 0) {
-            vec3 pos;
-            transform_pos(&e->xform, pos);
-            vec3_add(pos, pos, e->light_off);
-            light_set_pos(&scene->light, e->light_idx, pos);
-        }
+        /* the entity's lights follow it with its transform for this frame */
+        if (e->light && e->light_idx >= 0)  light_fire_update(e->light, e->light_idx);
     }
 
     if (!scene)

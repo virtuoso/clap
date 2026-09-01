@@ -613,6 +613,23 @@ void light_update_from_camera(struct light *light, int idx, void *data)
     light_spot_view_update(scene->clap_ctx, light, idx);
 }
 
+/**
+ * light_fire_update() - run a light's update callback now
+ * @light:  lights
+ * @idx:    light index from light_get()
+ *
+ * For a light whose owner knows better than light_update() when it has
+ * moved: an entity's lights follow the entity when its own update has
+ * the transform for this frame, which light_update(), running before the
+ * entities' updates, can't see.
+ */
+void light_fire_update(struct light *light, int idx)
+{
+    if (!light_is_valid(light, idx) || !light->update[idx])    return;
+
+    light->update[idx](light, idx, light->update_data[idx]);
+}
+
 void light_update(struct light *light)
 {
     for (int idx = 0; idx < light->nr_lights; idx++) {
