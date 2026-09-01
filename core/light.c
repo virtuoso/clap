@@ -526,17 +526,14 @@ void light_set_update(struct light *light, int idx, light_update_fn fn,
  * @ctx:    clap context
  * @light:  lights
  * @idx:    the spotlight's index
- * @xform:  the transform the light tracks, or NULL for a static light
  *
  * A square perspective projection covering the full beam -- twice the
  * cutoff half-angle plus the soft rim spotlight_intensity() feathers
- * over -- reaching as far as the light's attenuation radius. The view
- * matrix comes from @xform when the light tracks an entity or a
- * camera, or from the light's own position and direction when it
- * doesn't.
+ * over -- reaching as far as the light's attenuation radius, looking
+ * from the light's position along its beam. Call it whenever either
+ * changes.
  */
-void light_spot_view_update(struct clap_context *ctx, struct light *light, int idx,
-                            transform_t *xform)
+void light_spot_view_update(struct clap_context *ctx, struct light *light, int idx)
 {
     struct view *lv = &light->view[idx];
     float range = light_get_radius(light, idx);
@@ -548,14 +545,11 @@ void light_spot_view_update(struct clap_context *ctx, struct light *light, int i
     lv->proj_update       = true;
     /* aspect of 1.0 -> square shadow map */
     view_update_perspective_projection(ctx, lv, 1, 1, 1.0f);
-    if (xform) {
-        view_update_from_angles(ctx, lv, xform);
-    } else {
-        /* stored dir points at the light; the beam looks away from it */
-        vec3 beam;
-        vec3_sub(beam, (vec3){}, &light->dir[idx * 3]);
-        view_update_from_direction(ctx, lv, &light->pos[idx * 3], beam);
-    }
+
+    /* stored dir points at the light; the beam looks away from it */
+    vec3 beam;
+    vec3_sub(beam, (vec3){}, &light->dir[idx * 3]);
+    view_update_from_direction(ctx, lv, &light->pos[idx * 3], beam);
     view_calc_frustum(ctx, lv);
 
     /*
@@ -577,17 +571,22 @@ void light_update_from_entity(struct light *light, int idx, void *data)
     vec3 pos;
 
     transform_pos(&e->xform, pos);
-    vec3_add(pos, pos, e->light_off);
+    if (!light_is_spotlight(light, idx)) {
+        vec3_add(pos, pos, e->light_off);
+        light_set_pos(light, idx, pos);
+        return;
+    }
+
+    vec3 dir = { 0.0f, 0.0f, 1.0f }, off;
+    vec3_dup(off, e->light_off);
+
+    transform_rotate_vec3(&e->xform, dir);
+    transform_rotate_vec3(&e->xform, off);
+    light_set_direction(light, idx, dir);
+    vec3_add(pos, pos, off);
     light_set_pos(light, idx, pos);
 
-    if (!light_is_spotlight(light, idx))
-        return;
-
-    vec3 dir = { 0.0f, 0.0f, 1.0f };
-    transform_rotate_vec3(&e->xform, dir);
-    light_set_direction(light, idx, dir);
-
-    light_spot_view_update(scene->clap_ctx, light, idx, &e->xform);
+    light_spot_view_update(scene->clap_ctx, light, idx);
 }
 
 /*
@@ -611,7 +610,7 @@ void light_update_from_camera(struct light *light, int idx, void *data)
     if (!light_is_spotlight(light, idx))
         return;
 
-    light_spot_view_update(scene->clap_ctx, light, idx, &cam->xform);
+    light_spot_view_update(scene->clap_ctx, light, idx);
 }
 
 void light_update(struct light *light)

@@ -189,8 +189,9 @@ void view_update_from_angles(clap_context *clap_ctx, struct view *view, transfor
  * @dir:        the direction to look along, any length
  *
  * view_update_from_angles() for a view that has no transform behind it.
- * Used for shadow views of lights that are placed directly (scene light
- * array) rather than tracking an entity or a camera.
+ * Used for spotlight shadow views, which look from the light's position
+ * along its beam whether the light is placed directly or follows an
+ * entity or a camera.
  */
 void view_update_from_direction(clap_context *clap_ctx, struct view *view, vec3 eye, vec3 dir)
 {

@@ -2192,7 +2192,7 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
         bool shadow_vsm = clap_get_render_options(s->clap_ctx)->shadow_vsm;
         view_update_from_frustum(s->clap_ctx, &s->light.view[idx], &s->camera[0].view, &s->light.dir[idx * 3], 0.0, !shadow_vsm);
     } else if (spot) {
-        light_spot_view_update(s->clap_ctx, &s->light, idx, NULL);
+        light_spot_view_update(s->clap_ctx, &s->light, idx);
     }
 
     return CERR_OK;
