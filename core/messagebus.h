@@ -126,7 +126,11 @@ struct message_debug_draw {
     vec4                color;
     float               thickness;
     union {
-        unsigned int    cell;
+        /* DEBUG_DRAW_GRID: the display split evenly into cols x rows cells */
+        struct {
+            unsigned int    cols;
+            unsigned int    rows;
+        } grid;
         float           radius;
         char            *text;
     };

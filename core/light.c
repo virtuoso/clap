@@ -427,7 +427,7 @@ void light_draw(struct clap_context *ctx, struct light *light)
         .debug_draw     = (struct message_debug_draw) {
             .color      = { 0.3, 0.3, 0.3, 0.5 },
             .shape      = DEBUG_DRAW_GRID,
-            .cell       = 32,
+            .grid       = { .cols = light->grid.twidth, .rows = light->grid.theight },
             .thickness  = 0.2,
         }
     };

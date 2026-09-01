@@ -85,10 +85,14 @@ static int debug_draw(struct clap_context *ctx, struct message *m, void *data)
             {
                 float w = io->DisplaySize.x;
                 float h = io->DisplaySize.y;
-                for (float x = 0.0f; x < w; x += (float)dd->cell)
+                for (unsigned int i = 1; i < dd->grid.cols; i++) {
+                    float x = w * i / dd->grid.cols;
                     ImDrawList_AddLine(draw, (ImVec2) { x, 0.0f }, (ImVec2) { x, h }, color, 1.0f);
-                for (float y = 0.0f; y < h; y += (float)dd->cell)
+                }
+                for (unsigned int i = 1; i < dd->grid.rows; i++) {
+                    float y = h * i / dd->grid.rows;
                     ImDrawList_AddLine(draw, (ImVec2) { 0.0f, y }, (ImVec2) { w, y }, color, 1.0f);
+                }
             }
             break;
 
