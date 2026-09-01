@@ -60,7 +60,14 @@ f16vec3 normals_fetch(sampler2D tex, vec2 tex_coords, ivec2 off, vec4 center)
         return texel.rgb * H(edge_solid_id);
     }
 
-    if (luma > 0.0) return texel.rgb * luma;
+    /*
+     * Shadow-outline luma on world geometry: reconstruct to [0, 1). The
+     * byte-space scale of edge_luma_get() is only meant for the solid-id
+     * branch above, where saturating differences are the point; at x32 a
+     * single luma quantization step saturates the sobel/laplace kernels
+     * and paints whole faces black.
+     */
+    if (luma > 0.0) return texel.rgb * (luma / H(256));
 
     return texel.rgb;
 }
