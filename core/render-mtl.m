@@ -2043,7 +2043,17 @@ static void mtl_renderer_cull_face(renderer_t *r, cull_face cull)
 
 static void mtl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
 {
+    if (r->blend == _blend) return;
+
     r->blend = _blend;
+
+    /*
+     * The blend state lives in the pipeline state object, which is
+     * picked when the draw control is bound; a mid-pass change (models
+     * flip renderer_blend() per model3d::alpha_blend) has to re-select
+     * the PSO on the live encoder to actually take effect.
+     */
+    if (r->mtl.dc)  [cmd_encoder(r) setRenderPipelineState:r->mtl.dc->mtl.pipeline[r->blend ? 1 : 0]];
 }
 
 static unsigned int mtl_draw_type(draw_type draw_type)
