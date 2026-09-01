@@ -173,12 +173,14 @@ void main()
     if (shadow_outline && shadow_factor > shadow_outline_threshold) {
         if ((edge_mode & EDGE_SOLID_MASK) != 0) {
             final_edge_mode ^= EDGE_LUMA_MAX << EDGE_SOLID_LUMA_OFFSET;
-        } else {
+        } else if ((edge_mode & EDGE_EXCLUDE) == 0) {
             /*
              * The luma of the normal as the Normal RT encodes it, inside
              * (0, 1): the view space normal's own goes negative with the
              * camera's pitch and yaw, where uint() is undefined, and a
-             * packed 0 reads as unshadowed in the edge filter
+             * packed 0 reads as unshadowed in the edge filter. Excluded
+             * fragments keep their edge_mode so the EDGE_EXCLUDE bit
+             * survives to the filters.
              */
             float luma = luma(view_normal * 0.5 + 0.5);
             final_edge_mode = (uint(luma * EDGE_LUMA_MAX) << (EDGE_SOLID_LUMA_OFFSET));
