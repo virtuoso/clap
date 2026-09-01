@@ -304,6 +304,7 @@ int main(int argc, char **argv, char **envp)
     CERR_RET(scene_load(scene, "cave.json"), err_cerr(__cerr, "failed to load the scene\n"));
     cave_built = true;
     cave_fill(clap_res.val);
+    CERR_RET(fog_init(scene), err_cerr(__cerr, "failed to create the fog\n"));
 
     loading_screen_done(scene->ls);
 
@@ -319,6 +320,7 @@ int main(int argc, char **argv, char **envp)
 
 #ifndef CONFIG_BROWSER
     if (title_sound)    ref_put(title_sound);
+    fog_done();
     noisy_mesh_done();
 exit_scene:
     clap_done(clap_res.val, 0);

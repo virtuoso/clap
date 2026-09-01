@@ -50,4 +50,24 @@ cerr noisy_mesh(struct scene *scene, uint64_t seed);
  */
 void noisy_mesh_done(void);
 
+#ifdef D2JAM2_FOG_PARTICLES
+/**
+ * fog_init() - fill the cave with fog particles
+ * @scene:  the scene, with the cave already in it
+ *
+ * A particle system of large transparent quads shaded with the material
+ * level 3D fog, sampling the engine's global noise.
+ * Return: CERR_OK or an error from the particle system constructor
+ */
+cerr fog_init(struct scene *scene);
+
+/**
+ * fog_done() - drop the fog particle system
+ */
+void fog_done(void);
+#else
+static inline cerr fog_init(struct scene *scene) { return CERR_OK; }
+static inline void fog_done(void) {}
+#endif /* !D2JAM2_FOG_PARTICLES */
+
 #endif /* __DEMO_D2JAM2_H__ */
