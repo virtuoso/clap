@@ -971,7 +971,8 @@ TYPE(draw_control,
 #endif /* CONFIG_RENDERER_WGPU */
 #ifdef CONFIG_RENDERER_METAL
     struct {
-        mtl_depth_stencil_state_t           depth_stencil;
+        /* [0] no blend, [1] blend, which doesn't write depth */
+        mtl_depth_stencil_state_t           depth_stencil[2];
         mtl_render_pipeline_state_t         pipeline[2];
         mtl_render_pipeline_reflection_t    reflection;
     } mtl;
@@ -1569,6 +1570,18 @@ typedef enum {
     BLEND_ONE_MINUS_SRC_ALPHA,
 } blend;
 
+/**
+ * renderer_blend() - switch alpha blending for the draws that follow
+ * @r:          renderer
+ * @_blend:     blend the draws over the render target
+ * @sfactor:    source blend factor
+ * @dfactor:    destination blend factor
+ *
+ * Blended draws don't write the depth buffer: passes that read it see the
+ * surfaces behind the translucent ones. Only GL takes @sfactor/@dfactor,
+ * the other backends bake (BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA)
+ * into their pipeline state, which is all the engine blends with.
+ */
 void renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor);
 
 

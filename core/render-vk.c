@@ -2137,7 +2137,8 @@ static VkPipelineShaderStageCreateInfo vk_shader_stage(VkShaderStageFlagBits sta
  * @r:          renderer
  * @dc:         the draw_control: its shader supplies the stages and vertex attributes
  * @ts:         the render target's attachment formats and depth state
- * @blend:      build the alpha-blending variant instead of the opaque one
+ * @blend:      build the alpha-blending variant, which doesn't write depth,
+ *              instead of the opaque one
  * @pipeline:   filled with the pipeline
  *
  * Return: CERR_OK, or the creation error
@@ -2233,7 +2234,8 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, const vk_targe
     VkPipelineDepthStencilStateCreateInfo depth_state = {
         .sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         .depthTestEnable    = VK_TRUE,
-        .depthWriteEnable   = VK_TRUE,
+        /* the blended variant doesn't advance the depth buffer */
+        .depthWriteEnable   = blend ? VK_FALSE : VK_TRUE,
         .depthCompareOp     = vk_compare_op(ts->depth_fn),
     };
 

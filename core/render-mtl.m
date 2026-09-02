@@ -558,14 +558,21 @@ static MTLCompareFunction mtl_compare_function(depth_func func)
 
 cres_ret(mtl_depth_stencil_state_t);
 
+/**
+ * mtl_depth_stencil_new() - create a depth-stencil state for an fbo's draws
+ * @fbo:            render target, supplies the depth test
+ * @depth_write:    whether the draws write the depth buffer
+ *
+ * Return: the depth-stencil state, or CERR_NOMEM
+ */
 static cres(mtl_depth_stencil_state_t)
-mtl_depth_stencil_new(fbo_t *fbo)
+mtl_depth_stencil_new(fbo_t *fbo, bool depth_write)
 {
     auto desc = [[MTLDepthStencilDescriptor alloc] init];
     if (!desc)  return cres_error(mtl_depth_stencil_state_t, CERR_NOMEM);
 
     desc.depthCompareFunction = mtl_compare_function(fbo->depth_config.depth_func);
-    desc.depthWriteEnabled = YES;
+    desc.depthWriteEnabled = depth_write ? YES : NO;
 
     auto r = fbo->renderer;
     auto ds = [r->mtl.device newDepthStencilStateWithDescriptor:desc];
@@ -604,8 +611,8 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
                 )
             );
 
-            /* both pipeline variants share one depth-stencil state */
-            if (use_depth && !pl)   dc->mtl.depth_stencil = CRES_RET_CERR(mtl_depth_stencil_new(fbo));
+            /* the blended variant doesn't advance the depth buffer */
+            if (use_depth)  dc->mtl.depth_stencil[pl] = CRES_RET_CERR(mtl_depth_stencil_new(fbo, !pl));
         } else {
             texture_format color_format = mtl_texture_format_from_pixel_format(dc->renderer->mtl.layer.pixelFormat);
             dc->mtl.pipeline[pl] = CRES_RET_CERR(
@@ -631,7 +638,25 @@ static void mtl_draw_control_done(draw_control_t *dc)
 
     [dc->mtl.pipeline[0] release];
     [dc->mtl.pipeline[1] release];
-    if (dc->mtl.depth_stencil)  [dc->mtl.depth_stencil release];
+    if (dc->mtl.depth_stencil[0])   [dc->mtl.depth_stencil[0] release];
+    if (dc->mtl.depth_stencil[1])   [dc->mtl.depth_stencil[1] release];
+}
+
+/**
+ * mtl_draw_control_select() - set the bound draw control's state for blending
+ * @r:  renderer, its blend flag picks the variant
+ * @dc: the bound draw control
+ *
+ * The blend state lives in the pipeline state object and the depth write,
+ * which blended draws skip, in the depth-stencil state: both come in an
+ * opaque and a blended variant, and the encoder takes them as a pair.
+ */
+static void mtl_draw_control_select(renderer_t *r, draw_control_t *dc)
+{
+    int variant = r->blend ? 1 : 0;
+
+    if (dc->mtl.depth_stencil[variant]) [cmd_encoder(r) setDepthStencilState:dc->mtl.depth_stencil[variant]];
+    [cmd_encoder(r) setRenderPipelineState:dc->mtl.pipeline[variant]];
 }
 
 static void mtl_draw_control_bind(draw_control_t *dc)
@@ -639,8 +664,7 @@ static void mtl_draw_control_bind(draw_control_t *dc)
     auto r = dc->renderer;
     r->mtl.dc = dc;
 
-    if (dc->mtl.depth_stencil)  [cmd_encoder(r) setDepthStencilState:dc->mtl.depth_stencil];
-    [cmd_encoder(r) setRenderPipelineState:dc->mtl.pipeline[r->blend ? 1 : 0]];
+    mtl_draw_control_select(r, dc);
 }
 
 static void mtl_draw_control_unbind(draw_control_t *dc)
@@ -2049,12 +2073,12 @@ static void mtl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend 
     r->blend = _blend;
 
     /*
-     * The blend state lives in the pipeline state object, which is
-     * picked when the draw control is bound; a mid-pass change (models
-     * flip renderer_blend() per model3d::alpha_blend) has to re-select
-     * the PSO on the live encoder to actually take effect.
+     * The blend state is picked when the draw control is bound; a
+     * mid-pass change (models flip renderer_blend() per
+     * model3d::alpha_blend) has to re-select it on the live encoder to
+     * actually take effect.
      */
-    if (r->mtl.dc)  [cmd_encoder(r) setRenderPipelineState:r->mtl.dc->mtl.pipeline[r->blend ? 1 : 0]];
+    if (r->mtl.dc)  mtl_draw_control_select(r, r->mtl.dc);
 }
 
 static unsigned int mtl_draw_type(draw_type draw_type)

@@ -500,7 +500,8 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
 
     WGPUDepthStencilState depth_stencil = {
         .format             = depth_format,
-        .depthWriteEnabled  = WGPUOptionalBool_True,
+        /* the blended variant doesn't advance the depth buffer */
+        .depthWriteEnabled  = blend ? WGPUOptionalBool_False : WGPUOptionalBool_True,
         .depthCompare       = depth_compare,
     };
 

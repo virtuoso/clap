@@ -1375,6 +1375,8 @@ static void gl_fbo_prepare(fbo_t *fbo)
     if (fbo->layout.depth_buffers || fbo->layout.depth_textures) {
         if (fbo->depth_config.load_action == FBOLOAD_CLEAR) {
             float clear_depth = fbo->depth_config.clear_depth;
+            /* the clear respects the depth mask, which blended draws turn off */
+            GL(glDepthMask(GL_TRUE));
             GL(glClearBufferfv(GL_DEPTH, 0, &clear_depth));
         }
 
@@ -2143,6 +2145,9 @@ static void gl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend d
         r->gl.blend_dfactor = _dfactor;
         GL(glBlendFunc(_sfactor, _dfactor));
     }
+
+    /* blended draws don't advance the depth buffer */
+    GL(glDepthMask(_blend ? GL_FALSE : GL_TRUE));
 }
 
 static GLenum gl_draw_type(draw_type draw_type)
@@ -2236,6 +2241,8 @@ static void renderer_clear(renderer_t *r, bool color, bool depth, bool stencil)
     if (stencil)
         flags |= GL_STENCIL_BUFFER_BIT;
 
+    /* the clear respects the depth mask, which blended draws turn off */
+    if (depth)  GL(glDepthMask(GL_TRUE));
     GL(glClear(flags));
 }
 
