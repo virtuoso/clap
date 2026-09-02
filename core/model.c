@@ -947,7 +947,12 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             cull = opts->shader_override ? CULL_FACE_FRONT : CULL_FACE_BACK;
         renderer_cull_face(r, cull);
 
-        renderer_blend(r, model->alpha_blend, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
+        /*
+         * A shadow map has nothing to blend: the depth-only ones have no
+         * color, and the VSM moments come out of a two-component output,
+         * which leaves alpha, the blend factor, undefined
+         */
+        renderer_blend(r, model->alpha_blend && !opts->shader_override, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
 
         /* TODO: add a separate property for depth test control */
         // renderer_depth_test(r, model->depth_testing);
