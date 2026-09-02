@@ -268,7 +268,16 @@ cerr_check _thread_init(thread_t *t, thread_fn func, void *data, thread_options 
     if (opts->stack_addr && opts->stack_size)
         CERR_RET(errno_to_cerr(pthread_attr_setstack(&attr, opts->stack_addr, opts->stack_size)), { err = __cerr; goto err_attr; });
 
-    CERR_RET(errno_to_cerr(pthread_create(&t->thread, &attr, thread_wrap, t)), { err = __cerr; goto err_attr; });
+    /*
+     * SCHED_RR needs privileges (and a nonzero priority) on Linux, where
+     * the failure only surfaces here; retry with default scheduling
+     */
+    int create_err = pthread_create(&t->thread, &attr, thread_wrap, t);
+    if (create_err == EPERM || create_err == EINVAL) {
+        CERR_RET(errno_to_cerr(pthread_attr_setinheritsched(&attr, PTHREAD_INHERIT_SCHED)), { err = __cerr; goto err_attr; });
+        create_err = pthread_create(&t->thread, &attr, thread_wrap, t);
+    }
+    CERR_RET(errno_to_cerr(create_err), { err = __cerr; goto err_attr; });
 
     pthread_attr_destroy(&attr);
 
