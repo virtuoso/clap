@@ -390,7 +390,7 @@ static cerr vk_device_create(renderer_t *r)
         .features           = {
             /* the shadow passes emit cascade layers from geometry shaders */
             .geometryShader     = VK_TRUE,
-            /* G-buffer-ish attachments opt out of blending (no_blend) */
+            /* attachments blend their own way (no_blend, fbo_blend_mode) */
             .independentBlend   = VK_TRUE,
         },
     };
@@ -2063,8 +2063,10 @@ static VkCompareOp vk_compare_op(depth_func fn)
 /**
  * struct vk_target_state - attachment state of a render target
  * @color_formats:      one format per color attachment
+ * @blend_modes:        what blended draws do to each color attachment
  * @depth_format:       the depth attachment's format, VK_FORMAT_UNDEFINED without one
  * @nr_color_targets:   color attachments in use
+ * @nr_samples:         samples per pixel
  * @no_blend:           bit i set: color attachment i opts out of blending
  * @depth_fn:           the depth test
  * @has_depth:          whether there is a depth attachment
@@ -2074,6 +2076,7 @@ static VkCompareOp vk_compare_op(depth_func fn)
  */
 typedef struct vk_target_state {
     VkFormat        color_formats[FBO_COLOR_ATTACHMENTS_MAX];
+    fbo_blend_mode  blend_modes[FBO_COLOR_ATTACHMENTS_MAX];
     VkFormat        depth_format;
     unsigned int    nr_color_targets;
     unsigned int    nr_samples;
@@ -2104,6 +2107,7 @@ static void vk_target_state_get(renderer_t *r, fbo_t *fbo, vk_target_state *ts)
         int idx = fbo_attachment_color(fa);
 
         ts->color_formats[ts->nr_color_targets] = vk_texture_format(fbo->color_config[idx].format);
+        ts->blend_modes[ts->nr_color_targets] = fbo->color_config[idx].blend_mode;
         if (fbo->color_config[idx].no_blend)    ts->no_blend |= 1u << ts->nr_color_targets;
         ts->nr_color_targets++;
     }
@@ -2206,23 +2210,38 @@ static cerr vk_pipeline_create(renderer_t *r, draw_control_t *dc, const vk_targe
         .rasterizationSamples   = vk_sample_count(ts->nr_samples),
     };
 
-    /* SrcAlpha/OneMinusSrcAlpha color, One/OneMinusSrcAlpha alpha: the only
-     * blend mode the engine uses (model.c), same equations as WGPU/Metal */
+    /*
+     * SrcAlpha/OneMinusSrcAlpha color, the only blend equation the engine
+     * uses (model.c), and alpha as the attachment's fbo_blend_mode says,
+     * same as WGPU/Metal; blended draws don't write FBO_BLEND_KEEP
+     * attachments at all
+     */
     VkPipelineColorBlendAttachmentState blend_attachments[FBO_COLOR_ATTACHMENTS_MAX];
     for (unsigned int i = 0; i < ts->nr_color_targets; i++) {
-        bool att_blend = blend && !(ts->no_blend & (1u << i)) &&
-                         vk_format_supports_alpha_blend(ts->color_formats[i]);
+        bool att_blend = blend && !(ts->no_blend & (1u << i));
+        VkColorComponentFlags write_mask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        VkBlendFactor alpha_src = VK_BLEND_FACTOR_ONE, alpha_dst = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
+        if (att_blend) {
+            switch (ts->blend_modes[i]) {
+                case FBO_BLEND_COVERAGE:    break;
+                case FBO_BLEND_TRANSMIT:    alpha_src = VK_BLEND_FACTOR_ZERO;   break;
+                case FBO_BLEND_REPLACE:     alpha_dst = VK_BLEND_FACTOR_ZERO;   break;
+                case FBO_BLEND_KEEP:        write_mask = 0; att_blend = false;  break;
+            }
+        }
+
+        att_blend = att_blend && vk_format_supports_alpha_blend(ts->color_formats[i]);
         blend_attachments[i] = (VkPipelineColorBlendAttachmentState){
             .blendEnable            = att_blend ? VK_TRUE : VK_FALSE,
             .srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
             .dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .colorBlendOp           = VK_BLEND_OP_ADD,
-            .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
-            .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .srcAlphaBlendFactor    = alpha_src,
+            .dstAlphaBlendFactor    = alpha_dst,
             .alphaBlendOp           = VK_BLEND_OP_ADD,
-            .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .colorWriteMask         = write_mask,
         };
     }
     VkPipelineColorBlendStateCreateInfo blend_state = {

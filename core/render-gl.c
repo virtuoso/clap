@@ -1331,6 +1331,57 @@ static void gl_renderer_done(renderer_t *r)
     gl_pass_timers_done(r);
 }
 
+/**
+ * gl_blend_apply() - set up blending for the bound FBO's color attachments
+ * @r:  renderer: its blend flag and factors, the bound FBO's blend setup
+ *
+ * Indexed blend state (GL 4.0+, ES 3.2+) goes per attachment:
+ * fbo_attconfig::no_blend attachments don't blend, the others blend as
+ * their &enum fbo_blend_mode says. Without it, one enable and one blend
+ * function cover every attachment: no_blend becomes advisory, and alpha
+ * accumulates transmittance everywhere, which is right for the model pass
+ * color target (FBO_BLEND_TRANSMIT) and approximates the other modes.
+ */
+static void gl_blend_apply(renderer_t *r)
+{
+    GLenum sfactor = r->gl.blend_sfactor, dfactor = r->gl.blend_dfactor;
+
+#if !defined(CONFIG_GLES) || defined(GL_ES_VERSION_3_2)
+    unsigned int nr = r->gl.nr_color_targets ? : 1;
+
+    for (unsigned int i = 0; i < nr; i++) {
+        if (!r->blend || (r->gl.no_blend_mask & (1u << i))) {
+            GL(glDisablei(GL_BLEND, i));
+            continue;
+        }
+
+        GL(glEnablei(GL_BLEND, i));
+        switch (fbo_blend_mode_get(r->gl.blend_mode_map, i)) {
+            case FBO_BLEND_COVERAGE:
+                GL(glBlendFuncSeparatei(i, sfactor, dfactor, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
+                break;
+            case FBO_BLEND_TRANSMIT:
+                GL(glBlendFuncSeparatei(i, sfactor, dfactor, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA));
+                break;
+            case FBO_BLEND_REPLACE:
+                GL(glBlendFuncSeparatei(i, sfactor, dfactor, GL_ONE, GL_ZERO));
+                break;
+            case FBO_BLEND_KEEP:
+                GL(glBlendFuncSeparatei(i, GL_ZERO, GL_ONE, GL_ZERO, GL_ONE));
+                break;
+        }
+    }
+#else
+    if (!r->blend) {
+        GL(glDisable(GL_BLEND));
+        return;
+    }
+
+    GL(glEnable(GL_BLEND));
+    GL(glBlendFuncSeparate(sfactor, dfactor, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA));
+#endif /* CONFIG_GLES && !GL_ES_VERSION_3_2 */
+}
+
 static void gl_fbo_prepare(fbo_t *fbo)
 {
     GLenum buffers[NR_TARGETS];
@@ -1358,14 +1409,9 @@ static void gl_fbo_prepare(fbo_t *fbo)
     renderer_t *r = fbo->renderer;
     r->gl.nr_color_targets = target;
     r->gl.no_blend_mask    = fbo->no_blend_mask;
-#if !defined(CONFIG_GLES) || defined(GL_ES_VERSION_3_2)
-    /* Re-apply per-attachment blend enables for the freshly bound FBO */
-    for (int i = 0; i < target; i++) {
-        bool att_blend = r->blend && !(r->gl.no_blend_mask & (1u << i));
-        if (att_blend)  GL(glEnablei(GL_BLEND, i));
-        else            GL(glDisablei(GL_BLEND, i));
-    }
-#endif
+    r->gl.blend_mode_map   = fbo->blend_mode_map;
+    /* the per-attachment blend state follows the freshly bound FBO */
+    gl_blend_apply(r);
 
     bool depth_test = false;
     for (int i = 0; i < target; i++)
@@ -2117,34 +2163,13 @@ static GLenum gl_blend(blend blend)
 
 static void gl_renderer_blend(renderer_t *r, bool _blend, blend sfactor, blend dfactor)
 {
-    GLenum _sfactor = _blend ? gl_blend(sfactor) : r->gl.blend_sfactor;
-    GLenum _dfactor = _blend ? gl_blend(dfactor) : r->gl.blend_dfactor;
-
     r->blend = _blend;
-
-#if !defined(CONFIG_GLES) || defined(GL_ES_VERSION_3_2)
-    /*
-     * Per-attachment enable so fbo_attconfig.no_blend attachments (e.g. the
-     * view-normals G-buffer) never participate in the global alpha blend.
-     * glEnablei/glDisablei is GL 4.0+/ES 3.2+ core; without it we fall back
-     * to global glEnable below, and no_blend becomes advisory.
-     */
-    unsigned int nr = r->gl.nr_color_targets ? r->gl.nr_color_targets : 1;
-    for (unsigned int i = 0; i < nr; i++) {
-        bool att_blend = _blend && !(r->gl.no_blend_mask & (1u << i));
-        if (att_blend)  GL(glEnablei(GL_BLEND, i));
-        else            GL(glDisablei(GL_BLEND, i));
+    if (_blend) {
+        r->gl.blend_sfactor = gl_blend(sfactor);
+        r->gl.blend_dfactor = gl_blend(dfactor);
     }
-#else
-    if (_blend) GL(glEnable(GL_BLEND));
-    else        GL(glDisable(GL_BLEND));
-#endif
 
-    if (_blend && (r->gl.blend_sfactor != _sfactor || r->gl.blend_dfactor != _dfactor)) {
-        r->gl.blend_sfactor = _sfactor;
-        r->gl.blend_dfactor = _dfactor;
-        GL(glBlendFunc(_sfactor, _dfactor));
-    }
+    gl_blend_apply(r);
 
     /* blended draws don't advance the depth buffer */
     GL(glDepthMask(_blend ? GL_FALSE : GL_TRUE));
@@ -2250,6 +2275,10 @@ static void gl_renderer_swapchain_begin(renderer_t *renderer, fbo_load_action lo
 {
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, renderer->width, renderer->height));
+    /* the default framebuffer: one attachment, default blending */
+    renderer->gl.nr_color_targets = 1;
+    renderer->gl.no_blend_mask    = 0;
+    renderer->gl.blend_mode_map   = 0;
     renderer_cleardepth(renderer, 0.0);
     renderer_clear(renderer, false, true, false);
     renderer_depth_func(renderer, DEPTH_FN_ALWAYS);

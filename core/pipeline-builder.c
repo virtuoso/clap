@@ -507,8 +507,9 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
     texture_format hdr_fmt = get_supported_format(opts, 16, 3);
     /*
      * The bloom chain carries the emitter's distance in alpha (see
-     * bloom-downsample.frag) and the volumetric buffer a fourth
-     * channel of its own: where the backend maps an RGB format
+     * bloom-downsample.frag), the volumetric buffer a fourth channel
+     * of its own and the model pass color target the translucency in
+     * front of each pixel: where the backend maps an RGB format
      * literally (GL), a write to the missing alpha is silently dropped
      */
     texture_format hdr_alpha_fmt = get_supported_format(opts, 16, 4);
@@ -544,10 +545,15 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .cascade            = -1,
             .color_config       = (fbo_attconfig[]) {
                 [RT_MODEL_LIGHTING] = {
-                    /* FragColor */
+                    /*
+                     * FragColor; .a accumulates translucency: cleared to 1,
+                     * every blended layer multiplies in (1 - alpha), opaque
+                     * draws write their own alpha, which resets it
+                     */
                     .format         = hdr_alpha_fmt,
                     .load_action    = FBOLOAD_CLEAR,
-                    .clear_color    = { 0.0f, 0.0f, 0.0f, 1.0f }
+                    .clear_color    = { 0.0f, 0.0f, 0.0f, 1.0f },
+                    .blend_mode     = FBO_BLEND_TRANSMIT,
                 },
                 [RT_MODEL_EMISSION] = {
                     /* EmissiveColor */
@@ -556,12 +562,17 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                     .clear_color    = { 0.0f, 0.0f, 0.0f, 0.0f }
                 },
                 [RT_MODEL_VIEW_NORMALS] = {
-                    /* Normal: view-space normal packed in rgb, edge_mask in a;
-                     * blending it with alpha_blend models would smear wrong
-                     * normals across what's behind, so always overwrite. */
+                    /*
+                     * Normal: view-space normal packed in rgb, edge_mask in
+                     * a. Blended draws don't write depth and leave the
+                     * normals to the surface the depth belongs to: SSAO and
+                     * the edge filters see what's behind glass, and glass
+                     * can't clobber characters' solid-id/luma edge control.
+                     * Glass itself has no outline source.
+                     */
                     .format         = TEX_FMT_RGBA8,
                     .load_action    = FBOLOAD_CLEAR,
-                    .no_blend       = true,
+                    .blend_mode     = FBO_BLEND_KEEP,
                 },
 #ifdef CONFIG_TAA
                 [RT_MODEL_VELOCITY] = {

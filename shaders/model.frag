@@ -201,9 +201,10 @@ void main()
 
     /*
      * Fully transparent fragments must not touch any RT or advance the depth
-     * buffer: the normals RT now opts out of blending (fbo_attconfig.no_blend),
-     * so without discard we'd stamp an unrelated view-normal over what's
-     * behind and poison SSAO/sobel. Discard is at the end of main() so all
+     * buffer. Blended draws leave the depth and the normals RT alone and
+     * blend the rest by alpha, but the velocity RT opts out of blending
+     * (fbo_attconfig.no_blend), so without discard they'd stamp their motion
+     * over what's behind. Discard is at the end of main() so all
      * textureSample() calls above stay in uniform control flow (Tint/WGSL).
      */
 #ifdef SHADER_VARIANT_ALPHA_DISCARD

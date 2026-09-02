@@ -489,6 +489,7 @@ void mtl_reflection_print(mtl_render_pipeline_reflection_t reflection)
 
 static cres(mtl_render_pipeline_state_t)
 mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, const bool *no_blend,
+                 const fbo_blend_mode *blend_modes,
                  texture_format depth, size_t nr_colors, bool use_depth, bool use_blending,
                  mtl_render_pipeline_reflection_t *reflection)
 {
@@ -500,17 +501,35 @@ mtl_pipeline_new(renderer_t *r, shader_t *shader, texture_format *colors, const 
     desc.rasterSampleCount = 1;
     desc.depthAttachmentPixelFormat = use_depth ? mtl_texture_format(depth) : MTLPixelFormatInvalid;
 
+    /*
+     * SourceAlpha/OneMinusSourceAlpha color, and alpha as the attachment's
+     * fbo_blend_mode says; blended draws don't write FBO_BLEND_KEEP
+     * attachments at all
+     */
     for (size_t i = 0; i < nr_colors; i++) {
         bool att_blend = use_blending && (!no_blend || !no_blend[i]);
+        fbo_blend_mode mode = blend_modes ? blend_modes[i] : FBO_BLEND_COVERAGE;
+        MTLColorWriteMask write_mask = MTLColorWriteMaskAll;
+        MTLBlendFactor alpha_src = MTLBlendFactorOne, alpha_dst = MTLBlendFactorOneMinusSourceAlpha;
+
+        if (att_blend) {
+            switch (mode) {
+                case FBO_BLEND_COVERAGE:    break;
+                case FBO_BLEND_TRANSMIT:    alpha_src = MTLBlendFactorZero;                         break;
+                case FBO_BLEND_REPLACE:     alpha_dst = MTLBlendFactorZero;                         break;
+                case FBO_BLEND_KEEP:        write_mask = MTLColorWriteMaskNone; att_blend = false;  break;
+            }
+        }
+
         desc.colorAttachments[i].pixelFormat     = mtl_texture_format(colors[i]);
-        desc.colorAttachments[i].writeMask       = MTLColorWriteMaskAll;
+        desc.colorAttachments[i].writeMask       = write_mask;
         desc.colorAttachments[i].blendingEnabled = att_blend;
         if (att_blend) {
             desc.colorAttachments[i].alphaBlendOperation    = MTLBlendOperationAdd;
             desc.colorAttachments[i].rgbBlendOperation      = MTLBlendOperationAdd;
-            desc.colorAttachments[i].sourceAlphaBlendFactor      = MTLBlendFactorOne;
+            desc.colorAttachments[i].sourceAlphaBlendFactor      = alpha_src;
             desc.colorAttachments[i].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
-            desc.colorAttachments[i].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+            desc.colorAttachments[i].destinationAlphaBlendFactor = alpha_dst;
             desc.colorAttachments[i].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
         }
     }
@@ -593,6 +612,7 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
         if (fbo) {
             texture_format color_formats[FBO_COLOR_ATTACHMENTS_MAX], depth_format = fbo->depth_config.format;
             bool no_blend[FBO_COLOR_ATTACHMENTS_MAX] = { 0 };
+            fbo_blend_mode blend_modes[FBO_COLOR_ATTACHMENTS_MAX] = { 0 };
             fbo_attachment fa;
             size_t i = 0;
 
@@ -600,13 +620,14 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
                 int idx = fa_nr_color_texture(fa) - 1;
                 color_formats[i] = fbo->color_config[idx].format;
                 no_blend[i]      = fbo->color_config[idx].no_blend;
+                blend_modes[i]   = fbo->color_config[idx].blend_mode;
                 i++;
             }
 
             bool use_depth = fbo->layout.depth_texture;
             dc->mtl.pipeline[pl] = CRES_RET_CERR(
                 mtl_pipeline_new(
-                    dc->renderer, opts->shader, color_formats, no_blend,
+                    dc->renderer, opts->shader, color_formats, no_blend, blend_modes,
                     depth_format, i, use_depth, !!pl, NULL//&reflection
                 )
             );
@@ -617,7 +638,7 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
             texture_format color_format = mtl_texture_format_from_pixel_format(dc->renderer->mtl.layer.pixelFormat);
             dc->mtl.pipeline[pl] = CRES_RET_CERR(
                 mtl_pipeline_new(
-                    dc->renderer, opts->shader, &color_format, NULL,
+                    dc->renderer, opts->shader, &color_format, NULL, NULL,
                     TEX_FMT_DEPTH32F, 1, false, !!pl, NULL//&reflection
                 )
             );

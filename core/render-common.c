@@ -72,6 +72,7 @@ static cerr draw_control_make(struct ref *ref, void *_opts)
     if (fbo) {
         memcpy(dc->att_map, fbo->att_map, sizeof(dc->att_map));
         dc->no_blend_mask   = fbo->no_blend_mask;
+        dc->blend_mode_map  = fbo->blend_mode_map;
         dc->nr_samples      = fbo->nr_samples ? : 1;
         dc->has_depth       = fbo->layout.depth_texture;
         if (dc->has_depth) {
@@ -113,6 +114,7 @@ static bool draw_control_matches(draw_control_t *dc, fbo_t *fbo, shader_t *shade
 
     if (memcmp(dc->att_map, fbo->att_map, sizeof(dc->att_map)) ||
         dc->no_blend_mask != fbo->no_blend_mask ||
+        dc->blend_mode_map != fbo->blend_mode_map ||
         dc->nr_samples != (fbo->nr_samples ? : 1) ||
         dc->has_depth != (bool)fbo->layout.depth_texture)
         return false;
@@ -674,7 +676,7 @@ bool fbo_texture_supported(renderer_t *r, texture_format format)
     return r->ops->fbo_tex_supported(r, format);
 }
 
-/* pack the attachment formats and no_blend bits into the fbo's pipeline key */
+/* pack the attachment formats, no_blend bits and blend modes into the fbo's pipeline key */
 static void fbo_att_map_init(fbo_t *fbo)
 {
     unsigned int nr = fa_nr_color_buffer(fbo->layout) ? : fa_nr_color_texture(fbo->layout);
@@ -685,6 +687,7 @@ static void fbo_att_map_init(fbo_t *fbo)
             (unsigned long)(fbo->color_config[idx].format + 1) <<
             ((idx % ATTACHMENTS_PER_LONG) * TEX_FMT_BITS);
         if (fbo->color_config[idx].no_blend)    fbo->no_blend_mask |= 1u << idx;
+        fbo->blend_mode_map |= (uint32_t)fbo->color_config[idx].blend_mode << (idx * FBO_BLEND_MODE_BITS);
     }
 }
 

@@ -818,6 +818,54 @@ typedef enum {
     DEPTH_FN_GREATER_OR_EQUAL,
 } depth_func;
 
+/*
+ * What a blended draw (renderer_blend(true)) does to a color attachment.
+ * The modes that blend do it with (SRC_ALPHA, ONE_MINUS_SRC_ALPHA) for
+ * the color components and differ in alpha. The blend factor is the alpha
+ * the draw writes to that same attachment, so an attachment that stores
+ * other data in alpha can't blend its color by it.
+ */
+typedef enum fbo_blend_mode {
+    /* the default, coverage accumulation: a' = src.a + dst.a * (1 - src.a) */
+    FBO_BLEND_COVERAGE = 0,
+    /*
+     * Transmittance accumulation: a' = dst.a * (1 - src.a). With the
+     * attachment cleared to 1, .a becomes the product of (1 - alpha) of
+     * every blended layer -- a "how much translucency is in front of
+     * this pixel" mask for downstream passes. Non-blended draws write
+     * their alpha straight through: opaque geometry (alpha 1) resets the
+     * mask under itself, which keeps stale translucency from showing
+     * through occluders; opaque surfaces with textured alpha < 1 leak
+     * into the mask on every backend alike.
+     */
+    FBO_BLEND_TRANSMIT,
+    /* a' = src.a: the top surface's alpha wins */
+    FBO_BLEND_REPLACE,
+    /*
+     * Blended draws leave the attachment alone, color and alpha alike:
+     * for data that has to agree with the depth buffer, which they don't
+     * write either, and for control channels translucency must not touch
+     */
+    FBO_BLEND_KEEP,
+} fbo_blend_mode;
+
+/** FBO_BLEND_MODE_BITS - bits to hold any fbo_blend_mode in a blend mode map */
+#define FBO_BLEND_MODE_BITS     2
+static_assert(FBO_BLEND_KEEP < (1 << FBO_BLEND_MODE_BITS), "fbo_blend_mode overflows a FBO_BLEND_MODE_BITS slot");
+static_assert(FBO_COLOR_ATTACHMENTS_MAX * FBO_BLEND_MODE_BITS <= 32, "a blend mode map overflows 32 bits");
+
+/**
+ * fbo_blend_mode_get() - look a color attachment's blend mode up in a blend mode map
+ * @map:    blend modes packed FBO_BLEND_MODE_BITS apart (fbo::blend_mode_map)
+ * @idx:    color attachment index
+ *
+ * Return: the attachment's fbo_attconfig::blend_mode
+ */
+static inline fbo_blend_mode fbo_blend_mode_get(uint32_t map, unsigned int idx)
+{
+    return (fbo_blend_mode)((map >> (idx * FBO_BLEND_MODE_BITS)) & ((1u << FBO_BLEND_MODE_BITS) - 1));
+}
+
 typedef struct fbo_attconfig {
     texture_format      format;
     fbo_load_action     load_action;
@@ -826,12 +874,14 @@ typedef struct fbo_attconfig {
     vec4                clear_color;
     double              clear_depth;
     uint32_t            clear_stencil;
+    /* what blended draws do to the attachment, see &enum fbo_blend_mode */
+    fbo_blend_mode      blend_mode;
     /*
      * When set, this attachment opts out of the renderer's global alpha blend
      * state: writes always overwrite the target regardless of
-     * renderer_blend(true). Intended for G-buffer-like RTs (view normals,
-     * edge masks) where blending is nonsensical. Default (false) keeps the
-     * legacy "blend along with the other attachments" behaviour.
+     * renderer_blend(true) and @blend_mode. Intended for G-buffer-like RTs
+     * (motion vectors) where blending is nonsensical. Default (false) blends
+     * as @blend_mode says.
      */
     bool                no_blend;
 } fbo_attconfig;
@@ -850,8 +900,9 @@ TYPE(fbo,
     fbo_attachment  layout;
     /*
      * Pipeline-compatibility key of this render target: the attachment
-     * formats packed by fbo_att_map_init() and the fbo_attconfig::no_blend
-     * bits beside them; draw_control_get() matches targets on these
+     * formats packed by fbo_att_map_init(), and the fbo_attconfig::no_blend
+     * bits and blend modes beside them; draw_control_get() matches targets
+     * on these
      */
     unsigned long   att_map[FBO_ATT_MAP_SIZE];
 #ifdef CONFIG_RENDERER_OPENGL
@@ -891,8 +942,10 @@ TYPE(fbo,
         const char                      *name;
     } vk;
 #endif /* CONFIG_RENDERER_VULKAN */
-    /* att_map's companion, at the tail so it costs padding rather than a hole */
+    /* att_map's companions, at the tail so they cost padding rather than a hole */
     uint32_t        no_blend_mask;
+    /* fbo_attconfig::blend_mode of each attachment, see fbo_blend_mode_get() */
+    uint32_t        blend_mode_map;
 );
 
 cresp_ret(fbo_t);
@@ -956,8 +1009,8 @@ TYPE(draw_control,
     struct list     shader_entry;   /* shader_t::dc_list */
     /*
      * Pipeline-compatibility key: a copy of the creator fbo's att_map /
-     * no_blend_mask plus its depth and multisample state; swapchain dcs
-     * match on swapchain_gen instead
+     * no_blend_mask / blend_mode_map plus its depth and multisample state;
+     * swapchain dcs match on swapchain_gen instead
      */
     unsigned long   att_map[FBO_ATT_MAP_SIZE];
     unsigned int    nr_samples;
@@ -984,6 +1037,7 @@ TYPE(draw_control,
 #endif /* CONFIG_RENDERER_VULKAN */
     /* part of the key too; at the tail so they cost padding rather than a hole */
     uint32_t        no_blend_mask;
+    uint32_t        blend_mode_map;
     bool            has_depth;
 );
 
@@ -1235,6 +1289,8 @@ TYPE(renderer,
         renderer_profile    profile;
         /* Bit i set: color attachment i opts out of blending (fbo_attconfig.no_blend) */
         uint32_t            no_blend_mask;
+        /* The bound FBO's fbo_attconfig::blend_mode of each color attachment */
+        uint32_t            blend_mode_map;
         /* Number of color attachments the currently bound FBO exposes */
         unsigned int        nr_color_targets;
 #ifndef CONFIG_FINAL
@@ -1245,13 +1301,13 @@ TYPE(renderer,
          * WebGL, and an unavailable slot just skips a publish.
          */
         unsigned int        ts_count[GL_INFLIGHT_FRAMES];
+        unsigned int        ts_frame;
         GLuint              ts_queries[GL_INFLIGHT_FRAMES][RENDERER_PASS_TIMERS_MAX];
         const char          *ts_names[GL_INFLIGHT_FRAMES][RENDERER_PASS_TIMERS_MAX];
         /* first fbo of the pass cycle: its reappearance marks a new frame */
         fbo_t               *ts_first_fbo;
         /* the fbo whose query is open (NULL: the swapchain pass) */
         fbo_t               *ts_fbo;
-        unsigned int        ts_frame;
         bool                ts_open;
         bool                ts_supported;
 #endif /* !CONFIG_FINAL */
