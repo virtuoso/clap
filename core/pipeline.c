@@ -566,6 +566,11 @@ cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name)
     return cresp_error_cerr(render_pass, CERR_NOT_FOUND);
 }
 
+fbo_t *render_pass_get_fbo(render_pass *pass)
+{
+    return pass->fbo;
+}
+
 void render_pass_plug_texture(render_pass *pass, enum shader_vars sampler, texture_t *tex)
 {
     for (int i = 0; i < pass->nr_sources; i++) {

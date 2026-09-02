@@ -359,6 +359,13 @@ cresp(render_pass) _pipeline_add_pass(struct pipeline *pl, const pipeline_pass_c
 #define pipeline_add_pass(_pl, args...) \
     _pipeline_add_pass((_pl), &(pipeline_pass_config){ args })
 cresp(render_pass) pipeline_find_pass(pipeline *pl, const char *name);
+
+/**
+ * render_pass_get_fbo() - get a pass's render target
+ * @pass:   the render pass
+ * Return: the fbo the pass renders into, never NULL for a built pass
+ */
+fbo_t *render_pass_get_fbo(render_pass *pass);
 void render_pass_plug_texture(render_pass *pass, enum shader_vars sampler, texture_t *tex);
 cerr_check pipeline_render(struct pipeline *pl, unsigned int checkpoint);
 texture_t *pipeline_pass_get_texture(struct render_pass *pass, fbo_attachment attachment);
