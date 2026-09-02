@@ -57,6 +57,11 @@ void logg(int level, const char *mod, int line, const char *func, const char *fm
 #define dbg_once(args...) do { static int __printed = 0; if (!__printed++) dbg(args) } while (0)
 #define msg(args...) \
     logg(NORMAL, MODNAME, __LINE__, __func__, ## args);
+/**
+ * msg_once() - log a normal-level message the first time this call site runs
+ * @args:   the format string and its arguments, as for msg()
+ */
+#define msg_once(args...) do { static int __printed = 0; if (!__printed++) msg(args) } while (0)
 #define warn(args...) \
     logg(WARN, MODNAME, __LINE__, __func__, ## args);
 #define warn_on(_c, args...) do { if ((_c)) warn("condition '" # _c "': " args); } while (0)
