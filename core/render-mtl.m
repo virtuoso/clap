@@ -604,7 +604,8 @@ static cerr mtl_draw_control_init(draw_control_t *dc, const draw_control_init_op
                 )
             );
 
-            if (use_depth)  dc->mtl.depth_stencil = CRES_RET_CERR(mtl_depth_stencil_new(fbo));
+            /* both pipeline variants share one depth-stencil state */
+            if (use_depth && !pl)   dc->mtl.depth_stencil = CRES_RET_CERR(mtl_depth_stencil_new(fbo));
         } else {
             texture_format color_format = mtl_texture_format_from_pixel_format(dc->renderer->mtl.layer.pixelFormat);
             dc->mtl.pipeline[pl] = CRES_RET_CERR(
