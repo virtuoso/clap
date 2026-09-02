@@ -2,6 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "common.h"
+#ifdef CONFIG_BROWSER
+#include <malloc.h>
+#include <unistd.h>
+#include <emscripten/heap.h>
+#endif /* CONFIG_BROWSER */
 #include "memory.h"
 #include "util.h"
 
@@ -92,6 +97,47 @@ void _mem_free(const char *mod, void *buf, const free_params *params)
 
     free(buf);
 }
+
+#ifdef CONFIG_BROWSER
+/**
+ * heap_unclaimed() - the heap past the break
+ *
+ * The break only ever moves up.
+ * Return: the bytes between the break and the heap's maximum size
+ */
+static size_t heap_unclaimed(void)
+{
+    return emscripten_get_heap_max() - (uintptr_t)sbrk(0);
+}
+
+/**
+ * heap_room_fits() - whether @room holds @size with MEM_HEAP_RESERVE to spare
+ * @room:   the free bytes
+ * @size:   the bytes to allocate
+ *
+ * Return: true if @size fits in @room past MEM_HEAP_RESERVE
+ */
+static bool heap_room_fits(size_t room, size_t size)
+{
+    return room >= MEM_HEAP_RESERVE && room - MEM_HEAP_RESERVE >= size;
+}
+
+bool mem_heap_has_room(size_t size)
+{
+    if (heap_room_fits(heap_unclaimed(), size)) return true;
+
+    /*
+     * dlmalloc grows the top chunk in place, so its free space counts too.
+     * mallinfo() walks every chunk under the malloc lock to report it, so
+     * it only runs when the space past the break falls short. The top goes
+     * first: the break never comes down, so an allocation between the two
+     * reads shrinks the sum, never grows it
+     */
+    size_t top = mallinfo().keepcost;
+
+    return heap_room_fits(top + heap_unclaimed(), size);
+}
+#endif /* CONFIG_BROWSER */
 
 cres(int) _mem_vasprintf(const char *mod, char **ret, const char *fmt, va_list va)
 {
