@@ -545,7 +545,7 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
             .color_config       = (fbo_attconfig[]) {
                 [RT_MODEL_LIGHTING] = {
                     /* FragColor */
-                    .format         = hdr_fmt,
+                    .format         = hdr_alpha_fmt,
                     .load_action    = FBOLOAD_CLEAR,
                     .clear_color    = { 0.0f, 0.0f, 0.0f, 1.0f }
                 },
