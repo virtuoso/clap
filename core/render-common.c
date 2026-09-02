@@ -650,6 +650,10 @@ cerr fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment)
 {
     if (!fbo->renderer)   return false;
+
+    /* nothing past the fbo's last color attachment, whatever the backend says */
+    if (fbo_attachment_color(attachment) > fbo_attachment_color(fbo->layout))   return false;
+
     return fbo->renderer->ops->fbo_attachment_valid(fbo, attachment);
 }
 
