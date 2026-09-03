@@ -104,6 +104,8 @@ static texture_format wgpu_fbo_texture_format(fbo_t *fbo, fbo_attachment attachm
 static bool wgpu_fbo_texture_supported(renderer_t *r, texture_format format);
 static cresp(fbo_t) wgpu_fbo_new(const fbo_init_options *opts);
 static void wgpu_fbo_destroy(fbo_t *fbo);
+static cerr wgpu_blit_ring_init(fbo_t *fbo, fbo_blit_ring *ring);
+static void wgpu_blit_ring_done(renderer_t *r, fbo_blit_ring *ring);
 static void wgpu_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 static const renderer_ops wgpu_renderer_ops = {
@@ -167,6 +169,8 @@ static const renderer_ops wgpu_renderer_ops = {
     .fbo_tex_supported = wgpu_fbo_texture_supported,
     .fbo_create     = wgpu_fbo_new,
     .fbo_destroy    = wgpu_fbo_destroy,
+    .blit_ring_init = wgpu_blit_ring_init,
+    .blit_ring_done = wgpu_blit_ring_done,
     .ubo_init       = wgpu_uniform_buffer_init,
     .ubo_done       = wgpu_uniform_buffer_done,
     .ubo_destroy    = wgpu_uniform_buffer_destroy,
@@ -859,8 +863,8 @@ static cerr wgpu_texture_create(texture_t *tex, unsigned int width, unsigned int
     desc.mipLevelCount = 1;
     desc.sampleCount = tex->multisampled ? WGPU_MSAA_SAMPLES : 1;
     desc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
-    if (tex->wgpu.render_target)
-        desc.usage |= WGPUTextureUsage_RenderAttachment;
+    /* render targets are also CPU readback (fbo_attachment_blit) sources */
+    if (tex->wgpu.render_target)    desc.usage |= WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
 
     /* release previous, if resizing */
     wgpu_texture_release(tex);
@@ -1199,6 +1203,199 @@ static void wgpu_fbo_prepare(fbo_t *fbo)
     r->wgpu.fbo = fbo;
 }
 
+/****************************************************************************
+ * Asynchronous attachment readback
+ *
+ * CopyTextureToBuffer into one MapRead buffer per ring slot; the maps
+ * are requested right after the frame's queue submit and resolve from
+ * the event loop. Unmapping must happen on the device's thread, so
+ * consumer releases are deferred to the frame sweep (ring deferred_put)
+ ****************************************************************************/
+
+/**
+ * wgpu_blit_ring_init() - allocate a readback ring's map buffers
+ * @fbo:    the fbo the ring reads back from
+ * @ring:   the ring, with its geometry filled in by fbo_attachment_blit()
+ *
+ * Pads the rows to the 256-byte alignment that WebGPU buffer copies
+ * require, creates one MapRead buffer per slot, marks the ring
+ * deferred_put and puts it on the renderer's list for the frame sweep.
+ *
+ * Return: CERR_OK on success, CERR_NOMEM with no buffers left behind if
+ *         one can't be created
+ */
+static cerr wgpu_blit_ring_init(fbo_t *fbo, fbo_blit_ring *ring)
+{
+    renderer_t *r = fbo->renderer;
+
+    /* WebGPU buffer copies require 256-byte row alignment */
+    ring->cfg.bytes_per_row_aligned = round_up(ring->cfg.bytes_per_row, 256);
+    ring->cfg.buffer_size           = ring->cfg.bytes_per_row_aligned * ring->cfg.height;
+    ring->slot_stride               = ring->cfg.buffer_size;
+    ring->deferred_put              = true;
+
+    for (unsigned int i = 0; i < FBO_BLIT_FRAMES; i++) {
+        ring->wgpu.bufs[i] = wgpu_create_buffer(r, "blit ring",
+                                                WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst,
+                                                ring->cfg.buffer_size);
+        if (!ring->wgpu.bufs[i]) {
+            while (i--) wgpuBufferRelease(ring->wgpu.bufs[i]);
+            return CERR_NOMEM;
+        }
+    }
+
+    list_init(&ring->wgpu.ring_entry);
+    list_append(&r->wgpu.blit_rings, &ring->wgpu.ring_entry);
+
+    return CERR_OK;
+}
+
+/**
+ * wgpu_blit_ring_done() - free a readback ring's map buffers, take it off the list
+ * @r:      the renderer
+ * @ring:   the ring whose buffers to free
+ *
+ * Destroys the buffers rather than only releasing them, because
+ * destroying a buffer also unmaps it. A slot put after its ring died, or
+ * put before the frame sweep got to unmap it, is still mapped here, and
+ * in browser builds the mapped range is a heap copy that release doesn't
+ * free.
+ */
+static void wgpu_blit_ring_done(renderer_t *r, fbo_blit_ring *ring)
+{
+    for (unsigned int i = 0; i < FBO_BLIT_FRAMES; i++) {
+        if (!ring->wgpu.bufs[i])    continue;
+        wgpuBufferDestroy(ring->wgpu.bufs[i]);
+        wgpuBufferRelease(ring->wgpu.bufs[i]);
+    }
+    list_del(&ring->wgpu.ring_entry);
+}
+
+/**
+ * wgpu_blit_map_cb() - deliver a readback slot whose map resolved
+ * @status:     the map request's outcome
+ * @message:    what went wrong, if the map failed
+ * @userdata1:  the ring
+ * @userdata2:  the slot
+ *
+ * Hands the mapped range to the consumer, or drops the slot if the map
+ * failed, the ring is dead, the mapped range can't be got or a copy of it
+ * doesn't fit the heap.
+ */
+static void wgpu_blit_map_cb(WGPUMapAsyncStatus status, WGPUStringView message,
+                             void *userdata1, void *userdata2)
+{
+    fbo_blit_ring *ring = userdata1;
+    unsigned int slot = (unsigned int)(uintptr_t)userdata2;
+
+    if (status != WGPUMapAsyncStatus_Success) {
+        err("readback map failed: '%.*s'\n", (int)message.length, message.data);
+        fbo_blit_slot_drop(ring, slot);
+        return;
+    }
+
+    /* the ring is going away wholesale, no point unmapping */
+    if (fbo_blit_ring_is_dead(ring)) {
+        fbo_blit_slot_drop(ring, slot);
+        return;
+    }
+
+    /* the mapped range is a copy in the heap */
+    if (!fbo_blit_slot_fits(ring)) {
+        wgpuBufferUnmap(ring->wgpu.bufs[slot]);
+        fbo_blit_slot_drop(ring, slot);
+        return;
+    }
+
+    void *contents = (void *)wgpuBufferGetConstMappedRange(ring->wgpu.bufs[slot], 0,
+                                                           ring->cfg.buffer_size);
+    if (!contents) {
+        wgpuBufferUnmap(ring->wgpu.bufs[slot]);
+        fbo_blit_slot_drop(ring, slot);
+        return;
+    }
+
+    fbo_blit_slot_deliver(ring, slot, contents);
+}
+
+/**
+ * wgpu_blit_rings_frame() - unmap released slots, request this frame's maps
+ * @r:      the renderer
+ *
+ * Runs right after the frame's queue submit, on the device's thread,
+ * which is the only one allowed to unmap the slots that consumers
+ * released.
+ */
+static void wgpu_blit_rings_frame(renderer_t *r)
+{
+    fbo_blit_ring *ring;
+
+    list_for_each_entry(ring, &r->wgpu.blit_rings, wgpu.ring_entry) {
+        /* acquire: the consumers' reads of these slots are done */
+        unsigned int req = atomic_exchange_explicit(&ring->release_req, 0, memory_order_acquire);
+
+        for (unsigned int slot = 0; slot < FBO_BLIT_FRAMES; slot++)
+            if (req & (1u << slot)) {
+                wgpuBufferUnmap(ring->wgpu.bufs[slot]);
+                /* busy is only ever consulted on this thread */
+                atomic_fetch_and_explicit(&ring->busy, ~(1u << slot), memory_order_relaxed);
+            }
+
+        for (unsigned int i = 0; i < ring->wgpu.nr_to_map; i++) {
+            unsigned int slot = ring->wgpu.to_map[i];
+
+            if (fbo_blit_ring_is_dead(ring)) {
+                fbo_blit_slot_drop(ring, slot);
+                continue;
+            }
+
+            WGPUBufferMapCallbackInfo info = {
+                .mode       = WGPUCallbackMode_AllowSpontaneous,
+                .callback   = wgpu_blit_map_cb,
+                .userdata1  = ring,
+                .userdata2  = (void *)(uintptr_t)slot,
+            };
+            wgpuBufferMapAsync(ring->wgpu.bufs[slot], WGPUMapMode_Read, 0,
+                               ring->cfg.buffer_size, info);
+        }
+        ring->wgpu.nr_to_map = 0;
+    }
+}
+
+/**
+ * wgpu_fbo_blit_encode() - encode an armed readback of an fbo's attachment
+ * @fbo:    the fbo whose render pass just ended
+ *
+ * Copies the attachment into a free ring slot's buffer on the frame's
+ * command encoder and queues the slot for mapping after the submit. A
+ * frame with no free slot is skipped.
+ */
+static void wgpu_fbo_blit_encode(fbo_t *fbo)
+{
+    unsigned int slot = CRES_RET(fbo_blit_slot_acquire(fbo), {
+        if (IS_CERR_CODE(__resp, CERR_NOT_FOUND))   dbg("%s: no free readback slot, skipping\n", fbo->wgpu.name);
+        return;
+    });
+
+    fbo_blit_ring *ring = fbo->blit;
+    renderer_t *r = fbo->renderer;
+    texture_t *tex = &fbo->color_tex[fbo_attachment_color(ring->cfg.attachment)];
+
+    WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    src.texture = tex->wgpu.texture;
+
+    WGPUTexelCopyBufferInfo dst = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+    dst.layout.offset       = 0;
+    dst.layout.bytesPerRow  = ring->cfg.bytes_per_row_aligned;
+    dst.layout.rowsPerImage = fbo->height;
+    dst.buffer              = ring->wgpu.bufs[slot];
+
+    wgpuCommandEncoderCopyTextureToBuffer(r->wgpu.cmd_encoder, &src, &dst,
+                                          &(WGPUExtent3D){ fbo->width, fbo->height, 1 });
+
+    ring->wgpu.to_map[ring->wgpu.nr_to_map++] = slot;
+}
+
 static void wgpu_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     renderer_t *r = fbo->renderer;
@@ -1213,6 +1410,8 @@ static void wgpu_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
         wgpuRenderPassEncoderRelease(r->wgpu.pass_encoder);
         r->wgpu.pass_encoder = NULL;
     }
+
+    wgpu_fbo_blit_encode(fbo);
 
     r->wgpu.fbo = NULL;
 }
@@ -1967,6 +2166,7 @@ cerr wgpu_renderer_setup(renderer_t *renderer, const renderer_init_options *opts
 {
     atomic_init(&renderer->wgpu.error, 0);
     list_init(&renderer->wgpu.ubos);
+    list_init(&renderer->wgpu.blit_rings);
 
     CERR_RET_CERR(wgpu_request_adapter(renderer));
     CERR_RET_CERR(wgpu_request_device(renderer));
@@ -2049,6 +2249,8 @@ static void wgpu_renderer_frame_end(renderer_t *r)
     WGPUCommandBufferDescriptor desc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
     auto cmd_buffer = wgpuCommandEncoderFinish(r->wgpu.cmd_encoder, &desc);
     wgpuQueueSubmit(r->wgpu.queue, 1, &cmd_buffer);
+
+    wgpu_blit_rings_frame(r);
 
 #ifndef __EMSCRIPTEN__
     wgpuSurfacePresent(r->surface);

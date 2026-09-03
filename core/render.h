@@ -1435,6 +1435,8 @@ TYPE(renderer,
         fbo_t                               *fbo;
         draw_control_t                      *dc;
         struct list                         ubos;
+        /* all live blit rings: map issue and deferred unmap sweeps */
+        struct list                         blit_rings;
         texture_t                           *bound_textures[BINDING_TEXTURE_MAX];
         uniform_buffer_t                    *bound_ubos[BINDING_UBO_MAX];
         bool                                hdr;
@@ -1890,6 +1892,17 @@ struct fbo_blit_ring {
         bool            polled;
     } gl;
 #endif /* CONFIG_RENDERER_OPENGL */
+#ifdef CONFIG_RENDERER_WGPU
+    struct {
+        /* renderer_t::wgpu.blit_rings for the whole attached lifetime */
+        struct list     ring_entry;
+        /* MapRead needs one mappable buffer per slot */
+        wgpu_buffer_t   bufs[FBO_BLIT_FRAMES];
+        /* slots copied this frame, mapAsync()ed after the queue submit */
+        unsigned int    to_map[FBO_BLIT_FRAMES];
+        unsigned int    nr_to_map;
+    } wgpu;
+#endif /* CONFIG_RENDERER_WGPU */
     /* frames dropped in a row for lack of heap, see fbo_blit_slot_fits() */
     unsigned int            nr_unfit;
     /* fbo_blit_slot_put() leaves the release to the render thread */
