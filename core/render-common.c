@@ -36,11 +36,14 @@ static void _type ## _drop(struct ref *ref) \
 } \
 DEFINE_REFCLASS2(_type)
 
+static void fbo_blit_ring_detach(fbo_t *fbo);
+
 DEFINE_RENDERER_REFCLASS(buffer,,       r_op(x, buf_deinit)(x));
 DEFINE_RENDERER_REFCLASS(vertex_array,, if (r_op(x, va_done)) r_op(x, va_done)(x));
 DEFINE_RENDERER_REFCLASS(texture,,      r_op(x, tex_deinit)(x));
 DEFINE_RENDERER_REFCLASS(fbo,, {
     draw_control_cache_drop(x->renderer, x);
+    fbo_blit_ring_detach(x);
     r_op(x, fbo_destroy)(x);
 });
 DEFINE_RENDERER_REFCLASS(uniform_buffer,
@@ -224,6 +227,7 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 
     memset(renderer, 0, sizeof(*renderer));
     list_init(&renderer->dc_cache);
+    list_init(&renderer->blit_graveyard);
 
     switch (opts->backend) {
         case RENDER_OPENGL:     CERR_RET_CERR(gl_renderer_setup(renderer, opts));   break;
@@ -255,7 +259,9 @@ cerr _renderer_init(renderer_t *renderer, const renderer_init_options *opts)
 void renderer_done(renderer_t *renderer)
 {
     /* a failed renderer_init() may not have gotten as far as picking a backend */
-    if (!renderer->ops || !renderer->ops->done) return;
+    if (!renderer->ops)         return;
+    fbo_blit_ring_sweep(renderer, true);
+    if (!renderer->ops->done)   return;
     renderer->ops->done(renderer);
 }
 
@@ -318,6 +324,7 @@ void renderer_frame_begin(renderer_t *r)
 
 void renderer_frame_end(renderer_t *r)
 {
+    fbo_blit_ring_sweep(r, false);
     if (!r->ops->frame_end) return;
     r->ops->frame_end(r);
 }
@@ -633,6 +640,7 @@ void fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     if (!fbo->renderer)   return;
     fbo->renderer->ops->fbo_done(fbo, width, height);
+    if (!list_empty(&fbo->renderer->blit_graveyard))    fbo_blit_ring_sweep(fbo->renderer, false);
 }
 
 void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
@@ -641,9 +649,21 @@ void fbo_blit_from_fbo(fbo_t *fbo, fbo_t *src_fbo, fbo_attachment attachment)
     fbo->renderer->ops->fbo_blit(fbo, src_fbo, attachment);
 }
 
+/**
+ * fbo_resize() - resize an fbo's attachments
+ * @fbo:    the fbo
+ * @width:  new width
+ * @height: new height
+ *
+ * Detaches the fbo's readback ring, whose geometry is tied to the old
+ * size: the armed readback and the ones in flight are dropped, and
+ * consumers re-arm with fbo_attachment_blit().
+ * Return: CERR_INVALID_ARGUMENTS without a renderer, else the backend's result
+ */
 cerr fbo_resize(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     if (!fbo->renderer)   return CERR_INVALID_ARGUMENTS;
+    fbo_blit_ring_detach(fbo);
     return fbo->renderer->ops->fbo_resize(fbo, width, height);
 }
 
@@ -704,6 +724,214 @@ cresp(fbo_t) _fbo_new(const fbo_init_options *opts)
     fbo_att_map_init(fbo);
 
     return cresp_val(fbo_t, fbo);
+}
+
+/****************************************************************************
+ * Asynchronous attachment readback
+ *
+ * The renderer-agnostic half: ring/slot lifetime and the consumer API.
+ * Backends allocate the buffers (blit_ring_init/blit_ring_done ops),
+ * encode the copies in their fbo_done() via fbo_blit_slot_acquire() and
+ * hand finished slots back through fbo_blit_slot_deliver().
+ ****************************************************************************/
+
+static DEFINE_CLEANUP(fbo_blit_ring, if (*p) mem_free(*p))
+
+cresp(fbo_blit_config) fbo_attachment_blit(fbo_t *fbo, fbo_attachment attachment,
+                                           fbo_blit_complete_fn complete)
+{
+    if (!fbo || !fbo->renderer || !complete)    return cresp_error(fbo_blit_config, CERR_INVALID_ARGUMENTS);
+
+    renderer_t *r = fbo->renderer;
+
+    if (!r->ops->blit_ring_init)                return cresp_error(fbo_blit_config, CERR_NOT_SUPPORTED);
+    if (!attachment.color_textures || !fbo_attachment_valid(fbo, attachment))
+        return cresp_error(fbo_blit_config, CERR_INVALID_ARGUMENTS);
+    if (fbo_is_multisampled(fbo))               return cresp_error(fbo_blit_config, CERR_NOT_SUPPORTED);
+
+    fbo_blit_ring *ring = fbo->blit;
+
+    if (ring && ring->cfg.attachment.mask != attachment.mask)
+        return cresp_error_cerr(fbo_blit_config,
+                                CERR_INVALID_OPERATION_REASON(
+                                    .fmt = "readback already set up for %s",
+                                    .arg0 = fbo_attachment_string(ring->cfg.attachment)
+                                ));
+
+    if (!ring) {
+        LOCAL_SET(fbo_blit_ring, new_ring) = mem_alloc(sizeof(*new_ring), .zero = true);
+        if (!new_ring)  return cresp_error(fbo_blit_config, CERR_NOMEM);
+
+        /* VK, Metal and WebGPU store 3-component formats with alpha: read back RGBA everywhere */
+        texture_format fmt = texture_format_add_alpha(fbo_texture_format(fbo, attachment));
+        size_t bpp = texture_format_comp_size(fmt) * texture_format_nr_comps(fmt);
+
+        new_ring->cfg.attachment            = attachment;
+        new_ring->cfg.format                = fmt;
+        new_ring->cfg.width                 = fbo->width;
+        new_ring->cfg.height                = fbo->height;
+        new_ring->cfg.bytes_per_pixel       = bpp;
+        new_ring->cfg.bytes_per_row         = bpp * fbo->width;
+        new_ring->cfg.bytes_per_row_aligned = new_ring->cfg.bytes_per_row;
+        new_ring->cfg.buffer_size           = new_ring->cfg.bytes_per_row_aligned * fbo->height;
+        new_ring->fbo = fbo;
+        list_init(&new_ring->entry);
+        atomic_init(&new_ring->busy, 0);
+        atomic_init(&new_ring->release_req, 0);
+        atomic_init(&new_ring->pending, 0);
+        atomic_init(&new_ring->dead, false);
+
+        CERR_RET_T(r->ops->blit_ring_init(fbo, new_ring), fbo_blit_config);
+
+        if (!new_ring->slot_stride) new_ring->slot_stride = new_ring->cfg.buffer_size;
+
+        ring = fbo->blit = NOCU(new_ring);
+    }
+
+    ring->complete = complete;
+
+    return cresp_val(fbo_blit_config, &ring->cfg);
+}
+
+bool fbo_blit_is_armed(fbo_t *fbo)
+{
+    return fbo && fbo->blit && fbo->blit->complete;
+}
+
+void fbo_blit_disarm(fbo_t *fbo)
+{
+    if (fbo && fbo->blit)   fbo->blit->complete = NULL;
+}
+
+void fbo_blit_slot_put(fbo_blit_config *cfg, size_t frame)
+{
+    if (!cfg || frame >= FBO_BLIT_FRAMES)   return;
+
+    fbo_blit_ring *ring = container_of(cfg, fbo_blit_ring, cfg);
+
+    /*
+     * Backends whose slot memory only the render thread may release (a
+     * WGPU buffer unmap, a GL shadow) pick the request up there; a dead
+     * ring's slots go straight back, for the sweep to free the ring
+     */
+    if (ring->deferred_put && !fbo_blit_ring_is_dead(ring))
+        atomic_fetch_or_explicit(&ring->release_req, 1u << frame, memory_order_release);
+    else
+        atomic_fetch_and_explicit(&ring->busy, ~(1u << frame), memory_order_release);
+}
+
+cres(int) fbo_blit_slot_acquire(fbo_t *fbo)
+{
+    fbo_blit_ring *ring = fbo->blit;
+
+    if (!ring || !ring->complete || fbo_blit_ring_is_dead(ring))    return cres_error(int, CERR_INVALID_OPERATION);
+
+    /*
+     * pairs with the consumer's release: its reads of the slot are done;
+     * a deferred_put ring acquired the consumer's put before clearing it
+     */
+    unsigned int busy = atomic_load_explicit(&ring->busy, memory_order_acquire);
+    unsigned int slot = ring->head;
+    unsigned int i;
+
+    for (i = 0; i < FBO_BLIT_FRAMES; i++, slot = (slot + 1) % FBO_BLIT_FRAMES)
+        if (!(busy & (1u << slot))) break;
+
+    if (i == FBO_BLIT_FRAMES)       return cres_error(int, CERR_NOT_FOUND);
+
+    /* only the render thread sets busy bits and bumps pending */
+    atomic_fetch_or_explicit(&ring->busy, 1u << slot, memory_order_relaxed);
+    atomic_fetch_add_explicit(&ring->pending, 1, memory_order_relaxed);
+    ring->slot_cb[slot] = ring->complete;
+    ring->complete = NULL;
+    ring->head = (slot + 1) % FBO_BLIT_FRAMES;
+
+    return cres_val(int, (int)slot);
+}
+
+void fbo_blit_slot_deliver(fbo_blit_ring *ring, unsigned int slot, void *contents)
+{
+    fbo_blit_complete_fn cb = ring->slot_cb[slot];
+
+    if (fbo_blit_ring_is_dead(ring) || !cb) {
+        fbo_blit_slot_drop(ring, slot);
+        return;
+    }
+
+    ring->slot_cb[slot] = NULL;
+    ring->cfg.contents = contents;
+    ring->cfg.frame = slot;
+    cb(&ring->cfg, ring->fbo);
+    /* last access to the ring: the sweep may free it once it sees this */
+    atomic_fetch_sub_explicit(&ring->pending, 1, memory_order_release);
+}
+
+void fbo_blit_slot_drop(fbo_blit_ring *ring, unsigned int slot)
+{
+    ring->slot_cb[slot] = NULL;
+    atomic_fetch_and_explicit(&ring->busy, ~(1u << slot), memory_order_release);
+    atomic_fetch_sub_explicit(&ring->pending, 1, memory_order_release);
+}
+
+bool fbo_blit_slot_fits(fbo_blit_ring *ring)
+{
+    if (mem_heap_has_room(ring->cfg.buffer_size)) {
+        if (ring->nr_unfit)
+            msg("%u x %u readbacks fit the heap again, %u dropped\n",
+                ring->cfg.width, ring->cfg.height, ring->nr_unfit);
+        ring->nr_unfit = 0;
+        return true;
+    }
+
+    if (!ring->nr_unfit++)
+        warn("%u x %u readback needs %zu bytes the heap can't spare, dropping frames until it fits\n",
+             ring->cfg.width, ring->cfg.height, ring->cfg.buffer_size);
+    return false;
+}
+
+/**
+ * fbo_blit_ring_detach() - retire an fbo's readback ring
+ * @fbo:    the fbo losing its ring to a resize or destruction
+ *
+ * Disarms the ring and marks it dead, so completions drop their slots
+ * instead of delivering, and parks it on renderer_t::blit_graveyard
+ * until its in-flight and consumer-held slots are released. Sweeps the
+ * graveyard right away, which frees the ring if nothing holds it.
+ */
+static void fbo_blit_ring_detach(fbo_t *fbo)
+{
+    fbo_blit_ring *ring = fbo->blit;
+
+    if (!ring)  return;
+
+    ring->complete = NULL;
+    atomic_store_explicit(&ring->dead, true, memory_order_release);
+    ring->fbo = NULL;
+    fbo->blit = NULL;
+    list_append(&fbo->renderer->blit_graveyard, &ring->entry);
+    fbo_blit_ring_sweep(fbo->renderer, false);
+}
+
+void fbo_blit_ring_sweep(renderer_t *r, bool final)
+{
+    fbo_blit_ring *ring, *iter;
+
+    list_for_each_entry_iter(ring, iter, &r->blit_graveyard, entry) {
+        /* acquire: whoever released these is done with the ring's memory */
+        unsigned int held = atomic_load_explicit(&ring->busy, memory_order_acquire) &
+                            ~atomic_load_explicit(&ring->release_req, memory_order_acquire);
+        int pending = atomic_load_explicit(&ring->pending, memory_order_acquire);
+
+        if (pending || held) {
+            if (!final)                             continue;
+            /* undelivered in-flight slots are ours; consumer-held ones are not */
+            if (__builtin_popcount(held) > pending) warn("reclaiming a blit ring with consumer-held slots\n");
+        }
+
+        list_del(&ring->entry);
+        if (r->ops->blit_ring_done) r->ops->blit_ring_done(r, ring);
+        mem_free(ring);
+    }
 }
 
 /****************************************************************************

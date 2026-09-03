@@ -886,9 +886,60 @@ typedef struct fbo_attconfig {
     bool                no_blend;
 } fbo_attconfig;
 
+/** FBO_BLIT_FRAMES - slots in a readback ring: frames on the GPU plus frames in consumers' hands */
+#define FBO_BLIT_FRAMES 8
+
+/**
+ * struct fbo_blit_config - geometry and latest delivery of an fbo readback
+ *
+ * Asynchronous CPU readback of one fbo color attachment: a ring of
+ * FBO_BLIT_FRAMES CPU-visible slots, each holding one frame's pixels.
+ * fbo_attachment_blit() arms a single readback; the backend encodes the
+ * copy in fbo_done() and invokes the completion callback -- possibly
+ * from an internal render thread -- once the frame's GPU work retires.
+ * The delivered slot stays valid until fbo_blit_slot_put(). In a browser,
+ * a frame whose CPU copy doesn't fit the heap is dropped instead.
+ */
+typedef struct fbo_blit_config {
+    fbo_attachment  attachment;
+    /* pixel format of the delivered data; may differ from the attachment's */
+    texture_format  format;
+    unsigned int    width;
+    unsigned int    height;
+    unsigned int    bytes_per_pixel;
+    /* tight row size: width * bytes_per_pixel */
+    size_t          bytes_per_row;
+    /* row pitch in the slot; backends with row alignment rules pad rows */
+    size_t          bytes_per_row_aligned;
+    /* one slot's size: bytes_per_row_aligned * height */
+    size_t          buffer_size;
+    /* the latest delivered slot's pixels, set before each completion call */
+    void            *contents;
+    /* the latest delivered slot's ring index */
+    size_t          frame;
+} fbo_blit_config;
+
+cresp_ret(fbo_blit_config);
+
+/**
+ * fbo_blit_complete_fn - readback completion callback
+ * @cfg:    the ring's config, with contents and frame set to the delivered slot
+ * @fbo:    the fbo the pixels come from
+ *
+ * Runs on whichever thread the backend retires GPU work on. The consumer
+ * copies the contents pointer and frame out of @cfg before returning, as
+ * the next delivery overwrites them, and releases the slot with
+ * fbo_blit_slot_put() once it is done with the pixels.
+ */
+typedef void (*fbo_blit_complete_fn)(fbo_blit_config *cfg, fbo_t *fbo);
+
+typedef struct fbo_blit_ring fbo_blit_ring;
+
 TYPE(fbo,
     struct ref      ref;
     renderer_t      *renderer;
+    /* armed/in-flight CPU readback state, NULL until the first arming */
+    fbo_blit_ring   *blit;
     unsigned int    nr_samples;
     unsigned int    width;
     unsigned int    height;
@@ -985,6 +1036,51 @@ int fbo_height(fbo_t *fbo);
 bool fbo_is_multisampled(fbo_t *fbo);
 bool fbo_attachment_valid(fbo_t *fbo, fbo_attachment attachment);
 texture_format fbo_attachment_format(fbo_t *fbo, fbo_attachment attachment);
+
+/**
+ * fbo_attachment_blit() - arm an async CPU readback of a color attachment
+ * @fbo:        the fbo to read back from
+ * @attachment: one of its color texture attachments
+ * @complete:   called when a frame's pixels are ready, from any thread
+ *
+ * Arms a single readback: the next fbo_done() on @fbo encodes a copy of
+ * @attachment into a free ring slot and, once the frame's GPU work
+ * retires, @complete runs with the slot's pixels in
+ * fbo_blit_config::contents. Continuous capture re-arms every frame.
+ * The consumer must copy contents/frame out during the callback and
+ * release the slot with fbo_blit_slot_put(); a frame with no free slot
+ * is skipped, and so, in a browser, is one whose CPU copy doesn't fit
+ * the heap (fbo_blit_slot_fits()). Multisampled fbos are not supported.
+ * Return: the readback geometry, stable until the fbo is resized
+ */
+cresp(fbo_blit_config) fbo_attachment_blit(fbo_t *fbo, fbo_attachment attachment,
+                                           fbo_blit_complete_fn complete);
+
+/**
+ * fbo_blit_is_armed() - does the fbo have a readback armed?
+ * @fbo:    the fbo, may be NULL
+ * Return: true if the next fbo_done() will encode a readback
+ */
+bool fbo_blit_is_armed(fbo_t *fbo);
+
+/**
+ * fbo_blit_disarm() - cancel an armed readback
+ * @fbo:    the fbo, may be NULL
+ *
+ * In-flight readbacks still deliver; only the not-yet-encoded one is
+ * dropped.
+ */
+void fbo_blit_disarm(fbo_t *fbo);
+
+/**
+ * fbo_blit_slot_put() - release a delivered readback slot
+ * @cfg:    the config the completion callback delivered
+ * @frame:  fbo_blit_config::frame as seen during that callback
+ *
+ * Gives the slot back for reuse; the pixel pointer becomes invalid.
+ * Callable from any thread, also after the source fbo is gone.
+ */
+void fbo_blit_slot_put(fbo_blit_config *cfg, size_t frame);
 
 DEFINE_REFCLASS_INIT_OPTIONS(draw_control,
     renderer_t  *renderer;
@@ -1275,6 +1371,8 @@ TYPE(renderer,
     unsigned int        swapchain_gen;
     /* the draw_control (pipeline) cache; entries drop with their fbo/shader */
     struct list         dc_cache;
+    /* detached blit rings kept alive until their consumers let go */
+    struct list         blit_graveyard;
 #ifdef CONFIG_RENDERER_OPENGL
     struct {
         GLenum              cull_face;
@@ -1729,6 +1827,118 @@ static inline cerr vk_renderer_setup(renderer_t *rendnerer, const renderer_init_
 }
 #endif /* !CONFIG_RENDERER_VULKAN */
 
+#include <stdatomic.h>
+
+/**
+ * struct fbo_blit_ring - backend-facing side of an fbo readback
+ *
+ * A ring belongs to one fbo while attached; on fbo resize/destruction it
+ * detaches onto renderer_t::blit_graveyard until every in-flight and
+ * consumer-held slot is released, then the backend frees its buffers.
+ * The consumer threads only ever touch the atomics and the slot memory.
+ *
+ * Ordering: busy, release_req, pending and dead are the only state
+ * shared across threads. Consumers and completion paths release the
+ * first three after their last access to a slot or to the ring; the
+ * render thread acquires them before reusing a slot (a deferred_put
+ * backend's release of it, fbo_blit_slot_acquire()) or freeing a ring
+ * (fbo_blit_ring_sweep()).
+ * The render thread releases dead when detaching; completion paths
+ * acquire it and drop instead of delivering. Everything else belongs
+ * to the render thread; completion paths read it only through the
+ * backend's own submit/complete synchronization.
+ */
+struct fbo_blit_ring {
+    fbo_blit_config         cfg;
+    /* backref for completion callbacks; valid only while attached */
+    fbo_t                   *fbo;
+    /* armed one-shot callback, consumed by fbo_blit_slot_acquire() */
+    fbo_blit_complete_fn    complete;
+    /* per-slot callback, latched at acquire time */
+    fbo_blit_complete_fn    slot_cb[FBO_BLIT_FRAMES];
+    /* renderer_t::blit_graveyard once detached */
+    struct list             entry;
+    /* slot-to-slot offset in the backing buffer */
+    size_t                  slot_stride;
+    /* bit per slot: acquired and not yet released, past the put on deferred_put rings */
+    atomic_uint             busy;
+    /* deferred_put backends: slots waiting for a main-thread release */
+    atomic_uint             release_req;
+    /* slots encoded but not yet delivered or dropped */
+    atomic_int              pending;
+    unsigned int            head;
+    /* frames dropped in a row for lack of heap, see fbo_blit_slot_fits() */
+    unsigned int            nr_unfit;
+    /* fbo_blit_slot_put() leaves the release to the render thread */
+    bool                    deferred_put;
+    /* detached: no new encodes, deliveries turn into drops */
+    atomic_bool             dead;
+};
+
+/**
+ * fbo_blit_ring_is_dead() - has the ring detached from its fbo?
+ * @ring:   the ring
+ * Return: true once detached; deliveries turn into drops
+ */
+static inline bool fbo_blit_ring_is_dead(fbo_blit_ring *ring)
+{
+    return atomic_load_explicit(&ring->dead, memory_order_acquire);
+}
+
+/**
+ * fbo_blit_slot_acquire() - claim a ring slot for an armed readback
+ * @fbo:    the fbo whose fbo_done() is encoding
+ *
+ * Consumes the armed callback into the claimed slot and advances the
+ * ring head. Backends call this while encoding on the render thread.
+ * Return: the slot to copy into; CERR_INVALID_OPERATION if nothing is
+ *         armed or the ring is detached, CERR_NOT_FOUND if no slot is
+ *         free
+ */
+cres(int) fbo_blit_slot_acquire(fbo_t *fbo);
+
+/**
+ * fbo_blit_slot_deliver() - hand a completed slot to the consumer
+ * @ring:       the ring the slot belongs to
+ * @slot:       the slot with finished pixels
+ * @contents:   CPU pointer to the slot's pixels
+ *
+ * Runs the latched callback with the config updated to @slot, or drops
+ * the slot when the ring was detached in the meantime. Callable from
+ * backend completion threads.
+ */
+void fbo_blit_slot_deliver(fbo_blit_ring *ring, unsigned int slot, void *contents);
+
+/**
+ * fbo_blit_slot_drop() - abandon an encoded slot without delivering
+ * @ring:   the ring the slot belongs to
+ * @slot:   the slot whose readback failed or was discarded
+ */
+void fbo_blit_slot_drop(fbo_blit_ring *ring, unsigned int slot);
+
+/**
+ * fbo_blit_slot_fits() - does a slot's CPU copy fit the heap?
+ * @ring:   the ring whose slot is about to be copied out
+ *
+ * Browser heaps are fixed, and an allocation past their end aborts the
+ * page; the caller drops a frame whose copy doesn't fit instead. This
+ * says so once per run of drops, which a recording would otherwise
+ * repeat every frame, and counts the frames when they fit again.
+ * Backends ask on the render thread, right before allocating the copy.
+ * Return: true if a copy of one slot fits; always true in native builds
+ */
+bool fbo_blit_slot_fits(fbo_blit_ring *ring);
+
+/**
+ * fbo_blit_ring_sweep() - free detached rings whose consumers are done
+ * @r:      the renderer
+ * @final:  renderer teardown: reclaim even busy rings, with a warning
+ *
+ * Runs on the render thread; backends' blit_ring_done() may rely on
+ * that (GL context, VK zombie lists, WGPU main thread).
+ */
+void fbo_blit_ring_sweep(renderer_t *r, bool final);
+
 typedef struct renderer_ops {
     /*
      * sizeof(renderer_t) as the implementing TU sees it. The backend
@@ -1796,6 +2006,10 @@ typedef struct renderer_ops {
     bool                (*fbo_tex_supported)(renderer_t *r, texture_format format);
     cresp(fbo_t)        (*fbo_create)(const fbo_init_options *opts);
     void                (*fbo_destroy)(fbo_t *fbo);
+    /* allocate the backing buffers, fix up row alignment/readback format */
+    cerr                (*blit_ring_init)(fbo_t *fbo, fbo_blit_ring *ring);
+    /* release the backing buffers; render thread only */
+    void                (*blit_ring_done)(renderer_t *r, fbo_blit_ring *ring);
     cerr                (*ubo_init)(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
     void                (*ubo_done)(uniform_buffer_t *ubo);
     void                (*ubo_destroy)(uniform_buffer_t *ubo);
