@@ -105,6 +105,11 @@ typedef struct render_options {
     bool    fog_volumetric;
     bool    fog_volumetric_debug;
     bool    shadow_vsm;
+    /*
+     * Screen capture armed: the screen pass renders off-screen with an
+     * extra linear target for readbacks, a copy pass puts it on screen
+     */
+    bool    screen_capture;
     /* VSM light bleed reduction: the Chebyshev tail written off as bleed */
     float   shadow_bleed;
     /* one of BLOOM_QUALITY_*, picks the bloom passes the pipeline builder emits */

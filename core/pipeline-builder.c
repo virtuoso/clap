@@ -98,6 +98,38 @@ static inline render_options *get_ropts(pipeline_builder_opts *opts)
     return clap_get_render_options(opts->pl_opts->clap_ctx);
 }
 
+/**
+ * screen_capture_is_supported() - can the screen pass render for capture?
+ * @opts:   pipeline builder options
+ *
+ * The capture variant of the screen pass writes two float targets, which
+ * iOS webgl silently doesn't render to (see apply_constraints()).
+ * Return: true if a float format from get_capture_format() is renderable
+ */
+static bool screen_capture_is_supported(pipeline_builder_opts *opts)
+{
+    clap_context *clap_ctx = opts->pl_opts->clap_ctx;
+    if (clap_ctx && clap_get_os(clap_ctx)->mobile)  return false;
+
+    auto r = clap_get_renderer(clap_ctx);
+    return fbo_texture_supported(r, TEX_FMT_RGBA16F) || fbo_texture_supported(r, TEX_FMT_RGBA32F);
+}
+
+/**
+ * get_capture_format() - format of the screen pass' targets under capture
+ * @opts:   pipeline builder options
+ *
+ * Both targets are float: the linear frame for the readback, and the
+ * encoded one the copy pass puts on the screen, which an 8-bit target
+ * would band once the encode is HDR's.
+ * Return: RGBA16F, or RGBA32F where that's the renderable one
+ */
+static texture_format get_capture_format(pipeline_builder_opts *opts)
+{
+    auto r = clap_get_renderer(opts->pl_opts->clap_ctx);
+    return fbo_texture_supported(r, TEX_FMT_RGBA16F) ? TEX_FMT_RGBA16F : TEX_FMT_RGBA32F;
+}
+
 static void apply_constraints(pipeline_builder_opts *opts)
 {
     clap_context *clap_ctx = opts->pl_opts->clap_ctx;
@@ -115,6 +147,12 @@ static void apply_constraints(pipeline_builder_opts *opts)
      * and the taa shader isn't part of the pipeline
      */
     if (!IS_DEFINED(CONFIG_TAA))    get_ropts(opts)->taa = false;
+
+    /* Screen capture renders the screen pass into two float targets */
+    if (get_ropts(opts)->screen_capture && !screen_capture_is_supported(opts)) {
+        warn("screen capture needs RGBA16F or RGBA32F render targets\n");
+        get_ropts(opts)->screen_capture = false;
+    }
 }
 
 /**
@@ -401,6 +439,18 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
      * play, one merged screen pass saves a full-res RT write + read
      */
     bool merge_present = !taa && !edge_aa;
+    /*
+     * Screen capture: the screen pass (present, or the merged combine)
+     * renders off-screen, its encoded output plus the linear frame for
+     * readbacks to take, and a copy pass puts the former on the screen
+     */
+    bool capture = ropts->screen_capture;
+    bool combine_capture = capture && merge_present;
+    texture_format capture_fmt = capture ? get_capture_format(opts) : TEX_FMT_DEFAULT;
+    fbo_attconfig capture_config[] = {
+        { .format = capture_fmt, .load_action = FBOLOAD_DONTCARE, },
+        { .format = capture_fmt, .load_action = FBOLOAD_DONTCARE, },
+    };
     bool model_pass_msaa =
 #ifdef CONFIG_BROWSER
         false;
@@ -845,20 +895,25 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
              * happen in the present pass, TAA resolves in between; the
              * merged pass encodes right here and renders to the screen
              * (checkpoint 1), so its FBO (only rendered for the menu
-             * blur chain) holds encoded output like present's
+             * blur chain) holds encoded output like present's. Under
+             * screen capture it renders off-screen into capture_config
+             * every frame instead, and the capture copy pass puts it on
+             * the screen
              */
 #ifdef CONFIG_RENDERER_METAL
-            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
+            .color_config       = combine_capture ? capture_config :
+                                  (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
 #else
-            .color_config       = (fbo_attconfig[]) {
+            .color_config       = combine_capture ? capture_config : (fbo_attconfig[]) {
                 { .format = merge_present ? TEX_FMT_RGBA8 : hdr_fmt, .load_action = FBOLOAD_DONTCARE, }
             },
 #endif /* !CONFIG_RENDERER_METAL */
             .ops                = &postproc_ops,
-            .layout             = FBO_COLOR_TEXTURE(0),
+            .layout             = combine_capture ? FBO_COLOR_TEXTURE(1) : FBO_COLOR_TEXTURE(0),
             .name               = "combine",
-            .shader             = merge_present ? "combine-present" : "combine",
-            .checkpoint         = merge_present ? 1 : 0,
+            .shader             = !merge_present ? "combine" :
+                                  capture ? "combine-present-capture" : "combine-present",
+            .checkpoint         = merge_present && !capture ? 1 : 0,
         ),
         pipeline
     );
@@ -948,17 +1003,49 @@ cresp(pipeline) pipeline_build(pipeline_builder_opts *opts)
                 {}
             },
 #ifdef CONFIG_RENDERER_METAL
-            .color_config       = (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
+            .color_config       = capture ? capture_config :
+                                  (fbo_attconfig[]) { { .format = hdr_fmt, .load_action = FBOLOAD_DONTCARE, } },
 #else
-            .color_config       = (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
+            .color_config       = capture ? capture_config :
+                                  (fbo_attconfig[]) { { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, } },
 #endif /* !CONFIG_RENDERER_METAL*/
             .ops                = &postproc_ops,
-            .layout             = FBO_COLOR_TEXTURE(0),
-            .shader             = "present",
-            .checkpoint         = 1,
+            .layout             = capture ? FBO_COLOR_TEXTURE(1) : FBO_COLOR_TEXTURE(0),
+            .name               = "present",
+            .shader             = capture ? "present-capture" : "present",
+            .checkpoint         = capture ? 0 : 1,
         ),
         pipeline
     );
+
+    /*
+     * Under screen capture, the screen pass rendered off-screen: copy it
+     * over. Behind the menu (checkpoint 1) the copy renders into a target
+     * of its own, which nothing samples, so it only has to exist
+     */
+    if (capture)
+        (void)CRES_RET_T(
+            pipeline_add_pass(pl,
+                .source             = (render_source[]) {
+                    {
+                        .pass       = present_pass,
+                        .attachment = FBO_COLOR_TEXTURE(0),
+                        .method     = RM_USE,
+                        .sampler    = UNIFORM_MODEL_TEX
+                    },
+                    {}
+                },
+                .color_config       = (fbo_attconfig[]) {
+                    { .format = TEX_FMT_RGBA8, .load_action = FBOLOAD_DONTCARE, }
+                },
+                .ops                = &postproc_ops,
+                .layout             = FBO_COLOR_TEXTURE(0),
+                .name               = "capture copy",
+                .shader             = "copy",
+                .checkpoint         = 1,
+            ),
+            pipeline
+        );
 
     /* Extra blur for the menu */
     render_pass *pass = CRES_RET_T(

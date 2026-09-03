@@ -827,6 +827,7 @@ static const struct rebuild_reason {
     REBUILD_REASON_FIELD(lighting_lut),
     REBUILD_REASON_FIELD(bloom_quality),
     REBUILD_REASON_FIELD(light_heatmap),
+    REBUILD_REASON_FIELD(screen_capture),
 };
 
 static cerr build_main_pl(clap_context *ctx)

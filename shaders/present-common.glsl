@@ -37,12 +37,25 @@ vec3 grain_color(vec3 color, vec3 view_pos, vec2 uv)
     return color + vec3((noise.r - 0.5) * 2.0) * weight * film_grain_factor;
 }
 
+#ifdef PRESENT_CAPTURE
+/*
+ * The *-capture variants' second render target: the frame as it goes to
+ * the screen, minus the encode -- linear, BT.709 primaries, film grain
+ * included -- for screen captures to read back
+ */
+layout (location=1) out vec4 CaptureColor;
+#endif /* PRESENT_CAPTURE */
+
 vec3 present_finalize(vec3 color, vec2 uv)
 {
     if (film_grain) {
         vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, uv);
         color = grain_color(color, view_pos, uv);
     }
+
+#ifdef PRESENT_CAPTURE
+    CaptureColor = vec4(color, 1.0);
+#endif /* PRESENT_CAPTURE */
 
     /*
      * The encode has to match the surface the backend actually got, which is

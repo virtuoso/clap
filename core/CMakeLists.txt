@@ -285,8 +285,9 @@ set(SHADER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/shaders")
 set(SHADERS ui glyph model contrast sobel sobel-msaa laplace
     smaa-blend-weights smaa-neighborhood-blend combine shadow
     debug hblur vblur downsample terrain particle ssao gtao
-    shadow_vsm taa present combine-present bloom-downsample
-    bloom-mip bloom-upsample passthrough volumetric)
+    shadow_vsm taa present combine-present present-capture
+    combine-present-capture copy bloom-downsample bloom-mip bloom-upsample
+    passthrough volumetric)
 
 compile_shaders("${SHADERS}" "_core")
 add_dependencies(preprocess_shaders_core render_bindings_gen)
