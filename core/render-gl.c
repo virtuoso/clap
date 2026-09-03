@@ -8,6 +8,11 @@
 #include "render.h"
 #undef IMPLEMENTOR
 
+#ifdef CONFIG_BROWSER
+/* glGetBufferSubData() is WebGL 2, not GLES 3 */
+#include <webgl/webgl2.h>
+#endif /* CONFIG_BROWSER */
+
 /* GLES3 core lacks norm16 formats (EXT_texture_norm16); let the probe decide */
 #ifndef GL_RG16
 #define GL_RG16 0x822C
@@ -71,6 +76,8 @@ static texture_format gl_fbo_texture_format(fbo_t *fbo, fbo_attachment attachmen
 static bool gl_fbo_texture_supported(renderer_t *r, texture_format format);
 static cresp(fbo_t) gl_fbo_new(const fbo_init_options *opts);
 static void gl_fbo_destroy(fbo_t *fbo);
+static cerr gl_blit_ring_init(fbo_t *fbo, fbo_blit_ring *ring);
+static void gl_blit_ring_done(renderer_t *r, fbo_blit_ring *ring);
 static cerr gl_uniform_buffer_init(renderer_t *r, uniform_buffer_t *ubo, const char *name, int binding);
 static void gl_uniform_buffer_done(uniform_buffer_t *ubo);
 static cerr gl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size);
@@ -143,6 +150,8 @@ static const renderer_ops gl_renderer_ops = {
     .fbo_tex_supported = gl_fbo_texture_supported,
     .fbo_create     = gl_fbo_new,
     .fbo_destroy    = gl_fbo_destroy,
+    .blit_ring_init = gl_blit_ring_init,
+    .blit_ring_done = gl_blit_ring_done,
     .ubo_init       = gl_uniform_buffer_init,
     .ubo_done       = gl_uniform_buffer_done,
     .ubo_destroy    = gl_uniform_buffer_destroy,
@@ -1321,9 +1330,302 @@ static inline void gl_pass_ts_begin(renderer_t *r, fbo_t *fbo, const char *name)
 static inline void gl_pass_ts_end(renderer_t *r, fbo_t *fbo) {}
 #endif /* CONFIG_FINAL */
 
+/****************************************************************************
+ * Asynchronous attachment readback
+ *
+ * glReadPixels into a PBO ring, one fence per slot; fences signal in
+ * submission order, so completed slots collect FIFO at pass boundaries.
+ * Consumers get a cacheable shadow copy: PBO mappings are often
+ * write-combined and would make the worker-thread readers crawl. A slot
+ * gets its shadow when it is first delivered, and consumers' puts are
+ * serviced on the render thread (deferred_put), where a browser frees the
+ * shadow again: a whole ring of them up front doesn't fit a browser's
+ * fixed heap at large canvas sizes.
+ ****************************************************************************/
+
+/**
+ * gl_blit_float_type() - the type a float attachment reads back as
+ * @fbo:    the fbo the ring reads back from
+ * @ring:   the ring, cfg.format still the one fbo_attachment_blit() picked
+ *
+ * RGBA/FLOAT reads any float color buffer: desktop GL converts to any type,
+ * and EXT_color_buffer_float adds this pair to GLES and WebGL2. A 16F
+ * buffer reads back as RGBA/HALF_FLOAT just as exactly, in half the space.
+ * Desktop GL always takes that pair, so it isn't asked: GL 4.1 fails the
+ * query for float read buffers. GLES and WebGL2 take the pair when it is
+ * the implementation-chosen one, which depends on the read buffer's
+ * format: the query binds @fbo for reading with the attachment selected
+ * and puts the previous read framebuffer back. The attachment stays
+ * selected, as gl_fbo_blit_encode() leaves it too.
+ * Return: GL_HALF_FLOAT or GL_FLOAT
+ */
+static GLenum gl_blit_float_type(fbo_t *fbo, fbo_blit_ring *ring)
+{
+    if (texture_format_comp_size(ring->cfg.format) != 2)    return GL_FLOAT;
+
+#ifdef CONFIG_GLES
+    /* a failed query leaves these alone, and the read stays GL_FLOAT */
+    GLint prev_fbo = 0, format = GL_NONE, type = GL_NONE;
+
+    GL(glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prev_fbo));
+    GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo->gl.fbo));
+    GL(glReadBuffer(fbo_gl_attachment(ring->cfg.attachment)));
+    GL(glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT, &format));
+    GL(glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE, &type));
+    GL(glBindFramebuffer(GL_READ_FRAMEBUFFER, prev_fbo));
+
+    if (format != GL_RGBA || type != GL_HALF_FLOAT)         return GL_FLOAT;
+#endif /* CONFIG_GLES */
+
+    return GL_HALF_FLOAT;
+}
+
+/**
+ * gl_blit_ring_init() - set up a ring's readback format and PBO
+ * @fbo:    the fbo the ring reads back from
+ * @ring:   the ring, its cfg as fbo_attachment_blit() set it up
+ *
+ * Picks the glReadPixels() format and type for cfg.format and sizes the
+ * ring for what they deliver: a 16F attachment that the GL doesn't read
+ * as RGBA/HALF_FLOAT delivers RGBA32F. One PBO holds all FBO_BLIT_FRAMES
+ * slots back to back.
+ * Return: CERR_OK, or CERR_NOT_SUPPORTED for a format with no readback path
+ */
+static cerr gl_blit_ring_init(fbo_t *fbo, fbo_blit_ring *ring)
+{
+    switch (ring->cfg.format) {
+        case TEX_FMT_RGBA8:
+        case TEX_FMT_RGBA8_SRGB:
+            ring->gl.rd_format = GL_RGBA;
+            ring->gl.rd_type   = GL_UNSIGNED_BYTE;
+            break;
+        case TEX_FMT_RGBA16F:
+        case TEX_FMT_RGBA32F:
+            ring->gl.rd_format = GL_RGBA;
+            ring->gl.rd_type   = gl_blit_float_type(fbo, ring);
+            ring->cfg.format   = ring->gl.rd_type == GL_HALF_FLOAT ? TEX_FMT_RGBA16F : TEX_FMT_RGBA32F;
+            break;
+        default:
+            return CERR_NOT_SUPPORTED_REASON(
+                .fmt    = "no readback path for %s",
+                .arg0   = texture_format_string(ring->cfg.format)
+            );
+    }
+
+    ring->cfg.bytes_per_pixel       = texture_format_comp_size(ring->cfg.format) *
+                                      texture_format_nr_comps(ring->cfg.format);
+    ring->cfg.bytes_per_row         = ring->cfg.bytes_per_pixel * ring->cfg.width;
+    ring->cfg.bytes_per_row_aligned = ring->cfg.bytes_per_row;
+    ring->cfg.buffer_size           = ring->cfg.bytes_per_row_aligned * ring->cfg.height;
+    ring->slot_stride               = ring->cfg.buffer_size;
+    ring->deferred_put              = true;
+
+    GL(glGenBuffers(1, &ring->gl.pbo));
+    GL(glBindBuffer(GL_PIXEL_PACK_BUFFER, ring->gl.pbo));
+    GL(glBufferData(GL_PIXEL_PACK_BUFFER, ring->slot_stride * FBO_BLIT_FRAMES,
+                    NULL, GL_STREAM_READ));
+    GL(glBindBuffer(GL_PIXEL_PACK_BUFFER, 0));
+
+    list_init(&ring->gl.poll_entry);
+
+    return CERR_OK;
+}
+
+/**
+ * gl_blit_ring_done() - release a ring's GL objects and shadow copies
+ * @r:      the renderer
+ * @ring:   the ring fbo_blit_ring_sweep() is freeing
+ *
+ * Deletes the fences of readbacks still in flight, takes the ring off
+ * renderer_t::gl.blit_polls and frees the PBO and the slots' shadows.
+ */
+static void gl_blit_ring_done(renderer_t *r, fbo_blit_ring *ring)
+{
+    while (ring->gl.fifo_count) {
+        unsigned int slot = ring->gl.fifo[ring->gl.fifo_head];
+
+        if (ring->gl.fences[slot])  GL(glDeleteSync(ring->gl.fences[slot]));
+        ring->gl.fifo_head = (ring->gl.fifo_head + 1) % FBO_BLIT_FRAMES;
+        ring->gl.fifo_count--;
+    }
+
+    if (ring->gl.polled)    list_del(&ring->gl.poll_entry);
+    GL(glDeleteBuffers(1, &ring->gl.pbo));
+
+    /* native rings' shadows, slots put since the last poll, at teardown ones still held */
+    for (unsigned int slot = 0; slot < FBO_BLIT_FRAMES; slot++) mem_free(ring->gl.shadows[slot]);
+}
+
+/**
+ * gl_blit_pbo_read() - copy a slot's pixels out of the readback PBO
+ * @ring:   the ring, its PBO bound to GL_PIXEL_PACK_BUFFER
+ * @slot:   the slot whose fence has signaled
+ * @dst:    where the pixels go
+ *
+ * WebGL has no read mappings: Emscripten's glMapBufferRange() turns
+ * GL_MAP_READ_BIT down, getBufferSubData() copies out instead.
+ * Return: true if @dst holds the slot's pixels
+ */
+static bool gl_blit_pbo_read(fbo_blit_ring *ring, unsigned int slot, void *dst)
+{
+#ifdef CONFIG_BROWSER
+    GL(glGetBufferSubData(GL_PIXEL_PACK_BUFFER, slot * ring->slot_stride, ring->cfg.buffer_size, dst));
+#else
+    void *map;
+
+    GL(map = glMapBufferRange(GL_PIXEL_PACK_BUFFER, slot * ring->slot_stride,
+                              ring->cfg.buffer_size, GL_MAP_READ_BIT));
+    if (!map)   return false;
+
+    memcpy(dst, map, ring->cfg.buffer_size);
+    GL(glUnmapBuffer(GL_PIXEL_PACK_BUFFER));
+#endif /* !CONFIG_BROWSER */
+
+    return true;
+}
+
+/**
+ * gl_blit_release() - service the consumers' puts
+ * @ring:   the ring
+ *
+ * An attached ring's fbo_blit_slot_put() only asks for the release
+ * (deferred_put), and the slot becomes free to claim again here. In a
+ * browser the shadows of slots nobody holds go back to the heap first,
+ * since that heap doesn't grow. A native ring keeps them for the slots'
+ * next deliveries instead: a block of a frame's size is a fresh mmap()
+ * there past glibc's 32 MiB threshold, page faults and all, on every
+ * delivery. A detached ring's puts free their slots directly, and a
+ * browser frees their shadows here all the same.
+ */
+static void gl_blit_release(fbo_blit_ring *ring)
+{
+    /* acquire: whoever put a slot, or freed it directly, is done with its shadow */
+    unsigned int req = atomic_exchange_explicit(&ring->release_req, 0, memory_order_acquire);
+
+    if (IS_DEFINED(CONFIG_BROWSER)) {
+        unsigned int held = atomic_load_explicit(&ring->busy, memory_order_acquire) & ~req;
+
+        for (unsigned int slot = 0; slot < FBO_BLIT_FRAMES; slot++) {
+            if (!ring->gl.shadows[slot] || (held & (1u << slot)))   continue;
+
+            mem_free(ring->gl.shadows[slot]);
+            ring->gl.shadows[slot] = NULL;
+        }
+    }
+
+    /* relaxed: slots are only ever claimed, and rings freed, on this thread */
+    atomic_fetch_and_explicit(&ring->busy, ~req, memory_order_relaxed);
+}
+
+/**
+ * gl_blit_poll() - deliver every readback whose fence has signaled
+ * @r:      the renderer
+ *
+ * Services the polled rings' puts and delivers their completed slots
+ * oldest first, without waiting on a fence. A ring leaves
+ * renderer_t::gl.blit_polls once none of its slots is busy.
+ */
+static void gl_blit_poll(renderer_t *r)
+{
+    fbo_blit_ring *ring, *iter;
+
+    list_for_each_entry_iter(ring, iter, &r->gl.blit_polls, gl.poll_entry) {
+        /* service the puts first: a browser frees their shadows before new deliveries take more */
+        gl_blit_release(ring);
+
+        while (ring->gl.fifo_count) {
+            unsigned int slot = ring->gl.fifo[ring->gl.fifo_head];
+            GLenum res;
+
+            GL(res = glClientWaitSync(ring->gl.fences[slot], 0, 0));
+            if (res == GL_TIMEOUT_EXPIRED)  break;
+
+            GL(glDeleteSync(ring->gl.fences[slot]));
+            ring->gl.fences[slot] = NULL;
+            ring->gl.fifo_head = (ring->gl.fifo_head + 1) % FBO_BLIT_FRAMES;
+            ring->gl.fifo_count--;
+
+            /* a detached ring's deliveries turn into drops: no shadow for those */
+            if (res == GL_WAIT_FAILED || fbo_blit_ring_is_dead(ring)) {
+                fbo_blit_slot_drop(ring, slot);
+                continue;
+            }
+
+            /* a native ring still has the shadow of the slot's last delivery */
+            if (!ring->gl.shadows[slot]) {
+                if (!fbo_blit_slot_fits(ring)) {
+                    fbo_blit_slot_drop(ring, slot);
+                    continue;
+                }
+
+                ring->gl.shadows[slot] = mem_alloc(ring->cfg.buffer_size);
+                if (!ring->gl.shadows[slot]) {
+                    warn("no memory for a %u x %u readback, dropping the frame\n",
+                         ring->cfg.width, ring->cfg.height);
+                    fbo_blit_slot_drop(ring, slot);
+                    continue;
+                }
+            }
+
+            void *shadow = ring->gl.shadows[slot];
+
+            GL(glBindBuffer(GL_PIXEL_PACK_BUFFER, ring->gl.pbo));
+            bool copied = gl_blit_pbo_read(ring, slot, shadow);
+            GL(glBindBuffer(GL_PIXEL_PACK_BUFFER, 0));
+
+            /* the shadow stays with the slot: a browser frees it after the put, native rings keep it */
+            if (copied) fbo_blit_slot_deliver(ring, slot, shadow);
+            else        fbo_blit_slot_drop(ring, slot);
+        }
+
+        /* consumer-held slots are busy too: their puts get serviced above */
+        if (!ring->gl.fifo_count && !atomic_load_explicit(&ring->busy, memory_order_relaxed)) {
+            list_del(&ring->gl.poll_entry);
+            ring->gl.polled = false;
+        }
+    }
+}
+
+/**
+ * gl_fbo_blit_encode() - encode the readback an fbo is armed for
+ * @fbo:    the fbo whose pass ends
+ *
+ * Called with the fbo still bound, before its attachments invalidate.
+ * Reads the attachment into a free slot's range of the PBO and fences
+ * it; an unarmed fbo encodes nothing, and a frame with no free slot is
+ * skipped.
+ */
+static void gl_fbo_blit_encode(fbo_t *fbo)
+{
+    unsigned int slot = CRES_RET(fbo_blit_slot_acquire(fbo), {
+        if (IS_CERR_CODE(__resp, CERR_NOT_FOUND))   dbg("%s: no free readback slot, skipping\n", fbo->gl.name);
+        return;
+    });
+
+    fbo_blit_ring *ring = fbo->blit;
+    renderer_t *r = fbo->renderer;
+
+    GL(glReadBuffer(fbo_gl_attachment(ring->cfg.attachment)));
+    GL(glBindBuffer(GL_PIXEL_PACK_BUFFER, ring->gl.pbo));
+    GL(glPixelStorei(GL_PACK_ALIGNMENT, 1));
+    GL(glReadPixels(0, 0, fbo->width, fbo->height, ring->gl.rd_format, ring->gl.rd_type,
+                    (void *)(uintptr_t)(slot * ring->slot_stride)));
+    GL(glBindBuffer(GL_PIXEL_PACK_BUFFER, 0));
+
+    GL(ring->gl.fences[slot] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0));
+    ring->gl.fifo[(ring->gl.fifo_head + ring->gl.fifo_count) % FBO_BLIT_FRAMES] = slot;
+    ring->gl.fifo_count++;
+
+    if (!ring->gl.polled) {
+        list_append(&r->gl.blit_polls, &ring->gl.poll_entry);
+        ring->gl.polled = true;
+    }
+}
+
 static void gl_renderer_swapchain_end(renderer_t *r)
 {
     gl_pass_ts_end(r, NULL);
+    gl_blit_poll(r);
 }
 
 static void gl_renderer_done(renderer_t *r)
@@ -1438,6 +1740,8 @@ static void gl_fbo_prepare(fbo_t *fbo)
 static void gl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     gl_pass_ts_end(fbo->renderer, fbo);
+    gl_blit_poll(fbo->renderer);
+    gl_fbo_blit_encode(fbo);
     fbo_invalidate(fbo);
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
     GL(glViewport(0, 0, width, height));
@@ -1875,6 +2179,8 @@ static cerr gl_renderer_init(renderer_t *renderer, const renderer_init_options *
     static_assert(sizeof(GLfloat) == sizeof(float), "GLfloat doesn't match float");
     static_assert(sizeof(GLushort) == sizeof(unsigned short), "GLushort doesn't match unsigned short");
     static_assert(sizeof(GLsizeiptr) == sizeof(ptrdiff_t), "GLsizeiptr doesn't match ptrdiff_t");
+
+    list_init(&renderer->gl.blit_polls);
 
     /* Clear the any error state */
     (void)glGetError();

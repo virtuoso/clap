@@ -75,6 +75,8 @@ typedef struct renderer_pass_times {
 #    include <glad/glad.h>
 #   endif /* __APPLE__ */
 #  endif
+/** gl_sync_t - a GL fence sync object (GLsync) */
+typedef GLsync gl_sync_t;
 # else /* !IMPLEMENTOR */
 typedef int GLint;
 typedef int GLsizei;
@@ -83,6 +85,8 @@ typedef unsigned int GLenum;
 typedef unsigned int GLuint;
 typedef unsigned short GLushort;
 typedef ptrdiff_t GLsizeiptr;
+/** gl_sync_t - GLsync for code that doesn't include the GL headers */
+typedef void *gl_sync_t;
 # endif /* !IMPLEMENTOR */
 #endif /* CONFIG_RENDERER_OPENGL */
 
@@ -1380,6 +1384,8 @@ TYPE(renderer,
         GLenum              blend_dfactor;
         GLenum              depth_func;
         double              clear_depth;
+        /* blit rings with in-flight readbacks, polled at pass boundaries */
+        struct list         blit_polls;
         bool                fbo_texture_supported[TEX_FMT_MAX];
         bool                texture_format_supported[TEX_FMT_MAX];
         int                 major;
@@ -1867,6 +1873,23 @@ struct fbo_blit_ring {
     /* slots encoded but not yet delivered or dropped */
     atomic_int              pending;
     unsigned int            head;
+#ifdef CONFIG_RENDERER_OPENGL
+    struct {
+        /* renderer_t::gl.blit_polls while any slot is busy */
+        struct list     poll_entry;
+        /* per slot: cacheable copy of its PBO range, allocated at its first delivery */
+        void            *shadows[FBO_BLIT_FRAMES];
+        gl_sync_t       fences[FBO_BLIT_FRAMES];
+        /* slots in encode order; fences complete in the same order */
+        unsigned int    fifo[FBO_BLIT_FRAMES];
+        unsigned int    fifo_head;
+        unsigned int    fifo_count;
+        GLuint          pbo;
+        GLenum          rd_format;
+        GLenum          rd_type;
+        bool            polled;
+    } gl;
+#endif /* CONFIG_RENDERER_OPENGL */
     /* frames dropped in a row for lack of heap, see fbo_blit_slot_fits() */
     unsigned int            nr_unfit;
     /* fbo_blit_slot_put() leaves the release to the render thread */
