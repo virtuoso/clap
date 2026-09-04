@@ -1541,6 +1541,12 @@ TYPE(renderer,
             vk_descriptor_pool_t            desc_pool;
             /* resources destroyed while this frame may still be in flight */
             struct list                     zombies;
+            /* readbacks encoded this frame, delivered once its fence lands */
+            struct {
+                fbo_blit_ring               *ring;
+                unsigned int                slot;
+            }                               blits[FBO_BLIT_FRAMES];
+            unsigned int                    nr_blits;
             /* the fence is only ever signalled for a frame whose submit succeeded */
             bool                            submitted;
         }                                   frames[VK_INFLIGHT_FRAMES];
@@ -1918,6 +1924,14 @@ struct fbo_blit_ring {
         void            *base;
     } mtl;
 #endif /* CONFIG_RENDERER_METAL */
+#ifdef CONFIG_RENDERER_VULKAN
+    struct {
+        vk_buffer_t         buf;
+        vk_device_memory_t  mem;
+        /* persistently mapped base of the whole ring buffer */
+        void                *mapped;
+    } vk;
+#endif /* CONFIG_RENDERER_VULKAN */
     /* frames dropped in a row for lack of heap, see fbo_blit_slot_fits() */
     unsigned int            nr_unfit;
     /* fbo_blit_slot_put() leaves the release to the render thread */

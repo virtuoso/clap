@@ -1630,6 +1630,7 @@ static int vk_renderer_hdr_transfer_get(renderer_t *r)          { return r->vk.h
 static unsigned int vk_renderer_hdr_transfers(renderer_t *r)    { return r->vk.hdr_transfers; }
 
 static void vk_ubos_frame_advance(renderer_t *r);
+static void vk_blits_deliver(renderer_t *r, unsigned int frame, bool submitted);
 
 /**
  * vk_viewport_apply() - set the viewport and scissor for a @width x @height target
@@ -1659,9 +1660,10 @@ static void vk_renderer_frame_begin(renderer_t *r)
     if (r->vk.cb_open)  return;
 
     auto f = &r->vk.frames[r->vk.frame_idx];
+    bool submitted = f->submitted;
 
     /* a frame whose submit failed never signals its fence: don't wait for it */
-    if (f->submitted) {
+    if (submitted) {
         vkWaitForFences(r->vk.device, 1, &f->fence, VK_TRUE, UINT64_MAX);
         f->submitted = false;
     }
@@ -1672,6 +1674,8 @@ static void vk_renderer_frame_begin(renderer_t *r)
     vk_ubos_frame_advance(r);
     /* ... and that its parked resources are safe to destroy */
     vk_zombies_drain(r, r->vk.frame_idx);
+    /* ... and that its readbacks have landed in host-visible memory */
+    vk_blits_deliver(r, r->vk.frame_idx, submitted);
     /* ... and that its pass timestamps have landed */
     vk_pass_ts_collect(r);
 
@@ -3152,6 +3156,149 @@ static void vk_fbo_prepare(fbo_t *fbo)
     vk_viewport_apply(f->cmd_buf, fbo->width, fbo->height);
 }
 
+/****************************************************************************
+ * Asynchronous attachment readback
+ *
+ * vkCmdCopyImageToBuffer into a persistently mapped host-visible ring;
+ * a frame's readbacks are parked on its in-flight slot and delivered
+ * when the slot's fence proves the frame retired (frame_begin)
+ ****************************************************************************/
+
+/**
+ * vk_blit_ring_init() - the blit_ring_init op: allocate @ring's persistently mapped buffer
+ * @fbo:    FBO whose attachment @ring reads back
+ * @ring:   ring to back, its cfg filled in by the caller
+ *
+ * Return: CERR_OK, or the buffer creation error; CERR_NOMEM if mapping fails
+ */
+static cerr vk_blit_ring_init(fbo_t *fbo, fbo_blit_ring *ring)
+{
+    renderer_t *r = fbo->renderer;
+    VkBuffer buf;
+    VkDeviceMemory mem;
+
+    ring->slot_stride = round_up(ring->cfg.buffer_size, 256);
+
+    VkDeviceSize total = (VkDeviceSize)ring->slot_stride * FBO_BLIT_FRAMES;
+
+    /* prefer cacheable memory: consumer threads read the mapping directly */
+    cerr err = vk_buffer_create(r, total, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+                                VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+                                &buf, &mem);
+    if (IS_CERR(err))
+        err = vk_buffer_create(r, total, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                               &buf, &mem);
+    CERR_RET_CERR(err);
+
+    void *mapped;
+    if (vkMapMemory(r->vk.device, mem, 0, VK_WHOLE_SIZE, 0, &mapped) != VK_SUCCESS) {
+        vkDestroyBuffer(r->vk.device, buf, NULL);
+        vkFreeMemory(r->vk.device, mem, NULL);
+        return CERR_NOMEM;
+    }
+
+    ring->vk.buf    = buf;
+    ring->vk.mem    = mem;
+    ring->vk.mapped = mapped;
+
+    return CERR_OK;
+}
+
+/**
+ * vk_blit_ring_done() - the blit_ring_done op: unmap @ring's buffer and park it for destruction
+ * @r:      renderer
+ * @ring:   ring being torn down
+ */
+static void vk_blit_ring_done(renderer_t *r, fbo_blit_ring *ring)
+{
+    vkUnmapMemory(r->vk.device, ring->vk.mem);
+    /* frames referencing the buffer may still be in flight */
+    vk_zombie_add(r, (vk_zombie){ .buf = ring->vk.buf, .mem = ring->vk.mem });
+}
+
+/**
+ * vk_blits_deliver() - hand a retired frame's readbacks to their consumers
+ * @r:          renderer
+ * @frame:      in-flight frame slot being recycled
+ * @submitted:  whether the frame's submit succeeded; false drops its slots
+ *
+ * The frame's fence has landed: its copies are host-visible. A frame whose
+ * submit failed never ran them, so its slots hold no pixels: drop those.
+ */
+static void vk_blits_deliver(renderer_t *r, unsigned int frame, bool submitted)
+{
+    auto f = &r->vk.frames[frame];
+
+    for (unsigned int i = 0; i < f->nr_blits; i++) {
+        auto ring = f->blits[i].ring;
+        auto slot = f->blits[i].slot;
+
+        if (submitted)  fbo_blit_slot_deliver(ring, slot, (char *)ring->vk.mapped + slot * ring->slot_stride);
+        else            fbo_blit_slot_drop(ring, slot);
+    }
+    f->nr_blits = 0;
+}
+
+/**
+ * vk_fbo_blit_encode() - encode the copy of @fbo's armed readback into a free ring slot
+ * @fbo:    FBO whose pass has just ended
+ *
+ * Called between passes, with the frame's command buffer recording.
+ */
+static void vk_fbo_blit_encode(fbo_t *fbo)
+{
+    renderer_t *r = fbo->renderer;
+    auto f = &r->vk.frames[r->vk.frame_idx];
+
+    if (f->nr_blits >= array_size(f->blits))    return;
+
+    unsigned int slot = CRES_RET(fbo_blit_slot_acquire(fbo), {
+        if (IS_CERR_CODE(__resp, CERR_NOT_FOUND))   dbg("%s: no free readback slot, skipping\n", fbo->vk.name);
+        return;
+    });
+
+    fbo_blit_ring *ring = fbo->blit;
+    texture_t *tex = &fbo->color_tex[fbo_attachment_color(ring->cfg.attachment)];
+
+    vk_texture_layout_to(f->cmd_buf, tex, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+    VkBufferImageCopy region = {
+        .bufferOffset       = (VkDeviceSize)slot * ring->slot_stride,
+        .imageSubresource   = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layerCount = 1,
+        },
+        .imageExtent        = { fbo->width, fbo->height, 1 },
+    };
+    vkCmdCopyImageToBuffer(f->cmd_buf, tex->vk.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           ring->vk.buf, 1, &region);
+
+    /* the fence wait covers device accesses only: make the copy visible to the host */
+    VkBufferMemoryBarrier barrier = {
+        .sType                  = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask          = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask          = VK_ACCESS_HOST_READ_BIT,
+        .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+        .buffer                 = ring->vk.buf,
+        .offset                 = region.bufferOffset,
+        .size                   = ring->cfg.buffer_size,
+    };
+    vkCmdPipelineBarrier(f->cmd_buf, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_HOST_BIT, 0,
+                         0, NULL, 1, &barrier, 0, NULL);
+
+    vk_texture_layout_to(f->cmd_buf, tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    f->blits[f->nr_blits].ring = ring;
+    f->blits[f->nr_blits].slot = slot;
+    f->nr_blits++;
+}
+
 static void vk_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 {
     auto r = fbo->renderer;
@@ -3176,6 +3323,8 @@ static void vk_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
     }
     if (fbo->layout.depth_texture && fbo->depth_tex.vk.view)
         vk_texture_layout_to(f->cmd_buf, &fbo->depth_tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    vk_fbo_blit_encode(fbo);
 
     r->vk.fbo = NULL;
 
@@ -3998,6 +4147,8 @@ static const renderer_ops vk_renderer_ops = {
     .fbo_tex_supported      = vk_fbo_texture_supported,
     .fbo_create             = vk_fbo_create,
     .fbo_destroy            = vk_fbo_destroy,
+    .blit_ring_init         = vk_blit_ring_init,
+    .blit_ring_done         = vk_blit_ring_done,
     .ubo_init               = vk_uniform_buffer_init,
     .ubo_done               = vk_uniform_buffer_done,
     .ubo_destroy            = vk_uniform_buffer_destroy,
