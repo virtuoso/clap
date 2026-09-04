@@ -96,6 +96,8 @@ static texture_format mtl_fbo_texture_format(fbo_t *fbo, fbo_attachment attachme
 static bool mtl_fbo_texture_supported(renderer_t *r, texture_format format);
 static cresp(fbo_t) mtl_fbo_new(const fbo_init_options *opts);
 static void mtl_fbo_destroy(fbo_t *fbo);
+static cerr mtl_blit_ring_init(fbo_t *fbo, fbo_blit_ring *ring);
+static void mtl_blit_ring_done(renderer_t *r, fbo_blit_ring *ring);
 static void mtl_uniform_buffer_destroy(uniform_buffer_t *ubo);
 
 static const renderer_ops mtl_renderer_ops = {
@@ -156,6 +158,8 @@ static const renderer_ops mtl_renderer_ops = {
     .fbo_tex_supported = mtl_fbo_texture_supported,
     .fbo_create     = mtl_fbo_new,
     .fbo_destroy    = mtl_fbo_destroy,
+    .blit_ring_init = mtl_blit_ring_init,
+    .blit_ring_done = mtl_blit_ring_done,
     .ubo_init       = mtl_uniform_buffer_init,
     .ubo_done       = mtl_uniform_buffer_done,
     .ubo_destroy    = mtl_uniform_buffer_destroy,
@@ -1212,6 +1216,137 @@ static inline void mtl_pass_ts_attach(renderer_t *r, fbo_t *fbo) {}
 static inline void mtl_pass_ts_collect(renderer_t *r, unsigned int slot, double cmdbuf_time) {}
 #endif /* CONFIG_FINAL */
 
+/****************************************************************************
+ * Asynchronous attachment readback
+ *
+ * A blit encoder copies the attachment into a shared-storage ring
+ * buffer right after the pass's render encoding; the command buffer's
+ * completion handler delivers the finished slots from its thread
+ ****************************************************************************/
+
+/**
+ * mtl_inflight_wait() - wait out the committed command buffers
+ * @r:  renderer
+ *
+ * Takes every count of the in-flight semaphore and gives them back. A
+ * completion handler signals the semaphore as its last step, so once the
+ * waits return, no completion handler of a committed command buffer is
+ * left to run. Callable between frames only: the open command buffer
+ * holds a count until it is committed and completes.
+ */
+static void mtl_inflight_wait(renderer_t *r)
+{
+    for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)   dispatch_semaphore_wait(r->mtl.sem, DISPATCH_TIME_FOREVER);
+    for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)   dispatch_semaphore_signal(r->mtl.sem);
+}
+
+/**
+ * mtl_blit_ring_init() - the blit_ring_init op
+ * @fbo:    the fbo the ring reads back from
+ * @ring:   the ring to allocate the buffer for
+ *
+ * Allocates one shared-storage buffer for all of the ring's slots, at
+ * 256-byte aligned offsets.
+ *
+ * Return: CERR_OK, or CERR_NOMEM if the buffer can't be allocated
+ */
+static cerr mtl_blit_ring_init(fbo_t *fbo, fbo_blit_ring *ring)
+{
+    renderer_t *r = fbo->renderer;
+
+    ring->slot_stride = round_up(ring->cfg.buffer_size, 256);
+    ring->mtl.buf = mtl_buffer_new(r, NULL, ring->slot_stride * FBO_BLIT_FRAMES, true, false);
+    if (!ring->mtl.buf) return CERR_NOMEM;
+
+    ring->mtl.base = [ring->mtl.buf contents];
+
+    return CERR_OK;
+}
+
+/**
+ * mtl_blit_ring_done() - the blit_ring_done op
+ * @r:      renderer
+ * @ring:   the ring to release the buffer of
+ *
+ * The teardown sweep also frees rings with readbacks still pending, and
+ * the completion handlers of their command buffers, on Metal's thread,
+ * still update the ring as they drop those: for such a ring, wait the
+ * handlers out first. No other sweep frees a pending ring, and the
+ * teardown one runs between frames, as mtl_inflight_wait() requires.
+ */
+static void mtl_blit_ring_done(renderer_t *r, fbo_blit_ring *ring)
+{
+    if (atomic_load_explicit(&ring->pending, memory_order_acquire)) mtl_inflight_wait(r);
+
+    /* in-flight command buffers retain the buffer, release is safe */
+    [ring->mtl.buf release];
+    ring->mtl.buf = nil;
+}
+
+/**
+ * mtl_blits_complete() - deliver or drop a completed command buffer's readbacks
+ * @r:      renderer
+ * @slot:   in-flight slot of the command buffer
+ * @failed: the command buffer completed with an error
+ *
+ * Runs in the completion handler, on Metal's thread, before the handler
+ * signals the in-flight semaphore: the signal hands @slot's list of pending
+ * readbacks back to the encoding side.
+ */
+static void mtl_blits_complete(renderer_t *r, unsigned int slot, bool failed)
+{
+    for (unsigned int i = 0; i < r->mtl.nr_blit_pend[slot]; i++) {
+        auto ring = r->mtl.blit_pend[slot][i].ring;
+        auto s = r->mtl.blit_pend[slot][i].slot;
+
+        if (failed) fbo_blit_slot_drop(ring, s);
+        else        fbo_blit_slot_deliver(ring, s, (char *)ring->mtl.base + s * ring->slot_stride);
+    }
+    r->mtl.nr_blit_pend[slot] = 0;
+}
+
+/**
+ * mtl_fbo_blit_encode() - encode an fbo's armed readback
+ * @fbo:    the fbo whose render encoding has just ended
+ *
+ * Called from mtl_fbo_done(), before the next pass: the copy goes on the
+ * frame's command buffer, and the readback on the list of the frame's
+ * in-flight slot, for the completion handler to deliver. With no free
+ * ring slot, the frame's readback is skipped.
+ */
+static void mtl_fbo_blit_encode(fbo_t *fbo)
+{
+    renderer_t *r = fbo->renderer;
+    unsigned int pend_slot = r->mtl.frame_idx;
+
+    if (!r->mtl.cmd_buffer)                                 return;
+    if (r->mtl.nr_blit_pend[pend_slot] >= FBO_BLIT_FRAMES)  return;
+
+    unsigned int slot = CRES_RET(fbo_blit_slot_acquire(fbo), {
+        if (IS_CERR_CODE(__resp, CERR_NOT_FOUND))   dbg("%s: no free readback slot, skipping\n", fbo->mtl.name);
+        return;
+    });
+
+    fbo_blit_ring *ring = fbo->blit;
+    auto tex = &fbo->color_tex[fbo_attachment_color(ring->cfg.attachment)];
+
+    mtl_blit_command_encoder_t blit = [r->mtl.cmd_buffer blitCommandEncoder];
+    [blit copyFromTexture:tex->mtl.texture
+              sourceSlice:0
+              sourceLevel:0
+             sourceOrigin:MTLOriginMake(0, 0, 0)
+               sourceSize:MTLSizeMake(fbo->width, fbo->height, 1)
+                 toBuffer:ring->mtl.buf
+        destinationOffset:(NSUInteger)slot * ring->slot_stride
+   destinationBytesPerRow:ring->cfg.bytes_per_row_aligned
+ destinationBytesPerImage:ring->cfg.buffer_size];
+    [blit endEncoding];
+
+    r->mtl.blit_pend[pend_slot][r->mtl.nr_blit_pend[pend_slot]].ring = ring;
+    r->mtl.blit_pend[pend_slot][r->mtl.nr_blit_pend[pend_slot]].slot = slot;
+    r->mtl.nr_blit_pend[pend_slot]++;
+}
+
 static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
 {
     if (r->mtl.cmd_buffer)  return r->mtl.cmd_buffer;
@@ -1240,6 +1375,7 @@ static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
         r->mtl.cmdbuf_time = cb.GPUEndTime - cb.GPUStartTime;
         /* before the signal: the main thread reuses this slot right after its wait */
         mtl_pass_ts_collect(r, ts_slot, r->mtl.cmdbuf_time);
+        mtl_blits_complete(r, ts_slot, cb.error != nil);
         dispatch_semaphore_signal(r->mtl.sem);
     }];
 
@@ -1283,6 +1419,8 @@ static void mtl_fbo_done(fbo_t *fbo, unsigned int width, unsigned int height)
 
     [fbo->mtl.cmd_encoder endEncoding];
     fbo->mtl.cmd_encoder = nil;
+
+    mtl_fbo_blit_encode(fbo);
 }
 
 
@@ -1819,11 +1957,7 @@ static void mtl_renderer_done(renderer_t *r)
 {
     fbo_put_last(r->mtl.screen_fbo);
 
-    for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)
-        dispatch_semaphore_wait(r->mtl.sem, DISPATCH_TIME_FOREVER);
-
-    for (int i = 0; i < MTL_INFLIGHT_FRAMES; i++)
-        dispatch_semaphore_signal(r->mtl.sem);
+    mtl_inflight_wait(r);
 
     draw_control_cache_done(r);
 

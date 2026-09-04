@@ -105,6 +105,7 @@ typedef id<MTLLibrary> mtl_library_t;
 typedef id<MTLFunction> mtl_function_t;
 typedef id<MTLCommandQueue> mtl_command_queue_t;
 typedef id<MTLCommandBuffer> mtl_command_buffer_t;
+typedef id<MTLBlitCommandEncoder> mtl_blit_command_encoder_t;
 typedef id<MTLCounterSampleBuffer> mtl_counter_sample_buffer_t;
 typedef id<MTLRenderCommandEncoder> mtl_render_command_encoder_t;
 typedef MTLRenderPassDescriptor *mtl_render_pass_descriptor_t;
@@ -127,6 +128,7 @@ typedef void *mtl_library_t;
 typedef void *mtl_function_t;
 typedef void *mtl_command_queue_t;
 typedef void *mtl_command_buffer_t;
+typedef void *mtl_blit_command_encoder_t;
 typedef void *mtl_counter_sample_buffer_t;
 typedef void *mtl_render_command_encoder_t;
 typedef void *mtl_render_pass_descriptor_t;
@@ -1475,6 +1477,12 @@ TYPE(renderer,
         struct bitmap                       shader_ids;
         struct list                         ubos;
         cg_colorspace_ref_t                 colorspace;
+        /* readbacks encoded per in-flight command buffer, delivered on completion */
+        struct {
+            fbo_blit_ring                   *ring;
+            unsigned int                    slot;
+        }                                   blit_pend[MTL_INFLIGHT_FRAMES][FBO_BLIT_FRAMES];
+        unsigned int                        nr_blit_pend[MTL_INFLIGHT_FRAMES];
         int                                 major;
         int                                 minor;
         int                                 fps_cap;
@@ -1903,6 +1911,13 @@ struct fbo_blit_ring {
         unsigned int    nr_to_map;
     } wgpu;
 #endif /* CONFIG_RENDERER_WGPU */
+#ifdef CONFIG_RENDERER_METAL
+    struct {
+        mtl_buffer_t    buf;
+        /* [buf contents], stable for the buffer's lifetime */
+        void            *base;
+    } mtl;
+#endif /* CONFIG_RENDERER_METAL */
     /* frames dropped in a row for lack of heap, see fbo_blit_slot_fits() */
     unsigned int            nr_unfit;
     /* fbo_blit_slot_put() leaves the release to the render thread */
