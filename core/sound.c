@@ -10,6 +10,7 @@
 #include "miniaudio.h"
 
 #include "object.h"
+#include "clap.h"
 #include "librarian.h"
 #include "logger.h"
 #include "sound.h"
@@ -19,6 +20,8 @@ typedef struct sound_context {
     ma_device   device;
     ma_engine   engine;
     bool        started;
+    /* what clap_cpus_reserve() granted of SOUND_NR_THREADS */
+    unsigned int nr_threads;
     struct list sounds;
     struct list chains;
     clap_context *clap_ctx;
@@ -303,6 +306,20 @@ static int sound_handle_input(struct clap_context *clap_ctx, struct message *m, 
 
 DEFINE_CLEANUP(sound_context, if (*p) mem_free(*p))
 
+/*
+ * What miniaudio runs on threads of its own: the resource manager's job
+ * thread everywhere, and the device's data loop where the backend polls
+ * rather than calls back (PulseAudio and ALSA do; CoreAudio and the audio
+ * worklet don't)
+ */
+#if defined(__EMSCRIPTEN__) || defined(__APPLE__)
+/** SOUND_NR_THREADS - threads miniaudio runs: the job thread */
+#define SOUND_NR_THREADS 1
+#else
+/** SOUND_NR_THREADS - threads miniaudio runs: the job thread and the data loop */
+#define SOUND_NR_THREADS 2
+#endif /* !(__EMSCRIPTEN__ || __APPLE__) */
+
 cresp(sound_context) sound_init(clap_context *clap_ctx)
 {
     LOCAL_SET(sound_context, ctx) = mem_alloc(sizeof(*ctx), .zero = 1);
@@ -313,6 +330,8 @@ cresp(sound_context) sound_init(clap_context *clap_ctx)
     ctx->master_sfx   = 1.0f;
     list_init(&ctx->sounds);
     list_init(&ctx->chains);
+
+    ctx->nr_threads = clap_cpus_reserve(clap_ctx, SOUND_NR_THREADS);
 
 #ifdef CONFIG_BROWSER
     subscribe(ctx->clap_ctx, MT_INPUT, sound_handle_input, ctx);
@@ -343,6 +362,7 @@ void sound_done(sound_context *ctx)
         ma_context_uninit(&ctx->context);
     }
 
+    clap_cpus_release(ctx->clap_ctx, ctx->nr_threads);
     mem_free(ctx);
 }
 
