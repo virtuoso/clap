@@ -174,6 +174,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         "-s USE_FREETYPE=1"
         "-s USE_LIBPNG=1"
     )
+    # Web workers spawned up front for pthreads; the CPU budget in
+    # clap_cpus_reserve() hands out no more than this, and a thread
+    # past it fails to create (STRICT=2) rather than wait for a worker
+    # that only spawns once the main thread is back in the event loop
+    set(CLAP_WASM_PTHREAD_POOL_SIZE 4)
     set(CLAP_DEPENDENCY_LIBRARIES
         ${CLAP_EMSCRIPTEN_COMPILE_LIBRARIES}
         "-lidbfs.js"
@@ -189,7 +194,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         "-s SHARED_MEMORY=1"
         "-s ASYNCIFY"
         "-pthread"
-        "-s PTHREAD_POOL_SIZE=4"
+        "-s PTHREAD_POOL_SIZE=${CLAP_WASM_PTHREAD_POOL_SIZE}"
+        "-s PTHREAD_POOL_SIZE_STRICT=2"
     )
     set(CLAP_EMSCRIPTEN_COMPILE_OPTIONS
         "-s WASM_WORKERS=1"

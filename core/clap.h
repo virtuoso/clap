@@ -75,6 +75,7 @@ typedef struct clap_semver {
  * @mobile:             whether running on a mobile device
  * @os:                 operating system kind
  * @browser:            browser kind, %CLAP_BROWSER_NONE on native builds
+ * @nr_cpus:            logical CPUs; 0 where the browser withholds them
  * @os_version:         OS version (browsers may freeze/fake it)
  * @browser_version:    browser version, zeros on native builds
  * @webkit_version:     AppleWebKit build version, zeros when not WebKit-derived
@@ -84,6 +85,7 @@ typedef struct clap_os_info {
     bool            mobile;
     clap_os_type    os;
     clap_browser    browser;
+    unsigned int    nr_cpus;
     clap_semver     os_version;
     clap_semver     browser_version;
     clap_semver     webkit_version;
@@ -119,6 +121,30 @@ void clap_os_parse_user_agent(clap_os_info *osi, const char *ua);
  */
 CLAP_API
 clap_os_info *clap_get_os(clap_context *ctx);
+
+/**
+ * clap_cpus_reserve() - take CPUs out of the machine's budget
+ * @ctx:    clap_context
+ * @want:   how many threads the caller would like to run
+ *
+ * The budget is the logical CPUs less the main thread, less what the
+ * other callers hold; a native caller always gets at least one CPU, so
+ * that a pool exists on any machine. A browser build's budget is its pool of
+ * pthreads instead, and once that's spent there are none: the link
+ * refuses a thread past the pool.
+ * Callers give the CPUs back with clap_cpus_release().
+ * Return: the number of threads to start, 0 once a browser's are spent
+ */
+CLAP_API
+unsigned int clap_cpus_reserve(clap_context *ctx, unsigned int want) __nonnull_params((1));
+
+/**
+ * clap_cpus_release() - give reserved CPUs back
+ * @ctx:    clap_context
+ * @nr:     what clap_cpus_reserve() granted
+ */
+CLAP_API
+void clap_cpus_release(clap_context *ctx, unsigned int nr) __nonnull_params((1));
 
 typedef struct noise3d noise3d;
 

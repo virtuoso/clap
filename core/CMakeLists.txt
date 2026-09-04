@@ -69,6 +69,9 @@ endif ()
 if (CLAP_BUILD_WITH_SCRIPTING)
     set(CONFIG_SCRIPTING 1)
 endif ()
+if (CLAP_WASM_PTHREAD_POOL_SIZE)
+    set(CONFIG_WASM_PTHREAD_POOL_SIZE ${CLAP_WASM_PTHREAD_POOL_SIZE})
+endif ()
 
 configure_file(config.h.in config.h)
 

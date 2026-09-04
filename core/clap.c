@@ -7,9 +7,13 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
-#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+#ifdef __EMSCRIPTEN__
+#include <emscripten/threading.h>
+#elif defined(_WIN32)
+#include <pthread.h>
+#else
 #include <sys/utsname.h>
-#endif
+#endif /* !__EMSCRIPTEN__ && !_WIN32 */
 #include "clap.h"
 #include "common.h"
 #include "display.h"
@@ -231,6 +235,8 @@ typedef struct clap_context {
     double              paused_time;
     cerr                pipeline_error;
     render_backend      renderer_want;
+    /* CPUs clap_cpus_reserve() has handed out */
+    unsigned int        nr_cpus_reserved;
     bool                fullscreen;
     bool                paused;
 } clap_context;
@@ -320,6 +326,48 @@ font_context *clap_get_font(clap_context *ctx)
 clap_os_info *clap_get_os(clap_context *ctx)
 {
     return &ctx->os_info;
+}
+
+/**
+ * clap_cpus_budget() - the threads there are for everything but the main thread
+ * @ctx:    clap_context
+ *
+ * Natively, clap_cpus_reserve() still grants a caller one CPU once this
+ * is spent, so its callers can hold more than this in all.
+ * Return: the logical CPUs less the main thread natively, the pthread
+ *         pool's size in a browser
+ */
+static unsigned int clap_cpus_budget(clap_context *ctx)
+{
+#ifdef CONFIG_WASM_PTHREAD_POOL_SIZE
+    /* a browser's pthreads are the web workers linked in; the main thread isn't one */
+    return CONFIG_WASM_PTHREAD_POOL_SIZE;
+#else
+    return ctx->os_info.nr_cpus ? ctx->os_info.nr_cpus - 1 : 0;
+#endif /* !CONFIG_WASM_PTHREAD_POOL_SIZE */
+}
+
+unsigned int clap_cpus_reserve(clap_context *ctx, unsigned int want)
+{
+    unsigned int budget = clap_cpus_budget(ctx);
+    unsigned int free = budget > ctx->nr_cpus_reserved ? budget - ctx->nr_cpus_reserved : 0;
+    unsigned int nr = min(want, free);
+
+#ifndef CONFIG_WASM_PTHREAD_POOL_SIZE
+    /* a thread past the budget is merely slow natively; a browser's doesn't exist */
+    if (!nr)    nr = 1;
+#endif /* !CONFIG_WASM_PTHREAD_POOL_SIZE */
+
+    ctx->nr_cpus_reserved += nr;
+    dbg("%u of %u CPUs wanted, %u of %u reserved\n", nr, want, ctx->nr_cpus_reserved, budget);
+
+    return nr;
+}
+
+void clap_cpus_release(clap_context *ctx, unsigned int nr)
+{
+    err_on(nr > ctx->nr_cpus_reserved, "releasing %u CPUs of %u\n", nr, ctx->nr_cpus_reserved);
+    ctx->nr_cpus_reserved -= min(nr, ctx->nr_cpus_reserved);
 }
 
 noise3d *clap_get_noise3d(clap_context *ctx)    { return ctx->noise3d; }
@@ -1162,12 +1210,13 @@ static bool clap_config_is_valid(struct clap_config *cfg)
 
 static void os_info_dbg(clap_os_info *osi)
 {
-    dbg("os %d v%u.%u.%u%s browser %d v%u.%u.%u webkit v%u.%u.%u\n",
+    dbg("os %d v%u.%u.%u%s browser %d v%u.%u.%u webkit v%u.%u.%u cpus %u\n",
         osi->os, osi->os_version.major, osi->os_version.minor, osi->os_version.patch,
         osi->mobile ? " (mobile)" : "",
         osi->browser, osi->browser_version.major, osi->browser_version.minor,
         osi->browser_version.patch,
-        osi->webkit_version.major, osi->webkit_version.minor, osi->webkit_version.patch);
+        osi->webkit_version.major, osi->webkit_version.minor, osi->webkit_version.patch,
+        osi->nr_cpus);
 }
 
 #ifdef __EMSCRIPTEN__
@@ -1196,6 +1245,8 @@ static cerr clap_os_init(struct clap_context *ctx)
         return CERR_NOMEM;
 
     clap_os_parse_user_agent(&ctx->os_info, ctx->os_info.name);
+    /* navigator.hardwareConcurrency, 0 where the browser withholds it */
+    ctx->os_info.nr_cpus = emscripten_num_logical_cores();
     os_info_dbg(&ctx->os_info);
 
     return CERR_OK;
@@ -1205,6 +1256,8 @@ static cerr clap_os_init(struct clap_context *ctx)
 {
     ctx->os_info.name = strdup("Windows");
     ctx->os_info.os = CLAP_OS_WINDOWS;
+    /* winpthreads: the CPUs in the process affinity mask, at most 64 (one processor group) */
+    ctx->os_info.nr_cpus = pthread_num_processors_np();
     os_info_dbg(&ctx->os_info);
 
     return ctx->os_info.name ? CERR_OK : CERR_NOMEM;
@@ -1227,6 +1280,9 @@ static cerr clap_os_init(struct clap_context *ctx)
     if (!strcmp(u.sysname, "Linux"))        ctx->os_info.os = CLAP_OS_LINUX;
     else if (!strcmp(u.sysname, "Darwin"))  ctx->os_info.os = CLAP_OS_MACOS;
     clap_semver_parse(u.release, &ctx->os_info.os_version);
+
+    long nr_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+    if (nr_cpus > 0)    ctx->os_info.nr_cpus = nr_cpus;
     os_info_dbg(&ctx->os_info);
 
     return CERR_OK;
