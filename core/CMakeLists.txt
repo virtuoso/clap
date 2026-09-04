@@ -251,7 +251,7 @@ add_custom_target(render_bindings_gen DEPENDS
 )
 
 if (NOT CLAP_BUILD_FINAL)
-    list(APPEND ENGINE_SRC profiler.c pipeline-debug.c)
+    list(APPEND ENGINE_SRC profiler.c pipeline-debug.c exr.c)
 endif ()
 
 if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
