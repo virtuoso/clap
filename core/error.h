@@ -48,6 +48,7 @@ typedef enum cerr_enum {
     _CERR_PREVIOUS_ERRORS        = -35,
     _CERR_PARTIAL_FAILURE        = -36,
     _CERR_GPSM_ABORT             = -37,
+    _CERR_CANCELLED              = -38,
 } cerr_enum;
 
 /****************************************************************************
