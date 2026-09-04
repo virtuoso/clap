@@ -234,7 +234,7 @@ cerr_check _thread_init(thread_t *t, thread_fn func, void *data, thread_options 
  * Return: Thread handle on success, error code otherwise.
  */
 #define thread_new(_func, _data, ...) \
-    _thread_new((_tctx), (_func), (_data), &(thread_options) { .name = __stringify(_func), __VA_ARGS__ })
+    _thread_new((_func), (_data), &(thread_options) { .name = __stringify(_func), __VA_ARGS__ })
 
 /**
  * _thread_new() - internal thread creation
