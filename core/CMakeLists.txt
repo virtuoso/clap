@@ -153,7 +153,7 @@ set(MA_DIR ${CMAKE_SOURCE_DIR}/deps/src/miniaudio)
 set(ENGINE_LIB libonehandclap)
 set(ENGINE_SRC
     object.c util.c fs-ops.c fs-ops-posix.c logger.c messagebus.c primitives.c motion.c
-    model.c shader.c librarian.c json.c clap.c view.c light.c thread-pthread.c
+    model.c shader.c librarian.c json.c clap.c view.c light.c thread-pthread.c worker.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
     ${PHYSICS_SRC} ui-animations.c ui-menus.c ui-settings.c character.c gpsm.c settings.c error.c
     gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c platform.c datatypes.c
