@@ -439,3 +439,6 @@ clap_subsystem_test(graph_tests test-graph.c graph.c prng.c prng-mt.cpp)
 # The gpsm tests compile the state machine alone; the callbacks are the
 # fixture's own
 clap_subsystem_test(gpsm_tests test-gpsm.c gpsm.c)
+
+# The worker tests compile the pool and the thread layer it runs on
+clap_subsystem_test(worker_tests test-worker.c worker.c thread-pthread.c)

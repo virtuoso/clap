@@ -29,4 +29,10 @@ int test_main(int argc, char **argv, char **envp, const struct test *tests, size
 /* -v count; tests may read it to be chatty. */
 extern unsigned int verbose;
 
+/* The harness' stub engine context, for APIs that take one. */
+extern struct clap_context *test_ctx;
+
+/** TEST_CPU_BUDGET - what the harness' clap_cpus_reserve() grants at most */
+#define TEST_CPU_BUDGET 2
+
 #endif /* __CLAP_TEST_H__ */

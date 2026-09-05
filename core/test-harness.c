@@ -12,6 +12,7 @@
 #include "logger.h"
 #include "messagebus.h"
 #include "test.h"
+#include "util.h"
 
 /*
  * The test binaries link a stripped-down engine, so provide the messagebus
@@ -27,6 +28,17 @@ struct messagebus *clap_get_messagebus(struct clap_context *ctx)
 }
 
 /*
+ * The CPU budget worker pools draw on: the real one sizes itself by
+ * the machine, the tests want a known cap to check the clamping against.
+ */
+unsigned int clap_cpus_reserve(struct clap_context *ctx, unsigned int want)
+{
+    return min(want, TEST_CPU_BUDGET);
+}
+
+void clap_cpus_release(struct clap_context *ctx, unsigned int nr) {}
+
+/*
  * logger.c prints build_date on init. The real value comes from the generated
  * builddate.c, which the engine regenerates on every build; the tests don't
  * care about the timestamp, so stub it instead of compiling that file.
@@ -34,6 +46,7 @@ struct messagebus *clap_get_messagebus(struct clap_context *ctx)
 const char *build_date = "test";
 
 unsigned int verbose;
+struct clap_context *test_ctx;
 
 static struct option long_options[] = {
     { "verbose",    no_argument,        0, 'v' },
@@ -49,6 +62,8 @@ int test_main(int argc, char **argv, char **envp, const struct test *tests, size
 
     cerr err = messagebus_init(&ctx);
     if (IS_CERR(err))   return EXIT_FAILURE;
+
+    test_ctx = &ctx;
 
     for (;;) {
         c = getopt_long(argc, argv, short_options, long_options, &option_index);
