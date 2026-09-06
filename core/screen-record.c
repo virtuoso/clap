@@ -89,6 +89,44 @@ static cerr directory_open(struct scene *s)
     return ui_debug_fs_open(&screenshot_dialog, &cfg, NULL);
 }
 
+#ifdef CONFIG_BROWSER
+/** BROWSER_SCREENSHOT_DIR - the browser build's capture directory, in MEMFS */
+#define BROWSER_SCREENSHOT_DIR "/screenshots"
+
+static bool screenshot_dir_ready;
+
+/**
+ * screenshot_dir_init() - make the browser build's capture directory
+ *
+ * MEMFS starts over with every page load, so the directory is made anew
+ * each time; browser builds capture into it and nowhere else.
+ */
+static void screenshot_dir_init(void)
+{
+    if (screenshot_dir_ready)   return;
+    screenshot_dir_ready = true;
+
+    CERR_RET(fs_make_dir(&fs_ops_posix, BROWSER_SCREENSHOT_DIR),
+             err_cerr(__cerr, "failed to create %s\n", BROWSER_SCREENSHOT_DIR));
+    strncpy(screenshot_dir, BROWSER_SCREENSHOT_DIR, sizeof(screenshot_dir) - 1);
+}
+
+/**
+ * directory_draw() - show the capture directory
+ * @scene:  the scene
+ *
+ * Browser builds always capture into BROWSER_SCREENSHOT_DIR, there is
+ * nothing to change.
+ */
+static void directory_draw(struct scene *scene)
+{
+    igText("Output directory: %s", screenshot_dir);
+}
+
+static inline void screenshot_dir_load(void) {}
+#else
+static inline void screenshot_dir_init(void) {}
+
 /**
  * screenshot_dir_load() - take the capture directory from the settings
  *
@@ -118,6 +156,7 @@ static void directory_draw(struct scene *scene)
 
     igSameLine(0.0f, 4.0f);
 }
+#endif /* !CONFIG_BROWSER */
 
 static atomic_ulong frame;
 
@@ -515,6 +554,8 @@ static void screen_recorder(struct scene *scene);
 
 void screen_record_update(struct scene *scene)
 {
+    screenshot_dir_init();
+
     /* the writes finished since last frame return their slots before new arms */
     if (capture_pool) {
         worker_pool_poll(capture_pool, 0);
