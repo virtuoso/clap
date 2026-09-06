@@ -14,8 +14,9 @@ struct settings;
  * @rs:     the settings, once they are ready
  *
  * Reads the capture directory, "screenshot_dir" in the "debug" group,
- * unless there is one by then; the window's directory dialog keeps a
- * picked directory there.
+ * unless there is one by then, and the cap on the frames a session
+ * captures, "capture_max_frames" in the same group; the window's
+ * directory dialog keeps a picked directory there.
  */
 void screen_record_set_settings(struct settings *rs);
 

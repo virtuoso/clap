@@ -260,6 +260,16 @@ static cerr write_frame(frame_job *fj)
     return CERR_OK;
 }
 
+/** CAPTURE_MAX_FRAMES - frames a session captures unless configured otherwise: 10 s at 60 FPS */
+#define CAPTURE_MAX_FRAMES 600
+
+/* frames handed to the writers this session */
+static unsigned int nr_captured;
+/* the cap on nr_captured; recording stops there, later frames are dropped */
+static int capture_max_frames = CAPTURE_MAX_FRAMES;
+/* the cap has been hit and said so */
+static bool capture_cap_reported;
+
 static worker_pool *capture_pool;
 /* delivered frames waiting for the main thread to submit them, newest first */
 static _Atomic(frame_job *) ready;
@@ -397,6 +407,44 @@ static frame_job *ready_take(void)
 }
 
 /**
+ * capture_cap_is_reached() - has this session captured as many frames as the cap?
+ *
+ * Return: true once nr_captured is at the cap or past it
+ */
+static bool capture_cap_is_reached(void)
+{
+    return nr_captured >= (unsigned int)capture_max_frames;
+}
+
+/**
+ * capture_cap_report() - say that the cap is reached, once per cap
+ *
+ * Every frame lost to the cap gets explained: the ones screenshot()
+ * refuses and the ones delivered after the last frame under the cap.
+ */
+static void capture_cap_report(void)
+{
+    if (capture_cap_reported)   return;
+
+    msg("capture: the cap of %d frames is reached; raise it in the screen recorder window\n",
+        capture_max_frames);
+    capture_cap_reported = true;
+}
+
+/**
+ * capture_max_frames_set() - take a new cap
+ * @max_frames: the cap, 1 or more
+ *
+ * A cap above the frames captured so far gets a report of its own when
+ * capture reaches it.
+ */
+static void capture_max_frames_set(int max_frames)
+{
+    capture_max_frames = max_frames;
+    if (!capture_cap_is_reached())  capture_cap_reported = false;
+}
+
+/**
  * capture_number() - the number in a capture's file name
  * @name:   a directory entry's name
  * @prefix: the capture kind's prefix, "frame_" or "shot_"
@@ -451,10 +499,10 @@ static void frame_seed(const char *dir)
 }
 
 /**
- * ready_submit() - make every delivered frame a write job
+ * ready_submit() - make every delivered frame a write job, up to the cap
  *
  * On the main thread, which numbers the frames in the order they were
- * delivered.
+ * delivered; frames delivered once the cap is reached are dropped.
  */
 static void ready_submit(void)
 {
@@ -462,6 +510,14 @@ static void ready_submit(void)
         next = fj->next;
         fj->flip = capture_flip;
         memcpy(fj->dir, screenshot_dir, sizeof(fj->dir));
+
+        /* armed before the cap was reached, delivered after */
+        if (capture_cap_is_reached()) {
+            capture_cap_report();
+            frame_discard(fj);
+            continue;
+        }
+
         frame_seed(fj->dir);
         fj->index = atomic_fetch_add_explicit(&frame, 1, memory_order_relaxed);
 
@@ -475,16 +531,54 @@ static void ready_submit(void)
         );
 
         /* the pool holds the job until done(); nothing here needs the handle */
+        nr_captured++;
         nr_in_flight++;
         ref_put(j);
     }
+}
+
+/**
+ * capture_max_frames_is_valid() - is a settings value a cap?
+ * @node:   the value
+ *
+ * Return: true for a whole number of frames, 1 or more
+ */
+static bool capture_max_frames_is_valid(const JsonNode *node)
+{
+    return node->tag == JSON_NUMBER && node->number_ >= 1 && node->number_ <= INT_MAX &&
+           node->number_ == (int)node->number_;
 }
 
 void screen_record_set_settings(struct settings *rs)
 {
     settings = rs;
     debug_group = settings_find_get(rs, NULL, "debug", JSON_OBJECT);
-    if (debug_group)    screenshot_dir_load();
+    if (!debug_group)   return;
+
+    screenshot_dir_load();
+
+    JsonNode *node = settings_get(rs, debug_group, "capture_max_frames");
+    if (!node)                              return;
+    if (capture_max_frames_is_valid(node))  capture_max_frames_set(node->number_);
+    else                                    warn("capture_max_frames setting is not a frame count, ignoring it\n");
+}
+
+/**
+ * capture_max_frames_enter() - take a new cap from the screen recorder window
+ * @max_frames: the cap as entered
+ *
+ * Capture goes on up to the new cap, which the settings remember where the
+ * application keeps any; a cap below 1 is refused.
+ */
+static void capture_max_frames_enter(int max_frames)
+{
+    if (max_frames < 1) {
+        warn("capture: %d is not a frame count, the cap stays at %d\n", max_frames, capture_max_frames);
+        return;
+    }
+
+    capture_max_frames_set(max_frames);
+    if (settings && debug_group)    settings_set_num(settings, debug_group, "capture_max_frames", capture_max_frames);
 }
 
 static bool capture_pool_failed;
@@ -568,6 +662,12 @@ static void screenshot(struct scene *scene, fbo_blit_complete_fn complete)
         warn_once("no pipeline pass to capture from\n");
         return;
     });
+
+    if (capture_cap_is_reached()) {
+        capture_cap_report();
+        screen_record = false;
+        return;
+    }
 
     CERR_RET(capture_pool_init(scene), return);
 
@@ -706,6 +806,14 @@ static void screen_recorder(struct scene *scene)
 
             download_button(scene);
         }
+
+        igText("frames captured: %u, cap:", nr_captured);
+        igSameLine(0.0f, 4.0f);
+        igPushItemWidth(80.0f);
+        int max_frames = capture_max_frames;
+        if (igInputInt("##capture_max_frames", &max_frames, 0, 0, ImGuiInputTextFlags_EnterReturnsTrue))
+            capture_max_frames_enter(max_frames);
+        igPopItemWidth();
 
         if (capture_pool)
             igText("capture workers: %u, frames being written: %u",
