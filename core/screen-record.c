@@ -426,8 +426,8 @@ static void capture_cap_report(void)
 {
     if (capture_cap_reported)   return;
 
-    msg("capture: the cap of %d frames is reached; raise it in the screen recorder window\n",
-        capture_max_frames);
+    msg("capture: the cap of %d frames is reached; raise it in the screen recorder window "
+        "or with clap::set_capture_max_frames()\n", capture_max_frames);
     capture_cap_reported = true;
 }
 
@@ -655,31 +655,37 @@ static bool capture_is_ready(struct scene *scene)
  * screenshot() - capture the frame being made
  * @scene:      the scene, for the pipeline to capture from
  * @complete:   the readback completion, which lists the frame for writing
+ *
+ * Return: CERR_OK, CERR_INVALID_OPERATION while the pipeline doesn't render
+ * for capture, CERR_OUT_OF_BOUNDS once the cap is reached, or the error
+ * starting the writers or arming the readback
  */
-static void screenshot(struct scene *scene, fbo_blit_complete_fn complete)
+static cerr screenshot(struct scene *scene, fbo_blit_complete_fn complete)
 {
     fbo_t *fbo = CRES_RET(capture_fbo(scene), {
         warn_once("no pipeline pass to capture from\n");
-        return;
+        return CERR_INVALID_OPERATION;
     });
 
     if (capture_cap_is_reached()) {
         capture_cap_report();
         screen_record = false;
-        return;
+        return CERR_OUT_OF_BOUNDS;
     }
 
-    CERR_RET(capture_pool_init(scene), return);
+    CERR_RET_CERR(capture_pool_init(scene));
 
     capture_flip = !renderer_get_caps(clap_get_renderer(scene->clap_ctx))->origin_top_left;
 
     fbo_blit_config *cfg = CRES_RET(fbo_attachment_blit(fbo, FBO_COLOR_TEXTURE(1), complete), {
         cerr err = cerr_error_cres(__resp);
         err_cerr(err, "failed to arm a capture\n");
-        return;
+        return err;
     });
 
     msg_once("capture armed: %u x %u %s\n", cfg->width, cfg->height, texture_format_string(cfg->format));
+
+    return CERR_OK;
 }
 
 #ifdef CONFIG_BROWSER
@@ -753,6 +759,55 @@ void screen_record_done(void)
         next = fj->next;
         frame_discard(fj);
     }
+}
+
+void screen_record_arm(struct clap_context *ctx, bool arm)
+{
+    clap_get_render_options(ctx)->screen_capture = arm;
+}
+
+bool screen_record_is_armed(struct clap_context *ctx)
+{
+    struct scene *scene = clap_get_scene(ctx);
+
+    return scene && capture_is_ready(scene);
+}
+
+cerr screen_record_shoot(struct clap_context *ctx)
+{
+    struct scene *scene = clap_get_scene(ctx);
+    if (!scene) return CERR_NOT_SUPPORTED;
+
+    return screenshot(scene, write_frame_cb);
+}
+
+cerr screen_record_set_dir(struct clap_context *ctx, const char *dir)
+{
+    struct scene *scene = clap_get_scene(ctx);
+
+    /* browser builds capture into BROWSER_SCREENSHOT_DIR and nowhere else; no graphics, no captures */
+    if (IS_DEFINED(CONFIG_BROWSER) || !scene)   return CERR_NOT_SUPPORTED;
+    if (strlen(dir) >= sizeof(screenshot_dir))  return CERR_NAME_TOO_LONG;
+
+    LOCAL_SET(fs_dir, d) = CRES_RET_CERR(fs_open_dir(&fs_ops_posix, dir));
+
+    strncpy(screenshot_dir, dir, sizeof(screenshot_dir) - 1);
+
+    return CERR_OK;
+}
+
+cerr screen_record_set_max_frames(int max_frames)
+{
+    if (max_frames < 1) return CERR_INVALID_ARGUMENTS;
+
+    capture_max_frames_set(max_frames);
+
+    return CERR_OK;
+}
+
+unsigned int screen_record_nr_captured(void)
+{
+    return nr_captured;
 }
 
 /**

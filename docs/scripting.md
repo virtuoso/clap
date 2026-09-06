@@ -144,6 +144,43 @@ clap::quit()                                   // end the process cleanly
 Directions are held state — set once, they persist until you change them; jump
 and dash are one-shot edges. Time a sequence by sending input from `on_frame`.
 
+**Capture frames.** Shoot OpenEXR files of the linear scene colour, as the
+"screen recorder" debug window does, without touching the debug UI. Arming
+rebuilds the pipeline at the end of the frame; shots work once
+`capture_is_armed()` says the rebuilt pipeline is in place. The cap and
+`frames_captured()` count the whole session, so a script that may load into a
+running one counts from where the session is:
+
+```
+var shots: int = 0
+var first: int = 0                           // frames the session captured before
+
+fn main() {
+    first = clap::frames_captured()
+    clap::set_screenshot_dir("screenshots")  // an existing directory; native only
+    clap::set_capture_max_frames(first + 3)  // the session's cap on captured frames
+    clap::capture_arm(true)
+
+    clap::on_frame(fn() {
+        if !clap::capture_is_armed() {
+            return
+        }
+        if shots < 3 && clap::screenshot() {
+            shots++
+        }
+        // shots reach the writers a few frames later; quit() lets them finish
+        if clap::frames_captured() >= first + 3 {
+            clap::quit()
+        }
+    })
+}
+```
+
+Without `set_screenshot_dir()`, frames go where the window would put them; the
+directory and the cap set from a script last for the session only and leave the
+settings alone. Browser builds capture into `/screenshots`, and final builds
+have no recorder.
+
 ## Examples
 
 Ready-to-crib scripts live in [`script-examples/`](script-examples/):
