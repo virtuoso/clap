@@ -160,14 +160,38 @@ static void directory_draw(struct scene *scene)
 
 static atomic_ulong frame;
 
+#ifdef CONFIG_BROWSER
+/**
+ * screenshot_hand_out() - offer a written capture as a download, then remove it
+ * @path:   the capture's file
+ *
+ * Runs on a capture worker, while the filesystem and the DOM both live on
+ * the browser's main thread; the call returns once the page holds the
+ * file's contents in a Blob, so the file itself can go right after.
+ * Return: CERR_OK, or the error removing the file
+ */
+static cerr screenshot_hand_out(const char *path)
+{
+    MAIN_THREAD_EM_ASM(offerFileAsDownload(UTF8ToString($0), 'image/x-exr');, path);
+
+    if (remove(path))   return errno_to_cerr(errno);
+
+    return CERR_OK;
+}
+#else
+static inline cerr screenshot_hand_out(const char *path) { return CERR_OK; }
+#endif /* !CONFIG_BROWSER */
+
 /**
  * enum frame_role - what a captured frame is for, fixed when its readback is armed
  * @FRAME_SHOT:         a shot of its own, shot_*.exr
  * @FRAME_RECORDING:    part of a recording, frame_*.exr
+ * @FRAME_DOWNLOAD:     a shot handed out as a download, then removed
  */
 typedef enum frame_role {
     FRAME_SHOT,
     FRAME_RECORDING,
+    FRAME_DOWNLOAD,
 } frame_role;
 
 /**
@@ -177,6 +201,8 @@ typedef enum frame_role {
  * @contents:   the frame's pixels, in the readback slot
  * @slot:       the readback slot
  * @index:      the number in the file's name
+ * @removal:    the error removing a download's file once the page has it, for
+ *              done() to report
  * @role:       what the frame is for
  * @flip:       rows run bottom-up
  * @dir:        the capture directory
@@ -194,6 +220,7 @@ typedef struct frame_job {
     void                *contents;
     size_t              slot;
     unsigned long       index;
+    cerr                removal;
     frame_role          role;
     bool                flip;
     char                dir[PATH_MAX];
@@ -225,8 +252,12 @@ static cerr write_frame(frame_job *fj)
         .comp_size      = texture_format_comp_size(fj->cfg->format),
         .flip           = fj->flip,
     };
+    CERR_RET_CERR(exr_write_file(path, &img));
 
-    return exr_write_file(path, &img);
+    /* the frame is written either way: a file left behind is for done() to report */
+    if (fj->role == FRAME_DOWNLOAD) fj->removal = screenshot_hand_out(path);
+
+    return CERR_OK;
 }
 
 static worker_pool *capture_pool;
@@ -270,7 +301,8 @@ static void frame_done(job *j, cerr err)
 {
     frame_job *fj = job_get_data(j);
 
-    if (IS_CERR(err))   err_cerr(err, "slot %zu: frame not written\n", fj->slot);
+    if (IS_CERR(err))           err_cerr(err, "slot %zu: frame not written\n", fj->slot);
+    if (IS_CERR(fj->removal))   err_cerr(fj->removal, "offered for download, but left in %s\n", fj->dir);
     nr_in_flight--;
     frame_discard(fj);
 }
@@ -550,6 +582,34 @@ static void screenshot(struct scene *scene, fbo_blit_complete_fn complete)
     msg_once("capture armed: %u x %u %s\n", cfg->width, cfg->height, texture_format_string(cfg->format));
 }
 
+#ifdef CONFIG_BROWSER
+/**
+ * download_frame_cb() - the readback completion of a shot to download
+ * @cfg:    the readback ring's geometry, with this delivery's slot and contents
+ * @fbo:    the captured fbo
+ */
+static void download_frame_cb(fbo_blit_config *cfg, fbo_t *fbo)
+{
+    queue_frame(cfg, FRAME_DOWNLOAD);
+}
+
+/**
+ * download_button() - shoot, then hand the capture to the browser
+ * @scene:  the scene, for the pipeline to capture from
+ *
+ * The written capture is offered as a download and removed from the
+ * capture directory, leaving the downloaded file the only copy.
+ */
+static void download_button(struct scene *scene)
+{
+    igSameLine(0.0f, 4.0f);
+
+    if (igButton("download", (ImVec2){}))   screenshot(scene, download_frame_cb);
+}
+#else
+static inline void download_button(struct scene *scene) {}
+#endif /* !CONFIG_BROWSER */
+
 static void screen_recorder(struct scene *scene);
 
 void screen_record_update(struct scene *scene)
@@ -641,6 +701,8 @@ static void screen_recorder(struct scene *scene)
                 // if (scene->width > 2560)    display_resize(2560, scene->height);
                 screenshot(scene, write_frame_cb);
             }
+
+            download_button(scene);
         }
 
         if (capture_pool)
