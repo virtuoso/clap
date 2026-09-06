@@ -19,6 +19,9 @@ DEFINE_CLEANUP(FILE, if (*p) fclose(*p))
 DEFINE_CLEANUP(void, mem_free(*p))
 DEFINE_CLEANUP(char, mem_free(*p))
 DEFINE_CLEANUP(uchar, mem_free(*p))
+DEFINE_CLEANUP(int, mem_free(*p))
+DEFINE_CLEANUP(uint16_t, mem_free(*p))
+DEFINE_CLEANUP(float, mem_free(*p))
 
 cerr path_joinv(char *dst, size_t size, const char *const comps[])
 {

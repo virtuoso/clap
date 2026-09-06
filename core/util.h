@@ -48,6 +48,9 @@ DECLARE_CLEANUP(FILE);
 DECLARE_CLEANUP(void);
 DECLARE_CLEANUP(char);
 DECLARE_CLEANUP(uchar);
+DECLARE_CLEANUP(int);
+DECLARE_CLEANUP(uint16_t);
+DECLARE_CLEANUP(float);
 
 #define NOCU(x) ({ typeof(x) _x = x; x = NULL; _x; })
 #define CUX(x) CU(x) = NULL

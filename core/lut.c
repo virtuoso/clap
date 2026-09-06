@@ -379,8 +379,6 @@ static inline float lut_to_linear(float u)
     return (powf(2.0f, u * log2f(1.0f + HDR_LUT_K * HDR_LUT_MAX)) - 1.0) / HDR_LUT_K;
 }
 
-DEFINE_CLEANUP(uint16_t, if (*p) mem_free(*p);)
-
 cresp(lut) lut_generate_fn(renderer_t *renderer, struct list *list, const char *name,
                            lut_gen_fn fn, void *data, float exposure, float contrast, int sz)
 {

@@ -91,8 +91,6 @@ static void blue_noise2d_gain(kiss_fft_cpx buf[FILM_GRAIN_SIZE][FILM_GRAIN_SIZE]
     }
 }
 
-DEFINE_CLEANUP(float, if (*p) mem_free(*p))
-
 cerr blue_noise2d_tex(renderer_t *renderer, texture_t *tex, int size)
 {
     kiss_fft_cfg fft_fwd = kiss_fft_alloc(size, 0, NULL, NULL);
