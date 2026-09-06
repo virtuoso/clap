@@ -179,7 +179,7 @@ fn main() {
 Without `set_screenshot_dir()`, frames go where the window would put them; the
 directory and the cap set from a script last for the session only and leave the
 settings alone. Browser builds capture into `/screenshots`, and final builds
-have no recorder.
+have no recorder. `scripts/capture-test.sh` runs a demo with a script like this.
 
 ## Examples
 
