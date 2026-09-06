@@ -31,6 +31,7 @@
 #include "profiler.h"
 #include "render.h"
 #include "scene.h"
+#include "screen-record.h"
 #include "sound.h"
 #include "str.h"
 #include "mesh.h"
@@ -963,6 +964,7 @@ static void clap_settings_onload(struct settings *rs, void *data)
     }
 
     ui_debug_set_settings(rs);
+    screen_record_set_settings(rs);
     CERR_RET(input_controls_init(rs), err_cerr(__cerr, "failed to load input controls\n"));
     clap_update_input_controls(ctx);
     CERR_RET(graphics_settings_init(ctx, rs), err_cerr(__cerr, "failed to load graphics settings\n"));
@@ -1744,6 +1746,8 @@ void clap_done(struct clap_context *ctx, int status)
         ui_done(&ctx->ui);
     }
     if (ctx->cfg.graphics) {
+        /* joins capture workers before their source fbos are destroyed */
+        screen_record_done();
         scene_done(&ctx->scene);
         ref_put(ctx->pl);
         shader_vars_done(ctx->shaders);

@@ -19,6 +19,7 @@
 #include "scene.h"
 #include "sound.h"
 #include "json.h"
+#include "screen-record.h"
 #include "ui-debug.h"
 #include "ui-debug-fs.h"
 #include "ui.h"
@@ -1382,6 +1383,7 @@ void scene_update(struct scene *scene)
     scene_characters_debug(scene);
     scene_entity_inspector_debug(scene);
     light_debug(scene);
+    screen_record_update(scene);
 
     /*
      * Fire per-light update callbacks before mq_update() so they observe
