@@ -451,3 +451,6 @@ clap_subsystem_test(exr_tests test-exr.c exr.c)
 
 # The memory tests need nothing past the subsystem test's own sources
 clap_subsystem_test(memory_tests test-memory.c)
+
+# The triangulation tests compile the triangulator alone
+clap_subsystem_test(triangulate_tests test-triangulate.c triangulate.c)
