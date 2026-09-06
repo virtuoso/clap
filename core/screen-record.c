@@ -493,7 +493,7 @@ static bool capture_pool_failed;
  * capture_pool_init() - start the capture writers with the first capture
  * @scene:  the scene, for its clap_context
  *
- * A worker per readback slot: recording keeps them all busy.
+ * Every slot's worth of workers for recording; screenshots make do with one.
  * Return: CERR_OK, or the error starting the pool, which is tried once
  */
 static cerr capture_pool_init(struct scene *scene)
@@ -506,7 +506,7 @@ static cerr capture_pool_init(struct scene *scene)
         worker_pool_new(
             .ctx        = scene->clap_ctx,
             .name       = "capture",
-            .nr_threads = FBO_BLIT_FRAMES
+            .nr_threads = IS_DEFINED(CONFIG_SCREEN_RECORD) ? FBO_BLIT_FRAMES : 1
         ),
         {
             cerr err = cerr_error_cres(__resp);
@@ -687,11 +687,13 @@ static void screen_recorder(struct scene *scene)
                 fbo_blit_disarm(capture.val);
             }
         } else if (armed) {
-            igSameLine(0.0f, 4.0f);
-            if (igButton("record", (ImVec2){})) {
-                if (!strlen(screenshot_dir))    directory_open(scene);
-                screen_record = true;
-                screenshot(scene, record_frame_cb);
+            if (IS_DEFINED(CONFIG_SCREEN_RECORD)) {
+                igSameLine(0.0f, 4.0f);
+                if (igButton("record", (ImVec2){})) {
+                    if (!strlen(screenshot_dir))    directory_open(scene);
+                    screen_record = true;
+                    screenshot(scene, record_frame_cb);
+                }
             }
 
             igSameLine(0.0f, 4.0f);

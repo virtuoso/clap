@@ -36,6 +36,16 @@ option(CLAP_USE_ODE "Use ODE as the physics backend instead of Box3D" OFF)
 option(CLAP_DEMOS_BUILD_IN_ASSETS BOOL ON)
 option(CLAP_SHIP BOOL OFF)
 option(CLAP_BUILD_WITH_SCRIPTING BOOL ON)
+# Continuous frame recording in the screen recorder (non-final builds): a
+# pool of FBO_BLIT_FRAMES capture workers writing EXR frames out. OFF leaves
+# single screenshots on one worker, which is all a browser's pthread pool
+# has room for
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(CLAP_SCREEN_RECORD_DEFAULT OFF)
+else ()
+    set(CLAP_SCREEN_RECORD_DEFAULT ON)
+endif ()
+option(CLAP_SCREEN_RECORD "Continuous frame recording in the screen recorder" ${CLAP_SCREEN_RECORD_DEFAULT})
 set(CLAP_SERVER_IP "127.0.0.1" CACHE STRING "Server IP address")
 set(CLAP_SERVER_PORT "21044" CACHE STRING "Server TCP port")
 set(CLAP_SERVER_WSPORT "21045" CACHE STRING "Server websocket port")
