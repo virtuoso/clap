@@ -17,6 +17,7 @@ compile_commands.json
 dev-key.pem
 dev-cert.pem
 patches/
+screenshots/
 build/
 deps/src/
 *~
