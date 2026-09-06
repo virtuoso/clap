@@ -445,3 +445,6 @@ clap_subsystem_test(gpsm_tests test-gpsm.c gpsm.c)
 
 # The worker tests compile the pool and the thread layer it runs on
 clap_subsystem_test(worker_tests test-worker.c worker.c thread-pthread.c)
+
+# The exr tests compile the writer and read its files back
+clap_subsystem_test(exr_tests test-exr.c exr.c)
