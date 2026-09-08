@@ -4,6 +4,7 @@
 #include "linmath.h"
 #include "model.h"
 #include "shader.h"
+#include "triangulate.h"
 
 extern struct mesh cube_mesh;
 
@@ -57,6 +58,51 @@ cresp(model3d) _prim_end_model3d(struct shader_prog *p, const prim_emit_opts *op
 #define prim_end_model3dtx(prog, tex, mq, ...) \
     _prim_end_model3dtx((prog), (tex), (mq), &(const prim_emit_opts) { __VA_ARGS__ })
 cresp(model3dtx) _prim_end_model3dtx(struct shader_prog *p, texture_t *tex, struct mq *mq, const prim_emit_opts *opts);
+
+/**
+ * struct prim_extrusion - an extruded polygon
+ * @points:     2D points shared between the rings
+ * @rings:      polygon rings: fill boundaries and holes in any order
+ * @nr_rings:   number of rings
+ * @z:          Z coordinate of the front face plane
+ * @depth:      extrusion depth along -Z; 0 skips the side faces
+ * @closed:     also emit the back face @depth behind the front face,
+ *              closing the volume
+ */
+typedef struct prim_extrusion {
+    const vec2      *points;
+    const poly_ring *rings;
+    size_t          nr_rings;
+    float           z;
+    float           depth;
+    bool            closed;
+} prim_extrusion;
+
+/**
+ * _prim_emit_extrusion() - emit an extruded polygon
+ * @ext:    the polygon to extrude
+ * @opts:   primitive emitter options
+ *
+ * Triangulate the polygon into the front face in the XY plane at
+ * @ext->z, facing +Z, then optionally extrude it @ext->depth along -Z
+ * with a quad per ring edge (winding chosen so both fill rings and
+ * holes face away from the body) and close it with a mirrored back
+ * face. Face UVs map the polygon's bounding box onto the unit square.
+ *
+ * Return: CERR_OK or an error, in which case nothing was emitted;
+ * CERR_TOO_LARGE means the mesh can't fit the polygon in 16-bit
+ * vertex indices.
+ */
+cerr_check _prim_emit_extrusion(const prim_extrusion *ext, const prim_emit_opts *opts);
+
+/**
+ * define prim_emit_extrusion - emit an extruded polygon
+ * @_e:     the polygon to extrude
+ *
+ * Syntax sugar for _prim_emit_extrusion().
+ */
+#define prim_emit_extrusion(_e, args...) \
+    _prim_emit_extrusion((_e), &(prim_emit_opts){ args })
 
 /**
  * _prim_emit_cylinder() - emit a cylinder

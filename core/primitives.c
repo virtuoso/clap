@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <float.h>
 #include <limits.h>
+#include <math.h>
 #include "linmath.h"
+#include "memory.h"
 #include "mesh.h"
 #include "model.h"
 #include "primitives.h"
@@ -183,6 +186,155 @@ cresp(model3dtx) _prim_end_model3dtx(struct shader_prog *p, texture_t *tex, stru
     mq_add_model(mq, txm);
 
     return cresp_val(model3dtx, txm);
+}
+
+/* map the polygon's bounding box onto the unit UV square, image-style (V down) */
+static void extrusion_uv(vec2 out, const float *pt, const vec4 bbox)
+{
+    float w = bbox[2] - bbox[0], h = bbox[3] - bbox[1];
+
+    out[0] = w > 0.0f ? (pt[0] - bbox[0]) / w : 0.5f;
+    out[1] = h > 0.0f ? (bbox[3] - pt[1]) / h : 0.5f;
+}
+
+cerr _prim_emit_extrusion(const prim_extrusion *ext, const prim_emit_opts *opts)
+{
+    if (!ext || !ext->points || !ext->rings || !ext->nr_rings || !opts || !opts->mesh)  return CERR_INVALID_ARGUMENTS;
+
+    struct mesh *mesh = opts->mesh;
+    cerr err = CERR_NOMEM;
+
+    bool *holes = mem_alloc(sizeof(*holes), .nr = ext->nr_rings);
+    if (!holes)     return CERR_NOMEM;
+
+    /* a quad (2 triangles) per edge of each ring the triangulator keeps */
+    size_t nr_side_vx = 0;
+    for (size_t i = 0; i < ext->nr_rings; i++)
+        if (ext->rings[i].nr >= 3)  nr_side_vx += ext->rings[i].nr * 6;
+
+    err = poly_rings_classify(ext->points, ext->rings, ext->nr_rings, holes);
+    if (IS_CERR(err))   goto err_holes;
+
+    cres(poly_tris) tres = poly_triangulate(ext->points, ext->rings, ext->nr_rings);
+    if (IS_CERR(tres)) {
+        err = cerr_error_cres(tres);
+        goto err_holes;
+    }
+
+    poly_tris tris = tres.val;
+
+    size_t nv = tris.nr_tris * 3 * (ext->closed ? 2 : 1);
+    if (ext->depth > 0.0f)  nv += nr_side_vx;
+
+    err = CERR_OK;
+    if (!nv)    goto err_tris;
+
+    if (mesh_nr_vx(mesh) + nv > USHRT_MAX) {
+        err = CERR_TOO_LARGE;
+        goto err_tris;
+    }
+
+    cresp(mesh) mres = _prim_begin(nv, opts);
+    if (IS_CERR(mres)) {
+        err = cerr_error_cres(mres);
+        goto err_tris;
+    }
+
+    size_t nr_points = 0;
+    for (size_t i = 0; i < ext->nr_rings; i++)  nr_points = max(nr_points, ext->rings[i].start + ext->rings[i].nr);
+
+    vec4 bbox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+    for (size_t i = 0; i < nr_points; i++) {
+        bbox[0] = fminf(bbox[0], ext->points[i][0]);
+        bbox[1] = fminf(bbox[1], ext->points[i][1]);
+        bbox[2] = fmaxf(bbox[2], ext->points[i][0]);
+        bbox[3] = fmaxf(bbox[3], ext->points[i][1]);
+    }
+
+    prim_emit_opts po = { .mesh = mesh };
+    vec2 uv[3];
+    vec3 v[3];
+
+    /* the front face */
+    for (size_t t = 0; t < tris.nr_tris; t++) {
+        const unsigned int *ti = &tris.idx[t * 3];
+
+        for (int k = 0; k < 3; k++) {
+            const float *pt = ext->points[ti[k]];
+
+            v[k][0] = pt[0];
+            v[k][1] = pt[1];
+            v[k][2] = ext->z;
+            extrusion_uv(uv[k], pt, bbox);
+        }
+
+        po.uv = uv;
+        _prim_emit_triangle3(v[0], v[1], v[2], &po);
+    }
+
+    /* the back face: mirrored winding, pushed @depth back */
+    if (ext->closed)
+        for (size_t t = 0; t < tris.nr_tris; t++) {
+            const unsigned int *ti = &tris.idx[t * 3];
+            vec2 ruv[3];
+
+            for (int k = 0; k < 3; k++) {
+                const float *pt = ext->points[ti[k]];
+
+                v[k][0] = pt[0];
+                v[k][1] = pt[1];
+                v[k][2] = ext->z - ext->depth;
+                extrusion_uv(uv[k], pt, bbox);
+            }
+
+            vec2_dup(ruv[0], uv[0]);
+            vec2_dup(ruv[1], uv[2]);
+            vec2_dup(ruv[2], uv[1]);
+            po.uv = ruv;
+            _prim_emit_triangle3(v[0], v[2], v[1], &po);
+        }
+
+    /* the side faces: a quad per ring edge, facing away from the fill */
+    if (ext->depth > 0.0f) {
+        po.uv = nullptr;
+
+        for (size_t i = 0; i < ext->nr_rings; i++) {
+            const poly_ring *ring = &ext->rings[i];
+            if (ring->nr < 3)   continue;
+
+            bool ccw = poly_ring_area(ext->points, ring) > 0.0f;
+            /* clockwise holes (like counterclockwise fills) face outward as is */
+            bool flip = ccw == holes[i];
+
+            for (size_t k = 0; k < ring->nr; k++) {
+                const float *a = ext->points[ring->start + k];
+                const float *b = ext->points[ring->start + (k + 1) % ring->nr];
+                vec3 quad[4];
+
+                quad[0][0] = flip ? b[0] : a[0];
+                quad[0][1] = flip ? b[1] : a[1];
+                quad[0][2] = ext->z;
+                quad[1][0] = flip ? a[0] : b[0];
+                quad[1][1] = flip ? a[1] : b[1];
+                quad[1][2] = ext->z;
+                quad[2][0] = quad[1][0];
+                quad[2][1] = quad[1][1];
+                quad[2][2] = ext->z - ext->depth;
+                quad[3][0] = quad[0][0];
+                quad[3][1] = quad[0][1];
+                quad[3][2] = ext->z - ext->depth;
+
+                _prim_emit_quad(quad, &po);
+            }
+        }
+    }
+
+err_tris:
+    mem_free(tris.idx);
+err_holes:
+    mem_free(holes);
+
+    return err;
 }
 
 void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)
