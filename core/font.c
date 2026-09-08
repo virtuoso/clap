@@ -8,6 +8,7 @@
 #include "font.h"
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_OUTLINE_H
 
 struct font {
     char *       name;
@@ -123,6 +124,245 @@ struct glyph *font_get_glyph(struct font *font, unsigned char c)
         return NULL;
 
     return &font->g[c];
+}
+
+void glyph_outline_free(glyph_outline *outline)
+{
+    if (!outline)   return;
+
+    mem_free(outline->points);
+    mem_free(outline->contours);
+    mem_free(outline);
+}
+
+DEFINE_CLEANUP(glyph_outline, glyph_outline_free(*p))
+
+/* FT_Outline_Decompose() state: points and contours collected so far */
+typedef struct outline_ctx {
+    darray(vec2, points);
+    darray(poly_ring, contours);
+    float           scale;          /* font units -> em units */
+    unsigned int    nr_segments;    /* points per curve, 0: adaptive */
+} outline_ctx;
+
+static poly_ring *outline_contour(outline_ctx *ctx)
+{
+    size_t nr = darray_count(ctx->contours);
+
+    return nr ? darray_get(ctx->contours, nr - 1) : nullptr;
+}
+
+/* close the current contour: decompose repeats the first point at the end */
+static void outline_close(outline_ctx *ctx)
+{
+    poly_ring *c = outline_contour(ctx);
+    if (!c)     return;
+
+    if (c->nr >= 2) {
+        vec2 *first = darray_get(ctx->points, c->start);
+        vec2 *last = darray_get(ctx->points, c->start + c->nr - 1);
+
+        if ((*first)[0] == (*last)[0] && (*first)[1] == (*last)[1]) {
+            darray_resize(ctx->points, c->start + c->nr - 1);
+            c->nr--;
+        }
+    }
+
+    /* fewer than 3 points don't make a contour */
+    if (c->nr < 3) {
+        darray_resize(ctx->points, c->start);
+        darray_resize(ctx->contours, darray_count(ctx->contours) - 1);
+    }
+}
+
+static int outline_point(outline_ctx *ctx, float x, float y)
+{
+    poly_ring *c = outline_contour(ctx);
+    if (!c)     return -1;      /* a segment before any move_to: malformed */
+
+    if (c->nr) {
+        vec2 *last = darray_get(ctx->points, c->start + c->nr - 1);
+        if ((*last)[0] == x && (*last)[1] == y)     return 0;
+    }
+
+    vec2 *p = darray_add(ctx->points);
+    if (!p)     return -1;
+
+    (*p)[0] = x;
+    (*p)[1] = y;
+    c->nr++;
+
+    return 0;
+}
+
+static int outline_move_to(const FT_Vector *to, void *user)
+{
+    outline_ctx *ctx = user;
+
+    outline_close(ctx);
+
+    poly_ring *c = darray_add(ctx->contours);
+    if (!c)     return -1;
+
+    c->start = darray_count(ctx->points);
+
+    return outline_point(ctx, to->x * ctx->scale, to->y * ctx->scale);
+}
+
+static int outline_line_to(const FT_Vector *to, void *user)
+{
+    outline_ctx *ctx = user;
+
+    return outline_point(ctx, to->x * ctx->scale, to->y * ctx->scale);
+}
+
+/* the default number of points per curve: proportional to its size */
+#define FLATTEN_PER_EM      32.0f
+#define FLATTEN_STEPS_MIN   2
+#define FLATTEN_STEPS_MAX   16
+
+static unsigned int outline_steps(outline_ctx *ctx, float len)
+{
+    if (ctx->nr_segments)   return ctx->nr_segments;
+
+    return clamp((int)(len * FLATTEN_PER_EM), FLATTEN_STEPS_MIN, FLATTEN_STEPS_MAX);
+}
+
+/* control polygon length: cheap upper bound estimate of a curve's length */
+static float control_len(const vec2 p[], int nr)
+{
+    float len = 0.0f;
+
+    for (int i = 0; i < nr - 1; i++) {
+        vec2 d;
+        vec2_sub(d, p[i + 1], p[i]);
+        len += vec2_len(d);
+    }
+
+    return len;
+}
+
+static int outline_conic_to(const FT_Vector *ctrl, const FT_Vector *to, void *user)
+{
+    outline_ctx *ctx = user;
+    poly_ring *c = outline_contour(ctx);
+
+    if (!c || !c->nr)   return -1;
+
+    vec2 *p0 = darray_get(ctx->points, c->start + c->nr - 1);
+    vec2 p[3] = {
+        { (*p0)[0], (*p0)[1] },
+        { ctrl->x * ctx->scale, ctrl->y * ctx->scale },
+        { to->x * ctx->scale, to->y * ctx->scale },
+    };
+
+    unsigned int steps = outline_steps(ctx, control_len(p, 3));
+    for (unsigned int k = 1; k < steps; k++) {
+        float t = (float)k / steps, u = 1.0f - t;
+        float x = u * u * p[0][0] + 2.0f * u * t * p[1][0] + t * t * p[2][0];
+        float y = u * u * p[0][1] + 2.0f * u * t * p[1][1] + t * t * p[2][1];
+
+        if (outline_point(ctx, x, y))   return -1;
+    }
+
+    return outline_point(ctx, p[2][0], p[2][1]);
+}
+
+static int outline_cubic_to(const FT_Vector *c1, const FT_Vector *c2, const FT_Vector *to,
+                            void *user)
+{
+    outline_ctx *ctx = user;
+    poly_ring *c = outline_contour(ctx);
+
+    if (!c || !c->nr)   return -1;
+
+    vec2 *p0 = darray_get(ctx->points, c->start + c->nr - 1);
+    vec2 p[4] = {
+        { (*p0)[0], (*p0)[1] },
+        { c1->x * ctx->scale, c1->y * ctx->scale },
+        { c2->x * ctx->scale, c2->y * ctx->scale },
+        { to->x * ctx->scale, to->y * ctx->scale },
+    };
+
+    unsigned int steps = outline_steps(ctx, control_len(p, 4));
+    for (unsigned int k = 1; k < steps; k++) {
+        float t = (float)k / steps, u = 1.0f - t;
+        float x = u * u * u * p[0][0] + 3.0f * u * u * t * p[1][0] +
+                  3.0f * u * t * t * p[2][0] + t * t * t * p[3][0];
+        float y = u * u * u * p[0][1] + 3.0f * u * u * t * p[1][1] +
+                  3.0f * u * t * t * p[2][1] + t * t * t * p[3][1];
+
+        if (outline_point(ctx, x, y))   return -1;
+    }
+
+    return outline_point(ctx, p[3][0], p[3][1]);
+}
+
+cresp(glyph_outline) font_glyph_outline(struct font *font, unsigned char c,
+                                        unsigned int nr_segments)
+{
+    if (!font)  return cresp_error(glyph_outline, CERR_INVALID_ARGUMENTS);
+
+    FT_Face face = font->face;
+    if (!face->units_per_EM)    return cresp_error(glyph_outline, CERR_NOT_SUPPORTED);
+
+    if (FT_Load_Char(face, c, FT_LOAD_NO_SCALE | FT_LOAD_NO_BITMAP))
+        return cresp_error(glyph_outline, CERR_NOT_FOUND);
+
+    FT_GlyphSlot slot = face->glyph;
+    if (slot->format != FT_GLYPH_FORMAT_OUTLINE)    return cresp_error(glyph_outline, CERR_NOT_SUPPORTED);
+
+    outline_ctx ctx = { .scale = 1.0f / face->units_per_EM, .nr_segments = nr_segments };
+    darray_init(ctx.points);
+    darray_init(ctx.contours);
+
+    const FT_Outline_Funcs funcs = {
+        .move_to    = outline_move_to,
+        .line_to    = outline_line_to,
+        .conic_to   = outline_conic_to,
+        .cubic_to   = outline_cubic_to,
+    };
+
+    if (FT_Outline_Decompose(&slot->outline, &funcs, &ctx)) goto err_arrays;
+
+    outline_close(&ctx);
+
+    glyph_outline *outline = mem_alloc(sizeof(*outline), .zero = 1);
+    if (!outline)   goto err_arrays;
+
+    outline->nr_points   = darray_count(ctx.points);
+    outline->nr_contours = darray_count(ctx.contours);
+    outline->points      = ctx.points.x;
+    outline->contours    = ctx.contours.x;
+    outline->advance     = slot->metrics.horiAdvance * ctx.scale;
+
+    return cresp_val(glyph_outline, outline);
+
+err_arrays:
+    darray_clearout(ctx.points);
+    darray_clearout(ctx.contours);
+    return cresp_error(glyph_outline, CERR_NOMEM);
+}
+
+float font_glyph_kerning(struct font *font, unsigned char left, unsigned char right)
+{
+    if (!font || !font->face->units_per_EM || !FT_HAS_KERNING(font->face))  return 0.0f;
+
+    FT_UInt l = FT_Get_Char_Index(font->face, left);
+    FT_UInt r = FT_Get_Char_Index(font->face, right);
+    if (!l || !r)   return 0.0f;
+
+    FT_Vector delta;
+    if (FT_Get_Kerning(font->face, l, r, FT_KERNING_UNSCALED, &delta))  return 0.0f;
+
+    return (float)delta.x / font->face->units_per_EM;
+}
+
+float font_line_height(struct font *font)
+{
+    if (!font || !font->face->units_per_EM)     return 0.0f;
+
+    return (float)font->face->height / font->face->units_per_EM;
 }
 
 void font_put(struct font *font)
