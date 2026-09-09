@@ -159,7 +159,7 @@ set(ENGINE_SRC
     model.c shader.c librarian.c json.c clap.c view.c light.c thread-pthread.c worker.c
     terrain.c ui.c scene.c font.c sound.c pngloader.c base64.c memory.c render-common.c render-texture.c draw.c
     ${PHYSICS_SRC} ui-animations.c ui-menus.c ui-settings.c character.c gpsm.c settings.c error.c
-    gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c platform.c datatypes.c
+    gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c platform.c datatypes.c text-mesh.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c graphics-settings.c audio-settings.c triangulate.c
     prng.c prng-mt.cpp bsp.c graph.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
