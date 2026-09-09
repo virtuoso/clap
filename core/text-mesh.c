@@ -4,6 +4,7 @@
  * triangulated into the front face in the XY plane, facing +Z, optionally
  * extruded along -Z (the side faces) and closed with a mirrored back face.
  */
+#include <math.h>
 #include "font.h"
 #include "memory.h"
 #include "mesh.h"
@@ -119,4 +120,50 @@ cerr _text_mesh_emit_string(struct font *font, const char *str, const text_mesh_
     if (!font || !str || !opts || !opts->mesh)  return CERR_INVALID_ARGUMENTS;
 
     return text_mesh_for_each(font, str, opts->nr_segments, emit_string_one, (void *)opts);
+}
+
+/**
+ * struct extents_ctx - text_mesh_extents() state
+ * @ext:    bounding box so far: min X, min Y, max X, max Y
+ * @any:    @ext holds at least one point
+ */
+struct extents_ctx {
+    vec4    ext;
+    bool    any;
+};
+
+static cerr extents_one(const glyph_outline *ol, const vec2 pen, void *data)
+{
+    struct extents_ctx *ctx = data;
+
+    for (size_t i = 0; i < ol->nr_points; i++) {
+        float x = pen[0] + ol->points[i][0];
+        float y = pen[1] + ol->points[i][1];
+
+        if (!ctx->any) {
+            ctx->ext[0] = ctx->ext[2] = x;
+            ctx->ext[1] = ctx->ext[3] = y;
+            ctx->any = true;
+            continue;
+        }
+
+        ctx->ext[0] = fminf(ctx->ext[0], x);
+        ctx->ext[1] = fminf(ctx->ext[1], y);
+        ctx->ext[2] = fmaxf(ctx->ext[2], x);
+        ctx->ext[3] = fmaxf(ctx->ext[3], y);
+    }
+
+    return CERR_OK;
+}
+
+cerr text_mesh_extents(struct font *font, const char *str, unsigned int nr_segments, vec4 ext)
+{
+    if (!font || !str || !ext)  return CERR_INVALID_ARGUMENTS;
+
+    struct extents_ctx ctx = {};
+    CERR_RET_CERR(text_mesh_for_each(font, str, nr_segments, extents_one, &ctx));
+
+    vec4_dup(ext, ctx.ext);
+
+    return CERR_OK;
 }

@@ -63,6 +63,23 @@ cerr_check _text_mesh_emit_string(struct font *font, const char *str,
                                   const text_mesh_opts *opts);
 
 /**
+ * text_mesh_extents() - measure a string of glyphs without emitting it
+ * @font:        font to take the glyphs from
+ * @str:         the string
+ * @nr_segments: points per outline curve; 0 picks adaptively
+ * @ext:         output bounding box: min X, min Y, max X, max Y
+ *
+ * Lay @str out exactly like _text_mesh_emit_string() would (advances,
+ * kerning, '\n') with the pen starting at (0, 0) on the baseline, and
+ * return the glyph outlines' bounding box, em units. Strings with no
+ * outlines (e.g. all spaces) yield a zero-size box.
+ *
+ * Return: CERR_OK or the error of the first failing glyph.
+ */
+cerr_check text_mesh_extents(struct font *font, const char *str, unsigned int nr_segments,
+                             vec4 ext);
+
+/**
  * define text_mesh_emit_glyph - append one glyph's geometry to a mesh
  * @_f:     font to take the glyph from
  * @_c:     character
