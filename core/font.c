@@ -8,6 +8,7 @@
 #include "font.h"
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_MULTIPLE_MASTERS_H
 #include FT_OUTLINE_H
 
 struct font {
@@ -58,6 +59,42 @@ static void font_load_glyph(struct font *font, unsigned char c)
     font->g[c].loaded    = true;
 }
 
+/**
+ * font_set_weight() - dial in a variable font's 'wght' axis
+ * @ft:     FreeType library
+ * @face:   the font's face
+ * @weight: the weight, clamped to the axis range
+ *
+ * Fonts without a 'wght' axis (or without variable axes altogether) are
+ * left as they are.
+ */
+static void font_set_weight(FT_Library ft, FT_Face face, unsigned int weight)
+{
+    FT_MM_Var *mm;
+
+    if (FT_Get_MM_Var(face, &mm))   return;
+
+    FT_UInt nr_axes = mm->num_axis;
+    FT_Fixed *coords = mem_alloc(sizeof(*coords), .nr = nr_axes);
+
+    if (!coords || FT_Get_Var_Design_Coordinates(face, nr_axes, coords))    goto out;
+
+    for (FT_UInt i = 0; i < nr_axes; i++) {
+        if (mm->axis[i].tag != FT_MAKE_TAG('w', 'g', 'h', 't')) continue;
+
+        FT_Fixed w = (FT_Fixed)weight << 16;
+        coords[i] = w < mm->axis[i].minimum ? mm->axis[i].minimum :
+                    w > mm->axis[i].maximum ? mm->axis[i].maximum : w;
+
+        if (FT_Set_Var_Design_Coordinates(face, nr_axes, coords))   err("failed to set font weight %u\n", weight);
+        break;
+    }
+
+out:
+    mem_free(coords);
+    FT_Done_MM_Var(ft, mm);
+}
+
 static cerr font_make(struct ref *ref, void *_opts)
 {
     rc_init_opts(font) *opts = _opts;
@@ -79,7 +116,13 @@ static cerr font_make(struct ref *ref, void *_opts)
         return CERR_FONT_NOT_LOADED;
     }
 
-    CRES_RET_CERR(mem_asprintf(&font->name, "%s:%u", opts->name, opts->size));
+    if (opts->weight)
+        CRES_RET_CERR(mem_asprintf(&font->name, "%s:%u:w%u", opts->name, opts->size,
+                                   opts->weight));
+    else
+        CRES_RET_CERR(mem_asprintf(&font->name, "%s:%u", opts->name, opts->size));
+
+    if (opts->weight)   font_set_weight(opts->ctx->ft, face, opts->weight);
 
     font->buf = NOCU(_buf);
     font->face = face;

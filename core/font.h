@@ -47,6 +47,8 @@ DEFINE_REFCLASS_INIT_OPTIONS(font,
     font_context    *ctx;
     const char      *name;
     unsigned int    size;
+    /* variable font weight ('wght' axis), 0: the font's default; best effort */
+    unsigned int    weight;
 );
 DECLARE_REFCLASS(font);
 
