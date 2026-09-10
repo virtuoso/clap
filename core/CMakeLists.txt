@@ -420,6 +420,12 @@ target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_DEPENDENCY_INCLUDE_DIRS}
 target_include_directories(${ENGINE_LIB} PRIVATE ${CLAP_RENDERER_INCLUDE_DIRS})
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR}/imgui)
 target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR} ${CMAKE_BINARY_DIR})
+
+# Subsystems built as their own static libraries (see their CMakeLists.txt).
+add_subdirectory(ik)
+
+target_link_libraries(${ENGINE_LIB} PRIVATE clap_ik)
+
 win32_library(${ENGINE_LIB} FALSE)
 
 # The input subsystem is its own static library (see input/CMakeLists.txt)
