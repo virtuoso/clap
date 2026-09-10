@@ -684,6 +684,14 @@ cres(joint_type) model3d_joint_by_type(model3d *m, const char *type)
     return model3d_get_joint(m, jt.val);
 }
 
+cres(int) model3d_joint_by_name(model3d *m, const char *name)
+{
+    for (unsigned int i = 0; i < m->nr_joints; i++)
+        if (m->joints[i].name && !strcmp(m->joints[i].name, name))  return cres_val(int, i);
+
+    return cres_error(int, CERR_NOT_FOUND);
+}
+
 void entity3d_set_lod(entity3d *e, int lod, bool force)
 {
     model3d *m = e->txmodel->model;
@@ -1631,6 +1639,50 @@ static void one_joint_transform(entity3d *e, int joint, int parent)
 
     darray_for_each(child, model->joints[joint].children)
         one_joint_transform(e, *child, joint);
+}
+
+void model3d_joint_bind_local(model3d *m, int joint, int parent, vec3 t, quat r, vec3 s)
+{
+    mat4x4 *parent_bind = parent >= 0 ? &m->joints[parent].bind : &m->root_pose;
+    mat4x4 inv_parent, local;
+
+    mat4x4_invert(inv_parent, *parent_bind);
+    mat4x4_mul(local, inv_parent, m->joints[joint].bind);
+    mat4x4_decompose(local, t, r, s);
+}
+
+/**
+ * one_joint_bind_pose() - pose a joint and its subtree at the bind pose
+ * @e:      entity3d object
+ * @joint:  the joint
+ * @parent: its parent joint, -1 for the skeleton root
+ */
+static void one_joint_bind_pose(entity3d *e, int joint, int parent)
+{
+    model3d *model = e->txmodel->model;
+    struct joint *j = &e->joints[joint];
+    int *child;
+
+    model3d_joint_bind_local(model, joint, parent, j->translation, j->rotation, j->scale);
+
+    darray_for_each(child, model->joints[joint].children)
+        one_joint_bind_pose(e, *child, joint);
+}
+
+void entity3d_pose_reset(entity3d *e)
+{
+    if (!e->joints)
+        return;
+
+    one_joint_bind_pose(e, e->txmodel->model->root_joint, -1);
+}
+
+void entity3d_pose_update(entity3d *e)
+{
+    if (!e->joints)
+        return;
+
+    one_joint_transform(e, e->txmodel->model->root_joint, -1);
 }
 
 void animation_start(entity3d *e, struct scene *scene, int ani)

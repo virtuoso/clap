@@ -1039,6 +1039,28 @@ LINMATH_H_FUNC void quat_from_mat4x4(quat q, mat4x4 M)
     quat_scale(q, q, 0.5f / sqrtf(t));
 }
 
+/**
+ * mat4x4_decompose() - split a TRS transform into its components
+ * @M:  the transform
+ * @t:  output translation
+ * @r:  output rotation
+ * @s:  output scale
+ */
+LINMATH_H_FUNC void mat4x4_decompose(mat4x4 const M, vec3 t, quat r, vec3 s)
+{
+    mat4x4 R;
+
+    vec3_dup(t, M[3]);
+
+    mat4x4_identity(R);
+    for (int i = 0; i < 3; i++) {
+        s[i] = vec3_len(M[i]);
+        if (s[i])   vec3_scale(R[i], M[i], 1.f / s[i]);
+    }
+
+    quat_from_mat4x4(r, R);
+}
+
 LINMATH_H_FUNC void mat4x4_arcball(mat4x4 R, mat4x4 M, vec2 _a, vec2 _b, float s)
 {
 	vec2 a; memcpy(a, _a, sizeof(a));

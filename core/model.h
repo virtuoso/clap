@@ -296,6 +296,16 @@ cres(joint_type) model3d_get_joint(model3d *m, joint_type type);
 cresp(const_char) joint_type_name(joint_type type);
 cres(joint_type) joint_by_type_name(const char *type);
 cres(joint_type) model3d_joint_by_type(model3d *m, const char *type);
+
+/**
+ * model3d_joint_by_name() - look up a joint index by the joint's name
+ * @m:      model3d object
+ * @name:   joint name as authored in the model
+ *
+ * Context: anywhere
+ * Return: index into the model's joints or CERR_NOT_FOUND
+ */
+cres(int) model3d_joint_by_name(model3d *m, const char *name);
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...);
 float model3d_aabb_X(model3d *m);
 float model3d_aabb_Y(model3d *m);
@@ -624,6 +634,47 @@ static inline bool entity_animated(entity3d *e)
  * Context: anywhere
  */
 void entity3d_reset(entity3d *e);
+
+/**
+ * model3d_joint_bind_local() - a joint's local transform in the bind pose
+ * @m:      model3d object with an armature
+ * @joint:  the joint
+ * @parent: its parent joint, -1 for the skeleton root
+ * @t:      output translation
+ * @r:      output rotation
+ * @s:      output scale
+ *
+ * The inverse of the parent's bind pose (the model's root pose for the
+ * skeleton root) times the joint's own, split into its components.
+ * Context: anywhere
+ */
+void model3d_joint_bind_local(model3d *m, int joint, int parent, vec3 t, quat r, vec3 s);
+
+/**
+ * entity3d_pose_reset() - pose the skeleton at its bind pose
+ * @e:  entity3d object
+ *
+ * Set every joint's local translation, rotation and scale to the model's
+ * bind pose. Animation channels normally initialize the local joint
+ * transforms and nothing else does, so entities that don't play clips
+ * (procedurally driven skeletons, IK chains) call this before posing
+ * joints by hand.
+ * Context: anywhere; does nothing for jointless entities
+ */
+void entity3d_pose_reset(entity3d *e);
+
+/**
+ * entity3d_pose_update() - recompute the skeleton from local joint transforms
+ * @e:  entity3d object
+ *
+ * Walk the joint hierarchy accumulating every joint's local translation,
+ * rotation and scale into its global transform and the skinning matrix fed
+ * to the vertex shader. Runs implicitly for entities playing animation
+ * clips; call directly after changing joints' local transforms by hand
+ * (IK, procedural animation).
+ * Context: anywhere; does nothing for jointless entities
+ */
+void entity3d_pose_update(entity3d *e);
 
 /**
  * entity3d_aabb_X() - get entity3d's AABB size along world's X axis
