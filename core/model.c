@@ -1242,7 +1242,7 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             shader_set_var_ptr(prog, UNIFORM_IN_COLOR, 1, e->color);
             shader_set_var_int(prog, UNIFORM_COLOR_PASSTHROUGH, e->color_pt);
 
-            if (model->nr_joints && model->anis.da.nr_el) {
+            if (model->nr_joints) {
                 shader_set_var_int(prog, UNIFORM_USE_SKINNING, 1);
                 shader_set_var_ptr(prog, UNIFORM_JOINT_TRANSFORMS, model->nr_joints, e->joint_transforms);
             } else {
@@ -2032,6 +2032,20 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
         e->joints = mem_alloc(sizeof(*e->joints), .nr = model->nr_joints, .fatal_fail = 1);
         e->joint_transforms = mem_alloc(sizeof(mat4x4), .nr = model->nr_joints, .fatal_fail = 1);
         init_flags |= ENTITY3D_HAS_ARMATURE;
+
+        /*
+         * Identity skinning matrices are the bind pose, so entities of
+         * skinned models render correctly before (or without) any
+         * animation or procedural pose touching the joints.
+         */
+        for (unsigned int j = 0; j < model->nr_joints; j++) mat4x4_identity(e->joint_transforms[j]);
+
+        /*
+         * The local transforms start out as the bind pose too: a
+         * procedural pose may run before (or without) any clip that
+         * writes every joint.
+         */
+        entity3d_pose_reset(e);
     }
     if (model->anis.da.nr_el)
         init_flags |= ENTITY3D_IS_ANIMATED;
