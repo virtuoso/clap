@@ -997,34 +997,46 @@ LINMATH_H_FUNC void mat4x4o_mul_quat(mat4x4 R, mat4x4 M, quat q)
 	R[3][0] = R[3][1] = R[3][2] = 0.f;
 	R[3][3] = 1.f;
 }
+/**
+ * quat_from_mat4x4() - rotation quaternion of a matrix
+ * @q:  output quaternion, w last
+ * @M:  rotation matrix, unscaled
+ */
 LINMATH_H_FUNC void quat_from_mat4x4(quat q, mat4x4 M)
 {
-	float r=0.f;
-	int i;
+    float t;
 
-	int perm[] = { 0, 1, 2, 0, 1 };
-	int *p = perm;
+    if (M[2][2] < 0.f) {
+        if (M[0][0] > M[1][1]) {
+            t = 1.f + M[0][0] - M[1][1] - M[2][2];
+            q[0] = t;
+            q[1] = M[0][1] + M[1][0];
+            q[2] = M[2][0] + M[0][2];
+            q[3] = M[1][2] - M[2][1];
+        } else {
+            t = 1.f - M[0][0] + M[1][1] - M[2][2];
+            q[0] = M[0][1] + M[1][0];
+            q[1] = t;
+            q[2] = M[1][2] + M[2][1];
+            q[3] = M[2][0] - M[0][2];
+        }
+    } else {
+        if (M[0][0] < -M[1][1]) {
+            t = 1.f - M[0][0] - M[1][1] + M[2][2];
+            q[0] = M[2][0] + M[0][2];
+            q[1] = M[1][2] + M[2][1];
+            q[2] = t;
+            q[3] = M[0][1] - M[1][0];
+        } else {
+            t = 1.f + M[0][0] + M[1][1] + M[2][2];
+            q[0] = M[1][2] - M[2][1];
+            q[1] = M[2][0] - M[0][2];
+            q[2] = M[0][1] - M[1][0];
+            q[3] = t;
+        }
+    }
 
-	for(i = 0; i<3; i++) {
-		float m = M[i][i];
-		if( m < r )
-			continue;
-		m = r;
-		p = &perm[i];
-	}
-
-	r = sqrtf(1.f + M[p[0]][p[0]] - M[p[1]][p[1]] - M[p[2]][p[2]] );
-
-	if(r < 1e-6) {
-		q[0] = 1.f;
-		q[1] = q[2] = q[3] = 0.f;
-		return;
-	}
-
-	q[0] = r/2.f;
-	q[1] = (M[p[0]][p[1]] - M[p[1]][p[0]])/(2.f*r);
-	q[2] = (M[p[2]][p[0]] - M[p[0]][p[2]])/(2.f*r);
-	q[3] = (M[p[2]][p[1]] - M[p[1]][p[2]])/(2.f*r);
+    quat_scale(q, q, 0.5f / sqrtf(t));
 }
 
 LINMATH_H_FUNC void mat4x4_arcball(mat4x4 R, mat4x4 M, vec2 _a, vec2 _b, float s)
