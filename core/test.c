@@ -1800,6 +1800,33 @@ static int tex_next_match_test(void)
     return EXIT_SUCCESS;
 }
 
+static int quat_mat4x4_roundtrip_test(void)
+{
+    quat cases[] = {
+        { 0, 0, 0, 1 },                                             /* identity */
+        { 1, 0, 0, 0 },                                             /* 180 around X */
+        { 0.7071068f, 0, 0, 0.7071068f },                           /* 90 around X */
+        { 0, -0.7071068f, 0, 0.7071068f },                          /* -90 around Y */
+        { 0.5f, -0.5f, 0.5f, -0.5f },
+        { 0.18257419f, 0.36514837f, -0.54772256f, 0.73029674f },
+    };
+
+    for (size_t i = 0; i < array_size(cases); i++) {
+        mat4x4 m;
+        quat out;
+
+        mat4x4_from_quat(m, cases[i]);
+        quat_from_mat4x4(out, m);
+
+        /* q and -q encode the same rotation */
+        float sign = quat_inner_product(out, cases[i]) < 0.f ? -1.f : 1.f;
+        for (int k = 0; k < 4; k++)
+            if (fabsf(out[k] * sign - cases[i][k]) > 1e-5f) return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "user-agent parse desktop", .test = ua_parse_desktop_test },
     { .name = "user-agent parse mobile", .test = ua_parse_mobile_test },
@@ -1871,6 +1898,8 @@ static const struct test tests[] = {
     { .name = "websocket control frames", .test = ws_control_frames_test },
     { .name = "websocket protocol rejects", .test = ws_decode_reject_test },
 #endif /* CONFIG_NETWORKING */
+
+    { .name = "quat from mat4x4 roundtrip", .test = quat_mat4x4_roundtrip_test },
 };
 
 int main(int argc, char **argv, char **envp)
