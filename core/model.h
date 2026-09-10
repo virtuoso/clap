@@ -139,6 +139,7 @@ struct model_joint {
     mat4x4      invmx;
     mat4x4      bind;
     int         id;
+    int         parent;     /* -1 for the root */
 };
 
 /**

@@ -1600,6 +1600,7 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
             for (ch = 0; ch < node->nr_children; ch++) {
                 int *pchild = darray_add(txm->model->joints[i].children);
                 *pchild = gltf_skin_node_to_joint(gd, skin, node->ch_arr[ch]);//node->ch_arr[ch];
+                if (*pchild >= 0)   txm->model->joints[*pchild].parent = i;
             }
         }
 

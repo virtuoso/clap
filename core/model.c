@@ -624,6 +624,7 @@ int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs)
     for (int j = 0; j < nr_joints; j++) {
         memcpy(&m->joints[j].invmx, invmxs[j], sizeof(mat4x4));
         mat4x4_invert(m->joints[j].bind, invmxs[j]);
+        m->joints[j].parent = -1;
         darray_init(m->joints[j].children);
     }
 
