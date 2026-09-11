@@ -113,6 +113,16 @@ void transform_rotate_vec3(transform_t *xform, vec3 v)
     vec3_dup(v, r);
 }
 
+void transform_unrotate_vec3(transform_t *xform, vec3 v)
+{
+    quat conj;
+    vec3 r;
+
+    quat_conj(conj, xform->rotation);
+    quat_mul_vec3(r, conj, v);
+    vec3_dup(v, r);
+}
+
 void transform_orbit(transform_t *xform, vec3 target, float len)
 {
     vec4 start = { 0.0, 0.0, len, 1.0 }, off;

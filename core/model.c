@@ -2128,6 +2128,13 @@ void entity3d_position(entity3d *e, vec3 pos)
         phys_body_set_position(e->phys_body, pos);
 }
 
+void entity3d_world_to_model(entity3d *e, const vec3 world, vec3 model)
+{
+    vec3_sub(model, world, transform_pos(&e->xform, nullptr));
+    transform_unrotate_vec3(&e->xform, model);
+    if (e->scale != 0.0f && e->scale != 1.0f)   vec3_scale(model, model, 1.0f / e->scale);
+}
+
 void entity3d_move(entity3d *e, vec3 off)
 {
     const float *pos = transform_move(&e->xform, off);

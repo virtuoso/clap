@@ -26,6 +26,14 @@ void transform_rotate_axis(transform_t *xform, vec3 axis, float angle, bool degr
 void transform_rotation(transform_t *xform, float angles[3], bool degrees);
 const float *transform_rotation_quat(transform_t *xform);
 void transform_rotate_vec3(transform_t *xform, vec3 v);
+
+/**
+ * transform_unrotate_vec3() - undo a transform's rotation on a vector
+ * @xform:  the transform
+ * @v:      the vector, rotated in place by the inverse rotation
+ */
+void transform_unrotate_vec3(transform_t *xform, vec3 v);
+
 void transform_orbit(transform_t *xform, vec3 target, float len);
 void transform_rotate_mat4x4(transform_t *xform, mat4x4 m);
 void transform_view_mat4x4(transform_t *xform, mat4x4 m);

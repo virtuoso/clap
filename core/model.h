@@ -871,6 +871,23 @@ void entity3d_color(entity3d *e, int color_pt, vec4 color);
 void entity3d_scale(entity3d *e, float scale);
 
 /**
+ * entity3d_world_to_model() - convert a world position to model space
+ * @e:      entity3d object
+ * @world:  position in world space
+ * @model:  receiver of the model space position
+ *
+ * Convert through the entity's current transform (position, rotation,
+ * uniform scale), not through the cached inverse model matrix, which is
+ * one frame stale inside entity update callbacks: the matrices are
+ * rebuilt by default_update() after the callback body runs. Use this
+ * for anything that feeds model-space input (IK targets) from world
+ * data during updates. The transform of an entity attached to a parent
+ * is relative to that parent, and so is the result.
+ * Context: anywhere
+ */
+void entity3d_world_to_model(entity3d *e, const vec3 world, vec3 model);
+
+/**
  * entity3d_move() - move entity by an offset
  * @e:      entity3d object
  * @off:    translation vector
