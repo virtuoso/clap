@@ -90,6 +90,67 @@ cerr _skeleton_emit(const skeleton_emit_opts *opts)
     return mesh_attr_dup(opts->mesh, MESH_WEIGHTS, vx_weights, sizeof(float) * 4, nr_vx);
 }
 
+/* default far-end margin for skeleton_fit_chain() */
+#define FIT_MARGIN 0.12f
+
+cerr _skeleton_fit_chain(const skeleton_fit_opts *opts)
+{
+    skel_joint *joints = opts->joints;
+    size_t nr = opts->nr_joints;
+
+    if (!opts->mesh || !joints || nr < 2 || nr > JOINTS_MAX)    return CERR_INVALID_ARGUMENTS;
+
+    size_t nr_vx = mesh_nr_vx(opts->mesh);
+    if (!nr_vx) return CERR_INVALID_ARGUMENTS;
+
+    vec3 axis;
+    vec3_dup(axis, opts->axis);
+    if (vec3_len(axis) == 0.0f) vec3_dup(axis, (vec3){ 0.0f, 1.0f, 0.0f });
+    vec3_norm(axis, axis);
+
+    float s_min = HUGE_VALF, s_max = -HUGE_VALF;
+    for (size_t v = 0; v < nr_vx; v++) {
+        const float *p = (const void *)mesh_vx(opts->mesh) + v * mesh_vx_stride(opts->mesh);
+        float s = vec3_mul_inner(p, axis);
+
+        s_min = fminf(s_min, s);
+        s_max = fmaxf(s_max, s);
+    }
+
+    float margin = opts->margin ? : FIT_MARGIN;
+    float span = (s_max - s_min) * (1.0f - margin);
+    float band = span / (nr - 1);
+
+    vec3 prev_perp = {};
+    for (size_t k = 0; k < nr; k++) {
+        float station = s_min + span * k / (nr - 1);
+        vec3 acc = {};
+        size_t cnt = 0;
+
+        for (size_t v = 0; v < nr_vx; v++) {
+            const float *p = (const void *)mesh_vx(opts->mesh) + v * mesh_vx_stride(opts->mesh);
+
+            if (fabsf(vec3_mul_inner(p, axis) - station) > band)    continue;
+            vec3_add(acc, acc, p);
+            cnt++;
+        }
+
+        vec3 perp;
+        if (cnt) {
+            vec3_scale(acc, acc, 1.0f / cnt);
+            vec3_add_scaled(perp, acc, axis, 1.0f, -vec3_mul_inner(acc, axis));
+            vec3_dup(prev_perp, perp);
+        } else {
+            /* an empty band keeps the previous joint's lateral offset */
+            vec3_dup(perp, prev_perp);
+        }
+
+        vec3_add_scaled(joints[k].pos, perp, axis, 1.0f, station);
+    }
+
+    return CERR_OK;
+}
+
 /* squared distance from @p to the (@a, @b) segment */
 static float point_segment_dist2(const float *p, const vec3 a, const vec3 b)
 {

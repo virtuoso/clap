@@ -73,6 +73,36 @@ cerr_check _skeleton_skin(const skeleton_skin_opts *opts);
 #define skeleton_skin(args...) _skeleton_skin(&(skeleton_skin_opts){ args })
 
 /**
+ * struct skeleton_fit_opts - chain fitting options
+ * @mesh:       mesh to fit the chain to (required)
+ * @joints:     skeleton whose positions get filled in; names, parent
+ *              links and sizes are the caller's (required)
+ * @nr_joints:  number of joints, at least 2
+ * @axis:       axis to slice the mesh along; zero picks +Y
+ * @margin:     fraction of the extent to stop short of the far end so
+ *              the last joint keeps a lever arm; 0 picks the default
+ *
+ * skeleton_fit_chain() places a joint chain inside an unrigged mesh:
+ * joints at even stations along @axis, each at the centroid of the
+ * vertices in a band around its station, so the chain follows the
+ * mesh's lean and mass distribution (a tree trunk, a lamppost, a
+ * seaweed strand). Pair with skeleton_skin() to rig the mesh to the
+ * fitted chain.
+ */
+typedef struct skeleton_fit_opts {
+    struct mesh         *mesh;
+    skel_joint          *joints;
+    size_t              nr_joints;
+    vec3                axis;
+    float               margin;
+} skeleton_fit_opts;
+
+cerr_check _skeleton_fit_chain(const skeleton_fit_opts *opts);
+
+/* Fit a joint chain to a mesh along an axis */
+#define skeleton_fit_chain(args...) _skeleton_fit_chain(&(skeleton_fit_opts){ args })
+
+/**
  * skeleton_apply() - add a procedural skeleton to a model
  * @m:          model3d built from a skeleton_emit() mesh
  * @joints:     the same skeleton the mesh was emitted from
