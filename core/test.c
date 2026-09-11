@@ -17,6 +17,7 @@
 #include "str.h"
 #include "common.h"
 #include "messagebus.h"
+#include "interp.h"
 #include "util.h"
 #include "websocket.h"
 #include "xyarray.h"
@@ -1800,6 +1801,32 @@ static int tex_next_match_test(void)
     return EXIT_SUCCESS;
 }
 
+static int interp_easing_test(void)
+{
+    if (ease_in_cubicf(0.0f) != 0.0f || ease_in_cubicf(1.0f) != 1.0f)   return EXIT_FAILURE;
+    if (ease_out_cubicf(0.0f) != 0.0f || ease_out_cubicf(1.0f) != 1.0f) return EXIT_FAILURE;
+
+    /* in accelerates, out decelerates, both stay within [0, 1] */
+    if (ease_in_cubicf(0.5f) >= 0.5f || ease_out_cubicf(0.5f) <= 0.5f)  return EXIT_FAILURE;
+
+    for (int i = 1; i <= 10; i++) {
+        float x = i / 10.0f, px = (i - 1) / 10.0f;
+
+        if (ease_in_cubicf(x) <= ease_in_cubicf(px))    return EXIT_FAILURE;
+        if (ease_out_cubicf(x) <= ease_out_cubicf(px))  return EXIT_FAILURE;
+    }
+
+    /* approach: nothing at dt 0, everything at dt >> 1/rate */
+    if (approachf(10.0f, 0.0f) != 0.0f)                 return EXIT_FAILURE;
+    if (fabsf(approachf(10.0f, 10.0f) - 1.0f) > 1e-6f)  return EXIT_FAILURE;
+
+    vec3 cur = { 0, 0, 0 };
+    vec3_approach(cur, (vec3){ 1, 2, 3 }, 100.0f, 1.0f);
+    if (fabsf(cur[0] - 1.0f) > 1e-4f || fabsf(cur[2] - 3.0f) > 1e-4f)   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static int quat_mat4x4_roundtrip_test(void)
 {
     quat cases[] = {
@@ -1898,7 +1925,7 @@ static const struct test tests[] = {
     { .name = "websocket control frames", .test = ws_control_frames_test },
     { .name = "websocket protocol rejects", .test = ws_decode_reject_test },
 #endif /* CONFIG_NETWORKING */
-
+    { .name = "interp easing", .test = interp_easing_test },
     { .name = "quat from mat4x4 roundtrip", .test = quat_mat4x4_roundtrip_test },
 };
 
