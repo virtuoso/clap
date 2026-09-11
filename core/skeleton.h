@@ -47,6 +47,32 @@ cerr_check _skeleton_emit(const skeleton_emit_opts *opts);
 #define skeleton_emit(args...) _skeleton_emit(&(skeleton_emit_opts){ args })
 
 /**
+ * struct skeleton_skin_opts - automatic mesh skinning options
+ * @mesh:       mesh with vertices and without skinning attributes
+ *              (required)
+ * @joints:     the skeleton (required)
+ * @nr_joints:  number of joints
+ *
+ * skeleton_skin() binds an existing mesh to a skeleton by distance:
+ * every vertex is weighted to the joints whose bones (the segments from
+ * a joint to each of its children; leaf joints extend their parent
+ * segment onward) pass closest to it, up to 4 influences with inverse
+ * square falloff. Meant for meshes authored without an armature (trees,
+ * props) that a procedural skeleton is fitted to after the fact; cube
+ * sizes in @joints are ignored.
+ */
+typedef struct skeleton_skin_opts {
+    struct mesh         *mesh;
+    const skel_joint    *joints;
+    size_t              nr_joints;
+} skeleton_skin_opts;
+
+cerr_check _skeleton_skin(const skeleton_skin_opts *opts);
+
+/* Skin an existing mesh to a skeleton by bone distance */
+#define skeleton_skin(args...) _skeleton_skin(&(skeleton_skin_opts){ args })
+
+/**
  * skeleton_apply() - add a procedural skeleton to a model
  * @m:          model3d built from a skeleton_emit() mesh
  * @joints:     the same skeleton the mesh was emitted from

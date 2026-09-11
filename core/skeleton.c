@@ -90,6 +90,150 @@ cerr _skeleton_emit(const skeleton_emit_opts *opts)
     return mesh_attr_dup(opts->mesh, MESH_WEIGHTS, vx_weights, sizeof(float) * 4, nr_vx);
 }
 
+/* squared distance from @p to the (@a, @b) segment */
+static float point_segment_dist2(const float *p, const vec3 a, const vec3 b)
+{
+    vec3 ab, ap, q;
+
+    vec3_sub(ab, b, a);
+    vec3_sub(ap, p, a);
+
+    float len2 = vec3_mul_inner(ab, ab);
+    float t = len2 > 0.0f ? clampf(vec3_mul_inner(ap, ab) / len2, 0.0f, 1.0f) : 0.0f;
+
+    vec3_add_scaled(q, a, ab, 1.0f, t);
+    vec3_sub(q, p, q);
+
+    return vec3_mul_inner(q, q);
+}
+
+/* the bones of a joint: segments to each child; leaves extend their parent's */
+/**
+ * struct skin_bone - a segment that vertices get skinned to by distance
+ * @joint:  the joint the segment belongs to
+ * @a:      one end
+ * @b:      the other end
+ */
+typedef struct skin_bone {
+    size_t  joint;
+    vec3    a, b;
+} skin_bone;
+
+static DEFINE_CLEANUP(skin_bone, mem_free(*p))
+
+cerr _skeleton_skin(const skeleton_skin_opts *opts)
+{
+    const skel_joint *joints = opts->joints;
+    size_t nr = opts->nr_joints;
+
+    if (!opts->mesh || !joints || !nr || nr > JOINTS_MAX)   return CERR_INVALID_ARGUMENTS;
+
+    size_t nr_vx = mesh_nr_vx(opts->mesh);
+    if (!nr_vx || mesh_nr_joints(opts->mesh) || mesh_nr_weights(opts->mesh))    return CERR_INVALID_ARGUMENTS;
+
+    LOCAL_SET(skin_bone, bones) = mem_alloc(sizeof(*bones), .nr = 2 * nr);
+    LOCAL_SET(uchar, vx_joints) = mem_alloc(sizeof(unsigned char) * 4, .nr = nr_vx);
+    LOCAL_SET(float, vx_weights) = mem_alloc(sizeof(float) * 4, .nr = nr_vx, .zero = 1);
+
+    if (!bones || !vx_joints || !vx_weights)    return CERR_NOMEM;
+
+    size_t nr_bones = 0;
+    float seg_len = 0.0f;
+    for (size_t i = 0; i < nr; i++) {
+        bool leaf = true;
+
+        for (size_t c = 0; c < nr; c++) {
+            if (joints[c].parent != (int)i) continue;
+
+            vec3 seg;
+
+            vec3_sub(seg, joints[c].pos, joints[i].pos);
+            seg_len += vec3_len(seg);
+
+            leaf = false;
+            bones[nr_bones].joint = i;
+            vec3_dup(bones[nr_bones].a, joints[i].pos);
+            vec3_dup(bones[nr_bones].b, joints[c].pos);
+            nr_bones++;
+        }
+
+        if (!leaf)  continue;
+
+        /* a leaf covers the region past itself: extend its parent's segment */
+        bones[nr_bones].joint = i;
+        vec3_dup(bones[nr_bones].a, joints[i].pos);
+        vec3_dup(bones[nr_bones].b, joints[i].pos);
+        if (joints[i].parent >= 0) {
+            vec3 dir;
+
+            vec3_sub(dir, joints[i].pos, joints[joints[i].parent].pos);
+            vec3_add(bones[nr_bones].b, bones[nr_bones].b, dir);
+        }
+        nr_bones++;
+    }
+
+    float eps2 = seg_len > 0.0f ? powf(seg_len / nr_bones * 0.01f, 2.0f) : 1e-6f;
+
+    for (size_t v = 0; v < nr_vx; v++) {
+        const float *pos = (void *)mesh_vx(opts->mesh) + v * mesh_vx_stride(opts->mesh);
+        float best_d2[4] = { HUGE_VALF, HUGE_VALF, HUGE_VALF, HUGE_VALF };
+        size_t best_j[4] = {};
+
+        for (size_t b = 0; b < nr_bones; b++) {
+            float d2 = point_segment_dist2(pos, bones[b].a, bones[b].b);
+
+            /* the same joint may already be in with a closer bone */
+            size_t slot;
+            for (slot = 0; slot < 4; slot++)
+                if (best_d2[slot] < HUGE_VALF && best_j[slot] == bones[b].joint)    break;
+            if (slot < 4) {
+                if (d2 >= best_d2[slot])    continue;
+
+                /* the slots stay sorted: move the closer one forward */
+                best_d2[slot] = d2;
+                for (; slot && best_d2[slot] < best_d2[slot - 1]; slot--) {
+                    float d = best_d2[slot - 1];
+                    size_t j = best_j[slot - 1];
+
+                    best_d2[slot - 1] = best_d2[slot];
+                    best_j[slot - 1] = best_j[slot];
+                    best_d2[slot] = d;
+                    best_j[slot] = j;
+                }
+                continue;
+            }
+
+            for (slot = 0; slot < 4; slot++)
+                if (d2 < best_d2[slot]) break;
+            if (slot == 4)              continue;
+
+            for (size_t s = 3; s > slot; s--) {
+                best_d2[s] = best_d2[s - 1];
+                best_j[s] = best_j[s - 1];
+            }
+            best_d2[slot] = d2;
+            best_j[slot] = bones[b].joint;
+        }
+
+        float total = 0.0f;
+        float w[4] = {};
+        for (int s = 0; s < 4; s++) {
+            if (best_d2[s] == HUGE_VALF)    break;
+            w[s] = 1.0f / (best_d2[s] + eps2);
+            total += w[s];
+        }
+
+        for (int s = 0; s < 4; s++) {
+            vx_joints[v * 4 + s] = best_d2[s] < HUGE_VALF ? best_j[s] : 0;
+            vx_weights[v * 4 + s] = total > 0.0f ? w[s] / total : !s;
+        }
+    }
+
+    CERR_RET_CERR(mesh_attr_dup(opts->mesh, MESH_JOINTS, vx_joints, sizeof(unsigned char) * 4, nr_vx));
+
+    return mesh_attr_dup(opts->mesh, MESH_WEIGHTS, vx_weights, sizeof(float) * 4, nr_vx);
+}
+
 cerr skeleton_apply(model3d *m, const skel_joint *joints, size_t nr_joints)
 {
     if (!m || !joints || !nr_joints || nr_joints > JOINTS_MAX || m->nr_joints)  return CERR_INVALID_ARGUMENTS;
