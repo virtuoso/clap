@@ -21,6 +21,33 @@ static inline _type smoothstep  ## _suffix(_type a, _type b, _type blend) \
 DEFINE_SMOOTHSTEP(float, f);
 DEFINE_SMOOTHSTEP(double, d); /* double version in util.h is called clampd() */
 
+/* Cubic ease in (accelerating) / ease out (decelerating) */
+#define DEFINE_EASE_CUBIC(_type, _suffix) \
+static inline _type ease_in_cubic ## _suffix(_type x) \
+{ \
+    return x * x * x; \
+} \
+static inline _type ease_out_cubic ## _suffix(_type x) \
+{ \
+    x = 1.0 - x; \
+    return 1.0 - x * x * x; \
+}
+
+DEFINE_EASE_CUBIC(float, f);
+DEFINE_EASE_CUBIC(double, d);
+
+/*
+ * Framerate independent exponential approach: the fraction of the
+ * remaining distance to a goal covered in @dt at @rate (1/s)
+ */
+#define DEFINE_APPROACH(_type, _suffix) \
+static inline _type approach ## _suffix(_type rate, _type dt) \
+{ \
+    return 1.0 - exp ## _suffix(-rate * dt); \
+}
+
+DEFINE_APPROACH(float, f);
+
 /* Linear interpolation between 2 values of type (float, double, long double) */
 #define DEFINE_LIN_INTERP(_type, _suffix) \
 static inline _type lin  ## _suffix ## _interp(_type a, _type b, _type blend) \
@@ -61,6 +88,18 @@ static inline void vec3_interp(vec3 res, vec3 a, vec3 b, float fac)
     res[0] = linf_interp(a[0], b[0], fac);
     res[1] = linf_interp(a[1], b[1], fac);
     res[2] = linf_interp(a[2], b[2], fac);
+}
+
+/**
+ * vec3_approach() - exponentially approach a goal in place
+ * @cur:    the value, updated in place
+ * @goal:   where it's headed
+ * @rate:   approach rate, 1/s
+ * @dt:     time step, seconds
+ */
+static inline void vec3_approach(vec3 cur, const vec3 goal, float rate, float dt)
+{
+    vec3_interp(cur, cur, (float *)goal, approachf(rate, dt));
 }
 
 /* Linear interpolation between 2 quaternions */
