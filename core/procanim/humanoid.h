@@ -22,12 +22,21 @@ struct scene;
  *                  the feet in comfortable IK reach)
  * @bob:            body bob amplitude, two bobs per cycle
  * @arm_swing:      arm swing amplitude, radians; 0 disables
+ * @lean:           forward body lean, radians, spread over the spine
+ * @speed:          the body speed this tuning is authored for; the
+ *                  humanoid blends its walk and run configurations by
+ *                  where the measured speed falls between their speeds
  * @knee_dir:       knee bend direction (IK pole), model space
  * @shoulders:      arm swing joint names; nullptr entries skip that arm
  * @leg_joints:     joints per leg chain, tip included
+ * @spine_first:    first spine joint, for lean and idle breathing
+ * @spine_nr:       spine joint count; 0 disables lean and breathing
  *
- * gait_config_init() writes out the reference tuning; start from it and
- * override per character.
+ * gait_config_init() writes out the walking reference tuning,
+ * gait_config_run_init() the running one; start from them and override
+ * per character. Skeleton binding fields
+ * (knee_dir, leg_joints, shoulders, spine range) are only read from
+ * the humanoid's walk configuration.
  */
 typedef struct gait_config {
     float           cycle;
@@ -39,16 +48,60 @@ typedef struct gait_config {
     float           base_y;
     float           bob;
     float           arm_swing;
+    float           lean;
+    float           speed;
     vec3            knee_dir;
     const char      *shoulders[2];
     unsigned int    leg_joints;
+    unsigned int    spine_first;
+    unsigned int    spine_nr;
 } gait_config;
 
 /**
- * gait_config_init() - fill a gait configuration with the defaults
+ * gait_config_init() - fill a gait configuration with the walk defaults
  * @cfg:    the configuration; fully overwritten
  */
 void gait_config_init(gait_config *cfg);
+
+/**
+ * gait_config_run_init() - fill a gait configuration with the run defaults
+ * @cfg:    the configuration; fully overwritten
+ *
+ * Faster cycle, longer stride, higher steps, a swing fraction above
+ * one half (flight phases), deeper crouch, stronger bob and arm swing,
+ * forward lean.
+ */
+void gait_config_run_init(gait_config *cfg);
+
+/**
+ * struct idle_config - what the biped does when it stops
+ * @enter_speed:    drop below this to idle
+ * @exit_speed:     rise above this to move again
+ * @settle_rate:    how fast animation layers ease between idle and
+ *                  locomotion, 1/s
+ * @bob:            breathing bob amplitude
+ * @bob_frequency:  rad/s
+ * @sway_amplitude: breathing sway over the spine range, radians; needs
+ *                  gait_config::spine_nr
+ *
+ * Idling holds the feet where they last landed (a swing in flight
+ * still completes), eases the arm swing and bob out, and breathes:
+ * a slow bob plus a subtle spine sway.
+ */
+typedef struct idle_config {
+    float           enter_speed;
+    float           exit_speed;
+    float           settle_rate;
+    float           bob;
+    float           bob_frequency;
+    float           sway_amplitude;
+} idle_config;
+
+/**
+ * idle_config_init() - fill an idle configuration with the defaults
+ * @cfg:    the configuration; fully overwritten
+ */
+void idle_config_init(idle_config *cfg);
 
 typedef struct humanoid humanoid;
 
@@ -67,26 +120,35 @@ typedef struct humanoid humanoid;
 typedef void (*humanoid_steer)(humanoid *h, double t, float dt);
 
 /**
- * struct humanoid - a biped walking on IK legs
+ * struct humanoid - a biped walking, running and idling on IK legs
  * @scene:      the scene, for the animation clock (required)
  * @e:          the entity to drive (required); the humanoid does not
  *              own it and claims its update callback and priv pointer
- * @steer:      body driver; nullptr walks in place
+ * @steer:      body driver; nullptr stands in place
  * @steer_priv: the steer callback's own state
- * @cfg:        the walk parameters; zero cycle picks the defaults
+ * @walk:       the walk tuning; zero cycle picks the defaults
+ * @run:        the run tuning; zero cycle picks the defaults
+ * @idle:       what to do when stopped; zero enter_speed picks the
+ *              defaults
  *
- * The rest is internal: leg IK chains, gait state, measured speed.
- * humanoid_gait_start() resolves the legs through the semantic
- * JOINT_FOOT_LEFT/JOINT_FOOT_RIGHT joint types, the arms through
- * gait_config::shoulders names, installs the update callback and
- * starts walking; humanoid_gait_stop() restores everything.
+ * The humanoid measures its own speed and picks the animation from
+ * it: below idle_config::enter_speed it settles into breathing,
+ * between the walk's and the run's authored speeds it blends the two
+ * tunings continuously. The rest is internal: leg IK chains, gait
+ * state, blend levels. humanoid_gait_start() resolves the legs
+ * through the semantic JOINT_FOOT_LEFT/JOINT_FOOT_RIGHT joint types,
+ * the arms and spine by name/range from the walk configuration,
+ * installs the update callback; humanoid_gait_stop() restores
+ * everything.
  */
 struct humanoid {
     struct scene    *scene;
     entity3d        *e;
     humanoid_steer  steer;
     void            *steer_priv;
-    gait_config     cfg;
+    gait_config     walk;
+    gait_config     run;
+    idle_config     idle;
 
     ik_chain        legs[2];
     gait_leg        feet[2];
@@ -95,6 +157,9 @@ struct humanoid {
     int             (*orig_update)(entity3d *, void *);
     vec3            prev_pos;
     float           speed;
+    float           blend;      /* 0: walk, 1: run */
+    float           activity;   /* 0: idle, 1: moving */
+    bool            idling;
     double          t0;
     double          t_last;
 };
