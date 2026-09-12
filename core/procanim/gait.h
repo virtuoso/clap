@@ -28,6 +28,16 @@ typedef struct gait_leg {
 } gait_leg;
 
 /**
+ * typedef gait_ground_fn - ground height probe
+ * @priv:   gait::ground_priv
+ * @x:      world X coordinate
+ * @z:      world Z coordinate
+ *
+ * Return: the walkable ground height at (x, z)
+ */
+typedef float (*gait_ground_fn)(void *priv, float x, float z);
+
+/**
  * struct gait - a walking gait over a set of legs
  * @legs:           caller-owned leg array (required)
  * @nr_legs:        number of legs
@@ -37,8 +47,10 @@ typedef struct gait_leg {
  * @stride:         distance between successive footfalls of one leg;
  *                  0: default
  * @step_height:    swing arc height; 0 picks the default
- * @foot_y:         planted foot target height on flat ground at 0
+ * @foot_y:         planted foot target height above the ground
  * @phase:          the accumulated cycle phase (internal)
+ * @ground:         ground height probe; nullptr: flat ground at 0
+ * @ground_priv:    the probe's own state (a navmesh, a terrain)
  *
  * The gait owns when and where feet step: planted feet hold their
  * world anchor, swinging feet arc toward a landing spot predicted from
@@ -52,14 +64,16 @@ typedef struct gait_leg {
  * (walk-to-run blending) without teleporting the feet.
  */
 typedef struct gait {
-    gait_leg    *legs;
-    size_t      nr_legs;
-    float       cycle;
-    float       swing;
-    float       stride;
-    float       step_height;
-    float       foot_y;
-    float       phase;
+    gait_leg        *legs;
+    size_t          nr_legs;
+    float           cycle;
+    float           swing;
+    float           stride;
+    float           step_height;
+    float           foot_y;
+    float           phase;
+    gait_ground_fn  ground;
+    void            *ground_priv;
 } gait;
 
 /**
@@ -69,8 +83,9 @@ typedef struct gait {
  * @forward:    body forward axis, unit
  * @right:      body right axis, unit
  *
- * Plant every foot at its body-frame offset from @pos at gait::foot_y
- * and clear the swing state. Call once after placing the body.
+ * Plant every foot at its body-frame offset from @pos, gait::foot_y
+ * above the ground, and clear the swing state. Call once after placing
+ * the body.
  */
 void gait_reset(gait *g, const vec3 pos, const vec3 forward, const vec3 right);
 

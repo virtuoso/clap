@@ -13,6 +13,12 @@
 #define GAIT_STRIDE 0.55f
 #define GAIT_STEP_H 0.16f
 
+/* planted foot height at (x, z) */
+static float gait_ground(gait *g, float x, float z)
+{
+    return (g->ground ? g->ground(g->ground_priv, x, z) : 0.0f) + g->foot_y;
+}
+
 void gait_reset(gait *g, const vec3 pos, const vec3 forward, const vec3 right)
 {
     g->phase = 0.0f;
@@ -21,7 +27,7 @@ void gait_reset(gait *g, const vec3 pos, const vec3 forward, const vec3 right)
         gait_leg *leg = &g->legs[i];
 
         for (int c = 0; c < 3; c++) leg->target[c] = pos[c] + forward[c] * leg->offset[2] + right[c] * leg->offset[0];
-        leg->target[1] = g->foot_y;
+        leg->target[1] = gait_ground(g, leg->target[0], leg->target[2]);
         leg->swinging = false;
     }
 }
@@ -61,7 +67,7 @@ cerr gait_update(gait *g, const vec3 pos, const vec3 forward, const vec3 right,
             float lead = speed * land_time + stride / 2.0f + leg->offset[2];
 
             for (int c = 0; c < 3; c++) leg->swing_to[c] = pos[c] + forward[c] * lead + right[c] * leg->offset[0];
-            leg->swing_to[1] = g->foot_y;
+            leg->swing_to[1] = gait_ground(g, leg->swing_to[0], leg->swing_to[2]);
         }
 
         float su = u / swing;

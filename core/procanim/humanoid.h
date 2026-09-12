@@ -114,8 +114,9 @@ typedef struct humanoid humanoid;
  * Called at the top of every update: drive the entity's position and
  * heading (entity3d_position(), entity3d_rotate()) however the
  * character moves. The humanoid owns the vertical: it overwrites the
- * entity's Y with gait_config::base_y plus bob. Speed is measured from
- * the entity's horizontal motion, so steering doesn't report it.
+ * entity's Y with the ground height under it plus gait_config::base_y
+ * plus bob. Speed is measured from the entity's horizontal motion, so
+ * steering doesn't report it.
  */
 typedef void (*humanoid_steer)(humanoid *h, double t, float dt);
 
@@ -126,6 +127,9 @@ typedef void (*humanoid_steer)(humanoid *h, double t, float dt);
  *              own it and claims its update callback and priv pointer
  * @steer:      body driver; nullptr stands in place
  * @steer_priv: the steer callback's own state
+ * @ground:     ground height probe for the body and the feet; nullptr:
+ *              flat ground at 0
+ * @ground_priv: the probe's own state (a navmesh, a terrain)
  * @walk:       the walk tuning; zero cycle picks the defaults
  * @run:        the run tuning; zero cycle picks the defaults
  * @idle:       what to do when stopped; zero enter_speed picks the
@@ -146,6 +150,8 @@ struct humanoid {
     entity3d        *e;
     humanoid_steer  steer;
     void            *steer_priv;
+    gait_ground_fn  ground;
+    void            *ground_priv;
     gait_config     walk;
     gait_config     run;
     idle_config     idle;

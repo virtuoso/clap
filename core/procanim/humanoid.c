@@ -145,13 +145,14 @@ static int humanoid_update(entity3d *e, void *data)
     h->gait.stride      = linf_interp(h->walk.stride, h->run.stride, h->blend);
     h->gait.step_height = linf_interp(h->walk.step_height, h->run.step_height, h->blend);
 
-    /* the humanoid owns the vertical: crouch base, gait bob, breathing */
+    /* the humanoid owns the vertical: ground, crouch base, gait bob, breathing */
     float bob = linf_interp(h->walk.bob, h->run.bob, h->blend) * h->activity *
                 sinf(4.0f * (float)M_PI * h->gait.phase)
               + h->idle.bob * (1.0f - h->activity) *
                 sinf((float)t * h->idle.bob_frequency);
+    float ground = h->ground ? h->ground(h->ground_priv, pos[0], pos[2]) : 0.0f;
 
-    pos[1] = linf_interp(h->walk.base_y, h->run.base_y, h->blend) + bob;
+    pos[1] = ground + linf_interp(h->walk.base_y, h->run.base_y, h->blend) + bob;
     entity3d_position(e, pos);
 
     vec3 forward = { 0.0f, 0.0f, 1.0f }, right = { 1.0f, 0.0f, 0.0f };
@@ -271,6 +272,8 @@ cerr humanoid_gait_start(humanoid *h)
         .stride         = h->walk.stride,
         .step_height    = h->walk.step_height,
         .foot_y         = h->walk.foot_y,
+        .ground         = h->ground,
+        .ground_priv    = h->ground_priv,
     };
 
     vec3 pos, forward = { 0.0f, 0.0f, 1.0f }, right = { 1.0f, 0.0f, 0.0f };
