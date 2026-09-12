@@ -124,9 +124,62 @@ static int gait_run_test(void)
     return saw_flight ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+static float gait_test_ramp(void *priv, float x, float z)
+{
+    return 0.25f * x;
+}
+
+static int gait_ground_test(void)
+{
+    gait_leg legs[2] = {
+        { .offset = { -0.28f, 0.0f, 0.0f }, .phase = 0.0f },
+        { .offset = {  0.28f, 0.0f, 0.0f }, .phase = 0.5f },
+    };
+    gait g = {
+        .legs = legs, .nr_legs = 2,
+        .cycle = 1.0f, .swing = 0.38f, .stride = 0.5f, .step_height = 0.15f, .foot_y = 0.1f,
+        .ground = gait_test_ramp,
+    };
+    vec3 fwd = { 1, 0, 0 }, right = { 0, 0, -1 }, pos = { 0, 0, 0 };
+    float speed = g.stride / g.cycle;
+    bool prev_swing[2] = {};
+
+    gait_reset(&g, pos, fwd, right);
+    for (int i = 0; i < 2; i++)
+        if (fabsf(legs[i].target[1] -
+                  gait_test_ramp(nullptr, legs[i].target[0], legs[i].target[2]) - g.foot_y) > 1e-5f)
+            return EXIT_FAILURE;
+
+    for (double t = 0.0; t < 3.0; t += 1.0 / 120.0) {
+        pos[0] = speed * (float)t;
+        pos[1] = gait_test_ramp(nullptr, pos[0], pos[2]);
+        cerr err = gait_update(&g, pos, fwd, right, speed, 1.0f / 120.0f);
+        if (IS_CERR(err))                       return EXIT_FAILURE;
+
+        for (int i = 0; i < 2; i++) {
+            gait_leg *leg = &legs[i];
+            float ground = gait_test_ramp(nullptr, leg->target[0], leg->target[2]) + g.foot_y;
+
+            /* feet ride the ramp: planted exactly on it, swings arc above it */
+            if (!leg->swinging && fabsf(leg->target[1] - ground) > 1e-4f)   return EXIT_FAILURE;
+            if (leg->swinging &&
+                (leg->target[1] < ground - 1e-4f ||
+                 leg->target[1] > ground + g.step_height + 1e-4f))
+                return EXIT_FAILURE;
+
+            /* landing snaps to the ramp height at the landing spot */
+            if (prev_swing[i] && !leg->swinging && fabsf(leg->target[1] - ground) > 1e-4f)  return EXIT_FAILURE;
+            prev_swing[i] = leg->swinging;
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "gait walk",        .test = gait_walk_test },
     { .name = "gait run flight",  .test = gait_run_test },
+    { .name = "gait ground ramp", .test = gait_ground_test },
 };
 
 int main(int argc, char **argv, char **envp)
