@@ -424,9 +424,11 @@ target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR} ${CMAKE_BINARY_DI
 # Subsystems built as their own static libraries (see their CMakeLists.txt).
 add_subdirectory(ik)
 add_subdirectory(procanim)
+add_subdirectory(nav)
 
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_ik)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_procanim)
+target_link_libraries(${ENGINE_LIB} PRIVATE clap_nav)
 
 win32_library(${ENGINE_LIB} FALSE)
 
