@@ -6,6 +6,8 @@
 #include "linmath.h"
 #include "model.h"
 
+struct scene;
+
 /**
  * struct sway_config - layered sine chain sway parameters
  * @wind:           wind direction; the chain bends around its horizontal
@@ -79,5 +81,43 @@ void sway_config_init(sway_config *cfg);
  * Return: CERR_OK or CERR_INVALID_ARGUMENTS
  */
 cerr_check chain_sway(entity3d *e, double t, const sway_config *cfg);
+
+/**
+ * struct sway_rig - a self-updating swaying entity
+ * @scene:          the scene, for the animation clock (required)
+ * @e:              the entity to sway (required); the rig does not own
+ *                  it and claims its update callback and priv pointer
+ * @orig_update:    the entity update the rig chains to (internal)
+ * @t0:             animation time anchor (internal)
+ * @cfg:            sway parameters; zero amplitude picks the defaults
+ *
+ * The turnkey wrapper over chain_sway(): sway_rig_start() installs an
+ * entity update that resets the pose, sways the chain and recomputes
+ * the skeleton every frame, then chains to the original update.
+ */
+typedef struct sway_rig {
+    struct scene    *scene;
+    entity3d        *e;
+    int             (*orig_update)(entity3d *, void *);
+    double          t0;
+    sway_config     cfg;
+} sway_rig;
+
+/**
+ * sway_rig_start() - start swaying an entity
+ * @rig:    the rig, with sway_rig::scene, sway_rig::e and optionally
+ *          sway_rig::cfg filled
+ *
+ * Context: entity setup time
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no skeleton) or
+ * CERR_INVALID_OPERATION (the entity's priv pointer is taken)
+ */
+cerr_check sway_rig_start(sway_rig *rig);
+
+/**
+ * sway_rig_stop() - stop swaying an entity
+ * @rig:    a started rig; the entity's update and priv are restored
+ */
+void sway_rig_stop(sway_rig *rig);
 
 #endif /* __CLAP_PROCANIM_SWAY_H__ */

@@ -3,10 +3,12 @@
  * Wind sway for joint chains: layered sines (base sway, gust harmonic,
  * tip-weighted flutter, twist), phase-lagged along the chain.
  * chain_sway() writes local joint rotations between the caller's pose
- * reset and update.
+ * reset and update; sway_rig wraps it into a self-updating entity.
  */
 #include <math.h>
 #include "common.h"
+#include "clap.h"
+#include "scene.h"
 #include "sway.h"
 
 #define SWAY_AMPLITUDE      0.122f  /* 7 degrees */
@@ -93,4 +95,55 @@ cerr chain_sway(entity3d *e, double t, const sway_config *cfg)
     }
 
     return CERR_OK;
+}
+
+static int sway_rig_update(entity3d *e, void *data)
+{
+    sway_rig *rig = e->priv;
+    struct scene *s = data;
+    double t = clap_get_current_time(s->clap_ctx);
+
+    if (!rig->t0)
+        rig->t0 = t;
+
+    entity3d_pose_reset(e);
+
+    cerr err = chain_sway(e, t - rig->t0, &rig->cfg);
+    if (IS_CERR(err))
+        warn_once("chain_sway failed\n");
+
+    entity3d_pose_update(e);
+
+    return rig->orig_update ? rig->orig_update(e, data) : 0;
+}
+
+cerr sway_rig_start(sway_rig *rig)
+{
+    entity3d *e = rig->e;
+
+    if (!e || !rig->scene || !e->joints)
+        return CERR_INVALID_ARGUMENTS;
+    if (e->priv)
+        return CERR_INVALID_OPERATION;
+
+    if (rig->cfg.amplitude == 0.0f) sway_config_init(&rig->cfg);
+
+    rig->t0 = 0.0;
+    rig->orig_update = e->update;
+    e->update = sway_rig_update;
+    e->priv = rig;
+
+    return CERR_OK;
+}
+
+void sway_rig_stop(sway_rig *rig)
+{
+    entity3d *e = rig->e;
+
+    if (!e || e->update != sway_rig_update)
+        return;
+
+    e->update = rig->orig_update;
+    e->priv = nullptr;
+    rig->orig_update = nullptr;
 }
