@@ -1464,37 +1464,61 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
     return DA(gd->skins, skin)->nodes[node];
 }
 
+cresp(mesh) gltf_mesh_new(struct gltf_data *gd, int mesh)
+{
+    if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
+        return cresp_error(mesh, CERR_INVALID_ARGUMENTS);
+
+    LOCAL_SET(mesh_t, me) = CRES_RET_T(
+        ref_new_checked(mesh, .name = gltf_mesh_name(gd, mesh), .fix_origin = gd->fix_origin), mesh
+    );
+
+    CERR_RET_T(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)), mesh);
+    CERR_RET_T(mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh)), mesh);
+    CERR_RET_T(mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh)), mesh);
+    if (gltf_has_norm(gd, mesh))
+        CERR_RET_T(
+            mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh)),
+            mesh
+        );
+    if (gltf_has_joints(gd, mesh))
+        CERR_RET_T(
+            mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh),
+                          gltf_nr_joints(gd, mesh)),
+            mesh
+        );
+    if (gltf_has_weights(gd, mesh))
+        CERR_RET_T(
+            mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh),
+                          gltf_nr_weights(gd, mesh)),
+            mesh
+        );
+    if (gltf_has_tangent(gd, mesh))
+        CERR_RET_T(
+            mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh),
+                          gltf_nr_tangent(gd, mesh)),
+            mesh
+        );
+    mesh_optimize(me);
+
+    return cresp_val(mesh, ref_pass(me));
+}
+
+bool gltf_textures_png(struct gltf_data *gd)
+{
+    return gd->textures_png;
+}
+
 cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
     int skin;
 
-    if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
-        return CERR_INVALID_ARGUMENTS;
+    if (mesh < 0 || mesh >= gd->meshes.da.nr_el)    return CERR_INVALID_ARGUMENTS;
 
     dbg("instantiating primitive %d: '%s' (group '%s')\n",
         mesh, gltf_mesh_name(gd, mesh), DA(gd->meshes, mesh)->group_name);
 
-    LOCAL_SET(mesh_t, me) = ref_new(mesh, .name = gltf_mesh_name(gd, mesh), .fix_origin = gd->fix_origin);
-    CERR_RET_CERR(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)));
-    CERR_RET_CERR(mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh)));
-    CERR_RET_CERR(mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh)));
-    if (gltf_has_norm(gd, mesh))
-        CERR_RET_CERR(
-            mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh))
-        );
-    if (gltf_has_joints(gd, mesh))
-        CERR_RET_CERR(
-            mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh), gltf_nr_joints(gd, mesh))
-        );
-    if (gltf_has_weights(gd, mesh))
-        CERR_RET_CERR(
-            mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh), gltf_nr_weights(gd, mesh))
-        );
-    if (gltf_has_tangent(gd, mesh))
-        CERR_RET_CERR(
-            mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh), gltf_nr_tangent(gd, mesh))
-        );
-    mesh_optimize(me);
+    LOCAL_SET(mesh_t, me) = CRES_RET(gltf_mesh_new(gd, mesh), return cerr_error_cres(__resp));
 
     /*
      * The attribute-layout half of the mask must be final here: the

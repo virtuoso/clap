@@ -3,6 +3,7 @@
 #define __CLAP_GLTF_H__
 
 #include "linmath.h"
+#include "mesh.h"
 #include "pipeline.h"
 
 typedef struct gltf_data gltf_data;
@@ -45,5 +46,36 @@ bool gltf_node_extras_present(struct gltf_data *gd, int node, const char *prefix
 bool gltf_node_extras_string(struct gltf_data *gd, int node, const char *key, const char **out);
 bool gltf_node_extras_number(struct gltf_data *gd, int node, const char *key, double *out);
 bool gltf_node_extras_bool(struct gltf_data *gd, int node, const char *key, bool *out);
+
+/**
+ * gltf_mesh_new() - build a mesh from a gltf mesh's attributes
+ * @gd:     loaded gltf data
+ * @mesh:   mesh index
+ *
+ * The mesh construction half of gltf_instantiate_one(): a new mesh with
+ * every attribute the gltf mesh carries (vertices, UVs, indices,
+ * normals, skin, tangents), optimized. Use it to build custom models
+ * from gltf data, e.g. to rig an unrigged mesh procedurally before
+ * model3d creation.
+ * Return: a mesh reference the caller owns, or CERR_NOMEM /
+ * CERR_INVALID_ARGUMENTS / mesh_attr_dup() errors.
+ */
+cresp_check(mesh) gltf_mesh_new(struct gltf_data *gd, int mesh);
+
+/*
+ * Texture buffer accessors: pointers into the gltf's own buffers, valid
+ * until gltf_free(); sizes in bytes. gltf_textures_png() tells whether
+ * the buffers hold PNG files (model3dtx's buffers_png).
+ */
+bool gltf_textures_png(struct gltf_data *gd);
+bool gltf_has_tex(struct gltf_data *gd, int mesh);
+void *gltf_tex(struct gltf_data *gd, int mesh);
+unsigned int gltf_texsz(struct gltf_data *gd, int mesh);
+bool gltf_has_nmap(struct gltf_data *gd, int mesh);
+void *gltf_nmap(struct gltf_data *gd, int mesh);
+unsigned int gltf_nmapsz(struct gltf_data *gd, int mesh);
+bool gltf_has_em(struct gltf_data *gd, int mesh);
+void *gltf_em(struct gltf_data *gd, int mesh);
+unsigned int gltf_emsz(struct gltf_data *gd, int mesh);
 
 #endif /* __CLAP_GLTF_H__ */
