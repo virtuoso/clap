@@ -536,9 +536,12 @@ static void nm_rec_add(struct darray *recs, int from, int to,
 }
 
 /*
- * Stitch border edges across collinear overlaps: T-junctions between
- * tessellation densities pair a long edge with a row of short ones.
- * The portal is the overlapping interval.
+ * Stitch border edges across collinear XZ overlaps: T-junctions between
+ * tessellation densities (a long edge meeting a row of short ones) and
+ * small vertical steps (a stair riser, a ramp meeting the ground) where
+ * the two surfaces differ by up to step_height. Working in XZ with a
+ * height tolerance is what lets an agent climb; a strict 3D match would
+ * only ever join coplanar patches. The portal is the overlap interval.
  */
 static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size_t nr_bedges,
                                 struct darray *recs)
@@ -548,9 +551,10 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
     size_t stitched = 0;
 
     /*
-     * Grid the border edges by their 3D AABB: collinear partners sit at
-     * the same height, and walls stack hundreds of borders onto the
-     * same (x, z) column, so a 2D grid would square that density.
+     * Grid the border edges by their 3D AABB. Walls stack hundreds of
+     * borders onto the same (x, z) column, so a 2D grid would square
+     * that density; the query still reaches one height cell either way
+     * to catch step partners that straddle a cell boundary.
      */
     size_t nr_cells = 0;
 
@@ -596,14 +600,17 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
                 }
     }
 
+    float step = nm->params.step_height;
+
     for (size_t i = 0; i < nr_bedges; i++) {
         const struct nm_bedge *e1 = &bedges[i];
-        vec3 d1;
+        /* work in XZ: a small vertical step still stitches (stairs, ramps) */
+        float d1x = e1->b[0] - e1->a[0], d1z = e1->b[2] - e1->a[2];
+        float len1 = hypotf(d1x, d1z);
 
-        vec3_sub(d1, (float *)e1->b, (float *)e1->a);
-        float len1 = vec3_len(d1);
         if (len1 < NM_MIN_PORTAL)   continue;
-        vec3_scale(d1, d1, 1.0f / len1);
+        d1x /= len1;
+        d1z /= len1;
 
         int cx0 = (int)floorf(fminf(e1->a[0], e1->b[0]) / cell);
         int cx1 = (int)floorf(fmaxf(e1->a[0], e1->b[0]) / cell);
@@ -612,8 +619,9 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
         int cz0 = (int)floorf(fminf(e1->a[2], e1->b[2]) / cell);
         int cz1 = (int)floorf(fmaxf(e1->a[2], e1->b[2]) / cell);
 
+        /* a step partner can sit in the neighbouring height cell */
         for (int cz = cz0; cz <= cz1; cz++)
-            for (int cy = cy0; cy <= cy1; cy++)
+            for (int cy = cy0 - 1; cy <= cy1 + 1; cy++)
                 for (int cx = cx0; cx <= cx1; cx++)
                     for (int64_t g = nm_map_get(&grid, nm_cell3(cx, cy, cz)); g >= 0;
                          g = gents[g].next) {
@@ -629,29 +637,22 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
                     if (stamp[j] == (int)i) continue;
                     stamp[j] = (int)i;
 
-                    /* collinear? both endpoints of e2 on e1's line */
-                    vec3 d2, off, perp;
+                    float d2x = e2->b[0] - e2->a[0], d2z = e2->b[2] - e2->a[2];
+                    float len2 = hypotf(d2x, d2z);
 
-                    vec3_sub(d2, (float *)e2->b, (float *)e2->a);
-                    float len2 = vec3_len(d2);
                     if (len2 < NM_MIN_PORTAL)   continue;
 
-                    vec3_mul_cross(perp, d1, d2);
-                    if (vec3_len(perp) > 0.05f * len2)
-                        continue;
+                    /* parallel in XZ? cross of (unit d1, d2) = len2 * sin(angle) */
+                    if (fabsf(d1x * d2z - d1z * d2x) > 0.05f * len2)    continue;
 
-                    vec3_sub(off, (float *)e2->a, (float *)e1->a);
-                    float sa = vec3_mul_inner(off, d1);
+                    /* e2's endpoints project onto e1's XZ line, close to it */
+                    float ax = e2->a[0] - e1->a[0], az = e2->a[2] - e1->a[2];
+                    float bx = e2->b[0] - e1->a[0], bz = e2->b[2] - e1->a[2];
+                    float sa = ax * d1x + az * d1z;
+                    float sb = bx * d1x + bz * d1z;
 
-                    vec3_add_scaled(perp, off, d1, 1.0f, -sa);
-                    if (vec3_len(perp) > tol)
-                        continue;
-
-                    vec3_sub(off, (float *)e2->b, (float *)e1->a);
-                    float sb = vec3_mul_inner(off, d1);
-
-                    vec3_add_scaled(perp, off, d1, 1.0f, -sb);
-                    if (vec3_len(perp) > tol)
+                    if (fabsf(ax * -d1z + az * d1x) > tol ||
+                        fabsf(bx * -d1z + bz * d1x) > tol)
                         continue;
 
                     /* the overlapping interval along e1 */
@@ -660,12 +661,18 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
 
                     if (hi - lo < NM_MIN_PORTAL)    continue;
 
-                    vec3 pa, pb;
+                    /* the vertical gap at the overlap must be a climbable step */
+                    float smid = 0.5f * (lo + hi);
+                    float y1 = e1->a[1] + (e1->b[1] - e1->a[1]) * (smid / len1);
+                    float mx = e1->a[0] + d1x * smid, mz = e1->a[2] + d1z * smid;
+                    float s2 = clampf(((mx - e2->a[0]) * d2x + (mz - e2->a[2]) * d2z) / len2,
+                                      0.0f, len2);
+                    float y2 = e2->a[1] + (e2->b[1] - e2->a[1]) * (s2 / len2);
 
-                    for (int c = 0; c < 3; c++) {
-                        pa[c] = e1->a[c] + d1[c] * lo;
-                        pb[c] = e1->a[c] + d1[c] * hi;
-                    }
+                    if (fabsf(y1 - y2) > step)  continue;
+
+                    vec3 pa = { e1->a[0] + d1x * lo, fminf(y1, y2), e1->a[2] + d1z * lo };
+                    vec3 pb = { e1->a[0] + d1x * hi, fminf(y1, y2), e1->a[2] + d1z * hi };
 
                     nm_rec_add(recs, e1->tri, e2->tri, pa, pb);
                     nm_rec_add(recs, e2->tri, e1->tri, pa, pb);
@@ -678,6 +685,106 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
     mem_free(gents);
 
     return stitched;
+}
+
+/*
+ * Link surfaces that stack rather than abut: a slope or platform resting
+ * on a ground plane shares no edge with it, so nothing above joins them.
+ * For each border edge, probe just past it, off the surface; if a
+ * walkable triangle sits there within step_height (the ground under the
+ * slope's lip, the tread the stairs land on), link across. This is the
+ * step-off/step-onto an agent does at a surface boundary.
+ */
+static size_t nm_step_surface_links(navmesh *nm, const nav_tri *tris, size_t nr_tris,
+                                    const struct nm_bedge *bedges, size_t nr_bedges,
+                                    struct darray *recs)
+{
+    float cell = max(4.0f * nm->params.agent_radius, 2.0f);
+    float probe = nm->params.agent_radius + 0.1f;
+    float step = nm->params.step_height;
+    size_t linked = 0;
+
+    /* grid the walkable triangles by their XZ footprint */
+    size_t nr_cells = 0;
+
+    for (size_t t = 0; t < nr_tris; t++) {
+        struct nm_ob box;
+
+        nm_tri_aabb(nm, &tris[t], &box);
+        /*
+         * mirror the fill loop's signed int floors: negative cells would
+         * otherwise convert out of range and mis-size the array
+         */
+        nr_cells += (size_t)((int)floorf(box.mx[0] / cell) - (int)floorf(box.mn[0] / cell) + 1) *
+                    (size_t)((int)floorf(box.mx[2] / cell) - (int)floorf(box.mn[2] / cell) + 1);
+    }
+
+    struct nm_map grid;
+    struct nm_gent *gents = mem_alloc(sizeof(*gents), .nr = nr_cells ? : 1, .fatal_fail = 1);
+    size_t gent = 0;
+
+    nm_map_init(&grid, nr_cells ? : 1);
+
+    for (size_t t = 0; t < nr_tris; t++) {
+        struct nm_ob box;
+
+        nm_tri_aabb(nm, &tris[t], &box);
+        for (int cz = (int)floorf(box.mn[2] / cell); cz <= (int)floorf(box.mx[2] / cell); cz++)
+            for (int cx = (int)floorf(box.mn[0] / cell); cx <= (int)floorf(box.mx[0] / cell); cx++) {
+                int64_t *head = nm_map_slot(&grid, nm_cell2(cx, cz));
+
+                gents[gent] = (struct nm_gent){ .ob = (int)t, .next = (int)*head };
+                *head = (int64_t)gent++;
+            }
+    }
+
+    for (size_t i = 0; i < nr_bedges; i++) {
+        const struct nm_bedge *e = &bedges[i];
+        const nav_tri *t = &tris[e->tri];
+        vec3 cen, mid, out;
+
+        for (int k = 0; k < 3; k++) {
+            cen[k] = (nm->verts[t->v[0]][k] + nm->verts[t->v[1]][k] + nm->verts[t->v[2]][k]) / 3.0f;
+            mid[k] = 0.5f * (e->a[k] + e->b[k]);
+        }
+
+        /* outward: off the surface, away from its centroid, in XZ */
+        out[0] = mid[0] - cen[0];
+        out[2] = mid[2] - cen[2];
+        float olen = hypotf(out[0], out[2]);
+        if (olen < 1e-4f)   continue;
+
+        float px = mid[0] + out[0] / olen * probe;
+        float pz = mid[2] + out[2] / olen * probe;
+        int gx = (int)floorf(px / cell), gz = (int)floorf(pz / cell);
+        int best = -1;
+        float best_dy = step;
+
+        for (int64_t g = nm_map_get(&grid, nm_cell2(gx, gz)); g >= 0; g = gents[g].next) {
+            int n = gents[g].ob;
+
+            if (n == e->tri)    continue;
+
+            bool inside;
+            float y = nm_tri_height_at(nm, &tris[n], px, pz, &inside);
+
+            if (inside && fabsf(y - mid[1]) < best_dy) {
+                best_dy = fabsf(y - mid[1]);
+                best = n;
+            }
+        }
+
+        if (best >= 0) {
+            nm_rec_add(recs, e->tri, best, e->a, e->b);
+            nm_rec_add(recs, best, e->tri, e->a, e->b);
+            linked++;
+        }
+    }
+
+    nm_map_done(&grid);
+    mem_free(gents);
+
+    return linked;
 }
 
 /* emit one floor triangle (three world positions) into the soup */
@@ -881,6 +988,7 @@ static cerr nm_bake(navmesh *nm, const float *seed)
     mem_free(paired);
 
     nm_stitch_borders(nm, bedges, nr_bedges, &recs.da);
+    nm_step_surface_links(nm, tris, nr_tris, bedges, nr_bedges, &recs.da);
 
     mem_free(bedges);
 

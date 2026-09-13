@@ -11,8 +11,11 @@
  *                  0 picks the default (40 degrees)
  * @weld:           vertex weld radius: triangles whose corners fall
  *                  within it are stitched together; 0: default (0.01)
- * @step_height:    obstructions rising less than this above a floor's
- *                  top don't block it; 0: default (0.25)
+ * @step_height:    the tallest vertical step an agent takes: obstructions
+ *                  rising less than this above a floor's top don't block
+ *                  it, and walkable surfaces within this height of each
+ *                  other link (stairs, a ramp meeting the ground); 0:
+ *                  default (0.25)
  * @agent_height:   headroom required above a floor; 0: default (2.0)
  * @agent_radius:   obstructions closer than this sideways block the
  *                  floor, and path corners keep this far from portal
