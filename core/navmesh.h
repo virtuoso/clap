@@ -209,4 +209,25 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
  */
 cerr navmesh_tri(navmesh *nm, int tri, vec3 c[3]);
 
+/**
+ * navmesh_geometry() - the walkable surface as a compact indexed mesh
+ * @nm:         a baked navmesh
+ * @lift:       raise every vertex by this much in Y, to sit an overlay
+ *              just above the ground it mirrors
+ * @out_vx:     receives xyz vertex positions (caller frees)
+ * @out_nr_vx:  receives the vertex count
+ * @out_idx:    receives 16-bit triangle indices (caller frees)
+ * @out_nr_idx: receives the index count (three per triangle)
+ *
+ * The kept triangles' welded corners, compacted to a 16-bit index run
+ * for a visualization mesh. The caller adds normals/UVs and builds an
+ * entity3d whose visibility a debug toggle flips: cheaper than redrawing
+ * the triangles as debug lines every frame. navmesh stays independent of
+ * the render mesh system.
+ * Return: CERR_OK, CERR_INVALID_OPERATION (not baked) or CERR_TOO_LARGE
+ * (more than 65536 vertices, past the 16-bit index limit)
+ */
+cerr_check navmesh_geometry(navmesh *nm, float lift, float **out_vx, size_t *out_nr_vx,
+                            unsigned short **out_idx, size_t *out_nr_idx);
+
 #endif /* __CLAP_NAVMESH_H__ */

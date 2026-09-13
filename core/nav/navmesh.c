@@ -1184,6 +1184,51 @@ float navmesh_height(navmesh *nm, int tri, float x, float z)
     return nm_tri_height_at(nm, &nm->tris[tri], x, z, nullptr);
 }
 
+cerr navmesh_geometry(navmesh *nm, float lift, float **out_vx, size_t *out_nr_vx,
+                      unsigned short **out_idx, size_t *out_nr_idx)
+{
+    if (!nm->baked || !nm->nr_tris)
+        return CERR_INVALID_OPERATION;
+
+    /* compact the walkable triangles' welded corners into a 16-bit index run */
+    int *remap = mem_alloc(sizeof(*remap), .nr = nm->nr_verts, .fatal_fail = 1);
+    float *vx = mem_alloc(sizeof(float) * 3, .nr = nm->nr_tris * 3, .fatal_fail = 1);
+    unsigned short *idx = mem_alloc(sizeof(*idx), .nr = nm->nr_tris * 3, .fatal_fail = 1);
+    size_t nr_vx = 0, nr_idx = 0;
+
+    for (size_t i = 0; i < nm->nr_verts; i++)
+        remap[i] = -1;
+
+    for (size_t t = 0; t < nm->nr_tris; t++)
+        for (int c = 0; c < 3; c++) {
+            int v = nm->tris[t].v[c];
+
+            if (remap[v] < 0) {
+                if (nr_vx > USHRT_MAX) {
+                    mem_free(remap);
+                    mem_free(vx);
+                    mem_free(idx);
+                    return CERR_TOO_LARGE;
+                }
+                remap[v] = (int)nr_vx;
+                vx[nr_vx * 3 + 0] = nm->verts[v][0];
+                vx[nr_vx * 3 + 1] = nm->verts[v][1] + lift;
+                vx[nr_vx * 3 + 2] = nm->verts[v][2];
+                nr_vx++;
+            }
+            idx[nr_idx++] = (unsigned short)remap[v];
+        }
+
+    mem_free(remap);
+
+    *out_vx = vx;
+    *out_nr_vx = nr_vx;
+    *out_idx = idx;
+    *out_nr_idx = nr_idx;
+
+    return CERR_OK;
+}
+
 /* the best (x, z)-containing candidate so far, by vertical distance */
 struct nm_pick {
     int     tri;
