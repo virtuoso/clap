@@ -449,6 +449,60 @@ out:
     return ret;
 }
 
+static int navmesh_test_step_negative(void)
+{
+    /*
+     * The step test, translated to straddle the origin so the grid cell
+     * coordinates go negative. nm_step_surface_links() must size its cell
+     * array the same way it fills it for negative floors, or it overruns.
+     */
+    struct nm_soup ground = {
+        .vx  = mem_alloc(sizeof(float), .nr = 12, .fatal_fail = 1),
+        .idx = mem_alloc(sizeof(unsigned short), .nr = 6, .fatal_fail = 1),
+    };
+    struct nm_soup plat = {
+        .vx  = mem_alloc(sizeof(float), .nr = 12, .fatal_fail = 1),
+        .idx = mem_alloc(sizeof(unsigned short), .nr = 6, .fatal_fail = 1),
+    };
+    int ret = EXIT_FAILURE;
+    navmesh *nm = nullptr;
+
+    cresp(navmesh) res = navmesh_new(.agent_radius = 0.4f, .agent_height = 1.8f,
+                                     .step_height = 0.5f, .subdivide = 1.0f);
+    if (IS_CERR(res))   goto out;
+    nm = res.val;
+
+    /* the step scene shifted by (-30, -30) in XZ: all cells are negative */
+    soup_quad(&ground, (vec3){ -30, 0, -30 }, (vec3){ -10, 0, -30 },
+                       (vec3){ -10, 0, -10 }, (vec3){ -30, 0, -10 });
+    soup_quad(&plat, (vec3){ -24, 0.4f, -24 }, (vec3){ -16, 0.4f, -24 },
+                     (vec3){ -16, 0.4f, -16 }, (vec3){ -24, 0.4f, -16 });
+
+    cerr err = navmesh_add(nm, .vx = ground.vx, .vxsz = ground.nr_vx * 3 * sizeof(float),
+                           .idx = ground.idx, .idxsz = ground.nr_idx * sizeof(unsigned short));
+    if (IS_CERR(err))                           goto out;
+    err = navmesh_add(nm, .vx = plat.vx, .vxsz = plat.nr_vx * 3 * sizeof(float),
+                      .idx = plat.idx, .idxsz = plat.nr_idx * sizeof(unsigned short));
+    if (IS_CERR(err))                           goto out;
+    err = navmesh_bake_largest(nm);
+    if (IS_CERR(err))                           goto out;
+
+    /* a path from the ground onto the platform climbs to the top */
+    vec3 wp[24];
+    cres(int) nr = navmesh_path(nm, (vec3){ -28, 0, -28 }, (vec3){ -20, 0.4f, -20 }, wp, 24);
+    if (IS_CERR(nr) || nr.val < 2)                  goto out;
+    if (fabsf(wp[nr.val - 1][1] - 0.4f) > 0.05f)    goto out;
+
+    ret = EXIT_SUCCESS;
+out:
+    navmesh_free(nm);
+    mem_free(ground.vx);
+    mem_free(ground.idx);
+    mem_free(plat.vx);
+    mem_free(plat.idx);
+    return ret;
+}
+
 static int navmesh_test_invalid(void)
 {
     navmesh *nm = navmesh_test_build();
@@ -495,6 +549,7 @@ static const struct test tests[] = {
     { .name = "navmesh t-junction", .test = navmesh_test_tjunction },
     { .name = "navmesh carve",      .test = navmesh_test_carve },
     { .name = "navmesh step",       .test = navmesh_test_step },
+    { .name = "navmesh step -ve",   .test = navmesh_test_step_negative },
     { .name = "navmesh invalid",    .test = navmesh_test_invalid },
 };
 
