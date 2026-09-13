@@ -350,3 +350,42 @@ cerr skeleton_apply(model3d *m, const skel_joint *joints, size_t nr_joints)
 
     return CERR_OK;
 }
+
+cresp(model3d) skeleton_model_new(pipeline *pl, struct mesh *mesh, const skel_joint *joints,
+                                  size_t nr_joints, const char *name)
+{
+    /*
+     * The model3d constructor consumes the shader ref (ref_pass), so a plain
+     * prog needs no cleanup between here and the handoff
+     */
+    struct shader_prog *prog = CRES_RET_T(pipeline_shader_find_get(pl, "model"), model3d);
+    LOCAL_SET(model3d, m) = CRES_RET_T(
+        ref_new_checked(model3d, .prog = ref_pass(prog), .mesh = mesh, .name = name),
+        model3d);
+    CERR_RET_T(skeleton_apply(m, joints, nr_joints), model3d);
+
+    return cresp_val(model3d, NOCU(m));
+}
+
+cresp(model3d) _skeleton_rig_model(const skeleton_rig_opts *opts)
+{
+    if (!opts->pipeline || !opts->mesh || !opts->joints || opts->nr_joints < 2)
+        return cresp_error(model3d, CERR_INVALID_ARGUMENTS);
+
+    /* fit the chain to the mesh, then bind the vertices to it */
+    skeleton_fit_opts fit = {
+        .mesh       = opts->mesh,
+        .joints     = opts->joints,
+        .nr_joints  = opts->nr_joints,
+        .margin     = opts->margin,
+    };
+    vec3_dup(fit.axis, opts->axis);
+    CERR_RET_T(_skeleton_fit_chain(&fit), model3d);
+    CERR_RET_T(
+        skeleton_skin(.mesh = opts->mesh, .joints = opts->joints, .nr_joints = opts->nr_joints),
+        model3d
+    );
+    mesh_aabb_calc(opts->mesh);
+
+    return skeleton_model_new(opts->pipeline, opts->mesh, opts->joints, opts->nr_joints, opts->name);
+}

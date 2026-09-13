@@ -6,6 +6,7 @@
 #include "linmath.h"
 #include "mesh.h"
 #include "model.h"
+#include "pipeline.h"
 
 /**
  * struct skel_joint - one joint of a procedural skeleton
@@ -118,5 +119,53 @@ cerr_check _skeleton_fit_chain(const skeleton_fit_opts *opts);
  * roots, dangling or cyclic parents, missing names, too many joints).
  */
 cerr_check skeleton_apply(model3d *m, const skel_joint *joints, size_t nr_joints);
+
+/**
+ * skeleton_model_new() - build a model that carries a skeleton
+ * @pl:         pipeline the "model" shader is sourced from
+ * @mesh:       the mesh, skinned to @joints; borrowed
+ * @joints:     the skeleton
+ * @nr_joints:  number of joints
+ * @name:       model name
+ *
+ * Return: the model3d with its skinning set up by skeleton_apply()
+ *         (caller owns), or an error
+ */
+cresp_check(model3d) skeleton_model_new(pipeline *pl, struct mesh *mesh, const skel_joint *joints,
+                                        size_t nr_joints, const char *name);
+
+/**
+ * struct skeleton_rig_opts - fit, skin and build a rigged model in one step
+ * @pipeline:   pipeline the "model" shader is sourced from (required)
+ * @mesh:       unrigged mesh to rig; borrowed, its skinning attributes get
+ *              filled in (required)
+ * @joints:     the joint chain; positions are filled by the fit, the names,
+ *              parent links and sizes are the caller's (required)
+ * @nr_joints:  number of joints, at least 2
+ * @name:       model name
+ * @axis:       fit axis, passed to skeleton_fit_chain(); zero picks +Y
+ * @margin:     fit margin, passed to skeleton_fit_chain(); 0 picks the default
+ *
+ * The whole mesh side of procedural rigging in one call: skeleton_fit_chain()
+ * to place the chain along the mesh, skeleton_skin() to bind the vertices, and
+ * a model3d carrying the skinning (skeleton_apply()), for any caller turning
+ * an unrigged mesh into a rigged model. The mesh is left rigged and stays
+ * the caller's.
+ * Return: the rigged model3d (caller owns), or a fit/skin/build error.
+ */
+typedef struct skeleton_rig_opts {
+    pipeline    *pipeline;
+    struct mesh *mesh;
+    skel_joint  *joints;
+    size_t      nr_joints;
+    const char  *name;
+    vec3        axis;
+    float       margin;
+} skeleton_rig_opts;
+
+cresp_check(model3d) _skeleton_rig_model(const skeleton_rig_opts *opts);
+
+/* Fit a chain to a mesh, skin it, and build the rigged model3d */
+#define skeleton_rig_model(args...) _skeleton_rig_model(&(skeleton_rig_opts){ args })
 
 #endif /* __CLAP_SKELETON_H__ */
