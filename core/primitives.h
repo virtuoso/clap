@@ -129,6 +129,28 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
 void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_opts *opts);
 
 /**
+ * _prim_emit_prism() - emit an oriented, tapered, capped n-gon prism
+ * @a:      near end center
+ * @b:      far end center
+ * @ra:     radius at @a
+ * @rb:     radius at @b
+ * @sides:  number of sides
+ * @phase:  cross-section rotation, radians; half a side turns a vertex
+ *          into a flat
+ * @opts:   emitter options; @opts->mesh is required
+ *
+ * Append a prism between two arbitrary points to @opts->mesh (required):
+ * where prim_emit_cylinder() is axis-aligned, this one builds an
+ * orthonormal frame around the @a-@b axis, for bones, struts, barrels
+ * and other limb-like shapes. A degenerate (zero length) prism emits
+ * nothing.
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh, fewer than 3 sides)
+ *         or CERR_NOMEM
+ */
+cerr_check _prim_emit_prism(vec3 a, vec3 b, float ra, float rb, int sides, float phase,
+                            const prim_emit_opts *opts);
+
+/**
  * define prim_calc_normals - calculate normal vectors for a triangle
  * @vx_idx: first vertex of a triangle
  * @args:   list of primitive emitter options
@@ -180,6 +202,20 @@ void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
  */
 #define prim_emit_sphere(_o, _r, _s, args...) \
     _prim_emit_sphere((_o), (_r), (_s), &(prim_emit_opts){ args })
+
+/**
+ * define prim_emit_prism - emit an oriented, tapered, capped n-gon prism
+ * @_a:  near end center
+ * @_b:  far end center
+ * @_ra: radius at @_a
+ * @_rb: radius at @_b
+ * @_s:  number of sides
+ * @_ph: cross-section rotation, radians
+ *
+ * Syntax sugar for _prim_emit_prism().
+ */
+#define prim_emit_prism(_a, _b, _ra, _rb, _s, _ph, args...) \
+    _prim_emit_prism((_a), (_b), (_ra), (_rb), (_s), (_ph), &(prim_emit_opts){ args })
 
 /**
  * struct mesh_tess_params - tessellation callback parameters

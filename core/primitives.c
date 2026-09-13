@@ -541,6 +541,59 @@ void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
     }
 }
 
+/* a point on a ring of radius @r around @c, in the (@e0, @e1) plane */
+static void prim_ring_pt(vec3 out, const vec3 c, const vec3 e0, const vec3 e1,
+                         float r, float ang)
+{
+    float ca = cosf(ang) * r, sa = sinf(ang) * r;
+
+    out[0] = c[0] + e0[0] * ca + e1[0] * sa;
+    out[1] = c[1] + e0[1] * ca + e1[1] * sa;
+    out[2] = c[2] + e0[2] * ca + e1[2] * sa;
+}
+
+cerr _prim_emit_prism(vec3 a, vec3 b, float ra, float rb, int sides, float phase,
+                      const prim_emit_opts *opts)
+{
+    vec3 axis, e0, e1, up = { 0.0f, 1.0f, 0.0f };
+
+    if (!opts->mesh || sides < 3)   return CERR_INVALID_ARGUMENTS;
+
+    vec3_sub(axis, b, a);
+    float len = vec3_len(axis);
+    if (len < 1e-5f)    return CERR_OK;
+    vec3_scale(axis, axis, 1.0f / len);
+
+    if (fabsf(vec3_mul_inner(axis, up)) > 0.9f) {
+        up[0] = 1.0f; up[1] = 0.0f; up[2] = 0.0f;
+    }
+    vec3_mul_cross(e0, up, axis);
+    vec3_norm(e0, e0);
+    vec3_mul_cross(e1, axis, e0);
+    vec3_norm(e1, e1);
+
+    /* per side: 2 wall + 2 cap triangles => sides * 12 vertices */
+    CRES_RET_CERR(_prim_begin(sides * 12, opts));
+
+    for (int s = 0; s < sides; s++) {
+        float t0 = phase + (float)s / sides * 2.0f * (float)M_PI;
+        float t1 = phase + (float)(s + 1) / sides * 2.0f * (float)M_PI;
+        vec3 a0, a1, b0, b1;
+
+        prim_ring_pt(a0, a, e0, e1, ra, t0);
+        prim_ring_pt(a1, a, e0, e1, ra, t1);
+        prim_ring_pt(b0, b, e0, e1, rb, t0);
+        prim_ring_pt(b1, b, e0, e1, rb, t1);
+
+        _prim_emit_triangle3(a0, a1, b1, opts);     /* wall, wound outward */
+        _prim_emit_triangle3(a0, b1, b0, opts);
+        _prim_emit_triangle3(a, a1, a0, opts);      /* near cap */
+        _prim_emit_triangle3(b, b0, b1, opts);      /* far cap */
+    }
+
+    return CERR_OK;
+}
+
 static void triangle_split(struct mesh *mesh, size_t tri, float off)
 {
     size_t nr_vx = mesh_nr_vx(mesh);
