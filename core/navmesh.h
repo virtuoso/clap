@@ -17,6 +17,13 @@
  * @agent_radius:   obstructions closer than this sideways block the
  *                  floor, and path corners keep this far from portal
  *                  ends; 0: default (0.5)
+ * @subdivide:      split floor triangles until no edge is longer than
+ *                  this before culling, so obstacles carve holes in
+ *                  low-poly ground the clearance test could not touch
+ *                  at full triangle size; 0 disables (keep the source
+ *                  tessellation). A good value is around agent_radius:
+ *                  small enough that an obstruction anywhere on a
+ *                  triangle lands in its centroid's clearance column.
  *
  * All floor candidates steeper than @max_slope become obstructions, as
  * do sources added with navmesh_source::obstacle set. A floor triangle
@@ -32,6 +39,7 @@ typedef struct navmesh_params {
     float   step_height;
     float   agent_height;
     float   agent_radius;
+    float   subdivide;
 } navmesh_params;
 
 typedef struct navmesh navmesh;

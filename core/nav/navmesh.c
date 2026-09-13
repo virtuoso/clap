@@ -680,10 +680,113 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
     return stitched;
 }
 
+/* emit one floor triangle (three world positions) into the soup */
+static cerr nm_soup_tri(struct darray *soup, const vec3 a, const vec3 b, const vec3 c)
+{
+    size_t at = soup->nr_el;
+    float *arr = _darray_resize(soup, at + 9);
+
+    if (!arr)   return CERR_NOMEM;
+
+    vec3_dup(&arr[at + 0], (float *)a);
+    vec3_dup(&arr[at + 3], (float *)b);
+    vec3_dup(&arr[at + 6], (float *)c);
+
+    return CERR_OK;
+}
+
+/*
+ * Split every floor triangle into a barycentric grid fine enough that
+ * no edge exceeds max_edge. Low-poly ground comes as a few enormous
+ * quads; the clearance cull works per triangle around its centroid and
+ * can only keep or drop a whole triangle, so without this an obstacle
+ * sitting in the middle of a giant quad carves nothing. Subdividing
+ * first gives the cull something to bite. Grids of neighbouring
+ * triangles need not line up: welding merges the corners that coincide
+ * and the border stitch reconnects the rest.
+ */
+/*
+ * Split every floor triangle until no edge exceeds max_edge. Low-poly
+ * ground comes as a few enormous quads; the clearance cull works per
+ * triangle around its centroid and can only keep or drop a whole
+ * triangle, so without this an obstacle sitting in the middle of a
+ * giant quad carves nothing. Subdividing first gives the cull
+ * something to bite.
+ *
+ * Longest-edge bisection, not a barycentric grid: a grid slices every
+ * axis into the longest edge's count of pieces, so a long, thin
+ * triangle (half of a stair tread: meters wide, a going deep) is
+ * minced across its short axis into slivers finer than the weld
+ * tolerance, and the welder then collapses them into holes and
+ * severed seams. Bisection only ever cuts the long axis, and two
+ * neighbours bisect a shared edge at the same midpoint, so the cut
+ * welds back together; where their split orders disagree, the border
+ * stitch reconnects the T-junction.
+ */
+#define NM_SUBDIV_DEPTH 32
+
+static cerr nm_subdiv_tri(struct darray *fine, const float *a, const float *b,
+                          const float *c, float max_edge, int depth)
+{
+    vec3 d[3], mid;
+    float l2[3];
+
+    vec3_sub(d[0], (float *)b, (float *)a);
+    vec3_sub(d[1], (float *)c, (float *)b);
+    vec3_sub(d[2], (float *)a, (float *)c);
+    for (int e = 0; e < 3; e++) l2[e] = vec3_mul_inner(d[e], d[e]);
+
+    int e = l2[1] > l2[0] ? (l2[2] > l2[1] ? 2 : 1) : (l2[2] > l2[0] ? 2 : 0);
+
+    if (!depth || l2[e] <= max_edge * max_edge) return nm_soup_tri(fine, a, b, c);
+
+    const float *p = e == 0 ? a : e == 1 ? b : c;
+    const float *q = e == 0 ? b : e == 1 ? c : a;
+    const float *o = e == 0 ? c : e == 1 ? a : b;
+
+    /*
+     * The midpoint from the endpoints, not the edge vector: addition
+     * commutes, so the neighbour walking the shared edge the other way
+     * computes the bitwise-same point and welding rejoins the cut.
+     */
+    for (int k = 0; k < 3; k++) mid[k] = (p[k] + q[k]) * 0.5f;
+
+    CERR_RET_CERR(nm_subdiv_tri(fine, p, mid, o, max_edge, depth - 1));
+    return nm_subdiv_tri(fine, mid, q, o, max_edge, depth - 1);
+}
+
+static cerr nm_subdivide(navmesh *nm)
+{
+    size_t nr_floor = darray_count(nm->floor_soup) / 9;
+    float max_edge = nm->params.subdivide;
+    darray(float, fine);
+
+    darray_init(fine);
+
+    for (size_t i = 0; i < nr_floor; i++) {
+        const float *a = &nm->floor_soup.x[i * 9 + 0];
+        const float *b = &nm->floor_soup.x[i * 9 + 3];
+        const float *c = &nm->floor_soup.x[i * 9 + 6];
+
+        CERR_RET(nm_subdiv_tri(&fine.da, a, b, c, max_edge, NM_SUBDIV_DEPTH),
+                 { darray_clearout(fine); return __cerr; });
+    }
+
+    darray_clearout(nm->floor_soup);
+    nm->floor_soup.da = fine.da;
+
+    trace("subdivided floor: %zu -> %zu triangles at %.2f m\n",
+          nr_floor, darray_count(nm->floor_soup) / 9, max_edge);
+
+    return CERR_OK;
+}
+
 /* seed != nullptr: keep the seed's component; nullptr: keep the largest */
 static cerr nm_bake(navmesh *nm, const float *seed)
 {
     if (nm->baked)  return CERR_INVALID_OPERATION;
+
+    if (nm->params.subdivide > 0.0f && darray_count(nm->floor_soup))    CERR_RET_CERR(nm_subdivide(nm));
 
     size_t nr_floor = darray_count(nm->floor_soup) / 9;
     size_t nr_hard = darray_count(nm->obstacles);
