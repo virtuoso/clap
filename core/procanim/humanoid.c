@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * The biped orchestrator: steering drives the body, measured speed
- * picks the animation (idle breathing, walk, run and everything in
- * between by blending the two tunings), gait turns time into foot
- * targets, IK turns targets into leg poses, arms swing in
+ * The biped orchestrator: a procedurally meshed and rigged humanoid.
+ * The body plan (humanoid_config) stacks a spine, a head and hanging
+ * arms over the pelvis and hangs a leg column under each hip; a
+ * pluggable mesh generator fleshes the skeleton out, so the same
+ * armature walks as the cube construct (humanoid_mesh_cubes()) or
+ * anything the caller emits over the joints. Steering drives the body,
+ * measured speed picks the animation (idle breathing, walk, run and
+ * everything in between by blending the two tunings), gait turns time
+ * into foot targets, IK turns targets into leg poses, arms swing in
  * counter-phase and the spine leans into the run. The entity update
  * callback is installed by humanoid_gait_start() and chains to
  * whatever was there before.
@@ -96,6 +101,134 @@ void idle_config_init(idle_config *cfg)
         .bob_frequency  = HUM_IDLE_BOB_F,
         .sway_amplitude = HUM_IDLE_SWAY,
     };
+}
+
+/* the reference body plan, model space */
+#define HUM_PELVIS_Y    1.32f
+#define HUM_SPINE_Y     1.82f
+#define HUM_CHEST_Y     2.34f
+#define HUM_HEAD_Y      2.88f
+#define HUM_SHOULDER_X  0.52f
+#define HUM_SHOULDER_Y  2.48f
+#define HUM_ARM_X       0.60f
+#define HUM_ARM_UPPER_Y 2.02f
+#define HUM_ARM_LOWER_Y 1.56f
+#define HUM_HAND_Y      1.14f
+#define HUM_HIP_Y       1.15f
+#define HUM_SHIN_Y      0.62f
+
+void humanoid_config_init(humanoid_config *cfg)
+{
+    *cfg = (humanoid_config){
+        .pelvis_y       = HUM_PELVIS_Y,
+        .spine_y        = HUM_SPINE_Y,
+        .chest_y        = HUM_CHEST_Y,
+        .head_y         = HUM_HEAD_Y,
+        .shoulder_x     = HUM_SHOULDER_X,
+        .shoulder_y     = HUM_SHOULDER_Y,
+        .arm_x          = HUM_ARM_X,
+        .arm_upper_y    = HUM_ARM_UPPER_Y,
+        .arm_lower_y    = HUM_ARM_LOWER_Y,
+        .hand_y         = HUM_HAND_Y,
+        /* the legs share the walk tuning's lateral offset and planted height */
+        .hip_x          = HUM_HIP_X,
+        .hip_y          = HUM_HIP_Y,
+        .shin_y         = HUM_SHIN_Y,
+        .foot_y         = HUM_FOOT_Y,
+        .size = {
+            [HUMANOID_PELVIS]       = 0.55f,
+            [HUMANOID_SPINE]        = 0.60f,
+            [HUMANOID_CHEST]        = 0.68f,
+            [HUMANOID_HEAD]         = 0.40f,
+            [HUMANOID_SHOULDER_L]   = 0.30f,    [HUMANOID_SHOULDER_R]   = 0.30f,
+            [HUMANOID_ARM_UPPER_L]  = 0.34f,    [HUMANOID_ARM_UPPER_R]  = 0.34f,
+            [HUMANOID_ARM_LOWER_L]  = 0.30f,    [HUMANOID_ARM_LOWER_R]  = 0.30f,
+            [HUMANOID_HAND_L]       = 0.26f,    [HUMANOID_HAND_R]       = 0.26f,
+            [HUMANOID_HIP_L]        = 0.34f,    [HUMANOID_HIP_R]        = 0.34f,
+            [HUMANOID_SHIN_L]       = 0.30f,    [HUMANOID_SHIN_R]       = 0.30f,
+            [HUMANOID_FOOT_L]       = 0.34f,    [HUMANOID_FOOT_R]       = 0.34f,
+        },
+    };
+}
+
+/* fill the joint table from the body plan */
+static void humanoid_skeleton_build(humanoid *h)
+{
+    const humanoid_config *cfg = &h->cfg;
+    const skel_joint sk[HUMANOID_NR_JOINTS] = {
+        [HUMANOID_PELVIS]      = { "pelvis",      -1,                   {  0.0f,            cfg->pelvis_y,    0.0f } },
+        [HUMANOID_SPINE]       = { "spine",       HUMANOID_PELVIS,      {  0.0f,            cfg->spine_y,     0.0f } },
+        [HUMANOID_CHEST]       = { "chest",       HUMANOID_SPINE,       {  0.0f,            cfg->chest_y,     0.0f } },
+        [HUMANOID_HEAD]        = { "head",        HUMANOID_CHEST,       {  0.0f,            cfg->head_y,      0.0f } },
+        [HUMANOID_SHOULDER_L]  = { "shoulder_l",  HUMANOID_CHEST,       { -cfg->shoulder_x, cfg->shoulder_y,  0.0f } },
+        [HUMANOID_ARM_UPPER_L] = { "arm_upper_l", HUMANOID_SHOULDER_L,  { -cfg->arm_x,      cfg->arm_upper_y, 0.0f } },
+        [HUMANOID_ARM_LOWER_L] = { "arm_lower_l", HUMANOID_ARM_UPPER_L, { -cfg->arm_x,      cfg->arm_lower_y, 0.0f } },
+        [HUMANOID_HAND_L]      = { "hand_left",   HUMANOID_ARM_LOWER_L, { -cfg->arm_x,      cfg->hand_y,      0.0f } },
+        [HUMANOID_SHOULDER_R]  = { "shoulder_r",  HUMANOID_CHEST,       {  cfg->shoulder_x, cfg->shoulder_y,  0.0f } },
+        [HUMANOID_ARM_UPPER_R] = { "arm_upper_r", HUMANOID_SHOULDER_R,  {  cfg->arm_x,      cfg->arm_upper_y, 0.0f } },
+        [HUMANOID_ARM_LOWER_R] = { "arm_lower_r", HUMANOID_ARM_UPPER_R, {  cfg->arm_x,      cfg->arm_lower_y, 0.0f } },
+        [HUMANOID_HAND_R]      = { "hand_right",  HUMANOID_ARM_LOWER_R, {  cfg->arm_x,      cfg->hand_y,      0.0f } },
+        [HUMANOID_HIP_L]       = { "hip_l",       HUMANOID_PELVIS,      { -cfg->hip_x,      cfg->hip_y,       0.0f } },
+        [HUMANOID_SHIN_L]      = { "shin_l",      HUMANOID_HIP_L,       { -cfg->hip_x,      cfg->shin_y,      0.0f } },
+        [HUMANOID_FOOT_L]      = { "foot_left",   HUMANOID_SHIN_L,      { -cfg->hip_x,      cfg->foot_y,      0.0f } },
+        [HUMANOID_HIP_R]       = { "hip_r",       HUMANOID_PELVIS,      {  cfg->hip_x,      cfg->hip_y,       0.0f } },
+        [HUMANOID_SHIN_R]      = { "shin_r",      HUMANOID_HIP_R,       {  cfg->hip_x,      cfg->shin_y,      0.0f } },
+        [HUMANOID_FOOT_R]      = { "foot_right",  HUMANOID_SHIN_R,      {  cfg->hip_x,      cfg->foot_y,      0.0f } },
+    };
+
+    for (int j = 0; j < HUMANOID_NR_JOINTS; j++) {
+        h->skel[j] = sk[j];
+        h->skel[j].size = cfg->size[j];
+    }
+}
+
+cerr humanoid_mesh_cubes(mesh_t *m, humanoid *h)
+{
+    return skeleton_emit(.mesh = m, .joints = h->skel, .nr_joints = HUMANOID_NR_JOINTS);
+}
+
+cresp(model3d) humanoid_model(humanoid *h, pipeline *pl)
+{
+    if (!h || !pl)  return cresp_error(model3d, CERR_INVALID_ARGUMENTS);
+
+    if (h->cfg.pelvis_y == 0.0f)    humanoid_config_init(&h->cfg);
+
+    humanoid_skeleton_build(h);
+
+    LOCAL_SET(mesh_t, m) = CRES_RET_T(
+        ref_new_checked(mesh, .name = h->name ? : "humanoid"),
+        model3d
+    );
+
+    humanoid_mesh_fn mesh_fn = h->mesh ? : humanoid_mesh_cubes;
+    h->rigid_nr = 0;
+    CERR_RET_T(mesh_fn(m, h), model3d);
+
+    /*
+     * A generator that skinned the mesh itself (skeleton_emit() binds a
+     * rigid cube to each joint) is left alone; one that only emitted
+     * geometry gets the nearest-bone binding, with whatever it declared
+     * rigid rebound to the pelvis alone: the automatic skinning weighs
+     * such verts to the limb bones swinging past them, and the limbs
+     * then drag a hull out of shape.
+     */
+    if (!mesh_joints(m)) {
+        CERR_RET_T(
+            skeleton_skin(.mesh = m, .joints = h->skel, .nr_joints = HUMANOID_NR_JOINTS),
+            model3d
+        );
+
+        unsigned char *vx_joints = mesh_joints(m);
+        float *vx_weights = mesh_weights(m);
+        for (size_t v = 0; v < h->rigid_nr && v < mesh_nr_joints(m); v++) {
+            memset(vx_joints + v * 4, 0, 4);
+            vx_weights[v * 4 + 0] = 1.0f;
+            vx_weights[v * 4 + 1] = vx_weights[v * 4 + 2] = vx_weights[v * 4 + 3] = 0.0f;
+        }
+    }
+    mesh_aabb_calc(m);
+
+    return skeleton_model_new(pl, m, h->skel, HUMANOID_NR_JOINTS, h->name ? : "humanoid");
 }
 
 static int humanoid_update(entity3d *e, void *data)

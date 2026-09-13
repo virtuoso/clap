@@ -4,8 +4,10 @@
 
 #include "error.h"
 #include "linmath.h"
+#include "mesh.h"
 #include "model.h"
 #include "ik.h"
+#include "skeleton.h"
 #include "procanim/gait.h"
 
 struct scene;
@@ -103,6 +105,82 @@ typedef struct idle_config {
  */
 void idle_config_init(idle_config *cfg);
 
+/* joint indices into humanoid::skel; the pelvis is the root */
+enum humanoid_joint {
+    HUMANOID_PELVIS = 0,
+    HUMANOID_SPINE,
+    HUMANOID_CHEST,
+    HUMANOID_HEAD,
+    HUMANOID_SHOULDER_L,
+    HUMANOID_ARM_UPPER_L,
+    HUMANOID_ARM_LOWER_L,
+    HUMANOID_HAND_L,
+    HUMANOID_SHOULDER_R,
+    HUMANOID_ARM_UPPER_R,
+    HUMANOID_ARM_LOWER_R,
+    HUMANOID_HAND_R,
+    HUMANOID_HIP_L,
+    HUMANOID_SHIN_L,
+    HUMANOID_FOOT_L,
+    HUMANOID_HIP_R,
+    HUMANOID_SHIN_R,
+    HUMANOID_FOOT_R,
+    HUMANOID_NR_JOINTS
+};
+
+/**
+ * struct humanoid_config - a biped's body plan
+ * @pelvis_y:       pelvis (the root joint) height
+ * @spine_y:        spine joint height
+ * @chest_y:        chest joint height; the arms hang off the chest
+ * @head_y:         head joint height
+ * @shoulder_x:     shoulder lateral offset from the center line...
+ * @shoulder_y:     ...and height
+ * @arm_x:          lateral offset of the hanging arm column: the upper
+ *                  arm, the forearm and the hand
+ * @arm_upper_y:    upper arm joint height
+ * @arm_lower_y:    forearm joint height
+ * @hand_y:         hand joint height
+ * @hip_x:          lateral hip offset from the center line; the leg
+ *                  column hangs straight down from it, and
+ *                  gait_config::hip_x wants to match so the feet track
+ *                  under the hips
+ * @hip_y:          hip joint height
+ * @shin_y:         shin joint height
+ * @foot_y:         foot joint height; the bind pose stands with the
+ *                  feet planted, so gait_config::foot_y wants to match
+ * @size:           cube edge per joint (skel_joint::size), indexed by
+ *                  &enum humanoid_joint, for humanoid_mesh_cubes(); a
+ *                  thickness hint for other generators
+ *
+ * All positions are model space with the origin on the ground between
+ * the feet. humanoid_config_init() writes out the reference body (the
+ * reference body); start from it and override per character.
+ */
+typedef struct humanoid_config {
+    float           pelvis_y;
+    float           spine_y;
+    float           chest_y;
+    float           head_y;
+    float           shoulder_x;
+    float           shoulder_y;
+    float           arm_x;
+    float           arm_upper_y;
+    float           arm_lower_y;
+    float           hand_y;
+    float           hip_x;
+    float           hip_y;
+    float           shin_y;
+    float           foot_y;
+    float           size[HUMANOID_NR_JOINTS];
+} humanoid_config;
+
+/**
+ * humanoid_config_init() - fill a body plan with the defaults
+ * @cfg:    the configuration; fully overwritten
+ */
+void humanoid_config_init(humanoid_config *cfg);
+
 typedef struct humanoid humanoid;
 
 /**
@@ -121,41 +199,92 @@ typedef struct humanoid humanoid;
 typedef void (*humanoid_steer)(humanoid *h, double t, float dt);
 
 /**
+ * typedef humanoid_mesh_fn - body mesh generator callback
+ * @m:  the mesh to emit into
+ * @h:  the humanoid; humanoid::cfg and the skeleton (humanoid::skel)
+ *      are final when the generator runs
+ *
+ * Called by humanoid_model() between building the skeleton and skinning
+ * the mesh: emit any geometry over the bind-pose joints
+ * (core/primitives.h). A generator that leaves the mesh unskinned gets
+ * the automatic nearest-bone binding (skeleton_skin()); one that writes
+ * the skinning attributes itself (skeleton_emit() does) is left alone.
+ * A generator that wants part of its auto-skinned geometry rigid (a
+ * machine's hull) emits that part first and sets humanoid::rigid_nr.
+ * humanoid::mesh_priv carries the generator's own parameters.
+ *
+ * Return: CERR_OK or an emit error
+ */
+typedef cerr (*humanoid_mesh_fn)(mesh_t *m, humanoid *h);
+
+/**
+ * humanoid_mesh_cubes() - the cube construct mesh
+ * @m:  the mesh to emit into
+ * @h:  the humanoid
+ *
+ * A rigid cube per joint (skeleton_emit()), edges from
+ * humanoid_config::size: the reference body. The default when
+ * humanoid::mesh is nullptr.
+ */
+cerr humanoid_mesh_cubes(mesh_t *m, humanoid *h);
+
+/**
  * struct humanoid - a biped walking, running and idling on IK legs
  * @scene:      the scene, for the animation clock (required)
  * @e:          the entity to drive (required); the humanoid does not
  *              own it and claims its update callback and priv pointer
+ * @name:       model and mesh name for humanoid_model(); nullptr picks
+ *              "humanoid"
  * @steer:      body driver; nullptr stands in place
  * @steer_priv: the steer callback's own state
  * @ground:     ground height probe for the body and the feet; nullptr:
  *              flat ground at 0
  * @ground_priv: the probe's own state (a navmesh, a terrain)
+ * @mesh:       body mesh generator for humanoid_model(); nullptr picks
+ *              humanoid_mesh_cubes()
+ * @mesh_priv:  the generator's own state
+ * @rigid_nr:   set by an auto-skinned mesh generator: this many leading
+ *              mesh vertices bind rigidly to the pelvis instead of the
+ *              automatic nearest-bone skinning, which would let the
+ *              swinging limbs drag them (a machine's hull must not
+ *              wobble)
+ * @cfg:        the body plan for humanoid_model(); a zero pelvis_y
+ *              picks the defaults
  * @walk:       the walk tuning; zero cycle picks the defaults
  * @run:        the run tuning; zero cycle picks the defaults
  * @idle:       what to do when stopped; zero enter_speed picks the
  *              defaults
  *
- * The humanoid measures its own speed and picks the animation from
- * it: below idle_config::enter_speed it settles into breathing,
- * between the walk's and the run's authored speeds it blends the two
- * tunings continuously. The rest is internal: leg IK chains, gait
- * state, blend levels. humanoid_gait_start() resolves the legs
- * through the semantic JOINT_FOOT_LEFT/JOINT_FOOT_RIGHT joint types,
- * the arms and spine by name/range from the walk configuration,
- * installs the update callback; humanoid_gait_stop() restores
- * everything.
+ * The mesh generator is the only part that differs between the cube
+ * construct and whatever the caller emits: the skeleton, the gait and
+ * the leg IK all run off the same body plan. The humanoid measures its
+ * own speed and picks the animation from it: below
+ * idle_config::enter_speed it settles into breathing, between the
+ * walk's and the run's authored speeds it blends the two tunings
+ * continuously. The rest is internal: the joint table humanoid_model()
+ * builds, leg IK chains, gait state, blend levels.
+ * humanoid_gait_start() resolves the legs through the semantic
+ * JOINT_FOOT_LEFT/JOINT_FOOT_RIGHT joint types, the arms and spine by
+ * name/range from the walk configuration, installs the update
+ * callback; humanoid_gait_stop() restores everything.
  */
 struct humanoid {
     struct scene    *scene;
     entity3d        *e;
+    const char      *name;
     humanoid_steer  steer;
     void            *steer_priv;
     gait_ground_fn  ground;
     void            *ground_priv;
+    humanoid_mesh_fn mesh;
+    void            *mesh_priv;
+    size_t          rigid_nr;
+    humanoid_config cfg;
     gait_config     walk;
     gait_config     run;
     idle_config     idle;
 
+    skel_joint      skel[HUMANOID_NR_JOINTS];
     ik_chain        legs[2];
     gait_leg        feet[2];
     gait            gait;
@@ -171,9 +300,28 @@ struct humanoid {
 };
 
 /**
+ * humanoid_model() - build the rigged body model
+ * @h:  the humanoid, with humanoid::cfg, humanoid::mesh and
+ *      humanoid::name optionally filled
+ * @pl: pipeline the "model" shader is sourced from
+ *
+ * Build the skeleton from the body plan (a zero pelvis_y picks the
+ * humanoid_config_init() defaults) and run the mesh generator over it;
+ * a mesh the generator left unskinned is bound to the bones
+ * (skeleton_skin()). The caller wraps the model in a model3dtx (texture
+ * and material are the variant's other half), creates the entity and
+ * hands it to humanoid_gait_start().
+ * Context: model3d setup time
+ * Return: the rigged model3d (caller owns), or a generator, skinning or
+ * build error
+ */
+cresp_check(model3d) humanoid_model(humanoid *h, pipeline *pl);
+
+/**
  * humanoid_gait_start() - put a biped on its feet
  * @h:  the humanoid, with humanoid::scene, humanoid::e and optionally
- *      humanoid::cfg and humanoid::steer filled
+ *      the tunings (humanoid::walk, humanoid::run, humanoid::idle) and
+ *      humanoid::steer filled
  *
  * Context: entity setup time
  * Return: CERR_OK, CERR_NOMEM, CERR_INVALID_ARGUMENTS (no skeleton, no
