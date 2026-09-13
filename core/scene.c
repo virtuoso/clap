@@ -1377,6 +1377,50 @@ int scene_add_model(struct scene *s, model3dtx *txm)
     return 0;
 }
 
+/* Feed one static collision trimesh to the navmesh; hazards obstruct. */
+static void navmesh_add_entity(entity3d *e, void *data)
+{
+    navmesh *nm = data;
+    model3d *m = e->txmodel->model;
+
+    /* only static collision geoms feed the navmesh; skip dynamic bodies */
+    if (!entity3d_is(e, &E3DQ(.all_of = ENTITY3D_HAS_PHYSICS, .none_of = ENTITY3D_PHYS_IS_BODY)))
+        return;
+    if (!m->collision_vx || !m->collision_idx)  return;
+
+    CERR_RET(navmesh_add(nm,
+                         .vx       = m->collision_vx,
+                         .vxsz     = m->collision_vxsz,
+                         .idx      = m->collision_idx,
+                         .idxsz    = m->collision_idxsz,
+                         .pos      = transform_pos(&e->xform, nullptr),
+                         .rot      = transform_rotation_quat(&e->xform),
+                         .scale    = e->parent ? e->parent->scale : e->scale,
+                         .obstacle = entity3d_matches(e, ENTITY3D_NM_HAZARD)),
+             err_cerr(__cerr, "navmesh: skipping '%s'\n", m->name));
+}
+
+cerr scene_navmesh_init(struct scene *scene)
+{
+    navmesh *nm = CRES_RET_CERR(_navmesh_new(&scene->nm_params));
+
+    mq_for_each(&scene->mq, navmesh_add_entity, nm);
+
+    CERR_RET(navmesh_bake_largest(nm), { navmesh_free(nm); return __cerr; });
+
+    if (scene->nm)  navmesh_free(scene->nm);
+    scene->nm = nm;
+
+    trace("navmesh: %zu walkable triangles\n", navmesh_nr_tris(scene->nm));
+
+    return CERR_OK;
+}
+
+navmesh *scene_navmesh(struct scene *scene)
+{
+    return scene->nm;
+}
+
 void scene_update(struct scene *scene)
 {
     scene_parameters_debug(scene, 0);
@@ -1601,7 +1645,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     double geom_length = 1.0, speed = 0.75, roughness = -1.0, metallic = -1.0;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
-    bool outline_exclude = false, fix_origin = false, can_levitate = false;
+    bool outline_exclude = false, fix_origin = false, can_levitate = false, nm_hazard = false;
     JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *sfx = NULL;
     geom_class class = GEOM_TRIMESH;
     int motion_segments = 8;
@@ -1644,6 +1688,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             speed = p->number_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "outline_exclude"))
             outline_exclude = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "nm_hazard"))
+            nm_hazard = p->bool_;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "motion_segments"))
             motion_segments = p->number_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "fix_origin"))
@@ -1817,6 +1863,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
                 e->outline_exclude = jpos->bool_;
             else
                 e->outline_exclude = outline_exclude;
+
+            jpos = json_find_member(it, "nm_hazard");
+            bool hazard = jpos && jpos->tag == JSON_BOOL ? jpos->bool_ : nm_hazard;
+            if (hazard) entity3d_set(e, ENTITY3D_NM_HAZARD, nullptr);
 
             jpos = json_find_member(it, "name");
             if (jpos && jpos->tag == JSON_STRING)
@@ -2077,6 +2127,8 @@ light_done:
                     list_del(&instor->entry);
                     free(instor);
 
+                    if (nm_hazard)  entity3d_set(e, ENTITY3D_NM_HAZARD, nullptr);
+
                     if (phys)
                         scene_entity_add_physics(scene, e, mass, class, ptype, geom_off,
                                                  geom_radius, geom_length, bounce, bounce_vel);
@@ -2208,6 +2260,37 @@ static cerr scene_add_light_from_json(struct scene *s, JsonNode *light)
     return CERR_OK;
 }
 
+/*
+ * Scene-wide "navmesh" block: build parameters for the walkable mesh.
+ * max_slope is authored in degrees (converted here); the rest are metres,
+ * matching navmesh_params. Any omitted field keeps navmesh_new()'s default.
+ */
+static cerr scene_parse_navmesh(struct scene *s, JsonNode *nm)
+{
+    if (nm->tag != JSON_OBJECT) return CERR_INVALID_FORMAT;
+
+    JsonNode *p;
+    for (p = nm->children.head; p; p = p->next) {
+        if (p->tag != JSON_NUMBER)  continue;
+        if (!strcmp(p->key, "max_slope"))
+            s->nm_params.max_slope = to_radians(p->number_);
+        else if (!strcmp(p->key, "weld"))
+            s->nm_params.weld = p->number_;
+        else if (!strcmp(p->key, "step_height"))
+            s->nm_params.step_height = p->number_;
+        else if (!strcmp(p->key, "agent_height"))
+            s->nm_params.agent_height = p->number_;
+        else if (!strcmp(p->key, "agent_radius"))
+            s->nm_params.agent_radius = p->number_;
+        else if (!strcmp(p->key, "subdivide"))
+            s->nm_params.subdivide = p->number_;
+    }
+
+    s->nm_wanted = true;
+
+    return CERR_OK;
+}
+
 static void scene_onload(struct lib_handle *h, void *buf)
 {
     struct scene *scene = buf;
@@ -2263,8 +2346,14 @@ static void scene_onload(struct lib_handle *h, void *buf)
 
             for (sfx = p->children.head; sfx; sfx = sfx->next)
                 sfx_add_from_json(&scene->sfxc, clap_get_sound(scene->clap_ctx), sfx);
+        } else if (!strcmp(p->key, "navmesh")) {
+            CERR_RET(scene_parse_navmesh(scene, p), goto err);
         }
     }
+
+    /* every entity now exists: bake the navmesh over the whole scene */
+    if (scene->nm_wanted)   CERR_RET(scene_navmesh_init(scene), goto err);
+
     dbg("loaded scene: '%s'\n", scene->name);
 out:
     scene->file_name = lib_figure_uri(h->type, h->name);
@@ -2351,6 +2440,11 @@ void scene_done(struct scene *scene)
     }
 
     sfx_container_clearout(&scene->sfxc);
+
+    if (scene->nm) {
+        navmesh_free(scene->nm);
+        scene->nm = nullptr;
+    }
 
     mq_release(&scene->mq);
 
