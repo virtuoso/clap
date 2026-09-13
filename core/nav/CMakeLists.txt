@@ -1,10 +1,11 @@
 # The navigation-mesh subsystem, built as a static library and linked into the
-# engine. navmesh.c is pure geometry; debug.c adds the walkable-surface overlay,
-# which reaches into the render/scene stack, so it is compiled (and
-# CLAP_NAVMESH_DEBUG defined) only for non-final builds. The test binary
-# compiles navmesh.c directly and never touches debug.c.
+# engine. navmesh.c is pure geometry and roamer.c the path-following agent over
+# it; debug.c adds the walkable-surface overlay and the roamer path lines, which
+# reach into the render/scene stack, so it is compiled (and CLAP_NAVMESH_DEBUG
+# defined) only for non-final builds. The test binary compiles navmesh.c
+# directly and never touches debug.c.
 
-set(NAV_SRC navmesh.c)
+set(NAV_SRC navmesh.c roamer.c)
 if (NOT CONFIG_FINAL)
     list(APPEND NAV_SRC debug.c)
 endif ()

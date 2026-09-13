@@ -10,6 +10,7 @@
  */
 #include "common.h"
 #include "memory.h"
+#include "messagebus.h"
 #include "util.h"
 #include "clap.h"
 #include "mesh.h"
@@ -19,6 +20,7 @@
 #include "shader.h"
 #include "navmesh.h"
 #include "navmesh-internal.h"
+#include "nav/roamer.h"
 
 /*
  * Build a hidden wireframe overlay of the walkable surface and stash it on
@@ -85,4 +87,44 @@ cresp(entity3d) navmesh_debug_draw(navmesh *nm, struct scene *scene)
     nm->debug_entity = e;
 
     return cresp_val(entity3d, e);
+}
+
+/*
+ * Draw the roamer's remaining path as debug lines: yellow segments from the
+ * agent through the waypoints, a red pole at the destination. The roamer core
+ * stays clear of the scene and its message bus; this is the one place path
+ * following reaches into them.
+ */
+void roamer_draw_path(roamer *r, struct scene *scene, const vec3 pos)
+{
+    for (int i = r->wp; i < r->nr_path; i++) {
+        const float *a = i == r->wp ? pos : r->path[i - 1];
+        const float *b = r->path[i];
+
+        message_send(scene->clap_ctx, &(struct message) {
+            .type       = MT_DEBUG_DRAW,
+            .debug_draw = (struct message_debug_draw) {
+                .color      = { 1.0, 0.85, 0.1, 1.0 },
+                .thickness  = 2.0,
+                .shape      = DEBUG_DRAW_LINE,
+                .v0         = { a[0], a[1] + 0.15f, a[2] },
+                .v1         = { b[0], b[1] + 0.15f, b[2] },
+            }
+        });
+    }
+
+    if (r->nr_path) {
+        const float *dest = r->path[r->nr_path - 1];
+
+        message_send(scene->clap_ctx, &(struct message) {
+            .type       = MT_DEBUG_DRAW,
+            .debug_draw = (struct message_debug_draw) {
+                .color      = { 1.0, 0.25, 0.1, 1.0 },
+                .thickness  = 3.0,
+                .shape      = DEBUG_DRAW_LINE,
+                .v0         = { dest[0], dest[1], dest[2] },
+                .v1         = { dest[0], dest[1] + 1.6f, dest[2] },
+            }
+        });
+    }
 }
