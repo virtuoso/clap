@@ -98,10 +98,18 @@ static cerr model3d_make(struct ref *ref, void *_opts)
                 m->aabb
             );
     }
-    m->collision_vx = memdup(mesh_vx(opts->mesh), mesh_vx_sz(opts->mesh));
-    m->collision_vxsz = mesh_vx_sz(opts->mesh);
-    m->collision_idx = memdup(mesh_idx(opts->mesh), mesh_idx_sz(opts->mesh));
-    m->collision_idxsz = mesh_idx_sz(opts->mesh);
+    /*
+     * A position-only welded copy so the collision/nav trimesh is
+     * connected; fall back to a raw copy if the layout is unexpected
+     */
+    cerr coll_err = mesh_make_collision(opts->mesh, &m->collision_vx, &m->collision_vxsz,
+                                        &m->collision_idx, &m->collision_idxsz);
+    if (IS_CERR(coll_err)) {
+        m->collision_vx = memdup(mesh_vx(opts->mesh), mesh_vx_sz(opts->mesh));
+        m->collision_vxsz = mesh_vx_sz(opts->mesh);
+        m->collision_idx = memdup(mesh_idx(opts->mesh), mesh_idx_sz(opts->mesh));
+        m->collision_idxsz = mesh_idx_sz(opts->mesh);
+    }
     darray_init(m->anis);
     sfx_container_init(&m->sfxc);
 

@@ -153,6 +153,22 @@ void mesh_aabb_calc(struct mesh *mesh);
 void mesh_optimize(struct mesh *mesh);
 
 /**
+ * mesh_make_collision() - build a position-only welded copy for collision
+ * @mesh:       source mesh (16-bit indexed, vec3 positions)
+ * @out_vx:     receives the welded position buffer (caller frees)
+ * @out_vxsz:   receives its size in bytes
+ * @out_idx:    receives the remapped 16-bit index buffer (caller frees)
+ * @out_idxsz:  receives its size in bytes
+ *
+ * Collapses the render mesh's normal/UV vertex seams so the trimesh is
+ * topologically connected, which ODE and the navmesh both need. The
+ * render mesh is left untouched.
+ * Return: CERR_OK or CERR_INVALID_ARGUMENTS (empty or unexpected layout)
+ */
+cerr_check mesh_make_collision(struct mesh *mesh, float **out_vx, size_t *out_vxsz,
+                               unsigned short **out_idx, size_t *out_idxsz);
+
+/**
  * mesh_flatten() - produce a contiguous buffer with multiple mesh attributes interleaved
  * @mesh:       source of the attributes
  * @attrs:      array of attributes as enum mesh_attrs

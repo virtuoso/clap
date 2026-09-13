@@ -340,6 +340,53 @@ void mesh_optimize(struct mesh *mesh)
     mesh_idx_from_idx32(mesh, idx32);
 }
 
+cerr mesh_make_collision(struct mesh *mesh, float **out_vx, size_t *out_vxsz,
+                         unsigned short **out_idx, size_t *out_idxsz)
+{
+    size_t nr_vx = mesh_nr_vx(mesh);
+    size_t nr_idx = mesh_nr_idx(mesh);
+    size_t stride = mesh_vx_stride(mesh);
+    unsigned short *sidx = mesh_idx(mesh);
+
+    /*
+     * The render mesh splits vertices at normal/UV seams: one position
+     * becomes several vertices with different attributes, so triangles
+     * that share an edge geometrically don't share it by index. A
+     * collision/navigation trimesh wants the opposite - one vertex per
+     * position, so the surface is topologically connected (ODE's
+     * trimesh and the navmesh both rely on it). Remap by position only.
+     */
+    if (!nr_vx || !nr_idx || stride != 3 * sizeof(float) ||
+        mesh_idx_stride(mesh) != sizeof(unsigned short))
+        return CERR_INVALID_ARGUMENTS;
+
+    unsigned int *idx32 = idx_to_idx32(sidx, nr_idx);
+    unsigned int *remap = mem_alloc(sizeof(*remap), .nr = nr_vx, .fatal_fail = 1);
+
+    size_t nr_new = meshopt_generateVertexRemap(remap, idx32, nr_idx,
+                                                mesh_vx(mesh), nr_vx, stride);
+
+    /* the render mesh is 16-bit indexed, so the welded count fits too */
+    float *vx = mem_alloc(stride, .nr = nr_new, .fatal_fail = 1);
+
+    meshopt_remapVertexBuffer(vx, mesh_vx(mesh), nr_vx, stride, remap);
+    meshopt_remapIndexBuffer(idx32, idx32, nr_idx, remap);
+    unsigned short *idx = idx32_to_idx(idx32, nr_idx);
+
+    mem_free(idx32);
+    mem_free(remap);
+
+    trace("collision mesh '%s': %zu -> %zu verts by position weld\n",
+          mesh->name, nr_vx, nr_new);
+
+    *out_vx = vx;
+    *out_vxsz = nr_new * stride;
+    *out_idx = idx;
+    *out_idxsz = nr_idx * sizeof(*idx);
+
+    return CERR_OK;
+}
+
 static inline void *mesh_attr_element(struct mesh *mesh, enum mesh_attrs attr, size_t el)
 {
     struct mesh_attr *ma = mesh_attr(mesh, attr);
