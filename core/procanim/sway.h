@@ -32,6 +32,10 @@ struct scene;
  * @no_gust:        disable the gust layer
  * @no_flutter:     disable the flutter layer
  * @no_twist:       disable the twist layer
+ * @phase:          time offset in seconds added to the animation clock,
+ *                  to desync otherwise-identical rigs; 0 for none. Unlike
+ *                  the tunables, 0 is the real default, not "pick the
+ *                  default" - a lone tree wants no offset.
  *
  * Zero fields other than @amplitude, which is required, pick the same
  * defaults that sway_config_init() writes out; start from
@@ -54,6 +58,7 @@ typedef struct sway_config {
     float           twist;
     float           twist_frequency;
     float           twist_lag;
+    float           phase;
     bool            no_gust;
     bool            no_flutter;
     bool            no_twist;

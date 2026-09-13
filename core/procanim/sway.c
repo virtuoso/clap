@@ -76,7 +76,7 @@ cerr chain_sway(entity3d *e, double t, const sway_config *cfg)
     float twist = cfg->no_twist ? 0.0f : (cfg->twist ? : SWAY_TWIST);
     float twist_freq = cfg->twist_frequency ? : SWAY_TWIST_FREQ;
     float twist_lag = cfg->twist_lag ? : SWAY_TWIST_LAG;
-    float tf = (float)t;
+    float tf = (float)(t + cfg->phase);
 
     for (unsigned int i = 0; i < nr; i++) {
         unsigned int joint = first + i;
