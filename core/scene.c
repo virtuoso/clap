@@ -1164,12 +1164,32 @@ static void scene_debug_frusta(struct scene *scene, struct view *view)
     }
 }
 
+static void scene_navmesh_debug(struct scene *scene)
+{
+    debug_module *dbgm = ui_igBegin(DEBUG_NAVMESH, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if (!dbgm->display) return;
+
+    if (dbgm->unfolded && scene->nm) {
+        cresp(entity3d) res = navmesh_debug_draw(scene->nm, scene);
+
+        if (!IS_CERR(res)) {
+            bool shown = entity3d_matches(res.val, ENTITY3D_VISIBLE);
+            if (igCheckbox("draw walkable surface", &shown))
+                entity3d_visible(res.val, shown);
+        }
+    }
+
+    ui_igEnd(DEBUG_NAVMESH);
+}
+
 #else
 static inline void scene_parameters_debug(struct scene *scene, int cam_idx) {}
 static inline void light_debug(struct scene *scene) {}
 static inline void scene_characters_debug(struct scene *scene) {}
 static inline void scene_entity_inspector_debug(struct scene *scene) {}
 static inline void scene_debug_frusta(struct scene *scene, struct view *view) {}
+static inline void scene_navmesh_debug(struct scene *scene) {}
 #endif /* CONFIG_FINAL */
 
 static void scene_camera_calc(struct scene *s, int camera)
@@ -1426,6 +1446,7 @@ void scene_update(struct scene *scene)
     scene_parameters_debug(scene, 0);
     scene_characters_debug(scene);
     scene_entity_inspector_debug(scene);
+    scene_navmesh_debug(scene);
     light_debug(scene);
     screen_record_update(scene);
 

@@ -5,6 +5,14 @@
 #include "error.h"
 #include "linmath.h"
 
+/*
+ * CLAP_NAVMESH_DEBUG gates the walkable-surface debug overlay
+ * (navmesh_debug_draw, in core/nav/debug.c, and the debug_entity slot in
+ * struct navmesh). core/nav/CMakeLists.txt defines it for non-final engine
+ * builds only and compiles debug.c under the same condition; final and test
+ * builds leave it unset and link neither debug.c nor the render stack.
+ */
+
 /**
  * struct navmesh_params - navigation mesh build parameters
  * @max_slope:      steepest walkable surface, radians from horizontal;
@@ -246,5 +254,25 @@ cerr navmesh_tri(navmesh *nm, int tri, vec3 c[3]);
  */
 cerr_check navmesh_geometry(navmesh *nm, float lift, float **out_vx, size_t *out_nr_vx,
                             unsigned short **out_idx, size_t *out_nr_idx);
+
+#ifdef CLAP_NAVMESH_DEBUG
+#include "model.h"      /* entity3d and its cresp() for the overlay entity */
+
+struct scene;
+
+/**
+ * navmesh_debug_draw() - wireframe overlay of the walkable surface
+ * @nm:     a baked navmesh
+ * @scene:  scene to add the overlay entity to
+ *
+ * Build (once) a line-topology entity mirroring the walkable triangles,
+ * hidden by default, add it to @scene's model queue and stash it on the
+ * navmesh. Idempotent: repeated calls return the same entity. A debug-UI
+ * checkbox flips its visibility. Debug builds only; this is the one place
+ * the navmesh reaches into the render/scene stack.
+ * Return: the overlay entity, or an error
+ */
+cresp(entity3d) navmesh_debug_draw(navmesh *nm, struct scene *scene);
+#endif /* CLAP_NAVMESH_DEBUG */
 
 #endif /* __CLAP_NAVMESH_H__ */

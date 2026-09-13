@@ -29,6 +29,7 @@
 #include "memory.h"
 #include "util.h"
 #include "navmesh.h"
+#include "navmesh-internal.h"
 
 #define NAVMESH_MAX_SLOPE       0.698f  /* 40 degrees */
 #define NAVMESH_WELD            0.01f
@@ -41,57 +42,15 @@
 /* stitched portals shorter than this are not worth crossing */
 #define NM_MIN_PORTAL           0.05f
 
-/* a crossing into a neighbor triangle: the portal interval */
-struct nav_link {
-    int     to;
-    vec3    pa;
-    vec3    pb;
-};
-
-typedef struct nav_tri {
-    int     v[3];
-    int     link_first;
-    int     link_nr;
-} nav_tri;
-
-/* an obstruction triangle and its world AABB */
-struct nm_ob {
-    vec3    v[3];
-    float   mn[3];
-    float   mx[3];
-    int     src;    /* which navmesh_add() batch it came from */
-    /*
-     * Explicitly marked obstacles (hazards) deny the floor they cover
-     * at any height; slope-derived ones only above step_height, so
-     * steps and gentle clutter stay walkable.
-     */
-    bool    deny;
-};
+/*
+ * nav_link, nav_tri, nm_ob and struct navmesh live in navmesh-internal.h,
+ * shared with nav/debug.c
+ */
 
 /* one entry of a grid cell's chain */
 struct nm_gent {
     int     ob;
     int     next;
-};
-
-struct navmesh {
-    navmesh_params  params;
-    bool            baked;
-    int             nr_sources;
-
-    /* build-time soup, freed by navmesh_bake() */
-    darray(float, floor_soup);          /* 9 floats per floor triangle */
-    darray(struct nm_ob, obstacles);    /* hard obstructions */
-
-    /* baked */
-    vec3            *verts;
-    nav_tri         *tris;
-    struct nav_link *links;
-    float           *cdf;               /* cumulative triangle area */
-    size_t          nr_verts;
-    size_t          nr_tris;
-    size_t          nr_links;
-    float           total_area;
 };
 
 /***

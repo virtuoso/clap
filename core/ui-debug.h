@@ -62,6 +62,7 @@ enum debug_modules {
     DEBUG_REPL,
     DEBUG_SCRIPTS,
     DEBUG_SCREEN_RECORDER,
+    DEBUG_NAVMESH,
     DEBUG_MODULES_MAX,
 };
 
