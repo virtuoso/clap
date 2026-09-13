@@ -463,7 +463,7 @@ size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *
     mem_free(idx32);
     idx32 = mesh_idx_to_idx32(mesh);
     nr_idx = meshopt_simplifySloppy(idx32, idx32, orig_idx, vxa->data, vxa->nr, vxa->stride,
-                                    target, target_error, &result_error);
+                                    nullptr, target, target_error, &result_error);
     result_error = -result_error;
 
 out:
