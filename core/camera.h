@@ -13,6 +13,7 @@ struct camera {
     vec3                target;
     unsigned int        zoom;
     float               dist;
+    float               dist_override;  /* > 0: manual orbit distance, overrides auto framing */
     float               yaw_delta;
     float               pitch_delta;
     vec4                frustum_corner[4];

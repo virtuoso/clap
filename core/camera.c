@@ -156,6 +156,25 @@ debug_ui:
         ui_igVecTableHeader("rotation", 4);
         ui_igVecRow(transform_rotation_quat(&c->xform), 4, "quat");
         igEndTable();
+
+        if (ui_igControlTableHeader("orbit distance", "manual distance")) {
+            bool manual = c->dist_override > 0.0f;
+
+            /* the distance is only worked out again when the camera moves */
+            if (ui_igCheckbox("manual distance", &manual)) {
+                c->dist_override = manual ? fmaxf(c->dist, 1.0f) : 0.0f;
+                transform_set_updated(&c->xform);
+            }
+
+            if (c->dist_override > 0.0f) {
+                if (ui_igSliderFloat("distance", &c->dist_override, 1.0f, 200.0f,
+                                     "%.1f", ImGuiSliderFlags_AlwaysClamp))
+                    transform_set_updated(&c->xform);
+            } else
+                ui_igLabel("distance: auto");
+
+            igEndTable();
+        }
     }
 
     ui_igEnd(DEBUG_CAMERA);
@@ -201,8 +220,17 @@ static void camera_target(struct camera *c, entity3d *entity)
         height = entity3d_aabb_Y(entity) / 2.0f;
     }
 
-    float dist_cap = fmaxf(10.0f, entity3d_aabb_avg_edge(entity));
-    c->dist = fminf(height * 3.0f, fminf(dist_cap, c->view.main.far_plane - 10.0f));
+    /*
+     * Frame by the larger of the vertical extent and the average edge, so
+     * squat-but-wide entities (a splayed spider) get the same breathing room
+     * as tall-but-narrow ones (a character), instead of the camera keying off
+     * height alone and jamming into a wide body. A manual override wins.
+     */
+    float avg_edge = entity3d_aabb_avg_edge(entity);
+    float dist_cap = fmaxf(10.0f, avg_edge);
+    c->dist = c->dist_override > 0.0f
+            ? c->dist_override
+            : fminf(fmaxf(height, avg_edge) * 3.0f, fminf(dist_cap, c->view.main.far_plane - 10.0f));
 }
 
 void camera_update(struct camera *c, struct scene *scene)
