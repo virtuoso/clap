@@ -47,6 +47,16 @@ void vlogg(int level, const char *mod, int line, const char *func, const char *f
     __nonnull_params((5));
 void logg(int level, const char *mod, int line, const char *func, const char *fmt, ...)
     __printf(5, 6) __nonnull_params((5));
+
+/**
+ * log_floor_set() - set the log floor
+ * @level:  the lowest level that gets logged: the enum above (VDBG shows
+ *          trace(), DBG shows dbg(), ...)
+ *
+ * Messages below @level are dropped on the way in.
+ */
+void log_floor_set(int level);
+
 #define trace(args...) \
     logg(VDBG, MODNAME, __LINE__, __func__, ## args);
 #define trace_on(_c, args...) do { if ((_c)) trace("condition '" # _c "': " args); } while (0)

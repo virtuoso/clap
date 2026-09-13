@@ -268,6 +268,11 @@ static int log_floor =
 #endif
 ;
 
+void log_floor_set(int level)
+{
+    log_floor = level;
+}
+
 static int log_command_handler(struct clap_context *ctx, struct message *m, void *data)
 {
     if (m->cmd.toggle_noise)
