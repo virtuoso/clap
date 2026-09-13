@@ -324,6 +324,71 @@ out:
     return ret;
 }
 
+static int navmesh_test_carve(void)
+{
+    /*
+     * One big 20x20 floor quad with an obstacle over its middle. At full
+     * size the clearance cull can only keep or drop the whole quad;
+     * subdivision lets it carve a hole under the obstacle, and a path
+     * across must route around that hole.
+     */
+    struct nm_soup floor = {
+        .vx  = mem_alloc(sizeof(float), .nr = 12, .fatal_fail = 1),
+        .idx = mem_alloc(sizeof(unsigned short), .nr = 6, .fatal_fail = 1),
+    };
+    struct nm_soup obs = {
+        .vx  = mem_alloc(sizeof(float), .nr = 12, .fatal_fail = 1),
+        .idx = mem_alloc(sizeof(unsigned short), .nr = 6, .fatal_fail = 1),
+    };
+    int ret = EXIT_FAILURE;
+    navmesh *nm = nullptr;
+
+    cresp(navmesh) res = navmesh_new(.agent_radius = 0.4f, .agent_height = 1.8f,
+                                     .subdivide = 1.0f);
+    if (IS_CERR(res))   goto out;
+    nm = res.val;
+
+    soup_quad(&floor, (vec3){ 0, 0, 0 }, (vec3){ 20, 0, 0 },
+                      (vec3){ 20, 0, 20 }, (vec3){ 0, 0, 20 });
+    /* an obstacle hovering a bit above the floor, over (8,8)-(12,12) */
+    soup_quad(&obs, (vec3){ 8, 0.5f, 8 }, (vec3){ 12, 0.5f, 8 },
+                    (vec3){ 12, 0.5f, 12 }, (vec3){ 8, 0.5f, 12 });
+
+    cerr err = navmesh_add(nm, .vx = floor.vx, .vxsz = floor.nr_vx * 3 * sizeof(float),
+                           .idx = floor.idx, .idxsz = floor.nr_idx * sizeof(unsigned short));
+    if (IS_CERR(err))                           goto out;
+    err = navmesh_add(nm, .vx = obs.vx, .vxsz = obs.nr_vx * 3 * sizeof(float),
+                      .idx = obs.idx, .idxsz = obs.nr_idx * sizeof(unsigned short),
+                      .obstacle = true);
+    if (IS_CERR(err))                           goto out;
+    err = navmesh_bake_largest(nm);
+    if (IS_CERR(err))                           goto out;
+
+    /* the middle is carved away, the corners survive */
+    cres(int) hole = navmesh_locate(nm, (vec3){ 10, 0, 10 }, 0.5f, -1);
+    if (!IS_CERR(hole))                         goto out;
+    cres(int) corner = navmesh_locate(nm, (vec3){ 2, 0, 2 }, 0.5f, -1);
+    if (IS_CERR(corner))                        goto out;
+
+    /* a crossing that would pass through the hole must bend around it */
+    vec3 wp[24];
+    cres(int) nr = navmesh_path(nm, (vec3){ 2, 0, 10 }, (vec3){ 18, 0, 10 }, wp, 24);
+    if (IS_CERR(nr) || nr.val <= 2)             goto out;
+
+    /* no waypoint sits inside the carved footprint */
+    for (int i = 0; i < nr.val; i++)
+        if (wp[i][0] > 8.0f && wp[i][0] < 12.0f && wp[i][2] > 8.0f && wp[i][2] < 12.0f) goto out;
+
+    ret = EXIT_SUCCESS;
+out:
+    navmesh_free(nm);
+    mem_free(floor.vx);
+    mem_free(floor.idx);
+    mem_free(obs.vx);
+    mem_free(obs.idx);
+    return ret;
+}
+
 static int navmesh_test_invalid(void)
 {
     navmesh *nm = navmesh_test_build();
@@ -368,6 +433,7 @@ static const struct test tests[] = {
     { .name = "navmesh random",     .test = navmesh_test_random },
     { .name = "navmesh path",       .test = navmesh_test_path },
     { .name = "navmesh t-junction", .test = navmesh_test_tjunction },
+    { .name = "navmesh carve",      .test = navmesh_test_carve },
     { .name = "navmesh invalid",    .test = navmesh_test_invalid },
 };
 
