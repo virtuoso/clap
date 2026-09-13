@@ -268,9 +268,13 @@ static int log_floor =
 #endif
 ;
 
+/* the floor that log_floor_set() pinned, which LOG_QUIET leaves alone */
+static bool log_floor_pinned;
+
 void log_floor_set(int level)
 {
     log_floor = level;
+    log_floor_pinned = true;
 }
 
 static int log_command_handler(struct clap_context *ctx, struct message *m, void *data)
@@ -296,7 +300,7 @@ void notrace log_init(struct clap_context *ctx, unsigned int flags)
     if (flags & LOG_RB)
         logger_append(&logger_rb);
 
-    if (flags & LOG_QUIET)
+    if ((flags & LOG_QUIET) && !log_floor_pinned)
         log_floor = NORMAL;
 
     log_up++;

@@ -1359,6 +1359,28 @@ static cerr handle_renderer_opt(clap_context *ctx, const char *optarg)
     return CERR_OK;
 }
 
+static cerr handle_log_level_opt(clap_context *ctx, const char *optarg)
+{
+    static const struct {
+        const char  *name;
+        int         level;
+    } levels[] = {
+        { "trace",  VDBG   },
+        { "debug",  DBG    },
+        { "normal", NORMAL },
+        { "warn",   WARN   },
+        { "error",  ERR    },
+    };
+
+    for (size_t i = 0; i < array_size(levels); i++)
+        if (!strcmp(optarg, levels[i].name)) {
+            log_floor_set(levels[i].level);
+            return CERR_OK;
+        }
+
+    return CERR_INVALID_ARGUMENTS_REASON(.fmt = "unknown log level '%s'", .arg0 = optarg);
+}
+
 static cerr handle_help_opt(clap_context *ctx, const char *optarg);
 
 const char *clap_get_argv(clap_context *ctx, int idx)
@@ -1441,6 +1463,15 @@ static const struct clap_cli_options_desc {
         .arg_required   = true,
         .type           = CLI_STR,
         .handle         = handle_renderer_opt
+    },
+    [CLAP_CLI_LOG_LEVEL_BIT] = {
+        .long_name      = "log-level",
+        .short_name     = 'L',
+        .help           = "set log verbosity: trace, debug, normal, warn, error",
+        .arg_help       = "level",
+        .arg_required   = true,
+        .type           = CLI_STR,
+        .handle         = handle_log_level_opt
     },
 };
 

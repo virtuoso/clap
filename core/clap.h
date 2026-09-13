@@ -554,6 +554,7 @@ enum clap_cli_opt_bits {
     CLAP_CLI_SERVER_ADDR_BIT,
     CLAP_CLI_SCRIPT_DIR_BIT,
     CLAP_CLI_RENDERER_BIT,
+    CLAP_CLI_LOG_LEVEL_BIT,
     CLAP_CLI_SENTINEL
 };
 
@@ -565,8 +566,9 @@ typedef enum clap_cli_opts {
     CLAP_CLI_SERVER_ADDR    = (1u << CLAP_CLI_SERVER_ADDR_BIT),
     CLAP_CLI_SCRIPT_DIR     = (1u << CLAP_CLI_SCRIPT_DIR_BIT),
     CLAP_CLI_RENDERER       = (1u << CLAP_CLI_RENDERER_BIT),
+    CLAP_CLI_LOG_LEVEL      = (1u << CLAP_CLI_LOG_LEVEL_BIT),
 #ifdef CONFIG_FINAL
-    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN | CLAP_CLI_HELP | CLAP_CLI_RENDERER,
+    CLAP_CLI_DEFAULT        = CLAP_CLI_FULLSCREEN | CLAP_CLI_HELP | CLAP_CLI_RENDERER | CLAP_CLI_LOG_LEVEL,
 #else /* !CONFIG_FINAL */
     CLAP_CLI_DEFAULT        = CLAP_CLI_HELP             |
                               CLAP_CLI_FULLSCREEN       |
@@ -574,7 +576,8 @@ typedef enum clap_cli_opts {
                               CLAP_CLI_ABORT_ON_ERROR   |
                               CLAP_CLI_SERVER_ADDR      |
                               CLAP_CLI_SCRIPT_DIR       |
-                              CLAP_CLI_RENDERER,
+                              CLAP_CLI_RENDERER         |
+                              CLAP_CLI_LOG_LEVEL,
 #endif /* !CONFIG_FINAL */
 } clap_cli_opts;
 
