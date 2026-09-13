@@ -4,17 +4,44 @@
 
 #include "linmath.h"
 #include "mesh.h"
+#include "model.h"
 #include "pipeline.h"
 
 typedef struct gltf_data gltf_data;
 
 DECLARE_CLEANUP(gltf_data);
 
+/**
+ * gltf_model_make_fn - hook to build a model3d from a freshly loaded gltf mesh
+ * @gd:     the gltf data being instantiated
+ * @mesh:   index of the mesh being instantiated
+ * @me:     the mesh gltf_instantiate_one() just built with gltf_mesh_new();
+ *          borrowed - build the model from it, do not take ownership
+ * @out:    receives the model3d on CERR_OK; instantiate takes ownership
+ * @priv:   the caller's cookie from gltf_load_options::model_make_priv
+ *
+ * Fires inside gltf_instantiate_one(), once per instantiated mesh, between
+ * gltf_mesh_new() and model3d creation. On CERR_OK write @out, and instantiate
+ * wraps that model into the model3dtx with this mesh's textures and material:
+ * the hook owns the mesh side (e.g. fitting a procedural skeleton), instantiate
+ * keeps the texture/material/skin side keyed by @mesh. Return CERR_NOT_HANDLED
+ * to decline, and instantiate builds the model the usual way; any other error
+ * aborts the instantiation.
+ *
+ * Mirror this signature in struct clap_config::model_make, which the scene
+ * loader passes through; clap.h spells it out to avoid pulling in gltf.h.
+ * Return: CERR_OK (with @out set), CERR_NOT_HANDLED to decline, or an error.
+ */
+typedef cerr (*gltf_model_make_fn)(struct gltf_data *gd, int mesh, mesh_t *me,
+                                   model3d **out, void *priv);
+
 typedef struct gltf_load_options {
-    const char  *name;
-    struct mq   *mq;
-    pipeline    *pipeline;
-    bool        fix_origin;
+    const char          *name;
+    struct mq           *mq;
+    pipeline            *pipeline;
+    gltf_model_make_fn  model_make;
+    void                *model_make_priv;
+    bool                fix_origin;
 } gltf_load_options;
 
 #define gltf_load(args...) \
@@ -22,6 +49,8 @@ typedef struct gltf_load_options {
 
 struct gltf_data *_gltf_load(const gltf_load_options *opts);
 void gltf_free(struct gltf_data *gd);
+/* the pipeline this gltf was loaded with, for a model_make hook to source shaders */
+pipeline *gltf_pipeline(struct gltf_data *gd);
 int gltf_root_mesh(struct gltf_data *gd);
 int gltf_mesh_by_name(struct gltf_data *gd, const char *name);
 cerr_check gltf_instantiate_one(struct gltf_data *gd, int mesh);

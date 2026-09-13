@@ -1726,11 +1726,14 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         return CERR_PARSE_FAILED;
     }
 
+    struct clap_config *clap_cfg = clap_get_config(scene->clap_ctx);
     LOCAL_SET(gltf_data, gd) = gltf_load(
-        .mq         = &scene->mq,
-        .pipeline   = clap_get_pipeline(scene->clap_ctx),
-        .name       = gltf,
-        .fix_origin = fix_origin
+        .mq              = &scene->mq,
+        .pipeline        = clap_get_pipeline(scene->clap_ctx),
+        .name            = gltf,
+        .fix_origin      = fix_origin,
+        .model_make      = clap_cfg->model_make,
+        .model_make_priv = clap_cfg->model_make_priv
     );
     if (!gd) {
         warn("Error loading GLTF '%s'\n", gltf);

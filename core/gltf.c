@@ -224,6 +224,8 @@ struct gltf_data {
     unsigned int         warned;
     unsigned int nr_texs;
     unsigned int texid;
+    gltf_model_make_fn   model_make;
+    void                 *model_make_priv;
     bool         fix_origin;
     bool         textures_png;
 };
@@ -1509,6 +1511,11 @@ bool gltf_textures_png(struct gltf_data *gd)
     return gd->textures_png;
 }
 
+pipeline *gltf_pipeline(struct gltf_data *gd)
+{
+    return gd->pl;
+}
+
 cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 {
     int skin;
@@ -1520,34 +1527,50 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
 
     LOCAL_SET(mesh_t, me) = CRES_RET(gltf_mesh_new(gd, mesh), return cerr_error_cres(__resp));
 
-    /*
-     * The attribute-layout half of the mask must be final here: the
-     * model's vertex buffers are laid out against the resolved prog,
-     * and its shadow prog (resolved right after construction) carries
-     * the same bits so the shadow passes read them identically.
-     */
-    shader_variants_t variants = ropts_shader_variants(pipeline_render_options(gd->pl));
-    if (gltf_has_tangent(gd, mesh) && gltf_nmap(gd, mesh))  variants |= SHADER_NORMALS_BIT;
-    if (gltf_has_joints(gd, mesh))                          variants |= SHADER_SKINNING_BIT;
-
-    struct shader_prog *prog = CRES_RET_CERR(
-        pipeline_shader_variant_get(gd->pl, "model", variants));
-    /*
-     * ref_put(prog) on failure is not necessary, model3d constructor
-     * already drops this reference; plus ref_pass(prog) sets prog to NULL
-     * effectively making this a requirement
-     */
     /* dropped if the shadow prog fails to resolve; ref_pass() hands it on below */
-    LOCAL_SET(model3d, m) = CRES_RET_CERR(
-        ref_new_checked(
-            model3d,
-            .prog        = ref_pass(prog),
-            .name        = gltf_mesh_name(gd, mesh),
-            .mesh        = me,
-            .shader_base = "model",
-            .variants    = variants
-        )
-    );
+    LOCAL(model3d, m);
+
+    /*
+     * A model_make hook gets first refusal on turning the fresh mesh into a
+     * model (procedural rigging, say). It borrows the mesh; instantiate keeps
+     * ownership and still drops it below. CERR_NOT_HANDLED - or no hook - falls
+     * through to the default model3d; any other error aborts.
+     */
+    if (gd->model_make) {
+        cerr err = gd->model_make(gd, mesh, me, &m, gd->model_make_priv);
+
+        if (IS_CERR(err) && !IS_CERR_CODE(err, CERR_NOT_HANDLED))   return err;
+    }
+
+    if (!m) {
+        /*
+         * The attribute-layout half of the mask must be final here: the
+         * model's vertex buffers are laid out against the resolved prog,
+         * and its shadow prog (resolved right after construction) carries
+         * the same bits so the shadow passes read them identically.
+         */
+        shader_variants_t variants = ropts_shader_variants(pipeline_render_options(gd->pl));
+        if (gltf_has_tangent(gd, mesh) && gltf_nmap(gd, mesh))  variants |= SHADER_NORMALS_BIT;
+        if (gltf_has_joints(gd, mesh))                          variants |= SHADER_SKINNING_BIT;
+
+        struct shader_prog *prog = CRES_RET_CERR(
+            pipeline_shader_variant_get(gd->pl, "model", variants));
+        /*
+         * ref_put(prog) on failure is not necessary, model3d constructor
+         * already drops this reference; plus ref_pass(prog) sets prog to nullptr
+         * effectively making this a requirement
+         */
+        m = CRES_RET_CERR(
+            ref_new_checked(
+                model3d,
+                .prog        = ref_pass(prog),
+                .name        = gltf_mesh_name(gd, mesh),
+                .mesh        = me,
+                .shader_base = "model",
+                .variants    = variants
+            )
+        );
+    }
 
     CERR_RET_CERR(pipeline_model_shadow_resolve(gd->pl, m));
 
@@ -1708,6 +1731,8 @@ struct gltf_data *_gltf_load(const gltf_load_options *opts)
     gd->pl = ref_get((pipeline *)opts->pipeline);
     gd->mq = opts->mq;
     gd->fix_origin = opts->fix_origin;
+    gd->model_make = opts->model_make;
+    gd->model_make_priv = opts->model_make_priv;
     lh = lib_request(RES_ASSET, opts->name, gltf_onload, gd);
     state = lh->state;
     ref_put(lh);
