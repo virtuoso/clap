@@ -275,6 +275,34 @@ out:
     return ret;
 }
 
+static int navmesh_test_raycast(void)
+{
+    navmesh *nm = navmesh_test_build();
+    int ret = EXIT_FAILURE;
+
+    if (!nm)                                    return EXIT_FAILURE;
+
+    /* a ray straight down onto the open floor lands on it, at y ~ 0 */
+    vec3 hit;
+    cres(int) tri = navmesh_raycast(nm, (vec3){ 3.4f, 10.0f, 6.2f },
+                                    (vec3){ 0.0f, -1.0f, 0.0f }, hit);
+    if (IS_CERR(tri))                                                                           goto out;
+    if (fabsf(hit[0] - 3.4f) > 1e-3f || fabsf(hit[2] - 6.2f) > 1e-3f || fabsf(hit[1]) > 1e-3f)  goto out;
+
+    /* a ray into the sky hits nothing */
+    cres(int) sky = navmesh_raycast(nm, (vec3){ 3.4f, 10.0f, 6.2f }, (vec3){ 0, 1, 0 }, hit);
+    if (!IS_CERR(sky))                          goto out;
+
+    /* a ray down over the culled lava pool misses the walkable mesh */
+    cres(int) lava = navmesh_raycast(nm, (vec3){ 2.0f, 10.0f, 2.0f }, (vec3){ 0, -1, 0 }, hit);
+    if (!IS_CERR(lava))                         goto out;
+
+    ret = EXIT_SUCCESS;
+out:
+    navmesh_free(nm);
+    return ret;
+}
+
 static int navmesh_test_tjunction(void)
 {
     /*
@@ -546,6 +574,7 @@ static const struct test tests[] = {
     { .name = "navmesh locate",     .test = navmesh_test_locate },
     { .name = "navmesh random",     .test = navmesh_test_random },
     { .name = "navmesh path",       .test = navmesh_test_path },
+    { .name = "navmesh raycast",    .test = navmesh_test_raycast },
     { .name = "navmesh t-junction", .test = navmesh_test_tjunction },
     { .name = "navmesh carve",      .test = navmesh_test_carve },
     { .name = "navmesh step",       .test = navmesh_test_step },
