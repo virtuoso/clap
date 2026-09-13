@@ -389,6 +389,66 @@ out:
     return ret;
 }
 
+static int navmesh_test_step(void)
+{
+    /*
+     * A raised platform sitting on a ground plane, its top a step_height
+     * above it: the two share no edge (the platform stacks on the
+     * ground), so only edge-to-surface step links can join them. A path
+     * from the ground onto the platform must exist and climb.
+     */
+    struct nm_soup ground = {
+        .vx  = mem_alloc(sizeof(float), .nr = 12, .fatal_fail = 1),
+        .idx = mem_alloc(sizeof(unsigned short), .nr = 6, .fatal_fail = 1),
+    };
+    struct nm_soup plat = {
+        .vx  = mem_alloc(sizeof(float), .nr = 12, .fatal_fail = 1),
+        .idx = mem_alloc(sizeof(unsigned short), .nr = 6, .fatal_fail = 1),
+    };
+    int ret = EXIT_FAILURE;
+    navmesh *nm = nullptr;
+
+    cresp(navmesh) res = navmesh_new(.agent_radius = 0.4f, .agent_height = 1.8f,
+                                     .step_height = 0.5f, .subdivide = 1.0f);
+    if (IS_CERR(res))   goto out;
+    nm = res.val;
+
+    soup_quad(&ground, (vec3){ 0, 0, 0 }, (vec3){ 20, 0, 0 },
+                       (vec3){ 20, 0, 20 }, (vec3){ 0, 0, 20 });
+    /* an 8x8 platform 0.4 up, resting over the middle of the ground */
+    soup_quad(&plat, (vec3){ 6, 0.4f, 6 }, (vec3){ 14, 0.4f, 6 },
+                     (vec3){ 14, 0.4f, 14 }, (vec3){ 6, 0.4f, 14 });
+
+    cerr err = navmesh_add(nm, .vx = ground.vx, .vxsz = ground.nr_vx * 3 * sizeof(float),
+                           .idx = ground.idx, .idxsz = ground.nr_idx * sizeof(unsigned short));
+    if (IS_CERR(err))                           goto out;
+    err = navmesh_add(nm, .vx = plat.vx, .vxsz = plat.nr_vx * 3 * sizeof(float),
+                      .idx = plat.idx, .idxsz = plat.nr_idx * sizeof(unsigned short));
+    if (IS_CERR(err))                           goto out;
+    err = navmesh_bake_largest(nm);
+    if (IS_CERR(err))                           goto out;
+
+    /* the platform top is walkable and reports its raised height */
+    cres(int) top = navmesh_locate(nm, (vec3){ 10, 0.4f, 10 }, 0.2f, -1);
+    if (IS_CERR(top))                                                       goto out;
+    if (fabsf(navmesh_height(nm, top.val, 10.0f, 10.0f) - 0.4f) > 0.05f)    goto out;
+
+    /* a path from the ground onto the platform climbs to the top */
+    vec3 wp[24];
+    cres(int) nr = navmesh_path(nm, (vec3){ 2, 0, 2 }, (vec3){ 10, 0.4f, 10 }, wp, 24);
+    if (IS_CERR(nr) || nr.val < 2)                  goto out;
+    if (fabsf(wp[nr.val - 1][1] - 0.4f) > 0.05f)    goto out;
+
+    ret = EXIT_SUCCESS;
+out:
+    navmesh_free(nm);
+    mem_free(ground.vx);
+    mem_free(ground.idx);
+    mem_free(plat.vx);
+    mem_free(plat.idx);
+    return ret;
+}
+
 static int navmesh_test_invalid(void)
 {
     navmesh *nm = navmesh_test_build();
@@ -434,6 +494,7 @@ static const struct test tests[] = {
     { .name = "navmesh path",       .test = navmesh_test_path },
     { .name = "navmesh t-junction", .test = navmesh_test_tjunction },
     { .name = "navmesh carve",      .test = navmesh_test_carve },
+    { .name = "navmesh step",       .test = navmesh_test_step },
     { .name = "navmesh invalid",    .test = navmesh_test_invalid },
 };
 
