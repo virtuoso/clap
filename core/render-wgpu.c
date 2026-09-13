@@ -463,7 +463,8 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
                                                unsigned int nr_color_targets,
                                                bool blend, bool has_depth,
                                                WGPUTextureFormat depth_format,
-                                               WGPUCompareFunction depth_compare)
+                                               WGPUCompareFunction depth_compare,
+                                               WGPUPrimitiveTopology topology)
 {
     WGPUVertexBufferLayout vbuf_layout = {
         .arrayStride    = shader->wgpu.vertex_stride,
@@ -536,7 +537,7 @@ static WGPURenderPipeline wgpu_create_pipeline(renderer_t *r, shader_t *shader,
             .buffers        = &vbuf_layout,
         },
         .primitive = {
-            .topology       = WGPUPrimitiveTopology_TriangleList,
+            .topology       = topology,
             .stripIndexFormat = WGPUIndexFormat_Undefined,
             .frontFace      = WGPUFrontFace_CCW,
             .cullMode       = WGPUCullMode_None,
@@ -585,27 +586,25 @@ static cerr wgpu_draw_control_init(draw_control_t *dc, const draw_control_init_o
         depth_cmp = wgpu_compare_function(fbo->depth_config.depth_func);
     }
 
-    dc->wgpu.pipeline[0] = wgpu_create_pipeline(r, opts->shader,
-                                           color_formats, color_no_blend, color_blend_modes, nr_color_targets,
-                                           false,
-                                           has_depth, depth_fmt, depth_cmp);
-    if (!dc->wgpu.pipeline[0])
-        return CERR_INITIALIZATION_FAILED_REASON(
-            .fmt  = "pipeline: %u color targets, depth=%s — no-blend variant failed",
-            .arg0 = (void *)(uintptr_t)nr_color_targets,
-            .arg1 = has_depth ? "yes" : "no"
-        );
+    /* [0/1] triangles no-blend/blend, [2/3] lines no-blend/blend */
+    static const WGPUPrimitiveTopology topo[4] = {
+        WGPUPrimitiveTopology_TriangleList, WGPUPrimitiveTopology_TriangleList,
+        WGPUPrimitiveTopology_LineList,     WGPUPrimitiveTopology_LineList,
+    };
 
-    dc->wgpu.pipeline[1] = wgpu_create_pipeline(r, opts->shader,
+    for (int i = 0; i < 4; i++) {
+        dc->wgpu.pipeline[i] = wgpu_create_pipeline(r, opts->shader,
                                            color_formats, color_no_blend, color_blend_modes, nr_color_targets,
-                                           true,
-                                           has_depth, depth_fmt, depth_cmp);
-    if (!dc->wgpu.pipeline[1])
-        return CERR_INITIALIZATION_FAILED_REASON(
-            .fmt  = "pipeline: %u color targets, depth=%s — blend variant failed",
-            .arg0 = (void *)(uintptr_t)nr_color_targets,
-            .arg1 = has_depth ? "yes" : "no"
-        );
+                                           i & 1,
+                                           has_depth, depth_fmt, depth_cmp, topo[i]);
+        if (!dc->wgpu.pipeline[i])
+            return CERR_INITIALIZATION_FAILED_REASON(
+                .fmt  = "pipeline: %u color targets, depth=%s -- variant %d failed",
+                .arg0 = (void *)(uintptr_t)nr_color_targets,
+                .arg1 = has_depth ? "yes" : "no",
+                .arg2 = (void *)(uintptr_t)i
+            );
+    }
 
     return CERR_OK;
 }
@@ -614,14 +613,11 @@ static void wgpu_draw_control_done(draw_control_t *dc)
 {
     if (dc->renderer->wgpu.dc == dc)    dc->renderer->wgpu.dc = NULL;
 
-    if (dc->wgpu.pipeline[0]) {
-        wgpuRenderPipelineRelease(dc->wgpu.pipeline[0]);
-        dc->wgpu.pipeline[0] = NULL;
-    }
-    if (dc->wgpu.pipeline[1]) {
-        wgpuRenderPipelineRelease(dc->wgpu.pipeline[1]);
-        dc->wgpu.pipeline[1] = NULL;
-    }
+    for (int i = 0; i < 4; i++)
+        if (dc->wgpu.pipeline[i]) {
+            wgpuRenderPipelineRelease(dc->wgpu.pipeline[i]);
+            dc->wgpu.pipeline[i] = nullptr;
+        }
 }
 
 static void wgpu_draw_control_bind(draw_control_t *dc)
@@ -2448,7 +2444,9 @@ static cerr wgpu_renderer_draw(renderer_t *r, draw_type draw_type,
         return CERR_INVALID_OPERATION_REASON(.fmt = "index buffer not loaded");
 
     WGPURenderPassEncoder enc = r->wgpu.pass_encoder;
-    WGPURenderPipeline pipeline = r->wgpu.dc->wgpu.pipeline[r->blend ? 1 : 0];
+    /* [0/1] triangles, [2/3] lines; pick by topology then blend */
+    bool lines = draw_type == DRAW_TYPE_LINES;
+    WGPURenderPipeline pipeline = r->wgpu.dc->wgpu.pipeline[(lines ? 2 : 0) + (r->blend ? 1 : 0)];
 
     // Re-set pipeline in case blend state changed since shader_use()
     wgpuRenderPassEncoderSetPipeline(enc, pipeline);

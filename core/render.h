@@ -1121,7 +1121,13 @@ TYPE(draw_control,
     depth_func      depth_fn;
 #ifdef CONFIG_RENDERER_WGPU
     struct {
-        wgpu_render_pipeline_t      pipeline[2]; /* [0] no blend, [1] blend */
+        /*
+         * WGPU bakes the primitive topology into the pipeline, so we
+         * keep a variant per (blend, topology): [0/1] triangles
+         * no-blend/blend, [2/3] lines no-blend/blend. draw-time
+         * selection by r->blend and the draw_type.
+         */
+        wgpu_render_pipeline_t      pipeline[4];
     } wgpu;
 #endif /* CONFIG_RENDERER_WGPU */
 #ifdef CONFIG_RENDERER_METAL
