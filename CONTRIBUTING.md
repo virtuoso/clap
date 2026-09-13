@@ -97,6 +97,7 @@ The guidelines below take precedence over the surrounding code: when a file pred
 - There's a space between a control statement and whatever follows
 - Curly brackets go on the same line as the control statement it belongs to
 - Curly bracket at the start of a function goes on a new line, though, unless it's a short inline function that can entirely fit in one line, then it's a judgement call
+- A short guard like `if (condition) action();` reads better on a single line than split across two, so prefer that when the whole thing fits comfortably (roughly 100 columns or less); once it needs braces or spills past that, give it its own line
 - Blank lines separate logically contiguous statements, although this can be subjective
 ```C
 void endless_loop(void)
@@ -120,7 +121,8 @@ void endless_loop(void)
 - Unused function parameters are just that, unused: no `__unused` annotation, no `(void)param;` ritual. A callback that ignores an argument of its prototype is the normal case, not something to flag. `__unused` on a function is occasionally justified, and then the reason goes in a comment next to it; the annotation earns its keep while prototyping or debugging, on transient code that doesn't get committed
 - In conditional expressions:
     - constants go on the right: no "if (5 == number)" and suchlike; your compiler should warn you if you accidentally write an assignment in a conditional expression
-    - no need for spelling out the obvious: "if (x == NULL)" => "if (!x)", "if (b == true)" => "if (b)" etc
+    - no need for spelling out the obvious: "if (x == nullptr)" => "if (!x)", "if (b == true)" => "if (b)" etc
+- Prefer `nullptr` over `NULL`: we build as C23, and next to it `NULL` reads like a caveman's scream
 - Short control flow statements with a single-statement body (`if`, `else`, loops) go on one line, and the body starts at a column that is a multiple of 4:
     - a one-liner on its own uses the nearest multiple of 4 past its condition
     - when several similar one-liners are in close visual proximity — commonly within the same function, though exceptions are made for very short functions — the longest of them picks the column and they all align to it
