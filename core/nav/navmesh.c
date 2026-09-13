@@ -1292,6 +1292,51 @@ float navmesh_height(navmesh *nm, int tri, float x, float z)
     return nm_tri_height_at(nm, &nm->tris[tri], x, z, nullptr);
 }
 
+cres(int) navmesh_raycast(navmesh *nm, const vec3 origin, const vec3 dir, vec3 hit)
+{
+    if (!nm->baked) return cres_error(int, CERR_INVALID_OPERATION);
+
+    /* Moller-Trumbore against every walkable triangle, nearest wins */
+    float best = FLT_MAX;
+    int best_tri = -1;
+
+    for (size_t t = 0; t < nm->nr_tris; t++) {
+        float *a = nm->verts[nm->tris[t].v[0]];
+        float *b = nm->verts[nm->tris[t].v[1]];
+        float *c = nm->verts[nm->tris[t].v[2]];
+        vec3 e1, e2, h, s, q;
+
+        vec3_sub(e1, b, a);
+        vec3_sub(e2, c, a);
+        vec3_mul_cross(h, (float *)dir, e2);
+
+        float det = vec3_mul_inner(e1, h);
+        if (fabsf(det) < 1e-8f) continue;
+
+        float inv = 1.0f / det;
+
+        vec3_sub(s, (float *)origin, a);
+        float u = inv * vec3_mul_inner(s, h);
+        if (u < 0.0f || u > 1.0f)   continue;
+
+        vec3_mul_cross(q, s, e1);
+        float v = inv * vec3_mul_inner((float *)dir, q);
+        if (v < 0.0f || u + v > 1.0f)   continue;
+
+        float dist = inv * vec3_mul_inner(e2, q);
+        if (dist > 1e-4f && dist < best) {
+            best = dist;
+            best_tri = (int)t;
+        }
+    }
+
+    if (best_tri < 0)   return cres_error(int, CERR_NOT_FOUND);
+
+    for (int i = 0; i < 3; i++) hit[i] = origin[i] + dir[i] * best;
+
+    return cres_val(int, best_tri);
+}
+
 cerr navmesh_geometry(navmesh *nm, float lift, float **out_vx, size_t *out_nr_vx,
                       unsigned short **out_idx, size_t *out_nr_idx)
 {

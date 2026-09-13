@@ -170,6 +170,20 @@ cres(int) navmesh_locate(navmesh *nm, const vec3 p, float max_dy, int hint);
 float navmesh_height(navmesh *nm, int tri, float x, float z);
 
 /**
+ * navmesh_raycast() - the nearest walkable point a ray hits
+ * @nm:     a baked navmesh
+ * @origin: ray start, world space
+ * @dir:    ray direction (need not be normalized)
+ * @hit:    receives the intersection point
+ *
+ * For click-to-move: unproject a cursor into a world ray and drop the
+ * result on the walkable surface.
+ * Return: the triangle index hit, or CERR_NOT_FOUND (ray misses the
+ * mesh) or CERR_INVALID_OPERATION (not baked)
+ */
+cres(int) navmesh_raycast(navmesh *nm, const vec3 origin, const vec3 dir, vec3 hit);
+
+/**
  * navmesh_random_point() - pick a point uniformly on the walkable area
  * @nm:         a baked navmesh
  * @r1:         uniform random number in [0, 1)
