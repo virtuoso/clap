@@ -139,7 +139,24 @@ cerr mesh_attr_resize(struct mesh *mesh, enum mesh_attrs attr, size_t nr)
 {
     auto ma = &mesh->attr[attr];
     auto resized = mem_realloc_array(ma->data, nr, ma->stride);
-    if (!resized)   return CERR_NOMEM;
+
+    if (!resized) {
+        // a failed grow nukes the attribute: an attribute that can't
+        // hold the vertices about to be emitted does more damage than
+        // a missing one; a failed shrink keeps it, the data is whole
+        if (nr > ma->nr) {
+            mem_free(ma->data);
+            ma->data = nullptr;
+            ma->nr = 0;
+            return CERR_NOMEM_REASON(
+                .fmt  = "mesh '%s': dropped attr %u on a failed grow to %zu",
+                .arg0 = mesh->name,
+                .arg1 = (void *)(uintptr_t)attr,
+                .arg2 = (void *)(uintptr_t)nr
+            );
+        }
+        return CERR_NOMEM;
+    }
 
     ma->data = resized;
     ma->nr = min(ma->nr, nr);
