@@ -131,8 +131,9 @@ cerr_check _prim_emit_extrusion(const prim_extrusion *ext, const prim_emit_opts 
  *  - bit 0:          bottom cap
  *  - bit 1:          top cap
  *  - bit (seg + 2):  side quad @seg (seg in [0, nr_segments))
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh) or CERR_NOMEM
  */
-void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts);
+cerr _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts);
 
 /**
  * _prim_emit_sphere() - emit a sphere
@@ -141,8 +142,9 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
  * @nr_serments:    number of "sides" around the sphere
  *
  * Append a sphere to a mesh.
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh) or CERR_NOMEM
  */
-void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_opts *opts);
+cerr _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_opts *opts);
 
 /**
  * _prim_emit_prism() - emit an oriented, tapered, capped n-gon prism
@@ -268,8 +270,9 @@ typedef float (*mesh_tess_fn)(const mesh_tess_params *params, void *data);
  * pass.  For every triangle, @fn is called; if it returns non-zero, the
  * triangle is split into three by inserting a center vertex displaced
  * along the face normal by the returned amount.
+ * Return: CERR_OK or CERR_NOMEM
  */
-void mesh_tessellate(struct mesh *mesh, int total_depth, mesh_tess_fn fn, void *data);
+cerr mesh_tessellate(struct mesh *mesh, int total_depth, mesh_tess_fn fn, void *data);
 
 model3d *model3d_new_cube(struct shader_prog *p, bool skip_aabb);
 model3d *model3d_new_quad(struct shader_prog *p, float x, float y, float z, float w, float h);

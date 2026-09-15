@@ -379,8 +379,11 @@ err_holes:
 }
 
 /*
- * Grow the tangents with the other attributes, on a mesh that has them:
- * the resize would conjure the attribute up on one that never had it.
+ * The emitter treats every vertex attribute as optional -- no
+ * attribute, no problem -- so a failed grow, which nukes the
+ * attribute (see mesh_attr_resize()), costs the mesh its tangents
+ * while the error still propagates. The guard keeps the resize from
+ * conjuring the attribute up on meshes that never had it.
  */
 static cerr prim_tangents_resize(struct mesh *mesh, size_t nr_vert)
 {
@@ -389,10 +392,10 @@ static cerr prim_tangents_resize(struct mesh *mesh, size_t nr_vert)
     return mesh_attr_resize(mesh, MESH_TANGENTS, nr_vert);
 }
 
-void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)
+cerr _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)
 {
     struct mesh *mesh = opts->mesh;
-    if (!mesh)  return;
+    if (!mesh)  return CERR_INVALID_ARGUMENTS;
 
     /*
      * a triangle per each segment at the top and bottom, plus 2 triangles (quad)
@@ -400,19 +403,18 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
      */
     int nr_vert = nr_serments * 12;
     if (!mesh->attr[MESH_VX].data) {
-        CERR_RET(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert), return);
-        CERR_RET(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), return);
-        CERR_RET(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), return);
-        CERR_RET(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), return);
-        if (opts->tangents)
-            CERR_RET(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vert), return);
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert));
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert));
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert));
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert));
+        if (opts->tangents) CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vert));
     } else {
         nr_vert += mesh_nr_vx(mesh);
-        CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vert), return);
-        CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vert), return);
-        CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vert), return);
-        CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_vert), return);
-        CERR_RET(prim_tangents_resize(mesh, nr_vert), return);
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_VX, nr_vert));
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_TX, nr_vert));
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_NORM, nr_vert));
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_IDX, nr_vert));
+        CERR_RET_CERR(prim_tangents_resize(mesh, nr_vert));
     }
 
     int seg;
@@ -470,6 +472,8 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
             _prim_emit_triangle(triangle, opts);
         }
     }
+
+    return CERR_OK;
 }
 
 static inline void _prim_sphere_vx(vec3 out, vec3 org, float radius, float theta, float phi)
@@ -531,10 +535,10 @@ static inline void _prim_sphere_smooth_normals(vec3 org, const prim_emit_opts *o
     }
 }
 
-void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_opts *opts)
+cerr _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_opts *opts)
 {
     struct mesh *mesh = opts->mesh;
-    if (!mesh)  return;
+    if (!mesh)  return CERR_INVALID_ARGUMENTS;
 
     if (nr_serments < 3)
         nr_serments = 3;
@@ -545,19 +549,18 @@ void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
 
     int nr_vert = nr_serments * 6 * (nr_stacks - 1);
     if (!mesh->attr[MESH_VX].data) {
-        CERR_RET(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert), return);
-        CERR_RET(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), return);
-        CERR_RET(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), return);
-        CERR_RET(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), return);
-        if (opts->tangents)
-            CERR_RET(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vert), return);
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert));
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert));
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert));
+        CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert));
+        if (opts->tangents) CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vert));
     } else {
         nr_vert += mesh_nr_vx(mesh);
-        CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vert), return);
-        CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vert), return);
-        CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vert), return);
-        CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_vert), return);
-        CERR_RET(prim_tangents_resize(mesh, nr_vert), return);
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_VX, nr_vert));
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_TX, nr_vert));
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_NORM, nr_vert));
+        CERR_RET_CERR(mesh_attr_resize(mesh, MESH_IDX, nr_vert));
+        CERR_RET_CERR(prim_tangents_resize(mesh, nr_vert));
     }
 
     for (int stack = 0; stack < nr_stacks; stack++) {
@@ -597,6 +600,8 @@ void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
             }
         }
     }
+
+    return CERR_OK;
 }
 
 /* a point on a ring of radius @r around @c, in the (@e0, @e1) plane */
@@ -652,20 +657,21 @@ cerr _prim_emit_prism(vec3 a, vec3 b, float ra, float rb, int sides, float phase
     return CERR_OK;
 }
 
-static void triangle_split(struct mesh *mesh, size_t tri, float off)
+static cerr triangle_split(struct mesh *mesh, size_t tri, float off)
 {
     size_t nr_vx = mesh_nr_vx(mesh);
     size_t nr_idx = mesh_nr_idx(mesh);
 
 #ifdef CONFIG_RENDERER_OPENGL
-    if (mesh_nr_vx(mesh) + 6 > USHRT_MAX)  return;
+    /* the 16-bit index ceiling declines the split, it doesn't fail it */
+    if (mesh_nr_vx(mesh) + 6 > USHRT_MAX)  return CERR_OK;
 #endif
 
-    CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vx + 6), return);
-    CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vx + 6), return);
-    CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vx + 6), return);
-    CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_idx + 6), return);
-    CERR_RET(prim_tangents_resize(mesh, nr_vx + 6), return);
+    CERR_RET_CERR(mesh_attr_resize(mesh, MESH_VX, nr_vx + 6));
+    CERR_RET_CERR(mesh_attr_resize(mesh, MESH_TX, nr_vx + 6));
+    CERR_RET_CERR(mesh_attr_resize(mesh, MESH_NORM, nr_vx + 6));
+    CERR_RET_CERR(mesh_attr_resize(mesh, MESH_IDX, nr_idx + 6));
+    CERR_RET_CERR(prim_tangents_resize(mesh, nr_vx + 6));
 
     size_t idx = tri * 3;
     size_t vx_a = mesh_idx(mesh)[idx + 0];
@@ -692,9 +698,11 @@ static void triangle_split(struct mesh *mesh, size_t tri, float off)
     _prim_emit_triangle3(b, c, center, &(prim_emit_opts){ .mesh = mesh });
     /* new triangle: c -> a -> center */
     _prim_emit_triangle3(c, a, center, &(prim_emit_opts){ .mesh = mesh });
+
+    return CERR_OK;
 }
 
-void mesh_tessellate(struct mesh *mesh, int total_depth, mesh_tess_fn fn, void *data)
+cerr mesh_tessellate(struct mesh *mesh, int total_depth, mesh_tess_fn fn, void *data)
 {
     mesh_tess_params params = {
         .mesh        = mesh,
@@ -713,16 +721,20 @@ void mesh_tessellate(struct mesh *mesh, int total_depth, mesh_tess_fn fn, void *
 
             float off = fn(&params, data);
             if (off != 0.0f)
-                triangle_split(mesh, i, off);
+                CERR_RET_CERR(triangle_split(mesh, i, off));
         }
     }
+
+    return CERR_OK;
 }
 
 cresp(model3d) model3d_new_cylinder(struct shader_prog *p, vec3 org, float height, float radius, int nr_serments)
 {
     LOCAL_SET(mesh_t, cylinder_mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cylinder"), model3d);
 
-    _prim_emit_cylinder(org, height, radius, nr_serments, &(const prim_emit_opts) { .mesh = cylinder_mesh });
+    CERR_RET_T(_prim_emit_cylinder(org, height, radius, nr_serments,
+                                   &(const prim_emit_opts) { .mesh = cylinder_mesh }),
+               model3d);
 
     mesh_aabb_calc(cylinder_mesh);
     mesh_optimize(cylinder_mesh);
