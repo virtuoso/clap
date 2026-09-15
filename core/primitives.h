@@ -15,6 +15,8 @@ extern struct mesh cube_mesh;
  * @uv:         optional texture coordinates per vertex
  * @skip_mask:  sides/faces to skip (primitive-specific bit layout)
  * @clockwise:  emit vertices in left-handed winding order
+ * @tangents:   also emit tangent vectors for normal mapping; honored at
+ *              the mesh's first _prim_begin(), later vertices follow suit
  */
 typedef struct prim_emit_opts {
     const char      *name;
@@ -22,6 +24,7 @@ typedef struct prim_emit_opts {
     vec2            *uv;
     uint64_t        skip_mask;
     bool            clockwise;
+    bool            tangents;
 } prim_emit_opts;
 
 /**
@@ -34,6 +37,19 @@ typedef struct prim_emit_opts {
  * the rest of the triangles in the mesh, at a multiple of 3.
  */
 void _prim_calc_normals(size_t vx_idx, const prim_emit_opts *opts);
+
+/**
+ * _prim_calc_tangents() - calculate tangent vectors for a triangle
+ * @vx_idx: first vertex of a triangle
+ * @opts:   primitive emitter options
+ *
+ * For an emitted triangle, derive the vec4 tangent (xyz along +U, w the
+ * bitangent handedness) from its texture coordinates. Emitted triangles
+ * don't share vertices and are flat, so the per-face value is exact --
+ * no accumulation pass needed. Same layout assumptions as
+ * _prim_calc_normals().
+ */
+void _prim_calc_tangents(size_t vx_idx, const prim_emit_opts *opts);
 void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts);
 void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts);
 

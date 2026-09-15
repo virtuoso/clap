@@ -7,6 +7,7 @@
 #include "mesh.h"
 #include "model.h"
 #include "primitives.h"
+#include "util.h"
 
 void _prim_calc_normals(size_t vx_idx, const prim_emit_opts *opts)
 {
@@ -27,6 +28,37 @@ void _prim_calc_normals(size_t vx_idx, const prim_emit_opts *opts)
         mesh_norm_array[(vx_idx + i) * 3 + 0] = norm[0];
         mesh_norm_array[(vx_idx + i) * 3 + 1] = norm[1];
         mesh_norm_array[(vx_idx + i) * 3 + 2] = norm[2];
+    }
+}
+
+void _prim_calc_tangents(size_t vx_idx, const prim_emit_opts *opts)
+{
+    if (vx_idx % 3) return;
+
+    float *vx = &mesh_vx(opts->mesh)[vx_idx * 3];
+    float *tx = &mesh_tx(opts->mesh)[vx_idx * 2];
+
+    vec3 norm, e1, e2;
+    vec3_sub(e1, &vx[3], &vx[0]);
+    vec3_sub(e2, &vx[6], &vx[0]);
+    vec3_mul_cross(norm, e1, e2);   /* the same face normal _prim_calc_normals() gets */
+    vec3_norm(norm, norm);
+
+    /*
+     * flat, unshared face: solve + orthonormalize directly, no accumulation;
+     * a failed solve leaves zeros and falls through to the perpendicular
+     */
+    vec3 tdir = { 0.0f, 0.0f, 0.0f }, bdir = { 0.0f, 0.0f, 0.0f };
+    vec4 tangent;
+    triangle_tangent(&vx[0], &vx[3], &vx[6], &tx[0], &tx[2], &tx[4], tdir, bdir);
+    tangent_orthonormalize(norm, tdir, bdir, tangent);
+
+    float *mesh_tan_array = mesh_tangent(opts->mesh);
+    for (int i = 0; i < 3; i++) {
+        mesh_tan_array[(vx_idx + i) * 4 + 0] = tangent[0];
+        mesh_tan_array[(vx_idx + i) * 4 + 1] = tangent[1];
+        mesh_tan_array[(vx_idx + i) * 4 + 2] = tangent[2];
+        mesh_tan_array[(vx_idx + i) * 4 + 3] = tangent[3];
     }
 }
 
@@ -66,6 +98,12 @@ void _prim_emit_vertex(vec3 pos, const prim_emit_opts *opts)
         _prim_calc_normals(norm_idx, opts);
 
         mesh_attr(opts->mesh, MESH_NORM)->nr = norm_idx + 3;
+    }
+
+    if (mesh_tangent(opts->mesh) && !(vx_idx % 3)) {
+        _prim_calc_tangents(vx_idx - 3, opts);
+
+        mesh_attr(opts->mesh, MESH_TANGENTS)->nr = vx_idx;
     }
 }
 
@@ -146,12 +184,15 @@ cresp(mesh) _prim_begin(size_t nr_vert, const prim_emit_opts *opts)
         CERR_RET_T(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), mesh);
         CERR_RET_T(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), mesh);
         CERR_RET_T(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), mesh);
+        if (opts->tangents) CERR_RET_T(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vert), mesh);
     } else {
         nr_vert += mesh_nr_vx(mesh);
         CERR_RET_T(mesh_attr_resize(mesh, MESH_VX, nr_vert), mesh);
         CERR_RET_T(mesh_attr_resize(mesh, MESH_TX, nr_vert), mesh);
         CERR_RET_T(mesh_attr_resize(mesh, MESH_NORM, nr_vert), mesh);
         CERR_RET_T(mesh_attr_resize(mesh, MESH_IDX, nr_vert), mesh);
+        /* the first _prim_begin() decided; every later append follows */
+        if (mesh->attr[MESH_TANGENTS].data) CERR_RET_T(mesh_attr_resize(mesh, MESH_TANGENTS, nr_vert), mesh);
     }
 
     return cresp_val(mesh, mesh);
@@ -337,6 +378,17 @@ err_holes:
     return err;
 }
 
+/*
+ * Grow the tangents with the other attributes, on a mesh that has them:
+ * the resize would conjure the attribute up on one that never had it.
+ */
+static cerr prim_tangents_resize(struct mesh *mesh, size_t nr_vert)
+{
+    if (!mesh_tangent(mesh))    return CERR_OK;
+
+    return mesh_attr_resize(mesh, MESH_TANGENTS, nr_vert);
+}
+
 void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts)
 {
     struct mesh *mesh = opts->mesh;
@@ -352,12 +404,15 @@ void _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
         CERR_RET(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), return);
         CERR_RET(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), return);
         CERR_RET(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), return);
+        if (opts->tangents)
+            CERR_RET(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vert), return);
     } else {
         nr_vert += mesh_nr_vx(mesh);
         CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vert), return);
         CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vert), return);
         CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vert), return);
         CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_vert), return);
+        CERR_RET(prim_tangents_resize(mesh, nr_vert), return);
     }
 
     int seg;
@@ -494,12 +549,15 @@ void _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
         CERR_RET(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert), return);
         CERR_RET(mesh_attr_alloc(mesh, MESH_NORM, sizeof(float) * 3, nr_vert), return);
         CERR_RET(mesh_attr_alloc(mesh, MESH_IDX, sizeof(unsigned short), nr_vert), return);
+        if (opts->tangents)
+            CERR_RET(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vert), return);
     } else {
         nr_vert += mesh_nr_vx(mesh);
         CERR_RET(mesh_attr_resize(mesh, MESH_VX, nr_vert), return);
         CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vert), return);
         CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vert), return);
         CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_vert), return);
+        CERR_RET(prim_tangents_resize(mesh, nr_vert), return);
     }
 
     for (int stack = 0; stack < nr_stacks; stack++) {
@@ -607,6 +665,7 @@ static void triangle_split(struct mesh *mesh, size_t tri, float off)
     CERR_RET(mesh_attr_resize(mesh, MESH_TX, nr_vx + 6), return);
     CERR_RET(mesh_attr_resize(mesh, MESH_NORM, nr_vx + 6), return);
     CERR_RET(mesh_attr_resize(mesh, MESH_IDX, nr_idx + 6), return);
+    CERR_RET(prim_tangents_resize(mesh, nr_vx + 6), return);
 
     size_t idx = tri * 3;
     size_t vx_a = mesh_idx(mesh)[idx + 0];
