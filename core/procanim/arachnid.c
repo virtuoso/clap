@@ -144,8 +144,9 @@ cerr arachnid_mesh_organic(mesh_t *m, arachnid *a)
 {
     const arachnid_config *cfg = &a->cfg;
 
-    prim_emit_sphere(a->skel[0].pos, cfg->ceph_r, 12, .mesh = m);   /* cephalothorax */
-    prim_emit_sphere(a->skel[1].pos, cfg->abd_r, 14, .mesh = m);    /* abdomen */
+    /* cephalothorax and abdomen */
+    CERR_RET_CERR(prim_emit_sphere(a->skel[0].pos, cfg->ceph_r, 12, .mesh = m));
+    CERR_RET_CERR(prim_emit_sphere(a->skel[1].pos, cfg->abd_r, 14, .mesh = m));
 
     for (int leg = 0; leg < ARACHNID_NR_LEGS; leg++) {
         int base = 2 + leg * ARACHNID_LEG_JOINTS;
@@ -215,7 +216,7 @@ cerr arachnid_mesh_tank(mesh_t *m, arachnid *a)
             hip[1] + (knee[1] - hip[1]) * t,
             hip[2] + (knee[2] - hip[2]) * t,
         };
-        prim_emit_sphere(pod, 2.0f * cfg->leg_r[0], 6, .mesh = m);
+        CERR_RET_CERR(prim_emit_sphere(pod, 2.0f * cfg->leg_r[0], 6, .mesh = m));
     }
     a->rigid_nr = mesh_nr_vx(m);    /* the hull and its pods do not flex */
 
@@ -231,7 +232,8 @@ cerr arachnid_mesh_tank(mesh_t *m, arachnid *a)
         };
 
         /* square-section struts with ball joints at the knees */
-        prim_emit_sphere(a->skel[base + 1].pos, cfg->leg_r[1] * 1.6f, 6, .mesh = m);
+        CERR_RET_CERR(prim_emit_sphere(a->skel[base + 1].pos, cfg->leg_r[1] * 1.6f, 6,
+                                       .mesh = m));
         CERR_RET_CERR(prim_emit_prism(start, a->skel[base + 1].pos,
                                       linf_interp(cfg->leg_r[0], cfg->leg_r[1], t),
                                       cfg->leg_r[1], 4, (float)M_PI / 4.0f, .mesh = m));
