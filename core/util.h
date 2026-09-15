@@ -151,6 +151,37 @@ static inline void vertex_array_aabb_calc(vec3 aabb[2], float *vx, size_t vxsz, 
 void vertex_array_fix_origin(float *vx, size_t vxsz, size_t stride, vec3 aabb[2]);
 
 /**
+ * triangle_tangent() - solve a triangle for its tangent directions
+ * @v0, @v1, @v2:       triangle vertex positions
+ * @uv0, @uv1, @uv2:    matching texture coordinates
+ * @t:                  tangent output, the direction +U maps to
+ * @b:                  bitangent output, the direction +V maps to
+ *
+ * Lengyel's tangent solve: position varies linearly with UV across a
+ * triangle, so each edge is E_i = d_i.u * T + d_i.v * B with d_i the
+ * edge's UV delta; inverting the 2x2 [d1 d2] recovers T and B. Both
+ * come out unnormalized, for accumulating over shared vertices before
+ * tangent_orthonormalize().
+ * Return: false when the UV triangle is degenerate, @t and @b untouched.
+ */
+bool triangle_tangent(vec3 v0, vec3 v1, vec3 v2, vec2 uv0, vec2 uv1, vec2 uv2,
+                      vec3 t, vec3 b);
+
+/**
+ * tangent_orthonormalize() - finish a tangent into the vertex attribute
+ * @n:      the vertex (or face) normal
+ * @t:      accumulated tangent from triangle_tangent()
+ * @b:      accumulated bitangent
+ * @out:    vec4 tangent attribute: xyz the unit tangent, w = +/-1
+ *
+ * Gram-Schmidt @t against @n and store the bitangent handedness in
+ * out[3]: whether @b agrees with cross(n, t), so shaders can rebuild B as
+ * cross(N, T) * w. A degenerate @t (no or cancelled-out UV signal)
+ * falls back to an arbitrary perpendicular of @n.
+ */
+void tangent_orthonormalize(vec3 n, vec3 t, vec3 b, vec4 out);
+
+/**
  * aabb_point_is_inside() - check if a point is inside of an AABB box
  * @aabb:   AABB box
  * @point:  point to test

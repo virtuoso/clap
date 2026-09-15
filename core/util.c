@@ -94,6 +94,61 @@ void vertex_array_fix_origin(float *vx, size_t vxsz, size_t stride, vec3 aabb[2]
     vertex_array_aabb_calc(aabb, vx, vxsz, 0);
 }
 
+bool triangle_tangent(vec3 v0, vec3 v1, vec3 v2, vec2 uv0, vec2 uv1, vec2 uv2,
+                      vec3 t, vec3 b)
+{
+    vec3 e1, e2;
+    vec3_sub(e1, v1, v0);
+    vec3_sub(e2, v2, v0);
+
+    vec2 d1 = { uv1[0] - uv0[0], uv1[1] - uv0[1] };
+    vec2 d2 = { uv2[0] - uv0[0], uv2[1] - uv0[1] };
+    float det = d1[0] * d2[1] - d2[0] * d1[1];
+
+    if (fabsf(det) < 1e-12f)    return false;
+
+    /*
+     * Per spatial axis this is one 2x2 system,
+     *   e1 = d1.u * t + d1.v * b
+     *   e2 = d2.u * t + d2.v * b
+     * solved by Cramer's rule; the three axes share the UV determinant
+     */
+    float r = 1.0f / det;
+    for (int i = 0; i < 3; i++) {
+        t[i] = (e1[i] * d2[1] - e2[i] * d1[1]) * r;
+        b[i] = (e2[i] * d1[0] - e1[i] * d2[0]) * r;
+    }
+
+    return true;
+}
+
+void tangent_orthonormalize(vec3 n, vec3 t, vec3 b, vec4 out)
+{
+    vec3 tang, ref;
+
+    vec3_scale(ref, n, vec3_mul_inner(n, t));
+    vec3_sub(tang, t, ref);
+
+    float len = vec3_len(tang);
+    if (len > 1e-6f) {
+        vec3_scale(tang, tang, 1.0f / len);
+    } else {
+        /* no UV signal: any perpendicular of the normal */
+        vec3 axis = { fabsf(n[1]) < 0.99f ? 0.0f : 1.0f,
+                      fabsf(n[1]) < 0.99f ? 1.0f : 0.0f, 0.0f };
+        vec3_mul_cross(tang, axis, n);
+        vec3_norm(tang, tang);
+    }
+
+    vec3 ncrosst;
+    vec3_mul_cross(ncrosst, n, tang);
+
+    out[0] = tang[0];
+    out[1] = tang[1];
+    out[2] = tang[2];
+    out[3] = vec3_mul_inner(ncrosst, b) < 0.0f ? -1.0f : 1.0f;
+}
+
 void *memdup(const void *x, size_t size)
 {
     void *r = mem_alloc(size);
