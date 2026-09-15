@@ -165,6 +165,39 @@ cerr blue_noise2d_tex(renderer_t *renderer, texture_t *tex, int size)
     return CERR_OK;
 }
 
+float value_noise2d_periodic(float x, float y, int period_x, int period_y, uint32_t seed)
+{
+    int xi = (int)floorf(x), yi = (int)floorf(y);
+    float xf = x - xi, yf = y - yi;
+    int x0 = ((xi % period_x) + period_x) % period_x;
+    int y0 = ((yi % period_y) + period_y) % period_y;
+    int x1 = (x0 + 1) % period_x, y1 = (y0 + 1) % period_y;
+
+    float ux = smoothf(xf);
+    return linf_interp(
+        linf_interp(hash31(x0, y0, 0, seed), hash31(x1, y0, 0, seed), ux),
+        linf_interp(hash31(x0, y1, 0, seed), hash31(x1, y1, 0, seed), ux),
+        smoothf(yf)
+    ); /* ~[0..1] */
+}
+
+float fbm2_periodic(float x, float y, int octaves, float lacunarity, float gain,
+                    int period_x, int period_y, uint32_t seed)
+{
+    float a = 0.5f, v = 0.0f;
+    int px = period_x, py = period_y;
+
+    for (int i = 0; i < octaves; i++) {
+        v += value_noise2d_periodic(x, y, px, py, seed + (uint32_t)i) * a;
+        x *= lacunarity;
+        y *= lacunarity;
+        px = (int)lrintf((float)px * lacunarity); /* keep periodic, grows with freq */
+        py = (int)lrintf((float)py * lacunarity);
+        a *= gain;
+    }
+    return v;
+}
+
 static float value_noise3d_periodic(float x, float y, float z, int period, uint32_t seed)
 {
     int xi0 = (int)floorf(x), yi0 = (int)floorf(y), zi0 = (int)floorf(z);
