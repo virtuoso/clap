@@ -154,6 +154,52 @@ void _canvas_blit(canvas *dst, canvas *src, const canvas_address *addr)
         }
 }
 
+/*
+ * Bake a tangent-space normal map from a height field: channel 0 of
+ * @height is sampled with periodic wrap (tileable inputs stay tileable),
+ * the central-difference gradient is scaled by @amp and packed into an
+ * RGBA8 canvas (x along +U, y along +V, z out of the surface).
+ */
+cresp(canvas) canvas_normals(canvas *height, float amp)
+{
+    unsigned int w = height->width, h = height->height;
+    LOCAL_SET(canvas, n) = CRES_RET_T(canvas_new(TEX_FMT_RGBA8, w, h), canvas);
+
+    for (unsigned int y = 0; y < h; y++)
+        for (unsigned int x = 0; x < w; x++) {
+            vec4 xp, xm, yp, ym;
+
+            canvas_read(height, (x + 1) % w, y, xp);
+            canvas_read(height, (x + w - 1) % w, y, xm);
+            canvas_read(height, x, (y + 1) % h, yp);
+            canvas_read(height, x, (y + h - 1) % h, ym);
+
+            vec3 nrm = { (xm[0] - xp[0]) * amp * 0.5f, (ym[0] - yp[0]) * amp * 0.5f, 1.0f };
+            vec3_norm(nrm, nrm);
+
+            canvas_write(n, .x = x, .y = y,
+                         .color = (vec4){ nrm[0] * 0.5f + 0.5f, nrm[1] * 0.5f + 0.5f,
+                                          nrm[2] * 0.5f + 0.5f, 1.0f });
+        }
+
+    return cresp_val(canvas, NOCU(n));
+}
+
+/* upload a canvas into a texture: the canvas dictates format and dimensions */
+cerr _canvas_to_tex(canvas *c, texture_t *tex, const texture_init_options *opts)
+{
+    texture_init_options o = *opts;
+
+    o.format = c->fmt;
+    CERR_RET_CERR(_texture_init(tex, &o));
+    CERR_RET(
+        texture_load(tex, c->fmt, c->width, c->height, c->data),
+        { texture_deinit(tex); return __cerr; }
+    );
+
+    return CERR_OK;
+}
+
 struct draw_text {
     struct font         *font;
     const char          *str;

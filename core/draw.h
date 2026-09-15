@@ -49,6 +49,36 @@ void _canvas_fill(canvas *c, const canvas_address *addr);
 void _canvas_blit(canvas *dst, canvas *src, const canvas_address *addr);
 #define canvas_blit(_dst, _src, args...) _canvas_blit((_dst), (_src), &(canvas_address){ args })
 
+/**
+ * canvas_normals() - bake a tangent-space normal map from a height field
+ * @height: the height field, channel 0, sampled with periodic wrap
+ * @amp:    the gradient's scale
+ *
+ * Return: an RGBA8 canvas of the normals (x along +U, y along +V, z out of
+ *         the surface), or an error
+ */
+cresp(canvas) canvas_normals(canvas *height, float amp);
+
+/**
+ * _canvas_to_tex() - upload a canvas into a texture
+ * @c:      the canvas
+ * @tex:    the texture to initialize and load
+ * @opts:   texture options; the size and format come from @c
+ *
+ * Return: CERR_OK or the texture's initialization or load error
+ */
+cerr_check _canvas_to_tex(canvas *c, texture_t *tex, const texture_init_options *opts);
+
+/**
+ * define canvas_to_tex - upload a canvas into a texture
+ * @_c:     the canvas
+ * @_t:     the texture
+ *
+ * Syntax sugar for _canvas_to_tex(), taking texture_init_options
+ * initializers.
+ */
+#define canvas_to_tex(_c, _t, args...) _canvas_to_tex((_c), (_t), &(texture_init_options){ args })
+
 cresp(canvas) canvas_print(struct font *font, texture_format tex_fmt, const canvas_address *addr, unsigned long flags, const char *str);
 cresp(canvas) canvas_printf(struct font *font, texture_format tex_fmt, const canvas_address *addr, unsigned long flags, const char *fmt, ...);
 
