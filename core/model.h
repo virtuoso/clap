@@ -385,6 +385,9 @@ static inline const char *txmodel_name(model3dtx *txm)
  * @ENTITY3D_SKIP_UPDATE:   entity bypasses per-frame update
  * @ENTITY3D_NM_HAZARD:     entity is a navmesh hazard: agents route around
  *                          it rather than over it (lava, trees)
+ * @ENTITY3D_NM_SKIP:       entity is invisible to the navmesh: neither
+ *                          walkable nor obstructing (ground the agents
+ *                          should not roam)
  * @ENTITY3D_ALIVE:         entity is alive and functional
  * @ENTITY3D_ANY:           matches any entity
  */
@@ -406,6 +409,7 @@ typedef enum entity3d_flags {
     ENTITY3D_SKIP_CULLING   = 1u << 14,
     ENTITY3D_SKIP_UPDATE    = 1u << 15,
     ENTITY3D_NM_HAZARD      = 1u << 16,
+    ENTITY3D_NM_SKIP        = 1u << 17,
     ENTITY3D_ALIVE          = 1u << 31,
     ENTITY3D_ANY            = ~0u,
 } entity3d_flags;

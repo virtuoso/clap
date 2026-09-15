@@ -1404,7 +1404,8 @@ static void navmesh_add_entity(entity3d *e, void *data)
     model3d *m = e->txmodel->model;
 
     /* only static collision geoms feed the navmesh; skip dynamic bodies */
-    if (!entity3d_is(e, &E3DQ(.all_of = ENTITY3D_HAS_PHYSICS, .none_of = ENTITY3D_PHYS_IS_BODY)))
+    if (!entity3d_is(e, &E3DQ(.all_of = ENTITY3D_HAS_PHYSICS,
+                              .none_of = ENTITY3D_PHYS_IS_BODY | ENTITY3D_NM_SKIP)))
         return;
     if (!m->collision_vx || !m->collision_idx)  return;
 
