@@ -19,14 +19,6 @@ layout (binding=SAMPLER_BINDING_emission_map) uniform sampler2D emission_map;
 layout (binding=SAMPLER_BINDING_light_map) uniform usampler2D light_map;
 layout (binding=SAMPLER_BINDING_noise3d) uniform sampler3D noise3d;
 
-/*
- * lighting.glsl references tbn inside a use_normals branch. Particle
- * materials never have a normal map, so use_normals is always 0 at
- * runtime and that branch is dead — but the compiler still needs the
- * symbol to resolve.
- */
-mat3 tbn = mat3(1.0);
-
 #include "lighting.glsl"
 
 layout (location=RT_MODEL_LIGHTING)     out vec4 FragColor;

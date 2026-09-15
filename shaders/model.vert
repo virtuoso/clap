@@ -79,27 +79,21 @@ void main()
 
     mat3 trs_rot = mat3(trs);
 
-    // this is still needed in frag
+    surface_normal = trs_rot * our_normal.xyz;
+    to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
+
 #ifdef SHADER_VARIANT_NORMALS
+    /*
+     * The TBN basis is world-space: the fragment shader maps normal map
+     * samples straight into the space every lighting vector is already
+     * in, directional lights included, with no per-light transforms.
+     */
     if (use_normals) {
-        surface_normal = our_normal.xyz;
+        vec3 N = normalize(surface_normal);
+        vec3 T = normalize(trs_rot * tangent.xyz);
+        vec3 B = normalize(cross(N, T)) * tangent.w;
 
-        vec3 N = normalize(trs_rot * surface_normal);
-        vec3 T = normalize(trs_rot * tangent.xyz).xyz;
-        vec3 B = normalize(cross(N, T) * tangent.w);
-
-        mat3 view_rot = mat3(view);
-        T = normalize(view_rot * T);
-        B = normalize(view_rot * B);
-        N = normalize(view_rot * N);
         tbn = mat3(T, B, N);
-
-        to_camera_vector = tbn * (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
-    } else
-#endif /* SHADER_VARIANT_NORMALS */
-    {
-        surface_normal = trs_rot * our_normal.xyz;
-
-        to_camera_vector = (inverse_view * vec4(0.0, 0.0, 0.0, 1.0) - world_pos).xyz;
     }
+#endif /* SHADER_VARIANT_NORMALS */
 }
