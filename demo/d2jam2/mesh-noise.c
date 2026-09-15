@@ -580,7 +580,7 @@ static cresp(entity3d) make_pillar(struct scene *scene, unsigned int idx)
         CERR_RET_T(texture_pixel_init(renderer, &cave_pixel, (float[]){ 0.31, 0.30, 0.33, 1 }), entity3d);
 
     LOCAL_SET(mesh_t, mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "pillar"), entity3d);
-    prim_emit_cylinder((vec3){}, 5 + idx * 2.0, 2, 6, .mesh = mesh);
+    CERR_RET_T(prim_emit_cylinder((vec3){}, 5 + idx * 2.0, 2, 6, .mesh = mesh), entity3d);
     mesh_aabb_calc(mesh);
     mesh_optimize(mesh);
 
@@ -650,10 +650,10 @@ static cresp(entity3d) make_corridor(struct scene *scene, const room_params *_pa
     LOCAL_SET(mesh_t, mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "corridor"), entity3d);
 
     /* two capless tubes: the walls' inner and outer faces */
-    prim_emit_cylinder((vec3){}, params->height, params->radius, params->nr_segments,
-                       .mesh = mesh, .clockwise = true, .skip_mask = 3);
-    prim_emit_cylinder((vec3){}, params->height, params->radius + 0.1, params->nr_segments,
-                       .mesh = mesh, .clockwise = false, .skip_mask = 3);
+    CERR_RET_T(prim_emit_cylinder((vec3){}, params->height, params->radius, params->nr_segments,
+                                  .mesh = mesh, .clockwise = true, .skip_mask = 3), entity3d);
+    CERR_RET_T(prim_emit_cylinder((vec3){}, params->height, params->radius + 0.1, params->nr_segments,
+                                  .mesh = mesh, .clockwise = false, .skip_mask = 3), entity3d);
 
     mesh_aabb_calc(mesh);
     mesh_optimize(mesh);
@@ -748,7 +748,8 @@ cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
     LOCAL_SET(prng, rng) = CRES_RET_T(prng_new(PRNG_DEFAULT, 7), entity3d);
     LOCAL_SET(mesh_t, mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cave"), entity3d);
 
-    prim_emit_cylinder((vec3){}, params->height, params->radius, params->nr_segments, .mesh = mesh, .clockwise = true);
+    CERR_RET_T(prim_emit_cylinder((vec3){}, params->height, params->radius, params->nr_segments,
+                                  .mesh = mesh, .clockwise = true), entity3d);
     cave_displace(mesh, params, rng);
 
     /*
@@ -759,8 +760,8 @@ cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
      * to shadow beyond them, and a cap on the floor's plane would
      * shadow the floor the same way
      */
-    prim_emit_cylinder((vec3){}, params->height, params->radius + 0.1, params->nr_segments,
-                       .mesh = mesh, .skip_mask = 3);
+    CERR_RET_T(prim_emit_cylinder((vec3){}, params->height, params->radius + 0.1, params->nr_segments,
+                                  .mesh = mesh, .skip_mask = 3), entity3d);
 
     mesh_aabb_calc(mesh);
     mesh_optimize(mesh);
