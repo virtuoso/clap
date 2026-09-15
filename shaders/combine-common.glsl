@@ -68,6 +68,13 @@ vec4 combine_color(vec2 pass_tex)
     if (volumetric_debug)   return vec4(texture(volumetric_tex, pass_tex).rgb, 1.0);
 
     f16vec3 tex_color = HVEC3(texture(model_tex, pass_tex).rgb);
+    /*
+     * The model RT's alpha carries the transmittance of everything
+     * blended over this pixel (1: no translucency in front): outlines
+     * and SSAO attenuate by it behind glass. Blunt but uniform: telling
+     * translucent boundaries apart from what they cover is a later job.
+     */
+    float16_t transmit = H(texture(model_tex, pass_tex).a);
     vec3 view_pos = view_pos_from_depth(depth_tex, inverse_proj, pass_tex);
     /* rgb: the light the medium scatters toward the camera; a: its patchiness, halved for unorm targets */
     f16vec4 vol = HVEC4(texture(volumetric_tex, pass_tex));
@@ -108,7 +115,7 @@ vec4 combine_color(vec2 pass_tex)
     float16_t ao = H(texture(shadow_map, pass_tex).r);
 
     if (use_ssao)
-        tex_color = tex_color * mix(H(1.0), ao, H(ssao_weight));
+        tex_color = tex_color * mix(H(1.0), ao, H(ssao_weight) * transmit);
 
     vec4 result;
 
@@ -135,14 +142,14 @@ vec4 combine_color(vec2 pass_tex)
          * instead, where the neighbors it blends from have been
          * computed
          */
-        float edge_blend = float(1.0 - fog_factor);
+        float edge_blend = float(1.0 - fog_factor) * float(transmit);
         if (use_edges && !use_edge_aa)
             hdr_color = apply_edge(hdr_color, sobel_tex, edge_blend, pass_tex, ivec2(0));
         result = vec4(hdr_color, 1.0);
     } else {
         tex_color = mix(tex_color, HVEC3(radial_fog_color(view_pos)), fog_factor);
         tex_color += vol.rgb;
-        float edge_blend = float(1.0 - fog_factor);
+        float edge_blend = float(1.0 - fog_factor) * float(transmit);
         if (use_edges && !use_edge_aa)
             tex_color = apply_edge(tex_color, sobel_tex, edge_blend, pass_tex, ivec2(0));
         result = vec4(tex_color + highlight_color * 2.0, 1.0);
