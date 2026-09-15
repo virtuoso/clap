@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <limits.h>
 #include "datatypes.h"
+#include "linmath.h"
 #include "mesh.h"
+#include "util.h"
 
 static cerr mesh_make(struct ref *ref, void *_opts)
 {
@@ -151,6 +153,49 @@ void mesh_aabb_calc(struct mesh *mesh)
         return;
 
     vertex_array_aabb_calc(mesh->aabb, mesh_vx(mesh), mesh_vx_sz(mesh), mesh_vx_stride(mesh));
+}
+
+cerr mesh_tangents_calc(struct mesh *mesh)
+{
+    size_t nr_vx = mesh_nr_vx(mesh), nr_idx = mesh_nr_idx(mesh);
+
+    if (mesh_nr_tangent(mesh))                                                          return CERR_OK;
+    if (!nr_vx || !nr_idx || mesh_nr_tx(mesh) != nr_vx || mesh_nr_norm(mesh) != nr_vx)  return CERR_INVALID_ARGUMENTS;
+    if (mesh_vx_stride(mesh) != sizeof(float) * 3 || mesh_tx_stride(mesh) != sizeof(float) * 2 ||
+        mesh_norm_stride(mesh) != sizeof(float) * 3 || mesh_idx_stride(mesh) != sizeof(unsigned short))
+        return CERR_INVALID_ARGUMENTS;
+
+    LOCAL_SET(float, tan) = mem_alloc(sizeof(float) * 3, .nr = nr_vx * 2, .zero = 1);
+    if (!tan)   return CERR_NOMEM;
+
+    CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_TANGENTS, sizeof(float) * 4, nr_vx));
+
+    float *vx = mesh_vx(mesh), *tx = mesh_tx(mesh), *norm = mesh_norm(mesh);
+    unsigned short *idx = mesh_idx(mesh);
+    float *bitan = tan + nr_vx * 3;
+
+    for (size_t t = 0; t + 2 < nr_idx; t += 3) {
+        unsigned short i0 = idx[t], i1 = idx[t + 1], i2 = idx[t + 2];
+        vec3 tdir, bdir;
+
+        if (!triangle_tangent(&vx[i0 * 3], &vx[i1 * 3], &vx[i2 * 3],
+                              &tx[i0 * 2], &tx[i1 * 2], &tx[i2 * 2], tdir, bdir))
+            continue;
+
+        for (int c = 0; c < 3; c++) {
+            unsigned short i = idx[t + c];
+
+            vec3_add(&tan[i * 3], &tan[i * 3], tdir);
+            vec3_add(&bitan[i * 3], &bitan[i * 3], bdir);
+        }
+    }
+
+    float *out = mesh_tangent(mesh);
+    for (size_t i = 0; i < nr_vx; i++)  tangent_orthonormalize(&norm[i * 3], &tan[i * 3], &bitan[i * 3], &out[i * 4]);
+
+    mesh_attr(mesh, MESH_TANGENTS)->nr = nr_vx;
+
+    return CERR_OK;
 }
 
 static unsigned int *idx_to_idx32(unsigned short *idx, size_t nr_idx)

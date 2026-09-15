@@ -153,6 +153,20 @@ void mesh_aabb_calc(struct mesh *mesh);
 void mesh_optimize(struct mesh *mesh);
 
 /**
+ * mesh_tangents_calc() - derive per-vertex tangents from UVs
+ * @mesh:   mesh with positions, texture coordinates, normals and indices
+ *
+ * Compute the vec4 tangent attribute (xyz along +U, w the bitangent
+ * handedness) that tangent-space normal mapping needs, accumulated over
+ * triangles and orthonormalized against the vertex normal. Loaded meshes
+ * ship authored tangents; this is for meshes that come without, and a
+ * mesh that already has tangents is left alone.
+ * Return: CERR_OK, CERR_NOMEM, or CERR_INVALID_ARGUMENTS on a missing
+ * attribute or an unexpected layout.
+ */
+cerr_check mesh_tangents_calc(struct mesh *mesh);
+
+/**
  * mesh_make_collision() - build a position-only welded copy for collision
  * @mesh:       source mesh (16-bit indexed, vec3 positions)
  * @out_vx:     receives the welded position buffer (caller frees)
