@@ -953,13 +953,19 @@ struct glyph *font_get_glyph(struct font *font __attribute__((unused)),
     return NULL;
 }
 
-cerr texture_load(texture_t *tex __attribute__((unused)),
-                  texture_format format __attribute__((unused)),
-                  unsigned int width __attribute__((unused)),
-                  unsigned int height __attribute__((unused)),
-                  void *buf __attribute__((unused)))
+cerr texture_load(texture_t *tex, texture_format format, unsigned int width, unsigned int height,
+                  void *buf)
 {
     return CERR_OK;
+}
+
+cerr _texture_init(texture_t *tex, const texture_init_options *opts)
+{
+    return CERR_OK;
+}
+
+void texture_deinit(texture_t *tex)
+{
 }
 
 static bool vec4_eq(vec4 a, vec4 b, float eps)
