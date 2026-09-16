@@ -21,6 +21,12 @@ struct nav_link {
     vec3    pb;
 };
 
+/* one entry of a grid cell's chain */
+struct nm_gent {
+    int     idx;
+    int     next;
+};
+
 typedef struct nav_tri {
     int     v[3];
     int     link_first;
@@ -58,6 +64,13 @@ struct navmesh {
     size_t          nr_links;
     float           total_area;
     int             nr_sources;
+
+    /* the XZ locate grid: each cell chains the triangles whose AABB overlaps it */
+    struct nm_gent  *loc_ents;
+    int             *loc_heads;
+    int             loc_nx, loc_nz;
+    float           loc_cell;
+    float           loc_x0, loc_z0;
 #ifdef CLAP_NAVMESH_DEBUG
     struct entity3d *debug_entity;      /* walkable-surface wireframe overlay */
 #endif /* CLAP_NAVMESH_DEBUG */

@@ -43,15 +43,9 @@
 #define NM_MIN_PORTAL           0.05f
 
 /*
- * nav_link, nav_tri, nm_ob and struct navmesh live in navmesh-internal.h,
- * shared with nav/debug.c
+ * nav_link, nav_tri, nm_ob, nm_gent and struct navmesh live in
+ * navmesh-internal.h, shared with nav/debug.c
  */
-
-/* one entry of a grid cell's chain */
-struct nm_gent {
-    int     ob;
-    int     next;
-};
 
 /***
  * open-addressing map: 63-bit keys, int64 values, sized up front
@@ -171,6 +165,8 @@ void navmesh_free(navmesh *nm)
     mem_free(nm->tris);
     mem_free(nm->links);
     mem_free(nm->cdf);
+    mem_free(nm->loc_ents);
+    mem_free(nm->loc_heads);
     mem_free(nm);
 }
 
@@ -289,6 +285,16 @@ static void nm_tri_aabb(navmesh *nm, const nav_tri *t, struct nm_ob *box)
         box->mx[c] = fmaxf(nm->verts[t->v[0]][c],
                            fmaxf(nm->verts[t->v[1]][c], nm->verts[t->v[2]][c]));
     }
+}
+
+/* the locate-grid cells [*c0, *c1] that the world interval [lo, hi] overlaps */
+static void nm_loc_span(float lo, float hi, float org, float cell, int n, int *c0, int *c1)
+{
+    int a = (int)floorf((lo - org) / cell);
+    int b = (int)floorf((hi - org) / cell);
+
+    *c0 = max(0, min(n - 1, a));
+    *c1 = max(0, min(n - 1, b));
 }
 
 static void nm_centroid(navmesh *nm, int tri, vec3 c)
@@ -413,7 +419,7 @@ static int nm_tri_blocked(navmesh *nm, int t, const nav_tri *tris,
             int64_t i = nm_map_get(grid, nm_cell2(gx, gz));
 
             for (; i >= 0; i = gents[i].next) {
-                int obi = gents[i].ob;
+                int obi = gents[i].idx;
                 const struct nm_ob *ob = obi < (int)nr_hard ?
                                          &nm->obstacles.x[obi] : &soft[obi - nr_hard];
 
@@ -554,7 +560,7 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
                 for (int cx = cx0; cx <= cx1; cx++) {
                     int64_t *head = nm_map_slot(&grid, nm_cell3(cx, cy, cz));
 
-                    gents[gent] = (struct nm_gent){ .ob = (int)i, .next = (int)*head };
+                    gents[gent] = (struct nm_gent){ .idx = (int)i, .next = (int)*head };
                     *head = (int64_t)gent++;
                 }
     }
@@ -584,7 +590,7 @@ static size_t nm_stitch_borders(navmesh *nm, const struct nm_bedge *bedges, size
                 for (int cx = cx0; cx <= cx1; cx++)
                     for (int64_t g = nm_map_get(&grid, nm_cell3(cx, cy, cz)); g >= 0;
                          g = gents[g].next) {
-                    size_t j = (size_t)gents[g].ob;
+                    size_t j = (size_t)gents[g].idx;
 
                     if (j <= i) continue;
 
@@ -692,7 +698,7 @@ static size_t nm_step_surface_links(navmesh *nm, const nav_tri *tris, size_t nr_
             for (int cx = (int)floorf(box.mn[0] / cell); cx <= (int)floorf(box.mx[0] / cell); cx++) {
                 int64_t *head = nm_map_slot(&grid, nm_cell2(cx, cz));
 
-                gents[gent] = (struct nm_gent){ .ob = (int)t, .next = (int)*head };
+                gents[gent] = (struct nm_gent){ .idx = (int)t, .next = (int)*head };
                 *head = (int64_t)gent++;
             }
     }
@@ -720,7 +726,7 @@ static size_t nm_step_surface_links(navmesh *nm, const nav_tri *tris, size_t nr_
         float best_dy = step;
 
         for (int64_t g = nm_map_get(&grid, nm_cell2(gx, gz)); g >= 0; g = gents[g].next) {
-            int n = gents[g].ob;
+            int n = gents[g].idx;
 
             if (n == e->tri)    continue;
 
@@ -1005,7 +1011,7 @@ static cerr nm_bake(navmesh *nm, const float *seed)
             for (int cx = (int)floorf(ob->mn[0] / cell); cx <= (int)floorf(ob->mx[0] / cell); cx++) {
                 int64_t *head = nm_map_slot(&grid, nm_cell2(cx, cz));
 
-                gents[gent] = (struct nm_gent){ .ob = (int)i, .next = (int)*head };
+                gents[gent] = (struct nm_gent){ .idx = (int)i, .next = (int)*head };
                 *head = (int64_t)gent++;
             }
     }
@@ -1205,6 +1211,74 @@ static cerr nm_bake(navmesh *nm, const float *seed)
 
     nm->total_area = total;
 
+    /*
+     * The locate grid: XZ cells chaining every triangle whose AABB
+     * overlaps them, so navmesh_locate() off the hint ring walks one
+     * cell instead of the whole mesh.
+     */
+    struct nm_ob box;
+    float mnx = FLT_MAX, mnz = FLT_MAX, mxx = -FLT_MAX, mxz = -FLT_MAX;
+
+    for (size_t t = 0; t < nr_kept; t++) {
+        nm_tri_aabb(nm, &nm->tris[t], &box);
+        mnx = fminf(mnx, box.mn[0]);
+        mnz = fminf(mnz, box.mn[2]);
+        mxx = fmaxf(mxx, box.mx[0]);
+        mxz = fmaxf(mxz, box.mx[2]);
+    }
+
+    /*
+     * The obstruction grid's cell default, doubled until the table
+     * stays proportional to the mesh: a vast sparse world must not
+     * conjure a vast dense grid.
+     */
+    float lcell = max(4.0f * nm->params.agent_radius, 2.0f);
+    int nx = max(1, (int)ceilf((mxx - mnx) / lcell));
+    int nz = max(1, (int)ceilf((mxz - mnz) / lcell));
+
+    while ((size_t)nx * nz > 4 * nr_kept + 4096) {
+        lcell *= 2.0f;
+        nx = max(1, (int)ceilf((mxx - mnx) / lcell));
+        nz = max(1, (int)ceilf((mxz - mnz) / lcell));
+    }
+
+    size_t nr_ents = 0;
+    int cx0, cx1, cz0, cz1;
+
+    for (size_t t = 0; t < nr_kept; t++) {
+        nm_tri_aabb(nm, &nm->tris[t], &box);
+        nm_loc_span(box.mn[0], box.mx[0], mnx, lcell, nx, &cx0, &cx1);
+        nm_loc_span(box.mn[2], box.mx[2], mnz, lcell, nz, &cz0, &cz1);
+        nr_ents += (size_t)(cx1 - cx0 + 1) * (size_t)(cz1 - cz0 + 1);
+    }
+
+    nm->loc_heads = mem_alloc(sizeof(*nm->loc_heads), .nr = (size_t)nx * nz,
+                              .fatal_fail = 1);
+    nm->loc_ents = mem_alloc(sizeof(*nm->loc_ents), .nr = nr_ents, .fatal_fail = 1);
+    memset(nm->loc_heads, 0xff, (size_t)nx * nz * sizeof(*nm->loc_heads));
+
+    size_t ent = 0;
+
+    for (size_t t = 0; t < nr_kept; t++) {
+        nm_tri_aabb(nm, &nm->tris[t], &box);
+        nm_loc_span(box.mn[0], box.mx[0], mnx, lcell, nx, &cx0, &cx1);
+        nm_loc_span(box.mn[2], box.mx[2], mnz, lcell, nz, &cz0, &cz1);
+
+        for (int cz = cz0; cz <= cz1; cz++)
+            for (int cx = cx0; cx <= cx1; cx++) {
+                int *head = &nm->loc_heads[cz * nx + cx];
+
+                nm->loc_ents[ent] = (struct nm_gent){ .idx = (int)t, .next = *head };
+                *head = (int)ent++;
+            }
+    }
+
+    nm->loc_cell = lcell;
+    nm->loc_nx = nx;
+    nm->loc_nz = nz;
+    nm->loc_x0 = mnx;
+    nm->loc_z0 = mnz;
+
     trace("navmesh: %zu floor triangles in, %zu obstructed, %zu kept of the "
           "biggest of %d walkable regions, %.1f m2\n",
           nr_tris, nr_blocked, nr_kept, nr_comp, total);
@@ -1395,8 +1469,20 @@ cres(int) navmesh_locate(navmesh *nm, const vec3 p, float max_dy, int hint)
         if (pick.tri >= 0)  return cres_val(int, pick.tri);
     }
 
-    for (size_t t = 0; t < nm->nr_tris; t++)
-        nm_locate_try(nm, (int)t, p, max_dy, &pick);
+    /*
+     * The hint ring missed (or there was no hint): walk the point's
+     * grid cell. Every triangle containing (x, z) has its AABB over
+     * this cell, so the chain sees all the candidates the full scan
+     * would.
+     */
+    int cx = (int)floorf((p[0] - nm->loc_x0) / nm->loc_cell);
+    int cz = (int)floorf((p[2] - nm->loc_z0) / nm->loc_cell);
+
+    cx = max(0, min(nm->loc_nx - 1, cx));
+    cz = max(0, min(nm->loc_nz - 1, cz));
+
+    for (int e = nm->loc_heads[cz * nm->loc_nx + cx]; e >= 0; e = nm->loc_ents[e].next)
+        nm_locate_try(nm, nm->loc_ents[e].idx, p, max_dy, &pick);
 
     if (pick.tri < 0)   return cres_error(int, CERR_NOT_FOUND);
 
