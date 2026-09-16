@@ -160,40 +160,48 @@ void *memdup(const void *x, size_t size)
 
 void *_darray_resize(struct darray *da, size_t nr_el)
 {
-    void *new;
-
     /*
-     * XXX: be smarter. For now, just avoid realloc() on deletion, unless it's
-     *      the last element (see below)
-     *  - the array is likely to get repopulated (game.c)
-     *  - or, filled in once and then cleared out (gltf.c)
-     *
-     * Possible reasons to shrink an array:
-     *  - the element size is large
-     *  - the ratio of additions to deletions is higher than a certain threshold
+     * The allocation only grows, in doublings, because the array is likely
+     * to get repopulated or filled in one element at a time, and a
+     * realloc() per element copies the whole array behind it. Shrinking,
+     * deletion included, keeps the room for the elements to come; the ones
+     * that never come are given back by _darray_trim().
      */
-    if (nr_el <= da->nr_el)
-        goto out;
+    if (nr_el > da->cap) {
+        size_t cap = max(nr_el, da->cap * 2);
+        void *new = mem_realloc_array(da->array, cap, da->elsz, .mod = da->mod);
 
-    err_on(da->array && !da->nr_el, "array: %p nr_el: %zu\n", da->array, da->nr_el);
-    new = mem_realloc_array(da->array, nr_el, da->elsz, .mod = da->mod);
+        if (!new)   return nullptr;
 
-    if (!new)
-        return NULL;
+        da->array = new;
+        da->cap = cap;
+    }
 
-    da->array = new;
+    /* elements coming into view are zeroed, fresh room or reused */
     if (nr_el > da->nr_el)
-        memset(new + da->nr_el * da->elsz, 0, (nr_el - da->nr_el) * da->elsz);
+        memset(da->array + da->nr_el * da->elsz, 0, (nr_el - da->nr_el) * da->elsz);
 
-out:
     da->nr_el = nr_el;
 
-    /*
-     * XXX: See above about being smarter, but at the bare minimum, we need to
-     * free the array when the last element is gone
-     */
-    if (!da->nr_el)
+    return da->array;
+}
+
+void *_darray_trim(struct darray *da)
+{
+    if (da->cap == da->nr_el)   return da->array;
+
+    if (!da->nr_el) {
         _darray_clearout(da);
+        return nullptr;
+    }
+
+    void *new = mem_realloc_array(da->array, da->nr_el, da->elsz, .mod = da->mod);
+
+    /* the array is still there and still usable if the shrink didn't happen */
+    if (!new)   return da->array;
+
+    da->array = new;
+    da->cap = da->nr_el;
 
     return da->array;
 }
@@ -246,6 +254,7 @@ void _darray_clearout(struct darray *da)
     mem_free(da->array);
     da->array = NULL;
     da->nr_el = 0;
+    da->cap = 0;
 }
 
 unsigned int fletcher32(const unsigned short *data, size_t len)

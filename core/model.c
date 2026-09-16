@@ -185,6 +185,7 @@ static void model3d_drop(struct ref *ref)
 
     while (darray_count(m->anis))
         animation_delete(&m->anis.x[0]);
+    darray_clearout(m->anis);
     for (i = 0; i < m->nr_joints; i++) {
         darray_clearout(m->joints[i].children);
         mem_free(m->joints[i].name);

@@ -436,10 +436,25 @@ cerr path_joinv(char *dst, size_t size, const char *const comps[]);
 #define path_join(dst, size, ...) \
     path_joinv((dst), (size), (const char *const[]) { __VA_ARGS__, NULL })
 
+/**
+ * struct darray - a dynamically grown array
+ * @array:  the allocation
+ * @elsz:   size of one element
+ * @nr_el:  number of elements in the array
+ * @cap:    number of elements the allocation has room for
+ * @mod:    module the allocation is accounted to
+ *
+ * @cap is the room, @nr_el is what's in it: the allocation grows in
+ * doublings and giving memory back is a separate decision, so that
+ * appending one element at a time doesn't reallocate on every element.
+ * darray_trim() hands the difference back once an array has stopped
+ * growing.
+ */
 struct darray {
     void            *array;
     size_t          elsz;
     size_t          nr_el;
+    size_t          cap;
     const char      *mod;
 };
 
@@ -452,6 +467,7 @@ union { \
 #define darray_init(_x) do { \
     (_x).da.elsz = sizeof(*(_x).x); \
     (_x).da.nr_el = 0; \
+    (_x).da.cap = 0; \
     (_x).da.mod = MODNAME; \
     (_x).x = NULL; \
 } while (0)
@@ -478,6 +494,18 @@ void *_darray_resize(struct darray *da, size_t nr_el);
 
 /* Resize an array to a given number of elements */
 #define darray_resize(_x, _nr) _darray_resize(&((_x).da), (_nr))
+
+void *_darray_trim(struct darray *da);
+
+/**
+ * darray_trim() - shrink an array's allocation to the elements in it
+ * @_x:     the array
+ *
+ * Gives the unused room back: @cap becomes @nr_el, an empty array is
+ * freed.
+ * Return: the array, which may have moved, or nullptr if it is empty
+ */
+#define darray_trim(_x) ((typeof((_x).x))_darray_trim(&((_x).da)))
 
 void *_darray_add(struct darray *da);
 
