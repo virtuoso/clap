@@ -43,7 +43,7 @@
 #define NM_MIN_PORTAL           0.05f
 
 /*
- * nav_link, nav_tri, nm_ob, nm_gent and struct navmesh live in
+ * nav_link, nav_tri, nm_ob, nm_gent, nm_hnode and struct navmesh live in
  * navmesh-internal.h, shared with nav/debug.c
  */
 
@@ -167,6 +167,12 @@ void navmesh_free(navmesh *nm)
     mem_free(nm->cdf);
     mem_free(nm->loc_ents);
     mem_free(nm->loc_heads);
+    mem_free(nm->pf_g);
+    mem_free(nm->pf_parent);
+    mem_free(nm->pf_parent_link);
+    mem_free(nm->pf_seen);
+    mem_free(nm->pf_closed);
+    mem_free(nm->pf_heap);
     mem_free(nm);
 }
 
@@ -1279,6 +1285,17 @@ static cerr nm_bake(navmesh *nm, const float *seed)
     nm->loc_x0 = mnx;
     nm->loc_z0 = mnz;
 
+    /* the A* scratch: nothing to clear per query, pf_gen stamps do it */
+    nm->pf_g = mem_alloc(sizeof(*nm->pf_g), .nr = nr_kept, .fatal_fail = 1);
+    nm->pf_parent = mem_alloc(sizeof(*nm->pf_parent), .nr = nr_kept, .fatal_fail = 1);
+    nm->pf_parent_link = mem_alloc(sizeof(*nm->pf_parent_link), .nr = nr_kept,
+                                   .fatal_fail = 1);
+    nm->pf_seen = mem_alloc(sizeof(*nm->pf_seen), .nr = nr_kept, .zero = 1,
+                            .fatal_fail = 1);
+    nm->pf_closed = mem_alloc(sizeof(*nm->pf_closed), .nr = nr_kept, .zero = 1,
+                              .fatal_fail = 1);
+    nm->pf_heap = mem_alloc(sizeof(*nm->pf_heap), .nr = nr_links + 8, .fatal_fail = 1);
+
     trace("navmesh: %zu floor triangles in, %zu obstructed, %zu kept of the "
           "biggest of %d walkable regions, %.1f m2\n",
           nr_tris, nr_blocked, nr_kept, nr_comp, total);
@@ -1524,11 +1541,6 @@ cres(int) navmesh_random_point(navmesh *nm, float r1, float r2, float r3, vec3 p
  * pathfinding: A* over triangle adjacency, then funnel straightening
  ***/
 
-struct nm_hnode {
-    float   f;
-    int     tri;
-};
-
 struct nm_heap {
     struct nm_hnode *nodes;
     size_t          nr;
@@ -1616,30 +1628,35 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
         return cres_val(int, nr);
     }
 
-    float *g = mem_alloc(sizeof(*g), .nr = nm->nr_tris, .fatal_fail = 1);
-    int *parent = mem_alloc(sizeof(*parent), .nr = nm->nr_tris, .fatal_fail = 1);
-    int *parent_link = mem_alloc(sizeof(*parent_link), .nr = nm->nr_tris, .fatal_fail = 1);
-    bool *closed = mem_alloc(sizeof(*closed), .nr = nm->nr_tris, .zero = 1, .fatal_fail = 1);
-    struct nm_heap heap = {
-        .nodes = mem_alloc(sizeof(struct nm_hnode), .nr = nm->nr_links + 8, .fatal_fail = 1),
-        .cap = nm->nr_links + 8,
-    };
-    cres(int) res = cres_error(int, CERR_NOT_FOUND);
-
-    for (size_t t = 0; t < nm->nr_tris; t++) {
-        g[t] = FLT_MAX;
-        parent[t] = -1;
+    /*
+     * A wrapped stamp generation would alias stale entries; one clear
+     * per 4 billion queries buys zero-cost per-call initialization.
+     */
+    if (!++nm->pf_gen) {
+        memset(nm->pf_seen, 0, nm->nr_tris * sizeof(*nm->pf_seen));
+        memset(nm->pf_closed, 0, nm->nr_tris * sizeof(*nm->pf_closed));
+        nm->pf_gen = 1;
     }
 
+    uint32_t gen = nm->pf_gen;
+    float *g = nm->pf_g;
+    int *parent = nm->pf_parent;
+    int *parent_link = nm->pf_parent_link;
+    struct nm_heap heap = {
+        .nodes = nm->pf_heap,
+        .cap = nm->nr_links + 8,
+    };
+
     g[from_tri] = 0.0f;
+    parent[from_tri] = -1;
+    nm->pf_seen[from_tri] = gen;
     nm_heap_push(&heap, 0.0f, from_tri);
 
     while (heap.nr) {
         int cur = nm_heap_pop(&heap);
 
-        if (closed[cur])
-            continue;
-        closed[cur] = true;
+        if (nm->pf_closed[cur] == gen)  continue;
+        nm->pf_closed[cur] = gen;
 
         if (cur == to_tri)  break;
 
@@ -1651,8 +1668,7 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
             int li = nm->tris[cur].link_first + l;
             int n = nm->links[li].to;
 
-            if (closed[n])
-                continue;
+            if (nm->pf_closed[n] == gen)    continue;
 
             vec3 nc, d;
 
@@ -1660,20 +1676,19 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
             vec3_sub(d, nc, cc);
 
             float ng = g[cur] + vec3_len(d);
-            if (ng >= g[n])
-                continue;
+            if (nm->pf_seen[n] == gen && ng >= g[n])    continue;
 
             g[n] = ng;
             parent[n] = cur;
             parent_link[n] = li;
+            nm->pf_seen[n] = gen;
 
             vec3_sub(d, goal, nc);
             nm_heap_push(&heap, ng + vec3_len(d), n);
         }
     }
 
-    if (!closed[to_tri])
-        goto out;
+    if (nm->pf_closed[to_tri] != gen)   return cres_error(int, CERR_NOT_FOUND);
 
     /* walk the parents back into a triangle chain */
     size_t chain_len = 0;
@@ -1783,18 +1798,9 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
 
     if (!full)  nm_emit(waypoints, nr_waypoints, &nr, goal);
 
-    res = cres_val(int, nr);
-
     mem_free(pleft);
     mem_free(pright);
     mem_free(chain);
 
-out:
-    mem_free(g);
-    mem_free(parent);
-    mem_free(parent_link);
-    mem_free(closed);
-    mem_free(heap.nodes);
-
-    return res;
+    return cres_val(int, nr);
 }

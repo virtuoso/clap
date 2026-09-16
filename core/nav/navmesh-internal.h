@@ -2,6 +2,7 @@
 #ifndef __CLAP_NAV_NAVMESH_INTERNAL_H__
 #define __CLAP_NAV_NAVMESH_INTERNAL_H__
 
+#include <stdint.h>
 #include "util.h"       /* darray */
 #include "linmath.h"    /* vec3 */
 #include "navmesh.h"    /* navmesh_params */
@@ -25,6 +26,12 @@ struct nav_link {
 struct nm_gent {
     int     idx;
     int     next;
+};
+
+/* an A* open-heap node, f-cost ordered */
+struct nm_hnode {
+    float   f;
+    int     tri;
 };
 
 typedef struct nav_tri {
@@ -71,6 +78,19 @@ struct navmesh {
     int             loc_nx, loc_nz;
     float           loc_cell;
     float           loc_x0, loc_z0;
+
+    /*
+     * A* scratch, sized at bake and reused by every navmesh_path()
+     * call (queries are single-threaded, like the rest of the scene);
+     * pf_seen/pf_closed stamps against pf_gen replace per-call clearing
+     */
+    uint32_t        pf_gen;
+    float           *pf_g;
+    int             *pf_parent;
+    int             *pf_parent_link;
+    uint32_t        *pf_seen;
+    uint32_t        *pf_closed;
+    struct nm_hnode *pf_heap;
 #ifdef CLAP_NAVMESH_DEBUG
     struct entity3d *debug_entity;      /* walkable-surface wireframe overlay */
 #endif /* CLAP_NAVMESH_DEBUG */
