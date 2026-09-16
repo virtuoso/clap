@@ -274,6 +274,57 @@ static int darray_test2(void)
     return EXIT_SUCCESS;
 }
 
+static int darray_test3(void)
+{
+    darray(int, da);
+
+    darray_init(da);
+    for (int i = 0; i < 100; i++) {
+        int *x = darray_add(da);
+        *x = i;
+    }
+
+    /* the allocation runs ahead of the count, in doublings */
+    if (da.da.nr_el != 100)             return EXIT_FAILURE;
+    if (da.da.cap < da.da.nr_el)        return EXIT_FAILURE;
+
+    size_t cap = da.da.cap;
+
+    /* shrinking keeps the room */
+    darray_resize(da, 10);
+    if (da.da.nr_el != 10)              return EXIT_FAILURE;
+    if (da.da.cap != cap)               return EXIT_FAILURE;
+
+    /* and reused room comes back zeroed */
+    darray_resize(da, 20);
+    if (da.da.cap != cap)               return EXIT_FAILURE;
+    if (da.x[9] != 9 || da.x[15])       return EXIT_FAILURE;
+
+    /* trimming gives the unused room back */
+    darray_trim(da);
+    if (da.da.nr_el != 20)              return EXIT_FAILURE;
+    if (da.da.cap != da.da.nr_el)       return EXIT_FAILURE;
+    if (da.x[9] != 9 || da.x[15])       return EXIT_FAILURE;
+
+    /* growing a trimmed array still works */
+    int *x = darray_add(da);
+    *x = 42;
+    if (da.da.nr_el != 21)              return EXIT_FAILURE;
+    if (da.da.cap < da.da.nr_el)        return EXIT_FAILURE;
+    if (da.x[20] != 42)                 return EXIT_FAILURE;
+
+    /* an emptied array only gives its allocation back when trimmed */
+    darray_resize(da, 0);
+    if (!da.x)                          return EXIT_FAILURE;
+
+    darray_trim(da);
+    if (da.x || da.da.cap)              return EXIT_FAILURE;
+
+    darray_clearout(da);
+
+    return EXIT_SUCCESS;
+}
+
 static int strtobool_test0(void)
 {
     if (!strtobool("on"))   return EXIT_FAILURE;
@@ -1871,6 +1922,7 @@ static const struct test tests[] = {
     { .name = "darray basic", .test = darray_test0 },
     { .name = "darray insert", .test = darray_test1 },
     { .name = "darray delete", .test = darray_test2 },
+    { .name = "darray capacity", .test = darray_test3 },
     { .name = "strtobool", .test = strtobool_test0 },
     { .name = "str_endswith", .test = str_endswith_test0 },
     { .name = "str_endswith_nocase", .test = str_endswith_nocase_test0 },
