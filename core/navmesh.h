@@ -5,14 +5,6 @@
 #include "error.h"
 #include "linmath.h"
 
-/*
- * CLAP_NAVMESH_DEBUG gates the walkable-surface debug overlay
- * (navmesh_debug_draw, in core/nav/debug.c, and the debug_entity slot in
- * struct navmesh). core/nav/CMakeLists.txt defines it for non-final engine
- * builds only and compiles debug.c under the same condition; final and test
- * builds leave it unset and link neither debug.c nor the render stack.
- */
-
 /**
  * struct navmesh_params - navigation mesh build parameters
  * @max_slope:      steepest walkable surface, radians from horizontal;
@@ -210,17 +202,22 @@ cres(int) navmesh_random_point(navmesh *nm, float r1, float r2, float r3, vec3 p
  * @nm:             a baked navmesh
  * @from:           start point, world space
  * @to:             destination, world space
+ * @radius:         the agent's half-width; corners keep this far off
+ *                  portal ends, 0 uses navmesh_params::agent_radius
  * @waypoints:      receives the path, @from first, @to last
  * @nr_waypoints:   capacity of @waypoints, at least 2
  *
  * A* over the triangle graph, then funnel straightening; corners keep
- * navmesh_params::agent_radius away from portal ends. If the full path
- * doesn't fit, the first @nr_waypoints of it are still written: walk
- * them and ask again.
+ * @radius away from portal ends, up to keeping to a portal's middle
+ * fifth (an opening narrower than the agent still paths - centered -
+ * rather than failing: the mesh was baked for
+ * navmesh_params::agent_radius and has no say about wider bodies). If
+ * the full path doesn't fit, the first @nr_waypoints of it are still
+ * written: walk them and ask again.
  * Return: the number of waypoints written or CERR_NOT_FOUND (either
  * point off the mesh) or CERR_INVALID_ARGUMENTS
  */
-cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
+cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to, float radius,
                        vec3 *waypoints, int nr_waypoints);
 
 /**
@@ -234,45 +231,35 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
  */
 cerr navmesh_tri(navmesh *nm, int tri, vec3 c[3]);
 
-/**
- * navmesh_geometry() - the walkable surface as a compact indexed mesh
- * @nm:         a baked navmesh
- * @lift:       raise every vertex by this much in Y, to sit an overlay
- *              just above the ground it mirrors
- * @out_vx:     receives xyz vertex positions (caller frees)
- * @out_nr_vx:  receives the vertex count
- * @out_idx:    receives 16-bit triangle indices (caller frees)
- * @out_nr_idx: receives the index count (three per triangle)
- *
- * The kept triangles' welded corners, compacted to a 16-bit index run
- * for a visualization mesh. The caller adds normals/UVs and builds an
- * entity3d whose visibility a debug toggle flips: cheaper than redrawing
- * the triangles as debug lines every frame. navmesh stays independent of
- * the render mesh system.
- * Return: CERR_OK, CERR_INVALID_OPERATION (not baked) or CERR_TOO_LARGE
- * (more than 65536 vertices, past the 16-bit index limit)
+/*
+ * The debug overlay lives in core/nav/debug.c, compiled for non-final
+ * builds only; the declarations (and the debug slots in struct navmesh)
+ * are gated to match.
  */
-cerr_check navmesh_geometry(navmesh *nm, float lift, float **out_vx, size_t *out_nr_vx,
-                            unsigned short **out_idx, size_t *out_nr_idx);
-
-#ifdef CLAP_NAVMESH_DEBUG
-#include "model.h"      /* entity3d and its cresp() for the overlay entity */
-
+#ifndef CONFIG_FINAL
 struct scene;
 
 /**
- * navmesh_debug_draw() - wireframe overlay of the walkable surface
+ * navmesh_debug_draw() - build the walkable-surface wireframe overlay
  * @nm:     a baked navmesh
- * @scene:  scene to add the overlay entity to
+ * @scene:  scene to add the overlay entities to
  *
- * Build (once) a line-topology entity mirroring the walkable triangles,
- * hidden by default, add it to @scene's model queue and stash it on the
- * navmesh. Idempotent: repeated calls return the same entity. A debug-UI
- * checkbox flips its visibility. Debug builds only; this is the one place
- * the navmesh reaches into the render/scene stack.
- * Return: the overlay entity, or an error
+ * Build (once) hidden line-topology entities mirroring the walkable
+ * triangles and hand them to @scene's model queue, which owns them. The
+ * render stack draws 16-bit indices, and a building-sized mesh welds
+ * more corners than one index run addresses, so the overlay comes in
+ * chunks; navmesh_debug_show() flips them as one. Idempotent. Debug
+ * builds only; this is the one place the navmesh reaches into the
+ * render/scene stack.
+ * Return: CERR_OK, CERR_INVALID_OPERATION (not baked) or CERR_NOMEM
  */
-cresp(entity3d) navmesh_debug_draw(navmesh *nm, struct scene *scene);
-#endif /* CLAP_NAVMESH_DEBUG */
+cerr_check navmesh_debug_draw(navmesh *nm, struct scene *scene);
+
+/* is the walkable-surface overlay currently shown? */
+bool navmesh_debug_shown(navmesh *nm);
+
+/* show or hide the walkable-surface overlay */
+void navmesh_debug_show(navmesh *nm, bool show);
+#endif /* !CONFIG_FINAL */
 
 #endif /* __CLAP_NAVMESH_H__ */

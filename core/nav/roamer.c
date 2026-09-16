@@ -14,6 +14,7 @@
 #include "logger.h"
 #include "util.h"
 #include "navmesh.h"
+#include "navmesh-internal.h"   /* navmesh::params, the step_height bound */
 #include "nav/roamer.h"
 
 #define ROAMER_MIN_DIST     5.0f    /* destinations at least this far away */
@@ -40,33 +41,62 @@ void roamer_init(roamer *r, navmesh *nm)
 {
     *r = (roamer){ .nm = nm };
     roamer_config_init(&r->cfg);
+#ifndef CONFIG_FINAL
+    list_append(&nm->roamers, &r->entry);
+#endif /* !CONFIG_FINAL */
+}
+
+void roamer_done(roamer *r)
+{
+#ifndef CONFIG_FINAL
+    list_del(&r->entry);
+#endif /* !CONFIG_FINAL */
+}
+
+/* roamers log and display by name once the caller sets one */
+static const char *roamer_name(const roamer *r)
+{
+    return r->name ? r->name : "roamer";
 }
 
 float roamer_ground(void *priv, float x, float z)
 {
     roamer *r = priv;
 
-    r->tri = CRES_RET(
-        navmesh_locate(r->nm, (vec3){ x, r->ground, z }, 2.5f, r->tri),
+    /*
+     * The body and the gait's feet both probe through here; only
+     * roamer_update() moves the tracking state. A foot planted a leg
+     * span out can rest on a surface the body is not on - the deck
+     * below a flight of stairs, a tread overhead - and dragging the
+     * hint and the ground reference along with it would teleport the
+     * body there on its next locate. Within a step of the last ground
+     * for the same reason: anything further is a stacked surface, not
+     * walkable continuity.
+     */
+    int tri = CRES_RET(
+        navmesh_locate(r->nm, (vec3){ x, r->ground, z },
+                       r->nm->params.step_height, r->tri),
         return r->ground;
     );
 
-    r->ground = navmesh_height(r->nm, r->tri, x, z);
-
-    return r->ground;
+    return navmesh_height(r->nm, tri, x, z);
 }
 
 bool roamer_path_to(roamer *r, const vec3 pos, const vec3 dest)
 {
-    auto nr = CRES_RET(navmesh_path(r->nm, pos, dest, r->path, ROAMER_WAYPOINTS), return false);
+    auto nr = CRES_RET(
+        navmesh_path(r->nm, pos, dest, r->cfg.radius, r->path, ROAMER_WAYPOINTS),
+        return false
+    );
 
     if (nr < 2) return false;
 
     r->nr_path = nr;
     r->wp = 1;
     r->stuck = 0.0f;
-    trace("roamer to (%5.2f %5.2f %5.2f), %d waypoints\n",
-        dest[0], dest[1], dest[2], nr);
+    r->repathed = false;
+    trace("%s to (%5.2f %5.2f %5.2f), %d waypoints\n",
+        roamer_name(r), dest[0], dest[1], dest[2], nr);
     return true;
 }
 
@@ -121,7 +151,8 @@ bool roamer_update(roamer *r, const vec3 pos, double t, float dt,
         }
 
         if (dist < r->cfg.arrive) {
-            trace("roamer arrived at (%5.2f %5.2f), idling\n", pos[0], pos[2]);
+            trace("%s arrived at (%5.2f %5.2f), idling\n",
+                roamer_name(r), pos[0], pos[2]);
             r->nr_path = 0;
             r->idle_until = t + 2.0 + drand48() * 3.0;
         } else {
@@ -171,13 +202,44 @@ bool roamer_update(roamer *r, const vec3 pos, double t, float dt,
 
         if (ml > 1e-4f) {
             float step = fminf(r->speed * dt, ml);
-            vec3 next = { pos[0] + mv[0] / ml * step, pos[1], pos[2] + mv[2] / ml * step };
+            float fx = mv[0] / ml, fz = mv[2] / ml;
+            vec3 next = { pos[0] + fx * step, pos[1], pos[2] + fz * step };
+            /*
+             * Accept at most a step of rise or drop: a surface further
+             * away vertically is another storey stacked over this one
+             * (a stair flight over the deck it climbs from), and
+             * snapping to it teleports the body through the geometry.
+             */
             cres(int) tri = navmesh_locate(r->nm, (vec3){ next[0], r->ground, next[2] },
-                                           3.0f, r->tri);
-            /* on a miss (a sliver gap), hold and retry - never freeze hard */
+                                           r->nm->params.step_height, r->tri);
+
+            /*
+             * A miss usually means the step grazed a notch the
+             * clearance cull ate from the walkable edge - the funnel
+             * cuts corners tighter than the ragged boundary, all the
+             * more with a wide agent's shrunken portals. Probe half a
+             * step ahead, then a full step with half a step of
+             * sideways slide, and keep whatever stays on the mesh; if
+             * everything misses, hold and retry - never freeze hard.
+             */
+            if (IS_CERR(tri)) {
+                vec3 cand[3] = {
+                    { pos[0] + fx * step * 0.5f, pos[1], pos[2] + fz * step * 0.5f },
+                    { next[0] - fz * step * 0.5f, pos[1], next[2] + fx * step * 0.5f },
+                    { next[0] + fz * step * 0.5f, pos[1], next[2] - fx * step * 0.5f },
+                };
+
+                for (int i = 0; i < 3 && IS_CERR(tri); i++) {
+                    tri = navmesh_locate(r->nm, (vec3){ cand[i][0], r->ground, cand[i][2] },
+                                         r->nm->params.step_height, r->tri);
+                    if (!IS_CERR(tri))  vec3_dup(next, cand[i]);
+                }
+            }
+
             if (!IS_CERR(tri)) {
                 vec3_dup(out_pos, next);
                 r->tri = tri.val;
+                r->ground = navmesh_height(r->nm, tri.val, next[0], next[2]);
                 moved = true;
             }
         }
@@ -190,17 +252,42 @@ bool roamer_update(roamer *r, const vec3 pos, double t, float dt,
      */
     float progress = hypotf(out_pos[0] - pos[0], out_pos[2] - pos[2]);
 
-    if (r->nr_path && target_speed > 0.05f && progress < target_speed * dt * 0.25f)
+    if (r->nr_path && target_speed > 0.05f && progress < target_speed * dt * 0.25f) {
         r->stuck += dt;
-    else
+
+        /*
+         * Waypoint hopping trades path exactness for smooth motion, so
+         * the body sometimes cuts a corner off the corridor and runs
+         * against a hole the mesh never covered. Before writing the
+         * journey off, re-path once to the same destination from where
+         * the body actually stands: the fresh funnel starts here, on
+         * the mesh.
+         */
+        if (!r->repathed && r->stuck >= 0.4f) {
+            vec3 dest;
+
+            vec3_dup(dest, r->path[r->nr_path - 1]);
+            if (roamer_path_to(r, out_pos, dest)) {
+                trace("%s snagged at (%5.2f %5.2f), re-pathing\n",
+                    roamer_name(r), out_pos[0], out_pos[2]);
+                r->repathed = true;
+            }
+        }
+    } else {
         r->stuck = 0.0f;
+    }
 
     if (r->stuck > 1.5f) {
-        trace("roamer stuck at (%5.2f %5.2f), re-picking\n", out_pos[0], out_pos[2]);
+        trace("%s stuck at (%5.2f %5.2f), re-picking\n",
+            roamer_name(r), out_pos[0], out_pos[2]);
         r->nr_path = 0;
         r->idle_until = t + 0.3;
         r->stuck = 0.0f;
     }
+
+#ifndef CONFIG_FINAL
+    vec3_dup(r->dbg_pos, out_pos);
+#endif /* !CONFIG_FINAL */
 
     *out_yaw = r->yaw;
     return moved;

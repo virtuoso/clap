@@ -151,6 +151,10 @@ cresp(navmesh) _navmesh_new(const navmesh_params *params)
 
     darray_init(nm->floor_soup);
     darray_init(nm->obstacles);
+#ifndef CONFIG_FINAL
+    list_init(&nm->roamers);
+    darray_init(nm->debug_entities);
+#endif /* !CONFIG_FINAL */
 
     return cresp_val(navmesh, nm);
 }
@@ -161,6 +165,10 @@ void navmesh_free(navmesh *nm)
 
     darray_clearout(nm->floor_soup);
     darray_clearout(nm->obstacles);
+#ifndef CONFIG_FINAL
+    /* the overlay entities themselves belong to the scene's model queue */
+    darray_clearout(nm->debug_entities);
+#endif /* !CONFIG_FINAL */
     mem_free(nm->verts);
     mem_free(nm->tris);
     mem_free(nm->links);
@@ -774,16 +782,6 @@ static cerr nm_soup_tri(struct darray *soup, const vec3 a, const vec3 b, const v
 }
 
 /*
- * Split every floor triangle into a barycentric grid fine enough that
- * no edge exceeds max_edge. Low-poly ground comes as a few enormous
- * quads; the clearance cull works per triangle around its centroid and
- * can only keep or drop a whole triangle, so without this an obstacle
- * sitting in the middle of a giant quad carves nothing. Subdividing
- * first gives the cull something to bite. Grids of neighbouring
- * triangles need not line up: welding merges the corners that coincide
- * and the border stitch reconnects the rest.
- */
-/*
  * Split every floor triangle until no edge exceeds max_edge. Low-poly
  * ground comes as a few enormous quads; the clearance cull works per
  * triangle around its centroid and can only keep or drop a whole
@@ -988,6 +986,7 @@ static cerr nm_bake(navmesh *nm, const float *seed)
     }
 
     darray_clearout(recs);
+
 
     /* cull floors whose clearance column is obstructed */
     struct nm_ob *soft = mem_alloc(sizeof(*soft), .nr = nr_tris, .fatal_fail = 1);
@@ -1387,51 +1386,6 @@ cres(int) navmesh_raycast(navmesh *nm, const vec3 origin, const vec3 dir, vec3 h
     return cres_val(int, best_tri);
 }
 
-cerr navmesh_geometry(navmesh *nm, float lift, float **out_vx, size_t *out_nr_vx,
-                      unsigned short **out_idx, size_t *out_nr_idx)
-{
-    if (!nm->baked || !nm->nr_tris)
-        return CERR_INVALID_OPERATION;
-
-    /* compact the walkable triangles' welded corners into a 16-bit index run */
-    int *remap = mem_alloc(sizeof(*remap), .nr = nm->nr_verts, .fatal_fail = 1);
-    float *vx = mem_alloc(sizeof(float) * 3, .nr = nm->nr_tris * 3, .fatal_fail = 1);
-    unsigned short *idx = mem_alloc(sizeof(*idx), .nr = nm->nr_tris * 3, .fatal_fail = 1);
-    size_t nr_vx = 0, nr_idx = 0;
-
-    for (size_t i = 0; i < nm->nr_verts; i++)
-        remap[i] = -1;
-
-    for (size_t t = 0; t < nm->nr_tris; t++)
-        for (int c = 0; c < 3; c++) {
-            int v = nm->tris[t].v[c];
-
-            if (remap[v] < 0) {
-                if (nr_vx > USHRT_MAX) {
-                    mem_free(remap);
-                    mem_free(vx);
-                    mem_free(idx);
-                    return CERR_TOO_LARGE;
-                }
-                remap[v] = (int)nr_vx;
-                vx[nr_vx * 3 + 0] = nm->verts[v][0];
-                vx[nr_vx * 3 + 1] = nm->verts[v][1] + lift;
-                vx[nr_vx * 3 + 2] = nm->verts[v][2];
-                nr_vx++;
-            }
-            idx[nr_idx++] = (unsigned short)remap[v];
-        }
-
-    mem_free(remap);
-
-    *out_vx = vx;
-    *out_nr_vx = nr_vx;
-    *out_idx = idx;
-    *out_nr_idx = nr_idx;
-
-    return CERR_OK;
-}
-
 /* the best (x, z)-containing candidate so far, by vertical distance */
 struct nm_pick {
     int     tri;
@@ -1606,11 +1560,13 @@ static bool nm_emit(vec3 *waypoints, int nr_waypoints, int *nr, const vec3 p)
     return true;
 }
 
-cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
+cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to, float radius,
                        vec3 *waypoints, int nr_waypoints)
 {
     if (!nm->baked)                     return cres_error(int, CERR_INVALID_OPERATION);
     if (!waypoints || nr_waypoints < 2) return cres_error(int, CERR_INVALID_ARGUMENTS);
+
+    if (radius <= 0.0f) radius = nm->params.agent_radius;
 
     cres(int) from_res = navmesh_locate(nm, from, 0.0f, -1);
     cres(int) to_res = navmesh_locate(nm, to, 0.0f, -1);
@@ -1701,9 +1657,9 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
     for (int t = to_tri; t >= 0; t = parent[t]) chain[--ci] = t;
 
     /*
-     * Portals between consecutive chain triangles, shrunk by
-     * agent_radius so corners clear the walls; left/right by the
-     * travel direction across the portal.
+     * Portals between consecutive chain triangles, shrunk by the agent
+     * radius so corners clear the walls; left/right by the travel
+     * direction across the portal.
      */
     size_t nr_portals = chain_len - 1;
     vec3 *pleft = mem_alloc(sizeof(vec3), .nr = nr_portals + 1, .fatal_fail = 1);
@@ -1731,7 +1687,7 @@ cres(int) navmesh_path(navmesh *nm, const vec3 from, const vec3 to,
 
         vec3_sub(lr, right, left);
         float len = sqrtf(lr[0] * lr[0] + lr[2] * lr[2]);
-        float s = len > 1e-6f ? fminf(0.4f, nm->params.agent_radius / len) : 0.0f;
+        float s = len > 1e-6f ? fminf(0.4f, radius / len) : 0.0f;
 
         for (int c = 0; c < 3; c++) {
             pleft[i][c] = left[c] + lr[c] * s;

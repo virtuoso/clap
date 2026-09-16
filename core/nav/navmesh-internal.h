@@ -8,9 +8,11 @@
 #include "navmesh.h"    /* navmesh_params */
 
 /*
- * The navmesh internals, shared between navmesh.c (build/query) and
- * nav/debug.c (the walkable-surface overlay, which needs the debug_entity
- * slot). Nothing outside core/nav/ includes this: the navmesh is opaque.
+ * The navmesh internals, shared within core/nav/: navmesh.c (build/query),
+ * nav/debug.c (the walkable-surface overlay and the roamer debug window,
+ * which need the debug slots) and nav/roamer.c (the params, for its
+ * step-bounded locates, and the roamer registry).
+ * Nothing outside core/nav/ includes this: the navmesh is opaque.
  */
 
 struct entity3d;
@@ -91,9 +93,12 @@ struct navmesh {
     uint32_t        *pf_seen;
     uint32_t        *pf_closed;
     struct nm_hnode *pf_heap;
-#ifdef CLAP_NAVMESH_DEBUG
-    struct entity3d *debug_entity;      /* walkable-surface wireframe overlay */
-#endif /* CLAP_NAVMESH_DEBUG */
+#ifndef CONFIG_FINAL
+    /* walkable-surface wireframe overlay, in 16-bit-index-sized chunks */
+    darray(struct entity3d *, debug_entities);
+    struct list     roamers;            /* roamers on this mesh, for the debug UI */
+    bool            all_paths;          /* the debug UI's "show all paths" */
+#endif /* !CONFIG_FINAL */
     bool            baked;
 };
 

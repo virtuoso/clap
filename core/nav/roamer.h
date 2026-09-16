@@ -4,6 +4,7 @@
 
 #include "error.h"
 #include "linmath.h"
+#include "util.h"
 #include "navmesh.h"
 
 /*
@@ -33,6 +34,10 @@
  * @accel:      speed approach rate, 1/s
  * @run_dist:   run while at least this much path remains
  * @slow_dist:  brake to a crawl within this distance of the destination
+ * @radius:     the agent's half-width: paths keep this far off portal
+ *              ends (see navmesh_path()), so a wide body walks the
+ *              middle of a stair flight instead of hugging its rail;
+ *              0 uses the mesh's navmesh_params::agent_radius
  * @auto_roam:  keep picking new destinations when idle; clear to only
  *              follow explicit roamer_path_to() targets
  *
@@ -47,6 +52,7 @@ typedef struct roamer_config {
     float   accel;
     float   run_dist;
     float   slow_dist;
+    float   radius;
     bool    auto_roam;
 } roamer_config;
 
@@ -60,6 +66,8 @@ void roamer_config_init(roamer_config *cfg);
  * struct roamer - a navmesh path-follower's state
  * @nm:         the baked navmesh it roams (required)
  * @cfg:        the roaming behaviour
+ * @name:       shows in logs and the debug window; a static string the
+ *              caller sets after roamer_init(), or nullptr
  * @tri:        last locate result, the search hint
  * @path:       the funnelled path being followed, @from first
  * @nr_path:    waypoints in @path; 0 when idle
@@ -67,8 +75,15 @@ void roamer_config_init(roamer_config *cfg);
  * @idle_until: don't auto-pick again before this animation time
  * @yaw:        current heading, radians
  * @speed:      current speed, blended toward the target each tick
- * @ground:     last known ground height under the agent
+ * @ground:     ground height under the agent, maintained by
+ *              roamer_update() as it moves
  * @stuck:      seconds of no progress while trying to walk
+ * @repathed:   the current stall already got its one recovery re-path
+ * @entry:      on navmesh::roamers, the debug UI's registry
+ * @dbg_pos:    the position roamer_update() last wrote, where the debug
+ *              overlays draw
+ * @show_path:  debug UI: draw the path being followed
+ * @show_radius: debug UI: draw the pathing radius as a ring
  *
  * roamer_init() sets it up on a navmesh; seed @tri and @ground from the
  * spawn point (navmesh_random_point() returns the triangle) so the first
@@ -77,33 +92,55 @@ void roamer_config_init(roamer_config *cfg);
 typedef struct roamer {
     navmesh         *nm;
     roamer_config   cfg;
+    const char      *name;
+    double          idle_until;
     int             tri;
     vec3            path[ROAMER_WAYPOINTS];
     int             nr_path;
     int             wp;
-    double          idle_until;
     float           yaw;
     float           speed;
     float           ground;
     float           stuck;
+#ifndef CONFIG_FINAL
+    vec3            dbg_pos;
+    struct list     entry;
+    bool            show_path;
+    bool            show_radius;
+#endif /* !CONFIG_FINAL */
+    bool            repathed;
 } roamer;
 
 /**
  * roamer_init() - set a roamer up on a navmesh with the default behaviour
  * @r:      the roamer; fully overwritten
  * @nm:     a baked navmesh
+ *
+ * Registers the roamer on @nm for the debug UI (non-final builds), so a
+ * live roamer needs roamer_done() before re-initializing it or freeing
+ * the navmesh.
  */
 void roamer_init(roamer *r, navmesh *nm);
+
+/**
+ * roamer_done() - unregister a roamer
+ * @r:      the roamer
+ *
+ * Undoes roamer_init()'s registration; call before the navmesh is freed.
+ * The roamer itself holds no allocations.
+ */
+void roamer_done(roamer *r);
 
 /**
  * roamer_ground() - ground height probe, a gait_ground_fn over the navmesh
  * @priv:   the roamer (void * to match the humanoid ground callback)
  * @x, @z:  world coordinates
  *
- * Locates the triangle under (x, z) around the last hint and evaluates its
- * plane, updating roamer::tri and roamer::ground. On a miss it holds the
- * last height. Point humanoid::ground here with humanoid::ground_priv set
- * to the roamer.
+ * Locates the triangle under (x, z) around the roamer's hint, within a
+ * step of its ground, and evaluates its plane. A pure probe: the body
+ * and the feet both ask, so it never moves the roamer's own tracking
+ * state, and on a miss it holds the last height. Point humanoid::ground
+ * here with humanoid::ground_priv set to the roamer.
  * Return: ground height at (x, z)
  */
 float roamer_ground(void *priv, float x, float z);
@@ -139,11 +176,8 @@ bool roamer_update(roamer *r, const vec3 pos, double t, float dt,
                    float walk_speed, float run_speed, vec3 out_pos, float *out_yaw);
 
 /*
- * The path overlay lives in core/nav/debug.c alongside navmesh_debug_draw().
- * It is gated on CONFIG_FINAL rather than that file's CLAP_NAVMESH_DEBUG:
- * targets outside the engine are not built with CLAP_NAVMESH_DEBUG, but
- * they do see CONFIG_FINAL from config.h. The two conditions coincide -
- * debug.c is compiled only for non-final builds.
+ * The debug overlays and the roamer window live in core/nav/debug.c,
+ * compiled for non-final builds only; the declarations gate to match.
  */
 #ifndef CONFIG_FINAL
 struct scene;
@@ -157,6 +191,19 @@ struct scene;
  * Emits the remaining path as debug lines and marks the destination.
  */
 void roamer_draw_path(roamer *r, struct scene *scene, const vec3 pos);
-#endif /* !CONFIG_FINAL */
+
+/**
+ * navmesh_roamers_debug() - the roamer debug window and overlays
+ * @nm:     a baked navmesh
+ * @scene:  scene whose message bus carries the overlay lines
+ *
+ * One panel per roamer registered on @nm: its live state, the path and
+ * radius overlay toggles and the roamer_config knobs, plus a global
+ * "show all paths". Call once per frame (the scene's debug pass does);
+ * the overlays draw whether or not the window is open, so a toggled
+ * path stays visible with the window closed.
+ */
+void navmesh_roamers_debug(navmesh *nm, struct scene *scene);
+#endif /* CONFIG_FINAL */
 
 #endif /* __CLAP_NAV_ROAMER_H__ */

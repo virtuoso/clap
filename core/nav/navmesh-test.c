@@ -220,13 +220,13 @@ static int navmesh_test_path(void)
     if (!nm)                                    return EXIT_FAILURE;
 
     /* within one triangle: straight line */
-    cres(int) nr = navmesh_path(nm, (vec3){ 4.2f, 0, 4.2f }, (vec3){ 4.6f, 0, 4.6f }, wp, 16);
+    cres(int) nr = navmesh_path(nm, (vec3){ 4.2f, 0, 4.2f }, (vec3){ 4.6f, 0, 4.6f }, 0.0f, wp, 16);
     if (IS_CERR(nr) || nr.val != 2)             goto out;
 
     /* across the wall: through the doorway, never through the wall */
     vec3 from = { 2.5f, 0.0f, 9.0f }, to = { 10.5f, 0.0f, 2.5f };
 
-    nr = navmesh_path(nm, from, to, wp, 16);
+    nr = navmesh_path(nm, from, to, 0.0f, wp, 16);
     if (IS_CERR(nr) || nr.val < 3)              goto out;
 
     vec3 d;
@@ -253,19 +253,19 @@ static int navmesh_test_path(void)
     }
 
     /* a two-slot buffer truncates honestly */
-    nr = navmesh_path(nm, from, to, wp, 2);
+    nr = navmesh_path(nm, from, to, 0.0f, wp, 2);
     if (IS_CERR(nr) || nr.val != 2)             goto out;
     vec3_sub(d, wp[1], to);
     if (vec3_len(d) < 0.5f)                     goto out;
 
     /* the island and points off the mesh are unreachable */
-    nr = navmesh_path(nm, from, (vec3){ 22.0f, 0.0f, 2.0f }, wp, 16);
+    nr = navmesh_path(nm, from, (vec3){ 22.0f, 0.0f, 2.0f }, 0.0f, wp, 16);
     if (!IS_CERR(nr))                           goto out;
-    nr = navmesh_path(nm, from, (vec3){ -5.0f, 0.0f, -5.0f }, wp, 16);
+    nr = navmesh_path(nm, from, (vec3){ -5.0f, 0.0f, -5.0f }, 0.0f, wp, 16);
     if (!IS_CERR(nr))                           goto out;
 
     /* up the ramp: waypoints climb */
-    nr = navmesh_path(nm, (vec3){ 10.5f, 0.0f, 6.0f }, (vec3){ 15.5f, 0.875f, 6.0f }, wp, 16);
+    nr = navmesh_path(nm, (vec3){ 10.5f, 0.0f, 6.0f }, (vec3){ 15.5f, 0.875f, 6.0f }, 0.0f, wp, 16);
     if (IS_CERR(nr) || nr.val < 2)                  goto out;
     if (fabsf(wp[nr.val - 1][1] - 0.875f) > 1e-3f)  goto out;
 
@@ -341,7 +341,7 @@ static int navmesh_test_tjunction(void)
 
     vec3 wp[8];
     cres(int) nr = navmesh_path(nm, (vec3){ 0.5f, 0.0f, 1.0f },
-                                (vec3){ 3.5f, 0.0f, 1.5f }, wp, 8);
+                                (vec3){ 3.5f, 0.0f, 1.5f }, 0.0f, wp, 8);
     if (IS_CERR(nr) || nr.val < 2)              goto out;
 
     ret = EXIT_SUCCESS;
@@ -400,7 +400,7 @@ static int navmesh_test_carve(void)
 
     /* a crossing that would pass through the hole must bend around it */
     vec3 wp[24];
-    cres(int) nr = navmesh_path(nm, (vec3){ 2, 0, 10 }, (vec3){ 18, 0, 10 }, wp, 24);
+    cres(int) nr = navmesh_path(nm, (vec3){ 2, 0, 10 }, (vec3){ 18, 0, 10 }, 0.0f, wp, 24);
     if (IS_CERR(nr) || nr.val <= 2)             goto out;
 
     /* no waypoint sits inside the carved footprint */
@@ -463,7 +463,7 @@ static int navmesh_test_step(void)
 
     /* a path from the ground onto the platform climbs to the top */
     vec3 wp[24];
-    cres(int) nr = navmesh_path(nm, (vec3){ 2, 0, 2 }, (vec3){ 10, 0.4f, 10 }, wp, 24);
+    cres(int) nr = navmesh_path(nm, (vec3){ 2, 0, 2 }, (vec3){ 10, 0.4f, 10 }, 0.0f, wp, 24);
     if (IS_CERR(nr) || nr.val < 2)                  goto out;
     if (fabsf(wp[nr.val - 1][1] - 0.4f) > 0.05f)    goto out;
 
@@ -517,7 +517,7 @@ static int navmesh_test_step_negative(void)
 
     /* a path from the ground onto the platform climbs to the top */
     vec3 wp[24];
-    cres(int) nr = navmesh_path(nm, (vec3){ -28, 0, -28 }, (vec3){ -20, 0.4f, -20 }, wp, 24);
+    cres(int) nr = navmesh_path(nm, (vec3){ -28, 0, -28 }, (vec3){ -20, 0.4f, -20 }, 0.0f, wp, 24);
     if (IS_CERR(nr) || nr.val < 2)                  goto out;
     if (fabsf(wp[nr.val - 1][1] - 0.4f) > 0.05f)    goto out;
 
@@ -549,7 +549,7 @@ static int navmesh_test_invalid(void)
     if (!IS_CERR(err))                          goto out;
 
     /* a path needs somewhere to put itself */
-    cres(int) nr = navmesh_path(nm, (vec3){ 4, 0, 4 }, (vec3){ 5, 0, 5 }, wp, 1);
+    cres(int) nr = navmesh_path(nm, (vec3){ 4, 0, 4 }, (vec3){ 5, 0, 5 }, 0.0f, wp, 1);
     if (!IS_CERR(nr))                           goto out;
 
     /* out-of-range indices are rejected */

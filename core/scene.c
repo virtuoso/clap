@@ -15,6 +15,7 @@
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
+#include "nav/roamer.h"
 #include "noise.h"
 #include "scene.h"
 #include "sound.h"
@@ -1171,16 +1172,26 @@ static void scene_navmesh_debug(struct scene *scene)
     if (!dbgm->display) return;
 
     if (dbgm->unfolded && scene->nm) {
-        cresp(entity3d) res = navmesh_debug_draw(scene->nm, scene);
+        cerr err = navmesh_debug_draw(scene->nm, scene);
 
-        if (!IS_CERR(res)) {
-            bool shown = entity3d_matches(res.val, ENTITY3D_VISIBLE);
-            if (igCheckbox("draw walkable surface", &shown))
-                entity3d_visible(res.val, shown);
+        if (!IS_CERR(err)) {
+            bool shown = navmesh_debug_shown(scene->nm);
+
+            if (igCheckbox("draw walkable surface", &shown))    navmesh_debug_show(scene->nm, shown);
+        } else {
+            char buf[128];
+
+            cerr_strbuf(buf, sizeof(buf), &err);
+            igText("overlay failed: %s", buf);
         }
     }
 
     ui_igEnd(DEBUG_NAVMESH);
+}
+
+static void scene_roamers_debug(struct scene *scene)
+{
+    if (scene->nm)  navmesh_roamers_debug(scene->nm, scene);
 }
 
 #else
@@ -1190,6 +1201,7 @@ static inline void scene_characters_debug(struct scene *scene) {}
 static inline void scene_entity_inspector_debug(struct scene *scene) {}
 static inline void scene_debug_frusta(struct scene *scene, struct view *view) {}
 static inline void scene_navmesh_debug(struct scene *scene) {}
+static inline void scene_roamers_debug(struct scene *scene) {}
 #endif /* CONFIG_FINAL */
 
 static void scene_camera_calc(struct scene *s, int camera)
@@ -1448,6 +1460,7 @@ void scene_update(struct scene *scene)
     scene_characters_debug(scene);
     scene_entity_inspector_debug(scene);
     scene_navmesh_debug(scene);
+    scene_roamers_debug(scene);
     light_debug(scene);
     screen_record_update(scene);
 
