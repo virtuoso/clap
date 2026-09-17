@@ -124,6 +124,7 @@ else ()
     target_link_options(${TEST_BIN} PRIVATE ${CLAP_LINK_OPTIONS} ${DEBUG_LIBRARIES})
 endif ()
 
+
 add_test(NAME ${TEST_BIN} COMMAND ${TEST_BIN})
 
 set(RENDERER_SRC "")
@@ -467,3 +468,9 @@ clap_subsystem_test(memory_tests test-memory.c)
 
 # The triangulation tests compile the triangulator alone
 clap_subsystem_test(triangulate_tests test-triangulate.c triangulate.c)
+
+# The fracturing tests compile the fracturer, the mesh code it builds with
+# and the prng it scatters seeds from
+clap_subsystem_test(fracture_tests test-fracture.c fracture.c triangulate.c mesh.c datatypes.c
+                    prng.c prng-mt.cpp)
+target_link_libraries(fracture_tests PRIVATE meshoptimizer)
