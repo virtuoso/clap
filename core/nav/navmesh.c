@@ -848,6 +848,9 @@ static cerr nm_subdivide(navmesh *nm)
                  { darray_clearout(fine); return __cerr; });
     }
 
+    /* the subdivided floor is as large as the navmesh gets: hand the room back */
+    darray_trim(fine);
+
     darray_clearout(nm->floor_soup);
     nm->floor_soup.da = fine.da;
 
@@ -861,6 +864,10 @@ static cerr nm_subdivide(navmesh *nm)
 static cerr nm_bake(navmesh *nm, const float *seed)
 {
     if (nm->baked)  return CERR_INVALID_OPERATION;
+
+    /* no more sources after this point: hand back the room the soups grew */
+    darray_trim(nm->floor_soup);
+    darray_trim(nm->obstacles);
 
     if (nm->params.subdivide > 0.0f && darray_count(nm->floor_soup))    CERR_RET_CERR(nm_subdivide(nm));
 
