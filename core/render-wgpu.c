@@ -1508,7 +1508,7 @@ static cerr wgpu_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
 
     ubo->size = round_up(size, 16);
     ubo->wgpu.slot_size = round_up(ubo->size, 256);
-    ubo->wgpu.total_size = ubo->wgpu.slot_size * 1024;
+    ubo->wgpu.total_size = ubo->wgpu.slot_size * UBO_SLOTS_PER_FRAME;
 
     renderer_t *r = ubo->renderer;
 

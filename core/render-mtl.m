@@ -1708,7 +1708,7 @@ static cerr mtl_uniform_buffer_data_alloc(uniform_buffer_t *ubo, size_t size)
     ubo->size = round_up(size, 16);
     size_t slot_size = round_up(ubo->size, 256);
 
-    ubo->mtl.total_size = slot_size * 1024;
+    ubo->mtl.total_size = slot_size * UBO_SLOTS_PER_FRAME;
 
     auto r = ubo->renderer;
 

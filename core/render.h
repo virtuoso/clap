@@ -1819,6 +1819,16 @@ void draw_control_cache_drop(renderer_t *r, fbo_t *fbo);
 void draw_control_cache_done(renderer_t *r);
 
 #ifdef IMPLEMENTOR
+
+/**
+ * UBO_SLOTS_PER_FRAME - number of slots in a uniform buffer's ring
+ *
+ * Updating a UBO takes the next slot instead of overwriting the data a queued
+ * draw call still points at, so the ring has to hold one frame's worth of
+ * updates; it rewinds when the frame ends.
+ */
+#define UBO_SLOTS_PER_FRAME 4096
+
 #ifdef CONFIG_RENDERER_OPENGL
 cerr gl_renderer_setup(renderer_t *rendnerer, const renderer_init_options *opts);
 #else /* !CONFIG_RENDERER_OPENGL */
