@@ -1684,12 +1684,19 @@ static cerr_check mtl_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, 
 
     auto r = ubo->renderer;
 
-    if (ubo->mtl.advance)   ubo->mtl.item++;
+    /* out of slots: share the last one and complain, don't run off the buffer */
+    if (ubo->mtl.advance) {
+        if ((ubo->mtl.item + 1) * round_up(ubo->size, 256) < ubo->mtl.total_size)
+            ubo->mtl.item++;
+        else
+            warn_once("ubo '%s' out of slots (%zu), raise the ring size\n",
+                      ubo->mtl.name, ubo->mtl.total_size / round_up(ubo->size, 256));
+    }
 
     ubo->data = mtl_ubo_data(ubo);
 
     if (ubo->mtl.advance) {
-        if (ubo->mtl.prev)
+        if (ubo->mtl.prev && ubo->mtl.prev != ubo->data)
             memcpy(ubo->data, ubo->mtl.prev, ubo->size);
         ubo->mtl.prev = ubo->data;
         ubo->mtl.advance = false;

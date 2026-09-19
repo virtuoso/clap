@@ -1825,7 +1825,8 @@ void draw_control_cache_done(renderer_t *r);
  *
  * Updating a UBO takes the next slot instead of overwriting the data a queued
  * draw call still points at, so the ring has to hold one frame's worth of
- * updates; it rewinds when the frame ends.
+ * updates; it rewinds when the frame ends. Running out of slots is survivable:
+ * the last one is shared and a warning is issued.
  */
 #define UBO_SLOTS_PER_FRAME 4096
 

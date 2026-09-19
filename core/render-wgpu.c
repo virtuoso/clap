@@ -1591,11 +1591,16 @@ static cerr wgpu_uniform_buffer_set(uniform_buffer_t *ubo, data_type type, size_
         char *base = wgpu_ubo_shadow_base(ubo);
         void *prev_data = ubo->data;
 
-        ubo->wgpu.item++;
+        /* out of slots: share the last one and complain, don't run off the buffer */
+        if ((ubo->wgpu.item + 1) * ubo->wgpu.slot_size < ubo->wgpu.total_size)
+            ubo->wgpu.item++;
+        else
+            warn_once("ubo out of slots (%zu), raise the ring size\n",
+                      ubo->wgpu.total_size / ubo->wgpu.slot_size);
         ubo->data = base + ubo->wgpu.item * ubo->wgpu.slot_size;
 
         /* COW: seed the new slot from the previous one */
-        memcpy(ubo->data, prev_data, ubo->size);
+        if (ubo->data != prev_data) memcpy(ubo->data, prev_data, ubo->size);
         ubo->wgpu.advance = false;
     }
 
