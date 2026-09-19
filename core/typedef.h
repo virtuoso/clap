@@ -3,6 +3,7 @@
  * "Private" struct data: only IMPLEMENTOR can access struct data
  */
 #undef TYPE
+#undef TYPE_FORWARD
 #ifdef IMPLEMENTOR
 #define TYPE(__type, __def) \
     typedef struct __type { __def } __type ## _t;
