@@ -26,4 +26,19 @@
  */
 cerr character_anims_baked(anim_lib_t *lib);
 
+/**
+ * character_anims_pose() - the table for a rig that serves every state
+ * @lib:    the model's library
+ * @ani:    the rig, an anim_lib_pose() handle (bound on the entity by whoever
+ *          owns the rig)
+ *
+ * Every state the character stays in plays @ani; the two it leaves on the
+ * end callback, WAKING and JUMP_START, play a zero hold instead, so the
+ * callback comes at the next update. A procedurally built body with no clips
+ * walks, idles, jumps and falls on its gait this way.
+ * Context: model setup
+ * Return: CERR_OK or CERR_NOMEM
+ */
+cerr character_anims_pose(anim_lib_t *lib, anim_t ani);
+
 #endif /* __CLAP_ANIMATOR_CHARACTER_ANIMS_H__ */

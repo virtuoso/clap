@@ -5,6 +5,7 @@
 #include "error.h"
 #include "linmath.h"
 #include "model.h"
+#include "animator.h"
 
 struct scene;
 
@@ -88,40 +89,46 @@ void sway_config_init(sway_config *cfg);
 cerr_check chain_sway(entity3d *e, double t, const sway_config *cfg);
 
 /**
- * struct sway_rig - a self-updating swaying entity
- * @scene:          the scene, for the animation clock (required)
- * @e:              the entity to sway (required); the rig does not own
- *                  it and claims its update callback and priv pointer
- * @orig_update:    the entity update the rig chains to (internal)
- * @t0:             animation time anchor (internal)
+ * struct sway_rig - one swaying entity's sway
+ * @scene:          the scene the entity is in; the rig runs on the
+ *                  animator's clock and doesn't read it
+ * @e:              the entity to sway (required); the rig does not own it
  * @cfg:            sway parameters; zero amplitude picks the defaults
  *
- * The turnkey wrapper over chain_sway(): sway_rig_start() installs an
- * entity update that resets the pose, sways the chain and recomputes
- * the skeleton every frame, then chains to the original update.
+ * The binding of sway_pose_ops on an entity (animator_bind()): the
+ * parameters chain_sway() runs with there.
  */
 typedef struct sway_rig {
     struct scene    *scene;
     entity3d        *e;
-    int             (*orig_update)(entity3d *, void *);
-    double          t0;
     sway_config     cfg;
 } sway_rig;
 
 /**
- * sway_rig_start() - start swaying an entity
- * @rig:    the rig, with sway_rig::scene, sway_rig::e and optionally
- *          sway_rig::cfg filled
+ * sway_pose_ops - chain_sway() as a pose class
  *
+ * anim_lib_pose(lib, &sway_pose_ops, nullptr) on the model, then
+ * animator_bind() with a sway_rig on each entity; eval is chain_sway()
+ * with the rig's parameters at the animator's time.
+ */
+extern const anim_pose_ops sway_pose_ops;
+
+/**
+ * sway_rig_start() - start swaying an entity
+ * @rig:    the rig, with sway_rig::e and optionally sway_rig::cfg filled
+ *
+ * The pose class defined on the entity's model, bound with @rig and played
+ * on the base layer, for an entity whose only animation is the sway. A
+ * convenience over the three calls.
  * Context: entity setup time
- * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no skeleton) or
- * CERR_INVALID_OPERATION (the entity's priv pointer is taken)
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no skeleton) or the animator's
+ * errors
  */
 cerr_check sway_rig_start(sway_rig *rig);
 
 /**
  * sway_rig_stop() - stop swaying an entity
- * @rig:    a started rig; the entity's update and priv are restored
+ * @rig:    a started rig; the base layer stops
  */
 void sway_rig_stop(sway_rig *rig);
 

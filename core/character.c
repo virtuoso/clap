@@ -170,6 +170,14 @@ character_state character_anims_enter(struct character *ch, character_state from
 
     if (from == to || (int)from == GPSM_NO_STATE)   return to;
 
+    /*
+     * What the new state plays may be what plays already: a rig that
+     * serves every state (character_anims_pose()). Restarting it would
+     * re-anchor it for nothing, so it is left alone.
+     */
+    cres(anim_t) same = anim_lib_transition_find(animator_lib(a), to, from, nullptr);
+    if (!IS_CERR(same) && animator_is_playing(a, 0, same.val))  return to;
+
     cerr err = animator_play_transition(a, from, to, .end = character_transition_done, .end_priv = ch);
 
     /*

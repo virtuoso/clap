@@ -2,8 +2,9 @@
 /*
  * An entity's animation playback over its model's library: what handle plays
  * on the base layer, where in it and how fast, and the per-frame pass that
- * turns the current element into joints (a clip's keyframes) or leaves them
- * be (a hold), then advances. What plays next is the library's business. See core/animator.h.
+ * turns the current element into joints (a clip's keyframes, a pose class's
+ * eval) or leaves them be (a hold), recomputes the skeleton once, then
+ * advances. What plays next is the library's business. See core/animator.h.
  */
 #define IMPLEMENTOR
 #include "animator.h"
@@ -16,11 +17,13 @@
 void animator_init(animator_t *a, struct entity3d *e)
 {
     a->e = e;
+    darray_init(a->bindings);
     darray_init(a->layers);
 }
 
 void animator_done(animator_t *a)
 {
+    darray_clearout(a->bindings);
     darray_clearout(a->layers);
 }
 
@@ -37,6 +40,53 @@ anim_lib_t *animator_lib(animator_t *a)
 unsigned int animator_nr_layers(animator_t *a)
 {
     return darray_count(a->layers);
+}
+
+static struct anim_binding *binding_find(animator_t *a, anim_t ani)
+{
+    struct anim_binding *b;
+
+    darray_for_each(b, a->bindings)
+        if (b->ani == ani)  return b;
+
+    return nullptr;
+}
+
+cerr animator_bind(animator_t *a, anim_t ani, void *priv)
+{
+    if (anim_lib_kind(animator_lib(a), ani) != ANIM_POSE)   return CERR_INVALID_ARGUMENTS;
+
+    struct anim_binding *b = binding_find(a, ani);
+
+    if (!b) {
+        b = darray_add(a->bindings);
+        if (!b) return CERR_NOMEM;
+    }
+    *b = (struct anim_binding){ .ani = ani, .priv = priv };
+
+    return CERR_OK;
+}
+
+cresp(void) animator_binding(animator_t *a, anim_t ani)
+{
+    struct anim_binding *b = binding_find(a, ani);
+
+    if (!b) return cresp_error(void, CERR_NOT_FOUND);
+
+    return cresp_val(void, b->priv);
+}
+
+/* a pose class plays here only once it is bound; a sequence needs all of its */
+static bool def_bound(animator_t *a, anim_lib_t *lib, struct anim_def *def)
+{
+    if (def->kind == ANIM_POSE)     return !!binding_find(a, (anim_t)(def - lib->defs.x));
+    if (def->kind != ANIM_SEQ)      return true;
+
+    struct anim_seq_elem *el;
+    darray_for_each(el, def->seq.elems)
+        if (!def_bound(a, lib, anim_lib_def(lib, el->ani))) return false;
+
+    return true;
 }
 
 static struct anim_layer *layer_get(animator_t *a, unsigned int layer)
@@ -77,7 +127,15 @@ static double elem_duration(anim_lib_t *lib, const struct anim_def *def)
     }
 }
 
-/* start an element: rewind its clip, reset the sfx state, set the clock */
+/* an element's pose class instance on this entity; a play checked it is there */
+static void *elem_binding(animator_t *a, anim_lib_t *lib, const struct anim_def *def)
+{
+    struct anim_binding *b = binding_find(a, (anim_t)(def - lib->defs.x));
+
+    return b ? b->priv : nullptr;
+}
+
+/* start an element: rewind its clip or anchor its class, reset the sfx state, set the clock */
 static void elem_start(animator_t *a, struct anim_layer *l, const struct anim_def *def,
                        double now, double phase)
 {
@@ -86,6 +144,8 @@ static void elem_start(animator_t *a, struct anim_layer *l, const struct anim_de
     if (def->kind == ANIM_CLIP) {
         animation_reset_cursors(a->e, &lib->model->anis.x[def->clip.index]);
         l->qa.animation = def->clip.index;
+    } else if (def->kind == ANIM_POSE && def->pose.ops->start) {
+        def->pose.ops->start(def->pose.cfg, elem_binding(a, lib, def), a->e);
     }
     l->qa.sfx_state = 0;
     timeline_start(&l->tl, now, elem_duration(lib, def), l->speed, phase);
@@ -98,6 +158,8 @@ cerr _animator_play(animator_t *a, anim_t ani, const anim_play_opts *opts)
     if (!def)   return CERR_INVALID_ARGUMENTS;
     if (def->kind == ANIM_SEQ && !darray_count(def->seq.elems))
         return CERR_INVALID_ARGUMENTS;
+    if (!def_bound(a, animator_lib(a), def))
+        return CERR_INVALID_OPERATION;
 
     struct anim_layer *l = layer_get(a, 0);
     if (!l) {
@@ -232,6 +294,8 @@ void animator_update(animator_t *a, struct scene *s)
         return;
     }
 
+    bool started = l->pending;
+
     if (l->pending) {
         elem_start(a, l, def, now, l->phase);
         l->pending = false;
@@ -240,25 +304,52 @@ void animator_update(animator_t *a, struct scene *s)
         if (timeline_set_speed(&l->tl, now, elem_duration(lib, def), l->speed)) l->qa.sfx_state = 0;
         l->speed_pending = false;
     }
+
+    double dt = started ? 0.0 : now - l->now;
     l->now = now;
 
     double t = timeline_elapsed(&l->tl, now);
-    double duration = elem_duration(lib, def);
+    bool over;
 
-    if (def->kind == ANIM_CLIP) {
-        struct animation *an = &lib->model->anis.x[def->clip.index];
+    switch (def->kind) {
+        case ANIM_CLIP: {
+            struct animation *an = &lib->model->anis.x[def->clip.index];
 
-        /* the sfx state rewinds with the clip */
-        if (t == 0.0)   l->qa.sfx_state = 0;
+            /* the sfx state rewinds with the clip */
+            if (t == 0.0)   l->qa.sfx_state = 0;
 
-        animation_apply(e, an, t);
-        entity3d_pose_update(e);
+            /* a clip writes every channel it has and leaves the rest */
+            animation_apply(e, an, t);
+            entity3d_pose_update(e);
 
-        if (an->frame_sfx)
-            an->frame_sfx(&l->qa, e, s, t / an->time_end);
+            if (an->frame_sfx)
+                an->frame_sfx(&l->qa, e, s, t / an->time_end);
+            over = t >= an->time_end;
+            break;
+        }
+        case ANIM_POSE: {
+            const anim_pose_ops *ops = def->pose.ops;
+            void *priv = elem_binding(a, lib, def);
+
+            /* the class writes over the bind pose; the skeleton follows once */
+            entity3d_pose_reset(e);
+            CERR_RET(ops->eval(def->pose.cfg, priv, e, t, dt, e->joints),
+                     warn_once("%s: pose eval: %s\n", entity_name(e), cerr_str(__cerr.err)));
+            entity3d_pose_update(e);
+
+            over = ops->done && ops->done(def->pose.cfg, priv, t);
+            break;
+        }
+        case ANIM_HOLD:
+            over = t >= def->hold.seconds;
+            break;
+        default:
+            /* a nested sequence, which the library refuses to build */
+            over = true;
+            break;
     }
 
-    if (t < duration)
+    if (!over)
         return;
 
     /* the element ran out: loop it, move the sequence on, or say so once */

@@ -21,15 +21,27 @@ struct anim_seq_elem {
  * @kind:   what it is
  * @clip:   ANIM_CLIP: the index into model3d::anis
  * @hold:   ANIM_HOLD: how long, seconds
+ * @pose:   ANIM_POSE: the class and its configuration
  * @seq:    ANIM_SEQ: the elements, in order
  */
 struct anim_def {
     union {
-        struct { int index; }                               clip;
-        struct { double seconds; }                          hold;
-        struct { darray(struct anim_seq_elem, elems); }     seq;
+        struct { int index; }                                   clip;
+        struct { double seconds; }                              hold;
+        struct { const anim_pose_ops *ops; const void *cfg; }   pose;
+        struct { darray(struct anim_seq_elem, elems); }         seq;
     };
     anim_kind       kind;
+};
+
+/**
+ * struct anim_binding - a pose class's instance on one entity
+ * @ani:    the pose class
+ * @priv:   its state on this entity, the binder's
+ */
+struct anim_binding {
+    void            *priv;
+    anim_t          ani;
 };
 
 /**

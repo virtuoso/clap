@@ -25,8 +25,7 @@ double timeline_progress(const timeline *tl, double now, double duration)
 bool timeline_set_speed(timeline *tl, double now, double duration, double speed)
 {
     tl->speed = speed > 0.0 ? speed : 1.0;
-    if (!timeline_ended(tl, now, duration))
-        return false;
+    if (duration <= 0.0 || !timeline_ended(tl, now, duration))  return false;
 
     tl->t0 = now;
     return true;

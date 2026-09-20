@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * The character's default transition table: the clip names its models have
- * always carried, one sequence per state transition.
+ * The character's transition tables: the default, from the clip names its
+ * models have always carried, one sequence per state transition, and the one
+ * for a rig that poses the body in every state.
  */
 #include "common.h"
 #include "character.h"
@@ -62,6 +63,21 @@ cerr character_anims_baked(anim_lib_t *lib)
         else
             CERR_RET_CERR(anim_lib_transition_add(lib, table[i].to, table[i].from, seq.val, 0.0));
     }
+
+    return CERR_OK;
+}
+
+cerr character_anims_pose(anim_lib_t *lib, anim_t ani)
+{
+    static const character_state stays[] = {
+        CS_START, CS_IDLE, CS_MOVING, CS_JUMPING, CS_ASCENDING, CS_LEVITATING, CS_FALLING,
+    };
+    static const character_state waits[] = { CS_WAKING, CS_JUMP_START };
+    anim_t beat = CRES_RET_CERR(anim_lib_hold(lib, 0.0));
+
+    for (size_t i = 0; i < array_size(stays); i++)  CERR_RET_CERR(anim_lib_transition_add_any(lib, stays[i], ani, 0.0));
+    for (size_t i = 0; i < array_size(waits); i++)
+        CERR_RET_CERR(anim_lib_transition_add_any(lib, waits[i], beat, 0.0));
 
     return CERR_OK;
 }

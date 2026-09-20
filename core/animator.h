@@ -24,6 +24,7 @@
 struct entity3d;
 struct model3d;
 struct scene;
+struct joint;
 struct JsonNode;
 struct gpsm_state;
 
@@ -45,13 +46,41 @@ cres_ret(double);
  * enum anim_kind - what a handle refers to
  * @ANIM_CLIP:  a model3d animation, played by keyframe interpolation
  * @ANIM_HOLD:  nothing, for a while: the joints keep what they have
+ * @ANIM_POSE:  a procedural pose class (anim_pose_ops), a rig or a constraint
  * @ANIM_SEQ:   a sequence of the above, played in order
  */
 typedef enum anim_kind {
     ANIM_CLIP,
     ANIM_HOLD,
+    ANIM_POSE,
     ANIM_SEQ,
 } anim_kind;
+
+/**
+ * struct anim_pose_ops - a procedural pose class
+ * @start:  optional; the class is (re)entered on an entity: anchor whatever
+ *          it anchors on (a gait's speed measurement, a constraint's target)
+ * @eval:   write the local TRS of the joints the class owns into @out,
+ *          nr_joints entries laid out as entity3d::joints; on the base layer
+ *          @out is the entity's joints themselves, reset to the bind pose
+ *          beforehand. @t is seconds since start(), @dt since the last eval
+ *          (0 on the first)
+ * @done:   optional; a finite class says it has finished; nullptr: plays
+ *          until stopped or replaced
+ *
+ * @cfg is the definition's configuration, model-level data every entity
+ * shares (nullptr if the class has none); @priv is this entity's binding
+ * (animator_bind()), the instance state: chains, phases, tracked targets.
+ * A class that writes only @out composes with anything; one that reaches
+ * into the entity's joints directly (the rigs, through ik_chain_solve())
+ * is a base-layer source.
+ */
+typedef struct anim_pose_ops {
+    void (*start)(const void *cfg, void *priv, struct entity3d *e);
+    cerr (*eval)(const void *cfg, void *priv, struct entity3d *e, double t, double dt,
+                 struct joint *out);
+    bool (*done)(const void *cfg, void *priv, double t);
+} anim_pose_ops;
 
 /**
  * typedef anim_end_fn - the thing played by animator_play() has ended
@@ -67,6 +96,7 @@ typedef void (*anim_end_fn)(animator_t *a, struct scene *s, void *priv);
 
 struct anim_def;
 struct anim_transition;
+struct anim_binding;
 struct anim_layer;
 
 /**
@@ -83,11 +113,13 @@ TYPE(anim_lib,
 
 /**
  * animator_t - an entity's animation playback
- * @e:      the entity3d it is embedded in
- * @layers: what is playing; [0] is the base layer, created on first play
+ * @e:          the entity3d it is embedded in
+ * @bindings:   the pose classes' instances on this entity (animator_bind())
+ * @layers:     what is playing; [0] is the base layer, created on first play
  */
 TYPE(animator,
     struct entity3d             *e;
+    darray(struct anim_binding, bindings);
     darray(struct anim_layer,   layers);
 );
 
@@ -128,6 +160,18 @@ cres(anim_t) anim_lib_clip(anim_lib_t *lib, const char *name);
  * Return: the handle or CERR_NOMEM
  */
 cres(anim_t) anim_lib_hold(anim_lib_t *lib, double seconds);
+
+/**
+ * anim_lib_pose() - define a procedural pose class
+ * @lib:    the library
+ * @ops:    the class
+ * @cfg:    its model-level configuration, or nullptr
+ *
+ * The same @ops and @cfg are the same handle. Playing it on an entity needs
+ * animator_bind() first.
+ * Return: the handle, CERR_INVALID_ARGUMENTS (no eval) or CERR_NOMEM
+ */
+cres(anim_t) anim_lib_pose(anim_lib_t *lib, const anim_pose_ops *ops, const void *cfg);
 
 /**
  * anim_lib_seq_make() - define an empty sequence
@@ -224,9 +268,31 @@ void animator_init(animator_t *a, struct entity3d *e);
  * animator_done() - free an animator
  * @a:  the animator
  *
- * Called by entity3d_drop().
+ * Called by entity3d_drop(). The bindings' priv is the binders' to free.
  */
 void animator_done(animator_t *a);
+
+/**
+ * animator_bind() - give a pose class its instance on this entity
+ * @a:      the animator
+ * @ani:    an anim_lib_pose() handle
+ * @priv:   the instance, anim_pose_ops' @priv; the caller keeps it alive
+ *          while the class can play here
+ *
+ * Required before @ani, or a sequence containing it, can play on this
+ * entity. Binding again replaces the instance.
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (not a pose class) or CERR_NOMEM
+ */
+cerr animator_bind(animator_t *a, anim_t ani, void *priv);
+
+/**
+ * animator_binding() - a pose class's instance on this entity
+ * @a:      the animator
+ * @ani:    the handle
+ *
+ * Return: what animator_bind() was given, or CERR_NOT_FOUND
+ */
+cresp(void) animator_binding(animator_t *a, anim_t ani);
 
 /**
  * struct anim_play_opts - animator_play() options
@@ -258,7 +324,8 @@ cerr _animator_play_transition(animator_t *a, int from, int to, const anim_play_
  * where the first pose is written.
  * Context: anywhere but from an anim_end_fn of the same layer's outgoing
  * play, where it is fine too: the callback is the last thing that play does
- * Return: CERR_OK or CERR_INVALID_ARGUMENTS (a foreign or empty handle)
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (a foreign or empty handle) or
+ * CERR_INVALID_OPERATION (a pose class in it has no binding here)
  */
 #define animator_play(_a, _ani, args...) _animator_play((_a), (_ani), &(anim_play_opts){ args })
 
@@ -321,9 +388,11 @@ double          animator_speed(animator_t *a, unsigned int layer);
  * @s:  the scene, for the animation clock
  *
  * Starts what animator_play() asked for, writes the current element's pose
- * (a clip's keyframes into the joints, then the skeleton), runs the clip's
- * frame_sfx, and advances: loops a repeating element, moves a sequence on,
- * or fires the end callback once and keeps the pose. An entity whose model
+ * (a clip's keyframes into the joints; a pose class's eval over the bind
+ * pose; then the skeleton, once), runs the clip's frame_sfx, and advances:
+ * loops a repeating element, moves a sequence on (a pose class ends when
+ * its done() says so), or fires the end callback once and keeps the pose.
+ * No pose source calls entity3d_pose_update() itself. An entity whose model
  * has clips and nothing to play idles ("idle", looping, out of phase with
  * its siblings).
  * Context: default_update(), for every entity

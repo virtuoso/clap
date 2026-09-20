@@ -44,7 +44,8 @@ double timeline_progress(const timeline *tl, double now, double duration);
  * @speed:      the new rate; 0 means 1.0
  *
  * The elapsed time is not rescaled: it jumps to (now - t0) * speed. An
- * element that lands past its end restarts at @now.
+ * element that lands past its end restarts at @now; one with no length (a
+ * pose class) never ends and plays on.
  * Return: true if it restarted, so the caller resets per-element state
  */
 bool timeline_set_speed(timeline *tl, double now, double duration, double speed);

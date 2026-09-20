@@ -287,7 +287,5 @@ cerr _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts)
         vec4_dup(parent_rot, new_rot);
     }
 
-    entity3d_pose_update(chain->e);
-
     return CERR_OK;
 }

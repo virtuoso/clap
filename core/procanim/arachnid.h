@@ -8,6 +8,7 @@
 #include "model.h"
 #include "ik.h"
 #include "skeleton.h"
+#include "animator.h"
 #include "procanim/gait.h"
 
 struct scene;
@@ -140,10 +141,10 @@ cerr arachnid_mesh_tank(mesh_t *m, arachnid *a);
 
 /**
  * struct arachnid - an eight-legged walker on IK legs
- * @scene:      the scene, for the animation clock (required)
- * @e:          the entity to drive (required by arachnid_gait_start());
- *              the arachnid does not own it and claims its update
- *              callback and priv pointer
+ * @scene:      the scene the body is in; the rig runs on the animator's
+ *              clock and doesn't read it
+ * @e:          the entity to drive (required by arachnid_gait_init());
+ *              the arachnid does not own it
  * @name:       model and mesh name for arachnid_model(); nullptr picks
  *              "arachnid"
  * @steer:      body driver; nullptr stands in place
@@ -166,8 +167,9 @@ cerr arachnid_mesh_tank(mesh_t *m, arachnid *a);
  * spider, a spider tank and whatever the caller emits: the skeleton,
  * the gait and the leg IK all run off the same body plan. The rest is
  * internal: the joint table arachnid_model() builds, leg IK chains,
- * gait state. arachnid_gait_start() installs the update callback;
- * arachnid_gait_stop() restores everything.
+ * gait state. arachnid_gait_init() builds them; the rig then plays as a
+ * pose class (arachnid_pose_ops) bound to the entity, with the arachnid
+ * as the binding.
  */
 struct arachnid {
     struct scene        *scene;
@@ -188,12 +190,20 @@ struct arachnid {
     gait_leg            feet[ARACHNID_NR_LEGS];
     vec3                pole[ARACHNID_NR_LEGS];  /* per-leg knee-up hint, model space */
     gait                gait;
-    int                 (*orig_update)(entity3d *, void *);
     vec3                prev_pos;
-    double              t0;
-    double              t_last;
     char                names[ARACHNID_NR_JOINTS][16];
 };
+
+/**
+ * arachnid_pose_ops - the walker as a pose class
+ *
+ * anim_lib_pose(lib, &arachnid_pose_ops, nullptr) on the model, then
+ * animator_bind() with an arachnid_gait_init()ed arachnid on each entity.
+ * eval steers if arachnid::steer is set, sits the body on the ground and
+ * poses the legs from how fast it is moving; start re-anchors the speed
+ * measurement.
+ */
+extern const anim_pose_ops arachnid_pose_ops;
 
 /**
  * arachnid_model() - build the rigged body model
@@ -205,7 +215,8 @@ struct arachnid {
  * arachnid_config_init() defaults), run the mesh generator over it and
  * bind the mesh to the bones (skeleton_skin()). The caller wraps the
  * model in a model3dtx (texture and material are the variant's other
- * half), creates the entity and hands it to arachnid_gait_start().
+ * half), creates the entity and binds the rig (arachnid_gait_init(),
+ * arachnid_pose_ops).
  * Context: model3d setup time
  * Return: the rigged model3d (caller owns), or a generator, skinning or
  * build error
@@ -213,21 +224,42 @@ struct arachnid {
 cresp_check(model3d) arachnid_model(arachnid *a, pipeline *pl);
 
 /**
- * arachnid_gait_start() - put the arachnid on its feet
- * @a:  the arachnid, with arachnid::scene and arachnid::e filled; the
- *      entity carries the arachnid_model() model of this same arachnid
- *      and stands where it spawns
+ * arachnid_gait_init() - put the arachnid on its feet
+ * @a:  the arachnid, with arachnid::e filled; the entity carries the
+ *      arachnid_model() model of this same arachnid and stands where it
+ *      spawns
  *
+ * Builds the leg IK chains and the gait state and poses the bind pose.
+ * Nothing moves until the rig plays: anim_lib_pose() it on the model,
+ * animator_bind() it on the entity with @a, animator_play() it.
  * Context: entity setup time
- * Return: CERR_OK, CERR_NOMEM, CERR_INVALID_ARGUMENTS (no skeleton, bad
- * chain) or CERR_INVALID_OPERATION (the entity's priv pointer is taken)
+ * Return: CERR_OK, CERR_NOMEM or CERR_INVALID_ARGUMENTS (no skeleton, bad
+ * chain)
+ */
+cerr_check arachnid_gait_init(arachnid *a);
+
+/**
+ * arachnid_gait_done() - free what arachnid_gait_init() built
+ * @a:  an initialized arachnid; the leg chains are freed
+ */
+void arachnid_gait_done(arachnid *a);
+
+/**
+ * arachnid_gait_start() - put the arachnid on its feet and set it walking
+ * @a:  as for arachnid_gait_init()
+ *
+ * arachnid_gait_init(), then the pose class defined, bound and played on
+ * the entity's base layer, for a rig that is the entity's only animation.
+ * A convenience over the four calls.
+ * Context: entity setup time
+ * Return: as arachnid_gait_init(), or the animator's errors
  */
 cerr_check arachnid_gait_start(arachnid *a);
 
 /**
- * arachnid_gait_stop() - stop walking and release the entity
- * @a:  a started arachnid; the entity's update and priv are restored
- *      and the leg chains freed
+ * arachnid_gait_stop() - stop walking
+ * @a:  a started arachnid; the base layer stops and the leg chains are
+ *      freed
  */
 void arachnid_gait_stop(arachnid *a);
 

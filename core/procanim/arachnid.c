@@ -9,7 +9,9 @@
  * joints. Locomotion mirrors the humanoid: steering drives the body,
  * the generic gait turns its motion into world-space foot targets in an
  * alternating-tetrapod pattern, and one IK chain per leg aims at them
- * with a knee-up pole.
+ * with a knee-up pole. The whole of it is a pose class
+ * (arachnid_pose_ops, core/animator.h): the animator calls it every
+ * frame the rig plays on an entity it is bound to.
  */
 #include <math.h>
 #include "common.h"
@@ -17,6 +19,7 @@
 #include "interp.h"
 #include "primitives.h"
 #include "scene.h"
+#include "animator.h"
 #include "procanim/arachnid.h"
 
 /*
@@ -284,21 +287,20 @@ cresp(model3d) arachnid_model(arachnid *a, pipeline *pl)
     return skeleton_model_new(pl, m, a->skel, ARACHNID_NR_JOINTS, a->name ? : "arachnid");
 }
 
-static int arachnid_update(entity3d *e, void *data)
+/* (re)entered: the speed is measured from here; the gait keeps its phase and its feet */
+static void arachnid_pose_start(const void *cfg, void *priv, entity3d *e)
 {
-    arachnid *a = e->priv;
-    struct scene *s = data;
-    double t = clap_get_current_time(s->clap_ctx);
+    arachnid *a = priv;
 
-    if (!a->t0) {
-        a->t0 = t;
-        a->t_last = 0.0;
-        transform_pos(&e->xform, a->prev_pos);
-    }
-    t -= a->t0;
+    transform_pos(&e->xform, a->prev_pos);
+}
 
-    float dt = (float)(t - a->t_last);
-    a->t_last = t;
+/* one frame: steer, sit the body on the ground, step, aim the legs */
+static cerr arachnid_pose_eval(const void *cfg, void *priv, entity3d *e, double t, double dt_secs,
+                               struct joint *out)
+{
+    arachnid *a = priv;
+    float dt = (float)dt_secs;
 
     if (a->steer)   a->steer(a, t, dt);
 
@@ -326,8 +328,6 @@ static int arachnid_update(entity3d *e, void *data)
     cerr err = gait_update(&a->gait, pos, forward, right, a->speed, dt);
     if (IS_CERR(err))   warn_once("gait_update failed\n");
 
-    entity3d_pose_reset(e);
-
     for (int f = 0; f < ARACHNID_NR_LEGS; f++) {
         vec3 target;
 
@@ -338,17 +338,19 @@ static int arachnid_update(entity3d *e, void *data)
         if (IS_CERR(err))   warn_once("leg IK failed\n");
     }
 
-    return a->orig_update ? a->orig_update(e, data) : 0;
+    return CERR_OK;
 }
 
-cerr arachnid_gait_start(arachnid *a)
+const anim_pose_ops arachnid_pose_ops = {
+    .start  = arachnid_pose_start,
+    .eval   = arachnid_pose_eval,
+};
+
+cerr arachnid_gait_init(arachnid *a)
 {
     entity3d *e = a->e;
 
-    if (!e || !a->scene || !e->joints || !a->skel[0].name)
-        return CERR_INVALID_ARGUMENTS;
-    if (e->priv)
-        return CERR_INVALID_OPERATION;
+    if (!e || !e->joints || !a->skel[0].name)   return CERR_INVALID_ARGUMENTS;
 
     a->gait = (gait){
         .legs           = a->feet,
@@ -383,30 +385,38 @@ cerr arachnid_gait_start(arachnid *a)
 
     vec3_dup(a->prev_pos, pos);
     a->speed = 0.0f;
-    a->t0 = 0.0;
-    a->t_last = 0.0;
 
     entity3d_pose_reset(e);
     entity3d_pose_update(e);
 
-    a->orig_update = e->update;
-    e->update = arachnid_update;
-    e->priv = a;
+    return CERR_OK;
+}
+
+void arachnid_gait_done(arachnid *a)
+{
+    for (int f = 0; f < ARACHNID_NR_LEGS; f++)  ik_chain_done(&a->legs[f]);
+}
+
+cerr arachnid_gait_start(arachnid *a)
+{
+    entity3d *e = a->e;
+
+    CERR_RET_CERR(arachnid_gait_init(a));
+
+    animator_t *an = entity3d_animator(e);
+    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(e->txmodel->model), &arachnid_pose_ops, nullptr),
+                          { arachnid_gait_done(a); return cerr_error_cres(__resp); });
+
+    CERR_RET(animator_bind(an, ani, a), { arachnid_gait_done(a); return __cerr; });
+    CERR_RET(animator_play(an, ani), { arachnid_gait_done(a); return __cerr; });
 
     return CERR_OK;
 }
 
 void arachnid_gait_stop(arachnid *a)
 {
-    entity3d *e = a->e;
+    if (!a->e)  return;
 
-    if (!e || e->update != arachnid_update)
-        return;
-
-    e->update = a->orig_update;
-    e->priv = nullptr;
-    a->orig_update = nullptr;
-
-    for (int f = 0; f < ARACHNID_NR_LEGS; f++)
-        ik_chain_done(&a->legs[f]);
+    animator_stop(entity3d_animator(a->e), 0);
+    arachnid_gait_done(a);
 }

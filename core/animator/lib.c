@@ -77,6 +77,24 @@ cres(anim_t) anim_lib_hold(anim_lib_t *lib, double seconds)
     return cres_val(anim_t, ani);
 }
 
+cres(anim_t) anim_lib_pose(anim_lib_t *lib, const anim_pose_ops *ops, const void *cfg)
+{
+    if (!ops || !ops->eval)     return cres_error(anim_t, CERR_INVALID_ARGUMENTS);
+
+    /* the same class over the same configuration is the same handle */
+    struct anim_def *def;
+    darray_for_each(def, lib->defs)
+        if (def->kind == ANIM_POSE && def->pose.ops == ops && def->pose.cfg == cfg)
+            return cres_val(anim_t, (anim_t)(def - lib->defs.x));
+
+    anim_t ani = CRES_RET_SCALAR(def_add(lib, ANIM_POSE), anim_t);
+
+    anim_lib_def(lib, ani)->pose.ops = ops;
+    anim_lib_def(lib, ani)->pose.cfg = cfg;
+
+    return cres_val(anim_t, ani);
+}
+
 cres(anim_t) anim_lib_seq_make(anim_lib_t *lib)
 {
     anim_t ani = CRES_RET_SCALAR(def_add(lib, ANIM_SEQ), anim_t);
@@ -175,6 +193,7 @@ const char *anim_lib_name(anim_lib_t *lib, anim_t ani)
     switch (def->kind) {
         case ANIM_CLIP: return lib->model->anis.x[def->clip.index].name;
         case ANIM_HOLD: return "hold";
+        case ANIM_POSE: return "pose";
         case ANIM_SEQ:  return "sequence";
     }
 

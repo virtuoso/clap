@@ -8,6 +8,7 @@
 #include "model.h"
 #include "ik.h"
 #include "skeleton.h"
+#include "animator.h"
 #include "procanim/gait.h"
 
 struct scene;
@@ -230,12 +231,14 @@ cerr humanoid_mesh_cubes(mesh_t *m, humanoid *h);
 
 /**
  * struct humanoid - a biped walking, running and idling on IK legs
- * @scene:      the scene, for the animation clock (required)
+ * @scene:      the scene the body is in; the rig runs on the animator's
+ *              clock and doesn't read it
  * @e:          the entity to drive (required); the humanoid does not
- *              own it and claims its update callback and priv pointer
+ *              own it
  * @name:       model and mesh name for humanoid_model(); nullptr picks
  *              "humanoid"
- * @steer:      body driver; nullptr stands in place
+ * @steer:      body driver; nullptr stands in place, which is what a
+ *              biped somebody else moves (a character) wants
  * @steer_priv: the steer callback's own state
  * @ground:     ground height probe for the body and the feet; nullptr:
  *              flat ground at 0
@@ -263,10 +266,11 @@ cerr humanoid_mesh_cubes(mesh_t *m, humanoid *h);
  * walk's and the run's authored speeds it blends the two tunings
  * continuously. The rest is internal: the joint table humanoid_model()
  * builds, leg IK chains, gait state, blend levels.
- * humanoid_gait_start() resolves the legs through the semantic
- * JOINT_FOOT_LEFT/JOINT_FOOT_RIGHT joint types, the arms and spine by
- * name/range from the walk configuration, installs the update
- * callback; humanoid_gait_stop() restores everything.
+ * humanoid_gait_init() resolves the legs through the semantic
+ * JOINT_FOOT_LEFT/JOINT_FOOT_RIGHT joint types and the arms and spine
+ * by name/range from the walk configuration; the rig then plays as a
+ * pose class (humanoid_pose_ops) bound to the entity, with the humanoid
+ * as the binding.
  */
 struct humanoid {
     struct scene    *scene;
@@ -289,15 +293,22 @@ struct humanoid {
     gait_leg        feet[2];
     gait            gait;
     int             shoulders[2];
-    int             (*orig_update)(entity3d *, void *);
     vec3            prev_pos;
     float           speed;
     float           blend;      /* 0: walk, 1: run */
     float           activity;   /* 0: idle, 1: moving */
     bool            idling;
-    double          t0;
-    double          t_last;
 };
+
+/**
+ * humanoid_pose_ops - the biped as a pose class
+ *
+ * anim_lib_pose(lib, &humanoid_pose_ops, nullptr) on the model, then
+ * animator_bind() with a humanoid_gait_init()ed humanoid on each entity.
+ * eval steers if humanoid::steer is set and poses the body from how fast
+ * it is moving; start re-anchors the speed measurement.
+ */
+extern const anim_pose_ops humanoid_pose_ops;
 
 /**
  * humanoid_model() - build the rigged body model
@@ -310,7 +321,7 @@ struct humanoid {
  * a mesh the generator left unskinned is bound to the bones
  * (skeleton_skin()). The caller wraps the model in a model3dtx (texture
  * and material are the variant's other half), creates the entity and
- * hands it to humanoid_gait_start().
+ * binds the rig (humanoid_gait_init(), humanoid_pose_ops).
  * Context: model3d setup time
  * Return: the rigged model3d (caller owns), or a generator, skinning or
  * build error
@@ -318,23 +329,44 @@ struct humanoid {
 cresp_check(model3d) humanoid_model(humanoid *h, pipeline *pl);
 
 /**
- * humanoid_gait_start() - put a biped on its feet
- * @h:  the humanoid, with humanoid::scene, humanoid::e and optionally
- *      the tunings (humanoid::walk, humanoid::run, humanoid::idle) and
- *      humanoid::steer filled
+ * humanoid_gait_init() - put a biped on its feet
+ * @h:  the humanoid, with humanoid::e and optionally the tunings
+ *      (humanoid::walk, humanoid::run, humanoid::idle) and humanoid::steer
+ *      filled
  *
+ * Builds the biped: the leg IK chains, the arm joints, the gait state and
+ * the bind pose. Nothing moves until the rig plays: anim_lib_pose() it on
+ * the model, animator_bind() it on the entity with @h, animator_play() it,
+ * or let a transition table do the last (character_anims_pose()).
  * Context: entity setup time
- * Return: CERR_OK, CERR_NOMEM, CERR_INVALID_ARGUMENTS (no skeleton, no
- * foot joints, bad chain) or CERR_INVALID_OPERATION (the entity's priv
- * pointer is taken)
+ * Return: CERR_OK, CERR_NOMEM or CERR_INVALID_ARGUMENTS (no skeleton, no
+ * foot joints, bad chain)
+ */
+cerr_check humanoid_gait_init(humanoid *h);
+
+/**
+ * humanoid_gait_start() - put a biped on its feet and set it walking
+ * @h:  as for humanoid_gait_init()
+ *
+ * humanoid_gait_init(), then the pose class defined, bound and played on
+ * the entity's base layer, for a rig that is the entity's only animation.
+ * A convenience over the four calls.
+ * Context: entity setup time
+ * Return: as humanoid_gait_init(), or the animator's errors
  */
 cerr_check humanoid_gait_start(humanoid *h);
 
 /**
- * humanoid_gait_stop() - stop walking and release the entity
- * @h:  a started humanoid; the entity's update and priv are restored
- *      and the leg chains freed
+ * humanoid_gait_stop() - stop walking
+ * @h:  a started humanoid; the base layer stops and the leg chains are
+ *      freed
  */
 void humanoid_gait_stop(humanoid *h);
+
+/**
+ * humanoid_gait_done() - free what humanoid_gait_init() built
+ * @h:  an initialized humanoid; the leg chains are freed
+ */
+void humanoid_gait_done(humanoid *h);
 
 #endif /* __CLAP_PROCANIM_HUMANOID_H__ */

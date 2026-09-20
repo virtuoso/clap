@@ -1786,6 +1786,9 @@ static int default_update(entity3d *e, void *data)
         ))
         phys_body_update(e);
 
+    /* the procedural rigs place the body as they pose it: before its matrix */
+    if (scene)  animator_update(&e->animator, scene);
+
     if (!parent_transform_apply(e) && transform_is_updated(&e->xform)) {
         transform_clear_updated(&e->xform);
         e->seq++;
@@ -1830,7 +1833,6 @@ static int default_update(entity3d *e, void *data)
         }
     }
 
-    animator_update(&e->animator, scene);
     if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_debug_draw(scene, e->phys_body);
     if (clap_get_render_options(scene->clap_ctx)->overlay_draws_enabled)

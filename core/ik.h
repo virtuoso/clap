@@ -85,9 +85,11 @@ cerr_check _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts);
  * @_chain: the chain
  * @args:   &struct ik_solve_opts field initializers
  *
- * Solve the chain from its rest configuration with FABRIK, rotate every
- * joint so its bone tracks the solved segment and recompute the
- * skeleton's pose via entity3d_pose_update(). With a pole, every
+ * Solve the chain from its rest configuration with FABRIK and rotate
+ * every joint so its bone tracks the solved segment. Local rotations
+ * only: the caller recomputes the skeleton (entity3d_pose_update())
+ * once all of the frame's pose writers are done, which for a pose class
+ * (core/animator.h) the animator does. With a pole, every
  * joint's roll is anchored to the bend plane (spanned by the
  * root-to-target line and the pole), making the roll a function of the
  * current pose alone; without one, rotations are minimal arcs from the
@@ -95,7 +97,7 @@ cerr_check _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts);
  * chain took and drifts under cyclic motion. The joints' local
  * rotations are replaced wholesale, so the chain doesn't layer on top
  * of a playing animation.
- * Context: anywhere; typically an entity update callback
+ * Context: anywhere between the frame's pose reset and update
  * Return: CERR_OK or CERR_INVALID_ARGUMENTS
  */
 #define ik_chain_solve(_chain, args...) _ik_chain_solve((_chain), &(ik_solve_opts){ args })

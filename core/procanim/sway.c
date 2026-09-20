@@ -3,12 +3,12 @@
  * Wind sway for joint chains: layered sines (base sway, gust harmonic,
  * tip-weighted flutter, twist), phase-lagged along the chain.
  * chain_sway() writes local joint rotations between the caller's pose
- * reset and update; sway_rig wraps it into a self-updating entity.
+ * reset and update; sway_pose_ops is it as a pose class (core/animator.h)
+ * over a sway_rig binding, and sway_rig_start() plays that on an entity.
  */
 #include <math.h>
 #include "common.h"
-#include "clap.h"
-#include "scene.h"
+#include "animator.h"
 #include "sway.h"
 
 #define SWAY_AMPLITUDE      0.122f  /* 7 degrees */
@@ -97,53 +97,37 @@ cerr chain_sway(entity3d *e, double t, const sway_config *cfg)
     return CERR_OK;
 }
 
-static int sway_rig_update(entity3d *e, void *data)
+static cerr sway_pose_eval(const void *cfg, void *priv, entity3d *e, double t, double dt,
+                           struct joint *out)
 {
-    sway_rig *rig = e->priv;
-    struct scene *s = data;
-    double t = clap_get_current_time(s->clap_ctx);
+    sway_rig *rig = priv;
 
-    if (!rig->t0)
-        rig->t0 = t;
-
-    entity3d_pose_reset(e);
-
-    cerr err = chain_sway(e, t - rig->t0, &rig->cfg);
-    if (IS_CERR(err))
-        warn_once("chain_sway failed\n");
-
-    entity3d_pose_update(e);
-
-    return rig->orig_update ? rig->orig_update(e, data) : 0;
+    return chain_sway(e, t, &rig->cfg);
 }
+
+const anim_pose_ops sway_pose_ops = {
+    .eval   = sway_pose_eval,
+};
 
 cerr sway_rig_start(sway_rig *rig)
 {
     entity3d *e = rig->e;
 
-    if (!e || !rig->scene || !e->joints)
-        return CERR_INVALID_ARGUMENTS;
-    if (e->priv)
-        return CERR_INVALID_OPERATION;
+    if (!e || !e->joints)   return CERR_INVALID_ARGUMENTS;
 
     if (rig->cfg.amplitude == 0.0f) sway_config_init(&rig->cfg);
 
-    rig->t0 = 0.0;
-    rig->orig_update = e->update;
-    e->update = sway_rig_update;
-    e->priv = rig;
+    animator_t *a = entity3d_animator(e);
+    anim_t ani = CRES_RET_CERR(anim_lib_pose(model3d_anim_lib(e->txmodel->model), &sway_pose_ops, nullptr));
 
-    return CERR_OK;
+    CERR_RET_CERR(animator_bind(a, ani, rig));
+
+    return animator_play(a, ani);
 }
 
 void sway_rig_stop(sway_rig *rig)
 {
-    entity3d *e = rig->e;
+    if (!rig->e)    return;
 
-    if (!e || e->update != sway_rig_update)
-        return;
-
-    e->update = rig->orig_update;
-    e->priv = nullptr;
-    rig->orig_update = nullptr;
+    animator_stop(entity3d_animator(rig->e), 0);
 }

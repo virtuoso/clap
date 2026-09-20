@@ -9,15 +9,16 @@
  * measured speed picks the animation (idle breathing, walk, run and
  * everything in between by blending the two tunings), gait turns time
  * into foot targets, IK turns targets into leg poses, arms swing in
- * counter-phase and the spine leans into the run. The entity update
- * callback is installed by humanoid_gait_start() and chains to
- * whatever was there before.
+ * counter-phase and the spine leans into the run. The whole of it is a
+ * pose class (humanoid_pose_ops, core/animator.h): the animator calls
+ * it every frame the rig plays on an entity it is bound to.
  */
 #include <math.h>
 #include "common.h"
 #include "clap.h"
 #include "interp.h"
 #include "scene.h"
+#include "animator.h"
 #include "procanim/humanoid.h"
 #include "procanim/sway.h"
 
@@ -231,26 +232,18 @@ cresp(model3d) humanoid_model(humanoid *h, pipeline *pl)
     return skeleton_model_new(pl, m, h->skel, HUMANOID_NR_JOINTS, h->name ? : "humanoid");
 }
 
-static int humanoid_update(entity3d *e, void *data)
+/*
+ * The pose pass: measure how fast the body is going, pick the animation
+ * from that and lay it over the skeleton. @own_vertical says whether the
+ * biped finds the ground and puts the body on it, or only adds the crouch
+ * and the bob to wherever whoever placed the body left it this frame.
+ */
+static void humanoid_pose(humanoid *h, double t, double dt_secs, bool own_vertical)
 {
-    humanoid *h = e->priv;
-    struct scene *s = data;
-    double t = clap_get_current_time(s->clap_ctx);
-
-    if (!h->t0) {
-        h->t0 = t;
-        h->t_last = 0.0;
-        transform_pos(&e->xform, h->prev_pos);
-    }
-    t -= h->t0;
-
-    float dt = (float)(t - h->t_last);
-    h->t_last = t;
-
-    if (h->steer)
-        h->steer(h, t, dt);
-
+    entity3d *e = h->e;
+    float dt = (float)dt_secs;
     vec3 pos;
+
     transform_pos(&e->xform, pos);
 
     /* speed measured from the body's own horizontal motion */
@@ -283,9 +276,21 @@ static int humanoid_update(entity3d *e, void *data)
                 sinf(4.0f * (float)M_PI * h->gait.phase)
               + h->idle.bob * (1.0f - h->activity) *
                 sinf((float)t * h->idle.bob_frequency);
-    float ground = h->ground ? h->ground(h->ground_priv, pos[0], pos[2]) : 0.0f;
+    float base = linf_interp(h->walk.base_y, h->run.base_y, h->blend);
 
-    pos[1] = ground + linf_interp(h->walk.base_y, h->run.base_y, h->blend) + bob;
+    if (own_vertical) {
+        float ground = h->ground ? h->ground(h->ground_priv, pos[0], pos[2]) : 0.0f;
+
+        pos[1] = ground + base + bob;
+    } else {
+        /*
+         * Whoever moves the body owns the ground: character_update() has
+         * already put it where the physics left it this frame, so the
+         * crouch and the bob ride on top of that and are re-derived
+         * from it next frame rather than accumulating.
+         */
+        pos[1] += base + bob;
+    }
     entity3d_position(e, pos);
 
     vec3 forward = { 0.0f, 0.0f, 1.0f }, right = { 1.0f, 0.0f, 0.0f };
@@ -356,18 +361,46 @@ static int humanoid_update(entity3d *e, void *data)
                                               h->walk.knee_dir[2] });
         if (IS_CERR(err))   warn_once("leg IK failed\n");
     }
-
-    return h->orig_update ? h->orig_update(e, data) : 0;
 }
 
-cerr humanoid_gait_start(humanoid *h)
+/* (re)entered: the speed is measured from here; the gait keeps its phase and its feet */
+static void humanoid_pose_start(const void *cfg, void *priv, entity3d *e)
+{
+    humanoid *h = priv;
+
+    transform_pos(&e->xform, h->prev_pos);
+}
+
+/*
+ * One frame: steer if the rig owns the body's motion, then pose it. Whoever
+ * places the body outright owns the vertical, and a driver with a physics
+ * body under it does (character_update() syncs the entity off the body
+ * before the pose runs); one that only walks the body around in the
+ * horizontal leaves the ground to the humanoid, as if it were steering
+ * itself.
+ */
+static cerr humanoid_pose_eval(const void *cfg, void *priv, entity3d *e, double t, double dt,
+                               struct joint *out)
+{
+    humanoid *h = priv;
+
+    if (h->steer)   h->steer(h, t, (float)dt);
+
+    humanoid_pose(h, t, dt, !entity3d_matches(e, ENTITY3D_HAS_PHYSICS));
+
+    return CERR_OK;
+}
+
+const anim_pose_ops humanoid_pose_ops = {
+    .start  = humanoid_pose_start,
+    .eval   = humanoid_pose_eval,
+};
+
+cerr humanoid_gait_init(humanoid *h)
 {
     entity3d *e = h->e;
 
-    if (!e || !h->scene || !e->joints)
-        return CERR_INVALID_ARGUMENTS;
-    if (e->priv)
-        return CERR_INVALID_OPERATION;
+    if (!e || !e->joints)   return CERR_INVALID_ARGUMENTS;
 
     if (h->walk.cycle == 0.0f)          gait_config_init(&h->walk);
     if (h->run.cycle == 0.0f)           gait_config_run_init(&h->run);
@@ -421,30 +454,39 @@ cerr humanoid_gait_start(humanoid *h)
     h->blend = 0.0f;
     h->activity = 1.0f;
     h->idling = false;
-    h->t0 = 0.0;
-    h->t_last = 0.0;
 
     entity3d_pose_reset(e);
     entity3d_pose_update(e);
 
-    h->orig_update = e->update;
-    e->update = humanoid_update;
-    e->priv = h;
+    return CERR_OK;
+}
+
+void humanoid_gait_done(humanoid *h)
+{
+    ik_chain_done(&h->legs[0]);
+    ik_chain_done(&h->legs[1]);
+}
+
+cerr humanoid_gait_start(humanoid *h)
+{
+    entity3d *e = h->e;
+
+    CERR_RET_CERR(humanoid_gait_init(h));
+
+    animator_t *a = entity3d_animator(e);
+    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(e->txmodel->model), &humanoid_pose_ops, nullptr),
+                          { humanoid_gait_done(h); return cerr_error_cres(__resp); });
+
+    CERR_RET(animator_bind(a, ani, h), { humanoid_gait_done(h); return __cerr; });
+    CERR_RET(animator_play(a, ani), { humanoid_gait_done(h); return __cerr; });
 
     return CERR_OK;
 }
 
 void humanoid_gait_stop(humanoid *h)
 {
-    entity3d *e = h->e;
+    if (!h->e)  return;
 
-    if (!e || e->update != humanoid_update)
-        return;
-
-    e->update = h->orig_update;
-    e->priv = nullptr;
-    h->orig_update = nullptr;
-
-    ik_chain_done(&h->legs[0]);
-    ik_chain_done(&h->legs[1]);
+    animator_stop(entity3d_animator(h->e), 0);
+    humanoid_gait_done(h);
 }
