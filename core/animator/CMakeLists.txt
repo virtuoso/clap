@@ -9,3 +9,4 @@
 clap_subsystem_library(clap_animator lib.c json.c character-anims.c animator.c timeline.c)
 
 clap_subsystem_test(animator_tests timeline-test.c timeline.c)
+clap_subsystem_test(anim_lib_tests lib-test.c lib.c json.c ../json.c)
