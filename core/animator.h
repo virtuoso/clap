@@ -24,6 +24,8 @@
 struct entity3d;
 struct model3d;
 struct scene;
+struct JsonNode;
+struct gpsm_state;
 
 TYPE_FORWARD(anim_lib);
 TYPE_FORWARD(animator);
@@ -122,6 +124,7 @@ cres(anim_t) anim_lib_clip(anim_lib_t *lib, const char *name);
  * @lib:        the library
  * @seconds:    how long; 0 ends on the next update, a beat
  *
+ * The same length is the same handle.
  * Return: the handle or CERR_NOMEM
  */
 cres(anim_t) anim_lib_hold(anim_lib_t *lib, double seconds);
@@ -181,6 +184,24 @@ cerr anim_lib_transition_add_any(anim_lib_t *lib, int to, anim_t ani, double fad
  * Return: the handle or CERR_NOT_FOUND
  */
 cres(anim_t) anim_lib_transition_find(anim_lib_t *lib, int to, int from, double *fade);
+
+/**
+ * anim_lib_transitions_from_json() - the transition table from a scene's JSON
+ * @lib:        the library
+ * @sequences:  the "sequences" object: state name or "from>to" -> an array of
+ *              clip names, "*" after a name for repeat (core/animator/json.c)
+ * @fade:       the cross-fade seconds every entry gets
+ * @states:     the machine's states, for their names
+ * @nr_states:  how many
+ *
+ * Clips are looked up under the names they have at the call, so this comes
+ * after the scene's "animations" renames. An entry naming a clip the model
+ * lacks is left out with a warning; the rest load.
+ * Return: CERR_OK, CERR_PARSE_FAILED (a key or a value of the wrong shape, an
+ * unknown state) or CERR_NOMEM
+ */
+cerr anim_lib_transitions_from_json(anim_lib_t *lib, struct JsonNode *sequences, double fade,
+                                    const struct gpsm_state *states, unsigned int nr_states);
 
 /* how many definitions and transitions the library holds */
 unsigned int anim_lib_nr(anim_lib_t *lib);

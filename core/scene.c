@@ -15,6 +15,7 @@
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
+#include "animator/character-anims.h"
 #include "nav/roamer.h"
 #include "noise.h"
 #include "scene.h"
@@ -1681,8 +1682,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
     bool outline_exclude = false, fix_origin = false, can_levitate = false, nm_hazard = false;
-    JsonNode *p, *ent = NULL, *ch = NULL, *phys = NULL, *anis = NULL, *sfx = NULL;
+    JsonNode *p, *ent = nullptr, *ch = nullptr, *phys = nullptr, *anis = nullptr, *sfx = nullptr, *seqs = nullptr;
     geom_class class = GEOM_TRIMESH;
+    double fade = 0.0;
     int motion_segments = 8;
     phys_type ptype = PHYS_GEOM;
     model3dtx  *txm;
@@ -1717,6 +1719,10 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             ch = p->children.head;
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "animations"))
             anis = p;
+        else if (p->tag == JSON_OBJECT && !strcmp(p->key, "sequences"))
+            seqs = p;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "fade"))
+            fade = p->number_;
         else if (p->tag == JSON_OBJECT && !strcmp(p->key, "sfx"))
             sfx = p;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "speed"))
@@ -2049,8 +2055,8 @@ light_done:
 
             scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, !!phys);
 
-            if (entity_animated(e) && anis) {
-                for (p = anis->children.head; p; p = p->next) {
+            if (entity_animated(e)) {
+                for (p = anis ? anis->children.head : nullptr; p; p = p->next) {
                     if (p->tag != JSON_STRING)
                         continue;
 
@@ -2069,6 +2075,22 @@ light_done:
                             m->anis.x[idx].frame_sfx = animation_sfx[i].frame_sfx;
                             break;
                         }
+                }
+
+                /*
+                 * What the character plays in each state, from the scene's
+                 * "sequences" or the default table; the clips have their
+                 * semantic names now. Once per model: every character of it
+                 * shares the library.
+                 */
+                if (c) {
+                    anim_lib_t *lib = model3d_anim_lib(e->txmodel->model);
+
+                    if (!anim_lib_nr_transitions(lib))
+                        CERR_RET(seqs ?
+                                 anim_lib_transitions_from_json(lib, seqs, fade, character_states, CS_NR) :
+                                 character_anims_baked(lib),
+                                 warn("'%s': animations: %s\n", name, cerr_str(__cerr.err)));
                 }
 
                 if (c &&

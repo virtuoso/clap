@@ -64,6 +64,12 @@ cres(anim_t) anim_lib_clip(anim_lib_t *lib, const char *name)
 
 cres(anim_t) anim_lib_hold(anim_lib_t *lib, double seconds)
 {
+    /* the same hold is the same handle, as with clips */
+    struct anim_def *def;
+    darray_for_each(def, lib->defs)
+        if (def->kind == ANIM_HOLD && def->hold.seconds == seconds)
+            return cres_val(anim_t, (anim_t)(def - lib->defs.x));
+
     anim_t ani = CRES_RET_SCALAR(def_add(lib, ANIM_HOLD), anim_t);
 
     anim_lib_def(lib, ani)->hold.seconds = seconds;

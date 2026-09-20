@@ -22,6 +22,9 @@ typedef enum character_state {
     CS_NR,
 } character_state;
 
+/* the state machine's table, for its names (anim_lib_transitions_from_json()) */
+extern const struct gpsm_state character_states[CS_NR];
+
 #define POS_HISTORY_MAX 8
 
 struct character {
@@ -94,7 +97,9 @@ cresp(character) entity3d_character(entity3d *e);
  * self-transition and the initial enter play nothing: the first because
  * restarting a looping idle is a visible pop, the second so the idle
  * fallback can phase the clip. A transition the library doesn't have plays
- * nothing either; character_anims_playable() says so beforehand.
+ * nothing either, character_anims_playable() says so beforehand, unless @to
+ * is a state the character leaves on the end callback: that plays a zero
+ * hold, so a body with no clips (the golem's) wakes and jumps too.
  * Context: a gpsm enter callback
  * Return: @to
  */
@@ -106,6 +111,8 @@ character_state character_anims_enter(struct character *ch, character_state from
  * @from:   the state being left
  * @to:     the state being entered
  *
+ * A model with no table at all has nothing to refuse with: everything is
+ * playable for it.
  * Context: a gpsm guard, to refuse a transition with nothing to play it
  */
 bool character_anims_playable(struct character *ch, character_state from, character_state to);

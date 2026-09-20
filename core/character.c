@@ -158,104 +158,44 @@ static void character_transition_done(animator_t *a, struct scene *s, void *priv
     }
 }
 
-static cerr character_anims_baked(anim_lib_t *lib);
-
-/*
- * The model's library, its transition table built on first use. The table
- * binds clip names, and the scene loader renames the model's clips to the
- * names it uses after the character exists, so it can't be built at
- * character_make(); the first transition happens at runtime, when the
- * model is final. A model with no matching clips gets an empty table and
- * the same, cheap, attempt at every transition.
- */
-static anim_lib_t *character_anims_lib(struct character *ch)
+/* the states the character leaves when what they play ends */
+static bool character_state_waits(character_state s)
 {
-    anim_lib_t *lib = model3d_anim_lib(ch->entity->txmodel->model);
-
-    if (!anim_lib_nr_transitions(lib))
-        CERR_RET(character_anims_baked(lib), warn_once("character %s: animations: %s\n",
-                                                        entity_name(ch->entity), cerr_str(__cerr.err)));
-
-    return lib;
+    return s == CS_WAKING || s == CS_JUMP_START;
 }
 
 character_state character_anims_enter(struct character *ch, character_state from, character_state to)
 {
+    animator_t *a = entity3d_animator(ch->entity);
+
     if (from == to || (int)from == GPSM_NO_STATE)   return to;
 
-    character_anims_lib(ch);
-    animator_play_transition(entity3d_animator(ch->entity), from, to,
-                             .end = character_transition_done, .end_priv = ch);
+    cerr err = animator_play_transition(a, from, to, .end = character_transition_done, .end_priv = ch);
+
+    /*
+     * A state the character leaves on the end callback can't wait for a
+     * clip the model doesn't have: a zero hold ends at the next update
+     * instead. A body with no clips at all wakes and jumps this way.
+     */
+    if (IS_CERR_CODE(err, CERR_NOT_FOUND) && character_state_waits(to)) {
+        anim_t hold = CRES_RET(anim_lib_hold(animator_lib(a), 0.0), return to);
+
+        animator_play(a, hold, .end = character_transition_done, .end_priv = ch);
+    }
 
     return to;
 }
 
 bool character_anims_playable(struct character *ch, character_state from, character_state to)
 {
-    cres(anim_t) ani = anim_lib_transition_find(character_anims_lib(ch), to, from, nullptr);
+    anim_lib_t *lib = model3d_anim_lib(ch->entity->txmodel->model);
+
+    /* nothing to play, nothing to refuse with */
+    if (!anim_lib_nr_transitions(lib))  return true;
+
+    cres(anim_t) ani = anim_lib_transition_find(lib, to, from, nullptr);
 
     return !IS_CERR(ani);
-}
-
-/* [@lead_in once, @loop forever]; either may be left out */
-static cres(anim_t) baked_seq(anim_lib_t *lib, const char *lead_in, const char *loop)
-{
-    /* the clips first: a row the model can't fill leaves nothing behind */
-    anim_t in = lead_in ? CRES_RET_SCALAR(anim_lib_clip(lib, lead_in), anim_t) : 0;
-    anim_t lp = loop ? CRES_RET_SCALAR(anim_lib_clip(lib, loop), anim_t) : 0;
-    anim_t seq = CRES_RET_SCALAR(anim_lib_seq_make(lib), anim_t);
-
-    if (lead_in)    CERR_RET_SCALAR(anim_lib_seq_push(lib, seq, in, false), anim_t);
-    if (loop)       CERR_RET_SCALAR(anim_lib_seq_push(lib, seq, lp, true), anim_t);
-
-    return cres_val(anim_t, seq);
-}
-
-/*
- * The default table: the clip names the character's models have always
- * carried, one sequence per state transition. A transition whose clips the
- * model lacks is left out, so character_anims_enter() plays nothing for it,
- * and what plays goes on. LEVITATING
- * has no entry on purpose: the fall clip keeps playing through it.
- */
-static cerr character_anims_baked(anim_lib_t *lib)
-{
-    static const struct {
-        character_state to;
-        character_state from;
-        bool            any;        /* entered from anywhere */
-        const char      *lead_in;   /* played once first, if set */
-        const char      *loop;      /* then this forever, if set */
-    } table[] = {
-        { .to = CS_START,      .any = true,          .loop = "start" },
-        { .to = CS_WAKING,     .any = true,          .lead_in = "start_to_idle" },
-        { .to = CS_IDLE,       .from = CS_WAKING,    .loop = "idle" },
-        { .to = CS_IDLE,       .from = CS_MOVING,    .lead_in = "motion_stop",    .loop = "idle" },
-        { .to = CS_IDLE,       .from = CS_JUMPING,   .lead_in = "jump_to_idle",   .loop = "idle" },
-        { .to = CS_IDLE,       .from = CS_FALLING,   .lead_in = "fall_to_idle",   .loop = "idle" },
-        { .to = CS_IDLE,       .any = true,          .loop = "idle" },
-        { .to = CS_MOVING,     .from = CS_IDLE,      .lead_in = "motion_start",   .loop = "motion" },
-        { .to = CS_MOVING,     .any = true,          .lead_in = "jump_to_motion", .loop = "motion" },
-        { .to = CS_JUMP_START, .from = CS_IDLE,      .lead_in = "idle_to_jump" },
-        { .to = CS_JUMP_START, .from = CS_MOVING,    .lead_in = "motion_to_jump" },
-        { .to = CS_JUMPING,    .any = true,          .loop = "jump" },
-        { .to = CS_ASCENDING,  .any = true,          .loop = "fall" },
-        { .to = CS_FALLING,    .any = true,          .loop = "fall" },
-    };
-
-    for (size_t i = 0; i < array_size(table); i++) {
-        cres(anim_t) seq = baked_seq(lib, table[i].lead_in, table[i].loop);
-
-        if (IS_CERR_CODE(seq, CERR_NOT_FOUND))  continue;
-        if (IS_CERR(seq))                       return cerr_error_cres(seq);
-
-        if (table[i].any)
-            CERR_RET_CERR(anim_lib_transition_add_any(lib, table[i].to, seq.val, 0.0));
-        else
-            CERR_RET_CERR(anim_lib_transition_add(lib, table[i].to, table[i].from, seq.val, 0.0));
-    }
-
-    return CERR_OK;
 }
 
 void character_set_moved(struct character *c)
@@ -562,7 +502,7 @@ static gpsm_state_t cs_falling_enter(struct gpsm *sm, void *priv, gpsm_state_t f
  * LEVITATING never idle (the windup ends in a jump, a hover ends in a fall),
  * and IDLE lists itself only so that cs_moving_enter() can fall back to it.
  */
-static const struct gpsm_state character_states[CS_NR] = {
+const struct gpsm_state character_states[CS_NR] = {
     [CS_START]      = { .name = "start",      .enter = cs_start_enter,
                         .valid_from = GPSM_FROM(CS_IDLE) },
     [CS_WAKING]     = { .name = "waking",     .enter = cs_waking_enter,
