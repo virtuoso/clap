@@ -14,6 +14,7 @@
 #include "sound.h"
 #include "ssao.h"
 #include "transform.h"
+#include "animator.h"
 
 struct scene;
 struct light;
@@ -77,6 +78,8 @@ typedef struct model3d {
     unsigned int        lod_max;
     vec3                aabb[2];
     darray(struct animation, anis);
+    /* what can be played: the animation library, see animator.h */
+    anim_lib_t          anim_lib;
     mat4x4              root_pose;
     vertex_array_t      vao;
     buffer_t            attr[ATTR_MAX];
@@ -452,15 +455,14 @@ void mq_add_model(struct mq *mq, model3dtx *txmodel);
 void mq_add_model_tail(struct mq *mq, model3dtx *txmodel);
 model3dtx *mq_nonempty_txm_next(struct mq *mq, model3dtx *txm, bool fwd);
 
+/**
+ * struct queued_animation - the playing clip, as frame_fn callbacks see it
+ * @animation:  index into model3d::anis
+ * @sfx_state:  the callback's own cursor, zeroed whenever the clip (re)starts
+ */
 struct queued_animation {
     int             animation;
-    bool            repeat;
-    unsigned long   delay;
-    void            (*end)(struct scene *s, void *end_priv);
-    void            *end_priv;
-    float           speed;
     unsigned int    sfx_state;
-    frame_fn        frame_cb;
 };
 
 struct joint {
@@ -481,10 +483,9 @@ typedef struct entity3d {
     struct ref          ref;
     struct list         entry;     /* link to txmodel->entities */
     entity3d_flags      flags;
-    int                 animation;
-    double              ani_time;
     char                *name;
-    darray(struct queued_animation, aniq);
+    /* what plays on it, see animator.h */
+    animator_t          animator;
     /* these both have model->nr_joints elements */
     struct joint        *joints;
     mat4x4              *joint_transforms;
@@ -519,7 +520,6 @@ typedef struct entity3d {
     int                 light_idx;
     int                 cur_lod;
     int                 force_lod;
-    bool                ani_cleared;
     bool                outline_exclude;
     /* 1 byte hole */
     vec3                aabb[2];
@@ -630,6 +630,17 @@ static inline const char *entity_name(entity3d *e)
 static inline bool entity_animated(entity3d *e)
 {
     return e->txmodel->model->anis.da.nr_el;
+}
+
+/* the model's animation library and the entity's animator, see animator.h */
+static inline anim_lib_t *model3d_anim_lib(model3d *m)
+{
+    return &m->anim_lib;
+}
+
+static inline animator_t *entity3d_animator(entity3d *e)
+{
+    return &e->animator;
 }
 
 /**
@@ -958,12 +969,29 @@ void entity3d_rotate(entity3d *e, float rx, float ry, float rz);
  */
 void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
-void animation_start(entity3d *e, struct scene *scene, int ani);
-bool animation_push_by_name(entity3d *e, struct scene *s, const char *name,
-                            bool clear, bool repeat);
-void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *), void *priv);
-void animation_set_frame_callback(entity3d *e, frame_fn cb);
-void animation_set_speed(entity3d *e, struct scene *s, float speed);
+/**
+ * animation_apply() - pose an entity's joints from a clip at a time
+ * @e:      the entity, with the model's armature
+ * @an:     one of the model's animations
+ * @time:   seconds into the clip
+ *
+ * Writes the local TRS of every joint the clip's channels target,
+ * interpolating between the keyframes around @time; past the end, the last
+ * keyframes hold. entity3d_pose_update() turns the result into the
+ * skeleton. The animator's clip evaluator.
+ */
+void animation_apply(entity3d *e, struct animation *an, double time);
+
+/**
+ * animation_reset_cursors() - rewind a clip's keyframe search
+ * @e:      the entity
+ * @an:     the clip about to play from its start
+ *
+ * Each joint remembers where the last lookup landed in each channel, so a
+ * clip playing forward searches from there; a clip that (re)starts needs
+ * them back at the beginning.
+ */
+void animation_reset_cursors(entity3d *e, struct animation *an);
 
 
 struct instantiator;

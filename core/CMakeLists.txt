@@ -426,10 +426,12 @@ target_include_directories(${ENGINE_LIB} PRIVATE ${CIMGUI_DIR} ${CMAKE_BINARY_DI
 add_subdirectory(ik)
 add_subdirectory(procanim)
 add_subdirectory(nav)
+add_subdirectory(animator)
 
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_ik)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_procanim)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_nav)
+target_link_libraries(${ENGINE_LIB} PRIVATE clap_animator)
 
 win32_library(${ENGINE_LIB} FALSE)
 

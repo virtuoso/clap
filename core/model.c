@@ -111,6 +111,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
         m->collision_idxsz = mesh_idx_sz(opts->mesh);
     }
     darray_init(m->anis);
+    anim_lib_init(&m->anim_lib, m);
     sfx_container_init(&m->sfxc);
 
     cerr err = CERR_OK;
@@ -183,6 +184,7 @@ static void model3d_drop(struct ref *ref)
     if (m->shadow_prog) ref_put(m->shadow_prog);
     trace("dropping model '%s'\n", m->name);
 
+    anim_lib_done(&m->anim_lib);
     while (darray_count(m->anis))
         animation_delete(&m->anis.x[0]);
     darray_clearout(m->anis);
@@ -1589,12 +1591,18 @@ static void channel_transform(entity3d *e, struct channel *chan, float time)
     }
 }
 
-static void channels_transform(entity3d *e, struct animation *an, float time)
+void animation_apply(entity3d *e, struct animation *an, double time)
 {
     int ch;
 
     for (ch = 0; ch < an->nr_channels; ch++)
-        channel_transform(e, &an->channels[ch], time);
+        channel_transform(e, &an->channels[ch], (float)time);
+}
+
+void animation_reset_cursors(entity3d *e, struct animation *an)
+{
+    for (unsigned int ch = 0; ch < an->nr_channels; ch++)
+        e->joints[an->channels[ch].target].off[an->channels[ch].path] = 0;
 }
 
 static void one_joint_transform(entity3d *e, int joint, int parent)
@@ -1695,26 +1703,6 @@ void entity3d_pose_update(entity3d *e)
     one_joint_transform(e, e->txmodel->model->root_joint, -1);
 }
 
-void animation_start(entity3d *e, struct scene *scene, int ani)
-{
-    model3d *model = e->txmodel->model;
-    struct animation *an;
-    struct channel *chan;
-    int ch;
-
-    if (!model->anis.da.nr_el)
-        return;
-
-    if (ani >= model->anis.da.nr_el)
-        ani %= model->anis.da.nr_el;
-    an = &model->anis.x[ani];
-    for (ch = 0; ch < an->nr_channels; ch++) {
-        chan = &an->channels[ch];
-        e->joints[chan->target].off[chan->path] = 0;
-    }
-    e->ani_time = clap_get_current_time(scene->clap_ctx);
-}
-
 int animation_by_name(model3d *m, const char *name)
 {
     int i;
@@ -1723,164 +1711,6 @@ int animation_by_name(model3d *m, const char *name)
         if (!strcmp(name, m->anis.x[i].name))
             return i;
     return -1;
-}
-
-static struct queued_animation *ani_current(entity3d *e)
-{
-    if (e->animation >= e->aniq.da.nr_el)
-        return NULL;
-    return &e->aniq.x[e->animation];
-}
-
-static void animation_end(struct queued_animation *qa, struct scene *s)
-{
-    void (*end)(struct scene *, void *) = qa->end;
-
-    if (!end)
-        return;
-
-    qa->end = NULL;
-    end(s, qa->end_priv);
-}
-
-static void animation_next(entity3d *e, struct scene *s)
-{
-    struct queued_animation *qa;
-
-    if (!e->aniq.da.nr_el || e->animation < 0) {
-        model3d *model = e->txmodel->model;
-        struct animation *an;
-
-        if (!animation_push_by_name(e, s, "idle", true, true))
-            return;
-
-        /* randomize phase, should probably be in instantiate instead */
-        qa = ani_current(e);
-        an = &model->anis.x[qa->animation];
-        e->ani_time = clap_get_current_time(s->clap_ctx) +  an->time_end * drand48();
-        return;
-    }
-    qa = ani_current(e);
-    if (!qa->repeat) {
-        animation_end(qa, s);
-        if (e->ani_cleared) {
-            e->ani_cleared = false;
-            return;
-        }
-        e->animation = (e->animation + 1) % e->aniq.da.nr_el;
-        qa = ani_current(e);
-    }
-    qa->sfx_state = 0;
-    animation_start(e, s, qa->animation);
-}
-
-void animation_set_end_callback(entity3d *e, void (*end)(struct scene *, void *), void *priv)
-{
-    int nr_qas = darray_count(e->aniq);
-
-    if (!nr_qas)
-        return;
-
-    e->aniq.x[nr_qas - 1].end = end;
-    e->aniq.x[nr_qas - 1].end_priv = priv;
-}
-
-void animation_set_frame_callback(entity3d *e, frame_fn cb)
-{
-    int nr_qas = darray_count(e->aniq);
-
-    if (!nr_qas)
-        return;
-
-    e->aniq.x[nr_qas - 1].frame_cb = cb;
-}
-
-void animation_set_speed(entity3d *e, struct scene *s, float speed)
-{
-    struct queued_animation *qa = ani_current(e);
-
-    if (!qa)
-        return;
-
-    double time = clap_get_current_time(s->clap_ctx);
-    struct animation *an = &e->txmodel->model->anis.x[qa->animation];
-
-    qa->speed = speed;
-
-    double frame_time = (time - e->ani_time) * qa->speed;
-    if (frame_time >= an->time_end) {
-        e->ani_time = time;
-        qa->sfx_state = 0;
-    }
-}
-
-bool animation_push_by_name(entity3d *e, struct scene *s, const char *name,
-                            bool clear, bool repeat)
-{
-    struct queued_animation *qa;
-
-    if (clear) {
-        struct queued_animation _qa;
-
-        qa = ani_current(e);
-        if (qa)
-            memcpy(&_qa, qa, sizeof(_qa));
-
-        darray_clearout(e->aniq);
-
-        if (qa)
-            animation_end(&_qa, s);
-    }
-
-    int id = animation_by_name(e->txmodel->model, name);
-    if (id < 0) {
-        if (clear)
-            e->animation = -1;
-        return false;
-    }
-
-    qa = darray_add(e->aniq);
-    qa->animation = id;
-    qa->repeat = repeat;
-    qa->speed = 1.0;
-    if (clear) {
-        animation_start(e, s, id);
-        e->animation = 0;
-        e->ani_cleared = true;
-    }
-
-    return true;
-}
-
-static void animated_update(entity3d *e, struct scene *s)
-{
-    double time = clap_get_current_time(s->clap_ctx);
-    model3d *model = e->txmodel->model;
-    struct queued_animation *qa;
-    struct animation *an;
-
-    if (e->animation < 0)
-        animation_next(e, s);
-    qa = ani_current(e);
-    if (!qa)
-        return;
-
-    an = &model->anis.x[qa->animation];
-
-    double frame_time = (time - e->ani_time) * qa->speed;
-    if (frame_time == 0.0)
-        qa->sfx_state = 0;
-
-    channels_transform(e, an, frame_time);
-    one_joint_transform(e, 0, -1);
-
-    if (qa->frame_cb)
-        qa->frame_cb(qa, e, s, frame_time / an->time_end);
-    if (an->frame_sfx)
-        an->frame_sfx(qa, e, s, frame_time / an->time_end);
-
-    if (frame_time >= an->time_end)
-        animation_next(e, s);
 }
 
 static bool parent_transform_apply(entity3d *e)
@@ -2000,8 +1830,7 @@ static int default_update(entity3d *e, void *data)
         }
     }
 
-    if (entity_animated(e))
-        animated_update(e, scene);
+    animator_update(&e->animator, scene);
     if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_debug_draw(scene, e->phys_body);
     if (clap_get_render_options(scene->clap_ctx)->overlay_draws_enabled)
@@ -2023,8 +1852,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     transform_init(&e->xform);
     mat4x4_identity(e->inverse_mx);
     mat4x4_identity(e->prev_mx);
-    darray_init(e->aniq);
-    e->animation = -1;
+    animator_init(&e->animator, e);
     e->light     = NULL;
     e->light_idx = -1;
     e->force_lod = -1;
@@ -2074,7 +1902,7 @@ static void entity3d_drop(struct ref *ref)
     list_del(&e->entry);
     ref_put(e->txmodel);
 
-    darray_clearout(e->aniq);
+    animator_done(&e->animator);
     if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS)) {
         phys_body_done(e->phys_body);
         e->phys_body = NULL;

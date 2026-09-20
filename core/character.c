@@ -18,7 +18,7 @@ static void character_dash(struct character *ch, struct scene *s)
     if (!timespec_nonzero(&ch->dash_started)) {
         ch->dash_started = clap_get_current_timespec(s->clap_ctx);
         ch->lin_speed *= 1.5;
-        animation_set_speed(ch->entity, s, 1.5);
+        animator_set_speed(entity3d_animator(ch->entity), 0, 1.5);
     }
 }
 
@@ -47,7 +47,7 @@ static void character_motion_reset(struct character *ch, struct scene *s)
         /* dashing end, in cooldown */
         if (diff.tv_sec >= 1) {
             ch->lin_speed = character_lin_speed(ch);
-            animation_set_speed(ch->entity, s, 1.0);
+            animator_set_speed(entity3d_animator(ch->entity), 0, 1.0);
         }
         /* dashing cooldown end */
         if (diff.tv_sec >= 2)
@@ -141,6 +141,121 @@ static void character_any_to_jump(struct scene *s, void *priv)
         c->motion[2] * c->jump_forward,
     });
     gpsm_set(&c->sm, CS_JUMPING);
+}
+
+/*
+ * The one end callback for every transition the table plays: only the
+ * lead-in states have anything to do when their clip runs out.
+ */
+static void character_transition_done(animator_t *a, struct scene *s, void *priv)
+{
+    struct character *ch = priv;
+
+    switch (gpsm_get(&ch->sm)) {
+        case CS_WAKING:     character_idle(s, ch);          break;
+        case CS_JUMP_START: character_any_to_jump(s, ch);   break;
+        default:            break;
+    }
+}
+
+static cerr character_anims_baked(anim_lib_t *lib);
+
+/*
+ * The model's library, its transition table built on first use. The table
+ * binds clip names, and the scene loader renames the model's clips to the
+ * names it uses after the character exists, so it can't be built at
+ * character_make(); the first transition happens at runtime, when the
+ * model is final. A model with no matching clips gets an empty table and
+ * the same, cheap, attempt at every transition.
+ */
+static anim_lib_t *character_anims_lib(struct character *ch)
+{
+    anim_lib_t *lib = model3d_anim_lib(ch->entity->txmodel->model);
+
+    if (!anim_lib_nr_transitions(lib))
+        CERR_RET(character_anims_baked(lib), warn_once("character %s: animations: %s\n",
+                                                        entity_name(ch->entity), cerr_str(__cerr.err)));
+
+    return lib;
+}
+
+character_state character_anims_enter(struct character *ch, character_state from, character_state to)
+{
+    if (from == to || (int)from == GPSM_NO_STATE)   return to;
+
+    character_anims_lib(ch);
+    animator_play_transition(entity3d_animator(ch->entity), from, to,
+                             .end = character_transition_done, .end_priv = ch);
+
+    return to;
+}
+
+bool character_anims_playable(struct character *ch, character_state from, character_state to)
+{
+    cres(anim_t) ani = anim_lib_transition_find(character_anims_lib(ch), to, from, nullptr);
+
+    return !IS_CERR(ani);
+}
+
+/* [@lead_in once, @loop forever]; either may be left out */
+static cres(anim_t) baked_seq(anim_lib_t *lib, const char *lead_in, const char *loop)
+{
+    /* the clips first: a row the model can't fill leaves nothing behind */
+    anim_t in = lead_in ? CRES_RET_SCALAR(anim_lib_clip(lib, lead_in), anim_t) : 0;
+    anim_t lp = loop ? CRES_RET_SCALAR(anim_lib_clip(lib, loop), anim_t) : 0;
+    anim_t seq = CRES_RET_SCALAR(anim_lib_seq_make(lib), anim_t);
+
+    if (lead_in)    CERR_RET_SCALAR(anim_lib_seq_push(lib, seq, in, false), anim_t);
+    if (loop)       CERR_RET_SCALAR(anim_lib_seq_push(lib, seq, lp, true), anim_t);
+
+    return cres_val(anim_t, seq);
+}
+
+/*
+ * The default table: the clip names the character's models have always
+ * carried, one sequence per state transition. A transition whose clips the
+ * model lacks is left out, so character_anims_enter() plays nothing for it,
+ * and what plays goes on. LEVITATING
+ * has no entry on purpose: the fall clip keeps playing through it.
+ */
+static cerr character_anims_baked(anim_lib_t *lib)
+{
+    static const struct {
+        character_state to;
+        character_state from;
+        bool            any;        /* entered from anywhere */
+        const char      *lead_in;   /* played once first, if set */
+        const char      *loop;      /* then this forever, if set */
+    } table[] = {
+        { .to = CS_START,      .any = true,          .loop = "start" },
+        { .to = CS_WAKING,     .any = true,          .lead_in = "start_to_idle" },
+        { .to = CS_IDLE,       .from = CS_WAKING,    .loop = "idle" },
+        { .to = CS_IDLE,       .from = CS_MOVING,    .lead_in = "motion_stop",    .loop = "idle" },
+        { .to = CS_IDLE,       .from = CS_JUMPING,   .lead_in = "jump_to_idle",   .loop = "idle" },
+        { .to = CS_IDLE,       .from = CS_FALLING,   .lead_in = "fall_to_idle",   .loop = "idle" },
+        { .to = CS_IDLE,       .any = true,          .loop = "idle" },
+        { .to = CS_MOVING,     .from = CS_IDLE,      .lead_in = "motion_start",   .loop = "motion" },
+        { .to = CS_MOVING,     .any = true,          .lead_in = "jump_to_motion", .loop = "motion" },
+        { .to = CS_JUMP_START, .from = CS_IDLE,      .lead_in = "idle_to_jump" },
+        { .to = CS_JUMP_START, .from = CS_MOVING,    .lead_in = "motion_to_jump" },
+        { .to = CS_JUMPING,    .any = true,          .loop = "jump" },
+        { .to = CS_ASCENDING,  .any = true,          .loop = "fall" },
+        { .to = CS_FALLING,    .any = true,          .loop = "fall" },
+    };
+
+    for (size_t i = 0; i < array_size(table); i++) {
+        cres(anim_t) seq = baked_seq(lib, table[i].lead_in, table[i].loop);
+
+        if (IS_CERR_CODE(seq, CERR_NOT_FOUND))  continue;
+        if (IS_CERR(seq))                       return cerr_error_cres(seq);
+
+        if (table[i].any)
+            CERR_RET_CERR(anim_lib_transition_add_any(lib, table[i].to, seq.val, 0.0));
+        else
+            CERR_RET_CERR(anim_lib_transition_add(lib, table[i].to, table[i].from, seq.val, 0.0));
+    }
+
+    return CERR_OK;
 }
 
 void character_set_moved(struct character *c)
@@ -358,20 +473,12 @@ static cres(gpsm_state_t) cs_idle_guard(struct gpsm *sm, void *priv, gpsm_state_
     return cres_val(gpsm_state_t, CS_IDLE);
 }
 
-static const char *cs_jump_windup(gpsm_state_t from)
-{
-    return from == CS_IDLE ? "idle_to_jump" : "motion_to_jump";
-}
-
 static cres(gpsm_state_t) cs_jump_start_guard(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
     struct character *ch = priv;
 
-    /*
-     * No windup clip, no jump. Refusing here keeps the animation queue as it
-     * is, where a failed clearing push would have wiped it.
-     */
-    if (animation_by_name(ch->entity->txmodel->model, cs_jump_windup(from)) < 0)
+    /* No windup clip, no jump. Refusing here keeps what plays as it is */
+    if (!character_anims_playable(ch, from, CS_JUMP_START))
         return cres_error(gpsm_state_t, CERR_GPSM_ABORT);
 
     return cres_val(gpsm_state_t, CS_JUMP_START);
@@ -379,65 +486,34 @@ static cres(gpsm_state_t) cs_jump_start_guard(struct gpsm *sm, void *priv, gpsm_
 
 static gpsm_state_t cs_start_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
-    struct character *ch = priv;
-
-    animation_push_by_name(ch->entity, ch->scene, "start", true, true);
-    return CS_START;
+    return character_anims_enter(priv, from, CS_START);
 }
 
 static gpsm_state_t cs_waking_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
-    struct character *ch = priv;
-
-    animation_push_by_name(ch->entity, ch->scene, "start_to_idle", true, false);
-    animation_set_end_callback(ch->entity, character_idle, ch);
-    return CS_WAKING;
+    return character_anims_enter(priv, from, CS_WAKING);
 }
 
 static gpsm_state_t cs_idle_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
-    struct character *ch = priv;
-
-    switch (from) {
-        case CS_WAKING:
-            animation_push_by_name(ch->entity, ch->scene, "idle", true, true);
-            return CS_IDLE;
-        case CS_MOVING:
-            animation_push_by_name(ch->entity, ch->scene, "motion_stop", true, false);
-            break;
-        case CS_JUMPING:
-            animation_push_by_name(ch->entity, ch->scene, "jump_to_idle", true, false);
-            break;
-        case CS_FALLING:
-            animation_push_by_name(ch->entity, ch->scene, "fall_to_idle", true, false);
-            break;
-        default:
-            /* gpsm_init(), or an enter() falling back to where it started */
-            return CS_IDLE;
-    }
-
-    animation_push_by_name(ch->entity, ch->scene, "idle", false, true);
-    return CS_IDLE;
+    return character_anims_enter(priv, from, CS_IDLE);
 }
 
 static gpsm_state_t cs_moving_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
     struct character *ch = priv;
-    const char *lead_in = from == CS_IDLE ? "motion_start" : "jump_to_motion";
 
     /* Missing a clip, land idle instead: from the air, that plays the landing */
-    if (!animation_push_by_name(ch->entity, ch->scene, lead_in, true, false))   return CS_IDLE;
-    if (!animation_push_by_name(ch->entity, ch->scene, "motion", false, true))  return CS_IDLE;
+    if (!character_anims_playable(ch, from, CS_MOVING)) return CS_IDLE;
 
-    return CS_MOVING;
+    return character_anims_enter(ch, from, CS_MOVING);
 }
 
 static gpsm_state_t cs_jump_start_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
     struct character *ch = priv;
 
-    animation_push_by_name(ch->entity, ch->scene, cs_jump_windup(from), true, false);
-    animation_set_end_callback(ch->entity, character_any_to_jump, ch);
+    character_anims_enter(ch, from, CS_JUMP_START);
     /* a running jump is airborne from the windup on */
     if (from == CS_MOVING)  ch->airborne = true;
 
@@ -446,23 +522,17 @@ static gpsm_state_t cs_jump_start_enter(struct gpsm *sm, void *priv, gpsm_state_
 
 static gpsm_state_t cs_jumping_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
-    struct character *ch = priv;
-
-    animation_push_by_name(ch->entity, ch->scene, "jump", true, true);
-    return CS_JUMPING;
+    return character_anims_enter(priv, from, CS_JUMPING);
 }
 
 static gpsm_state_t cs_ascending_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
-    struct character *ch = priv;
-
     /*
      * Entered from the end of the pre-jump windup when the button is still
      * held (character_any_to_jump()). character_move() drives the per-frame
      * ascent and the ASCENDING -> LEVITATING transition on release.
      */
-    animation_push_by_name(ch->entity, ch->scene, "fall", true, true);
-    return CS_ASCENDING;
+    return character_anims_enter(priv, from, CS_ASCENDING);
 }
 
 static gpsm_state_t cs_levitating_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
@@ -477,15 +547,13 @@ static gpsm_state_t cs_levitating_enter(struct gpsm *sm, void *priv, gpsm_state_
      * The fall animation has been playing since the ascent started.
      */
     vec3_dup(ch->velocity, (vec3){});
-    return CS_LEVITATING;
+
+    return character_anims_enter(ch, from, CS_LEVITATING);
 }
 
 static gpsm_state_t cs_falling_enter(struct gpsm *sm, void *priv, gpsm_state_t from)
 {
-    struct character *ch = priv;
-
-    animation_push_by_name(ch->entity, ch->scene, "fall", true, true);
-    return CS_FALLING;
+    return character_anims_enter(priv, from, CS_FALLING);
 }
 
 /*
