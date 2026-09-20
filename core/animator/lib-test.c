@@ -51,24 +51,39 @@ static bool seq_is(anim_lib_t *lib, anim_t seq, const int *idx, const bool *rep,
     return true;
 }
 
-/* the same clip and the same hold are the same handle */
+static cerr pose_eval(const void *cfg, void *priv, entity3d *e, double t, double dt, struct joint *out)
+{
+    return CERR_OK;
+}
+
+static const anim_pose_ops pose_ops = { .eval = pose_eval };
+
+/* the same clip, the same hold and the same class over the same cfg are the same handle */
 static int lib_test_dedup(void)
 {
     anim_lib_t lib;
     int ret = EXIT_FAILURE;
+    int cfg_a, cfg_b;
 
     anim_lib_init(&lib, nullptr);
 
     cres(anim_t) a = anim_lib_clip(&lib, "idle"), b = anim_lib_clip(&lib, "idle");
     cres(anim_t) h0 = anim_lib_hold(&lib, 0.0), h1 = anim_lib_hold(&lib, 0.0), h2 = anim_lib_hold(&lib, 0.5);
+    cres(anim_t) p0 = anim_lib_pose(&lib, &pose_ops, &cfg_a), p1 = anim_lib_pose(&lib, &pose_ops, &cfg_a);
+    cres(anim_t) p2 = anim_lib_pose(&lib, &pose_ops, &cfg_b);
 
     if (IS_CERR(a) || IS_CERR(b) || a.val != b.val)         goto out;
     if (IS_CERR(h0) || IS_CERR(h1) || h0.val != h1.val)     goto out;
     if (IS_CERR(h2) || h2.val == h0.val)                    goto out;
+    if (IS_CERR(p0) || IS_CERR(p1) || p0.val != p1.val)     goto out;
+    if (IS_CERR(p2) || p2.val == p0.val)                    goto out;
+    if (anim_lib_kind(&lib, p0.val) != ANIM_POSE)           goto out;
 
     cres(anim_t) nope = anim_lib_clip(&lib, "nope");
     if (!IS_CERR_CODE(nope, CERR_NOT_FOUND))                goto out;
-    if (anim_lib_nr(&lib) != 3)                             goto out;
+    cres(anim_t) noeval = anim_lib_pose(&lib, &(anim_pose_ops){}, nullptr);
+    if (!IS_CERR_CODE(noeval, CERR_INVALID_ARGUMENTS))      goto out;
+    if (anim_lib_nr(&lib) != 5)                             goto out;
 
     ret = EXIT_SUCCESS;
 out:
