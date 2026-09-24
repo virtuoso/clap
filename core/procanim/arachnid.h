@@ -16,6 +16,8 @@ struct scene;
 #define ARACHNID_NR_LEGS    8
 #define ARACHNID_LEG_JOINTS 3   /* hip, knee, foot */
 #define ARACHNID_NR_JOINTS  (2 + ARACHNID_NR_LEGS * ARACHNID_LEG_JOINTS)
+/** ARACHNID_MAX_EXTRA - the most joints a caller adds after the body's */
+#define ARACHNID_MAX_EXTRA  4
 
 /**
  * struct arachnid_config - an eight-legged walker, fully parameterized
@@ -160,6 +162,11 @@ cerr arachnid_mesh_tank(mesh_t *m, arachnid *a);
  *              automatic nearest-bone skinning, which would let the
  *              swinging legs drag them (a machine's hull must not
  *              wobble)
+ * @extra:      the caller's joints appended after the body's, up to
+ *              ARACHNID_MAX_EXTRA (a turret on the deck): parent indices
+ *              are the arachnid's, 0 for the body, ARACHNID_NR_JOINTS + i
+ *              for the i-th extra; the names must outlive the model build
+ * @nr_extra:   how many
  * @cfg:        the body plan and gait tuning; zero cycle picks the
  *              defaults
  *
@@ -182,10 +189,12 @@ struct arachnid {
     arachnid_mesh_fn    mesh;
     void                *mesh_priv;
     size_t              rigid_nr;
+    const skel_joint    *extra;
+    size_t              nr_extra;
     arachnid_config     cfg;
     float               speed;
 
-    skel_joint          skel[ARACHNID_NR_JOINTS];
+    skel_joint          skel[ARACHNID_NR_JOINTS + ARACHNID_MAX_EXTRA];
     ik_chain            legs[ARACHNID_NR_LEGS];
     gait_leg            feet[ARACHNID_NR_LEGS];
     vec3                pole[ARACHNID_NR_LEGS];  /* per-leg knee-up hint, model space */
@@ -212,14 +221,14 @@ extern const anim_pose_ops arachnid_pose_ops;
  * @pl: pipeline the "model" shader is sourced from
  *
  * Build the skeleton from the configuration (a zero cycle picks the
- * arachnid_config_init() defaults), run the mesh generator over it and
- * bind the mesh to the bones (skeleton_skin()). The caller wraps the
- * model in a model3dtx (texture and material are the variant's other
- * half), creates the entity and binds the rig (arachnid_gait_init(),
- * arachnid_pose_ops).
+ * arachnid_config_init() defaults) and the extra joints, run the mesh
+ * generator over it and bind the mesh to the bones (skeleton_skin()).
+ * The caller wraps the model in a model3dtx (texture and material are
+ * the variant's other half), creates the entity and binds the rig
+ * (arachnid_gait_init(), arachnid_pose_ops).
  * Context: model3d setup time
- * Return: the rigged model3d (caller owns), or a generator, skinning or
- * build error
+ * Return: the rigged model3d (caller owns), CERR_INVALID_ARGUMENTS for
+ * too many extra joints, or a generator, skinning or build error
  */
 cresp_check(model3d) arachnid_model(arachnid *a, pipeline *pl);
 

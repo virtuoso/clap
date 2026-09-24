@@ -6,6 +6,7 @@
 #include "messagebus.h"
 #include "model.h"
 #include "physics.h"
+#include "procanim/lookat.h"
 #include "scene.h"
 
 typedef enum character_state {
@@ -53,6 +54,8 @@ struct character {
         unsigned int    head;
         bool            wrapped;
     } history;
+    /* the head's look-at binding, for a model with a head joint */
+    lookat_t look;
     bool    jump;
     bool    jump_held;
     bool    airborne;

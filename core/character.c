@@ -9,6 +9,82 @@
 #include "ui.h"
 #include "ui-debug.h"
 
+/*
+ * The head follows a point of interest: the look-at pose class on an
+ * overlay masked to the head's subtree, over whatever the body plays.
+ * One configuration for every model with a head joint: the joint is
+ * resolved by type, the axes come from the bind pose.
+ */
+/** CHARACTER_LOOK_LAYER - the overlay the head looks around on */
+#define CHARACTER_LOOK_LAYER    1
+/** CHARACTER_LOOK_RANGE - meters; further than this, the head rests */
+#define CHARACTER_LOOK_RANGE    12.0f
+/** CHARACTER_LOOK_HEAD - of the other's height above its center: the face */
+#define CHARACTER_LOOK_HEAD     0.35f
+
+static const lookat_config character_look_cfg = {
+    .joint      = -1,
+    .joint_type = JOINT_HEAD,
+    .yaw_max    = 1.2,
+    .pitch_max  = 0.6,
+    .slew       = 3.0,
+    .law        = { .kind = TARGET_FOLLOW, .rate = 8.0 },
+};
+
+static void character_look_start(struct character *ch)
+{
+    entity3d *e = ch->entity;
+    model3d *m = e->txmodel->model;
+    cres(joint_type) head = model3d_get_joint(m, JOINT_HEAD);
+
+    if (IS_CERR(head))  return;
+
+    animator_t *a = entity3d_animator(e);
+    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(m), &lookat_pose_ops, &character_look_cfg),
+                          return);
+
+    ch->look.target.none = true;
+    CERR_RET(animator_bind(a, ani, &ch->look), return);
+    CERR_RET(animator_mask_subtree(a, CHARACTER_LOOK_LAYER, head.val), return);
+    CERR_RET(animator_play(a, ani, .layer = CHARACTER_LOOK_LAYER), return);
+}
+
+/* the brain's part: the controlled entity if it is someone else, else the nearest other character */
+static void character_look_pick(struct character *ch, struct scene *s)
+{
+    entity3d *e = ch->entity, *poi = nullptr;
+    vec3 pos;
+    float best = CHARACTER_LOOK_RANGE * CHARACTER_LOOK_RANGE;
+
+    transform_pos(&e->xform, pos);
+
+    if (s->control && s->control != e && entity3d_matches(s->control, ENTITY3D_IS_CHARACTER)) {
+        vec3 d;
+
+        vec3_sub(d, s->control->aabb_center, pos);
+        if (vec3_mul_inner(d, d) < best)    poi = s->control;
+    } else {
+        struct character *other;
+
+        list_for_each_entry(other, &s->characters, entry) {
+            vec3 d;
+
+            if (other == ch)    continue;
+
+            vec3_sub(d, other->entity->aabb_center, pos);
+            float d2 = vec3_mul_inner(d, d);
+            if (d2 < best) {
+                best = d2;
+                poi = other->entity;
+            }
+        }
+    }
+
+    ch->look.target.entity = poi;
+    ch->look.target.none = !poi;
+    if (poi)    vec3_dup(ch->look.target.offset, (vec3){ 0.0f, entity3d_aabb_Y(poi) * CHARACTER_LOOK_HEAD, 0.0f });
+}
+
 static void character_dash(struct character *ch, struct scene *s)
 {
     if (!ch->can_dash)
@@ -822,6 +898,7 @@ static int character_update(entity3d *e, void *data)
     }
 
     character_motion_reset(c, s);
+    character_look_pick(c, s);
 
     return c->orig_update(e, data);
 }
@@ -850,6 +927,7 @@ static cerr character_make(struct ref *ref, void *_opts)
     list_append(&opts->scene->characters, &c->entry);
     c->mq->nr_characters++;
     character_motion_reset(c, opts->scene);
+    character_look_start(c);
 
     return CERR_OK;
 }

@@ -141,6 +141,13 @@ static void arachnid_skeleton_build(arachnid *a)
         /* the knee bends up and slightly outward */
         vec3_norm(a->pole[leg], (vec3){ d[0] * 0.5f, 1.0f, d[2] * 0.5f });
     }
+
+    for (size_t i = 0; i < a->nr_extra; i++)    a->skel[ARACHNID_NR_JOINTS + i] = a->extra[i];
+}
+
+static size_t arachnid_nr_joints(const arachnid *a)
+{
+    return ARACHNID_NR_JOINTS + a->nr_extra;
 }
 
 cerr arachnid_mesh_organic(mesh_t *m, arachnid *a)
@@ -249,8 +256,7 @@ cerr arachnid_mesh_tank(mesh_t *m, arachnid *a)
 
 cresp(model3d) arachnid_model(arachnid *a, pipeline *pl)
 {
-    if (!a || !pl)
-        return cresp_error(model3d, CERR_INVALID_ARGUMENTS);
+    if (!a || !pl || a->nr_extra > ARACHNID_MAX_EXTRA)  return cresp_error(model3d, CERR_INVALID_ARGUMENTS);
 
     if (a->cfg.cycle == 0.0f)   arachnid_config_init(&a->cfg);
 
@@ -265,7 +271,7 @@ cresp(model3d) arachnid_model(arachnid *a, pipeline *pl)
     a->rigid_nr = 0;
     CERR_RET_T(mesh_fn(m, a), model3d);
     CERR_RET_T(
-        skeleton_skin(.mesh = m, .joints = a->skel, .nr_joints = ARACHNID_NR_JOINTS),
+        skeleton_skin(.mesh = m, .joints = a->skel, .nr_joints = arachnid_nr_joints(a)),
         model3d
     );
 
@@ -284,7 +290,7 @@ cresp(model3d) arachnid_model(arachnid *a, pipeline *pl)
     }
     mesh_aabb_calc(m);
 
-    return skeleton_model_new(pl, m, a->skel, ARACHNID_NR_JOINTS, a->name ? : "arachnid");
+    return skeleton_model_new(pl, m, a->skel, arachnid_nr_joints(a), a->name ? : "arachnid");
 }
 
 /* (re)entered: the speed is measured from here; the gait keeps its phase and its feet */

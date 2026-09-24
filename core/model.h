@@ -696,6 +696,34 @@ void entity3d_pose_reset(entity3d *e);
 void entity3d_pose_update(entity3d *e);
 
 /**
+ * entity3d_joint_global() - one joint's model-space matrix from the local pose
+ * @e:      entity3d object with an armature
+ * @joint:  joint index; negative for the skeleton's root pose
+ * @global: receiver of the joint-to-model matrix
+ *
+ * Compose the joint's ancestor path from the current local joint
+ * transforms (entity3d::joints), O(depth), without updating the skeleton.
+ * For a pose writer that runs between the frame's pose writers, when the
+ * globals entity3d_pose_update() computes are last frame's: an overlay
+ * turning a model-space point into a local rotation needs its parent's
+ * orientation as posed so far.
+ * Context: anywhere between the frame's pose reset and update
+ */
+void entity3d_joint_global(entity3d *e, int joint, mat4x4 global);
+
+/**
+ * entity3d_point_in_parent() - a model-space point in a joint's parent frame
+ * @e:      entity3d object with an armature
+ * @joint:  the joint
+ * @point:  the point, model space
+ * @local:  receives @point in the frame of @joint's parent as posed so far
+ *          (see entity3d_joint_global())
+ *
+ * Context: anywhere between the frame's pose reset and update
+ */
+void entity3d_point_in_parent(entity3d *e, int joint, const vec3 point, vec3 local);
+
+/**
  * entity3d_aabb_X() - get entity3d's AABB size along world's X axis
  * @e:  entity3d object
  *

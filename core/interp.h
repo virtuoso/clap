@@ -91,6 +91,24 @@ static inline void vec3_interp(vec3 res, vec3 a, vec3 b, float fac)
 }
 
 /**
+ * step_toward() - a rate-limited step toward a goal
+ * @cur:    the value
+ * @want:   where it's headed
+ * @rate:   the most it moves per second; 0 or less arrives at once
+ * @dt:     time step, seconds
+ *
+ * Return: @cur moved toward @want by at most @rate * @dt
+ */
+static inline double step_toward(double cur, double want, double rate, double dt)
+{
+    double step = rate * dt;
+
+    if (rate <= 0.0 || fabs(want - cur) <= step)    return want;
+
+    return cur + (want > cur ? step : -step);
+}
+
+/**
  * vec3_approach() - exponentially approach a goal in place
  * @cur:    the value, updated in place
  * @goal:   where it's headed

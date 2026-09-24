@@ -1703,13 +1703,44 @@ void entity3d_pose_update(entity3d *e)
     one_joint_transform(e, e->txmodel->model->root_joint, -1);
 }
 
+/* global = parent's global * T * R * S, the same product one_joint_transform() forms */
+void entity3d_joint_global(entity3d *e, int joint, mat4x4 global)
+{
+    model3d *model = e->txmodel->model;
+
+    if (joint < 0 || (unsigned int)joint >= model->nr_joints) {
+        memcpy(global, model->root_pose, sizeof(mat4x4));
+        return;
+    }
+
+    struct joint *j = &e->joints[joint];
+    mat4x4 T, R;
+
+    entity3d_joint_global(e, model->joints[joint].parent, global);
+    mat4x4_translate(T, j->translation[0], j->translation[1], j->translation[2]);
+    mat4x4_mul(global, global, T);
+    mat4x4_from_quat(R, j->rotation);
+    mat4x4_mul(global, global, R);
+    mat4x4_scale_aniso(global, global, j->scale[0], j->scale[1], j->scale[2]);
+}
+
+void entity3d_point_in_parent(entity3d *e, int joint, const vec3 point, vec3 local)
+{
+    vec4 p = { point[0], point[1], point[2], 1.0f }, l;
+    mat4x4 parent, inv;
+
+    entity3d_joint_global(e, e->txmodel->model->joints[joint].parent, parent);
+    mat4x4_invert(inv, parent);
+    mat4x4_mul_vec4(l, inv, p);
+    vec3_dup(local, l);
+}
+
 int animation_by_name(model3d *m, const char *name)
 {
     int i;
 
     for (i = 0; i < m->anis.da.nr_el; i++)
-        if (!strcmp(name, m->anis.x[i].name))
-            return i;
+        if (!strcmp(name, m->anis.x[i].name))   return i;
     return -1;
 }
 
