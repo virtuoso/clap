@@ -2089,7 +2089,7 @@ light_done:
                     if (!anim_lib_nr_transitions(lib))
                         CERR_RET(seqs ?
                                  anim_lib_transitions_from_json(lib, seqs, fade, character_states, CS_NR) :
-                                 character_anims_baked(lib),
+                                 character_anims_baked(lib, fade),
                                  warn("'%s': animations: %s\n", name, cerr_str(__cerr.err)));
                 }
 

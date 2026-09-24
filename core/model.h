@@ -970,28 +970,29 @@ void entity3d_rotate(entity3d *e, float rx, float ry, float rz);
 void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class, int type, double geom_off, double geom_radius, double geom_length);
 
 /**
- * animation_apply() - pose an entity's joints from a clip at a time
- * @e:      the entity, with the model's armature
+ * animation_apply() - pose joints from a clip at a time
  * @an:     one of the model's animations
  * @time:   seconds into the clip
+ * @joints: nr_joints of them, laid out as entity3d::joints: the entity's
+ *          own, or a layer's scratch copy the animator blends from
  *
  * Writes the local TRS of every joint the clip's channels target,
  * interpolating between the keyframes around @time; past the end, the last
- * keyframes hold. entity3d_pose_update() turns the result into the
+ * keyframes hold. entity3d_pose_update() turns the entity's into the
  * skeleton. The animator's clip evaluator.
  */
-void animation_apply(entity3d *e, struct animation *an, double time);
+void animation_apply(struct animation *an, double time, struct joint *joints);
 
 /**
  * animation_reset_cursors() - rewind a clip's keyframe search
- * @e:      the entity
  * @an:     the clip about to play from its start
+ * @joints: the buffer it plays into
  *
  * Each joint remembers where the last lookup landed in each channel, so a
  * clip playing forward searches from there; a clip that (re)starts needs
  * them back at the beginning.
  */
-void animation_reset_cursors(entity3d *e, struct animation *an);
+void animation_reset_cursors(struct animation *an, struct joint *joints);
 
 
 struct instantiator;

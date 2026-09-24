@@ -10,6 +10,7 @@
 #include "animator.h"
 #include "model.h"
 #include "timeline.h"
+#include "util.h"
 
 struct anim_seq_elem {
     anim_t          ani;
@@ -50,7 +51,7 @@ struct anim_binding {
  * @from:       the state being left; meaningful unless @from_any
  * @from_any:   matches any @from, after the exact entries
  * @ani:        what to play
- * @fade:       cross-fade seconds, stored with the transition
+ * @fade:       cross-fade seconds, which animator_play_transition() applies
  */
 struct anim_transition {
     double          fade;
@@ -79,6 +80,24 @@ struct anim_transition {
  *                  and the sfx state, reset when an element starts
  * @end:            the play's end callback, cleared once it fired
  * @end_priv:       its argument
+ * @weight:         an overlay's blend weight as of the last update; 1 on
+ *                  the base
+ * @weight_to:      where the weight is going...
+ * @weight_rate:    ...and how fast, per second; 0: it is there
+ * @stop_at_zero:   animator_stop(fade): inactive once the weight is out
+ * @mask:           the joints an overlay writes; size 0: all of them
+ * @scratch:        nr_joints, allocated on first use: an overlay's
+ *                  evaluation buffer, the base's outgoing pose in a fade
+ * @fading:         the base's outgoing element still evaluates into
+ *                  @scratch and blends with the incoming one
+ * @fade_start:     the fade's clock; negative until the first update
+ * @fade_dur:       how long it takes
+ * @fading_ani:     the outgoing element: what it plays...
+ * @fading_element: ...which element of it...
+ * @fading_repeat:  ...whether that loops...
+ * @fading_tl:      ...its clock...
+ * @fading_ended:   ...and whether it had already run out, in which case
+ *                  @scratch holds its last pose
  */
 struct anim_layer {
     anim_t                  playing;
@@ -90,11 +109,25 @@ struct anim_layer {
     struct queued_animation qa;
     anim_end_fn             end;
     void                    *end_priv;
+    double                  weight;
+    double                  weight_to;
+    double                  weight_rate;
+    struct bitmap           mask;
+    struct joint            *scratch;
+    double                  fade_start;
+    double                  fade_dur;
+    anim_t                  fading_ani;
+    unsigned int            fading_element;
+    timeline                fading_tl;
     bool                    active;
     bool                    ended;
     bool                    repeat;
     bool                    pending;
     bool                    speed_pending;
+    bool                    stop_at_zero;
+    bool                    fading;
+    bool                    fading_repeat;
+    bool                    fading_ended;
 };
 
 /* lib.c: a definition by handle, nullptr for a handle the library never gave out */

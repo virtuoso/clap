@@ -417,6 +417,6 @@ void arachnid_gait_stop(arachnid *a)
 {
     if (!a->e)  return;
 
-    animator_stop(entity3d_animator(a->e), 0);
+    animator_stop(entity3d_animator(a->e), 0, 0.0);
     arachnid_gait_done(a);
 }

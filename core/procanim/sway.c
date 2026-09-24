@@ -129,5 +129,5 @@ void sway_rig_stop(sway_rig *rig)
 {
     if (!rig->e)    return;
 
-    animator_stop(entity3d_animator(rig->e), 0);
+    animator_stop(entity3d_animator(rig->e), 0, 0.0);
 }

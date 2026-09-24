@@ -15,6 +15,7 @@
  * character_anims_baked() - the default table, from the model's clips
  * @lib:    the model's library, with the clips under their semantic names
  *          ("idle", "motion", "jump_to_idle", ...; scene.c's "animations")
+ * @fade:   the cross-fade every transition gets, seconds; 0 cuts
  *
  * One sequence per state transition, a lead-in played once and a loop:
  * idle -> moving is [motion_start, motion*], and so on. A transition whose
@@ -24,7 +25,7 @@
  * Context: model setup, after the clips have their semantic names
  * Return: CERR_OK or CERR_NOMEM
  */
-cerr character_anims_baked(anim_lib_t *lib);
+cerr character_anims_baked(anim_lib_t *lib, double fade);
 
 /**
  * character_anims_pose() - the table for a rig that serves every state

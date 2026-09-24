@@ -1537,10 +1537,10 @@ tail:
     *next = 0;
 }
 
-static void channel_transform(entity3d *e, struct channel *chan, float time)
+static void channel_transform(struct joint *joints, struct channel *chan, float time)
 {
     void *p_data, *n_data;
-    struct joint *joint = &e->joints[chan->target];
+    struct joint *joint = &joints[chan->target];
     float p_time, n_time, fac = 0;
     int prev, next;
 
@@ -1591,18 +1591,18 @@ static void channel_transform(entity3d *e, struct channel *chan, float time)
     }
 }
 
-void animation_apply(entity3d *e, struct animation *an, double time)
+void animation_apply(struct animation *an, double time, struct joint *joints)
 {
     int ch;
 
     for (ch = 0; ch < an->nr_channels; ch++)
-        channel_transform(e, &an->channels[ch], (float)time);
+        channel_transform(joints, &an->channels[ch], (float)time);
 }
 
-void animation_reset_cursors(entity3d *e, struct animation *an)
+void animation_reset_cursors(struct animation *an, struct joint *joints)
 {
     for (unsigned int ch = 0; ch < an->nr_channels; ch++)
-        e->joints[an->channels[ch].target].off[an->channels[ch].path] = 0;
+        joints[an->channels[ch].target].off[an->channels[ch].path] = 0;
 }
 
 static void one_joint_transform(entity3d *e, int joint, int parent)

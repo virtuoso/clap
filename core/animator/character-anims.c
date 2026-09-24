@@ -27,7 +27,7 @@ static cres(anim_t) baked_seq(anim_lib_t *lib, const char *lead_in, const char *
  * it. START is a one-frame pose the character sleeps in; it restarts every
  * frame.
  */
-cerr character_anims_baked(anim_lib_t *lib)
+cerr character_anims_baked(anim_lib_t *lib, double fade)
 {
     static const struct {
         character_state to;
@@ -59,9 +59,9 @@ cerr character_anims_baked(anim_lib_t *lib)
         if (IS_CERR(seq))                       return cerr_error_cres(seq);
 
         if (table[i].any)
-            CERR_RET_CERR(anim_lib_transition_add_any(lib, table[i].to, seq.val, 0.0));
+            CERR_RET_CERR(anim_lib_transition_add_any(lib, table[i].to, seq.val, fade));
         else
-            CERR_RET_CERR(anim_lib_transition_add(lib, table[i].to, table[i].from, seq.val, 0.0));
+            CERR_RET_CERR(anim_lib_transition_add(lib, table[i].to, table[i].from, seq.val, fade));
     }
 
     return CERR_OK;

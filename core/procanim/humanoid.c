@@ -487,6 +487,6 @@ void humanoid_gait_stop(humanoid *h)
 {
     if (!h->e)  return;
 
-    animator_stop(entity3d_animator(h->e), 0);
+    animator_stop(entity3d_animator(h->e), 0, 0.0);
     humanoid_gait_done(h);
 }
