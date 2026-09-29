@@ -67,6 +67,17 @@ typedef struct target {
 void target_start(target_t *t, const target_law *law);
 
 /**
+ * target_hold() - stop the aim point where it is
+ * @t:      the aim point
+ *
+ * The current point becomes a MOVE's start and destination and the point
+ * a FOLLOW without an entity follows, so the law ends there: for a brain
+ * whose motion was stopped short, by a pin (animator_pin()) or a hit,
+ * and whose next law should start from where the effector actually is.
+ */
+void target_hold(target_t *t);
+
+/**
  * target_update() - move the aim point by its law
  * @t:      the aim point
  * @law:    its law

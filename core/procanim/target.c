@@ -18,6 +18,12 @@ void target_start(target_t *t, const target_law *law)
     if (law->kind == TARGET_MOVE || law->kind == TARGET_HOLD)   vec3_dup(t->from, t->cur);
 }
 
+void target_hold(target_t *t)
+{
+    vec3_dup(t->from, t->cur);
+    vec3_dup(t->point, t->cur);
+}
+
 void target_update(target_t *t, const target_law *law, struct entity3d *e, double tt, double dt,
                    vec3 out)
 {
