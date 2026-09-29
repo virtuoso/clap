@@ -812,6 +812,12 @@ int phys_body_update(entity3d *e)
     return dCalcVectorLength3(vel) > 1e-3 ? 1 : 0;
 }
 
+/* ODE's capsules lie along Z, the engine's stand along Y: the rotation from one to the other */
+static void capsule_upright(dMatrix3 R)
+{
+    dRFromAxisAndAngle(R, 1.0, 1.0, 1.0, -M_PI * 2.0 / 3.0);
+}
+
 static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, entity3d *e,
                                      double mass, double geom_radius, double geom_offset)
 {
@@ -965,7 +971,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
             // We need to rotate the local geometry so that
             // cylinder's axis is parallel to Y axis.
             dMatrix3 R;
-            dRFromAxisAndAngle(R, 1.0, 1.0, 1.0, -M_PI * 2.0 / 3.0);
+            capsule_upright(R);
             dGeomSetOffsetRotation(body->geom, R);
         }
         dSpaceRemove(phys->space, body->geom);
@@ -976,7 +982,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
             // that don't have a body; in this case,
             // we can just set its rotation, since it is not
             // going to change.
-            dRFromAxisAndAngle(rot, 1.0, 1.0, 1.0, -M_PI * 2.0 / 3.0);
+            capsule_upright(rot);
         }
 
         dGeomSetRotation(body->geom, rot);
