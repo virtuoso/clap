@@ -11,6 +11,7 @@ struct ts {
     int          leave_n[TS_NR];
     int          tick_n[TS_NR];
     gpsm_state_t enter_from[TS_NR];
+    gpsm_state_t enter_target[TS_NR];       /* gpsm_get_target() as seen by enter() */
     gpsm_state_t leave_to[TS_NR];
     int          guard_n;
     /* knobs */
@@ -23,10 +24,11 @@ struct ts {
     gpsm_state_t recover_from, recover_cur, recover_bad;
 };
 
-static gpsm_state_t ts_do_enter(struct ts *t, gpsm_state_t id, gpsm_state_t from)
+static gpsm_state_t ts_do_enter(struct gpsm *sm, struct ts *t, gpsm_state_t id, gpsm_state_t from)
 {
     t->enter_n[id]++;
     t->enter_from[id] = from;
+    t->enter_target[id] = gpsm_get_target(sm);
     if (t->enter_redir[id] != GPSM_NO_STATE)  return t->enter_redir[id];
     return id;
 }
@@ -44,7 +46,7 @@ static void ts_do_tick(struct ts *t, gpsm_state_t id)
 
 #define TS_CB(ID) \
     static gpsm_state_t ts_enter_##ID(struct gpsm *sm, void *priv, gpsm_state_t from) \
-    { return ts_do_enter((struct ts *)priv, ID, from); } \
+    { return ts_do_enter(sm, (struct ts *)priv, ID, from); } \
     static void ts_leave_##ID(struct gpsm *sm, void *priv, gpsm_state_t to) \
     { ts_do_leave((struct ts *)priv, ID, to); } \
     static void ts_tick_##ID(struct gpsm *sm, void *priv) \
@@ -197,6 +199,9 @@ static int gpsm_test_enter_chain(void)
     if (t.leave_n[TS_A] != 1)  return EXIT_FAILURE;
     if (t.enter_n[TS_D] != 1 || t.enter_n[TS_C] != 1 || t.enter_n[TS_B] != 1)  return EXIT_FAILURE;
     if (t.enter_from[TS_D] != TS_A || t.enter_from[TS_C] != TS_A || t.enter_from[TS_B] != TS_A)  return EXIT_FAILURE;
+    /* each enter sees itself as the target; landed, the target is the state */
+    if (t.enter_target[TS_D] != TS_D || t.enter_target[TS_C] != TS_C || t.enter_target[TS_B] != TS_B)  return EXIT_FAILURE;
+    if (gpsm_get_target(&sm) != TS_B)  return EXIT_FAILURE;
     /* guard is NOT re-run on a redirect into B */
     if (t.guard_n != 0)  return EXIT_FAILURE;
     /* intermediates were never the state: no leave for D or C */
