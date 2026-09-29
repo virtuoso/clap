@@ -132,6 +132,48 @@ out:
     return ret;
 }
 
+/* the flat form the GLTF extras use: comma-separated, spaces ignored, the same entries */
+static int lib_test_from_spec(void)
+{
+    anim_lib_t lib;
+    int ret = EXIT_FAILURE;
+
+    anim_lib_init(&lib, nullptr);
+
+    cerr err = anim_lib_transition_from_spec(&lib, "moving", "motion_start, motion*", 0.1, states, S_NR);
+    if (IS_CERR(err))   goto out;
+    err = anim_lib_transition_from_spec(&lib, "jumping>idle", "jump,idle*", 0.1, states, S_NR);
+    if (IS_CERR(err))   goto out;
+
+    /* a clip the model lacks: the caller's call */
+    err = anim_lib_transition_from_spec(&lib, "jumping", "fall*", 0.1, states, S_NR);
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND))     goto out;
+
+    /* an empty element, an unknown state, a bad key */
+    static const char *bad[][2] = {
+        { "idle", "idle*," }, { "flying", "idle*" }, { "idle>moving>idle", "idle*" },
+    };
+    for (int i = 0; i < array_size(bad); i++) {
+        err = anim_lib_transition_from_spec(&lib, bad[i][0], bad[i][1], 0.0, states, S_NR);
+        if (!IS_CERR_CODE(err, CERR_PARSE_FAILED))  goto out;
+    }
+
+    if (anim_lib_nr_transitions(&lib) != 2)     goto out;
+
+    double fade = 0.0;
+    cres(anim_t) t = anim_lib_transition_find(&lib, S_MOVING, S_IDLE, &fade);
+    if (IS_CERR(t) || fade != 0.1)                                          goto out;
+    if (!seq_is(&lib, t.val, (int[]){ 1, 2 }, (bool[]){ false, true }, 2))  goto out;
+
+    t = anim_lib_transition_find(&lib, S_IDLE, S_JUMPING, nullptr);
+    if (IS_CERR(t) || !seq_is(&lib, t.val, (int[]){ 3, 0 }, (bool[]){ false, true }, 2))    goto out;
+
+    ret = EXIT_SUCCESS;
+out:
+    anim_lib_done(&lib);
+    return ret;
+}
+
 /* an unknown state, a non-array value or an empty clip name is a parse error */
 static int lib_test_from_json_bad(void)
 {
@@ -160,6 +202,7 @@ static const struct test tests[] = {
     { .name = "lib dedup",          .test = lib_test_dedup },
     { .name = "lib from json",      .test = lib_test_from_json },
     { .name = "lib from json bad",  .test = lib_test_from_json_bad },
+    { .name = "lib from spec",      .test = lib_test_from_spec },
 };
 
 int main(int argc, char **argv, char **envp)
