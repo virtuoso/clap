@@ -37,7 +37,9 @@ typedef struct reach {
  * anim_lib_pose(lib, &reach_pose_ops, &cfg) per law on the model,
  * animator_bind() each with the one reach_t on the entity. eval solves
  * the chain onto the aim point: it writes the entity's joints, so the
- * base layer only until the solver takes an output pose.
+ * base layer only until the solver takes an output pose. It honours the
+ * animator's pins (animator_pin()): the chain up to the pinned joint
+ * furthest from the root stays where the pinned pose has it.
  */
 extern const anim_pose_ops reach_pose_ops;
 

@@ -28,7 +28,13 @@ void animator_init(animator_t *a, struct entity3d *e)
     a->contact = nullptr;
     a->contact_priv = nullptr;
     darray_init(a->contacts);
+    a->pins = (struct bitmap){};
+    a->pin_pose = nullptr;
+    a->pin_fade_start = -1.0;
+    a->pin_fade_dur = 0.0;
+    a->pin_weight = 1.0;
 }
+
 
 /* the queue's references go with its entries */
 static void contacts_clear(animator_t *a)
@@ -45,6 +51,7 @@ void animator_done(animator_t *a)
     struct anim_layer *l;
 
     contacts_clear(a);
+    animator_unpin(a, -1);
     darray_for_each(l, a->layers) {
         if (l->scratch)     mem_free(l->scratch);
         if (l->mask.size)   bitmap_done(&l->mask);
@@ -119,6 +126,75 @@ unsigned int animator_nr_layers(animator_t *a)
 static unsigned int nr_joints(animator_t *a)
 {
     return a->e->txmodel->model->nr_joints;
+}
+
+cerr animator_pin(animator_t *a, int joint)
+{
+    struct entity3d *e = a->e;
+
+    if (!e->joints || joint < 0 || (unsigned int)joint >= nr_joints(a)) return CERR_INVALID_ARGUMENTS;
+
+    if (!a->pin_pose) {
+        a->pin_pose = mem_alloc(sizeof(struct joint), .nr = nr_joints(a));
+        if (!a->pin_pose)   return CERR_NOMEM;
+        joints_copy_trs(a->pin_pose, e->joints, nr_joints(a));
+    }
+    if (!a->pins.size)  bitmap_init(&a->pins, nr_joints(a));
+    if (!a->pins.size)  return CERR_NOMEM;
+
+    bitmap_set(&a->pins, joint);
+
+    /* a release under way is off: the pins hold again */
+    a->pin_fade_dur = 0.0;
+    a->pin_fade_start = -1.0;
+    a->pin_weight = 1.0;
+
+    return CERR_OK;
+}
+
+void animator_unpin(animator_t *a, int joint)
+{
+    if (joint >= 0) {
+        if (!a->pins.size || (unsigned int)joint >= nr_joints(a))   return;
+
+        bitmap_clear(&a->pins, joint);
+
+        /* with the last pin goes the pose the pins held */
+        cres(int) pinned = bitmap_find_first_set(&a->pins);
+        if (!IS_CERR(pinned))   return;
+    }
+
+    if (a->pins.size)   bitmap_done(&a->pins);
+    a->pins = (struct bitmap){};
+    if (a->pin_pose)    mem_free(a->pin_pose);
+    a->pin_pose = nullptr;
+    a->pin_fade_dur = 0.0;
+    a->pin_fade_start = -1.0;
+    a->pin_weight = 1.0;
+}
+
+void animator_unpin_fade(animator_t *a, double fade)
+{
+    if (!a->pins.size)  return;
+    if (fade <= 0.0)    { animator_unpin(a, -1); return; }
+
+    a->pin_fade_dur = fade;
+    a->pin_fade_start = -1.0;
+}
+
+double animator_pin_weight(animator_t *a)
+{
+    return a->pin_weight;
+}
+
+bool animator_is_pinned(animator_t *a, int joint)
+{
+    return a->pins.size && joint >= 0 && (unsigned int)joint < nr_joints(a) && bitmap_is_set(&a->pins, joint);
+}
+
+const struct joint *animator_pinned_pose(animator_t *a)
+{
+    return a->pins.size ? a->pin_pose : nullptr;
 }
 
 static struct anim_binding *binding_find(animator_t *a, anim_t ani)
@@ -675,6 +751,13 @@ void animator_update(animator_t *a, struct scene *s)
     double now = clap_get_current_time(s->clap_ctx);
     unsigned int nr = e->joints ? nr_joints(a) : 0;
     bool posed = false;
+
+    /* a fading pin release: the weight the pin-honouring classes blend by this frame */
+    if (a->pins.size && a->pin_fade_dur > 0.0) {
+        if (a->pin_fade_start < 0.0)    a->pin_fade_start = now;
+        a->pin_weight = 1.0 - (now - a->pin_fade_start) / a->pin_fade_dur;
+        if (a->pin_weight <= 0.0)       animator_unpin(a, -1);
+    }
 
     /*
      * Nothing on the base: the overlays go over the bind pose. With no clip

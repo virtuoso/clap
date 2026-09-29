@@ -139,6 +139,14 @@ TYPE(anim_lib,
  * @contact_priv: its argument
  * @contacts:   what the physics step reported since the last update, each
  *              holding a reference to its other entity until it is drained
+ * @pins:       the pinned joints (animator_pin()); size 0: none
+ * @pin_pose:   the pose as of the first pin, nr_joints joints, allocated
+ *              on first use: where the pinned joints stay
+ * @pin_fade_start: a fading release (animator_unpin_fade()) started at
+ *              this time; negative until the first update after the call
+ * @pin_fade_dur: how long it takes; 0: no release under way
+ * @pin_weight: how much of the pinned pose is left, 1 down to 0 over a
+ *              fading release; 1 otherwise
  */
 TYPE(animator,
     struct entity3d             *e;
@@ -147,6 +155,11 @@ TYPE(animator,
     anim_contact_fn             contact;
     void                        *contact_priv;
     darray(struct anim_contact, contacts);
+    struct bitmap               pins;
+    struct joint                *pin_pose;
+    double                      pin_fade_start;
+    double                      pin_fade_dur;
+    double                      pin_weight;
 );
 
 /**
@@ -505,6 +518,71 @@ double          animator_elapsed(animator_t *a, unsigned int layer);
 cres(double)    animator_progress(animator_t *a, unsigned int layer);
 double          animator_speed(animator_t *a, unsigned int layer);
 double          animator_weight(animator_t *a, unsigned int layer);
+
+/**
+ * animator_pin() - hold a joint where it is
+ * @a:      the animator
+ * @joint:  the joint
+ *
+ * Records the current pose (the joints' local transforms, as of the last
+ * update) if nothing is pinned yet, and marks @joint. A pose class that
+ * honours pins (reach, through ik_chain_solve()'s .pinned and .pose)
+ * keeps the chain up to the pinned joint as that pose has it and solves
+ * the rest: a segment that hit something stays there while the tip keeps
+ * going. Pins hold across plays, through a chain of them (a slam, its
+ * hold), until animator_unpin() releases them: the brain that pinned
+ * knows when the motion is over. From a contact callback, the pose is the
+ * one that hit.
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no armature, a bad joint) or
+ * CERR_NOMEM
+ */
+cerr animator_pin(animator_t *a, int joint);
+
+/**
+ * animator_unpin() - release a joint, or all of them
+ * @a:      the animator
+ * @joint:  the joint; negative releases every pin and the recorded pose
+ *
+ * At once: a class that honoured the pins solves free from the next
+ * update, and the pose jumps by whatever the pins held it away from that.
+ * animator_unpin_fade() blends out instead.
+ */
+void animator_unpin(animator_t *a, int joint);
+
+/**
+ * animator_unpin_fade() - release every pin over a fade
+ * @a:      the animator
+ * @fade:   seconds; 0 releases at once
+ *
+ * The pins and the pinned pose stay readable while animator_pin_weight()
+ * falls from 1 to 0 over @fade, from the next update; a class that
+ * honours pins blends what it solves under them with what it solves free
+ * by that weight (the reach does), so the pose eases out of where the
+ * pins held it instead of jumping. The pins clear when the weight is out.
+ * A new animator_pin() during the fade cancels it and holds again.
+ */
+void animator_unpin_fade(animator_t *a, double fade);
+
+/**
+ * animator_pin_weight() - how much of the pinned pose is left
+ *
+ * Return: 1 while pinned, falling to 0 over a fading release, 1 with
+ * nothing pinned
+ */
+double animator_pin_weight(animator_t *a);
+
+/**
+ * animator_is_pinned() - is a joint pinned
+ */
+bool animator_is_pinned(animator_t *a, int joint);
+
+/**
+ * animator_pinned_pose() - the pose the pinned joints hold
+ *
+ * Return: nr_joints joints laid out as entity3d::joints, or nullptr with
+ * nothing pinned
+ */
+const struct joint *animator_pinned_pose(animator_t *a);
 
 /**
  * animator_set_contact_callback() - ask for what the entity touches

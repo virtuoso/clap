@@ -161,17 +161,79 @@ void ik_chain_done(ik_chain *chain)
     *chain = (ik_chain){};
 }
 
+/*
+ * The pinned side of the chain: joints 0..@pinned take their local
+ * transforms from @pose and their solved points are where that pose puts
+ * them, composed from the chain root's parent at bind (ik_chain_init()'s
+ * assumption). @parent_rot and @bind_rot come out as the loop below wants
+ * them at @pinned: the actual and the bind global rotation of its parent.
+ */
+static void chain_pin(ik_chain *chain, const struct joint *pose, int pinned,
+                      quat parent_rot, quat bind_rot)
+{
+    model3d *model = chain->e->txmodel->model;
+    int parent = model->joints[chain->joints[0]].parent;
+    mat4x4 m, T, R;
+
+    memcpy(m, parent >= 0 ? model->joints[parent].bind : model->root_pose, sizeof(mat4x4));
+    vec4_dup(parent_rot, chain->base_rot);
+    vec4_dup(bind_rot, chain->base_rot);
+
+    for (int k = 0; k <= pinned; k++) {
+        const struct joint *p = &pose[chain->joints[k]];
+        struct joint *j = &chain->e->joints[chain->joints[k]];
+        quat tmp;
+
+        vec3_dup(j->translation, (float *)p->translation);
+        vec4_dup(j->rotation, (float *)p->rotation);
+        vec3_dup(j->scale, (float *)p->scale);
+
+        mat4x4_translate(T, p->translation[0], p->translation[1], p->translation[2]);
+        mat4x4_mul(m, m, T);
+        mat4x4_from_quat(R, (float *)p->rotation);
+        mat4x4_mul(m, m, R);
+        mat4x4_scale_aniso(m, m, p->scale[0], p->scale[1], p->scale[2]);
+        vec3_dup(chain->points[k], m[3]);
+
+        /* the rotations the joints past the pin hang from */
+        if (k < pinned) {
+            quat_mul(tmp, parent_rot, (float *)p->rotation);
+            vec4_dup(parent_rot, tmp);
+            quat_mul(tmp, bind_rot, chain->rest_rot[k]);
+            vec4_dup(bind_rot, tmp);
+        }
+    }
+}
+
 cerr _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts)
 {
     if (!chain->e || !chain->nr)    return CERR_INVALID_ARGUMENTS;
 
+    int pinned = opts->pinned;
+
+    if (pinned < 0 || pinned >= (int)chain->nr - 1 || (pinned && !opts->pose))  return CERR_INVALID_ARGUMENTS;
+
     /* solve from rest: deterministic, no drift across frames */
     memcpy(chain->points, chain->rest_points, sizeof(*chain->points) * chain->nr);
 
+    /*
+     * The rotations the rebuild below starts from: the bind ones at the
+     * root, or the pinned pose's at the pin, whose side of the chain is
+     * put back as it was
+     */
+    quat parent_rot, bind_rot;
+
+    if (pinned) {
+        chain_pin(chain, opts->pose, pinned, parent_rot, bind_rot);
+    } else {
+        vec4_dup(parent_rot, chain->base_rot);
+        vec4_dup(bind_rot, chain->base_rot);
+    }
+
     fabrik_solve_opts fabrik_opts = {
-        .points         = chain->points,
-        .lengths        = chain->lengths,
-        .nr             = chain->nr,
+        .points         = chain->points + pinned,
+        .lengths        = chain->lengths + pinned,
+        .nr             = chain->nr - pinned,
         .max_iterations = opts->max_iterations,
         .tolerance      = opts->tolerance,
     };
@@ -193,7 +255,7 @@ cerr _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts)
         vec3 pole, reach;
 
         vec3_norm(pole, opts->pole);
-        vec3_sub(reach, opts->target, chain->rest_points[0]);
+        vec3_sub(reach, opts->target, chain->points[pinned]);
         vec3_norm_safe(reach, reach);
         vec3_mul_cross(ref_axis, reach, pole);
 
@@ -208,13 +270,9 @@ cerr _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts)
      * pose ones; carry_* hold the roll reference across normal-parallel
      * segments.
      */
-    quat parent_rot, bind_rot;
-    vec4_dup(parent_rot, chain->base_rot);
-    vec4_dup(bind_rot, chain->base_rot);
-
     vec3 carry_rest = {}, carry_want = {};
 
-    for (size_t k = 0; k < chain->nr; k++) {
+    for (size_t k = pinned; k < chain->nr; k++) {
         struct joint *j = &chain->e->joints[chain->joints[k]];
 
         vec3_dup(j->translation, chain->rest_trans[k]);

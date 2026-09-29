@@ -70,12 +70,21 @@ void ik_chain_done(ik_chain *chain);
  *                  anchored to
  * @max_iterations: FABRIK iteration cap; 0 picks the default
  * @tolerance:      acceptable end effector miss; 0 picks the default
+ * @pinned:         chain index of a pinned joint: the chain up to and
+ *                  including it keeps the pose in @pose, the rest solves
+ *                  from there toward the target; 0 (the root, which never
+ *                  moves anyway) pins nothing
+ * @pose:           the local joint transforms to keep the pinned side
+ *                  from, nr_joints of them laid out as entity3d::joints;
+ *                  required with a @pinned above 0
  */
 typedef struct ik_solve_opts {
-    vec3            target;
-    vec3            pole;
-    unsigned int    max_iterations;
-    float           tolerance;
+    vec3                target;
+    vec3                pole;
+    unsigned int        max_iterations;
+    float               tolerance;
+    const struct joint  *pose;
+    int                 pinned;
 } ik_solve_opts;
 
 cerr_check _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts);
@@ -96,7 +105,11 @@ cerr_check _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts);
  * parent, i.e. parallel transport, whose roll follows the path the
  * chain took and drifts under cyclic motion. The joints' local
  * rotations are replaced wholesale, so the chain doesn't layer on top
- * of a playing animation.
+ * of a playing animation. With a pin (.pinned, .pose) the
+ * joints from the root to the pinned one take their transforms from the
+ * given pose, as if they had not moved, and only the sub-chain from the
+ * pinned joint to the tip solves: a segment that stopped against
+ * something stays there while the tip keeps going.
  * Context: anywhere between the frame's pose reset and update
  * Return: CERR_OK or CERR_INVALID_ARGUMENTS
  */

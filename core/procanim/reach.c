@@ -28,9 +28,22 @@ static cerr reach_eval(const void *_cfg, void *priv, entity3d *e, double t, doub
 
     target_update(&r->target, &cfg->law, e, t, dt, point);
 
+    /* the pin furthest along the chain holds everything up to it */
+    animator_t *a = entity3d_animator(e);
+    const struct joint *pose = animator_pinned_pose(a);
+    int pinned = 0;
+
+    for (int k = (int)r->chain->nr - 2; pose && k > 0; k--)
+        if (animator_is_pinned(a, r->chain->joints[k])) {
+            pinned = k;
+            break;
+        }
+
     return ik_chain_solve(r->chain,
                           .target = { point[0], point[1], point[2] },
-                          .pole   = { cfg->pole[0], cfg->pole[1], cfg->pole[2] });
+                          .pole   = { cfg->pole[0], cfg->pole[1], cfg->pole[2] },
+                          .pinned = pinned,
+                          .pose   = pose);
 }
 
 static bool reach_done(const void *_cfg, void *priv, double t)
