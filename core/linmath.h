@@ -96,6 +96,15 @@ LINMATH_H_FUNC void vec##n##_pow_vec##n(vec##n r, vec##n const a, vec##n const e
 	int i; \
 	for(i=0; i<n; ++i) \
 		r[i] = powf(a[i], exp[i]); \
+} \
+/* no component is a NaN or an infinity */ \
+LINMATH_H_FUNC bool vec##n##_all_finite(vec##n const v) \
+{ \
+	int i; \
+	for(i=0; i<n; ++i) \
+		if (!isfinite(v[i])) \
+			return false; \
+	return true; \
 }
 
 LINMATH_H_DEFINE_VEC(2)
@@ -227,6 +236,15 @@ LINMATH_H_FUNC void vec4_pow_vec4(vec4 r, vec4 const a, vec4 const exp)
     for (i = 0; i < 4; ++i)
         r[i] = powf(a[i], exp[i]);
 }
+
+/* no component is a NaN or an infinity */
+LINMATH_H_FUNC bool vec4_all_finite(vec4 const v)
+{
+    int i;
+    for (i = 0; i < 4; ++i)
+        if (!isfinite(v[i]))    return false;
+    return true;
+}
 #else /* USE_SIMD */
 LINMATH_H_DEFINE_VEC(4)
 #endif /* USE_SIMD */
@@ -302,6 +320,15 @@ LINMATH_H_FUNC void mat## n ## x ## n ##_mul_vec## n ##_post(vec## n r, mat## n 
 		if (n == 4) temp[i] += M[3][i]*v[3]; \
 	} \
 	vec## n ##_dup(r, temp); \
+} \
+/* no element is a NaN or an infinity */ \
+LINMATH_H_FUNC bool mat## n ## x ## n ##_all_finite(mat## n ## x ## n M) \
+{ \
+	int i; \
+	for(i=0; i<n; ++i) \
+		if (!vec## n ##_all_finite(M[i])) \
+			return false; \
+	return true; \
 }
 
 #define LINMATH_DEFINE_MAT_MUL(n) \
