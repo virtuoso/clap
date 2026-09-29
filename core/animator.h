@@ -94,7 +94,25 @@ typedef struct anim_pose_ops {
  */
 typedef void (*anim_end_fn)(animator_t *a, struct scene *s, void *priv);
 
+/**
+ * typedef anim_contact_fn - the entity's body or one of its limbs touched something
+ * @a:      the animator
+ * @joint:  the joint the touching limb rides; -1 for the entity's own body
+ * @other:  what it touched: valid for the duration of the call; to keep it,
+ *          take your own reference and drop it where you consume it
+ * @pos:    the contact point, world space
+ * @normal: the surface normal at it, pointing from @other toward the entity
+ * @priv:   animator_set_contact_callback()'s
+ *
+ * Fires from animator_update(), once per (joint, other) pair per frame,
+ * for what the physics step found touching since the last update; a
+ * brain's state machine can be advanced from it.
+ */
+typedef void (*anim_contact_fn)(animator_t *a, int joint, struct entity3d *other,
+                                const vec3 pos, const vec3 normal, void *priv);
+
 struct anim_def;
+struct anim_contact;
 struct anim_transition;
 struct anim_binding;
 struct anim_layer;
@@ -117,11 +135,18 @@ TYPE(anim_lib,
  * @bindings:   the pose classes' instances on this entity (animator_bind())
  * @layers:     what is playing; [0] is the base layer, the overlays above it,
  *              each created on first use
+ * @contact:    the contact callback (animator_set_contact_callback()), if any
+ * @contact_priv: its argument
+ * @contacts:   what the physics step reported since the last update, each
+ *              holding a reference to its other entity until it is drained
  */
 TYPE(animator,
     struct entity3d             *e;
     darray(struct anim_binding, bindings);
     darray(struct anim_layer,   layers);
+    anim_contact_fn             contact;
+    void                        *contact_priv;
+    darray(struct anim_contact, contacts);
 );
 
 /**
@@ -441,11 +466,43 @@ double          animator_speed(animator_t *a, unsigned int layer);
 double          animator_weight(animator_t *a, unsigned int layer);
 
 /**
+ * animator_set_contact_callback() - ask for what the entity touches
+ * @a:      the animator
+ * @fn:     the callback; nullptr stops the reports
+ * @priv:   its argument
+ *
+ * Sets ENTITY3D_CONTACT_EVENTS on the entity: from the next physics step
+ * the backend reports what its body and limbs (phys_body_new_limb()) are
+ * touching, and animator_update() delivers them through @fn.
+ */
+void animator_set_contact_callback(animator_t *a, anim_contact_fn fn, void *priv);
+
+/**
+ * animator_contact_enqueue() - the physics step found the entity touching something
+ * @e:      the entity with ENTITY3D_CONTACT_EVENTS
+ * @joint:  the limb's joint, -1 for the entity's own body
+ * @other:  what it touches
+ * @pos:    the contact point, world space
+ * @normal: the surface normal at it, from @other toward @e
+ *
+ * The backends' half: queued for the entity's next animator_update(),
+ * which delivers it to the callback and drops it. One entry per (joint,
+ * other) pair between updates; nothing for an entity with
+ * ENTITY3D_SKIP_UPDATE, which would never drain it. Holds a reference to
+ * @other until then, and skips it if it is gone by then.
+ * Context: the physics step
+ */
+void animator_contact_enqueue(struct entity3d *e, int joint, struct entity3d *other,
+                              const vec3 pos, const vec3 normal);
+
+/**
  * animator_update() - the per-frame pass
  * @a:  the animator
  * @s:  the scene, for the animation clock
  *
- * Starts what animator_play() asked for and writes the current elements'
+ * Delivers the contacts the physics step queued (anim_contact_fn) first,
+ * so the brain can act on them before the pose is written. Then starts
+ * what animator_play() asked for and writes the current elements'
  * poses: the base's into the joints (a clip's keyframes; a pose class's
  * eval over the bind pose), cross-faded from the outgoing element while a
  * fade runs, then each overlay's into its scratch copy of the result and

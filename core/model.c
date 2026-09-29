@@ -1866,6 +1866,13 @@ static int default_update(entity3d *e, void *data)
 
     if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_debug_draw(scene, e->phys_body);
+    if (darray_count(e->limbs)) {
+        struct phys_body **limb;
+
+        phys_limbs_sync(e);
+        darray_for_each(limb, e->limbs)
+            phys_debug_draw(scene, *limb);
+    }
     if (clap_get_render_options(scene->clap_ctx)->overlay_draws_enabled)
         entity3d_debug(scene, e);
 
@@ -1886,6 +1893,7 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
     mat4x4_identity(e->inverse_mx);
     mat4x4_identity(e->prev_mx);
     animator_init(&e->animator, e);
+    darray_init(e->limbs);
     e->light     = NULL;
     e->light_idx = -1;
     e->force_lod = -1;
@@ -1941,6 +1949,11 @@ static void entity3d_drop(struct ref *ref)
         e->phys_body = NULL;
         entity3d_clear(e, ENTITY3D_HAS_PHYSICS | ENTITY3D_PHYS_IS_BODY);
     }
+
+    struct phys_body **limb;
+    darray_for_each(limb, e->limbs)
+        phys_body_done(*limb);
+    darray_clearout(e->limbs);
     mem_free(e->joints);
     mem_free(e->joint_transforms);
     mem_free(e->name);

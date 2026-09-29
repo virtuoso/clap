@@ -391,6 +391,8 @@ static inline const char *txmodel_name(model3dtx *txm)
  * @ENTITY3D_NM_SKIP:       entity is invisible to the navmesh: neither
  *                          walkable nor obstructing (ground the agents
  *                          should not roam)
+ * @ENTITY3D_CONTACT_EVENTS: the physics step reports what the entity's body
+ *                          and limbs touch (animator_set_contact_callback())
  * @ENTITY3D_ALIVE:         entity is alive and functional
  * @ENTITY3D_ANY:           matches any entity
  */
@@ -413,6 +415,7 @@ typedef enum entity3d_flags {
     ENTITY3D_SKIP_UPDATE    = 1u << 15,
     ENTITY3D_NM_HAZARD      = 1u << 16,
     ENTITY3D_NM_SKIP        = 1u << 17,
+    ENTITY3D_CONTACT_EVENTS = 1u << 18,
     ENTITY3D_ALIVE          = 1u << 31,
     ENTITY3D_ANY            = ~0u,
 } entity3d_flags;
@@ -510,6 +513,8 @@ typedef struct entity3d {
     uint16_t            seq;
     uint16_t            parent_seq;
     struct phys_body    *phys_body;
+    /* kinematic bodies riding joints (phys_body_new_limb()); the entity owns them */
+    darray(struct phys_body *, limbs);
     float               bloom_intensity;
     float               bloom_threshold;
     float               color[4];

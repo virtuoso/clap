@@ -227,6 +227,46 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
                                 double mass);
 
 /**
+ * phys_body_new_limb() - create a kinematic body riding one of an entity's joints
+ * @phys:       core physics handle
+ * @e:          entity3d with an armature; the limb is appended to entity3d::limbs
+ * @joint:      the joint it rides
+ * @class:      GEOM_CAPSULE or GEOM_SPHERE
+ * @radius:     the shape's radius
+ * @half_len:   a capsule's half length along the joint's local Y; 0 for a
+ *              sphere
+ * @offset:     the shape's center in the joint's frame; a segment from the
+ *              joint to its child is (0, half_len, 0)
+ *
+ * A limb follows the skeleton (phys_limbs_sync()) and collides the way a
+ * character's capsule does: the dynamics never move it, dynamic bodies
+ * bounce off it, kinematic ones pass through it, and it reports contacts
+ * for an entity that asked for them (animator_set_contact_callback()).
+ * The entity keeps its own body, if it has one, alongside.
+ * Return: the limb, or nullptr for a bad class or joint
+ */
+struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
+                                     double radius, double half_len, const vec3 offset);
+
+/**
+ * phys_limbs_sync() - place an entity's limbs on its posed skeleton
+ * @e:  entity3d with limbs
+ *
+ * Each limb goes to entity3d::mx * joint_transforms[joint] * bind * offset,
+ * i.e. where the joint is this frame. The entity update calls it after the
+ * pose and the transform are final.
+ */
+void phys_limbs_sync(entity3d *e);
+
+/**
+ * phys_body_joint() - the joint a body rides
+ * @body:   phys_body object
+ *
+ * Return: the joint index of a limb, -1 for an entity's own body
+ */
+int phys_body_joint(struct phys_body *body);
+
+/**
  * phys_body_update() - update entity's position from its phys_body
  * @e:  entity3d object
  *

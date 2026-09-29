@@ -25,18 +25,80 @@ void animator_init(animator_t *a, struct entity3d *e)
     a->e = e;
     darray_init(a->bindings);
     darray_init(a->layers);
+    a->contact = nullptr;
+    a->contact_priv = nullptr;
+    darray_init(a->contacts);
+}
+
+/* the queue's references go with its entries */
+static void contacts_clear(animator_t *a)
+{
+    struct anim_contact *c;
+
+    darray_for_each(c, a->contacts)
+        ref_put(c->other);
+    darray_clearout(a->contacts);
 }
 
 void animator_done(animator_t *a)
 {
     struct anim_layer *l;
 
+    contacts_clear(a);
     darray_for_each(l, a->layers) {
         if (l->scratch)     mem_free(l->scratch);
         if (l->mask.size)   bitmap_done(&l->mask);
     }
     darray_clearout(a->bindings);
     darray_clearout(a->layers);
+}
+
+void animator_set_contact_callback(animator_t *a, anim_contact_fn fn, void *priv)
+{
+    a->contact = fn;
+    a->contact_priv = priv;
+    if (fn)
+        entity3d_set(a->e, ENTITY3D_CONTACT_EVENTS, nullptr);
+    else
+        entity3d_clear(a->e, ENTITY3D_CONTACT_EVENTS);
+}
+
+void animator_contact_enqueue(struct entity3d *e, int joint, struct entity3d *other,
+                              const vec3 pos, const vec3 normal)
+{
+    animator_t *a = &e->animator;
+    struct anim_contact *c;
+
+    if (!a->contact || entity3d_matches(e, ENTITY3D_SKIP_UPDATE))   return;
+
+    /* the step runs in sub-steps: one report per pair per update */
+    darray_for_each(c, a->contacts)
+        if (c->joint == joint && c->other == other)     return;
+
+    if (!ref_get(other))    return;
+
+    c = darray_add(a->contacts);
+    if (!c) { ref_put(other); return; }
+
+    c->joint = joint;
+    c->other = other;
+    vec3_dup(c->pos, (float *)pos);
+    vec3_dup(c->normal, (float *)normal);
+}
+
+/* deliver what the step reported: one reference in per entry, one out */
+static void contacts_drain(animator_t *a)
+{
+    if (!darray_count(a->contacts))     return;
+
+    for (unsigned int i = 0; i < darray_count(a->contacts); i++) {
+        struct anim_contact *c = &a->contacts.x[i];
+
+        if (a->contact && entity3d_matches(c->other, ENTITY3D_ALIVE))
+            a->contact(a, c->joint, c->other, c->pos, c->normal, a->contact_priv);
+        ref_put(c->other);
+    }
+    darray_clearout(a->contacts);
 }
 
 struct entity3d *animator_entity(animator_t *a)
@@ -591,6 +653,10 @@ void animator_update(animator_t *a, struct scene *s)
 {
     struct entity3d *e = a->e;
     anim_lib_t *lib = animator_lib(a);
+
+    /* what the step found first: the brain may play or change state on it */
+    contacts_drain(a);
+
     struct anim_layer *l = layer_get(a, 0);
 
     /*

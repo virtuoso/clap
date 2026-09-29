@@ -36,6 +36,20 @@ struct anim_def {
 };
 
 /**
+ * struct anim_contact - one report from the physics step, queued for the update
+ * @joint:  the limb's joint, -1 for the entity's own body
+ * @other:  what it touched; referenced until the update drops it
+ * @pos:    the contact point, world space
+ * @normal: from @other toward the entity
+ */
+struct anim_contact {
+    struct entity3d *other;
+    vec3            pos;
+    vec3            normal;
+    int             joint;
+};
+
+/**
  * struct anim_binding - a pose class's instance on one entity
  * @ani:    the pose class
  * @priv:   its state on this entity, the binder's

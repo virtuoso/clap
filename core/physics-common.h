@@ -39,4 +39,26 @@ typedef struct phys_capsule {
  */
 phys_capsule phys_capsule_size(entity3d *e, double radius, double offset);
 
+/**
+ * phys_limb_joint_valid() - check that a limb can ride a joint
+ * @e:      entity3d
+ * @joint:  joint index
+ *
+ * Return: true if @e has a skeleton and @joint is one of its joints
+ */
+bool phys_limb_joint_valid(entity3d *e, int joint);
+
+/**
+ * phys_limb_place() - where a limb is this frame
+ * @e:      entity3d with an armature
+ * @joint:  the joint the limb rides
+ * @offset: the limb's center in the joint's frame
+ * @pos:    [out] the limb's center in the world
+ * @rot:    [out] its orientation in the world: the joint's
+ *
+ * entity3d::mx * joint_transforms[@joint] * bind * @offset: where the
+ * latest pose put the joint.
+ */
+void phys_limb_place(entity3d *e, int joint, const vec3 offset, vec3 pos, mat4x4 rot);
+
 #endif /* __CLAP_PHYSICS_COMMON_H__ */

@@ -49,6 +49,33 @@ static void character_look_start(struct character *ch)
     CERR_RET(animator_play(a, ani, .layer = CHARACTER_LOOK_LAYER), return);
 }
 
+/*
+ * The hands as limbs: kinematic spheres riding the hand joints the model
+ * maps (the scene's "armature": "hand_left", "hand_right"), so the hands
+ * collide and can report what they touch (animator_set_contact_callback())
+ * once there is a move that cares.
+ */
+#define CHARACTER_HAND_R    0.08f
+
+static void character_limbs_start(struct character *ch)
+{
+    entity3d *e = ch->entity;
+    model3d *m = e->txmodel->model;
+    struct phys *phys = clap_get_phys(ch->scene->clap_ctx);
+    static const joint_type hands[] = { JOINT_HAND_LEFT, JOINT_HAND_RIGHT };
+
+    if (!e->joints)     return;
+
+    for (unsigned int i = 0; i < array_size(hands); i++) {
+        cres(joint_type) j = model3d_get_joint(m, hands[i]);
+
+        if (IS_CERR(j))     continue;
+        if (!phys_body_new_limb(phys, e, j.val, GEOM_SPHERE, CHARACTER_HAND_R, 0.0,
+                                (vec3){ 0.0f, 0.0f, 0.0f }))
+            warn("%s: no limb for %s\n", entity_name(e), m->joints[j.val].name);
+    }
+}
+
 /* the brain's part: the controlled entity if it is someone else, else the nearest other character */
 static void character_look_pick(struct character *ch, struct scene *s)
 {
@@ -928,6 +955,7 @@ static cerr character_make(struct ref *ref, void *_opts)
     c->mq->nr_characters++;
     character_motion_reset(c, opts->scene);
     character_look_start(c);
+    character_limbs_start(c);
 
     return CERR_OK;
 }

@@ -56,6 +56,9 @@ struct phys_body {
     dReal       soft_cfm;
     /* not sure we even need to store the mass */
     dMass       mass;
+    /* the joint a limb rides (phys_body_new_limb()), -1 for an entity's own body; the shape center in its frame */
+    int         joint;
+    vec3        offset;
     struct list entry;
 
     /* stuff communicated from near_callback() */
@@ -393,10 +396,24 @@ static void phys_contact_debug_draw(struct phys *phys, dContactGeom *geom, vec4 
     message_send(phys->clap_ctx, &dm);
 }
 
+/* the phys_body behind one of an entity's geoms: its own body's or a limb's */
+static struct phys_body *phys_body_of_geom(entity3d *e, dGeomID g)
+{
+    struct phys_body **limb;
+
+    if (e->phys_body && e->phys_body->geom == g)    return e->phys_body;
+
+    darray_for_each(limb, e->limbs)
+        if ((*limb)->geom == g)     return *limb;
+
+    return e->phys_body;
+}
+
 /*
  * Get contact points between two potentially colliding geometries and if they
  * do, put them on the collision list, where they later get resolved in phys_step().
  */
+
 static void near_callback(void *data, dGeomID o1, dGeomID o2)
 {
     dContact contact[MAX_CONTACTS] = {};
@@ -418,12 +435,30 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
             dGeomID g2 = contact[i].geom.g2;
             entity3d *e1 = dGeomGetData(g1);
             entity3d *e2 = dGeomGetData(g2);
-            struct phys *phys = e1->phys_body->phys;
+
+            /* an entity's limbs against each other or its own body */
+            if (e1 == e2)   continue;
+
+            struct phys_body *pb1 = phys_body_of_geom(e1, g1), *pb2 = phys_body_of_geom(e2, g2);
+            struct phys *phys = pb1->phys;
 
             phys_contact_surface(e1, e2, &contact[i], 1);
 
             if (unlikely(phys->draw_contacts))
                 phys_contact_debug_draw(phys, &contact[i].geom, (vec4){ 1.0, 0.0, 0.0, 1.0 });
+
+            /* the reports: the ODE normal points into g1; ours from the other toward the entity */
+            if (entity3d_matches(e1, ENTITY3D_CONTACT_EVENTS) || entity3d_matches(e2, ENTITY3D_CONTACT_EVENTS)) {
+                vec3 pos = { contact[i].geom.pos[0], contact[i].geom.pos[1], contact[i].geom.pos[2] };
+                vec3 n1 = { contact[i].geom.normal[0], contact[i].geom.normal[1], contact[i].geom.normal[2] };
+                vec3 n2;
+
+                vec3_scale(n2, n1, -1.0f);
+                if (entity3d_matches(e1, ENTITY3D_CONTACT_EVENTS))
+                    animator_contact_enqueue(e1, pb1->joint, e2, pos, n1);
+                if (entity3d_matches(e2, ENTITY3D_CONTACT_EVENTS))
+                    animator_contact_enqueue(e2, pb2->joint, e1, pos, n2);
+            }
 
             b1 = dGeomGetBody(g1);
             b2 = dGeomGetBody(g2);
@@ -435,14 +470,16 @@ static void near_callback(void *data, dGeomID o1, dGeomID o2)
              * Manual penetration correction for characters only.
              * Non-character dynamic bodies rely on contact joints
              * and ERP for penetration resolution; manual correction
-             * fights with ODE's solver and causes jitter.
+             * fights with ODE's solver and causes jitter. A limb
+             * shoves nobody: it is kinematic on both backends, and a
+             * kinematic pair makes no contact in Box3D.
              */
-            if (phys_body_has_body(e1->phys_body) && phys_body_has_body(e2->phys_body)) {
-                if (entity3d_matches(e1, ENTITY3D_IS_CHARACTER)) entity_pen_push(e1, &contact[i], pen);
+            if (phys_body_has_body(pb1) && phys_body_has_body(pb2)) {
+                if (entity3d_matches(e1, ENTITY3D_IS_CHARACTER) && pb2->joint < 0) entity_pen_push(e1, &contact[i], pen);
+                if (entity3d_matches(e2, ENTITY3D_IS_CHARACTER) && pb1->joint < 0) entity_pen_push(e2, &contact[i], pen);
+            } else if (!phys_body_has_body(pb1)) {
                 if (entity3d_matches(e2, ENTITY3D_IS_CHARACTER)) entity_pen_push(e2, &contact[i], pen);
-            } else if (!phys_body_has_body(e1->phys_body)) {
-                if (entity3d_matches(e2, ENTITY3D_IS_CHARACTER)) entity_pen_push(e2, &contact[i], pen);
-            } else if (!phys_body_has_body(e2->phys_body)) {
+            } else if (!phys_body_has_body(pb2)) {
                 if (entity3d_matches(e1, ENTITY3D_IS_CHARACTER)) entity_pen_push(e1, &contact[i], pen);
             }
         }
@@ -935,6 +972,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     list_init(&body->pen_entry);
     body->phys = phys;
     body->mu = 1.0;
+    body->joint = -1;
 
     if (has_body)
         body->body = dBodyCreate(phys->world);
@@ -1015,6 +1053,91 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     }
 
     return body;
+}
+
+struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
+                                     double radius, double half_len, const vec3 offset)
+{
+    if (class != GEOM_CAPSULE && class != GEOM_SPHERE)  return NULL;
+    if (!phys_limb_joint_valid(e, joint))               return NULL;
+
+    struct phys_body *body = mem_alloc(sizeof(*body), .zero = 1, .fatal_fail = 1);
+    list_init(&body->pen_entry);
+    body->phys = phys;
+    body->mu = 1.0;
+    body->joint = joint;
+    vec3_dup(body->offset, (float *)offset);
+    body->class = class;
+    body->radius = radius * e->scale;
+
+    float length = class == GEOM_CAPSULE ? 2.0f * half_len * e->scale : 0.0f;
+
+    body->body = dBodyCreate(phys->world);
+    body->geom = length > 0.0f ? dCreateCapsule(phys->space, body->radius, length)
+                               : dCreateSphere(phys->space, body->radius);
+    if (!body->geom) {
+        dBodyDestroy(body->body);
+        mem_free(body);
+        return nullptr;
+    }
+
+    dGeomSetBody(body->geom, body->body);
+    dBodySetData(body->body, e);
+    dGeomSetData(body->geom, e);
+    if (length > 0.0f) {
+        /* a capsule lies along its joint, whose axis is Y */
+        dMatrix3 R;
+
+        capsule_upright(R);
+        dGeomSetOffsetRotation(body->geom, R);
+    }
+
+    /* a character capsule's terms: the solver never moves it, phys_limbs_sync() does */
+    dBodySetKinematic(body->body);
+    dBodyDisable(body->body);
+    dSpaceRemove(phys->space, body->geom);
+    dSpaceAdd(phys->character_space, body->geom);
+
+    const float *pos = transform_pos(&e->xform, nullptr);
+    dBodySetPosition(body->body, pos[0], pos[1], pos[2]);
+
+    struct phys_body **slot = darray_add(e->limbs);
+    if (!slot) {
+        phys_body_done(body);
+        return nullptr;
+    }
+    *slot = body;
+
+    return body;
+}
+
+int phys_body_joint(struct phys_body *body)
+{
+    return body->joint;
+}
+
+void phys_limbs_sync(entity3d *e)
+{
+    struct phys_body **limb;
+
+    if (!e->joint_transforms)   return;
+
+    darray_for_each(limb, e->limbs) {
+        struct phys_body *body = *limb;
+        mat4x4 r;
+        vec3 p;
+
+        phys_limb_place(e, body->joint, body->offset, p, r);
+
+        /* a degenerate joint (a zero scale, say) makes no transform: the limb stays where it was */
+        if (!vec3_all_finite(p) || !mat4x4_all_finite(r)) {
+            warn_once("%s: limb at joint %d has no valid transform\n", entity_name(e), body->joint);
+            continue;
+        }
+
+        dBodySetPosition(body->body, p[0], p[1], p[2]);
+        phys_body_rotate_mat4x4(body, r);
+    }
 }
 
 void phys_body_done(struct phys_body *body)

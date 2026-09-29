@@ -36,3 +36,20 @@ phys_capsule phys_capsule_size(entity3d *e, double radius, double offset)
 
     return cap;
 }
+
+bool phys_limb_joint_valid(entity3d *e, int joint)
+{
+    return e->joints && joint >= 0 && (unsigned int)joint < e->txmodel->model->nr_joints;
+}
+
+void phys_limb_place(entity3d *e, int joint, const vec3 offset, vec3 pos, mat4x4 rot)
+{
+    vec4 o = { offset[0], offset[1], offset[2], 1.0f }, p;
+    mat4x4 m;
+
+    mat4x4_mul(m, e->joint_transforms[joint], e->txmodel->model->joints[joint].bind);
+    mat4x4_mul(m, e->mx, m);
+    mat4x4_mul_vec4(p, m, o);
+    vec3_dup(pos, p);
+    mat4x4_orthonormalize(rot, m);
+}

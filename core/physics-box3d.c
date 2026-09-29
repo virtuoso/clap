@@ -72,6 +72,9 @@ struct phys {
  * @radius:     capsule/sphere radius
  * @half_len:   half of the capsule's cylinder length, 0 for spheres
  * @mass:       total mass as requested by phys_body_new()
+ * @joint:      the joint a limb rides (phys_body_new_limb()); -1 for an
+ *              entity's own body
+ * @offset:     a limb's shape center in the joint's frame
  * @bounce:     contact restitution (see &struct phys_contact_params)
  * @bounce_vel: stored only: Box3D uses the world level restitution threshold
  * @mu:         contact friction coefficient
@@ -100,6 +103,8 @@ struct phys_body {
     float       radius;
     float       half_len;
     float       mass;
+    int         joint;
+    vec3        offset;
 
     float       bounce;
     float       bounce_vel;
@@ -706,12 +711,112 @@ static void phys_step_debug_collide(struct phys *phys)
     }
 }
 
+/* one of a reporting entity's kinematic shapes overlaps @shape_id: the first plane says where */
+static bool contact_report_cb(b3ShapeId shape_id, const b3PlaneResult *planes,
+                              int plane_count, void *data)
+{
+    struct phys_body *body = data;
+    entity3d *other = b3Shape_GetUserData(shape_id);
+
+    if (other == body->entity || !plane_count)  return true;
+
+    b3Pos origin = b3Body_GetPosition(body->body_id);
+    vec3 pos = { origin.x + planes[0].point.x, origin.y + planes[0].point.y, origin.z + planes[0].point.z };
+    vec3 normal = { planes[0].plane.normal.x, planes[0].plane.normal.y, planes[0].plane.normal.z };
+
+    animator_contact_enqueue(body->entity, body->joint, other, pos, normal);
+
+    return true;
+}
+
+/* the joint an entity's shape rides: its own body's or one of its limbs' */
+static int shape_joint(entity3d *e, b3ShapeId shape_id)
+{
+    struct phys_body **limb;
+
+    darray_for_each(limb, e->limbs)
+        if (B3_ID_EQUALS((*limb)->shape_id, shape_id))  return (*limb)->joint;
+
+    return -1;
+}
+
+/* a dynamic reporting body began touching something: the step's own contact says where */
+static void contact_report_event(entity3d *e, b3ShapeId shape_id, entity3d *other,
+                                 const b3ContactBeginTouchEvent *ev, bool flip)
+{
+    if (!entity3d_matches(e, ENTITY3D_CONTACT_EVENTS))                  return;
+    if (b3Body_GetType(b3Shape_GetBody(shape_id)) != b3_dynamicBody)    return;
+
+    vec3 pos, normal = { 0.0f, 0.0f, 0.0f };
+    b3Pos p = b3Body_GetPosition(b3Shape_GetBody(shape_id));
+
+    vec3_dup(pos, (vec3){ p.x, p.y, p.z });
+    if (b3Contact_IsValid(ev->contactId)) {
+        b3ContactData cd = b3Contact_GetData(ev->contactId);
+
+        if (cd.manifoldCount && cd.manifolds[0].pointCount) {
+            const b3Manifold *m = &cd.manifolds[0];
+            b3Pos pa = b3Body_GetPosition(b3Shape_GetBody(cd.shapeIdA));
+
+            vec3_dup(pos, (vec3){ pa.x + m->points[0].anchorA.x, pa.y + m->points[0].anchorA.y,
+                                  pa.z + m->points[0].anchorA.z });
+            /* the manifold normal points from A to B; ours from the other toward the entity */
+            float s = flip ? 1.0f : -1.0f;
+            vec3_dup(normal, (vec3){ s * m->normal.x, s * m->normal.y, s * m->normal.z });
+        }
+    }
+
+    animator_contact_enqueue(e, shape_joint(e, shape_id), other, pos, normal);
+}
+
+/*
+ * phys_step_contacts() - report what the entities asking for contacts touch
+ * @phys:   core physics handle
+ *
+ * A kinematic body (a character capsule, a limb) makes contacts in the step
+ * with dynamic shapes only, so each reporting one is collided with the world
+ * the way a mover is, which finds static, kinematic and dynamic shapes
+ * alike. A dynamic reporting body has the step's begin-touch events.
+ */
+static void phys_step_contacts(struct phys *phys)
+{
+    struct phys_body *body;
+
+    list_for_each_entry(body, &phys->bodies, entry) {
+        if (!entity3d_matches(body->entity, ENTITY3D_CONTACT_EVENTS))       continue;
+        if (b3Body_GetType(body->body_id) != b3_kinematicBody)              continue;
+        if (body->class != GEOM_CAPSULE && body->class != GEOM_SPHERE)      continue;
+
+        b3Vec3 axis = b3RotateVector(b3Body_GetRotation(body->body_id), (b3Vec3){ 0, body->half_len, 0 });
+        b3Capsule mover = { .center1 = b3Neg(axis), .center2 = axis, .radius = body->radius };
+
+        b3World_CollideMover(phys->world, b3Body_GetPosition(body->body_id), &mover,
+                             b3DefaultQueryFilter(), contact_report_cb, body);
+    }
+
+    b3ContactEvents events = b3World_GetContactEvents(phys->world);
+
+    for (int i = 0; i < events.beginCount; i++) {
+        b3ContactBeginTouchEvent *ev = &events.beginEvents[i];
+
+        if (!b3Shape_IsValid(ev->shapeIdA) || !b3Shape_IsValid(ev->shapeIdB))   continue;
+
+        entity3d *ea = b3Shape_GetUserData(ev->shapeIdA), *eb = b3Shape_GetUserData(ev->shapeIdB);
+
+        if (!ea || !eb || ea == eb)     continue;
+
+        contact_report_event(ea, ev->shapeIdA, eb, ev, false);
+        contact_report_event(eb, ev->shapeIdB, ea, ev, true);
+    }
+}
+
 static void __phys_step(struct phys *phys, double dt)
 {
     if (unlikely(phys->draw_contacts))
         phys_step_debug_collide(phys);
 
     b3World_Step(phys->world, dt, 4);
+    phys_step_contacts(phys);
 
     if (unlikely(phys->draw_contacts)) {
         b3ContactEvents events = b3World_GetContactEvents(phys->world);
@@ -921,6 +1026,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     body->class = class;
     body->mass = mass;
     body->mu = 1.0;
+    body->joint = -1;
 
     /* shape sizing first: the body def needs yoffset for its position */
     if (class == GEOM_CAPSULE)
@@ -999,6 +1105,95 @@ err_free:
     mem_free(body);
 
     return NULL;
+}
+
+struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
+                                     double radius, double half_len, const vec3 offset)
+{
+    if (class != GEOM_CAPSULE && class != GEOM_SPHERE)  return NULL;
+    if (!phys_limb_joint_valid(e, joint))               return NULL;
+
+    struct phys_body *body = mem_alloc(sizeof(*body), .zero = 1, .fatal_fail = 1);
+    list_init(&body->entry);
+    body->phys = phys;
+    body->entity = e;
+    body->type = PHYS_BODY;
+    body->class = class;
+    body->mu = 1.0;
+    body->joint = joint;
+    vec3_dup(body->offset, (float *)offset);
+    body->radius = radius * e->scale;
+    body->half_len = class == GEOM_CAPSULE ? half_len * e->scale : 0.0f;
+
+    /* placed by phys_limbs_sync() every frame; starts where the entity is */
+    const float *pos = transform_pos(&e->xform, nullptr);
+    b3BodyDef bd = b3DefaultBodyDef();
+
+    bd.type = b3_kinematicBody;
+    bd.position = (b3Pos){ pos[0], pos[1], pos[2] };
+    bd.userData = e;
+    bd.name = entity_name(e);
+
+    body->body_id = b3CreateBody(phys->world, &bd);
+    if (B3_IS_NULL(body->body_id))  goto err_free;
+
+    /* a character capsule's terms: the dynamics bounce off it, kinematics pass through */
+    b3ShapeDef sd = b3DefaultShapeDef();
+    sd.userData = e;
+    sd.baseMaterial.friction = body->mu;
+    sd.filter.categoryBits = PHYS_CAT_CHARACTER;
+    sd.filter.maskBits = UINT64_MAX;
+    sd.enableHitEvents = false;
+
+    body->shape_id = phys_shape_capsule_new(body, &sd);
+    if (B3_IS_NULL(body->shape_id)) goto err_body;
+
+    struct phys_body **slot = darray_add(e->limbs);
+    if (!slot)  goto err_body;
+    *slot = body;
+
+    list_append(&phys->bodies, &body->entry);
+
+    return body;
+
+err_body:
+    b3DestroyBody(body->body_id);
+err_free:
+    mem_free(body);
+
+    return NULL;
+}
+
+int phys_body_joint(struct phys_body *body)
+{
+    return body->joint;
+}
+
+void phys_limbs_sync(entity3d *e)
+{
+    struct phys_body **limb;
+
+    if (!e->joint_transforms)   return;
+
+    darray_for_each(limb, e->limbs) {
+        mat4x4 r;
+        vec3 pos;
+        quat rot;
+
+        phys_limb_place(e, (*limb)->joint, (*limb)->offset, pos, r);
+        quat_from_mat4x4(rot, r);
+
+        b3Pos p = { pos[0], pos[1], pos[2] };
+        b3Quat q = b3NormalizeQuat(b3quat_from_quat(rot));
+
+        /* a degenerate joint (a zero scale, say) makes no transform: the limb stays where it was */
+        if (!b3IsValidPosition(p) || !b3IsValidQuat(q)) {
+            warn_once("%s: limb at joint %d has no valid transform\n", entity_name(e), (*limb)->joint);
+            continue;
+        }
+
+        b3Body_SetTransform((*limb)->body_id, p, q);
+    }
 }
 
 void phys_body_done(struct phys_body *body)
