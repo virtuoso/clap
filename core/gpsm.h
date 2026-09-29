@@ -124,6 +124,7 @@ struct gpsm_state {
 
 struct gpsm {
     gpsm_state_t              state;
+    gpsm_state_t              target;      /* the state being entered; see gpsm_get_target() */
     unsigned int              nr_states;
     const struct gpsm_state  *table;       /* [nr_states] */
     void                     *priv;
@@ -179,6 +180,19 @@ cerr  gpsm_init(struct gpsm *sm, const struct gpsm_state *table,
 
 /** gpsm_get() - current state */
 gpsm_state_t gpsm_get(const struct gpsm *sm);
+
+/**
+ * gpsm_get_target() - the state whose enter() is running
+ * @sm:     the state machine
+ *
+ * Valid inside an enter chain, where gpsm_get() still says the state being
+ * left: the state of the enter() that is running, so one enter() can serve
+ * every state of a machine that plays the transition into whatever it
+ * enters (see animator_play_transition()). Between transitions it is the
+ * current state.
+ * Return: the state being entered, or the current one
+ */
+gpsm_state_t gpsm_get_target(const struct gpsm *sm);
 
 /** gpsm_name() - name of state @s, or a placeholder if unnamed / out of range */
 const char  *gpsm_name(const struct gpsm *sm, gpsm_state_t s);

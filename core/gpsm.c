@@ -65,19 +65,23 @@ static cerr gpsm_bad_redirect(struct gpsm *sm, gpsm_state_t from,
 
         if (IS_CERR(r)) {
             sm->state = cur;            /* best-effort landing; caller decides */
+            sm->target = cur;
             return cerr_error_cres(r);
         }
         if (!state_in_range(sm, r.val)) {
             err("gpsm(%s): recover returned out-of-range state %d\n", gpsm_id(sm), r.val);
             sm->state = cur;
+            sm->target = cur;
             return CERR_INVALID_ARGUMENTS;
         }
         sm->state = r.val;              /* trusted; no valid_from re-check */
+        sm->target = r.val;
         return CERR_OK;
     }
 
     GPSM_FATAL();                       /* debug: catch the bug here */
     sm->state = cur;                    /* release: land and limp on */
+    sm->target = cur;
     return CERR_INVALID_OPERATION;
 }
 
@@ -92,6 +96,7 @@ cerr gpsm_init(struct gpsm *sm, const struct gpsm_state *table,
     sm->nr_states = nr_states;
     sm->priv      = priv;
     sm->state     = initial;
+    sm->target    = initial;
 
     if (table[initial].enter) {
         auto got = table[initial].enter(sm, priv, GPSM_NO_STATE);
@@ -110,6 +115,11 @@ cerr gpsm_init(struct gpsm *sm, const struct gpsm_state *table,
 gpsm_state_t gpsm_get(const struct gpsm *sm)
 {
     return sm->state;
+}
+
+gpsm_state_t gpsm_get_target(const struct gpsm *sm)
+{
+    return sm->target;
 }
 
 const char *gpsm_name(const struct gpsm *sm, gpsm_state_t s)
@@ -164,6 +174,7 @@ cerr gpsm_set(struct gpsm *sm, gpsm_state_t requested)
 
         if (!cur_desc->enter)  break;           /* no enter: land on cur */
 
+        sm->target = cur;
         gpsm_state_t next = cur_desc->enter(sm, sm->priv, from);
 
         if (next == cur)  break;                /* enter landed */
@@ -181,6 +192,7 @@ cerr gpsm_set(struct gpsm *sm, gpsm_state_t requested)
     }
 
     sm->state = cur;
+    sm->target = cur;
     return CERR_OK;
 }
 
