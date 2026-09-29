@@ -643,6 +643,27 @@ bool gltf_node_extras_present(struct gltf_data *gd, int node, const char *prefix
     return false;
 }
 
+cres(int) gltf_node_extras_prefixed(struct gltf_data *gd, int node, const char *prefix, int idx,
+                                    const char **key, const char **str)
+{
+    CERR_RET(gltf_node_is_valid(gd, node), return cres_error_cerr(int, __cerr));
+
+    struct gltf_node *n = DA(gd->nodes, node);
+    size_t plen = strlen(prefix);
+
+    for (; idx >= 0 && (unsigned int)idx < darray_count(n->extras); idx++) {
+        struct gltf_extra *ex = &n->extras.x[idx];
+
+        if (strncmp(ex->key, prefix, plen))     continue;
+
+        *key = ex->key + plen;
+        *str = ex->type == GLTF_EXTRA_STRING ? ex->s : nullptr;
+        return cres_val(int, idx + 1);
+    }
+
+    return cres_error(int, CERR_NOT_FOUND);
+}
+
 bool gltf_node_extras_string(struct gltf_data *gd, int node, const char *key, const char **out)
 {
     auto ex = CRES_RET(gltf_node_extra_find(gd, node, key), return false);

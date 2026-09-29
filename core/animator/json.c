@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * The transition table from JSON: the scene's "sequences" object, one entry
- * per state transition, its value the clips to play in order.
+ * The transition table from data: the scene's "sequences" object, one entry
+ * per state transition, its value the clips to play in order, and the same
+ * entries as flat strings for a model's GLTF extras (extras.c).
  *
  *   "sequences": {
  *       "moving":         [ "motion_start", "motion*" ],
  *       "jumping>moving": [ "jump_to_motion", "motion*" ]
  *   }
+ *
+ *   clap::anim::moving         = "motion_start,motion*"
+ *   clap::anim::jumping>moving = "jump_to_motion,motion*"
  *
  * A key is a state name, or "from>to" for one particular transition; a bare
  * state is entered from anywhere. A clip name with a "*" after it repeats.
@@ -50,10 +54,9 @@ static cerr key_parse(const char *key, const struct gpsm_state *states, unsigned
     return CERR_OK;
 }
 
-/* one element, "clip" or "clip*", onto @seq */
-static cerr seq_push_spec(anim_lib_t *lib, anim_t seq, const char *spec)
+/* one element, "clip" or "clip*", @len characters of it, onto @seq */
+static cerr seq_push_spec(anim_lib_t *lib, anim_t seq, const char *spec, size_t len)
 {
-    size_t len = strlen(spec);
     bool repeat = len && spec[len - 1] == '*';
 
     if (repeat)     len--;
@@ -69,6 +72,45 @@ static cerr seq_push_spec(anim_lib_t *lib, anim_t seq, const char *spec)
     anim_t ani = CRES_RET_CERR(anim_lib_clip(lib, name));
 
     return anim_lib_seq_push(lib, seq, ani, repeat);
+}
+
+/* the entry for @to from @from, or from anywhere */
+static cerr transition_add(anim_lib_t *lib, int to, int from, anim_t seq, double fade)
+{
+    if (from == GPSM_NO_STATE)  return anim_lib_transition_add_any(lib, to, seq, fade);
+
+    return anim_lib_transition_add(lib, to, from, seq, fade);
+}
+
+cerr anim_lib_transition_from_spec(anim_lib_t *lib, const char *key, const char *clips, double fade,
+                                   const struct gpsm_state *states, unsigned int nr_states)
+{
+    int to, from;
+
+    if (!key || !clips)     return CERR_PARSE_FAILED;
+
+    CERR_RET(key_parse(key, states, nr_states, &to, &from), {
+        err_cerr(__cerr, "sequences: unknown state in '%s'\n", key);
+        return CERR_PARSE_FAILED;
+    });
+
+    anim_t seq = CRES_RET_CERR(anim_lib_seq_make(lib));
+    const char *p = clips;
+
+    /* comma-separated elements, spaces around them ignored */
+    for (;;) {
+        const char *end = strchr(p, ',');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+
+        while (len && *p == ' ')                { p++; len--; }
+        while (len && p[len - 1] == ' ')        len--;
+
+        CERR_RET_CERR(seq_push_spec(lib, seq, p, len));
+        if (!end)   break;
+        p = end + 1;
+    }
+
+    return transition_add(lib, to, from, seq, fade);
 }
 
 cerr anim_lib_transitions_from_json(anim_lib_t *lib, JsonNode *sequences, double fade,
@@ -92,7 +134,7 @@ cerr anim_lib_transitions_from_json(anim_lib_t *lib, JsonNode *sequences, double
         for (JsonNode *el = p->children.head; el; el = el->next) {
             if (el->tag != JSON_STRING)     return CERR_PARSE_FAILED;
 
-            err = seq_push_spec(lib, seq, el->string_);
+            err = seq_push_spec(lib, seq, el->string_, strlen(el->string_));
             if (IS_CERR(err))   break;
         }
 
@@ -106,10 +148,7 @@ cerr anim_lib_transitions_from_json(anim_lib_t *lib, JsonNode *sequences, double
         }
         CERR_RET_CERR(err);
 
-        if (from == GPSM_NO_STATE)
-            CERR_RET_CERR(anim_lib_transition_add_any(lib, to, seq, fade));
-        else
-            CERR_RET_CERR(anim_lib_transition_add(lib, to, from, seq, fade));
+        CERR_RET_CERR(transition_add(lib, to, from, seq, fade));
     }
 
     return CERR_OK;

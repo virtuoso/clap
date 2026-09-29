@@ -75,6 +75,20 @@ bool gltf_node_extras_present(struct gltf_data *gd, int node, const char *prefix
 bool gltf_node_extras_string(struct gltf_data *gd, int node, const char *key, const char **out);
 bool gltf_node_extras_number(struct gltf_data *gd, int node, const char *key, double *out);
 bool gltf_node_extras_bool(struct gltf_data *gd, int node, const char *key, bool *out);
+/**
+ * gltf_node_extras_prefixed() - walk a node's extras whose keys start with a prefix
+ * @gd:     the loaded asset
+ * @node:   node index
+ * @prefix: the key prefix
+ * @idx:    0 to start, then what the previous call returned
+ * @key:    receives the key past @prefix
+ * @str:    receives the string value, or nullptr for a number or a bool
+ *
+ * Return: where the next call starts, CERR_NOT_FOUND when there are no
+ *         more, or the error of a bad @node
+ */
+cres(int) gltf_node_extras_prefixed(struct gltf_data *gd, int node, const char *prefix, int idx,
+                                    const char **key, const char **str);
 
 /**
  * gltf_mesh_new() - build a mesh from a gltf mesh's attributes

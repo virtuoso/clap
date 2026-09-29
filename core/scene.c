@@ -1684,7 +1684,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     bool outline_exclude = false, fix_origin = false, can_levitate = false, nm_hazard = false;
     JsonNode *p, *ent = nullptr, *ch = nullptr, *phys = nullptr, *anis = nullptr, *sfx = nullptr, *seqs = nullptr;
     geom_class class = GEOM_TRIMESH;
-    double fade = 0.0;
+    double fade = -1.0;     /* the scene's "fade"; negative: the asset's, or none */
     int motion_segments = 8;
     phys_type ptype = PHYS_GEOM;
     model3dtx  *txm;
@@ -2079,18 +2079,23 @@ light_done:
 
                 /*
                  * What the character plays in each state, from the scene's
-                 * "sequences" or the default table; the clips have their
-                 * semantic names now. Once per model: every character of it
-                 * shares the library.
+                 * "sequences", else the asset's clap::anim::* extras, else
+                 * the default table; the clips have their semantic names
+                 * now. Once per model: every character of it shares the
+                 * library.
                  */
                 if (c) {
                     anim_lib_t *lib = model3d_anim_lib(e->txmodel->model);
 
-                    if (!anim_lib_nr_transitions(lib))
-                        CERR_RET(seqs ?
-                                 anim_lib_transitions_from_json(lib, seqs, fade, character_states, CS_NR) :
-                                 character_anims_baked(lib, fade),
-                                 warn("'%s': animations: %s\n", name, cerr_str(__cerr.err)));
+                    if (!anim_lib_nr_transitions(lib)) {
+                        cerr err = seqs ?
+                            anim_lib_transitions_from_json(lib, seqs, max(fade, 0.0), character_states, CS_NR) :
+                            anim_lib_transitions_from_gltf(lib, gd, fade, character_states, CS_NR);
+
+                        if (!seqs && IS_CERR_CODE(err, CERR_NOT_FOUND))
+                            err = character_anims_baked(lib, max(fade, 0.0));
+                        CERR_RET(err, warn("'%s': animations: %s\n", name, cerr_str(__cerr.err)));
+                    }
                 }
 
                 if (c &&

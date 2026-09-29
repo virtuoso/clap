@@ -256,6 +256,25 @@ cerr anim_lib_transition_add_any(anim_lib_t *lib, int to, anim_t ani, double fad
 cres(anim_t) anim_lib_transition_find(anim_lib_t *lib, int to, int from, double *fade);
 
 /**
+ * anim_lib_transition_from_spec() - one transition table entry from strings
+ * @lib:        the library
+ * @key:        a state name, or "from>to" for one particular transition
+ * @clips:      the clips to play in order, comma-separated, "*" after a
+ *              name for repeat: "motion_start, motion*"
+ * @fade:       the cross-fade seconds the entry gets
+ * @states:     the machine's states, for their names
+ * @nr_states:  how many
+ *
+ * The GLTF extras loader's parser, built from the same pieces as the JSON
+ * loader's, for a loader of some other shape too. Clips are looked up under the names they have at the
+ * call.
+ * Return: CERR_OK, CERR_PARSE_FAILED (a bad key, an unknown state, an empty
+ * element), CERR_NOT_FOUND (a clip the model lacks) or CERR_NOMEM
+ */
+cerr anim_lib_transition_from_spec(anim_lib_t *lib, const char *key, const char *clips, double fade,
+                                   const struct gpsm_state *states, unsigned int nr_states);
+
+/**
  * anim_lib_transitions_from_json() - the transition table from a scene's JSON
  * @lib:        the library
  * @sequences:  the "sequences" object: state name or "from>to" -> an array of
@@ -271,6 +290,28 @@ cres(anim_t) anim_lib_transition_find(anim_lib_t *lib, int to, int from, double 
  * unknown state) or CERR_NOMEM
  */
 cerr anim_lib_transitions_from_json(anim_lib_t *lib, struct JsonNode *sequences, double fade,
+                                    const struct gpsm_state *states, unsigned int nr_states);
+
+struct gltf_data;
+
+/**
+ * anim_lib_transitions_from_gltf() - the transition table from a model's GLTF extras
+ * @lib:        the library
+ * @gd:         the loaded asset; the first node with "clap::anim::" extras
+ *              carries the table, one string per entry in
+ *              anim_lib_transition_from_spec()'s grammar
+ *              (core/animator/extras.c)
+ * @fade:       the cross-fade seconds every entry gets; negative takes the
+ *              asset's "clap::anim::fade", 0 without one
+ * @states:     the machine's states, for their names
+ * @nr_states:  how many
+ *
+ * As anim_lib_transitions_from_json(): after the renames, an entry naming
+ * a clip the model lacks is left out with a warning.
+ * Return: CERR_OK, CERR_NOT_FOUND (no node has the extras: the caller falls
+ * back), CERR_PARSE_FAILED or CERR_NOMEM
+ */
+cerr anim_lib_transitions_from_gltf(anim_lib_t *lib, struct gltf_data *gd, double fade,
                                     const struct gpsm_state *states, unsigned int nr_states);
 
 /* how many definitions and transitions the library holds */
