@@ -6,6 +6,7 @@
 #include "messagebus.h"
 #include "model.h"
 #include "physics.h"
+#include "physics-common.h"
 #include "ui-debug.h"
 
 /*
@@ -814,65 +815,29 @@ int phys_body_update(entity3d *e)
 static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, entity3d *e,
                                      double mass, double geom_radius, double geom_offset)
 {
-    float r = 0.0, length = 0.0, off = 0.0, X, Y, Z;
-    int direction;
-    dGeomID g;
-
-    X = entity3d_aabb_X(e);
-    Y = entity3d_aabb_Y(e);
-    Z = entity3d_aabb_Z(e);
+    phys_capsule cap = phys_capsule_size(e, geom_radius, geom_offset);
     /*
      * capsule seems to be always be vertical (direction 2 -- Y positive),
      * so we need to use offset rotation for horizontal cases
      */
-    direction = xmax3(X, Y, Z) + 1;
-    switch (direction) {
-        case 1:
-            // direction = 2; /* XXX */
-            // abort();
-            // break;
-        case 2:
-            /*
-             * Upright
-             */
-            r      = geom_radius ? geom_radius : min3(X, Y, Z) / 2;
-            length = max(Y / 2 - r * 2, 0);
-            off    = geom_offset ? geom_offset : Y / 2;
-            body->ray_off = r + length / 2;
-            break;
-        case 3:
-            direction = 3;
+    int direction = cap.axis + 1;
+    dGeomID g;
 
-            /*
-             * Puppy
-             */
-            r      = geom_radius ? geom_radius : X / 2;
-            length = Z - r * 2;
-            off    = geom_offset ? geom_offset : (Y - r * 2) / 2;
-            body->ray_off = r;
-            break;
-    }
-
-    /*
-     * XXX: The above logic is busted: ray length ends up zero.
-     */
-    // dbg("CAPSULE('%s') dir=%d r=%f length=%f yoff=%f ray_off=%f ray_len=%f\n", entity_name(e), direction, r, length,
-    //     off, body->ray_off, off - body->ray_off);
-
-    if (length)
-        CHECK(g = dCreateCapsule(phys->space, r, length));
+    if (cap.length)
+        CHECK(g = dCreateCapsule(phys->space, cap.radius, cap.length));
     else
-        CHECK(g = dCreateSphere(phys->space, r));
+        CHECK(g = dCreateSphere(phys->space, cap.radius));
     //dGeomSetData(g, e);
-    body->radius = r;
+    body->radius = cap.radius;
+    body->ray_off = cap.ray_off;
 
-    body->yoffset = off;
+    body->yoffset = cap.yoffset;
     if (phys_body_has_body(body)) {
         dMassSetZero(&body->mass);
-        if (length)
-            dMassSetCapsuleTotal(&body->mass, mass, direction, r, length);
+        if (cap.length)
+            dMassSetCapsuleTotal(&body->mass, mass, direction, cap.radius, cap.length);
         else
-            dMassSetSphereTotal(&body->mass, mass, r);
+            dMassSetSphereTotal(&body->mass, mass, cap.radius);
         dBodySetMass(body->body, &body->mass);
     }
 

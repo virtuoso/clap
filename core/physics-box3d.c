@@ -6,6 +6,7 @@
 #include "messagebus.h"
 #include "model.h"
 #include "physics.h"
+#include "physics-common.h"
 
 static_assert(sizeof(b3Vec3) == 3 * sizeof(float), "b3Vec3 must be 3 packed floats");
 
@@ -766,36 +767,12 @@ int phys_body_update(entity3d *e)
 static void phys_capsule_shape_params(struct phys_body *body, entity3d *e,
                                       double geom_radius, double geom_offset)
 {
-    float r = 0.0, length = 0.0, off = 0.0, X, Y, Z;
+    phys_capsule cap = phys_capsule_size(e, geom_radius, geom_offset);
 
-    X = entity3d_aabb_X(e);
-    Y = entity3d_aabb_Y(e);
-    Z = entity3d_aabb_Z(e);
-    switch (xmax3(X, Y, Z) + 1) {
-        case 1:
-        case 2:
-            /*
-             * Upright
-             */
-            r      = geom_radius ? geom_radius : min3(X, Y, Z) / 2;
-            length = max(Y / 2 - r * 2, 0);
-            off    = geom_offset ? geom_offset : Y / 2;
-            body->ray_off = r + length / 2;
-            break;
-        case 3:
-            /*
-             * Puppy
-             */
-            r      = geom_radius ? geom_radius : X / 2;
-            length = Z - r * 2;
-            off    = geom_offset ? geom_offset : (Y - r * 2) / 2;
-            body->ray_off = r;
-            break;
-    }
-
-    body->radius = r;
-    body->half_len = length / 2;
-    body->yoffset = off;
+    body->radius = cap.radius;
+    body->half_len = cap.length / 2;
+    body->yoffset = cap.yoffset;
+    body->ray_off = cap.ray_off;
 }
 
 static void phys_sphere_shape_params(struct phys_body *body, entity3d *e,
