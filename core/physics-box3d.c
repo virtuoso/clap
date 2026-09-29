@@ -787,6 +787,24 @@ static void phys_sphere_shape_params(struct phys_body *body, entity3d *e,
     body->ray_off = r;
 }
 
+/* a capsule along Y of body::half_len each way, or a sphere for none, of body::radius */
+static b3ShapeId phys_shape_capsule_new(struct phys_body *body, const b3ShapeDef *sd)
+{
+    if (body->half_len > 0) {
+        b3Capsule capsule = {
+            .center1 = { 0, -body->half_len, 0 },
+            .center2 = { 0, body->half_len, 0 },
+            .radius  = body->radius,
+        };
+
+        return b3CreateCapsuleShape(body->body_id, sd, &capsule);
+    }
+
+    b3Sphere sphere = { .center = { 0, 0, 0 }, .radius = body->radius };
+
+    return b3CreateSphereShape(body->body_id, sd, &sphere);
+}
+
 #ifndef CONFIG_FINAL
 /*
  * Cooking drops degenerate triangles, which is a modeling problem: the
@@ -949,17 +967,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
         CERR_RET(phys_shape_trimesh_new(body, &sd, entity),
                  { err_cerr(__cerr, "'%s': no collision shape\n", entity_name(entity)); goto err_body; });
     } else {
-        if (body->half_len > 0) {
-            b3Capsule capsule = {
-                .center1 = { 0, -body->half_len, 0 },
-                .center2 = { 0, body->half_len, 0 },
-                .radius  = body->radius,
-            };
-            body->shape_id = b3CreateCapsuleShape(body->body_id, &sd, &capsule);
-        } else {
-            b3Sphere sphere = { .center = { 0, 0, 0 }, .radius = body->radius };
-            body->shape_id = b3CreateSphereShape(body->body_id, &sd, &sphere);
-        }
+        body->shape_id = phys_shape_capsule_new(body, &sd);
     }
 
     if (B3_IS_NULL(body->shape_id)) goto err_body;
