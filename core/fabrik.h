@@ -25,7 +25,9 @@
  * arc over the root-to-target chord, bowed to the pole's side, which
  * pins the fold side no matter where the chain came in. Give @pole
  * whenever the target can pull the chain into a fold; the component of
- * @pole parallel to the root-to-target line is ignored.
+ * @pole parallel to the root-to-target line is ignored. Three points
+ * with a pole (a leg, an arm) are solved in closed form: exact, the
+ * same for the same input, no iterations.
  */
 typedef struct fabrik_solve_opts {
     vec3            *points;

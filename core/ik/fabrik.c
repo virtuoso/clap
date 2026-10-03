@@ -91,6 +91,42 @@ static void pole_seed(const fabrik_solve_opts *opts, const vec3 reach_dir, float
     }
 }
 
+/*
+ * Two segments and a pole have a closed form: the middle point sits on
+ * the circle where the two segments' spheres meet, on the pole's side of
+ * the root-to-target line. Exact and the same for the same input, where
+ * the passes below stop anywhere within the tolerance and crawl on a
+ * tightly folded chain: a leg's knee does not jitter with its foot.
+ * A target closer than the segments' difference is out of reach inward:
+ * the end lands on the line as near as it gets. False for a pole along
+ * the line or a degenerate triangle, which the passes handle.
+ */
+static bool two_bone(const fabrik_solve_opts *opts, const vec3 root, const vec3 reach_dir, float dist)
+{
+    float l0 = opts->lengths[0], l1 = opts->lengths[1];
+    vec3 side, along;
+
+    vec3_scale(along, reach_dir, vec3_mul_inner(opts->pole, reach_dir));
+    vec3_sub(side, opts->pole, along);
+
+    float len = vec3_len(side);
+    if (len < FLT_EPSILON)  return false;
+    vec3_scale(side, side, 1.0f / len);
+
+    float d = fmaxf(dist, fabsf(l0 - l1));
+    if (d < FLT_EPSILON)    return false;
+
+    /* the foot of the middle point on the line, and its height over it */
+    float a = (l0 * l0 - l1 * l1 + d * d) / (2.0f * d);
+    float h = sqrtf(fmaxf(l0 * l0 - a * a, 0.0f));
+
+    vec3_add_scaled(opts->points[1], root, reach_dir, 1.0f, a);
+    vec3_add_scaled(opts->points[1], opts->points[1], side, 1.0f, h);
+    vec3_add_scaled(opts->points[2], root, reach_dir, 1.0f, d);
+
+    return true;
+}
+
 cerr _fabrik_solve(const fabrik_solve_opts *opts)
 {
     vec3 *p = opts->points;
@@ -116,8 +152,10 @@ cerr _fabrik_solve(const fabrik_solve_opts *opts)
         return CERR_OK;
     }
 
-    if (vec3_len(opts->pole) > 0.0f)
+    if (vec3_len(opts->pole) > 0.0f) {
+        if (nr == 3 && two_bone(opts, root, reach_dir, dist))   return CERR_OK;
         pole_seed(opts, reach_dir, total, dist);
+    }
 
     unsigned int max_iterations = opts->max_iterations ? : FABRIK_MAX_ITERATIONS;
     float tolerance = opts->tolerance ? : FABRIK_TOLERANCE * total;
