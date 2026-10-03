@@ -141,7 +141,8 @@ cerr_check mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, si
  * @nr:     new number of elements
  *
  * Resize attribute's backing buffer and set the number of elements
- * accordingly. If allocation fails, a shrinking resize leaves the
+ * accordingly. Resizing to zero elements frees the buffer, leaving the
+ * attribute empty. If allocation fails, a shrinking resize leaves the
  * attribute as it was, while a growing one frees and clears it: the
  * attribute vanishes instead of standing too small for the data
  * that was headed its way.

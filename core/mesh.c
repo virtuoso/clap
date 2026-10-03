@@ -138,6 +138,17 @@ cerr mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t s
 cerr mesh_attr_resize(struct mesh *mesh, enum mesh_attrs attr, size_t nr)
 {
     auto ma = &mesh->attr[attr];
+
+    // nothing to hold: free the buffer here, as realloc() to zero bytes
+    // may free it and return NULL (glibc, ASan), which would read as a
+    // failed shrink that kept it
+    if (!nr) {
+        mem_free(ma->data);
+        ma->data = nullptr;
+        ma->nr = 0;
+        return CERR_OK;
+    }
+
     auto resized = mem_realloc_array(ma->data, nr, ma->stride);
 
     if (!resized) {
