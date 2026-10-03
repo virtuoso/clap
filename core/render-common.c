@@ -586,11 +586,79 @@ bool texture_format_supported(renderer_t *r, texture_format format)
     return r->ops->tex_format_supported(r, format);
 }
 
+/**
+ * _texture_new() - create a counted texture
+ * @opts:   texture_init() options
+ *
+ * texture_init() sets up a texture embedded in some other object, which
+ * nothing else can hold on to. This one allocates the texture by itself and
+ * counts references to it, so that several objects can share it: each of
+ * them takes a reference with texture_get() and puts it with texture_done().
+ * The last texture_done() deinitializes and frees the texture.
+ *
+ * Context: needs the renderer; the last reference must go before it does
+ * Return: the texture with one reference, the caller's; CERR_NOMEM or the
+ * texture_init() error otherwise
+ */
+cresp(texture_t) _texture_new(const texture_init_options *opts)
+{
+    LOCAL(void, buf);
+    texture_t *tex = buf = mem_alloc(sizeof(*tex), .zero = 1);
+    if (!tex)   return cresp_error(texture_t, CERR_NOMEM);
+
+    CERR_RET_T(_texture_init(tex, opts), texture_t);
+    CERR_RET(ref_embedded_to_counted(&tex->ref), {
+        texture_deinit(tex);
+        return cresp_error_cerr(texture_t, __cerr);
+    });
+
+    return cresp_val(texture_t, NOCU(buf));
+}
+
+/**
+ * texture_is_counted() - does @tex count its references
+ * @tex:    texture or nullptr
+ *
+ * Counted textures come from texture_new() and texture_clone(). Embedded and
+ * static textures, and textures that were never initialized, aren't counted.
+ *
+ * Return: true if texture_get() and texture_done() hold and release references to @tex
+ */
+bool texture_is_counted(texture_t *tex)
+{
+    return tex && tex->ref.count > 0;
+}
+
+/**
+ * texture_get() - take a reference to a counted texture
+ * @tex:    texture or nullptr
+ *
+ * For an object that keeps a pointer to @tex: a counted texture then stays
+ * alive until the object releases it with texture_done(). Anything else is
+ * borrowed as is, and its owner keeps it alive.
+ *
+ * Return: @tex
+ */
+texture_t *texture_get(texture_t *tex)
+{
+    if (!texture_is_counted(tex))   return tex;
+    return ref_get(tex);
+}
+
+/**
+ * texture_done() - release a texture reference
+ * @tex:    texture or nullptr
+ *
+ * Puts a reference to a counted texture, which deinitializes and frees it
+ * with the last one. Embedded and static textures belong to whatever they
+ * are embedded in, so nothing happens to them.
+ */
 void texture_done(texture_t *tex)
 {
-    if (tex && !ref_is_static(&tex->ref))
-        ref_put_last(tex);
+    if (texture_is_counted(tex))    ref_put(tex);
 }
+
+DEFINE_CLEANUP(texture_t, texture_done(*p))
 
 void texture_get_dimesnions(texture_t *tex, unsigned int *pwidth, unsigned int *pheight)
 {

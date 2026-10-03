@@ -297,6 +297,27 @@ static inline void _ref_put(struct ref *ref)
     ref_embed_opts(struct_name, _obj, __opts); \
 })
 
+/**
+ * ref_embedded_to_counted() - start counting references to an embedded object
+ * @ref:    reference of an object that ref_embed() initialized
+ *
+ * Some constructors can only embed: they memset the object and mark its
+ * reference embedded (see ref_embed_opts()). When such an object sits in a
+ * mem_alloc() allocation of its own, this turns it into a counted object
+ * with one reference, the caller's. Putting the last reference then drops
+ * and frees it, the same as for an object from ref_new().
+ *
+ * Context: right after the embedding constructor
+ * Return: CERR_OK, or CERR_INVALID_ARGUMENTS if @ref isn't embedded (left as is)
+ */
+static inline cerr_check ref_embedded_to_counted(struct ref *ref)
+{
+    if (ref->count != _REF_EMBEDDED)    return CERR_INVALID_ARGUMENTS;
+
+    ref_init(ref);
+    return CERR_OK;
+}
+
 /*
  * Give the ownership to a callee
  */

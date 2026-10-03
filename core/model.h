@@ -343,8 +343,6 @@ static inline bool model3d_has_degenerate_tris(model3d *m)
 
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex);
 
-cresp_ret(texture_t);
-
 cresp(texture_t) model3dtx_texture(model3dtx *txm, enum shader_vars var);
 cresp(texture_t) model3dtx_loaded_texture(model3dtx *txm, enum shader_vars var);
 

@@ -639,7 +639,23 @@ cerr_check _texture_init(texture_t *tex, const texture_init_options *opts);
 #define texture_init(_t, args...) \
     _texture_init((_t), &(texture_init_options){ args })
 void texture_deinit(texture_t *tex);
+
+cresp_ret(texture_t);
+
+cresp_check(texture_t) _texture_new(const texture_init_options *opts);
+
+/**
+ * define texture_new - create a counted texture
+ *
+ * Syntax sugar for _texture_new(), taking texture_init_options
+ * initializers.
+ */
+#define texture_new(args...) \
+    _texture_new(&(texture_init_options){ args })
+bool texture_is_counted(texture_t *tex);
+texture_t *texture_get(texture_t *tex);
 void texture_done(texture_t *tex);
+DECLARE_CLEANUP(texture_t);
 cerr_check texture_load(texture_t *tex, texture_format format,
                         unsigned int width, unsigned int height, void *buf);
 cerr_check texture_resize(texture_t *tex, unsigned int width, unsigned int height);
