@@ -994,31 +994,6 @@ static int fs_test_teardown(void)
     return EXIT_SUCCESS;
 }
 
-/*
- * Stubs for draw.c symbols that are only reachable from canvas_print/tex_print,
- * which are not under test here.
- */
-struct glyph *font_get_glyph(struct font *font __attribute__((unused)),
-                              unsigned char c __attribute__((unused)))
-{
-    return NULL;
-}
-
-cerr texture_load(texture_t *tex, texture_format format, unsigned int width, unsigned int height,
-                  void *buf)
-{
-    return CERR_OK;
-}
-
-cerr _texture_init(texture_t *tex, const texture_init_options *opts)
-{
-    return CERR_OK;
-}
-
-void texture_deinit(texture_t *tex)
-{
-}
-
 static bool vec4_eq(vec4 a, vec4 b, float eps)
 {
     for (int i = 0; i < 4; i++)

@@ -81,7 +81,7 @@ configure_file(config.h.in config.h)
 set(TEST_BIN tests)
 set(TEST_SRC test.c test-harness.c object.c util.c logger.c json.c messagebus.c ca3d.c error.c
     ca2d.c xyarray.c memory.c cpio.c fs-ops.c fs-ops-posix.c
-    render-texture.c draw.c os-info.c)
+    render-texture.c draw.c test-stubs-render.c os-info.c)
 
 if (NOT WIN32 AND CLAP_BUILD_NETWORKING)
     list(APPEND TEST_SRC websocket.c)
