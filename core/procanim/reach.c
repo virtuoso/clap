@@ -6,6 +6,7 @@
  */
 #include "model.h"
 #include "physics.h"
+#include "animator/blend.h"
 #include "procanim/reach.h"
 
 /* the ground probe under a planted foot: from this far above it, this far down */
@@ -44,6 +45,19 @@ static void reach_start(const void *_cfg, void *priv, entity3d *e)
     target_start(&r->target, &cfg->law);
 }
 
+static cerr reach_solve(reach_t *r, const reach_config *cfg, const vec3 point, int pinned,
+                        const struct joint *pose, struct joint *out)
+{
+    return ik_chain_solve(r->chain,
+                          .target    = { point[0], point[1], point[2] },
+                          .pole      = { cfg->pole[0], cfg->pole[1], cfg->pole[2] },
+                          .tolerance = cfg->tolerance,
+                          .max_iterations = cfg->max_iterations,
+                          .pinned    = pinned,
+                          .pose      = pose,
+                          .out       = out);
+}
+
 static cerr reach_eval(const void *_cfg, void *priv, entity3d *e, double t, double dt,
                        struct joint *out)
 {
@@ -71,14 +85,25 @@ static cerr reach_eval(const void *_cfg, void *priv, entity3d *e, double t, doub
             break;
         }
 
-    return ik_chain_solve(r->chain,
-                          .target    = { point[0], point[1], point[2] },
-                          .pole      = { cfg->pole[0], cfg->pole[1], cfg->pole[2] },
-                          .tolerance = cfg->tolerance,
-                          .max_iterations = cfg->max_iterations,
-                          .pinned    = pinned,
-                          .pose      = pose,
-                          .out       = out);
+    double held = animator_pin_weight(a);
+
+    if (!pinned || held >= 1.0) return reach_solve(r, cfg, point, pinned, pose, out);
+
+    /*
+     * The pins are letting go: what they hold the chain to, then what the
+     * chain does free, blended by how much of the hold is left
+     */
+    ik_chain *c = r->chain;
+    struct joint pinned_pose[c->nr];
+
+    CERR_RET_CERR(reach_solve(r, cfg, point, pinned, pose, out));
+    for (size_t k = 0; k < c->nr; k++)  pinned_pose[k] = out[c->joints[k]];
+
+    CERR_RET_CERR(reach_solve(r, cfg, point, 0, nullptr, out));
+    for (size_t k = 0; k < c->nr; k++)
+        joint_blend(&out[c->joints[k]], &out[c->joints[k]], &pinned_pose[k], (float)held);
+
+    return CERR_OK;
 }
 
 static bool reach_done(const void *_cfg, void *priv, double t)
