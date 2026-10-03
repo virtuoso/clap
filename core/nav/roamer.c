@@ -65,13 +65,13 @@ float roamer_ground(void *priv, float x, float z)
 
     /*
      * The body and the gait's feet both probe through here; only
-     * roamer_update() moves the tracking state. A foot planted a leg
-     * span out can rest on a surface the body is not on - the deck
-     * below a flight of stairs, a tread overhead - and dragging the
-     * hint and the ground reference along with it would teleport the
-     * body there on its next locate. Within a step of the last ground
-     * for the same reason: anything further is a stacked surface, not
-     * walkable continuity.
+     * roamer_update() and roamer_track() move the tracking state.
+     * A foot planted a leg span out can rest on a surface the body is
+     * not on - the deck below a flight of stairs, a tread overhead - and
+     * dragging the hint and the ground reference along with it would
+     * teleport the body there on its next locate. Within a step of the
+     * last ground for the same reason: anything further is a stacked
+     * surface, not walkable continuity.
      */
     int tri = CRES_RET(
         navmesh_locate(r->nm, (vec3){ x, r->ground, z },
@@ -80,6 +80,27 @@ float roamer_ground(void *priv, float x, float z)
     );
 
     return navmesh_height(r->nm, tri, x, z);
+}
+
+bool roamer_track(roamer *r, const vec3 pos)
+{
+    /*
+     * Same locate as the one roamer_update() does as it walks: from the
+     * last ground, within a step of it, hinted by the last triangle. The
+     * body moved on its own, so all this does is carry the tracking
+     * state along with it, and a miss means nothing walkable under it
+     * is within a step of the last ground.
+     */
+    int tri = CRES_RET(
+        navmesh_locate(r->nm, (vec3){ pos[0], r->ground, pos[2] },
+                       r->nm->params.step_height, r->tri),
+        return false
+    );
+
+    r->tri = tri;
+    r->ground = navmesh_height(r->nm, tri, pos[0], pos[2]);
+
+    return true;
 }
 
 bool roamer_path_to(roamer *r, const vec3 pos, const vec3 dest)

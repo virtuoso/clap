@@ -76,7 +76,8 @@ void roamer_config_init(roamer_config *cfg);
  * @yaw:        current heading, radians
  * @speed:      current speed, blended toward the target each tick
  * @ground:     ground height under the agent, maintained by
- *              roamer_update() as it moves
+ *              roamer_update() as it moves, or by roamer_track()
+ *              when something else moves the agent
  * @stuck:      seconds of no progress while trying to walk
  * @repathed:   the current stall already got its one recovery re-path
  * @entry:      on navmesh::roamers, the debug UI's registry
@@ -144,6 +145,23 @@ void roamer_done(roamer *r);
  * Return: ground height at (x, z)
  */
 float roamer_ground(void *priv, float x, float z);
+
+/**
+ * roamer_track() - follow a body that something else moves
+ * @r:      the roamer
+ * @pos:    current world position
+ *
+ * Advances the locate hint and the ground reference that
+ * roamer_ground() probes around, without steering anything. A roamer
+ * whose agent is driven from elsewhere (a player at the controls of a
+ * humanoid, say) still wants this once per frame, on the body's own
+ * position: nothing else moves the tracking state, and a stale one
+ * strands the ground probe a storey behind. Like roamer_update(), it
+ * looks within a step of the last ground, whatever the height of @pos.
+ * Return: false if no walkable surface under @pos is within a step of
+ * the last ground, tracking left where it was
+ */
+bool roamer_track(roamer *r, const vec3 pos);
 
 /**
  * roamer_path_to() - path to a destination and start following it
