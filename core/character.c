@@ -760,7 +760,19 @@ void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
 
-    ch->airborne = body ? !phys_body_ground_collide(body, !ch->airborne) : 0;
+    if (body) {
+        ch->airborne = !phys_body_ground_collide(body, !ch->airborne);
+    } else {
+        /*
+         * Nothing to stand on and nothing to fall through: a character
+         * with no physics body takes the ground as level, and the ground
+         * normal the contact would have reported is up. Without it the
+         * motion block below finds a zero normal and never builds a
+         * velocity, so such a character can't be driven at all.
+         */
+        ch->airborne = false;
+        vec3_dup(ch->normal, (vec3){ 0.0f, 1.0f, 0.0f });
+    }
 
     /*
      * Protect airborne state during the rising phase of a jump. The
