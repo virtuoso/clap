@@ -427,11 +427,13 @@ add_subdirectory(ik)
 add_subdirectory(procanim)
 add_subdirectory(nav)
 add_subdirectory(animator)
+add_subdirectory(pcg)
 
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_ik)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_procanim)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_nav)
 target_link_libraries(${ENGINE_LIB} PRIVATE clap_animator)
+target_link_libraries(${ENGINE_LIB} PRIVATE clap_pcg)
 
 win32_library(${ENGINE_LIB} FALSE)
 
