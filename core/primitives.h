@@ -64,6 +64,25 @@ void _prim_emit_triangle(vec3 triangle[3], const prim_emit_opts *opts);
 void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts);
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 
+/**
+ * _prim_emit_face() - emit a quad over a UV rectangle
+ * @c00:        corner at (u0, v0)
+ * @c10:        corner at (u1, v0)
+ * @c11:        corner at (u1, v1)
+ * @c01:        corner at (u0, v1)
+ * @uv_rect:    texture rectangle { u0, v0, u1, v1 }
+ * @opts:       primitive emitter options; @opts->uv is ignored
+ *
+ * Emit the triangles (c00, c01, c10) and (c01, c11, c10), with U running
+ * from @c00 to @c10 and V from @c00 to @c01. The face normal is
+ * cross(c01 - c00, c10 - c00): seen from the side the face points to,
+ * c00, c10, c11, c01 go clockwise, and cross(U, V) points against the
+ * normal, so the tangents' w comes out -1 when u0 < u1 and v0 < v1.
+ * @opts->clockwise flips the face. Nothing is allocated: the caller
+ * reserves the 6 vertices with _prim_begin().
+ */
+void _prim_emit_face(vec3 c00, vec3 c10, vec3 c11, vec3 c01, const vec4 uv_rect, const prim_emit_opts *opts);
+
 #define prim_begin(nv, ...) _prim_begin((nv), &(const prim_emit_opts) { __VA_ARGS__ })
 
 /**
@@ -214,6 +233,19 @@ cerr_check _prim_emit_prism(vec3 a, vec3 b, float ra, float rb, int sides, float
 /* Append a quad to a mesh */
 #define prim_emit_quad(_t, args...) \
     _prim_emit_quad((_t), &(prim_emit_opts){ args })
+
+/**
+ * define prim_emit_face - emit a quad over a UV rectangle
+ * @_c00:   corner at (u0, v0)
+ * @_c10:   corner at (u1, v0)
+ * @_c11:   corner at (u1, v1)
+ * @_c01:   corner at (u0, v1)
+ * @_uv:    texture rectangle { u0, v0, u1, v1 }
+ *
+ * Syntax sugar for _prim_emit_face().
+ */
+#define prim_emit_face(_c00, _c10, _c11, _c01, _uv, args...) \
+    _prim_emit_face((_c00), (_c10), (_c11), (_c01), (_uv), &(prim_emit_opts){ args })
 
 /**
  * define prim_emit_cylinder - emit a cylinder

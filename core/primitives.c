@@ -172,6 +172,19 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
     _prim_emit_triangle3(quad[3], quad[2], quad[1], &_opts);
 }
 
+void _prim_emit_face(vec3 c00, vec3 c10, vec3 c11, vec3 c01, const vec4 uv_rect, const prim_emit_opts *opts)
+{
+    float u0 = uv_rect[0], v0 = uv_rect[1], u1 = uv_rect[2], v1 = uv_rect[3];
+    prim_emit_opts _opts = *opts;
+    vec2 t0[3] = { { u0, v0 }, { u0, v1 }, { u1, v0 } };
+    vec2 t1[3] = { { u0, v1 }, { u1, v1 }, { u1, v0 } };
+
+    _opts.uv = t0;
+    _prim_emit_triangle3(c00, c01, c10, &_opts);
+    _opts.uv = t1;
+    _prim_emit_triangle3(c01, c11, c10, &_opts);
+}
+
 /*
  * Indices are 16-bit (_prim_emit_vertex() emits one per vertex): @nr_vert
  * more vertices fit only if the total stays within USHRT_MAX
