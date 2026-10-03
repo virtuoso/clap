@@ -31,7 +31,7 @@ static void mesh_drop(struct ref *ref)
     for (i = 0; i < MESH_MAX; i++) {
         struct mesh_attr *ma = mesh_attr(mesh, i);
 
-        if (!ma->nr)
+        if (!ma->data)
             continue;
         
         mem_free(ma->data);
