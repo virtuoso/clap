@@ -8,7 +8,7 @@
 #include "ik.h"
 #include "physics.h"
 #include "procanim/lookat.h"
-#include "procanim/reach.h"
+#include "procanim/plant.h"
 #include "scene.h"
 
 typedef enum character_state {
@@ -58,15 +58,17 @@ struct character {
     } history;
     /* the head's look-at binding, for a model with a head joint */
     lookat_t look;
-    /* the feet planted on the ground under them, for a model with foot joints: leg chains and bindings */
+    /* the feet planted on the ground under them, for a model with foot joints: the leg chains and the binding */
     ik_chain foot_chain[2];
+    plant_t  plant;
     bool    jump;
     bool    jump_held;
     bool    airborne;
     bool    can_dash;
     bool    can_jump;
     bool    can_levitate;
-    reach_t  feet[2];
+    /* the planting is faded out: the character is in the air */
+    bool     plant_off;
 };
 
 DEFINE_REFCLASS_INIT_OPTIONS(character,

@@ -77,22 +77,18 @@ static void character_limbs_start(struct character *ch)
 }
 
 /*
- * The feet planted: a reach per foot the model maps ("armature":
- * "foot_left", "foot_right"), three joints up from the foot, on overlays
- * over whatever clip plays, each foot set onto the ground under it. Two
- * configurations alike, so the two feet are two definitions with their
- * own bindings. No pole: the solve starts from the clip's pose and keeps
- * its knee, where a pole's arc seed would rebuild the leg from scratch.
- * For models with clips: a rig (the golem's gait) places its own feet.
+ * The feet planted (core/procanim/plant.h): the feet the model maps
+ * ("armature": "foot_left", "foot_right"), three joints up from each, and
+ * their common ancestor as the pelvis, on one overlay over whatever clip
+ * plays: each foot set onto the ground under it, the pelvis dropping by
+ * the lowest shortfall so that foot can reach. For models with clips: a
+ * rig (the golem's gait) places its own feet.
  */
 #define CHARACTER_FOOT_LAYER    2
 #define CHARACTER_FOOT_JOINTS   3
-#define CHARACTER_FOOT_TOL      0.001f  /* a planted foot lands within this, meters */
-#define CHARACTER_FOOT_ITER     32      /* a folded leg takes more than the solver's default */
 
-static const reach_config character_foot_cfg[2] = {
-    { .tolerance = CHARACTER_FOOT_TOL, .max_iterations = CHARACTER_FOOT_ITER, .law = { .kind = TARGET_PLANT } },
-    { .tolerance = CHARACTER_FOOT_TOL, .max_iterations = CHARACTER_FOOT_ITER, .law = { .kind = TARGET_PLANT } },
+static const plant_config character_plant_cfg = {
+    .drop_rate      = 30.0,     /* the pelvis follows the lowest foot at this rate, 1/s: a landing is quick */
 };
 
 static void character_feet_start(struct character *ch)
@@ -100,27 +96,55 @@ static void character_feet_start(struct character *ch)
     entity3d *e = ch->entity;
     model3d *m = e->txmodel->model;
     animator_t *a = entity3d_animator(e);
+    plant_t *p = &ch->plant;
     static const joint_type feet[2] = { JOINT_FOOT_LEFT, JOINT_FOOT_RIGHT };
 
     /* over clips only: a rig that poses its own feet puts them where they belong */
     if (!e->joints || !darray_count(m->anis))   return;
 
+    p->nr = 0;
+    p->pelvis = -1;
     for (unsigned int i = 0; i < 2; i++) {
         cres(joint_type) j = model3d_get_joint(m, feet[i]);
 
         if (IS_CERR(j))     continue;
 
-        CERR_RET(ik_chain_init(&ch->foot_chain[i], e, j.val, CHARACTER_FOOT_JOINTS),
+        ik_chain *c = &ch->foot_chain[p->nr];
+
+        CERR_RET(ik_chain_init(c, e, j.val, CHARACTER_FOOT_JOINTS),
                  { warn("%s: no leg chain for %s\n", entity_name(e), m->joints[j.val].name); continue; });
-        ch->feet[i].chain = &ch->foot_chain[i];
 
-        anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(m), &reach_pose_ops, &character_foot_cfg[i]),
-                              continue);
-
-        CERR_RET(animator_bind(a, ani, &ch->feet[i]), continue);
-        CERR_RET(animator_mask_chain(a, CHARACTER_FOOT_LAYER + i, j.val, CHARACTER_FOOT_JOINTS), continue);
-        CERR_RET(animator_play(a, ani, .layer = CHARACTER_FOOT_LAYER + i), continue);
+        /* the legs hang from the pelvis: the first chain's root's parent */
+        if (p->pelvis < 0)  p->pelvis = m->joints[c->joints[0]].parent;
+        p->chain[p->nr++] = c;
     }
+    if (!p->nr || p->pelvis < 0)    return;
+
+    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(m), &plant_pose_ops, &character_plant_cfg), return);
+
+    CERR_RET(animator_bind(a, ani, p), return);
+    CERR_RET(plant_mask(p, a, CHARACTER_FOOT_LAYER), return);
+    CERR_RET(animator_play(a, ani, .layer = CHARACTER_FOOT_LAYER), return);
+}
+
+/*
+ * In the air there is no ground to stand on: a jump or a fall clip keeps
+ * the feet near the model's floor, and planting them would stretch the
+ * legs and pull the pelvis toward whatever is below. The planting fades
+ * out on leaving the ground and back in on landing.
+ */
+#define CHARACTER_FOOT_FADE_OUT 0.1     /* seconds */
+#define CHARACTER_FOOT_FADE_IN  0.15
+
+static void character_feet_update(struct character *ch)
+{
+    if (!ch->plant.nr || ch->plant_off == ch->airborne)     return;
+
+    ch->plant_off = ch->airborne;
+    CERR_RET(animator_set_weight(entity3d_animator(ch->entity), CHARACTER_FOOT_LAYER,
+                                 ch->plant_off ? 0.0 : 1.0,
+                                 ch->plant_off ? CHARACTER_FOOT_FADE_OUT : CHARACTER_FOOT_FADE_IN),
+             warn_once("%s: feet: %s\n", entity_name(ch->entity), cerr_str(__cerr.err)));
 }
 
 /* the brain's part: the controlled entity if it is someone else, else the nearest other character */
@@ -973,6 +997,7 @@ static int character_update(entity3d *e, void *data)
 
     character_motion_reset(c, s);
     character_look_pick(c, s);
+    character_feet_update(c);
 
     return c->orig_update(e, data);
 }
