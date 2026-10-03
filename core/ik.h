@@ -57,6 +57,31 @@ typedef struct ik_chain {
 cerr_check ik_chain_init(ik_chain *chain, entity3d *e, int tip, size_t nr);
 
 /**
+ * ik_chain_rest_from_pose() - take the chain's rest configuration from a pose
+ * @chain:  an initialized chain
+ * @pose:   local joint transforms, nr_joints of them laid out as
+ *          entity3d::joints: the pose so far, where the chain solves over a
+ *          playing animation (an overlay) instead of from the bind pose
+ *
+ * Replaces what ik_chain_init() captured from the bind pose: the joints'
+ * local transforms, their model-space points, the segment lengths and
+ * directions and the chain root's parent orientation, all composed from
+ * @pose through the ancestors in it. Call it before each solve over a
+ * pose that changes.
+ * Return: CERR_OK or CERR_INVALID_ARGUMENTS (a zero-length segment)
+ */
+cerr_check ik_chain_rest_from_pose(ik_chain *chain, const struct joint *pose);
+
+/**
+ * ik_chain_point() - where a pose puts one of the chain's joints
+ * @chain:  the chain
+ * @pose:   local joint transforms, as for ik_chain_rest_from_pose()
+ * @k:      chain index, 0 the root, nr - 1 the tip
+ * @out:    receiver of the model-space position
+ */
+void ik_chain_point(ik_chain *chain, const struct joint *pose, size_t k, vec3 out);
+
+/**
  * ik_chain_done() - free everything an IK chain holds
  * @chain:  the chain; safe to call on a zeroed or partially built one
  */
@@ -77,6 +102,9 @@ void ik_chain_done(ik_chain *chain);
  * @pose:           the local joint transforms to keep the pinned side
  *                  from, nr_joints of them laid out as entity3d::joints;
  *                  required with a @pinned above 0
+ * @out:            the joints to write, laid out as entity3d::joints; the
+ *                  entity's own when nullptr. An overlay solves into its
+ *                  layer's scratch (see anim_pose_ops::eval)
  */
 typedef struct ik_solve_opts {
     vec3                target;
@@ -84,6 +112,7 @@ typedef struct ik_solve_opts {
     unsigned int        max_iterations;
     float               tolerance;
     const struct joint  *pose;
+    struct joint        *out;
     int                 pinned;
 } ik_solve_opts;
 
@@ -104,8 +133,10 @@ cerr_check _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts);
  * current pose alone; without one, rotations are minimal arcs from the
  * parent, i.e. parallel transport, whose roll follows the path the
  * chain took and drifts under cyclic motion. The joints' local
- * rotations are replaced wholesale, so the chain doesn't layer on top
- * of a playing animation. With a pin (.pinned, .pose) the
+ * rotations are replaced wholesale, from the rest configuration: the
+ * bind pose's (ik_chain_init()), or the pose so far's
+ * (ik_chain_rest_from_pose()) to layer over a playing animation, writing
+ * into .out rather than the entity's joints. With a pin (.pinned, .pose) the
  * joints from the root to the pinned one take their transforms from the
  * given pose, as if they had not moved, and only the sub-chain from the
  * pinned joint to the tip solves: a segment that stopped against

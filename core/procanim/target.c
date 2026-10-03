@@ -29,6 +29,7 @@ void target_update(target_t *t, const target_law *law, struct entity3d *e, doubl
 {
     switch (law->kind) {
         case TARGET_POINT:
+        case TARGET_PLANT:
             vec3_dup(t->cur, t->point);
             break;
         case TARGET_FOLLOW: {

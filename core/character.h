@@ -5,8 +5,10 @@
 #include "gpsm.h"
 #include "messagebus.h"
 #include "model.h"
+#include "ik.h"
 #include "physics.h"
 #include "procanim/lookat.h"
+#include "procanim/reach.h"
 #include "scene.h"
 
 typedef enum character_state {
@@ -56,12 +58,15 @@ struct character {
     } history;
     /* the head's look-at binding, for a model with a head joint */
     lookat_t look;
+    /* the feet planted on the ground under them, for a model with foot joints: leg chains and bindings */
+    ik_chain foot_chain[2];
     bool    jump;
     bool    jump_held;
     bool    airborne;
     bool    can_dash;
     bool    can_jump;
     bool    can_levitate;
+    reach_t  feet[2];
 };
 
 DEFINE_REFCLASS_INIT_OPTIONS(character,

@@ -14,12 +14,17 @@ struct entity3d;
  * @TARGET_MOVE:    from wherever the aim point is when the law starts to
  *                  the point, over a duration, eased
  * @TARGET_HOLD:    wherever it is when the law starts, for a duration
+ * @TARGET_PLANT:   where the pose so far puts the effector, set onto the
+ *                  ground under it: a foot that stays planted on uneven
+ *                  ground while a clip walks. The class owning the
+ *                  effector writes the point (reach); the law holds it
  */
 typedef enum target_kind {
     TARGET_POINT,
     TARGET_FOLLOW,
     TARGET_MOVE,
     TARGET_HOLD,
+    TARGET_PLANT,
 } target_kind;
 
 /**

@@ -5,7 +5,36 @@
  * does the posing.
  */
 #include "model.h"
+#include "physics.h"
 #include "procanim/reach.h"
+
+/* the ground probe under a planted foot: from this far above it, this far down */
+#define REACH_PLANT_ABOVE   0.5f
+#define REACH_PLANT_DEPTH   1.5f
+
+/*
+ * The planted point: where the pose so far puts the tip, with the ground
+ * under it added to its height over the pose's floor (the model's origin
+ * plane). No body to probe with, or nothing under it: the pose's point.
+ */
+static void reach_plant(reach_t *r, entity3d *e, const struct joint *pose, vec3 point)
+{
+    ik_chain_point(r->chain, pose, r->chain->nr - 1, point);
+    if (!e->phys_body)  return;
+
+    vec4 tip = { point[0], point[1], point[2], 1.0f }, world;
+    mat4x4_mul_vec4(world, e->mx, tip);
+
+    vec3 start = { world[0], world[1] + REACH_PLANT_ABOVE, world[2] }, down = { 0.0f, -1.0f, 0.0f };
+    double dist = REACH_PLANT_ABOVE + REACH_PLANT_DEPTH;
+
+    if (!phys_ray_cast(e, start, down, &dist))  return;
+
+    vec3 ground_world = { start[0], start[1] - (float)dist, start[2] }, ground;
+
+    entity3d_world_to_model(e, ground_world, ground);
+    point[1] += ground[1];
+}
 
 static void reach_start(const void *_cfg, void *priv, entity3d *e)
 {
@@ -22,10 +51,13 @@ static cerr reach_eval(const void *_cfg, void *priv, entity3d *e, double t, doub
     reach_t *r = priv;
 
     if (!r->chain)          return CERR_INVALID_ARGUMENTS;
-    if (out != e->joints)   return CERR_NOT_SUPPORTED;
+
+    /* an overlay solves over the pose so far, from it, into its own buffer */
+    if (out != e->joints)   CERR_RET_CERR(ik_chain_rest_from_pose(r->chain, out));
 
     vec3 point;
 
+    if (cfg->law.kind == TARGET_PLANT)  reach_plant(r, e, out, r->target.point);
     target_update(&r->target, &cfg->law, e, t, dt, point);
 
     /* the pin furthest along the chain holds everything up to it */
@@ -40,10 +72,13 @@ static cerr reach_eval(const void *_cfg, void *priv, entity3d *e, double t, doub
         }
 
     return ik_chain_solve(r->chain,
-                          .target = { point[0], point[1], point[2] },
-                          .pole   = { cfg->pole[0], cfg->pole[1], cfg->pole[2] },
-                          .pinned = pinned,
-                          .pose   = pose);
+                          .target    = { point[0], point[1], point[2] },
+                          .pole      = { cfg->pole[0], cfg->pole[1], cfg->pole[2] },
+                          .tolerance = cfg->tolerance,
+                          .max_iterations = cfg->max_iterations,
+                          .pinned    = pinned,
+                          .pose      = pose,
+                          .out       = out);
 }
 
 static bool reach_done(const void *_cfg, void *priv, double t)

@@ -148,6 +148,72 @@ err_args:
     return CERR_INVALID_ARGUMENTS;
 }
 
+/* a joint's model-space matrix under @pose: its ancestors composed, the root pose at the top */
+static void pose_global(model3d *model, const struct joint *pose, int joint, mat4x4 out)
+{
+    if (joint < 0 || (unsigned int)joint >= model->nr_joints) {
+        memcpy(out, model->root_pose, sizeof(mat4x4));
+        return;
+    }
+
+    const struct joint *p = &pose[joint];
+    mat4x4 T, R;
+
+    pose_global(model, pose, model->joints[joint].parent, out);
+    mat4x4_translate(T, p->translation[0], p->translation[1], p->translation[2]);
+    mat4x4_mul(out, out, T);
+    mat4x4_from_quat(R, (float *)p->rotation);
+    mat4x4_mul(out, out, R);
+    mat4x4_scale_aniso(out, out, p->scale[0], p->scale[1], p->scale[2]);
+}
+
+cerr ik_chain_rest_from_pose(ik_chain *chain, const struct joint *pose)
+{
+    model3d *model = chain->e->txmodel->model;
+    mat4x4 m, T, R;
+    vec3 t, s;
+
+    pose_global(model, pose, model->joints[chain->joints[0]].parent, m);
+    mat4x4_decompose(m, t, chain->base_rot, s);
+
+    for (size_t k = 0; k < chain->nr; k++) {
+        const struct joint *p = &pose[chain->joints[k]];
+
+        vec3_dup(chain->rest_trans[k], (float *)p->translation);
+        vec4_dup(chain->rest_rot[k], (float *)p->rotation);
+        vec3_dup(chain->rest_scale[k], (float *)p->scale);
+
+        mat4x4_translate(T, p->translation[0], p->translation[1], p->translation[2]);
+        mat4x4_mul(m, m, T);
+        mat4x4_from_quat(R, (float *)p->rotation);
+        mat4x4_mul(m, m, R);
+        mat4x4_scale_aniso(m, m, p->scale[0], p->scale[1], p->scale[2]);
+        vec3_dup(chain->rest_points[k], m[3]);
+    }
+
+    for (size_t k = 0; k < chain->nr - 1; k++) {
+        vec3 seg;
+
+        vec3_sub(seg, chain->rest_points[k + 1], chain->rest_points[k]);
+        chain->lengths[k] = vec3_len(seg);
+        if (chain->lengths[k] <= 0.0f)  return CERR_INVALID_ARGUMENTS;
+
+        for (int c = 0; c < 3; c++)     seg[c] = chain->rest_scale[k][c] * chain->rest_trans[k + 1][c];
+        if (vec3_len(seg) <= 0.0f)      return CERR_INVALID_ARGUMENTS;
+        vec3_norm(chain->rest_dir[k], seg);
+    }
+
+    return CERR_OK;
+}
+
+void ik_chain_point(ik_chain *chain, const struct joint *pose, size_t k, vec3 out)
+{
+    mat4x4 m;
+
+    pose_global(chain->e->txmodel->model, pose, chain->joints[k], m);
+    vec3_dup(out, m[3]);
+}
+
 void ik_chain_done(ik_chain *chain)
 {
     mem_free(chain->joints);
@@ -168,7 +234,7 @@ void ik_chain_done(ik_chain *chain)
  * assumption). @parent_rot and @bind_rot come out as the loop below wants
  * them at @pinned: the actual and the bind global rotation of its parent.
  */
-static void chain_pin(ik_chain *chain, const struct joint *pose, int pinned,
+static void chain_pin(ik_chain *chain, const struct joint *pose, int pinned, struct joint *out,
                       quat parent_rot, quat bind_rot)
 {
     model3d *model = chain->e->txmodel->model;
@@ -181,7 +247,7 @@ static void chain_pin(ik_chain *chain, const struct joint *pose, int pinned,
 
     for (int k = 0; k <= pinned; k++) {
         const struct joint *p = &pose[chain->joints[k]];
-        struct joint *j = &chain->e->joints[chain->joints[k]];
+        struct joint *j = &out[chain->joints[k]];
         quat tmp;
 
         vec3_dup(j->translation, (float *)p->translation);
@@ -210,6 +276,7 @@ cerr _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts)
     if (!chain->e || !chain->nr)    return CERR_INVALID_ARGUMENTS;
 
     int pinned = opts->pinned;
+    struct joint *out = opts->out ? : chain->e->joints;
 
     if (pinned < 0 || pinned >= (int)chain->nr - 1 || (pinned && !opts->pose))  return CERR_INVALID_ARGUMENTS;
 
@@ -224,7 +291,7 @@ cerr _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts)
     quat parent_rot, bind_rot;
 
     if (pinned) {
-        chain_pin(chain, opts->pose, pinned, parent_rot, bind_rot);
+        chain_pin(chain, opts->pose, pinned, out, parent_rot, bind_rot);
     } else {
         vec4_dup(parent_rot, chain->base_rot);
         vec4_dup(bind_rot, chain->base_rot);
@@ -273,7 +340,7 @@ cerr _ik_chain_solve(ik_chain *chain, const ik_solve_opts *opts)
     vec3 carry_rest = {}, carry_want = {};
 
     for (size_t k = pinned; k < chain->nr; k++) {
-        struct joint *j = &chain->e->joints[chain->joints[k]];
+        struct joint *j = &out[chain->joints[k]];
 
         vec3_dup(j->translation, chain->rest_trans[k]);
         vec3_dup(j->scale, chain->rest_scale[k]);
