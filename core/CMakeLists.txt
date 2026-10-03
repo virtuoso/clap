@@ -455,6 +455,11 @@ clap_subsystem_test(bsp_tests test-bsp.c bsp.c prng.c prng-mt.cpp)
 # The graph tests compile the graph and the prng its generator draws from
 clap_subsystem_test(graph_tests test-graph.c graph.c prng.c prng-mt.cpp)
 
+# The primitives tests compile the mesh emitters and what they append to,
+# without the model constructors (primitives-model.c) and the renderer
+clap_subsystem_test(primitives_tests test-primitives.c primitives.c mesh.c datatypes.c triangulate.c)
+target_link_libraries(primitives_tests PRIVATE meshoptimizer)
+
 # The gpsm tests compile the state machine alone; the callbacks are the
 # fixture's own
 clap_subsystem_test(gpsm_tests test-gpsm.c gpsm.c)
