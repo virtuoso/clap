@@ -102,6 +102,47 @@ static int refcount_test2(void)
     return EXIT_SUCCESS;
 }
 
+/*
+ * An embedded object in an allocation of its own, turned into a counted one
+ * the way texture_new() turns a backend's embedded texture into a counted one
+ */
+static int refcount_test3(void)
+{
+    static struct x0 xS = { .ref = REF_STATIC(x0), .magic = TEST_MAGIC0 };
+    struct ref_class *rc = &REFCLASS_NAME(x0);
+
+    reset_counters();
+    cerr err = ref_embedded_to_counted(&xS.ref);
+    if (!IS_CERR_CODE(err, CERR_INVALID_ARGUMENTS) || xS.ref.count != _REF_STATIC)  return EXIT_FAILURE;
+
+    struct x0 *x0 = mem_alloc(sizeof(*x0), .zero = 1);
+    if (!x0)    return EXIT_FAILURE;
+
+    CERR_RET(ref_embed(x0, x0), return EXIT_FAILURE);
+    x0->magic = TEST_MAGIC0;
+    unsigned long nr_active = rc->nr_active;
+    if (!ref_is_static(&x0->ref))   return EXIT_FAILURE;
+
+    CERR_RET(ref_embedded_to_counted(&x0->ref), return EXIT_FAILURE);
+    if (ref_is_static(&x0->ref) || x0->ref.count != 1 || rc->nr_active != nr_active + 1)    return EXIT_FAILURE;
+
+    /* only an embedded reference converts; a counted one keeps its count */
+    err = ref_embedded_to_counted(&x0->ref);
+    if (!IS_CERR_CODE(err, CERR_INVALID_ARGUMENTS) || x0->ref.count != 1)   return EXIT_FAILURE;
+
+    x0 = ref_get(x0);
+    if (!x0 || x0->ref.count != 2)  return EXIT_FAILURE;
+
+    ref_put(x0);
+    if (dropcount || x0->ref.count != 1)    return EXIT_FAILURE;
+
+    /* the last put drops and frees it, like an object from ref_new() */
+    ref_put(x0);
+    if (!ok_counters() || rc->nr_active != nr_active)   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 struct list_entry {
     struct list entry;
     unsigned int i;
@@ -1892,6 +1933,7 @@ static const struct test tests[] = {
     { .name = "refcount basic", .test = refcount_test0 },
     { .name = "refcount get/put", .test = refcount_test1 },
     { .name = "refcount static", .test = refcount_test2 },
+    { .name = "refcount embedded to counted", .test = refcount_test3 },
     { .name = "list_for_each", .test = list_test0 },
     { .name = "list_for_each_iter", .test = list_test1 },
     { .name = "darray basic", .test = darray_test0 },
