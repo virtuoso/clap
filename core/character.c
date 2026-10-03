@@ -498,11 +498,6 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
 {
     entity3d *e = ch->entity;
 
-    if (!entity3d_matches(e, ENTITY3D_HAS_PHYSICS)) {
-        transform_move(&e->xform, ch->velocity);
-        goto rotate;
-    }
-
     /*
      * Kinematic sweep-and-slide: compute per-frame delta from velocity,
      * then sweep the capsule and slide along contact surfaces.
@@ -513,6 +508,15 @@ static void character_apply_velocity(struct character *ch, struct scene *s)
     /* Clamp to prevent oversized deltas on frame spikes */
     if (dt_sec > 1.0 / 30.0)
         dt_sec = 1.0 / 30.0;
+
+    if (!entity3d_matches(e, ENTITY3D_HAS_PHYSICS)) {
+        vec3 delta;
+
+        /* Nothing to sweep, just move: ch->velocity is in units per second */
+        vec3_scale(delta, ch->velocity, dt_sec);
+        transform_move(&e->xform, delta);
+        goto rotate;
+    }
 
     float char_mass = phys_body_get_mass(e->phys_body);
 
