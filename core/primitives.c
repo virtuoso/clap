@@ -172,9 +172,22 @@ void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts)
     _prim_emit_triangle3(quad[3], quad[2], quad[1], &_opts);
 }
 
+/*
+ * Indices are 16-bit (_prim_emit_vertex() emits one per vertex): @nr_vert
+ * more vertices fit only if the total stays within USHRT_MAX
+ */
+static bool prim_fits(struct mesh *mesh, size_t nr_vert)
+{
+    size_t nr_vx = mesh ? mesh_nr_vx(mesh) : 0;
+
+    return nr_vx <= USHRT_MAX && nr_vert <= USHRT_MAX - nr_vx;
+}
+
 cresp(mesh) _prim_begin(size_t nr_vert, const prim_emit_opts *opts)
 {
     auto mesh = opts->mesh;
+
+    if (!prim_fits(mesh, nr_vert))  return cresp_error(mesh, CERR_TOO_LARGE);
 
     if (!mesh)
         mesh = CRES_RET_T(ref_new_checked(mesh, .name = opts->name), mesh);
@@ -238,11 +251,6 @@ cerr _prim_emit_extrusion(const prim_extrusion *ext, const prim_emit_opts *opts)
 
     err = CERR_OK;
     if (!nv)    goto err_tris;
-
-    if (mesh_nr_vx(mesh) + nv > USHRT_MAX) {
-        err = CERR_TOO_LARGE;
-        goto err_tris;
-    }
 
     cresp(mesh) mres = _prim_begin(nv, opts);
     if (IS_CERR(mres)) {
@@ -371,6 +379,8 @@ cerr _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, 
      * for each side: 4 triangles (12 vertices) per segment
      */
     int nr_vert = nr_serments * 12;
+    if (!prim_fits(mesh, nr_vert))  return CERR_TOO_LARGE;
+
     if (!mesh->attr[MESH_VX].data) {
         CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert));
         CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert));
@@ -517,6 +527,8 @@ cerr _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_
         nr_stacks = 2;
 
     int nr_vert = nr_serments * 6 * (nr_stacks - 1);
+    if (!prim_fits(mesh, nr_vert))  return CERR_TOO_LARGE;
+
     if (!mesh->attr[MESH_VX].data) {
         CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_VX, sizeof(float) * 3, nr_vert));
         CERR_RET_CERR(mesh_attr_alloc(mesh, MESH_TX, sizeof(float) * 2, nr_vert));
@@ -631,10 +643,8 @@ static cerr triangle_split(struct mesh *mesh, size_t tri, float off)
     size_t nr_vx = mesh_nr_vx(mesh);
     size_t nr_idx = mesh_nr_idx(mesh);
 
-#ifdef CONFIG_RENDERER_OPENGL
     /* the 16-bit index ceiling declines the split, it doesn't fail it */
-    if (mesh_nr_vx(mesh) + 6 > USHRT_MAX)  return CERR_OK;
-#endif
+    if (!prim_fits(mesh, 6))    return CERR_OK;
 
     CERR_RET_CERR(mesh_attr_resize(mesh, MESH_VX, nr_vx + 6));
     CERR_RET_CERR(mesh_attr_resize(mesh, MESH_TX, nr_vx + 6));

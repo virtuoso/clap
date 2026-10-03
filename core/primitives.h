@@ -65,6 +65,20 @@ void _prim_emit_triangle3(vec3 v0, vec3 v1, vec3 v2, const prim_emit_opts *opts)
 void _prim_emit_quad(vec3 quad[4], const prim_emit_opts *opts);
 
 #define prim_begin(nv, ...) _prim_begin((nv), &(const prim_emit_opts) { __VA_ARGS__ })
+
+/**
+ * _prim_begin() - make room in a mesh for emitting vertices
+ * @nr_vert:    number of vertices about to be emitted
+ * @opts:       primitive emitter options; a nullptr @opts->mesh makes a
+ *              new mesh named @opts->name
+ *
+ * Allocate or grow the mesh's attributes to hold @nr_vert more vertices.
+ * _prim_emit_vertex() doesn't bounds-check, so every emitted vertex must
+ * be covered by a _prim_begin().
+ * Return: the mesh, or CERR_TOO_LARGE if the mesh would exceed USHRT_MAX
+ * vertices (16-bit indices), in which case the mesh is left unchanged, or
+ * CERR_NOMEM
+ */
 cresp(mesh) _prim_begin(size_t nr_vert, const prim_emit_opts *opts);
 
 #define prim_end_model3d(prog, ...) \
@@ -131,7 +145,8 @@ cerr_check _prim_emit_extrusion(const prim_extrusion *ext, const prim_emit_opts 
  *  - bit 0:          bottom cap
  *  - bit 1:          top cap
  *  - bit (seg + 2):  side quad @seg (seg in [0, nr_segments))
- * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh) or CERR_NOMEM
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh), CERR_TOO_LARGE (the
+ * mesh would exceed USHRT_MAX vertices; it is left unchanged) or CERR_NOMEM
  */
 cerr_check _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serments, const prim_emit_opts *opts);
 
@@ -142,7 +157,8 @@ cerr_check _prim_emit_cylinder(vec3 org, float height, float radius, int nr_serm
  * @nr_serments:    number of "sides" around the sphere
  *
  * Append a sphere to a mesh.
- * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh) or CERR_NOMEM
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh), CERR_TOO_LARGE (the
+ * mesh would exceed USHRT_MAX vertices; it is left unchanged) or CERR_NOMEM
  */
 cerr_check _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim_emit_opts *opts);
 
@@ -162,8 +178,9 @@ cerr_check _prim_emit_sphere(vec3 org, float radius, int nr_serments, const prim
  * orthonormal frame around the @a-@b axis, for bones, struts, barrels
  * and other limb-like shapes. A degenerate (zero length) prism emits
  * nothing.
- * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh, fewer than 3 sides)
- *         or CERR_NOMEM
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no mesh, fewer than 3 sides),
+ * CERR_TOO_LARGE (the mesh would exceed USHRT_MAX vertices; it is left
+ * unchanged) or CERR_NOMEM
  */
 cerr_check _prim_emit_prism(vec3 a, vec3 b, float ra, float rb, int sides, float phase,
                             const prim_emit_opts *opts);
