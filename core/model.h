@@ -263,6 +263,8 @@ typedef struct model3dtx {
     struct ref     ref;
     struct list    entry;              /* link to scene/ui->txmodels */
     struct list    entities;           /* links entity3d->entry */
+    /* textures[] this txm holds a reference to, see model3dtx_set_texture() */
+    bool           texture_held[UNIFORM_NR_TEX];
 #ifndef CONFIG_FINAL
     /* one-shot dbg of the composed variant mask in models_render() */
     bool           variants_logged;
@@ -341,6 +343,19 @@ static inline bool model3d_has_degenerate_tris(model3d *m)
     return !!m->nr_degenerate_tri;
 }
 
+/**
+ * model3dtx_set_texture() - bind a texture to one of the model's samplers
+ * @txm:    textured model
+ * @var:    sampler uniform; ignored if @txm's program doesn't have it
+ * @tex:    texture, or nullptr to unbind
+ *
+ * A counted texture (see texture_new()) gets a reference, which @txm puts
+ * when the texture is replaced or @txm is dropped. Any other texture is
+ * borrowed: its owner must keep it alive for as long as @txm renders with
+ * it, but may free it before unbinding it, since replacing a borrowed
+ * texture doesn't touch it.
+ * The .tex option of the model3dtx constructor goes through here, too.
+ */
 void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex);
 
 cresp(texture_t) model3dtx_texture(model3dtx *txm, enum shader_vars var);

@@ -338,10 +338,9 @@ static void model3dtx_drop(struct ref *ref)
     for (size_t i = 0; i < array_size(txm->textures); i++) {
         if (!txm->textures[i])  continue;
 
-        if (model3dtx_tex_is_ext(txm, ATTR_MAX + i))
-            texture_done(txm->textures[i]);
-        else
-            texture_deinit(txm->textures[i]);
+        /* put the references it holds, deinit its own, leave the borrowed ones alone */
+        if (txm->texture_held[i])                           texture_done(txm->textures[i]);
+        else if (!model3dtx_tex_is_ext(txm, ATTR_MAX + i))  texture_deinit(txm->textures[i]);
     }
     ref_put(txm->model);
 }
@@ -450,7 +449,17 @@ void model3dtx_set_texture(model3dtx *txm, enum shader_vars var, texture_t *tex)
         return;
     }
 
-    txm->textures[TEXIDX(var)] = tex;
+    /*
+     * Take the new reference first: @tex may be the texture it replaces.
+     * Put the old one only if it's held, without asking it: a borrowed
+     * texture's owner may have freed it already.
+     */
+    texture_t *old = txm->textures[TEXIDX(var)];
+    bool old_held = txm->texture_held[TEXIDX(var)];
+
+    txm->textures[TEXIDX(var)] = texture_get(tex);
+    txm->texture_held[TEXIDX(var)] = texture_is_counted(tex);
+    if (old_held)   texture_done(old);
 }
 
 cres(int) model3d_set_name(model3d *m, const char *fmt, ...)

@@ -431,6 +431,8 @@ struct ui_element *ui_printf(struct ui *ui, struct font *font, struct ui_element
     model3d *m = ui_quad_new(ui->ui_prog, 0, 0, 1, 1);
     model3d_set_name(m, "ui_text: '%s'", str);
     model3dtx *txmtex = ref_new(model3dtx, .model = ref_pass(m), .tex = tex);
+    /* the clone is counted: txmtex holds its own reference to it */
+    texture_done(tex);
     ui_add_model(ui, txmtex);
 
     struct ui_element *uie = ref_new(ui_element,

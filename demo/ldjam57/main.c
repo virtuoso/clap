@@ -403,9 +403,8 @@ static void cleanup(struct scene *s)
     ref_put(spores);
 
     /*
-     * model3dtx_set_texture() makes these external to the txmodel, so
-     * model3dtx_drop() releases them with texture_done(), which skips
-     * static refs. Free the GPU side explicitly, the way textures_done()
+     * model3dtx_set_texture() makes these external to the txmodel, and
+     * model3dtx_drop() leaves borrowed textures alone. Free the GPU side explicitly, the way textures_done()
      * does for the engine's own pixel singletons.
      */
     texture_deinit(&platform_emission_purple);
