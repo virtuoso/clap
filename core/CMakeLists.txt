@@ -460,6 +460,9 @@ clap_subsystem_test(graph_tests test-graph.c graph.c prng.c prng-mt.cpp)
 clap_subsystem_test(primitives_tests test-primitives.c primitives.c mesh.c datatypes.c triangulate.c)
 target_link_libraries(primitives_tests PRIVATE meshoptimizer)
 
+# The polygon tests compile the 2D helpers alone
+clap_subsystem_test(poly2d_tests test-poly2d.c poly2d.c)
+
 # The gpsm tests compile the state machine alone; the callbacks are the
 # fixture's own
 clap_subsystem_test(gpsm_tests test-gpsm.c gpsm.c)
