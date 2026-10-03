@@ -189,6 +189,41 @@ static int fabrik_test_slack_smooth(void)
     return EXIT_SUCCESS;
 }
 
+/* two bones with a pole: the closed form, exact, the middle point on the pole's side */
+static int fabrik_test_two_bone(void)
+{
+    float lengths[] = { 1.0f, 1.0f };
+    vec3 points[] = { { 0, 0, 0 }, { 0, -1, 0 }, { 0, -2, 0 } };
+    vec3 root = { 0, 0, 0 }, target = { 1.2f, 0, 0 };
+
+    cerr err = fabrik_solve(.points = points, .lengths = lengths, .nr = 3,
+                            .target = { 1.2f, 0, 0 }, .pole = { 0.3f, 1, 0 });
+    if (IS_CERR(err))                                           return EXIT_FAILURE;
+    if (chain_check(points, lengths, 3, root, target, 1e-5f))   return EXIT_FAILURE;
+    /* isosceles: the knee over the midpoint, 0.8 up, in the pole's plane */
+    if (fabsf(points[1][0] - 0.6f) > 1e-5f || fabsf(points[1][1] - 0.8f) > 1e-5f || fabsf(points[1][2]) > 1e-5f)
+        return EXIT_FAILURE;
+
+    /* uneven bones, the pole the other way */
+    float uneven[] = { 1.0f, 0.5f };
+    vec3 p2[] = { { 0, 0, 0 }, { 1, 0, 0 }, { 1.5f, 0, 0 } };
+    vec3 t2 = { 0, 0, 1.3f };
+
+    err = fabrik_solve(.points = p2, .lengths = uneven, .nr = 3, .target = { 0, 0, 1.3f }, .pole = { 0, -1, 0 });
+    if (IS_CERR(err))                                   return EXIT_FAILURE;
+    if (chain_check(p2, uneven, 3, root, t2, 1e-5f))    return EXIT_FAILURE;
+    if (p2[1][1] >= 0.0f || fabsf(p2[1][0]) > 1e-5f)    return EXIT_FAILURE;
+
+    /* a target inside the bones' difference: the end as near as it gets, on the line */
+    vec3 p3[] = { { 0, 0, 0 }, { 1, 0, 0 }, { 1.5f, 0, 0 } };
+
+    err = fabrik_solve(.points = p3, .lengths = uneven, .nr = 3, .target = { 0, 0, 0.1f }, .pole = { 0, 1, 0 });
+    if (IS_CERR(err))                                                                           return EXIT_FAILURE;
+    if (fabsf(p3[2][2] - 0.5f) > 1e-5f || fabsf(p3[2][0]) > 1e-5f || fabsf(p3[2][1]) > 1e-5f)   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static int fabrik_test_invalid(void)
 {
     vec3 points[] = { { 0, 0, 0 }, { 0, 1, 0 } };
@@ -213,6 +248,7 @@ static const struct test tests[] = {
     { .name = "fabrik pole",         .test = fabrik_test_pole },
     { .name = "fabrik fold side",    .test = fabrik_test_fold_side },
     { .name = "fabrik slack smooth", .test = fabrik_test_slack_smooth },
+    { .name = "fabrik two bone",     .test = fabrik_test_two_bone },
     { .name = "fabrik invalid",      .test = fabrik_test_invalid },
 };
 
