@@ -154,6 +154,82 @@ cerr_check _prim_emit_extrusion(const prim_extrusion *ext, const prim_emit_opts 
     _prim_emit_extrusion((_e), &(prim_emit_opts){ args })
 
 /**
+ * enum prim_box_face - prim_emit_box() faces, as prim_emit_opts::skip_mask bits
+ * @PRIM_BOX_POS_A: the +a end
+ * @PRIM_BOX_NEG_A: the -a end
+ * @PRIM_BOX_POS_Y: the top
+ * @PRIM_BOX_NEG_Y: the bottom
+ * @PRIM_BOX_POS_C: the +c side
+ * @PRIM_BOX_NEG_C: the -c side
+ *
+ * The faces are emitted in this order.
+ */
+enum prim_box_face {
+    PRIM_BOX_POS_A  = 1u << 0,
+    PRIM_BOX_NEG_A  = 1u << 1,
+    PRIM_BOX_POS_Y  = 1u << 2,
+    PRIM_BOX_NEG_Y  = 1u << 3,
+    PRIM_BOX_POS_C  = 1u << 4,
+    PRIM_BOX_NEG_C  = 1u << 5,
+};
+
+/**
+ * struct prim_box - a box in a yaw-only run frame
+ * @uv_rect:    nullptr: planar UVs in run coordinates scaled by @uv;
+ *              otherwise every face maps onto this { u0, v0, u1, v1 }
+ * @org:        run frame origin in (x, z)
+ * @dir:        unit run direction in (x, z); { 1, 0 } is world aligned
+ * @lo:         one corner in (a, y, c): a along @dir, y up (world y),
+ *              c along (-dir.z, dir.x)
+ * @hi:         the opposite corner; a range reversed against @lo is
+ *              swapped back, on every axis
+ * @uv:         texture repeats per meter for planar UVs
+ *
+ * The rotation is baked into the vertices: static trimesh colliders
+ * ignore an entity's rotation. Planar UVs are per face, in the frame's
+ * meters times @uv:
+ *  - +a end:   U +c, V +y
+ *  - -a end:   U -c, V +y
+ *  - top:      U +a, V +c
+ *  - bottom:   U +c, V +a
+ *  - +c side:  U -a, V +y
+ *  - -c side:  U +a, V +y
+ * Coplanar faces of neighbouring boxes in one frame tile seamlessly.
+ */
+typedef struct prim_box {
+    const float *uv_rect;
+    vec2        org;
+    vec2        dir;
+    vec3        lo;
+    vec3        hi;
+    float       uv;
+} prim_box;
+
+/**
+ * _prim_emit_box() - emit a box in a run frame
+ * @box:    the box
+ * @opts:   primitive emitter options; @opts->mesh is required,
+ *          @opts->skip_mask takes &enum prim_box_face bits
+ *
+ * Reserve 6 vertices per face that isn't skipped and emit the faces as
+ * _prim_emit_face() quads, wound outward; @opts->clockwise flips every
+ * face.
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS (no box or mesh), CERR_TOO_LARGE
+ * (the mesh would exceed USHRT_MAX vertices; it is left unchanged) or
+ * CERR_NOMEM
+ */
+cerr_check _prim_emit_box(const prim_box *box, const prim_emit_opts *opts);
+
+/**
+ * define prim_emit_box - emit a box in a run frame
+ * @_b:     the box
+ *
+ * Syntax sugar for _prim_emit_box().
+ */
+#define prim_emit_box(_b, args...) \
+    _prim_emit_box((_b), &(prim_emit_opts){ args })
+
+/**
  * _prim_emit_cylinder() - emit a cylinder
  * @org:            origin point
  * @height:         height

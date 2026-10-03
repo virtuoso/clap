@@ -185,6 +185,70 @@ void _prim_emit_face(vec3 c00, vec3 c10, vec3 c11, vec3 c01, const vec4 uv_rect,
     _prim_emit_triangle3(c01, c11, c10, &_opts);
 }
 
+/* a box face with the run frame chart's UV rectangle, or the box's own */
+static void prim_box_face(const prim_box *box, vec3 c00, vec3 c10, vec3 c11, vec3 c01,
+                          float u0, float v0, float u1, float v1, const prim_emit_opts *opts)
+{
+    const float *uv_rect = box->uv_rect ? box->uv_rect : (vec4){ u0, v0, u1, v1 };
+
+    _prim_emit_face(c00, c10, c11, c01, uv_rect, opts);
+}
+
+cerr _prim_emit_box(const prim_box *box, const prim_emit_opts *opts)
+{
+    if (!box || !opts->mesh)    return CERR_INVALID_ARGUMENTS;
+
+    uint64_t skip = opts->skip_mask;
+    size_t nr_vert = 0;
+    for (int face = 0; face < 6; face++)
+        if (!(skip & (1ull << face)))   nr_vert += 6;
+
+    if (!nr_vert)   return CERR_OK;
+
+    CRES_RET_CERR(_prim_begin(nr_vert, opts));
+
+    vec3 lo, hi;
+
+    vec3_min(lo, box->lo, box->hi);
+    vec3_max(hi, box->lo, box->hi);
+
+    float a0 = lo[0], y0 = lo[1], c0 = lo[2];
+    float a1 = hi[0], y1 = hi[1], c1 = hi[2];
+
+    const float *org = box->org, *dir = box->dir;
+    float px = -dir[1], pz = dir[0], uv = box->uv;
+
+#define DIRPT(_a, _y, _c) \
+    (vec3){ org[0] + (_a) * dir[0] + (_c) * px, (_y), org[1] + (_a) * dir[1] + (_c) * pz }
+    /* +a end: U +c, V +y */
+    if (!(skip & PRIM_BOX_POS_A))
+        prim_box_face(box, DIRPT(a1, y0, c0), DIRPT(a1, y0, c1), DIRPT(a1, y1, c1), DIRPT(a1, y1, c0),
+                      c0 * uv, y0 * uv, c1 * uv, y1 * uv, opts);
+    /* -a end: U -c, V +y */
+    if (!(skip & PRIM_BOX_NEG_A))
+        prim_box_face(box, DIRPT(a0, y0, c1), DIRPT(a0, y0, c0), DIRPT(a0, y1, c0), DIRPT(a0, y1, c1),
+                      -c1 * uv, y0 * uv, -c0 * uv, y1 * uv, opts);
+    /* top: U +a, V +c */
+    if (!(skip & PRIM_BOX_POS_Y))
+        prim_box_face(box, DIRPT(a0, y1, c0), DIRPT(a1, y1, c0), DIRPT(a1, y1, c1), DIRPT(a0, y1, c1),
+                      a0 * uv, c0 * uv, a1 * uv, c1 * uv, opts);
+    /* bottom: U +c, V +a */
+    if (!(skip & PRIM_BOX_NEG_Y))
+        prim_box_face(box, DIRPT(a0, y0, c0), DIRPT(a0, y0, c1), DIRPT(a1, y0, c1), DIRPT(a1, y0, c0),
+                      c0 * uv, a0 * uv, c1 * uv, a1 * uv, opts);
+    /* +c side: U -a, V +y */
+    if (!(skip & PRIM_BOX_POS_C))
+        prim_box_face(box, DIRPT(a1, y0, c1), DIRPT(a0, y0, c1), DIRPT(a0, y1, c1), DIRPT(a1, y1, c1),
+                      -a1 * uv, y0 * uv, -a0 * uv, y1 * uv, opts);
+    /* -c side: U +a, V +y */
+    if (!(skip & PRIM_BOX_NEG_C))
+        prim_box_face(box, DIRPT(a0, y0, c0), DIRPT(a1, y0, c0), DIRPT(a1, y1, c0), DIRPT(a0, y1, c0),
+                      a0 * uv, y0 * uv, a1 * uv, y1 * uv, opts);
+#undef DIRPT
+
+    return CERR_OK;
+}
+
 /*
  * Indices are 16-bit (_prim_emit_vertex() emits one per vertex): @nr_vert
  * more vertices fit only if the total stays within USHRT_MAX
