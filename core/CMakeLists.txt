@@ -479,6 +479,10 @@ clap_subsystem_test(memory_tests test-memory.c)
 # The triangulation tests compile the triangulator alone
 clap_subsystem_test(triangulate_tests test-triangulate.c triangulate.c)
 
+# The mesh tests compile the mesh code alone
+clap_subsystem_test(mesh_tests test-mesh.c mesh.c datatypes.c)
+target_link_libraries(mesh_tests PRIVATE meshoptimizer)
+
 # The fracturing tests compile the fracturer, the mesh code it builds with
 # and the prng it scatters seeds from
 clap_subsystem_test(fracture_tests test-fracture.c fracture.c triangulate.c mesh.c datatypes.c
