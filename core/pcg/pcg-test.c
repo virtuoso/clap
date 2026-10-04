@@ -15,6 +15,7 @@
 #include "util.h"
 #include "pcg/frame.h"
 #include "pcg/material.h"
+#include "pcg/shape.h"
 #include "pcg/sink.h"
 #include "pcg/span.h"
 
@@ -810,6 +811,922 @@ static int sink_label_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Shapes
+ ****************************************************************************/
+
+/* positions on a 1e-4 grid, so corners shared between faces compare equal */
+static int32_t quant(float x)
+{
+    return (int32_t)lrintf(x * 1e4f);
+}
+
+static size_t walk_nr_vx(const struct sink_walk *w)
+{
+    size_t nr = 0;
+
+    for (size_t i = 0; i < w->nr; i++)  nr += mesh_nr_vx(w->mesh[i]);
+
+    return nr;
+}
+
+typedef struct edge_key {
+    int32_t p[3];
+    int32_t q[3];
+} edge_key;
+
+static int edge_key_cmp(const void *a, const void *b)
+{
+    return memcmp(a, b, sizeof(edge_key));
+}
+
+/* closed: every directed edge of every triangle has its reverse in another one */
+static bool walk_closed(const struct sink_walk *w)
+{
+    size_t nr = walk_nr_vx(w), n = 0;
+    LOCAL_SET(void, fbuf) = mem_alloc(sizeof(edge_key), .nr = nr ? nr : 1);
+    LOCAL_SET(void, rbuf) = mem_alloc(sizeof(edge_key), .nr = nr ? nr : 1);
+    edge_key *fwd = fbuf, *rev = rbuf;
+
+    for (size_t i = 0; i < w->nr; i++) {
+        struct mesh *m = w->mesh[i];
+        float *vx = mesh_vx(m);
+        unsigned short *idx = mesh_idx(m);
+
+        for (size_t t = 0; t + 2 < mesh_nr_idx(m); t += 3)
+            for (int e = 0; e < 3; e++) {
+                const float *p = &vx[idx[t + e] * 3], *q = &vx[idx[t + (e + 1) % 3] * 3];
+
+                for (int k = 0; k < 3; k++) {
+                    fwd[n].p[k] = rev[n].q[k] = quant(p[k]);
+                    fwd[n].q[k] = rev[n].p[k] = quant(q[k]);
+                }
+                n++;
+            }
+    }
+
+    qsort(fwd, n, sizeof(edge_key), edge_key_cmp);
+    qsort(rev, n, sizeof(edge_key), edge_key_cmp);
+
+    return n && !memcmp(fwd, rev, n * sizeof(edge_key));
+}
+
+/* signed volume: positive when the faces point out of a closed surface */
+static double walk_volume(const struct sink_walk *w)
+{
+    double vol = 0.0;
+
+    for (size_t i = 0; i < w->nr; i++) {
+        struct mesh *m = w->mesh[i];
+        float *vx = mesh_vx(m);
+        unsigned short *idx = mesh_idx(m);
+
+        for (size_t t = 0; t + 2 < mesh_nr_idx(m); t += 3) {
+            const float *a = &vx[idx[t] * 3], *b = &vx[idx[t + 1] * 3], *c = &vx[idx[t + 2] * 3];
+
+            vol += (double)a[0] * ((double)b[1] * c[2] - (double)b[2] * c[1]) +
+                   (double)a[1] * ((double)b[2] * c[0] - (double)b[0] * c[2]) +
+                   (double)a[2] * ((double)b[0] * c[1] - (double)b[1] * c[0]);
+        }
+    }
+
+    return vol / 6.0;
+}
+
+/* the bounding box of every vertex, in @f's local coordinates */
+static void walk_aabb(const struct sink_walk *w, const pcg_frame *f, vec3 lo, vec3 hi)
+{
+    bool first = true;
+
+    for (size_t i = 0; i < w->nr; i++)
+        for (size_t v = 0; v < mesh_nr_vx(w->mesh[i]); v++) {
+            vec3 p;
+
+            pcg_frame_point_to_local(f, &mesh_vx(w->mesh[i])[v * 3], p);
+            for (int k = 0; k < 3; k++) {
+                lo[k] = first ? p[k] : fminf(lo[k], p[k]);
+                hi[k] = first ? p[k] : fmaxf(hi[k], p[k]);
+            }
+            first = false;
+        }
+}
+
+static bool walk_aabb_is(const struct sink_walk *w, const pcg_frame *f, const vec3 lo, const vec3 hi)
+{
+    vec3 l, h;
+
+    walk_aabb(w, f, l, h);
+
+    return vec3_near(l, lo, 1e-4f) && vec3_near(h, hi, 1e-4f);
+}
+
+/* every normal of @m points along @dir (local to @f) */
+static bool mesh_normals_along(struct mesh *m, const pcg_frame *f, const vec3 dir)
+{
+    for (size_t v = 0; v < mesh_nr_vx(m); v++) {
+        vec3 n;
+
+        pcg_frame_vector_to_local(f, &mesh_norm(m)[v * 3], n);
+        if (!vec3_near(n, dir, 1e-4f))  return false;
+    }
+
+    return true;
+}
+
+/* the number of vertices of @m whose normal points along @dir (local to @f) */
+static size_t mesh_count_normals(struct mesh *m, const pcg_frame *f, const vec3 dir)
+{
+    size_t nr = 0;
+
+    for (size_t v = 0; v < mesh_nr_vx(m); v++) {
+        vec3 n;
+
+        pcg_frame_vector_to_local(f, &mesh_norm(m)[v * 3], n);
+        if (vec3_near(n, dir, 1e-4f))   nr++;
+    }
+
+    return nr;
+}
+
+/* every normal of @m is horizontal */
+static bool mesh_normals_level(struct mesh *m)
+{
+    for (size_t v = 0; v < mesh_nr_vx(m); v++)
+        if (!near(mesh_norm(m)[v * 3 + 1], 0.0f, 1e-4f))    return false;
+
+    return true;
+}
+
+/* unit tangents perpendicular to the normals, with a handedness */
+static bool mesh_tangents_ok(struct mesh *m)
+{
+    for (size_t v = 0; v < mesh_nr_vx(m); v++) {
+        const float *t = &mesh_tangent(m)[v * 4], *n = &mesh_norm(m)[v * 3];
+
+        if (!near(vec3_len(t), 1.0f, 1e-4f))            return false;
+        if (!near(vec3_mul_inner(t, n), 0.0f, 1e-4f))   return false;
+        if (!near(fabsf(t[3]), 1.0f, 1e-6f))            return false;
+    }
+
+    return true;
+}
+
+typedef struct tri_key {
+    int32_t c[3][5];
+} tri_key;
+
+static int tri_key_cmp(const void *a, const void *b)
+{
+    return memcmp(a, b, sizeof(tri_key));
+}
+
+/* @m's triangles with their UVs, each starting at its smallest corner, sorted */
+static tri_key *mesh_tri_keys(struct mesh *m)
+{
+    size_t nr = mesh_nr_vx(m) / 3;
+    tri_key *keys = mem_alloc(sizeof(*keys), .nr = nr ? nr : 1);
+    unsigned short *idx = mesh_idx(m);
+
+    for (size_t t = 0; t < nr; t++) {
+        int32_t c[3][5];
+
+        for (int k = 0; k < 3; k++) {
+            unsigned short i = idx[t * 3 + k];
+
+            for (int j = 0; j < 3; j++) c[k][j] = quant(mesh_vx(m)[i * 3 + j]);
+            for (int j = 0; j < 2; j++) c[k][3 + j] = quant(mesh_tx(m)[i * 2 + j]);
+        }
+
+        int first = 0;
+        for (int k = 1; k < 3; k++)
+            if (memcmp(c[k], c[first], sizeof(c[k])) < 0)   first = k;
+        for (int k = 0; k < 3; k++)                         memcpy(keys[t].c[k], c[(first + k) % 3], sizeof(c[k]));
+    }
+    qsort(keys, nr, sizeof(*keys), tri_key_cmp);
+
+    return keys;
+}
+
+/* the same triangles, wound the same way, with the same UVs, in any order */
+static bool mesh_same_tris(struct mesh *a, struct mesh *b)
+{
+    if (mesh_nr_vx(a) != mesh_nr_vx(b))     return false;
+
+    LOCAL_SET(void, ka) = mesh_tri_keys(a);
+    LOCAL_SET(void, kb) = mesh_tri_keys(b);
+
+    return !memcmp(ka, kb, mesh_nr_vx(a) / 3 * sizeof(tri_key));
+}
+
+/* the same vertices in the same order, positions within @eps */
+static bool mesh_same_vx(struct mesh *a, struct mesh *b, float eps, float uv_eps)
+{
+    if (mesh_nr_vx(a) != mesh_nr_vx(b))     return false;
+
+    for (size_t v = 0; v < mesh_nr_vx(a); v++) {
+        if (!vec3_near(&mesh_vx(a)[v * 3], &mesh_vx(b)[v * 3], eps))        return false;
+        if (!near(mesh_tx(a)[v * 2], mesh_tx(b)[v * 2], uv_eps))            return false;
+        if (!near(mesh_tx(a)[v * 2 + 1], mesh_tx(b)[v * 2 + 1], uv_eps))    return false;
+    }
+
+    return true;
+}
+
+/*
+ * Reference copies of the original emitters that the shapes replace, with
+ * their texture density at 1 repeat per meter: the shapes must emit the
+ * same triangles.
+ */
+static void ref_face(struct mesh *m, vec3 c00, vec3 c10, vec3 c11, vec3 c01, float u0, float v0, float u1, float v1)
+{
+    prim_emit_opts opts = { .mesh = m };
+    vec2 t0[3] = { { u0, v0 }, { u0, v1 }, { u1, v0 } };
+    vec2 t1[3] = { { u0, v1 }, { u1, v1 }, { u1, v0 } };
+
+    opts.uv = t0;
+    _prim_emit_triangle3(c00, c01, c10, &opts);
+    opts.uv = t1;
+    _prim_emit_triangle3(c01, c11, c10, &opts);
+}
+
+#define REF_PLATE_NO_BOTTOM (1 << 0)
+#define REF_PLATE_NO_TOP    (1 << 1)
+
+static cerr ref_plate_emit(struct mesh *m, int sides, float radius, int hole_sides, float hole_r,
+                           float y0, float y1, float uv, unsigned int drop)
+{
+    bool hole = hole_sides >= 3 && hole_r > 0.0f;
+    size_t np = sides + (hole ? hole_sides : 0);
+
+    LOCAL_SET(void, ptbuf) = mem_alloc(sizeof(vec2), .nr = np);
+    if (!ptbuf) return CERR_NOMEM;
+
+    vec2 *pts = ptbuf;
+    for (int j = 0; j < sides; j++)                 ref_ngon_vertex(j, sides, radius, pts[j]);
+    for (int j = 0; hole && j < hole_sides; j++)    ref_ngon_vertex(-j, hole_sides, hole_r, pts[sides + j]);
+
+    poly_ring rings[2] = { { 0, (size_t)sides }, { (size_t)sides, (size_t)hole_sides } };
+    poly_tris tris = CRES_RET_CERR(poly_triangulate(pts, rings, hole ? 2 : 1));
+    LOCAL_SET(void, tris_idx) = tris.idx;
+
+    CRES_RET_CERR(_prim_begin(tris.nr_tris * 6 + np * 6, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    prim_emit_opts po = { .mesh = m };
+    for (size_t t = 0; t < tris.nr_tris; t++) {
+        const unsigned int *ti = &tris.idx[t * 3];
+        vec3 v[3];
+        vec2 tuv[3];
+
+        for (int k = 0; k < 3; k++) {
+            v[k][0] = pts[ti[k]][0];
+            v[k][2] = pts[ti[k]][1];
+            tuv[k][0] = v[k][0] * uv;
+            tuv[k][1] = v[k][2] * uv;
+        }
+
+        if (!(drop & REF_PLATE_NO_BOTTOM)) {
+            v[0][1] = v[1][1] = v[2][1] = y0;
+            po.uv = tuv;
+            _prim_emit_triangle3(v[0], v[1], v[2], &po);
+        }
+
+        if (!(drop & REF_PLATE_NO_TOP)) {
+            v[0][1] = v[1][1] = v[2][1] = y1;
+            vec2 ruv[3] = { { tuv[0][0], tuv[0][1] }, { tuv[2][0], tuv[2][1] }, { tuv[1][0], tuv[1][1] } };
+            po.uv = ruv;
+            _prim_emit_triangle3(v[0], v[2], v[1], &po);
+        }
+    }
+
+    for (int ring = 0; ring < (hole ? 2 : 1); ring++)
+        for (size_t k = 0; k < rings[ring].nr; k++) {
+            const float *a = pts[rings[ring].start + k];
+            const float *b = pts[rings[ring].start + (k + 1) % rings[ring].nr];
+            float len = sqrtf((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
+
+            ref_face(m, (vec3){ a[0], y0, a[1] }, (vec3){ b[0], y0, b[1] },
+                     (vec3){ b[0], y1, b[1] }, (vec3){ a[0], y1, a[1] },
+                     0.0f, y0 * uv, len * uv, y1 * uv);
+        }
+
+    return CERR_OK;
+}
+
+static cerr ref_convex_plate_emit(struct mesh *m, const vec2 *pts, int np, float y0, float y1, float uv)
+{
+    if (np < 3) return CERR_OK;
+
+    CRES_RET_CERR(_prim_begin((np - 2) * 6 + np * 6, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    prim_emit_opts po = { .mesh = m };
+    for (int k = 1; k < np - 1; k++) {
+        vec3 v[3] = { { pts[0][0], y0, pts[0][1] },
+                      { pts[k][0], y0, pts[k][1] },
+                      { pts[k + 1][0], y0, pts[k + 1][1] } };
+        vec2 tuv[3] = { { pts[0][0] * uv, pts[0][1] * uv },
+                        { pts[k][0] * uv, pts[k][1] * uv },
+                        { pts[k + 1][0] * uv, pts[k + 1][1] * uv } };
+
+        po.uv = tuv;
+        _prim_emit_triangle3(v[0], v[1], v[2], &po);
+
+        v[0][1] = v[1][1] = v[2][1] = y1;
+        vec2 ruv[3] = { { tuv[0][0], tuv[0][1] }, { tuv[2][0], tuv[2][1] }, { tuv[1][0], tuv[1][1] } };
+        po.uv = ruv;
+        _prim_emit_triangle3(v[0], v[2], v[1], &po);
+    }
+
+    for (int k = 0; k < np; k++) {
+        const float *a = pts[k], *b = pts[(k + 1) % np];
+        float len = sqrtf((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
+
+        ref_face(m, (vec3){ a[0], y0, a[1] }, (vec3){ b[0], y0, b[1] },
+                 (vec3){ b[0], y1, b[1] }, (vec3){ a[0], y1, a[1] },
+                 0.0f, y0 * uv, len * uv, y1 * uv);
+    }
+
+    return CERR_OK;
+}
+
+#define REF_FASCIA_LIP  0.06f
+#define REF_FASCIA_TUCK 0.02f
+
+static cerr ref_fascia_seg(struct mesh *m, const vec2 org, const vec2 dir, const vec2 in, float at, float end,
+                           float depth, float uv)
+{
+    float w = REF_FASCIA_LIP + REF_FASCIA_TUCK;
+    vec2 o0 = { org[0] - in[0] * REF_FASCIA_TUCK + dir[0] * at,
+                org[1] - in[1] * REF_FASCIA_TUCK + dir[1] * at };
+    vec2 o1 = { o0[0] + dir[0] * (end - at), o0[1] + dir[1] * (end - at) };
+    vec2 w0 = { org[0] + in[0] * REF_FASCIA_LIP + dir[0] * at,
+                org[1] + in[1] * REF_FASCIA_LIP + dir[1] * at };
+    vec2 w1 = { w0[0] + dir[0] * (end - at), w0[1] + dir[1] * (end - at) };
+
+    CRES_RET_CERR(_prim_begin(36, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    ref_face(m, (vec3){ w1[0], -depth, w1[1] }, (vec3){ w0[0], -depth, w0[1] },
+             (vec3){ w0[0], 0.0f, w0[1] }, (vec3){ w1[0], 0.0f, w1[1] },
+             at * uv, -depth * uv, end * uv, 0.0f);
+    ref_face(m, (vec3){ o0[0], -depth, o0[1] }, (vec3){ o1[0], -depth, o1[1] },
+             (vec3){ o1[0], 0.0f, o1[1] }, (vec3){ o0[0], 0.0f, o0[1] },
+             at * uv, -depth * uv, end * uv, 0.0f);
+    ref_face(m, (vec3){ o0[0], -depth, o0[1] }, (vec3){ w0[0], -depth, w0[1] },
+             (vec3){ w1[0], -depth, w1[1] }, (vec3){ o1[0], -depth, o1[1] },
+             at * uv, 0.0f, end * uv, w * uv);
+    ref_face(m, (vec3){ o0[0], 0.0f, o0[1] }, (vec3){ o1[0], 0.0f, o1[1] },
+             (vec3){ w1[0], 0.0f, w1[1] }, (vec3){ w0[0], 0.0f, w0[1] },
+             at * uv, 0.0f, end * uv, w * uv);
+    ref_face(m, (vec3){ o0[0], -depth, o0[1] }, (vec3){ o0[0], 0.0f, o0[1] },
+             (vec3){ w0[0], 0.0f, w0[1] }, (vec3){ w0[0], -depth, w0[1] },
+             0.0f, -depth * uv, w * uv, 0.0f);
+    ref_face(m, (vec3){ w1[0], -depth, w1[1] }, (vec3){ w1[0], 0.0f, w1[1] },
+             (vec3){ o1[0], 0.0f, o1[1] }, (vec3){ o1[0], -depth, o1[1] },
+             0.0f, -depth * uv, w * uv, 0.0f);
+
+    return CERR_OK;
+}
+
+static cerr ref_glass_emit(struct mesh *m, const vec2 org, const vec2 dir, float len, float y0, float y1,
+                           float gap_at, float gap_w, float gap_h, float uv)
+{
+    float seg[3][3] = { { 0.0f, len, y0 } };
+    int nseg = 1;
+
+    if (gap_w > 0.0f) {
+        seg[0][1] = gap_at - gap_w * 0.5f;
+        seg[1][0] = gap_at + gap_w * 0.5f;
+        seg[1][1] = len;
+        seg[1][2] = y0;
+        nseg = 2;
+        if (gap_h > 0.0f && gap_h < y1) {
+            seg[2][0] = seg[0][1];
+            seg[2][1] = seg[1][0];
+            seg[2][2] = gap_h;
+            nseg = 3;
+        }
+    }
+
+    CRES_RET_CERR(_prim_begin(nseg * 12, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    for (int i = 0; i < nseg; i++) {
+        float a0 = seg[i][0], a1 = seg[i][1], ylo = seg[i][2];
+
+        if (a1 - a0 < 0.01f)    continue;
+
+#define GLPT(_a, _y) (vec3){ org[0] + (_a) * dir[0], (_y), org[1] + (_a) * dir[1] }
+        ref_face(m, GLPT(a0, ylo), GLPT(a1, ylo), GLPT(a1, y1), GLPT(a0, y1),
+                 a0 * uv, ylo * uv, a1 * uv, y1 * uv);
+        ref_face(m, GLPT(a1, ylo), GLPT(a0, ylo), GLPT(a0, y1), GLPT(a1, y1),
+                 -a1 * uv, ylo * uv, -a0 * uv, y1 * uv);
+#undef GLPT
+    }
+
+    return CERR_OK;
+}
+
+/* fake finishes for the shape tests, one per face group so each gets its own bucket */
+static const pcg_material top_mat = { .name = "top", .uv_mode = PCG_UV_METERS };
+static const pcg_material bottom_mat = { .name = "bottom", .uv_mode = PCG_UV_METERS };
+static const pcg_material edge_mat = { .name = "edge", .uv_mode = PCG_UV_METERS };
+
+/* a hexagonal ring plate of the reference layout's shape: outer ring, then the hole reversed */
+static void ring_plate_pts(vec2 *pts, int n, float r, float hole_r)
+{
+    for (int j = 0; j < n; j++) ref_ngon_vertex(j, n, r, pts[j]);
+    for (int j = 0; j < n; j++) ref_ngon_vertex(-j, n, hole_r, pts[n + j]);
+}
+
+/* area of a regular n-gon of circumradius r */
+static double ngon_area(int n, double r)
+{
+    return 0.5 * n * r * r * sin(2.0 * M_PI / n);
+}
+
+static int shape_plate_test(void)
+{
+    const int n = 6;
+    const float r = 9.0f, hr = 4.0f, y0 = -0.3f, y1 = 0.0f;
+    vec2 pts[12];
+    const poly_ring rings[2] = { { 0, 6 }, { 6, 6 } };
+
+    ring_plate_pts(pts, n, r, hr);
+
+    /* the original plate, bit for bit, when every face group wears the same material */
+    {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("plate"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+        const pcg_surface s = { .mat = &concrete, .collide = PCG_COLLIDE_SOLID };
+
+        CERR_RET(pcg_plate(&ctx, .pts = pts, .nr_pts = 12, .rings = rings, .nr_rings = 2, .y0 = y0, .y1 = y1,
+                           .top = s, .bottom = s, .edge = s),
+                 return EXIT_FAILURE);
+
+        struct sink_walk w = {};
+        if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)    return EXIT_FAILURE;
+
+        LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+        if (failed(ref_plate_emit(ref, n, r, n, hr, y0, y1, 1.0f, 0)))      return EXIT_FAILURE;
+        if (!mesh_same_tris(w.mesh[0], ref))                                return EXIT_FAILURE;
+
+        if (!walk_closed(&w))                                               return EXIT_FAILURE;
+        double vol = (ngon_area(n, r) - ngon_area(n, hr)) * (y1 - y0);
+        if (fabs(walk_volume(&w) - vol) > 1e-3 * vol)                       return EXIT_FAILURE;
+    }
+
+    /* a yawed frame, a hole wound like the outer ring, a separate bucket per face group */
+    {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("plate"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink };
+        vec2 same[12];
+
+        test_frame(&ctx.frame, 0.8f, false, 30.0f, 6.0f, -12.0f);
+        for (int j = 0; j < n; j++) {
+            ref_ngon_vertex(j, n, r, same[j]);
+            ref_ngon_vertex(j, n, hr, same[n + j]);
+        }
+
+        CERR_RET(pcg_plate(&ctx, .pts = same, .nr_pts = 12, .rings = rings, .nr_rings = 2, .y0 = y0, .y1 = y1,
+                           .top = { .mat = &top_mat, .uv_swap = true }, .bottom = { .mat = &bottom_mat },
+                           .edge = { .mat = &edge_mat }),
+                 return EXIT_FAILURE);
+
+        struct sink_walk w = {};
+        if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 3)                    return EXIT_FAILURE;
+        if (w.key[0].mat != &bottom_mat || w.key[1].mat != &top_mat || w.key[2].mat != &edge_mat)   return EXIT_FAILURE;
+
+        /* 12 points - 2 + 2 for the bridged hole: 12 triangles; 12 edge quads */
+        if (mesh_nr_vx(w.mesh[0]) != 12 * 3 || mesh_nr_vx(w.mesh[1]) != 12 * 3)         return EXIT_FAILURE;
+        if (mesh_nr_vx(w.mesh[2]) != 12 * 6)                                            return EXIT_FAILURE;
+        if (!mesh_normals_along(w.mesh[0], &ctx.frame, (vec3){ 0.0f, -1.0f, 0.0f }))    return EXIT_FAILURE;
+        if (!mesh_normals_along(w.mesh[1], &ctx.frame, (vec3){ 0.0f, 1.0f, 0.0f }))     return EXIT_FAILURE;
+        if (!mesh_normals_level(w.mesh[2]))                                             return EXIT_FAILURE;
+        for (size_t i = 0; i < w.nr; i++)
+            if (!mesh_tangents_ok(w.mesh[i]))                                           return EXIT_FAILURE;
+
+        /* tops tile in sink space, turned a quarter by the swap; bottoms aren't turned */
+        for (size_t v = 0; v < mesh_nr_vx(w.mesh[1]); v++) {
+            const float *p = &mesh_vx(w.mesh[1])[v * 3], *t = &mesh_tx(w.mesh[1])[v * 2];
+
+            if (t[0] != p[2] || t[1] != p[0])   return EXIT_FAILURE;
+        }
+        for (size_t v = 0; v < mesh_nr_vx(w.mesh[0]); v++) {
+            const float *p = &mesh_vx(w.mesh[0])[v * 3], *t = &mesh_tx(w.mesh[0])[v * 2];
+
+            if (t[0] != p[0] || t[1] != p[2])   return EXIT_FAILURE;
+        }
+
+        if (!walk_closed(&w))                                                       return EXIT_FAILURE;
+        double vol = (ngon_area(n, r) - ngon_area(n, hr)) * (y1 - y0);
+        if (fabs(walk_volume(&w) - vol) > 1e-3 * vol)                               return EXIT_FAILURE;
+
+        vec2 lo, hi;
+        poly2d_bbox(same, n, lo, hi);
+        if (!walk_aabb_is(&w, &ctx.frame, (vec3){ lo[0], y0, lo[1] }, (vec3){ hi[0], y1, hi[1] }))  return EXIT_FAILURE;
+    }
+
+    /* bad plates */
+    {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("plate"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+        const pcg_surface s = { .mat = &concrete };
+        const poly_ring past = { 8, 6 };
+
+        if (!failed(pcg_plate(&ctx, .pts = pts, .nr_pts = 2, .top = s, .bottom = s, .edge = s)))    return EXIT_FAILURE;
+        if (!failed(pcg_plate(&ctx, .pts = pts, .nr_pts = 6, .y0 = 1.0f, .top = s, .bottom = s, .edge = s)))
+            return EXIT_FAILURE;
+        if (!failed(pcg_plate(&ctx, .pts = pts, .nr_pts = 12, .rings = &past, .nr_rings = 1,
+                              .top = s, .bottom = s, .edge = s)))
+            return EXIT_FAILURE;
+        if (!failed(pcg_plate(&ctx, .pts = pts, .nr_pts = 12, .rings = rings, .nr_rings = 2, .fan = true,
+                              .top = s, .bottom = s, .edge = s)))
+            return EXIT_FAILURE;
+        if (pcg_sink_get_stats(sink).nr_models)     return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int shape_plate_skip_test(void)
+{
+    const int n = 6;
+    vec2 pts[12];
+    const poly_ring rings[2] = { { 0, 6 }, { 6, 6 } };
+    const pcg_material *mats[PCG_PLATE_NR_SURF] = {
+        [PCG_PLATE_TOP] = &top_mat, [PCG_PLATE_BOTTOM] = &bottom_mat, [PCG_PLATE_EDGE] = &edge_mat,
+    };
+    const size_t nr_vx[PCG_PLATE_NR_SURF] = {
+        [PCG_PLATE_TOP] = 12 * 3, [PCG_PLATE_BOTTOM] = 12 * 3, [PCG_PLATE_EDGE] = 12 * 6,
+    };
+
+    ring_plate_pts(pts, n, 9.0f, 4.0f);
+
+    /* skipping a surface drops exactly its face group */
+    for (int skip = 0; skip < PCG_PLATE_NR_SURF; skip++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("skip"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+        pcg_plate_desc d = { .pts = pts, .nr_pts = 12, .rings = rings, .nr_rings = 2, .y0 = -0.3f, .y1 = 0.0f };
+
+        for (int s = 0; s < PCG_PLATE_NR_SURF; s++) d.surf[s] = (pcg_surface){ .mat = mats[s], .skip = s == skip };
+        if (failed(_pcg_plate(&ctx, &d)))           return EXIT_FAILURE;
+
+        struct sink_walk w = {};
+        if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 2)    return EXIT_FAILURE;
+        for (size_t i = 0; i < w.nr; i++) {
+            int s = w.key[i].mat == &top_mat ? PCG_PLATE_TOP :
+                    w.key[i].mat == &bottom_mat ? PCG_PLATE_BOTTOM : PCG_PLATE_EDGE;
+
+            if (s == skip || mesh_nr_vx(w.mesh[i]) != nr_vx[s]) return EXIT_FAILURE;
+        }
+    }
+
+    /* without its top, a slab under a deck is the original plate that leaves its top out */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("skip"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+    const pcg_surface s = { .mat = &concrete };
+    CERR_RET(pcg_plate(&ctx, .pts = pts, .nr_pts = 12, .rings = rings, .nr_rings = 2, .y0 = -0.3f, .y1 = 0.0f,
+                       .top = { .skip = true }, .bottom = s, .edge = s),
+             return EXIT_FAILURE);
+
+    struct sink_walk w = {};
+    if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)    return EXIT_FAILURE;
+
+    LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+    if (failed(ref_plate_emit(ref, n, 9.0f, n, 4.0f, -0.3f, 0.0f, 1.0f, REF_PLATE_NO_TOP))) return EXIT_FAILURE;
+    if (!mesh_same_tris(w.mesh[0], ref))                                                    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int shape_plate_fan_test(void)
+{
+    /* a convex outline clipped off a 12-gon, as stair aprons are */
+    vec2 pts[16], tmp[16];
+    poly2d_regular(tmp, 12, 9.0f, poly2d_phase_edge0_neg_z(12));
+    size_t np = CRES_RET(poly2d_clip(tmp, 12, &(poly2d_halfplane){ .n = { 0.6f, 0.8f }, .d = 2.0f }, pts, 16),
+                         return EXIT_FAILURE);
+    if (np < 5)     return EXIT_FAILURE;
+
+    for (int reversed = 0; reversed < 2; reversed++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("fan"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+        const pcg_surface s = { .mat = &concrete };
+        vec2 in[16];
+
+        for (size_t j = 0; j < np; j++) memcpy(in[j], pts[reversed ? np - 1 - j : j], sizeof(vec2));
+
+        CERR_RET(pcg_plate(&ctx, .pts = in, .nr_pts = np, .y0 = 0.0f, .y1 = 0.2f, .fan = true,
+                           .top = s, .bottom = s, .edge = s),
+                 return EXIT_FAILURE);
+
+        struct sink_walk w = {};
+        if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)    return EXIT_FAILURE;
+        if (mesh_nr_vx(w.mesh[0]) != (np - 2) * 6 + np * 6)                         return EXIT_FAILURE;
+        if (!walk_closed(&w))                                                       return EXIT_FAILURE;
+
+        double area = 0.0;
+        for (size_t j = 0; j < np; j++)
+            area += (double)pts[j][0] * pts[(j + 1) % np][1] - (double)pts[(j + 1) % np][0] * pts[j][1];
+        area *= 0.5;
+        if (fabs(walk_volume(&w) - area * 0.2) > 1e-3 * area)                   return EXIT_FAILURE;
+
+        /* the original apron plate, bit for bit */
+        if (!reversed) {
+            LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+            if (failed(ref_convex_plate_emit(ref, pts, np, 0.0f, 0.2f, 1.0f)))  return EXIT_FAILURE;
+            if (!mesh_same_tris(w.mesh[0], ref))                                return EXIT_FAILURE;
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int shape_plate_sheet_test(void)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("sheet"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+    vec2 pts[8];
+
+    /* a downward-facing sheet: no edges at zero height, only the side that isn't skipped */
+    ctx.frame.org[1] = 3.0f;
+    poly2d_regular(pts, 8, 5.0f, poly2d_phase_edge0_neg_z(8));
+    CERR_RET(pcg_plate(&ctx, .pts = pts, .nr_pts = 8, .y0 = 0.5f, .y1 = 0.5f, .fan = true,
+                       .top = { .skip = true }, .bottom = { .mat = &concrete }, .edge = { .mat = &wood }),
+             return EXIT_FAILURE);
+
+    struct sink_walk w = {};
+    if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)        return EXIT_FAILURE;
+    if (w.key[0].mat != &concrete || mesh_nr_vx(w.mesh[0]) != 6 * 3)                return EXIT_FAILURE;
+    if (!mesh_normals_along(w.mesh[0], &ctx.frame, (vec3){ 0.0f, -1.0f, 0.0f }))    return EXIT_FAILURE;
+    for (size_t v = 0; v < mesh_nr_vx(w.mesh[0]); v++)
+        if (mesh_vx(w.mesh[0])[v * 3 + 1] != 3.5f)                                  return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int shape_band_test(void)
+{
+    const float lip = REF_FASCIA_LIP, tuck = REF_FASCIA_TUCK, depth = 1.1f;
+    vec2 va, vb, dir, in;
+
+    ref_ngon_vertex(3, 12, 9.0f, va);
+    ref_ngon_vertex(4, 12, 9.0f, vb);
+    float len = poly2d_edge_frame(va, vb, dir, in);
+
+    /* the original band segment, in the rim edge's frame */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("band"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink };
+    const pcg_surface s = { .mat = &concrete, .collide = PCG_COLLIDE_SOLID };
+    float at = 0.4f, end = len - 0.7f;
+
+    ctx.frame = (pcg_frame){ .org = { va[0], 0.0f, va[1] }, .dir = { dir[0], dir[1] } };
+    CERR_RET(pcg_band(&ctx, .lo = { at, -depth, -tuck }, .hi = { end, 0.0f, lip }, .surf = s),
+             return EXIT_FAILURE);
+
+    struct sink_walk w = {};
+    if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)    return EXIT_FAILURE;
+
+    LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+    if (failed(ref_fascia_seg(ref, va, dir, in, at, end, depth, 1.0f)))     return EXIT_FAILURE;
+    if (!mesh_same_vx(w.mesh[0], ref, 1e-5f, 0.0f))                         return EXIT_FAILURE;
+
+    /* closed, outward, the box it was asked for */
+    if (!walk_closed(&w) || !mesh_tangents_ok(w.mesh[0]))                   return EXIT_FAILURE;
+    double vol = (double)(end - at) * depth * (lip + tuck);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                                               return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &ctx.frame, (vec3){ at, -depth, -tuck }, (vec3){ end, 0.0f, lip }))   return EXIT_FAILURE;
+
+    /* each skipped face takes its 6 vertices, reversed ranges are swapped back */
+    static const vec3 face_dir[6] = {
+        [0] = { 1.0f, 0.0f, 0.0f }, [1] = { -1.0f, 0.0f, 0.0f }, [2] = { 0.0f, 1.0f, 0.0f },
+        [3] = { 0.0f, -1.0f, 0.0f }, [4] = { 0.0f, 0.0f, 1.0f }, [5] = { 0.0f, 0.0f, -1.0f },
+    };
+    for (int face = 0; face < 6; face++) {
+        LOCAL_SET(pcg_sink, sk) = CRES_RET(pcg_sink_new("band"), return EXIT_FAILURE);
+        pcg_ctx c = { .sink = sk, .frame = PCG_FRAME_IDENTITY };
+        unsigned int skip = (1u << face) | PRIM_BOX_POS_A;
+
+        CERR_RET(pcg_band(&c, .lo = { 1.0f, 0.0f, 1.0f }, .hi = { 0.0f, 1.0f, 0.0f }, .surf = s,
+                          .skip_mask = skip),
+                 return EXIT_FAILURE);
+        if (pcg_sink_get_stats(sk).nr_vertices != (face ? 24u : 30u))   return EXIT_FAILURE;
+
+        /* the skipped faces are the ones gone: no normal points their way */
+        struct sink_walk sw = {};
+        if (failed(pcg_sink_for_each_mesh(sk, sink_walk_fn, &sw)) || sw.nr != 1)    return EXIT_FAILURE;
+        for (int k = 0; k < 6; k++)
+            if (mesh_count_normals(sw.mesh[0], &c.frame, face_dir[k]) != (skip & (1u << k) ? 0u : 6u))
+                return EXIT_FAILURE;
+    }
+
+    if (!failed(pcg_band(&ctx, .lo = { 0.0f, 0.0f, 0.0f }, .hi = { 1.0f, 0.0f, 1.0f }, .surf = s))) return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int shape_pane_test(void)
+{
+    vec2 org = { 3.0f, -2.0f }, dir = { 0.8f, 0.6f };
+    const pcg_surface s = { .mat = &concrete, .collide = PCG_COLLIDE_SOLID };
+    /* full height, a door with a transom, a gap without one */
+    const struct { float y0, y1, h; } cases[] = { { 0.0f, 2.8f, 0.0f }, { 0.0f, 2.8f, 2.1f }, { 0.9f, 2.4f, 0.0f } };
+
+    for (size_t i = 0; i < array_size(cases); i++)
+        for (int gap = 0; gap < 2; gap++) {
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("pane"), return EXIT_FAILURE);
+            pcg_ctx ctx = { .sink = sink, .frame = { .org = { org[0], 0.0f, org[1] }, .dir = { dir[0], dir[1] } } };
+            const pcg_opening door = { .at = 2.0f, .w = 1.0f, .h = cases[i].h };
+
+            CERR_RET(pcg_pane(&ctx, .open = &door, .nr_open = gap, .len = 4.0f, .y0 = cases[i].y0,
+                              .y1 = cases[i].y1, .min_seg = 0.01f, .surf = s),
+                     return EXIT_FAILURE);
+
+            struct sink_walk w = {};
+            if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)    return EXIT_FAILURE;
+
+            /* the original pane, vertex for vertex */
+            LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+            if (failed(ref_glass_emit(ref, org, dir, 4.0f, cases[i].y0, cases[i].y1, 2.0f, gap ? 1.0f : 0.0f,
+                                      cases[i].h, 1.0f)))
+                return EXIT_FAILURE;
+            if (!mesh_same_vx(w.mesh[0], ref, 0.0f, 0.0f))                  return EXIT_FAILURE;
+
+            /* closed both ways, so enclosing nothing */
+            if (!walk_closed(&w) || fabs(walk_volume(&w)) > 1e-4)   return EXIT_FAILURE;
+            if (!walk_aabb_is(&w, &ctx.frame, (vec3){ 0.0f, cases[i].y0, 0.0f },
+                              (vec3){ 4.0f, cases[i].y1, 0.0f }))
+                return EXIT_FAILURE;
+        }
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("pane"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+
+    /* a sliver next to an opening is left out */
+    const pcg_opening edge = { .at = 0.5f + 0.005f, .w = 1.0f, .h = 2.1f };
+    CERR_RET(pcg_pane(&ctx, .open = &edge, .nr_open = 1, .len = 4.0f, .y1 = 2.8f, .min_seg = 0.01f, .surf = s),
+             return EXIT_FAILURE);
+    if (pcg_sink_get_stats(sink).nr_vertices != 2 * 12) return EXIT_FAILURE;
+
+    /* with no minimum, the empty runs at the start and between abutting openings are still left out */
+    LOCAL_SET(pcg_sink, flush) = CRES_RET(pcg_sink_new("pane"), return EXIT_FAILURE);
+    pcg_ctx fc = { .sink = flush, .frame = PCG_FRAME_IDENTITY };
+    const pcg_opening abut[2] = { { .at = 0.5f, .w = 1.0f }, { .at = 1.5f, .w = 1.0f } };
+    CERR_RET(pcg_pane(&fc, .open = abut, .nr_open = 2, .len = 4.0f, .y1 = 2.8f, .surf = s), return EXIT_FAILURE);
+
+    struct sink_walk fw = {};
+    if (failed(pcg_sink_for_each_mesh(flush, sink_walk_fn, &fw)) || fw.nr != 1)                 return EXIT_FAILURE;
+    if (mesh_nr_vx(fw.mesh[0]) != 12 || !mesh_tangents_ok(fw.mesh[0]))                          return EXIT_FAILURE;
+    if (!walk_aabb_is(&fw, &fc.frame, (vec3){ 2.0f, 0.0f, 0.0f }, (vec3){ 4.0f, 2.8f, 0.0f }))  return EXIT_FAILURE;
+
+    /* openings that don't fit, no height */
+    const pcg_opening past = { .at = 3.8f, .w = 1.0f };
+    if (!failed(pcg_pane(&ctx, .open = &past, .nr_open = 1, .len = 4.0f, .y1 = 2.8f, .surf = s)))   return EXIT_FAILURE;
+    if (!failed(pcg_pane(&ctx, .len = 4.0f, .y0 = 1.0f, .y1 = 1.0f, .surf = s)))                    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int shape_rod_test(void)
+{
+    /* a sloped square rail, flat side up, as the stair rails are */
+    const vec3 a = { 1.0f, 0.5f, 2.0f }, b = { 6.0f, 3.5f, 4.0f };
+    const float r = 0.07f;
+    const pcg_surface s = { .mat = &concrete, .collide = PCG_COLLIDE_HAZARD };
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("rod"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+
+    CERR_RET(pcg_rod(&ctx, .a = { a[0], a[1], a[2] }, .b = { b[0], b[1], b[2] }, .ra = r, .rb = r,
+                     .phase = (float)M_PI / 4.0f, .sides = 4, .surf = s),
+             return EXIT_FAILURE);
+
+    struct sink_walk w = {};
+    if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)    return EXIT_FAILURE;
+
+    /* the core prism's vertices, now with meter UVs and tangents */
+    LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+    if (failed(prim_emit_prism((float *)a, (float *)b, r, r, 4, (float)M_PI / 4.0f, .mesh = ref)))  return EXIT_FAILURE;
+    if (mesh_nr_vx(ref) != mesh_nr_vx(w.mesh[0]))                                                   return EXIT_FAILURE;
+    for (size_t v = 0; v < mesh_nr_vx(ref); v++)
+        if (!vec3_near(&mesh_vx(ref)[v * 3], &mesh_vx(w.mesh[0])[v * 3], 0.0f))                     return EXIT_FAILURE;
+    if (!mesh_tangents_ok(w.mesh[0]))                                                               return EXIT_FAILURE;
+
+    /* U runs the axis in meters, V around the perimeter */
+    vec3 axis;
+    vec3_sub(axis, b, a);
+    float len = vec3_len(axis), side = 2.0f * r * sinf((float)M_PI / 4.0f);
+    float umax = 0.0f, vmax = 0.0f;
+    for (size_t v = 0; v < mesh_nr_vx(w.mesh[0]); v++) {
+        umax = fmaxf(umax, mesh_tx(w.mesh[0])[v * 2]);
+        vmax = fmaxf(vmax, mesh_tx(w.mesh[0])[v * 2 + 1]);
+    }
+    if (!near(umax, len, 1e-5f) || !near(vmax, 4.0f * side, 1e-5f)) return EXIT_FAILURE;
+
+    if (!walk_closed(&w))                                                   return EXIT_FAILURE;
+    double vol = 2.0 * r * r * len;
+    if (fabs(walk_volume(&w) - vol) > 1e-3 * vol)                           return EXIT_FAILURE;
+
+    /* a tapered vertical rod: the cross-section turns to dodge the vertical axis */
+    LOCAL_SET(pcg_sink, sk) = CRES_RET(pcg_sink_new("rod"), return EXIT_FAILURE);
+    pcg_ctx c = { .sink = sk, .frame = PCG_FRAME_IDENTITY };
+    CERR_RET(pcg_rod(&c, .a = { 0.0f, 0.0f, 0.0f }, .b = { 0.0f, 2.0f, 0.0f }, .ra = 0.3f, .rb = 0.1f,
+                     .sides = 8, .surf = s),
+             return EXIT_FAILURE);
+    w = (struct sink_walk){};
+    if (failed(pcg_sink_for_each_mesh(sk, sink_walk_fn, &w)) || !walk_closed(&w))   return EXIT_FAILURE;
+    double a0 = ngon_area(8, 0.3), a1 = ngon_area(8, 0.1);
+    vol = 2.0 / 3.0 * (a0 + a1 + sqrt(a0 * a1));
+    if (fabs(walk_volume(&w) - vol) > 1e-3 * vol)                           return EXIT_FAILURE;
+
+    /* bad rods */
+    if (!failed(pcg_rod(&c, .b = { 1.0f, 0.0f, 0.0f }, .ra = 0.1f, .rb = 0.1f, .sides = 2, .surf = s)))
+        return EXIT_FAILURE;
+    if (!failed(pcg_rod(&c, .b = { 1.0f, 0.0f, 0.0f }, .ra = 0.0f, .rb = 0.1f, .sides = 4, .surf = s)))
+        return EXIT_FAILURE;
+    if (!failed(pcg_rod(&c, .b = { 0.0f, 0.0f, 0.0f }, .ra = 0.1f, .rb = 0.1f, .sides = 4, .surf = s)))
+        return EXIT_FAILURE;
+
+    /* more sides than a mesh holds, also where sides * 12 wraps a 32-bit size_t */
+    const int many[] = { PCG_ROD_SIDES_MAX + 1, 357913942, INT_MAX };
+    for (size_t k = 0; k < array_size(many); k++) {
+        cerr err = pcg_rod(&c, .b = { 1.0f, 0.0f, 0.0f }, .ra = 0.1f, .rb = 0.1f, .sides = many[k], .surf = s);
+
+        if (!IS_CERR_CODE(err, CERR_TOO_LARGE))                             return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/* emit one of each shape at @frame */
+static cerr shape_all(pcg_sink *sink, const pcg_frame *frame)
+{
+    pcg_ctx ctx = { .sink = sink, .frame = *frame };
+    const pcg_surface s = { .mat = &concrete, .collide = PCG_COLLIDE_SOLID };
+    const poly_ring rings[2] = { { 0, 6 }, { 6, 6 } };
+    vec2 pts[12];
+
+    ring_plate_pts(pts, 6, 3.0f, 1.0f);
+    CERR_RET_CERR(pcg_plate(&ctx, .pts = pts, .nr_pts = 12, .rings = rings, .nr_rings = 2, .y0 = -0.3f,
+                            .y1 = 0.0f, .top = s, .bottom = s, .edge = s));
+    CERR_RET_CERR(pcg_band(&ctx, .lo = { 4.0f, -1.0f, -0.1f }, .hi = { 7.0f, 0.0f, 0.2f }, .surf = s));
+    CERR_RET_CERR(pcg_rod(&ctx, .a = { 0.0f, 1.0f, 5.0f }, .b = { 4.0f, 3.0f, 6.0f }, .ra = 0.1f, .rb = 0.1f,
+                          .phase = (float)M_PI / 4.0f, .sides = 4, .surf = s));
+    /* a square leg: vertical, so its cross-section can't hang off the up axis */
+    CERR_RET_CERR(pcg_rod(&ctx, .a = { -6.0f, -1.0f, 2.0f }, .b = { -6.0f, 1.5f, 2.0f }, .ra = 0.05f, .rb = 0.05f,
+                          .phase = (float)M_PI / 4.0f, .sides = 4, .surf = s));
+
+    /* a pane on its own: it encloses nothing */
+    pcg_frame side = { .org = { 0.0f, 0.0f, -6.0f }, .dir = { 0.6f, 0.8f } };
+    pcg_ctx pane = pcg_ctx_at(&ctx, &side);
+    const pcg_opening door = { .at = 2.0f, .w = 1.0f, .h = 2.1f };
+
+    return pcg_pane(&pane, .open = &door, .nr_open = 1, .len = 4.0f, .y1 = 2.8f, .min_seg = 0.01f, .surf = s);
+}
+
+static int shape_frame_test(void)
+{
+    LOCAL_SET(pcg_sink, ref) = CRES_RET(pcg_sink_new("frame"), return EXIT_FAILURE);
+    if (failed(shape_all(ref, &PCG_FRAME_IDENTITY)))    return EXIT_FAILURE;
+
+    struct sink_walk rw = {};
+    if (failed(pcg_sink_for_each_mesh(ref, sink_walk_fn, &rw)) || rw.nr != 1)   return EXIT_FAILURE;
+    if (!walk_closed(&rw))                                                      return EXIT_FAILURE;
+    double vol = walk_volume(&rw);
+    vec3 lo, hi;
+    walk_aabb(&rw, &PCG_FRAME_IDENTITY, lo, hi);
+
+    for (int i = 0; i < 6; i++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("frame"), return EXIT_FAILURE);
+        pcg_frame f;
+
+        test_frame(&f, 0.9f * i - 1.3f, i & 1, 4.0f * i, 0.5f * i, -3.0f * i);
+        if (failed(shape_all(sink, &f)))    return EXIT_FAILURE;
+
+        struct sink_walk w = {};
+        if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 1)    return EXIT_FAILURE;
+        struct mesh *m = w.mesh[0], *rm = rw.mesh[0];
+        if (mesh_nr_vx(m) != mesh_nr_vx(rm))        return EXIT_FAILURE;
+
+        /* yawed or mirrored, still closed and facing out */
+        if (!walk_closed(&w))                                   return EXIT_FAILURE;
+        if (fabs(walk_volume(&w) - vol) > 1e-3 * fabs(vol))     return EXIT_FAILURE;
+        if (!walk_aabb_is(&w, &f, lo, hi))                      return EXIT_FAILURE;
+        if (!mesh_tangents_ok(m))                               return EXIT_FAILURE;
+
+        /* unmirrored, every vertex comes back to where the identity put it */
+        if (f.mirror)   continue;
+        for (size_t v = 0; v < mesh_nr_vx(m); v++) {
+            vec3 p, n;
+
+            pcg_frame_point_to_local(&f, &mesh_vx(m)[v * 3], p);
+            pcg_frame_vector_to_local(&f, &mesh_norm(m)[v * 3], n);
+            if (!vec3_near(p, &mesh_vx(rm)[v * 3], 1e-4f))      return EXIT_FAILURE;
+            if (!vec3_near(n, &mesh_norm(rm)[v * 3], 1e-4f))    return EXIT_FAILURE;
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -823,6 +1740,14 @@ static const struct test tests[] = {
     { .name = "sink key", .test = sink_key_test },
     { .name = "sink resolve", .test = sink_resolve_test },
     { .name = "sink label", .test = sink_label_test },
+    { .name = "shape plate", .test = shape_plate_test },
+    { .name = "shape plate skip", .test = shape_plate_skip_test },
+    { .name = "shape plate fan", .test = shape_plate_fan_test },
+    { .name = "shape plate sheet", .test = shape_plate_sheet_test },
+    { .name = "shape band", .test = shape_band_test },
+    { .name = "shape pane", .test = shape_pane_test },
+    { .name = "shape rod", .test = shape_rod_test },
+    { .name = "shape frames", .test = shape_frame_test },
 };
 
 int main(int argc, char **argv, char **envp)
