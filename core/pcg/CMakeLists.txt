@@ -1,13 +1,15 @@
 # The procedural content library: frames, surfaces, cut spans, the mesh
 # sink and the shapes, for the generators that emit architecture and
-# props. Built as a static library and linked into the engine like the
-# other subsystems; nothing in the engine calls into it, so a binary only
-# gets the archive members it references. The test binary compiles the
-# pure sources directly.
+# props, and the texture generators that paint their materials. Built as
+# a static library and linked into the engine like the other subsystems;
+# nothing in the engine calls into it, so a binary only gets the archive
+# members it references. The test binaries compile the pure sources
+# directly.
 
 set(PCG_EMIT_SRC shape.c sink.c span.c)
+set(PCG_SCENE_SRC texgen.c)
 
-clap_subsystem_library(clap_pcg ${PCG_EMIT_SRC})
+clap_subsystem_library(clap_pcg ${PCG_EMIT_SRC} ${PCG_SCENE_SRC})
 
 # The emitters append to meshes with the core primitives, which need
 # meshoptimizer through mesh.c; only include paths are inherited, so link it
