@@ -16,3 +16,10 @@ clap_subsystem_library(clap_pcg ${PCG_EMIT_SRC} ${PCG_SCENE_SRC})
 clap_subsystem_test(pcg_tests pcg-test.c ${PCG_EMIT_SRC}
                     ../primitives.c ../mesh.c ../datatypes.c ../triangulate.c ../poly2d.c)
 target_link_libraries(pcg_tests PRIVATE meshoptimizer)
+
+# The texture generators paint with the noise and canvas helpers; noise.c
+# also bakes blue noise with kissfft, which has to be linked for the same
+# reason. The renderer side is stubbed.
+clap_subsystem_test(pcg_texgen_tests texgen-test.c texgen.c
+                    ../noise.c ../draw.c ../render-texture.c ../test-stubs-render.c)
+target_link_libraries(pcg_texgen_tests PRIVATE kissfft)
