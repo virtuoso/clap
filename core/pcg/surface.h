@@ -70,7 +70,7 @@ typedef enum pcg_uv_mode {
     PCG_UV_NR
 } pcg_uv_mode;
 
-/* a finish that generated geometry can wear */
+/* a finish that generated geometry can wear, see pcg/material.h */
 typedef struct pcg_material pcg_material;
 
 /**
