@@ -20,6 +20,6 @@ target_link_libraries(pcg_tests PRIVATE meshoptimizer)
 # The texture generators and the preset recipes paint with the noise and
 # canvas helpers; noise.c also bakes blue noise with kissfft, which has to
 # be linked for the same reason. The renderer side is stubbed.
-clap_subsystem_test(pcg_texgen_tests texgen-test.c texgen.c
+clap_subsystem_test(pcg_texgen_tests texgen-test.c texgen.c presets.c
                     ../noise.c ../draw.c ../render-texture.c ../test-stubs-render.c)
 target_link_libraries(pcg_texgen_tests PRIVATE kissfft)

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * Texture generator tests, built as the standalone pcg_texgen_tests
- * binary: the painters with the noise and canvas helpers and the shared
- * test harness, no renderer.
+ * Texture generator and preset recipe tests, built as the standalone
+ * pcg_texgen_tests binary: the painters and the recipes with the noise
+ * and canvas helpers and the shared test harness, no renderer.
  */
 #include <stdlib.h>
 #include <string.h>
 #include "memory.h"
 #include "test.h"
 #include "util.h"
+#include "pcg/material.h"
 #include "pcg/texgen.h"
 
 /*
@@ -43,6 +44,16 @@ void texture_done(texture_t *tex)
 }
 
 DEFINE_CLEANUP(texture_t, texture_done(*p))
+
+static bool failed(cerr err)
+{
+    return IS_CERR(err);
+}
+
+static bool invalid(cerr err)
+{
+    return IS_CERR_CODE(err, CERR_INVALID_ARGUMENTS);
+}
 
 static bool canvas_is(canvas *c, texture_format fmt, unsigned int w, unsigned int h)
 {
@@ -345,12 +356,161 @@ static int texgen_upload_test(void)
     return EXIT_SUCCESS;
 }
 
+/* widen [lo, hi] per channel to take in @c */
+static void range_add(vec3 lo, vec3 hi, const float *c)
+{
+    for (int i = 0; i < 3; i++) {
+        lo[i] = min(lo[i], c[i]);
+        hi[i] = max(hi[i], c[i]);
+    }
+}
+
+/* the span of the colours a recipe's generator mixes */
+static void recipe_colours(const pcg_recipe *r, vec3 lo, vec3 hi)
+{
+    static const vec3 papers[] = { { 0.92f, 0.90f, 0.85f }, { 0.55f, 0.56f, 0.58f }, { 0.90f, 0.84f, 0.58f } };
+
+    lo[0] = lo[1] = lo[2] = 1.0f;
+    hi[0] = hi[1] = hi[2] = 0.0f;
+
+    switch (r->gen) {
+        case PCG_TEXGEN_SURFACE:
+            range_add(lo, hi, r->surface.base);
+            break;
+        case PCG_TEXGEN_WOOD:
+            range_add(lo, hi, r->wood.light);
+            range_add(lo, hi, r->wood.dark);
+            break;
+        case PCG_TEXGEN_CARPET:
+            range_add(lo, hi, r->carpet.base);
+            range_add(lo, hi, r->carpet.accent);
+            break;
+        case PCG_TEXGEN_CORK:
+            range_add(lo, hi, r->cork.base);
+            range_add(lo, hi, r->cork.border);
+            for (size_t i = 0; i < array_size(papers); i++) range_add(lo, hi, papers[i]);
+            break;
+        default:
+            break;
+    }
+}
+
+/*
+ * Every preset's recipe paints: the albedo's channel means fall within a
+ * quarter beyond the colours its generator mixes (the lightness noise
+ * centers on 1), and the emission map, if any, is an RGB8 canvas.
+ */
+static int preset_paint_test(void)
+{
+    for (int p = PCG_PRESET_NONE + 1; p < PCG_PRESET_NR; p++) {
+        pcg_recipe r;
+
+        if (failed(pcg_recipe_init(&r, p)))     return EXIT_FAILURE;
+        if (!r.name || r.gen >= PCG_TEXGEN_NR)  return EXIT_FAILURE;
+
+        LOCAL_SET_EXACT(pcg_texgen_maps, maps) = CRES_RET(pcg_recipe_paint(&r, 0xa781), return EXIT_FAILURE);
+        canvas *alb = maps.albedo;
+        if (!alb || alb->fmt != TEX_FMT_RGBA8)  return EXIT_FAILURE;
+
+        vec3 lo, hi, mean = {};
+        size_t nr = alb->width * alb->height;
+        uchar *px = canvas_data(alb);
+
+        recipe_colours(&r, lo, hi);
+        for (size_t t = 0; t < nr; t++)
+            for (int i = 0; i < 3; i++)                                 mean[i] += px[t * 4 + i] / 255.0f / nr;
+        for (int i = 0; i < 3; i++)
+            if (mean[i] < lo[i] * 0.75f || mean[i] > hi[i] * 1.25f)     return EXIT_FAILURE;
+
+        if (r.glow == PCG_GLOW_NONE) {
+            auto none = pcg_recipe_paint_glow(&r, 0);
+            if (!IS_CERR_CODE(none, CERR_INVALID_ARGUMENTS))    return EXIT_FAILURE;
+            continue;
+        }
+
+        LOCAL_SET(canvas, glow) = CRES_RET(pcg_recipe_paint_glow(&r, 0xa781), return EXIT_FAILURE);
+        if (glow->fmt != TEX_FMT_RGB8)  return EXIT_FAILURE;
+    }
+
+    pcg_recipe r;
+    if (!invalid(pcg_recipe_init(&r, PCG_PRESET_NONE))) return EXIT_FAILURE;
+    if (!invalid(pcg_recipe_init(&r, PCG_PRESET_NR)))   return EXIT_FAILURE;
+
+    auto base = pcg_preset_base(PCG_PRESET_NONE);
+    if (!IS_CERR_CODE(base, CERR_INVALID_ARGUMENTS))        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * A preset with a base preset wears the base's textures in a material
+ * library, so its own recipe must paint the very same albedo, and the
+ * same normal map if it bakes one.
+ */
+static int preset_base_test(void)
+{
+    for (int p = PCG_PRESET_NONE + 1; p < PCG_PRESET_NR; p++) {
+        int base = CRES_RET(pcg_preset_base(p), return EXIT_FAILURE);
+        if (base == p)          continue;
+
+        pcg_recipe r, b;
+        if (failed(pcg_recipe_init(&r, p)) || failed(pcg_recipe_init(&b, base)))    return EXIT_FAILURE;
+
+        /* bases paint their own */
+        if (CRES_RET(pcg_preset_base(base), return EXIT_FAILURE) != base)   return EXIT_FAILURE;
+
+        LOCAL_SET_EXACT(pcg_texgen_maps, rm) = CRES_RET(pcg_recipe_paint(&r, 0x1234), return EXIT_FAILURE);
+        LOCAL_SET_EXACT(pcg_texgen_maps, bm) = CRES_RET(pcg_recipe_paint(&b, 0x1234), return EXIT_FAILURE);
+
+        if (!canvas_same(rm.albedo, bm.albedo))                 return EXIT_FAILURE;
+        if (r.wrap != b.wrap || r.filter != b.filter)           return EXIT_FAILURE;
+        if (rm.normal && !canvas_same(rm.normal, bm.normal))    return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * The presets that cast no shadow: glass, and the light fittings and sign
+ * plates, small and flat against a ceiling or a wall. Every other preset
+ * casts one.
+ */
+static int preset_shadow_test(void)
+{
+    for (int p = PCG_PRESET_NONE + 1; p < PCG_PRESET_NR; p++) {
+        bool none = p == PCG_PRESET_GLASS || p == PCG_PRESET_FIXTURE_GLOW || p == PCG_PRESET_SIGN_PLATE;
+        pcg_recipe r;
+
+        if (failed(pcg_recipe_init(&r, p)))     return EXIT_FAILURE;
+        if (r.skip_shadow != none)              return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/* every preset letters its labels on a linearly filtered atlas, legible at an angle */
+static int preset_label_filter_test(void)
+{
+    for (int p = PCG_PRESET_NONE + 1; p < PCG_PRESET_NR; p++) {
+        pcg_recipe r;
+
+        if (failed(pcg_recipe_init(&r, p)))         return EXIT_FAILURE;
+        if (r.label.filter != TEX_FLT_LINEAR)       return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "texgen formats", .test = texgen_formats_test },
     { .name = "texgen seed", .test = texgen_seed_test },
     { .name = "texgen invalid", .test = texgen_invalid_test },
     { .name = "texgen cork small", .test = texgen_cork_small_test },
     { .name = "texgen upload", .test = texgen_upload_test },
+    { .name = "preset paint", .test = preset_paint_test },
+    { .name = "preset base", .test = preset_base_test },
+    { .name = "preset shadow", .test = preset_shadow_test },
+    { .name = "preset label filter", .test = preset_label_filter_test },
 };
 
 int main(int argc, char **argv, char **envp)
