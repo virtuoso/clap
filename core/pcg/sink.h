@@ -216,8 +216,10 @@ cerr_check pcg_sink_for_each_label(pcg_sink *s, pcg_sink_label_fn fn, void *priv
 
 /**
  * struct pcg_sink_stats - what a sink would cost to draw
- * @nr_models:      meshes with vertices: one model each
- * @nr_vertices:    vertices in them
+ * @nr_models:      the models pcg_sink_commit() makes: one per mesh with
+ *                  vertices and one per label atlas, that is per chunk,
+ *                  material and collide class the labels share
+ * @nr_vertices:    vertices in them, 6 per label
  * @nr_casters:     those of the models whose material casts shadows
  * @nr_labels:      recorded labels
  */

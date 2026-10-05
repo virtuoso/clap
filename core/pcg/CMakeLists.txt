@@ -7,7 +7,7 @@
 # compile the pure sources directly.
 
 set(PCG_EMIT_SRC shape.c sink.c span.c)
-set(PCG_SCENE_SRC texgen.c material.c presets.c)
+set(PCG_SCENE_SRC texgen.c material.c presets.c commit.c labels.c)
 
 clap_subsystem_library(clap_pcg ${PCG_EMIT_SRC} ${PCG_SCENE_SRC})
 

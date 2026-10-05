@@ -805,8 +805,9 @@ static int sink_label_test(void)
     if (!failed(pcg_sink_label(&ctx, &plate, &at, 0.3f, "")))       return EXIT_FAILURE;
     if (!failed(pcg_sink_label(&ctx, &plate, &at, 0.3f, nullptr)))  return EXIT_FAILURE;
 
+    /* the label alone is a model, its atlas's */
     pcg_sink_stats st = pcg_sink_get_stats(sink);
-    if (st.nr_labels != 1 || st.nr_models)                          return EXIT_FAILURE;
+    if (st.nr_labels != 1 || st.nr_models != 1 || st.nr_vertices != 6)  return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }

@@ -298,6 +298,23 @@ pcg_sink_stats pcg_sink_get_stats(const pcg_sink *s)
             if (!b->key.mat->skip_shadow)   stats.nr_casters++;
         }
     }
+
+    /* a label is a quad on its group's atlas model */
+    for (size_t i = 0; i < s->labels.da.nr_el; i++) {
+        const pcg_label *l = &s->labels.x[i].label;
+        bool seen = false;
+
+        for (size_t k = 0; k < i && !seen; k++) {
+            const pcg_label *o = &s->labels.x[k].label;
+
+            seen = o->mat == l->mat && o->chunk == l->chunk && o->collide == l->collide;
+        }
+        stats.nr_vertices += 6;
+        if (seen)   continue;
+
+        stats.nr_models++;
+        if (!l->mat->skip_shadow)   stats.nr_casters++;
+    }
     stats.nr_labels = s->labels.da.nr_el;
 
     return stats;
