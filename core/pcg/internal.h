@@ -3,6 +3,8 @@
 #define __CLAP_PCG_INTERNAL_H__
 
 #include <math.h>
+#include "poly2d.h"
+#include <math.h>
 #include "primitives.h"
 #include "pcg/frame.h"
 
@@ -71,6 +73,54 @@ static inline void pcg_frame_face(const pcg_frame *f, const vec3 l00, const vec3
     pcg_frame_point(f, l11, c11);
     pcg_frame_point(f, l01, c01);
     pcg_face(c00, c10, c11, c01, uv_rect, swap, opts);
+}
+
+/**
+ * pcg_floats_finite() - check an array of floats
+ * @v:  the floats
+ * @nr: number of @v
+ *
+ * Return: true if all of @v are finite
+ */
+static inline bool pcg_floats_finite(const float *v, size_t nr)
+{
+    for (size_t i = 0; i < nr; i++)
+        if (!isfinite(v[i]))    return false;
+
+    return true;
+}
+
+/*
+ * A path of at least 2 points, 3 if @closed, every point finite and every
+ * edge, the closing one too if @closed, of some length; @what names the
+ * path in the reasons
+ */
+static inline cerr pcg_path_check(const vec2 *pts, size_t nr, bool closed, const char *what)
+{
+    if (!pts || nr < (closed ? 3u : 2u))
+        return CERR_INVALID_ARGUMENTS_REASON(.fmt = "%s of too few points", .arg0 = what);
+
+    for (size_t i = 0; i < nr; i++)
+        if (!isfinite(pts[i][0]) || !isfinite(pts[i][1]))
+            return CERR_INVALID_ARGUMENTS_REASON(
+                .fmt    = "%s point %zu isn't finite",
+                .arg0   = what,
+                .arg1   = (void *)(uintptr_t)i
+            );
+
+    size_t nr_edges = closed ? nr : nr - 1;
+    for (size_t i = 0; i < nr_edges; i++) {
+        vec2 dir, left;
+
+        if (!(poly2d_edge_frame(pts[i], pts[(i + 1) % nr], dir, left) > 0.0f))
+            return CERR_INVALID_ARGUMENTS_REASON(
+                .fmt    = "%s edge %zu has no length",
+                .arg0   = what,
+                .arg1   = (void *)(uintptr_t)i
+            );
+    }
+
+    return CERR_OK;
 }
 
 #endif /* __CLAP_PCG_INTERNAL_H__ */
