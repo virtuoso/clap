@@ -14,6 +14,7 @@
 #include "primitives.h"
 #include "test.h"
 #include "util.h"
+#include "pcg/fascia.h"
 #include "pcg/frame.h"
 #include "pcg/material.h"
 #include "pcg/shape.h"
@@ -1808,10 +1809,17 @@ static bool meshes_same_bytes(struct mesh *a, struct mesh *b)
 
 /*
  * Parity with the original emitters: the same triangles to PARITY_EPS in
- * position, normal, tangent and effective texture coordinates (UV times
- * the material's density, which the originals baked into the vertices)
+ * position and effective texture coordinates (UV times the material's
+ * density, which the originals baked into the vertices). Normals and
+ * tangents are derived from those per triangle, across its shortest
+ * edges: a last-bit difference in a position some 30 m out, over a face
+ * a few centimeters wide, turns them by up to a few 1e-5. An element
+ * that places its corners another way than its original gets
+ * PARITY_DIR_EPS for them; one that places them the same way is held to
+ * PARITY_EPS (parity_check_exact()).
  */
-#define PARITY_EPS  1e-5f
+#define PARITY_EPS      1e-5f
+#define PARITY_DIR_EPS  1e-4f
 
 typedef struct parity_vx {
     vec3    p;
@@ -1880,7 +1888,7 @@ static cresp(mesh) parity_expect(struct mesh *ref, const pcg_frame *f, bool plan
     return cresp_val(mesh, NOCU(m));
 }
 
-static bool parity_vx_near(const parity_vx *a, const parity_vx *b, parity_err *e)
+static bool parity_vx_near(const parity_vx *a, const parity_vx *b, float dir_eps, parity_err *e)
 {
     parity_err d = {
         .p  = max_diff(a->p, b->p, 3),
@@ -1889,7 +1897,7 @@ static bool parity_vx_near(const parity_vx *a, const parity_vx *b, parity_err *e
         .uv = max_diff(a->uv, b->uv, 2),
     };
 
-    if (d.p > PARITY_EPS || d.n > PARITY_EPS || d.t > PARITY_EPS || d.uv > PARITY_EPS)    return false;
+    if (d.p > PARITY_EPS || d.uv > PARITY_EPS || d.n > dir_eps || d.t > dir_eps)    return false;
 
     e->p = fmaxf(e->p, d.p);
     e->n = fmaxf(e->n, d.n);
@@ -1903,10 +1911,11 @@ static bool parity_vx_near(const parity_vx *a, const parity_vx *b, parity_err *e
  * @m, emitted by an element at @f with meter UVs, holds the triangles of
  * @ref, emitted by the original at its own origin with @density repeats
  * per meter and placed by @f (see parity_expect()). Triangles may come in
- * any order and start at any corner, but wind the same way.
+ * any order and start at any corner, but wind the same way. Under
+ * @exact, normals and tangents get PARITY_EPS, otherwise PARITY_DIR_EPS.
  */
-static bool parity_check(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f, bool planar,
-                         float density)
+static bool parity_match(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f, bool planar,
+                         float density, bool exact)
 {
     if (!m || !ref) {
         fprintf(stderr, "%s: parity: missing mesh\n", what);
@@ -1939,12 +1948,14 @@ static bool parity_check(const char *what, struct mesh *m, struct mesh *ref, con
             size_t s = (t + i) % nr_tris;
 
             if (used[s])    continue;
+
+            float dir_eps = exact ? PARITY_EPS : PARITY_DIR_EPS;
             for (int rot = 0; rot < 3 && !found; rot++) {
                 parity_err e = err;
 
-                found = parity_vx_near(&got[0], &exp[s * 3 + rot], &e) &&
-                        parity_vx_near(&got[1], &exp[s * 3 + (rot + 1) % 3], &e) &&
-                        parity_vx_near(&got[2], &exp[s * 3 + (rot + 2) % 3], &e);
+                found = parity_vx_near(&got[0], &exp[s * 3 + rot], dir_eps, &e) &&
+                        parity_vx_near(&got[1], &exp[s * 3 + (rot + 1) % 3], dir_eps, &e) &&
+                        parity_vx_near(&got[2], &exp[s * 3 + (rot + 2) % 3], dir_eps, &e);
                 if (found) {
                     used[s] = true;
                     err = e;
@@ -1964,6 +1975,20 @@ static bool parity_check(const char *what, struct mesh *m, struct mesh *ref, con
                err.t, err.uv);
 
     return true;
+}
+
+/* parity_match() of everything: the same triangles with the same charts */
+static bool parity_check(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f, bool planar,
+                         float density)
+{
+    return parity_match(what, m, ref, f, planar, density, false);
+}
+
+/* parity_check() with normals and tangents to PARITY_EPS as well */
+static bool parity_check_exact(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f,
+                               bool planar, float density)
+{
+    return parity_match(what, m, ref, f, planar, density, true);
 }
 
 /* emit an element into @ctx, with its params and site in @priv */
@@ -2263,7 +2288,7 @@ static int slab_parity_test(void)
             if (failed(ref_plate_emit(rs, 6, 60.0f, hs, cases[i].hole_r, -c.p.t, 0.0f, REF_UV_CONCRETE,
                                       finished ? REF_PLATE_NO_TOP : 0)))
                 return EXIT_FAILURE;
-            if (!parity_check("slab", walk_mesh(&w, &concrete), rs, f, true, REF_UV_CONCRETE))
+            if (!parity_check_exact("slab", walk_mesh(&w, &concrete), rs, f, true, REF_UV_CONCRETE))
                 return EXIT_FAILURE;
             if (!finished)  continue;
 
@@ -2271,7 +2296,341 @@ static int slab_parity_test(void)
             if (failed(ref_plate_emit(rd, 6, 60.0f, hs, cases[i].hole_r, 0.0f, c.p.finish_t, REF_UV_FLOOR,
                                       REF_PLATE_NO_BOTTOM)))
                 return EXIT_FAILURE;
-            if (!parity_check("deck", walk_mesh(&w, &wood), rd, f, true, REF_UV_FLOOR))
+            if (!parity_check_exact("deck", walk_mesh(&w, &wood), rd, f, true, REF_UV_FLOOR))   return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
+/****************************************************************************
+ * Fascia
+ ****************************************************************************/
+
+/* a fascia along a path, with cuts */
+struct fascia_case {
+    pcg_fascia_params   p;
+    vec2                pts[8];
+    size_t              nr_pts;
+    pcg_region          cuts[2];
+    size_t              nr_cuts;
+    bool                closed;
+};
+
+/* a closed hexagonal rim of @r, cut across the middle of its second edge */
+static void fascia_case_init(struct fascia_case *c, float r)
+{
+    vec2 dir, left;
+
+    pcg_fascia_params_init(&c->p);
+    for (int j = 0; j < 6; j++) ref_ngon_vertex(j, 6, r, c->pts[j]);
+    c->nr_pts = 6;
+    c->closed = true;
+
+    poly2d_edge_frame(c->pts[1], c->pts[2], dir, left);
+    c->cuts[0] = (pcg_region){
+        .frame  = { .org = { c->pts[1][0], 0.0f, c->pts[1][1] }, .dir = { dir[0], dir[1] } },
+        .along  = { .lo = 3.0f, .hi = 4.5f },
+        .across = { .lo = -1.0f, .hi = 3.0f },
+    };
+    c->nr_cuts = 1;
+}
+
+/* the runs @c's band breaks into, and their total length */
+static size_t fascia_case_runs(const struct fascia_case *c, double *len)
+{
+    const pcg_span_tol tol = { .min_frac = c->p.min_frac, .merge = c->p.min_seg, .min_run = c->p.min_seg };
+    size_t nr_edges = c->closed ? c->nr_pts : c->nr_pts - 1, nr_runs = 0;
+
+    *len = 0.0;
+    for (size_t i = 0; i < nr_edges; i++) {
+        pcg_span runs[3];
+        size_t nr = CRES_RET(pcg_segment_runs(c->pts[i], c->pts[(i + 1) % c->nr_pts], c->cuts, c->nr_cuts, &tol,
+                                              runs, 3),
+                             return 0);
+
+        for (size_t k = 0; k < nr; k++) *len += runs[k].hi - runs[k].lo;
+        nr_runs += nr;
+    }
+
+    return nr_runs;
+}
+
+static cerr fascia_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct fascia_case *c = priv;
+
+    return pcg_fascia_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .pts = c->pts, .nr_pts = c->nr_pts,
+                           .cuts = c->cuts, .nr_cuts = c->nr_cuts, .closed = c->closed);
+}
+
+static int fascia_test(void)
+{
+    struct fascia_case c;
+    fascia_case_init(&c, 9.0f);
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("fascia"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .palette = &ref_palette, .frame = PCG_FRAME_IDENTITY };
+
+    /* the defaults emit, every surface solid structure */
+    if (failed(fascia_case_emit(&ctx, &c)) || !pcg_sink_get_stats(sink).nr_vertices)    return EXIT_FAILURE;
+    for (int s = 0; s < PCG_FASCIA_NR_SURF; s++)
+        if (c.p.surf[s].role != PCG_ROLE_STRUCTURE || c.p.surf[s].collide != PCG_COLLIDE_SOLID ||
+            c.p.surf[s].skip)
+            return EXIT_FAILURE;
+
+    /* the cut splits one edge: 7 runs, 36 vertices each, of the band's cross-section */
+    double len;
+    struct sink_walk w;
+    if (fascia_case_runs(&c, &len) != 7)                                                return EXIT_FAILURE;
+    if (!sink_walk_get(sink, &w) || w.nr != 1 || mesh_nr_vx(w.mesh[0]) != 7 * 36)       return EXIT_FAILURE;
+    if (!walk_closed(&w))                                                               return EXIT_FAILURE;
+
+    double vol = len * c.p.depth * (c.p.lip + c.p.tuck);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                                       return EXIT_FAILURE;
+    if (!element_frames_ok(fascia_case_emit, &c, &ref_palette, true))                   return EXIT_FAILURE;
+
+    /* one open edge: the box it was asked for */
+    struct fascia_case e = c;
+    e.pts[0][0] = 1.0f;     e.pts[0][1] = 2.0f;
+    e.pts[1][0] = 5.0f;     e.pts[1][1] = 2.0f;
+    e.nr_pts = 2;
+    e.nr_cuts = 0;
+    e.closed = false;
+    LOCAL_SET(pcg_sink, es) = CRES_RET(element_sink(fascia_case_emit, &e, &ref_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(es, &w) || w.nr != 1 || mesh_nr_vx(w.mesh[0]) != 36) return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 1.0f, -c.p.depth, 2.0f - c.p.tuck },
+                      (vec3){ 5.0f, 0.0f, 2.0f + c.p.lip }))
+        return EXIT_FAILURE;
+    if (!element_frames_ok(fascia_case_emit, &e, &ref_palette, true))                   return EXIT_FAILURE;
+
+    /* a cut that leaves a sliver at the edge's start: the sliver goes */
+    e.cuts[0] = (pcg_region){
+        .frame  = { .org = { 1.0f, 0.0f, 2.0f }, .dir = { 1.0f, 0.0f } },
+        .along  = { .lo = 0.04f, .hi = 1.0f },
+        .across = { .lo = -1.0f, .hi = 1.0f },
+    };
+    e.nr_cuts = 1;
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(fascia_case_emit, &e, &ref_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ss, &w) || w.nr != 1 || mesh_nr_vx(w.mesh[0]) != 36) return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 2.0f, -c.p.depth, 2.0f - c.p.tuck },
+                      (vec3){ 5.0f, 0.0f, 2.0f + c.p.lip }))
+        return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, paths too short or with no length to an edge, cuts missing */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("fascia"), return EXIT_FAILURE);
+    pcg_ctx bc = ctx;
+    bc.sink = bad;
+
+    struct fascia_case z = c;
+    z.p = (pcg_fascia_params){};
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.lip = -0.06f;
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.lip = z.p.tuck = 0.0f;
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.min_seg = -1.0f;
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.min_frac = 1.0f;
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.depth = NAN;
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    /* nothing that isn't finite, even a point past the edges that would go out first */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &z.p.depth, &z.p.lip, &z.p.tuck, &z.p.min_seg, &z.p.min_frac, &z.pts[0][0], &z.pts[3][1],
+            &z.cuts[0].along.lo, &z.cuts[0].across.hi, &z.cuts[0].frame.org[0], &z.cuts[0].frame.dir[1],
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = c;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(fascia_case_emit(&bc, &z)))   return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!failed_inval(pcg_fascia_emit(&bc, &c.p, .frame = bad_frames[i], .pts = c.pts, .nr_pts = 6,
+                                          .cuts = c.cuts, .nr_cuts = c.nr_cuts, .closed = true)))
+            return EXIT_FAILURE;
+    z = c;
+    z.nr_pts = 2;
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    memcpy(z.pts[3], z.pts[2], sizeof(vec2));
+    if (!failed(fascia_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    if (!failed(pcg_fascia_emit(&bc, &c.p, .frame = PCG_FRAME_IDENTITY, .pts = c.pts, .nr_pts = 6, .nr_cuts = 1)))
+        return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)      return EXIT_FAILURE;
+
+    /* the check takes the fascia the emit takes and turns down what it turns down */
+    const pcg_fascia_site site = {
+        .frame = PCG_FRAME_IDENTITY, .pts = c.pts, .nr_pts = c.nr_pts, .cuts = c.cuts, .nr_cuts = c.nr_cuts,
+        .closed = true,
+    };
+    CERR_RET(pcg_fascia_check(&c.p, &site), return EXIT_FAILURE);
+    pcg_fascia_site short_site = site;
+    short_site.nr_pts = 2;
+    if (!failed_inval(pcg_fascia_check(&c.p, &short_site)))                 return EXIT_FAILURE;
+    if (!failed_inval(pcg_fascia_check(&(pcg_fascia_params){}, &site)))     return EXIT_FAILURE;
+    if (!failed_inval(pcg_fascia_check(nullptr, &site)))                    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int fascia_surface_test(void)
+{
+    struct fascia_case c;
+    fascia_case_init(&c, 9.0f);
+    for (int s = 0; s < PCG_FASCIA_NR_SURF; s++)    c.p.surf[s].mat = &surf_mat[s];
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(fascia_case_emit, &c, nullptr, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 2)  return EXIT_FAILURE;
+
+    /* the back faces away from the void, behind the path; the face bucket has the rest */
+    struct mesh *face = walk_mesh(&w, &surf_mat[PCG_FASCIA_FACE]), *back = walk_mesh(&w, &surf_mat[PCG_FASCIA_BACK]);
+    if (!face || !back || mesh_nr_vx(face) != 7 * 30 || mesh_nr_vx(back) != 7 * 6)  return EXIT_FAILURE;
+    if (!mesh_normals_level(back))                                                  return EXIT_FAILURE;
+    for (size_t v = 0; v < mesh_nr_vx(back); v++) {
+        const float *p = &mesh_vx(back)[v * 3], *n = &mesh_norm(back)[v * 3];
+
+        /* the void is the hexagon's inside: the back faces out of it, behind the rim */
+        if (!(n[0] * p[0] + n[2] * p[2] > 0.0f))                        return EXIT_FAILURE;
+        if (!(sqrtf(p[0] * p[0] + p[2] * p[2]) > 9.0f * 0.8660254f))    return EXIT_FAILURE;
+    }
+
+    /* aliased, one bucket of the union; skipped, the back is gone */
+    struct fascia_case a = c;
+    a.p.face.mat = a.p.back.mat = &concrete;
+    LOCAL_SET(pcg_sink, as) = CRES_RET(element_sink(fascia_case_emit, &a, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk aw;
+    struct mesh *sep[2] = { face, back };
+    if (!sink_walk_get(as, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, sep, 2)) return EXIT_FAILURE;
+
+    a.p.back.skip = true;
+    LOCAL_SET(pcg_sink, ks) = CRES_RET(element_sink(fascia_case_emit, &a, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ks, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, &face, 1))   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * A reference copy of the layout loop the fascia replaces: one level's
+ * band around a regular @n-gon rim of @rf, every edge split around its
+ * crossing of the arriving flight's boarding window @win, if any, the
+ * pieces over 0.05 kept
+ */
+static cerr ref_fascia_level(struct mesh *m, int n, float rf, const ref_window *win, float depth, float uv)
+{
+    for (int i = 0; i < n; i++) {
+        vec2 va, vb, dir;
+
+        ref_ngon_vertex(i, n, rf, va);
+        ref_ngon_vertex(i + 1, n, rf, vb);
+        dir[0] = vb[0] - va[0];
+        dir[1] = vb[1] - va[1];
+
+        float len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1]);
+
+        dir[0] /= len;
+        dir[1] /= len;
+
+        vec2 in = { -dir[1], dir[0] };
+        float c0 = len, c1 = len;
+
+        if (win) {
+            float t0, t1;
+
+            if (ref_edge_cut(va, vb, win, &t0, &t1)) {
+                c0 = t0 * len;
+                c1 = t1 * len;
+            }
+        }
+
+        float sp[2][2] = { { 0.0f, c0 }, { c1, len } };
+
+        for (int s = 0; s < 2; s++)
+            if (sp[s][1] - sp[s][0] > 0.05f)
+                CERR_RET_CERR(ref_fascia_seg(m, va, dir, in, sp[s][0], sp[s][1], depth, uv));
+    }
+
+    return CERR_OK;
+}
+
+/*
+ * The reference building's fascias, levels 1 to 4 of a 6-sided well of
+ * radius 20, 24, 28 and 28, 0.9 deep, each but the roof's broken over the
+ * flight arriving there: 50 risers of 0.12 and 0.20 goings, 5 m wide 0.03
+ * off the chord, cut where a 3.2 m walker on the treads below would meet
+ * the band and the 0.05 deck over it, with 0.1 m to spare
+ */
+static int fascia_parity_test(void)
+{
+    const float well_r[] = { 20.0f, 24.0f, 28.0f, 28.0f };
+    const int n = 6, floors = 4, steps = 50;
+    const float H = 6.0f, going = 0.20f, agent_h = 3.2f, depth = 0.9f, deck_t = 0.05f, stair_w = 5.0f;
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int f = 1; f <= floors; f++)
+        for (int fi = 0; fi < 2; fi++) {
+            const pcg_frame *frame = &frames[fi];
+            float rf = well_r[f - 1];
+            bool windowed = f - 1 < floors - 1;
+            ref_window win;
+            pcg_region reg = {};
+
+            if (windowed) {
+                int fl = f - 1;
+                vec2 B;
+
+                ref_window_calc(&win, n, well_r[(fl ? fl : 1) - 1], well_r[fl], fl);
+                ref_ngon_vertex(2 * fl + 1, n, well_r[fl], B);
+
+                float dx = B[0] - win.A[0], dz = B[1] - win.A[1];
+                float len = sqrtf(dx * dx + dz * dz);
+                float run = steps * going, land = (len - run) * 0.5f;
+                float slope = H / steps / going;
+
+                win.al0 = len - land - (agent_h + depth + deck_t + 0.1f) / slope;
+                win.al1 = 1e9f;
+                win.acmax = 0.03f + stair_w;
+                ref_window_region(&win, &reg);
+            }
+
+            struct fascia_case c;
+            pcg_fascia_params_init(&c.p);
+            c.p.depth = depth;
+            for (int j = 0; j < n; j++) ref_ngon_vertex(j, n, rf, c.pts[j]);
+            c.nr_pts = n;
+            c.closed = true;
+            c.cuts[0] = reg;
+            c.nr_cuts = windowed;
+
+            /* the window does take a piece out of the band: a regular hexagon's side is its radius */
+            double len;
+            fascia_case_runs(&c, &len);
+            if (windowed != (len < 6.0 * rf - 1.0)) return EXIT_FAILURE;
+
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(fascia_case_emit, &c, &ref_palette, frame),
+                                                 return EXIT_FAILURE);
+            struct sink_walk w;
+            if (!sink_walk_get(sink, &w) || w.nr != 1)  return EXIT_FAILURE;
+
+            LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref fascia"), return EXIT_FAILURE);
+            if (failed(ref_fascia_level(ref, n, rf, windowed ? &win : nullptr, depth, REF_UV_CONCRETE)))
+                return EXIT_FAILURE;
+            if (!parity_check("fascia", walk_mesh(&w, &concrete), ref, frame, false, REF_UV_CONCRETE))
                 return EXIT_FAILURE;
         }
 
@@ -2302,6 +2661,9 @@ static const struct test tests[] = {
     { .name = "slab", .test = slab_test },
     { .name = "slab surfaces", .test = slab_surface_test },
     { .name = "slab parity", .test = slab_parity_test },
+    { .name = "fascia", .test = fascia_test },
+    { .name = "fascia surfaces", .test = fascia_surface_test },
+    { .name = "fascia parity", .test = fascia_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
