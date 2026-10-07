@@ -6,6 +6,7 @@
  */
 #include <limits.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "mesh.h"
@@ -17,6 +18,7 @@
 #include "pcg/material.h"
 #include "pcg/shape.h"
 #include "pcg/sink.h"
+#include "pcg/slab.h"
 #include "pcg/span.h"
 
 static bool near(float a, float b, float eps)
@@ -1728,6 +1730,554 @@ static int shape_frame_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Elements
+ ****************************************************************************/
+
+/* @sink's meshes; false if the walk fails or finds more than SINK_MESHES_MAX */
+static bool sink_walk_get(pcg_sink *sink, struct sink_walk *w)
+{
+    *w = (struct sink_walk){};
+
+    return !failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, w));
+}
+
+/* the first mesh of @mat's bucket in @w, nullptr if it has none */
+static struct mesh *walk_mesh(const struct sink_walk *w, const pcg_material *mat)
+{
+    for (size_t i = 0; i < w->nr; i++)
+        if (w->key[i].mat == mat)   return w->mesh[i];
+
+    return nullptr;
+}
+
+/* the triangle keys of all of @m together, sorted; @nr gets their number */
+static tri_key *meshes_tri_keys(struct mesh *const *m, size_t nr_m, size_t *nr)
+{
+    *nr = 0;
+    for (size_t i = 0; i < nr_m; i++)   *nr += mesh_nr_vx(m[i]) / 3;
+
+    tri_key *keys = mem_alloc(sizeof(*keys), .nr = *nr ? *nr : 1);
+    size_t at = 0;
+
+    for (size_t i = 0; i < nr_m; i++) {
+        size_t n = mesh_nr_vx(m[i]) / 3;
+        LOCAL_SET(void, part) = mesh_tri_keys(m[i]);
+
+        memcpy(&keys[at], part, n * sizeof(*keys));
+        at += n;
+    }
+    qsort(keys, *nr, sizeof(*keys), tri_key_cmp);
+
+    return keys;
+}
+
+/* the triangles of all of @a are those of all of @b, in any order */
+static bool meshes_same_tris(struct mesh *const *a, size_t nr_a, struct mesh *const *b, size_t nr_b)
+{
+    size_t na, nb;
+    LOCAL_SET(void, ka) = meshes_tri_keys(a, nr_a, &na);
+    LOCAL_SET(void, kb) = meshes_tri_keys(b, nr_b, &nb);
+
+    return na == nb && !memcmp(ka, kb, na * sizeof(tri_key));
+}
+
+/* every vertex of @m within [@lo, @hi] on @f's local y */
+static bool mesh_y_within(struct mesh *m, const pcg_frame *f, float lo, float hi)
+{
+    for (size_t v = 0; v < mesh_nr_vx(m); v++) {
+        float y = mesh_vx(m)[v * 3 + 1] - f->org[1];
+
+        if (y < lo - 1e-5f || y > hi + 1e-5f)   return false;
+    }
+
+    return true;
+}
+
+/* the same bytes in every attribute */
+static bool meshes_same_bytes(struct mesh *a, struct mesh *b)
+{
+    size_t nr = mesh_nr_vx(a);
+
+    return nr == mesh_nr_vx(b) &&
+           !memcmp(mesh_vx(a), mesh_vx(b), nr * sizeof(vec3)) &&
+           !memcmp(mesh_tx(a), mesh_tx(b), nr * sizeof(vec2)) &&
+           !memcmp(mesh_norm(a), mesh_norm(b), nr * sizeof(vec3)) &&
+           !memcmp(mesh_tangent(a), mesh_tangent(b), nr * sizeof(vec4));
+}
+
+/*
+ * Parity with the original emitters: the same triangles to PARITY_EPS in
+ * position, normal, tangent and effective texture coordinates (UV times
+ * the material's density, which the originals baked into the vertices)
+ */
+#define PARITY_EPS  1e-5f
+
+typedef struct parity_vx {
+    vec3    p;
+    vec3    n;
+    vec4    t;
+    vec2    uv;
+} parity_vx;
+
+/* the largest differences of the matched vertices, per attribute */
+typedef struct parity_err {
+    float   p;
+    float   n;
+    float   t;
+    float   uv;
+} parity_err;
+
+static float max_diff(const float *a, const float *b, int nr)
+{
+    float d = 0.0f;
+
+    for (int i = 0; i < nr; i++)    d = fmaxf(d, fabsf(a[i] - b[i]));
+
+    return d;
+}
+
+/* vertex @v of @m, its texture coordinates scaled by @density */
+static void parity_vx_of(struct mesh *m, size_t v, float density, parity_vx *out)
+{
+    memcpy(out->p, &mesh_vx(m)[v * 3], sizeof(vec3));
+    memcpy(out->n, &mesh_norm(m)[v * 3], sizeof(vec3));
+    memcpy(out->t, &mesh_tangent(m)[v * 4], sizeof(vec4));
+    out->uv[0] = mesh_tx(m)[v * 2] * density;
+    out->uv[1] = mesh_tx(m)[v * 2 + 1] * density;
+}
+
+/*
+ * The triangles of @ref, emitted by an original emitter in its own space,
+ * as that emitter would have emitted them placed by unmirrored @f: the
+ * positions placed, the charts of run-local faces carried along, and,
+ * under @planar, horizontal faces charting the placed (x, z) at the
+ * original @density. Normals and tangents follow from those through the
+ * same core code that computes the elements' own.
+ */
+static cresp(mesh) parity_expect(struct mesh *ref, const pcg_frame *f, bool planar, float density)
+{
+    size_t nr = mesh_nr_vx(ref);
+    LOCAL_SET(mesh_t, m) = CRES_RET_T(ref_new_checked(mesh, .name = "expect"), mesh);
+
+    CRES_RET_T(_prim_begin(nr, &(prim_emit_opts){ .mesh = m, .tangents = true }), mesh);
+    for (size_t v = 0; v + 2 < nr; v += 3) {
+        vec3 p[3];
+        vec2 uv[3];
+
+        for (int k = 0; k < 3; k++) {
+            parity_vx e;
+
+            parity_vx_of(ref, v + k, 1.0f, &e);
+            pcg_frame_point(f, e.p, p[k]);
+            bool cap = planar && fabsf(e.n[1]) > 0.5f;
+            uv[k][0] = cap ? p[k][0] * density : e.uv[0];
+            uv[k][1] = cap ? p[k][2] * density : e.uv[1];
+        }
+        _prim_emit_triangle3(p[0], p[1], p[2], &(prim_emit_opts){ .mesh = m, .uv = uv });
+    }
+
+    return cresp_val(mesh, NOCU(m));
+}
+
+static bool parity_vx_near(const parity_vx *a, const parity_vx *b, parity_err *e)
+{
+    parity_err d = {
+        .p  = max_diff(a->p, b->p, 3),
+        .n  = max_diff(a->n, b->n, 3),
+        .t  = max_diff(a->t, b->t, 4),
+        .uv = max_diff(a->uv, b->uv, 2),
+    };
+
+    if (d.p > PARITY_EPS || d.n > PARITY_EPS || d.t > PARITY_EPS || d.uv > PARITY_EPS)    return false;
+
+    e->p = fmaxf(e->p, d.p);
+    e->n = fmaxf(e->n, d.n);
+    e->t = fmaxf(e->t, d.t);
+    e->uv = fmaxf(e->uv, d.uv);
+
+    return true;
+}
+
+/*
+ * @m, emitted by an element at @f with meter UVs, holds the triangles of
+ * @ref, emitted by the original at its own origin with @density repeats
+ * per meter and placed by @f (see parity_expect()). Triangles may come in
+ * any order and start at any corner, but wind the same way.
+ */
+static bool parity_check(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f, bool planar,
+                         float density)
+{
+    if (!m || !ref) {
+        fprintf(stderr, "%s: parity: missing mesh\n", what);
+        return false;
+    }
+
+    size_t nr = mesh_nr_vx(m), nr_tris = nr / 3;
+    if (nr != mesh_nr_vx(ref) || nr % 3) {
+        fprintf(stderr, "%s: parity: %zu vertices, the original has %zu\n", what, nr, mesh_nr_vx(ref));
+        return false;
+    }
+
+    LOCAL_SET(mesh_t, em) = CRES_RET(parity_expect(ref, f, planar, density), return false);
+    LOCAL_SET(void, ebuf) = mem_alloc(sizeof(parity_vx), .nr = nr ? nr : 1);
+    LOCAL_SET(void, ubuf) = mem_alloc(sizeof(bool), .nr = nr_tris ? nr_tris : 1, .zero = 1);
+    parity_vx *exp = ebuf;
+    bool *used = ubuf;
+    parity_err err = {};
+
+    for (size_t v = 0; v < nr; v++) parity_vx_of(em, v, 1.0f, &exp[v]);
+
+    for (size_t t = 0; t < nr_tris; t++) {
+        parity_vx got[3];
+        bool found = false;
+
+        for (int k = 0; k < 3; k++) parity_vx_of(m, t * 3 + k, density, &got[k]);
+
+        /* the same order first: then it's one look per triangle */
+        for (size_t i = 0; i < nr_tris && !found; i++) {
+            size_t s = (t + i) % nr_tris;
+
+            if (used[s])    continue;
+            for (int rot = 0; rot < 3 && !found; rot++) {
+                parity_err e = err;
+
+                found = parity_vx_near(&got[0], &exp[s * 3 + rot], &e) &&
+                        parity_vx_near(&got[1], &exp[s * 3 + (rot + 1) % 3], &e) &&
+                        parity_vx_near(&got[2], &exp[s * 3 + (rot + 2) % 3], &e);
+                if (found) {
+                    used[s] = true;
+                    err = e;
+                }
+            }
+        }
+
+        if (!found) {
+            fprintf(stderr, "%s: parity: triangle %zu at (%f, %f, %f) has no match\n", what, t,
+                    got[0].p[0], got[0].p[1], got[0].p[2]);
+            return false;
+        }
+    }
+
+    if (verbose)
+        printf("%s: parity: %zu triangles, max error p %g n %g t %g uv %g\n", what, nr_tris, err.p, err.n,
+               err.t, err.uv);
+
+    return true;
+}
+
+/* emit an element into @ctx, with its params and site in @priv */
+typedef cerr (*element_fn)(const pcg_ctx *ctx, const void *priv);
+
+/* a fresh sink with what @fn emits at @f */
+static cresp(pcg_sink) element_sink(element_fn fn, const void *priv, const pcg_palette *pal, const pcg_frame *f)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET_T(pcg_sink_new("element"), pcg_sink);
+    pcg_ctx ctx = { .sink = sink, .palette = pal, .frame = *f };
+
+    CERR_RET_T(fn(&ctx, priv), pcg_sink);
+
+    return cresp_val(pcg_sink, NOCU(sink));
+}
+
+/*
+ * What every element must do under any frame: emit the same buckets with
+ * the same vertex counts, over the same local bounding box, with unit
+ * tangents and, for a @solid, as a closed surface of the same positive
+ * volume, so mirrored faces still point out; unmirrored, every vertex
+ * lands back where the identity frame put it; and emitting twice gives
+ * the same bytes.
+ */
+static bool element_frames_ok(element_fn fn, const void *priv, const pcg_palette *pal, bool solid)
+{
+    LOCAL_SET(pcg_sink, ref) = CRES_RET(element_sink(fn, priv, pal, &PCG_FRAME_IDENTITY), return false);
+    struct sink_walk rw;
+
+    if (!sink_walk_get(ref, &rw) || !rw.nr)                 return false;
+
+    double vol = walk_volume(&rw);
+    if (solid && (!walk_closed(&rw) || !(vol > 0.0)))       return false;
+
+    vec3 lo, hi;
+    walk_aabb(&rw, &PCG_FRAME_IDENTITY, lo, hi);
+
+    for (int i = 0; i < 6; i++) {
+        pcg_frame f;
+
+        test_frame(&f, 0.9f * i - 1.3f, i & 1, 4.0f * i, 0.5f * i, -3.0f * i);
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(fn, priv, pal, &f), return false);
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != rw.nr)  return false;
+        for (size_t b = 0; b < w.nr; b++) {
+            if (w.key[b].mat != rw.key[b].mat)                      return false;
+            if (mesh_nr_vx(w.mesh[b]) != mesh_nr_vx(rw.mesh[b]))    return false;
+            if (!mesh_tangents_ok(w.mesh[b]))                       return false;
+        }
+        if (solid && !walk_closed(&w))                          return false;
+        if (solid && fabs(walk_volume(&w) - vol) > 1e-4 * vol)  return false;
+        if (!walk_aabb_is(&w, &f, lo, hi))                      return false;
+
+        if (f.mirror)   continue;
+        for (size_t b = 0; b < w.nr; b++)
+            for (size_t v = 0; v < mesh_nr_vx(w.mesh[b]); v++) {
+                vec3 p, n;
+
+                pcg_frame_point_to_local(&f, &mesh_vx(w.mesh[b])[v * 3], p);
+                pcg_frame_vector_to_local(&f, &mesh_norm(w.mesh[b])[v * 3], n);
+                if (!vec3_near(p, &mesh_vx(rw.mesh[b])[v * 3], 1e-4f))      return false;
+                if (!vec3_near(n, &mesh_norm(rw.mesh[b])[v * 3], 1e-4f))    return false;
+            }
+    }
+
+    pcg_frame f;
+    test_frame(&f, 2.1f, true, -7.0f, 3.0f, 11.0f);
+    LOCAL_SET(pcg_sink, s0) = CRES_RET(element_sink(fn, priv, pal, &f), return false);
+    LOCAL_SET(pcg_sink, s1) = CRES_RET(element_sink(fn, priv, pal, &f), return false);
+    struct sink_walk w0, w1;
+
+    if (!sink_walk_get(s0, &w0) || !sink_walk_get(s1, &w1) || w0.nr != w1.nr)   return false;
+    for (size_t b = 0; b < w0.nr; b++)
+        if (!meshes_same_bytes(w0.mesh[b], w1.mesh[b]))                         return false;
+
+    return true;
+}
+
+/* fake finishes, one per surface, so each surface lands in its own bucket */
+static const pcg_material surf_mat[] = {
+    { .name = "s0", .uv_mode = PCG_UV_METERS }, { .name = "s1", .uv_mode = PCG_UV_METERS },
+    { .name = "s2", .uv_mode = PCG_UV_METERS }, { .name = "s3", .uv_mode = PCG_UV_METERS },
+    { .name = "s4", .uv_mode = PCG_UV_METERS }, { .name = "s5", .uv_mode = PCG_UV_METERS },
+};
+
+/* the reference layout's palette: concrete structure, wood floors, panel cladding */
+static const pcg_material panel = { .name = "panel", .uv_mode = PCG_UV_METERS };
+static const pcg_palette ref_palette = {
+    .mat[PCG_ROLE_STRUCTURE]    = &concrete,
+    .mat[PCG_ROLE_FLOOR]        = &wood,
+    .mat[PCG_ROLE_CLADDING]     = &panel,
+};
+
+/* reference copies of the original texture densities, repeats per meter */
+#define REF_UV_CONCRETE (1.0f / 2.4f)
+#define REF_UV_FLOOR    (1.0f / 2.0f)
+#define REF_UV_PANEL    (1.0f / 2.6f)
+
+/****************************************************************************
+ * Slab
+ ****************************************************************************/
+
+/* a slab of the reference layout: a hexagonal floor of radius 60 around a hexagonal well */
+struct slab_case {
+    pcg_slab_params p;
+    vec2            pts[12];
+    poly_ring       rings[2];
+    size_t          nr_rings;
+};
+
+/* the reference layout's slab around a well of @hole_r, 0 for none */
+static void slab_case_init(struct slab_case *c, float hole_r)
+{
+    pcg_slab_params_init(&c->p);
+    ring_plate_pts(c->pts, 6, 60.0f, hole_r);
+    c->rings[0] = (poly_ring){ 0, 6 };
+    c->rings[1] = (poly_ring){ 6, 6 };
+    c->nr_rings = hole_r > 0.0f ? 2 : 1;
+}
+
+static cerr slab_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct slab_case *c = priv;
+
+    return pcg_slab_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .pts = c->pts, .nr_pts = c->nr_rings * 6,
+                         .rings = c->rings, .nr_rings = c->nr_rings);
+}
+
+static int slab_test(void)
+{
+    struct slab_case c;
+    slab_case_init(&c, 20.0f);
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("slab"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .palette = &ref_palette, .frame = PCG_FRAME_IDENTITY };
+
+    /* the defaults emit, and every surface has a role and a collide class */
+    if (failed(slab_case_emit(&ctx, &c)) || !pcg_sink_get_stats(sink).nr_vertices)  return EXIT_FAILURE;
+    for (int s = 0; s < PCG_SLAB_NR_SURF; s++)
+        if (c.p.surf[s].collide != PCG_COLLIDE_SOLID || c.p.surf[s].skip)           return EXIT_FAILURE;
+    if (c.p.finish.role != PCG_ROLE_FLOOR || c.p.soffit.role != PCG_ROLE_STRUCTURE) return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, a site with too few points */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("slab"), return EXIT_FAILURE);
+    pcg_ctx bc = ctx;
+    bc.sink = bad;
+
+    struct slab_case z = c;
+    z.p = (pcg_slab_params){};
+    if (!failed(slab_case_emit(&bc, &z)))                                           return EXIT_FAILURE;
+    z = c;
+    z.p.t = -0.3f;
+    if (!failed(slab_case_emit(&bc, &z)))                                           return EXIT_FAILURE;
+    z.p.t = NAN;
+    if (!failed(slab_case_emit(&bc, &z)))                                           return EXIT_FAILURE;
+    z = c;
+    z.p.finish_t = -0.05f;
+    if (!failed(slab_case_emit(&bc, &z)))                                           return EXIT_FAILURE;
+    /* nothing that isn't finite, even where the first plate would go out whole */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = { &z.p.t, &z.p.finish_t, &z.pts[0][0], &z.pts[11][1] };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = c;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(slab_case_emit(&bc, &z)))                             return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!failed_inval(pcg_slab_emit(&bc, &c.p, .frame = bad_frames[i], .pts = c.pts, .nr_pts = 12,
+                                        .rings = c.rings, .nr_rings = 2)))
+            return EXIT_FAILURE;
+    if (!failed(pcg_slab_emit(&bc, &c.p, .frame = PCG_FRAME_IDENTITY, .pts = c.pts, .nr_pts = 2)))  return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)                                                          return EXIT_FAILURE;
+
+    /* the box it was asked for, closed and outward under any frame, finished or not */
+    struct sink_walk w;
+    vec2 lo, hi;
+    poly2d_bbox(c.pts, 6, lo, hi);
+    if (!sink_walk_get(sink, &w))                                                   return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ lo[0], -c.p.t, lo[1] }, (vec3){ hi[0], c.p.finish_t, hi[1] }))
+        return EXIT_FAILURE;
+    double vol = (ngon_area(6, 60.0) - ngon_area(6, 20.0)) * (c.p.t + c.p.finish_t);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                                   return EXIT_FAILURE;
+    if (!element_frames_ok(slab_case_emit, &c, &ref_palette, true))                 return EXIT_FAILURE;
+
+    struct slab_case roof = c;
+    roof.p.finish_t = 0.0f;
+    if (!element_frames_ok(slab_case_emit, &roof, &ref_palette, true))              return EXIT_FAILURE;
+
+    struct slab_case solid;
+    slab_case_init(&solid, 0.0f);
+    if (!element_frames_ok(slab_case_emit, &solid, &ref_palette, true))             return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int slab_surface_test(void)
+{
+    struct slab_case c;
+    slab_case_init(&c, 24.0f);
+    for (int s = 0; s < PCG_SLAB_NR_SURF; s++)  c.p.surf[s].mat = &surf_mat[s];
+
+    for (int finished = 0; finished < 2; finished++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("slab"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .frame = PCG_FRAME_IDENTITY };
+        const pcg_frame *id = &PCG_FRAME_IDENTITY;
+        float t = c.p.t, ft = finished ? 0.05f : 0.0f;
+
+        c.p.finish_t = ft;
+        if (failed(slab_case_emit(&ctx, &c)))   return EXIT_FAILURE;
+
+        /* each surface's bucket holds its faces and nothing else; a finish buries the top */
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != (finished ? 4u : 3u))   return EXIT_FAILURE;
+
+        struct mesh *top = walk_mesh(&w, &surf_mat[PCG_SLAB_TOP]);
+        struct mesh *soffit = walk_mesh(&w, &surf_mat[PCG_SLAB_SOFFIT]);
+        struct mesh *edge = walk_mesh(&w, &surf_mat[PCG_SLAB_EDGE]);
+        struct mesh *finish = walk_mesh(&w, &surf_mat[PCG_SLAB_FINISH]);
+        struct mesh *finish_edge = walk_mesh(&w, &surf_mat[PCG_SLAB_FINISH_EDGE]);
+
+        if (!soffit || !mesh_normals_along(soffit, id, (vec3){ 0.0f, -1.0f, 0.0f }))    return EXIT_FAILURE;
+        if (!mesh_y_within(soffit, id, -t, -t))                                         return EXIT_FAILURE;
+        if (!edge || !mesh_normals_level(edge) || !mesh_y_within(edge, id, -t, 0.0f))   return EXIT_FAILURE;
+        if (finished) {
+            if (top)                                                                    return EXIT_FAILURE;
+            if (!finish || !mesh_normals_along(finish, id, (vec3){ 0.0f, 1.0f, 0.0f })) return EXIT_FAILURE;
+            if (!mesh_y_within(finish, id, ft, ft))                                     return EXIT_FAILURE;
+            if (!finish_edge || !mesh_normals_level(finish_edge))                       return EXIT_FAILURE;
+            if (!mesh_y_within(finish_edge, id, 0.0f, ft))                              return EXIT_FAILURE;
+        } else {
+            if (finish || finish_edge)                                                  return EXIT_FAILURE;
+            if (!top || !mesh_normals_along(top, id, (vec3){ 0.0f, 1.0f, 0.0f }))       return EXIT_FAILURE;
+            if (!mesh_y_within(top, id, 0.0f, 0.0f))                                    return EXIT_FAILURE;
+        }
+
+        /* the structure's surfaces on one material, the finish's on another: two buckets, the unions */
+        struct slab_case a = c;
+        a.p.soffit.mat = a.p.edge.mat = a.p.top.mat = &concrete;
+        a.p.finish.mat = a.p.finish_edge.mat = &wood;
+
+        LOCAL_SET(pcg_sink, as) = CRES_RET(pcg_sink_new("slab"), return EXIT_FAILURE);
+        pcg_ctx actx = { .sink = as, .frame = PCG_FRAME_IDENTITY };
+        if (failed(slab_case_emit(&actx, &a)))  return EXIT_FAILURE;
+
+        struct sink_walk aw;
+        if (!sink_walk_get(as, &aw) || aw.nr != (finished ? 2u : 1u))   return EXIT_FAILURE;
+
+        struct mesh *s_sep[3] = { soffit, edge, top }, *f_sep[2] = { finish, finish_edge };
+        struct mesh *s_al = walk_mesh(&aw, &concrete), *f_al = walk_mesh(&aw, &wood);
+        if (!meshes_same_tris(&s_al, 1, s_sep, finished ? 2 : 3))                       return EXIT_FAILURE;
+        if (finished && !meshes_same_tris(&f_al, 1, f_sep, 2))                          return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * The reference layout's floors against a reference copy of the plate
+ * emitter the slab replaces, called the way the reference building calls
+ * it: on the galleries, a 0.35 concrete slab without its top under a 0.05
+ * wood deck without its bottom, around wells of 20, 24 and 28; the roof
+ * slab whole, around the top well; on the ground, a 0.8 concrete plinth
+ * without its top under the deck, without a well.
+ */
+static int slab_parity_test(void)
+{
+    const struct { float t, finish_t, hole_r; } cases[] = {
+        { 0.35f, 0.05f, 20.0f }, { 0.35f, 0.05f, 24.0f }, { 0.35f, 0.05f, 28.0f },
+        { 0.35f, 0.0f, 28.0f }, { 0.8f, 0.05f, 0.0f },
+    };
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (size_t i = 0; i < array_size(cases); i++)
+        for (int fi = 0; fi < 2; fi++) {
+            const pcg_frame *f = &frames[fi];
+            struct slab_case c;
+
+            slab_case_init(&c, cases[i].hole_r);
+            c.p.t = cases[i].t;
+            c.p.finish_t = cases[i].finish_t;
+
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("slab"), return EXIT_FAILURE);
+            pcg_ctx ctx = { .sink = sink, .palette = &ref_palette, .frame = *f };
+            if (failed(slab_case_emit(&ctx, &c)))   return EXIT_FAILURE;
+
+            struct sink_walk w;
+            bool finished = c.p.finish_t > 0.0f;
+            if (!sink_walk_get(sink, &w) || w.nr != (finished ? 2u : 1u))   return EXIT_FAILURE;
+
+            int hs = cases[i].hole_r > 0.0f ? 6 : 0;
+            LOCAL_SET(mesh_t, rs) = CRES_RET(ref_new_checked(mesh, .name = "ref slab"), return EXIT_FAILURE);
+            if (failed(ref_plate_emit(rs, 6, 60.0f, hs, cases[i].hole_r, -c.p.t, 0.0f, REF_UV_CONCRETE,
+                                      finished ? REF_PLATE_NO_TOP : 0)))
+                return EXIT_FAILURE;
+            if (!parity_check("slab", walk_mesh(&w, &concrete), rs, f, true, REF_UV_CONCRETE))
+                return EXIT_FAILURE;
+            if (!finished)  continue;
+
+            LOCAL_SET(mesh_t, rd) = CRES_RET(ref_new_checked(mesh, .name = "ref deck"), return EXIT_FAILURE);
+            if (failed(ref_plate_emit(rd, 6, 60.0f, hs, cases[i].hole_r, 0.0f, c.p.finish_t, REF_UV_FLOOR,
+                                      REF_PLATE_NO_BOTTOM)))
+                return EXIT_FAILURE;
+            if (!parity_check("deck", walk_mesh(&w, &wood), rd, f, true, REF_UV_FLOOR))
+                return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -1749,6 +2299,9 @@ static const struct test tests[] = {
     { .name = "shape pane", .test = shape_pane_test },
     { .name = "shape rod", .test = shape_rod_test },
     { .name = "shape frames", .test = shape_frame_test },
+    { .name = "slab", .test = slab_test },
+    { .name = "slab surfaces", .test = slab_surface_test },
+    { .name = "slab parity", .test = slab_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
