@@ -14,6 +14,7 @@
 #include "primitives.h"
 #include "test.h"
 #include "util.h"
+#include "pcg/column.h"
 #include "pcg/fascia.h"
 #include "pcg/frame.h"
 #include "pcg/material.h"
@@ -2771,6 +2772,301 @@ static int fascia_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Columns
+ ****************************************************************************/
+
+/*
+ * Reference copies of the emitters the column replaces: an axis-aligned
+ * box with planar UVs in its own coordinates at @uv repeats per meter,
+ * and a shaft on an optional base block built of two of them
+ */
+static cerr ref_arch_box(struct mesh *m, vec3 lo, vec3 hi, float uv)
+{
+    CRES_RET_CERR(_prim_begin(36, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    float x0 = lo[0], y0 = lo[1], z0 = lo[2];
+    float x1 = hi[0], y1 = hi[1], z1 = hi[2];
+
+    ref_face(m, (vec3){ x1, y0, z0 }, (vec3){ x1, y0, z1 }, (vec3){ x1, y1, z1 },
+             (vec3){ x1, y1, z0 }, z0 * uv, y0 * uv, z1 * uv, y1 * uv);
+    ref_face(m, (vec3){ x0, y0, z1 }, (vec3){ x0, y0, z0 }, (vec3){ x0, y1, z0 },
+             (vec3){ x0, y1, z1 }, -z1 * uv, y0 * uv, -z0 * uv, y1 * uv);
+    ref_face(m, (vec3){ x0, y1, z0 }, (vec3){ x1, y1, z0 }, (vec3){ x1, y1, z1 },
+             (vec3){ x0, y1, z1 }, x0 * uv, z0 * uv, x1 * uv, z1 * uv);
+    ref_face(m, (vec3){ x0, y0, z0 }, (vec3){ x0, y0, z1 }, (vec3){ x1, y0, z1 },
+             (vec3){ x1, y0, z0 }, z0 * uv, x0 * uv, z1 * uv, x1 * uv);
+    ref_face(m, (vec3){ x1, y0, z1 }, (vec3){ x0, y0, z1 }, (vec3){ x0, y1, z1 },
+             (vec3){ x1, y1, z1 }, -x1 * uv, y0 * uv, -x0 * uv, y1 * uv);
+    ref_face(m, (vec3){ x0, y0, z0 }, (vec3){ x1, y0, z0 }, (vec3){ x1, y1, z0 },
+             (vec3){ x0, y1, z0 }, x0 * uv, y0 * uv, x1 * uv, y1 * uv);
+
+    return CERR_OK;
+}
+
+typedef struct ref_column_params {
+    float   w, h;
+    float   base_w, base_h;
+    float   uv;
+} ref_column_params;
+
+static cerr ref_column_emit(struct mesh *m, const ref_column_params *p)
+{
+    float hw = p->w * 0.5f;
+
+    CERR_RET_CERR(ref_arch_box(m, (vec3){ -hw, 0.0f, -hw }, (vec3){ hw, p->h, hw }, p->uv));
+
+    if (p->base_w > 0.0f && p->base_h > 0.0f) {
+        float hb = p->base_w * 0.5f;
+
+        CERR_RET_CERR(ref_arch_box(m, (vec3){ -hb, 0.0f, -hb }, (vec3){ hb, p->base_h, hb }, p->uv));
+    }
+
+    return CERR_OK;
+}
+
+/*
+ * @src's triangles moved by @at into @dst: the original placed one model
+ * per column, and its entity's position moves the vertices at draw time
+ */
+static cerr ref_instance(struct mesh *dst, struct mesh *src, const vec3 at)
+{
+    size_t nr = mesh_nr_vx(src);
+
+    CRES_RET_CERR(_prim_begin(nr, &(prim_emit_opts){ .mesh = dst, .tangents = true }));
+    for (size_t v = 0; v + 2 < nr; v += 3) {
+        vec3 p[3];
+        vec2 uv[3];
+
+        for (int k = 0; k < 3; k++) {
+            vec3_add(p[k], &mesh_vx(src)[(v + k) * 3], at);
+            memcpy(uv[k], &mesh_tx(src)[(v + k) * 2], sizeof(vec2));
+        }
+        _prim_emit_triangle3(p[0], p[1], p[2], &(prim_emit_opts){ .mesh = dst, .uv = uv });
+    }
+
+    return CERR_OK;
+}
+
+/* a set of columns, or one at the origin */
+struct column_case {
+    pcg_column_params   p;
+    vec2                at[8];
+    size_t              nr_at;
+    float               h;
+};
+
+static cerr column_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct column_case *c = priv;
+
+    if (!c->nr_at)  return pcg_column_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .h = c->h);
+
+    return pcg_columns_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .at = c->at, .nr_at = c->nr_at, .h = c->h);
+}
+
+static int column_test(void)
+{
+    struct column_case c = { .h = 3.0f };
+    pcg_column_params_init(&c.p);
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(column_case_emit, &c, &ref_palette, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    if (c.p.shaft.role != PCG_ROLE_CLADDING || c.p.base.role != PCG_ROLE_STRUCTURE) return EXIT_FAILURE;
+    for (int s = 0; s < PCG_COLUMN_NR_SURF; s++)
+        if (c.p.surf[s].collide != PCG_COLLIDE_SOLID || c.p.surf[s].skip)           return EXIT_FAILURE;
+
+    /* the shaft stops short of the site's top by the gap, on its base */
+    struct sink_walk w;
+    float shaft_h = c.h - c.p.top_gap, hb = c.p.base_w * 0.5f;
+    if (!sink_walk_get(sink, &w) || w.nr != 2 || walk_nr_vx(&w) != 72)  return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ -hb, 0.0f, -hb }, (vec3){ hb, shaft_h, hb }))
+        return EXIT_FAILURE;
+    if (!walk_closed(&w))                                                               return EXIT_FAILURE;
+    double vol = (double)c.p.w * c.p.w * shaft_h + (double)c.p.base_w * c.p.base_w * c.p.base_h;
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                                       return EXIT_FAILURE;
+    if (!element_frames_ok(column_case_emit, &c, &ref_palette, true))                   return EXIT_FAILURE;
+
+    /* without a base, a bare shaft */
+    struct column_case bare = c;
+    bare.p.base_w = bare.p.base_h = 0.0f;
+    LOCAL_SET(pcg_sink, bs) = CRES_RET(element_sink(column_case_emit, &bare, &ref_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(bs, &w) || w.nr != 1 || walk_nr_vx(&w) != 36)    return EXIT_FAILURE;
+
+    /* a colonnade: every column in the same two buckets, each where it was put */
+    struct column_case row = c;
+    row.nr_at = 5;
+    for (size_t i = 0; i < row.nr_at; i++) {
+        row.at[i][0] = 3.0f * i;
+        row.at[i][1] = i & 1 ? 1.0f : -1.0f;
+    }
+    LOCAL_SET(pcg_sink, rs) = CRES_RET(element_sink(column_case_emit, &row, &ref_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(rs, &w) || w.nr != 2 || walk_nr_vx(&w) != 5 * 72)    return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ -hb, 0.0f, -1.0f - hb },
+                      (vec3){ 12.0f + hb, shaft_h, 1.0f + hb }))
+        return EXIT_FAILURE;
+    if (fabs(walk_volume(&w) - 5.0 * vol) > 1e-4 * vol)                                 return EXIT_FAILURE;
+    if (!element_frames_ok(column_case_emit, &row, &ref_palette, true))                 return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, a site too low for its gap or its base, no feet */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("column"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &ref_palette, .frame = PCG_FRAME_IDENTITY };
+    struct column_case z = c;
+    z.p = (pcg_column_params){};
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.w = NAN;
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.base_w = 0.3f;
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.base_h = 0.0f;
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.base_w = 0.0f;
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.top_gap = -0.02f;
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.h = 0.02f;
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.h = 0.45f;
+    if (!failed(column_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    /* nothing that isn't finite, on one column or a row, not even the last foot */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = { &z.p.w, &z.p.base_w, &z.p.base_h, &z.p.top_gap, &z.h };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = c;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(column_case_emit(&bc, &z)))   return EXIT_FAILURE;
+            z = row;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(column_case_emit(&bc, &z)))   return EXIT_FAILURE;
+        }
+        z = row;
+        z.at[row.nr_at - 1][1] = nonfinite[i];
+        if (!failed_inval(column_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!failed_inval(pcg_column_emit(&bc, &c.p, .frame = bad_frames[i], .h = c.h)) ||
+            !failed_inval(pcg_columns_emit(&bc, &c.p, .frame = bad_frames[i], .at = row.at, .nr_at = row.nr_at,
+                                           .h = c.h)))
+            return EXIT_FAILURE;
+    if (!failed(pcg_columns_emit(&bc, &c.p, .frame = PCG_FRAME_IDENTITY, .at = c.at, .h = c.h)))    return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)                                                          return EXIT_FAILURE;
+
+    /* the check takes the column the emit takes and turns down what it turns down */
+    const pcg_column_site site = { .frame = PCG_FRAME_IDENTITY, .h = c.h };
+    CERR_RET(pcg_column_check(&c.p, &site), return EXIT_FAILURE);
+    if (!failed_inval(pcg_column_check(&c.p, &(pcg_column_site){ .frame = PCG_FRAME_IDENTITY, .h = 0.02f })))
+        return EXIT_FAILURE;
+    if (!failed_inval(pcg_column_check(&(pcg_column_params){}, &site)))     return EXIT_FAILURE;
+    if (!failed_inval(pcg_column_check(nullptr, &site)))                    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int column_surface_test(void)
+{
+    struct column_case c = { .h = 3.0f, .nr_at = 3, .at = { { 0.0f, 0.0f }, { 2.0f, 0.0f }, { 4.0f, 1.0f } } };
+    pcg_column_params_init(&c.p);
+    for (int s = 0; s < PCG_COLUMN_NR_SURF; s++)    c.p.surf[s].mat = &surf_mat[s];
+
+    /* each surface's bucket holds its own box of every column */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(column_case_emit, &c, nullptr, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 2)  return EXIT_FAILURE;
+
+    struct mesh *shaft = walk_mesh(&w, &surf_mat[PCG_COLUMN_SHAFT]), *base = walk_mesh(&w, &surf_mat[PCG_COLUMN_BASE]);
+    float hw = c.p.w * 0.5f, hb = c.p.base_w * 0.5f;
+    if (!shaft || !base || mesh_nr_vx(shaft) != 3 * 36 || mesh_nr_vx(base) != 3 * 36)   return EXIT_FAILURE;
+
+    struct sink_walk sw = { .nr = 1, .mesh = { shaft } }, bw = { .nr = 1, .mesh = { base } };
+    if (!walk_aabb_is(&sw, &PCG_FRAME_IDENTITY, (vec3){ -hw, 0.0f, -hw },
+                      (vec3){ 4.0f + hw, c.h - c.p.top_gap, 1.0f + hw }))
+        return EXIT_FAILURE;
+    if (!walk_aabb_is(&bw, &PCG_FRAME_IDENTITY, (vec3){ -hb, 0.0f, -hb }, (vec3){ 4.0f + hb, c.p.base_h, 1.0f + hb }))
+        return EXIT_FAILURE;
+
+    /* aliased, one bucket of the union */
+    struct column_case a = c;
+    a.p.shaft.mat = a.p.base.mat = &panel;
+    LOCAL_SET(pcg_sink, as) = CRES_RET(element_sink(column_case_emit, &a, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct mesh *sep[2] = { shaft, base };
+    if (!sink_walk_get(as, &w) || w.nr != 1 || !meshes_same_tris(w.mesh, 1, sep, 2))    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * The reference building's well columns, against a reference copy of the
+ * column emitter they replace and of their placement: 0.5 m panel-clad
+ * shafts on 0.675 m bases 0.55 m tall, one at every vertex of a 6-sided
+ * ring per storey of 6 m, standing on the 0.05 deck and stopping 0.02 m
+ * short of the next one, so the cap buries in the slab above; the ring
+ * is the wider of the storey's two wells, of radius 20, 24, 28 and 28
+ */
+static int column_parity_test(void)
+{
+    const float well_r[] = { 20.0f, 24.0f, 28.0f, 28.0f };
+    const int n = 6, floors = 4;
+    const float H = 6.0f, deck_t = 0.05f, column_w = 0.5f;
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    LOCAL_SET(mesh_t, col) = CRES_RET(ref_new_checked(mesh, .name = "ref column"), return EXIT_FAILURE);
+    CERR_RET(ref_column_emit(col, &(ref_column_params){
+                 .w = column_w, .h = H - deck_t - 0.02f,
+                 .base_w = column_w * 1.35f, .base_h = 0.55f, .uv = REF_UV_PANEL,
+             }),
+             return EXIT_FAILURE);
+
+    struct column_case c = { .nr_at = n, .h = H - deck_t };
+    pcg_column_params_init(&c.p);
+    c.p.w = column_w;
+    c.p.base_w = column_w * 1.35f;
+    c.p.base_h = 0.55f;
+    c.p.top_gap = 0.02f;
+    c.p.base.role = PCG_ROLE_CLADDING;
+
+    for (int fi = 0; fi < 2; fi++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("column"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref ring"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .palette = &ref_palette, .frame = frames[fi] };
+
+        for (int s = 0; s < floors; s++) {
+            float rc = s ? fmaxf(well_r[s - 1], well_r[s]) : well_r[0];
+            float y = s * H + deck_t;
+
+            for (int j = 0; j < n; j++) {
+                ref_ngon_vertex(j, n, rc, c.at[j]);
+                CERR_RET(ref_instance(ref, col, (vec3){ c.at[j][0], y, c.at[j][1] }), return EXIT_FAILURE);
+            }
+
+            CERR_RET(pcg_columns_emit(&ctx, &c.p, .frame = { .org = { 0.0f, y, 0.0f }, .dir = { 1.0f, 0.0f } },
+                                      .at = c.at, .nr_at = c.nr_at, .h = c.h),
+                     return EXIT_FAILURE);
+        }
+
+        /* 24 columns, one bucket */
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != 1)                                          return EXIT_FAILURE;
+        if (!parity_check_exact("columns", walk_mesh(&w, &panel), ref, &frames[fi], false, REF_UV_PANEL))
+            return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -2800,6 +3096,9 @@ static const struct test tests[] = {
     { .name = "fascia", .test = fascia_test },
     { .name = "fascia surfaces", .test = fascia_surface_test },
     { .name = "fascia parity", .test = fascia_parity_test },
+    { .name = "column", .test = column_test },
+    { .name = "column surfaces", .test = column_surface_test },
+    { .name = "column parity", .test = column_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
