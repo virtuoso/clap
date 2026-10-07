@@ -2,6 +2,7 @@
 #ifndef __CLAP_PCG_INTERNAL_H__
 #define __CLAP_PCG_INTERNAL_H__
 
+#include <math.h>
 #include "primitives.h"
 #include "pcg/frame.h"
 
@@ -27,6 +28,18 @@ static inline bool pcg_positive(float x)
 static inline bool pcg_nonnegative(float x)
 {
     return x >= 0.0f;
+}
+
+/* @x > 0 and finite: false for a NaN and the infinities */
+static inline bool pcg_positive_finite(float x)
+{
+    return pcg_positive(x) && isfinite(x);
+}
+
+/* @x >= 0 and finite: false for a NaN and the infinities */
+static inline bool pcg_nonnegative_finite(float x)
+{
+    return pcg_nonnegative(x) && isfinite(x);
 }
 
 /*
