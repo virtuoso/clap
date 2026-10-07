@@ -207,6 +207,72 @@ cerr _pcg_band(const pcg_ctx *ctx, const pcg_band_desc *d)
 }
 
 /****************************************************************************
+ * Box
+ ****************************************************************************/
+
+/* the @faces (&enum prim_box_face bits) of the box [@lo, @hi], charted as prim_emit_box() charts them */
+static void box_faces(const pcg_frame *f, const vec3 lo, const vec3 hi, unsigned int faces, bool swap,
+                      const prim_emit_opts *opts)
+{
+    float a0 = lo[0], y0 = lo[1], c0 = lo[2];
+    float a1 = hi[0], y1 = hi[1], c1 = hi[2];
+
+    if (faces & PRIM_BOX_POS_A)
+        pcg_frame_face(f, (vec3){ a1, y0, c0 }, (vec3){ a1, y0, c1 }, (vec3){ a1, y1, c1 }, (vec3){ a1, y1, c0 },
+                       (vec4){ c0, y0, c1, y1 }, swap, opts);
+    if (faces & PRIM_BOX_NEG_A)
+        pcg_frame_face(f, (vec3){ a0, y0, c1 }, (vec3){ a0, y0, c0 }, (vec3){ a0, y1, c0 }, (vec3){ a0, y1, c1 },
+                       (vec4){ -c1, y0, -c0, y1 }, swap, opts);
+    if (faces & PRIM_BOX_POS_Y)
+        pcg_frame_face(f, (vec3){ a0, y1, c0 }, (vec3){ a1, y1, c0 }, (vec3){ a1, y1, c1 }, (vec3){ a0, y1, c1 },
+                       (vec4){ a0, c0, a1, c1 }, swap, opts);
+    if (faces & PRIM_BOX_NEG_Y)
+        pcg_frame_face(f, (vec3){ a0, y0, c0 }, (vec3){ a0, y0, c1 }, (vec3){ a1, y0, c1 }, (vec3){ a1, y0, c0 },
+                       (vec4){ c0, a0, c1, a1 }, swap, opts);
+    if (faces & PRIM_BOX_POS_C)
+        pcg_frame_face(f, (vec3){ a1, y0, c1 }, (vec3){ a0, y0, c1 }, (vec3){ a0, y1, c1 }, (vec3){ a1, y1, c1 },
+                       (vec4){ -a1, y0, -a0, y1 }, swap, opts);
+    if (faces & PRIM_BOX_NEG_C)
+        pcg_frame_face(f, (vec3){ a0, y0, c0 }, (vec3){ a1, y0, c0 }, (vec3){ a1, y1, c0 }, (vec3){ a0, y1, c0 },
+                       (vec4){ a0, y0, a1, y1 }, swap, opts);
+}
+
+cerr _pcg_box(const pcg_ctx *ctx, const pcg_box_desc *d)
+{
+    if (!ctx || !d)     return CERR_INVALID_ARGUMENTS;
+
+    vec3 lo, hi;
+    for (int k = 0; k < 3; k++) {
+        lo[k] = d->lo[k];
+        hi[k] = d->hi[k];
+        if (lo[k] > hi[k])      shape_swapf(&lo[k], &hi[k]);
+        if (!(lo[k] < hi[k]))   return CERR_INVALID_ARGUMENTS_REASON(.fmt = "box with an empty range");
+    }
+
+    /* one reservation per surface, for all of its faces */
+    unsigned int done = 0;
+    for (int k = 0; k < 6; k++) {
+        const pcg_surface *surf = d->face[k];
+
+        if ((done & (1u << k)) || !surf || surf->skip)  continue;
+
+        unsigned int group = 0;
+        size_t nr_vx = 0;
+        for (int j = k; j < 6; j++)
+            if (d->face[j] == surf) {
+                group |= 1u << j;
+                nr_vx += 6;
+            }
+        done |= group;
+
+        pcg_target t = CRES_RET_CERR(pcg_sink_reserve(ctx, surf, PCG_UV_METERS, nr_vx));
+        box_faces(&ctx->frame, lo, hi, group, t.uv_swap, &(prim_emit_opts){ .mesh = t.mesh, .clockwise = t.clockwise });
+    }
+
+    return CERR_OK;
+}
+
+/****************************************************************************
  * Pane
  ****************************************************************************/
 

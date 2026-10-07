@@ -133,6 +133,53 @@ cerr_check _pcg_band(const pcg_ctx *ctx, const pcg_band_desc *d);
 #define pcg_band(_ctx, args...) _pcg_band((_ctx), &(const pcg_band_desc){ args })
 
 /**
+ * struct pcg_box_desc - a box with a surface per face
+ * @lo:     one corner in the context's local (a, y, c)
+ * @hi:     the opposite corner; a range reversed against @lo is swapped
+ *          back, on every axis
+ * @face:   the surface of each face, indexed by the bit number of its
+ *          &enum prim_box_face flag; nullptr leaves the face out
+ *
+ * The box of prim_emit_box(), with its planar charts in the context's
+ * local meters, heights included: a box placed at a storey wears its
+ * texture the way it does on the ground. Per face:
+ *  - +a end:   U +c, V +y
+ *  - -a end:   U -c, V +y
+ *  - top:      U +a, V +c
+ *  - bottom:   U +c, V +a
+ *  - +c side:  U -a, V +y
+ *  - -c side:  U +a, V +y
+ * Coplanar faces of neighbouring boxes in one frame tile seamlessly. The
+ * faces that point to one surface share a reservation, and come in the
+ * order of their flags.
+ */
+typedef struct pcg_box_desc {
+    vec3                lo;
+    vec3                hi;
+    const pcg_surface   *face[6];
+} pcg_box_desc;
+
+/* pcg_box_desc::face initializer: every face on @_surf */
+#define PCG_BOX_ALL(_surf) { (_surf), (_surf), (_surf), (_surf), (_surf), (_surf) }
+
+/**
+ * _pcg_box() - emit a box
+ * @ctx:    where it goes
+ * @d:      the box
+ *
+ * Return: CERR_OK; CERR_INVALID_ARGUMENTS for an empty range on any axis;
+ * the pcg_sink_reserve() errors
+ */
+cerr_check _pcg_box(const pcg_ctx *ctx, const pcg_box_desc *d);
+
+/**
+ * define pcg_box - emit a box described by pcg_box_desc initializers
+ *
+ * Syntax sugar for _pcg_box().
+ */
+#define pcg_box(_ctx, args...) _pcg_box((_ctx), &(const pcg_box_desc){ args })
+
+/**
  * struct pcg_pane_desc - a double-sided pane in the local a-y plane
  * @open:       openings cut out of the pane, ordered along it (see
  *              pcg_openings_check()); a head between @y0 and @y1 leaves
