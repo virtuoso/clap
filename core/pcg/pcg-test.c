@@ -2089,6 +2089,140 @@ static const pcg_palette ref_palette = {
 #define REF_UV_PANEL    (1.0f / 2.6f)
 
 /****************************************************************************
+ * Box
+ ****************************************************************************/
+
+/* outward normals of the box faces, by the bit number of their flags */
+static const vec3 box_face_dir[6] = {
+    [0] = { 1.0f, 0.0f, 0.0f }, [1] = { -1.0f, 0.0f, 0.0f }, [2] = { 0.0f, 1.0f, 0.0f },
+    [3] = { 0.0f, -1.0f, 0.0f }, [4] = { 0.0f, 0.0f, 1.0f }, [5] = { 0.0f, 0.0f, -1.0f },
+};
+
+static const vec3 box_lo = { 1.0f, 0.5f, -0.3f }, box_hi = { 2.5f, 3.0f, 0.4f };
+
+static cerr box_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const pcg_surface *s = priv;
+
+    return pcg_box(ctx, .lo = { box_lo[0], box_lo[1], box_lo[2] }, .hi = { box_hi[0], box_hi[1], box_hi[2] },
+                   .face = PCG_BOX_ALL(s));
+}
+
+static int shape_box_test(void)
+{
+    const pcg_surface s = { .mat = &concrete, .collide = PCG_COLLIDE_SOLID };
+
+    /* the core box's vertices and charts, at one repeat per meter */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(box_emit, &s, nullptr, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 1)                          return EXIT_FAILURE;
+
+    LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+    const prim_box core = {
+        .dir = { 1.0f, 0.0f }, .uv = 1.0f,
+        .lo = { box_lo[0], box_lo[1], box_lo[2] }, .hi = { box_hi[0], box_hi[1], box_hi[2] },
+    };
+    if (failed(prim_emit_box(&core, .mesh = ref, .tangents = true)))    return EXIT_FAILURE;
+    if (!mesh_same_vx(w.mesh[0], ref, 0.0f, 0.0f))                      return EXIT_FAILURE;
+    if (!mesh_tangents_ok(w.mesh[0]))                                   return EXIT_FAILURE;
+
+    /* reversed ranges come out the same */
+    LOCAL_SET(pcg_sink, rs) = CRES_RET(pcg_sink_new("box"), return EXIT_FAILURE);
+    pcg_ctx rc = { .sink = rs, .frame = PCG_FRAME_IDENTITY };
+    CERR_RET(pcg_box(&rc, .lo = { box_hi[0], box_lo[1], box_hi[2] }, .hi = { box_lo[0], box_hi[1], box_lo[2] },
+                     .face = PCG_BOX_ALL(&s)),
+             return EXIT_FAILURE);
+    struct sink_walk rw;
+    if (!sink_walk_get(rs, &rw) || !mesh_same_vx(rw.mesh[0], ref, 0.0f, 0.0f))  return EXIT_FAILURE;
+
+    /* raised and moved, the box keeps its charts: they are local, heights included */
+    pcg_frame up = { .org = { 3.0f, 12.0f, -4.0f }, .dir = { 1.0f, 0.0f } };
+    LOCAL_SET(pcg_sink, us) = CRES_RET(element_sink(box_emit, &s, nullptr, &up), return EXIT_FAILURE);
+    struct sink_walk uw;
+    if (!sink_walk_get(us, &uw) || mesh_nr_vx(uw.mesh[0]) != 36)    return EXIT_FAILURE;
+    for (size_t v = 0; v < 36; v++) {
+        const float *p = &mesh_vx(uw.mesh[0])[v * 3], *q = &mesh_vx(ref)[v * 3];
+
+        if (!vec3_near(p, (vec3){ q[0] + 3.0f, q[1] + 12.0f, q[2] - 4.0f }, 1e-5f))     return EXIT_FAILURE;
+        if (memcmp(&mesh_tx(uw.mesh[0])[v * 2], &mesh_tx(ref)[v * 2], sizeof(vec2)))    return EXIT_FAILURE;
+    }
+
+    /* closed and outward under any frame */
+    if (!element_frames_ok(box_emit, &s, nullptr, true))                return EXIT_FAILURE;
+
+    /* swapped, every corner of every face has its U and V traded */
+    pcg_surface sw = s;
+    sw.uv_swap = true;
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(box_emit, &sw, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk swk;
+    if (!sink_walk_get(ss, &swk) || mesh_nr_vx(swk.mesh[0]) != 36)      return EXIT_FAILURE;
+    if (!mesh_tangents_ok(swk.mesh[0]))                                 return EXIT_FAILURE;
+    for (size_t v = 0; v < 36; v++) {
+        const float *p = &mesh_vx(swk.mesh[0])[v * 3], *n = &mesh_norm(swk.mesh[0])[v * 3];
+        const float *t = &mesh_tx(swk.mesh[0])[v * 2];
+        bool found = false;
+
+        for (size_t u = 0; u < 36 && !found; u++)
+            found = vec3_near(p, &mesh_vx(ref)[u * 3], 0.0f) && vec3_near(n, &mesh_norm(ref)[u * 3], 1e-6f) &&
+                    t[0] == mesh_tx(ref)[u * 2 + 1] && t[1] == mesh_tx(ref)[u * 2];
+        if (!found)     return EXIT_FAILURE;
+    }
+
+    /* an empty range */
+    if (!failed(pcg_box(&rc, .lo = { 0.0f, 0.0f, 0.0f }, .hi = { 1.0f, 0.0f, 1.0f }, .face = PCG_BOX_ALL(&s))))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int shape_box_faces_test(void)
+{
+    /* a surface per face: six buckets of one face each */
+    pcg_surface surf[6];
+    for (int k = 0; k < 6; k++) surf[k] = (pcg_surface){ .mat = &surf_mat[k], .collide = PCG_COLLIDE_SOLID };
+
+    pcg_frame f;
+    test_frame(&f, 0.7f, true, 2.0f, 3.0f, -1.0f);
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("box"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .frame = f };
+    CERR_RET(pcg_box(&ctx, .lo = { box_lo[0], box_lo[1], box_lo[2] }, .hi = { box_hi[0], box_hi[1], box_hi[2] },
+                     .face = { &surf[0], &surf[1], &surf[2], &surf[3], &surf[4], &surf[5] }),
+             return EXIT_FAILURE);
+
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 6 || !walk_closed(&w))  return EXIT_FAILURE;
+    for (int k = 0; k < 6; k++) {
+        struct mesh *m = walk_mesh(&w, &surf_mat[k]);
+
+        if (!m || mesh_nr_vx(m) != 6 || !mesh_normals_along(m, &f, box_face_dir[k]))    return EXIT_FAILURE;
+    }
+
+    /* faces on one surface share its bucket, in flag order; missing and skipped faces are left out */
+    const pcg_surface skipped = { .mat = &surf_mat[2], .skip = true };
+    LOCAL_SET(pcg_sink, gs) = CRES_RET(pcg_sink_new("box"), return EXIT_FAILURE);
+    pcg_ctx gc = { .sink = gs, .frame = PCG_FRAME_IDENTITY };
+    CERR_RET(pcg_box(&gc, .lo = { box_lo[0], box_lo[1], box_lo[2] }, .hi = { box_hi[0], box_hi[1], box_hi[2] },
+                     .face = { &surf[0], &surf[1], &surf[0], nullptr, &skipped, &surf[1] }),
+             return EXIT_FAILURE);
+
+    if (!sink_walk_get(gs, &w) || w.nr != 2)                            return EXIT_FAILURE;
+    struct mesh *m0 = walk_mesh(&w, &surf_mat[0]), *m1 = walk_mesh(&w, &surf_mat[1]);
+    if (!m0 || !m1 || mesh_nr_vx(m0) != 12 || mesh_nr_vx(m1) != 12) return EXIT_FAILURE;
+
+    const pcg_frame *id = &PCG_FRAME_IDENTITY;
+    if (mesh_count_normals(m0, id, box_face_dir[0]) != 6 || mesh_count_normals(m0, id, box_face_dir[2]) != 6)
+        return EXIT_FAILURE;
+    if (mesh_count_normals(m1, id, box_face_dir[1]) != 6 || mesh_count_normals(m1, id, box_face_dir[5]) != 6)
+        return EXIT_FAILURE;
+    if (!vec3_near(&mesh_norm(m0)[0], box_face_dir[0], 1e-6f))      return EXIT_FAILURE;
+    if (!vec3_near(&mesh_norm(m0)[6 * 3], box_face_dir[2], 1e-6f))  return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/****************************************************************************
  * Slab
  ****************************************************************************/
 
@@ -2658,6 +2792,8 @@ static const struct test tests[] = {
     { .name = "shape pane", .test = shape_pane_test },
     { .name = "shape rod", .test = shape_rod_test },
     { .name = "shape frames", .test = shape_frame_test },
+    { .name = "shape box", .test = shape_box_test },
+    { .name = "shape box faces", .test = shape_box_faces_test },
     { .name = "slab", .test = slab_test },
     { .name = "slab surfaces", .test = slab_surface_test },
     { .name = "slab parity", .test = slab_parity_test },
