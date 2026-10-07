@@ -14,6 +14,7 @@
 #include "primitives.h"
 #include "test.h"
 #include "util.h"
+#include "pcg/balustrade.h"
 #include "pcg/column.h"
 #include "pcg/fascia.h"
 #include "pcg/frame.h"
@@ -1889,13 +1890,14 @@ static cresp(mesh) parity_expect(struct mesh *ref, const pcg_frame *f, bool plan
     return cresp_val(mesh, NOCU(m));
 }
 
-static bool parity_vx_near(const parity_vx *a, const parity_vx *b, float dir_eps, parity_err *e)
+/* without @charts, texture coordinates and the tangents that follow them don't count */
+static bool parity_vx_near(const parity_vx *a, const parity_vx *b, bool charts, float dir_eps, parity_err *e)
 {
     parity_err d = {
         .p  = max_diff(a->p, b->p, 3),
         .n  = max_diff(a->n, b->n, 3),
-        .t  = max_diff(a->t, b->t, 4),
-        .uv = max_diff(a->uv, b->uv, 2),
+        .t  = charts ? max_diff(a->t, b->t, 4) : 0.0f,
+        .uv = charts ? max_diff(a->uv, b->uv, 2) : 0.0f,
     };
 
     if (d.p > PARITY_EPS || d.uv > PARITY_EPS || d.n > dir_eps || d.t > dir_eps)    return false;
@@ -1912,11 +1914,12 @@ static bool parity_vx_near(const parity_vx *a, const parity_vx *b, float dir_eps
  * @m, emitted by an element at @f with meter UVs, holds the triangles of
  * @ref, emitted by the original at its own origin with @density repeats
  * per meter and placed by @f (see parity_expect()). Triangles may come in
- * any order and start at any corner, but wind the same way. Under
- * @exact, normals and tangents get PARITY_EPS, otherwise PARITY_DIR_EPS.
+ * any order and start at any corner, but wind the same way. Without
+ * @charts, only positions and normals are compared. Under @exact, normals
+ * and tangents get PARITY_EPS, otherwise PARITY_DIR_EPS.
  */
 static bool parity_match(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f, bool planar,
-                         float density, bool exact)
+                         float density, bool charts, bool exact)
 {
     if (!m || !ref) {
         fprintf(stderr, "%s: parity: missing mesh\n", what);
@@ -1954,9 +1957,9 @@ static bool parity_match(const char *what, struct mesh *m, struct mesh *ref, con
             for (int rot = 0; rot < 3 && !found; rot++) {
                 parity_err e = err;
 
-                found = parity_vx_near(&got[0], &exp[s * 3 + rot], dir_eps, &e) &&
-                        parity_vx_near(&got[1], &exp[s * 3 + (rot + 1) % 3], dir_eps, &e) &&
-                        parity_vx_near(&got[2], &exp[s * 3 + (rot + 2) % 3], dir_eps, &e);
+                found = parity_vx_near(&got[0], &exp[s * 3 + rot], charts, dir_eps, &e) &&
+                        parity_vx_near(&got[1], &exp[s * 3 + (rot + 1) % 3], charts, dir_eps, &e) &&
+                        parity_vx_near(&got[2], &exp[s * 3 + (rot + 2) % 3], charts, dir_eps, &e);
                 if (found) {
                     used[s] = true;
                     err = e;
@@ -1982,14 +1985,20 @@ static bool parity_match(const char *what, struct mesh *m, struct mesh *ref, con
 static bool parity_check(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f, bool planar,
                          float density)
 {
-    return parity_match(what, m, ref, f, planar, density, false);
+    return parity_match(what, m, ref, f, planar, density, true, false);
 }
 
 /* parity_check() with normals and tangents to PARITY_EPS as well */
 static bool parity_check_exact(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f,
                                bool planar, float density)
 {
-    return parity_match(what, m, ref, f, planar, density, true);
+    return parity_match(what, m, ref, f, planar, density, true, true);
+}
+
+/* parity_match() of the shape alone, for an accepted change of charts */
+static bool parity_check_shape(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f)
+{
+    return parity_match(what, m, ref, f, false, 1.0f, false, false);
 }
 
 /* emit an element into @ctx, with its params and site in @priv */
@@ -3067,6 +3076,851 @@ static int column_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Balustrade
+ ****************************************************************************/
+
+/* the reference layout's rail finish, and a separate one for the rods of sloped runs */
+static const pcg_material slat = { .name = "slat", .uv_mode = PCG_UV_METERS };
+static const pcg_material rod = { .name = "rod", .uv_mode = PCG_UV_METERS };
+static const pcg_palette rail_palette = {
+    .mat[PCG_ROLE_STRUCTURE]    = &concrete,
+    .mat[PCG_ROLE_FLOOR]        = &wood,
+    .mat[PCG_ROLE_CLADDING]     = &panel,
+    .mat[PCG_ROLE_RAIL]         = &slat,
+};
+
+#define REF_UV_SLAT (1.0f / 1.4f)
+
+/* a straight run without points, else a path with cuts */
+struct balustrade_case {
+    pcg_balustrade_params   p;
+    float                   len;
+    float                   rise;
+    float                   y;
+    float                   inset;
+    vec2                    pts[8];
+    size_t                  nr_pts;
+    pcg_region              cuts[2];
+    size_t                  nr_cuts;
+    bool                    closed;
+};
+
+static cerr balustrade_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct balustrade_case *c = priv;
+
+    if (!c->nr_pts)
+        return pcg_balustrade_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .len = c->len, .rise = c->rise,
+                                   .y = c->y);
+
+    return pcg_balustrade_path_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .pts = c->pts, .nr_pts = c->nr_pts,
+                                    .cuts = c->cuts, .nr_cuts = c->nr_cuts, .y = c->y, .inset = c->inset,
+                                    .closed = c->closed);
+}
+
+/* the check of what balustrade_case_emit() emits */
+static cerr balustrade_case_check(const struct balustrade_case *c)
+{
+    if (!c->nr_pts) {
+        const pcg_balustrade_site site = { .frame = PCG_FRAME_IDENTITY, .len = c->len, .rise = c->rise, .y = c->y };
+
+        return pcg_balustrade_check(&c->p, &site);
+    }
+
+    const pcg_balustrade_path path = {
+        .frame = PCG_FRAME_IDENTITY, .pts = c->pts, .nr_pts = c->nr_pts, .cuts = c->cuts, .nr_cuts = c->nr_cuts,
+        .y = c->y, .inset = c->inset, .closed = c->closed,
+    };
+
+    return pcg_balustrade_path_check(&c->p, &path);
+}
+
+/* the slats of a run of @len */
+static int balustrade_slats(const pcg_balustrade_params *p, float len)
+{
+    int n = (int)roundf(len / (p->slat_w + p->gap));
+
+    return n < 1 ? 1 : n;
+}
+
+/* the vertices of a run of @len */
+static size_t balustrade_nr_vx(const pcg_balustrade_params *p, float len, float rise)
+{
+    return (size_t)balustrade_slats(p, len) * 36 + (rise == 0.0f ? 2 * 36 : 2 * 4 * 12);
+}
+
+/* the volume of a run of @len, each member counted whole */
+static double balustrade_volume(const pcg_balustrade_params *p, float len, float rise)
+{
+    double slat_h = (double)p->h - p->cap_t - p->shoe_h + 2.0 * p->slat_overlap;
+    double vol = balustrade_slats(p, len) * (double)p->slat_w * p->slat_t * slat_h;
+
+    if (rise == 0.0f)   return vol + (double)len * ((double)p->shoe_h * p->shoe_w + (double)p->cap_t * p->rail_w);
+
+    /* a square of circumradius r has an area of 2 * r^2 */
+    double l = sqrt((double)len * len + (double)rise * rise);
+
+    return vol + 2.0 * l * ((double)p->slope_shoe_r * p->slope_shoe_r + (double)p->slope_cap_r * p->slope_cap_r);
+}
+
+/* the vertices and volume of @c's path */
+static size_t balustrade_case_nr_vx(const struct balustrade_case *c, double *vol)
+{
+    const pcg_span_tol tol = { .min_frac = c->p.min_frac, .merge = c->p.merge, .min_run = c->p.min_run };
+    size_t nr_edges = c->closed ? c->nr_pts : c->nr_pts - 1, nr_vx = 0;
+
+    *vol = 0.0;
+    for (size_t i = 0; i < nr_edges; i++) {
+        pcg_span runs[3];
+        size_t nr = CRES_RET(pcg_segment_runs(c->pts[i], c->pts[(i + 1) % c->nr_pts], c->cuts, c->nr_cuts, &tol,
+                                              runs, 3),
+                             return 0);
+
+        for (size_t k = 0; k < nr; k++) {
+            nr_vx += balustrade_nr_vx(&c->p, runs[k].hi - runs[k].lo, 0.0f);
+            *vol += balustrade_volume(&c->p, runs[k].hi - runs[k].lo, 0.0f);
+        }
+    }
+
+    return nr_vx;
+}
+
+static int balustrade_test(void)
+{
+    struct balustrade_case c = { .len = 3.0f };
+    pcg_balustrade_params_init(&c.p);
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(balustrade_case_emit, &c, &rail_palette, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    for (int s = 0; s < PCG_BALUSTRADE_NR_SURF; s++)
+        if (c.p.surf[s].role != PCG_ROLE_RAIL || c.p.surf[s].collide != PCG_COLLIDE_HAZARD || c.p.surf[s].skip)
+            return EXIT_FAILURE;
+
+    /* a level run: shoe, cap and 21 slats, the cap the widest */
+    struct sink_walk w;
+    float hw = c.p.rail_w * 0.5f;
+    if (balustrade_slats(&c.p, c.len) != 21)                                            return EXIT_FAILURE;
+    if (!sink_walk_get(sink, &w) || w.nr != 1)                                          return EXIT_FAILURE;
+    if (walk_nr_vx(&w) != balustrade_nr_vx(&c.p, c.len, 0.0f))                          return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 0.0f, 0.0f, -hw }, (vec3){ c.len, c.p.h, hw }))
+        return EXIT_FAILURE;
+    if (!walk_closed(&w))                                                               return EXIT_FAILURE;
+    double vol = balustrade_volume(&c.p, c.len, 0.0f);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                                       return EXIT_FAILURE;
+    if (!element_frames_ok(balustrade_case_emit, &c, &rail_palette, true))              return EXIT_FAILURE;
+
+    /* standing higher in its frame */
+    struct balustrade_case up = c;
+    up.y = 2.0f;
+    LOCAL_SET(pcg_sink, us) = CRES_RET(element_sink(balustrade_case_emit, &up, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(us, &w) || w.nr != 1)                                            return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 0.0f, 2.0f, -hw }, (vec3){ c.len, 2.0f + c.p.h, hw }))
+        return EXIT_FAILURE;
+
+    /* sloped: rods for the shoe and the cap, 29 slats */
+    struct balustrade_case s = c;
+    s.len = 4.0f;
+    s.rise = 2.4f;
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(balustrade_case_emit, &s, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (balustrade_slats(&s.p, s.len) != 29)                                            return EXIT_FAILURE;
+    if (!sink_walk_get(ss, &w) || w.nr != 1 || !walk_closed(&w))                        return EXIT_FAILURE;
+    if (walk_nr_vx(&w) != balustrade_nr_vx(&s.p, s.len, s.rise))                        return EXIT_FAILURE;
+    vol = balustrade_volume(&s.p, s.len, s.rise);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                                       return EXIT_FAILURE;
+    if (!element_frames_ok(balustrade_case_emit, &s, &rail_palette, true))              return EXIT_FAILURE;
+
+    /* every slat stands on the climb: its foot rises with its middle */
+    s.p.shoe.skip = s.p.cap.skip = true;
+    LOCAL_SET(pcg_sink, sl) = CRES_RET(element_sink(balustrade_case_emit, &s, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(sl, &w) || w.nr != 1 || mesh_nr_vx(w.mesh[0]) != 29 * 36)    return EXIT_FAILURE;
+    for (size_t v = 0; v < mesh_nr_vx(w.mesh[0]); v += 36) {
+        const float *vx = mesh_vx(w.mesh[0]);
+        vec3 lo, hi;
+
+        /* the slat's own box: its 36 vertices */
+        for (int k = 0; k < 3; k++) {
+            lo[k] = hi[k] = vx[v * 3 + k];
+            for (size_t u = v; u < v + 36; u++) {
+                lo[k] = fminf(lo[k], vx[u * 3 + k]);
+                hi[k] = fmaxf(hi[k], vx[u * 3 + k]);
+            }
+        }
+
+        float base = s.rise * (lo[0] + hi[0]) * 0.5f / s.len;
+        if (!near(lo[1], base + s.p.shoe_h - s.p.slat_overlap, 1e-5f))          return EXIT_FAILURE;
+        if (!near(hi[1], base + s.p.h - s.p.cap_t + s.p.slat_overlap, 1e-5f))   return EXIT_FAILURE;
+    }
+
+    /* shorter than a pitch: one slat */
+    struct balustrade_case sh = c;
+    sh.len = 0.05f;
+    LOCAL_SET(pcg_sink, hs) = CRES_RET(element_sink(balustrade_case_emit, &sh, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(hs, &w) || walk_nr_vx(&w) != 3 * 36) return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, a run without length or with a rise that isn't finite */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("balustrade"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &rail_palette, .frame = PCG_FRAME_IDENTITY };
+    struct balustrade_case z = c;
+    z.p = (pcg_balustrade_params){};
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.h = NAN;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.h = INFINITY;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.slat_w = INFINITY;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.h = 0.15f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.gap = -0.01f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.slat_overlap = -0.01f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.slope_cap_r = 0.0f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.merge = -1.0f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.min_frac = 1.0f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.len = 0.0f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.rise = INFINITY;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!failed_inval(pcg_balustrade_emit(&bc, &c.p, .frame = bad_frames[i], .len = c.len, .rise = c.rise,
+                                              .y = c.y)))
+            return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)          return EXIT_FAILURE;
+
+    /* the check takes the run the emit takes and turns down what it turns down */
+    CERR_RET(balustrade_case_check(&c), return EXIT_FAILURE);
+    z = c;
+    z.len = 0.0f;
+    if (!failed_inval(balustrade_case_check(&z)))                           return EXIT_FAILURE;
+    z = c;
+    z.p = (pcg_balustrade_params){};
+    if (!failed_inval(balustrade_case_check(&z)))                           return EXIT_FAILURE;
+    if (!failed_inval(pcg_balustrade_check(&c.p, nullptr)))                 return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* a closed hexagonal rim of @r, cut across the middle of its second edge, the rail 0.09 back from it */
+static void balustrade_path_init(struct balustrade_case *c, float r)
+{
+    vec2 dir, left;
+
+    *c = (struct balustrade_case){ .nr_pts = 6, .closed = true, .inset = 0.09f };
+    pcg_balustrade_params_init(&c->p);
+    for (int j = 0; j < 6; j++) ref_ngon_vertex(j, 6, r, c->pts[j]);
+
+    poly2d_edge_frame(c->pts[1], c->pts[2], dir, left);
+    c->cuts[0] = (pcg_region){
+        .frame  = { .org = { c->pts[1][0], 0.0f, c->pts[1][1] }, .dir = { dir[0], dir[1] } },
+        .along  = { .lo = 3.0f, .hi = 4.5f },
+        .across = { .lo = -1.0f, .hi = 3.0f },
+    };
+    c->nr_cuts = 1;
+}
+
+static int balustrade_path_test(void)
+{
+    const float r = 9.0f;
+    struct balustrade_case c;
+    balustrade_path_init(&c, r);
+
+    /* every run of the path, one edge split in two */
+    double vol;
+    size_t nr_vx = balustrade_case_nr_vx(&c, &vol);
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(balustrade_case_emit, &c, &rail_palette, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 1 || walk_nr_vx(&w) != nr_vx)               return EXIT_FAILURE;
+    if (!walk_closed(&w) || fabs(walk_volume(&w) - vol) > 1e-4 * vol)                   return EXIT_FAILURE;
+    if (!element_frames_ok(balustrade_case_emit, &c, &rail_palette, true))              return EXIT_FAILURE;
+
+    struct balustrade_case whole = c;
+    double whole_vol;
+    whole.nr_cuts = 0;
+    balustrade_case_nr_vx(&whole, &whole_vol);
+    if (!(whole_vol > vol))                                                             return EXIT_FAILURE;
+
+    /* the rail stands back from the rim, every member within half the cap's width of its line */
+    float apothem = r * cosf((float)M_PI / 6.0f);
+    for (size_t v = 0; v < mesh_nr_vx(w.mesh[0]); v++) {
+        const float *p = &mesh_vx(w.mesh[0])[v * 3];
+        float out = -INFINITY;
+
+        for (int j = 0; j < 6; j++) {
+            vec2 dir, left;
+
+            poly2d_edge_frame(c.pts[j], c.pts[(j + 1) % 6], dir, left);
+            out = fmaxf(out, -(p[0] * left[0] + p[2] * left[1]));
+        }
+        if (!(out > apothem + c.inset - c.p.rail_w * 0.5f - 1e-4f)) return EXIT_FAILURE;
+    }
+
+    /* one open edge: one run, moved back from it */
+    struct balustrade_case e = c;
+    e.pts[0][0] = 1.0f;     e.pts[0][1] = 2.0f;
+    e.pts[1][0] = 5.0f;     e.pts[1][1] = 2.0f;
+    e.nr_pts = 2;
+    e.nr_cuts = 0;
+    e.closed = false;
+    float hw = c.p.rail_w * 0.5f, z0 = 2.0f - e.inset;
+    LOCAL_SET(pcg_sink, es) = CRES_RET(element_sink(balustrade_case_emit, &e, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(es, &w) || walk_nr_vx(&w) != balustrade_nr_vx(&e.p, 4.0f, 0.0f)) return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 1.0f, 0.0f, z0 - hw }, (vec3){ 5.0f, c.p.h, z0 + hw }))
+        return EXIT_FAILURE;
+
+    /* a cut leaving a sliver at the start: the sliver goes */
+    e.cuts[0] = (pcg_region){
+        .frame  = { .org = { 1.0f, 0.0f, 2.0f }, .dir = { 1.0f, 0.0f } },
+        .along  = { .lo = 0.1f, .hi = 1.0f },
+        .across = { .lo = -1.0f, .hi = 1.0f },
+    };
+    e.nr_cuts = 1;
+    LOCAL_SET(pcg_sink, ls) = CRES_RET(element_sink(balustrade_case_emit, &e, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ls, &w) || walk_nr_vx(&w) != balustrade_nr_vx(&e.p, 3.0f, 0.0f)) return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 2.0f, 0.0f, z0 - hw }, (vec3){ 5.0f, c.p.h, z0 + hw }))
+        return EXIT_FAILURE;
+
+    /* two cuts closer than the merge distance: one gap, two runs */
+    e.cuts[0].along = (pcg_range){ .lo = 1.0f, .hi = 1.5f };
+    e.cuts[1] = e.cuts[0];
+    e.cuts[1].along = (pcg_range){ .lo = 1.53f, .hi = 2.0f };
+    e.nr_cuts = 2;
+    LOCAL_SET(pcg_sink, ms) = CRES_RET(element_sink(balustrade_case_emit, &e, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ms, &w))                                                                     return EXIT_FAILURE;
+    if (walk_nr_vx(&w) != balustrade_nr_vx(&e.p, 1.0f, 0.0f) + balustrade_nr_vx(&e.p, 2.0f, 0.0f))  return EXIT_FAILURE;
+
+    /* paths too short, an edge with no length, cuts missing, an inset that isn't finite */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("balustrade"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &rail_palette, .frame = PCG_FRAME_IDENTITY };
+    struct balustrade_case z = c;
+    z.nr_pts = 2;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = e;
+    z.nr_pts = 1;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    memcpy(z.pts[3], z.pts[2], sizeof(vec2));
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.inset = NAN;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.min_run = -0.15f;
+    if (!failed(balustrade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    /* nothing that isn't finite, even a point or a cut past the edges that would go out first */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &z.pts[0][0], &z.pts[3][1], &z.cuts[0].along.hi, &z.cuts[0].across.lo, &z.cuts[0].frame.org[2],
+            &z.cuts[0].frame.dir[0],
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = c;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(balustrade_case_emit(&bc, &z)))   return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!failed_inval(pcg_balustrade_path_emit(&bc, &c.p, .frame = bad_frames[i], .pts = c.pts,
+                                                   .nr_pts = c.nr_pts, .cuts = c.cuts, .nr_cuts = c.nr_cuts,
+                                                   .inset = c.inset, .closed = c.closed)))
+            return EXIT_FAILURE;
+    if (!failed(pcg_balustrade_path_emit(&bc, &c.p, .frame = PCG_FRAME_IDENTITY, .pts = c.pts, .nr_pts = 6,
+                                         .nr_cuts = 1, .closed = true)))
+        return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)          return EXIT_FAILURE;
+
+    /* the check takes the path the emit takes and turns down what it turns down */
+    CERR_RET(balustrade_case_check(&c), return EXIT_FAILURE);
+    z = c;
+    memcpy(z.pts[3], z.pts[2], sizeof(vec2));
+    if (!failed_inval(balustrade_case_check(&z)))                           return EXIT_FAILURE;
+    z = c;
+    z.nr_pts = 2;
+    if (!failed_inval(balustrade_case_check(&z)))                           return EXIT_FAILURE;
+    if (!failed_inval(pcg_balustrade_path_check(&c.p, nullptr)))            return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* the largest U of @m */
+static float mesh_max_u(struct mesh *m)
+{
+    float u = -INFINITY;
+
+    for (size_t v = 0; v < mesh_nr_vx(m); v++)  u = fmaxf(u, mesh_tx(m)[v * 2]);
+
+    return u;
+}
+
+static int balustrade_surface_test(void)
+{
+    struct balustrade_case c = { .len = 3.0f };
+    pcg_balustrade_params_init(&c.p);
+    for (int s = 0; s < PCG_BALUSTRADE_NR_SURF; s++)    c.p.surf[s].mat = &surf_mat[s];
+
+    /* each surface's bucket holds its own members */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(balustrade_case_emit, &c, nullptr, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 3)  return EXIT_FAILURE;
+
+    const pcg_frame *id = &PCG_FRAME_IDENTITY;
+    struct mesh *cap = walk_mesh(&w, &surf_mat[PCG_BALUSTRADE_CAP]);
+    struct mesh *shoe = walk_mesh(&w, &surf_mat[PCG_BALUSTRADE_SHOE]);
+    struct mesh *infill = walk_mesh(&w, &surf_mat[PCG_BALUSTRADE_INFILL]);
+    if (!cap || mesh_nr_vx(cap) != 36 || !mesh_y_within(cap, id, c.p.h - c.p.cap_t, c.p.h))     return EXIT_FAILURE;
+    if (!shoe || mesh_nr_vx(shoe) != 36 || !mesh_y_within(shoe, id, 0.0f, c.p.shoe_h))          return EXIT_FAILURE;
+    if (!infill || mesh_nr_vx(infill) != 21 * 36)                                               return EXIT_FAILURE;
+    if (!mesh_y_within(infill, id, c.p.shoe_h - c.p.slat_overlap, c.p.h - c.p.cap_t + c.p.slat_overlap))
+        return EXIT_FAILURE;
+
+    /* aliased, one bucket of the union; skipped, the infill is gone */
+    struct balustrade_case a = c;
+    a.p.cap.mat = a.p.shoe.mat = a.p.infill.mat = &slat;
+    LOCAL_SET(pcg_sink, as) = CRES_RET(element_sink(balustrade_case_emit, &a, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk aw;
+    struct mesh *sep[3] = { cap, shoe, infill };
+    if (!sink_walk_get(as, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, sep, 3)) return EXIT_FAILURE;
+
+    a.p.infill.skip = true;
+    LOCAL_SET(pcg_sink, ks) = CRES_RET(element_sink(balustrade_case_emit, &a, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ks, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, sep, 2)) return EXIT_FAILURE;
+
+    /* sloped, the rods chart meters along their length, with tangents */
+    struct balustrade_case s = c;
+    s.len = 4.0f;
+    s.rise = 3.0f;
+    pcg_frame f;
+    test_frame(&f, 1.1f, false, 3.0f, 2.0f, -1.0f);
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(balustrade_case_emit, &s, nullptr, &f), return EXIT_FAILURE);
+    if (!sink_walk_get(ss, &w) || w.nr != 3)    return EXIT_FAILURE;
+
+    cap = walk_mesh(&w, &surf_mat[PCG_BALUSTRADE_CAP]);
+    shoe = walk_mesh(&w, &surf_mat[PCG_BALUSTRADE_SHOE]);
+    if (!cap || mesh_nr_vx(cap) != 48 || !shoe || mesh_nr_vx(shoe) != 48)                       return EXIT_FAILURE;
+    if (!near(mesh_max_u(cap), 5.0f, 1e-5f) || !near(mesh_max_u(shoe), 5.0f, 1e-5f))            return EXIT_FAILURE;
+    if (!mesh_tangents_ok(cap) || !mesh_tangents_ok(shoe))                                      return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * Reference copies of the run frame box and the balustrade run they
+ * replace, at @uv repeats per meter. The run sends its sloped shoe and
+ * cap prisms to @rods, with tangents, instead of @m: their charts are the
+ * accepted change, and the parity helpers read tangents.
+ */
+static cerr ref_dir_box(struct mesh *m, const vec2 org, const vec2 dir, float a0, float a1, float y0, float y1,
+                        float c0, float c1, float uv)
+{
+    if (a0 > a1) { float t = a0; a0 = a1; a1 = t; }
+
+    float px = -dir[1], pz = dir[0];
+    CRES_RET_CERR(_prim_begin(36, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+#define DIRPT(_a, _y, _c) \
+    (vec3){ org[0] + (_a) * dir[0] + (_c) * px, (_y), org[1] + (_a) * dir[1] + (_c) * pz }
+    ref_face(m, DIRPT(a1, y0, c0), DIRPT(a1, y0, c1), DIRPT(a1, y1, c1), DIRPT(a1, y1, c0),
+             c0 * uv, y0 * uv, c1 * uv, y1 * uv);
+    ref_face(m, DIRPT(a0, y0, c1), DIRPT(a0, y0, c0), DIRPT(a0, y1, c0), DIRPT(a0, y1, c1),
+             -c1 * uv, y0 * uv, -c0 * uv, y1 * uv);
+    ref_face(m, DIRPT(a0, y1, c0), DIRPT(a1, y1, c0), DIRPT(a1, y1, c1), DIRPT(a0, y1, c1),
+             a0 * uv, c0 * uv, a1 * uv, c1 * uv);
+    ref_face(m, DIRPT(a0, y0, c0), DIRPT(a0, y0, c1), DIRPT(a1, y0, c1), DIRPT(a1, y0, c0),
+             c0 * uv, a0 * uv, c1 * uv, a1 * uv);
+    ref_face(m, DIRPT(a1, y0, c1), DIRPT(a0, y0, c1), DIRPT(a0, y1, c1), DIRPT(a1, y1, c1),
+             -a1 * uv, y0 * uv, -a0 * uv, y1 * uv);
+    ref_face(m, DIRPT(a0, y0, c0), DIRPT(a1, y0, c0), DIRPT(a1, y1, c0), DIRPT(a0, y1, c0),
+             a0 * uv, y0 * uv, a1 * uv, y1 * uv);
+#undef DIRPT
+
+    return CERR_OK;
+}
+
+typedef struct ref_balustrade_params {
+    vec2    org, dir;
+    float   len, rise;
+    float   h;
+    float   slat_w, slat_t, gap;
+    float   shoe_h;
+    float   rail_w;
+    float   y0;
+    float   uv;
+} ref_balustrade_params;
+
+static cerr ref_balustrade_emit(struct mesh *m, struct mesh *rods, const ref_balustrade_params *p)
+{
+    float cap_t = 0.07f;
+    prim_emit_opts opts = { .mesh = rods, .tangents = true };
+
+    if (p->rise == 0.0f) {
+        CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, 0.0f, p->len, p->y0, p->y0 + p->shoe_h,
+                                  -p->slat_t * 0.9f, p->slat_t * 0.9f, p->uv));
+        CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, 0.0f, p->len, p->y0 + p->h - cap_t, p->y0 + p->h,
+                                  -p->rail_w * 0.5f, p->rail_w * 0.5f, p->uv));
+    } else {
+        vec3 a = { p->org[0], p->y0 + p->shoe_h * 0.5f, p->org[1] };
+        vec3 b = { p->org[0] + p->len * p->dir[0], p->y0 + p->rise + p->shoe_h * 0.5f,
+                   p->org[1] + p->len * p->dir[1] };
+
+        CERR_RET_CERR(_prim_emit_prism(a, b, p->shoe_h * 0.7f, p->shoe_h * 0.7f, 4, (float)M_PI / 4.0f, &opts));
+
+        a[1] = p->y0 + p->h - cap_t * 0.5f;
+        b[1] = p->y0 + p->rise + p->h - cap_t * 0.5f;
+        CERR_RET_CERR(_prim_emit_prism(a, b, p->rail_w * 0.6f, p->rail_w * 0.6f, 4, (float)M_PI / 4.0f, &opts));
+    }
+
+    int n = (int)roundf(p->len / (p->slat_w + p->gap));
+    if (n < 1)  n = 1;
+    float pitch = p->len / n;
+
+    for (int i = 0; i < n; i++) {
+        float at = (i + 0.5f) * pitch;
+        float base = p->y0 + p->rise * at / p->len;
+
+        CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, at - p->slat_w * 0.5f, at + p->slat_w * 0.5f,
+                                  base + p->shoe_h - 0.02f, base + p->h - cap_t + 0.02f,
+                                  -p->slat_t * 0.5f, p->slat_t * 0.5f, p->uv));
+    }
+
+    return CERR_OK;
+}
+
+/* the reference layout's rail: 1.05 tall, 0.09 by 0.045 slats 0.05 apart, a 0.10 shoe and cap */
+static void ref_rail_init(ref_balustrade_params *p, const vec2 dir)
+{
+    *p = (ref_balustrade_params){
+        .dir = { dir[0], dir[1] }, .h = 1.05f,
+        .slat_w = 0.09f, .slat_t = 0.045f, .gap = 0.05f,
+        .shoe_h = 0.10f, .rail_w = 0.10f, .uv = REF_UV_SLAT,
+    };
+}
+
+/*
+ * A reference copy of the layout loop the path replaces: one level's rail
+ * around a regular @n-gon rim of @rf, 0.09 back from it, every edge cut by
+ * the boarding windows @win and split into its runs (ref_rim_runs()); the
+ * total length of the runs goes to @len
+ */
+static cerr ref_rim_level(struct mesh *m, int n, float rf, const ref_window *win, int nr_win, float *len)
+{
+    float bal_off = 0.09f;
+
+    *len = 0.0f;
+    for (int i = 0; i < n; i++) {
+        vec2 va, vb, dir;
+
+        ref_ngon_vertex(i, n, rf, va);
+        ref_ngon_vertex(i + 1, n, rf, vb);
+        dir[0] = vb[0] - va[0];
+        dir[1] = vb[1] - va[1];
+
+        float l = sqrtf(dir[0] * dir[0] + dir[1] * dir[1]);
+
+        dir[0] /= l;
+        dir[1] /= l;
+
+        vec2 in = { -dir[1], dir[0] };
+        float runs[3][2];
+        int nr = ref_rim_runs(va, vb, win, nr_win, runs);
+
+        for (int k = 0; k < nr; k++) {
+            float at = runs[k][0], end = runs[k][1];
+            ref_balustrade_params bp;
+
+            ref_rail_init(&bp, dir);
+            bp.org[0] = va[0] - in[0] * bal_off + dir[0] * at;
+            bp.org[1] = va[1] - in[1] * bal_off + dir[1] * at;
+            bp.len = end - at;
+            CERR_RET_CERR(ref_balustrade_emit(m, nullptr, &bp));
+            *len += bp.len;
+        }
+    }
+
+    return CERR_OK;
+}
+
+/* a reference copy of a flight's chord geometry: its window frame, chord length, landing and run */
+typedef struct ref_flight {
+    ref_window  w;
+    float       len;
+    float       land;
+    float       run;
+} ref_flight;
+
+static void ref_flight_calc(ref_flight *g, const float *well_r, int n, int f, int steps, float going)
+{
+    vec2 B;
+
+    ref_window_calc(&g->w, n, well_r[(f ? f : 1) - 1], well_r[f], f);
+    ref_ngon_vertex(2 * f + 1, n, well_r[f], B);
+
+    float dx = B[0] - g->w.A[0], dz = B[1] - g->w.A[1];
+
+    g->len = sqrtf(dx * dx + dz * dz);
+    g->run = steps * going;
+    g->land = (g->len - g->run) * 0.5f;
+}
+
+/* a reference copy of the along-extent of an @n-gon of @r at @across in @g's frame; <= 0 when outside */
+static float ref_poly_span_frame(int n, float r, const ref_flight *g, float across, float *lo, float *hi)
+{
+    float mn = 0.0f, mx = 0.0f;
+    bool any = false;
+
+    for (int j = 0; j < n; j++) {
+        vec2 a, b;
+
+        ref_ngon_vertex(j, n, r, a);
+        ref_ngon_vertex(j + 1, n, r, b);
+
+        float ca = (a[0] - g->w.A[0]) * g->w.in[0] + (a[1] - g->w.A[1]) * g->w.in[1];
+        float cb = (b[0] - g->w.A[0]) * g->w.in[0] + (b[1] - g->w.A[1]) * g->w.in[1];
+
+        if ((ca <= across) == (cb <= across))   continue;
+
+        float t = (across - ca) / (cb - ca);
+        float al = (a[0] - g->w.A[0]) * g->w.dir[0] + (a[1] - g->w.A[1]) * g->w.dir[1];
+        float bl = (b[0] - g->w.A[0]) * g->w.dir[0] + (b[1] - g->w.A[1]) * g->w.dir[1];
+        float x = al + (bl - al) * t;
+
+        if (!any) { mn = mx = x; any = true; }
+        else if (x < mn)    mn = x;
+        else if (x > mx)    mx = x;
+    }
+
+    *lo = mn;
+    *hi = mx;
+
+    return any ? mx - mn : 0.0f;
+}
+
+/* the reference building's measures the rails and flights depend on */
+#define REF_FLOORS      4
+#define REF_WELL_SIDES  6
+#define REF_FLOOR_H     6.0f
+#define REF_DECK_T      0.05f
+#define REF_RAIL_H      1.05f
+#define REF_STEPS       50
+#define REF_GOING       0.20f
+#define REF_STAIR_W     5.0f
+#define REF_AGENT_H     3.2f
+
+static const float ref_well_r[] = { 20.0f, 24.0f, 28.0f, 28.0f };
+
+/* a flight's run frame at (@a, @c) of its chord, on the floor @y */
+static void ref_flight_frame(const ref_flight *g, float a, float c, float y, pcg_frame *f)
+{
+    *f = (pcg_frame){
+        .org = { g->w.A[0] + g->w.dir[0] * a + g->w.in[0] * c, y, g->w.A[1] + g->w.dir[1] * a + g->w.in[1] * c },
+        .dir = { g->w.dir[0], g->w.dir[1] },
+    };
+}
+
+/*
+ * The reference building's gallery rails at levels 1 to 3 around a
+ * 6-sided well of radius 20, 24 and 28, standing on the 0.05 deck of 6 m
+ * storeys 0.09 back from the rim, open over the boarding windows of the
+ * flights touching each level: 50 risers of 0.12 and 0.20 goings, 5 m
+ * wide 0.03 off the chord. The departing flight's window reaches from
+ * behind its first riser to where its soffit clears the cap by the waist,
+ * a riser and 0.1 m of air; the arriving flight's from where a 3.2 m
+ * walker on its treads clears the deck with 0.1 m to spare, on past its
+ * landing. Against a reference copy of the run and the per-level loop.
+ */
+static int balustrade_parity_rim(const pcg_frame *frame)
+{
+    const int n = REF_WELL_SIDES, nr_flights = REF_FLOORS - 1;
+    const float H = REF_FLOOR_H;
+    pcg_balustrade_params p;
+    pcg_balustrade_params_init(&p);
+
+    for (int f = 1; f < REF_FLOORS; f++) {
+        float y = f * H + REF_DECK_T, rf = ref_well_r[f - 1];
+        ref_window win[2];
+        pcg_region reg[2];
+        int nr_win = 0;
+
+        for (int e = 0; e < 2; e++) {
+            int fl = f - 1 + e;
+            ref_flight g;
+
+            if (fl < 0 || fl >= nr_flights) continue;
+            ref_flight_calc(&g, ref_well_r, n, fl, REF_STEPS, REF_GOING);
+            win[nr_win] = g.w;
+
+            if (e) {
+                win[nr_win].al0 = -1e9f;
+                win[nr_win].al1 = g.land + g.run * (REF_RAIL_H + 0.22f + H / REF_STEPS + 0.1f) / H;
+            } else {
+                float slope = H / REF_STEPS / REF_GOING;
+
+                win[nr_win].al0 = g.len - g.land - (REF_AGENT_H + 0.1f) / slope;
+                win[nr_win].al1 = 1e9f;
+            }
+            win[nr_win].acmax = 0.03f + REF_STAIR_W;
+            ref_window_region(&win[nr_win], &reg[nr_win]);
+            nr_win++;
+        }
+
+        vec2 pts[REF_WELL_SIDES];
+        for (int j = 0; j < n; j++) ref_ngon_vertex(j, n, rf, pts[j]);
+
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("rim"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .palette = &rail_palette, .frame = *frame };
+        CERR_RET(pcg_balustrade_path_emit(&ctx, &p, .frame = { .org = { 0.0f, y, 0.0f }, .dir = { 1.0f, 0.0f } },
+                                          .pts = pts, .nr_pts = n, .cuts = reg, .nr_cuts = nr_win, .inset = 0.09f,
+                                          .closed = true),
+                 return EXIT_FAILURE);
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != 1)                      return EXIT_FAILURE;
+
+        /* the windows do take pieces out: a regular hexagon's side is its radius */
+        float len;
+        LOCAL_SET(mesh_t, lv) = CRES_RET(ref_new_checked(mesh, .name = "ref rim"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref rim placed"), return EXIT_FAILURE);
+        if (failed(ref_rim_level(lv, n, rf, win, nr_win, &len)))                        return EXIT_FAILURE;
+        if (!(len < n * rf - 1.0f))                                                     return EXIT_FAILURE;
+        if (failed(ref_instance(ref, lv, (vec3){ 0.0f, y, 0.0f })))                     return EXIT_FAILURE;
+        if (!parity_check("rim", walk_mesh(&w, &slat), ref, frame, false, REF_UV_SLAT)) return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * The reference building's flight rails: for each of the 3 flights, the
+ * sloped pair over the run, 0.06 and 5.06 in from the chord, and the level
+ * rails along the well side of the landings, from 0.06 past the rim
+ * crossing of the rail line to the run, the arrival one standing a storey
+ * up in the flight's frame. The sloped shoe and cap are checked for shape
+ * alone: their charts and tangents are the accepted change.
+ */
+static int balustrade_parity_flight(const pcg_frame *frame)
+{
+    const int n = REF_WELL_SIDES;
+    const float H = REF_FLOOR_H, crail = 0.03f + REF_STAIR_W + 0.03f;
+    pcg_balustrade_params lp, sp;
+    int nr_landings = 0;
+
+    pcg_balustrade_params_init(&lp);
+    sp = lp;
+    sp.cap.mat = sp.shoe.mat = &rod;
+
+    for (int f = 0; f < REF_FLOORS - 1; f++) {
+        float y = f * H + REF_DECK_T;
+        ref_flight g;
+        ref_balustrade_params bp;
+        pcg_frame rf;
+
+        ref_flight_calc(&g, ref_well_r, n, f, REF_STEPS, REF_GOING);
+        ref_rail_init(&bp, g.w.dir);
+
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("flight rail"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, lm) = CRES_RET(ref_new_checked(mesh, .name = "ref rail"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, lr) = CRES_RET(ref_new_checked(mesh, .name = "ref rods"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .palette = &rail_palette, .frame = *frame };
+
+        /* the sloped pair, rim side then well side */
+        const float side[] = { 0.03f + 0.03f, crail };
+        bp.len = g.run;
+        bp.rise = H;
+        for (int k = 0; k < 2; k++) {
+            bp.org[0] = g.w.A[0] + g.w.dir[0] * g.land + g.w.in[0] * side[k];
+            bp.org[1] = g.w.A[1] + g.w.dir[1] * g.land + g.w.in[1] * side[k];
+            if (failed(ref_balustrade_emit(lm, lr, &bp)))       return EXIT_FAILURE;
+
+            ref_flight_frame(&g, g.land, side[k], y, &rf);
+            CERR_RET(pcg_balustrade_emit(&ctx, &sp, .frame = rf, .len = g.run, .rise = H), return EXIT_FAILURE);
+        }
+
+        /* the landings' level rails */
+        float b0, b1;
+        bp.rise = 0.0f;
+        if (f && ref_poly_span_frame(n, ref_well_r[f - 1], &g, crail, &b0, &b1) > 0.0f) {
+            bp.len = g.land - (b0 + 0.06f);
+            if (bp.len > 0.15f) {
+                bp.org[0] = g.w.A[0] + g.w.dir[0] * (b0 + 0.06f) + g.w.in[0] * crail;
+                bp.org[1] = g.w.A[1] + g.w.dir[1] * (b0 + 0.06f) + g.w.in[1] * crail;
+                if (failed(ref_balustrade_emit(lm, lr, &bp)))   return EXIT_FAILURE;
+
+                ref_flight_frame(&g, b0 + 0.06f, crail, y, &rf);
+                CERR_RET(pcg_balustrade_emit(&ctx, &lp, .frame = rf, .len = bp.len), return EXIT_FAILURE);
+                nr_landings++;
+            }
+        }
+        if (ref_poly_span_frame(n, ref_well_r[f], &g, crail, &b0, &b1) > 0.0f) {
+            bp.y0 = H;
+            bp.len = b1 - 0.06f - (g.len - g.land);
+            if (bp.len > 0.15f) {
+                bp.org[0] = g.w.A[0] + g.w.dir[0] * (g.len - g.land) + g.w.in[0] * crail;
+                bp.org[1] = g.w.A[1] + g.w.dir[1] * (g.len - g.land) + g.w.in[1] * crail;
+                if (failed(ref_balustrade_emit(lm, lr, &bp)))   return EXIT_FAILURE;
+
+                ref_flight_frame(&g, g.len - g.land, crail, y, &rf);
+                CERR_RET(pcg_balustrade_emit(&ctx, &lp, .frame = rf, .len = bp.len, .y = H), return EXIT_FAILURE);
+                nr_landings++;
+            }
+        }
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != 2)                  return EXIT_FAILURE;
+
+        LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref rail placed"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, rods) = CRES_RET(ref_new_checked(mesh, .name = "ref rods placed"), return EXIT_FAILURE);
+        if (failed(ref_instance(ref, lm, (vec3){ 0.0f, y, 0.0f })))                             return EXIT_FAILURE;
+        if (failed(ref_instance(rods, lr, (vec3){ 0.0f, y, 0.0f })))                            return EXIT_FAILURE;
+        if (!parity_check("flight rail", walk_mesh(&w, &slat), ref, frame, false, REF_UV_SLAT)) return EXIT_FAILURE;
+        if (!parity_check_shape("flight rail rods", walk_mesh(&w, &rod), rods, frame))          return EXIT_FAILURE;
+    }
+
+    /* landing rails were there to compare */
+    if (nr_landings < 2)    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int balustrade_parity_test(void)
+{
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int fi = 0; fi < 2; fi++) {
+        if (balustrade_parity_rim(&frames[fi]))     return EXIT_FAILURE;
+        if (balustrade_parity_flight(&frames[fi]))  return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -3099,6 +3953,10 @@ static const struct test tests[] = {
     { .name = "column", .test = column_test },
     { .name = "column surfaces", .test = column_surface_test },
     { .name = "column parity", .test = column_parity_test },
+    { .name = "balustrade", .test = balustrade_test },
+    { .name = "balustrade path", .test = balustrade_path_test },
+    { .name = "balustrade surfaces", .test = balustrade_surface_test },
+    { .name = "balustrade parity", .test = balustrade_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
