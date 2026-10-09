@@ -23,6 +23,7 @@
 #include "pcg/sink.h"
 #include "pcg/slab.h"
 #include "pcg/span.h"
+#include "pcg/stair.h"
 
 static bool near(float a, float b, float eps)
 {
@@ -3921,6 +3922,365 @@ static int balustrade_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Stair
+ ****************************************************************************/
+
+/* pcg_stair_steps() fails with @code */
+static bool steps_failed(const pcg_stair_params *p, float rise, cerr_enum code)
+{
+    cres(int) res = pcg_stair_steps(p, rise);
+
+    return IS_CERR(res) && res.err == code;
+}
+
+static int stair_steps_test(void)
+{
+    pcg_stair_params p;
+    pcg_stair_params_init(&p);
+
+    /* the reference building's storey: 6 m at 0.12, 50 risers */
+    p.riser_max = 0.12f;
+    if (CRES_RET(pcg_stair_steps(&p, 6.0f), return EXIT_FAILURE) != 50)         return EXIT_FAILURE;
+
+    /* the float quotient rounds past a count that fits, or onto one that doesn't */
+    p.riser_max = 0.17f;
+    if (!(1.19f / p.riser_max > 7.0f))                                          return EXIT_FAILURE;
+    if (CRES_RET(pcg_stair_steps(&p, 1.19f), return EXIT_FAILURE) != 7)         return EXIT_FAILURE;
+    p.riser_max = 0.12f;
+    if (!(3.96f / p.riser_max <= 33.0f) || 3.96f / 33 <= p.riser_max)           return EXIT_FAILURE;
+    if (CRES_RET(pcg_stair_steps(&p, 3.96f), return EXIT_FAILURE) != 34)        return EXIT_FAILURE;
+
+    /* a hair less takes another riser; up to 6 / 49 still takes 50 */
+    p.riser_max = nextafterf(0.12f, 0.0f);
+    if (CRES_RET(pcg_stair_steps(&p, 6.0f), return EXIT_FAILURE) != 51)         return EXIT_FAILURE;
+    p.riser_max = nextafterf(6.0f / 49.0f, 0.0f);
+    if (CRES_RET(pcg_stair_steps(&p, 6.0f), return EXIT_FAILURE) != 50)         return EXIT_FAILURE;
+    p.riser_max = 6.0f / 49.0f;
+    if (CRES_RET(pcg_stair_steps(&p, 6.0f), return EXIT_FAILURE) != 49)         return EXIT_FAILURE;
+
+    /* exact multiples and climbs under one riser */
+    p.riser_max = 0.17f;
+    if (CRES_RET(pcg_stair_steps(&p, 1.7f), return EXIT_FAILURE) != 10)         return EXIT_FAILURE;
+    if (CRES_RET(pcg_stair_steps(&p, 3.0f), return EXIT_FAILURE) != 18)         return EXIT_FAILURE;
+    if (CRES_RET(pcg_stair_steps(&p, 0.1f), return EXIT_FAILURE) != 1)          return EXIT_FAILURE;
+
+    /* always the smallest count that fits, by the float test itself */
+    for (int i = 1; i < 400; i++)
+        for (int j = 1; j < 40; j++) {
+            float rise = i * 0.037f, rm = 0.05f + j * 0.0071f;
+            p.riser_max = rm;
+
+            int n = CRES_RET(pcg_stair_steps(&p, rise), return EXIT_FAILURE);
+            if (!(rise / n <= rm))                                              return EXIT_FAILURE;
+            if (n > 1 && rise / (n - 1) <= rm)                                  return EXIT_FAILURE;
+        }
+
+    /* the run is the risers' goings */
+    p.riser_max = 0.12f;
+    p.going = 0.20f;
+    float run = CRES_RET(pcg_stair_run(&p, 6.0f), return EXIT_FAILURE);
+    if (run != 50 * 0.20f)                                                      return EXIT_FAILURE;
+
+    /* no climb, no riser, nothing finite, too many to count */
+    const cerr_enum inval = _CERR_INVALID_ARGUMENTS;
+    const float bad_rise[] = { 0.0f, -1.0f, NAN, INFINITY };
+    for (size_t i = 0; i < array_size(bad_rise); i++)
+        if (!steps_failed(&p, bad_rise[i], inval))                              return EXIT_FAILURE;
+    p.riser_max = 0.0f;
+    if (!steps_failed(&p, 6.0f, inval))                                         return EXIT_FAILURE;
+    cres(float) res = pcg_stair_run(&p, 6.0f);
+    if (!IS_CERR_CODE(res, CERR_INVALID_ARGUMENTS))                             return EXIT_FAILURE;
+    p.riser_max = INFINITY;
+    if (!steps_failed(&p, 6.0f, inval))                                         return EXIT_FAILURE;
+    p.riser_max = 1e-7f;
+    if (!steps_failed(&p, 6.0f, _CERR_TOO_LARGE))                               return EXIT_FAILURE;
+    if (!steps_failed(nullptr, 6.0f, inval))                                    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* a flight with its landings */
+struct stair_case {
+    pcg_stair_params    p;
+    float               rise;
+    float               land_lo;
+    float               land_hi;
+};
+
+static cerr stair_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct stair_case *c = priv;
+
+    return pcg_stair_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .rise = c->rise, .land_lo = c->land_lo,
+                          .land_hi = c->land_hi);
+}
+
+/* the volume of @c's flight, each box counted whole */
+static double stair_volume(const struct stair_case *c, int steps)
+{
+    const pcg_stair_params *p = &c->p;
+    double rs = (double)(c->rise / steps);
+
+    return steps * (double)p->going * p->width * (rs + p->waist) +
+           ((double)c->land_lo + c->land_hi) * p->landing_t * p->width;
+}
+
+static int stair_test(void)
+{
+    struct stair_case c = { .rise = 3.0f, .land_lo = 1.0f, .land_hi = 1.2f };
+    pcg_stair_params_init(&c.p);
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(stair_case_emit, &c, &ref_palette, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    for (int s = 0; s < PCG_STAIR_NR_SURF; s++)
+        if (c.p.surf[s].role != PCG_ROLE_STRUCTURE || c.p.surf[s].collide != PCG_COLLIDE_SOLID || c.p.surf[s].skip)
+            return EXIT_FAILURE;
+
+    /* 18 risers of 1/6 m and two landings, from behind the first riser to past the last tread */
+    int steps = CRES_RET(pcg_stair_steps(&c.p, c.rise), return EXIT_FAILURE);
+    float run = CRES_RET(pcg_stair_run(&c.p, c.rise), return EXIT_FAILURE), hw = c.p.width * 0.5f;
+    struct sink_walk w;
+    if (steps != 18 || !near(run, 18 * 0.28f, 1e-6f))                                           return EXIT_FAILURE;
+    if (!sink_walk_get(sink, &w) || w.nr != 1 || walk_nr_vx(&w) != (size_t)(steps + 2) * 36)    return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ -c.land_lo, -c.p.landing_t, -hw },
+                      (vec3){ run + c.land_hi, c.rise, hw }))
+        return EXIT_FAILURE;
+    if (!walk_closed(&w))                                                               return EXIT_FAILURE;
+    double vol = stair_volume(&c, steps);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                                       return EXIT_FAILURE;
+    if (!element_frames_ok(stair_case_emit, &c, &ref_palette, true))                    return EXIT_FAILURE;
+
+    /* without landings, the steps alone, the first one's waist below the floor */
+    struct stair_case bare = c;
+    bare.land_lo = bare.land_hi = 0.0f;
+    LOCAL_SET(pcg_sink, bs) = CRES_RET(element_sink(stair_case_emit, &bare, &ref_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(bs, &w) || walk_nr_vx(&w) != (size_t)steps * 36) return EXIT_FAILURE;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 0.0f, -c.p.waist, -hw }, (vec3){ run, c.rise, hw }))
+        return EXIT_FAILURE;
+    vol = stair_volume(&bare, steps);
+    if (!walk_closed(&w) || fabs(walk_volume(&w) - vol) > 1e-4 * vol)                   return EXIT_FAILURE;
+    if (!element_frames_ok(stair_case_emit, &bare, &ref_palette, true))                 return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, a negative landing, no climb */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("stair"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &ref_palette, .frame = PCG_FRAME_IDENTITY };
+    struct stair_case z = c;
+    z.p = (pcg_stair_params){};
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.p.width = NAN;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.p.width = INFINITY;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.p.going = INFINITY;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.p.waist = 0.0f;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.p.landing_t = -0.2f;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.p.riser_max = 0.0f;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.land_hi = -1.0f;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.land_lo = INFINITY;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    z = c;
+    z.rise = 0.0f;
+    if (!failed(stair_case_emit(&bc, &z)))      return EXIT_FAILURE;
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!failed_inval(pcg_stair_emit(&bc, &c.p, .frame = bad_frames[i], .rise = c.rise, .land_lo = c.land_lo,
+                                         .land_hi = c.land_hi)))
+            return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)      return EXIT_FAILURE;
+
+    /* the check takes the flight the emit takes and turns down what it turns down */
+    const pcg_stair_site site = {
+        .frame = PCG_FRAME_IDENTITY, .rise = c.rise, .land_lo = c.land_lo, .land_hi = c.land_hi,
+    };
+    CERR_RET(pcg_stair_check(&c.p, &site), return EXIT_FAILURE);
+    pcg_stair_site flat = site;
+    flat.rise = 0.0f;
+    if (!failed_inval(pcg_stair_check(&c.p, &flat)))                        return EXIT_FAILURE;
+    if (!failed_inval(pcg_stair_check(&(pcg_stair_params){}, &site)))       return EXIT_FAILURE;
+    if (!failed_inval(pcg_stair_check(&c.p, nullptr)))                      return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int stair_surface_test(void)
+{
+    struct stair_case c = { .rise = 3.0f, .land_lo = 1.0f, .land_hi = 1.2f };
+    pcg_stair_params_init(&c.p);
+    for (int s = 0; s < PCG_STAIR_NR_SURF; s++) c.p.surf[s].mat = &surf_mat[s];
+
+    int steps = CRES_RET(pcg_stair_steps(&c.p, c.rise), return EXIT_FAILURE);
+    float rs = c.rise / steps;
+
+    /* each surface's bucket holds its faces of every step, under a yawed and mirrored frame too */
+    for (int m = 0; m < 2; m++) {
+        pcg_frame f = PCG_FRAME_IDENTITY;
+        if (m)  test_frame(&f, 2.2f, true, -3.0f, 4.0f, 7.0f);
+
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(stair_case_emit, &c, nullptr, &f), return EXIT_FAILURE);
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != PCG_STAIR_NR_SURF)  return EXIT_FAILURE;
+
+        struct mesh *tread = walk_mesh(&w, &surf_mat[PCG_STAIR_TREAD]);
+        struct mesh *riser = walk_mesh(&w, &surf_mat[PCG_STAIR_RISER]);
+        struct mesh *side = walk_mesh(&w, &surf_mat[PCG_STAIR_SIDE]);
+        struct mesh *soffit = walk_mesh(&w, &surf_mat[PCG_STAIR_SOFFIT]);
+        struct mesh *landing = walk_mesh(&w, &surf_mat[PCG_STAIR_LANDING]);
+        const vec3 up = { 0.0f, 1.0f, 0.0f }, down = { 0.0f, -1.0f, 0.0f };
+        const vec3 fore = { 1.0f, 0.0f, 0.0f }, back = { -1.0f, 0.0f, 0.0f };
+        const vec3 left = { 0.0f, 0.0f, 1.0f }, right = { 0.0f, 0.0f, -1.0f };
+
+        size_t nr = (size_t)steps * 6;
+        if (!tread || mesh_nr_vx(tread) != nr || !mesh_normals_along(tread, &f, up))    return EXIT_FAILURE;
+        if (!riser || mesh_nr_vx(riser) != nr || !mesh_normals_along(riser, &f, back))  return EXIT_FAILURE;
+        if (!side || mesh_nr_vx(side) != 2 * nr)                                        return EXIT_FAILURE;
+        if (mesh_count_normals(side, &f, left) != nr)                                   return EXIT_FAILURE;
+        if (mesh_count_normals(side, &f, right) != nr)                                  return EXIT_FAILURE;
+        if (!soffit || mesh_nr_vx(soffit) != 2 * nr)                                    return EXIT_FAILURE;
+        if (mesh_count_normals(soffit, &f, fore) != nr)                                 return EXIT_FAILURE;
+        if (mesh_count_normals(soffit, &f, down) != nr)                                 return EXIT_FAILURE;
+        if (!landing || mesh_nr_vx(landing) != 2 * 36)                                  return EXIT_FAILURE;
+
+        /* every tread at its riser's height: rise / steps apart */
+        for (size_t v = 0; v < mesh_nr_vx(tread); v++) {
+            vec3 p;
+
+            pcg_frame_point_to_local(&f, &mesh_vx(tread)[v * 3], p);
+            float k = floorf(p[0] / c.p.going + 0.5f);
+            if (!near(p[1], (k + 1.0f) * rs, 1e-4f) && !near(p[1], k * rs, 1e-4f))  return EXIT_FAILURE;
+        }
+
+        /* aliased, one bucket of the union */
+        struct stair_case a = c;
+        for (int s = 0; s < PCG_STAIR_NR_SURF; s++) a.p.surf[s].mat = &concrete;
+        LOCAL_SET(pcg_sink, as) = CRES_RET(element_sink(stair_case_emit, &a, nullptr, &f), return EXIT_FAILURE);
+        struct sink_walk aw;
+        struct mesh *sep[PCG_STAIR_NR_SURF] = { tread, riser, side, soffit, landing };
+        if (!sink_walk_get(as, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, sep, PCG_STAIR_NR_SURF))
+            return EXIT_FAILURE;
+
+        /* skipped, the treads are gone */
+        a.p.tread.skip = true;
+        LOCAL_SET(pcg_sink, ks) = CRES_RET(element_sink(stair_case_emit, &a, nullptr, &f), return EXIT_FAILURE);
+        if (!sink_walk_get(ks, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, &sep[1], PCG_STAIR_NR_SURF - 1))
+            return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/* a reference copy of the flight emitter the stair replaces */
+typedef struct ref_stair_params {
+    vec2    org, dir;
+    float   width;
+    float   rise;
+    int     steps;
+    float   going;
+    float   waist;
+    float   land_lo, land_hi;
+    float   uv;
+} ref_stair_params;
+
+static cerr ref_stair_emit(struct mesh *m, const ref_stair_params *p)
+{
+    float rs = p->rise / p->steps, hw = p->width * 0.5f;
+    float lt = p->waist + 0.06f;
+
+    if (p->land_lo > 0.0f)  CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, -p->land_lo, 0.0f, -lt, 0.0f, -hw, hw, p->uv));
+    if (p->land_hi > 0.0f) {
+        float top = p->steps * p->going;
+
+        CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, top, top + p->land_hi, p->rise - lt, p->rise, -hw, hw, p->uv));
+    }
+
+    for (int k = 0; k < p->steps; k++)
+        CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, k * p->going, (k + 1) * p->going, k * rs - p->waist,
+                                  (k + 1) * rs, -hw, hw, p->uv));
+
+    return CERR_OK;
+}
+
+/*
+ * The reference building's three flights against a reference copy of the
+ * flight emitter they replace, called the way the reference building calls
+ * it: 5 m wide, centered 0.03 + 2.5 in from the chord of each flight's
+ * window and halfway along it, climbing a 6 m storey in 50 risers of 0.12
+ * and 0.20 goings on a 0.22 waist, without landings; and once more with
+ * landings at either end, 0.28 thick, the waist and 0.06. A riser_max of
+ * 0.12 takes the 50 risers the original was given; so would anything up
+ * to just under 6 / 49.
+ */
+static int stair_parity_test(void)
+{
+    const int n = REF_WELL_SIDES;
+    const float H = REF_FLOOR_H, sw = REF_STAIR_W, waist = 0.22f;
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    pcg_stair_params p;
+    pcg_stair_params_init(&p);
+    p.width = sw;
+    p.riser_max = 0.12f;
+    p.going = REF_GOING;
+    p.waist = waist;
+    p.landing_t = waist + 0.06f;
+    if (CRES_RET(pcg_stair_steps(&p, H), return EXIT_FAILURE) != REF_STEPS) return EXIT_FAILURE;
+
+    const struct { float lo, hi; } land[] = { { 0.0f, 0.0f }, { 1.5f, 2.0f } };
+
+    for (int fi = 0; fi < 2; fi++)
+        for (size_t l = 0; l < array_size(land); l++)
+            for (int f = 0; f < REF_FLOORS - 1; f++) {
+                const pcg_frame *frame = &frames[fi];
+                float y = f * H + REF_DECK_T;
+                ref_flight g;
+
+                ref_flight_calc(&g, ref_well_r, n, f, REF_STEPS, REF_GOING);
+
+                ref_stair_params rp = {
+                    .org = { g.w.A[0] + g.w.dir[0] * g.land + g.w.in[0] * (0.03f + sw * 0.5f),
+                             g.w.A[1] + g.w.dir[1] * g.land + g.w.in[1] * (0.03f + sw * 0.5f) },
+                    .dir = { g.w.dir[0], g.w.dir[1] },
+                    .width = sw, .rise = H, .steps = REF_STEPS,
+                    .going = REF_GOING, .waist = waist,
+                    .land_lo = land[l].lo, .land_hi = land[l].hi,
+                    .uv = REF_UV_CONCRETE,
+                };
+                LOCAL_SET(mesh_t, rm) = CRES_RET(ref_new_checked(mesh, .name = "ref flight"), return EXIT_FAILURE);
+                LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref flight placed"),
+                                                  return EXIT_FAILURE);
+                if (failed(ref_stair_emit(rm, &rp)))                            return EXIT_FAILURE;
+                if (failed(ref_instance(ref, rm, (vec3){ 0.0f, y, 0.0f })))     return EXIT_FAILURE;
+
+                LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("flight"), return EXIT_FAILURE);
+                pcg_ctx ctx = { .sink = sink, .palette = &ref_palette, .frame = *frame };
+                const pcg_frame at = { .org = { rp.org[0], y, rp.org[1] }, .dir = { rp.dir[0], rp.dir[1] } };
+                CERR_RET(pcg_stair_emit(&ctx, &p, .frame = at, .rise = H, .land_lo = land[l].lo,
+                                        .land_hi = land[l].hi),
+                         return EXIT_FAILURE);
+
+                struct sink_walk w;
+                if (!sink_walk_get(sink, &w) || w.nr != 1)                      return EXIT_FAILURE;
+                if (!parity_check("flight", walk_mesh(&w, &concrete), ref, frame, false, REF_UV_CONCRETE))
+                    return EXIT_FAILURE;
+            }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -3957,6 +4317,10 @@ static const struct test tests[] = {
     { .name = "balustrade path", .test = balustrade_path_test },
     { .name = "balustrade surfaces", .test = balustrade_surface_test },
     { .name = "balustrade parity", .test = balustrade_parity_test },
+    { .name = "stair steps", .test = stair_steps_test },
+    { .name = "stair", .test = stair_test },
+    { .name = "stair surfaces", .test = stair_surface_test },
+    { .name = "stair parity", .test = stair_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
