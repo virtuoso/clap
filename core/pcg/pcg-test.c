@@ -1475,6 +1475,49 @@ static int shape_plate_sheet_test(void)
     return EXIT_SUCCESS;
 }
 
+static int shape_plate_chart_test(void)
+{
+    const pcg_chart chart = { .org = { 1.0f, -2.0f }, .scale = { 0.5f, 2.0f } };
+    vec2 pts[8];
+
+    poly2d_regular(pts, 8, 5.0f, poly2d_phase_edge0_neg_z(8));
+
+    for (int swap = 0; swap < 2; swap++)
+        for (int mirror = 0; mirror < 2; mirror++) {
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("chart"), return EXIT_FAILURE);
+            pcg_ctx ctx = { .sink = sink };
+            const pcg_surface caps = { .mat = &concrete, .uv_swap = swap };
+
+            /* the top and bottom chart the local plane through it, wherever the plate stands */
+            test_frame(&ctx.frame, 0.7f, mirror, 30.0f, 2.0f, -11.0f);
+            CERR_RET(pcg_plate(&ctx, .pts = pts, .nr_pts = 8, .y0 = 0.0f, .y1 = 0.2f, .chart = &chart,
+                               .top = caps, .bottom = caps, .edge = { .mat = &wood }),
+                     return EXIT_FAILURE);
+
+            struct sink_walk w = {};
+            if (failed(pcg_sink_for_each_mesh(sink, sink_walk_fn, &w)) || w.nr != 2)    return EXIT_FAILURE;
+            struct mesh *m = w.key[0].mat == &concrete ? w.mesh[0] : w.mesh[1];
+            struct mesh *e = w.key[0].mat == &concrete ? w.mesh[1] : w.mesh[0];
+            if (mesh_nr_vx(m) != 2 * 6 * 3 || !mesh_tangents_ok(m))             return EXIT_FAILURE;
+            for (size_t v = 0; v < mesh_nr_vx(m); v++) {
+                vec3 p;
+
+                pcg_frame_point_to_local(&ctx.frame, &mesh_vx(m)[v * 3], p);
+                float u = (p[0] - chart.org[0]) * chart.scale[0], t = (p[2] - chart.org[1]) * chart.scale[1];
+                if (!near(mesh_tx(m)[v * 2], swap ? t : u, 1e-4f) ||
+                    !near(mesh_tx(m)[v * 2 + 1], swap ? u : t, 1e-4f))
+                    return EXIT_FAILURE;
+            }
+
+            /* the edges keep theirs: U along each edge from 0 */
+            if (mesh_nr_vx(e) != 8 * 6)                                         return EXIT_FAILURE;
+            for (size_t v = 0; v < mesh_nr_vx(e); v++)
+                if (mesh_tx(e)[v * 2] < 0.0f)                                   return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
 static int shape_band_test(void)
 {
     const float lip = REF_FASCIA_LIP, tuck = REF_FASCIA_TUCK, depth = 1.1f;
@@ -6402,6 +6445,7 @@ static const struct test tests[] = {
     { .name = "shape plate skip", .test = shape_plate_skip_test },
     { .name = "shape plate fan", .test = shape_plate_fan_test },
     { .name = "shape plate sheet", .test = shape_plate_sheet_test },
+    { .name = "shape plate chart", .test = shape_plate_chart_test },
     { .name = "shape band", .test = shape_band_test },
     { .name = "shape pane", .test = shape_pane_test },
     { .name = "shape rod", .test = shape_rod_test },
