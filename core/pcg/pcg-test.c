@@ -2258,6 +2258,118 @@ static int shape_box_faces_test(void)
 }
 
 /****************************************************************************
+ * Cylinder
+ ****************************************************************************/
+
+/* a ceiling light's disc, off the origin */
+static const vec3 cyl_org = { 1.0f, 0.5f, -2.0f };
+#define CYL_H       0.05f
+#define CYL_R       0.16f
+#define CYL_SIDES   12
+
+static cerr cylinder_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const pcg_cylinder_desc *d = priv;
+
+    return _pcg_cylinder(ctx, d);
+}
+
+/* the volume of a cylinder over a regular @n-gon of circumradius @r */
+static double cylinder_volume(int n, double r, double h)
+{
+    return ngon_area(n, r) * h;
+}
+
+static int shape_cylinder_test(void)
+{
+    const pcg_cylinder_desc unit = {
+        .org = { cyl_org[0], cyl_org[1], cyl_org[2] }, .h = CYL_H, .r = CYL_R, .sides = CYL_SIDES,
+        .uv = PCG_UV_UNIT, .surf = { .mat = &decal },
+    };
+    pcg_cylinder_desc meters = unit;
+    meters.uv = PCG_UV_METERS;
+    meters.surf.mat = &concrete;
+
+    /* the core cylinder's triangles and charts, bit for bit, at the identity */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(cylinder_emit, &unit, nullptr, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 1)                              return EXIT_FAILURE;
+
+    LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+    CRES_RET(_prim_begin(CYL_SIDES * 12, &(prim_emit_opts){ .mesh = ref, .tangents = true }), return EXIT_FAILURE);
+    if (failed(_prim_emit_cylinder((float *)cyl_org, CYL_H, CYL_R, CYL_SIDES, &(prim_emit_opts){ .mesh = ref })))
+        return EXIT_FAILURE;
+    if (!mesh_same_vx(w.mesh[0], ref, 0.0f, 0.0f))  return EXIT_FAILURE;
+
+    /* and placed by a frame, the same cylinder turned with it */
+    pcg_frame f;
+    test_frame(&f, 0.6f, false, 5.0f, 12.0f, -3.0f);
+    LOCAL_SET(pcg_sink, ys) = CRES_RET(element_sink(cylinder_emit, &unit, nullptr, &f), return EXIT_FAILURE);
+    if (!sink_walk_get(ys, &w) || w.nr != 1)                                return EXIT_FAILURE;
+    if (!parity_check("cylinder", w.mesh[0], ref, &f, false, 1.0f))         return EXIT_FAILURE;
+
+    /* closed, over its n-gon, unit squares on every face */
+    if (!sink_walk_get(sink, &w) || !walk_closed(&w))                       return EXIT_FAILURE;
+    double vol = cylinder_volume(CYL_SIDES, CYL_R, CYL_H);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                           return EXIT_FAILURE;
+    const vec3 lo = { cyl_org[0] - CYL_R, cyl_org[1], cyl_org[2] - CYL_R };
+    const vec3 hi = { cyl_org[0] + CYL_R, cyl_org[1] + CYL_H, cyl_org[2] + CYL_R };
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, lo, hi))                     return EXIT_FAILURE;
+    for (size_t v = 0; v < mesh_nr_vx(w.mesh[0]) * 2; v++)
+        if (mesh_tx(w.mesh[0])[v] < 0.0f || mesh_tx(w.mesh[0])[v] > 1.0f)   return EXIT_FAILURE;
+    if (mesh_count_normals(w.mesh[0], &PCG_FRAME_IDENTITY, box_face_dir[2]) != CYL_SIDES * 3 ||
+        mesh_count_normals(w.mesh[0], &PCG_FRAME_IDENTITY, box_face_dir[3]) != CYL_SIDES * 3)
+        return EXIT_FAILURE;
+
+    /* in meters: U around the perimeter, V up */
+    LOCAL_SET(pcg_sink, ms) = CRES_RET(element_sink(cylinder_emit, &meters, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ms, &w) || w.nr != 1 || !walk_closed(&w))            return EXIT_FAILURE;
+    float umax = 0.0f, vmax = -INFINITY, side = 2.0f * CYL_R * sinf((float)M_PI / CYL_SIDES);
+    for (size_t v = 0; v < mesh_nr_vx(w.mesh[0]); v++) {
+        if (!near(mesh_norm(w.mesh[0])[v * 3 + 1], 0.0f, 1e-4f))    continue;
+        umax = fmaxf(umax, mesh_tx(w.mesh[0])[v * 2]);
+        vmax = fmaxf(vmax, mesh_tx(w.mesh[0])[v * 2 + 1]);
+    }
+    if (!near(umax, CYL_SIDES * side, 1e-5f) || !near(vmax, cyl_org[1] + CYL_H, 1e-6f)) return EXIT_FAILURE;
+
+    /* both charts under any frame */
+    if (!element_frames_ok(cylinder_emit, &unit, nullptr, true))    return EXIT_FAILURE;
+    if (!element_frames_ok(cylinder_emit, &meters, nullptr, true))  return EXIT_FAILURE;
+
+    /* skipped: nothing; a chart its material doesn't take, or a bad cylinder: an error */
+    LOCAL_SET(pcg_sink, bs) = CRES_RET(pcg_sink_new("cylinder"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bs, .frame = PCG_FRAME_IDENTITY };
+    pcg_cylinder_desc d = unit;
+    d.surf.skip = true;
+    CERR_RET(_pcg_cylinder(&bc, &d), return EXIT_FAILURE);
+    d = unit;
+    d.surf.mat = &concrete;
+    if (!failed(_pcg_cylinder(&bc, &d)))                                    return EXIT_FAILURE;
+    d = unit;
+    d.sides = 2;
+    if (!failed(_pcg_cylinder(&bc, &d)))                                    return EXIT_FAILURE;
+    d = unit;
+    d.r = 0.0f;
+    if (!failed(_pcg_cylinder(&bc, &d)))                                    return EXIT_FAILURE;
+    d = unit;
+    d.h = -1.0f;
+    if (!failed(_pcg_cylinder(&bc, &d)))                                    return EXIT_FAILURE;
+    /* more sides than a mesh holds, also where sides * 12 wraps a 32-bit size_t */
+    const int many[] = { PCG_CYLINDER_SIDES_MAX + 1, 357913942, INT_MAX };
+    for (size_t k = 0; k < array_size(many); k++) {
+        d = unit;
+        d.sides = many[k];
+        cerr err = _pcg_cylinder(&bc, &d);
+        if (!IS_CERR_CODE(err, CERR_TOO_LARGE))                             return EXIT_FAILURE;
+    }
+    if (!sink_walk_get(bs, &w) || w.nr)                                     return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/****************************************************************************
  * Slab
  ****************************************************************************/
 
@@ -5599,6 +5711,7 @@ static const struct test tests[] = {
     { .name = "shape frames", .test = shape_frame_test },
     { .name = "shape box", .test = shape_box_test },
     { .name = "shape box faces", .test = shape_box_faces_test },
+    { .name = "shape cylinder", .test = shape_cylinder_test },
     { .name = "slab", .test = slab_test },
     { .name = "slab surfaces", .test = slab_surface_test },
     { .name = "slab parity", .test = slab_parity_test },
