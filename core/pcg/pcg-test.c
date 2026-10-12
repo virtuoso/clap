@@ -24,6 +24,7 @@
 #include "pcg/shape.h"
 #include "pcg/sign.h"
 #include "pcg/sink.h"
+#include "pcg/skylight.h"
 #include "pcg/slab.h"
 #include "pcg/span.h"
 #include "pcg/stair.h"
@@ -6428,6 +6429,486 @@ static int sign_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Skylight
+ ****************************************************************************/
+
+/* the reference layout's skylight finishes: bronze beams under a tiled glow */
+static const pcg_material glow_grid = { .name = "glow grid", .uv_mode = PCG_UV_METERS };
+static const pcg_palette skylight_palette = {
+    .mat[PCG_ROLE_METAL]    = &bronze,
+    .mat[PCG_ROLE_DIFFUSER] = &glow_grid,
+};
+
+/* a skylight over a hexagonal aperture, on a roof 24 m up */
+struct skylight_case {
+    pcg_skylight_params p;
+    pcg_frame           frame;
+    int                 sides;
+    float               r;
+};
+
+static void skylight_case_init(struct skylight_case *c, float r)
+{
+    pcg_skylight_params_init(&c->p);
+    c->frame = (pcg_frame){ .org = { 1.0f, 24.0f, -2.0f }, .dir = { 1.0f, 0.0f } };
+    c->sides = 6;
+    c->r = r;
+}
+
+static cerr skylight_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct skylight_case *c = priv;
+
+    return pcg_skylight_emit(ctx, &c->p, .frame = c->frame, .sides = c->sides, .r = c->r);
+}
+
+static bool skylight_fails(const struct skylight_case *c, cerr_enum code)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("skylight"), return false);
+    pcg_ctx ctx = { .sink = sink, .palette = &skylight_palette, .frame = PCG_FRAME_IDENTITY };
+    struct sink_walk w;
+    cerr err = skylight_case_emit(&ctx, c);
+
+    return failed(err) && CERR_CODE(err) == code && sink_walk_get(sink, &w) && !w.nr;
+}
+
+/* @c's beams by the rule, with their volume: chords of at least a beam's width, a bay apart */
+static size_t skylight_beams(const struct skylight_case *c, double *vol)
+{
+    vec2 ap[16], lo, hi;
+    size_t nr = 0;
+
+    poly2d_regular(ap, c->sides, c->r, poly2d_phase_edge0_neg_z(c->sides));
+    poly2d_bbox(ap, c->sides, lo, hi);
+    *vol = 0.0;
+
+    for (int axis = 0; axis < 2; axis++) {
+        int o = axis ^ 1, n = (int)roundf((hi[o] - lo[o]) / c->p.pitch);
+        float top = axis ? c->p.curb_h - c->p.cross_drop : c->p.curb_h;
+
+        for (int i = 1; i < n; i++) {
+            float at = lo[o] + i * (hi[o] - lo[o]) / n, a0, a1;
+            float len = axis ? poly2d_chord(ap, c->sides, (vec2){}, (vec2){ 0.0f, 1.0f }, -at, &a0, &a1)
+                             : poly2d_chord(ap, c->sides, (vec2){}, (vec2){ 1.0f, 0.0f }, at, &a0, &a1);
+
+            if (len < c->p.beam_w)  continue;
+            nr++;
+            *vol += (double)(len + 2.0f * c->p.embed) * c->p.beam_w * (top - (c->p.curb_h - c->p.beam_h));
+        }
+    }
+
+    return nr;
+}
+
+/*
+ * @c's diffuser @m, emitted at @f, charts a pitch per bay from the
+ * aperture's bounding box, in @c's frame
+ */
+static bool skylight_chart_ok(const struct skylight_case *c, struct mesh *m, const pcg_frame *f)
+{
+    vec2 ap[16], lo, hi;
+
+    poly2d_regular(ap, c->sides, c->r, poly2d_phase_edge0_neg_z(c->sides));
+    poly2d_bbox(ap, c->sides, lo, hi);
+
+    pcg_frame at;
+    pcg_frame_compose(f, &c->frame, &at);
+    for (size_t v = 0; m && v < mesh_nr_vx(m); v++) {
+        vec3 p;
+
+        pcg_frame_point_to_local(&at, &mesh_vx(m)[v * 3], p);
+        for (int k = 0; k < 2; k++) {
+            int bays = (int)roundf((hi[k] - lo[k]) / c->p.pitch);
+            float x = k ? p[2] : p[0], step = (hi[k] - lo[k]) / (bays > 1 ? bays : 1);
+
+            if (!near(mesh_tx(m)[v * 2 + k], (x - lo[k]) / step * c->p.pitch, 1e-4f))   return false;
+        }
+    }
+
+    return m;
+}
+
+static int skylight_test(void)
+{
+    struct skylight_case c;
+    skylight_case_init(&c, 6.0f);
+
+    if (c.p.frame.role != PCG_ROLE_METAL || c.p.frame.collide != PCG_COLLIDE_SOLID)         return EXIT_FAILURE;
+    if (c.p.diffuser.role != PCG_ROLE_DIFFUSER || c.p.diffuser.collide != PCG_COLLIDE_NONE) return EXIT_FAILURE;
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(skylight_case_emit, &c, &skylight_palette,
+                                                      &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 2)                              return EXIT_FAILURE;
+    struct mesh *fm = walk_mesh(&w, &bronze), *dm = walk_mesh(&w, &glow_grid);
+    if (!fm || !dm)                                                         return EXIT_FAILURE;
+
+    /* the frame: a closed curb around the aperture, the beams over it */
+    double beams_vol;
+    size_t nr_beams = skylight_beams(&c, &beams_vol);
+    float apothem = c.r * cosf((float)M_PI / c.sides), r_out = c.r * (apothem + c.p.curb_w) / apothem;
+    double curb_vol = (ngon_area(c.sides, r_out) - ngon_area(c.sides, c.r)) * c.p.curb_h;
+    struct sink_walk fw = { .key = { w.key[0] }, .mesh = { fm }, .nr = 1 };
+
+    /* the curb: 12 triangles top and bottom, 12 edge quads */
+    if (nr_beams < 4 || mesh_nr_vx(fm) != 2 * 12 * 3 + 12 * 6 + nr_beams * 36)              return EXIT_FAILURE;
+    if (!walk_closed(&fw))                                                                  return EXIT_FAILURE;
+    if (fabs(walk_volume(&fw) - (curb_vol + beams_vol)) > 1e-4 * (curb_vol + beams_vol))    return EXIT_FAILURE;
+
+    vec2 outer[6], olo, ohi;
+    poly2d_regular(outer, c.sides, r_out, poly2d_phase_edge0_neg_z(c.sides));
+    poly2d_bbox(outer, c.sides, olo, ohi);
+    if (!walk_aabb_is(&fw, &c.frame, (vec3){ olo[0], 0.0f, olo[1] }, (vec3){ ohi[0], c.p.curb_h, ohi[1] }))
+        return EXIT_FAILURE;
+
+    /* the diffuser: one downward sheet over the curb's outline, lifted over it */
+    struct sink_walk dw = { .key = { w.key[1] }, .mesh = { dm }, .nr = 1 };
+    float y = c.p.curb_h + c.p.lift;
+    if (mesh_nr_vx(dm) != (size_t)(c.sides - 2) * 3)                                            return EXIT_FAILURE;
+    if (!mesh_normals_along(dm, &c.frame, (vec3){ 0.0f, -1.0f, 0.0f }))                         return EXIT_FAILURE;
+    if (!walk_aabb_is(&dw, &c.frame, (vec3){ olo[0], y, olo[1] }, (vec3){ ohi[0], y, ohi[1] })) return EXIT_FAILURE;
+
+    /* a pitch of texture per bay, so the beam lines fall on whole multiples of it */
+    if (!skylight_chart_ok(&c, dm, &PCG_FRAME_IDENTITY))                    return EXIT_FAILURE;
+
+    /* the same under any frame, the diffuser's chart included */
+    if (!element_frames_ok(skylight_case_emit, &c, &skylight_palette, false))   return EXIT_FAILURE;
+    for (int mirror = 0; mirror < 2; mirror++) {
+        pcg_frame f;
+
+        test_frame(&f, 2.3f, mirror, -5.0f, 1.0f, 8.0f);
+        LOCAL_SET(pcg_sink, ys) = CRES_RET(element_sink(skylight_case_emit, &c, &skylight_palette, &f),
+                                           return EXIT_FAILURE);
+        struct sink_walk yw;
+        if (!sink_walk_get(ys, &yw) || yw.nr != 2)                          return EXIT_FAILURE;
+        if (!skylight_chart_ok(&c, walk_mesh(&yw, &glow_grid), &f))         return EXIT_FAILURE;
+    }
+
+    /* an aperture too small for a beam: the curb and the diffuser, a bay of texture across */
+    struct skylight_case small;
+    skylight_case_init(&small, 0.2f);
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(skylight_case_emit, &small, &skylight_palette,
+                                                    &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ss, &w) || w.nr != 2)                                return EXIT_FAILURE;
+    if (mesh_nr_vx(walk_mesh(&w, &bronze)) != 2 * 12 * 3 + 12 * 6)          return EXIT_FAILURE;
+
+    /* bad styles and fits emit nothing */
+    const cerr_enum inval = _CERR_INVALID_ARGUMENTS;
+    struct skylight_case bad = c;
+    bad.p = (pcg_skylight_params){};
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.curb_w = 0.0f;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.beam_h = -0.4f;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.pitch = NAN;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.embed = c.p.curb_w * 2.0f;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.cross_drop = c.p.beam_h;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.lift = -0.1f;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.sides = 2;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.r = 0.0f;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.pitch = c.p.beam_w * 0.7f;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.pitch = 1e-5f;
+    if (!skylight_fails(&bad, inval))                                       return EXIT_FAILURE;
+    bad = c;
+    bad.p.pitch = 1e-30f;
+    if (!skylight_fails(&bad, _CERR_TOO_LARGE))                             return EXIT_FAILURE;
+    /* nothing that isn't finite, framed or not */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &bad.p.curb_w, &bad.p.curb_h, &bad.p.beam_w, &bad.p.beam_h, &bad.p.pitch, &bad.p.embed,
+            &bad.p.cross_drop, &bad.p.lift, &bad.r,
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            bad = c;
+            *fields[k] = nonfinite[i];
+            if (!skylight_fails(&bad, inval))                               return EXIT_FAILURE;
+            bad = c;
+            bad.p.frame.skip = true;
+            *fields[k] = nonfinite[i];
+            if (!skylight_fails(&bad, inval))                               return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++) {
+        bad = c;
+        bad.frame = bad_frames[i];
+        if (!skylight_fails(&bad, inval))                                   return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int skylight_surface_test(void)
+{
+    struct skylight_case c;
+    skylight_case_init(&c, 6.0f);
+
+    /* each surface on its own: the frame without the diffuser, the diffuser without the frame */
+    for (int k = 0; k < PCG_SKYLIGHT_NR_SURF; k++) {
+        struct skylight_case s = c;
+        s.p.surf[k].skip = true;
+
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(skylight_case_emit, &s, &skylight_palette,
+                                                          &PCG_FRAME_IDENTITY),
+                                             return EXIT_FAILURE);
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != 1)                              return EXIT_FAILURE;
+        if (w.key[0].mat != (k == PCG_SKYLIGHT_FRAME ? &glow_grid : &bronze))   return EXIT_FAILURE;
+    }
+
+    /* explicit finishes and collide classes */
+    struct skylight_case e = c;
+    e.p.frame.mat = &surf_mat[0];
+    e.p.frame.collide = PCG_COLLIDE_HAZARD;
+    e.p.diffuser.mat = &surf_mat[1];
+    LOCAL_SET(pcg_sink, es) = CRES_RET(element_sink(skylight_case_emit, &e, &skylight_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(es, &w) || w.nr != 2)                                    return EXIT_FAILURE;
+    if (w.key[0].mat != &surf_mat[0] || w.key[0].collide != PCG_COLLIDE_HAZARD) return EXIT_FAILURE;
+    if (w.key[1].mat != &surf_mat[1] || w.key[1].collide != PCG_COLLIDE_NONE)   return EXIT_FAILURE;
+
+    /* both on one finish: one bucket, the union of the two */
+    struct skylight_case one = c;
+    one.p.diffuser.role = PCG_ROLE_METAL;
+    one.p.diffuser.collide = PCG_COLLIDE_SOLID;
+    LOCAL_SET(pcg_sink, os) = CRES_RET(element_sink(skylight_case_emit, &one, &skylight_palette,
+                                                    &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    LOCAL_SET(pcg_sink, ts) = CRES_RET(element_sink(skylight_case_emit, &c, &skylight_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk ow, tw;
+    if (!sink_walk_get(os, &ow) || ow.nr != 1 || !sink_walk_get(ts, &tw) || tw.nr != 2) return EXIT_FAILURE;
+    if (!meshes_same_tris(ow.mesh, 1, tw.mesh, 2))                                      return EXIT_FAILURE;
+
+    /* a decal finish on a charted surface: an error */
+    struct skylight_case d = c;
+    d.p.diffuser.mat = &decal;
+    LOCAL_SET(pcg_sink, ds) = CRES_RET(pcg_sink_new("skylight"), return EXIT_FAILURE);
+    pcg_ctx dc = { .sink = ds, .palette = &skylight_palette, .frame = PCG_FRAME_IDENTITY };
+    if (!failed(skylight_case_emit(&dc, &d)))                               return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* reference copies of the original's n-gon chord and bounding box */
+static float ref_poly_span(int n, float r, int axis, float at, float *lo, float *hi)
+{
+    int o = axis ^ 1;
+    float mn = 0.0f, mx = 0.0f;
+    bool any = false;
+
+    for (int j = 0; j < n; j++) {
+        vec2 a, b;
+
+        ref_ngon_vertex(j, n, r, a);
+        ref_ngon_vertex(j + 1, n, r, b);
+        if ((a[o] <= at) == (b[o] <= at))   continue;
+
+        float x = a[axis] + (b[axis] - a[axis]) * (at - a[o]) / (b[o] - a[o]);
+
+        if (!any) { mn = mx = x; any = true; }
+        else if (x < mn)    mn = x;
+        else if (x > mx)    mx = x;
+    }
+
+    if (lo) *lo = mn;
+    if (hi) *hi = mx;
+
+    return any ? mx - mn : 0.0f;
+}
+
+static void ref_poly_bbox(int n, float r, vec2 lo, vec2 hi)
+{
+    lo[0] = lo[1] = hi[0] = hi[1] = 0.0f;
+    for (int j = 0; j < n; j++) {
+        vec2 v;
+
+        ref_ngon_vertex(j, n, r, v);
+        lo[0] = fminf(lo[0], v[0]);
+        lo[1] = fminf(lo[1], v[1]);
+        hi[0] = fmaxf(hi[0], v[0]);
+        hi[1] = fmaxf(hi[1], v[1]);
+    }
+}
+
+typedef struct ref_skylight_params {
+    int     sides;
+    float   r;
+    float   beam_w, beam_h;
+    float   pitch;
+    float   curb_w, curb_h;
+    float   uv;
+} ref_skylight_params;
+
+/*
+ * A reference copy of the coffer grid emitter: the curb plate, then the
+ * chord-clipped beams both ways; the curb goes to @curb, the beams to
+ * @beams, so their charts can be placed apart
+ */
+static cerr ref_skylight_emit(struct mesh *curb, struct mesh *beams, const ref_skylight_params *p)
+{
+    float a = p->r * cosf((float)M_PI / p->sides);
+    float embed = fminf(p->curb_w, 0.08f);
+    vec2 lo, hi;
+
+    CERR_RET_CERR(ref_plate_emit(curb, p->sides, p->r * (a + p->curb_w) / a, p->sides, p->r, 0.0f, p->curb_h,
+                                 p->uv, 0));
+
+    ref_poly_bbox(p->sides, p->r, lo, hi);
+
+    int nz = (int)roundf((hi[1] - lo[1]) / p->pitch);
+    for (int i = 1; i < nz; i++) {
+        float z = lo[1] + i * (hi[1] - lo[1]) / nz;
+        float x0, x1;
+
+        if (ref_poly_span(p->sides, p->r, 0, z, &x0, &x1) < p->beam_w)  continue;
+        CERR_RET_CERR(ref_arch_box(beams, (vec3){ x0 - embed, p->curb_h - p->beam_h, z - p->beam_w * 0.5f },
+                                   (vec3){ x1 + embed, p->curb_h, z + p->beam_w * 0.5f }, p->uv));
+    }
+
+    int nx = (int)roundf((hi[0] - lo[0]) / p->pitch);
+    for (int i = 1; i < nx; i++) {
+        float x = lo[0] + i * (hi[0] - lo[0]) / nx;
+        float z0, z1;
+
+        if (ref_poly_span(p->sides, p->r, 1, x, &z0, &z1) < p->beam_w)  continue;
+        CERR_RET_CERR(ref_arch_box(beams, (vec3){ x - p->beam_w * 0.5f, p->curb_h - p->beam_h, z0 - embed },
+                                   (vec3){ x + p->beam_w * 0.5f, p->curb_h - 0.03f, z1 + embed }, p->uv));
+    }
+
+    return CERR_OK;
+}
+
+/* a reference copy of the diffuser panel: a downward-facing n-gon, UV 0..1 over its bounding box */
+static cerr ref_panel_emit(struct mesh *m, int sides, float r)
+{
+    vec2 lo, hi;
+
+    ref_poly_bbox(sides, r, lo, hi);
+
+    CRES_RET_CERR(_prim_begin((sides - 2) * 3, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    prim_emit_opts po = { .mesh = m };
+    vec2 p0;
+
+    ref_ngon_vertex(0, sides, r, p0);
+    for (int k = 1; k < sides - 1; k++) {
+        vec2 pk, pk1;
+
+        ref_ngon_vertex(k, sides, r, pk);
+        ref_ngon_vertex(k + 1, sides, r, pk1);
+
+        vec3 v[3] = { { p0[0], 0.0f, p0[1] }, { pk[0], 0.0f, pk[1] }, { pk1[0], 0.0f, pk1[1] } };
+        vec2 tuv[3];
+
+        for (int i = 0; i < 3; i++) {
+            tuv[i][0] = (v[i][0] - lo[0]) / (hi[0] - lo[0]);
+            tuv[i][1] = (v[i][2] - lo[1]) / (hi[1] - lo[1]);
+        }
+        po.uv = tuv;
+        _prim_emit_triangle3(v[0], v[1], v[2], &po);
+    }
+
+    return CERR_OK;
+}
+
+/* the reference building's skylight measures */
+#define REF_CURB_W      0.25f
+#define REF_CURB_H      0.5f
+#define REF_DIFFUSER_UP 0.12f
+
+/*
+ * The reference building's skylight against reference copies of the
+ * coffer grid and diffuser emitters, as the reference building places
+ * them on its roof, 24 m up, over the top well of 28: a 0.25 curb 0.5
+ * high, 0.07 beams 0.4 deep at a 1.2 pitch, bearing 0.08 into the curb,
+ * the cross beams 0.03 lower, bronze at 1.2 m per repeat; and the
+ * diffuser 0.12 over the curb, as wide as it. The curb charts like a
+ * plate and the beams like boxes, so the expected curb faces re-chart
+ * where a frame places them while the beams carry theirs. The diffuser's
+ * chart follows the beam grid now, an accepted change: only its shape is
+ * compared.
+ */
+static int skylight_parity_test(void)
+{
+    const float roof = REF_FLOORS * REF_FLOOR_H, r = ref_well_r[REF_FLOORS - 1];
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    pcg_skylight_params p;
+    pcg_skylight_params_init(&p);
+
+    LOCAL_SET(mesh_t, curb) = CRES_RET(ref_new_checked(mesh, .name = "ref curb"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, beams) = CRES_RET(ref_new_checked(mesh, .name = "ref beams"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, panel) = CRES_RET(ref_new_checked(mesh, .name = "ref panel"), return EXIT_FAILURE);
+    float wa = r * cosf((float)M_PI / REF_WELL_SIDES);
+
+    CERR_RET(ref_skylight_emit(curb, beams, &(ref_skylight_params){
+                 .sides = REF_WELL_SIDES, .r = r, .beam_w = 0.07f, .beam_h = 0.4f, .pitch = 1.2f,
+                 .curb_w = REF_CURB_W, .curb_h = REF_CURB_H, .uv = REF_UV_BRONZE,
+             }),
+             return EXIT_FAILURE);
+    CERR_RET(ref_panel_emit(panel, REF_WELL_SIDES, r * (wa + REF_CURB_W) / wa), return EXIT_FAILURE);
+
+    /* placed on the roof, as the original's entities were */
+    LOCAL_SET(mesh_t, rc) = CRES_RET(ref_new_checked(mesh, .name = "ref roof curb"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, rb) = CRES_RET(ref_new_checked(mesh, .name = "ref roof beams"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, rp) = CRES_RET(ref_new_checked(mesh, .name = "ref roof panel"), return EXIT_FAILURE);
+    CERR_RET(ref_instance(rc, curb, (vec3){ 0.0f, roof, 0.0f }), return EXIT_FAILURE);
+    CERR_RET(ref_instance(rb, beams, (vec3){ 0.0f, roof, 0.0f }), return EXIT_FAILURE);
+    CERR_RET(ref_instance(rp, panel, (vec3){ 0.0f, roof + REF_CURB_H + REF_DIFFUSER_UP, 0.0f }),
+             return EXIT_FAILURE);
+
+    for (int fi = 0; fi < 2; fi++) {
+        const pcg_frame *f = &frames[fi];
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("skylight"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .palette = &skylight_palette, .frame = *f };
+        const pcg_frame at = { .org = { 0.0f, roof, 0.0f }, .dir = { 1.0f, 0.0f } };
+
+        CERR_RET(pcg_skylight_emit(&ctx, &p, .frame = at, .sides = REF_WELL_SIDES, .r = r), return EXIT_FAILURE);
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != 2)                          return EXIT_FAILURE;
+
+        /* the curb's horizontal faces re-chart where @f puts them, the beams' come along */
+        LOCAL_SET(mesh_t, ec) = CRES_RET(parity_expect(rc, f, true, REF_UV_BRONZE), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, eb) = CRES_RET(parity_expect(rb, f, false, REF_UV_BRONZE), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, expect) = CRES_RET(ref_new_checked(mesh, .name = "expect"), return EXIT_FAILURE);
+        CERR_RET(ref_instance(expect, ec, (vec3){}), return EXIT_FAILURE);
+        CERR_RET(ref_instance(expect, eb, (vec3){}), return EXIT_FAILURE);
+
+        if (!parity_check("skylight frame", walk_mesh(&w, &bronze), expect, &PCG_FRAME_IDENTITY, false,
+                          REF_UV_BRONZE))
+            return EXIT_FAILURE;
+        if (!parity_check_shape("skylight diffuser", walk_mesh(&w, &glow_grid), rp, f)) return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -6485,6 +6966,9 @@ static const struct test tests[] = {
     { .name = "sign", .test = sign_test },
     { .name = "sign surfaces", .test = sign_surface_test },
     { .name = "sign parity", .test = sign_parity_test },
+    { .name = "skylight", .test = skylight_test },
+    { .name = "skylight surfaces", .test = skylight_surface_test },
+    { .name = "skylight parity", .test = skylight_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
