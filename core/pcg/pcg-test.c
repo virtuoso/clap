@@ -17,6 +17,7 @@
 #include "pcg/balustrade.h"
 #include "pcg/column.h"
 #include "pcg/fascia.h"
+#include "pcg/glazing.h"
 #include "pcg/frame.h"
 #include "pcg/material.h"
 #include "pcg/shape.h"
@@ -1819,8 +1820,10 @@ static bool meshes_same_bytes(struct mesh *a, struct mesh *b)
  * edges: a last-bit difference in a position some 30 m out, over a face
  * a few centimeters wide, turns them by up to a few 1e-5. An element
  * that places its corners another way than its original gets
- * PARITY_DIR_EPS for them; one that places them the same way is held to
- * PARITY_EPS (parity_check_exact()).
+ * PARITY_DIR_EPS for them, and a triangle narrower than 2 * PARITY_EPS /
+ * PARITY_DIR_EPS gets as much as two positions PARITY_EPS apart turn it
+ * by across its shortest edge (see parity_dir_eps()); one that places
+ * them the same way is held to PARITY_EPS (parity_check_exact()).
  */
 #define PARITY_EPS      1e-5f
 #define PARITY_DIR_EPS  1e-4f
@@ -1892,6 +1895,25 @@ static cresp(mesh) parity_expect(struct mesh *ref, const pcg_frame *f, bool plan
     return cresp_val(mesh, NOCU(m));
 }
 
+/*
+ * The normal and tangent tolerance of the expected triangle @tri: two
+ * corners PARITY_EPS off either way turn it by up to 2 * PARITY_EPS over
+ * its shortest edge, and never less than PARITY_DIR_EPS
+ */
+static float parity_dir_eps(const parity_vx *tri)
+{
+    float edge = INFINITY;
+
+    for (int k = 0; k < 3; k++) {
+        vec3 d;
+
+        vec3_sub(d, tri[(k + 1) % 3].p, tri[k].p);
+        edge = fminf(edge, vec3_len(d));
+    }
+
+    return fmaxf(PARITY_DIR_EPS, 2.0f * PARITY_EPS / edge);
+}
+
 /* without @charts, texture coordinates and the tangents that follow them don't count */
 static bool parity_vx_near(const parity_vx *a, const parity_vx *b, bool charts, float dir_eps, parity_err *e)
 {
@@ -1918,7 +1940,7 @@ static bool parity_vx_near(const parity_vx *a, const parity_vx *b, bool charts, 
  * per meter and placed by @f (see parity_expect()). Triangles may come in
  * any order and start at any corner, but wind the same way. Without
  * @charts, only positions and normals are compared. Under @exact, normals
- * and tangents get PARITY_EPS, otherwise PARITY_DIR_EPS.
+ * and tangents get PARITY_EPS, otherwise parity_dir_eps().
  */
 static bool parity_match(const char *what, struct mesh *m, struct mesh *ref, const pcg_frame *f, bool planar,
                          float density, bool charts, bool exact)
@@ -1955,7 +1977,7 @@ static bool parity_match(const char *what, struct mesh *m, struct mesh *ref, con
 
             if (used[s])    continue;
 
-            float dir_eps = exact ? PARITY_EPS : PARITY_DIR_EPS;
+            float dir_eps = exact ? PARITY_EPS : parity_dir_eps(&exp[s * 3]);
             for (int rot = 0; rot < 3 && !found; rot++) {
                 parity_err e = err;
 
@@ -4495,24 +4517,74 @@ typedef struct ref_room {
     bool        width_frac;
 } ref_room;
 
-/* one room wall as the original strip laid it out: its run frame, run and doorway */
+/* a reference copy of the pane frame emitter, members and doorway */
+typedef struct ref_frame_params {
+    vec2    org, dir;
+    float   a0, a1, y0, y1;
+    float   fw, ft;
+    float   gap_at, gap_w, gap_h;
+    float   uv;
+} ref_frame_params;
+
+static cerr ref_frame_emit(struct mesh *m, const ref_frame_params *p)
+{
+    float hft = p->ft * 0.5f;
+
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, p->a0, p->a0 + p->fw, p->y0, p->y1, -hft, hft, p->uv));
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, p->a1 - p->fw, p->a1, p->y0, p->y1, -hft, hft, p->uv));
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, p->a0 + p->fw, p->a1 - p->fw, p->y1 - p->fw, p->y1, -hft, hft,
+                              p->uv));
+
+    if (p->gap_w <= 0.0f)
+        return ref_dir_box(m, p->org, p->dir, p->a0 + p->fw, p->a1 - p->fw, p->y0, p->y0 + p->fw, -hft, hft, p->uv);
+
+    float g0 = p->gap_at - p->gap_w * 0.5f, g1 = p->gap_at + p->gap_w * 0.5f;
+
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, p->a0 + p->fw, g0 - p->fw, p->y0, p->y0 + p->fw, -hft, hft, p->uv));
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, g1 + p->fw, p->a1 - p->fw, p->y0, p->y0 + p->fw, -hft, hft, p->uv));
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, g0 - p->fw, g0, p->y0, p->gap_h, -hft, hft, p->uv));
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, g1, g1 + p->fw, p->y0, p->gap_h, -hft, hft, p->uv));
+    CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, g0 - p->fw, g1 + p->fw, p->gap_h, p->gap_h + p->fw, -hft, hft,
+                              p->uv));
+
+    return CERR_OK;
+}
+
+/* reference copies of the frame members' measures and the bronze density that glass borrows */
+#define REF_FRAME_W     0.06f
+#define REF_FRAME_T     0.05f
+#define REF_UV_BRONZE   (1.0f / 1.2f)
+
+/*
+ * One room wall as the original strip laid it out: its run frame, run
+ * and doorway, and for a glass wall, its pane's origin and length
+ */
 typedef struct ref_room_wall {
     vec2    org, dir;
     float   r0, r1;
+    vec2    pane_org;
+    float   pane_len;
     bool    door;
     bool    glass;
 } ref_room_wall;
 
 #define REF_ROOM_WALLS_MAX 64
 
+/* where a room strip's walls go: solid walls, glass panes and their frames */
+typedef struct ref_room_meshes {
+    struct mesh *solid;
+    struct mesh *glass;
+    struct mesh *frames;
+} ref_room_meshes;
+
 /*
  * A reference copy of the room strip's wall layout, along one ring
- * segment from @v0 toward @dir: its solid walls into @m at @uv repeats per
- * meter, and every wall, solid or glass, recorded into @out for the
- * elements that replace them
+ * segment from @v0 toward @dir: its solid walls, panes and pane frames
+ * into @m, and every wall recorded into @out for the elements that
+ * replace them
  */
-static cerr ref_room_walls(struct mesh *m, const vec2 v0, const vec2 dir, float side_len, float wall_h,
-                           const ref_room *rooms, size_t nr_rooms, float uv, ref_room_wall *out, size_t *nr_out)
+static cerr ref_room_walls(const ref_room_meshes *m, const vec2 v0, const vec2 dir, float side_len, float wall_h,
+                           const ref_room *rooms, size_t nr_rooms, ref_room_wall *out, size_t *nr_out)
 {
     float rt = REF_ROOM_T;
     vec2 in = { -dir[1], dir[0] };
@@ -4572,21 +4644,46 @@ static cerr ref_room_walls(struct mesh *m, const vec2 v0, const vec2 dir, float 
             }
 
             if (*nr_out >= REF_ROOM_WALLS_MAX)  return CERR_TOO_LARGE;
-            out[(*nr_out)++] = (ref_room_wall){
+            ref_room_wall *rec = &out[(*nr_out)++];
+            *rec = (ref_room_wall){
                 .org = { rorg[0], rorg[1] }, .dir = { rdir[0], rdir[1] }, .r0 = r0, .r1 = r1,
                 .door = doorway, .glass = is_glass,
             };
 
-            if (!is_solid)  continue;
-            if (doorway) {
-                float mid = (r0 + r1) * 0.5f;
-                float g0 = mid - REF_DOOR_W * 0.5f, g1 = mid + REF_DOOR_W * 0.5f;
+            if (is_solid) {
+                if (doorway) {
+                    float mid = (r0 + r1) * 0.5f;
+                    float g0 = mid - REF_DOOR_W * 0.5f, g1 = mid + REF_DOOR_W * 0.5f;
 
-                CERR_RET_CERR(ref_dir_box(m, rorg, rdir, r0, g0, 0.0f, wall_h, 0.0f, rt, uv));
-                CERR_RET_CERR(ref_dir_box(m, rorg, rdir, g1, r1, 0.0f, wall_h, 0.0f, rt, uv));
-                CERR_RET_CERR(ref_dir_box(m, rorg, rdir, g0, g1, REF_DOOR_H, wall_h, 0.0f, rt, uv));
+                    CERR_RET_CERR(ref_dir_box(m->solid, rorg, rdir, r0, g0, 0.0f, wall_h, 0.0f, rt, REF_UV_PANEL));
+                    CERR_RET_CERR(ref_dir_box(m->solid, rorg, rdir, g1, r1, 0.0f, wall_h, 0.0f, rt, REF_UV_PANEL));
+                    CERR_RET_CERR(ref_dir_box(m->solid, rorg, rdir, g0, g1, REF_DOOR_H, wall_h, 0.0f, rt,
+                                              REF_UV_PANEL));
+                } else {
+                    CERR_RET_CERR(ref_dir_box(m->solid, rorg, rdir, r0, r1, 0.0f, wall_h, 0.0f, rt, REF_UV_PANEL));
+                }
             } else {
-                CERR_RET_CERR(ref_dir_box(m, rorg, rdir, r0, r1, 0.0f, wall_h, 0.0f, rt, uv));
+                float sx = side < 2 ? in[0] : -dir[0], sz = side < 2 ? in[1] : -dir[1];
+                float len = r1 - r0;
+
+                /* the pane spans [0, len] from its origin: bake the run offset in */
+                vec2 gorg = { rorg[0] + sx * rt * 0.5f + rdir[0] * r0,
+                              rorg[1] + sz * rt * 0.5f + rdir[1] * r0 };
+
+                rec->pane_org[0] = gorg[0];
+                rec->pane_org[1] = gorg[1];
+                rec->pane_len = len;
+
+                CERR_RET_CERR(ref_glass_emit(m->glass, gorg, rdir, len, 0.0f, wall_h, len * 0.5f,
+                                             doorway ? REF_DOOR_W : 0.0f, REF_DOOR_H, REF_UV_BRONZE));
+                CERR_RET_CERR(ref_frame_emit(m->frames, &(ref_frame_params){
+                    .org = { gorg[0], gorg[1] }, .dir = { rdir[0], rdir[1] },
+                    .a0 = 0.0f, .a1 = len, .y0 = 0.0f, .y1 = wall_h,
+                    .fw = REF_FRAME_W, .ft = REF_FRAME_T,
+                    .gap_at = len * 0.5f, .gap_w = doorway ? REF_DOOR_W : 0.0f,
+                    .gap_h = REF_DOOR_H,
+                    .uv = REF_UV_BRONZE,
+                }));
             }
         }
     }
@@ -4632,9 +4729,9 @@ static void ref_room_carousel(int floor, int segment, ref_room *room)
  * the reference building lays them out: the ring's back polygon is the
  * perimeter wall's inner face moved in by the ring's inset. @variant 1
  * turns every room's walls solid, with doorways front and back, through
- * the same layout. Solid walls go into @m, all of them into @out.
+ * the same layout.
  */
-static cerr ref_ring_walls(struct mesh *m, int floor, int segment, int ring, int variant, float uv,
+static cerr ref_ring_walls(const ref_room_meshes *m, int floor, int segment, int ring, int variant,
                            ref_room_wall *out, size_t *nr_out)
 {
     const ref_room *rooms = ring ? ref_rooms_inner : ref_rooms_outer;
@@ -4661,7 +4758,66 @@ static cerr ref_ring_walls(struct mesh *m, int floor, int segment, int ring, int
     dir[0] /= len;
     dir[1] /= len;
 
-    return ref_room_walls(m, v0, dir, len, REF_WALL_H, resolved, nr_rooms, uv, out, nr_out);
+    return ref_room_walls(m, v0, dir, len, REF_WALL_H, resolved, nr_rooms, out, nr_out);
+}
+
+/*
+ * Called with the walls of one ring segment of one storey, @y its deck,
+ * in their own meshes at the building's origin
+ */
+typedef cerr (*ref_ring_fn)(const ref_room_wall *rw, size_t nr, const ref_room_meshes *m, float y, void *priv);
+
+/* every ring segment of every storey of the reference building, but the ground floor's entrance */
+static cerr ref_rooms_for_each(int variant, ref_ring_fn fn, void *priv)
+{
+    for (int f = 0; f < REF_FLOORS; f++) {
+        float y = f * REF_FLOOR_H + REF_DECK_T;
+
+        for (int ring = 0; ring < 2; ring++)
+            for (int i = 0; i < REF_SIDES; i++) {
+                ref_room_wall rw[REF_ROOM_WALLS_MAX];
+                size_t nr = 0;
+
+                if (!f && i == REF_ENTRANCE)    continue;
+
+                LOCAL_SET(mesh_t, solid) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref solid"));
+                LOCAL_SET(mesh_t, glass) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref glass"));
+                LOCAL_SET(mesh_t, frames) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref frames"));
+                const ref_room_meshes m = { .solid = solid, .glass = glass, .frames = frames };
+
+                CERR_RET_CERR(ref_ring_walls(&m, f, i, ring, variant, rw, &nr));
+                CERR_RET_CERR(fn(rw, nr, &m, y, priv));
+            }
+    }
+
+    return CERR_OK;
+}
+
+/* what the walls emit into, and the reference mesh they are compared against */
+struct wall_parity {
+    pcg_ctx             ctx;
+    struct mesh         *ref;
+    pcg_wall_params     wall;
+};
+
+static cerr wall_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_meshes *m, float y, void *priv)
+{
+    struct wall_parity *rp = priv;
+
+    CERR_RET_CERR(ref_instance(rp->ref, m->solid, (vec3){ 0.0f, y, 0.0f }));
+
+    for (size_t k = 0; k < nr; k++) {
+        if (rw[k].glass)    continue;
+
+        float len = rw[k].r1 - rw[k].r0;
+        const pcg_opening door = { .at = len * 0.5f, .w = REF_DOOR_W, .h = REF_DOOR_H };
+        const pcg_frame at = { .org = { rw[k].org[0], y, rw[k].org[1] }, .dir = { rw[k].dir[0], rw[k].dir[1] } };
+
+        CERR_RET_CERR(pcg_wall_emit(&rp->ctx, &rp->wall, .frame = at, .a0 = rw[k].r0, .len = len, .h = REF_WALL_H,
+                                    .openings = &door, .nr_openings = rw[k].door));
+    }
+
+    return CERR_OK;
 }
 
 /*
@@ -4678,52 +4834,318 @@ static int wall_parity_test(void)
     pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
     test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
 
-    pcg_wall_params p;
-    pcg_wall_params_init(&p);
-    p.t = REF_ROOM_T;
-
     for (int fi = 0; fi < 2; fi++)
         for (int variant = 0; variant < 2; variant++) {
             LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("wall"), return EXIT_FAILURE);
             LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref walls"), return EXIT_FAILURE);
-            pcg_ctx ctx = { .sink = sink, .palette = &ref_palette, .frame = frames[fi] };
+            struct wall_parity rp = {
+                .ctx = { .sink = sink, .palette = &ref_palette, .frame = frames[fi] },
+                .ref = ref,
+            };
+            pcg_wall_params_init(&rp.wall);
+            rp.wall.t = REF_ROOM_T;
 
-            for (int f = 0; f < REF_FLOORS; f++) {
-                float y = f * REF_FLOOR_H + REF_DECK_T;
-
-                for (int ring = 0; ring < 2; ring++)
-                    for (int i = 0; i < REF_SIDES; i++) {
-                        ref_room_wall rw[REF_ROOM_WALLS_MAX];
-                        size_t nr = 0;
-
-                        if (!f && i == REF_ENTRANCE)    continue;
-
-                        LOCAL_SET(mesh_t, rm) = CRES_RET(ref_new_checked(mesh, .name = "ref ring"),
-                                                         return EXIT_FAILURE);
-                        if (failed(ref_ring_walls(rm, f, i, ring, variant, REF_UV_PANEL, rw, &nr)))
-                            return EXIT_FAILURE;
-                        if (failed(ref_instance(ref, rm, (vec3){ 0.0f, y, 0.0f })))  return EXIT_FAILURE;
-
-                        for (size_t k = 0; k < nr; k++) {
-                            if (rw[k].glass)    continue;
-
-                            float len = rw[k].r1 - rw[k].r0;
-                            const pcg_opening door = { .at = len * 0.5f, .w = REF_DOOR_W, .h = REF_DOOR_H };
-                            const pcg_frame at = { .org = { rw[k].org[0], y, rw[k].org[1] },
-                                                   .dir = { rw[k].dir[0], rw[k].dir[1] } };
-
-                            CERR_RET(pcg_wall_emit(&ctx, &p, .frame = at, .a0 = rw[k].r0, .len = len,
-                                                   .h = REF_WALL_H, .openings = &door, .nr_openings = rw[k].door),
-                                     return EXIT_FAILURE);
-                        }
-                    }
-            }
+            CERR_RET(ref_rooms_for_each(variant, wall_parity_ring, &rp), return EXIT_FAILURE);
 
             struct sink_walk w;
             if (!sink_walk_get(sink, &w) || w.nr != 1)                                  return EXIT_FAILURE;
             if (!parity_check("room walls", walk_mesh(&w, &panel), ref, &frames[fi], false, REF_UV_PANEL))
                 return EXIT_FAILURE;
         }
+
+    return EXIT_SUCCESS;
+}
+
+/****************************************************************************
+ * Glazing
+ ****************************************************************************/
+
+/* the reference layout's glazing finishes: blended glass in bronze members */
+static const pcg_material glass = {
+    .name = "glass", .uv_mode = PCG_UV_METERS, .alpha_blend = true, .skip_shadow = true,
+};
+static const pcg_palette glazing_palette = {
+    .mat[PCG_ROLE_CLADDING] = &panel,
+    .mat[PCG_ROLE_GLASS]    = &glass,
+    .mat[PCG_ROLE_METAL]    = &bronze,
+};
+
+/* a framed pane with up to two openings */
+struct glazing_case {
+    pcg_glazing_params  p;
+    size_t              nr_open;
+    float               len;
+    float               y0;
+    float               y1;
+    pcg_opening         open[2];
+};
+
+static cerr glazing_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct glazing_case *c = priv;
+
+    return pcg_glazing_emit(ctx, &c->p, .frame = PCG_FRAME_IDENTITY, .len = c->len, .y0 = c->y0, .y1 = c->y1,
+                            .openings = c->nr_open ? c->open : nullptr, .nr_openings = c->nr_open);
+}
+
+/*
+ * @c emits @nr_pieces pane pieces and members of @nr_boxes boxes with a
+ * face area of @area in the pane's plane, as a closed surface
+ */
+static bool glazing_case_ok(const struct glazing_case *c, size_t nr_pieces, size_t nr_boxes, double area)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(glazing_case_emit, c, &glazing_palette, &PCG_FRAME_IDENTITY),
+                                         return false);
+    struct sink_walk w;
+    float ht = c->p.member_t * 0.5f;
+    double vol = area * c->p.member_t;
+
+    if (!sink_walk_get(sink, &w) || w.nr != 2)                                          return false;
+
+    struct mesh *pane = walk_mesh(&w, &glass), *member = walk_mesh(&w, &bronze);
+    if (!pane || mesh_nr_vx(pane) != nr_pieces * 12 || !mesh_tangents_ok(pane))         return false;
+    if (!member || mesh_nr_vx(member) != nr_boxes * 36)                                 return false;
+    if (w.key[0].collide == w.key[1].collide)                                           return false;
+    if (!walk_aabb_is(&w, &PCG_FRAME_IDENTITY, (vec3){ 0.0f, c->y0, -ht }, (vec3){ c->len, c->y1, ht }))
+        return false;
+    if (!walk_closed(&w) || fabs(walk_volume(&w) - vol) > 1e-4 * vol)                   return false;
+
+    return element_frames_ok(glazing_case_emit, c, &glazing_palette, true);
+}
+
+static int glazing_test(void)
+{
+    struct glazing_case c = { .len = 4.0f, .y1 = 2.8f };
+    pcg_glazing_params_init(&c.p);
+
+    if (c.p.pane.role != PCG_ROLE_GLASS || c.p.pane.collide != PCG_COLLIDE_SOLID || c.p.pane.skip)  return EXIT_FAILURE;
+    if (c.p.member.role != PCG_ROLE_METAL || c.p.member.collide != PCG_COLLIDE_NONE || c.p.member.skip)
+        return EXIT_FAILURE;
+    if (!c.p.sill)  return EXIT_FAILURE;
+
+    double fw = c.p.member_w, h = c.y1 - c.y0, rail = (c.len - 2.0 * fw) * fw;
+
+    /* one pane in two verticals, a top member and a sill */
+    if (!glazing_case_ok(&c, 1, 4, 2.0 * fw * h + 2.0 * rail))  return EXIT_FAILURE;
+
+    /* without the sill */
+    struct glazing_case bare = c;
+    bare.p.sill = false;
+    if (!glazing_case_ok(&bare, 1, 3, 2.0 * fw * h + rail))                     return EXIT_FAILURE;
+
+    /* raised, as a window band */
+    struct glazing_case band = c;
+    band.y0 = 0.9f;
+    band.y1 = 2.4f;
+    double bh = band.y1 - band.y0;
+    if (!glazing_case_ok(&band, 1, 4, 2.0 * fw * bh + 2.0 * rail))  return EXIT_FAILURE;
+
+    /* a door under a transom: the sill splits, jambs rise to a head member */
+    struct glazing_case door = c;
+    door.open[0] = (pcg_opening){ .at = 2.0f, .w = 1.0f, .h = 2.1f };
+    door.nr_open = 1;
+    double dw = door.open[0].w, dh = door.open[0].h;
+    double sill = rail - (dw + 2.0 * fw) * fw;
+    if (!glazing_case_ok(&door, 3, 8, 2.0 * fw * h + rail + sill + 2.0 * fw * dh + (dw + 2.0 * fw) * fw))
+        return EXIT_FAILURE;
+
+    /* an opening without a head splits the top member too, its jambs the full height */
+    struct glazing_case open = door;
+    open.open[0].h = 0.0f;
+    if (!glazing_case_ok(&open, 2, 8, 2.0 * fw * h + 2.0 * sill + 2.0 * fw * h))    return EXIT_FAILURE;
+
+    /* frameless: the pane alone, an opening up to its end */
+    struct glazing_case frameless = c;
+    frameless.p.member.skip = true;
+    frameless.open[0] = (pcg_opening){ .at = 3.5f, .w = 1.0f };
+    frameless.nr_open = 1;
+    LOCAL_SET(pcg_sink, fs) = CRES_RET(element_sink(glazing_case_emit, &frameless, &glazing_palette,
+                                                    &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(fs, &w) || w.nr != 1 || walk_nr_vx(&w) != 12)                return EXIT_FAILURE;
+    if (!element_frames_ok(glazing_case_emit, &frameless, &glazing_palette, false)) return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, a pane without length or height, openings or members that don't fit */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("glazing"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &glazing_palette, .frame = PCG_FRAME_IDENTITY };
+    struct glazing_case z = c;
+    z.p = (pcg_glazing_params){};
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.p.member_w = NAN;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.p.member_t = 0.0f;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.p.min_seg = -0.01f;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.len = 0.0f;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.y1 = z.y0;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.len = 0.1f;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.y1 = 0.1f;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = door;
+    z.open[0].at = 3.8f;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    /* no room for a jamb at the end, nor between two openings, nor for a head under the top */
+    z = frameless;
+    z.p.member.skip = false;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = door;
+    z.open[0] = (pcg_opening){ .at = 1.0f, .w = 1.0f, .h = 2.1f };
+    z.open[1] = (pcg_opening){ .at = 2.05f, .w = 1.0f, .h = 2.1f };
+    z.nr_open = 2;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = door;
+    z.open[0].h = 2.7f;
+    if (!failed(glazing_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    /* nothing that isn't finite, framed or not */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = { &z.p.member_w, &z.p.member_t, &z.p.min_seg, &z.len, &z.y0, &z.y1, &z.open[0].h };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = door;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(glazing_case_emit(&bc, &z)))  return EXIT_FAILURE;
+            z = door;
+            z.p.member.skip = true;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(glazing_case_emit(&bc, &z)))  return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!failed_inval(pcg_glazing_emit(&bc, &door.p, .frame = bad_frames[i], .len = door.len, .y0 = door.y0,
+                                           .y1 = door.y1, .openings = door.open, .nr_openings = door.nr_open)))
+            return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)      return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int glazing_surface_test(void)
+{
+    struct glazing_case c = { .len = 4.0f, .y1 = 2.8f, .open = { { .at = 2.0f, .w = 1.0f, .h = 2.1f } },
+                              .nr_open = 1 };
+    pcg_glazing_params_init(&c.p);
+    for (int s = 0; s < PCG_GLAZING_NR_SURF; s++)   c.p.surf[s].mat = &surf_mat[s];
+
+    /* the pane both ways in the frame's plane, the members around it, under a yawed and mirrored frame too */
+    for (int m = 0; m < 2; m++) {
+        pcg_frame f = PCG_FRAME_IDENTITY;
+        if (m)  test_frame(&f, 2.2f, true, -3.0f, 4.0f, 7.0f);
+
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(glazing_case_emit, &c, nullptr, &f), return EXIT_FAILURE);
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != PCG_GLAZING_NR_SURF)    return EXIT_FAILURE;
+
+        struct mesh *pane = walk_mesh(&w, &surf_mat[PCG_GLAZING_PANE]);
+        struct mesh *member = walk_mesh(&w, &surf_mat[PCG_GLAZING_MEMBER]);
+        const vec3 left = { 0.0f, 0.0f, 1.0f }, right = { 0.0f, 0.0f, -1.0f };
+
+        if (!pane || mesh_nr_vx(pane) != 3 * 12 || !member || mesh_nr_vx(member) != 8 * 36) return EXIT_FAILURE;
+        if (mesh_count_normals(pane, &f, left) != 3 * 6 || mesh_count_normals(pane, &f, right) != 3 * 6)
+            return EXIT_FAILURE;
+        for (size_t v = 0; v < mesh_nr_vx(pane); v++) {
+            vec3 p;
+
+            pcg_frame_point_to_local(&f, &mesh_vx(pane)[v * 3], p);
+            if (!near(p[2], 0.0f, 1e-5f))                                               return EXIT_FAILURE;
+        }
+
+        /* aliased into one bucket, the union */
+        struct glazing_case a = c;
+        for (int s = 0; s < PCG_GLAZING_NR_SURF; s++) {
+            a.p.surf[s].mat = &bronze;
+            a.p.surf[s].collide = PCG_COLLIDE_SOLID;
+        }
+        LOCAL_SET(pcg_sink, as) = CRES_RET(element_sink(glazing_case_emit, &a, nullptr, &f), return EXIT_FAILURE);
+        struct sink_walk aw;
+        struct mesh *sep[PCG_GLAZING_NR_SURF] = { pane, member };
+        if (!sink_walk_get(as, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, sep, PCG_GLAZING_NR_SURF))
+            return EXIT_FAILURE;
+
+        /* skipped, the pane is gone */
+        a.p.pane.skip = true;
+        LOCAL_SET(pcg_sink, ks) = CRES_RET(element_sink(glazing_case_emit, &a, nullptr, &f), return EXIT_FAILURE);
+        if (!sink_walk_get(ks, &aw) || aw.nr != 1 || !meshes_same_tris(aw.mesh, 1, &sep[1], 1)) return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/* what the glazing emits into, and the reference meshes it is compared against */
+struct glazing_parity {
+    pcg_ctx             ctx;
+    struct mesh         *ref_glass;
+    struct mesh         *ref_frames;
+    pcg_glazing_params  glazing;
+};
+
+static cerr glazing_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_meshes *m, float y, void *priv)
+{
+    struct glazing_parity *gp = priv;
+
+    CERR_RET_CERR(ref_instance(gp->ref_glass, m->glass, (vec3){ 0.0f, y, 0.0f }));
+    CERR_RET_CERR(ref_instance(gp->ref_frames, m->frames, (vec3){ 0.0f, y, 0.0f }));
+
+    for (size_t k = 0; k < nr; k++) {
+        if (!rw[k].glass)   continue;
+
+        float len = rw[k].pane_len;
+        const pcg_opening door = { .at = len * 0.5f, .w = REF_DOOR_W, .h = REF_DOOR_H };
+        const pcg_frame at = { .org = { rw[k].pane_org[0], y, rw[k].pane_org[1] },
+                               .dir = { rw[k].dir[0], rw[k].dir[1] } };
+
+        CERR_RET_CERR(pcg_glazing_emit(&gp->ctx, &gp->glazing, .frame = at, .len = len, .y0 = 0.0f,
+                                       .y1 = REF_WALL_H, .openings = &door, .nr_openings = rw[k].door));
+    }
+
+    return CERR_OK;
+}
+
+/*
+ * The reference building's glass room walls against reference copies of
+ * the pane and pane frame emitters, laid out by the reference copy of the
+ * room strip: the outer ring's glass fronts with their 1.1 by 2.2
+ * doorways, the inner ring's glass fronts and backs without, all 5.65
+ * tall on each storey's deck in 0.06 by 0.05 members, the pane centered
+ * in the room wall's thickness.
+ */
+static int glazing_parity_test(void)
+{
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int fi = 0; fi < 2; fi++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("glazing"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, ref_glass) = CRES_RET(ref_new_checked(mesh, .name = "ref glass"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, ref_frames) = CRES_RET(ref_new_checked(mesh, .name = "ref frames"), return EXIT_FAILURE);
+        struct glazing_parity gp = {
+            .ctx        = { .sink = sink, .palette = &glazing_palette, .frame = frames[fi] },
+            .ref_glass  = ref_glass,
+            .ref_frames = ref_frames,
+        };
+        pcg_glazing_params_init(&gp.glazing);
+
+        CERR_RET(ref_rooms_for_each(0, glazing_parity_ring, &gp), return EXIT_FAILURE);
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != 2)                                      return EXIT_FAILURE;
+        if (!parity_check("room glass", walk_mesh(&w, &glass), ref_glass, &frames[fi], false, REF_UV_BRONZE))
+            return EXIT_FAILURE;
+        if (!parity_check("room frames", walk_mesh(&w, &bronze), ref_frames, &frames[fi], false, REF_UV_BRONZE))
+            return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }
@@ -4771,6 +5193,9 @@ static const struct test tests[] = {
     { .name = "wall", .test = wall_test },
     { .name = "wall surfaces", .test = wall_surface_test },
     { .name = "wall parity", .test = wall_parity_test },
+    { .name = "glazing", .test = glazing_test },
+    { .name = "glazing surfaces", .test = glazing_surface_test },
+    { .name = "glazing parity", .test = glazing_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
