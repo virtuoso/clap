@@ -18,6 +18,7 @@
 #include "pcg/column.h"
 #include "pcg/fascia.h"
 #include "pcg/fixture.h"
+#include "pcg/flight.h"
 #include "pcg/glazing.h"
 #include "pcg/frame.h"
 #include "pcg/material.h"
@@ -3718,7 +3719,8 @@ static int balustrade_surface_test(void)
  * Reference copies of the run frame box and the balustrade run they
  * replace, at @uv repeats per meter. The run sends its sloped shoe and
  * cap prisms to @rods, with tangents, instead of @m: their charts are the
- * accepted change, and the parity helpers read tangents.
+ * accepted change, and the parity helpers read tangents. A level run
+ * sends its shoe and cap boxes to @boxes instead of @m, if given.
  */
 static cerr ref_dir_box(struct mesh *m, const vec2 org, const vec2 dir, float a0, float a1, float y0, float y1,
                         float c0, float c1, float uv)
@@ -3756,6 +3758,7 @@ typedef struct ref_balustrade_params {
     float   rail_w;
     float   y0;
     float   uv;
+    struct mesh *boxes;
 } ref_balustrade_params;
 
 static cerr ref_balustrade_emit(struct mesh *m, struct mesh *rods, const ref_balustrade_params *p)
@@ -3764,9 +3767,11 @@ static cerr ref_balustrade_emit(struct mesh *m, struct mesh *rods, const ref_bal
     prim_emit_opts opts = { .mesh = rods, .tangents = true };
 
     if (p->rise == 0.0f) {
-        CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, 0.0f, p->len, p->y0, p->y0 + p->shoe_h,
+        struct mesh *bm = p->boxes ? p->boxes : m;
+
+        CERR_RET_CERR(ref_dir_box(bm, p->org, p->dir, 0.0f, p->len, p->y0, p->y0 + p->shoe_h,
                                   -p->slat_t * 0.9f, p->slat_t * 0.9f, p->uv));
-        CERR_RET_CERR(ref_dir_box(m, p->org, p->dir, 0.0f, p->len, p->y0 + p->h - cap_t, p->y0 + p->h,
+        CERR_RET_CERR(ref_dir_box(bm, p->org, p->dir, 0.0f, p->len, p->y0 + p->h - cap_t, p->y0 + p->h,
                                   -p->rail_w * 0.5f, p->rail_w * 0.5f, p->uv));
     } else {
         vec3 a = { p->org[0], p->y0 + p->shoe_h * 0.5f, p->org[1] };
@@ -6909,6 +6914,587 @@ static int skylight_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Flight
+ ****************************************************************************/
+
+/* the arrival apron's own finish, so that its plate charts compare apart from the stair's box charts */
+static const pcg_material apron = { .name = "apron", .uv_mode = PCG_UV_METERS };
+
+/* a flight at a site in its parent, with rectangular voids given in the site frame's (a, c) */
+struct flight_case {
+    pcg_flight_params   p;
+    pcg_frame           frame;
+    float               len;
+    float               rise;
+    vec2                depart[4];
+    size_t              nr_depart;
+    vec2                arrive[4];
+    size_t              nr_arrive;
+};
+
+/* the void [@a0, @a1] by [@c0, @c1] of @f's (a, c), in its parent's (x, z) */
+static void flight_void(const pcg_frame *f, float a0, float a1, float c0, float c1, vec2 *out)
+{
+    const float at[4][2] = { { a0, c0 }, { a1, c0 }, { a1, c1 }, { a0, c1 } };
+
+    for (int k = 0; k < 4; k++) {
+        vec3 p;
+
+        pcg_frame_point(f, (vec3){ at[k][0], 0.0f, at[k][1] }, p);
+        out[k][0] = p[0];
+        out[k][1] = p[2];
+    }
+}
+
+/*
+ * A 3 m climb in an 8 m chord at @f: 18 risers of 0.28 leave 1.48 m
+ * landings; both floors' voids reach from the chord 4 m out and 1 m past
+ * either end of it
+ */
+static void flight_case_init(struct flight_case *c, const pcg_frame *f)
+{
+    pcg_flight_params_init(&c->p);
+    c->p.arrive.mat = &apron;
+    c->frame = *f;
+    c->len = 8.0f;
+    c->rise = 3.0f;
+    flight_void(f, -1.0f, 9.0f, 0.0f, 4.0f, c->depart);
+    flight_void(f, -1.0f, 9.0f, 0.0f, 4.0f, c->arrive);
+    c->nr_depart = c->nr_arrive = 4;
+}
+
+static void flight_case_site(const struct flight_case *c, pcg_flight_site *s)
+{
+    *s = (pcg_flight_site){
+        .frame          = c->frame,
+        .len            = c->len,
+        .rise           = c->rise,
+        .depart_void    = c->nr_depart ? c->depart : nullptr,
+        .nr_depart_void = c->nr_depart,
+        .arrive_void    = c->nr_arrive ? c->arrive : nullptr,
+        .nr_arrive_void = c->nr_arrive,
+    };
+}
+
+static cerr flight_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct flight_case *c = priv;
+    pcg_flight_site s;
+
+    flight_case_site(c, &s);
+
+    return _pcg_flight_emit(ctx, &c->p, &s);
+}
+
+/* @m alone, as a walk */
+static struct sink_walk walk_one(struct mesh *m)
+{
+    struct sink_walk w = { .nr = 1 };
+
+    w.mesh[0] = m;
+
+    return w;
+}
+
+/*
+ * The buckets of @c's flight: the stair, the aprons over [-1, land] and
+ * [len - land, 9] of its frame out to the flight's far edge, @sloped
+ * sloped rails and @landings landing rails, from @c's rim clearance past
+ * the voids' ends to the run
+ */
+static bool flight_case_ok(const struct flight_case *c, bool depart, bool arrive, int sloped, int landings)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(flight_case_emit, c, &rail_palette, &PCG_FRAME_IDENTITY),
+                                         return false);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w))   return false;
+
+    const pcg_flight_params *p = &c->p;
+    int steps = CRES_RET(pcg_stair_steps(&p->stair, c->rise), return false);
+    float run = steps * p->stair.going, land = (c->len - run) * 0.5f, deep = p->gap + p->stair.width;
+    float lt = p->stair.landing_t;
+
+    struct mesh *stair = walk_mesh(&w, &concrete), *rail = walk_mesh(&w, &slat);
+    struct mesh *dm = walk_mesh(&w, &wood), *am = walk_mesh(&w, &apron);
+    if (w.nr != 2u + depart + arrive || !stair || !rail || !dm != !depart || !am != !arrive)    return false;
+    if (mesh_nr_vx(stair) != (size_t)steps * 36)                                                return false;
+
+    struct sink_walk sw = walk_one(stair);
+    struct stair_case sc = { .p = p->stair, .rise = c->rise };
+    double svol = stair_volume(&sc, steps);
+    if (!walk_closed(&sw) || fabs(walk_volume(&sw) - svol) > 1e-4 * svol)                   return false;
+
+    /* the aprons are rectangles here: two fan triangles a side and four edges */
+    const struct { struct mesh *m; float a0, a1, y0, y1; } ap[2] = {
+        { dm, -1.0f, land, -lt, 0.0f }, { am, c->len - land, 9.0f, c->rise - lt, c->rise },
+    };
+    for (int k = 0; k < 2; k++) {
+        if (!ap[k].m)   continue;
+
+        struct sink_walk aw = walk_one(ap[k].m);
+        double vol = ((double)ap[k].a1 - ap[k].a0) * deep * lt;
+        if (mesh_nr_vx(ap[k].m) != 36 || !walk_closed(&aw))                                 return false;
+        if (fabs(walk_volume(&aw) - vol) > 1e-4 * vol)                                      return false;
+        if (!walk_aabb_is(&aw, &c->frame, (vec3){ ap[k].a0, ap[k].y0, 0.0f }, (vec3){ ap[k].a1, ap[k].y1, deep }))
+            return false;
+    }
+
+    size_t nr_vx = sloped * balustrade_nr_vx(&p->rail, run, c->rise);
+    float lens[2] = { land - (-1.0f + p->rim_clear), 9.0f - p->rim_clear - (c->len - land) };
+    for (int k = 0; k < landings; k++)  nr_vx += balustrade_nr_vx(&p->rail, lens[k], 0.0f);
+
+    return mesh_nr_vx(rail) == nr_vx && walk_closed(&w);
+}
+
+static int flight_test(void)
+{
+    struct flight_case c;
+    flight_case_init(&c, &PCG_FRAME_IDENTITY);
+
+    /* the defaults emit, the aprons solid floor and structure */
+    if (c.p.depart.role != PCG_ROLE_FLOOR || c.p.depart.collide != PCG_COLLIDE_SOLID)       return EXIT_FAILURE;
+    if (c.p.arrive.role != PCG_ROLE_STRUCTURE || c.p.arrive.collide != PCG_COLLIDE_SOLID)   return EXIT_FAILURE;
+    if (CRES_RET(pcg_stair_steps(&c.p.stair, c.rise), return EXIT_FAILURE) != 18)           return EXIT_FAILURE;
+    if (!flight_case_ok(&c, true, true, 2, 2))                                              return EXIT_FAILURE;
+    if (!element_frames_ok(flight_case_emit, &c, &rail_palette, true))                      return EXIT_FAILURE;
+
+    /* placed in its parent, yawed or mirrored, with the voids placed alike: the same flight in its frame */
+    for (int i = 0; i < 2; i++) {
+        pcg_frame f;
+        struct flight_case m;
+
+        test_frame(&f, 0.7f + i, i, 3.0f, 1.5f, -2.0f);
+        flight_case_init(&m, &f);
+        if (!flight_case_ok(&m, true, true, 2, 2))  return EXIT_FAILURE;
+    }
+
+    /* without voids, the flight and its sloped rails alone; with one, its apron and landing rail */
+    struct flight_case e = c;
+    e.nr_depart = e.nr_arrive = 0;
+    if (!flight_case_ok(&e, false, false, 2, 0))    return EXIT_FAILURE;
+    e.nr_arrive = 4;
+    if (!flight_case_ok(&e, false, true, 2, 1)) return EXIT_FAILURE;
+
+    /* without the near rail; with the near rail alone */
+    e = c;
+    e.p.rail_near = false;
+    if (!flight_case_ok(&e, true, true, 1, 2))  return EXIT_FAILURE;
+    e.p.rail_near = true;
+    e.p.rail_far = false;
+    if (!flight_case_ok(&e, true, true, 1, 0))  return EXIT_FAILURE;
+
+    /* a void that leaves a sliver beside the flight leaves no apron; a skipped apron is gone */
+    e = c;
+    flight_void(&e.frame, -1.0f, 9.0f, 1.2f, 4.0f, e.depart);
+    if (!flight_case_ok(&e, false, true, 2, 2)) return EXIT_FAILURE;
+    e = c;
+    e.p.depart.skip = true;
+    if (!flight_case_ok(&e, false, true, 2, 2)) return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, a chord too short for the landings, voids missing or short */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("flight"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &rail_palette, .frame = PCG_FRAME_IDENTITY };
+
+    struct flight_case z = c;
+    z.p = (pcg_flight_params){};
+    if (!failed(flight_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    float *neg[] = { &z.p.gap, &z.p.rim_clear, &z.p.min_landing, &z.p.min_apron, &z.p.air };
+    for (size_t k = 0; k < array_size(neg); k++) {
+        z = c;
+        *neg[k] = -0.01f;
+        if (!failed(flight_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    }
+    /* a child's style fails the whole flight too, before anything is emitted */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &z.p.gap, &z.p.rail_inset, &z.p.rim_clear, &z.p.min_landing, &z.p.min_apron, &z.p.air, &z.len,
+            &z.rise, &z.depart[2][0], &z.arrive[1][1], &z.p.stair.waist, &z.p.stair.riser_max, &z.p.rail.h,
+            &z.p.rail.slat_w,
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = c;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(flight_case_emit(&bc, &z)))   return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++) {
+        z = c;
+        z.frame = bad_frames[i];
+        if (!failed_inval(flight_case_emit(&bc, &z)))   return EXIT_FAILURE;
+    }
+    /* a void with a notch, a void crossing over itself, a void without an area: none of them convex */
+    const float bad_void[3][4][2] = {
+        { { -1.0f, 0.0f }, { 9.0f, 0.0f }, { 9.0f, 4.0f }, { 4.0f, 1.0f } },
+        { { -1.0f, 0.0f }, { 9.0f, 4.0f }, { 9.0f, 0.0f }, { -1.0f, 4.0f } },
+        { { -1.0f, 0.0f }, { 2.0f, 0.0f }, { 5.0f, 0.0f }, { 9.0f, 0.0f } },
+    };
+    for (size_t i = 0; i < array_size(bad_void); i++) {
+        z = c;
+        for (int k = 0; k < 4; k++) {
+            vec3 p;
+
+            pcg_frame_point(&z.frame, (vec3){ bad_void[i][k][0], 0.0f, bad_void[i][k][1] }, p);
+            z.arrive[k][0] = p[0];
+            z.arrive[k][1] = p[2];
+        }
+        if (!failed_inval(flight_case_emit(&bc, &z)))   return EXIT_FAILURE;
+    }
+    z = c;
+    z.len = 0.0f;
+    if (!failed(flight_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z.len = 6.0f;       /* 0.48 m landings */
+    if (!failed(flight_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.nr_depart = 2;
+    if (!failed(flight_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    pcg_flight_site s;
+    flight_case_site(&c, &s);
+    s.arrive_void = nullptr;
+    if (!failed(_pcg_flight_emit(&bc, &c.p, &s)))   return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)          return EXIT_FAILURE;
+
+    /* the check takes the flight the emit takes and turns down what it turns down */
+    flight_case_site(&c, &s);
+    CERR_RET(pcg_flight_check(&c.p, &s), return EXIT_FAILURE);
+    s.len = 6.0f;
+    if (!failed_inval(pcg_flight_check(&c.p, &s)))                          return EXIT_FAILURE;
+    flight_case_site(&c, &s);
+    if (!failed_inval(pcg_flight_check(&(pcg_flight_params){}, &s)))        return EXIT_FAILURE;
+    if (!failed_inval(pcg_flight_check(&c.p, nullptr)))                     return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* the same frame, to the bit */
+static bool frame_eq(const pcg_frame *a, const pcg_frame *b)
+{
+    return a->org[0] == b->org[0] && a->org[1] == b->org[1] && a->org[2] == b->org[2] &&
+           a->dir[0] == b->dir[0] && a->dir[1] == b->dir[1] && a->mirror == b->mirror;
+}
+
+static int flight_cut_test(void)
+{
+    struct flight_case c;
+    pcg_frame f;
+    test_frame(&f, 0.4f, true, 2.0f, 6.0f, -5.0f);
+    flight_case_init(&c, &f);
+
+    pcg_flight_site s;
+    flight_case_site(&c, &s);
+    const pcg_flight_params *p = &c.p;
+    int steps = 18;
+    float run = steps * p->stair.going, land = (c.len - run) * 0.5f, H = c.rise;
+
+    /* departing: open behind, up to where the soffit clears a 1.05 rail; out to the far edge */
+    pcg_region r;
+    CERR_RET(pcg_flight_depart_cut(p, &s, 1.05f, &r), return EXIT_FAILURE);
+    float hi = land + run * (1.05f + p->stair.waist + H / steps + p->air) / H;
+    if (!r.along.open_lo || r.along.open_hi || !near(r.along.hi, hi, 1e-6f))                return EXIT_FAILURE;
+    if (!r.across.open_lo || r.across.open_hi || !near(r.across.hi, p->gap + p->stair.width, 1e-6f))
+        return EXIT_FAILURE;
+    if (!frame_eq(&r.frame, &s.frame) || failed(pcg_regions_check(&r, 1)))  return EXIT_FAILURE;
+
+    /* the rim along the chord, from 1 m behind its start, is cut up to there */
+    vec3 a, b;
+    pcg_span cut;
+    pcg_frame_point(&f, (vec3){ -1.0f, 0.0f, 0.0f }, a);
+    pcg_frame_point(&f, (vec3){ 9.0f, 0.0f, 0.0f }, b);
+    if (!pcg_region_cut(&r, (vec2){ a[0], a[2] }, (vec2){ b[0], b[2] }, 1e-3f, &cut))       return EXIT_FAILURE;
+    if (!near(cut.lo, 0.0f, 1e-4f) || !near(cut.hi, hi + 1.0f, 1e-4f))                      return EXIT_FAILURE;
+
+    /* arriving: from where the treads are the headroom and the hang under the floor, on past the landing */
+    CERR_RET(pcg_flight_arrive_cut(p, &s, 2.0f, 0.5f, &r), return EXIT_FAILURE);
+    float lo = c.len - land - (2.0f + 0.5f + p->air) / (H / steps / p->stair.going);
+    if (r.along.open_lo || !r.along.open_hi || !near(r.along.lo, lo, 1e-6f))                return EXIT_FAILURE;
+    if (!r.across.open_lo || r.across.open_hi || !near(r.across.hi, p->gap + p->stair.width, 1e-6f))
+        return EXIT_FAILURE;
+    if (!frame_eq(&r.frame, &s.frame) || failed(pcg_regions_check(&r, 1)))                  return EXIT_FAILURE;
+    if (!pcg_region_cut(&r, (vec2){ a[0], a[2] }, (vec2){ b[0], b[2] }, 1e-3f, &cut))       return EXIT_FAILURE;
+    if (!near(cut.lo, lo + 1.0f, 1e-4f) || !near(cut.hi, 10.0f, 1e-4f))                     return EXIT_FAILURE;
+
+    /* heights that are negative or aren't finite, and what the flight turns down */
+    const float bad[] = { -0.1f, INFINITY, NAN };
+    for (size_t i = 0; i < array_size(bad); i++) {
+        if (!failed(pcg_flight_depart_cut(p, &s, bad[i], &r)))              return EXIT_FAILURE;
+        if (!failed(pcg_flight_arrive_cut(p, &s, bad[i], 0.0f, &r)))        return EXIT_FAILURE;
+        if (!failed(pcg_flight_arrive_cut(p, &s, 2.0f, bad[i], &r)))        return EXIT_FAILURE;
+    }
+    if (!failed(pcg_flight_depart_cut(p, &s, 1.0f, nullptr)))               return EXIT_FAILURE;
+    if (!failed(pcg_flight_arrive_cut(nullptr, &s, 1.0f, 0.0f, &r)))        return EXIT_FAILURE;
+    s.len = 6.0f;
+    if (!failed(pcg_flight_depart_cut(p, &s, 1.0f, &r)))                    return EXIT_FAILURE;
+    s.len = c.len;
+    struct flight_case z = c;
+    z.p.stair.going = NAN;
+    if (!failed(pcg_flight_arrive_cut(&z.p, &s, 2.0f, 0.0f, &r)))           return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* reference copies of the polygon clip and the apron emitter the flight's aprons replace */
+static int ref_poly_clip(const vec2 *src, int nin, const vec2 nrm, float d, vec2 *out)
+{
+    int nout = 0;
+
+    for (int j = 0; j < nin; j++) {
+        const float *a = src[j], *b = src[(j + 1) % nin];
+        float da = a[0] * nrm[0] + a[1] * nrm[1] - d;
+        float db = b[0] * nrm[0] + b[1] * nrm[1] - d;
+
+        if (da <= 0.0f) {
+            out[nout][0] = a[0];
+            out[nout][1] = a[1];
+            nout++;
+        }
+        if ((da <= 0.0f) != (db <= 0.0f)) {
+            float t = da / (da - db);
+
+            out[nout][0] = a[0] + (b[0] - a[0]) * t;
+            out[nout][1] = a[1] + (b[1] - a[1]) * t;
+            nout++;
+        }
+    }
+
+    return nout;
+}
+
+static cerr ref_apron_emit(struct mesh *m, int n, float r, const ref_flight *g, float al0, float al1, float acmax,
+                           float min_depth, float y0, float y1, float uv)
+{
+    vec2 buf[2][REF_WELL_SIDES + 8];
+    int np = n;
+
+    for (int j = 0; j < np; j++)    ref_ngon_vertex(j, n, r, buf[0][j]);
+
+    float dA = g->w.A[0] * g->w.dir[0] + g->w.A[1] * g->w.dir[1];
+    float aA = g->w.A[0] * g->w.in[0] + g->w.A[1] * g->w.in[1];
+
+    np = ref_poly_clip(buf[0], np, (vec2){ -g->w.dir[0], -g->w.dir[1] }, -(dA + al0), buf[1]);
+    np = ref_poly_clip(buf[1], np, g->w.dir, dA + al1, buf[0]);
+    np = ref_poly_clip(buf[0], np, g->w.in, aA + acmax, buf[1]);
+
+    if (np < 3) return CERR_OK;
+
+    if (min_depth > 0.0f) {
+        float mn = 0.0f, mx = 0.0f;
+
+        for (int j = 0; j < np; j++) {
+            float ac = buf[1][j][0] * g->w.in[0] + buf[1][j][1] * g->w.in[1] - aA;
+
+            if (!j) { mn = mx = ac; continue; }
+            mn = fminf(mn, ac);
+            mx = fmaxf(mx, ac);
+        }
+        if (mx - mn < min_depth)    return CERR_OK;
+    }
+
+    return ref_convex_plate_emit(m, buf[1], np, y0, y1, uv);
+}
+
+/* @src's triangles moved up to @y, in a mesh of their own */
+static cresp(mesh) ref_placed(struct mesh *src, float y)
+{
+    LOCAL_SET(mesh_t, m) = CRES_RET_T(ref_new_checked(mesh, .name = "ref placed"), mesh);
+
+    CERR_RET_T(ref_instance(m, src, (vec3){ 0.0f, y, 0.0f }), mesh);
+
+    return cresp_val(mesh, NOCU(m));
+}
+
+/* the cut @r is the reference window @w: the same frame on the ground and the same ranges */
+static bool flight_cut_is(const pcg_region *r, const ref_window *w)
+{
+    pcg_region e;
+    ref_window_region(w, &e);
+
+    if (r->frame.org[0] != e.frame.org[0] || r->frame.org[2] != e.frame.org[2] || r->frame.mirror)      return false;
+    if (!near(r->frame.dir[0], e.frame.dir[0], 1e-6f) || !near(r->frame.dir[1], e.frame.dir[1], 1e-6f)) return false;
+
+    const pcg_range *rr[2] = { &r->along, &r->across }, *er[2] = { &e.along, &e.across };
+    for (int k = 0; k < 2; k++) {
+        if (rr[k]->open_lo != er[k]->open_lo || rr[k]->open_hi != er[k]->open_hi)   return false;
+        if (!rr[k]->open_lo && !near(rr[k]->lo, er[k]->lo, 1e-5f))                  return false;
+        if (!rr[k]->open_hi && !near(rr[k]->hi, er[k]->hi, 1e-5f))                  return false;
+    }
+
+    return true;
+}
+
+/*
+ * The reference building's three flights at @frame, their rails and
+ * aprons included, against reference copies of the emitters, called the
+ * way the reference building calls them. Flight f climbs a 6 m storey from
+ * the 0.05 deck of level f, along the chord from vertex 2f of level f's
+ * well, level 1's for the ground flight, to vertex 2f + 1 of level
+ * f + 1's, in 50 risers of 0.12 and 0.20 goings, 5 m wide, 0.03 off the
+ * chord, on a 0.22 waist. Its aprons are 0.28 thick, the waist and 0.06,
+ * clipped to the wells and kept if they reach 0.05 across: the arrival
+ * apron always, the departure apron only above the ground floor, whose
+ * deck is solid. The rails stand 0.06 and 5.06 off the chord, the landing
+ * rails 0.06 past the rim. The sloped rails' shoe and cap are checked for
+ * shape alone: their charts and tangents are the accepted change. The
+ * boarding windows are the reference building's: a 1.05 rail clear of the
+ * soffit, a 3.2 m walker clear of the deck, and of the 0.9 fascia under
+ * it, with 0.1 of air.
+ */
+static int flight_parity_frame(const pcg_frame *frame)
+{
+    const int n = REF_WELL_SIDES;
+    const float H = REF_FLOOR_H, sw = REF_STAIR_W, lt = 0.22f + 0.06f;
+    const float deep = 0.03f + sw, crail = deep + 0.03f;
+    pcg_flight_params p;
+
+    pcg_flight_params_init(&p);
+    p.stair.width = sw;
+    p.stair.riser_max = 0.12f;
+    p.stair.going = REF_GOING;
+    p.stair.waist = 0.22f;
+    p.stair.landing_t = lt;
+    p.arrive.mat = &apron;
+    p.rail.cap.mat = p.rail.shoe.mat = &rod;
+
+    for (int f = 0; f < REF_FLOORS - 1; f++) {
+        float y = f * H + REF_DECK_T;
+        vec2 dv[REF_WELL_SIDES], av[REF_WELL_SIDES], B;
+        ref_flight g;
+
+        ref_flight_calc(&g, ref_well_r, n, f, REF_STEPS, REF_GOING);
+        for (int j = 0; j < n; j++) {
+            ref_ngon_vertex(j, n, ref_well_r[(f ? f : 1) - 1], dv[j]);
+            ref_ngon_vertex(j, n, ref_well_r[f], av[j]);
+        }
+        ref_ngon_vertex(2 * f + 1, n, ref_well_r[f], B);
+
+        pcg_flight_site site = {
+            .rise           = H,
+            .depart_void    = f ? dv : nullptr,
+            .nr_depart_void = f ? n : 0,
+            .arrive_void    = av,
+            .nr_arrive_void = n,
+        };
+        site.len = CRES_RET(pcg_frame_run(&site.frame, g.w.A, B, y), return EXIT_FAILURE);
+        if (!near(site.len, g.len, 1e-5f))  return EXIT_FAILURE;
+
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("flight"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .palette = &rail_palette, .frame = *frame };
+        CERR_RET(_pcg_flight_emit(&ctx, &p, &site), return EXIT_FAILURE);
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != (f ? 5u : 4u) || (!f && walk_mesh(&w, &wood)))  return EXIT_FAILURE;
+
+        /* the stair and the aprons */
+        ref_stair_params rp = {
+            .org = { g.w.A[0] + g.w.dir[0] * g.land + g.w.in[0] * (0.03f + sw * 0.5f),
+                     g.w.A[1] + g.w.dir[1] * g.land + g.w.in[1] * (0.03f + sw * 0.5f) },
+            .dir = { g.w.dir[0], g.w.dir[1] },
+            .width = sw, .rise = H, .steps = REF_STEPS,
+            .going = REF_GOING, .waist = 0.22f,
+            .uv = REF_UV_CONCRETE,
+        };
+        LOCAL_SET(mesh_t, rs) = CRES_RET(ref_new_checked(mesh, .name = "ref stair"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, ra) = CRES_RET(ref_new_checked(mesh, .name = "ref arrival"), return EXIT_FAILURE);
+        if (failed(ref_stair_emit(rs, &rp)))    return EXIT_FAILURE;
+        if (failed(ref_apron_emit(ra, n, ref_well_r[f], &g, g.len - g.land, 1e9f, deep, 0.05f, H - lt, H,
+                                  REF_UV_CONCRETE)))
+            return EXIT_FAILURE;
+        if (f) {
+            LOCAL_SET(mesh_t, rd) = CRES_RET(ref_new_checked(mesh, .name = "ref departure"), return EXIT_FAILURE);
+            if (failed(ref_apron_emit(rd, n, ref_well_r[f - 1], &g, -1e9f, g.land, deep, 0.05f, -lt, 0.0f,
+                                      REF_UV_FLOOR)))
+                return EXIT_FAILURE;
+
+            LOCAL_SET(mesh_t, pd) = CRES_RET(ref_placed(rd, y), return EXIT_FAILURE);
+            if (!parity_check("flight departure", walk_mesh(&w, &wood), pd, frame, true, REF_UV_FLOOR))
+                return EXIT_FAILURE;
+        }
+
+        /* the rails: the sloped pair, rim side then well side, then the landings' level rails */
+        LOCAL_SET(mesh_t, lm) = CRES_RET(ref_new_checked(mesh, .name = "ref slats"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, lr) = CRES_RET(ref_new_checked(mesh, .name = "ref shoes and caps"), return EXIT_FAILURE);
+        ref_balustrade_params bp;
+        ref_rail_init(&bp, g.w.dir);
+        bp.boxes = lr;
+
+#define FL_ORG(_a, _c) do { \
+    bp.org[0] = g.w.A[0] + g.w.dir[0] * (_a) + g.w.in[0] * (_c); \
+    bp.org[1] = g.w.A[1] + g.w.dir[1] * (_a) + g.w.in[1] * (_c); \
+} while (0)
+        bp.len = g.run;
+        bp.rise = H;
+        FL_ORG(g.land, 0.03f + 0.03f);
+        if (failed(ref_balustrade_emit(lm, lr, &bp)))   return EXIT_FAILURE;
+        FL_ORG(g.land, crail);
+        if (failed(ref_balustrade_emit(lm, lr, &bp)))   return EXIT_FAILURE;
+
+        float b0, b1;
+        int nr_landings = 0;
+        bp.rise = 0.0f;
+        if (f && ref_poly_span_frame(n, ref_well_r[f - 1], &g, crail, &b0, &b1) > 0.0f) {
+            bp.len = g.land - (b0 + 0.06f);
+            if (bp.len > 0.15f) {
+                FL_ORG(b0 + 0.06f, crail);
+                if (failed(ref_balustrade_emit(lm, lr, &bp)))   return EXIT_FAILURE;
+                nr_landings++;
+            }
+        }
+        if (ref_poly_span_frame(n, ref_well_r[f], &g, crail, &b0, &b1) > 0.0f) {
+            bp.y0 = H;
+            bp.len = b1 - 0.06f - (g.len - g.land);
+            if (bp.len > 0.15f) {
+                FL_ORG(g.len - g.land, crail);
+                if (failed(ref_balustrade_emit(lm, lr, &bp)))   return EXIT_FAILURE;
+                nr_landings++;
+            }
+        }
+#undef FL_ORG
+        /* landing rails were there to compare */
+        if (nr_landings != (f ? 2 : 1))     return EXIT_FAILURE;
+
+        LOCAL_SET(mesh_t, ps) = CRES_RET(ref_placed(rs, y), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, pa) = CRES_RET(ref_placed(ra, y), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, pm) = CRES_RET(ref_placed(lm, y), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, pr) = CRES_RET(ref_placed(lr, y), return EXIT_FAILURE);
+        if (!parity_check("flight stair", walk_mesh(&w, &concrete), ps, frame, false, REF_UV_CONCRETE))
+            return EXIT_FAILURE;
+        if (!parity_check("flight arrival", walk_mesh(&w, &apron), pa, frame, true, REF_UV_CONCRETE))
+            return EXIT_FAILURE;
+        if (!parity_check("flight slats", walk_mesh(&w, &slat), pm, frame, false, REF_UV_SLAT)) return EXIT_FAILURE;
+        if (!parity_check_shape("flight shoes and caps", walk_mesh(&w, &rod), pr, frame))       return EXIT_FAILURE;
+
+        /* the boarding windows */
+        float slope = H / REF_STEPS / REF_GOING;
+        ref_window wd = g.w, wa = g.w, wf = g.w;
+        wd.al0 = -1e9f;
+        wd.al1 = g.land + g.run * (REF_RAIL_H + 0.22f + H / REF_STEPS + 0.1f) / H;
+        wa.al0 = g.len - g.land - (REF_AGENT_H + 0.1f) / slope;
+        wf.al0 = g.len - g.land - (REF_AGENT_H + 0.9f + REF_DECK_T + 0.1f) / slope;
+        wa.al1 = wf.al1 = 1e9f;
+        wd.acmax = wa.acmax = wf.acmax = 0.03f + REF_STAIR_W;
+
+        pcg_region dc, ac, fc;
+        CERR_RET(pcg_flight_depart_cut(&p, &site, p.rail.h, &dc), return EXIT_FAILURE);
+        CERR_RET(pcg_flight_arrive_cut(&p, &site, REF_AGENT_H, 0.0f, &ac), return EXIT_FAILURE);
+        CERR_RET(pcg_flight_arrive_cut(&p, &site, REF_AGENT_H, 0.9f + REF_DECK_T, &fc), return EXIT_FAILURE);
+        if (!flight_cut_is(&dc, &wd) || !flight_cut_is(&ac, &wa) || !flight_cut_is(&fc, &wf))   return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int flight_parity_test(void)
+{
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int fi = 0; fi < 2; fi++)
+        if (flight_parity_frame(&frames[fi]))   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -6969,6 +7555,9 @@ static const struct test tests[] = {
     { .name = "skylight", .test = skylight_test },
     { .name = "skylight surfaces", .test = skylight_surface_test },
     { .name = "skylight parity", .test = skylight_parity_test },
+    { .name = "flight", .test = flight_test },
+    { .name = "flight cut", .test = flight_cut_test },
+    { .name = "flight parity", .test = flight_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
