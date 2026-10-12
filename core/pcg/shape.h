@@ -37,6 +37,20 @@ enum pcg_plate_surf {
 };
 
 /**
+ * struct pcg_chart - texture coordinates over a context's local plane
+ * @org:    the local (a, c) where U and V are 0
+ * @scale:  U per meter along +a, V per meter along +c
+ *
+ * For a face whose texture follows the element's own layout rather than
+ * tiling with its neighbours: a grid of coffers, say, whose cells must
+ * land between the element's beams wherever it stands.
+ */
+typedef struct pcg_chart {
+    vec2    org;
+    vec2    scale;
+} pcg_chart;
+
+/**
  * struct pcg_plate_desc - a horizontal plate
  * @pts:        polygon points in the context's local (a, c)
  * @nr_pts:     number of points
@@ -46,13 +60,16 @@ enum pcg_plate_surf {
  * @y0:         bottom height
  * @y1:         top height; equal to @y0 for a sheet without edges, which
  *              shows the side whose surface isn't skipped
+ * @chart:      the top and bottom's texture coordinates; nullptr: the
+ *              sink-space (x, z)
  * @surf:       per-surface finish, also by name
  * @fan:        fan-triangulate from point 0 instead of ear clipping; for
  *              a convex outline without holes
  *
  * Top and bottom texture coordinates are the sink-space (x, z) in
  * meters, so plates that wear the same material tile seamlessly across
- * each other, whichever element emitted them. Edge faces run U along
+ * each other, whichever element emitted them; with a @chart, they chart
+ * the context's local (a, c) through it instead. Edge faces run U along
  * each ring edge from 0 to its length and V up the local y. Every ring
  * gets edges wound to face away from the plate's body: out of a fill
  * ring, into a hole.
@@ -64,6 +81,7 @@ typedef struct pcg_plate_desc {
     size_t          nr_rings;
     float           y0;
     float           y1;
+    const pcg_chart *chart;
     union {
         pcg_surface surf[PCG_PLATE_NR_SURF];
         struct {

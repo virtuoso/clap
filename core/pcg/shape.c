@@ -33,19 +33,25 @@ static cres(poly_tris) plate_fan(const vec2 *pts, const poly_ring *ring)
 
 /*
  * One triangle of the top or the bottom: counterclockwise in (a, c), so
- * facing down as it is and up reversed; UVs are the sink (x, z)
+ * facing down as it is and up reversed; UVs are the sink (x, z), or the
+ * local (a, c) through @chart
  */
 static void plate_tri(const pcg_frame *f, const vec2 *pts, const unsigned int *ti, float y, bool top,
-                      bool swap, const prim_emit_opts *opts)
+                      const pcg_chart *chart, bool swap, const prim_emit_opts *opts)
 {
     prim_emit_opts po = *opts;
     vec3 v[3];
     vec2 uv[3];
 
     for (int k = 0; k < 3; k++) {
-        pcg_frame_point(f, (vec3){ pts[ti[k]][0], y, pts[ti[k]][1] }, v[k]);
-        uv[k][0] = swap ? v[k][2] : v[k][0];
-        uv[k][1] = swap ? v[k][0] : v[k][2];
+        const float *p = pts[ti[k]];
+        float u, w;
+
+        pcg_frame_point(f, (vec3){ p[0], y, p[1] }, v[k]);
+        u = chart ? (p[0] - chart->org[0]) * chart->scale[0] : v[k][0];
+        w = chart ? (p[1] - chart->org[1]) * chart->scale[1] : v[k][2];
+        uv[k][0] = swap ? w : u;
+        uv[k][1] = swap ? u : w;
     }
 
     if (top) {
@@ -70,7 +76,7 @@ static cerr plate_cap(const pcg_ctx *ctx, const pcg_plate_desc *d, const poly_tr
     prim_emit_opts opts = { .mesh = t.mesh, .clockwise = t.clockwise };
 
     for (size_t i = 0; i < tris->nr_tris; i++)
-        plate_tri(&ctx->frame, d->pts, &tris->idx[i * 3], top ? d->y1 : d->y0, top, t.uv_swap, &opts);
+        plate_tri(&ctx->frame, d->pts, &tris->idx[i * 3], top ? d->y1 : d->y0, top, d->chart, t.uv_swap, &opts);
 
     return CERR_OK;
 }
