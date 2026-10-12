@@ -22,6 +22,7 @@
 #include "pcg/frame.h"
 #include "pcg/material.h"
 #include "pcg/shape.h"
+#include "pcg/sign.h"
 #include "pcg/sink.h"
 #include "pcg/slab.h"
 #include "pcg/span.h"
@@ -4684,10 +4685,22 @@ typedef struct ref_room_wall {
 
 #define REF_ROOM_WALLS_MAX 64
 
-/* one room as the original strip laid it out: its segment's direction and its ceiling light's center */
+/*
+ * One room as the original strip laid it out: its segment's back line,
+ * its run along it and front line, the insets the flank walls take out
+ * of the front, its ceiling light's center, and the plaque it mounts on
+ * a solid or glass front: its center and text
+ */
 typedef struct ref_room_rec {
-    vec2    dir;
+    vec2    v0, dir;
+    float   a0, a1, cf;
+    float   ins_l, ins_r;
     vec2    light;
+    vec2    plaque;
+    char    text[16];
+    bool    front_glass;
+    bool    front_door;
+    bool    has_plaque;
 } ref_room_rec;
 
 #define REF_RING_ROOMS_MAX 8
@@ -4705,6 +4718,13 @@ typedef struct ref_room_meshes {
 #define REF_LIGHT_R     0.16f
 #define REF_LIGHT_SEGS  12
 #define REF_LIGHT_DROP  0.10f
+
+/* reference copies of the plaque's measures: proud of a pane or a solid face, past a doorway */
+#define REF_PLAQUE_GLASS_OFF    0.05f
+#define REF_PLAQUE_SOLID_OFF    0.02f
+#define REF_PLAQUE_DOOR_GAP     0.30f
+#define REF_PLAQUE_H            0.32f
+#define REF_PLAQUE_Y            1.5f
 
 /*
  * A reference copy of the room strip's wall layout, along one ring
@@ -4823,13 +4843,37 @@ static cerr ref_room_walls(const ref_room_meshes *m, const vec2 v0, const vec2 d
         if (*nr_rec >= REF_RING_ROOMS_MAX)  return CERR_TOO_LARGE;
         ref_room_rec *rr = &rec[(*nr_rec)++];
         *rr = (ref_room_rec){
+            .v0     = { v0[0], v0[1] },
             .dir    = { dir[0], dir[1] },
+            .a0     = a0,
+            .a1     = a1,
+            .cf     = cf,
+            .ins_l  = ins_l,
+            .ins_r  = ins_r,
             .light  = { v0[0] + dir[0] * fa + in[0] * fc, v0[1] + dir[1] * fa + in[1] * fc },
         };
         CERR_RET_CERR(_prim_emit_cylinder((vec3){ v0[0] + dir[0] * fa + in[0] * fc, wall_h - REF_LIGHT_DROP,
                                                   v0[1] + dir[1] * fa + in[1] * fc },
                                           REF_LIGHT_H, REF_LIGHT_R, REF_LIGHT_SEGS,
                                           &(prim_emit_opts){ .mesh = m->lights }));
+
+        /* the atrium-facing plaque, on the front wall when the room has one */
+        bool fsolid = room->wall_mask & (1u << REF_ROOM_FRONT);
+        bool fglass = !fsolid && room->wall_mask & (1u << (REF_ROOM_FRONT + REF_GLASS_WALL_BIT));
+
+        rr->front_glass = fglass;
+        rr->front_door = room->wall_mask & (1u << (REF_ROOM_FRONT + REF_DOOR_WALL_BIT));
+        rr->has_plaque = fsolid || fglass;
+        if (rr->has_plaque) {
+            float pc = fglass ? cf - rt * 0.5f + REF_PLAQUE_GLASS_OFF : cf + REF_PLAQUE_SOLID_OFF;
+            float pa = (a0 + ins_l + a1 - ins_r) * 0.5f;
+
+            /* beside the doorway rather than over it */
+            if (rr->front_door) pa += REF_DOOR_W * 0.5f + REF_PLAQUE_DOOR_GAP;
+
+            rr->plaque[0] = v0[0] + dir[0] * pa + in[0] * pc;
+            rr->plaque[1] = v0[1] + dir[1] * pa + in[1] * pc;
+        }
     }
 
     return CERR_OK;
@@ -4917,6 +4961,8 @@ static cerr ref_rooms_for_each(int variant, ref_ring_fn fn, void *priv)
 {
     for (int f = 0; f < REF_FLOORS; f++) {
         float y = f * REF_FLOOR_H + REF_DECK_T;
+        /* rooms are numbered across a storey's rings and segments, "302" style */
+        int room_no = 0;
 
         for (int ring = 0; ring < 2; ring++)
             for (int i = 0; i < REF_SIDES; i++) {
@@ -4935,6 +4981,8 @@ static cerr ref_rooms_for_each(int variant, ref_ring_fn fn, void *priv)
                 /* the light emitter keeps the tangents of a mesh that has them */
                 CRES_RET_CERR(_prim_begin(REF_LIGHT_SEGS * 12, &(prim_emit_opts){ .mesh = lights, .tangents = true }));
                 CERR_RET_CERR(ref_ring_walls(&m, f, i, ring, variant, rw, &nr, rooms, &nr_rooms));
+                for (size_t k = 0; k < nr_rooms; k++)
+                    snprintf(rooms[k].text, sizeof(rooms[k].text), "%d%02d", f, ++room_no);
                 CERR_RET_CERR(fn(rw, nr, rooms, nr_rooms, &m, y, priv));
             }
     }
@@ -5948,6 +5996,395 @@ static int fixture_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Sign
+ ****************************************************************************/
+
+/* the reference layout's plates, and another finish for them */
+static const pcg_palette sign_palette = {
+    .mat[PCG_ROLE_SIGN]     = &decal,
+};
+static const pcg_material plaque_mat = { .name = "plaque", .uv_mode = PCG_UV_UNIT };
+
+#define LABELS_MAX 128
+
+/* what pcg_sink_for_each_label() reports */
+struct label_walk {
+    pcg_label   label[LABELS_MAX];
+    size_t      nr;
+};
+
+static cerr label_walk_fn(const pcg_label *label, void *priv)
+{
+    struct label_walk *w = priv;
+
+    if (w->nr == LABELS_MAX)    return CERR_TOO_LARGE;
+    w->label[w->nr++] = *label;
+
+    return CERR_OK;
+}
+
+/* @sink's labels; false if the walk fails or finds more than LABELS_MAX */
+static bool label_walk_get(pcg_sink *sink, struct label_walk *w)
+{
+    w->nr = 0;
+
+    return !failed(pcg_sink_for_each_label(sink, label_walk_fn, w));
+}
+
+/* a plaque on a 6 m wall, on its face or its pane, with or without a doorway in the middle */
+struct sign_case {
+    pcg_sign_params p;
+    pcg_frame       frame;
+    const char      *text;
+    float           a0;
+    float           len;
+    pcg_opening     door;
+    bool            has_door;
+    bool            glass;
+};
+
+static void sign_case_init(struct sign_case *c)
+{
+    pcg_sign_params_init(&c->p);
+    c->frame = (pcg_frame){ .org = { 2.0f, 0.0f, -1.0f }, .dir = { 0.6f, 0.8f } };
+    c->a0 = 0.0f;
+    c->len = 6.0f;
+    c->door = (pcg_opening){ .at = 3.0f, .w = 1.1f, .h = 2.2f };
+    c->text = "302";
+    c->has_door = false;
+    c->glass = false;
+}
+
+static cerr sign_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct sign_case *c = priv;
+
+    return pcg_sign_emit(ctx, &c->p, .frame = c->frame, .a0 = c->a0, .len = c->len,
+                         .door = c->has_door ? &c->door : nullptr, .text = c->text, .glass = c->glass);
+}
+
+/* @c recorded at @f, with its palette; the error if it fails */
+static cresp(pcg_sink) sign_sink(const struct sign_case *c, const pcg_frame *f)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET_T(pcg_sink_new("sign"), pcg_sink);
+    pcg_ctx ctx = { .sink = sink, .palette = &sign_palette, .frame = *f };
+
+    CERR_RET_T(sign_case_emit(&ctx, c), pcg_sink);
+
+    return cresp_val(pcg_sink, NOCU(sink));
+}
+
+static bool sign_fails(const struct sign_case *c)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("sign"), return false);
+    pcg_ctx ctx = { .sink = sink, .palette = &sign_palette, .frame = PCG_FRAME_IDENTITY };
+
+    return failed_inval(sign_case_emit(&ctx, c)) && !pcg_sink_get_stats(sink).nr_labels;
+}
+
+/* @c's one label at @f: its center, run direction and facing in @f's local coordinates */
+static bool sign_local(const struct sign_case *c, const pcg_frame *f, pcg_label *l, vec3 org, vec3 dir, vec3 out)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(sign_sink(c, f), return false);
+    struct label_walk w;
+
+    /* nothing but the label, which is its atlas's model */
+    if (!label_walk_get(sink, &w) || w.nr != 1 || pcg_sink_get_stats(sink).nr_models != 1)  return false;
+
+    *l = w.label[0];
+    l->text = nullptr;  /* the sink's */
+
+    vec2 across;
+    pcg_frame_across(&w.label[0].frame, across);
+    pcg_frame_point_to_local(f, w.label[0].frame.org, org);
+    pcg_frame_vector_to_local(f, (vec3){ w.label[0].frame.dir[0], 0.0f, w.label[0].frame.dir[1] }, dir);
+    pcg_frame_vector_to_local(f, (vec3){ across[0], 0.0f, across[1] }, out);
+
+    return !strcmp(w.label[0].text, c->text);
+}
+
+static int sign_test(void)
+{
+    struct sign_case c;
+    sign_case_init(&c);
+
+    if (c.p.plate.role != PCG_ROLE_SIGN || c.p.plate.collide != PCG_COLLIDE_NONE)   return EXIT_FAILURE;
+
+    /* centered on the run, standing off the face, reading along it and facing out of it */
+    pcg_label l;
+    vec3 org, dir, out;
+    if (!sign_local(&c, &PCG_FRAME_IDENTITY, &l, org, dir, out))            return EXIT_FAILURE;
+    if (l.h != c.p.h || l.mat != &decal || l.collide != PCG_COLLIDE_NONE || l.chunk || l.frame.mirror)
+        return EXIT_FAILURE;
+
+    vec3 at;
+    pcg_frame_point_to_local(&c.frame, org, at);
+    if (!vec3_near(at, (vec3){ 3.0f, 1.5f, 0.02f }, 1e-5f)) return EXIT_FAILURE;
+    pcg_frame_vector_to_local(&c.frame, dir, at);
+    if (!vec3_near(at, (vec3){ 1.0f, 0.0f, 0.0f }, 1e-6f))  return EXIT_FAILURE;
+    pcg_frame_vector_to_local(&c.frame, out, at);
+    if (!vec3_near(at, (vec3){ 0.0f, 0.0f, 1.0f }, 1e-6f))  return EXIT_FAILURE;
+
+    /* off a pane, beside a doorway */
+    struct sign_case g = c;
+    g.glass = true;
+    g.has_door = true;
+    if (!sign_local(&g, &PCG_FRAME_IDENTITY, &l, org, dir, out))            return EXIT_FAILURE;
+    pcg_frame_point_to_local(&c.frame, org, at);
+    if (!vec3_near(at, (vec3){ 3.0f + 0.55f + 0.3f, 1.5f, 0.05f }, 1e-5f))  return EXIT_FAILURE;
+
+    /* a run that starts along its line */
+    struct sign_case s = g;
+    s.a0 = 1.5f;
+    if (!sign_local(&s, &PCG_FRAME_IDENTITY, &l, org, dir, out))            return EXIT_FAILURE;
+    pcg_frame_point_to_local(&c.frame, org, at);
+    if (!vec3_near(at, (vec3){ 1.5f + 3.0f + 0.55f + 0.3f, 1.5f, 0.05f }, 1e-5f))   return EXIT_FAILURE;
+
+    /* any frame carries it along; a mirrored one mirrors its frame, so it still faces out */
+    vec3 ref_org, ref_dir, ref_out;
+    if (!sign_local(&g, &PCG_FRAME_IDENTITY, &l, ref_org, ref_dir, ref_out))    return EXIT_FAILURE;
+    for (int i = 0; i < 6; i++) {
+        pcg_frame f;
+
+        test_frame(&f, 0.9f * i - 1.3f, i & 1, 4.0f * i, 0.5f * i, -3.0f * i);
+        if (!sign_local(&g, &f, &l, org, dir, out) || l.frame.mirror != f.mirror)   return EXIT_FAILURE;
+        if (!vec3_near(org, ref_org, 1e-4f) || !vec3_near(dir, ref_dir, 1e-5f) || !vec3_near(out, ref_out, 1e-5f))
+            return EXIT_FAILURE;
+    }
+
+    /* the same twice */
+    pcg_label l2;
+    vec3 org2, dir2, out2;
+    pcg_frame f;
+    test_frame(&f, 2.1f, true, -7.0f, 3.0f, 11.0f);
+    if (!sign_local(&g, &f, &l, org, dir, out) || !sign_local(&g, &f, &l2, org2, dir2, out2))   return EXIT_FAILURE;
+    if (!vec3_near(l.frame.org, l2.frame.org, 0.0f) || l.frame.dir[0] != l2.frame.dir[0] ||
+        l.frame.dir[1] != l2.frame.dir[1] || l.frame.mirror != l2.frame.mirror || l.h != l2.h)
+        return EXIT_FAILURE;
+
+    /* bad styles and fits record nothing */
+    struct sign_case bad = c;
+    bad.p = (pcg_sign_params){};
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.p.h = NAN;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.p.center_y = c.p.h * 0.4f;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.p.standoff = -0.01f;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.p.glass_standoff = -0.01f;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.p.door_offset = -0.01f;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.len = 0.0f;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.a0 = INFINITY;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.text = nullptr;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.text = "";
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    bad = c;
+    bad.has_door = true;
+    bad.door.w = 7.0f;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    /* a doorway that fits, but leaves no room past it */
+    bad = c;
+    bad.has_door = true;
+    bad.door.at = 5.4f;
+    if (!sign_fails(&bad))                                                  return EXIT_FAILURE;
+    /* nothing that isn't finite, whether this sign would read it or not */
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &bad.p.h, &bad.p.center_y, &bad.p.standoff, &bad.p.glass_standoff, &bad.p.door_offset, &bad.a0,
+            &bad.len,
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            bad = c;
+            *fields[k] = nonfinite[i];
+            if (!sign_fails(&bad))                                          return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++) {
+        bad = c;
+        bad.frame = bad_frames[i];
+        if (!sign_fails(&bad))                                              return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int sign_surface_test(void)
+{
+    struct sign_case c;
+    sign_case_init(&c);
+
+    /* a finish and a collide class of its own */
+    c.p.plate.mat = &plaque_mat;
+    c.p.plate.collide = PCG_COLLIDE_SOLID;
+    pcg_label l;
+    vec3 org, dir, out;
+    if (!sign_local(&c, &PCG_FRAME_IDENTITY, &l, org, dir, out))            return EXIT_FAILURE;
+    if (l.mat != &plaque_mat || l.collide != PCG_COLLIDE_SOLID)             return EXIT_FAILURE;
+
+    /* skipped, nothing */
+    sign_case_init(&c);
+    c.p.plate.skip = true;
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(sign_sink(&c, &PCG_FRAME_IDENTITY), return EXIT_FAILURE);
+    if (pcg_sink_get_stats(ss).nr_labels)                                   return EXIT_FAILURE;
+
+    /* a tiled finish, or none for its role: an error */
+    sign_case_init(&c);
+    c.p.plate.mat = &surf_mat[0];
+    if (!sign_fails(&c))                                                    return EXIT_FAILURE;
+    sign_case_init(&c);
+    c.p.plate.role = PCG_ROLE_METAL;
+    if (!sign_fails(&c))                                                    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* a plaque as the original mounted it: its center, run direction and deck */
+struct ref_plaque {
+    vec2    org, dir;
+    float   y;
+    char    text[16];
+};
+
+/* what the signs record into, and the original plaques they are compared against */
+struct sign_parity {
+    pcg_ctx             ctx;
+    pcg_sign_params     sign;
+    struct ref_plaque   ref[LABELS_MAX];
+    size_t              nr_ref;
+};
+
+static cerr sign_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_rec *rooms, size_t nr_rooms,
+                             const ref_room_meshes *m, float y, void *priv)
+{
+    struct sign_parity *sp = priv;
+
+    for (size_t k = 0; k < nr_rooms; k++) {
+        const ref_room_rec *rr = &rooms[k];
+
+        if (!rr->has_plaque)                continue;
+        if (sp->nr_ref == LABELS_MAX)       return CERR_TOO_LARGE;
+
+        struct ref_plaque *rp = &sp->ref[sp->nr_ref++];
+        *rp = (struct ref_plaque){
+            .org = { rr->plaque[0], rr->plaque[1] }, .dir = { rr->dir[0], rr->dir[1] }, .y = y,
+        };
+        memcpy(rp->text, rr->text, sizeof(rp->text));
+
+        /* the front wall's run, on its face or its pane, as the room strip lays it out */
+        vec2 in = { -rr->dir[1], rr->dir[0] };
+        float r0 = rr->a0 + rr->ins_l, r1 = rr->a1 - rr->ins_r, len = r1 - r0;
+        float face = rr->front_glass ? rr->cf - REF_ROOM_T * 0.5f : rr->cf;
+        const pcg_frame at = {
+            .org = { rr->v0[0] + in[0] * face, y, rr->v0[1] + in[1] * face },
+            .dir = { rr->dir[0], rr->dir[1] },
+        };
+        const pcg_opening door = { .at = len * 0.5f, .w = REF_DOOR_W, .h = REF_DOOR_H };
+
+        CERR_RET_CERR(pcg_sign_emit(&sp->ctx, &sp->sign, .frame = at, .a0 = r0, .len = len,
+                                    .door = rr->front_door ? &door : nullptr, .text = rr->text,
+                                    .glass = rr->front_glass));
+    }
+
+    return CERR_OK;
+}
+
+/* a plate as wide as some text 2.4 times as wide as it is high */
+#define SIGN_ASPECT 2.4f
+
+/*
+ * The reference building's room plaques against the reference copy of the
+ * room strip that records them, mounted as the original mounted them: a
+ * quad 0.32 high centered 1.5 over the deck, 0.05 proud of a glass front's
+ * pane or 0.02 of a solid front's face, centered on the front's run or
+ * 0.30 past its doorway, reading along the run and facing out of the
+ * room. Signs only record labels, so their quads are built the way the
+ * commit builds a label's, around its frame, with the same text aspect
+ * for both. The texts are the original's room numbers. Both the
+ * reference rooms and every wall solid and doored front and back.
+ */
+static int sign_parity_test(void)
+{
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int fi = 0; fi < 2; fi++)
+        for (int variant = 0; variant < 2; variant++) {
+            const pcg_frame *f = &frames[fi];
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("sign"), return EXIT_FAILURE);
+            LOCAL_SET(void, buf) = mem_alloc(sizeof(struct sign_parity), .zero = 1);
+            struct sign_parity *sp = buf;
+            if (!sp)    return EXIT_FAILURE;
+
+            sp->ctx = (pcg_ctx){ .sink = sink, .palette = &sign_palette, .frame = *f };
+            pcg_sign_params_init(&sp->sign);
+
+            CERR_RET(ref_rooms_for_each(variant, sign_parity_ring, sp), return EXIT_FAILURE);
+
+            LOCAL_SET(void, wbuf) = mem_alloc(sizeof(struct label_walk));
+            struct label_walk *w = wbuf;
+            if (!w || !label_walk_get(sink, w) || w->nr != sp->nr_ref)  return EXIT_FAILURE;
+            /* the reference building has 97 plaques */
+            if (!variant && w->nr != 97)                                return EXIT_FAILURE;
+
+            float err = 0.0f, nerr = 0.0f;
+            for (size_t k = 0; k < w->nr; k++) {
+                const pcg_label *l = &w->label[k];
+                const struct ref_plaque *rp = &sp->ref[k];
+                float h = REF_PLAQUE_H, ha = h * SIGN_ASPECT * 0.5f;
+                float y0 = REF_PLAQUE_Y - h * 0.5f, y1 = y0 + h;
+
+                if (strcmp(l->text, rp->text) || l->h != h || l->frame.mirror)     return EXIT_FAILURE;
+
+                /* the original quad's corners c00, c10, c11, c01 and the label's */
+                const float ca[4] = { ha, -ha, -ha, ha }, cy[4] = { y0, y0, y1, y1 };
+                const float ly[4] = { -h * 0.5f, -h * 0.5f, h * 0.5f, h * 0.5f };
+                vec3 want[4], got[4];
+
+                for (int j = 0; j < 4; j++) {
+                    vec3 p = { rp->org[0] + ca[j] * rp->dir[0], rp->y + cy[j], rp->org[1] + ca[j] * rp->dir[1] };
+
+                    pcg_frame_point(f, p, want[j]);
+                    pcg_frame_point(&l->frame, (vec3){ ca[j], ly[j], 0.0f }, got[j]);
+                    err = fmaxf(err, max_diff(want[j], got[j], 3));
+                }
+
+                /* it faces where the original's normal points: cross(c01 - c00, c10 - c00) */
+                vec3 e0, e1, n;
+                vec2 across;
+                vec3_sub(e0, want[3], want[0]);
+                vec3_sub(e1, want[1], want[0]);
+                vec3_mul_cross(n, e0, e1);
+                vec3_norm(n, n);
+                pcg_frame_across(&l->frame, across);
+                vec3 facing = { across[0], 0.0f, across[1] };
+                nerr = fmaxf(nerr, max_diff(n, facing, 3));
+            }
+
+            if (verbose)    printf("plaques: %zu, max error p %g n %g\n", w->nr, err, nerr);
+            if (err > PARITY_EPS || nerr > PARITY_DIR_EPS)              return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -6001,6 +6438,9 @@ static const struct test tests[] = {
     { .name = "fixture", .test = fixture_test },
     { .name = "fixture surfaces", .test = fixture_surface_test },
     { .name = "fixture parity", .test = fixture_parity_test },
+    { .name = "sign", .test = sign_test },
+    { .name = "sign surfaces", .test = sign_surface_test },
+    { .name = "sign parity", .test = sign_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
