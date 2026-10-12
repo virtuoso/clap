@@ -17,6 +17,7 @@
 #include "pcg/balustrade.h"
 #include "pcg/column.h"
 #include "pcg/fascia.h"
+#include "pcg/fixture.h"
 #include "pcg/glazing.h"
 #include "pcg/frame.h"
 #include "pcg/material.h"
@@ -4683,21 +4684,37 @@ typedef struct ref_room_wall {
 
 #define REF_ROOM_WALLS_MAX 64
 
-/* where a room strip's walls go: solid walls, glass panes and their frames */
+/* one room as the original strip laid it out: its segment's direction and its ceiling light's center */
+typedef struct ref_room_rec {
+    vec2    dir;
+    vec2    light;
+} ref_room_rec;
+
+#define REF_RING_ROOMS_MAX 8
+
+/* where a room strip's walls go: solid walls, glass panes and their frames, and the ceiling lights */
 typedef struct ref_room_meshes {
     struct mesh *solid;
     struct mesh *glass;
     struct mesh *frames;
+    struct mesh *lights;
 } ref_room_meshes;
+
+/* reference copies of the ceiling light's measures */
+#define REF_LIGHT_H     0.05f
+#define REF_LIGHT_R     0.16f
+#define REF_LIGHT_SEGS  12
+#define REF_LIGHT_DROP  0.10f
 
 /*
  * A reference copy of the room strip's wall layout, along one ring
- * segment from @v0 toward @dir: its solid walls, panes and pane frames
- * into @m, and every wall recorded into @out for the elements that
- * replace them
+ * segment from @v0 toward @dir: its solid walls, panes, pane frames and
+ * ceiling lights into @m, every wall recorded into @out and every room
+ * into @rec, for the elements that replace them
  */
 static cerr ref_room_walls(const ref_room_meshes *m, const vec2 v0, const vec2 dir, float side_len, float wall_h,
-                           const ref_room *rooms, size_t nr_rooms, ref_room_wall *out, size_t *nr_out)
+                           const ref_room *rooms, size_t nr_rooms, ref_room_wall *out, size_t *nr_out,
+                           ref_room_rec *rec, size_t *nr_rec)
 {
     float rt = REF_ROOM_T;
     vec2 in = { -dir[1], dir[0] };
@@ -4799,6 +4816,20 @@ static cerr ref_room_walls(const ref_room_meshes *m, const vec2 v0, const vec2 d
                 }));
             }
         }
+
+        /* one round ceiling fixture per room, flush with the soffit */
+        float fa = (a0 + a1) * 0.5f, fc = (cb + cf) * 0.5f;
+
+        if (*nr_rec >= REF_RING_ROOMS_MAX)  return CERR_TOO_LARGE;
+        ref_room_rec *rr = &rec[(*nr_rec)++];
+        *rr = (ref_room_rec){
+            .dir    = { dir[0], dir[1] },
+            .light  = { v0[0] + dir[0] * fa + in[0] * fc, v0[1] + dir[1] * fa + in[1] * fc },
+        };
+        CERR_RET_CERR(_prim_emit_cylinder((vec3){ v0[0] + dir[0] * fa + in[0] * fc, wall_h - REF_LIGHT_DROP,
+                                                  v0[1] + dir[1] * fa + in[1] * fc },
+                                          REF_LIGHT_H, REF_LIGHT_R, REF_LIGHT_SEGS,
+                                          &(prim_emit_opts){ .mesh = m->lights }));
     }
 
     return CERR_OK;
@@ -4845,7 +4876,7 @@ static void ref_room_carousel(int floor, int segment, ref_room *room)
  * the same layout.
  */
 static cerr ref_ring_walls(const ref_room_meshes *m, int floor, int segment, int ring, int variant,
-                           ref_room_wall *out, size_t *nr_out)
+                           ref_room_wall *out, size_t *nr_out, ref_room_rec *rec, size_t *nr_rec)
 {
     const ref_room *rooms = ring ? ref_rooms_inner : ref_rooms_outer;
     size_t nr_rooms = ring ? array_size(ref_rooms_inner) : array_size(ref_rooms_outer);
@@ -4871,14 +4902,15 @@ static cerr ref_ring_walls(const ref_room_meshes *m, int floor, int segment, int
     dir[0] /= len;
     dir[1] /= len;
 
-    return ref_room_walls(m, v0, dir, len, REF_WALL_H, resolved, nr_rooms, out, nr_out);
+    return ref_room_walls(m, v0, dir, len, REF_WALL_H, resolved, nr_rooms, out, nr_out, rec, nr_rec);
 }
 
 /*
- * Called with the walls of one ring segment of one storey, @y its deck,
- * in their own meshes at the building's origin
+ * Called with the walls and the rooms of one ring segment of one storey,
+ * @y its deck, in their own meshes at the building's origin
  */
-typedef cerr (*ref_ring_fn)(const ref_room_wall *rw, size_t nr, const ref_room_meshes *m, float y, void *priv);
+typedef cerr (*ref_ring_fn)(const ref_room_wall *rw, size_t nr, const ref_room_rec *rooms, size_t nr_rooms,
+                            const ref_room_meshes *m, float y, void *priv);
 
 /* every ring segment of every storey of the reference building, but the ground floor's entrance */
 static cerr ref_rooms_for_each(int variant, ref_ring_fn fn, void *priv)
@@ -4889,17 +4921,21 @@ static cerr ref_rooms_for_each(int variant, ref_ring_fn fn, void *priv)
         for (int ring = 0; ring < 2; ring++)
             for (int i = 0; i < REF_SIDES; i++) {
                 ref_room_wall rw[REF_ROOM_WALLS_MAX];
-                size_t nr = 0;
+                ref_room_rec rooms[REF_RING_ROOMS_MAX];
+                size_t nr = 0, nr_rooms = 0;
 
                 if (!f && i == REF_ENTRANCE)    continue;
 
                 LOCAL_SET(mesh_t, solid) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref solid"));
                 LOCAL_SET(mesh_t, glass) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref glass"));
                 LOCAL_SET(mesh_t, frames) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref frames"));
-                const ref_room_meshes m = { .solid = solid, .glass = glass, .frames = frames };
+                LOCAL_SET(mesh_t, lights) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref lights"));
+                const ref_room_meshes m = { .solid = solid, .glass = glass, .frames = frames, .lights = lights };
 
-                CERR_RET_CERR(ref_ring_walls(&m, f, i, ring, variant, rw, &nr));
-                CERR_RET_CERR(fn(rw, nr, &m, y, priv));
+                /* the light emitter keeps the tangents of a mesh that has them */
+                CRES_RET_CERR(_prim_begin(REF_LIGHT_SEGS * 12, &(prim_emit_opts){ .mesh = lights, .tangents = true }));
+                CERR_RET_CERR(ref_ring_walls(&m, f, i, ring, variant, rw, &nr, rooms, &nr_rooms));
+                CERR_RET_CERR(fn(rw, nr, rooms, nr_rooms, &m, y, priv));
             }
     }
 
@@ -4913,7 +4949,8 @@ struct wall_parity {
     pcg_wall_params     wall;
 };
 
-static cerr wall_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_meshes *m, float y, void *priv)
+static cerr wall_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_rec *rooms, size_t nr_rooms,
+                             const ref_room_meshes *m, float y, void *priv)
 {
     struct wall_parity *rp = priv;
 
@@ -5204,7 +5241,8 @@ struct glazing_parity {
     pcg_glazing_params  glazing;
 };
 
-static cerr glazing_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_meshes *m, float y, void *priv)
+static cerr glazing_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_rec *rooms, size_t nr_rooms,
+                                const ref_room_meshes *m, float y, void *priv)
 {
     struct glazing_parity *gp = priv;
 
@@ -5688,6 +5726,228 @@ static int window_wall_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Fixture
+ ****************************************************************************/
+
+/* the reference layout's fixture finish: a whole tile per face */
+static const pcg_material glow = { .name = "glow", .uv_mode = PCG_UV_UNIT, .skip_shadow = true };
+static const pcg_palette fixture_palette = {
+    .mat[PCG_ROLE_FIXTURE]  = &glow,
+};
+
+/* a fixture under a 3 m ceiling */
+struct fixture_case {
+    pcg_fixture_params  p;
+    pcg_frame           frame;
+    float               ceiling;
+};
+
+static void fixture_case_init(struct fixture_case *c)
+{
+    pcg_fixture_params_init(&c->p);
+    c->frame = (pcg_frame){ .org = { 2.0f, 0.0f, -1.0f }, .dir = { 0.6f, 0.8f } };
+    c->ceiling = 3.0f;
+}
+
+static cerr fixture_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct fixture_case *c = priv;
+
+    return pcg_fixture_emit(ctx, &c->p, .frame = c->frame, .ceiling = c->ceiling);
+}
+
+static bool fixture_fails(const struct fixture_case *c)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("fixture"), return false);
+    pcg_ctx ctx = { .sink = sink, .palette = &fixture_palette, .frame = PCG_FRAME_IDENTITY };
+    struct sink_walk w;
+
+    return failed_inval(fixture_case_emit(&ctx, c)) && sink_walk_get(sink, &w) && !w.nr;
+}
+
+static int fixture_test(void)
+{
+    struct fixture_case c;
+    fixture_case_init(&c);
+
+    if (c.p.body.role != PCG_ROLE_FIXTURE || c.p.body.collide != PCG_COLLIDE_NONE)  return EXIT_FAILURE;
+    if (c.p.uv != PCG_UV_UNIT || c.p.drop != c.p.h)                                 return EXIT_FAILURE;
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(fixture_case_emit, &c, &fixture_palette, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 1 || w.key[0].mat != &glow)     return EXIT_FAILURE;
+    if (w.key[0].collide != PCG_COLLIDE_NONE)                               return EXIT_FAILURE;
+    if (mesh_nr_vx(w.mesh[0]) != (size_t)c.p.segments * 12)                 return EXIT_FAILURE;
+
+    /* a closed disc flush with the ceiling, its underside the drop below it */
+    if (!walk_closed(&w))                                                   return EXIT_FAILURE;
+    double vol = cylinder_volume(c.p.segments, c.p.r, c.p.h);
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                           return EXIT_FAILURE;
+    const vec3 lo = { -c.p.r, c.ceiling - c.p.drop, -c.p.r };
+    const vec3 hi = { c.p.r, c.ceiling - c.p.drop + c.p.h, c.p.r };
+    if (!walk_aabb_is(&w, &c.frame, lo, hi))                                return EXIT_FAILURE;
+
+    if (!element_frames_ok(fixture_case_emit, &c, &fixture_palette, true))  return EXIT_FAILURE;
+
+    /* bad styles and fits emit nothing */
+    struct fixture_case bad = c;
+    bad.p = (pcg_fixture_params){};
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    bad = c;
+    bad.p.segments = 2;
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    bad = c;
+    bad.p.r = -0.1f;
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    bad = c;
+    bad.p.h = NAN;
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    bad = c;
+    bad.p.drop = c.p.h * 0.5f;
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    bad = c;
+    bad.p.uv = PCG_UV_NR;
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    bad = c;
+    bad.ceiling = c.p.drop * 0.5f;
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    bad = c;
+    bad.p.uv = PCG_UV_METERS;
+    if (!fixture_fails(&bad))                                               return EXIT_FAILURE;
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = { &bad.p.r, &bad.p.h, &bad.p.drop, &bad.ceiling };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            bad = c;
+            *fields[k] = nonfinite[i];
+            if (!fixture_fails(&bad))                                       return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++) {
+        bad = c;
+        bad.frame = bad_frames[i];
+        if (!fixture_fails(&bad))                                           return EXIT_FAILURE;
+    }
+    /* more segments than a mesh holds, also where segments * 12 wraps a 32-bit size_t: the check says so */
+    const int many[] = { PCG_CYLINDER_SIDES_MAX + 1, 357913942 };
+    for (size_t k = 0; k < array_size(many); k++) {
+        bad = c;
+        bad.p.segments = many[k];
+        cerr err = pcg_fixture_check(&bad.p, &(pcg_fixture_site){ .frame = bad.frame, .ceiling = bad.ceiling });
+        if (!IS_CERR_CODE(err, CERR_TOO_LARGE))                             return EXIT_FAILURE;
+    }
+
+    /* a longer drop hangs it lower */
+    struct fixture_case low = c;
+    low.p.drop = 0.3f;
+    LOCAL_SET(pcg_sink, ls) = CRES_RET(element_sink(fixture_case_emit, &low, &fixture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ls, &w) || w.nr != 1)                                return EXIT_FAILURE;
+    if (!mesh_y_within(w.mesh[0], &PCG_FRAME_IDENTITY, c.ceiling - low.p.drop, c.ceiling - low.p.drop + c.p.h))
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int fixture_surface_test(void)
+{
+    struct fixture_case c;
+    fixture_case_init(&c);
+
+    /* a finish of its own, charted in meters */
+    c.p.uv = PCG_UV_METERS;
+    c.p.body.mat = &surf_mat[0];
+    LOCAL_SET(pcg_sink, ms) = CRES_RET(element_sink(fixture_case_emit, &c, &fixture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(ms, &w) || w.nr != 1 || w.key[0].mat != &surf_mat[0])    return EXIT_FAILURE;
+    if (!element_frames_ok(fixture_case_emit, &c, &fixture_palette, true))      return EXIT_FAILURE;
+
+    /* a collide class of its own */
+    fixture_case_init(&c);
+    c.p.body.collide = PCG_COLLIDE_SOLID;
+    LOCAL_SET(pcg_sink, cs) = CRES_RET(element_sink(fixture_case_emit, &c, &fixture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(cs, &w) || w.nr != 1 || w.key[0].collide != PCG_COLLIDE_SOLID)   return EXIT_FAILURE;
+
+    /* skipped, nothing; without a finish for its role, an error */
+    fixture_case_init(&c);
+    c.p.body.skip = true;
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(fixture_case_emit, &c, &fixture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ss, &w) || w.nr)                                         return EXIT_FAILURE;
+    fixture_case_init(&c);
+    c.p.body.role = PCG_ROLE_STRUCTURE;
+    if (!fixture_fails(&c))                                                     return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* the reference building's ceiling over a room's floor: a storey less the slab and the deck */
+#define REF_SOFFIT_H (REF_FLOOR_H - REF_SLAB_T - REF_DECK_T)
+
+/* what the fixtures emit into, and the reference mesh they are compared against */
+struct fixture_parity {
+    pcg_ctx             ctx;
+    struct mesh         *ref;
+    pcg_fixture_params  fixture;
+};
+
+static cerr fixture_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_rec *rooms, size_t nr_rooms,
+                                const ref_room_meshes *m, float y, void *priv)
+{
+    struct fixture_parity *fp = priv;
+
+    CERR_RET_CERR(ref_instance(fp->ref, m->lights, (vec3){ 0.0f, y, 0.0f }));
+
+    for (size_t k = 0; k < nr_rooms; k++) {
+        const pcg_frame at = { .org = { rooms[k].light[0], y, rooms[k].light[1] },
+                               .dir = { rooms[k].dir[0], rooms[k].dir[1] } };
+
+        CERR_RET_CERR(pcg_fixture_emit(&fp->ctx, &fp->fixture, .frame = at, .ceiling = REF_SOFFIT_H));
+    }
+
+    return CERR_OK;
+}
+
+/*
+ * The reference building's ceiling lights against the reference copy of
+ * the room strip that emits them inline: one 12-sided disc per room,
+ * 0.16 to its corners and 0.05 thick, its underside 0.10 below the top of
+ * the 5.65 room walls, which reach 0.05 into the slab above, so the disc
+ * sits flush with the soffit, every face carrying the whole texture. The
+ * fixtures hang from the soffit itself, flush by default. The
+ * originals stand square to the building, each fixture square to its
+ * room: the rooms run at multiples of 60 degrees, which turn a 12-gon
+ * onto itself.
+ */
+static int fixture_parity_test(void)
+{
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int fi = 0; fi < 2; fi++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("fixture"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref lights"), return EXIT_FAILURE);
+        struct fixture_parity fp = {
+            .ctx = { .sink = sink, .palette = &fixture_palette, .frame = frames[fi] },
+            .ref = ref,
+        };
+        pcg_fixture_params_init(&fp.fixture);
+
+        CERR_RET(ref_rooms_for_each(0, fixture_parity_ring, &fp), return EXIT_FAILURE);
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != 1)                                              return EXIT_FAILURE;
+        if (!parity_check("room lights", walk_mesh(&w, &glow), ref, &frames[fi], false, 1.0f))  return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -5738,6 +5998,9 @@ static const struct test tests[] = {
     { .name = "window wall", .test = window_wall_test },
     { .name = "window wall surfaces", .test = window_wall_surface_test },
     { .name = "window wall parity", .test = window_wall_parity_test },
+    { .name = "fixture", .test = fixture_test },
+    { .name = "fixture surfaces", .test = fixture_surface_test },
+    { .name = "fixture parity", .test = fixture_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
