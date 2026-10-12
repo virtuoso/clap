@@ -16,6 +16,7 @@
 #include "util.h"
 #include "pcg/balustrade.h"
 #include "pcg/column.h"
+#include "pcg/facade.h"
 #include "pcg/fascia.h"
 #include "pcg/fixture.h"
 #include "pcg/flight.h"
@@ -7845,6 +7846,298 @@ static int gallery_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Facade
+ ****************************************************************************/
+
+/* a hexagonal facade with a portal in each of up to two sides */
+struct facade_case {
+    pcg_facade_params   p;
+    pcg_frame           frame;
+    vec2                pts[6];
+    size_t              nr_pts;
+    size_t              edge[2];
+    size_t              nr_edges;
+    pcg_opening         open[2];
+    float               h;
+};
+
+static void facade_case_init(struct facade_case *c)
+{
+    *c = (struct facade_case){ .nr_pts = 6, .h = 4.0f, .edge = { 1, 4 }, .nr_edges = 2 };
+    pcg_facade_params_init(&c->p);
+    test_frame(&c->frame, 0.4f, false, 3.0f, 0.5f, -2.0f);
+    for (int i = 0; i < 6; i++) ref_ngon_vertex(i, 6, 12.0f, c->pts[i]);
+
+    /* sides of 12: an entrance in the middle of one, a lower door off the middle of another */
+    c->open[0] = (pcg_opening){ .at = 6.0f, .w = 2.6f, .h = c->p.wall.head };
+    c->open[1] = (pcg_opening){ .at = 3.6f, .w = 2.0f, .h = 2.4f };
+}
+
+static void facade_case_edges(const struct facade_case *c, pcg_facade_edge *edges)
+{
+    for (size_t i = 0; i < c->nr_edges; i++)
+        edges[i] = (pcg_facade_edge){ .edge = c->edge[i], .openings = &c->open[i], .nr_openings = 1 };
+}
+
+static cerr facade_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct facade_case *c = priv;
+    pcg_facade_edge edges[2];
+
+    facade_case_edges(c, edges);
+
+    return pcg_facade_emit(ctx, &c->p, .frame = c->frame, .pts = c->pts, .nr_pts = c->nr_pts, .h = c->h,
+                           .edges = c->nr_edges ? edges : nullptr, .nr_edges = c->nr_edges);
+}
+
+/* @c's sides, each a window wall from its point to the next, with its portal */
+static cerr facade_case_walls(const pcg_ctx *ctx, const void *priv)
+{
+    const struct facade_case *c = priv;
+    pcg_ctx at = pcg_ctx_at(ctx, &c->frame);
+
+    for (size_t i = 0; i < c->nr_pts; i++) {
+        pcg_frame run;
+        float len = CRES_RET_CERR(pcg_frame_run(&run, c->pts[i], c->pts[(i + 1) % c->nr_pts], 0.0f));
+        const pcg_opening *open = nullptr;
+
+        for (size_t e = 0; e < c->nr_edges; e++)
+            if (c->edge[e] == i)    open = &c->open[e];
+
+        CERR_RET_CERR(pcg_window_wall_emit(&at, &c->p.wall, .frame = run, .len = len, .h = c->h,
+                                           .openings = open, .nr_openings = !!open));
+    }
+
+    return CERR_OK;
+}
+
+/* @c emits what its sides emit as window walls, the same bytes in the same buckets */
+static bool facade_case_ok(const struct facade_case *c)
+{
+    LOCAL_SET(pcg_sink, fs) = CRES_RET(element_sink(facade_case_emit, c, &glazing_palette, &PCG_FRAME_IDENTITY),
+                                       return false);
+    LOCAL_SET(pcg_sink, ws) = CRES_RET(element_sink(facade_case_walls, c, &glazing_palette, &PCG_FRAME_IDENTITY),
+                                       return false);
+    struct sink_walk fw, ww;
+
+    if (!sink_walk_get(fs, &fw) || !sink_walk_get(ws, &ww) || !fw.nr || fw.nr != ww.nr)     return false;
+    for (size_t b = 0; b < fw.nr; b++)
+        if (fw.key[b].mat != ww.key[b].mat || !meshes_same_bytes(fw.mesh[b], ww.mesh[b]))   return false;
+
+    return element_frames_ok(facade_case_emit, c, &glazing_palette, true);
+}
+
+static int facade_test(void)
+{
+    struct facade_case c;
+    facade_case_init(&c);
+
+    /* every side is the generic window wall */
+    pcg_window_wall_params wp;
+    pcg_window_wall_params_init(&wp);
+    if (c.p.wall.t != wp.t || c.p.wall.sill != wp.sill || c.p.wall.head != wp.head || c.p.wall.bay != wp.bay ||
+        c.p.wall.open_below != wp.open_below || c.p.wall.glazing.member.skip != wp.glazing.member.skip)
+        return EXIT_FAILURE;
+    for (int s = 0; s < PCG_WINDOW_WALL_NR_SURF; s++)
+        if (c.p.wall.surf[s].role != wp.surf[s].role || c.p.wall.surf[s].collide != wp.surf[s].collide)
+            return EXIT_FAILURE;
+
+    /* portals in two sides, in none, and in the last side, with a storefront wall */
+    if (!facade_case_ok(&c))                    return EXIT_FAILURE;
+    struct facade_case e = c;
+    e.nr_edges = 0;
+    if (!facade_case_ok(&e))                    return EXIT_FAILURE;
+    e = c;
+    e.edge[0] = 5;
+    e.nr_edges = 1;
+    e.p.wall.open_below = true;
+    if (!facade_case_ok(&e))                    return EXIT_FAILURE;
+
+    /* the portals take their glass and spandrel out: fewer panes than without them */
+    LOCAL_SET(pcg_sink, ds) = CRES_RET(element_sink(facade_case_emit, &c, &glazing_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    e = c;
+    e.nr_edges = 0;
+    LOCAL_SET(pcg_sink, ns) = CRES_RET(element_sink(facade_case_emit, &e, &glazing_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk dw, nw;
+    if (!sink_walk_get(ds, &dw) || !sink_walk_get(ns, &nw) || dw.nr != 3 || nw.nr != 3)     return EXIT_FAILURE;
+    if (mesh_nr_vx(walk_mesh(&nw, &glass)) != 6 * 12)                                       return EXIT_FAILURE;
+    /* the entrance splits its side's pane in two, the door leaves a transom over itself */
+    if (mesh_nr_vx(walk_mesh(&dw, &glass)) != (6 + 1 + 2) * 12)                             return EXIT_FAILURE;
+
+    /*
+     * zeroed or nonsense style, short, missing or broken polygons, bad edge
+     * lists, or a side that doesn't fit, even the last one: nothing emitted
+     */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("facade"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &glazing_palette, .frame = PCG_FRAME_IDENTITY };
+
+    struct facade_case z = c;
+    z.p = (pcg_facade_params){};
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.nr_pts = 2;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    memcpy(z.pts[3], z.pts[2], sizeof(vec2));
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.edge[1] = 6;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.edge[0] = 4;
+    z.edge[1] = 1;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.edge[0] = 4;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.edge[1] = 5;
+    z.open[1] = (pcg_opening){ .at = 6.0f, .w = 11.0f, .h = c.p.wall.head };
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.edge[1] = 5;
+    z.open[1].h = c.p.wall.head + 0.5f;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.h = c.p.wall.head;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.wall.glazing.member.skip = false;
+    z.p.wall.glazing.member_w = 1.2f;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z = c;
+    z.p.wall.glazing.min_seg = -1.0f;
+    if (!failed(facade_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &z.pts[3][0], &z.pts[5][1], &z.h, &z.p.wall.t, &z.p.wall.bay, &z.p.wall.glazing.member_t,
+            &z.open[1].at, &z.open[1].h,
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = c;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(facade_case_emit(&bc, &z)))   return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++) {
+        z = c;
+        z.frame = bad_frames[i];
+        if (!failed_inval(facade_case_emit(&bc, &z)))   return EXIT_FAILURE;
+    }
+    if (!failed(pcg_facade_emit(&bc, &c.p, .frame = c.frame, .nr_pts = 6, .h = c.h)))   return EXIT_FAILURE;
+    if (!failed(pcg_facade_emit(&bc, &c.p, .frame = c.frame, .pts = c.pts, .nr_pts = 6, .h = c.h,
+                                .nr_edges = 1)))
+        return EXIT_FAILURE;
+    if (!failed(pcg_facade_emit(nullptr, &c.p, .frame = c.frame, .pts = c.pts, .nr_pts = 6, .h = c.h)))
+        return EXIT_FAILURE;
+    if (!failed(_pcg_facade_emit(&bc, &c.p, nullptr)) || !failed(pcg_facade_check(nullptr, nullptr)))
+        return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)      return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * The reference building's perimeter as one facade per storey, against
+ * reference copies of the window wall and pane emitters called the way
+ * the reference building calls them (see window_wall_parity_test()): a
+ * hexagon of 0.22 window walls on the 60 m outline moved in by half their
+ * thickness, 5.65 tall on the storey's deck, its sides running from one
+ * point toward the next; on the ground floor, side 1 gets the 2.6 m
+ * entrance in its middle. Each storey is compared on its own, so the
+ * ground floor's facade and the upper floors' are both checked. The
+ * facade's polygon closes on its first point, so the reference's last
+ * side ends there too: the original computes that end a full turn on,
+ * which rounds it up to about 1.2e-5 away at this radius, an accepted
+ * change (the gallery's rim has the same one).
+ */
+static int facade_parity_test(void)
+{
+    const int n = REF_SIDES;
+    float apothem = REF_RADIUS * cosf((float)M_PI / n);
+    float rin = REF_RADIUS * (apothem - REF_WALL_T * 0.5f) / apothem;
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    pcg_facade_params p;
+    pcg_facade_params_init(&p);
+    p.wall.t = REF_WALL_T;
+    p.wall.sill = REF_SILL_H;
+    p.wall.head = REF_HEAD_H;
+    p.wall.bay = REF_BAY;
+    p.wall.mullion.role = PCG_ROLE_CLADDING;
+
+    vec2 pts[REF_SIDES];
+    for (int i = 0; i < n; i++) ref_ngon_vertex(i, n, rin, pts[i]);
+
+    for (int fi = 0; fi < 2; fi++)
+        for (int f = 0; f < REF_FLOORS; f++) {
+            float y = f * REF_FLOOR_H + REF_DECK_T, entrance_len = 0.0f;
+            LOCAL_SET(mesh_t, mw) = CRES_RET(ref_new_checked(mesh, .name = "ref walls"), return EXIT_FAILURE);
+            LOCAL_SET(mesh_t, mg) = CRES_RET(ref_new_checked(mesh, .name = "ref glass"), return EXIT_FAILURE);
+
+            for (int i = 0; i < n; i++) {
+                const float *v0 = pts[i], *v1 = pts[(i + 1) % n];
+                vec2 dir = { v1[0] - v0[0], v1[1] - v0[1] };
+
+                float len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1]);
+
+                dir[0] /= len;
+                dir[1] /= len;
+
+                int bays = (int)lrintf(len / REF_BAY);
+                float gap_w = !f && i == REF_ENTRANCE ? REF_ENTRANCE_W : 0.0f;
+
+                if (gap_w > 0.0f)   entrance_len = len;
+                CERR_RET(ref_wall_emit(mw, &(ref_wall_params){
+                             .org = { v0[0], v0[1] }, .dir = { dir[0], dir[1] },
+                             .len = len, .h = REF_WALL_H, .t = REF_WALL_T,
+                             .sill = REF_SILL_H, .head = REF_HEAD_H,
+                             .mull_w = 0.09f, .mull_pitch = 1.2f, .post_w = 0.3f,
+                             .bays = bays > 1 ? bays : 1,
+                             .gap_at = len * 0.5f, .gap_w = gap_w,
+                             .uv = REF_UV_PANEL,
+                         }),
+                         return EXIT_FAILURE);
+                CERR_RET(ref_glass_emit(mg, v0, dir, len, REF_SILL_H, REF_HEAD_H, len * 0.5f, gap_w, 0.0f,
+                                        REF_UV_BRONZE),
+                         return EXIT_FAILURE);
+            }
+
+            LOCAL_SET(mesh_t, ref_walls) = CRES_RET(ref_new_checked(mesh, .name = "ref storey walls"),
+                                                    return EXIT_FAILURE);
+            LOCAL_SET(mesh_t, ref_glass) = CRES_RET(ref_new_checked(mesh, .name = "ref storey glass"),
+                                                    return EXIT_FAILURE);
+            CERR_RET(ref_instance(ref_walls, mw, (vec3){ 0.0f, y, 0.0f }), return EXIT_FAILURE);
+            CERR_RET(ref_instance(ref_glass, mg, (vec3){ 0.0f, y, 0.0f }), return EXIT_FAILURE);
+
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("facade"), return EXIT_FAILURE);
+            pcg_ctx ctx = { .sink = sink, .palette = &glazing_palette, .frame = frames[fi] };
+            const pcg_opening entrance = { .at = entrance_len * 0.5f, .w = REF_ENTRANCE_W, .h = REF_HEAD_H };
+            const pcg_facade_edge edge = { .edge = REF_ENTRANCE, .openings = &entrance, .nr_openings = 1 };
+            const pcg_frame storey = { .org = { 0.0f, y, 0.0f }, .dir = { 1.0f, 0.0f } };
+
+            CERR_RET(pcg_facade_emit(&ctx, &p, .frame = storey, .pts = pts, .nr_pts = n, .h = REF_WALL_H,
+                                     .edges = f ? nullptr : &edge, .nr_edges = !f),
+                     return EXIT_FAILURE);
+
+            struct sink_walk w;
+            if (!sink_walk_get(sink, &w) || w.nr != 2)                                  return EXIT_FAILURE;
+            if (!parity_check(f ? "facade walls" : "facade walls, ground floor", walk_mesh(&w, &panel), ref_walls,
+                              &frames[fi], false, REF_UV_PANEL) ||
+                !parity_check(f ? "facade glass" : "facade glass, ground floor", walk_mesh(&w, &glass), ref_glass,
+                              &frames[fi], false, REF_UV_BRONZE))
+                return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -7910,6 +8203,8 @@ static const struct test tests[] = {
     { .name = "flight parity", .test = flight_parity_test },
     { .name = "gallery", .test = gallery_test },
     { .name = "gallery parity", .test = gallery_parity_test },
+    { .name = "facade", .test = facade_test },
+    { .name = "facade parity", .test = facade_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
