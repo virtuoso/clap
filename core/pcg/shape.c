@@ -437,3 +437,62 @@ cerr _pcg_rod(const pcg_ctx *ctx, const pcg_rod_desc *d)
 
     return CERR_OK;
 }
+
+/****************************************************************************
+ * Cylinder
+ ****************************************************************************/
+
+cerr _pcg_cylinder(const pcg_ctx *ctx, const pcg_cylinder_desc *d)
+{
+    if (!ctx || !d)     return CERR_INVALID_ARGUMENTS;
+    if (d->sides < 3 || !pcg_positive(d->r) || !pcg_positive(d->h))
+        return CERR_INVALID_ARGUMENTS_REASON(.fmt = "cylinder of fewer than 3 sides or without a radius or height");
+    if (d->sides > PCG_CYLINDER_SIDES_MAX)
+        return CERR_TOO_LARGE_REASON(.fmt = "cylinder of more sides than a mesh holds");
+
+    if (d->surf.skip)   return CERR_OK;
+
+    /* per side: 2 cap and 2 side triangles */
+    pcg_target t = CRES_RET_CERR(pcg_sink_reserve(ctx, &d->surf, d->uv, (size_t)d->sides * 12));
+    prim_emit_opts opts = { .mesh = t.mesh, .clockwise = t.clockwise };
+    const pcg_frame *f = &ctx->frame;
+    bool unit = d->uv == PCG_UV_UNIT;
+    float a = d->org[0], c = d->org[2];
+    float y0 = d->org[1], y1 = d->org[1] + d->h;
+    /* side width: U runs around the perimeter in meters */
+    float w = 2.0f * d->r * sinf((float)M_PI / d->sides);
+    vec3 bot, top;
+
+    pcg_frame_point(f, (vec3){ a, y0, c }, bot);
+    pcg_frame_point(f, (vec3){ a, y1, c }, top);
+
+    for (int s = 0; s < d->sides; s++) {
+        /* the turn of _prim_emit_cylinder(), in double like there */
+        float a1 = a + d->r * cos(M_PI * 2 * s / d->sides);
+        float c1 = c + d->r * sin(M_PI * 2 * s / d->sides);
+        float a2 = a + d->r * cos(M_PI * 2 * (s + 1) / d->sides);
+        float c2 = c + d->r * sin(M_PI * 2 * (s + 1) / d->sides);
+        vec3 b1, b2, t1, t2;
+
+        pcg_frame_point(f, (vec3){ a1, y0, c1 }, b1);
+        pcg_frame_point(f, (vec3){ a2, y0, c2 }, b2);
+        pcg_frame_point(f, (vec3){ a1, y1, c1 }, t1);
+        pcg_frame_point(f, (vec3){ a2, y1, c2 }, t2);
+
+        /* the caps: the unit triangle, or the plane in meters from the axis */
+        const vec2 axis = { 0.0f, 0.0f };
+        const vec2 m1 = { a1 - a, c1 - c }, m2 = { a2 - a, c2 - c };
+        const vec2 u01 = { 0.0f, 1.0f }, u10 = { 1.0f, 0.0f };
+        /* the side quad: the unit square, or meters around and up */
+        float u0 = unit ? 0.0f : s * w, u1 = unit ? 1.0f : (s + 1) * w;
+        float v0 = unit ? 0.0f : y0, v1 = unit ? 1.0f : y1;
+        const vec2 q0 = { u0, v0 }, q1 = { u1, v0 }, q2 = { u1, v1 }, q3 = { u0, v1 };
+
+        rod_tri(bot, b1, b2, axis, unit ? u01 : m1, unit ? u10 : m2, t.uv_swap, &opts);
+        rod_tri(b1, t1, b2, q0, q3, q1, t.uv_swap, &opts);
+        rod_tri(t1, t2, b2, q3, q2, q1, t.uv_swap, &opts);
+        rod_tri(top, t2, t1, axis, unit ? u01 : m2, unit ? u10 : m1, t.uv_swap, &opts);
+    }
+
+    return CERR_OK;
+}

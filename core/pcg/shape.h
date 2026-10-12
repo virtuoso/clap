@@ -18,7 +18,8 @@
  * mirrored frame the faces are wound the other way, so they keep
  * pointing out. Texture coordinates are in meters (PCG_UV_METERS): a
  * material's UV factor sets the density, so swapping a finish never
- * re-emits geometry.
+ * re-emits geometry. A shape that can also lay the whole texture on each
+ * face (PCG_UV_UNIT) says so.
  */
 
 /**
@@ -279,5 +280,56 @@ cerr_check _pcg_rod(const pcg_ctx *ctx, const pcg_rod_desc *d);
  * Syntax sugar for _pcg_rod().
  */
 #define pcg_rod(_ctx, args...) _pcg_rod((_ctx), &(const pcg_rod_desc){ args })
+
+/* a cylinder takes 12 vertices per side, all in one mesh */
+#define PCG_CYLINDER_SIDES_MAX  (USHRT_MAX / 12)
+
+/**
+ * struct pcg_cylinder_desc - an upright n-gon cylinder
+ * @surf:   finish, wearing a material of the @uv mode
+ * @org:    center of the base, in the context's local (a, y, c)
+ * @h:      height, up the local y
+ * @r:      circumradius
+ * @sides:  number of sides, 3 to PCG_CYLINDER_SIDES_MAX; vertex k sits
+ *          k / @sides of a turn from the local +a toward +c
+ * @uv:     how the faces are charted
+ *
+ * The cylinder of _prim_emit_cylinder(), turned with the frame: per side,
+ * a bottom triangle fanned from the axis, a side quad and a top triangle
+ * fanned from the axis, every face wound outward. Under PCG_UV_METERS
+ * the sides run U around the perimeter in meters from vertex 0 and V up
+ * the local y, and the caps chart the local (a, c) in meters from the
+ * axis. Under PCG_UV_UNIT every face carries the unit square the way
+ * _prim_emit_cylinder() lays it on: a side quad runs U along the turn and
+ * V up, and a cap triangle has (0, 0) on the axis, (0, 1) on its first
+ * rim corner and (1, 0) on its second, the bottom's rim corners taken
+ * along the turn and the top's against it.
+ */
+typedef struct pcg_cylinder_desc {
+    pcg_surface     surf;
+    vec3            org;
+    float           h;
+    float           r;
+    int             sides;
+    pcg_uv_mode     uv;
+} pcg_cylinder_desc;
+
+/**
+ * _pcg_cylinder() - emit a cylinder
+ * @ctx:    where it goes
+ * @d:      the cylinder
+ *
+ * Return: CERR_OK; CERR_INVALID_ARGUMENTS for fewer than 3 sides, or a
+ * radius or height that isn't positive; CERR_TOO_LARGE for more than
+ * PCG_CYLINDER_SIDES_MAX sides; the pcg_sink_reserve() errors
+ */
+cerr_check _pcg_cylinder(const pcg_ctx *ctx, const pcg_cylinder_desc *d);
+
+/**
+ * define pcg_cylinder - emit a cylinder described by pcg_cylinder_desc initializers
+ *
+ * Syntax sugar for _pcg_cylinder().
+ */
+#define pcg_cylinder(_ctx, args...) _pcg_cylinder((_ctx), &(const pcg_cylinder_desc){ args })
 
 #endif /* __CLAP_PCG_SHAPE_H__ */
