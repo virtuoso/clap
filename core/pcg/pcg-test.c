@@ -21,6 +21,7 @@
 #include "pcg/flight.h"
 #include "pcg/glazing.h"
 #include "pcg/frame.h"
+#include "pcg/gallery.h"
 #include "pcg/material.h"
 #include "pcg/shape.h"
 #include "pcg/sign.h"
@@ -7495,6 +7496,355 @@ static int flight_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Gallery
+ ****************************************************************************/
+
+/* the fascia's own finish, so that its box charts compare apart from the slab's plate charts */
+static const pcg_material band = { .name = "band", .uv_mode = PCG_UV_METERS };
+
+/* a gallery level with up to one cut each for its rail and its fascia */
+struct gallery_case {
+    pcg_gallery_params  p;
+    pcg_frame           frame;
+    vec2                outline[6];
+    vec2                rim[6];
+    size_t              nr_rim;
+    pcg_region          rail_cut;
+    size_t              nr_rail_cuts;
+    pcg_region          fascia_cut;
+    size_t              nr_fascia_cuts;
+};
+
+/* the window [@a0, @a1] by [-1, 1] across the rim's edge @i */
+static void gallery_cut(const struct gallery_case *c, size_t i, float a0, float a1, pcg_region *r)
+{
+    vec2 dir, left;
+    const float *a = c->rim[i];
+
+    poly2d_edge_frame(a, c->rim[(i + 1) % c->nr_rim], dir, left);
+    *r = (pcg_region){
+        .frame  = { .org = { a[0], 0.0f, a[1] }, .dir = { dir[0], dir[1] } },
+        .along  = { .lo = a0, .hi = a1 },
+        .across = { .lo = -1.0f, .hi = 1.0f },
+    };
+}
+
+/*
+ * A hexagonal floor of 12 around a hexagonal well of 5, raised and moved
+ * off its parent's origin; the rail broken over [1, 2.5] of the rim's
+ * second edge, the fascia over [2, 3]
+ */
+static void gallery_case_init(struct gallery_case *c)
+{
+    pcg_gallery_params_init(&c->p);
+    c->frame = (pcg_frame){ .org = { 1.0f, 4.0f, -2.0f }, .dir = { 1.0f, 0.0f } };
+    for (int j = 0; j < 6; j++) {
+        ref_ngon_vertex(j, 6, 12.0f, c->outline[j]);
+        ref_ngon_vertex(j, 6, 5.0f, c->rim[j]);
+    }
+    c->nr_rim = 6;
+    gallery_cut(c, 1, 1.0f, 2.5f, &c->rail_cut);
+    gallery_cut(c, 1, 2.0f, 3.0f, &c->fascia_cut);
+    c->nr_rail_cuts = c->nr_fascia_cuts = 1;
+}
+
+static cerr gallery_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct gallery_case *c = priv;
+
+    return pcg_gallery_emit(ctx, &c->p, .frame = c->frame, .outline = c->outline, .nr_outline = 6,
+                            .rim = c->rim, .nr_rim = c->nr_rim,
+                            .rail_cuts = c->nr_rail_cuts ? &c->rail_cut : nullptr, .nr_rail_cuts = c->nr_rail_cuts,
+                            .fascia_cuts = c->nr_fascia_cuts ? &c->fascia_cut : nullptr,
+                            .nr_fascia_cuts = c->nr_fascia_cuts);
+}
+
+/*
+ * @c's level: the slab's 12 cap triangles a face and an edge per ring
+ * edge, on both the structure and the finish; a fascia run and a rail run
+ * on every rim edge, each cut where its own cut crosses; and the volume
+ * of all of it, every member counted whole
+ */
+static bool gallery_case_ok(const struct gallery_case *c, size_t *nr_fascia, size_t *nr_rail)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(gallery_case_emit, c, &rail_palette, &PCG_FRAME_IDENTITY),
+                                         return false);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 3)  return false;
+
+    struct fascia_case fc = { .p = c->p.fascia, .nr_pts = c->nr_rim, .nr_cuts = c->nr_fascia_cuts, .closed = true };
+    struct balustrade_case bc = {
+        .p = c->p.rail, .nr_pts = c->nr_rim, .nr_cuts = c->nr_rail_cuts, .inset = c->p.rail_inset, .closed = true,
+    };
+    memcpy(fc.pts, c->rim, sizeof(c->rim));
+    memcpy(bc.pts, c->rim, sizeof(c->rim));
+    fc.cuts[0] = c->fascia_cut;
+    bc.cuts[0] = c->rail_cut;
+
+    double fascia_len, rail_vol;
+    *nr_fascia = fascia_case_runs(&fc, &fascia_len);
+    *nr_rail = balustrade_case_nr_vx(&bc, &rail_vol);
+
+    const pcg_slab_params *s = &c->p.floor;
+    size_t nr_slab = 12 * 3 + 12 * 6;
+    struct mesh *structure = walk_mesh(&w, &concrete), *deck = walk_mesh(&w, &wood), *rail = walk_mesh(&w, &slat);
+    if (!structure || mesh_nr_vx(structure) != nr_slab + *nr_fascia * 36)       return false;
+    if (!deck || mesh_nr_vx(deck) != nr_slab)                                   return false;
+    if (!rail || mesh_nr_vx(rail) != *nr_rail)                                  return false;
+    if (!walk_closed(&w))                                                       return false;
+
+    double vol = (ngon_area(6, 12.0) - ngon_area(6, 5.0)) * ((double)s->t + s->finish_t) +
+                 fascia_len * c->p.fascia.depth * ((double)c->p.fascia.lip + c->p.fascia.tuck) + rail_vol;
+    if (fabs(walk_volume(&w) - vol) > 1e-4 * vol)                               return false;
+
+    /* from under the fascia to the top of the rail, out to the outline */
+    vec2 lo, hi;
+    poly2d_bbox(c->outline, 6, lo, hi);
+
+    return walk_aabb_is(&w, &c->frame, (vec3){ lo[0], -c->p.fascia.depth, lo[1] },
+                        (vec3){ hi[0], s->finish_t + c->p.rail.h, hi[1] });
+}
+
+static int gallery_test(void)
+{
+    struct gallery_case c;
+    gallery_case_init(&c);
+
+    /* the children's defaults, a thicker slab and the rail back from the rim */
+    pcg_slab_params sp;
+    pcg_fascia_params fp;
+    pcg_balustrade_params bp;
+    pcg_slab_params_init(&sp);
+    pcg_fascia_params_init(&fp);
+    pcg_balustrade_params_init(&bp);
+    if (c.p.floor.t != 0.35f || c.p.floor.finish_t != sp.finish_t || c.p.rail_inset != 0.09f)   return EXIT_FAILURE;
+    if (c.p.fascia.depth != fp.depth || c.p.fascia.lip != fp.lip || c.p.rail.h != bp.h)         return EXIT_FAILURE;
+    for (int s = 0; s < PCG_SLAB_NR_SURF; s++)
+        if (c.p.floor.surf[s].role != sp.surf[s].role || c.p.floor.surf[s].collide != sp.surf[s].collide)
+            return EXIT_FAILURE;
+
+    /* each cut breaks its own child: one more run of the fascia, one more of the rail */
+    size_t nr_fascia, nr_rail, nr_fascia_whole, nr_rail_whole;
+    if (!gallery_case_ok(&c, &nr_fascia, &nr_rail) || nr_fascia != 7)   return EXIT_FAILURE;
+    if (!element_frames_ok(gallery_case_emit, &c, &rail_palette, true)) return EXIT_FAILURE;
+
+    struct gallery_case e = c;
+    e.nr_rail_cuts = e.nr_fascia_cuts = 0;
+    if (!gallery_case_ok(&e, &nr_fascia_whole, &nr_rail_whole)) return EXIT_FAILURE;
+    if (nr_fascia_whole != 6 || !(nr_rail_whole > nr_rail))     return EXIT_FAILURE;
+    e.nr_rail_cuts = 1;
+    if (!gallery_case_ok(&e, &nr_fascia_whole, &nr_rail_whole)) return EXIT_FAILURE;
+    if (nr_fascia_whole != 6 || nr_rail_whole != nr_rail)       return EXIT_FAILURE;
+
+    /* a level without a rail */
+    e = c;
+    for (int s = 0; s < PCG_BALUSTRADE_NR_SURF; s++)    e.p.rail.surf[s].skip = true;
+    LOCAL_SET(pcg_sink, ns) = CRES_RET(element_sink(gallery_case_emit, &e, &rail_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(ns, &w) || w.nr != 2 || walk_mesh(&w, &slat))    return EXIT_FAILURE;
+
+    /* zeroed or nonsense style, short or broken rings, cuts missing or not finite: nothing emitted */
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("gallery"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &rail_palette, .frame = PCG_FRAME_IDENTITY };
+
+    struct gallery_case z = c;
+    z.p = (pcg_gallery_params){};
+    if (!failed(gallery_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.p.fascia.depth = 0.0f;
+    if (!failed(gallery_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.p.rail.cap_t = z.p.rail.h;
+    if (!failed(gallery_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    z = c;
+    z.p.floor.t = 0.0f;
+    if (!failed(gallery_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &z.p.rail_inset, &z.p.floor.t, &z.p.floor.finish_t, &z.p.fascia.depth, &z.p.fascia.lip,
+            &z.p.rail.h, &z.p.rail.gap, &z.outline[2][0], &z.rim[4][1], &z.rail_cut.along.hi,
+            &z.fascia_cut.across.lo,
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = c;
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(gallery_case_emit(&bc, &z)))  return EXIT_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < array_size(bad_frames); i++) {
+        z = c;
+        z.frame = bad_frames[i];
+        if (!failed_inval(gallery_case_emit(&bc, &z)))  return EXIT_FAILURE;
+    }
+    z = c;
+    z.nr_rim = 2;
+    if (!failed(gallery_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    /* a rim wound the other way round would stand the rail over the void */
+    z = c;
+    for (int j = 0; j < 6; j++)                     memcpy(z.rim[j], c.rim[5 - j], sizeof(vec2));
+    if (!failed_inval(gallery_case_emit(&bc, &z)))  return EXIT_FAILURE;
+    z = c;
+    memcpy(z.rim[3], z.rim[2], sizeof(vec2));
+    if (!failed(gallery_case_emit(&bc, &z)))    return EXIT_FAILURE;
+    if (!failed(pcg_gallery_emit(&bc, &c.p, .frame = c.frame, .outline = c.outline, .nr_outline = 6,
+                                 .rim = c.rim, .nr_rim = 6, .nr_rail_cuts = 1)))
+        return EXIT_FAILURE;
+    if (!failed(pcg_gallery_emit(&bc, &c.p, .frame = c.frame, .outline = c.outline, .nr_outline = 6,
+                                 .rim = c.rim, .nr_rim = 6, .nr_fascia_cuts = 1)))
+        return EXIT_FAILURE;
+    if (!failed(pcg_gallery_emit(&bc, &c.p, .frame = c.frame, .nr_outline = 6, .rim = c.rim, .nr_rim = 6)))
+        return EXIT_FAILURE;
+    if (pcg_sink_get_stats(bad).nr_models)      return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* a gallery level's params and site */
+struct gallery_level {
+    const pcg_gallery_params    *p;
+    pcg_gallery_site            site;
+};
+
+static cerr gallery_level_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct gallery_level *l = priv;
+
+    return _pcg_gallery_emit(ctx, l->p, &l->site);
+}
+
+/*
+ * The reference building's gallery levels 1 to 3 at @frame, against
+ * reference copies of the emitters, as the reference building builds a
+ * level of 6 m storeys: a 0.35 slab without its top under a 0.05 deck
+ * without its bottom, a hexagonal floor of 60 around the level's well of
+ * 20, 24 or 28; the 0.9 fascia under the rim, broken over the arriving
+ * flight's window; and the rail 0.09 back from the rim on the deck,
+ * broken over the windows of the arriving and the departing flight
+ * (balustrade_parity_rim() and fascia_parity_test() build the same
+ * windows). The fascia wears a finish of its own here, so that its box
+ * charts compare apart from the slab's plate charts.
+ */
+static int gallery_parity_frame(const pcg_frame *frame)
+{
+    const int n = REF_WELL_SIDES, nr_flights = REF_FLOORS - 1;
+    const float H = REF_FLOOR_H;
+    pcg_gallery_params p;
+
+    pcg_gallery_params_init(&p);
+    p.floor.finish_t = REF_DECK_T;
+    p.fascia.face.mat = p.fascia.back.mat = &band;
+
+    for (int f = 1; f < REF_FLOORS; f++) {
+        float rf = ref_well_r[f - 1], slope = H / REF_STEPS / REF_GOING;
+        ref_window win[2], fwin = {};
+        pcg_region rail_cuts[2], fascia_cut;
+        int nr_win = 0;
+
+        for (int e = 0; e < 2; e++) {
+            int fl = f - 1 + e;
+            ref_flight g;
+
+            if (fl >= nr_flights)   continue;
+            ref_flight_calc(&g, ref_well_r, n, fl, REF_STEPS, REF_GOING);
+            win[nr_win] = g.w;
+
+            if (e) {
+                win[nr_win].al0 = -1e9f;
+                win[nr_win].al1 = g.land + g.run * (REF_RAIL_H + 0.22f + H / REF_STEPS + 0.1f) / H;
+            } else {
+                win[nr_win].al0 = g.len - g.land - (REF_AGENT_H + 0.1f) / slope;
+                win[nr_win].al1 = 1e9f;
+
+                fwin = g.w;
+                fwin.al0 = g.len - g.land - (REF_AGENT_H + 0.9f + REF_DECK_T + 0.1f) / slope;
+                fwin.al1 = 1e9f;
+                fwin.acmax = 0.03f + REF_STAIR_W;
+                ref_window_region(&fwin, &fascia_cut);
+            }
+            win[nr_win].acmax = 0.03f + REF_STAIR_W;
+            ref_window_region(&win[nr_win], &rail_cuts[nr_win]);
+            nr_win++;
+        }
+
+        /*
+         * The original takes the slab hole's points at angles a turn below
+         * the rim's, which a float rounds apart, by up to 1.3e-5 at 28 m:
+         * the slab and the deck compare around a rim of the hole's points,
+         * the fascia and the rail around the rim's own. The hole runs the
+         * other way, which the triangulation doesn't mind.
+         */
+        vec2 outline[REF_WELL_SIDES], rims[2][REF_WELL_SIDES];
+        for (int j = 0; j < n; j++) {
+            ref_ngon_vertex(j, 6, 60.0f, outline[j]);
+            ref_ngon_vertex(j, n, rf, rims[0][j]);
+            ref_ngon_vertex(j ? j - n : 0, n, rf, rims[1][j]);
+        }
+
+        struct gallery_level lv = {
+            .p      = &p,
+            .site   = {
+                .frame          = { .org = { 0.0f, f * H, 0.0f }, .dir = { 1.0f, 0.0f } },
+                .outline        = outline,
+                .nr_outline     = 6,
+                .rim            = rims[0],
+                .nr_rim         = n,
+                .rail_cuts      = rail_cuts,
+                .nr_rail_cuts   = nr_win,
+                .fascia_cuts    = &fascia_cut,
+                .nr_fascia_cuts = 1,
+            },
+        };
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(gallery_level_emit, &lv, &rail_palette, frame),
+                                             return EXIT_FAILURE);
+        lv.site.rim = rims[1];
+        LOCAL_SET(pcg_sink, hs) = CRES_RET(element_sink(gallery_level_emit, &lv, &rail_palette, frame),
+                                           return EXIT_FAILURE);
+
+        struct sink_walk w, hw;
+        if (!sink_walk_get(sink, &w) || !sink_walk_get(hs, &hw) || w.nr != 4 || hw.nr != 4)         return EXIT_FAILURE;
+        for (size_t b = 0; b < w.nr; b++)
+            if (w.key[b].mat != hw.key[b].mat || mesh_nr_vx(w.mesh[b]) != mesh_nr_vx(hw.mesh[b]))   return EXIT_FAILURE;
+
+        float len;
+        LOCAL_SET(mesh_t, rs) = CRES_RET(ref_new_checked(mesh, .name = "ref slab"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, rd) = CRES_RET(ref_new_checked(mesh, .name = "ref deck"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, rb) = CRES_RET(ref_new_checked(mesh, .name = "ref fascia"), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, rr) = CRES_RET(ref_new_checked(mesh, .name = "ref rim"), return EXIT_FAILURE);
+        if (failed(ref_plate_emit(rs, 6, 60.0f, n, rf, -p.floor.t, 0.0f, REF_UV_CONCRETE, REF_PLATE_NO_TOP)) ||
+            failed(ref_plate_emit(rd, 6, 60.0f, n, rf, 0.0f, REF_DECK_T, REF_UV_FLOOR, REF_PLATE_NO_BOTTOM)) ||
+            failed(ref_fascia_level(rb, n, rf, &fwin, 0.9f, REF_UV_CONCRETE)) ||
+            failed(ref_rim_level(rr, n, rf, win, nr_win, &len)))
+            return EXIT_FAILURE;
+
+        LOCAL_SET(mesh_t, ps) = CRES_RET(ref_placed(rs, f * H), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, pd) = CRES_RET(ref_placed(rd, f * H), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, pb) = CRES_RET(ref_placed(rb, f * H), return EXIT_FAILURE);
+        LOCAL_SET(mesh_t, pr) = CRES_RET(ref_placed(rr, f * H + REF_DECK_T), return EXIT_FAILURE);
+        if (!parity_check_exact("gallery slab", walk_mesh(&hw, &concrete), ps, frame, true, REF_UV_CONCRETE) ||
+            !parity_check_exact("gallery deck", walk_mesh(&hw, &wood), pd, frame, true, REF_UV_FLOOR) ||
+            !parity_check("gallery fascia", walk_mesh(&w, &band), pb, frame, false, REF_UV_CONCRETE) ||
+            !parity_check("gallery rail", walk_mesh(&w, &slat), pr, frame, false, REF_UV_SLAT))
+            return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int gallery_parity_test(void)
+{
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int fi = 0; fi < 2; fi++)
+        if (gallery_parity_frame(&frames[fi]))  return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -7558,6 +7908,8 @@ static const struct test tests[] = {
     { .name = "flight", .test = flight_test },
     { .name = "flight cut", .test = flight_cut_test },
     { .name = "flight parity", .test = flight_parity_test },
+    { .name = "gallery", .test = gallery_test },
+    { .name = "gallery parity", .test = gallery_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
