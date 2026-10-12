@@ -24,6 +24,7 @@
 #include "pcg/frame.h"
 #include "pcg/gallery.h"
 #include "pcg/material.h"
+#include "pcg/room.h"
 #include "pcg/shape.h"
 #include "pcg/sign.h"
 #include "pcg/sink.h"
@@ -4739,29 +4740,31 @@ typedef struct ref_room_wall {
 /*
  * One room as the original strip laid it out: its segment's back line,
  * its run along it and front line, the insets the flank walls take out
- * of the front, its ceiling light's center, and the plaque it mounts on
- * a solid or glass front: its center and text
+ * of the front, its wall mask, its ceiling light's center, and the
+ * plaque it mounts on a solid or glass front: its center and text
  */
 typedef struct ref_room_rec {
-    vec2    v0, dir;
-    float   a0, a1, cf;
-    float   ins_l, ins_r;
-    vec2    light;
-    vec2    plaque;
-    char    text[16];
-    bool    front_glass;
-    bool    front_door;
-    bool    has_plaque;
+    vec2        v0, dir;
+    float       a0, a1, cf;
+    float       ins_l, ins_r;
+    uint32_t    wall_mask;
+    vec2        light;
+    vec2        plaque;
+    char        text[16];
+    bool        front_glass;
+    bool        front_door;
+    bool        has_plaque;
 } ref_room_rec;
 
 #define REF_RING_ROOMS_MAX 8
 
-/* where a room strip's walls go: solid walls, glass panes and their frames, and the ceiling lights */
+/* where a room strip's walls go: solid walls, glass panes and their frames, the ceiling lights and the carpets */
 typedef struct ref_room_meshes {
     struct mesh *solid;
     struct mesh *glass;
     struct mesh *frames;
     struct mesh *lights;
+    struct mesh *carpet;
 } ref_room_meshes;
 
 /* reference copies of the ceiling light's measures */
@@ -4777,11 +4780,15 @@ typedef struct ref_room_meshes {
 #define REF_PLAQUE_H            0.32f
 #define REF_PLAQUE_Y            1.5f
 
+/* reference copies of the carpet's thickness and density: half-meter tiles, 8 to a repeat */
+#define REF_CARPET_T    0.012f
+#define REF_UV_CARPET   (1.0f / 4.0f)
+
 /*
  * A reference copy of the room strip's wall layout, along one ring
- * segment from @v0 toward @dir: its solid walls, panes, pane frames and
- * ceiling lights into @m, every wall recorded into @out and every room
- * into @rec, for the elements that replace them
+ * segment from @v0 toward @dir: its solid walls, panes, pane frames,
+ * carpets and ceiling lights into @m, every wall recorded into @out and
+ * every room into @rec, for the elements that replace them
  */
 static cerr ref_room_walls(const ref_room_meshes *m, const vec2 v0, const vec2 dir, float side_len, float wall_h,
                            const ref_room *rooms, size_t nr_rooms, ref_room_wall *out, size_t *nr_out,
@@ -4888,6 +4895,10 @@ static cerr ref_room_walls(const ref_room_meshes *m, const vec2 v0, const vec2 d
             }
         }
 
+        /* wall-to-wall carpet: a thin pile plate between the wall inner faces */
+        CERR_RET_CERR(ref_dir_box(m->carpet, v0, dir, a0 + rt, a1 - rt, 0.0f, REF_CARPET_T, cb + rt, cf - rt,
+                                  REF_UV_CARPET));
+
         /* one round ceiling fixture per room, flush with the soffit */
         float fa = (a0 + a1) * 0.5f, fc = (cb + cf) * 0.5f;
 
@@ -4901,6 +4912,7 @@ static cerr ref_room_walls(const ref_room_meshes *m, const vec2 v0, const vec2 d
             .cf     = cf,
             .ins_l  = ins_l,
             .ins_r  = ins_r,
+            .wall_mask = room->wall_mask,
             .light  = { v0[0] + dir[0] * fa + in[0] * fc, v0[1] + dir[1] * fa + in[1] * fc },
         };
         CERR_RET_CERR(_prim_emit_cylinder((vec3){ v0[0] + dir[0] * fa + in[0] * fc, wall_h - REF_LIGHT_DROP,
@@ -5027,7 +5039,10 @@ static cerr ref_rooms_for_each(int variant, ref_ring_fn fn, void *priv)
                 LOCAL_SET(mesh_t, glass) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref glass"));
                 LOCAL_SET(mesh_t, frames) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref frames"));
                 LOCAL_SET(mesh_t, lights) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref lights"));
-                const ref_room_meshes m = { .solid = solid, .glass = glass, .frames = frames, .lights = lights };
+                LOCAL_SET(mesh_t, carpet) = CRES_RET_CERR(ref_new_checked(mesh, .name = "ref carpet"));
+                const ref_room_meshes m = {
+                    .solid = solid, .glass = glass, .frames = frames, .lights = lights, .carpet = carpet,
+                };
 
                 /* the light emitter keeps the tangents of a mesh that has them */
                 CRES_RET_CERR(_prim_begin(REF_LIGHT_SEGS * 12, &(prim_emit_opts){ .mesh = lights, .tangents = true }));
@@ -6361,6 +6376,48 @@ static cerr sign_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_
 #define SIGN_ASPECT 2.4f
 
 /*
+ * How far label @l, placed under @f, lands from plaque @rp: its quad's
+ * corners into *@err, its facing into *@nerr, each the larger of the
+ * two; false if its text, height or mirroring differs. The quad is
+ * built the way the commit builds a label's, around its frame, and the
+ * original's the way the original mounted it, both with SIGN_ASPECT.
+ */
+static bool plaque_near(const pcg_label *l, const struct ref_plaque *rp, const pcg_frame *f, float *err,
+                        float *nerr)
+{
+    float h = REF_PLAQUE_H, ha = h * SIGN_ASPECT * 0.5f;
+    float y0 = REF_PLAQUE_Y - h * 0.5f, y1 = y0 + h;
+
+    if (strcmp(l->text, rp->text) || l->h != h || l->frame.mirror)  return false;
+
+    /* the original quad's corners c00, c10, c11, c01 and the label's */
+    const float ca[4] = { ha, -ha, -ha, ha }, cy[4] = { y0, y0, y1, y1 };
+    const float ly[4] = { -h * 0.5f, -h * 0.5f, h * 0.5f, h * 0.5f };
+    vec3 want[4], got[4];
+
+    for (int j = 0; j < 4; j++) {
+        vec3 p = { rp->org[0] + ca[j] * rp->dir[0], rp->y + cy[j], rp->org[1] + ca[j] * rp->dir[1] };
+
+        pcg_frame_point(f, p, want[j]);
+        pcg_frame_point(&l->frame, (vec3){ ca[j], ly[j], 0.0f }, got[j]);
+        *err = fmaxf(*err, max_diff(want[j], got[j], 3));
+    }
+
+    /* it faces where the original's normal points: cross(c01 - c00, c10 - c00) */
+    vec3 e0, e1, n;
+    vec2 across;
+    vec3_sub(e0, want[3], want[0]);
+    vec3_sub(e1, want[1], want[0]);
+    vec3_mul_cross(n, e0, e1);
+    vec3_norm(n, n);
+    pcg_frame_across(&l->frame, across);
+    vec3 facing = { across[0], 0.0f, across[1] };
+    *nerr = fmaxf(*nerr, max_diff(n, facing, 3));
+
+    return true;
+}
+
+/*
  * The reference building's room plaques against the reference copy of the
  * room strip that records them, mounted as the original mounted them: a
  * quad 0.32 high centered 1.5 over the deck, 0.05 proud of a glass front's
@@ -6396,38 +6453,8 @@ static int sign_parity_test(void)
             if (!variant && w->nr != 97)                                return EXIT_FAILURE;
 
             float err = 0.0f, nerr = 0.0f;
-            for (size_t k = 0; k < w->nr; k++) {
-                const pcg_label *l = &w->label[k];
-                const struct ref_plaque *rp = &sp->ref[k];
-                float h = REF_PLAQUE_H, ha = h * SIGN_ASPECT * 0.5f;
-                float y0 = REF_PLAQUE_Y - h * 0.5f, y1 = y0 + h;
-
-                if (strcmp(l->text, rp->text) || l->h != h || l->frame.mirror)     return EXIT_FAILURE;
-
-                /* the original quad's corners c00, c10, c11, c01 and the label's */
-                const float ca[4] = { ha, -ha, -ha, ha }, cy[4] = { y0, y0, y1, y1 };
-                const float ly[4] = { -h * 0.5f, -h * 0.5f, h * 0.5f, h * 0.5f };
-                vec3 want[4], got[4];
-
-                for (int j = 0; j < 4; j++) {
-                    vec3 p = { rp->org[0] + ca[j] * rp->dir[0], rp->y + cy[j], rp->org[1] + ca[j] * rp->dir[1] };
-
-                    pcg_frame_point(f, p, want[j]);
-                    pcg_frame_point(&l->frame, (vec3){ ca[j], ly[j], 0.0f }, got[j]);
-                    err = fmaxf(err, max_diff(want[j], got[j], 3));
-                }
-
-                /* it faces where the original's normal points: cross(c01 - c00, c10 - c00) */
-                vec3 e0, e1, n;
-                vec2 across;
-                vec3_sub(e0, want[3], want[0]);
-                vec3_sub(e1, want[1], want[0]);
-                vec3_mul_cross(n, e0, e1);
-                vec3_norm(n, n);
-                pcg_frame_across(&l->frame, across);
-                vec3 facing = { across[0], 0.0f, across[1] };
-                nerr = fmaxf(nerr, max_diff(n, facing, 3));
-            }
+            for (size_t k = 0; k < w->nr; k++)
+                if (!plaque_near(&w->label[k], &sp->ref[k], f, &err, &nerr))    return EXIT_FAILURE;
 
             if (verbose)    printf("plaques: %zu, max error p %g n %g\n", w->nr, err, nerr);
             if (err > PARITY_EPS || nerr > PARITY_DIR_EPS)              return EXIT_FAILURE;
@@ -8138,6 +8165,460 @@ static int facade_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Room
+ ****************************************************************************/
+
+/* the reference layout's carpet, and a finish for what a visit hook adds */
+static const pcg_material carpet_tile = { .name = "carpet", .uv_mode = PCG_UV_METERS };
+static const pcg_material shell = { .name = "shell", .uv_mode = PCG_UV_METERS };
+static const pcg_palette room_palette = {
+    .mat[PCG_ROLE_CLADDING]     = &panel,
+    .mat[PCG_ROLE_GLASS]        = &glass,
+    .mat[PCG_ROLE_METAL]        = &bronze,
+    .mat[PCG_ROLE_CARPET]       = &carpet_tile,
+    .mat[PCG_ROLE_FIXTURE]      = &glow,
+    .mat[PCG_ROLE_SIGN]         = &decal,
+    .mat[PCG_ROLE_FURNITURE]    = &shell,
+};
+
+/* what a test visit hook saw, and what it returns */
+struct room_visit {
+    pcg_frame       frame;
+    pcg_room_info   info;
+    cerr            ret;
+    int             calls;
+};
+
+/* record the room, and put a 0.5 m block over its whole interior */
+static cerr room_visit_fn(const pcg_ctx *ctx, const pcg_room_info *info, void *priv)
+{
+    struct room_visit *rv = priv;
+    const pcg_surface block = { .role = PCG_ROLE_FURNITURE, .collide = PCG_COLLIDE_NONE };
+
+    rv->calls++;
+    rv->frame = ctx->frame;
+    rv->info = *info;
+    CERR_RET_CERR(rv->ret);
+
+    return pcg_box(ctx, .lo = { 0.0f, 0.0f, 0.0f }, .hi = { info->w, 0.5f, info->d }, .face = PCG_BOX_ALL(&block));
+}
+
+/* a 5 by 4 office, 3 m tall, along a yawed line */
+struct room_case {
+    pcg_room_params p;
+    pcg_frame       frame;
+    float           a0;
+    float           w;
+    float           d;
+    float           h;
+    float           ceiling;
+    uint32_t        mask;
+    const char      *label;
+    bool            party_lo;
+    bool            party_hi;
+};
+
+#define ROOM_ALL_SOLID \
+    (PCG_ROOM_SOLID(PCG_ROOM_FRONT) | PCG_ROOM_SOLID(PCG_ROOM_BACK) | PCG_ROOM_SOLID(PCG_ROOM_LEFT) | \
+     PCG_ROOM_SOLID(PCG_ROOM_RIGHT))
+
+static void room_case_init(struct room_case *c)
+{
+    *c = (struct room_case){
+        .a0 = 1.5f, .w = 5.0f, .d = 4.0f, .h = 3.0f, .ceiling = 2.9f, .mask = ROOM_ALL_SOLID, .label = "107",
+    };
+    pcg_room_params_init(&c->p);
+    test_frame(&c->frame, 0.3f, false, 1.0f, 0.2f, -2.0f);
+}
+
+static cerr room_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct room_case *c = priv;
+
+    return pcg_room_emit(ctx, &c->p, .frame = c->frame, .a0 = c->a0, .w = c->w, .d = c->d, .h = c->h,
+                         .ceiling = c->ceiling, .wall_mask = c->mask, .label = c->label,
+                         .tag = { .floor = 1, .segment = 2, .ring = 0, .number = 7 },
+                         .party_lo = c->party_lo, .party_hi = c->party_hi);
+}
+
+/*
+ * @c emits @nr_solid wall boxes, @nr_panes pane pieces in @nr_members
+ * member boxes, the carpet and the light, as a closed surface over [@lo,
+ * @hi] of its frame, unless they are nullptr, and @nr_labels labels
+ */
+static bool room_case_ok(const struct room_case *c, size_t nr_solid, size_t nr_panes, size_t nr_members,
+                         size_t nr_labels, const float *lo, const float *hi)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(room_case_emit, c, &room_palette, &PCG_FRAME_IDENTITY),
+                                         return false);
+    struct sink_walk w;
+
+    if (!sink_walk_get(sink, &w) || w.nr != 2 + !!nr_solid + !!nr_panes + !!nr_members)     return false;
+
+    struct mesh *solid = walk_mesh(&w, &panel), *pane = walk_mesh(&w, &glass), *member = walk_mesh(&w, &bronze);
+    struct mesh *carpet = walk_mesh(&w, &carpet_tile), *light = walk_mesh(&w, &glow);
+    if (nr_solid && (!solid || mesh_nr_vx(solid) != nr_solid * 36))                                     return false;
+    if (nr_panes && (!pane || mesh_nr_vx(pane) != nr_panes * 12))                                       return false;
+    if (nr_members && (!member || mesh_nr_vx(member) != nr_members * 36))                               return false;
+    if (!carpet || mesh_nr_vx(carpet) != 36 || !mesh_y_within(carpet, &c->frame, 0.0f, c->p.carpet_t))  return false;
+    if (!light || mesh_nr_vx(light) != (size_t)c->p.light.segments * 12)                                return false;
+    if (!mesh_y_within(light, &c->frame, c->ceiling - c->p.light.drop, c->ceiling))                     return false;
+    if (!walk_closed(&w))                                                                               return false;
+
+    if (lo && !walk_aabb_is(&w, &c->frame, lo, hi))                                         return false;
+
+    struct label_walk lw;
+    if (!label_walk_get(sink, &lw) || lw.nr != nr_labels)                                   return false;
+    if (nr_labels && strcmp(lw.label[0].text, c->label))                                    return false;
+
+    return element_frames_ok(room_case_emit, c, &room_palette, true);
+}
+
+static int room_test(void)
+{
+    struct room_case c;
+    room_case_init(&c);
+
+    /* the children's defaults, 1.1 by 2.2 doorways, a 12 mm carpet that doesn't collide, no hook */
+    pcg_wall_params wp;
+    pcg_glazing_params gp;
+    pcg_fixture_params fp;
+    pcg_sign_params sp;
+    pcg_wall_params_init(&wp);
+    pcg_glazing_params_init(&gp);
+    pcg_fixture_params_init(&fp);
+    pcg_sign_params_init(&sp);
+    if (c.p.door_w != 1.1f || c.p.door_h != 2.2f || c.p.carpet_t != 0.012f || c.p.visit)    return EXIT_FAILURE;
+    if (c.p.carpet.role != PCG_ROLE_CARPET || c.p.carpet.collide != PCG_COLLIDE_NONE)       return EXIT_FAILURE;
+    if (c.p.wall.t != wp.t || c.p.wall.face_l.role != wp.face_l.role)                       return EXIT_FAILURE;
+    if (c.p.glass.member_w != gp.member_w || c.p.glass.sill != gp.sill)                     return EXIT_FAILURE;
+    if (c.p.light.r != fp.r || c.p.light.drop != fp.drop || c.p.sign.h != sp.h)             return EXIT_FAILURE;
+
+    /* four solid walls over the outline: the flanks the whole depth, the front and the back between them */
+    float a1 = c.a0 + c.w, ft = c.p.wall.t;
+    if (!room_case_ok(&c, 4, 0, 0, 1, (vec3){ c.a0, 0.0f, 0.0f }, (vec3){ a1, c.h, c.d }))  return EXIT_FAILURE;
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(room_case_emit, &c, &room_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk w;
+    double rt = c.p.wall.t, iw = c.w - 2.0 * rt, id = c.d - 2.0 * rt;
+    double vol = 2.0 * rt * c.d * c.h + 2.0 * rt * iw * c.h + iw * id * c.p.carpet_t +
+                 cylinder_volume(c.p.light.segments, c.p.light.r, c.p.light.h);
+    if (!sink_walk_get(ss, &w) || fabs(walk_volume(&w) - vol) > 1e-4 * vol)                 return EXIT_FAILURE;
+
+    /* doorways front and back: three pieces each */
+    struct room_case e = c;
+    e.mask |= PCG_ROOM_DOOR(PCG_ROOM_FRONT) | PCG_ROOM_DOOR(PCG_ROOM_BACK);
+    if (!room_case_ok(&e, 8, 0, 0, 1, (vec3){ c.a0, 0.0f, 0.0f }, (vec3){ a1, c.h, c.d }))  return EXIT_FAILURE;
+
+    /*
+     * a glass front with a doorway, a glass left side, a solid back with a
+     * doorway and no right side: three pane pieces with eight members in
+     * front, one with four on the left
+     */
+    e.mask = PCG_ROOM_GLASS(PCG_ROOM_FRONT) | PCG_ROOM_DOOR(PCG_ROOM_FRONT) | PCG_ROOM_GLASS(PCG_ROOM_LEFT) |
+             PCG_ROOM_SOLID(PCG_ROOM_BACK) | PCG_ROOM_DOOR(PCG_ROOM_BACK);
+    if (!room_case_ok(&e, 3, 4, 12, 1, (vec3){ c.a0 + ft * 0.5f - c.p.glass.member_t * 0.5f, 0.0f, 0.0f },
+                      (vec3){ a1, c.h, c.d }))
+        return EXIT_FAILURE;
+
+    /* solid wins over glass */
+    e.mask = ROOM_ALL_SOLID | PCG_ROOM_GLASS(PCG_ROOM_FRONT) | PCG_ROOM_GLASS(PCG_ROOM_LEFT);
+    if (!room_case_ok(&e, 4, 0, 0, 1, nullptr, nullptr))    return EXIT_FAILURE;
+
+    /* party walls are left out, and the rest stays where it was */
+    e = c;
+    e.party_lo = true;
+    if (!room_case_ok(&e, 3, 0, 0, 1, (vec3){ c.a0 + ft, 0.0f, 0.0f }, (vec3){ a1, c.h, c.d })) return EXIT_FAILURE;
+    e.party_hi = true;
+    if (!room_case_ok(&e, 2, 0, 0, 1, (vec3){ c.a0 + ft, 0.0f, 0.0f }, (vec3){ a1 - ft, c.h, c.d }))
+        return EXIT_FAILURE;
+    /* a neighbour overlapping @c by a wall's thickness starts where @c's right wall ends, without a slot */
+    e = c;
+    e.a0 = a1 - ft;
+    e.party_lo = true;
+    if (!room_case_ok(&e, 3, 0, 0, 1, (vec3){ a1, 0.0f, 0.0f }, (vec3){ e.a0 + e.w, c.h, c.d }))    return EXIT_FAILURE;
+
+    /* no sign without a front wall or a label */
+    e = c;
+    e.mask &= ~PCG_ROOM_SOLID(PCG_ROOM_FRONT);
+    if (!room_case_ok(&e, 3, 0, 0, 0, nullptr, nullptr))    return EXIT_FAILURE;
+    e = c;
+    e.label = nullptr;
+    if (!room_case_ok(&e, 4, 0, 0, 0, nullptr, nullptr))    return EXIT_FAILURE;
+    e.label = "";
+    if (!room_case_ok(&e, 4, 0, 0, 0, nullptr, nullptr))    return EXIT_FAILURE;
+
+    /* the visit hook: once, in the interior's frame, with the room's measures and tag */
+    struct room_visit rv = {};
+    e = c;
+    e.mask |= PCG_ROOM_DOOR(PCG_ROOM_FRONT);
+    e.p.visit = room_visit_fn;
+    e.p.visit_priv = &rv;
+    LOCAL_SET(pcg_sink, vs) = CRES_RET(element_sink(room_case_emit, &e, &room_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (rv.calls != 1 || !near(rv.info.w, (float)iw, 1e-6f) || !near(rv.info.d, (float)id, 1e-6f))  return EXIT_FAILURE;
+    if (rv.info.h != e.ceiling || rv.info.wall_mask != e.mask || rv.info.door_w != e.p.door_w ||
+        rv.info.door_h != e.p.door_h)
+        return EXIT_FAILURE;
+    if (rv.info.tag.floor != 1 || rv.info.tag.segment != 2 || rv.info.tag.ring || rv.info.tag.number != 7)
+        return EXIT_FAILURE;
+    struct sink_walk bw = { .nr = 1 };
+    if (!sink_walk_get(vs, &w) || w.nr != 4 || !(bw.mesh[0] = walk_mesh(&w, &shell)))   return EXIT_FAILURE;
+    if (!walk_aabb_is(&bw, &e.frame, (vec3){ e.a0 + ft, 0.0f, ft }, (vec3){ a1 - ft, 0.5f, e.d - ft }))
+        return EXIT_FAILURE;
+    if (!element_frames_ok(room_case_emit, &e, &room_palette, true))                        return EXIT_FAILURE;
+
+    /* a hook that fails fails the room */
+    rv = (struct room_visit){ .ret = CERR_NOT_FOUND };
+    LOCAL_SET(pcg_sink, fs) = CRES_RET(pcg_sink_new("room"), return EXIT_FAILURE);
+    pcg_ctx fc = { .sink = fs, .palette = &room_palette, .frame = PCG_FRAME_IDENTITY };
+    cerr err = room_case_emit(&fc, &e);
+    if (!IS_CERR_CODE(err, CERR_NOT_FOUND) || rv.calls != 1)                                return EXIT_FAILURE;
+
+    /*
+     * zeroed or nonsense style or site, or a child that doesn't fit, even
+     * the last one: nothing emitted, nothing recorded, the hook not called
+     */
+    rv = (struct room_visit){};
+    LOCAL_SET(pcg_sink, bad) = CRES_RET(pcg_sink_new("room"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bad, .palette = &room_palette, .frame = PCG_FRAME_IDENTITY };
+
+    struct room_case z = e;
+    z.p = (pcg_room_params){};
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.w = 2.0f * c.p.wall.t;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.d = 0.1f;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.p.wall.t = -0.05f;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.mask |= 1u << 12;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    /* a doorway too wide for the front, or the back */
+    z = e;
+    z.p.door_w = 4.85f;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    /* a flank doorway into the front and back walls' ends; a narrower one clears them */
+    z = e;
+    z.d = 1.2f;
+    z.mask = ROOM_ALL_SOLID | PCG_ROOM_DOOR(PCG_ROOM_LEFT);
+    if (!failed_inval(room_case_emit(&bc, &z)))     return EXIT_FAILURE;
+    z.p.door_w = 1.0f;
+    const pcg_room_site zs = {
+        .frame = z.frame, .a0 = z.a0, .w = z.w, .d = z.d, .h = z.h, .ceiling = z.ceiling, .wall_mask = z.mask,
+    };
+    if (failed(pcg_room_check(&z.p, &zs)))      return EXIT_FAILURE;
+    z = e;
+    z.mask = ROOM_ALL_SOLID | PCG_ROOM_GLASS(PCG_ROOM_RIGHT);
+    z.mask &= ~PCG_ROOM_SOLID(PCG_ROOM_RIGHT);
+    z.p.glass.member_w = 2.0f;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.ceiling = c.p.light.drop * 0.5f;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.p.sign.door_offset = 3.0f;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.p.light.segments = 2;
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    z = e;
+    z.p.light.segments = 357913942;     /* 12 vertices a side wrap a 32-bit size_t */
+    if (!failed(room_case_emit(&bc, &z)))       return EXIT_FAILURE;
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    for (size_t i = 0; i < array_size(nonfinite); i++) {
+        float *fields[] = {
+            &z.p.door_w, &z.p.door_h, &z.p.carpet_t, &z.p.wall.t, &z.p.glass.member_t, &z.p.light.r,
+            &z.p.sign.center_y, &z.a0, &z.w, &z.d, &z.h, &z.ceiling,
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            z = e;
+            z.mask |= PCG_ROOM_GLASS(PCG_ROOM_RIGHT);
+            z.mask &= ~PCG_ROOM_SOLID(PCG_ROOM_RIGHT);
+            *fields[k] = nonfinite[i];
+            if (!failed_inval(room_case_emit(&bc, &z)))     return EXIT_FAILURE;
+        }
+    }
+    /* with no wall to check, the light and the carpet still go through the frame */
+    for (size_t i = 0; i < array_size(bad_frames); i++) {
+        z = e;
+        z.frame = bad_frames[i];
+        if (!failed_inval(room_case_emit(&bc, &z)))         return EXIT_FAILURE;
+        z.mask = 0;
+        if (!failed_inval(room_case_emit(&bc, &z)))         return EXIT_FAILURE;
+    }
+    if (!failed(pcg_room_emit(nullptr, &c.p, .w = c.w, .d = c.d, .h = c.h, .ceiling = c.ceiling)))  return EXIT_FAILURE;
+    if (!failed(_pcg_room_emit(&bc, &c.p, nullptr)) || !failed(pcg_room_check(nullptr, nullptr)))   return EXIT_FAILURE;
+
+    pcg_sink_stats st = pcg_sink_get_stats(bad);
+    if (st.nr_models || st.nr_labels || rv.calls)   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* what the rooms emit into, the reference meshes and plaques they are compared against, and the hook's tally */
+struct room_parity {
+    pcg_ctx             ctx;
+    pcg_room_params     room;
+    struct mesh         *ref_solid;
+    struct mesh         *ref_glass;
+    struct mesh         *ref_frames;
+    struct mesh         *ref_lights;
+    struct mesh         *ref_carpet;
+    struct ref_plaque   plaque[LABELS_MAX];
+    size_t              nr_plaques;
+    /* the next room's interior corner and run as the original published them to its hook, and its size */
+    vec3                corner;
+    vec2                dir;
+    float               w;
+    float               d;
+    size_t              nr_visits;
+    float               corner_err;
+    bool                bad_visit;
+};
+
+/* the hook gets the room's interior: its corner and run where the original's room info put them */
+static cerr room_parity_visit(const pcg_ctx *ctx, const pcg_room_info *info, void *priv)
+{
+    struct room_parity *rp = priv;
+    vec3 corner, dir;
+
+    pcg_frame_point(&rp->ctx.frame, rp->corner, corner);
+    pcg_frame_vector(&rp->ctx.frame, (vec3){ rp->dir[0], 0.0f, rp->dir[1] }, dir);
+    rp->corner_err = fmaxf(rp->corner_err, max_diff(corner, ctx->frame.org, 3));
+    rp->nr_visits++;
+    if (!near(dir[0], ctx->frame.dir[0], 1e-5f) || !near(dir[2], ctx->frame.dir[1], 1e-5f) || ctx->frame.mirror ||
+        !near(info->w, rp->w, 1e-5f) || !near(info->d, rp->d, 1e-5f))
+        rp->bad_visit = true;
+
+    return CERR_OK;
+}
+
+static cerr room_parity_ring(const ref_room_wall *rw, size_t nr, const ref_room_rec *rooms, size_t nr_rooms,
+                             const ref_room_meshes *m, float y, void *priv)
+{
+    struct room_parity *rp = priv;
+
+    CERR_RET_CERR(ref_instance(rp->ref_solid, m->solid, (vec3){ 0.0f, y, 0.0f }));
+    CERR_RET_CERR(ref_instance(rp->ref_glass, m->glass, (vec3){ 0.0f, y, 0.0f }));
+    CERR_RET_CERR(ref_instance(rp->ref_frames, m->frames, (vec3){ 0.0f, y, 0.0f }));
+    CERR_RET_CERR(ref_instance(rp->ref_lights, m->lights, (vec3){ 0.0f, y, 0.0f }));
+    CERR_RET_CERR(ref_instance(rp->ref_carpet, m->carpet, (vec3){ 0.0f, y, 0.0f }));
+
+    for (size_t k = 0; k < nr_rooms; k++) {
+        const ref_room_rec *rr = &rooms[k];
+        float rt = REF_ROOM_T;
+        vec2 in = { -rr->dir[1], rr->dir[0] };
+
+        if (rr->has_plaque) {
+            if (rp->nr_plaques == LABELS_MAX)   return CERR_TOO_LARGE;
+
+            struct ref_plaque *pl = &rp->plaque[rp->nr_plaques++];
+            *pl = (struct ref_plaque){
+                .org = { rr->plaque[0], rr->plaque[1] }, .dir = { rr->dir[0], rr->dir[1] }, .y = y,
+            };
+            memcpy(pl->text, rr->text, sizeof(pl->text));
+        }
+
+        /* the original's room info: the interior corner in (x, z), on the deck */
+        rp->corner[0] = rr->v0[0] + rr->dir[0] * (rr->a0 + rt) + in[0] * rt;
+        rp->corner[1] = y;
+        rp->corner[2] = rr->v0[1] + rr->dir[1] * (rr->a0 + rt) + in[1] * rt;
+        rp->dir[0] = rr->dir[0];
+        rp->dir[1] = rr->dir[1];
+        rp->w = rr->a1 - rr->a0 - 2.0f * rt;
+        rp->d = rr->cf - 2.0f * rt;
+
+        const pcg_frame line = { .org = { rr->v0[0], y, rr->v0[1] }, .dir = { rr->dir[0], rr->dir[1] } };
+        CERR_RET_CERR(pcg_room_emit(&rp->ctx, &rp->room, .frame = line, .a0 = rr->a0, .w = rr->a1 - rr->a0,
+                                    .d = rr->cf, .h = REF_WALL_H, .ceiling = REF_SOFFIT_H,
+                                    .wall_mask = rr->wall_mask, .label = rr->text));
+    }
+
+    return CERR_OK;
+}
+
+/*
+ * The reference building's rooms, one by one, against the reference
+ * copy of the room strip that emits them inline: the two-room outer ring
+ * and the three-room inner one with its carousel, on every storey's deck
+ * but the ground floor's entrance segment, and once more with every wall
+ * solid and doored front and back. Each room takes its line, start,
+ * width, depth and wall mask from the strip; its walls are 0.09 thick and
+ * 5.65 tall, its light hangs from the 5.6 soffit, and its carpet is
+ * 12 mm thick, all faces at a quarter repeat per meter. Its plaque is
+ * compared as sign_parity_test() compares them, and its visit hook must
+ * get the interior corner the original published, once per room: 115
+ * rooms.
+ */
+static int room_parity_test(void)
+{
+    pcg_frame frames[2] = { PCG_FRAME_IDENTITY };
+    test_frame(&frames[1], 0.6f, false, 5.0f, 12.0f, -3.0f);
+
+    for (int fi = 0; fi < 2; fi++)
+        for (int variant = 0; variant < 2; variant++) {
+            const pcg_frame *f = &frames[fi];
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("room"), return EXIT_FAILURE);
+            LOCAL_SET(mesh_t, ref_solid) = CRES_RET(ref_new_checked(mesh, .name = "ref solid"), return EXIT_FAILURE);
+            LOCAL_SET(mesh_t, ref_glass) = CRES_RET(ref_new_checked(mesh, .name = "ref glass"), return EXIT_FAILURE);
+            LOCAL_SET(mesh_t, ref_frames) = CRES_RET(ref_new_checked(mesh, .name = "ref frames"),
+                                                     return EXIT_FAILURE);
+            LOCAL_SET(mesh_t, ref_lights) = CRES_RET(ref_new_checked(mesh, .name = "ref lights"),
+                                                     return EXIT_FAILURE);
+            LOCAL_SET(mesh_t, ref_carpet) = CRES_RET(ref_new_checked(mesh, .name = "ref carpet"),
+                                                     return EXIT_FAILURE);
+            LOCAL_SET(void, buf) = mem_alloc(sizeof(struct room_parity), .zero = 1);
+            struct room_parity *rp = buf;
+            if (!rp)    return EXIT_FAILURE;
+
+            rp->ctx = (pcg_ctx){ .sink = sink, .palette = &room_palette, .frame = *f };
+            rp->ref_solid = ref_solid;
+            rp->ref_glass = ref_glass;
+            rp->ref_frames = ref_frames;
+            rp->ref_lights = ref_lights;
+            rp->ref_carpet = ref_carpet;
+            pcg_room_params_init(&rp->room);
+            rp->room.visit = room_parity_visit;
+            rp->room.visit_priv = rp;
+
+            CERR_RET(ref_rooms_for_each(variant, room_parity_ring, rp), return EXIT_FAILURE);
+            if (rp->nr_visits != 115 || rp->bad_visit || rp->corner_err > PARITY_EPS)    return EXIT_FAILURE;
+
+            struct sink_walk w;
+            if (!sink_walk_get(sink, &w) || w.nr != (variant ? 3 : 5))                   return EXIT_FAILURE;
+            if (!parity_check("room walls", walk_mesh(&w, &panel), ref_solid, f, false, REF_UV_PANEL) ||
+                !parity_check("room carpet", walk_mesh(&w, &carpet_tile), ref_carpet, f, false, REF_UV_CARPET) ||
+                !parity_check("room lights", walk_mesh(&w, &glow), ref_lights, f, false, 1.0f))
+                return EXIT_FAILURE;
+            if (!variant &&
+                (!parity_check("room glass", walk_mesh(&w, &glass), ref_glass, f, false, REF_UV_BRONZE) ||
+                 !parity_check("room frames", walk_mesh(&w, &bronze), ref_frames, f, false, REF_UV_BRONZE)))
+                return EXIT_FAILURE;
+
+            LOCAL_SET(void, wbuf) = mem_alloc(sizeof(struct label_walk));
+            struct label_walk *lw = wbuf;
+            if (!lw || !label_walk_get(sink, lw) || lw->nr != rp->nr_plaques)            return EXIT_FAILURE;
+            if (!variant && lw->nr != 97)                                                return EXIT_FAILURE;
+
+            float err = 0.0f, nerr = 0.0f;
+            for (size_t k = 0; k < lw->nr; k++)
+                if (!plaque_near(&lw->label[k], &rp->plaque[k], f, &err, &nerr))         return EXIT_FAILURE;
+            if (verbose)
+                printf("room plaques: %zu, max error p %g n %g; interior corners: max error %g\n", lw->nr, err,
+                       nerr, rp->corner_err);
+            if (err > PARITY_EPS || nerr > PARITY_DIR_EPS)                               return EXIT_FAILURE;
+        }
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -8205,6 +8686,8 @@ static const struct test tests[] = {
     { .name = "gallery parity", .test = gallery_parity_test },
     { .name = "facade", .test = facade_test },
     { .name = "facade parity", .test = facade_parity_test },
+    { .name = "room", .test = room_test },
+    { .name = "room parity", .test = room_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)
