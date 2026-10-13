@@ -202,6 +202,63 @@ cerr_check mesh_make_collision(struct mesh *mesh, float **out_vx, size_t *out_vx
 cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs,
                          size_t *offs, unsigned int nr_attrs, unsigned int stride);
 size_t mesh_idx_to_lod(struct mesh *mesh, int lod, unsigned short **idx, float *error);
+
+/**
+ * struct mesh_part - the triangles one joint of a skinned mesh carries
+ * @vx:     the piece's vertices, as the mesh has them (the bind pose)
+ * @idx:    its triangles, into @vx
+ * @joint:  the joint
+ */
+struct mesh_part {
+    darray(vec3,            vx);
+    darray(unsigned int,    idx);
+    unsigned int            joint;
+};
+
+cresp_ret(mesh_part, struct);
+
+/**
+ * typedef mesh_parts - a skinned mesh's pieces, one per joint
+ */
+typedef darray(struct mesh_part, mesh_parts);
+
+/**
+ * mesh_part_done() - free a piece's vertices and triangles
+ * @part:   the piece
+ */
+void mesh_part_done(struct mesh_part *part);
+
+/**
+ * mesh_parts_done() - free every piece, and the array
+ * @parts:  the pieces
+ */
+void mesh_parts_done(mesh_parts *parts);
+
+/**
+ * mesh_part_find() - find a joint's piece
+ * @parts:  the pieces
+ * @joint:  the joint
+ *
+ * Return: the piece; CERR_NOT_FOUND if @joint has none
+ */
+cresp_check(mesh_part) mesh_part_find(mesh_parts *parts, unsigned int joint);
+
+/**
+ * mesh_parts_by_joint() - split a skinned mesh into rigid pieces by joint
+ * @mesh:   a mesh with joints and weights
+ * @idx:    the triangles to split, a LOD's, say; nullptr: the mesh's own
+ * @stride: the bytes of an index of @idx, 2 or 4; the mesh's own
+ *          (mesh_idx_stride()) without @idx
+ * @nr_idx: the number of indices in @idx
+ * @parts:  the pieces, each joint's after what it has already
+ *
+ * Each vertex belongs to the joint weighing on it the most, each triangle
+ * to the joint two of its vertices share, or to its first vertex's.
+ * Return: CERR_OK, CERR_INVALID_ARGUMENTS for a mesh without skinning or
+ * a @stride that isn't 2 or 4, CERR_NOMEM
+ */
+cerr_check mesh_parts_by_joint(struct mesh *mesh, const void *idx, size_t stride, size_t nr_idx,
+                               mesh_parts *parts);
 void mesh_init(void);
 
 #endif /* __CLAP_MESH_H__ */

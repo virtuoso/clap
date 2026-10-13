@@ -470,6 +470,130 @@ static inline void *mesh_attr_element(struct mesh *mesh, enum mesh_attrs attr, s
     return ma->data + ma->stride * el;
 }
 
+void mesh_part_done(struct mesh_part *part)
+{
+    darray_clearout(part->vx);
+    darray_clearout(part->idx);
+}
+
+void mesh_parts_done(mesh_parts *parts)
+{
+    struct mesh_part *part;
+
+    darray_for_each(part, *parts)
+        mesh_part_done(part);
+    darray_clearout(*parts);
+}
+
+cresp(mesh_part) mesh_part_find(mesh_parts *parts, unsigned int joint)
+{
+    struct mesh_part *part;
+
+    darray_for_each(part, *parts)
+        if (part->joint == joint)   return cresp_val(mesh_part, part);
+
+    return cresp_error(mesh_part, CERR_NOT_FOUND);
+}
+
+/* @joint's piece, a new empty one if it has none yet */
+static struct mesh_part *mesh_part_get(mesh_parts *parts, unsigned int joint)
+{
+    cresp(mesh_part) found = mesh_part_find(parts, joint);
+    if (!IS_CERR(found))    return found.val;
+
+    struct mesh_part *part = darray_add(*parts);
+    if (!part)  return nullptr;
+
+    part->joint = joint;
+    darray_init(part->vx);
+    darray_init(part->idx);
+
+    return part;
+}
+
+/* the joint weighing on vertex @v the most */
+static unsigned int vertex_joint(struct mesh *mesh, size_t v)
+{
+    const unsigned int *joints = mesh_attr_element(mesh, MESH_JOINTS, v);
+    const float *weights = mesh_attr_element(mesh, MESH_WEIGHTS, v);
+    unsigned int best = 0;
+
+    for (unsigned int i = 1; i < 4; i++)
+        if (weights[i] > weights[best]) best = i;
+
+    return joints[best];
+}
+
+/* element @i of an index buffer @stride bytes wide */
+static inline unsigned int idx_get(const void *idx, size_t stride, size_t i)
+{
+    return stride == sizeof(uint32_t) ? ((const uint32_t *)idx)[i] : ((const uint16_t *)idx)[i];
+}
+
+cerr mesh_parts_by_joint(struct mesh *mesh, const void *idx, size_t stride, size_t nr_idx, mesh_parts *parts)
+{
+    size_t nr_vx = mesh_nr_vx(mesh);
+
+    if (mesh_nr(mesh, MESH_JOINTS) != nr_vx || mesh_nr(mesh, MESH_WEIGHTS) != nr_vx)    return CERR_INVALID_ARGUMENTS;
+
+    if (!idx) {
+        idx = mesh_idx(mesh);
+        stride = mesh_idx_stride(mesh);
+        nr_idx = mesh_nr_idx(mesh);
+    }
+    if (stride != sizeof(uint16_t) && stride != sizeof(uint32_t))   return CERR_INVALID_ARGUMENTS;
+
+    size_t nr_tri = nr_idx / 3;
+    if (!nr_vx || !nr_tri)  return CERR_INVALID_ARGUMENTS;
+
+    /* each triangle's joint, -1 once it's in its part */
+    LOCAL_SET(int, tri_joint) = mem_alloc(sizeof(*tri_joint), .nr = nr_tri);
+    /* each vertex's index in the part being collected, -1 for not in it yet */
+    LOCAL_SET(int, slot) = mem_alloc(sizeof(*slot), .nr = nr_vx);
+    if (!tri_joint || !slot)    return CERR_NOMEM;
+
+    for (size_t t = 0; t < nr_tri; t++) {
+        unsigned int j0 = vertex_joint(mesh, idx_get(idx, stride, t * 3 + 0));
+        unsigned int j1 = vertex_joint(mesh, idx_get(idx, stride, t * 3 + 1));
+        unsigned int j2 = vertex_joint(mesh, idx_get(idx, stride, t * 3 + 2));
+
+        tri_joint[t] = j1 == j2 ? j1 : j0;
+    }
+
+    for (size_t first = 0; first < nr_tri; first++) {
+        int joint = tri_joint[first];
+
+        if (joint < 0)  continue;
+
+        struct mesh_part *part = mesh_part_get(parts, joint);
+        if (!part)  return CERR_NOMEM;
+
+        memset(slot, 0xff, nr_vx * sizeof(*slot));
+        for (size_t t = first; t < nr_tri; t++) {
+            if (tri_joint[t] != joint)  continue;
+
+            tri_joint[t] = -1;
+            for (unsigned int k = 0; k < 3; k++) {
+                unsigned int v = idx_get(idx, stride, t * 3 + k);
+
+                if (slot[v] < 0) {
+                    vec3 *dst = darray_add(part->vx);
+                    if (!dst)   return CERR_NOMEM;
+
+                    vec3_dup(*dst, mesh_attr_element(mesh, MESH_VX, v));
+                    slot[v] = darray_count(part->vx) - 1;
+                }
+
+                unsigned int *dst = darray_add(part->idx);
+                if (!dst)   return CERR_NOMEM;
+                *dst = slot[v];
+            }
+        }
+    }
+
+    return CERR_OK;
+}
+
 cresp(void) mesh_flatten(struct mesh *mesh, const enum mesh_attrs *attrs,
                          size_t *offs, unsigned int nr_attrs, unsigned int stride)
 {
