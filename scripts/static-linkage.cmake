@@ -440,6 +440,13 @@ function(find_static_lib name pkg_name)
         _clap_find_windows_imported_target(imported_target "${name}" "${name_uc}")
         if (imported_target)
             set(resolved_libs "${imported_target}")
+            # Linking the target brings its headers, but the subsystem
+            # libraries take the engine's include dirs and not those of its
+            # link dependencies (see scripts/subsystem.cmake)
+            get_target_property(include_dirs "${imported_target}" INTERFACE_INCLUDE_DIRECTORIES)
+            if (NOT include_dirs)
+                set(include_dirs "")
+            endif ()
         else ()
             foreach(var_name
                     ${name}_LIBRARIES
