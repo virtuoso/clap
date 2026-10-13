@@ -53,12 +53,24 @@ static void character_look_start(struct character *ch)
 }
 
 /*
- * The hands as limbs: kinematic spheres riding the hand joints the model
- * maps (the scene's "armature": "hand_left", "hand_right"), so the hands
- * collide and can report what they touch (animator_set_contact_callback())
- * once there is a move that cares.
+ * The limbs: kinematic shapes riding joints, so the body's pieces collide
+ * and can report what they touch (animator_set_contact_callback()) once
+ * there is a move that cares. A model made of rigid pieces (the scene's
+ * "limbs", model3d::parts) gets each piece on its joint; the hand joints
+ * the model maps (the scene's "armature": "hand_left", "hand_right") that
+ * have no piece get a sphere.
  */
 #define CHARACTER_HAND_R    0.08f
+
+static bool character_has_limb(entity3d *e, int joint)
+{
+    struct phys_body **limb;
+
+    darray_for_each(limb, e->limbs)
+        if (phys_body_joint(*limb) == joint)    return true;
+
+    return false;
+}
 
 static void character_limbs_start(struct character *ch)
 {
@@ -66,13 +78,19 @@ static void character_limbs_start(struct character *ch)
     model3d *m = e->txmodel->model;
     struct phys *phys = clap_get_phys(ch->scene->clap_ctx);
     static const joint_type hands[] = { JOINT_HAND_LEFT, JOINT_HAND_RIGHT };
+    struct mesh_part *part;
 
     if (!e->joints)     return;
+
+    darray_for_each(part, m->parts)
+        if (!phys_body_new_limb_mesh(phys, e, part->joint, part->vx.x, darray_count(part->vx),
+                                     part->idx.x, darray_count(part->idx)))
+            warn("%s: no limb for %s\n", entity_name(e), m->joints[part->joint].name);
 
     for (unsigned int i = 0; i < array_size(hands); i++) {
         cres(joint_type) j = model3d_get_joint(m, hands[i]);
 
-        if (IS_CERR(j))     continue;
+        if (IS_CERR(j) || character_has_limb(e, j.val))     continue;
         if (!phys_body_new_limb(phys, e, j.val, GEOM_SPHERE, CHARACTER_HAND_R, 0.0,
                                 (vec3){ 0.0f, 0.0f, 0.0f }))
             warn("%s: no limb for %s\n", entity_name(e), m->joints[j.val].name);

@@ -1777,6 +1777,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         .pipeline        = clap_get_pipeline(scene->clap_ctx),
         .name            = gltf,
         .fix_origin      = fix_origin,
+        .parts           = !!json_find_member(node, "limbs"),
         .model_make      = clap_cfg->model_make,
         .model_make_priv = clap_cfg->model_make_priv
     );
@@ -1951,6 +1952,43 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 
         CRES_RET(anim_lib_pose_copy(model3d_anim_lib(model), &lookat_pose_ops, &cfg, sizeof(cfg)),
                  warn("%s: no look of its own, the default stands\n", name));
+    }
+
+    /*
+     * "limbs": { "skip": [ "<joint name prefix>", ... ], "box": [ "<joint name>", ... ] }
+     * makes a skinned model's rigid pieces its characters' limbs, a
+     * collision shape on each joint (model3d::parts, the gltf loads with
+     * them): the pieces of every primitive skinned with the model's skin,
+     * a multi-mesh rig's parts among them, without the joints "skip"
+     * names, with the pieces "box" names as their bounding boxes.
+     */
+    JsonNode *limbs = json_find_member(node, "limbs");
+    if (limbs && limbs->tag == JSON_OBJECT && model->nr_joints) {
+        JsonNode *skip = json_find_member(limbs, "skip");
+        JsonNode *box = json_find_member(limbs, "box");
+        JsonNode *it;
+
+        cres(int) skin = gltf_mesh_skin(gd, prims[0]);
+
+        for (int p = 1; !IS_CERR(skin) && p < prim_count; p++) {
+            if (!prim_skinned_with(gd, prims[p], skin.val))     continue;
+
+            CERR_RET(mesh_parts_merge(&model->parts, &prim_txms[p]->model->parts),
+                     warn("%s: no limbs from '%s'\n", name, gltf_mesh_name(gd, prims[p])));
+        }
+
+        if (skip && skip->tag == JSON_ARRAY)
+            json_foreach(it, skip)
+                if (it->tag == JSON_STRING)     model3d_parts_skip(model, it->string_);
+
+        if (box && box->tag == JSON_ARRAY)
+            json_foreach(it, box) {
+                if (it->tag != JSON_STRING)     continue;
+
+                int joint = CRES_RET(model3d_joint_by_name(model, it->string_),
+                                     { warn("%s: no joint '%s'\n", name, it->string_); continue; });
+                CERR_RET(model3d_part_box(model, joint), warn("%s: no box for '%s'\n", name, it->string_));
+            }
     }
 
     if (sfx)
