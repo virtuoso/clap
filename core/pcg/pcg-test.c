@@ -11,6 +11,7 @@
 #include <string.h>
 #include "mesh.h"
 #include "poly2d.h"
+#include "prng.h"
 #include "primitives.h"
 #include "test.h"
 #include "util.h"
@@ -26,6 +27,7 @@
 #include "pcg/furniture.h"
 #include "pcg/gallery.h"
 #include "pcg/material.h"
+#include "pcg/office.h"
 #include "pcg/room.h"
 #include "pcg/room-row.h"
 #include "pcg/shape.h"
@@ -10415,6 +10417,500 @@ static int furniture_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Office
+ ****************************************************************************/
+
+/* the furnishing with the desk and the chair each in a bucket of their own */
+static void office_params_split(pcg_office_params *p)
+{
+    pcg_office_params_init(p);
+    p->desk.shell.mat = &surf_mat[0];
+    p->chair.shell.mat = &surf_mat[1];
+    p->chair.base.mat = &surf_mat[1];
+}
+
+/* furnish @info, drawing from a stream seeded with @seed */
+static cerr office_furnish_seeded(const pcg_ctx *ctx, const pcg_office_params *p, const pcg_room_info *info,
+                                  uint64_t seed)
+{
+    LOCAL_SET(prng, rng) = CRES_RET_CERR(prng_new(PRNG_DEFAULT, seed));
+    pcg_ctx c = *ctx;
+    c.rng = rng;
+
+    return pcg_office_furnish(&c, info, (void *)p);
+}
+
+/* a bucket's bounds in @f's local coordinates; false if @w has none */
+static bool office_piece(const struct sink_walk *w, const pcg_material *mat, const pcg_frame *f, vec3 lo, vec3 hi)
+{
+    struct sink_walk one = {};
+
+    for (size_t i = 0; i < w->nr; i++)
+        if (w->key[i].mat == mat) {
+            one.key[one.nr] = w->key[i];
+            one.mesh[one.nr++] = w->mesh[i];
+        }
+    if (!one.nr)    return false;
+
+    walk_aabb(&one, f, lo, hi);
+
+    return true;
+}
+
+/* how far a box [@lo, @hi] in the room's (a, c) keeps off each side of a @w by @d interior */
+static void office_side_gaps(const vec3 lo, const vec3 hi, float w, float d, float gap[PCG_ROOM_NR_SIDES])
+{
+    gap[PCG_ROOM_FRONT] = d - hi[2];
+    gap[PCG_ROOM_BACK] = lo[2];
+    gap[PCG_ROOM_LEFT] = lo[0];
+    gap[PCG_ROOM_RIGHT] = w - hi[0];
+}
+
+/* the bounds of @mat's vertices from height @y0 up to @y1, in world coordinates; false if there are none */
+static bool office_band(const struct sink_walk *w, const pcg_material *mat, float y0, float y1, vec3 lo, vec3 hi)
+{
+    bool found = false;
+
+    for (size_t i = 0; i < w->nr; i++) {
+        if (w->key[i].mat != mat)   continue;
+
+        for (size_t v = 0; v < mesh_nr_vx(w->mesh[i]); v++) {
+            const float *p = &mesh_vx(w->mesh[i])[v * 3];
+
+            if (p[1] < y0 || p[1] > y1)     continue;
+            for (int k = 0; k < 3; k++) {
+                lo[k] = found ? fminf(lo[k], p[k]) : p[k];
+                hi[k] = found ? fmaxf(hi[k], p[k]) : p[k];
+            }
+            found = true;
+        }
+    }
+
+    return found;
+}
+
+/* how far the middle of a box [@lo, @hi] keeps off @side of a @w by @d interior */
+static float office_middle_gap(const vec3 lo, const vec3 hi, float w, float d, int side)
+{
+    vec3 mid;
+    float gap[PCG_ROOM_NR_SIDES];
+
+    vec3_add(mid, lo, hi);
+    vec3_scale(mid, mid, 0.5f);
+    office_side_gaps(mid, mid, w, d, gap);
+
+    return gap[side];
+}
+
+/* the sides the rules let the desk take for @mask, as a bit mask over &enum pcg_room_side */
+static unsigned int office_desk_sides(uint32_t mask)
+{
+    unsigned int solid = 0, glass = 0;
+
+    for (int side = 0; side < PCG_ROOM_NR_SIDES; side++) {
+        if (mask & PCG_ROOM_DOOR(side))         continue;
+        if (mask & PCG_ROOM_SOLID(side))        solid |= 1u << side;
+        else if (mask & PCG_ROOM_GLASS(side))   glass |= 1u << side;
+    }
+
+    /* the back over the sides, solid over glass */
+    unsigned int pick = solid ? solid : glass;
+
+    return pick & (1u << PCG_ROOM_BACK) ? 1u << PCG_ROOM_BACK : pick;
+}
+
+/*
+ * Every wall mask with every side bare, solid, glass, solid with a
+ * doorway or glass with one, in a 3 m by 4 m room: the desk backs onto a
+ * side the rules allow, its gap off that wall; the chair stands out in
+ * front of its middle with its back away from it; the monitor looks into
+ * the room within its slide of that middle; the corkboard hangs on the
+ * wall over that middle if, and only if, the wall is solid; everything
+ * stays inside the interior.
+ */
+static int office_test(void)
+{
+    pcg_office_params p;
+    office_params_split(&p);
+
+    static const uint32_t states[] = { 0, 1, 1u << PCG_ROOM_GLASS_BIT, 1 | (1u << PCG_ROOM_DOOR_BIT),
+                                       (1u << PCG_ROOM_GLASS_BIT) | (1u << PCG_ROOM_DOOR_BIT) };
+    size_t nr_furnished = 0, nr_boards = 0;
+
+    for (int combo = 0; combo < 5 * 5 * 5 * 5; combo++) {
+        uint32_t mask = 0;
+        for (int side = 0, k = combo; side < PCG_ROOM_NR_SIDES; side++, k /= 5) mask |= states[k % 5] << side;
+
+        const pcg_room_info info = { .w = 3.0f, .d = 4.0f, .h = 2.8f, .door_w = 1.1f, .door_h = 2.2f,
+                                     .wall_mask = mask };
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("office"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .palette = &furniture_palette, .frame = PCG_FRAME_IDENTITY };
+        CERR_RET(office_furnish_seeded(&ctx, &p, &info, 0x5eedu + combo), return EXIT_FAILURE);
+
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w))                       return EXIT_FAILURE;
+
+        unsigned int allowed = office_desk_sides(mask);
+        if (!allowed) {
+            if (w.nr)                                       return EXIT_FAILURE;
+            continue;
+        }
+        nr_furnished++;
+
+        /* the desk's back is the gap off exactly one side, and that side is allowed */
+        vec3 lo, hi;
+        float gap[PCG_ROOM_NR_SIDES];
+        if (!office_piece(&w, &surf_mat[0], &PCG_FRAME_IDENTITY, lo, hi))   return EXIT_FAILURE;
+        office_side_gaps(lo, hi, info.w, info.d, gap);
+        int side = -1;
+        for (int s = 0; s < PCG_ROOM_NR_SIDES; s++)
+            if (near(gap[s], p.wall_gap, 1e-4f)) {
+                if (side >= 0)                              return EXIT_FAILURE;
+                side = s;
+            }
+        if (side < 0 || !(allowed & (1u << side))) {
+            fprintf(stderr, "office: mask %#x, desk on side %d, allowed %#x\n", mask, side, allowed);
+            return EXIT_FAILURE;
+        }
+        /* the desk's ends keep clear of the corners */
+        for (int s = 0; s < PCG_ROOM_NR_SIDES; s++)
+            if (s != side && gap[s] < p.corner_clear - 1e-4f)   return EXIT_FAILURE;
+
+        /* the monitor stands on the desk */
+        vec3 mlo, mhi;
+        if (!office_piece(&w, &furn_atlas, &PCG_FRAME_IDENTITY, mlo, mhi))      return EXIT_FAILURE;
+        if (!near(mlo[1], p.desk.h, 1e-5f) || !near(hi[1], p.desk.h, 1e-5f))    return EXIT_FAILURE;
+
+        /* the chair stands in front of the desk: its middle past the desk's front */
+        vec3 clo, chi;
+        float cgap[PCG_ROOM_NR_SIDES];
+        if (!office_piece(&w, &surf_mat[1], &PCG_FRAME_IDENTITY, clo, chi)) return EXIT_FAILURE;
+        office_side_gaps(clo, chi, info.w, info.d, cgap);
+        int across = side == PCG_ROOM_BACK || side == PCG_ROOM_FRONT ? 2 : 0;
+        if (!(cgap[side] + (chi[across] - clo[across]) * 0.5f > p.wall_gap + p.desk.d)) return EXIT_FAILURE;
+
+        /* the chair's pedestal straight out from the desk's middle, its back on the far side from the desk */
+        int along = 2 - across;
+        float mid = (lo[along] + hi[along]) * 0.5f;
+        vec3 plo, phi, klo, khi;
+        if (!office_band(&w, &surf_mat[1], 0.0f, p.chair.base_h, plo, phi))             return EXIT_FAILURE;
+        if (!office_band(&w, &surf_mat[1], p.chair.seat_h + 1e-3f, info.h, klo, khi))   return EXIT_FAILURE;
+        float pgap = office_middle_gap(plo, phi, info.w, info.d, side);
+        float out = pgap - p.wall_gap - p.desk.d * 0.5f;
+        if (!near((plo[along] + phi[along]) * 0.5f, mid, 1e-4f))                    return EXIT_FAILURE;
+        if (out < p.chair_off - 1e-4f || out > p.chair_off + p.chair_slide + 1e-4f) return EXIT_FAILURE;
+        if (!(office_middle_gap(klo, khi, info.w, info.d, side) > pgap))            return EXIT_FAILURE;
+
+        /* the monitor within its slide of the desk's middle, its screen looking into the room */
+        if (!(fabsf((mlo[along] + mhi[along]) * 0.5f - mid) <= p.monitor_slide * 0.5f + 1e-4f)) return EXIT_FAILURE;
+        struct mesh *monitor = walk_mesh(&w, &furn_atlas);
+        vec3 in = {};
+        in[across] = side == PCG_ROOM_BACK || side == PCG_ROOM_LEFT ? 1.0f : -1.0f;
+        float su0 = fminf(p.monitor.screen_uv[0], p.monitor.screen_uv[2]);
+        size_t nr_screen = 0;
+        for (size_t v = 0; v < mesh_nr_vx(monitor); v++) {
+            if (mesh_tx(monitor)[v * 2] < su0)                      continue;
+            if (!vec3_near(&mesh_norm(monitor)[v * 3], in, 1e-4f))  return EXIT_FAILURE;
+            nr_screen++;
+        }
+        if (nr_screen != 6)                                 return EXIT_FAILURE;
+
+        /* the corkboard on the desk's wall when it is solid, nowhere else */
+        vec3 blo, bhi;
+        float bgap[PCG_ROOM_NR_SIDES];
+        bool board = office_piece(&w, &furn_cork, &PCG_FRAME_IDENTITY, blo, bhi);
+        if (board != !!(mask & PCG_ROOM_SOLID(side)))       return EXIT_FAILURE;
+        if (board) {
+            nr_boards++;
+            office_side_gaps(blo, bhi, info.w, info.d, bgap);
+            if (!near(bgap[side], p.board.standoff, 1e-5f))             return EXIT_FAILURE;
+            if (!near((blo[along] + bhi[along]) * 0.5f, mid, 1e-4f))    return EXIT_FAILURE;
+            if (!near(blo[1], p.board.center_y - p.board.h * 0.5f, 1e-5f) ||
+                !near(bhi[1], p.board.center_y + p.board.h * 0.5f, 1e-5f))
+                return EXIT_FAILURE;
+        }
+
+        /* nothing outside the interior */
+        walk_aabb(&w, &PCG_FRAME_IDENTITY, lo, hi);
+        if (lo[0] < 0.0f || lo[2] < 0.0f || hi[0] > info.w || hi[2] > info.d)   return EXIT_FAILURE;
+        if (lo[1] < 0.0f || hi[1] > info.h)                                     return EXIT_FAILURE;
+        for (size_t b = 0; b < w.nr; b++)
+            if (w.key[b].collide != PCG_COLLIDE_NONE)                           return EXIT_FAILURE;
+    }
+
+    /* every mask with a walled side without a doorway is furnished; solid desk walls get boards */
+    if (nr_furnished != 5 * 5 * 5 * 5 - 3 * 3 * 3 * 3 || !nr_boards)    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int office_size_test(void)
+{
+    pcg_office_params p;
+    office_params_split(&p);
+
+    /* below the minimum either way: nothing; at it: furnished, inside the interior */
+    const float sizes[][2] = { { 2.1f, 4.0f }, { 4.0f, 2.1f }, { 2.19f, 2.19f }, { 2.2f, 2.2f }, { 2.2f, 6.0f } };
+    for (size_t i = 0; i < array_size(sizes); i++) {
+        const pcg_room_info info = { .w = sizes[i][0], .d = sizes[i][1], .h = 2.8f,
+                                     .wall_mask = PCG_ROOM_SOLID(PCG_ROOM_BACK) | PCG_ROOM_SOLID(PCG_ROOM_LEFT) };
+        bool small = info.w < p.min_size || info.d < p.min_size;
+
+        for (uint64_t seed = 1; seed < 40; seed++) {
+            LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("office"), return EXIT_FAILURE);
+            pcg_ctx ctx = { .sink = sink, .palette = &furniture_palette, .frame = PCG_FRAME_IDENTITY };
+            CERR_RET(office_furnish_seeded(&ctx, &p, &info, seed), return EXIT_FAILURE);
+
+            struct sink_walk w;
+            if (!sink_walk_get(sink, &w) || (small ? w.nr != 0 : w.nr != 4))    return EXIT_FAILURE;
+            if (small)                                                          continue;
+
+            vec3 lo, hi;
+            walk_aabb(&w, &PCG_FRAME_IDENTITY, lo, hi);
+            if (lo[0] < 0.0f || lo[2] < 0.0f || hi[0] > info.w || hi[2] > info.d)   return EXIT_FAILURE;
+        }
+    }
+
+    /* a wall too short to keep the desk off its corners takes it in the middle */
+    pcg_office_params wide = p;
+    wide.min_size = 1.0f;
+    const pcg_room_info narrow = { .w = 1.9f, .d = 3.0f, .h = 2.8f, .wall_mask = PCG_ROOM_SOLID(PCG_ROOM_BACK) };
+    LOCAL_SET(pcg_sink, ns) = CRES_RET(pcg_sink_new("office"), return EXIT_FAILURE);
+    pcg_ctx nc = { .sink = ns, .palette = &furniture_palette, .frame = PCG_FRAME_IDENTITY };
+    CERR_RET(office_furnish_seeded(&nc, &wide, &narrow, 7), return EXIT_FAILURE);
+    struct sink_walk w;
+    vec3 lo, hi;
+    if (!sink_walk_get(ns, &w) || !office_piece(&w, &surf_mat[0], &PCG_FRAME_IDENTITY, lo, hi)) return EXIT_FAILURE;
+    if (!near((lo[0] + hi[0]) * 0.5f, narrow.w * 0.5f, 1e-5f))                                  return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* a row of offices, furnished from one stream in visit order */
+struct office_row {
+    const pcg_office_params *p;
+    uint64_t                seed;
+    int                     nr_rooms;
+};
+
+static cerr office_row_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct office_row *row = priv;
+    LOCAL_SET(prng, rng) = CRES_RET_CERR(prng_new(PRNG_DEFAULT, row->seed));
+    pcg_ctx c = *ctx;
+    c.rng = rng;
+
+    for (int i = 0; i < row->nr_rooms; i++) {
+        const pcg_room_info info = {
+            .w = 3.0f + 0.5f * i, .d = 4.0f, .h = 2.8f,
+            .wall_mask = PCG_ROOM_SOLID(PCG_ROOM_LEFT) | PCG_ROOM_SOLID(PCG_ROOM_RIGHT) |
+                         PCG_ROOM_GLASS(PCG_ROOM_FRONT) | PCG_ROOM_DOOR(PCG_ROOM_FRONT),
+        };
+        const pcg_frame room = { .org = { 7.0f * i, 0.0f, 0.0f }, .dir = { 1.0f, 0.0f } };
+        pcg_ctx at = pcg_ctx_at(&c, &room);
+
+        CERR_RET_CERR(pcg_office_furnish(&at, &info, (void *)row->p));
+    }
+
+    return CERR_OK;
+}
+
+static int office_determinism_test(void)
+{
+    pcg_office_params p;
+    office_params_split(&p);
+
+    /*
+     * One office under any frame. Further out, a 2 cm side of the chair's
+     * stem turns by more than the check's 1e-4 over a last-bit difference
+     * in its corners.
+     */
+    struct office_row row = { .p = &p, .seed = 0xa781, .nr_rooms = 1 };
+    if (!element_frames_ok(office_row_emit, &row, &furniture_palette, false))   return EXIT_FAILURE;
+
+    /* a row of them: one seed, the same bytes; another seed, other offices */
+    row.nr_rooms = 6;
+    LOCAL_SET(pcg_sink, r0) = CRES_RET(element_sink(office_row_emit, &row, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    LOCAL_SET(pcg_sink, r1) = CRES_RET(element_sink(office_row_emit, &row, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk w0, w1;
+    if (!sink_walk_get(r0, &w0) || !sink_walk_get(r1, &w1) || w0.nr != 4 || w1.nr != 4) return EXIT_FAILURE;
+    for (size_t b = 0; b < w0.nr; b++)
+        if (!meshes_same_bytes(w0.mesh[b], w1.mesh[b]))                                 return EXIT_FAILURE;
+
+    LOCAL_SET(pcg_sink, s0) = CRES_RET(element_sink(office_row_emit, &row, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    row.seed++;
+    LOCAL_SET(pcg_sink, s1) = CRES_RET(element_sink(office_row_emit, &row, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(s0, &w0) || !sink_walk_get(s1, &w1) || w0.nr != 4 || w1.nr != 4) return EXIT_FAILURE;
+    bool same = true;
+    for (size_t b = 0; b < w0.nr; b++)  same = same && meshes_same_bytes(w0.mesh[b], w1.mesh[b]);
+    if (same)                                                       return EXIT_FAILURE;
+
+    /*
+     * Every room splits a stream of its own off the context's, whatever
+     * it then draws, or doesn't: a room after one that stays empty and a
+     * room after one that is furnished come out the same
+     */
+    const pcg_room_info first[] = {
+        { .w = 1.0f, .d = 1.0f, .h = 2.8f, .wall_mask = PCG_ROOM_SOLID(PCG_ROOM_BACK) },
+        { .w = 3.0f, .d = 3.0f, .h = 2.8f },
+        { .w = 5.0f, .d = 3.0f, .h = 2.8f, .wall_mask = PCG_ROOM_GLASS(PCG_ROOM_BACK) },
+    };
+    const pcg_room_info next = { .w = 3.0f, .d = 4.0f, .h = 2.8f, .wall_mask = PCG_ROOM_SOLID(PCG_ROOM_LEFT) };
+    LOCAL_SET(pcg_sink, s2) = nullptr;
+
+    for (size_t i = 0; i < array_size(first); i++) {
+        LOCAL_SET(pcg_sink, before) = CRES_RET(pcg_sink_new("office"), return EXIT_FAILURE);
+        LOCAL_SET(pcg_sink, s) = CRES_RET(pcg_sink_new("office"), return EXIT_FAILURE);
+        LOCAL_SET(prng, rng) = CRES_RET(prng_new(PRNG_DEFAULT, 99), return EXIT_FAILURE);
+        pcg_ctx cf = { .sink = before, .palette = &furniture_palette, .rng = rng, .frame = PCG_FRAME_IDENTITY };
+        pcg_ctx cs = cf;
+        cs.sink = s;
+
+        CERR_RET(pcg_office_furnish(&cf, &first[i], &p), return EXIT_FAILURE);
+        CERR_RET(pcg_office_furnish(&cs, &next, &p), return EXIT_FAILURE);
+        if (!sink_walk_get(before, &w0) || w0.nr != (i == 2 ? 3 : 0))   return EXIT_FAILURE;
+        if (!sink_walk_get(s, &w0) || w0.nr != 4)                       return EXIT_FAILURE;
+
+        if (!s2) {
+            s2 = NOCU(s);
+            continue;
+        }
+        if (!sink_walk_get(s2, &w1))                                    return EXIT_FAILURE;
+        for (size_t k = 0; k < w0.nr; k++)
+            if (!meshes_same_bytes(w0.mesh[k], w1.mesh[k]))             return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/* the furnisher as a room's visit hook: everything inside the room's interior, in the site's frame */
+static int office_room_test(void)
+{
+    pcg_office_params op;
+    office_params_split(&op);
+
+    pcg_room_params rp;
+    pcg_room_params_init(&rp);
+    rp.visit = pcg_office_furnish;
+    rp.visit_priv = &op;
+
+    pcg_palette pal = furniture_palette;
+    pal.mat[PCG_ROLE_CLADDING] = &panel;
+    pal.mat[PCG_ROLE_CARPET] = &carpet_tile;
+    pal.mat[PCG_ROLE_FIXTURE] = &glow;
+
+    pcg_frame f;
+    test_frame(&f, 0.7f, true, 12.0f, 6.05f, -4.0f);
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("office"), return EXIT_FAILURE);
+    LOCAL_SET(prng, rng) = CRES_RET(prng_new(PRNG_DEFAULT, 3), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .palette = &pal, .rng = rng, .frame = PCG_FRAME_IDENTITY };
+    CERR_RET(pcg_room_emit(&ctx, &rp, .frame = f, .a0 = 1.0f, .w = 4.0f, .d = 5.0f, .h = 3.0f, .ceiling = 2.9f,
+                           .wall_mask = PCG_ROOM_SOLID(PCG_ROOM_BACK) | PCG_ROOM_SOLID(PCG_ROOM_LEFT) |
+                                        PCG_ROOM_SOLID(PCG_ROOM_RIGHT)),
+             return EXIT_FAILURE);
+
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w))                                   return EXIT_FAILURE;
+
+    const pcg_material *pieces[] = { &surf_mat[0], &surf_mat[1], &furn_atlas, &furn_cork };
+    float rt = rp.wall.t;
+    for (size_t i = 0; i < array_size(pieces); i++) {
+        vec3 lo, hi;
+
+        if (!office_piece(&w, pieces[i], &f, lo, hi))               return EXIT_FAILURE;
+        if (lo[0] < 1.0f + rt - 1e-4f || hi[0] > 5.0f - rt + 1e-4f) return EXIT_FAILURE;
+        if (lo[2] < rt - 1e-4f || hi[2] > 5.0f - rt + 1e-4f)        return EXIT_FAILURE;
+        if (lo[1] < -1e-4f || hi[1] > 2.9f)                         return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int office_bad_test(void)
+{
+    pcg_office_params p;
+    pcg_office_params_init(&p);
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("office"), return EXIT_FAILURE);
+    LOCAL_SET(prng, rng) = CRES_RET(prng_new(PRNG_DEFAULT, 1), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .palette = &furniture_palette, .rng = rng, .frame = PCG_FRAME_IDENTITY };
+    const pcg_room_info info = { .w = 3.0f, .d = 4.0f, .h = 2.8f, .wall_mask = PCG_ROOM_SOLID(PCG_ROOM_BACK) };
+
+    /* no stream, no room, no params */
+    pcg_ctx none = ctx;
+    none.rng = nullptr;
+    if (!failed_inval(pcg_office_furnish(&none, &info, &p)))        return EXIT_FAILURE;
+    if (!failed_inval(pcg_office_furnish(nullptr, &info, &p)))      return EXIT_FAILURE;
+    if (!failed_inval(pcg_office_furnish(&ctx, nullptr, &p)))       return EXIT_FAILURE;
+    if (!failed_inval(pcg_office_furnish(&ctx, &info, nullptr)))    return EXIT_FAILURE;
+
+    /* zeroed params, and every distance infinite, NaN or negative */
+    pcg_office_params bad = {};
+    if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))       return EXIT_FAILURE;
+    const float values[] = { INFINITY, -INFINITY, NAN, -0.1f };
+    for (size_t i = 0; i < array_size(values); i++) {
+        float *fields[] = {
+            &bad.min_size, &bad.corner_clear, &bad.wall_gap, &bad.monitor_slide, &bad.chair_off, &bad.chair_slide,
+            &bad.chair_turn,
+        };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            bad = p;
+            *fields[k] = values[i];
+            if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))   return EXIT_FAILURE;
+        }
+    }
+    bad = p;
+    bad.luck = -1;
+    if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))       return EXIT_FAILURE;
+
+    /* a weight past its range either way, where the sum of a wall's weights would overflow */
+    const int weights[] = { PCG_OFFICE_WEIGHT_MAX + 1, INT_MAX, -PCG_OFFICE_WEIGHT_MAX - 1, INT_MIN };
+    for (size_t i = 0; i < array_size(weights); i++) {
+        int *fields[] = { &bad.solid_score, &bad.back_score, &bad.luck };
+
+        for (size_t k = 0; k < array_size(fields); k++) {
+            bad = p;
+            *fields[k] = weights[i];
+            if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))   return EXIT_FAILURE;
+        }
+    }
+    /* and right at its edge, a good one */
+    bad = p;
+    bad.solid_score = -PCG_OFFICE_WEIGHT_MAX;
+    bad.back_score = PCG_OFFICE_WEIGHT_MAX;
+    bad.luck = PCG_OFFICE_WEIGHT_MAX;
+    CERR_RET(pcg_office_check(&bad), return EXIT_FAILURE);
+
+    /* a bad piece fails the room before anything is placed */
+    bad = p;
+    bad.board.h = 0.0f;
+    if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))       return EXIT_FAILURE;
+    bad = p;
+    bad.chair.segments = 2;
+    if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))       return EXIT_FAILURE;
+    bad = p;
+    bad.chair.segments = 6000;
+    cerr err = pcg_office_furnish(&ctx, &info, &bad);
+    if (!IS_CERR_CODE(err, CERR_TOO_LARGE))                         return EXIT_FAILURE;
+    bad = p;
+    bad.monitor.bezel = 1.0f;
+    if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))       return EXIT_FAILURE;
+    bad = p;
+    bad.desk.top_t = bad.desk.h;
+    if (!failed_inval(pcg_office_furnish(&ctx, &info, &bad)))       return EXIT_FAILURE;
+
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr)                           return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -10497,6 +10993,11 @@ static const struct test tests[] = {
     { .name = "furniture surfaces", .test = furniture_surface_test },
     { .name = "furniture bad input", .test = furniture_bad_test },
     { .name = "furniture parity", .test = furniture_parity_test },
+    { .name = "office", .test = office_test },
+    { .name = "office size", .test = office_size_test },
+    { .name = "office determinism", .test = office_determinism_test },
+    { .name = "office room", .test = office_room_test },
+    { .name = "office bad input", .test = office_bad_test },
 };
 
 int main(int argc, char **argv, char **envp)
