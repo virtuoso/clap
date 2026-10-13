@@ -64,6 +64,15 @@ int gltf_get_mesh_groups(struct gltf_data *gd);
 cres(int) gltf_group_first(struct gltf_data *gd, int group);
 cres(int) gltf_group_count(struct gltf_data *gd, int group);
 cres(int) gltf_mesh_group(struct gltf_data *gd, int mesh);
+/**
+ * gltf_mesh_skin() - the skin a skinned primitive's node binds it to
+ * @gd:     gltf data
+ * @mesh:   the primitive
+ *
+ * Return: the skin's index; CERR_NOT_FOUND for a primitive without joints
+ * and weights, or one that no skinned node holds
+ */
+cres_check(int) gltf_mesh_skin(struct gltf_data *gd, int mesh);
 bool gltf_mesh_fallback(struct gltf_data *gd, int mesh);
 int gltf_get_nodes(struct gltf_data *gd);
 cresp(const_char) gltf_node_name(struct gltf_data *gd, int node);

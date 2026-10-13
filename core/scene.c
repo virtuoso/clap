@@ -1638,6 +1638,14 @@ static void scene_entity_add_physics(struct scene *scene, entity3d *e, double ma
                                  .bounce_vel = bounce_vel);
 }
 
+/* @prim is skinned with @skin */
+static bool prim_skinned_with(struct gltf_data *gd, int prim, int skin)
+{
+    cres(int) s = gltf_mesh_skin(gd, prim);
+
+    return !IS_CERR(s) && s.val == skin;
+}
+
 /*
  * For multi-primitive meshes, spawn a child entity per sibling primitive,
  * parented to @e. Children have identity local TRS, so they inherit the
@@ -1648,11 +1656,17 @@ static void scene_entity_add_physics(struct scene *scene, entity3d *e, double ma
  * When @add_phys, visible children also get their own static trimesh
  * collider, so the whole mesh contributes collision, not just the parent
  * primitive.
+ *
+ * A child skinned with the parent's skin (another primitive of the same
+ * skinned mesh) draws with the parent's pose: the parent's animator moves
+ * the whole thing.
  */
 static void scene_spawn_prim_children(struct scene *scene, entity3d *e, struct gltf_data *gd,
                                       model3dtx **prim_txms, int prim_first, int prim_count,
                                       bool add_phys)
 {
+    cres(int) skin = gltf_mesh_skin(gd, prim_first);
+
     for (int sp = 1; sp < prim_count; sp++) {
         entity3d *child = ref_new(entity3d, .txmodel = prim_txms[sp]);
 
@@ -1660,6 +1674,12 @@ static void scene_spawn_prim_children(struct scene *scene, entity3d *e, struct g
         if (gltf_mesh_fallback(gd, prim_first + sp)) {
             entity3d_clear(child, ENTITY3D_VISIBLE);
             continue;
+        }
+
+        if (!IS_CERR(skin) && prim_skinned_with(gd, prim_first + sp, skin.val) && e->joints) {
+            entity3d_set(child, ENTITY3D_PARENT_POSE, nullptr);
+            /* the pose carries it outside its bind pose bounds, as it does the parent */
+            if (entity3d_matches(e, ENTITY3D_SKIP_CULLING)) entity3d_set(child, ENTITY3D_SKIP_CULLING, nullptr);
         }
 
         if (!add_phys)          continue;

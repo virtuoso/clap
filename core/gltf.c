@@ -691,29 +691,25 @@ bool gltf_node_extras_bool(struct gltf_data *gd, int node, const char *key, bool
     return true;
 }
 
-int gltf_mesh_skin(struct gltf_data *gd, int mesh)
+cres(int) gltf_mesh_skin(struct gltf_data *gd, int mesh)
 {
-    int i;
-
     if (!gltf_has_joints(gd, mesh) || !gltf_has_weights(gd, mesh))
-        return -1;
+        return cres_error(int, CERR_NOT_FOUND);
 
     /* nodes reference the JSON mesh, that is, the primitive's group */
     int group = DA(gd->meshes, mesh)->group;
-    for (i = 0; i < gd->nodes.da.nr_el; i++)
+    for (int i = 0; i < gd->nodes.da.nr_el; i++)
         if (DA(gd->nodes, i)->mesh == group && DA(gd->nodes, i)->skin >= 0)
-            return DA(gd->nodes, i)->skin;
-    return -1;
+            return cres_val(int, DA(gd->nodes, i)->skin);
+
+    return cres_error(int, CERR_NOT_FOUND);
 }
 
 bool gltf_mesh_is_skinned(struct gltf_data *gd, int mesh)
 {
-    int skin = gltf_mesh_skin(gd, mesh);
+    cres(int) skin = gltf_mesh_skin(gd, mesh);
 
-    if (skin >= 0)
-        return true;
-
-    return false;
+    return !IS_CERR(skin);
 }
 
 static void __unused nodes_print(struct gltf_data *gd, struct gltf_node *node, int level)
@@ -1633,8 +1629,9 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         }
     );
 
-    skin = gltf_mesh_skin(gd, mesh);
-    if (skin >= 0) {
+    cres(int) mesh_skin = gltf_mesh_skin(gd, mesh);
+    if (!IS_CERR(mesh_skin)) {
+        skin = mesh_skin.val;
         struct gltf_skin *s = DA(gd->skins, skin);
         struct gltf_animation *ga;
         struct gltf_node *node;
