@@ -1196,6 +1196,9 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
         mat->base_tex = -1;
         mat->normal_tex = -1;
         mat->emission_tex = -1;
+        /* the spec's defaults for an absent metallicFactor / roughnessFactor */
+        mat->metallic = 1.0;
+        mat->roughness = 1.0;
 
         JsonNode *jmatname = json_find_member(n, "name");
         if (jmatname && jmatname->tag == JSON_STRING)
