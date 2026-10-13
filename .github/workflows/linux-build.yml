@@ -36,7 +36,7 @@ jobs:
       - name: Build dependencies
         run: |
           cd vcpkg-mingw
-          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw freetype:x64-mingw glfw3:x64-linux
+          ./vcpkg install libpng:x64-mingw glfw3:x64-mingw freetype:x64-mingw glfw3:x64-linux vulkan:x64-mingw
       - name: configure
         run: |
           cd ${{ github.workspace }}
