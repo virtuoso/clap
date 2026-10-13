@@ -11,6 +11,7 @@
 #include "mesh.h"
 #include "model.h"
 #include "noise.h"
+#include "primitives.h"
 #include "character.h"
 #include "ui.h"
 #include "pngloader.h"
@@ -512,6 +513,48 @@ cerr model3d_set_degenerate_tris(model3d *m, const int *tris, size_t nr)
 
     memcpy(m->degenerate_tri, tris, nr * sizeof(*m->degenerate_tri));
     m->nr_degenerate_tri = nr;
+
+    return CERR_OK;
+}
+
+void model3d_parts_skip(model3d *m, const char *prefix)
+{
+    size_t len = strlen(prefix);
+
+    for (size_t i = darray_count(m->parts); i-- > 0;) {
+        struct mesh_part *part = &m->parts.x[i];
+
+        if (strncmp(m->joints[part->joint].name, prefix, len))  continue;
+
+        mesh_part_done(part);
+        darray_delete(m->parts, i);
+    }
+}
+
+cerr model3d_part_box(model3d *m, int joint)
+{
+    struct mesh_part *part = CRES_RET_CERR(mesh_part_find(&m->parts, joint));
+
+    vec3 aabb[2];
+    vertex_array_aabb_calc(aabb, (float *)part->vx.x, darray_count(part->vx) * sizeof(vec3), 0);
+
+    /* the unit cube stretched over the bounds */
+    struct mesh *cube = &cube_mesh;
+    struct mesh_part box = { .joint = part->joint };
+
+    darray_init(box.vx);
+    darray_init(box.idx);
+    if (!darray_resize(box.vx, mesh_nr_vx(cube)) || !darray_resize(box.idx, mesh_nr_idx(cube))) {
+        mesh_part_done(&box);
+        return CERR_NOMEM;
+    }
+
+    for (size_t i = 0; i < mesh_nr_vx(cube); i++)
+        for (int k = 0; k < 3; k++) box.vx.x[i][k] = aabb[0][k] + mesh_vx(cube)[i * 3 + k] * (aabb[1][k] - aabb[0][k]);
+    for (size_t i = 0; i < mesh_nr_idx(cube); i++)  box.idx.x[i] = mesh_idx(cube)[i];
+
+    mesh_part_done(part);
+    *part = box;
 
     return CERR_OK;
 }

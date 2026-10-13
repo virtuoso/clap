@@ -324,6 +324,28 @@ float model3d_aabb_Y(model3d *m);
 float model3d_aabb_Z(model3d *m);
 
 /**
+ * model3d_parts_skip() - drop the parts of the joints named so
+ * @m:      the model
+ * @prefix: the beginning of the joint names whose parts to drop
+ *
+ * For pieces that don't want a collision shape of their own: a cable, a
+ * piece the model's body covers already.
+ */
+void model3d_parts_skip(model3d *m, const char *prefix);
+
+/**
+ * model3d_part_box() - make a joint's part its bounding box
+ * @m:      the model
+ * @joint:  the part's joint
+ *
+ * The box bounds the piece at the bind pose, square with the model's axes
+ * however the joint leans, and rides the joint from there: a blocky torso
+ * as a box instead of its hull.
+ * Return: CERR_OK, CERR_NOT_FOUND for a joint without a part, CERR_NOMEM
+ */
+cerr model3d_part_box(model3d *m, int joint);
+
+/**
  * model3d_set_degenerate_tris() - record the collision triangles dropped as degenerate
  * @m:      model whose collision mesh was cooked
  * @tris:   indices of the dropped triangles into @m's collision mesh
