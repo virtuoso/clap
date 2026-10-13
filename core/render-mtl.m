@@ -929,6 +929,11 @@ static cerr mtl_texture_load(texture_t *tex, texture_format format,
             return CERR_INVALID_ARGUMENTS;
     }
 
+    /*
+     * Loading a loaded texture replaces it: drop the old one, which the
+     * command buffers still using it hold references to of their own
+     */
+    if (tex->loaded && tex->mtl.texture)    [tex->mtl.texture release];
     tex->mtl.texture = [tex->renderer->mtl.device newTextureWithDescriptor:tdesc];
 
     [tdesc release];
@@ -947,6 +952,7 @@ static cerr mtl_texture_load(texture_t *tex, texture_format format,
             dest_buf = texture_rgb_to_rgba(format, buf, (size_t)width * height * tex->layers, NULL);
             if (!dest_buf) {
                 [tex->mtl.texture release];
+                tex->mtl.texture = nil;
                 return CERR_NOMEM;
             }
 
