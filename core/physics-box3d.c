@@ -1122,12 +1122,9 @@ err_free:
     return NULL;
 }
 
-struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
-                                     double radius, double half_len, const vec3 offset)
+/* a limb's body without its shape: kinematic, placed by phys_limbs_sync() every frame */
+static struct phys_body *limb_body_new(struct phys *phys, entity3d *e, int joint, geom_class class)
 {
-    if (class != GEOM_CAPSULE && class != GEOM_SPHERE)  return NULL;
-    if (!phys_limb_joint_valid(e, joint))               return NULL;
-
     struct phys_body *body = mem_alloc(sizeof(*body), .zero = 1, .fatal_fail = 1);
     list_init(&body->entry);
     body->phys = phys;
@@ -1136,11 +1133,8 @@ struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, 
     body->class = class;
     body->mu = 1.0;
     body->joint = joint;
-    vec3_dup(body->offset, (float *)offset);
-    body->radius = radius * e->scale;
-    body->half_len = class == GEOM_CAPSULE ? half_len * e->scale : 0.0f;
 
-    /* placed by phys_limbs_sync() every frame; starts where the entity is */
+    /* starts where the entity is */
     const float *pos = transform_pos(&e->xform, nullptr);
     b3BodyDef bd = b3DefaultBodyDef();
 
@@ -1150,33 +1144,61 @@ struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, 
     bd.name = entity_name(e);
 
     body->body_id = b3CreateBody(phys->world, &bd);
-    if (B3_IS_NULL(body->body_id))  goto err_free;
+    if (B3_IS_NULL(body->body_id)) {
+        mem_free(body);
+        return nullptr;
+    }
 
-    /* a character capsule's terms: the dynamics bounce off it, kinematics pass through */
+    return body;
+}
+
+/* a character capsule's terms: the dynamics bounce off it, kinematics pass through */
+static b3ShapeDef limb_shape_def(struct phys_body *body, entity3d *e)
+{
     b3ShapeDef sd = b3DefaultShapeDef();
+
     sd.userData = e;
     sd.baseMaterial.friction = body->mu;
     sd.filter.categoryBits = PHYS_CAT_CHARACTER;
     sd.filter.maskBits = UINT64_MAX;
     sd.enableHitEvents = false;
 
-    body->shape_id = phys_shape_capsule_new(body, &sd);
-    if (B3_IS_NULL(body->shape_id)) goto err_body;
+    return sd;
+}
 
-    struct phys_body **slot = darray_add(e->limbs);
-    if (!slot)  goto err_body;
+/* the shaped limb joins the entity's limbs, or goes */
+static struct phys_body *limb_add(struct phys *phys, entity3d *e, struct phys_body *body)
+{
+    struct phys_body **slot = B3_IS_NULL(body->shape_id) ? nullptr : darray_add(e->limbs);
+
+    if (!slot) {
+        phys_body_done(body);
+        return nullptr;
+    }
     *slot = body;
 
     list_append(&phys->bodies, &body->entry);
 
     return body;
+}
 
-err_body:
-    b3DestroyBody(body->body_id);
-err_free:
-    mem_free(body);
+struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
+                                     double radius, double half_len, const vec3 offset)
+{
+    if (class != GEOM_CAPSULE && class != GEOM_SPHERE)  return nullptr;
+    if (!phys_limb_joint_valid(e, joint))               return nullptr;
 
-    return NULL;
+    struct phys_body *body = limb_body_new(phys, e, joint, class);
+    if (!body)  return nullptr;
+
+    vec3_dup(body->offset, (float *)offset);
+    body->radius = radius * e->scale;
+    body->half_len = class == GEOM_CAPSULE ? half_len * e->scale : 0.0f;
+
+    b3ShapeDef sd = limb_shape_def(body, e);
+    body->shape_id = phys_shape_capsule_new(body, &sd);
+
+    return limb_add(phys, e, body);
 }
 
 int phys_body_joint(struct phys_body *body)

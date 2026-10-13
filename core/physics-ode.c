@@ -1071,36 +1071,37 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     return body;
 }
 
-struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
-                                     double radius, double half_len, const vec3 offset)
+/* a limb, its geom to come: kinematic, placed by phys_limbs_sync() every frame */
+static struct phys_body *limb_new(struct phys *phys, int joint, geom_class class)
 {
-    if (class != GEOM_CAPSULE && class != GEOM_SPHERE)  return NULL;
-    if (!phys_limb_joint_valid(e, joint))               return NULL;
-
     struct phys_body *body = mem_alloc(sizeof(*body), .zero = 1, .fatal_fail = 1);
+
     list_init(&body->pen_entry);
     body->phys = phys;
     body->mu = 1.0;
     body->joint = joint;
-    vec3_dup(body->offset, (float *)offset);
     body->class = class;
-    body->radius = radius * e->scale;
 
-    float length = class == GEOM_CAPSULE ? 2.0f * half_len * e->scale : 0.0f;
+    return body;
+}
 
-    body->body = dBodyCreate(phys->world);
-    body->geom = length > 0.0f ? dCreateCapsule(phys->space, body->radius, length)
-                               : dCreateSphere(phys->space, body->radius);
+/*
+ * The limb's geom on a body of its own, on the character capsule's terms:
+ * the solver never moves it, phys_limbs_sync() does; then it joins the
+ * entity's limbs, or goes
+ */
+static struct phys_body *limb_add(struct phys *phys, entity3d *e, struct phys_body *body)
+{
     if (!body->geom) {
-        dBodyDestroy(body->body);
         mem_free(body);
         return nullptr;
     }
 
+    body->body = dBodyCreate(phys->world);
     dGeomSetBody(body->geom, body->body);
     dBodySetData(body->body, e);
     dGeomSetData(body->geom, e);
-    if (length > 0.0f) {
+    if (dGeomGetClass(body->geom) == dCapsuleClass) {
         /* a capsule lies along its joint, whose axis is Y */
         dMatrix3 R;
 
@@ -1108,7 +1109,6 @@ struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, 
         dGeomSetOffsetRotation(body->geom, R);
     }
 
-    /* a character capsule's terms: the solver never moves it, phys_limbs_sync() does */
     dBodySetKinematic(body->body);
     dBodyDisable(body->body);
     dSpaceRemove(phys->space, body->geom);
@@ -1125,6 +1125,24 @@ struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, 
     *slot = body;
 
     return body;
+}
+
+struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
+                                     double radius, double half_len, const vec3 offset)
+{
+    if (class != GEOM_CAPSULE && class != GEOM_SPHERE)  return nullptr;
+    if (!phys_limb_joint_valid(e, joint))               return nullptr;
+
+    struct phys_body *body = limb_new(phys, joint, class);
+    vec3_dup(body->offset, (float *)offset);
+    body->radius = radius * e->scale;
+
+    float length = class == GEOM_CAPSULE ? 2.0f * half_len * e->scale : 0.0f;
+
+    body->geom = length > 0.0f ? dCreateCapsule(phys->space, body->radius, length)
+                               : dCreateSphere(phys->space, body->radius);
+
+    return limb_add(phys, e, body);
 }
 
 int phys_body_joint(struct phys_body *body)
