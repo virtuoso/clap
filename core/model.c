@@ -24,19 +24,19 @@
  * the actual rendered model
  ****************************************************************************/
 
-static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
+static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh, bool parts)
 {
-    unsigned short *lod = NULL;
-    size_t nr_idx, prev_nr_idx = mesh_nr_idx(mesh);
+    size_t nr_idx, prev_nr_idx = mesh_nr_idx(mesh), nr_coarsest = 0;
+    LOCAL(uint16_t, coarsest);
     int level;
 
     for (level = 0; level < LOD_MAX - 1; level++) {
+        LOCAL(uint16_t, lod);
+
         nr_idx = mesh_idx_to_lod(mesh, level, &lod, &m->lod_errors[m->nr_lods]);
         /* Sloppy LODs are not useful at the moment, don't waste space on them */
-        if (nr_idx >= prev_nr_idx || m->lod_errors[m->nr_lods] < 0.0) {
-            mem_free(lod);
+        if (nr_idx >= prev_nr_idx || m->lod_errors[m->nr_lods] < 0.0)
             break;
-        }
 
         cerr err = buffer_init(&m->index[m->nr_lods],
                                .renderer   = shader_prog_renderer(m->prog),
@@ -45,7 +45,6 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
                                .comp_type  = DT_USHORT,
                                .data       = lod,
                                .size       = nr_idx * mesh_idx_stride(mesh));
-        mem_free(lod);
 
         if (IS_CERR(err))
             continue;
@@ -57,7 +56,16 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh)
         if (m->lod_errors[m->nr_lods] > 0.0)
             m->lod_max++;
         m->nr_lods++;
+
+        /* the previous coarsest goes at the end of the iteration */
+        LOCAL_SET(uint16_t, prev) = coarsest;
+        coarsest = NOCU(lod);
+        nr_coarsest = nr_idx;
     }
+
+    if (parts)
+        CERR_RET(mesh_parts_by_joint(mesh, coarsest, sizeof(*coarsest), nr_coarsest, &m->parts),
+                 warn("'%s': no parts\n", m->name));
 }
 
 static int model3d_validate_lod(model3d *m, int lod)
@@ -111,6 +119,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
         m->collision_idxsz = mesh_idx_sz(opts->mesh);
     }
     darray_init(m->anis);
+    darray_init(m->parts);
     anim_lib_init(&m->anim_lib, m);
     sfx_container_init(&m->sfxc);
 
@@ -141,7 +150,7 @@ static cerr model3d_make(struct ref *ref, void *_opts)
 
     m->nr_lods++;
 
-    model3d_lods_from_mesh(m, opts->mesh);
+    model3d_lods_from_mesh(m, opts->mesh, opts->parts);
 
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog, false);
@@ -193,6 +202,7 @@ static void model3d_drop(struct ref *ref)
         mem_free(m->joints[i].name);
     }
     sfx_container_clearout(&m->sfxc);
+    mesh_parts_done(&m->parts);
     mem_free(m->joints);
     mem_free(m->collision_vx);
     mem_free(m->collision_idx);

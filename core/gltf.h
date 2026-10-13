@@ -42,6 +42,8 @@ typedef struct gltf_load_options {
     gltf_model_make_fn  model_make;
     void                *model_make_priv;
     bool                fix_origin;
+    /* split the skinned meshes into their rigid pieces, model3d_init_options::parts */
+    bool                parts;
 } gltf_load_options;
 
 #define gltf_load(args...) \

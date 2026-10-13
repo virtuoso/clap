@@ -227,6 +227,7 @@ struct gltf_data {
     gltf_model_make_fn   model_make;
     void                 *model_make_priv;
     bool         fix_origin;
+    bool         parts;
     bool         textures_png;
 };
 
@@ -1589,7 +1590,8 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
                 .name        = gltf_mesh_name(gd, mesh),
                 .mesh        = me,
                 .shader_base = "model",
-                .variants    = variants
+                .variants    = variants,
+                .parts       = gd->parts
             )
         );
     }
@@ -1754,6 +1756,7 @@ struct gltf_data *_gltf_load(const gltf_load_options *opts)
     gd->pl = ref_get((pipeline *)opts->pipeline);
     gd->mq = opts->mq;
     gd->fix_origin = opts->fix_origin;
+    gd->parts = opts->parts;
     gd->model_make = opts->model_make;
     gd->model_make_priv = opts->model_make_priv;
     lh = lib_request(RES_ASSET, opts->name, gltf_onload, gd);

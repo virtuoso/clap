@@ -97,6 +97,8 @@ typedef struct model3d {
     size_t              collision_vxsz;
     unsigned short      *collision_idx;
     size_t              collision_idxsz;
+    /* a skinned model's rigid pieces by joint, model3d_init_options::parts */
+    mesh_parts          parts;
     /* Collision triangles that the physics backend dropped as degenerate */
     int                 *degenerate_tri;
     size_t              nr_degenerate_tri;
@@ -111,6 +113,7 @@ typedef struct model3d {
  * @skip_aabb:   don't calculate AABB for this model
  * @shader_base: uber shader family @prog was variant-resolved from
  * @variants:    the variant mask @prog was resolved with
+ * @parts:       split a skinned @mesh into its rigid pieces (model3d::parts)
  *
  * Constructor parameters for model3d, passed into model3d_make().
  * * @prog and @mesh and non-optional;
@@ -123,6 +126,8 @@ typedef struct model3d {
  * re-resolution on pipeline rebuilds and material changes (see
  * pipeline_shaders_resolve()); leave unset for models drawing with progs
  * outside the variant families.
+ * * @parts takes the pieces from the coarsest LOD: limbs for a character
+ * (phys_body_new_limb_mesh()) want the outline, not the detail.
  */
 DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     const char          *name;
@@ -132,6 +137,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     shader_variants_t   variants;
     bool                fix_origin;
     bool                skip_aabb;
+    bool                parts;
 );
 DECLARE_REFCLASS(model3d);
 DECLARE_CLEANUP(model3d);
