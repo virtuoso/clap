@@ -30,6 +30,7 @@ static void mtl_renderer_swapchain_begin(renderer_t *r, fbo_load_action load);
 static void mtl_renderer_frame_begin(renderer_t *r);
 static void mtl_renderer_frame_end(renderer_t *r);
 static void mtl_renderer_swapchain_end(renderer_t *r);
+static void mtl_ubos_carry_over(renderer_t *r);
 #ifndef CONFIG_FINAL
 static void mtl_renderer_debug(renderer_t *r);
 #endif
@@ -1353,6 +1354,7 @@ static mtl_command_buffer_t mtl_cmd_buffer(renderer_t *r)
 
     /* create cmd_buffer if necessary */
     dispatch_semaphore_wait(r->mtl.sem, DISPATCH_TIME_FOREVER);
+    mtl_ubos_carry_over(r);
     r->mtl.cmdbuf_count++;
 #ifndef CONFIG_FINAL
     /*
@@ -2085,6 +2087,25 @@ static void mtl_renderer_swapchain_end(renderer_t *r)
 {
 }
 
+/**
+ * mtl_ubos_carry_over() - carry the uniform blocks over into this frame's slots
+ * @r:  the renderer
+ *
+ * Each uniform buffer is a ring of MTL_INFLIGHT_FRAMES buffers; this
+ * frame's was last read by the command buffer MTL_INFLIGHT_FRAMES frames
+ * back. Call it only after the semaphore wait that frees it: writing it
+ * any earlier races the GPU still reading it.
+ */
+static void mtl_ubos_carry_over(renderer_t *r)
+{
+    uniform_buffer_t *ubo;
+    list_for_each_entry(ubo, &r->mtl.ubos, mtl.entry) {
+        ubo->data = mtl_ubo_data(ubo);
+        if (ubo->mtl.prev)  memcpy(ubo->data, ubo->mtl.prev, ubo->size);
+        ubo->mtl.prev = ubo->data;
+    }
+}
+
 static void renderer_frame_advance(renderer_t *r)
 {
     r->mtl.nr_draws = 0;
@@ -2099,16 +2120,12 @@ static void renderer_frame_advance(renderer_t *r)
     if (ready >= 0)     r->pass_times = r->mtl.ts_results[ready];
 #endif /* !CONFIG_FINAL */
 
+    /* the slots are carried over in mtl_cmd_buffer(), after the wait */
     uniform_buffer_t *ubo;
     list_for_each_entry(ubo, &r->mtl.ubos, mtl.entry) {
         ubo->mtl.item = 0;
         ubo->dirty = false;
         ubo->mtl.advance = false;
-
-        ubo->data = mtl_ubo_data(ubo);
-        if (ubo->mtl.prev)
-            memcpy(ubo->data, ubo->mtl.prev, ubo->size);
-        ubo->mtl.prev = ubo->data;
     }
 }
 
