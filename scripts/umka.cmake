@@ -20,10 +20,11 @@ endif ()
 add_library(umka STATIC ${UMKA_SRC})
 set_target_properties(umka PROPERTIES FOLDER "ThirdPartyLibraries")
 
-# UMKA_STATIC drops the dllimport/dllexport decorations; we do not build UMIs
-# (Umka module implementation libraries), so UMKA_EXT_LIBS stays off and there is
-# no dlopen/libdl dependency.
-target_compile_definitions(umka PRIVATE UMKA_STATIC)
+# UMKA_STATIC drops the dllimport/dllexport decorations, on the declarations its
+# users see as well: on Windows those would otherwise import the API from a DLL.
+# We do not build UMIs (Umka module implementation libraries), so UMKA_EXT_LIBS
+# stays off and there is no dlopen/libdl dependency.
+target_compile_definitions(umka PUBLIC UMKA_STATIC)
 target_include_directories(umka PUBLIC "${UMKA_DIR}/src")
 
 # Umka is third-party C that relies on type punning through unions, so it must be
