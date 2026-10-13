@@ -50,6 +50,19 @@ phys_capsule phys_capsule_size(entity3d *e, double radius, double offset, double
 bool phys_limb_joint_valid(entity3d *e, int joint);
 
 /**
+ * phys_limb_vx() - a piece's vertices in the frame of the limb riding a joint
+ * @e:      entity3d with an armature
+ * @joint:  the joint the limb rides
+ * @vx:     the piece's vertices in the model at the bind pose
+ * @nr_vx:  how many
+ *
+ * The limb's body rides the joint, so its shape is in the joint's frame;
+ * like the other limb dimensions, before the entity's scale.
+ * Return: a new array of @nr_vx vertices
+ */
+vec3 *phys_limb_vx(entity3d *e, int joint, const vec3 *vx, size_t nr_vx);
+
+/**
  * phys_limb_place() - where a limb is this frame
  * @e:      entity3d with an armature
  * @joint:  the joint the limb rides

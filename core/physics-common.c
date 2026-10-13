@@ -42,6 +42,21 @@ bool phys_limb_joint_valid(entity3d *e, int joint)
     return e->joints && joint >= 0 && (unsigned int)joint < e->txmodel->model->nr_joints;
 }
 
+vec3 *phys_limb_vx(entity3d *e, int joint, const vec3 *vx, size_t nr_vx)
+{
+    vec3 *local = mem_alloc(sizeof(*local), .nr = nr_vx, .fatal_fail = 1);
+    mat4x4 *invmx = &e->txmodel->model->joints[joint].invmx;
+
+    for (size_t i = 0; i < nr_vx; i++) {
+        vec4 v = { vx[i][0], vx[i][1], vx[i][2], 1.0f }, l;
+
+        mat4x4_mul_vec4(l, *invmx, v);
+        vec3_dup(local[i], l);
+    }
+
+    return local;
+}
+
 void phys_limb_place(entity3d *e, int joint, const vec3 offset, vec3 pos, mat4x4 rot)
 {
     vec4 o = { offset[0], offset[1], offset[2], 1.0f }, p;

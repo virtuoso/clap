@@ -251,6 +251,26 @@ struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, 
                                      double radius, double half_len, const vec3 offset);
 
 /**
+ * phys_body_new_limb_mesh() - create a kinematic limb shaped like a piece of the model
+ * @phys:       core physics handle
+ * @e:          entity3d with an armature; the limb is appended to entity3d::limbs
+ * @joint:      the joint it rides
+ * @vx:         the piece's vertices in the model at the bind pose
+ *              (mesh_part::vx), before the entity's scale
+ * @nr_vx:      how many
+ * @idx:        its triangles, into @vx
+ * @nr_idx:     how many indices
+ *
+ * Like phys_body_new_limb(), with the piece itself for the shape: its
+ * convex hull where the backend can move only convex shapes (Box3D), the
+ * triangles where it can move a trimesh (ODE). The limb keeps copies.
+ * Return: the limb, or nullptr for a bad joint or a piece with no volume
+ */
+struct phys_body *phys_body_new_limb_mesh(struct phys *phys, entity3d *e, int joint,
+                                          const vec3 *vx, size_t nr_vx,
+                                          const unsigned int *idx, size_t nr_idx);
+
+/**
  * phys_limbs_sync() - place an entity's limbs on its posed skeleton
  * @e:  entity3d with limbs
  *

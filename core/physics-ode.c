@@ -1127,6 +1127,24 @@ static struct phys_body *limb_add(struct phys *phys, entity3d *e, struct phys_bo
     return body;
 }
 
+struct phys_body *phys_body_new_limb_mesh(struct phys *phys, entity3d *e, int joint,
+                                          const vec3 *vx, size_t nr_vx,
+                                          const unsigned int *idx, size_t nr_idx)
+{
+    if (!phys_limb_joint_valid(e, joint) || !nr_vx || nr_idx < 3)   return nullptr;
+
+    /* ODE moves a trimesh: the piece's own triangles */
+    LOCAL_SET(vec3, local) = phys_limb_vx(e, joint, vx, nr_vx);
+    dTriIndex *tidx = mem_alloc(sizeof(*tidx), .nr = nr_idx, .fatal_fail = 1);
+
+    for (size_t i = 0; i < nr_idx; i++) tidx[i] = idx[i];
+
+    struct phys_body *body = limb_new(phys, joint, GEOM_TRIMESH);
+    body->geom = phys_geom_trimesh_build(phys, body, trimesh_vx(local[0], nr_vx, e->scale), nr_vx, tidx, nr_idx);
+
+    return limb_add(phys, e, body);
+}
+
 struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, geom_class class,
                                      double radius, double half_len, const vec3 offset)
 {

@@ -22,6 +22,7 @@ DEFINE_CLEANUP(uchar, mem_free(*p))
 DEFINE_CLEANUP(int, mem_free(*p))
 DEFINE_CLEANUP(uint16_t, mem_free(*p))
 DEFINE_CLEANUP(float, mem_free(*p))
+DEFINE_CLEANUP(vec3, mem_free(*p))
 
 cerr path_joinv(char *dst, size_t size, const char *const comps[])
 {

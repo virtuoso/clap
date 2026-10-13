@@ -1201,6 +1201,24 @@ struct phys_body *phys_body_new_limb(struct phys *phys, entity3d *e, int joint, 
     return limb_add(phys, e, body);
 }
 
+struct phys_body *phys_body_new_limb_mesh(struct phys *phys, entity3d *e, int joint,
+                                          const vec3 *vx, size_t nr_vx,
+                                          const unsigned int *idx, size_t nr_idx)
+{
+    if (!phys_limb_joint_valid(e, joint) || !nr_vx) return nullptr;
+
+    struct phys_body *body = limb_body_new(phys, e, joint, GEOM_CONVEX);
+    if (!body)  return nullptr;
+
+    /* the piece's hull: the triangles don't matter */
+    LOCAL_SET(vec3, local) = phys_limb_vx(e, joint, vx, nr_vx);
+    b3ShapeDef sd = limb_shape_def(body, e);
+
+    CERR_RET(phys_shape_hull_new(body, &sd, e, local[0], nr_vx, e->scale), { phys_body_done(body); return nullptr; });
+
+    return limb_add(phys, e, body);
+}
+
 int phys_body_joint(struct phys_body *body)
 {
     return body->joint;
