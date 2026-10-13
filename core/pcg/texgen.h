@@ -241,6 +241,56 @@ typedef struct pcg_texgen_flat_opts {
 cresp_check(canvas) pcg_texgen_flat(const pcg_texgen_flat_opts *o);
 
 /**
+ * struct pcg_texgen_monitor_opts - a computer monitor's atlas
+ * @size:   texture side, texels; at least 5, so the screen half has a
+ *          middle to glow from
+ * @shell:  albedo of the shell, the left half
+ * @screen: albedo of the screen, the right half
+ * @glow:   emission at the middle of the screen
+ * @grain:  the shell's lightness variation, from its lowest to its
+ *          highest
+ * @ramp:   how fast the glow comes up from the screen's edges: it is
+ *          full 1 / @ramp of the way from an edge to the middle
+ * @seed:   RNG seed
+ *
+ * One texture for the whole monitor: the shell maps a rectangle inside
+ * the left half and the screen one inside the right half.
+ */
+typedef struct pcg_texgen_monitor_opts {
+    int         size;
+    vec3        shell;
+    vec3        screen;
+    vec3        glow;
+    float       grain;
+    float       ramp;
+    uint32_t    seed;
+} pcg_texgen_monitor_opts;
+
+/**
+ * pcg_texgen_monitor() - paint a monitor atlas
+ * @o:  options
+ *
+ * A grainy shell on the left half, a flat dark screen on the right.
+ *
+ * Return: the albedo canvas, without a normal map; CERR_INVALID_ARGUMENTS
+ * for a @size below 5, a negative @grain or a @ramp that isn't positive,
+ * or either of them not finite; CERR_NOMEM
+ */
+cres_check(pcg_texgen_maps) pcg_texgen_monitor(const pcg_texgen_monitor_opts *o);
+
+/**
+ * pcg_texgen_monitor_glow() - paint a monitor atlas's emission
+ * @o:  options, the same as pcg_texgen_monitor()'s
+ *
+ * Dark over the shell; over the screen, @glow fading out toward its
+ * edges.
+ *
+ * Return: the RGB8 canvas for an emission map, the caller's; the
+ * pcg_texgen_monitor() errors
+ */
+cresp_check(canvas) pcg_texgen_monitor_glow(const pcg_texgen_monitor_opts *o);
+
+/**
  * pcg_texgen_upload() - turn a canvas into a counted texture
  * @r:      renderer
  * @c:      the canvas; its format and size are the texture's

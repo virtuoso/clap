@@ -69,6 +69,7 @@ cresp_ret(pcg_material);
  * @PCG_TEXGEN_WOOD:    pcg_texgen_wood()
  * @PCG_TEXGEN_CARPET:  pcg_texgen_carpet()
  * @PCG_TEXGEN_CORK:    pcg_texgen_cork(), no relief
+ * @PCG_TEXGEN_MONITOR: pcg_texgen_monitor(), no relief
  * @PCG_TEXGEN_NR:      number of generators
  */
 typedef enum pcg_texgen {
@@ -76,20 +77,24 @@ typedef enum pcg_texgen {
     PCG_TEXGEN_WOOD,
     PCG_TEXGEN_CARPET,
     PCG_TEXGEN_CORK,
+    PCG_TEXGEN_MONITOR,
     PCG_TEXGEN_NR
 } pcg_texgen;
 
 /**
  * enum pcg_glow - the generator that paints a recipe's emission map
- * @PCG_GLOW_NONE:  no emission map
- * @PCG_GLOW_FLAT:  pcg_texgen_flat()
- * @PCG_GLOW_GRID:  pcg_texgen_glow_grid()
- * @PCG_GLOW_NR:    number of emission generators
+ * @PCG_GLOW_NONE:      no emission map
+ * @PCG_GLOW_FLAT:      pcg_texgen_flat()
+ * @PCG_GLOW_GRID:      pcg_texgen_glow_grid()
+ * @PCG_GLOW_MONITOR:   pcg_texgen_monitor_glow() of the albedo's options;
+ *                      only over a PCG_TEXGEN_MONITOR albedo
+ * @PCG_GLOW_NR:        number of emission generators
  */
 typedef enum pcg_glow {
     PCG_GLOW_NONE = 0,
     PCG_GLOW_FLAT,
     PCG_GLOW_GRID,
+    PCG_GLOW_MONITOR,
     PCG_GLOW_NR
 } pcg_glow;
 
@@ -101,6 +106,7 @@ typedef enum pcg_glow {
  * @wood:           @gen options for PCG_TEXGEN_WOOD
  * @carpet:         @gen options for PCG_TEXGEN_CARPET
  * @cork:           @gen options for PCG_TEXGEN_CORK
+ * @monitor:        @gen options for PCG_TEXGEN_MONITOR
  * @glow:           emission map generator
  * @flat:           @glow options for PCG_GLOW_FLAT
  * @grid:           @glow options for PCG_GLOW_GRID
@@ -126,6 +132,7 @@ typedef struct pcg_recipe {
         pcg_texgen_wood_opts    wood;
         pcg_texgen_carpet_opts  carpet;
         pcg_texgen_cork_opts    cork;
+        pcg_texgen_monitor_opts monitor;
     };
     pcg_glow            glow;
     union {
@@ -161,6 +168,8 @@ typedef struct pcg_recipe {
  *                              casts no shadow
  * @PCG_PRESET_PLASTIC_SHELL:   orange plastic
  * @PCG_PRESET_CORKBOARD:       a pinboard face, PCG_UV_UNIT
+ * @PCG_PRESET_MONITOR:         a monitor atlas: a pale shell and a glowing
+ *                              screen, PCG_UV_UNIT
  * @PCG_PRESET_NR:              number of presets
  */
 typedef enum pcg_preset {
@@ -177,6 +186,7 @@ typedef enum pcg_preset {
     PCG_PRESET_SIGN_PLATE,
     PCG_PRESET_PLASTIC_SHELL,
     PCG_PRESET_CORKBOARD,
+    PCG_PRESET_MONITOR,
     PCG_PRESET_NR
 } pcg_preset;
 
@@ -323,7 +333,7 @@ cresp_check(texture_t) pcg_matlib_upload(pcg_matlib *lib, canvas *c, texture_wra
  *
  * The other roles are the same in every scheme: bronze metal, glass,
  * carpet tiles, glowing fixtures and diffusers, sign plates, plastic
- * furniture and corkboards. No scheme has a screen.
+ * furniture, monitor screens and corkboards.
  */
 typedef enum pcg_scheme {
     PCG_SCHEME_CONCRETE_WOOD = 0,

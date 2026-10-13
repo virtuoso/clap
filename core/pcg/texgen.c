@@ -10,7 +10,8 @@
  * of its own, so that one draw doesn't echo another
  */
 static const int texgen_z_speckle = 1, texgen_z_board_tone = 2, texgen_z_glow_level = 3, texgen_z_board_lift = 4,
-                 texgen_z_tile_tone = 7, texgen_z_fuzz = 9, texgen_z_fabric = 11, texgen_z_paper = 13;
+                 texgen_z_tile_tone = 7, texgen_z_fuzz = 9, texgen_z_fabric = 11, texgen_z_paper = 13,
+                 texgen_z_monitor_grain = 21;
 /* a per-board draw's y: the board is its x */
 static const int texgen_y_board_tone = 37, texgen_y_board_lift = 53;
 /* a board's grain noise is seeded this far on from the previous board's */
@@ -271,6 +272,72 @@ cresp(canvas) pcg_texgen_flat(const pcg_texgen_flat_opts *o)
 
     LOCAL_SET(canvas, c) = CRES_RET_T(canvas_new(TEX_FMT_RGB8, o->size, o->size), canvas);
     canvas_fill(c, .color = (vec4){ o->color[0], o->color[1], o->color[2], 1.0f });
+
+    return cresp_val(canvas, NOCU(c));
+}
+
+/* the monitor atlas's halves: the screen is the right half, centered in it */
+typedef struct texgen_monitor_split {
+    int     half;
+    float   cu, ru;
+    float   cv;
+} texgen_monitor_split;
+
+static cerr texgen_monitor_check(const pcg_texgen_monitor_opts *o, texgen_monitor_split *split)
+{
+    if (!o)             return CERR_INVALID_ARGUMENTS;
+    if (o->size < 5)    return CERR_INVALID_ARGUMENTS_REASON(.fmt = "monitor atlas without a screen");
+    if (!(o->grain >= 0.0f) || !isfinite(o->grain) || !(o->ramp > 0.0f) || !isfinite(o->ramp))
+        return CERR_INVALID_ARGUMENTS_REASON(.fmt = "monitor grain or glow ramp out of range");
+
+    split->half = o->size / 2;
+    split->ru = (o->size - split->half - 1) * 0.5f;
+    split->cu = split->half + split->ru;
+    split->cv = (o->size - 1) * 0.5f;
+
+    return CERR_OK;
+}
+
+cres(pcg_texgen_maps) pcg_texgen_monitor(const pcg_texgen_monitor_opts *o)
+{
+    texgen_monitor_split split;
+    CERR_RET_SCALAR(texgen_monitor_check(o, &split), pcg_texgen_maps);
+
+    LOCAL_SET(canvas, alb) = nullptr;
+    LOCAL_SET(canvas, hgt) = nullptr;
+    CERR_RET_SCALAR(texgen_canvases(o->size, o->size, 0.0f, &alb, &hgt), pcg_texgen_maps);
+
+    for (int y = 0; y < o->size; y++)
+        for (int x = 0; x < o->size; x++) {
+            bool screen = x >= split.half;
+            float l = 1.0f + (hash31(x, y, texgen_z_monitor_grain, o->seed) - 0.5f) * o->grain;
+
+            canvas_write(alb, .x = x, .y = y, .color = screen ?
+                         (vec4){ o->screen[0], o->screen[1], o->screen[2], 1.0f } :
+                         (vec4){ o->shell[0] * l, o->shell[1] * l, o->shell[2] * l, 1.0f });
+        }
+
+    return texgen_maps_bake(&alb, hgt, 0.0f);
+}
+
+cresp(canvas) pcg_texgen_monitor_glow(const pcg_texgen_monitor_opts *o)
+{
+    texgen_monitor_split split;
+    CERR_RET_T(texgen_monitor_check(o, &split), canvas);
+
+    LOCAL_SET(canvas, c) = CRES_RET_T(canvas_new(TEX_FMT_RGB8, o->size, o->size), canvas);
+
+    for (int y = 0; y < o->size; y++)
+        for (int x = 0; x < o->size; x++) {
+            bool screen = x >= split.half;
+            /* the glow vignettes toward the screen's edges */
+            float gu = screen ? 1.0f - fabsf((x - split.cu) / split.ru) : 0.0f;
+            float gv = 1.0f - fabsf((y - split.cv) / split.cv);
+            float g = screen ? fminf(1.0f, o->ramp * fminf(gu, gv)) : 0.0f;
+
+            canvas_write(c, .x = x, .y = y,
+                         .color = (vec4){ o->glow[0] * g, o->glow[1] * g, o->glow[2] * g, 1.0f });
+        }
 
     return cresp_val(canvas, NOCU(c));
 }

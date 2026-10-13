@@ -223,6 +223,25 @@ static const struct pcg_preset_row pcg_presets[PCG_PRESET_NR] = {
             .cull_face  = true,
         },
     },
+    [PCG_PRESET_MONITOR] = {
+        .base   = PCG_PRESET_MONITOR,
+        .recipe = {
+            .name       = "monitor",
+            .gen        = PCG_TEXGEN_MONITOR,
+            /* the shell's grain takes the library's seed as it is */
+            .monitor    = {
+                .size = 64, .shell = { 0.88f, 0.87f, 0.83f }, .screen = { 0.07f, 0.10f, 0.12f },
+                .glow = { 0.35f, 0.55f, 0.60f }, .grain = 0.08f, .ramp = 2.5f, .seed = 0x00,
+            },
+            .glow       = PCG_GLOW_MONITOR,
+            .shade      = { .uv_factor = 1.0f, .roughness = 0.35f },
+            .wrap       = TEX_CLAMP_TO_EDGE,
+            .filter     = TEX_FLT_LINEAR,
+            .glow_filter = PCG_GLOW_FILTER,
+            .uv_mode    = PCG_UV_UNIT,
+            .cull_face  = true,
+        },
+    },
 };
 
 cres(int) pcg_preset_base(pcg_preset preset)
@@ -253,6 +272,7 @@ cerr pcg_recipe_init(pcg_recipe *r, pcg_preset preset)
         case PCG_TEXGEN_WOOD:       r->wood = b->wood; break;
         case PCG_TEXGEN_CARPET:     r->carpet = b->carpet; break;
         case PCG_TEXGEN_CORK:       r->cork = b->cork; break;
+        case PCG_TEXGEN_MONITOR:    r->monitor = b->monitor; break;
         default:                    return CERR_INVALID_ARGUMENTS_REASON(.fmt = "bad base preset");
     }
     r->wrap = b->wrap;
@@ -295,6 +315,11 @@ cres(pcg_texgen_maps) pcg_recipe_paint(const pcg_recipe *r, uint32_t seed)
             o.seed ^= seed;
             return pcg_texgen_cork(&o);
         }
+        case PCG_TEXGEN_MONITOR: {
+            pcg_texgen_monitor_opts o = r->monitor;
+            o.seed ^= seed;
+            return pcg_texgen_monitor(&o);
+        }
         default:
             break;
     }
@@ -313,6 +338,13 @@ cresp(canvas) pcg_recipe_paint_glow(const pcg_recipe *r, uint32_t seed)
             pcg_texgen_glow_grid_opts o = r->grid;
             o.seed ^= seed;
             return pcg_texgen_glow_grid(&o);
+        }
+        case PCG_GLOW_MONITOR: {
+            if (r->gen != PCG_TEXGEN_MONITOR)   break;
+
+            pcg_texgen_monitor_opts o = r->monitor;
+            o.seed ^= seed;
+            return pcg_texgen_monitor_glow(&o);
         }
         default:
             break;

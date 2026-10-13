@@ -107,7 +107,7 @@ static void pcg_material_shade_from(pcg_material *mat, const pcg_recipe *r)
     mat->cull_face      = r->cull_face;
 }
 
-/* the recipe bakes a normal map */
+/* the recipe bakes a normal map; cork and monitor atlases never do */
 static bool pcg_recipe_has_relief(const pcg_recipe *r)
 {
     switch (r->gen) {
@@ -124,6 +124,11 @@ static cerr pcg_recipe_check(const pcg_recipe *r)
     if (!r->name || !*r->name)      return CERR_INVALID_ARGUMENTS_REASON(.fmt = "recipe without a name");
     if (r->uv_mode >= PCG_UV_NR || r->glow >= PCG_GLOW_NR)
         return CERR_INVALID_ARGUMENTS_REASON(.fmt = "recipe '%s': bad UV mode or emission generator", .arg0 = r->name);
+    if (r->glow == PCG_GLOW_MONITOR && r->gen != PCG_TEXGEN_MONITOR)
+        return CERR_INVALID_ARGUMENTS_REASON(
+            .fmt    = "recipe '%s': monitor glow without a monitor atlas",
+            .arg0   = r->name
+        );
     if (r->uv_mode == PCG_UV_UNIT && r->shade.uv_factor != 1.0f)
         return CERR_INVALID_ARGUMENTS_REASON(.fmt = "recipe '%s': unit UVs need a UV factor of 1", .arg0 = r->name);
     if (!(r->shade.uv_factor > 0.0f))
@@ -232,6 +237,7 @@ static const pcg_preset pcg_schemes[PCG_SCHEME_NR][PCG_ROLE_NR] = {
         [PCG_ROLE_DIFFUSER]     = PCG_PRESET_DIFFUSER,
         [PCG_ROLE_SIGN]         = PCG_PRESET_SIGN_PLATE,
         [PCG_ROLE_FURNITURE]    = PCG_PRESET_PLASTIC_SHELL,
+        [PCG_ROLE_SCREEN]       = PCG_PRESET_MONITOR,
         [PCG_ROLE_BOARD]        = PCG_PRESET_CORKBOARD,
     },
     [PCG_SCHEME_CONCRETE] = {
@@ -246,6 +252,7 @@ static const pcg_preset pcg_schemes[PCG_SCHEME_NR][PCG_ROLE_NR] = {
         [PCG_ROLE_DIFFUSER]     = PCG_PRESET_DIFFUSER,
         [PCG_ROLE_SIGN]         = PCG_PRESET_SIGN_PLATE,
         [PCG_ROLE_FURNITURE]    = PCG_PRESET_PLASTIC_SHELL,
+        [PCG_ROLE_SCREEN]       = PCG_PRESET_MONITOR,
         [PCG_ROLE_BOARD]        = PCG_PRESET_CORKBOARD,
     },
     [PCG_SCHEME_WOOD] = {
@@ -260,6 +267,7 @@ static const pcg_preset pcg_schemes[PCG_SCHEME_NR][PCG_ROLE_NR] = {
         [PCG_ROLE_DIFFUSER]     = PCG_PRESET_DIFFUSER,
         [PCG_ROLE_SIGN]         = PCG_PRESET_SIGN_PLATE,
         [PCG_ROLE_FURNITURE]    = PCG_PRESET_PLASTIC_SHELL,
+        [PCG_ROLE_SCREEN]       = PCG_PRESET_MONITOR,
         [PCG_ROLE_BOARD]        = PCG_PRESET_CORKBOARD,
     },
 };
