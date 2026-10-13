@@ -436,9 +436,9 @@ LINMATH_H_FUNC void mat4x4_transpose_mat3x3(mat4x4 m)
 {
     mat4x4 r;
     mat4x4_dup(r, m);
-    vec3_dup(r[0], (vec3){ m[0][0], m[1][0], m[2][0] });
-    vec3_dup(r[1], (vec3){ m[0][1], m[1][1], m[2][1] });
-    vec3_dup(r[2], (vec3){ m[0][2], m[1][2], m[2][2] });
+    vec3_setup(r[0], m[0][0], m[1][0], m[2][0]);
+    vec3_setup(r[1], m[0][1], m[1][1], m[2][1]);
+    vec3_setup(r[2], m[0][2], m[1][2], m[2][2]);
     mat4x4_dup(m, r);
 }
 #endif /* USE_SIMD */
@@ -852,7 +852,7 @@ LINMATH_H_FUNC void mat4x4_look_at_safe(mat4x4 m, vec3 eye, vec3 center, vec3 up
 	/* If forward and up are nearly parallel, pick a different up vector */
 	float dp = fabsf(vec3_mul_inner(forward, up));
 	if (dp > 0.999f)
-		vec3_dup(up_adj, (vec3){ 0.0, 0.0, -1.0 });
+		vec3_setup(up_adj, 0.0, 0.0, -1.0);
 	else
 	    vec3_dup(up_adj, up);
 
