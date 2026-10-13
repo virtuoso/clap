@@ -894,17 +894,54 @@ static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, 
     return g;
 }
 
+/* @nr_vx vertices @vx (3 floats each) at @scale, the way the trimesh data takes them */
+static dReal *trimesh_vx(const float *vx, size_t nr_vx, float scale)
+{
+    dReal *tvx = mem_alloc(sizeof(*tvx), .nr = nr_vx * 3, .fatal_fail = 1);
+
+    for (size_t i = 0; i < nr_vx * 3; i++)  tvx[i] = vx[i] * scale;
+
+    return tvx;
+}
+
+/*
+ * A trimesh geom over @tvx and @tidx, which its data references: @body keeps
+ * them from here on, or they go with the geom that didn't happen
+ */
+static dGeomID phys_geom_trimesh_build(struct phys *phys, struct phys_body *body,
+                                       dReal *tvx, size_t nr_vx, dTriIndex *tidx, size_t nr_idx)
+{
+    dTriMeshDataID meshdata = dGeomTriMeshDataCreate();
+    dGeomID trimesh;
+
+#ifdef dDOUBLE
+    dGeomTriMeshDataBuildDouble(meshdata, tvx, 3 * sizeof(dReal), nr_vx, tidx, nr_idx, 3 * sizeof(dTriIndex));
+#else
+    dGeomTriMeshDataBuildSingle1(meshdata, tvx, 3 * sizeof(float), nr_vx, tidx, nr_idx, 3 * sizeof(dTriIndex), nullptr);
+#endif
+    dGeomTriMeshDataPreprocess2(meshdata, (1U << dTRIDATAPREPROCESS_BUILD_FACE_ANGLES), nullptr);
+    trimesh = dCreateTriMesh(phys->space, meshdata, nullptr, nullptr, nullptr);
+    if (!trimesh) {
+        dGeomTriMeshDataDestroy(meshdata);
+        mem_free(tvx);
+        mem_free(tidx);
+        return nullptr;
+    }
+
+    body->trimesh_vx = tvx;
+    body->trimesh_idx = tidx;
+
+    return trimesh;
+}
+
 static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
                                      entity3d *e, double mass)
 {
-    dTriMeshDataID meshdata = dGeomTriMeshDataCreate();
     model3d *m = e->txmodel->model;
     unsigned short *idx = m->collision_idx;
     size_t idxsz = m->collision_idxsz;
     size_t vxsz = m->collision_vxsz;
-    float *vx = m->collision_vx;
     dGeomID trimesh = NULL;
-    dReal *tvx = NULL;
     dTriIndex *tidx;
     int i;
 
@@ -918,41 +955,12 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
     }
 
     vxsz /= sizeof(float);
+    /* Rotation is applied to the geom, not baked into the mesh */
     float scale = e->parent ? e->parent->scale : e->scale;
-    tvx = mem_alloc(sizeof(*tvx), .nr = vxsz, .fatal_fail = 1);
-    for (i = 0; i < vxsz; i += 3) {
-        /* apply rotation and scale */
-        mat4x4 trans;
-        vec4 pos = { vx[i + 0], vx[i + 1], vx[i + 2], 1 };
-        vec4 res;
-        mat4x4_identity(trans);
-        /* Rotation is applied to the geom, not baked into the mesh */
-        mat4x4_scale_aniso(trans, trans, scale, scale, scale);
-        mat4x4_mul_vec4(res, trans, pos);
-        vec3_scale(res, res, 1.0f / res[3]);
-        tvx[i + 0] = res[0];
-        tvx[i + 1] = res[1];
-        tvx[i + 2] = res[2];
-    }
-
-#ifdef dDOUBLE
-    dGeomTriMeshDataBuildDouble(meshdata, tvx, 3 * sizeof(dReal), vxsz / 3, tidx, idxsz, 3 * sizeof(dTriIndex));
-#else
-    dGeomTriMeshDataBuildSingle1(meshdata, tvx, 3 * sizeof(float), vxsz / 3, tidx, idxsz, 3 * sizeof(dTriIndex), NULL);
-#endif
-    //dGeomTriMeshDataBuildSimple(meshdata, tvx, vxsz, tidx, idxsz);
-    dGeomTriMeshDataPreprocess2(meshdata, (1U << dTRIDATAPREPROCESS_BUILD_FACE_ANGLES), NULL);
-    //dGeomTriMeshDataPreprocess2(meshdata, (1U << dTRIDATAPREPROCESS_BUILD_CONCAVE_EDGES), NULL);
-    trimesh = dCreateTriMesh(phys->space, meshdata, NULL, NULL, NULL);
-    if (!trimesh) {
-        dGeomTriMeshDataDestroy(meshdata);
-        mem_free(tvx);
-        mem_free(tidx);
+    trimesh = phys_geom_trimesh_build(phys, body, trimesh_vx(m->collision_vx, vxsz / 3, scale), vxsz / 3,
+                                      tidx, idxsz);
+    if (!trimesh)
         return NULL;
-    }
-
-    body->trimesh_vx = tvx;
-    body->trimesh_idx = tidx;
 
     if (phys_body_has_body(body)) {
         body->geom = trimesh;

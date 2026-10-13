@@ -945,6 +945,29 @@ static inline b3MeshData *phys_mesh_cook(const b3MeshDef *md, model3d *m, entity
 }
 #endif /* CONFIG_FINAL */
 
+/*
+ * Box3D moves only convex shapes: a moving mesh is the convex hull of its
+ * @nr_vx vertices @vx (3 floats each), at @scale
+ */
+static cerr phys_shape_hull_new(struct phys_body *body, const b3ShapeDef *sd, entity3d *e,
+                                const float *vx, size_t nr_vx, float scale)
+{
+    LOCAL_SET(b3Vec3, points) = mem_alloc(sizeof(*points), .nr = nr_vx, .fatal_fail = 1);
+
+    for (size_t i = 0; i < nr_vx; i++)  points[i] = b3vec3_scale(b3vec3_from_vec3(&vx[i * 3]), scale);
+
+    body->hull_data = b3CreateHull(points, nr_vx, PHYS_HULL_MAX_VERTICES);
+    if (!body->hull_data)
+        return CERR_INVALID_ARGUMENTS_REASON(
+            .fmt    = "'%s': convex hull cooking failed",
+            .arg0   = entity_name(e)
+        );
+
+    body->shape_id = b3CreateHullShape(body->body_id, sd, body->hull_data);
+
+    return CERR_OK;
+}
+
 static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd, entity3d *e)
 {
     model3d *m = e->txmodel->model;
@@ -959,22 +982,7 @@ static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd,
          * trimeshes with a convex hull of the collision vertices.
          * Scale is baked in; the rotation lives on the body.
          */
-        LOCAL_SET(b3Vec3, points) = mem_alloc(sizeof(*points), .nr = vxsz / 3, .fatal_fail = 1);
-
-        for (int i = 0; i < vxsz; i += 3) {
-            points[i / 3].x = m->collision_vx[i + 0] * scale;
-            points[i / 3].y = m->collision_vx[i + 1] * scale;
-            points[i / 3].z = m->collision_vx[i + 2] * scale;
-        }
-
-        body->hull_data = b3CreateHull(points, vxsz / 3, PHYS_HULL_MAX_VERTICES);
-        if (!body->hull_data)
-            return CERR_INVALID_ARGUMENTS_REASON(
-                .fmt    = "'%s': convex hull cooking failed",
-                .arg0   = entity_name(e)
-            );
-
-        body->shape_id = b3CreateHullShape(body->body_id, sd, body->hull_data);
+        CERR_RET_CERR(phys_shape_hull_new(body, sd, e, m->collision_vx, vxsz / 3, scale));
     } else {
         LOCAL_SET(int32_t, tidx) = mem_alloc(sizeof(*tidx), .nr = idxsz, .fatal_fail = 1);
 
