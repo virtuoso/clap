@@ -511,6 +511,30 @@ static struct mesh_part *mesh_part_get(mesh_parts *parts, unsigned int joint)
     return part;
 }
 
+cerr mesh_parts_merge(mesh_parts *parts, mesh_parts *from)
+{
+    struct mesh_part *src;
+
+    darray_for_each(src, *from) {
+        struct mesh_part *dst = mesh_part_get(parts, src->joint);
+        if (!dst)   return CERR_NOMEM;
+
+        size_t nr_vx = darray_count(dst->vx), nr_idx = darray_count(dst->idx);
+        if (!darray_resize(dst->vx, nr_vx + darray_count(src->vx)))     return CERR_NOMEM;
+        if (!darray_resize(dst->idx, nr_idx + darray_count(src->idx))) {
+            darray_resize(dst->vx, nr_vx);
+            return CERR_NOMEM;
+        }
+
+        memcpy(&dst->vx.x[nr_vx], src->vx.x, darray_count(src->vx) * sizeof(*src->vx.x));
+        for (size_t i = 0; i < darray_count(src->idx); i++) dst->idx.x[nr_idx + i] = src->idx.x[i] + nr_vx;
+    }
+
+    mesh_parts_done(from);
+
+    return CERR_OK;
+}
+
 /* the joint weighing on vertex @v the most */
 static unsigned int vertex_joint(struct mesh *mesh, size_t v)
 {

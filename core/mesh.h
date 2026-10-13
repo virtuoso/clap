@@ -259,6 +259,19 @@ cresp_check(mesh_part) mesh_part_find(mesh_parts *parts, unsigned int joint);
  */
 cerr_check mesh_parts_by_joint(struct mesh *mesh, const void *idx, size_t stride, size_t nr_idx,
                                mesh_parts *parts);
+
+/**
+ * mesh_parts_merge() - add one set of pieces to another
+ * @parts:  the set that grows: a joint's piece gets the vertices and
+ *          triangles of @from's piece of the same joint
+ * @from:   the pieces to add; left empty
+ *
+ * A rig built of several meshes, split mesh by mesh, makes one set: a
+ * joint's piece, whichever meshes it comes from, is one shape.
+ * Return: CERR_OK or CERR_NOMEM, which leaves @from as it was and @parts
+ * with the pieces merged before it ran out
+ */
+cerr_check mesh_parts_merge(mesh_parts *parts, mesh_parts *from);
 void mesh_init(void);
 
 #endif /* __CLAP_MESH_H__ */
