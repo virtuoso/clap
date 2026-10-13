@@ -378,8 +378,15 @@ __phys_ray_cast(struct phys *phys, entity3d *e, const vec3 start, const vec3 dir
     vec3_norm(c.dir, dir);
 
     b3Vec3 translation = b3vec3_scale(b3vec3_from_vec3(c.dir), *pdist);
-    b3World_CastRay(phys->world, b3vec3_from_vec3(start), translation,
-                    b3DefaultQueryFilter(), ray_cast_cb, &c);
+    b3Pos origin = b3vec3_from_vec3(start);
+
+    /* a degenerate start or direction (from a broken pose, say) hits nothing */
+    if (!b3IsValidPosition(origin) || !b3IsValidVec3(translation)) {
+        warn_once("%s: ray cast with no valid origin or direction\n", entity_name(e));
+        return nullptr;
+    }
+
+    b3World_CastRay(phys->world, origin, translation, b3DefaultQueryFilter(), ray_cast_cb, &c);
 
     if (!c.hit) return NULL;
 
