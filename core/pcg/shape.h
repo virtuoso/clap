@@ -357,4 +357,50 @@ cerr_check _pcg_cylinder(const pcg_ctx *ctx, const pcg_cylinder_desc *d);
  */
 #define pcg_cylinder(_ctx, args...) _pcg_cylinder((_ctx), &(const pcg_cylinder_desc){ args })
 
+/**
+ * struct pcg_quad_desc - a one-sided four-cornered face
+ * @surf:       finish, wearing a material of the @uv mode
+ * @c00:        corner at (u0, v0), in the context's local (a, y, c)
+ * @c10:        corner at (u1, v0)
+ * @c11:        corner at (u1, v1)
+ * @c01:        corner at (u0, v1)
+ * @uv_rect:    texture rectangle { u0, v0, u1, v1 }
+ * @uv:         what @uv_rect means
+ *
+ * For faces that no solid shape makes: a decal standing proud of a
+ * panel, or the faces of a part that each map their own piece of a
+ * texture. The corners go counterclockwise seen from the side the quad
+ * faces, and it shows from that side only, under any frame. It is two
+ * triangles, (c00, c10, c01) and (c01, c10, c11), with every corner on
+ * its own texture coordinates; corners off one plane fold it along the
+ * diagonal from @c10 to @c01.
+ */
+typedef struct pcg_quad_desc {
+    pcg_surface     surf;
+    vec3            c00;
+    vec3            c10;
+    vec3            c11;
+    vec3            c01;
+    vec4            uv_rect;
+    pcg_uv_mode     uv;
+} pcg_quad_desc;
+
+/**
+ * _pcg_quad() - emit a quad
+ * @ctx:    where it goes
+ * @d:      the quad
+ *
+ * Return: CERR_OK; CERR_INVALID_ARGUMENTS for a corner or a texture
+ * coordinate that isn't finite, a bad UV mode, or corners that leave
+ * either triangle without area; the pcg_sink_reserve() errors
+ */
+cerr_check _pcg_quad(const pcg_ctx *ctx, const pcg_quad_desc *d);
+
+/**
+ * define pcg_quad - emit a quad described by pcg_quad_desc initializers
+ *
+ * Syntax sugar for _pcg_quad().
+ */
+#define pcg_quad(_ctx, args...) _pcg_quad((_ctx), &(const pcg_quad_desc){ args })
+
 #endif /* __CLAP_PCG_SHAPE_H__ */

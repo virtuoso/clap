@@ -516,3 +516,37 @@ cerr _pcg_cylinder(const pcg_ctx *ctx, const pcg_cylinder_desc *d)
 
     return CERR_OK;
 }
+
+/****************************************************************************
+ * Quad
+ ****************************************************************************/
+
+cerr _pcg_quad(const pcg_ctx *ctx, const pcg_quad_desc *d)
+{
+    if (!ctx || !d)     return CERR_INVALID_ARGUMENTS;
+    if (!pcg_floats_finite(d->c00, 3) || !pcg_floats_finite(d->c10, 3) || !pcg_floats_finite(d->c11, 3) ||
+        !pcg_floats_finite(d->c01, 3) || !pcg_floats_finite(d->uv_rect, 4))
+        return CERR_INVALID_ARGUMENTS_REASON(.fmt = "quad corner or texture coordinate isn't finite");
+    if (d->uv >= PCG_UV_NR)     return CERR_INVALID_ARGUMENTS_REASON(.fmt = "quad UV mode unknown");
+
+    /* either triangle of no area would get a normal of 0 / 0 */
+    vec3 u, v, n0, n1;
+    vec3_sub(u, d->c10, d->c00);
+    vec3_sub(v, d->c01, d->c00);
+    vec3_mul_cross(n0, u, v);
+    vec3_sub(u, d->c01, d->c11);
+    vec3_sub(v, d->c10, d->c11);
+    vec3_mul_cross(n1, u, v);
+    if (!(vec3_len(n0) > 0.0f) || !(vec3_len(n1) > 0.0f))
+        return CERR_INVALID_ARGUMENTS_REASON(.fmt = "quad of no area");
+
+    if (d->surf.skip)   return CERR_OK;
+
+    pcg_target t = CRES_RET_CERR(pcg_sink_reserve(ctx, &d->surf, d->uv, 6));
+
+    /* _prim_emit_face() takes its corners clockwise from the front: wind them the other way */
+    pcg_frame_face(&ctx->frame, d->c00, d->c10, d->c11, d->c01, d->uv_rect, t.uv_swap,
+                   &(prim_emit_opts){ .mesh = t.mesh, .clockwise = !t.clockwise });
+
+    return CERR_OK;
+}
