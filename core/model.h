@@ -545,6 +545,8 @@ typedef struct entity3d {
     int                 force_lod;
     bool                outline_exclude;
     /* 1 byte hole */
+    /* the seq the skeleton's world positions (joints[].pos, .global) were computed at */
+    uint16_t            pose_seq;
     vec3                aabb[2];
     vec3                aabb_center;
     float               light_off[3];

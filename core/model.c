@@ -1712,6 +1712,7 @@ void entity3d_pose_update(entity3d *e)
         return;
 
     one_joint_transform(e, e->txmodel->model->root_joint, -1);
+    e->pose_seq = e->seq;
 }
 
 /* global = parent's global * T * R * S, the same product one_joint_transform() forms */
@@ -1875,6 +1876,12 @@ static int default_update(entity3d *e, void *data)
         }
     }
 
+    /*
+     * Nothing posed the skeleton this frame, but the entity moved: its
+     * joints' world positions (the camera's head target, the armature
+     * draw) follow it all the same.
+     */
+    if (e->joints && e->pose_seq != e->seq && !entity3d_matches(e, ENTITY3D_PARENT_POSE))   entity3d_pose_update(e);
     if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
         phys_debug_draw(scene, e->phys_body);
     if (darray_count(e->limbs)) {
@@ -1932,9 +1939,11 @@ static cerr entity3d_make(struct ref *ref, void *_opts)
         /*
          * The local transforms start out as the bind pose too: a
          * procedural pose may run before (or without) any clip that
-         * writes every joint.
+         * writes every joint. The world positions come with the first
+         * update, once the entity is placed.
          */
         entity3d_pose_reset(e);
+        e->pose_seq = e->seq - 1;
     }
     if (model->anis.da.nr_el)
         init_flags |= ENTITY3D_IS_ANIMATED;
