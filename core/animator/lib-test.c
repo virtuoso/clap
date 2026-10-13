@@ -91,6 +91,46 @@ out:
     return ret;
 }
 
+/*
+ * A copied configuration is the library's own: it outlives the caller's,
+ * every copy is a new handle, and the class's first handle is what
+ * anim_lib_pose_find() finds
+ */
+static int lib_test_pose_copy(void)
+{
+    static const anim_pose_ops other_ops = { .eval = pose_eval };
+    anim_lib_t lib;
+    int ret = EXIT_FAILURE;
+    int cfg = 42;
+
+    anim_lib_init(&lib, nullptr);
+
+    cres(anim_t) nope = anim_lib_pose_find(&lib, &pose_ops);
+    if (!IS_CERR_CODE(nope, CERR_NOT_FOUND))                goto out;
+
+    cres(anim_t) c0 = anim_lib_pose_copy(&lib, &pose_ops, &cfg, sizeof(cfg));
+    cres(anim_t) c1 = anim_lib_pose_copy(&lib, &pose_ops, &cfg, sizeof(cfg));
+    cfg = 0;
+
+    if (IS_CERR(c0) || IS_CERR(c1) || c0.val == c1.val)     goto out;
+    if (anim_lib_kind(&lib, c0.val) != ANIM_POSE)           goto out;
+
+    const int *copy = anim_lib_def(&lib, c0.val)->pose.cfg;
+    if (copy == &cfg || *copy != 42)                        goto out;
+
+    cres(anim_t) found = anim_lib_pose_find(&lib, &pose_ops), other = anim_lib_pose_find(&lib, &other_ops);
+    if (IS_CERR(found) || found.val != c0.val)              goto out;
+    if (!IS_CERR_CODE(other, CERR_NOT_FOUND))               goto out;
+
+    cres(anim_t) nocfg = anim_lib_pose_copy(&lib, &pose_ops, nullptr, sizeof(cfg));
+    if (!IS_CERR_CODE(nocfg, CERR_INVALID_ARGUMENTS))       goto out;
+
+    ret = EXIT_SUCCESS;
+out:
+    anim_lib_done(&lib);
+    return ret;
+}
+
 /* keys "to" and "from>to", "*" for repeat, the exact entry before the any one */
 static int lib_test_from_json(void)
 {
@@ -200,6 +240,7 @@ static int lib_test_from_json_bad(void)
 
 static const struct test tests[] = {
     { .name = "lib dedup",          .test = lib_test_dedup },
+    { .name = "lib pose copy",      .test = lib_test_pose_copy },
     { .name = "lib from json",      .test = lib_test_from_json },
     { .name = "lib from json bad",  .test = lib_test_from_json_bad },
     { .name = "lib from spec",      .test = lib_test_from_spec },
