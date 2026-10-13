@@ -14,6 +14,7 @@
 #include "primitives.h"
 #include "test.h"
 #include "util.h"
+#include "pcg/atrium.h"
 #include "pcg/balustrade.h"
 #include "pcg/column.h"
 #include "pcg/facade.h"
@@ -9156,6 +9157,473 @@ static int room_row_parity_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Atrium
+ ****************************************************************************/
+
+/* the flights' concrete, a finish of its own as the reference building gives them */
+static const pcg_material smooth = { .name = "smooth", .uv_mode = PCG_UV_METERS };
+static const pcg_palette atrium_palette = {
+    .mat[PCG_ROLE_STRUCTURE]    = &concrete,
+    .mat[PCG_ROLE_FLOOR]        = &wood,
+    .mat[PCG_ROLE_CLADDING]     = &panel,
+    .mat[PCG_ROLE_RAIL]         = &slat,
+    .mat[PCG_ROLE_METAL]        = &bronze,
+    .mat[PCG_ROLE_GLASS]        = &glass,
+    .mat[PCG_ROLE_CARPET]       = &carpet_tile,
+    .mat[PCG_ROLE_FIXTURE]      = &glow,
+    .mat[PCG_ROLE_DIFFUSER]     = &glow_grid,
+    .mat[PCG_ROLE_SIGN]         = &decal,
+};
+
+#define ATRIUM_CLASSES_MAX  16
+#define ATRIUM_FLOORS_MAX   8
+#define ATRIUM_ROOMS_MAX    128
+
+/*
+ * struct atrium_class - what an atrium emitted into the buckets of one
+ * material and collide class, over every chunk
+ */
+struct atrium_class {
+    const pcg_material  *mat;
+    size_t              nr_tris;
+    vec3                lo;
+    vec3                hi;
+    uint8_t             collide;
+};
+
+/* everything an atrium emitted, by class, and the rooms its visit hook saw */
+struct atrium_walk {
+    struct atrium_class cls[ATRIUM_CLASSES_MAX];
+    size_t              nr_cls;
+    unsigned int        chunk_lo;
+    unsigned int        chunk_hi;
+    size_t              nr_meshes;
+    int                 visits;
+    int                 visits_per_floor[ATRIUM_FLOORS_MAX];
+    bool                seen[ATRIUM_FLOORS_MAX][ATRIUM_ROOMS_MAX];
+    bool                visits_ok;
+    bool                meshes_ok;
+};
+
+static cerr atrium_walk_fn(const pcg_key *key, struct mesh *mesh, void *priv)
+{
+    struct atrium_walk *w = priv;
+    struct atrium_class *c = nullptr;
+
+    for (size_t i = 0; i < w->nr_cls; i++)
+        if (w->cls[i].mat == key->mat && w->cls[i].collide == key->collide)     c = &w->cls[i];
+
+    if (!c) {
+        if (w->nr_cls == ATRIUM_CLASSES_MAX)    return CERR_TOO_LARGE;
+        c = &w->cls[w->nr_cls++];
+        *c = (struct atrium_class){
+            .mat = key->mat, .collide = key->collide,
+            .lo = { INFINITY, INFINITY, INFINITY }, .hi = { -INFINITY, -INFINITY, -INFINITY },
+        };
+    }
+
+    if (!w->nr_meshes || key->chunk < w->chunk_lo)  w->chunk_lo = key->chunk;
+    if (!w->nr_meshes || key->chunk > w->chunk_hi)  w->chunk_hi = key->chunk;
+    w->nr_meshes++;
+    if (!sink_mesh_ok(mesh))    w->meshes_ok = false;
+
+    c->nr_tris += mesh_nr_vx(mesh) / 3;
+    for (size_t v = 0; v < mesh_nr_vx(mesh); v++)
+        for (int k = 0; k < 3; k++) {
+            float x = mesh_vx(mesh)[v * 3 + k];
+
+            c->lo[k] = fminf(c->lo[k], x);
+            c->hi[k] = fmaxf(c->hi[k], x);
+        }
+
+    return CERR_OK;
+}
+
+static const struct atrium_class *atrium_class_get(const struct atrium_walk *w, const pcg_material *mat,
+                                                   pcg_collide collide)
+{
+    for (size_t i = 0; i < w->nr_cls; i++)
+        if (w->cls[i].mat == mat && w->cls[i].collide == collide)   return &w->cls[i];
+
+    return nullptr;
+}
+
+/* every room once: its floor and number unseen so far */
+static cerr atrium_visit(const pcg_ctx *ctx, const pcg_room_info *info, void *priv)
+{
+    struct atrium_walk *w = priv;
+    const pcg_room_tag *t = &info->tag;
+
+    w->visits++;
+    if (t->floor < 0 || t->floor >= ATRIUM_FLOORS_MAX || t->number < 1 || t->number >= ATRIUM_ROOMS_MAX ||
+        w->seen[t->floor][t->number] || !(info->w > 0.0f) || !(info->d > 0.0f)) {
+        w->visits_ok = false;
+        return CERR_OK;
+    }
+    w->seen[t->floor][t->number] = true;
+    w->visits_per_floor[t->floor]++;
+
+    return CERR_OK;
+}
+
+/* the reference building's inner rooms drop a different wall per segment and floor */
+static void atrium_carousel(const pcg_room_tag *tag, void *priv, pcg_room_entry *room, pcg_room_params *p)
+{
+    uint32_t side = (uint32_t)(tag->segment + tag->floor) & 3u;
+
+    room->wall_mask &= ~(PCG_ROOM_SOLID(side) | PCG_ROOM_GLASS(side));
+}
+
+/* the rooms the carousel picks, by floor and number, in the order it picks them */
+struct atrium_picks {
+    int     room[256];
+    size_t  nr;
+    bool    overflow;
+};
+
+static void atrium_carousel_picks(const pcg_room_tag *tag, void *priv, pcg_room_entry *room, pcg_room_params *p)
+{
+    struct atrium_picks *picks = priv;
+
+    if (picks->nr < array_size(picks->room))    picks->room[picks->nr++] = tag->floor * 1000 + tag->number;
+    else                                        picks->overflow = true;
+    atrium_carousel(tag, nullptr, room, p);
+}
+
+/*
+ * The reference building with the carousel: the library's reference
+ * params with the carousel on the inner ring, the flights' concrete in a
+ * finish of its own; @rooms and @rings hold the carousel's copy of the
+ * room tables
+ */
+struct atrium_case {
+    pcg_atrium_params   p;
+    pcg_room_entry      inner[8];
+    pcg_atrium_ring     rings[2];
+    pcg_atrium_floor    floor;
+};
+
+static bool atrium_case_init(struct atrium_case *c, bool carousel)
+{
+    pcg_atrium_params_init(&c->p);
+    for (size_t i = 0; i < PCG_STAIR_NR_SURF; i++)  c->p.flight.stair.surf[i].mat = &smooth;
+    c->p.flight.arrive.mat = &smooth;
+    if (!carousel)  return true;
+
+    const pcg_atrium_floor *ref = &c->p.room_floors[0];
+    if (c->p.nr_room_floors != 1 || ref->nr_rings != 2 || ref->rings[1].nr_rooms > array_size(c->inner))
+        return false;
+
+    c->rings[0] = ref->rings[0];
+    c->rings[1] = ref->rings[1];
+    for (size_t k = 0; k < c->rings[1].nr_rooms; k++) {
+        c->inner[k] = c->rings[1].rooms[k];
+        c->inner[k].fn = atrium_carousel;
+    }
+    c->rings[1].rooms = c->inner;
+    c->floor = (pcg_atrium_floor){ .rings = c->rings, .nr_rings = 2 };
+    c->p.room_floors = &c->floor;
+
+    return true;
+}
+
+/* emit @p at @f into a fresh @sink, walk it into @w; the visit hook counts into @w */
+static cerr atrium_walk_get(pcg_atrium_params *p, const pcg_frame *f, float headroom, unsigned int chunk,
+                            pcg_sink *sink, struct atrium_walk *w)
+{
+    *w = (struct atrium_walk){ .meshes_ok = true, .visits_ok = true };
+    p->rooms.room.visit = atrium_visit;
+    p->rooms.room.visit_priv = w;
+
+    pcg_ctx ctx = { .sink = sink, .palette = &atrium_palette, .frame = *f, .chunk = chunk };
+    CERR_RET_CERR(pcg_atrium_emit(&ctx, p, .frame = PCG_FRAME_IDENTITY, .headroom = headroom));
+
+    return pcg_sink_for_each_mesh(sink, atrium_walk_fn, w);
+}
+
+/* the label centers' height range */
+struct atrium_labels {
+    size_t  nr;
+    float   lo;
+    float   hi;
+};
+
+static cerr atrium_label_fn(const pcg_label *label, void *priv)
+{
+    struct atrium_labels *l = priv;
+
+    if (!l->nr || label->frame.org[1] < l->lo)  l->lo = label->frame.org[1];
+    if (!l->nr || label->frame.org[1] > l->hi)  l->hi = label->frame.org[1];
+    l->nr++;
+
+    return CERR_OK;
+}
+
+/*
+ * What the reference building with the carousel emits, by material and
+ * collide class: its triangle count, and the bounding box of all of it
+ * with the building's origin at 0
+ */
+static const struct {
+    const pcg_material  *mat;
+    pcg_collide         collide;
+    size_t              nr_tris;
+    vec3                lo;
+    vec3                hi;
+} atrium_expect[] = {
+    { &concrete, PCG_COLLIDE_SOLID, 460,
+      { -60.00000f, -0.80000f, -51.96152f }, { 60.00000f, 24.00000f, 51.96152f } },
+    { &smooth, PCG_COLLIDE_SOLID, 1836,
+      { -28.00000f, -0.17000f, -17.32051f }, { 17.76805f, 18.05000f, 20.78461f } },
+    { &wood, PCG_COLLIDE_SOLID, 148,
+      { -60.00000f, 0.00000f, -51.96152f }, { 60.00000f, 18.05000f, 51.96152f } },
+    { &slat, PCG_COLLIDE_HAZARD, 39720,
+      { -25.40077f, 0.05756f, -24.38871f }, { 28.12124f, 19.10138f, 24.38871f } },
+    { &panel, PCG_COLLIDE_SOLID, 17592,
+      { -59.96825f, 0.05000f, -51.96153f }, { 59.96825f, 23.98000f, 51.96153f } },
+    { &bronze, PCG_COLLIDE_SOLID, 1068,
+      { -28.28867f, 24.00000f, -24.49871f }, { 28.28867f, 24.50000f, 24.49871f } },
+    { &bronze, PCG_COLLIDE_NONE, 9456,
+      { -50.14969f, 0.05000f, -47.61153f }, { 50.14968f, 23.70000f, 47.61153f } },
+    { &glass, PCG_COLLIDE_SOLID, 1072,
+      { -59.87299f, 0.05000f, -51.85153f }, { 59.87299f, 23.70000f, 51.85153f } },
+    { &carpet_tile, PCG_COLLIDE_NONE, 1380,
+      { -53.64843f, 0.05000f, -51.65152f }, { 53.64843f, 18.06200f, 51.65152f } },
+    { &glow, PCG_COLLIDE_NONE, 5520,
+      { -47.63177f, 5.60000f, -49.80153f }, { 47.63177f, 23.65000f, 49.80153f } },
+    { &glow_grid, PCG_COLLIDE_NONE, 4,
+      { -28.28867f, 24.62000f, -24.49871f }, { 28.28867f, 24.62000f, 24.49871f } },
+};
+
+/*
+ * The reference building with the carousel: its triangle counts and
+ * bounds by class; one chunk per level, on from the context's;
+ * 97 signs with the carousel, each storey's sign plates 1.5 m up; every
+ * room visited once, 25 on the ground floor around the entrance and 30
+ * on every other; and every room signed without the carousel.
+ */
+static int atrium_test(void)
+{
+    LOCAL_SET(void, buf) = mem_alloc(sizeof(struct atrium_walk));
+    struct atrium_walk *w = buf;
+    struct atrium_case c;
+    if (!w || !atrium_case_init(&c, true))  return EXIT_FAILURE;
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("atrium"), return EXIT_FAILURE);
+    CERR_RET(atrium_walk_get(&c.p, &PCG_FRAME_IDENTITY, 3.2f, 7, sink, w), return EXIT_FAILURE);
+
+    if (!w->meshes_ok || w->chunk_lo != 7 || w->chunk_hi != 7 + 4)  return EXIT_FAILURE;
+    if (w->nr_cls != array_size(atrium_expect))                     return EXIT_FAILURE;
+    for (size_t i = 0; i < array_size(atrium_expect); i++) {
+        const struct atrium_class *ac = atrium_class_get(w, atrium_expect[i].mat, atrium_expect[i].collide);
+
+        if (!ac || ac->nr_tris != atrium_expect[i].nr_tris)     return EXIT_FAILURE;
+        if (!vec3_near(ac->lo, atrium_expect[i].lo, 1e-4f) || !vec3_near(ac->hi, atrium_expect[i].hi, 1e-4f))
+            return EXIT_FAILURE;
+    }
+
+    struct atrium_labels labels = {};
+    CERR_RET(pcg_sink_for_each_label(sink, atrium_label_fn, &labels), return EXIT_FAILURE);
+    if (labels.nr != 97 || !near(labels.lo, 0.05f + 1.5f, 1e-5f) || !near(labels.hi, 18.05f + 1.5f, 1e-5f))
+        return EXIT_FAILURE;
+
+    if (!w->visits_ok || w->visits != 115)                          return EXIT_FAILURE;
+    for (int f = 0; f < 4; f++)
+        if (w->visits_per_floor[f] != (f ? 30 : 25))                return EXIT_FAILURE;
+
+    /* the library's reference building signs every room */
+    struct atrium_case plain;
+    if (!atrium_case_init(&plain, false))   return EXIT_FAILURE;
+    LOCAL_SET(pcg_sink, ps) = CRES_RET(pcg_sink_new("atrium"), return EXIT_FAILURE);
+    CERR_RET(atrium_walk_get(&plain.p, &PCG_FRAME_IDENTITY, 3.2f, 0, ps, w), return EXIT_FAILURE);
+    if (pcg_sink_get_stats(ps).nr_labels != 115 || w->visits != 115 || w->chunk_lo || w->chunk_hi != 4)
+        return EXIT_FAILURE;
+
+    /* the same building under a yawed and a mirrored frame */
+    for (int m = 0; m < 2; m++) {
+        pcg_frame f;
+        test_frame(&f, 0.9f + m, m, 30.0f, 2.0f, -12.0f);
+
+        LOCAL_SET(void, fbuf) = mem_alloc(sizeof(struct atrium_walk));
+        struct atrium_walk *fw = fbuf;
+        if (!fw)    return EXIT_FAILURE;
+
+        LOCAL_SET(pcg_sink, fs) = CRES_RET(pcg_sink_new("atrium"), return EXIT_FAILURE);
+        CERR_RET(atrium_walk_get(&c.p, &f, 3.2f, 7, fs, fw), return EXIT_FAILURE);
+        if (!fw->meshes_ok || fw->nr_cls != array_size(atrium_expect) || fw->visits != 115) return EXIT_FAILURE;
+        for (size_t i = 0; i < array_size(atrium_expect); i++) {
+            const struct atrium_class *ac = atrium_class_get(fw, atrium_expect[i].mat, atrium_expect[i].collide);
+
+            if (!ac || ac->nr_tris != atrium_expect[i].nr_tris)     return EXIT_FAILURE;
+        }
+        if (pcg_sink_get_stats(fs).nr_labels != 97)                 return EXIT_FAILURE;
+    }
+
+    /*
+     * every one of the 69 inner rooms picked twice, the same rooms in the
+     * same order: once for the checks, once to emit them
+     */
+    struct atrium_case pc;
+    struct atrium_picks picks = {};
+    if (!atrium_case_init(&pc, true))   return EXIT_FAILURE;
+    for (size_t k = 0; k < pc.rings[1].nr_rooms; k++) {
+        pc.inner[k].fn = atrium_carousel_picks;
+        pc.inner[k].priv = &picks;
+    }
+    LOCAL_SET(pcg_sink, ks) = CRES_RET(pcg_sink_new("atrium"), return EXIT_FAILURE);
+    CERR_RET(atrium_walk_get(&pc.p, &PCG_FRAME_IDENTITY, 3.2f, 0, ks, w), return EXIT_FAILURE);
+    if (picks.overflow || picks.nr != 2 * 69)                               return EXIT_FAILURE;
+    if (memcmp(picks.room, picks.room + 69, 69 * sizeof(picks.room[0])))    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * A walker needing more headroom keeps the galleries' rails and fascias
+ * clear of the arriving flights for longer: fewer slats, less fascia
+ */
+static int atrium_headroom_test(void)
+{
+    LOCAL_SET(void, buf) = mem_alloc(sizeof(struct atrium_walk));
+    struct atrium_walk *w = buf;
+    struct atrium_case c;
+    if (!w || !atrium_case_init(&c, true))  return EXIT_FAILURE;
+
+    const float headroom[] = { 0.0f, 2.0f, 3.2f, 4.4f };
+    size_t rail_prev = 0, fascia_prev = 0;
+
+    for (size_t i = 0; i < array_size(headroom); i++) {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("atrium"), return EXIT_FAILURE);
+        CERR_RET(atrium_walk_get(&c.p, &PCG_FRAME_IDENTITY, headroom[i], 0, sink, w), return EXIT_FAILURE);
+
+        const struct atrium_class *rail = atrium_class_get(w, &slat, PCG_COLLIDE_HAZARD);
+        const struct atrium_class *fascia = atrium_class_get(w, &concrete, PCG_COLLIDE_SOLID);
+        if (!rail || !fascia)                                                       return EXIT_FAILURE;
+        if (i && (!(rail->nr_tris < rail_prev) || fascia->nr_tris > fascia_prev))   return EXIT_FAILURE;
+
+        rail_prev = rail->nr_tris;
+        fascia_prev = fascia->nr_tris;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/* an atrium change that must fail */
+typedef void (*atrium_break_fn)(pcg_atrium_params *p);
+
+static void atrium_no_floors(pcg_atrium_params *p)        { p->floors = 1; }
+static void atrium_no_sides(pcg_atrium_params *p)         { p->well_sides = 2; }
+static void atrium_nan_floor_h(pcg_atrium_params *p)      { p->floor_h = NAN; }
+static void atrium_inf_radius(pcg_atrium_params *p)       { p->radius = INFINITY; }
+static void atrium_no_well(pcg_atrium_params *p)          { p->well_r = nullptr; }
+static const float atrium_wide_r[] = { 20.0f, 61.0f }, atrium_zero_r[] = { 20.0f, 0.0f };
+static void atrium_wide_well(pcg_atrium_params *p)        { p->well_r = atrium_wide_r; p->nr_well_r = 2; }
+static void atrium_zero_well(pcg_atrium_params *p)        { p->well_r = atrium_zero_r; p->nr_well_r = 2; }
+static void atrium_far_entrance(pcg_atrium_params *p)     { p->entrance = 6; }
+static void atrium_no_entrance_w(pcg_atrium_params *p)    { p->entrance_w = 0.0f; }
+static void atrium_neg_overlap(pcg_atrium_params *p)      { p->wall_overlap = -0.1f; }
+static void atrium_no_room_floors(pcg_atrium_params *p)   { p->room_floors = nullptr; }
+static void atrium_short_storey(pcg_atrium_params *p)     { p->flight.stair.going = 0.5f; }
+static void atrium_bad_rail(pcg_atrium_params *p)         { p->gallery.rail.h = NAN; }
+static void atrium_bad_fascia(pcg_atrium_params *p)       { p->gallery.fascia.depth = -INFINITY; }
+static void atrium_bad_ground(pcg_atrium_params *p)       { p->ground.t = 0.0f; }
+static void atrium_bad_roof(pcg_atrium_params *p)         { p->roof.finish_t = NAN; }
+static void atrium_bad_column(pcg_atrium_params *p)       { p->column.w = INFINITY; }
+static void atrium_bad_skylight(pcg_atrium_params *p)     { p->skylight.pitch = 0.01f; }
+static void atrium_bad_facade(pcg_atrium_params *p)       { p->facade.wall.head = 6.0f; }
+static void atrium_bad_door(pcg_atrium_params *p)         { p->rooms.room.door_w = 50.0f; }
+static void atrium_low_ceiling(pcg_atrium_params *p)      { p->rooms.room.light.drop = 10.0f; }
+static void atrium_many_segments(pcg_atrium_params *p)    { p->rooms.room.light.segments = 6000; }
+
+static const pcg_atrium_ring atrium_deep_ring = { .rooms = nullptr, .nr_rooms = 0, .inset = 60.0f };
+static const pcg_atrium_floor atrium_deep_floor = { .rings = &atrium_deep_ring, .nr_rings = 1 };
+static void atrium_deep_ring_floor(pcg_atrium_params *p)  { p->room_floors = &atrium_deep_floor; }
+
+static const pcg_atrium_ring atrium_nan_ring = { .rooms = nullptr, .nr_rooms = 0, .inset = NAN };
+static const pcg_atrium_floor atrium_nan_floor = { .rings = &atrium_nan_ring, .nr_rings = 1 };
+static void atrium_nan_ring_floor(pcg_atrium_params *p)   { p->room_floors = &atrium_nan_floor; }
+
+static const pcg_atrium_ring atrium_lost_ring = { .rooms = nullptr, .nr_rooms = 2, .inset = 0.0f };
+static const pcg_atrium_floor atrium_lost_floor = { .rings = &atrium_lost_ring, .nr_rings = 1 };
+static void atrium_lost_rooms(pcg_atrium_params *p)       { p->room_floors = &atrium_lost_floor; }
+
+static cerr atrium_count_visit(const pcg_ctx *ctx, const pcg_room_info *info, void *priv)
+{
+    (*(int *)priv)++;
+
+    return CERR_OK;
+}
+
+/* emitting @p into a fresh sink fails and leaves it empty, without a visit */
+static bool atrium_fails(pcg_atrium_params *p, const pcg_atrium_site *site, unsigned int chunk)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("atrium"), return false);
+    int visits = 0;
+
+    p->rooms.room.visit = atrium_count_visit;
+    p->rooms.room.visit_priv = &visits;
+
+    pcg_ctx ctx = { .sink = sink, .palette = &atrium_palette, .frame = PCG_FRAME_IDENTITY, .chunk = chunk };
+    if (!failed(_pcg_atrium_emit(&ctx, p, site)))   return false;
+
+    pcg_sink_stats st = pcg_sink_get_stats(sink);
+    return !st.nr_models && !st.nr_labels && !visits;
+}
+
+/* bad style, fits and sites fail before anything is emitted */
+static int atrium_bad_test(void)
+{
+    const atrium_break_fn breaks[] = {
+        atrium_no_floors, atrium_no_sides, atrium_nan_floor_h, atrium_inf_radius, atrium_no_well,
+        atrium_wide_well, atrium_zero_well, atrium_far_entrance, atrium_no_entrance_w, atrium_neg_overlap,
+        atrium_no_room_floors, atrium_short_storey, atrium_bad_rail, atrium_bad_fascia, atrium_bad_ground,
+        atrium_bad_roof, atrium_bad_column, atrium_bad_skylight, atrium_bad_facade, atrium_bad_door,
+        atrium_low_ceiling, atrium_many_segments, atrium_deep_ring_floor, atrium_nan_ring_floor, atrium_lost_rooms,
+    };
+    const pcg_atrium_site site = { .frame = PCG_FRAME_IDENTITY, .headroom = 3.2f };
+    pcg_atrium_params p;
+
+    /* the reference building emits */
+    pcg_atrium_params_init(&p);
+    {
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("atrium"), return EXIT_FAILURE);
+        pcg_ctx ctx = { .sink = sink, .palette = &atrium_palette, .frame = PCG_FRAME_IDENTITY };
+        CERR_RET(_pcg_atrium_emit(&ctx, &p, &site), return EXIT_FAILURE);
+        if (!pcg_sink_get_stats(sink).nr_models)    return EXIT_FAILURE;
+    }
+
+    for (size_t i = 0; i < array_size(breaks); i++) {
+        pcg_atrium_params_init(&p);
+        breaks[i](&p);
+        if (!atrium_fails(&p, &site, 0))    return EXIT_FAILURE;
+    }
+
+    /* nothing set, and missing arguments */
+    p = (pcg_atrium_params){};
+    if (!atrium_fails(&p, &site, 0))        return EXIT_FAILURE;
+
+    pcg_atrium_params_init(&p);
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("atrium"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .palette = &atrium_palette, .frame = PCG_FRAME_IDENTITY };
+    if (!failed(_pcg_atrium_emit(nullptr, &p, &site)) || !failed(_pcg_atrium_emit(&ctx, nullptr, &site)) ||
+        !failed(_pcg_atrium_emit(&ctx, &p, nullptr)))
+        return EXIT_FAILURE;
+
+    /* bad headroom, and levels past the last chunk */
+    const float bad_headroom[] = { -1.0f, NAN, INFINITY, -INFINITY };
+    for (size_t i = 0; i < array_size(bad_headroom); i++)
+        if (!atrium_fails(&p, &(const pcg_atrium_site){ .frame = PCG_FRAME_IDENTITY, .headroom = bad_headroom[i] },
+                          0))
+            return EXIT_FAILURE;
+    if (!atrium_fails(&p, &site, UINT_MAX - 2))     return EXIT_FAILURE;
+    for (size_t i = 0; i < array_size(bad_frames); i++)
+        if (!atrium_fails(&p, &(const pcg_atrium_site){ .frame = bad_frames[i], .headroom = 3.2f }, 0))
+            return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -9229,6 +9697,9 @@ static const struct test tests[] = {
     { .name = "room row fill", .test = room_row_fill_test },
     { .name = "room ring", .test = room_ring_test },
     { .name = "room row parity", .test = room_row_parity_test },
+    { .name = "atrium", .test = atrium_test },
+    { .name = "atrium headroom", .test = atrium_headroom_test },
+    { .name = "atrium bad input", .test = atrium_bad_test },
 };
 
 int main(int argc, char **argv, char **envp)
