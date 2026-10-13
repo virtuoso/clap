@@ -8,15 +8,17 @@
 
 set(PCG_EMIT_SRC shape.c sink.c span.c slab.c fascia.c column.c balustrade.c stair.c wall.c glazing.c
     window-wall.c fixture.c sign.c skylight.c flight.c gallery.c facade.c room.c room-row.c atrium.c
-    furniture.c)
+    furniture.c office.c)
 set(PCG_SCENE_SRC texgen.c material.c presets.c commit.c labels.c)
 
 clap_subsystem_library(clap_pcg ${PCG_EMIT_SRC} ${PCG_SCENE_SRC})
 
 # The emitters append to meshes with the core primitives, which need
-# meshoptimizer through mesh.c; only include paths are inherited, so link it
+# meshoptimizer through mesh.c; only include paths are inherited, so link it.
+# The office furnisher draws from the core prng.
 clap_subsystem_test(pcg_tests pcg-test.c ${PCG_EMIT_SRC}
-                    ../primitives.c ../mesh.c ../datatypes.c ../triangulate.c ../poly2d.c)
+                    ../primitives.c ../mesh.c ../datatypes.c ../triangulate.c ../poly2d.c
+                    ../prng.c ../prng-mt.cpp)
 target_link_libraries(pcg_tests PRIVATE meshoptimizer)
 
 # The texture generators and the preset recipes paint with the noise and
