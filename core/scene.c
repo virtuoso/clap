@@ -1703,7 +1703,7 @@ static void scene_spawn_prim_children(struct scene *scene, entity3d *e, struct g
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0;
-    double geom_length = 1.0, speed = 0.75, roughness = -1.0, metallic = -1.0;
+    double geom_length = 0.0, speed = 0.75, roughness = -1.0, metallic = -1.0;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
     bool outline_exclude = false, fix_origin = false, can_levitate = false, nm_hazard = false;

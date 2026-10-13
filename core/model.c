@@ -1996,7 +1996,7 @@ void entity3d_update(entity3d *e, void *data)
 void entity3d_add_physics(entity3d *e, struct phys *phys, double mass, int class,
                           int type, double geom_off, double geom_radius, double geom_length)
 {
-    e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, type, mass);
+    e->phys_body = phys_body_new(phys, e, class, geom_radius, geom_off, geom_length, type, mass);
     if (e->phys_body) {
         entity3d_set(e, ENTITY3D_HAS_PHYSICS, NULL);
         if (phys_body_has_body(e->phys_body))

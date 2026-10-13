@@ -32,12 +32,13 @@ typedef struct phys_capsule {
  * @e:      entity3d
  * @radius: the caps' radius; 0 sizes it from the entity's aabb
  * @offset: its center above the entity's origin; 0 from the aabb
+ * @length: between the caps' centers; 0 from the aabb
  *
  * The capsule of phys_body_new(), whose geom_* parameters these are, at the
  * entity's scale.
  * Return: the capsule
  */
-phys_capsule phys_capsule_size(entity3d *e, double radius, double offset);
+phys_capsule phys_capsule_size(entity3d *e, double radius, double offset, double length);
 
 /**
  * phys_limb_joint_valid() - check that a limb can ride a joint

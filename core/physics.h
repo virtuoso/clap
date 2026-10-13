@@ -213,8 +213,10 @@ void phys_body_rotation(struct phys_body *body, quat rot);
  * @phys:           core physics handle
  * @entity:         entity3d object for which to create a phys_body
  * @class:          geometry class (see &enum geom_class)
- * @geom_radius:    radius (for sphere and capsule)
+ * @geom_radius:    radius (for sphere and capsule); 0 sizes it from the entity's aabb
  * @geom_offset:    vertical offset from entity3d's position (for sphere and capsule)
+ * @geom_length:    a capsule's length between its caps' centers; 0 sizes it
+ *                  from the entity's aabb
  * @type:           PHYS_BODY or PHYS_GEOM (see &enum phys_type)
  * @mass:           mass (for PHYS_BODY)
  *
@@ -223,8 +225,8 @@ void phys_body_rotation(struct phys_body *body, quat rot);
  * Return: phys_body object or NULL if something goes wrong
  */
 struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class class,
-                                double geom_radius, double geom_offset, phys_type type,
-                                double mass);
+                                double geom_radius, double geom_offset, double geom_length,
+                                phys_type type, double mass);
 
 /**
  * phys_body_new_limb() - create a kinematic body riding one of an entity's joints

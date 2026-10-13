@@ -862,9 +862,10 @@ static void capsule_upright(dMatrix3 R)
 }
 
 static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, entity3d *e,
-                                     double mass, double geom_radius, double geom_offset)
+                                     double mass, double geom_radius, double geom_offset,
+                                     double geom_length)
 {
-    phys_capsule cap = phys_capsule_size(e, geom_radius, geom_offset);
+    phys_capsule cap = phys_capsule_size(e, geom_radius, geom_offset, geom_length);
     /*
      * capsule seems to be always be vertical (direction 2 -- Y positive),
      * so we need to use offset rotation for horizontal cases
@@ -967,7 +968,8 @@ static dGeomID phys_geom_trimesh_new(struct phys *phys, struct phys_body *body,
 }
 
 struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class class,
-                                double geom_radius, double geom_offset, phys_type type, double mass)
+                                double geom_radius, double geom_offset, double geom_length,
+                                phys_type type, double mass)
 {
     bool has_body = type == PHYS_BODY;
     struct phys_body *body;
@@ -990,7 +992,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
         dMassSetSphereTotal(&m, mass, 0.1);
     } else if (class == GEOM_CAPSULE) {
         body->geom = phys_geom_capsule_new(phys, body, entity, mass, geom_radius * entity->scale,
-                                           geom_offset * entity->scale);
+                                           geom_offset * entity->scale, geom_length * entity->scale);
     }
 
     if (!body->geom) {

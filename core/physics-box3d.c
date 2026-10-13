@@ -877,9 +877,9 @@ int phys_body_update(entity3d *e)
 }
 
 static void phys_capsule_shape_params(struct phys_body *body, entity3d *e,
-                                      double geom_radius, double geom_offset)
+                                      double geom_radius, double geom_offset, double geom_length)
 {
-    phys_capsule cap = phys_capsule_size(e, geom_radius, geom_offset);
+    phys_capsule cap = phys_capsule_size(e, geom_radius, geom_offset, geom_length);
 
     body->radius = cap.radius;
     body->half_len = cap.length / 2;
@@ -1017,8 +1017,8 @@ static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd,
 }
 
 struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class class,
-                                double geom_radius, double geom_offset, phys_type type,
-                                double mass)
+                                double geom_radius, double geom_offset, double geom_length,
+                                phys_type type, double mass)
 {
     bool has_body = type == PHYS_BODY;
     bool is_character = entity3d_matches(entity, ENTITY3D_IS_CHARACTER);
@@ -1038,7 +1038,7 @@ struct phys_body *phys_body_new(struct phys *phys, entity3d *entity, geom_class 
     /* shape sizing first: the body def needs yoffset for its position */
     if (class == GEOM_CAPSULE)
         phys_capsule_shape_params(body, entity, geom_radius * entity->scale,
-                                  geom_offset * entity->scale);
+                                  geom_offset * entity->scale, geom_length * entity->scale);
     else if (class == GEOM_SPHERE)
         phys_sphere_shape_params(body, entity, geom_radius * entity->scale,
                                  geom_offset * entity->scale);
