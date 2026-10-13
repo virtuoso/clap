@@ -2058,7 +2058,8 @@ light_done:
                     phys_body_enable(e->phys_body, false);
             }
 
-            scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, !!phys);
+            /* a character's parts move with it: no static colliders left at the spawn point */
+            scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, !!phys && !c);
 
             if (entity_animated(e)) {
                 for (p = anis ? anis->children.head : nullptr; p; p = p->next) {
