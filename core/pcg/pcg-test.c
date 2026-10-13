@@ -2479,6 +2479,117 @@ static int shape_cylinder_test(void)
 }
 
 /****************************************************************************
+ * Quad
+ ****************************************************************************/
+
+/* a decal facing local +c, its rectangle running against U and V */
+static const pcg_quad_desc quad_decal = {
+    .c00 = { 0.5f, 0.2f, 0.3f }, .c10 = { 1.5f, 0.2f, 0.3f }, .c11 = { 1.5f, 1.0f, 0.3f }, .c01 = { 0.5f, 1.0f, 0.3f },
+    .uv_rect = { 0.98f, 0.95f, 0.52f, 0.05f }, .uv = PCG_UV_UNIT, .surf = { .mat = &decal },
+};
+
+static cerr quad_emit(const pcg_ctx *ctx, const void *priv)
+{
+    return _pcg_quad(ctx, priv);
+}
+
+static int shape_quad_test(void)
+{
+    const pcg_quad_desc *q = &quad_decal;
+    const float *r = q->uv_rect;
+
+    /* two triangles, every corner on its own coordinates */
+    LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+    CRES_RET(_prim_begin(6, &(prim_emit_opts){ .mesh = ref, .tangents = true }), return EXIT_FAILURE);
+    vec2 t0[3] = { { r[0], r[1] }, { r[2], r[1] }, { r[0], r[3] } };
+    vec2 t1[3] = { { r[0], r[3] }, { r[2], r[1] }, { r[2], r[3] } };
+    _prim_emit_triangle3((float *)q->c00, (float *)q->c10, (float *)q->c01, &(prim_emit_opts){ .mesh = ref, .uv = t0 });
+    _prim_emit_triangle3((float *)q->c01, (float *)q->c10, (float *)q->c11, &(prim_emit_opts){ .mesh = ref, .uv = t1 });
+
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(quad_emit, q, nullptr, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 1)                                  return EXIT_FAILURE;
+    if (!mesh_same_vx(w.mesh[0], ref, 0.0f, 0.0f))                              return EXIT_FAILURE;
+    if (!mesh_normals_along(w.mesh[0], &PCG_FRAME_IDENTITY, box_face_dir[4]))   return EXIT_FAILURE;
+    if (!mesh_tangents_ok(w.mesh[0]))                                           return EXIT_FAILURE;
+
+    /* turned with a frame, and facing the same way in it mirrored or not */
+    for (int m = 0; m < 2; m++) {
+        pcg_frame f;
+
+        test_frame(&f, 1.1f, m, 6.0f, 2.0f, -5.0f);
+        LOCAL_SET(pcg_sink, fs) = CRES_RET(element_sink(quad_emit, q, nullptr, &f), return EXIT_FAILURE);
+        if (!sink_walk_get(fs, &w) || w.nr != 1)                            return EXIT_FAILURE;
+        if (!mesh_normals_along(w.mesh[0], &f, box_face_dir[4]))            return EXIT_FAILURE;
+        if (!m && !parity_check("quad", w.mesh[0], ref, &f, false, 1.0f))   return EXIT_FAILURE;
+    }
+    if (!element_frames_ok(quad_emit, q, nullptr, false))   return EXIT_FAILURE;
+
+    /* swapped, every corner has its U and V traded, still facing out */
+    pcg_quad_desc d = *q;
+    d.surf.uv_swap = true;
+    LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(quad_emit, &d, nullptr, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ss, &w) || mesh_nr_vx(w.mesh[0]) != 6)                   return EXIT_FAILURE;
+    if (!mesh_normals_along(w.mesh[0], &PCG_FRAME_IDENTITY, box_face_dir[4]))   return EXIT_FAILURE;
+    for (size_t v = 0; v < 6; v++) {
+        const float *p = &mesh_vx(w.mesh[0])[v * 3], *t = &mesh_tx(w.mesh[0])[v * 2];
+        bool found = false;
+
+        for (size_t u = 0; u < 6 && !found; u++)
+            found = vec3_near(p, &mesh_vx(ref)[u * 3], 0.0f) &&
+                    t[0] == mesh_tx(ref)[u * 2 + 1] && t[1] == mesh_tx(ref)[u * 2];
+        if (!found)     return EXIT_FAILURE;
+    }
+
+    /* skipped: nothing; a mode its material doesn't take, or a bad quad: an error */
+    LOCAL_SET(pcg_sink, bs) = CRES_RET(pcg_sink_new("quad"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bs, .frame = PCG_FRAME_IDENTITY };
+    d = *q;
+    d.surf.skip = true;
+    CERR_RET(_pcg_quad(&bc, &d), return EXIT_FAILURE);
+    d = *q;
+    d.uv = PCG_UV_METERS;
+    if (!failed(_pcg_quad(&bc, &d)))                                        return EXIT_FAILURE;
+    d = *q;
+    d.uv = PCG_UV_NR;
+    if (!failed_inval(_pcg_quad(&bc, &d)))                                  return EXIT_FAILURE;
+    d = *q;
+    vec3_dup(d.c10, d.c00);
+    if (!failed_inval(_pcg_quad(&bc, &d)))                                  return EXIT_FAILURE;
+    d = *q;
+    vec3_dup(d.c01, (vec3){ 2.5f, 0.2f, 0.3f });
+    if (!failed_inval(_pcg_quad(&bc, &d)))                                  return EXIT_FAILURE;
+    /* the second triangle of no area: @c11 on @c10 or @c01, or on the diagonal between them */
+    d = *q;
+    vec3_dup(d.c11, d.c10);
+    if (!failed_inval(_pcg_quad(&bc, &d)))                                  return EXIT_FAILURE;
+    d = *q;
+    vec3_dup(d.c11, d.c01);
+    if (!failed_inval(_pcg_quad(&bc, &d)))                                  return EXIT_FAILURE;
+    d = *q;
+    vec3_dup(d.c00, (vec3){ 0.0f, 0.0f, 0.3f });
+    vec3_dup(d.c10, (vec3){ 1.0f, 0.0f, 0.3f });
+    vec3_dup(d.c11, (vec3){ 0.5f, 0.5f, 0.3f });
+    vec3_dup(d.c01, (vec3){ 0.0f, 1.0f, 0.3f });
+    if (!failed_inval(_pcg_quad(&bc, &d)))                                  return EXIT_FAILURE;
+
+    /* every corner coordinate and texture coordinate, infinite or NaN */
+    for (int k = 0; k < 16; k++) {
+        d = *q;
+        float *field[] = { d.c00, d.c10, d.c11, d.c01 };
+        float *x = k < 12 ? &field[k / 3][k % 3] : &d.uv_rect[k - 12];
+
+        *x = (k & 1) ? INFINITY : NAN;
+        if (!failed_inval(_pcg_quad(&bc, &d)))                              return EXIT_FAILURE;
+    }
+    if (!sink_walk_get(bs, &w) || w.nr)                                     return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/****************************************************************************
  * Slab
  ****************************************************************************/
 
@@ -9706,6 +9817,7 @@ static const struct test tests[] = {
     { .name = "shape box", .test = shape_box_test },
     { .name = "shape box faces", .test = shape_box_faces_test },
     { .name = "shape box rect", .test = shape_box_rect_test },
+    { .name = "shape quad", .test = shape_quad_test },
     { .name = "shape cylinder", .test = shape_cylinder_test },
     { .name = "slab", .test = slab_test },
     { .name = "slab surfaces", .test = slab_surface_test },
