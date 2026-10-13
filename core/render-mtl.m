@@ -841,6 +841,7 @@ static void mtl_texture_deinit(texture_t *tex)
 static cerr mtl_texture_resize(texture_t *tex, unsigned int width, unsigned int height)
 {
     mem_free(tex->mtl.name);
+    tex->mtl.name = NULL;
 
     if (!tex->loaded)
         return CERR_TEXTURE_NOT_LOADED;
