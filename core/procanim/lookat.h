@@ -22,6 +22,9 @@
  * @pitch_max:  the same up and down
  * @slew:       turning rate, rad/s; 0 is unlimited
  * @law:        how the aim point moves
+ * @no_yaw:     the joint doesn't turn sideways: a head that only nods
+ *              follows the point's elevation, wherever it is around
+ * @no_pitch:   the joint doesn't nod
  *
  * The rotation is a delta over the joint's posed rotation, so the class
  * overlays a clip: the head turns from wherever the clip has it. With
@@ -36,6 +39,8 @@ typedef struct lookat_config {
     double          pitch_max;
     double          slew;
     target_law      law;
+    bool            no_yaw;
+    bool            no_pitch;
 } lookat_config;
 
 /**

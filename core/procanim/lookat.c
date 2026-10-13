@@ -74,6 +74,8 @@ static cerr lookat_eval(const void *_cfg, void *priv, entity3d *e, double t, dou
         aim_angles(out[joint].rotation, forward, up, dir, &want_yaw, &want_pitch);
         if (cfg->yaw_max > 0.0)     want_yaw = clampd(want_yaw, -cfg->yaw_max, cfg->yaw_max);
         if (cfg->pitch_max > 0.0)   want_pitch = clampd(want_pitch, -cfg->pitch_max, cfg->pitch_max);
+        if (cfg->no_yaw)            want_yaw = 0.0;
+        if (cfg->no_pitch)          want_pitch = 0.0;
     }
 
     l->yaw = step_toward(l->yaw, want_yaw, cfg->slew, dt);
