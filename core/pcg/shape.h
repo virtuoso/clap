@@ -153,11 +153,13 @@ cerr_check _pcg_band(const pcg_ctx *ctx, const pcg_band_desc *d);
 
 /**
  * struct pcg_box_desc - a box with a surface per face
- * @lo:     one corner in the context's local (a, y, c)
- * @hi:     the opposite corner; a range reversed against @lo is swapped
- *          back, on every axis
- * @face:   the surface of each face, indexed by the bit number of its
- *          &enum prim_box_face flag; nullptr leaves the face out
+ * @lo:         one corner in the context's local (a, y, c)
+ * @hi:         the opposite corner; a range reversed against @lo is
+ *              swapped back, on every axis
+ * @face:       the surface of each face, indexed by the bit number of
+ *              its &enum prim_box_face flag; nullptr leaves the face out
+ * @uv_rect:    nullptr: the planar charts below; otherwise the texture
+ *              rectangle { u0, v0, u1, v1 } every face maps
  *
  * The box of prim_emit_box(), with its planar charts in the context's
  * local meters, heights included: a box placed at a storey wears its
@@ -171,11 +173,16 @@ cerr_check _pcg_band(const pcg_ctx *ctx, const pcg_band_desc *d);
  * Coplanar faces of neighbouring boxes in one frame tile seamlessly. The
  * faces that point to one surface share a reservation, and come in the
  * order of their flags.
+ *
+ * With @uv_rect, every face maps that one rectangle instead (PCG_UV_UNIT),
+ * corner for corner where its chart puts the same corners: for a small
+ * part that wears one cell of an atlas all over.
  */
 typedef struct pcg_box_desc {
     vec3                lo;
     vec3                hi;
     const pcg_surface   *face[6];
+    const float         *uv_rect;
 } pcg_box_desc;
 
 /* pcg_box_desc::face initializer: every face on @_surf */
@@ -186,8 +193,8 @@ typedef struct pcg_box_desc {
  * @ctx:    where it goes
  * @d:      the box
  *
- * Return: CERR_OK; CERR_INVALID_ARGUMENTS for an empty range on any axis;
- * the pcg_sink_reserve() errors
+ * Return: CERR_OK; CERR_INVALID_ARGUMENTS for an empty range on any axis
+ * or a @uv_rect that isn't finite; the pcg_sink_reserve() errors
  */
 cerr_check _pcg_box(const pcg_ctx *ctx, const pcg_box_desc *d);
 

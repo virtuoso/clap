@@ -216,31 +216,40 @@ cerr _pcg_band(const pcg_ctx *ctx, const pcg_band_desc *d)
  * Box
  ****************************************************************************/
 
-/* the @faces (&enum prim_box_face bits) of the box [@lo, @hi], charted as prim_emit_box() charts them */
-static void box_faces(const pcg_frame *f, const vec3 lo, const vec3 hi, unsigned int faces, bool swap,
-                      const prim_emit_opts *opts)
+/* a face's own @chart rectangle, or the box's @rect, which every face maps */
+static const float *box_rect(const float *rect, const float *chart)
+{
+    return rect ? rect : chart;
+}
+
+/*
+ * the @faces (&enum prim_box_face bits) of the box [@lo, @hi], charted as
+ * prim_emit_box() charts them, or all on @rect
+ */
+static void box_faces(const pcg_frame *f, const vec3 lo, const vec3 hi, unsigned int faces, const float *rect,
+                      bool swap, const prim_emit_opts *opts)
 {
     float a0 = lo[0], y0 = lo[1], c0 = lo[2];
     float a1 = hi[0], y1 = hi[1], c1 = hi[2];
 
     if (faces & PRIM_BOX_POS_A)
         pcg_frame_face(f, (vec3){ a1, y0, c0 }, (vec3){ a1, y0, c1 }, (vec3){ a1, y1, c1 }, (vec3){ a1, y1, c0 },
-                       (vec4){ c0, y0, c1, y1 }, swap, opts);
+                       box_rect(rect, (vec4){ c0, y0, c1, y1 }), swap, opts);
     if (faces & PRIM_BOX_NEG_A)
         pcg_frame_face(f, (vec3){ a0, y0, c1 }, (vec3){ a0, y0, c0 }, (vec3){ a0, y1, c0 }, (vec3){ a0, y1, c1 },
-                       (vec4){ -c1, y0, -c0, y1 }, swap, opts);
+                       box_rect(rect, (vec4){ -c1, y0, -c0, y1 }), swap, opts);
     if (faces & PRIM_BOX_POS_Y)
         pcg_frame_face(f, (vec3){ a0, y1, c0 }, (vec3){ a1, y1, c0 }, (vec3){ a1, y1, c1 }, (vec3){ a0, y1, c1 },
-                       (vec4){ a0, c0, a1, c1 }, swap, opts);
+                       box_rect(rect, (vec4){ a0, c0, a1, c1 }), swap, opts);
     if (faces & PRIM_BOX_NEG_Y)
         pcg_frame_face(f, (vec3){ a0, y0, c0 }, (vec3){ a0, y0, c1 }, (vec3){ a1, y0, c1 }, (vec3){ a1, y0, c0 },
-                       (vec4){ c0, a0, c1, a1 }, swap, opts);
+                       box_rect(rect, (vec4){ c0, a0, c1, a1 }), swap, opts);
     if (faces & PRIM_BOX_POS_C)
         pcg_frame_face(f, (vec3){ a1, y0, c1 }, (vec3){ a0, y0, c1 }, (vec3){ a0, y1, c1 }, (vec3){ a1, y1, c1 },
-                       (vec4){ -a1, y0, -a0, y1 }, swap, opts);
+                       box_rect(rect, (vec4){ -a1, y0, -a0, y1 }), swap, opts);
     if (faces & PRIM_BOX_NEG_C)
         pcg_frame_face(f, (vec3){ a0, y0, c0 }, (vec3){ a1, y0, c0 }, (vec3){ a1, y1, c0 }, (vec3){ a0, y1, c0 },
-                       (vec4){ a0, y0, a1, y1 }, swap, opts);
+                       box_rect(rect, (vec4){ a0, y0, a1, y1 }), swap, opts);
 }
 
 cerr _pcg_box(const pcg_ctx *ctx, const pcg_box_desc *d)
@@ -254,6 +263,10 @@ cerr _pcg_box(const pcg_ctx *ctx, const pcg_box_desc *d)
         if (lo[k] > hi[k])      shape_swapf(&lo[k], &hi[k]);
         if (!(lo[k] < hi[k]))   return CERR_INVALID_ARGUMENTS_REASON(.fmt = "box with an empty range");
     }
+    if (d->uv_rect && !pcg_floats_finite(d->uv_rect, 4))
+        return CERR_INVALID_ARGUMENTS_REASON(.fmt = "box texture rectangle isn't finite");
+
+    pcg_uv_mode uv = d->uv_rect ? PCG_UV_UNIT : PCG_UV_METERS;
 
     /* one reservation per surface, for all of its faces */
     unsigned int done = 0;
@@ -271,8 +284,9 @@ cerr _pcg_box(const pcg_ctx *ctx, const pcg_box_desc *d)
             }
         done |= group;
 
-        pcg_target t = CRES_RET_CERR(pcg_sink_reserve(ctx, surf, PCG_UV_METERS, nr_vx));
-        box_faces(&ctx->frame, lo, hi, group, t.uv_swap, &(prim_emit_opts){ .mesh = t.mesh, .clockwise = t.clockwise });
+        pcg_target t = CRES_RET_CERR(pcg_sink_reserve(ctx, surf, uv, nr_vx));
+        box_faces(&ctx->frame, lo, hi, group, d->uv_rect, t.uv_swap,
+                  &(prim_emit_opts){ .mesh = t.mesh, .clockwise = t.clockwise });
     }
 
     return CERR_OK;
