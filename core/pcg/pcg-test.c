@@ -23,6 +23,7 @@
 #include "pcg/flight.h"
 #include "pcg/glazing.h"
 #include "pcg/frame.h"
+#include "pcg/furniture.h"
 #include "pcg/gallery.h"
 #include "pcg/material.h"
 #include "pcg/room.h"
@@ -9792,6 +9793,628 @@ static int atrium_bad_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * Furniture
+ ****************************************************************************/
+
+static const pcg_material furn_plastic = { .name = "plastic", .uv_mode = PCG_UV_METERS };
+static const pcg_material furn_atlas = { .name = "atlas", .uv_mode = PCG_UV_UNIT };
+static const pcg_material furn_cork = { .name = "cork", .uv_mode = PCG_UV_UNIT };
+static const pcg_palette furniture_palette = {
+    .mat[PCG_ROLE_FURNITURE]    = &furn_plastic,
+    .mat[PCG_ROLE_SCREEN]       = &furn_atlas,
+    .mat[PCG_ROLE_BOARD]        = &furn_cork,
+};
+
+enum furn_kind {
+    FURN_DESK,
+    FURN_CHAIR,
+    FURN_MONITOR,
+    FURN_CORKBOARD,
+    FURN_NR,
+};
+
+static const char *const furn_name[FURN_NR] = { "desk", "chair", "monitor", "corkboard" };
+
+/* one piece of furniture at a frame */
+struct furn_case {
+    union {
+        pcg_desk_params         desk;
+        pcg_chair_params        chair;
+        pcg_monitor_params      monitor;
+        pcg_corkboard_params    board;
+    };
+    enum furn_kind  kind;
+    pcg_frame       frame;
+};
+
+static void furn_case_init(struct furn_case *c, enum furn_kind kind)
+{
+    *c = (struct furn_case){ .kind = kind, .frame = { .org = { 2.0f, 0.0f, -1.0f }, .dir = { 0.6f, 0.8f } } };
+
+    switch (kind) {
+        case FURN_DESK:         pcg_desk_params_init(&c->desk); break;
+        case FURN_CHAIR:        pcg_chair_params_init(&c->chair); break;
+        case FURN_MONITOR:      pcg_monitor_params_init(&c->monitor); break;
+        default:                pcg_corkboard_params_init(&c->board); break;
+    }
+}
+
+static cerr furn_case_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const struct furn_case *c = priv;
+
+    switch (c->kind) {
+        case FURN_DESK:         return pcg_desk_emit(ctx, &c->desk, .frame = c->frame);
+        case FURN_CHAIR:        return pcg_chair_emit(ctx, &c->chair, .frame = c->frame);
+        case FURN_MONITOR:      return pcg_monitor_emit(ctx, &c->monitor, .frame = c->frame);
+        default:                return pcg_corkboard_emit(ctx, &c->board, .frame = c->frame);
+    }
+}
+
+static bool furn_fails(const struct furn_case *c)
+{
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("furniture"), return false);
+    pcg_ctx ctx = { .sink = sink, .palette = &furniture_palette, .frame = PCG_FRAME_IDENTITY };
+    struct sink_walk w;
+
+    return failed_inval(furn_case_emit(&ctx, c)) && sink_walk_get(sink, &w) && !w.nr;
+}
+
+/* the furthest a regular @n-gon of circumradius @r reaches along +c, its vertex 0 on +a */
+static float ngon_reach_c(int n, float r)
+{
+    float c = 0.0f;
+
+    for (int k = 0; k < n; k++) c = fmaxf(c, r * (float)sin(M_PI * 2 * k / n));
+
+    return c;
+}
+
+/* what a piece's solid parts enclose, and their bounds in its frame */
+static double furn_case_volume(const struct furn_case *c, vec3 lo, vec3 hi)
+{
+    switch (c->kind) {
+        case FURN_DESK: {
+            const pcg_desk_params *p = &c->desk;
+
+            vec3_dup(lo, (vec3){ -p->w * 0.5f, 0.0f, -p->d * 0.5f });
+            vec3_dup(hi, (vec3){ p->w * 0.5f, p->h, p->d * 0.5f });
+            return (double)p->w * p->d * p->top_t + 2.0 * p->side_w * (p->h - p->top_t) * p->side_d;
+        }
+        case FURN_CHAIR: {
+            const pcg_chair_params *p = &c->chair;
+            float s0 = p->seat_c - p->seat_d * 0.5f, s1 = p->seat_c + p->seat_d * 0.5f;
+            float stem = p->seat_h - p->seat_t - p->base_h;
+
+            vec3_dup(lo, (vec3){ -p->base_r, 0.0f, s0 - p->back_t });
+            vec3_dup(hi, (vec3){ p->base_r, p->seat_h + p->back_h, fmaxf(s1, ngon_reach_c(p->segments, p->base_r)) });
+            return (double)p->seat_w * p->seat_d * p->seat_t + (double)p->back_w * p->back_h * p->back_t +
+                   ngon_area(p->segments, p->stem_r) * stem + ngon_area(p->segments, p->base_r) * p->base_h;
+        }
+        case FURN_MONITOR: {
+            const pcg_monitor_params *p = &c->monitor;
+
+            vec3_dup(lo, (vec3){ -p->w * 0.5f, 0.0f,
+                                 fminf(p->foot_c - p->foot_d * 0.5f, fminf(p->neck_c - p->neck_d * 0.5f,
+                                                                           p->front - p->t)) });
+            vec3_dup(hi, (vec3){ p->w * 0.5f, p->lift + p->h,
+                                 fmaxf(p->foot_c + p->foot_d * 0.5f, p->front + p->screen_off) });
+            return (double)p->foot_w * p->foot_d * p->foot_t + (double)p->neck_w * p->neck_d * (p->neck_h - p->foot_t) +
+                   (double)p->w * p->h * p->t;
+        }
+        default: {
+            const pcg_corkboard_params *p = &c->board;
+
+            vec3_dup(lo, (vec3){ -p->w * 0.5f, p->center_y - p->h * 0.5f, p->standoff });
+            vec3_dup(hi, (vec3){ p->w * 0.5f, p->center_y + p->h * 0.5f, p->standoff + p->t });
+            return (double)p->w * p->h * p->t;
+        }
+    }
+}
+
+static int furniture_test(void)
+{
+    /* vertices of each piece: boxes of 36, the chair's two 10-sided cylinders, the screen's quad */
+    static const size_t nr_vx[FURN_NR] = { 108, 72 + 2 * 120, 108 + 6, 36 };
+
+    for (int k = 0; k < FURN_NR; k++) {
+        struct furn_case c;
+        furn_case_init(&c, k);
+
+        /* the screen to a finish of its own, so the monitor's solid parts can be measured alone */
+        if (k == FURN_MONITOR)  c.monitor.screen.mat = &decal;
+
+        LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette,
+                                                          &PCG_FRAME_IDENTITY),
+                                             return EXIT_FAILURE);
+        struct sink_walk w;
+        if (!sink_walk_get(sink, &w) || w.nr != (k == FURN_MONITOR ? 2 : 1))    return EXIT_FAILURE;
+
+        size_t nr = 0;
+        for (size_t b = 0; b < w.nr; b++) {
+            if (w.key[b].collide != PCG_COLLIDE_NONE)       return EXIT_FAILURE;
+            nr += mesh_nr_vx(w.mesh[b]);
+        }
+        if (nr != nr_vx[k])                                 return EXIT_FAILURE;
+
+        const pcg_material *own[FURN_NR] = { &furn_plastic, &furn_plastic, &furn_atlas, &furn_cork };
+        if (w.key[0].mat != own[k])                         return EXIT_FAILURE;
+
+        /* closed and outward, over the measured bounds, the screen aside */
+        vec3 lo, hi;
+        double vol = furn_case_volume(&c, lo, hi);
+        struct sink_walk solid = w;
+        solid.nr = 1;
+        if (!walk_closed(&solid) || fabs(walk_volume(&solid) - vol) > 1e-4 * vol) {
+            fprintf(stderr, "%s: volume %f, expected %f\n", furn_name[k], walk_volume(&solid), vol);
+            return EXIT_FAILURE;
+        }
+        if (!walk_aabb_is(&w, &c.frame, lo, hi))            return EXIT_FAILURE;
+
+        if (!element_frames_ok(furn_case_emit, &c, &furniture_palette, k != FURN_MONITOR))  return EXIT_FAILURE;
+    }
+
+    /* the default finishes: plastic shells, an atlas monitor, a board, none colliding */
+    struct furn_case d, h, m, b;
+    furn_case_init(&d, FURN_DESK);
+    furn_case_init(&h, FURN_CHAIR);
+    furn_case_init(&m, FURN_MONITOR);
+    furn_case_init(&b, FURN_CORKBOARD);
+    const pcg_surface *surfs[] = { &d.desk.shell, &h.chair.shell, &h.chair.base, &m.monitor.shell, &m.monitor.screen,
+                                   &b.board.board };
+    const pcg_role roles[] = {
+        PCG_ROLE_FURNITURE, PCG_ROLE_FURNITURE, PCG_ROLE_FURNITURE, PCG_ROLE_SCREEN, PCG_ROLE_SCREEN, PCG_ROLE_BOARD,
+    };
+    for (size_t i = 0; i < array_size(surfs); i++)
+        if (surfs[i]->role != roles[i] || surfs[i]->collide != PCG_COLLIDE_NONE || surfs[i]->mat)   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int furniture_surface_test(void)
+{
+    /* the pedestal on a finish of its own: both cylinders, and nothing else */
+    struct furn_case c;
+    furn_case_init(&c, FURN_CHAIR);
+    c.chair.base.mat = &surf_mat[0];
+    LOCAL_SET(pcg_sink, cs) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(cs, &w) || w.nr != 2)                                    return EXIT_FAILURE;
+    struct mesh *base = walk_mesh(&w, &surf_mat[0]), *shell = walk_mesh(&w, &furn_plastic);
+    if (!base || !shell || mesh_nr_vx(base) != 240 || mesh_nr_vx(shell) != 72)              return EXIT_FAILURE;
+    if (!mesh_y_within(base, &PCG_FRAME_IDENTITY, 0.0f, c.chair.seat_h - c.chair.seat_t))   return EXIT_FAILURE;
+
+    /* the screen faces the front under any frame, mirrored or not */
+    furn_case_init(&c, FURN_MONITOR);
+    c.monitor.screen.mat = &decal;
+    for (int i = 0; i < 4; i++) {
+        test_frame(&c.frame, 1.3f * i - 0.4f, i & 1, 1.0f * i, 0.72f, -2.0f * i);
+        LOCAL_SET(pcg_sink, ms) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette,
+                                                        &PCG_FRAME_IDENTITY),
+                                           return EXIT_FAILURE);
+        if (!sink_walk_get(ms, &w) || w.nr != 2)                                return EXIT_FAILURE;
+        struct mesh *screen = walk_mesh(&w, &decal);
+        if (!screen || mesh_nr_vx(screen) != 6)                                 return EXIT_FAILURE;
+        if (!mesh_normals_along(screen, &c.frame, box_face_dir[4]))             return EXIT_FAILURE;
+    }
+
+    /* so does the board's front: 6 of its vertices face out of the wall */
+    furn_case_init(&c, FURN_CORKBOARD);
+    LOCAL_SET(pcg_sink, bs) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(bs, &w) || w.nr != 1)                                    return EXIT_FAILURE;
+    for (int k = 0; k < 6; k++)
+        if (mesh_count_normals(w.mesh[0], &c.frame, box_face_dir[k]) != 6)      return EXIT_FAILURE;
+
+    /* skipped surfaces leave their parts out */
+    for (int k = 0; k < FURN_NR; k++) {
+        furn_case_init(&c, k);
+        pcg_surface *s = k == FURN_DESK ? c.desk.surf : k == FURN_CHAIR ? c.chair.surf :
+                         k == FURN_MONITOR ? c.monitor.surf : c.board.surf;
+        size_t nr_surf = k == FURN_DESK ? PCG_DESK_NR_SURF : k == FURN_CHAIR ? PCG_CHAIR_NR_SURF :
+                         k == FURN_MONITOR ? PCG_MONITOR_NR_SURF : PCG_CORKBOARD_NR_SURF;
+
+        for (size_t i = 0; i < nr_surf; i++)    s[i].skip = true;
+        LOCAL_SET(pcg_sink, ss) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette,
+                                                        &PCG_FRAME_IDENTITY),
+                                           return EXIT_FAILURE);
+        if (!sink_walk_get(ss, &w) || w.nr)                                     return EXIT_FAILURE;
+    }
+
+    /* a shell can't wear an atlas, and a board can't wear meters */
+    LOCAL_SET(pcg_sink, es) = CRES_RET(pcg_sink_new("furniture"), return EXIT_FAILURE);
+    pcg_ctx ec = { .sink = es, .palette = &furniture_palette, .frame = PCG_FRAME_IDENTITY };
+    furn_case_init(&c, FURN_DESK);
+    c.desk.shell.mat = &furn_atlas;
+    if (!failed(furn_case_emit(&ec, &c)))                                       return EXIT_FAILURE;
+    furn_case_init(&c, FURN_CORKBOARD);
+    c.board.board.mat = &furn_plastic;
+    if (!failed(furn_case_emit(&ec, &c)))                                       return EXIT_FAILURE;
+    furn_case_init(&c, FURN_MONITOR);
+    c.monitor.shell.mat = &furn_plastic;
+    if (!failed(furn_case_emit(&ec, &c)))                                       return EXIT_FAILURE;
+    if (!sink_walk_get(es, &w) || w.nr)                                         return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/* the float fields of @c's params, nullptr-terminated */
+static void furn_case_fields(struct furn_case *c, float **f)
+{
+    size_t n = 0;
+
+    switch (c->kind) {
+        case FURN_DESK: {
+            pcg_desk_params *p = &c->desk;
+            float *x[] = { &p->w, &p->d, &p->h, &p->top_t, &p->side_w, &p->side_inset, &p->side_d };
+            for (size_t i = 0; i < array_size(x); i++)  f[n++] = x[i];
+            break;
+        }
+        case FURN_CHAIR: {
+            pcg_chair_params *p = &c->chair;
+            float *x[] = {
+                &p->seat_w, &p->seat_d, &p->seat_h, &p->seat_t, &p->seat_c, &p->back_w, &p->back_h, &p->back_t,
+                &p->stem_r, &p->base_r, &p->base_h,
+            };
+            for (size_t i = 0; i < array_size(x); i++)  f[n++] = x[i];
+            break;
+        }
+        case FURN_MONITOR: {
+            pcg_monitor_params *p = &c->monitor;
+            float *x[] = {
+                &p->w, &p->h, &p->t, &p->lift, &p->front, &p->bezel, &p->screen_off, &p->foot_w, &p->foot_d,
+                &p->foot_t, &p->foot_c, &p->neck_w, &p->neck_d, &p->neck_h, &p->neck_c,
+            };
+            for (size_t i = 0; i < array_size(x); i++)  f[n++] = x[i];
+            for (int i = 0; i < 4; i++) {
+                f[n++] = &p->shell_uv[i];
+                f[n++] = &p->screen_uv[i];
+            }
+            break;
+        }
+        default: {
+            pcg_corkboard_params *p = &c->board;
+            float *x[] = { &p->w, &p->h, &p->t, &p->center_y, &p->standoff };
+            for (size_t i = 0; i < array_size(x); i++)  f[n++] = x[i];
+            for (int i = 0; i < 4; i++) {
+                f[n++] = &p->face_uv[i];
+                f[n++] = &p->rim_uv[i];
+            }
+            break;
+        }
+    }
+    f[n] = nullptr;
+}
+
+#define FURN_FIELDS_MAX 32
+
+static int furniture_bad_test(void)
+{
+    const float nonfinite[] = { INFINITY, -INFINITY, NAN };
+    struct furn_case c, bad;
+
+    for (int k = 0; k < FURN_NR; k++) {
+        furn_case_init(&c, k);
+
+        /* zeroed params */
+        bad = c;
+        memset(&bad.desk, 0, sizeof(bad) - offsetof(struct furn_case, desk));
+        if (!furn_fails(&bad))                                  return EXIT_FAILURE;
+
+        /* every float, infinite or NaN; and the first three, sizes all, negative */
+        float *fields[FURN_FIELDS_MAX];
+        bad = c;
+        furn_case_fields(&bad, fields);
+        for (size_t f = 0; fields[f]; f++) {
+            for (size_t i = 0; i < array_size(nonfinite); i++) {
+                bad = c;
+                *fields[f] = nonfinite[i];
+                if (!furn_fails(&bad)) {
+                    fprintf(stderr, "%s: field %zu = %f accepted\n", furn_name[k], f, nonfinite[i]);
+                    return EXIT_FAILURE;
+                }
+            }
+            bad = c;
+            *fields[f] = -0.1f;
+            if (f < 3 && !furn_fails(&bad))                     return EXIT_FAILURE;
+        }
+
+        for (size_t i = 0; i < array_size(bad_frames); i++) {
+            bad = c;
+            bad.frame = bad_frames[i];
+            if (!furn_fails(&bad))                              return EXIT_FAILURE;
+        }
+    }
+
+    /* fits */
+    furn_case_init(&c, FURN_DESK);
+    bad = c;
+    bad.desk.top_t = c.desk.h;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.desk.side_d = c.desk.d + 0.01f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.desk.side_w = c.desk.w * 0.5f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.desk.side_inset = -0.01f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+
+    furn_case_init(&c, FURN_CHAIR);
+    bad = c;
+    bad.chair.segments = 2;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.chair.seat_h = c.chair.seat_t + c.chair.base_h;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    /* more segments than a mesh holds, also where segments * 12 wraps a 32-bit size_t: the check says so */
+    const int many[] = { PCG_CYLINDER_SIDES_MAX + 1, 357913942 };
+    for (size_t k = 0; k < array_size(many); k++) {
+        bad = c;
+        bad.chair.segments = many[k];
+        cerr err = pcg_chair_check(&bad.chair, &(pcg_chair_site){ .frame = bad.frame });
+        if (!IS_CERR_CODE(err, CERR_TOO_LARGE))                 return EXIT_FAILURE;
+    }
+
+    furn_case_init(&c, FURN_MONITOR);
+    bad = c;
+    bad.monitor.bezel = c.monitor.h * 0.5f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.monitor.neck_h = c.monitor.foot_t;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.monitor.screen_off = 0.0f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.monitor.lift = -0.01f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+
+    furn_case_init(&c, FURN_CORKBOARD);
+    bad = c;
+    bad.board.center_y = c.board.h * 0.4f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+    bad = c;
+    bad.board.standoff = -0.01f;
+    if (!furn_fails(&bad))                                      return EXIT_FAILURE;
+
+    /* missing arguments */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(pcg_sink_new("furniture"), return EXIT_FAILURE);
+    pcg_ctx ctx = { .sink = sink, .palette = &furniture_palette, .frame = PCG_FRAME_IDENTITY };
+    furn_case_init(&c, FURN_DESK);
+    if (!failed_inval(_pcg_desk_emit(nullptr, &c.desk, &(pcg_desk_site){ .frame = c.frame })))  return EXIT_FAILURE;
+    if (!failed_inval(_pcg_desk_emit(&ctx, nullptr, &(pcg_desk_site){ .frame = c.frame })))     return EXIT_FAILURE;
+    if (!failed_inval(_pcg_desk_emit(&ctx, &c.desk, nullptr)))                                  return EXIT_FAILURE;
+    if (!failed_inval(_pcg_chair_emit(&ctx, nullptr, nullptr)))                                 return EXIT_FAILURE;
+    if (!failed_inval(_pcg_monitor_emit(&ctx, nullptr, nullptr)))                               return EXIT_FAILURE;
+    if (!failed_inval(_pcg_corkboard_emit(&ctx, nullptr, nullptr)))                             return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * Reference copies of the original furniture emitters, each in its own
+ * space: the desk, the chair and the corkboard face +z, the computer's
+ * screen too, with a texture density of 1 repeat per meter.
+ */
+static void ref_furn_face(struct mesh *m, vec3 c00, vec3 c10, vec3 c11, vec3 c01,
+                          float u0, float v0, float u1, float v1)
+{
+    prim_emit_opts opts = { .mesh = m };
+    vec2 t0[3] = { { u0, v0 }, { u0, v1 }, { u1, v0 } };
+    vec2 t1[3] = { { u0, v1 }, { u1, v1 }, { u1, v0 } };
+
+    opts.uv = t0;
+    _prim_emit_triangle3(c00, c01, c10, &opts);
+    opts.uv = t1;
+    _prim_emit_triangle3(c01, c11, c10, &opts);
+}
+
+static cerr ref_furn_box(struct mesh *m, vec3 lo, vec3 hi)
+{
+    CRES_RET_CERR(_prim_begin(36, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    float x0 = lo[0], y0 = lo[1], z0 = lo[2];
+    float x1 = hi[0], y1 = hi[1], z1 = hi[2];
+
+    ref_furn_face(m, (vec3){ x1, y0, z0 }, (vec3){ x1, y0, z1 }, (vec3){ x1, y1, z1 },
+                  (vec3){ x1, y1, z0 }, z0, y0, z1, y1);
+    ref_furn_face(m, (vec3){ x0, y0, z1 }, (vec3){ x0, y0, z0 }, (vec3){ x0, y1, z0 },
+                  (vec3){ x0, y1, z1 }, -z1, y0, -z0, y1);
+    ref_furn_face(m, (vec3){ x0, y1, z0 }, (vec3){ x1, y1, z0 }, (vec3){ x1, y1, z1 },
+                  (vec3){ x0, y1, z1 }, x0, z0, x1, z1);
+    ref_furn_face(m, (vec3){ x0, y0, z0 }, (vec3){ x0, y0, z1 }, (vec3){ x1, y0, z1 },
+                  (vec3){ x1, y0, z0 }, z0, x0, z1, x1);
+    ref_furn_face(m, (vec3){ x1, y0, z1 }, (vec3){ x0, y0, z1 }, (vec3){ x0, y1, z1 },
+                  (vec3){ x1, y1, z1 }, -x1, y0, -x0, y1);
+    ref_furn_face(m, (vec3){ x0, y0, z0 }, (vec3){ x1, y0, z0 }, (vec3){ x1, y1, z0 },
+                  (vec3){ x0, y1, z0 }, x0, y0, x1, y1);
+
+    return CERR_OK;
+}
+
+static cerr ref_furn_box_uv(struct mesh *m, vec3 lo, vec3 hi, float u0, float v0, float u1, float v1)
+{
+    CRES_RET_CERR(_prim_begin(36, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    float x0 = lo[0], y0 = lo[1], z0 = lo[2];
+    float x1 = hi[0], y1 = hi[1], z1 = hi[2];
+
+    ref_furn_face(m, (vec3){ x1, y0, z0 }, (vec3){ x1, y0, z1 }, (vec3){ x1, y1, z1 },
+                  (vec3){ x1, y1, z0 }, u0, v0, u1, v1);
+    ref_furn_face(m, (vec3){ x0, y0, z1 }, (vec3){ x0, y0, z0 }, (vec3){ x0, y1, z0 },
+                  (vec3){ x0, y1, z1 }, u0, v0, u1, v1);
+    ref_furn_face(m, (vec3){ x0, y1, z0 }, (vec3){ x1, y1, z0 }, (vec3){ x1, y1, z1 },
+                  (vec3){ x0, y1, z1 }, u0, v0, u1, v1);
+    ref_furn_face(m, (vec3){ x0, y0, z0 }, (vec3){ x0, y0, z1 }, (vec3){ x1, y0, z1 },
+                  (vec3){ x1, y0, z0 }, u0, v0, u1, v1);
+    ref_furn_face(m, (vec3){ x1, y0, z1 }, (vec3){ x0, y0, z1 }, (vec3){ x0, y1, z1 },
+                  (vec3){ x1, y1, z1 }, u0, v0, u1, v1);
+    ref_furn_face(m, (vec3){ x0, y0, z0 }, (vec3){ x1, y0, z0 }, (vec3){ x1, y1, z0 },
+                  (vec3){ x0, y1, z0 }, u0, v0, u1, v1);
+
+    return CERR_OK;
+}
+
+static cerr ref_furn_desk(struct mesh *m)
+{
+    CERR_RET_CERR(ref_furn_box(m, (vec3){ -0.75f, 0.66f, -0.35f }, (vec3){ 0.75f, 0.72f, 0.35f }));
+    CERR_RET_CERR(ref_furn_box(m, (vec3){ -0.73f, 0.0f, -0.31f }, (vec3){ -0.61f, 0.66f, 0.31f }));
+    return ref_furn_box(m, (vec3){ 0.61f, 0.0f, -0.31f }, (vec3){ 0.73f, 0.66f, 0.31f });
+}
+
+/* the chair's seat and back in @shell, its pedestal in @base */
+static cerr ref_furn_chair(struct mesh *shell, struct mesh *base)
+{
+    CERR_RET_CERR(ref_furn_box(shell, (vec3){ -0.22f, 0.42f, -0.20f }, (vec3){ 0.22f, 0.48f, 0.24f }));
+    CERR_RET_CERR(ref_furn_box(shell, (vec3){ -0.21f, 0.48f, -0.26f }, (vec3){ 0.21f, 0.88f, -0.20f }));
+    CERR_RET_CERR(_prim_emit_cylinder((vec3){ 0.0f, 0.05f, 0.0f }, 0.37f, 0.035f, 10,
+                                      &(prim_emit_opts){ .mesh = base, .tangents = true }));
+    return _prim_emit_cylinder((vec3){ 0.0f, 0.0f, 0.0f }, 0.05f, 0.24f, 10,
+                               &(prim_emit_opts){ .mesh = base, .tangents = true });
+}
+
+/* the computer's shell in @shell, its screen overlay in @screen */
+static cerr ref_furn_computer(struct mesh *shell, struct mesh *screen)
+{
+    CERR_RET_CERR(ref_furn_box_uv(shell, (vec3){ -0.11f, 0.0f, -0.10f }, (vec3){ 0.11f, 0.02f, 0.06f },
+                                  0.05f, 0.05f, 0.40f, 0.40f));
+    CERR_RET_CERR(ref_furn_box_uv(shell, (vec3){ -0.025f, 0.02f, -0.06f }, (vec3){ 0.025f, 0.14f, -0.02f },
+                                  0.05f, 0.05f, 0.40f, 0.40f));
+    CERR_RET_CERR(ref_furn_box_uv(shell, (vec3){ -0.27f, 0.10f, -0.045f }, (vec3){ 0.27f, 0.46f, 0.005f },
+                                  0.05f, 0.05f, 0.40f, 0.40f));
+    CRES_RET_CERR(_prim_begin(6, &(prim_emit_opts){ .mesh = screen, .tangents = true }));
+    ref_furn_face(screen, (vec3){ -0.245f, 0.125f, 0.008f }, (vec3){ 0.245f, 0.125f, 0.008f },
+                  (vec3){ 0.245f, 0.435f, 0.008f }, (vec3){ -0.245f, 0.435f, 0.008f },
+                  0.98f, 0.95f, 0.52f, 0.05f);
+
+    return CERR_OK;
+}
+
+/* the corkboard, centered on its origin, its back at z = 0 */
+static cerr ref_furn_corkboard(struct mesh *m)
+{
+    CRES_RET_CERR(_prim_begin(36, &(prim_emit_opts){ .mesh = m, .tangents = true }));
+
+    float x0 = -0.48f, x1 = 0.48f, y0 = -0.34f, y1 = 0.34f, z0 = 0.0f, z1 = 0.035f;
+
+    ref_furn_face(m, (vec3){ x0, y0, z1 }, (vec3){ x1, y0, z1 }, (vec3){ x1, y1, z1 },
+                  (vec3){ x0, y1, z1 }, 0.0f, 1.0f, 1.0f, 0.0f);
+    ref_furn_face(m, (vec3){ x1, y0, z0 }, (vec3){ x0, y0, z0 }, (vec3){ x0, y1, z0 },
+                  (vec3){ x1, y1, z0 }, 0.005f, 0.4f, 0.01f, 0.6f);
+    ref_furn_face(m, (vec3){ x1, y0, z1 }, (vec3){ x1, y0, z0 }, (vec3){ x1, y1, z0 },
+                  (vec3){ x1, y1, z1 }, 0.005f, 0.4f, 0.01f, 0.6f);
+    ref_furn_face(m, (vec3){ x0, y0, z0 }, (vec3){ x0, y0, z1 }, (vec3){ x0, y1, z1 },
+                  (vec3){ x0, y1, z0 }, 0.005f, 0.4f, 0.01f, 0.6f);
+    ref_furn_face(m, (vec3){ x0, y1, z1 }, (vec3){ x1, y1, z1 }, (vec3){ x1, y1, z0 },
+                  (vec3){ x0, y1, z0 }, 0.005f, 0.4f, 0.01f, 0.6f);
+    ref_furn_face(m, (vec3){ x0, y0, z0 }, (vec3){ x1, y0, z0 }, (vec3){ x1, y0, z1 },
+                  (vec3){ x0, y0, z1 }, 0.005f, 0.4f, 0.01f, 0.6f);
+
+    return CERR_OK;
+}
+
+/*
+ * @m's triangles turned over: the same corners on the same texture
+ * coordinates, wound the other way. The original corkboard and screen
+ * overlay wound their faces into the board and the panel, where culling
+ * hid them; the elements wind them out.
+ */
+static cresp(mesh) ref_turned_over(struct mesh *m)
+{
+    size_t nr = mesh_nr_vx(m);
+    LOCAL_SET(mesh_t, out) = CRES_RET_T(ref_new_checked(mesh, .name = "turned"), mesh);
+
+    CRES_RET_T(_prim_begin(nr, &(prim_emit_opts){ .mesh = out, .tangents = true }), mesh);
+    for (size_t v = 0; v + 2 < nr; v += 3) {
+        const float *p = &mesh_vx(m)[v * 3], *t = &mesh_tx(m)[v * 2];
+        vec2 uv[3] = { { t[0], t[1] }, { t[4], t[5] }, { t[2], t[3] } };
+
+        _prim_emit_triangle3((float *)&p[0], (float *)&p[6], (float *)&p[3],
+                             &(prim_emit_opts){ .mesh = out, .uv = uv });
+    }
+
+    return cresp_val(mesh, NOCU(out));
+}
+
+/* the furniture parity cases' finishes: each part in a bucket of its own */
+static const pcg_material furn_pedestal = { .name = "pedestal", .uv_mode = PCG_UV_METERS };
+
+static int furniture_parity_frame(const pcg_frame *frame)
+{
+    LOCAL_SET(mesh_t, desk) = CRES_RET(ref_new_checked(mesh, .name = "desk"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, chair) = CRES_RET(ref_new_checked(mesh, .name = "chair"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, pedestal) = CRES_RET(ref_new_checked(mesh, .name = "pedestal"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, computer) = CRES_RET(ref_new_checked(mesh, .name = "computer"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, overlay) = CRES_RET(ref_new_checked(mesh, .name = "overlay"), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, board) = CRES_RET(ref_new_checked(mesh, .name = "board"), return EXIT_FAILURE);
+    if (failed(ref_furn_desk(desk)) || failed(ref_furn_chair(chair, pedestal)) ||
+        failed(ref_furn_computer(computer, overlay)) || failed(ref_furn_corkboard(board)))
+        return EXIT_FAILURE;
+    LOCAL_SET(mesh_t, screen) = CRES_RET(ref_turned_over(overlay), return EXIT_FAILURE);
+    LOCAL_SET(mesh_t, cork) = CRES_RET(ref_turned_over(board), return EXIT_FAILURE);
+
+    struct furn_case c;
+    struct sink_walk w;
+
+    /* the desk: run-local meters */
+    furn_case_init(&c, FURN_DESK);
+    c.frame = *frame;
+    LOCAL_SET(pcg_sink, ds) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ds, &w) || w.nr != 1)                                            return EXIT_FAILURE;
+    if (!parity_check("desk", w.mesh[0], desk, frame, false, 1.0f))                     return EXIT_FAILURE;
+
+    /* the chair: its boxes in full, its pedestal in shape (meter charts on the cylinders) */
+    furn_case_init(&c, FURN_CHAIR);
+    c.frame = *frame;
+    c.chair.base.mat = &furn_pedestal;
+    LOCAL_SET(pcg_sink, cs) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(cs, &w) || w.nr != 2)                                                    return EXIT_FAILURE;
+    if (!parity_check("chair", walk_mesh(&w, &furn_plastic), chair, frame, false, 1.0f))        return EXIT_FAILURE;
+    if (!parity_check_shape("chair pedestal", walk_mesh(&w, &furn_pedestal), pedestal, frame))  return EXIT_FAILURE;
+
+    /* the monitor: its shell on the atlas cell, the screen over the screen cell, facing out */
+    furn_case_init(&c, FURN_MONITOR);
+    c.frame = *frame;
+    c.monitor.screen.mat = &decal;
+    LOCAL_SET(pcg_sink, ms) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(ms, &w) || w.nr != 2)                                                return EXIT_FAILURE;
+    if (!parity_check("monitor", walk_mesh(&w, &furn_atlas), computer, frame, false, 1.0f)) return EXIT_FAILURE;
+    if (!parity_check("monitor screen", walk_mesh(&w, &decal), screen, frame, false, 1.0f)) return EXIT_FAILURE;
+
+    /* the corkboard, from the wall's foot: the original's origin is the board's center on the wall */
+    furn_case_init(&c, FURN_CORKBOARD);
+    c.frame = *frame;
+    LOCAL_SET(pcg_sink, bs) = CRES_RET(element_sink(furn_case_emit, &c, &furniture_palette, &PCG_FRAME_IDENTITY),
+                                       return EXIT_FAILURE);
+    if (!sink_walk_get(bs, &w) || w.nr != 1)                                            return EXIT_FAILURE;
+    const pcg_frame hang = { .org = { 0.0f, c.board.center_y, c.board.standoff }, .dir = { 1.0f, 0.0f } };
+    pcg_frame at;
+    pcg_frame_compose(frame, &hang, &at);
+    if (!parity_check("corkboard", w.mesh[0], cork, &at, false, 1.0f))  return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+static int furniture_parity_test(void)
+{
+    pcg_frame f;
+
+    if (furniture_parity_frame(&PCG_FRAME_IDENTITY))    return EXIT_FAILURE;
+
+    /* a wall's yaw, off the origin, and the desk top's height */
+    test_frame(&f, 2.4f, false, 37.0f, 18.05f, -21.0f);
+    if (furniture_parity_frame(&f))                     return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "frame point", .test = frame_point_test },
     { .name = "frame compose", .test = frame_compose_test },
@@ -9870,6 +10493,10 @@ static const struct test tests[] = {
     { .name = "atrium", .test = atrium_test },
     { .name = "atrium headroom", .test = atrium_headroom_test },
     { .name = "atrium bad input", .test = atrium_bad_test },
+    { .name = "furniture", .test = furniture_test },
+    { .name = "furniture surfaces", .test = furniture_surface_test },
+    { .name = "furniture bad input", .test = furniture_bad_test },
+    { .name = "furniture parity", .test = furniture_parity_test },
 };
 
 int main(int argc, char **argv, char **envp)

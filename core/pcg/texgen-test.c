@@ -90,6 +90,11 @@ static const pcg_texgen_glow_grid_opts glow_opts = {
     .lit_var = 0.2f, .unlit = 0.04f, .seed = 0x51,
 };
 
+static const pcg_texgen_monitor_opts monitor_opts = {
+    .size = 64, .shell = { 0.88f, 0.87f, 0.83f }, .screen = { 0.07f, 0.10f, 0.12f },
+    .glow = { 0.35f, 0.55f, 0.60f }, .grain = 0.08f, .ramp = 2.5f, .seed = 0xa781,
+};
+
 static int texgen_formats_test(void)
 {
     pcg_texgen_surface_opts so = surface_opts;
@@ -137,6 +142,29 @@ static int texgen_formats_test(void)
     for (size_t t = 0; t < 8 * 8; t++)
         if (px[t * 3] != 255 || px[t * 3 + 1] != (uchar)(0.55f * 255.0f) || px[t * 3 + 2] != (uchar)(0.22f * 255.0f))
             return EXIT_FAILURE;
+
+    LOCAL_SET_EXACT(pcg_texgen_maps, monitor) = CRES_RET(pcg_texgen_monitor(&monitor_opts), return EXIT_FAILURE);
+    if (!canvas_is(monitor.albedo, TEX_FMT_RGBA8, 64, 64) || monitor.normal)    return EXIT_FAILURE;
+
+    LOCAL_SET(canvas, mglow) = CRES_RET(pcg_texgen_monitor_glow(&monitor_opts), return EXIT_FAILURE);
+    if (!canvas_is(mglow, TEX_FMT_RGB8, 64, 64))            return EXIT_FAILURE;
+
+    /*
+     * The shell half is pale and dark, the screen half is the flat screen
+     * colour and glows brightest in its middle, fading toward its edges
+     */
+    px = canvas_data(monitor.albedo);
+    uchar *gx = canvas_data(mglow);
+    for (int y = 0; y < 64; y++)
+        for (int x = 0; x < 64; x++) {
+            const uchar *a = &px[(y * 64 + x) * 4], *g = &gx[(y * 64 + x) * 3];
+
+            if (a[3] != 255)                                    return EXIT_FAILURE;
+            if (x < 32 && (a[0] < 200 || g[0] || g[1] || g[2])) return EXIT_FAILURE;
+            if (x >= 32 && a[0] != (uchar)(0.07f * 255.0f))     return EXIT_FAILURE;
+        }
+    const uchar *mid = &gx[(32 * 64 + 47) * 3], *edge = &gx[(32 * 64 + 63) * 3], *top = &gx[(0 * 64 + 47) * 3];
+    if (mid[1] != (uchar)(0.55f * 255.0f) || edge[1] >= mid[1] || top[1] >= mid[1])     return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
@@ -200,6 +228,12 @@ static int texgen_seed_test(void)
     pcg_texgen_glow_grid_opts go = glow_opts, go2 = glow_opts;
     go2.seed++;
     if (!seed_check_canvas(pcg_texgen_glow_grid(&go), pcg_texgen_glow_grid(&go), pcg_texgen_glow_grid(&go2)))
+        return EXIT_FAILURE;
+
+    /* the shell's grain follows the seed; the glow has none to follow */
+    pcg_texgen_monitor_opts mo = monitor_opts, mo2 = monitor_opts;
+    mo2.seed++;
+    if (!seed_check_albedo(pcg_texgen_monitor(&mo), pcg_texgen_monitor(&mo), pcg_texgen_monitor(&mo2)))
         return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
@@ -278,6 +312,19 @@ static int texgen_invalid_test(void)
     if (!invalid_canvas(pcg_texgen_glow_grid(&go))) return EXIT_FAILURE;
 
     if (!invalid_canvas(pcg_texgen_flat(&(pcg_texgen_flat_opts){ .size = 0 }))) return EXIT_FAILURE;
+
+    if (!invalid_maps(pcg_texgen_monitor(nullptr)))         return EXIT_FAILURE;
+    if (!invalid_canvas(pcg_texgen_monitor_glow(nullptr)))  return EXIT_FAILURE;
+    pcg_texgen_monitor_opts bad[] = { monitor_opts, monitor_opts, monitor_opts, monitor_opts, monitor_opts };
+    bad[0].size = 4;
+    bad[1].grain = -0.1f;
+    bad[2].grain = NAN;
+    bad[3].ramp = 0.0f;
+    bad[4].ramp = INFINITY;
+    for (size_t i = 0; i < array_size(bad); i++) {
+        if (!invalid_maps(pcg_texgen_monitor(&bad[i])))         return EXIT_FAILURE;
+        if (!invalid_canvas(pcg_texgen_monitor_glow(&bad[i])))  return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }
@@ -384,6 +431,10 @@ static void recipe_colours(const pcg_recipe *r, vec3 lo, vec3 hi)
         case PCG_TEXGEN_CARPET:
             range_add(lo, hi, r->carpet.base);
             range_add(lo, hi, r->carpet.accent);
+            break;
+        case PCG_TEXGEN_MONITOR:
+            range_add(lo, hi, r->monitor.shell);
+            range_add(lo, hi, r->monitor.screen);
             break;
         case PCG_TEXGEN_CORK:
             range_add(lo, hi, r->cork.base);
