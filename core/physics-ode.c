@@ -518,6 +518,12 @@ __phys_ray_cast(struct phys *phys, entity3d *e, const vec3 start, const vec3 dir
     vec3 _start;
     bool check_self = entity3d_matches(e, ENTITY3D_HAS_PHYSICS);
 
+    /* a degenerate start or direction (from a broken pose, say) hits nothing */
+    if (!vec3_all_finite(start) || !vec3_all_finite(dir) || !vec3_len(dir) || !isfinite(*pdist)) {
+        warn_once("%s: ray cast with no valid origin or direction\n", entity_name(e));
+        return nullptr;
+    }
+
     vec3_dup(_start, start);
     ray = dCreateRay(phys->space, *pdist);
     dGeomRaySetFirstContact(ray, 0);
