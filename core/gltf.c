@@ -698,8 +698,10 @@ int gltf_mesh_skin(struct gltf_data *gd, int mesh)
     if (!gltf_has_joints(gd, mesh) || !gltf_has_weights(gd, mesh))
         return -1;
 
+    /* nodes reference the JSON mesh, that is, the primitive's group */
+    int group = DA(gd->meshes, mesh)->group;
     for (i = 0; i < gd->nodes.da.nr_el; i++)
-        if (DA(gd->nodes, i)->mesh == mesh && DA(gd->nodes, i)->skin >= 0)
+        if (DA(gd->nodes, i)->mesh == group && DA(gd->nodes, i)->skin >= 0)
             return DA(gd->nodes, i)->skin;
     return -1;
 }
