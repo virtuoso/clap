@@ -2264,6 +2264,63 @@ static int shape_box_test(void)
     return EXIT_SUCCESS;
 }
 
+static const vec4 box_rect = { 0.05f, 0.1f, 0.4f, 0.35f };
+
+static cerr box_rect_emit(const pcg_ctx *ctx, const void *priv)
+{
+    const pcg_surface *s = priv;
+
+    return pcg_box(ctx, .lo = { box_lo[0], box_lo[1], box_lo[2] }, .hi = { box_hi[0], box_hi[1], box_hi[2] },
+                   .face = PCG_BOX_ALL(s), .uv_rect = box_rect);
+}
+
+static int shape_box_rect_test(void)
+{
+    const pcg_surface s = { .mat = &decal };
+
+    /* the core box over one rectangle, corner for corner */
+    LOCAL_SET(pcg_sink, sink) = CRES_RET(element_sink(box_rect_emit, &s, nullptr, &PCG_FRAME_IDENTITY),
+                                         return EXIT_FAILURE);
+    struct sink_walk w;
+    if (!sink_walk_get(sink, &w) || w.nr != 1)                          return EXIT_FAILURE;
+
+    LOCAL_SET(mesh_t, ref) = CRES_RET(ref_new_checked(mesh, .name = "ref"), return EXIT_FAILURE);
+    const prim_box core = {
+        .dir = { 1.0f, 0.0f }, .uv_rect = box_rect,
+        .lo = { box_lo[0], box_lo[1], box_lo[2] }, .hi = { box_hi[0], box_hi[1], box_hi[2] },
+    };
+    if (failed(prim_emit_box(&core, .mesh = ref, .tangents = true)))    return EXIT_FAILURE;
+    if (!mesh_same_vx(w.mesh[0], ref, 0.0f, 0.0f))                      return EXIT_FAILURE;
+    if (!mesh_tangents_ok(w.mesh[0]))                                   return EXIT_FAILURE;
+
+    /* placed by a frame, the same box turned with it, on the same rectangle */
+    pcg_frame f;
+    test_frame(&f, 2.2f, false, -4.0f, 1.5f, 6.0f);
+    LOCAL_SET(pcg_sink, ys) = CRES_RET(element_sink(box_rect_emit, &s, nullptr, &f), return EXIT_FAILURE);
+    if (!sink_walk_get(ys, &w) || w.nr != 1)                            return EXIT_FAILURE;
+    if (!parity_check("box rect", w.mesh[0], ref, &f, false, 1.0f))     return EXIT_FAILURE;
+
+    /* closed and outward under any frame */
+    if (!element_frames_ok(box_rect_emit, &s, nullptr, true))           return EXIT_FAILURE;
+
+    /* a meter material doesn't take a rectangle; a rectangle that isn't finite is an error */
+    LOCAL_SET(pcg_sink, bs) = CRES_RET(pcg_sink_new("box"), return EXIT_FAILURE);
+    pcg_ctx bc = { .sink = bs, .frame = PCG_FRAME_IDENTITY };
+    const pcg_surface m = { .mat = &concrete };
+    if (!failed(box_rect_emit(&bc, &m)))                                return EXIT_FAILURE;
+    for (int k = 0; k < 4; k++) {
+        vec4 bad = { 0.0f, 0.0f, 1.0f, 1.0f };
+
+        bad[k] = NAN;
+        if (!failed_inval(pcg_box(&bc, .lo = { 0.0f, 0.0f, 0.0f }, .hi = { 1.0f, 1.0f, 1.0f },
+                                  .face = PCG_BOX_ALL(&s), .uv_rect = bad)))
+            return EXIT_FAILURE;
+    }
+    if (!sink_walk_get(bs, &w) || w.nr)                                 return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static int shape_box_faces_test(void)
 {
     /* a surface per face: six buckets of one face each */
@@ -9648,6 +9705,7 @@ static const struct test tests[] = {
     { .name = "shape frames", .test = shape_frame_test },
     { .name = "shape box", .test = shape_box_test },
     { .name = "shape box faces", .test = shape_box_faces_test },
+    { .name = "shape box rect", .test = shape_box_rect_test },
     { .name = "shape cylinder", .test = shape_cylinder_test },
     { .name = "slab", .test = slab_test },
     { .name = "slab surfaces", .test = slab_surface_test },
