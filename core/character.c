@@ -13,7 +13,8 @@
  * The head follows a point of interest: the look-at pose class on an
  * overlay masked to the head's subtree, over whatever the body plays.
  * One configuration for every model with a head joint: the joint is
- * resolved by type, the axes come from the bind pose.
+ * resolved by type, the axes come from the bind pose. A model whose data
+ * defines its own (the scene's "look") plays that instead.
  */
 /** CHARACTER_LOOK_LAYER - the overlay the head looks around on */
 #define CHARACTER_LOOK_LAYER    1
@@ -22,7 +23,7 @@
 /** CHARACTER_LOOK_HEAD - of the other's height above its center: the face */
 #define CHARACTER_LOOK_HEAD     0.35f
 
-static const lookat_config character_look_cfg = {
+const lookat_config character_look_cfg = {
     .joint      = -1,
     .joint_type = JOINT_HEAD,
     .yaw_max    = 1.2,
@@ -40,8 +41,10 @@ static void character_look_start(struct character *ch)
     if (IS_CERR(head))  return;
 
     animator_t *a = entity3d_animator(e);
-    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(m), &lookat_pose_ops, &character_look_cfg),
-                          return);
+    anim_lib_t *lib = model3d_anim_lib(m);
+    cres(anim_t) own = anim_lib_pose_find(lib, &lookat_pose_ops);
+    anim_t ani = IS_CERR(own) ? CRES_RET(anim_lib_pose(lib, &lookat_pose_ops, &character_look_cfg), return) :
+                                own.val;
 
     ch->look.target.none = true;
     CERR_RET(animator_bind(a, ani, &ch->look), return);

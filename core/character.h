@@ -71,6 +71,12 @@ struct character {
     bool     plant_off;
 };
 
+/*
+ * The head's look-at for a model whose data doesn't define one; the
+ * scene's "look" overrides fields of it
+ */
+extern const lookat_config character_look_cfg;
+
 DEFINE_REFCLASS_INIT_OPTIONS(character,
     model3dtx       *txmodel;
     struct scene    *scene;

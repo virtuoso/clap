@@ -1931,6 +1931,28 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         }
     }
 
+    /*
+     * "look": { "yaw_max": <radians> | false, "pitch_max": ..., "slew": <rad/s> }
+     * defines the head's look-at on the model over the characters' default
+     * (character_look_cfg); false locks the turn: "yaw_max": false makes
+     * a head that only nods.
+     */
+    JsonNode *look = json_find_member(node, "look");
+    if (look && look->tag == JSON_OBJECT) {
+        lookat_config cfg = character_look_cfg;
+
+        for (p = look->children.head; p; p = p->next) {
+            if (!strcmp(p->key, "yaw_max") && p->tag == JSON_NUMBER)            cfg.yaw_max = p->number_;
+            else if (!strcmp(p->key, "yaw_max") && p->tag == JSON_BOOL)         cfg.no_yaw = !p->bool_;
+            else if (!strcmp(p->key, "pitch_max") && p->tag == JSON_NUMBER)     cfg.pitch_max = p->number_;
+            else if (!strcmp(p->key, "pitch_max") && p->tag == JSON_BOOL)       cfg.no_pitch = !p->bool_;
+            else if (!strcmp(p->key, "slew") && p->tag == JSON_NUMBER)          cfg.slew = p->number_;
+        }
+
+        CRES_RET(anim_lib_pose_copy(model3d_anim_lib(model), &lookat_pose_ops, &cfg, sizeof(cfg)),
+                 warn("%s: no look of its own, the default stands\n", name));
+    }
+
     if (sfx)
         for (p = sfx->children.head; p; p = p->next)
             sfx_add_from_json(&txm->model->sfxc, clap_get_sound(scene->clap_ctx), p);
