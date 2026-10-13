@@ -23,6 +23,8 @@ void anim_lib_done(anim_lib_t *lib)
     darray_for_each(def, lib->defs)
         if (def->kind == ANIM_SEQ)
             darray_clearout(def->seq.elems);
+        else if (def->kind == ANIM_POSE && def->pose.owned)
+            mem_free((void *)def->pose.cfg);
     darray_clearout(lib->defs);
     darray_clearout(lib->transitions);
 }
@@ -93,6 +95,36 @@ cres(anim_t) anim_lib_pose(anim_lib_t *lib, const anim_pose_ops *ops, const void
     anim_lib_def(lib, ani)->pose.cfg = cfg;
 
     return cres_val(anim_t, ani);
+}
+
+cres(anim_t) anim_lib_pose_copy(anim_lib_t *lib, const anim_pose_ops *ops, const void *cfg,
+                                size_t size)
+{
+    if (!ops || !ops->eval || !cfg || !size)    return cres_error(anim_t, CERR_INVALID_ARGUMENTS);
+
+    LOCAL_SET(void, copy) = mem_alloc(size);
+    if (!copy)  return cres_error(anim_t, CERR_NOMEM);
+
+    memcpy(copy, cfg, size);
+
+    anim_t ani = CRES_RET_SCALAR(def_add(lib, ANIM_POSE), anim_t);
+    struct anim_def *def = anim_lib_def(lib, ani);
+
+    def->pose.ops = ops;
+    def->pose.cfg = NOCU(copy);
+    def->pose.owned = true;
+
+    return cres_val(anim_t, ani);
+}
+
+cres(anim_t) anim_lib_pose_find(anim_lib_t *lib, const anim_pose_ops *ops)
+{
+    struct anim_def *def;
+
+    darray_for_each(def, lib->defs)
+        if (def->kind == ANIM_POSE && def->pose.ops == ops) return cres_val(anim_t, (anim_t)(def - lib->defs.x));
+
+    return cres_error(anim_t, CERR_NOT_FOUND);
 }
 
 cres(anim_t) anim_lib_seq_make(anim_lib_t *lib)

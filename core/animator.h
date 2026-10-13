@@ -213,6 +213,34 @@ cres(anim_t) anim_lib_hold(anim_lib_t *lib, double seconds);
 cres(anim_t) anim_lib_pose(anim_lib_t *lib, const anim_pose_ops *ops, const void *cfg);
 
 /**
+ * anim_lib_pose_copy() - define a procedural pose class over a copy of its cfg
+ * @lib:    the library
+ * @ops:    the class
+ * @cfg:    its model-level configuration
+ * @size:   @cfg's size
+ *
+ * Like anim_lib_pose(), but the library keeps a copy of @cfg for as long
+ * as it lives: for a configuration built at load time from the model's
+ * data, which nothing else would keep. Every call is a new handle; find it
+ * again with anim_lib_pose_find().
+ * Return: the handle, CERR_INVALID_ARGUMENTS (no eval or no @cfg) or
+ * CERR_NOMEM
+ */
+cres(anim_t) anim_lib_pose_copy(anim_lib_t *lib, const anim_pose_ops *ops, const void *cfg,
+                                size_t size);
+
+/**
+ * anim_lib_pose_find() - the library's definition of a procedural pose class
+ * @lib:    the library
+ * @ops:    the class
+ *
+ * For a model whose data defines a class (anim_lib_pose_copy()) and code
+ * that plays it without knowing the configuration.
+ * Return: the first handle of @ops, or CERR_NOT_FOUND
+ */
+cres(anim_t) anim_lib_pose_find(anim_lib_t *lib, const anim_pose_ops *ops);
+
+/**
  * anim_lib_seq_make() - define an empty sequence
  * @lib:    the library
  *
