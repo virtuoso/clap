@@ -1263,8 +1263,10 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
             shader_set_var_int(prog, UNIFORM_COLOR_PASSTHROUGH, e->color_pt);
 
             if (model->nr_joints) {
+                entity3d *pose = entity3d_matches(e, ENTITY3D_PARENT_POSE) ? e->parent : e;
+
                 shader_set_var_int(prog, UNIFORM_USE_SKINNING, 1);
-                shader_set_var_ptr(prog, UNIFORM_JOINT_TRANSFORMS, model->nr_joints, e->joint_transforms);
+                shader_set_var_ptr(prog, UNIFORM_JOINT_TRANSFORMS, model->nr_joints, pose->joint_transforms);
             } else {
                 shader_set_var_int(prog, UNIFORM_USE_SKINNING, 0);
             }
@@ -1827,7 +1829,7 @@ static int default_update(entity3d *e, void *data)
         phys_body_update(e);
 
     /* the procedural rigs place the body as they pose it: before its matrix */
-    if (scene)  animator_update(&e->animator, scene);
+    if (scene && !entity3d_matches(e, ENTITY3D_PARENT_POSE))    animator_update(&e->animator, scene);
 
     if (!parent_transform_apply(e) && transform_is_updated(&e->xform)) {
         transform_clear_updated(&e->xform);

@@ -406,6 +406,10 @@ static inline const char *txmodel_name(model3dtx *txm)
  *                          should not roam)
  * @ENTITY3D_CONTACT_EVENTS: the physics step reports what the entity's body
  *                          and limbs touch (animator_set_contact_callback())
+ * @ENTITY3D_PARENT_POSE:   entity is skinned with its parent's skin: it draws
+ *                          with the parent's joint transforms and runs no
+ *                          animator of its own (another primitive of the
+ *                          same skinned mesh)
  * @ENTITY3D_ALIVE:         entity is alive and functional
  * @ENTITY3D_ANY:           matches any entity
  */
@@ -429,6 +433,7 @@ typedef enum entity3d_flags {
     ENTITY3D_NM_HAZARD      = 1u << 16,
     ENTITY3D_NM_SKIP        = 1u << 17,
     ENTITY3D_CONTACT_EVENTS = 1u << 18,
+    ENTITY3D_PARENT_POSE    = 1u << 19,
     ENTITY3D_ALIVE          = 1u << 31,
     ENTITY3D_ANY            = ~0u,
 } entity3d_flags;
