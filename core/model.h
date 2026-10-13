@@ -409,7 +409,7 @@ static inline const char *txmodel_name(model3dtx *txm)
  * @ENTITY3D_PARENT_POSE:   entity is skinned with its parent's skin: it draws
  *                          with the parent's joint transforms and runs no
  *                          animator of its own (another primitive of the
- *                          same skinned mesh)
+ *                          same skinned mesh, or a part of a multi-mesh rig)
  * @ENTITY3D_ALIVE:         entity is alive and functional
  * @ENTITY3D_ANY:           matches any entity
  */

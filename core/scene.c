@@ -1658,25 +1658,25 @@ static bool prim_skinned_with(struct gltf_data *gd, int prim, int skin)
  * primitive.
  *
  * A child skinned with the parent's skin (another primitive of the same
- * skinned mesh) draws with the parent's pose: the parent's animator moves
- * the whole thing.
+ * skinned mesh, or a part of a multi-mesh rig) draws with the parent's
+ * pose: the parent's animator moves the whole thing.
  */
 static void scene_spawn_prim_children(struct scene *scene, entity3d *e, struct gltf_data *gd,
-                                      model3dtx **prim_txms, int prim_first, int prim_count,
+                                      model3dtx **prim_txms, const int *prims, int prim_count,
                                       bool add_phys)
 {
-    cres(int) skin = gltf_mesh_skin(gd, prim_first);
+    cres(int) skin = gltf_mesh_skin(gd, prims[0]);
 
     for (int sp = 1; sp < prim_count; sp++) {
         entity3d *child = ref_new(entity3d, .txmodel = prim_txms[sp]);
 
         child->parent = e;
-        if (gltf_mesh_fallback(gd, prim_first + sp)) {
+        if (gltf_mesh_fallback(gd, prims[sp])) {
             entity3d_clear(child, ENTITY3D_VISIBLE);
             continue;
         }
 
-        if (!IS_CERR(skin) && prim_skinned_with(gd, prim_first + sp, skin.val) && e->joints) {
+        if (!IS_CERR(skin) && prim_skinned_with(gd, prims[sp], skin.val) && e->joints) {
             entity3d_set(child, ENTITY3D_PARENT_POSE, nullptr);
             /* the pose carries it outside its bind pose bounds, as it does the parent */
             if (entity3d_matches(e, ENTITY3D_SKIP_CULLING)) entity3d_set(child, ENTITY3D_SKIP_CULLING, nullptr);
@@ -1808,11 +1808,31 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         }
     }
 
-    int prim_first = CRES_RET_CERR(gltf_group_first(gd, primary_group));
+    /*
+     * The primitives to instantiate, the parent's first: the primary group's,
+     * and, when the root node is a bare armature (no mesh of its own), every
+     * other group skinned with the same skin. A rig built of several meshes,
+     * one node each, is one model: those are its parts.
+     */
+    LOCAL_SET(int, prims) = mem_alloc(sizeof(*prims), .nr = gltf_get_meshes(gd), .fatal_fail = 1);
     int prim_count = CRES_RET_CERR(gltf_group_count(gd, primary_group));
-    for (int p = 0; p < prim_count; p++) {
-        CERR_RET_CERR(gltf_instantiate_one(gd, prim_first + p));
+    int prim_first = CRES_RET_CERR(gltf_group_first(gd, primary_group));
+    cres(int) rig_skin = gltf_root_mesh(gd) < 0 ? gltf_mesh_skin(gd, prim_first) : cres_error(int, CERR_NOT_FOUND);
+    bool rig = !IS_CERR(rig_skin);
+
+    for (int p = 0; p < prim_count; p++)    prims[p] = prim_first + p;
+
+    for (int g = 0; rig && g < gltf_get_mesh_groups(gd); g++) {
+        if (g == primary_group)     continue;
+
+        int first = CRES_RET(gltf_group_first(gd, g), continue);
+        if (!prim_skinned_with(gd, first, rig_skin.val))    continue;
+
+        int count = CRES_RET_CERR(gltf_group_count(gd, g));
+        for (int p = 0; p < count; p++)     prims[prim_count++] = first + p;
     }
+
+    for (int p = 0; p < prim_count; p++)    CERR_RET_CERR(gltf_instantiate_one(gd, prims[p]));
 
     /*
      * Walk back from mq's tail to recover the txms we just added: the
@@ -1829,6 +1849,17 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         }
     }
     txm = prim_txms[0];
+
+    /*
+     * The rig's parts make one body: the parent's bounds take them all in,
+     * for the culling and the collider sizing that read them.
+     */
+    for (int p = 1; rig && p < prim_count; p++) {
+        model3d *part = prim_txms[p]->model;
+
+        vec3_min(txm->model->aabb[0], txm->model->aabb[0], part->aabb[0]);
+        vec3_max(txm->model->aabb[1], txm->model->aabb[1], part->aabb[1]);
+    }
 
     auto n3d = clap_get_noise3d(scene->clap_ctx);
     for (int p = 0; p < prim_count; p++) {
@@ -2079,7 +2110,7 @@ light_done:
             }
 
             /* a character's parts move with it: no static colliders left at the spawn point */
-            scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, !!phys && !c);
+            scene_spawn_prim_children(scene, e, gd, prim_txms, prims, prim_count, !!phys && !c);
 
             if (entity_animated(e)) {
                 for (p = anis ? anis->children.head : nullptr; p; p = p->next) {
@@ -2204,7 +2235,7 @@ light_done:
                 scene_entity_add_physics(scene, e, n_mass, n_class, n_ptype, n_off,
                                          n_radius, n_length, n_bounce, n_bv);
 
-            scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, n_phys);
+            scene_spawn_prim_children(scene, e, gd, prim_txms, prims, prim_count, n_phys);
 
             spawned++;
         }
@@ -2224,7 +2255,7 @@ light_done:
                         scene_entity_add_physics(scene, e, mass, class, ptype, geom_off,
                                                  geom_radius, geom_length, bounce, bounce_vel);
 
-                    scene_spawn_prim_children(scene, e, gd, prim_txms, prim_first, prim_count, !!phys);
+                    scene_spawn_prim_children(scene, e, gd, prim_txms, prims, prim_count, !!phys);
                 }
             }
         }
