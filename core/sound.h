@@ -329,6 +329,122 @@ bool synth_is_playing(synth *synth);
  */
 void synth_set_effect_chain(synth *synth, sound_effect_chain *chain);
 
+/**
+ * synth_get_config() - the patch a synth is playing
+ * @synth:  synth to read
+ *
+ * Return: the patch with every change a setter below has made; the audio
+ * thread picks a change up at its next chunk
+ */
+const synth_config *synth_get_config(synth *synth);
+
+/*
+ * Patch setters, usable while the synth plays. A setter checks the patch it
+ * wants whole and hands it to the audio thread through a triple buffer: the
+ * audio thread takes the latest one at its next chunk, all of its fields at
+ * once, and neither thread waits for the other. A setter that rejects its
+ * argument leaves the synth playing what it played before.
+ *
+ * What cannot change on a live synth is fixed at creation: the number of
+ * oscillators and their waveforms, the note sequence and the callback.
+ */
+
+/**
+ * synth_set_gain() - set the output gain
+ * @synth:  synth to change
+ * @gain:   linear gain, >= 0.0
+ *
+ * Takes effect within a chunk.
+ *
+ * Return: CERR_INVALID_ARGUMENTS on a gain that is negative or not finite
+ */
+cerr synth_set_gain(synth *synth, float gain);
+
+/**
+ * synth_set_gate() - set the fraction of a note held before the release
+ * @synth:  synth to change
+ * @gate:   fraction in (0.0, 1.0]
+ *
+ * Applies from the next note on.
+ *
+ * Return: CERR_INVALID_ARGUMENTS if a sequenced synth is given a gate outside
+ * the range
+ */
+cerr synth_set_gate(synth *synth, float gate);
+
+/**
+ * synth_set_loop() - wrap the note sequence around, or let it end
+ * @synth:  synth to change
+ * @loop:   true to wrap
+ *
+ * Read when the sequence runs out, so clearing it while the last pass plays
+ * lets that pass finish and stops there.
+ */
+void synth_set_loop(synth *synth, bool loop);
+
+/**
+ * synth_set_category() - set the master volume the synth follows
+ * @synth:      synth to change
+ * @category:   volume bucket
+ *
+ * Takes effect within a chunk.
+ *
+ * Return: CERR_INVALID_ARGUMENTS on an unknown category
+ */
+cerr synth_set_category(synth *synth, sound_category category);
+
+/**
+ * synth_set_filter() - set the lowpass cutoff, resonance and envelope amount
+ * @synth:  synth to change
+ * @filter: replacement filter configuration
+ *
+ * The coefficients are recomputed on the next chunk boundary, so a cutoff can
+ * be swept from the main thread.
+ *
+ * Return: CERR_INVALID_ARGUMENTS on a cutoff outside the filter's range or a
+ * resonance that is not positive
+ */
+cerr synth_set_filter(synth *synth, const synth_filter_config *filter);
+
+/**
+ * synth_set_amp_env() - set the amplitude envelope
+ * @synth:  synth to change
+ * @env:    replacement envelope
+ *
+ * The envelope in flight keeps its stage; the new timings apply from the next
+ * stage change on. A sustain raised above the level of a decaying envelope
+ * holds that level instead of jumping up to it.
+ *
+ * Return: CERR_INVALID_ARGUMENTS on a negative time or a sustain outside [0, 1]
+ */
+cerr synth_set_amp_env(synth *synth, const synth_envelope_config *env);
+
+/**
+ * synth_set_filter_env() - set the cutoff envelope
+ * @synth:  synth to change
+ * @env:    replacement envelope
+ *
+ * As synth_set_amp_env(), for the envelope on the filter cutoff.
+ */
+cerr synth_set_filter_env(synth *synth, const synth_envelope_config *env);
+
+/**
+ * synth_set_oscillator() - set one oscillator's frequency, detune and gain
+ * @synth:  synth to change
+ * @idx:    oscillator index, below synth_config::nr_oscillators
+ * @osc:    replacement oscillator configuration
+ *
+ * The waveform must be the one the oscillator already has: the two kinds of
+ * generator are different objects, and swapping one under the audio thread
+ * would mean re-initialising it there. The base frequency reaches an unpitched
+ * patch at the next chunk; where notes supply the pitch, it and the detune
+ * arrive with the next note.
+ *
+ * Return: CERR_INVALID_ARGUMENTS on a bad index or value, CERR_INVALID_OPERATION
+ * on a waveform change.
+ */
+cerr synth_set_oscillator(synth *synth, unsigned int idx, const synth_oscillator_config *osc);
+
 /** SYNTH_TUNING_A440 - concert pitch: A4 at 440 Hz */
 #define SYNTH_TUNING_A440 440.0f
 

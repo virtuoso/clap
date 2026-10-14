@@ -80,18 +80,19 @@ typedef enum synth_env_stage {
 
 /**
  * struct synth_envelope - ADSR envelope state
- * @config:         timings and sustain level
+ * @config:         timings and sustain level; borrowed from synth::config, so a
+ *                  patch the audio thread takes reaches the envelope
  * @level:          current output, [0.0, 1.0]
  * @step:           per-frame level change in the current stage
  * @stage:          current stage
  * @sample_rate:    frames per second, turns the config's ms into steps
  */
 typedef struct synth_envelope {
-    synth_envelope_config   config;
-    float                   level;
-    float                   step;
-    synth_env_stage         stage;
-    unsigned int            sample_rate;
+    const synth_envelope_config *config;
+    float                       level;
+    float                       step;
+    synth_env_stage             stage;
+    unsigned int                sample_rate;
 } synth_envelope;
 
 /* An oscillator: a periodic waveform or a noise generator, per its config */
@@ -104,7 +105,10 @@ typedef union synth_osc {
  * struct synth - subtractive synth node
  * @node:           miniaudio node: a source with one output bus; must be first
  * @ctx:            sound context
- * @config:         patch, copied at creation
+ * @config:         patch the audio thread renders from: its copy of the latest
+ *                  one taken from @patches
+ * @patch:          patch as the setters leave it; main thread only
+ * @patches:        triple buffer that carries @patch to the audio thread
  * @osc:            oscillators
  * @filter:         resonant lowpass
  * @amp_env:        amplitude envelope
@@ -119,6 +123,10 @@ typedef union synth_osc {
  * @ref:            lifetime management
  * @entry:          link to sound_context::synths
  * @chain_entry:    link to sound_effect_chain::synths while attached
+ * @patch_back:     the main thread's buffer in @patches
+ * @patch_front:    the audio thread's buffer in @patches
+ * @patch_middle:   the buffer in between, with SYNTH_PATCH_FRESH set while it
+ *                  holds a patch the audio thread hasn't taken
  * @pos:            next entry of synth_config::notes
  * @sequence_done:  the sequence is over: silence from here on
  * @trigger:        synth_start() asked for a retrigger; consumed by the
@@ -128,6 +136,8 @@ struct synth {
     ma_node_base        node;
     sound_context       *ctx;
     synth_config        config;
+    synth_config        patch;
+    synth_config        patches[3];
     synth_osc           osc[SYNTH_MAX_OSCILLATORS];
     ma_lpf2             filter;
     synth_envelope      amp_env;
@@ -141,6 +151,9 @@ struct synth {
     struct ref          ref;
     struct list         entry;
     struct list         chain_entry;
+    unsigned int        patch_back;
+    unsigned int        patch_front;
+    atomic_uint         patch_middle;
     unsigned int        pos;
     bool                sequence_done;
     atomic_bool         trigger;
@@ -986,6 +999,9 @@ void sound_set_effect_chain(sound *sound, sound_effect_chain *chain)
 /** SYNTH_CHUNK_FRAMES - frames rendered per pass through the oscillator, filter and envelope stages */
 #define SYNTH_CHUNK_FRAMES 64
 
+/** SYNTH_PATCH_FRESH - in synth::patch_middle: the middle buffer holds a patch the audio thread hasn't taken */
+#define SYNTH_PATCH_FRESH           (1u << 2)
+
 /** SYNTH_NOISE_SEED - seed of the first noise oscillator; the others count up from it */
 #define SYNTH_NOISE_SEED            4321
 
@@ -1009,7 +1025,7 @@ static bool synth_frequency_is_valid(float frequency, unsigned int sample_rate)
 static void synth_envelope_init(synth_envelope *env, const synth_envelope_config *config,
                                 unsigned int sample_rate)
 {
-    env->config = *config;
+    env->config = config;
     env->sample_rate = sample_rate;
     env->level = 0.0f;
     env->step = 0.0f;
@@ -1027,7 +1043,7 @@ static float synth_envelope_step(const synth_envelope *env, float ms, float delt
 static void synth_envelope_gate_on(synth_envelope *env)
 {
     env->stage = SYNTH_ENV_ATTACK;
-    env->step = synth_envelope_step(env, env->config.attack_ms, 1.0f - env->level);
+    env->step = synth_envelope_step(env, env->config->attack_ms, 1.0f - env->level);
 }
 
 static void synth_envelope_gate_off(synth_envelope *env)
@@ -1035,7 +1051,7 @@ static void synth_envelope_gate_off(synth_envelope *env)
     if (env->stage == SYNTH_ENV_IDLE)   return;
 
     env->stage = SYNTH_ENV_RELEASE;
-    env->step = synth_envelope_step(env, env->config.release_ms, env->level);
+    env->step = synth_envelope_step(env, env->config->release_ms, env->level);
 }
 
 static float synth_envelope_next(synth_envelope *env)
@@ -1046,13 +1062,14 @@ static float synth_envelope_next(synth_envelope *env)
         if (env->level >= 1.0f) {
             env->level = 1.0f;
             env->stage = SYNTH_ENV_DECAY;
-            env->step = synth_envelope_step(env, env->config.decay_ms, 1.0f - env->config.sustain);
+            env->step = synth_envelope_step(env, env->config->decay_ms, 1.0f - env->config->sustain);
         }
         break;
     case SYNTH_ENV_DECAY:
         env->level -= env->step;
-        if (env->level <= env->config.sustain) {
-            env->level = env->config.sustain;
+        if (env->level <= env->config->sustain) {
+            /* a sustain raised above the decaying level holds it there instead of jumping up */
+            env->level = fminf(env->level + env->step, env->config->sustain);
             env->stage = SYNTH_ENV_SUSTAIN;
         }
         break;
@@ -1273,6 +1290,34 @@ static void synth_finish(synth *synth)
 }
 
 /*
+ * Audio thread: take the latest patch synth_patch_publish() left, if there is
+ * one, and hand the generators what they keep copies of: the oscillators'
+ * gains and, where no notes supply the pitch, their frequencies
+ */
+static void synth_patch_take(synth *synth)
+{
+    if (!(atomic_load_explicit(&synth->patch_middle, memory_order_relaxed) & SYNTH_PATCH_FRESH))    return;
+
+    unsigned int prev = atomic_exchange_explicit(&synth->patch_middle, synth->patch_front, memory_order_acq_rel);
+    synth->patch_front = prev & ~SYNTH_PATCH_FRESH;
+    synth->config = synth->patches[synth->patch_front];
+
+    bool pitched = synth->config.notes || synth->config.next_note;
+
+    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++) {
+        auto osc = &synth->config.oscillators[i];
+
+        if (synth_waveform_is_noise(osc->waveform)) {
+            ma_noise_set_amplitude(&synth->osc[i].noise, osc->gain);
+            continue;
+        }
+
+        ma_waveform_set_amplitude(&synth->osc[i].waveform, osc->gain);
+        if (!pitched)   ma_waveform_set_frequency(&synth->osc[i].waveform, synth_detuned(osc, osc->frequency));
+    }
+}
+
+/*
  * Runs on the audio thread. Output is rendered in chunks that never straddle
  * a gate end or a note end, so envelope and note changes land on the exact
  * frame; the chunks are aligned to the synth's own frame count, so the same
@@ -1291,6 +1336,7 @@ static void synth_process_pcm_frames(ma_node *node, const float **frames_in, ma_
     }
 
     for (ma_uint32 done = 0; done < frames; ) {
+        synth_patch_take(synth);
         if (!synth->sequence_done && !synth->note_frames)   synth_advance(synth);
 
         ma_uint64 n = min(frames - done, SYNTH_CHUNK_FRAMES - synth->frames % SYNTH_CHUNK_FRAMES);
@@ -1397,6 +1443,12 @@ static cerr synth_make(struct ref *ref, void *_opts)
     list_init(&synth->entry);
     list_init(&synth->chain_entry);
 
+    synth->patch = synth->config;
+    for (unsigned int i = 0; i < array_size(synth->patches); i++)   synth->patches[i] = synth->config;
+    synth->patch_back = 0;
+    synth->patch_front = 1;
+    atomic_init(&synth->patch_middle, 2);
+
     CERR_RET_CERR(synth_config_check(&synth->config, synth->sample_rate));
 
     for (unsigned int i = 0; i < synth->config.nr_oscillators; i++)
@@ -1483,6 +1535,100 @@ void synth_set_effect_chain(synth *synth, sound_effect_chain *chain)
     } else {
         ma_node_attach_output_bus(&synth->node, 0, ma_engine_get_endpoint(&synth->ctx->engine), 0);
     }
+}
+
+const synth_config *synth_get_config(synth *synth)
+{
+    return &synth->patch;
+}
+
+/* Main thread: hand synth::patch to the audio thread, which takes it at its next chunk */
+static void synth_patch_publish(synth *synth)
+{
+    synth->patches[synth->patch_back] = synth->patch;
+
+    unsigned int prev = atomic_exchange_explicit(&synth->patch_middle, synth->patch_back | SYNTH_PATCH_FRESH,
+                                                 memory_order_acq_rel);
+    synth->patch_back = prev & ~SYNTH_PATCH_FRESH;
+}
+
+/*
+ * Publish a patch the caller built from the current one with a field changed,
+ * if it passes, so a rejected change leaves the synth playing what it played
+ */
+static cerr synth_config_commit(synth *synth, const synth_config *candidate)
+{
+    CERR_RET_CERR(synth_config_check(candidate, synth->sample_rate));
+
+    synth->patch = *candidate;
+    synth_patch_publish(synth);
+
+    return CERR_OK;
+}
+
+cerr synth_set_gain(synth *synth, float gain)
+{
+    synth_config candidate = synth->patch;
+    candidate.gain = gain;
+
+    return synth_config_commit(synth, &candidate);
+}
+
+cerr synth_set_gate(synth *synth, float gate)
+{
+    synth_config candidate = synth->patch;
+    candidate.gate = gate;
+
+    return synth_config_commit(synth, &candidate);
+}
+
+void synth_set_loop(synth *synth, bool loop)
+{
+    synth->patch.loop = loop;
+    synth_patch_publish(synth);
+}
+
+cerr synth_set_category(synth *synth, sound_category category)
+{
+    synth_config candidate = synth->patch;
+    candidate.category = category;
+
+    return synth_config_commit(synth, &candidate);
+}
+
+cerr synth_set_filter(synth *synth, const synth_filter_config *filter)
+{
+    synth_config candidate = synth->patch;
+    candidate.filter = *filter;
+
+    return synth_config_commit(synth, &candidate);
+}
+
+cerr synth_set_amp_env(synth *synth, const synth_envelope_config *env)
+{
+    synth_config candidate = synth->patch;
+    candidate.amp_env = *env;
+
+    return synth_config_commit(synth, &candidate);
+}
+
+cerr synth_set_filter_env(synth *synth, const synth_envelope_config *env)
+{
+    synth_config candidate = synth->patch;
+    candidate.filter_env = *env;
+
+    return synth_config_commit(synth, &candidate);
+}
+
+cerr synth_set_oscillator(synth *synth, unsigned int idx, const synth_oscillator_config *osc)
+{
+    if (idx >= synth->patch.nr_oscillators)                         return CERR_INVALID_ARGUMENTS;
+    if (osc->waveform != synth->patch.oscillators[idx].waveform)    return CERR_INVALID_OPERATION;
+
+    synth_config candidate = synth->patch;
+    candidate.oscillators[idx] = *osc;
+
+    return synth_config_commit(synth, &candidate);
 }
 
 cres(float) synth_midi_frequency(int midi, float tuning)
