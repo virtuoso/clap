@@ -16,8 +16,6 @@
 #include "sound.h"
 
 typedef struct sound_context {
-    ma_context  context;
-    ma_device   device;
     ma_engine   engine;
     bool        started;
     /* what clap_cpus_reserve() granted of SOUND_NR_THREADS */
@@ -358,8 +356,6 @@ void sound_done(sound_context *ctx)
     if (ctx->started) {
         ma_engine_stop(&ctx->engine);
         ma_engine_uninit(&ctx->engine);
-        ma_device_uninit(&ctx->device);
-        ma_context_uninit(&ctx->context);
     }
 
     clap_cpus_release(ctx->clap_ctx, ctx->nr_threads);
