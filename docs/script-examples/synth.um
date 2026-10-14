@@ -1,0 +1,46 @@
+// Play a short line on the subtractive synth. The patch and the notes are
+// collected on a Synth handle; start() builds the engine's synth node from
+// them, so anything set afterwards only counts on the next start(). Note names
+// are scientific pitch ("Bb3", "C#5"), values are standard notation (0.25 is a
+// quarter) at the tempo set here. A synth is dropped with its script, so
+// saving this file mid-play stops the old line and starts the new one.
+import "clap.um"
+
+var lead: clap::Synth
+
+fn main() {
+    lead = clap::synth()
+
+    // two detuned saws over a sine an octave down
+    lead.add_oscillator("sawtooth", 220, 0, 0.5)
+    lead.add_oscillator("sawtooth", 220, 7, 0.5)
+    lead.add_oscillator("sine", 110, 0, 0.3)
+
+    // resonant lowpass swept two octaves by its own envelope
+    lead.set_filter(800, 2.0, 2.0)
+    lead.set_filter_env(5, 300, 0.2, 200)
+    lead.set_amp_env(5, 50, 0.8, 150)
+    lead.set_gain(0.4)
+
+    // notes are held for 80% of their value before releasing
+    lead.set_gate(0.8)
+    lead.set_tempo(120)
+    lead.set_tuning(440)
+
+    lead.add_note("A3", 0.25)
+    lead.add_note("C4", 0.125)
+    lead.add_rest(0.125)
+    lead.add_note("E4", 0.25)
+    lead.add_note("A4", 0.5)
+    lead.set_loop(true)
+
+    if lead.start() {
+        clap::dbg("synth: playing")
+    } else {
+        clap::dbg("synth: rejected, see the error log")
+    }
+
+    // the helpers also work on their own
+    clap::dbg(sprintf("A4 is %.1f Hz, a dotted quarter at 90 bpm is %.0f ms",
+              clap::pitch_frequency("A4", 0), clap::note_duration_ms(90, 0.375)))
+}

@@ -181,6 +181,38 @@ directory and the cap set from a script last for the session only and leave the
 settings alone. Browser builds capture into `/screenshots`, and final builds
 have no recorder. `scripts/capture-test.sh` runs a demo with a script like this.
 
+**Play a line on the synth.** A `Synth` collects a patch (oscillators, filter,
+envelopes, gain) and a note list; `start()` builds the engine's synth node from
+them, so edits made afterwards only count on the next `start()`. Notes are named
+in scientific pitch and valued in standard notation at the synth's tempo; with
+no notes at all the oscillators hold their base frequencies until `stop()`:
+
+```
+s := clap::synth()
+s.add_oscillator("sawtooth", 220, 0, 0.5)   // waveform, base Hz, detune cents, gain
+s.add_oscillator("sawtooth", 220, 7, 0.5)
+s.set_filter(800, 2.0, 2.0)                 // cutoff Hz, Q, envelope octaves
+s.set_filter_env(5, 300, 0.2, 200)          // attack, decay ms, sustain, release ms
+s.set_amp_env(5, 50, 0.8, 150)
+s.set_gain(0.4)
+s.set_gate(0.8)                             // held fraction of each note; required with notes
+s.set_tempo(120)
+s.set_tuning(440)                           // A4; 0 also means 440
+s.add_note("A3", 0.25)
+s.add_rest(0.125)
+s.add_note("E4", 0.5)
+s.set_loop(true)
+s.start()                                   // false + a logged reason if the patch is rejected
+```
+
+Nothing is defaulted: a patch needs at least one oscillator, a filter cutoff
+and resonance, and, when it has notes, a tempo and a gate. The sequence is
+handed to the audio thread as a snapshot, which is why notes are a list rather
+than a callback: script code cannot run on the audio thread. A synth belongs to
+its script and is dropped with it, so a hot-reload silences the old version.
+`clap::pitch_frequency(pitch, tuning)` and `clap::note_duration_ms(bpm, value)`
+expose the conversions on their own.
+
 ## Examples
 
 Ready-to-crib scripts live in [`script-examples/`](script-examples/):
@@ -189,3 +221,4 @@ Ready-to-crib scripts live in [`script-examples/`](script-examples/):
 - [`pose-scene.um`](script-examples/pose-scene.um) — position entities and the camera
 - [`light-debug.um`](script-examples/light-debug.um) — enumerate and drive lights
 - [`grade-lut.um`](script-examples/grade-lut.um) — build and apply a colour-grading LUT
+- [`synth.um`](script-examples/synth.um) — patch the subtractive synth and play a looped line

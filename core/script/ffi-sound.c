@@ -1,0 +1,378 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// FFI over the subtractive synth (sound.h). A script assembles a patch and a
+// note list on a Synth handle, then start() creates the engine's synth node
+// from them; each start() rebuilds the node, so patch edits take effect on the
+// next start. The node pulls its notes on the audio thread, where the
+// interpreter cannot be called, so the sequence crosses the boundary as data:
+// start() snapshots the note list and hands it to the synth as its built-in
+// sequence. Synths are this module's private per-script state
+// (CLAP_SCRIPT_PRIV), dropped with the script, so a hot-reload silences what
+// the previous version played.
+
+#include <string.h>
+
+#include "clap.h"
+#include "logger.h"
+#include "memory.h"
+#include "script/ffi.h"
+#include "script/internal.h"
+#include "sound.h"
+
+/**
+ * struct script_synth - a script's synth: patch, notes and the live node
+ * @entry:      link to script_priv::synths
+ * @config:     patch under construction
+ * @notes:      notes under construction
+ * @sequence:   snapshot of @notes the synth plays; only touched from the
+ *              main thread while @synth is NULL
+ * @synth:      engine node, created by start()
+ * @bpm:        tempo add_note()/add_rest() convert note values with
+ * @tuning:     A4 frequency for add_note(); 0.0 is concert pitch
+ * @loop:       whether the sequence wraps around
+ */
+struct script_synth {
+    struct list                 entry;
+    synth_config                config;
+    darray(synth_note, notes);
+    darray(synth_note, sequence);
+    synth                   *synth;
+    float                   bpm;
+    float                   tuning;
+    bool                    loop;
+};
+
+CLAP_SCRIPT_PRIV(struct list synths)
+
+CLAP_SCRIPT_TYPE("type Synth* = struct { _h: uint }")
+
+static const struct {
+    const char      *name;
+    synth_waveform  waveform;
+} synth_waveform_names[] = {
+    { "sine",       SYNTH_WAVE_SINE },
+    { "square",     SYNTH_WAVE_SQUARE },
+    { "triangle",   SYNTH_WAVE_TRIANGLE },
+    { "sawtooth",   SYNTH_WAVE_SAWTOOTH },
+};
+
+/* The synth a handle refers to; nullptr unless this script holds it, so a delete()d one doesn't dangle */
+static struct script_synth *ffi_synth_get(UmkaStackSlot *params, int idx, UmkaStackSlot *result)
+{
+    struct script_synth *handle = ffi_ptr(params, idx);
+    script *s = ffi_script(result);
+
+    struct script_synth *ss;
+    list_for_each_entry(ss, &s->priv.synths, entry)
+        if (ss == handle)   return ss;
+
+    return nullptr;
+}
+
+/* Drop the node first: its teardown waits out the audio thread's read */
+static void script_synth_silence(struct script_synth *ss)
+{
+    if (!ss->synth)     return;
+
+    ref_put(ss->synth);
+    ss->synth = nullptr;
+}
+
+static void script_synth_delete(struct script_synth *ss)
+{
+    script_synth_silence(ss);
+    darray_clearout(ss->sequence);
+    darray_clearout(ss->notes);
+    list_del(&ss->entry);
+    mem_free(ss);
+}
+
+/* A new, empty synth: everything comes from the script, nothing is defaulted */
+CLAP_SCRIPT_FN(ffi_synth, "fn synth*(): Synth")
+void ffi_synth(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    script *s = ffi_script(result);
+    struct script_synth *ss = mem_alloc(sizeof(*ss), .zero = 1);
+
+    if (ss) {
+        darray_init(ss->notes);
+        darray_init(ss->sequence);
+        list_append(&s->priv.synths, &ss->entry);
+    }
+
+    ffi_ret_ptr(params, result, ss);
+}
+
+CLAP_SCRIPT_METHOD(ffi_synth_valid, "fn (s: Synth) valid*(): bool")
+void ffi_synth_valid(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    ffi_ret_bool(params, result, ffi_synth_get(params, 0, result) != nullptr);
+}
+
+/*
+ * Waveform is one of "sine", "square", "triangle", "sawtooth"; frequency is
+ * the base pitch in Hz used when the synth has no notes, detune is in cents.
+ */
+CLAP_SCRIPT_METHOD(ffi_synth_add_oscillator,
+                   "fn (s: Synth) add_oscillator*(waveform: str, frequency, detune, gain: real): bool")
+void ffi_synth_add_oscillator(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    const char *waveform = ffi_str(params, 1);
+
+    if (!ss || !waveform || ss->config.nr_oscillators >= SYNTH_MAX_OSCILLATORS)
+        return ffi_ret_bool(params, result, false);
+
+    for (size_t i = 0; i < array_size(synth_waveform_names); i++) {
+        if (strcmp(synth_waveform_names[i].name, waveform)) continue;
+
+        synth_oscillator_config *osc = &ss->config.oscillators[ss->config.nr_oscillators++];
+        osc->waveform = synth_waveform_names[i].waveform;
+        osc->frequency = ffi_real(params, 2);
+        osc->detune = ffi_real(params, 3);
+        osc->gain = ffi_real(params, 4);
+
+        return ffi_ret_bool(params, result, true);
+    }
+
+    err("unknown waveform '%s'\n", waveform);
+    ffi_ret_bool(params, result, false);
+}
+
+/* Lowpass cutoff in Hz, resonance as Q (0.707 is flat), envelope amount in octaves */
+CLAP_SCRIPT_METHOD(ffi_synth_set_filter, "fn (s: Synth) set_filter*(cutoff, resonance, env_amount: real)")
+void ffi_synth_set_filter(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (!ss)    return;
+
+    ss->config.filter.cutoff = ffi_real(params, 1);
+    ss->config.filter.resonance = ffi_real(params, 2);
+    ss->config.filter.env_amount = ffi_real(params, 3);
+}
+
+static void ffi_synth_envelope(UmkaStackSlot *params, synth_envelope_config *env)
+{
+    env->attack_ms = ffi_real(params, 1);
+    env->decay_ms = ffi_real(params, 2);
+    env->sustain = ffi_real(params, 3);
+    env->release_ms = ffi_real(params, 4);
+}
+
+CLAP_SCRIPT_METHOD(ffi_synth_set_amp_env,
+                   "fn (s: Synth) set_amp_env*(attack_ms, decay_ms, sustain, release_ms: real)")
+void ffi_synth_set_amp_env(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     ffi_synth_envelope(params, &ss->config.amp_env);
+}
+
+CLAP_SCRIPT_METHOD(ffi_synth_set_filter_env,
+                   "fn (s: Synth) set_filter_env*(attack_ms, decay_ms, sustain, release_ms: real)")
+void ffi_synth_set_filter_env(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     ffi_synth_envelope(params, &ss->config.filter_env);
+}
+
+CLAP_SCRIPT_METHOD(ffi_synth_set_gain, "fn (s: Synth) set_gain*(gain: real)")
+void ffi_synth_set_gain(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     ss->config.gain = ffi_real(params, 1);
+}
+
+/* Fraction of each note held before the envelopes release, (0, 1]; needed with notes */
+CLAP_SCRIPT_METHOD(ffi_synth_set_gate, "fn (s: Synth) set_gate*(gate: real)")
+void ffi_synth_set_gate(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     ss->config.gate = ffi_real(params, 1);
+}
+
+/* Tempo in quarter notes per minute, for add_note()/add_rest() */
+CLAP_SCRIPT_METHOD(ffi_synth_set_tempo, "fn (s: Synth) set_tempo*(bpm: real)")
+void ffi_synth_set_tempo(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     ss->bpm = ffi_real(params, 1);
+}
+
+/* A4 in Hz for add_note(); 0.0 is concert pitch, 440 Hz */
+CLAP_SCRIPT_METHOD(ffi_synth_set_tuning, "fn (s: Synth) set_tuning*(a4_hz: real)")
+void ffi_synth_set_tuning(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     ss->tuning = ffi_real(params, 1);
+}
+
+CLAP_SCRIPT_METHOD(ffi_synth_set_loop, "fn (s: Synth) set_loop*(loop: bool)")
+void ffi_synth_set_loop(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     ss->loop = ffi_bool(params, 1);
+}
+
+static bool script_synth_add(struct script_synth *ss, float frequency, float duration_ms)
+{
+    synth_note *note = darray_add(ss->notes);
+    if (!note)  return false;
+
+    note->frequency = frequency;
+    note->duration_ms = duration_ms;
+
+    return true;
+}
+
+/* A note by pitch name ("A4", "Bb3", "C#5") and value (0.25 is a quarter) at the synth's tempo */
+CLAP_SCRIPT_METHOD(ffi_synth_add_note, "fn (s: Synth) add_note*(pitch: str, value: real): bool")
+void ffi_synth_add_note(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    const char *pitch = ffi_str(params, 1);
+    if (!ss || !pitch)  return ffi_ret_bool(params, result, false);
+
+    float frequency = CRES_RET(synth_pitch_frequency(pitch, ss->tuning), {
+        err_cerr(__resp, "bad pitch '%s'\n", pitch);
+        return ffi_ret_bool(params, result, false);
+    });
+    float duration = CRES_RET(synth_note_duration_ms(ss->bpm, ffi_real(params, 2)), {
+        err_cerr(__resp, "bad note value %f at %f bpm\n", ffi_real(params, 2), ss->bpm);
+        return ffi_ret_bool(params, result, false);
+    });
+
+    ffi_ret_bool(params, result, script_synth_add(ss, frequency, duration));
+}
+
+/* Silence for a note value at the synth's tempo */
+CLAP_SCRIPT_METHOD(ffi_synth_add_rest, "fn (s: Synth) add_rest*(value: real): bool")
+void ffi_synth_add_rest(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (!ss)    return ffi_ret_bool(params, result, false);
+
+    float duration = CRES_RET(synth_note_duration_ms(ss->bpm, ffi_real(params, 1)), {
+        err_cerr(__resp, "bad rest value %f at %f bpm\n", ffi_real(params, 1), ss->bpm);
+        return ffi_ret_bool(params, result, false);
+    });
+
+    ffi_ret_bool(params, result, script_synth_add(ss, 0.0f, duration));
+}
+
+/* A note in the synth's native units: frequency in Hz (0.0 is a rest), duration in ms */
+CLAP_SCRIPT_METHOD(ffi_synth_add_tone, "fn (s: Synth) add_tone*(frequency, duration_ms: real): bool")
+void ffi_synth_add_tone(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (!ss)    return ffi_ret_bool(params, result, false);
+
+    ffi_ret_bool(params, result, script_synth_add(ss, ffi_real(params, 1), ffi_real(params, 2)));
+}
+
+/* Forget the notes; the running snapshot, if any, plays on until stop() or start() */
+CLAP_SCRIPT_METHOD(ffi_synth_clear_notes, "fn (s: Synth) clear_notes*()")
+void ffi_synth_clear_notes(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     darray_clearout(ss->notes);
+}
+
+/*
+ * (Re)create the node from the patch and the notes and start it. Without
+ * notes the oscillators play their base frequencies until stop(); with notes
+ * the snapshot is played from the top, once or looped. Returns false, with the
+ * reason logged, when the patch is rejected or there is no sound.
+ */
+CLAP_SCRIPT_METHOD(ffi_synth_start, "fn (s: Synth) start*(): bool")
+void ffi_synth_start(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct clap_context *ctx = ffi_ctx(result);
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (!ss)    return ffi_ret_bool(params, result, false);
+
+    sound_context *sound = clap_get_sound(ctx);
+    if (!sound) {
+        err("no sound context to play a synth on\n");
+        return ffi_ret_bool(params, result, false);
+    }
+
+    script_synth_silence(ss);
+
+    size_t nr = darray_count(ss->notes);
+    darray_clearout(ss->sequence);
+    if (nr) {
+        if (!darray_resize(ss->sequence, nr)) {
+            err("cannot snapshot %zu notes\n", nr);
+            return ffi_ret_bool(params, result, false);
+        }
+        memcpy(ss->sequence.x, ss->notes.x, nr * sizeof(synth_note));
+    }
+    ss->config.notes = nr ? ss->sequence.x : nullptr;
+    ss->config.nr_notes = nr;
+    ss->config.loop = ss->loop;
+    ss->config.next_note = nullptr;
+    ss->config.next_note_data = nullptr;
+
+    ss->synth = CRES_RET(ref_new_checked(synth, .ctx = sound, .config = &ss->config), {
+        err_cerr(__resp, "cannot create synth\n");
+        return ffi_ret_bool(params, result, false);
+    });
+    synth_start(ss->synth);
+
+    ffi_ret_bool(params, result, true);
+}
+
+/* Silence immediately; start() resumes the sequence from the top */
+CLAP_SCRIPT_METHOD(ffi_synth_stop, "fn (s: Synth) stop*()")
+void ffi_synth_stop(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss && ss->synth)    synth_stop(ss->synth);
+}
+
+CLAP_SCRIPT_METHOD(ffi_synth_delete, "fn (s: Synth) delete*()")
+void ffi_synth_delete(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (ss)     script_synth_delete(ss);
+}
+
+/* The helpers stand alone too, for scripts that time or tune their own way */
+
+/* Frequency of a named pitch; tuning 0.0 is A4 = 440 Hz. 0.0 and a logged error on a bad name. */
+CLAP_SCRIPT_FN(ffi_pitch_frequency, "fn pitch_frequency*(pitch: str, tuning: real): real")
+void ffi_pitch_frequency(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    const char *pitch = ffi_str(params, 0);
+    float tuning = ffi_real(params, 1);
+
+    float frequency = CRES_RET(synth_pitch_frequency(pitch, tuning), {
+        err_cerr(__resp, "bad pitch '%s'\n", pitch ? pitch : "");
+        return ffi_ret_real(params, result, 0.0);
+    });
+
+    ffi_ret_real(params, result, frequency);
+}
+
+/* Milliseconds of a note value (0.25 is a quarter) at a tempo. 0.0 and a logged error if invalid. */
+CLAP_SCRIPT_FN(ffi_note_duration_ms, "fn note_duration_ms*(bpm, value: real): real")
+void ffi_note_duration_ms(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    float bpm = ffi_real(params, 0);
+    double value = ffi_real(params, 1);
+
+    float duration = CRES_RET(synth_note_duration_ms(bpm, value), {
+        err_cerr(__resp, "bad note value %f at %f bpm\n", value, bpm);
+        return ffi_ret_real(params, result, 0.0);
+    });
+
+    ffi_ret_real(params, result, duration);
+}
+
+CLAP_SCRIPT_DONE(script_synths_done)
+void script_synths_done(script *s)
+{
+    struct script_synth *ss, *iter;
+    list_for_each_entry_iter(ss, iter, &s->priv.synths, entry)
+        script_synth_delete(ss);
+}
