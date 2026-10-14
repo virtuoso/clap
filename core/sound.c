@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "messagebus.h"
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <math.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -22,6 +25,7 @@ typedef struct sound_context {
     unsigned int nr_threads;
     struct list sounds;
     struct list chains;
+    struct list synths;
     clap_context *clap_ctx;
     float       master_music;
     float       master_sfx;
@@ -60,6 +64,67 @@ struct sound_effect_chain {
     bool            enabled;
     struct ref      ref;
     struct list     entry;
+};
+
+typedef enum synth_env_stage {
+    SYNTH_ENV_IDLE = 0,
+    SYNTH_ENV_ATTACK,
+    SYNTH_ENV_DECAY,
+    SYNTH_ENV_SUSTAIN,
+    SYNTH_ENV_RELEASE,
+} synth_env_stage;
+
+/**
+ * struct synth_envelope - ADSR envelope state
+ * @config:         timings and sustain level
+ * @level:          current output, [0.0, 1.0]
+ * @step:           per-frame level change in the current stage
+ * @stage:          current stage
+ * @sample_rate:    frames per second, turns the config's ms into steps
+ */
+typedef struct synth_envelope {
+    synth_envelope_config   config;
+    float                   level;
+    float                   step;
+    synth_env_stage         stage;
+    unsigned int            sample_rate;
+} synth_envelope;
+
+/**
+ * struct synth - subtractive synth node
+ * @node:           miniaudio node: a source with one output bus; must be first
+ * @ctx:            sound context
+ * @config:         patch, copied at creation
+ * @osc:            oscillators
+ * @filter:         resonant lowpass
+ * @amp_env:        amplitude envelope
+ * @filter_env:     cutoff envelope
+ * @sample_rate:    engine sample rate
+ * @channels:       engine channel count
+ * @note_frames:    frames left in the current note; 0 asks for the next one
+ * @gate_frames:    frames left until the envelopes release; 0 once released
+ * @frames:         frames rendered so far, aligns chunks independently of the
+ *                  host's block size
+ * @ref:            lifetime management
+ * @entry:          link to sound_context::synths
+ * @sequence_done:  next_note returned false: silence from here on
+ */
+struct synth {
+    ma_node_base    node;
+    sound_context   *ctx;
+    synth_config    config;
+    ma_waveform     osc[SYNTH_MAX_OSCILLATORS];
+    ma_lpf2         filter;
+    synth_envelope  amp_env;
+    synth_envelope  filter_env;
+    unsigned int    sample_rate;
+    unsigned int    channels;
+    ma_uint64       note_frames;
+    ma_uint64       gate_frames;
+    ma_uint64       frames;
+    struct ref      ref;
+    struct list     entry;
+    bool            sequence_done;
 };
 
  typedef struct ov_cb_data {
@@ -328,6 +393,7 @@ cresp(sound_context) sound_init(clap_context *clap_ctx)
     ctx->master_sfx   = 1.0f;
     list_init(&ctx->sounds);
     list_init(&ctx->chains);
+    list_init(&ctx->synths);
 
     ctx->nr_threads = clap_cpus_reserve(clap_ctx, SOUND_NR_THREADS);
 
@@ -353,12 +419,18 @@ void sound_done(sound_context *ctx)
     list_for_each_entry_iter(chain, itc, &ctx->chains, entry)
         ref_put(chain);
 
+    synth *synth, *itsy;
+
+    list_for_each_entry_iter(synth, itsy, &ctx->synths, entry)
+        ref_put(synth);
+
     if (ctx->started) {
         ma_engine_stop(&ctx->engine);
         ma_engine_uninit(&ctx->engine);
     }
 
-    clap_cpus_release(ctx->clap_ctx, ctx->nr_threads);
+    /* a sound_init_headless() context has no clap_context and reserved no CPUs */
+    if (ctx->clap_ctx)  clap_cpus_release(ctx->clap_ctx, ctx->nr_threads);
     mem_free(ctx);
 }
 
@@ -840,6 +912,458 @@ void sound_set_effect_chain(sound *sound, sound_effect_chain *chain)
         list_del(&sound->chain_entry);
     }
 }
+
+/****************************************************************************
+ * Subtractive synthesizer
+ ****************************************************************************/
+
+/** SYNTH_CHUNK_FRAMES - frames rendered per pass through the oscillator, filter and envelope stages */
+#define SYNTH_CHUNK_FRAMES 64
+
+/** SYNTH_MIDI_A4 - MIDI note number of A4, the equal temperament reference */
+#define SYNTH_MIDI_A4               69
+#define SYNTH_MIDI_MAX              127
+#define SYNTH_SEMITONES_PER_OCTAVE  12
+#define SYNTH_CENTS_PER_OCTAVE      1200.0f
+
+/* NaN fails every comparison, so these reject it along with the infinities */
+static bool synth_nonneg(float x)                       { return isfinite(x) && x >= 0.0f; }
+static bool synth_positive(float x)                     { return isfinite(x) && x > 0.0f; }
+static bool synth_within(float x, float lo, float hi)   { return isfinite(x) && x >= lo && x <= hi; }
+
+/* A pitch the oscillators can play: above DC and below Nyquist */
+static bool synth_frequency_is_valid(float frequency, unsigned int sample_rate)
+{
+    return isfinite(frequency) && frequency > 0.0f && frequency < sample_rate / 2.0f;
+}
+
+static void synth_envelope_init(synth_envelope *env, const synth_envelope_config *config,
+                                unsigned int sample_rate)
+{
+    env->config = *config;
+    env->sample_rate = sample_rate;
+    env->level = 0.0f;
+    env->step = 0.0f;
+    env->stage = SYNTH_ENV_IDLE;
+}
+
+/* Per-frame step that covers @delta in @ms; the whole of it at once under a frame */
+static float synth_envelope_step(const synth_envelope *env, float ms, float delta)
+{
+    float frames = ms * env->sample_rate / 1000.0f;
+    return frames < 1.0f ? delta : delta / frames;
+}
+
+/* Attack starts from the current level, so retriggering a sounding note doesn't click */
+static void synth_envelope_gate_on(synth_envelope *env)
+{
+    env->stage = SYNTH_ENV_ATTACK;
+    env->step = synth_envelope_step(env, env->config.attack_ms, 1.0f - env->level);
+}
+
+static void synth_envelope_gate_off(synth_envelope *env)
+{
+    if (env->stage == SYNTH_ENV_IDLE)   return;
+
+    env->stage = SYNTH_ENV_RELEASE;
+    env->step = synth_envelope_step(env, env->config.release_ms, env->level);
+}
+
+static float synth_envelope_next(synth_envelope *env)
+{
+    switch (env->stage) {
+    case SYNTH_ENV_ATTACK:
+        env->level += env->step;
+        if (env->level >= 1.0f) {
+            env->level = 1.0f;
+            env->stage = SYNTH_ENV_DECAY;
+            env->step = synth_envelope_step(env, env->config.decay_ms, 1.0f - env->config.sustain);
+        }
+        break;
+    case SYNTH_ENV_DECAY:
+        env->level -= env->step;
+        if (env->level <= env->config.sustain) {
+            env->level = env->config.sustain;
+            env->stage = SYNTH_ENV_SUSTAIN;
+        }
+        break;
+    case SYNTH_ENV_RELEASE:
+        env->level -= env->step;
+        if (env->level <= 0.0f) {
+            env->level = 0.0f;
+            env->stage = SYNTH_ENV_IDLE;
+        }
+        break;
+    case SYNTH_ENV_SUSTAIN:
+    case SYNTH_ENV_IDLE:
+        break;
+    }
+
+    return env->level;
+}
+
+static float synth_detuned(const synth_oscillator_config *osc, float frequency)
+{
+    return frequency * exp2f(osc->detune / SYNTH_CENTS_PER_OCTAVE);
+}
+
+static void synth_note_on(synth *synth, float frequency)
+{
+    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++)
+        ma_waveform_set_frequency(&synth->osc[i], synth_detuned(&synth->config.oscillators[i], frequency));
+
+    synth_envelope_gate_on(&synth->amp_env);
+    synth_envelope_gate_on(&synth->filter_env);
+}
+
+static void synth_gate_off(synth *synth)
+{
+    synth_envelope_gate_off(&synth->amp_env);
+    synth_envelope_gate_off(&synth->filter_env);
+}
+
+/* The current note ran out: set up the next one, or hold the base frequencies */
+static void synth_advance(synth *synth)
+{
+    if (!synth->config.next_note) {
+        synth->note_frames = UINT64_MAX;
+        synth->gate_frames = 0;
+        synth_envelope_gate_on(&synth->amp_env);
+        synth_envelope_gate_on(&synth->filter_env);
+        return;
+    }
+
+    synth_note note = {};
+    if (!synth->config.next_note(&note, synth->config.next_note_data)) {
+        synth->sequence_done = true;
+        synth_gate_off(synth);
+        return;
+    }
+
+    /*
+     * The callback's notes are not checked ahead of time: a duration the
+     * synth cannot use lasts one frame, or the sequence would be pulled dry
+     * in one callback, and a pitch it cannot play is a rest. 2^63 frames
+     * keeps the float to integer conversion defined.
+     */
+    float duration_ms = synth_positive(note.duration_ms) ? note.duration_ms : 0.0f;
+    ma_uint64 frames = (ma_uint64)fminf(duration_ms * synth->sample_rate / 1000.0f + 0.5f, 0x1p63f);
+    synth->note_frames = max(frames, 1);
+
+    if (synth_frequency_is_valid(note.frequency, synth->sample_rate)) {
+        ma_uint64 gate = (ma_uint64)(synth->note_frames * synth->config.gate + 0.5f);
+        synth->gate_frames = min(max(gate, 1), synth->note_frames);
+        synth_note_on(synth, note.frequency);
+    } else {
+        /* a rest: the previous note keeps releasing, nothing new to gate */
+        synth->gate_frames = 0;
+    }
+}
+
+/*
+ * Oscillators and filter run even while the amplitude envelope is idle, so a
+ * note's phase and the filter state don't depend on where the host's blocks
+ * happened to fall
+ */
+static void synth_render(synth *synth, float *out, ma_uint32 frames)
+{
+    float mix[SYNTH_CHUNK_FRAMES] = {};
+    float osc[SYNTH_CHUNK_FRAMES];
+
+    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++) {
+        ma_waveform_read_pcm_frames(&synth->osc[i], osc, frames, nullptr);
+        for (ma_uint32 f = 0; f < frames; f++)  mix[f] += osc[f];
+    }
+
+    /*
+     * The filter envelope moves the cutoff every SYNTH_CHUNK_FRAMES frames,
+     * counted from the synth's start rather than from the chunk, which may
+     * be cut short by a note or block end: reinit only recomputes the biquad
+     * coefficients and keeps its state, so the sweep is stepped without
+     * discontinuities
+     */
+    if (!(synth->frames % SYNTH_CHUNK_FRAMES)) {
+        float cutoff = synth->config.filter.cutoff *
+                       exp2f(synth->config.filter.env_amount * synth->filter_env.level);
+        cutoff = clampf(cutoff, SYNTH_CUTOFF_MIN_HZ, synth->sample_rate * SYNTH_CUTOFF_MAX_RATIO);
+
+        auto lpf_config = ma_lpf2_config_init(ma_format_f32, 1, synth->sample_rate, cutoff,
+                                              synth->config.filter.resonance);
+        ma_lpf2_reinit(&lpf_config, &synth->filter);
+    }
+    ma_lpf2_process_pcm_frames(&synth->filter, mix, mix, frames);
+
+    for (ma_uint32 f = 0; f < frames; f++) {
+        float sample = mix[f] * synth_envelope_next(&synth->amp_env) * synth->config.gain;
+        synth_envelope_next(&synth->filter_env);
+
+        for (unsigned int ch = 0; ch < synth->channels; ch++)   out[f * synth->channels + ch] = sample;
+    }
+}
+
+/*
+ * Runs on the audio thread. Output is rendered in chunks that never straddle
+ * a gate end or a note end, so envelope and note changes land on the exact
+ * frame; the chunks are aligned to the synth's own frame count, so the same
+ * patch renders the same samples whatever the device's period size.
+ */
+static void synth_process_pcm_frames(ma_node *node, const float **frames_in, ma_uint32 *frame_count_in,
+                                     float **frames_out, ma_uint32 *frame_count_out)
+{
+    synth *synth = (struct synth *)node;
+    ma_uint32 frames = *frame_count_out;
+
+    for (ma_uint32 done = 0; done < frames; ) {
+        if (!synth->sequence_done && !synth->note_frames)   synth_advance(synth);
+
+        ma_uint64 n = min(frames - done, SYNTH_CHUNK_FRAMES - synth->frames % SYNTH_CHUNK_FRAMES);
+        if (!synth->sequence_done) {
+            n = min(n, synth->note_frames);
+            if (synth->gate_frames)     n = min(n, synth->gate_frames);
+        }
+
+        synth_render(synth, frames_out[0] + done * synth->channels, n);
+        done += n;
+        synth->frames += n;
+
+        if (synth->sequence_done)       continue;
+
+        synth->note_frames -= n;
+        if (synth->gate_frames) {
+            synth->gate_frames -= n;
+            if (!synth->gate_frames)    synth_gate_off(synth);
+        }
+    }
+}
+
+static const ma_node_vtable synth_vtable = {
+    .onProcess      = synth_process_pcm_frames,
+    .inputBusCount  = 0,
+    .outputBusCount = 1,
+};
+
+static const ma_waveform_type synth_waveform_types[] = {
+    [SYNTH_WAVE_SINE]       = ma_waveform_type_sine,
+    [SYNTH_WAVE_SQUARE]     = ma_waveform_type_square,
+    [SYNTH_WAVE_TRIANGLE]   = ma_waveform_type_triangle,
+    [SYNTH_WAVE_SAWTOOTH]   = ma_waveform_type_sawtooth,
+};
+
+static bool synth_envelope_config_is_valid(const synth_envelope_config *env)
+{
+    return synth_nonneg(env->attack_ms) && synth_nonneg(env->decay_ms) && synth_nonneg(env->release_ms) &&
+           synth_within(env->sustain, 0.0f, 1.0f);
+}
+
+/* The reason names the field, so a script's bad value is reported as such */
+static cerr synth_bad(const char *field)
+{
+    return CERR_INVALID_ARGUMENTS_REASON(.fmt = "bad %s", .arg0 = field);
+}
+
+static cerr synth_config_check(const synth_config *config, unsigned int sample_rate)
+{
+    if (!config->nr_oscillators)                            return synth_bad("nr_oscillators");
+    if (config->nr_oscillators > SYNTH_MAX_OSCILLATORS)     return synth_bad("nr_oscillators");
+
+    bool sequenced = config->next_note;
+
+    for (unsigned int i = 0; i < config->nr_oscillators; i++) {
+        auto osc = &config->oscillators[i];
+
+        if (osc->waveform >= array_size(synth_waveform_types))                          return synth_bad("waveform");
+        if (!synth_nonneg(osc->gain))                                                   return synth_bad("osc gain");
+        /* written to reject NaN, which passes a greater-than test */
+        if (!(fabsf(osc->detune) <= SYNTH_DETUNE_MAX_CENTS))                            return synth_bad("detune");
+        /* the base frequency is the pitch when there is no sequence to supply one */
+        if (!sequenced && !synth_frequency_is_valid(osc->frequency, sample_rate))       return synth_bad("frequency");
+    }
+
+    float cutoff_max = sample_rate * SYNTH_CUTOFF_MAX_RATIO;
+    if (!synth_within(config->filter.cutoff, SYNTH_CUTOFF_MIN_HZ, cutoff_max))      return synth_bad("cutoff");
+    if (!synth_positive(config->filter.resonance))                                  return synth_bad("resonance");
+    if (!isfinite(config->filter.env_amount))                                       return synth_bad("env_amount");
+    if (!synth_envelope_config_is_valid(&config->amp_env))                          return synth_bad("amp_env");
+    if (!synth_envelope_config_is_valid(&config->filter_env))                       return synth_bad("filter_env");
+    if (!synth_nonneg(config->gain))                                                return synth_bad("gain");
+    if (sequenced && !(synth_positive(config->gate) && config->gate <= 1.0f))       return synth_bad("gate");
+
+    return CERR_OK;
+}
+
+static cerr synth_make(struct ref *ref, void *_opts)
+{
+    rc_init_opts(synth) *opts = _opts;
+    if (!opts->ctx || !opts->ctx->started || !opts->config) return CERR_INVALID_ARGUMENTS;
+
+    synth *synth = container_of(ref, struct synth, ref);
+    synth->ctx = opts->ctx;
+    synth->config = *opts->config;
+    synth->sample_rate = ma_engine_get_sample_rate(&opts->ctx->engine);
+    synth->channels = ma_engine_get_channels(&opts->ctx->engine);
+    synth->note_frames = 0;
+    synth->gate_frames = 0;
+    synth->frames = 0;
+    synth->sequence_done = false;
+    list_init(&synth->entry);
+
+    CERR_RET_CERR(synth_config_check(&synth->config, synth->sample_rate));
+
+    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++) {
+        auto osc = &synth->config.oscillators[i];
+        auto wave_config = ma_waveform_config_init(ma_format_f32, 1, synth->sample_rate,
+                                                   synth_waveform_types[osc->waveform], osc->gain,
+                                                   synth_detuned(osc, osc->frequency));
+        if (ma_waveform_init(&wave_config, &synth->osc[i]) != MA_SUCCESS)   return CERR_INITIALIZATION_FAILED;
+    }
+
+    auto lpf_config = ma_lpf2_config_init(ma_format_f32, 1, synth->sample_rate, synth->config.filter.cutoff,
+                                          synth->config.filter.resonance);
+    if (ma_lpf2_init(&lpf_config, nullptr, &synth->filter) != MA_SUCCESS)   return CERR_INITIALIZATION_FAILED;
+
+    synth_envelope_init(&synth->amp_env, &synth->config.amp_env, synth->sample_rate);
+    synth_envelope_init(&synth->filter_env, &synth->config.filter_env, synth->sample_rate);
+
+    ma_uint32 channels = synth->channels;
+    ma_node_config node_config = ma_node_config_init();
+    node_config.vtable = &synth_vtable;
+    node_config.pOutputChannels = &channels;
+    node_config.initialState = ma_node_state_stopped;
+
+    ma_result result = ma_node_init(ma_engine_get_node_graph(&opts->ctx->engine), &node_config, nullptr,
+                                    &synth->node);
+    if (result != MA_SUCCESS)   goto err_filter;
+
+    result = ma_node_attach_output_bus(&synth->node, 0, ma_engine_get_endpoint(&opts->ctx->engine), 0);
+    if (result != MA_SUCCESS)   goto err_node;
+
+    list_append(&opts->ctx->synths, &synth->entry);
+
+    return CERR_OK;
+
+err_node:
+    ma_node_uninit(&synth->node, nullptr);
+
+err_filter:
+    ma_lpf2_uninit(&synth->filter, nullptr);
+
+    return CERR_INITIALIZATION_FAILED;
+}
+
+static void synth_drop(struct ref *ref)
+{
+    synth *synth = container_of(ref, struct synth, ref);
+
+    ma_node_uninit(&synth->node, nullptr);
+    ma_lpf2_uninit(&synth->filter, nullptr);
+    list_del(&synth->entry);
+}
+
+DEFINE_REFCLASS2(synth);
+
+DEFINE_CLEANUP(synth, if (*p) ref_put(*p))
+
+void synth_start(synth *synth)
+{
+    /* a running synth's state belongs to the audio thread */
+    if (ma_node_get_state(&synth->node) == ma_node_state_started)   return;
+
+    synth->sequence_done = false;
+    synth->note_frames = 0;
+    synth->gate_frames = 0;
+    ma_node_set_state(&synth->node, ma_node_state_started);
+}
+
+void synth_stop(synth *synth)
+{
+    ma_node_set_state(&synth->node, ma_node_state_stopped);
+}
+
+bool synth_is_playing(synth *synth)
+{
+    return ma_node_get_state(&synth->node) == ma_node_state_started;
+}
+
+cres(float) synth_midi_frequency(int midi, float tuning)
+{
+    if (midi < 0 || midi > SYNTH_MIDI_MAX || !synth_nonneg(tuning)) return cres_error(float, CERR_INVALID_ARGUMENTS);
+
+    if (tuning == 0.0f)     tuning = SYNTH_TUNING_A440;
+
+    return cres_val(float, tuning * exp2f((float)(midi - SYNTH_MIDI_A4) / SYNTH_SEMITONES_PER_OCTAVE));
+}
+
+cres(float) synth_pitch_frequency(const char *pitch, float tuning)
+{
+    /* semitones above C of the letters A..G */
+    static const int letter_semitones[] = { 9, 11, 0, 2, 4, 5, 7 };
+
+    if (!pitch)     return cres_error(float, CERR_INVALID_ARGUMENTS);
+
+    int letter = toupper((unsigned char)pitch[0]);
+    if (letter < 'A' || letter > 'G')   return cres_error(float, CERR_PARSE_FAILED);
+
+    int semitone = letter_semitones[letter - 'A'];
+    const char *p = pitch + 1;
+    for (; *p == '#' || *p == 'b'; p++) semitone += *p == '#' ? 1 : -1;
+
+    /* strtol() would also take leading whitespace and a plus sign */
+    if (*p != '-' && !isdigit((unsigned char)*p))   return cres_error(float, CERR_PARSE_FAILED);
+
+    char *end;
+    long octave = strtol(p, &end, 10);
+    if (*end)       return cres_error(float, CERR_PARSE_FAILED);
+
+    /* strtol() saturates, so bound the octave before the int arithmetic below can overflow */
+    long max_octave = SYNTH_MIDI_MAX / SYNTH_SEMITONES_PER_OCTAVE;
+    if (octave < -1 || octave > max_octave)     return cres_error(float, CERR_INVALID_ARGUMENTS);
+
+    /* scientific pitch notation: C-1 is MIDI 0, so octave n starts at (n + 1) * 12 */
+    return synth_midi_frequency((int)(octave + 1) * SYNTH_SEMITONES_PER_OCTAVE + semitone, tuning);
+}
+
+cres(float) synth_note_duration_ms(float bpm, double duration)
+{
+    if (!synth_positive(bpm) || !isfinite(duration) || duration <= 0.0)
+        return cres_error(float, CERR_INVALID_ARGUMENTS);
+
+    /* a quarter note (0.25) is one beat of 60000 / bpm ms, so a whole note is four */
+    return cres_val(float, (float)(duration * 4.0 * 60000.0 / bpm));
+}
+
+#ifdef CLAP_TESTS
+cresp(sound_context) sound_init_headless(unsigned int sample_rate, unsigned int channels)
+{
+    LOCAL_SET(sound_context, ctx) = mem_alloc(sizeof(*ctx), .zero = 1);
+    if (!ctx)   return cresp_error(sound_context, CERR_NOMEM);
+
+    ctx->master_music = 1.0f;
+    ctx->master_sfx   = 1.0f;
+    list_init(&ctx->sounds);
+    list_init(&ctx->chains);
+    list_init(&ctx->synths);
+
+    auto config = ma_engine_config_init();
+    config.noDevice   = MA_TRUE;
+    config.sampleRate = sample_rate;
+    config.channels   = channels;
+    ma_result result = ma_engine_init(&config, &ctx->engine);
+    if (result != MA_SUCCESS)   return cresp_error(sound_context, CERR_INITIALIZATION_FAILED);
+
+    ctx->started = true;
+
+    return cresp_val(sound_context, NOCU(ctx));
+}
+
+size_t sound_read_frames(sound_context *ctx, float *out, size_t frames)
+{
+    ma_uint64 read = 0;
+
+    ma_engine_read_pcm_frames(&ctx->engine, out, frames, &read);
+
+    return read;
+}
+#endif /* CLAP_TESTS */
 
 /****************************************************************************
  * Effect sounds (SFX)
