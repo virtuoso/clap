@@ -19,6 +19,7 @@
 #include "script/ffi.h"
 #include "script/internal.h"
 #include "sound.h"
+#include "synth-presets.h"
 
 /**
  * struct script_synth - a script's synth: patch, notes and the live node
@@ -222,7 +223,7 @@ static const struct {
     { "sfx",    SOUND_CAT_SFX },
 };
 
-/* Master volume the synth follows: "music", "sfx", or "none" for neither */
+/* Master volume the synth follows: "music", "sfx", or "none" for neither; a preset brings its own */
 CLAP_SCRIPT_METHOD(ffi_synth_set_category, "fn (s: Synth) set_category*(category: str): bool")
 void ffi_synth_set_category(UmkaStackSlot *params, UmkaStackSlot *result)
 {
@@ -327,6 +328,38 @@ void ffi_synth_add_tone(UmkaStackSlot *params, UmkaStackSlot *result)
     if (!ss)    return ffi_ret_bool(params, result, false);
 
     ffi_ret_bool(params, result, script_synth_add(ss, ffi_real(params, 1), ffi_real(params, 2)));
+}
+
+/*
+ * Replace the patch and the notes with a built-in preset: "wind", "click",
+ * "crackling" or "the_lick". Tweak and start() as usual.
+ */
+CLAP_SCRIPT_METHOD(ffi_synth_load_preset, "fn (s: Synth) load_preset*(name: str): bool")
+void ffi_synth_load_preset(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    const char *name = ffi_str(params, 1);
+    if (!ss || !name)   return ffi_ret_bool(params, result, false);
+
+    synth_preset preset = CRES_RET(synth_preset_by_name(name), {
+        err_cerr(__resp, "unknown preset '%s'\n", name);
+        return ffi_ret_bool(params, result, false);
+    });
+    const synth_config *config = CRES_RET(synth_preset_config(preset),
+                                          return ffi_ret_bool(params, result, false));
+
+    /* the notes go through the script's own list, so they can be edited */
+    ss->config = *config;
+    ss->config.notes = nullptr;
+    ss->config.nr_notes = 0;
+    ss->loop = config->loop;
+
+    darray_clearout(ss->notes);
+    for (unsigned int i = 0; i < config->nr_notes; i++)
+        if (!script_synth_add(ss, config->notes[i].frequency, config->notes[i].duration_ms))
+            return ffi_ret_bool(params, result, false);
+
+    ffi_ret_bool(params, result, true);
 }
 
 /* Forget the notes; the running snapshot, if any, plays on until stop() or start() */

@@ -212,7 +212,10 @@ handed to the audio thread as a snapshot, which is why notes are a list rather
 than a callback: script code cannot run on the audio thread. A synth belongs to
 its script and is dropped with it, so a hot-reload silences the old version.
 Besides the four waveforms there are `"white_noise"` and `"pink_noise"`
-oscillators, which ignore pitch.
+oscillators, which ignore pitch; `s.load_preset("wind")` (also `"click"`,
+`"crackling"`, `"the_lick"`) loads a built-in patch and its notes to tweak or
+play as is, and `start()` on a playing synth retriggers it, which is how a
+one-shot such as the click is replayed.
 `clap::pitch_frequency(pitch, tuning)` and `clap::note_duration_ms(bpm, value)`
 expose the conversions on their own.
 
