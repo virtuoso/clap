@@ -866,12 +866,14 @@ static void sound_effect_chain_drop(struct ref *ref)
         sound_set_effect_chain(s, NULL);
     }
 
+    /* uninit detaches the node and waits out the audio thread, which runs the effects until then */
+    ma_node_uninit(&chain->node, nullptr);
+
     while (!list_empty(&chain->effects)) {
         sound_effect *effect = list_first_entry(&chain->effects, sound_effect, entry);
         ref_put(effect);
     }
 
-    ma_node_uninit(&chain->node, NULL);
     list_del(&chain->entry);
 }
 
