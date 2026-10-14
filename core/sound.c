@@ -605,12 +605,27 @@ static void reverb_process(sound_effect *effect, float *buffer,
     }
 }
 
+/* The room scales every line, and one left without a sample wraps its position modulo 0 */
+static bool reverb_room_fits(reverb_type type, float room_size)
+{
+    auto rtype = &reverb_types[type];
+
+    for (size_t i = 0; i < rtype->nr_combs; i++)
+        if ((int)(rtype->comb_sizes[i] * room_size) < 1)    return false;
+
+    for (size_t i = 0; i < array_size(((reverb_data *)nullptr)->allpass); i++)
+        if ((int)(rtype->allpass_sizes[i] * room_size) < 1) return false;
+
+    return true;
+}
+
 static cerr reverb_init(sound_effect *effect, rc_init_opts(sound_effect) *opts)
 {
     if (opts->reverb_type >= array_size(reverb_types))
         return CERR_INVALID_ARGUMENTS;
-    if (opts->room_size < 0.0f || opts->room_size > 1.0f)
-        return CERR_INVALID_ARGUMENTS;
+    /* written to reject NaN, which fails every comparison */
+    if (!(opts->room_size > 0.0f && opts->room_size <= 1.0f))   return CERR_INVALID_ARGUMENTS;
+    if (!reverb_room_fits(opts->reverb_type, opts->room_size))  return CERR_INVALID_ARGUMENTS;
     if (opts->damping < 0.0f || opts->damping > 1.0f)
         return CERR_INVALID_ARGUMENTS;
     if (opts->wet_dry < 0.0f || opts->wet_dry > 1.0f)
