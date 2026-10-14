@@ -105,11 +105,13 @@ DEFINE_REFCLASS_INIT_OPTIONS(sound_effect,
     float               feedback;
 );
 DECLARE_REFCLASS(sound_effect);
+DECLARE_CLEANUP(sound_effect);
 
 DEFINE_REFCLASS_INIT_OPTIONS(sound_effect_chain,
     sound_context   *ctx;
 );
 DECLARE_REFCLASS(sound_effect_chain);
+DECLARE_CLEANUP(sound_effect_chain);
 
 /**
  * sound_effect_chain_add() - add effect to chain
