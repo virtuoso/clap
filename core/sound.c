@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -120,6 +121,8 @@ typedef union synth_osc {
  * @chain_entry:    link to sound_effect_chain::synths while attached
  * @pos:            next entry of synth_config::notes
  * @sequence_done:  the sequence is over: silence from here on
+ * @trigger:        synth_start() asked for a retrigger; consumed by the
+ *                  audio thread, the only writer of the state above
  */
 struct synth {
     ma_node_base        node;
@@ -140,6 +143,7 @@ struct synth {
     struct list         chain_entry;
     unsigned int        pos;
     bool                sequence_done;
+    atomic_bool         trigger;
 };
 
  typedef struct ov_cb_data {
@@ -1253,6 +1257,22 @@ static void synth_render(synth *synth, float *out, ma_uint32 frames)
 }
 
 /*
+ * The sequence is over and the release has died out: stop the node, so the
+ * graph stops pulling silence out of it; synth_start() starts it again. That
+ * races this, which runs on the audio thread: synth_start() sets the trigger
+ * before it starts the node, both sequentially consistent, so a retrigger is
+ * either seen here, and the node is started again, or its own start comes
+ * after the stop
+ */
+static void synth_finish(synth *synth)
+{
+    ma_node_set_state(&synth->node, ma_node_state_stopped);
+
+    if (atomic_load_explicit(&synth->trigger, memory_order_seq_cst))
+        ma_node_set_state(&synth->node, ma_node_state_started);
+}
+
+/*
  * Runs on the audio thread. Output is rendered in chunks that never straddle
  * a gate end or a note end, so envelope and note changes land on the exact
  * frame; the chunks are aligned to the synth's own frame count, so the same
@@ -1263,6 +1283,12 @@ static void synth_process_pcm_frames(ma_node *node, const float **frames_in, ma_
 {
     synth *synth = (struct synth *)node;
     ma_uint32 frames = *frame_count_out;
+
+    if (atomic_exchange_explicit(&synth->trigger, false, memory_order_acq_rel)) {
+        synth->sequence_done = false;
+        synth->note_frames = 0;
+        synth->pos = 0;
+    }
 
     for (ma_uint32 done = 0; done < frames; ) {
         if (!synth->sequence_done && !synth->note_frames)   synth_advance(synth);
@@ -1285,6 +1311,8 @@ static void synth_process_pcm_frames(ma_node *node, const float **frames_in, ma_
             if (!synth->gate_frames)    synth_gate_off(synth);
         }
     }
+
+    if (synth->sequence_done && synth->amp_env.stage == SYNTH_ENV_IDLE) synth_finish(synth);
 }
 
 static const ma_node_vtable synth_vtable = {
@@ -1365,6 +1393,7 @@ static cerr synth_make(struct ref *ref, void *_opts)
     synth->pos = 0;
     synth->sequence_done = false;
     synth->effect_chain = nullptr;
+    atomic_init(&synth->trigger, false);
     list_init(&synth->entry);
     list_init(&synth->chain_entry);
 
@@ -1427,13 +1456,8 @@ DEFINE_CLEANUP(synth, if (*p) ref_put(*p))
 
 void synth_start(synth *synth)
 {
-    /* a running synth's state belongs to the audio thread */
-    if (ma_node_get_state(&synth->node) == ma_node_state_started)   return;
-
-    synth->sequence_done = false;
-    synth->note_frames = 0;
-    synth->gate_frames = 0;
-    synth->pos = 0;
+    /* the sequencing state belongs to the audio thread: ask it to reset; synth_finish() relies on the order */
+    atomic_store_explicit(&synth->trigger, true, memory_order_seq_cst);
     ma_node_set_state(&synth->node, ma_node_state_started);
 }
 

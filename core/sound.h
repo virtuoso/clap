@@ -289,11 +289,16 @@ DECLARE_REFCLASS(synth);
 DECLARE_CLEANUP(synth);
 
 /**
- * synth_start() - start rendering
+ * synth_start() - start, or retrigger, the synth
  * @synth:  synth to start
  *
- * A stopped synth restarts its sequence with the next note the callback
- * returns; a synth that had no callback resumes its base frequencies.
+ * Starts the node if it is stopped and retriggers it either way: a note
+ * sequence restarts from the top, a callback is asked for its next note, and
+ * a patch with neither restarts its envelopes on the base frequencies, which
+ * is how a one-shot such as a click is replayed. The retrigger is picked up
+ * by the audio thread at its next block, so it is safe on a running synth. A
+ * synth whose sequence has ended stops its own node once the release dies
+ * out; synth_start() starts it again.
  */
 void synth_start(synth *synth);
 
@@ -309,7 +314,8 @@ void synth_stop(synth *synth);
  * synth_is_playing() - whether the synth's node is started
  * @synth:  synth to query
  *
- * Return: true between synth_start() and synth_stop()
+ * Return: true between synth_start() and synth_stop(), or until a sequence
+ * ends and its release dies out
  */
 bool synth_is_playing(synth *synth);
 
