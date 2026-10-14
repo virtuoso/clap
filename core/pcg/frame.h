@@ -7,9 +7,6 @@
 #include "linmath.h"
 #include "poly2d.h"
 
-/* lengths and other derived measures that can fail */
-cres_ret(float);
-
 /**
  * struct pcg_frame - a yaw-only placement frame
  * @org:    origin in the parent's coordinates; y is the floor the element
