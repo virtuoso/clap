@@ -234,6 +234,8 @@ typedef struct ui_menu {
     unsigned int        depth;
 } ui_menu;
 
+struct synth;
+
 struct ui {
     struct mq          mq;
     struct list        shaders;
@@ -241,6 +243,7 @@ struct ui {
     struct shader_prog *glyph_prog;
     renderer_t         *renderer;
     struct ui_widget   *inventory;
+    struct synth       *click;
     struct list        widgets;
     struct list        widget_cleanup;
     double             time;

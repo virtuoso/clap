@@ -13,6 +13,7 @@
 #include "draw.h"
 #include "font.h"
 #include "render.h"
+#include "synth-presets.h"
 #include "ui-debug.h"
 
 model3dtx *ui_quadtx;
@@ -983,12 +984,31 @@ static void ui_menu_preselect(struct ui_animation *ua)
     ui_widget_on_focus(uiw, uiw->focus, true);
 }
 
+/*
+ * The menu's click, a synth preset. It is built on first use rather than in
+ * ui_init(): a synth needs the sound engine running, and on web that only
+ * happens on the first input gesture, which may well be this very click.
+ */
+static void ui_click_play(struct ui *ui)
+{
+    if (!ui->click) {
+        sound_context *sound = clap_get_sound(ui->clap_ctx);
+        if (!sound)     return;
+
+        /* the engine isn't started yet: the next click tries again */
+        ui->click = CRES_RET(synth_preset_new(sound, SYNTH_PRESET_CLICK), return);
+    }
+
+    synth_start(ui->click);
+}
+
 static void ui_menu_on_click(struct ui_element *uie, float x, float y)
 {
     const ui_menu_item *item = uie->priv;
     if (!item)  return;
 
     auto ui = uie->ui;
+    ui_click_play(ui);
     if (!item->items) {
         if (item->fn)   item->fn(ui, item);
         return;
@@ -1674,6 +1694,8 @@ void ui_done(struct ui *ui)
      * are no UI elements to clean up either
      */
     if (list_empty(&ui->shaders))   return;
+
+    if (ui->click)                  ref_put(ui->click);
 
     if (ui->inventory)
         ui_inventory_done(ui);
