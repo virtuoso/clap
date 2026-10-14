@@ -195,6 +195,7 @@ s.set_filter(800, 2.0, 2.0)                 // cutoff Hz, Q, envelope octaves
 s.set_filter_env(5, 300, 0.2, 200)          // attack, decay ms, sustain, release ms
 s.set_amp_env(5, 50, 0.8, 150)
 s.set_gain(0.4)
+s.set_category("music")                     // master volume it follows: music, sfx or none
 s.set_gate(0.8)                             // held fraction of each note; required with notes
 s.set_tempo(120)
 s.set_tuning(440)                           // A4; 0 also means 440

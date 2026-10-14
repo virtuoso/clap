@@ -22,6 +22,7 @@ fn main() {
     lead.set_filter_env(5, 300, 0.2, 200)
     lead.set_amp_env(5, 50, 0.8, 150)
     lead.set_gain(0.4)
+    lead.set_category("music")
 
     // notes are held for 80% of their value before releasing
     lead.set_gate(0.8)

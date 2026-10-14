@@ -213,6 +213,35 @@ void ffi_synth_set_gain(UmkaStackSlot *params, UmkaStackSlot *result)
     if (ss)     ss->config.gain = ffi_real(params, 1);
 }
 
+static const struct {
+    const char      *name;
+    sound_category  category;
+} sound_category_names[] = {
+    { "none",   SOUND_CAT_NONE },
+    { "music",  SOUND_CAT_MUSIC },
+    { "sfx",    SOUND_CAT_SFX },
+};
+
+/* Master volume the synth follows: "music", "sfx", or "none" for neither */
+CLAP_SCRIPT_METHOD(ffi_synth_set_category, "fn (s: Synth) set_category*(category: str): bool")
+void ffi_synth_set_category(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    const char *name = ffi_str(params, 1);
+    if (!ss || !name)   return ffi_ret_bool(params, result, false);
+
+    for (size_t i = 0; i < array_size(sound_category_names); i++) {
+        if (strcmp(sound_category_names[i].name, name)) continue;
+
+        ss->config.category = sound_category_names[i].category;
+
+        return ffi_ret_bool(params, result, true);
+    }
+
+    err("unknown category '%s'\n", name);
+    ffi_ret_bool(params, result, false);
+}
+
 /* Fraction of each note held before the envelopes release, (0, 1]; needed with notes */
 CLAP_SCRIPT_METHOD(ffi_synth_set_gate, "fn (s: Synth) set_gate*(gate: real)")
 void ffi_synth_set_gate(UmkaStackSlot *params, UmkaStackSlot *result)
