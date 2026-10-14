@@ -7,6 +7,7 @@
 import "clap.um"
 
 var lead: clap::Synth
+var hall: clap::EffectChain
 
 fn main() {
     lead = clap::synth()
@@ -33,6 +34,14 @@ fn main() {
     lead.add_note("E4", 0.25)
     lead.add_note("A4", 0.5)
     lead.set_loop(true)
+
+    // send the line through a hall reverb and a short stereo delay
+    hall = clap::effect_chain()
+    if hall.valid() {
+        hall.add_reverb("hall", 0.8, 0.4, 0.3)
+        hall.add_delay(250, 375, 0.3, 0.2)
+        lead.set_effect_chain(hall)
+    }
 
     if lead.start() {
         clap::dbg("synth: playing")

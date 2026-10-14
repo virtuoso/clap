@@ -6,7 +6,8 @@
 // next start. The node pulls its notes on the audio thread, where the
 // interpreter cannot be called, so the sequence crosses the boundary as data:
 // start() snapshots the note list and hands it to the synth as its built-in
-// sequence. Synths are this module's private per-script state
+// sequence. An EffectChain handle wraps a sound_effect_chain a synth can be
+// routed through. Synths and chains are this module's private per-script state
 // (CLAP_SCRIPT_PRIV), dropped with the script, so a hot-reload silences what
 // the previous version played.
 
@@ -30,21 +31,35 @@
  * @bpm:        tempo add_note()/add_rest() convert note values with
  * @tuning:     A4 frequency for add_note(); 0.0 is concert pitch
  * @loop:       whether the sequence wraps around
+ * @chain:      chain the node is routed through, applied by start() too
  */
 struct script_synth {
     struct list                 entry;
     synth_config                config;
     darray(synth_note, notes);
     darray(synth_note, sequence);
-    synth                   *synth;
-    float                   bpm;
-    float                   tuning;
-    bool                    loop;
+    synth                       *synth;
+    struct script_effect_chain  *chain;
+    float                       bpm;
+    float                       tuning;
+    bool                        loop;
+};
+
+/**
+ * struct script_effect_chain - a script's effect chain
+ * @entry:  link to script_priv::effect_chains
+ * @chain:  the engine's chain; effects added to it are owned by it
+ */
+struct script_effect_chain {
+    struct list         entry;
+    sound_effect_chain  *chain;
 };
 
 CLAP_SCRIPT_PRIV(struct list synths)
+CLAP_SCRIPT_PRIV(struct list effect_chains)
 
 CLAP_SCRIPT_TYPE("type Synth* = struct { _h: uint }")
+CLAP_SCRIPT_TYPE("type EffectChain* = struct { _h: uint }")
 
 static const struct {
     const char      *name;
@@ -65,6 +80,19 @@ static struct script_synth *ffi_synth_get(UmkaStackSlot *params, int idx, UmkaSt
     struct script_synth *ss;
     list_for_each_entry(ss, &s->priv.synths, entry)
         if (ss == handle)   return ss;
+
+    return nullptr;
+}
+
+/* The chain a handle refers to, or nullptr, like ffi_synth_get() */
+static struct script_effect_chain *ffi_effect_chain_get(UmkaStackSlot *params, int idx, UmkaStackSlot *result)
+{
+    struct script_effect_chain *handle = ffi_ptr(params, idx);
+    script *s = ffi_script(result);
+
+    struct script_effect_chain *sec;
+    list_for_each_entry(sec, &s->priv.effect_chains, entry)
+        if (sec == handle)  return sec;
 
     return nullptr;
 }
@@ -317,9 +345,21 @@ void ffi_synth_start(UmkaStackSlot *params, UmkaStackSlot *result)
         err_cerr(__resp, "cannot create synth\n");
         return ffi_ret_bool(params, result, false);
     });
+    if (ss->chain)  synth_set_effect_chain(ss->synth, ss->chain->chain);
     synth_start(ss->synth);
 
     ffi_ret_bool(params, result, true);
+}
+
+/* Route the output through a chain, or straight to the output for an invalid handle */
+CLAP_SCRIPT_METHOD(ffi_synth_set_effect_chain, "fn (s: Synth) set_effect_chain*(c: EffectChain)")
+void ffi_synth_set_effect_chain(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_synth *ss = ffi_synth_get(params, 0, result);
+    if (!ss)    return;
+
+    ss->chain = ffi_effect_chain_get(params, 1, result);
+    if (ss->synth)  synth_set_effect_chain(ss->synth, ss->chain ? ss->chain->chain : nullptr);
 }
 
 /* Silence immediately; start() resumes the sequence from the top */
@@ -335,6 +375,131 @@ void ffi_synth_delete(UmkaStackSlot *params, UmkaStackSlot *result)
 {
     struct script_synth *ss = ffi_synth_get(params, 0, result);
     if (ss)     script_synth_delete(ss);
+}
+
+/*
+ * Effect chains: reverb and delay processors a synth's output is sent through.
+ * Effects are appended in call order and are owned by the chain.
+ */
+
+static void script_effect_chain_delete(script *s, struct script_effect_chain *sec)
+{
+    /* the engine detaches live synths when the chain goes; drop the script's routing too */
+    struct script_synth *ss;
+    list_for_each_entry(ss, &s->priv.synths, entry)
+        if (ss->chain == sec)   ss->chain = nullptr;
+
+    ref_put(sec->chain);
+    list_del(&sec->entry);
+    mem_free(sec);
+}
+
+/* An empty, enabled chain feeding the output; invalid without sound, with the reason logged */
+CLAP_SCRIPT_FN(ffi_effect_chain, "fn effect_chain*(): EffectChain")
+void ffi_effect_chain(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    script *s = ffi_script(result);
+    sound_context *sound = clap_get_sound(script_context(s));
+
+    if (!sound) {
+        err("no sound context to build an effect chain on\n");
+        return ffi_ret_ptr(params, result, nullptr);
+    }
+
+    LOCAL_SET(sound_effect_chain, chain) = CRES_RET(ref_new_checked(sound_effect_chain, .ctx = sound), {
+        err_cerr(__resp, "cannot create effect chain\n");
+        return ffi_ret_ptr(params, result, nullptr);
+    });
+
+    struct script_effect_chain *sec = mem_alloc(sizeof(*sec), .zero = 1);
+    if (!sec)   return ffi_ret_ptr(params, result, nullptr);
+
+    sec->chain = NOCU(chain);
+    list_append(&s->priv.effect_chains, &sec->entry);
+
+    ffi_ret_ptr(params, result, sec);
+}
+
+CLAP_SCRIPT_METHOD(ffi_effect_chain_valid, "fn (c: EffectChain) valid*(): bool")
+void ffi_effect_chain_valid(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    ffi_ret_bool(params, result, ffi_effect_chain_get(params, 0, result) != nullptr);
+}
+
+static const struct {
+    const char  *name;
+    reverb_type type;
+} reverb_names[] = {
+    { "small_room", REVERB_SMALL_ROOM },
+    { "hall",       REVERB_HALL },
+};
+
+/* Append a Schroeder reverb: room is "small_room" or "hall"; size, damping and wet mix are [0, 1] */
+CLAP_SCRIPT_METHOD(ffi_effect_chain_add_reverb,
+                   "fn (c: EffectChain) add_reverb*(room: str, room_size, damping, wet: real): bool")
+void ffi_effect_chain_add_reverb(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_effect_chain *sec = ffi_effect_chain_get(params, 0, result);
+    const char *room = ffi_str(params, 1);
+    if (!sec || !room)  return ffi_ret_bool(params, result, false);
+
+    for (size_t i = 0; i < array_size(reverb_names); i++) {
+        if (strcmp(reverb_names[i].name, room))     continue;
+
+        sound_context *sound = clap_get_sound(ffi_ctx(result));
+        LOCAL_SET(sound_effect, effect) = CRES_RET(
+            ref_new_checked(sound_effect, .ctx = sound, .type = SOUND_EFFECT_REVERB,
+                            .reverb_type = reverb_names[i].type, .room_size = ffi_real(params, 2),
+                            .damping = ffi_real(params, 3), .wet_dry = ffi_real(params, 4)),
+            {
+                err_cerr(__resp, "cannot create reverb\n");
+                return ffi_ret_bool(params, result, false);
+            });
+        sound_effect_chain_add(sec->chain, effect);
+
+        return ffi_ret_bool(params, result, true);
+    }
+
+    err("unknown reverb '%s'\n", room);
+    ffi_ret_bool(params, result, false);
+}
+
+/* Append a stereo delay: per-channel delay in ms, feedback and wet mix in [0, 1] */
+CLAP_SCRIPT_METHOD(ffi_effect_chain_add_delay,
+                   "fn (c: EffectChain) add_delay*(left_ms, right_ms, feedback, wet: real): bool")
+void ffi_effect_chain_add_delay(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_effect_chain *sec = ffi_effect_chain_get(params, 0, result);
+    if (!sec)   return ffi_ret_bool(params, result, false);
+
+    sound_context *sound = clap_get_sound(ffi_ctx(result));
+    LOCAL_SET(sound_effect, effect) = CRES_RET(
+        ref_new_checked(sound_effect, .ctx = sound, .type = SOUND_EFFECT_DELAY,
+                        .delay_ms = { ffi_real(params, 1), ffi_real(params, 2) },
+                        .feedback = ffi_real(params, 3), .wet_dry = ffi_real(params, 4)),
+        {
+            err_cerr(__resp, "cannot create delay\n");
+            return ffi_ret_bool(params, result, false);
+        });
+    sound_effect_chain_add(sec->chain, effect);
+
+    ffi_ret_bool(params, result, true);
+}
+
+/* A disabled chain passes its input through untouched */
+CLAP_SCRIPT_METHOD(ffi_effect_chain_set_enabled, "fn (c: EffectChain) set_enabled*(enabled: bool)")
+void ffi_effect_chain_set_enabled(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_effect_chain *sec = ffi_effect_chain_get(params, 0, result);
+    if (sec)    sound_effect_chain_enable(sec->chain, ffi_bool(params, 1));
+}
+
+/* Drop the chain; synths routed through it go back to the output */
+CLAP_SCRIPT_METHOD(ffi_effect_chain_delete, "fn (c: EffectChain) delete*()")
+void ffi_effect_chain_delete(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct script_effect_chain *sec = ffi_effect_chain_get(params, 0, result);
+    if (sec)    script_effect_chain_delete(ffi_script(result), sec);
 }
 
 /* The helpers stand alone too, for scripts that time or tune their own way */
@@ -375,4 +540,8 @@ void script_synths_done(script *s)
     struct script_synth *ss, *iter;
     list_for_each_entry_iter(ss, iter, &s->priv.synths, entry)
         script_synth_delete(ss);
+
+    struct script_effect_chain *sec, *itc;
+    list_for_each_entry_iter(sec, itc, &s->priv.effect_chains, entry)
+        script_effect_chain_delete(s, sec);
 }

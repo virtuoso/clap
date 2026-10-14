@@ -213,6 +213,18 @@ its script and is dropped with it, so a hot-reload silences the old version.
 `clap::pitch_frequency(pitch, tuning)` and `clap::note_duration_ms(bpm, value)`
 expose the conversions on their own.
 
+An `EffectChain` sends a synth through reverb and delay; effects apply in the
+order they are added, and deleting the chain routes its synths back to the
+output:
+
+```
+fx := clap::effect_chain()
+fx.add_reverb("hall", 0.8, 0.4, 0.3)        // room ("small_room"/"hall"), size, damping, wet
+fx.add_delay(250, 375, 0.3, 0.2)            // left ms, right ms, feedback, wet
+s.set_effect_chain(fx)                      // before or after start()
+fx.set_enabled(false)                       // bypass without detaching
+```
+
 ## Examples
 
 Ready-to-crib scripts live in [`script-examples/`](script-examples/):
