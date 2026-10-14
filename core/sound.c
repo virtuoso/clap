@@ -626,10 +626,8 @@ static cerr reverb_init(sound_effect *effect, rc_init_opts(sound_effect) *opts)
     /* written to reject NaN, which fails every comparison */
     if (!(opts->room_size > 0.0f && opts->room_size <= 1.0f))   return CERR_INVALID_ARGUMENTS;
     if (!reverb_room_fits(opts->reverb_type, opts->room_size))  return CERR_INVALID_ARGUMENTS;
-    if (opts->damping < 0.0f || opts->damping > 1.0f)
-        return CERR_INVALID_ARGUMENTS;
-    if (opts->wet_dry < 0.0f || opts->wet_dry > 1.0f)
-        return CERR_INVALID_ARGUMENTS;
+    if (!(opts->damping >= 0.0f && opts->damping <= 1.0f))      return CERR_INVALID_ARGUMENTS;
+    if (!(opts->wet_dry >= 0.0f && opts->wet_dry <= 1.0f))      return CERR_INVALID_ARGUMENTS;
 
     reverb_data *reverb = mem_alloc(sizeof(*reverb), .zero = 1);
     if (!reverb)    return CERR_NOMEM;
@@ -723,12 +721,15 @@ static void delay_process(sound_effect *effect, float *buffer,
 
 static cerr delay_init(sound_effect *effect, rc_init_opts(sound_effect) *opts)
 {
-    if (opts->delay_ms[0] < 0.0f || opts->delay_ms[1] < 0.0f)
-        return CERR_INVALID_ARGUMENTS;
-    if (opts->feedback < 0.0f || opts->feedback > 1.0f)
-        return CERR_INVALID_ARGUMENTS;
-    if (opts->wet_dry < 0.0f || opts->wet_dry > 1.0f)
-        return CERR_INVALID_ARGUMENTS;
+    /*
+     * Written to reject NaN, which fails every comparison; the delay times are
+     * bounded as floats, before their conversions to unsigned int can overflow
+     */
+    float max_delay_ms = DELAY_BUFFER_MAX_SAMPLES * 1000.0f / ma_engine_get_sample_rate(&opts->ctx->engine);
+    if (!(opts->delay_ms[0] >= 0.0f && opts->delay_ms[0] <= max_delay_ms))  return CERR_INVALID_ARGUMENTS;
+    if (!(opts->delay_ms[1] >= 0.0f && opts->delay_ms[1] <= max_delay_ms))  return CERR_INVALID_ARGUMENTS;
+    if (!(opts->feedback >= 0.0f && opts->feedback <= 1.0f))                return CERR_INVALID_ARGUMENTS;
+    if (!(opts->wet_dry >= 0.0f && opts->wet_dry <= 1.0f))                  return CERR_INVALID_ARGUMENTS;
 
     delay_data *delay = mem_alloc(sizeof(*delay), .zero = 1);
     if (!delay) return CERR_NOMEM;
