@@ -61,7 +61,7 @@ struct sound_effect_chain {
     ma_node_base    node;
     struct list     effects;
     struct list     sounds;
-    bool            enabled;
+    _Atomic bool    enabled;
     struct ref      ref;
     struct list     entry;
 };
@@ -818,7 +818,10 @@ static void sound_effect_chain_process_pcm_frames(ma_node *node, const float **f
     sound_effect_chain *chain = (sound_effect_chain *)node;
     ma_uint32 channels = ma_node_get_output_channels(node, 0);
 
-    if (!chain->enabled || list_empty(&chain->effects)) {
+    /* sound_effect_chain_add() publishes an entry with a release store, which these loads pair with */
+    struct list *pos = __atomic_load_n(&chain->effects.next, __ATOMIC_ACQUIRE);
+
+    if (!chain->enabled || pos == &chain->effects) {
         ma_copy_pcm_frames(frames_out[0], frames_in[0], *frame_count_out,
                            ma_format_f32, channels);
         return;
@@ -826,8 +829,8 @@ static void sound_effect_chain_process_pcm_frames(ma_node *node, const float **f
 
     ma_copy_pcm_frames(frames_out[0], frames_in[0], *frame_count_out, ma_format_f32, channels);
 
-    sound_effect *effect;
-    list_for_each_entry(effect, &chain->effects, entry) {
+    for (; pos != &chain->effects; pos = __atomic_load_n(&pos->next, __ATOMIC_ACQUIRE)) {
+        sound_effect *effect = list_entry(pos, sound_effect, entry);
         if (effect->desc && effect->desc->process)
             effect->desc->process(effect, frames_out[0], *frame_count_out, channels);
     }
@@ -905,14 +908,32 @@ void sound_effect_chain_enable(sound_effect_chain *chain, bool enable)
 void sound_effect_chain_add(sound_effect_chain *chain, sound_effect *effect)
 {
     if (!chain || !effect)  return;
-    list_append(&chain->effects, &effect->entry);
+
     ref_get(effect);
+
+    /*
+     * The audio thread walks the list as it plays: link the entry up before
+     * the release store that makes it reachable
+     */
+    effect->entry.next = &chain->effects;
+    effect->entry.prev = chain->effects.prev;
+    __atomic_store_n(&chain->effects.prev->next, &effect->entry, __ATOMIC_RELEASE);
+    chain->effects.prev = &effect->entry;
 }
 
 void sound_effect_chain_remove(sound_effect_chain *chain, sound_effect *effect)
 {
     if (!chain || !effect)  return;
+
+    /*
+     * The audio thread may be inside the effect: detaching the chain's output
+     * waits it out, at the cost of at most one block of the chain's output
+     */
+    ma_node *endpoint = ma_node_graph_get_endpoint(ma_node_get_node_graph(&chain->node));
+    ma_node_detach_output_bus(&chain->node, 0);
     list_del(&effect->entry);
+    ma_node_attach_output_bus(&chain->node, 0, endpoint, 0);
+
     ref_put(effect);
 }
 
