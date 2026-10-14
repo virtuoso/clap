@@ -490,3 +490,13 @@ target_link_libraries(mesh_tests PRIVATE meshoptimizer)
 clap_subsystem_test(fracture_tests test-fracture.c fracture.c triangulate.c mesh.c datatypes.c
                     prng.c prng-mt.cpp)
 target_link_libraries(fracture_tests PRIVATE meshoptimizer)
+
+# The synth tests render through a headless miniaudio engine, so they compile
+# the sound layer, the presets and miniaudio itself. Not on the web: there
+# miniaudio's device backend links against the audio worklet runtime, which
+# the test binaries don't carry
+if (NOT (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten"))
+    clap_subsystem_test(synth_tests test-synth.c sound.c synth-presets.c ${MA_DIR}/miniaudio.c
+                        ${MA_DIR}/extras/stb_vorbis.c)
+    target_include_directories(synth_tests PRIVATE ${MA_DIR})
+endif ()
