@@ -168,7 +168,8 @@ typedef enum synth_waveform {
  * struct synth_oscillator_config - one oscillator of a synth
  * @waveform:   waveform to generate
  * @frequency:  base frequency in Hz, (0, Nyquist): the pitch the oscillator
- *              plays when the synth has no synth_config::next_note callback
+ *              plays when the synth has neither notes nor a
+ *              synth_config::next_note callback
  * @detune:     offset in cents from the base or note frequency, within
  *              %SYNTH_DETUNE_MAX_CENTS either way
  * @gain:       linear gain the oscillator contributes to the mix
@@ -209,10 +210,11 @@ typedef struct synth_filter_config {
 
 /**
  * struct synth_note - one note of a sequence
- * @frequency:      pitch in Hz, (0, Nyquist); 0.0 is a rest, and so is a
- *                  pitch the synth cannot play
- * @duration_ms:    length of the note, or of the rest, > 0; anything else
- *                  lasts one frame
+ * @frequency:      pitch in Hz, (0, Nyquist); 0.0 is a rest. A pitch outside
+ *                  the range fails synth creation in synth_config::notes and
+ *                  is played as a rest when it comes from the callback
+ * @duration_ms:    length of the note, or of the rest, > 0; from the callback,
+ *                  anything else lasts one frame
  */
 typedef struct synth_note {
     float   frequency;
@@ -240,10 +242,14 @@ typedef bool (*synth_next_note_fn)(synth_note *note, void *data);
  * @filter_env:     cutoff envelope, scaled by synth_filter_config::env_amount
  * @gain:           output gain
  * @gate:           fraction of a note's duration the envelopes are held before
- *                  they release, (0.0, 1.0]; only used with @next_note
- * @next_note:      sequence callback; NULL makes the oscillators play their
- *                  base frequencies until synth_stop()
+ *                  they release, (0.0, 1.0]; used with @notes or @next_note
+ * @nr_notes:       entries in @notes
+ * @notes:          a sequence the synth plays by itself, from the top on every
+ *                  synth_start(); exclusive with @next_note
+ * @next_note:      sequence callback; with neither this nor @notes the
+ *                  oscillators play their base frequencies until synth_stop()
  * @next_note_data: passed to @next_note
+ * @loop:           whether @notes wrap around instead of ending
  */
 typedef struct synth_config {
     synth_oscillator_config oscillators[SYNTH_MAX_OSCILLATORS];
@@ -253,15 +259,19 @@ typedef struct synth_config {
     synth_envelope_config   filter_env;
     float                   gain;
     float                   gate;
+    unsigned int            nr_notes;
+    const synth_note        *notes;
     synth_next_note_fn      next_note;
     void                    *next_note_data;
+    bool                    loop;
 } synth_config;
 
 /*
- * The patch is copied at creation; the callback and its data have to outlive
- * the synth. A value outside the ranges documented above, a non-finite one
- * included, fails creation with CERR_INVALID_ARGUMENTS and a reason naming
- * the field. The synth is created stopped: synth_start() begins the sequence.
+ * The patch is copied at creation; the notes, the callback and its data have
+ * to outlive the synth. A value outside the ranges documented above, a
+ * non-finite one included, fails creation with CERR_INVALID_ARGUMENTS and a
+ * reason naming the field. The synth is created stopped: synth_start() begins
+ * the sequence.
  */
 DEFINE_REFCLASS_INIT_OPTIONS(synth,
     sound_context       *ctx;

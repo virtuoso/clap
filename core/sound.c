@@ -107,7 +107,8 @@ typedef struct synth_envelope {
  *                  host's block size
  * @ref:            lifetime management
  * @entry:          link to sound_context::synths
- * @sequence_done:  next_note returned false: silence from here on
+ * @pos:            next entry of synth_config::notes
+ * @sequence_done:  the sequence is over: silence from here on
  */
 struct synth {
     ma_node_base    node;
@@ -124,6 +125,7 @@ struct synth {
     ma_uint64       frames;
     struct ref      ref;
     struct list     entry;
+    unsigned int    pos;
     bool            sequence_done;
 };
 
@@ -1022,10 +1024,26 @@ static void synth_gate_off(synth *synth)
     synth_envelope_gate_off(&synth->filter_env);
 }
 
+/* The next note from the built-in sequence or the callback; false when it's over */
+static bool synth_next_note(synth *synth, synth_note *note)
+{
+    if (synth->config.next_note)    return synth->config.next_note(note, synth->config.next_note_data);
+
+    if (synth->pos >= synth->config.nr_notes) {
+        if (!synth->config.loop)    return false;
+
+        synth->pos = 0;
+    }
+
+    *note = synth->config.notes[synth->pos++];
+
+    return true;
+}
+
 /* The current note ran out: set up the next one, or hold the base frequencies */
 static void synth_advance(synth *synth)
 {
-    if (!synth->config.next_note) {
+    if (!synth->config.next_note && !synth->config.notes) {
         synth->note_frames = UINT64_MAX;
         synth->gate_frames = 0;
         synth_envelope_gate_on(&synth->amp_env);
@@ -1034,7 +1052,7 @@ static void synth_advance(synth *synth)
     }
 
     synth_note note = {};
-    if (!synth->config.next_note(&note, synth->config.next_note_data)) {
+    if (!synth_next_note(synth, &note)) {
         synth->sequence_done = true;
         synth_gate_off(synth);
         return;
@@ -1155,6 +1173,13 @@ static bool synth_envelope_config_is_valid(const synth_envelope_config *env)
            synth_within(env->sustain, 0.0f, 1.0f);
 }
 
+static bool synth_note_is_valid(const synth_note *note, unsigned int sample_rate)
+{
+    if (note->frequency != 0.0f && !synth_frequency_is_valid(note->frequency, sample_rate)) return false;
+
+    return synth_positive(note->duration_ms);
+}
+
 /* The reason names the field, so a script's bad value is reported as such */
 static cerr synth_bad(const char *field)
 {
@@ -1165,8 +1190,10 @@ static cerr synth_config_check(const synth_config *config, unsigned int sample_r
 {
     if (!config->nr_oscillators)                            return synth_bad("nr_oscillators");
     if (config->nr_oscillators > SYNTH_MAX_OSCILLATORS)     return synth_bad("nr_oscillators");
+    if (config->notes && config->next_note)                 return synth_bad("notes with next_note");
+    if (!config->notes != !config->nr_notes)                return synth_bad("nr_notes");
 
-    bool sequenced = config->next_note;
+    bool sequenced = config->notes || config->next_note;
 
     for (unsigned int i = 0; i < config->nr_oscillators; i++) {
         auto osc = &config->oscillators[i];
@@ -1178,6 +1205,9 @@ static cerr synth_config_check(const synth_config *config, unsigned int sample_r
         /* the base frequency is the pitch when there is no sequence to supply one */
         if (!sequenced && !synth_frequency_is_valid(osc->frequency, sample_rate))       return synth_bad("frequency");
     }
+
+    for (unsigned int i = 0; i < config->nr_notes; i++)
+        if (!synth_note_is_valid(&config->notes[i], sample_rate))   return synth_bad("note");
 
     float cutoff_max = sample_rate * SYNTH_CUTOFF_MAX_RATIO;
     if (!synth_within(config->filter.cutoff, SYNTH_CUTOFF_MIN_HZ, cutoff_max))      return synth_bad("cutoff");
@@ -1204,6 +1234,7 @@ static cerr synth_make(struct ref *ref, void *_opts)
     synth->note_frames = 0;
     synth->gate_frames = 0;
     synth->frames = 0;
+    synth->pos = 0;
     synth->sequence_done = false;
     list_init(&synth->entry);
 
@@ -1271,6 +1302,7 @@ void synth_start(synth *synth)
     synth->sequence_done = false;
     synth->note_frames = 0;
     synth->gate_frames = 0;
+    synth->pos = 0;
     ma_node_set_state(&synth->node, ma_node_state_started);
 }
 
