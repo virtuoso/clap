@@ -185,7 +185,9 @@ have no recorder. `scripts/capture-test.sh` runs a demo with a script like this.
 
 **Play a line on the synth.** A `Synth` collects a patch (oscillators, filter,
 envelopes, gain) and a note list; `start()` builds the engine's synth node from
-them, so edits made afterwards only count on the next `start()`. Notes are named
+them. The patch knobs also reach a synth that is already playing, so a cutoff
+can be swept or an ambience ducked from `on_frame`; the oscillators and the
+notes are structural, and those only count on the next `start()`. Notes are named
 in scientific pitch and valued in standard notation at the synth's tempo; with
 no notes at all the oscillators hold their base frequencies until `stop()`:
 

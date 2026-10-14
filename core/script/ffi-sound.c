@@ -3,7 +3,8 @@
 // FFI over the subtractive synth (sound.h). A script assembles a patch and a
 // note list on a Synth handle, then start() creates the engine's synth node
 // from them; each start() rebuilds the node, so patch edits take effect on the
-// next start. The node pulls its notes on the audio thread, where the
+// next start, while the patch knobs below reach a synth that is already
+// playing. The node pulls its notes on the audio thread, where the
 // interpreter cannot be called, so the sequence crosses the boundary as data:
 // start() snapshots the note list and hands it to the synth as its built-in
 // sequence. An EffectChain handle wraps a sound_effect_chain a synth can be
@@ -181,6 +182,8 @@ void ffi_synth_set_filter(UmkaStackSlot *params, UmkaStackSlot *result)
     ss->config.filter.cutoff = ffi_real(params, 1);
     ss->config.filter.resonance = ffi_real(params, 2);
     ss->config.filter.env_amount = ffi_real(params, 3);
+
+    if (ss->synth)  CERR_RET(synth_set_filter(ss->synth, &ss->config.filter), err_cerr(__cerr, "bad filter\n"));
 }
 
 static void ffi_synth_envelope(UmkaStackSlot *params, synth_envelope_config *env)
@@ -196,7 +199,12 @@ CLAP_SCRIPT_METHOD(ffi_synth_set_amp_env,
 void ffi_synth_set_amp_env(UmkaStackSlot *params, UmkaStackSlot *result)
 {
     struct script_synth *ss = ffi_synth_get(params, 0, result);
-    if (ss)     ffi_synth_envelope(params, &ss->config.amp_env);
+    if (!ss)    return;
+
+    synth_envelope_config *env = &ss->config.amp_env;
+
+    ffi_synth_envelope(params, env);
+    if (ss->synth)  CERR_RET(synth_set_amp_env(ss->synth, env), err_cerr(__cerr, "bad envelope\n"));
 }
 
 CLAP_SCRIPT_METHOD(ffi_synth_set_filter_env,
@@ -204,14 +212,22 @@ CLAP_SCRIPT_METHOD(ffi_synth_set_filter_env,
 void ffi_synth_set_filter_env(UmkaStackSlot *params, UmkaStackSlot *result)
 {
     struct script_synth *ss = ffi_synth_get(params, 0, result);
-    if (ss)     ffi_synth_envelope(params, &ss->config.filter_env);
+    if (!ss)    return;
+
+    synth_envelope_config *env = &ss->config.filter_env;
+
+    ffi_synth_envelope(params, env);
+    if (ss->synth)  CERR_RET(synth_set_filter_env(ss->synth, env), err_cerr(__cerr, "bad envelope\n"));
 }
 
 CLAP_SCRIPT_METHOD(ffi_synth_set_gain, "fn (s: Synth) set_gain*(gain: real)")
 void ffi_synth_set_gain(UmkaStackSlot *params, UmkaStackSlot *result)
 {
     struct script_synth *ss = ffi_synth_get(params, 0, result);
-    if (ss)     ss->config.gain = ffi_real(params, 1);
+    if (!ss)    return;
+
+    ss->config.gain = ffi_real(params, 1);
+    if (ss->synth)  CERR_RET(synth_set_gain(ss->synth, ss->config.gain), err_cerr(__cerr, "bad gain\n"));
 }
 
 static const struct {
@@ -223,7 +239,7 @@ static const struct {
     { "sfx",    SOUND_CAT_SFX },
 };
 
-/* Master volume the synth follows: "music", "sfx", or "none" for neither; a preset brings its own */
+/* Master volume the synth follows: "music", "sfx", or "none" for neither; a preset brings its own. Live. */
 CLAP_SCRIPT_METHOD(ffi_synth_set_category, "fn (s: Synth) set_category*(category: str): bool")
 void ffi_synth_set_category(UmkaStackSlot *params, UmkaStackSlot *result)
 {
@@ -235,6 +251,10 @@ void ffi_synth_set_category(UmkaStackSlot *params, UmkaStackSlot *result)
         if (strcmp(sound_category_names[i].name, name)) continue;
 
         ss->config.category = sound_category_names[i].category;
+        if (ss->synth)  CERR_RET(synth_set_category(ss->synth, ss->config.category), {
+            err_cerr(__cerr, "bad category\n");
+            return ffi_ret_bool(params, result, false);
+        });
 
         return ffi_ret_bool(params, result, true);
     }
@@ -248,7 +268,10 @@ CLAP_SCRIPT_METHOD(ffi_synth_set_gate, "fn (s: Synth) set_gate*(gate: real)")
 void ffi_synth_set_gate(UmkaStackSlot *params, UmkaStackSlot *result)
 {
     struct script_synth *ss = ffi_synth_get(params, 0, result);
-    if (ss)     ss->config.gate = ffi_real(params, 1);
+    if (!ss)    return;
+
+    ss->config.gate = ffi_real(params, 1);
+    if (ss->synth)  CERR_RET(synth_set_gate(ss->synth, ss->config.gate), err_cerr(__cerr, "bad gate\n"));
 }
 
 /* Tempo in quarter notes per minute, for add_note()/add_rest() */
@@ -271,7 +294,10 @@ CLAP_SCRIPT_METHOD(ffi_synth_set_loop, "fn (s: Synth) set_loop*(loop: bool)")
 void ffi_synth_set_loop(UmkaStackSlot *params, UmkaStackSlot *result)
 {
     struct script_synth *ss = ffi_synth_get(params, 0, result);
-    if (ss)     ss->loop = ffi_bool(params, 1);
+    if (!ss)    return;
+
+    ss->loop = ffi_bool(params, 1);
+    if (ss->synth)  synth_set_loop(ss->synth, ss->loop);
 }
 
 static bool script_synth_add(struct script_synth *ss, float frequency, float duration_ms)
