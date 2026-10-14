@@ -243,6 +243,7 @@ typedef bool (*synth_next_note_fn)(synth_note *note, void *data);
  * struct synth_config - subtractive synth patch
  * @oscillators:    oscillators summed into the filter
  * @nr_oscillators: entries in @oscillators, [1, %SYNTH_MAX_OSCILLATORS]
+ * @category:       volume bucket the master volumes scale @gain by
  * @filter:         lowpass filter the oscillator mix goes through
  * @amp_env:        amplitude envelope
  * @filter_env:     cutoff envelope, scaled by synth_filter_config::env_amount
@@ -260,6 +261,7 @@ typedef bool (*synth_next_note_fn)(synth_note *note, void *data);
 typedef struct synth_config {
     synth_oscillator_config oscillators[SYNTH_MAX_OSCILLATORS];
     unsigned int            nr_oscillators;
+    sound_category          category;
     synth_filter_config     filter;
     synth_envelope_config   amp_env;
     synth_envelope_config   filter_env;

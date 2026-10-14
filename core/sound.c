@@ -27,8 +27,9 @@ typedef struct sound_context {
     struct list chains;
     struct list synths;
     clap_context *clap_ctx;
-    float       master_music;
-    float       master_sfx;
+    /* synths read these on the audio thread */
+    _Atomic float master_music;
+    _Atomic float master_sfx;
 } sound_context;
 
 typedef struct sound {
@@ -1240,8 +1241,11 @@ static void synth_render(synth *synth, float *out, ma_uint32 frames)
     }
     ma_lpf2_process_pcm_frames(&synth->filter, mix, mix, frames);
 
+    /* the master volumes are atomic: the main thread sets them while this runs */
+    float gain = synth->config.gain * sound_master_for(synth->ctx, synth->config.category);
+
     for (ma_uint32 f = 0; f < frames; f++) {
-        float sample = mix[f] * synth_envelope_next(&synth->amp_env) * synth->config.gain;
+        float sample = mix[f] * synth_envelope_next(&synth->amp_env) * gain;
         synth_envelope_next(&synth->filter_env);
 
         for (unsigned int ch = 0; ch < synth->channels; ch++)   out[f * synth->channels + ch] = sample;
@@ -1314,6 +1318,7 @@ static cerr synth_config_check(const synth_config *config, unsigned int sample_r
     if (config->nr_oscillators > SYNTH_MAX_OSCILLATORS)     return synth_bad("nr_oscillators");
     if (config->notes && config->next_note)                 return synth_bad("notes with next_note");
     if (!config->notes != !config->nr_notes)                return synth_bad("nr_notes");
+    if ((unsigned int)config->category > SOUND_CAT_SFX)     return synth_bad("category");
 
     bool sequenced = config->notes || config->next_note;
 
