@@ -53,6 +53,7 @@ typedef struct sound {
  * @node:       miniaudio's node
  * @effects:    list of effects in the chain
  * @sounds:     list of sounds sending to the chain
+ * @synths:     list of synths sending to the chain
  * @enabled:    chain enabled/disabled
  * @ref:        lifetime management
  * @entry:      link to sound_context::chains
@@ -61,6 +62,7 @@ struct sound_effect_chain {
     ma_node_base    node;
     struct list     effects;
     struct list     sounds;
+    struct list     synths;
     _Atomic bool    enabled;
     struct ref      ref;
     struct list     entry;
@@ -105,28 +107,32 @@ typedef struct synth_envelope {
  * @gate_frames:    frames left until the envelopes release; 0 once released
  * @frames:         frames rendered so far, aligns chunks independently of the
  *                  host's block size
+ * @effect_chain:   chain the output goes through, or NULL for the endpoint
  * @ref:            lifetime management
  * @entry:          link to sound_context::synths
+ * @chain_entry:    link to sound_effect_chain::synths while attached
  * @pos:            next entry of synth_config::notes
  * @sequence_done:  the sequence is over: silence from here on
  */
 struct synth {
-    ma_node_base    node;
-    sound_context   *ctx;
-    synth_config    config;
-    ma_waveform     osc[SYNTH_MAX_OSCILLATORS];
-    ma_lpf2         filter;
-    synth_envelope  amp_env;
-    synth_envelope  filter_env;
-    unsigned int    sample_rate;
-    unsigned int    channels;
-    ma_uint64       note_frames;
-    ma_uint64       gate_frames;
-    ma_uint64       frames;
-    struct ref      ref;
-    struct list     entry;
-    unsigned int    pos;
-    bool            sequence_done;
+    ma_node_base        node;
+    sound_context       *ctx;
+    synth_config        config;
+    ma_waveform         osc[SYNTH_MAX_OSCILLATORS];
+    ma_lpf2             filter;
+    synth_envelope      amp_env;
+    synth_envelope      filter_env;
+    unsigned int        sample_rate;
+    unsigned int        channels;
+    ma_uint64           note_frames;
+    ma_uint64           gate_frames;
+    ma_uint64           frames;
+    sound_effect_chain  *effect_chain;
+    struct ref          ref;
+    struct list         entry;
+    struct list         chain_entry;
+    unsigned int        pos;
+    bool                sequence_done;
 };
 
  typedef struct ov_cb_data {
@@ -853,6 +859,7 @@ static cerr sound_effect_chain_make(struct ref *ref, void *_opts)
 
     list_init(&chain->effects);
     list_init(&chain->sounds);
+    list_init(&chain->synths);
     chain->enabled = true;
 
     ma_uint32 channels = ma_engine_get_channels(&opts->ctx->engine);
@@ -883,6 +890,11 @@ static void sound_effect_chain_drop(struct ref *ref)
     while (!list_empty(&chain->sounds)) {
         auto s = list_first_entry(&chain->sounds, sound, chain_entry);
         sound_set_effect_chain(s, NULL);
+    }
+
+    while (!list_empty(&chain->synths)) {
+        auto s = list_first_entry(&chain->synths, synth, chain_entry);
+        synth_set_effect_chain(s, nullptr);
     }
 
     /* uninit detaches the node and waits out the audio thread, which runs the effects until then */
@@ -1277,7 +1289,9 @@ static cerr synth_make(struct ref *ref, void *_opts)
     synth->frames = 0;
     synth->pos = 0;
     synth->sequence_done = false;
+    synth->effect_chain = nullptr;
     list_init(&synth->entry);
+    list_init(&synth->chain_entry);
 
     CERR_RET_CERR(synth_config_check(&synth->config, synth->sample_rate));
 
@@ -1326,6 +1340,8 @@ static void synth_drop(struct ref *ref)
 {
     synth *synth = container_of(ref, struct synth, ref);
 
+    if (synth->effect_chain)    synth_set_effect_chain(synth, nullptr);
+
     ma_node_uninit(&synth->node, nullptr);
     ma_lpf2_uninit(&synth->filter, nullptr);
     list_del(&synth->entry);
@@ -1355,6 +1371,20 @@ void synth_stop(synth *synth)
 bool synth_is_playing(synth *synth)
 {
     return ma_node_get_state(&synth->node) == ma_node_state_started;
+}
+
+void synth_set_effect_chain(synth *synth, sound_effect_chain *chain)
+{
+    if (synth->effect_chain)    list_del(&synth->chain_entry);
+
+    synth->effect_chain = chain;
+
+    if (chain) {
+        ma_node_attach_output_bus(&synth->node, 0, &chain->node, 0);
+        list_append(&chain->synths, &synth->chain_entry);
+    } else {
+        ma_node_attach_output_bus(&synth->node, 0, ma_engine_get_endpoint(&synth->ctx->engine), 0);
+    }
 }
 
 cres(float) synth_midi_frequency(int midi, float tuning)

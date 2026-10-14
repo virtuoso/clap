@@ -307,6 +307,16 @@ void synth_stop(synth *synth);
  */
 bool synth_is_playing(synth *synth);
 
+/**
+ * synth_set_effect_chain() - route the synth through an effect chain
+ * @synth:  synth to reroute
+ * @chain:  chain to send to, or NULL for the engine's endpoint
+ *
+ * Takes effect on the next audio block. A chain that is dropped detaches the
+ * synths still sending to it.
+ */
+void synth_set_effect_chain(synth *synth, sound_effect_chain *chain);
+
 /** SYNTH_TUNING_A440 - concert pitch: A4 at 440 Hz */
 #define SYNTH_TUNING_A440 440.0f
 
