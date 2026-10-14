@@ -210,6 +210,8 @@ and resonance, and, when it has notes, a tempo and a gate. The sequence is
 handed to the audio thread as a snapshot, which is why notes are a list rather
 than a callback: script code cannot run on the audio thread. A synth belongs to
 its script and is dropped with it, so a hot-reload silences the old version.
+Besides the four waveforms there are `"white_noise"` and `"pink_noise"`
+oscillators, which ignore pitch.
 `clap::pitch_frequency(pitch, tuning)` and `clap::note_duration_ms(bpm, value)`
 expose the conversions on their own.
 

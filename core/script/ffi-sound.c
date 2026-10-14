@@ -65,10 +65,12 @@ static const struct {
     const char      *name;
     synth_waveform  waveform;
 } synth_waveform_names[] = {
-    { "sine",       SYNTH_WAVE_SINE },
-    { "square",     SYNTH_WAVE_SQUARE },
-    { "triangle",   SYNTH_WAVE_TRIANGLE },
-    { "sawtooth",   SYNTH_WAVE_SAWTOOTH },
+    { "sine",           SYNTH_WAVE_SINE },
+    { "square",         SYNTH_WAVE_SQUARE },
+    { "triangle",       SYNTH_WAVE_TRIANGLE },
+    { "sawtooth",       SYNTH_WAVE_SAWTOOTH },
+    { "white_noise",    SYNTH_WAVE_WHITE_NOISE },
+    { "pink_noise",     SYNTH_WAVE_PINK_NOISE },
 };
 
 /* The synth a handle refers to; nullptr unless this script holds it, so a delete()d one doesn't dangle */
@@ -138,8 +140,9 @@ void ffi_synth_valid(UmkaStackSlot *params, UmkaStackSlot *result)
 }
 
 /*
- * Waveform is one of "sine", "square", "triangle", "sawtooth"; frequency is
- * the base pitch in Hz used when the synth has no notes, detune is in cents.
+ * Waveform is one of "sine", "square", "triangle", "sawtooth", "white_noise",
+ * "pink_noise"; frequency is the base pitch in Hz used when the synth has no
+ * notes, detune is in cents; neither applies to the noises.
  */
 CLAP_SCRIPT_METHOD(ffi_synth_add_oscillator,
                    "fn (s: Synth) add_oscillator*(waveform: str, frequency, detune, gain: real): bool")
