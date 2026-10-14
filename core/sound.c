@@ -941,6 +941,9 @@ void sound_set_effect_chain(sound *sound, sound_effect_chain *chain)
 {
     if (!sound) return;
 
+    /* an entry linked into two lists corrupts both */
+    if (sound->effect_chain)    list_del(&sound->chain_entry);
+
     sound->effect_chain = chain;
 
     if (chain) {
@@ -950,7 +953,6 @@ void sound_set_effect_chain(sound *sound, sound_effect_chain *chain)
     } else {
         /* plug sound directly into engine's endpoint */
         ma_node_attach_output_bus(&sound->sound, 0, ma_engine_get_endpoint(&sound->ctx->engine), 0);
-        list_del(&sound->chain_entry);
     }
 }
 
