@@ -143,6 +143,8 @@ clap::quit()                                   // end the process cleanly
 
 Directions are held state — set once, they persist until you change them; jump
 and dash are one-shot edges. Time a sequence by sending input from `on_frame`.
+`clap::input_menu()` toggles the in-game menu like Escape does; while it is
+open, `input_move` walks it (back is the next item, right selects).
 
 **Capture frames.** Shoot OpenEXR files of the linear scene colour, as the
 "screen recorder" debug window does, without touching the debug UI. Arming

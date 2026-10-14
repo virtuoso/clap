@@ -73,6 +73,16 @@ void ffi_input_jump(UmkaStackSlot *params, UmkaStackSlot *result)
     message_input_send(ffi_ctx(result), &mi, &script_source);
 }
 
+/* Open or close the in-game menu, as the Escape key does; menu navigation then goes through input_move(). */
+CLAP_SCRIPT_FN(ffi_input_menu, "fn input_menu*()")
+void ffi_input_menu(UmkaStackSlot *params, UmkaStackSlot *result)
+{
+    struct message_input mi;
+    memset(&mi, 0, sizeof(mi));
+    mi.menu_toggle = 1;
+    message_input_send(ffi_ctx(result), &mi, &script_source);
+}
+
 /* Trigger one dash. */
 CLAP_SCRIPT_FN(ffi_input_dash, "fn input_dash*()")
 void ffi_input_dash(UmkaStackSlot *params, UmkaStackSlot *result)
