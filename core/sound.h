@@ -145,12 +145,16 @@ void sfx_play_by_name(sfx_container *sfxc, const char *name);
  * @SYNTH_WAVE_SQUARE:      square
  * @SYNTH_WAVE_TRIANGLE:    triangle
  * @SYNTH_WAVE_SAWTOOTH:    sawtooth
+ * @SYNTH_WAVE_WHITE_NOISE: white noise; frequency and detune don't apply
+ * @SYNTH_WAVE_PINK_NOISE:  pink noise, 3 dB per octave down; likewise unpitched
  */
 typedef enum synth_waveform {
     SYNTH_WAVE_SINE = 0,
     SYNTH_WAVE_SQUARE,
     SYNTH_WAVE_TRIANGLE,
     SYNTH_WAVE_SAWTOOTH,
+    SYNTH_WAVE_WHITE_NOISE,
+    SYNTH_WAVE_PINK_NOISE,
 } synth_waveform;
 
 #define SYNTH_MAX_OSCILLATORS 4

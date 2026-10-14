@@ -92,6 +92,12 @@ typedef struct synth_envelope {
     unsigned int            sample_rate;
 } synth_envelope;
 
+/* An oscillator: a periodic waveform or a noise generator, per its config */
+typedef union synth_osc {
+    ma_waveform waveform;
+    ma_noise    noise;
+} synth_osc;
+
 /**
  * struct synth - subtractive synth node
  * @node:           miniaudio node: a source with one output bus; must be first
@@ -118,7 +124,7 @@ struct synth {
     ma_node_base        node;
     sound_context       *ctx;
     synth_config        config;
-    ma_waveform         osc[SYNTH_MAX_OSCILLATORS];
+    synth_osc           osc[SYNTH_MAX_OSCILLATORS];
     ma_lpf2             filter;
     synth_envelope      amp_env;
     synth_envelope      filter_env;
@@ -975,6 +981,9 @@ void sound_set_effect_chain(sound *sound, sound_effect_chain *chain)
 /** SYNTH_CHUNK_FRAMES - frames rendered per pass through the oscillator, filter and envelope stages */
 #define SYNTH_CHUNK_FRAMES 64
 
+/** SYNTH_NOISE_SEED - seed of the first noise oscillator; the others count up from it */
+#define SYNTH_NOISE_SEED            4321
+
 /** SYNTH_MIDI_A4 - MIDI note number of A4, the equal temperament reference */
 #define SYNTH_MIDI_A4               69
 #define SYNTH_MIDI_MAX              127
@@ -1057,15 +1066,82 @@ static float synth_envelope_next(synth_envelope *env)
     return env->level;
 }
 
+static const struct {
+    bool                noise;
+    ma_waveform_type    waveform;
+    ma_noise_type       noise_type;
+} synth_waveforms[] = {
+    [SYNTH_WAVE_SINE]           = { .waveform = ma_waveform_type_sine },
+    [SYNTH_WAVE_SQUARE]         = { .waveform = ma_waveform_type_square },
+    [SYNTH_WAVE_TRIANGLE]       = { .waveform = ma_waveform_type_triangle },
+    [SYNTH_WAVE_SAWTOOTH]       = { .waveform = ma_waveform_type_sawtooth },
+    [SYNTH_WAVE_WHITE_NOISE]    = { .noise = true, .noise_type = ma_noise_type_white },
+    [SYNTH_WAVE_PINK_NOISE]     = { .noise = true, .noise_type = ma_noise_type_pink },
+};
+
+static bool synth_waveform_is_noise(synth_waveform waveform)
+{
+    return synth_waveforms[waveform].noise;
+}
+
 static float synth_detuned(const synth_oscillator_config *osc, float frequency)
 {
     return frequency * exp2f(osc->detune / SYNTH_CENTS_PER_OCTAVE);
 }
 
+/*
+ * Each noise oscillator gets its own seed, so two of them in a patch don't
+ * double up on the same stream; the generator advances per frame, which keeps
+ * the output independent of the host's block size like the waveforms are
+ */
+static cerr synth_osc_init(synth *synth, unsigned int i)
+{
+    auto config = &synth->config.oscillators[i];
+    auto osc = &synth->osc[i];
+
+    if (synth_waveform_is_noise(config->waveform)) {
+        auto noise_config = ma_noise_config_init(ma_format_f32, 1, synth_waveforms[config->waveform].noise_type,
+                                                 SYNTH_NOISE_SEED + (ma_int32)i, config->gain);
+        if (ma_noise_init(&noise_config, nullptr, &osc->noise) != MA_SUCCESS)   return CERR_INITIALIZATION_FAILED;
+
+        return CERR_OK;
+    }
+
+    auto wave_config = ma_waveform_config_init(ma_format_f32, 1, synth->sample_rate,
+                                               synth_waveforms[config->waveform].waveform, config->gain,
+                                               synth_detuned(config, config->frequency));
+    if (ma_waveform_init(&wave_config, &osc->waveform) != MA_SUCCESS)   return CERR_INITIALIZATION_FAILED;
+
+    return CERR_OK;
+}
+
+static void synth_oscs_uninit(synth *synth, unsigned int nr)
+{
+    for (unsigned int i = 0; i < nr; i++) {
+        bool noise = synth_waveform_is_noise(synth->config.oscillators[i].waveform);
+
+        if (noise)  ma_noise_uninit(&synth->osc[i].noise, nullptr);
+        else        ma_waveform_uninit(&synth->osc[i].waveform);
+    }
+}
+
+static void synth_osc_read(synth *synth, unsigned int i, float *out, ma_uint32 frames)
+{
+    bool noise = synth_waveform_is_noise(synth->config.oscillators[i].waveform);
+
+    if (noise)  ma_noise_read_pcm_frames(&synth->osc[i].noise, out, frames, nullptr);
+    else        ma_waveform_read_pcm_frames(&synth->osc[i].waveform, out, frames, nullptr);
+}
+
 static void synth_note_on(synth *synth, float frequency)
 {
-    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++)
-        ma_waveform_set_frequency(&synth->osc[i], synth_detuned(&synth->config.oscillators[i], frequency));
+    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++) {
+        auto config = &synth->config.oscillators[i];
+
+        if (synth_waveform_is_noise(config->waveform))  continue;
+
+        ma_waveform_set_frequency(&synth->osc[i].waveform, synth_detuned(config, frequency));
+    }
 
     synth_envelope_gate_on(&synth->amp_env);
     synth_envelope_gate_on(&synth->filter_env);
@@ -1142,7 +1218,7 @@ static void synth_render(synth *synth, float *out, ma_uint32 frames)
     float osc[SYNTH_CHUNK_FRAMES];
 
     for (unsigned int i = 0; i < synth->config.nr_oscillators; i++) {
-        ma_waveform_read_pcm_frames(&synth->osc[i], osc, frames, nullptr);
+        synth_osc_read(synth, i, osc, frames);
         for (ma_uint32 f = 0; f < frames; f++)  mix[f] += osc[f];
     }
 
@@ -1213,13 +1289,6 @@ static const ma_node_vtable synth_vtable = {
     .outputBusCount = 1,
 };
 
-static const ma_waveform_type synth_waveform_types[] = {
-    [SYNTH_WAVE_SINE]       = ma_waveform_type_sine,
-    [SYNTH_WAVE_SQUARE]     = ma_waveform_type_square,
-    [SYNTH_WAVE_TRIANGLE]   = ma_waveform_type_triangle,
-    [SYNTH_WAVE_SAWTOOTH]   = ma_waveform_type_sawtooth,
-};
-
 static bool synth_envelope_config_is_valid(const synth_envelope_config *env)
 {
     return synth_nonneg(env->attack_ms) && synth_nonneg(env->decay_ms) && synth_nonneg(env->release_ms) &&
@@ -1251,8 +1320,9 @@ static cerr synth_config_check(const synth_config *config, unsigned int sample_r
     for (unsigned int i = 0; i < config->nr_oscillators; i++) {
         auto osc = &config->oscillators[i];
 
-        if (osc->waveform >= array_size(synth_waveform_types))                          return synth_bad("waveform");
+        if (osc->waveform >= array_size(synth_waveforms))                               return synth_bad("waveform");
         if (!synth_nonneg(osc->gain))                                                   return synth_bad("osc gain");
+        if (synth_waveform_is_noise(osc->waveform))                                     continue;
         /* written to reject NaN, which passes a greater-than test */
         if (!(fabsf(osc->detune) <= SYNTH_DETUNE_MAX_CENTS))                            return synth_bad("detune");
         /* the base frequency is the pitch when there is no sequence to supply one */
@@ -1295,17 +1365,12 @@ static cerr synth_make(struct ref *ref, void *_opts)
 
     CERR_RET_CERR(synth_config_check(&synth->config, synth->sample_rate));
 
-    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++) {
-        auto osc = &synth->config.oscillators[i];
-        auto wave_config = ma_waveform_config_init(ma_format_f32, 1, synth->sample_rate,
-                                                   synth_waveform_types[osc->waveform], osc->gain,
-                                                   synth_detuned(osc, osc->frequency));
-        if (ma_waveform_init(&wave_config, &synth->osc[i]) != MA_SUCCESS)   return CERR_INITIALIZATION_FAILED;
-    }
+    for (unsigned int i = 0; i < synth->config.nr_oscillators; i++)
+        CERR_RET(synth_osc_init(synth, i), { synth_oscs_uninit(synth, i); return __cerr; });
 
     auto lpf_config = ma_lpf2_config_init(ma_format_f32, 1, synth->sample_rate, synth->config.filter.cutoff,
                                           synth->config.filter.resonance);
-    if (ma_lpf2_init(&lpf_config, nullptr, &synth->filter) != MA_SUCCESS)   return CERR_INITIALIZATION_FAILED;
+    if (ma_lpf2_init(&lpf_config, nullptr, &synth->filter) != MA_SUCCESS)   goto err_oscs;
 
     synth_envelope_init(&synth->amp_env, &synth->config.amp_env, synth->sample_rate);
     synth_envelope_init(&synth->filter_env, &synth->config.filter_env, synth->sample_rate);
@@ -1333,6 +1398,9 @@ err_node:
 err_filter:
     ma_lpf2_uninit(&synth->filter, nullptr);
 
+err_oscs:
+    synth_oscs_uninit(synth, synth->config.nr_oscillators);
+
     return CERR_INITIALIZATION_FAILED;
 }
 
@@ -1344,6 +1412,7 @@ static void synth_drop(struct ref *ref)
 
     ma_node_uninit(&synth->node, nullptr);
     ma_lpf2_uninit(&synth->filter, nullptr);
+    synth_oscs_uninit(synth, synth->config.nr_oscillators);
     list_del(&synth->entry);
 }
 
