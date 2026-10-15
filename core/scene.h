@@ -78,8 +78,9 @@ int scene_add_model(struct scene *s, model3dtx *txm);
  * largest walkable region and stores it on the scene. Uses the params
  * parsed from the scene's "navmesh" block. Replaces any existing mesh,
  * which is freed: whatever points into it has to let go first.
- * scene_onload() calls this automatically when the scene declares a
- * "navmesh" block; game code can call it after adding models of its own.
+ * Loading a scene file calls this after the file's entries, when the scene
+ * declares a "navmesh" block; game code can call it after adding models of
+ * its own.
  * Return: CERR_OK, or the error of making or baking the navmesh
  */
 cerr scene_navmesh_init(struct scene *scene);
@@ -95,6 +96,20 @@ navmesh *scene_navmesh(struct scene *scene);
 cerr scene_init(struct scene *scene, struct clap_context *ctx);
 void scene_done(struct scene *scene);
 void scene_save(struct scene *scene, const char *name);
+
+/**
+ * scene_load() - load a scene file before returning
+ * @scene:  the scene
+ * @name:   the scene file, an asset name
+ *
+ * Puts the scene file's entries in the scene in the order the file has
+ * them, and moves @scene->ls's progress after each model
+ * (loading_screen_progress()).
+ * Context: the main thread
+ * Return: CERR_OK; CERR_ALREADY_LOADED if @scene has a scene file in;
+ *         CERR_SCENE_NOT_LOADED if the file doesn't read or parse or an entry
+ *         doesn't go in, with the entries before it left in place
+ */
 cerr scene_load(struct scene *scene, const char *name);
 void scene_update(struct scene *scene);
 bool scene_camera_follows(struct scene *s, struct character *ch);

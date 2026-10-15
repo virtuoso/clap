@@ -2474,7 +2474,6 @@ static void scene_onload(struct lib_handle *h, void *buf)
 {
     struct scene *scene = buf;
     char         msg[256];
-    JsonNode     *p, *m;
 
     if (h->state == RES_ERROR) {
         err("couldn't load scene %s\n", h->name);
@@ -2497,49 +2496,9 @@ static void scene_onload(struct lib_handle *h, void *buf)
         goto err;
     }
 
-    for (p = scene->json_root->children.head; p; p = p->next) {
-        if (!strcmp(p->key, "name")) {
-            if (p->tag != JSON_STRING) {
-                err("parse error in '%s'\n", h->name);
-                goto err;
-            }
-            strncpy(scene->name, p->string_, sizeof(scene->name));
-        } else if (!strcmp(p->key, "model")) {
-            if (p->tag != JSON_ARRAY) {
-                err("parse error in '%s'\n", h->name);
-                goto err;
-            }
-
-            unsigned int nr = 0;
-            for (m = p->children.head; m; m = m->next) {
-                CERR_RET(model_new_from_json(scene, m), goto err);
-                if (scene->ls)  loading_screen_progress(scene->ls, (float)++nr / (float)json_nr_children(p));
-            }
-        } else if (!strcmp(p->key, "light") && p->tag == JSON_ARRAY) {
-            JsonNode *light;
-
-            for (light = p->children.head; light; light = light->next)
-                CERR_RET(scene_add_light_from_json(scene, light), goto err);
-        } else if (!strcmp(p->key, "sfx") && p->tag == JSON_OBJECT) {
-            JsonNode *sfx;
-
-            for (sfx = p->children.head; sfx; sfx = sfx->next)
-                sfx_add_from_json(&scene->sfxc, clap_get_sound(scene->clap_ctx), sfx);
-        } else if (!strcmp(p->key, "navmesh")) {
-            CERR_RET(scene_parse_navmesh(scene, p), goto err);
-        }
-    }
-
-    /* every entity now exists: bake the navmesh over the whole scene */
-    if (scene->nm_wanted)   CERR_RET(scene_navmesh_init(scene), goto err);
-
-    dbg("loaded scene: '%s'\n", scene->name);
 out:
     scene->file_name = lib_figure_uri(h->type, h->name);
     ref_put(h);
-
-    if (h->state == RES_LOADED)
-        scene_control_next(scene);
 
     return;
 
@@ -2548,6 +2507,138 @@ err:
     ref_put(h);
     json_delete(scene->json_root);
     scene->json_root = NULL;
+}
+
+/* The entries of a scene file, by what they put in the scene */
+enum scene_item_kind {
+    SCENE_ITEM_LIGHT,
+    SCENE_ITEM_SFX,
+    SCENE_ITEM_MODEL,
+    /* the "navmesh" block's bake, over everything that went in before it */
+    SCENE_ITEM_NAVMESH,
+};
+
+struct scene_item {
+    JsonNode                *node;
+    enum scene_item_kind    kind;
+};
+
+/* A scene file on its way into the scene, an entry at a time */
+struct scene_loader {
+    darray(struct scene_item, items);
+    /* the next entry to go in */
+    unsigned int    next;
+    unsigned int    nr_models;
+    unsigned int    nr_models_added;
+};
+
+/*
+ * Read and parse the scene file and list its entries. They go in in the
+ * order the file has them: entity lights take the lowest free light slot,
+ * terrain_clamp casts rays at what came before, and "attach" looks for its
+ * parent among the entities that are in.
+ */
+static cerr scene_loader_begin(struct scene *scene, struct scene_loader *sl, const char *name)
+{
+    darray_init(sl->items);
+
+    struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
+    if (!lh) {
+        err("couldn't read scene %s\n", name);
+        return CERR_SCENE_NOT_LOADED;
+    }
+
+    ref_put_last(lh);
+    if (!scene->json_root)  return CERR_SCENE_NOT_LOADED;
+
+    for (JsonNode *p = scene->json_root->children.head; p; p = p->next) {
+        enum scene_item_kind kind;
+
+        if (!strcmp(p->key, "name")) {
+            if (p->tag != JSON_STRING) {
+                err("parse error in '%s'\n", name);
+                return CERR_PARSE_FAILED;
+            }
+            strncpy(scene->name, p->string_, sizeof(scene->name));
+            continue;
+        } else if (!strcmp(p->key, "model")) {
+            if (p->tag != JSON_ARRAY) {
+                err("parse error in '%s'\n", name);
+                return CERR_PARSE_FAILED;
+            }
+            kind = SCENE_ITEM_MODEL;
+            sl->nr_models += json_nr_children(p);
+        } else if (!strcmp(p->key, "light") && p->tag == JSON_ARRAY) {
+            kind = SCENE_ITEM_LIGHT;
+        } else if (!strcmp(p->key, "sfx") && p->tag == JSON_OBJECT) {
+            kind = SCENE_ITEM_SFX;
+        } else if (!strcmp(p->key, "navmesh")) {
+            CERR_RET_CERR(scene_parse_navmesh(scene, p));
+            continue;
+        } else {
+            continue;
+        }
+
+        for (JsonNode *e = p->children.head; e; e = e->next) {
+            struct scene_item *item = darray_add(sl->items);
+            if (!item)  return CERR_NOMEM;
+
+            *item = (struct scene_item){ .node = e, .kind = kind };
+        }
+    }
+
+    /* every entity is in by then: the navmesh bakes over the whole scene */
+    if (scene->nm_wanted) {
+        struct scene_item *item = darray_add(sl->items);
+        if (!item)  return CERR_NOMEM;
+
+        *item = (struct scene_item){ .kind = SCENE_ITEM_NAVMESH };
+    }
+
+    return CERR_OK;
+}
+
+/* Put the scene file's next entry in the scene */
+static cerr scene_loader_add_next(struct scene *scene, struct scene_loader *sl)
+{
+    struct scene_item *item = DA(sl->items, sl->next++);
+
+    switch (item->kind) {
+        case SCENE_ITEM_LIGHT:
+            return scene_add_light_from_json(scene, item->node);
+
+        case SCENE_ITEM_SFX:
+            /* a sound that doesn't load doesn't stop the scene */
+            sfx_add_from_json(&scene->sfxc, clap_get_sound(scene->clap_ctx), item->node);
+            return CERR_OK;
+
+        case SCENE_ITEM_MODEL:
+            CERR_RET_CERR(model_new_from_json(scene, item->node));
+            sl->nr_models_added++;
+            return CERR_OK;
+
+        case SCENE_ITEM_NAVMESH:
+            return scene_navmesh_init(scene);
+    }
+
+    return CERR_INVALID_ARGUMENTS;
+}
+
+/* The scene file is all in, or @err stopped it: hand the control over, or drop the file */
+static void scene_loader_end(struct scene *scene, struct scene_loader *sl, cerr err)
+{
+    darray_clearout(sl->items);
+
+    if (IS_CERR(err)) {
+        json_delete(scene->json_root);
+        scene->json_root = nullptr;
+        free(scene->file_name);
+        scene->file_name = nullptr;
+        return;
+    }
+
+    dbg("loaded scene: '%s'\n", scene->name);
+    scene_control_next(scene);
 }
 
 void scene_save(struct scene *scene, const char *name)
@@ -2588,18 +2679,20 @@ cerr scene_load(struct scene *scene, const char *name)
     if (scene->json_root)
         return CERR_ALREADY_LOADED;
 
-    struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
-    if (!lh) {
-        err("couldn't read scene %s\n", name);
-        return CERR_SCENE_NOT_LOADED;
+    struct scene_loader sl = {};
+    cerr err = scene_loader_begin(scene, &sl, name);
+
+    while (!IS_CERR(err) && sl.next < darray_count(sl.items)) {
+        bool model = DA(sl.items, sl.next)->kind == SCENE_ITEM_MODEL;
+
+        err = scene_loader_add_next(scene, &sl);
+        if (!IS_CERR(err) && model && scene->ls)
+            loading_screen_progress(scene->ls, (float)sl.nr_models_added / (float)sl.nr_models);
     }
 
-    cerr ret = CERR_OK;
-    if (lh->state != RES_LOADED)
-        ret = CERR_SCENE_NOT_LOADED;
-    ref_put_last(lh);
+    scene_loader_end(scene, &sl, err);
 
-    return ret;
+    return IS_CERR(err) ? CERR_SCENE_NOT_LOADED : CERR_OK;
 }
 
 void scene_done(struct scene *scene)
