@@ -16,7 +16,9 @@ struct clap_context;
  *                      unlocks the browser's AudioContext. Native builds
  *                      skip this state and start in %UI_ST_START_MENU.
  * @UI_ST_START_MENU:   start menu is active, clap is paused
- * @UI_ST_LOADING:      "Start Game" selected; loading callback is in flight
+ * @UI_ST_LOADING:      "Start Game" selected and its loading callback in
+ *                      flight, or a load the game started with
+ *                      ui_state_set_loading(); clap is paused
  * @UI_ST_RUNNING:      gameplay; in-game menu is toggleable
  */
 typedef enum ui_state {
@@ -90,10 +92,24 @@ void ui_menus_ascend(struct ui *ui);
 ui_state ui_state_get(const struct ui *ui);
 
 /**
+ * ui_state_set_loading() - transition UI state to %UI_ST_LOADING
+ * @ui:     ui context
+ *
+ * For a game without a start menu that loads while the frames go on: from
+ * %UI_ST_RUNNING, closes the in-game menu and pauses clap the way "Start
+ * Game" does, so that ui_state_set_running() unpauses it once loading is
+ * finished. Does nothing in any other state: the start menu enters
+ * %UI_ST_LOADING by itself, and a browser's %UI_ST_PRESTART waits for the
+ * click that unlocks its audio.
+ */
+void ui_state_set_loading(struct ui *ui);
+
+/**
  * ui_state_set_running() - transition UI state to %UI_ST_RUNNING
  * @ui:     ui context
  *
- * Intended to be called by a user loading_cb once loading is finished.
+ * Intended to be called once loading is finished, by a user loading_cb or
+ * by a game that entered %UI_ST_LOADING with ui_state_set_loading().
  * Unpauses clap (via modality toggle) and allows the in-game menu to
  * respond to input. Idempotent when already running.
  */

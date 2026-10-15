@@ -391,6 +391,16 @@ ui_state ui_state_get(const struct ui *ui)
     return ui->state;
 }
 
+void ui_state_set_loading(struct ui *ui)
+{
+    if (ui->state != UI_ST_RUNNING) return;
+
+    menu_close(ui);
+    ui->state = UI_ST_LOADING;
+    /* an open in-game menu has paused clap already */
+    if (!clap_is_paused(ui->clap_ctx))  ui_modality_send(ui);
+}
+
 void ui_state_set_running(struct ui *ui)
 {
     if (ui->state == UI_ST_RUNNING)
