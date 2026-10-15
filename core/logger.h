@@ -57,6 +57,47 @@ void logg(int level, const char *mod, int line, const char *func, const char *fm
  */
 void log_floor_set(int level);
 
+struct log_held_line;
+
+/**
+ * struct log_held - log lines one thread holds for another to print
+ * @first:  the oldest line, nullptr for none
+ * @last:   the newest line
+ *
+ * One thread fills it and another prints it; handing it over between them
+ * (in a worker job's message, say) is what orders their accesses.
+ */
+typedef struct log_held {
+    struct log_held_line    *first;
+    struct log_held_line    *last;
+} log_held;
+
+/**
+ * log_hold() - hold the calling thread's log lines instead of logging them
+ * @held:   where the lines collect, oldest first; nullptr logs them as they come again
+ *
+ * The ring buffer and its sinks (the network log stream among them) run on
+ * the thread that logs and aren't thread-safe: they belong to the main
+ * thread. Another thread that logs holds its lines, formatted, for the main
+ * thread's log_held_print(), and reads no logger state meanwhile: the noise
+ * floor applies when they print. A line at %ERR also goes to stderr right
+ * away, since it may be the last thing the thread does (err_on() under -E,
+ * a Box3D assertion).
+ * Context: the thread whose lines are held
+ */
+void log_hold(log_held *held);
+
+/**
+ * log_held_print() - log the lines another thread held, and free them
+ * @held:   the lines log_hold() collected; empty on return
+ *
+ * Each line goes through the noise floor and the loggers on the calling
+ * thread, with the module, line and function it was logged from; a line that
+ * went to stderr already skips stdio.
+ * Context: a thread that isn't holding its own lines: the main thread
+ */
+void log_held_print(log_held *held);
+
 #define trace(args...) \
     logg(VDBG, MODNAME, __LINE__, __func__, ## args);
 #define trace_on(_c, args...) do { if ((_c)) trace("condition '" # _c "': " args); } while (0)

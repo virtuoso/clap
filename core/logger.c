@@ -43,6 +43,19 @@ void __asan_error_report()
 
 static thread_local __unused unsigned long submit_failures = 0;
 
+/* A line log_hold() keeps for log_held_print() */
+struct log_held_line {
+    struct log_held_line    *next;
+    const char              *mod;
+    const char              *func;
+    char                    *msg;
+    int                     line;
+    int                     level;
+};
+
+/* Where a thread that holds its lines (log_hold()) collects them */
+static thread_local log_held *log_holder;
+
 /*
  * Chain multiple log sinks together, so that we can have
  * multiple independent outputs, if needed.
@@ -307,14 +320,79 @@ void notrace log_init(struct clap_context *ctx, unsigned int flags)
     dbg("logger initialized, build %s\n", build_date);
 }
 
-static notrace void log_submit(int level, const char *mod, int line, const char *func, const char *msg)
+/* Bring the logger up on first use, and drop what's under the noise floor */
+static notrace bool log_is_filtered(int level)
+{
+    if (unlikely(!log_up))  log_init(nullptr, LOG_FULL);
+
+    return level < log_floor;
+}
+
+static notrace void log_submit(int level, const char *mod, int line, const char *func, const char *msg,
+                               const struct logger *skip)
 {
     struct logger *lg;
 
     for (lg = logger; lg; lg = lg->next) {
+        if (lg == skip) continue;
+
         cerr err = lg->log(level, mod, line, func, msg);
         if (IS_CERR(err))
             submit_failures++;
+    }
+}
+
+/* Format a line for log_held_print() instead of logging it */
+static notrace void log_held_add(log_held *held, int level, const char *mod, int line, const char *func,
+                                 const char *fmt, va_list va)
+{
+    struct log_held_line *l = mem_alloc(sizeof(*l), .zero = 1);
+    if (!l) {
+        submit_failures++;
+        return;
+    }
+
+    cres(int) res = mem_vasprintf(&l->msg, fmt, va);
+    if (IS_CERR(res)) {
+        mem_free(l);
+        submit_failures++;
+        return;
+    }
+
+    l->mod   = mod;
+    l->func  = func;
+    l->line  = line;
+    l->level = level;
+
+    /* it may be the thread's last word: err_on() under -E, a Box3D assertion */
+    if (level >= ERR)   stdio_log(level, mod, line, func, l->msg);
+
+    if (held->last) held->last->next = l;
+    else            held->first = l;
+    held->last = l;
+}
+
+notrace void log_hold(log_held *held)
+{
+    log_holder = held;
+}
+
+notrace void log_held_print(log_held *held)
+{
+    struct log_held_line *l = held->first;
+
+    *held = (log_held){};
+
+    while (l) {
+        struct log_held_line *next = l->next;
+
+        /* stdio has had an error line already */
+        if (!log_is_filtered(l->level))
+            log_submit(l->level, l->mod, l->line, l->func, l->msg, l->level >= ERR ? &logger_stdio : nullptr);
+
+        mem_free(l->msg);
+        mem_free(l);
+        l = next;
     }
 }
 
@@ -322,19 +400,21 @@ notrace void vlogg(int level, const char *mod, int line, const char *func, const
 {
     LOCAL(char, buf);
 
-    if (unlikely(!log_up))
-        log_init(NULL, LOG_FULL);
+    /* A holding thread reads no logger state: the floor applies when its lines print */
+    if (log_holder) {
+        log_held_add(log_holder, level, mod, line, func, fmt, va);
+        return;
+    }
 
     /* Filter noisy stuff on the way in */
-    if (level < log_floor)
-        return;
+    if (log_is_filtered(level)) return;
 
     cres(int) res = mem_vasprintf(&buf, fmt, va);
 
     if (IS_CERR(res))
         return;
 
-    log_submit(level, mod, line, func, buf);
+    log_submit(level, mod, line, func, buf, nullptr);
 }
 
 notrace void logg(int level, const char *mod, int line, const char *func, const char *fmt, ...)
