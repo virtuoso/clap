@@ -22,7 +22,9 @@ struct clap_context;
  * engine. A worker sees its job through job_get_data(), job_yield(),
  * job_set_progress() and job_is_cancelled(), and nothing else of the
  * engine's: no ref_get()/ref_put(), no renderer, pipeline or scene; the
- * memory allocator, the file system and pure computation are fine. In a
+ * memory allocator, the file system, pure computation and logging are
+ * fine: what run() logs is held (log_hold()) and printed on the owner's
+ * thread, ahead of the result() or done() that follows it. In a
  * browser, what a job proxies to the main thread (MAIN_THREAD_EM_ASM)
  * runs while that thread may be inside the pool's lock, so it keeps away
  * from the pool as well. Work that another thread hands in (a GPU
@@ -71,7 +73,8 @@ DEFINE_REFCLASS_INIT_OPTIONS(worker_pool,
  * Runs the result() and done() callbacks of the jobs that progressed
  * since the last poll, in the order the workers produced them, a job's
  * results ahead of its done(); what @max leaves undelivered waits for the
- * next poll, in order. Never blocks on the workers.
+ * next poll, in order. What a job logged on the way to a callback prints
+ * right before it. Never blocks on the workers.
  * Context: the owner's thread
  * Return: the number of callbacks run
  */

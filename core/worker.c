@@ -23,6 +23,8 @@ struct job_msg {
     struct job_msg  *next;
     job             *j;
     void            *result;
+    /* what run() logged on the way to this message */
+    log_held        log;
     cerr            err;
     bool            done;
 };
@@ -115,7 +117,9 @@ cerr job_yield(job *j, void *result)
     struct job_msg *msg = mem_alloc(sizeof(*msg));
     if (!msg)       return CERR_NOMEM;
 
-    *msg = (struct job_msg){ .j = j, .result = result };
+    /* the lines logged so far go ahead of this result, the rest with what follows */
+    *msg = (struct job_msg){ .j = j, .result = result, .log = j->done_msg.log };
+    j->done_msg.log = (log_held){};
     inbox_push(j->pool, msg);
 
     return CERR_OK;
@@ -151,7 +155,10 @@ bool job_is_cancelled(job *j)
 static void job_run(job *j)
 {
     atomic_store_explicit(&j->state, JOB_RUNNING, memory_order_relaxed);
+    /* the logger belongs to the owner's thread: what run() logs waits for a poll */
+    log_hold(&j->done_msg.log);
     j->done_msg.err = job_is_cancelled(j) ? CERR_CANCELLED : j->run(j);
+    log_hold(nullptr);
     atomic_store_explicit(&j->state, JOB_COMPLETE, memory_order_relaxed);
     /* publishes done_msg and the state with it */
     inbox_push(j->pool, &j->done_msg);
@@ -261,6 +268,7 @@ static unsigned int pool_deliver(worker_pool *pool, unsigned int max)
         pool->pending = msg->next;
         if (!pool->pending)     pool->pending_last = NULL;
 
+        log_held_print(&msg->log);
         if (msg->done) {
             if (j->done)    j->done(j, msg->err);
             atomic_store_explicit(&j->state, JOB_DELIVERED, memory_order_release);
