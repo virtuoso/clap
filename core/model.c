@@ -25,26 +25,19 @@
  * the actual rendered model
  ****************************************************************************/
 
-static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh, bool parts)
+static void model3d_lods_upload(model3d *m, struct mesh *mesh, struct mesh_lods *lods)
 {
-    size_t nr_idx, prev_nr_idx = mesh_nr_idx(mesh), nr_coarsest = 0;
-    LOCAL(uint16_t, coarsest);
-    int level;
+    unsigned int level;
 
-    for (level = 0; level < LOD_MAX - 1; level++) {
-        LOCAL(uint16_t, lod);
-
-        nr_idx = mesh_idx_to_lod(mesh, level, &lod, &m->lod_errors[m->nr_lods]);
-        /* Sloppy LODs are not useful at the moment, don't waste space on them */
-        if (nr_idx >= prev_nr_idx || m->lod_errors[m->nr_lods] < 0.0)
-            break;
+    for (level = 0; level < lods->nr; level++) {
+        size_t nr_idx = lods->nr_idx[level];
 
         cerr err = buffer_init(&m->index[m->nr_lods],
                                .renderer   = shader_prog_renderer(m->prog),
                                .type       = BUF_ELEMENT_ARRAY,
                                .usage      = BUF_STATIC,
                                .comp_type  = DT_USHORT,
-                               .data       = lod,
+                               .data       = lods->idx[level],
                                .size       = nr_idx * mesh_idx_stride(mesh));
 
         if (IS_CERR(err))
@@ -52,21 +45,25 @@ static void model3d_lods_from_mesh(model3d *m, struct mesh *mesh, bool parts)
 
         buffer_set_name(&m->index[m->nr_lods], "%s:index%d", m->name, m->nr_lods);
 
-        dbg("lod%d for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
+        dbg("lod%u for '%s' idx: %zd -> %zd\n", level, m->name, mesh_nr_idx(mesh), nr_idx);
         m->nr_faces[m->nr_lods] = nr_idx;
+        m->lod_errors[m->nr_lods] = lods->error[level];
         if (m->lod_errors[m->nr_lods] > 0.0)
             m->lod_max++;
         m->nr_lods++;
-
-        /* the previous coarsest goes at the end of the iteration */
-        LOCAL_SET(uint16_t, prev) = coarsest;
-        coarsest = NOCU(lod);
-        nr_coarsest = nr_idx;
     }
+}
 
-    if (parts)
-        CERR_RET(mesh_parts_by_joint(mesh, coarsest, sizeof(*coarsest), nr_coarsest, &m->parts),
-                 warn("'%s': no parts\n", m->name));
+/*
+ * Split a skinned model into its rigid pieces. They come from the coarsest
+ * level: a collision shape wants the outline, not the detail.
+ */
+static void model3d_parts_from_lods(model3d *m, struct mesh *mesh, struct mesh_lods *lods)
+{
+    const unsigned short *idx = lods->nr ? lods->idx[lods->nr - 1] : nullptr;
+    size_t nr_idx = lods->nr ? lods->nr_idx[lods->nr - 1] : 0;
+
+    CERR_RET(mesh_parts_by_joint(mesh, idx, sizeof(*idx), nr_idx, &m->parts), warn("'%s': no parts\n", m->name));
 }
 
 static int model3d_validate_lod(model3d *m, int lod)
@@ -151,7 +148,14 @@ static cerr model3d_make(struct ref *ref, void *_opts)
 
     m->nr_lods++;
 
-    model3d_lods_from_mesh(m, opts->mesh, opts->parts);
+    struct mesh_lods own, *lods = opts->lods;
+    if (!lods) {
+        mesh_lods_build(opts->mesh, &own);
+        lods = &own;
+    }
+    model3d_lods_upload(m, opts->mesh, lods);
+    if (opts->parts)    model3d_parts_from_lods(m, opts->mesh, lods);
+    if (lods == &own)   mesh_lods_done(&own);
 
     vertex_array_unbind(&m->vao);
     shader_prog_done(opts->prog, false);

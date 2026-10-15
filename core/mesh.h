@@ -272,6 +272,41 @@ cerr_check mesh_parts_by_joint(struct mesh *mesh, const void *idx, size_t stride
  * with the pieces merged before it ran out
  */
 cerr_check mesh_parts_merge(mesh_parts *parts, mesh_parts *from);
+
+/** LOD_MAX - index buffers a model draws from: its mesh's own and up to LOD_MAX - 1 simplified ones */
+#define LOD_MAX 4
+
+/**
+ * struct mesh_lods - a mesh's simplified index buffers, past its own
+ * @idx:    each level's indices, coarser than the one before
+ * @nr_idx: each level's index count
+ * @error:  each level's simplification error
+ * @nr:     levels in use
+ */
+struct mesh_lods {
+    unsigned short  *idx[LOD_MAX - 1];
+    size_t          nr_idx[LOD_MAX - 1];
+    float           error[LOD_MAX - 1];
+    unsigned int    nr;
+};
+
+/**
+ * mesh_lods_build() - simplify a mesh's indices into levels of detail
+ * @mesh:   the mesh; its own indices are the finest level
+ * @lods:   receives the levels; mesh_lods_done() frees them
+ *
+ * Simplifies up to LOD_MAX - 1 levels and stops at the first that comes out
+ * no smaller than @mesh or only sloppily simplified. Pure computation on
+ * @mesh: any thread will do.
+ */
+void mesh_lods_build(struct mesh *mesh, struct mesh_lods *lods);
+
+/**
+ * mesh_lods_done() - free the levels mesh_lods_build() made
+ * @lods:   the levels; empty on return
+ */
+void mesh_lods_done(struct mesh_lods *lods);
+
 void mesh_init(void);
 
 #endif /* __CLAP_MESH_H__ */

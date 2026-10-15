@@ -41,7 +41,6 @@ typedef enum joint_type {
 
 cres_ret(joint_type);
 
-#define LOD_MAX 4
 typedef struct model3d {
     char                *name;
     struct ref          ref;
@@ -109,6 +108,8 @@ typedef struct model3d {
  * @name:        model name
  * @prog:        shader program that will draw this model
  * @mesh:        source of combined vertex attributes and mesh indices
+ * @lods:        @mesh's levels of detail from mesh_lods_build(), the caller's
+ *               to free; nullptr simplifies them here
  * @fix_origin:  recalculate vertex coordinates
  * @skip_aabb:   don't calculate AABB for this model
  * @shader_base: uber shader family @prog was variant-resolved from
@@ -133,6 +134,7 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3d,
     const char          *name;
     struct shader_prog  *prog;
     struct mesh         *mesh;
+    struct mesh_lods    *lods;
     const char          *shader_base;
     shader_variants_t   variants;
     bool                fix_origin;

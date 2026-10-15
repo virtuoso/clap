@@ -695,6 +695,35 @@ out:
     return nr_idx;
 }
 
+void mesh_lods_build(struct mesh *mesh, struct mesh_lods *lods)
+{
+    *lods = (struct mesh_lods){};
+
+    for (int level = 0; level < LOD_MAX - 1; level++) {
+        unsigned short *idx;
+        float error;
+        size_t nr_idx = mesh_idx_to_lod(mesh, level, &idx, &error);
+
+        /* Sloppy LODs are not useful at the moment, don't waste space on them */
+        if (nr_idx >= mesh_nr_idx(mesh) || error < 0.0) {
+            mem_free(idx);
+            break;
+        }
+
+        lods->idx[lods->nr]    = idx;
+        lods->nr_idx[lods->nr] = nr_idx;
+        lods->error[lods->nr]  = error;
+        lods->nr++;
+    }
+}
+
+void mesh_lods_done(struct mesh_lods *lods)
+{
+    for (unsigned int i = 0; i < lods->nr; i++) mem_free(lods->idx[i]);
+
+    *lods = (struct mesh_lods){};
+}
+
 static void *meshopt_alloc(size_t size)
 {
     return mem_alloc(size);
