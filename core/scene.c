@@ -2487,7 +2487,7 @@ static void scene_onload(struct lib_handle *h, void *buf)
     scene->json_root = json_decode(h->buf);
     if (!scene->json_root) {
         err("couldn't parse '%s'\n", h->name);
-        goto out;
+        goto err;
     }
 
     if (!json_check(scene->json_root, msg)) {
