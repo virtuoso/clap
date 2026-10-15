@@ -571,6 +571,31 @@ bool gltf_mesh_fallback(struct gltf_data *gd, int mesh)
     return mat ? mat->fallback : false;
 }
 
+cres(int) gltf_primary_group(struct gltf_data *gd)
+{
+    int primary_group = 0;
+
+    if (gltf_get_mesh_groups(gd) > 1) {
+        int root = gltf_root_mesh(gd);
+        int collision_flat = gltf_mesh_by_name(gd, "collision");
+        int collision_group = collision_flat >= 0
+            ? CRES_RET_SCALAR(gltf_mesh_group(gd, collision_flat), int)
+            : -1;
+
+        if (root < 0) {
+            for (int g = 0; g < gltf_get_mesh_groups(gd); g++)
+                if (g != collision_group) {
+                    primary_group = g;
+                    break;
+                }
+        } else {
+            primary_group = root;
+        }
+    }
+
+    return cres_val(int, primary_group);
+}
+
 int gltf_get_nodes(struct gltf_data *gd)
 {
     return darray_count(gd->nodes);

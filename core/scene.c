@@ -1790,24 +1790,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
      * Pick the primary GLTF mesh (group). Multi-primitive meshes become
      * multiple model3dtx entries in the mq, one per primitive.
      */
-    int primary_group = 0;
-    if (gltf_get_mesh_groups(gd) > 1) {
-        int root = gltf_root_mesh(gd);
-        int collision_flat = gltf_mesh_by_name(gd, "collision");
-        int collision_group = collision_flat >= 0
-            ? CRES_RET_CERR(gltf_mesh_group(gd, collision_flat))
-            : -1;
-
-        if (root < 0) {
-            for (int g = 0; g < gltf_get_mesh_groups(gd); g++)
-                if (g != collision_group) {
-                    primary_group = g;
-                    break;
-                }
-        } else {
-            primary_group = root;
-        }
-    }
+    int primary_group = CRES_RET_CERR(gltf_primary_group(gd));
 
     /*
      * The primitives to instantiate, the parent's first: the primary group's,

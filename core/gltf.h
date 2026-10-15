@@ -114,6 +114,18 @@ cres(int) gltf_mesh_group(struct gltf_data *gd, int mesh);
  */
 cres_check(int) gltf_mesh_skin(struct gltf_data *gd, int mesh);
 bool gltf_mesh_fallback(struct gltf_data *gd, int mesh);
+
+/**
+ * gltf_primary_group() - the mesh group a scene model is made of
+ * @gd:     glTF data
+ *
+ * With several groups, the root node's, or else the first one that isn't
+ * the "collision" mesh's; with one, that one.
+ * Return: cres(int): the group, or the error looking up the "collision"
+ *         mesh's group
+ */
+cres(int) gltf_primary_group(struct gltf_data *gd);
+
 int gltf_get_nodes(struct gltf_data *gd);
 cresp(const_char) gltf_node_name(struct gltf_data *gd, int node);
 cres(int) gltf_node_mesh(struct gltf_data *gd, int node);
