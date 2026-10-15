@@ -23,9 +23,8 @@ static cerr mesh_make(struct ref *ref, void *_opts)
     return CERR_OK;
 }
 
-static void mesh_drop(struct ref *ref)
+void mesh_attrs_free(struct mesh *mesh)
 {
-    struct mesh *mesh = container_of(ref, struct mesh, ref);
     int i;
 
     for (i = 0; i < MESH_MAX; i++) {
@@ -37,6 +36,11 @@ static void mesh_drop(struct ref *ref)
         mem_free(ma->data);
         ma->nr = ma->stride = 0;
     }
+}
+
+static void mesh_drop(struct ref *ref)
+{
+    mesh_attrs_free(container_of(ref, struct mesh, ref));
 }
 DEFINE_REFCLASS2(mesh);
 

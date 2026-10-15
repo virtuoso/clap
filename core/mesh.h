@@ -135,6 +135,16 @@ cerr_check mesh_attr_alloc(struct mesh *mesh, enum mesh_attrs attr, size_t strid
 cerr_check mesh_attr_dup(struct mesh *mesh, enum mesh_attrs attr, void *data, size_t stride, size_t nr);
 
 /**
+ * mesh_attrs_free() - free the attribute arrays a mesh owns
+ * @mesh:   a mesh that isn't reference counted (REF_STATIC), with attributes
+ *          from mesh_attr_alloc() or mesh_attr_dup()
+ *
+ * What dropping a reference counted mesh frees, for one that can't be
+ * ref_put().
+ */
+void mesh_attrs_free(struct mesh *mesh);
+
+/**
  * mesh_attr_resize() - resize a given attribute in a mesh
  * @mesh:   mesh
  * @attr:   attribute

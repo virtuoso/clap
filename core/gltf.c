@@ -7,6 +7,7 @@
 #include "librarian.h"
 #include "model.h"
 #include "object.h"
+#include "pngloader.h"
 #include "shader.h"
 #include "gltf.h"
 
@@ -203,6 +204,25 @@ struct gltf_material {
     bool   fallback;
 };
 
+/* An image decode_png() made of a texture slot's PNG */
+struct gltf_pixels {
+    unsigned char   *buf;
+    int             width;
+    int             height;
+    texture_format  format;
+};
+
+/* What gltf_prepare() does for a primitive ahead of its instantiation */
+struct gltf_prim {
+    /* not reference counted: nothing outside this primitive refers to it */
+    struct mesh         mesh;
+    struct mesh_lods    lods;
+    struct gltf_pixels  base;
+    struct gltf_pixels  normal;
+    struct gltf_pixels  emission;
+    bool                prepared;
+};
+
 struct gltf_data {
     darray(void *,                buffers);
     darray(struct gltf_bufview,   bufvws);
@@ -218,6 +238,8 @@ struct gltf_data {
     darray(int,                   imgs);
     unsigned int         *texs;
     void                 *bin;
+    /* one per primitive (meshes), from the first gltf_prepare() */
+    struct gltf_prim     *prims;
     int                  root_node;
     unsigned int         warned;
     unsigned int nr_texs;
@@ -231,11 +253,25 @@ struct gltf_data {
     bool         textures_png;
 };
 
+/* Free what gltf_prepare() made of a primitive, prepared or not */
+static void gltf_prim_done(struct gltf_prim *prim)
+{
+    mesh_attrs_free(&prim->mesh);
+    mesh_lods_done(&prim->lods);
+    mem_free(prim->base.buf);
+    mem_free(prim->normal.buf);
+    mem_free(prim->emission.buf);
+    *prim = (struct gltf_prim){};
+}
+
 void gltf_free(struct gltf_data *gd)
 {
     struct gltf_skin *skin;
     struct gltf_node *node;
     int i;
+
+    for (i = 0; gd->prims && i < gd->meshes.da.nr_el; i++)  gltf_prim_done(&gd->prims[i]);
+    mem_free(gd->prims);
 
     for (i = 0; i < gd->anis.da.nr_el; i++) {
         struct gltf_animation *ani = DA(gd->anis, i);
@@ -1237,7 +1273,6 @@ static cerr gltf_json_parse(const char *buf, struct gltf_data *gd)
             JsonNode *jidx = json_find_member(jwut, "index");
             if (jidx && jidx->tag == JSON_NUMBER && jidx->number_ < gd->nr_texs) {
                 mat->base_tex = jidx->number_;
-                /* XXX: model3dtx::buffers_png applies to all textures: break it up */
                 gd->textures_png = true;
                 have_tex = true;
             }
@@ -1513,42 +1548,45 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
     return DA(gd->skins, skin)->nodes[node];
 }
 
+/* Give a mesh every attribute a gltf mesh carries, and optimize it */
+static cerr gltf_mesh_fill(struct gltf_data *gd, int mesh, struct mesh *me)
+{
+    CERR_RET_CERR(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)));
+    CERR_RET_CERR(mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh)));
+    CERR_RET_CERR(mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh)));
+    if (gltf_has_norm(gd, mesh))
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh))
+        );
+    if (gltf_has_joints(gd, mesh))
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh),
+                          gltf_nr_joints(gd, mesh))
+        );
+    if (gltf_has_weights(gd, mesh))
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh),
+                          gltf_nr_weights(gd, mesh))
+        );
+    if (gltf_has_tangent(gd, mesh))
+        CERR_RET_CERR(
+            mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh),
+                          gltf_nr_tangent(gd, mesh))
+        );
+    mesh_optimize(me);
+
+    return CERR_OK;
+}
+
 cresp(mesh) gltf_mesh_new(struct gltf_data *gd, int mesh)
 {
-    if (mesh < 0 || mesh >= gd->meshes.da.nr_el)
-        return cresp_error(mesh, CERR_INVALID_ARGUMENTS);
+    if (mesh < 0 || mesh >= gd->meshes.da.nr_el)    return cresp_error(mesh, CERR_INVALID_ARGUMENTS);
 
     LOCAL_SET(mesh_t, me) = CRES_RET_T(
         ref_new_checked(mesh, .name = gltf_mesh_name(gd, mesh), .fix_origin = gd->fix_origin), mesh
     );
 
-    CERR_RET_T(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)), mesh);
-    CERR_RET_T(mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh)), mesh);
-    CERR_RET_T(mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh)), mesh);
-    if (gltf_has_norm(gd, mesh))
-        CERR_RET_T(
-            mesh_attr_dup(me, MESH_NORM, gltf_norm(gd, mesh), gltf_norm_stride(gd, mesh), gltf_nr_norm(gd, mesh)),
-            mesh
-        );
-    if (gltf_has_joints(gd, mesh))
-        CERR_RET_T(
-            mesh_attr_dup(me, MESH_JOINTS, gltf_joints(gd, mesh), gltf_joints_stride(gd, mesh),
-                          gltf_nr_joints(gd, mesh)),
-            mesh
-        );
-    if (gltf_has_weights(gd, mesh))
-        CERR_RET_T(
-            mesh_attr_dup(me, MESH_WEIGHTS, gltf_weights(gd, mesh), gltf_weights_stride(gd, mesh),
-                          gltf_nr_weights(gd, mesh)),
-            mesh
-        );
-    if (gltf_has_tangent(gd, mesh))
-        CERR_RET_T(
-            mesh_attr_dup(me, MESH_TANGENTS, gltf_tangent(gd, mesh), gltf_tangent_stride(gd, mesh),
-                          gltf_nr_tangent(gd, mesh)),
-            mesh
-        );
-    mesh_optimize(me);
+    CERR_RET_T(gltf_mesh_fill(gd, mesh, me), mesh);
 
     return cresp_val(mesh, ref_pass(me));
 }
@@ -1563,6 +1601,67 @@ pipeline *gltf_pipeline(struct gltf_data *gd)
     return gd->pl;
 }
 
+/* Decode a texture slot's PNG */
+static cerr gltf_pixels_decode(struct gltf_pixels *px, void *png, size_t size, enum shader_vars var)
+{
+    int has_alpha;
+
+    px->buf = decode_png(png, size, &px->width, &px->height, &has_alpha);
+    if (!px->buf)   return CERR_INVALID_FORMAT;
+
+    px->format = model3dtx_png_format(var, has_alpha);
+
+    return CERR_OK;
+}
+
+/* Build, optimize and simplify a primitive's mesh and decode its material's PNGs */
+static cerr gltf_prim_build(struct gltf_data *gd, int mesh, struct gltf_prim *prim)
+{
+    prim->mesh = (struct mesh){
+        .ref        = REF_STATIC(mesh),
+        .name       = gltf_mesh_name(gd, mesh),
+        .fix_origin = gd->fix_origin,
+    };
+
+    struct mesh *me = &prim->mesh;
+    CERR_RET_CERR(gltf_mesh_fill(gd, mesh, me));
+    mesh_lods_build(me, &prim->lods);
+
+    /* a fallback material's base is a stand-in, a color factor's a canvas */
+    auto mat = gltf_material(gd, mesh);
+    if (!mat->fallback && !mat->base_canvas && gltf_tex(gd, mesh))
+        CERR_RET_CERR(gltf_pixels_decode(&prim->base, gltf_tex(gd, mesh), gltf_texsz(gd, mesh), UNIFORM_MODEL_TEX));
+    if (gltf_nmap(gd, mesh))
+        CERR_RET_CERR(
+            gltf_pixels_decode(&prim->normal, gltf_nmap(gd, mesh), gltf_nmapsz(gd, mesh), UNIFORM_NORMAL_MAP)
+        );
+    if (!mat->emit_canvas && gltf_em(gd, mesh))
+        CERR_RET_CERR(
+            gltf_pixels_decode(&prim->emission, gltf_em(gd, mesh), gltf_emsz(gd, mesh), UNIFORM_EMISSION_MAP)
+        );
+
+    return CERR_OK;
+}
+
+cerr gltf_prepare(struct gltf_data *gd, int mesh)
+{
+    if (mesh < 0 || mesh >= gd->meshes.da.nr_el)    return CERR_INVALID_ARGUMENTS;
+
+    if (!gd->prims) {
+        gd->prims = mem_alloc(sizeof(*gd->prims), .nr = gd->meshes.da.nr_el, .zero = 1);
+        if (!gd->prims) return CERR_NOMEM;
+    }
+
+    struct gltf_prim *prim = &gd->prims[mesh];
+    if (prim->prepared) return CERR_OK;
+
+    CERR_RET(gltf_prim_build(gd, mesh, prim), { gltf_prim_done(prim); return __cerr; });
+
+    prim->prepared = true;
+
+    return CERR_OK;
+}
+
 cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipeline *pl)
 {
     int skin;
@@ -1575,19 +1674,20 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipelin
 
     gd->pl = pl;
 
-    LOCAL_SET(mesh_t, me) = CRES_RET(gltf_mesh_new(gd, mesh), return cerr_error_cres(__resp));
+    CERR_RET_CERR(gltf_prepare(gd, mesh));
+    struct gltf_prim *prim = &gd->prims[mesh];
 
     /* dropped if the shadow prog fails to resolve; ref_pass() hands it on below */
     LOCAL(model3d, m);
 
     /*
-     * A model_make hook gets first refusal on turning the fresh mesh into a
-     * model (procedural rigging, say). It borrows the mesh; instantiate keeps
-     * ownership and still drops it below. CERR_NOT_HANDLED - or no hook - falls
-     * through to the default model3d; any other error aborts.
+     * A model_make hook gets first refusal on turning the prepared mesh into a
+     * model (procedural rigging, say). It borrows the mesh, which stays the
+     * glTF data's. CERR_NOT_HANDLED - or no hook - falls through to the default
+     * model3d; any other error aborts.
      */
     if (gd->model_make) {
-        cerr err = gd->model_make(gd, mesh, me, &m, gd->model_make_priv);
+        cerr err = gd->model_make(gd, mesh, &prim->mesh, &m, gd->model_make_priv);
 
         if (IS_CERR(err) && !IS_CERR_CODE(err, CERR_NOT_HANDLED))   return err;
     }
@@ -1615,7 +1715,8 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipelin
                 model3d,
                 .prog        = ref_pass(prog),
                 .name        = gltf_mesh_name(gd, mesh),
-                .mesh        = me,
+                .mesh        = &prim->mesh,
+                .lods        = &prim->lods,
                 .shader_base = "model",
                 .variants    = variants,
                 .parts       = gd->parts
@@ -1633,21 +1734,20 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipelin
     model3dtx *txm = CRES_RET(
         ref_new_checked(
             model3dtx,
-            .model            = ref_pass(m),
-            .tex              = mat->fallback ? black_pixel() : NULL,
-            .buffers_png      = mat->fallback ? false : gd->textures_png, /* XXX: one switch for all texture buffers */
-            .texture_buffer   = mat->fallback ? NULL : (mat->base_canvas ? canvas_data(mat->base_canvas) : gltf_tex(gd, mesh)),
-            .texture_size     = mat->fallback ? 0    : (mat->base_canvas ? canvas_size(mat->base_canvas) : gltf_texsz(gd, mesh)), /* XXX: need texture*/
-            .texture_width    = mat->base_canvas ? 1 : 0,
-            .texture_height   = mat->base_canvas ? 1 : 0,
-            .normal_buffer    = gltf_nmap(gd, mesh),
-            .normal_size      = gltf_nmapsz(gd, mesh),
-            .normal_format    = TEX_FMT_RGB8,
-            .emission_buffer  = mat->emit_canvas ? canvas_data(mat->emit_canvas) : gltf_em(gd, mesh),
-            .emission_size    = mat->emit_canvas ? canvas_size(mat->emit_canvas) : gltf_emsz(gd, mesh),
-            .emission_width   = mat->emit_canvas ? 1 : 0,
-            .emission_height  = mat->emit_canvas ? 1 : 0,
-            .emission_format  = TEX_FMT_RGB8
+            .model                = ref_pass(m),
+            .tex                  = mat->fallback ? black_pixel() : nullptr,
+            .texture_buffer       = mat->base_canvas ? canvas_data(mat->base_canvas) : prim->base.buf,
+            .texture_width        = mat->base_canvas ? 1 : prim->base.width,
+            .texture_height       = mat->base_canvas ? 1 : prim->base.height,
+            .texture_color_format = mat->base_canvas ? TEX_FMT_RGBA8 : prim->base.format,
+            .normal_buffer        = prim->normal.buf,
+            .normal_width         = prim->normal.width,
+            .normal_height        = prim->normal.height,
+            .normal_format        = prim->normal.format,
+            .emission_buffer      = mat->emit_canvas ? canvas_data(mat->emit_canvas) : prim->emission.buf,
+            .emission_width       = mat->emit_canvas ? 1 : prim->emission.width,
+            .emission_height      = mat->emit_canvas ? 1 : prim->emission.height,
+            .emission_format      = mat->emit_canvas ? TEX_FMT_RGB8 : prim->emission.format
         ),
         {
             /*

@@ -15,13 +15,13 @@ DECLARE_CLEANUP(gltf_data);
  * gltf_model_make_fn - hook to build a model3d from a freshly loaded gltf mesh
  * @gd:     the gltf data being instantiated
  * @mesh:   index of the mesh being instantiated
- * @me:     the mesh gltf_instantiate_one() just built with gltf_mesh_new();
- *          borrowed - build the model from it, do not take ownership
+ * @me:     the mesh gltf_prepare() built, which the gltf data keeps; borrowed,
+ *          and not reference counted - build the model from it, take no reference
  * @out:    receives the model3d on CERR_OK; instantiate takes ownership
  * @priv:   the caller's cookie from gltf_load_options::model_make_priv
  *
  * Fires inside gltf_instantiate_one(), once per instantiated mesh, between
- * gltf_mesh_new() and model3d creation. On CERR_OK write @out, and instantiate
+ * gltf_prepare() and model3d creation. On CERR_OK write @out, and instantiate
  * wraps that model into the model3dtx with this mesh's textures and material:
  * the hook owns the mesh side (e.g. fitting a procedural skeleton), instantiate
  * keeps the texture/material/skin side keyed by @mesh. Return CERR_NOT_HANDLED
@@ -83,12 +83,30 @@ int gltf_root_mesh(struct gltf_data *gd);
 int gltf_mesh_by_name(struct gltf_data *gd, const char *name);
 
 /**
+ * gltf_prepare() - do a primitive's CPU work ahead of gltf_instantiate_one()
+ * @gd:     glTF data
+ * @mesh:   the primitive (flat mesh index)
+ *
+ * Builds and optimizes the primitive's mesh, simplifies its levels of detail
+ * and decodes the PNG images its material uses: what instantiating it costs
+ * short of the GPU and the engine's objects. Touches no engine object but
+ * @gd, and logs: off the main thread, it runs where the log lines are held
+ * (log_hold()), as in a worker job's run().
+ * Context: the thread that owns @gd
+ * Return: CERR_OK; CERR_INVALID_ARGUMENTS for a primitive that doesn't exist,
+ *         CERR_INVALID_FORMAT for an image that doesn't decode, CERR_NOMEM,
+ *         or the mesh's error
+ */
+cerr_check gltf_prepare(struct gltf_data *gd, int mesh);
+
+/**
  * gltf_instantiate_one() - make a textured model of a primitive and queue it
  * @gd:     glTF data
  * @mesh:   the primitive (flat mesh index)
  * @mq:     the model queue it goes into
  * @pl:     the pipeline whose render options and shaders it's made for
  *
+ * Prepares the primitive first, unless gltf_prepare() did.
  * Context: the main thread
  * Return: CERR_OK or an error
  */
@@ -156,9 +174,9 @@ cres(int) gltf_node_extras_prefixed(struct gltf_data *gd, int node, const char *
  * @gd:     loaded gltf data
  * @mesh:   mesh index
  *
- * The mesh construction half of gltf_instantiate_one(): a new mesh with
- * every attribute the gltf mesh carries (vertices, UVs, indices,
- * normals, skin, tangents), optimized. Use it to build custom models
+ * The mesh gltf_prepare() builds for gltf_instantiate_one(), as a new
+ * reference counted mesh: every attribute the gltf mesh carries (vertices,
+ * UVs, indices, normals, skin, tangents), optimized. Use it to build custom models
  * from gltf data, e.g. to rig an unrigged mesh procedurally before
  * model3d creation.
  * Return: a mesh reference the caller owns, or CERR_NOMEM /
