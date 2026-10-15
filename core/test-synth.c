@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
  * Synth tests: the pitch and duration helpers, patch validation, offline
- * rendering through a headless engine and patch changes on a playing synth.
- * sound.c is compiled in whole, so the librarian it decodes files with is
- * stubbed out: no test loads one.
+ * rendering through a headless engine, patch changes on a playing synth and
+ * the parameter bounds of the effects a synth goes through. sound.c is
+ * compiled in whole, so the librarian it decodes files with is stubbed out:
+ * no test loads one.
  */
 #include <math.h>
 #include <stdlib.h>
@@ -217,6 +218,67 @@ static int config_test(void)
     return EXIT_SUCCESS;
 }
 
+/* Whether creating @opts' effect fails, dropping the effect if it doesn't */
+static bool effect_rejects(const rc_init_opts(sound_effect) *opts)
+{
+    cresp(sound_effect) r = ref_new_checked(sound_effect, .ctx = opts->ctx, .type = opts->type,
+                                            .reverb_type = opts->reverb_type, .room_size = opts->room_size,
+                                            .damping = opts->damping, .wet_dry = opts->wet_dry,
+                                            .delay_ms = { opts->delay_ms[0], opts->delay_ms[1] },
+                                            .feedback = opts->feedback);
+    if (IS_CERR(r))     return true;
+
+    ref_put(r.val);
+
+    return false;
+}
+
+/* A room that leaves a reverb line without a sample is refused, and so is NaN anywhere */
+static int effects_test(void)
+{
+    LOCAL_HEADLESS(ctx) = CRES_RET(sound_init_headless(SAMPLE_RATE, CHANNELS), return EXIT_FAILURE);
+
+    /* the shortest lines are the first allpass: 149 samples in a small room, 173 in a hall */
+    static const struct { reverb_type type; float room_size, damping, wet; bool valid; } reverbs[] = {
+        { REVERB_SMALL_ROOM, 1.0f, 0.5f, 0.5f, true },      { REVERB_SMALL_ROOM, 0.01f, 0.5f, 0.5f, true },
+        { REVERB_SMALL_ROOM, 0.005f, 0.5f, 0.5f, false },   { REVERB_HALL, 0.006f, 0.5f, 0.5f, true },
+        { REVERB_HALL, 0.005f, 0.5f, 0.5f, false },         { REVERB_HALL, 0.0f, 0.5f, 0.5f, false },
+        { REVERB_HALL, -0.5f, 0.5f, 0.5f, false },          { REVERB_HALL, 1.5f, 0.5f, 0.5f, false },
+        { REVERB_HALL, NAN, 0.5f, 0.5f, false },            { REVERB_HALL, 0.8f, NAN, 0.5f, false },
+        { REVERB_HALL, 0.8f, 0.5f, NAN, false },
+    };
+    for (size_t i = 0; i < array_size(reverbs); i++) {
+        rc_init_opts(sound_effect) opts = {
+            .ctx = ctx, .type = SOUND_EFFECT_REVERB, .reverb_type = reverbs[i].type,
+            .room_size = reverbs[i].room_size, .damping = reverbs[i].damping, .wet_dry = reverbs[i].wet,
+        };
+        if (effect_rejects(&opts) == reverbs[i].valid) {
+            err("reverb %zu: expected %s\n", i, reverbs[i].valid ? "accepted" : "refused");
+            return EXIT_FAILURE;
+        }
+    }
+
+    /* at SAMPLE_RATE the delay line holds 2000 ms */
+    static const struct { float left, right, feedback, wet; bool valid; } delays[] = {
+        { 250.0f, 375.0f, 0.3f, 0.2f, true },   { 0.0f, 2000.0f, 0.0f, 1.0f, true },
+        { 2001.0f, 0.0f, 0.3f, 0.2f, false },   { -1.0f, 0.0f, 0.3f, 0.2f, false },
+        { NAN, 0.0f, 0.3f, 0.2f, false },       { 0.0f, 1e30f, 0.3f, 0.2f, false },
+        { 250.0f, 375.0f, NAN, 0.2f, false },   { 250.0f, 375.0f, 0.3f, NAN, false },
+    };
+    for (size_t i = 0; i < array_size(delays); i++) {
+        rc_init_opts(sound_effect) opts = {
+            .ctx = ctx, .type = SOUND_EFFECT_DELAY, .delay_ms = { delays[i].left, delays[i].right },
+            .feedback = delays[i].feedback, .wet_dry = delays[i].wet,
+        };
+        if (effect_rejects(&opts) == delays[i].valid) {
+            err("delay %zu: expected %s\n", i, delays[i].valid ? "accepted" : "refused");
+            return EXIT_FAILURE;
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
 /* Pull @frames of engine output in @block-frame reads; the peak absolute sample, or -1.0 on a short read */
 static float render(sound_context *ctx, float *out, size_t frames, size_t block)
 {
@@ -340,6 +402,7 @@ static int live_patch_test(void)
 static const struct test tests[] = {
     { .name = "synth helpers", .test = helpers_test },
     { .name = "synth config", .test = config_test },
+    { .name = "effect parameters", .test = effects_test },
     { .name = "synth block size", .test = block_size_test },
     { .name = "synth lifecycle", .test = lifecycle_test },
     { .name = "synth live patch", .test = live_patch_test },
