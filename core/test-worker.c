@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+#include "logger.h"
 #include "test.h"
 #include "worker.h"
 
@@ -552,6 +555,228 @@ static int worker_thread_local_test(void)
     return done ? ret : EXIT_FAILURE;
 }
 
+/****************************************************************************
+ * logging from jobs
+ ****************************************************************************/
+
+/** LOG_PROBE_MAX - lines the log probe keeps */
+#define LOG_PROBE_MAX 8
+
+/* The tests' "log-" lines, in the order the ring hands them to its sinks */
+typedef struct log_probe {
+    pthread_t       owner;
+    char            lines[LOG_PROBE_MAX][16];
+    unsigned int    nr;
+    /* a line came out on a thread other than the owner's */
+    bool            off_owner;
+} log_probe;
+
+static log_probe probe;
+
+static void log_probe_flush(struct log_entry *e, void *data)
+{
+    log_probe *lp = data;
+
+    if (strncmp(e->msg, "log-", 4))                 return;
+    if (!pthread_equal(pthread_self(), lp->owner))  lp->off_owner = true;
+    if (lp->nr < LOG_PROBE_MAX)                     strncpy(lp->lines[lp->nr], e->msg, sizeof(lp->lines[0]) - 1);
+    lp->nr++;
+}
+
+static cerr log_probe_start(void)
+{
+    probe = (log_probe){ .owner = pthread_self() };
+
+    return rb_sink_add(log_probe_flush, &probe, VDBG, 1);
+}
+
+/* Sinks are flushed on the way into the ring: a line of its own brings out the ones before it */
+static unsigned int log_probe_fence(void)
+{
+    msg("fence\n");
+
+    return probe.nr;
+}
+
+/* The probe saw @expected, in order, all of it on the owner's thread */
+static int log_probe_check(const char **expected, unsigned int nr)
+{
+    rb_sink_del(&probe);
+
+    if (probe.off_owner || probe.nr != nr)  return EXIT_FAILURE;
+
+    for (unsigned int i = 0; i < nr; i++)
+        if (strcmp(probe.lines[i], expected[i]))    return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+typedef struct log_job {
+    atomic_uint done;
+    /* run() is past its last line */
+    atomic_bool ended;
+    /* the owner has logged its own line: run() may return */
+    atomic_bool go;
+} log_job;
+
+static cerr log_order_run(job *j)
+{
+    log_job *lj = job_get_data(j);
+
+    msg("log-one\n");
+    CERR_RET_CERR(job_yield(j, (void *)1));
+    msg("log-two\n");
+    CERR_RET_CERR(job_yield(j, (void *)2));
+    msg("log-three\n");
+    atomic_store_explicit(&lj->ended, true, memory_order_release);
+
+    return CERR_OK;
+}
+
+static void log_order_result(job *j, void *result)
+{
+    msg("log-R%u\n", (unsigned int)(uintptr_t)result);
+}
+
+static void log_job_done(job *j, cerr err)
+{
+    log_job *lj = job_get_data(j);
+
+    msg("log-D\n");
+    atomic_fetch_add_explicit(&lj->done, 1, memory_order_release);
+}
+
+/* What a job logs comes out on the owner's thread, each line ahead of the callback it led up to */
+static int worker_log_order_test(void)
+{
+    static const char *order[] = { "log-one\n", "log-R1\n", "log-two\n", "log-R2\n", "log-three\n", "log-D\n" };
+    static log_job lj;
+
+    LOCAL_SET(worker_pool, pool) = CRES_RET(single_pool(), return EXIT_FAILURE);
+    CERR_RET(log_probe_start(), return EXIT_FAILURE);
+
+    lj = (log_job){};
+    job *j = CRES_RET(
+        job_submit(.pool = pool, .run = log_order_run, .result = log_order_result, .done = log_job_done,
+                   .data = &lj),
+        { rb_sink_del(&probe); return EXIT_FAILURE; }
+    );
+    ref_put(j);
+
+    /* the job has logged all it will, and nothing has polled: none of it is out */
+    bool ended = wait_for(&lj.ended);
+    unsigned int early = log_probe_fence();
+    bool done = poll_until(pool, &lj.done, 1);
+    log_probe_fence();
+
+    int ret = log_probe_check(order, array_size(order));
+
+    return ended && !early && done ? ret : EXIT_FAILURE;
+}
+
+static cerr log_drop_run(job *j)
+{
+    msg("log-drop\n");
+
+    return CERR_OK;
+}
+
+/* A pool's drop prints what its jobs logged, without a poll */
+static int worker_log_drop_test(void)
+{
+    static const char *order[] = { "log-drop\n", "log-D\n" };
+    static log_job lj;
+
+    worker_pool *pool = CRES_RET(single_pool(), return EXIT_FAILURE);
+    CERR_RET(log_probe_start(), { ref_put_last(pool); return EXIT_FAILURE; });
+
+    lj = (log_job){};
+    job *j = CRES_RET(
+        job_submit(.pool = pool, .run = log_drop_run, .done = log_job_done, .data = &lj),
+        { rb_sink_del(&probe); ref_put_last(pool); return EXIT_FAILURE; }
+    );
+    ref_put(j);
+
+    ref_put_last(pool);
+    log_probe_fence();
+
+    return log_probe_check(order, array_size(order));
+}
+
+static cerr log_unreceived_run(job *j)
+{
+    msg("log-before\n");
+    cerr err = job_yield(j, j);
+    msg("log-after\n");
+
+    return err;
+}
+
+/* A yield that fails leaves what was logged before it to the completion */
+static int worker_log_unreceived_test(void)
+{
+    static const char *order[] = { "log-before\n", "log-after\n", "log-D\n" };
+    static log_job lj;
+
+    LOCAL_SET(worker_pool, pool) = CRES_RET(single_pool(), return EXIT_FAILURE);
+    CERR_RET(log_probe_start(), return EXIT_FAILURE);
+
+    lj = (log_job){};
+    job *j = CRES_RET(
+        job_submit(.pool = pool, .run = log_unreceived_run, .done = log_job_done, .data = &lj),
+        { rb_sink_del(&probe); return EXIT_FAILURE; }
+    );
+    ref_put(j);
+
+    bool done = poll_until(pool, &lj.done, 1);
+    log_probe_fence();
+
+    int ret = log_probe_check(order, array_size(order));
+
+    return done ? ret : EXIT_FAILURE;
+}
+
+static cerr log_owner_run(job *j)
+{
+    log_job *lj = job_get_data(j);
+
+    msg("log-job\n");
+    atomic_store_explicit(&lj->ended, true, memory_order_release);
+    wait_for(&lj->go);
+
+    return CERR_OK;
+}
+
+/* The owner's own lines go out as they come while a job holds its */
+static int worker_log_owner_test(void)
+{
+    static const char *order[] = { "log-owner\n", "log-job\n", "log-D\n" };
+    static log_job lj;
+
+    LOCAL_SET(worker_pool, pool) = CRES_RET(single_pool(), return EXIT_FAILURE);
+    CERR_RET(log_probe_start(), return EXIT_FAILURE);
+
+    lj = (log_job){};
+    job *j = CRES_RET(
+        job_submit(.pool = pool, .run = log_owner_run, .done = log_job_done, .data = &lj),
+        { rb_sink_del(&probe); return EXIT_FAILURE; }
+    );
+    ref_put(j);
+
+    /* the job holds its line and waits for the owner's, which goes out on its own */
+    bool ended = wait_for(&lj.ended);
+    msg("log-owner\n");
+    unsigned int owner = log_probe_fence();
+    atomic_store_explicit(&lj.go, true, memory_order_release);
+
+    bool done = poll_until(pool, &lj.done, 1);
+    log_probe_fence();
+
+    int ret = log_probe_check(order, array_size(order));
+
+    return ended && owner == 1 && done ? ret : EXIT_FAILURE;
+}
+
 static const struct test tests[] = {
     { .name = "worker results and completions",   .test = worker_basic_test },
     { .name = "worker delivery order",            .test = worker_order_test },
@@ -564,6 +789,10 @@ static const struct test tests[] = {
     { .name = "worker CPU budget",                .test = worker_budget_test },
     { .name = "worker invalid arguments",         .test = worker_invalid_test },
     { .name = "worker thread_local per thread",   .test = worker_thread_local_test },
+    { .name = "worker log order",                 .test = worker_log_order_test },
+    { .name = "worker log on drop",               .test = worker_log_drop_test },
+    { .name = "worker log past a failed yield",   .test = worker_log_unreceived_test },
+    { .name = "worker log beside the owner's",    .test = worker_log_owner_test },
 };
 
 int main(int argc, char **argv, char **envp)

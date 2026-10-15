@@ -1927,6 +1927,50 @@ static int quat_mat4x4_roundtrip_test(void)
     return EXIT_SUCCESS;
 }
 
+/* The held log test's lines, in the order the ring hands them to its sinks */
+struct log_hold_probe {
+    char    lines[2][16];
+    int     count;
+};
+
+static void log_hold_probe_flush(struct log_entry *e, void *data)
+{
+    struct log_hold_probe *probe = data;
+
+    if (strncmp(e->msg, "held ", 5))    return;
+    if (probe->count < 2)               strncpy(probe->lines[probe->count], e->msg, sizeof(probe->lines[0]) - 1);
+    probe->count++;
+}
+
+/* Held lines stay out of the ring until they print, then arrive once each, in order */
+static int log_hold_test(void)
+{
+    struct log_hold_probe probe = {};
+    log_held held = {};
+
+    CERR_RET(rb_sink_add(log_hold_probe_flush, &probe, VDBG, 1), return EXIT_FAILURE);
+
+    log_hold(&held);
+    msg("held one\n");
+    err("held two\n");
+    log_hold(nullptr);
+
+    /* Sinks are flushed on the way into the ring: a line of its own brings out the ones before it */
+    msg("fence\n");
+    int early = probe.count;
+
+    log_held_print(&held);
+    msg("fence\n");
+    rb_sink_del(&probe);
+
+    if (early || held.first || held.last)       return EXIT_FAILURE;
+    if (probe.count != 2)                       return EXIT_FAILURE;
+    if (strcmp(probe.lines[0], "held one\n"))   return EXIT_FAILURE;
+    if (strcmp(probe.lines[1], "held two\n"))   return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "user-agent parse desktop", .test = ua_parse_desktop_test },
     { .name = "user-agent parse mobile", .test = ua_parse_mobile_test },
@@ -1989,6 +2033,7 @@ static const struct test tests[] = {
     { .name = "tex next match iterator test", .test = tex_next_match_test },
     { .name = "log ring buffer wrap", .test = log_rb_wrap_test },
     { .name = "log ring buffer late sink", .test = log_rb_late_sink_test },
+    { .name = "log lines held for another thread", .test = log_hold_test },
 #ifdef CONFIG_NETWORKING
     { .name = "http header find", .test = http_header_find_test },
     { .name = "http headers end", .test = http_headers_end_test },
