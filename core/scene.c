@@ -1618,8 +1618,6 @@ static cerr sfx_add_from_json(sfx_container *sfxc, sound_context *ctx, JsonNode 
     return CERR_OK;
 }
 
-unsigned int nr_models;
-
 /*
  * Add physics to an entity from parameters parsed out of the scene JSON
  * "physics" block or a GLTF node's clap::physics::* extras.
@@ -2325,10 +2323,6 @@ light_done:
 
     dbg("loaded model '%s'\n", name);
 
-    if (scene->ls)
-        loading_screen_progress(scene->ls, (float)nr_models / (float)json_nr_children(node));
-    nr_models++;
-
     return CERR_OK;
 }
 
@@ -2500,8 +2494,6 @@ static void scene_onload(struct lib_handle *h, void *buf)
         goto err;
     }
 
-    p = json_find_member(scene->json_root, "model");
-
     for (p = scene->json_root->children.head; p; p = p->next) {
         if (!strcmp(p->key, "name")) {
             if (p->tag != JSON_STRING) {
@@ -2515,8 +2507,10 @@ static void scene_onload(struct lib_handle *h, void *buf)
                 goto err;
             }
 
+            unsigned int nr = 0;
             for (m = p->children.head; m; m = m->next) {
                 CERR_RET(model_new_from_json(scene, m), goto err);
+                if (scene->ls)  loading_screen_progress(scene->ls, (float)++nr / (float)json_nr_children(p));
             }
         } else if (!strcmp(p->key, "light") && p->tag == JSON_ARRAY) {
             JsonNode *light;
