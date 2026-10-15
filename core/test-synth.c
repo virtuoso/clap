@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * Synth tests: the pitch and duration helpers, patch validation and offline
- * rendering through a headless engine. sound.c is compiled in whole, so the
- * librarian it decodes files with is stubbed out: no test loads one.
+ * Synth tests: the pitch and duration helpers, patch validation, offline
+ * rendering through a headless engine and patch changes on a playing synth.
+ * sound.c is compiled in whole, so the librarian it decodes files with is
+ * stubbed out: no test loads one.
  */
 #include <math.h>
 #include <stdlib.h>
@@ -306,11 +307,42 @@ static int lifecycle_test(void)
     return EXIT_SUCCESS;
 }
 
+/* A setter reaches a playing synth, a rejected one leaves the patch alone, a waveform can't change */
+static int live_patch_test(void)
+{
+    const size_t frames = SAMPLE_RATE / 10;
+    LOCAL_HEADLESS(ctx) = CRES_RET(sound_init_headless(SAMPLE_RATE, CHANNELS), return EXIT_FAILURE);
+    LOCAL_SET(float, out) = mem_alloc(frames * CHANNELS * sizeof(float));
+    if (!out)   return EXIT_FAILURE;
+
+    LOCAL_SET(synth, drone) = CRES_RET(ref_new_checked(synth, .ctx = ctx, .config = &base_config),
+                                       return EXIT_FAILURE);
+    synth_start(drone);
+    if (render(ctx, out, frames, 480) <= 0.0f)                  return EXIT_FAILURE;
+
+    /* the audio thread takes the muted patch at its next chunk */
+    cerr err = synth_set_gain(drone, 0.0f);
+    if (IS_CERR(err))                                           return EXIT_FAILURE;
+    if (render(ctx, out, frames, 480) != 0.0f)                  return EXIT_FAILURE;
+
+    err = synth_set_gain(drone, -1.0f);
+    if (!IS_CERR_CODE(err, CERR_INVALID_ARGUMENTS))             return EXIT_FAILURE;
+    if (synth_get_config(drone)->gain != 0.0f)                  return EXIT_FAILURE;
+
+    synth_oscillator_config osc = synth_get_config(drone)->oscillators[0];
+    osc.waveform = SYNTH_WAVE_SINE;
+    err = synth_set_oscillator(drone, 0, &osc);
+    if (!IS_CERR_CODE(err, CERR_INVALID_OPERATION))             return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
 static const struct test tests[] = {
     { .name = "synth helpers", .test = helpers_test },
     { .name = "synth config", .test = config_test },
     { .name = "synth block size", .test = block_size_test },
     { .name = "synth lifecycle", .test = lifecycle_test },
+    { .name = "synth live patch", .test = live_patch_test },
 };
 
 int main(int argc, char **argv, char **envp)
