@@ -82,9 +82,14 @@ void loading_screen_done(loading_screen *ls)
     mem_free(ls);
 }
 
-void loading_screen_progress(loading_screen *ls, float progress)
+void loading_screen_set_progress(loading_screen *ls, float progress)
 {
     ui_progress_bar_set_progress(ls->progress, progress);
+}
+
+void loading_screen_progress(loading_screen *ls, float progress)
+{
+    loading_screen_set_progress(ls, progress);
 
     if (ui_state_get(ls->ui) != UI_ST_LOADING) {
 #ifndef CONFIG_BROWSER
