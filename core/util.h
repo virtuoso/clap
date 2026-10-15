@@ -207,9 +207,10 @@ static inline double drand48()
 {
     return (double)rand() / RAND_MAX;
 }
-#ifndef thread_local
+#if defined(_MSC_VER) && !defined(thread_local)
+/* MSVC's spelling: gcc ignores it, and takes _Thread_local below */
 #define thread_local __declspec(thread)
-#endif /* thread_local */
+#endif /* _MSC_VER && !thread_local */
 #endif /* _WIN32 */
 
 #ifndef PATH_MAX
