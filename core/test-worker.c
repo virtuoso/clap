@@ -500,6 +500,58 @@ static int worker_invalid_test(void)
     return EXIT_SUCCESS;
 }
 
+/****************************************************************************
+ * thread-local storage
+ ****************************************************************************/
+
+/* The owner sets it before the job runs, and the job sets its own */
+static thread_local int tls_value;
+
+typedef struct tls_job {
+    atomic_uint done;
+    /* the worker's tls_value before and after run() sets it */
+    int         before;
+    int         after;
+} tls_job;
+
+static cerr tls_run(job *j)
+{
+    tls_job *tj = job_get_data(j);
+
+    tj->before = tls_value;
+    tls_value = 2;
+    tj->after = tls_value;
+
+    return CERR_OK;
+}
+
+static void tls_done(job *j, cerr err)
+{
+    tls_job *tj = job_get_data(j);
+
+    atomic_fetch_add_explicit(&tj->done, 1, memory_order_release);
+}
+
+/* A worker's thread_local variable is its own: it neither sees nor changes the owner's */
+static int worker_thread_local_test(void)
+{
+    static tls_job tj;
+
+    LOCAL_SET(worker_pool, pool) = CRES_RET(single_pool(), return EXIT_FAILURE);
+
+    tls_value = 1;
+    tj = (tls_job){};
+    job *j = CRES_RET(job_submit(.pool = pool, .run = tls_run, .done = tls_done, .data = &tj), return EXIT_FAILURE);
+    ref_put(j);
+
+    bool done = poll_until(pool, &tj.done, 1);
+    int ret = tj.before == 0 && tj.after == 2 && tls_value == 1 ? EXIT_SUCCESS : EXIT_FAILURE;
+
+    tls_value = 0;
+
+    return done ? ret : EXIT_FAILURE;
+}
+
 static const struct test tests[] = {
     { .name = "worker results and completions",   .test = worker_basic_test },
     { .name = "worker delivery order",            .test = worker_order_test },
@@ -511,6 +563,7 @@ static const struct test tests[] = {
     { .name = "worker yield without a receiver",  .test = worker_yield_unreceived_test },
     { .name = "worker CPU budget",                .test = worker_budget_test },
     { .name = "worker invalid arguments",         .test = worker_invalid_test },
+    { .name = "worker thread_local per thread",   .test = worker_thread_local_test },
 };
 
 int main(int argc, char **argv, char **envp)
