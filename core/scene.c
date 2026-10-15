@@ -2586,6 +2586,10 @@ cerr scene_load(struct scene *scene, const char *name)
         return CERR_ALREADY_LOADED;
 
     struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
+    if (!lh) {
+        err("couldn't read scene %s\n", name);
+        return CERR_SCENE_NOT_LOADED;
+    }
 
     cerr ret = CERR_OK;
     if (lh->state != RES_LOADED)
