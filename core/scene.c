@@ -1698,6 +1698,41 @@ static void scene_spawn_prim_children(struct scene *scene, entity3d *e, struct g
     }
 }
 
+/* A model whose root node is a bare armature (no mesh of its own) is a rig: the skin of its primary primitive */
+static cres(int) scene_rig_skin(struct gltf_data *gd, int prim_first)
+{
+    return gltf_root_mesh(gd) < 0 ? gltf_mesh_skin(gd, prim_first) : cres_error(int, CERR_NOT_FOUND);
+}
+
+/*
+ * The primitives a model entry instantiates, the parent's first: the primary
+ * group's, and, for a rig, every other group skinned with the same skin. A
+ * rig built of several meshes, one node each, is one model: those are its
+ * parts. @prims has room for all of @gd's primitives.
+ */
+static cres(int) scene_model_prims(struct gltf_data *gd, int *prims)
+{
+    int primary_group = CRES_RET_SCALAR(gltf_primary_group(gd), int);
+    int prim_count = CRES_RET_SCALAR(gltf_group_count(gd, primary_group), int);
+    int prim_first = CRES_RET_SCALAR(gltf_group_first(gd, primary_group), int);
+    cres(int) rig_skin = scene_rig_skin(gd, prim_first);
+    bool rig = !IS_CERR(rig_skin);
+
+    for (int p = 0; p < prim_count; p++)    prims[p] = prim_first + p;
+
+    for (int g = 0; rig && g < gltf_get_mesh_groups(gd); g++) {
+        if (g == primary_group)     continue;
+
+        int first = CRES_RET(gltf_group_first(gd, g), continue);
+        if (!prim_skinned_with(gd, first, rig_skin.val))    continue;
+
+        int count = CRES_RET_SCALAR(gltf_group_count(gd, g), int);
+        for (int p = 0; p < count; p++)     prims[prim_count++] = first + p;
+    }
+
+    return cres_val(int, prim_count);
+}
+
 static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0;
@@ -1791,30 +1826,12 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
      * multiple model3dtx entries in the mq, one per primitive.
      */
     int primary_group = CRES_RET_CERR(gltf_primary_group(gd));
-
-    /*
-     * The primitives to instantiate, the parent's first: the primary group's,
-     * and, when the root node is a bare armature (no mesh of its own), every
-     * other group skinned with the same skin. A rig built of several meshes,
-     * one node each, is one model: those are its parts.
-     */
-    LOCAL_SET(int, prims) = mem_alloc(sizeof(*prims), .nr = gltf_get_meshes(gd), .fatal_fail = 1);
-    int prim_count = CRES_RET_CERR(gltf_group_count(gd, primary_group));
     int prim_first = CRES_RET_CERR(gltf_group_first(gd, primary_group));
-    cres(int) rig_skin = gltf_root_mesh(gd) < 0 ? gltf_mesh_skin(gd, prim_first) : cres_error(int, CERR_NOT_FOUND);
+    cres(int) rig_skin = scene_rig_skin(gd, prim_first);
     bool rig = !IS_CERR(rig_skin);
 
-    for (int p = 0; p < prim_count; p++)    prims[p] = prim_first + p;
-
-    for (int g = 0; rig && g < gltf_get_mesh_groups(gd); g++) {
-        if (g == primary_group)     continue;
-
-        int first = CRES_RET(gltf_group_first(gd, g), continue);
-        if (!prim_skinned_with(gd, first, rig_skin.val))    continue;
-
-        int count = CRES_RET_CERR(gltf_group_count(gd, g));
-        for (int p = 0; p < count; p++)     prims[prim_count++] = first + p;
-    }
+    LOCAL_SET(int, prims) = mem_alloc(sizeof(*prims), .nr = gltf_get_meshes(gd), .fatal_fail = 1);
+    int prim_count = CRES_RET_CERR(scene_model_prims(gd, prims));
 
     for (int p = 0; p < prim_count; p++)
         CERR_RET_CERR(gltf_instantiate_one(gd, prims[p], &scene->mq, clap_get_pipeline(scene->clap_ctx)));
