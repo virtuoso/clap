@@ -1771,8 +1771,6 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
 
     struct clap_config *clap_cfg = clap_get_config(scene->clap_ctx);
     LOCAL_SET(gltf_data, gd) = gltf_load(
-        .mq              = &scene->mq,
-        .pipeline        = clap_get_pipeline(scene->clap_ctx),
         .name            = gltf,
         .fix_origin      = fix_origin,
         .parts           = !!json_find_member(node, "limbs"),
@@ -1831,7 +1829,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         for (int p = 0; p < count; p++)     prims[prim_count++] = first + p;
     }
 
-    for (int p = 0; p < prim_count; p++)    CERR_RET_CERR(gltf_instantiate_one(gd, prims[p]));
+    for (int p = 0; p < prim_count; p++)
+        CERR_RET_CERR(gltf_instantiate_one(gd, prims[p], &scene->mq, clap_get_pipeline(scene->clap_ctx)));
 
     /*
      * Walk back from mq's tail to recover the txms we just added: the

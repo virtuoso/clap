@@ -37,8 +37,6 @@ typedef cerr (*gltf_model_make_fn)(struct gltf_data *gd, int mesh, mesh_t *me,
 
 typedef struct gltf_load_options {
     const char          *name;
-    struct mq           *mq;
-    pipeline            *pipeline;
     gltf_model_make_fn  model_make;
     void                *model_make_priv;
     bool                fix_origin;
@@ -51,12 +49,24 @@ typedef struct gltf_load_options {
 
 struct gltf_data *_gltf_load(const gltf_load_options *opts);
 void gltf_free(struct gltf_data *gd);
-/* the pipeline this gltf was loaded with, for a model_make hook to source shaders */
+/* the pipeline of the gltf_instantiate_one() under way, for its model_make hook to source shaders */
 pipeline *gltf_pipeline(struct gltf_data *gd);
 int gltf_root_mesh(struct gltf_data *gd);
 int gltf_mesh_by_name(struct gltf_data *gd, const char *name);
-cerr_check gltf_instantiate_one(struct gltf_data *gd, int mesh);
-void gltf_instantiate_all(struct gltf_data *gd);
+
+/**
+ * gltf_instantiate_one() - make a textured model of a primitive and queue it
+ * @gd:     glTF data
+ * @mesh:   the primitive (flat mesh index)
+ * @mq:     the model queue it goes into
+ * @pl:     the pipeline whose render options and shaders it's made for
+ *
+ * Context: the main thread
+ * Return: CERR_OK or an error
+ */
+cerr_check gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipeline *pl);
+void gltf_instantiate_all(struct gltf_data *gd, struct mq *mq, pipeline *pl);
+
 int gltf_get_meshes(struct gltf_data *gd);
 const char *gltf_mesh_name(struct gltf_data *gd, int mesh);
 void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,

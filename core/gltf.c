@@ -204,8 +204,6 @@ struct gltf_material {
 };
 
 struct gltf_data {
-    struct mq                     *mq;
-    pipeline                      *pl;
     darray(void *,                buffers);
     darray(struct gltf_bufview,   bufvws);
     darray(struct gltf_accessor,  accrs);
@@ -226,6 +224,8 @@ struct gltf_data {
     unsigned int texid;
     gltf_model_make_fn   model_make;
     void                 *model_make_priv;
+    /* gltf_instantiate_one()'s, borrowed, for its model_make hook: gltf_pipeline() */
+    pipeline             *pl;
     bool         fix_origin;
     bool         parts;
     bool         textures_png;
@@ -237,7 +237,6 @@ void gltf_free(struct gltf_data *gd)
     struct gltf_node *node;
     int i;
 
-    ref_put(gd->pl);
     for (i = 0; i < gd->anis.da.nr_el; i++) {
         struct gltf_animation *ani = DA(gd->anis, i);
         free((void *)ani->name);
@@ -1539,14 +1538,17 @@ pipeline *gltf_pipeline(struct gltf_data *gd)
     return gd->pl;
 }
 
-cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
+cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipeline *pl)
 {
     int skin;
 
+    if (!mq || !pl)                                 return CERR_INVALID_ARGUMENTS;
     if (mesh < 0 || mesh >= gd->meshes.da.nr_el)    return CERR_INVALID_ARGUMENTS;
 
     dbg("instantiating primitive %d: '%s' (group '%s')\n",
         mesh, gltf_mesh_name(gd, mesh), DA(gd->meshes, mesh)->group_name);
+
+    gd->pl = pl;
 
     LOCAL_SET(mesh_t, me) = CRES_RET(gltf_mesh_new(gd, mesh), return cerr_error_cres(__resp));
 
@@ -1572,12 +1574,12 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
          * and its shadow prog (resolved right after construction) carries
          * the same bits so the shadow passes read them identically.
          */
-        shader_variants_t variants = ropts_shader_variants(pipeline_render_options(gd->pl));
+        shader_variants_t variants = ropts_shader_variants(pipeline_render_options(pl));
         if (gltf_has_tangent(gd, mesh) && gltf_nmap(gd, mesh))  variants |= SHADER_NORMALS_BIT;
         if (gltf_has_joints(gd, mesh))                          variants |= SHADER_SKINNING_BIT;
 
         struct shader_prog *prog = CRES_RET_CERR(
-            pipeline_shader_variant_get(gd->pl, "model", variants));
+            pipeline_shader_variant_get(pl, "model", variants));
         /*
          * ref_put(prog) on failure is not necessary, model3d constructor
          * already drops this reference; plus ref_pass(prog) sets prog to nullptr
@@ -1596,7 +1598,7 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh)
         );
     }
 
-    CERR_RET_CERR(pipeline_model_shadow_resolve(gd->pl, m));
+    CERR_RET_CERR(pipeline_model_shadow_resolve(pl, m));
 
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));
@@ -1727,17 +1729,17 @@ no_skinning:
     txm->mat.metallic = clampf(gltf_material(gd, mesh)->metallic, 0.0, 1.0);
     txm->mat.roughness = clampf(gltf_material(gd, mesh)->roughness, 0.0, 1.0);
 
-    mq_add_model(gd->mq, txm);
+    mq_add_model(mq, txm);
 
     return CERR_OK;
 }
 
-void gltf_instantiate_all(struct gltf_data *gd)
+void gltf_instantiate_all(struct gltf_data *gd, struct mq *mq, pipeline *pl)
 {
     int i;
 
     for (i = 0; i < gd->meshes.da.nr_el; i++) {
-        cerr err = gltf_instantiate_one(gd, i);
+        cerr err = gltf_instantiate_one(gd, i, mq, pl);
         if (IS_CERR(err))
             err_cerr(err, "couldn't instantiate mesh '%s'\n", gltf_mesh_name(gd, i));
     }
@@ -1745,16 +1747,13 @@ void gltf_instantiate_all(struct gltf_data *gd)
 
 struct gltf_data *_gltf_load(const gltf_load_options *opts)
 {
-    if (!opts->name || !opts->mq || !opts->pipeline)
-        return NULL;
+    if (!opts->name)    return NULL;
 
     struct gltf_data  *gd;
     struct lib_handle *lh;
     enum res_state state;
 
     gd = mem_alloc(sizeof(*gd), .zero = 1, .fatal_fail = 1);
-    gd->pl = ref_get((pipeline *)opts->pipeline);
-    gd->mq = opts->mq;
     gd->fix_origin = opts->fix_origin;
     gd->parts = opts->parts;
     gd->model_make = opts->model_make;
