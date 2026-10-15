@@ -1642,10 +1642,12 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipelin
             .texture_height   = mat->base_canvas ? 1 : 0,
             .normal_buffer    = gltf_nmap(gd, mesh),
             .normal_size      = gltf_nmapsz(gd, mesh),
+            .normal_format    = TEX_FMT_RGB8,
             .emission_buffer  = mat->emit_canvas ? canvas_data(mat->emit_canvas) : gltf_em(gd, mesh),
             .emission_size    = mat->emit_canvas ? canvas_size(mat->emit_canvas) : gltf_emsz(gd, mesh),
             .emission_width   = mat->emit_canvas ? 1 : 0,
-            .emission_height  = mat->emit_canvas ? 1 : 0
+            .emission_height  = mat->emit_canvas ? 1 : 0,
+            .emission_format  = TEX_FMT_RGB8
         ),
         {
             /*

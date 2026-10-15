@@ -300,10 +300,23 @@ DEFINE_REFCLASS_INIT_OPTIONS(model3dtx,
     float           metallic;
     float           roughness;
     texture_format  texture_color_format;
+    /* the formats of @normal_buffer and @emission_buffer, unless @buffers_png */
+    texture_format  normal_format;
+    texture_format  emission_format;
     bool            buffers_png;
 );
 DECLARE_REFCLASS(model3dtx);
 DECLARE_CLEANUP(model3dtx);
+
+/**
+ * model3dtx_png_format() - the texture format of a decoded PNG in a texture slot
+ * @var:        UNIFORM_MODEL_TEX, UNIFORM_NORMAL_MAP or UNIFORM_EMISSION_MAP
+ * @has_alpha:  the PNG has an alpha channel
+ *
+ * Color and emission maps are sRGB, normal maps linear.
+ * Return: the format of decode_png()'s pixels in @var
+ */
+texture_format model3dtx_png_format(enum shader_vars var, bool has_alpha);
 
 int model3d_add_skinning(model3d *m, size_t nr_joints, mat4x4 *invmxs);
 cres(joint_type) model3d_get_joint(model3d *m, joint_type type);
