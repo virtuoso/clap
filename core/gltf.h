@@ -36,7 +36,11 @@ typedef cerr (*gltf_model_make_fn)(struct gltf_data *gd, int mesh, mesh_t *me,
                                    model3d **out, void *priv);
 
 typedef struct gltf_load_options {
+    /* the asset gltf_read() reads, and messages name */
     const char          *name;
+    /* its contents, NUL-terminated, from gltf_read(); the caller's */
+    void                *buf;
+    size_t              size;
     gltf_model_make_fn  model_make;
     void                *model_make_priv;
     bool                fix_origin;
@@ -44,6 +48,30 @@ typedef struct gltf_load_options {
     bool                parts;
 } gltf_load_options;
 
+/**
+ * gltf_read() - read a glTF or GLB asset for gltf_load()
+ * @opts:   gltf_load_options: .name to read; .buf and .size receive the contents
+ *
+ * The librarian's handles are reference counted, so reading is the main
+ * thread's half of loading a glTF, and gltf_load() the half that a worker
+ * job can run.
+ * Context: the main thread
+ * Return: CERR_OK with @opts->buf the caller's to mem_free(); CERR_NOT_FOUND
+ *         if the asset doesn't read (logged)
+ */
+cerr_check gltf_read(gltf_load_options *opts);
+
+/**
+ * define gltf_load - parse a glTF or GLB file's contents
+ * @args:   gltf_load_options: .name, .buf and .size from gltf_read(), .fix_origin, .parts
+ *          and .model_make
+ *
+ * Builds the tables the rest of gltf.c works from out of the buffer alone:
+ * no file, pipeline, model queue or reference counting. It logs, so off the
+ * main thread it runs where the log lines are held (log_hold()), as in a
+ * worker job's run(). The buffer stays the caller's.
+ * Return: the glTF data for gltf_free(); nullptr if it doesn't parse (logged)
+ */
 #define gltf_load(args...) \
     _gltf_load(&(gltf_load_options){ args })
 

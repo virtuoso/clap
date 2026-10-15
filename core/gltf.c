@@ -1428,32 +1428,32 @@ static cerr gltf_bin_parse(void *buf, size_t size, struct gltf_data *gd)
     return err;
 }
 
-static void gltf_onload(struct lib_handle *h, void *data)
+/* Take the file's contents over from the handle, for gltf_load() to parse */
+static void gltf_read_onload(struct lib_handle *h, void *data)
 {
-    dbg("loading '%s'\n", h->name);
+    gltf_load_options *opts = data;
 
-    if (h->state == RES_ERROR) {
-        warn("couldn't load '%s'\n", h->name);
-        goto out;
+    if (h->state == RES_LOADED) {
+        opts->buf  = h->buf;
+        opts->size = h->size;
+        h->buf     = nullptr;
     }
 
-    /* try GLB first, if it's not GLB, it fails quickly */
-    cerr err = gltf_bin_parse(h->buf, h->size, data);
-    if (!IS_CERR(err))
-        goto out;
-
-    /* if GLTF embedded fails, nothing more to do */
-    CERR_RET(
-        gltf_json_parse(h->buf, data),
-        {
-            /* this error has nowhere further to go, print it here */
-            err_cerr(__cerr, "couldn't parse '%s'\n", h->name);
-            h->state = RES_ERROR;
-        }
-    );
-
-out:
     ref_put(h);
+}
+
+cerr gltf_read(gltf_load_options *opts)
+{
+    struct lib_handle *lh = lib_request(RES_ASSET, opts->name, gltf_read_onload, opts);
+    /* nullptr: the read failed past the point of calling back */
+    if (lh) ref_put(lh);
+
+    if (!opts->buf) {
+        warn("couldn't load '%s'\n", opts->name);
+        return CERR_NOT_FOUND;
+    }
+
+    return CERR_OK;
 }
 
 void gltf_mesh_data(struct gltf_data *gd, int mesh, float **vx, size_t *vxsz, unsigned short **idx, size_t *idxsz,
@@ -1747,24 +1747,26 @@ void gltf_instantiate_all(struct gltf_data *gd, struct mq *mq, pipeline *pl)
 
 struct gltf_data *_gltf_load(const gltf_load_options *opts)
 {
-    if (!opts->name)    return NULL;
+    if (!opts->name || !opts->buf)  return nullptr;
 
-    struct gltf_data  *gd;
-    struct lib_handle *lh;
-    enum res_state state;
-
-    gd = mem_alloc(sizeof(*gd), .zero = 1, .fatal_fail = 1);
+    struct gltf_data *gd = mem_alloc(sizeof(*gd), .zero = 1, .fatal_fail = 1);
     gd->fix_origin = opts->fix_origin;
     gd->parts = opts->parts;
     gd->model_make = opts->model_make;
     gd->model_make_priv = opts->model_make_priv;
-    lh = lib_request(RES_ASSET, opts->name, gltf_onload, gd);
-    state = lh->state;
-    ref_put(lh);
 
-    if (state == RES_ERROR) {
+    dbg("loading '%s'\n", opts->name);
+
+    /* try GLB first, if it's not GLB, it fails quickly */
+    cerr err = gltf_bin_parse(opts->buf, opts->size, gd);
+    if (IS_CERR(err))   err = gltf_json_parse(opts->buf, gd);
+
+    if (IS_CERR(err)) {
+        /* this error has nowhere further to go, print it here */
+        err_cerr(err, "couldn't parse '%s'\n", opts->name);
         gltf_free(gd);
         return NULL;
     }
+
     return gd;
 }

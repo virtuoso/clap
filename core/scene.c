@@ -1770,13 +1770,17 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
     }
 
     struct clap_config *clap_cfg = clap_get_config(scene->clap_ctx);
-    LOCAL_SET(gltf_data, gd) = gltf_load(
+    gltf_load_options load = {
         .name            = gltf,
         .fix_origin      = fix_origin,
         .parts           = !!json_find_member(node, "limbs"),
         .model_make      = clap_cfg->model_make,
         .model_make_priv = clap_cfg->model_make_priv
-    );
+    };
+    CERR_RET(gltf_read(&load), { warn("Error loading GLTF '%s'\n", gltf); return CERR_PARSE_FAILED; });
+
+    LOCAL_SET(gltf_data, gd) = _gltf_load(&load);
+    mem_free(load.buf);
     if (!gd) {
         warn("Error loading GLTF '%s'\n", gltf);
         return CERR_PARSE_FAILED;
