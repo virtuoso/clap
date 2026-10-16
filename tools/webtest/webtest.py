@@ -268,6 +268,9 @@ def main():
             f"--user-data-dir={profile}",
             f"--remote-debugging-port={args.cdp_port}",
             "--no-first-run", "--no-default-browser-check", "--use-mock-keychain",
+            # the Linux side of --use-mock-keychain: without it, a fresh profile
+            # waits on the desktop's keyring (KWallet) and never navigates
+            "--password-store=basic",
             "--ignore-certificate-errors", "--allow-insecure-localhost",
             "--autoplay-policy=no-user-gesture-required",
             # keep the frame loop running at full speed even unfocused/occluded
