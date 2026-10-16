@@ -47,11 +47,14 @@ loading_screen *loading_screen_init(struct ui *ui)
         .size   = 48,
     );
 
+    /* a browser's "click anywhere" prompt has the middle of the screen until the click */
+    bool has_prompt = ui_state_get(ui) == UI_ST_PRESTART;
+
     ret->uie = ref_new(ui_element,
     .ui             = ui,
         .txmodel    = ui_quadtx,
-        .affinity   = UI_AF_CENTER,
-        .y_off      = 0,
+        .affinity   = has_prompt ? UI_AF_TOP | UI_AF_HCENTER | UI_YOFF_FRAC : UI_AF_CENTER,
+        .y_off      = has_prompt ? 0.25 : 0,
         .width      = 300,
         .height     = 100);
 
