@@ -21,6 +21,5 @@ if [ -n "$www_dir" ]; then
 	cmake --install build/emdebug $VERBOSE
 fi
 
-#cp build/emrel/core/onehandclap.{data,html,js,wasm} /var/www/html/cclap
-build/debug/tools/server/server --restart
-
+# This is allowed to fail, especially in CI/CD environment
+build/debug/tools/server/server --restart || :
