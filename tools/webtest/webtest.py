@@ -282,8 +282,6 @@ def main():
         flags.append(f"--window-position={args.window_position}")
         if args.renderer == "wgpu":
             flags += ["--enable-unsafe-webgpu"]
-        else:
-            flags += ["--disable-features=WebGPU"]
         flags += ["about:blank"]
 
         chrome = subprocess.Popen(flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
