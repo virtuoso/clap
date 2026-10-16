@@ -1634,20 +1634,62 @@ static void gl_renderer_done(renderer_t *r)
 }
 
 /**
+ * struct gl_blend_func - the factors of a glBlendFuncSeparate[i]() call
+ * @src_rgb:    source color factor
+ * @dst_rgb:    destination color factor
+ * @src_alpha:  source alpha factor
+ * @dst_alpha:  destination alpha factor
+ */
+typedef struct gl_blend_func {
+    GLenum  src_rgb;
+    GLenum  dst_rgb;
+    GLenum  src_alpha;
+    GLenum  dst_alpha;
+} gl_blend_func;
+
+/**
+ * gl_blend_func_get() - the blend function of a color attachment
+ * @r:      renderer: the blend factors of the draws that follow
+ * @mode:   the attachment's blend mode
+ *
+ * Color blends by @r's factors and alpha as @mode says, the same as on
+ * the other backends; FBO_BLEND_KEEP leaves color and alpha alike.
+ * Return: the factors to pass to glBlendFuncSeparate[i]()
+ */
+static gl_blend_func gl_blend_func_get(renderer_t *r, fbo_blend_mode mode)
+{
+    gl_blend_func f = {
+        .src_rgb    = r->gl.blend_sfactor,
+        .dst_rgb    = r->gl.blend_dfactor,
+        .src_alpha  = GL_ONE,
+        .dst_alpha  = GL_ONE_MINUS_SRC_ALPHA,
+    };
+
+    switch (mode) {
+        case FBO_BLEND_COVERAGE:    break;
+        case FBO_BLEND_TRANSMIT:    f.src_alpha = GL_ZERO;                                      break;
+        case FBO_BLEND_REPLACE:     f.dst_alpha = GL_ZERO;                                      break;
+        case FBO_BLEND_KEEP:        f = (gl_blend_func){ GL_ZERO, GL_ONE, GL_ZERO, GL_ONE };    break;
+    }
+
+    return f;
+}
+
+/**
  * gl_blend_apply() - set up blending for the bound FBO's color attachments
  * @r:  renderer: its blend flag and factors, the bound FBO's blend setup
  *
  * Indexed blend state (GL 4.0+, ES 3.2+) goes per attachment:
  * fbo_attconfig::no_blend attachments don't blend, the others blend as
  * their &enum fbo_blend_mode says. Without it, one enable and one blend
- * function cover every attachment: no_blend becomes advisory, and alpha
- * accumulates transmittance everywhere, which is right for the model pass
- * color target (FBO_BLEND_TRANSMIT) and approximates the other modes.
+ * function cover every attachment: no_blend becomes advisory, and all of
+ * them blend the way the first one does. That is exact for targets with
+ * one attachment, the default framebuffer among them, and right for the
+ * model pass color target (FBO_BLEND_TRANSMIT), which comes first; the
+ * model pass's other attachments get an approximation.
  */
 static void gl_blend_apply(renderer_t *r)
 {
-    GLenum sfactor = r->gl.blend_sfactor, dfactor = r->gl.blend_dfactor;
-
 #if !defined(CONFIG_GLES) || defined(GL_ES_VERSION_3_2)
     unsigned int nr = r->gl.nr_color_targets ? : 1;
 
@@ -1657,21 +1699,9 @@ static void gl_blend_apply(renderer_t *r)
             continue;
         }
 
+        auto f = gl_blend_func_get(r, fbo_blend_mode_get(r->gl.blend_mode_map, i));
         GL(glEnablei(GL_BLEND, i));
-        switch (fbo_blend_mode_get(r->gl.blend_mode_map, i)) {
-            case FBO_BLEND_COVERAGE:
-                GL(glBlendFuncSeparatei(i, sfactor, dfactor, GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
-                break;
-            case FBO_BLEND_TRANSMIT:
-                GL(glBlendFuncSeparatei(i, sfactor, dfactor, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA));
-                break;
-            case FBO_BLEND_REPLACE:
-                GL(glBlendFuncSeparatei(i, sfactor, dfactor, GL_ONE, GL_ZERO));
-                break;
-            case FBO_BLEND_KEEP:
-                GL(glBlendFuncSeparatei(i, GL_ZERO, GL_ONE, GL_ZERO, GL_ONE));
-                break;
-        }
+        GL(glBlendFuncSeparatei(i, f.src_rgb, f.dst_rgb, f.src_alpha, f.dst_alpha));
     }
 #else
     if (!r->blend) {
@@ -1679,8 +1709,9 @@ static void gl_blend_apply(renderer_t *r)
         return;
     }
 
+    auto f = gl_blend_func_get(r, fbo_blend_mode_get(r->gl.blend_mode_map, 0));
     GL(glEnable(GL_BLEND));
-    GL(glBlendFuncSeparate(sfactor, dfactor, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA));
+    GL(glBlendFuncSeparate(f.src_rgb, f.dst_rgb, f.src_alpha, f.dst_alpha));
 #endif /* CONFIG_GLES && !GL_ES_VERSION_3_2 */
 }
 
