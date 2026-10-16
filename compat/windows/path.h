@@ -17,6 +17,7 @@ static inline void path_to_os(char *s)
 }
 
 #define PATH_DELIM_OS '\\'
+#define PATH_DEVNULL_OS "NUL"
 
 static inline int path_cmp(const char *os_path, const char *clap_path)
 {
