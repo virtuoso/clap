@@ -2949,6 +2949,16 @@ static void scene_load_step(struct scene *scene)
     if (done)   done(scene, err, data);
 }
 
+cresp(worker_pool) scene_loader_pool(struct scene *scene)
+{
+    if (scene->loader_pool) return cresp_val(worker_pool, scene->loader_pool);
+
+    scene->loader_pool = CRES_RET_T(worker_pool_new(.ctx = scene->clap_ctx, .name = "scene loader", .nr_threads = 1),
+                                    worker_pool);
+
+    return cresp_val(worker_pool, scene->loader_pool);
+}
+
 cerr scene_load_async(struct scene *scene, const char *name, scene_loaded_fn done, void *data)
 {
     if (scene->json_root)   return CERR_ALREADY_LOADED;
@@ -2962,11 +2972,8 @@ cerr scene_load_async(struct scene *scene, const char *name, scene_loaded_fn don
         return CERR_SCENE_NOT_LOADED;
     });
 
-    if (!scene->loader_pool) {
-        cresp(worker_pool) res = worker_pool_new(.ctx = scene->clap_ctx, .name = "scene loader", .nr_threads = 1);
-        if (IS_CERR(res))   err_cerr(res, "no loader thread: the frames prepare the models\n");
-        else                scene->loader_pool = res.val;
-    }
+    cresp(worker_pool) res = scene_loader_pool(scene);
+    if (IS_CERR(res))   err_cerr(res, "no loader thread: the frames prepare the models\n");
 
     sl->done = done;
     sl->data = data;

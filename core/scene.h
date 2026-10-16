@@ -12,6 +12,7 @@
 #include "sound.h"
 #include "navmesh.h"
 #include "json.h"
+#include "worker.h"
 
 #define NR_CAMERAS_MAX 4
 
@@ -55,7 +56,7 @@ struct scene {
     loading_screen      *ls;
     /* the scene_load_async() under way, nullptr when there's none */
     struct scene_loader *loader;
-    /* the loader thread, from the first scene_load_async() to scene_done() */
+    /* the loader thread, from the first scene_loader_pool() to scene_done() */
     struct worker_pool  *loader_pool;
     float               lin_speed;
     float               ang_speed;
@@ -163,6 +164,23 @@ typedef void (*scene_loaded_fn)(struct scene *scene, cerr err, void *data);
  *         CERR_SCENE_NOT_LOADED if @name doesn't read or parse; CERR_NOMEM
  */
 cerr scene_load_async(struct scene *scene, const char *name, scene_loaded_fn done, void *data);
+
+/**
+ * scene_loader_pool() - the loader thread, for a game's own loading work
+ * @scene:  the scene
+ *
+ * Starts the thread that scene_load_async() prepares models on, unless it's
+ * up already. A game's jobs (job_submit()) queue with the scene file's
+ * models; scene_update() polls the pool every frame, so their callbacks run
+ * from there, and scene_done() stops it, delivering what's left: a job whose
+ * done() shouldn't touch the scene by then needs job_cancel() first, and its
+ * done() checks job_is_cancelled().
+ * Context: the main thread
+ * Return: the scene's pool, with no reference for the caller; an error from
+ *         worker_pool_new() without a thread to spare (a browser has as many
+ *         as its build's pthread pool)
+ */
+cresp(worker_pool) scene_loader_pool(struct scene *scene);
 
 /**
  * scene_is_loading() - is a scene_load_async() under way?
