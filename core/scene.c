@@ -87,6 +87,7 @@ cres(int) scene_camera_add(struct scene *s)
     s->camera->view.shadow_distance  = 0.0;
     s->camera->view.proj_update      = true;
     s->camera->dist = 10;
+    darray_init(s->camera->shakes);
     transform_init(&s->camera->xform);
     transform_set_updated(&s->camera->xform);
     CERR_RET(debug_draw_install(s->clap_ctx, s->camera), err_cerr(__cerr, "failed to initialize debug draw"));
@@ -1222,7 +1223,7 @@ static void scene_camera_calc(struct scene *s, int camera)
 
     camera_update(s->camera, s);
 
-    view_update_from_angles(s->clap_ctx, &cam->view, &cam->xform);
+    camera_view_update(cam, s->clap_ctx);
     view_calc_frustum(s->clap_ctx, &cam->view);
 
     entity3d *env = cam->bv;
@@ -3091,4 +3092,6 @@ void scene_done(struct scene *scene)
      * mq_release()
      */
     light_done(scene->clap_ctx, &scene->light);
+
+    for (int i = 0; i < scene->nr_cameras; i++) darray_clearout(scene->cameras[i].shakes);
 }

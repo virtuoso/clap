@@ -277,3 +277,45 @@ bool camera_has_moved(struct camera *c)
 {
     return (c->yaw_delta || c->pitch_delta || transform_is_updated(&c->xform));
 }
+
+cerr _camera_shake_push(struct camera *c, const camera_shake_options *opts)
+{
+    if (!opts->duration_ms)         return CERR_INVALID_ARGUMENTS_REASON(.fmt = "shake has no duration");
+    if (opts->frequency <= 0.0f)    return CERR_INVALID_ARGUMENTS_REASON(.fmt = "shake has no frequency");
+
+    struct camera_shake *shake = darray_add(c->shakes);
+    if (!shake)                     return CERR_NOMEM;
+
+    shake->opts = *opts;
+
+    return CERR_OK;
+}
+
+void camera_view_update(struct camera *c, clap_context *ctx)
+{
+    double dt = clap_get_fps_delta(ctx).tv_nsec / (double)NSEC_PER_SEC;
+    float roll = 0.0f;
+
+    /* backwards: deleting a finished shake moves the ones after it down */
+    for (size_t i = darray_count(c->shakes); i-- > 0;) {
+        struct camera_shake *shake = DA(c->shakes, i);
+
+        shake->elapsed += dt;
+
+        float t = shake->elapsed * 1000.0f / shake->opts.duration_ms;
+        if (t >= 1.0f) {
+            darray_delete(c->shakes, i);
+            continue;
+        }
+
+        /* squared, the falloff takes the edge off the hit quickly and eases into rest */
+        float falloff = (1.0f - t) * (1.0f - t);
+        roll += shake->opts.roll * falloff * sinf(2.0f * M_PI * shake->opts.frequency * shake->elapsed);
+    }
+
+    /* the copy keeps the shakes out of what the controls and the orbit go by */
+    transform_t xform;
+    transform_clone(&xform, &c->xform);
+    if (roll)   transform_rotate_axis(&xform, (vec3){ 0.0, 0.0, 1.0 }, roll, true);
+    view_update_from_angles(ctx, &c->view, &xform);
+}
