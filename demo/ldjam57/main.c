@@ -119,6 +119,15 @@ static void switch_connect(entity3d *e, entity3d *connection, void *data)
         }
         entity3d_set(pobj->e, ENTITY3D_VISIBLE, NULL);
     }
+
+    /* a nudge of the camera sells the switch going off */
+    struct character *ch = CRES_RET(entity3d_character(connection), return);
+    if (!ch->camera)    return;
+
+    CERR_RET(
+        camera_shake_push(ch->camera, .duration_ms = 300, .frequency = 8.0f, .roll = 0.75f),
+        err_cerr(__cerr, "couldn't shake the camera\n")
+    );
 }
 
 static void switch_disconnect(entity3d *e, entity3d *connection, void *data)
