@@ -1940,6 +1940,8 @@ static model_prep *model_prep_submit(struct scene *scene, JsonNode *node)
     return mp;
 }
 
+static void scene_loader_hold(struct scene_loader *sl, model3dtx *txm);
+
 /*
  * @mp: the model's glTF, prepared on the loader thread; nullptr prepares it
  * here
@@ -2076,6 +2078,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep 
         it->model->sfxc.on_add = scene->sfxc.on_add;
         it->model->sfxc.data = scene->sfxc.data;
         model3dtx_set_texture(it, UNIFORM_NOISE3D_TEX, noise3d_texture(n3d));
+        if (scene->loader)  scene_loader_hold(scene->loader, it);
     }
 
     model3d_set_name(txm->model, name);
@@ -2704,6 +2707,8 @@ struct scene_item {
 /* A scene file on its way into the scene, an entry at a time */
 struct scene_loader {
     darray(struct scene_item, items);
+    /* the models it put in, kept out of the frames until it's over */
+    darray(model3dtx *, held);
     /* scene_load_async()'s: the end of the load, and its data */
     scene_loaded_fn done;
     void            *data;
@@ -2730,6 +2735,7 @@ struct scene_loader {
 static cerr scene_loader_begin(struct scene *scene, struct scene_loader *sl, const char *name)
 {
     darray_init(sl->items);
+    darray_init(sl->held);
 
     struct lib_handle *lh = lib_request(RES_ASSET, name, scene_onload, scene);
     if (!lh) {
@@ -2817,10 +2823,32 @@ static cerr scene_loader_add_next(struct scene *scene, struct scene_loader *sl)
     return CERR_INVALID_ARGUMENTS;
 }
 
+/*
+ * Keep a model that scene_load_async() put in out of the frames until the
+ * load is over: what the scene had before the load, a menu backdrop, say,
+ * goes on being drawn
+ */
+static void scene_loader_hold(struct scene_loader *sl, model3dtx *txm)
+{
+    model3dtx **held = darray_add(sl->held);
+
+    /* one that can't be held back is drawn as it comes in */
+    if (!held)  return;
+
+    *held = txm;
+    txm->loading = true;
+}
+
 /* The scene file is all in, or @err stopped it: hand the control over, or drop the file */
 static void scene_loader_end(struct scene *scene, struct scene_loader *sl, cerr err)
 {
     struct scene_item *item;
+    model3dtx **txm;
+
+    /* what's in is drawn from now on, the whole file or as much as went in */
+    darray_for_each(txm, sl->held)
+        (*txm)->loading = false;
+    darray_clearout(sl->held);
 
     /* what the loader thread prepared and nobody took */
     darray_for_each(item, sl->items) {

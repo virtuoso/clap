@@ -1011,6 +1011,9 @@ cerr _models_render(renderer_t *r, struct mq *mq, const models_render_options *o
     shader_variants_t global_variants = opts->variants_stale && ropts ? ropts_shader_variants(ropts) : 0;
 
     list_for_each_entry(txmodel, &mq->txmodels, entry) {
+        /* nothing of a scene file is drawn before all of it is in */
+        if (txmodel->loading)   continue;
+
         model3d *model = txmodel->model;
         if (model->skip_shadow && opts->shader_override)
             continue;

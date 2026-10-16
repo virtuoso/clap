@@ -275,6 +275,8 @@ typedef struct model3dtx {
     struct list    entities;           /* links entity3d->entry */
     /* textures[] this txm holds a reference to, see model3dtx_set_texture() */
     bool           texture_held[UNIFORM_NR_TEX];
+    /* its scene file is on its way in: models_render() leaves it out */
+    bool           loading;
 #ifndef CONFIG_FINAL
     /* one-shot dbg of the composed variant mask in models_render() */
     bool           variants_logged;

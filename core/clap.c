@@ -1066,8 +1066,7 @@ EMSCRIPTEN_KEEPALIVE void clap_frame(void *data)
      */
     ctx->render_options.hdr_transfer = renderer_hdr_transfer(&ctx->renderer);
 
-    /* a scene on its way in isn't drawn: loading frames are the UI's */
-    if (ctx->pl && !IS_CERR(ctx->pipeline_error) && !scene_is_loading(scene)) {
+    if (ctx->pl && !IS_CERR(ctx->pipeline_error)) {
         unsigned int ui_checkpoint = ui_state_get(ui) < UI_ST_RUNNING ? 0 : 1;
         cerr err = pipeline_render(ctx->pl, clap_is_paused(ctx) ? ui_checkpoint : 0);
         if (IS_CERR(err)) {
