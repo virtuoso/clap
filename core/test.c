@@ -1752,7 +1752,7 @@ static int ws_decode_reject_test(void)
 /* Log @nr messages into the ring with the test's stdio parked on /dev/null */
 static int log_rb_spam(int nr)
 {
-    int devnull = open("/dev/null", O_WRONLY);
+    int devnull = open(PATH_DEVNULL_OS, O_WRONLY);
     if (devnull < 0)    return EXIT_FAILURE;
 
     fflush(stdout);
