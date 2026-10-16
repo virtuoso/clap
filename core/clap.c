@@ -1459,7 +1459,7 @@ static const struct clap_cli_options_desc {
     [CLAP_CLI_RENDERER_BIT] = {
         .long_name      = "renderer",
         .short_name     = 'R',
-        .help           = "rendering backend to use (OpenGL, Vulkan, Metal); default: the first one that works",
+        .help           = "rendering backend to use (OpenGL, Vulkan, Metal, WebGPU); default: the first one that works",
         .arg_help       = "name",
         .arg_required   = true,
         .type           = CLI_STR,

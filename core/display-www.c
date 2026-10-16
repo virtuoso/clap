@@ -209,12 +209,24 @@ cerr_check display_init(struct clap_context *ctx, display_update_cb update_fn, d
     resize_fn = rfn;
     callback_data = ctx;
 
-    /* try WebGPU, then fall back to WebGL */
-    cerr err = renderer_init(clap_get_renderer(ctx), .backend = RENDER_WGPU);
-    if (IS_CERR(err)) {
-        err_cerr(err, "wgpu initialization failed\n");
+    renderer_t *renderer = clap_get_renderer(ctx);
+    render_backend want = clap_get_renderer_want(ctx);
+
+    if (want == RENDER_OPENGL) {
         CERR_RET_CERR(display_init_webgl(ctx));
+    } else if (want != RENDER_MAX) {
+        /* the stubs of the backends that aren't compiled in say so */
+        CERR_RET_CERR(renderer_init(renderer, .backend = want));
+    } else {
+        /* none named on the command line: try WebGPU, then fall back to WebGL */
+        cerr err = renderer_init(renderer, .backend = RENDER_WGPU);
+        if (IS_CERR(err)) {
+            err_cerr(err, "wgpu initialization failed\n");
+            CERR_RET_CERR(display_init_webgl(ctx));
+        }
     }
+
+    msg("display: %s renderer\n", renderer_backend_name(renderer_get_caps(renderer)->renderer));
 
     EM_ASM(runtime_ready = true;);
     calc_refresh_rate(update_fn, ctx);
