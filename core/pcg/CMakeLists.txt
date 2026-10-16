@@ -21,6 +21,15 @@ clap_subsystem_test(pcg_tests pcg-test.c ${PCG_EMIT_SRC}
                     ../prng.c ../prng-mt.cpp)
 target_link_libraries(pcg_tests PRIVATE meshoptimizer)
 
+# The tests hold the emitters to their reference math bit for bit, which
+# breaks when the compiler fuses multiplies and adds into FMAs differently
+# on the two sides, as clang and gcc do by default on arm64. The library
+# takes the same flag, so it ships the geometry the tests check.
+if (NOT MSVC)
+    target_compile_options(clap_pcg PRIVATE -ffp-contract=off)
+    target_compile_options(pcg_tests PRIVATE -ffp-contract=off)
+endif ()
+
 # The texture generators and the preset recipes paint with the noise and
 # canvas helpers; noise.c also bakes blue noise with kissfft, which has to
 # be linked for the same reason. The renderer side is stubbed.
