@@ -36,9 +36,9 @@ cresp(entity3d) make_cave(struct scene *scene, const room_params *params);
  * @seed:   the crystals' layout seed
  *
  * The crystals draw their places and shapes from a stream seeded with
- * @seed. Each crystal takes a light: call after scene_load(), so that the
- * scene file's lights, the shadow casting headlamp in slot 0 among them,
- * come first.
+ * @seed. Each crystal takes a light: call once the scene file is in, from
+ * scene_load_async()'s @done, say, so that its lights, the shadow casting
+ * headlamp in slot 0 among them, come first.
  * Return: CERR_OK or the error of the stream constructor
  */
 cerr noisy_mesh(struct scene *scene, uint64_t seed);
