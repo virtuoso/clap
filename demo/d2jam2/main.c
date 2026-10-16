@@ -341,12 +341,29 @@ static void scene_loaded(struct scene *s, cerr err, void *data)
 }
 
 /**
- * loading_start() - "Start Game": build the cave and load the scene file
+ * cave_made() - make_cave() callback: load the scene file
+ * @s:      the scene
+ * @err:    make_cave()'s outcome
+ * @data:   callback data
+ *
+ * The cave goes in before the scene file, whose terrain_clamp character
+ * lands on its floor at load.
+ */
+static void cave_made(struct scene *s, cerr err, void *data)
+{
+    if (IS_CERR(err))   err_cerr(err, "no cave\n");
+
+    err = scene_load_async(s, "cave.json", scene_loaded, nullptr);
+    if (IS_CERR(err))   scene_loaded(s, err, nullptr);
+}
+
+/**
+ * loading_start() - "Start Game": build the cave, then load the scene file
  * @ctx:    clap context
  * @data:   callback data
  *
- * The loading screen goes up over the swirl. The cave goes in before the
- * scene file, whose terrain_clamp character lands on its floor at load.
+ * The loading screen goes up over the swirl while the loader thread shapes
+ * the cave.
  */
 static void loading_start(clap_context *ctx, void *data)
 {
@@ -360,10 +377,8 @@ static void loading_start(clap_context *ctx, void *data)
 
     s->ls = loading_screen_init(clap_get_ui(ctx), .skip_background = true);
 
-    CRES_RET(make_cave(s, NULL), err_cerr(__resp, "no cave\n"));
-
-    cerr err = scene_load_async(s, "cave.json", scene_loaded, NULL);
-    if (IS_CERR(err))   scene_loaded(s, err, nullptr);
+    cerr err = make_cave(s, nullptr, cave_made, nullptr);
+    if (IS_CERR(err))   cave_made(s, err, nullptr);
 }
 
 int main(int argc, char **argv, char **envp)

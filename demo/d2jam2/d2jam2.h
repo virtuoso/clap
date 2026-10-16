@@ -18,17 +18,34 @@ typedef struct room_params {
 } room_params;
 
 /**
+ * typedef cave_made_fn - the end of a make_cave()
+ * @scene:  the scene
+ * @err:    CERR_OK with the cave in the scene, or what kept it out
+ * @data:   make_cave()'s @data
+ */
+typedef void (*cave_made_fn)(struct scene *scene, cerr err, void *data);
+
+/**
  * make_cave() - generate the cave and add it to the scene
  * @scene:  the scene
  * @params: room parameters, NULL for the default cave
+ * @done:   called once when the cave is in, or isn't, unless
+ *          noisy_mesh_done() comes first
+ * @data:   passed to @done
  *
  * The cave is a cylinder with displaced walls and ceiling inside an outer
  * hull, which casts the walls' shadows; its shape is the same on every
- * run. Call before scene_load(), so that the scene file's terrain_clamp
- * entities ground on the cave floor. The cave allocates no lights.
- * Return: the cave entity or an error from the mesh and model constructors
+ * run. The loader thread (scene_loader_pool()) shapes the mesh, builds its
+ * levels of detail and cooks its collider, and scene_update() puts the cave
+ * in and calls @done; without a loader thread, all of it happens here,
+ * @done included. Start the scene file's load from @done, so that its
+ * terrain_clamp entities ground on the cave floor. The cave allocates no
+ * lights.
+ * Context: the main thread
+ * Return: CERR_OK with @done to come; an error from the pixel texture or
+ *         the mesh constructor, with no @done
  */
-cresp(entity3d) make_cave(struct scene *scene, const room_params *params);
+cerr make_cave(struct scene *scene, const room_params *params, cave_made_fn done, void *data);
 
 /**
  * noisy_mesh() - fill the cave with pillars, crystals and the corridor
@@ -46,7 +63,8 @@ cerr noisy_mesh(struct scene *scene, uint64_t seed);
 /**
  * noisy_mesh_done() - release the generators' resources
  *
- * Frees the GPU side of the pixel textures shared by the generated models.
+ * Stops a make_cave() under way, whose @done then doesn't run, and frees
+ * the GPU side of the pixel textures shared by the generated models.
  */
 void noisy_mesh_done(void);
 

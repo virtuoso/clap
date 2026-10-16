@@ -23,11 +23,15 @@
 #include "transform.h"
 #include "ui.h"
 #include "util.h"
+#include "worker.h"
 #include "d2jam2.h"
 
 /* pixel textures of the generated models */
 static texture_t crystal_pixel;
 static texture_t cave_pixel;
+
+/* make_cave()'s job on the loader thread, until its done() */
+static job *cave_job;
 
 /**
  * triangle_normal() - get a triangle's normal
@@ -98,6 +102,7 @@ static void triangle_split(struct mesh *mesh, size_t tri, float off)
  * cave_model_new() - make a model drawn by the variant-managed "model" family
  * @scene:  the scene
  * @mesh:   the model's mesh
+ * @lods:   @mesh's levels of detail, nullptr to build them here
  * @name:   model name
  *
  * Resolve the shader the way scene loading does for gltf meshes: the global
@@ -107,7 +112,8 @@ static void triangle_split(struct mesh *mesh, size_t tri, float off)
  * later, and give it the matching shadow prog.
  * Return: the model or a shader loading error
  */
-static cresp(model3d) cave_model_new(struct scene *scene, struct mesh *mesh, const char *name)
+static cresp(model3d) cave_model_new(struct scene *scene, struct mesh *mesh, struct mesh_lods *lods,
+                                      const char *name)
 {
     pipeline *pl = clap_get_pipeline(scene->clap_ctx);
     shader_variants_t variants = ropts_shader_variants(pipeline_render_options(pl));
@@ -120,6 +126,7 @@ static cresp(model3d) cave_model_new(struct scene *scene, struct mesh *mesh, con
             .prog           = ref_pass(prog),
             .name           = name,
             .mesh           = mesh,
+            .lods           = lods,
             .shader_base    = "model",
             .variants       = variants
         ),
@@ -135,6 +142,7 @@ static cresp(model3d) cave_model_new(struct scene *scene, struct mesh *mesh, con
  * cave_entity_new() - make an entity of a generated model and add it to the scene
  * @scene:      the scene
  * @mesh:       the model's mesh
+ * @lods:       @mesh's levels of detail, nullptr to build them here
  * @name:       model name
  * @tex:        the model's texture
  * @metallic:   material metallic
@@ -144,10 +152,10 @@ static cresp(model3d) cave_model_new(struct scene *scene, struct mesh *mesh, con
  * the noise materials and the 3D fog sample.
  * Return: the entity or an error from the constructors
  */
-static cresp(entity3d) cave_entity_new(struct scene *scene, struct mesh *mesh, const char *name,
-                                       texture_t *tex, float metallic, float roughness)
+static cresp(entity3d) cave_entity_new(struct scene *scene, struct mesh *mesh, struct mesh_lods *lods,
+                                       const char *name, texture_t *tex, float metallic, float roughness)
 {
-    LOCAL_SET(model3d, model) = CRES_RET_T(cave_model_new(scene, mesh, name), entity3d);
+    LOCAL_SET(model3d, model) = CRES_RET_T(cave_model_new(scene, mesh, lods, name), entity3d);
     LOCAL_SET(model3dtx, txm) = CRES_RET_T(
         ref_new_checked(
             model3dtx,
@@ -204,7 +212,7 @@ static cresp(entity3d) make_crystal(struct scene *scene, prng *rng)
     mesh_aabb_calc(mesh);
     mesh_optimize(mesh);
 
-    entity3d *entity = CRES_RET_T(cave_entity_new(scene, mesh, "crystal", &crystal_pixel, 1.0, 0.6), entity3d);
+    entity3d *entity = CRES_RET_T(cave_entity_new(scene, mesh, nullptr, "crystal", &crystal_pixel, 1.0, 0.6), entity3d);
 
     float radius = 90 * prng_unitd(rng) + 20;
     float angle = M_PI * 2 * prng_unitd(rng);
@@ -584,7 +592,7 @@ static cresp(entity3d) make_pillar(struct scene *scene, unsigned int idx)
     mesh_aabb_calc(mesh);
     mesh_optimize(mesh);
 
-    entity3d *entity = CRES_RET_T(cave_entity_new(scene, mesh, "pillar", &cave_pixel, 1.0, 0.6), entity3d);
+    entity3d *entity = CRES_RET_T(cave_entity_new(scene, mesh, nullptr, "pillar", &cave_pixel, 1.0, 0.6), entity3d);
     material *mat = &entity->txmodel->mat;
 
     mat->roughness              = 0.5;
@@ -658,7 +666,7 @@ static cresp(entity3d) make_corridor(struct scene *scene, const room_params *_pa
     mesh_aabb_calc(mesh);
     mesh_optimize(mesh);
 
-    entity3d *entity = CRES_RET_T(cave_entity_new(scene, mesh, "corridor", &cave_pixel, 1.0, 0.6), entity3d);
+    entity3d *entity = CRES_RET_T(cave_entity_new(scene, mesh, nullptr, "corridor", &cave_pixel, 1.0, 0.6), entity3d);
     entity3d_position(entity, (vec3) { 90, 4.6, 5 });
     entity3d_rotate(entity, M_PI_2, M_PI_4, 0.0);
 
@@ -732,24 +740,61 @@ static void cave_displace(struct mesh *mesh, const room_params *params, prng *rn
     }
 }
 
-cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
-{
-    const room_params *params = _params ? : &cave_params;
-    renderer_t *renderer = clap_get_renderer(scene->clap_ctx);
+/**
+ * struct cave_build - a cave on its way into the scene
+ * @scene:      the scene
+ * @params:     room parameters
+ * @mesh:       the cave's mesh
+ * @done:       make_cave()'s @done
+ * @data:       make_cave()'s @data
+ * @trimesh:    the collider, cooked ahead of the cave's body; nullptr: the body cooks its own
+ * @lods:       the mesh's levels of detail
+ */
+typedef struct cave_build {
+    struct scene        *scene;
+    const room_params   *params;
+    struct mesh         *mesh;
+    cave_made_fn        done;
+    void                *data;
+    phys_trimesh        *trimesh;
+    struct mesh_lods    lods;
+} cave_build;
 
-    if (!texture_loaded(&cave_pixel))
-        CERR_RET_T(texture_pixel_init(renderer, &cave_pixel, (float[]){ 0.31, 0.30, 0.33, 1 }), entity3d);
+/**
+ * cave_build_free() - free a cave build and what of the cave is still in it
+ * @cb: the cave build
+ */
+static void cave_build_free(cave_build *cb)
+{
+    ref_put(cb->mesh);
+    mesh_lods_done(&cb->lods);
+    phys_trimesh_free(cb->trimesh);
+    mem_free(cb);
+}
+
+/**
+ * cave_shape() - shape the cave
+ * @cb: the cave build
+ *
+ * Displace the walls and the ceiling, add the hull, build the levels of
+ * detail and cook the collider: no engine object or reference count, so
+ * the loader thread can.
+ * Return: CERR_OK or the error of the stream constructor or the cylinder emits
+ */
+static cerr cave_shape(cave_build *cb)
+{
+    const room_params *params = cb->params;
+    struct mesh *mesh = cb->mesh;
 
     /*
      * The cave shape is the same for every run: the generators' stream is
      * seeded in noisy_mesh(), the cave only needs a shape that fits the
      * pillars and the corridor
      */
-    LOCAL_SET(prng, rng) = CRES_RET_T(prng_new(PRNG_DEFAULT, 7), entity3d);
-    LOCAL_SET(mesh_t, mesh) = CRES_RET_T(ref_new_checked(mesh, .name = "cave"), entity3d);
+    LOCAL_SET(prng, rng) = CRES_RET_CERR(prng_new(PRNG_DEFAULT, 7));
 
-    CERR_RET_T(prim_emit_cylinder((vec3){}, params->height, params->radius, params->nr_segments,
-                                  .mesh = mesh, .clockwise = true), entity3d);
+    CERR_RET_CERR(prim_emit_cylinder((vec3){}, params->height, params->radius, params->nr_segments,
+                                     .mesh = mesh, .clockwise = true));
     cave_displace(mesh, params, rng);
 
     /*
@@ -760,13 +805,34 @@ cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
      * to shadow beyond them, and a cap on the floor's plane would
      * shadow the floor the same way
      */
-    CERR_RET_T(prim_emit_cylinder((vec3){}, params->height, params->radius + 0.1, params->nr_segments,
-                                  .mesh = mesh, .skip_mask = 3), entity3d);
+    CERR_RET_CERR(prim_emit_cylinder((vec3){}, params->height, params->radius + 0.1, params->nr_segments,
+                                     .mesh = mesh, .skip_mask = 3));
 
     mesh_aabb_calc(mesh);
     mesh_optimize(mesh);
+    mesh_lods_build(mesh, &cb->lods);
 
-    entity3d *entity = CRES_RET_T(cave_entity_new(scene, mesh, "cave", &cave_pixel, 1.0, 0.6), entity3d);
+    /* where the physics backend can't cook ahead, the cave's body cooks its own */
+    cresp(phys_trimesh) res = phys_trimesh_cook(mesh_vx(mesh), mesh_vx_sz(mesh), mesh_idx(mesh), mesh_idx_sz(mesh));
+    if (!IS_CERR(res))  cb->trimesh = res.val;
+
+    return CERR_OK;
+}
+
+/**
+ * cave_add() - put the shaped cave in the scene: its model, material and body
+ * @cb: the cave build
+ *
+ * Return: the cave entity or an error from the constructors
+ */
+static cresp(entity3d) cave_add(cave_build *cb)
+{
+    struct scene *scene = cb->scene;
+
+    entity3d *entity = CRES_RET_T(
+        cave_entity_new(scene, cb->mesh, &cb->lods, "cave", &cave_pixel, 1.0, 0.6),
+        entity3d
+    );
     material *mat = &entity->txmodel->mat;
 
     mat->roughness              = 0.0;
@@ -789,10 +855,94 @@ cresp(entity3d) make_cave(struct scene *scene, const room_params *_params)
     entity->outline_exclude = true;
     entity->bloom_threshold = 0.8;
 
+    /* the model's first static trimesh body takes it */
+    entity->txmodel->model->trimesh = cb->trimesh;
+    cb->trimesh = nullptr;
+
     struct phys *phys = clap_get_phys(scene->clap_ctx);
     entity3d_add_physics(entity, phys, 0.0, GEOM_TRIMESH, PHYS_GEOM, 0, 0, 0);
 
     return cresp_val(entity3d, entity);
+}
+
+/**
+ * cave_finish() - put the cave in the scene, unless shaping it failed, and call make_cave()'s @done
+ * @cb:     the cave build, freed here
+ * @err:    what shaping the cave returned
+ */
+static void cave_finish(cave_build *cb, cerr err)
+{
+    if (!IS_CERR(err))  CRES_RET(cave_add(cb), err = cerr_error_cres(__resp));
+
+    cb->done(cb->scene, err, cb->data);
+    cave_build_free(cb);
+}
+
+/**
+ * cave_shape_run() - the cave job's work, on the loader thread
+ * @j:  the job
+ *
+ * Return: what cave_shape() returns
+ */
+static cerr cave_shape_run(job *j)
+{
+    return cave_shape(job_get_data(j));
+}
+
+/**
+ * cave_shape_done() - the cave job's completion, from scene_update()
+ * @j:      the job
+ * @err:    what cave_shape_run() returned
+ *
+ * Finishes the cave, unless noisy_mesh_done() cancelled the job, which
+ * only frees the build.
+ */
+static void cave_shape_done(job *j, cerr err)
+{
+    cave_build *cb = job_get_data(j);
+    bool cancelled = job_is_cancelled(j);
+
+    /* make_cave()'s reference; the poll holds the pool's */
+    ref_put(j);
+    cave_job = nullptr;
+
+    if (cancelled)  cave_build_free(cb);
+    else            cave_finish(cb, err);
+}
+
+cerr make_cave(struct scene *scene, const room_params *params, cave_made_fn done, void *data)
+{
+    renderer_t *renderer = clap_get_renderer(scene->clap_ctx);
+
+    if (!texture_loaded(&cave_pixel))
+        CERR_RET_CERR(texture_pixel_init(renderer, &cave_pixel, (float[]){ 0.31, 0.30, 0.33, 1 }));
+
+    LOCAL_SET(mesh_t, mesh) = CRES_RET_CERR(ref_new_checked(mesh, .name = "cave"));
+    cave_build *cb = mem_alloc(sizeof(*cb), .zero = 1);
+    if (!cb)    return CERR_NOMEM;
+
+    cb->scene   = scene;
+    cb->params  = params ? : &cave_params;
+    cb->mesh    = NOCU(mesh);
+    cb->done    = done;
+    cb->data    = data;
+
+    cresp(worker_pool) pool = scene_loader_pool(scene);
+    if (!IS_CERR(pool)) {
+        cresp(job) res = job_submit(.pool = pool.val, .run = cave_shape_run, .done = cave_shape_done, .data = cb,
+                                    .name = "cave");
+        if (!IS_CERR(res)) {
+            dbg("shaping the cave on the loader thread\n");
+            cave_job = res.val;
+            return CERR_OK;
+        }
+    }
+
+    /* no loader thread: the main thread shapes the cave */
+    dbg("shaping the cave on the main thread\n");
+    cave_finish(cb, cave_shape(cb));
+
+    return CERR_OK;
 }
 
 cerr noisy_mesh(struct scene *scene, uint64_t seed)
@@ -809,6 +959,9 @@ cerr noisy_mesh(struct scene *scene, uint64_t seed)
 
 void noisy_mesh_done(void)
 {
+    /* its done() comes when scene_done() stops the loader thread, and only frees it */
+    if (cave_job)   job_cancel(cave_job);
+
     /*
      * model3dtx_set_texture() makes these external to the txmodels, so
      * model3dtx_drop() skips them as static refs; free the GPU side here
