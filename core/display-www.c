@@ -185,7 +185,8 @@ static cerr_check display_init_webgl(struct clap_context *ctx)
 
     emscripten_webgl_init_context_attributes(&attr);
     attr.explicitSwapControl       = 0;
-    attr.alpha                     = 1;
+    /* opaque like a native window or the WebGPU canvas: the page never sees the framebuffer's alpha */
+    attr.alpha                     = 0;
     attr.depth                     = 1;
     attr.stencil                   = 1;
     attr.antialias                 = 1;
