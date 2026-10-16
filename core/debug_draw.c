@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "camera.h"
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#include "cimgui.h"
 #include "messagebus.h"
 #include "ui-debug.h"
 #include "view.h"
@@ -76,7 +78,7 @@ static int debug_draw(struct clap_context *ctx, struct message *m, void *data)
                 } else {
                     float fx = sv->proj_mx[0][0];
                     float radius = dd->radius * fx / -center[2] * io->DisplaySize.x / 2;
-                    ImDrawList_AddCircle(draw, p0, radius, color, 64,  max(dd->thickness, 0.1));
+                    ImDrawList_AddCircle(draw, p0, radius, color, 64,  max(dd->thickness, 0.5), ImDrawFlags_None);
                 }
             }
             break;
@@ -87,11 +89,11 @@ static int debug_draw(struct clap_context *ctx, struct message *m, void *data)
                 float h = io->DisplaySize.y;
                 for (unsigned int i = 1; i < dd->grid.cols; i++) {
                     float x = w * i / dd->grid.cols;
-                    ImDrawList_AddLine(draw, (ImVec2) { x, 0.0f }, (ImVec2) { x, h }, color, 1.0f);
+                    ImDrawList_AddLine(draw, (ImVec2) { x, 0.0f }, (ImVec2) { x, h }, color, 1.0f, ImDrawFlags_None);
                 }
                 for (unsigned int i = 1; i < dd->grid.rows; i++) {
                     float y = h * i / dd->grid.rows;
-                    ImDrawList_AddLine(draw, (ImVec2) { 0.0f, y }, (ImVec2) { w, y }, color, 1.0f);
+                    ImDrawList_AddLine(draw, (ImVec2) { 0.0f, y }, (ImVec2) { w, y }, color, 1.0f, ImDrawFlags_None);
                 }
             }
             break;
@@ -121,7 +123,7 @@ static int debug_draw(struct clap_context *ctx, struct message *m, void *data)
                     .y = ((1.0 - v1[1]) / 2.0) * io->DisplaySize.y,
                 };
 
-                ImDrawList_AddLine(draw, p0, p1, color, dd->thickness);
+                ImDrawList_AddLine(draw, p0, p1, color, dd->thickness, ImDrawFlags_None);
             }
             break;
 
@@ -173,7 +175,7 @@ static int debug_draw(struct clap_context *ctx, struct message *m, void *data)
                         .y = ((1.0f - b[1]) / 2.0f) * io->DisplaySize.y
                     };
 
-                    ImDrawList_AddLine(draw, p0, p1, color, dd->thickness);
+                    ImDrawList_AddLine(draw, p0, p1, color, dd->thickness, ImDrawFlags_None);
                 }
             }
             break;
