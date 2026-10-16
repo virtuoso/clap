@@ -13,6 +13,7 @@
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
+#include "presets.h"
 #include "ui.h"
 #include "scene.h"
 #include "sound.h"
@@ -25,6 +26,12 @@
 /* XXX just note for the future */
 static struct sound *intro_sound;
 
+/* the start menu's and the loading screen's backdrop, and the camera and the grading from before it */
+static noise_bg menu_bg;
+static texture_t menu_bg_color;
+static vec3 game_camera_pos, game_camera_angles;
+static float game_contrast, game_lighting_exposure;
+
 static const char *intro_osd[] = {
     "WASD to move the character",
     "Space to jump",
@@ -34,7 +41,8 @@ static const char *intro_osd[] = {
 };
 
 enum main_state {
-    MS_STARTING = 0,
+    MS_LOADING = 0,
+    MS_STARTING,
     MS_RUNNING,
 };
 
@@ -111,6 +119,97 @@ static void graphics_init(clap_context *ctx, void *data)
     );
 }
 
+/*
+ * A swirl under the start menu and the loading screen. Its color is its own,
+ * so it looks the same under its light and, once "Start Game" hands that
+ * light's slot over, under the scene's sun.
+ */
+static void menu_backdrop_new(struct scene *s)
+{
+    auto ropts = clap_get_render_options(s->clap_ctx);
+
+    transform_pos(&s->camera->xform, game_camera_pos);
+    transform_rotation(&s->camera->xform, game_camera_angles, true);
+    game_contrast = ropts->contrast;
+    game_lighting_exposure = ropts->lighting_exposure;
+    ropts->contrast = 1.0f;
+    ropts->lighting_exposure = 1.34f;
+
+    cerr err = texture_pixel_init(clap_get_renderer(s->clap_ctx), &menu_bg_color, (float[]){ 0.5, 0.1, 1.0, 1 });
+    if (IS_CERR(err))   err_cerr(err, "couldn't initialize pixel texture\n");
+
+    cres(noise_bg) res = noise_bg_new(s, &(noise_bg_opts){
+        .pos                = { 0.0f, 0.0f, 0.0f },
+        .extent             = 10.0f,
+        .tex                = IS_CERR(err) ? nullptr : &menu_bg_color,
+        .emission           = { 1.0f, 0.0f, 1.0f },
+        .noise_scale        = 0.05f,
+        .noise_amp          = 0.8f,
+        .noise_drift        = { 0.5f, 0.5f, 0.5f },
+        .bloom_threshold    = 0.85f,
+        .bloom_intensity    = 0.34f,
+
+        .add_light          = true,
+        .light_pos          = { 0.0f, 2.5f, 0.0f },
+        .light_dir          = { 0.0f, 1.0f, 0.0f },
+        .light_color        = { 0.8f, 0.8f, 0.8f },
+
+        .reposition_camera  = true,
+        .camera_pos         = { 0.0f, 2.5f, 0.0f },
+        .camera_angles      = { -90.0f, 0.0f, 0.0f },
+    });
+    if (IS_CERR(res)) {
+        err_cerr(res, "couldn't make the menu backdrop\n");
+        return;
+    }
+
+    menu_bg = res.val;
+}
+
+static void menu_backdrop_done(struct scene *s)
+{
+    auto ropts = clap_get_render_options(s->clap_ctx);
+
+    noise_bg_done(s, &menu_bg);
+    transform_set_pos(&s->camera->xform, game_camera_pos);
+    transform_set_angles(&s->camera->xform, game_camera_angles, true);
+    ropts->contrast = game_contrast;
+    ropts->lighting_exposure = game_lighting_exposure;
+}
+
+/* The scene is in, or as much of it as would go: drop the loading screen and start */
+static void scene_loaded(struct scene *s, cerr err, void *data)
+{
+    struct ui *ui = clap_get_ui(s->clap_ctx);
+
+    if (IS_CERR(err))   err_cerr(err, "couldn't load the scene\n");
+
+    /* still in UI_ST_LOADING: the loading screen goes without a frame of its own */
+    loading_screen_done(s->ls);
+    s->ls = nullptr;
+    menu_backdrop_done(s);
+    ui_state_set_running(ui);
+
+    main_state = MS_STARTING;
+}
+
+/* "Start Game": the loading screen goes up over the backdrop, and the scene comes in */
+static void loading_start(clap_context *ctx, void *data)
+{
+    struct scene *s = clap_get_scene(ctx);
+
+    /* light slot 0 casts the shadows, and the scene's sun takes the lowest free one */
+    if (menu_bg.light_idx >= 0) {
+        light_put(&s->light, menu_bg.light_idx);
+        menu_bg.light_idx = -1;
+    }
+
+    s->ls = loading_screen_init(clap_get_ui(ctx), .skip_background = true);
+
+    cerr err = scene_load_async(s, "scene.json", scene_loaded, nullptr);
+    if (IS_CERR(err))   scene_loaded(s, err, nullptr);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     struct clap_config cfg = {
@@ -122,6 +221,7 @@ int main(int argc, char **argv, char **envp)
         .graphics       = 1,
         .ui             = 1,
         .ui_menu        = { .enable = true },
+        .ui_start_menu  = { .enable = true, .loading_cb = loading_start },
         .settings       = 1,
         .title          = CLAP_EXECUTABLE_TITLE,
 #ifndef CONFIG_BROWSER
@@ -154,20 +254,17 @@ int main(int argc, char **argv, char **envp)
         return CERR_TO_EXIT(clap_res);
     }
 
-    /*
-     * XXX: this doesn't belong here, same as imgui_render_begin()
-     * and any error paths past this point must call the corresponding
-     * renderer_frame_end() etc
-     */
-    renderer_frame_begin(clap_get_renderer(clap_res.val));
-    imgui_render_begin(cfg.width, cfg.height);
-
     auto scene = clap_get_scene(clap_res.val);
     cerr err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
     if (IS_CERR(err))
         goto exit_scene;
 
-    scene->ls = loading_screen_init(clap_get_ui(clap_res.val));
+    /* the frames run while the scene loads: its characters need these from the start */
+    scene->lin_speed = 2.0;
+    scene->ang_speed = 45.0;
+    scene->limbo_height = 70.0;
+
+    menu_backdrop_new(scene);
 
     intro_sound = ref_new(sound, .ctx = clap_get_sound(clap_res.val), .name = "morning.ogg");
     if (intro_sound) {
@@ -179,16 +276,6 @@ int main(int argc, char **argv, char **envp)
 
     fuzzer_input_init(clap_res.val);
 
-    scene_load(scene, "scene.json");
-
-    loading_screen_done(scene->ls);
-
-    scene->lin_speed = 2.0;
-    scene->ang_speed = 45.0;
-    scene->limbo_height = 70.0;
-
-    imgui_render();
-    renderer_frame_end(clap_get_renderer(clap_res.val));
     err = display_main_loop();
     if (IS_CERR(err))   err_cerr(err, "main loop exited with an error\n");
     else                dbg("exiting peacefully\n");
@@ -197,11 +284,13 @@ int main(int argc, char **argv, char **envp)
     if (intro_sound)
         ref_put(intro_sound);
 exit_scene:
+    /* a window closed mid-load leaves the loading screen, to go while the UI is up */
+    if (scene->ls)  loading_screen_done(scene->ls);
+    /* a static texture, which model3dtx_drop() leaves alone */
+    texture_deinit(&menu_bg_color);
     clap_done(clap_res.val, 0);
 #else
 exit_scene:
-    if (IS_CERR(err))
-        imgui_render();
 #endif
 
     return EXIT_SUCCESS;
