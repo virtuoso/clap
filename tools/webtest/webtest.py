@@ -11,7 +11,7 @@ No third-party python packages: the CDP client speaks websockets directly.
 
   webtest.py --dir build/emtest/demo/ldjam56 --chrome /usr/bin/google-chrome \
       --window-position 0,0 --seconds 20 --out /tmp/run
-  webtest.py --renderer webgl ...      # disables WebGPU -> engine falls back
+  webtest.py --renderer webgl ...      # loads the page with ?renderer=OpenGL
 """
 import argparse
 import base64
@@ -300,16 +300,10 @@ def main():
         cdp.call("Log.enable")
         cdp.call("Page.enable")
 
-        if args.renderer == "webgl":
-            # the chrome flag doesn't remove navigator.gpu; the engine picks
-            # wgpu whenever it's present, so take it away before page scripts
-            cdp.call("Page.addScriptToEvaluateOnNewDocument",
-                     source="Object.defineProperty(navigator, 'gpu', { configurable: true,"
-                            " value: { requestAdapter: () => Promise.resolve(null),"
-                            " getPreferredCanvasFormat: () => 'bgra8unorm',"
-                            " wgslLanguageFeatures: new Set() } });")
-
         url = f"https://localhost:{args.http_port}/{args.page}"
+        if args.renderer == "webgl":
+            # the page's query string is the engine's command line
+            url += ("&" if "?" in url else "?") + "renderer=OpenGL"
         print(f"[*] {args.renderer}: {url} for {args.seconds}s")
         cdp.call("Page.navigate", url=url)
         cdp.pump(args.seconds)
