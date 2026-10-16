@@ -27,6 +27,9 @@
  *  * make stdio logger also a file logger
  *  * allow multiple instances of the same logger
  *  * allow 'parameters'/filtering on instances
+ *  * color warnings and errors in Windows consoles too: they don't set TERM,
+ *    so stdio_init() leaves them plain, and only take ANSI escapes after
+ *    SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
  */
 
 unsigned int abort_on_error;
@@ -70,10 +73,30 @@ struct logger {
     struct logger *next;
 };
 
+/* stdio_log() prints warnings and errors in bold red, see stdio_init() */
+static bool stdio_color;
+
+/*
+ * Color goes to a terminal that takes ANSI escapes: stderr is a terminal,
+ * TERM names one that isn't "dumb", and NO_COLOR (https://no-color.org) is
+ * unset or empty. The browser's console isn't one, whatever isatty() says.
+ */
+static notrace cerr stdio_init(void)
+{
+#ifndef CONFIG_BROWSER
+    const char *term = getenv("TERM"), *no_color = getenv("NO_COLOR");
+
+    stdio_color = isatty(STDERR_FILENO) && term && strcmp(term, "dumb") && !(no_color && *no_color);
+#endif /* !CONFIG_BROWSER */
+
+    return CERR_OK;
+}
+
 static notrace cerr
 stdio_log(int level, const char *mod, int line, const char *func, const char *msg)
 {
     FILE *output = stdout;
+    bool color = stdio_color && level >= WARN;
 
     if (level < VDBG)
         return CERR_OK;
@@ -81,15 +104,18 @@ stdio_log(int level, const char *mod, int line, const char *func, const char *ms
     if (level != NORMAL)
         output = stderr;
 
+    if (color)  fputs("\033[1;31m", output);
     if (level < 0 || level >= WARN)
         fprintf(output, "[%s:%d @%s] ", str_basename(mod), line, func);
     fputs(msg, output);
+    if (color)  fputs("\033[0m", output);
 
     return CERR_OK;
 }
 
 static struct logger logger_stdio = {
     .name   = "stdio",
+    .init   = stdio_init,
     .log    = stdio_log,
 };
 
