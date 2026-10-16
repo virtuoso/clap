@@ -1794,6 +1794,8 @@ typedef struct model_prep {
     struct gltf_data    *gd;
     gltf_load_options   load;
     cerr                err;
+    /* the entities get static trimesh bodies: cook their collider too */
+    bool                cook_trimesh;
     /* done() has run: @gd and @err are the main thread's */
     bool                delivered;
     /* the load is over without it: done() frees it */
@@ -1817,6 +1819,7 @@ static cresp(model_prep) model_prep_new(struct scene *scene, JsonNode *node)
 {
     struct clap_config *clap_cfg = clap_get_config(scene->clap_ctx);
     const char *gltf = nullptr;
+    JsonNode *phys = nullptr;
     bool fix_origin = false;
 
     if (node->tag != JSON_OBJECT)   return cresp_error(model_prep, CERR_PARSE_FAILED);
@@ -1824,6 +1827,7 @@ static cresp(model_prep) model_prep_new(struct scene *scene, JsonNode *node)
     for (JsonNode *p = node->children.head; p; p = p->next) {
         if (p->tag == JSON_STRING && !strcmp(p->key, "gltf"))           gltf = p->string_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "fix_origin"))  fix_origin = p->bool_;
+        else if (p->tag == JSON_OBJECT && !strcmp(p->key, "physics"))   phys = p;
     }
 
     if (!gltf)  return cresp_error(model_prep, CERR_PARSE_FAILED);
@@ -1840,6 +1844,13 @@ static cresp(model_prep) model_prep_new(struct scene *scene, JsonNode *node)
     mp->load.model_make = clap_cfg->model_make;
     mp->load.model_make_priv = clap_cfg->model_make_priv;
     mp->err = gltf_read(&mp->load);
+
+    if (phys) {
+        struct scene_physics sp;
+
+        scene_physics_parse(&sp, phys);
+        mp->cook_trimesh = sp.class == GEOM_TRIMESH && sp.type == PHYS_GEOM;
+    }
 
     return cresp_val(model_prep, NOCU(mp));
 }
@@ -1863,6 +1874,16 @@ static cerr model_prep_build(model_prep *mp, job *j)
     for (int p = 0; p < count; p++) {
         if (j && job_is_cancelled(j))   return CERR_CANCELLED;
         CERR_RET_CERR(gltf_prepare(gd, prims[p]));
+
+        /*
+         * Cook the collider of each primitive that gets a static trimesh
+         * body: the first, and every sibling that isn't a fallback. Without
+         * a job, the bodies come right after and cook their own.
+         */
+        if (!j || !mp->cook_trimesh)                    continue;
+        if (p > 0 && gltf_mesh_fallback(gd, prims[p]))  continue;
+        if (job_is_cancelled(j))                        return CERR_CANCELLED;
+        gltf_prepare_collision(gd, prims[p]);
     }
 
     mp->gd = NOCU(gd);

@@ -220,6 +220,8 @@ struct gltf_prim {
     struct gltf_pixels  base;
     struct gltf_pixels  normal;
     struct gltf_pixels  emission;
+    /* gltf_prepare_collision()'s, until the primitive's model3d takes it */
+    phys_trimesh        *trimesh;
     bool                prepared;
 };
 
@@ -261,6 +263,7 @@ static void gltf_prim_done(struct gltf_prim *prim)
     mem_free(prim->base.buf);
     mem_free(prim->normal.buf);
     mem_free(prim->emission.buf);
+    phys_trimesh_free(prim->trimesh);
     *prim = (struct gltf_prim){};
 }
 
@@ -1662,6 +1665,17 @@ cerr gltf_prepare(struct gltf_data *gd, int mesh)
     return CERR_OK;
 }
 
+void gltf_prepare_collision(struct gltf_data *gd, int mesh)
+{
+    if (!gd->prims || mesh < 0 || mesh >= gd->meshes.da.nr_el)  return;
+
+    struct gltf_prim *prim = &gd->prims[mesh];
+    if (!prim->prepared || prim->trimesh)   return;
+
+    struct mesh *me = &prim->mesh;
+    prim->trimesh = CRES_RET(phys_trimesh_cook(mesh_vx(me), mesh_vx_sz(me), mesh_idx(me), mesh_idx_sz(me)), return);
+}
+
 cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipeline *pl)
 {
     int skin;
@@ -1725,6 +1739,9 @@ cerr gltf_instantiate_one(struct gltf_data *gd, int mesh, struct mq *mq, pipelin
     }
 
     CERR_RET_CERR(pipeline_model_shadow_resolve(pl, m));
+
+    /* the model's first static trimesh body takes it */
+    m->trimesh = NOCU(prim->trimesh);
 
     if (gltf_has_tangent(gd, mesh)) {
         dbg("added tangents for mesh '%s'\n", gltf_mesh_name(gd, mesh));

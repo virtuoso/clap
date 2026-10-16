@@ -100,6 +100,19 @@ int gltf_mesh_by_name(struct gltf_data *gd, const char *name);
 cerr_check gltf_prepare(struct gltf_data *gd, int mesh);
 
 /**
+ * gltf_prepare_collision() - cook a prepared primitive's static trimesh collider
+ * @gd:     glTF data
+ * @mesh:   a primitive gltf_prepare() prepared (flat mesh index)
+ *
+ * gltf_instantiate_one() hands the collider to the primitive's model3d,
+ * whose first static trimesh body takes it (model3d::trimesh). Where cooking
+ * fails, or the physics backend cooks with the body, nothing is kept, and
+ * the body cooks as it does without (and reports what goes wrong).
+ * Context: the thread that owns @gd
+ */
+void gltf_prepare_collision(struct gltf_data *gd, int mesh);
+
+/**
  * gltf_instantiate_one() - make a textured model of a primitive and queue it
  * @gd:     glTF data
  * @mesh:   the primitive (flat mesh index)

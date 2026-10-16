@@ -145,14 +145,14 @@ typedef void (*scene_loaded_fn)(struct scene *scene, cerr err, void *data);
  * @data:   passed to @done
  *
  * Reads and parses @name here, and has a loader thread parse the models'
- * glTF files and prepare their meshes, levels of detail and images, a model
- * or two ahead, while scene_update() puts the scene file's entries in, in
- * file order and no more than one model a frame, and moves @scene->ls's
- * progress bar without drawing a frame of its own. Without a thread to spare
- * (a browser has as many as its build's pthread pool), the frames prepare
- * the models themselves, one a frame. Until the load is over, the frames
- * don't step the scene's physics, draw it or give it input; frame_cb and
- * scripts run as ever.
+ * glTF files and prepare their meshes, levels of detail, images and static
+ * trimesh colliders, a model or two ahead, while scene_update() puts the
+ * scene file's entries in, in file order and no more than one model a
+ * frame, and moves @scene->ls's progress bar without drawing a frame of its
+ * own. Without a thread to spare (a browser has as many as its build's
+ * pthread pool), the frames prepare the models themselves, one a frame.
+ * Until the load is over, the frames don't step the scene's physics, draw it
+ * or give it input; frame_cb and scripts run as ever.
  *
  * A game without a start menu brackets the load with ui_state_set_loading()
  * and, from @done after loading_screen_done(), ui_state_set_running().
