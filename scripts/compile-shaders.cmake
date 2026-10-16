@@ -201,14 +201,18 @@ function(_compile_shader_for_backend shader src stage backend SHADER_SRCS SHADER
     # anything else. A specialization of an uber shader keeps the uniform
     # blocks its includes declare for the axes it compiles out, and the
     # reflection would list them: strip the dead declarations first, so
-    # the reflection and the WGSL carry exactly what the pipeline binds
+    # the reflection and the WGSL carry exactly what the pipeline binds.
+    # Keep the stage interface, though: the dead code elimination drops
+    # the inputs a shader doesn't read, and a prog's vertex layout comes
+    # from its reflected inputs; a model's shadow prog draws the vertex
+    # buffer laid out for the model's own prog, so it needs all of them
     if (_USE_TINT)
         set(SPIRV_USED "${SPIRV_DIR}/${shader}.used.spv")
         add_custom_command(
             OUTPUT "${SPIRV_USED}"
             DEPENDS "${SPIRV_OUTPUT}"
             COMMAND "${SPIRV_OPT}"
-            ARGS --eliminate-dead-code-aggressive -o "${SPIRV_USED}" "${SPIRV_OUTPUT}"
+            ARGS --preserve-interface --eliminate-dead-code-aggressive -o "${SPIRV_USED}" "${SPIRV_OUTPUT}"
         )
     else ()
         set(SPIRV_USED "${SPIRV_OUTPUT}")
