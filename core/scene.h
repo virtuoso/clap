@@ -29,6 +29,9 @@ typedef struct entity_inspector {
 } entity_inspector;
 #endif /* CONFIG_FINAL */
 
+struct scene_loader;
+struct worker_pool;
+
 #define SCENE_NAME_MAX 128
 struct scene {
     char                name[SCENE_NAME_MAX];
@@ -50,6 +53,10 @@ struct scene {
     navmesh             *nm;
     navmesh_params      nm_params;
     loading_screen      *ls;
+    /* the scene_load_async() under way, nullptr when there's none */
+    struct scene_loader *loader;
+    /* the loader thread, from the first scene_load_async() to scene_done() */
+    struct worker_pool  *loader_pool;
     float               lin_speed;
     float               ang_speed;
     float               limbo_height;
@@ -106,11 +113,60 @@ void scene_save(struct scene *scene, const char *name);
  * them, and moves @scene->ls's progress after each model
  * (loading_screen_progress()).
  * Context: the main thread
- * Return: CERR_OK; CERR_ALREADY_LOADED if @scene has a scene file in;
- *         CERR_SCENE_NOT_LOADED if the file doesn't read or parse or an entry
- *         doesn't go in, with the entries before it left in place
+ * Return: CERR_OK; CERR_ALREADY_LOADED if @scene has a scene file in or on
+ *         its way; CERR_SCENE_NOT_LOADED if the file doesn't read or parse or
+ *         an entry doesn't go in, with the entries before it left in place
  */
 cerr scene_load(struct scene *scene, const char *name);
+
+/**
+ * typedef scene_loaded_fn - the end of a scene_load_async()
+ * @scene:  the scene
+ * @err:    CERR_OK with the whole scene file in; otherwise what stopped the
+ *          load, with the entries before it in the scene, as scene_load()
+ *          leaves them
+ * @data:   scene_load_async()'s @data
+ *
+ * Runs from scene_update(), in the frame the load ends; on success the
+ * scene's control is with its first character. scene_is_loading() is false
+ * by then, and the load touches nothing after it, so after an error it may
+ * start another. It runs inside a frame, so it must not draw one: no
+ * scene_load() or loading_screen_progress(), and loading_screen_done() only
+ * in %UI_ST_LOADING or in a browser, where it draws nothing.
+ */
+typedef void (*scene_loaded_fn)(struct scene *scene, cerr err, void *data);
+
+/**
+ * scene_load_async() - load a scene file while the frames go on
+ * @scene:  the scene, with no scene file in or on its way
+ * @name:   the scene file, an asset name
+ * @done:   called once when the load is over, either way, unless scene_done()
+ *          comes first; may be nullptr
+ * @data:   passed to @done
+ *
+ * Reads and parses @name here, and has a loader thread parse the models'
+ * glTF files and prepare their meshes, levels of detail and images, a model
+ * or two ahead, while scene_update() puts the scene file's entries in, in
+ * file order and no more than one model a frame, and moves @scene->ls's
+ * progress bar without drawing a frame of its own. Without a thread to spare
+ * (a browser has as many as its build's pthread pool), the frames prepare
+ * the models themselves, one a frame.
+ *
+ * A game without a start menu brackets the load with ui_state_set_loading()
+ * and, from @done after loading_screen_done(), ui_state_set_running().
+ * Context: the main thread
+ * Return: CERR_OK with the load under way and @done to come;
+ *         CERR_ALREADY_LOADED if @scene has a scene file in or on its way;
+ *         CERR_SCENE_NOT_LOADED if @name doesn't read or parse; CERR_NOMEM
+ */
+cerr scene_load_async(struct scene *scene, const char *name, scene_loaded_fn done, void *data);
+
+/**
+ * scene_is_loading() - is a scene_load_async() under way?
+ * @scene:  the scene
+ * Return: true from scene_load_async() until right before its @done runs
+ */
+bool scene_is_loading(struct scene *scene);
 void scene_update(struct scene *scene);
 bool scene_camera_follows(struct scene *s, struct character *ch);
 void scene_characters_move(struct scene *s);

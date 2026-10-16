@@ -25,6 +25,7 @@
 #include "ui-debug.h"
 #include "ui-debug-fs.h"
 #include "ui.h"
+#include "worker.h"
 
 void scene_control_next(struct scene *s)
 {
@@ -1460,6 +1461,8 @@ navmesh *scene_navmesh(struct scene *scene)
     return scene->nm;
 }
 
+static void scene_load_step(struct scene *scene);
+
 void scene_update(struct scene *scene)
 {
     scene_parameters_debug(scene, 0);
@@ -1469,6 +1472,7 @@ void scene_update(struct scene *scene)
     scene_roamers_debug(scene);
     light_debug(scene);
     screen_record_update(scene);
+    scene_load_step(scene);
 
     /*
      * Fire per-light update callbacks before mq_update() so they observe
@@ -1733,13 +1737,154 @@ static cres(int) scene_model_prims(struct gltf_data *gd, int *prims)
     return cres_val(int, prim_count);
 }
 
-static cerr model_new_from_json(struct scene *scene, JsonNode *node)
+/*
+ * A model entry's glTF on its way in: read on the main thread (the
+ * librarian's handles are reference counted), then parsed and its
+ * primitives prepared by model_prep_build(), on the loader thread or in
+ * the add step itself
+ */
+typedef struct model_prep {
+    /* the main thread's reference to the loader job, until its done() */
+    job                 *job;
+    struct gltf_data    *gd;
+    gltf_load_options   load;
+    cerr                err;
+    /* done() has run: @gd and @err are the main thread's */
+    bool                delivered;
+    /* the load is over without it: done() frees it */
+    bool                abandoned;
+} model_prep;
+
+cresp_ret(model_prep);
+
+static void model_prep_free(model_prep *mp)
+{
+    if (mp->gd) gltf_free(mp->gd);
+    mem_free(mp->load.buf);
+    mem_free((void *)mp->load.name);
+    mem_free(mp);
+}
+
+static DEFINE_CLEANUP(model_prep, if (*p) model_prep_free(*p))
+
+/* Read a model entry's glTF, for model_prep_build() to parse */
+static cresp(model_prep) model_prep_new(struct scene *scene, JsonNode *node)
+{
+    struct clap_config *clap_cfg = clap_get_config(scene->clap_ctx);
+    const char *gltf = nullptr;
+    bool fix_origin = false;
+
+    if (node->tag != JSON_OBJECT)   return cresp_error(model_prep, CERR_PARSE_FAILED);
+
+    for (JsonNode *p = node->children.head; p; p = p->next) {
+        if (p->tag == JSON_STRING && !strcmp(p->key, "gltf"))           gltf = p->string_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "fix_origin"))  fix_origin = p->bool_;
+    }
+
+    if (!gltf)  return cresp_error(model_prep, CERR_PARSE_FAILED);
+
+    LOCAL_SET(model_prep, mp) = mem_alloc(sizeof(*mp), .zero = 1);
+    if (!mp)    return cresp_error(model_prep, CERR_NOMEM);
+
+    /* the scene file may go before the preparation does */
+    mp->load.name = strdup(gltf);
+    if (!mp->load.name) return cresp_error(model_prep, CERR_NOMEM);
+
+    mp->load.fix_origin = fix_origin;
+    mp->load.parts = !!json_find_member(node, "limbs");
+    mp->load.model_make = clap_cfg->model_make;
+    mp->load.model_make_priv = clap_cfg->model_make_priv;
+    mp->err = gltf_read(&mp->load);
+
+    return cresp_val(model_prep, NOCU(mp));
+}
+
+/*
+ * Parse the glTF and prepare the primitives the model is made of: no file,
+ * engine object or reference count, so the loader thread can; @j, if it's
+ * a job, stops it between primitives once it's cancelled
+ */
+static cerr model_prep_build(model_prep *mp, job *j)
+{
+    LOCAL_SET(gltf_data, gd) = _gltf_load(&mp->load);
+    mem_free(mp->load.buf);
+    mp->load.buf = nullptr;
+    if (!gd)    return CERR_PARSE_FAILED;
+
+    LOCAL_SET(int, prims) = mem_alloc(sizeof(*prims), .nr = gltf_get_meshes(gd));
+    if (!prims) return CERR_NOMEM;
+
+    int count = CRES_RET_CERR(scene_model_prims(gd, prims));
+    for (int p = 0; p < count; p++) {
+        if (j && job_is_cancelled(j))   return CERR_CANCELLED;
+        CERR_RET_CERR(gltf_prepare(gd, prims[p]));
+    }
+
+    mp->gd = NOCU(gd);
+
+    return CERR_OK;
+}
+
+static cerr model_prep_run(job *j)
+{
+    return model_prep_build(job_get_data(j), j);
+}
+
+static void model_prep_done(job *j, cerr err)
+{
+    model_prep *mp = job_get_data(j);
+
+    /* the main thread's reference; the poll holds the pool's */
+    ref_put(j);
+    mp->job = nullptr;
+
+    if (mp->abandoned) {
+        model_prep_free(mp);
+        return;
+    }
+
+    mp->err = err;
+    mp->delivered = true;
+}
+
+/** SCENE_LOAD_AHEAD - models given to the loader thread and not in yet: the one up next and one more */
+#define SCENE_LOAD_AHEAD 2
+
+/* Read a model entry's glTF and have the loader thread prepare it; nullptr: the add step prepares it */
+static model_prep *model_prep_submit(struct scene *scene, JsonNode *node)
+{
+    model_prep *mp = CRES_RET(model_prep_new(scene, node), return nullptr);
+
+    /* a file that doesn't read is the model's error, in its turn */
+    if (IS_CERR(mp->err)) {
+        mp->delivered = true;
+        return mp;
+    }
+
+    cresp(job) res = job_submit(.pool = scene->loader_pool, .run = model_prep_run, .done = model_prep_done,
+                                .data = mp, .name = "scene model");
+    if (IS_CERR(res)) {
+        mp->err = cerr_error_cres(res);
+        mp->delivered = true;
+        return mp;
+    }
+
+    mp->job = res.val;
+
+    return mp;
+}
+
+/*
+ * @mp: the model's glTF, prepared on the loader thread; nullptr prepares it
+ * here
+ */
+static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep *mp)
 {
     double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0;
     double geom_length = 0.0, speed = 0.75, roughness = -1.0, metallic = -1.0;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
-    bool outline_exclude = false, fix_origin = false, can_levitate = false, nm_hazard = false;
+    bool outline_exclude = false, can_levitate = false, nm_hazard = false;
     JsonNode *p, *ent = nullptr, *ch = nullptr, *phys = nullptr, *anis = nullptr, *sfx = nullptr, *seqs = nullptr;
     geom_class class = GEOM_TRIMESH;
     double fade = -1.0;     /* the scene's "fade"; negative: the asset's, or none */
@@ -1791,8 +1936,6 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
             nm_hazard = p->bool_;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "motion_segments"))
             motion_segments = p->number_;
-        else if (p->tag == JSON_BOOL && !strcmp(p->key, "fix_origin"))
-            fix_origin = p->bool_;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "metallic"))
             metallic = p->number_;
         else if (p->tag == JSON_NUMBER && !strcmp(p->key, "roughness"))
@@ -1804,22 +1947,19 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node)
         return CERR_PARSE_FAILED;
     }
 
-    struct clap_config *clap_cfg = clap_get_config(scene->clap_ctx);
-    gltf_load_options load = {
-        .name            = gltf,
-        .fix_origin      = fix_origin,
-        .parts           = !!json_find_member(node, "limbs"),
-        .model_make      = clap_cfg->model_make,
-        .model_make_priv = clap_cfg->model_make_priv
-    };
-    CERR_RET(gltf_read(&load), { warn("Error loading GLTF '%s'\n", gltf); return CERR_PARSE_FAILED; });
-
-    LOCAL_SET(gltf_data, gd) = _gltf_load(&load);
-    mem_free(load.buf);
-    if (!gd) {
-        warn("Error loading GLTF '%s'\n", gltf);
-        return CERR_PARSE_FAILED;
+    LOCAL(model_prep, own);
+    if (!mp) {
+        own = CRES_RET_CERR(model_prep_new(scene, node));
+        if (!IS_CERR(own->err)) own->err = model_prep_build(own, nullptr);
+        mp = own;
     }
+
+    if (IS_CERR(mp->err)) {
+        warn("Error loading GLTF '%s'\n", gltf);
+        return mp->err;
+    }
+
+    LOCAL_SET(gltf_data, gd) = NOCU(mp->gd);
 
     /*
      * Pick the primary GLTF mesh (group). Multi-primitive meshes become
@@ -2520,16 +2660,29 @@ enum scene_item_kind {
 
 struct scene_item {
     JsonNode                *node;
+    /* a model's glTF, given to the loader thread ahead of its turn */
+    model_prep              *prep;
     enum scene_item_kind    kind;
 };
 
 /* A scene file on its way into the scene, an entry at a time */
 struct scene_loader {
     darray(struct scene_item, items);
+    /* scene_load_async()'s: the end of the load, and its data */
+    scene_loaded_fn done;
+    void            *data;
+    struct timespec started;
     /* the next entry to go in */
     unsigned int    next;
+    /* the next entry to read and give to the loader thread */
+    unsigned int    next_prep;
+    /* models given to the loader thread and not in yet */
+    unsigned int    nr_ahead;
     unsigned int    nr_models;
     unsigned int    nr_models_added;
+    /* the frames the load took, and the longest step one of them made */
+    unsigned int    nr_frames;
+    unsigned long   longest_step_us;
 };
 
 /*
@@ -2612,10 +2765,14 @@ static cerr scene_loader_add_next(struct scene *scene, struct scene_loader *sl)
             sfx_add_from_json(&scene->sfxc, clap_get_sound(scene->clap_ctx), item->node);
             return CERR_OK;
 
-        case SCENE_ITEM_MODEL:
-            CERR_RET_CERR(model_new_from_json(scene, item->node));
+        case SCENE_ITEM_MODEL: {
+            LOCAL_SET(model_prep, mp) = NOCU(item->prep);
+            if (mp) sl->nr_ahead--;
+
+            CERR_RET_CERR(model_new_from_json(scene, item->node, mp));
             sl->nr_models_added++;
             return CERR_OK;
+        }
 
         case SCENE_ITEM_NAVMESH:
             return scene_navmesh_init(scene);
@@ -2627,6 +2784,22 @@ static cerr scene_loader_add_next(struct scene *scene, struct scene_loader *sl)
 /* The scene file is all in, or @err stopped it: hand the control over, or drop the file */
 static void scene_loader_end(struct scene *scene, struct scene_loader *sl, cerr err)
 {
+    struct scene_item *item;
+
+    /* what the loader thread prepared and nobody took */
+    darray_for_each(item, sl->items) {
+        model_prep *mp = item->prep;
+
+        if (!mp)    continue;
+
+        /* still on the loader thread: its done() frees it */
+        if (mp->job) {
+            mp->abandoned = true;
+            job_cancel(mp->job);
+        } else {
+            model_prep_free(mp);
+        }
+    }
     darray_clearout(sl->items);
 
     if (IS_CERR(err)) {
@@ -2639,6 +2812,113 @@ static void scene_loader_end(struct scene *scene, struct scene_loader *sl, cerr 
 
     dbg("loaded scene: '%s'\n", scene->name);
     scene_control_next(scene);
+}
+
+/* Give the loader thread the models up to SCENE_LOAD_AHEAD ahead of the add step */
+static void scene_loader_submit(struct scene *scene, struct scene_loader *sl)
+{
+    if (!scene->loader_pool)    return;
+
+    for (; sl->next_prep < darray_count(sl->items) && sl->nr_ahead < SCENE_LOAD_AHEAD; sl->next_prep++) {
+        struct scene_item *item = DA(sl->items, sl->next_prep);
+
+        if (item->kind != SCENE_ITEM_MODEL) continue;
+
+        item->prep = model_prep_submit(scene, item->node);
+        if (item->prep) sl->nr_ahead++;
+    }
+}
+
+/*
+ * Take what the loader thread has prepared and put the scene file's entries
+ * in, up to the next model that isn't prepared yet, and no more than one
+ * model a frame
+ */
+static void scene_load_step(struct scene *scene)
+{
+    struct scene_loader *sl = scene->loader;
+    struct timespec start, end, step;
+
+    /* the step's time takes in the poll and the refill: all the main thread gives the load */
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    if (scene->loader_pool) worker_pool_poll(scene->loader_pool, 0);
+    if (!sl)                return;
+
+    cerr err = CERR_OK;
+    while (sl->next < darray_count(sl->items)) {
+        struct scene_item *item = DA(sl->items, sl->next);
+        bool model = item->kind == SCENE_ITEM_MODEL;
+
+        if (model && item->prep && !item->prep->delivered)  break;
+
+        err = scene_loader_add_next(scene, sl);
+        if (IS_CERR(err))   break;
+
+        if (model) {
+            if (scene->ls)  loading_screen_set_progress(scene->ls, (float)sl->nr_models_added / (float)sl->nr_models);
+            break;
+        }
+    }
+
+    bool over = IS_CERR(err) || sl->next >= darray_count(sl->items);
+    if (!over)  scene_loader_submit(scene, sl);
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    timespec_diff(&start, &end, &step);
+    sl->longest_step_us = max(sl->longest_step_us, (unsigned long)(step.tv_sec * 1000000 + step.tv_nsec / 1000));
+    sl->nr_frames++;
+
+    if (!over)  return;
+
+    timespec_diff(&sl->started, &end, &step);
+    dbg("scene file took %lu ms over %u frames, the longest step %lu us\n",
+        (unsigned long)(step.tv_sec * 1000 + step.tv_nsec / 1000000), sl->nr_frames, sl->longest_step_us);
+
+    /* the load is over before done() runs, which may start another */
+    scene_loaded_fn done = sl->done;
+    void *data = sl->data;
+
+    scene->loader = nullptr;
+    scene_loader_end(scene, sl, err);
+    mem_free(sl);
+
+    if (done)   done(scene, err, data);
+}
+
+cerr scene_load_async(struct scene *scene, const char *name, scene_loaded_fn done, void *data)
+{
+    if (scene->json_root)   return CERR_ALREADY_LOADED;
+
+    struct scene_loader *sl = mem_alloc(sizeof(*sl), .zero = 1);
+    if (!sl)    return CERR_NOMEM;
+
+    CERR_RET(scene_loader_begin(scene, sl, name), {
+        scene_loader_end(scene, sl, __cerr);
+        mem_free(sl);
+        return CERR_SCENE_NOT_LOADED;
+    });
+
+    if (!scene->loader_pool) {
+        cresp(worker_pool) res = worker_pool_new(.ctx = scene->clap_ctx, .name = "scene loader", .nr_threads = 1);
+        if (IS_CERR(res))   err_cerr(res, "no loader thread: the frames prepare the models\n");
+        else                scene->loader_pool = res.val;
+    }
+
+    sl->done = done;
+    sl->data = data;
+    clock_gettime(CLOCK_MONOTONIC, &sl->started);
+    scene->loader = sl;
+
+    dbg("loading '%s': %u models, prepared on %s\n", name, sl->nr_models,
+        scene->loader_pool ? "the loader thread" : "the frames");
+    scene_loader_submit(scene, sl);
+
+    return CERR_OK;
+}
+
+bool scene_is_loading(struct scene *scene)
+{
+    return !!scene->loader;
 }
 
 void scene_save(struct scene *scene, const char *name)
@@ -2697,8 +2977,19 @@ cerr scene_load(struct scene *scene, const char *name)
 
 void scene_done(struct scene *scene)
 {
+    struct scene_loader *sl = scene->loader;
     struct instantiator *instor;
     struct character *iter, *ch;
+
+    if (sl) {
+        dbg("stopping the load at entry %u of %zu\n", sl->next, darray_count(sl->items));
+        scene->loader = nullptr;
+        scene_loader_end(scene, sl, CERR_CANCELLED);
+        mem_free(sl);
+    }
+
+    /* the thread finishes what's queued: cancelled jobs don't run, and their done() frees them */
+    if (scene->loader_pool) ref_put_last(scene->loader_pool);
 
     json_delete(scene->json_root);
     scene->json_root = NULL;
