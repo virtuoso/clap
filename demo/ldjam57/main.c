@@ -18,6 +18,7 @@
 #include "loading-screen.h"
 #include "lut.h"
 #include "model.h"
+#include "presets.h"
 #include "shader.h"
 #include "str.h"
 #include "ui.h"
@@ -37,6 +38,11 @@ static texture_t platform_emission_peach;
 static texture_t platform_emission_orange __unused;
 
 static particle_system *spores;
+
+/* the start menu's and the loading screen's backdrop, and the camera from before it */
+static noise_bg menu_bg;
+static texture_t menu_bg_color;
+static vec3 game_camera_pos, game_camera_angles;
 
 enum main_state {
     MS_LOADING = 0,
@@ -390,6 +396,54 @@ static void startup(struct scene *s)
     switcher->priv = s;
 }
 
+/*
+ * A swirl under the start menu and the loading screen. Its color is its own,
+ * so it looks the same under its light and, once "Start Game" hands that
+ * light's slot over, under the scene's sun.
+ */
+static void menu_backdrop_new(struct scene *s)
+{
+    transform_pos(&s->camera->xform, game_camera_pos);
+    transform_rotation(&s->camera->xform, game_camera_angles, true);
+
+    cerr err = texture_pixel_init(clap_get_renderer(s->clap_ctx), &menu_bg_color, (float[]){ 1.0, 0.25, 1.0, 1 });
+    if (IS_CERR(err))   err_cerr(err, "couldn't initialize pixel texture\n");
+
+    cres(noise_bg) res = noise_bg_new(s, &(noise_bg_opts){
+        .pos                = { 0.0f, 0.0f, 0.0f },
+        .extent             = 10.0f,
+        .tex                = IS_CERR(err) ? nullptr : &menu_bg_color,
+        .emission           = { 1.0f, 0.0f, 1.0f },
+        .noise_scale        = 0.05f,
+        .noise_amp          = 0.8f,
+        .noise_drift        = { 0.5f, 0.5f, 0.5f },
+        .bloom_threshold    = 0.85f,
+        .bloom_intensity    = 0.34f,
+
+        .add_light          = true,
+        .light_pos          = { 0.0f, 2.5f, 0.0f },
+        .light_dir          = { 0.0f, 1.0f, 0.0f },
+        .light_color        = { 0.8f, 0.8f, 0.8f },
+
+        .reposition_camera  = true,
+        .camera_pos         = { 0.0f, 2.5f, 0.0f },
+        .camera_angles      = { -90.0f, 0.0f, 0.0f },
+    });
+    if (IS_CERR(res)) {
+        err_cerr(res, "couldn't make the menu backdrop\n");
+        return;
+    }
+
+    menu_bg = res.val;
+}
+
+static void menu_backdrop_done(struct scene *s)
+{
+    noise_bg_done(s, &menu_bg);
+    transform_set_pos(&s->camera->xform, game_camera_pos);
+    transform_set_angles(&s->camera->xform, game_camera_angles, true);
+}
+
 /* The scene is in, or as much of it as would go: set the game up on it and start */
 static void scene_loaded(struct scene *s, cerr err, void *data)
 {
@@ -400,18 +454,38 @@ static void scene_loaded(struct scene *s, cerr err, void *data)
     startup(s);
     process_scene(s);
 
-    /* in UI_ST_LOADING, or in a browser, the loading screen goes without a frame of its own */
+    /* still in UI_ST_LOADING: the loading screen goes without a frame of its own */
     loading_screen_done(s->ls);
     s->ls = nullptr;
-    /* a browser's first click may have started the game already */
-    if (ui_state_get(ui) == UI_ST_LOADING)  ui_state_set_running(ui);
+    menu_backdrop_done(s);
+    ui_state_set_running(ui);
 
     main_state = MS_STARTING;
+}
+
+/* "Start Game": the loading screen goes up over the backdrop, and the scene comes in */
+static void loading_start(clap_context *ctx, void *data)
+{
+    struct scene *s = clap_get_scene(ctx);
+
+    /* light slot 0 casts the shadows, and the scene's sun takes the lowest free one */
+    if (menu_bg.light_idx >= 0) {
+        light_put(&s->light, menu_bg.light_idx);
+        menu_bg.light_idx = -1;
+    }
+
+    s->ls = loading_screen_init(clap_get_ui(ctx), .skip_background = true);
+
+    cerr err = scene_load_async(s, "scene.json", scene_loaded, nullptr);
+    if (IS_CERR(err))   scene_loaded(s, err, nullptr);
 }
 
 #ifndef CONFIG_BROWSER
 static void cleanup(struct scene *s)
 {
+    /* a static texture, which model3dtx_drop() leaves alone (see below) */
+    texture_deinit(&menu_bg_color);
+
     /* the scene never came in, and startup() never ran */
     if (main_state == MS_LOADING)   return;
 
@@ -533,6 +607,7 @@ int main(int argc, char **argv, char **envp)
         .graphics       = 1,
         .ui             = 1,
         .ui_menu        = { .enable = true },
+        .ui_start_menu  = { .enable = true, .loading_cb = loading_start },
         .settings       = 1,
         .title          = CLAP_EXECUTABLE_TITLE,
 #ifndef CONFIG_BROWSER
@@ -575,9 +650,7 @@ int main(int argc, char **argv, char **envp)
     scene->ang_speed = 90.0;
     scene->limbo_height = 70.0;
 
-    auto ui = clap_get_ui(clap_res.val);
-    ui_state_set_loading(ui);
-    scene->ls = loading_screen_init(ui);
+    menu_backdrop_new(scene);
 
     // intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
     if (intro_sound) {
@@ -588,9 +661,6 @@ int main(int argc, char **argv, char **envp)
     }
 
     fuzzer_input_init(clap_res.val);
-
-    err = scene_load_async(scene, "scene.json", scene_loaded, NULL);
-    if (IS_CERR(err))   scene_loaded(scene, err, NULL);
 
     err = display_main_loop();
     if (IS_CERR(err))   err_cerr(err, "main loop exited with an error\n");
