@@ -1608,10 +1608,17 @@ handle_or_bail:
          */
         const char *opt = ctx->argv[min(optind, ctx->argc) - 1];
 
-        if (ctx->cfg.cli_opt_cb)
+        if (ctx->cfg.cli_opt_cb) {
             CERR_RET_CERR(ctx->cfg.cli_opt_cb(ctx, ctx->cfg.callback_data, &option_index));
-        else
-            return handle_help_opt(ctx, opt);
+            continue;
+        }
+
+#ifdef CONFIG_BROWSER
+        /* the command line is the page's query string, and shared links pick up keys like fbclid */
+        warn("ignoring option '%s'\n", opt);
+#else /* !CONFIG_BROWSER */
+        return handle_help_opt(ctx, opt);
+#endif /* !CONFIG_BROWSER */
     }
 
     return CERR_OK;

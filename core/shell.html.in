@@ -82,6 +82,21 @@
 
       var Module = {
         noAudioDecoding: true,
+        // The query string is the command line: ?renderer=OpenGL&fullscreen
+        // runs main() with --renderer=OpenGL --fullscreen, and a one-letter
+        // key is a short option, so ?e=3&E is -e 3 -E.
+        arguments: (function() {
+          var args = [];
+          new URLSearchParams(location.search).forEach(function(val, key) {
+            if (key.length == 1) {
+              args.push('-' + key);
+              if (val) args.push(val);
+            } else {
+              args.push(val ? '--' + key + '=' + val : '--' + key);
+            }
+          });
+          return args;
+        })(),
         websocket: {
           // The page scheme dictates the socket scheme: browsers refuse
           // ws:// from https pages, and wss:// against a plaintext server
