@@ -894,6 +894,14 @@ static dGeomID phys_geom_capsule_new(struct phys *phys, struct phys_body *body, 
     return g;
 }
 
+/* ODE builds a trimesh's data along with its geom (phys_geom_trimesh_build()) */
+cresp(phys_trimesh) phys_trimesh_cook(const float *vx, size_t vxsz, const unsigned short *idx, size_t idxsz)
+{
+    return cresp_error(phys_trimesh, CERR_NOT_SUPPORTED);
+}
+
+void phys_trimesh_free(phys_trimesh *tm) {}
+
 /* @nr_vx vertices @vx (3 floats each) at @scale, the way the trimesh data takes them */
 static dReal *trimesh_vx(const float *vx, size_t nr_vx, float scale)
 {

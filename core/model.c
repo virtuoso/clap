@@ -212,6 +212,7 @@ static void model3d_drop(struct ref *ref)
     mem_free(m->collision_vx);
     mem_free(m->collision_idx);
     mem_free(m->degenerate_tri);
+    phys_trimesh_free(m->trimesh);
     mem_free(m->name);
 }
 

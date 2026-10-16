@@ -917,33 +917,81 @@ static b3ShapeId phys_shape_capsule_new(struct phys_body *body, const b3ShapeDef
     return b3CreateSphereShape(body->body_id, sd, &sphere);
 }
 
-#ifndef CONFIG_FINAL
-/*
- * Cooking drops degenerate triangles, which is a modeling problem: the
- * collision mesh no longer matches the render mesh there. Ask for the
- * list, which can't be longer than one entry per triangle, and hand it
- * to the model for the debug UI to flag and draw.
- */
-static b3MeshData *phys_mesh_cook(const b3MeshDef *md, model3d *m, entity3d *e)
-{
-    LOCAL_SET(int32_t, degenerate) = mem_alloc(sizeof(*degenerate), .nr = md->triangleCount,
-                                               .fatal_fail = 1);
-    b3MeshData *mesh = b3CreateMesh(md, degenerate, md->triangleCount);
+struct phys_trimesh {
+    b3MeshData  *mesh;
+    /* the triangles cooking dropped as degenerate, outside FINAL builds */
+    int32_t     *degenerate;
+};
 
-    if (mesh && mesh->degenerateCount) {
+void phys_trimesh_free(phys_trimesh *tm)
+{
+    if (!tm)    return;
+
+    if (tm->mesh)   b3DestroyMesh(tm->mesh);
+    mem_free(tm->degenerate);
+    mem_free(tm);
+}
+
+cresp(phys_trimesh) phys_trimesh_cook(const float *vx, size_t vxsz, const unsigned short *idx, size_t idxsz)
+{
+    size_t nr_idx = idxsz / sizeof(*idx);
+    LOCAL_SET(int32_t, tidx) = mem_alloc(sizeof(*tidx), .nr = nr_idx, .fatal_fail = 1);
+
+    for (size_t i = 0; i < nr_idx; i++) tidx[i] = idx[i];
+
+    /*
+     * The collision mesh is a copy of the render mesh, so vertices
+     * are duplicated along normal/UV seams: weld them back. Edge
+     * identification prevents internal-edge snags, like ODE's
+     * face-angles preprocessing did.
+     */
+    b3MeshDef md = {
+        .vertices       = (b3Vec3 *)vx,
+        .indices        = tidx,
+        .vertexCount    = vxsz / (3 * sizeof(float)),
+        .triangleCount  = nr_idx / 3,
+        .weldVertices   = true,
+        .weldTolerance  = 1e-4f,
+        .identifyEdges  = true,
+    };
+
+    phys_trimesh *tm = mem_alloc(sizeof(*tm), .zero = 1, .fatal_fail = 1);
+
+    /*
+     * Cooking drops degenerate triangles, which is a modeling problem: the
+     * collision mesh no longer matches the render mesh there. Ask for the
+     * list, which can't be longer than one entry per triangle, for the
+     * body that takes the collider to hand to its model, for the debug UI
+     * to flag and draw.
+     */
+    if (!IS_DEFINED(CONFIG_FINAL))
+        tm->degenerate = mem_alloc(sizeof(*tm->degenerate), .nr = md.triangleCount, .fatal_fail = 1);
+
+    tm->mesh = b3CreateMesh(&md, tm->degenerate, tm->degenerate ? md.triangleCount : 0);
+    if (!tm->mesh) {
+        phys_trimesh_free(tm);
+        return cresp_error(phys_trimesh, CERR_INVALID_ARGUMENTS);
+    }
+
+    return cresp_val(phys_trimesh, tm);
+}
+
+/* Take a collider's mesh for @e's body, and tell @m what cooking dropped */
+static b3MeshData *phys_trimesh_take(phys_trimesh *tm, model3d *m, entity3d *e)
+{
+    b3MeshData *mesh = tm->mesh;
+
+    if (tm->degenerate && mesh->degenerateCount) {
         warn("'%s': %d degenerate collision triangles\n", entity_name(e), mesh->degenerateCount);
-        CERR_RET(model3d_set_degenerate_tris(m, degenerate, mesh->degenerateCount),
+        CERR_RET(model3d_set_degenerate_tris(m, tm->degenerate, mesh->degenerateCount),
                  err_cerr(__cerr, "'%s': can't store degenerate triangles\n", entity_name(e)));
     }
 
+    tm->mesh = nullptr;
+    phys_trimesh_free(tm);
+
     return mesh;
 }
-#else
-static inline b3MeshData *phys_mesh_cook(const b3MeshDef *md, model3d *m, entity3d *e)
-{
-    return b3CreateMesh(md, NULL, 0);
-}
-#endif /* CONFIG_FINAL */
 
 /*
  * Box3D moves only convex shapes: a moving mesh is the convex hull of its
@@ -971,8 +1019,6 @@ static cerr phys_shape_hull_new(struct phys_body *body, const b3ShapeDef *sd, en
 static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd, entity3d *e)
 {
     model3d *m = e->txmodel->model;
-    unsigned short *idx = m->collision_idx;
-    size_t idxsz = m->collision_idxsz / sizeof(unsigned short);
     size_t vxsz = m->collision_vxsz / sizeof(float);
     float scale = e->parent ? e->parent->scale : e->scale;
 
@@ -984,33 +1030,18 @@ static cerr phys_shape_trimesh_new(struct phys_body *body, const b3ShapeDef *sd,
          */
         CERR_RET_CERR(phys_shape_hull_new(body, sd, e, m->collision_vx, vxsz / 3, scale));
     } else {
-        LOCAL_SET(int32_t, tidx) = mem_alloc(sizeof(*tidx), .nr = idxsz, .fatal_fail = 1);
-
-        for (int i = 0; i < idxsz; i++)
-            tidx[i] = idx[i];
-
-        /*
-         * The collision mesh is a copy of the render mesh, so vertices
-         * are duplicated along normal/UV seams: weld them back. Edge
-         * identification prevents internal-edge snags, like ODE's
-         * face-angles preprocessing did.
-         */
-        b3MeshDef md = {
-            .vertices       = (b3Vec3 *)m->collision_vx,
-            .indices        = tidx,
-            .vertexCount    = vxsz / 3,
-            .triangleCount  = idxsz / 3,
-            .weldVertices   = true,
-            .weldTolerance  = 1e-4f,
-            .identifyEdges  = true,
-        };
-        body->mesh_data = phys_mesh_cook(&md, m, e);
-        if (!body->mesh_data)
-            return CERR_INVALID_ARGUMENTS_REASON(
-                .fmt    = "'%s': collision mesh cooking failed",
-                .arg0   = entity_name(e)
+        /* a model's collider may come cooked ahead: its first static trimesh body takes it */
+        phys_trimesh *tm = NOCU(m->trimesh);
+        if (!tm)
+            tm = CRES_RET(
+                phys_trimesh_cook(m->collision_vx, m->collision_vxsz, m->collision_idx, m->collision_idxsz),
+                return CERR_INVALID_ARGUMENTS_REASON(
+                    .fmt    = "'%s': collision mesh cooking failed",
+                    .arg0   = entity_name(e)
+                )
             );
 
+        body->mesh_data = phys_trimesh_take(tm, m, e);
         body->shape_id = b3CreateMeshShape(body->body_id, sd, body->mesh_data,
                                            (b3Vec3){ scale, scale, scale });
     }

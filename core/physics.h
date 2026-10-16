@@ -2,6 +2,7 @@
 #ifndef __CLAP_PHYSICS_H__
 #define __CLAP_PHYSICS_H__
 
+#include "error.h"
 #include "linmath.h"
 #include "transform.h"
 
@@ -207,6 +208,39 @@ void phys_body_position(struct phys_body *body, vec3 pos);
  * @rot:    receiver of the body's rotation quaternion
  */
 void phys_body_rotation(struct phys_body *body, quat rot);
+
+/**
+ * typedef phys_trimesh - a static triangle mesh collider, cooked ahead of its body
+ *
+ * Cooking welds the vertices, identifies the edges and builds the tree: the
+ * costly part of a static GEOM_TRIMESH phys_body_new(), and one that needs no
+ * physics world. A model3d holds one (model3d::trimesh) until its first
+ * static trimesh body takes it.
+ */
+typedef struct phys_trimesh phys_trimesh;
+cresp_ret(phys_trimesh);
+
+/**
+ * phys_trimesh_cook() - cook a static triangle mesh collider
+ * @vx:     vertex positions, three floats each
+ * @vxsz:   size of @vx in bytes
+ * @idx:    triangle indices
+ * @idxsz:  size of @idx in bytes
+ *
+ * Cooks a model3d's collision mesh (model3d::collision_vx and collision_idx)
+ * the way phys_body_new() does for the model's static trimesh body. Reports
+ * nothing itself: the body that takes it does.
+ * Context: any thread
+ * Return: cresp(phys_trimesh); CERR_NOT_SUPPORTED where the backend cooks
+ *         with the body, CERR_INVALID_ARGUMENTS if cooking fails
+ */
+cresp(phys_trimesh) phys_trimesh_cook(const float *vx, size_t vxsz, const unsigned short *idx, size_t idxsz);
+
+/**
+ * phys_trimesh_free() - free a collider no body took
+ * @tm:     the collider, or nullptr
+ */
+void phys_trimesh_free(phys_trimesh *tm);
 
 /**
  * phys_body_new() - create a new phys_body for entity

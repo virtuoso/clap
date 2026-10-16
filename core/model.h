@@ -101,6 +101,8 @@ typedef struct model3d {
     /* Collision triangles that the physics backend dropped as degenerate */
     int                 *degenerate_tri;
     size_t              nr_degenerate_tri;
+    /* A collider cooked ahead (phys_trimesh_cook()): the first static trimesh body takes it */
+    struct phys_trimesh *trimesh;
 } model3d;
 
 /**
