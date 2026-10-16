@@ -39,7 +39,8 @@ static texture_t platform_emission_orange __unused;
 static particle_system *spores;
 
 enum main_state {
-    MS_STARTING = 0,
+    MS_LOADING = 0,
+    MS_STARTING,
     MS_RUNNING,
     MS_THE_END,
 };
@@ -337,11 +338,6 @@ static void startup(struct scene *s)
     darray_init(sobjs);
     darray_init(cobjs);
 
-    /* common scene parameters */
-    s->lin_speed = 2.0;
-    s->ang_speed = 90.0;
-    s->limbo_height = 70.0;
-
     auto renderer = clap_get_renderer(s->clap_ctx);
     /* pixel textures for everyday use */
     err = texture_pixel_init(renderer, &platform_emission_purple, (float[]){ 0.5, 0.3, 0.5, 1 });
@@ -394,9 +390,31 @@ static void startup(struct scene *s)
     switcher->priv = s;
 }
 
+/* The scene is in, or as much of it as would go: set the game up on it and start */
+static void scene_loaded(struct scene *s, cerr err, void *data)
+{
+    struct ui *ui = clap_get_ui(s->clap_ctx);
+
+    if (IS_CERR(err))   err_cerr(err, "couldn't load the scene\n");
+
+    startup(s);
+    process_scene(s);
+
+    /* in UI_ST_LOADING, or in a browser, the loading screen goes without a frame of its own */
+    loading_screen_done(s->ls);
+    s->ls = nullptr;
+    /* a browser's first click may have started the game already */
+    if (ui_state_get(ui) == UI_ST_LOADING)  ui_state_set_running(ui);
+
+    main_state = MS_STARTING;
+}
+
 #ifndef CONFIG_BROWSER
 static void cleanup(struct scene *s)
 {
+    /* the scene never came in, and startup() never ran */
+    if (main_state == MS_LOADING)   return;
+
     if (switcher_text)
         ref_put_last(switcher_text);
     ref_put_last(switcher);
@@ -448,8 +466,8 @@ static int handle_input(struct clap_context *ctx, struct message *m, void *data)
     struct scene *scene = data;
     bool  store = false;
 
-    if (m->input.enter)
-        character_obj_next(scene);
+    /* no characters to switch between until the scene is in */
+    if (m->input.enter && main_state != MS_LOADING) character_obj_next(scene);
 
     if (!intro_sound)
         return 0;
@@ -547,20 +565,19 @@ int main(int argc, char **argv, char **envp)
         return CERR_TO_EXIT(clap_res);
     }
 
-    /*
-     * XXX: this doesn't belong here, same as imgui_render_begin()
-     * and any error paths past this point must call the corresponding
-     * renderer_frame_end() etc
-     */
-    renderer_frame_begin(clap_get_renderer(clap_res.val));
-    imgui_render_begin(cfg.width, cfg.height);
-
     auto scene = clap_get_scene(clap_res.val);
     cerr err = subscribe(clap_res.val, MT_INPUT, handle_input, scene);
     if (IS_CERR(err))
         goto exit_scene;
 
-    scene->ls = loading_screen_init(clap_get_ui(clap_res.val));
+    /* the frames run while the scene loads: its characters need these from the start */
+    scene->lin_speed = 2.0;
+    scene->ang_speed = 90.0;
+    scene->limbo_height = 70.0;
+
+    auto ui = clap_get_ui(clap_res.val);
+    ui_state_set_loading(ui);
+    scene->ls = loading_screen_init(ui);
 
     // intro_sound = ref_new(sound, .ctx = clap_get_sound(scene.clap_ctx), .name = "morning.ogg");
     if (intro_sound) {
@@ -572,15 +589,9 @@ int main(int argc, char **argv, char **envp)
 
     fuzzer_input_init(clap_res.val);
 
-    scene_load(scene, "scene.json");
+    err = scene_load_async(scene, "scene.json", scene_loaded, NULL);
+    if (IS_CERR(err))   scene_loaded(scene, err, NULL);
 
-    startup(scene);
-    process_scene(scene);
-
-    loading_screen_done(scene->ls);
-
-    imgui_render();
-    renderer_frame_end(clap_get_renderer(clap_res.val));
     err = display_main_loop();
     if (IS_CERR(err))   err_cerr(err, "main loop exited with an error\n");
     else                dbg("exiting peacefully\n");
@@ -589,13 +600,13 @@ int main(int argc, char **argv, char **envp)
     if (intro_sound)
         ref_put(intro_sound);
 exit_scene:
+    /* a window closed mid-load leaves the loading screen, to go while the UI is up */
+    if (scene->ls)  loading_screen_done(scene->ls);
     cleanup(scene);
 
     clap_done(clap_res.val, 0);
 #else
 exit_scene:
-    if (IS_CERR(err))
-        imgui_render();
 #endif
 
     return EXIT_SUCCESS;
