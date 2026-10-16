@@ -1736,6 +1736,52 @@ static cres(int) scene_model_prims(struct gltf_data *gd, int *prims)
     return cres_val(int, prim_count);
 }
 
+/* A model's "physics" block, as the bodies of its entities get it */
+struct scene_physics {
+    double      mass;
+    double      bounce;
+    double      bounce_vel;
+    double      geom_off;
+    double      geom_radius;
+    double      geom_length;
+    geom_class  class;
+    phys_type   type;
+};
+
+/* Parse @phys into @sp, or take the defaults without it */
+static void scene_physics_parse(struct scene_physics *sp, JsonNode *phys)
+{
+    *sp = (struct scene_physics){
+        .mass           = 1.0,
+        .bounce         = 0.0,
+        .bounce_vel     = DINFINITY,
+        .geom_off       = 0.0,
+        .geom_radius    = 1.0,
+        .geom_length    = 0.0,
+        .class          = GEOM_TRIMESH,
+        .type           = PHYS_GEOM,
+    };
+
+    if (!phys)  return;
+
+    for (JsonNode *p = phys->children.head; p; p = p->next) {
+        if (p->tag == JSON_NUMBER && !strcmp(p->key, "bounce"))             sp->bounce = p->number_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "bounce_vel"))    sp->bounce_vel = p->number_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "mass"))          sp->mass = p->number_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "yoffset"))       sp->geom_off = p->number_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "radius"))        sp->geom_radius = p->number_;
+        else if (p->tag == JSON_NUMBER && !strcmp(p->key, "length"))        sp->geom_length = p->number_;
+        else if (p->tag == JSON_STRING && !strcmp(p->key, "geom")) {
+            if (!strcmp(p->string_, "trimesh"))         sp->class = GEOM_TRIMESH;
+            else if (!strcmp(p->string_, "sphere"))     sp->class = GEOM_SPHERE;
+            else if (!strcmp(p->string_, "capsule"))    sp->class = GEOM_CAPSULE;
+        } else if (p->tag == JSON_STRING && !strcmp(p->key, "type")) {
+            if (!strcmp(p->string_, "body"))        sp->type = PHYS_BODY;
+            else if (!strcmp(p->string_, "geom"))   sp->type = PHYS_GEOM;
+        }
+    }
+}
+
 /*
  * A model entry's glTF on its way in: read on the main thread (the
  * librarian's handles are reference counted), then parsed and its
@@ -1879,16 +1925,13 @@ static model_prep *model_prep_submit(struct scene *scene, JsonNode *node)
  */
 static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep *mp)
 {
-    double mass = 1.0, bounce = 0.0, bounce_vel = DINFINITY, geom_off = 0.0, geom_radius = 1.0;
-    double geom_length = 0.0, speed = 0.75, roughness = -1.0, metallic = -1.0;
+    double speed = 0.75, roughness = -1.0, metallic = -1.0;
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
     bool outline_exclude = false, can_levitate = false, nm_hazard = false;
     JsonNode *p, *ent = nullptr, *ch = nullptr, *phys = nullptr, *anis = nullptr, *sfx = nullptr, *seqs = nullptr;
-    geom_class class = GEOM_TRIMESH;
     double fade = -1.0;     /* the scene's "fade"; negative: the asset's, or none */
     int motion_segments = 8;
-    phys_type ptype = PHYS_GEOM;
     model3dtx  *txm;
 
     if (node->tag != JSON_OBJECT) {
@@ -2016,35 +2059,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep 
 
     model3d_set_name(txm->model, name);
 
-    if (phys) {
-        for (p = phys->children.head; p; p = p->next) {
-            if (p->tag == JSON_NUMBER && !strcmp(p->key, "bounce"))
-                bounce = p->number_;
-            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "bounce_vel"))
-                bounce_vel = p->number_;
-            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "mass"))
-                mass = p->number_;
-            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "yoffset"))
-                geom_off = p->number_;
-            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "radius"))
-                geom_radius = p->number_;
-            else if (p->tag == JSON_NUMBER && !strcmp(p->key, "length"))
-                geom_length = p->number_;
-            else if (p->tag == JSON_STRING && !strcmp(p->key, "geom")) {
-                if (!strcmp(p->string_, "trimesh"))
-                    class = GEOM_TRIMESH;
-                else if (!strcmp(p->string_, "sphere"))
-                    class = GEOM_SPHERE;
-                else if (!strcmp(p->string_, "capsule"))
-                    class = GEOM_CAPSULE;
-            } else if (p->tag == JSON_STRING && !strcmp(p->key, "type")) {
-                if (!strcmp(p->string_, "body"))
-                    ptype = PHYS_BODY;
-                else if (!strcmp(p->string_, "geom"))
-                    ptype = PHYS_GEOM;
-            }
-        }
-    }
+    struct scene_physics sp;
+    scene_physics_parse(&sp, phys);
 
     /*
      * "armature": { "head": "<joint name>", ... } resolves gltf joint
@@ -2303,8 +2319,8 @@ light_done:
             mat4x4_scale_aniso(e->mx, e->mx, e->scale, e->scale, e->scale);
 
             if (phys) {
-                scene_entity_add_physics(scene, e, mass, class, ptype, geom_off,
-                                         geom_radius, geom_length, bounce, bounce_vel);
+                scene_entity_add_physics(scene, e, sp.mass, sp.class, sp.type, sp.geom_off,
+                                         sp.geom_radius, sp.geom_length, sp.bounce, sp.bounce_vel);
                 if (c && e->phys_body)
                     phys_body_enable(e->phys_body, false);
             }
@@ -2404,14 +2420,14 @@ light_done:
              */
             bool n_phys = phys || gltf_node_extras_present(gd, ni, "clap::physics::");
 
-            geom_class   n_class   = class;
-            phys_type    n_ptype   = ptype;
-            double       n_mass    = mass;
-            double       n_off     = geom_off;
-            double       n_radius  = geom_radius;
-            double       n_length  = geom_length;
-            double       n_bounce  = bounce;
-            double       n_bv      = bounce_vel;
+            geom_class   n_class   = sp.class;
+            phys_type    n_ptype   = sp.type;
+            double       n_mass    = sp.mass;
+            double       n_off     = sp.geom_off;
+            double       n_radius  = sp.geom_radius;
+            double       n_length  = sp.geom_length;
+            double       n_bounce  = sp.bounce;
+            double       n_bv      = sp.bounce_vel;
             const char   *ex_s;
             double       ex_n;
 
@@ -2452,8 +2468,8 @@ light_done:
                     if (nm_hazard)  entity3d_set(e, ENTITY3D_NM_HAZARD, nullptr);
 
                     if (phys)
-                        scene_entity_add_physics(scene, e, mass, class, ptype, geom_off,
-                                                 geom_radius, geom_length, bounce, bounce_vel);
+                        scene_entity_add_physics(scene, e, sp.mass, sp.class, sp.type, sp.geom_off,
+                                                 sp.geom_radius, sp.geom_length, sp.bounce, sp.bounce_vel);
 
                     scene_spawn_prim_children(scene, e, gd, prim_txms, prims, prim_count, !!phys);
                 }
