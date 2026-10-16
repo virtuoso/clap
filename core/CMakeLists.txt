@@ -165,7 +165,7 @@ set(ENGINE_SRC
     physics-common.c ${PHYSICS_SRC} ui-animations.c ui-menus.c ui-settings.c character.c gpsm.c settings.c error.c
     gltf.c mesh.c os-info.c pipeline.c pipeline-builder.c platform.c datatypes.c text-mesh.c logo.c skeleton.c loading-screen.c
     camera.c xyarray.c ca2d.c ca3d.c cpio.c particle.c ssao.c lut.c transform.c noise.c graphics-settings.c audio-settings.c triangulate.c
-    prng.c prng-mt.cpp bsp.c graph.c fracture.c debris.c poly2d.c
+    prng.c prng-mt.cpp bsp.c graph.c fracture.c debris.c poly2d.c presets.c
     ${PLATFORM_SRC} ${RENDERER_SRC} ${MA_DIR}/miniaudio.c ${MA_DIR}/extras/stb_vorbis.c)
 
 set_source_files_properties(${MA_DIR}/miniaudio.c PROPERTIES COMPILE_FLAGS
