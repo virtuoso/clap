@@ -1137,6 +1137,13 @@ static struct network_node *node_by_fd(int fd)
  * the connection state: poll() masks and SO_ERROR are derived from them
  * inconsistently across browsers, so promotion out of ST_INIT waits for
  * this callback and socket_error_callback() condemns the node on the spot.
+ *
+ * The handshake is left to the frame loop's next networking_poll(): the
+ * browser can fire this while the main thread is suspended in an ASYNCIFY
+ * wait (the wgpu adapter and device requests), and emscripten's poll()
+ * always suspends through ASYNCIFY too, even with nothing to wait for. A
+ * second suspension on top of the first overwrites its saved state, and
+ * resuming the first one then traps.
  */
 static void socket_open_callback(int fd, void *data)
 {
@@ -1144,8 +1151,6 @@ static void socket_open_callback(int fd, void *data)
 
     dbg("socket open on fd %d\n", fd);
     if (n && n->state == ST_INIT)   n->state = ST_HANDSHAKE;
-
-    networking_poll();
 }
 
 static void socket_error_callback(int fd, int err, const char *msg, void *data)
