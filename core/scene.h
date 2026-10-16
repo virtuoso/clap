@@ -150,7 +150,9 @@ typedef void (*scene_loaded_fn)(struct scene *scene, cerr err, void *data);
  * file order and no more than one model a frame, and moves @scene->ls's
  * progress bar without drawing a frame of its own. Without a thread to spare
  * (a browser has as many as its build's pthread pool), the frames prepare
- * the models themselves, one a frame.
+ * the models themselves, one a frame. Until the load is over, the frames
+ * don't step the scene's physics, draw it or give it input; frame_cb and
+ * scripts run as ever.
  *
  * A game without a start menu brackets the load with ui_state_set_loading()
  * and, from @done after loading_screen_done(), ui_state_set_running().

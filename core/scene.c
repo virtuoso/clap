@@ -1328,8 +1328,7 @@ static int scene_handle_input(struct clap_context *ctx, struct message *m, void 
     if (m->input.exit)
         display_request_exit();
 #ifndef CONFIG_FINAL
-    if (m->input.tab || m->input.stick_r)
-        scene_control_next(s);
+    if ((m->input.tab || m->input.stick_r) && !scene_is_loading(s)) scene_control_next(s);
 #endif
     if (m->input.resize) {
         if (s->camera)
@@ -1356,7 +1355,7 @@ static int scene_handle_input(struct clap_context *ctx, struct message *m, void 
         message_send(ctx, &m);
     }
 #endif
-    if (clap_is_paused(s->clap_ctx))    return 0;
+    if (clap_is_paused(s->clap_ctx) || scene_is_loading(s)) return 0;
 
     /*
      * Input-source filter: drop motion/action messages from gamepads that
