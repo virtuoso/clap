@@ -1601,9 +1601,12 @@ out_malformed:
         }
 
 handle_or_bail:
-        const char *opt = nullptr;
-        if (c == '?' && option_index >= 0 && option_index < ctx->argc)  opt = ctx->argv[option_index];
-        if (!opt)   opt = optind >= 0 ? ctx->argv[optind - 1] : "";
+        /*
+         * option_index only names options getopt_long() takes; optind steps
+         * past the one it can't, and on musl past argv's end when that one
+         * is last and misses its argument
+         */
+        const char *opt = ctx->argv[min(optind, ctx->argc) - 1];
 
         if (ctx->cfg.cli_opt_cb)
             CERR_RET_CERR(ctx->cfg.cli_opt_cb(ctx, ctx->cfg.callback_data, &option_index));
